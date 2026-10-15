@@ -19,6 +19,7 @@ import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
+import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
@@ -1474,6 +1475,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ramoBase: base,
         compitiDaFare: compitiUtili,
         ruoliCompiti,
+        // 0.73.0: la scheda dice come è organizzato il lavoro.
+        organizzazione: rigaFlotta([...grafo.compiti.map((c) => c.ruolo), ...(grafo.compiti.some((c) => RUOLI[c.ruolo].conRevisione) ? ['revisione' as const] : [])]),
         decisioni: [
           ...a.decisioni,
           { quando: deps.adesso(), cosa: `divido il lavoro in ${compitiUtili.length} compiti: ${grafo.compiti.map((c) => `${RUOLI[c.ruolo].nome} «${c.compito.slice(0, 50)}»${c.dipendeDa.length > 0 ? ` dopo ${c.dipendeDa.map((i) => i + 1).join(', ')}` : ''}`).join('; ')} (${freno.motivo})` },
@@ -1485,7 +1488,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return
     }
     // Un pezzo solo: una chat, nella cartella del progetto, come sempre.
-    a = { ...a, tettoChat: 1 }
+    // 0.73.0: e la scheda dice perché una chat sola.
+    a = {
+      ...a,
+      tettoChat: 1,
+      organizzazione: base === undefined ? rigaChatSola('senza-git') : freno.tetto <= 1 ? rigaChatSola('limiti', freno.motivo) : rigaChatSola('piccolo')
+    }
     // L'id della sessione lo decidiamo noi, prima di partire: è così che il
     // Gestore sa quale trascrizione seguire e può **mostrare** la
     // conversazione mentre accade. Aspettando che lo dica il primo hook Stop
@@ -1924,13 +1932,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? a.chats
       : a.chats.map((c) =>
           c.id === chatId
-            ? { ...c, cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}) }
+            ? { ...c, cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}) }
             : c
         )
     const conSessione: Autopilota = {
       ...a,
       chats,
       ...(sessionId !== undefined && chatId === undefined ? { sessionId } : {}),
+      // 0.73.0: l'ultima cosa detta, per la scheda (accanto al ruolo).
+      ...(chatId === undefined && rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzioneChat: rigaUltimaAzione(ultimoMessaggio) } : {}),
       cicli: a.cicli + 1
     }
 
@@ -2919,10 +2929,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             : []
           for (const s of ferme) {
             if (typeof s !== 'object' || s === null) continue
-            const { autopilota, chat } = s as Record<string, unknown>
+            const { autopilota, chat, dal } = s as Record<string, unknown>
             if (typeof autopilota !== 'string' || autopilota === '') continue
             const k = chiaveDi(autopilota, chat)
-            if (!fermaDal.has(k)) fermaDal.set(k, ora)
+            // 0.73.0: da quando è ferma davvero (la fine del turno), non da quando lo si sa.
+            const davvero = typeof dal === 'string' ? Date.parse(dal) : Number.NaN
+            const da = Number.isNaN(davvero) || davvero > ora ? ora : davvero
+            if (!fermaDal.has(k) || fermaDal.get(k)! > da) fermaDal.set(k, da)
           }
           const consegnate = consegnaAlleChatFerme()
           rispondi(res, 200, { contati, consegnate })

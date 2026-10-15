@@ -1,4 +1,5 @@
 import { preamboloRuolo } from '@shared/ruoli-agenti'
+import { titoloChatSpecialista } from '@shared/specialisti'
 import { randomUUID } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import type { Consegne } from './consegne'
@@ -71,7 +72,8 @@ export function esecutoreNelMosaico(p: {
         // non nella cartella principale dove si pesterebbe i file con le sorelle.
         cwd: chat?.cartella ?? a.cwd,
         sessionId,
-        titolo: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40),
+        // 0.73.0: il ruolo nel nome del riquadro («Sviluppo · Notte»).
+        titolo: titoloChatSpecialista(a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), chat?.ruolo),
         cosa: 'scrivi',
         // **Riprendere non e ricominciare.** Senza messaggio ci sono due casi
         // molto diversi, e finora ricevevano lo stesso testo: la prima partenza

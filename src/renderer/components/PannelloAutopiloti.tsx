@@ -1,4 +1,5 @@
 import { TendinaMenu } from './TendinaMenu'
+import { SpecialistiVista } from './SpecialistiVista'
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { createPortal } from 'react-dom'
 import { contaGruppiAp, cercaAutopiloti, GRUPPI_AP, nelGruppoAp, ordinaAutopiloti, vistaAutopilota, type GruppoAp } from '@shared/autopiloti-vista'
@@ -10,7 +11,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
 import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
 import type { Autopilota } from '@shared/autopilota'
-import { descriviAutopilota, ledDi } from '@shared/autopilota-vista'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
@@ -71,6 +71,9 @@ export function PannelloAutopiloti({
   // La vista (0.70.0).
   const [gruppo, setGruppo] = useState<GruppoAp>('tutti')
   const [q, setQ] = useState('')
+  // Il tempo passa anche se l'elenco non cambia (0.73.0): «da 12 min» e «senza segni» si aggiornano ogni mezzo minuto.
+  const [ora, setOra] = useState(() => Date.now())
+  useEffect(() => { const t = setInterval(() => setOra(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const [scelto, setScelto] = useState<string | undefined>(undefined)
   const [menu, setMenu] = useState(false)
   const [togli, setTogli] = useState<string | undefined>(undefined)
@@ -132,8 +135,15 @@ export function PannelloAutopiloti({
   }
 
   // ── La vista (0.70.0): tabella, gruppi, ricerca, dettaglio a destra ──
-  const righe = ordinaAutopiloti(cercaAutopiloti(elenco, q).map((a) => ({ ...a, vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, Date.now()) })))
-  const conti = contaGruppiAp(elenco.map((a) => vistaAutopilota(a, Date.now())))
+  // 0.73.0: la stessa vista per le righe e per i conti delle linguette (prima i
+  // conti ignoravano la domanda aperta: «aspetta te» nella riga, «Al lavoro» nel
+  // conto), con l'ultimo segno di vita come sulla pagina e nell'app.
+  const vistaDi = (a: Autopilota): ReturnType<typeof vistaAutopilota> => {
+    const segno = Date.parse((a as unknown as { ultimoSegno?: string }).ultimoSegno ?? '')
+    return vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, ora, Number.isNaN(segno) ? undefined : segno)
+  }
+  const righe = ordinaAutopiloti(cercaAutopiloti(elenco, q).map((a) => ({ ...a, vista: vistaDi(a) })))
+  const conti = contaGruppiAp(elenco.map(vistaDi))
   const visibili = righe.filter((r) => nelGruppoAp(r.vista, gruppo))
   const sel = righe.find((r) => r.id === scelto)
   const verbo = (r: (typeof righe)[number]): React.JSX.Element | null => {
@@ -469,10 +479,7 @@ export function PannelloAutopiloti({
                 <RigaDalVivo autopilota={sel} />
               </div>
               <MessaggiVersoLaChat autopilota={sel} onCambiato={onRicarica} />
-              <div className="progetti__sezione">
-                <span className="serigrafia">Le sue chat ({sel.chats.length})</span>
-                {sel.chats.map((c) => <div key={c.id} className="progetti__voceelenco"><span style={{ color: c.stato === 'lavoro' ? 'var(--verde)' : 'var(--testo-quieto)' }}>●</span> {c.id} <span className="progetti__quieto">{c.stato}</span></div>)}
-              </div>
+              <SpecialistiVista autopilota={sel} />
               <div className="progetti__quieto">Il dialogo, il diario, le istruzioni e i file stanno nella sua scheda, accanto alla sua chat.</div>
             </div>
           </div>

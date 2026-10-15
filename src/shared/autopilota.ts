@@ -174,6 +174,8 @@ export type ChatGovernata = {
   approvata?: boolean
   /** Quante volte la Revisione l'ha rimandata indietro. */
   rifacimenti?: number
+  /** L'ultima cosa che ha detto a fine turno, in una riga (0.73.0): la scheda la mostra accanto al ruolo. */
+  ultimaAzione?: string
 }
 
 /** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
@@ -301,6 +303,14 @@ export type Autopilota = {
    * lavora senza riquadro, e il programma lo dice con un avviso e «Guarda».
    */
   sottofondo?: boolean
+  /**
+   * Come è organizzato il lavoro (0.73.0), in una riga per la scheda: «3
+   * specialisti: Sviluppo, Collaudo, Revisione», oppure «Lavoro piccolo: una
+   * chat sola» con il perché. La scrive il servizio quando decide.
+   */
+  organizzazione?: string
+  /** L'ultima cosa detta dalla chat singola a fine turno, in una riga (0.73.0). */
+  ultimaAzioneChat?: string
   /**
    * Fermato da noi per installare un aggiornamento.
    *
@@ -473,7 +483,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(eRuolo(o.ruolo) ? { ruolo: o.ruolo } : {}),
     ...(revisioneDi !== undefined ? { revisioneDi } : {}),
     ...(o.approvata === true ? { approvata: true } : {}),
-    ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {})
+    ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {}),
+    ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {})
   }
 }
 
@@ -767,6 +778,8 @@ export function parseAutopilota(raw: unknown): {
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
       ...(o.sottofondo === true ? { sottofondo: true } : {}),
+      ...(typeof o.organizzazione === 'string' && o.organizzazione !== '' ? { organizzazione: o.organizzazione } : {}),
+      ...(typeof o.ultimaAzioneChat === 'string' && o.ultimaAzioneChat !== '' ? { ultimaAzioneChat: o.ultimaAzioneChat } : {}),
       ...(o.fermatoPerAggiornamento === true ? { fermatoPerAggiornamento: true } : {}),
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }

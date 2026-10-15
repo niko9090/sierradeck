@@ -147,7 +147,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         }
     } else if (breve != null) {
         BackHandler { aperto = null }
-        DettaglioAutopilota(api, breve, onIndietro = { aperto = null })
+        DettaglioAutopilota(api, breve, onIndietro = { aperto = null }, chatDiSessione = { s -> stato?.chat?.firstOrNull { it.sessione == s }?.id })
     } else {
         Column(Modifier.fillMaxSize()) {
             if (su != null) { FasciaSuPc(su, null) { SuPc.corrente = null }; BandaPcIndietro(apiAccoppiato, su.pcId, su.nome, statoSu?.computer?.versione) }
@@ -176,7 +176,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
                 // Prima quelli che aspettano te, poi quelli che lavorano, poi il
                 // resto: da un telefono si guarda per sapere se serve qualcosa,
                 // e la risposta non deve stare in fondo a una lista.
-                val ordinati = lista.sortedBy { urgenzaDi(it.stato) }
+                val ordinati = lista.sortedBy { urgenzaAp(it) }
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
                     items(ordinati, key = { it.id }) { ap ->
                         VoceAutopilota(ap) { aperto = ap.id }
@@ -195,13 +195,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.altriPc(altri: List<A
     item {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", di = "SU ALTRI PC") }
-            for (g in AutopilotiAltri.guasti(altri)) Text("⚠ ${g.errore}", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            // Una riga sola per chi non risponde (2.73.0, come PC e pagina): il perché dietro il «?».
+            for (g in AutopilotiAltri.guasti(altri)) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Text("● ${g.nome} · non risponde", color = Banco.ambra, fontSize = 12.sp)
+                Aiuto(g.errore ?: "", di = "${g.nome} non risponde")
+            }
         }
     }
     items(AutopilotiAltri.righe(altri), key = { "${it.first.pcId}-${it.second.id}" }) { (p, ap) ->
         Column {
             VoceAutopilota(ap) { onApri(p.pcId, ap.id) }
-            Text(AutopilotiAltri.giraSu(p.nome), color = Banco.ambra, fontSize = 11.sp, modifier = Modifier.padding(start = 40.dp, bottom = 4.dp))
+            Text(AutopilotiAltri.giraSu(p.nome), color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.padding(start = 40.dp, bottom = 4.dp))
         }
     }
 }
@@ -223,7 +227,7 @@ private fun Punto(colore: Color) {
  * risponde in qualche minuto.
  */
 @Composable
-private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit) {
+private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }) {
     var d by remember(breve.id) { mutableStateOf<AutopilotaDettaglio?>(null) }
     var quadernoAperto by remember { mutableStateOf(false) }
     var eliminando by remember { mutableStateOf(false) }
@@ -539,9 +543,14 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                             color = Banco.testoQuieto, fontSize = 12.sp
                         )
                         Spacer(Modifier.height(12.dp))
-                        Etichetta(if (det.chats.size > 1) "IL COORDINATORE E LE SUE CHAT" else "LA SUA CHAT")
+                        val specialisti = det.specialisti
+                        // PC 0.73.0: gli specialisti, con «Guarda» che apre la loro chat.
+                        if (specialisti != null) SpecialistiVista(specialisti) { sessione ->
+                            chatDiSessione(sessione)?.let { Apertura.apriChat(it) }
+                        } else Etichetta(if (det.chats.size > 1) "IL COORDINATORE E LE SUE CHAT" else "LA SUA CHAT")
                         val albero = det.albero
-                        if (albero != null && albero.figli.isNotEmpty()) {
+                        if (specialisti != null) Unit
+                        else if (albero != null && albero.figli.isNotEmpty()) {
                             // T7 (0.36.0): l'albero — sotto il coordinatore, ogni chat
                             // con il suo pezzo, lo stato, il ramo del worktree e i giri.
                             Text(
@@ -1175,6 +1184,14 @@ private fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
  * prendi in mano il telefono. Prima chi si è fermato — perché senza di te non
  * riparte — poi chi aspetta una risposta, poi chi sta lavorando.
  */
+/**
+ * L'ordine dell'elenco (2.73.0): dalla vista del PC quando c'è, come sul PC —
+ * un autopilota «al lavoro» con una domanda aperta è «aspetta te» e sta in alto.
+ */
+fun urgenzaAp(a: AutopilotaBreve): Int = a.vista?.stato?.id?.let { id ->
+    when (id) { "guasto" -> 0; "aspetta", "senza-segni" -> 1; "pronto" -> 2; "al-lavoro", "prepara" -> 3; "finito" -> 5; else -> 4 }
+} ?: urgenzaDi(a.stato)
+
 fun urgenzaDi(stato: String): Int = when (stato) {
     "sospeso", "fallito" -> 0
     "attesa" -> 1
@@ -1189,9 +1206,9 @@ fun statoInParole(stato: String): String = when (stato) {
     "lavoro" -> "al lavoro"
     "intervista" -> "si prepara"
     "attesa" -> "aspetta te"
-    "pronto" -> "pronto a partire"
+    "pronto" -> "pronto"
     "sospeso" -> "fermo"
-    "fallito" -> "si è arreso"
+    "fallito" -> "guasto"
     "finito" -> "finito"
     else -> stato
 }
@@ -1289,14 +1306,15 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                             trackColor = Banco.incisione,
                             modifier = Modifier.weight(1f).height(5.dp)
                         )
-                        Spacer(Modifier.width(10.dp))
-                        // Come sulla pagina: i criteri raggiunti e quante volte
-                        // e' intervenuto, che dice quanto gli e' costato.
-                        Text(
-                            "${ap.fatti} criteri su ${ap.criteri} · ${interventiInParole(ap.cicli)}",
-                            color = Banco.testoQuieto,
-                            fontSize = 11.sp
-                        )
+                        // Con la vista (PC 0.70) «criteri n/m» è già nella riga sopra: niente doppione (2.73.0).
+                        if (ap.vista == null) {
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "${ap.fatti} criteri su ${ap.criteri} · ${interventiInParole(ap.cicli)}",
+                                color = Banco.testoQuieto,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }
@@ -1310,7 +1328,12 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
  */
 fun riassuntoLavori(lista: List<AutopilotaBreve>): String {
     if (lista.isEmpty()) return "nessun lavoro affidato"
-    fun conta(vararg stati: String) = lista.count { it.stato in stati }
+    // 2.73.0: lo stato della vista del PC quando c'è (una domanda aperta è «aspetta», non «lavoro»).
+    fun statoDi(a: AutopilotaBreve): String = when (a.vista?.stato?.id) {
+        "guasto" -> "fallito"; "aspetta", "senza-segni" -> "attesa"; "pronto" -> "pronto"; "prepara" -> "intervista"
+        "al-lavoro" -> "lavoro"; "finito" -> "finito"; "fermo" -> "sospeso"; else -> a.stato
+    }
+    fun conta(vararg stati: String) = lista.count { statoDi(it) in stati }
     val pezzi = mutableListOf<String>()
     conta("sospeso", "fallito").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 fermo" else "$it fermi" }
     conta("attesa").takeIf { it > 0 }?.let { pezzi += if (it == 1) "1 aspetta una risposta" else "$it aspettano una risposta" }

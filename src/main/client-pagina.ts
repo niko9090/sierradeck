@@ -784,12 +784,14 @@ function altriApHtml() {
   return '<div class="titolo-sezione" style="margin-top:12px">Su altri PC' + aiuto('ap-altri', 'Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.') + '</div>' +
     // Un PC che non risponde: una riga sola, il perché dietro il «?» (0.70.0).
     altriAp.map((p) => (p.errore ? '<div class="sotto" style="margin-top:6px;color:var(--ambra,#e0a33c)">● ' + esc(p.nome) + ' · non risponde' + aiuto('ap-muto-' + p.pcId, esc(p.errore)) + '</div>' : '') +
-      ((p.autopiloti || []).length === 0 && !p.errore ? '<div class="sotto">' + esc(p.nome) + ': nessun autopilota.</div>' : '') +
       (p.autopiloti || []).map((a) =>
         '<button class="voce" onclick="guardaAp(\\'' + escJs(a.id) + '\\', \\'' + escJs(p.pcId) + '\\', \\'' + escJs(p.nome) + '\\')">' +
           '<span class="led ' + led(a) + '"></span>' +
           '<span class="voce__testo"><span class="voce__nome">' + esc(a.nome) + '</span>' +
-          '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span>' + dalVivoHtml(a.dalVivo) + '</span>' +
+          // 0.73.0: le stesse parole delle righe di questo PC (la vista calcolata là); le vecchie solo per un PC che non la manda.
+          (a.vista
+            ? '<span class="voce__sotto"><b style="color:' + COLORE_VISTA[a.vista.stato.colore] + '">' + esc(a.vista.stato.parola) + '</b>' + (a.vista.da ? ' · da ' + esc(a.vista.da) : '') + ' · criteri ' + esc(a.vista.criteri.testo) + ' · gira su ' + esc(p.nome) + '</span>' + (a.vista.ultima ? '<span class="voce__sotto">' + esc(a.vista.ultima) + '</span>' : '')
+            : '<span class="voce__sotto">gira su ' + esc(p.nome) + ' · ' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || a.stato)) + (a.criteri !== undefined ? ' · ' + a.fatti + '/' + a.criteri : '') + '</span>' + dalVivoHtml(a.dalVivo)) + '</span>' +
           '<span class="voce__freccia">›</span></button>').join('')).join('')
 }
 var apDettaglio = null
@@ -1663,8 +1665,8 @@ function pannello(s) {
       <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}\${apPc ? ' <span class="sotto">· gira su ' + esc(apPcNome) + '</span>' : ''}</div>
     </div>
     <div class="piastrella">
-      <div class="sotto">\${esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
-      <div class="misura-riga">\${apAperto.fatti} criteri su \${apAperto.criteri} · \${apAperto.cicli} interventi</div>
+      <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
+      <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
@@ -2655,7 +2657,7 @@ function vistaAutopilota(a) {
       '<div class="sotto">' + (a.cicli || 0) + ' interventi del supervisore' +
         (a.strategia ? ' · sta provando un’altra strada: ' + esc(a.strategia) : '') + '</div>' +
       (a.tempi ? '<div class="sotto">Tempi: ' + esc(a.tempi) + '</div>' : '') +
-      '<div class="serigrafia" style="margin-top:10px">Il coordinatore e le sue chat</div>' + alberoHtml(a)
+      (a.specialisti ? specialistiHtml(a.specialisti) : '<div class="serigrafia" style="margin-top:10px">Il coordinatore e le sue chat</div>' + alberoHtml(a))
   } else if (apTab === 'criteri') {
     // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
     // se e' successo adesso o tre ore fa. Si riscrivono dal PC.
@@ -3716,6 +3718,29 @@ function quote(q) {
 /** Il colore del ruolo di una chat (0.71.0), come sul PC e nell'app. */
 function coloreRuolo(c) {
   return ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', viola: '#b48cff' })[c] || 'inherit'
+}
+/**
+ * Gli specialisti (PC 0.73.0): come è organizzato il lavoro, poi uno per chat
+ * con il ruolo, lo stato, l'ultima cosa detta e «Guarda», che apre la sua chat.
+ */
+function specialistiHtml(s) {
+  var colori = { blu: 'var(--blu,#4aa3ff)', viola: '#a78bfa', verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', quieto: 'var(--testo-quieto,#9aa1a9)' }
+  return '<div class="serigrafia" style="margin-top:10px">' + ((s.elenco || []).length > 1 ? 'Specialisti (' + s.elenco.length + ')' : 'La sua chat') +
+      aiuto('ap-specialisti', 'Quando parte, l’autopilota decide se dividere il lavoro: ogni specialista (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) lavora in una chat sua, con il ruolo nel nome, nel workspace del progetto. Il lavoro di una chat entra solo dopo l’ok della Revisione. Per un lavoro piccolo resta una chat sola. «Guarda» apre la sua chat.') + '</div>' +
+    '<div class="sotto">' + esc(s.riga || '') + '</div>' +
+    (s.elenco || []).map(function (x) {
+      return '<div class="sotto" style="border-top:1px solid var(--incisione,#2a2a2a);padding-top:4px;margin-top:4px">' +
+        '<b style="color:' + (colori[x.colore] || colori.quieto) + '">' + esc(x.ruolo) + '</b> · <span style="color:' + (x.attivo ? 'var(--verde,#3c9)' : 'var(--testo-quieto,#9aa1a9)') + '">' + esc(x.stato) + '</span>' +
+        (x.sessionId ? ' <button style="margin-left:6px" data-s="' + esc(x.sessionId) + '" onclick="guardaSpecialista(this.dataset.s)">Guarda</button>' : '') +
+        '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.compito || '') + '</div>' +
+        (x.ultimaAzione ? '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--testo-quieto,#9aa1a9)">' + esc(x.ultimaAzione) + '</div>' : '') +
+        '</div>'
+    }).join('')
+}
+window.guardaSpecialista = function (sessione) {
+  var c = ((ultimoStato && ultimoStato.chat) || []).find(function (x) { return x.sessione === sessione })
+  if (!c) { notaGlobale = 'La sua chat non è aperta su questo computer adesso.'; aggiorna(); return }
+  guarda(c.id)
 }
 function alberoHtml(a) {
   var t = a && a.albero

@@ -293,6 +293,8 @@ export function Mosaic({
             // Una chat di un altro PC si riconosce a colpo d'occhio (0.39.3):
             // bordo e colore suoi, e «SU <PC>» nella testata.
             className={data.remoto !== undefined ? 'riquadro riquadro--remoto' : 'riquadro'}
+            // «Guarda» di uno specialista (0.73.0) trova il riquadro dalla sessione.
+            data-sessione={data.sessionUuid}
             style={{
               position: 'absolute',
               left: `${rect.left * 100}%`,

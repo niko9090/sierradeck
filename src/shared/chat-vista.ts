@@ -26,7 +26,8 @@ export function statoChat(c: {
   if (c.errore !== undefined && c.errore !== '') return stato('errore', 'errore', 'rosso', c.errore)
   if (c.lavora === true) return c.governata === true ? stato('autopilota', 'autopilota', 'blu', 'la guida un autopilota') : stato('al-lavoro', 'al lavoro', 'verde')
   if (c.dorme === true) return stato('dorme', 'dorme', 'quieto')
-  if (c.governata === true) return stato('autopilota', 'autopilota', 'blu', 'la guida un autopilota')
+  // 0.73.0: governata ma ferma è «ferma» (con il suo autopilota nel dettaglio), non «autopilota».
+  if (c.governata === true) return stato('ferma', 'ferma', 'quieto', 'la guida un autopilota: aspetta la sua prossima mossa')
   if (c.altrove !== undefined && c.altrove !== '') return stato('altrove', `su ${c.altrove}`, 'quieto')
   return stato('ferma', 'ferma', 'quieto')
 }

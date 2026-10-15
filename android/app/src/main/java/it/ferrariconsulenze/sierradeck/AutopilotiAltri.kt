@@ -29,7 +29,7 @@ object AutopilotiAltri {
 
     /** Le righe da mostrare: prima quelli che aspettano te, come per quelli di qui. */
     fun righe(pc: List<AutopilotiDiPc>): List<Pair<AutopilotiDiPc, AutopilotaBreve>> =
-        pc.flatMap { p -> p.autopiloti.map { p to it } }.sortedBy { urgenzaDi(it.second.stato) }
+        pc.flatMap { p -> p.autopiloti.map { p to it } }.sortedBy { urgenzaAp(it.second) }
 
     /** I PC che non hanno risposto, con il loro perché. */
     fun guasti(pc: List<AutopilotiDiPc>): List<AutopilotiDiPc> = pc.filter { !it.errore.isNullOrBlank() }

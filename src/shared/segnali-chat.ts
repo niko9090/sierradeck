@@ -120,14 +120,25 @@ export function statoDaSegnali(segnali: Segnale[]): StatoSegnali | undefined {
   return s === undefined ? undefined : { ...s, ...(ultimoMessaggio !== undefined ? { ultimoMessaggio } : {}) }
 }
 
+/** Dopo quanto lo schermo fermo sul campo vince su un «al lavoro» dai segnali senza fine del turno (0.73.0). */
+export const SCHERMO_VINCE_DOPO_MS = 15_000
+
 /**
  * Cosa vale per il resto del programma: dai segnali se ce ne sono, dallo
  * schermo come riserva. `fonte` dice da dove viene (il registro lo annota
  * quando è lo schermo).
  */
-export function statoChat(p: { segnali?: StatoSegnali; schermo: { aspetta: boolean; chiede: boolean } }): { aspetta: boolean; chiede: boolean; lavora: boolean; errore?: string; fonte: 'segnali' | 'schermo' } {
+export function statoChat(p: { segnali?: StatoSegnali; schermo: { aspetta: boolean; chiede: boolean }; adesso?: number }): { aspetta: boolean; chiede: boolean; lavora: boolean; errore?: string; fonte: 'segnali' | 'schermo' } {
   const s = p.segnali
   if (s === undefined) return { aspetta: p.schermo.aspetta, chiede: p.schermo.chiede, lavora: !p.schermo.aspetta && !p.schermo.chiede, fonte: 'schermo' }
+  // 0.73.0: un «al lavoro» o un «chiede» dai segnali senza la fine del turno
+  // (uno Stop perso, un turno interrotto, un permesso a cui ha risposto
+  // l'autopilota) teneva la chat «al lavoro» per sempre, e la sua coda non
+  // partiva mai. Se lo schermo mostra il campo pronto da più di poco, vince lo schermo.
+  if (p.adesso !== undefined && (s.fase === 'lavora' || s.fase === 'chiede') && p.schermo.aspetta && !p.schermo.chiede &&
+    p.adesso - Date.parse(s.dal) >= SCHERMO_VINCE_DOPO_MS) {
+    return { aspetta: true, chiede: false, lavora: false, fonte: 'schermo' }
+  }
   return {
     aspetta: s.fase === 'aspetta' || s.fase === 'chiede' || s.fase === 'errore',
     chiede: s.fase === 'chiede',

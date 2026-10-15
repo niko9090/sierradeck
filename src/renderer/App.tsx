@@ -555,6 +555,27 @@ export function App(): React.JSX.Element {
       }
     }
   }), [])
+  // «Guarda» di uno specialista (0.73.0): la finestra va nel workspace del suo
+  // autopilota e il riquadro di quella chat si mette in vista, con il fuoco.
+  useEffect(() => {
+    const guarda = (e: Event): void => {
+      const d = (e as CustomEvent<{ sessionId?: string; workspace?: string }>).detail
+      if (d?.sessionId === undefined) return
+      const evidenzia = (): void => {
+        const r = document.querySelector<HTMLElement>(`.riquadro[data-sessione="${CSS.escape(d.sessionId!)}"]`)
+        if (r === null) return
+        r.scrollIntoView({ block: 'nearest' })
+        r.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus()
+        r.classList.add('riquadro--guardato')
+        setTimeout(() => r.classList.remove('riquadro--guardato'), 3000)
+      }
+      if (d.workspace !== undefined && d.workspace !== workspaceCorrente()) {
+        void azioniDiFinestra().cambia(d.workspace).then(() => setTimeout(evidenzia, 800)).catch(() => undefined)
+      } else evidenzia()
+    }
+    window.addEventListener('sierradeck:guarda-chat', guarda)
+    return () => window.removeEventListener('sierradeck:guarda-chat', guarda)
+  }, [])
   const [doveVive, setDoveVive] = useState(false)
   useEffect(() => {
     const apri = (): void => setDoveVive(true)

@@ -144,7 +144,7 @@ export type ClientAutopilota = {
    * «esc to interrupt» — e ogni minuto lo dice al servizio.
    */
   /** `ferme` (0.56.3): le chat governate che lo schermo dice ferme ad aspettare. */
-  battiti: (segni: { autopilota: string; chat: string }[], ferme?: { autopilota: string; chat: string }[]) => Promise<void>
+  battiti: (segni: { autopilota: string; chat: string }[], ferme?: { autopilota: string; chat: string; dal?: string }[]) => Promise<void>
   /**
    * Lo stato del programma, in sola lettura, per l'autopilota (T1, 0.36.0):
    * chat aperte, limiti del piano, domande in attesa, progetti, altri PC.

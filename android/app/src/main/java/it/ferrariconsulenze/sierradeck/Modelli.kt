@@ -301,6 +301,24 @@ data class SceltaScheda(
 @Serializable
 data class DettaglioScheda(val etichetta: String = "", val testo: String = "")
 
+/** Gli specialisti di un autopilota (PC 0.73.0): come è organizzato il lavoro, e uno per chat. */
+@Serializable
+data class Specialisti(val riga: String = "", val elenco: List<Specialista> = emptyList())
+
+@Serializable
+data class Specialista(
+    val id: String = "",
+    val ruolo: String = "",
+    /** blu, viola, verde, ambra, rosso, quieto. */
+    val colore: String = "quieto",
+    val compito: String = "",
+    val stato: String = "",
+    val attivo: Boolean = false,
+    val ultimaAzione: String = "",
+    val sessionId: String? = null,
+    val workspace: String? = null
+)
+
 /** La linguetta «File» (0.38.0): i file cambiati, per chat. */
 @Serializable
 data class FileAutopilota(val gruppi: List<GruppoFile> = emptyList())
@@ -595,6 +613,8 @@ data class AutopilotaDettaglio(
     val chats: List<ChatGovernataBreve> = emptyList(),
     /** Il coordinatore e le sue sotto-chat (0.36.0). Assente nei computer piu' vecchi. */
     val albero: NodoAlbero? = null,
+    /** PC 0.73.0: gli specialisti, con ruolo, stato, ultima azione e la sessione per «Guarda». */
+    val specialisti: Specialisti? = null,
     /** Il ramo principale in cui si uniscono i lavori delle chat. */
     val ramoBase: String? = null,
     /** La regola di pubblicazione del progetto: beta, stabile, unica. */

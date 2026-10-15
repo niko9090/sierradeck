@@ -1,4 +1,5 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
+import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import {
   apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
   rimettiPannello, segnaFinestraDiServizio
@@ -170,7 +171,7 @@ import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
 import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
-import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, type AutopilotiDiPc } from '@shared/autopiloti-altri'
+import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
 import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
@@ -389,7 +390,7 @@ function conSegnali(chat: Chat[]): Chat[] {
       }
       return { ...c, fonteStato: 'schermo' as const }
     }
-    const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: false } })
+    const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: false }, adesso: Date.now() })
     // Il turno è finito con una domanda scritta (0.71.1): va nelle Domande, non fra le «ha finito».
     const domanda = v.aspetta && !v.chiede && s.fase === 'aspetta' ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
     return {
@@ -412,6 +413,9 @@ function ricordaSegnale(corpo: unknown): void {
   const lista = [...(segnaliPerSessione.get(s.sessione) ?? []), s].slice(-SEGNALI_PER_CHAT)
   segnaliPerSessione.set(s.sessione, lista)
   if (s.evento === 'StopFailure') registroGlobale?.info(`[segnali] turno finito per un errore dell'API (sessione ${s.sessione}): ${s.errore ?? 'senza dettagli'}`)
+  // 0.73.0: una chat governata che ha finito il turno lo dice subito al servizio
+  // (al giro dopo, senza aspettare il minuto): la sua coda parte adesso.
+  if ((s.evento === 'Stop' || s.evento === 'StopFailure') && chatDallaFinestra.some((c) => c.sessione === s.sessione && c.autopilota !== undefined)) ultimoBattitoAlServizio = 0
   chatAperte = conSegnali(chatDiQui())
   // Alle finestre: le consegne degli autopiloti lo usano prima dello schermo.
   const st = statoDaSegnali(lista)
@@ -1325,7 +1329,8 @@ if (!app.requestSingleInstanceLock()) {
         // Dopo un riavvio di questo PC le chat in sottofondo ripartono, con il
         // testo ancora in coda (fra venti secondi: case e cartelle pronte).
         setTimeout(() => {
-          const n = sf.riprendi((v) => (existsSync(v.cwd) ? undefined : `la cartella ${v.cwd} qui non c’è più`))
+          // 0.73.0: riparte da sola solo il lavoro di un autopilota di qui; le chat chieste da altri PC o dal telefono aspettano un comando.
+          const n = sf.riprendi((v) => (existsSync(v.cwd) ? nonRipartePerAltri(v) : `la cartella ${v.cwd} qui non c’è più`))
           if (n > 0) registro.info(`[sottofondo] ${n} chat in sottofondo ripartite dopo l’avvio`)
         }, 20_000).unref()
         setInterval(() => {
@@ -2214,7 +2219,8 @@ if (!app.requestSingleInstanceLock()) {
       // perché con le strade provate. Ogni PC una volta, in parallelo.
       autopilotiAltri = async () => {
         const io = identitaPc.leggi()
-        const battiti = (await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id)
+        // Un PC, una riga (0.73.0): un'identità vecchia dello stesso PC non fa un doppione.
+        const battiti = unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare)
         return Promise.all(battiti.map(async (b): Promise<AutopilotiDiPc> => {
           const nome = nomeDaMostrare(b)
           try {
@@ -2693,15 +2699,11 @@ if (!app.requestSingleInstanceLock()) {
         }) }
         if (dopo !== prima && !store.scrivi(dopo)) return { ok: false, messaggio: 'la lista dei workspace non si è scritta' }
         registro.info(`[workspace] «${nome}» di ${pcNome} aperto qui: ${ws.panes.length} chat dal vivo, che restano su ${pcNome}`)
-        // Là partono in sottofondo quelle non aperte (0.68.0): un workspace che sul
-        // PC di casa non è sullo schermo non ha terminali, e qui i riquadri
-        // dicevano «la chat non è aperta là» (caso fionda, 12/10).
-        for (const p of ws.panes) {
-          const r = p.remoto
-          if (r === undefined || r.sessione === undefined) continue
-          if (trovaChatRemota(aperteLa, { pcId, pcNome, cwd: r.cwd, sessione: r.sessione, titolo: p.title }) !== undefined) continue
-          void sottofondoRemoto({ pc: pcId, cwd: r.cwd, sessione: r.sessione, titolo: p.title, workspace: nome }).catch((err: unknown) => registro.info(`[workspace] «${p.title}»: avvio in sottofondo su ${pcNome} non riuscito: ${String(err)}`))
-        }
+        // 0.73.0: le chat chiuse là restano chiuse (dalla 0.68.0 partivano tutte in
+        // sottofondo sul PC di casa). Una chat di un altro PC si apre solo con un
+        // comando di Nicholas: «Avvia là» nel suo riquadro.
+        const chiuseLa = ws.panes.filter((p) => p.remoto?.sessione !== undefined && trovaChatRemota(aperteLa, { pcId, pcNome, cwd: p.remoto.cwd, sessione: p.remoto.sessione, titolo: p.title }) === undefined).length
+        if (chiuseLa > 0) registro.info(`[workspace] «${nome}»: ${chiuseLa} chat chiuse su ${pcNome} restano chiuse (si avviano solo con «Avvia là»)`)
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
         e.sender.send('client:workspace', nome)
         return { ok: true, messaggio: `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` }
@@ -5713,7 +5715,11 @@ if (!app.requestSingleInstanceLock()) {
           // dentro sceglierebbe una risposta al posto di Nicholas.
           const ferme = chatAperte
             .filter((c) => c.viva === true && c.aspetta === true && c.chiedeSegnale !== true && c.autopilota !== undefined)
-            .map((c) => ({ autopilota: c.autopilota!.id, chat: c.autopilota!.chat }))
+            .map((c) => {
+              // Da quando è ferma davvero (0.73.0): dal segnale di fine turno, se c'è.
+              const st = c.sessione !== undefined ? statoDaSegnali(segnaliPerSessione.get(c.sessione) ?? []) : undefined
+              return { autopilota: c.autopilota!.id, chat: c.autopilota!.chat, ...(st?.fase === 'aspetta' ? { dal: st.dal } : {}) }
+            })
           if (segni.length > 0 || ferme.length > 0) {
             ultimoBattitoAlServizio = ora
             void clientAutopilota.battiti(segni, ferme).catch(() => undefined)

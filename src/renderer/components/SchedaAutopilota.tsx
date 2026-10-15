@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlberoChat } from './AlberoChat'
+import { SpecialistiVista } from './SpecialistiVista'
 import { Aiuto } from './Aiuto'
 import type { Autopilota, Criterio } from '@shared/autopilota'
 import { misuraPasso, passaggi } from '@shared/autopilota-vista'
@@ -67,28 +67,8 @@ export function ObiettivoAutopilota({ autopilota }: { autopilota: Autopilota }):
       </p>
       <TempiGiri id={autopilota.id} cicli={autopilota.cicli} />
 
-      {/* Le chat che eseguono: una per compito. Con una sola chat la riga dice
-          solo che c'è; con la flotta si vede chi fa cosa e chi è ferma. */}
-      <div className="con-aiuto">
-        <span className="serigrafia scheda__titolo">
-          {autopilota.chats.length > 1 ? `Le sue chat (${autopilota.chats.length})` : 'La sua chat'}
-        </span>
-        <Aiuto di="la sua chat">
-          La sua chat è nel mosaico, con il suo riquadro: qui a fianco. Il supervisore è lui, quello con
-          cui parli nella chat qui sopra: guarda la chat che esegue a ogni fermata e le dice come proseguire.
-        </Aiuto>
-      </div>
-      {autopilota.chats.length === 0 ? (
-        <p className="scheda__spiega">
-          {autopilota.stato === 'intervista' || autopilota.stato === 'pronto'
-            ? 'Non è ancora partita: nasce quando dai il via.'
-            : 'Nessuna chat aperta adesso.'}
-        </p>
-      ) : (
-        // T7 (0.36.0): l'albero — il coordinatore e le sue sotto-chat, con il
-        // compito, lo stato, il ramo del worktree e i giri.
-        <AlberoChat autopilota={autopilota} />
-      )}
+      {/* Gli specialisti (0.73.0): chi fa cosa, in che stato, l'ultima cosa detta e «Guarda». */}
+      <SpecialistiVista autopilota={autopilota} />
     </div>
   )
 }

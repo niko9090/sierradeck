@@ -12,6 +12,8 @@ describe('lo stato di una chat', () => {
     expect(statoChat({ dorme: true }).parola).toBe('dorme')
     expect(statoChat({ altrove: 'PORTATILE' }).parola).toBe('su PORTATILE')
     expect(statoChat({})).toMatchObject({ parola: 'ferma', colore: 'quieto' })
+    // 0.73.0: governata ma ferma si dice «ferma», non «autopilota».
+    expect(statoChat({ governata: true }).parola).toBe('ferma')
   })
   it('il workspace prende il peggiore, con quante sono', () => {
     expect(riassuntoWorkspace([statoChat({ lavora: true }), statoChat({ chiede: true }), statoChat({ chiede: true })])).toMatchObject({ numero: 2, stato: { id: 'aspetta' } })

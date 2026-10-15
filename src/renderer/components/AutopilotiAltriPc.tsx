@@ -1,4 +1,5 @@
 import { MessaggiPronti, RigaDalVivoPronta } from './DalVivoAutopilota'
+import type { VistaAutopilota } from '@shared/autopiloti-vista'
 import type { StatoDalVivo, StatoMessaggio } from '@shared/stato-dal-vivo'
 import { useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
@@ -7,6 +8,8 @@ import type { Battuta } from '@shared/chat-autopilota'
 import type { DomandaScheda } from '@shared/domande-autopilota'
 import { giraSu, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { Aiuto } from './Aiuto'
+
+const COLORE_VISTA: Record<string, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
 /**
  * **Gli autopiloti degli altri PC** (0.59.0, la richiesta più importante di
@@ -44,15 +47,21 @@ export function AutopilotiAltriPc(): React.JSX.Element | null {
         <div key={p.pcId}>
           {/* Una riga sola (0.70.0): «non risponde», il perché dietro il «?». */}
           {p.errore !== undefined ? <div className="con-aiuto" style={{ color: 'var(--ambra)' }}>● {p.nome} · non risponde<Aiuto di={`${p.nome} non risponde`}>{p.errore}</Aiuto></div> : null}
-          {p.errore === undefined && p.autopiloti.length === 0 ? <div className="misura">{p.nome}: nessun autopilota.</div> : null}
           {p.autopiloti.map((a) => {
             const d = descriviAutopilota(a as unknown as Autopilota)
             const led = ledDi(a as unknown as Autopilota)
+            // 0.73.0: le stesse parole delle righe di questo PC (la vista calcolata là); le vecchie solo per i PC che non la mandano.
+            const v = (a as { vista?: VistaAutopilota }).vista
             return (
               <div key={`${p.pcId}-${a.id}`} className="riga">
                 <span className={`led ${led.classe}`} title={led.titolo} />
                 <span className="riga__nome">{d.titolo}</span>
-                <span className="riga__stato">{d.sottotitolo} · <strong>{giraSu(p.nome)}</strong><RigaDalVivoPronta dalVivo={(a as { dalVivo?: StatoDalVivo }).dalVivo} /></span>
+                {v !== undefined ? (
+                  <span className="riga__stato">
+                    <span style={{ color: COLORE_VISTA[v.stato.colore] }}>● {v.stato.parola}</span>{v.da !== '' ? ` · da ${v.da}` : ''}{v.criteri.totali > 0 ? ` · criteri ${v.criteri.testo}` : ''} · {giraSu(p.nome)}
+                    {v.ultima !== '' ? <span className="misura" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.ultima}>{v.ultima}</span> : null}
+                  </span>
+                ) : <span className="riga__stato">{d.sottotitolo} · <strong>{giraSu(p.nome)}</strong><RigaDalVivoPronta dalVivo={(a as { dalVivo?: StatoDalVivo }).dalVivo} /></span>}
                 <button className="tasto" onClick={() => setAperto({ pcId: p.pcId, nomePc: p.nome, id: a.id })}>Apri la scheda</button>
               </div>
             )

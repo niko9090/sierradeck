@@ -187,3 +187,35 @@ fun SchedaDomandaVista(
         }
     }
 }
+
+/**
+ * Gli specialisti dell'autopilota (PC 0.73.0): come è organizzato il lavoro,
+ * poi uno per chat — il ruolo con il suo colore, lo stato, il compito, l'ultima
+ * cosa detta e «Guarda», che apre la sua chat (se è aperta sul PC).
+ */
+@Composable
+fun SpecialistiVista(s: Specialisti, onGuarda: (String) -> Unit) {
+    Text(if (s.elenco.size > 1) "SPECIALISTI (${s.elenco.size})" else "LA SUA CHAT", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    if (s.riga.isNotBlank()) Text(s.riga, color = Banco.testoQuieto, fontSize = 12.sp)
+    for (x in s.elenco) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(x.ruolo, color = coloreRuolo(x.colore), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(" · ${x.stato}", color = if (x.attivo) Banco.verde else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                x.sessionId?.let { sid -> TextButton(onClick = { onGuarda(sid) }) { Text("Guarda", fontSize = 12.sp) } }
+            }
+            if (x.compito.isNotBlank()) Text(x.compito, color = Banco.testo, fontSize = 12.sp, maxLines = 2)
+            if (x.ultimaAzione.isNotBlank()) Text(x.ultimaAzione, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
+        }
+    }
+}
+
+/** Il colore di un ruolo, come sul PC e nella pagina. */
+fun coloreRuolo(c: String) = when (c) {
+    "blu" -> Banco.accento
+    "viola" -> androidx.compose.ui.graphics.Color(0xFFA78BFA)
+    "verde" -> Banco.verde
+    "ambra" -> Banco.ambra
+    "rosso" -> Banco.rosso
+    else -> Banco.testoQuieto
+}

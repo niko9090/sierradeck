@@ -83,3 +83,18 @@ export function criteriDa(criteri: unknown, fatti: unknown): { soddisfatto: bool
   const f = typeof fatti === 'number' && Number.isFinite(fatti) ? Math.max(0, Math.floor(fatti)) : 0
   return Array.from({ length: n }, (_, i) => ({ soddisfatto: i < f }))
 }
+
+/**
+ * Un PC, una riga (0.73.0): un PC con un'identità vecchia nei battiti (prima
+ * del cambio di appId, o dopo una reinstallazione) compariva due volte, una
+ * delle quali «non risponde». Per nome resta il battito più recente.
+ */
+export function unBattitoPerNome<T extends { battito: string }>(battiti: T[], nome: (b: T) => string): T[] {
+  const per = new Map<string, T>()
+  for (const b of battiti) {
+    const n = nome(b)
+    const g = per.get(n)
+    if (g === undefined || (Date.parse(b.battito) || 0) > (Date.parse(g.battito) || 0)) per.set(n, b)
+  }
+  return battiti.filter((b) => per.get(nome(b)) === b)
+}

@@ -109,6 +109,25 @@ describe('chi è fermo, per il guardiano (puro)', () => {
 })
 
 describe('messaggi in coda e chat ferma (0.56.3)', () => {
+  it('0.73.0: con l ora vera della fine del turno la coda parte al primo battito, senza aspettare di nuovo', async () => {
+    server = ambiente(supervisore({ risposta: 'ok' }))
+    await avvia(server)
+    const { id, chat, chiaveMsg } = await alLavoro()
+    inCoda(id, chiaveMsg, 'scrivimi cosa hai cambiato')
+    const dal = new Date(ora - FERMA_DA_MS - 1000).toISOString()
+    expect((await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat, dal }] })).dati.consegnate).toBe(1)
+    expect(archivio.leggi(id)!.daConsegnare).toEqual([])
+  })
+
+  it('0.73.0: un «dal» nel futuro o illeggibile vale come adesso', async () => {
+    server = ambiente(supervisore({ risposta: 'ok' }))
+    await avvia(server)
+    const { id, chat, chiaveMsg } = await alLavoro()
+    inCoda(id, chiaveMsg, 'x')
+    expect((await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat, dal: new Date(ora + 3_600_000).toISOString() }] })).dati.consegnate).toBe(0)
+    expect((await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat, dal: 'boh' }] })).dati.consegnate).toBe(0)
+  })
+
   it('IL DIFETTO: chat ferma da più di 30 s con messaggi in coda → glieli porta da solo', async () => {
     server = ambiente(supervisore({ risposta: 'ok' }))
     await avvia(server)

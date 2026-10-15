@@ -4,6 +4,7 @@ import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
 import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
+import { specialistiDi } from '@shared/specialisti'
 import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
 import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
@@ -1299,6 +1300,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         pensa: staPensando(a),
         // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
         albero: alberoChat(a),
+        // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
+        specialisti: specialistiDi(a),
         // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
         // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
         domandeScheda: domandeScheda(a, tutteLeDomande),

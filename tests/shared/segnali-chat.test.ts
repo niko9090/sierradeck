@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  hookSegnali, leggiSegnale, partitaDaSegnali, prontaDaSegnali, statoChat, statoDaSegnali, unisciConHook, EVENTI_SEGNALI, type Segnale
+  hookSegnali, leggiSegnale, partitaDaSegnali, prontaDaSegnali, statoChat, statoDaSegnali, unisciConHook, EVENTI_SEGNALI, SCHERMO_VINCE_DOPO_MS, type Segnale
 } from '@shared/segnali-chat'
 
 /**
@@ -92,5 +92,24 @@ describe('gli hook in --settings', () => {
     expect(u.hooks.SessionStart).toHaveLength(1)
     expect(u.statusLine).toEqual({ type: 'command', command: 'x' })
     expect(JSON.parse(unisciConHook(undefined, hookSegnali(1))).hooks.Stop).toHaveLength(1)
+  })
+})
+
+describe('0.73.0: una chat ferma non resta «al lavoro» per un segnale senza fine', () => {
+  const t0 = Date.parse('2026-10-13T09:33:06.000Z')
+  const lavora = { fase: 'lavora' as const, dal: new Date(t0).toISOString() }
+  it('IL DIFETTO del 13/10: Stop perso, schermo fermo sul campo da 20 minuti → ferma, e la coda può partire', () => {
+    expect(statoChat({ segnali: lavora, schermo: { aspetta: true, chiede: false }, adesso: t0 + 20 * 60_000 }))
+      .toEqual({ aspetta: true, chiede: false, lavora: false, fonte: 'schermo' })
+  })
+  it('un permesso a cui ha già risposto l autopilota non tiene «aspetta che tu scelga»', () => {
+    const chiede = { fase: 'chiede' as const, dal: new Date(t0).toISOString(), chiede: { tipo: 'permesso' as const } }
+    expect(statoChat({ segnali: chiede, schermo: { aspetta: true, chiede: false }, adesso: t0 + SCHERMO_VINCE_DOPO_MS }).chiede).toBe(false)
+  })
+  it('appena partito il turno vincono i segnali (lo schermo arriva un attimo dopo)', () => {
+    expect(statoChat({ segnali: lavora, schermo: { aspetta: true, chiede: false }, adesso: t0 + 5_000 }).lavora).toBe(true)
+  })
+  it('se lo schermo dice che lavora, resta al lavoro anche dopo molto', () => {
+    expect(statoChat({ segnali: lavora, schermo: { aspetta: false, chiede: false }, adesso: t0 + 60 * 60_000 }).lavora).toBe(true)
   })
 })
