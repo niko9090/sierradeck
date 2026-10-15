@@ -1,5 +1,6 @@
 import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/autopilota'
 import type { CambioChiesto } from './supervisore'
+import { campoTestoTollerante, ultimoOggettoCon } from './json-tollerante'
 
 /**
  * Il dialogo con l'autopilota, fuori dalla chat.
@@ -30,6 +31,8 @@ export type EsitoDialogo = {
   perLaChat?: string
   /** Un ordine sullo stato dell'autopilota, se l'hai dato. */
   comando?: 'ferma' | 'riprendi' | 'rispondi'
+  /** Letta solo la `risposta`: il resto non si capiva e non si è applicato niente. */
+  restoIlleggibile?: true
 }
 
 /** Quanto del dialogo passato entra nel prompt. */
@@ -119,7 +122,8 @@ export function componiPromptDialogo(
     '- `comando`: "ferma" se ti chiede di fermarti, "riprendi" se ti chiede di ripartire,',
     '  "rispondi" se il suo messaggio è la risposta alla domanda aperta (e allora metti la',
     '  risposta in `perLaChat`). Altrimenti ometti il campo.',
-    '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.'
+    '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.',
+    '- Dentro i testi, per citare usa «…», non le virgolette dritte; se ti servono, scrivile \\".'
   ].join('\n')
 }
 
@@ -134,26 +138,15 @@ function testoDi(v: unknown): string | undefined {
  * `undefined` vale «illeggibile», e allora non si tocca niente e lo si dice.
  */
 export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
-  const chiusura = testo.lastIndexOf('}')
-  if (chiusura === -1) return undefined
-  let profondita = 0
-  let grezzo: Record<string, unknown> | undefined
-  for (let i = chiusura; i >= 0; i -= 1) {
-    const ch = testo[i]
-    if (ch === '}') profondita += 1
-    else if (ch === '{') {
-      profondita -= 1
-      if (profondita !== 0) continue
-      try {
-        const letto: unknown = JSON.parse(testo.slice(i, chiusura + 1))
-        grezzo = typeof letto === 'object' && letto !== null ? letto as Record<string, unknown> : undefined
-      } catch {
-        grezzo = undefined
-      }
-      break
-    }
+  // 0.72.1: tollera virgolette non protette, `\` sbagliate e a capo crudi
+  // (vedi `json-tollerante.ts`): due risposte giuste si erano perse così.
+  const grezzo = ultimoOggettoCon(testo, 'risposta')
+  if (grezzo === undefined) {
+    // Neanche riparato si legge l'oggetto: la risposta a te arriva lo stesso,
+    // e il resto (cambio, messaggio per la chat, comando) non si applica.
+    const sola = campoTestoTollerante(testo, 'risposta')?.trim()
+    return sola !== undefined && sola !== '' ? { risposta: sola, restoIlleggibile: true } : undefined
   }
-  if (grezzo === undefined) return undefined
   const risposta = testoDi(grezzo.risposta)
   if (risposta === undefined) return undefined
 

@@ -231,6 +231,35 @@ describe('il dialogo con l autopilota', () => {
     expect(avviati.map((x) => x.messaggio)).toEqual([undefined])
   })
 
+  it('0.72.1: con virgolette non protette la risposta arriva; se il resto non si legge arriva lo stesso, senza cambiare niente', async () => {
+    let giro = 0
+    const interroga: Interrogazione = (prompt) => {
+      if (!prompt.includes('Ti scrive adesso')) return Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "x"}' })
+      giro += 1
+      return Promise.resolve({
+        testo: giro === 1
+          ? '{"risposta": "Hai ragione ✓", "perLaChat": "Lui dice: messaggi "consegnato alle" ovunque"}'
+          : '{"risposta": "Ci penso io.", "cambio": {"criteri": [{"descrizione": "x", "comando": '
+      })
+    }
+    server = ambiente(interroga)
+    await avvia(server)
+    const id = await creaAp()
+    const criteriPrima = archivio.leggi(id)!.criteri
+
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'le righe consegnato alle' })
+    await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
+    expect(archivio.leggi(id)!.dialogo[1]).toMatchObject({ da: 'lui', testo: 'Hai ragione ✓', esito: 'per la chat, a fine turno' })
+    expect(archivio.leggi(id)!.daConsegnare.at(-1)?.testo).toBe('Lui dice: messaggi "consegnato alle" ovunque')
+
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'cambia i criteri' })
+    await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 4)
+    const dopo = archivio.leggi(id)!
+    expect(dopo.dialogo[3]).toMatchObject({ da: 'lui', testo: 'Ci penso io.' })
+    expect(dopo.dialogo[3]?.esito).toContain('il resto della risposta non si leggeva')
+    expect(dopo.criteri).toEqual(criteriPrima)
+  })
+
   it('rifiuta il vuoto e chi non esiste', async () => {
     server = ambiente(supervisore({ risposta: 'x' }))
     await avvia(server)

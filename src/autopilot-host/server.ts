@@ -1597,6 +1597,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     let esito
     let sessioneNuova: string | undefined
     let guasto: string | undefined
+    let lunghezzaRisposta = 0
     try {
       const unica = a.chats.length === 1 ? a.chats[0] : undefined
       const sessioneChat = unica?.sessionId ?? a.sessionId
@@ -1611,6 +1612,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         a.sessioneSupervisore
       )
       esito = leggiEsitoDialogo(r.testo)
+      lunghezzaRisposta = r.testo.length
+      // Se non si legge, l'inizio e la fine vanno nel registro: senza, non si capisce perché.
+      if (esito === undefined) console.error(`[autopilota] ${id} — risposta del dialogo illeggibile (${r.testo.length} caratteri): ${r.testo.slice(0, 300)} … ${r.testo.slice(-300)}`)
       sessioneNuova = r.sessionId
     } catch (err) {
       guasto = err instanceof Error ? err.message : String(err)
@@ -1646,6 +1650,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     const fatti: string[] = []
+    if (esito.restoIlleggibile === true) {
+      console.error(`[autopilota] ${id} — del dialogo si è letta solo la risposta (${lunghezzaRisposta} caratteri)`)
+      fatti.push('il resto della risposta non si leggeva: niente cambiato, riscrivilo se serviva')
+    }
 
     if (esito.cambio !== undefined) {
       const cambiato = applicaCambio(fresco, {
