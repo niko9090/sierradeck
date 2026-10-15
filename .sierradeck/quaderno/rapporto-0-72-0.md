@@ -5,7 +5,7 @@ tag: ["rapporto", "0.72.0", "per Nicholas", "sicurezza", "incidente 14/10"]
 ---
 
 # In breve
-La 0.72.0 (app 2.72.0) mette in sicurezza il programma e corregge i tre difetti che mi hai segnalato. **Non l'ho installata.** La pubblicazione richiede che tu rifaccia il login di GitHub su questo PC: vedi in fondo.
+La 0.72.0 (app 2.72.0) mette in sicurezza il programma e corregge i tre difetti che mi hai segnalato. **È pubblicata il 15/10 alle 12:15**, con l'installer, latest.yml, l'APK firmato e app-android.json. **Non l'ho installata:** la installi tu.
 
 # 1. La causa della cancellazione del 14/10
 **Non è stata trovata con certezza.** Le prove complete sono in `cancellazione-appdata-local-14-10.md`.
@@ -39,7 +39,7 @@ La 0.72.0 (app 2.72.0) mette in sicurezza il programma e corregge i tre difetti 
 - mentre «scrivevo» la finestra è rimasta ferma con la banda, ed è andata nel workspace 45 secondi dopo l'ultimo tasto.
 
 # Punti aperti
-1. **Login di GitHub su questo PC non valido** (il token di `gh` risulta revocato, e `git push` non ha credenziali). Per pubblicare la 0.72.0 e mandare i commit su GitHub serve che tu scriva qui `! gh auth login -h github.com` e poi `! gh auth setup-git`.
+1. ~~Login di GitHub non valido~~: risolto il 15/10. Con il tuo login i commit sono su GitHub e la release è pubblicata.
 2. La cartella `note/prova-072` (la copia di prova) non l'ho potuta togliere: il controllo di sicurezza di Claude Code ha bloccato la cancellazione. Dentro non ci sono più credenziali; puoi cancellarla tu.
-3. I due criteri del 14/10 con `gh` (download dell'APK con `mktemp`) non li ho potuti rieseguire per lo stesso problema di login.
+3. ~~I due criteri del 14/10 con `gh`~~: rieseguiti dopo il login, anche in parallelo. Non cancellano niente, ma ogni giro lasciava in Temp 16 MB (l'APK scaricato), ed è anche questo che ha riempito C:.
 4. Restano da prima: il tuo trasloco di «SierraDeck» fermo per il portatile spento, l'OAuth di Google «In produzione», e i progetti di prova da togliere.

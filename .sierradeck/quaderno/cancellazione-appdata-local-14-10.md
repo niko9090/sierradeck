@@ -53,7 +53,11 @@ Fra le 07:02:54 e almeno le 07:09:52 del 14/10 il contenuto di `%LOCALAPPDATA%` 
   - **Esito: nessun canarino sparito, e nessuna voce sparita da `%LOCALAPPDATA%` vero.**
   - `npm test` e gradle sono andati anche **insieme**, come poteva capitare nel ricontrollo.
   - npm test ha dato 2 rossi: un artefatto della prova (la Temp finta stava dentro il repository, e due test cercano «una cartella che non è git»). Il typecheck è verde.
-  - I due criteri con `gh` **non si sono potuti rifare**: il login di `gh` su questo PC oggi non è valido (401). Vanno rifatti dopo che Nicholas ha rifatto il login.
+  - I due criteri con `gh` sono stati rifatti alle 10:13 UTC, dopo il nuovo login di Nicholas.
+    - **Come:** sono girati come il servizio, con `bash -l` e casa, AppData e Temp finti, due volte di fila e due volte in parallelo.
+    - **Esito: nessun canarino sparito, e niente sparito da `%LOCALAPPDATA%` né dalla Temp vera.**
+    - Il criterio APK lascia ogni volta in Temp la sua cartella `tmp.*`, con dentro l'APK da 16 MB: è la perdita che riempiva C:.
+    - `gh` crea `%LOCALAPPDATA%\GitHub CLI`: torna con la cartella ricreata alle 07:06:36.
 
 **H2, debole: l'aggiornamento automatico di Claude Code.** Coincide solo nell'ora, e comincia 7 minuti dopo. Lavora in `~/.cache/claude/staging`, e nel programma non c'è nessuna cancellazione di AppData\Local.
 

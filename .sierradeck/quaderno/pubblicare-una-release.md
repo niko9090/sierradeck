@@ -18,6 +18,8 @@ tag: ["release", "github", "gh", "apk", "procedura"]
   `npm run allega-apk` (firma verificata) → `gh release edit vX --draft=false --latest`.
 - Le verifiche dopo l'aggiornamento si fanno quando Nicholas ha installato.
 - **13/10 (0.71.0)**: `npm run pubblica` può fallire con «GitHub Personal Access Token is not set»: lanciarlo come `GH_TOKEN=$(gh auth token) npm run pubblica` (Git Bash). La bozza creata prima con `gh release create vX --draft` riceve exe, blockmap e latest.yml.
+- **15/10 (0.72.0)**: dal terminale di Claude Code `! gh auth login -h github.com` sembra «bloccato» ma aspetta il codice del device flow: il codice e l'indirizzo sono nel file di output del comando in sottofondo. Nicholas li inserisce su github.com/login/device e il login finisce da solo. Poi `gh auth setup-git`.
+- **15/10**: le note di app-android.json (`scripts/note-novita.mjs`) toglievano solo l'escape degli apici: una barra rovesciata scritta `\\` in novita.ts arrivava doppia nell'app. Corretto (tutti gli escape, test `tests/shared/note-novita.test.ts`).
 
 Procedura provata con la 0.27.0 (15/09/2026), tutta da terminale, senza
 `npm run pubblica` (che sdoppia le release o perde `latest.yml`).

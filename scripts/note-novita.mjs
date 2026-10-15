@@ -8,7 +8,8 @@ export function noteDi(sorgente, versione) {
   const blocco = sorgente.slice(inizio, dopo < 0 ? undefined : dopo)
   const righe = []
   for (const m of blocco.matchAll(/^\s*'((?:[^'\\]|\\.)*)',?\s*$/gm)) {
-    righe.push(m[1].replace(/\\'/g, "'").replace(/\*\*/g, ''))
+    // Toglie gli escape della stringa JS (\' e \\), non solo l'apice.
+    righe.push(m[1].replace(/\\(.)/g, '$1').replace(/\*\*/g, ''))
   }
   return righe
 }
