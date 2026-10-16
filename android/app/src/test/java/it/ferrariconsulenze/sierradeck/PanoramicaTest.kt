@@ -44,6 +44,46 @@ class PanoramicaTest {
         assertEquals("da 3 min", RegolePanoramica.daQuanto(0, 180_000))
     }
 
+    @Test fun sezioniDellaPanoramica2() {
+        val schede = listOf(
+            s("ferma-mia", "ferma", 1), s("lavora", "lavora", 2, "sviluppo").copy(specialista = true),
+            s("chiede", "chiede", 3), s("finita", "finita", 4, "sviluppo").copy(specialista = true)
+        )
+        val z = RegolePanoramica.sezioni(schede)
+        assertEquals(listOf("chiede", "lavora"), z.adesso.map { it.id })
+        assertEquals(listOf("ferma-mia"), z.chat.map { it.id })
+        assertEquals(listOf("finita"), z.finite.map { it.id })
+    }
+
+    @Test fun conversazioneSenzaEventi() {
+        val b = listOf(Battuta(da = "tu", testo = "1"), Battuta(da = "nota", testo = "2"), Battuta(da = "lui", testo = "3"), Battuta(da = "nota", testo = "4"))
+        val (messaggi, eventi) = RegolePanoramica.separaConversazione(b)
+        assertEquals(listOf("1", "3"), messaggi.map { it.testo })
+        assertEquals(listOf("4", "2"), eventi.map { it.testo })
+    }
+
+    @Test fun righePulite078() {
+        val schermo = listOf(
+            "╭─── Claude Code v2.1.301 ───────────────────────╮",
+            "│ ▐▛███▜▌  Opus 5.5 · Claude Max │",
+            "──────────── Chat B ────────────────────────",
+            "│ Scrivo src/somma.js │",
+            "● Fatto il test", "● Fatto il test",
+            "Opus 5.5 · settimana 12% · \$3"
+        )
+        assertEquals(listOf("Scrivo src/somma.js", "● Fatto il test"), RegolePanoramica.righeDalVivo(schermo, 6))
+    }
+
+    @Test fun pianoDalPc() {
+        val p = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<Panoramica>(
+            """{"workspace":"W","situazione":{"obiettivo":"o","stato":{"id":"da-verificare","parola":"da verificare","colore":"ambra","simbolo":"◐"},"criteri":{"fatti":0,"totali":2,"testo":"0/2","elenco":[{"descrizione":"a","esito":"no"},{"descrizione":"b","esito":"mai"}]}},"piano":[{"fase":"in-revisione","nome":"In revisione","compiti":[{"id":"c-2","testo":"Media","fase":"in-revisione","ruolo":"revisione","autore":"sviluppo","giri":1}]}],"schede":[{"id":"p","stato":"ferma","specialista":true,"soloMia":true}]}"""
+        )
+        assertEquals("da verificare", p.situazione?.stato?.parola)
+        assertEquals(listOf("no", "mai"), p.situazione?.criteri?.elenco?.map { it.esito })
+        assertEquals("sviluppo", p.piano.first().compiti.first().autore)
+        assertEquals(true, p.schede.first().soloMia)
+    }
+
     @Test fun niente_rumore() {
         val schermo = listOf(";2;153;153m⎿ \$ node --test", "Opus 5.5 · contesto 5% · 5 ore 1% (azzera 17:00)")
         assertEquals(listOf("⎿ \$ node --test"), RegolePanoramica.righeDalVivo(schermo))

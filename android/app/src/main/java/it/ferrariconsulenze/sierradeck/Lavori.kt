@@ -366,7 +366,10 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 // PC 0.77.0: la Panoramica in cima, una scheda per chat; il tocco apre la chat a tutto schermo.
                 pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
                 item { Serigrafia("Chat con lui") }
-                items(chat) { b ->
+                // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
+                val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat to emptyList()
+                if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
+                items(messaggi) { b ->
                     // Il testo della chat con lui si seleziona e si copia (tocco
                     // lungo): senza SelectionContainer un Text di Compose non e'
                     // selezionabile, e Nicholas non riusciva a copiarne niente.

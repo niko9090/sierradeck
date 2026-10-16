@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.78.0',
+    righe: [
+      '**Panoramica 2, più chiara.** In alto la situazione: l’obiettivo su due righe, lo stato e i criteri. Lo stato dice «finito» solo se i criteri sono tutti soddisfatti, altrimenti «da verificare». Tocca «Criteri» per vederli uno per uno, con quando sono stati controllati e la prova.',
+      '**Al centro solo quello che conta adesso.** «Adesso» mostra le chat al lavoro o che aspettano te, con le loro righe vere, pulite da cornici e barre. Il «Piano» mostra i compiti in quattro colonne (da fare, in corso, in revisione, fatto), ciascuno con lo specialista: toccane uno e si apre la sua chat. Le finite stanno in una riga, «Finite: N ▸».',
+      '**A sinistra la conversazione con l’autopilota**, solo i messaggi fra te e lui. Quello che ha fatto da solo (rami, revisioni, decisioni) è in «Cosa è successo ▸». Le domande stanno a destra, e la colonna compare solo quando ce ne sono.',
+      '**Le chat già avviate diventano del suo autopilota.** In ogni workspace le chat che c’erano già compaiono come schede, con un ruolo dal loro contenuto o «Chat». L’autopilota del workspace le conosce e scrive loro solo quando glielo chiedi, e solo quando sono ferme: nessuna chat viene chiusa, riavviata o spostata. «Solo mia» su una chat e l’autopilota non la tocca. Gli autopiloti che c’erano già, come quelli di SierraDeck e NexoraOS, diventano l’autopilota del loro workspace. «Torna come prima» annulla anche questo.',
+      '**Sul telefono la stessa logica:** Situazione, Adesso, Piano, le altre chat, le finite e la conversazione, sulla pagina e nell’app.'
+    ]
+  },
+  {
     versione: '0.77.0',
     righe: [
       '**La Panoramica: tutto in una vista.** Nel workspace dell’autopilota la prima linguetta è la Panoramica: in alto l’obiettivo, lo stato in una parola e i criteri; a sinistra il dialogo con l’autopilota e il microfono; al centro una scheda per chat, con lo stato, l’ultima azione e le ultime righe dal vivo; a destra le domande brevi, con i tasti e «Scrivi tu».',

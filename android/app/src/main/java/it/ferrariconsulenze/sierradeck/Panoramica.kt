@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,11 +23,13 @@ import androidx.compose.ui.unit.sp
 import kotlinx.serialization.Serializable
 
 /**
- * La Panoramica del workspace dell'autopilota (PC 0.77.0). Nicholas, 16/10:
- * «vedere tutto in una vista». Le stesse regole di `src/shared/panoramica.ts`:
- * i gruppi (aspettano te → al lavoro → ferme → finite), l'ordine fisso dentro
- * ogni gruppo (per ruolo, poi per nascita), le linguette visibili e «Altre»,
- * le righe dal vivo pulite. Sul telefono la Panoramica è una lista di schede.
+ * La Panoramica del workspace dell'autopilota (PC 0.77.0, Panoramica 2 dalla
+ * 0.78.0). Nicholas sulla 0.77.0: «puoi fare meglio». Le stesse regole di
+ * `src/shared/panoramica.ts`: in alto la situazione (stato coerente con i
+ * criteri, che si aprono al tocco), «Adesso» solo chi lavora o aspetta te, il
+ * Piano per fase con lo specialista, le altre chat del workspace (anche
+ * adottate), «Finite: N ▸». Sotto, la conversazione; gli eventi tecnici in
+ * «Cosa è successo ▸». Situazione e piano arrivano calcolati dal PC.
  */
 @Serializable
 data class SchedaPanoramica(
@@ -40,7 +47,11 @@ data class SchedaPanoramica(
     /** La sessione, per aprire la chat a tutto schermo. */
     val sessione: String? = null,
     /** La domanda breve di questa chat, se c'è (regola H). */
-    val domanda: Conversazione? = null
+    val domanda: Conversazione? = null,
+    /** PC 0.78.0: è dell'autopilota (specialista o la sua chat): ferma va fra le finite. */
+    val specialista: Boolean = false,
+    /** PC 0.78.0: Nicholas l'ha segnata «solo mia». */
+    val soloMia: Boolean = false
 )
 
 @Serializable
@@ -56,18 +67,52 @@ data class StatoParola(val parola: String = "", val colore: String = "quieto")
 @Serializable
 data class CriteriPanoramica(val fatti: Int = 0, val totali: Int = 0, val testo: String = "—")
 
+/** PC 0.78.0: lo stato coerente con i criteri («finito» solo se lo sono tutti). */
+@Serializable
+data class StatoSituazione(val id: String = "", val parola: String = "", val colore: String = "quieto", val simbolo: String = "", val ragione: String? = null)
+
+/** Un criterio: `esito` è «si», «no» o «mai» (mai controllato). */
+@Serializable
+data class CriterioVista(val descrizione: String = "", val esito: String = "mai", val quando: String? = null, val prova: String? = null)
+
+@Serializable
+data class CriteriSituazione(val fatti: Int = 0, val totali: Int = 0, val testo: String = "—", val elenco: List<CriterioVista> = emptyList())
+
+@Serializable
+data class Situazione(val obiettivo: String = "", val stato: StatoSituazione = StatoSituazione(), val criteri: CriteriSituazione = CriteriSituazione())
+
+/** Un compito del Piano; `chat` è la chat aperta da toccare, se c'è. */
+@Serializable
+data class CompitoPiano(
+    val id: String = "",
+    val testo: String = "",
+    val fase: String = "da-fare",
+    val ruolo: String? = null,
+    val autore: String? = null,
+    val nota: String? = null,
+    val giri: Int? = null,
+    val chat: String? = null
+)
+
+@Serializable
+data class ColonnaPiano(val fase: String = "", val nome: String = "", val compiti: List<CompitoPiano> = emptyList())
+
 @Serializable
 data class Panoramica(
     val workspace: String = "",
     val autopilota: String? = null,
     val riassunto: RiassuntoPanoramica? = null,
-    val schede: List<SchedaPanoramica> = emptyList()
+    val schede: List<SchedaPanoramica> = emptyList(),
+    /** PC 0.78.0; assenti da un PC della 0.77.0. */
+    val situazione: Situazione? = null,
+    val piano: List<ColonnaPiano> = emptyList()
 )
 
 object RegolePanoramica {
     val GRUPPI = listOf("chiede", "lavora", "ferma", "finita")
     val NOME_GRUPPO = mapOf("chiede" to "Aspettano te", "lavora" to "Al lavoro", "ferma" to "Ferme", "finita" to "Finite")
     val SIMBOLO = mapOf("chiede" to "◆", "lavora" to "●", "ferma" to "■", "finita" to "✓")
+    val NOME_RUOLO = mapOf("sviluppo" to "Sviluppo", "interfaccia" to "Interfaccia", "collaudo" to "Collaudo", "revisione" to "Revisione", "rilascio" to "Rilascio")
     private val RUOLI_ORDINE = listOf("sviluppo", "interfaccia", "collaudo", "revisione", "rilascio")
     const val QUIETE_GRUPPO_MS = 8000L
     const val LARGHEZZA_LINGUETTA = 150
@@ -86,6 +131,20 @@ object RegolePanoramica {
             val dentro = schede.filter { it.stato == g }.sortedWith(fisso)
             if (dentro.isEmpty()) null else g to dentro
         }
+
+    /**
+     * PC 0.78.0: in «Adesso» solo chi aspetta te e chi lavora (prima chi
+     * aspetta te); le altre sono le chat del workspace (non dell'autopilota) e
+     * le finite (dell'autopilota), in ordine fisso.
+     */
+    data class Sezioni(val adesso: List<SchedaPanoramica>, val chat: List<SchedaPanoramica>, val finite: List<SchedaPanoramica>)
+
+    fun sezioni(schede: List<SchedaPanoramica>): Sezioni {
+        val g = ordinaSchede(schede).toMap()
+        val adesso = (g["chiede"] ?: emptyList()) + (g["lavora"] ?: emptyList())
+        val ferme = (g["ferma"] ?: emptyList()) + (g["finita"] ?: emptyList())
+        return Sezioni(adesso, ferme.filter { !it.specialista }, ferme.filter { it.specialista })
+    }
 
     /** In «aspetta te» subito; negli altri gruppi solo dopo 8 secondi nello stato nuovo. */
     fun gruppoStabile(adesso: String, prima: String?, statoDal: Long, ora: Long): String =
@@ -107,6 +166,10 @@ object RegolePanoramica {
         return inOrdine.filter { it.id in scelte } to inOrdine.filter { it.id !in scelte }
     }
 
+    /** PC 0.78.0: a sinistra la conversazione (tu e lui), gli eventi (note) a parte, dal più recente. */
+    fun separaConversazione(battute: List<Battuta>): Pair<List<Battuta>, List<Battuta>> =
+        battute.filter { it.da != "nota" } to battute.filter { it.da == "nota" }.reversed()
+
     private val ANSI = Regex("\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*(\u0007|\u001B\\\\)|\u001B[@-Z\\\\-_]|[\u0000-\u0008\u000B-\u001F\u007F]")
     private val RUMORE = listOf(
         Regex("^[\\s─━│┃╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▔▁▏▕·•…_-]*$"),
@@ -117,19 +180,32 @@ object RegolePanoramica {
         Regex("^\\s*◐.*/effort"),
         Regex("Your login expires", RegexOption.IGNORE_CASE),
         Regex("Transcript saving is off", RegexOption.IGNORE_CASE),
-        // La riga di stato di Claude Code (PC 0.77.0, dalla prova del 16/10).
-        Regex("contesto \\d+%|context \\d+%|\\b5 ore \\d+%", RegexOption.IGNORE_CASE)
+        // La riga di stato di Claude Code (PC 0.77.0 e 0.78.0).
+        Regex("contesto \\d+%|context \\d+%|\\b5 ore \\d+%|settimana \\d+%|week \\d+%", RegexOption.IGNORE_CASE),
+        // La testata di Claude Code (PC 0.78.0): logo, versione, piano.
+        Regex("[▐▛▜▌▝▘]{2}"),
+        Regex("Claude Code v\\d"),
+        Regex("· Claude (Max|Pro|Team|Enterprise)\\b")
     )
     /** Pezzi di codici colore rimasti senza ESC: «;2;153;153m». */
     private val ANSI_SPEZZATO = Regex(";?(?:\\d{1,3};)+\\d{1,3}m")
+    private val TRATTI = Regex("[─━═╌╍┄┅┈┉]")
 
-    /** Le ultime righe dal vivo, pulite. Sul telefono 2 (revisione UI/UX). */
-    fun righeDalVivo(righe: List<String>, quante: Int = 2): List<String> =
-        righe.flatMap { it.split(Regex("\\r?\\n")) }
+    /** Una riga fatta per lo più di tratti è una cornice, anche con un titolo dentro (PC 0.78.0). */
+    private fun eCornice(r: String): Boolean {
+        val piena = r.filterNot { it.isWhitespace() }
+        return piena.isNotEmpty() && TRATTI.findAll(piena).count().toDouble() / piena.length >= 0.6
+    }
+
+    /** Le ultime righe dal vivo, pulite. Sul telefono 3 in «Adesso» (revisione UI/UX della 0.78.0). */
+    fun righeDalVivo(righe: List<String>, quante: Int = 2): List<String> {
+        val pulite = righe.flatMap { it.split(Regex("\\r?\\n")) }
             .map { it.replace(ANSI, "").replace(ANSI_SPEZZATO, "").trimEnd() }
-            .filter { it.isNotBlank() && RUMORE.none { x -> x.containsMatchIn(it) } }
-            .takeLast(quante)
-            .map { if (it.length > 160) it.take(159) + "…" else it }
+            .map { it.replace(Regex("^\\s*[│┃║]\\s?"), "").replace(Regex("\\s*[│┃║]\\s*$"), "") }
+            .filter { it.isNotBlank() && RUMORE.none { x -> x.containsMatchIn(it) } && !eCornice(it) }
+        val senzaDoppi = pulite.filterIndexed { i, r -> i == 0 || r.trim() != pulite[i - 1].trim() }
+        return senzaDoppi.takeLast(quante).map { if (it.length > 160) it.take(159) + "…" else it }
+    }
 
     /** «adesso», «da 3 min», «da 2 h». */
     fun daQuanto(dal: Long?, ora: Long): String {
@@ -143,49 +219,140 @@ object RegolePanoramica {
     }
 }
 
+/** L'ora locale di un istante ISO, «12:19»; vuota se non si legge. */
+fun oraLocale(iso: String?): String = try {
+    if (iso == null) "" else java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+} catch (_: Exception) { "" }
 
-/** La Panoramica sul telefono (PC 0.77.0): riga dell'autopilota, «aspettano te», una scheda per chat con 2 righe dal vivo. */
+private fun coloreParola(c: String): Color = when (c) { "verde" -> Banco.verde; "ambra" -> Banco.ambra; "rosso" -> Banco.rosso; else -> Banco.testoQuieto }
+
+/** Una riga che si apre e si chiude, alta 48 dp (revisione UI/UX). */
+@Composable
+private fun RigaApri(testo: String, aperta: Boolean, onClick: () -> Unit) {
+    Text(
+        (if (aperta) "▾ " else "▸ ") + testo,
+        color = Banco.testo,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onClick() }.padding(horizontal = 8.dp, vertical = 14.dp)
+    )
+}
+
+@Composable
+private fun SchedaTel(s: SchedaPanoramica, quante: Int, onApri: (String) -> Unit) {
+    val apribile = !s.id.startsWith("fine-")
+    val colore = when (s.stato) { "chiede" -> Banco.ambra; "lavora" -> Banco.verde; else -> Banco.testoQuieto }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .heightIn(min = 48.dp)
+            .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
+            .let { if (apribile) it.clickable { onApri(s.id) } else it }
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Text(
+            (RegolePanoramica.SIMBOLO[s.stato] ?: "") + "  " + (s.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: "Chat") + " · " + s.titolo.replace(Regex("^[^·]+ · "), "") + (if (s.soloMia) " · solo tua" else ""),
+            color = colore, maxLines = 1
+        )
+        if (quante > 0) {
+            val righe = RegolePanoramica.righeDalVivo(s.righe, quante)
+            if (righe.isEmpty()) Text("in attesa di output…", color = Banco.testoQuieto, fontSize = 11.sp)
+            for (riga in righe) Text(riga, color = Banco.testoQuieto, maxLines = 1, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+        }
+        val azione = s.domanda?.scheda?.domanda?.let { "Ti chiede: $it" } ?: s.ultimaAzione
+        if (azione.isNotBlank()) Text(azione, color = Banco.testo, maxLines = 1, fontSize = 13.sp)
+    }
+}
+
+/** La Panoramica sul telefono: Situazione, Adesso, Piano, Chat, Finite (PC 0.78.0); la lista di prima con un PC della 0.77.0. */
 @Composable
 fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
-    val nomeRuolo = mapOf("sviluppo" to "Sviluppo", "interfaccia" to "Interfaccia", "collaudo" to "Collaudo", "revisione" to "Revisione", "rilascio" to "Rilascio")
+    var aperte by remember { mutableStateOf(setOf("in-corso", "in-revisione")) }
+    val apri = { k: String -> aperte = if (k in aperte) aperte - k else aperte + k }
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        p.riassunto?.let { r ->
-            Text(r.obiettivo, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 2)
-            Text(
-                "${r.stato.parola} · criteri ${r.criteri.testo}",
-                color = when (r.stato.colore) { "verde" -> Banco.verde; "ambra" -> Banco.ambra; "rosso" -> Banco.rosso; else -> Banco.testoQuieto },
-                fontSize = 12.sp
-            )
+        val st = p.situazione
+        if (st == null) {
+            // Un PC della 0.77.0.
+            p.riassunto?.let { r ->
+                Text(r.obiettivo, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text("${r.stato.parola} · criteri ${r.criteri.testo}", color = coloreParola(r.stato.colore), fontSize = 12.sp)
+            }
+            Serigrafia("Panoramica")
+            val ordinate = RegolePanoramica.ordinaSchede(p.schede).flatMap { it.second }
+            for (s in ordinate) SchedaTel(s, 2, onApri)
+            if (ordinate.isEmpty()) Text("Nessuna chat: l’autopilota le apre quando serve.", color = Banco.testoQuieto)
+            return@Column
         }
-        val aspettano = p.schede.count { it.stato == "chiede" }
-        if (aspettano > 0) Text(
-            "◆ " + (if (aspettano == 1) "1 chat aspetta te" else "$aspettano chat aspettano te"),
-            color = Banco.ambra, modifier = Modifier.padding(vertical = 6.dp)
+        // ─── Situazione ───
+        Text(st.obiettivo, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 2)
+        Text(
+            "${st.stato.simbolo} ${st.stato.parola}" + (st.stato.ragione?.let { " · $it" } ?: ""),
+            color = coloreParola(st.stato.colore), fontSize = 12.sp
         )
-        Serigrafia("Panoramica")
-        // Già in ordine dal PC; si riordina con le stesse regole, nel caso.
-        val ordinate = RegolePanoramica.ordinaSchede(p.schede).flatMap { it.second }
-        for (s in ordinate) {
-            val apribile = !s.id.startsWith("fine-")
-            val colore = when (s.stato) { "chiede" -> Banco.ambra; "lavora" -> Banco.verde; else -> Banco.testoQuieto }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .heightIn(min = 96.dp)
-                    .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
-                    .let { if (apribile) it.clickable { onApri(s.id) } else it }
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    (RegolePanoramica.SIMBOLO[s.stato] ?: "") + "  " + (s.ruolo?.let { nomeRuolo[it] ?: it } ?: "chat") + " · " + s.titolo.replace(Regex("^[^·]+ · "), ""),
-                    color = colore, maxLines = 1
-                )
-                val azione = s.domanda?.scheda?.domanda?.let { "Ti chiede: $it" } ?: s.ultimaAzione
-                if (azione.isNotBlank()) Text(azione, color = Banco.testo, maxLines = 1, fontSize = 13.sp)
-                for (riga in RegolePanoramica.righeDalVivo(s.righe, 2)) Text(riga, color = Banco.testoQuieto, maxLines = 1, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+        if (st.criteri.totali > 0) {
+            RigaApri("Criteri ${st.criteri.testo}", "criteri" in aperte) { apri("criteri") }
+            if ("criteri" in aperte) for (c in st.criteri.elenco) {
+                val segno = when (c.esito) { "si" -> "✓"; "no" -> "✗"; else -> "○" }
+                val colore = when (c.esito) { "si" -> Banco.verde; "no" -> Banco.ambra; else -> Banco.testoQuieto }
+                Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    Text("$segno ${c.descrizione}", color = colore, fontSize = 13.sp)
+                    Text((if (c.quando != null) "controllato alle ${oraLocale(c.quando)}" else "mai controllato") + (c.prova?.let { " · $it" } ?: ""), color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                }
             }
         }
-        if (ordinate.isEmpty()) Text("Nessuna chat: l’autopilota le apre quando serve.", color = Banco.testoQuieto)
+        val sz = RegolePanoramica.sezioni(p.schede)
+        // ─── Adesso ───
+        Serigrafia("Adesso · ${sz.adesso.size}", modifier = Modifier.padding(top = 10.dp))
+        if (sz.adesso.isEmpty()) Text("Nessuna chat al lavoro.", color = Banco.testoQuieto, modifier = Modifier.padding(vertical = 6.dp))
+        for (s in sz.adesso) SchedaTel(s, 3, onApri)
+        // ─── Piano ───
+        val piano = p.piano.filter { it.compiti.isNotEmpty() }
+        if (piano.isNotEmpty()) {
+            Serigrafia("Piano", modifier = Modifier.padding(top = 10.dp))
+            for (c in piano) {
+                RigaApri("${c.nome} · ${c.compiti.size}", c.fase in aperte) { apri(c.fase) }
+                if (c.fase in aperte) for (x in c.compiti) {
+                    val chi = x.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: "da assegnare"
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp)
+                            .border(BorderStroke(1.dp, Banco.incisione), RoundedCornerShape(8.dp))
+                            .let { m -> x.chat?.let { id -> m.clickable { onApri(id) } } ?: m }
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            chi + (x.autore?.let { " · di ${RegolePanoramica.NOME_RUOLO[it] ?: it}" } ?: "") + (x.giri?.let { " · ↺ $it" } ?: ""),
+                            color = Banco.testoQuieto, fontSize = 11.sp
+                        )
+                        Text(x.testo, color = if (x.chat != null) Banco.testo else Banco.testoQuieto, maxLines = 2, fontSize = 13.sp)
+                        x.nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp) }
+                    }
+                }
+            }
+        }
+        // ─── Le altre chat del workspace ───
+        if (sz.chat.isNotEmpty()) {
+            Serigrafia("Chat · ${sz.chat.size}", modifier = Modifier.padding(top = 10.dp))
+            for (s in sz.chat) SchedaTel(s, 0, onApri)
+        }
+        // ─── Finite ───
+        if (sz.finite.isNotEmpty()) {
+            RigaApri("Finite: ${sz.finite.size}", "finite" in aperte) { apri("finite") }
+            if ("finite" in aperte) for (s in sz.finite) SchedaTel(s, 0, onApri)
+        }
+    }
+}
+
+/** Gli eventi tecnici dell'autopilota, chiusi: «Cosa è successo ▸» (PC 0.78.0). */
+@Composable
+fun CosaESuccesso(eventi: List<Battuta>) {
+    if (eventi.isEmpty()) return
+    var aperta by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        RigaApri("Cosa è successo · ${eventi.size}", aperta) { aperta = !aperta }
+        if (aperta) for (b in eventi.take(50)) {
+            Text(
+                oraLocale(b.quando) + "  " + b.testo + (b.volte?.let { " ×$it" } ?: ""),
+                color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
     }
 }
