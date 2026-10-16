@@ -90,6 +90,14 @@ export type ClientAutopilota = {
   riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
   /** «Lavora in sottofondo» (0.72.0): solo su richiesta di Nicholas. */
   sottofondo: (id: string, si: boolean) => Promise<void>
+  /** Le chat già avviate adottate (0.78.0): torna le sessioni adottate adesso. */
+  adotta: (id: string, chat: { sessionId: string; titolo: string }[], soloMie?: string[]) => Promise<string[]>
+  /** Toglie chat adottate («Torna come prima» dell'adozione). */
+  togliAdottate: (id: string, sessioni: string[]) => Promise<void>
+  /** «Solo mia»: l'autopilota non tocca e non scrive a quella chat. */
+  soloMia: (id: string, sessione: string, si: boolean) => Promise<void>
+  /** I messaggi per le chat adottate scritti dal Gestore. */
+  adottateScritti: (id: string, ids: string[]) => Promise<void>
   /** «Ricontrolla i criteri» (0.72.0): i criteri di un autopilota fermo, misurati adesso. */
   ricontrollaCriteri: (id: string) => Promise<void>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
@@ -237,6 +245,13 @@ export function creaClientAutopilota(p: {
     sottofondo: async (id, si) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/sottofondo`, 'POST', { si })
     },
+    adotta: async (id, chat, soloMie = []) => {
+      const r = (await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta`, 'POST', { chat, soloMie })) as { nuove?: unknown } | undefined
+      return Array.isArray(r?.nuove) ? r.nuove.filter((x): x is string => typeof x === 'string') : []
+    },
+    togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }) },
+    soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }) },
+    adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }) },
     ricontrollaCriteri: async (id) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/ricontrolla-criteri`, 'POST', {})
     },

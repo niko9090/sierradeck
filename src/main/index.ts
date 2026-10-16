@@ -211,6 +211,8 @@ import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
 import type { Richiesta } from './trasferimenti/coda'
 import { rinominaInElenco } from '@shared/vista-elenco'
 import { creaMigrazione, type Migrazione } from './migrazione-elenco'
+import { adottabili, avviaGiroAdozione, creaMigrazioneAdozione, type MigrazioneAdozione } from './adozione-chat'
+import { dormienteVivo } from '@shared/migrazione-adozione'
 import { apriDettatura, statoDettatura } from './dettatura'
 
 /**
@@ -367,6 +369,7 @@ let db: Db | undefined
 let workspaceStore: WorkspaceStore | undefined
 /** La trasformazione dei workspace (0.74.1): anche per il Client (pagina e app). */
 let migrazioneGlobale: Migrazione | undefined
+let adozioneGlobale: MigrazioneAdozione | undefined
 let providerStore: ReturnType<typeof apriProviderStore> | undefined
 let inChiusura = false
 /** Il server del Client, quando e' in ascolto. */
@@ -1398,7 +1401,13 @@ if (!app.requestSingleInstanceLock()) {
       const annunciaMigrazione = (): void => {
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata')
       }
-      ipcMain.handle('migrazione:stato', () => migrazioneGlobale?.stato() ?? null)
+      // I dormienti doppi archiviati dall'adozione (0.78.0) non si mostrano: nel loro workspace c'è un autopilota vero.
+      ipcMain.handle('migrazione:stato', () => {
+        const s = migrazioneGlobale?.stato()
+        if (s === undefined) return null
+        const ad = adozioneGlobale?.stato()
+        return { ...s, dormienti: s.dormienti.filter((d) => dormienteVivo(s.dormienti, ad, d.workspace) !== undefined) }
+      })
       // Il microfono (0.75.0): la dettatura di Windows sul campo che ha il fuoco.
       ipcMain.handle('dettatura:stato', () => statoDettatura())
       ipcMain.handle('dettatura:apri', (e) => {
@@ -1406,8 +1415,14 @@ if (!app.requestSingleInstanceLock()) {
         BrowserWindow.fromWebContents(e.sender)?.focus()
         return apriDettatura((riga) => registro.info(riga))
       })
-      ipcMain.handle('migrazione:torna', () => { const r = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; annunciaMigrazione(); return r })
-      ipcMain.handle('migrazione:rifai', () => { const r = migrazioneGlobale?.rifai(); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
+      // «Torna come prima» (0.78.0): anche le chat adottate tornano chat normali.
+      ipcMain.handle('migrazione:torna', async () => {
+        const ad = adozioneGlobale !== undefined && adozioneGlobale.stato()?.stato === 'fatta' ? await adozioneGlobale.tornaComePrima() : undefined
+        const r = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }
+        annunciaMigrazione()
+        return ad !== undefined && !ad.ok ? { ok: false, messaggio: ad.messaggio } : r
+      })
+      ipcMain.handle('migrazione:rifai', async () => { const r = migrazioneGlobale?.rifai(); if (r?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
@@ -4550,6 +4565,58 @@ if (!app.requestSingleInstanceLock()) {
       setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
       registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
 
+      // **Le chat già avviate adottate** (0.78.0, Nicholas: «le chat già avviate
+      // non le hai convertite»). Gli autopiloti veri diventano l'autopilota del
+      // loro workspace e adottano le sue chat; poi un giro che adotta le nuove e
+      // scrive i messaggi per le adottate solo quando sono ferme. Mai aprire,
+      // chiudere, riprendere o spostare una chat. Se fallisce, tutto com'era.
+      {
+        const servizio = {
+          elenca: () => clientAutopilota.elenca(),
+          adotta: (id: string, chat: { sessionId: string; titolo: string }[]) => clientAutopilota.adotta(id, chat),
+          togli: (id: string, sessioni: string[]) => clientAutopilota.togliAdottate(id, sessioni),
+          scritti: (id: string, ids: string[]) => clientAutopilota.adottateScritti(id, ids)
+        }
+        const adozione = creaMigrazioneAdozione({
+          dati,
+          leggiArchivio: () => workspaceStore?.leggi(),
+          statoMigrazione: () => migrazioneGlobale?.stato(),
+          servizio,
+          log: (riga) => registro.info(riga),
+          errore: (riga) => registro.errore(riga)
+        })
+        adozioneGlobale = adozione
+        void (async () => {
+          try {
+            if (!(await clientAutopilota.assicuraServizio())) { registro.info('[migrazione] adozione rimandata: il servizio degli autopiloti non è partito'); return }
+            await adozione.esegui()
+          } catch (err) { registro.errore(`[migrazione] adozione non partita: ${String(err)}`) }
+          for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata')
+          avviaGiroAdozione({
+            servizio,
+            leggiArchivio: () => workspaceStore?.leggi(),
+            adozioneAttiva: () => adozione.stato()?.stato === 'fatta',
+            chat: () => chatAperte,
+            scrivi: scriviNelRiquadro,
+            log: (riga) => registro.info(riga)
+          })
+        })()
+        ipcMain.handle('adozione:soloMia', async (_e, id: unknown, sessione: unknown, si: unknown) => {
+          if (typeof id !== 'string' || typeof sessione !== 'string') return { ok: false }
+          await clientAutopilota.soloMia(id, sessione, si === true)
+          return { ok: true }
+        })
+        ipcMain.handle('adozione:adotta', async (_e, id: unknown) => {
+          // Un autopilota appena nato da un dormiente adotta subito le chat del suo workspace.
+          if (typeof id !== 'string') return []
+          const tutti = await clientAutopilota.elenca()
+          const a = tutti.find((x) => x.id === id)
+          const archivio = workspaceStore?.leggi()
+          if (a?.workspace === undefined || archivio === undefined) return []
+          return clientAutopilota.adotta(id, adottabili(archivio, a.workspace, tutti), impostazioni.preferenze().chatSoloMie ?? [])
+        })
+      }
+
       // Le finestre pannello (0.38.0): le linguette della scheda dell'autopilota
       // staccate in finestre vere. Non sono finestre di chat (finestre-pannello.ts).
       impostaFinestrePannello({
@@ -5522,8 +5589,8 @@ if (!app.requestSingleInstanceLock()) {
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         migrazione: {
           stato: () => migrazioneGlobale?.stato() ?? null,
-          torna: () => { const e = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return e },
-          rifai: () => { const e = migrazioneGlobale?.rifai(); for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return { ok: e?.esito === 'fatta', messaggio: e?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${e?.stato?.motivo ?? 'motivo sconosciuto'}` } }
+          torna: async () => { const ad = adozioneGlobale !== undefined && adozioneGlobale.stato()?.stato === 'fatta' ? await adozioneGlobale.tornaComePrima() : undefined; if (ad !== undefined && !ad.ok) return ad; const e = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return e },
+          rifai: async () => { const e = migrazioneGlobale?.rifai(); if (e?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return { ok: e?.esito === 'fatta', messaggio: e?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${e?.stato?.motivo ?? 'motivo sconosciuto'}` } }
         },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },

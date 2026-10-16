@@ -46,6 +46,7 @@ import {
   ripartenzaDopoDialogo,
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
+import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
@@ -1773,6 +1774,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
 
+    // Le chat adottate (0.78.0): solo quelle guidabili, scritte dal Gestore quando sono ferme.
+    const perAdottate = messaggiPerAdottate(fresco, esito.perLeChat, quando, () => `ma-${randomUUID()}`)
+    if (perAdottate.length > 0) {
+      fresco = conMessaggiAdottate(fresco, perAdottate)
+      fatti.push(`per ${perAdottate.length === 1 ? 'una chat adottata' : `${perAdottate.length} chat adottate`}, quando è ferma`)
+      console.log(`[adozione] ${id} — ${perAdottate.length} messaggi per chat adottate, in attesa che siano ferme`)
+    }
+
     if (esito.comando === 'ferma') {
       if (fresco.stato === 'lavoro' || fresco.stato === 'attesa') {
         fresco = fermaAutopilota(fresco, 'fermato dall utente (dal dialogo)')
@@ -3198,6 +3207,61 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           annota(aggiornato, si ? 'su tua richiesta: la chat lavora in sottofondo, senza riquadro (avviso e «Guarda» sul PC, sulla pagina e nell’app)' : 'su tua richiesta: la chat torna a lavorare in un riquadro del suo workspace')
           salva(aggiornato)
           rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // Le chat già avviate adottate (0.78.0): conoscerle, togliere quelle
+        // adottate da una migrazione annullata, «solo mia», messaggi scritti.
+        // Nessuna di queste rotte apre, chiude o riavvia una chat.
+        const adozione = /^\/autopiloti\/([^/]+)\/(adotta|adotta\/togli|solo-mia|adottate\/scritti)$/.exec(percorso)
+        if (metodo === 'POST' && adozione !== null) {
+          const id = decodeURIComponent(adozione[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) { rispondi(res, 404, { errore: 'autopilota inesistente' }); return }
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | null
+          const o = typeof corpo === 'object' && corpo !== null ? corpo : {}
+          const testi = (x: unknown): string[] => (Array.isArray(x) ? x.filter((v): v is string => typeof v === 'string' && v !== '') : [])
+          const cosa = adozione[2]
+          if (cosa === 'adotta') {
+            const chat = Array.isArray(o.chat)
+              ? o.chat.flatMap((v: unknown) => {
+                const r = v as Record<string, unknown> | null
+                return r !== null && typeof r === 'object' && typeof r.sessionId === 'string' ? [{ sessionId: r.sessionId, titolo: typeof r.titolo === 'string' ? r.titolo : '' }] : []
+              })
+              : []
+            const r = conChatAdottate(a, chat, deps.adesso(), new Set(testi(o.soloMie)))
+            if (r.nuove.length > 0) {
+              annota(r.autopilota, `ha adottato ${r.nuove.length === 1 ? 'una chat già avviata' : `${r.nuove.length} chat già avviate`} del workspace: le guida solo quando glielo chiedi`)
+              salva(r.autopilota)
+              console.log(`[adozione] ${id} — adottate ${r.nuove.length} chat: ${r.nuove.map((x) => x.sessionId.slice(0, 8)).join(', ')}`)
+            }
+            rispondi(res, 200, { nuove: r.nuove.map((x) => x.sessionId), autopilota: deps.archivio.leggi(id) })
+            return
+          }
+          if (cosa === 'adotta/togli') {
+            const via = new Set(testi(o.sessioni))
+            const restano = (a.adottate ?? []).filter((x) => !via.has(x.sessionId))
+            salva({ ...a, adottate: restano, perAdottate: (a.perAdottate ?? []).filter((m) => !via.has(m.sessionId)) })
+            console.log(`[adozione] ${id} — tolte ${(a.adottate ?? []).length - restano.length} chat adottate («Torna come prima»)`)
+            rispondi(res, 200, deps.archivio.leggi(id))
+            return
+          }
+          if (cosa === 'solo-mia') {
+            const sessione = typeof o.sessione === 'string' ? o.sessione : ''
+            if (!(a.adottate ?? []).some((x) => x.sessionId === sessione)) { rispondi(res, 404, { errore: 'chat non adottata da questo autopilota' }); return }
+            salva(conSoloMia(a, sessione, o.si === true))
+            console.log(`[adozione] ${id} — ${sessione.slice(0, 8)} ${o.si === true ? '«solo mia»: non la tocca più' : 'di nuovo guidabile'}`)
+            rispondi(res, 200, deps.archivio.leggi(id))
+            return
+          }
+          const ids = testi(o.ids)
+          const scritti = (a.perAdottate ?? []).filter((m) => ids.includes(m.id))
+          if (scritti.length > 0) {
+            const dopo = senzaMessaggiAdottate(a, ids)
+            for (const m of scritti) annota(dopo, `messaggio scritto alla chat adottata «${(a.adottate ?? []).find((x) => x.sessionId === m.sessionId)?.titolo.slice(0, 60) ?? m.sessionId.slice(0, 8)}»: ${m.testo.slice(0, 160)}`)
+            salva(dopo)
+          }
+          rispondi(res, 200, { tolti: scritti.length })
           return
         }
 

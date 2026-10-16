@@ -347,6 +347,11 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('migrazione:cambiata', h) }
     }
   },
+  /** Le chat già avviate adottate dall'autopilota del workspace (0.78.0). */
+  adozione: {
+    soloMia: (id: string, sessione: string, si: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke('adozione:soloMia', id, sessione, si),
+    adotta: (id: string): Promise<string[]> => ipcRenderer.invoke('adozione:adotta', id)
+  },
   quaderno: {
     elenca: (cwd: string): Promise<Scheda[]> => ipcRenderer.invoke('quaderno:elenca', cwd),
     leggi: (cwd: string, file: string): Promise<Scheda | undefined> =>

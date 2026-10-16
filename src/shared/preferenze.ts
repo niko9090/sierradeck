@@ -119,6 +119,12 @@ export type Preferenze = {
    */
   workspaceElenco: string[]
   /**
+   * Le chat che Nicholas ha segnato «solo mia» (0.78.0), per conversazione:
+   * l'autopilota del workspace non le adotta per guidarle e non le scrive.
+   * Valgono anche prima che l'autopilota nasca; dopo, sta anche nel suo file.
+   */
+  chatSoloMie?: string[]
+  /**
    * Come si veste la console.
    *
    * Due risposte opposte alla stessa domanda - cosa deve fare la cornice
@@ -276,6 +282,9 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     workspaceElenco: Array.isArray(o.workspaceElenco)
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
+    ...(Array.isArray(o.chatSoloMie)
+      ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }
+      : {}),
     // Solo i due nomi che conosciamo: uno stile inventato lascerebbe la console
     // senza token e con essa senza colori, che è il modo peggiore di scoprire
     // che il file era stato scritto a mano.

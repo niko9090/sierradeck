@@ -111,6 +111,10 @@ declare global {
         rifai: () => Promise<{ ok: boolean; messaggio: string }>
         suCambio: (cb: () => void) => () => void
       }
+      adozione: {
+        soloMia: (id: string, sessione: string, si: boolean) => Promise<{ ok: boolean }>
+        adotta: (id: string) => Promise<string[]>
+      }
       quaderno: {
         elenca: (cwd: string) => Promise<import('@shared/quaderno').Scheda[]>
         leggi: (cwd: string, file: string) => Promise<import('@shared/quaderno').Scheda | undefined>

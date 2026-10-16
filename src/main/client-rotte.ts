@@ -489,8 +489,8 @@ export type DipendenzeRotte = {
    */
   migrazione?: {
     stato: () => unknown
-    torna: () => { ok: boolean; messaggio: string }
-    rifai: () => { ok: boolean; messaggio: string }
+    torna: () => { ok: boolean; messaggio: string } | Promise<{ ok: boolean; messaggio: string }>
+    rifai: () => { ok: boolean; messaggio: string } | Promise<{ ok: boolean; messaggio: string }>
   }
   /**
    * Cercare un aggiornamento **adesso**.
@@ -1883,11 +1883,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (r.metodo === 'GET') return OK({ stato: deps.migrazione.stato() ?? null })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/migrazione/torna' && deps.migrazione !== undefined) {
-      const e = deps.migrazione.torna()
+      const e = await deps.migrazione.torna()
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
     if (r.metodo === 'POST' && r.percorso === '/api/migrazione/rifai' && deps.migrazione !== undefined) {
-      const e = deps.migrazione.rifai()
+      const e = await deps.migrazione.rifai()
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
     if (r.percorso === '/api/aggiornamento') {

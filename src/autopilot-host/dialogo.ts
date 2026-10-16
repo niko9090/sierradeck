@@ -1,6 +1,7 @@
 import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/autopilota'
 import type { CambioChiesto } from './supervisore'
 import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
+import { righePromptAdottate } from '@shared/adozione'
 
 /**
  * Il dialogo con l'autopilota, fuori dalla chat.
@@ -33,6 +34,8 @@ export type EsitoDialogo = {
   comando?: 'ferma' | 'riprendi' | 'rispondi'
   /** Letta solo la `risposta`: il resto non si capiva e non si è applicato niente. */
   restoIlleggibile?: true
+  /** I messaggi per le chat adottate (0.78.0), grezzi: li legge `messaggiPerAdottate`. */
+  perLeChat?: unknown
 }
 
 /** Quanto del dialogo passato entra nel prompt. */
@@ -93,6 +96,7 @@ export function componiPromptDialogo(
       : []),
     ...(inAttesa.length > 0 ? ['', '## Messaggi suoi che la chat riceverà a fine turno', ...inAttesa] : []),
     ...(dialogo.length > 0 ? ['', '## Il dialogo finora', ...dialogo] : []),
+    ...righePromptAdottate(a),
     '',
     '## Ti scrive adesso',
     testo.slice(0, 2000),
@@ -159,7 +163,8 @@ export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
     risposta,
     ...(cambio !== undefined ? { cambio } : {}),
     ...(perLaChat !== undefined ? { perLaChat } : {}),
-    ...(comando !== undefined ? { comando } : {})
+    ...(comando !== undefined ? { comando } : {}),
+    ...(Array.isArray(grezzo.perLeChat) ? { perLeChat: grezzo.perLeChat } : {})
   }
 }
 
