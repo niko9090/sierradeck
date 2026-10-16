@@ -317,7 +317,7 @@ fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
             for (c in piano) {
                 RigaApri("${c.nome} · ${c.compiti.size}", c.fase in aperte) { apri(c.fase) }
                 if (c.fase in aperte) for (x in c.compiti) {
-                    val chi = x.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: "da assegnare"
+                    val chi = x.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: (if (x.fase == "da-fare") "da assegnare" else "Chat")
                     Column(
                         Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp)
                             .border(BorderStroke(1.dp, Banco.incisione), RoundedCornerShape(8.dp))

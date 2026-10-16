@@ -248,8 +248,12 @@ describe('la misura del passo corrente', () => {
     expect(m.dettaglio).toBe('1 di 2')
   })
 
-  it('finito e cento per cento, comunque siano andati i criteri', () => {
-    expect(misuraPasso(ap({ stato: 'finito' })).percento).toBe(100)
+  it('finito è cento per cento solo con i criteri tutti soddisfatti (0.78.0, stato coerente con i criteri)', () => {
+    const tutti = ap({ stato: 'finito' })
+    expect(misuraPasso({ ...tutti, criteri: tutti.criteri.map((c) => ({ ...c, soddisfatto: true })) }).percento).toBe(100)
+    const uno = misuraPasso({ ...tutti, criteri: [{ descrizione: 'a', soddisfatto: true }, { descrizione: 'b', soddisfatto: false }, { descrizione: 'c', soddisfatto: false }] })
+    expect(uno.percento).toBe(33)
+    expect(uno.dettaglio).toBe('1 di 3')
   })
 
   it('il tono segue il passo: verde chi lavora, ambra chi aspetta, rosso chi e fermo', () => {

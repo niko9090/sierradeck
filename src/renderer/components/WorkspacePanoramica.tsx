@@ -232,6 +232,16 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
 function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; autopilota?: Autopilota; chat: number; ora: number }): React.JSX.Element {
   const [tutto, setTutto] = useState(false)
   const [criteriAperti, setCriteriAperti] = useState(false)
+  // L'elenco dei criteri si chiude con un clic fuori o con Esc (prova del 16/10: restava aperto sopra la conversazione).
+  const zonaCriteri = useRef<HTMLSpanElement | null>(null)
+  useEffect(() => {
+    if (!criteriAperti) return
+    const fuori = (e: MouseEvent): void => { if (zonaCriteri.current !== null && !zonaCriteri.current.contains(e.target as Node)) setCriteriAperti(false) }
+    const esc = (e: KeyboardEvent): void => { if (e.key === 'Escape') setCriteriAperti(false) }
+    document.addEventListener('mousedown', fuori)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fuori); document.removeEventListener('keydown', esc) }
+  }, [criteriAperti])
   // «Mostra tutto» solo se l'obiettivo non sta nelle 2 righe (prova del 16/10: compariva anche quando ci stava).
   const testo = useRef<HTMLDivElement | null>(null)
   const [tagliato, setTagliato] = useState(false)
@@ -262,7 +272,7 @@ function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; a
         </span>
         {s.stato.id === 'da-verificare' ? <span className="pan2-stato__perche">dice finito · criteri {s.criteri.testo}</span> : null}
         {s.criteri.totali > 0 ? (
-          <span className="pan2-criteri">
+          <span className="pan2-criteri" ref={zonaCriteri}>
             <button className="pan2-criteri__tasto" aria-expanded={criteriAperti} onClick={() => setCriteriAperti((v) => !v)} title="I criteri di fine, uno per uno">
               <span className="pan2-barra" aria-hidden>
                 {s.criteri.elenco.map((c, i) => <i key={i} className={`pan2-barra__pezzo pan2-barra__pezzo--${c.esito}`} />)}
@@ -348,7 +358,7 @@ function CompitoVista({ c, pane, onApri }: { c: CompitoPiano; pane?: string; onA
   const dentro = (
     <>
       <span className="pan2-compito__chi">
-        <PillolaRuolo {...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {})} {...(c.ruolo === undefined ? { nome: 'da assegnare' } : {})} />
+        <PillolaRuolo {...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {})} {...(c.ruolo === undefined && c.fase === 'da-fare' ? { nome: 'da assegnare' } : {})} />
         {c.autore !== undefined ? <span className="pan2-compito__di">di {RUOLI[c.autore].nome}</span> : null}
         {c.giri !== undefined ? <span className="pan2-compito__giri" title={`Rimandato indietro dalla Revisione ${c.giri} volte`}>↺ {c.giri}</span> : null}
       </span>

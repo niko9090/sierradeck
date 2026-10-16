@@ -1560,6 +1560,8 @@ function impronta(s) {
     // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
     panoramicaAp ? JSON.stringify(panoramicaAp) : '',
+    // I «▸» aperti della Panoramica 2 (0.78.0): senza, il tocco non ridisegnava (provato in Edge il 16/10).
+    JSON.stringify(panAperte),
     apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
@@ -2746,7 +2748,7 @@ function panoramicaHtml(p) {
   const piano = (p.piano || []).filter((c) => c.compiti.length > 0)
   const sezPiano = piano.length ? '<div class="serigrafia">Piano</div>' + piano.map((c) =>
     rigaApri(c.fase, esc(c.nome) + ' · ' + c.compiti.length) + (panAperte[c.fase] ? c.compiti.map((x) => {
-      const chi = x.ruolo ? (RUOLO_NOME[x.ruolo] || x.ruolo) : 'da assegnare'
+      const chi = x.ruolo ? (RUOLO_NOME[x.ruolo] || x.ruolo) : x.fase === 'da-fare' ? 'da assegnare' : 'Chat'
       const corpo = '<b>' + esc(chi) + '</b>' + (x.autore ? ' <span class="sotto">di ' + esc(RUOLO_NOME[x.autore] || x.autore) + '</span>' : '') + (x.giri ? ' <span class="sotto">↺ ' + x.giri + '</span>' : '') +
         '<span class="pan-tel-compito__testo">' + esc(x.testo) + '</span>' + (x.nota ? '<span class="sotto">' + esc(x.nota) + '</span>' : '')
       return x.chat && !apPc

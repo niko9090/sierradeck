@@ -95,6 +95,21 @@ describe('separaConversazione', () => {
   })
 })
 
+describe('0.78.0: chat diverse con lo stesso titolo', () => {
+  it('«#1», «#2» davanti, nell’ordine fisso; le altre restano come sono', async () => {
+    const { numeraUguali } = await import('@shared/panoramica')
+    const s = (id: string, titolo: string, nataIl: number): SchedaChat => ({ id, titolo, stato: 'ferma', nataIl })
+    const r = numeraUguali([s('b', 'Sei l’ANALISTA', 2), s('x', 'glos video', 1), s('a', 'Sei l’ANALISTA', 1)])
+    expect(r.map((x) => x.titolo)).toEqual(['#2 Sei l’ANALISTA', 'glos video', '#1 Sei l’ANALISTA'])
+  })
+  it('uguali per come si vedono: diversi solo dopo 40 caratteri contano come uguali (dati veri del 16/10)', async () => {
+    const { numeraUguali } = await import('@shared/panoramica')
+    const lungo = 'Sei l’ANALISTA del portafoglio di Nicholas. Lavori in Portfolio. WATCH '
+    const r = numeraUguali([{ id: 'a', titolo: `${lungo}btc_entry`, stato: 'ferma', nataIl: 1 }, { id: 'b', titolo: `${lungo}spacex_entry`, stato: 'ferma', nataIl: 2 }])
+    expect(r.map((x) => x.titolo.slice(0, 3))).toEqual(['#1 ', '#2 '])
+  })
+})
+
 describe('0.78.0: le linguette con molte chat che chiedono', () => {
   it('26 chat che chiedono (copia dei dati veri): al più 9 linguette in vista, la chat aperta fra queste, le altre in «Altre»', async () => {
     const { linguetteVisibili, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA } = await import('@shared/panoramica')

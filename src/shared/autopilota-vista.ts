@@ -165,7 +165,9 @@ export function misuraPasso(a: Autopilota): MisuraPasso {
 
   const totali = a.criteri.length
   const fatti = a.criteri.filter((c) => c.soddisfatto).length
-  if (a.stato === 'finito') {
+  // «Finito» vale 100% solo con i criteri tutti soddisfatti (0.78.0): prima diceva «3 di 3»
+  // anche con 1 su 3, accanto alla Panoramica che diceva «da verificare · 1/3».
+  if (a.stato === 'finito' && fatti === totali) {
     return { percento: 100, di: 'criteri', dettaglio: `${totali} di ${totali}`, tono: 'lavoro' }
   }
   return {

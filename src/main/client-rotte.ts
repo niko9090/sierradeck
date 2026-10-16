@@ -1,5 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
-import { colonnePiano, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
@@ -1312,7 +1312,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
             return aperta !== undefined ? { ...x, chat: aperta.id } : x
           }) }))
         } : {}),
-        schede: ordinaSchede(schede).flatMap((g) => g.schede)
+        schede: ordinaSchede(numeraUguali(schede)).flatMap((g) => g.schede)
       })
     }
 

@@ -376,3 +376,22 @@ export function adessoEFinite<T extends SchedaChat>(schede: readonly T[]): { ade
 export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota' }>(battute: readonly B[]): { messaggi: B[]; eventi: B[] } {
   return { messaggi: battute.filter((b) => b.da !== 'nota'), eventi: battute.filter((b) => b.da === 'nota').reverse() }
 }
+
+/**
+ * Le chat con lo stesso titolo si distinguono con «#1», «#2» nell'ordine fisso
+ * (0.78.0): sui dati veri del 16/10 «Predefinito» aveva molte chat diverse che
+ * cominciavano tutte con «Sei l'ANALISTA del portafoglio…», schede identiche.
+ */
+export function numeraUguali<T extends SchedaChat>(schede: readonly T[]): T[] {
+  // Uguali per come si vedono: i primi 40 caratteri (titoli diversi solo in fondo, tagliati dal «…», sembravano uguali).
+  const inizio = (t: string): string => t.replace(/s+/g, ' ').trim().slice(0, 40).toLowerCase()
+  const conti = new Map<string, number>()
+  const numero = new Map<string, number>()
+  for (const s of [...schede].sort(confrontaFisso)) {
+    const n = (conti.get(inizio(s.titolo)) ?? 0) + 1
+    conti.set(inizio(s.titolo), n)
+    numero.set(s.id, n)
+  }
+  // Il numero davanti: in fondo lo tagliava il «…» dei titoli lunghi.
+  return schede.map((s) => ((conti.get(inizio(s.titolo)) ?? 1) > 1 ? { ...s, titolo: `#${numero.get(s.id) ?? 1} ${s.titolo}` } : s))
+}

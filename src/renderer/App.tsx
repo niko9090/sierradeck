@@ -66,7 +66,7 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
-import { gruppoStabile, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
 import { specialistiDi } from '@shared/specialisti'
@@ -1665,7 +1665,7 @@ export function App(): React.JSX.Element {
         ultimaAzione: x.ultimaAzione, righe: []
       })
     }
-    return fuori
+    return numeraUguali(fuori)
   })()
   const vaiLinguetta = (id: string): void => {
     setLinguettaPerWs((m) => (m[workspace.attivo] === id ? m : { ...m, [workspace.attivo]: id }))
@@ -2147,6 +2147,7 @@ export function App(): React.JSX.Element {
           {/* La Panoramica (0.77.0): sopra i terminali, che restano montati e della stessa misura. */}
           {vistaElenco !== undefined && linguetta === PANORAMICA ? (
             <CorpoPanoramica
+              key={workspace.attivo}
               workspace={workspace.attivo}
               {...(autopilotaFisso !== undefined ? { autopilota: autopilotaFisso } : {})}
               {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
