@@ -1,5 +1,5 @@
 import type { Autopilota, ChatAdottata, MessaggioAdottata } from './autopilota'
-import { RUOLI, ruoloDaTesto, type Ruolo } from './ruoli-agenti'
+import { RUOLI, type Ruolo } from './ruoli-agenti'
 
 /**
  * Le chat già avviate adottate dall'autopilota del loro workspace (0.78.0).
@@ -22,7 +22,19 @@ import { RUOLI, ruoloDaTesto, type Ruolo } from './ruoli-agenti'
 /** Il nome di una chat adottata senza ruolo. */
 export const CHAT_GENERICA = 'Chat'
 
-const SVILUPPO = /\b(svilupp|implement|codice|corregg|correzion|fix|bug|funzion|refactor|aggiung|programm|script|errore)\w*/i
+/**
+ * Le parole di ogni ruolo per una chat esistente, a parole intere e più
+ * strette di quelle dei compiti degli specialisti (`ruoloDaTesto`): sui dati
+ * veri del 16/10 «UxC» (il prezzo dell'uranio) diventava «ux», Interfaccia.
+ * Nel dubbio la chat resta «Chat».
+ */
+const PAROLE_RUOLO: readonly [Ruolo, RegExp][] = [
+  ['rilascio', /\b(rilascio|rilascia|release|pubblica la versione|changelog)\b/i],
+  ['revisione', /\b(revisione|rivedi|review|code review)\b/i],
+  ['collaudo', /\b(test|testa|collaud\w*|prova dal vero|prove dal vero)\b/i],
+  ['interfaccia', /\b(interfaccia|grafica|css|ui|ux|schermat\w*|pulsant\w*|layout)\b/i],
+  ['sviluppo', /\b(svilupp\w*|implement\w*|codice|corregg\w*|correzion\w*|fix|bug|funzion\w*|refactor\w*|aggiung\w*|programm\w*|script)\b/i]
+]
 
 /**
  * Il ruolo di una chat esistente dal suo contenuto (il titolo, cioè la prima
@@ -34,9 +46,7 @@ export function ruoloDaContenuto(titolo: string): Ruolo | undefined {
   const davanti = titolo.split(' · ')[0]?.trim()
   const dichiarato = (Object.keys(RUOLI) as Ruolo[]).find((r) => RUOLI[r].nome === davanti)
   if (dichiarato !== undefined && titolo.includes(' · ')) return dichiarato
-  const r = ruoloDaTesto(titolo)
-  if (r !== 'sviluppo') return r
-  return SVILUPPO.test(titolo) ? 'sviluppo' : undefined
+  return PAROLE_RUOLO.find(([, re]) => re.test(titolo))?.[0]
 }
 
 /** Le sessioni che sono già dell'autopilota (la sua chat, i suoi specialisti, i supervisori): non si adottano. */

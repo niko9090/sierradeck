@@ -22,6 +22,10 @@ describe('ruoloDaContenuto', () => {
     expect(ruoloDaContenuto('sistema la grafica della pagina')).toBe('interfaccia')
     expect(ruoloDaContenuto('come dice il titolo facciamo un programma per dj')).toBe('sviluppo')
     expect(ruoloDaContenuto('ciao, che tempo fa?')).toBeUndefined()
+    // Titoli veri del 16/10: nel dubbio «Chat».
+    expect(ruoloDaContenuto('Controlla il prezzo spot dell’uranio (UxC/Cameco) e news su guidance')).toBeUndefined()
+    expect(ruoloDaContenuto('Sei l’ANALISTA del portafoglio: CHECK GENERALE ogni 2 giorni')).toBeUndefined()
+    expect(ruoloDaContenuto('continuano a esserci problemi e sempre gli stessi!')).toBeUndefined()
   })
 })
 

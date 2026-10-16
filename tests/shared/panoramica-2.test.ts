@@ -95,6 +95,17 @@ describe('separaConversazione', () => {
   })
 })
 
+describe('0.78.0: le linguette con molte chat che chiedono', () => {
+  it('26 chat che chiedono (copia dei dati veri): al più 9 linguette in vista, la chat aperta fra queste, le altre in «Altre»', async () => {
+    const { linguetteVisibili, LARGHEZZA_FISSA, LARGHEZZA_LINGUETTA } = await import('@shared/panoramica')
+    const chat: SchedaChat[] = Array.from({ length: 28 }, (_, i) => ({ id: `c${i}`, titolo: `c${i}`, stato: i < 26 ? 'chiede' : 'ferma', nataIl: i }))
+    const { visibili, altre } = linguetteVisibili(LARGHEZZA_FISSA + 20 * LARGHEZZA_LINGUETTA, chat, 'c27')
+    expect(visibili).toHaveLength(9)
+    expect(visibili.map((x) => x.id)).toContain('c27')
+    expect(altre).toHaveLength(19)
+  })
+})
+
 describe('0.78.0: l’ultima azione non è il riepilogo del turno', () => {
   it('«✻ Churned for 22s · done 17:31» non è un’azione: vale la riga prima', async () => {
     const { ultimaAzioneDalVivo } = await import('@shared/panoramica')

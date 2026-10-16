@@ -44,6 +44,14 @@ class PanoramicaTest {
         assertEquals("da 3 min", RegolePanoramica.daQuanto(0, 180_000))
     }
 
+    @Test fun molteChatCheChiedono() {
+        val chat = (0 until 28).map { s("c$it", if (it < 26) "chiede" else "ferma", it.toLong()) }
+        val (visibili, altre) = RegolePanoramica.linguetteVisibili(RegolePanoramica.LARGHEZZA_FISSA + 20 * RegolePanoramica.LARGHEZZA_LINGUETTA, chat, "c27")
+        assertEquals(9, visibili.size)
+        assertEquals(true, visibili.any { it.id == "c27" })
+        assertEquals(19, altre.size)
+    }
+
     @Test fun sezioniDellaPanoramica2() {
         val schede = listOf(
             s("ferma-mia", "ferma", 1), s("lavora", "lavora", 2, "sviluppo").copy(specialista = true),

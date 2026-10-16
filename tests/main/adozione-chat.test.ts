@@ -103,6 +103,14 @@ describe('l’adozione delle chat già avviate', () => {
     expect(autopiloti[0]!.adottate).toEqual([])
     expect(m.stato()?.stato).toBe('annullata')
   })
+  it('«Torna come prima» toglie anche le chat adottate dopo, dal giro (prova del 16/10)', async () => {
+    const m = crea()
+    await m.esegui()
+    autopiloti[0] = conChatAdottate(autopiloti[0]!, [{ sessionId: 's-nuova', titolo: 'aperta dopo' }], 'q').autopilota
+    expect(autopiloti[0]!.adottate).toHaveLength(2)
+    expect((await m.tornaComePrima()).ok).toBe(true)
+    expect(autopiloti[0]!.adottate).toEqual([])
+  })
   it('senza autopiloti veri non cambia niente e non copia', async () => {
     autopiloti = []
     const e = await crea().esegui()

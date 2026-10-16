@@ -107,7 +107,9 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
       {visibili.map(tasto)}
       {altre.length > 0 ? (
         <span className="pan-altre">
-          <button className="pan-linguetta" aria-expanded={altreAperte} onClick={() => setAltreAperte((v) => !v)}>Altre ({altre.length}) ▾</button>
+          <button className={`pan-linguetta${altre.some((a) => a.stato === 'chiede') ? ' pan-linguetta--chiede' : ''}`} aria-expanded={altreAperte} onClick={() => setAltreAperte((v) => !v)}>
+            {altre.some((a) => a.stato === 'chiede') ? `◆ ${altre.filter((a) => a.stato === 'chiede').length} · ` : ''}Altre ({altre.length}) ▾
+          </button>
           {altreAperte ? <div className="pan-altre__menu" role="menu">{altre.map(tasto)}</div> : null}
         </span>
       ) : null}

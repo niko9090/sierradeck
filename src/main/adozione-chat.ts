@@ -146,10 +146,17 @@ export function creaMigrazioneAdozione(d: DipendenzeAdozione) {
     async tornaComePrima(): Promise<{ ok: boolean; messaggio: string }> {
       const s = stato()
       if (s === undefined || (s.stato !== 'fatta' && s.stato !== 'in-corso')) return { ok: false, messaggio: 'Non c’è un’adozione da annullare.' }
-      const restano = await togliTutte(s.adozioni)
+      // Tutte le adottate, anche quelle del giro dopo la migrazione (prova del 16/10: restavano adottate).
+      let tutte: Adozione[] = s.adozioni
+      try {
+        tutte = (await d.servizio.elenca())
+          .filter((a) => (a.adottate ?? []).length > 0)
+          .map((a) => ({ autopilota: a.id, workspace: a.workspace ?? '', sessioni: (a.adottate ?? []).map((x) => x.sessionId) }))
+      } catch { /* il servizio non risponde: almeno quelle della migrazione, e lo dice il conto qui sotto */ }
+      const restano = await togliTutte(tutte)
       if (restano > 0) return { ok: false, messaggio: 'Il servizio degli autopiloti non risponde: riprova fra un momento.' }
       scrivi({ ...s, stato: 'annullata', finita: adesso().toISOString() })
-      d.log(`[migrazione] adozione: «Torna come prima» (${s.adozioni.reduce((n, x) => n + x.sessioni.length, 0)} chat non più adottate, ${s.dormientiArchiviati.length} dormienti rimessi); chat non toccate`)
+      d.log(`[migrazione] adozione: «Torna come prima» (${tutte.reduce((n, x) => n + x.sessioni.length, 0)} chat non più adottate, ${s.dormientiArchiviati.length} dormienti rimessi); chat non toccate`)
       return { ok: true, messaggio: 'Fatto: le chat non sono più adottate. Le chat non sono state toccate.' }
     }
   }

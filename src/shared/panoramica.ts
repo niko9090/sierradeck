@@ -95,7 +95,13 @@ export function linguetteVisibili<T extends SchedaChat>(larghezza: number, chat:
   const inTutto = Math.min(LINGUETTE_MAX, Math.max(LINGUETTE_MIN, Math.floor((larghezza - LARGHEZZA_FISSA) / LARGHEZZA_LINGUETTA)))
   const posti = inTutto - 1
   if (inOrdine.length <= posti) return { visibili: inOrdine, altre: [] }
-  const sempre = new Set(inOrdine.filter((c) => c.stato === 'chiede' || c.stato === 'lavora' || c.id === aperta).map((c) => c.id))
+  // Sempre in vista la chat aperta, chi aspetta te e chi lavora, ma non oltre il tetto delle linguette:
+  // con 26 chat che chiedevano (copia dei dati veri, 16/10) diventavano 26 linguette di un carattere.
+  const priorita = (c: T): number => (c.id === aperta ? 0 : c.stato === 'chiede' ? 1 : 2)
+  const sempre = new Set(inOrdine.filter((c) => c.stato === 'chiede' || c.stato === 'lavora' || c.id === aperta)
+    .sort((x, y) => priorita(x) - priorita(y) || confrontaFisso(x, y))
+    .slice(0, LINGUETTE_MAX - 1)
+    .map((c) => c.id))
   let liberi = posti - sempre.size
   const scelte = new Set(sempre)
   for (const c of inOrdine) {

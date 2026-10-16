@@ -157,7 +157,12 @@ object RegolePanoramica {
         val inTutto = ((larghezza - LARGHEZZA_FISSA) / LARGHEZZA_LINGUETTA).coerceIn(LINGUETTE_MIN, LINGUETTE_MAX)
         val posti = inTutto - 1
         if (inOrdine.size <= posti) return inOrdine to emptyList()
-        val scelte = inOrdine.filter { it.stato == "chiede" || it.stato == "lavora" || it.id == aperta }.map { it.id }.toMutableSet()
+        // PC 0.78.0: sempre in vista, ma non oltre il tetto (26 chat che chiedevano = 26 linguette di un carattere).
+        val priorita = { c: SchedaPanoramica -> if (c.id == aperta) 0 else if (c.stato == "chiede") 1 else 2 }
+        val scelte = inOrdine.filter { it.stato == "chiede" || it.stato == "lavora" || it.id == aperta }
+            .sortedWith(compareBy<SchedaPanoramica> { priorita(it) }.then(fisso))
+            .take(LINGUETTE_MAX - 1)
+            .map { it.id }.toMutableSet()
         var liberi = posti - scelte.size
         for (c in inOrdine) {
             if (liberi <= 0) break
