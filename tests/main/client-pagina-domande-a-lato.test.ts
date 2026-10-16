@@ -38,23 +38,61 @@ describe('pagina: le domande brevi a lato', () => {
   })
 })
 
-describe('0.77.0: la Panoramica sul telefono', () => {
-  const pan = new Function('esc', 'aiuto', 'apPc', `const RUOLO_NOME = { sviluppo: 'Sviluppo' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' }; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null) as (p: unknown) => string
-  it('riga dell’autopilota, «aspettano te», una scheda per chat con 2 righe dal vivo; il tocco apre la chat', () => {
-    const html = pan({
-      riassunto: { obiettivo: 'Fai passare la suite', stato: { parola: 'al lavoro', colore: 'verde' }, criteri: { testo: '1/2' } },
-      schede: [
-        { id: 'p-3', titolo: 'chiede', stato: 'chiede', ultimaAzione: '', righe: [] },
-        { id: 'p-2', titolo: 'Sviluppo · Notte', stato: 'lavora', ruolo: 'sviluppo', ultimaAzione: 'scrive il test', righe: ['a', 'b', 'c'] },
-        { id: 'fine-c-1', titolo: 'fatto', stato: 'finita', ultimaAzione: 'finito', righe: [] }
-      ]
-    })
-    expect(html).toContain('Fai passare la suite')
-    expect(html).toContain('1 chat aspetta te')
-    expect(html).toContain('onclick="apriDaPanoramica(this.dataset.chat)"')
-    expect(html).toContain('<span>b</span><span>c</span>')
-    expect(html).not.toContain('<span>a</span>')
+describe('0.78.0: la Panoramica 2 sul telefono', () => {
+  const crea = (aperte: Record<string, boolean> = {}) => new Function('esc', 'aiuto', 'apPc', 'pannello', 'ultimoStato', `
+    const RUOLO_NOME = { sviluppo: 'Sviluppo', revisione: 'Revisione' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' };
+    var panAperte = Object.assign({ criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }, ${JSON.stringify(aperte)});
+    ${funzione('rigaApri')}; ${funzione('schedaTelHtml')}; ${funzione('panoramicaVecchiaHtml')}; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null, () => undefined, null) as (p: unknown) => string
+  const schede = [
+    { id: 'p-3', titolo: 'chiede', stato: 'chiede', ultimaAzione: '', righe: [] },
+    { id: 'p-2', titolo: 'Sviluppo · Notte', stato: 'lavora', ruolo: 'sviluppo', specialista: true, ultimaAzione: 'scrive il test', righe: ['a', 'b', 'c', 'd'] },
+    { id: 'p-9', titolo: 'una chat che c’era già', stato: 'ferma', ruolo: 'sviluppo', ultimaAzione: 'ha finito', righe: ['x'], soloMia: true },
+    { id: 'fine-c-1', titolo: 'fatto', stato: 'finita', specialista: true, ultimaAzione: 'finito', righe: [] }
+  ]
+  const situazione = {
+    obiettivo: 'Fai passare la suite',
+    stato: { id: 'da-verificare', parola: 'da verificare', colore: 'ambra', simbolo: '◐', ragione: 'dice di aver finito, ma i criteri soddisfatti sono 0 su 2' },
+    criteri: { fatti: 0, totali: 2, testo: '0/2', elenco: [{ descrizione: 'test verdi', esito: 'no', prova: 'npm test: 2 falliti' }, { descrizione: 'compila', esito: 'mai' }] }
+  }
+  const piano = [
+    { fase: 'da-fare', nome: 'Da fare', compiti: [{ id: 'd', testo: 'Docs', fase: 'da-fare' }] },
+    { fase: 'in-corso', nome: 'In corso', compiti: [{ id: 'c-2', testo: 'Somma', fase: 'in-corso', ruolo: 'sviluppo', chat: 'p-2' }] },
+    { fase: 'in-revisione', nome: 'In revisione', compiti: [{ id: 'c-3', testo: 'Media', fase: 'in-revisione', ruolo: 'revisione', autore: 'sviluppo', giri: 1 }] },
+    { fase: 'fatto', nome: 'Fatto', compiti: [{ id: 'c-1', testo: 'Prima', fase: 'fatto', ruolo: 'sviluppo' }] }
+  ]
+  it('situazione coerente, Adesso solo chi lavora o aspetta, Piano a liste, le altre chat, le finite chiuse', () => {
+    const html = crea()({ situazione, piano, schede })
+    expect(html).toContain('◐ da verificare')
+    expect(html).toContain('Criteri 0/2')
+    expect(html).not.toContain('test verdi')
+    expect(html).toContain('Adesso · 2')
     expect(html.indexOf('p-3')).toBeLessThan(html.indexOf('p-2'))
-    expect(html).toContain(' disabled>')
+    expect(html).toContain('<span>b</span><span>c</span><span>d</span>')
+    expect(html).toContain('In corso · 1')
+    expect(html).toContain('data-chat="p-2" onclick="apriDaPanoramica(this.dataset.chat)">')
+    expect(html).toContain('di Sviluppo')
+    expect(html).toContain('↺ 1')
+    expect(html).not.toContain('>Docs<')
+    expect(html).toContain('Chat · 1')
+    expect(html).toContain('solo tua')
+    expect(html).toContain('Finite: 1')
+    expect(html).not.toContain('<span class="sotto">fatto</span>')
+    expect(html).toContain('Conversazione')
+  })
+  it('aperti: i criteri uno per uno con la prova, le finite, «Da fare»', () => {
+    const html = crea({ criteri: true, finite: true, 'da-fare': true })({ situazione, piano, schede })
+    expect(html).toContain('test verdi')
+    expect(html).toContain('npm test: 2 falliti')
+    expect(html).toContain('mai controllato')
+    expect(html).toContain('<span class="sotto">fatto</span>')
+    expect(html).toContain('Docs')
+  })
+  it('nessuna chat al lavoro: una riga', () => {
+    expect(crea()({ situazione, piano: [], schede: [schede[2]] })).toContain('Nessuna chat al lavoro.')
+  })
+  it('un PC della 0.77.0 senza situazione: la lista di prima', () => {
+    const html = crea()({ riassunto: { obiettivo: 'Vecchio', stato: { parola: 'al lavoro', colore: 'verde' }, criteri: { testo: '1/2' } }, schede })
+    expect(html).toContain('Vecchio')
+    expect(html).toContain('Panoramica')
   })
 })

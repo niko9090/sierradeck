@@ -1,5 +1,6 @@
 import { vistaAccount } from '@shared/account-vista'
-import { ordinaSchede, riassuntoAutopilota, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { colonnePiano, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
 import { domandaBreve } from '@shared/domande-conversazioni'
@@ -1275,7 +1276,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ...chat.map((c) => {
           const cc = c as Chat & { chiede?: boolean; chiedeSegnale?: boolean; coda?: string[] }
           const sp = cc.sessione !== undefined ? perSessione.get(cc.sessione) : undefined
-          const ruolo = ruoloDi(sp?.ruolo ?? ruoloDalTitolo(cc.titolo))
+          // Una chat adottata (0.78.0): il ruolo che le ha dato l'autopilota, o quello dal contenuto.
+          const ad = cc.sessione !== undefined ? ap?.adottate?.find((x) => x.sessionId === cc.sessione) : undefined
+          const dichiarato = sp?.ruolo ?? ruoloDalTitolo(cc.titolo)
+          const ruolo = dichiarato !== undefined ? ruoloDi(dichiarato) : ad !== undefined ? ad.ruolo : ruoloDaContenuto(cc.titolo)
+          const dellAutopilota = sp !== undefined || cc.governata === true
           const stato: StatoScheda = cc.chiede === true || cc.chiedeSegnale === true ? 'chiede' : cc.aspetta === true || cc.viva === false ? 'ferma' : 'lavora'
           const domanda = conversazioni.find((x) => x.chiave === `chat:${cc.id}` && domandaBreve(x))
           return {
@@ -1284,17 +1289,29 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
             ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (ultimaAzioneDalVivo(cc.coda ?? []) || righeDalVivo(cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : [], 1)[0] || ''),
             righe: righeDalVivo(cc.coda ?? (cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : []), 4),
             ...(cc.sessione !== undefined ? { sessione: cc.sessione } : {}),
+            ...(dellAutopilota ? { specialista: true } : {}),
+            ...(ad?.soloMia === true ? { soloMia: true } : {}),
             ...(domanda !== undefined ? { domanda } : {})
           }
         }),
         ...specialisti.filter((x) => x.chiusa === true && !chat.some((c) => c.sessione !== undefined && c.sessione === x.sessionId)).map((x) => {
           const ruolo = ruoloDi(x.ruolo)
-          return { id: `fine-${x.id}`, titolo: x.compito, stato: 'finita' as const, nataIl: numero(x.id), ...(ruolo !== undefined ? { ruolo } : {}), ultimaAzione: x.ultimaAzione, righe: [] as string[] }
+          return { id: `fine-${x.id}`, titolo: x.compito, stato: 'finita' as const, nataIl: numero(x.id), specialista: true, ...(ruolo !== undefined ? { ruolo } : {}), ultimaAzione: x.ultimaAzione, righe: [] as string[] }
         })
       ]
       return OK({
         workspace: ws,
-        ...(ap !== undefined ? { autopilota: ap.id, riassunto: riassuntoAutopilota(ap, ora) } : {}),
+        // `riassunto` resta per le app della 0.77.0; la Panoramica 2 (0.78.0) legge situazione e piano.
+        ...(ap !== undefined ? {
+          autopilota: ap.id,
+          riassunto: riassuntoAutopilota(ap, ora),
+          situazione: situazioneAutopilota(ap, ora),
+          piano: colonnePiano(pianoAutopilota(ap)).map((c) => ({ ...c, compiti: c.compiti.map((x) => {
+            // La chat del compito, se è aperta qui: il tocco la apre.
+            const aperta = x.sessione !== undefined ? chat.find((y) => y.sessione === x.sessione) : undefined
+            return aperta !== undefined ? { ...x, chat: aperta.id } : x
+          }) }))
+        } : {}),
         schede: ordinaSchede(schede).flatMap((g) => g.schede)
       })
     }
