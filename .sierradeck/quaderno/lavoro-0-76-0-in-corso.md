@@ -45,3 +45,13 @@ tag: ["0.76.0", "autopilota", "consegne", "elenco", "domande", "segnali"]
 - **Banchi dal vero nello scratchpad** (`banco-consegne.ts`, `banco-indicatore.ts`): si compilano con esbuild, con `state/layout` sostituito da uno stub. Lanciati da dentro una sessione di Claude Code, i claude.exe figli ereditano `CLAUDE_CODE_CHILD_SESSION` e non salvano le trascrizioni. È comodo, perché non lasciano storie.
 - **Copia di prova con i dati veri:** `prepara-elenco.cjs` e `avvia-elenco.sh` nello scratchpad. Si copiano solo lista dei workspace, preferenze e stato della trasformazione; mai autopiloti, Drive o chiavi. Si ferma con taskkill sull'albero di electron con `--remote-debugging-port=9333`.
 - **Una cartella di storie spostata nel recupero torna** con la sincronia di una versione prima della 0.76.0.
+
+# 0.77.0: la Panoramica (decisione di Nicholas del 16/10, «vedere tutto in una vista»)
+- **Regole pure:** `src/shared/panoramica.ts` e `Panoramica.kt`:
+  - `ordinaSchede` per gruppi;
+  - `gruppoStabile` con 8 s di quiete;
+  - `linguetteVisibili` fra 4 e 10, chi lavora o chiede sempre in vista;
+  - `riassuntoAutopilota`, `righeDalVivo`, `ultimaAzioneDalVivo`, `daQuanto`.
+- **PC:** `WorkspacePanoramica.tsx` (`BarraLinguette`, `CorpoPanoramica`). In App.tsx ci sono quattro posti attorno al Mosaic: barra, colonna, **Mosaic sempre terzo**, corpo sovrapposto; il test è `mosaico-un-posto-solo`. Le schede sono calcolate in App (`schedePanoramica`) e la linguetta è ricordata per ogni workspace.
+- **Pagina e app:** rotta `POST /api/panoramica {workspace}`. Va anche in `ROTTE_PONTE`, in `ROTTE_VIA_CANALE` e nella lista Kotlin di Ponte.kt (`PonteTest` legge la lista TS dal sorgente: **niente apostrofi nei commenti di quella lista**).
+- **Trappola:** due specialisti con lo stesso titolo («Revisione · X») davano schede identiche. La scheda usa il compito.
