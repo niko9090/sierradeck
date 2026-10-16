@@ -1,6 +1,6 @@
-import type { Autopilota } from './autopilota'
+import type { Autopilota, ChatGovernata } from './autopilota'
 import { vistaAutopilota } from './autopiloti-vista'
-import { RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
+import { RUOLI, RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
 
 /**
  * La Panoramica del workspace dell'autopilota (0.77.0). Nicholas, 16/10:
@@ -137,8 +137,18 @@ const RUMORE = [
   /Your login expires/i,
   /Transcript saving is off/i,
   // La riga di stato di Claude Code (modello, contesto, limiti del piano): vista nella prova del 16/10.
-  /contesto \d+%|context \d+%|\b5 ore \d+%/i
+  /contesto \d+%|context \d+%|\b5 ore \d+%|settimana \d+%|week \d+%/i,
+  // La testata di Claude Code (0.78.0): il logo, la versione, il piano.
+  /[▐▛▜▌▝▘]{2}/,
+  /Claude Code v\d/,
+  /· Claude (Max|Pro|Team|Enterprise)\b/
 ]
+/** I tratti delle cornici: una riga fatta per lo più di questi è una cornice, anche con un titolo dentro (0.78.0). */
+const TRATTI = /[─━═╌╍┄┅┈┉]/g
+const eCornice = (r: string): boolean => {
+  const piena = r.replace(/\s/g, '')
+  return piena.length > 0 && (piena.match(TRATTI)?.length ?? 0) / piena.length >= 0.6
+}
 /** Pezzi di codici colore rimasti senza ESC (un flusso tagliato a metà): «;2;153;153m». */
 const ANSI_SPEZZATO = /;?(?:\d{1,3};)+\d{1,3}m/g
 /** La riga d'attività (spinner): «✻ Pouncing… (12s · ↓ 231 tokens)». */
@@ -152,7 +162,11 @@ export function righeDalVivo(righe: readonly string[], quante = 4): string[] {
   const pulite = righe
     .flatMap((r) => r.split(/\r?\n/))
     .map((r) => r.replace(ANSI, '').replace(ANSI_SPEZZATO, '').replace(/\s+$/, ''))
-    .filter((r) => r.trim() !== '' && !RUMORE.some((x) => x.test(r)))
+    // Il bordo di una casella intorno al testo («│ testo │»): resta il testo (0.78.0).
+    .map((r) => r.replace(/^\s*[│┃║]\s?/, '').replace(/\s*[│┃║]\s*$/, ''))
+    .filter((r) => r.trim() !== '' && !RUMORE.some((x) => x.test(r)) && !eCornice(r))
+    // Due righe uguali di fila sono una (0.78.0).
+    .filter((r, i, tutte) => i === 0 || r.trim() !== tutte[i - 1]!.trim())
   return pulite.slice(-quante).map((r) => (r.length > 160 ? `${r.slice(0, 159)}…` : r))
 }
 
@@ -175,4 +189,179 @@ export function daQuanto(dalMs: number | undefined, ora: number): string {
 export function ultimaAzioneDalVivo(righe: readonly string[]): string {
   const pulite = righeDalVivo(righe, 12).filter((r) => !ATTIVITA.test(r) && !/(\S+…)\1/.test(r.replace(/\s+/g, '')))
   return (pulite[pulite.length - 1] ?? '').trim()
+}
+
+// ─── Panoramica 2 (0.78.0) ───────────────────────────────────────────────
+// Nicholas, 16/10, sulla 0.77.0: «puoi fare meglio». Le finite occupavano
+// tutto, le schede erano vuote, il dialogo era un registro tecnico, in alto
+// «finito» stava accanto a «Criteri 0/2». Rivista da un agente UI/UX prima
+// del codice. In alto la situazione; al centro «Adesso» (solo chi lavora o
+// aspetta te), il «Piano» a colonne, «Finite: N ▸»; a sinistra la
+// conversazione, gli eventi tecnici in «Cosa è successo ▸».
+
+/** Lo stato coerente con i criteri: «finito» solo se lo sono tutti (revisione UI/UX). */
+export type StatoSituazione = { id: string; parola: string; colore: string; simbolo: string; ragione?: string }
+
+const SIMBOLO_SITUAZIONE: Record<string, string> = {
+  guasto: '✗', aspetta: '◆', 'senza-segni': '◐', 'al-lavoro': '●', prepara: '○', pronto: '◆', fermo: '■', finito: '✓', 'da-verificare': '◐'
+}
+
+/**
+ * Lo stato dell'autopilota in una parola, coerente con i criteri: se dice di
+ * aver finito ma i criteri non sono tutti soddisfatti è «da verificare» in
+ * ambra; senza criteri è «finito» in grigio, mai verde. Il verde con ✓ vale
+ * solo per «tutti i criteri soddisfatti».
+ */
+export function statoCoerente(a: Autopilota, ora: number): StatoSituazione {
+  const v = vistaAutopilota(a, ora)
+  const { fatti, totali } = v.criteri
+  if (v.stato.id === 'finito') {
+    if (totali === 0) return { id: 'finito', parola: 'finito', colore: 'quieto', simbolo: '✓', ragione: 'senza criteri da misurare' }
+    if (fatti < totali) return { id: 'da-verificare', parola: 'da verificare', colore: 'ambra', simbolo: '◐', ragione: `dice di aver finito, ma i criteri soddisfatti sono ${fatti} su ${totali}` }
+  }
+  return { id: v.stato.id, parola: v.stato.parola, colore: v.stato.colore, simbolo: SIMBOLO_SITUAZIONE[v.stato.id] ?? '●', ...(v.stato.ragione !== undefined ? { ragione: v.stato.ragione } : {}) }
+}
+
+/** Un criterio per l'elenco che si apre dalla barra: ✓ soddisfatto, ✗ no, ○ mai controllato. */
+export type CriterioVista = { descrizione: string; esito: 'si' | 'no' | 'mai'; quando?: string; prova?: string }
+
+export function criteriVista(a: Autopilota): CriterioVista[] {
+  return a.criteri.map((c) => {
+    const v = c.ultimaVerifica
+    const esito: CriterioVista['esito'] = c.soddisfatto ? 'si' : v !== undefined ? 'no' : 'mai'
+    const quando = c.raggiuntoIl ?? v?.quando
+    const riga = (v?.uscita ?? '').split(/\r?\n/).map((r) => r.replace(ANSI, '').trim()).filter((r) => r !== '').pop()
+    const prova = c.comando !== undefined ? `${c.comando}${riga !== undefined ? `: ${riga}` : ''}` : riga
+    return { descrizione: c.descrizione, esito, ...(quando !== undefined ? { quando } : {}), ...(prova !== undefined && prova !== '' ? { prova } : {}) }
+  })
+}
+
+/** La situazione in alto: l'obiettivo intero (lo taglia a 2 righe chi disegna), lo stato coerente, i criteri. */
+export type Situazione = { obiettivo: string; stato: StatoSituazione; criteri: { fatti: number; totali: number; testo: string; elenco: CriterioVista[] } }
+
+export function situazioneAutopilota(a: Autopilota, ora: number): Situazione {
+  const elenco = criteriVista(a)
+  const fatti = elenco.filter((c) => c.esito === 'si').length
+  return {
+    // Tutto l'obiettivo in una riga sola: le 2 righe le fa chi disegna, con il resto dietro «Mostra tutto».
+    obiettivo: a.obiettivo.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '').join(' '),
+    stato: statoCoerente(a, ora),
+    criteri: { fatti, totali: elenco.length, testo: elenco.length === 0 ? '—' : `${fatti}/${elenco.length}`, elenco }
+  }
+}
+
+/** Le fasi del Piano, nell'ordine delle colonne. */
+export type FaseCompito = 'da-fare' | 'in-corso' | 'in-revisione' | 'fatto'
+export const FASI_PIANO: readonly { id: FaseCompito; nome: string }[] = [
+  { id: 'da-fare', nome: 'Da fare' },
+  { id: 'in-corso', nome: 'In corso' },
+  { id: 'in-revisione', nome: 'In revisione' },
+  { id: 'fatto', nome: 'Fatto' }
+]
+
+/** Un compito del Piano, con lo specialista che ce l'ha in mano adesso. */
+export type CompitoPiano = {
+  id: string
+  testo: string
+  fase: FaseCompito
+  /** Lo specialista assegnato: in revisione è la Revisione. */
+  ruolo?: Ruolo
+  /** Lo specialista che l'ha fatto, quando ora ce l'ha la Revisione. */
+  autore?: Ruolo
+  /** La sessione della chat da aprire al clic: quella che ci lavora adesso. */
+  sessione?: string
+  /** «aspetta una risposta», «in pausa»: solo quando non lavora. */
+  nota?: string
+  /** Quante volte la Revisione l'ha rimandato indietro. */
+  giri?: number
+}
+
+const numeroDi = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1] ?? NaN); return Number.isFinite(n) ? n : 0 }
+
+/**
+ * I compiti dell'autopilota in fasi, dal suo stato (niente testo da
+ * interpretare): i compiti non ancora affidati sono «da fare»; una chat che
+ * lavora (o aspetta, o è in pausa) è «in corso»; una chat finita che deve
+ * passare dalla Revisione e non è ancora unita è «in revisione»; approvata, o
+ * senza revisione, o con l'autopilota finito, è «fatto». Le chat di Revisione
+ * non sono compiti: stanno sul compito che rivedono. Un compito rifatto da
+ * più chat compare una volta sola, con la chat più recente.
+ */
+export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
+  const fuori: CompitoPiano[] = []
+  if (a.chats.length === 0) {
+    // La chat unica: un compito, l'obiettivo.
+    if (a.sessionId !== undefined && a.stato !== 'intervista' && a.stato !== 'pronto') {
+      fuori.push({
+        id: a.id, testo: a.nome.trim() !== '' ? a.nome : a.obiettivo.split(/\r?\n/)[0] ?? '',
+        fase: a.stato === 'finito' ? 'fatto' : 'in-corso', sessione: a.sessionId,
+        ...(a.stato === 'attesa' ? { nota: 'aspetta te' } : a.stato === 'sospeso' || a.stato === 'fallito' ? { nota: 'fermo' } : {})
+      })
+    }
+  } else {
+    const revisioni = a.chats.filter((c) => c.ruolo === 'revisione' && c.revisioneDi !== undefined)
+    const ultimaPerTesto = new Map<string, ChatGovernata>()
+    for (const c of a.chats) {
+      if (c.ruolo === 'revisione' && c.revisioneDi !== undefined) continue
+      const prima = ultimaPerTesto.get(c.compito)
+      if (prima === undefined || numeroDi(c.id) > numeroDi(prima.id)) ultimaPerTesto.set(c.compito, c)
+    }
+    for (const c of ultimaPerTesto.values()) {
+      const giri = c.rifacimenti !== undefined && c.rifacimenti > 0 ? { giri: c.rifacimenti } : {}
+      const base = { id: c.id, testo: c.compito, ...giri }
+      if (c.stato !== 'finita') {
+        fuori.push({
+          ...base, fase: 'in-corso', ...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {}), ...(c.sessionId !== undefined ? { sessione: c.sessionId } : {}),
+          ...(c.stato === 'bloccata' ? { nota: 'aspetta una risposta' } : c.stato === 'pausa' ? { nota: 'in pausa' } : {})
+        })
+        continue
+      }
+      const conRevisione = c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione
+      if (a.stato === 'finito' || c.approvata === true || !conRevisione) {
+        fuori.push({ ...base, fase: 'fatto', ...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {}), ...(c.sessionId !== undefined ? { sessione: c.sessionId } : {}) })
+        continue
+      }
+      // In revisione: al clic la Revisione che lo sta leggendo, se c'è; altrimenti la chat che l'ha fatto.
+      const rev = revisioni.filter((r) => r.revisioneDi === c.id).sort((x, y) => numeroDi(y.id) - numeroDi(x.id))[0]
+      const sessione = rev !== undefined && rev.stato !== 'finita' && rev.sessionId !== undefined ? rev.sessionId : c.sessionId
+      fuori.push({ ...base, fase: 'in-revisione', ruolo: 'revisione', ...(c.ruolo !== undefined ? { autore: c.ruolo } : {}), ...(sessione !== undefined ? { sessione } : {}) })
+    }
+  }
+  const presi = new Set(fuori.map((c) => c.testo))
+  a.compitiDaFare.forEach((t, i) => {
+    if (presi.has(t)) return
+    const r = a.ruoliCompiti?.[t]?.ruolo
+    fuori.push({ id: `da-fare-${i}`, testo: t, fase: 'da-fare', ...(r !== undefined ? { ruolo: r } : {}) })
+  })
+  return fuori
+}
+
+/** Le 4 colonne del Piano, sempre tutte e 4; dentro, per ruolo e poi come sono nati: l'ordine non salta. */
+export function colonnePiano(compiti: readonly CompitoPiano[]): { fase: FaseCompito; nome: string; compiti: CompitoPiano[] }[] {
+  const ordine = (c: CompitoPiano): number => postoRuolo(c.autore ?? c.ruolo)
+  return FASI_PIANO.map((f) => ({
+    fase: f.id,
+    nome: f.nome,
+    compiti: compiti.filter((c) => c.fase === f.id).sort((x, y) => ordine(x) - ordine(y) || numeroDi(x.id) - numeroDi(y.id) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0))
+  }))
+}
+
+/**
+ * «Adesso» e «Finite»: in «Adesso» solo chi lavora o aspetta te (prima chi
+ * aspetta te), tutto il resto in «Finite: N ▸», in ordine fisso.
+ */
+export function adessoEFinite<T extends SchedaChat>(schede: readonly T[]): { adesso: T[]; finite: T[] } {
+  const g = ordinaSchede(schede)
+  const di = (x: StatoScheda): T[] => g.find((y) => y.gruppo === x)?.schede ?? []
+  return { adesso: [...di('chiede'), ...di('lavora')], finite: [...di('ferma'), ...di('finita')] }
+}
+
+/**
+ * La conversazione e gli eventi: a sinistra solo le battute fra te e
+ * l'autopilota (`tu`, `lui`); le note di lavoro (rami, revisioni, «ha
+ * deciso») vanno in «Cosa è successo ▸», dalla più recente. Si separa dal
+ * campo `da` della battuta, mai dal testo.
+ */
+export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota' }>(battute: readonly B[]): { messaggi: B[]; eventi: B[] } {
+  return { messaggi: battute.filter((b) => b.da !== 'nota'), eventi: battute.filter((b) => b.da === 'nota').reverse() }
 }
