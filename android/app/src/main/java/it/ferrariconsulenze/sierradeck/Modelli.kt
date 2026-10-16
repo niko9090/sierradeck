@@ -576,6 +576,8 @@ data class Cartelle(val cartelle: List<String> = emptyList())
 // ─── /api/autopilota (dettaglio) = tutto l'autopilota + passaggi + misura ───
 @Serializable
 data class AutopilotaDettaglio(
+    /** PC 0.74.0: il workspace dell'autopilota (per la Panoramica, PC 0.77.0). */
+    val workspace: String? = null,
     /** PC 0.69.0: stato dal vivo e messaggi verso la chat. */
     val dalVivo: StatoDalVivo? = null,
     val messaggi: List<StatoMessaggio> = emptyList(),

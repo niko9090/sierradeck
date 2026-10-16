@@ -4949,3 +4949,40 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 /* Le domande brevi a lato della chat (0.76.0): una colonna stretta, solo quando ce n'è una. */
 .domande-a-lato { flex: 0 0 300px; max-width: 300px; display: flex; flex-direction: column; gap: 10px; padding: 10px; border-left: 1px solid var(--bordo, #2a2f3a); overflow-y: auto; background: var(--fondo-pannello, transparent); }
 .domande-a-lato__voce { display: flex; flex-direction: column; gap: 4px; }
+
+/* La Panoramica del workspace dell'autopilota (0.77.0), con le misure della revisione UI/UX. */
+.pan-barra { position: absolute; top: 0; left: 0; right: 0; height: 38px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--bordo); background: var(--chassis); z-index: 6; }
+.pan-linguetta { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: var(--testo-quieto); font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.pan-linguetta:hover { color: var(--testo); background: var(--chassis-alto); }
+.pan-linguetta--qui { color: var(--testo); background: var(--fondo); border-color: var(--bordo); border-bottom-color: var(--fondo); }
+.pan-linguetta--chiede { color: var(--ambra); }
+.pan-linguetta--panoramica { font-weight: 600; }
+.pan-linguetta__nome { overflow: hidden; text-overflow: ellipsis; }
+.pan-altre { position: relative; }
+.pan-altre__menu { position: absolute; top: 32px; left: 0; z-index: 20; display: flex; flex-direction: column; min-width: 220px; padding: 4px; background: var(--chassis-alto); border: 1px solid var(--bordo); border-radius: 6px; }
+.pan-altre__menu .pan-linguetta { max-width: none; border-radius: 4px; }
+.pan-pallino { font-size: 11px; line-height: 1; }
+.pan-corpo { position: absolute; top: 38px; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; flex-direction: column; background: var(--fondo); min-width: 0; }
+.pan-riga { flex: 0 0 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid var(--bordo); min-width: 0; }
+.pan-riga__obiettivo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pan-riga__criteri { color: var(--testo-quieto); font-size: 12px; white-space: nowrap; }
+.pan-tre { flex: 1; display: flex; min-height: 0; }
+.pan-dialogo { flex: 0 0 320px; display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--bordo); overflow: auto; }
+.pan-griglia-zona { flex: 1; min-width: 0; overflow: auto; padding: 12px; }
+.pan-gruppo + .pan-gruppo { margin-top: 14px; }
+.pan-griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 6px; }
+.pan-scheda { height: 148px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; text-align: left; border: 1px solid var(--bordo); border-left: 4px solid var(--bordo); border-radius: 6px; background: var(--chassis); color: var(--testo); cursor: pointer; overflow: hidden; }
+.pan-scheda:hover:not(:disabled) { background: var(--chassis-alto); }
+.pan-scheda:disabled { cursor: default; opacity: 0.7; }
+.pan-scheda--chiede { border-left-color: var(--ambra); background: color-mix(in srgb, var(--ambra) 8%, var(--chassis)); }
+.pan-scheda--lavora { border-left-color: var(--verde); }
+.pan-scheda__testa { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.pan-scheda__titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
+.pan-scheda__quando { color: var(--testo-quieto); font-size: 11px; white-space: nowrap; }
+.pan-scheda__azione { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pan-scheda__righe { display: flex; flex-direction: column; font-family: var(--mono, 'JetBrains Mono', monospace); font-size: 11px; color: var(--testo-quieto); overflow: hidden; }
+.pan-scheda__righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pan-domande { flex: 0 0 300px; min-height: 0; overflow: auto; border-left: 1px solid var(--bordo); padding: 10px; }
+.pan-domande .domande-a-lato { flex: 1; max-width: none; border-left: none; padding: 0; }
+.pan-colonna { flex: 0 0 280px; display: flex; flex-direction: column; min-height: 0; overflow: auto; border-right: 1px solid var(--bordo); }
+@media (max-width: 1280px) { .pan-domande { flex-basis: 240px; } .pan-dialogo { flex-basis: 280px; } }

@@ -64,8 +64,11 @@ import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
-import { ElencoWorkspace } from './components/ElencoWorkspace'
-import { DiarioAutopilota } from './components/DiarioAutopilota'
+import { BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
+import { ChatAutopilota } from './components/ChatAutopilota'
+import { gruppoStabile, righeDalVivo, type StatoScheda } from '@shared/panoramica'
+import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
+import { specialistiDi } from '@shared/specialisti'
 import { DomandeALato } from './components/DomandeALato'
 import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavantiStabile, ruoloDalTitolo, vociInOrdine, type VoceElenco } from '@shared/vista-elenco'
 import { listPaneIds } from '@shared/layout-tree'
@@ -969,6 +972,12 @@ export function App(): React.JSX.Element {
   // La chat davanti nella vista a elenco, scelta per ogni workspace (0.75.4): passando
   // a un altro workspace e tornando, resta quella che avevi scelto.
   const [davantiPerWs, setDavantiPerWs] = useState<Record<string, string>>({})
+  // La Panoramica (0.77.0): la linguetta aperta per ogni workspace («panoramica» o il riquadro di una chat),
+  // la colonna sottile dell'autopilota, e per ogni chat il gruppo mostrato e da quando (8 s di quiete).
+  const [linguettaPerWs, setLinguettaPerWs] = useState<Record<string, string>>({})
+  const [colonnaAutopilota, setColonnaAutopilota] = useState(false)
+  const gruppiMostrati = useRef(new Map<string, { gruppo: StatoScheda; statoDal: number; stato: StatoScheda }>())
+  const nateIl = useRef(new Map<string, number>())
   const davantiPrima = useRef(new Map<string, string>())
   const setDavantiScelto = useCallback((paneId: string): void => {
     const ws = workspaceCorrente()
@@ -1600,6 +1609,54 @@ export function App(): React.JSX.Element {
   quiDomande.current = new Set(Object.keys(riquadriAperti).map((id) => `chat:${id}`))
   const domandeQui = domandeALato(conversazioniLette, quiDomande.current)
   const autopilotaFisso = vistaElenco !== undefined ? autopilotaDelWorkspace(autopiloti, workspace.attivo) : undefined
+  // La Panoramica (0.77.0): una scheda per chat del workspace, più gli specialisti che hanno finito.
+  const linguetta = vistaElenco !== undefined ? (linguettaPerWs[workspace.attivo] ?? PANORAMICA) : PANORAMICA
+  const schedePanoramica = ((): SchedaVista[] => {
+    if (vistaElenco === undefined) return []
+    const ora = Date.now()
+    const specialisti = autopilotaFisso !== undefined ? specialistiDi(autopilotaFisso).elenco : []
+    const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
+    const brevi = new Set(domandeQui.map((d) => d.chiave))
+    const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
+    const fuori: SchedaVista[] = []
+    for (const p of Object.values(riquadriAperti)) {
+      const sp = p.sessionUuid !== undefined ? perSessione.get(p.sessionUuid) : undefined
+      if (!nateIl.current.has(p.id)) nateIl.current.set(p.id, ora)
+      const adesso: StatoScheda = chiedono.has(p.id) ? 'chiede' : p.ptyId !== undefined && pensano.has(p.ptyId) ? 'lavora' : 'ferma'
+      const prima = gruppiMostrati.current.get(p.id)
+      const statoDal = prima !== undefined && prima.stato === adesso ? prima.statoDal : ora
+      const gruppo = gruppoStabile(adesso, prima?.gruppo, statoDal, ora)
+      gruppiMostrati.current.set(p.id, { gruppo, statoDal, stato: adesso })
+      const ruolo = RUOLI_ORDINE.find((k) => RUOLI[k].nome === (sp?.ruolo ?? ruoloDalTitolo(p.title)))
+      const vive = p.ptyId !== undefined ? righeDiPty(p.ptyId, 16)?.pulite ?? righe.current.codaDi(p.ptyId) : []
+      fuori.push({
+        id: p.id, paneId: p.id, titolo: p.title, stato: gruppo,
+        nataIl: sp !== undefined ? numero(sp.id) : nateIl.current.get(p.id) ?? ora,
+        ...(ruolo !== undefined ? { ruolo, nomeRuolo: RUOLI[ruolo].nome, coloreRuolo: RUOLI[ruolo].colore } : {}),
+        ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (p.ptyId !== undefined ? righe.current.di(p.ptyId) : ''),
+        righe: righeDalVivo(vive, 4),
+        dal: statoDal,
+        ...(brevi.has(`chat:${p.id}`) ? { domanda: true } : {}),
+        ...(p.remoto !== undefined ? { suPc: p.remoto.pcNome } : {})
+      })
+    }
+    // Gli specialisti che hanno finito e chiuso la loro chat: schede «finite», senza riquadro.
+    const aperte = new Set(Object.values(riquadriAperti).map((p) => p.sessionUuid))
+    for (const x of specialisti) {
+      if (x.chiusa !== true || (x.sessionId !== undefined && aperte.has(x.sessionId))) continue
+      const ruolo = RUOLI_ORDINE.find((k) => RUOLI[k].nome === x.ruolo)
+      fuori.push({
+        id: `fine-${x.id}`, titolo: x.compito, stato: 'finita', nataIl: numero(x.id),
+        ...(ruolo !== undefined ? { ruolo, nomeRuolo: RUOLI[ruolo].nome, coloreRuolo: RUOLI[ruolo].colore } : {}),
+        ultimaAzione: x.ultimaAzione, righe: []
+      })
+    }
+    return fuori
+  })()
+  const vaiLinguetta = (id: string): void => {
+    setLinguettaPerWs((m) => (m[workspace.attivo] === id ? m : { ...m, [workspace.attivo]: id }))
+    if (id !== PANORAMICA) setDavantiScelto(id)
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>
@@ -2024,33 +2081,28 @@ export function App(): React.JSX.Element {
           />
         ) : null}
 
-        <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative', ...(vistaElenco !== undefined ? { paddingTop: 38 } : {}) }}>
           {/* La vista a elenco (0.74.0) è **solo** una colonna in più a sinistra.
               Il mosaico resta sempre in questo stesso posto dell'albero: in un
               ramo diverso React lo smonterebbe passando da elenco a mosaico (e
               con «Torna come prima»), e ogni terminale smontato chiude il suo
               claude.exe. Visto nella copia dei dati veri il 15/10: i PID delle
               chat cambiavano. Qui non cambiano più. */}
+          {/* La barra delle linguette (0.77.0), al posto dell'elenco: Panoramica e una linguetta per chat. */}
           {vistaElenco !== undefined ? (
-            <ElencoWorkspace
-              {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
-                ? { dormiente: migrazione.dormienti.find((d) => d.workspace === workspace.attivo)! }
-                : {})}
-              onRicarica={ricaricaAutopiloti}
-              workspace={workspace.attivo}
-              autopiloti={autopiloti}
-              voci={vistaElenco.voci}
-              davanti={vistaElenco.davanti}
-              sessioneDi={Object.fromEntries(Object.values(riquadriAperti).map((p) => [p.id, p.sessionUuid]))}
-              onDavanti={setDavantiScelto}
-              onScheda={() => setAperto('autopiloti')}
+            <BarraLinguette
+              schede={schedePanoramica}
+              linguetta={linguetta}
+              onLinguetta={vaiLinguetta}
+              colonna={colonnaAutopilota}
+              onColonna={setColonnaAutopilota}
+              conAutopilota={autopilotaFisso !== undefined}
               onMosaico={() => impostaElenco(workspace.attivo, false)}
             />
           ) : null}
-          {/* Il pannello dell'autopilota del workspace, fisso a sinistra (0.76.0):
-              non segue più il riquadro della chat che sta davanti. */}
-          {vistaElenco !== undefined && autopilotaFisso !== undefined ? (
-            <DiarioAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} largo={false} onLargo={() => undefined} onCambiato={ricaricaAutopiloti} />
+          {/* La colonna sottile dell'autopilota, sulle linguette delle chat: si apre e si chiude. */}
+          {vistaElenco !== undefined && autopilotaFisso !== undefined && linguetta !== PANORAMICA && colonnaAutopilota ? (
+            <aside className="pan-colonna" aria-label="L’autopilota"><ChatAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} onCambiato={ricaricaAutopiloti} /></aside>
           ) : null}
           {root ? (
             <Mosaic
@@ -2078,12 +2130,27 @@ export function App(): React.JSX.Element {
               </div>
             </div>
           )}
+          {/* La Panoramica (0.77.0): sopra i terminali, che restano montati e della stessa misura. */}
+          {vistaElenco !== undefined && linguetta === PANORAMICA ? (
+            <CorpoPanoramica
+              workspace={workspace.attivo}
+              {...(autopilotaFisso !== undefined ? { autopilota: autopilotaFisso } : {})}
+              {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
+                ? { dormiente: migrazione.dormienti.find((d) => d.workspace === workspace.attivo)! }
+                : {})}
+              schede={schedePanoramica}
+              domande={domandeQui}
+              onApri={vaiLinguetta}
+              onRicarica={ricaricaAutopiloti}
+              onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))}
+            />
+          ) : null}
         </div>
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
             Android. Resta aperta mentre si lavora; la vecchia finestra
             modale delle domande non cambia (su quella decide Nicholas). */}
         {/* Con la colonna Domande aperta la domanda è già lì, accanto: niente doppione. */}
-        {!colonnaDomande.aperta ? (
+        {!colonnaDomande.aperta && !(vistaElenco !== undefined && linguetta === PANORAMICA) ? (
           <DomandeALato conversazioni={domandeQui} onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))} />
         ) : null}
         {colonnaDomande.aperta ? (

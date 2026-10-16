@@ -1520,3 +1520,30 @@ describe('0.74.1: la trasformazione dei workspace dalla pagina e dall’app', ()
     expect((await rotteClient(deps())({ metodo: 'GET', percorso: '/api/migrazione', corpo: undefined })).stato).toBe(404)
   })
 })
+
+describe('0.77.0: la Panoramica del workspace per la pagina e l’app', () => {
+  it('il riassunto dell’autopilota e una scheda per chat del workspace, in ordine: aspettano te, al lavoro, ferme', async () => {
+    const ap = { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Fai passare la suite', cwd: 'C:\p', criteri: [{ descrizione: 'x', soddisfatto: true }, { descrizione: 'y', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }), workspace: 'lavoro', stato: 'lavoro' as const }
+    const r = await rotteClient(deps({
+      autopiloti: () => Promise.resolve([ap]),
+      chat: () => [
+        { id: 'p-1', titolo: 'chat ferma', cwd: 'C:\p', workspace: 'lavoro', aspetta: true, viva: true },
+        { id: 'p-2', titolo: 'Sviluppo · Notte', cwd: 'C:\p', workspace: 'lavoro', aspetta: false, viva: true, coda: ['● Scrivo il test', '❯ ', '  ? for shortcuts'] },
+        { id: 'p-3', titolo: 'chiede', cwd: 'C:\p', workspace: 'lavoro', aspetta: true, viva: true, chiedeSegnale: true },
+        { id: 'p-4', titolo: 'di un altro workspace', cwd: 'C:\p', workspace: 'casa', aspetta: false, viva: true }
+      ] as never
+    }))({ metodo: 'POST', percorso: '/api/panoramica', corpo: { workspace: 'lavoro' } })
+    const c = r.corpo as { autopilota: string; riassunto: { obiettivo: string; criteri: { testo: string } }; schede: { id: string; stato: string; ruolo?: string; righe: string[] }[] }
+    expect(c.autopilota).toBe('ap-1')
+    expect(c.riassunto.obiettivo).toBe('Fai passare la suite')
+    expect(c.riassunto.criteri.testo).toBe('1/2')
+    expect(c.schede.map((s) => [s.id, s.stato])).toEqual([['p-3', 'chiede'], ['p-2', 'lavora'], ['p-1', 'ferma']])
+    expect(c.schede[1]).toMatchObject({ ruolo: 'sviluppo', righe: ['● Scrivo il test'] })
+  })
+  it('senza workspace: 400; la rotta passa dal ponte', async () => {
+    const r = await rotteClient(deps())({ metodo: 'POST', percorso: '/api/panoramica', corpo: {} })
+    expect(r.stato).toBe(400)
+    const { ROTTE_PONTE } = await import('@shared/ponte-telefono')
+    expect(ROTTE_PONTE).toContain('/api/panoramica')
+  })
+})

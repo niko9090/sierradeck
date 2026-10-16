@@ -259,9 +259,14 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
     val scope = rememberCoroutineScope()
     val lista = rememberLazyListState()
 
+    var pan by remember(breve.id) { mutableStateOf<Panoramica?>(null) }
     LaunchedEffect(breve.id) {
         while (isActive) {
-            try { d = api.autopilota(breve.id); guastoDettaglio = null } catch (e: Exception) {
+            try {
+                d = api.autopilota(breve.id); guastoDettaglio = null
+                // PC 0.77.0: la Panoramica del suo workspace. Un PC più vecchio non la ha: niente.
+                pan = d?.workspace?.let { ws -> try { api.panoramica(ws) } catch (_: Exception) { null } }
+            } catch (e: Exception) {
                 guastoDettaglio = if (e is Api.Errore && e.codice == 404) "Il computer non trova più questo autopilota: forse è stato eliminato."
                     else "Non riesco a leggere il dettaglio: ${e.message ?: "il computer non risponde"}. Riprovo da solo ogni due secondi."
             }
@@ -358,6 +363,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     Spacer(Modifier.height(6.dp))
                 }
                 guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
+                // PC 0.77.0: la Panoramica in cima, una scheda per chat; il tocco apre la chat a tutto schermo.
+                pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
                 item { Serigrafia("Chat con lui") }
                 items(chat) { b ->
                     // Il testo della chat con lui si seleziona e si copia (tocco

@@ -364,6 +364,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun autopilota(id: String): AutopilotaDettaglio =
         json.decodeFromString(corpoTesto("/api/autopilota", oggetto { put("autopilota", id) }))
 
+    /** La Panoramica del workspace (PC 0.77.0): il riassunto dell'autopilota e una scheda per chat, già in ordine. */
+    suspend fun panoramica(workspace: String): Panoramica =
+        json.decodeFromString(corpoTesto("/api/panoramica", oggetto { put("workspace", workspace) }))
+
     /**
      * Affida un lavoro. `pubblicazione` e' la regola del progetto (beta,
      * stabile, unica) e `cloud` dice se va sul cloud (0.36.0): un computer piu'

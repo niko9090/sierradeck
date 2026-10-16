@@ -141,6 +141,20 @@ export function paginaClient(): string {
     min-height: 56px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto);
   }
   .fascia__voce--qui { color: var(--testo); background: var(--chassis); }
+  /* La Panoramica sul telefono (0.77.0): schede alte 96 px, 2 righe dal vivo. */
+  .pan-tel { margin: 8px 0; }
+  .pan-tel-riga { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+  .pan-tel-stato--verde { color: var(--verde); } .pan-tel-stato--ambra { color: var(--ambra); } .pan-tel-stato--rosso { color: var(--rosso); } .pan-tel-stato--blu { color: var(--blu); } .pan-tel-stato--quieto { color: var(--testo-quieto); }
+  .pan-tel-banda { margin-top: 6px; padding: 6px 10px; border-radius: 6px; color: var(--ambra); border: 1px solid var(--ambra); }
+  .pan-tel-scheda { display: flex; flex-direction: column; gap: 3px; width: 100%; min-height: 96px; margin-top: 8px; padding: 8px 10px; text-align: left; border: 1px solid var(--bordo, #2a2f3a); border-left: 4px solid var(--bordo, #2a2f3a); border-radius: 8px; background: var(--chassis); color: var(--testo); }
+  .pan-tel-scheda--chiede { border-left-color: var(--ambra); }
+  .pan-tel-scheda--lavora { border-left-color: var(--verde); }
+  .pan-tel-scheda:disabled { opacity: 0.65; }
+  .pan-tel-testa { display: flex; gap: 6px; align-items: baseline; overflow: hidden; white-space: nowrap; }
+  .pan-tel-scheda--chiede .pan-tel-pallino { color: var(--ambra); } .pan-tel-scheda--lavora .pan-tel-pallino { color: var(--verde); }
+  .pan-tel-azione { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 11px; color: var(--testo-quieto); }
+  .pan-tel-righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
   .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
@@ -1530,6 +1544,7 @@ function impronta(s) {
     // di loro nell'impronta, a computer fermo (nessuna chat che scrive) la
     // pagina restava com'era: si toccava un autopilota e il suo dettaglio non
     // compariva, si apriva il Drive e restava «Leggo il Drive…».
+    panoramicaAp ? JSON.stringify(panoramicaAp) : '',
     apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
@@ -1774,6 +1789,7 @@ function pannello(s) {
       <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
+      \${apDettaglio ? panoramicaHtml(panoramicaAp) : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="riga">
@@ -2623,6 +2639,10 @@ async function leggiAp() {
   if (!dentroAp) return
   try {
     apDettaglio = await chiediAp('/api/autopilota', { autopilota: dentroAp })
+    // La Panoramica del suo workspace (0.77.0); un PC più vecchio non la ha: niente.
+    if (apDettaglio && apDettaglio.workspace) {
+      try { panoramicaAp = await chiediAp('/api/panoramica', { workspace: apDettaglio.workspace }) } catch (e) { panoramicaAp = null }
+    } else panoramicaAp = null
     // Le domande della linguetta (0.38.0): una nuova la fa avanti; finite, si
     // torna alla linguetta di prima.
     const chiavi = (apDettaglio.domandeScheda || []).map((d) => d.chiave)
@@ -2659,6 +2679,42 @@ async function leggiAp() {
 function primaRigaUscita(uscita) {
   const riga = String(uscita || '').split(String.fromCharCode(10)).map((r) => r.trim()).find((r) => r !== '') || ''
   return riga.length > 60 ? riga.slice(0, 60) + '\u2026' : riga
+}
+
+/**
+ * La Panoramica del workspace dell'autopilota sul telefono (0.77.0): la riga
+ * dell'autopilota, poi una lista di schede (una per chat, già in ordine dal PC:
+ * aspettano te, al lavoro, ferme, finite) con 2 righe dal vivo. Il tocco apre
+ * la chat a tutto schermo.
+ */
+var panoramicaAp = null
+const RUOLO_NOME = { sviluppo: 'Sviluppo', interfaccia: 'Interfaccia', collaudo: 'Collaudo', revisione: 'Revisione', rilascio: 'Rilascio' }
+const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }
+const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' }
+function panoramicaHtml(p) {
+  if (!p || !Array.isArray(p.schede)) return ''
+  const r = p.riassunto
+  const aspettano = p.schede.filter((s) => s.stato === 'chiede').length
+  const riga = r ? '<div class="pan-tel-riga"><b>' + esc(r.obiettivo) + '</b><span class="pan-tel-stato pan-tel-stato--' + esc(r.stato.colore) + '">' + esc(r.stato.parola) + '</span><span class="sotto">criteri ' + esc(r.criteri.testo) + '</span></div>' : ''
+  const banda = aspettano > 0 ? '<div class="pan-tel-banda">◆ ' + (aspettano === 1 ? '1 chat aspetta te' : aspettano + ' chat aspettano te') + '</div>' : ''
+  const schede = p.schede.map((s) => {
+    const ruolo = s.ruolo ? (RUOLO_NOME[s.ruolo] || s.ruolo) : 'chat'
+    const righe = (s.righe || []).slice(-2).map((x) => '<span>' + esc(x) + '</span>').join('')
+    const apribile = String(s.id).indexOf('fine-') !== 0 && !apPc
+    return '<button class="pan-tel-scheda pan-tel-scheda--' + esc(s.stato) + '"' + (apribile ? ' data-chat="' + esc(s.id) + '" onclick="apriDaPanoramica(this.dataset.chat)"' : ' disabled') + '>' +
+      '<span class="pan-tel-testa"><span class="pan-tel-pallino" aria-label="' + esc(PAROLA_SCHEDA[s.stato] || s.stato) + '">' + (SIMBOLO_SCHEDA[s.stato] || '') + '</span><b>' + esc(ruolo) + '</b> <span class="sotto">' + esc(String(s.titolo || '').replace(/^[^·]+ · /, '')) + '</span></span>' +
+      '<span class="pan-tel-azione">' + esc(s.domanda ? 'Ti chiede: ' + ((s.domanda.scheda && s.domanda.scheda.domanda) || '') : (s.ultimaAzione || '')) + '</span>' +
+      (righe ? '<span class="pan-tel-righe">' + righe + '</span>' : '') +
+      '</button>'
+  }).join('')
+  return '<div class="pan-tel">' + riga + banda + '<div class="serigrafia" style="margin-top:8px">Panoramica' + aiuto('panoramica', 'Una scheda per chat del workspace: prima quelle che aspettano te, poi al lavoro, ferme, finite. Tocca una scheda per aprire la sua chat a tutto schermo.') + '</div>' + (schede || '<div class="sotto">Nessuna chat: l’autopilota le apre quando serve.</div>') + '</div>'
+}
+window.apriDaPanoramica = async (id) => {
+  dentroAp = null
+  apDettaglio = null
+  panoramicaAp = null
+  vaiScheda('chat')
+  await guarda(id)
 }
 
 function vistaAutopilota(a) {

@@ -1,5 +1,20 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.serialization.Serializable
 
 /**
@@ -121,5 +136,52 @@ object RegolePanoramica {
         if (m < 60) return "da $m min"
         val h = Math.round(m / 60.0)
         return if (h < 48) "da $h h" else "da ${Math.round(h / 24.0)} giorni"
+    }
+}
+
+
+/** La Panoramica sul telefono (PC 0.77.0): riga dell'autopilota, «aspettano te», una scheda per chat con 2 righe dal vivo. */
+@Composable
+fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
+    val nomeRuolo = mapOf("sviluppo" to "Sviluppo", "interfaccia" to "Interfaccia", "collaudo" to "Collaudo", "revisione" to "Revisione", "rilascio" to "Rilascio")
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        p.riassunto?.let { r ->
+            Text(r.obiettivo, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 2)
+            Text(
+                "${r.stato.parola} · criteri ${r.criteri.testo}",
+                color = when (r.stato.colore) { "verde" -> Banco.verde; "ambra" -> Banco.ambra; "rosso" -> Banco.rosso; else -> Banco.testoQuieto },
+                fontSize = 12.sp
+            )
+        }
+        val aspettano = p.schede.count { it.stato == "chiede" }
+        if (aspettano > 0) Text(
+            "◆ " + (if (aspettano == 1) "1 chat aspetta te" else "$aspettano chat aspettano te"),
+            color = Banco.ambra, modifier = Modifier.padding(vertical = 6.dp)
+        )
+        Serigrafia("Panoramica")
+        // Già in ordine dal PC; si riordina con le stesse regole, nel caso.
+        val ordinate = RegolePanoramica.ordinaSchede(p.schede).flatMap { it.second }
+        for (s in ordinate) {
+            val apribile = !s.id.startsWith("fine-")
+            val colore = when (s.stato) { "chiede" -> Banco.ambra; "lavora" -> Banco.verde; else -> Banco.testoQuieto }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .heightIn(min = 96.dp)
+                    .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
+                    .let { if (apribile) it.clickable { onApri(s.id) } else it }
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    (RegolePanoramica.SIMBOLO[s.stato] ?: "") + "  " + (s.ruolo?.let { nomeRuolo[it] ?: it } ?: "chat") + " · " + s.titolo.replace(Regex("^[^·]+ · "), ""),
+                    color = colore, maxLines = 1
+                )
+                val azione = s.domanda?.scheda?.domanda?.let { "Ti chiede: $it" } ?: s.ultimaAzione
+                if (azione.isNotBlank()) Text(azione, color = Banco.testo, maxLines = 1, fontSize = 13.sp)
+                for (riga in RegolePanoramica.righeDalVivo(s.righe, 2)) Text(riga, color = Banco.testoQuieto, maxLines = 1, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            }
+        }
+        if (ordinate.isEmpty()) Text("Nessuna chat: l’autopilota le apre quando serve.", color = Banco.testoQuieto)
     }
 }

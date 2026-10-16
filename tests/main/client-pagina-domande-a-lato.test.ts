@@ -37,3 +37,24 @@ describe('pagina: le domande brevi a lato', () => {
     expect(funzione('domandaALatoHtml')).toContain("'chat:' + idChat")
   })
 })
+
+describe('0.77.0: la Panoramica sul telefono', () => {
+  const pan = new Function('esc', 'aiuto', 'apPc', `const RUOLO_NOME = { sviluppo: 'Sviluppo' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' }; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null) as (p: unknown) => string
+  it('riga dell’autopilota, «aspettano te», una scheda per chat con 2 righe dal vivo; il tocco apre la chat', () => {
+    const html = pan({
+      riassunto: { obiettivo: 'Fai passare la suite', stato: { parola: 'al lavoro', colore: 'verde' }, criteri: { testo: '1/2' } },
+      schede: [
+        { id: 'p-3', titolo: 'chiede', stato: 'chiede', ultimaAzione: '', righe: [] },
+        { id: 'p-2', titolo: 'Sviluppo · Notte', stato: 'lavora', ruolo: 'sviluppo', ultimaAzione: 'scrive il test', righe: ['a', 'b', 'c'] },
+        { id: 'fine-c-1', titolo: 'fatto', stato: 'finita', ultimaAzione: 'finito', righe: [] }
+      ]
+    })
+    expect(html).toContain('Fai passare la suite')
+    expect(html).toContain('1 chat aspetta te')
+    expect(html).toContain('onclick="apriDaPanoramica(this.dataset.chat)"')
+    expect(html).toContain('<span>b</span><span>c</span>')
+    expect(html).not.toContain('<span>a</span>')
+    expect(html.indexOf('p-3')).toBeLessThan(html.indexOf('p-2'))
+    expect(html).toContain(' disabled>')
+  })
+})

@@ -1,4 +1,8 @@
 import { vistaAccount } from '@shared/account-vista'
+import { ordinaSchede, riassuntoAutopilota, righeDalVivo, type StatoScheda } from '@shared/panoramica'
+import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
+import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
+import { domandaBreve } from '@shared/domande-conversazioni'
 import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { conVistaConsumi } from '@shared/consumi-vista'
 import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
@@ -1212,7 +1216,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
      * bloccava il resto. Le risposte passano dalle rotte di sempre:
      * `/api/rispondi`, `/api/scegli`, `/api/scrivi`.
      */
-    if (r.percorso === '/api/domande') {
+    // Le conversazioni delle Domande (0.36.0): per /api/domande e, dalla 0.77.0, per le domande brevi della Panoramica.
+    const leggiConversazioni = async (): Promise<{ voci: ReturnType<typeof raccogliDomande>; conversazioni: ReturnType<typeof conversazioniDomande>; autopiloti: Autopilota[] }> => {
       const [autopiloti, domande, battiti, risolte] = await Promise.all([
         deps.autopiloti().catch(() => [] as Autopilota[]),
         deps.domande().catch(() => []),
@@ -1237,7 +1242,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       })
       // Le stesse voci come conversazioni a messaggi (0.36.0): e' quello che
       // disegnano il PC, la pagina e l'app. `voci` resta per le app vecchie.
-      const conversazioni = conversazioniDomande({ voci, autopiloti, inviati: Object.fromEntries(inviati) })
+      return { voci, conversazioni: conversazioniDomande({ voci, autopiloti, inviati: Object.fromEntries(inviati) }), autopiloti }
+    }
+    if (r.percorso === '/api/domande') {
+      const { voci, conversazioni } = await leggiConversazioni()
       // Il numero sul tasto «Domande», uguale ovunque (0.37.2).
       // `voci` resta per le app vecchie (prima della 0.36.0 delle conversazioni),
       // e le app leggono `opzioni` come oggetti {numero, testo, scelta}: le
@@ -1247,6 +1255,48 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // Il tipo in una parola e l'ordine (0.70.0): prima i permessi, poi le scelte, le domande, gli autopiloti; le finite in fondo.
       const conTipo = ordinaDomande(conversazioni).map((c) => ({ ...c, vista: tipoDomanda(c) }))
       return OK({ voci: vociPerLeApp(voci), conversazioni: conTipo, chiedono: quanteAspettano(conversazioni) })
+    }
+
+    // La Panoramica del workspace dell'autopilota (0.77.0), per la pagina e l'app:
+    // il riassunto dell'autopilota e una scheda per chat, già in ordine, con le
+    // stesse regole del PC (src/shared/panoramica.ts).
+    if (r.metodo === 'POST' && r.percorso === '/api/panoramica') {
+      const ws = stringa(r.corpo, 'workspace')
+      if (ws === '') return { stato: 400, corpo: { errore: 'serve il workspace' } }
+      const { conversazioni, autopiloti } = await leggiConversazioni()
+      const ora = adesso()
+      const ap = autopilotaDelWorkspace(autopiloti, ws)
+      const specialisti = ap !== undefined ? specialistiDi(ap).elenco : []
+      const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
+      const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
+      const ruoloDi = (nome: string | undefined): Ruolo | undefined => RUOLI_ORDINE.find((k) => RUOLI[k].nome === nome)
+      const chat = deps.chat().filter((c) => (c as { workspace?: string }).workspace === ws)
+      const schede = [
+        ...chat.map((c) => {
+          const cc = c as Chat & { chiede?: boolean; chiedeSegnale?: boolean; coda?: string[] }
+          const sp = cc.sessione !== undefined ? perSessione.get(cc.sessione) : undefined
+          const ruolo = ruoloDi(sp?.ruolo ?? ruoloDalTitolo(cc.titolo))
+          const stato: StatoScheda = cc.chiede === true || cc.chiedeSegnale === true ? 'chiede' : cc.aspetta === true || cc.viva === false ? 'ferma' : 'lavora'
+          const domanda = conversazioni.find((x) => x.chiave === `chat:${cc.id}` && domandaBreve(x))
+          return {
+            id: cc.id, titolo: cc.titolo, stato, nataIl: sp !== undefined ? numero(sp.id) : 0,
+            ...(ruolo !== undefined ? { ruolo } : {}),
+            ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (cc.ultimaRiga ?? ''),
+            righe: righeDalVivo(cc.coda ?? (cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : []), 4),
+            ...(cc.sessione !== undefined ? { sessione: cc.sessione } : {}),
+            ...(domanda !== undefined ? { domanda } : {})
+          }
+        }),
+        ...specialisti.filter((x) => x.chiusa === true && !chat.some((c) => c.sessione !== undefined && c.sessione === x.sessionId)).map((x) => {
+          const ruolo = ruoloDi(x.ruolo)
+          return { id: `fine-${x.id}`, titolo: x.compito, stato: 'finita' as const, nataIl: numero(x.id), ...(ruolo !== undefined ? { ruolo } : {}), ultimaAzione: x.ultimaAzione, righe: [] as string[] }
+        })
+      ]
+      return OK({
+        workspace: ws,
+        ...(ap !== undefined ? { autopilota: ap.id, riassunto: riassuntoAutopilota(ap, ora) } : {}),
+        schede: ordinaSchede(schede).flatMap((g) => g.schede)
+      })
     }
 
     // Il ponte del telefono (0.48.0): le chat degli altri PC dal vivo,
