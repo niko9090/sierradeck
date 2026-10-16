@@ -249,7 +249,7 @@
       "id": "posto-autopilota",
       "sezione": "chat",
       "titolo": "Dove si apre la scheda di un autopilota",
-      "spiega": "A destra o sotto il mosaico delle chat, e quanto è larga. Non cambia niente del suo lavoro.",
+      "spiega": "A destra o sotto le chat, e quanto è larga. Non cambia niente del suo lavoro.",
       "parole": [
         "larghezza",
         "pannello"

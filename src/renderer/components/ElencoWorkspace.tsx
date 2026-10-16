@@ -83,12 +83,12 @@ export function ElencoWorkspace({
     <div className="elenco-ws">
       <div className="elenco-ws__testa">
         <span className="serigrafia con-aiuto">
-          Workspace a elenco
-          <Aiuto di="la vista a elenco">
-            Il workspace è l’ambiente dell’autopilota: a sinistra lui e i suoi specialisti, a destra una chat sola, grande. Tocca una riga per portare davanti quella chat; le altre restano vive dietro. Gli specialisti che hanno finito chiudono la loro chat da soli, e restano qui in grigio. «Mosaico» torna ai riquadri affiancati.
+          Panoramica
+          <Aiuto di="la Panoramica">
+            Il workspace è l’ambiente dell’autopilota: a sinistra lui e i suoi specialisti, a destra una chat sola, grande. Tocca una riga per portare davanti quella chat; le altre restano vive dietro. Gli specialisti che hanno finito chiudono la loro chat da soli, e restano qui in grigio. «Tutte le chat affiancate» le mostra una accanto all’altra.
           </Aiuto>
         </span>
-        <button className="tasto tasto--mini" onClick={onMosaico} title="Torna ai riquadri affiancati">Mosaico</button>
+        <button className="tasto tasto--mini" onClick={onMosaico} title="Tutte le chat del workspace una accanto all’altra">Tutte le chat affiancate</button>
       </div>
       {qui.length === 0 && dormiente !== undefined ? (
         <div className="elenco-ws__autopilota">

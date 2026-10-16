@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.78.1',
+    righe: [
+      '**Due viste, un interruttore.** In alto a destra, in ogni workspace, c’è sempre «Panoramica» | «Tutte le chat affiancate»: la voce accesa è quella che vedi, e ognuna ha il suo «?». Si passa dall’una all’altra con un clic, nei due sensi, e ogni workspace si ricorda la sua. Le chat restano le stesse: nessuna si chiude o si riavvia.',
+      '**Niente più parole tecniche:** le due viste si chiamano solo «Panoramica» e «Tutte le chat affiancate», sul programma, sulla pagina e nell’app.'
+    ]
+  },
+  {
     versione: '0.78.0',
     righe: [
       '**Panoramica 2, più chiara.** In alto la situazione: l’obiettivo su due righe, lo stato e i criteri. Lo stato dice «finito» solo se i criteri sono tutti soddisfatti, altrimenti «da verificare». Tocca «Criteri» per vederli uno per uno, con quando sono stati controllati e la prova.',
@@ -65,7 +72,7 @@ export const NOVITA: Novita[] = [
       '**Se l’autopilota dice «procedo», procede.** Quando gli scrivi e la sua risposta porta un compito o un messaggio per la chat, riparte da solo anche se era fermo o finito; se aveva una domanda aperta, quello che hai scritto è la risposta. Se resta fermo dopo aver promesso, la scheda lo dice con «L’autopilota è fermo» e il tasto «Riprendi», su PC, pagina e app.',
       '**Le consegne partono al primo colpo.** Il testo si scrive a terminale quieto e l’Invio parte solo quando il testo si vede nel campo: niente più otto invii o lo stesso messaggio ripetuto cinque volte. Provato con un Claude Code vero: 50 consegne su 50 al primo Invio.',
       '**«Al lavoro» e «ferma» sono veri.** L’indicatore di ogni chat viene dai segnali di Claude Code (inizio e fine turno, domande, strumenti), lo stesso su PC, pagina e app; lo schermo vale solo quando i segnali mancano. Una chat che aspetta una risposta a scelte resta «aspetta te».',
-      '**Nella vista a elenco tutto sta al suo posto.** Le righe seguono l’ordine del workspace e non saltano più; la chat davanti resta quella che hai scelto, anche passando a un altro workspace e tornando. Il pannello dell’autopilota (dialogo, specialisti, domande) sta fisso a sinistra e non sparisce cambiando chat.',
+      '**Nella vista con l’autopilota tutto sta al suo posto.** Le righe seguono l’ordine del workspace e non saltano più; la chat davanti resta quella che hai scelto, anche passando a un altro workspace e tornando. Il pannello dell’autopilota (dialogo, specialisti, domande) sta fisso a sinistra e non sparisce cambiando chat.',
       '**Gli specialisti si vedono davvero.** Anche un autopilota nato con una chat sola, quando riparte con un lavoro nuovo, lo divide fra specialisti se ha parti distinte; gli specialisti sono in ordine di ruolo in ogni workspace. Per un lavoro piccolo resta una chat sola, e la scheda dice perché.',
       '**Le domande brevi a lato.** Una domanda breve (fino a 200 caratteri e 4 scelte) di una chat del workspace compare accanto alla chat, con i tasti e «Scrivi tu»; sul telefono, in cima alla chat aperta. Le lunghe restano nella sezione Domande.',
       '**Pulizie:** il riquadro «Documents» (una cartella di sistema) non si riapre più; le chat tolte da questo PC e messe nel recupero non tornano giù dal Drive.'
@@ -103,16 +110,16 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.74.1',
     righe: [
-      '**Tutti i workspace di questo PC passano al modo nuovo, da soli, al primo avvio:** ognuno ha la vista a elenco e il suo autopilota, fermo: non ha obiettivo, non lancia niente e nasce davvero solo quando gli scrivi il primo messaggio. Le chat aperte, anche quelle di altri PC o in sottofondo, restano vive come sono e diventano le voci dell’elenco. I workspace «Su altri PC» non si toccano: li trasforma ognuno il suo PC.',
+      '**Tutti i workspace di questo PC passano al modo nuovo, da soli, al primo avvio:** ognuno ha la sua vista con l’autopilota, fermo: non ha obiettivo, non lancia niente e nasce davvero solo quando gli scrivi il primo messaggio. Le chat aperte, anche quelle di altri PC o in sottofondo, restano vive come sono e diventano le voci dell’elenco. I workspace «Su altri PC» non si toccano: li trasforma ognuno il suo PC.',
       '**Prima di cambiare, una copia di tutto** in copie-di-versione. Se qualcosa va storto si torna com’era da soli, e lo dice una banda. «Torna come prima» rimette i workspace esattamente come erano, dal PC (banda e Impostazioni → Chat e autopiloti), dalla pagina e dall’app.',
-      '**Le chat non si riavviano più cambiando vista:** passare da elenco a mosaico, o tornare come prima, lascia vivi i processi delle chat. La chat principale di un autopilota non si chiude mai da sola: si chiudono solo gli specialisti che hanno finito.',
+      '**Le chat non si riavviano più cambiando vista:** passare da una vista all’altra, o tornare come prima, lascia vivi i processi delle chat. La chat principale di un autopilota non si chiude mai da sola: si chiudono solo gli specialisti che hanno finito.',
       '**Compatibilità:** un PC con questa versione e gli altri ancora alla 0.73 o alla 0.69 continuano a vedersi, ad aprire le chat gli uni degli altri e a consegnarsi i messaggi.'
     ]
   },
   {
     versione: '0.74.0',
     righe: [
-      '**Il workspace è l’ambiente dell’autopilota:** «+ Nuovo autopilota» crea il suo workspace con la vista a elenco. A sinistra lui e i suoi specialisti, a destra una chat sola, grande: tocchi una riga e quella chat viene davanti. Nessuna chat in più accanto all’autopilota. Un workspace che c’era già passa alla vista a elenco solo quando lo scegli tu (Strumenti → «Vista a elenco per questo workspace»); «Mosaico» torna ai riquadri affiancati. Le chat normali restano, con «+ Nuova chat».',
+      '**Il workspace è l’ambiente dell’autopilota:** «+ Nuovo autopilota» crea il suo workspace con la sua vista. A sinistra lui e i suoi specialisti, a destra una chat sola, grande: tocchi una riga e quella chat viene davanti. Nessuna chat in più accanto all’autopilota. Un workspace che c’era già cambia vista solo quando lo scegli tu; l’interruttore in alto a destra passa dalla Panoramica a tutte le chat affiancate e ritorno. Le chat normali restano, con «+ Nuova chat».',
       '**Le chat finite si tolgono da sole:** lo specialista che ha finito chiude la sua chat e il suo processo, e resta nell’elenco in grigio («chat chiusa»), anche sulla pagina e nell’app. Al riavvio non si riaprono più tutte insieme. La chat di un autopilota fermato torna tua: se ti fa una domanda, arriva alle Domande e al telefono.',
       '**Solo notifiche utili sull’app e sulla pagina:** domande e attese, lavoro finito, lavoro fermo, versione pronta, computer scollegato da più di 5 minuti. Una chat che finisce il turno avvisa solo se ti aspetta da 3 minuti. Ogni chat e ogni autopilota hanno una notifica sola, che si aggiorna. Ogni tipo ha il suo interruttore nell’app (Impostazioni → Notifiche); i file ricevuti sono spenti di partenza.',
       '**Corretti dopo il controllo della 0.73.0:** il collegamento diretto verso un PC spento riprova sempre più di rado (fino a 30 minuti) e subito quando quel PC torna; il registro non ripete più ogni due minuti lo stesso trasloco fermo né i controlli degli aggiornamenti; «Aspettano te» non conta le risposte già date dall’autopilota; il nuovo autopilota non propone più come cartella la copia di lavoro di uno specialista; le cartelle vuote degli specialisti si tolgono da sole; sulla pagina i menu a tendina sono scuri.'
@@ -918,7 +925,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.28.0',
     righe: [
-      '**Le scorciatoie da tastiera, personalizzabili.** Ctrl+Tab e Ctrl+Shift+Tab passano al workspace dopo e prima, Alt+1…Alt+9 vanno al workspace con quel numero, Ctrl+Shift+W apre l’elenco dei workspace; Ctrl+PageDown e Ctrl+PageUp portano il cursore nella chat accanto nel mosaico; Ctrl+Shift+N apre una chat nuova, Ctrl+Shift+E l’elenco delle chat; Ctrl+, le Impostazioni, Ctrl+Shift+A gli Autopiloti, Ctrl+Shift+D il Drive, Ctrl+Shift+Q il Quaderno, Ctrl+Shift+S il Negozio, Ctrl+Shift+X chiude il pannello aperto. Valgono anche con il cursore dentro una chat: la combinazione non arriva a Claude Code. In Impostazioni → Generali → «Scorciatoie da tastiera» ogni azione si cambia («Cambia» e poi i tasti), si spegne («Togli») o torna di fabbrica; due azioni con gli stessi tasti si vedono in ambra. Di fabbrica niente Ctrl+lettera (li usa Claude Code) e niente Ctrl+Alt (sulla tastiera italiana è AltGr).',
+      '**Le scorciatoie da tastiera, personalizzabili.** Ctrl+Tab e Ctrl+Shift+Tab passano al workspace dopo e prima, Alt+1…Alt+9 vanno al workspace con quel numero, Ctrl+Shift+W apre l’elenco dei workspace; Ctrl+PageDown e Ctrl+PageUp portano il cursore nella chat accanto; Ctrl+Shift+N apre una chat nuova, Ctrl+Shift+E l’elenco delle chat; Ctrl+, le Impostazioni, Ctrl+Shift+A gli Autopiloti, Ctrl+Shift+D il Drive, Ctrl+Shift+Q il Quaderno, Ctrl+Shift+S il Negozio, Ctrl+Shift+X chiude il pannello aperto. Valgono anche con il cursore dentro una chat: la combinazione non arriva a Claude Code. In Impostazioni → Generali → «Scorciatoie da tastiera» ogni azione si cambia («Cambia» e poi i tasti), si spegne («Togli») o torna di fabbrica; due azioni con gli stessi tasti si vedono in ambra. Di fabbrica niente Ctrl+lettera (li usa Claude Code) e niente Ctrl+Alt (sulla tastiera italiana è AltGr).',
       '**L’elenco dei workspace si vede davvero.** Nella 0.27 il menu a tendina mostrava solo la casella di ricerca: la fascia dei workspace scorre in orizzontale e tagliava tutto il resto. Ora la tendina sta sopra a tutto, sotto il tasto, con i nomi per esteso, quante chat ha ciascuno e il pallino di chi aspetta. Si sceglie con le frecce e Invio, o con il mouse; la casella non c’è più: per cercare basta scrivere un pezzo del nome (Backspace cancella).'
     ]
   },
@@ -2014,7 +2021,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.9.14',
     righe: [
-      '**Una flotta ripresa dopo un riavvio tornava sbagliata.** L’autopilota riprendeva come se avesse una chat sola: quelle vere restavano vive nel mosaico ma senza nessuno che le governasse, e se ne apriva un’altra con l’obiettivo intero — lo stesso lavoro, già diviso in due, rifatto da capo in parallelo. Ora riprendono tutte le sue chat, e quelle che avevano finito il loro pezzo non tornano.'
+      '**Una flotta ripresa dopo un riavvio tornava sbagliata.** L’autopilota riprendeva come se avesse una chat sola: quelle vere restavano vive fra le chat ma senza nessuno che le governasse, e se ne apriva un’altra con l’obiettivo intero — lo stesso lavoro, già diviso in due, rifatto da capo in parallelo. Ora riprendono tutte le sue chat, e quelle che avevano finito il loro pezzo non tornano.'
     ]
   },
   {
@@ -2117,7 +2124,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.9.0',
     righe: [
-      '**L’autopilota non lavora più al posto delle chat: le coordina.** Le istruzioni le scrive dentro una chat vera, quella che vedi nel mosaico, e la risposta si legge mentre arriva — invece di sparire dentro un processo di cui restava una riga di riassunto.',
+      '**L’autopilota non lavora più al posto delle chat: le coordina.** Le istruzioni le scrive dentro una chat vera, quella che vedi sullo schermo, e la risposta si legge mentre arriva — invece di sparire dentro un processo di cui restava una riga di riassunto.',
       'Puoi intervenire mentre lavora: scrivi nella chat come faresti sempre. Per la conversazione il tuo messaggio e il suo sono indistinguibili, e la chat sa che quello che aggiungi vale più delle istruzioni che ha ricevuto.',
       'Ogni chat governata nasce con la sua conversazione, e la ritrova al giro dopo: il lavoro fatto non si butta via a ogni istruzione.',
       'Con una flotta, ogni chat ha il suo pezzo di lavoro — e adesso lo riceve davvero: il compito si perdeva per strada e ognuna leggeva l’obiettivo intero.'

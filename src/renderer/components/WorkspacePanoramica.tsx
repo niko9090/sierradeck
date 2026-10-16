@@ -119,7 +119,43 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
           {colonna ? '⟨ Autopilota' : 'Autopilota ⟩'}
         </button>
       ) : null}
-      <button className="tasto tasto--mini" onClick={onMosaico} title="Torna ai riquadri affiancati">Mosaico</button>
+      <InterruttoreVista vista="panoramica" onPanoramica={() => onLinguetta(PANORAMICA)} onAffiancate={onMosaico} />
+    </div>
+  )
+}
+
+/**
+ * L'interruttore delle due viste (0.78.1). Nicholas: «non capisco cosa vuol
+ * dire mosaico e poi non si può tornare indietro». Sempre in alto a destra, in
+ * tutte e due le viste, con la voce attiva evidente e un «?» corto per voce: si
+ * passa nei due sensi con un clic, e la scelta si ricorda per workspace. Le chat
+ * restano le stesse: nessuna si chiude o si riavvia cambiando vista.
+ */
+export function InterruttoreVista({ vista, onPanoramica, onAffiancate }: {
+  vista: 'panoramica' | 'affiancate'
+  onPanoramica: () => void
+  onAffiancate: () => void
+}): React.JSX.Element {
+  return (
+    <span className="vista-interruttore" role="group" aria-label="Come vedere questo workspace">
+      <button className={`vista-interruttore__voce${vista === 'panoramica' ? ' vista-interruttore__voce--attiva' : ''}`} aria-pressed={vista === 'panoramica'} onClick={onPanoramica}>
+        Panoramica
+      </button>
+      <Aiuto di="Panoramica">Tutto il workspace in una vista: la situazione, le chat al lavoro, il piano e le altre chat. Tocca una scheda per aprire la sua chat.</Aiuto>
+      <button className={`vista-interruttore__voce${vista === 'affiancate' ? ' vista-interruttore__voce--attiva' : ''}`} aria-pressed={vista === 'affiancate'} onClick={onAffiancate}>
+        Tutte le chat affiancate
+      </button>
+      <Aiuto di="Tutte le chat affiancate">Tutte le chat del workspace una accanto all’altra. Sono le stesse chat: per tornare tocca «Panoramica».</Aiuto>
+    </span>
+  )
+}
+
+/** La barra della vista con tutte le chat affiancate: solo l'interruttore, nello stesso posto (0.78.1). */
+export function BarraAffiancate({ onPanoramica }: { onPanoramica: () => void }): React.JSX.Element {
+  return (
+    <div className="pan-barra" aria-label="Vista del workspace">
+      <span style={{ flex: 1 }} />
+      <InterruttoreVista vista="affiancate" onPanoramica={onPanoramica} onAffiancate={() => undefined} />
     </div>
   )
 }

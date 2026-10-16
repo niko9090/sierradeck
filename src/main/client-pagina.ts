@@ -4222,11 +4222,11 @@ function migrazioneHtml() {
   var s = migrazioneVista
   if (!s) return ''
   var testo = s.stato === 'fatta'
-    ? 'Tutti i workspace del computer sono a elenco (' + (s.dormienti || []).length + '), ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate.'
+    ? 'Tutti i workspace del computer (' + (s.dormienti || []).length + ') hanno la Panoramica, ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate.'
     : s.stato === 'annullata' ? 'Workspace tornati come prima.'
       : s.stato === 'fallita' ? 'La trasformazione non è riuscita, tutto è com’era: ' + (s.motivo || '')
         : 'Trasformazione a metà: si completa al prossimo avvio del computer.'
-  return '<div class="sotto" style="margin-top:10px"><b>Workspace a elenco</b></div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
+  return '<div class="sotto" style="margin-top:10px"><b>Panoramica in tutti i workspace</b></div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
     '<div class="riga">' + (s.stato === 'fatta'
       ? '<button onclick="cambiaMigrazione(\\'torna\\')">Torna come prima</button>'
       : '<button onclick="cambiaMigrazione(\\'rifai\\')">Trasforma tutti</button>') + '</div>'

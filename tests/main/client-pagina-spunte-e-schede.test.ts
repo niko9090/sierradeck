@@ -103,7 +103,7 @@ describe('0.74.1: pagina, «Torna come prima» della trasformazione dei workspac
     const f = new Function('esc', `var migrazioneVista = null; var notaMigrazione = ''; ${funzione('migrazioneHtml')}; return function (s) { migrazioneVista = s; return migrazioneHtml() }`)((x: string) => x) as (s: unknown) => string
     expect(f(null)).toBe('')
     const fatta = f({ stato: 'fatta', dormienti: [{}, {}, {}] })
-    expect(fatta).toContain('a elenco (3)')
+    expect(fatta).toContain('(3) hanno la Panoramica')
     expect(fatta).toContain(`onclick="cambiaMigrazione('torna')"`)
     expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain(`cambiaMigrazione('rifai')`)
     expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain('disco pieno')

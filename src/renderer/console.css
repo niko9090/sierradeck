@@ -5075,3 +5075,10 @@ button.pan2-compito:hover, button.pan2-compito:focus-visible { border-color: var
   .pan2-adesso { grid-template-columns: 1fr; }
   .pan2-piano { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 }
+
+/* L'interruttore delle due viste (0.78.1): sempre in alto a destra, la voce attiva evidente. */
+.vista-interruttore { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--bordo); border-radius: 7px; background: var(--fondo); }
+.vista-interruttore__voce { height: 26px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--testo-quieto); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.vista-interruttore__voce:hover { color: var(--testo); background: var(--chassis-alto); }
+.vista-interruttore__voce--attiva, .vista-interruttore__voce--attiva:hover { background: var(--accento, var(--blu)); color: var(--fondo); font-weight: 600; }
+.vista-interruttore .aiuto, .vista-interruttore [class*=aiuto] { margin: 0 4px 0 0; }

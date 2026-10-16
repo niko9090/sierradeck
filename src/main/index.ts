@@ -1422,7 +1422,7 @@ if (!app.requestSingleInstanceLock()) {
         annunciaMigrazione()
         return ad !== undefined && !ad.ok ? { ok: false, messaggio: ad.messaggio } : r
       })
-      ipcMain.handle('migrazione:rifai', async () => { const r = migrazioneGlobale?.rifai(); if (r?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
+      ipcMain.handle('migrazione:rifai', async () => { const r = migrazioneGlobale?.rifai(); if (r?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); annunciaMigrazione(); return { ok: r?.esito === 'fatta', messaggio: r?.esito === 'fatta' ? 'Fatto: tutti i workspace hanno di nuovo la Panoramica.' : `Non riuscita: ${r?.stato?.motivo ?? 'motivo sconosciuto'}` } })
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
@@ -5591,7 +5591,7 @@ if (!app.requestSingleInstanceLock()) {
         migrazione: {
           stato: () => migrazioneGlobale?.stato() ?? null,
           torna: async () => { const ad = adozioneGlobale !== undefined && adozioneGlobale.stato()?.stato === 'fatta' ? await adozioneGlobale.tornaComePrima() : undefined; if (ad !== undefined && !ad.ok) return ad; const e = migrazioneGlobale?.tornaComePrima() ?? { ok: false, messaggio: 'non disponibile' }; for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return e },
-          rifai: async () => { const e = migrazioneGlobale?.rifai(); if (e?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return { ok: e?.esito === 'fatta', messaggio: e?.esito === 'fatta' ? 'Fatto: tutti i workspace sono a elenco.' : `Non riuscita: ${e?.stato?.motivo ?? 'motivo sconosciuto'}` } }
+          rifai: async () => { const e = migrazioneGlobale?.rifai(); if (e?.esito === 'fatta') await adozioneGlobale?.rifai().catch(() => undefined); for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata'); return { ok: e?.esito === 'fatta', messaggio: e?.esito === 'fatta' ? 'Fatto: tutti i workspace hanno di nuovo la Panoramica.' : `Non riuscita: ${e?.stato?.motivo ?? 'motivo sconosciuto'}` } }
         },
         cercaAggiornamento: () => { void aggiornamenti?.cerca(true) },
         scaricaAggiornamento: () => { void aggiornamenti?.scarica(true) },

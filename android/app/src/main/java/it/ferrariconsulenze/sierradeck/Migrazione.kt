@@ -39,7 +39,7 @@ data class EsitoMigrazioneApp(val ok: Boolean = false, val messaggio: String = "
 
 /** Il testo della sezione, puro: lo stesso della pagina e del PC. */
 fun testoMigrazione(s: StatoMigrazioneApp): String = when (s.stato) {
-    "fatta" -> "Tutti i workspace del computer sono a elenco (${s.dormienti.size}), ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate."
+    "fatta" -> "Tutti i workspace del computer (${s.dormienti.size}) hanno la Panoramica, ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate."
     "annullata" -> "Workspace tornati come prima."
     "fallita" -> "La trasformazione non è riuscita, tutto è com’era: ${s.motivo ?: ""}"
     else -> "Trasformazione a metà: si completa al prossimo avvio del computer."
@@ -53,7 +53,7 @@ fun SezioneMigrazione(api: Api) {
     LaunchedEffect(Unit) { stato = try { api.migrazione().stato } catch (_: Exception) { null } }
     val s = stato ?: return
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text("Workspace a elenco", color = Banco.testo, fontSize = 14.sp)
+        Text("Panoramica in tutti i workspace", color = Banco.testo, fontSize = 14.sp)
         Text(nota ?: testoMigrazione(s), color = Banco.testoQuieto, fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
         val torna = s.stato == "fatta"

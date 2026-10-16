@@ -104,8 +104,8 @@ export function pianoMigrazione(a: Archivio, elencoPrima: string[]): { elenco: s
       chat: chat.length,
       ...(cwd !== undefined ? { cwd } : {}),
       diventa: chat.length === 0
-        ? 'vista a elenco, vuoto; il suo autopilota aspetta il primo lavoro (la cartella si sceglie allora)'
-        : `vista a elenco: ${chat.length === 1 ? 'la sua chat resta' : `le sue ${chat.length} chat restano`} com'${chat.length === 1 ? 'è' : 'erano'}${remote > 0 ? ` (${remote} di altri PC, dal vivo)` : ''}; il suo autopilota, fermo, aspetta il tuo primo messaggio`
+        ? 'Panoramica, vuoto; il suo autopilota aspetta il primo lavoro (la cartella si sceglie allora)'
+        : `Panoramica: ${chat.length === 1 ? 'la sua chat resta' : `le sue ${chat.length} chat restano`} com'${chat.length === 1 ? 'è' : 'erano'}${remote > 0 ? ` (${remote} di altri PC, dal vivo)` : ''}; il suo autopilota, fermo, aspetta il tuo primo messaggio`
     })
   }
   return { elenco, aggiunti, dormienti, righe }

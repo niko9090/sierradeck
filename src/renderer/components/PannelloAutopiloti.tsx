@@ -404,7 +404,7 @@ export function PannelloAutopiloti({
 
           <label className="etichetta nuovo-ap__blocco" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <input type="checkbox" checked={suoWorkspace} onChange={(e) => setSuoWorkspace(e.target.checked)} />
-            <span className="con-aiuto">Nel suo workspace, a elenco<Aiuto di="il suo workspace">Crea un workspace con il nome dell’autopilota e lo porta davanti: a sinistra lui e i suoi specialisti, a destra una chat sola, grande. Non apre chat in più: apre lui quelle che servono, e chiude da sole quelle che hanno finito. Togli la spunta per farlo lavorare nel workspace che hai davanti.</Aiuto></span>
+            <span className="con-aiuto">Nel suo workspace, con la Panoramica<Aiuto di="il suo workspace">Crea un workspace con il nome dell’autopilota e lo porta davanti: a sinistra lui e i suoi specialisti, a destra una chat sola, grande. Non apre chat in più: apre lui quelle che servono, e chiude da sole quelle che hanno finito. Togli la spunta per farlo lavorare nel workspace che hai davanti.</Aiuto></span>
           </label>
 
           <label className="etichetta nuovo-ap__blocco">

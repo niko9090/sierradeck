@@ -191,6 +191,7 @@ object RegolePanoramica {
         Regex("[▐▛▜▌▝▘]{2}"),
         Regex("Claude Code v\\d"),
         Regex("^\\s*… \\+\\d+ lines?\\b"),
+        Regex("^\\s*[─━═]{4,}.*[─━═]{2,}\\s*$"),
         Regex("· Claude (Max|Pro|Team|Enterprise)\\b")
     )
     /** Pezzi di codici colore rimasti senza ESC: «;2;153;153m». */

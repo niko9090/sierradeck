@@ -64,7 +64,7 @@ import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
-import { BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
+import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
 import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
@@ -1987,7 +1987,7 @@ export function App(): React.JSX.Element {
             <span className="banda__testo" title={migrazione.motivo ?? ''}>
               {notaMigrazione ?? (migrazione.stato === 'fallita'
                 ? `La trasformazione dei workspace non è riuscita, quindi è tutto com’era prima: ${migrazione.motivo ?? 'motivo nel registro'}.`
-                : `Tutti i workspace di questo PC sono a elenco, ognuno con il suo autopilota (fermo finché non gli scrivi). Le chat sono rimaste com’erano.`)}
+                : `Tutti i workspace di questo PC hanno la Panoramica, ognuno con il suo autopilota (fermo finché non gli scrivi). Le chat sono rimaste com’erano.`)}
             </span>
             {migrazione.stato === 'fatta' ? (
               <button className="tasto" title="Rimette i workspace esattamente come prima. Le chat non si toccano." onClick={() => { void window.gestore.migrazione.torna().then((e) => setNotaMigrazione(e.messaggio)).catch(() => undefined) }}>Torna come prima</button>
@@ -2095,7 +2095,7 @@ export function App(): React.JSX.Element {
           />
         ) : null}
 
-        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative', ...(vistaElenco !== undefined ? { paddingTop: 38 } : {}) }}>
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative', paddingTop: 38 }}>
           {/* La vista a elenco (0.74.0) è **solo** una colonna in più a sinistra.
               Il mosaico resta sempre in questo stesso posto dell'albero: in un
               ramo diverso React lo smonterebbe passando da elenco a mosaico (e
@@ -2113,7 +2113,10 @@ export function App(): React.JSX.Element {
               conAutopilota={autopilotaFisso !== undefined}
               onMosaico={() => impostaElenco(workspace.attivo, false)}
             />
-          ) : null}
+          ) : (
+            // Tutte le chat affiancate (0.78.1): la stessa barra in alto, con l'interruttore per tornare alla Panoramica.
+            <BarraAffiancate onPanoramica={() => { setLinguettaPerWs((m) => ({ ...m, [workspace.attivo]: PANORAMICA })); impostaElenco(workspace.attivo, true) }} />
+          )}
           {/* La colonna sottile dell'autopilota, sulle linguette delle chat: si apre e si chiude. */}
           {vistaElenco !== undefined && autopilotaFisso !== undefined && linguetta !== PANORAMICA && colonnaAutopilota ? (
             <aside className="pan-colonna" aria-label="L’autopilota"><ChatAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} onCambiato={ricaricaAutopiloti} /></aside>

@@ -137,6 +137,7 @@ describe('0.78.0: righe dal vivo più pulite', () => {
       '│ Scrivo src/somma.js │',
       '● Fatto il test',
       '  … +18 lines (ctrl+o to expand)',
+      '──────────────────────── ciao, una domanda veloce, con un titolo lungo ──',
       '● Fatto il test',
       'Opus 5.5 · settimana 12% · $3'
     ]

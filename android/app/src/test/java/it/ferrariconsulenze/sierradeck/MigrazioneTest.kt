@@ -16,7 +16,7 @@ class MigrazioneTest {
         val s = r.stato!!
         assertEquals(2, s.dormienti.size)
         assertNull(s.dormienti[1].cwd)
-        assertTrue(testoMigrazione(s).startsWith("Tutti i workspace del computer sono a elenco (2)"))
+        assertTrue(testoMigrazione(s).startsWith("Tutti i workspace del computer (2) hanno la Panoramica"))
         assertEquals("La trasformazione non è riuscita, tutto è com’era: disco pieno", testoMigrazione(StatoMigrazioneApp("fallita", "disco pieno")))
         assertNull(Api.json.decodeFromString(RispostaMigrazione.serializer(), """{"stato":null}""").stato)
     }

@@ -149,6 +149,8 @@ const RUMORE = [
   /Claude Code v\d/,
   // L'uscita ripiegata di Claude Code (prova del 16/10): «… +18 lines (ctrl+o to expand)».
   /^\s*… \+\d+ lines?\b/,
+  // Una cornice con un titolo lungo dentro («──── ciao, una domanda ──»): tratti ai due capi.
+  /^\s*[─━═]{4,}.*[─━═]{2,}\s*$/,
   /· Claude (Max|Pro|Team|Enterprise)\b/
 ]
 /** I tratti delle cornici: una riga fatta per lo più di questi è una cornice, anche con un titolo dentro (0.78.0). */
