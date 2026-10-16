@@ -20,16 +20,10 @@ Tutto si trova in `%APPDATA%\SierraDeck\recupero-progetti\` (elenco in `elenco.j
 
 **Cartella di SierraDeck:** tolti i worktree `note/compat/v0.69.0` e `v0.73.0` (con `git worktree remove`) e le copie `note/prova-072`, `prova-0721`, `prova-073` e `vero-074`. Le fixture della compatibilità restano in `tests/fixtures/pc-misti`.
 
-# In coda: il portatile (LAPTOP-E60QM2D1, 0.69.0, spento dal 13/10)
-Uno script in sottofondo (`coda-portatile.cjs` nello scratchpad della chat) bussa ogni 2 minuti attraverso il ponte. Appena il portatile risponde:
-1. chiude le sue chat di prova;
-2. ferma e archivia l'autopilota di prova;
-3. elimina i workspace «SierraDeck-prova-…»;
-4. manda nel recupero i progetti `SierraDeck-prova-ws`, `-c2` e `-ap`.
+# Il portatile (LAPTOP-E60QM2D1, 0.69.0, spento dal 13/10): da fare quando si accende
+Ancora niente, **e nessuno script lo aspetta**. Lo script di attesa che avevo lanciato è stato fermato il 16/10 verso le 10, su richiesta del supervisore: niente processi che girano da soli (regola dopo il 14/10). Il dispositivo temporaneo «Collaudo Claude (temporaneo)» è stato tolto con `revoca` del programma. La verifica: la sua chiave dà 401 e `dispositivi.json` ha solo il telefono.
 
-Usa solo le rotte `/api/prova/*`: è il portatile a decidere che cosa è di prova. Il registro dello script è `coda-portatile.log`.
-- Lo script vive solo finché c'è questa chat. Se il portatile torna dopo, si rifà con gli stessi passi.
-- Per ora resta il dispositivo temporaneo «Collaudo Claude (temporaneo)» in `dispositivi.json`: si toglie quando il portatile ha finito. Le storie delle chat del portatile restano finché non c'è là la 0.75.2.
+I passi esatti sono nella scheda **«Pulizia del portatile, da fare quando si accende»** (`pulizia-portatile-da-fare.md`). Si fanno quando Nicholas accende il portatile e lo dice.
 
 # 0.75.2: i pezzi di prova che il programma lasciava indietro da solo
 1. **La copia di prova (`SIERRADECK_PROVA`) creava i workspace nuovi fra i progetti veri.** Leggeva `cartellaProgetti` dal `pc.json`, che spesso è copiato dai dati veri, oppure la predefinita nella home. Adesso con `SIERRADECK_PROVA` la cartella dei progetti è sempre dentro la prova (`cartellaProgettiDellaProva` in `src/main/progetti/pc.ts`). Una cartella scelta fuori dalla prova non vale.
