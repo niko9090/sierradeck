@@ -3321,7 +3321,7 @@ if (!app.requestSingleInstanceLock()) {
         if (azione === 'spazio-misura') { await spazio.stato(true); return { ok: true, messaggio: 'Misurato adesso.' } }
         if (azione === 'spazio-pulisci') {
           const tipo = testoDi(c.tipo)
-          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
+          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto' && tipo !== 'prove') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
           const e = await spazio.pulisci(tipo)
           void spazio.stato(true)
           return { ok: e.ok, messaggio: e.messaggio }

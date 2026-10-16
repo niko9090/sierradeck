@@ -136,7 +136,7 @@ export type StatoSpazio = {
 /* Le proposte di pulizia.                                             */
 /* ------------------------------------------------------------------ */
 
-export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto'
+export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove'
 
 /** Un file che una pulizia toglie: con la sua voce del manifesto, se ce l'ha, per rimetterla. */
 export type VocePulita = { nome: string; byte: number; percorso?: string; voce?: VoceIndice }
@@ -172,6 +172,18 @@ function chatDi(percorso: string): { slug: string; sessione: string; principale:
 }
 
 /**
+ * Le chat delle prove (0.75.3): quelle di una cartella «SierraDeck-prova-…» e
+ * quelle avviate nello scratchpad di una sessione di Claude Code (le prove
+ * degli hook). Il salvataggio non toglie mai una chat dal Drive perché è
+ * sparita dal disco, quindi restavano lì anche dopo «togli progetto di prova».
+ * Lo slug perde i separatori: per questo è solo una proposta, che conferma
+ * Nicholas, e va nel recupero annullabile.
+ */
+export function slugDiProva(slug: string): boolean {
+  return /-SierraDeck-prova-[A-Za-z0-9][A-Za-z0-9-]*$/i.test(slug) || /-AppData-Local-Temp-claude-.+-scratchpad(-|$)/i.test(slug)
+}
+
+/**
  * Le proposte, ognuna con i suoi file e i byte che libera. Non tocca niente.
  * `copieSuiPc`: per conversazione, i PC che ce l'hanno sul disco e quanto è
  * lunga lì (battiti 0.58 e questo PC).
@@ -188,18 +200,31 @@ export function proposteDiPulizia(p: {
   const voce = (percorso: string, v: VoceIndice): VocePulita => ({ nome: v.nome, byte: byteDi.get(v.nome) ?? v.size, percorso, voce: v })
   const fuori: Proposta[] = []
 
-  // Le chat per conversazione e per cartella (slug).
+  // Le chat per conversazione e per cartella (slug); quelle delle prove a parte.
   const perSessione = new Map<string, Map<string, { principale?: [string, VoceIndice]; altri: [string, VoceIndice][] }>>()
+  const prove: VocePulita[] = []
   for (const [percorso, v] of Object.entries(p.indice)) {
     if (giaFuori.has(v.nome)) continue
     const c = chatDi(percorso)
     if (c === undefined) continue
+    if (slugDiProva(c.slug)) { prove.push(voce(percorso, v)); continue }
     const s = perSessione.get(c.sessione) ?? new Map()
     const g = s.get(c.slug) ?? { altri: [] }
     if (c.principale) g.principale = [percorso, v]
     else g.altri.push([percorso, v])
     s.set(c.slug, g)
     perSessione.set(c.sessione, s)
+  }
+
+  if (prove.length > 0) {
+    fuori.push({
+      tipo: 'prove',
+      titolo: 'Chat delle prove',
+      breve: `${contaChat(prove)} chat usate per collaudare SierraDeck`,
+      spiega: 'Chat avviate nelle prove del programma: in una cartella «SierraDeck-prova-…» o nella cartella di lavoro temporanea di una sessione di Claude Code. Non servono a niente di vero. Vanno nel recupero per 30 giorni e «Annulla» le rimette.',
+      voci: prove,
+      byte: somma(prove)
+    })
   }
 
   // 1. Copie doppie: la stessa conversazione salvata sotto due cartelle (lo

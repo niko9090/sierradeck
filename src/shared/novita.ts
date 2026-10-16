@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.75.3',
+    righe: [
+      '**Chat delle prove anche dal Drive:** in Progetti → Spazio sul Drive c’è la proposta «Chat delle prove», con le chat usate per collaudare SierraDeck (cartelle «SierraDeck-prova-…» e prove degli hook). La confermi tu: vanno nel recupero per 30 giorni e «Annulla» le rimette. Non parte mai da sola.'
+    ]
+  },
+  {
     versione: '0.75.2',
     righe: [
       '**Le prove non lasciano più avanzi:** togliendo un progetto di prova («SierraDeck-prova-…»), anche le sue conversazioni vanno nel recupero di 30 giorni insieme alla cartella, e non restano più sul disco né sul Drive.',

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  byteLeggibili, daSvuotare, indiceConDiNuovo, indiceSenza, misura, nuovaPulizia, proposteDiPulizia, restaFuori, tipoDi,
+  byteLeggibili, daSvuotare, indiceConDiNuovo, indiceSenza, misura, nuovaPulizia, proposteDiPulizia, pulizieDaSole, restaFuori, tipoDi,
   type FileDrive, type IndiceDrive, type RegistroPulizie
 } from '@shared/spazio-drive'
 
@@ -127,5 +127,34 @@ describe('lo spazio sul Drive', () => {
     expect(byteLeggibili(1536)).toBe('1,5 KB')
     expect(byteLeggibili(3.2 * 1024 ** 3)).toBe('3,2 GB')
     expect(byteLeggibili(340 * 1024 ** 2)).toBe('340 MB')
+  })
+})
+
+describe('0.75.3: le chat delle prove sul Drive', () => {
+  const conProve: IndiceDrive = {
+    ...indice,
+    'chat/C--Users-u-Progetti-SierraDeck-SierraDeck-prova-c2/pppp.jsonl': { nome: 'f_p1', size: 900, mtime: recente },
+    'chat/C--Users-u-Progetti-SierraDeck-SierraDeck-prova-c2/pppp/subagents/y.jsonl': { nome: 'f_p1s', size: 90, mtime: recente },
+    'chat/E--Documents-Progetti-SierraDeck-SierraDeck-prova-c2/pppp.jsonl': { nome: 'f_p2', size: 800, mtime: recente },
+    'chat/C--Users-u-AppData-Local-Temp-claude-E--x-1ff7-scratchpad-hook-prova/hhhh.jsonl': { nome: 'f_h', size: 700, mtime: vecchio },
+    'chat/E--Documents-Progetti-SierraDeck-SierraDeck/vvvv.jsonl': { nome: 'f_v', size: 600, mtime: recente },
+    'chat/E--Documents-Progetti-SierraDeck-provare/wwww.jsonl': { nome: 'f_w2', size: 500, mtime: recente }
+  }
+  const proposte = proposteDiPulizia({ file, indice: conProve, copieSuiPc: new Map(), adesso: ADESSO })
+  const prove = proposte.find((p) => p.tipo === 'prove')
+
+  it('le propone tutte insieme, sotto-agenti compresi, e solo quelle', () => {
+    expect(prove?.voci.map((v) => v.nome).sort()).toEqual(['f_h', 'f_p1', 'f_p1s', 'f_p2'])
+    expect(prove?.breve).toBe('3 chat usate per collaudare SierraDeck')
+  })
+
+  it('una chat di prova non finisce anche fra le doppie, e le chat vere restano dove erano', () => {
+    const doppie = proposte.find((p) => p.tipo === 'doppie')
+    expect(doppie?.voci.some((v) => v.nome.startsWith('f_p'))).toBe(false)
+    expect(proposte.flatMap((p) => p.voci).some((v) => v.nome === 'f_v' || v.nome === 'f_w2')).toBe(false)
+  })
+
+  it('non parte mai da sola: la conferma Nicholas', () => {
+    expect(pulizieDaSole(proposte).map((p) => p.tipo)).not.toContain('prove')
   })
 })

@@ -37,4 +37,7 @@ Usa solo le rotte `/api/prova/*`: è il portatile a decidere che cosa è di prov
 
 Test: `tests/main/prove-senza-avanzi.test.ts`.
 
+3. **0.75.3 — le chat delle prove restavano sul Drive.** Il salvataggio **non toglie mai** dal Drive una chat sparita dal disco: dopo la pulizia c'erano ancora 21 chat di prova. Per toglierle c'è una nuova proposta in Spazio sul Drive, «Chat delle prove» (`slugDiProva` in `src/shared/spazio-drive.ts`). Vale per gli slug che finiscono con `-SierraDeck-prova-…` o che sono dentro lo scratchpad di una sessione di Claude Code. **La conferma Nicholas** (non è fra `PULIZIE_DA_SOLE`): le chat vanno nel recupero del Drive per 30 giorni e «Annulla» le rimette.
+   - **Da fare dopo che Nicholas installa la 0.75.3:** in Progetti → Spazio sul Drive premere «Chat delle prove» → «Conferma». Oggi sono 21 chat.
+
 **Trappola:** spostare una storia di chat fuori da `~/.claude/projects` fa sì che il salvataggio dopo la tolga anche dal Drive, se il file era nel manifesto di questo PC. Per le prove è quello che si vuole; per le chat vere non va mai fatto a mano.
