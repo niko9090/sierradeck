@@ -67,6 +67,7 @@ import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
 import { gruppoStabile, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
 import { specialistiDi } from '@shared/specialisti'
 import { DomandeALato } from './components/DomandeALato'
@@ -949,8 +950,10 @@ export function App(): React.JSX.Element {
   }, [])
   // La vista a elenco (0.74.0): quali workspace la usano (preferenza del PC) e quale chat sta davanti.
   const [workspaceElenco, setWorkspaceElenco] = useState<string[]>([])
+  // Le chat «solo mia» (0.78.0): l'autopilota del workspace non le tocca.
+  const [chatSoloMie, setChatSoloMie] = useState<string[]>([])
   useEffect(() => {
-    const applica = (p: { workspaceElenco: string[] }): void => setWorkspaceElenco(p.workspaceElenco)
+    const applica = (p: { workspaceElenco: string[]; chatSoloMie?: string[] }): void => { setWorkspaceElenco(p.workspaceElenco); setChatSoloMie(p.chatSoloMie ?? []) }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
   }, [])
@@ -1615,6 +1618,9 @@ export function App(): React.JSX.Element {
     if (vistaElenco === undefined) return []
     const ora = Date.now()
     const specialisti = autopilotaFisso !== undefined ? specialistiDi(autopilotaFisso).elenco : []
+    // Le chat adottate (0.78.0): il ruolo che le ha dato l'autopilota, o quello dal contenuto.
+    const adottate = new Map((autopilotaFisso?.adottate ?? []).map((x) => [x.sessionId, x]))
+    const mie = new Set([...chatSoloMie, ...[...adottate.values()].filter((x) => x.soloMia === true).map((x) => x.sessionId)])
     const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
     const brevi = new Set(domandeQui.map((d) => d.chiave))
     const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
@@ -1627,18 +1633,25 @@ export function App(): React.JSX.Element {
       const statoDal = prima !== undefined && prima.stato === adesso ? prima.statoDal : ora
       const gruppo = gruppoStabile(adesso, prima?.gruppo, statoDal, ora)
       gruppiMostrati.current.set(p.id, { gruppo, statoDal, stato: adesso })
-      const ruolo = RUOLI_ORDINE.find((k) => RUOLI[k].nome === (sp?.ruolo ?? ruoloDalTitolo(p.title)))
-      const vive = p.ptyId !== undefined ? righeDiPty(p.ptyId, 16)?.pulite ?? righe.current.codaDi(p.ptyId) : []
+      const ad = p.sessionUuid !== undefined ? adottate.get(p.sessionUuid) : undefined
+      const ruolo = sp !== undefined || ruoloDalTitolo(p.title) !== undefined
+        ? RUOLI_ORDINE.find((k) => RUOLI[k].nome === (sp?.ruolo ?? ruoloDalTitolo(p.title)))
+        : ad !== undefined ? ad.ruolo : ruoloDaContenuto(p.title)
+      const dellAutopilota = sp !== undefined || p.autopilota !== undefined
+      const vive = p.ptyId !== undefined ? righeDiPty(p.ptyId, 30)?.pulite ?? righe.current.codaDi(p.ptyId) : []
       fuori.push({
         // Uno specialista si riconosce dal compito: due «Revisione · Prova squadra» erano due schede uguali (prova del 16/10).
         id: p.id, paneId: p.id, titolo: sp !== undefined && sp.compito !== '' ? sp.compito : p.title, stato: gruppo,
         nataIl: sp !== undefined ? numero(sp.id) : nateIl.current.get(p.id) ?? ora,
         ...(ruolo !== undefined ? { ruolo, nomeRuolo: RUOLI[ruolo].nome, coloreRuolo: RUOLI[ruolo].colore } : {}),
         ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : ultimaAzioneDalVivo(vive),
-        righe: righeDalVivo(vive, 4),
+        righe: righeDalVivo(vive, 6),
         dal: statoDal,
         ...(brevi.has(`chat:${p.id}`) ? { domanda: true } : {}),
-        ...(p.remoto !== undefined ? { suPc: p.remoto.pcNome } : {})
+        ...(p.remoto !== undefined ? { suPc: p.remoto.pcNome } : {}),
+        ...(dellAutopilota ? { specialista: true } : {}),
+        ...(p.sessionUuid !== undefined ? { sessione: p.sessionUuid } : {}),
+        ...(p.sessionUuid !== undefined && mie.has(p.sessionUuid) ? { soloMia: true } : {})
       })
     }
     // Gli specialisti che hanno finito e chiuso la loro chat: schede «finite», senza riquadro.
@@ -1647,7 +1660,7 @@ export function App(): React.JSX.Element {
       if (x.chiusa !== true || (x.sessionId !== undefined && aperte.has(x.sessionId))) continue
       const ruolo = RUOLI_ORDINE.find((k) => RUOLI[k].nome === x.ruolo)
       fuori.push({
-        id: `fine-${x.id}`, titolo: x.compito, stato: 'finita', nataIl: numero(x.id),
+        id: `fine-${x.id}`, titolo: x.compito, stato: 'finita', nataIl: numero(x.id), specialista: true,
         ...(ruolo !== undefined ? { ruolo, nomeRuolo: RUOLI[ruolo].nome, coloreRuolo: RUOLI[ruolo].colore } : {}),
         ultimaAzione: x.ultimaAzione, righe: []
       })
@@ -2141,6 +2154,19 @@ export function App(): React.JSX.Element {
                 : {})}
               schede={schedePanoramica}
               domande={domandeQui}
+              paneDiSessione={(sessione) => Object.values(riquadriAperti).find((x) => x.sessionUuid === sessione)?.id}
+              onSoloMia={(s, si) => {
+                if (s.sessione === undefined) return
+                const sessione = s.sessione
+                // Nelle preferenze, che valgono anche prima che l'autopilota nasca; e nel suo file, se l'ha adottata.
+                setChatSoloMie((l) => (si ? [...new Set([...l, sessione])] : l.filter((x) => x !== sessione)))
+                void window.gestore.preferenze.leggi()
+                  .then((p) => window.gestore.preferenze.imposta({ ...p, chatSoloMie: si ? [...new Set([...(p.chatSoloMie ?? []), sessione])] : (p.chatSoloMie ?? []).filter((x) => x !== sessione) }))
+                  .catch(() => undefined)
+                if (autopilotaFisso !== undefined && (autopilotaFisso.adottate ?? []).some((x) => x.sessionId === sessione)) {
+                  void window.gestore.adozione.soloMia(autopilotaFisso.id, sessione, si).then(() => ricaricaAutopiloti()).catch(() => undefined)
+                }
+              }}
               onApri={vaiLinguetta}
               onRicarica={ricaricaAutopiloti}
               onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))}

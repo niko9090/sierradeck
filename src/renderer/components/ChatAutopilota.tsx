@@ -2,6 +2,7 @@ import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
+import { separaConversazione } from '@shared/panoramica'
 import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { Aiuto } from './Aiuto'
 import { TastoMicrofono } from './TastoMicrofono'
@@ -19,11 +20,17 @@ import { TastoMicrofono } from './TastoMicrofono'
  */
 export function ChatAutopilota({
   autopilota,
-  onCambiato
+  onCambiato,
+  soloConversazione = false
 }: {
   autopilota: Autopilota
   /** Qualcosa è cambiato: chi ci sta sopra deve rileggere lo stato adesso. */
   onCambiato: () => void
+  /**
+   * Nella Panoramica (0.78.0): solo la conversazione fra te e lui; le note di
+   * lavoro (rami, revisioni, «ha deciso») in «Cosa è successo ▸», chiuso.
+   */
+  soloConversazione?: boolean
 }): React.JSX.Element {
   const [messaggio, setMessaggio] = useState('')
   const [inCorso, setInCorso] = useState(false)
@@ -32,7 +39,10 @@ export function ChatAutopilota({
   // Il campo, per il microfono (0.75.0): la dettatura scrive dove c'è il fuoco.
   const campo = useRef<HTMLTextAreaElement | null>(null)
 
-  const battute = conversazione(autopilota)
+  const tutte = conversazione(autopilota)
+  const { messaggi, eventi } = separaConversazione(tutte)
+  const battute = soloConversazione ? messaggi : tutte
+  const [eventiAperti, setEventiAperti] = useState(false)
   const pensa = staPensando(autopilota)
   // Una sua domanda aperta non si risponde piu' da qui (0.38.0): sta nella
   // linguetta «Domande» qui sotto, una per volta. Qui gli si parla e basta.
@@ -71,6 +81,24 @@ export function ChatAutopilota({
     <section className="chatap" aria-label="Chat con l’autopilota">
       <RigaDalVivo autopilota={autopilota} />
       <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
+      {soloConversazione && eventi.length > 0 ? (
+        <div className="chatap__eventi">
+          <button className="pan2-riga-apri" aria-expanded={eventiAperti} onClick={() => setEventiAperti((v) => !v)}>
+            {eventiAperti ? '▾' : '▸'} Cosa è successo · {eventi.length}
+          </button>
+          {eventiAperti ? (
+            <div className="chatap__eventi-elenco">
+              {eventi.slice(0, 50).map((b, i) => (
+                <div key={`${b.quando}-${i}`} className="chatap__evento" title={b.dettaglio !== undefined ? `${b.testo} — ${b.dettaglio}` : b.testo}>
+                  <span className="chatap__quando">{orario(b.quando)}</span>
+                  <span className="chatap__evento-testo">{b.testo}{b.volte !== undefined ? ` ×${b.volte}` : ''}</span>
+                </div>
+              ))}
+              {eventi.length > 50 ? <div className="chatap__evento">… e {eventi.length - 50} più vecchi</div> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="chatap__flusso" ref={flusso} aria-live="polite">
         {battute.map((b, i) => (
           <div
@@ -110,7 +138,7 @@ export function ChatAutopilota({
           <p className="chatap__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
         ) : null}
         {domanda || autopilota.stato === 'pronto' ? (
-          <p className="chatap__pensa">● {autopilota.stato === 'pronto' ? 'aspetta il tuo via' : 'ti ha fatto una domanda'}: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.</p>
+          <p className="chatap__pensa">● {autopilota.stato === 'pronto' ? 'aspetta il tuo via' : 'ti ha fatto una domanda'}: {soloConversazione ? 'è a destra, fra le domande.' : 'è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.'}</p>
         ) : null}
         {!pensa && promessaSenzaLavoro(autopilota) ? (
           // 0.75.4: ha promesso di lavorare ma è fermo. Mai più una promessa muta.
@@ -137,7 +165,7 @@ export function ChatAutopilota({
           rows={3}
           style={{ resize: 'vertical' }}
           value={messaggio}
-          placeholder="scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta «Domande»)"
+          placeholder={soloConversazione ? 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…' : 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta «Domande»)'}
           aria-label="scrivi all autopilota"
           onChange={(e) => setMessaggio(e.target.value)}
           onKeyDown={(e) => {
