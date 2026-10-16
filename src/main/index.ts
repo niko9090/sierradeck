@@ -94,7 +94,7 @@ import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
@@ -1372,7 +1372,7 @@ if (!app.requestSingleInstanceLock()) {
       // La lista dei workspace di questo PC (0.65.1), prima che nasca una finestra:
       // i workspace spariti ritrovati dalle copie, i riquadri che guardano sé stessi riparati.
       try {
-        const esito = riparaListaAllAvvio({ dati, store: workspaceStore, io: apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') }).leggi(), radiceProgetti: join(homedir(), '.claude', 'projects'), log: registro.info })
+        const esito = riparaListaAllAvvio({ dati, store: workspaceStore, io: apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents'), ...(cartellaProva !== undefined && cartellaProva !== '' ? { prova: cartellaProva } : {}) }).leggi(), radiceProgetti: join(homedir(), '.claude', 'projects'), log: registro.info })
         ultimaRiparazione = { ...esito, quando: new Date().toISOString() }
       } catch (err) { registro.info(`[workspace] riparazione all’avvio non riuscita: ${String(err)}`) }
       // **La trasformazione dei workspace** (0.74.1, decisione di Nicholas):
@@ -1516,7 +1516,7 @@ if (!app.requestSingleInstanceLock()) {
       }
       // I progetti sul Drive: chi e' questo PC, dove riceve i progetti, e il
       // registro condiviso di quali cartelle viaggiano con le chat.
-      const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })
+      const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents'), ...(cartellaProva !== undefined && cartellaProva !== '' ? { prova: cartellaProva } : {}) })
       identitaPcGlobale = identitaPc
       // La regola dura dell'ospite (0.52.0), da subito: finché il servizio
       // delle case non è pronto, le case si leggono dal file di qui. Così
@@ -3215,14 +3215,18 @@ if (!app.requestSingleInstanceLock()) {
         if (!cartellaDiProva(cartella)) return { ok: false, stato: 403, messaggio: `${cartella} non è una cartella di prova.` }
         const aperta = chatAperte.find((c) => c.viva === true && staDentro(c.cwd, cartella))
         if (aperta !== undefined) return { ok: false, stato: 409, messaggio: `la chat «${aperta.titolo}» è aperta nella cartella: chiudila prima.` }
-        const e = spostaCartellaInRecupero(dati, cartella, { progetto: g.id, nome, motivo: 'progetto di prova tolto da chi collauda', quando: new Date().toISOString() })
+        const quando = new Date().toISOString()
+        const e = spostaCartellaInRecupero(dati, cartella, { progetto: g.id, nome, motivo: 'progetto di prova tolto da chi collauda', quando })
         if (!e.ok) return { ok: false, stato: 409, messaggio: e.messaggio }
+        // Anche le sue conversazioni (0.75.2): restavano in ~/.claude/projects e sul Drive.
+        const storie = storieDiProvaInRecupero(dati, join(homedir(), '.claude', 'projects'), cartella, { progetto: g.id, nome, quando })
+        if (storie.spostate.length > 0 || storie.nonSpostate.length > 0) registro.info(`[prova] storie delle chat di «${nome}»: ${storie.spostate.length} nel recupero${storie.nonSpostate.length > 0 ? `, non spostate: ${storie.nonSpostate.join('; ')}` : ''}`)
         const reg = registroProgetti.leggi()
         registroProgetti.scrivi({ ...reg, progetti: reg.progetti
           .map((p) => (g.ids.includes(p.id) ? { ...p, percorsi: Object.fromEntries(Object.entries(p.percorsi).filter(([pc]) => pc !== io.id)) } : p))
           .filter((p) => !(g.ids.includes(p.id) && Object.keys(p.percorsi).length === 0)) })
         registro.info(`[prova] progetto di prova «${nome}» tolto da ${io.nome}: cartella nel recupero (${e.dove}), chiesto da chi collauda`)
-        return { ok: true, messaggio: `«${nome}»: cartella nel recupero per 30 giorni.` }
+        return { ok: true, messaggio: `«${nome}»: cartella${storie.spostate.length > 0 ? ` e ${storie.spostate.length} ${storie.spostate.length === 1 ? 'cartella' : 'cartelle'} di conversazioni` : ''} nel recupero per 30 giorni.` }
       }
       provaTraslocoGlobale = async (corpo) => {
         const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>

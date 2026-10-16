@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, isAbsolute } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
@@ -38,7 +38,21 @@ export type IdentitaPcStore = {
   impostaNome: (nome: string) => IdentitaPc
 }
 
-export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: () => string; documenti?: () => string }): IdentitaPcStore {
+/**
+ * La cartella dei progetti di una copia di prova (`SIERRADECK_PROVA`, 0.75.2):
+ * sempre dentro la cartella della prova. Prima la copia leggeva il `pc.json`
+ * copiato dai dati veri, o la predefinita nella home, e i workspace creati nelle
+ * prove («Prova elenco», «Seconda prova») finivano fra i progetti veri.
+ */
+export function cartellaProgettiDellaProva(prova: string, scelta: string | undefined): string {
+  if (scelta !== undefined && scelta !== '') {
+    const r = relative(prova, scelta)
+    if (r !== '' && !r.startsWith('..') && !isAbsolute(r)) return scelta
+  }
+  return join(prova, 'Progetti SierraDeck')
+}
+
+export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: () => string; documenti?: () => string; prova?: string }): IdentitaPcStore {
   const percorso = join(dati, FILE_PC)
   /**
    * Dove ricevere i progetti se nessuno ha scelto: in Documenti (Nicholas,
@@ -80,7 +94,9 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
   const leggi = (): IdentitaPc => {
     const g = leggiGrezza()
     const id = g.id ?? randomBytes(6).toString('hex')
-    const cartellaProgetti = g.cartellaProgetti ?? predefinita()
+    const cartellaProgetti = deps.prova !== undefined && deps.prova !== ''
+      ? cartellaProgettiDellaProva(deps.prova, g.cartellaProgetti)
+      : g.cartellaProgetti ?? predefinita()
     // La prima volta si scrive, cosi' l'id resta quello.
     if (g.id === undefined) scrivi({ ...g, id, cartellaProgetti })
     let host = ''

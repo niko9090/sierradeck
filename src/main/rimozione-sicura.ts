@@ -8,6 +8,8 @@ import {
 } from '@shared/rimozione-sicura'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { DomandaPerDomande } from '@shared/domande-telefono'
+import { cartellaDiProva } from '@shared/chat-di-prova'
+import { pathToSlug } from './indexer/project-scanner'
 
 /**
  * La rimozione sicura di un progetto da un PC che non ne è il residente
@@ -210,6 +212,34 @@ export function spostaCartellaInRecupero(dati: string, cartella: string, info: {
     id, progetto: info.progetto, nome: info.nome, percorsoOriginale: cartella, dove, quando: info.quando, scadeIl: scadenza(info.quando), motivo: info.motivo
   }])
   return { ok: true, id, dove }
+}
+
+/**
+ * Le storie di Claude Code di un progetto di prova (0.75.2): quando chi
+ * collauda toglie un progetto «SierraDeck-prova-…», le sue conversazioni in
+ * `~/.claude/projects` restavano, e il salvataggio le teneva sul Drive. Vanno
+ * nel recupero con la cartella: quella della cartella di qui, e le copie
+ * arrivate dagli altri PC (stesso nome di prova in fondo, altro percorso).
+ * Solo per un nome di prova: per i progetti veri le storie non si toccano.
+ */
+export function storieDiProvaInRecupero(dati: string, radiceProjects: string, cartella: string, info: { progetto: string; nome: string; quando: string }):
+  { spostate: string[]; nonSpostate: string[] } {
+  const esito = { spostate: [] as string[], nonSpostate: [] as string[] }
+  if (!cartellaDiProva(info.nome) || !existsSync(radiceProjects)) return esito
+  const dellaCartella = pathToSlug(resolve(cartella)).toLowerCase()
+  const finale = `-${pathToSlug(info.nome)}`.toLowerCase()
+  let voci: string[] = []
+  try { voci = readdirSync(radiceProjects) } catch { return esito }
+  for (const v of voci) {
+    const basso = v.toLowerCase()
+    if (basso !== dellaCartella && !basso.endsWith(finale)) continue
+    const percorso = join(radiceProjects, v)
+    try { if (!statSync(percorso).isDirectory()) continue } catch { continue }
+    const e = spostaCartellaInRecupero(dati, percorso, { progetto: info.progetto, nome: v, motivo: `storia delle chat del progetto di prova «${info.nome}»`, quando: info.quando })
+    if (e.ok) esito.spostate.push(v)
+    else esito.nonSpostate.push(`${v}: ${e.messaggio}`)
+  }
+  return esito
 }
 
 /** Rimette al suo posto una cartella in recupero: mai sopra un'altra cartella. */

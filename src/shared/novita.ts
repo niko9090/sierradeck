@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.75.2',
+    righe: [
+      '**Le prove non lasciano più avanzi:** togliendo un progetto di prova («SierraDeck-prova-…»), anche le sue conversazioni vanno nel recupero di 30 giorni insieme alla cartella, e non restano più sul disco né sul Drive.',
+      '**La copia di prova tiene i suoi progetti dentro di sé:** i workspace creati durante una prova non finiscono più nella cartella dei progetti veri.'
+    ]
+  },
+  {
     versione: '0.75.1',
     righe: [
       '**Quando il telefono non si collega, dice perché:** «Tailscale è spento su questo telefono» con il tasto «Apri Tailscale»; «Non sei sulla rete di casa: accendi Tailscale»; «Il PC risponde ma non riconosce questo telefono» con «Riprova»; oppure «Nessun PC risponde», con l’elenco di cosa si è provato. I dettagli stanno dietro il «?».',
