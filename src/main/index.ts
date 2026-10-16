@@ -4573,7 +4573,7 @@ if (!app.requestSingleInstanceLock()) {
       {
         const servizio = {
           elenca: () => clientAutopilota.elenca(),
-          adotta: (id: string, chat: { sessionId: string; titolo: string }[]) => clientAutopilota.adotta(id, chat),
+          adotta: (id: string, chat: { sessionId: string; titolo: string }[], soloMie?: string[]) => clientAutopilota.adotta(id, chat, soloMie),
           togli: (id: string, sessioni: string[]) => clientAutopilota.togliAdottate(id, sessioni),
           scritti: (id: string, ids: string[]) => clientAutopilota.adottateScritti(id, ids)
         }
@@ -4596,6 +4596,7 @@ if (!app.requestSingleInstanceLock()) {
             servizio,
             leggiArchivio: () => workspaceStore?.leggi(),
             adozioneAttiva: () => adozione.stato()?.stato === 'fatta',
+            soloMie: () => impostazioni.preferenze().chatSoloMie ?? [],
             chat: () => chatAperte,
             scrivi: scriviNelRiquadro,
             log: (riga) => registro.info(riga)

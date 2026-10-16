@@ -55,6 +55,11 @@ describe('dialogo e consegna alle adottate', () => {
     expect(righePromptAdottate(a).join('\n')).not.toContain('ciao')
     expect(conSoloMia(a, 's-2', false).adottate?.find((x) => x.sessionId === 's-2')?.soloMia).toBeUndefined()
   })
+  it('il prompt dice cosa è davvero in coda (prova del 16/10: credeva in coda un messaggio perso)', () => {
+    expect(righePromptAdottate(base).join('\n')).toContain('In coda adesso: nessun messaggio.')
+    const conCoda = conMessaggiAdottate(base, [{ id: 'm', quando: Q, sessionId: 's-3', testo: 'fai i test' }])
+    expect(righePromptAdottate(conCoda).join('\n')).toContain('- per A3: «fai i test»')
+  })
   it('perLeChat: solo chiavi note e guidabili', () => {
     const a = conSoloMia(base, 's-2', true)
     let n = 0

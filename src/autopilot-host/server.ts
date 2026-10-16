@@ -356,7 +356,12 @@ export function conservaCambiUtente(
     // il turno lavora: dal disco, o una battuta scritta durante i criteri
     // sparirebbe con la fotografia di inizio turno.
     dialogo: fresco.dialogo,
-    daConsegnare: fresco.daConsegnare
+    daConsegnare: fresco.daConsegnare,
+    // Le chat adottate e i messaggi per loro (0.78.0): li scrivono le rotte
+    // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
+    // 16/10: la fotografia di inizio turno li cancellava.
+    ...(fresco.adottate !== undefined ? { adottate: fresco.adottate } : {}),
+    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {})
   }
 }
 
@@ -1884,7 +1889,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         stato: fresco.stato,
         motivoSospensione: fresco.motivoSospensione,
         sessioneSupervisore: fresco.sessioneSupervisore,
-        decisioni: [...suDisco.decisioni, ...soloNuove(fresco.decisioni, suDisco.decisioni)]
+        decisioni: [...suDisco.decisioni, ...soloNuove(fresco.decisioni, suDisco.decisioni)],
+        // I messaggi per le chat adottate scritti da questa risposta (0.78.0), sopra quelli su disco.
+        ...(perAdottate.length > 0
+          ? { perAdottate: conMessaggiAdottate(suDisco, perAdottate.filter((m) => !(suDisco.perAdottate ?? []).some((x) => x.id === m.id))).perAdottate }
+          : {})
       }
     }
     chiudi(esito.risposta, fatti.length === 0 ? 'nessun cambio' : fatti.join(' · '))

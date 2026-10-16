@@ -142,3 +142,18 @@ describe('conservaCambiUtente — gli interruttori toccati da fuori durante il t
     expect(dopo.limiti.cicliMax).toBe(42)
   })
 })
+
+describe('0.78.0: le chat adottate non spariscono con la fotografia di inizio turno', () => {
+  it('adottate e messaggi per loro scritti durante il turno restano (prova del 16/10)', () => {
+    const letto = base()
+    const calcolato: Autopilota = { ...letto, cicli: 6 }
+    const adesso: Autopilota = {
+      ...letto,
+      adottate: [{ sessionId: 's-1', titolo: 'una chat', adottataIl: '2026-08-27T10:05:00.000Z' }],
+      perAdottate: [{ id: 'm1', quando: '2026-08-27T10:06:00.000Z', sessionId: 's-1', testo: 'fai i test' }]
+    }
+    const salvato = conservaCambiUtente(calcolato, adesso, 'c-1', letto.decisioni.length)
+    expect(salvato.adottate).toEqual(adesso.adottate)
+    expect(salvato.perAdottate).toEqual(adesso.perAdottate)
+  })
+})

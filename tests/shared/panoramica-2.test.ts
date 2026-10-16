@@ -95,6 +95,13 @@ describe('separaConversazione', () => {
   })
 })
 
+describe('0.78.0: l’ultima azione non è il riepilogo del turno', () => {
+  it('«✻ Churned for 22s · done 17:31» non è un’azione: vale la riga prima', async () => {
+    const { ultimaAzioneDalVivo } = await import('@shared/panoramica')
+    expect(ultimaAzioneDalVivo(['● Ecco i 3 test proposti', '✻ Churned for 22s · done 17:31'])).toBe('● Ecco i 3 test proposti')
+  })
+})
+
 describe('0.78.0: righe dal vivo più pulite', () => {
   it('cornici con un titolo dentro, bordi di casella, testata e riga di stato, doppioni', () => {
     const schermo = [
@@ -103,6 +110,7 @@ describe('0.78.0: righe dal vivo più pulite', () => {
       '──────────── Chat B ────────────────────────',
       '│ Scrivo src/somma.js │',
       '● Fatto il test',
+      '  … +18 lines (ctrl+o to expand)',
       '● Fatto il test',
       'Opus 5.5 · settimana 12% · $3'
     ]

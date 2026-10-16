@@ -230,6 +230,18 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
 function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; autopilota?: Autopilota; chat: number; ora: number }): React.JSX.Element {
   const [tutto, setTutto] = useState(false)
   const [criteriAperti, setCriteriAperti] = useState(false)
+  // «Mostra tutto» solo se l'obiettivo non sta nelle 2 righe (prova del 16/10: compariva anche quando ci stava).
+  const testo = useRef<HTMLDivElement | null>(null)
+  const [tagliato, setTagliato] = useState(false)
+  useEffect(() => {
+    const el = testo.current
+    if (el === null) return
+    const misura = (): void => setTagliato(el.scrollHeight > el.clientHeight + 2)
+    misura()
+    const ro = new ResizeObserver(misura)
+    ro.observe(el)
+    return () => ro.disconnect()
+  })
   if (autopilota === undefined) {
     return (
       <header className="pan2-situazione">
@@ -240,8 +252,8 @@ function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; a
   const s = situazioneAutopilota(autopilota, ora)
   return (
     <header className="pan2-situazione">
-      <div className={`pan2-obiettivo${tutto ? ' pan2-obiettivo--tutto' : ''}`} title={s.obiettivo}>{s.obiettivo}</div>
-      {s.obiettivo.length > 160 ? <button className="collegamento pan2-tutto" onClick={() => setTutto((v) => !v)}>{tutto ? 'Meno' : 'Mostra tutto'}</button> : null}
+      <div ref={testo} className={`pan2-obiettivo${tutto ? ' pan2-obiettivo--tutto' : ''}`} title={s.obiettivo}>{s.obiettivo}</div>
+      {tagliato || tutto ? <button className="collegamento pan2-tutto" onClick={() => setTutto((v) => !v)}>{tutto ? 'Meno' : 'Mostra tutto'}</button> : null}
       <div className="pan2-stato">
         <span className="pan2-stato__parola" style={{ color: COLORE[s.stato.colore] ?? 'var(--testo)' }} title={s.stato.ragione}>
           {s.stato.simbolo} {s.stato.parola}
@@ -290,7 +302,10 @@ function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: numb
         <span className="pan2-scheda__righe">
           {righe.length === 0 ? <span className="pan2-scheda__attesa">in attesa di output…</span> : righe.map((x, i) => <span key={i}>{x}</span>)}
         </span>
-        <span className="pan2-scheda__azione">{s.domanda === true ? '◆ Ti chiede qualcosa: rispondi a destra' : s.ultimaAzione}</span>
+        {/* L'ultima azione solo se dice altro dalle righe sopra (prova del 16/10: era la stessa riga due volte). */}
+        {s.domanda === true || (s.ultimaAzione !== '' && !righe.some((r) => r.trim() === s.ultimaAzione.trim())) ? (
+          <span className="pan2-scheda__azione">{s.domanda === true ? '◆ Ti chiede qualcosa: rispondi a destra' : s.ultimaAzione}</span>
+        ) : null}
       </button>
       {s.specialista !== true && s.sessione !== undefined ? <TastoSoloMia s={s} onSoloMia={onSoloMia} /> : null}
     </div>

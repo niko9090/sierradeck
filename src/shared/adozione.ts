@@ -96,6 +96,8 @@ export function adottateGuidabili(a: Autopilota): { chiave: string; chat: ChatAd
 export function righePromptAdottate(a: Autopilota): string[] {
   const g = adottateGuidabili(a)
   if (g.length === 0) return []
+  const chiave = new Map(g.map((x) => [x.chat.sessionId, x.chiave]))
+  const attesa = (a.perAdottate ?? []).map((m) => `- per ${chiave.get(m.sessionId) ?? '?'}: «${m.testo.slice(0, 160)}»`)
   return [
     '',
     '## Le altre chat del workspace, che hai adottato',
@@ -103,6 +105,10 @@ export function righePromptAdottate(a: Autopilota): string[] {
     'un messaggio a una di loro **solo se te lo chiede chi ti scrive** (o se serve per fare',
     'quello che ti chiede): le arriva quando è ferma, mai mentre lavora.',
     ...g.map((x) => `- ${x.chiave}: «${x.chat.titolo.slice(0, 120)}» (${x.chat.ruolo !== undefined ? RUOLI[x.chat.ruolo].nome : CHAT_GENERICA})`),
+    // Quello che è davvero in coda (prova del 16/10: il supervisore credeva in coda un messaggio perso e non lo rimandava).
+    ...(attesa.length > 0
+      ? ['In coda adesso, non ancora scritti (partono quando la chat è ferma):', ...attesa]
+      : ['In coda adesso: nessun messaggio. Quelli già scritti sono nelle ultime mosse («messaggio scritto alla chat adottata»).']),
     'Per scriverle aggiungi al JSON: "perLeChat": [{"chat": "A1", "testo": "il messaggio, scritto alla chat"}]'
   ]
 }

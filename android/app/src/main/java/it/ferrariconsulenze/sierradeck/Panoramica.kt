@@ -185,6 +185,7 @@ object RegolePanoramica {
         // La testata di Claude Code (PC 0.78.0): logo, versione, piano.
         Regex("[▐▛▜▌▝▘]{2}"),
         Regex("Claude Code v\\d"),
+        Regex("^\\s*… \\+\\d+ lines?\\b"),
         Regex("· Claude (Max|Pro|Team|Enterprise)\\b")
     )
     /** Pezzi di codici colore rimasti senza ESC: «;2;153;153m». */

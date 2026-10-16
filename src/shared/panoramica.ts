@@ -141,6 +141,8 @@ const RUMORE = [
   // La testata di Claude Code (0.78.0): il logo, la versione, il piano.
   /[▐▛▜▌▝▘]{2}/,
   /Claude Code v\d/,
+  // L'uscita ripiegata di Claude Code (prova del 16/10): «… +18 lines (ctrl+o to expand)».
+  /^\s*… \+\d+ lines?\b/,
   /· Claude (Max|Pro|Team|Enterprise)\b/
 ]
 /** I tratti delle cornici: una riga fatta per lo più di questi è una cornice, anche con un titolo dentro (0.78.0). */
@@ -153,6 +155,8 @@ const eCornice = (r: string): boolean => {
 const ANSI_SPEZZATO = /;?(?:\d{1,3};)+\d{1,3}m/g
 /** La riga d'attività (spinner): «✻ Pouncing… (12s · ↓ 231 tokens)». */
 const ATTIVITA = /^\s*[✻✶✳✢·*⏺◐◓◑◒]?\s*\S+…\s*\(/
+/** Il riepilogo di fine turno: «✻ Cooked for 5s · done 17:41». */
+const RIEPILOGO = /^\s*[✻✶✳✢·*]\s*\S+ for [\dhms ]+(·|$)/
 
 /**
  * Le ultime righe dal vivo di una chat per la sua scheda: pulite dai codici
@@ -187,7 +191,8 @@ export function daQuanto(dalMs: number | undefined, ora: number): string {
  * ripetuto («Pouncing…Pouncing…», visto nella prova del 16/10).
  */
 export function ultimaAzioneDalVivo(righe: readonly string[]): string {
-  const pulite = righeDalVivo(righe, 12).filter((r) => !ATTIVITA.test(r) && !/(\S+…)\1/.test(r.replace(/\s+/g, '')))
+  // Anche il riepilogo del turno («✻ Churned for 22s · done 17:31», prova del 16/10): non è un'azione.
+  const pulite = righeDalVivo(righe, 12).filter((r) => !ATTIVITA.test(r) && !RIEPILOGO.test(r) && !/(\S+…)\1/.test(r.replace(/\s+/g, '')))
   return (pulite[pulite.length - 1] ?? '').trim()
 }
 

@@ -32,7 +32,7 @@ import { CARTELLA_COPIE } from './copie-di-versione'
 
 export type ServizioAdozione = {
   elenca: () => Promise<Autopilota[]>
-  adotta: (id: string, chat: { sessionId: string; titolo: string }[]) => Promise<string[]>
+  adotta: (id: string, chat: { sessionId: string; titolo: string }[], soloMie?: string[]) => Promise<string[]>
   togli: (id: string, sessioni: string[]) => Promise<void>
 }
 
@@ -169,6 +169,8 @@ export function avviaGiroAdozione(p: {
   servizio: ServizioAdozione & { scritti: (id: string, ids: string[]) => Promise<void> }
   leggiArchivio: () => Archivio | undefined
   adozioneAttiva: () => boolean
+  /** Le chat «solo mia» delle preferenze del PC: valgono anche se il file dell'autopilota non le ha. */
+  soloMie?: () => readonly string[]
   chat: () => readonly { id: string; sessione?: string; aspetta?: boolean; viva?: boolean }[]
   scrivi: (chatId: string, testo: string) => void
   log: (riga: string) => void
@@ -179,19 +181,20 @@ export function avviaGiroAdozione(p: {
     let autopiloti: Autopilota[]
     try { autopiloti = await p.servizio.elenca() } catch { return }
     const veri = autopiloti.filter((a) => a.archiviato !== true && a.workspace !== undefined)
+    const mie = new Set(p.soloMie?.() ?? [])
     if (p.adozioneAttiva()) {
       const archivio = p.leggiArchivio()
       if (archivio !== undefined) {
         for (const a of veri) {
           const conosciute = new Set((a.adottate ?? []).map((x) => x.sessionId))
           const nuove = adottabili(archivio, a.workspace!, autopiloti).filter((c) => !conosciute.has(c.sessionId))
-          if (nuove.length > 0) await p.servizio.adotta(a.id, nuove).catch(() => [])
+          if (nuove.length > 0) await p.servizio.adotta(a.id, nuove, [...mie]).catch(() => [])
         }
       }
     }
     const chat = p.chat()
     for (const a of veri) {
-      const ora = daScrivereAdesso(a, chat)
+      const ora = daScrivereAdesso(a, chat).filter((x) => !mie.has(x.messaggio.sessionId))
       if (ora.length === 0) continue
       for (const x of ora) {
         p.scrivi(x.chatId, x.messaggio.testo)
