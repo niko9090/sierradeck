@@ -390,6 +390,55 @@ export type Autopilota = {
   pubblicazioneInAttesa?: boolean
   /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
   pubblicazioneIstruita?: boolean
+  /**
+   * Le chat che c'erano già nel suo workspace, adottate (0.78.0). Nicholas,
+   * 16/10: «le chat già avviate non le hai convertite». Non sono chat
+   * governate: il giro dell'autopilota non le guida da solo, non le chiude,
+   * non le riavvia. Le guida solo quando Nicholas gli scrive, con un messaggio
+   * che arriva quando la chat è ferma. Quelle «solo mia» non le tocca mai.
+   */
+  adottate?: ChatAdottata[]
+  /** I messaggi per le chat adottate, in attesa che la chat sia ferma (0.78.0). */
+  perAdottate?: MessaggioAdottata[]
+}
+
+/** Una chat esistente adottata dall'autopilota del suo workspace (0.78.0). */
+export type ChatAdottata = {
+  sessionId: string
+  titolo: string
+  /** Il ruolo dal contenuto; assente = «Chat», generica. */
+  ruolo?: Ruolo
+  /** Nicholas l'ha segnata «solo mia»: l'autopilota non la tocca e non le scrive. */
+  soloMia?: true
+  adottataIl: string
+}
+
+/** Un messaggio dell'autopilota per una chat adottata: lo scrive il Gestore quando la chat è ferma. */
+export type MessaggioAdottata = { id: string; quando: string; sessionId: string; testo: string }
+
+function leggiAdottate(raw: unknown[]): ChatAdottata[] {
+  return raw.flatMap((v) => {
+    if (typeof v !== 'object' || v === null) return []
+    const r = v as Record<string, unknown>
+    if (typeof r.sessionId !== 'string' || r.sessionId === '') return []
+    return [{
+      sessionId: r.sessionId,
+      titolo: typeof r.titolo === 'string' ? r.titolo : '',
+      ...(eRuolo(r.ruolo) ? { ruolo: r.ruolo } : {}),
+      ...(r.soloMia === true ? { soloMia: true as const } : {}),
+      adottataIl: typeof r.adottataIl === 'string' ? r.adottataIl : ''
+    }]
+  })
+}
+
+function leggiPerAdottate(raw: unknown[]): MessaggioAdottata[] {
+  return raw.flatMap((v) => {
+    if (typeof v !== 'object' || v === null) return []
+    const r = v as Record<string, unknown>
+    return typeof r.id === 'string' && typeof r.sessionId === 'string' && typeof r.testo === 'string' && r.testo.trim() !== ''
+      ? [{ id: r.id, quando: typeof r.quando === 'string' ? r.quando : '', sessionId: r.sessionId, testo: r.testo }]
+      : []
+  })
 }
 
 export function limitiPredefiniti(): Limiti {
@@ -863,7 +912,9 @@ export function parseAutopilota(raw: unknown): {
                 : []
             }).slice(-CONSEGNATI_RICORDATI_AUTOPILOTA)
           }
-        : {})
+        : {}),
+      ...(Array.isArray(o.adottate) ? { adottate: leggiAdottate(o.adottate) } : {}),
+      ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {})
     },
     scartati
   }
