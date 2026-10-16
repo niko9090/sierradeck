@@ -109,20 +109,24 @@ object RegolePanoramica {
 
     private val ANSI = Regex("\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*(\u0007|\u001B\\\\)|\u001B[@-Z\\\\-_]|[\u0000-\u0008\u000B-\u001F\u007F]")
     private val RUMORE = listOf(
-        Regex("^[\\s─━│┃╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▔▁▏▕·•-]*$"),
+        Regex("^[\\s─━│┃╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▔▁▏▕·•…_-]*$"),
         Regex("^\\s*[│|]?\\s*❯\\s*$"),
         Regex("^\\s*[│|]?\\s*❯\\s*Try \""),
         Regex("\\? for shortcuts"),
         Regex("⏵⏵|bypass permissions|shift\\+tab to cycle", RegexOption.IGNORE_CASE),
         Regex("^\\s*◐.*/effort"),
         Regex("Your login expires", RegexOption.IGNORE_CASE),
-        Regex("Transcript saving is off", RegexOption.IGNORE_CASE)
+        Regex("Transcript saving is off", RegexOption.IGNORE_CASE),
+        // La riga di stato di Claude Code (PC 0.77.0, dalla prova del 16/10).
+        Regex("contesto \\d+%|context \\d+%|\\b5 ore \\d+%", RegexOption.IGNORE_CASE)
     )
+    /** Pezzi di codici colore rimasti senza ESC: «;2;153;153m». */
+    private val ANSI_SPEZZATO = Regex(";?(?:\\d{1,3};)+\\d{1,3}m")
 
     /** Le ultime righe dal vivo, pulite. Sul telefono 2 (revisione UI/UX). */
     fun righeDalVivo(righe: List<String>, quante: Int = 2): List<String> =
         righe.flatMap { it.split(Regex("\\r?\\n")) }
-            .map { it.replace(ANSI, "").trimEnd() }
+            .map { it.replace(ANSI, "").replace(ANSI_SPEZZATO, "").trimEnd() }
             .filter { it.isNotBlank() && RUMORE.none { x -> x.containsMatchIn(it) } }
             .takeLast(quante)
             .map { if (it.length > 160) it.take(159) + "…" else it }

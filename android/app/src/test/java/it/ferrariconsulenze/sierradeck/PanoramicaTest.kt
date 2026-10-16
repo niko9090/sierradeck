@@ -43,4 +43,9 @@ class PanoramicaTest {
         assertEquals(listOf("● Scrivo il test", "✻ Brewing… (12s · esc to interrupt)"), RegolePanoramica.righeDalVivo(schermo))
         assertEquals("da 3 min", RegolePanoramica.daQuanto(0, 180_000))
     }
+
+    @Test fun niente_rumore() {
+        val schermo = listOf(";2;153;153m⎿ \$ node --test", "Opus 5.5 · contesto 5% · 5 ore 1% (azzera 17:00)")
+        assertEquals(listOf("⎿ \$ node --test"), RegolePanoramica.righeDalVivo(schermo))
+    }
 }

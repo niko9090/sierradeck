@@ -128,15 +128,21 @@ export function riassuntoAutopilota(a: Autopilota, ora: number): RiassuntoAutopi
 const ANSI = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*(\u0007|\u001b\\)|\u001b[@-Z\\-_]|[\u0000-\u0008\u000b-\u001f\u007f]/g
 /** Righe che non dicono niente: cornici, il campo vuoto, i suggerimenti e la barra dei permessi di Claude Code. */
 const RUMORE = [
-  /^[\s─━│┃╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▔▁▏▕·•-]*$/,
+  /^[\s─━│┃╭╮╰╯┌┐└┘├┤┬┴┼═║╔╗╚╝▔▁▏▕·•…_-]*$/,
   /^\s*[│|]?\s*❯\s*$/,
   /^\s*[│|]?\s*❯\s*Try "/,
   /\? for shortcuts/,
   /⏵⏵|bypass permissions|shift\+tab to cycle/i,
   /^\s*◐.*\/effort/,
   /Your login expires/i,
-  /Transcript saving is off/i
+  /Transcript saving is off/i,
+  // La riga di stato di Claude Code (modello, contesto, limiti del piano): vista nella prova del 16/10.
+  /contesto \d+%|context \d+%|\b5 ore \d+%/i
 ]
+/** Pezzi di codici colore rimasti senza ESC (un flusso tagliato a metà): «;2;153;153m». */
+const ANSI_SPEZZATO = /;?(?:\d{1,3};)+\d{1,3}m/g
+/** La riga d'attività (spinner): «✻ Pouncing… (12s · ↓ 231 tokens)». */
+const ATTIVITA = /^\s*[✻✶✳✢·*⏺◐◓◑◒]?\s*\S+…\s*\(/
 
 /**
  * Le ultime righe dal vivo di una chat per la sua scheda: pulite dai codici
@@ -145,7 +151,7 @@ const RUMORE = [
 export function righeDalVivo(righe: readonly string[], quante = 4): string[] {
   const pulite = righe
     .flatMap((r) => r.split(/\r?\n/))
-    .map((r) => r.replace(ANSI, '').replace(/\s+$/, ''))
+    .map((r) => r.replace(ANSI, '').replace(ANSI_SPEZZATO, '').replace(/\s+$/, ''))
     .filter((r) => r.trim() !== '' && !RUMORE.some((x) => x.test(r)))
   return pulite.slice(-quante).map((r) => (r.length > 160 ? `${r.slice(0, 159)}…` : r))
 }
@@ -159,4 +165,14 @@ export function daQuanto(dalMs: number | undefined, ora: number): string {
   if (m < 60) return `da ${m} min`
   const h = Math.round(m / 60)
   return h < 48 ? `da ${h} h` : `da ${Math.round(h / 24)} giorni`
+}
+
+/**
+ * L'ultima azione di una chat normale (senza lo specialista che la racconta):
+ * l'ultima riga dal vivo che non sia la riga d'attività né uno spinner
+ * ripetuto («Pouncing…Pouncing…», visto nella prova del 16/10).
+ */
+export function ultimaAzioneDalVivo(righe: readonly string[]): string {
+  const pulite = righeDalVivo(righe, 12).filter((r) => !ATTIVITA.test(r) && !/(\S+…)\1/.test(r.replace(/\s+/g, '')))
+  return (pulite[pulite.length - 1] ?? '').trim()
 }

@@ -117,3 +117,25 @@ describe('0.77.0, dalla revisione UI/UX', () => {
     expect(gruppoStabile('lavora', undefined, 0, 0)).toBe('lavora')
   })
 })
+
+describe('0.77.0, dalla prova con la copia: niente rumore nelle schede', () => {
+  it('via la riga di stato, i pezzi di codici colore e lo spinner ripetuto', async () => {
+    const { righeDalVivo, ultimaAzioneDalVivo } = await import('@shared/panoramica')
+    const schermo = [
+      '⎿ $ git add src/somma.js',
+      ';2;153;153m⎿ $ node --test',
+      '✻ Pouncing… (20s · ↓ 231 tokens)',
+      'Pouncing…Pouncing…Pouncing…',
+      'Opus 5.5 · contesto 5% · 5 ore 1% (azzera 17:00)'
+    ]
+    expect(righeDalVivo(schermo)).toEqual(['⎿ $ git add src/somma.js', '⎿ $ node --test', '✻ Pouncing… (20s · ↓ 231 tokens)', 'Pouncing…Pouncing…Pouncing…'])
+    expect(ultimaAzioneDalVivo(schermo)).toBe('⎿ $ node --test')
+  })
+})
+
+describe('0.77.0: la cornice tagliata con «…» non è una riga dal vivo', () => {
+  it('«────…» e «───_» spariscono', async () => {
+    const { righeDalVivo } = await import('@shared/panoramica')
+    expect(righeDalVivo(['● fatto', '──────────────…', '─────────────_'])).toEqual(['● fatto'])
+  })
+})

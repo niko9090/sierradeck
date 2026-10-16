@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.77.0',
+    righe: [
+      '**La Panoramica: tutto in una vista.** Nel workspace dell’autopilota la prima linguetta è la Panoramica: in alto l’obiettivo, lo stato in una parola e i criteri; a sinistra il dialogo con l’autopilota e il microfono; al centro una scheda per chat, con lo stato, l’ultima azione e le ultime righe dal vivo; a destra le domande brevi, con i tasti e «Scrivi tu».',
+      '**Le schede non saltano.** Prima quelle che aspettano te (evidenziate), poi al lavoro, ferme, finite; dentro ogni gruppo l’ordine resta fisso (per ruolo, poi per nascita), e una scheda cambia gruppo solo dopo 8 secondi nel nuovo stato, tranne «aspetta te», che è subito.',
+      '**Poi una linguetta per chat**, a tutta larghezza, con il pallino dello stato. Con molte chat le altre vanno in «Altre ▾», ma quelle al lavoro o che aspettano te restano sempre in vista. La colonna dell’autopilota si apre e si chiude con un clic.',
+      '**Sul telefono** la Panoramica è in cima alla scheda dell’autopilota, come lista di schede: toccane una e la chat si apre a tutto schermo. Le chat normali, senza autopilota, compaiono come schede.'
+    ]
+  },
+  {
     versione: '0.76.0',
     righe: [
       '**Se l’autopilota dice «procedo», procede.** Quando gli scrivi e la sua risposta porta un compito o un messaggio per la chat, riparte da solo anche se era fermo o finito; se aveva una domanda aperta, quello che hai scritto è la risposta. Se resta fermo dopo aver promesso, la scheda lo dice con «L’autopilota è fermo» e il tasto «Riprendi», su PC, pagina e app.',

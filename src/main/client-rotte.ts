@@ -1,5 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
-import { ordinaSchede, riassuntoAutopilota, righeDalVivo, type StatoScheda } from '@shared/panoramica'
+import { ordinaSchede, riassuntoAutopilota, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
 import { domandaBreve } from '@shared/domande-conversazioni'
@@ -1279,9 +1279,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           const stato: StatoScheda = cc.chiede === true || cc.chiedeSegnale === true ? 'chiede' : cc.aspetta === true || cc.viva === false ? 'ferma' : 'lavora'
           const domanda = conversazioni.find((x) => x.chiave === `chat:${cc.id}` && domandaBreve(x))
           return {
-            id: cc.id, titolo: cc.titolo, stato, nataIl: sp !== undefined ? numero(sp.id) : 0,
+            id: cc.id, titolo: sp !== undefined && sp.compito !== '' ? sp.compito : cc.titolo, stato, nataIl: sp !== undefined ? numero(sp.id) : 0,
             ...(ruolo !== undefined ? { ruolo } : {}),
-            ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (cc.ultimaRiga ?? ''),
+            ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (ultimaAzioneDalVivo(cc.coda ?? []) || righeDalVivo(cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : [], 1)[0] || ''),
             righe: righeDalVivo(cc.coda ?? (cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : []), 4),
             ...(cc.sessione !== undefined ? { sessione: cc.sessione } : {}),
             ...(domanda !== undefined ? { domanda } : {})

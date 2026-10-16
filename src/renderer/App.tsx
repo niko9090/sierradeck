@@ -66,7 +66,7 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
-import { gruppoStabile, righeDalVivo, type StatoScheda } from '@shared/panoramica'
+import { gruppoStabile, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
 import { specialistiDi } from '@shared/specialisti'
 import { DomandeALato } from './components/DomandeALato'
@@ -1630,10 +1630,11 @@ export function App(): React.JSX.Element {
       const ruolo = RUOLI_ORDINE.find((k) => RUOLI[k].nome === (sp?.ruolo ?? ruoloDalTitolo(p.title)))
       const vive = p.ptyId !== undefined ? righeDiPty(p.ptyId, 16)?.pulite ?? righe.current.codaDi(p.ptyId) : []
       fuori.push({
-        id: p.id, paneId: p.id, titolo: p.title, stato: gruppo,
+        // Uno specialista si riconosce dal compito: due «Revisione · Prova squadra» erano due schede uguali (prova del 16/10).
+        id: p.id, paneId: p.id, titolo: sp !== undefined && sp.compito !== '' ? sp.compito : p.title, stato: gruppo,
         nataIl: sp !== undefined ? numero(sp.id) : nateIl.current.get(p.id) ?? ora,
         ...(ruolo !== undefined ? { ruolo, nomeRuolo: RUOLI[ruolo].nome, coloreRuolo: RUOLI[ruolo].colore } : {}),
-        ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (p.ptyId !== undefined ? righe.current.di(p.ptyId) : ''),
+        ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : ultimaAzioneDalVivo(vive),
         righe: righeDalVivo(vive, 4),
         dal: statoDal,
         ...(brevi.has(`chat:${p.id}`) ? { domanda: true } : {}),
