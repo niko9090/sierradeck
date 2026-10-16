@@ -37,7 +37,11 @@ function finto() {
       scritto.push({ id, data })
       if (data === '\r') {
         if (campo !== '') { const t = campo; campo = ''; manda(id, `\x1b[2J\x1b[H Benvenuto\r\n❯ ${t}\r\n\r\n✻ Pensando… (2s · thinking)\r\n❯ \r\n`) }
-      } else campo += data.replace(/\x1b\[20[01]~/g, '')
+      } else {
+        // Come Claude Code: il testo letto si vede nel campo (l'eco, 0.75.4).
+        campo += data.replace(/\x1b\[20[01]~/g, '')
+        manda(id, `\x1b[2J\x1b[H Benvenuto\r\n\r\n❯ ${campo}\r\n  ? for shortcuts`)
+      }
     },
     ferma: (id) => { fermati.push(id) },
     creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
@@ -71,6 +75,13 @@ describe('le chat in sottofondo sul PC di casa', () => {
     expect(f.scritto).toEqual([])
     f.avanti(1000)
     s.giro()
+    // 0.75.4: prima il testo; l'Invio solo quando il testo si vede nel campo e lo schermo tace.
+    expect(f.scritto.map((x) => x.data)).toEqual(['ciao dal fisso'])
+    s.giro()
+    expect(f.scritto.map((x) => x.data)).toEqual(['ciao dal fisso'])
+    await f.digerisci()
+    f.avanti(400)
+    s.giro()
     expect(f.scritto.map((x) => x.data)).toEqual(['ciao dal fisso', '\r'])
     await f.digerisci()
     f.avanti(3500)
@@ -98,6 +109,9 @@ describe('le chat in sottofondo sul PC di casa', () => {
     f.disegnaCampo('pty-1')
     await f.digerisci()
     f.avanti(2000)
+    s.giro()
+    await f.digerisci()
+    f.avanti(400)
     s.giro()
     expect(f.scritto.map((x) => x.data)).toEqual(['non perdermi', '\r'])
     // Claude Code stava ancora caricando: il campo torna vuoto e il testo è sparito.

@@ -404,12 +404,15 @@ export function decidiColonnaDomande(p: {
   aperta: boolean
   /** Prima lettura dopo l'avvio (con le preferenze gia' lette). */
   avvio: boolean
+  /** Le domande brevi di qui (0.76.0): stanno a lato della chat, la colonna non si apre per loro. */
+  aLato?: ReadonlySet<string>
 }): { apri: boolean; evidenzia?: string; nuove: string[]; richiamo: boolean; linguette: string[] } {
   const nuove = domandeNuove(p.conversazioni, p.viste)
   const perChiave = new Map(p.conversazioni.map((c) => [c.chiave, c]))
   const inAttesa = p.conversazioni.filter((c) => c.chiede)
-  const nuoveColonna = nuove.filter((n) => { const c = perChiave.get(n.chiave); return c !== undefined && dellaColonna(c) })
-  const attesaColonna = inAttesa.filter(dellaColonna)
+  const aLato = p.aLato ?? new Set<string>()
+  const nuoveColonna = nuove.filter((n) => { const c = perChiave.get(n.chiave); return c !== undefined && dellaColonna(c) && !aLato.has(c.chiave) })
+  const attesaColonna = inAttesa.filter((c) => dellaColonna(c) && !aLato.has(c.chiave))
   const evidenzia = nuoveColonna[0]?.chiave ?? (p.avvio ? attesaColonna[0]?.chiave : undefined)
   const apri = !p.aperta && (nuoveColonna.length > 0 || (p.avvio && attesaColonna.length > 0))
   const linguette: string[] = []
@@ -444,4 +447,36 @@ export function azioneTastoDomande(conversazioni: Conversazione[], aperta: boole
     return { tipo: 'linguetta', autopilota: primo.autopilota }
   }
   return { tipo: 'colonna' }
+}
+
+/** Una domanda breve (0.76.0): al massimo 200 caratteri, al massimo 4 scelte, niente di tagliato. */
+export const BREVE_CARATTERI = 200
+export const BREVE_SCELTE = 4
+/** Oltre questo il «?» è un documento, non una domanda breve. */
+export const DETTAGLI_MAX = 1500
+
+/**
+ * Le domande a lato (0.76.0). Nicholas, 16/10: se sei nella chat (o nel suo
+ * workspace) e la domanda è breve, compare in una colonna a lato con i tasti e
+ * «Scrivi tu»; le domande lunghe restano solo nella sezione Domande. La stessa
+ * regola su PC, pagina e app.
+ */
+export function domandaBreve(c: Pick<Conversazione, 'chiede' | 'scheda'>): boolean {
+  const s = c.scheda
+  if (!c.chiede || s === undefined || s.risposta !== undefined) return false
+  // «Scrivi tu» (la scelta libera) non conta fra le scelte. I dettagli stanno dietro il «?»:
+  // non contano, tranne un tetto largo contro i casi enormi (provato nella copia: 415 caratteri
+  // di contesto dello schermo per «Preferisci il rosso o il blu?»).
+  const scelte = s.scelte.filter((x) => x.libera !== true).length
+  const dettagli = s.dettagli.reduce((n, d) => n + d.testo.length, 0)
+  return s.domanda.length <= BREVE_CARATTERI && !s.domanda.endsWith('…') && scelte <= BREVE_SCELTE && dettagli <= DETTAGLI_MAX
+}
+
+/**
+ * Quali domande vanno a lato: quelle brevi delle chat (o dell'autopilota) che
+ * hai davanti. `qui` sono le chiavi delle conversazioni del workspace aperto
+ * (sul telefono, della chat aperta).
+ */
+export function domandeALato(conversazioni: Conversazione[], qui: ReadonlySet<string>): Conversazione[] {
+  return conversazioni.filter((c) => qui.has(c.chiave) && domandaBreve(c))
 }

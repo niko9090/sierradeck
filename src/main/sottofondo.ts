@@ -5,7 +5,7 @@ import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { righeDaSchermo, testoDiRiga, rigaVestita, type Schermo } from '../renderer/schermo-terminale'
 import {
   SEGNI_DI_PROMPT, chatAspetta, sceltaSulloSchermo, consegnaPartita, contaMandati, ultimaRigaDalloSchermo,
-  lavoraSulloSchermo, testoPerso, type AttivitaTerminale
+  lavoraSulloSchermo, testoNelCampo, testoPerso, type AttivitaTerminale
 } from '../renderer/ultime-righe'
 import {
   type FaseSottofondo, type StatoSottofondo, type VoceSottofondo, type ChiUsa,
@@ -40,6 +40,8 @@ export const ATTESA_PRONTA_MAX_MS = 180_000
 /** Dopo l'invio: quando ricontrollare che sia partito, e quante volte ripremere Invio. */
 const CONTROLLO_DOPO_MS = 3_000
 const INVII_MAX = 3
+/** Oltre questo, senza vedere il testo nel campo, l'Invio si preme lo stesso (0.75.4). */
+const ECO_MAX_MS = 8_000
 /** Quante volte si riscrive un testo che Claude Code ha perso prima di dirlo. */
 const SCRITTURE_MAX = 3
 /** Il silenzio che serve prima di scrivere: più largo dei riquadri (una conversazione ripresa si carica a riprese). */
@@ -232,6 +234,15 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       const pronta = v.attivita.morto !== true && campoPronto(righe) && !lavoraSulloSchermo(righe) && !sceltaSulloSchermo(righe) && ora - v.attivita.ultimoDato >= QUIETE_PRIMA_DI_SCRIVERE_MS
       if (v.inScrittura !== undefined) {
         const s = v.inScrittura
+        if (s.invii === 0) {
+          // L'Invio dopo l'eco (0.75.4): testo e Invio non arrivano mai insieme.
+          const eco = testoNelCampo(righe, s.testo) && ora - v.attivita.ultimoDato >= PAUSA_INVIO_MS
+          if (!eco && ora - s.il < ECO_MAX_MS) continue
+          s.invii = 1
+          s.il = ora
+          d.scrivi(v.ptyId, '\r')
+          continue
+        }
         if (ora - s.il < CONTROLLO_DOPO_MS) continue
         const partita = consegnaPartita(righe, s.testo, s.prima)
         if (partita === true) {
@@ -316,9 +327,10 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
     const prima = contaMandati(righe, prossimo.testo)
     const multiriga = prossimo.testo.includes('\n')
     const testo = multiriga && v.term.modes?.bracketedPasteMode !== false ? `\x1b[200~${prossimo.testo}\x1b[201~` : prossimo.testo
-    v.inScrittura = { id: prossimo.id, testo: prossimo.testo, prima, invii: 1, il: ora }
+    // L'Invio non parte più a tempo (0.75.4): lo preme il giro quando il testo
+    // si vede nel campo e il terminale tace (vedi `testoNelCampo`).
+    v.inScrittura = { id: prossimo.id, testo: prossimo.testo, prima, invii: 0, il: ora }
     d.scrivi(v.ptyId, testo)
-    timer(() => { if (vive.get(v.voce.sessione) === v) d.scrivi(v.ptyId, '\r') }, PAUSA_INVIO_MS)
   }
 
   return {

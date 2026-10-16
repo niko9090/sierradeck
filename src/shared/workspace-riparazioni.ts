@@ -366,3 +366,51 @@ export function riordinaCreatiDalProgramma(ora: Archivio, prima: Archivio): { ar
   const attivo = nomi.has(ora.attivo) ? ora.attivo : (ws[0]?.nome ?? ora.attivo)
   return { archivio: { ...ora, workspace: ws, attivo }, fatto }
 }
+
+/* ------------------------------------------------------------------ */
+/* I riquadri remoti in una cartella di sistema (0.75.4).              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Una cartella di sistema: la radice di un disco, la cartella utente
+ * (`…\Users\<nome>`) o una sua cartella di sistema (Documenti, Desktop,
+ * Download…). Una sottocartella vera (`…\Documents\Portfolio`) no.
+ */
+export function eCartellaDiSistema(cwd: string): boolean {
+  const parti = cwd.replace(/\//g, '\\').replace(/\\+$/, '').split('\\').filter((x) => x !== '')
+  if (parti.length <= 1) return true
+  const ultima = parti[parti.length - 1] as string
+  const sopra = (parti[parti.length - 2] ?? '').toLowerCase()
+  if (sopra === 'users' || sopra === 'utenti') return true
+  const sopraSopra = (parti[parti.length - 3] ?? '').toLowerCase()
+  const sottoCasa = sopraSopra === 'users' || sopraSopra === 'utenti'
+  const sottoRadice = parti.length === 2 && /^[a-z]:$/i.test(parti[0] as string)
+  return (sottoCasa || sottoRadice) && eNomeDiSistema(ultima)
+}
+
+/**
+ * I riquadri che guardano una chat di un altro PC da una cartella di sistema
+ * di qui (0.75.4). Il 16/10 alle 07:58, dopo l'aggiornamento, si è riaperto nel
+ * workspace «visitafacile» un riquadro «Documents» in `C:\Users\…\Documents`,
+ * casa DESKTOP: le cartelle di sistema non sono progetti (0.67.4), e la chat
+ * vive sul suo PC. Il riquadro esce dalla lista di questo PC; la chat non si
+ * chiude e resta dov'è (sul suo PC, nel suo workspace, e in «Riprendi»).
+ * I riquadri locali non si toccano mai: lì può esserci un processo vivo.
+ */
+export function senzaRemotiDiSistema(a: Archivio): { archivio: Archivio; tolti: { workspace: string; titolo: string; cwd: string; pc: string }[] } {
+  const tolti: { workspace: string; titolo: string; cwd: string; pc: string }[] = []
+  const workspace = a.workspace.map((w): WorkspaceSalvato => {
+    let tocca = false
+    const perSlot = Object.fromEntries(Object.entries(w.perSlot).map(([k, l]) => {
+      const via = l.panes.filter((p) => p.remoto !== undefined && eCartellaDiSistema(p.cwd))
+      if (via.length === 0) return [k, l]
+      tocca = true
+      for (const p of via) if (!tolti.some((t) => t.workspace === w.nome && t.titolo === p.title && t.cwd === p.cwd)) tolti.push({ workspace: w.nome, titolo: p.title.slice(0, 60), cwd: p.cwd, pc: p.remoto?.pcNome ?? '' })
+      let root = l.root
+      for (const p of via) root = root === undefined ? undefined : removePane(root, p.id)
+      return [k, { ...l, root, panes: l.panes.filter((p) => !via.includes(p)) }]
+    }))
+    return tocca ? { ...w, perSlot } : w
+  })
+  return { archivio: tolti.length > 0 ? { ...a, workspace } : a, tolti }
+}

@@ -395,7 +395,7 @@ function conSegnali(chat: Chat[]): Chat[] {
       }
       return { ...c, fonteStato: 'schermo' as const }
     }
-    const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: false }, adesso: Date.now() })
+    const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: c.sceltaAperta === true }, adesso: Date.now() })
     // Il turno è finito con una domanda scritta (0.71.1): va nelle Domande, non fra le «ha finito».
     const domanda = v.aspetta && !v.chiede && s.fase === 'aspetta' ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
     return {

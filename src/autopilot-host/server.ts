@@ -42,7 +42,8 @@ import {
 import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
 import {
   chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
-  prendiMessaggiPer, rimettiInCoda
+  prendiMessaggiPer, rimettiInCoda,
+  ripartenzaDopoDialogo,
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import type { ContestoDomanda, RegistroDomande } from './domande'
@@ -1549,7 +1550,66 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...a,
     decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `ripreso su tua richiesta («Riprendi»)${a.stato === 'sospeso' && a.motivoSospensione !== undefined ? `: era fermo (${a.motivoSospensione})` : ''}` }]
   })
-  const riprendiAutopilota = async (a: Autopilota): Promise<Autopilota> => {
+  /**
+   * Gli specialisti anche per gli autopiloti che ci sono già (0.76.0). Nicholas,
+   * 16/10: l'autopilota di SierraDeck lavorava con una chat sola e gli
+   * specialisti non si vedevano mai: la divisione si sceglieva solo alla
+   * prima partenza. Adesso un autopilota con una chat sola, quando riparte,
+   * rifà la stessa scelta sul lavoro che resta (i compiti in coda e i messaggi
+   * di chi gliel'ha affidato): se ci sono parti distinte, diventa una squadra
+   * di specialisti nei loro worktree. Se è piccolo resta una chat sola, e la
+   * scheda dice perché. Mai senza git, mai con il freno a una chat.
+   */
+  const dividiAllaRipresa = async (a: Autopilota): Promise<{ a: Autopilota; squadra: boolean }> => {
+    if (a.chats.length > 0 || deps.git === undefined) return { a, squadra: false }
+    const git = deps.git
+    const base = radiceGit(git, a.cwd) !== undefined ? ramoCorrente(git, a.cwd) : undefined
+    const freno = frenoAdesso()
+    if (base === undefined || freno.tetto <= 1) {
+      return { a: { ...a, organizzazione: base === undefined ? rigaChatSola('senza-git') : rigaChatSola('limiti', freno.motivo) }, squadra: false }
+    }
+    const inCoda = a.daConsegnare.filter((m) => m.chats.includes(a.id)).map((m) => m.testo)
+    const lavoro = [...a.compitiDaFare, ...inCoda]
+    const daDividere: Autopilota = lavoro.length === 0 ? a : { ...a, obiettivo: `${a.obiettivo}\n\nAdesso, alla ripresa, resta da fare:\n${lavoro.map((l) => `- ${l.slice(0, 600)}`).join('\n')}` }
+    let scomposti: ReturnType<typeof leggiScomposizione>
+    try {
+      scomposti = leggiScomposizione((await deps.interroga(componiPromptScomposizione(daDividere, TETTO_CHAT_MAX), a.cwd, undefined)).testo)
+    } catch (err) {
+      console.error(`[autopilota] ${a.id} — divisione alla ripresa non riuscita, resta una chat sola:`, err)
+      return { a: { ...a, organizzazione: rigaChatSola('illeggibile') }, squadra: false }
+    }
+    const grafo = scomposti !== undefined ? grafoSenzaCicli(scomposti.filter((c) => c.ruolo !== 'revisione').slice(0, TETTO_CHAT_MAX)) : undefined
+    console.info(`[autopilota] ${a.id} — divisione alla ripresa: ${scomposti === undefined ? 'risposta illeggibile, una chat sola' : `${scomposti.length} ${scomposti.length === 1 ? 'compito' : 'compiti'} (${scomposti.map((c) => RUOLI[c.ruolo].nome).join(', ')})`}`)
+    if (grafo === undefined || grafo.compiti.length <= 1) {
+      return { a: { ...a, organizzazione: scomposti === undefined ? rigaChatSola('illeggibile') : rigaChatSola('piccolo') }, squadra: false }
+    }
+    const compiti = grafo.compiti.map((c) => c.compito)
+    return { squadra: true, a: {
+      ...a,
+      tettoChat: TETTO_CHAT_MAX,
+      ramoBase: base,
+      compitiDaFare: compiti,
+      ruoliCompiti: Object.fromEntries(grafo.compiti.map((c) => [c.compito, { ruolo: c.ruolo, dopo: c.dipendeDa.map((i) => grafo.compiti[i]?.compito ?? '').filter((x) => x !== '') }])),
+      // I messaggi per la chat sola sono dentro i compiti: non restano appesi a una chiave che non lavora più.
+      daConsegnare: a.daConsegnare.filter((m) => !m.chats.includes(a.id)),
+      organizzazione: rigaFlotta([...grafo.compiti.map((c) => c.ruolo), ...(grafo.compiti.some((c) => RUOLI[c.ruolo].conRevisione) ? ['revisione' as const] : [])]),
+      decisioni: [
+        ...a.decisioni,
+        { quando: deps.adesso(), cosa: `alla ripresa divido il lavoro fra specialisti: ${grafo.compiti.map((c) => `${RUOLI[c.ruolo].nome} «${c.compito.slice(0, 50)}»`).join('; ')}. La chat di prima resta aperta, non lavora più per me.` },
+        ...grafo.tolte.map((cosa) => ({ quando: deps.adesso(), cosa }))
+      ]
+    } }
+  }
+
+  const riprendiAutopilota = async (inizio: Autopilota): Promise<Autopilota> => {
+    // 0.76.0: prima di ripartire con una chat sola, si guarda se il lavoro va diviso.
+    const diviso = await dividiAllaRipresa(inizio)
+    if (diviso.squadra) {
+      const squadra: Autopilota = { ...diviso.a, stato: 'lavoro', motivoSospensione: undefined }
+      salva(squadra)
+      return apriChatMancanti(squadra)
+    }
+    const a = diviso.a
     const eraFinito = a.stato === 'finito'
     let ripreso: Autopilota = {
       ...a,
@@ -1669,6 +1729,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     const fatti: string[] = []
+    let cambioApplicato = false
+    let rispondiDopo: string | undefined
     if (esito.restoIlleggibile === true) {
       console.error(`[autopilota] ${id} — del dialogo si è letta solo la risposta (${lunghezzaRisposta} caratteri)`)
       fatti.push('il resto della risposta non si leggeva: niente cambiato, riscrivilo se serviva')
@@ -1692,6 +1754,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           decisioni: [...cambiato.decisioni, { quando: deps.adesso(), cosa: `su tua richiesta: ${esito.risposta.slice(0, 300)}` }]
         }
         fatti.push('cambio applicato')
+        cambioApplicato = true
       }
     }
 
@@ -1702,8 +1765,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // modale, e la chat riprende con quella.
         deps.domande.rispondi(aperta.id, esito.perLaChat, 'modale')
         fatti.push('risposta alla sua domanda')
-      } else if (fresco.stato === 'finito' && esito.comando !== 'riprendi') {
-        fatti.push('la chat ha finito: nessun messaggio consegnato')
       } else {
         fresco = conMessaggioPerLaChat(
           fresco, esito.perLaChat, quando, chiaviChatVive(fresco), `m-${randomUUID()}`
@@ -1764,6 +1825,41 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
 
+    // La promessa diventa lavoro (0.75.4): un messaggio per la chat o un cambio
+    // fanno ripartire un autopilota fermo anche senza «riprendi» nel JSON.
+    const ripartenza = ripartenzaDopoDialogo({
+      stato: fresco.stato,
+      perLaChat: esito.perLaChat !== undefined,
+      cambioApplicato,
+      ...(esito.comando !== undefined ? { comando: esito.comando } : {}),
+      domandaAperta: deps.domande.aperte(id)[0] !== undefined,
+      chatFerme: fresco.stato === 'lavoro' ? chatFerme(fresco, (k) => fermaDal.get(k), Date.parse(deps.adesso()), 0).length : 0
+    })
+    if (ripartenza !== undefined) {
+      console.log(`[autopilota] ${id} — la risposta del dialogo promette lavoro (${esito.perLaChat !== undefined ? 'messaggio per la chat' : 'cambio'}) con lo stato «${fresco.stato}»: ${ripartenza === 'riprendi' ? 'riprendo da solo' : ripartenza === 'rispondi-domanda' ? 'è la risposta alla sua domanda' : 'la chat è ferma, forzo il giro'}`)
+    }
+    if (ripartenza === 'riprendi') {
+      if (fresco.criteri.length === 0) {
+        fatti.push('non riparto: mancano i criteri')
+      } else {
+        try {
+          fresco = await riprendiAutopilota(conRipresaNelDiario(fresco))
+          fatti.push('ripreso da solo')
+        } catch (err) {
+          fatti.push(`ripresa fallita: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200))
+        }
+      }
+    } else if (ripartenza === 'rispondi-domanda') {
+      // La risposta è quello che hai scritto tu; il messaggio per la chat è già
+      // in coda e parte con lei. Si risponde dopo aver salvato (in fondo): chi
+      // riceve la risposta rilegge l'archivio e lo rimette al lavoro.
+      rispondiDopo = deps.domande.aperte(id)[0]?.id
+      if (rispondiDopo !== undefined) fatti.push('risposta alla sua domanda: riparte')
+    } else if (ripartenza === 'forza-giro') {
+      giriDaForzare.add(id)
+      fatti.push('la chat era ferma: la rimetto al lavoro')
+    }
+
     // Quello che e' su disco adesso puo' essere piu' fresco di `fresco` solo
     // per i campi che il turno della chat scrive: si tengono i suoi, e si
     // riportano i nostri cambi sopra (stessa regola di `conservaCambiUtente`).
@@ -1783,6 +1879,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
     chiudi(esito.risposta, fatti.length === 0 ? 'nessun cambio' : fatti.join(' · '))
+    if (rispondiDopo !== undefined) deps.domande.rispondi(rispondiDopo, testo, 'modale')
   }
 
   /**

@@ -100,7 +100,11 @@ describe('nel sottofondo: hook dell’autopilota, testo consegnato, adozione all
       smetti: (id) => { ascolti.delete(id) },
       scrivi: (id, data) => {
         scritto.push({ id, data })
-        if (data === '\r') { if (campo !== '') { const t = campo; campo = ''; manda(id, `\x1b[2J\x1b[H Benvenuto\r\n❯ ${t}\r\n\r\n✻ Pensando… (2s · thinking)\r\n❯ \r\n`) } } else campo += data
+        if (data === '\r') { if (campo !== '') { const t = campo; campo = ''; manda(id, `\x1b[2J\x1b[H Benvenuto\r\n❯ ${t}\r\n\r\n✻ Pensando… (2s · thinking)\r\n❯ \r\n`) } } else {
+          // L'eco nel campo, come Claude Code (0.76.0): l'Invio parte solo dopo.
+          campo += data
+          manda(id, `\x1b[2J\x1b[H Benvenuto\r\n\r\n❯ ${campo}\r\n  ? for shortcuts`)
+        }
       },
       ferma: () => {},
       creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
@@ -120,6 +124,8 @@ describe('nel sottofondo: hook dell’autopilota, testo consegnato, adozione all
     f.manda('pty-1', '\x1b[2J\x1b[H Benvenuto\r\n\r\n❯ \r\n  ? for shortcuts')
     await f.digerisci()
     f.avanti(2000); f.s.giro()
+    // 0.76.0: l'Invio al giro dopo, quando il testo si vede nel campo.
+    await f.digerisci(); f.avanti(400); f.s.giro()
     expect(f.scritto.map((x) => x.data)).toEqual([consegna.testo, '\r'])
     await f.digerisci()
     f.avanti(3500); f.s.giro()
@@ -148,6 +154,7 @@ describe('nel sottofondo: hook dell’autopilota, testo consegnato, adozione all
     expect(f.s.sessioneDelPty('pty-nascosto')).toBe(SESSIONE)
     await f.digerisci()
     f.avanti(2000); f.s.giro()
+    await f.digerisci(); f.avanti(400); f.s.giro()
     expect(f.scritto.map((x) => `${x.id}:${x.data}`)).toEqual(['pty-nascosto:terzo', 'pty-nascosto:\r'])
   })
 

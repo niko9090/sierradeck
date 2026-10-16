@@ -36,7 +36,8 @@ describe('il freno sui limiti del piano (T2)', () => {
   })
 
   it('senza limiti letti si lavora con una chat sola', () => {
-    expect(frenoDaiLimiti(undefined, ORA)).toMatchObject({ livello: 'ignoto', tetto: 1 })
+    // 0.76.0: senza limiti letti si divide lo stesso, al massimo in due.
+    expect(frenoDaiLimiti(undefined, ORA)).toMatchObject({ livello: 'ignoto', tetto: 2, apriNuove: true })
     expect(frenoDaiLimiti({}, ORA).livello).toBe('ignoto')
   })
 

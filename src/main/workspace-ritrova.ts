@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { parseArchivio, type Archivio } from '@shared/workspace'
 import { leggiCase } from '@shared/una-casa'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { conRitrovati, riparaArchivio, workspaceRitrovati, type CopiaLista, type Eliminato, type Ritrovato } from '@shared/workspace-riparazioni'
+import { conRitrovati, riparaArchivio, senzaRemotiDiSistema, workspaceRitrovati, type CopiaLista, type Eliminato, type Ritrovato } from '@shared/workspace-riparazioni'
 
 /**
  * La lista dei workspace di questo PC all'avvio (0.65.1): i workspace spariti
@@ -87,10 +87,14 @@ export function riparaListaAllAvvio(d: {
     casaAltrove: (s) => { const c = case_?.case[s]; return c !== undefined && c.pc !== d.io.id ? { pc: c.pc, nome: c.pcNome } : undefined }
   })
   dopo = r.archivio
+  // 3. I riquadri remoti in una cartella di sistema di qui (0.75.4): escono dalla lista.
+  const sistema = senzaRemotiDiSistema(dopo)
+  dopo = sistema.archivio
   if (dopo === prima) return { ritrovati: [], riparati: [] }
   try { copyFileSync(d.store.percorso, join(d.dati, 'workspaces.prima-della-riparazione.json')) } catch { /* la copia di versione c'è comunque */ }
   if (!d.store.scrivi(dopo)) { d.log('[workspace] riparazione all’avvio non scritta: la lista resta com’era'); return { ritrovati: [], riparati: [] } }
   for (const x of ritrovati) d.log(`[workspace] ritrovato «${x.nome}»: mancava dalla lista di questo PC, c’era nella copia ${x.da} (${x.quando.slice(0, 16).replace('T', ' ')}); rimesso in fondo, niente tolto`)
+  for (const x of sistema.tolti) d.log(`[workspace] «${x.workspace}»: tolto il riquadro «${x.titolo}» in ${x.cwd}, cartella di sistema: guardava ${x.pc || 'un altro PC'}, dove la chat resta (non si chiude niente)`)
   for (const x of r.riparati) d.log(`[workspace] «${x.workspace}»: un riquadro${x.sessione !== undefined ? ` (${x.sessione.slice(0, 8)})` : ''} guardava questo stesso PC come «altro PC»; ora ${x.verso === 'locale' ? 'è locale' : `guarda ${x.verso}, la sua casa`}`)
   return { ritrovati, riparati: r.riparati }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  hookSegnali, leggiSegnale, partitaDaSegnali, prontaDaSegnali, statoChat, statoDaSegnali, unisciConHook, EVENTI_SEGNALI, SCHERMO_VINCE_DOPO_MS, type Segnale
+  hookSegnali, indicatoreChat, leggiSegnale, partitaDaSegnali, prontaDaSegnali, statoChat, statoDaSegnali, unisciConHook, EVENTI_SEGNALI, SCHERMO_VINCE_DOPO_MS, type Segnale
 } from '@shared/segnali-chat'
 
 /**
@@ -27,7 +27,9 @@ describe('il JSON vero degli hook', () => {
     expect(leggi('StopFailure.dalla-documentazione', 6).errore).toBe('rate_limit: Claude usage limit reached. Your limit will reset at 5pm.')
   })
   it('gli eventi che non usiamo e il JSON storto non contano', () => {
-    expect(leggiSegnale(vero('PreToolUse'), T(0))).toBeUndefined()
+    // 0.76.0: PreToolUse si legge (serve per AskUserQuestion), e per gli altri strumenti non cambia lo stato.
+    expect(statoDaSegnali([leggi('UserPromptSubmit', 0), leggiSegnale(vero('PreToolUse'), T(1)) as Segnale])?.fase).toBe('lavora')
+    expect(leggiSegnale({ hook_event_name: 'SubagentStop', session_id: 's' }, T(0))).toBeUndefined()
     expect(leggiSegnale({ hook_event_name: 'Stop' }, T(0))).toBeUndefined()
     expect(leggiSegnale('niente', T(0))).toBeUndefined()
   })
@@ -111,5 +113,63 @@ describe('0.73.0: una chat ferma non resta «al lavoro» per un segnale senza fi
   })
   it('se lo schermo dice che lavora, resta al lavoro anche dopo molto', () => {
     expect(statoChat({ segnali: lavora, schermo: { aspetta: false, chiede: false }, adesso: t0 + 60 * 60_000 }).lavora).toBe(true)
+  })
+})
+
+describe('0.76.0: l’indicatore «al lavoro / ferma» viene dai segnali', () => {
+  const s = (evento: string, sec: number, x: Record<string, unknown> = {}): Segnale => leggiSegnale({ hook_event_name: evento, session_id: 'sess', ...x }, T(sec)) as Segnale
+  const ind = (segnali: Segnale[], campoPronto: boolean, sec: number, attivo = false) => {
+    const st = statoDaSegnali(segnali)
+    return indicatoreChat({ ...(st !== undefined ? { fase: { fase: st.fase, dal: st.dal } } : {}), campoPronto, attivoDalFlusso: attivo, adesso: Date.parse(T(sec)) })
+  }
+  it('turno lungo: un comando che tace per minuti resta «al lavoro» finché non arriva la fine del turno', () => {
+    const turno = [s('SessionStart', 0), s('UserPromptSubmit', 1), s('PostToolUse', 30, { tool_name: 'Bash' })]
+    // Il flusso tace (attivo=false) e la riga d'attività c'è: campo non pronto.
+    expect(ind(turno, false, 600)).toBe('lavora')
+    expect(ind([...turno, s('Stop', 601)], true, 602)).toBe('ferma')
+  })
+  it('una chat ferma che si ridisegna non è «al lavoro»', () => {
+    expect(ind([s('SessionStart', 0), s('Stop', 5)], true, 10, true)).toBe('ferma')
+  })
+  it('domanda AskUserQuestion: «chiede», poi dopo la risposta di nuovo «al lavoro», poi ferma', () => {
+    const d = [s('UserPromptSubmit', 0), s('PreToolUse', 3, { tool_name: 'AskUserQuestion', tool_input: { questions: [] } })]
+    expect(ind(d, false, 4)).toBe('chiede')
+    const risposta = [...d, s('PostToolUse', 20, { tool_name: 'AskUserQuestion' })]
+    expect(ind(risposta, false, 21)).toBe('lavora')
+    expect(ind([...risposta, s('Stop', 40)], true, 41)).toBe('ferma')
+  })
+  it('un permesso: «chiede» finché non si risponde, poi «al lavoro»', () => {
+    const p = [s('UserPromptSubmit', 0), s('PermissionRequest', 2, { tool_name: 'Bash', tool_input: { command: 'ls' } })]
+    expect(ind(p, false, 3)).toBe('chiede')
+    expect(ind([...p, s('PostToolUse', 9, { tool_name: 'Bash' })], false, 10)).toBe('lavora')
+  })
+  it('uno Stop perso: lo schermo pronto da più di 15 secondi vince', () => {
+    expect(ind([s('UserPromptSubmit', 0)], true, 5)).toBe('lavora')
+    expect(ind([s('UserPromptSubmit', 0)], true, 0 + SCHERMO_VINCE_DOPO_MS / 1000 + 1)).toBe('ferma')
+  })
+  it('senza segnali (chat remota di un PC vecchio, chat appena riagganciata): riserva dello schermo', () => {
+    expect(ind([], false, 0, true)).toBe('lavora')
+    expect(ind([], true, 0, true)).toBe('ferma')
+    expect(ind([], false, 0, false)).toBe('ferma')
+  })
+  it('gli hook: PreToolUse solo per AskUserQuestion, PostToolUse per tutti', () => {
+    const h = hookSegnali(47640).hooks as Record<string, { matcher: string }[]>
+    expect(h.PreToolUse?.[0]?.matcher).toBe('AskUserQuestion')
+    expect(h.PostToolUse?.[0]?.matcher).toBe('')
+  })
+})
+
+describe('0.76.0: una domanda a scelte sullo schermo resta «chiede»', () => {
+  it('anche dopo 15 secondi, se lo schermo mostra la scelta; senza scelta vale la regola di prima', () => {
+    const t0 = Date.parse(T(0))
+    const chiede = { fase: 'chiede' as const, dal: T(0), chiede: { tipo: 'domanda' as const } }
+    const dopo = t0 + SCHERMO_VINCE_DOPO_MS + 60_000
+    expect(statoChat({ segnali: chiede, schermo: { aspetta: true, chiede: true }, adesso: dopo }).chiede).toBe(true)
+    expect(statoChat({ segnali: chiede, schermo: { aspetta: true, chiede: false }, adesso: dopo }).chiede).toBe(false)
+  })
+  it('la finestra manda «sceltaAperta» e il main la passa come lato schermo di «chiede»', async () => {
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('src/renderer/App.tsx', 'utf8')).toContain('{ sceltaAperta: true }')
+    expect(readFileSync('src/main/index.ts', 'utf8')).toContain('chiede: c.sceltaAperta === true }')
   })
 })

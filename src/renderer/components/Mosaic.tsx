@@ -231,6 +231,7 @@ export function Mosaic({
   autopiloti,
   onRicaricaAutopiloti,
   pensano,
+  senzaDiario,
   chiedono = new Set(),
   solo
 }: {
@@ -260,6 +261,11 @@ export function Mosaic({
    * aperte stesse facendo qualcosa.
    */
   pensano: ReadonlySet<string>
+  /**
+   * Nella vista a elenco (0.76.0) il pannello dell'autopilota sta fisso a
+   * sinistra: nei riquadri non si disegna.
+   */
+  senzaDiario?: boolean
   /** I riquadri fermi su una domanda (0.70.0): «aspetta te» sulla testata. */
   chiedono?: ReadonlySet<string>
 }): React.JSX.Element {
@@ -513,7 +519,7 @@ export function Mosaic({
                     ...(data.autopilota !== undefined ? { autopilota: data.autopilota } : {})
                   }
                 )
-                if (suo === undefined) return null
+                if (suo === undefined || senzaDiario === true) return null
                 return (
                   <DiarioAutopilota
                     autopilota={suo}

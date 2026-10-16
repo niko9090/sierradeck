@@ -1035,6 +1035,34 @@ function schedaDomandaHtml(s, k, tasto, campo) {
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
     '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'
 }
+/**
+ * La domanda breve (0.76.0), la stessa regola del PC e dell'app
+ * (\`domandaBreve\` in src/shared/domande-conversazioni.ts): al massimo 200
+ * caratteri e 4 scelte («Scrivi tu» non conta), niente di tagliato.
+ */
+function domandaBreveJs(c) {
+  var s = c && c.scheda
+  if (!c || !c.chiede || !s || s.risposta) return false
+  var scelte = (s.scelte || []).filter(function (x) { return !x.libera }).length
+  var dettagli = (s.dettagli || []).reduce(function (n, d) { return n + String(d.testo || '').length }, 0)
+  return String(s.domanda).length <= 200 && String(s.domanda).slice(-1) !== '…' && scelte <= 4 && dettagli <= 1500
+}
+/** La domanda breve della chat aperta, in cima alla chat: tasti e «Scrivi tu» (0.76.0). */
+function domandaALatoHtml(idChat) {
+  var conv = (domandeConversazioni || []).find(function (c) { return c.chiave === 'chat:' + idChat })
+  if (!domandaBreveJs(conv)) return ''
+  var mandata = domandeMandate[conv.chiave]
+  return '<div class="piastrella chiede domanda-a-lato">' +
+    schedaDomandaHtml(conv.scheda, conv.chiave, function (c) {
+      return c.libera
+        ? '<button class="scelta" onclick="document.getElementById(\\'conv-testo\\').focus()">' + etichettaScelta(c) + '</button>'
+        : conv.scelte
+          ? '<button class="scelta' + (c.consigliata ? ' scelta--ora' : '') + '" data-chat="' + esc(conv.scelte.chat) + '" data-testo="' + esc(c.testo) + '" onclick="scegliIn(this.dataset.chat, this.dataset.testo)">' + etichettaScelta(c) + '</button>'
+          : '<button class="scelta' + (c.consigliata ? ' scelta--ora' : '') + '" data-k="' + esc(conv.chiave) + '" data-testo="' + esc(c.testo) + '" onclick="rispondiOpzione(this.dataset.k, this.dataset.testo)">' + etichettaScelta(c) + '</button>'
+    }, { id: 'conv-testo', attributi: 'data-k="' + esc(conv.chiave) + '" onclick="rispondiConv(this.dataset.k)"', etichetta: conv.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda' }) +
+    (mandata ? '<div class="sotto">mandato: «' + esc(mandata) + '», aspetto il computer</div>' : '') +
+    '</div>'
+}
 function etichettaScelta(c) {
   return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
 }
@@ -1795,6 +1823,7 @@ function pannello(s) {
       <button class="altro" onclick="apriAltro('\${escJs(aperta.id)}')" aria-label="Altro">⋯</button>
     </div>
     <div class="sotto"><span class="voce__stato voce__stato--\${statoChat(aperta).tono}">\${esc(statoChat(aperta).parola)}</span></div>
+    \${domandaALatoHtml(aperta.id)}
     <div class="sotto percorso">\${esc(aperta.cwd)}</div>
     \${altroAperto === aperta.id ? \`
       <div class="piastrella">
@@ -2663,7 +2692,10 @@ function vistaAutopilota(a) {
     ? '<div class="sotto pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</div>'
     : a.stato === 'intervista' && !a.domanda
       ? '<div class="sotto pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</div>'
-      : ''
+      : a.fermoConPromessa
+        // 0.75.4: ha promesso lavoro ed è fermo.
+        ? '<div class="sotto pensa fermo-promessa">● L’autopilota è fermo (' + esc(a.stato) + '). <button class="primario" data-ap="' + esc(a.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button></div>'
+        : ''
   // La casella: con una domanda aperta e' la risposta (arriva subito alla
   // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
   // qualche minuto.
@@ -5399,7 +5431,12 @@ setInterval(() => {
   if (!inVolo && eOraLinea(linea, ultimaChiesta, Date.now())) { aggiorna(); return }
   if (linea.fase === 'ricollego') ridisegnaLinea()
 }, 250)
-setInterval(() => { if (chiave && !document.hidden && scheda === 'domande') leggiDomande() }, 2000)
+setInterval(() => {
+  if (!chiave || document.hidden) return
+  // 0.76.0: anche dentro una chat che chiede qualcosa, per la domanda breve a lato.
+  const ferma = dentro !== null && (ultimoStato.chat || []).some((c) => c.id === dentro && statoChat(c).tono === 'attesa')
+  if (scheda === 'domande' || ferma) leggiDomande()
+}, 2000)
 </script>
 </body>
 </html>`

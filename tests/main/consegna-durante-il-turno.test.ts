@@ -51,7 +51,11 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
       avviaPty: () => 'pty-1',
       ascolta: (id, cb) => { ascolti.set(id, cb) },
       smetti: () => undefined,
-      scrivi: (_id, data) => { scritto.push(data) },
+      scrivi: (_id, data) => {
+        scritto.push(data)
+        // L'eco nel campo, come Claude Code (0.76.0): l'Invio parte solo dopo averlo visto.
+        if (data !== '\r') ascolti.get('pty-1')?.({ id: 'pty-1', kind: 'data', data: `\x1b[2J\x1b[H Benvenuto\r\n\r\n✻ Pensando… (12s · esc to interrupt)\r\n❯ ${data}\r\n  ? for shortcuts` })
+      },
       ferma: () => undefined,
       creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
       log: () => undefined,
@@ -74,6 +78,8 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
     const f = finto()
     f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: { id: 'x', nome: 'x' }, testo: 'urgente', idMessaggio: 'm-2', ancheAlLavoro: true })
     f.lavora(); await digerisci(); f.avanti(5000); f.s.giro()
+    // 0.76.0: l'Invio al giro dopo, quando il testo si vede nel campo.
+    await digerisci(); f.avanti(400); f.s.giro()
     expect(f.scritto).toEqual(['urgente', '\r'])
   })
 })
@@ -88,7 +94,11 @@ describe('in sottofondo: mai più di un messaggio in coda in Claude Code (0.72.0
       avviaPty: () => 'pty-1',
       ascolta: (id, cb) => { ascolti.set(id, cb) },
       smetti: () => undefined,
-      scrivi: (_id, data) => { scritto.push(data) },
+      scrivi: (_id, data) => {
+        scritto.push(data)
+        // L'eco nel campo, come Claude Code (0.76.0): l'Invio parte solo dopo averlo visto.
+        if (data !== '\r') ascolti.get('pty-1')?.({ id: 'pty-1', kind: 'data', data: `\x1b[2J\x1b[H Benvenuto\r\n\r\n✻ Pensando… (12s · esc to interrupt)\r\n❯ ${data}\r\n  ? for shortcuts` })
+      },
       ferma: () => undefined,
       creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
       log: () => undefined,
@@ -107,6 +117,7 @@ describe('in sottofondo: mai più di un messaggio in coda in Claude Code (0.72.0
     const chi = { id: 'x', nome: 'x' }
     f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: chi, testo: 'primo urgente', idMessaggio: 'm-1', ancheAlLavoro: true })
     f.lavora(); await digerisci(); f.avanti(5000); f.s.giro()
+    await digerisci(); f.avanti(400); f.s.giro()
     expect(f.scritto).toEqual(['primo urgente', '\r'])
     f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: chi, testo: 'secondo urgente', idMessaggio: 'm-2', ancheAlLavoro: true })
     // Il primo non è più nel campo (è fra i messaggi in coda): consegnato, mai riscritto.

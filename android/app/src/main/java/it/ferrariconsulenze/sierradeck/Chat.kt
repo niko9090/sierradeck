@@ -630,6 +630,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         if (chiusaPin) {
             CoperturaPinApp(api, chat.id, chat.titolo, onAperta = { chiusaPin = false }, modifier = Modifier.weight(1f).fillMaxWidth())
         } else {
+        // ─── la domanda breve, in cima (PC 0.76.0) ───
+        DomandaBreveInCima(api, chat)
         // ─── terminale ───
         VistaTerminale(
             grezze = storia?.grezze ?: emptyList(),

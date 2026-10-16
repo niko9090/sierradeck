@@ -69,6 +69,9 @@ const ora = (ms: number): string => {
  * consumo, o nessuna risposta ancora) si lavora con **una** chat: non si sa
  * quanto costa, e il piano e' lo stesso delle chat di Nicholas.
  */
+/** Quanti specialisti insieme finché i limiti del piano non si sono letti (0.76.0). */
+export const TETTO_SENZA_LIMITI = 2
+
 export function frenoDaiLimiti(limiti: LimitiPiano | undefined, adesso: number): Freno {
   const finestre: { nome: string; f: FinestraPiano; nota: string }[] = []
   // La stessa lettura della console (0.37.0): una finestra azzerata non frena
@@ -85,9 +88,12 @@ export function frenoDaiLimiti(limiti: LimitiPiano | undefined, adesso: number):
   if (cinque !== undefined) finestre.push({ nome: 'finestra di 5 ore', ...cinque })
   if (sett !== undefined) finestre.push({ nome: 'settimana', ...sett })
   if (finestre.length === 0) {
+    // 0.76.0: prima qui «una chat sola», e dopo ogni avvio (limiti ancora da
+    // leggere) nessun autopilota si divideva mai in specialisti. Il freno si
+    // rifà a ogni giro: appena i limiti si leggono, vale la soglia vera.
     return {
-      livello: 'ignoto', tetto: 1, apriNuove: false,
-      motivo: 'limiti del piano non ancora letti: lavoro con una chat sola finché non so quanto resta'
+      livello: 'ignoto', tetto: TETTO_SENZA_LIMITI, apriNuove: true,
+      motivo: `limiti del piano non ancora letti: al massimo ${TETTO_SENZA_LIMITI} specialisti finché non so quanto resta`
     }
   }
   const peggiore = finestre.reduce((a, b) => (b.f.percento > a.f.percento ? b : a))
@@ -129,7 +135,7 @@ export function testoFreno(f: Freno): { titolo: string; spiegazione: string } {
     case 'fermo':
       return { titolo: 'Fermo', spiegazione: `Gli autopiloti si fermano a fine turno per non consumare quello che resta, e ripartono da soli all’azzeramento. Motivo: ${f.motivo}.` }
     default:
-      return { titolo: 'Limiti non letti', spiegazione: 'Senza i limiti del piano gli autopiloti lavorano con una chat sola, per prudenza: i limiti arrivano alla prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max).' }
+      return { titolo: 'Limiti non letti', spiegazione: `Senza i limiti del piano gli autopiloti si dividono al massimo in ${TETTO_SENZA_LIMITI} specialisti, per prudenza: i limiti arrivano alla prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max), e da lì vale la soglia vera.` }
   }
 }
 

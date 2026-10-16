@@ -5,6 +5,7 @@ import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } 
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
+import { slugChatInRecupero } from '../rimozione-sicura'
 import { createHmac } from 'node:crypto'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
@@ -325,6 +326,7 @@ export function apriSincronia(deps: {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
   let vecchieLasciate = -1
+  let recuperoLasciate = -1
   // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
   const prendiLavoro = (tipo: TipoLavoro): { presa?: Presa; errore?: string } => {
     if (deps.lavoro === undefined) return {}
@@ -1576,8 +1578,12 @@ export function apriSincronia(deps: {
       const giorni = giorniDiRitenzione(deps.radiceClaude)
       const adessoMs = Date.parse(adesso())
       let vecchie = 0
+      // 0.76.0: le chat la cui cartella è nel recupero di questo PC restano sul Drive.
+      const inRecupero = slugChatInRecupero(deps.dati, join(deps.radiceClaude, 'projects'))
+      let nelRecupero = 0
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
+        if (inRecupero.has(p.split('/')[1] ?? '')) { nelRecupero += 1; return false }
         // Una chat, una casa (0.42.0): non scendono piu' da sole le chat degli
         // altri PC. Si guardano dal vivo, o si spostano con «Sposta progetto».
         if (deps.unaCasa !== undefined && !deps.unaCasa.scendeQui(p)) return false
@@ -1595,6 +1601,10 @@ export function apriSincronia(deps: {
         // solo la data a differire, e' lo stesso file salito da un altro PC.
         return v.size > locale.size
       })
+      if (nelRecupero !== recuperoLasciate) {
+        recuperoLasciate = nelRecupero
+        if (nelRecupero > 0) log(`ARRIVO: ${nelRecupero} chat lasciate sul Drive perché la loro cartella è nel recupero di questo PC (tolte da qui): tornano solo se la rimetti a posto da «Cartelle in recupero»`)
+      }
       if (vecchie !== vecchieLasciate) {
         vecchieLasciate = vecchie
         if (vecchie > 0) log(`ARRIVO: ${vecchie} chat lasciate sul Drive perche' ferme da piu' di ${giorni} giorni: Claude Code le toglierebbe da qui al prossimo giro di pulizia (cleanupPeriodDays) e domani scenderebbero di nuovo. Si vedono nel catalogo del Drive e si prendono con «Porta qui».`)

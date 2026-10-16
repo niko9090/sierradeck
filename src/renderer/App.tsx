@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ascoltaSegnali, lavoraConSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
+import { ascoltaSegnali, faseDiSessione, lavoraConSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
+import { indicatoreChat } from '@shared/segnali-chat'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
 import { creaPersistenza } from './persistenza-layout'
@@ -10,7 +11,7 @@ import { giaSalvatoCome } from '@shared/doppioni'
 import type { Istantanea } from '@shared/istantanea'
 import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
-import { chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
+import { aspettaDalloSchermo, chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoNelCampo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
 import { comePortare, rigaInAttesa } from './consegna-visibile'
@@ -48,7 +49,7 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import { ColonnaConsumi } from './components/ColonnaConsumi'
 import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
-import { azioneTastoDomande, decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
+import { azioneTastoDomande, decidiColonnaDomande, domandeALato, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
 import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
@@ -64,7 +65,10 @@ import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDom
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { ElencoWorkspace } from './components/ElencoWorkspace'
-import { cambiaVistaElenco, chatDavanti, ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
+import { DiarioAutopilota } from './components/DiarioAutopilota'
+import { DomandeALato } from './components/DomandeALato'
+import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavantiStabile, ruoloDalTitolo, vociInOrdine, type VoceElenco } from '@shared/vista-elenco'
+import { listPaneIds } from '@shared/layout-tree'
 import { chatDaSistemare } from '@shared/chat-governate'
 import type { StatoMigrazione } from '@shared/migrazione-elenco'
 
@@ -275,6 +279,9 @@ export function App(): React.JSX.Element {
     // Partita: il segnale «turno cominciato» di Claude Code (0.45.0); lo schermo come riserva.
     partita: (ptyId: string, scritto?: string, prima?: number) => partitaConSegnali(ptyId, () => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto, prima)),
     perso: (ptyId: string, scritto?: string, prima?: number) => testoPerso(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto ?? '', prima),
+    // 0.75.4: l'Invio solo dopo l'eco del testo nel campo, a terminale quieto.
+    nelCampo: (ptyId: string, scritto: string) => testoNelCampo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
+    quieto: (ptyId: string, ms: number) => Date.now() - righe.current.attivitaDi(ptyId).ultimoDato >= ms,
     // 0.56.4: il testo già fra i messaggi mandati (una conversazione ripresa
     // lo mostra), e da quanto il terminale parla (una chat che riprende).
     mandati: (ptyId: string, scritto: string) => contaMandati(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
@@ -296,6 +303,12 @@ export function App(): React.JSX.Element {
     },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
+      // 0.76.0: una chat ferma su una sua domanda non è un guasto, e la banda con
+      // «Invio» lì sceglierebbe la prima opzione al posto di Nicholas.
+      if (s.motivo.startsWith('domanda della chat')) {
+        void window.gestore.autopilota.nota(s.autopilotaId, `la chat «${s.titolo || s.chatId}» ha fatto una domanda: il compito parte appena qualcuno risponde (nelle Domande).`).catch(() => undefined)
+        return
+      }
       void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
       window.dispatchEvent(new CustomEvent('sierradeck:invio-mancato', { detail: s }))
     }
@@ -322,7 +335,19 @@ export function App(): React.JSX.Element {
   const [pensano, setPensano] = useState<ReadonlySet<string>>(new Set())
   useEffect(() => {
     const h = setInterval(() => {
-      const vivi = battito.current.attivi(Date.now())
+      // 0.76.0: una sola fonte, i segnali degli hook di Claude Code (come la
+      // pagina e l'app); il flusso del terminale solo quando mancano.
+      const ora = Date.now()
+      const dalFlusso = battito.current.attivi(ora)
+      const vivi = new Set<string>()
+      for (const p of Object.values(useLayoutStore.getState().panes)) {
+        if (p.ptyId === undefined) continue
+        const schermo = righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite
+        const campoPronto = aspettaDalloSchermo(schermo) === true && !lavoraSulloSchermo(schermo)
+        const f = faseDiSessione(p.sessionUuid)
+        const stato = indicatoreChat({ ...(f !== undefined ? { fase: { fase: f.fase, dal: f.dal } } : {}), campoPronto, attivoDalFlusso: dalFlusso.has(p.ptyId), adesso: ora })
+        if (stato === 'lavora') vivi.add(p.ptyId)
+      }
       setPensano((prima) => (stessiAttivi(prima, vivi) ? prima : vivi))
     }, 400)
     return () => clearInterval(h)
@@ -381,6 +406,9 @@ export function App(): React.JSX.Element {
           // il prompt visto, e poi un po’ di silenzio — e da un telefono è
           // *la* notizia: «ha finito, tocca a te».
           aspetta: p.ptyId === undefined ? false : aspettaOra(p.ptyId),
+          // 0.76.0: una scelta aperta sullo schermo (domanda, permesso): il main
+          // non la scambia per un campo pronto e la chat resta «chiede».
+          ...(p.ptyId !== undefined && sceltaSulloSchermo(righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite) ? { sceltaAperta: true } : {}),
           // Chi è governata da un autopilota non deve avvisare per conto
           // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
           // fatto sono una di troppo.
@@ -938,7 +966,14 @@ export function App(): React.JSX.Element {
     window.addEventListener('sierradeck:vista-elenco', accendi)
     return () => window.removeEventListener('sierradeck:vista-elenco', accendi)
   }, [impostaElenco])
-  const [davantiScelto, setDavantiScelto] = useState<string | undefined>(undefined)
+  // La chat davanti nella vista a elenco, scelta per ogni workspace (0.75.4): passando
+  // a un altro workspace e tornando, resta quella che avevi scelto.
+  const [davantiPerWs, setDavantiPerWs] = useState<Record<string, string>>({})
+  const davantiPrima = useRef(new Map<string, string>())
+  const setDavantiScelto = useCallback((paneId: string): void => {
+    const ws = workspaceCorrente()
+    setDavantiPerWs((m) => (m[ws] === paneId ? m : { ...m, [ws]: paneId }))
+  }, [])
   // La trasformazione dei workspace (0.74.1): per la banda e per gli autopiloti dormienti.
   const [migrazione, setMigrazione] = useState<StatoMigrazione | null>(null)
   const [notaMigrazione, setNotaMigrazione] = useState<string | undefined>(undefined)
@@ -1001,6 +1036,9 @@ export function App(): React.JSX.Element {
   const ultimeConversazioni = useRef<Conversazione[]>([])
   // Le chat ferme su una domanda (0.70.0): «aspetta te» sulla testata del loro riquadro.
   const [chiedono, setChiedono] = useState<ReadonlySet<string>>(new Set())
+  // Le domande brevi di questo workspace, a lato della chat (0.76.0).
+  const [conversazioniLette, setConversazioniLette] = useState<Conversazione[]>([])
+  const quiDomande = useRef<ReadonlySet<string>>(new Set())
   // Il main chiede di mettere in vista la linguetta «Domande» di un autopilota
   // che sta in questa finestra (0.39.1): la apre la sua scheda.
   useEffect(() => window.gestore.pannello.suMostraDomande((id) => {
@@ -1022,6 +1060,7 @@ export function App(): React.JSX.Element {
           const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
           const c = corpo.conversazioni ?? []
           ultimeConversazioni.current = c
+          setConversazioniLette(c)
           const ora = new Set(c.filter((x) => x.tipo === 'chat' && x.chiede && x.chiave.startsWith('chat:')).map((x) => x.chiave.slice(5)))
           setChiedono((prima) => (prima.size === ora.size && [...ora].every((x) => prima.has(x)) ? prima : ora))
           setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
@@ -1029,7 +1068,8 @@ export function App(): React.JSX.Element {
           const v = viste()
           const avvio = avvioDomande.current
           avvioDomande.current = false
-          const d = decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })
+          const aLato = new Set(domandeALato(c, quiDomande.current).map((x) => x.chiave))
+          const d = decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio, aLato })
           if (d.nuove.length > 0) {
             for (const n of d.nuove) v.add(n)
             try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
@@ -1543,7 +1583,7 @@ export function App(): React.JSX.Element {
   // La vista a elenco (0.74.0) del workspace davanti: le voci e la chat che sta davanti.
   const vistaElenco = ((): { voci: VoceElenco[]; davanti: string | undefined } | undefined => {
     if (!workspaceElenco.includes(workspace.attivo)) return undefined
-    const voci: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
+    const tutte: VoceElenco[] = Object.values(riquadriAperti).map((p) => ({
       paneId: p.id,
       titolo: p.title,
       ...(ruoloDalTitolo(p.title) !== undefined ? { ruolo: ruoloDalTitolo(p.title) } : {}),
@@ -1551,8 +1591,15 @@ export function App(): React.JSX.Element {
       lavora: p.ptyId !== undefined && pensano.has(p.ptyId),
       chiede: chiedono.has(p.id)
     }))
-    return { voci, davanti: chatDavanti(voci, davantiScelto) }
+    // L'ordine del layout, mai quello in cui i riquadri sono entrati nello store (0.75.4).
+    const voci = vociInOrdine(tutte, root !== undefined ? listPaneIds(root) : [])
+    const davanti = chatDavantiStabile(voci, davantiPerWs[workspace.attivo], davantiPrima.current.get(workspace.attivo))
+    if (davanti !== undefined) davantiPrima.current.set(workspace.attivo, davanti)
+    return { voci, davanti }
   })()
+  quiDomande.current = new Set(Object.keys(riquadriAperti).map((id) => `chat:${id}`))
+  const domandeQui = domandeALato(conversazioniLette, quiDomande.current)
+  const autopilotaFisso = vistaElenco !== undefined ? autopilotaDelWorkspace(autopiloti, workspace.attivo) : undefined
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--fondo)' }}>
@@ -2000,6 +2047,11 @@ export function App(): React.JSX.Element {
               onMosaico={() => impostaElenco(workspace.attivo, false)}
             />
           ) : null}
+          {/* Il pannello dell'autopilota del workspace, fisso a sinistra (0.76.0):
+              non segue più il riquadro della chat che sta davanti. */}
+          {vistaElenco !== undefined && autopilotaFisso !== undefined ? (
+            <DiarioAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} largo={false} onLargo={() => undefined} onCambiato={ricaricaAutopiloti} />
+          ) : null}
           {root ? (
             <Mosaic
               node={root}
@@ -2007,6 +2059,7 @@ export function App(): React.JSX.Element {
               onRicaricaAutopiloti={ricaricaAutopiloti}
               pensano={pensano}
               chiedono={chiedono}
+              {...(vistaElenco !== undefined ? { senzaDiario: true } : {})}
               {...(vistaElenco?.davanti !== undefined ? { solo: vistaElenco.davanti } : {})}
             />
           ) : vistaElenco !== undefined ? (
@@ -2029,6 +2082,10 @@ export function App(): React.JSX.Element {
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
             Android. Resta aperta mentre si lavora; la vecchia finestra
             modale delle domande non cambia (su quella decide Nicholas). */}
+        {/* Con la colonna Domande aperta la domanda è già lì, accanto: niente doppione. */}
+        {!colonnaDomande.aperta ? (
+          <DomandeALato conversazioni={domandeQui} onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))} />
+        ) : null}
         {colonnaDomande.aperta ? (
           <PannelloDomande
             larghezza={colonnaDomande.larghezza}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { cambiaVistaElenco, chatDavanti, nomeWorkspacePerAutopilota, rinominaInElenco, ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
+import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavanti, chatDavantiStabile, nomeWorkspacePerAutopilota, vociInOrdine, rinominaInElenco, ruoloDalTitolo, type VoceElenco } from '@shared/vista-elenco'
 import { chatDaSistemare } from '@shared/chat-governate'
 import { normalizzaPreferenze, PREFERENZE_PREDEFINITE } from '@shared/preferenze'
 
@@ -82,5 +82,40 @@ describe('le chat finite si tolgono da sole', () => {
 
   it('in lavoro e in attesa la chat resta guidata', () => {
     expect(chatDaSistemare([r('p1', 'ap1', 'c-1'), r('p2', 'ap2', 'c-1')], [ap('ap1', 'lavoro', [{ id: 'c-1', stato: 'lavoro' }]), ap('ap2', 'attesa')])).toEqual({ chiudi: [], libera: [] })
+  })
+})
+
+describe('0.75.4: l’elenco non si scompone', () => {
+  const v = (paneId: string, titolo: string, x: Partial<VoceElenco> = {}): VoceElenco => ({ paneId, titolo, lavora: false, chiede: false, ...x })
+  it('l’ordine è quello del layout, qualunque sia l’ordine dello store; niente doppioni', () => {
+    const store = [v('p3', 'C'), v('p1', 'A'), v('p2', 'B'), v('p1', 'A')]
+    expect(vociInOrdine(store, ['p1', 'p2', 'p3']).map((x) => x.paneId)).toEqual(['p1', 'p2', 'p3'])
+    // Un riquadro riaperto entra in fondo allo store: la sua riga resta al suo posto.
+    expect(vociInOrdine([v('p1', 'A'), v('p3', 'C'), v('p2', 'B')], ['p1', 'p2', 'p3']).map((x) => x.paneId)).toEqual(['p1', 'p2', 'p3'])
+    // Quelli che il layout non ha ancora vanno in fondo, sempre nello stesso ordine.
+    expect(vociInOrdine([v('pz', 'Zeta'), v('p1', 'A'), v('pa', 'Alfa')], ['p1']).map((x) => x.paneId)).toEqual(['p1', 'pa', 'pz'])
+  })
+
+  it('la chat davanti non salta quando un’altra comincia a lavorare o a chiedere', () => {
+    const prima = [v('p1', 'A'), v('p2', 'B')]
+    const davanti = chatDavantiStabile(prima, undefined, undefined)
+    expect(davanti).toBe('p1')
+    // p2 comincia a chiedere: prima si saltava a lei, adesso si resta su p1.
+    const dopo = [v('p1', 'A'), v('p2', 'B', { chiede: true })]
+    expect(chatDavanti(dopo, undefined)).toBe('p2')
+    expect(chatDavantiStabile(dopo, undefined, davanti)).toBe('p1')
+    // La scelta di Nicholas vince sempre; se la chat davanti si chiude, se ne sceglie un'altra.
+    expect(chatDavantiStabile(dopo, 'p2', 'p1')).toBe('p2')
+    expect(chatDavantiStabile([v('p2', 'B', { chiede: true })], undefined, 'p1')).toBe('p2')
+  })
+})
+
+describe('0.76.0: il pannello dell’autopilota del workspace, fisso a sinistra', () => {
+  const a = (id: string, workspace: string, stato: string, x: Record<string, unknown> = {}) => ({ id, workspace, stato, iniziatoIl: '2026-10-16T08:00:00Z', ...x })
+  it('quello del workspace; con più autopiloti prima chi aspetta te, poi chi lavora; mai gli archiviati', () => {
+    const lista = [a('a1', 'SierraDeck', 'finito'), a('a2', 'SierraDeck', 'lavoro'), a('a3', 'Altro', 'attesa'), a('a4', 'SierraDeck', 'attesa', { archiviato: true })]
+    expect(autopilotaDelWorkspace(lista, 'SierraDeck')?.id).toBe('a2')
+    expect(autopilotaDelWorkspace([...lista, a('a5', 'SierraDeck', 'attesa')], 'SierraDeck')?.id).toBe('a5')
+    expect(autopilotaDelWorkspace(lista, 'Vuoto')).toBeUndefined()
   })
 })

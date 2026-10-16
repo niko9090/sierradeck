@@ -2,6 +2,7 @@ import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
+import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { Aiuto } from './Aiuto'
 import { TastoMicrofono } from './TastoMicrofono'
 
@@ -110,6 +111,19 @@ export function ChatAutopilota({
         ) : null}
         {domanda || autopilota.stato === 'pronto' ? (
           <p className="chatap__pensa">● {autopilota.stato === 'pronto' ? 'aspetta il tuo via' : 'ti ha fatto una domanda'}: è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.</p>
+        ) : null}
+        {!pensa && promessaSenzaLavoro(autopilota) ? (
+          // 0.75.4: ha promesso di lavorare ma è fermo. Mai più una promessa muta.
+          <p className="chatap__pensa chatap__fermo" role="status">
+            ● L’autopilota è fermo ({autopilota.stato}).{' '}
+            <button
+              className="tasto tasto--primario tasto--mini"
+              disabled={inCorso}
+              onClick={() => esegui(() => window.gestore.autopilota.riprendi(autopilota.id))}
+            >
+              Riprendi
+            </button>
+          </p>
         ) : null}
         {autopilota.stato === 'intervista' && !domanda ? (
           <p className="chatap__pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</p>

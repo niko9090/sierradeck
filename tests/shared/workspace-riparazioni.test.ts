@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  cartellaDaNomeWorkspace, cartellaVietataPerChat, conRitrovati, puntaAMe, riparaArchivio, riparaRiquadro, suAltriPc, workspaceRitrovati,
+  cartellaDaNomeWorkspace, cartellaVietataPerChat, conRitrovati, eCartellaDiSistema, senzaRemotiDiSistema, puntaAMe, riparaArchivio, riparaRiquadro, suAltriPc, workspaceRitrovati,
   type CopiaLista
 } from '@shared/workspace-riparazioni'
 import type { Archivio, PaneSalvato, WorkspaceSalvato } from '@shared/workspace'
@@ -89,5 +89,30 @@ describe('creare un workspace crea il progetto: la cartella giusta', () => {
     expect(cartellaVietataPerChat('', v)).toBe(true)
     expect(cartellaVietataPerChat('C:\\Users\\utente\\Documents\\visitafacile', v)).toBe(false)
     expect(cartellaVietataPerChat('C:\\Users\\utente\\Progetti SierraDeck\\visitafacile', v)).toBe(false)
+  })
+})
+
+describe('0.75.4: un riquadro remoto in una cartella di sistema non si riapre', () => {
+  it('le cartelle di sistema: radice, cartella utente, Documenti e simili; le sottocartelle vere no', () => {
+    for (const c of ['C:\\', 'C:\\Users\\utente', 'C:\\Users\\utente\\Documents', 'C:\\Users\\utente\\Desktop', 'D:\\Downloads', 'C:/Users/utente/Documenti/']) expect(eCartellaDiSistema(c)).toBe(true)
+    for (const c of ['C:\\Users\\utente\\Documents\\Portfolio', 'C:\\Users\\utente\\Progetti SierraDeck\\Documents', 'E:\\Documents\\Progetti SierraDeck\\visitafacile', 'C:\\Progetti\\SierraDeck']) expect(eCartellaDiSistema(c)).toBe(false)
+  })
+
+  it('il caso del 16/10: «Documents» in visitafacile, casa un altro PC, esce dalla lista; gli altri restano identici', () => {
+    const documents: PaneSalvato = { id: 'p-doc', sessionUuid: 's-doc', cwd: 'C:\\Users\\utente\\Documents', title: 'Documents', remoto: { pcId: 'pc-desk', pcNome: 'DESKTOP-ESEMPIO', cwd: 'C:\\Users\\utente\\Documents', sessione: 's-doc' } }
+    const vero: PaneSalvato = { id: 'p-vero', sessionUuid: 's-v', cwd: 'C:\\Users\\utente\\Progetti SierraDeck\\visitafacile', title: 'visitafacile', remoto: { pcId: 'pc-desk', pcNome: 'DESKTOP-ESEMPIO', cwd: 'E:\\x', sessione: 's-v' } }
+    // Un riquadro locale nella cartella Documenti non si tocca: lì può esserci un processo vivo.
+    const locale: PaneSalvato = { id: 'p-loc', sessionUuid: 's-l', cwd: 'C:\\Users\\utente\\Documents', title: 'a mano' }
+    const visita = { ...ws('visitafacile', [documents, vero]), perSlot: { 1: { root: { type: 'split', id: 's', direction: 'horizontal', children: [{ type: 'pane', id: 'p-doc' }, { type: 'pane', id: 'p-vero' }], sizes: [50, 50] }, panes: [documents, vero] } } } as unknown as WorkspaceSalvato
+    const altro = ws('altro', [locale])
+    const r = senzaRemotiDiSistema(archivio(visita, altro))
+    expect(r.tolti).toEqual([{ workspace: 'visitafacile', titolo: 'Documents', cwd: 'C:\\Users\\utente\\Documents', pc: 'DESKTOP-ESEMPIO' }])
+    const dopo = r.archivio.workspace[0]!.perSlot[1]!
+    expect(dopo.panes.map((p) => p.id)).toEqual(['p-vero'])
+    expect(JSON.stringify(dopo.root)).not.toContain('p-doc')
+    expect(r.archivio.workspace[1]).toBe(altro)
+    // Niente da togliere: lo stesso archivio, nessuna scrittura.
+    const pulito = archivio(altro)
+    expect(senzaRemotiDiSistema(pulito).archivio).toBe(pulito)
   })
 })

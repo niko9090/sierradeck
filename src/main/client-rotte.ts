@@ -1,4 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
+import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { conVistaConsumi } from '@shared/consumi-vista'
 import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
@@ -145,6 +146,8 @@ export type Chat = {
    * lo schermo come riserva). Assenti per le chat senza segnali.
    */
   chiedeSegnale?: boolean
+  /** Sullo schermo c'è una scelta aperta (0.76.0): la manda la finestra, il main la usa per «chiede». */
+  sceltaAperta?: boolean
   /** La domanda in fondo all'ultimo messaggio, quando il turno è finito chiedendo (0.71.1). */
   domanda?: string
   errore?: string
@@ -1307,6 +1310,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         chat: conversazione(a),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
+        // 0.75.4: ha promesso lavoro ed è fermo: «L'autopilota è fermo: Riprendi».
+        fermoConPromessa: !staPensando(a) && promessaSenzaLavoro(a),
         // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
         albero: alberoChat(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».

@@ -26,9 +26,14 @@
  * `tests/fixtures/hook-claude-2.1.287/`.
  */
 
-export type EventoHook = 'SessionStart' | 'UserPromptSubmit' | 'PermissionRequest' | 'Notification' | 'Stop' | 'StopFailure' | 'SessionEnd'
+export type EventoHook = 'SessionStart' | 'UserPromptSubmit' | 'PermissionRequest' | 'Notification' | 'Stop' | 'StopFailure' | 'SessionEnd' | 'PreToolUse' | 'PostToolUse'
 
-export const EVENTI_SEGNALI: readonly EventoHook[] = ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'Notification', 'Stop', 'StopFailure', 'SessionEnd']
+export const EVENTI_SEGNALI: readonly EventoHook[] = ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'Notification', 'Stop', 'StopFailure', 'SessionEnd', 'PreToolUse', 'PostToolUse']
+/**
+ * Gli strumenti per cui serve `PreToolUse` (0.76.0): solo la domanda a scelte.
+ * Per gli altri basta `PostToolUse` (dopo una risposta, la chat lavora di nuovo).
+ */
+const PRE_TOOL_MATCHER = 'AskUserQuestion'
 
 export type Segnale = {
   sessione: string
@@ -112,6 +117,15 @@ export function statoDaSegnali(segnali: Segnale[]): StatoSegnali | undefined {
           s = { fase: 'aspetta', dal: s?.fase === 'aspetta' ? s.dal : g.quando }
         }
         break
+      // La domanda a scelte sullo schermo (0.76.0): AskUserQuestion non chiede un permesso.
+      case 'PreToolUse':
+        if (g.strumento === 'AskUserQuestion') s = { fase: 'chiede', dal: g.quando, chiede: { tipo: 'domanda', strumento: g.strumento, ...(g.dettaglio !== undefined ? { dettaglio: g.dettaglio } : {}) } }
+        break
+      // Uno strumento finito (0.76.0): dopo una risposta o un permesso la chat lavora di
+      // nuovo. Prima restava «chiede» fino alla fine del turno.
+      case 'PostToolUse':
+        if (s?.fase !== 'chiusa') s = { fase: 'lavora', dal: s?.fase === 'lavora' ? s.dal : g.quando }
+        break
       case 'Stop': s = { fase: 'aspetta', dal: g.quando }; break
       case 'StopFailure': s = { fase: 'errore', dal: g.quando, ...(g.errore !== undefined ? { errore: g.errore } : {}) }; break
       case 'SessionEnd': s = { fase: 'chiusa', dal: g.quando }; break
@@ -135,6 +149,9 @@ export function statoChat(p: { segnali?: StatoSegnali; schermo: { aspetta: boole
   // (uno Stop perso, un turno interrotto, un permesso a cui ha risposto
   // l'autopilota) teneva la chat «al lavoro» per sempre, e la sua coda non
   // partiva mai. Se lo schermo mostra il campo pronto da più di poco, vince lo schermo.
+  // 0.76.0: lo schermo deve dire davvero «nessuna scelta aperta» (`schermo.chiede`
+  // falso): una domanda a scelte ha «❯» e sembrava un campo pronto, e dopo 15
+  // secondi la chat che chiedeva diventava «ferma» ovunque.
   if (p.adesso !== undefined && (s.fase === 'lavora' || s.fase === 'chiede') && p.schermo.aspetta && !p.schermo.chiede &&
     p.adesso - Date.parse(s.dal) >= SCHERMO_VINCE_DOPO_MS) {
     return { aspetta: true, chiede: false, lavora: false, fonte: 'schermo' }
@@ -159,7 +176,7 @@ export function statoChat(p: { segnali?: StatoSegnali; schermo: { aspetta: boole
  */
 export function hookSegnali(porta: number): Record<string, unknown> {
   const hooks: Record<string, unknown> = {}
-  for (const e of EVENTI_SEGNALI) hooks[e] = [{ matcher: '', hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/api/segnale`, timeout: 5 }] }]
+  for (const e of EVENTI_SEGNALI) hooks[e] = [{ matcher: e === 'PreToolUse' ? PRE_TOOL_MATCHER : '', hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/api/segnale`, timeout: 5 }] }]
   return { hooks }
 }
 
@@ -222,4 +239,28 @@ export function partitaDaSegnali(f: FaseSessione | undefined, adesso: number): b
   if (f === undefined) return undefined
   if ((f.fase === 'lavora' || f.fase === 'chiede') && adesso - Date.parse(f.dal) < PARTITA_ENTRO_MS) return true
   return undefined
+}
+
+/**
+ * L'indicatore «al lavoro / ferma» di una chat (0.76.0). Nicholas, 16/10:
+ * l'indicatore «va a caso». Sul PC veniva dal solo flusso del terminale
+ * («ha scritto qualcosa da poco»): un comando lungo che tace sembrava fermo, un
+ * ridisegno sembrava lavoro. Adesso la fonte è una, come per la pagina e l'app:
+ * i segnali degli hook (inizio e fine turno, domanda, strumento finito). Lo
+ * schermo vale solo quando mancano, e quando dice da più di 15 secondi che il
+ * campo è pronto mentre i segnali dicono «lavora» (uno Stop perso).
+ */
+export function indicatoreChat(p: {
+  fase?: { fase: StatoSegnali['fase']; dal: string }
+  /** Lo schermo mostra il campo pronto e nessuna riga d'attività. */
+  campoPronto: boolean
+  /** Il flusso del terminale si muove (la riserva di sempre). */
+  attivoDalFlusso: boolean
+  adesso: number
+}): 'lavora' | 'chiede' | 'ferma' {
+  const f = p.fase
+  if (f === undefined) return p.attivoDalFlusso && !p.campoPronto ? 'lavora' : 'ferma'
+  if (f.fase === 'chiede') return 'chiede'
+  if (f.fase === 'lavora') return p.campoPronto && p.adesso - Date.parse(f.dal) >= SCHERMO_VINCE_DOPO_MS ? 'ferma' : 'lavora'
+  return 'ferma'
 }

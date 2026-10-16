@@ -44,7 +44,11 @@ async function casa(opz: { senzaSottofondo?: boolean } = {}) {
     ascolta: (id, cb) => { ascolti.set(id, cb) },
     smetti: (id) => { ascolti.delete(id) },
     scrivi: (id, data) => {
-      if (data === '\r') { if (campo !== '') { const t = campo; campo = ''; manda(id, `\x1b[2J\x1b[H❯ ${t}\r\n\r\n✻ Lavoro… (1s · thinking)\r\n❯ \r\n`) } } else campo += data
+      if (data === '\r') { if (campo !== '') { const t = campo; campo = ''; manda(id, `\x1b[2J\x1b[H❯ ${t}\r\n\r\n✻ Lavoro… (1s · thinking)\r\n❯ \r\n`) } } else {
+        // L'eco nel campo, come Claude Code (0.75.4): l'Invio parte solo dopo.
+        campo += data
+        manda(id, `\x1b[2J\x1b[H Benvenuto\r\n\r\n❯ ${campo}\r\n  ? for shortcuts`)
+      }
     },
     ferma: () => {},
     creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
@@ -102,6 +106,9 @@ describe('avviare in sottofondo da un altro PC della stessa casa', () => {
     c.disegna()
     await attendi(30)
     await attendi(1600)
+    c.sf.giro()
+    await attendi(400)
+    // L'Invio parte al giro dopo, quando il testo si vede nel campo (0.75.4).
     c.sf.giro()
     await attendi(30)
     // Lo schermo si legge come quello di ogni chat aperta.

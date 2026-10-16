@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import type { Server } from 'node:http'
 import {
   chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
-  preambolo, prendiMessaggiPer
+  preambolo, prendiMessaggiPer, ripartenzaDopoDialogo
 } from '../../src/autopilot-host/dialogo'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
@@ -410,5 +410,64 @@ describe('il dialogo con l autopilota', () => {
     expect(a.stato).toBe('finito')
     expect(a.daConsegnare).toEqual([])
     expect(a.decisioni.at(-1)?.cosa).toContain('non sono stati consegnati')
+  })
+})
+
+describe('0.75.4: la promessa diventa lavoro', () => {
+  const base = { perLaChat: false, cambioApplicato: false, domandaAperta: false, chatFerme: 0 }
+  it('fermo con un messaggio per la chat o un cambio: riparte da solo', () => {
+    for (const stato of ['finito', 'sospeso', 'fallito'] as const) {
+      expect(ripartenzaDopoDialogo({ ...base, stato, perLaChat: true })).toBe('riprendi')
+      expect(ripartenzaDopoDialogo({ ...base, stato, cambioApplicato: true })).toBe('riprendi')
+      expect(ripartenzaDopoDialogo({ ...base, stato })).toBeUndefined()
+    }
+    expect(ripartenzaDopoDialogo({ ...base, stato: 'attesa', perLaChat: true, domandaAperta: true })).toBe('rispondi-domanda')
+    expect(ripartenzaDopoDialogo({ ...base, stato: 'lavoro', perLaChat: true, chatFerme: 1 })).toBe('forza-giro')
+    expect(ripartenzaDopoDialogo({ ...base, stato: 'lavoro', perLaChat: true })).toBeUndefined()
+    // «Fermati» vince, e un comando esplicito fa già la sua strada.
+    expect(ripartenzaDopoDialogo({ ...base, stato: 'finito', perLaChat: true, comando: 'ferma' })).toBeUndefined()
+    expect(ripartenzaDopoDialogo({ ...base, stato: 'finito', perLaChat: true, comando: 'riprendi' })).toBeUndefined()
+  })
+
+  it('il caso di Nicholas: lavoro finito, lui scrive, la risposta ha perLaChat senza «riprendi»: la chat riparte con il messaggio', async () => {
+    server = ambiente(supervisore({ risposta: 'Quasi tutto, ma non tutto: procedo con il resto.', perLaChat: 'Controlla anche le notifiche dell’app.' }))
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito' })
+    const prima = avviati.length
+
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'Quindi hai fatto tutto e completato?' })
+    await attendi(() => archivio.leggi(id)?.stato === 'lavoro' && (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
+    const dopo = archivio.leggi(id)!
+    expect(dopo.stato).toBe('lavoro')
+    expect(dopo.dialogo.at(-1)?.esito).toContain('ripreso da solo')
+    expect(dopo.daConsegnare).toEqual([])
+    expect(avviati.length).toBe(prima + 1)
+    expect(avviati.at(-1)?.messaggio).toContain('Controlla anche le notifiche dell’app.')
+  })
+
+  it('lavoro finito e solo un cambio applicato: riparte lo stesso', async () => {
+    server = ambiente(supervisore({ risposta: 'Aggiungo il compito e lo faccio.', cambio: { compitiDaFare: ['controlla le notifiche'] } }))
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito' })
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'controlla anche le notifiche' })
+    await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
+    await attendi(() => archivio.leggi(id)?.stato === 'lavoro')
+    expect(archivio.leggi(id)?.stato).toBe('lavoro')
+    expect(archivio.leggi(id)?.compitiDaFare).toContain('controlla le notifiche')
+  })
+
+  it('senza promessa, un autopilota finito resta finito', async () => {
+    server = ambiente(supervisore({ risposta: 'Sì, ho finito tutto: i criteri passano.' }))
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito' })
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'hai finito?' })
+    await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
+    expect(archivio.leggi(id)?.stato).toBe('finito')
   })
 })

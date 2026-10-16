@@ -75,3 +75,16 @@ describe('specialisti', () => {
     expect(rigaUltimaAzione('x'.repeat(300)).length).toBe(140)
   })
 })
+
+describe('0.76.0: lo stesso ordine in ogni workspace', () => {
+  it('per ruolo, poi come sono nati; le chat senza ruolo in fondo', () => {
+    const a = ap({ stato: 'lavoro', chats: [
+      { id: 'c-1', compito: 'rilascio', stato: 'lavoro', cicli: 0, ruolo: 'rilascio' },
+      { id: 'c-10', compito: 'collaudo b', stato: 'lavoro', cicli: 0, ruolo: 'collaudo' },
+      { id: 'c-2', compito: 'senza ruolo', stato: 'lavoro', cicli: 0 },
+      { id: 'c-3', compito: 'codice', stato: 'lavoro', cicli: 0, ruolo: 'sviluppo' },
+      { id: 'c-4', compito: 'collaudo a', stato: 'lavoro', cicli: 0, ruolo: 'collaudo' }
+    ] })
+    expect(specialistiDi(a).elenco.map((s) => s.id)).toEqual(['c-3', 'c-4', 'c-10', 'c-1', 'c-2'])
+  })
+})

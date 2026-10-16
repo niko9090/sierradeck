@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { conversazioniDomande, richiestaRisposta } from '@shared/domande-conversazioni'
+import { conversazioniDomande, domandaBreve, domandeALato, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import type { VoceDomanda } from '@shared/domande-telefono'
 import { nuovoAutopilota } from '@shared/autopilota'
 
@@ -73,5 +73,38 @@ describe('le Domande come conversazioni a messaggi', () => {
     expect(richiestaRisposta({ via: 'rispondi', domanda: 'd1' }, 'blu')).toEqual({ percorso: '/api/rispondi', corpo: { domanda: 'd1', risposta: 'blu' } })
     expect(richiestaRisposta({ via: 'scrivi', chat: 'c' }, 'vai')).toEqual({ percorso: '/api/scrivi', corpo: { chat: 'c', testo: 'vai' } })
     expect(richiestaRisposta({ via: 'dialogo', autopilota: 'a' }, 'ciao').percorso).toBe('/api/autopilota/dialogo')
+  })
+})
+
+describe('0.76.0: le domande brevi a lato', () => {
+  const conv = (chiave: string, domanda: string, scelte: number, x: Partial<Conversazione> = {}): Conversazione => ({
+    chiave, tipo: 'chat', titolo: 't', sotto: '', chiede: true, messaggi: [], risposta: { tipo: 'chat', chat: chiave.slice(5) } as never, segnaposto: '',
+    scheda: { chi: 'Chat', domanda, scelte: Array.from({ length: scelte }, (_, i) => ({ testo: `s${i}` })), dettagli: [], segnaposto: '' },
+    ...x
+  })
+  it('breve: fino a 200 caratteri e 4 scelte («Scrivi tu» non conta); oltre, solo nella sezione Domande', () => {
+    expect(domandaBreve(conv('chat:p1', 'Rosso o blu?', 4))).toBe(true)
+    expect(domandaBreve(conv('chat:p1', 'Rosso o blu?', 5))).toBe(false)
+    expect(domandaBreve(conv('chat:p1', 'x'.repeat(201), 2))).toBe(false)
+    expect(domandaBreve(conv('chat:p1', `${'x'.repeat(198)}…`, 2))).toBe(false)
+    const conLibera = conv('chat:p1', 'Rosso o blu?', 4)
+    conLibera.scheda!.scelte.push({ testo: 'Type something.', libera: true })
+    expect(domandaBreve(conLibera)).toBe(true)
+    expect(domandaBreve({ ...conv('chat:p1', 'ok?', 2), chiede: false })).toBe(false)
+  })
+  it('a lato solo quelle di qui (il workspace aperto o la chat aperta sul telefono)', () => {
+    const tutte = [conv('chat:p1', 'Rosso o blu?', 2), conv('chat:p2', 'Verde?', 2), conv('chat:p3', 'x'.repeat(300), 2)]
+    expect(domandeALato(tutte, new Set(['chat:p1', 'chat:p3'])).map((c) => c.chiave)).toEqual(['chat:p1'])
+  })
+})
+
+describe('0.76.0: i dettagli dietro il «?» non rendono lunga una domanda', () => {
+  it('il caso della copia di prova: «Preferisci il rosso o il blu?» con 415 caratteri di contesto è breve', () => {
+    const c: Conversazione = {
+      chiave: 'chat:p1', tipo: 'chat', titolo: 't', sotto: '', chiede: true, messaggi: [], risposta: { via: 'scrivi', chat: 'p1' } as never, segnaposto: '',
+      scheda: { chi: 'Chat', domanda: 'Preferisci il rosso o il blu?', scelte: [{ testo: 'Rosso' }, { testo: 'Blu' }, { testo: 'Type something.', libera: true }, { testo: 'Chat about this' }], dettagli: [{ etichetta: 'a', testo: 'x'.repeat(43) }, { etichetta: 'b', testo: 'y'.repeat(372) }], segnaposto: '' }
+    }
+    expect(domandaBreve(c)).toBe(true)
+    expect(domandaBreve({ ...c, scheda: { ...c.scheda!, dettagli: [{ etichetta: 'a', testo: 'z'.repeat(1600) }] } })).toBe(false)
   })
 })

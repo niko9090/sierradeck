@@ -15,6 +15,11 @@ export function ascoltaSegnali(): void {
   try { window.gestore.segnali.suStato((f) => { fasi.set(f.sessione, f) }) } catch { collegato = false }
 }
 
+/** La fase dai segnali di una sessione (0.76.0): per l'indicatore delle chat. */
+export function faseDiSessione(sessione: string | undefined): FaseSessione | undefined {
+  return sessione === undefined ? undefined : fasi.get(sessione)
+}
+
 function faseDiPty(ptyId: string): FaseSessione | undefined {
   const p = Object.values(useLayoutStore.getState().panes).find((x) => x.ptyId === ptyId)
   return p?.sessionUuid === undefined ? undefined : fasi.get(p.sessionUuid)

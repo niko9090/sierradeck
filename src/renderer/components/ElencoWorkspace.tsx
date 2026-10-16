@@ -130,6 +130,8 @@ export function ElencoWorkspace({
             {s.elenco.map((x) => {
               const pane = x.sessionId !== undefined ? paneDiSessione.get(x.sessionId) : undefined
               const voce = pane !== undefined ? voci.find((y) => y.paneId === pane) : undefined
+              // Una chat, una riga (0.75.4): due specialisti sulla stessa sessione la mostravano due volte, con la stessa chiave.
+              if (voce !== undefined && governate.has(voce.paneId)) return null
               if (voce !== undefined) { governate.add(voce.paneId); return riga(voce, x.ruolo, x.colore, x.compito) }
               return (
                 <div key={x.id} className="elenco-ws__voce elenco-ws__voce--chiusa" title={x.ultimaAzione !== '' ? x.ultimaAzione : x.compito}>

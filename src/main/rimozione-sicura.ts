@@ -440,3 +440,21 @@ export function creaRimozione(deps: {
 
 /** Un id per i test e per i registri. */
 export function nuovoIdRimozione(): string { return randomUUID() }
+
+/**
+ * Le cartelle di chat (in `~/.claude/projects`) che stanno nel recupero di
+ * questo PC e non sono state rimesse a posto (0.76.0). L'arrivo dal Drive non
+ * le riporta: il 16/10 alle 07:36, tre minuti dopo aver mandato nel recupero
+ * le storie delle chat di prova, la sincronia le ha riscaricate tutte («ARRIVO:
+ * 10 chat da portare qui»), perché erano ancora sul Drive.
+ */
+export function slugChatInRecupero(dati: string, radiceProjects: string): Set<string> {
+  const radice = resolve(radiceProjects).toLowerCase()
+  const slugs = new Set<string>()
+  for (const c of leggiElencoRecupero(dati)) {
+    if (c.ripristinataIl !== undefined) continue
+    const originale = resolve(c.percorsoOriginale)
+    if (dirname(originale).toLowerCase() === radice) slugs.add(originale.slice(dirname(originale).length + 1))
+  }
+  return slugs
+}

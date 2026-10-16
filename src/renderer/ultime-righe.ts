@@ -252,6 +252,31 @@ export function consegnaPartita(righe: string[] | undefined, scritto?: string, p
   return undefined
 }
 
+/**
+ * Il testo appena scritto si vede nel campo (0.75.4): l'ultima riga «❯» in
+ * fondo comincia con lui, o mostra l'incolla («[Pasted text #N»). È il segno
+ * che Claude Code l'ha **letto**: solo allora l'Invio può partire da solo.
+ *
+ * La causa delle consegne da otto invii (c-26, 16/10, provata con Claude Code
+ * 2.1.301): se testo e Invio arrivano a Claude Code nello stesso pezzo — succede
+ * quando è occupato e legge in ritardo, per esempio mentre il riquadro si
+ * rimonta e ridisegna una conversazione lunga — un testo da 70 caratteri in su
+ * vale come incollato e l'Invio diventa parte dell'incolla: il testo resta nel
+ * campo e il primo Invio dopo non basta.
+ */
+export function testoNelCampo(righe: string[] | undefined, scritto: string): boolean {
+  if (righe === undefined || righe.length === 0) return false
+  const fondo = righe.slice(-RIGHE_DEL_FONDO)
+  const campi = fondo.filter((r) => /^\s*[│|]?\s*❯/.test(r))
+  const campo = campi[campi.length - 1]
+  if (campo === undefined) return false
+  const dentro = testoDelCampo(campo)
+  if (/\[Pasted text #\d+/.test(dentro)) return true
+  const inizio = scritto.trim().split(/\r?\n/)[0]?.trim().slice(0, 24) ?? ''
+  if (inizio === '' || dentro === '') return false
+  return dentro.startsWith(inizio.slice(0, Math.min(inizio.length, dentro.length)))
+}
+
 function testoDelCampo(r: string): string {
   return r.replace(/^\s*[│|]?\s*❯\s*/, '').replace(/[│|]\s*$/, '').trim()
 }

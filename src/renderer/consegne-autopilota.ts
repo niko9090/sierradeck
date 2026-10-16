@@ -103,6 +103,13 @@ export type Ponte = {
   /** Ogni passo della consegna nel registro su file (0.38.2). */
   registra?: (passo: string) => void
   /**
+   * Il testo scritto si vede nel campo (0.75.4): Claude Code l'ha letto. Solo
+   * allora parte l'Invio, così testo e Invio non arrivano mai nello stesso pezzo.
+   */
+  nelCampo?: (ptyId: string, scritto: string) => boolean
+  /** Il terminale tace da almeno `ms` (0.75.4): non sta ridisegnando. */
+  quieto?: (ptyId: string, ms: number) => boolean
+  /**
    * Lo schermo mostra una scelta (permesso, fiducia, ripresa…)? Allora non si
    * scrive alla cieca: la chat aspetta una risposta di Nicholas (0.38.2).
    */
@@ -411,7 +418,10 @@ function attendiEConsegna(
         }
         if (passato - lavoroDa < ATTESA_TURNO_MAX_MS + RIPROVA_MS) ponte.registra?.(`consegna ${c.id}: il turno dura da più di ${ATTESA_TURNO_MAX_MS / 60_000} minuti, torno alle regole di sempre`)
       }
-      if (ponte.prontoARicevere(ora.ptyId)) {
+      // Pronta e **quieta** (0.75.4): il segnale «aspetta» del turno dice pronta
+      // anche mentre il riquadro, appena rimontato, ridisegna una conversazione
+      // lunga; scrivere lì fa arrivare testo e Invio insieme (c-26, 8 invii).
+      if (ponte.prontoARicevere(ora.ptyId) && (ponte.quieto?.(ora.ptyId, QUIETE_SCRITTURA_MS) ?? true)) {
         ponte.registra?.(`consegna ${c.id}: pronta dopo ${Math.round(passato / 100) / 10} s`)
         lasciaTurno(c)
         scriviEInvia(ora.ptyId, c, ponte, dopo)
@@ -518,6 +528,11 @@ function scriviEInvia(
 /** Quante volte (da `PAUSA_INVIO_MS`) si aspetta la prontezza prima di premere invio comunque. */
 export const ATTESE_PRONTEZZA = TENTATIVI_INVIO * 10
 
+/** Quanto deve tacere il terminale prima di scrivere il testo (0.75.4). */
+export const QUIETE_SCRITTURA_MS = 700
+/** Quanto deve tacere dopo che il testo si vede nel campo, prima dell'Invio (0.75.4). */
+export const QUIETE_INVIO_MS = 300
+
 /** Prima del secondo modo, una pausa: il terminale finisce di disegnarsi. */
 export const QUIETE_SECONDO_MODO_MS = 3000
 
@@ -547,7 +562,13 @@ export function premiInvio(
     // ridisegna il campo con «[Pasted text #N +M lines]» e la prontezza puo'
     // non tornare in tempo: un invio in piu' su un campo pronto non fa danni,
     // un invio mancato ferma il lavoro.
-    if (!ponte.prontoARicevere(ptyId) && attese < ATTESE_PRONTEZZA) {
+    // **L'Invio solo dopo l'eco** (0.75.4): il testo si vede nel campo e il
+    // terminale tace. Senza, se Claude Code legge in ritardo, testo e Invio gli
+    // arrivano insieme: un testo lungo vale come incollato e l'Invio diventa un
+    // a capo (provato con Claude Code 2.1.301). Oltre l'attesa si preme lo stesso.
+    const eco = c?.testo === undefined || ponte.nelCampo === undefined || ponte.nelCampo(ptyId, c.testo)
+    const calmo = ponte.quieto === undefined || ponte.quieto(ptyId, QUIETE_INVIO_MS)
+    if ((!ponte.prontoARicevere(ptyId) || !eco || !calmo) && attese < ATTESE_PRONTEZZA) {
       premiInvio(ptyId, ponte, dopo, tentativi, attese + 1, c, secondoModo, insistenza)
       return
     }
@@ -566,7 +587,10 @@ export function premiInvio(
       // Il testo si e' perso: lo si riscrive prima del prossimo Invio. Mai
       // mentre la chat lavora (0.72.0): lì il testo mandato sta fra i messaggi
       // in coda di Claude Code, in alto, e riscriverlo ne aggiungeva un altro.
-      if (c?.testo !== undefined && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true) {
+      // Solo a schermo fermo (0.75.4): il 16/10 il testo era nel campo e lo si è
+      // riscritto quattro volte, mentre il riquadro si ridisegnava.
+      if (c?.testo !== undefined && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true &&
+        ponte.nelCampo?.(ptyId, c.testo) !== true && (ponte.quieto?.(ptyId, QUIETE_SCRITTURA_MS) ?? true)) {
         ponte.registra?.(`consegna ${c?.id ?? ''}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
         ponte.scrivi(ptyId, c.testo)
       }

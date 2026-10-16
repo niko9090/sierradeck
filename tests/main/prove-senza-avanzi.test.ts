@@ -81,3 +81,26 @@ describe('togliere un progetto di prova porta nel recupero anche le sue conversa
     expect(leggiElencoRecupero(s.dati)).toEqual([])
   })
 })
+
+describe('0.76.0: una cartella di chat nel recupero non torna dal Drive', () => {
+  it('le cartelle in ~/.claude/projects nel recupero, tranne quelle rimesse a posto; le altre cartelle no', async () => {
+    const { slugChatInRecupero, ripristinaDaRecupero } = await import('../../src/main/rimozione-sicura')
+    const dati = tmp('sd-dati-'); const radice = tmp('sd-claude-'); const progetti = tmp('sd-progetti-')
+    const storia = join(radice, 'C--p-SierraDeck-prova-c2'); mkdirSync(storia); writeFileSync(join(storia, 's.jsonl'), '{}\n')
+    const altra = join(radice, 'C--p-SierraDeck-prova-c3'); mkdirSync(altra); writeFileSync(join(altra, 's.jsonl'), '{}\n')
+    const cartella = join(progetti, 'SierraDeck-prova-c2'); mkdirSync(cartella)
+    expect(spostaCartellaInRecupero(dati, storia, { progetto: '', nome: 'C--p-SierraDeck-prova-c2', motivo: 'prova', quando: '2026-10-16T08:00:00.000Z' }).ok).toBe(true)
+    const e3 = spostaCartellaInRecupero(dati, altra, { progetto: '', nome: 'C--p-SierraDeck-prova-c3', motivo: 'prova', quando: '2026-10-16T08:00:01.000Z' })
+    expect(spostaCartellaInRecupero(dati, cartella, { progetto: 'p', nome: 'SierraDeck-prova-c2', motivo: 'prova', quando: '2026-10-16T08:00:02.000Z' }).ok).toBe(true)
+    expect([...slugChatInRecupero(dati, radice)].sort()).toEqual(['C--p-SierraDeck-prova-c2', 'C--p-SierraDeck-prova-c3'])
+    // Rimessa a posto: torna a poter arrivare dal Drive.
+    if (e3.ok) expect(ripristinaDaRecupero(dati, e3.id, '2026-10-16T09:00:00.000Z').ok).toBe(true)
+    expect([...slugChatInRecupero(dati, radice)]).toEqual(['C--p-SierraDeck-prova-c2'])
+  })
+
+  it('l’arrivo dal Drive salta quelle chat e lo dice', async () => {
+    const { readFileSync } = await import('node:fs')
+    const s = readFileSync('src/main/cassaforte/sincronia.ts', 'utf8')
+    expect(s).toContain("if (inRecupero.has(p.split('/')[1] ?? '')) { nelRecupero += 1; return false }")
+  })
+})

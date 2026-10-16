@@ -2432,3 +2432,53 @@ describe('le domande delle chat a cui risponde l’autopilota restano visibili (
     expect((await chiama('GET', `/domande?ap=${id}`)).dati).toEqual([])
   })
 })
+
+describe('0.76.0: gli specialisti anche per gli autopiloti che ci sono già', () => {
+  async function attendi(condizione: () => boolean): Promise<void> {
+    for (let i = 0; i < 80 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
+  }
+  it('nato con una chat sola: alla ripresa con lavoro in parti distinte diventa una squadra, con i ruoli', async () => {
+    let fase = 'nascita'
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({
+        testo: prompt.includes('va diviso fra')
+          ? (fase === 'nascita'
+            ? '{"compiti": [{"compito": "tutto", "ruolo": "sviluppo"}]}'
+            : '{"compiti": [{"compito": "notifiche dell app", "ruolo": "interfaccia"}, {"compito": "test delle notifiche", "ruolo": "collaudo", "dipendeDa": [0]}]}')
+          : '{"azione": "finito"}'
+      })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => archivio.leggi(id)?.sessionId !== undefined)
+    expect(archivio.leggi(id)?.chats).toEqual([])
+    expect(archivio.leggi(id)?.organizzazione).toContain('una chat sola')
+    archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito', compitiDaFare: ['notifiche dell app e i loro test'] })
+    fase = 'ripresa'
+    await chiama('POST', `/autopiloti/${id}/riprendi`)
+    await attendi(() => (archivio.leggi(id)?.chats.length ?? 0) > 0)
+    const dopo = archivio.leggi(id)!
+    expect(dopo.stato).toBe('lavoro')
+    expect(dopo.chats.map((c) => c.ruolo)).toEqual(['interfaccia'])
+    expect(dopo.compitiDaFare).toEqual(['test delle notifiche'])
+    expect(dopo.organizzazione).toContain('Lavoro diviso fra specialisti')
+    expect(dopo.decisioni.at(-1)?.cosa ?? dopo.decisioni.map((d) => d.cosa).join(' ')).toBeDefined()
+    expect(dopo.decisioni.some((d) => d.cosa.startsWith('alla ripresa divido il lavoro fra specialisti'))).toBe(true)
+  })
+
+  it('lavoro piccolo alla ripresa: resta una chat sola, e la scheda dice perché', async () => {
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('va diviso fra') ? '{"compiti": [{"compito": "una cosa", "ruolo": "sviluppo"}]}' : '{"azione": "finito"}' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => archivio.leggi(id)?.sessionId !== undefined)
+    archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito' })
+    await chiama('POST', `/autopiloti/${id}/riprendi`)
+    await attendi(() => archivio.leggi(id)?.stato === 'lavoro')
+    expect(archivio.leggi(id)?.chats).toEqual([])
+    expect(archivio.leggi(id)?.organizzazione).toBe('Lavoro piccolo: una chat sola, che fa tutto.')
+  })
+})

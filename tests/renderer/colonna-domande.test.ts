@@ -88,6 +88,7 @@ describe('il tasto «Domande» chiama quando c è qualcosa in attesa (0.37.3)', 
     expect(css).toMatch(/\.tasto--chiama\s*\{[^}]*animation/)
     expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.tasto--chiama\s*\{\s*animation: none/)
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
-    expect(app).toContain('decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })')
+    // 0.76.0: le domande brevi di qui stanno a lato, la colonna non si apre per loro.
+    expect(app).toContain('decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio, aLato })')
   })
 })

@@ -381,6 +381,16 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
+                // PC 0.75.4: ha promesso lavoro ed è fermo. Mai più una promessa muta.
+                if (!pensa && det?.fermoConPromessa == true) item {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                        Text(
+                            "● L'autopilota è fermo (${det.stato}).",
+                            color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { scope.launch { tenta("riprenderlo") { api.riprendiAutopilota(breve.id) } } }) { Text("Riprendi") }
+                    }
+                }
             }
             // Le sue domande non si rispondono da qui (0.38.0): stanno nella
             // linguetta «Domande» qui sotto, una per volta. La casella parla con lui.

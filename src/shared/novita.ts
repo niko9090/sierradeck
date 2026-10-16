@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.76.0',
+    righe: [
+      '**Se l’autopilota dice «procedo», procede.** Quando gli scrivi e la sua risposta porta un compito o un messaggio per la chat, riparte da solo anche se era fermo o finito; se aveva una domanda aperta, quello che hai scritto è la risposta. Se resta fermo dopo aver promesso, la scheda lo dice con «L’autopilota è fermo» e il tasto «Riprendi», su PC, pagina e app.',
+      '**Le consegne partono al primo colpo.** Il testo si scrive a terminale quieto e l’Invio parte solo quando il testo si vede nel campo: niente più otto invii o lo stesso messaggio ripetuto cinque volte. Provato con un Claude Code vero: 50 consegne su 50 al primo Invio.',
+      '**«Al lavoro» e «ferma» sono veri.** L’indicatore di ogni chat viene dai segnali di Claude Code (inizio e fine turno, domande, strumenti), lo stesso su PC, pagina e app; lo schermo vale solo quando i segnali mancano. Una chat che aspetta una risposta a scelte resta «aspetta te».',
+      '**Nella vista a elenco tutto sta al suo posto.** Le righe seguono l’ordine del workspace e non saltano più; la chat davanti resta quella che hai scelto, anche passando a un altro workspace e tornando. Il pannello dell’autopilota (dialogo, specialisti, domande) sta fisso a sinistra e non sparisce cambiando chat.',
+      '**Gli specialisti si vedono davvero.** Anche un autopilota nato con una chat sola, quando riparte con un lavoro nuovo, lo divide fra specialisti se ha parti distinte; gli specialisti sono in ordine di ruolo in ogni workspace. Per un lavoro piccolo resta una chat sola, e la scheda dice perché.',
+      '**Le domande brevi a lato.** Una domanda breve (fino a 200 caratteri e 4 scelte) di una chat del workspace compare accanto alla chat, con i tasti e «Scrivi tu»; sul telefono, in cima alla chat aperta. Le lunghe restano nella sezione Domande.',
+      '**Pulizie:** il riquadro «Documents» (una cartella di sistema) non si riapre più; le chat tolte da questo PC e messe nel recupero non tornano giù dal Drive.'
+    ]
+  },
+  {
     versione: '0.75.3',
     righe: [
       '**Chat delle prove anche dal Drive:** in Progetti → Spazio sul Drive c’è la proposta «Chat delle prove», con le chat usate per collaudare SierraDeck (cartelle «SierraDeck-prova-…» e prove degli hook). La confermi tu: vanno nel recupero per 30 giorni e «Annulla» le rimette. Non parte mai da sola.'

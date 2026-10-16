@@ -615,6 +615,8 @@ data class AutopilotaDettaglio(
     val domandaId: String? = null,
     /** Sta pensando alla tua ultima battuta. */
     val pensa: Boolean = false,
+    /** PC 0.75.4: ha promesso lavoro ed è fermo («L'autopilota è fermo: Riprendi»). */
+    val fermoConPromessa: Boolean = false,
     val compitiDaFare: List<String> = emptyList(),
     val chats: List<ChatGovernataBreve> = emptyList(),
     /** Il coordinatore e le sue sotto-chat (0.36.0). Assente nei computer piu' vecchi. */

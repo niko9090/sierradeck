@@ -289,3 +289,34 @@ export function conPreambolo(testi: string[], istruzioni: string): string {
   const p = preambolo(testi)
   return p === '' ? istruzioni : `${p}\n\n${istruzioni}`
 }
+
+/**
+ * Cosa fa il servizio dopo una risposta del dialogo che promette lavoro
+ * (0.75.4). Fino alla 0.75.3 ripartiva solo con `comando: "riprendi"`: il
+ * 15/10 alle 21:50 l'autopilota era «finito», Nicholas ha scritto, la risposta
+ * ha applicato un cambio («quasi tutto, ma non tutto») e la chat è rimasta
+ * ferma finché lui non ha riscritto «vai». Adesso un messaggio per la chat o
+ * un cambio applicato fanno ripartire da soli un autopilota fermo:
+ * - `riprendi`: era finito, sospeso o fallito;
+ * - `rispondi-domanda`: era in attesa della risposta a una sua domanda, e
+ *   quello che gli hai scritto (o il messaggio per la chat) è la risposta;
+ * - `forza-giro`: lavora, ma la chat è ferma: il giro parte a dialogo finito;
+ * - niente: «ferma», nessuna promessa, o già al lavoro davvero.
+ */
+export type Ripartenza = 'riprendi' | 'rispondi-domanda' | 'forza-giro' | undefined
+
+export function ripartenzaDopoDialogo(p: {
+  stato: Autopilota['stato']
+  perLaChat: boolean
+  cambioApplicato: boolean
+  comando?: EsitoDialogo['comando']
+  domandaAperta: boolean
+  chatFerme: number
+}): Ripartenza {
+  if (p.comando === 'ferma' || p.comando === 'riprendi' || p.comando === 'rispondi') return undefined
+  if (!p.perLaChat && !p.cambioApplicato) return undefined
+  if (p.stato === 'finito' || p.stato === 'sospeso' || p.stato === 'fallito') return 'riprendi'
+  if (p.stato === 'attesa') return p.domandaAperta ? 'rispondi-domanda' : 'riprendi'
+  if (p.stato === 'lavoro' && p.perLaChat && p.chatFerme > 0) return 'forza-giro'
+  return undefined
+}

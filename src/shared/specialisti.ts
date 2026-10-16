@@ -1,5 +1,5 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
-import { RUOLI, type Ruolo, type SchedaRuolo } from './ruoli-agenti'
+import { RUOLI, RUOLI_ORDINE, type Ruolo, type SchedaRuolo } from './ruoli-agenti'
 
 /**
  * Gli specialisti di un autopilota, visibili (0.73.0).
@@ -74,6 +74,8 @@ export function rigaChatSola(perche: 'piccolo' | 'senza-git' | 'limiti' | 'illeg
   return 'Lavoro piccolo: una chat sola, che fa tutto.'
 }
 
+const postoRuolo = (r: Ruolo | undefined): number => (r === undefined ? RUOLI_ORDINE.length : RUOLI_ORDINE.indexOf(r))
+const numeroChat = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1] ?? NaN); return Number.isFinite(n) ? n : 0 }
 const ruoliDi = (a: Autopilota): Ruolo[] => a.chats.map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)
 
 export function specialistiDi(a: Autopilota): Specialisti {
@@ -83,7 +85,9 @@ export function specialistiDi(a: Autopilota): Specialisti {
       // La riga salvata con la divisione, se non è del formato vecchio con il numero (0.73.1):
       // «3 specialisti» sopra un elenco di 4, visto il 15/10. Allora si rifà dai ruoli delle chat.
       riga: a.organizzazione !== undefined && !/^\d+ specialisti/.test(a.organizzazione) ? a.organizzazione : rigaFlotta(ruoliDi(a)),
-      elenco: a.chats.map((c) => ({
+      // Lo stesso ordine in ogni workspace (0.76.0, Nicholas: «ordine e coerenza»):
+      // per ruolo (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio), poi come sono nati.
+      elenco: [...a.chats].sort((x, y) => postoRuolo(x.ruolo) - postoRuolo(y.ruolo) || numeroChat(x.id) - numeroChat(y.id)).map((c) => ({
         id: c.id,
         ruolo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat',
         colore: c.ruolo !== undefined ? RUOLI[c.ruolo].colore : 'quieto',
