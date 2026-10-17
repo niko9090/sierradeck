@@ -252,3 +252,82 @@ typescript-reviewer e kotlin-reviewer sul mio diff: 14 segnalazioni, 9 difetti v
 - `npm test`: tutti verdi (vedi il commit); tre test di git erano andati in timeout solo mentre giravano in parallelo le chat della prova, da soli e nella suite dopo passano.
 - `npm run typecheck`: verde. `gradle testDebugUnitTest assembleDebug`: verde. Guardia delle cancellazioni: verde.
 - Dopo la prova: copia, servizio della copia ed Edge fermati, porte libere, nessun claude.exe rimasto, credenziali copiate svuotate. `note/prova-c49` (nella copia del ramo) si può togliere a mano.
+
+---
+
+# Dashboard dell'autopilota (c-50), 18/10 notte
+Ramo `ap/ap-f1e631f5/c-5`. **Non pubblicata e non installata**, versioni non toccate (0.79.0, app 2.79.0).
+
+## Com'era
+- Panoramica 2 (0.78.x): conversazione in una colonna stretta di 300 px che scorreva tutta insieme, campo compreso (con una conversazione lunga il campo finiva sotto il bordo).
+- Nessun riassunto di chi lavora: solo le schede di «Adesso», con le righe dello schermo.
+- Quando uno specialista finiva o la Revisione decideva, la conversazione non diceva niente: c'erano solo le note tecniche in «Cosa è successo» (rami, id delle chat).
+
+## Un lavoro fatto due volte
+- La stessa richiesta era arrivata anche a c-4 (consegna c-49), che l'ha fatta in parallelo sul suo ramo.
+- Me ne sono accorto a metà: avevo già fatto PC, pagina, app, test e una prova dal vero.
+- Per non avere due dashboard e conflitti su main ho **unito `c-4` nel mio ramo**:
+  - ho tenuto la sua struttura, più solida della mia: le righe corte vengono da un campo `traguardo` scritto dal servizio, non lette dal testo del diario;
+  - ci ho portato solo quello che a lei mancava.
+- Quando i due rami arrivano su main, il mio contiene già il suo.
+
+## Cosa aggiunge c-50 sopra c-49
+- **«adesso» in ogni riga di «Al lavoro»**: cosa fa la chat in questo momento, in parole semplici, dall'ultimo strumento nei segnali di Claude Code. Mai dalle sue parole.
+  - Esempi: «fa girare i test», «legge il codice», «modifica il codice (App.tsx)», «salva il lavoro», «aspetta il tuo permesso: fa girare i test».
+  - Bash si legge dal comando, non dalla descrizione scritta dalla chat.
+  - Niente «adesso» se la chat ha finito il turno, se tace da 10 minuti (Stop perso) o se lavora su un altro PC.
+  - Su PC, pagina e app (`src/shared/attivita-chat.ts`, scheda `panoramica-conversazione-e-al-lavoro-0-79-0.md`).
+- **Segnali anche all'inizio dei comandi lunghi** (PreToolUse per Bash, PowerShell, Task, Agent): «fa girare i test» si vede mentre girano, non quando sono finiti. Il segnale porta anche il comando.
+- **Pagina**:
+  - il campo ancorato è compatto (prima 190 px coprivano la fine della conversazione);
+  - all'apertura dell'autopilota si vedono subito «Al lavoro», la conversazione e il campo.
+- **«L'autopilota è fermo (finito). Riprendi»** non compare più dopo una promessa mantenuta. Nella prova: «Riparto…», due chat aperte e approvate, finito, eppure la riga restava.
+- Il test di `OspiteAzioniChat` ora regge le righe CRLF delle copie di lavoro su Windows.
+
+## Prova dal vero (copia di prova)
+- **Come:**
+  - `SIERRADECK_PROVA` in `note/prova-dash` del ramo. Porte 47660/47661 e debug 9343, perché le 47650/47651 erano della copia di c-4.
+  - Claude Code a parte (`CLAUDE_CONFIG_DIR`, credenziali senza refreshToken, poi svuotate).
+  - Workspace e progetto git **SierraDeck-prova-dash**, con un **autopilota vero** (non sospeso): due compiti (somma.js, media.js), poi altri due dati dal campo della dashboard (prodotto.js, differenza.js).
+  - Clic veri via DevTools; pagina in Edge senza finestra a 412×915.
+- **Foto:** in `note/foto-0-79-0-c50/` della cartella principale del progetto.
+
+| Foto | Cosa si vede |
+|---|---|
+| `03-pc-dashboard` | conversazione grande a sinistra, campo in fondo; «Al lavoro · 2» con le due Sviluppo |
+| `04-pc-riserva` | una chat ferma sulla domanda di fiducia: ◆ «aspetta una tua scelta», come «Adesso»; nella conversazione «Sviluppo ha finito … ora lo controlla la Revisione» e «Revisione: … va bene, unito al resto» |
+| `05-pc-scritto` | messaggio mandato dal campo della dashboard (campo a y 888–952 su 1000, sempre in vista), la risposta dell'autopilota arriva e fa ripartire la chat |
+| `20-pc-al-lavoro-*` | versione unita: «Al lavoro» con «adesso» che cambia da solo |
+| `40-pc-finale` | fine: righe corte dei traguardi nella conversazione, niente «fermo (finito)» |
+| `11-pagina-dashboard`, `32-pagina-conversazione` | telefono: «Al lavoro», conversazione con le righe corte (ore locali), campo sopra la fascia |
+
+- **Visto cambiare da solo** (registro del giro, una lettura ogni 8 s):
+  - una Revisione: «ci pensa» → «legge il codice» → «fa girare i test» → «ha finito il turno»;
+  - con la versione unita: «guarda le modifiche» → «legge il codice» → «fa girare i test» → «salva il lavoro».
+- **Difetti trovati provando, corretti con test:**
+  1. una chat ferma sulla domanda di fiducia non manda segnali, e il riassunto diceva «al lavoro» mentre «Adesso» diceva «aspetta te»: ora c'è la riserva dello schermo, come per «Adesso»;
+  2. una riga «ferma» aveva il pallino verde;
+  3. sul telefono il campo copriva la fine della conversazione;
+  4. «fermo (finito). Riprendi» dopo una promessa mantenuta.
+- **Visti e non corretti** (fuori da questa consegna, da decidere):
+  - **l'autopilota, ricevuti compiti nuovi dal dialogo, ha messo in coda «Revisione: rivedi il ramo ap/… (commit …)» come compiti normali.**
+    - Le chat Sviluppo li hanno fatti e poi è arrivata la Revisione vera: doppia revisione.
+    - Nelle righe corte compaiono nomi di rami, perché vengono dal testo del compito.
+    - Anche i due compiti nuovi sono nati senza ruolo («Una chat»).
+    - È il coordinatore del servizio (`ruoliCompiti` dei compiti aggiunti col dialogo).
+  - L'autopilota ha chiuso con «unione finale del ramo … non riuscita» ed è restato «da verificare · criteri 4/5». L'aveva già visto c-49 nella 0.78.0: cosa del servizio.
+- **Non provato dal vero:** l'app Android (niente emulatore su questo PC). Compila e i suoi 357 test passano, compresi i casi scritti dal PC con «adesso».
+- **Pulizia:**
+  - copia, servizio della copia, Edge e il claude.exe della copia fermati; porte 47660/47661/9343/9344 libere;
+  - la cartella `note/prova-dash`, con le chat e i worktree di prova, tolta;
+  - il servizio vero (47630) e la copia di c-4 non toccati.
+
+## Revisione con ECC
+ecc:typescript-reviewer sul mio diff prima dell'unione: nessun difetto bloccante, 1 medio e 3 piccoli veri, tutti corretti con test (dettaglio in `prova-ecc.md`).
+
+## Controlli (dopo l'unione)
+- `npm test`: 4182 verdi (2 saltati).
+- `npm run typecheck`: verde.
+- `gradle testDebugUnitTest assembleDebug`: verde, 357 test.
+- Guardia delle cancellazioni: verde.
+
