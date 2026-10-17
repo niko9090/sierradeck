@@ -217,6 +217,34 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("chat", chat); put("nome", nome)
         }))
 
+    // ─── la gestione delle chat (PC 0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero ───
+    private fun sessioniJson(sessioni: List<String>) = kotlinx.serialization.json.JsonArray(sessioni.map { kotlinx.serialization.json.JsonPrimitive(it) })
+
+    suspend fun spazioChat(sessioni: List<String> = emptyList()): VistaSpazioChat =
+        json.decodeFromString(corpoTesto("/api/chat/gestione/spazio", oggetto { if (sessioni.isNotEmpty()) put("sessioni", sessioniJson(sessioni)) }))
+
+    suspend fun azioneChat(azione: String, sessioni: List<String>, ancheDalDrive: Boolean = false): EsitoAzioniChat =
+        json.decodeFromString(corpoTesto("/api/chat/gestione/azione", oggetto {
+            put("azione", azione); put("sessioni", sessioniJson(sessioni)); put("ancheDalDrive", ancheDalDrive)
+        }))
+
+    suspend fun archiviateChat(): ArchiviateChat = json.decodeFromString(corpoTesto("/api/chat/gestione/archiviate", oggetto { }))
+
+    suspend fun recuperoChat(): RecuperoChat = json.decodeFromString(corpoTesto("/api/chat/gestione/recupero", oggetto { }))
+
+    suspend fun ripristinaDalRecupero(id: String): MessaggioChat =
+        json.decodeFromString(corpoTesto("/api/chat/gestione/ripristina", oggetto { put("id", id) }))
+
+    /** Primo passo di «Svuota il recupero adesso»: il PC dà il gettone e dice cosa si perde. */
+    suspend fun chiediSvuotaRecupero(ancheDalDrive: Boolean): RispostaSvuota =
+        json.decodeFromString(corpoTesto("/api/chat/gestione/svuota", oggetto { put("ancheDalDrive", ancheDalDrive) }))
+
+    /** Secondo passo: il gettone e la parola scritta. */
+    suspend fun svuotaRecupero(ancheDalDrive: Boolean, gettone: String, frase: String): RispostaSvuota =
+        json.decodeFromString(corpoTesto("/api/chat/gestione/svuota", oggetto {
+            put("ancheDalDrive", ancheDalDrive); put("gettone", gettone); put("frase", frase)
+        }))
+
     // ─── il nome scelto di questo computer (PC 0.52.4) ───
     suspend fun nomePc(nome: String): NomeComputer =
         json.decodeFromString(corpoTesto("/api/nome-pc", oggetto { put("nome", nome) }))
@@ -653,7 +681,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // Vale anche quando passa dal ponte: lì la rotta è dentro il corpo.
             "/api/drive/pannello", "/api/drive/azione",
             // PC 0.68.0: l'elenco delle conversazioni e l'avvio in sottofondo di un altro PC.
-            "/api/sessioni", "/api/sessioni/riprendi", "/api/sottofondo/avvia"
+            "/api/sessioni", "/api/sessioni/riprendi", "/api/sottofondo/avvia",
+            // PC 0.79.0: lo spazio misura ogni chat sul disco, e svuotare il recupero cancella davvero.
+            "/api/chat/gestione/spazio", "/api/chat/gestione/azione", "/api/chat/gestione/svuota"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

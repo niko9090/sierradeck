@@ -11,6 +11,7 @@ import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
 import { ChatAutopilota } from './ChatAutopilota'
 import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
+import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
 
 /**
@@ -356,6 +357,7 @@ function SchedaAdesso({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: numb
         ) : null}
       </button>
       {s.specialista !== true && s.sessione !== undefined ? <TastoSoloMia s={s} onSoloMia={onSoloMia} /> : null}
+      {s.sessione !== undefined && s.suPc === undefined ? <AzioniChat sessione={s.sessione} titolo={s.titolo} classe="pan2-gestione" /> : null}
     </div>
   )
 }
@@ -373,6 +375,7 @@ function SchedaChatFerma({ s, ora, onApri, onSoloMia }: { s: SchedaVista; ora: n
         <span className="pan2-scheda__azione">{s.ultimaAzione !== '' ? s.ultimaAzione : 'ferma'}</span>
       </button>
       {s.sessione !== undefined ? <TastoSoloMia s={s} onSoloMia={onSoloMia} /> : null}
+      {s.sessione !== undefined && s.suPc === undefined ? <AzioniChat sessione={s.sessione} titolo={s.titolo} classe="pan2-gestione" /> : null}
     </div>
   )
 }

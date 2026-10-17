@@ -16,6 +16,7 @@ import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista } from '../preload'
+import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
@@ -355,6 +356,19 @@ declare global {
           modello: string
           togliToken?: boolean
         }) => Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }>
+      }
+      /** La gestione delle chat (0.79.0): le stesse risposte di /api/chat/gestione/… */
+      chatGestione: {
+        spazio: () => Promise<VistaSpazio>
+        selezione: (sessioni: string[]) => Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[] }>
+        azione: (r: { azione: AzioneChat; sessioni: string[]; ancheDalDrive?: boolean; nome?: string }) => Promise<EsitoAzioni>
+        archiviate: () => Promise<ChatArchiviata[]>
+        recupero: () => Promise<{ chat: ChatInRecupero[]; byte: number }>
+        ripristina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
+        chiediSvuota: (ancheDalDrive: boolean) => Promise<{ ok: boolean; messaggio: string; gettone?: string; scadeIl?: string; chat?: number; byte?: number; frase?: string }>
+        svuota: (p: { gettone: string; frase: string; ancheDalDrive: boolean }) => Promise<{ ok: boolean; messaggio: string; byte?: number }>
+        orfane: () => Promise<{ etichette: string[]; archiviate: string[] }>
+        onCambiata: (cb: () => void) => () => void
       }
       etichette: {
         leggi: () => Promise<Record<string, string>>

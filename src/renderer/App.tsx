@@ -25,6 +25,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
+import { ModaleGestioneChat, type SchedaGestione } from './components/ModaleGestioneChat'
 import { ModaleDoveVive } from './components/OspiteChat'
 import { VistaProgetti } from './components/VistaProgetti'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
@@ -799,6 +800,13 @@ export function App(): React.JSX.Element {
 
   const [modale, setModale] = useState<'sessioni' | 'istantanee' | 'ripresa' | 'accesso' | 'preparazione' | undefined>(undefined)
   const [preparazione, setPreparazione] = useState<StatoPreparazione | undefined>(undefined)
+  // «Spazio delle chat» (0.79.0): si apre da «Riprendi», da «Chat e workspace» e da ovunque mandi l'evento.
+  const [gestioneChat, setGestioneChat] = useState<SchedaGestione | undefined>(undefined)
+  useEffect(() => {
+    const apri = (e: Event): void => { const d = (e as CustomEvent<unknown>).detail; setGestioneChat(d === 'archiviate' || d === 'recupero' ? d : 'spazio') }
+    window.addEventListener('sierradeck:gestione-chat', apri)
+    return () => window.removeEventListener('sierradeck:gestione-chat', apri)
+  }, [])
   // Un progetto sul Drive in mano a un altro PC, o un testimone appena ceduto.
   const [avvisoProgetto, setAvvisoProgetto] = useState<AvvisoProgetto | undefined>(undefined)
   useEffect(() => window.gestore.progetti.suAvviso(setAvvisoProgetto), [])
@@ -1733,6 +1741,7 @@ export function App(): React.JSX.Element {
       ) : null}
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
+      {gestioneChat !== undefined ? <ModaleGestioneChat scheda={gestioneChat} onChiudi={() => setGestioneChat(undefined)} /> : null}
       {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
       {pannelloDrive ? <VistaProgetti onChiudi={() => setPannelloDrive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}

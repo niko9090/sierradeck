@@ -4276,7 +4276,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* La linguetta «Istruzioni» (0.41.0): ogni consegna intera, selezionabile. */
 .istruzioni__spiega { margin: 0 0 var(--s2); color: var(--testo-quieto); font-size: var(--t1); line-height: 1.4; }
-.istruzione { border: 1px solid var(--incisione); border-radius: 6px; margin-bottom: var(--s2); background: var(--chassis); }
+.istruzione { border: 1px solid var(--luce-incisione); border-radius: 6px; margin-bottom: var(--s2); background: var(--chassis); }
 .istruzione__testa { display: flex; gap: var(--s2); align-items: baseline; flex-wrap: wrap; padding: var(--s1) var(--s2); cursor: pointer; }
 .istruzione__chat { color: var(--testo); font-weight: 600; }
 .istruzione__prima { flex: 1 1 100%; min-width: 0; color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -5082,3 +5082,34 @@ button.pan2-compito:hover, button.pan2-compito:focus-visible { border-color: var
 .vista-interruttore__voce:hover { color: var(--testo); background: var(--chassis-alto); }
 .vista-interruttore__voce--attiva, .vista-interruttore__voce--attiva:hover { background: var(--accento, var(--blu)); color: var(--fondo); font-weight: 600; }
 .vista-interruttore .aiuto, .vista-interruttore [class*=aiuto] { margin: 0 4px 0 0; }
+
+/* La gestione delle chat (0.79.0): le tre azioni di una chat e «Spazio delle chat». */
+.gc-azioni { position: relative; display: inline-flex; }
+.gc-menu {
+  position: absolute; top: 100%; right: 0; z-index: 40; display: flex; flex-direction: column; gap: 6px;
+  min-width: 300px; padding: 8px 10px; background: var(--chassis); border: 1px solid var(--luce-incisione); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.gc-menu__voce { display: flex; align-items: center; gap: 8px; }
+.gc-menu__voce .tasto { min-width: 104px; }
+.gc-menu__breve { flex: 1; white-space: nowrap; }
+.gc-spunta { display: flex; align-items: center; gap: 6px; }
+.gc-rifiuti { margin: 4px 0 0; padding-left: 18px; color: var(--ambra); font-size: var(--t1); line-height: 1.5; }
+.gc-errore { color: var(--rosso); font-size: 12px; padding-bottom: 8px; }
+.gc-nota { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; margin-bottom: 8px; border-left: 2px solid var(--accento); background: color-mix(in srgb, var(--accento) 8%, transparent); }
+.gc-nota .collegamento { align-self: flex-end; }
+.gc-linguette { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--incisione); }
+.gc-linguetta { background: none; border: none; border-bottom: 2px solid transparent; color: var(--testo-quieto); padding: 6px 10px; cursor: pointer; font: inherit; }
+.gc-linguetta--qui { color: var(--testo); border-bottom-color: var(--accento); }
+.gc-barra { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.gc-voce { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--incisione); cursor: default; }
+label.gc-voce { cursor: pointer; }
+.gc-voce--scelta { background: color-mix(in srgb, var(--accento) 10%, transparent); }
+.gc-voce__testo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gc-voce__testo .misura { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-voce__titolo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-voce__no { color: var(--ambra); font-size: var(--t1); }
+.gc-voce__byte { font-variant-numeric: tabular-nums; color: var(--testo); min-width: 72px; text-align: right; }
+.pan2-gestione { position: absolute; top: 6px; right: 86px; }
+.pan2-chatferma .pan2-gestione { top: auto; bottom: 4px; }
+.pan2-gestione .comando-riquadro { font-size: 12px; }

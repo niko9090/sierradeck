@@ -226,6 +226,8 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     var mostraRiprendi by remember { mutableStateOf(false) }
     /** Una conversazione che vive su un altro PC, a cui scrivere in sottofondo (PC 0.58.4). */
     var sottofondoPer by remember { mutableStateOf<SessioneRipresa?>(null) }
+    // «Spazio delle chat» (PC 0.79.0): si apre da «Riprendi una conversazione».
+    var mostraSpazio by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     // Tutte le chat del computer, raggruppate per workspace: prima quello
     // davanti, poi gli altri. Dentro ogni gruppo prima le vive, poi quelle
@@ -388,6 +390,8 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     if (mostraWorkspace) GestioneWorkspace(api, workspace, nomePc, onChiudi = { mostraWorkspace = false })
     if (mostraRiprendi) SceltaSessione(
         api,
+        nomePc = nomePc,
+        onSpazio = { mostraRiprendi = false; mostraSpazio = true },
         onScegli = { s ->
             // Vive su un altro PC (PC 0.58.4): le si scrive da qui, e là parte in sottofondo.
             if (!s.altrove.isNullOrBlank() && !s.altrovePc.isNullOrBlank()) sottofondoPer = s
@@ -396,6 +400,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         onChiudi = { mostraRiprendi = false }
     )
     sottofondoPer?.let { s -> DialogoSottofondo(api, s, onChiudi = { sottofondoPer = null }) }
+    if (mostraSpazio) SpazioDelleChat(api, nomePc, onChiudi = { mostraSpazio = false })
 }
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
@@ -452,6 +457,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var menuAperto by remember { mutableStateOf(false) }
     var rinominando by remember { mutableStateOf(false) }
     var chiudendo by remember { mutableStateOf(false) }
+    // Archivia ed Elimina dal PC (PC 0.79.0), con Chiudi e il loro «?».
+    var gestendo by remember { mutableStateOf(false) }
     // ⏸ e ⇄ del riquadro sul PC (0.55.0).
     var addormentando by remember { mutableStateOf(false) }
     var spostando by remember { mutableStateOf(false) }
@@ -590,6 +597,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     DropdownMenuItem(text = { Text(if (chat.pin == null) "Proteggi con il PIN…" else "Togli il PIN…") }, onClick = { menuAperto = false; pinDa = chat.pin == null })
                     DropdownMenuItem(text = { Text("Ospitata da… (quale PC la fa girare)") }, onClick = { menuAperto = false; ospite = true })
                     DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
+                    if (!chat.sessione.isNullOrBlank()) DropdownMenuItem(text = { Text("Archivia o elimina dal PC…") }, onClick = { menuAperto = false; gestendo = true })
                 }
             }
         }
@@ -794,6 +802,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
         )
     }
     val titoloChat = chat.titolo.ifBlank { chat.cwd }
+    val sessioneChat = chat.sessione
+    if (gestendo && !sessioneChat.isNullOrBlank()) AzioniChatDialogo(api, sessioneChat, titoloChat, nomePc, onFatto = {}, onChiudi = { gestendo = false })
     if (chiudendo) {
         DialogoConferma(AzioniTelefono.confermaChiudi(titoloChat), pericolo = true, onSi = {
             chiudendo = false
@@ -994,7 +1004,10 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
  * questa finestra.
  */
 @Composable
-private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
+private fun SceltaSessione(api: Api, nomePc: String?, onSpazio: () -> Unit, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
+    // Le tre azioni di una conversazione (PC 0.79.0): «⋯» sulla riga.
+    var azioniPer by remember { mutableStateOf<SessioneRipresa?>(null) }
+    var rileggi by remember { mutableStateOf(0) }
     var sessioni by remember { mutableStateOf<List<SessioneRipresa>?>(null) }
     // Un guasto non e' «niente da riprendere»: prima le due cose si
     // confondevano, e un computer che non rispondeva sembrava senza storia.
@@ -1002,7 +1015,7 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
     // Le chat senza nome (PC 0.60.0): fuori dall'elenco, contate; la casella le rimette.
     var senzaNome by remember { mutableStateOf(false) }
     var nascoste by remember { mutableStateOf(0) }
-    LaunchedEffect(senzaNome) {
+    LaunchedEffect(senzaNome, rileggi) {
         sessioni = try { api.sessioni(senzaNome).also { nascoste = it.nascoste }.sessioni } catch (e: Exception) {
             guasto = "Non riesco a leggere le conversazioni dal computer: ${e.message ?: "non risponde"}. Chiudi e riprova fra poco."
             emptyList()
@@ -1043,14 +1056,16 @@ private fun SceltaSessione(api: Api, onScegli: (SessioneRipresa) -> Unit, onChiu
                             }
                             if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                         }
+                        if (s.altrove.isNullOrBlank()) TextButton(onClick = { azioniPer = s }) { Text("⋯ Chiudi, archivia, elimina", fontSize = 12.sp) }
                         HorizontalDivider(color = Banco.incisione)
                     }
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = { TextButton(onClick = onSpazio) { Text("Spazio delle chat") } },
         dismissButton = { TextButton(onClick = onChiudi) { Text("Chiudi") } }
     )
+    azioniPer?.let { s -> AzioniChatDialogo(api, s.id, s.titolo.ifBlank { s.cwd }, nomePc, onFatto = { rileggi += 1 }, onChiudi = { azioniPer = null }) }
 }
 
 /** Un click semplice su una riga di elenco. */

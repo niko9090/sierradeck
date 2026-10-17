@@ -90,6 +90,7 @@ export const FUNZIONI: readonly Funzione[] = [
   // Chat e workspace
   { funzione: 'Nuova chat', dove: 'chat', prima: '+ Nuova chat' },
   { funzione: 'Riprendi una conversazione', dove: 'chat', prima: '▣ Riprendi' },
+  { funzione: 'Spazio delle chat: Chiudi, Archivia, Elimina dal PC, archiviate e recupero di 30 giorni', dove: 'chat', prima: 'nuova (0.79.0); prima solo «Butta» nel Riprendi del PC' },
   { funzione: 'Cambia, crea, rinomina ed elimina i workspace', dove: 'chat', prima: 'linguette dei workspace, ⋯, pagina e app: Computer → Workspace' },
   { funzione: 'Usate da altri PC', dove: 'chat', prima: '⧉ Usate da altri PC' },
   { funzione: 'Nuova finestra', dove: 'chat', prima: '⧉ Finestra' },
