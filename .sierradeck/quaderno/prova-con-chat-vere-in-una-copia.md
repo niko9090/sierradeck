@@ -24,3 +24,13 @@ Usato per la 0.79.0 (gestione delle chat). Serve ogni volta che una funzione toc
   - Uno script che cerca testo con `\n` non lo trova.
   - Leggi traducendo `\r\n` in `\n`, poi riscrivi con lo stesso fine riga.
   - Gli script vanno scritti con Write, non in un heredoc di Bash: Bash si mangia i backslash.
+
+## Clic veri nella finestra e sulla pagina (17/10, interfaccia 0.79.0)
+- **La copia intera:** `npm run build`, poi `electron.exe . --remote-debugging-port=9333` con `SIERRADECK_PROVA=<cartella>\dati` e `CLAUDE_CONFIG_DIR=<cartella>\claude`. Le porte della copia diventano 47650/47651 da sole (`portePerLaProva`). Controlla nel registro «in ascolto sulla porta 47650».
+- **Il pilota:** basta Node 24 (ha `WebSocket` e `fetch`): `/json` della porta 9333, poi `Runtime.evaluate` per cliccare e `Page.captureScreenshot` per le foto. Niente Playwright.
+- **Il «telefono»:** `dispositivi.json` nella cartella dati con `segno = sha256(chiave)`. Edge `--headless=new --remote-debugging-port=9334` sulla pagina 47650, `localStorage['sierradeck.chiave']` e `Emulation.setDeviceMetricsOverride` a 412×915.
+- **Trappole:**
+  - `execFileSync('claude', args, { shell: true })` taglia il prompt alla prima parola. Usa il percorso di `claude.exe` senza shell.
+  - Un campo React non si scrive con `el.value = …`: usa il setter nativo di `HTMLInputElement.prototype.value`, poi un evento `input`.
+  - La pagina non si ridisegna mentre un campo ha il fuoco. Un tasto che dipende da quello che scrivi va acceso o spento dal suo `oninput`.
+  - Fermare la copia: `taskkill /T /F` sulla radice dei processi con `remote-debugging-port=9333`, poi controlla che le porte 47650/47651 siano libere.

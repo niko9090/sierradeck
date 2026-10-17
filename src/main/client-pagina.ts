@@ -26,6 +26,8 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE } from '@shared/menu-principale'
+import { FRASE_SVUOTA, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
+import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
@@ -608,6 +610,14 @@ export function paginaClient(): string {
   .spunta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--testo-quieto); }
   .spunta input { width: 20px; height: 20px; }
 
+  /* La gestione delle chat (0.79.0). */
+  .gc-riga { flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .gc-tasto { display: inline-flex; align-items: center; gap: 2px; }
+  .gc-voce { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--incisione, #2a2e33); }
+  .gc-voce input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 2px; }
+  .gc-voce__testo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+  .gc-no { font-size: var(--t1); color: var(--ambra); }
+  .gc-rifiuti { margin: 6px 0 0; padding-left: 18px; font-size: var(--t1); color: var(--ambra); }
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
   .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
@@ -635,6 +645,16 @@ var CONFERME = ${JSON.stringify({
 var PARTENZE = ${JSON.stringify(PARTENZE)}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
+// La gestione delle chat (0.79.0): i testi del PC, da src/shared/gestione-chat-vista.ts. §N è il nome, §B lo spazio.
+var GC = ${JSON.stringify({
+  testi: TESTI_AZIONI_CHAT, frase: FRASE_SVUOTA, ordini: ORDINI_SPAZIO,
+  conferme: {
+    chiudi: confermaChiudiChat('§N'), archivia: confermaArchiviaChat('§N'), archiviaN: confermaArchiviaChat('§N', 2),
+    elimina: confermaEliminaChat('§N', '§B', false), eliminaDrive: confermaEliminaChat('§N', '§B', true),
+    eliminaN: confermaEliminaChat('§N', '§B', false, 2), eliminaDriveN: confermaEliminaChat('§N', '§B', true, 2),
+    svuota: confermaChiediSvuota(false), svuotaDrive: confermaChiediSvuota(true)
+  }
+})}
 // Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
 var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
@@ -1562,6 +1582,8 @@ function impronta(s) {
     panoramicaAp ? JSON.stringify(panoramicaAp) : '',
     // I «▸» aperti della Panoramica 2 (0.78.0): senza, il tocco non ridisegnava (provato in Edge il 16/10).
     JSON.stringify(panAperte),
+    // La gestione delle chat (0.79.0): linguette, scelte, conferme, svuota.
+    gcImpronta(),
     apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
@@ -1872,6 +1894,7 @@ function pannello(s) {
             : '<button onclick="chiediAzione(\\'dormi\\', \\'' + escJs(aperta.id) + '\\')">Metti a dormire</button>'}
           <button class="pericolo" onclick="chiediAzione('chiudi', '\${escJs(aperta.id)}')">Chiudi la chat…</button>
         </div>
+        \${aperta.sessione ? '<div class="riga gc-riga">' + gcTastiHtml(aperta.sessione, aperta.titolo || aperta.cwd, 'c-' + aperta.id) + '</div>' : ''}
         \${((s.workspace && s.workspace.nomi) || []).length > 1 ? \`
         <div class="riga">
           <select id="sposta-\${esc(aperta.id)}" style="flex:1">
@@ -2005,7 +2028,8 @@ function pannello(s) {
         : (sessioniViste || []).slice(0, 20).map((x, i) =>
             '<button class="cartella" onclick="riprendiSessione(' + i + ')">' +
             esc(x.titolo) + (x.altrove ? ' <span class="sotto">· su ' + esc(x.altrove) + (x.altroveAcceso === true ? ' · acceso' : x.altroveAcceso === false ? ' · spento' : '') + '</span>' : '') +
-            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? (x.altrovePc ? ' (vive su quel PC: tocca per scriverle, parte là in sottofondo)' : ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)') : '') + '</span></button>').join('')}
+            '<br><span class="sotto">' + esc(x.cwd) + (x.altrove ? (x.altrovePc ? ' (vive su quel PC: tocca per scriverle, parte là in sottofondo)' : ' (cartella di quel PC: qui non si apre, scrivile da Computer → Altri computer)') : '') + '</span></button>' +
+            (x.altrove ? '' : '<div class="riga gc-riga"><button class="riga-altro" data-s="' + esc(x.id) + '" onclick="gcApriAzioni(this.dataset.s)" aria-expanded="' + (gcAzioniDi === x.id) + '" aria-label="Chiudi, archivia o elimina">⋯ ' + (gcAzioniDi === x.id ? 'meno' : 'gestisci') + '</button>' + (gcAzioniDi === x.id ? gcTastiHtml(x.id, x.titolo, 's' + i) : '') + '</div>')).join('')}
       <div class="riga"><button onclick="apriPannello('sessioni')">Chiudi</button></div>
     </div>\`
 
@@ -2381,10 +2405,12 @@ function pannello(s) {
       (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
     chat: driveScollegatoHtml(s) +
       (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
+      (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
       (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
       '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
+      '<button onclick="apriPannello(\\'chatgestione\\')">Spazio delle chat</button>' +
       '<button onclick="apriPannello(\\'negozio\\')">Negozio</button></div>' +
-      elencoSessioni + (pannelloAperto === 'negozio' ? negozioHtml() : '') + paneWorkspace,
+      elencoSessioni + (pannelloAperto === 'chatgestione' ? gestioneChatHtml() : '') + (pannelloAperto === 'negozio' ? negozioHtml() : '') + paneWorkspace,
     file: fileHtml(),
     salute:
       '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Gli altri computer</button>' +
@@ -3551,6 +3577,7 @@ window.apriPannello = async (quale) => {
     await leggiSessioni()
   }
   if (pannelloAperto === 'consumi') await leggiConsumi()
+  if (pannelloAperto === 'chatgestione') { gcNota = null; gcConfermaAp = null; gcSvuota = null; await gcLeggi() }
   if (pannelloAperto === 'salute') await leggiSalute()
   if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio(); if (negozioFamiglia === 'mcp') negozioProvaMcp() }
   if (pannelloAperto === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; await leggiFileProgetti() }
@@ -3850,6 +3877,275 @@ window.rinominaWorkspace = async () => {
   try { await chiedi('/api/workspace/rinomina', { nome: vecchio, nuovo: nuovo }); campo.value = '' }
   catch (e) { notaGlobale = 'Non l’ho rinominato: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
+}
+
+/**
+ * La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC per ogni
+ * chat, «Spazio delle chat» con la scelta di più chat e il totale, le
+ * Archiviate e il Recupero (30 giorni) con Ripristina, «Svuota il recupero
+ * adesso» in due passi. Gli stessi testi del PC (GC, da
+ * src/shared/gestione-chat-vista.ts) e le stesse risposte
+ * (/api/chat/gestione/…): le regole le decide il PC.
+ */
+var gcScheda = 'spazio'
+var gcVista = null
+var gcArch = null
+var gcRec = null
+var gcErrore = ''
+var gcOrdine = 'spazio'
+var gcScelte = []
+var gcTitoli = {}
+var gcConfermaAp = null
+var gcNota = null
+var gcAzioniDi = ''
+var gcSvuota = null
+var gcSvuotaDrive = false
+var gcFrase = ''
+var gcInCorso = false
+/** Come byteLeggibili del PC: 1,2 GB, 340 MB, 12 KB. */
+function gcByte(n) {
+  var u = ['byte', 'KB', 'MB', 'GB', 'TB']
+  var x = n
+  var i = 0
+  while (x >= 1024 && i < u.length - 1) { x /= 1024; i += 1 }
+  return (i === 0 ? String(x) : x.toFixed(x < 10 ? 1 : 0).replace('.', ',')) + ' ' + u[i]
+}
+function gcQuando(iso, adesso) {
+  if (!iso) return 'mai usata'
+  var t = Date.parse(iso)
+  if (isNaN(t)) return 'mai usata'
+  var g = Math.floor((adesso - t) / 86400000)
+  if (g <= 0) return 'usata oggi'
+  if (g === 1) return 'usata ieri'
+  if (g < 60) return 'usata ' + g + ' giorni fa'
+  if (g < 730) return 'usata ' + Math.floor(g / 30) + ' mesi fa'
+  return 'usata ' + Math.floor(g / 365) + ' anni fa'
+}
+function gcData(iso) {
+  var d = new Date(iso)
+  if (isNaN(d.getTime())) return '—'
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0')
+}
+function gcRigaVoce(v, adesso) {
+  return [gcByte(v.byte), gcQuando(v.ultimaAttivita, adesso)].concat(v.archiviata ? ['archiviata'] : [], v.aperta ? ['aperta'] : []).join(' · ')
+}
+function gcQuante(n) { return n === 1 ? '1 chat' : n + ' chat' }
+function gcRiepilogo(v) {
+  return gcQuante(v.chat.length) + ' · ' + gcByte(v.totale) + ' · si possono liberare ' + gcByte(v.eliminabili) +
+    (v.recupero.chat > 0 ? ' · nel recupero ' + gcQuante(v.recupero.chat) + ' (' + gcByte(v.recupero.byte) + ')' : '')
+}
+function gcTotale(voci, scelte) {
+  var sel = voci.filter(function (v) { return scelte.indexOf(v.sessione) >= 0 })
+  var ok = sel.filter(function (v) { return !v.nonEliminabile })
+  var somma = function (l) { return l.reduce(function (t, v) { return t + v.byte }, 0) }
+  return { chat: sel.length, byte: somma(sel), eliminabili: ok.length, byteEliminabili: somma(ok), escluse: sel.filter(function (v) { return !!v.nonEliminabile }).map(function (v) { return { sessione: v.sessione, motivo: v.nonEliminabile } }) }
+}
+function gcRiepilogoSel(s) {
+  if (s.chat === 0) return 'Nessuna chat scelta.'
+  var no = s.escluse.length === 0 ? '' : ' · ' + (s.escluse.length === 1 ? '1 non si può eliminare' : s.escluse.length + ' non si possono eliminare')
+  return (s.chat === 1 ? '1 chat scelta' : s.chat + ' chat scelte') + ' · ' + gcByte(s.byte) + no + ' · eliminandole liberi ' + gcByte(s.byteEliminabili)
+}
+function gcRigaRecupero(c, adesso) {
+  var g = Math.max(0, Math.ceil((Date.parse(c.scadeIl) - adesso) / 86400000))
+  return gcByte(c.byte) + ' · eliminata il ' + gcData(c.quando) + ' · ' + (g === 0 ? 'si svuota oggi' : g === 1 ? 'si svuota domani' : 'si svuota fra ' + g + ' giorni') + (c.drive ? ' · anche dal Drive' : '')
+}
+function gcOrdina(voci, ordine) {
+  var l = voci.slice()
+  if (ordine === 'spazio') l.sort(function (a, b) { return b.byte - a.byte || (a.ultimaAttivita || '').localeCompare(b.ultimaAttivita || '') || a.sessione.localeCompare(b.sessione) })
+  else l.sort(function (a, b) { return (a.ultimaAttivita || '').localeCompare(b.ultimaAttivita || '') || b.byte - a.byte || a.sessione.localeCompare(b.sessione) })
+  return l
+}
+function gcNome(titoli) { return titoli.length === 1 ? '«' + titoli[0] + '»' : titoli.length + ' chat' }
+/** La conferma del PC con il nome (§N) e lo spazio (§B) al loro posto; più chat, i verbi al plurale. */
+function gcConferma(tipo, nome, spazio, quante) {
+  var t = GC.conferme[tipo + ((quante || 1) > 1 && GC.conferme[tipo + 'N'] ? 'N' : '')]
+  var r = function (x) { return x.split('§N').join(nome).split('§B').join(spazio || '') }
+  return { titolo: r(t.titolo), testo: r(t.testo), azione: t.azione }
+}
+function gcImpronta() {
+  return JSON.stringify([gcScheda, gcOrdine, gcScelte, gcConfermaAp, gcNota, gcAzioniDi, gcSvuota && gcSvuota.passo, gcSvuotaDrive, gcInCorso, gcErrore,
+    gcVista ? gcVista.chat.map(function (v) { return v.sessione + v.byte + (v.nonEliminabile || '') }).join(',') : '',
+    gcArch ? gcArch.length : -1, gcRec ? gcRec.chat.map(function (c) { return c.id }).join(',') : ''])
+}
+async function gcLeggi() {
+  gcErrore = ''
+  try {
+    var r = await Promise.all([chiedi('/api/chat/gestione/spazio', {}), chiedi('/api/chat/gestione/archiviate', {}), chiedi('/api/chat/gestione/recupero', {})])
+    gcVista = r[0]; gcArch = (r[1] && r[1].archiviate) || []; gcRec = r[2]
+    ;(gcVista.chat || []).forEach(function (v) { gcTitoli[v.sessione] = v.titolo })
+    gcArch.forEach(function (a) { if (a.titolo) gcTitoli[a.sessione] = a.titolo })
+    var ci = {}; gcVista.chat.forEach(function (v) { ci[v.sessione] = true })
+    gcScelte = gcScelte.filter(function (s) { return ci[s] })
+  } catch (e) {
+    gcErrore = (e && e.message && e.message.indexOf('non trovato') >= 0) ? 'Questo computer non sa ancora gestire le chat da qui: aggiornalo alla 0.79.0.' : 'Non riesco a leggere le chat: ' + ((e && e.message) || 'il computer non risponde')
+  }
+}
+/** I tre tasti di una chat, ognuno con il suo «?». */
+function gcTastiHtml(sessione, titolo, chiave) {
+  gcTitoli[sessione] = titolo
+  return ['chiudi', 'archivia', 'elimina'].map(function (a) {
+    var t = GC.testi[a]
+    return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
+      aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + '</span>'
+  }).join('')
+}
+window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; pannello(ultimoStato) }
+window.gcChiedi = async (azione, sessione) => {
+  var nome = gcNome([gcTitoli[sessione] || sessione.slice(0, 8)])
+  gcNota = null
+  if (azione !== 'elimina') { gcConfermaAp = { azione: azione, sessioni: [sessione], nome: nome, drive: false, conferma: gcConferma(azione, nome, '') }; pannello(ultimoStato); gcMostraConferma(); return }
+  var spazio = 'lo spazio di questa chat'
+  try { var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [sessione] }); if (r && r.selezione) spazio = gcByte(r.selezione.byte) } catch (e) { }
+  gcConfermaAp = { azione: 'elimina', sessioni: [sessione], nome: nome, spazio: spazio, drive: false, conferma: gcConferma('elimina', nome, spazio) }
+  pannello(ultimoStato)
+  gcMostraConferma()
+}
+window.gcChiediScelte = (azione) => {
+  var voci = (gcVista && gcVista.chat) || []
+  var nome = gcNome(gcScelte.map(function (s) { return gcTitoli[s] || s.slice(0, 8) }))
+  var spazio = gcByte(gcTotale(voci, gcScelte).byteEliminabili)
+  gcNota = null
+  var quante = azione === 'elimina' ? gcTotale(voci, gcScelte).eliminabili : gcScelte.length
+  gcConfermaAp = { azione: azione, sessioni: gcScelte.slice(), nome: nome, spazio: spazio, quante: quante, drive: false, conferma: gcConferma(azione, nome, spazio, quante) }
+  pannello(ultimoStato)
+  gcMostraConferma()
+}
+function gcMostraConferma() { setTimeout(function () { var e = document.getElementById('gc-conferma'); if (e && e.scrollIntoView) e.scrollIntoView({ block: 'center' }) }, 0) }
+window.gcDrive = (si) => {
+  if (!gcConfermaAp) return
+  gcConfermaAp.drive = si
+  gcConfermaAp.conferma = gcConferma(si ? 'eliminaDrive' : 'elimina', gcConfermaAp.nome, gcConfermaAp.spazio, gcConfermaAp.quante)
+  pannello(ultimoStato)
+}
+function gcConfermaHtml() {
+  if (!gcConfermaAp) return ''
+  var c = gcConfermaAp.conferma
+  return '<div class="piastrella chiede" id="gc-conferma"><div class="titolo">' + esc(c.titolo) + '</div><div class="sotto">' + esc(c.testo) + '</div>' +
+    (gcConfermaAp.azione === 'elimina' ? '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcConfermaAp.drive ? ' checked' : '') + ' onchange="gcDrive(this.checked)"> anche dal Drive</label>' : '') +
+    '<div class="riga"><button class="' + (gcConfermaAp.azione === 'elimina' ? 'pericolo' : 'primario') + '"' + (gcInCorso ? ' disabled' : '') + ' onclick="gcFai()">' + esc(gcInCorso ? 'Un momento…' : c.azione) + '</button>' +
+    '<button onclick="gcConfermaAp = null; pannello(ultimoStato)">Annulla</button></div></div>'
+}
+function gcNotaHtml() {
+  if (!gcNota) return ''
+  return '<div class="piastrella" role="status"><div class="sotto">' + esc(gcNota.messaggio) + '</div>' +
+    (gcNota.rifiuti.length ? '<ul class="gc-rifiuti">' + gcNota.rifiuti.map(function (m) { return '<li>' + esc(m) + '</li>' }).join('') + '</ul>' : '') +
+    '<div class="riga"><button onclick="gcNota = null; pannello(ultimoStato)">Ok</button></div></div>'
+}
+window.gcFai = async () => {
+  var a = gcConfermaAp
+  if (!a || gcInCorso) return
+  gcInCorso = true
+  pannello(ultimoStato)
+  try {
+    var e = await chiedi('/api/chat/gestione/azione', { azione: a.azione, sessioni: a.sessioni, ancheDalDrive: a.drive === true })
+    gcNota = { messaggio: e.messaggio || 'Fatto.', rifiuti: (e.esiti || []).filter(function (x) { return !x.ok }).map(function (x) { return x.motivo || ((gcTitoli[x.sessione] || x.sessione) + ': non si è potuta toccare.') }) }
+    if (a.sessioni.length > 1) gcScelte = []
+  } catch (err) {
+    gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] }
+  }
+  gcConfermaAp = null
+  gcInCorso = false
+  gcAzioniDi = ''
+  if (pannelloAperto === 'chatgestione') await gcLeggi()
+  if (pannelloAperto === 'sessioni') await leggiSessioni()
+  aggiorna()
+}
+window.gcLinguetta = (s) => { gcScheda = s; gcNota = null; gcSvuota = null; pannello(ultimoStato) }
+window.gcCambiaOrdine = (o) => { gcOrdine = o; pannello(ultimoStato) }
+window.gcScegli = (s) => { var i = gcScelte.indexOf(s); if (i >= 0) gcScelte.splice(i, 1); else gcScelte.push(s); pannello(ultimoStato) }
+window.gcTutte = () => {
+  if (gcScelte.length > 0) gcScelte = []
+  else gcScelte = ((gcVista && gcVista.chat) || []).filter(function (v) { return !v.nonEliminabile }).map(function (v) { return v.sessione })
+  pannello(ultimoStato)
+}
+window.gcRipristinaArch = async (s) => {
+  try { var e = await chiedi('/api/chat/gestione/azione', { azione: 'ripristina', sessioni: [s] }); gcNota = { messaggio: e.messaggio, rifiuti: (e.esiti || []).filter(function (x) { return !x.ok }).map(function (x) { return x.motivo || x.sessione }) } }
+  catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  await gcLeggi(); pannello(ultimoStato)
+}
+window.gcRipristinaRec = async (id) => {
+  try { var e = await chiedi('/api/chat/gestione/ripristina', { id: id }); gcNota = { messaggio: e.messaggio, rifiuti: [] } }
+  catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  await gcLeggi(); pannello(ultimoStato)
+}
+window.gcSvuotaChiedi = () => { gcSvuota = { passo: 'chiedi' }; gcNota = null; pannello(ultimoStato) }
+window.gcSvuotaDriveSi = (si) => { gcSvuotaDrive = si; pannello(ultimoStato) }
+/** Primo passo: il PC dà la conferma (un gettone di 2 minuti) e dice cosa si perde. */
+window.gcSvuotaContinua = async () => {
+  try {
+    var r = await chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive })
+    if (r && r.ok && r.gettone) { gcSvuota = { passo: 'scrivi', gettone: r.gettone, messaggio: r.messaggio }; gcFrase = '' }
+    else { gcSvuota = null; gcNota = { messaggio: (r && r.messaggio) || 'Il recupero è vuoto.', rifiuti: [] } }
+  } catch (err) { gcSvuota = null; gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  pannello(ultimoStato)
+}
+/** La parola scritta abilita il tasto: la pagina non si ridisegna mentre si scrive. */
+window.gcFraseCambia = (v) => { gcFrase = v; var b = document.getElementById('gc-svuota-si'); if (b) b.disabled = v.trim().toUpperCase() !== GC.frase }
+/** Secondo passo: il gettone e la parola. Il PC la ricontrolla. */
+window.gcSvuotaDavvero = async () => {
+  var s = gcSvuota
+  if (!s || s.passo !== 'scrivi') return
+  try { var r = await chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive, gettone: s.gettone, frase: gcFrase }); gcNota = { messaggio: r.messaggio || r.errore || 'Fatto.', rifiuti: [] } }
+  catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  gcSvuota = null; gcFrase = ''
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur()
+  await gcLeggi(); pannello(ultimoStato)
+}
+function gcSvuotaHtml() {
+  if (!gcSvuota) return ''
+  if (gcSvuota.passo === 'chiedi') {
+    var c = GC.conferme[gcSvuotaDrive ? 'svuotaDrive' : 'svuota']
+    return '<div class="piastrella chiede"><div class="titolo">' + esc(c.titolo) + '</div><div class="sotto">' + esc(c.testo) + '</div>' +
+      '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcSvuotaDrive ? ' checked' : '') + ' onchange="gcSvuotaDriveSi(this.checked)"> anche dal Drive</label>' +
+      '<div class="riga"><button class="pericolo" onclick="gcSvuotaContinua()">' + esc(c.azione) + '</button><button onclick="gcSvuota = null; pannello(ultimoStato)">Annulla</button></div></div>'
+  }
+  return '<div class="piastrella chiede"><div class="titolo">Scrivi ' + esc(GC.frase) + ' per confermare</div><div class="sotto">' + esc(gcSvuota.messaggio) + '</div>' +
+    '<div class="riga"><input id="gc-frase" autocomplete="off" autocapitalize="characters" placeholder="' + esc(GC.frase) + '" oninput="gcFraseCambia(this.value)" style="flex:1"></div>' +
+    '<div class="riga"><button class="pericolo" id="gc-svuota-si" disabled onclick="gcSvuotaDavvero()">Svuota per sempre</button><button onclick="gcSvuota = null; gcFrase = \\'\\'; pannello(ultimoStato)">Annulla</button></div></div>'
+}
+/** «Spazio delle chat», le Archiviate e il Recupero. */
+function gestioneChatHtml() {
+  var adesso = Date.now()
+  var ling = function (id, nome, n) { return '<button class="' + (gcScheda === id ? 'primario' : '') + '" onclick="gcLinguetta(\\'' + id + '\\')">' + esc(nome) + (n > 0 ? ' (' + n + ')' : '') + '</button>' }
+  var h = '<div class="piastrella"><div class="titolo">Spazio delle chat' + aiuto('gc-spazio', 'Le chat di questo computer con lo spazio che occupano. Scegline una o più e tocca Archivia (escono dagli elenchi, non si cancella niente) o Elimina dal PC (liberi spazio; per 30 giorni restano nel recupero). Le chat al lavoro, che aspettano una tua risposta, guidate da un autopilota attivo o che vivono su un altro PC non si toccano: lo dice la riga sotto il nome.') + '</div>' +
+    '<div class="riga">' + ling('spazio', 'Spazio', 0) + ling('archiviate', 'Archiviate', gcArch ? gcArch.length : 0) + ling('recupero', 'Recupero', gcRec ? gcRec.chat.length : 0) + '</div>' +
+    (gcErrore ? '<div class="errore">' + esc(gcErrore) + '</div>' : '') + gcNotaHtml() + gcConfermaHtml()
+  if (gcScheda === 'spazio') {
+    if (!gcVista) h += '<div class="sotto">Misuro le chat…</div>'
+    else {
+      var voci = gcOrdina(gcVista.chat || [], gcOrdine)
+      var sel = gcTotale(voci, gcScelte)
+      h += '<div class="sotto">' + esc(gcRiepilogo(gcVista)) + '</div>' +
+        '<div class="riga"><select onchange="gcCambiaOrdine(this.value)">' + GC.ordini.map(function (o) { return '<option value="' + o.id + '"' + (o.id === gcOrdine ? ' selected' : '') + '>' + esc(o.nome) + '</option>' }).join('') + '</select>' +
+        '<button onclick="gcTutte()">' + (gcScelte.length > 0 ? 'Nessuna' : 'Scegli tutte') + '</button></div>' +
+        '<div class="sotto">' + esc(gcRiepilogoSel(sel)) + '</div>' +
+        '<div class="riga"><button' + (gcScelte.length === 0 ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'archivia\\')">Archivia</button>' +
+        '<button class="pericolo"' + (sel.eliminabili === 0 ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'elimina\\')">Elimina dal PC</button></div>' +
+        (voci.length === 0 ? '<div class="sotto">Nessuna chat su questo computer.</div>' : voci.map(function (v) {
+          return '<label class="gc-voce"><input type="checkbox"' + (gcScelte.indexOf(v.sessione) >= 0 ? ' checked' : '') + ' data-s="' + esc(v.sessione) + '" onchange="gcScegli(this.dataset.s)">' +
+            '<span class="gc-voce__testo"><b>' + esc(v.titolo) + '</b><span class="sotto">' + esc(gcRigaVoce(v, adesso)) + '</span>' +
+            (v.nonEliminabile ? '<span class="gc-no">' + esc(v.nonEliminabile) + '</span>' : '') + '</span></label>'
+        }).join(''))
+    }
+  } else if (gcScheda === 'archiviate') {
+    h += !gcArch ? '<div class="sotto">Leggo…</div>' : gcArch.length === 0 ? '<div class="sotto">Nessuna chat archiviata.</div>' : gcArch.map(function (a) {
+      return '<div class="gc-voce"><span class="gc-voce__testo"><b>' + esc(a.titolo || a.sessione.slice(0, 8)) + '</b><span class="sotto">archiviata il ' + esc(gcData(a.il)) + '</span></span>' +
+        '<button data-s="' + esc(a.sessione) + '" onclick="gcRipristinaArch(this.dataset.s)">Ripristina</button></div>'
+    }).join('')
+  } else {
+    if (!gcRec) h += '<div class="sotto">Leggo…</div>'
+    else {
+      h += '<div class="sotto">' + (gcRec.chat.length === 0 ? 'Il recupero è vuoto.' : esc(gcQuante(gcRec.chat.length) + ' · ' + gcByte(gcRec.byte) + ' · si svuota da solo dopo 30 giorni')) +
+        aiuto('gc-recupero', 'Le chat eliminate dal PC restano qui 30 giorni, poi si cancellano da sole. «Ripristina» rimette la chat al suo posto con il suo nome. Lo spazio sul disco si libera davvero quando il recupero si svuota: da solo, o con «Svuota il recupero adesso», che chiede una conferma forte.') + '</div>' +
+        gcSvuotaHtml() +
+        (gcRec.chat.length > 0 && !gcSvuota ? '<div class="riga"><button class="pericolo" onclick="gcSvuotaChiedi()">Svuota il recupero adesso</button></div>' : '') +
+        gcRec.chat.map(function (c) {
+          return '<div class="gc-voce"><span class="gc-voce__testo"><b>' + esc(c.titolo) + '</b><span class="sotto">' + esc(gcRigaRecupero(c, adesso)) + '</span></span>' +
+            '<button data-id="' + esc(c.id) + '" onclick="gcRipristinaRec(this.dataset.id)">Ripristina</button></div>'
+        }).join('')
+    }
+  }
+  return h + '<div class="riga"><button onclick="apriPannello(\\'chatgestione\\')">Chiudi</button></div></div>'
 }
 
 /**

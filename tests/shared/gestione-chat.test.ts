@@ -242,5 +242,10 @@ describe('i testi', () => {
     expect(messaggioEsito('archivia', 1, 0, undefined, byteLeggibili)).toMatch(/Archiviate/)
     expect(messaggioEsito('elimina', 0, 3, 0, byteLeggibili)).toMatch(/^Niente fatto/)
     expect(messaggioEsito('chiudi', 0, 0, undefined, byteLeggibili)).toBe('Niente da fare.')
+    // L'accordo con il numero (giro dal vero del 17/10: si leggeva «1 chat archiviate»).
+    expect(messaggioEsito('archivia', 1, 0, undefined, byteLeggibili)).toBe('1 chat archiviata: la trovi in «Archiviate».')
+    expect(messaggioEsito('chiudi', 1, 0, undefined, byteLeggibili)).toBe('1 chat chiusa.')
+    expect(messaggioEsito('elimina', 1, 0, 1024, byteLeggibili)).toBe('1 chat eliminata dal PC: 1,0 KB tolti dalle chat. Per 30 giorni resta nel recupero; il disco si libera quando si svuota.')
+    expect(messaggioEsito('elimina', 0, 1, 0, byteLeggibili)).toBe('Niente fatto: 1 chat non si può eliminare adesso.')
   })
 })

@@ -16,6 +16,7 @@ import { diarioDelRiquadro } from '../diario-autopilota'
 import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
+import { AzioniChat } from './AzioniChat'
 
 const SPESSORE_DIVISORE = 6
 
@@ -410,6 +411,10 @@ export function Mosaic({
                   <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
                   {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
                   {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
+                  {/* Chiudi, Archivia, Elimina dal PC (0.79.0): «Chiudi» qui è lo stesso gesto della ×. */}
+                  {data.remoto === undefined ? (
+                    <AzioniChat sessione={data.sessionUuid} titolo={nomi.get(paneId) ?? data.title} onChiudi={() => { void window.gestore.remoto.segnaChiusa(data.sessionUuid, data.title).catch(() => undefined); closePane(paneId) }} />
+                  ) : null}
                 </span>
                 <button
                   className="comando-riquadro"

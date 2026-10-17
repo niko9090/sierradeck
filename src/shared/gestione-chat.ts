@@ -403,13 +403,15 @@ export type EsitoAzioni = {
 export function messaggioEsito(azione: AzioneChat, fatte: number, rifiutate: number, byte: number | undefined, byteLeggibili: (n: number) => string): string {
   const quante = (n: number): string => (n === 1 ? '1 chat' : `${n} chat`)
   const no = rifiutate > 0 ? ` ${quante(rifiutate)} no: guarda il motivo.` : ''
-  if (fatte === 0) return rifiutate > 0 ? `Niente fatto: ${quante(rifiutate)} non si ${azione === 'elimina' ? 'possono eliminare' : 'possono toccare'} adesso.` : 'Niente da fare.'
+  // L'accordo con il numero (giro dal vero del 17/10: «1 chat archiviate»).
+  const una = fatte === 1
+  if (fatte === 0) return rifiutate > 0 ? `Niente fatto: ${quante(rifiutate)} non si ${rifiutate === 1 ? 'può' : 'possono'} ${azione === 'elimina' ? 'eliminare' : 'toccare'} adesso.` : 'Niente da fare.'
   switch (azione) {
-    case 'chiudi': return `${quante(fatte)} chiuse.${no}`
-    case 'archivia': return `${quante(fatte)} archiviate: le trovi in «Archiviate».${no}`
+    case 'chiudi': return `${quante(fatte)} ${una ? 'chiusa' : 'chiuse'}.${no}`
+    case 'archivia': return `${quante(fatte)} ${una ? 'archiviata: la trovi' : 'archiviate: le trovi'} in «Archiviate».${no}`
     case 'ripristina': return `${quante(fatte)} di nuovo negli elenchi.${no}`
     case 'rinomina': return `Nome cambiato.${no}`
-    case 'elimina': return `${quante(fatte)} eliminate dal PC: ${byteLeggibili(byte ?? 0)} tolti dalle chat. Per 30 giorni restano nel recupero; il disco si libera quando si svuota.${no}`
+    case 'elimina': return `${quante(fatte)} ${una ? 'eliminata' : 'eliminate'} dal PC: ${byteLeggibili(byte ?? 0)} tolti dalle chat. Per 30 giorni ${una ? 'resta' : 'restano'} nel recupero; il disco si libera quando si svuota.${no}`
   }
 }
 

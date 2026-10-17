@@ -103,3 +103,61 @@ Tre chat vere di Claude Code 2.1.302, in una radice temporanea (`CLAUDE_CONFIG_D
 - Le archiviate stanno in `chat-archiviate.json` e il recupero in `recupero-chat/` + `recupero-chat.json`, tutto nella cartella dei dati.
 - Le svuotate restano nel registro (fino a 2000): servono a non far tornare la chat dal Drive.
 - Lo spazio «liberato» da Elimina è tolto dalle chat di Claude Code. Sul disco si libera davvero quando il recupero si svuota, e il messaggio lo dice.
+
+---
+
+# Parte interfaccia (PC, pagina, app)
+Fatta sopra il motore qui sopra, che ho unito su `main` (avanti veloce). Versione portata a **0.79.0** (app **2.79.0**) con la voce nelle novità. **Non pubblicata e non installata**: la release la fa il coordinatore, l'installazione solo Nicholas.
+
+## Dove sono le tre azioni
+| Dove | Come ci arrivi |
+|---|---|
+| Riquadro della chat (PC) | ⋯ → 🗂 → Chiudi / Archivia / Elimina dal PC, ognuna con il suo «?» |
+| Schede della Panoramica (PC) | 🗂 accanto a «solo mia» (solo chat di questo PC) |
+| «Riprendi una conversazione» (PC) | 🗂 su ogni riga; 🗑 sceglie più chat e «Elimina dal PC N» |
+| «Spazio delle chat» (PC) | da «Chat e workspace» o dal tasto in «Riprendi» |
+| Pagina del telefono | Chat → Riprendi: «⋯ gestisci» su ogni riga; chat aperta: i tre tasti; Chat → «Spazio delle chat» |
+| App Android | chat aperta: menu ⋮ → «Archivia o elimina dal PC…»; Riprendi: «⋯ Chiudi, archivia, elimina» e il tasto «Spazio delle chat» |
+
+- **Spazio delle chat**: tre linguette (Spazio, Archiviate, Recupero). Ordine «Le più grandi» o «Le meno usate». Caselle per scegliere, con la riga del totale («2 chat scelte · 646 KB · eliminandole liberi 646 KB»). Sotto ogni chat che non si può eliminare c'è il motivo del PC.
+- **Elimina dal PC**: la conferma dice lo spazio che libera e ha la spunta «anche dal Drive».
+- **Svuota il recupero adesso**: passo 1 conferma (con «anche dal Drive»); passo 2 il PC dà il gettone e il testo, e il tasto «Svuota per sempre» si accende solo scrivendo SVUOTA.
+- **I rifiuti**: una riga per chat, col motivo del PC che nomina la chat. Se non si è fatto niente il titolo è «Non fatto».
+
+## Regole pure e test
+- `src/shared/gestione-chat-vista.ts`: ordine, scelta, righe, conferme (anche al plurale), rifiuti. Test: `tests/shared/gestione-chat-vista.test.ts`, che scrive i casi per l'app in `android/app/src/test/resources/gestione-chat/vista-0.79.json` (`AGGIORNA=1`).
+- Pagina: `tests/main/gestione-chat-pagina.test.ts` confronta le funzioni della pagina con quelle condivise e prova i due passi di Svuota.
+- App: `GestioneChat.kt` (copia delle regole) + `GestioneChatTest.kt` sui casi del PC; rotte nel ponte; `FunzionePc.GESTIONE_CHAT` (0.79.0), che non compare nella banda «PC indietro».
+
+## Collaudo dal vero (copia di prova)
+`SIERRADECK_PROVA=note/prova-079/dati`, porte 47650/47651, Claude Code a parte (`CLAUDE_CONFIG_DIR=note/prova-079/claude`), sei chat vere in `SierraDeck-prova-079`. Clic veri via DevTools; la pagina in Edge senza finestra, in formato telefono. Foto e diari in `note/foto-0-79-0/`.
+
+| Passo | Risultato |
+|---|---|
+| Spazio prima | 6 chat · 1,4 MB; disco 1.520.422 byte |
+| Elimina 2 chat scelte | «2 chat eliminate dal PC: 646 KB…»; disco 859.358 byte, recupero 661.064 byte |
+| Spazio dopo | «4 chat · 839 KB · … · nel recupero 2 chat (646 KB)» |
+| Ripristina dal recupero | «… è di nuovo al suo posto»; il disco torna a crescere di quella chat |
+| Archivia → Archiviate → Ripristina | fatto, la chat torna negli elenchi |
+| Svuota: «sì» / SVUOTA | tasto spento / acceso; «Recupero svuotato: 405 KB liberati»; cartella del recupero a 0 byte |
+| Elimina una chat aperta (riquadro) | «Non fatto … «…» aspetta una tua risposta: rispondi o chiudila prima.» |
+| Chiudi dal riquadro | il riquadro si chiude, la chat resta in «Riprendi» |
+| Pagina: ⋯ gestisci, «?», Elimina con/senza Drive, Archivia 2, Ripristina, Svuota in due passi | tutto come sul PC (foto 40-54) |
+
+**Difetti trovati nel giro e corretti (con test):**
+- «1 chat archiviate», «1 chat chiuse»: ora concordano (anche nel motore).
+- Conferma con più chat al singolare («2 chat … resta nel recupero»): ora al plurale.
+- Titolo «Fatto» quando il PC non aveva fatto niente: ora «Non fatto».
+- Sulla pagina la linguetta «Recupero (30 giorni) (1)» andava a capo in quattro righe: ora «Recupero (1)».
+
+**Non provato dal vero:**
+- L'app Android: su questo PC non c'è un emulatore. Compila e i suoi test passano sui casi scritti dal PC.
+- Le schede della Panoramica: nella copia non c'era un autopilota. Il tasto è lo stesso componente del riquadro.
+- «Anche dal Drive» su un Drive vero (la copia non ha il Drive).
+
+## Controlli finali
+- `npm test`: 4129 passati (2 saltati come sempre).
+- `npm run typecheck`: senza errori.
+- `gradle testDebugUnitTest assembleDebug`: verde, 352 test dell'app.
+- Guardia delle cancellazioni e controllo dei dati privati: verdi.
+- Dopo la prova: copia e browser fermati, nessun processo rimasto. Le credenziali copiate in `note/prova-079/claude` sono svuotate. La cartella `note/prova-079` si può togliere a mano.

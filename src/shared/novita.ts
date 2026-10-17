@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.79.0',
+    righe: [
+      '**Tre azioni chiare per ogni chat: Chiudi, Archivia, Elimina dal PC.** Le trovi nel riquadro (dietro ⋯, il tasto 🗂), nelle schede della Panoramica e in «Riprendi una conversazione», ognuna con il suo «?». Chiudi ferma la chat e lascia tutto. Archivia la toglie dagli elenchi senza cancellare niente. Elimina dal PC libera davvero spazio: dice quanto prima di farlo.',
+      '**Niente si perde per sbaglio.** Una chat eliminata resta 30 giorni nel recupero e torna con «Ripristina», con il suo nome. «Anche dal Drive» toglie pure la sua copia sul Drive, che va nel recupero del Drive. Una chat eliminata qui non torna più da sola dal Drive.',
+      '**«Spazio delle chat».** Da «Chat e workspace» o da «Riprendi»: tutte le chat dalla più grande (o dalla meno usata), con lo spazio di ognuna. Ne scegli più d’una e vedi il totale, poi Archivia o Elimina dal PC. Qui ci sono anche le Archiviate e il Recupero.',
+      '**«Svuota il recupero adesso»** cancella per sempre, con una conferma forte in due passi: il PC chiede conferma, poi scrivi SVUOTA.',
+      '**Le chat al lavoro non si toccano.** Una chat che lavora, che aspetta una tua risposta, guidata da un autopilota attivo o che vive su un altro PC non si elimina: lo dice in una riga, con il nome della chat e cosa fare.',
+      '**Sul telefono le stesse cose,** sulla pagina e nell’app: le tre azioni su ogni chat, lo Spazio delle chat, le Archiviate e il Recupero.'
+    ]
+  },
+  {
     versione: '0.78.1',
     righe: [
       '**Due viste, un interruttore.** In alto a destra, in ogni workspace, c’è sempre «Panoramica» | «Tutte le chat affiancate»: la voce accesa è quella che vedi, e ognuna ha il suo «?». Si passa dall’una all’altra con un clic, nei due sensi, e ogni workspace si ricorda la sua. Le chat restano le stesse: nessuna si chiude o si riavvia.',

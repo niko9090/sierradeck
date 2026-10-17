@@ -1,0 +1,234 @@
+{
+  "testi": {
+    "chiudi": {
+      "etichetta": "Chiudi",
+      "breve": "Ferma la chat. Resta tutto.",
+      "spiega": "Ferma il processo di Claude Code di questa chat. La conversazione resta sul PC e si riprende quando vuoi da «Riprendi una conversazione»."
+    },
+    "archivia": {
+      "etichetta": "Archivia",
+      "breve": "La toglie dagli elenchi. Si ritrova.",
+      "spiega": "La chat sparisce dagli elenchi ma non si cancella niente. La ritrovi in «Archiviate» e la rimetti con «Ripristina». Se è aperta e ferma, prima si chiude."
+    },
+    "elimina": {
+      "etichetta": "Elimina dal PC",
+      "breve": "Libera spazio. 30 giorni per ripensarci.",
+      "spiega": "Toglie da questo PC solo i file di questa chat e libera il loro spazio. Per 30 giorni restano nel recupero e si rimettono con «Ripristina». La copia sul Drive resta, se non scegli «anche dal Drive»."
+    }
+  },
+  "frase": "SVUOTA",
+  "conferme": {
+    "chiudi": {
+      "titolo": "Chiudere «x»?",
+      "testo": "Si ferma. La conversazione resta e la riprendi quando vuoi.",
+      "azione": "Chiudi"
+    },
+    "archivia": {
+      "titolo": "Archiviare 3 chat?",
+      "testo": "Esce dagli elenchi, ma non si cancella niente: la ritrovi in «Archiviate».",
+      "azione": "Archivia"
+    },
+    "elimina": {
+      "titolo": "Eliminare «x» dal PC?",
+      "testo": "Libera 12 MB. Per 30 giorni resta nel recupero e la rimetti con «Ripristina». La copia sul Drive resta.",
+      "azione": "Elimina dal PC"
+    },
+    "eliminaDrive": {
+      "titolo": "Eliminare «x» dal PC?",
+      "testo": "Libera 12 MB. Per 30 giorni resta nel recupero e la rimetti con «Ripristina». Anche la copia sul Drive va nel recupero del Drive.",
+      "azione": "Elimina dal PC"
+    },
+    "archiviaN": {
+      "titolo": "Archiviare 3 chat?",
+      "testo": "Escono dagli elenchi, ma non si cancella niente: le ritrovi in «Archiviate».",
+      "azione": "Archivia"
+    },
+    "eliminaN": {
+      "titolo": "Eliminare 2 chat dal PC?",
+      "testo": "Libera 12 MB. Per 30 giorni restano nel recupero e le rimetti con «Ripristina». Le copie sul Drive restano.",
+      "azione": "Elimina dal PC"
+    },
+    "eliminaDriveN": {
+      "titolo": "Eliminare 2 chat dal PC?",
+      "testo": "Libera 12 MB. Per 30 giorni restano nel recupero e le rimetti con «Ripristina». Anche le copie sul Drive vanno nel recupero del Drive.",
+      "azione": "Elimina dal PC"
+    },
+    "chiediSvuota": {
+      "titolo": "Svuotare il recupero adesso?",
+      "testo": "Le chat nel recupero si cancellano per sempre. Poi ti chiedo di scrivere SVUOTA.",
+      "azione": "Continua"
+    },
+    "chiediSvuotaDrive": {
+      "titolo": "Svuotare il recupero adesso?",
+      "testo": "Le chat nel recupero si cancellano per sempre, anche le loro copie nel recupero del Drive. Poi ti chiedo di scrivere SVUOTA.",
+      "azione": "Continua"
+    }
+  },
+  "nomi": {
+    "una": "«x»",
+    "tre": "3 chat"
+  },
+  "quando": {
+    "adesso": "2026-10-17T12:00:00.000Z",
+    "casi": [
+      {
+        "iso": null,
+        "testo": "mai usata"
+      },
+      {
+        "iso": "2026-10-17T11:00:00.000Z",
+        "testo": "usata oggi"
+      },
+      {
+        "iso": "2026-10-16T12:00:00.000Z",
+        "testo": "usata ieri"
+      },
+      {
+        "iso": "2026-10-12T12:00:00.000Z",
+        "testo": "usata 5 giorni fa"
+      },
+      {
+        "iso": "2026-07-19T12:00:00.000Z",
+        "testo": "usata 3 mesi fa"
+      },
+      {
+        "iso": "2024-08-08T12:00:00.000Z",
+        "testo": "usata 2 anni fa"
+      }
+    ]
+  },
+  "spazio": {
+    "chat": [
+      {
+        "sessione": "22222222-2222-4222-8222-222222222222",
+        "titolo": "grande vecchia",
+        "slug": "E--prova",
+        "byte": 12582912,
+        "parti": {
+          "trascrizione": 4194304,
+          "sotto-agenti": 8388608
+        },
+        "ultimaAttivita": "2026-07-19T12:00:00.000Z",
+        "archiviata": true,
+        "aperta": false
+      },
+      {
+        "sessione": "33333333-3333-4333-8333-333333333333",
+        "titolo": "al lavoro",
+        "slug": "E--prova",
+        "byte": 348160,
+        "parti": {
+          "trascrizione": 348160
+        },
+        "ultimaAttivita": "2026-10-16T12:00:00.000Z",
+        "archiviata": false,
+        "aperta": true,
+        "nonEliminabile": "«al lavoro» sta lavorando: aspetta che finisca, poi chiudila."
+      },
+      {
+        "sessione": "11111111-1111-4111-8111-111111111111",
+        "titolo": "piccola recente",
+        "slug": "E--prova",
+        "byte": 2048,
+        "parti": {
+          "trascrizione": 2048
+        },
+        "ultimaAttivita": "2026-10-17T10:00:00.000Z",
+        "archiviata": false,
+        "aperta": false
+      }
+    ],
+    "totale": 12933120,
+    "eliminabili": 12584960,
+    "recupero": {
+      "chat": 1,
+      "byte": 5242880
+    },
+    "selezione": {
+      "chat": 2,
+      "byte": 350208,
+      "eliminabili": 1,
+      "byteEliminabili": 2048,
+      "escluse": [
+        {
+          "sessione": "33333333-3333-4333-8333-333333333333",
+          "motivo": "«al lavoro» sta lavorando: aspetta che finisca, poi chiudila."
+        }
+      ]
+    }
+  },
+  "righe": [
+    "12 MB · usata 3 mesi fa · archiviata",
+    "340 KB · usata ieri · aperta",
+    "2,0 KB · usata oggi"
+  ],
+  "riepilogo": "3 chat · 12 MB · si possono liberare 12 MB · nel recupero 1 chat (5,0 MB)",
+  "riepilogoSelezione": "2 chat scelte · 342 KB · 1 non si può eliminare · eliminandole liberi 2,0 KB",
+  "ordine": {
+    "spazio": [
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "11111111-1111-4111-8111-111111111111"
+    ],
+    "uso": [
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "11111111-1111-4111-8111-111111111111"
+    ]
+  },
+  "recupero": {
+    "chat": [
+      {
+        "id": "r-1",
+        "sessione": "22222222-2222-4222-8222-222222222222",
+        "titolo": "grande vecchia",
+        "slug": "E--prova",
+        "quando": "2026-10-14T12:00:00.000Z",
+        "scadeIl": "2026-11-13T12:00:00.000Z",
+        "byte": 5242880,
+        "file": [],
+        "drive": {
+          "pulizia": "p-1",
+          "file": 1,
+          "byte": 10
+        }
+      }
+    ],
+    "byte": 5242880,
+    "riga": "5,0 MB · eliminata il 14/10 · si svuota fra 27 giorni · anche dal Drive"
+  },
+  "archiviata": {
+    "voce": {
+      "sessione": "22222222-2222-4222-8222-222222222222",
+      "il": "2026-10-16T12:00:00.000Z",
+      "titolo": "grande vecchia"
+    },
+    "riga": "archiviata il 16/10"
+  },
+  "esito": {
+    "azione": "elimina",
+    "esiti": [
+      {
+        "sessione": "11111111-1111-4111-8111-111111111111",
+        "ok": true,
+        "byte": 2048
+      },
+      {
+        "sessione": "33333333-3333-4333-8333-333333333333",
+        "ok": false,
+        "motivo": "«al lavoro» sta lavorando: aspetta che finisca, poi chiudila."
+      }
+    ],
+    "fatte": 1,
+    "rifiutate": 1,
+    "byte": 2048,
+    "messaggio": "1 chat eliminata dal PC: 2,0 KB tolti dalle chat. Per 30 giorni resta nel recupero; il disco si libera quando si svuota. 1 chat no: guarda il motivo."
+  },
+  "rifiuti": [
+    {
+      "sessione": "33333333-3333-4333-8333-333333333333",
+      "titolo": "al lavoro",
+      "motivo": "«al lavoro» sta lavorando: aspetta che finisca, poi chiudila."
+    }
+  ]
+}

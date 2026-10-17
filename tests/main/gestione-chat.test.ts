@@ -106,7 +106,7 @@ describe('Elimina dal PC', () => {
     const e = await x.g.azione({ azione: 'elimina', sessioni: [S1] })
     expect(e.fatte).toBe(1)
     expect(e.byte).toBe(byteS1)
-    expect(e.messaggio).toMatch(/1 chat eliminate dal PC: .* tolti dalle chat/)
+    expect(e.messaggio).toMatch(/1 chat eliminata dal PC: .* tolti dalle chat/)
     // Di S1 non resta niente nelle cartelle di Claude Code.
     expect(fileDi(x.radice, S1)).toEqual([])
     // S2 e le cose condivise sono intatte.

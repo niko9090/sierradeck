@@ -54,6 +54,10 @@ export function PannelloChat({ workspace, onApriSessioni, onApri, onChiudi }: Pr
             'L’elenco di tutte le conversazioni, per cartella, anche quelle chiuse e quelle arrivate da altri PC: una si riapre com’era, con la sua storia. Chiudere una chat non la cancella mai: la ritrovi qui.'
           )}
           {voce(
+            <button className="tasto" onClick={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:gestione-chat', { detail: 'spazio' })) }}>Spazio delle chat</button>,
+            'Quanto spazio occupa ogni chat, dalla più grande. Ne scegli una o più per archiviarle o eliminarle dal PC. Qui ci sono anche le archiviate e il recupero di 30 giorni, con «Ripristina».'
+          )}
+          {voce(
             <SottofondoQui vuoto={<button className="tasto" disabled title="Nessuna chat di questo PC è usata adesso da un altro PC o dal telefono">⇄ Usate da altri PC (nessuna)</button>} />,
             'Compare solo quando un altro PC o il telefono sta usando una chat di questo PC in sottofondo, senza riquadro. «Mostra qui» la porta in un riquadro senza riavviarla; «Chiudi» la ferma (la conversazione resta) e gli altri PC che la guardano chiudono il loro riquadro.'
           )}

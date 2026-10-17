@@ -10,7 +10,9 @@ import {
   type GruppoSessioni
 } from '../raggruppa-sessioni'
 import { descriviAvanzamento } from '../avanzamento-vista'
-import { ModaleConferma } from './ModaleConferma'
+import { AzioniChat, ConfermaAzioneChat } from './AzioniChat'
+import { confermaEliminaChat, nomeScelte } from '@shared/gestione-chat-vista'
+import { byteLeggibili } from '@shared/spazio-drive'
 import { comeRiprendere } from '../riprendi-sessione'
 import type { SessionSummary } from '@shared/types'
 import type { Anteprima } from '../../main/anteprima'
@@ -68,6 +70,11 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   useEffect(() => {
     window.gestore.etichette.leggi().then(setEtichette).catch(() => setEtichette({}))
   }, [])
+  // Archiviata, eliminata o rimessa (anche dal telefono): l'elenco si rilegge.
+  useEffect(() => window.gestore.chatGestione.onCambiata(() => {
+    void load()
+    window.gestore.etichette.leggi().then(setEtichette).catch(() => undefined)
+  }), [load])
 
   // Quali chat sono di un altro PC (la loro cartella qui non c'e', e un altro
   // PC l'ha): una domanda sola al Core per tutte le cartelle, e il battito
@@ -91,21 +98,14 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
     })
   }
 
-  const buttaSegnate = (): void => {
-    window.gestore.sessions
-      .elimina(percorsiDaButtare)
-      .then((r) => {
-        setDaButtare(new Set())
-        setChiedoConferma(false)
-        if (r.errori.length > 0) {
-          setEsito({ indexed: 0, failed: r.errori.length, errore: r.errori.join(' · ') })
-        }
-        return load()
-      })
-      .catch((err: unknown) => {
-        setChiedoConferma(false)
-        setEsito({ indexed: 0, failed: 0, errore: `Eliminazione non riuscita: ${String(err)}` })
-      })
+  // «Elimina dal PC» delle chat scelte (0.79.0): passa dal motore, con lo
+  // spazio che libera, il recupero di 30 giorni e i rifiuti con il motivo.
+  const [spazioScelte, setSpazioScelte] = useState<string | undefined>(undefined)
+  const chiediElimina = (): void => {
+    window.gestore.chatGestione.selezione(uuidDaButtare)
+      .then((x) => setSpazioScelte(byteLeggibili(x.byteEliminabili)))
+      .catch(() => setSpazioScelte('lo spazio di queste chat'))
+      .finally(() => setChiedoConferma(true))
   }
 
   const sbircia = (g: GruppoSessioni): void => {
@@ -160,10 +160,9 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
   const visibili = useMemo(() => filtra(senzaNome ? gruppi : gruppi.filter((g) => !anonime.has(g.principale.uuid)), cerca), [gruppi, cerca, senzaNome, anonime])
   const progetti = useMemo(() => perProgetto(visibili), [visibili])
 
-  /** Tutte le trascrizioni delle chat segnate: una chat è più file. */
-  const percorsiDaButtare = visibili
-    .filter((g) => daButtare.has(g.principale.uuid))
-    .flatMap((g) => g.sessioni.map((s) => s.jsonlPath))
+  /** Le chat segnate, con le loro esecuzioni: una chat è più sessioni. */
+  const segnate = visibili.filter((g) => daButtare.has(g.principale.uuid))
+  const uuidDaButtare = segnate.flatMap((g) => g.sessioni.map((s) => s.uuid))
 
   // Quali sezioni nascono aperte lo decide il conto delle righe, una volta
   // sola: ricalcolarlo a ogni ricerca farebbe richiudere sotto le dita ciò che
@@ -232,16 +231,11 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
 
   if (chiedoConferma) {
     return (
-      <ModaleConferma
-        titolo="Butta le conversazioni scelte"
-        testo={
-          `${daButtare.size === 1 ? 'La chat scelta' : `Le ${daButtare.size} chat scelte`} ` +
-          `(${percorsiDaButtare.length} file di trascrizione) finiranno nel cestino di Windows, ` +
-          'da cui puoi ancora recuperarle. Spariranno dall’elenco e dal conto dei consumi.'
-        }
-        etichettaAzione={`Butta ${daButtare.size}`}
-        onConferma={buttaSegnate}
-        onAnnulla={() => setChiedoConferma(false)}
+      <ConfermaAzioneChat
+        azione="elimina"
+        conferma={(d) => confermaEliminaChat(nomeScelte(segnate.map((g) => etichette[g.principale.uuid] ?? g.titolo)), spazioScelte ?? 'lo spazio di queste chat', d, segnate.length)}
+        onFai={(d) => window.gestore.chatGestione.azione({ azione: 'elimina', sessioni: uuidDaButtare, ancheDalDrive: d })}
+        onChiudi={() => { setChiedoConferma(false); setDaButtare(new Set()); void load() }}
       />
     )
   }
@@ -257,13 +251,16 @@ export function ModaleSessioni({ onChiudi }: { onChiudi: () => void }): React.JS
           <span style={{ flex: 1 }} />
           {daButtare.size > 0 ? (
             <>
-              <span className="misura">{daButtare.size} da buttare</span>
+              <span className="misura">{daButtare.size === 1 ? '1 scelta' : `${daButtare.size} scelte`}</span>
               <button className="tasto" onClick={() => setDaButtare(new Set())}>Lascia stare</button>
-              <button className="tasto tasto--primario" onClick={() => setChiedoConferma(true)}>
-                Butta {daButtare.size}
+              <button className="tasto tasto--pericolo" onClick={chiediElimina}>
+                Elimina dal PC {daButtare.size}
               </button>
             </>
           ) : null}
+          <button className="tasto" onClick={() => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:gestione-chat', { detail: 'spazio' })) }} title="Lo spazio di ogni chat, le archiviate e il recupero">
+            Spazio delle chat
+          </button>
           <button
             className="tasto"
             onClick={reindicizza}
@@ -465,11 +462,13 @@ function VoceChat({
         <button
           className={segnata ? 'voce-chat__sbircia voce-chat__sbircia--segnata' : 'voce-chat__sbircia'}
           onClick={onSegna}
-          title={segnata ? 'Non buttarla più' : 'Segna questa chat da buttare'}
+          title={segnata ? 'Togli dalla scelta' : 'Scegli questa chat, per eliminarne più d’una dal PC insieme'}
           aria-pressed={segnata}
         >
           🗑
         </button>
+        {/* Chiudi, Archivia, Elimina dal PC (0.79.0), con il loro «?». */}
+        <AzioniChat sessione={gruppo.principale.uuid} titolo={etichetta ?? gruppo.titolo} classe="voce-chat__gestione" />
         {/* Sbirciare prima di aprire: una chat si riconosce da cosa ci si era
             detto, non dal titolo che Claude le ha dato tre settimane fa. */}
         <button
