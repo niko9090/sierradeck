@@ -34,3 +34,9 @@ Usato per la 0.79.0 (gestione delle chat). Serve ogni volta che una funzione toc
   - Un campo React non si scrive con `el.value = …`: usa il setter nativo di `HTMLInputElement.prototype.value`, poi un evento `input`.
   - La pagina non si ridisegna mentre un campo ha il fuoco. Un tasto che dipende da quello che scrivi va acceso o spento dal suo `oninput`.
   - Fermare la copia: `taskkill /T /F` sulla radice dei processi con `remote-debugging-port=9333`, poi controlla che le porte 47650/47651 siano libere.
+
+## Trappole viste nel giro del 18/10 (0.79.0)
+- **Provare sempre anche l'azione riuscita, non solo «Annulla» e il rifiuto.** Una conferma che vive dentro una riga sparisce con la riga quando l'azione riesce. È così che l'esito di Elimina da «Riprendi una conversazione» non si vedeva.
+- **Per i doppi clic e le spunte, usare eventi veri** (`Input.dispatchMouseEvent` / `Input.dispatchTouchEvent` via CDP), non `element.click()`. Solo il tocco vero dà il fuoco alla casella: è lì che la pagina saltava il ridisegno.
+- **Dopo un riavvio la copia riapre le chat che erano aperte nel workspace.** Una chat lasciata aperta si rifiuta a Elimina: prima chiuderla, con l'azione «chiudi».
+- **Fermare la copia.** `taskkill /T /F` lanciato da PowerShell può non fermare niente. Funziona `Stop-Process -Force` sui processi `electron.exe` / `msedge.exe` con `prova-079` o `remote-debugging-port=933x` nella riga di comando. Poi controllare che le porte 47650/47651/9333/9334 siano libere.
