@@ -109,6 +109,18 @@ describe('lo stato di una chat dai pezzi', () => {
     expect(statoPerAzione({ ...base, aperte: [{ sessione: S2, viva: true }] }).aperta).toBeUndefined()
   })
 
+  it('un riquadro di un workspace mostrato adesso, non aperto: non si tocca da sotto la finestra', () => {
+    const base = { sessione: S1, autopiloti: [], io: 'pc-qui' }
+    const st = statoPerAzione({ ...base, aperte: [], workspace: { salvataIn: ['nascosto', 'Lavoro'], mostrati: new Set(['Lavoro']) } })
+    expect(st.riquadroIn).toBe('Lavoro')
+    expect(motivoNonElimina(st)).toMatch(/riquadro del workspace «Lavoro», aperto adesso/)
+    expect(motivoNonArchivia(st)).toMatch(/riquadro del workspace «Lavoro»/)
+    // Solo in workspace nascosti: si può (il riquadro si toglie da lì).
+    expect(statoPerAzione({ ...base, aperte: [], workspace: { salvataIn: ['nascosto'], mostrati: new Set(['Lavoro']) } }).riquadroIn).toBeUndefined()
+    // Aperta: vale «aperta», non il riquadro.
+    expect(statoPerAzione({ ...base, aperte: [{ sessione: S1, aspetta: true }], workspace: { salvataIn: ['Lavoro'], mostrati: new Set(['Lavoro']) } }).riquadroIn).toBeUndefined()
+  })
+
   it('di un altro PC: la casa memorizzata altrove, o il progetto là', () => {
     const base = { sessione: S1, autopiloti: [], aperte: [], io: 'pc-qui' }
     expect(statoPerAzione({ ...base, casa: { pc: 'pc-la', pcNome: 'PORTATILE-ESEMPIO' } }).altroPc).toBe('PORTATILE-ESEMPIO')

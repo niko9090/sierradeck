@@ -53,6 +53,12 @@ export type DipendenzeGestioneChat = {
   /** Chiude la chat aperta (riquadro o sottofondo). */
   chiudi: (sessione: string, da: string) => Promise<{ ok: boolean; errore?: string }>
   etichette: { leggi: () => Record<string, string>; imposta: (sessione: string, testo: string) => void }
+  /**
+   * Toglie il riquadro di quella chat dai workspace che nessuna finestra
+   * mostra (quelli mostrati li rifiuta già `statoDi`): i nomi dei workspace.
+   * Senza, aprendo quel workspace la chat ripartirebbe vuota.
+   */
+  togliDaiWorkspaceNascosti?: (sessione: string) => string[]
   /** Il Drive, se collegato: «anche dal Drive». */
   drive?: {
     togliChat: (sessioni: string[], titolo: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: { id: string; voci: unknown[]; byte: number } }>
@@ -254,6 +260,8 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
               if (!e.ok) { esiti.push({ sessione, ok: false, motivo: `«${titolo}» è aperta e non si è chiusa: ${e.errore ?? '?'}.` }); break }
             }
             scriviArchiviate(conArchiviata(archiviate(), { sessione, il: ora(), titolo }))
+            const ws = deps.togliDaiWorkspaceNascosti?.(sessione) ?? []
+            if (ws.length > 0) deps.log(`[chat] «${titolo}» archiviata: tolto il suo riquadro dai workspace ${ws.map((w) => `«${w}»`).join(', ')}`)
             esiti.push({ sessione, ok: true })
             break
           }
@@ -280,11 +288,13 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
             const file = await Promise.all(sp.file.map(async (f) => ({ ...f, byte: await byteDi(f.dove) })))
             const etichetta = deps.etichette.leggi()[sessione]
             const arch = archiviate().find((a) => a.sessione === sessione)
+            const ws = deps.togliDaiWorkspaceNascosti?.(sessione) ?? []
             const voce: ChatInRecupero = {
               id, sessione, titolo, slug: info.slug, quando, scadeIl: scadenzaRecupero(quando), byte: m.byte, file, da,
               ...(info.cwd !== undefined ? { cwd: info.cwd } : {}),
               ...(etichetta !== undefined ? { etichetta } : {}),
-              ...(arch !== undefined ? { archiviata: arch } : {})
+              ...(arch !== undefined ? { archiviata: arch } : {}),
+              ...(ws.length > 0 ? { workspace: ws } : {})
             }
             const reg = leggiRecupero()
             scriviRecupero({ ...reg, chat: [...reg.chat, voce] })
@@ -377,7 +387,8 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
       deps.rileggiIndice?.()
       deps.cambiato?.()
       deps.log(`[chat] «${c.titolo}» (${c.sessione.slice(0, 8)}) rimessa dal recupero (${da})${mancanti.length > 0 ? `: ${mancanti.length} file mancavano` : ''}`)
-      return { ok: true, messaggio: `«${c.titolo}» è di nuovo al suo posto.${mancanti.length > 0 ? ` ${mancanti.length} file non c’erano più.` : ''}${driveRiga}` }
+      const wsRiga = c.workspace !== undefined && c.workspace.length > 0 ? ` Era nel workspace ${c.workspace.map((w) => `«${w}»`).join(', ')}: si riapre da «Riprendi una conversazione».` : ''
+      return { ok: true, messaggio: `«${c.titolo}» è di nuovo al suo posto.${mancanti.length > 0 ? ` ${mancanti.length} file non c’erano più.` : ''}${wsRiga}${driveRiga}` }
     },
 
     chiediSvuota(ancheDalDrive) {

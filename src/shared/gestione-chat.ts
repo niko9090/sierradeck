@@ -130,6 +130,12 @@ export type StatoPerAzione = {
   nonQui?: boolean
   /** Protetta dal PIN e ancora chiusa per chi chiede. */
   pinChiusa?: boolean
+  /**
+   * È un riquadro di un workspace che una finestra mostra adesso, senza
+   * essere aperta (ibernata, o in attesa di ripartire): il nome del workspace.
+   * Toglierla da sotto la finestra la farebbe ripartire vuota.
+   */
+  riquadroIn?: string
 }
 
 function nome(s: StatoPerAzione): string {
@@ -145,6 +151,7 @@ export function motivoNonElimina(s: StatoPerAzione): string | undefined {
   if (s.aperta?.chiede === true) return `${n} aspetta una tua risposta: rispondi o chiudila prima.`
   if (s.aperta?.sottofondo !== undefined) return `${n} è aperta in sottofondo per ${s.aperta.sottofondo}: chiudila prima.`
   if (s.aperta !== undefined) return `${n} è aperta e ti aspetta: chiudila prima con «Chiudi».`
+  if (s.riquadroIn !== undefined) return `${n} è un riquadro del workspace «${s.riquadroIn}», aperto adesso: chiudila lì prima.`
   if (s.pinChiusa === true) return `${n} è protetta dal PIN: sbloccala prima.`
   if (s.nonQui === true) return `${n} non ha file su questo PC: non c’è niente da eliminare qui.`
   return undefined
@@ -161,6 +168,7 @@ export function motivoNonArchivia(s: StatoPerAzione): string | undefined {
   if (s.aperta?.lavora === true) return `${n} sta lavorando: aspetta che finisca.`
   if (s.aperta?.chiede === true) return `${n} aspetta una tua risposta: rispondi prima.`
   if (s.aperta?.sottofondo !== undefined) return `${n} è aperta in sottofondo per ${s.aperta.sottofondo}: chiudila prima.`
+  if (s.aperta === undefined && s.riquadroIn !== undefined) return `${n} è un riquadro del workspace «${s.riquadroIn}», aperto adesso: chiudila lì prima.`
   if (s.pinChiusa === true) return `${n} è protetta dal PIN: sbloccala prima.`
   return undefined
 }
@@ -231,6 +239,8 @@ export type ChatInRecupero = {
   /** Le voci tolte con la chat, per rimetterle al ripristino. */
   etichetta?: string
   archiviata?: ChatArchiviata
+  /** I workspace nascosti da cui si è tolto il suo riquadro: al ripristino non torna lì, si riapre da «Riprendi». */
+  workspace?: string[]
   /** «anche dal Drive»: la pulizia del Drive che ha tolto le sue copie lassù. */
   drive?: { pulizia: string; file: number; byte: number }
   /** Chi l'ha chiesto: il PC, il telefono, un altro PC. */
@@ -461,6 +471,8 @@ export function statoPerAzione(p: {
   /** Il PC dove sta il progetto, se la cartella qui non c'è. */
   progettoAltrove?: string
   pinChiusa?: boolean
+  /** I workspace che la salvano come riquadro, e quali sono mostrati adesso da una finestra. */
+  workspace?: { salvataIn: readonly string[]; mostrati: ReadonlySet<string> }
 }): StatoPerAzione {
   const s = p.sessione.toLowerCase()
   const c = p.aperte.find((x) => x.sessione !== undefined && x.sessione.toLowerCase() === s)
@@ -468,12 +480,14 @@ export function statoPerAzione(p: {
   const lavora = c !== undefined && c.viva !== false && c.aspetta !== true && !chiede
   const gov = governataDa(p.autopiloti, p.sessione)
   const altroPc = p.casa !== undefined && p.casa.pc !== p.io ? p.casa.pcNome : p.progettoAltrove
+  const riquadroIn = c === undefined ? p.workspace?.salvataIn.find((w) => p.workspace?.mostrati.has(w) === true) : undefined
   return {
     sessione: p.sessione,
     ...(p.titolo !== undefined ? { titolo: p.titolo } : c?.titolo !== undefined ? { titolo: c.titolo } : {}),
     ...(c !== undefined ? { aperta: { lavora, chiede, ...(c.sottofondo !== undefined ? { sottofondo: c.sottofondo.nome } : {}) } } : {}),
     ...(gov !== undefined ? { governata: gov } : {}),
     ...(altroPc !== undefined ? { altroPc } : {}),
-    ...(p.pinChiusa === true ? { pinChiusa: true } : {})
+    ...(p.pinChiusa === true ? { pinChiusa: true } : {}),
+    ...(riquadroIn !== undefined ? { riquadroIn } : {})
   }
 }

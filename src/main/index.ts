@@ -205,7 +205,7 @@ import { apriRegistro, type Registro } from './registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
-import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
+import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, rimuoviSessioni as rimuoviSessioniDalLayout, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
 import { apriDestinazioni } from './trasferimenti/destinazioni'
@@ -4816,7 +4816,17 @@ if (!app.requestSingleInstanceLock()) {
 
       // La gestione delle chat (0.79.0): le stesse risposte per il PC (IPC), la
       // pagina e l'app (/api/chat/gestione/…, anche attraverso il ponte).
+      /** I workspace che salvano quella conversazione come riquadro (anche più d'uno). */
+      const chatSalvateTutte = (a: ArchivioWs, sessione: string): string[] => a.workspace.filter((w) => Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === sessione))).map((w) => w.nome)
       let autopilotiPerChat: { il: number; elenco: AutopilotaPerChat[] | undefined } | undefined
+      /** I workspace che una finestra mostra adesso (come per «rispecchia»): lì i riquadri non si toccano da qui. */
+      const workspaceMostrati = (): Set<string> => {
+        const m = new Set<string>()
+        for (const w of finestreDiChat()) { const n = !w.isDestroyed() ? workspaceDellaFinestra(w.id) : undefined; if (n !== undefined) m.add(n) }
+        const attivo = workspaceStore?.leggi().attivo
+        if (attivo !== undefined && attivo !== '') m.add(attivo)
+        return m
+      }
       const gestioneChat = creaGestioneChat({
         radiceClaude: () => claudeRoot(),
         dati,
@@ -4846,7 +4856,8 @@ if (!app.requestSingleInstanceLock()) {
             sessione, aperte, autopiloti: autopiloti ?? [], io: identitaPcGlobale?.leggi().id ?? '',
             ...(casa !== undefined ? { casa: { pc: casa.pc, pcNome: casa.pcNome } } : {}),
             ...(progettoAltrove !== undefined ? { progettoAltrove } : {}),
-            pinChiusa
+            pinChiusa,
+            ...(workspaceStore !== undefined ? { workspace: { salvataIn: chatSalvateTutte(workspaceStore.leggi(), sessione), mostrati: workspaceMostrati() } } : {})
           })
           // Il servizio degli autopiloti non risponde: non si sa chi la governa, e nel dubbio non si tocca.
           return autopiloti === undefined ? { ...st, governata: st.governata ?? { autopilota: '(il servizio non risponde)', attivo: true } } : st
@@ -4860,6 +4871,25 @@ if (!app.requestSingleInstanceLock()) {
           return e.ok ? { ok: true } : { ok: false, ...(e.errore !== undefined ? { errore: e.errore } : {}) }
         },
         etichette: { leggi: () => etichette.leggi(), imposta: (s, t) => { etichette.imposta(s, t) } },
+        togliDaiWorkspaceNascosti: (sessione) => {
+          if (workspaceStore === undefined) return []
+          const prima = workspaceStore.leggi()
+          const mostrati = workspaceMostrati()
+          const via = new Set([sessione])
+          const tolti: string[] = []
+          const dopo: ArchivioWs = {
+            ...prima,
+            workspace: prima.workspace.map((w) => {
+              if (mostrati.has(w.nome) || !Object.values(w.perSlot).some((l) => l.panes.some((p) => p.sessionUuid === sessione))) return w
+              tolti.push(w.nome)
+              return { ...w, perSlot: Object.fromEntries(Object.entries(w.perSlot).map(([k, l]) => [k, rimuoviSessioniDalLayout(l, via)])) }
+            })
+          }
+          if (tolti.length === 0) return []
+          workspaceStore.scrivi(dopo)
+          for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+          return tolti
+        },
         drive: {
           togliChat: (s, t) => spazioGlobale?.togliChat(s, t) ?? Promise.resolve({ ok: false, messaggio: 'il Drive non è collegato o la cassaforte è chiusa' }),
           annulla: (id) => spazioGlobale?.annulla(id) ?? Promise.resolve({ ok: false, messaggio: 'il Drive non è collegato' }),

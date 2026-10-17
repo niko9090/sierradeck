@@ -47,6 +47,7 @@ type Scena = {
   chiuse: string[]
   drive: { tolte: string[][]; annullate: string[]; svuotate: string[] }
   orologio: { ora: number }
+  tolteDaiWs: string[]
 }
 
 function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
@@ -59,6 +60,7 @@ function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
   const chiuse: string[] = []
   const drive = { tolte: [] as string[][], annullate: [] as string[], svuotate: [] as string[] }
   const orologio = { ora: Date.parse('2026-10-17T10:00:00Z') }
+  const tolteDaiWs: string[] = []
   const info: Record<string, InfoSessione> = {
     [S1]: { sessione: S1, slug: SLUG, titolo: 'Il lettore di CSV', cwd: 'E:\\progetti\\esempio', ultimaAttivita: '2026-10-10T10:00:00Z' },
     [S2]: { sessione: S2, slug: SLUG, titolo: 'Bozza', cwd: 'E:\\progetti\\esempio', ultimaAttivita: '2026-10-11T10:00:00Z' }
@@ -85,10 +87,11 @@ function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
         svuota: async (id: string) => { drive.svuotate.push(id); return { ok: true, messaggio: 'ok' } }
       }
     } : {}),
+    togliDaiWorkspaceNascosti: (s) => { tolteDaiWs.push(s); return s === S2 ? ['Notte'] : [] },
     log: (m) => log.push(m),
     adesso: () => orologio.ora
   }
-  return { g: creaGestioneChat(deps), radice, dati, log, indice, etichette, stati, chiuse, drive, orologio }
+  return { g: creaGestioneChat(deps), radice, dati, log, indice, etichette, stati, chiuse, drive, orologio, tolteDaiWs }
 }
 
 const fileDi = (radice: string, s: string): string[] => fileDiSessione(radice, SLUG, s).map((f) => f.relativo.join('/')).sort()
@@ -358,6 +361,26 @@ describe('Chiudi, Archivia, Ripristina, Rinomina', () => {
     expect(x.etichette[S2]).toBe('Casa nuova')
     await x.g.azione({ azione: 'rinomina', sessioni: [S2], nome: '' })
     expect(x.etichette[S2]).toBeUndefined()
+  })
+})
+
+describe('i riquadri nei workspace nascosti', () => {
+  it('eliminata o archiviata: il suo riquadro esce dai workspace nascosti; al ripristino lo si dice', async () => {
+    const x = scena()
+    await x.g.azione({ azione: 'archivia', sessioni: [S1] })
+    await x.g.azione({ azione: 'elimina', sessioni: [S2] })
+    expect(x.tolteDaiWs).toEqual([S1, S2])
+    expect(x.g.recupero().chat[0]?.workspace).toEqual(['Notte'])
+    const e = await x.g.ripristinaDalRecupero(x.g.recupero().chat[0]?.id as string)
+    expect(e.messaggio).toMatch(/Era nel workspace «Notte»: si riapre da «Riprendi una conversazione»/)
+  })
+
+  it('una chat rifiutata non tocca i workspace', async () => {
+    const x = scena()
+    x.stati.set(S1, { riquadroIn: 'Lavoro' })
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1] })
+    expect(e.esiti[0]?.motivo).toMatch(/workspace «Lavoro»/)
+    expect(x.tolteDaiWs).toEqual([])
   })
 })
 
