@@ -35,3 +35,9 @@ tag: ["telefono", "android", "ponte", "pc-remoto", "sicurezza"]
 
 - La pagina servita dal PC (quella nel browser del telefono) non ha il ponte:
   solo l'app.
+
+## Trappola: una rotta nuova nel ponte va in tre posti (17/10, 0.79.0)
+Chi aggiunge una rotta a `ROTTE_PONTE` (`src/shared/ponte-telefono.ts`) deve metterla anche in:
+- `ROTTE_VIA_CANALE` (`src/shared/strada-pc.ts`): lo controlla `tests/main/ponte-telefono.test.ts`;
+- `Ponte.ROTTE` (`android/.../Ponte.kt`): lo controlla `PonteTest` dell'app, che legge il file TypeScript.
+Altrimenti `npm test` o la compilazione dell'app diventano rossi, e cambiare `Ponte.kt` vuol dire APK nuovo nella release.

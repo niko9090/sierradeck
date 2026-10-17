@@ -73,6 +73,7 @@ Questa è la parte **motore** della 0.79.0 (processo principale e `shared`). L'i
   - `POST /api/chat/gestione/azione` `{azione: chiudi|archivia|ripristina|elimina|rinomina, sessioni[], ancheDalDrive?, nome?}` → `{esiti[], fatte, rifiutate, byte?, messaggio}`;
   - `POST /api/chat/gestione/archiviate` | `/recupero` | `/ripristina {id}`;
   - `POST /api/chat/gestione/svuota {ancheDalDrive}`: risponde `{gettone, frase, messaggio}`. Poi `{ancheDalDrive, gettone, frase:"SVUOTA"}`.
+- **App Android:** `Ponte.kt` ha le stesse sei rotte `/api/chat/gestione/*` (il test `PonteTest` vuole la lista uguale a `ROTTE_PONTE`). Quindi `android/` è cambiato: nella release l'APK va ricompilato con versione nuova.
 - `/api/sessioni` non dà più le archiviate (`archiviate: N` dice quante); con `{archiviate:true}` le dà.
 
 ## Prova dal vero (in una copia)
