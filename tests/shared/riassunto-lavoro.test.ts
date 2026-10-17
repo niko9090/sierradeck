@@ -200,3 +200,22 @@ describe('i casi per l’app', () => {
     expect(readFileSync(file, 'utf8').replace(/\r\n/g, '\n')).toBe(atteso)
   })
 })
+
+describe('dopo la revisione di ECC (0.79.0)', () => {
+  it('un «al lavoro» che tace da più di 10 minuti non racconta più l’ultimo strumento', () => {
+    const segnali = [seg('UserPromptSubmit', '2026-10-18T09:00:00.000Z'), seg('PreToolUse', '2026-10-18T09:01:00.000Z', { strumento: 'Bash', comando: 'npm test' })]
+    expect(cosaFaDaSegnali(segnali, Date.parse('2026-10-18T09:05:00.000Z'))).toMatchObject({ cosa: 'fa girare i test', lavora: true })
+    expect(cosaFaDaSegnali(segnali, Date.parse('2026-10-18T09:31:00.000Z'))).toMatchObject({ cosa: 'nessun segnale da 30 min', lavora: false })
+    // Un'adottata che tace non è più fra le chat al lavoro.
+    const a = ap([], [], { adottate: [{ sessionId: 's', titolo: 'adottata' }] as Autopilota['adottate'] })
+    expect(righeLavoro(a, () => segnali, Date.parse('2026-10-18T09:31:00.000Z'))).toEqual([])
+    expect(righeLavoro(a, () => segnali, Date.parse('2026-10-18T09:05:00.000Z'))).toHaveLength(1)
+  })
+  it('il permesso si racconta dal comando, non dalla descrizione della chat', () => {
+    const r = cosaFaDaSegnali([seg('UserPromptSubmit', '1'), seg('PermissionRequest', '2', { strumento: 'Bash', dettaglio: 'Run the tests', comando: 'npx vitest run' })])
+    expect(r?.cosa).toBe('aspetta il tuo permesso: fa girare i test')
+  })
+  it('una chat chiusa dai segnali si dice «chat chiusa»', () => {
+    expect(cosaFaDaSegnali([seg('SessionEnd', '1')])?.cosa).toBe('chat chiusa')
+  })
+})

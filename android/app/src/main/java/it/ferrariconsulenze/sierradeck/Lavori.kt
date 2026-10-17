@@ -354,7 +354,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
             // PC 0.79.0: il riassunto della dashboard sta fisso sopra la conversazione,
             // sempre in vista come il campo per scrivere qui sotto.
             pan?.takeIf { it.situazione != null && it.autopilota != null }?.let { p ->
-                RiassuntoLavoroVista(p.lavoro, System.currentTimeMillis()) { id -> Apertura.apriChat(id) }
+                RiassuntoLavoroVista(p.lavoro) { id -> Apertura.apriChat(id) }
                 HorizontalDivider(color = Banco.incisione)
             }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista) {

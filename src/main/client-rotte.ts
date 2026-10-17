@@ -1315,7 +1315,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           riassunto: riassuntoAutopilota(ap, ora),
           situazione: situazioneAutopilota(ap, ora),
           // La dashboard (0.79.0): una riga per chat al lavoro, dai segnali e dal registro.
-          lavoro: righeLavoro(ap, deps.segnali ?? (() => [])).map((x) => {
+          lavoro: righeLavoro(ap, deps.segnali ?? (() => []), ora).map((x) => {
             const aperta = x.sessione !== undefined ? chat.find((y) => y.sessione === x.sessione) : undefined
             return aperta !== undefined ? { ...x, chat: aperta.id } : x
           }),

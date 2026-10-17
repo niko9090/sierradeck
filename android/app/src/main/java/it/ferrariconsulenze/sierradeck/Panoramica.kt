@@ -415,7 +415,12 @@ fun CosaESuccesso(eventi: List<Battuta>) {
  * riga per chat al lavoro, prima chi aspetta te; tocco = apri la chat.
  */
 @Composable
-fun RiassuntoLavoroVista(righe: List<RigaLavoro>, ora: Long, onApri: (String) -> Unit) {
+fun RiassuntoLavoroVista(righe: List<RigaLavoro>, onApri: (String) -> Unit) {
+    // «da N min» avanza da solo, anche quando i dati non cambiano (revisione ECC).
+    var ora by remember { mutableStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(15_000); ora = System.currentTimeMillis() }
+    }
     val (inVista, altre) = RegoleRiassunto.inVista(righe)
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {

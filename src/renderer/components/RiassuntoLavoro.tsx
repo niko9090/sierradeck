@@ -39,12 +39,20 @@ export function RiassuntoLavoro({ autopilota, paneDiSessione, onApri }: {
     }
     leggi()
     const t = setInterval(leggi, OGNI_MS)
+    // A ogni segnale nuovo, ma con mezzo secondo di quiete: in un turno pieno i segnali arrivano a raffica.
+    let attesa: ReturnType<typeof setTimeout> | undefined
     let toglie: (() => void) | undefined
-    try { toglie = window.gestore.segnali.suStato((f) => { if (sessioni.includes(f.sessione)) leggi() }) } catch { /* finestra senza segnali */ }
-    return () => { vivo = false; clearInterval(t); toglie?.() }
+    try {
+      toglie = window.gestore.segnali.suStato((f) => {
+        if (!sessioni.includes(f.sessione)) return
+        if (attesa !== undefined) clearTimeout(attesa)
+        attesa = setTimeout(leggi, 500)
+      })
+    } catch { /* finestra senza segnali */ }
+    return () => { vivo = false; clearInterval(t); if (attesa !== undefined) clearTimeout(attesa); toglie?.() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chiave])
-  const righe = righeLavoro(autopilota, (s) => segnali[s] ?? [])
+  const righe = righeLavoro(autopilota, (s) => segnali[s] ?? [], ora)
   return (
     <div className="pan2-sezione riassunto-lavoro" aria-label={TESTI_RIASSUNTO.titolo}>
       <div className="serigrafia" aria-live="polite">

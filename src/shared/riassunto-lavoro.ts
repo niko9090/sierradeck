@@ -96,17 +96,25 @@ export type DaiSegnali = { cosa: string; dal: string; aspettaTe: boolean; lavora
  * aspetta; mentre lavora, l'ultimo strumento del turno dice che cosa fa.
  * `undefined` se non c'è nessun segnale.
  */
-export function cosaFaDaSegnali(segnali: readonly Segnale[]): DaiSegnali | undefined {
+export function cosaFaDaSegnali(segnali: readonly Segnale[], adesso?: number): DaiSegnali | undefined {
   const st = statoDaSegnali([...segnali])
   if (st === undefined) return undefined
   if (st.fase === 'chiede') {
     if (st.chiede?.tipo === 'domanda') return { cosa: 'ti fa una domanda', dal: st.dal, aspettaTe: true, lavora: false }
-    const per = st.chiede?.strumento !== undefined ? attivitaStrumento(st.chiede.strumento, st.chiede.dettaglio) : undefined
+    // Il comando dal segnale del permesso, non la descrizione scritta dalla chat (revisione ECC).
+    const permesso = [...segnali].reverse().find((g) => g.evento === 'PermissionRequest')
+    const per = st.chiede?.strumento !== undefined ? attivitaStrumento(st.chiede.strumento, st.chiede.dettaglio, permesso?.comando) : undefined
     return { cosa: per !== undefined && per !== 'lavora' ? `aspetta il tuo permesso: ${per}` : 'aspetta il tuo permesso', dal: st.dal, aspettaTe: true, lavora: false }
   }
   if (st.fase === 'errore') return { cosa: 'si è fermata per un errore', dal: st.dal, aspettaTe: false, lavora: false }
-  if (st.fase === 'chiusa') return { cosa: 'chiusa', dal: st.dal, aspettaTe: false, lavora: false }
+  if (st.fase === 'chiusa') return { cosa: 'chat chiusa', dal: st.dal, aspettaTe: false, lavora: false }
   if (st.fase === 'aspetta') return { cosa: 'ha finito il turno', dal: st.dal, aspettaTe: false, lavora: false }
+  // Un «al lavoro» senza più segnali da tanto è forse uno Stop perso (revisione ECC):
+  // non si dice più «fa girare i test» per ore, si dice da quanto tace.
+  const ultimo = Date.parse(segnali[segnali.length - 1]?.quando ?? '')
+  if (adesso !== undefined && Number.isFinite(ultimo) && adesso - ultimo >= SILENZIO_MS) {
+    return { cosa: `nessun segnale da ${Math.round((adesso - ultimo) / 60_000)} min`, dal: st.dal, aspettaTe: false, lavora: false }
+  }
   // Al lavoro: l'ultimo strumento dopo l'inizio del turno.
   let inizio = -1
   for (let i = segnali.length - 1; i >= 0; i--) if (segnali[i]!.evento === 'UserPromptSubmit') { inizio = i; break }
@@ -114,6 +122,9 @@ export function cosaFaDaSegnali(segnali: readonly Segnale[]): DaiSegnali | undef
   const cosa = strumento !== undefined ? attivitaStrumento(strumento.strumento!, strumento.dettaglio, strumento.comando) : 'ci pensa'
   return { cosa, dal: st.dal, aspettaTe: false, lavora: true }
 }
+
+/** Dopo quanto silenzio un «al lavoro» dai segnali non si racconta più come lavoro (come `lavoraDaSegnali`). */
+export const SILENZIO_MS = 10 * 60_000
 
 // ─── Il registro: quando una chat è nata e cosa è successo ──────────────────
 // I testi qui sotto li scrive il servizio (`autopilot-host/server.ts`, con
@@ -187,9 +198,9 @@ const numero = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1]
  * chat governata conta finché non è finita; un'adottata solo quando i segnali
  * dicono che lavora o aspetta Nicholas.
  */
-export function righeLavoro(a: Autopilota, segnaliDi: (sessione: string) => readonly Segnale[]): RigaLavoro[] {
+export function righeLavoro(a: Autopilota, segnaliDi: (sessione: string) => readonly Segnale[], adesso?: number): RigaLavoro[] {
   const fuori: RigaLavoro[] = []
-  const daSegnali = (sessione: string | undefined): DaiSegnali | undefined => (sessione === undefined ? undefined : cosaFaDaSegnali(segnaliDi(sessione)))
+  const daSegnali = (sessione: string | undefined): DaiSegnali | undefined => (sessione === undefined ? undefined : cosaFaDaSegnali(segnaliDi(sessione), adesso))
   if (a.chats.length === 0 && a.sessionId !== undefined && (a.stato === 'lavoro' || a.stato === 'attesa')) {
     const g = daSegnali(a.sessionId)
     fuori.push({
