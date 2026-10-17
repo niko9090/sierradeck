@@ -77,7 +77,9 @@ import {
 } from './accesso-supabase'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
-import { listSessions } from './db'
+import { listSessions, rimuoviSessioni } from './db'
+import { creaGestioneChat, type GestioneChat } from './gestione-chat'
+import { statoPerAzione, nascondiArchiviate, AZIONI_CHAT, type AzioneChat, type AutopilotaPerChat } from '@shared/gestione-chat'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
@@ -162,7 +164,7 @@ import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi } from './ipc'
-import { impostaAllaRiapertura } from './ipc'
+import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { creaChiuseStore } from './chiuse-store'
 import { creaRispecchia } from './rispecchia-workspace'
 import { leggiChiuse, rigaChiusaACasa, rigaNonApertaACasa, type ChiusaDaTe } from '@shared/chiuse'
@@ -553,6 +555,8 @@ let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
 /** «Rendi residente» con analisi e unione (0.60.0). */
 let residenzaGlobale: Residenza | undefined
 let spazioGlobale: SpazioDrive | undefined
+/** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
+let gestioneChatGlobale: GestioneChat | undefined
 /** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
 let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
 /** «Creare un workspace crea il progetto» (0.65.1): la cartella del progetto di un workspace, creata se serve. */
@@ -1696,6 +1700,8 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le pulizie del Drive (0.65.0): una voce tolta non risale finché è uguale.
         fuoriDalDrive: (p, size) => spazioGlobale?.fuoriDalDrive(p, size) ?? false,
+        // Le chat eliminate dal PC (0.79.0) non scendono di nuovo da sole.
+        chatTolteDaQui: (p) => gestioneChatGlobale?.tolteDaQui(p) ?? false,
         progetti: progettiSync,
         pcNome: () => identitaPc.leggi().nome,
         pcId: () => identitaPc.leggi().id,
@@ -4808,6 +4814,95 @@ if (!app.requestSingleInstanceLock()) {
       const etichette = apriEtichetteStore(dati)
       ipcMain.handle('etichette:leggi', () => etichette.leggi())
 
+      // La gestione delle chat (0.79.0): le stesse risposte per il PC (IPC), la
+      // pagina e l'app (/api/chat/gestione/…, anche attraverso il ponte).
+      let autopilotiPerChat: { il: number; elenco: AutopilotaPerChat[] | undefined } | undefined
+      const gestioneChat = creaGestioneChat({
+        radiceClaude: () => claudeRoot(),
+        dati,
+        sessioni: () => {
+          if (db === undefined) return []
+          const nomi = etichette.leggi()
+          return listSessions(db).map((x: SessionSummary) => ({
+            sessione: x.uuid, slug: x.projectSlug,
+            titolo: nomi[x.uuid] ?? x.aiTitle ?? (x.primoPrompt !== undefined && x.primoPrompt.trim() !== '' ? x.primoPrompt.trim().slice(0, 80) : x.uuid.slice(0, 8)),
+            cwd: x.cwd ?? x.projectPath,
+            ...(x.lastTimestamp !== undefined ? { ultimaAttivita: x.lastTimestamp } : {})
+          }))
+        },
+        togliDallIndice: (s) => { if (db !== undefined) rimuoviSessioni(db, s) },
+        rileggiIndice: () => { void reindicizzaSessioni() },
+        statoDi: async ({ sessione, cwd }, visore) => {
+          // Gli autopiloti si chiedono al servizio al massimo ogni tre secondi: cento chat scelte non fanno cento richieste.
+          if (autopilotiPerChat === undefined || Date.now() - autopilotiPerChat.il > 3000) {
+            autopilotiPerChat = { il: Date.now(), elenco: await clientAutopilota.elenca().then((l) => l as unknown as AutopilotaPerChat[], () => undefined) }
+          }
+          const autopiloti = autopilotiPerChat.elenco
+          const aperte = [...chatAperte, ...(sottofondo?.chat() ?? []).filter((c) => !chatAperte.some((x) => x.sessione === c.sessione))]
+          const casa = unaCasaGlobale?.casaDi(sessione)
+          const progettoAltrove = cwd !== undefined && !existsSync(cwd) ? altroveRiquadro(cwd)?.nome : undefined
+          const pinChiusa = visore !== undefined && guardianoPin !== undefined && guardianoPin.protetta({ sessione }) && guardianoPin.chiusa(visore, { sessione })
+          const st = statoPerAzione({
+            sessione, aperte, autopiloti: autopiloti ?? [], io: identitaPcGlobale?.leggi().id ?? '',
+            ...(casa !== undefined ? { casa: { pc: casa.pc, pcNome: casa.pcNome } } : {}),
+            ...(progettoAltrove !== undefined ? { progettoAltrove } : {}),
+            pinChiusa
+          })
+          // Il servizio degli autopiloti non risponde: non si sa chi la governa, e nel dubbio non si tocca.
+          return autopiloti === undefined ? { ...st, governata: st.governata ?? { autopilota: '(il servizio non risponde)', attivo: true } } : st
+        },
+        chiudi: async (sessione, da) => {
+          const c = [...chatAperte, ...(sottofondo?.chat() ?? [])].find((x) => x.sessione === sessione)
+          if (c === undefined) return { ok: true }
+          const sf = sottofondo?.perId(c.id)
+          if (sf !== undefined) return chiudiSottofondoDaTe(sf, da) ? { ok: true } : { ok: false, errore: 'la chat in sottofondo non si è chiusa' }
+          const e = await azioneAlleFinestre({ tipo: 'chat', azione: 'chiudi', chat: c.id })
+          return e.ok ? { ok: true } : { ok: false, ...(e.errore !== undefined ? { errore: e.errore } : {}) }
+        },
+        etichette: { leggi: () => etichette.leggi(), imposta: (s, t) => { etichette.imposta(s, t) } },
+        drive: {
+          togliChat: (s, t) => spazioGlobale?.togliChat(s, t) ?? Promise.resolve({ ok: false, messaggio: 'il Drive non è collegato o la cassaforte è chiusa' }),
+          annulla: (id) => spazioGlobale?.annulla(id) ?? Promise.resolve({ ok: false, messaggio: 'il Drive non è collegato' }),
+          svuota: (id) => spazioGlobale?.svuota(id) ?? Promise.resolve({ ok: false, messaggio: 'il Drive non è collegato' })
+        },
+        cambiato: () => {
+          void reindicizzaSessioni()
+          for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('chatGestione:cambiata')
+        },
+        log: (m) => registro.info(m)
+      })
+      gestioneChatGlobale = gestioneChat
+      impostaGestioneSessioni({
+        filtra: (l) => nascondiArchiviate(l, gestioneChat.archiviate(), (x) => x.uuid),
+        elimina: async (uuids) => {
+          const e = await gestioneChat.azione({ azione: 'elimina', sessioni: uuids, da: 'PC («Butta»)' })
+          return { eliminate: e.fatte, errori: e.esiti.filter((x) => !x.ok).map((x) => x.motivo ?? x.sessione) }
+        }
+      })
+      ipcMain.handle('chatGestione:spazio', () => gestioneChat.spazio())
+      ipcMain.handle('chatGestione:selezione', (_e, s: unknown) => gestioneChat.selezione(Array.isArray(s) ? s.filter((x): x is string => typeof x === 'string') : []))
+      ipcMain.handle('chatGestione:azione', (_e, raw: unknown) => {
+        const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
+        const azione = typeof r.azione === 'string' && (AZIONI_CHAT as readonly string[]).includes(r.azione) ? r.azione as AzioneChat : undefined
+        if (azione === undefined) throw new Error('richiesta IPC non valida: azione sconosciuta')
+        const sessioni = Array.isArray(r.sessioni) ? r.sessioni.filter((x): x is string => typeof x === 'string') : []
+        return gestioneChat.azione({ azione, sessioni, ancheDalDrive: r.ancheDalDrive === true, ...(typeof r.nome === 'string' ? { nome: r.nome } : {}), da: 'PC' })
+      })
+      ipcMain.handle('chatGestione:archiviate', () => gestioneChat.archiviate())
+      ipcMain.handle('chatGestione:recupero', () => gestioneChat.recupero())
+      ipcMain.handle('chatGestione:ripristina', (_e, id: unknown) => typeof id === 'string' ? gestioneChat.ripristinaDalRecupero(id, 'PC') : { ok: false, messaggio: 'richiesta non valida' })
+      ipcMain.handle('chatGestione:chiediSvuota', (_e, anche: unknown) => gestioneChat.chiediSvuota(anche === true))
+      ipcMain.handle('chatGestione:svuota', (_e, raw: unknown) => {
+        const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
+        return gestioneChat.svuota({ gettone: r.gettone, frase: r.frase, ancheDalDrive: r.ancheDalDrive === true, da: 'PC' })
+      })
+      ipcMain.handle('chatGestione:orfane', () => gestioneChat.orfane())
+      // Il recupero si svuota da solo dopo 30 giorni: un giro poco dopo l'avvio, poi ogni sei ore.
+      const giroChat = (): void => { void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch(() => undefined) }
+      const primoGiroChat = setTimeout(giroChat, 90_000)
+      const timerGiroChat = setInterval(giroChat, 6 * 60 * 60_000)
+      app.on('before-quit', () => { clearTimeout(primoGiroChat); clearInterval(timerGiroChat) })
+
       // La parola d'ordine, per chi la vuole. Chiude l'accesso all'interfaccia:
       // non cifra i file, e il programma lo dice invece di lasciarlo credere.
       // Il quaderno di ogni cartella di lavoro: schede scritte per essere lette
@@ -4943,6 +5038,7 @@ if (!app.requestSingleInstanceLock()) {
           stato: (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.stato(c),
           pezzo: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.pezzo(c)
         },
+        ...(gestioneChatGlobale !== undefined ? { gestioneChat: gestioneChatGlobale } : {}),
         chat: () => chatAperte.map(conAltrove),
         autopiloti: () => clientAutopilota.elenca(),
         tempiAutopilota: (id: string) => clientAutopilota.tempi(id),

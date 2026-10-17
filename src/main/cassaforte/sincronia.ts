@@ -322,6 +322,11 @@ export function apriSincronia(deps: {
   unaCasa?: { saleDaQui: (percorso: string) => boolean; scendeQui: (percorso: string) => boolean }
   /** Tolto dal Drive con una pulizia e uguale a com'era (0.65.0): non risale. */
   fuoriDalDrive?: (percorso: string, size?: number) => boolean
+  /**
+   * Le chat eliminate da questo PC (0.79.0, «Elimina dal PC»): la loro copia
+   * sul Drive non scende di nuovo da sola, né con l'arrivo né con Ripristina.
+   */
+  chatTolteDaQui?: (percorso: string) => boolean
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
@@ -1381,7 +1386,7 @@ export function apriSincronia(deps: {
           maestra,
           archivio: deps.archivio(),
           soloPrefissi: (p) => !eDiProgetto(p),
-          escludi: (p) => altroveQui(p) || perPc(p),
+          escludi: (p) => altroveQui(p) || perPc(p) || deps.chatTolteDaQui?.(p) === true,
           manifestoPrec: leggiManifestoLocale(),
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: eDiProgetto,
@@ -1584,6 +1589,7 @@ export function apriSincronia(deps: {
       const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
         if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
         if (inRecupero.has(p.split('/')[1] ?? '')) { nelRecupero += 1; return false }
+        if (deps.chatTolteDaQui?.(p) === true) { nelRecupero += 1; return false }
         // Una chat, una casa (0.42.0): non scendono piu' da sole le chat degli
         // altri PC. Si guardano dal vivo, o si spostano con «Sposta progetto».
         if (deps.unaCasa !== undefined && !deps.unaCasa.scendeQui(p)) return false
@@ -1603,7 +1609,7 @@ export function apriSincronia(deps: {
       })
       if (nelRecupero !== recuperoLasciate) {
         recuperoLasciate = nelRecupero
-        if (nelRecupero > 0) log(`ARRIVO: ${nelRecupero} chat lasciate sul Drive perché la loro cartella è nel recupero di questo PC (tolte da qui): tornano solo se la rimetti a posto da «Cartelle in recupero»`)
+        if (nelRecupero > 0) log(`ARRIVO: ${nelRecupero} chat lasciate sul Drive perché tolte da questo PC (la loro cartella nel recupero, o eliminate dal PC): tornano solo se le rimetti dal recupero`)
       }
       if (vecchie !== vecchieLasciate) {
         vecchieLasciate = vecchie

@@ -1,6 +1,6 @@
 import {
-  daSvuotare, indiceConDiNuovo, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
-  type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole
+  daSvuotare, indiceConDiNuovo, propostaChatEliminate, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
+  type Proposta, type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole
 } from '@shared/spazio-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
@@ -30,6 +30,11 @@ export type SpazioDrive = {
   subito: () => StatoSpazio | undefined
   /** `chi` (0.69.0): chi la fa quando non è Nicholas («automatico»). */
   pulisci: (tipo: TipoProposta, chi?: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
+  /**
+   * «Elimina dal PC … anche dal Drive» (0.79.0): le copie di quelle chat
+   * escono dall'indice del Drive e vanno nel recupero (30 giorni, annullabile).
+   */
+  togliChat: (sessioni: string[], titolo: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
   annulla: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   svuota: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   /** Per il salvataggio: una voce tolta con una pulizia e uguale a com'era non risale. */
@@ -99,6 +104,25 @@ export function creaSpazioDrive(deps: {
     return { tolti, errori }
   }
 
+  /** Una pulizia confermata: prima nel registro, poi fuori dall'indice; se l'indice non si scrive, annullata subito. */
+  const applica = async (pr: Proposta, chi?: string): Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }> => {
+    const io = deps.io()
+    const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}`, chi: chi ?? io.nome, adesso: adesso() })
+    const r = await leggiRegistro()
+    await scriviRegistro({ ...r, pulizie: [...r.pulizie, p] })
+    const conVoce = p.voci.filter((v) => v.percorso !== undefined)
+    if (conVoce.length > 0) {
+      const e = await deps.modificaManifesto((m) => ({ ...m, file: indiceSenza(m.file, conVoce) }), `PULIZIA ${p.id} («${p.titolo}»)`)
+      if (!e.ok) {
+        await cambiaPulizia(p.id, (x) => ({ ...x, annullataIl: new Date(adesso()).toISOString() })).catch(() => undefined)
+        deps.log(`[spazio] pulizia «${p.titolo}» non fatta: ${e.messaggio ?? '?'}`)
+        return { ok: false, messaggio: `Non fatta: ${e.messaggio ?? 'il Drive non ha risposto'}. Niente è cambiato.` }
+      }
+    }
+    deps.log(`[spazio] pulizia «${p.titolo}» ${chi !== undefined ? `fatta da sola (${chi})` : `confermata da ${io.nome}`}: ${p.voci.length} file (${byteLeggibili(p.byte)}) nel recupero fino al ${p.scadeIl.slice(0, 10)}`)
+    return { ok: true, messaggio: `${p.voci.length} file nel recupero per 30 giorni (${byteLeggibili(p.byte)}). «Annulla» li rimette.`, pulizia: p }
+  }
+
   return {
     async stato(forza = false) {
       if (!forza && ultimo !== undefined && adesso() - ultimo.il < 5 * 60_000) return ultimo.stato
@@ -128,21 +152,17 @@ export function creaSpazioDrive(deps: {
       if (st.errore !== undefined) return { ok: false, messaggio: st.errore }
       const pr = st.proposte.find((x) => x.tipo === tipo)
       if (pr === undefined || pr.voci.length === 0) return { ok: false, messaggio: 'Non c’è più niente da pulire qui.' }
-      const io = deps.io()
-      const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}`, chi: chi ?? io.nome, adesso: adesso() })
-      const r = await leggiRegistro()
-      await scriviRegistro({ ...r, pulizie: [...r.pulizie, p] })
-      const conVoce = p.voci.filter((v) => v.percorso !== undefined)
-      if (conVoce.length > 0) {
-        const e = await deps.modificaManifesto((m) => ({ ...m, file: indiceSenza(m.file, conVoce) }), `PULIZIA ${p.id} («${p.titolo}»)`)
-        if (!e.ok) {
-          await cambiaPulizia(p.id, (x) => ({ ...x, annullataIl: new Date(adesso()).toISOString() })).catch(() => undefined)
-          deps.log(`[spazio] pulizia «${p.titolo}» non fatta: ${e.messaggio ?? '?'}`)
-          return { ok: false, messaggio: `Non fatta: ${e.messaggio ?? 'il Drive non ha risposto'}. Niente è cambiato.` }
-        }
-      }
-      deps.log(`[spazio] pulizia «${p.titolo}» ${chi !== undefined ? `fatta da sola (${chi})` : `confermata da ${io.nome}`}: ${p.voci.length} file (${byteLeggibili(p.byte)}) nel recupero fino al ${p.scadeIl.slice(0, 10)}`)
-      return { ok: true, messaggio: `${p.voci.length} file nel recupero per 30 giorni (${byteLeggibili(p.byte)}). «Annulla» li rimette.`, pulizia: p }
+      return applica(pr, chi)
+    },
+
+    async togliChat(sessioni, titolo) {
+      const a = deps.archivio()
+      if (a?.elencaConDimensioni === undefined) return { ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }
+      const [file, manifesto, r] = await Promise.all([a.elencaConDimensioni(), deps.manifestoDrive(), leggiRegistro()])
+      if (manifesto === undefined) return { ok: false, messaggio: 'L’indice del Drive non si apre adesso.' }
+      const pr = propostaChatEliminate({ file, indice: manifesto.file, sessioni, titolo, pulizie: r })
+      if (pr.voci.length === 0) return { ok: true, messaggio: 'Sul Drive non c’erano copie di queste chat.' }
+      return applica(pr)
     },
 
     async annulla(id) {

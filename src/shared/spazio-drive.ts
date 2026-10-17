@@ -136,7 +136,8 @@ export type StatoSpazio = {
 /* Le proposte di pulizia.                                             */
 /* ------------------------------------------------------------------ */
 
-export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove'
+/** `chat-eliminate` (0.79.0): «Elimina dal PC … anche dal Drive», non una proposta del giro. */
+export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove' | 'chat-eliminate'
 
 /** Un file che una pulizia toglie: con la sua voce del manifesto, se ce l'ha, per rimetterla. */
 export type VocePulita = { nome: string; byte: number; percorso?: string; voce?: VoceIndice }
@@ -297,6 +298,33 @@ export function proposteDiPulizia(p: {
     })
   }
   return fuori
+}
+
+/**
+ * «Elimina dal PC … anche dal Drive» (0.79.0): le copie sul Drive di quelle
+ * conversazioni (la trascrizione e i suoi sotto-agenti), come una pulizia:
+ * nel recupero del Drive per 30 giorni, annullabile. Quelle già in un
+ * recupero non si contano due volte.
+ */
+export function propostaChatEliminate(p: { file: FileDrive[]; indice: IndiceDrive; sessioni: readonly string[]; titolo: string; pulizie?: RegistroPulizie }): Proposta {
+  const byteDi = new Map(p.file.map((f) => [f.nome, f.byte]))
+  const giaFuori = nomiInRecupero(p.pulizie)
+  const volute = new Set(p.sessioni.map((s) => s.toLowerCase()))
+  const voci: VocePulita[] = []
+  for (const [percorso, v] of Object.entries(p.indice)) {
+    const c = chatDi(percorso)
+    if (c === undefined || !volute.has(c.sessione.toLowerCase()) || giaFuori.has(v.nome)) continue
+    voci.push({ nome: v.nome, byte: byteDi.get(v.nome) ?? v.size, percorso, voce: v })
+  }
+  const n = new Set(voci.map((v) => chatDi(v.percorso as string)?.sessione)).size
+  return {
+    tipo: 'chat-eliminate',
+    titolo: p.titolo,
+    breve: `${n === 1 ? '1 chat eliminata' : `${n} chat eliminate`} dal PC, anche dal Drive`,
+    spiega: 'Le copie sul Drive delle chat eliminate dal PC. Restano 30 giorni nel recupero del Drive: «Annulla» le rimette.',
+    voci,
+    byte: somma(voci)
+  }
 }
 
 function somma(v: VocePulita[]): number { return v.reduce((t, x) => t + x.byte, 0) }

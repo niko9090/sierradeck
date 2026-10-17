@@ -11,6 +11,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import type { ApiNegozio } from '@shared/negozio'
 import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
+import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 import type {
   NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
 } from '../main/autopilot-client'
@@ -955,6 +956,33 @@ contextBridge.exposeInMainWorld('gestore', {
       togliToken?: boolean
     }): Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }> =>
       ipcRenderer.invoke('provider:imposta', p)
+  },
+  /**
+   * La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo
+   * spazio di ogni chat, le archiviate e il recupero di 30 giorni. Le stesse
+   * risposte di `/api/chat/gestione/…` per la pagina e l'app.
+   */
+  chatGestione: {
+    spazio: (): Promise<VistaSpazio> => ipcRenderer.invoke('chatGestione:spazio'),
+    selezione: (sessioni: string[]): Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[] }> =>
+      ipcRenderer.invoke('chatGestione:selezione', sessioni),
+    azione: (r: { azione: AzioneChat; sessioni: string[]; ancheDalDrive?: boolean; nome?: string }): Promise<EsitoAzioni> =>
+      ipcRenderer.invoke('chatGestione:azione', r),
+    archiviate: (): Promise<ChatArchiviata[]> => ipcRenderer.invoke('chatGestione:archiviate'),
+    recupero: (): Promise<{ chat: ChatInRecupero[]; byte: number }> => ipcRenderer.invoke('chatGestione:recupero'),
+    ripristina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('chatGestione:ripristina', id),
+    /** Primo passo di «Svuota il recupero adesso»: il gettone e cosa si perde. */
+    chiediSvuota: (ancheDalDrive: boolean): Promise<{ ok: boolean; messaggio: string; gettone?: string; scadeIl?: string; chat?: number; byte?: number; frase?: string }> =>
+      ipcRenderer.invoke('chatGestione:chiediSvuota', ancheDalDrive),
+    /** Secondo passo: il gettone e la parola scritta da Nicholas. */
+    svuota: (p: { gettone: string; frase: string; ancheDalDrive: boolean }): Promise<{ ok: boolean; messaggio: string; byte?: number }> =>
+      ipcRenderer.invoke('chatGestione:svuota', p),
+    orfane: (): Promise<{ etichette: string[]; archiviate: string[] }> => ipcRenderer.invoke('chatGestione:orfane'),
+    onCambiata: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('chatGestione:cambiata', h)
+      return () => ipcRenderer.off('chatGestione:cambiata', h)
+    }
   },
   etichette: {
     leggi: (): Promise<Record<string, string>> => ipcRenderer.invoke('etichette:leggi'),

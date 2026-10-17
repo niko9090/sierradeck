@@ -17,7 +17,7 @@ import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
 import { messaggioChatAltrove } from '@shared/posta'
 import { fermaSeCasaAltrove } from '@shared/ospite-chat'
-import type { Avanzamento, IndexOutcome } from '@shared/types'
+import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
 import {
@@ -451,6 +451,19 @@ let rileggiInCorso: Promise<IndexOutcome> | undefined
 let rileggi: ((completa?: boolean) => Promise<IndexOutcome>) | undefined
 let primaLettura: Promise<IndexOutcome> | undefined
 
+/**
+ * La gestione delle chat (0.79.0): l'elenco «Riprendi» senza le archiviate, e
+ * «Butta» che passa dal motore nuovo (tutti i file della sessione, nel
+ * recupero di 30 giorni, mai una chat che lavora). Le imposta il Core quando
+ * il motore è pronto; prima vale il comportamento di sempre.
+ */
+let filtroSessioni: ((l: SessionSummary[]) => SessionSummary[]) | undefined
+let eliminaSessioni: ((uuids: string[]) => Promise<{ eliminate: number; errori: string[] }>) | undefined
+export function impostaGestioneSessioni(f: { filtra: (l: SessionSummary[]) => SessionSummary[]; elimina: (uuids: string[]) => Promise<{ eliminate: number; errori: string[] }> }): void {
+  filtroSessioni = f.filtra
+  eliminaSessioni = f.elimina
+}
+
 export function reindicizzaSessioni(): Promise<IndexOutcome> {
   const r = rileggi
   if (r === undefined) return Promise.resolve({ indexed: 0, failed: 0, riusate: 0, errore: 'indice non ancora aperto' })
@@ -523,9 +536,12 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
   // o se puo' mostrare subito l'applicazione.
   ipcMain.handle('sessioni:stato', () => ({ inCorso, avanzamento: ultimoAvanzamento }))
 
-  ipcMain.handle('sessioni:lista', (_e, opts: unknown) =>
-    listSessions(db, validateListOptions(opts))
-  )
+  ipcMain.handle('sessioni:lista', (_e, opts: unknown) => {
+    const l = listSessions(db, validateListOptions(opts))
+    // `{ archiviate: true }`: anche le archiviate (la vista «Archiviate» le vuole).
+    const conArchiviate = typeof opts === 'object' && opts !== null && (opts as { archiviate?: unknown }).archiviate === true
+    return filtroSessioni === undefined || conArchiviate ? l : filtroSessioni(l)
+  })
   // Il pulsante «Rileggi» rilegge davvero tutto: chi lo preme lo fa proprio
   // perché sospetta che l'indice non rispecchi più i file, e un aggiornamento
   // che si fida delle date su disco non risponderebbe a quel dubbio.
@@ -555,6 +571,11 @@ export function registerSessionIpc(cartella?: string, arricchisciConsumi?: (c: C
    */
   ipcMain.handle('sessioni:elimina', async (_e, raw: unknown): Promise<{ eliminate: number; errori: string[] }> => {
     if (!Array.isArray(raw)) throw new Error('richiesta IPC non valida: serve un elenco di percorsi')
+    if (eliminaSessioni !== undefined) {
+      // Dalla 0.79.0: «Elimina dal PC», con il recupero di 30 giorni al posto del Cestino.
+      const uuids = raw.map((grezzo) => basename(validaPercorsoTrascrizione(grezzo, claudeRoot()), '.jsonl'))
+      return eliminaSessioni(uuids)
+    }
     const errori: string[] = []
     const tolte: string[] = []
     for (const grezzo of raw) {

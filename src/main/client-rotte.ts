@@ -50,6 +50,8 @@ import type { FileProgetti } from './file-progetti'
 import type { AlTelefono } from './al-telefono'
 import type { QuadernoPersonale } from './quaderno-personale'
 import type { LatoResidente } from './rimozione-sicura'
+import type { GestioneChat } from './gestione-chat'
+import { AZIONI_CHAT, totaleSelezione as totaleSelezioneChat, type AzioneChat } from '@shared/gestione-chat'
 import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmessa, rifiutoProgettoChiuso } from '@shared/file-telefono'
 
 /**
@@ -291,6 +293,8 @@ export type DipendenzeRotte = {
    * firmata), mai da un telefono.
    */
   rimozione?: LatoResidente
+  /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
+  gestioneChat?: Pick<GestioneChat, 'spazio' | 'azione' | 'archiviate' | 'eArchiviata' | 'recupero' | 'ripristinaDalRecupero' | 'chiediSvuota' | 'svuota'>
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
   pannelloDrive?: () => Promise<unknown>
   azioneDrive?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>
@@ -1940,7 +1944,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // Le chat senza nome (0.60.0) non sono nell'elenco: si lavora per
       // progetti e workspace. Non sono cancellate: `nascoste` dice quante, e
       // `{ senzaNome: true }` le rimette («mostra anche le senza nome»).
-      const tutte = await deps.sessioni().catch(() => [])
+      // Le archiviate (0.79.0) non sono nell'elenco: `{ archiviate: true }` le mostra.
+      const conArchiviate = typeof r.corpo === 'object' && r.corpo !== null && (r.corpo as { archiviate?: unknown }).archiviate === true
+      const tutteConArchiviate = await deps.sessioni().catch(() => [])
+      const tutte = conArchiviate || deps.gestioneChat === undefined ? tutteConArchiviate : tutteConArchiviate.filter((s) => !(deps.gestioneChat as { eArchiviata: (x: string) => boolean }).eArchiviata(s.id))
+      const archiviate = tutteConArchiviate.length - tutte.length
       const conAnonime = typeof r.corpo === 'object' && r.corpo !== null && (r.corpo as { senzaNome?: unknown }).senzaNome === true
       const elenco = (conAnonime ? tutte : tutte.filter((s) => s.senzaNome !== true)).slice(0, 30)
       const nascoste = conAnonime ? 0 : tutte.filter((s) => s.senzaNome === true).length
@@ -1962,7 +1970,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           ...(accesi.has(su) ? { altroveAcceso: accesi.get(su) } : {}),
           ...(idDi.has(su) ? { altrovePc: idDi.get(su) } : {})
         }),
-        nascoste
+        nascoste,
+        ...(archiviate > 0 ? { archiviate } : {})
       })
     }
 
@@ -2490,6 +2499,57 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const e = await deps.azioneFinestra({ tipo: 'chat', azione, chat: id })
       if (!e.ok) return { stato: 409, corpo: { errore: `${azione === 'dormi' ? 'La chat non si è addormentata' : 'La chat non si è svegliata'}: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
       return OK({ fatto: true })
+    }
+
+    // ── La gestione delle chat (0.79.0) ──
+    // Chiudi, Archivia, Elimina dal PC, lo spazio, le archiviate, il recupero:
+    // le stesse risposte del PC (IPC), per la pagina, l'app e il ponte. Le
+    // regole (chi non si tocca e perché) le decide il motore, mai chi chiede.
+    if (r.metodo === 'POST' && r.percorso.startsWith('/api/chat/gestione/')) {
+      const gc = deps.gestioneChat
+      if (gc === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora gestire le chat da qui: aggiornalo alla 0.79.0.' } }
+      const da = r.dispositivo === undefined || r.dispositivo === 'locale' ? 'pagina' : daAltroPc(r.dispositivo) ? 'altro PC' : 'telefono'
+      const elencoSessioni = (): string[] => {
+        const x = (r.corpo as { sessioni?: unknown } | undefined)?.sessioni
+        return Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string').slice(0, 500) : []
+      }
+      const sottopercorso = r.percorso.slice('/api/chat/gestione/'.length)
+      switch (sottopercorso) {
+        case 'spazio': {
+          const vista = await gc.spazio(visore)
+          const scelte = elencoSessioni()
+          return OK({ ...vista, ...(scelte.length > 0 ? { selezione: totaleSelezioneChat(vista.chat, scelte) } : {}) })
+        }
+        case 'azione': {
+          const azione = stringa(r.corpo, 'azione')
+          if (!(AZIONI_CHAT as readonly string[]).includes(azione)) return { stato: 400, corpo: { errore: 'L’azione è «chiudi», «archivia», «ripristina», «elimina» o «rinomina».' } }
+          const sessioni = elencoSessioni()
+          if (sessioni.length === 0) return { stato: 400, corpo: { errore: 'Scegli almeno una chat.' } }
+          const corpo = (r.corpo ?? {}) as { ancheDalDrive?: unknown; nome?: unknown }
+          const e = await gc.azione({
+            azione: azione as AzioneChat, sessioni, ancheDalDrive: corpo.ancheDalDrive === true,
+            ...(typeof corpo.nome === 'string' ? { nome: corpo.nome.slice(0, 80) } : {}), da, visore
+          })
+          return OK(e)
+        }
+        case 'archiviate': return OK({ archiviate: gc.archiviate() })
+        case 'recupero': return OK(gc.recupero())
+        case 'ripristina': {
+          const id = stringa(r.corpo, 'id')
+          if (id === '') return { stato: 400, corpo: { errore: 'Quale chat rimettere?' } }
+          const e = await gc.ripristinaDalRecupero(id, da)
+          return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
+        }
+        case 'svuota': {
+          // Due passi: senza gettone si chiede (e si dice cosa si perde), con il gettone e la parola si svuota.
+          const corpo = (r.corpo ?? {}) as { ancheDalDrive?: unknown; gettone?: unknown; frase?: unknown }
+          const anche = corpo.ancheDalDrive === true
+          if (corpo.gettone === undefined) return OK(gc.chiediSvuota(anche))
+          const e = await gc.svuota({ gettone: corpo.gettone, frase: corpo.frase, ancheDalDrive: anche, da })
+          return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
+        }
+        default: return { stato: 404, corpo: { errore: 'non trovato' } }
+      }
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/chat/nome') {

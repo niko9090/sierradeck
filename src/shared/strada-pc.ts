@@ -281,7 +281,10 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
   '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
-  '/api/drive/pannello', '/api/drive/azione'
+  '/api/drive/pannello', '/api/drive/azione',
+  // La gestione delle chat di quel PC (0.79.0), anche via Internet.
+  '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',
+  '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota'
 ]
 
 export function rottaPermessaSulCanale(percorso: string): boolean {

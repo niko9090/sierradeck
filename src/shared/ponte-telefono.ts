@@ -43,6 +43,9 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
   '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
+  // La gestione delle chat di quel PC (0.79.0): le regole le decide lui.
+  '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',
+  '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota',
   // Il pannello delle chat e dei progetti del Drive di quel PC (0.58.0).
   '/api/drive/pannello', '/api/drive/azione'
 ]
