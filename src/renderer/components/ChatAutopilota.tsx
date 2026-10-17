@@ -114,6 +114,11 @@ export function ChatAutopilota({
                   {b.dettaglio !== undefined ? <span className="chatap__nota-dettaglio"> — {b.dettaglio}</span> : null}
                 </span>
               </>
+            ) : b.tono === 'esito' ? (
+              // Uno specialista ha finito o la Revisione ha deciso (0.79.0): una riga corta, con l'ora.
+              <div className="chatap__bolla">
+                <span className="chatap__testo"><span className="chatap__quando">{orario(b.quando)}</span> {b.testo}</span>
+              </div>
             ) : (
               <div className="chatap__bolla">
                 <span className="chatap__chi">

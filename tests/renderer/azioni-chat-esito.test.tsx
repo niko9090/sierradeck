@@ -17,7 +17,8 @@ describe('l’esito delle tre azioni non sparisce con la riga della chat', () =>
 
   it('App monta l’ospite sempre, fuori da ogni condizione', () => {
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
-    expect(app).toMatch(/\n\s*<OspiteAzioniChat \/>\n/)
+    // \r? : nelle copie di lavoro su Windows App.tsx ha le righe in CRLF.
+    expect(app).toMatch(/\n\s*<OspiteAzioniChat \/>\r?\n/)
   })
 
   it('le tre azioni passano dall’ospite quando c’è; la conferma nella riga resta solo come ripiego', () => {

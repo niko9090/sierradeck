@@ -105,8 +105,54 @@ data class Panoramica(
     val schede: List<SchedaPanoramica> = emptyList(),
     /** PC 0.78.0; assenti da un PC della 0.77.0. */
     val situazione: Situazione? = null,
-    val piano: List<ColonnaPiano> = emptyList()
+    val piano: List<ColonnaPiano> = emptyList(),
+    /** PC 0.79.0: il riassunto della dashboard, una riga per chat al lavoro; vuoto da un PC più vecchio. */
+    val lavoro: List<RigaLavoro> = emptyList()
 )
+
+/**
+ * Una riga del riassunto della dashboard dell'autopilota (PC 0.79.0), calcolata
+ * dal PC dai segnali delle chat e dal registro (`src/shared/riassunto-lavoro.ts`):
+ * lo specialista, cosa fa adesso in parole semplici, da quando, se aspetta te.
+ */
+@Serializable
+data class RigaLavoro(
+    val id: String = "",
+    val ruolo: String? = null,
+    val nomeRuolo: String = "",
+    val colore: String = "quieto",
+    val compito: String = "",
+    val cosa: String = "",
+    /** ISO: da quando lavora al compito. */
+    val dal: String? = null,
+    val aspettaTe: Boolean = false,
+    val sessione: String? = null,
+    /** La chat aperta sul PC da toccare, se c'è. */
+    val chat: String? = null
+)
+
+/** Le regole del riassunto, come `TESTI_RIASSUNTO` e `testoRigaLavoro` del PC. */
+object RegoleRiassunto {
+    const val TITOLO = "Al lavoro adesso"
+    const val VUOTO = "Nessuna chat al lavoro."
+    const val ASPETTA_TE = "aspetta te"
+    const val AIUTO = "Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat."
+    /** Sul telefono se ne vedono al più tante, sopra la conversazione: le altre in «+N». */
+    const val RIGHE_IN_VISTA = 3
+
+    fun dalMs(iso: String?): Long? = try { if (iso == null) null else java.time.Instant.parse(iso).toEpochMilli() } catch (_: Exception) { null }
+
+    /** «Sviluppo · fa girare i test · da 12 min · aspetta te». */
+    fun testo(r: RigaLavoro, ora: Long): String =
+        listOf(r.nomeRuolo, r.cosa, RegolePanoramica.daQuanto(dalMs(r.dal), ora), if (r.aspettaTe) ASPETTA_TE else "")
+            .filter { it.isNotEmpty() }.joinToString(" · ")
+
+    /** Quelle in vista e quante restano: prima chi aspetta te, poi l'ordine del PC. */
+    fun inVista(righe: List<RigaLavoro>): Pair<List<RigaLavoro>, Int> {
+        val ordine = righe.filter { it.aspettaTe } + righe.filter { !it.aspettaTe }
+        return ordine.take(RIGHE_IN_VISTA) to (righe.size - RIGHE_IN_VISTA).coerceAtLeast(0)
+    }
+}
 
 object RegolePanoramica {
     val GRUPPI = listOf("chiede", "lavora", "ferma", "finita")
@@ -361,5 +407,40 @@ fun CosaESuccesso(eventi: List<Battuta>) {
                 color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
+    }
+}
+
+/**
+ * Il riassunto della dashboard (PC 0.79.0), fisso sopra la conversazione: una
+ * riga per chat al lavoro, prima chi aspetta te; tocco = apri la chat.
+ */
+@Composable
+fun RiassuntoLavoroVista(righe: List<RigaLavoro>, ora: Long, onApri: (String) -> Unit) {
+    val (inVista, altre) = RegoleRiassunto.inVista(righe)
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Serigrafia("${RegoleRiassunto.TITOLO} · ${righe.size}")
+            Aiuto(RegoleRiassunto.AIUTO, di = RegoleRiassunto.TITOLO)
+        }
+        if (righe.isEmpty()) Text(RegoleRiassunto.VUOTO, color = Banco.testoQuieto, fontSize = 12.sp)
+        for (r in inVista) {
+            val colore = if (r.aspettaTe) Banco.ambra else Banco.verde
+            Column(
+                Modifier.fillMaxWidth().heightIn(min = 40.dp)
+                    .let { m -> r.chat?.let { id -> m.clickable { onApri(id) } } ?: m }
+                    .padding(vertical = 3.dp)
+            ) {
+                Text(
+                    (if (r.aspettaTe) "◆ " else "● ") + r.nomeRuolo + " · " + r.cosa,
+                    color = if (r.aspettaTe) Banco.ambra else Banco.testo, fontSize = 13.sp, maxLines = 1
+                )
+                Text(
+                    listOf(RegolePanoramica.daQuanto(RegoleRiassunto.dalMs(r.dal), ora), r.compito, if (r.aspettaTe) RegoleRiassunto.ASPETTA_TE else "")
+                        .filter { it.isNotEmpty() }.joinToString(" · "),
+                    color = if (r.aspettaTe) colore else Banco.testoQuieto, fontSize = 11.sp, maxLines = 1
+                )
+            }
+        }
+        if (altre > 0) Text("+ $altre al lavoro: sono in «Adesso», qui sotto", color = Banco.testoQuieto, fontSize = 11.sp)
     }
 }

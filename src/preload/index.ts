@@ -536,7 +536,9 @@ contextBridge.exposeInMainWorld('gestore', {
       const h = (_e: unknown, f: import('@shared/segnali-chat').FaseSessione): void => cb(f)
       ipcRenderer.on('segnali:stato', h)
       return () => { ipcRenderer.removeListener('segnali:stato', h) }
-    }
+    },
+    /** Gli ultimi segnali di queste sessioni (0.79.0): il riassunto della dashboard dell'autopilota. */
+    di: (sessioni: string[]): Promise<Record<string, import('@shared/segnali-chat').Segnale[]>> => ipcRenderer.invoke('segnali:di', sessioni)
   },
   /** «Salute del sistema» (0.44.0). */
   // Il PIN delle chat (0.49.0): lo schermo di questo PC.

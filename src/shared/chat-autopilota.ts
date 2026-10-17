@@ -1,5 +1,6 @@
 import type { Autopilota } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
+import { esitiDalRegistro, rigaEsito } from './riassunto-lavoro'
 
 /**
  * Una riga della chat con l'autopilota.
@@ -19,8 +20,10 @@ export type Battuta = {
   /**
    * Il colore della riga. `domanda` è una sua domanda ancora aperta, `fine` e
    * `fermo` chiudono la conversazione; gli altri sono i tipi del diario.
+   * `esito` (0.79.0): uno specialista ha finito o la Revisione ha deciso, in
+   * una riga corta detta da lui (la nota tecnica resta in «Cosa è successo»).
    */
-  tono?: 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo'
+  tono?: 'esito' | 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo'
   /** Quante volte di fila la stessa nota: dieci riprese uguali sono una riga. */
   volte?: number
 }
@@ -74,6 +77,10 @@ export function conversazione(a: Autopilota): Battuta[] {
       ...(v.tipo !== undefined ? { tono: v.tipo } : {})
     })
   }
+
+  // Gli esiti degli specialisti (0.79.0): una riga corta sua nella conversazione,
+  // senza rami né id; la nota tecnica dello stesso momento resta fra gli eventi.
+  for (const e of esitiDalRegistro(a)) metti({ quando: e.quando, da: 'lui', testo: rigaEsito(e), tono: 'esito' })
 
   for (const s of a.dialogo) {
     metti({

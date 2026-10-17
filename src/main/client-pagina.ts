@@ -172,6 +172,17 @@ export function paginaClient(): string {
   .pan-tel-compito--chiuso { color: var(--testo-quieto); }
   .pan-tel-compito__testo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-eventi .nota-ap { font-size: 12px; }
+  /* La dashboard dell'autopilota (0.79.0): una riga per chat al lavoro, il campo sempre in vista. */
+  .pan-tel-lavoro { display: flex; flex-direction: column; margin-top: 6px; border: 1px solid var(--bordo, #2a2f3a); border-radius: 8px; overflow: hidden; }
+  .pan-tel-lavoro__riga { display: flex; flex-direction: column; gap: 1px; width: 100%; min-height: 48px; padding: 6px 10px; text-align: left; background: var(--chassis); border: 0; color: var(--testo); }
+  .pan-tel-lavoro__riga + .pan-tel-lavoro__riga { border-top: 1px solid var(--bordo, #2a2f3a); }
+  .pan-tel-lavoro__riga--te { background: color-mix(in srgb, var(--ambra) 10%, var(--chassis)); }
+  .pan-tel-lavoro__su { display: flex; gap: 6px; align-items: baseline; overflow: hidden; white-space: nowrap; font-size: 13px; }
+  .pan-tel-lavoro__su span { overflow: hidden; text-overflow: ellipsis; }
+  .pan-tel-lavoro__giu { font-size: 11px; color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pan-tel-lavoro__te { color: var(--ambra); font-weight: 600; }
+  .battuta--esito { padding: 3px 8px; border-radius: 0 8px 8px 0; border-left: 2px solid var(--verde); background: color-mix(in srgb, var(--verde) 6%, transparent); font-size: 12px; }
+  .flusso-ap--grande { max-height: 58vh; min-height: 30vh; }
   .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
   .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
@@ -1831,9 +1842,9 @@ function pannello(s) {
       <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       </div>
-      \${apDettaglio ? panoramicaHtml(panoramicaAp) : ''}
+      \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
-      \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
+      \${apDettaglio ? vistaAutopilota(apDettaglio, panoramicaHtml(panoramicaAp, 'resto')) : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
           ? '<button class="primario" data-ap="' + esc(apAperto.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button>'
@@ -2755,9 +2766,43 @@ function schedaTelHtml(s, quante) {
     '<span class="pan-tel-azione">' + esc(s.domanda ? 'Ti chiede: ' + ((s.domanda.scheda && s.domanda.scheda.domanda) || '') : (s.ultimaAzione || '')) + '</span>' +
     '</button>'
 }
-function panoramicaHtml(p) {
+/**
+ * Il riassunto della dashboard (0.79.0): una riga per chat al lavoro, come
+ * al PC e nell'app (src/shared/riassunto-lavoro.ts, calcolato dal PC):
+ * specialista, cosa fa adesso, da quanto, ◆ se aspetta te. Il tocco apre la chat.
+ */
+function riassuntoTelHtml(lavoro, adesso) {
+  if (!Array.isArray(lavoro)) return ''
+  const ora = adesso || Date.now()
+  const quanto = (iso) => {
+    const t = Date.parse(iso || '')
+    if (!Number.isFinite(t)) return ''
+    const s = Math.max(0, Math.round((ora - t) / 1000))
+    if (s < 60) return 'adesso'
+    const m = Math.round(s / 60)
+    if (m < 60) return 'da ' + m + ' min'
+    const h = Math.round(m / 60)
+    return h < 48 ? 'da ' + h + ' h' : 'da ' + Math.round(h / 24) + ' giorni'
+  }
+  const righe = lavoro.map((r) => {
+    const dentro = '<span class="pan-tel-lavoro__su"><b style="color:' + (r.aspettaTe ? 'var(--ambra)' : 'var(--verde)') + '">' + (r.aspettaTe ? '◆' : '●') + '</b><b>' + esc(r.nomeRuolo) + '</b><span>' + esc(r.cosa) + '</span></span>' +
+      '<span class="pan-tel-lavoro__giu">' + esc([quanto(r.dal), r.compito].filter((x) => x).join(' · ')) + (r.aspettaTe ? ' · <span class="pan-tel-lavoro__te">aspetta te</span>' : '') + '</span>'
+    const classe = 'pan-tel-lavoro__riga' + (r.aspettaTe ? ' pan-tel-lavoro__riga--te' : '')
+    return r.chat && !apPc
+      ? '<button class="' + classe + '" data-chat="' + esc(r.chat) + '" onclick="apriDaPanoramica(this.dataset.chat)">' + dentro + '</button>'
+      : '<div class="' + classe + '">' + dentro + '</div>'
+  }).join('')
+  return '<div class="serigrafia">Al lavoro adesso · ' + lavoro.length + aiuto('lavoro', 'Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat.') + '</div>' +
+    (righe ? '<div class="pan-tel-lavoro">' + righe + '</div>' : '<div class="sotto">Nessuna chat al lavoro.</div>')
+}
+/**
+ * «parte» (0.79.0): «testa» è la situazione con il riassunto, sopra la
+ * conversazione; «resto» è Adesso, Piano, Chat e Finite, sotto il campo.
+ * Senza, tutto insieme (come nella 0.78.0).
+ */
+function panoramicaHtml(p, parte) {
   if (!p || !Array.isArray(p.schede)) return ''
-  if (!p.situazione) return panoramicaVecchiaHtml(p)
+  if (!p.situazione) return parte === 'resto' ? '' : panoramicaVecchiaHtml(p)
   const st = p.situazione
   const criteri = st.criteri.totali > 0
     ? rigaApri('criteri', 'Criteri ' + esc(st.criteri.testo) + ' <span class="pan-tel-barra">' + st.criteri.elenco.map((c) => '<i class="pan-tel-pezzo--' + esc(c.esito) + '"></i>').join('') + '</span>') +
@@ -2784,7 +2829,10 @@ function panoramicaHtml(p) {
     }).join('') : '')).join('') : ''
   const sezChat = chat.length ? '<div class="serigrafia">Chat · ' + chat.length + '</div>' + chat.map((s) => schedaTelHtml(s, 0)).join('') : ''
   const sezFinite = finite.length ? rigaApri('finite', 'Finite: ' + finite.length) + (panAperte.finite ? finite.map((s) => schedaTelHtml(s, 0)).join('') : '') : ''
-  return '<div class="pan-tel pan-tel2">' + situazione + sezAdesso + sezPiano + sezChat + sezFinite +
+  const testa = situazione + riassuntoTelHtml(p.lavoro)
+  if (parte === 'testa') return '<div class="pan-tel pan-tel2">' + testa + '</div>'
+  if (parte === 'resto') return '<div class="pan-tel pan-tel2">' + sezAdesso + sezPiano + sezChat + sezFinite + '</div>'
+  return '<div class="pan-tel pan-tel2">' + testa + sezAdesso + sezPiano + sezChat + sezFinite +
     '<div class="serigrafia" style="margin-top:10px">Conversazione' + aiuto('panoramica', 'In alto la situazione: lo stato dice «finito» solo se i criteri sono tutti soddisfatti; tocca «Criteri» per vederli uno per uno. «Adesso»: le chat al lavoro o che aspettano te. «Piano»: i compiti per fase, con chi li fa. Tocca una scheda o un compito per aprire la chat a tutto schermo. Sotto, la conversazione con l’autopilota; quello che ha fatto da solo è in «Cosa è successo».') + '</div></div>'
 }
 /** La Panoramica della 0.77.0, per un PC che non manda ancora situazione e piano. */
@@ -2801,7 +2849,8 @@ window.apriDaPanoramica = async (id) => {
   await guarda(id)
 }
 
-function vistaAutopilota(a) {
+/** «dopoCasella» (0.79.0): il resto della Panoramica, sotto il campo e sopra le linguette. */
+function vistaAutopilota(a, dopoCasella) {
   const passi = (a.passaggi || []).map((p) => {
     const cl = 'passo passo--' + p.stato
     return '<span class="' + cl + '"><i class="passo-led"></i>' + esc(p.nome) + '</span>'
@@ -2825,6 +2874,8 @@ function vistaAutopilota(a) {
         '<span>' + esc(b.testo) + (b.volte ? ' <b>×' + b.volte + '</b>' : '') +
         (b.dettaglio ? ' — ' + esc(b.dettaglio) : '') + '</span></div>'
     }
+    // Uno specialista ha finito o la Revisione ha deciso (0.79.0): una riga corta sua.
+    if (b.tono === 'esito') return '<div class="battuta battuta--lui battuta--esito"><span><span class="quando">' + ora(b.quando) + '</span> ' + esc(b.testo) + '</span></div>'
     return '<div class="battuta battuta--' + (b.da === 'lui' ? 'lui' : 'tu') + (b.tono ? ' battuta--' + esc(b.tono) : '') + '">' +
       '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + ora(b.quando) + '</span>' +
       '<span>' + esc(b.testo) + '</span>' +
@@ -2843,7 +2894,8 @@ function vistaAutopilota(a) {
   // La casella: con una domanda aperta e' la risposta (arriva subito alla
   // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
   // qualche minuto.
-  const casella = '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
+  // Con la Panoramica (0.79.0) il campo resta sempre in vista, ancorato sopra la fascia.
+  const casella = (conPan ? '<div class="ancorata casella-ap">' : '<div>') + '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
       'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta Domande)' + '"></textarea></div>' +
     '<div class="riga">' +
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
@@ -2855,7 +2907,7 @@ function vistaAutopilota(a) {
       '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
-    (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '')
+    (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'
   setTimeout(scorriChatAp, 0)
 
   // ── Le linguette, sotto ──
@@ -2958,8 +3010,9 @@ function vistaAutopilota(a) {
   return '<div class="dettaglio">' +
     '<div class="passi">' + passi + '</div>' +
     '<div class="serigrafia" style="margin-top:10px">Chat con lui</div>' +
-    '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
+    '<div class="flusso-ap' + (conPan ? ' flusso-ap--grande' : '') + '" id="flusso-ap">' + chat + pensa + '</div>' +
     casella +
+    (dopoCasella || '') +
     barraLinguette +
     '<div class="tab-ap">' + dentro + '</div>' +
     '</div>'

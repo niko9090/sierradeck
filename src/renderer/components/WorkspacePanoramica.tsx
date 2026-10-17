@@ -13,6 +13,7 @@ import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
 import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
+import { RiassuntoLavoro } from './RiassuntoLavoro'
 
 /**
  * Il workspace dell'autopilota a linguette (0.77.0). Nicholas, 16/10:
@@ -206,6 +207,8 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
         )}
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
+        {/* La dashboard (0.79.0): una riga per chat al lavoro, dai segnali e dal registro. */}
+        {autopilota !== undefined ? <RiassuntoLavoro autopilota={autopilota} paneDiSessione={paneDiSessione} onApri={onApri} /> : null}
         <div className="pan2-sezione">
           <div className="serigrafia" aria-live="polite">Adesso · {adesso.length}</div>
           {adesso.length === 0 ? (

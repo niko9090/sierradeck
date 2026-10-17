@@ -351,6 +351,12 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         // mangiavano tutto lo spazio della meta' di sopra — la chat spariva e la
         // casella finiva sotto le linguette, fuori dallo schermo.
         Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
+            // PC 0.79.0: il riassunto della dashboard sta fisso sopra la conversazione,
+            // sempre in vista come il campo per scrivere qui sotto.
+            pan?.takeIf { it.situazione != null && it.autopilota != null }?.let { p ->
+                RiassuntoLavoroVista(p.lavoro, System.currentTimeMillis()) { id -> Apertura.apriChat(id) }
+                HorizontalDivider(color = Banco.incisione)
+            }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista) {
                 if (det != null && det.passaggi.isNotEmpty()) item {
                     Spacer(Modifier.height(8.dp))
@@ -890,6 +896,17 @@ private fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
                 fontSize = 11.sp,
                 modifier = Modifier.weight(1f)
             )
+        }
+        return
+    }
+    // PC 0.79.0: uno specialista ha finito o la Revisione ha deciso, una riga corta sua.
+    if (b.tono == "esito") {
+        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
+            Box(Modifier.width(2.dp).height(18.dp).background(Banco.verde))
+            Spacer(Modifier.width(6.dp))
+            Text(ora, color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale)
+            Spacer(Modifier.width(6.dp))
+            Text(b.testo, color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f))
         }
         return
     }

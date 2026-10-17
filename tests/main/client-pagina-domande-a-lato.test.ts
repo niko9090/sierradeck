@@ -42,7 +42,7 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
   const crea = (aperte: Record<string, boolean> = {}) => new Function('esc', 'aiuto', 'apPc', 'pannello', 'ultimoStato', `
     const RUOLO_NOME = { sviluppo: 'Sviluppo', revisione: 'Revisione' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' };
     var panAperte = Object.assign({ criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }, ${JSON.stringify(aperte)});
-    ${funzione('rigaApri')}; ${funzione('schedaTelHtml')}; ${funzione('panoramicaVecchiaHtml')}; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null, () => undefined, null) as (p: unknown) => string
+    ${funzione('rigaApri')}; ${funzione('schedaTelHtml')}; ${funzione('panoramicaVecchiaHtml')}; ${funzione('riassuntoTelHtml')}; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null, () => undefined, null) as (p: unknown, parte?: string) => string
   const schede = [
     { id: 'p-3', titolo: 'chiede', stato: 'chiede', ultimaAzione: '', righe: [] },
     { id: 'p-2', titolo: 'Sviluppo · Notte', stato: 'lavora', ruolo: 'sviluppo', specialista: true, ultimaAzione: 'scrive il test', righe: ['a', 'b', 'c', 'd'] },
@@ -94,5 +94,41 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
     const html = crea()({ riassunto: { obiettivo: 'Vecchio', stato: { parola: 'al lavoro', colore: 'verde' }, criteri: { testo: '1/2' } }, schede })
     expect(html).toContain('Vecchio')
     expect(html).toContain('Panoramica')
+  })
+  it('0.79.0: la dashboard — in testa situazione e «Al lavoro adesso», il resto sotto il campo', () => {
+    const lavoro = [
+      { id: 'c-1', nomeRuolo: 'Sviluppo', colore: 'blu', compito: 'Somma', cosa: 'fa girare i test', dal: new Date(Date.now() - 12 * 60_000).toISOString(), aspettaTe: false, chat: 'p-2' },
+      { id: 'c-2', nomeRuolo: 'Collaudo', colore: 'verde', compito: 'Prove', cosa: 'aspetta il tuo permesso', aspettaTe: true }
+    ]
+    const testa = crea()({ situazione, piano, schede, lavoro }, 'testa')
+    expect(testa).toContain('◐ da verificare')
+    expect(testa).toContain('Al lavoro adesso · 2')
+    expect(testa).toContain('<b>Sviluppo</b><span>fa girare i test</span>')
+    expect(testa).toContain('da 12 min · Somma')
+    expect(testa).toContain('data-chat="p-2" onclick="apriDaPanoramica(this.dataset.chat)"')
+    expect(testa).toContain('pan-tel-lavoro__riga--te')
+    expect(testa).toContain('aspetta te')
+    expect(testa).toContain('[?Una riga per ogni chat al lavoro')
+    expect(testa).not.toContain('Adesso · 2')
+    const resto = crea()({ situazione, piano, schede, lavoro }, 'resto')
+    expect(resto).toContain('Adesso · 2')
+    expect(resto).toContain('In corso · 1')
+    expect(resto).not.toContain('Al lavoro adesso')
+    expect(resto).not.toContain('da verificare')
+    // Nessuna chat al lavoro, e un PC più vecchio senza `lavoro`: niente riassunto.
+    expect(crea()({ situazione, piano, schede, lavoro: [] }, 'testa')).toContain('Nessuna chat al lavoro.')
+    expect(crea()({ situazione, piano, schede }, 'testa')).not.toContain('Al lavoro adesso')
+  })
+  it('0.79.0: il campo dell’autopilota è ancorato sopra la fascia, la conversazione è grande, gli esiti sono righe corte', () => {
+    const v = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
+    expect(v).toContain('<div class="ancorata casella-ap">')
+    expect(v).toContain('flusso-ap--grande')
+    expect(v).toContain("b.tono === 'esito'")
+    expect(v.indexOf('casella +')).toBeLessThan(v.indexOf('(dopoCasella ||'))
+    expect(v.indexOf('(dopoCasella ||')).toBeLessThan(v.indexOf('barraLinguette +'))
+    expect(script).toContain("panoramicaHtml(panoramicaAp, 'testa')")
+    expect(script).toContain("vistaAutopilota(apDettaglio, panoramicaHtml(panoramicaAp, 'resto'))")
+    // L'ancorata sta sopra la fascia del telefono, mai sotto.
+    expect(html).toMatch(/\.ancorata \{\s*position: sticky; bottom: calc\(60px/)
   })
 })

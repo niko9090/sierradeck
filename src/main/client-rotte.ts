@@ -1,4 +1,6 @@
 import { vistaAccount } from '@shared/account-vista'
+import { righeLavoro } from '@shared/riassunto-lavoro'
+import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
@@ -189,6 +191,8 @@ export type DipendenzeRotte = {
   log?: (riga: string) => void
   /** Le chat aperte adesso, in tutte le finestre. */
   chat: () => Chat[]
+  /** Gli ultimi segnali di Claude Code di una sessione (0.79.0): il riassunto della dashboard dell'autopilota. */
+  segnali?: (sessione: string) => readonly Segnale[]
   autopiloti: () => Promise<Autopilota[]>
   /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
   tempiAutopilota?: (id: string) => Promise<string | undefined>
@@ -1310,6 +1314,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           autopilota: ap.id,
           riassunto: riassuntoAutopilota(ap, ora),
           situazione: situazioneAutopilota(ap, ora),
+          // La dashboard (0.79.0): una riga per chat al lavoro, dai segnali e dal registro.
+          lavoro: righeLavoro(ap, deps.segnali ?? (() => [])).map((x) => {
+            const aperta = x.sessione !== undefined ? chat.find((y) => y.sessione === x.sessione) : undefined
+            return aperta !== undefined ? { ...x, chat: aperta.id } : x
+          }),
           piano: colonnePiano(pianoAutopilota(ap)).map((c) => ({ ...c, compiti: c.compiti.map((x) => {
             // La chat del compito, se è aperta qui: il tocco la apre.
             const aperta = x.sessione !== undefined ? chat.find((y) => y.sessione === x.sessione) : undefined

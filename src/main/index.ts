@@ -1414,6 +1414,9 @@ if (!app.requestSingleInstanceLock()) {
       })
       // Il microfono (0.75.0): la dettatura di Windows sul campo che ha il fuoco.
       ipcMain.handle('dettatura:stato', () => statoDettatura())
+      // La dashboard dell'autopilota (0.79.0): gli ultimi segnali delle sue chat, per il riassunto.
+      ipcMain.handle('segnali:di', (_e, sessioni: unknown) => Object.fromEntries((Array.isArray(sessioni) ? sessioni : [])
+        .filter((x): x is string => typeof x === 'string').slice(0, 50).map((x) => [x, segnaliPerSessione.get(x) ?? []])))
       ipcMain.handle('dettatura:apri', (e) => {
         // La finestra del tasto davanti a tutto: Windows apre la dettatura sulla finestra davanti.
         BrowserWindow.fromWebContents(e.sender)?.focus()
@@ -5070,6 +5073,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         ...(gestioneChatGlobale !== undefined ? { gestioneChat: gestioneChatGlobale } : {}),
         chat: () => chatAperte.map(conAltrove),
+        segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
         autopiloti: () => clientAutopilota.elenca(),
         tempiAutopilota: (id: string) => clientAutopilota.tempi(id),
         rispondi: async (idDomanda: string, risposta: string) => {
