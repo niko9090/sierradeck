@@ -17,7 +17,7 @@ describe('l’esito delle tre azioni non sparisce con la riga della chat', () =>
 
   it('App monta l’ospite sempre, fuori da ogni condizione', () => {
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
-    // \r? : nelle copie di lavoro su Windows App.tsx ha le righe in CRLF.
+    // \r?: nelle copie di lavoro di Windows (autocrlf) App.tsx ha gli a capo CRLF.
     expect(app).toMatch(/\n\s*<OspiteAzioniChat \/>\r?\n/)
   })
 
@@ -25,5 +25,13 @@ describe('l’esito delle tre azioni non sparisce con la riga della chat', () =>
     const src = readFileSync('src/renderer/components/AzioniChat.tsx', 'utf8')
     expect(src).toContain('if (mostraNellOspite !== undefined) mostraNellOspite(')
     expect(src).toContain('else setSceltaQui(s)')
+  })
+
+  it('aperto il menu, «Elimina dal PC» si spegne con il motivo del PC (chat al lavoro, in attesa, guidata, di un altro PC)', () => {
+    const src = readFileSync('src/renderer/components/AzioniChat.tsx', 'utf8')
+    expect(src).toContain('window.gestore.chatGestione.selezione([sessione])')
+    expect(src).toContain("setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo })")
+    expect(src).toContain("(a === 'elimina' && misura?.motivo !== undefined)")
+    expect(src).toContain('<span className="gc-voce__no">{misura.motivo}</span>')
   })
 })

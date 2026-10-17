@@ -101,4 +101,13 @@ class GestioneChatTest {
         assertEquals(false, FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, "0.78.1"))
         assertEquals(true, FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, "0.79.0"))
     }
+
+    @Test
+    fun `una chat che non si puo eliminare ha Elimina spento con il motivo del PC`() {
+        val motivo = "«c» sta lavorando: aspetta che finisca, poi chiudila."
+        assertEquals(motivo, GestioneChatRegole.motivoNonElimina(SelezioneChat(chat = 1, byte = 10.0, escluse = listOf(EsclusaChat("s", motivo)))))
+        assertEquals(null, GestioneChatRegole.motivoNonElimina(SelezioneChat(chat = 1, byte = 10.0, eliminabili = 1, byteEliminabili = 10.0)))
+        assertEquals(null, GestioneChatRegole.motivoNonElimina(null))
+        assertEquals(null, GestioneChatRegole.motivoNonElimina(SelezioneChat(escluse = listOf(EsclusaChat("s", " ")))))
+    }
 }

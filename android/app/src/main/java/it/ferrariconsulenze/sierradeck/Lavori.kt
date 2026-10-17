@@ -351,12 +351,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         // mangiavano tutto lo spazio della meta' di sopra — la chat spariva e la
         // casella finiva sotto le linguette, fuori dallo schermo.
         Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
-            // PC 0.79.0: il riassunto della dashboard sta fisso sopra la conversazione,
-            // sempre in vista come il campo per scrivere qui sotto.
-            pan?.takeIf { it.situazione != null && it.autopilota != null }?.let { p ->
-                RiassuntoLavoroVista(p.lavoro) { id -> Apertura.apriChat(id) }
-                HorizontalDivider(color = Banco.incisione)
-            }
+            // PC 0.79.0: chi lavora adesso, sempre in vista sopra la conversazione.
+            pan?.alLavoro?.let { r -> AlLavoro(r) { id -> Apertura.apriChat(id) } }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista) {
                 if (det != null && det.passaggi.isNotEmpty()) item {
                     Spacer(Modifier.height(8.dp))
@@ -373,7 +369,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
                 item { Serigrafia("Chat con lui") }
                 // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
-                val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat to emptyList()
+                // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
+                val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
                 if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
                 items(messaggi) { b ->
                     // Il testo della chat con lui si seleziona e si copia (tocco
@@ -635,7 +632,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     // il servizio marca le sue decisioni, e letta da fuori sembra
                     // un errore. Resta cosa ha deciso, e quando.
                     for (dec in decisioni.takeLast(30).reversed()) {
-                        val ora = dec.quando.drop(11).take(5)
+                        val ora = oraLocale(dec.quando)
                         Text(
                             (if (ora.isNotBlank()) "$ora  " else "• ") + senzaSigla(dec.cosa),
                             color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp)
@@ -852,7 +849,7 @@ private fun Criterio(c: Criterio) {
         if (c.raggiuntoIl != null) {
             // Solo l'ora: la data intera in ISO non si legge, e «alle 14:32»
             // e' tutto quello che serve per sapere se e' successo adesso o stamattina.
-            val ora = c.raggiuntoIl.drop(11).take(5)
+            val ora = oraLocale(c.raggiuntoIl)
             Text(
                 if (ora.isNotBlank()) "raggiunto alle $ora" else "raggiunto ${c.raggiuntoIl}",
                 color = Banco.verde, fontSize = 11.sp, modifier = Modifier.padding(start = 18.dp)
@@ -875,16 +872,18 @@ private fun Etichetta(testo: String) {
  */
 @Composable
 private fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
-    val ora = b.quando.drop(11).take(5)
+    // L'ora del telefono, come sul PC (0.79.0): l'istante arriva in UTC.
+    val ora = oraLocale(b.quando)
     if (b.da == "nota") {
         val filo = when (b.tono) {
             "decisione" -> Banco.accento
             "correzione" -> Banco.ambra
-            "fine" -> Banco.verde
+            "fine", "traguardo" -> Banco.verde
             "fermo" -> Banco.rosso
             else -> Banco.incisione
         }
-        val forte = b.tono == "fine" || b.tono == "fermo"
+        // PC 0.79.0: le righe corte dei traguardi si leggono come le battute.
+        val forte = b.tono == "fine" || b.tono == "fermo" || b.tono == "traguardo"
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.width(2.dp).height(16.dp).background(filo))
             Spacer(Modifier.width(6.dp))
@@ -896,17 +895,6 @@ private fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
                 fontSize = 11.sp,
                 modifier = Modifier.weight(1f)
             )
-        }
-        return
-    }
-    // PC 0.79.0: uno specialista ha finito o la Revisione ha deciso, una riga corta sua.
-    if (b.tono == "esito") {
-        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width(2.dp).height(18.dp).background(Banco.verde))
-            Spacer(Modifier.width(6.dp))
-            Text(ora, color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale)
-            Spacer(Modifier.width(6.dp))
-            Text(b.testo, color = Banco.testo, fontSize = 13.sp, modifier = Modifier.weight(1f))
         }
         return
     }

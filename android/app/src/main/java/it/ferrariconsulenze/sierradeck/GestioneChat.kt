@@ -166,6 +166,9 @@ object GestioneChatRegole {
         return SelezioneChat(sel.size, sel.sumOf { it.byte }, ok.size, ok.sumOf { it.byte }, sel.filter { it.nonEliminabile != null }.map { EsclusaChat(it.sessione, it.nonEliminabile!!) })
     }
 
+    /** Il motivo del PC per cui una chat scelta da sola non si elimina, o null se si può: «Elimina dal PC» spento con questo motivo. */
+    fun motivoNonElimina(s: SelezioneChat?): String? = s?.escluse?.firstOrNull()?.motivo?.takeIf { it.isNotBlank() }
+
     fun riepilogoSelezione(s: SelezioneChat): String {
         if (s.chat == 0) return "Nessuna chat scelta."
         val q = if (s.chat == 1) "1 chat scelta" else "${s.chat} chat scelte"
@@ -206,6 +209,18 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
     var inCorso by remember { mutableStateOf(false) }
     var esito by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
     var fatte by remember { mutableIntStateOf(0) }
+    // Aperto il dialogo si chiede subito al PC quanto libera e se si può eliminare: una chat al lavoro,
+    // in attesa, guidata da un autopilota attivo o di un altro PC mostra «Elimina dal PC» spento col motivo.
+    var motivoNo by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(sessione) {
+        misura = true
+        try {
+            val sel = api.spazioChat(listOf(sessione)).selezione
+            spazio = GestioneChatRegole.byte(sel?.byte ?: 0.0)
+            motivoNo = GestioneChatRegole.motivoNonElimina(sel)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
+        misura = false
+    }
     val nome = GestioneChatRegole.nome(listOf(titolo))
     fun fai(azione: String) {
         inCorso = true
@@ -235,15 +250,17 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
             title = { Text(testo.titolo) },
             text = {
                 Column {
-                    Text(testo.testo, fontSize = 14.sp)
-                    if (c == "elimina") Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Toccato prima che arrivasse il motivo del PC: lo si dice qui, e il tasto resta spento.
+                    if (c == "elimina" && motivoNo != null) Text(motivoNo ?: "", color = Banco.ambra, fontSize = 13.sp)
+                    else Text(testo.testo, fontSize = 14.sp)
+                    if (c == "elimina" && motivoNo == null) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = drive, onCheckedChange = { drive = it })
                         Text("anche dal Drive", fontSize = 13.sp, modifier = Modifier.weight(1f))
                         Aiuto("Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina».", di = "anche dal Drive")
                     }
                 }
             },
-            confirmButton = { TextButton(enabled = !inCorso && !(c == "elimina" && misura), onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else if (c == "elimina" && misura) "Misuro…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
+            confirmButton = { TextButton(enabled = !inCorso && !(c == "elimina" && (misura || motivoNo != null)), onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else if (c == "elimina" && misura) "Misuro…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
             dismissButton = { TextButton(enabled = !inCorso, onClick = { conferma = null }) { Text("Annulla") } }
         )
         return
@@ -255,17 +272,10 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
             Column {
                 for ((id, t) in GestioneChatRegole.TESTI) {
                     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = {
-                            conferma = id
-                            if (id == "elimina") {
-                                misura = true
-                                scope.launch {
-                                    spazio = try { GestioneChatRegole.byte(api.spazioChat(listOf(sessione)).selezione?.byte ?: 0.0) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-                                    misura = false
-                                }
-                            }
-                        }) { Text(t.etichetta, color = if (id == "elimina") Banco.rosso else Banco.accento) }
-                        Text(t.breve, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        val spento = id == "elimina" && motivoNo != null
+                        TextButton(enabled = !spento, onClick = { conferma = id }) { Text(t.etichetta, color = if (spento) Banco.testoQuieto else if (id == "elimina") Banco.rosso else Banco.accento) }
+                        if (spento) Text(motivoNo ?: "", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        else Text(t.breve, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         Aiuto(t.spiega, di = t.etichetta)
                     }
                 }

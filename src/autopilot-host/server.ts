@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
-  type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat
+  type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat, type Traguardo
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
 import {
@@ -557,8 +557,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(a.consegna !== undefined ? { consegna: a.consegna } : {})
   })
   /** Una riga nel diario, senza perdere quelle che ci sono. */
-  const annota = (a: Autopilota, cosa: string): void => {
-    a.decisioni = [...a.decisioni, { quando: deps.adesso(), cosa }]
+  const annota = (a: Autopilota, cosa: string, traguardo?: Traguardo): void => {
+    // Il traguardo (0.79.0): la riga corta nella conversazione, accanto a questa tecnica.
+    a.decisioni = [...a.decisioni, { quando: deps.adesso(), cosa, ...(traguardo !== undefined ? { traguardo } : {}) }]
   }
 
   /**
@@ -1945,8 +1946,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     if (v.esito === 'ok') {
       fresco = { ...fresco, chats: fresco.chats.map((c) => (c.id === autore.id ? { ...c, approvata: true, stato: 'finita' as const } : c)) }
-      // Il testo lo legge `esitiDalRegistro` (riassunto-lavoro.ts) per la riga corta nella conversazione: non cambiarlo da solo.
-      annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), unito nel ramo principale. ${v.note}`.slice(0, 400))
+      annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), unito nel ramo principale. ${v.note}`.slice(0, 400), { chat: chatId, esito: 'approvato', di: autore.id })
       salva(fresco)
       // Si aprono i compiti che aspettavano questo; se non resta niente, una
       // chat autrice chiude il giro e il supervisore dichiara finito sui criteri.
@@ -1967,8 +1967,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (rifacimenti > RIFACIMENTI_MAX) {
       // Due giri a vuoto: decide Nicholas, con una domanda scritta dal programma.
       fresco = conStatoChat(fresco, autore.id, 'bloccata')
-      // Il testo lo legge `esitiDalRegistro` (riassunto-lavoro.ts) per la riga corta nella conversazione: non cambiarlo da solo.
-      annota(fresco, `Revisione ${chatId}: ${autore.id} rimandato indietro ${rifacimenti} volte, chiedo a te`)
+      annota(fresco, `Revisione ${chatId}: ${autore.id} rimandato indietro ${rifacimenti} volte, chiedo a te`, { chat: chatId, esito: 'chiede-te', di: autore.id })
       salva(fresco)
       const parti = {
         staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat ${autore.id} («${autore.compito.slice(0, 80)}»).`,
@@ -1989,8 +1988,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     const autoreDiNuovo = { ...autore, stato: 'lavoro' as const, rifacimenti }
     fresco = { ...fresco, chats: fresco.chats.map((c) => (c.id === autore.id ? autoreDiNuovo : c)) }
-    // Il testo lo legge `esitiDalRegistro` (riassunto-lavoro.ts) per la riga corta nella conversazione: non cambiarlo da solo.
-    annota(fresco, `Revisione ${chatId}: da rifare per ${autore.id} — ${v.note}`.slice(0, 400))
+    annota(fresco, `Revisione ${chatId}: da rifare per ${autore.id} — ${v.note}`.slice(0, 400), { chat: chatId, esito: 'da-rifare', di: autore.id })
     salva(fresco)
     void avviaLavoro(fresco, `La Revisione ha letto il tuo ramo e chiede di correggere prima di unirlo:\n\n${v.note}\n\nCorreggi nella tua cartella, fai commit, e dillo in una riga: il ramo torna alla Revisione.`, autoreDiNuovo)
       .catch((err: unknown) => { console.error(`[autopilota] correzione di ${autore.id} non consegnata:`, err) })
@@ -2457,8 +2455,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, t]
             aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), [t]: { ruolo: 'revisione', dopo: [] } }
           }
-          // Il testo lo legge `esitiDalRegistro` (riassunto-lavoro.ts) per la riga corta nella conversazione: non cambiarlo da solo.
-          annota(aggiornato, `${c.id} ha finito il suo compito: il ramo ${c.ramo} passa alla Revisione prima di essere unito`)
+          annota(aggiornato, `${c.id} ha finito il suo compito: il ramo ${c.ramo} passa alla Revisione prima di essere unito`, { chat: c.id, esito: 'in-revisione' })
           if (c.id === chatId) chiusaQuesta = true
           else deps.fermaLavoro(id, c.id)
           apriDopo = true
@@ -2474,8 +2471,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         if (!unita) continue
         aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
-        // Il testo lo legge `esitiDalRegistro` (riassunto-lavoro.ts) per la riga corta nella conversazione: non cambiarlo da solo.
-        annota(aggiornato, `chiudo la chat ${c.id}: il suo pezzo è fatto`)
+        annota(aggiornato, `chiudo la chat ${c.id}: il suo pezzo è fatto`, { chat: c.id, esito: 'finito' })
         if (c.id === chatId) chiusaQuesta = true
         else deps.fermaLavoro(id, c.id)
         apriDopo = apriDopo || aggiornato.compitiDaFare.length > 0

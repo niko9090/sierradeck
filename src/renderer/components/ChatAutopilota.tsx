@@ -21,7 +21,8 @@ import { TastoMicrofono } from './TastoMicrofono'
 export function ChatAutopilota({
   autopilota,
   onCambiato,
-  soloConversazione = false
+  soloConversazione = false,
+  campoPronto = false
 }: {
   autopilota: Autopilota
   /** Qualcosa è cambiato: chi ci sta sopra deve rileggere lo stato adesso. */
@@ -31,6 +32,12 @@ export function ChatAutopilota({
    * lavoro (rami, revisioni, «ha deciso») in «Cosa è successo ▸», chiuso.
    */
   soloConversazione?: boolean
+  /**
+   * Nella Panoramica (0.79.0, Nicholas): il campo per scrivergli sempre
+   * pronto. Prende il fuoco quando la Panoramica si apre, se nessun altro
+   * campo lo ha già.
+   */
+  campoPronto?: boolean
 }): React.JSX.Element {
   const [messaggio, setMessaggio] = useState('')
   const [inCorso, setInCorso] = useState(false)
@@ -41,13 +48,20 @@ export function ChatAutopilota({
 
   const tutte = conversazione(autopilota)
   const { messaggi, eventi } = separaConversazione(tutte)
-  const battute = soloConversazione ? messaggi : tutte
+  // Senza la Panoramica si vede il diario intero: le righe corte dei traguardi sarebbero un doppione.
+  const battute = soloConversazione ? messaggi : tutte.filter((b) => b.tono !== 'traguardo')
   const [eventiAperti, setEventiAperti] = useState(false)
   const pensa = staPensando(autopilota)
   // Una sua domanda aperta non si risponde piu' da qui (0.38.0): sta nella
   // linguetta «Domande» qui sotto, una per volta. Qui gli si parla e basta.
   const domanda = haDomandaAperta(autopilota)
   const ultimaModifica = autopilota.modifiche[autopilota.modifiche.length - 1]
+
+  useEffect(() => {
+    if (!campoPronto) return
+    const attivo = document.activeElement
+    if (attivo === null || attivo === document.body) campo.current?.focus()
+  }, [campoPronto])
 
   // In fondo, come ogni chat: l'ultima cosa detta è quella che si vuole vedere.
   // Si scorre quando cambia il numero delle righe, non a ogni rilettura, così
@@ -78,7 +92,7 @@ export function ChatAutopilota({
   }
 
   return (
-    <section className="chatap" aria-label="Chat con l’autopilota">
+    <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
       <RigaDalVivo autopilota={autopilota} />
       <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
       {soloConversazione && eventi.length > 0 ? (
@@ -114,11 +128,6 @@ export function ChatAutopilota({
                   {b.dettaglio !== undefined ? <span className="chatap__nota-dettaglio"> — {b.dettaglio}</span> : null}
                 </span>
               </>
-            ) : b.tono === 'esito' ? (
-              // Uno specialista ha finito o la Revisione ha deciso (0.79.0): una riga corta, con l'ora.
-              <div className="chatap__bolla">
-                <span className="chatap__testo"><span className="chatap__quando">{orario(b.quando)}</span> {b.testo}</span>
-              </div>
             ) : (
               <div className="chatap__bolla">
                 <span className="chatap__chi">

@@ -1,6 +1,6 @@
-import type { Autopilota } from './autopilota'
+import type { Autopilota, ChatGovernata, Traguardo } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
-import { esitiDalRegistro, rigaEsito } from './riassunto-lavoro'
+import { RUOLI } from './ruoli-agenti'
 
 /**
  * Una riga della chat con l'autopilota.
@@ -20,10 +20,8 @@ export type Battuta = {
   /**
    * Il colore della riga. `domanda` è una sua domanda ancora aperta, `fine` e
    * `fermo` chiudono la conversazione; gli altri sono i tipi del diario.
-   * `esito` (0.79.0): uno specialista ha finito o la Revisione ha deciso, in
-   * una riga corta detta da lui (la nota tecnica resta in «Cosa è successo»).
    */
-  tono?: 'esito' | 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo'
+  tono?: 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo' | 'traguardo'
   /** Quante volte di fila la stessa nota: dieci riprese uguali sono una riga. */
   volte?: number
 }
@@ -78,9 +76,14 @@ export function conversazione(a: Autopilota): Battuta[] {
     })
   }
 
-  // Gli esiti degli specialisti (0.79.0): una riga corta sua nella conversazione,
-  // senza rami né id; la nota tecnica dello stesso momento resta fra gli eventi.
-  for (const e of esitiDalRegistro(a)) metti({ quando: e.quando, da: 'lui', testo: rigaEsito(e), tono: 'esito' })
+  // Uno specialista ha finito, la Revisione ha approvato o rimandato (0.79.0):
+  // una riga corta nella conversazione, scritta dai dati del servizio. La riga
+  // tecnica resta in «Cosa è successo».
+  for (const d of a.decisioni) {
+    if (d.traguardo === undefined) continue
+    const testo = rigaTraguardo(a, d.traguardo)
+    if (testo !== undefined) metti({ quando: d.quando, da: 'nota', testo, tono: 'traguardo' })
+  }
 
   for (const s of a.dialogo) {
     metti({
@@ -152,4 +155,43 @@ export function staPensando(a: Autopilota): boolean {
 /** C'è una sua domanda aperta: quello che scrivi adesso è la risposta. */
 export function haDomandaAperta(a: Autopilota): boolean {
   return a.stato === 'attesa' || (a.stato === 'intervista' && a.motivoSospensione !== undefined)
+}
+
+/**
+ * Il compito di una chat in poche parole, per le righe corte (0.79.0): la
+ * prima frase, al più `max` caratteri tagliati su una parola.
+ */
+export function compitoBreve(compito: string, max = 60): string {
+  const prima = compito.split(/\r?\n/).map((r) => r.trim()).find((r) => r !== '') ?? ''
+  const frase = (/^(.+?[.!?;])(\s|$)/.exec(prima)?.[1] ?? prima).replace(/[.;]$/, '').trim()
+  if (frase.length <= max) return frase
+  const taglio = frase.slice(0, max - 1)
+  const spazio = taglio.lastIndexOf(' ')
+  return `${(spazio > max / 2 ? taglio.slice(0, spazio) : taglio).replace(/[\s,:;–-]+$/, '')}…`
+}
+
+/** «Sviluppo», «Revisione»… o «Una chat» per una chat senza ruolo. */
+export function nomeChi(c: Pick<ChatGovernata, 'ruolo'> | undefined): string {
+  return c?.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Una chat'
+}
+
+/**
+ * La riga corta di un traguardo, dalle chat dell'autopilota (mai dalle loro
+ * parole): «Revisione: ha approvato «il motore» di Sviluppo, unito.».
+ * Niente se la chat non si trova più.
+ */
+export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): string | undefined {
+  const chi = a.chats.find((c) => c.id === t.chat)
+  const di = t.di !== undefined ? a.chats.find((c) => c.id === t.di) : undefined
+  if (chi === undefined) return undefined
+  const lavoro = di ?? chi
+  const cosa = `«${compitoBreve(lavoro.compito)}»`
+  const diChi = di !== undefined ? ` di ${nomeChi(di)}` : ''
+  switch (t.esito) {
+    case 'finito': return `${nomeChi(chi)}: ha finito ${cosa}.`
+    case 'in-revisione': return `${nomeChi(chi)}: ha finito ${cosa}, ora lo rilegge la Revisione.`
+    case 'approvato': return `${nomeChi(chi)}: ha approvato ${cosa}${diChi}, unito.`
+    case 'da-rifare': return `${nomeChi(chi)}: rimanda ${cosa}${diChi} da correggere.`
+    case 'chiede-te': return `${nomeChi(chi)}: rimanda di nuovo ${cosa}${diChi}, decidi tu come andare avanti.`
+  }
 }

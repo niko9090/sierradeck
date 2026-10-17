@@ -39,10 +39,12 @@ describe('pagina: le domande brevi a lato', () => {
 })
 
 describe('0.78.0: la Panoramica 2 sul telefono', () => {
-  const crea = (aperte: Record<string, boolean> = {}) => new Function('esc', 'aiuto', 'apPc', 'pannello', 'ultimoStato', `
+  const creaParti = (aperte: Record<string, boolean> = {}, apPc: string | null = null) => new Function('esc', 'aiuto', 'apPc', 'pannello', 'ultimoStato', `
     const RUOLO_NOME = { sviluppo: 'Sviluppo', revisione: 'Revisione' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' };
     var panAperte = Object.assign({ criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }, ${JSON.stringify(aperte)});
-    ${funzione('rigaApri')}; ${funzione('schedaTelHtml')}; ${funzione('panoramicaVecchiaHtml')}; ${funzione('riassuntoTelHtml')}; ${funzione('panoramicaHtml')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, null, () => undefined, null) as (p: unknown, parte?: string) => string
+    ${['rigaApri', 'schedaTelHtml', 'panoramicaVecchiaHtml', 'alLavoroHtml', 'panoramicaHtml', 'panoramicaTestaHtml', 'panoramicaRestoHtml'].map(funzione).join('; ')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, apPc, () => undefined, null) as (p: unknown, parte: 'testa' | 'resto') => string
+  // Le due parti di seguito: sopra la conversazione la testa, sotto il resto (0.79.0).
+  const crea = (aperte: Record<string, boolean> = {}) => (p: unknown): string => { const f = creaParti(aperte); return f(p, 'testa') + f(p, 'resto') }
   const schede = [
     { id: 'p-3', titolo: 'chiede', stato: 'chiede', ultimaAzione: '', righe: [] },
     { id: 'p-2', titolo: 'Sviluppo · Notte', stato: 'lavora', ruolo: 'sviluppo', specialista: true, ultimaAzione: 'scrive il test', righe: ['a', 'b', 'c', 'd'] },
@@ -77,7 +79,7 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
     expect(html).toContain('solo tua')
     expect(html).toContain('Finite: 1')
     expect(html).not.toContain('<span class="sotto">fatto</span>')
-    expect(html).toContain('Conversazione')
+    expect(html).toContain('Come si legge')
   })
   it('aperti: i criteri uno per uno con la prova, le finite, «Da fare»', () => {
     const html = crea({ criteri: true, finite: true, 'da-fare': true })({ situazione, piano, schede })
@@ -95,40 +97,74 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
     expect(html).toContain('Vecchio')
     expect(html).toContain('Panoramica')
   })
-  it('0.79.0: la dashboard — in testa situazione e «Al lavoro adesso», il resto sotto il campo', () => {
-    const lavoro = [
-      { id: 'c-1', nomeRuolo: 'Sviluppo', colore: 'blu', compito: 'Somma', cosa: 'fa girare i test', dal: new Date(Date.now() - 12 * 60_000).toISOString(), aspettaTe: false, chat: 'p-2' },
-      { id: 'c-2', nomeRuolo: 'Collaudo', colore: 'verde', compito: 'Prove', cosa: 'aspetta il tuo permesso', aspettaTe: true }
+  it('0.79.0: la testa (situazione e «Al lavoro») sta sopra la conversazione, il resto sotto', () => {
+    const alLavoro = [
+      { id: 'p-3', chi: 'Collaudo', ruolo: 'collaudo', cosa: 'prova: «la copia»', quanto: 'adesso', aspettaTe: true },
+      { id: 'p-2', chi: 'Sviluppo', ruolo: 'sviluppo', cosa: 'lavora a: «Somma»', quanto: 'da 12 min', aspettaTe: false }
     ]
-    const testa = crea()({ situazione, piano, schede, lavoro }, 'testa')
+    const f = creaParti()
+    const testa = f({ situazione, piano, schede, alLavoro }, 'testa')
+    const resto = f({ situazione, piano, schede, alLavoro }, 'resto')
     expect(testa).toContain('◐ da verificare')
-    expect(testa).toContain('Al lavoro adesso · 2')
-    expect(testa).toContain('<b>Sviluppo</b><span>fa girare i test</span>')
-    expect(testa).toContain('da 12 min · Somma')
+    expect(testa).toContain('Al lavoro · 2 <span class="pan-tel-aspettano">· ◆ 1 aspetta te</span>')
+    expect(testa).toContain('<b>Collaudo</b> prova: «la copia»<span class="sotto"><b class="pan-tel-stato--ambra">aspetta te</b> · adesso</span>')
     expect(testa).toContain('data-chat="p-2" onclick="apriDaPanoramica(this.dataset.chat)"')
-    expect(testa).toContain('pan-tel-lavoro__riga--te')
-    expect(testa).toContain('aspetta te')
-    expect(testa).toContain('[?Una riga per ogni chat al lavoro')
-    expect(testa).not.toContain('Adesso · 2')
-    const resto = crea()({ situazione, piano, schede, lavoro }, 'resto')
+    expect(testa.indexOf('p-3')).toBeLessThan(testa.indexOf('p-2'))
+    expect(testa).not.toContain('Adesso ·')
     expect(resto).toContain('Adesso · 2')
-    expect(resto).toContain('In corso · 1')
-    expect(resto).not.toContain('Al lavoro adesso')
     expect(resto).not.toContain('da verificare')
-    // Nessuna chat al lavoro, e un PC più vecchio senza `lavoro`: niente riassunto.
-    expect(crea()({ situazione, piano, schede, lavoro: [] }, 'testa')).toContain('Nessuna chat al lavoro.')
-    expect(crea()({ situazione, piano, schede }, 'testa')).not.toContain('Al lavoro adesso')
+    // Il testo visibile è quello del PC (titoloAlLavoro, sottoAlLavoro).
+    const visibile = (h: string): string => h.replace(/<[^>]+>/g, '')
+    expect(visibile(testa)).toContain('Al lavoro · 2 · ◆ 1 aspetta te')
+    expect(visibile(testa)).toContain('aspetta te · adesso')
   })
-  it('0.79.0: il campo dell’autopilota è ancorato sopra la fascia, la conversazione è grande, gli esiti sono righe corte', () => {
-    const v = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
-    expect(v).toContain('<div class="ancorata casella-ap">')
-    expect(v).toContain('flusso-ap--grande')
-    expect(v).toContain("b.tono === 'esito'")
-    expect(v.indexOf('casella +')).toBeLessThan(v.indexOf('(dopoCasella ||'))
-    expect(v.indexOf('(dopoCasella ||')).toBeLessThan(v.indexOf('barraLinguette +'))
-    expect(script).toContain("panoramicaHtml(panoramicaAp, 'testa')")
-    expect(script).toContain("vistaAutopilota(apDettaglio, panoramicaHtml(panoramicaAp, 'resto'))")
-    // L'ancorata sta sopra la fascia del telefono, mai sotto.
+  it('0.79.0: nessuno al lavoro; un PC della 0.78 senza riassunto; da un altro PC le righe non si aprono', () => {
+    expect(creaParti()({ situazione, piano, schede, alLavoro: [] }, 'testa')).toContain('Nessuna chat al lavoro.')
+    // 0.79.0: cosa fa adesso, dai segnali; il permesso è già «aspetta te», in ambra.
+    const adesso = creaParti()({ situazione, piano, schede, alLavoro: [
+      { id: 'p-2', chi: 'Sviluppo', cosa: 'lavora a: «Somma»', quanto: 'da 3 min', aspettaTe: false, adesso: 'fa girare i test' },
+      { id: 'p-3', chi: 'Collaudo', cosa: 'prova: «Prove»', quanto: 'adesso', aspettaTe: true, adesso: 'aspetta il tuo permesso: salva il lavoro' },
+      { id: 'p-4', chi: 'Chat', cosa: 'x', quanto: '', aspettaTe: true }
+    ] }, 'testa')
+    expect(adesso).toContain('<span class="sotto">fa girare i test · da 3 min</span>')
+    expect(adesso).toContain('<b class="pan-tel-stato--ambra">aspetta il tuo permesso: salva il lavoro</b> · adesso')
+    expect(adesso).toContain('<b class="pan-tel-stato--ambra">aspetta te</b></span>')
+    expect(adesso).toContain('id="al-lavoro-ap"')
+    expect(script).toContain("document.getElementById('al-lavoro-ap')")
+    expect(creaParti()({ situazione, piano, schede }, 'testa')).not.toContain('Al lavoro')
+    const daLontano = creaParti({}, 'pc-2')({ situazione, piano, schede, alLavoro: [{ id: 'p-2', chi: 'Sviluppo', cosa: 'x', quanto: '', aspettaTe: false }] }, 'testa')
+    expect(daLontano).not.toContain('apriDaPanoramica')
+    // La lista della 0.77.0 sta tutta nella testa.
+    expect(creaParti()({ riassunto: { obiettivo: 'Vecchio', stato: { parola: 'al lavoro', colore: 'verde' }, criteri: { testo: '1/2' } }, schede }, 'resto')).toBe('')
+  })
+  it('0.79.0: le righe corte dei traguardi restano nella conversazione; il campo resta in fondo allo schermo', () => {
+    const vista = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
+    expect(vista).toContain("const inConversazione = (b) => b.da !== 'nota' || b.tono === 'traguardo'")
+    expect(vista).toContain("(a.chat || []).filter((b) => !inConversazione(b)).reverse()")
+    // Il campo ancorato sopra la fascia del telefono, come la risposta nelle chat.
+    expect(vista).toContain("const casella = '<div class=\"casella-ap ancorata\">")
     expect(html).toMatch(/\.ancorata \{\s*position: sticky; bottom: calc\(60px/)
+    expect(script).toContain("panoramicaHtml(panoramicaAp, 'testa')")
+    expect(script).toContain("panoramicaHtml(panoramicaAp, 'resto')")
+  })
+  it('0.79.0: «Al lavoro» al più 3 righe, le altre dietro «e altre N»; senza Panoramica niente righe corte doppie', () => {
+    const r = (id: string) => ({ id, chi: 'Sviluppo', cosa: 'lavora a: «x»', quanto: '', aspettaTe: false })
+    const quattro = [r('a1'), r('a2'), r('a3'), r('a4')]
+    const chiuso = creaParti()({ situazione, piano, schede, alLavoro: quattro }, 'testa')
+    expect(chiuso).toContain('data-chat="a3"')
+    expect(chiuso).not.toContain('data-chat="a4"')
+    expect(chiuso).toContain('e altre 1')
+    expect(creaParti({ 'al-lavoro': true })({ situazione, piano, schede, alLavoro: quattro }, 'testa')).toContain('data-chat="a4"')
+    const vista = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
+    expect(vista).toContain("filter((b) => conPan ? inConversazione(b) : b.tono !== 'traguardo')")
+  })
+  it('0.79.0: le ore della conversazione nell’ora del telefono, come sul PC (non l’UTC tagliato)', () => {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const oraDi = new Function('esc', `${funzione('oraDi')}; return oraDi`)((x: string) => x) as (iso: string) => string
+    const iso = '2026-10-18T09:10:00.000Z'
+    expect(oraDi(iso)).toBe(new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))
+    expect(oraDi('')).toBe('')
+    const vista = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
+    expect(vista).toContain('const ora = (iso) => oraDi(iso)')
   })
 })

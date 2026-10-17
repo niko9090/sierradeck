@@ -130,7 +130,17 @@ export type MessaggioPerLaChat = {
   chats: string[]
 }
 
-export type Decisione = { quando: string; cosa: string }
+/**
+ * Un passo di uno specialista, scritto dal servizio insieme alla riga del
+ * diario (0.79.0, Nicholas: nella conversazione «una riga corta» quando uno
+ * specialista finisce, senza righe tecniche). `chat` è chi l'ha fatto; `di` la
+ * chat di cui parla (per la Revisione: quella che ha riletto).
+ */
+export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string }
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te']
+
+export type Decisione = { quando: string; cosa: string; traguardo?: Traguardo }
 
 /**
  * Una chat governata da un autopilota.
@@ -793,7 +803,11 @@ export function parseAutopilota(raw: unknown): {
       const dd = d as Record<string, unknown>
       const quando = stringaNonVuota(dd.quando)
       const cosa = stringaNonVuota(dd.cosa)
-      if (quando !== undefined && cosa !== undefined) decisioni.push({ quando, cosa })
+      const t = dd.traguardo as Record<string, unknown> | undefined
+      const traguardo: Traguardo | undefined = typeof t === 'object' && t !== null && typeof t.chat === 'string' && t.chat !== '' && ESITI_TRAGUARDO.includes(t.esito as EsitoTraguardo)
+        ? { chat: t.chat, esito: t.esito as EsitoTraguardo, ...(typeof t.di === 'string' && t.di !== '' ? { di: t.di } : {}) }
+        : undefined
+      if (quando !== undefined && cosa !== undefined) decisioni.push({ quando, cosa, ...(traguardo !== undefined ? { traguardo } : {}) })
     }
   }
 
