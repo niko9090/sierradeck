@@ -1,9 +1,16 @@
-import { describe, it, expect } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { describe, it, expect, vi } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { byteDi, creaGestioneChat, fileDiSessione, type DipendenzeGestioneChat, type InfoSessione } from '../../src/main/gestione-chat'
 import type { StatoPerAzione } from '@shared/gestione-chat'
+
+// Un disco che rifiuta la scrittura (pieno, file tenuto da un antivirus): per etichetta.
+const nonSiScrive = vi.hoisted(() => new Set<string>())
+vi.mock('@shared/scrittura-atomica', async (originale) => {
+  const m = await originale<typeof import('@shared/scrittura-atomica')>()
+  return { ...m, scriviJsonAtomico: (...a: Parameters<typeof m.scriviJsonAtomico>) => (nonSiScrive.has(a[2]) ? false : m.scriviJsonAtomico(...a)) }
+})
 
 // 0.79.0: Chiudi, Archivia, Elimina dal PC, recupero e «Svuota adesso», su
 // cartelle temporanee che imitano `~/.claude`. Mai le cartelle vere.
@@ -50,7 +57,7 @@ type Scena = {
   tolteDaiWs: string[]
 }
 
-function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
+function scena(o: { drive?: boolean; chiudiFallisce?: boolean; ritocca?: (d: DipendenzeGestioneChat) => void } = {}): Scena {
   const radice = radiceDiProva()
   const dati = tmp('sd-dati-')
   const log: string[] = []
@@ -83,7 +90,7 @@ function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
     ...(o.drive === true ? {
       drive: {
         togliChat: async (s: string[]) => { drive.tolte.push(s); return { ok: true, messaggio: 'ok', pulizia: { id: `pulizia-${drive.tolte.length}`, voci: [1, 2], byte: 999 } } },
-        annulla: async (id: string) => { drive.annullate.push(id); return { ok: true, messaggio: 'ok' } },
+        annulla: async (id: string) => { drive.annullate.push(id); return { ok: true, messaggio: 'Annullata: 2 file di nuovo al loro posto.' } },
         svuota: async (id: string) => { drive.svuotate.push(id); return { ok: true, messaggio: 'ok' } }
       }
     } : {}),
@@ -91,6 +98,7 @@ function scena(o: { drive?: boolean; chiudiFallisce?: boolean } = {}): Scena {
     log: (m) => log.push(m),
     adesso: () => orologio.ora
   }
+  o.ritocca?.(deps)
   return { g: creaGestioneChat(deps), radice, dati, log, indice, etichette, stati, chiuse, drive, orologio, tolteDaiWs }
 }
 
@@ -238,7 +246,7 @@ describe('il recupero', () => {
     expect(e1.messaggio).toMatch(/con altre chat/)
     expect(x.drive.annullate).toEqual([])
     const e2 = await x.g.ripristinaDalRecupero(b?.id as string)
-    expect(e2.messaggio).toMatch(/copia sul Drive è tornata/)
+    expect(e2.messaggio).toMatch(/La copia sul Drive: 2 file di nuovo al loro posto./)
     expect(x.drive.annullate).toEqual(['pulizia-1'])
   })
 
@@ -339,6 +347,7 @@ describe('Chiudi, Archivia, Ripristina, Rinomina', () => {
     const e = await x.g.azione({ azione: 'archivia', sessioni: [S1] })
     expect(e.esiti[0]?.motivo).toMatch(/non si è chiusa/)
     expect(x.g.eArchiviata(S1)).toBe(false)
+    nonSiScrive.clear()
   })
 
   it('le archiviate restano dopo un riavvio', async () => {
@@ -410,5 +419,117 @@ describe('lo spazio delle chat e le voci orfane', () => {
     expect(x.g.pulisciOrfane()).toEqual({ etichette: 1, archiviate: 0 })
     expect(x.etichette['33333333-3333-4333-8333-333333333333']).toBe('Chat di un altro PC')
     expect(x.etichette[S1]).toBeUndefined()
+  })
+})
+
+// La revisione con gli agenti di ECC (17/10): i casi in cui la chat si sarebbe
+// tolta lo stesso, o il PC avrebbe detto «fatto» senza averlo fatto.
+describe('nel dubbio non si tocca, e non si dice «fatto» se non è vero', () => {
+  it('se lo stato di una chat non si legge, non si elimina né si archivia, e lo Spazio lo dice', async () => {
+    const x = scena({ ritocca: (d) => { d.statoDi = async () => { throw new Error('guardiano del PIN rotto') } } })
+    const prima = fileDi(x.radice, S1)
+    for (const azione of ['elimina', 'archivia'] as const) {
+      const e = await x.g.azione({ azione, sessioni: [S1] })
+      expect(e.fatte).toBe(0)
+      expect(e.esiti[0]?.motivo).toMatch(/«Il lettore di CSV»: non riesco a sapere se è in uso/)
+    }
+    expect(fileDi(x.radice, S1)).toEqual(prima)
+    expect(x.g.archiviate()).toEqual([])
+    expect((await x.g.spazio()).chat.find((c) => c.sessione === S1)?.nonEliminabile).toMatch(/non riesco a sapere/)
+    expect(x.log.some((l) => l.includes('guardiano del PIN rotto'))).toBe(true)
+  })
+
+  it('se mentre si misura la chat si riapre e lavora, non si sposta', async () => {
+    let letture = 0
+    const x = scena({ ritocca: (d) => { d.statoDi = async ({ sessione }) => (++letture === 1 ? { sessione } : { sessione, aperta: { lavora: true, chiede: false } }) } })
+    const prima = fileDi(x.radice, S1)
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1] })
+    expect(e.fatte).toBe(0)
+    expect(e.esiti[0]?.motivo).toMatch(/sta lavorando/)
+    expect(fileDi(x.radice, S1)).toEqual(prima)
+    expect(x.g.recupero().chat).toEqual([])
+  })
+
+  it('lo stesso id in maiuscolo è la stessa chat: una sola voce', async () => {
+    const x = scena()
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1, S1.toUpperCase()] })
+    expect(e.esiti).toHaveLength(1)
+    expect(e.fatte).toBe(1)
+    expect(x.g.recupero().chat).toHaveLength(1)
+    const a = await x.g.azione({ azione: 'archivia', sessioni: [S2.toUpperCase()] })
+    expect(a.fatte).toBe(1)
+    expect(x.g.eArchiviata(S2)).toBe(true)
+  })
+
+  it('due «Elimina» insieme (doppio tocco, PC e telefono): una sola entra nel recupero', async () => {
+    const x = scena()
+    const [a, b] = await Promise.all([x.g.azione({ azione: 'elimina', sessioni: [S1] }), x.g.azione({ azione: 'elimina', sessioni: [S1] })])
+    expect(a.fatte + b.fatte).toBe(1)
+    expect([a, b].find((e) => e.fatte === 0)?.esiti[0]?.motivo).toMatch(/non ha file su questo PC/)
+    expect(x.g.recupero().chat).toHaveLength(1)
+  })
+
+  it('se il registro del recupero non si scrive, i file tornano al loro posto e la chat resta', async () => {
+    const x = scena()
+    nonSiScrive.add('recupero-chat')
+    const prima = fileDi(x.radice, S1)
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1] })
+    expect(e.fatte).toBe(0)
+    expect(e.esiti[0]?.motivo).toMatch(/non riesco a salvare l’elenco sul disco.*Niente è cambiato\./)
+    expect(fileDi(x.radice, S1)).toEqual(prima)
+    expect(x.indice.has(S1)).toBe(true)
+    expect(x.etichette[S1]).toBe('Il lettore di CSV')
+    nonSiScrive.clear()
+  })
+
+  it('una chat che l’indice conosce ma senza più file: non diventa una voce vuota nel recupero', async () => {
+    const x = scena()
+    for (const f of fileDiSessione(x.radice, SLUG, S1)) renameSync(f.percorso, join(x.dati, `via-${f.parte}-${Math.random()}`))
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1] })
+    expect(e.fatte).toBe(0)
+    expect(e.esiti[0]?.motivo).toMatch(/non ha file su questo PC/)
+    expect(x.g.recupero().chat).toEqual([])
+    expect(x.indice.has(S1)).toBe(true)
+  })
+
+  it('se le archiviate non si scrivono, Archivia non dice «fatto»', async () => {
+    const x = scena()
+    nonSiScrive.add('chat-archiviate')
+    const e = await x.g.azione({ azione: 'archivia', sessioni: [S1] })
+    expect(e.fatte).toBe(0)
+    expect(e.esiti[0]?.motivo).toMatch(/non riesco a salvare/)
+    expect(x.g.eArchiviata(S1)).toBe(false)
+  })
+
+  it('un registro illeggibile si mette da parte, non si copre', async () => {
+    const x = scena()
+    writeFileSync(join(x.dati, 'recupero-chat.json'), '{"versione":1,"chat":[{"id":')
+    expect(x.g.recupero().chat).toEqual([])
+    expect(readdirSync(x.dati).some((n) => n.startsWith('recupero-chat.json.illeggibile-'))).toBe(true)
+    expect(x.log.some((l) => l.includes('illeggibile'))).toBe(true)
+  })
+
+  it('«Ripristina» non segue percorsi fuori posto nel registro', async () => {
+    const x = scena()
+    await x.g.azione({ azione: 'elimina', sessioni: [S1] })
+    const f = join(x.dati, 'recupero-chat.json')
+    const reg = JSON.parse(readFileSync(f, 'utf8')) as { chat: { file: { relativo: string[]; dove: string }[] }[] }
+    reg.chat[0]!.file[0]!.relativo = ['..', '..', 'fuori.txt']
+    writeFileSync(f, JSON.stringify(reg))
+    const e = await x.g.ripristinaDalRecupero(x.g.recupero().chat[0]?.id as string)
+    expect(e.ok).toBe(false)
+    expect(e.messaggio).toMatch(/percorsi fuori posto/)
+    expect(x.g.recupero().chat).toHaveLength(1)
+  })
+
+  it('Svuota con il Drive che non risponde: il PC si svuota, ma non dice «tutto fatto»', async () => {
+    const x = scena({ drive: true, ritocca: (d) => { d.drive!.svuota = async () => ({ ok: false, messaggio: '1 file cancellati, 1 no: riprova più tardi' }) } })
+    await x.g.azione({ azione: 'elimina', sessioni: [S1], ancheDalDrive: true })
+    const c = x.g.chiediSvuota(true)
+    const e = await x.g.svuota({ gettone: c.gettone, frase: c.frase, ancheDalDrive: true })
+    expect(e.ok).toBe(false)
+    expect(e.byte).toBeGreaterThan(0)
+    expect(e.messaggio).toMatch(/Dal recupero del Drive: 0 di 1 svuotati \(1 file cancellati, 1 no/)
+    expect(x.g.recupero().chat).toEqual([])
   })
 })

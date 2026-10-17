@@ -1695,7 +1695,8 @@ function pannello(s) {
   // Il nome scelto del computer nel titolo della scheda del browser (0.52.4).
   if (nomeDaMostrare(s.computer)) document.title = 'SierraDeck · ' + nomeDaMostrare(s.computer)
   const attivo = document.activeElement
-  const staScrivendo = attivo && (attivo.tagName === 'INPUT' || attivo.tagName === 'TEXTAREA')
+  // Una casella spuntata non è scrivere (0.79.0: il totale dello Spazio restava vecchio).
+  const staScrivendo = attivo && ((attivo.tagName === 'INPUT' && attivo.type !== 'checkbox' && attivo.type !== 'radio') || attivo.tagName === 'TEXTAREA')
   // Chi sta scrivendo ha ragione: la pagina puo' aspettare due secondi.
   if (staScrivendo) return
   // E anche chi sta selezionando per copiare: il ridisegno rifaceva il
@@ -3990,17 +3991,23 @@ function gcTastiHtml(sessione, titolo, chiave) {
   }).join('')
 }
 window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; pannello(ultimoStato) }
+var gcChiesta = 0
 window.gcChiedi = async (azione, sessione) => {
   var nome = gcNome([gcTitoli[sessione] || sessione.slice(0, 8)])
+  var n = ++gcChiesta
+  var dove = pannelloAperto
   gcNota = null
   if (azione !== 'elimina') { gcConfermaAp = { azione: azione, sessioni: [sessione], nome: nome, drive: false, conferma: gcConferma(azione, nome, '') }; pannello(ultimoStato); gcMostraConferma(); return }
   var spazio = 'lo spazio di questa chat'
   try { var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [sessione] }); if (r && r.selezione) spazio = gcByte(r.selezione.byte) } catch (e) { }
+  // Nel frattempo si è chiesto altro, o cambiato pannello: questa conferma non serve più.
+  if (n !== gcChiesta || dove !== pannelloAperto) return
   gcConfermaAp = { azione: 'elimina', sessioni: [sessione], nome: nome, spazio: spazio, drive: false, conferma: gcConferma('elimina', nome, spazio) }
   pannello(ultimoStato)
   gcMostraConferma()
 }
 window.gcChiediScelte = (azione) => {
+  gcChiesta++
   var voci = (gcVista && gcVista.chat) || []
   var nome = gcNome(gcScelte.map(function (s) { return gcTitoli[s] || s.slice(0, 8) }))
   var spazio = gcByte(gcTotale(voci, gcScelte).byteEliminabili)
@@ -4050,7 +4057,7 @@ window.gcFai = async () => {
   if (pannelloAperto === 'sessioni') await leggiSessioni()
   aggiorna()
 }
-window.gcLinguetta = (s) => { gcScheda = s; gcNota = null; gcSvuota = null; pannello(ultimoStato) }
+window.gcLinguetta = (s) => { gcChiesta++; gcScheda = s; gcNota = null; gcSvuota = null; pannello(ultimoStato) }
 window.gcCambiaOrdine = (o) => { gcOrdine = o; pannello(ultimoStato) }
 window.gcScegli = (s) => { var i = gcScelte.indexOf(s); if (i >= 0) gcScelte.splice(i, 1); else gcScelte.push(s); pannello(ultimoStato) }
 window.gcTutte = () => {
@@ -4059,35 +4066,47 @@ window.gcTutte = () => {
   pannello(ultimoStato)
 }
 window.gcRipristinaArch = async (s) => {
+  if (gcInCorso) return
+  gcInCorso = true
   try { var e = await chiedi('/api/chat/gestione/azione', { azione: 'ripristina', sessioni: [s] }); gcNota = { messaggio: e.messaggio, rifiuti: (e.esiti || []).filter(function (x) { return !x.ok }).map(function (x) { return x.motivo || x.sessione }) } }
   catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  gcInCorso = false
   await gcLeggi(); pannello(ultimoStato)
 }
 window.gcRipristinaRec = async (id) => {
+  if (gcInCorso) return
+  gcInCorso = true
   try { var e = await chiedi('/api/chat/gestione/ripristina', { id: id }); gcNota = { messaggio: e.messaggio, rifiuti: [] } }
   catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  gcInCorso = false
   await gcLeggi(); pannello(ultimoStato)
 }
 window.gcSvuotaChiedi = () => { gcSvuota = { passo: 'chiedi' }; gcNota = null; pannello(ultimoStato) }
 window.gcSvuotaDriveSi = (si) => { gcSvuotaDrive = si; pannello(ultimoStato) }
 /** Primo passo: il PC dà la conferma (un gettone di 2 minuti) e dice cosa si perde. */
 window.gcSvuotaContinua = async () => {
+  if (gcInCorso) return
+  gcInCorso = true
   try {
     var r = await chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive })
     if (r && r.ok && r.gettone) { gcSvuota = { passo: 'scrivi', gettone: r.gettone, messaggio: r.messaggio }; gcFrase = '' }
     else { gcSvuota = null; gcNota = { messaggio: (r && r.messaggio) || 'Il recupero è vuoto.', rifiuti: [] } }
   } catch (err) { gcSvuota = null; gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
+  gcInCorso = false
   pannello(ultimoStato)
 }
 /** La parola scritta abilita il tasto: la pagina non si ridisegna mentre si scrive. */
-window.gcFraseCambia = (v) => { gcFrase = v; var b = document.getElementById('gc-svuota-si'); if (b) b.disabled = v.trim().toUpperCase() !== GC.frase }
+window.gcFraseCambia = (v) => { gcFrase = v; var b = document.getElementById('gc-svuota-si'); if (b) b.disabled = gcInCorso || v.trim().toUpperCase() !== GC.frase }
 /** Secondo passo: il gettone e la parola. Il PC la ricontrolla. */
 window.gcSvuotaDavvero = async () => {
   var s = gcSvuota
-  if (!s || s.passo !== 'scrivi') return
+  if (!s || s.passo !== 'scrivi' || gcInCorso) return
+  gcInCorso = true
+  var b = document.getElementById('gc-svuota-si')
+  if (b) b.disabled = true
   try { var r = await chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive, gettone: s.gettone, frase: gcFrase }); gcNota = { messaggio: r.messaggio || r.errore || 'Fatto.', rifiuti: [] } }
   catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
-  gcSvuota = null; gcFrase = ''
+  gcSvuota = null; gcFrase = ''; gcInCorso = false
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur()
   await gcLeggi(); pannello(ultimoStato)
 }
@@ -4100,8 +4119,8 @@ function gcSvuotaHtml() {
       '<div class="riga"><button class="pericolo" onclick="gcSvuotaContinua()">' + esc(c.azione) + '</button><button onclick="gcSvuota = null; pannello(ultimoStato)">Annulla</button></div></div>'
   }
   return '<div class="piastrella chiede"><div class="titolo">Scrivi ' + esc(GC.frase) + ' per confermare</div><div class="sotto">' + esc(gcSvuota.messaggio) + '</div>' +
-    '<div class="riga"><input id="gc-frase" autocomplete="off" autocapitalize="characters" placeholder="' + esc(GC.frase) + '" oninput="gcFraseCambia(this.value)" style="flex:1"></div>' +
-    '<div class="riga"><button class="pericolo" id="gc-svuota-si" disabled onclick="gcSvuotaDavvero()">Svuota per sempre</button><button onclick="gcSvuota = null; gcFrase = \\'\\'; pannello(ultimoStato)">Annulla</button></div></div>'
+    '<div class="riga"><input id="gc-frase" autocomplete="off" autocapitalize="characters" placeholder="' + esc(GC.frase) + '" value="' + esc(gcFrase) + '" oninput="gcFraseCambia(this.value)" style="flex:1"></div>' +
+    '<div class="riga"><button class="pericolo" id="gc-svuota-si"' + (gcInCorso || gcFrase.trim().toUpperCase() !== GC.frase ? ' disabled' : '') + ' onclick="gcSvuotaDavvero()">Svuota per sempre</button><button onclick="gcSvuota = null; gcFrase = \\'\\'; pannello(ultimoStato)">Annulla</button></div></div>'
 }
 /** «Spazio delle chat», le Archiviate e il Recupero. */
 function gestioneChatHtml() {

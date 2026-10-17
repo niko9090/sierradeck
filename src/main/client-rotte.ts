@@ -2511,7 +2511,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const da = r.dispositivo === undefined || r.dispositivo === 'locale' ? 'pagina' : daAltroPc(r.dispositivo) ? 'altro PC' : 'telefono'
       const elencoSessioni = (): string[] => {
         const x = (r.corpo as { sessioni?: unknown } | undefined)?.sessioni
-        return Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string').slice(0, 500) : []
+        // Un tetto alto: «Scegli tutte» sul telefono manda tutte le chat, e tagliarne una parte diceva «N chat» facendone meno.
+        return Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string').slice(0, 5000) : []
       }
       const sottopercorso = r.percorso.slice('/api/chat/gestione/'.length)
       switch (sottopercorso) {
@@ -2546,6 +2547,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           const anche = corpo.ancheDalDrive === true
           if (corpo.gettone === undefined) return OK(gc.chiediSvuota(anche))
           const e = await gc.svuota({ gettone: corpo.gettone, frase: corpo.frase, ancheDalDrive: anche, da })
+          // Svuotato in parte (il gettone è già speso): l'esito, con quanto si è liberato, non un errore.
+          if (e.byte !== undefined) return OK(e)
           return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
         }
         default: return { stato: 404, corpo: { errore: 'non trovato' } }

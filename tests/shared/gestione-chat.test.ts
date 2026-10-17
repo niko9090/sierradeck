@@ -172,6 +172,16 @@ describe('il recupero delle chat eliminate', () => {
     const r = { versione: 1 as const, chat: [voce({ id: 'a', svuotataIl: '2026-01-01T00:00:00Z' }), voce({ id: 'b', ripristinataIl: '2026-01-01T00:00:00Z' }), voce({ id: 'c', ripristinataIl: '2026-10-10T00:00:00Z' })] }
     expect(potaRecupero(r, Date.parse('2026-10-17T00:00:00Z')).chat.map((c) => c.id)).toEqual(['a', 'c'])
   })
+
+  it('il tetto delle 2000 voci non scarta mai una chat ancora nel recupero (revisione ECC)', () => {
+    const vecchie = Array.from({ length: 2005 }, (_, i) => voce({ id: `s${i}`, svuotataIl: '2026-10-01T00:00:00Z' }))
+    const r = { versione: 1 as const, chat: [voce({ id: 'ancora-qui' }), ...vecchie] }
+    const dopo = potaRecupero(r, Date.parse('2026-10-17T00:00:00Z')).chat
+    expect(dopo).toHaveLength(2001)
+    expect(dopo[0]?.id).toBe('ancora-qui')
+    expect(dopo.some((c) => c.id === 's0')).toBe(false)
+    expect(dopo.at(-1)?.id).toBe('s2004')
+  })
 })
 
 describe('«Svuota il recupero adesso»: la conferma forte', () => {

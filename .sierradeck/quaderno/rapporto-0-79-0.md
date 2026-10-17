@@ -161,3 +161,23 @@ Fatta sopra il motore qui sopra, che ho unito su `main` (avanti veloce). Version
 - `gradle testDebugUnitTest assembleDebug`: verde, 352 test dell'app.
 - Guardia delle cancellazioni e controllo dei dati privati: verdi.
 - Dopo la prova: copia e browser fermati, nessun processo rimasto. Le credenziali copiate in `note/prova-079/claude` sono svuotate. La cartella `note/prova-079` si può togliere a mano.
+
+## Revisione con gli agenti di ECC (17/10 sera)
+Quattro agenti di ECC (typescript, react, kotlin, silent-failure-hunter) hanno riletto tutta la 0.79.0. Hanno fatto 47 segnalazioni: 36 erano difetti veri, circa 30 diversi fra loro, e sono stati tutti corretti con test. Le altre 11 erano falsi allarmi o scelte volute. Il dettaglio, i tempi e i costi sono in `prova-ecc.md`.
+
+I più importanti:
+- Una chat con lo stato illeggibile passava per libera.
+- Due «Elimina» insieme non erano in fila.
+- Il registro non salvato portava comunque a dire «fatto».
+- Svuota diceva «liberati» con i file rimasti sul Drive.
+- Le rotte della gestione non erano fra le rotte lente del ponte.
+- Sulla pagina il totale non si aggiornava dopo una spunta.
+- Nell'app le voci comparivano anche con un PC vecchio.
+
+Dopo le correzioni:
+- `npm test`: 4145 passati (2 saltati).
+- typecheck: verde.
+- gradle: verde.
+- guardia: verde.
+
+Il collaudo con clic veri NON è stato rifatto dopo queste correzioni. Sono correzioni di casi limite, coperte dai test.

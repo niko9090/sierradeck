@@ -154,7 +154,10 @@ export const ROTTE_LENTE: readonly string[] = [
   // Il controllo a tappeto del 12/10 (0.68.0): «Riprendi» di un altro PC dal
   // telefono scadeva (504 dopo 4 s: l'elenco delle conversazioni là ci mette
   // di più), e così l'avvio in sottofondo, che fa partire claude.
-  '/api/sessioni', '/api/sessioni/riprendi', '/api/sottofondo/avvia', '/api/file/progetti', '/api/file/elenco'
+  '/api/sessioni', '/api/sessioni/riprendi', '/api/sottofondo/avvia', '/api/file/progetti', '/api/file/elenco',
+  // La gestione delle chat (0.79.0): lo spazio misura ogni chat sul disco, Elimina
+  // e Ripristina spostano file, Svuota cancella davvero. Visto in revisione (ECC).
+  '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota'
 ]
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
