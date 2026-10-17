@@ -3899,6 +3899,8 @@ var gcTitoli = {}
 var gcConfermaAp = null
 var gcNota = null
 var gcAzioniDi = ''
+/** Per le chat col menu aperto: lo spazio e, se non si può eliminare, il motivo del PC (Elimina spento). */
+var gcMisure = {}
 var gcSvuota = null
 var gcSvuotaDrive = false
 var gcFrase = ''
@@ -3986,11 +3988,27 @@ function gcTastiHtml(sessione, titolo, chiave) {
   gcTitoli[sessione] = titolo
   return ['chiudi', 'archivia', 'elimina'].map(function (a) {
     var t = GC.testi[a]
-    return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
-      aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + '</span>'
+    if (a === 'elimina') gcMisura(sessione)
+    var no = a === 'elimina' && gcMisure[sessione] && gcMisure[sessione].motivo
+    return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + (no ? ' disabled' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
+      aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + (no ? '<span class="gc-no">' + esc(no) + '</span>' : '') + '</span>'
   }).join('')
 }
-window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; pannello(ultimoStato) }
+window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; delete gcMisure[s]; pannello(ultimoStato) }
+/**
+ * Si chiede al PC se una chat si può eliminare (al più ogni 10 s): una chat al lavoro, in attesa,
+ * guidata da un autopilota attivo o di un altro PC mostra «Elimina dal PC» spento con il motivo.
+ */
+async function gcMisura(s) {
+  var m = gcMisure[s]
+  if (m && (m.chiede || Date.now() - m.il < 10000)) return
+  gcMisure[s] = { chiede: true, il: Date.now() }
+  try {
+    var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [s] })
+    gcMisure[s] = r && r.selezione ? { byte: r.selezione.byte, motivo: (r.selezione.escluse[0] || {}).motivo, il: Date.now() } : { il: Date.now() }
+  } catch (e) { gcMisure[s] = { il: Date.now() }; return }
+  pannello(ultimoStato)
+}
 var gcChiesta = 0
 window.gcChiedi = async (azione, sessione) => {
   var nome = gcNome([gcTitoli[sessione] || sessione.slice(0, 8)])

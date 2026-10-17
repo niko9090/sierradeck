@@ -131,6 +131,18 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
     else setSceltaQui(s)
   }
   const dove = useRef<HTMLSpanElement>(null)
+  // Aperto il menu, si chiede al PC quanto libera e se si può eliminare: una chat che lavora, aspetta,
+  // è guidata da un autopilota attivo o vive su un altro PC mostra «Elimina dal PC» spento con il motivo.
+  const [misura, setMisura] = useState<{ byte: number; motivo?: string } | undefined>(undefined)
+  useEffect(() => {
+    if (!menu) return
+    let vivo = true
+    setMisura(undefined)
+    window.gestore.chatGestione.selezione([sessione])
+      .then((s) => { if (vivo) setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo }) })
+      .catch(() => undefined)
+    return () => { vivo = false }
+  }, [menu, sessione])
   useEffect(() => {
     if (!menu) return
     const suClic = (e: MouseEvent): void => { if (dove.current !== null && !dove.current.contains(e.target as Node)) setMenu(false) }
@@ -146,6 +158,7 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
     if (azione === 'chiudi') { setScelta({ azione, conferma: () => confermaChiudiChat(nome) }); return }
     if (azione === 'archivia') { setScelta({ azione, conferma: () => confermaArchiviaChat(nome) }); return }
     // Lo spazio che libera si chiede al PC: la stessa misura della vista «Spazio delle chat».
+    if (misura !== undefined) { const b = byteLeggibili(misura.byte); setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, b, d) }); return }
     window.gestore.chatGestione.selezione([sessione])
       .then((s) => setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, byteLeggibili(s.byte), d) }))
       .catch(() => setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, 'lo spazio di questa chat', d) }))
@@ -176,12 +189,12 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
               <button
                 role="menuitem"
                 className={a === 'elimina' ? 'tasto tasto--mini tasto--pericolo' : 'tasto tasto--mini'}
-                disabled={a === 'chiudi' && aperta === false}
+                disabled={(a === 'chiudi' && aperta === false) || (a === 'elimina' && misura?.motivo !== undefined)}
                 onClick={() => chiedi(a)}
               >
                 {TESTI_AZIONI_CHAT[a].etichetta}
               </button>
-              <span className="misura gc-menu__breve">{TESTI_AZIONI_CHAT[a].breve}</span>
+              <span className="misura gc-menu__breve">{a === 'elimina' && misura?.motivo !== undefined ? <span className="gc-voce__no">{misura.motivo}</span> : TESTI_AZIONI_CHAT[a].breve}</span>
               <Aiuto di={TESTI_AZIONI_CHAT[a].etichetta}>{TESTI_AZIONI_CHAT[a].spiega}</Aiuto>
             </span>
           ))}
