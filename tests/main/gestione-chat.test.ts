@@ -465,7 +465,7 @@ describe('nel dubbio non si tocca, e non si dice «fatto» se non è vero', () =
     const x = scena()
     const [a, b] = await Promise.all([x.g.azione({ azione: 'elimina', sessioni: [S1] }), x.g.azione({ azione: 'elimina', sessioni: [S1] })])
     expect(a.fatte + b.fatte).toBe(1)
-    expect([a, b].find((e) => e.fatte === 0)?.esiti[0]?.motivo).toMatch(/non ha file su questo PC/)
+    expect([a, b].find((e) => e.fatte === 0)?.esiti[0]?.motivo).toBe('«Il lettore di CSV» è già nel recupero.')
     expect(x.g.recupero().chat).toHaveLength(1)
   })
 

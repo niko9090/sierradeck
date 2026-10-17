@@ -26,6 +26,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
 import { ModaleGestioneChat, type SchedaGestione } from './components/ModaleGestioneChat'
+import { OspiteAzioniChat } from './components/AzioniChat'
 import { ModaleDoveVive } from './components/OspiteChat'
 import { VistaProgetti } from './components/VistaProgetti'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
@@ -1742,6 +1743,7 @@ export function App(): React.JSX.Element {
 
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {gestioneChat !== undefined ? <ModaleGestioneChat scheda={gestioneChat} onChiudi={() => setGestioneChat(undefined)} /> : null}
+      <OspiteAzioniChat />
       {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
       {pannelloDrive ? <VistaProgetti onChiudi={() => setPannelloDrive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}

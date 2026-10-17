@@ -367,7 +367,10 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
 
     for (const sessione of sessioni) {
       const s = quali.get(sessione)
-      const titolo = s?.titolo ?? deps.etichette.leggi()[sessione] ?? archiviate().find((a) => a.sessione === sessione)?.titolo ?? sessione.slice(0, 8)
+      // Già nel recupero (un doppio tocco, o il PC e il telefono insieme): lo si dice con il suo nome, non «non ha file».
+      const giaNelRecupero = s === undefined ? leggiRecupero().chat.find((c) => c.sessione === sessione && nelRecupero(c)) : undefined
+      const titolo = s?.titolo ?? deps.etichette.leggi()[sessione] ?? archiviate().find((a) => a.sessione === sessione)?.titolo ?? giaNelRecupero?.titolo ?? sessione.slice(0, 8)
+      if (r.azione === 'elimina' && giaNelRecupero !== undefined) { esiti.push({ sessione, ok: false, motivo: `«${titolo}» è già nel recupero.` }); continue }
       const letto = await statoSicuro({ sessione, ...(s?.cwd !== undefined ? { cwd: s.cwd } : {}) }, r.visore)
       if (letto === undefined) { esiti.push({ sessione, ok: false, motivo: `«${titolo}»: ${NON_SO}` }); continue }
       const st: StatoPerAzione = { ...letto, titolo }

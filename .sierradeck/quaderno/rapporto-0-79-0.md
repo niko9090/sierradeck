@@ -181,3 +181,33 @@ Dopo le correzioni:
 - guardia: verde.
 
 Il collaudo con clic veri NON è stato rifatto dopo queste correzioni. Sono correzioni di casi limite, coperte dai test.
+
+## Giro con clic veri sulle correzioni di 8a5f7cd (18/10 notte)
+Copia di prova (`SIERRADECK_PROVA`, `note/prova-079`, solo chat della cartella `SierraDeck-prova-079`), costruita da `8a5f7cd`. Foto 60–74 in `note/foto-0-79-0`; i passi sono in `giro-ecc-pagina.json`, `giro-ecc-pc.json` e `giro-ecc-doppio-dopo-correzione.json`.
+
+| Prova | Esito |
+|---|---|
+| 1. Doppio clic vero (due clic del mouse ravvicinati) su «Elimina dal PC» nella conferma | **Una sola eliminazione**, nessun rifiuto nel registro. Con due «Elimina» della stessa chat mandate insieme, una riesce e l'altra si rifiuta con il motivo, non con un errore. |
+| 2. Elimina di una chat aperta | **Rifiutata con il motivo**: «“Rispondi” aspetta una tua risposta: rispondi o chiudila prima.» |
+| 3. Pagina in formato telefono (412×915), tocchi veri sulle caselle | **Il totale si aggiorna a ogni tocco**: «1 chat scelta · 240 KB» → «2 … 464 KB» → «3 … 672 KB»; togliendone una, «2 … 432 KB». Archivia ed Elimina si accendono alla prima spunta. |
+| 4. Svuota il recupero | **«672 KB liberati»**, con 3 chat nel recupero: 246.094 + 229.098 + 213.078 = 688.270 byte = 672,1 KB. Sul disco il recupero passa da 688.270 a 0 byte. |
+
+**Difetti trovati nel giro, corretti con test:**
+1. **L'esito di Elimina o Archivia da «Riprendi una conversazione» spariva subito.**
+   - La conferma viveva nella riga della chat. Eliminata la chat, l'elenco si rileggeva e la riga se ne andava, insieme all'esito.
+   - C'era già nella `4299bf6`: il primo collaudo aveva provato da lì solo «Annulla» e il rifiuto, mai un'eliminazione riuscita.
+   - Ora conferma ed esito stanno in un ospite unico montato in `App` (`OspiteAzioniChat`). Dal vero si vede «Fatto · 1 chat eliminata dal PC: 224 KB tolti…».
+   - Test: `tests/renderer/azioni-chat-esito.test.tsx`.
+2. **Il secondo di due «Elimina» insieme indicava la chat con l'id e diceva «non ha file su questo PC».**
+   - Ora dice «“Rispondi” è già nel recupero.», provato dal vero dopo la correzione.
+   - Test in `tests/main/gestione-chat.test.ts`.
+
+**Controlli:**
+- `npm test`: 4148 passati (2 saltati).
+- typecheck: verde.
+- guardia: verde.
+
+Dopo il giro:
+- copia ed Edge fermati, porte 47650/47651/9333/9334 libere;
+- il servizio vero (47630) non è stato toccato;
+- nella copia nessuna delle 4 chat di prova è più fra le chat: 3 sono state svuotate, «Rispondi» è nel recupero. Per un altro giro servono chat nuove (`prepara-prova`, con le credenziali da ricopiare e poi svuotare).

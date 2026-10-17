@@ -89,6 +89,24 @@ export function Rifiuti({ rifiuti }: { rifiuti: readonly Rifiuto[] }): React.JSX
   )
 }
 
+type Richiesta = { chiave: number; azione: AzioneVista; conferma: (ancheDalDrive: boolean) => Conferma; fai: (ancheDalDrive: boolean) => Promise<EsitoAzioni> }
+let mostraNellOspite: ((r: Richiesta) => void) | undefined
+let chiavi = 0
+
+/**
+ * Dove si mostrano la conferma e l'esito delle tre azioni: uno solo, in `App`.
+ * Dentro la riga sparivano con lei: eliminata o archiviata una chat da
+ * «Riprendi una conversazione», l'elenco si rileggeva, la riga se ne andava e
+ * l'esito («1 chat eliminata dal PC: … tolti») non si vedeva mai (giro con
+ * clic veri del 18/10).
+ */
+export function OspiteAzioniChat(): React.JSX.Element | null {
+  const [r, setR] = useState<Richiesta | undefined>(undefined)
+  useEffect(() => { mostraNellOspite = setR; return () => { if (mostraNellOspite === setR) mostraNellOspite = undefined } }, [])
+  if (r === undefined) return null
+  return <ConfermaAzioneChat key={r.chiave} azione={r.azione} conferma={r.conferma} onFai={r.fai} onChiudi={() => setR(undefined)} />
+}
+
 /**
  * Le tre azioni di **una** chat (0.79.0): Chiudi, Archivia, Elimina dal PC,
  * ognuna con il suo «?» corto. Stanno dietro un tasto, perché il riquadro, le
@@ -106,7 +124,12 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
   classe?: string
 }): React.JSX.Element {
   const [menu, setMenu] = useState(false)
-  const [scelta, setScelta] = useState<{ azione: AzioneVista; conferma: (ancheDalDrive: boolean) => Conferma } | undefined>(undefined)
+  const [sceltaQui, setSceltaQui] = useState<{ azione: AzioneVista; conferma: (ancheDalDrive: boolean) => Conferma } | undefined>(undefined)
+  const scelta = sceltaQui
+  const setScelta = (s: { azione: AzioneVista; conferma: (ancheDalDrive: boolean) => Conferma }): void => {
+    if (mostraNellOspite !== undefined) mostraNellOspite({ chiave: ++chiavi, ...s, fai: (d) => fai(s.azione, d) })
+    else setSceltaQui(s)
+  }
   const dove = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     if (!menu) return
@@ -165,7 +188,7 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
         </span>
       ) : null}
       {scelta !== undefined ? (
-        <ConfermaAzioneChat azione={scelta.azione} conferma={scelta.conferma} onFai={(d) => fai(scelta.azione, d)} onChiudi={() => setScelta(undefined)} />
+        <ConfermaAzioneChat azione={scelta.azione} conferma={scelta.conferma} onFai={(d) => fai(scelta.azione, d)} onChiudi={() => setSceltaQui(undefined)} />
       ) : null}
     </span>
   )
