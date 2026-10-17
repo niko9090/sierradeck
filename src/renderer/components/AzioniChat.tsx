@@ -160,7 +160,12 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
     // Lo spazio che libera si chiede al PC: la stessa misura della vista «Spazio delle chat».
     if (misura !== undefined) { const b = byteLeggibili(misura.byte); setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, b, d) }); return }
     window.gestore.chatGestione.selezione([sessione])
-      .then((s) => setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, byteLeggibili(s.byte), d) }))
+      .then((s) => {
+        // Toccato prima che arrivasse il motivo: niente conferma, il menu torna con il tasto spento e il motivo.
+        const motivo = s.escluse[0]?.motivo
+        if (motivo !== undefined) { setMisura({ byte: s.byte, motivo }); setMenu(true); return }
+        setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, byteLeggibili(s.byte), d) })
+      })
       .catch(() => setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, 'lo spazio di questa chat', d) }))
   }
   const fai = async (azione: AzioneVista, ancheDalDrive: boolean): Promise<EsitoAzioni> => {

@@ -212,3 +212,43 @@ Dopo il giro:
 - copia ed Edge fermati, porte 47650/47651/9333/9334 libere;
 - il servizio vero (47630) non è stato toccato;
 - nella copia nessuna delle 4 chat di prova è più fra le chat: 3 sono state svuotate, «Rispondi» è nel recupero. Per un altro giro servono chat nuove (`prepara-prova`, con le credenziali da ricopiare e poi svuotare).
+
+---
+
+# Interfaccia (c-47) e Panoramica (c-49), 18/10 notte
+Ramo `ap/ap-f1e631f5/c-4`. **Non pubblicata e non installata**, versioni non toccate (0.79.0, app 2.79.0).
+
+## Verifica di cosa c'era (c-47)
+Tutto il resto della consegna c-47 era già fatto da c-1 e dall'interfaccia (vedi sopra): tre azioni con «?» su PC, pagina e app, Elimina con lo spazio e il recupero di 30 giorni, «Svuota adesso» in due passi con SVUOTA, «anche dal Drive», selezione multipla con il totale, «Spazio delle chat» per dimensione, rifiuti col motivo, cancellaSicura. Mancava un punto del criterio 7: **le chat che non si possono eliminare mostravano «Elimina dal PC» acceso**, e il motivo arrivava solo dopo la conferma.
+
+## Cosa ho fatto
+- **«Elimina dal PC» spento con il motivo, prima di toccarlo** (PC, pagina, app). Aperto il menu della chat si chiede al PC; una chat al lavoro, in attesa, aperta, guidata da un autopilota attivo o di un altro PC ha il tasto spento e, al posto del testo corto, il motivo del PC. Un tocco prima della risposta non apre più la conferma.
+- **Panoramica come chiesto (c-49)**, su PC, pagina e app:
+  - la conversazione con l'autopilota **grande** (44% sul PC) e il campo **sempre in vista** in fondo; sul PC prende il fuoco quando si apre, sul telefono resta sopra la barra in basso;
+  - accanto, **«Al lavoro»**: una riga per chat al lavoro — chi è (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio), cosa fa in parole semplici, da quanto, **◆ aspetta te**. Si aggiorna da sola: chi finisce esce, chi ti chiede qualcosa sale in cima;
+  - quando uno specialista finisce, nella conversazione arriva **una riga corta**: «Sviluppo: ha finito «Il motore della gestione delle chat», ora lo rilegge la Revisione.», «Revisione: ha approvato «…» di Sviluppo, unito.». Le righe tecniche restano in «Cosa è successo».
+  - **Tutto dai dati**: lo stato e il «da quanto» dai segnali di Claude Code, chi è e cosa fa dal registro dell'autopilota, le righe corte da un campo che il servizio scrive accanto alla riga tecnica. Mai dalle parole delle chat. Come funziona: scheda `panoramica-conversazione-e-al-lavoro-0-79-0.md`.
+- **Ore della conversazione** sulla pagina e nell'app: erano in UTC (09:10 dove il PC dice 11:10), ora nell'ora del telefono.
+- Il tasto 🗂 copriva «da 3 min» sulle schede di «Adesso».
+
+## Prova dal vero (copia di prova)
+`SIERRADECK_PROVA` in `note/prova-c49` (porte 47650/47651, mai 47630), Claude Code a parte, tre chat vere di Claude Code riprese nel workspace «Prova-c49», autopilota scritto a mano e **sospeso** (così il servizio non avvia specialisti veri). Clic veri via DevTools; pagina in Edge senza finestra a 412×915. Foto in `note/foto-0-79-0-c49/` (nella cartella principale del progetto).
+
+| Foto | Cosa si vede |
+|---|---|
+| `00-avvio` | conversazione grande con le 4 righe corte dei traguardi, campo con il fuoco in fondo; «Al lavoro · 0» |
+| `01-pc-al-lavoro` | dopo tre messaggi veri: «Al lavoro · 3 · ◆ 1 aspetta te» — Collaudo aspetta te (domanda vera), Interfaccia lavora a «…», Revisione rilegge il lavoro di Sviluppo |
+| `02-pc-dopo-un-minuto` | le due finite sono uscite da sole; Collaudo «aspetta te · da 2 min» |
+| `03-pc-al-lavoro` | dopo la correzione del 🗂: «adesso» leggibile |
+| `04` → `05` | risposto alla domanda con un clic: pochi secondi dopo «Nessuna chat al lavoro.» (anche `/api/panoramica` → `alLavoro: []`) |
+| `10-tel-panoramica`, `11-tel-al-lavoro` | telefono: situazione, «Al lavoro», conversazione con le righe corte (ore 11:10 come sul PC dopo la correzione), campo sopra la barra |
+
+**Non provato dal vero:** l'app Android (niente emulatore su questo PC: compila e i suoi test passano sui casi scritti dal PC); una riga corta che arriva mentre si guarda da uno specialista vero (il servizio della copia era sospeso; il servizio che la scrive è provato dai test della Revisione).
+
+## Revisione con gli agenti di ECC
+typescript-reviewer e kotlin-reviewer sul mio diff: 14 segnalazioni, 9 difetti veri, tutti corretti con test (dettaglio in `prova-ecc.md`). La compilazione non si è mai rotta, quindi i build-resolver non sono serviti.
+
+## Controlli
+- `npm test`: tutti verdi (vedi il commit); tre test di git erano andati in timeout solo mentre giravano in parallelo le chat della prova, da soli e nella suite dopo passano.
+- `npm run typecheck`: verde. `gradle testDebugUnitTest assembleDebug`: verde. Guardia delle cancellazioni: verde.
+- Dopo la prova: copia, servizio della copia ed Edge fermati, porte libere, nessun claude.exe rimasto, credenziali copiate svuotate. `note/prova-c49` (nella copia del ramo) si può togliere a mano.

@@ -1,6 +1,7 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import { vistaAutopilota } from './autopiloti-vista'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
+import { compitoBreve, nomeChi } from './chat-autopilota'
 
 /**
  * La Panoramica del workspace dell'autopilota (0.77.0). Nicholas, 16/10:
@@ -375,8 +376,71 @@ export function adessoEFinite<T extends SchedaChat>(schede: readonly T[]): { ade
  * deciso») vanno in «Cosa è successo ▸», dalla più recente. Si separa dal
  * campo `da` della battuta, mai dal testo.
  */
-export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota' }>(battute: readonly B[]): { messaggi: B[]; eventi: B[] } {
-  return { messaggi: battute.filter((b) => b.da !== 'nota'), eventi: battute.filter((b) => b.da === 'nota').reverse() }
+export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota'; tono?: string }>(battute: readonly B[]): { messaggi: B[]; eventi: B[] } {
+  // Le righe corte dei traguardi (0.79.0: «Revisione: ha approvato …, unito.») stanno nella conversazione.
+  const inConversazione = (b: B): boolean => b.da !== 'nota' || b.tono === 'traguardo'
+  return { messaggi: battute.filter(inConversazione), eventi: battute.filter((b) => !inConversazione(b)).reverse() }
+}
+
+// ─── Il riassunto accanto alla conversazione (0.79.0) ───────────────────
+// Nicholas: la conversazione con l'autopilota grande e sempre in vista, e
+// accanto un riassunto che si aggiorna da solo, una riga per chat al lavoro:
+// chi è, cosa fa adesso in parole semplici, da quanto, se aspetta lui. Dai
+// segnali (lo stato e da quando) e dal registro dell'autopilota (ruolo e
+// compito), mai dalle parole delle chat.
+
+/** Una riga del riassunto. */
+export type RigaAlLavoro = { id: string; chi: string; ruolo?: Ruolo; cosa: string; quanto: string; aspettaTe: boolean }
+
+/** Il titolo del riassunto: «Al lavoro · 3 · ◆ 1 aspetta te». */
+export function titoloAlLavoro(righe: readonly RigaAlLavoro[]): string {
+  const aspettano = righe.filter((r) => r.aspettaTe).length
+  return `Al lavoro · ${righe.length}${aspettano === 0 ? '' : aspettano === 1 ? ' · ◆ 1 aspetta te' : ` · ◆ ${aspettano} aspettano te`}`
+}
+
+/** La parte quieta di una riga: «aspetta te · da 3 min». */
+export function sottoAlLavoro(r: RigaAlLavoro): string {
+  return [...(r.aspettaTe ? ['aspetta te'] : []), ...(r.quanto !== '' ? [r.quanto] : [])].join(' · ')
+}
+
+const VERBO_RUOLO: Record<Ruolo, string> = { sviluppo: 'lavora a', interfaccia: 'lavora a', collaudo: 'prova', revisione: 'rilegge', rilascio: 'prepara' }
+
+/**
+ * Le righe del riassunto: solo le chat al lavoro o che aspettano te, prima
+ * quelle che aspettano te, poi nell'ordine fisso (per ruolo). Lo stato e «da
+ * quanto» vengono dalla scheda (i segnali); chi è e cosa fa dalla chat
+ * governata con la stessa sessione.
+ */
+export function riassuntoAlLavoro(
+  a: Pick<Autopilota, 'chats' | 'sessionId'> | undefined,
+  schede: readonly (SchedaChat & { sessione?: string; dal?: number; suPc?: string })[],
+  ora: number
+): RigaAlLavoro[] {
+  const alLavoro = schede.filter((s) => s.stato === 'lavora' || s.stato === 'chiede')
+    .sort((x, y) => (x.stato === 'chiede' ? 0 : 1) - (y.stato === 'chiede' ? 0 : 1) || confrontaFisso(x, y))
+  return alLavoro.map((s) => {
+    const g = s.sessione !== undefined ? a?.chats.find((c) => c.sessionId === s.sessione) : undefined
+    const ruolo = g?.ruolo ?? s.ruolo
+    let cosa: string
+    if (g !== undefined) {
+      const autore = g.revisioneDi !== undefined ? a?.chats.find((c) => c.id === g.revisioneDi) : undefined
+      if (autore !== undefined) cosa = `rilegge il lavoro di ${nomeChi(autore)}: «${compitoBreve(autore.compito)}»`
+      else cosa = `${ruolo !== undefined ? VERBO_RUOLO[ruolo] : 'lavora a'}: «${compitoBreve(g.compito)}»`
+    } else if (a?.sessionId !== undefined && s.sessione === a.sessionId) {
+      cosa = 'lavora all’obiettivo'
+    } else {
+      // Una chat del workspace che l'autopilota non guida: il suo nome.
+      cosa = `chat del workspace: «${compitoBreve(s.titolo.replace(/^[^·]+ · /, ''))}»`
+    }
+    return {
+      id: s.id,
+      chi: ruolo !== undefined ? RUOLI[ruolo].nome : 'Chat',
+      ...(ruolo !== undefined ? { ruolo } : {}),
+      cosa,
+      quanto: s.suPc !== undefined ? `su ${s.suPc}` : daQuanto(s.dal, ora),
+      aspettaTe: s.stato === 'chiede'
+    }
+  })
 }
 
 /**

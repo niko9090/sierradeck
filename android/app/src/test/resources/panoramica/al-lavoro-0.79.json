@@ -1,0 +1,60 @@
+{
+  "panoramica": {
+    "alLavoro": [
+      {
+        "id": "p-col",
+        "chi": "Collaudo",
+        "ruolo": "collaudo",
+        "cosa": "prova: «Prova dal vero in una copia»",
+        "quanto": "adesso",
+        "aspettaTe": true
+      },
+      {
+        "id": "p-col2",
+        "chi": "Chat",
+        "cosa": "chat del workspace: «senza tempo»",
+        "quanto": "",
+        "aspettaTe": true
+      },
+      {
+        "id": "p-int",
+        "chi": "Interfaccia",
+        "ruolo": "interfaccia",
+        "cosa": "lavora a: «Interfaccia della gestione delle chat su PC, pagina e app»",
+        "quanto": "da 12 min",
+        "aspettaTe": false
+      }
+    ]
+  },
+  "titolo": "Al lavoro · 3 · ◆ 2 aspettano te",
+  "sotto": [
+    "aspetta te · adesso",
+    "aspetta te",
+    "da 12 min"
+  ],
+  "battute": [
+    {
+      "quando": "2026-10-18T09:00:00.000Z",
+      "da": "tu",
+      "testo": "Gestione delle chat"
+    },
+    {
+      "quando": "2026-10-18T10:00:00.000Z",
+      "da": "nota",
+      "testo": "tecnica"
+    },
+    {
+      "quando": "2026-10-18T10:00:00.000Z",
+      "da": "nota",
+      "testo": "Sviluppo: ha finito «Il motore della gestione delle chat», ora lo rilegge la Revisione.",
+      "tono": "traguardo"
+    }
+  ],
+  "messaggi": [
+    "Gestione delle chat",
+    "Sviluppo: ha finito «Il motore della gestione delle chat», ora lo rilegge la Revisione."
+  ],
+  "eventi": [
+    "tecnica"
+  ]
+}

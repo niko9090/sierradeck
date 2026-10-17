@@ -250,15 +250,17 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
             title = { Text(testo.titolo) },
             text = {
                 Column {
-                    Text(testo.testo, fontSize = 14.sp)
-                    if (c == "elimina") Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Toccato prima che arrivasse il motivo del PC: lo si dice qui, e il tasto resta spento.
+                    if (c == "elimina" && motivoNo != null) Text(motivoNo ?: "", color = Banco.ambra, fontSize = 13.sp)
+                    else Text(testo.testo, fontSize = 14.sp)
+                    if (c == "elimina" && motivoNo == null) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = drive, onCheckedChange = { drive = it })
                         Text("anche dal Drive", fontSize = 13.sp, modifier = Modifier.weight(1f))
                         Aiuto("Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina».", di = "anche dal Drive")
                     }
                 }
             },
-            confirmButton = { TextButton(enabled = !inCorso && !(c == "elimina" && misura), onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else if (c == "elimina" && misura) "Misuro…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
+            confirmButton = { TextButton(enabled = !inCorso && !(c == "elimina" && (misura || motivoNo != null)), onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else if (c == "elimina" && misura) "Misuro…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
             dismissButton = { TextButton(enabled = !inCorso, onClick = { conferma = null }) { Text("Annulla") } }
         )
         return

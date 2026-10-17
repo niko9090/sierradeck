@@ -40,3 +40,12 @@ Usato per la 0.79.0 (gestione delle chat). Serve ogni volta che una funzione toc
 - **Per i doppi clic e le spunte, usare eventi veri** (`Input.dispatchMouseEvent` / `Input.dispatchTouchEvent` via CDP), non `element.click()`. Solo il tocco vero dà il fuoco alla casella: è lì che la pagina saltava il ridisegno.
 - **Dopo un riavvio la copia riapre le chat che erano aperte nel workspace.** Una chat lasciata aperta si rifiuta a Elimina: prima chiuderla, con l'azione «chiudi».
 - **Fermare la copia.** `taskkill /T /F` lanciato da PowerShell può non fermare niente. Funziona `Stop-Process -Force` sui processi `electron.exe` / `msedge.exe` con `prova-079` o `remote-debugging-port=933x` nella riga di comando. Poi controllare che le porte 47650/47651/9333/9334 siano libere.
+
+## Trappole viste il 18/10 (c-47/c-49, copia di un ramo)
+- **Una cartella di lavoro di un ramo non ha `node_modules`.** `tsc`/`vitest` «non riconosciuto»: crea il collegamento come nella copia di c-1, `New-Item -ItemType Junction node_modules -Target <progetto>\node_modules` (git lo ignora).
+- **Né `.claude/settings.local.json`** (hook di ECC spenti): senza, il primo comando Bash si ferma sul «Fact-Forcing Gate». Copialo dal progetto principale.
+- **Il servizio degli autopiloti della copia non ha `prova` nella riga di comando** (`…\out\main\autopilot-host.js`): fermando i processi per `prova-…` resta acceso sulla 47651. Ferma gli `electron.exe` con la cartella del ramo nella riga di comando, poi ricontrolla le porte.
+- **Git Bash converte gli argomenti che cominciano con `/`** (`/api/stato` → `<cartella di Git>/api/stato`): agli script passa `api/stato` senza la barra.
+- **Un autopilota con specialisti senza farli lavorare davvero:** scrivi il suo JSON in `dati/SierraDeck/autopiloti/<id>.json` (con `versione: 1`, `limiti.stalloMax`) in stato `sospeso`, con le `chats` che puntano alle sessioni delle chat aperte nel workspace; il servizio non le guida, la Panoramica le mostra con i segnali veri.
+- **Workspace con chat già pronte:** crea le sessioni con `claude -p … --session-id <uuid>` e scrivi `workspaces.json` con `perSlot["1"] = { root: split, panes: [{ id, sessionUuid, cwd, title }] }`: all'avvio la copia le riprende. Con `.claude.json` → `projects[<cartella>].hasTrustDialogAccepted: true` la domanda di fiducia non compare.
+- **Per far «chiedere» una chat:** «Usa lo strumento AskUserQuestion per chiedermi …» (arriva nelle Domande e la scheda diventa ◆).

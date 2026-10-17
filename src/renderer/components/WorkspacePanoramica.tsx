@@ -3,8 +3,8 @@ import type { Autopilota } from '@shared/autopilota'
 import type { Conversazione } from '@shared/domande-conversazioni'
 import type { Dormiente } from '@shared/migrazione-elenco'
 import {
-  adessoEFinite, colonnePiano, daQuanto, linguetteVisibili, pianoAutopilota, SIMBOLO_STATO, situazioneAutopilota,
-  type CompitoPiano, type SchedaChat, type StatoScheda
+  adessoEFinite, colonnePiano, daQuanto, linguetteVisibili, pianoAutopilota, riassuntoAlLavoro, SIMBOLO_STATO, situazioneAutopilota, sottoAlLavoro, titoloAlLavoro,
+  type CompitoPiano, type RigaAlLavoro, type SchedaChat, type StatoScheda
 } from '@shared/panoramica'
 import { CHAT_GENERICA } from '@shared/adozione'
 import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
@@ -200,12 +200,13 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
       <Situazione workspace={workspace} {...(autopilota !== undefined ? { autopilota } : {})} chat={schede.length} ora={ora} />
       <section className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
         {autopilota !== undefined ? (
-          <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione />
+          <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />
         ) : (
           <PrimoMessaggio workspace={workspace} dormiente={dormiente} onRicarica={onRicarica} />
         )}
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
+        <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora)} schede={schede} onApri={onApri} />
         <div className="pan2-sezione">
           <div className="serigrafia" aria-live="polite">Adesso · {adesso.length}</div>
           {adesso.length === 0 ? (
@@ -249,6 +250,40 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
           <DomandeALato conversazioni={domande} onRisposto={onRisposto} />
         </section>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * Accanto alla conversazione (0.79.0, Nicholas): una riga per ogni chat al
+ * lavoro — chi è, cosa fa adesso in parole semplici, da quanto, se aspetta
+ * te. Si aggiorna da sola con i segnali; il tocco apre la chat.
+ */
+export function RiassuntoAlLavoro({ righe, schede, onApri }: { righe: RigaAlLavoro[]; schede: SchedaVista[]; onApri: (paneId: string) => void }): React.JSX.Element {
+  const aspettano = righe.filter((r) => r.aspettaTe).length
+  return (
+    <div className="pan2-sezione pan2-riassunto" aria-label="Chi lavora adesso">
+      <div className="serigrafia" aria-live="polite">
+        <span className={aspettano > 0 ? 'pan2-riassunto__aspettano' : undefined}>{titoloAlLavoro(righe)}</span>
+        <Aiuto di="Chi lavora adesso">Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.</Aiuto>
+      </div>
+      {righe.length === 0 ? <p className="pan2-vuoto">Nessuna chat al lavoro.</p> : (
+        <ul className="pan2-riassunto__elenco">
+          {righe.map((r) => {
+            const pane = schede.find((s) => s.id === r.id)?.paneId
+            return (
+              <li key={r.id}>
+                <button className={`pan2-riassunto__riga${r.aspettaTe ? ' pan2-riassunto__riga--chiede' : ''}`} disabled={pane === undefined} onClick={() => { if (pane !== undefined) onApri(pane) }} title={`${r.chi}: ${r.cosa}`}>
+                  <Pallino stato={r.aspettaTe ? 'chiede' : 'lavora'} />
+                  <PillolaRuolo {...(r.ruolo !== undefined ? { ruolo: r.ruolo } : {})} nome={r.chi} />
+                  <span className="pan2-riassunto__cosa">{r.cosa}</span>
+                  <span className="pan2-riassunto__quanto">{sottoAlLavoro(r)}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
