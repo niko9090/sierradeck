@@ -213,6 +213,8 @@ describe('il recupero', () => {
     expect(x.etichette[S1]).toBe('Il lettore di CSV')
     expect(x.indice.has(S1)).toBe(true)
     expect(x.g.recupero().chat).toEqual([])
+    // Nel recupero non resta niente, neanche le cartelle vuote.
+    expect(readdirSync(join(x.dati, 'recupero-chat'))).toEqual([])
     // Due volte no.
     expect((await x.g.ripristinaDalRecupero(id)).ok).toBe(false)
   })

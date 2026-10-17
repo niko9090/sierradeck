@@ -370,6 +370,8 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
           return { ok: false, messaggio: `Non riesco a rimetterla: ${err instanceof Error ? err.message : String(err)}. È ancora nel recupero.` }
         }
       }
+      // Restano solo le sue cartelle vuote nel recupero: via, sempre dalla guardia.
+      try { cancellaSicura(join(cartellaRecupero, c.id), { dentro: [cartellaRecupero] }) } catch (err) { deps.log(`[chat] cartella vuota del recupero non tolta: ${err instanceof Error ? err.message : String(err)}`) }
       if (c.etichetta !== undefined && deps.etichette.leggi()[c.sessione] === undefined) deps.etichette.imposta(c.sessione, c.etichetta)
       if (c.archiviata !== undefined) scriviArchiviate(conArchiviata(archiviate(), c.archiviata))
       cambiaVoce(id, (x) => ({ ...x, ripristinataIl: ora() }))
