@@ -36,6 +36,8 @@ export type RigaLavoro = {
   dal?: string
   /** Aspetta Nicholas: un permesso, una domanda, una risposta. */
   aspettaTe: boolean
+  /** Lavora davvero adesso (● verde); falso per ferma, in pausa, chiusa, muta (■ grigio). */
+  lavora: boolean
   sessione?: string
 }
 
@@ -198,15 +200,34 @@ const numero = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1]
  * chat governata conta finché non è finita; un'adottata solo quando i segnali
  * dicono che lavora o aspetta Nicholas.
  */
-export function righeLavoro(a: Autopilota, segnaliDi: (sessione: string) => readonly Segnale[], adesso?: number): RigaLavoro[] {
+export function righeLavoro(
+  a: Autopilota,
+  segnaliDi: (sessione: string) => readonly Segnale[],
+  adesso?: number,
+  /**
+   * Lo stato che il programma conosce di una chat aperta quando i segnali non ci
+   * sono ancora: una chat ferma sulla domanda di fiducia della cartella non ne
+   * manda nessuno (prova del 18/10), e il riassunto diceva «al lavoro» mentre
+   * «Adesso» diceva «aspetta te». È la stessa riserva dello schermo di `statoChat`.
+   */
+  riserva?: (sessione: string) => 'chiede' | 'lavora' | 'ferma' | undefined
+): RigaLavoro[] {
   const fuori: RigaLavoro[] = []
-  const daSegnali = (sessione: string | undefined): DaiSegnali | undefined => (sessione === undefined ? undefined : cosaFaDaSegnali(segnaliDi(sessione), adesso))
+  const daSegnali = (sessione: string | undefined): DaiSegnali | undefined => {
+    if (sessione === undefined) return undefined
+    const g = cosaFaDaSegnali(segnaliDi(sessione), adesso)
+    if (g !== undefined) return g
+    const r = riserva?.(sessione)
+    if (r === 'chiede') return { cosa: 'aspetta una tua scelta', dal: '', aspettaTe: true, lavora: false }
+    if (r === 'ferma') return { cosa: 'ferma', dal: '', aspettaTe: false, lavora: false }
+    return undefined
+  }
   if (a.chats.length === 0 && a.sessionId !== undefined && (a.stato === 'lavoro' || a.stato === 'attesa')) {
     const g = daSegnali(a.sessionId)
     fuori.push({
       id: a.id, nomeRuolo: 'Chat unica', colore: 'quieto', compito: corto(a.nome.trim() !== '' ? a.nome : a.obiettivo),
       cosa: a.stato === 'attesa' && g?.aspettaTe !== true ? 'aspetta una tua risposta' : g?.cosa ?? 'al lavoro',
-      dal: a.iniziatoIl, aspettaTe: a.stato === 'attesa' || g?.aspettaTe === true, sessione: a.sessionId
+      dal: a.iniziatoIl, aspettaTe: a.stato === 'attesa' || g?.aspettaTe === true, lavora: a.stato === 'lavoro' && (g === undefined || g.lavora), sessione: a.sessionId
     })
   }
   const governate = a.chats.filter((c) => c.stato !== 'finita')
@@ -216,11 +237,12 @@ export function righeLavoro(a: Autopilota, segnaliDi: (sessione: string) => read
     const cosa = c.stato === 'pausa' ? 'in pausa per i limiti del piano'
       : c.stato === 'bloccata' && g?.aspettaTe !== true ? 'aspetta una tua risposta'
         : g?.cosa ?? 'al lavoro'
-    const dal = dalDelCompito(a.decisioni, c.id) ?? g?.dal
+    const dal = dalDelCompito(a.decisioni, c.id) ?? (g?.dal !== '' ? g?.dal : undefined)
     fuori.push({
       id: c.id, ...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {}),
       nomeRuolo: c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat', colore: c.ruolo !== undefined ? RUOLI[c.ruolo].colore : 'quieto',
       compito: corto(c.compito), cosa, ...(dal !== undefined ? { dal } : {}), aspettaTe: c.stato === 'bloccata' || g?.aspettaTe === true,
+      lavora: c.stato === 'lavoro' && (g === undefined || g.lavora),
       ...(c.sessionId !== undefined ? { sessione: c.sessionId } : {})
     })
   }
@@ -230,7 +252,7 @@ export function righeLavoro(a: Autopilota, segnaliDi: (sessione: string) => read
     fuori.push({
       id: `adottata:${ad.sessionId}`, ...(ad.ruolo !== undefined ? { ruolo: ad.ruolo } : {}),
       nomeRuolo: ad.ruolo !== undefined ? RUOLI[ad.ruolo].nome : 'Chat', colore: ad.ruolo !== undefined ? RUOLI[ad.ruolo].colore : 'quieto',
-      compito: corto(ad.titolo), cosa: g.cosa, dal: g.dal, aspettaTe: g.aspettaTe, sessione: ad.sessionId
+      compito: corto(ad.titolo), cosa: g.cosa, ...(g.dal !== '' ? { dal: g.dal } : {}), aspettaTe: g.aspettaTe, lavora: g.lavora, sessione: ad.sessionId
     })
   }
   return fuori
@@ -243,6 +265,11 @@ export const TESTI_RIASSUNTO = {
   aspettaTe: 'aspetta te',
   aiuto: 'Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat.'
 } as const
+
+/** Il simbolo della riga, oltre al colore: ◆ aspetta te, ● lavora, ■ il resto. */
+export function simboloRiga(r: Pick<RigaLavoro, 'aspettaTe' | 'lavora'>): '◆' | '●' | '■' {
+  return r.aspettaTe ? '◆' : r.lavora ? '●' : '■'
+}
 
 /** «Sviluppo · fa girare i test · da 12 min · aspetta te»: la riga intera in testo. */
 export function testoRigaLavoro(r: RigaLavoro, quanto: string): string {

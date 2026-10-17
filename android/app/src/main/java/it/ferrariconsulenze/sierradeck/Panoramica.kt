@@ -126,6 +126,8 @@ data class RigaLavoro(
     /** ISO: da quando lavora al compito. */
     val dal: String? = null,
     val aspettaTe: Boolean = false,
+    /** Lavora davvero adesso; vero per un PC che non lo manda ancora. */
+    val lavora: Boolean = true,
     val sessione: String? = null,
     /** La chat aperta sul PC da toccare, se c'è. */
     val chat: String? = null
@@ -139,6 +141,9 @@ object RegoleRiassunto {
     const val AIUTO = "Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat."
     /** Sul telefono se ne vedono al più tante, sopra la conversazione: le altre in «+N». */
     const val RIGHE_IN_VISTA = 3
+
+    /** ◆ aspetta te, ● lavora, ■ il resto: lo stato si legge anche senza i colori. */
+    fun simbolo(r: RigaLavoro): String = if (r.aspettaTe) "◆" else if (r.lavora) "●" else "■"
 
     fun dalMs(iso: String?): Long? = try { if (iso == null) null else java.time.Instant.parse(iso).toEpochMilli() } catch (_: Exception) { null }
 
@@ -429,14 +434,14 @@ fun RiassuntoLavoroVista(righe: List<RigaLavoro>, onApri: (String) -> Unit) {
         }
         if (righe.isEmpty()) Text(RegoleRiassunto.VUOTO, color = Banco.testoQuieto, fontSize = 12.sp)
         for (r in inVista) {
-            val colore = if (r.aspettaTe) Banco.ambra else Banco.verde
+            val colore = if (r.aspettaTe) Banco.ambra else if (r.lavora) Banco.verde else Banco.testoQuieto
             Column(
                 Modifier.fillMaxWidth().heightIn(min = 40.dp)
                     .let { m -> r.chat?.let { id -> m.clickable { onApri(id) } } ?: m }
                     .padding(vertical = 3.dp)
             ) {
                 Text(
-                    (if (r.aspettaTe) "◆ " else "● ") + r.nomeRuolo + " · " + r.cosa,
+                    RegoleRiassunto.simbolo(r) + " " + r.nomeRuolo + " · " + r.cosa,
                     color = if (r.aspettaTe) Banco.ambra else Banco.testo, fontSize = 13.sp, maxLines = 1
                 )
                 Text(

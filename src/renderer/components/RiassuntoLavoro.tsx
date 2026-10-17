@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { daQuanto } from '@shared/panoramica'
-import { righeLavoro, testoRigaLavoro, TESTI_RIASSUNTO, type RigaLavoro } from '@shared/riassunto-lavoro'
+import { righeLavoro, simboloRiga, testoRigaLavoro, TESTI_RIASSUNTO, type RigaLavoro } from '@shared/riassunto-lavoro'
 import type { Segnale } from '@shared/segnali-chat'
 import { Aiuto } from './Aiuto'
 
@@ -17,10 +17,12 @@ const OGNI_MS = 5000
  * ogni segnale nuovo e ogni 5 secondi; il registro arriva con l'autopilota.
  * Regole in `@shared/riassunto-lavoro`, le stesse della pagina e dell'app.
  */
-export function RiassuntoLavoro({ autopilota, paneDiSessione, onApri }: {
+export function RiassuntoLavoro({ autopilota, paneDiSessione, onApri, riserva }: {
   autopilota: Autopilota
   paneDiSessione: (sessione: string) => string | undefined
   onApri: (paneId: string) => void
+  /** Senza segnali, lo stato della chat aperta come lo sa il programma (le schede della Panoramica). */
+  riserva?: (sessione: string) => 'chiede' | 'lavora' | 'ferma' | undefined
 }): React.JSX.Element {
   const [segnali, setSegnali] = useState<Record<string, Segnale[]>>({})
   const [ora, setOra] = useState(() => Date.now())
@@ -52,7 +54,7 @@ export function RiassuntoLavoro({ autopilota, paneDiSessione, onApri }: {
     return () => { vivo = false; clearInterval(t); if (attesa !== undefined) clearTimeout(attesa); toglie?.() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chiave])
-  const righe = righeLavoro(autopilota, (s) => segnali[s] ?? [], ora)
+  const righe = righeLavoro(autopilota, (s) => segnali[s] ?? [], ora, riserva)
   return (
     <div className="pan2-sezione riassunto-lavoro" aria-label={TESTI_RIASSUNTO.titolo}>
       <div className="serigrafia" aria-live="polite">
@@ -72,7 +74,7 @@ function Riga({ r, ora, pane, onApri }: { r: RigaLavoro; ora: number; pane?: str
   const quanto = daQuanto(r.dal !== undefined ? Date.parse(r.dal) : undefined, ora)
   const dentro = (
     <>
-      <span className="riassunto-lavoro__segno" aria-hidden style={{ color: r.aspettaTe ? 'var(--ambra)' : 'var(--verde)' }}>{r.aspettaTe ? '◆' : '●'}</span>
+      <span className="riassunto-lavoro__segno" aria-hidden style={{ color: r.aspettaTe ? 'var(--ambra)' : r.lavora ? 'var(--verde)' : 'var(--testo-quieto)' }}>{simboloRiga(r)}</span>
       <span className="riassunto-lavoro__chi" style={{ color: COLORE[r.colore] }}>{r.nomeRuolo}</span>
       <span className="riassunto-lavoro__cosa">{r.cosa}</span>
       <span className="riassunto-lavoro__compito">{r.compito}</span>

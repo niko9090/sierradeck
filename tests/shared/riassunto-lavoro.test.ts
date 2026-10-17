@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { daQuanto } from '@shared/panoramica'
 import {
-  attivitaComando, attivitaStrumento, cosaFaDaSegnali, dalDelCompito, esitiDalRegistro, rigaEsito, righeLavoro, testoRigaLavoro, TESTI_RIASSUNTO
+  attivitaComando, attivitaStrumento, simboloRiga, cosaFaDaSegnali, dalDelCompito, esitiDalRegistro, rigaEsito, righeLavoro, testoRigaLavoro, TESTI_RIASSUNTO
 } from '@shared/riassunto-lavoro'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { conversazione } from '@shared/chat-autopilota'
@@ -188,7 +188,8 @@ describe('i casi per l’app', () => {
     const a = ap([chat('c-3', 'collaudo', 'lavoro', 'Prove dal vero'), chat('c-2', 'sviluppo', 'lavoro', 'Riassunto'), chat('c-4', 'rilascio', 'pausa', 'Release')],
       [{ quando: '2026-10-18T07:00:00.000Z', cosa: 'apro la chat c-2 (Sviluppo): Riassunto' }])
     const righe = righeLavoro(a, di)
-    const casi = { ora, testiFissi: TESTI_RIASSUNTO, righe, testi: righe.map((r) => testoRigaLavoro(r, daQuanto(r.dal !== undefined ? Date.parse(r.dal) : undefined, ora))) }
+    const casi = { ora, testiFissi: TESTI_RIASSUNTO, righe, simboli: righe.map(simboloRiga), testi: righe.map((r) => testoRigaLavoro(r, daQuanto(r.dal !== undefined ? Date.parse(r.dal) : undefined, ora))) }
+    expect(casi.simboli).toEqual(['●', '◆', '■'])
     expect(casi.testi).toEqual([
       'Sviluppo · fa girare i test · da 3 h',
       'Collaudo · aspetta il tuo permesso: esegue un comando · da 5 min · aspetta te',
@@ -217,5 +218,18 @@ describe('dopo la revisione di ECC (0.79.0)', () => {
   })
   it('una chat chiusa dai segnali si dice «chat chiusa»', () => {
     expect(cosaFaDaSegnali([seg('SessionEnd', '1')])?.cosa).toBe('chat chiusa')
+  })
+})
+
+describe('senza segnali, la riserva del programma (prova dal vero del 18/10)', () => {
+  const a = ap([chat('c-1', 'sviluppo', 'lavoro', 'Somma'), chat('c-2', 'sviluppo', 'lavoro', 'Media'), chat('c-3', 'sviluppo', 'lavoro', 'Altro')])
+  it('una chat ferma sulla domanda di fiducia non manda segnali: aspetta te, come dice «Adesso»', () => {
+    const riserva = (s: string) => (s === 's-c-1' ? 'chiede' as const : s === 's-c-2' ? 'ferma' as const : undefined)
+    const r = righeLavoro(a, () => [], 0, riserva)
+    expect(r.map((x) => [x.cosa, x.aspettaTe, x.dal])).toEqual([['aspetta una tua scelta', true, undefined], ['ferma', false, undefined], ['al lavoro', false, undefined]])
+  })
+  it('i segnali, quando ci sono, vincono sulla riserva', () => {
+    const r = righeLavoro(a, (s) => (s === 's-c-1' ? [seg('UserPromptSubmit', '2026-10-18T09:00:00.000Z')] : []), Date.parse('2026-10-18T09:01:00.000Z'), () => 'chiede')
+    expect(r[0]).toMatchObject({ cosa: 'ci pensa', aspettaTe: false, dal: '2026-10-18T09:00:00.000Z' })
   })
 })

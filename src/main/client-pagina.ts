@@ -182,7 +182,12 @@ export function paginaClient(): string {
   .pan-tel-lavoro__giu { font-size: 11px; color: var(--testo-quieto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pan-tel-lavoro__te { color: var(--ambra); font-weight: 600; }
   .battuta--esito { padding: 3px 8px; border-radius: 0 8px 8px 0; border-left: 2px solid var(--verde); background: color-mix(in srgb, var(--verde) 6%, transparent); font-size: 12px; }
-  .flusso-ap--grande { max-height: 58vh; min-height: 30vh; }
+  .flusso-ap--grande { max-height: 52vh; min-height: 30vh; }
+  /* Il campo ancorato della dashboard: compatto, così non copre la fine della conversazione. */
+  .casella-ap { border-top: 1px solid var(--bordo, #2a2f3a); }
+  .casella-ap .riga { margin: 4px 0; }
+  .casella-ap textarea { min-height: 52px; max-height: 30vh; }
+  .casella-ap button { min-height: 40px; padding: 4px 12px; }
   .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
   .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
@@ -2689,6 +2694,9 @@ window.guardaAp = async (id, pc, nomePc) => {
   pannello(ultimoStato)
   await leggiAp()
   pannello(ultimoStato)
+  // La dashboard (0.79.0): all'apertura in vista il riassunto, la conversazione e il campo, non solo la situazione.
+  const riassunto = document.getElementById('riassunto-ap')
+  if (riassunto && riassunto.scrollIntoView) riassunto.scrollIntoView({ block: 'start' })
 }
 window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
@@ -2785,14 +2793,14 @@ function riassuntoTelHtml(lavoro, adesso) {
     return h < 48 ? 'da ' + h + ' h' : 'da ' + Math.round(h / 24) + ' giorni'
   }
   const righe = lavoro.map((r) => {
-    const dentro = '<span class="pan-tel-lavoro__su"><b style="color:' + (r.aspettaTe ? 'var(--ambra)' : 'var(--verde)') + '">' + (r.aspettaTe ? '◆' : '●') + '</b><b>' + esc(r.nomeRuolo) + '</b><span>' + esc(r.cosa) + '</span></span>' +
+    const dentro = '<span class="pan-tel-lavoro__su"><b style="color:' + (r.aspettaTe ? 'var(--ambra)' : r.lavora === false ? 'var(--testo-quieto)' : 'var(--verde)') + '">' + (r.aspettaTe ? '◆' : r.lavora === false ? '■' : '●') + '</b><b>' + esc(r.nomeRuolo) + '</b><span>' + esc(r.cosa) + '</span></span>' +
       '<span class="pan-tel-lavoro__giu">' + esc([quanto(r.dal), r.compito].filter((x) => x).join(' · ')) + (r.aspettaTe ? ' · <span class="pan-tel-lavoro__te">aspetta te</span>' : '') + '</span>'
     const classe = 'pan-tel-lavoro__riga' + (r.aspettaTe ? ' pan-tel-lavoro__riga--te' : '')
     return r.chat && !apPc
       ? '<button class="' + classe + '" data-chat="' + esc(r.chat) + '" onclick="apriDaPanoramica(this.dataset.chat)">' + dentro + '</button>'
       : '<div class="' + classe + '">' + dentro + '</div>'
   }).join('')
-  return '<div class="serigrafia">Al lavoro adesso · ' + lavoro.length + aiuto('lavoro', 'Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat.') + '</div>' +
+  return '<div class="serigrafia" id="riassunto-ap">Al lavoro adesso · ' + lavoro.length + aiuto('lavoro', 'Una riga per ogni chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta te. Si aggiorna da solo, dai segnali delle chat e dal registro dell’autopilota. Tocca una riga per aprire la chat.') + '</div>' +
     (righe ? '<div class="pan-tel-lavoro">' + righe + '</div>' : '<div class="sotto">Nessuna chat al lavoro.</div>')
 }
 /**
@@ -2857,7 +2865,8 @@ function vistaAutopilota(a, dopoCasella) {
   }).join('<span class="passo-filo"></span>')
   const qui = (a.passaggi || []).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
   const m = a.misura || { percento: 0, dettaglio: '', di: '', tono: 'lavoro' }
-  const ora = (iso) => esc(String(iso || '').slice(11, 16))
+  // L'ora del telefono, non quella UTC dell'istante (prova del 18/10: «23:09» per le 01:09).
+  const ora = (iso) => { const d = new Date(iso || ''); return isNaN(d.getTime()) ? '' : esc(d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })) }
 
   // ── La chat con lui, in cima (0.29.0) ──
   // Arriva composta dal computer (la stessa della sezione sul PC): la tua

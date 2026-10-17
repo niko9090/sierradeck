@@ -37,6 +37,14 @@ class RiassuntoLavoroTest {
     }
 
     @Test
+    fun `il simbolo dice lo stato anche senza i colori, come sul PC`() {
+        val attesi = casi["simboli"]!!.jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(attesi, righe.map { RegoleRiassunto.simbolo(it) })
+        // Un PC della prima 0.79.0 senza «lavora»: la riga lavora.
+        assertEquals("●", RegoleRiassunto.simbolo(Api.json.decodeFromString(RigaLavoro.serializer(), """{"id":"c-1"}""")))
+    }
+
+    @Test
     fun `sul telefono prima chi aspetta te, al più tre in vista`() {
         val (inVista, altre) = RegoleRiassunto.inVista(righe)
         assertEquals("Collaudo", inVista.first().nomeRuolo)

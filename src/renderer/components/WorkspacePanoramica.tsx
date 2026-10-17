@@ -208,7 +208,10 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
         {/* La dashboard (0.79.0): una riga per chat al lavoro, dai segnali e dal registro. */}
-        {autopilota !== undefined ? <RiassuntoLavoro autopilota={autopilota} paneDiSessione={paneDiSessione} onApri={onApri} /> : null}
+        {autopilota !== undefined ? (
+          <RiassuntoLavoro autopilota={autopilota} paneDiSessione={paneDiSessione} onApri={onApri}
+            riserva={(sessione) => { const x = schede.find((y) => y.sessione === sessione); return x === undefined ? undefined : x.stato === 'finita' ? 'ferma' : x.stato }} />
+        ) : null}
         <div className="pan2-sezione">
           <div className="serigrafia" aria-live="polite">Adesso · {adesso.length}</div>
           {adesso.length === 0 ? (

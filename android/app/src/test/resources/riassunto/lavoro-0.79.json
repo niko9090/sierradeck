@@ -16,6 +16,7 @@
       "cosa": "fa girare i test",
       "dal": "2026-10-18T07:00:00.000Z",
       "aspettaTe": false,
+      "lavora": true,
       "sessione": "s-c-2"
     },
     {
@@ -27,6 +28,7 @@
       "cosa": "aspetta il tuo permesso: esegue un comando",
       "dal": "2026-10-18T09:55:00.000Z",
       "aspettaTe": true,
+      "lavora": false,
       "sessione": "s-c-3"
     },
     {
@@ -37,8 +39,14 @@
       "compito": "Release",
       "cosa": "in pausa per i limiti del piano",
       "aspettaTe": false,
+      "lavora": false,
       "sessione": "s-c-4"
     }
+  ],
+  "simboli": [
+    "●",
+    "◆",
+    "■"
   ],
   "testi": [
     "Sviluppo · fa girare i test · da 3 h",
