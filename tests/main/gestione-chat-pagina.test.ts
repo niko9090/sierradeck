@@ -85,10 +85,13 @@ describe('pagina: la gestione delle chat', () => {
     expect(continua).toContain("chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive })")
     const davvero = script.slice(script.indexOf('window.gcSvuotaDavvero'), script.indexOf('function gcSvuotaHtml'))
     expect(davvero).toContain('gettone: s.gettone, frase: gcFrase')
-    // Il tasto nasce spento e si accende solo con la parola giusta.
-    expect(funzione('gcSvuotaHtml')).toContain('id="gc-svuota-si" disabled')
+    // Il tasto nasce spento e si accende solo con la parola giusta; la parola resta scritta anche se la pagina si ridisegna (revisione ECC).
+    expect(funzione('gcSvuotaHtml')).toContain("id=\"gc-svuota-si\"' + (gcInCorso || gcFrase.trim().toUpperCase() !== GC.frase ? ' disabled' : '')")
+    expect(funzione('gcSvuotaHtml')).toContain("value=\"' + esc(gcFrase) + '\"")
+    // Un secondo tocco su «Svuota per sempre» non manda una seconda richiesta.
+    expect(davvero).toContain("if (!s || s.passo !== 'scrivi' || gcInCorso) return")
     const b = { disabled: true }
-    const cambia = new Function('document', 'window', `var GC = { frase: 'SVUOTA' }; var gcFrase = ''; ${script.slice(script.indexOf('window.gcFraseCambia'), script.indexOf('\n', script.indexOf('window.gcFraseCambia')))}; return window.gcFraseCambia`)({ getElementById: () => b }, {}) as (v: string) => void
+    const cambia = new Function('document', 'window', `var GC = { frase: 'SVUOTA' }; var gcFrase = ''; var gcInCorso = false; ${script.slice(script.indexOf('window.gcFraseCambia'), script.indexOf('\n', script.indexOf('window.gcFraseCambia')))}; return window.gcFraseCambia`)({ getElementById: () => b }, {}) as (v: string) => void
     cambia('sì'); expect(b.disabled).toBe(true)
     cambia('svuota'); expect(b.disabled).toBe(false)
   })
@@ -97,5 +100,19 @@ describe('pagina: la gestione delle chat', () => {
     const fai = script.slice(script.indexOf('window.gcFai'), script.indexOf('window.gcLinguetta'))
     expect(fai).toContain('filter(function (x) { return !x.ok }).map(function (x) { return x.motivo')
     expect(funzione('gcNotaHtml')).toContain('gc-rifiuti')
+  })
+
+  // La revisione con gli agenti di ECC (17/10).
+  it('una casella spuntata non ferma il ridisegno: il totale e i tasti si aggiornano', () => {
+    const p = funzione('pannello')
+    expect(p).toContain("attivo.tagName === 'INPUT' && attivo.type !== 'checkbox' && attivo.type !== 'radio'")
+  })
+
+  it('Ripristina e «Continua» non partono due volte con un doppio tocco; una conferma arrivata tardi non compare', () => {
+    for (const f of ['window.gcRipristinaArch', 'window.gcRipristinaRec', 'window.gcSvuotaContinua']) {
+      expect(script.slice(script.indexOf(f), script.indexOf(f) + 120), f).toContain('if (gcInCorso) return')
+    }
+    const chiedi = script.slice(script.indexOf('window.gcChiedi ='), script.indexOf('window.gcChiediScelte'))
+    expect(chiedi).toContain('if (n !== gcChiesta || dove !== pannelloAperto) return')
   })
 })

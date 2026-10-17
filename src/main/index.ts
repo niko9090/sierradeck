@@ -4928,7 +4928,7 @@ if (!app.requestSingleInstanceLock()) {
       })
       ipcMain.handle('chatGestione:orfane', () => gestioneChat.orfane())
       // Il recupero si svuota da solo dopo 30 giorni: un giro poco dopo l'avvio, poi ogni sei ore.
-      const giroChat = (): void => { void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch(() => undefined) }
+      const giroChat = (): void => { void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch((err: unknown) => registro.info(`[chat] giro del recupero non riuscito: ${err instanceof Error ? err.message : String(err)}`)) }
       const primoGiroChat = setTimeout(giroChat, 90_000)
       const timerGiroChat = setInterval(giroChat, 6 * 60 * 60_000)
       app.on('before-quit', () => { clearTimeout(primoGiroChat); clearInterval(timerGiroChat) })

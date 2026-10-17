@@ -198,7 +198,7 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
         AvvisoChiusa(avvisoChiusa) { avvisoChiusa = null }
         val corrente = chat.firstOrNull { it.id == aperta }
         when {
-            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego", workspace = stato?.workspace ?: Workspace(), nomePc = su.nome)
+            corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego", workspace = stato?.workspace ?: Workspace(), nomePc = su.nome, versionePc = stato?.computer?.versione)
             stato == null && guasto == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Busso a ${su.nome} attraverso il PC accoppiato…", color = Banco.testoQuieto)
             }
@@ -391,6 +391,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
     if (mostraRiprendi) SceltaSessione(
         api,
         nomePc = nomePc,
+        conGestione = FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, versionePc) != false,
         onSpazio = { mostraRiprendi = false; mostraSpazio = true },
         onScegli = { s ->
             // Vive su un altro PC (PC 0.58.4): le si scrive da qui, e là parte in sottofondo.
@@ -405,7 +406,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
 
 /** Il dettaglio: il terminale a polling e il campo per scrivere. */
 @Composable
-private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit, giu: Boolean = false, workspace: Workspace = Workspace(), nomePc: String? = null) {
+private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndietro: () -> Unit, giu: Boolean = false, workspace: Workspace = Workspace(), nomePc: String? = null, versionePc: String? = PcCorrente.versione) {
     /**
      * Quello che scrivi (0.51.0): va in coda con un id e parte subito; se la
      * rete cade resta «in attesa di invio» e riparte da solo, con attese
@@ -597,7 +598,8 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     DropdownMenuItem(text = { Text(if (chat.pin == null) "Proteggi con il PIN…" else "Togli il PIN…") }, onClick = { menuAperto = false; pinDa = chat.pin == null })
                     DropdownMenuItem(text = { Text("Ospitata da… (quale PC la fa girare)") }, onClick = { menuAperto = false; ospite = true })
                     DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
-                    if (!chat.sessione.isNullOrBlank()) DropdownMenuItem(text = { Text("Archivia o elimina dal PC…") }, onClick = { menuAperto = false; gestendo = true })
+                    // Con un PC più vecchio della 0.79.0 la voce non c'è (revisione ECC): là non saprebbe farlo.
+                    if (!chat.sessione.isNullOrBlank() && FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, versionePc) != false) DropdownMenuItem(text = { Text("Archivia o elimina dal PC…") }, onClick = { menuAperto = false; gestendo = true })
                 }
             }
         }
@@ -1004,7 +1006,7 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
  * questa finestra.
  */
 @Composable
-private fun SceltaSessione(api: Api, nomePc: String?, onSpazio: () -> Unit, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
+private fun SceltaSessione(api: Api, nomePc: String?, conGestione: Boolean, onSpazio: () -> Unit, onScegli: (SessioneRipresa) -> Unit, onChiudi: () -> Unit) {
     // Le tre azioni di una conversazione (PC 0.79.0): «⋯» sulla riga.
     var azioniPer by remember { mutableStateOf<SessioneRipresa?>(null) }
     var rileggi by remember { mutableStateOf(0) }
@@ -1056,13 +1058,13 @@ private fun SceltaSessione(api: Api, nomePc: String?, onSpazio: () -> Unit, onSc
                             }
                             if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
                         }
-                        if (s.altrove.isNullOrBlank()) TextButton(onClick = { azioniPer = s }) { Text("⋯ Chiudi, archivia, elimina", fontSize = 12.sp) }
+                        if (conGestione && s.altrove.isNullOrBlank()) TextButton(onClick = { azioniPer = s }) { Text("⋯ Chiudi, archivia, elimina", fontSize = 12.sp) }
                         HorizontalDivider(color = Banco.incisione)
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onSpazio) { Text("Spazio delle chat") } },
+        confirmButton = { if (conGestione) TextButton(onClick = onSpazio) { Text("Spazio delle chat") } },
         dismissButton = { TextButton(onClick = onChiudi) { Text("Chiudi") } }
     )
     azioniPer?.let { s -> AzioniChatDialogo(api, s.id, s.titolo.ifBlank { s.cwd }, nomePc, onFatto = { rileggi += 1 }, onChiudi = { azioniPer = null }) }

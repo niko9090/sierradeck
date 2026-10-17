@@ -683,7 +683,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // PC 0.68.0: l'elenco delle conversazioni e l'avvio in sottofondo di un altro PC.
             "/api/sessioni", "/api/sessioni/riprendi", "/api/sottofondo/avvia",
             // PC 0.79.0: lo spazio misura ogni chat sul disco, e svuotare il recupero cancella davvero.
-            "/api/chat/gestione/spazio", "/api/chat/gestione/azione", "/api/chat/gestione/svuota"
+            "/api/chat/gestione/spazio", "/api/chat/gestione/azione", "/api/chat/gestione/ripristina", "/api/chat/gestione/svuota"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

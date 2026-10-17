@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChatArchiviata, ChatInRecupero, VistaSpazio } from '@shared/gestione-chat'
 import { FRASE_SVUOTA, totaleSelezione } from '@shared/gestione-chat'
@@ -34,14 +34,18 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
   const [svuotaDrive, setSvuotaDrive] = useState(false)
   const [inCorso, setInCorso] = useState(false)
 
+  // Solo l'ultima lettura conta: una risposta vecchia che arriva dopo una nuova non la copre.
+  const lettura = useRef(0)
   const leggi = useCallback((): void => {
     setErrore(undefined)
     const g = window.gestore.chatGestione
+    const n = ++lettura.current
+    const se = <T,>(f: (x: T) => void) => (x: T): void => { if (n === lettura.current) f(x) }
     void Promise.all([
-      g.spazio().then(setVista),
-      g.archiviate().then(setArchiviate),
-      g.recupero().then(setRecupero)
-    ]).catch((err: unknown) => setErrore(`Non riesco a leggere le chat: ${err instanceof Error ? err.message : String(err)}`))
+      g.spazio().then(se(setVista)),
+      g.archiviate().then(se(setArchiviate)),
+      g.recupero().then(se(setRecupero))
+    ]).catch((err: unknown) => se(setErrore)(`Non riesco a leggere le chat: ${err instanceof Error ? err.message : String(err)}`))
   }, [])
   useEffect(() => { leggi(); return window.gestore.chatGestione.onCambiata(leggi) }, [leggi])
   useEffect(() => {
@@ -236,11 +240,11 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
                   placeholder={FRASE_SVUOTA}
                   value={svuota.frase}
                   onChange={(e) => setSvuota({ ...svuota, frase: e.target.value })}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && fraseSvuotaGiusta(svuota.frase)) svuotaDavvero(svuota.gettone, svuota.frase) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !inCorso && fraseSvuotaGiusta(svuota.frase)) svuotaDavvero(svuota.gettone, svuota.frase) }}
                   style={{ width: '100%' }}
                 />
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                  <button className="tasto" onClick={() => setSvuota(undefined)}>Annulla</button>
+                  <button className="tasto" disabled={inCorso} onClick={() => setSvuota(undefined)}>Annulla</button>
                   <button className="tasto tasto--pericolo" disabled={!fraseSvuotaGiusta(svuota.frase) || inCorso} onClick={() => svuotaDavvero(svuota.gettone, svuota.frase)}>Svuota per sempre</button>
                 </div>
               </>

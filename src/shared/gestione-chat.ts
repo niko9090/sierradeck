@@ -294,7 +294,11 @@ export function potaRecupero(r: RegistroRecuperoChat, adesso: number): RegistroR
     const fine = Date.parse(c.ripristinataIl)
     return Number.isNaN(fine) || fine >= limite
   })
-  return { versione: 1, chat: chat.slice(-2000) }
+  // Il tetto vale solo per le voci chiuse: una chat ancora nel recupero non perde mai la sua voce
+  // (senza, i suoi file resterebbero lì senza scadenza e senza «Ripristina»).
+  const chiuse = chat.filter((c) => !nelRecupero(c))
+  const via = new Set(chiuse.slice(0, Math.max(0, chiuse.length - 2000)))
+  return { versione: 1, chat: chat.filter((c) => !via.has(c)) }
 }
 
 /* ------------------------------------------------------------------ */

@@ -25,9 +25,15 @@ export function ConfermaAzioneChat({ azione, conferma, onFai, onChiudi }: {
   const [inCorso, setInCorso] = useState(false)
   const [esito, setEsito] = useState<{ messaggio: string; rifiuti: Rifiuto[]; errore?: boolean; fatte?: number } | undefined>(undefined)
   useEffect(() => {
-    const suTasto = (e: KeyboardEvent): void => { if (e.key === 'Escape' && !inCorso) onChiudi() }
-    window.addEventListener('keydown', suTasto)
-    return () => window.removeEventListener('keydown', suTasto)
+    // Esc chiude solo questa conferma, non la finestra sotto (es. «Riprendi una conversazione»): si ascolta
+    // in cattura e non si lascia passare, anche mentre il PC lavora (lì non chiude niente).
+    const suTasto = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      e.stopImmediatePropagation()
+      if (!inCorso) onChiudi()
+    }
+    window.addEventListener('keydown', suTasto, true)
+    return () => window.removeEventListener('keydown', suTasto, true)
   }, [onChiudi, inCorso])
   const fai = (): void => {
     setInCorso(true)

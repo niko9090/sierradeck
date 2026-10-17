@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import {
   daSvuotare, indiceConDiNuovo, propostaChatEliminate, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
   type Proposta, type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole
@@ -99,7 +100,7 @@ export function creaSpazioDrive(deps: {
     let tolti = 0
     let errori = 0
     for (const v of p.voci) {
-      try { await a.cancella(v.nome); tolti += 1 } catch { errori += 1 }
+      try { await a.cancella(v.nome); tolti += 1 } catch (err) { errori += 1; deps.log(`[spazio] ${v.nome} non cancellato dal Drive: ${err instanceof Error ? err.message : String(err)}`) }
     }
     return { tolti, errori }
   }
@@ -107,14 +108,15 @@ export function creaSpazioDrive(deps: {
   /** Una pulizia confermata: prima nel registro, poi fuori dall'indice; se l'indice non si scrive, annullata subito. */
   const applica = async (pr: Proposta, chi?: string): Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }> => {
     const io = deps.io()
-    const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}`, chi: chi ?? io.nome, adesso: adesso() })
+    const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`, chi: chi ?? io.nome, adesso: adesso() })
     const r = await leggiRegistro()
     await scriviRegistro({ ...r, pulizie: [...r.pulizie, p] })
     const conVoce = p.voci.filter((v) => v.percorso !== undefined)
     if (conVoce.length > 0) {
       const e = await deps.modificaManifesto((m) => ({ ...m, file: indiceSenza(m.file, conVoce) }), `PULIZIA ${p.id} («${p.titolo}»)`)
       if (!e.ok) {
-        await cambiaPulizia(p.id, (x) => ({ ...x, annullataIl: new Date(adesso()).toISOString() })).catch(() => undefined)
+        // Se nemmeno questo si scrive, la pulizia resterebbe attiva su file ancora nell'indice: lo si dice forte.
+        await cambiaPulizia(p.id, (x) => ({ ...x, annullataIl: new Date(adesso()).toISOString() })).catch((err: unknown) => deps.log(`[spazio] ATTENZIONE: pulizia ${p.id} non annullata nel registro (${err instanceof Error ? err.message : String(err)}): annullala da «Spazio sul Drive» prima che scada`))
         deps.log(`[spazio] pulizia «${p.titolo}» non fatta: ${e.messaggio ?? '?'}`)
         return { ok: false, messaggio: `Non fatta: ${e.messaggio ?? 'il Drive non ha risposto'}. Niente è cambiato.` }
       }
@@ -192,8 +194,10 @@ export function creaSpazioDrive(deps: {
       const p = r.pulizie.find((x) => x.id === id)
       if (p === undefined || p.annullataIl !== undefined || p.svuotataIl !== undefined) return { ok: false, messaggio: 'Non c’è niente da svuotare.' }
       const e = await togliFile(p)
-      await cambiaPulizia(id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
       deps.log(`[spazio] recupero «${p.titolo}» svuotato su richiesta: ${e.tolti} file cancellati${e.errori > 0 ? `, ${e.errori} non riusciti` : ''}`)
+      // Svuotata solo se è andato via tutto: altrimenti resta, e il giro (o un nuovo «Svuota») riprova.
+      if (e.errori > 0) return { ok: false, messaggio: `${e.tolti} file cancellati, ${e.errori} no: riprova più tardi` }
+      await cambiaPulizia(id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
       return { ok: true, messaggio: `Svuotato: ${byteLeggibili(p.byte)} liberati.` }
     },
 
@@ -205,8 +209,8 @@ export function creaSpazioDrive(deps: {
         const r = await leggiRegistro()
         for (const p of daSvuotare(r, adesso())) {
           const e = await togliFile(p)
-          await cambiaPulizia(p.id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
-          deps.log(`[spazio] recupero «${p.titolo}» scaduto: ${e.tolti} file cancellati dal Drive (${byteLeggibili(p.byte)})`)
+          deps.log(`[spazio] recupero «${p.titolo}» scaduto: ${e.tolti} file cancellati dal Drive (${byteLeggibili(p.byte)})${e.errori > 0 ? `, ${e.errori} non riusciti: riprovo al prossimo giro` : ''}`)
+          if (e.errori === 0) await cambiaPulizia(p.id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
         }
         // Il recupero scaduto va nel recupero da solo (0.69.0), una volta al giorno.
         if (adesso() - ultimaPuliziaDaSola >= PULIZIA_DA_SOLA_OGNI_MS) {

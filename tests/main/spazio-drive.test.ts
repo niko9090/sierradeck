@@ -84,4 +84,30 @@ describe('le pulizie del Drive, confermate, in recupero e annullabili', () => {
     expect(p?.svuotataIl).toBeDefined()
     expect((await b.spazio.annulla(p!.id)).ok).toBe(false)
   })
+
+  it('Svuota con un file che il Drive non cancella: non dice «liberati» e la pulizia resta da svuotare (revisione ECC)', async () => {
+    const b = await banco()
+    await b.spazio.pulisci('vecchie')
+    const id = leggiPulizie(b.oggetti.get(NOME_PULIZIE)).pulizie[0]!.id
+    const cancella = b.a.cancella.bind(b.a)
+    b.a.cancella = async () => { throw new Error('403 quota') }
+    const e = await b.spazio.svuota(id)
+    expect(e.ok).toBe(false)
+    expect(e.messaggio).toContain('1 no')
+    expect(leggiPulizie(b.oggetti.get(NOME_PULIZIE)).pulizie[0]?.svuotataIl).toBeUndefined()
+    expect(b.righe.join('\n')).toContain('403 quota')
+    // Il Drive torna: si riprova e va.
+    b.a.cancella = cancella
+    expect((await b.spazio.svuota(id)).ok).toBe(true)
+    expect((await b.a.elenca()).has('f_b')).toBe(false)
+  })
+
+  it('due pulizie nello stesso millisecondo hanno id diversi', async () => {
+    const b = await banco()
+    await b.spazio.togliChat(['aaaa'], 'una')
+    await b.spazio.togliChat(['bbbb'], 'due')
+    const ids = leggiPulizie(b.oggetti.get(NOME_PULIZIE)).pulizie.map((p) => p.id)
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+  })
 })

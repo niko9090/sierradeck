@@ -200,6 +200,8 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
     val scope = rememberCoroutineScope()
     var conferma by remember { mutableStateOf<String?>(null) }
     var spazio by remember { mutableStateOf<String?>(null) }
+    // Elimina si conferma solo dopo aver saputo quanto libera (revisione ECC): finché il PC misura, il tasto aspetta.
+    var misura by remember { mutableStateOf(false) }
     var drive by remember { mutableStateOf(false) }
     var inCorso by remember { mutableStateOf(false) }
     var esito by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
@@ -241,7 +243,7 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
                     }
                 }
             },
-            confirmButton = { TextButton(enabled = !inCorso, onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
+            confirmButton = { TextButton(enabled = !inCorso && !(c == "elimina" && misura), onClick = { fai(c) }) { Text(if (inCorso) "Un momento…" else if (c == "elimina" && misura) "Misuro…" else testo.azione, color = if (c == "elimina") Banco.rosso else Banco.accento) } },
             dismissButton = { TextButton(enabled = !inCorso, onClick = { conferma = null }) { Text("Annulla") } }
         )
         return
@@ -255,8 +257,12 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
                     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = {
                             conferma = id
-                            if (id == "elimina") scope.launch {
-                                spazio = try { GestioneChatRegole.byte(api.spazioChat(listOf(sessione)).selezione?.byte ?: 0.0) } catch (_: Exception) { null }
+                            if (id == "elimina") {
+                                misura = true
+                                scope.launch {
+                                    spazio = try { GestioneChatRegole.byte(api.spazioChat(listOf(sessione)).selezione?.byte ?: 0.0) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+                                    misura = false
+                                }
                             }
                         }) { Text(t.etichetta, color = if (id == "elimina") Banco.rosso else Banco.accento) }
                         Text(t.breve, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
@@ -302,15 +308,15 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
     var giro by remember { mutableIntStateOf(0) }
     LaunchedEffect(giro) {
         errore = null
-        try {
-            vista = api.spazioChat()
-            archiviate = api.archiviateChat().archiviate
-            recupero = api.recuperoChat()
-            val ci = vista?.chat?.map { it.sessione }?.toSet() ?: emptySet()
-            scelte = scelte.filter { it in ci }
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Api.Errore) {
+        // Ogni elenco per conto suo (revisione ECC): se uno non arriva, gli altri si vedono lo stesso e quello
+        // non resta su «Leggo…» per sempre; «Riprova» rilegge tutto.
+        suspend fun <T> leggi(cosa: suspend () -> T): T? = try { cosa() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Api.Errore) {
             errore = if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.GESTIONE_CHAT, nomePc) else spiegaGestione(e, "leggere le chat", nomePc, FunzionePc.GESTIONE_CHAT)
-        } catch (e: Exception) { errore = "Non riesco a leggere le chat: ${e.message ?: "il computer non risponde"}" }
+            null
+        } catch (e: Exception) { errore = "Non riesco a leggere le chat: ${e.message ?: "il computer non risponde"}"; null }
+        leggi { api.spazioChat() }?.let { v -> vista = v; val ci = v.chat.map { it.sessione }.toSet(); scelte = scelte.filter { it in ci } }
+        archiviate = leggi { api.archiviateChat().archiviate } ?: archiviate ?: emptyList()
+        recupero = leggi { api.recuperoChat() } ?: recupero ?: RecuperoChat()
     }
     fun esegui(cosa: String, azione: suspend () -> Pair<String, List<String>>?) {
         inCorso = true
@@ -331,7 +337,7 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                     FilterChip(selected = scheda == "archiviate", onClick = { scheda = "archiviate"; nota = null }, label = { Text("Archiviate" + (archiviate?.size?.takeIf { it > 0 }?.let { " ($it)" } ?: ""), fontSize = 12.sp) })
                     FilterChip(selected = scheda == "recupero", onClick = { scheda = "recupero"; nota = null }, label = { Text("Recupero" + (recupero?.chat?.size?.takeIf { it > 0 }?.let { " ($it)" } ?: ""), fontSize = 12.sp) })
                 }
-                errore?.let { Text(it, color = Banco.rosso, fontSize = 12.sp) }
+                errore?.let { Row(verticalAlignment = Alignment.CenterVertically) { Text(it, color = Banco.rosso, fontSize = 12.sp, modifier = Modifier.weight(1f)); TextButton(onClick = { giro += 1 }) { Text("Riprova") } } }
                 nota?.let { (m, rif) -> Text(m, color = Banco.testo, fontSize = 13.sp); RifiutiChat(rif) }
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
@@ -454,9 +460,12 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = !inCorso, onClick = {
+                    // Un tocco solo: due richieste darebbero due gettoni, e il secondo passo userebbe quello vecchio.
+                    inCorso = true
                     scope.launch {
                         val r = tentaGestione("chiedere la conferma", nomePc, FunzionePc.GESTIONE_CHAT) { api.chiediSvuotaRecupero(svuotaDrive) }
+                        inCorso = false
                         if (r != null && r.ok && r.gettone != null) { gettone = r; frase = ""; svuota = 2 } else { svuota = 0; if (r != null) nota = r.messaggio to emptyList() }
                     }
                 }) { Text(c.azione, color = Banco.rosso) }
