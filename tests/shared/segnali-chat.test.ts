@@ -154,7 +154,7 @@ describe('0.76.0: l’indicatore «al lavoro / ferma» viene dai segnali', () =>
   })
   it('gli hook: PreToolUse solo per AskUserQuestion, PostToolUse per tutti', () => {
     const h = hookSegnali(47640).hooks as Record<string, { matcher: string }[]>
-    expect(h.PreToolUse?.[0]?.matcher).toBe('AskUserQuestion')
+    expect(h.PreToolUse?.[0]?.matcher).toBe('AskUserQuestion|Bash|PowerShell|Task|Agent')
     expect(h.PostToolUse?.[0]?.matcher).toBe('')
   })
 })

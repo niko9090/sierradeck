@@ -390,7 +390,11 @@ export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota'; tono?
 // compito), mai dalle parole delle chat.
 
 /** Una riga del riassunto. */
-export type RigaAlLavoro = { id: string; chi: string; ruolo?: Ruolo; cosa: string; quanto: string; aspettaTe: boolean }
+export type RigaAlLavoro = {
+  id: string; chi: string; ruolo?: Ruolo; cosa: string; quanto: string; aspettaTe: boolean
+  /** Cosa fa in questo momento, dai segnali (`attivita-chat.ts`): «fa girare i test», «modifica il codice (App.tsx)». */
+  adesso?: string
+}
 
 /** Il titolo del riassunto: «Al lavoro · 3 · ◆ 1 aspetta te». */
 export function titoloAlLavoro(righe: readonly RigaAlLavoro[]): string {
@@ -400,7 +404,9 @@ export function titoloAlLavoro(righe: readonly RigaAlLavoro[]): string {
 
 /** La parte quieta di una riga: «aspetta te · da 3 min». */
 export function sottoAlLavoro(r: RigaAlLavoro): string {
-  return [...(r.aspettaTe ? ['aspetta te'] : []), ...(r.quanto !== '' ? [r.quanto] : [])].join(' · ')
+  // «adesso» (0.79.0): quello che fa in questo momento, dai segnali; un «aspetta il tuo permesso: …» dice già «aspetta te».
+  const adesso = r.adesso !== undefined && r.adesso !== '' ? [r.adesso] : []
+  return [...(r.aspettaTe && adesso.length === 0 ? ['aspetta te'] : []), ...adesso, ...(r.quanto !== '' ? [r.quanto] : [])].join(' · ')
 }
 
 const VERBO_RUOLO: Record<Ruolo, string> = { sviluppo: 'lavora a', interfaccia: 'lavora a', collaudo: 'prova', revisione: 'rilegge', rilascio: 'prepara' }
@@ -414,7 +420,9 @@ const VERBO_RUOLO: Record<Ruolo, string> = { sviluppo: 'lavora a', interfaccia: 
 export function riassuntoAlLavoro(
   a: Pick<Autopilota, 'chats' | 'sessionId'> | undefined,
   schede: readonly (SchedaChat & { sessione?: string; dal?: number; suPc?: string })[],
-  ora: number
+  ora: number,
+  /** Cosa fa adesso ogni chat, dai segnali (0.79.0): `attivitaDaSegnali` sui segnali della sessione. */
+  attivita?: (sessione: string) => string | undefined
 ): RigaAlLavoro[] {
   const alLavoro = schede.filter((s) => s.stato === 'lavora' || s.stato === 'chiede')
     .sort((x, y) => (x.stato === 'chiede' ? 0 : 1) - (y.stato === 'chiede' ? 0 : 1) || confrontaFisso(x, y))
@@ -438,9 +446,14 @@ export function riassuntoAlLavoro(
       ...(ruolo !== undefined ? { ruolo } : {}),
       cosa,
       quanto: s.suPc !== undefined ? `su ${s.suPc}` : daQuanto(s.dal, ora),
-      aspettaTe: s.stato === 'chiede'
+      aspettaTe: s.stato === 'chiede',
+      ...(adessoDi(s) !== undefined ? { adesso: adessoDi(s) as string } : {})
     }
   })
+  function adessoDi(s: { sessione?: string; suPc?: string }): string | undefined {
+    // I segnali sono di questo PC: per una chat che lavora su un altro PC non ci sono.
+    return s.sessione !== undefined && s.suPc === undefined ? attivita?.(s.sessione) : undefined
+  }
 }
 
 /**

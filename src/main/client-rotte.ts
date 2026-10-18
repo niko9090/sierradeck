@@ -1,4 +1,6 @@
 import { vistaAccount } from '@shared/account-vista'
+import { attivitaDaSegnali } from '@shared/attivita-chat'
+import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
@@ -189,6 +191,8 @@ export type DipendenzeRotte = {
   log?: (riga: string) => void
   /** Le chat aperte adesso, in tutte le finestre. */
   chat: () => Chat[]
+  /** Gli ultimi segnali di Claude Code di una sessione (0.79.0): cosa fa adesso, nel riassunto «Al lavoro». */
+  segnali?: (sessione: string) => readonly Segnale[]
   autopiloti: () => Promise<Autopilota[]>
   /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
   tempiAutopilota?: (id: string) => Promise<string | undefined>
@@ -1313,7 +1317,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK({
         workspace: ws,
         // Il riassunto accanto alla conversazione (0.79.0): una riga per chat al lavoro.
-        alLavoro: riassuntoAlLavoro(ap, ordinate, ora),
+        alLavoro: riassuntoAlLavoro(ap, ordinate, ora, (sessione) => attivitaDaSegnali(deps.segnali?.(sessione) ?? [], ora)),
         // `riassunto` resta per le app della 0.77.0; la Panoramica 2 (0.78.0) legge situazione e piano.
         ...(ap !== undefined ? {
           autopilota: ap.id,

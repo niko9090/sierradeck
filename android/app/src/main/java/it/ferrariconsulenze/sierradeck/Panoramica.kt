@@ -114,6 +114,8 @@ data class RigaAlLavoro(
     val cosa: String = "",
     /** «da 3 min», «su PORTATILE». */
     val quanto: String = "",
+    /** PC 0.79.0: cosa fa in questo momento, dai segnali: «fa girare i test». Assente da un PC che non lo manda. */
+    val adesso: String? = null,
     val aspettaTe: Boolean = false
 )
 
@@ -209,8 +211,11 @@ object RegolePanoramica {
     }
 
     /** La seconda riga di una riga del riassunto: «aspetta te · da 3 min». */
-    fun sottoAlLavoro(r: RigaAlLavoro): String =
-        listOfNotNull(if (r.aspettaTe) "aspetta te" else null, r.quanto.takeIf { it.isNotBlank() }).joinToString(" · ")
+    fun sottoAlLavoro(r: RigaAlLavoro): String {
+        // PC 0.79.0: «adesso» dai segnali; un «aspetta il tuo permesso: …» dice già «aspetta te».
+        val adesso = r.adesso?.takeIf { it.isNotBlank() }
+        return listOfNotNull(if (r.aspettaTe && adesso == null) "aspetta te" else null, adesso, r.quanto.takeIf { it.isNotBlank() }).joinToString(" · ")
+    }
 
     private val ANSI = Regex("\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*(\u0007|\u001B\\\\)|\u001B[@-Z\\\\-_]|[\u0000-\u0008\u000B-\u001F\u007F]")
     private val RUMORE = listOf(

@@ -31,3 +31,18 @@ describe('la promessa senza lavoro', () => {
     expect(html).toContain('onclick="riprendiAp(this.dataset.ap)">Riprendi</button>')
   })
 })
+
+describe('0.79.0: promessa mantenuta, poi finito', () => {
+  it('se dopo la promessa ha aperto chat o un pezzo è finito, finito non è «fermo con una promessa»', () => {
+    const dialogo = [{ quando: '2026-10-18T01:41:00.000Z', da: 'lui' as const, testo: 'Riparto. Apro due compiti nuovi.', esito: 'cambio applicato · per la chat, alla ripresa' }]
+    const prima = { stato: 'finito' as const, dialogo, decisioni: [] }
+    expect(promessaSenzaLavoro(prima)).toBe(true)
+    const aperte = { ...prima, decisioni: [{ quando: '2026-10-18T01:42:00.000Z', cosa: 'apro la chat c-5 (Sviluppo): prodotto.js' }] }
+    expect(promessaSenzaLavoro(aperte)).toBe(false)
+    const traguardo = { ...prima, decisioni: [{ quando: '2026-10-18T01:45:00.000Z', cosa: 'tecnica', traguardo: { chat: 'c-7', esito: 'approvato' as const, di: 'c-5' } }] }
+    expect(promessaSenzaLavoro(traguardo)).toBe(false)
+    // Un lavoro di PRIMA della promessa non conta; e sospeso resta sospeso.
+    expect(promessaSenzaLavoro({ ...prima, decisioni: [{ quando: '2026-10-18T01:00:00.000Z', cosa: 'apro la chat c-1 (Sviluppo): x' }] })).toBe(true)
+    expect(promessaSenzaLavoro({ ...aperte, stato: 'sospeso' as const })).toBe(true)
+  })
+})

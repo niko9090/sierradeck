@@ -199,3 +199,30 @@ Ramo `ap/ap-f1e631f5/c-4`, diff da `4f7afaa`. Due agenti in parallelo come sessi
 **Limite noto, non corretto:** il «da quanto» della rotta `/api/panoramica` parte dalla prima volta che qualcuno guarda (la rotta non gira se nessuno guarda); il PC usa il suo, dai segnali. Dopo un riavvio i due possono differire di qualche minuto.
 
 **Giudizio:** anche qui utile: 9 difetti veri per $0,63 e meno di 3 minuti, che la prova con clic veri non aveva fatto vedere (casi con molte chat, PC vecchi, tocchi veloci).
+
+## Quarta revisione: dashboard dell'autopilota c-50 (18/10 notte)
+Ramo `ap/ap-f1e631f5/c-5`, diff della dashboard prima dell'unione con c-4. Agente lanciato dalla chat (Agent tool), sola lettura.
+
+| Agente | Parte | Segnalazioni | Difetti veri | Falsi allarmi / voluti | Durata | Token |
+|---|---|---|---|---|---|---|
+| ecc:typescript-reviewer | shared, PC, pagina, app | 5 | 4 (1 medio, 3 piccoli) | 1 (ordine delle regex: è solo un'etichetta) | 3 min | 69 k |
+
+**Veri, corretti con test:**
+1. **Medio.** Un segnale perso (Stop mai arrivato) lasciava «fa girare i test · da 3 h» per sempre. Ora, dopo 10 minuti di silenzio: «nessun segnale da N min», e niente «adesso».
+2. Il permesso si raccontava dalla descrizione scritta dalla chat («esegue un comando»). Ora si racconta dal comando.
+3. Nell'app «da N min» avanzava solo quando cambiavano i dati.
+4. Sul PC ogni segnale faceva subito una rilettura via IPC: ora aspetta mezzo secondo di quiete.
+
+Ha anche verificato, senza trovare problemi:
+- il cambio del matcher PreToolUse: non tocca `statoDaSegnali` né l'hook dei divieti dell'autopilota;
+- l'IPC `segnali:di`, con l'input controllato;
+- le regex sul diario, uguali ai testi veri (poi tolte nell'unione con c-4);
+- l'assenza di backtick e backslash nella pagina.
+
+**Hook di ECC accesi nella cartella di lavoro di c-5.** È la trappola già scritta sopra: il worktree nuovo non aveva `.claude/settings.local.json`.
+- Il «Fact-Forcing Gate» ha bloccato una decina di volte la prima scrittura di un file e ogni comando che cancella (`git rm`, la cartella della copia di prova, perfino un testo che contiene quelle parole). Ogni volta chiedeva di ripetere i fatti.
+- Costo: qualche decina di secondi e un po' di testo per blocco. Nessun errore evitato: erano tutte azioni volute.
+- Conferma che, se Nicholas vuole gli hook spenti, il file va copiato anche nei worktree creati da SierraDeck. Meglio ancora: SierraDeck lo copia da solo quando crea la cartella (da decidere).
+
+**Giudizio:** utile anche su un lavoro piccolo. Il difetto medio (Stop perso) la prova dal vero non l'avrebbe mostrato.
+

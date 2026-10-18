@@ -167,6 +167,11 @@ export function paginaClient(): string {
   .nota-ap.nota-ap--traguardo { font-size: 13px; color: var(--testo); border-left-color: var(--verde); }
   /* Il campo per scrivere all'autopilota resta in fondo allo schermo, sopra la fascia (0.79.0, con .ancorata). */
   .casella-ap { z-index: 2; }
+  /* Compatto (prova dal vero del 18/10): alto 190 px copriva la fine della conversazione. */
+  .casella-ap { border-top: 1px solid var(--bordo, #2a2f3a); }
+  .casella-ap .riga { margin: 4px 0; }
+  .casella-ap textarea { min-height: 52px; max-height: 30vh; }
+  .casella-ap button { min-height: 40px; padding: 4px 12px; }
   .pan-tel-situazione { display: flex; flex-direction: column; gap: 4px; }
   .pan-tel-obiettivo { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-apri { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 4px; padding: 0 8px; text-align: left; background: none; border: 0; border-top: 1px solid var(--bordo, #2a2f3a); color: var(--testo); }
@@ -2693,6 +2698,9 @@ window.guardaAp = async (id, pc, nomePc) => {
   pannello(ultimoStato)
   await leggiAp()
   pannello(ultimoStato)
+  // All'apertura in vista chi lavora, la conversazione e il campo, non solo la situazione (prova del 18/10).
+  const alLavoro = document.getElementById('al-lavoro-ap')
+  if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
 window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
@@ -2776,11 +2784,12 @@ function schedaTelHtml(s, quante) {
  */
 function alLavoroHtml(righe) {
   const aspettano = righe.filter((r) => r.aspettaTe).length
-  return '<div class="serigrafia">Al lavoro · ' + righe.length + (aspettano ? ' <span class="pan-tel-aspettano">· ◆ ' + (aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te') + '</span>' : '') +
+  return '<div class="serigrafia" id="al-lavoro-ap">Al lavoro · ' + righe.length + (aspettano ? ' <span class="pan-tel-aspettano">· ◆ ' + (aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te') + '</span>' : '') +
     aiuto('al-lavoro', 'Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.') + '</div>' +
     (righe.length ? righe.slice(0, panAperte['al-lavoro'] ? righe.length : 3).map((r) => {
       const corpo = '<span class="pan-tel-pallino">' + (r.aspettaTe ? '◆' : '●') + '</span><span class="pan-tel-al-lavoro__testo"><b>' + esc(r.chi) + '</b> ' + esc(r.cosa) +
-        '<span class="sotto">' + (r.aspettaTe ? '<b class="pan-tel-stato--ambra">aspetta te</b>' + (r.quanto ? ' · ' : '') : '') + esc(r.quanto || '') + '</span></span>'
+        // «adesso» (0.79.0): cosa fa in questo momento, dai segnali; come sottoAlLavoro del PC.
+        '<span class="sotto">' + (r.aspettaTe ? '<b class="pan-tel-stato--ambra">' + esc(r.adesso || 'aspetta te') + '</b>' : esc(r.adesso || '')) + ((r.aspettaTe || r.adesso) && r.quanto ? ' · ' : '') + esc(r.quanto || '') + '</span></span>'
       return apPc
         ? '<div class="pan-tel-al-lavoro' + (r.aspettaTe ? ' pan-tel-al-lavoro--chiede' : '') + '">' + corpo + '</div>'
         : '<button class="pan-tel-al-lavoro' + (r.aspettaTe ? ' pan-tel-al-lavoro--chiede' : '') + '" data-chat="' + esc(r.id) + '" onclick="apriDaPanoramica(this.dataset.chat)">' + corpo + '</button>'

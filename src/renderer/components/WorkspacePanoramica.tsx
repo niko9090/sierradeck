@@ -8,6 +8,8 @@ import {
 } from '@shared/panoramica'
 import { CHAT_GENERICA } from '@shared/adozione'
 import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
+import { attivitaDaSegnali } from '@shared/attivita-chat'
+import type { Segnale } from '@shared/segnali-chat'
 import { ChatAutopilota } from './ChatAutopilota'
 import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
@@ -187,6 +189,8 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
   onSoloMia: (s: SchedaVista, si: boolean) => void
 }): React.JSX.Element {
   const ora = Date.now()
+  // Cosa fa adesso ogni chat al lavoro (0.79.0): dai segnali di Claude Code, riletti da soli.
+  const segnali = useSegnaliDi(schede.filter((x) => x.stato === 'lavora' || x.stato === 'chiede').flatMap((x) => (x.sessione !== undefined && x.suPc === undefined ? [x.sessione] : [])))
   const { adesso, finite } = adessoEFinite(schede)
   // Le chat che non lavorano: quelle del workspace (anche adottate) nella sezione «Chat»,
   // quelle dell'autopilota (specialisti, la sua chat) in «Finite: N ▸».
@@ -206,7 +210,7 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
         )}
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
-        <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora)} schede={schede} onApri={onApri} />
+        <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))} schede={schede} onApri={onApri} />
         <div className="pan2-sezione">
           <div className="serigrafia" aria-live="polite">Adesso · {adesso.length}</div>
           {adesso.length === 0 ? (
@@ -505,4 +509,36 @@ function PrimoMessaggio({ workspace, dormiente, onRicarica }: { workspace: strin
       {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}
     </div>
   )
+}
+
+/** Ogni quanto si rileggono i segnali delle chat al lavoro, oltre che a ogni segnale nuovo. */
+const SEGNALI_OGNI_MS = 5000
+
+/**
+ * Gli ultimi segnali di queste sessioni (0.79.0), riletti ogni 5 secondi e a
+ * ogni segnale nuovo, con mezzo secondo di quiete: in un turno pieno arrivano
+ * a raffica (revisione ECC).
+ */
+function useSegnaliDi(sessioni: string[]): Record<string, Segnale[]> {
+  const [segnali, setSegnali] = useState<Record<string, Segnale[]>>({})
+  const chiave = sessioni.join('|')
+  useEffect(() => {
+    if (sessioni.length === 0) { setSegnali({}); return }
+    let vivo = true
+    const leggi = (): void => { window.gestore.segnali.di(sessioni).then((s) => { if (vivo) setSegnali(s) }).catch(() => undefined) }
+    leggi()
+    const t = setInterval(leggi, SEGNALI_OGNI_MS)
+    let attesa: ReturnType<typeof setTimeout> | undefined
+    let toglie: (() => void) | undefined
+    try {
+      toglie = window.gestore.segnali.suStato((f) => {
+        if (!sessioni.includes(f.sessione)) return
+        if (attesa !== undefined) clearTimeout(attesa)
+        attesa = setTimeout(leggi, 500)
+      })
+    } catch { /* finestra senza segnali */ }
+    return () => { vivo = false; clearInterval(t); if (attesa !== undefined) clearTimeout(attesa); toglie?.() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chiave])
+  return segnali
 }

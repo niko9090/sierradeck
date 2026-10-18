@@ -7,7 +7,8 @@
         "ruolo": "collaudo",
         "cosa": "prova: «Prova dal vero in una copia»",
         "quanto": "adesso",
-        "aspettaTe": true
+        "aspettaTe": true,
+        "adesso": "aspetta il tuo permesso: fa girare i test"
       },
       {
         "id": "p-col2",
@@ -22,15 +23,16 @@
         "ruolo": "interfaccia",
         "cosa": "lavora a: «Interfaccia della gestione delle chat su PC, pagina e app»",
         "quanto": "da 12 min",
-        "aspettaTe": false
+        "aspettaTe": false,
+        "adesso": "modifica il codice (App.tsx)"
       }
     ]
   },
   "titolo": "Al lavoro · 3 · ◆ 2 aspettano te",
   "sotto": [
-    "aspetta te · adesso",
+    "aspetta il tuo permesso: fa girare i test · adesso",
     "aspetta te",
-    "da 12 min"
+    "modifica il codice (App.tsx) · da 12 min"
   ],
   "battute": [
     {

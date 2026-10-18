@@ -120,6 +120,17 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
   })
   it('0.79.0: nessuno al lavoro; un PC della 0.78 senza riassunto; da un altro PC le righe non si aprono', () => {
     expect(creaParti()({ situazione, piano, schede, alLavoro: [] }, 'testa')).toContain('Nessuna chat al lavoro.')
+    // 0.79.0: cosa fa adesso, dai segnali; il permesso è già «aspetta te», in ambra.
+    const adesso = creaParti()({ situazione, piano, schede, alLavoro: [
+      { id: 'p-2', chi: 'Sviluppo', cosa: 'lavora a: «Somma»', quanto: 'da 3 min', aspettaTe: false, adesso: 'fa girare i test' },
+      { id: 'p-3', chi: 'Collaudo', cosa: 'prova: «Prove»', quanto: 'adesso', aspettaTe: true, adesso: 'aspetta il tuo permesso: salva il lavoro' },
+      { id: 'p-4', chi: 'Chat', cosa: 'x', quanto: '', aspettaTe: true }
+    ] }, 'testa')
+    expect(adesso).toContain('<span class="sotto">fa girare i test · da 3 min</span>')
+    expect(adesso).toContain('<b class="pan-tel-stato--ambra">aspetta il tuo permesso: salva il lavoro</b> · adesso')
+    expect(adesso).toContain('<b class="pan-tel-stato--ambra">aspetta te</b></span>')
+    expect(adesso).toContain('id="al-lavoro-ap"')
+    expect(script).toContain("document.getElementById('al-lavoro-ap')")
     expect(creaParti()({ situazione, piano, schede }, 'testa')).not.toContain('Al lavoro')
     const daLontano = creaParti({}, 'pc-2')({ situazione, piano, schede, alLavoro: [{ id: 'p-2', chi: 'Sviluppo', cosa: 'x', quanto: '', aspettaTe: false }] }, 'testa')
     expect(daLontano).not.toContain('apriDaPanoramica')

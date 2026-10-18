@@ -165,6 +165,7 @@ declare global {
       }
       segnali: {
         suStato: (cb: (f: import('@shared/segnali-chat').FaseSessione) => void) => () => void
+        di: (sessioni: string[]) => Promise<Record<string, import('@shared/segnali-chat').Segnale[]>>
       }
       pin: {
         stato: () => Promise<import('../main/pin-guardiano').StatoPin>

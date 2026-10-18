@@ -141,7 +141,8 @@ describe('l’app legge gli stessi casi', () => {
       scheda('p-int', 'lavora', { sessione: 's-c-2', ruolo: 'interfaccia', dal: ORA - 12 * MIN }),
       scheda('p-col', 'chiede', { sessione: 's-c-4', ruolo: 'collaudo', dal: ORA - 30_000 }),
       scheda('p-col2', 'chiede', { sessione: 's-c-x', titolo: 'senza tempo' })
-    ], ORA)
+    // 0.79.0: cosa fa adesso, dai segnali (attivita-chat.ts): una con l'attività, una che aspetta il permesso, una senza.
+    ], ORA, (s) => (s === 's-c-2' ? 'modifica il codice (App.tsx)' : s === 's-c-4' ? 'aspetta il tuo permesso: fa girare i test' : undefined))
     const a = flotta()
     a.decisioni = [{ quando: '2026-10-18T10:00:00.000Z', cosa: 'tecnica', traguardo: { chat: 'c-1', esito: 'in-revisione' } }]
     const battute = conversazione(a)

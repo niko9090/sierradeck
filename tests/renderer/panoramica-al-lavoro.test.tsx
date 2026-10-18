@@ -37,7 +37,9 @@ describe('la Panoramica del PC: conversazione grande e riassunto accanto', () =>
   it('la conversazione ha il campo sempre pronto e scorre da sola; il riassunto sta in cima al centro', () => {
     const corpo = readFileSync('src/renderer/components/WorkspacePanoramica.tsx', 'utf8')
     expect(corpo).toContain('<ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />')
-    expect(corpo).toContain('<RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora)}')
+    // 0.79.0: con cosa fa adesso ogni chat, dai segnali (attivita-chat.ts).
+    expect(corpo).toContain('<RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))}')
+    expect(corpo).toContain('const segnali = useSegnaliDi(')
     const css = readFileSync('src/renderer/console.css', 'utf8')
     expect(css).toContain('.pan2 { display: grid; grid-template-columns: minmax(380px, 44%) minmax(0, 1fr);')
     // Scorre solo il flusso con la conversazione; senza autopilota (il primo messaggio) scorre la colonna.
