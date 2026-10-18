@@ -366,16 +366,22 @@ describe('il dialogo con l autopilota', () => {
 
   it('due messaggi di fila ricevono due risposte, in ordine', async () => {
     let n = 0
+    // La prima risposta parte solo dopo che il secondo messaggio è arrivato: con 60 ms fissi, a
+    // macchina carica «due» arrivava dopo «risposta 1» e il test cadeva senza un difetto vero.
+    let apri: () => void = () => undefined
+    const secondoArrivato = new Promise<void>((r) => { apri = r })
     server = ambiente((prompt) => {
       if (!prompt.includes('Ti scrive adesso')) return Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "x"}' })
       n += 1
       const mio = n
-      return new Promise((r) => setTimeout(() => r({ testo: JSON.stringify({ risposta: `risposta ${mio}` }) }), mio === 1 ? 60 : 5))
+      const testo = JSON.stringify({ risposta: `risposta ${mio}` })
+      return mio === 1 ? secondoArrivato.then(() => new Promise((r) => setTimeout(() => r({ testo }), 20))) : new Promise((r) => setTimeout(() => r({ testo }), 5))
     })
     await avvia(server)
     const id = await creaAp()
     await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'uno' })
     await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'due' })
+    apri()
     await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 4)
     expect(archivio.leggi(id)?.dialogo.map((b) => b.testo)).toEqual(['uno', 'due', 'risposta 1', 'risposta 2'])
   })

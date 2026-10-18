@@ -271,3 +271,7 @@ Test: `tests/renderer/colonna-domande.test.ts`.
 - **La vecchia finestra delle domande sul PC** (`DomandaModale.tsx`) resta com'è: su quella decide Nicholas.
 - **Una domanda gemella risposta in ritardo** riprende solo la prima chat che l'aveva posta; le altre ripartono dal freno
   o al loro prossimo giro.
+
+**18/10 (0.79.0):** a macchina carica (più chat che lanciano test insieme) cadevano tre test senza un difetto vero: `worktree.test.ts` e `file-autopilota.test.ts` (git vero, 28 s contro i 20 di regola) e «due messaggi di fila» di `dialogo.test.ts` (supponeva 60 ms fra due POST). Ora i due gruppi git hanno `{ timeout: 60_000 }` e il dialogo aspetta davvero il secondo messaggio (commit `7494708`). Se un rosso scompare rilanciando il solo file, guarda prima i tempi, non il codice.
+
+**18/10, dopo:** il giro del supervisore parte dal servizio, con `TEMP`/`TMP`/`TMPDIR` in una cartella nuova `sierradeck-criterio-*` (cache di Node fredda, più lento). Per riprodurlo: `npm test` con quelle tre variabili su una cartella nuova dentro Temp. Così cadeva `sftp.test.ts` («le accentate arrivano intere»: 120 ms fissi, arrivava solo «pero»); ora aspetta il testo fino a 5 s. Regola: nei test, aspettare la condizione e non un tempo fisso.

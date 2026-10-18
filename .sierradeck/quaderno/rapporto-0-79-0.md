@@ -358,6 +358,11 @@ Procedura: tag `v0.79.0` → `gh release create --draft` → `GH_TOKEN=$(gh auth
 
 c-4 ha c78e042, dopo la release, in Revisione (c-6).
 
+## Da togliere a mano (Nicholas)
+- `C:\Users\nikof\AppData\LocalTempsierradeck-criterio-prova21820`: è una cartella creata per errore il 18/10, quando ho riprodotto il giro dei test del supervisore. Nel percorso manca la barra fra `Local` e `Temp`. Dentro c'è solo `node-compile-cache`, la cache di compilazione di Node. La guardia delle cancellazioni non permette di toglierla da una chat, perché è fuori dal progetto. Non fa danno.
+- `note/prova-079`: la copia di prova della gestione delle chat. Le credenziali copiate sono già svuotate.
+- `note/prova-c49`, nella copia del ramo c-4: la copia di prova della Panoramica.
+
 ## Dopo la release: allineamento dell'app (c-53, c-57, c-61, ramo c-4)
 
 Un confronto fra PC, pagina e app ha trovato 28 differenze. Sono state corrette queste:
@@ -379,4 +384,4 @@ Un confronto fra PC, pagina e app ha trovato 28 differenze. Sono state corrette 
 - Queste correzioni sono arrivate dopo la v0.79.0 pubblicata: servono una 0.79.1 e un'app nuova, solo con il sì di Nicholas.
 - Non sono state provate con clic veri; contano solo i test.
 
-**Revisione c-61:** la Revisione ha visto `npm test` rotto dopo l'unione. Ho unito main nel ramo e il giro intero è verde: 4186 test, typecheck, gradle e guardia.
+**Revisioni c-61 e c-65:** la Revisione ha visto `npm test` rotto dopo l'unione. Il ramo non cambia codice di main: ogni volta ho unito main nel ramo e ho rifatto il giro intero, con test, typecheck, gradle e guardia. Nella c-65 il conflitto era solo in questo rapporto: due sezioni aggiunte nello stesso punto, tenute tutte e due.
