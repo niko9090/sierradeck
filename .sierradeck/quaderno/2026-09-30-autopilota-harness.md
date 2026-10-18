@@ -275,3 +275,8 @@ Test: `tests/renderer/colonna-domande.test.ts`.
 **18/10 (0.79.0):** a macchina carica (più chat che lanciano test insieme) cadevano tre test senza un difetto vero: `worktree.test.ts` e `file-autopilota.test.ts` (git vero, 28 s contro i 20 di regola) e «due messaggi di fila» di `dialogo.test.ts` (supponeva 60 ms fra due POST). Ora i due gruppi git hanno `{ timeout: 60_000 }` e il dialogo aspetta davvero il secondo messaggio (commit `7494708`). Se un rosso scompare rilanciando il solo file, guarda prima i tempi, non il codice.
 
 **18/10, dopo:** il giro del supervisore parte dal servizio, con `TEMP`/`TMP`/`TMPDIR` in una cartella nuova `sierradeck-criterio-*` (cache di Node fredda, più lento). Per riprodurlo: `npm test` con quelle tre variabili su una cartella nuova dentro Temp. Così cadeva `sftp.test.ts` («le accentate arrivano intere»: 120 ms fissi, arrivava solo «pero»); ora aspetta il testo fino a 5 s. Regola: nei test, aspettare la condizione e non un tempo fisso.
+
+**18/10 (0.80.0), con c-10, c-11 e c-12 al lavoro insieme (suite 370 s invece di ~280 s):**
+- `cancellazioni-solo-dalla-guardia.test.ts` leggeva tutti i file di `src` e `scripts` dentro il primo test: 30,8 s contro il tetto di 20 s. Ora li legge una volta sola, prima dei test.
+- `verifiche-shell.test.ts` («non aspetta i processi in background») ci ha messo 10,09 s contro una soglia di 10 s (metà del tetto di 20 s). Ora il tetto è 60 s e il processo lasciato in sottofondo dura 90 s, così senza la correzione si arriva al tetto.
+- Ripetuto: un test che misura tempi deve confrontarli con un tetto largo, non con pochi secondi di margine.
