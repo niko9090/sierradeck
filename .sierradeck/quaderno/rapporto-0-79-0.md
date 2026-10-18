@@ -357,3 +357,8 @@ Al primo giro di `npm test` tre test (git e dialogo) avevano superato il tempo p
 Procedura: tag `v0.79.0` → `gh release create --draft` → `GH_TOKEN=$(gh auth token) npm run pubblica` → `npm run allega-apk` → `gh release edit --draft=false --latest`.
 
 c-4 ha c78e042, dopo la release, in Revisione (c-6).
+
+## Da togliere a mano (Nicholas)
+- `C:\Users\nikof\AppData\LocalTempsierradeck-criterio-prova21820`: è una cartella creata per errore il 18/10, quando ho riprodotto il giro dei test del supervisore. Nel percorso manca la barra fra `Local` e `Temp`. Dentro c'è solo `node-compile-cache`, la cache di compilazione di Node. La guardia delle cancellazioni non permette di toglierla da una chat, perché è fuori dal progetto. Non fa danno.
+- `note/prova-079`: la copia di prova della gestione delle chat. Le credenziali copiate sono già svuotate.
+- `note/prova-c49`, nella copia del ramo c-4: la copia di prova della Panoramica.
