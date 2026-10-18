@@ -4,7 +4,7 @@ import type { ChatArchiviata, ChatInRecupero, VistaSpazio } from '@shared/gestio
 import { FRASE_SVUOTA, totaleSelezione } from '@shared/gestione-chat'
 import {
   commutaScelta, confermaArchiviaChat, confermaChiediSvuota, confermaEliminaChat, fraseSvuotaGiusta, nomeScelte, ordinaVoci,
-  ORDINI_SPAZIO, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide,
+  ORDINI_SPAZIO, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide, SPIEGA_SVUOTA_DRIVE,
   type Conferma, type OrdineSpazio, type Rifiuto
 } from '@shared/gestione-chat-vista'
 import { byteLeggibili } from '@shared/spazio-drive'
@@ -85,7 +85,8 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
     setInCorso(true)
     window.gestore.chatGestione.chiediSvuota(svuotaDrive)
       .then((r) => {
-        if (r.ok && r.gettone !== undefined) setSvuota({ passo: 'scrivi', gettone: r.gettone, messaggio: r.messaggio, frase: '' })
+        // Annullato mentre il PC rispondeva: «Scrivi SVUOTA» non deve comparire lo stesso.
+        if (r.ok && r.gettone !== undefined) { const g = r.gettone; setSvuota((prima) => prima?.passo === 'chiedi' ? { passo: 'scrivi', gettone: g, messaggio: r.messaggio, frase: '' } : prima) }
         else { setSvuota(undefined); setNota({ messaggio: r.messaggio, rifiuti: [] }) }
       })
       .catch((err: unknown) => { setSvuota(undefined); setNota({ messaggio: `Non è andata: ${String(err)}`, rifiuti: [] }) })
@@ -118,7 +119,7 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
         <div className="gc-linguette" role="tablist">
           {linguetta('spazio', 'Spazio')}
           {linguetta('archiviate', 'Archiviate', archiviate?.length)}
-          {linguetta('recupero', 'Recupero (30 giorni)', recupero?.chat.length)}
+          {linguetta('recupero', 'Recupero', recupero?.chat.length)}
         </div>
         {errore !== undefined ? <div className="gc-errore">⚠ {errore}</div> : null}
         {nota !== undefined ? (
@@ -222,7 +223,7 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
                 <>
                   <div className="dialogo__testa"><span className="serigrafia">{c.titolo}</span></div>
                   <p style={{ lineHeight: 1.5 }}>{c.testo}</p>
-                  <label className="misura gc-spunta"><input type="checkbox" checked={svuotaDrive} onChange={(e) => setSvuotaDrive(e.target.checked)} /> anche dal Drive</label>
+                  <label className="misura gc-spunta"><input type="checkbox" checked={svuotaDrive} onChange={(e) => setSvuotaDrive(e.target.checked)} /> anche dal Drive <Aiuto di="anche dal Drive">{SPIEGA_SVUOTA_DRIVE}</Aiuto></label>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
                     <button className="tasto" autoFocus onClick={() => setSvuota(undefined)}>Annulla</button>
                     <button className="tasto tasto--pericolo" disabled={inCorso} onClick={chiediSvuota}>{c.azione}</button>

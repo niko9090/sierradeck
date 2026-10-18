@@ -58,7 +58,9 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data class EsclusaChat(val sessione: String = "", val motivo: String = "")
 @Serializable data class SelezioneChat(
-    val chat: Int = 0, val byte: Double = 0.0, val eliminabili: Int = 0, val byteEliminabili: Double = 0.0, val escluse: List<EsclusaChat> = emptyList()
+    val chat: Int = 0, val byte: Double = 0.0, val eliminabili: Int = 0, val byteEliminabili: Double = 0.0, val escluse: List<EsclusaChat> = emptyList(),
+    /** PC 0.79.0: le scelte che lì non sono aperte («Chiudi» spento); assente da un PC più vecchio. */
+    val chiuse: List<String>? = null
 )
 @Serializable data class ContoRecupero(val chat: Int = 0, val byte: Double = 0.0)
 @Serializable data class VistaSpazioChat(
@@ -100,6 +102,10 @@ object GestioneChatRegole {
     )
 
     val ORDINI = listOf("spazio" to "Le più grandi", "uso" to "Le meno usate")
+
+    /** Il «?» di «anche dal Drive» in Elimina dal PC e in «Svuota il recupero adesso» (`SPIEGA_ELIMINA_DRIVE`, `SPIEGA_SVUOTA_DRIVE` del PC). */
+    const val SPIEGA_ELIMINA_DRIVE = "Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina». Senza la spunta la copia sul Drive resta, e gli altri PC la vedono ancora."
+    const val SPIEGA_SVUOTA_DRIVE = "Cancella per sempre anche le copie di queste chat che sono nel recupero del Drive. Senza la spunta lì restano, e si cancellano da sole alla loro scadenza."
 
     fun byte(n: Double): String = SpazioRegole.byte(n)
 
@@ -163,11 +169,15 @@ object GestioneChatRegole {
     fun totale(voci: List<VoceSpazioChat>, scelte: Collection<String>): SelezioneChat {
         val sel = voci.filter { it.sessione in scelte }
         val ok = sel.filter { it.nonEliminabile == null }
-        return SelezioneChat(sel.size, sel.sumOf { it.byte }, ok.size, ok.sumOf { it.byte }, sel.filter { it.nonEliminabile != null }.map { EsclusaChat(it.sessione, it.nonEliminabile!!) })
+        return SelezioneChat(sel.size, sel.sumOf { it.byte }, ok.size, ok.sumOf { it.byte }, sel.filter { it.nonEliminabile != null }.map { EsclusaChat(it.sessione, it.nonEliminabile!!) }, sel.filter { !it.aperta }.map { it.sessione })
     }
 
     /** Il motivo del PC per cui una chat scelta da sola non si elimina, o null se si può: «Elimina dal PC» spento con questo motivo. */
     fun motivoNonElimina(s: SelezioneChat?): String? = s?.escluse?.firstOrNull()?.motivo?.takeIf { it.isNotBlank() }
+
+    /** Come `motivoNonChiudeScelta` del PC: «Chiudi» spento se lì la chat non è aperta; senza `chiuse` (PC più vecchio) resta acceso. */
+    fun motivoNonChiude(s: SelezioneChat?, sessione: String, titolo: String): String? =
+        if (s?.chiuse?.contains(sessione) == true) "${if (titolo.isBlank()) "Questa chat" else "«${titolo.trim()}»"} non è aperta: è già chiusa." else null
 
     fun riepilogoSelezione(s: SelezioneChat): String {
         if (s.chat == 0) return "Nessuna chat scelta."
@@ -197,9 +207,10 @@ object GestioneChatRegole {
 /**
  * Le tre azioni di **una** chat, con il loro «?» e la conferma. Si apre dal
  * menu della chat aperta e dall'elenco «Riprendi una conversazione».
+ * `onFatto` riceve quante chat il PC ha davvero toccato (0 = rifiutata).
  */
 @Composable
-fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String?, onFatto: () -> Unit, onChiudi: () -> Unit) {
+fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String?, onFatto: (Int) -> Unit, onChiudi: () -> Unit) {
     val scope = rememberCoroutineScope()
     var conferma by remember { mutableStateOf<String?>(null) }
     var spazio by remember { mutableStateOf<String?>(null) }
@@ -212,12 +223,14 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
     // Aperto il dialogo si chiede subito al PC quanto libera e se si può eliminare: una chat al lavoro,
     // in attesa, guidata da un autopilota attivo o di un altro PC mostra «Elimina dal PC» spento col motivo.
     var motivoNo by remember { mutableStateOf<String?>(null) }
+    var motivoChiudi by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(sessione) {
         misura = true
         try {
             val sel = api.spazioChat(listOf(sessione)).selezione
             spazio = GestioneChatRegole.byte(sel?.byte ?: 0.0)
             motivoNo = GestioneChatRegole.motivoNonElimina(sel)
+            motivoChiudi = GestioneChatRegole.motivoNonChiude(sel, sessione, titolo)
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
         misura = false
     }
@@ -228,7 +241,7 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
             val e = tentaGestione("${GestioneChatRegole.TESTI[azione]?.etichetta?.lowercase() ?: azione} la chat", nomePc, FunzionePc.GESTIONE_CHAT) { api.azioneChat(azione, listOf(sessione), drive) }
             inCorso = false
             conferma = null
-            if (e != null) { fatte = e.fatte; esito = e.messaggio to GestioneChatRegole.rifiuti(e); onFatto() }
+            if (e != null) { fatte = e.fatte; esito = e.messaggio to GestioneChatRegole.rifiuti(e); onFatto(e.fatte) }
         }
     }
     val r = esito
@@ -256,7 +269,7 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
                     if (c == "elimina" && motivoNo == null) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = drive, onCheckedChange = { drive = it })
                         Text("anche dal Drive", fontSize = 13.sp, modifier = Modifier.weight(1f))
-                        Aiuto("Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina».", di = "anche dal Drive")
+                        Aiuto(GestioneChatRegole.SPIEGA_ELIMINA_DRIVE, di = "anche dal Drive")
                     }
                 }
             },
@@ -272,9 +285,11 @@ fun AzioniChatDialogo(api: Api, sessione: String, titolo: String, nomePc: String
             Column {
                 for ((id, t) in GestioneChatRegole.TESTI) {
                     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val spento = id == "elimina" && motivoNo != null
-                        TextButton(enabled = !spento, onClick = { conferma = id }) { Text(t.etichetta, color = if (spento) Banco.testoQuieto else if (id == "elimina") Banco.rosso else Banco.accento) }
-                        if (spento) Text(motivoNo ?: "", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        val no = when (id) { "elimina" -> motivoNo; "chiudi" -> motivoChiudi; else -> null }
+                        val spento = no != null
+                        // «anche dal Drive» riparte senza spunta a ogni conferma, come sul PC e sulla pagina.
+                        TextButton(enabled = !spento, onClick = { drive = false; conferma = id }) { Text(t.etichetta, color = if (spento) Banco.testoQuieto else if (id == "elimina") Banco.rosso else Banco.accento) }
+                        if (spento) Text(no ?: "", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         else Text(t.breve, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         Aiuto(t.spiega, di = t.etichetta)
                     }
@@ -441,7 +456,8 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                 Column {
                     Text(c.testo, fontSize = 14.sp)
                     if (az == "elimina") Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = drive, onCheckedChange = { drive = it }); Text("anche dal Drive", fontSize = 13.sp)
+                        Checkbox(checked = drive, onCheckedChange = { drive = it }); Text("anche dal Drive", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Aiuto(GestioneChatRegole.SPIEGA_ELIMINA_DRIVE, di = "anche dal Drive")
                     }
                 }
             },
@@ -466,7 +482,10 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
             text = {
                 Column {
                     Text(c.testo, fontSize = 14.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = svuotaDrive, onCheckedChange = { svuotaDrive = it }); Text("anche dal Drive", fontSize = 13.sp) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = svuotaDrive, onCheckedChange = { svuotaDrive = it }); Text("anche dal Drive", fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Aiuto(GestioneChatRegole.SPIEGA_SVUOTA_DRIVE, di = "anche dal Drive")
+                    }
                 }
             },
             confirmButton = {
@@ -476,6 +495,8 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                     scope.launch {
                         val r = tentaGestione("chiedere la conferma", nomePc, FunzionePc.GESTIONE_CHAT) { api.chiediSvuotaRecupero(svuotaDrive) }
                         inCorso = false
+                        // Annullato mentre il PC rispondeva: «Scrivi SVUOTA» non deve comparire lo stesso.
+                        if (svuota != 1) return@launch
                         if (r != null && r.ok && r.gettone != null) { gettone = r; frase = ""; svuota = 2 } else { svuota = 0; if (r != null) nota = r.messaggio to emptyList() }
                     }
                 }) { Text(c.azione, color = Banco.rosso) }

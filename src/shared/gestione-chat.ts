@@ -374,7 +374,7 @@ export function vistaSpazio(voci: readonly VoceSpazio[], recupero: RegistroRecup
 }
 
 /** Più chat scelte insieme: quante, quanto spazio, quante si possono eliminare. */
-export function totaleSelezione(voci: readonly VoceSpazio[], scelte: readonly string[]): { chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[] } {
+export function totaleSelezione(voci: readonly VoceSpazio[], scelte: readonly string[]): { chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[]; chiuse: string[] } {
   const set = new Set(scelte)
   const sel = voci.filter((v) => set.has(v.sessione))
   const ok = sel.filter((v) => v.nonEliminabile === undefined)
@@ -383,7 +383,9 @@ export function totaleSelezione(voci: readonly VoceSpazio[], scelte: readonly st
     byte: sel.reduce((t, v) => t + v.byte, 0),
     eliminabili: ok.length,
     byteEliminabili: ok.reduce((t, v) => t + v.byte, 0),
-    escluse: sel.filter((v) => v.nonEliminabile !== undefined).map((v) => ({ sessione: v.sessione, motivo: v.nonEliminabile as string }))
+    escluse: sel.filter((v) => v.nonEliminabile !== undefined).map((v) => ({ sessione: v.sessione, motivo: v.nonEliminabile as string })),
+    // 0.79.0: quelle che qui non sono aperte, per «Chiudi» spento con il motivo (un PC più vecchio non lo manda).
+    chiuse: sel.filter((v) => !v.aperta).map((v) => v.sessione)
   }
 }
 

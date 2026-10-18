@@ -51,6 +51,6 @@ describe('la Panoramica del PC: conversazione grande e riassunto accanto', () =>
     const chat = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
     expect(chat).toContain("const battute = soloConversazione ? messaggi : tutte.filter((b) => b.tono !== 'traguardo')")
     const azioni = readFileSync('src/renderer/components/AzioniChat.tsx', 'utf8')
-    expect(azioni).toContain('if (motivo !== undefined) { setMisura({ byte: s.byte, motivo }); setMenu(true); return }')
+    expect(azioni).toContain('if (motivo !== undefined) { setMisura({ byte: s.byte, motivo, chiusa: ')
   })
 })

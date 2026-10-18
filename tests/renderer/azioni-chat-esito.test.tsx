@@ -30,8 +30,14 @@ describe('l’esito delle tre azioni non sparisce con la riga della chat', () =>
   it('aperto il menu, «Elimina dal PC» si spegne con il motivo del PC (chat al lavoro, in attesa, guidata, di un altro PC)', () => {
     const src = readFileSync('src/renderer/components/AzioniChat.tsx', 'utf8')
     expect(src).toContain('window.gestore.chatGestione.selezione([sessione])')
-    expect(src).toContain("setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo })")
-    expect(src).toContain("(a === 'elimina' && misura?.motivo !== undefined)")
-    expect(src).toContain('<span className="gc-voce__no">{misura.motivo}</span>')
+    expect(src).toContain("setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo, chiusa: onChiudi === undefined ? motivoNonChiudeScelta(s, sessione, titolo) : undefined })")
+    expect(src).toContain("const no = a === 'elimina' ? misura?.motivo : a === 'chiudi' ? misura?.chiusa : undefined")
+    expect(src).toContain("disabled={(a === 'chiudi' && aperta === false) || no !== undefined}")
+    expect(src).toContain('<span className="gc-voce__no">{no}</span>')
+  })
+
+  it('anche dal Drive ha il suo «?» con le parole condivise, in Elimina e in Svuota', () => {
+    expect(readFileSync('src/renderer/components/AzioniChat.tsx', 'utf8')).toContain('<Aiuto di="anche dal Drive">{SPIEGA_ELIMINA_DRIVE}</Aiuto>')
+    expect(readFileSync('src/renderer/components/ModaleGestioneChat.tsx', 'utf8')).toContain('<Aiuto di="anche dal Drive">{SPIEGA_SVUOTA_DRIVE}</Aiuto>')
   })
 })

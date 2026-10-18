@@ -964,7 +964,7 @@ contextBridge.exposeInMainWorld('gestore', {
    */
   chatGestione: {
     spazio: (): Promise<VistaSpazio> => ipcRenderer.invoke('chatGestione:spazio'),
-    selezione: (sessioni: string[]): Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[] }> =>
+    selezione: (sessioni: string[]): Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[]; chiuse: string[] }> =>
       ipcRenderer.invoke('chatGestione:selezione', sessioni),
     azione: (r: { azione: AzioneChat; sessioni: string[]; ancheDalDrive?: boolean; nome?: string }): Promise<EsitoAzioni> =>
       ipcRenderer.invoke('chatGestione:azione', r),

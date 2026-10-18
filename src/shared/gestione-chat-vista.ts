@@ -11,7 +11,7 @@
  * Le conferme prendono il nome e lo spazio **già scritti** (`§N`, `§B` nella
  * pagina): così la pagina usa gli stessi testi senza rifare i calcoli.
  */
-import { FRASE_SVUOTA, RECUPERO_CHAT_GIORNI, type ChatArchiviata, type ChatInRecupero, type EsitoAzioni, type VistaSpazio, type VoceSpazio } from './gestione-chat'
+import { FRASE_SVUOTA, motivoNonChiude, RECUPERO_CHAT_GIORNI, type ChatArchiviata, type ChatInRecupero, type EsitoAzioni, type VistaSpazio, type VoceSpazio } from './gestione-chat'
 import { byteLeggibili } from './spazio-drive'
 
 export type Conferma = { titolo: string; testo: string; azione: string }
@@ -87,6 +87,14 @@ export function riepilogoSelezione(s: Selezione): string {
   return `${quante} · ${byteLeggibili(s.byte)}${no} · eliminandole liberi ${byteLeggibili(s.byteEliminabili)}`
 }
 
+/**
+ * «Chiudi» spento con il motivo del PC: la chat non è aperta qui (la selezione
+ * del PC 0.79.0 la mette in `chiuse`). Senza `chiuse` (un PC più vecchio) resta acceso.
+ */
+export function motivoNonChiudeScelta(s: { chiuse?: readonly string[] } | undefined, sessione: string, titolo: string): string | undefined {
+  return s?.chiuse?.includes(sessione) === true ? motivoNonChiude({ sessione, titolo }) : undefined
+}
+
 /** Il nome di una o più chat nelle conferme: «x» oppure «3 chat». */
 export function nomeScelte(titoli: readonly string[]): string {
   if (titoli.length === 1) return `«${titoli[0] ?? ''}»`
@@ -131,6 +139,12 @@ export function confermaChiediSvuota(ancheDalDrive: boolean): Conferma {
     azione: 'Continua'
   }
 }
+
+/** Il «?» accanto ad «anche dal Drive» in Elimina dal PC: lo stesso su PC, pagina e app. */
+export const SPIEGA_ELIMINA_DRIVE = 'Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina». Senza la spunta la copia sul Drive resta, e gli altri PC la vedono ancora.'
+
+/** Il «?» accanto ad «anche dal Drive» in «Svuota il recupero adesso». */
+export const SPIEGA_SVUOTA_DRIVE = 'Cancella per sempre anche le copie di queste chat che sono nel recupero del Drive. Senza la spunta lì restano, e si cancellano da sole alla loro scadenza.'
 
 /** La parola scritta basta per il secondo passo? (il PC la ricontrolla comunque). */
 export function fraseSvuotaGiusta(scritta: string): boolean {

@@ -360,7 +360,7 @@ declare global {
       /** La gestione delle chat (0.79.0): le stesse risposte di /api/chat/gestione/… */
       chatGestione: {
         spazio: () => Promise<VistaSpazio>
-        selezione: (sessioni: string[]) => Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[] }>
+        selezione: (sessioni: string[]) => Promise<{ chat: number; byte: number; eliminabili: number; byteEliminabili: number; escluse: { sessione: string; motivo: string }[]; chiuse?: string[] }>
         azione: (r: { azione: AzioneChat; sessioni: string[]; ancheDalDrive?: boolean; nome?: string }) => Promise<EsitoAzioni>
         archiviate: () => Promise<ChatArchiviata[]>
         recupero: () => Promise<{ chat: ChatInRecupero[]; byte: number }>

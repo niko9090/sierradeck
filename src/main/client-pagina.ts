@@ -26,8 +26,8 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE } from '@shared/menu-principale'
-import { FRASE_SVUOTA, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
-import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO } from '@shared/gestione-chat-vista'
+import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
+import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
@@ -655,7 +655,7 @@ var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
 // La gestione delle chat (0.79.0): i testi del PC, da src/shared/gestione-chat-vista.ts. §N è il nome, §B lo spazio.
 var GC = ${JSON.stringify({
-  testi: TESTI_AZIONI_CHAT, frase: FRASE_SVUOTA, ordini: ORDINI_SPAZIO,
+  testi: TESTI_AZIONI_CHAT, frase: FRASE_SVUOTA, ordini: ORDINI_SPAZIO, nonAperta: motivoNonChiude({ sessione: '', titolo: '§N' }), spiegaDrive: { elimina: SPIEGA_ELIMINA_DRIVE, svuota: SPIEGA_SVUOTA_DRIVE },
   conferme: {
     chiudi: confermaChiudiChat('§N'), archivia: confermaArchiviaChat('§N'), archiviaN: confermaArchiviaChat('§N', 2),
     elimina: confermaEliminaChat('§N', '§B', false), eliminaDrive: confermaEliminaChat('§N', '§B', true),
@@ -3989,7 +3989,7 @@ function gcTotale(voci, scelte) {
   var sel = voci.filter(function (v) { return scelte.indexOf(v.sessione) >= 0 })
   var ok = sel.filter(function (v) { return !v.nonEliminabile })
   var somma = function (l) { return l.reduce(function (t, v) { return t + v.byte }, 0) }
-  return { chat: sel.length, byte: somma(sel), eliminabili: ok.length, byteEliminabili: somma(ok), escluse: sel.filter(function (v) { return !!v.nonEliminabile }).map(function (v) { return { sessione: v.sessione, motivo: v.nonEliminabile } }) }
+  return { chat: sel.length, byte: somma(sel), eliminabili: ok.length, byteEliminabili: somma(ok), escluse: sel.filter(function (v) { return !!v.nonEliminabile }).map(function (v) { return { sessione: v.sessione, motivo: v.nonEliminabile } }), chiuse: sel.filter(function (v) { return !v.aperta }).map(function (v) { return v.sessione }) }
 }
 function gcRiepilogoSel(s) {
   if (s.chat === 0) return 'Nessuna chat scelta.'
@@ -4018,6 +4018,10 @@ function gcImpronta() {
     gcVista ? gcVista.chat.map(function (v) { return v.sessione + v.byte + (v.nonEliminabile || '') }).join(',') : '',
     gcArch ? gcArch.length : -1, gcRec ? gcRec.chat.map(function (c) { return c.id }).join(',') : ''])
 }
+/** Un PC più vecchio della 0.79.0 non conosce le rotte: lo si dice così, anche quando si tocca un'azione. */
+function gcVecchio(e) {
+  return e && e.message && e.message.indexOf('non trovato') >= 0 ? 'Questo computer non sa ancora gestire le chat da qui: aggiornalo alla 0.79.0.' : ''
+}
 async function gcLeggi() {
   gcErrore = ''
   try {
@@ -4028,7 +4032,7 @@ async function gcLeggi() {
     var ci = {}; gcVista.chat.forEach(function (v) { ci[v.sessione] = true })
     gcScelte = gcScelte.filter(function (s) { return ci[s] })
   } catch (e) {
-    gcErrore = (e && e.message && e.message.indexOf('non trovato') >= 0) ? 'Questo computer non sa ancora gestire le chat da qui: aggiornalo alla 0.79.0.' : 'Non riesco a leggere le chat: ' + ((e && e.message) || 'il computer non risponde')
+    gcErrore = gcVecchio(e) || 'Non riesco a leggere le chat: ' + ((e && e.message) || 'il computer non risponde')
   }
 }
 /** I tre tasti di una chat, ognuno con il suo «?». */
@@ -4037,7 +4041,7 @@ function gcTastiHtml(sessione, titolo, chiave) {
   return ['chiudi', 'archivia', 'elimina'].map(function (a) {
     var t = GC.testi[a]
     if (a === 'elimina') gcMisura(sessione)
-    var no = a === 'elimina' && gcMisure[sessione] && gcMisure[sessione].motivo
+    var no = gcMisure[sessione] && (a === 'elimina' ? gcMisure[sessione].motivo : a === 'chiudi' ? gcMisure[sessione].chiusa : undefined)
     return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + (no ? ' disabled' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
       aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + (no ? '<span class="gc-no">' + esc(no) + '</span>' : '') + '</span>'
   }).join('')
@@ -4053,11 +4057,16 @@ async function gcMisura(s) {
   // Mentre si rilegge resta quella di prima: «Elimina» non si riaccende per un attimo.
   gcMisure[s] = Object.assign({}, m || {}, { chiede: true, il: Date.now() })
   var prima = m ? m.motivo : undefined
+  var primaChiusa = m ? m.chiusa : undefined
   try {
     var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [s] })
-    gcMisure[s] = r && r.selezione ? { byte: r.selezione.byte, motivo: (r.selezione.escluse[0] || {}).motivo, il: Date.now() } : Object.assign({}, m || {}, { chiede: false, il: Date.now() })
+    gcMisure[s] = r && r.selezione ? { byte: r.selezione.byte, motivo: (r.selezione.escluse[0] || {}).motivo, chiusa: gcChiusa(r.selezione, s), il: Date.now() } : Object.assign({}, m || {}, { chiede: false, il: Date.now() })
   } catch (e) { gcMisure[s] = Object.assign({}, m || {}, { chiede: false, il: Date.now() }); return }
-  if (gcMisure[s].motivo !== prima) pannello(ultimoStato)
+  if (gcMisure[s].motivo !== prima || gcMisure[s].chiusa !== primaChiusa) pannello(ultimoStato)
+}
+/** Come motivoNonChiudeScelta del PC: «Chiudi» spento se qui la chat non è aperta (un PC più vecchio non manda chiuse). */
+function gcChiusa(sel, s) {
+  return sel && sel.chiuse && sel.chiuse.indexOf(s) >= 0 ? GC.nonAperta.split('§N').join(gcTitoli[s] || s.slice(0, 8)) : undefined
 }
 var gcChiesta = 0
 window.gcChiedi = async (azione, sessione) => {
@@ -4070,7 +4079,7 @@ window.gcChiedi = async (azione, sessione) => {
   var no
   try {
     var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [sessione] })
-    if (r && r.selezione) { spazio = gcByte(r.selezione.byte); no = (r.selezione.escluse[0] || {}).motivo; gcMisure[sessione] = { byte: r.selezione.byte, motivo: no, il: Date.now() } }
+    if (r && r.selezione) { spazio = gcByte(r.selezione.byte); no = (r.selezione.escluse[0] || {}).motivo; gcMisure[sessione] = { byte: r.selezione.byte, motivo: no, chiusa: gcChiusa(r.selezione, sessione), il: Date.now() } }
   } catch (e) { }
   // Nel frattempo si è chiesto altro, o cambiato pannello: questa conferma non serve più.
   if (n !== gcChiesta || dove !== pannelloAperto) return
@@ -4102,7 +4111,7 @@ function gcConfermaHtml() {
   if (!gcConfermaAp) return ''
   var c = gcConfermaAp.conferma
   return '<div class="piastrella chiede" id="gc-conferma"><div class="titolo">' + esc(c.titolo) + '</div><div class="sotto">' + esc(c.testo) + '</div>' +
-    (gcConfermaAp.azione === 'elimina' ? '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcConfermaAp.drive ? ' checked' : '') + ' onchange="gcDrive(this.checked)"> anche dal Drive</label>' : '') +
+    (gcConfermaAp.azione === 'elimina' ? '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcConfermaAp.drive ? ' checked' : '') + ' onchange="gcDrive(this.checked)"> anche dal Drive</label>' + aiuto('gc-drive', esc(GC.spiegaDrive.elimina)) : '') +
     '<div class="riga"><button class="' + (gcConfermaAp.azione === 'elimina' ? 'pericolo' : 'primario') + '"' + (gcInCorso ? ' disabled' : '') + ' onclick="gcFai()">' + esc(gcInCorso ? 'Un momento…' : c.azione) + '</button>' +
     '<button onclick="gcConfermaAp = null; pannello(ultimoStato)">Annulla</button></div></div>'
 }
@@ -4122,7 +4131,7 @@ window.gcFai = async () => {
     gcNota = { messaggio: e.messaggio || 'Fatto.', rifiuti: (e.esiti || []).filter(function (x) { return !x.ok }).map(function (x) { return x.motivo || ((gcTitoli[x.sessione] || x.sessione) + ': non si è potuta toccare.') }) }
     if (a.sessioni.length > 1) gcScelte = []
   } catch (err) {
-    gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] }
+    gcNota = { messaggio: gcVecchio(err) || 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] }
   }
   gcConfermaAp = null
   gcInCorso = false
@@ -4142,6 +4151,7 @@ window.gcTutte = () => {
 window.gcRipristinaArch = async (s) => {
   if (gcInCorso) return
   gcInCorso = true
+  pannello(ultimoStato)
   try { var e = await chiedi('/api/chat/gestione/azione', { azione: 'ripristina', sessioni: [s] }); gcNota = { messaggio: e.messaggio, rifiuti: (e.esiti || []).filter(function (x) { return !x.ok }).map(function (x) { return x.motivo || x.sessione }) } }
   catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
   gcInCorso = false
@@ -4150,6 +4160,7 @@ window.gcRipristinaArch = async (s) => {
 window.gcRipristinaRec = async (id) => {
   if (gcInCorso) return
   gcInCorso = true
+  pannello(ultimoStato)
   try { var e = await chiedi('/api/chat/gestione/ripristina', { id: id }); gcNota = { messaggio: e.messaggio, rifiuti: [] } }
   catch (err) { gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
   gcInCorso = false
@@ -4161,8 +4172,11 @@ window.gcSvuotaDriveSi = (si) => { gcSvuotaDrive = si; pannello(ultimoStato) }
 window.gcSvuotaContinua = async () => {
   if (gcInCorso) return
   gcInCorso = true
+  pannello(ultimoStato)
   try {
     var r = await chiedi('/api/chat/gestione/svuota', { ancheDalDrive: gcSvuotaDrive })
+    // Annullato mentre il PC rispondeva: «Scrivi SVUOTA» non deve comparire lo stesso.
+    if (!gcSvuota || gcSvuota.passo !== 'chiedi') { gcInCorso = false; pannello(ultimoStato); return }
     if (r && r.ok && r.gettone) { gcSvuota = { passo: 'scrivi', gettone: r.gettone, messaggio: r.messaggio }; gcFrase = '' }
     else { gcSvuota = null; gcNota = { messaggio: (r && r.messaggio) || 'Il recupero è vuoto.', rifiuti: [] } }
   } catch (err) { gcSvuota = null; gcNota = { messaggio: 'Non è andata: ' + ((err && err.message) || 'il computer non risponde'), rifiuti: [] } }
@@ -4189,8 +4203,8 @@ function gcSvuotaHtml() {
   if (gcSvuota.passo === 'chiedi') {
     var c = GC.conferme[gcSvuotaDrive ? 'svuotaDrive' : 'svuota']
     return '<div class="piastrella chiede"><div class="titolo">' + esc(c.titolo) + '</div><div class="sotto">' + esc(c.testo) + '</div>' +
-      '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcSvuotaDrive ? ' checked' : '') + ' onchange="gcSvuotaDriveSi(this.checked)"> anche dal Drive</label>' +
-      '<div class="riga"><button class="pericolo" onclick="gcSvuotaContinua()">' + esc(c.azione) + '</button><button onclick="gcSvuota = null; pannello(ultimoStato)">Annulla</button></div></div>'
+      '<label class="spunta" style="margin-top:6px"><input type="checkbox"' + (gcSvuotaDrive ? ' checked' : '') + ' onchange="gcSvuotaDriveSi(this.checked)"> anche dal Drive</label>' + aiuto('gc-svuota-drive', esc(GC.spiegaDrive.svuota)) +
+      '<div class="riga"><button class="pericolo"' + (gcInCorso ? ' disabled' : '') + ' onclick="gcSvuotaContinua()">' + esc(gcInCorso ? 'Un momento…' : c.azione) + '</button><button onclick="gcSvuota = null; pannello(ultimoStato)">Annulla</button></div></div>'
   }
   return '<div class="piastrella chiede"><div class="titolo">Scrivi ' + esc(GC.frase) + ' per confermare</div><div class="sotto">' + esc(gcSvuota.messaggio) + '</div>' +
     '<div class="riga"><input id="gc-frase" autocomplete="off" autocapitalize="characters" placeholder="' + esc(GC.frase) + '" value="' + esc(gcFrase) + '" oninput="gcFraseCambia(this.value)" style="flex:1"></div>' +
@@ -4212,9 +4226,9 @@ function gestioneChatHtml() {
         '<div class="riga"><select onchange="gcCambiaOrdine(this.value)">' + GC.ordini.map(function (o) { return '<option value="' + o.id + '"' + (o.id === gcOrdine ? ' selected' : '') + '>' + esc(o.nome) + '</option>' }).join('') + '</select>' +
         '<button onclick="gcTutte()">' + (gcScelte.length > 0 ? 'Nessuna' : 'Scegli tutte') + '</button></div>' +
         '<div class="sotto">' + esc(gcRiepilogoSel(sel)) + '</div>' +
-        '<div class="riga"><button' + (gcScelte.length === 0 ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'archivia\\')">Archivia</button>' +
-        '<button class="pericolo"' + (sel.eliminabili === 0 ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'elimina\\')">Elimina dal PC</button></div>' +
-        (voci.length === 0 ? '<div class="sotto">Nessuna chat su questo computer.</div>' : voci.map(function (v) {
+        '<div class="riga"><button' + (gcScelte.length === 0 || gcInCorso ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'archivia\\')">Archivia</button>' +
+        '<button class="pericolo"' + (sel.eliminabili === 0 || gcInCorso ? ' disabled' : '') + ' onclick="gcChiediScelte(\\'elimina\\')">Elimina dal PC</button></div>' +
+        (voci.length === 0 ? '<div class="sotto">Nessuna chat su questo PC.</div>' : voci.map(function (v) {
           return '<label class="gc-voce"><input type="checkbox"' + (gcScelte.indexOf(v.sessione) >= 0 ? ' checked' : '') + ' data-s="' + esc(v.sessione) + '" onchange="gcScegli(this.dataset.s)">' +
             '<span class="gc-voce__testo"><b>' + esc(v.titolo) + '</b><span class="sotto">' + esc(gcRigaVoce(v, adesso)) + '</span>' +
             (v.nonEliminabile ? '<span class="gc-no">' + esc(v.nonEliminabile) + '</span>' : '') + '</span></label>'
@@ -4223,7 +4237,7 @@ function gestioneChatHtml() {
   } else if (gcScheda === 'archiviate') {
     h += !gcArch ? '<div class="sotto">Leggo…</div>' : gcArch.length === 0 ? '<div class="sotto">Nessuna chat archiviata.</div>' : gcArch.map(function (a) {
       return '<div class="gc-voce"><span class="gc-voce__testo"><b>' + esc(a.titolo || a.sessione.slice(0, 8)) + '</b><span class="sotto">archiviata il ' + esc(gcData(a.il)) + '</span></span>' +
-        '<button data-s="' + esc(a.sessione) + '" onclick="gcRipristinaArch(this.dataset.s)">Ripristina</button></div>'
+        '<button data-s="' + esc(a.sessione) + '"' + (gcInCorso ? ' disabled' : '') + ' onclick="gcRipristinaArch(this.dataset.s)">Ripristina</button></div>'
     }).join('')
   } else {
     if (!gcRec) h += '<div class="sotto">Leggo…</div>'
@@ -4234,7 +4248,7 @@ function gestioneChatHtml() {
         (gcRec.chat.length > 0 && !gcSvuota ? '<div class="riga"><button class="pericolo" onclick="gcSvuotaChiedi()">Svuota il recupero adesso</button></div>' : '') +
         gcRec.chat.map(function (c) {
           return '<div class="gc-voce"><span class="gc-voce__testo"><b>' + esc(c.titolo) + '</b><span class="sotto">' + esc(gcRigaRecupero(c, adesso)) + '</span></span>' +
-            '<button data-id="' + esc(c.id) + '" onclick="gcRipristinaRec(this.dataset.id)">Ripristina</button></div>'
+            '<button data-id="' + esc(c.id) + '"' + (gcInCorso ? ' disabled' : '') + ' onclick="gcRipristinaRec(this.dataset.id)">Ripristina</button></div>'
         }).join('')
     }
   }
