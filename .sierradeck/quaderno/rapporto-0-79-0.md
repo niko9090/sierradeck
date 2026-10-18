@@ -356,4 +356,4 @@ Al primo giro di `npm test` tre test (git e dialogo) avevano superato il tempo p
 
 Procedura: tag `v0.79.0` → `gh release create --draft` → `GH_TOKEN=$(gh auth token) npm run pubblica` → `npm run allega-apk` → `gh release edit --draft=false --latest`.
 
-Il ramo `c-4` (punta `eb48d69`) è dentro `main`: lo ha portato l'unione di `c-5` (`def1775`), che lo conteneva.
+c-4 ha c78e042, dopo la release, in Revisione (c-6).
