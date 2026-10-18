@@ -362,6 +362,8 @@ c-4 ha c78e042, dopo la release, in Revisione (c-6).
 - `C:\Users\nikof\AppData\LocalTempsierradeck-criterio-prova21820`: è una cartella creata per errore il 18/10, quando ho riprodotto il giro dei test del supervisore. Nel percorso manca la barra fra `Local` e `Temp`. Dentro c'è solo `node-compile-cache`, la cache di compilazione di Node. La guardia delle cancellazioni non permette di toglierla da una chat, perché è fuori dal progetto. Non fa danno.
 - `note/prova-079`: la copia di prova della gestione delle chat. Le credenziali copiate sono già svuotate.
 - `note/prova-c49`, nella copia del ramo c-4: la copia di prova della Panoramica.
+- `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt\ap-f1e631f5-c-7\note\prova-c7`: la copia di prova del collaudo c-7, con dati, Claude Code a parte e chat di prova. Le credenziali copiate sono già svuotate.
+- `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt\ap-f1e631f5-c-7\note\prova-c7\SierraDeck-prova-c7\prova-attesa.txt`: un file di prova («ciao») scritto da una chat di prova durante il collaudo c-7. Il pilota aveva mandato il testo al riquadro sbagliato. Va via insieme alla cartella qui sopra.
 
 ## Dopo la release: allineamento dell'app (c-53, c-57, c-61, ramo c-4)
 
