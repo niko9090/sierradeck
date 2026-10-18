@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TESTI_AZIONI_CHAT, type EsitoAzioni } from '@shared/gestione-chat'
-import { confermaArchiviaChat, confermaChiudiChat, confermaEliminaChat, nomeScelte, rifiutiDi, type Conferma, type Rifiuto } from '@shared/gestione-chat-vista'
+import { confermaArchiviaChat, confermaChiudiChat, confermaEliminaChat, motivoNonChiudeScelta, nomeScelte, rifiutiDi, SPIEGA_ELIMINA_DRIVE, type Conferma, type Rifiuto } from '@shared/gestione-chat-vista'
 import { byteLeggibili } from '@shared/spazio-drive'
 import { Aiuto } from './Aiuto'
 
@@ -55,7 +55,7 @@ export function ConfermaAzioneChat({ azione, conferma, onFai, onChiudi }: {
             {azione === 'elimina' ? (
               <label className="misura gc-spunta">
                 <input type="checkbox" checked={drive} onChange={(e) => setDrive(e.target.checked)} /> anche dal Drive
-                <Aiuto di="anche dal Drive">Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina». Senza la spunta la copia sul Drive resta, e gli altri PC la vedono ancora.</Aiuto>
+                <Aiuto di="anche dal Drive">{SPIEGA_ELIMINA_DRIVE}</Aiuto>
               </label>
             ) : null}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -133,15 +133,17 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
   const dove = useRef<HTMLSpanElement>(null)
   // Aperto il menu, si chiede al PC quanto libera e se si può eliminare: una chat che lavora, aspetta,
   // è guidata da un autopilota attivo o vive su un altro PC mostra «Elimina dal PC» spento con il motivo.
-  const [misura, setMisura] = useState<{ byte: number; motivo?: string } | undefined>(undefined)
+  // Anche «Chiudi» spento con il motivo, se qui non è aperta (salvo il riquadro, che si chiude da sé).
+  const [misura, setMisura] = useState<{ byte: number; motivo?: string; chiusa?: string } | undefined>(undefined)
   useEffect(() => {
     if (!menu) return
     let vivo = true
     setMisura(undefined)
     window.gestore.chatGestione.selezione([sessione])
-      .then((s) => { if (vivo) setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo }) })
+      .then((s) => { if (vivo) setMisura({ byte: s.byte, motivo: s.escluse[0]?.motivo, chiusa: onChiudi === undefined ? motivoNonChiudeScelta(s, sessione, titolo) : undefined }) })
       .catch(() => undefined)
     return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- si misura all'apertura del menu, non a ogni cambio del titolo
   }, [menu, sessione])
   useEffect(() => {
     if (!menu) return
@@ -163,7 +165,7 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
       .then((s) => {
         // Toccato prima che arrivasse il motivo: niente conferma, il menu torna con il tasto spento e il motivo.
         const motivo = s.escluse[0]?.motivo
-        if (motivo !== undefined) { setMisura({ byte: s.byte, motivo }); setMenu(true); return }
+        if (motivo !== undefined) { setMisura({ byte: s.byte, motivo, chiusa: onChiudi === undefined ? motivoNonChiudeScelta(s, sessione, titolo) : undefined }); setMenu(true); return }
         setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, byteLeggibili(s.byte), d) })
       })
       .catch(() => setScelta({ azione, conferma: (d) => confermaEliminaChat(nome, 'lo spazio di questa chat', d) }))
@@ -189,20 +191,23 @@ export function AzioniChat({ sessione, titolo, aperta, onChiudi, classe }: {
       </button>
       {menu ? (
         <span className="gc-menu" role="menu" onMouseDown={(e) => e.stopPropagation()}>
-          {(['chiudi', 'archivia', 'elimina'] as const).map((a) => (
+          {(['chiudi', 'archivia', 'elimina'] as const).map((a) => {
+            const no = a === 'elimina' ? misura?.motivo : a === 'chiudi' ? misura?.chiusa : undefined
+            return (
             <span className="gc-menu__voce" key={a}>
               <button
                 role="menuitem"
                 className={a === 'elimina' ? 'tasto tasto--mini tasto--pericolo' : 'tasto tasto--mini'}
-                disabled={(a === 'chiudi' && aperta === false) || (a === 'elimina' && misura?.motivo !== undefined)}
+                disabled={(a === 'chiudi' && aperta === false) || no !== undefined}
                 onClick={() => chiedi(a)}
               >
                 {TESTI_AZIONI_CHAT[a].etichetta}
               </button>
-              <span className="misura gc-menu__breve">{a === 'elimina' && misura?.motivo !== undefined ? <span className="gc-voce__no">{misura.motivo}</span> : TESTI_AZIONI_CHAT[a].breve}</span>
+              <span className="misura gc-menu__breve">{no !== undefined ? <span className="gc-voce__no">{no}</span> : TESTI_AZIONI_CHAT[a].breve}</span>
               <Aiuto di={TESTI_AZIONI_CHAT[a].etichetta}>{TESTI_AZIONI_CHAT[a].spiega}</Aiuto>
             </span>
-          ))}
+            )
+          })}
         </span>
       ) : null}
       {scelta !== undefined ? (

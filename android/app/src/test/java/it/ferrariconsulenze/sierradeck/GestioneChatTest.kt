@@ -36,6 +36,9 @@ class GestioneChatTest {
             assertEquals(pc["spiega"]!!.jsonPrimitive.content, t.spiega)
         }
         assertEquals(casi["frase"]!!.jsonPrimitive.content, GestioneChatRegole.FRASE_SVUOTA)
+        // Il «?» di «anche dal Drive», uguale sulle tre facce.
+        assertEquals(casi["spiegaDrive"]!!.jsonObject["elimina"]!!.jsonPrimitive.content, GestioneChatRegole.SPIEGA_ELIMINA_DRIVE)
+        assertEquals(casi["spiegaDrive"]!!.jsonObject["svuota"]!!.jsonPrimitive.content, GestioneChatRegole.SPIEGA_SVUOTA_DRIVE)
     }
 
     @Test
@@ -109,5 +112,18 @@ class GestioneChatTest {
         assertEquals(null, GestioneChatRegole.motivoNonElimina(SelezioneChat(chat = 1, byte = 10.0, eliminabili = 1, byteEliminabili = 10.0)))
         assertEquals(null, GestioneChatRegole.motivoNonElimina(null))
         assertEquals(null, GestioneChatRegole.motivoNonElimina(SelezioneChat(escluse = listOf(EsclusaChat("s", " ")))))
+    }
+
+    @Test
+    fun `una chat che li' non e' aperta ha Chiudi spento con il motivo del PC`() {
+        val sel = Api.json.decodeFromString(VistaSpazioChat.serializer(), casi["spazio"]!!.toString()).selezione
+        val c = casi["chiudi"]!!.jsonObject
+        val s1 = "11111111-1111-4111-8111-111111111111"
+        val s3 = "33333333-3333-4333-8333-333333333333"
+        assertEquals(c["motivoS1"]!!.jsonPrimitive.content, GestioneChatRegole.motivoNonChiude(sel, s1, c["titolo"]!!.jsonPrimitive.content))
+        assertEquals(null, GestioneChatRegole.motivoNonChiude(sel, s3, "al lavoro"))
+        // Un PC piu' vecchio non manda `chiuse`: Chiudi resta acceso.
+        assertEquals(null, GestioneChatRegole.motivoNonChiude(SelezioneChat(chat = 1), s1, "x"))
+        assertEquals(null, GestioneChatRegole.motivoNonChiude(null, s1, "x"))
     }
 }

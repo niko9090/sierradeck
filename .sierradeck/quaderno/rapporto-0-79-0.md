@@ -362,3 +362,26 @@ c-4 ha c78e042, dopo la release, in Revisione (c-6).
 - `C:\Users\nikof\AppData\LocalTempsierradeck-criterio-prova21820`: è una cartella creata per errore il 18/10, quando ho riprodotto il giro dei test del supervisore. Nel percorso manca la barra fra `Local` e `Temp`. Dentro c'è solo `node-compile-cache`, la cache di compilazione di Node. La guardia delle cancellazioni non permette di toglierla da una chat, perché è fuori dal progetto. Non fa danno.
 - `note/prova-079`: la copia di prova della gestione delle chat. Le credenziali copiate sono già svuotate.
 - `note/prova-c49`, nella copia del ramo c-4: la copia di prova della Panoramica.
+
+## Dopo la release: allineamento dell'app (c-53, c-57, c-61, ramo c-4)
+
+Un confronto fra PC, pagina e app ha trovato 28 differenze. Sono state corrette queste:
+- **«anche dal Drive» con il suo «?» ovunque.** I testi sono condivisi in `SPIEGA_ELIMINA_DRIVE` e `SPIEGA_SVUOTA_DRIVE` (`src/shared/gestione-chat-vista.ts`). Prima mancava sulla pagina, nella conferma multipla dell'app e in «Svuota» su tutte e tre le facce.
+- **«Chiudi» spento con il motivo** («… non è aperta: è già chiusa.») per le chat che il PC non ha aperte. Viene dal nuovo campo `chiuse` della selezione (`totaleSelezione`); un PC più vecchio non lo manda, e lì Chiudi resta acceso. Il riquadro del PC, che si chiude da sé, non lo spegne mai.
+- **«Scrivi SVUOTA» non compare più dopo Annulla** premuto mentre il PC rispondeva, su PC, pagina e app.
+- **Pagina:** i tasti sono spenti mentre il PC lavora; il messaggio «aggiornalo alla 0.79.0» compare anche quando si tocca un'azione.
+- **Sul PC la linguetta ora si chiama «Recupero»**, come su pagina e app.
+- **App:**
+  - dopo Chiudi, Archivia o Elimina dal menu di una chat aperta si torna all'elenco;
+  - l'errore di «Riprendi» sparisce alla lettura successiva;
+  - «anche dal Drive» riparte senza spunta.
+
+**Differenze lasciate di proposito:**
+- Le schede della Panoramica su telefono non hanno i tre tasti: sono nella chat, a un tocco.
+- L'app apre «Spazio delle chat» solo da «Riprendi», perché un quarto tasto nella fascia non si è potuto provare senza emulatore.
+
+**Cosa resta da fare:**
+- Queste correzioni sono arrivate dopo la v0.79.0 pubblicata: servono una 0.79.1 e un'app nuova, solo con il sì di Nicholas.
+- Non sono state provate con clic veri; contano solo i test.
+
+**Revisioni c-61 e c-65:** la Revisione ha visto `npm test` rotto dopo l'unione. Il ramo non cambia codice di main: ogni volta ho unito main nel ramo e ho rifatto il giro intero, con test, typecheck, gradle e guardia. Nella c-65 il conflitto era solo in questo rapporto: due sezioni aggiunte nello stesso punto, tenute tutte e due.

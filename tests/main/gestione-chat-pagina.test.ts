@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { paginaClient } from '../../src/main/client-pagina'
 import { totaleSelezione, vistaSpazio, scadenzaRecupero, TESTI_AZIONI_CHAT, type VoceSpazio, type ChatInRecupero } from '../../src/shared/gestione-chat'
 import {
-  confermaArchiviaChat, confermaChiudiChat, confermaEliminaChat, nomeScelte, ordinaVoci, quandoUsata, riepilogoSelezione, riepilogoSpazio, rigaRecupero, rigaVoce
+  confermaArchiviaChat, confermaChiudiChat, confermaEliminaChat, nomeScelte, ordinaVoci, quandoUsata, riepilogoSelezione, riepilogoSpazio, rigaRecupero, rigaVoce,
+  SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta
 } from '../../src/shared/gestione-chat-vista'
 import { byteLeggibili } from '../../src/shared/spazio-drive'
 
@@ -26,7 +27,7 @@ function funzione(nome: string): string {
 const gc = script.slice(script.indexOf('var GC ='), script.indexOf('\n', script.indexOf('var GC =')))
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
 const f = new Function(`${gc}; ${['gcByte', 'gcQuando', 'gcData', 'gcRigaVoce', 'gcQuante', 'gcRiepilogo', 'gcTotale', 'gcRiepilogoSel', 'gcRigaRecupero', 'gcOrdina', 'gcNome', 'gcConferma'].map(funzione).join('\n')}
-  return { gcByte, gcQuando, gcRigaVoce, gcRiepilogo, gcTotale, gcRiepilogoSel, gcRigaRecupero, gcOrdina, gcNome, gcConferma, GC }`)() as Record<string, (...a: unknown[]) => unknown> & { GC: { testi: unknown; frase: string } }
+  return { gcByte, gcQuando, gcRigaVoce, gcRiepilogo, gcTotale, gcRiepilogoSel, gcRigaRecupero, gcOrdina, gcNome, gcConferma, GC }`)() as Record<string, (...a: unknown[]) => unknown> & { GC: { testi: unknown; frase: string; spiegaDrive: unknown } }
 
 const ORA = Date.parse('2026-10-17T12:00:00Z')
 const GIORNO = 86_400_000
@@ -68,6 +69,10 @@ describe('pagina: la gestione delle chat', () => {
     expect(f.gcConferma!('archivia', '3 chat', '', 3)).toEqual(confermaArchiviaChat('3 chat', 3))
     expect(f.GC.testi).toEqual(TESTI_AZIONI_CHAT)
     expect(f.GC.frase).toBe('SVUOTA')
+    // «anche dal Drive» ha il suo «?», con le parole del PC, in Elimina e in Svuota.
+    expect(f.GC.spiegaDrive).toEqual({ elimina: SPIEGA_ELIMINA_DRIVE, svuota: SPIEGA_SVUOTA_DRIVE })
+    expect(funzione('gcConfermaHtml')).toContain("aiuto('gc-drive', esc(GC.spiegaDrive.elimina))")
+    expect(funzione('gcSvuotaHtml')).toContain("aiuto('gc-svuota-drive', esc(GC.spiegaDrive.svuota))")
   })
 
   it('tre tasti per ogni chat, ognuno con il suo «?», nell’elenco e nella chat aperta', () => {
@@ -125,6 +130,7 @@ describe('pagina: la gestione delle chat', () => {
       function esc(s) { return String(s) }
       function aiuto(id, t) { return '<i>?</i>' }
       async ${funzione('gcMisura')}
+      ${funzione('gcChiusa')}
       ${funzione('gcTastiHtml')}
       return { gcTastiHtml, gcMisure }`)(
       async (rotta: string, corpo: unknown) => { chieste.push([rotta, corpo]); return { selezione: { byte: 10, escluse: [{ sessione: 's', motivo }] } } },
@@ -152,6 +158,7 @@ describe('pagina: la gestione delle chat', () => {
       function esc(s) { return String(s) }
       function aiuto(id, t) { return '<i>?</i>' }
       async ${funzione('gcMisura')}
+      ${funzione('gcChiusa')}
       ${funzione('gcTastiHtml')}
       return { gcTastiHtml, gcMisure }`)(
       () => new Promise((r) => { rispondi = r }),
@@ -168,6 +175,50 @@ describe('pagina: la gestione delle chat', () => {
     rispondi({ selezione: { byte: 12, escluse: [{ sessione: 's', motivo }] } })
     await new Promise((r) => setTimeout(r, 0))
     expect(ridisegni).toBe(1)
+  })
+
+  it('una chat che qui non è aperta ha «Chiudi» spento con il motivo del PC; da un PC più vecchio resta acceso', async () => {
+    let risposta: unknown = { selezione: { byte: 10, escluse: [], chiuse: ['s'] } }
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const g = new Function('chiedi', 'pannello', `${gc}
+      var gcTitoli = {}, gcMisure = {}, ultimoStato = null
+      function esc(s) { return String(s) }
+      function aiuto(id, t) { return '<i>?</i>' }
+      async ${funzione('gcMisura')}
+      ${funzione('gcChiusa')}
+      ${funzione('gcTastiHtml')}
+      return { gcTastiHtml, gcMisure }`)(async () => risposta, () => undefined) as { gcTastiHtml: (s: string, t: string, k: string) => string; gcMisure: Record<string, { il: number }> }
+    g.gcTastiHtml('s', 'ferma', 'k')
+    await new Promise((r) => setTimeout(r, 0))
+    const dopo = g.gcTastiHtml('s', 'ferma', 'k')
+    expect(dopo).toMatch(/<button disabled data-a="chiudi"/)
+    expect(dopo).toContain(`<span class="gc-no">${motivoNonChiudeScelta({ chiuse: ['s'] }, 's', 'ferma')}</span>`)
+    expect(dopo.match(/disabled/g)).toHaveLength(1)
+    risposta = { selezione: { byte: 10, escluse: [] } }
+    g.gcMisure.s!.il = 0
+    g.gcTastiHtml('s', 'ferma', 'k')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(g.gcTastiHtml('s', 'ferma', 'k')).not.toContain('disabled')
+  })
+
+  it('«Svuota»: annullato mentre il PC risponde, «Scrivi SVUOTA» non compare; mentre il PC lavora i tasti sono spenti', () => {
+    const continua = script.slice(script.indexOf('window.gcSvuotaContinua'), script.indexOf('window.gcFraseCambia'))
+    expect(continua).toContain("if (!gcSvuota || gcSvuota.passo !== 'chiedi') { gcInCorso = false; pannello(ultimoStato); return }")
+    expect(continua.indexOf("gcSvuota.passo !== 'chiedi'")).toBeLessThan(continua.indexOf("passo: 'scrivi'"))
+    const vista = funzione('gestioneChatHtml')
+    expect(vista).toContain("(gcScelte.length === 0 || gcInCorso ? ' disabled' : '')")
+    expect(vista).toContain("(sel.eliminabili === 0 || gcInCorso ? ' disabled' : '')")
+    expect(vista.match(/\(gcInCorso \? ' disabled' : ''\) \+ ' onclick="gcRipristina/g)).toHaveLength(2)
+    expect(funzione('gcSvuotaHtml')).toContain("(gcInCorso ? ' disabled' : '') + ' onclick=\"gcSvuotaContinua()\">'")
+    expect(vista).toContain('Nessuna chat su questo PC.')
+  })
+
+  it('un PC più vecchio della 0.79.0: lo stesso messaggio leggendo e toccando un’azione', () => {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const vecchio = new Function(`${funzione('gcVecchio')}; return gcVecchio`)() as (e: unknown) => string
+    expect(vecchio(new Error('404 non trovato'))).toBe('Questo computer non sa ancora gestire le chat da qui: aggiornalo alla 0.79.0.')
+    expect(vecchio(new Error('timeout'))).toBe('')
+    expect(script.slice(script.indexOf('window.gcFai'), script.indexOf('window.gcLinguetta'))).toContain("gcVecchio(err) || 'Non è andata: '")
   })
 
   it('«Elimina» toccato prima che arrivi il motivo: niente conferma, il tasto si spegne con il motivo', () => {

@@ -233,7 +233,7 @@ describe('lo spazio delle chat', () => {
 
   it('più chat insieme: lo spazio totale, e quelle escluse col motivo', () => {
     const voci = [v(S1, 10), v(S2, 300, { nonEliminabile: 'sta lavorando' }), v(S3, 50)]
-    expect(totaleSelezione(voci, [S1, S2, 'sconosciuta'])).toEqual({ chat: 2, byte: 310, eliminabili: 1, byteEliminabili: 10, escluse: [{ sessione: S2, motivo: 'sta lavorando' }] })
+    expect(totaleSelezione(voci, [S1, S2, 'sconosciuta'])).toEqual({ chat: 2, byte: 310, eliminabili: 1, byteEliminabili: 10, escluse: [{ sessione: S2, motivo: 'sta lavorando' }], chiuse: [S1, S2] })
     expect(totaleSelezione(voci, []).chat).toBe(0)
   })
 })

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { TESTI_AZIONI_CHAT, FRASE_SVUOTA, vistaSpazio, totaleSelezione, scadenzaRecupero, messaggioEsito, type VoceSpazio, type ChatInRecupero, type EsitoAzioni } from '../../src/shared/gestione-chat'
 import {
   commutaScelta, confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, fraseSvuotaGiusta, nomeScelte,
-  ordinaVoci, quandoUsata, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide
+  ordinaVoci, quandoUsata, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta
 } from '../../src/shared/gestione-chat-vista'
 import { byteLeggibili } from '../../src/shared/spazio-drive'
 
@@ -55,6 +55,9 @@ function casi(): unknown {
       chiediSvuota: confermaChiediSvuota(false),
       chiediSvuotaDrive: confermaChiediSvuota(true)
     },
+    spiegaDrive: { elimina: SPIEGA_ELIMINA_DRIVE, svuota: SPIEGA_SVUOTA_DRIVE },
+    // «Chiudi» spento: S1 non è aperta, S3 sì.
+    chiudi: { titolo: 'piccola recente', motivoS1: motivoNonChiudeScelta(sel, S1, 'piccola recente'), motivoS3: motivoNonChiudeScelta(sel, S3, 'al lavoro') ?? null },
     nomi: { una: nomeScelte(['x']), tre: nomeScelte(['a', 'b', 'c']) },
     quando: {
       adesso: new Date(ORA).toISOString(),
@@ -125,6 +128,16 @@ describe('la vista della gestione delle chat', () => {
     expect(rigaVoce(voci()[1]!, ORA, false)).toBe('usata 3 mesi fa · archiviata')
     // Testi corti (regola del 12/10): niente paragrafi nelle conferme.
     for (const c of [confermaChiudiChat('«x»'), confermaArchiviaChat('«x»'), confermaEliminaChat('«x»', '1 MB', true), confermaChiediSvuota(true)]) expect(c.testo.length).toBeLessThan(170)
+  })
+
+  it('«Chiudi» spento con il motivo se la chat qui non è aperta; un PC più vecchio non lo dice e resta acceso', () => {
+    const sel = totaleSelezione(voci(), [S1, S3])
+    // S1 è ferma (non aperta), S3 è aperta.
+    expect(sel.chiuse).toEqual([S1])
+    expect(motivoNonChiudeScelta(sel, S1, 'piccola')).toBe('«piccola» non è aperta: è già chiusa.')
+    expect(motivoNonChiudeScelta(sel, S3, 'al lavoro')).toBeUndefined()
+    expect(motivoNonChiudeScelta({ chiuse: undefined }, S1, 'x')).toBeUndefined()
+    expect(motivoNonChiudeScelta(undefined, S1, 'x')).toBeUndefined()
   })
 
   it('la parola per svuotare', () => {

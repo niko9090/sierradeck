@@ -64,6 +64,15 @@
       "azione": "Continua"
     }
   },
+  "spiegaDrive": {
+    "elimina": "Toglie anche la copia che questa chat ha sul Drive. Non sparisce subito: va nel recupero del Drive per 30 giorni, e torna con «Ripristina». Senza la spunta la copia sul Drive resta, e gli altri PC la vedono ancora.",
+    "svuota": "Cancella per sempre anche le copie di queste chat che sono nel recupero del Drive. Senza la spunta lì restano, e si cancellano da sole alla loro scadenza."
+  },
+  "chiudi": {
+    "titolo": "piccola recente",
+    "motivoS1": "«piccola recente» non è aperta: è già chiusa.",
+    "motivoS3": null
+  },
   "nomi": {
     "una": "«x»",
     "tre": "3 chat"
@@ -154,6 +163,9 @@
           "sessione": "33333333-3333-4333-8333-333333333333",
           "motivo": "«al lavoro» sta lavorando: aspetta che finisca, poi chiudila."
         }
+      ],
+      "chiuse": [
+        "11111111-1111-4111-8111-111111111111"
       ]
     }
   },

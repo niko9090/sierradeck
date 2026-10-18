@@ -460,6 +460,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     var chiudendo by remember { mutableStateOf(false) }
     // Archivia ed Elimina dal PC (PC 0.79.0), con Chiudi e il loro «?».
     var gestendo by remember { mutableStateOf(false) }
+    var lasciata by remember(chat.id) { mutableStateOf(false) }
     // ⏸ e ⇄ del riquadro sul PC (0.55.0).
     var addormentando by remember { mutableStateOf(false) }
     var spostando by remember { mutableStateOf(false) }
@@ -805,7 +806,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
     }
     val titoloChat = chat.titolo.ifBlank { chat.cwd }
     val sessioneChat = chat.sessione
-    if (gestendo && !sessioneChat.isNullOrBlank()) AzioniChatDialogo(api, sessioneChat, titoloChat, nomePc, onFatto = {}, onChiudi = { gestendo = false })
+    // Chiusa, archiviata o eliminata davvero: letto l'esito si torna all'elenco, come con «Chiudi la chat…»
+    // (prima si restava su una chat che non c'era più).
+    if (gestendo && !sessioneChat.isNullOrBlank()) AzioniChatDialogo(api, sessioneChat, titoloChat, nomePc,
+        onFatto = { fatte -> if (fatte > 0) lasciata = true },
+        onChiudi = { gestendo = false; if (lasciata) onIndietro() })
     if (chiudendo) {
         DialogoConferma(AzioniTelefono.confermaChiudi(titoloChat), pericolo = true, onSi = {
             chiudendo = false
@@ -1018,7 +1023,9 @@ private fun SceltaSessione(api: Api, nomePc: String?, conGestione: Boolean, onSp
     var senzaNome by remember { mutableStateOf(false) }
     var nascoste by remember { mutableStateOf(0) }
     LaunchedEffect(senzaNome, rileggi) {
-        sessioni = try { api.sessioni(senzaNome).also { nascoste = it.nascoste }.sessioni } catch (e: Exception) {
+        // Una lettura riuscita toglie il guasto di prima (prima restava per sempre).
+        guasto = null
+        sessioni = try { api.sessioni(senzaNome).also { nascoste = it.nascoste }.sessioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
             guasto = "Non riesco a leggere le conversazioni dal computer: ${e.message ?: "non risponde"}. Chiudi e riprova fra poco."
             emptyList()
         }
