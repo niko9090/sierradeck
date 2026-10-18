@@ -331,3 +331,27 @@ ecc:typescript-reviewer sul mio diff prima dell'unione: nessun difetto bloccante
 - `gradle testDebugUnitTest assembleDebug`: verde, 357 test.
 - Guardia delle cancellazioni: verde.
 
+
+## Release (18/10 mattina)
+**Pubblicata:** https://github.com/niko9090/sierradeck/releases/tag/v0.79.0 — «SierraDeck 0.79.0», Latest, non bozza. **Non installata**: installa Nicholas.
+
+**Cosa contiene** (`main` a `296986a`):
+- la gestione delle chat: motore c-1, interfaccia c-34, correzioni ECC e del giro con clic veri;
+- la Panoramica con la conversazione grande, «Al lavoro» e le righe dei traguardi (rami c-4 e c-5, uniti dal coordinatore);
+- le novità della 0.79.0 aggiornate con le due righe sulla Panoramica.
+
+**Allegati:** 5, una sola release.
+- `SierraDeck-Setup-0.79.0.exe` (115.291.499 byte, uguale alla `size` di `latest.yml`), con il suo `.blockmap`.
+- `latest.yml`: `version: 0.79.0`.
+- `SierraDeck-2.79.0.apk`: firmato Ferrari Consulenze, verificato da `npm run allega-apk`.
+- `app-android.json`: punta a v0.79.0.
+
+**Controlli prima di pubblicare, su `main` unito:**
+- `npm test`: 4181 passati (2 saltati).
+- `npm run typecheck`: verde.
+- gradle `testDebugUnitTest assembleDebug`: codice 0.
+- guardia delle cancellazioni: verde.
+
+Al primo giro di `npm test` tre test (git e dialogo) avevano superato il tempo per il carico della macchina. Rilanciati da soli passavano, e il giro intero successivo è tutto verde.
+
+Procedura: tag `v0.79.0` → `gh release create --draft` → `GH_TOKEN=$(gh auth token) npm run pubblica` → `npm run allega-apk` → `gh release edit --draft=false --latest`.
