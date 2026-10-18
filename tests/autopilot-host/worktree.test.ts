@@ -31,7 +31,8 @@ beforeEach(() => {
   esegui(['commit', '-q', '-m', 'inizio'], progetto)
 })
 
-describe('una cartella per chat: git worktree (T3)', () => {
+// git vero (worktree, commit, unione): con la macchina carica da altre chat supera i 20 s di regola.
+describe('una cartella per chat: git worktree (T3)', { timeout: 60_000 }, () => {
   it('il piano mette il worktree accanto al progetto, su un ramo dell autopilota', () => {
     const p = pianoWorktree({ radice: 'E:/x/sito', autopilota: 'ap-1', chat: 'c-2' })
     expect(p.ramo).toBe('ap/ap-1/c-2')

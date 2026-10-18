@@ -67,7 +67,8 @@ describe('lettura di git', () => {
   })
 })
 
-describe('con un repository git vero', () => {
+// git vero: con la macchina carica da altre chat supera i 20 s di regola.
+describe('con un repository git vero', { timeout: 60_000 }, () => {
   it('file in commit dalla partenza e file da salvare, con il diff', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-file-'))
     try {
