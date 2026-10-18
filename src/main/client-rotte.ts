@@ -1,5 +1,7 @@
 import { vistaAccount } from '@shared/account-vista'
-import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
+import { attivitaDaSegnali } from '@shared/attivita-chat'
+import type { Segnale } from '@shared/segnali-chat'
+import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
@@ -189,6 +191,8 @@ export type DipendenzeRotte = {
   log?: (riga: string) => void
   /** Le chat aperte adesso, in tutte le finestre. */
   chat: () => Chat[]
+  /** Gli ultimi segnali di Claude Code di una sessione (0.79.0): cosa fa adesso, nel riassunto «Al lavoro». */
+  segnali?: (sessione: string) => readonly Segnale[]
   autopiloti: () => Promise<Autopilota[]>
   /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
   tempiAutopilota?: (id: string) => Promise<string | undefined>
@@ -756,6 +760,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   const deps = depsPieni
   const adesso = deps.adesso ?? (() => Date.now())
   const g = deps.pin
+  // Da quando ogni chat della Panoramica è nel suo stato (0.79.0): il «da quanto» del riassunto sul telefono.
+  const statoDal = new Map<string, { stato: StatoScheda; dal: number }>()
   /** Chi guarda, per gli sblocchi: questo schermo, un altro PC (anche il ponte), un telefono. */
   const visoreDi = (dispositivo: string | undefined): string =>
     dispositivo === undefined || dispositivo === 'locale' ? 'locale' : daAltroPc(dispositivo) ? dispositivo : `tel:${dispositivo}`
@@ -1286,9 +1292,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           const ruolo = dichiarato !== undefined ? ruoloDi(dichiarato) : ad !== undefined ? ad.ruolo : ruoloDaContenuto(cc.titolo)
           const dellAutopilota = sp !== undefined || cc.governata === true
           const stato: StatoScheda = cc.chiede === true || cc.chiedeSegnale === true ? 'chiede' : cc.aspetta === true || cc.viva === false ? 'ferma' : 'lavora'
+          const prima = statoDal.get(cc.id)
+          const dal = prima !== undefined && prima.stato === stato ? prima.dal : ora
+          statoDal.set(cc.id, { stato, dal })
           const domanda = conversazioni.find((x) => x.chiave === `chat:${cc.id}` && domandaBreve(x))
           return {
-            id: cc.id, titolo: sp !== undefined && sp.compito !== '' ? sp.compito : cc.titolo, stato, nataIl: sp !== undefined ? numero(sp.id) : 0,
+            id: cc.id, titolo: sp !== undefined && sp.compito !== '' ? sp.compito : cc.titolo, stato, nataIl: sp !== undefined ? numero(sp.id) : 0, dal,
             ...(ruolo !== undefined ? { ruolo } : {}),
             ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : (ultimaAzioneDalVivo(cc.coda ?? []) || righeDalVivo(cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : [], 1)[0] || ''),
             righe: righeDalVivo(cc.coda ?? (cc.ultimaRiga !== undefined ? [cc.ultimaRiga] : []), 4),
@@ -1303,8 +1312,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           return { id: `fine-${x.id}`, titolo: x.compito, stato: 'finita' as const, nataIl: numero(x.id), specialista: true, ...(ruolo !== undefined ? { ruolo } : {}), ultimaAzione: x.ultimaAzione, righe: [] as string[] }
         })
       ]
+      if (statoDal.size > 500) for (const id of [...statoDal.keys()]) if (!chat.some((c) => c.id === id)) statoDal.delete(id)
+      const ordinate = ordinaSchede(numeraUguali(schede)).flatMap((g) => g.schede)
       return OK({
         workspace: ws,
+        // Il riassunto accanto alla conversazione (0.79.0): una riga per chat al lavoro.
+        alLavoro: riassuntoAlLavoro(ap, ordinate, ora, (sessione) => attivitaDaSegnali(deps.segnali?.(sessione) ?? [], ora)),
         // `riassunto` resta per le app della 0.77.0; la Panoramica 2 (0.78.0) legge situazione e piano.
         ...(ap !== undefined ? {
           autopilota: ap.id,
@@ -1316,7 +1329,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
             return aperta !== undefined ? { ...x, chat: aperta.id } : x
           }) }))
         } : {}),
-        schede: ordinaSchede(numeraUguali(schede)).flatMap((g) => g.schede)
+        schede: ordinate
       })
     }
 

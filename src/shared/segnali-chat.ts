@@ -30,10 +30,12 @@ export type EventoHook = 'SessionStart' | 'UserPromptSubmit' | 'PermissionReques
 
 export const EVENTI_SEGNALI: readonly EventoHook[] = ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'Notification', 'Stop', 'StopFailure', 'SessionEnd', 'PreToolUse', 'PostToolUse']
 /**
- * Gli strumenti per cui serve `PreToolUse` (0.76.0): solo la domanda a scelte.
- * Per gli altri basta `PostToolUse` (dopo una risposta, la chat lavora di nuovo).
+ * Gli strumenti per cui serve `PreToolUse` (0.76.0): la domanda a scelte. Per
+ * gli altri basta `PostToolUse` (dopo una risposta, la chat lavora di nuovo).
+ * Dalla 0.79.0 anche quelli lunghi (comandi, agenti): il riassunto della
+ * dashboard dice «fa girare i test» mentre girano, non quando sono finiti.
  */
-const PRE_TOOL_MATCHER = 'AskUserQuestion'
+const PRE_TOOL_MATCHER = 'AskUserQuestion|Bash|PowerShell|Task|Agent'
 
 export type Segnale = {
   sessione: string
@@ -46,6 +48,8 @@ export type Segnale = {
   /** PermissionRequest: lo strumento e cosa vuole fare. */
   strumento?: string
   dettaglio?: string
+  /** Bash/PowerShell: il comando, per dire cosa fa in parole semplici (0.79.0). */
+  comando?: string
   /** StopFailure: il tipo d'errore e la spiegazione. */
   errore?: string
   /** Stop: l'ultimo messaggio della chat (per le Domande e le notifiche). */
@@ -74,6 +78,7 @@ export function leggiSegnale(x: unknown, quando: string): Segnale | undefined {
     ...(testo(o.message) !== undefined ? { messaggio: (o.message as string).slice(0, 500) } : {}),
     ...(testo(o.tool_name) !== undefined ? { strumento: o.tool_name as string } : {}),
     ...(dettaglio !== undefined ? { dettaglio: dettaglio.slice(0, 300) } : {}),
+    ...(ti !== undefined && typeof ti === 'object' && testo(ti.command) !== undefined ? { comando: (ti.command as string).slice(0, 300) } : {}),
     ...(testo(o.error) !== undefined ? { errore: [o.error as string, testo(o.error_details)].filter((v) => v !== undefined).join(': ').slice(0, 500) } : {}),
     ...(testo(o.last_assistant_message) !== undefined ? { ultimoMessaggio: (o.last_assistant_message as string).slice(-2000) } : {}),
     ...(testo(o.source) !== undefined ? { origine: o.source as string } : testo(o.reason) !== undefined ? { origine: o.reason as string } : {})

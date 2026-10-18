@@ -115,4 +115,64 @@ describe('pagina: la gestione delle chat', () => {
     const chiedi = script.slice(script.indexOf('window.gcChiedi ='), script.indexOf('window.gcChiediScelte'))
     expect(chiedi).toContain('if (n !== gcChiesta || dove !== pannelloAperto) return')
   })
+
+  it('una chat che non si può eliminare ha «Elimina dal PC» spento con il motivo del PC, prima di toccarlo', async () => {
+    const chieste: unknown[] = []
+    const motivo = '«c» sta lavorando: aspetta che finisca, poi chiudila.'
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const g = new Function('chiedi', 'pannello', `${gc}
+      var gcTitoli = {}, gcMisure = {}, ultimoStato = null
+      function esc(s) { return String(s) }
+      function aiuto(id, t) { return '<i>?</i>' }
+      async ${funzione('gcMisura')}
+      ${funzione('gcTastiHtml')}
+      return { gcTastiHtml, gcMisure }`)(
+      async (rotta: string, corpo: unknown) => { chieste.push([rotta, corpo]); return { selezione: { byte: 10, escluse: [{ sessione: 's', motivo }] } } },
+      () => undefined
+    ) as { gcTastiHtml: (s: string, t: string, k: string) => string; gcMisure: Record<string, { motivo?: string }> }
+    const prima = g.gcTastiHtml('s', 'c', 'k')
+    expect(prima).not.toContain('disabled')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(chieste).toEqual([['/api/chat/gestione/spazio', { sessioni: ['s'] }]])
+    const dopo = g.gcTastiHtml('s', 'c', 'k')
+    expect(dopo).toMatch(/class="pericolo" disabled data-a="elimina"/)
+    expect(dopo).toContain(`<span class="gc-no">${motivo}</span>`)
+    // Chiudi e Archivia restano accesi: il PC risponde col motivo se non si può.
+    expect(dopo.match(/disabled/g)).toHaveLength(1)
+    expect(chieste).toHaveLength(1)
+  })
+
+  it('rileggendo dopo 10 s il motivo resta (niente «Elimina» acceso per un attimo); si ridisegna solo se cambia', async () => {
+    let ridisegni = 0
+    let rispondi: (v: unknown) => void = () => undefined
+    const motivo = '«c» aspetta una tua risposta: rispondi o chiudila prima.'
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const g = new Function('chiedi', 'pannello', `${gc}
+      var gcTitoli = {}, gcMisure = {}, ultimoStato = null
+      function esc(s) { return String(s) }
+      function aiuto(id, t) { return '<i>?</i>' }
+      async ${funzione('gcMisura')}
+      ${funzione('gcTastiHtml')}
+      return { gcTastiHtml, gcMisure }`)(
+      () => new Promise((r) => { rispondi = r }),
+      () => { ridisegni += 1 }
+    ) as { gcTastiHtml: (s: string, t: string, k: string) => string; gcMisure: Record<string, { motivo?: string; il: number }> }
+    g.gcTastiHtml('s', 'c', 'k')
+    rispondi({ selezione: { byte: 10, escluse: [{ sessione: 's', motivo }] } })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(ridisegni).toBe(1)
+    g.gcMisure.s!.il = Date.now() - 11_000
+    // Si rilegge: mentre il PC risponde il tasto resta spento con il motivo.
+    expect(g.gcTastiHtml('s', 'c', 'k')).toContain(`<span class="gc-no">${motivo}</span>`)
+    expect(g.gcTastiHtml('s', 'c', 'k')).toMatch(/class="pericolo" disabled/)
+    rispondi({ selezione: { byte: 12, escluse: [{ sessione: 's', motivo }] } })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(ridisegni).toBe(1)
+  })
+
+  it('«Elimina» toccato prima che arrivi il motivo: niente conferma, il tasto si spegne con il motivo', () => {
+    const chiedi = script.slice(script.indexOf('window.gcChiedi ='), script.indexOf('window.gcChiediScelte'))
+    expect(chiedi).toContain('if (no) { pannello(ultimoStato); return }')
+    expect(chiedi.indexOf('if (no) {')).toBeLessThan(chiedi.indexOf("gcConfermaAp = { azione: 'elimina'"))
+  })
 })

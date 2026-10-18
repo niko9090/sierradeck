@@ -176,3 +176,53 @@ La compilazione è sempre rimasta verde: `npm run typecheck`, e `gradle testDebu
 ### Giudizio: vale la pena tenerlo?
 
 **Sì, per la revisione.** Per $2,25 e meno di 5 minuti hanno trovato una trentina di difetti veri, diversi fra loro, che due revisioni mie e un collaudo con clic veri avevano mancato. Alcuni erano seri: una chat eliminata con lo stato illeggibile, la scritta «liberati» senza aver liberato niente, il Drive svuotato per chat rimaste. Circa un quarto delle segnalazioni è rumore o scelta voluta, quindi ogni punto va verificato nel codice. silent-failure-hunter e react-reviewer hanno reso di più. Gli hook vanno tenuti spenti finché Nicholas non dice sì.
+
+## Terza revisione: interfaccia c-47 + Panoramica c-49 (18/10 notte)
+Ramo `ap/ap-f1e631f5/c-4`, diff da `4f7afaa`. Due agenti in parallelo come sessione a parte (`claude -p --agent …`, solo Read/Grep/Glob), diff salvato in un file perché il `-p` qui non ha la shell.
+
+| Agente | Parte | Segnalazioni | Difetti veri | Falsi allarmi / voluti | Durata | Costo |
+|---|---|---|---|---|---|---|
+| ecc:typescript-reviewer | PC, pagina, shared, servizio | 10 | 6 | 4 | 2 min 39 s | $0,37 |
+| ecc:kotlin-reviewer | app | 4 | 3 | 1 | 2 min 39 s | $0,26 |
+
+**Veri, corretti con test:**
+- `.pan2-dialogo` con `overflow: hidden` tagliava il campo del primo messaggio (workspace senza autopilota): ora `hidden` solo con `:has(.chatap--pronta)`.
+- Pagina: a ogni rilettura (10 s) «Elimina dal PC» si riaccendeva finché il PC non rispondeva, e ogni rilettura ridisegnava il pannello. Ora la misura di prima resta e si ridisegna solo se il motivo cambia.
+- Riassunto «Al lavoro» senza tetto: con 8–10 chat schiacciava il resto (PC) o la conversazione (app). PC 30vh con scorrimento; pagina e app 3 righe + «e altre N»; app aperta in 220 dp che scorrono.
+- Nelle viste senza Panoramica (colonna dell'autopilota, PC 0.78) la riga corta e quella tecnica comparivano tutte e due: lì le righe corte non si mostrano.
+- Elimina toccato prima che arrivasse il motivo (PC, pagina, app): si apriva la conferma e il rifiuto arrivava solo dopo. Ora niente conferma, il tasto si spegne con il motivo.
+- La frase di «chiede-te» suonava male: «Revisione: rimanda di nuovo «…» di Sviluppo, decidi tu come andare avanti.».
+- App: `oraLocale` falliva con un offset («+02:00»): ora anche quello.
+
+**Falsi allarmi o voluti:** il fuoco automatico «ruba le scorciatoie» (no: sono in ascolto in cattura sulla finestra); righe della pagina apribili senza riquadro (sulla pagina sono sempre chat aperte); ore locali diverse fra PC e telefono in fusi diversi (voluto); `escluse.firstOrNull()` con una sessione sola (corretto).
+
+**Limite noto, non corretto:** il «da quanto» della rotta `/api/panoramica` parte dalla prima volta che qualcuno guarda (la rotta non gira se nessuno guarda); il PC usa il suo, dai segnali. Dopo un riavvio i due possono differire di qualche minuto.
+
+**Giudizio:** anche qui utile: 9 difetti veri per $0,63 e meno di 3 minuti, che la prova con clic veri non aveva fatto vedere (casi con molte chat, PC vecchi, tocchi veloci).
+
+## Quarta revisione: dashboard dell'autopilota c-50 (18/10 notte)
+Ramo `ap/ap-f1e631f5/c-5`, diff della dashboard prima dell'unione con c-4. Agente lanciato dalla chat (Agent tool), sola lettura.
+
+| Agente | Parte | Segnalazioni | Difetti veri | Falsi allarmi / voluti | Durata | Token |
+|---|---|---|---|---|---|---|
+| ecc:typescript-reviewer | shared, PC, pagina, app | 5 | 4 (1 medio, 3 piccoli) | 1 (ordine delle regex: è solo un'etichetta) | 3 min | 69 k |
+
+**Veri, corretti con test:**
+1. **Medio.** Un segnale perso (Stop mai arrivato) lasciava «fa girare i test · da 3 h» per sempre. Ora, dopo 10 minuti di silenzio: «nessun segnale da N min», e niente «adesso».
+2. Il permesso si raccontava dalla descrizione scritta dalla chat («esegue un comando»). Ora si racconta dal comando.
+3. Nell'app «da N min» avanzava solo quando cambiavano i dati.
+4. Sul PC ogni segnale faceva subito una rilettura via IPC: ora aspetta mezzo secondo di quiete.
+
+Ha anche verificato, senza trovare problemi:
+- il cambio del matcher PreToolUse: non tocca `statoDaSegnali` né l'hook dei divieti dell'autopilota;
+- l'IPC `segnali:di`, con l'input controllato;
+- le regex sul diario, uguali ai testi veri (poi tolte nell'unione con c-4);
+- l'assenza di backtick e backslash nella pagina.
+
+**Hook di ECC accesi nella cartella di lavoro di c-5.** È la trappola già scritta sopra: il worktree nuovo non aveva `.claude/settings.local.json`.
+- Il «Fact-Forcing Gate» ha bloccato una decina di volte la prima scrittura di un file e ogni comando che cancella (`git rm`, la cartella della copia di prova, perfino un testo che contiene quelle parole). Ogni volta chiedeva di ripetere i fatti.
+- Costo: qualche decina di secondi e un po' di testo per blocco. Nessun errore evitato: erano tutte azioni volute.
+- Conferma che, se Nicholas vuole gli hook spenti, il file va copiato anche nei worktree creati da SierraDeck. Meglio ancora: SierraDeck lo copia da solo quando crea la cartella (da decidere).
+
+**Giudizio:** utile anche su un lavoro piccolo. Il difetto medio (Stop perso) la prova dal vero non l'avrebbe mostrato.
+

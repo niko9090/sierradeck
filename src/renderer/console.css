@@ -4989,8 +4989,8 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* ── Panoramica 2 (0.78.0), dalla revisione UI/UX: situazione in alto, conversazione a
    sinistra (300 px), al centro Adesso → Piano → Chat → Finite, domande a destra solo se ci sono. ── */
-.pan2 { display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-.pan2--domande { grid-template-columns: 300px minmax(0, 1fr) 320px; }
+.pan2 { display: grid; grid-template-columns: minmax(380px, 44%) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.pan2--domande { grid-template-columns: minmax(360px, 38%) minmax(0, 1fr) 320px; }
 .pan2-situazione { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--bordo); min-width: 0; }
 .pan2-obiettivo { font-size: 15px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pan2-obiettivo--tutto { -webkit-line-clamp: unset; display: block; max-height: 30vh; overflow: auto; }
@@ -5015,7 +5015,24 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .pan2-criterio__testo { display: flex; flex-direction: column; min-width: 0; }
 .pan2-criterio__descr { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .pan2-criterio__quando { color: var(--testo-quieto); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pan2-dialogo { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--bordo); overflow: auto; }
+.pan2-dialogo { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--bordo); overflow: auto; padding: 0 10px 10px; }
+/* Con la conversazione dell'autopilota scorre solo il suo flusso (0.79.0); senza (il primo messaggio) scorre la colonna. */
+.pan2-dialogo:has(.chatap--pronta) { overflow: hidden; }
+/* La conversazione grande e il campo sempre in vista (0.79.0): scorre solo il flusso, il campo resta in fondo. */
+.chatap--pronta { flex: 1 1 auto; min-height: 0; }
+.chatap--pronta .chatap__flusso { font-size: 14px; }
+.chatap--pronta .chatap__scrivi { flex: none; }
+.chatap__riga--nota.chatap__riga--traguardo { border-left-color: var(--verde); color: var(--testo); font-size: var(--t1, 13px); }
+/* Il riassunto accanto alla conversazione (0.79.0): una riga per chat al lavoro, sempre in cima. */
+.pan2-riassunto { position: sticky; top: -12px; z-index: 1; margin: -12px -12px 0; padding: 12px 12px 8px; background: var(--fondo); border-bottom: 1px solid var(--bordo); }
+.pan2-riassunto__aspettano { color: var(--ambra); }
+.pan2-riassunto__elenco { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow-y: auto; }
+.pan2-riassunto__riga { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 4px 8px; text-align: left; background: var(--chassis); border: 1px solid var(--bordo); border-left: 3px solid var(--verde); border-radius: 6px; color: var(--testo); cursor: pointer; font-size: 13px; }
+.pan2-riassunto__riga:disabled { cursor: default; }
+.pan2-riassunto__riga--chiede { border-left-color: var(--ambra); background: color-mix(in srgb, var(--ambra) 8%, var(--chassis)); }
+.pan2-riassunto__cosa { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pan2-riassunto__quanto { color: var(--testo-quieto); font-size: 12px; white-space: nowrap; }
+.pan2-riassunto__riga--chiede .pan2-riassunto__quanto { color: var(--ambra); font-weight: 600; }
 .pan2-dialogo .dal-vivo { padding: 6px 10px; }
 .pan2-centro { min-width: 0; min-height: 0; overflow: auto; padding: 12px; }
 .pan2-sezione + .pan2-sezione { margin-top: 16px; }
@@ -5025,7 +5042,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .pan2-scheda--chiede { border-left-color: var(--ambra); background: color-mix(in srgb, var(--ambra) 8%, var(--chassis)); }
 .pan2-scheda__apri { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 8px 10px; text-align: left; background: none; border: 0; color: var(--testo); cursor: pointer; }
 .pan2-scheda__apri:hover { background: var(--chassis-alto); }
-.pan2-scheda__testa { display: flex; align-items: center; gap: 8px; height: 22px; font-size: 12px; min-width: 0; padding-right: 76px; }
+.pan2-scheda__testa { display: flex; align-items: center; gap: 8px; height: 22px; font-size: 12px; min-width: 0; /* «solo mia» e 🗂 a destra: «da 3 min» non ci va sotto (0.79.0). */ padding-right: 118px; }
 .pan2-chatferma .pan2-scheda__testa { padding-right: 0; }
 .pan2-scheda__titolo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .pan2-scheda__quando { color: var(--testo-quieto); font-size: 11px; white-space: nowrap; }
@@ -5070,7 +5087,7 @@ button.pan2-compito:hover, button.pan2-compito:focus-visible { border-color: var
 .chatap__evento { display: flex; gap: 8px; height: 22px; align-items: center; font-size: 12px; color: var(--testo-quieto); min-width: 0; }
 .chatap__evento-testo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1100px) {
-  .pan2, .pan2--domande { grid-template-columns: 260px minmax(0, 1fr); }
+  .pan2, .pan2--domande { grid-template-columns: minmax(320px, 46%) minmax(0, 1fr); }
   .pan2-domande { grid-column: 2; grid-row: 2; align-self: start; max-height: 40vh; border: 1px solid var(--ambra); border-radius: 6px; margin: 8px; z-index: 2; background: var(--chassis); }
   .pan2-adesso { grid-template-columns: 1fr; }
   .pan2-piano { grid-template-columns: repeat(2, minmax(140px, 1fr)); }

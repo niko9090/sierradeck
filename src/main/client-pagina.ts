@@ -159,6 +159,19 @@ export function paginaClient(): string {
   .pan-tel-righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Panoramica 2 (0.78.0): situazione, adesso, piano a liste, chat, finite; tocchi da 48 px. */
   .pan-tel2 .serigrafia { margin-top: 12px; }
+  /* Il riassunto accanto alla conversazione (0.79.0): una riga per chat al lavoro, tocchi da 48 px. */
+  .pan-tel-aspettano { color: var(--ambra); }
+  .pan-tel-al-lavoro { display: flex; gap: 8px; align-items: flex-start; width: 100%; min-height: 48px; margin-top: 6px; padding: 8px 10px; text-align: left; border: 1px solid var(--incisione); border-left: 3px solid var(--verde); border-radius: 8px; background: none; color: var(--testo); font: inherit; }
+  .pan-tel-al-lavoro--chiede { border-left-color: var(--ambra); }
+  .pan-tel-al-lavoro__testo { display: flex; flex-direction: column; min-width: 0; }
+  .nota-ap.nota-ap--traguardo { font-size: 13px; color: var(--testo); border-left-color: var(--verde); }
+  /* Il campo per scrivere all'autopilota resta in fondo allo schermo, sopra la fascia (0.79.0, con .ancorata). */
+  .casella-ap { z-index: 2; }
+  /* Compatto (prova dal vero del 18/10): alto 190 px copriva la fine della conversazione. */
+  .casella-ap { border-top: 1px solid var(--bordo, #2a2f3a); }
+  .casella-ap .riga { margin: 4px 0; }
+  .casella-ap textarea { min-height: 52px; max-height: 30vh; }
+  .casella-ap button { min-height: 40px; padding: 4px 12px; }
   .pan-tel-situazione { display: flex; flex-direction: column; gap: 4px; }
   .pan-tel-obiettivo { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-apri { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 4px; padding: 0 8px; text-align: left; background: none; border: 0; border-top: 1px solid var(--bordo, #2a2f3a); color: var(--testo); }
@@ -555,7 +568,7 @@ export function paginaClient(): string {
   .pensa { color: var(--ambra); }
   /* La chat con lui (0.29.0): in cima, scorre da sola e resta in fondo; le
      sue decisioni sono note quiete con il filo colorato a sinistra. */
-  .flusso-ap { max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
+  .flusso-ap { max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
   .battuta--domanda, .battuta--pronto { border: 1px solid var(--ambra); background: color-mix(in srgb, var(--ambra) 10%, transparent); }
   .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
   /* La linguetta «File» e il diff (0.38.0). */
@@ -1055,9 +1068,15 @@ function vistaDomande(s) {
  * Come si risponde a una conversazione: la stessa regola di
  * \`richiestaRisposta\` in \`shared/domande-conversazioni.ts\` (un test le confronta).
  */
-/** Ore e minuti di un istante ISO, gia' scappati. */
+/**
+ * Ore e minuti di un istante ISO, gia' scappati, nell'ora del telefono
+ * (0.79.0): gli istanti arrivano in UTC («…Z») e tagliarli dava le 09:10 dove
+ * il PC dice 11:10.
+ */
 function oraDi(iso) {
-  return esc(String(iso || '').slice(11, 16))
+  const d = new Date(String(iso || ''))
+  if (isNaN(d.getTime())) return esc(String(iso || '').slice(11, 16))
+  return esc(d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }))
 }
 
 function richiestaDi(r, testo) {
@@ -1831,9 +1850,10 @@ function pannello(s) {
       <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       </div>
-      \${apDettaglio ? panoramicaHtml(panoramicaAp) : ''}
+      \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
+      \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
           ? '<button class="primario" data-ap="' + esc(apAperto.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button>'
@@ -2678,6 +2698,9 @@ window.guardaAp = async (id, pc, nomePc) => {
   pannello(ultimoStato)
   await leggiAp()
   pannello(ultimoStato)
+  // All'apertura in vista chi lavora, la conversazione e il campo, non solo la situazione (prova del 18/10).
+  const alLavoro = document.getElementById('al-lavoro-ap')
+  if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
 window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
@@ -2755,9 +2778,35 @@ function schedaTelHtml(s, quante) {
     '<span class="pan-tel-azione">' + esc(s.domanda ? 'Ti chiede: ' + ((s.domanda.scheda && s.domanda.scheda.domanda) || '') : (s.ultimaAzione || '')) + '</span>' +
     '</button>'
 }
-function panoramicaHtml(p) {
+/**
+ * Il riassunto accanto alla conversazione (0.79.0, Nicholas): una riga per
+ * chat al lavoro, già composta dal PC (chi, cosa fa, da quanto, se aspetta te).
+ */
+function alLavoroHtml(righe) {
+  const aspettano = righe.filter((r) => r.aspettaTe).length
+  return '<div class="serigrafia" id="al-lavoro-ap">Al lavoro · ' + righe.length + (aspettano ? ' <span class="pan-tel-aspettano">· ◆ ' + (aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te') + '</span>' : '') +
+    aiuto('al-lavoro', 'Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.') + '</div>' +
+    (righe.length ? righe.slice(0, panAperte['al-lavoro'] ? righe.length : 3).map((r) => {
+      const corpo = '<span class="pan-tel-pallino">' + (r.aspettaTe ? '◆' : '●') + '</span><span class="pan-tel-al-lavoro__testo"><b>' + esc(r.chi) + '</b> ' + esc(r.cosa) +
+        // «adesso» (0.79.0): cosa fa in questo momento, dai segnali; come sottoAlLavoro del PC.
+        '<span class="sotto">' + (r.aspettaTe ? '<b class="pan-tel-stato--ambra">' + esc(r.adesso || 'aspetta te') + '</b>' : esc(r.adesso || '')) + ((r.aspettaTe || r.adesso) && r.quanto ? ' · ' : '') + esc(r.quanto || '') + '</span></span>'
+      return apPc
+        ? '<div class="pan-tel-al-lavoro' + (r.aspettaTe ? ' pan-tel-al-lavoro--chiede' : '') + '">' + corpo + '</div>'
+        : '<button class="pan-tel-al-lavoro' + (r.aspettaTe ? ' pan-tel-al-lavoro--chiede' : '') + '" data-chat="' + esc(r.id) + '" onclick="apriDaPanoramica(this.dataset.chat)">' + corpo + '</button>'
+    }).join('') + (righe.length > 3 ? rigaApri('al-lavoro', panAperte['al-lavoro'] ? 'meno' : 'e altre ' + (righe.length - 3)) : '') : '<div class="sotto">Nessuna chat al lavoro.</div>')
+}
+/**
+ * La Panoramica in due parti (0.79.0): la «testa» (situazione e chi lavora)
+ * sta sopra la conversazione con l'autopilota, il «resto» (Adesso, Piano,
+ * Chat, Finite) sotto: la conversazione e il suo campo restano in vista.
+ */
+function panoramicaHtml(p, parte) {
   if (!p || !Array.isArray(p.schede)) return ''
-  if (!p.situazione) return panoramicaVecchiaHtml(p)
+  if (!p.situazione) return parte === 'testa' ? panoramicaVecchiaHtml(p) : ''
+  if (parte === 'testa') return panoramicaTestaHtml(p)
+  return panoramicaRestoHtml(p)
+}
+function panoramicaTestaHtml(p) {
   const st = p.situazione
   const criteri = st.criteri.totali > 0
     ? rigaApri('criteri', 'Criteri ' + esc(st.criteri.testo) + ' <span class="pan-tel-barra">' + st.criteri.elenco.map((c) => '<i class="pan-tel-pezzo--' + esc(c.esito) + '"></i>').join('') + '</span>') +
@@ -2767,6 +2816,10 @@ function panoramicaHtml(p) {
     : '<div class="sotto">nessun criterio di fine</div>'
   const situazione = '<div class="pan-tel-situazione"><div class="pan-tel-obiettivo">' + esc(st.obiettivo) + '</div>' +
     '<div><b class="pan-tel-stato--' + esc(st.stato.colore) + '">' + esc(st.stato.simbolo + ' ' + st.stato.parola) + '</b>' + (st.stato.ragione ? ' <span class="sotto">· ' + esc(st.stato.ragione) + '</span>' : '') + '</div>' + criteri + '</div>'
+  // Un PC della 0.78 non manda il riassunto: allora solo la situazione.
+  return '<div class="pan-tel pan-tel2">' + situazione + (Array.isArray(p.alLavoro) ? alLavoroHtml(p.alLavoro) : '') + '</div>'
+}
+function panoramicaRestoHtml(p) {
   const adesso = p.schede.filter((s) => s.stato === 'chiede' || s.stato === 'lavora')
   const ferme = p.schede.filter((s) => s.stato !== 'chiede' && s.stato !== 'lavora')
   const chat = ferme.filter((s) => !s.specialista)
@@ -2784,8 +2837,8 @@ function panoramicaHtml(p) {
     }).join('') : '')).join('') : ''
   const sezChat = chat.length ? '<div class="serigrafia">Chat · ' + chat.length + '</div>' + chat.map((s) => schedaTelHtml(s, 0)).join('') : ''
   const sezFinite = finite.length ? rigaApri('finite', 'Finite: ' + finite.length) + (panAperte.finite ? finite.map((s) => schedaTelHtml(s, 0)).join('') : '') : ''
-  return '<div class="pan-tel pan-tel2">' + situazione + sezAdesso + sezPiano + sezChat + sezFinite +
-    '<div class="serigrafia" style="margin-top:10px">Conversazione' + aiuto('panoramica', 'In alto la situazione: lo stato dice «finito» solo se i criteri sono tutti soddisfatti; tocca «Criteri» per vederli uno per uno. «Adesso»: le chat al lavoro o che aspettano te. «Piano»: i compiti per fase, con chi li fa. Tocca una scheda o un compito per aprire la chat a tutto schermo. Sotto, la conversazione con l’autopilota; quello che ha fatto da solo è in «Cosa è successo».') + '</div></div>'
+  return '<div class="pan-tel pan-tel2">' + sezAdesso + sezPiano + sezChat + sezFinite +
+    '<div class="sotto" style="margin-top:10px">Come si legge' + aiuto('panoramica', 'In alto la situazione: lo stato dice «finito» solo se i criteri sono tutti soddisfatti; tocca «Criteri» per vederli uno per uno. «Al lavoro»: chi lavora adesso, in una riga. Poi la conversazione con l’autopilota, con il campo per scrivergli sempre in fondo allo schermo; quello che ha fatto da solo è in «Cosa è successo». Sotto: «Adesso» con le righe dal vivo, il «Piano» per fase, le altre chat, le finite. Tocca una riga, una scheda o un compito per aprire la sua chat.') + '</div></div>'
 }
 /** La Panoramica della 0.77.0, per un PC che non manda ancora situazione e piano. */
 function panoramicaVecchiaHtml(p) {
@@ -2808,7 +2861,7 @@ function vistaAutopilota(a) {
   }).join('<span class="passo-filo"></span>')
   const qui = (a.passaggi || []).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
   const m = a.misura || { percento: 0, dettaglio: '', di: '', tono: 'lavoro' }
-  const ora = (iso) => esc(String(iso || '').slice(11, 16))
+  const ora = (iso) => oraDi(iso)
 
   // ── La chat con lui, in cima (0.29.0) ──
   // Arriva composta dal computer (la stessa della sezione sul PC): la tua
@@ -2816,9 +2869,12 @@ function vistaAutopilota(a) {
   // domanda aperta. Qui si disegna e basta.
   // Con la Panoramica 2 (0.78.0) solo la conversazione; gli eventi in «Cosa è successo ▸».
   const conPan = !!(panoramicaAp && panoramicaAp.situazione)
-  const eventi = conPan ? (a.chat || []).filter((b) => b.da === 'nota').reverse() : []
+  // Le righe corte dei traguardi (0.79.0: «Revisione: ha approvato …, unito.») restano nella conversazione.
+  const inConversazione = (b) => b.da !== 'nota' || b.tono === 'traguardo'
+  const eventi = conPan ? (a.chat || []).filter((b) => !inConversazione(b)).reverse() : []
   const eventiHtml = eventi.length ? rigaApri('eventi', 'Cosa è successo · ' + eventi.length) + (panAperte.eventi ? '<div class="pan-tel-eventi">' + eventi.slice(0, 50).map((b) => '<div class="nota-ap"><span class="quando">' + ora(b.quando) + '</span><span>' + esc(b.testo) + (b.volte ? ' ×' + b.volte : '') + '</span></div>').join('') + '</div>' : '') : ''
-  const chat = eventiHtml + (a.chat || []).filter((b) => !conPan || b.da !== 'nota').map((b) => {
+  // Senza la Panoramica 2 il diario è intero: le righe corte dei traguardi sarebbero un doppione.
+  const chat = eventiHtml + (a.chat || []).filter((b) => conPan ? inConversazione(b) : b.tono !== 'traguardo').map((b) => {
     if (b.da === 'nota') {
       return '<div class="nota-ap' + (b.tono ? ' nota-ap--' + esc(b.tono) : '') + '">' +
         '<span class="quando">' + ora(b.quando) + '</span>' +
@@ -2843,7 +2899,8 @@ function vistaAutopilota(a) {
   // La casella: con una domanda aperta e' la risposta (arriva subito alla
   // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
   // qualche minuto.
-  const casella = '<div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
+  // Il campo resta in fondo allo schermo mentre si scorre (0.79.0: «sempre pronto»).
+  const casella = '<div class="casella-ap ancorata"><div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
       'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta Domande)' + '"></textarea></div>' +
     '<div class="riga">' +
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
@@ -2855,7 +2912,7 @@ function vistaAutopilota(a) {
       '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
-    (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '')
+    (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'
   setTimeout(scorriChatAp, 0)
 
   // ── Le linguette, sotto ──
@@ -3899,6 +3956,8 @@ var gcTitoli = {}
 var gcConfermaAp = null
 var gcNota = null
 var gcAzioniDi = ''
+/** Per le chat col menu aperto: lo spazio e, se non si può eliminare, il motivo del PC (Elimina spento). */
+var gcMisure = {}
 var gcSvuota = null
 var gcSvuotaDrive = false
 var gcFrase = ''
@@ -3986,11 +4045,29 @@ function gcTastiHtml(sessione, titolo, chiave) {
   gcTitoli[sessione] = titolo
   return ['chiudi', 'archivia', 'elimina'].map(function (a) {
     var t = GC.testi[a]
-    return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
-      aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + '</span>'
+    if (a === 'elimina') gcMisura(sessione)
+    var no = a === 'elimina' && gcMisure[sessione] && gcMisure[sessione].motivo
+    return '<span class="gc-tasto"><button' + (a === 'elimina' ? ' class="pericolo"' : '') + (no ? ' disabled' : '') + ' data-a="' + a + '" data-s="' + esc(sessione) + '" onclick="gcChiedi(this.dataset.a, this.dataset.s)">' + esc(t.etichetta) + '</button>' +
+      aiuto('gc-' + a + '-' + chiave, esc(t.spiega)) + (no ? '<span class="gc-no">' + esc(no) + '</span>' : '') + '</span>'
   }).join('')
 }
-window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; pannello(ultimoStato) }
+window.gcApriAzioni = (s) => { gcAzioniDi = gcAzioniDi === s ? '' : s; delete gcMisure[s]; pannello(ultimoStato) }
+/**
+ * Si chiede al PC se una chat si può eliminare (al più ogni 10 s): una chat al lavoro, in attesa,
+ * guidata da un autopilota attivo o di un altro PC mostra «Elimina dal PC» spento con il motivo.
+ */
+async function gcMisura(s) {
+  var m = gcMisure[s]
+  if (m && (m.chiede || Date.now() - m.il < 10000)) return
+  // Mentre si rilegge resta quella di prima: «Elimina» non si riaccende per un attimo.
+  gcMisure[s] = Object.assign({}, m || {}, { chiede: true, il: Date.now() })
+  var prima = m ? m.motivo : undefined
+  try {
+    var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [s] })
+    gcMisure[s] = r && r.selezione ? { byte: r.selezione.byte, motivo: (r.selezione.escluse[0] || {}).motivo, il: Date.now() } : Object.assign({}, m || {}, { chiede: false, il: Date.now() })
+  } catch (e) { gcMisure[s] = Object.assign({}, m || {}, { chiede: false, il: Date.now() }); return }
+  if (gcMisure[s].motivo !== prima) pannello(ultimoStato)
+}
 var gcChiesta = 0
 window.gcChiedi = async (azione, sessione) => {
   var nome = gcNome([gcTitoli[sessione] || sessione.slice(0, 8)])
@@ -3999,9 +4076,15 @@ window.gcChiedi = async (azione, sessione) => {
   gcNota = null
   if (azione !== 'elimina') { gcConfermaAp = { azione: azione, sessioni: [sessione], nome: nome, drive: false, conferma: gcConferma(azione, nome, '') }; pannello(ultimoStato); gcMostraConferma(); return }
   var spazio = 'lo spazio di questa chat'
-  try { var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [sessione] }); if (r && r.selezione) spazio = gcByte(r.selezione.byte) } catch (e) { }
+  var no
+  try {
+    var r = await chiedi('/api/chat/gestione/spazio', { sessioni: [sessione] })
+    if (r && r.selezione) { spazio = gcByte(r.selezione.byte); no = (r.selezione.escluse[0] || {}).motivo; gcMisure[sessione] = { byte: r.selezione.byte, motivo: no, il: Date.now() } }
+  } catch (e) { }
   // Nel frattempo si è chiesto altro, o cambiato pannello: questa conferma non serve più.
   if (n !== gcChiesta || dove !== pannelloAperto) return
+  // Toccato prima che arrivasse il motivo: niente conferma, il tasto si spegne con il motivo del PC.
+  if (no) { pannello(ultimoStato); return }
   gcConfermaAp = { azione: 'elimina', sessioni: [sessione], nome: nome, spazio: spazio, drive: false, conferma: gcConferma('elimina', nome, spazio) }
   pannello(ultimoStato)
   gcMostraConferma()

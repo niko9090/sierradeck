@@ -2166,6 +2166,8 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(a.chats.find((c: any) => c.id === 'c-1').approvata).toBe(true)
     expect(a.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
     expect(chatAvviate.map((c) => c.compito)).toContain('B')
+    // 0.79.0: accanto alla riga tecnica, il traguardo per la riga corta della conversazione.
+    expect(a.decisioni.filter((d: any) => d.traguardo !== undefined).map((d: any) => d.traguardo)).toContainEqual({ chat: 'c-2', esito: 'approvato', di: 'c-1' })
   })
 
   it('senza la riga del verdetto si chiede di chiuderla; un OK che rompe un criterio vale «da rifare»', async () => {
@@ -2185,6 +2187,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(autore.stato).toBe('lavoro')
     expect(autore.rifacimenti).toBe(1)
     expect(messaggiDiRipresa.join(' ')).toContain('il ramo rompe quello che sul ramo principale passava')
+    expect(a.decisioni.map((d: any) => d.traguardo).filter(Boolean)).toEqual([{ chat: 'c-2', esito: 'da-rifare', di: 'c-1' }])
   })
 
   it('0.73.0: un criterio dell insieme rosso anche sul ramo principale non respinge un ramo giusto', async () => {

@@ -4,9 +4,15 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -97,9 +103,27 @@ data class CompitoPiano(
 @Serializable
 data class ColonnaPiano(val fase: String = "", val nome: String = "", val compiti: List<CompitoPiano> = emptyList())
 
+/** PC 0.79.0: una riga del riassunto accanto alla conversazione, già composta dal PC. */
+@Serializable
+data class RigaAlLavoro(
+    val id: String = "",
+    /** «Sviluppo», «Revisione»… o «Chat». */
+    val chi: String = "",
+    val ruolo: String? = null,
+    /** Cosa fa adesso, in parole semplici (dal registro dell'autopilota). */
+    val cosa: String = "",
+    /** «da 3 min», «su PORTATILE». */
+    val quanto: String = "",
+    /** PC 0.79.0: cosa fa in questo momento, dai segnali: «fa girare i test». Assente da un PC che non lo manda. */
+    val adesso: String? = null,
+    val aspettaTe: Boolean = false
+)
+
 @Serializable
 data class Panoramica(
     val workspace: String = "",
+    /** PC 0.79.0: chi lavora adesso, una riga per chat; assente da un PC più vecchio. */
+    val alLavoro: List<RigaAlLavoro>? = null,
     val autopilota: String? = null,
     val riassunto: RiassuntoPanoramica? = null,
     val schede: List<SchedaPanoramica> = emptyList(),
@@ -171,9 +195,27 @@ object RegolePanoramica {
         return inOrdine.filter { it.id in scelte } to inOrdine.filter { it.id !in scelte }
     }
 
-    /** PC 0.78.0: a sinistra la conversazione (tu e lui), gli eventi (note) a parte, dal più recente. */
-    fun separaConversazione(battute: List<Battuta>): Pair<List<Battuta>, List<Battuta>> =
-        battute.filter { it.da != "nota" } to battute.filter { it.da == "nota" }.reversed()
+    /**
+     * PC 0.78.0: a sinistra la conversazione (tu e lui), gli eventi (note) a parte, dal più recente.
+     * PC 0.79.0: le righe corte dei traguardi («Revisione: ha approvato …, unito.») restano nella conversazione.
+     */
+    fun separaConversazione(battute: List<Battuta>): Pair<List<Battuta>, List<Battuta>> {
+        fun inConversazione(b: Battuta) = b.da != "nota" || b.tono == "traguardo"
+        return battute.filter { inConversazione(it) } to battute.filter { !inConversazione(it) }.reversed()
+    }
+
+    /** Il titolo del riassunto: «Al lavoro · 3 · ◆ 1 aspetta te». */
+    fun titoloAlLavoro(righe: List<RigaAlLavoro>): String {
+        val aspettano = righe.count { it.aspettaTe }
+        return "Al lavoro · ${righe.size}" + when (aspettano) { 0 -> ""; 1 -> " · ◆ 1 aspetta te"; else -> " · ◆ $aspettano aspettano te" }
+    }
+
+    /** La seconda riga di una riga del riassunto: «aspetta te · da 3 min». */
+    fun sottoAlLavoro(r: RigaAlLavoro): String {
+        // PC 0.79.0: «adesso» dai segnali; un «aspetta il tuo permesso: …» dice già «aspetta te».
+        val adesso = r.adesso?.takeIf { it.isNotBlank() }
+        return listOfNotNull(if (r.aspettaTe && adesso == null) "aspetta te" else null, adesso, r.quanto.takeIf { it.isNotBlank() }).joinToString(" · ")
+    }
 
     private val ANSI = Regex("\u001B\\[[0-?]*[ -/]*[@-~]|\u001B\\][^\u0007]*(\u0007|\u001B\\\\)|\u001B[@-Z\\\\-_]|[\u0000-\u0008\u000B-\u001F\u007F]")
     private val RUMORE = listOf(
@@ -228,7 +270,11 @@ object RegolePanoramica {
 
 /** L'ora locale di un istante ISO, «12:19»; vuota se non si legge. */
 fun oraLocale(iso: String?): String = try {
-    if (iso == null) "" else java.time.Instant.parse(iso).atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+    if (iso == null) "" else {
+        // «…Z» o con l'offset («+02:00»): tutti e due nell'ora del telefono.
+        val istante = try { java.time.Instant.parse(iso) } catch (_: Exception) { java.time.OffsetDateTime.parse(iso).toInstant() }
+        istante.atZone(java.time.ZoneId.systemDefault()).toLocalTime().toString().take(5)
+    }
 } catch (_: Exception) { "" }
 
 private fun coloreParola(c: String): Color = when (c) { "verde" -> Banco.verde; "ambra" -> Banco.ambra; "rosso" -> Banco.rosso; else -> Banco.testoQuieto }
@@ -361,5 +407,43 @@ fun CosaESuccesso(eventi: List<Battuta>) {
                 color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
+    }
+}
+
+/**
+ * PC 0.79.0, Nicholas: accanto alla conversazione con l'autopilota un
+ * riassunto che si aggiorna da solo, una riga per chat al lavoro. Sta fuori
+ * dallo scorrimento, sopra la conversazione: al più 3 righe, le altre dietro
+ * «e altre N». Il tocco apre la chat.
+ */
+@Composable
+fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
+    var tutte by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(RegolePanoramica.titoloAlLavoro(righe), color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Aiuto("Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.", di = "Al lavoro")
+        }
+        if (righe.isEmpty()) Text("Nessuna chat al lavoro.", color = Banco.testoQuieto, fontSize = 12.sp)
+        // Aperte tutte, scorrono in un'altezza fissa: la conversazione sotto non si schiaccia.
+        Column(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+        for (r in if (tutte) righe else righe.take(3)) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 48.dp)
+                    .border(BorderStroke(1.dp, if (r.aspettaTe) Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
+                    .clickable { onApri(r.id) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (r.aspettaTe) "◆" else "●", color = if (r.aspettaTe) Banco.ambra else Banco.verde)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("${r.chi}  ${r.cosa}", color = Banco.testo, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(RegolePanoramica.sottoAlLavoro(r), color = if (r.aspettaTe) Banco.ambra else Banco.testoQuieto, fontSize = 11.sp)
+                }
+            }
+        }
+        }
+        if (righe.size > 3) RigaApri(if (tutte) "meno" else "e altre ${righe.size - 3}", tutte) { tutte = !tutte }
     }
 }
