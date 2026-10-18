@@ -101,6 +101,12 @@ export type GestioneChat = {
   tolteDaQui: (percorsoDrive: string) => boolean
 }
 
+/** Un messaggio del Drive dentro una frase nostra: senza il suo punto finale e con la minuscola (dal vero, c-75: «chiusa.. Le copie»). */
+const dentroFrase = (m: string): string => {
+  const t = m.trim().replace(/[.\s]+$/, '')
+  return t.charAt(0).toLowerCase() + t.slice(1)
+}
+
 const FILE_ARCHIVIATE = 'chat-archiviate.json'
 const FILE_RECUPERO = 'recupero-chat.json'
 const CARTELLA_RECUPERO = 'recupero-chat'
@@ -464,7 +470,7 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
           driveRiga = ` Anche dal Drive: ${byteLeggibili(p.byte)} nel recupero del Drive per 30 giorni.`
           deps.log(`[chat] anche dal Drive: ${p.voci.length} file (${byteLeggibili(p.byte)}) nella pulizia ${p.id}`)
         } else {
-          driveRiga = e.ok ? ` ${e.messaggio}` : ` Dal Drive no: ${e.messaggio}. Le copie lassù restano.`
+          driveRiga = e.ok ? ` ${e.messaggio}` : ` Dal Drive no: ${dentroFrase(e.messaggio)}. Le copie lassù restano.`
           if (!e.ok) deps.log(`[chat] anche dal Drive non riuscito: ${e.messaggio}`)
         }
       }
@@ -533,7 +539,7 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
       if (compagne.length === 0) {
         const e = await deps.drive.annulla(c.drive.pulizia).catch((err: unknown) => ({ ok: false, messaggio: err instanceof Error ? err.message : String(err) }))
         // Il Drive dice quanti file sono tornati: si riporta quello, non un «tornata» a priori.
-        driveRiga = e.ok ? ` La copia sul Drive: ${e.messaggio.replace(/^Annullata: /, '')}` : ` La copia sul Drive no (${e.messaggio}): si rimette da «Spazio sul Drive».`
+        driveRiga = e.ok ? ` La copia sul Drive: ${e.messaggio.replace(/^Annullata: /, '')}` : ` La copia sul Drive no (${dentroFrase(e.messaggio)}): si rimette da «Spazio sul Drive».`
       } else {
         driveRiga = ' La copia sul Drive è nel recupero del Drive con altre chat: si rimette da «Spazio sul Drive».'
       }
@@ -578,7 +584,7 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
         else { errori.push(e.messaggio); deps.log(`[chat] recupero del Drive ${id} non svuotato: ${e.messaggio}`) }
       }
       driveOk = svuotate === tutte.length
-      if (tutte.length > 0) drive = ` Dal recupero del Drive: ${svuotate} di ${tutte.length} svuotati${errori.length > 0 ? ` (${errori[0]})` : ''}${tutte.length > pulizie.length ? `; ${tutte.length - pulizie.length} restano con le chat rimaste qui` : ''}.`
+      if (tutte.length > 0) drive = ` Dal recupero del Drive: ${svuotate} di ${tutte.length} svuotati${errori.length > 0 ? ` (${dentroFrase(errori[0] as string)})` : ''}${tutte.length > pulizie.length ? `; ${tutte.length - pulizie.length} restano con le chat rimaste qui` : ''}.`
     }
     deps.log(`[chat] recupero delle chat svuotato ${perche} (${da}): ${voci.length - non} chat, ${byteLeggibili(byte)}${non > 0 ? `, ${non} non riuscite` : ''}${drive}`)
     if (voci.length - non > 0) deps.cambiato?.()

@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path'
 import { TESTI_AZIONI_CHAT, FRASE_SVUOTA, vistaSpazio, totaleSelezione, scadenzaRecupero, messaggioEsito, type VoceSpazio, type ChatInRecupero, type EsitoAzioni } from '../../src/shared/gestione-chat'
 import {
   commutaScelta, confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, fraseSvuotaGiusta, nomeScelte,
-  ordinaVoci, quandoUsata, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta
+  ordinaVoci, quandoUsata, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta,
+  scelteDaConfermare
 } from '../../src/shared/gestione-chat-vista'
 import { byteLeggibili } from '../../src/shared/spazio-drive'
 
@@ -59,6 +60,8 @@ function casi(): unknown {
     // «Chiudi» spento: S1 non è aperta, S3 sì.
     chiudi: { titolo: 'piccola recente', motivoS1: motivoNonChiudeScelta(sel, S1, 'piccola recente'), motivoS3: motivoNonChiudeScelta(sel, S3, 'al lavoro') ?? null },
     nomi: { una: nomeScelte(['x']), tre: nomeScelte(['a', 'b', 'c']) },
+    // La conferma nomina solo quelle che si possono eliminare (collaudo c-75): S3 è al lavoro.
+    daConfermare: { scelte: [S1, S3], elimina: scelteDaConfermare('elimina', [S1, S3], v), archivia: scelteDaConfermare('archivia', [S1, S3], v) },
     quando: {
       adesso: new Date(ORA).toISOString(),
       casi: [undefined, ORA - 3600_000, ORA - GIORNO, ORA - 5 * GIORNO, ORA - 90 * GIORNO, ORA - 800 * GIORNO].map((t) => {
@@ -114,6 +117,20 @@ describe('la vista della gestione delle chat', () => {
     expect(quandoUsata(new Date(ORA - 3600_000).toISOString(), ORA)).toBe('usata oggi')
     expect(quandoUsata(new Date(ORA - 5 * GIORNO).toISOString(), ORA)).toBe('usata 5 giorni fa')
     expect(quandoUsata(new Date(ORA - 800 * GIORNO).toISOString(), ORA)).toBe('usata 2 anni fa')
+  })
+
+  it('Elimina con alcune scelte che non si possono eliminare: la conferma nomina solo le altre (collaudo c-75)', () => {
+    // Dal vero: tre scelte, una governata da un autopilota attivo → «Eliminare 3 chat dal PC? Libera 643 KB».
+    const v = voci()
+    const scelte = [S1, S2, S3]
+    expect(scelteDaConfermare('elimina', scelte, v)).toEqual([S1, S2])
+    expect(scelteDaConfermare('archivia', scelte, v)).toEqual(scelte)
+    const sel = totaleSelezione(v, scelte)
+    const nomi = scelteDaConfermare('elimina', scelte, v)
+    expect(nomi.length).toBe(sel.eliminabili)
+    expect(confermaEliminaChat(nomeScelte(nomi.map(String)), '1 MB', false, nomi.length).titolo).toBe('Eliminare 2 chat dal PC?')
+    // Una sola rimasta: il suo nome, al singolare.
+    expect(scelteDaConfermare('elimina', [S1, S3], v)).toEqual([S1])
   })
 
   it('le conferme: corte, con lo spazio, il recupero e il Drive', () => {

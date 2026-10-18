@@ -154,6 +154,31 @@ describe('Elimina dal PC', () => {
     expect(x.g.recupero().chat).toEqual([])
   })
 
+  it('una sola richiesta con chat di tutti i tipi (come la scelta multipla del collaudo c-7): solo quella libera va nel recupero, le altre col motivo giusto', async () => {
+    const x = scena()
+    const S3 = '33333333-3333-4333-8333-333333333333'
+    const S4 = '44444444-4444-4444-8444-444444444444'
+    const S5 = '55555555-5555-4555-8555-555555555555'
+    x.stati.set(S1, { aperta: { lavora: true, chiede: false } })
+    x.stati.set(S3, { aperta: { lavora: false, chiede: true } })
+    x.stati.set(S4, { governata: { autopilota: 'Notte', attivo: true } })
+    x.stati.set(S5, { altroPc: 'PC-ESEMPIO' })
+    const prima = fileDi(x.radice, S1)
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1, S3, S4, S5, S2] })
+    expect(e.fatte).toBe(1)
+    expect(e.rifiutate).toBe(4)
+    const motivo = (s: string): string => e.esiti.find((r) => r.sessione === s)?.motivo ?? ''
+    expect(motivo(S1)).toMatch(/«Il lettore di CSV» sta lavorando/)
+    expect(motivo(S3)).toMatch(/aspetta una tua risposta/)
+    expect(motivo(S4)).toMatch(/la guida l’autopilota «Notte», che è attivo/)
+    expect(motivo(S5)).toMatch(/vive su «PC-ESEMPIO»: si elimina da lì/)
+    expect(e.esiti.find((r) => r.sessione === S2)?.ok).toBe(true)
+    // Della chat al lavoro non si è mosso niente; nel recupero c'è solo quella libera.
+    expect(fileDi(x.radice, S1)).toEqual(prima)
+    expect(x.g.recupero().chat.map((c) => c.sessione)).toEqual([S2])
+    expect(e.messaggio).toMatch(/^1 chat eliminata dal PC: .* 4 chat no: guarda il motivo\.$/)
+  })
+
   it('più chat insieme: le possibili sì, le altre col motivo; lo spazio è la somma', async () => {
     const x = scena()
     x.stati.set(S2, { aperta: { lavora: true, chiede: false } })
@@ -180,6 +205,15 @@ describe('Elimina dal PC', () => {
     expect(x.drive.tolte).toEqual([[S1, S2]])
     expect(e.messaggio).toMatch(/Anche dal Drive/)
     expect(x.g.recupero().chat.every((c) => c.drive?.pulizia === 'pulizia-1')).toBe(true)
+  })
+
+  it('«anche dal Drive» con il Drive che dice di no: una riga sola, senza punti doppi (prova dal vero c-75)', async () => {
+    // Dal vero: «Dal Drive no: Il Drive non è collegato, o la cassaforte è chiusa.. Le copie lassù restano.»
+    const x = scena({ ritocca: (d) => { d.drive = { togliChat: async () => ({ ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }), annulla: async () => ({ ok: true, messaggio: '' }), svuota: async () => ({ ok: true, messaggio: '' }) } } })
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1], ancheDalDrive: true })
+    expect(e.fatte).toBe(1)
+    expect(e.messaggio).toContain(' Dal Drive no: il Drive non è collegato, o la cassaforte è chiusa. Le copie lassù restano.')
+    expect(e.messaggio).not.toMatch(/\.\./)
   })
 
   it('senza «anche dal Drive» il Drive non si tocca', async () => {

@@ -325,7 +325,11 @@ export function controllaGettone(
   if (dato === undefined) return { ok: false, motivo: 'Prima chiedi «Svuota il recupero adesso»: serve la conferma.' }
   if (typeof p.gettone !== 'string' || p.gettone !== dato.gettone) return { ok: false, motivo: 'Conferma non valida: richiedila.' }
   if (p.adesso > dato.scadeIl) return { ok: false, motivo: 'La conferma è scaduta (vale 2 minuti): richiedila.' }
-  if (p.impronta !== dato.impronta) return { ok: false, motivo: 'Il recupero è cambiato dalla conferma: richiedila.' }
+  if (p.impronta !== dato.impronta) {
+    // Le stesse chat con l'altra scelta del Drive (dal vero, c-75): si dice quello, non che il recupero è cambiato.
+    const chat = (i: string): string => i.slice(i.indexOf(':') + 1)
+    return { ok: false, motivo: chat(p.impronta) === chat(dato.impronta) ? 'Hai cambiato «anche dal Drive» dopo la conferma: richiedila.' : 'Il recupero è cambiato dalla conferma: richiedila.' }
+  }
   if (typeof p.frase !== 'string' || p.frase.trim().toUpperCase() !== FRASE_SVUOTA) return { ok: false, motivo: `Per svuotare davvero scrivi ${FRASE_SVUOTA}.` }
   return { ok: true }
 }
@@ -435,16 +439,18 @@ export type AutopilotaPerChat = {
   archiviato?: boolean
   sessionId?: string
   sessioneSupervisore?: string
+  /** La chat della preparazione: un `claude -p` del servizio, senza riquadro (collaudo c-75). */
+  sessioneIntervista?: string
   chats: { sessionId?: string; sessioneSupervisore?: string }[]
 }
 
-/** L'autopilota che governa quella conversazione (la sua chat, una della flotta, o un suo supervisore). */
+/** L'autopilota che governa quella conversazione (la sua chat, la sua preparazione, una della flotta, o un suo supervisore). */
 export function governataDa(autopiloti: readonly AutopilotaPerChat[], sessione: string): { autopilota: string; attivo: boolean } | undefined {
   const s = sessione.toLowerCase()
   const uguale = (x: string | undefined): boolean => x !== undefined && x.toLowerCase() === s
   let trovato: { autopilota: string; attivo: boolean } | undefined
   for (const a of autopiloti) {
-    const sua = uguale(a.sessionId) || uguale(a.sessioneSupervisore) || a.chats.some((c) => uguale(c.sessionId) || uguale(c.sessioneSupervisore))
+    const sua = uguale(a.sessionId) || uguale(a.sessioneSupervisore) || uguale(a.sessioneIntervista) || a.chats.some((c) => uguale(c.sessionId) || uguale(c.sessioneSupervisore))
     if (!sua) continue
     const attivo = a.archiviato !== true && !AUTOPILOTA_FERMO.has(a.stato)
     // Se più autopiloti la conoscono, conta quello attivo.

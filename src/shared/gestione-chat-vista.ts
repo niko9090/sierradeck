@@ -95,6 +95,18 @@ export function motivoNonChiudeScelta(s: { chiuse?: readonly string[] } | undefi
   return s?.chiuse?.includes(sessione) === true ? motivoNonChiude({ sessione, titolo }) : undefined
 }
 
+/**
+ * Le chat scelte che la conferma nomina: per Elimina solo quelle che si
+ * possono eliminare (dal vero, c-75: «Eliminare 3 chat dal PC? Libera 643 KB»
+ * con una delle tre governata, che restava dov'era). Le altre hanno già il
+ * motivo nella loro riga.
+ */
+export function scelteDaConfermare(azione: 'archivia' | 'elimina', scelte: readonly string[], voci: readonly Pick<VoceSpazio, 'sessione' | 'nonEliminabile'>[]): string[] {
+  if (azione !== 'elimina') return [...scelte]
+  const no = new Set(voci.filter((v) => v.nonEliminabile !== undefined).map((v) => v.sessione))
+  return scelte.filter((s) => !no.has(s))
+}
+
 /** Il nome di una o più chat nelle conferme: «x» oppure «3 chat». */
 export function nomeScelte(titoli: readonly string[]): string {
   if (titoli.length === 1) return `«${titoli[0] ?? ''}»`

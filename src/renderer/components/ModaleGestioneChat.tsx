@@ -4,7 +4,7 @@ import type { ChatArchiviata, ChatInRecupero, VistaSpazio } from '@shared/gestio
 import { FRASE_SVUOTA, totaleSelezione } from '@shared/gestione-chat'
 import {
   commutaScelta, confermaArchiviaChat, confermaChiediSvuota, confermaEliminaChat, fraseSvuotaGiusta, nomeScelte, ordinaVoci,
-  ORDINI_SPAZIO, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteValide, SPIEGA_SVUOTA_DRIVE,
+  ORDINI_SPAZIO, rifiutiDi, riepilogoSelezione, riepilogoSpazio, rigaArchiviata, rigaRecupero, rigaVoce, scegliTutte, scelteDaConfermare, scelteValide, SPIEGA_SVUOTA_DRIVE,
   type Conferma, type OrdineSpazio, type Rifiuto
 } from '@shared/gestione-chat-vista'
 import { byteLeggibili } from '@shared/spazio-drive'
@@ -60,7 +60,8 @@ export function ModaleGestioneChat({ scheda: iniziale = 'spazio', onChiudi }: { 
   const titoloDi = (s: string): string | undefined => voci.find((v) => v.sessione === s)?.titolo ?? archiviate?.find((a) => a.sessione === s)?.titolo
 
   const chiediAzione = (azione: 'archivia' | 'elimina'): void => {
-    const titoli = valide.map((s) => titoloDi(s) ?? s.slice(0, 8))
+    // Elimina nomina solo le chat che si possono eliminare: le altre hanno il motivo nella loro riga.
+    const titoli = scelteDaConfermare(azione, valide, voci).map((s) => titoloDi(s) ?? s.slice(0, 8))
     const nome = nomeScelte(titoli)
     setConferma(azione === 'archivia'
       ? { azione, sessioni: valide, conferma: () => confermaArchiviaChat(nome, valide.length) }

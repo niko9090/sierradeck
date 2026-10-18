@@ -98,6 +98,14 @@ describe('lo stato di una chat dai pezzi', () => {
     expect(governataDa([ap({ sessionId: S2 })], S1)).toBeUndefined()
   })
 
+  it('governata anche la chat della preparazione: gira senza riquadro, mentre l’autopilota legge il progetto (collaudo c-75)', () => {
+    // La preparazione è un `claude -p` del servizio: non è fra le chat aperte, e prima passava per libera.
+    expect(governataDa([ap({ stato: 'intervista', sessioneIntervista: S1 })], S1)).toEqual({ autopilota: 'Notte', attivo: true })
+    expect(motivoNonElimina(statoPerAzione({ sessione: S1, titolo: 'Prepara', aperte: [], autopiloti: [ap({ stato: 'intervista', sessioneIntervista: S1 })], io: 'pc-qui' })))
+      .toBe('«Prepara» la guida l’autopilota «Notte», che è attivo: fermalo prima.')
+    expect(governataDa([ap({ stato: 'sospeso', sessioneIntervista: S1 })], S1)?.attivo).toBe(false)
+  })
+
   it('aperta: lavora, chiede, aspetta, in sottofondo', () => {
     const base = { sessione: S1, autopiloti: [], io: 'pc-qui' }
     expect(statoPerAzione({ ...base, aperte: [{ sessione: S1, viva: true }] }).aperta).toEqual({ lavora: true, chiede: false })
@@ -208,6 +216,11 @@ describe('«Svuota il recupero adesso»: la conferma forte', () => {
   it('no se il recupero è cambiato o se cambia «anche dal Drive»', () => {
     expect(controllaGettone(dato, { gettone: 'abc', frase: FRASE_SVUOTA, impronta: improntaSvuota(voci.slice(0, 1), false), adesso: 1000 })).toEqual({ ok: false, motivo: expect.stringMatching(/cambiato/) })
     expect(controllaGettone(dato, { gettone: 'abc', frase: FRASE_SVUOTA, impronta: improntaSvuota(voci, true), adesso: 1000 }).ok).toBe(false)
+  })
+
+  it('cambiato solo «anche dal Drive»: lo dice, non «il recupero è cambiato» (prova dal vero c-75)', () => {
+    expect(controllaGettone(dato, { gettone: 'abc', frase: FRASE_SVUOTA, impronta: improntaSvuota(voci, true), adesso: 1000 }))
+      .toEqual({ ok: false, motivo: 'Hai cambiato «anche dal Drive» dopo la conferma: richiedila.' })
   })
 
   it('l’impronta non dipende dall’ordine e ignora le già rimesse', () => {

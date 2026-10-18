@@ -4016,6 +4016,13 @@ function gcOrdina(voci, ordine) {
   return l
 }
 function gcNome(titoli) { return titoli.length === 1 ? '«' + titoli[0] + '»' : titoli.length + ' chat' }
+/** Le scelte che la conferma nomina: per Elimina solo quelle che si possono eliminare (scelteDaConfermare del PC). */
+function gcDaConfermare(azione, scelte, voci) {
+  if (azione !== 'elimina') return scelte.slice()
+  var no = {}
+  voci.forEach(function (v) { if (v.nonEliminabile) no[v.sessione] = true })
+  return scelte.filter(function (s) { return !no[s] })
+}
 /** La conferma del PC con il nome (§N) e lo spazio (§B) al loro posto; più chat, i verbi al plurale. */
 function gcConferma(tipo, nome, spazio, quante) {
   var t = GC.conferme[tipo + ((quante || 1) > 1 && GC.conferme[tipo + 'N'] ? 'N' : '')]
@@ -4101,7 +4108,7 @@ window.gcChiedi = async (azione, sessione) => {
 window.gcChiediScelte = (azione) => {
   gcChiesta++
   var voci = (gcVista && gcVista.chat) || []
-  var nome = gcNome(gcScelte.map(function (s) { return gcTitoli[s] || s.slice(0, 8) }))
+  var nome = gcNome(gcDaConfermare(azione, gcScelte, voci).map(function (s) { return gcTitoli[s] || s.slice(0, 8) }))
   var spazio = gcByte(gcTotale(voci, gcScelte).byteEliminabili)
   gcNota = null
   var quante = azione === 'elimina' ? gcTotale(voci, gcScelte).eliminabili : gcScelte.length
