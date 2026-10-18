@@ -207,6 +207,15 @@ describe('Elimina dal PC', () => {
     expect(x.g.recupero().chat.every((c) => c.drive?.pulizia === 'pulizia-1')).toBe(true)
   })
 
+  it('«anche dal Drive» con il Drive che dice di no: una riga sola, senza punti doppi (prova dal vero c-75)', async () => {
+    // Dal vero: «Dal Drive no: Il Drive non è collegato, o la cassaforte è chiusa.. Le copie lassù restano.»
+    const x = scena({ ritocca: (d) => { d.drive = { togliChat: async () => ({ ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }), annulla: async () => ({ ok: true, messaggio: '' }), svuota: async () => ({ ok: true, messaggio: '' }) } } })
+    const e = await x.g.azione({ azione: 'elimina', sessioni: [S1], ancheDalDrive: true })
+    expect(e.fatte).toBe(1)
+    expect(e.messaggio).toContain(' Dal Drive no: il Drive non è collegato, o la cassaforte è chiusa. Le copie lassù restano.')
+    expect(e.messaggio).not.toMatch(/\.\./)
+  })
+
   it('senza «anche dal Drive» il Drive non si tocca', async () => {
     const x = scena({ drive: true })
     await x.g.azione({ azione: 'elimina', sessioni: [S1] })

@@ -3,7 +3,7 @@ import { paginaClient } from '../../src/main/client-pagina'
 import { totaleSelezione, vistaSpazio, scadenzaRecupero, TESTI_AZIONI_CHAT, type VoceSpazio, type ChatInRecupero } from '../../src/shared/gestione-chat'
 import {
   confermaArchiviaChat, confermaChiudiChat, confermaEliminaChat, nomeScelte, ordinaVoci, quandoUsata, riepilogoSelezione, riepilogoSpazio, rigaRecupero, rigaVoce,
-  SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta
+  SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE, motivoNonChiudeScelta, scelteDaConfermare
 } from '../../src/shared/gestione-chat-vista'
 import { byteLeggibili } from '../../src/shared/spazio-drive'
 
@@ -26,8 +26,8 @@ function funzione(nome: string): string {
 }
 const gc = script.slice(script.indexOf('var GC ='), script.indexOf('\n', script.indexOf('var GC =')))
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
-const f = new Function(`${gc}; ${['gcByte', 'gcQuando', 'gcData', 'gcRigaVoce', 'gcQuante', 'gcRiepilogo', 'gcTotale', 'gcRiepilogoSel', 'gcRigaRecupero', 'gcOrdina', 'gcNome', 'gcConferma'].map(funzione).join('\n')}
-  return { gcByte, gcQuando, gcRigaVoce, gcRiepilogo, gcTotale, gcRiepilogoSel, gcRigaRecupero, gcOrdina, gcNome, gcConferma, GC }`)() as Record<string, (...a: unknown[]) => unknown> & { GC: { testi: unknown; frase: string; spiegaDrive: unknown } }
+const f = new Function(`${gc}; ${['gcByte', 'gcQuando', 'gcData', 'gcRigaVoce', 'gcQuante', 'gcRiepilogo', 'gcTotale', 'gcRiepilogoSel', 'gcRigaRecupero', 'gcOrdina', 'gcNome', 'gcDaConfermare', 'gcConferma'].map(funzione).join('\n')}
+  return { gcByte, gcQuando, gcRigaVoce, gcRiepilogo, gcTotale, gcRiepilogoSel, gcRigaRecupero, gcOrdina, gcNome, gcDaConfermare, gcConferma, GC }`)() as Record<string, (...a: unknown[]) => unknown> & { GC: { testi: unknown; frase: string; spiegaDrive: unknown } }
 
 const ORA = Date.parse('2026-10-17T12:00:00Z')
 const GIORNO = 86_400_000
@@ -59,6 +59,10 @@ describe('pagina: la gestione delle chat', () => {
 
   it('le conferme sono quelle del PC, con il nome e lo spazio al loro posto', () => {
     expect(f.gcNome!(['x'])).toBe(nomeScelte(['x']))
+    // Elimina nomina solo quelle che si possono eliminare (collaudo c-75); Archivia tutte.
+    const tutte = voci.map((v) => v.sessione)
+    for (const a of ['elimina', 'archivia'] as const) expect(f.gcDaConfermare!(a, tutte, voci)).toEqual(scelteDaConfermare(a, tutte, voci))
+    expect(f.gcDaConfermare!('elimina', tutte, voci)).toEqual(tutte.slice(0, 2))
     expect(f.gcNome!(['x', 'y', 'z'])).toBe(nomeScelte(['x', 'y', 'z']))
     expect(f.gcConferma!('chiudi', '«x»', '')).toEqual(confermaChiudiChat('«x»'))
     expect(f.gcConferma!('archivia', '3 chat', '')).toEqual(confermaArchiviaChat('3 chat'))

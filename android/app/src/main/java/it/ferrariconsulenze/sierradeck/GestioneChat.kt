@@ -113,6 +113,13 @@ object GestioneChatRegole {
 
     fun nome(titoli: List<String>): String = if (titoli.size == 1) "«${titoli[0]}»" else "${titoli.size} chat"
 
+    /** Le scelte che la conferma nomina: per Elimina solo quelle che si possono eliminare (scelteDaConfermare del PC, collaudo c-75). */
+    fun daConfermare(azione: String, scelte: List<String>, voci: List<VoceSpazioChat>): List<String> {
+        if (azione != "elimina") return scelte
+        val no = voci.filter { it.nonEliminabile != null }.map { it.sessione }.toSet()
+        return scelte.filter { it !in no }
+    }
+
     fun confermaChiudi(nome: String) = Conferma("Chiudere $nome?", "Si ferma. La conversazione resta e la riprendi quando vuoi.", "Chiudi")
     /** Più di una chat: i verbi al plurale, come sul PC. */
     fun confermaArchivia(nome: String, quante: Int = 1) = Conferma("Archiviare $nome?",
@@ -445,7 +452,7 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
 
     conferma?.let { az ->
         val voci = vista?.chat ?: emptyList()
-        val nome = GestioneChatRegole.nome(scelte.map { s -> voci.firstOrNull { it.sessione == s }?.titolo ?: s.take(8) })
+        val nome = GestioneChatRegole.nome(GestioneChatRegole.daConfermare(az, scelte, voci).map { s -> voci.firstOrNull { it.sessione == s }?.titolo ?: s.take(8) })
         val tot = GestioneChatRegole.totale(voci, scelte)
         val c = if (az == "archivia") GestioneChatRegole.confermaArchivia(nome, scelte.size)
             else GestioneChatRegole.confermaElimina(nome, GestioneChatRegole.byte(tot.byteEliminabili), drive, tot.eliminabili)

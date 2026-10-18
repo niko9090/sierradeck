@@ -79,6 +79,12 @@ class GestioneChatTest {
         assertEquals(ordine["spazio"]!!.jsonArray.map { it.jsonPrimitive.content }, GestioneChatRegole.ordina(v.chat, "spazio").map { it.sessione })
         assertEquals(ordine["uso"]!!.jsonArray.map { it.jsonPrimitive.content }, GestioneChatRegole.ordina(v.chat, "uso").map { it.sessione })
         assertTrue(v.chat.single { it.aperta }.nonEliminabile!!.contains("sta lavorando"))
+        // La conferma di Elimina nomina solo quelle che si possono eliminare (collaudo c-75).
+        val dc = casi["daConfermare"]!!.jsonObject
+        val scelte = dc["scelte"]!!.jsonArray.map { it.jsonPrimitive.content }
+        for (az in listOf("elimina", "archivia")) {
+            assertEquals(dc[az]!!.jsonArray.map { it.jsonPrimitive.content }, GestioneChatRegole.daConfermare(az, scelte, v.chat))
+        }
     }
 
     @Test
