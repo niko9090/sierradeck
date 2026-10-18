@@ -281,15 +281,17 @@ describe('il terminale sul server', () => {
     const s = await apriSessione(dove({ improntaServer: improntaVera }), { password: 'segreta' })
     const visto: string[] = []
     const guscio = await s.guscio(80, 24, (t) => visto.push(t), () => undefined)
-    await new Promise((r) => setTimeout(r, 120))
+    // Si aspetta che arrivi, non un tempo fisso: a macchina carica 120 ms davano solo il primo pezzo («pero»).
+    const finche = async (vero: () => boolean): Promise<void> => { const fine = Date.now() + 5000; while (!vero() && Date.now() < fine) await new Promise((r) => setTimeout(r, 20)) }
+    await finche(() => visto.join('').includes('va bene'))
     expect(visto.join('')).toContain('però va bene')
 
     guscio.scrivi('uptime' + String.fromCharCode(10))
-    await new Promise((r) => setTimeout(r, 60))
+    await finche(() => scrittoAlGuscio.join('').includes('uptime'))
     expect(scrittoAlGuscio.join('')).toContain('uptime')
 
     guscio.ridimensiona(120, 40)
-    await new Promise((r) => setTimeout(r, 60))
+    await finche(() => finestre.includes('120x40'))
     // ssh2 vuole righe prima delle colonne: invertirle da' un terminale che va
     // a capo dove non deve, e non se ne accorge nessuno finche' non capita.
     expect(finestre).toContain('120x40')
