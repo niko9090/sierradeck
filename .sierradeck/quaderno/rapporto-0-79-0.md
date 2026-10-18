@@ -385,3 +385,62 @@ Un confronto fra PC, pagina e app ha trovato 28 differenze. Sono state corrette 
 - Non sono state provate con clic veri; contano solo i test.
 
 **Revisioni c-61 e c-65:** la Revisione ha visto `npm test` rotto dopo l'unione. Il ramo non cambia codice di main: ogni volta ho unito main nel ramo e ho rifatto il giro intero, con test, typecheck, gradle e guardia. Nella c-65 il conflitto era solo in questo rapporto: due sezioni aggiunte nello stesso punto, tenute tutte e due.
+
+## Prova dal vero (collaudo c-7, 18/10 mattina)
+**Dove:** copia di prova del ramo `c-7` (`36b7810`, uguale a `main`), costruita con `npm run build`.
+- Avvio: `SIERRADECK_PROVA=note/prova-c7/dati` e `CLAUDE_CONFIG_DIR=note/prova-c7/claude`, porte 47650/47651 e DevTools 9333.
+- Mai la porta 47630 del programma vero.
+- Chat, dati e Drive veri non sono stati toccati.
+
+**Chat:** 7 chat vere di Claude Code, create apposta nella cartella `SierraDeck-prova-c7`.
+- Una è governata da un autopilota di prova in stato «pronto»: per il programma è attivo, ma non è mai partito.
+- Una ha la sua casa su un PC finto, «PC-DI-PROVA».
+
+**Come:** clic veri del mouse via DevTools; ogni passo è in `giro-c7.json`. Foto 80–90 in `note/foto-0-79-0` della cartella principale del progetto.
+
+### 1. Elimina dal PC, recupero, Ripristina, Svuota
+| Passo | Numeri veri |
+|---|---|
+| Tre chat scelte nello Spazio | «3 chat scelte · 669 KB · eliminandole liberi 669 KB». Sono 233.684 + 226.978 + 224.306 = **684.968 byte**. |
+| Conferma | «Eliminare 3 chat dal PC? Libera 669 KB. Per 30 giorni restano nel recupero…», con «anche dal Drive». |
+| Elimina dal PC | «3 chat eliminate dal PC: 669 KB tolti dalle chat». Lo spazio delle chat sul disco passa da **1.626.085 a 941.117 byte**, cioè 684.968 byte in meno, esattamente quelli scelti. Nel recupero arrivano **684.968 byte**. |
+| Recupero | 3 voci, «eliminata il 18/10 · si svuota fra 30 giorni», ognuna con Ripristina. |
+| Ripristina | «“Rispondi solo: ciao dalla prova piccola.” è di nuovo al suo posto»: tornano **224.306 byte** nella cartella di Claude, e nel recupero restano 460.662 byte. |
+| Svuota, passo 1 | Il PC dà la conferma: «Cancella per sempre 2 chat (450 KB) da questo PC. Non si torna indietro: scrivi SVUOTA per confermare.» |
+| Svuota, passo 2 | Con «sì» il tasto «Svuota per sempre» resta **spento**; con SVUOTA si accende. |
+| Svuotato | «Recupero svuotato: **450 KB liberati**», cioè 460.662 byte. Il recupero sul disco passa da **460.662 a 0 byte**. |
+
+### 2. Rifiuti (nessuna di queste chat è entrata nel recupero)
+| Chat | Come era davvero | Risposta del PC |
+|---|---|---|
+| Al lavoro | Aperta in un riquadro, mentre scriveva un racconto di 1500 parole. | «“Rispondi solo: pronta per lavorare.” **sta lavorando**: aspetta che finisca, poi chiudila.» |
+| In attesa | Aperta, con una domanda vera di Claude Code (AskUserQuestion) senza risposta. | «“Rispondi solo: pronta per chiedere.” **aspetta una tua risposta**: rispondi o chiudila prima.» |
+| Governata | Chat dell'autopilota «Autopilota di prova», in stato «pronto». | «… la guida l'autopilota «Autopilota di prova», **che è attivo**: fermalo prima.» |
+| Di un altro PC | Casa su «PC-DI-PROVA». | ««6a1ffd65» **vive su «PC-DI-PROVA»**: si elimina da lì.» |
+
+- **Nello Spazio** (foto 82) le tre chat locali hanno il motivo scritto sotto il nome. Quella al lavoro, a racconto finito, è passata a «è aperta e ti aspetta: chiudila prima con «Chiudi»».
+- **Nel menu del riquadro** «Elimina dal PC» è spento con il motivo (foto 80). La foto è il menu del riquadro della chat «in attesa», che era il riquadro aperto per ultimo.
+- **Tutto passa dalla guardia.** I rifiuti arrivano prima di qualsiasi spostamento. Lo spostamento nel recupero, Svuota e la pulizia delle cartelle passano solo da `cancellaSicura`, e il controllo `git grep` della guardia è verde.
+- **La chat di un altro PC qui non ha più i suoi file.** Al primo avvio della copia, il controllo dell'ospite, che esisteva già prima della 0.79.0, ha messo la copia locale nella cartella di recupero dell'ospite, perché la sua casa è altrove. Per questo nel rifiuto il nome è l'id breve, e la chat non è nello Spazio. Il rifiuto vale per chi chiede di eliminarla dal telefono o da un altro PC. Al primo avvio, con i file ancora qui, lo Spazio la mostrava con lo stesso motivo.
+- **I pesi delle chat rifiutate sono cresciuti** durante la prova (al lavoro: da 224.524 a 371.048 byte). Lo hanno fatto le chat stesse scrivendo; non è stato tolto niente.
+
+### 3. Spazio delle chat, per dimensione
+- Ordine «Le più grandi»: 371.048, 342.587, 233.684, 227.486, 226.978, 224.306 byte. È decrescente, e lo mostrano le foto 82 e 83.
+- La riga in alto dice «6 chat · 1,6 MB · si possono liberare 669 KB»: le tre chat che non si possono eliminare sono escluse dal totale.
+
+### 4. Casi limite, con test
+- Nuovo test in `tests/main/gestione-chat.test.ts`: una sola richiesta con chat al lavoro, in attesa, governata, di un altro PC e una libera. Va nel recupero solo quella libera, ognuna delle altre ha il suo motivo e i file della chat al lavoro non si muovono.
+- Restano i casi limite già coperti: stato illeggibile, doppio «Elimina», registro non salvato, percorsi fuori posto, tetto delle 2000 voci, chat senza file, Drive che rifiuta.
+
+### Trappole viste in questa prova
+- **Fiducia della cartella.** Una cartella di prova dentro un worktree git va segnata come fidata in `.claude.json` della copia anche alla **radice del repository**. Senza, Claude Code chiede «Is this a project you trust?» e la prima frase scritta finisce in quella domanda.
+- **Niente richieste di permesso.** Le chat di SierraDeck girano con «bypass permissions»: per una chat «in attesa» serve una domanda vera (AskUserQuestion).
+- **Un autopilota senza criteri viene sospeso dal servizio all'avvio.** Per uno «attivo» che non parte ci vogliono un criterio e lo stato «pronto».
+- **Due finestre.** La finestra «Domande» dell'autopilota è una seconda pagina `index.html?pannello=domande`: il pilota DevTools deve agganciare quella che finisce con `index.html`.
+- **Un'altra chat può avere una copia accesa dallo stesso worktree.** Fermare solo il proprio albero di processi, partendo dalla radice con il proprio `--remote-debugging-port`.
+
+**Dopo:**
+- Le due chat aperte sono state chiuse con «Chiudi».
+- Copia e servizio fermati, porte 47650/47651/9333 libere. L'altra copia (porte 4767x, `note/prova-c75`) non è stata toccata.
+- Credenziali copiate svuotate (`{}`).
+- `note/prova-c7` si può togliere a mano. Contiene anche `SierraDeck-prova-c7/prova-attesa.txt`, scritto da una chat di prova quando il pilota ha mandato il testo al riquadro sbagliato.
