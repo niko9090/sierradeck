@@ -338,6 +338,9 @@ describe('PtyHostClient', () => {
 
       // Avvio iniziale piu' due riavvii: poi il Core deve arrendersi.
       await vi.waitFor(() => expect(avvii()).toBe(3), { timeout: 10000 })
+      // Si aspetta che il terzo host muoia davvero (a macchina carica 300 ms fissi non bastavano),
+      // poi si guarda che non ne sia partito un quarto.
+      await vi.waitFor(() => expect(client.isRunning()).toBe(false), { timeout: 10000 })
       await new Promise((r) => setTimeout(r, 300))
       expect(avvii()).toBe(3)
       expect(client.isRunning()).toBe(false)
