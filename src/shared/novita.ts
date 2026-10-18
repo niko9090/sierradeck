@@ -48,7 +48,9 @@ export const NOVITA: Novita[] = [
       '**«Spazio delle chat».** Da «Chat e workspace» o da «Riprendi»: tutte le chat dalla più grande (o dalla meno usata), con lo spazio di ognuna. Ne scegli più d’una e vedi il totale, poi Archivia o Elimina dal PC. Qui ci sono anche le Archiviate e il Recupero.',
       '**«Svuota il recupero adesso»** cancella per sempre, con una conferma forte in due passi: il PC chiede conferma, poi scrivi SVUOTA.',
       '**Le chat al lavoro non si toccano.** Una chat che lavora, che aspetta una tua risposta, guidata da un autopilota attivo o che vive su un altro PC non si elimina: lo dice in una riga, con il nome della chat e cosa fare.',
-      '**Sul telefono le stesse cose,** sulla pagina e nell’app: le tre azioni su ogni chat, lo Spazio delle chat, le Archiviate e il Recupero.'
+      '**Sul telefono le stesse cose,** sulla pagina e nell’app: le tre azioni su ogni chat, lo Spazio delle chat, le Archiviate e il Recupero.',
+      '**Panoramica: la conversazione con l’autopilota è grande e sempre in vista,** con il campo per scrivere già pronto. Accanto, «Al lavoro» si aggiorna da solo: una riga per ogni chat che lavora, con chi è, cosa fa adesso, da quanto, e se aspetta te.',
+      '**Quando uno specialista finisce, nella conversazione arriva una riga corta,** per esempio «Revisione: ha approvato …, unito.», senza righe tecniche. Sul PC, sulla pagina e nell’app.'
     ]
   },
   {
