@@ -5395,6 +5395,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         cambiaWorkspace: async (nome: string) => {
+          registro.info(`[workspace] lo schermo va su «${nome}»: chiesto dal telefono, dalla pagina o da un altro PC (POST /api/workspace)`)
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:workspace', nome)
@@ -5561,6 +5562,7 @@ if (!app.requestSingleInstanceLock()) {
           if (store === undefined) return
           store.scrivi(creaWorkspace(store.leggi(), nome))
           await progettoPerWorkspaceGlobale?.(nome).catch(() => undefined)
+          registro.info(`[workspace] lo schermo va su «${nome}»: workspace creato dal telefono, dalla pagina o da un altro PC`)
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
           }
@@ -5582,6 +5584,7 @@ if (!app.requestSingleInstanceLock()) {
           // finestra sa già seguire. Il percorso IPC lo fa con `annunciaCambio`;
           // questo, di rete, non ci arriva, ed era la parte scoperta.
           if (dopo.attivo !== precedente.attivo) {
+            registro.info(`[workspace] lo schermo va su «${dopo.attivo}»: «${nome}», che era sullo schermo, è stato eliminato dal telefono, dalla pagina o da un altro PC`)
             for (const w of finestreDiChat()) {
               if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
                 w.webContents.send('client:workspace', dopo.attivo)

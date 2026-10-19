@@ -65,6 +65,7 @@ export function azioniDiFinestra(
     },
     dimenticaCeduti: (paneIds) => useLayoutStore.getState().dimenticaCeduti(paneIds),
     ibernaLasciando,
+    log: (riga) => { void window.gestore.log.info(riga).catch(() => undefined) },
     /**
      * Manda a dormire tutto quello che è a schermo e dice cosa chiudere.
      *

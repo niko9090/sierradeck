@@ -58,7 +58,7 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
 
   const cambia = (nome: string): void =>
     esegui(async () => {
-      await azioni.current?.cambia(nome)
+      await azioni.current?.cambia(nome, 'Nicholas: pannello dei workspace')
       onStato({ ...stato, attivo: nome })
       setGiro((n) => n + 1)
     })

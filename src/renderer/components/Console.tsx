@@ -146,7 +146,7 @@ export function Console({
     // prop è ferma al render, e le azioni la aggiornano da sé prima di mettere a
     // schermo il layout nuovo.
     void azioniDiFinestra()
-      .cambia(nome)
+      .cambia(nome, 'Nicholas: linguetta, scorciatoia o menu dei workspace')
       // L'annuncio del cambio non torna a chi lo ha chiesto — di proposito, o
       // riscriverebbe il layout appena salvato — quindi questa finestra deve
       // rileggere da se' dove si trova. Senza, restava evidenziato il workspace
