@@ -23,6 +23,8 @@ describe('la regola: chi riparte da solo', () => {
     expect(riparteDaSolo(ap({ stato: 'sospeso', fermatoPerAggiornamento: true }))).toBe(true)
     expect(riparteDaSolo(ap({ stato: 'sospeso', motivoSospensione: 'la preparazione si e guastata' }))).toBe(false)
     expect(riparteDaSolo(ap({ stato: 'fallito' }))).toBe(false)
+    // La revisione: un fallito con una pausa rimasta addosso non riparte mai, e avvisa.
+    expect(riparteDaSolo(ap({ stato: 'fallito', pausaLimitiFinoA: '2026-10-19T12:00:00.000Z' }))).toBe(false)
   })
 })
 

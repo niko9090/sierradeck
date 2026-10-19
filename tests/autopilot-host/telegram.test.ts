@@ -154,6 +154,27 @@ describe('creaAvvisatore', () => {
     expect(inviati).toHaveLength(3)
   })
 
+  it('la revisione: un gruppo troppo lungo non si tronca, parte un messaggio per avviso', async () => {
+    const inviati: string[] = []
+    let ora = 1_000_000
+    let inSospeso: (() => void) | undefined
+    const avvisa = creaAvvisatore({
+      configurazione: { token: 't', chat: 'c' },
+      manda: (_url, corpo) => { inviati.push((corpo as { text: string }).text); return Promise.resolve(true) },
+      adesso: () => ora,
+      dopo: (_ms, f) => { inSospeso = f }
+    })
+    await avvisa('finito', ap({ nome: 'Uno' }))
+    ora += 1_000
+    await avvisa('domanda', ap({ nome: 'Due' }), 'a'.repeat(1400))
+    await avvisa('domanda', ap({ nome: 'Tre' }), 'b'.repeat(1400))
+    await avvisa('domanda', ap({ nome: 'Quattro' }), 'c'.repeat(1400))
+    inSospeso?.()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(inviati).toHaveLength(4)
+    expect(inviati.slice(1).every((t) => !t.includes('avvisi da SierraDeck'))).toBe(true)
+  })
+
   it('0.81.0: «ripreso dopo un riavvio» non è più un avviso', () => {
     expect(() => componiAvviso('ripreso' as never, ap())).not.toThrow()
     expect(componiAvviso('ripreso' as never, ap())).not.toContain('ripreso dopo un riavvio')

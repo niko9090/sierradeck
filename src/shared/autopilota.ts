@@ -978,8 +978,10 @@ export function eFermo(a: Pick<Autopilota, 'stato'>): boolean {
  * banda e negli elenchi. Le notifiche restano per ciò che aspetta lui: una
  * domanda, un lavoro finito, un errore che blocca.
  */
-export function riparteDaSolo(a: Pick<Autopilota, 'pausaLimitiFinoA' | 'fermatoPerAggiornamento'>): boolean {
-  return a.pausaLimitiFinoA !== undefined || a.fermatoPerAggiornamento === true
+export function riparteDaSolo(a: Pick<Autopilota, 'stato' | 'pausaLimitiFinoA' | 'fermatoPerAggiornamento'>): boolean {
+  // Solo un «sospeso» riparte da solo: un «fallito» con una pausa rimasta
+  // addosso non riparte mai, e deve avvisare (la revisione).
+  return a.stato === 'sospeso' && (a.pausaLimitiFinoA !== undefined || a.fermatoPerAggiornamento === true)
 }
 
 /**

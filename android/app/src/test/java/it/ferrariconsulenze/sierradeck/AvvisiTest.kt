@@ -60,6 +60,16 @@ class AvvisiTest {
     }
 
     @Test
+    fun `un fermo che riparte da solo e poi resta fermo davvero si annuncia, dalla 0-81-0`() {
+        val visti = mutableSetOf<String>()
+        val pausa = """{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|t1|limiti","riparteDaSolo":true}]}"""
+        assertEquals(0, Avvisi.daAnnunciare(stato(pausa), visti, primoGiro = false).size)
+        // Stessa chiave, senza la pausa: la ripartenza non è riuscita.
+        val vero = """{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|t1|limiti"}]}"""
+        assertEquals(1, Avvisi.daAnnunciare(stato(vero), visti, primoGiro = false).size)
+    }
+
+    @Test
     fun `anche un lavoro fallito`() {
         val avvisi = Avvisi.daAnnunciare(
             stato("""{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"fallito"}]}"""),

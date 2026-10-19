@@ -5624,10 +5624,12 @@ function avvisaSeServe(stato) {
       // Un fermo si annuncia **una volta**, con la sua chiave (id, momento,
       // motivo: 0.37.0); uno nuovo ha una chiave nuova. Un archiviato tace.
       const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
+      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
+      // Non si segna come visto: se poi resta fermo davvero, con la stessa chiave, si annuncia.
+      if (a.stato !== 'finito' && a.riparteDaSolo === true) continue
       if (avvisati[chiaveF]) continue
       avvisati[chiaveF] = true
-      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
-      if (!nuovo || a.archiviato === true || (a.stato !== 'finito' && a.riparteDaSolo === true)) continue
+      if (!nuovo || a.archiviato === true) continue
       if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
       else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }

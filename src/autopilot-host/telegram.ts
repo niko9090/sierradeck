@@ -192,10 +192,14 @@ export function creaAvvisatore(deps: {
     const pronti = inAttesa
     inAttesa = []
     if (pronti.length === 0) return
-    const testo = pronti.length === 1
-      ? pronti[0]!.testo
-      : tronca([`<b>${pronti.length} avvisi da SierraDeck</b>`, ...pronti.map((p) => p.testo)].join('\n\n— — —\n\n'), MESSAGGIO_MAX)
-    void invia(testo, pronti.map((p) => p.riga))
+    const insieme = [`<b>${pronti.length} avvisi da SierraDeck</b>`, ...pronti.map((p) => p.testo)].join('\n\n— — —\n\n')
+    // Troncare un gruppo può tagliare a metà un tag HTML, e Telegram lo
+    // rifiuterebbe tutto: se non ci sta, un messaggio per avviso (la revisione).
+    if (pronti.length === 1 || insieme.length > MESSAGGIO_MAX) {
+      void (async () => { for (const p of pronti) await invia(p.testo, [p.riga]) })()
+      return
+    }
+    void invia(insieme, pronti.map((p) => p.riga))
   }
 
   return async (tipo, a, domanda) => {

@@ -1006,7 +1006,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(ripreso, `riparto: ${freno.motivo}`)
         salva(ripreso)
         void (ripreso.chats.length === 0 && ripreso.cicli === 0 ? avviaAutopilota({ ...ripreso, stato: 'lavoro', motivoSospensione: undefined }) : riprendiAutopilota(ripreso))
-          .catch((err: unknown) => { console.error(`[autopilota] ripartenza dopo il freno di ${a.id} fallita:`, err) })
+          .catch((err: unknown) => {
+            console.error(`[autopilota] ripartenza dopo il freno di ${a.id} fallita:`, err)
+            // Non riparte più da solo (la pausa è tolta): adesso aspetta Nicholas (0.81.0).
+            const dopo = deps.archivio.leggi(a.id)
+            if (dopo !== undefined && eFermo(dopo)) avvisaFermo(dopo)
+          })
         continue
       }
       if (a.stato !== 'lavoro' || freno.livello === 'fermo' || inLavorazione.has(a.id)) continue
@@ -1308,12 +1313,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (esito === undefined) {
         // Non aver capito la propria intervista è un guasto dell'autopilota,
         // non dell'utente: si ferma e lo dice, invece di partire a caso.
-        salva({
-          ...corrente,
-          stato: 'sospeso',
-          motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile'
-        })
-        avvisaFermo(corrente)
+        const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile' }
+        salva(sospesoOra)
+        avvisaFermo(sospesoOra)
         return
       }
 
@@ -1341,12 +1343,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         // Nemmeno così ne è uscita una configurazione: meglio fermarsi e dirlo
         // che continuare a chiedere.
-        salva({
-          ...corrente,
-          stato: 'sospeso',
-          motivoSospensione: 'la preparazione continuava a rifare la stessa domanda'
-        })
-        avvisaFermo(corrente)
+        const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: 'la preparazione continuava a rifare la stessa domanda' }
+        salva(sospesoOra)
+        avvisaFermo(sospesoOra)
         return
       }
 
@@ -1395,12 +1394,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
     // Sei giri senza arrivare a una configurazione: continuare sarebbe un
     // interrogatorio, e l'utente sta delegando proprio per non subirlo.
-    salva({
-      ...corrente,
-      stato: 'sospeso',
-      motivoSospensione: `dopo ${SCAMBI_MAX} domande non ho una configurazione: riprova con un obiettivo più preciso`
-    })
-    avvisaFermo(corrente)
+    const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: `dopo ${SCAMBI_MAX} domande non ho una configurazione: riprova con un obiettivo più preciso` }
+    salva(sospesoOra)
+    avvisaFermo(sospesoOra)
   }
 
   /**

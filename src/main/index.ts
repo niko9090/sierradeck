@@ -6351,6 +6351,7 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
+                registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi»')
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },
