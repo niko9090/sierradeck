@@ -19,6 +19,8 @@ import { memoriaWorkspace } from './memoria-workspace'
 import { spostaInWorkspace } from './spostamento'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
+import { cambiaSchermo } from './cambio-schermo'
+import { leggiCausa } from '@shared/cambio-schermo'
 import { impostaMostraAttesa } from './preferenze-vive'
 import { leggiConsegne } from '../main/autopilota-consegne'
 import type { Autopilota } from '@shared/autopilota'
@@ -305,7 +307,8 @@ export function App(): React.JSX.Element {
     // 0.72.0: la chat governata si vede sempre. Il riquadro è sparito: si torna nel suo workspace.
     tornaNelSuoWorkspace: (c: { workspace?: string }) => {
       if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
-      void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
+      // 0.80.0: un autopilota non cambia lo schermo; il rifiuto va nel registro.
+      void cambiaSchermo(c.workspace, 'consegna', 'il riquadro della sua chat non è più davanti').catch(() => undefined)
     },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
@@ -478,8 +481,10 @@ export function App(): React.JSX.Element {
     // La prontezza la legge dal flusso dei terminali, che passa di qui: un
     // messaggio scritto mentre Claude Code si sta ancora disegnando resta nel
     // campo, e la chat non parte.
+    // 0.80.0: se il riquadro sparisce (lo schermo è andato altrove) la consegna
+    // passa in sottofondo, mai la finestra nel suo workspace.
     const porta = (): void => {
-      eseguiConsegna(c, ponteReale(prontaPerConsegna, extraConsegna))
+      eseguiConsegna({ ...c, sottofondo: true }, ponteReale(prontaPerConsegna, extraConsegna))
     }
     const togli = (): void => { setInAttesaDiQuiete((v) => v.filter((x) => x.id !== c.id)) }
     // **Prima si va dove la chat vive.** La sua conversazione puo' essere
@@ -491,7 +496,7 @@ export function App(): React.JSX.Element {
     if (come === 'qui') { togli(); porta(); return }
     if (come === 'sottofondo') {
       togli()
-      void window.gestore.log.info(`[consegna] consegna ${c.id}: lavora in sottofondo nel workspace «${c.workspace ?? '?'}», come hai chiesto (si vede in «Al lavoro in sottofondo», con Guarda)`).catch(() => undefined)
+      void window.gestore.log.info(`[consegna] consegna ${c.id}: lavora in sottofondo nel workspace «${c.workspace ?? '?'}», ${c.sottofondo === true ? 'come hai chiesto' : 'perché non è quello davanti e lo schermo cambia solo quando lo scegli tu'} (si vede in «Al lavoro in sottofondo», con Guarda)`).catch(() => undefined)
       void window.gestore.autopilota.inSottofondo(c).catch(() => undefined)
       return
     }
@@ -502,8 +507,7 @@ export function App(): React.JSX.Element {
     }
     togli()
     void window.gestore.log.info(`[consegna] consegna ${c.id}: porto la finestra nel suo workspace «${c.workspace ?? '?'}», così la chat si vede`).catch(() => undefined)
-    void azioniDiFinestra()
-      .cambia(c.workspace as string)
+    void cambiaSchermo(c.workspace as string, subito ? 'nicholas' : 'consegna', subito ? `«Guarda» sulla consegna ${c.id}` : `consegna ${c.id}`)
       .then(() => window.gestore.workspace.stato())
       .then(aggiornaWorkspace)
       .then(porta)
@@ -525,7 +529,7 @@ export function App(): React.JSX.Element {
 
   // Una chat nuova chiesta dal telefono. Solo in una cartella che Claude Code
   // conosce già — il controllo lo fa il Core, qui si apre e basta.
-  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione, workspace, nome: nomeScelto }) => {
+  useEffect(() => window.gestore.client.suApertura(({ cartella, modello, sessione, workspace, nome: nomeScelto, causa }) => {
     // Il nome: quello scritto sul telefono (0.56.0), altrimenti l'ultimo pezzo
     // del percorso — «Documenti\Progetto» dice più di «chat 4».
     const nome = nomeScelto !== undefined && nomeScelto.trim() !== '' ? nomeScelto.trim() : (cartella.split(/[\\/]/).filter((p) => p !== '').pop() ?? cartella)
@@ -551,11 +555,13 @@ export function App(): React.JSX.Element {
     // spostava, e il telefono non deve toccare i workspace. Stessa strada
     // dell'autopilota.
     if (workspace !== undefined && workspace !== workspaceCorrente()) {
-      void azioniDiFinestra()
-        .cambia(workspace)
-        .then(() => window.gestore.workspace.stato())
-        .then(aggiornaWorkspace)
-        .then(apri)
+      // 0.80.0: dal punto unico, con la causa. Se viene da un autopilota lo
+      // schermo resta dov'è e la chat va nel suo workspace senza mostrarla.
+      void cambiaSchermo(workspace, leggiCausa(causa, 'ripresa'), `apro «${nome}»`)
+        .then(async (cambiato) => {
+          if (cambiato) { aggiornaWorkspace(await window.gestore.workspace.stato()); apri(); return }
+          if (conSessione) await window.gestore.workspace.spostaChat(workspace, { id: crypto.randomUUID(), sessionUuid: sessione as string, cwd: cartella, title: nome })
+        })
         .catch((e: unknown) => {
           console.error('[client] non sono riuscito ad andare nel workspace della chat:', e)
           apri()
@@ -608,7 +614,7 @@ export function App(): React.JSX.Element {
         setTimeout(() => r.classList.remove('riquadro--guardato'), 3000)
       }
       if (d.workspace !== undefined && d.workspace !== workspaceCorrente()) {
-        void azioniDiFinestra().cambia(d.workspace).then(() => setTimeout(evidenzia, 800)).catch(() => undefined)
+        void cambiaSchermo(d.workspace, 'nicholas', '«Guarda» su una chat').then(() => setTimeout(evidenzia, 800)).catch(() => undefined)
       } else evidenzia()
     }
     window.addEventListener('sierradeck:guarda-chat', guarda)
@@ -784,8 +790,7 @@ export function App(): React.JSX.Element {
   }), [])
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
-    void azioniDiFinestra()
-      .cambia(nome)
+    void cambiaSchermo(nome, 'telefono', 'dal telefono o da un workspace eliminato')
       // E si aggiorna anche l'etichetta. Il cambio arriva dal telefono, quindi
       // **ogni** finestra lo esegue: ognuna è mittente del proprio cambio, e
       // l'annuncio che aggiorna l'elenco salta di proposito chi l'ha chiesto.
@@ -1429,6 +1434,8 @@ export function App(): React.JSX.Element {
     // modo in cui, con due finestre aperte, i layout finivano per svuotarsi
     // tutti — il sintomo del difetto 0-quater.
     return window.gestore.workspace.onCambiato((s) => {
+      // Seguire un'altra finestra (0.80.0): anche questo cambio va nel registro.
+      if (s.precedente !== s.attivo && s.precedente === workspaceCorrente()) void window.gestore.log.info(`[schermo] «${s.precedente}» → «${s.attivo}» (segue un cambio fatto in un’altra finestra)`).catch(() => undefined)
       aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
       void azioniWorkspace.current
         ?.segui(s.precedente, s.attivo)
