@@ -206,7 +206,8 @@ import {
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
-import { apriStoricoErrori, conStorico, type StoricoSuFile } from './storico-errori-file'
+import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
+import { testoDaCopiare } from '@shared/storico-errori'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -4244,6 +4245,11 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
       ipcMain.handle('log:errore', (_e, messaggio: string) => registro.errore(String(messaggio)))
+      // Lo storico degli errori (0.81.0): PC e servizio insieme, e il testo di «Copia».
+      ipcMain.handle('errori:storico', () => {
+        const storico = leggiStoricoDi(dati, storicoErrori.leggi())
+        return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }) }
+      })
       // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
       // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
       // console del renderer, e dopo un guasto il registro non diceva niente.

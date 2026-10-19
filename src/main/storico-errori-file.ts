@@ -64,9 +64,12 @@ export function apriStoricoErrori(dati: string, chi: 'app' | 'servizio', p: {
   }
 }
 
-/** Lo storico di questo PC: quello del programma e quello del servizio, insieme. */
-export function leggiStoricoDi(dati: string): StoricoErrori {
-  return unisciStorici(leggiFile(fileDi(dati, 'app')), leggiFile(fileDi(dati, 'servizio')))
+/**
+ * Lo storico di questo PC: quello del programma e quello del servizio, insieme.
+ * `app` è lo storico del programma già in memoria, con gli errori non ancora scritti.
+ */
+export function leggiStoricoDi(dati: string, app?: StoricoErrori): StoricoErrori {
+  return unisciStorici(app ?? leggiFile(fileDi(dati, 'app')), leggiFile(fileDi(dati, 'servizio')))
 }
 
 /** Per quanto l'ultima riga del registro racconta ancora «cosa si stava facendo». */

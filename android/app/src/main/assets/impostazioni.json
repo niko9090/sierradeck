@@ -403,6 +403,22 @@
       ]
     },
     {
+      "id": "errori",
+      "sezione": "info",
+      "titolo": "Errori",
+      "spiega": "Gli errori del programma e del servizio degli autopiloti su questo PC, con quando, dove, cosa si stava facendo e il punto del codice. Gli stessi errori ripetuti sono una riga sola. «Copia» li mette in un testo da incollare a una chat; password e chiavi non ci sono mai.",
+      "parole": [
+        "errore",
+        "storico",
+        "problemi",
+        "guasti",
+        "copia"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
       "id": "copia-dettagli",
       "sezione": "info",
       "titolo": "Copia i dettagli",
@@ -457,6 +473,7 @@
         "stile",
         "scorciatoie",
         "registro",
+        "errori",
         "copia-dettagli"
       ]
     },

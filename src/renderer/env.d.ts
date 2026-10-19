@@ -272,6 +272,10 @@ declare global {
         errore: (messaggio: string) => Promise<void>
         info: (messaggio: string) => Promise<void>
       }
+      /** Lo storico degli errori di questo PC (0.81.0): programma e servizio insieme. */
+      errori: {
+        storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; testo: string }>
+      }
       /** I file del progetto, di qua e sul suo server. */
       trasferimenti: {
         destinazioni: (cwd: string) => Promise<DestinazioneVista[]>

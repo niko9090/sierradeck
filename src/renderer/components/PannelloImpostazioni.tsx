@@ -12,6 +12,7 @@ import { contaChat, contaWorkspace, eChiusuraAutomatica, type Istantanea } from 
 import { SezionePin } from './SezionePin'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { SezioneAggiornamenti } from './SezioneAggiornamenti'
+import { SezioneErrori } from './SezioneErrori'
 import { Aiuto } from './Aiuto'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
@@ -534,7 +535,7 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
         ) : null}
         {vede('scorciatoie') ? <SezioneScorciatoie p={p} cambia={cambia} /> : null}
 
-        {vede('registro', 'copia-dettagli') ? (
+        {vede('registro', 'copia-dettagli', 'errori') ? (
           <section className="impostazioni__gruppo">
             <Testa id="info" />
             <div className="impostazioni__riga">
@@ -542,6 +543,7 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
               {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
             </div>
             {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
+            {vede('errori') ? <SezioneErrori /> : null}
           </section>
         ) : null}
       </div>
