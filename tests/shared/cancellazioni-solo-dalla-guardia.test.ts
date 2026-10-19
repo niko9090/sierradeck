@@ -33,6 +33,9 @@ const VIETATI: Array<[string, RegExp]> = [
 describe('ogni cancellazione ricorsiva passa dalla guardia', () => {
   const tutti = [...file(join(RADICE, 'src')), ...file(join(RADICE, 'scripts'))]
     .filter((p) => !/cancella-sicura/.test(p))
+  // Letti una volta sola, qui: a suite intera sulla macchina carica leggerli
+  // dentro il primo test superava i 20 s del tetto (visto nella 0.80.0).
+  const righe = new Map(tutti.map((p) => [p, readFileSync(p, 'utf8').split(/\r?\n/)] as const))
 
   it('ci sono file da controllare', () => {
     expect(tutti.length).toBeGreaterThan(100)
@@ -43,7 +46,7 @@ describe('ogni cancellazione ricorsiva passa dalla guardia', () => {
       const trovati: string[] = []
       for (const p of tutti) {
         // I divieti dei comandi parlano di questi comandi per riconoscerli: si guardano solo le righe di codice.
-        readFileSync(p, 'utf8').split(/\r?\n/).forEach((riga, i) => {
+        righe.get(p)!.forEach((riga, i) => {
           const t = riga.trim()
           if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('#')) return
           if (re.test(riga)) trovati.push(`${relative(RADICE, p)}:${i + 1}: ${t.slice(0, 120)}`)
@@ -56,7 +59,7 @@ describe('ogni cancellazione ricorsiva passa dalla guardia', () => {
   it('ogni Cestino (shell.trashItem) passa da cestinoSicuro', () => {
     const trovati: string[] = []
     for (const p of tutti) {
-      readFileSync(p, 'utf8').split(/\r?\n/).forEach((riga, i) => {
+      righe.get(p)!.forEach((riga, i) => {
         if (/trashItem\(/.test(riga) && !/cestinoSicuro\(/.test(riga) && !riga.trim().startsWith('//') && !riga.trim().startsWith('*')) {
           trovati.push(`${relative(RADICE, p)}:${i + 1}`)
         }

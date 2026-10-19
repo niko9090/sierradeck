@@ -131,7 +131,16 @@ describe('una cartella per chat: git worktree (T3)', { timeout: 60_000 }, () => 
 
   it('una cartella che non e git non ha worktree', () => {
     const nuda = mkdtempSync(join(tmpdir(), 'sd-nogit-'))
-    expect(creaWorktree(git, { cwd: nuda, autopilota: 'a', chat: 'c', base: 'main' })).toMatchObject({ ok: false })
+    // Git non risale oltre la cartella temporanea: se Temp sta dentro un repository (i criteri lanciati
+    // con TEMP nel progetto), la cartella «nuda» risultava git e il test cadeva (18/10).
+    const prima = process.env.GIT_CEILING_DIRECTORIES
+    process.env.GIT_CEILING_DIRECTORIES = tmpdir()
+    try {
+      expect(creaWorktree(git, { cwd: nuda, autopilota: 'a', chat: 'c', base: 'main' })).toMatchObject({ ok: false })
+    } finally {
+      if (prima === undefined) delete process.env.GIT_CEILING_DIRECTORIES
+      else process.env.GIT_CEILING_DIRECTORIES = prima
+    }
   })
 
   it('i fatti per consegnare (remoto, script) si leggono dal progetto', () => {
