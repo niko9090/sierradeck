@@ -8,6 +8,15 @@ tag: ["0.80.0", "release", "rapporto"]
 
 **Pubblicata il 19/10/2026 da c-12.** Non è una bozza ed è la «latest». **Non l'ha installata nessuno di noi**, su nessun PC: la installa Nicholas con «Installa».
 
+**Controllo dei file pubblicati (c-177): CHIUSO, tutto giusto.** Rifatto dopo la pubblicazione, leggendo GitHub:
+- `isDraft: false`, tag v0.80.0 = a22c1df;
+- 5 allegati;
+- l'APK è `SierraDeck-2.80.0.apk` (16 781 634 byte): stessa impronta sha256 dell'`assembleRelease` fresco a a22c1df, output-metadata 2.80.0/136, firma «O=Ferrari Consulenze»; **non** la 2.79.0;
+- `latest.yml` e `app-android.json` scaricati da «latest» dicono 0.80.0 e 2.80.0/0.80.0;
+- le note parlano della grafica rifinita e non nominano «Elimina workspace», che è della 0.81.0.
+
+Non c'era niente da riallegare.
+
 - **Codice:** la 0.80.0 è esattamente **a22c1df**. Il tag `v0.80.0` su origin punta lì (`git ls-remote --tags origin v0.80.0` → `a22c1dff9f35…`).
 - **Allegati (5):**
   - `SierraDeck-Setup-0.80.0.exe` (115 299 532 byte);
