@@ -4680,6 +4680,8 @@ if (!app.requestSingleInstanceLock()) {
           .map((w) => w.id)
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
+        // Ogni avviso nel registro (0.80.0): «mille notifiche» non lasciava righe.
+        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'})`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)

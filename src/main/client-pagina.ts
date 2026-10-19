@@ -18,6 +18,7 @@
 
 import { FASI_CATALOGO } from '../shared/catalogo-progresso'
 import { ansiInHtml } from '@shared/ansi-html'
+import { avvisiDaMostrare, sceltaDaAnnunciare } from '@shared/avvisi-raggruppati'
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
 import { testoAvvio } from '@shared/sottofondo'
 import {
@@ -656,6 +657,8 @@ function componiPagina(): string {
 // test, e qui dentro ci arriva per intero: quello che gira nel telefono e'
 // esattamente il codice che e' stato verificato.
 ${ansiInHtml.toString()}
+${avvisiDaMostrare.toString()}
+${sceltaDaAnnunciare.toString()}
 // Il testo ricomposto per la larghezza del telefono (0.52.6): stesso codice
 // del modulo condiviso, con i suoi test.
 ${ricomponiSchermo.toString()}
@@ -5498,6 +5501,8 @@ function chiediDiAvvisare() { }
 var avvisati = {}
 /** Al primo stato non si annuncia niente: e' il passato, non una novita'. */
 var primoAvviso = true
+/** Quando si è mostrato l'ultimo avviso (0.80.0): quelli vicini si raggruppano. */
+var ultimoAvvisoIl = undefined
 
 /**
  * Avvisa quando l'autopilota ha bisogno di te.
@@ -5520,20 +5525,30 @@ function avvisaSeServe(stato) {
       return
     }
     if (Notification.permission !== 'granted') return
+    const nuovo = !primoAvviso
+    const ora = Date.now()
+    // 0.80.0: si raccoglie, poi avvisiDaMostrare raggruppa quelli vicini e
+    // ognuno mostrato va nel registro del computer.
+    const nuovi = []
+    // Una domanda già aperta quando si apre la pagina si vede nella pagina:
+    // non si riannuncia a ogni ricarica (0.80.0).
     for (const d of (stato.domande || [])) {
       if (avvisati['d-' + d.id]) continue
       avvisati['d-' + d.id] = true
-      new Notification('SierraDeck ti sta chiedendo una cosa', { body: d.testo, tag: d.id })
+      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id })
     }
-    const nuovo = !primoAvviso
     for (const c of (stato.chat || [])) {
       // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
-      // effetti, e fino alla 0.34 non si annunciava.
-      if (!c.chiede) { delete avvisati['k-' + c.id]; continue }
-      if (avvisati['k-' + c.id]) continue
-      avvisati['k-' + c.id] = true
+      // effetti, e fino alla 0.34 non si annunciava. Quelle guidate da un
+      // autopilota no (0.80.0): le loro domande arrivano già come domande, e
+      // la scelta va e viene mentre lavorano. Una scelta che va e viene in
+      // meno di un minuto si annuncia una volta (sceltaDaAnnunciare).
+      if (c.governata === true) { delete avvisati['k-' + c.id]; continue }
+      const r = sceltaDaAnnunciare(c.chiede === true, avvisati['k-' + c.id], ora)
+      if (r.visto === undefined) delete avvisati['k-' + c.id]
+      else avvisati['k-' + c.id] = r.visto
       // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      new Notification((c.titolo || 'Una chat') + ' aspetta che tu scelga', { body: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id })
+      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
@@ -5541,7 +5556,7 @@ function avvisaSeServe(stato) {
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue
         avvisati['p-' + a.id] = true
-        if (!primoAvviso) new Notification(a.nome + ' aspetta il tuo via', { body: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
+        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
         continue
       }
       // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
@@ -5552,13 +5567,12 @@ function avvisaSeServe(stato) {
       if (avvisati[chiaveF]) continue
       avvisati[chiaveF] = true
       if (!nuovo || a.archiviato === true) continue
-      if (a.stato === 'finito') new Notification(a.nome + ' ha finito', { body: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
-      else new Notification(a.nome + ' si è fermato', { body: a.motivo || 'Serve una tua occhiata.', tag: a.id })
+      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
+      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }
     // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
     // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
     // degli avvisi, e non chiedevano niente. Finché resta ferma non si ripete.
-    const ora = Date.now()
     for (const c of (stato.chat || [])) {
       const chiaveChat = 'a-' + c.id
       if (c.aspetta === true && c.governata !== true && !c.chiede) {
@@ -5566,7 +5580,7 @@ function avvisaSeServe(stato) {
         if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
         if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
         avvisati[chiaveChat] = true
-        if (nuovo) new Notification((c.titolo || 'Una chat') + ' aspetta te', { body: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id })
+        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' aspetta te', corpo: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id })
       } else {
         delete avvisati[chiaveChat]
         delete avvisati['t-' + c.id]
@@ -5576,7 +5590,13 @@ function avvisaSeServe(stato) {
     const agg = stato.aggiornamento
     if (agg && agg.fase === 'pronto' && agg.versione && !avvisati['v-' + agg.versione]) {
       avvisati['v-' + agg.versione] = true
-      if (nuovo) new Notification('SierraDeck ' + agg.versione + ' è pronta sul computer', { body: 'Scaricata e pronta da installare: la installi tu, quando vuoi.', tag: 'versione' })
+      if (nuovo) nuovi.push({ tipo: 'versione', titolo: 'SierraDeck ' + agg.versione + ' è pronta sul computer', corpo: 'Scaricata e pronta da installare: la installi tu, quando vuoi.', tag: 'versione' })
+    }
+    // Vicini = uno solo (0.80.0); ognuno mostrato nel registro del computer.
+    for (const m of avvisiDaMostrare(nuovi, ultimoAvvisoIl, ora)) {
+      new Notification(m.titolo, { body: m.corpo, tag: m.tag })
+      ultimoAvvisoIl = ora
+      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: m.tipo, titolo: m.titolo }).catch(function () { })
     }
     primoAvviso = false
   } catch (e) { }
