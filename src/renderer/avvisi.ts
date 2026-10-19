@@ -5,6 +5,12 @@ import type { StatoPreparazione } from '../main/preparazione'
 export type Avviso = {
   id: string
   gravita: 'blocco' | 'attenzione'
+  /**
+   * Il LED, quando non è quello della gravità (0.80.0): un autopilota fermo è
+   * rosso come ovunque, anche se la striscia è solo «attenzione». L'ambra che
+   * lampeggia vuol dire una cosa sola: aspetta te.
+   */
+  led?: 'fermo'
   testo: string
   /** Cosa può fare l'utente da qui, quando esiste una risposta a un clic. */
   azione?:
@@ -181,6 +187,7 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
     avvisi.push({
       id: 'fermi',
       gravita: 'attenzione',
+      led: 'fermo',
       testo: fermi.length === 1
         ? `L’autopilota «${uno?.nome ?? ''}» si è fermato: ${accorcia(uno?.motivoSospensione ?? 'senza motivo riferito')}`
         : `${fermi.length} autopiloti si sono fermati.`,

@@ -686,10 +686,9 @@ private fun Fascia(
     // sarebbe acceso sempre.
     val chiedono = stato?.let { domandeInAttesa(it) } ?: 0
     val allarmeDomande: Color? = if (chiedono > 0) Banco.ambra else null
-    // Le chat che hanno finito il turno e aspettano la tua prossima
-    // istruzione: non sono domande, ma da lontano sono la notizia «tocca a
-    // te». Prima la voce Chat non aveva mai un pallino.
-    val aspettano = stato?.chat?.count { leggiChat(it).tono == TonoChat.ASPETTA } ?: 0
+    // Le chat ferme su una scelta (0.80.0: come la pagina e il PC; una chat
+    // che ha finito il turno è «ferma» e non accende il pallino).
+    val aspettano = stato?.chat?.count { leggiChat(it).tono == TonoChat.SCEGLIE } ?: 0
     val allarmeChat: Color? = if (aspettano > 0) Banco.ambra else null
 
     // Il menu principale (app 2.61.0): le sette voci del PC, nello stesso ordine.

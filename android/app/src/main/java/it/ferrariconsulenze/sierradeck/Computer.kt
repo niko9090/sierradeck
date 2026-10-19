@@ -110,14 +110,14 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
     LaunchedEffect(Unit) {
         while (isActive) {
             try { val e = api.pc(); pcVisti = e.pc; pcDisponibile = e.disponibile } catch (_: Exception) { if (pcVisti == null) pcVisti = emptyList() }
-            delay(15_000)
+            Davanti.pausa(15_000)
         }
     }
     LaunchedEffect(pcAperto) {
         val id = pcAperto ?: return@LaunchedEffect
         while (isActive) {
             try { postaVoci = api.posta(id).voci; postaNota = null } catch (e: Exception) { postaNota = "Non riesco a leggere la cassetta." }
-            delay(10_000)
+            Davanti.pausa(10_000)
         }
     }
     LaunchedEffect(codaAperta) {
@@ -126,7 +126,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
             try { val c = api.coda(id); codaVoci = c.voci; codaDisponibile = c.disponibile; codaGuasto = null } catch (e: Exception) {
                 codaGuasto = "Non riesco a leggere la coda: ${e.message ?: "il computer non risponde"}. Riprovo ogni dieci secondi."
             }
-            delay(10_000)
+            Davanti.pausa(10_000)
         }
     }
 
@@ -137,7 +137,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
     LaunchedEffect(Unit) {
         while (isActive) {
             consumi = try { api.consumi() } catch (_: Exception) { consumi }
-            delay(30_000)
+            Davanti.pausa(30_000)
         }
     }
     LaunchedEffect(Unit) {
@@ -149,7 +149,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
     LaunchedEffect(Unit) {
         while (isActive) {
             aggiornamento = try { api.aggiornamento() } catch (_: Exception) { aggiornamento }
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 
@@ -256,7 +256,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                             Spacer(Modifier.height(6.dp))
                             for (ch in p.chat.take(8)) {
                                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                                    LedChat(if (!p.vivo) null else if (ch.aspetta) TonoChat.ASPETTA else TonoChat.LAVORA)
+                                    LedChat(if (!p.vivo) null else if (ch.aspetta) TonoChat.FERMA else TonoChat.LAVORA)
                                     Spacer(Modifier.width(8.dp))
                                     Text(ch.titolo.ifBlank { ch.cwd }, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     Text(

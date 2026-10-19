@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { creaPersistenza, type PersistenzaDeps } from '../../src/renderer/persistenza-layout'
+import { creaPersistenza, creaTrascinamento, type PersistenzaDeps } from '../../src/renderer/persistenza-layout'
 import type { LayoutSalvato } from '@shared/workspace'
 
 function ambiente() {
@@ -178,5 +178,40 @@ describe('creaPersistenza', () => {
     p.salvaSubito()
 
     expect(a.salvati).toHaveLength(0)
+  })
+})
+
+describe('trascinare un divisore (0.80.0)', () => {
+  it('cento movimenti, una scrittura sola al rilascio, con lo stato finale', async () => {
+    const a = ambiente()
+    const t = creaTrascinamento()
+    a.deps.trascinamento = t
+    await avviata(a)
+    t.inizia()
+    for (let i = 0; i < 100; i += 1) {
+      a.setStatoEsportato(i % 2 === 0 ? layoutA : layoutB)
+      a.emettiCambiamento()
+    }
+    expect(a.salvati).toHaveLength(0)
+    t.finisci()
+    expect(a.salvati).toEqual([layoutB])
+    // Fuori dal trascinamento si torna a scrivere subito.
+    a.emettiCambiamento()
+    expect(a.salvati).toHaveLength(2)
+  })
+
+  it('un rilascio senza cambi non scrive; la chiusura a metà trascinamento sì', async () => {
+    const a = ambiente()
+    const t = creaTrascinamento()
+    a.deps.trascinamento = t
+    const p = await avviata(a)
+    t.inizia()
+    t.finisci()
+    expect(a.salvati).toHaveLength(0)
+    t.inizia()
+    a.setStatoEsportato(layoutA)
+    a.emettiCambiamento()
+    p.salvaSubito()
+    expect(a.salvati).toEqual([layoutA])
   })
 })

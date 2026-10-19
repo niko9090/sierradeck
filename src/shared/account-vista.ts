@@ -72,3 +72,14 @@ export function vistaAccount(a: IngressoAccount): { tessere: TesseraAccount[]; p
                   : { id: 'progetti', testo: 'Apri Progetti' }
   return { tessere, ...(prossimo !== undefined ? { prossimo } : {}) }
 }
+
+/**
+ * Come il PC mostra il prossimo passo (0.80.0). Tre passi hanno il loro tasto
+ * qui; gli altri (entra, la passphrase, la cassaforte) si fanno nei riquadri
+ * sotto la catena, e prima sul PC non si vedevano proprio, mentre la pagina e
+ * l'app li scrivevano. Ora una riga di solo testo.
+ */
+export function passoSulPc(p: PassoAccount | undefined): { tasto: boolean; testo: string } | undefined {
+  if (p === undefined) return undefined
+  return { tasto: p.id === 'connetti' || p.id === 'salva' || p.id === 'progetti', testo: p.testo }
+}

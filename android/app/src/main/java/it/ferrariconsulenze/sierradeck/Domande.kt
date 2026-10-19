@@ -82,7 +82,7 @@ fun Domande(api: Api, stato: Stato?, onApriAutopilota: (String) -> Unit = {}) {
             } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.DOMANDE)
             }
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 

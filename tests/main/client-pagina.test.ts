@@ -719,12 +719,13 @@ describe('analisi del telefono, 30/09', () => {
 
   it('ogni chat dice il suo stato: prima erano tutte verdi', () => {
     expect(pure.statoChat({ chiede: true, governata: true }).parola).toBe('aspetta che tu scelga')
-    expect(pure.statoChat({ aspetta: true }).parola).toBe('aspetta te')
+    // 0.80.0: ha finito il turno = «ferma», come sul PC; «aspetta te» non la conta più.
+    expect(pure.statoChat({ aspetta: true })).toEqual({ tono: 'ferma', parola: 'ferma' })
     expect(pure.statoChat({ aspetta: true, governata: true }).tono).toBe('guidata')
     expect(pure.statoChat({ viva: false }).tono).toBe('spenta')
     // Un computer vecchio non manda `viva`: la chat non diventa spenta.
     expect(pure.statoChat({}).tono).toBe('lavoro')
-    expect(pure.riassuntoChat([{ aspetta: true }, {}, {}, { chiede: true }])).toBe('1 aspetta che tu scelga · 1 aspetta te · 2 al lavoro')
+    expect(pure.riassuntoChat([{ aspetta: true }, {}, {}, { chiede: true }])).toBe('1 aspetta che tu scelga · 2 al lavoro · 1 ferma')
   })
 
   it('la stessa regola dell app Android, parola per parola', () => {

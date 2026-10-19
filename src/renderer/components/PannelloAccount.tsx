@@ -1,5 +1,5 @@
 import { TendinaMenu } from './TendinaMenu'
-import { vistaAccount } from '@shared/account-vista'
+import { passoSulPc, vistaAccount } from '@shared/account-vista'
 import type { Colore } from '@shared/stato-vista'
 import { useEffect, useState } from 'react'
 import { Aiuto } from './Aiuto'
@@ -388,12 +388,18 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
             {v.tessere.some((t) => t.vista.id === 'scade') ? (
               <p className="account__nota" style={{ color: 'var(--ambra)' }}>⚠ {v.tessere.find((t) => t.vista.id === 'scade')?.vista.ragione}</p>
             ) : null}
-            {passo !== undefined && (passo.id === 'connetti' || passo.id === 'salva' || passo.id === 'progetti') ? (
+            {passoSulPc(passo)?.tasto === true && passo !== undefined ? (
               <div className="account__tasti" style={{ justifyContent: 'flex-start' }}>
                 <span className="account__etichetta">Prossimo passo</span>
                 <button className="tasto tasto--primario" onClick={fai} disabled={inCorso || (passo.id === 'connetti' && !drive.configurato)}>
                   {inCorso && passo.id === 'connetti' ? 'nel browser…' : passo.testo}
                 </button>
+              </div>
+            ) : passoSulPc(passo) !== undefined ? (
+              // 0.80.0: anche i passi senza tasto qui, come sulla pagina e nell'app.
+              <div className="account__tasti" style={{ justifyContent: 'flex-start' }}>
+                <span className="account__etichetta">Prossimo passo</span>
+                <b>{passoSulPc(passo)?.testo}</b>
               </div>
             ) : null}
           </div>

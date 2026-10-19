@@ -348,38 +348,3 @@ describe('creaAzioniWorkspace — da dove si parte', () => {
     expect(migra?.args[0]).toBe('Uno')
   })
 })
-
-describe('il registro dei cambi di workspace (0.80.0, «cambia da solo»)', () => {
-  it('ogni cambio sullo schermo lascia una riga con da dove, a dove e perché', async () => {
-    const a = ambiente()
-    const righe: string[] = []
-    a.deps.annota = (r) => { righe.push(r) }
-    const azioni = creaAzioniWorkspace(a.deps)
-    await azioni.cambia('Due', 'consegna c-7 dell’autopilota: la chat vive lì')
-    expect(righe).toEqual(['[workspace] la finestra passa da «Uno» a «Due»: consegna c-7 dell’autopilota: la chat vive lì'])
-  })
-
-  it('nessuna riga se si resta dove si è; senza motivo lo dice', async () => {
-    const a = ambiente()
-    const righe: string[] = []
-    a.deps.annota = (r) => { righe.push(r) }
-    const azioni = creaAzioniWorkspace(a.deps)
-    await azioni.cambia('Uno', 'clic')
-    expect(righe).toEqual([])
-    await azioni.cambia('Due')
-    expect(righe).toEqual(['[workspace] la finestra passa da «Uno» a «Due»: motivo non detto'])
-  })
-
-  it('anche seguire un’altra finestra e creare un workspace lasciano la riga', async () => {
-    const a = ambiente()
-    const righe: string[] = []
-    a.deps.annota = (r) => { righe.push(r) }
-    const azioni = creaAzioniWorkspace(a.deps)
-    await azioni.segui('Uno', 'Tre')
-    await azioni.crea('Quattro')
-    expect(righe).toEqual([
-      '[workspace] la finestra passa da «Uno» a «Tre»: un’altra finestra ha cambiato workspace',
-      '[workspace] la finestra passa da «Tre» a «Quattro»: workspace «Quattro» creato da questa finestra'
-    ])
-  })
-})

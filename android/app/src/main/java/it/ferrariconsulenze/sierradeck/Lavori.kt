@@ -108,7 +108,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         if (su == null) return@LaunchedEffect
         while (isActive) {
             statoSu = try { api.stato() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { statoSu }
-            delay(3000)
+            Davanti.pausa(3000)
         }
     }
     val stato = if (su != null) statoSu else statoAccoppiato
@@ -120,7 +120,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         if (su != null) return@LaunchedEffect
         while (isActive) {
             altri = try { apiAccoppiato.autopilotiAltri() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { altri ?: emptyList() }
-            delay(15_000)
+            Davanti.pausa(15_000)
         }
     }
     // Dalla scheda Domande: «apri la sua linguetta Domande» (0.38.0).
@@ -270,7 +270,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 guastoDettaglio = if (e is Api.Errore && e.codice == 404) "Il computer non trova più questo autopilota: forse è stato eliminato."
                     else "Non riesco a leggere il dettaglio: ${e.message ?: "il computer non risponde"}. Riprovo da solo ogni due secondi."
             }
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 
@@ -590,7 +590,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                                 color = Banco.testoQuieto, fontSize = 13.sp
                             )
                         } else det.chats.forEachIndexed { i, ch ->
-                            val stato = when (ch.stato) { "lavoro" -> "al lavoro"; "bloccata" -> "ferma, aspetta una risposta"; else -> "finita" }
+                            val stato = parolaChatGovernata(det.stato, ch.stato)
                             Text(
                                 "chat ${i + 1} · $stato · ${ch.cicli} " + (if (ch.cicli == 1) "giro" else "giri") +
                                     (if (det.chats.size > 1) "\n${ch.compito}" else ""),
@@ -1459,7 +1459,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
             try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.FILE_AUTOPILOTA)
             }
-            delay(4000)
+            Davanti.pausa(4000)
         }
     }
     LaunchedEffect(scelto) {
@@ -1503,11 +1503,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
 /** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0): le parole del PC. */
 @Composable
 fun DalVivo(v: StatoDalVivo) {
-    val colore = when (v.etichetta) {
-        "al lavoro" -> Banco.verde
-        "aspetta te" -> Banco.ambra
-        else -> Banco.testoQuieto
-    }
+    val colore = coloreVista(tonoDalVivo(v.etichetta))
     Spacer(Modifier.height(4.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(v.etichetta, color = colore, fontWeight = FontWeight.Bold, fontSize = 12.sp)

@@ -227,8 +227,8 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('autopilota:consegna', h) }
     },
     /** Una chat nuova, chiesta da un telefono in una cartella già conosciuta. */
-    suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string }) => void): (() => void) => {
-      const h = (_e: unknown, m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string }): void => cb(m)
+    suApertura: (cb: (m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string; causa?: string }) => void): (() => void) => {
+      const h = (_e: unknown, m: { cartella: string; modello?: string; sessione?: string; workspace?: string; nome?: string; causa?: string }): void => cb(m)
       ipcRenderer.on('client:apri', h)
       return () => { ipcRenderer.off('client:apri', h) }
     },
@@ -1128,7 +1128,7 @@ contextBridge.exposeInMainWorld('gestore', {
     altriPc: (): Promise<{ pc: string; nome: string; workspace: string[] }[]> => ipcRenderer.invoke('workspace:altriPc'),
     /** Apre qui un workspace di un altro PC, con le sue chat dal vivo (0.67.0). */
     apriDaAltroPc: (pc: string, nome: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('workspace:apriDaAltroPc', pc, nome),
-    crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
+    crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>

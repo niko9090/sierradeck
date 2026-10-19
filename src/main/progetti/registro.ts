@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { basename, join, sep } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
+import { memoriaDiFile } from '../memoria-di-file'
 import type { LayoutSalvato, WorkspaceSalvato } from '@shared/workspace'
 
 /**
@@ -298,11 +298,15 @@ export type RegistroProgettiStore = {
 
 export function apriRegistroProgetti(dati: string): RegistroProgettiStore {
   const percorso = join(dati, FILE_REGISTRO_PROGETTI)
+  // Letto per ogni chat a ogni /api/stato (0.80.0): si tiene finché il file non
+  // cambia. Il riferimento è condiviso, come in `workspace-store`: nessuno cambia
+  // il registro letto (le operazioni ne creano uno nuovo e lo scrivono). Una
+  // copia per lettura costava 0,3 ms, quanto mezza rilettura.
+  const memoria = memoriaDiFile(percorso, (t) => parseRegistro(JSON.parse(t)))
   return {
     leggi() {
-      if (!existsSync(percorso)) return registroVuoto()
       try {
-        return parseRegistro(JSON.parse(readFileSync(percorso, 'utf8')))
+        return memoria.leggi() ?? registroVuoto()
       } catch (err) {
         console.error('[progetti] registro illeggibile:', err)
         return registroVuoto()
@@ -310,6 +314,7 @@ export function apriRegistroProgetti(dati: string): RegistroProgettiStore {
     },
     scrivi(r) {
       scriviAtomico(percorso, JSON.stringify(r, null, 2), 'progetti')
+      memoria.dimentica()
     }
   }
 }

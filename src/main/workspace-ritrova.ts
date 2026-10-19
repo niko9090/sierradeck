@@ -21,7 +21,20 @@ const RITROVA_GIORNI = 14
 export function annotaEliminato(dati: string, nome: string, adesso = new Date().toISOString()): void {
   const f = join(dati, FILE_ELIMINATI)
   let v: Eliminato[] = []
-  try { v = JSON.parse(readFileSync(f, 'utf8')) as Eliminato[] } catch { v = [] }
+  // Un file che c'è ma non si legge (0.80.0) non si riscrive con la sola voce
+  // nuova: le eliminazioni di prima si perderebbero e quei workspace potrebbero
+  // «ritrovarsi». Si riprova una volta; un file rotto (non JSON) vale vuoto.
+  if (existsSync(f)) {
+    let testo: string | undefined
+    for (let i = 0; i < 2 && testo === undefined; i += 1) {
+      try { testo = readFileSync(f, 'utf8') } catch { testo = undefined }
+    }
+    if (testo === undefined) {
+      console.error(`[workspace] ${FILE_ELIMINATI} c’è ma non si legge: «${nome}» non annotato fra gli eliminati`)
+      return
+    }
+    try { const letto = JSON.parse(testo) as unknown; v = Array.isArray(letto) ? (letto as Eliminato[]) : [] } catch { v = [] }
+  }
   v.push({ nome, quando: adesso })
   try { scriviJsonAtomico(f, v.slice(-500), 'workspace') } catch { /* solo un aiuto */ }
 }

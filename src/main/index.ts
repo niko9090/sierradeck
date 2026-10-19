@@ -9,6 +9,7 @@ import { APP_ID, portePerLaProva } from './identita-app'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
+import { sceltaCartellaWorkspace } from '@shared/cartella-workspace'
 import { creaOspite, type Ospite } from './ospite'
 import { casaAltrove, casaPerAutopilota } from '@shared/ospite-chat'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -41,7 +42,7 @@ import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
-import { apriOSottofondo, finestraPerRipresa } from './consegne-layout'
+import { finestraPerRipresa } from './consegne-layout'
 import type { AzioneFinestra, EsitoAzioneFinestra, RichiestaAutopilota } from '@shared/azioni-telefono'
 import { workspaceDellAutopilota } from '@shared/azioni-telefono'
 import { apriPartenzeSubito } from './partenze-subito'
@@ -95,6 +96,7 @@ import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
+import { statInParallelo } from './stat-in-parallelo'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
@@ -202,6 +204,7 @@ import {
   type ScopeChat, type ScopeStore
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
+import { consoleNelRegistro } from './console-nel-registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -345,7 +348,7 @@ let ptyClient: PtyHostClient | undefined
  * quello attivo: «Riapri là», il telefono, il ponte, un altro PC, «Mostra
  * qui». La scelta (`workspaceDiApertura`) e il perché vanno nel registro.
  */
-async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?: string; titolo?: string; come: string; schermoFermo?: true; elencaAutopiloti: () => Promise<{ nome?: string; workspace?: string; sessionId?: string; cwd: string }[]> }): Promise<void> {
+async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?: string; titolo?: string; come: string; elencaAutopiloti: () => Promise<{ nome?: string; workspace?: string; sessionId?: string; cwd: string }[]> }): Promise<void> {
   const store = workspaceStore
   const autopiloti = await o.elencaAutopiloti().catch(() => [])
   const archivio = store?.leggi() ?? { versione: 1, attivo: '', workspace: [] }
@@ -359,15 +362,6 @@ async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?:
   const finestra = vive.find((w) => w.id === scelta)
   registroGlobale?.info(`[apertura] «${o.titolo ?? sessione.slice(0, 8)}» (${sessione.slice(0, 8)}): ${o.come} nel workspace «${s.nome}» — ${s.perche}${s.creare ? ' (su questo PC non c’era: creato con quel nome)' : ''}${finestra === undefined ? '; nessuna finestra aperta: non la apro' : ''}`)
   if (finestra === undefined) return
-  // Lo schermo cambia solo quando lo sceglie Nicholas sul PC (0.80.0): chiesta da
-  // un altro PC o dal telefono, una chat di un workspace che non è a schermo
-  // riparte in sottofondo nel suo workspace; il riquadro la adotta quando ci vai.
-  const aSchermo = workspaceDellaFinestra(finestra.id)
-  if (apriOSottofondo({ schermoFermo: o.schermoFermo === true, aSchermo, suo: s.nome, conSottofondo: sottofondo !== undefined }) === 'sottofondo' && sottofondo !== undefined) {
-    registroGlobale?.info(`[workspace] lo schermo resta su «${aSchermo ?? '?'}»: «${o.titolo ?? sessione.slice(0, 8)}» riparte in sottofondo nel suo workspace «${s.nome}» (${o.come})`)
-    sottofondo.avvia({ sessione, cwd, titolo: o.titolo ?? sessione.slice(0, 8), perChi: { id: 'ripresa', nome: 'telefono o altro PC' }, workspace: s.nome })
-    return
-  }
   finestra.webContents.send('client:apri', { cartella: cwd, sessione, workspace: s.nome, ...(o.titolo !== undefined && o.titolo !== '' ? { nome: o.titolo } : {}) })
 }
 /** Le chat in sottofondo (0.58.4): senza riquadro, per chi le usa da lontano. */
@@ -569,7 +563,7 @@ let gestioneChatGlobale: GestioneChat | undefined
 /** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
 let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
 /** «Creare un workspace crea il progetto» (0.65.1): la cartella del progetto di un workspace, creata se serve. */
-let progettoPerWorkspaceGlobale: ((nome: string) => Promise<string | undefined>) | undefined
+let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Promise<string | undefined>) | undefined
 /** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 let traslocoGlobale: TraslocoApi | undefined
@@ -1264,6 +1258,8 @@ if (!app.requestSingleInstanceLock()) {
       portaAutopiloti = impostazioni.preferenze().portaAutopiloti
       // Da qui in poi i gestori globali scrivono nel file, non solo in console.
       registroGlobale = registro
+      // E anche ogni console.error/console.warn del main (0.80.0, voce 1 dell'analisi).
+      consoleNelRegistro(registro)
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
       // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
@@ -1442,7 +1438,7 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) }, (vecchio, nuovo) => {
+      registerLayoutIpc(workspaceStore, registro.info, (nome, cartella) => { void progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined).catch(() => undefined) }, (vecchio, nuovo) => {
         // La vista a elenco segue il nome del workspace (0.74.0).
         const p = impostazioni.preferenze()
         const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
@@ -2647,17 +2643,26 @@ if (!app.requestSingleInstanceLock()) {
        * PC residente. Se il progetto esiste già su un altro PC non si crea
        * niente: resta suo, e qui si guarda da là.
        */
-      progettoPerWorkspaceGlobale = async (nome: string): Promise<string | undefined> => {
+      progettoPerWorkspaceGlobale = async (nome: string, opz?: { crea?: boolean }): Promise<string | undefined> => {
         const io = identitaPc.leggi()
-        if (nome.trim() === '' || nomeNormalizzato(nome) === nomeNormalizzato('Predefinito')) return undefined
-        const gruppi = raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case())
-        const g = gruppi.find((x) => nomeNormalizzato(x.nome) === nomeNormalizzato(nome))
-        const qui = g?.percorsi.find((x) => x.pc === io.id && existsSync(x.percorso))?.percorso
-        if (qui !== undefined) return qui
-        if (g !== undefined && g.percorsi.some((x) => x.pc !== io.id)) return undefined
-        const radice = io.cartellaProgetti
-        const cartella = join(radice, cartellaDaNomeWorkspace(nome))
-        if (!cartellaDiProgettoValida(cartella, homedir())) { registro.info(`[workspace] «${nome}»: la cartella ${cartella} non va bene per un progetto, non la creo`); return undefined }
+        const cartella = join(io.cartellaProgetti, cartellaDaNomeWorkspace(nome))
+        const ws = workspaceStore?.leggi().workspace.find((w) => w.nome === nome)
+        const scelta = sceltaCartellaWorkspace({
+          nome,
+          io,
+          gruppi: raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case()),
+          casaDi: (chiave) => unaCasa.case().case[chiave],
+          remoti: ws === undefined ? [] : Object.values(ws.perSlot).flatMap((l) => l.panes).flatMap((p) => (p.remoto !== undefined ? [{ pcId: p.remoto.pcId, pcNome: p.remoto.pcNome }] : [])),
+          battiti: postino.altrui(),
+          esiste: existsSync,
+          cartellaNuova: cartella,
+          valida: cartellaDiProgettoValida(cartella, homedir())
+        })
+        if (scelta.tipo === 'qui') return scelta.cartella
+        if (scelta.tipo === 'altrove') { registro.info(`[workspace] «${nome}» vive su ${scelta.pcNome} (${scelta.perche}): qui non creo cartelle`); return undefined }
+        if (scelta.tipo === 'niente') { if (scelta.perche.startsWith('la cartella')) registro.info(`[workspace] «${nome}»: ${scelta.perche}, non la creo`); return undefined }
+        // Leggere non crea (0.80.0): la finestra della chat nuova chiede solo dove sta il progetto.
+        if (opz?.crea === false) return undefined
         try { mkdirSync(cartella, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
         const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: io.id, percorso: cartella, adesso: new Date().toISOString() })
         registroProgetti.scrivi(reg)
@@ -2942,25 +2947,31 @@ if (!app.requestSingleInstanceLock()) {
         let registro: RegistroProgetti | undefined
         try { registro = grezzo === undefined ? undefined : parseRegistro(JSON.parse(grezzo.toString('utf8'))) } catch { registro = undefined }
         return { manifesto, ...(registro !== undefined ? { registro } : {}) }
-      }, 60_000)
-      /** Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»). */
-      const registroDelPannello = async (): Promise<RegistroProgetti> => {
-        const q = await quadroPannello()
+      }, 60_000, () => Date.now(), 10 * 60_000)
+      /**
+       * Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»).
+       * `ancheVecchio` (0.80.0) solo per la vista: le azioni vogliono il Drive di adesso.
+       */
+      const registroDelPannello = async (ancheVecchio = false): Promise<RegistroProgetti> => {
+        const q = await quadroPannello(ancheVecchio)
         const prefissi = new Set(Object.keys(q?.manifesto.file ?? {}).map((k) => k.split('/')[0] ?? ''))
         ultimoRegistroPannello = registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
         return ultimoRegistroPannello
       }
-      const leggiPannello = async (): Promise<Pannello> => {
+      const leggiPannello = async (ancheVecchio = false): Promise<Pannello> => {
         const inizio = Date.now()
         const io = identitaPc.leggi()
-        const locali = chatLocaliDaIndice().map((c) => {
-          let mtime: number | undefined
-          try { mtime = statSync(c.jsonl).mtimeMs } catch { mtime = undefined }
+        // Le date vere dei file, sedici alla volta e fuori dal thread principale
+        // (0.80.0): erano ~670 statSync in fila a ogni lettura del pannello.
+        const chatQui = chatLocaliDaIndice()
+        const misure = await statInParallelo(chatQui.map((c) => c.jsonl))
+        const locali = chatQui.map((c, i) => {
+          const mtime = misure[i]?.mtimeMs
           return { sessione: c.sessione, titolo: c.titolo, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(mtime !== undefined ? { mtime } : {}) }
         })
         const dalManifesto = Date.now()
-        const manifesto = (await quadroPannello())?.manifesto
-        const registroVisto = await registroDelPannello()
+        const manifesto = (await quadroPannello(ancheVecchio))?.manifesto
+        const registroVisto = await registroDelPannello(ancheVecchio)
         const msManifesto = Date.now() - dalManifesto
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
@@ -3020,7 +3031,8 @@ if (!app.requestSingleInstanceLock()) {
       }
       const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
         ...(await (async () => {
-          const p = await leggiPannello()
+          // Solo per guardare (finestra, pagina, app): va bene il Drive di qualche minuto fa, riletto intanto.
+          const p = await leggiPannello(true)
           // Lo spazio sul Drive di ogni progetto (0.69.0), con l'avviso dei file grandi.
           return { ...p, progetti: conSpazioDrive(p.progetti, spazio.subito()?.misura?.perProgetto) }
         })()),
@@ -4055,7 +4067,7 @@ if (!app.requestSingleInstanceLock()) {
       // Le due cartelle-base di una chat nuova: Documenti e quella dei progetti.
       ipcMain.handle('sistema:cartelleBase', async (_e, ws: unknown) => {
         // La cartella del progetto del workspace (0.65.1): lì nascono le chat nuove.
-        const cartella = typeof ws === 'string' && ws !== '' ? await progettoPerWorkspaceGlobale?.(ws).catch(() => undefined) : undefined
+        const cartella = typeof ws === 'string' && ws !== '' ? await progettoPerWorkspaceGlobale?.(ws, { crea: false }).catch(() => undefined) : undefined
         return { documenti: app.getPath('documents'), progetti: identitaPc.leggi().cartellaProgetti, casa: homedir(), ...(cartella !== undefined ? { workspace: cartella } : {}) }
       })
       // Creare la cartella di una chat nuova: solo sotto Documenti o sotto la
@@ -5441,7 +5453,7 @@ if (!app.requestSingleInstanceLock()) {
           await clientAutopilota.assicuraServizio()
           let suo: string | undefined
           if (r.workspace === undefined && workspaceStore !== undefined) {
-            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd)
+            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd, r.obiettivo)
             const prima = workspaceStore.leggi()
             const dopo = aggiungiWorkspace(prima, suo)
             if (dopo !== prima) {
@@ -5540,7 +5552,7 @@ if (!app.requestSingleInstanceLock()) {
         // Nel suo workspace (0.59.0): dell'autopilota, del riquadro salvato,
         // del riquadro di chi chiede, del progetto, della cartella. Mai quello attivo.
         riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => {
-          void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', schermoFermo: true, elencaAutopiloti: () => clientAutopilota.elenca() })
+          void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', elencaAutopiloti: () => clientAutopilota.elenca() })
         },
         aggiungiWorkspace: async (nome: string) => {
           const store = workspaceStore

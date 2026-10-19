@@ -507,7 +507,44 @@ Ordine: prima ciò che perde dati o nasconde guasti, poi la velocità che Nichol
 
 ## 4. Test del programma (`npm test`)
 
-Lanciato a macchina quieta dopo le misure. L'esito è nella sezione «Esito di npm test» qui sotto.
+**Esito.** `npx vitest run --maxWorkers=2` su main a 6c38f66, 19/10 dalle 12:56 alle 13:12, senza file modificati nella cartella. Le altre chat erano al lavoro sulla stessa macchina.
+
+- **File:** 405 passati, 1 caduto, 1 saltato.
+- **Test:** 4193 passati, 1 caduto, 2 saltati.
+- **Durata:** 926 s, di cui 487 s solo per gli `import`. È il segno della macchina carica: a macchina libera la suite dura una frazione di questo tempo.
+
+**Il test caduto**
+- **Dove:** `tests/main/collegamento-rtc.test.ts:208`, «il canale si chiude: si torna a «spento» (non fallito), e la prossima chiamata lo riapre».
+- **Errore:** `expected 'fallito' to be 'spento'`.
+- **Da solo passa:** `npx vitest run tests/main/collegamento-rtc.test.ts` tre volte, 9/9 ogni volta, in 6-7 s. Non è un difetto del programma, quindi **non va in Alta**.
+- **Perché cade sotto carico:** `finche` (riga 94) aspetta al massimo 2 s e non dice se la condizione è arrivata.
+  - La prima attesa (riga 204, canale `aperto`) può scadere prima che il canale si apra.
+  - A quel punto `chiudiTutto()` interrompe un tentativo ancora in corso.
+  - `collegamento-rtc.ts:291` lo conta giustamente come `fallito`.
+- **Correzione del test, non del programma:**
+  - controllare che `aperto` sia stato davvero raggiunto, con `expect` dopo la riga 204;
+  - un tetto più largo per `finche` in questo test, per esempio 10 s.
+
+  Da fare sul ramo delle correzioni.
+
+**`rimozione-sicura.test.ts` (rosso delle 10:12)**
+- In questa suite è passato.
+- Il caso «le rotte del residente: solo fra PC della stessa cassaforte» cadeva per i 20 s del solo import di `client-rotte` a macchina carica.
+- Il tetto è stato alzato a 60 s da un'altra chat (531799e).
+
+Nessun test di `tests/autopilot-host/server.test.ts` né dei file corretti da bea1fa9 è caduto in questa suite.
+
+**Sulla verifica stessa: il comando misura più del criterio.**
+- «I test passano» vuol dire «il codice è giusto».
+- Sulla macchina condivisa, però, la suite intera misura anche il carico delle altre chat: copie di prova, altre suite di vitest in parallelo, fino a 17 processi di vitest e CPU al 100%.
+- Tutti i rossi visti oggi su main (`verifiche-shell`, `pty-host-client`, `rimozione-sicura`, `collegamento-rtc`) passavano lanciati da soli. Erano tetti di tempo troppo stretti, non difetti.
+
+**Comando proposto per il criterio:** `npx vitest run --maxWorkers=2 --retry=1`.
+- Un test che cade una volta sola per il carico viene ripetuto.
+- Un difetto vero cade due volte e resta rosso.
+- I test ripetuti vanno comunque annotati, perché sono tetti da allargare.
+
+In alternativa, il comando di oggi lanciato solo a macchina quieta: nessun altro processo di vitest e nessuna copia di prova accesa.
 
 ## 5. Da dove ripartire
 
@@ -517,7 +554,7 @@ Lanciato a macchina quieta dopo le misure. L'esito è nella sezione «Esito di n
   - le parti di (a) che restano;
   - voci 9 e 10 (stato sbagliato a vista);
   - voci 3, 4 e 5 (il PC che lavora a vuoto ogni 2-10 s).
-- **Foto «prima» della grafica:** non sono in questo commit. Vanno fatte dalla copia di prova con lo stesso script, aggiungendo `Page.captureScreenshot` dopo ogni apertura.
+- **Foto «prima» della grafica:** fatte da c-12 il 19/10. Sono in `foto-0-80-0/prima/` (fuori da git, mostrano percorsi della macchina). Le differenze fra PC, pagina e app, schermata per schermata, sono in `grafica-prima-0-80-0.md`, che va unita a questo elenco.
 - **Dopo le correzioni** rifare le stesse misure con `misura-080.mjs` e mettere i numeri «dopo» accanto a questi.
 
 ## Appendice: lo script delle misure (`misura-080.mjs`)

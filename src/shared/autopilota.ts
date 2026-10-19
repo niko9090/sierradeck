@@ -995,3 +995,12 @@ export function conMomentoDelFermo(a: Autopilota, adesso: string): Autopilota {
   const { fermatoIl: _f, archiviato: _a, ...resto } = a
   return resto
 }
+
+/**
+ * Una chat governata è al lavoro solo se il suo autopilota gira (0.80.0). Con
+ * l'autopilota fermo la chat resta segnata «lavoro» nel suo stato, ma non fa
+ * niente: la tabella diceva «2 · 1 al lavoro» accanto a «fermo».
+ */
+export function chatAlLavoro(a: Pick<Autopilota, 'stato'>, c: Pick<ChatGovernata, 'stato'>): boolean {
+  return c.stato === 'lavoro' && (a.stato === 'lavoro' || a.stato === 'attesa' || a.stato === 'intervista')
+}

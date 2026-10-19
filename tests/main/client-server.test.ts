@@ -221,3 +221,58 @@ describe('i segnali di Claude Code (0.45.0)', () => {
     expect((await chiama(server, '/api/segnale', { metodo: 'POST', corpo: {} })).stato).toBe(403)
   })
 })
+
+describe('risposte compresse e pagina con ETag (0.80.0)', () => {
+  const PAGINA = `<!doctype html><p>${'SierraDeck '.repeat(5000)}</p>`
+  const grezzo = (porta: number, percorso: string, intestazioni: Record<string, string>): Promise<{ stato: number; h: import('node:http').IncomingHttpHeaders; corpo: Buffer }> =>
+    new Promise((ris, rif) => {
+      // http.request di Node non chiede gzip da solo: è il client «vecchio».
+      import('node:http').then(({ request }) => {
+        const r = request({ host: '127.0.0.1', port: porta, path: percorso, headers: intestazioni }, (res) => {
+          const pezzi: Buffer[] = []
+          res.on('data', (p: Buffer) => pezzi.push(p))
+          res.on('end', () => ris({ stato: res.statusCode ?? 0, h: res.headers, corpo: Buffer.concat(pezzi) }))
+        })
+        r.on('error', rif)
+        r.end()
+      }, rif)
+    })
+
+  it('la pagina: compressa solo a chi la chiede, 304 alla riapertura, uguale a prima per chi non comprime', async () => {
+    const { gunzipSync } = await import('node:zlib')
+    const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-cs-')))
+    server = creaServerClient({ dispositivi, rotta: () => ({ stato: 404, corpo: {} }), rottaLibera: () => ({ stato: 200, corpo: PAGINA, tipo: 'text/html; charset=utf-8' }) })
+    await ascolta(server)
+    const porta = (server.address() as AddressInfo).port
+    const semplice = await grezzo(porta, '/', {})
+    expect(semplice.h['content-encoding']).toBeUndefined()
+    expect(semplice.corpo.toString('utf8')).toBe(PAGINA)
+    const compressa = await grezzo(porta, '/', { 'accept-encoding': 'gzip, deflate, br' })
+    expect(compressa.h['content-encoding']).toBe('gzip')
+    expect(compressa.corpo.length).toBeLessThan(PAGINA.length / 10)
+    expect(gunzipSync(compressa.corpo).toString('utf8')).toBe(PAGINA)
+    const etag = String(compressa.h.etag)
+    expect(etag).toMatch(/^"[0-9a-f]{40}"$/)
+    const dinuovo = await grezzo(porta, '/', { 'if-none-match': etag, 'accept-encoding': 'gzip' })
+    expect(dinuovo.stato).toBe(304)
+    expect(dinuovo.corpo.length).toBe(0)
+  })
+
+  it('un JSON grande si comprime per chi lo chiede; uno piccolo no', async () => {
+    const { gunzipSync } = await import('node:zlib')
+    const grande = { chat: Array.from({ length: 200 }, (_, i) => ({ id: `c-${i}`, titolo: 'una chat qualunque' })) }
+    const a = ambiente(({ percorso }) => ({ stato: 200, corpo: percorso === '/api/grande' ? grande : { ok: true } }))
+    server = a.server
+    await ascolta(server)
+    const porta = (server.address() as AddressInfo).port
+    const chiave = a.dispositivi.accoppia(a.dispositivi.apriAccoppiamento().codice, 'telefono')?.chiave ?? ''
+    const g = await grezzo(porta, '/api/grande', { 'x-sierradeck-chiave': chiave, 'accept-encoding': 'gzip' })
+    expect(g.h['content-encoding']).toBe('gzip')
+    expect(JSON.parse(gunzipSync(g.corpo).toString('utf8'))).toEqual(grande)
+    const p = await grezzo(porta, '/api/piccolo', { 'x-sierradeck-chiave': chiave, 'accept-encoding': 'gzip' })
+    expect(p.h['content-encoding']).toBeUndefined()
+    expect(JSON.parse(p.corpo.toString('utf8'))).toEqual({ ok: true })
+    // Il fetch di Node (altri PC, ponte) scioglie da solo: per lui non cambia niente.
+    expect((await chiama(server, '/api/grande', { chiave })).dati).toEqual(grande)
+  })
+})

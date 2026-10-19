@@ -42,3 +42,56 @@ describe('memoriaBreve', () => {
     expect(letture).toBe(3)
   })
 })
+
+describe('il valore appena scaduto, per chi guarda (0.80.0)', () => {
+  it('chi accetta il vecchio lo riceve subito e intanto si rilegge; chi decide aspetta il nuovo', async () => {
+    let ora = 0
+    let letture = 0
+    let finisci: (v: string) => void = () => {}
+    const m = memoriaBreve(() => {
+      letture += 1
+      return letture === 1 ? Promise.resolve('v1') : new Promise<string>((r) => { finisci = r })
+    }, 60_000, () => ora, 600_000)
+    expect(await m(true)).toBe('v1')
+    ora = 90_000
+    // Chi guarda: subito il vecchio, e una rilettura parte.
+    expect(await m(true)).toBe('v1')
+    expect(letture).toBe(2)
+    // Chi decide aspetta la stessa rilettura, non ne fa un'altra.
+    const nuovo = m()
+    finisci('v2')
+    expect(await nuovo).toBe('v2')
+    expect(letture).toBe(2)
+    expect(await m(true)).toBe('v2')
+  })
+
+  it('troppo vecchio anche per chi guarda: si aspetta; senza il quarto parametro come prima', async () => {
+    let ora = 0
+    let letture = 0
+    const m = memoriaBreve(() => Promise.resolve(`v${++letture}`), 60_000, () => ora, 600_000)
+    await m(true)
+    ora = 700_000
+    expect(await m(true)).toBe('v2')
+    let ora2 = 0
+    let l2 = 0
+    const vecchia = memoriaBreve(() => Promise.resolve(`w${++l2}`), 60_000, () => ora2)
+    await vecchia(true)
+    ora2 = 90_000
+    expect(await vecchia(true)).toBe('w2')
+  })
+
+  it('una rilettura in sottofondo che fallisce non lascia errori in giro e tiene il vecchio', async () => {
+    let ora = 0
+    let letture = 0
+    const m = memoriaBreve(async () => {
+      letture += 1
+      if (letture === 2) throw new Error('Drive giù')
+      return `v${letture}`
+    }, 60_000, () => ora, 600_000)
+    await m(true)
+    ora = 90_000
+    expect(await m(true)).toBe('v1')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(await m(true)).toBe('v1')
+  })
+})

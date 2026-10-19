@@ -51,7 +51,7 @@ export function azioniDiFinestra(
     // nuovo: fra le due cose c'è il salvataggio sincrono, ed è lì che il nome
     // vecchio riscriveva il workspace lasciato.
     annunciaAttivo: impostaWorkspaceCorrente,
-    crea: (nome) => window.gestore.workspace.crea(nome),
+    crea: (nome, cartella) => window.gestore.workspace.crea(nome, cartella),
     elimina: (nome) => window.gestore.workspace.elimina(nome),
     // Con chi e' stata congedata: e' cio' che permette al Core di rifiutare
     // un layout in uscita che farebbe sparire una chat che nessuno ha chiuso.
@@ -65,7 +65,6 @@ export function azioniDiFinestra(
     },
     dimenticaCeduti: (paneIds) => useLayoutStore.getState().dimenticaCeduti(paneIds),
     ibernaLasciando,
-    annota: (riga) => { void window.gestore.log.info(riga).catch(() => undefined) },
     /**
      * Manda a dormire tutto quello che è a schermo e dice cosa chiudere.
      *

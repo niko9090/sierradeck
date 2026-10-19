@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -187,7 +188,9 @@ fun VistaTerminale(
             if (modo == ModoTerminale.ADATTA) {
                 // Ricomposto per la larghezza del telefono (2.52.6): il testo unito e a
                 // capo qui; tabelle e riquadri in una griglia che scorre di lato.
-                val blocchi = blocchiAdattati(grezze, continua, colonne)
+                // Ricalcolato solo se cambia il testo (2.80.0): prima a ogni ricomposizione
+                // (scorrere, ogni giro di 2 s anche a testo uguale), con le regex di `Ricomponi`.
+                val blocchi = remember(grezze, continua, colonne) { blocchiAdattati(grezze, continua, colonne) }
                 if (blocchi.isEmpty()) VuotoInAttesa(guasto)
                 for (b in blocchi) {
                     when (b) {

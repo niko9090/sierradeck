@@ -1,4 +1,5 @@
 import { annotaEliminato } from './workspace-ritrova'
+import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
@@ -467,10 +468,11 @@ export function impostaGestioneSessioni(f: { filtra: (l: SessionSummary[]) => Se
 export function reindicizzaSessioni(): Promise<IndexOutcome> {
   const r = rileggi
   if (r === undefined) return Promise.resolve({ indexed: 0, failed: 0, riusate: 0, errore: 'indice non ancora aperto' })
-  const dopo = (rileggiInCorso ?? Promise.resolve()).then(() => r(false), () => r(false))
+  const dopo = rileggiUnita.chiedi(rileggiInCorso, () => r(false))
   rileggiInCorso = dopo
   return dopo
 }
+const rileggiUnita = creaRichiestaUnita<IndexOutcome>()
 
 /** Si risolve quando la lettura dell'avvio e' finita (comunque sia andata). */
 export function primoIndice(): Promise<IndexOutcome> {
@@ -1038,8 +1040,12 @@ export function registerLayoutIpc(
    * trasloco lascia una riga nel registro della sessione.
    */
   registra: (messaggio: string) => void = () => {},
-  /** Un workspace appena creato da qui (0.65.1): diventa un progetto. */
-  dopoCreato: (nome: string) => void = () => {},
+  /**
+   * Un workspace appena creato da qui (0.65.1): diventa un progetto. Con la
+   * cartella (0.80.0) è il workspace di un autopilota che lavora già lì:
+   * nessuna cartella nuova.
+   */
+  dopoCreato: (nome: string, cartella?: string) => void = () => {},
   /** Un workspace rinominato (`nuovo`) o eliminato (`undefined`), 0.74.0: la vista a elenco segue il nome. */
   dopoNome: (vecchio: string, nuovo: string | undefined) => void = () => {}
 ): void {
@@ -1205,11 +1211,11 @@ export function registerLayoutIpc(
     }
   }
 
-  ipcMain.handle('workspace:crea', (event, raw: unknown): StatoWorkspace => {
+  ipcMain.handle('workspace:crea', (event, raw: unknown, rawCartella?: unknown): StatoWorkspace => {
     const precedente = store.leggi()
     const a = creaWorkspace(precedente, validateNomeWorkspace(raw))
     scriviOSolleva(a, 'il workspace nuovo')
-    dopoCreato(validateNomeWorkspace(raw))
+    dopoCreato(validateNomeWorkspace(raw), typeof rawCartella === 'string' && rawCartella.trim() !== '' ? rawCartella : undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
   })
