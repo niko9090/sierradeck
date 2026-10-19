@@ -4,7 +4,8 @@ import { execFile, execFileSync } from 'node:child_process'
 import { daReteLocale } from '@shared/rete-locale'
 import { RIFIUTO_DI_RETE } from '@shared/scoperta-pc'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
-import { timingSafeEqual } from 'node:crypto'
+import { createHash, timingSafeEqual } from 'node:crypto'
+import { gzip as comprimi, gzipSync } from 'node:zlib'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
 
@@ -165,16 +166,68 @@ export function creaServerClient(deps: DipendenzeClient): Server {
   })
 }
 
-function rispondi(res: ServerResponse, esito: Esito): void {
+/** Sotto questa misura comprimere costa più di quanto risparmia. */
+const COMPRIMI_DA_BYTE = 1024
+
+/**
+ * L'ultimo testo grande servito (la pagina), con la sua versione compressa e
+ * la sua impronta (0.80.0): la pagina è sempre la stessa stringa, non si
+ * ricomprime a ogni apertura.
+ */
+let ultimoTesto: { corpo: string; gz: Buffer; etag: string } | undefined
+function testoPronto(corpo: string): { gz: Buffer; etag: string } {
+  if (ultimoTesto?.corpo !== corpo) {
+    ultimoTesto = { corpo, gz: gzipSync(corpo), etag: `"${createHash('sha1').update(corpo).digest('hex')}"` }
+  }
+  return ultimoTesto
+}
+
+/**
+ * La risposta. Compressa con gzip (0.80.0) solo se chi chiede la accetta:
+ * browser e app lo dicono e la sciolgono da soli; `http.request` di Node no,
+ * e riceve il testo di sempre. La pagina (400 KB, ~100 KB compressa) ha anche
+ * l'ETag: alla riapertura il browser riceve 304 e niente corpo.
+ */
+function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage): void {
   const tipo = esito.tipo ?? 'application/json; charset=utf-8'
   const corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
-  res.writeHead(esito.stato, {
+  const intestazioni: Record<string, string> = {
     'Content-Type': tipo,
     // Nessuna origine esterna può interrogare questo server dal browser: senza,
     // una pagina qualunque aperta sul telefono potrebbe provarci.
     'Access-Control-Allow-Origin': 'null',
     'X-Content-Type-Options': 'nosniff'
-  })
+  }
+  const gzip = /\bgzip\b/.test(String(req?.headers['accept-encoding'] ?? '')) && corpo.length >= COMPRIMI_DA_BYTE
+  if (tipo.startsWith('text/html') && esito.stato === 200) {
+    const pronto = testoPronto(corpo)
+    intestazioni.ETag = pronto.etag
+    intestazioni['Cache-Control'] = 'no-cache'
+    if (req?.headers['if-none-match'] === pronto.etag) {
+      res.writeHead(304, intestazioni)
+      res.end()
+      return
+    }
+    if (gzip) {
+      res.writeHead(esito.stato, { ...intestazioni, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' })
+      res.end(pronto.gz)
+      return
+    }
+  } else if (gzip) {
+    // Fuori dal thread principale: su /api/stato (35 KB → 8 KB) la versione
+    // sincrona costava 3-5 ms ogni 2 s per client, più di quanto si risparmiava.
+    comprimi(corpo, { level: 1 }, (err, gz) => {
+      if (err !== null) {
+        res.writeHead(esito.stato, intestazioni)
+        res.end(corpo)
+        return
+      }
+      res.writeHead(esito.stato, { ...intestazioni, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' })
+      res.end(gz)
+    })
+    return
+  }
+  res.writeHead(esito.stato, intestazioni)
   res.end(corpo)
 }
 
@@ -263,7 +316,7 @@ async function gestisci(
   }
 
   if (autorizzata(percorso)) {
-    rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }))
+    rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }), req)
     return
   }
 
@@ -301,7 +354,7 @@ async function gestisci(
   }
   racconta(`ok:${indirizzo}`, `${dispositivo.nome ?? dispositivo.id} (${indirizzo}) collegato`)
 
-  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id }))
+  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id }), req)
 }
 
 /**

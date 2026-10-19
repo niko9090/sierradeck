@@ -72,7 +72,18 @@ const LOGO =
   '<img alt="" width="56" height="56" style="margin-bottom:10px" ' +
   `src="data:image/svg+xml,${encodeURIComponent(ICONA_SVG)}">`
 
+/**
+ * La pagina si compone una volta (0.80.0): sono 400 KB fatti solo di costanti,
+ * e si rimontavano a ogni apertura. Una sola stringa permette anche di tenere
+ * pronta la sua versione compressa (vedi `rispondi` in client-server).
+ */
+let paginaPronta: string | undefined
 export function paginaClient(): string {
+  paginaPronta ??= componiPagina()
+  return paginaPronta
+}
+
+function componiPagina(): string {
   return `<!doctype html>
 <html lang="it">
 <head>
