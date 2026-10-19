@@ -26,6 +26,8 @@ Le due rotte passano dal ponte. `ripristina` è vietata agli autopiloti, come `e
 
 **Trappola per chi scrive codice Kotlin da uno script Node:** `${…}` dentro un template literal JS diventa interpolazione di JS. I `${` di Kotlin vanno scritti `\${`.
 
+**Trappola dei test Kotlin:** un nome di test fra apici inversi non può contenere punti («0.81.0»). Gradle si ferma con `Name contains illegal characters: ..` in `compileDebugUnitTestKotlin`: si scrive «0-81-0».
+
 **Restano da fare:**
 - i due workspace sbagliati del 19/10 («visitafacile» qui e «dentro al mio server nexora c'è gia un») si tolgono con questo «Elimina», **dopo** che Nicholas installa la 0.81.0;
 - prima va chiesto a Nicholas cosa fare dell'autopilota ap-79a4ce02, che ha la sua richiesta vera: va rifatto in NexoraOS o va tolto insieme al workspace;
