@@ -9,7 +9,7 @@ import type { Colore } from '@shared/stato-vista'
 const COLORE_AP: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
-import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
+import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, nomeDaCartella, nomeScritto, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
 import type { Autopilota } from '@shared/autopilota'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
@@ -18,6 +18,7 @@ import { AutopilotiAltriPc } from './AutopilotiAltriPc'
 import { Aiuto } from './Aiuto'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { nomeWorkspacePerAutopilota } from '@shared/vista-elenco'
+import { EVENTO_NUOVO_AUTOPILOTA, prendiRichiestaNuovoAutopilota } from '../nuovo-autopilota'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -88,6 +89,15 @@ export function PannelloAutopiloti({
   const caricaSessioni = useSessionStore((s) => s.load)
   const mete = useMemo(() => destinazioni(Object.values(panes), sessions), [panes, sessions])
 
+  // «Crea l'autopilota» dalla Panoramica (0.80.0): il modulo si apre da solo,
+  // sia se il pannello nasce adesso sia se era già aperto.
+  useEffect(() => {
+    const apri = (): void => { if (prendiRichiestaNuovoAutopilota()) setBozza({ ...BOZZA_VUOTA, cwd: mete[0]?.cwd ?? '' }) }
+    apri()
+    window.addEventListener(EVENTO_NUOVO_AUTOPILOTA, apri)
+    return () => window.removeEventListener(EVENTO_NUOVO_AUTOPILOTA, apri)
+  }, [mete])
+
   // L'indice può non essere ancora stato letto se non si è mai aperta la
   // finestra delle sessioni: senza, la lista offrirebbe solo le chat aperte.
   useEffect(() => {
@@ -127,9 +137,10 @@ export function PannelloAutopiloti({
       let workspace = r.workspace
       if (suoWorkspace) {
         const esistenti = (await window.gestore.workspace.stato()).nomi
-        const nome = nomeWorkspacePerAutopilota(r.nome !== '' ? r.nome : r.obiettivo.split(/\s+/).slice(0, 4).join(' '), esistenti)
+        // Il nome scritto, o quello della cartella: mai le prime parole del messaggio (0.80.0).
+        const nome = nomeWorkspacePerAutopilota(nomeScritto(r.nome, r.obiettivo) || nomeDaCartella(r.cwd), esistenti)
         window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome, accesa: true } }))
-        await azioniDiFinestra().crea(nome)
+        await azioniDiFinestra().crea(nome, r.cwd)
         // La finestra è già nel workspace nuovo: la barra e la colonna lo devono sapere.
         window.dispatchEvent(new CustomEvent('sierradeck:rileggi-workspace'))
         workspace = nome

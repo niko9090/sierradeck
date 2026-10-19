@@ -81,8 +81,13 @@ export function creaProgettiSync(deps: {
       let reg = deps.registro.leggi()
       let cambiato = false
       const fuori: Radice[] = []
+      // Un giro di tutti i progetti (0.80.0) non crea qui le cartelle dei
+      // progetti che un altro PC tiene in mano: era una delle strade delle
+      // cartelle vuote del 19/10. Chi chiede un progetto preciso lo riceve.
+      const esclusi = soloId === undefined ? (deps.esclusi?.() ?? new Set<string>()) : new Set<string>()
       for (const p of reg.progetti) {
         if (soloId !== undefined && !soloId.has(p.id)) continue
+        if (esclusi.has(p.id)) continue
         // Unito in un altro (0.60.0): i suoi file arrivano con il principale.
         if (eUnito(p)) continue
         const locale = percorsoLocale(p, pc, deps.cartellaProgetti())

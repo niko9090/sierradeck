@@ -32,9 +32,14 @@ export function comePortare(
   ora: number
 ): ComePortare {
   if (c.workspace === undefined || c.workspace === corrente) return 'qui'
-  if (c.sottofondo === true) return 'sottofondo'
-  if (ultimoTasto !== undefined && ora - ultimoTasto < QUIETE_TASTIERA_MS) return 'aspetta'
-  return 'cambia'
+  // 0.80.0: lo schermo cambia solo quando lo sceglie Nicholas (Nicholas, 19/10:
+  // «il workspace cambia da solo»). Una consegna per un workspace che non è
+  // davanti lavora in sottofondo, e si vede in «Al lavoro in sottofondo» con
+  // Guarda; prima la finestra ci andava da sola dopo 45 s di tastiera ferma.
+  // `ultimoTasto` e `ora` restano nella firma per chi chiama.
+  void ultimoTasto
+  void ora
+  return 'sottofondo'
 }
 
 /** La riga della banda per una consegna che aspetta. */
