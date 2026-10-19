@@ -5015,7 +5015,7 @@ function pdElencoHtml() {
   if (pdGruppo === 'da-sistemare' && conti['da-sistemare'] === 0) pdGruppo = 'tutti'
   let h = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin-top:6px">' +
     PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px;font-size:15px' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
-    '<div class="riga" style="gap:6px"><input placeholder="Cerca progetto, PC o cartella" value="' + esc(pdQ) + '" oninput="pdCerca(this.value)" style="flex:1;min-width:0">' +
+    '<div class="riga" style="gap:6px"><input placeholder="Cerca progetto o PC" title="Cerca per progetto, PC o cartella" value="' + esc(pdQ) + '" oninput="pdCerca(this.value)" style="flex:1;min-width:0">' +
     '<select onchange="pdOrdina(this.value)" title="Ordina">' + PD_ORDINI.map((o) => '<option value="' + o[0] + '"' + (pdOrdine === o[0] ? ' selected' : '') + '>⇅ ' + o[1] + '</option>').join('') + '</select></div></div>'
   const scelte = pdOrdinate(righe.filter((x) => pdGruppo === 'tutti' || x.v.gruppi.indexOf(pdGruppo) >= 0).map((x) => x.r))
   if (scelte.length === 0) h += '<div class="piastrella"><div class="sotto">' + (pdGruppo === 'da-sistemare' ? '<span style="color:var(--verde,#3c9)">Tutto a posto</span>' : 'Nessun progetto in questo gruppo.') + '</div></div>'

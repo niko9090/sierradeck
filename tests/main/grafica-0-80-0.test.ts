@@ -128,3 +128,34 @@ describe('Impostazioni: la riga della trasformazione dei workspace (0.80.0)', ()
     expect(testoMigrazione({ stato: 'fallita', motivo: 'disco pieno', dormienti: [] })).toContain('disco pieno')
   })
 })
+
+describe('Voci ancora aperte, fatte nella 0.81.0', () => {
+  const css = readFileSync('src/renderer/console.css', 'utf8')
+  it('Salute: l id della sessione nella riga d errore diventa le prime 8 cifre; intero resta nella spiegazione', async () => {
+    const { componiSalute, titoloErrore } = await import('@shared/salute')
+    const msg = '[app] [chat] «Media con i test» (11111111-0800-4000-8000-000000000001) non partita'
+    expect(titoloErrore(msg)).toBe('[app] [chat] «Media con i test» (11111111…) non partita')
+    expect(titoloErrore('x'.repeat(130))).toHaveLength(121)
+    const s = componiSalute({ adesso: ORA, versione: '0.81.0', drive: { configurato: true, connesso: true }, pc: [], errori: [{ messaggio: msg, volte: 1, ultimo: '2026-10-19T11:50:00Z', primo: '2026-10-19T11:50:00Z' }], consegne: [], oreErrori: 24 })
+    const v = s.voci.find((x) => x.chiave === 'errore:0')
+    expect(v?.titolo).toContain('(11111111…)')
+    expect(v?.spiegazione).toContain('11111111-0800-4000-8000-000000000001')
+  })
+  it('PC: le linguette dell autopilota vanno a capo intere; le Impostazioni scorrono a tutta larghezza', () => {
+    expect(css).toMatch(/\.diario__schede \{[^}]*flex-wrap: wrap/)
+    expect(css).toMatch(/\.diario__scheda \{[^}]*white-space: nowrap/)
+    expect(css).toContain('.impostazioni-vista__destra .impostazioni__corpo > * { max-width: 960px; }')
+    expect(css).not.toContain('.impostazioni-vista__destra .impostazioni__corpo { max-width')
+  })
+  it('PC: gli anelli dell Account sono alti uguali, il workspace attivo si legge, un solo «Strumenti ▾» per schermata', () => {
+    expect(css).toMatch(/\.account__anello-e-freccia \{[^}]*align-items: stretch/)
+    expect(css).toMatch(/\.ws__voce--attivo \{[^}]*max-width: 240px/)
+    const account = readFileSync('src/renderer/components/PannelloAccount.tsx', 'utf8')
+    expect(account).not.toContain('>Strumenti ▾<')
+    expect(account).toContain('>Account ▾<')
+  })
+  it('pagina e app: il campo di ricerca dei progetti non si taglia', () => {
+    expect(script).toContain('placeholder="Cerca progetto o PC"')
+    expect(readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/PannelloDrive.kt', 'utf8')).toContain('Text("Cerca progetto o PC"')
+  })
+})

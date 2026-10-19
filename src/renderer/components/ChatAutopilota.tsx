@@ -179,7 +179,9 @@ export function ChatAutopilota({
           rows={3}
           style={{ resize: 'vertical' }}
           value={messaggio}
-          placeholder={soloConversazione ? 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…' : 'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta «Domande»)'}
+          // 0.81.0: corto, perché nella colonna stretta la parte fra parentesi veniva tagliata;
+          // dove stanno le sue domande lo dice il «?» qui sotto.
+          placeholder="scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…"
           aria-label="scrivi all autopilota"
           onChange={(e) => setMessaggio(e.target.value)}
           onKeyDown={(e) => {

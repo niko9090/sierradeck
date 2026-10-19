@@ -1588,6 +1588,9 @@ input.campo {
 /* Le due viste del diario: cosa sta facendo, cosa ha deciso. */
 .diario__schede {
   display: flex;
+  /* 0.81.0: nella colonna stretta le linguette vanno a capo intere, invece
+     di uscire dal bordo («Cr…») o spezzarsi su due righe («Sta / facendo»). */
+  flex-wrap: wrap;
   gap: var(--s1);
   margin: var(--s1) 0 var(--s2);
   border-bottom: 1px solid var(--incisione);
@@ -1595,6 +1598,7 @@ input.campo {
 
 .diario__scheda {
   font: inherit;
+  white-space: nowrap;
   font-size: var(--t1);
   color: var(--testo-quieto);
   background: transparent;
@@ -2727,6 +2731,9 @@ select.comando-riquadro option {
 .ws__voce:hover { color: var(--testo); }
 
 .ws__voce--attivo {
+  /* 0.81.0: il nome del workspace in cui sei si legge intero fino a 240 px
+     (prima «SierraDeck-prov…» con la fascia mezza vuota); gli altri restano a 120. */
+  max-width: 240px;
   color: var(--testo);
   background: var(--chassis-premuto);
   border-color: var(--incisione);
@@ -4848,7 +4855,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .impostazioni-vista__separa { height: 1px; background: var(--incisione); margin: 8px 4px; }
 .impostazioni-vista__voce--accesa { background: var(--chassis-acceso); }
 .impostazioni-vista__destra { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.impostazioni-vista__destra .impostazioni__corpo { max-width: 960px; }
+.impostazioni-vista__destra .impostazioni__corpo > * { max-width: 960px; }
 .impostazioni__tessere { display: grid; grid-template-columns: repeat(4, minmax(0, 220px)); gap: 8px; padding: 12px 16px 4px; }
 .impostazioni__tessera { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; background: var(--chassis); border: 1px solid var(--incisione); border-radius: var(--raggio); color: var(--testo); cursor: pointer; font: inherit; text-align: left; }
 .impostazioni__tessera:hover { background: var(--chassis-alto); }
@@ -4881,8 +4888,9 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .account__catena-tutta { display: flex; flex-direction: column; gap: 10px; }
 .account__catena-testa { display: flex; align-items: center; gap: 8px; }
 .account__catena { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
-.account__anello-e-freccia { display: flex; align-items: center; gap: 6px; }
-.account__freccia { color: var(--testo-spento); }
+.account__anello-e-freccia { display: flex; align-items: stretch; gap: 6px; }
+/* 0.81.0: gli anelli sono alti uguali (Account ha la riga dell'email) e le frecce stanno a metà. */
+.account__freccia { color: var(--testo-spento); align-self: center; }
 .account__anello { display: flex; flex-direction: column; gap: 2px; min-height: 64px; min-width: 150px; max-width: 220px; padding: 8px 12px; background: var(--chassis); border: 1px solid var(--incisione); border-radius: var(--raggio); }
 .account__anello b { font-size: 16px; }
 .account__sotto { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 196px; }

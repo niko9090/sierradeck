@@ -128,6 +128,16 @@ export function erroriDalLog(righe: string[], adesso: number, ore: number): Erro
   return [...gruppi.values()].sort((a, b) => b.ultimo.localeCompare(a.ultimo))
 }
 
+/**
+ * La riga d'errore in breve (0.81.0): gli id lunghi delle sessioni diventano
+ * le prime 8 cifre, così la riga ci sta su PC, pagina e app. Il messaggio
+ * intero resta nella spiegazione.
+ */
+export function titoloErrore(messaggio: string): string {
+  const corto = messaggio.replace(/\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '$1…')
+  return corto.length > 120 ? `${corto.slice(0, 120)}…` : corto
+}
+
 /** Le voci del pannello, in ordine: Drive, PC, aggiornamento, errori, consegne. */
 export function componiSalute(i: IngressiSalute): Salute {
   const voci: VoceSalute[] = []
@@ -219,7 +229,7 @@ export function componiSalute(i: IngressiSalute): Salute {
   for (const [k, e] of i.errori.slice(0, 12).entries()) {
     voci.push({
       chiave: `errore:${k}`, gruppo: 'errori', tono: 'attenzione',
-      titolo: `${e.volte > 1 ? `${e.volte} volte · ` : ''}${quantoFa(e.ultimo, i.adesso)}: ${e.messaggio.slice(0, 120)}${e.messaggio.length > 120 ? '…' : ''}`,
+      titolo: `${e.volte > 1 ? `${e.volte} volte · ` : ''}${quantoFa(e.ultimo, i.adesso)}: ${titoloErrore(e.messaggio)}`,
       spiegazione: `Dal registro di questo PC${e.volte > 1 ? `, la prima volta ${quantoFa(e.primo, i.adesso)}` : ''}: ${e.messaggio}`,
       cosaFare: 'Se si ripete e qualcosa non va, apri il registro e manda le righe di quell’ora a chi ti aiuta: dicono cosa è successo e in che ordine.',
       azioni: [{ id: 'apri-registro', testo: 'Apri la cartella del registro' }]
