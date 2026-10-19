@@ -495,6 +495,8 @@ declare global {
         apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
         crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
+        recupero: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>
+        ripristina: (nome: string, eliminatoIl: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
         cambia: (nome: string, layout: LayoutSalvato, congedate?: string[]) => Promise<LayoutSalvato>
         migra: (da: string, nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>

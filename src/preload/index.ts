@@ -1131,6 +1131,10 @@ contextBridge.exposeInMainWorld('gestore', {
     crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),
+    /** I workspace eliminati negli ultimi 30 giorni (0.81.0). */
+    recupero: (): Promise<import('@shared/workspace-recupero').VoceRecupero[]> => ipcRenderer.invoke('workspace:recupero'),
+    /** «Ripristina»: torna nella fascia, lo schermo resta dov'è. */
+    ripristina: (nome: string, eliminatoIl: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:ripristina', nome, eliminatoIl),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:rinomina', vecchio, nuovo),
     cambia: async (nome: string, layout: LayoutSalvato, congedate?: string[]): Promise<LayoutSalvato> =>

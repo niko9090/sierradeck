@@ -4,6 +4,9 @@ import { cambiaSchermo } from '../cambio-schermo'
 import type { AzioniWorkspace } from '../workspace-azioni'
 import type { StatoWorkspace } from '../../main/ipc'
 import { ModaleConferma } from './ModaleConferma'
+import { Aiuto } from './Aiuto'
+import { AIUTO_ELIMINA_WORKSPACE, confermaEliminaWorkspace, rigaEliminato } from '@shared/azioni-telefono'
+import type { VoceRecupero } from '@shared/workspace-recupero'
 
 type Props = {
   stato: StatoWorkspace
@@ -30,6 +33,11 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
   // memoria della finestra, che nessun `set` notifica. Questo contatore è come
   // il pannello si accorge di doverlo rileggere dopo uno spegnimento.
   const [giro, setGiro] = useState(0)
+  // I workspace eliminati negli ultimi 30 giorni (0.81.0): si rileggono a ogni stato nuovo.
+  const [eliminati, setEliminati] = useState<VoceRecupero[]>([])
+  useEffect(() => {
+    void window.gestore.workspace.recupero().then(setEliminati).catch(() => undefined)
+  }, [stato])
   // Le azioni leggono lo store al momento della chiamata: ricrearle a ogni
   // rirender le farebbe catturare un layout vecchio. Il nome del workspace in
   // primo piano non si passa più: lo tiene `workspace-corrente`, che le azioni
@@ -195,6 +203,7 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
         >
           Elimina
         </button>
+        <Aiuto di="Elimina workspace">{AIUTO_ELIMINA_WORKSPACE}</Aiuto>
       </div>
 
       {/* Prima un clic solo, senza dire cosa fa: il workspace spariva con le
@@ -202,9 +211,9 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
           dice, e il Core mette da parte una copia dell'archivio. */}
       {daEliminare !== undefined ? (
         <ModaleConferma
-          titolo={`Eliminare il workspace «${daEliminare}»?`}
-          testo={`Il workspace sparisce dalla fascia e le chat che contiene escono dalla disposizione: i loro terminali si spengono. Le conversazioni restano su disco e si ritrovano nell’elenco Chat (Sessioni), da dove si riaprono in un altro workspace. Prima di eliminare viene messa da parte una copia dell’archivio dei workspace (workspaces.prima-dell-eliminazione.json, nella cartella dei dati). Se il workspace viaggia anche sul Drive, lì resta: si toglie da lì con «Togli dal Drive» nella scheda Drive.`}
-          etichettaAzione="Elimina il workspace"
+          titolo={confermaEliminaWorkspace(daEliminare).titolo}
+          testo={confermaEliminaWorkspace(daEliminare).testo}
+          etichettaAzione={confermaEliminaWorkspace(daEliminare).azione}
           onConferma={() => {
             const nome = daEliminare
             setDaEliminare(undefined)
@@ -261,6 +270,27 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
             >
               ⏻ {n}
             </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Il recupero (0.81.0): un workspace eliminato resta 30 giorni, con i suoi riquadri. */}
+      {eliminati.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
+          <span className="serigrafia">Eliminati <Aiuto di="i workspace eliminati">{AIUTO_ELIMINA_WORKSPACE}</Aiuto></span>
+          {eliminati.map((v) => (
+            <div key={`${v.nome}|${v.eliminatoIl}`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span>{v.nome}</span>
+              <span className="misura">{rigaEliminato(v)}</span>
+              <button
+                className="tasto tasto--mini"
+                disabled={inCorso}
+                onClick={() => esegui(async () => { onStato(await window.gestore.workspace.ripristina(v.nome, v.eliminatoIl)) })}
+                title={`Rimette «${v.nome}» nella fascia con i suoi riquadri. Lo schermo resta qui.`}
+              >
+                Ripristina
+              </button>
+            </div>
           ))}
         </div>
       ) : null}

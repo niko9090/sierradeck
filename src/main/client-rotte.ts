@@ -419,6 +419,10 @@ export type DipendenzeRotte = {
    */
   aggiungiWorkspace?: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
+  /** I workspace eliminati negli ultimi 30 giorni (0.81.0). Senza: un PC che non li tiene. */
+  recuperoWorkspace?: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>
+  /** «Ripristina»: il workspace torna nella fascia, lo schermo non cambia. */
+  ripristinaWorkspace?: (nome: string, eliminatoIl: string) => Promise<{ ok: true; nome: string } | { ok: false; errore: string }>
   /**
    * I progetti sul Drive con chi li ha in mano e quanti comandi aspettano
    * nella coda condivisa: dal telefono si vede, si aggiunge, si toglie.
@@ -2326,6 +2330,23 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       await deps.eliminaWorkspace(nome)
       return OK({ fatto: true })
+    }
+
+    // Il recupero dei workspace eliminati (0.81.0): 30 giorni, poi escono da soli.
+    if (r.metodo === 'GET' && r.percorso === '/api/workspace/recupero') {
+      if (deps.recuperoWorkspace === undefined) return OK({ voci: [], senzaRecupero: true })
+      return OK({ voci: await deps.recuperoWorkspace() })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/ripristina') {
+      let nome: string
+      try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
+      catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
+      const eliminatoIl = stringa(r.corpo, 'eliminatoIl')
+      if (eliminatoIl === '') return { stato: 400, corpo: { errore: 'serve il momento dell’eliminazione' } }
+      if (deps.ripristinaWorkspace === undefined) return { stato: 409, corpo: { errore: 'Questo computer non tiene ancora i workspace eliminati: aggiornalo alla 0.81.0.' } }
+      const e = await deps.ripristinaWorkspace(nome, eliminatoIl)
+      deps.log?.(`[workspace] ripristino di «${nome}» chiesto da ${visore}: ${e.ok ? `tornato come «${e.nome}»` : e.errore}`)
+      return e.ok ? OK({ fatto: true, nome: e.nome }) : { stato: 409, corpo: { errore: e.errore } }
     }
 
     // Rinominare un workspace (0.55.0), come «✎ Rinomina» del pannello: le

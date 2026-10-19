@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +80,12 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
     var elimina by remember { mutableStateOf<String?>(null) }
     var errore by remember { mutableStateOf<String?>(null) }
     var inCorso by remember { mutableStateOf(false) }
+    // I workspace eliminati negli ultimi 30 giorni (PC 0.81.0): si rileggono quando cambia l'elenco.
+    // Un PC più vecchio non li tiene: allora la sezione non c'è.
+    var eliminati by remember { mutableStateOf<List<VoceRecuperoWs>>(emptyList()) }
+    LaunchedEffect(workspace.nomi) {
+        eliminati = try { api.recuperoWorkspace().voci } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
+    }
     fun fai(cosa: String, azione: suspend () -> Unit) {
         inCorso = true
         scope.launch {
@@ -90,7 +97,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
     }
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { TitoloDialogo(if (nomePc.isNullOrBlank()) "Workspace" else "Workspace di $nomePc", "Un workspace è una disposizione di chat sul computer. Andarci lo mette davanti sul computer (le chat degli altri continuano a lavorare). Eliminarlo toglie le sue chat dalla disposizione ma non cancella le conversazioni.") },
+        title = { TitoloDialogo(if (nomePc.isNullOrBlank()) "Workspace" else "Workspace di $nomePc", "Un workspace è una disposizione di chat sul computer. Andarci lo mette davanti sul computer (le chat degli altri continuano a lavorare). Eliminarlo lo mette per 30 giorni in «Eliminati», con «Ripristina».") },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                 errore?.let { Spacer(Modifier.height(6.dp)); Text(it, color = Banco.rosso, fontSize = 12.sp) }
@@ -109,6 +116,22 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                         }) { Text("Elimina", color = Banco.rosso) }
                     }
                     HorizontalDivider(color = Banco.incisione)
+                }
+                if (eliminati.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Eliminati", color = Banco.testoQuieto, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Aiuto(AzioniTelefono.AIUTO_ELIMINA_WORKSPACE, di = "i workspace eliminati")
+                    }
+                    for (v in eliminati) {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(v.nome, color = Banco.testo)
+                                Text(AzioniTelefono.rigaEliminato(v.chat, v.scadeIl), color = Banco.testoQuieto, fontSize = 11.sp)
+                            }
+                            TextButton(enabled = !inCorso, onClick = { fai("ripristinare «${v.nome}»") { api.ripristinaWorkspace(v.nome, v.eliminatoIl) } }) { Text("Ripristina") }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

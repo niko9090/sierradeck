@@ -108,9 +108,20 @@ object AzioniTelefono {
 
     fun confermaEliminaWorkspace(nome: String) = Conferma(
         "Eliminare il workspace «$nome»?",
-        "Il workspace sparisce dalla fascia e le chat che contiene escono dalla disposizione: i loro terminali si spengono. Le conversazioni restano su disco e si ritrovano nell’elenco Chat (Sessioni), da dove si riaprono in un altro workspace. Prima di eliminare viene messa da parte una copia dell’archivio dei workspace (workspaces.prima-dell-eliminazione.json, nella cartella dei dati). Se il workspace viaggia anche sul Drive, lì resta: si toglie da lì con «Togli dal Drive» nella scheda Drive.",
+        "Le sue chat si chiudono, le conversazioni restano. Per 30 giorni lo ritrovi in «Eliminati», con «Ripristina».",
         "Elimina il workspace"
     )
+
+    /** Il «?» di «Elimina» e di «Eliminati» (PC 0.81.0), parola per parola. */
+    const val AIUTO_ELIMINA_WORKSPACE = "Eliminare toglie il workspace dalla fascia e spegne i terminali delle sue chat. Le conversazioni non si cancellano: restano su disco e nell’elenco delle chat. Il workspace, con la disposizione dei suoi riquadri, resta 30 giorni in «Eliminati»: «Ripristina» lo rimette nella fascia senza cambiare lo schermo, e le sue chat ripartono quando ci vai. Se nel frattempo ne hai creato uno con lo stesso nome, torna come «nome (recuperato)». Dopo 30 giorni esce da solo. Se il workspace viaggia anche sul Drive, lì resta: si toglie con «Togli dal Drive»."
+
+    /** La riga sotto il nome di un workspace eliminato, come `rigaEliminato` del PC. */
+    fun rigaEliminato(chat: Int, scadeIl: String): String {
+        val giorno = try {
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM").format(java.time.Instant.parse(scadeIl).atZone(java.time.ZoneId.systemDefault()))
+        } catch (e: Exception) { "?" }
+        return "${if (chat == 1) "1 chat" else "$chat chat"} · resta fino al $giorno"
+    }
 
     fun confermaRinominaWorkspace(nome: String) = Conferma(
         "Rinominare «$nome»?",

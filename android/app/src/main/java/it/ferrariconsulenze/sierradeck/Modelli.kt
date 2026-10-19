@@ -846,6 +846,16 @@ data class SessioneRipresa(
 @Serializable
 data class Fatto(val fatto: Boolean = false, val autopilota: String? = null)
 
+// ─── il recupero dei workspace eliminati (PC 0.81.0) ───
+@Serializable
+data class VoceRecuperoWs(val nome: String, val eliminatoIl: String, val scadeIl: String = "", val chat: Int = 0, val da: String? = null)
+
+@Serializable
+data class RecuperoWs(val voci: List<VoceRecuperoWs> = emptyList(), val senzaRecupero: Boolean = false)
+
+@Serializable
+data class Ripristinato(val fatto: Boolean = false, val nome: String? = null)
+
 
 /**
  * Un pezzo di conversazione, e quanto ce n’è in tutto.
