@@ -2485,3 +2485,75 @@ describe('0.76.0: gli specialisti anche per gli autopiloti che ci sono già', ()
     expect(archivio.leggi(id)?.organizzazione).toBe('Lavoro piccolo: una chat sola, che fa tutto.')
   })
 })
+
+describe('0.80.0: chiudiChat con il ramo già unito o mancante', () => {
+  // c-1: ramo già nel principale; c-3: ramo tolto; c-4: ramo con lavoro da unire.
+  const gitRami: Git = (args, cwd) => {
+    const a = args.join(' ')
+    if (a.startsWith('show-ref --verify --quiet refs/heads/')) return { codice: a.endsWith('/c-3') ? 1 : 0, uscita: '' }
+    if (a.startsWith('rev-list --count')) return { codice: 0, uscita: a.endsWith('/c-1') ? '0\n' : '2\n' }
+    return gitFinto(args, cwd)
+  }
+  const fuori = join(tmpdir(), 'sd-nessuna-cartella-c80')
+  const flotta = () => ({
+    ...nuovoAutopilota({ id: 'ap-chiudi', nome: 'Chiudi', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'node t.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+    stato: 'lavoro' as const,
+    ramoBase: 'main',
+    tettoChat: 8,
+    chats: ['c-1', 'c-2', 'c-3', 'c-4'].map((id) => ({ id, compito: `compito ${id}`, stato: 'lavoro' as const, cicli: 1, ruolo: 'sviluppo' as const, ramo: `ap/ap-chiudi/${id}`, cartella: fuori })),
+    compitiDaFare: []
+  })
+
+  it('le chat con il ramo già unito o mancante si chiudono senza Revisione; quella da unire va in Revisione', async () => {
+    server = ambiente({
+      git: gitRami, limiti: LIMITI_LIBERI,
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "chiudo", "mosse": [{"tipo": "chiudiChat", "chat": "c-1"}, {"tipo": "chiudiChat", "chat": "c-3"}, {"tipo": "chiudiChat", "chat": "c-4"}]}' })
+    })
+    archivio.scrivi(flotta())
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-chiudi&chat=c-2', eventoStop({ session_id: 's-2', last_assistant_message: 'avanti' }))
+    const a = archivio.leggi('ap-chiudi')!
+    const chat = (id: string) => a.chats.find((c) => c.id === id)!
+    expect(chat('c-1')).toMatchObject({ stato: 'finita', approvata: true })
+    expect(chat('c-3')).toMatchObject({ stato: 'finita', approvata: true })
+    expect(chat('c-4').stato).toBe('finita')
+    expect(chat('c-4').approvata).toBeUndefined()
+    expect(fermati).toEqual(expect.arrayContaining(['ap-chiudi::c-1', 'ap-chiudi::c-3', 'ap-chiudi::c-4']))
+    const diario = a.decisioni.map((d) => d.cosa).join(' | ')
+    expect(diario).toContain('chiudo la chat c-1: il suo ramo ap/ap-chiudi/c-1 è già in main')
+    expect(diario).toContain('chiudo la chat c-3: il suo ramo ap/ap-chiudi/c-3 non esiste più')
+    expect(diario).not.toContain('non si chiude')
+    // Solo il ramo con del lavoro da unire passa dalla Revisione.
+    const revisioni = [...a.compitiDaFare, ...a.chats.map((c) => c.compito)].filter((t) => t.startsWith('Rivedi il ramo'))
+    expect(revisioni).toHaveLength(1)
+    expect(revisioni[0]).toContain('ap/ap-chiudi/c-4')
+  })
+})
+
+describe('0.80.0: chiudiChat non toglie una cartella con lavoro non salvato', () => {
+  it('ramo «unito» ma file fuori dai commit: niente scorciatoia, va in Revisione come prima', async () => {
+    const gitSporco: Git = (args, cwd) => {
+      const a = args.join(' ')
+      if (a.startsWith('show-ref --verify --quiet refs/heads/')) return { codice: 0, uscita: '' }
+      if (a.startsWith('rev-list --count')) return { codice: 0, uscita: '0' }
+      if (a === 'status --porcelain') return { codice: 0, uscita: '?? nuovo.txt' }
+      return gitFinto(args, cwd)
+    }
+    server = ambiente({
+      git: gitSporco, limiti: LIMITI_LIBERI,
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "chiudo", "mosse": [{"tipo": "chiudiChat", "chat": "c-1"}]}' })
+    })
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-sporco', nome: 'Sporco', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'node t.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro' as const, ramoBase: 'main', tettoChat: 8, compitiDaFare: [],
+      chats: ['c-1', 'c-2'].map((id) => ({ id, compito: `compito ${id}`, stato: 'lavoro' as const, cicli: 1, ruolo: 'sviluppo' as const, ramo: `ap/ap-sporco/${id}`, cartella: process.cwd() }))
+    })
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-sporco&chat=c-2', eventoStop({ session_id: 's-2', last_assistant_message: 'avanti' }))
+    const a = archivio.leggi('ap-sporco')!
+    expect(a.chats.find((c) => c.id === 'c-1')?.approvata).toBeUndefined()
+    expect([...a.compitiDaFare, ...a.chats.map((c) => c.compito)].some((t) => t.startsWith('Rivedi il ramo ap/ap-sporco/c-1'))).toBe(true)
+  })
+})

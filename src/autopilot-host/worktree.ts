@@ -139,7 +139,9 @@ export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: strin
   if (qui !== p.base) {
     return { ok: false, conflitto: false, file: [], motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»: non unisco` }
   }
-  // Niente da unire se il ramo e' gia' contenuto.
+  // Niente da unire se il ramo e' gia' contenuto, o se non c'e' piu' (0.80.0):
+  // `git merge` di un ramo tolto falliva e la chat restava aperta per sempre.
+  if (!ramoEsiste(git, radice, p.ramo)) return { ok: true, unito: false }
   if (git(['merge-base', '--is-ancestor', p.ramo, 'HEAD'], radice).codice === 0) return { ok: true, unito: false }
   const r = git([...firma(git, radice), 'merge', '--no-ff', '--no-edit', p.ramo], radice)
   if (r.codice === 0) return { ok: true, unito: true }
@@ -153,6 +155,36 @@ export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: strin
       ? `conflitto su ${inConflitto.join(', ')}`
       : `unione non riuscita: ${r.uscita.slice(0, 300)}`
   }
+}
+
+function ramoEsiste(git: Git, radice: string, ramo: string): boolean {
+  return git(['show-ref', '--verify', '--quiet', `refs/heads/${ramo}`], radice).codice === 0
+}
+
+/**
+ * Il ramo di una chat rispetto al principale (0.80.0): `mancante` (tolto dopo
+ * un'unione, o mai nato), `unito` (nessun commit che il principale non abbia
+ * gia') o `da-unire`. Nel dubbio `da-unire`: si comporta come prima.
+ *
+ * Serve a `chiudiChat`: una chat il cui lavoro e' gia' nel principale si
+ * chiude e basta, senza Revisione e senza un'unione che non puo' riuscire.
+ */
+export function statoRamo(git: Git, p: { cwd: string; ramo: string; base: string }): 'mancante' | 'unito' | 'da-unire' {
+  const radice = radiceGit(git, p.cwd)
+  if (radice === undefined) return 'da-unire'
+  if (!ramoEsiste(git, radice, p.ramo)) return 'mancante'
+  const r = git(['rev-list', '--count', `${p.base}..${p.ramo}`], radice)
+  return r.codice === 0 && r.uscita.trim() === '0' ? 'unito' : 'da-unire'
+}
+
+/**
+ * Niente lavoro fuori dai commit nella cartella di una chat (0.80.0): una
+ * cartella che non c'e' piu' e' pulita; una che git non sa leggere no.
+ */
+export function cartellaPulita(git: Git, cartella: string): boolean {
+  if (!existsSync(cartella)) return true
+  const r = git(['status', '--porcelain'], cartella)
+  return r.codice === 0 && r.uscita.trim() === ''
 }
 
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */

@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  creaWorktree, fattiPubblicazione, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo
+  cartellaPulita, creaWorktree, fattiPubblicazione, gitReale, pianoWorktree, radiceGit, ramoCorrente, salvaLavoro, statoRamo, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo
 } from '../../src/autopilot-host/worktree'
 import { comeConsegnare } from '@shared/harness'
 
@@ -79,6 +79,24 @@ describe('una cartella per chat: git worktree (T3)', { timeout: 60_000 }, () => 
     // La cartella di lavoro non resta a meta': niente marcatori di conflitto.
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('dalla uno\n')
     expect(git(['status', '--porcelain'], progetto).uscita).toBe('')
+  })
+
+  it('0.80.0: il ramo già unito o tolto si riconosce, e unirlo non fallisce', () => {
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
+    expect(cartellaPulita(git, wt.cartella)).toBe(false)
+    salvaLavoro(git, wt.cartella, 'pezzo')
+    expect(cartellaPulita(git, wt.cartella)).toBe(true)
+    expect(statoRamo(git, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('da-unire')
+    expect(unisciRamo(git, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true, unito: true })
+    expect(statoRamo(git, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('unito')
+    togliWorktree(git, { cwd: progetto, cartella: wt.cartella, ramo: wt.ramo })
+    expect(statoRamo(git, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('mancante')
+    expect(cartellaPulita(git, wt.cartella)).toBe(true)
+    // Prima: «not something we can merge» e la chat non si chiudeva più.
+    expect(unisciRamo(git, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true, unito: false })
+    expect(unisciRamo(git, { cwd: progetto, ramo: 'ap/ap1/mai-nato', base: 'main' })).toEqual({ ok: true, unito: false })
   })
 
   it('non unisce se la cartella di lavoro e su un altro ramo', () => {
