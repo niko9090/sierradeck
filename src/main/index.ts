@@ -28,7 +28,7 @@ import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeIm
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
-import { cpus, homedir, hostname } from 'node:os'
+import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -206,6 +206,7 @@ import {
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
+import { apriStoricoErrori, conStorico, type StoricoSuFile } from './storico-errori-file'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -226,6 +227,8 @@ import { apriDettatura, statoDettatura } from './dettatura'
  * Client (`/api/stato`, `/api/pc`) che nasce in un altro punto dell'avvio.
  */
 let identitaPcGlobale: IdentitaPcStore | undefined
+/** Lo storico degli errori di questo processo (0.81.0): per la voce «Errori» delle Impostazioni. */
+let storicoErroriGlobale: StoricoSuFile | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
   if (identitaPcGlobale === undefined) throw new Error('identità del PC non ancora pronta')
@@ -1183,7 +1186,20 @@ if (!app.requestSingleInstanceLock()) {
       const dati = cartellaDati(app.getPath('appData'), APP_DATA_DIR_PRECEDENTE, APP_DATA_DIR_NAME)
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
-      const registro = apriRegistro(dati, app.getVersion())
+      // Ogni errore anche nello storico degli errori (0.81.0), senza segreti né
+      // il nome di questo PC o dell'utente.
+      storicoErroriGlobale = apriStoricoErrori(dati, 'app', {
+        versione: app.getVersion(),
+        nomi: () => {
+          const n: string[] = [hostname()]
+          try { n.push(userInfo().username) } catch { /* senza utente */ }
+          try { const scelto = identitaPcGlobale?.leggi().nome; if (scelto !== undefined) n.push(scelto) } catch { /* non ancora pronta */ }
+          return n
+        }
+      })
+      const storicoErrori = storicoErroriGlobale
+      app.on('will-quit', () => { storicoErrori.scriviOra() })
+      const registro = conStorico(apriRegistro(dati, app.getVersion()), storicoErrori)
       // Le chat chiuse da te (0.60.9): «chiusa» con l'ora, per i PC che la
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
