@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { StatoAggiornamento } from '../../main/aggiornamenti'
 import type { Preferenze } from '@shared/preferenze'
+import { tentativoDaRicordare } from '@shared/stato-sistema'
 import { Aiuto } from './Aiuto'
 
 /**
@@ -46,14 +47,12 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
         ) : null}
         {['fermo', 'aggiornato', 'errore', 'disponibile'].includes(fase) ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>Cerca ora</button> : null}
       </div>
-      {s?.tentativoFallito !== undefined ? (
+      {((f) => f !== undefined ? (
         <div className="impostazioni__nota" style={{ color: 'var(--ambra)' }}>
-          Ultimo tentativo: <b>{s.tentativoFallito.titolo}</b> {s.tentativoFallito.motivo}{' '}
-          {s.tentativoFallito.strade.length > 0 ? <>Cosa puoi fare: {s.tentativoFallito.strade.map((x, i) => <span key={i}>{i + 1}. {x} </span>)}</> : null}
+          Ultimo tentativo: <b>{f.titolo}</b> {f.motivo}{' '}
+          {f.strade.length > 0 ? <>Cosa puoi fare: {f.strade.map((x, i) => <span key={i}>{i + 1}. {x} </span>)}</> : null}
         </div>
-      ) : (
-        <div className="impostazioni__nota">Ultimo tentativo: nessuna installazione non riuscita da ricordare.</div>
-      )}
+      ) : null)(tentativoDaRicordare(s))}
       <label className="impostazioni__riga impostazioni__riga--spunta">
         <input type="checkbox" checked={p.scaricaAggiornamentiAutomatico} onChange={(e) => cambia({ scaricaAggiornamentiAutomatico: e.target.checked })} />
         <span className="con-aiuto">Scarica gli aggiornamenti da solo

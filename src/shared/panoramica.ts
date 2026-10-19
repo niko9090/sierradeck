@@ -78,7 +78,28 @@ export function ordinaSchede<T extends SchedaChat>(schede: readonly T[]): { grup
 }
 
 /** Le misure delle linguette (revisione UI/UX): 150 px l'una, 120 px per la Panoramica e «Altre ▾», fra 4 e 10 in tutto. */
-export const LARGHEZZA_LINGUETTA = 150
+// 0.81.0: 190 (era 150), con il nome tagliato su una parola intera da `nomeLinguetta`:
+// a 150 «Sviluppo · Spiega …» si tagliava a metà.
+export const LARGHEZZA_LINGUETTA = 190
+/** Quanti caratteri del nome stanno in una linguetta larga `LARGHEZZA_LINGUETTA`. */
+export const NOME_LINGUETTA_MAX = 22
+
+/**
+ * Il nome di una linguetta della Panoramica: «Ruolo · titolo», tagliato su una
+ * parola intera con «…» se è più lungo di `max`, mai a metà parola. Il titolo
+ * intero resta nel `title` della linguetta.
+ */
+export function nomeLinguetta(nomeRuolo: string | undefined, titolo: string, max = NOME_LINGUETTA_MAX): string {
+  const base = titolo.replace(/^[^·]+ · /, '').replace(/\s+/g, ' ').trim()
+  const prima = nomeRuolo !== undefined ? `${nomeRuolo} · ` : ''
+  const tutto = `${prima}${base}`
+  if (tutto.length <= max) return tutto
+  const taglio = tutto.slice(0, max)
+  const spazio = taglio.lastIndexOf(' ')
+  // Una parola sola più lunga della linguetta: si taglia lei, non c'è altro modo.
+  if (spazio <= prima.length) return `${taglio.slice(0, max - 1)}…`
+  return `${taglio.slice(0, spazio).replace(/ ·$/, '')}…`
+}
 export const LARGHEZZA_FISSA = 120
 export const LINGUETTE_MIN = 4
 export const LINGUETTE_MAX = 10

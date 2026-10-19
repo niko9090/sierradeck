@@ -385,7 +385,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       return undefined
     },
     /** Le chat per `/api/stato` e per il battito: come quelle dei riquadri. */
-    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa; autopilota?: { id: string; chat: string } }[] {
+    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa; autopilota?: { id: string; chat: string }; governata?: true }[] {
       const ora = adesso()
       return [...vive.values()].map((v) => {
         const r = (() => { try { return righeDaSchermo(v.term.buffer.active, v.term.rows, 60) } catch { return { pulite: [] as string[], grezze: [] as string[] } } })()
@@ -400,7 +400,9 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           coda: r.pulite,
           codaGrezza: r.grezze,
           sottofondo: v.voce.perChi,
-          ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota } : {})
+          // Di un autopilota: governata come nei riquadri (0.81.0). Senza, pagina e app
+          // la annunciavano «aspetta te» a ogni fine turno, come se aspettasse Nicholas.
+          ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota, governata: true as const } : {})
         }
       })
     },

@@ -19,6 +19,16 @@ export function statoVersione(a: { fase?: string; versione?: string } | undefine
   }
 }
 
+/**
+ * La riga «Ultimo tentativo» delle Impostazioni (0.81.0): c'è solo quando c'è
+ * un'installazione non riuscita da ricordare. Prima diceva sempre «nessuna
+ * installazione non riuscita da ricordare», una riga a vista che non diceva
+ * niente. Il PC la usa così; la pagina fa lo stesso in `fallitoHtml`.
+ */
+export function tentativoDaRicordare<T extends { titolo?: string }>(a: { tentativoFallito?: T } | undefined): T | undefined {
+  return a?.tentativoFallito ?? undefined
+}
+
 export function statoDrive(d: { configurato: boolean; connesso: boolean } | undefined): StatoVista {
   if (d === undefined) return stato('leggo', '…', 'quieto')
   if (!d.configurato) return stato('assente', 'non configurato', 'ambra')

@@ -46,7 +46,7 @@ export function TastoMicrofono({ campo }: { campo: RefObject<HTMLTextAreaElement
         }}
       >🎤</button>
       {nota !== undefined ? <span className="microfono__nota">{nota.messaggio}</span> : null}
-      <Aiuto di="il microfono">{nota?.comeAttivare !== undefined ? `${nota.comeAttivare} ` : ''}{SPIEGA_DETTATURA}</Aiuto>
+      <Aiuto di="la dettatura con il microfono">{nota?.comeAttivare !== undefined ? `${nota.comeAttivare} ` : ''}{SPIEGA_DETTATURA}</Aiuto>
     </span>
   )
 }

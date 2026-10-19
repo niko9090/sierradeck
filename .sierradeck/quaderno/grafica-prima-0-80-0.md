@@ -1,6 +1,6 @@
 ---
 titolo: "Grafica 0.80.0, il «prima»: differenze PC/pagina/app, testi lunghi, cose tagliate"
-quando: 2026-10-19T16:30:00+02:00
+quando: 2026-10-19T18:30:00+02:00
 tag: ["0.80.0", "grafica", "analisi", "foto", "PC", "pagina", "app"]
 ---
 
@@ -145,7 +145,7 @@ Nessuna funzione tolta o spostata. Foto in `foto-0-80-0/dopo/*-081.png`, fuori d
 | Testo d'esempio del campo | «…(le sue domande sono nella linguetta» tagliato | solo la prima parte; dove stanno le domande lo dice già il «?» | `ChatAutopilota.tsx` |
 | Impostazioni del PC | contenitore che scorre largo 960 px, barra in mezzo e 400 px vuoti | scorre a tutta larghezza; è il contenuto che resta a 960 px | `.impostazioni__corpo > *` |
 | Account e Drive | «Account» più alto, frecce storte | anelli alti uguali, frecce a metà | `.account__anello-e-freccia` |
-| Due «Strumenti ▾» | testata e sezione | il menu della sezione si chiama «Account ▾» (stesse voci); aggiornato anche l'aiuto del Drive «Ricollegalo (Account ▾ → Scollega…)» | `PannelloAccount.tsx`, `account-vista.ts` |
+| Due «Strumenti ▾» | testata e sezione | il menu della sezione si chiama «Account ▾» (stesse voci): **rinominato, si rimette se Nicholas preferisce**; aggiornato anche l'aiuto del Drive «Ricollegalo (Account ▾ → Scollega…)» | `PannelloAccount.tsx`, `account-vista.ts` |
 | Workspace attivo nella fascia | «SierraDeck-prov…» a 120 px | quello attivo arriva a 240 px, gli altri restano a 120 | `.ws__voce--attivo` |
 | Ricerca dei Progetti (pagina, app) | «Cerca progetto, PC o cartel» | «Cerca progetto o PC» (la frase intera nel `title`); il PC, largo, tiene la frase lunga | `client-pagina.ts`, `PannelloDrive.kt` |
 
@@ -154,9 +154,32 @@ Nessuna funzione tolta o spostata. Foto in `foto-0-80-0/dopo/*-081.png`, fuori d
 
 **Spia dell'aggiornamento «cerco…»:** non è tagliata, il testo finisce proprio con «…». Niente da fare.
 
+## Ultimo giro di c-12, 0.81.0 (commit 1760402, 6ce2326, d7427cc, e9a9fd3, 4894115)
+Nessuna funzione tolta o spostata. Foto in `foto-0-80-0/dopo/*-081.png`, fuori da git.
+
+| Voce | Prima | Dopo | Dove |
+|---|---|---|---|
+| Linguette delle chat nella Panoramica (solo PC: pagina e app non le hanno) | «Sviluppo · Spiega …» tagliato a metà dal CSS, dopo un `slice(0, 18)` | «Sviluppo · Spiega…»: il nome si taglia su una parola intera, la linguetta è larga 190 (il conto delle linguette visibili usa la stessa costante) | `nomeLinguetta` + `LARGHEZZA_LINGUETTA` in `shared/panoramica.ts`. Foto `pc-02-panoramica-081` |
+| I due «?» accanto a «Manda» | sul PC «questa chat» e «il microfono»; sulla pagina ogni «?» si chiamava solo «Spiegazione», e quello del dialogo era uno `span` senza nome | «come parlare all’autopilota» e «la dettatura con il microfono» (anche nell'app); `aiuto(id, testo, di)` della pagina porta il nome nell'`aria-label`; lo `span` del dialogo ha nome e `tabindex` | `ChatAutopilota.tsx`, `TastoMicrofono.tsx/.kt`, `client-pagina.ts`. L'app non ha «?» accanto a «Manda» |
+| «Ultimo tentativo: nessuna installazione non riuscita da ricordare.» | sempre a vista su PC e pagina | la riga c'è solo quando c'è un tentativo non riuscito; l'informazione resta | `tentativoDaRicordare` in `shared/stato-sistema.ts`, `fallitoHtml` della pagina. L'app lo faceva già così (`Computer.kt`). Foto `pc-09-aggiornamenti-081`, `pag-09-aggiornamenti-081` |
+| Salute sulla pagina, «…: dal computer» | ripetuto riga per riga | una riga in cima: «Dal computer: «Apri Account → Drive», «Apri la cartella del registro».»; i tasti del telefono restano tasti | `azioniSoloDalComputer` + `AZIONI_DAL_TELEFONO` in `client-pagina.ts`. L'app salta già quelle azioni. Foto `pag-08-salute-081` |
+
+**Revisione:**
+- **TypeScript:** un difetto vero, corretto. Una cartella con le parentesi, come «(…, C:/Program Files (x86)/x)», lasciava pezzi di percorso nel titolo d'errore; ora c'è il test. Sistemati anche due punti minori: lo `span` del «?» si raggiunge da tastiera, e la regola del PC è nominata nella pagina.
+- **Kotlin:** nessun difetto. Ho reso uguali i nomi del microfono nell'app.
+
+**Verifiche finali (una volta, alla fine):**
+- `npm run typecheck`: uscita 0.
+- `npm test`: uscita 0, 419 file passati e 1 saltato; 4277 test passati e 2 saltati.
+- `cd android && gradle testDebugUnitTest assembleDebug --no-daemon`: uscita 0, BUILD SUCCESSFUL. JUnit: 365 test, 0 falliti, 1 saltato.
+- La guardia delle cancellazioni è OK.
+
+## Proposta per Nicholas (rapporto 0.81.0): la barra in basso della pagina
+«Auto-piloti» e «Imposta-zioni» vanno a capo con il trattino, e la barra diventa alta due righe. Lasciata com'è. Due strade, a scelta di Nicholas:
+1. **Nomi più corti:** «Lavori» al posto di «Autopiloti» e «Opzioni» al posto di «Impostazioni». È un cambio di nome, su pagina e app (`App.kt`).
+2. **Carattere più piccolo solo nella barra** (per esempio 10 px invece di 11), con gli stessi nomi. Su schermi stretti potrebbe non bastare.
+
 ## Ancora aperte (per l'elenco)
-- linguette delle chat nella Panoramica tagliate («Sviluppo · Spiega …») e la scheda «Revisione di Sviluppo» su tre righe nella colonna Domande stretta;
-- accanto a «Manda», due «?» uguali senza etichetta;
-- «Ultimo tentativo: nessuna installazione non riuscita da ricordare.» sempre a vista (PC e pagina);
-- pagina, barra in basso: «Auto-piloti» e «Imposta-zioni» a capo con il trattino. Cambiare i nomi solo con il sì di Nicholas;
-- pagina, Salute: «…: dal computer» ripetuto riga per riga.
+- nella colonna Domande stretta, la scheda «Revisione di Sviluppo» va su tre righe;
+- barra in basso della pagina: aspetta la scelta di Nicholas (sopra);
+- nell'app, diversi «?» senza `di` lontani da «Manda» (`Salute.kt`, `PannelloDrive.kt`, `Lavori.kt`…), dalla Revisione Kotlin: il lettore dello schermo dice solo «Spiegazione».

@@ -348,3 +348,29 @@ describe('creaAzioniWorkspace — da dove si parte', () => {
     expect(migra?.args[0]).toBe('Uno')
   })
 })
+
+describe('ogni cambio del workspace sullo schermo nel registro, con la causa (0.80.0)', () => {
+  it('cambia, segui, crea ed elimina scrivono da dove a dove e perché; restare dov’è non scrive', async () => {
+    const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Uno' })
+    const righe: string[] = []
+    const azioni = creaAzioniWorkspace({ ...a.deps, log: (r) => righe.push(r) })
+    await azioni.cambia('Due', 'autopilota: consegna c-1 per la chat «Sito»')
+    await azioni.cambia('Due', 'di nuovo')
+    await azioni.segui('Due', 'Uno', 'segue il cambio fatto in un’altra finestra di questo PC')
+    await azioni.crea('Tre')
+    expect(righe).toEqual([
+      '[workspace] lo schermo passa da «Uno» a «Due»: autopilota: consegna c-1 per la chat «Sito»',
+      '[workspace] lo schermo passa da «Due» a «Uno»: segue il cambio fatto in un’altra finestra di questo PC',
+      '[workspace] lo schermo passa da «Uno» a «Tre»: workspace «Tre» creato da questa finestra'
+    ])
+  })
+
+  it('senza causa lo dice, e un registro guasto non ferma il cambio', async () => {
+    const a = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Uno' })
+    const righe: string[] = []
+    await creaAzioniWorkspace({ ...a.deps, log: (r) => righe.push(r) }).cambia('Due')
+    expect(righe[0]).toContain('causa non detta')
+    const b = ambiente({ nomi: ['Uno', 'Due'], attivo: 'Uno' })
+    await expect(creaAzioniWorkspace({ ...b.deps, log: () => { throw new Error('disco pieno') } }).cambia('Due', 'x')).resolves.toBeUndefined()
+  })
+})

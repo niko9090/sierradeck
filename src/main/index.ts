@@ -4691,6 +4691,8 @@ if (!app.requestSingleInstanceLock()) {
           .map((w) => w.id)
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
+        // Ogni avviso nel registro (0.80.0): «mille notifiche» non lasciava righe.
+        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'})`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)
@@ -5011,10 +5013,10 @@ if (!app.requestSingleInstanceLock()) {
        * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
        * aperta, salvataggio automatico acceso. Non solleva mai.
        */
+      // 0.81.0: in memoria. Con `stato()` ogni giro (10 s) scaricava le chiavi dal Drive.
       const driveAttivoAdesso = async (): Promise<boolean> => {
         try {
-          const s = await sincronia.stato()
-          return s.driveConnesso && s.sbloccato && sincronia.auto()
+          return sincronia.driveAttivo()
         } catch {
           return false
         }
@@ -5406,6 +5408,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         cambiaWorkspace: async (nome: string) => {
+          registro.info(`[workspace] lo schermo va su «${nome}»: chiesto dal telefono, dalla pagina o da un altro PC (POST /api/workspace)`)
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
               w.webContents.send('client:workspace', nome)
@@ -5572,6 +5575,7 @@ if (!app.requestSingleInstanceLock()) {
           if (store === undefined) return
           store.scrivi(creaWorkspace(store.leggi(), nome))
           await progettoPerWorkspaceGlobale?.(nome).catch(() => undefined)
+          registro.info(`[workspace] lo schermo va su «${nome}»: workspace creato dal telefono, dalla pagina o da un altro PC`)
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
           }
@@ -5594,6 +5598,7 @@ if (!app.requestSingleInstanceLock()) {
           // finestra sa già seguire. Il percorso IPC lo fa con `annunciaCambio`;
           // questo, di rete, non ci arriva, ed era la parte scoperta.
           if (dopo.attivo !== precedente.attivo) {
+            registro.info(`[workspace] lo schermo va su «${dopo.attivo}»: «${nome}», che era sullo schermo, è stato eliminato dal telefono, dalla pagina o da un altro PC`)
             for (const w of finestreDiChat()) {
               if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
                 w.webContents.send('client:workspace', dopo.attivo)
@@ -6108,8 +6113,12 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
         const c = leggiConsegne({ consegne: [raw] })[0]
         const sf = sottofondo
-        // Solo se Nicholas l'ha chiesto (0.72.0): senza, la chat resta in un riquadro.
-        if (c === undefined || sf === undefined || c.sottofondo !== true) return false
+        // 0.80.0: anche senza il sottofondo chiesto. La finestra manda qui ogni
+        // consegna per un workspace che non è sullo schermo, invece di cambiarlo
+        // (lo schermo cambia solo quando lo sceglie Nicholas). La chat resta in
+        // un riquadro del suo workspace: `consegnaInSottofondo` la mette nel
+        // layout salvato e, aprendolo, il riquadro la prende.
+        if (c === undefined || sf === undefined) return false
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })

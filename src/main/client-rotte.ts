@@ -2613,6 +2613,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const e = await deps.progettoDelWorkspace(nome)
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
+    // Una notifica mostrata dalla pagina o dall'app (0.80.0): nel registro di
+    // questo PC, così «mille notifiche» si contano. Solo il tipo e un titolo corto.
+    if (r.metodo === 'POST' && r.percorso === '/api/avviso-mostrato') {
+      const da = stringa(r.corpo, 'da') === 'app' ? 'app' : 'pagina'
+      const tipo = stringa(r.corpo, 'tipo').replace(/[^\w:-]/g, '').slice(0, 30) || '?'
+      const titolo = stringa(r.corpo, 'titolo').replace(/\s+/g, ' ').slice(0, 80)
+      deps.log?.(`[avviso] ${da} del telefono: ${tipo}${titolo !== '' ? ` «${titolo}»` : ''}`)
+      return OK({ fatto: true })
+    }
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {
       const nome = stringa(r.corpo, 'nome')
       if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }

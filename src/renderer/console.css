@@ -4960,7 +4960,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 /* La Panoramica del workspace dell'autopilota (0.77.0), con le misure della revisione UI/UX. */
 .pan-barra { position: absolute; top: 0; left: 0; right: 0; height: 38px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--bordo); background: var(--chassis); z-index: 6; }
-.pan-linguetta { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: var(--testo-quieto); font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.pan-linguetta { display: inline-flex; align-items: center; gap: 6px; max-width: 190px; height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: 6px 6px 0 0; background: transparent; color: var(--testo-quieto); font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .pan-linguetta:hover { color: var(--testo); background: var(--chassis-alto); }
 .pan-linguetta--qui { color: var(--testo); background: var(--fondo); border-color: var(--bordo); border-bottom-color: var(--fondo); }
 .pan-linguetta--chiede { color: var(--ambra); }

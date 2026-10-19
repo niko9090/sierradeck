@@ -3,7 +3,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { Conversazione } from '@shared/domande-conversazioni'
 import type { Dormiente } from '@shared/migrazione-elenco'
 import {
-  adessoEFinite, colonnePiano, daQuanto, linguetteVisibili, pianoAutopilota, riassuntoAlLavoro, SIMBOLO_STATO, situazioneAutopilota, sottoAlLavoro, titoloAlLavoro,
+  adessoEFinite, colonnePiano, daQuanto, linguetteVisibili, nomeLinguetta, pianoAutopilota, riassuntoAlLavoro, SIMBOLO_STATO, situazioneAutopilota, sottoAlLavoro, titoloAlLavoro,
   type CompitoPiano, type RigaAlLavoro, type SchedaChat, type StatoScheda
 } from '@shared/panoramica'
 import { CHAT_GENERICA } from '@shared/adozione'
@@ -93,7 +93,7 @@ export function BarraLinguette({ schede, linguetta, onLinguetta, colonna, onColo
       onClick={() => { if (s.paneId !== undefined) onLinguetta(s.paneId); setAltreAperte(false) }}
     >
       <Pallino stato={s.stato} />
-      <span className="pan-linguetta__nome">{s.nomeRuolo !== undefined ? `${s.nomeRuolo} · ` : ''}{s.titolo.replace(/^[^·]+ · /, '').slice(0, 18)}</span>
+      <span className="pan-linguetta__nome">{nomeLinguetta(s.nomeRuolo, s.titolo)}</span>
     </button>
   )
   return (

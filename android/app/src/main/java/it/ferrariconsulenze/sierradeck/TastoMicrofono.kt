@@ -79,7 +79,7 @@ fun TastoMicrofono(testo: String, onTesto: (String) -> Unit) {
     if (!disponibile) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("🎤 dettatura non disponibile su questo telefono", color = Banco.testoQuieto, fontSize = 11.sp)
-            Aiuto("Il telefono non ha un servizio di riconoscimento vocale (di solito è «Google» o «Riconoscimento vocale di Android»). Si attiva dalle impostazioni di Android, alla voce Lingue e input → Riconoscimento vocale. " + RegolaDettatura.SPIEGA, di = "il microfono")
+            Aiuto("Il telefono non ha un servizio di riconoscimento vocale (di solito è «Google» o «Riconoscimento vocale di Android»). Si attiva dalle impostazioni di Android, alla voce Lingue e input → Riconoscimento vocale. " + RegolaDettatura.SPIEGA, di = "dettatura non disponibile")
         }
         return
     }
@@ -95,7 +95,7 @@ fun TastoMicrofono(testo: String, onTesto: (String) -> Unit) {
                     else -> if (prima is StatoDettatura.Ascolto) riconoscitore?.stopListening()
                 }
             }) { Text(if (stato is StatoDettatura.Ascolto) "■ ferma" else "🎤", fontSize = 14.sp) }
-            Aiuto(RegolaDettatura.SPIEGA, di = "il microfono")
+            Aiuto(RegolaDettatura.SPIEGA, di = "la dettatura con il microfono")
         }
         when (val s = stato) {
             is StatoDettatura.ChiedoPermesso -> Text(RegolaDettatura.MOTIVO_PERMESSO, color = Banco.testoQuieto, fontSize = 11.sp)

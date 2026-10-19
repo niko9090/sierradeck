@@ -27,6 +27,26 @@ describe('creaClientAutopilota', () => {
     expect((await client.elenca()).map((a) => a.id)).toEqual(['ap-1'])
   })
 
+  // 0.81.0: con l'ETag il servizio risponde 304 e il client ridà l'elenco che ha;
+  // chi chiede mentre una richiesta è in viaggio aspetta quella.
+  it('elenca: 304 ridà l’elenco tenuto, e le richieste insieme ne fanno una', async () => {
+    const viste: (string | undefined)[] = []
+    server = createServer((req, res) => {
+      viste.push(req.headers['if-none-match'] as string | undefined)
+      if (req.headers['if-none-match'] === '"v1"') { res.writeHead(304, { ETag: '"v1"' }); res.end(); return }
+      setTimeout(() => { res.writeHead(200, { 'Content-Type': 'application/json', ETag: '"v1"' }); res.end(JSON.stringify([{ id: 'ap-1' }])) }, 30)
+    })
+    const porta = await new Promise<number>((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    const [a, b, c] = await Promise.all([client.elenca(), client.elenca(), client.elenca()])
+    expect(viste).toEqual([undefined])
+    expect(a).toBe(b)
+    expect(b).toBe(c)
+    const d = await client.elenca()
+    expect(viste).toEqual([undefined, '"v1"'])
+    expect(d.map((x) => x.id)).toEqual(['ap-1'])
+  })
+
   it('crea passando i campi al servizio', async () => {
     const visti: unknown[] = []
     const porta = await servizioFinto((_p, corpo) => { visti.push(corpo); return { id: 'ap-9' } })

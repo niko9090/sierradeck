@@ -13,19 +13,20 @@ export const STAT_INSIEME = 16
  * uno alla volta, 0,4 s sedici alla volta.
  */
 export async function statInParallelo(percorsi: string[], limite = STAT_INSIEME): Promise<(Stats | undefined)[]> {
-  const fuori: (Stats | undefined)[] = new Array<Stats | undefined>(percorsi.length)
+  return inParallelo(percorsi, (p) => stat(p).catch(() => undefined), limite)
+}
+
+/** `lavoro` su ogni voce, `limite` alla volta, con i risultati nello stesso ordine. */
+export async function inParallelo<T, R>(voci: readonly T[], lavoro: (v: T, i: number) => Promise<R>, limite = STAT_INSIEME): Promise<R[]> {
+  const fuori = new Array<R>(voci.length)
   let prossimo = 0
   const lavoratore = async (): Promise<void> => {
-    while (prossimo < percorsi.length) {
+    while (prossimo < voci.length) {
       const i = prossimo
       prossimo += 1
-      try {
-        fuori[i] = await stat(percorsi[i] as string)
-      } catch {
-        fuori[i] = undefined
-      }
+      fuori[i] = await lavoro(voci[i] as T, i)
     }
   }
-  await Promise.all(Array.from({ length: Math.min(limite, percorsi.length) }, () => lavoratore()))
+  await Promise.all(Array.from({ length: Math.min(limite, voci.length) }, () => lavoratore()))
   return fuori
 }

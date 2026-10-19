@@ -12,6 +12,7 @@ import {
 } from '@shared/gestione-chat'
 import { byteLeggibili } from '@shared/spazio-drive'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { inParallelo } from './stat-in-parallelo'
 
 /**
  * **La gestione delle chat** (0.79.0), lato disco. Le regole stanno in
@@ -214,16 +215,45 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
   const info = (): Map<string, InfoSessione> => new Map(deps.sessioni().map((s) => [s.sessione, s]))
   const ora = (): string => new Date(adesso()).toISOString()
 
-  /** Le parti misurate di una chat. */
+  /**
+   * Le parti misurate di una chat. In memoria finché i suoi file non cambiano
+   * (0.81.0): «Spazio delle chat» rimisurava ogni cartella di ~700 chat a ogni
+   * apertura, 2-6 s. La firma è data e misura di ogni parte; una chat ferma
+   * (quasi tutte) costa così qualche `stat`.
+   */
+  const misurate = new Map<string, { firma: string; valore: { byte: number; parti: Partial<Record<ParteSessione, number>> } }>()
+  /** I nomi in `todos/`, riletti solo quando la cartella cambia: prima una lettura intera per ogni chat. */
+  let todosLetti: { firma: string; nomi: string[] } | undefined
+  const nomiTodos = async (cartella: string): Promise<string[]> => {
+    const st = await lstat(cartella).catch(() => undefined)
+    if (st === undefined || !st.isDirectory()) return []
+    const firma = `${cartella}:${st.mtimeMs}`
+    if (todosLetti?.firma !== firma) todosLetti = { firma, nomi: await readdir(cartella).catch(() => [] as string[]) }
+    return todosLetti.nomi
+  }
   const misura = async (s: InfoSessione): Promise<{ byte: number; parti: Partial<Record<ParteSessione, number>> }> => {
+    // Come `fileDiSessione`, ma con un `lstat` per parte che dice insieme se c'è e la sua firma.
+    const radice = deps.radiceClaude()
+    const todos = join(radice, 'todos')
+    const candidati: { parte: ParteSessione; percorso: string }[] = [
+      ...partiDiSessione(s.slug, s.sessione).map((p) => ({ parte: p.parte, percorso: join(radice, ...p.relativo) })),
+      ...(sessioneValida(s.sessione) ? (await nomiTodos(todos)).filter((n) => eFileTodoDi(n, s.sessione)).map((n) => ({ parte: 'todo' as const, percorso: join(todos, n) })) : [])
+    ]
+    const stati = await Promise.all(candidati.map((c) => lstat(c.percorso).catch(() => undefined)))
+    const file = candidati.filter((_, i) => stati[i] !== undefined)
+    const firma = stati.map((x, i) => (x === undefined ? '-' : `${candidati[i]?.percorso}:${x.mtimeMs}:${x.size}`)).join('|')
+    const gia = misurate.get(s.sessione)
+    if (gia !== undefined && gia.firma === firma) return gia.valore
     const parti: Partial<Record<ParteSessione, number>> = {}
     let byte = 0
-    for (const f of fileDiSessione(deps.radiceClaude(), s.slug, s.sessione)) {
+    for (const f of file) {
       const b = await byteDi(f.percorso)
       parti[f.parte] = (parti[f.parte] ?? 0) + b
       byte += b
     }
-    return { byte, parti }
+    const valore = { byte, parti }
+    misurate.set(s.sessione, { firma, valore })
+    return valore
   }
 
   /** Sposta nel recupero tutti i file di una chat; se uno non si sposta, rimette quelli già spostati. */
@@ -262,20 +292,19 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
   const gestione: GestioneChat = {
     async spazio(visore) {
       const arch = new Set(archiviate().map((a) => a.sessione))
-      const voci: VoceSpazio[] = []
-      for (const s of deps.sessioni()) {
-        if (!sessioneValida(s.sessione) || !slugValido(s.slug)) continue
-        const m = await misura(s)
-        const st = await statoSicuro({ sessione: s.sessione, ...(s.cwd !== undefined ? { cwd: s.cwd } : {}) }, visore)
+      // Sedici chat alla volta (0.81.0), nello stesso ordine: una alla volta erano secondi.
+      const valide = deps.sessioni().filter((s) => sessioneValida(s.sessione) && slugValido(s.slug))
+      const voci: VoceSpazio[] = await inParallelo(valide, async (s) => {
+        const [m, st] = await Promise.all([misura(s), statoSicuro({ sessione: s.sessione, ...(s.cwd !== undefined ? { cwd: s.cwd } : {}) }, visore)])
         const no = st === undefined ? `«${s.titolo}»: ${NON_SO}` : motivoNonElimina({ ...st, titolo: s.titolo })
-        voci.push({
+        return {
           sessione: s.sessione, titolo: s.titolo, slug: s.slug, byte: m.byte, parti: m.parti,
           ...(s.cwd !== undefined ? { cwd: s.cwd } : {}),
           ...(s.ultimaAttivita !== undefined ? { ultimaAttivita: s.ultimaAttivita } : {}),
           archiviata: arch.has(s.sessione), aperta: st?.aperta !== undefined,
           ...(no !== undefined ? { nonEliminabile: no } : {})
-        })
-      }
+        }
+      })
       return vistaSpazio(voci, leggiRecupero())
     },
 
