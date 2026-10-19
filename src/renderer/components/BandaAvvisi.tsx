@@ -23,7 +23,7 @@ export function BandaAvvisi({ avvisi, onAzione, onAltra, onChiudi }: Props): Rea
     <div className="banda">
       {avvisi.map((a) => (
         <div key={a.id} className={`banda__voce banda__voce--${a.gravita}`}>
-          <span className={`led ${a.gravita === 'blocco' ? 'led--fermo' : 'led--attesa'}`} />
+          <span className={`led ${a.led === 'fermo' || a.gravita === 'blocco' ? 'led--fermo' : 'led--attesa'}`} />
           <span className="banda__testo">{a.testo}</span>
           {a.azione !== undefined ? (
             <button className="tasto" onClick={() => onAzione(a.azione!)}>

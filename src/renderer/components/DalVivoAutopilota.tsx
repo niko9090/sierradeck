@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { haDomandaAperta } from '@shared/chat-autopilota'
-import { messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
+import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
+import type { Colore } from '@shared/stato-vista'
 import { Aiuto } from './Aiuto'
 
 /**
@@ -10,12 +11,14 @@ import { Aiuto } from './Aiuto'
  * parole, da quanto, l'ultima azione; e «nessun segno da 10 min» quando chi è
  * al lavoro non fa niente. Le stesse parole sulla pagina e nell'app.
  */
-const COLORE: Record<EtichettaDalVivo, string> = {
-  'al lavoro': 'var(--verde, #3fb950)',
-  'aspetta te': 'var(--ambra, #d29922)',
-  fermo: 'var(--testo-quieto, #8b949e)',
-  finito: 'var(--testo-quieto, #8b949e)'
+const TINTA: Record<Colore, string> = {
+  verde: 'var(--verde, #3fb950)',
+  ambra: 'var(--ambra, #d29922)',
+  rosso: 'var(--rosso, #dc5f5f)',
+  blu: 'var(--blu, #4aa3ff)',
+  quieto: 'var(--testo-quieto, #8b949e)'
 }
+const COLORE = (e: EtichettaDalVivo): string => TINTA[COLORE_DAL_VIVO[e]]
 
 /** Il tempo passa anche se l'autopilota non cambia: si ridisegna ogni mezzo minuto. */
 function useOra(): number {
@@ -35,7 +38,7 @@ export function RigaDalVivo({ autopilota: a }: { autopilota: Autopilota }): Reac
   const s = statoAutopilotaDalVivo({ ...a, ...(d !== undefined ? { domanda: d } : {}) }, ora, segno(a))
   return (
     <span className="dal-vivo" style={{ display: 'block', fontSize: 'var(--t1)' }}>
-      <b style={{ color: COLORE[s.etichetta] }}>{s.etichetta}</b>
+      <b style={{ color: COLORE(s.etichetta) }}>{s.etichetta}</b>
       {s.da !== '' ? <span className="misura"> · da {s.da}</span> : null}
       {s.senzaSegni !== undefined ? <span style={{ color: 'var(--ambra)' }}> · ⚠ {s.senzaSegni}</span> : null}
       {s.ultimaAzione !== '' ? <span className="misura" title={s.ultimaAzione} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.ultimaAzione}</span> : null}
@@ -112,7 +115,7 @@ export function RigaDalVivoPronta({ dalVivo: s }: { dalVivo: StatoDalVivo | unde
   if (s === undefined) return null
   return (
     <span className="dal-vivo" style={{ display: 'block', fontSize: 'var(--t1)' }}>
-      <b style={{ color: COLORE[s.etichetta] ?? 'inherit' }}>{s.etichetta}</b>
+      <b style={{ color: (COLORE_DAL_VIVO[s.etichetta] !== undefined ? COLORE(s.etichetta) : 'inherit') }}>{s.etichetta}</b>
       {s.da !== '' ? <span className="misura"> · da {s.da}</span> : null}
       {s.senzaSegni !== undefined ? <span style={{ color: 'var(--ambra)' }}> · ⚠ {s.senzaSegni}</span> : null}
       {s.ultimaAzione !== '' ? <span className="misura" title={s.ultimaAzione} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.ultimaAzione}</span> : null}

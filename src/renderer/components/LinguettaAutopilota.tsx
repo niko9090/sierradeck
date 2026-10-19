@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Anteprima } from '../../main/anteprima'
-import type { Autopilota } from '@shared/autopilota'
+import { chatAlLavoro, type Autopilota } from '@shared/autopilota'
 import { diario } from '../diario-autopilota'
 import { domandeScheda, type DomandaApertaServizio, type DomandaScheda } from '@shared/domande-autopilota'
 import type { LinguettaStaccabile } from '@shared/finestra-pannello'
@@ -91,7 +91,7 @@ function LavoroAutopilota({ autopilota }: { autopilota: Autopilota }): React.JSX
               title={`${ch.compito} — ${ch.stato}`}
               onClick={() => setChatScelta(ch.sessionId)}
             >
-              <span className={`led ${ch.stato === 'lavoro' ? 'led--lavoro' : ch.stato === 'bloccata' ? 'led--attesa' : 'led--finito'}`} />
+              <span className={`led ${chatAlLavoro(autopilota, ch) ? 'led--lavoro' : ch.stato === 'bloccata' ? 'led--attesa' : 'led--finito'}`} />
               chat {i + 1}{ch.stato === 'pausa' ? ' · in pausa' : ''}{ch.ramo !== undefined ? ` · ${ch.ramo}` : ''}
             </button>
           ))}

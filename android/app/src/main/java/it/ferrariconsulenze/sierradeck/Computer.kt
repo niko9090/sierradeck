@@ -256,7 +256,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                             Spacer(Modifier.height(6.dp))
                             for (ch in p.chat.take(8)) {
                                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                                    LedChat(if (!p.vivo) null else if (ch.aspetta) TonoChat.ASPETTA else TonoChat.LAVORA)
+                                    LedChat(if (!p.vivo) null else if (ch.aspetta) TonoChat.FERMA else TonoChat.LAVORA)
                                     Spacer(Modifier.width(8.dp))
                                     Text(ch.titolo.ifBlank { ch.cwd }, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     Text(

@@ -1,4 +1,5 @@
 import type { Autopilota } from './autopilota'
+import type { Colore } from './stato-vista'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «in realtà stava
@@ -8,6 +9,18 @@ import type { Autopilota } from './autopilota'
  */
 
 export type EtichettaDalVivo = 'al lavoro' | 'aspetta te' | 'fermo' | 'finito'
+
+/**
+ * Il colore di ogni parola (0.80.0), uguale su PC, pagina e app. «Fermo» è
+ * rosso come il LED (`ledDi`) e la palette di DESIGN.md: prima era grigio sul
+ * PC e rosso sulla pagina e nell'app. «Finito» si spegne.
+ */
+export const COLORE_DAL_VIVO: Record<EtichettaDalVivo, Colore> = {
+  'al lavoro': 'verde',
+  'aspetta te': 'ambra',
+  fermo: 'rosso',
+  finito: 'quieto'
+}
 
 export type StatoDalVivo = {
   etichetta: EtichettaDalVivo

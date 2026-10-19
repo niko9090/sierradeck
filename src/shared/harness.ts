@@ -14,7 +14,7 @@ import { RUOLI } from './ruoli-agenti'
  *   pubblicazione secondo la regola.
  */
 
-import { TETTO_CHAT_MAX, type Autopilota } from './autopilota'
+import { chatAlLavoro, TETTO_CHAT_MAX, type Autopilota } from './autopilota'
 import { daQuanto, statoFinestra } from './limiti-piano'
 
 // ─── Il freno sui limiti del piano ────────────────────────────────────────
@@ -328,7 +328,9 @@ const PAROLE_CHAT: Record<string, string> = {
   lavoro: 'al lavoro',
   bloccata: 'aspetta una risposta',
   pausa: 'in pausa per i limiti del piano',
-  finita: 'finita'
+  finita: 'finita',
+  // 0.80.0: segnata «lavoro» ma con l'autopilota fermo.
+  ferma: 'ferma: l’autopilota è fermo'
 }
 
 const PAROLE_AUTOPILOTA: Record<string, string> = {
@@ -351,12 +353,14 @@ export function alberoChat(a: Pick<Autopilota, 'id' | 'nome' | 'obiettivo' | 'st
     parola: PAROLE_AUTOPILOTA[a.stato] ?? a.stato,
     cartella: a.cwd,
     cicli: a.cicli,
-    figli: a.chats.map((c) => ({
+    figli: a.chats.map((c) => {
+      const stato = c.stato === 'lavoro' && !chatAlLavoro(a, c) ? 'ferma' : c.stato
+      return {
       id: c.id,
       tipo: 'chat' as const,
       titolo: c.compito !== '' ? c.compito : 'chat ' + c.id,
-      stato: c.stato,
-      parola: PAROLE_CHAT[c.stato] ?? c.stato,
+      stato,
+      parola: PAROLE_CHAT[stato] ?? stato,
       ...(c.ramo !== undefined ? { ramo: c.ramo } : {}),
       ...(c.cartella !== undefined ? { cartella: c.cartella } : {}),
       cicli: c.cicli,
@@ -364,6 +368,7 @@ export function alberoChat(a: Pick<Autopilota, 'id' | 'nome' | 'obiettivo' | 'st
       ...(c.ruolo !== undefined ? { ruolo: { id: c.ruolo, nome: RUOLI[c.ruolo].nome, parola: RUOLI[c.ruolo].parola, colore: RUOLI[c.ruolo].colore } } : {}),
       ...(c.revisioneDi !== undefined ? { revisioneDi: c.revisioneDi } : {}),
       ...(c.approvata === true ? { approvata: true } : {})
-    }))
+      }
+    })
   }
 }

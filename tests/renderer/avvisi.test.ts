@@ -75,6 +75,13 @@ describe('componiAvvisi', () => {
     expect(avvisi[0]?.testo).toContain('2')
   })
 
+  it('0.80.0: la striscia di un autopilota fermo ha il LED rosso, non l’ambra di «aspetta te»', () => {
+    const avvisi = componiAvvisi(fonti({ autopiloti: [ap({ id: 'a', stato: 'sospeso', motivoSospensione: 'stallo' })] }))
+    expect(avvisi[0]).toMatchObject({ id: 'fermi', gravita: 'attenzione', led: 'fermo' })
+    // Chi aspetta una risposta resta senza: il suo LED è l’ambra.
+    expect(componiAvvisi(fonti({ autopiloti: [ap({ stato: 'attesa' })] }))[0]?.led).toBeUndefined()
+  })
+
   it('non avvisa per un autopilota finito', () => {
     // Ha fatto il suo lavoro: e' una notizia buona, non un avviso.
     expect(componiAvvisi(fonti({ autopiloti: [ap({ stato: 'finito' })] }))).toEqual([])
