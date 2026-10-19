@@ -1,4 +1,5 @@
 import { annotaEliminato } from './workspace-ritrova'
+import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
@@ -467,10 +468,11 @@ export function impostaGestioneSessioni(f: { filtra: (l: SessionSummary[]) => Se
 export function reindicizzaSessioni(): Promise<IndexOutcome> {
   const r = rileggi
   if (r === undefined) return Promise.resolve({ indexed: 0, failed: 0, riusate: 0, errore: 'indice non ancora aperto' })
-  const dopo = (rileggiInCorso ?? Promise.resolve()).then(() => r(false), () => r(false))
+  const dopo = rileggiUnita.chiedi(rileggiInCorso, () => r(false))
   rileggiInCorso = dopo
   return dopo
 }
+const rileggiUnita = creaRichiestaUnita<IndexOutcome>()
 
 /** Si risolve quando la lettura dell'avvio e' finita (comunque sia andata). */
 export function primoIndice(): Promise<IndexOutcome> {

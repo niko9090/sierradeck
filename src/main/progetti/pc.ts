@@ -1,8 +1,9 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join, relative, isAbsolute } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
+import { memoriaDiFile } from '../memoria-di-file'
 
 /**
  * L'identita' di questo PC, per il registro dei progetti sul Drive.
@@ -66,10 +67,21 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
     return join(deps.documenti?.() ?? deps.casa(), 'Progetti SierraDeck')
   }
 
+  // `pc.json` si legge in decine di punti, anche per ogni chat (0.80.0): si
+  // tiene finché il file non cambia.
+  const memoria = memoriaDiFile(percorso, (t) => JSON.parse(t) as Record<string, unknown>)
+  // L'hostname costa 0,3 ms a chiamata su Windows e cambia solo con un riavvio
+  // (0.80.0): si chiede una volta. Se fallisce si richiede la volta dopo.
+  let hostRicordato: string | undefined
+  const nomeHost = (): string => {
+    if (hostRicordato !== undefined) return hostRicordato
+    try { hostRicordato = deps.nome() } catch { return '' }
+    return hostRicordato
+  }
   const leggiGrezza = (): Partial<IdentitaPc> => {
-    if (!existsSync(percorso)) return {}
     try {
-      const j = JSON.parse(readFileSync(percorso, 'utf8')) as Record<string, unknown>
+      const j = memoria.leggi()
+      if (j === undefined) return {}
       return {
         ...(typeof j.id === 'string' && j.id !== '' ? { id: j.id } : {}),
         ...(typeof j.nome === 'string' ? { nome: j.nome } : {}),
@@ -89,6 +101,7 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
   const scrivi = (g: Partial<IdentitaPc> & { id: string; cartellaProgetti: string }): void => {
     const suDisco = { id: g.id, nome: g.nome ?? deps.nome(), cartellaProgetti: g.cartellaProgetti, ...(g.nomeScelto !== undefined && g.nomeScelto !== '' ? { nomeScelto: g.nomeScelto } : {}) }
     scriviAtomico(percorso, JSON.stringify(suDisco, null, 2), 'progetti')
+    memoria.dimentica()
   }
 
   const leggi = (): IdentitaPc => {
@@ -99,8 +112,7 @@ export function apriIdentitaPc(dati: string, deps: { nome: () => string; casa: (
       : g.cartellaProgetti ?? predefinita()
     // La prima volta si scrive, cosi' l'id resta quello.
     if (g.id === undefined) scrivi({ ...g, id, cartellaProgetti })
-    let host = ''
-    try { host = deps.nome() } catch { host = '' }
+    let host = nomeHost()
     if (host === '') host = g.nome ?? ''
     return {
       id,

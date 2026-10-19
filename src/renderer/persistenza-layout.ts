@@ -11,7 +11,39 @@ export type PersistenzaDeps = {
   applica: (l: LayoutSalvato) => void
   /** Si iscrive ai cambiamenti dello store; restituisce come disiscriversi. */
   sottoscrivi: (cb: () => void) => () => void
+  /** Un divisore trascinato (0.80.0): si salva al rilascio, non a ogni pixel. */
+  trascinamento?: Trascinamento
 }
+
+export type Trascinamento = {
+  inCorso: () => boolean
+  /** Chiamata al rilascio; restituisce come disiscriversi. */
+  allaFine: (cb: () => void) => () => void
+}
+
+/**
+ * Il trascinamento di un divisore (0.80.0). Ogni fotogramma cambiava lo store
+ * e ogni cambio riscriveva `workspaces.json` (130 KB) nel processo principale:
+ * una sessantina di scritture al secondo finché si tiene premuto. Adesso il
+ * cambio si segna e si scrive una volta, al rilascio.
+ */
+export function creaTrascinamento(): Trascinamento & { inizia: () => void; finisci: () => void } {
+  let attivo = false
+  const fine = new Set<() => void>()
+  return {
+    inCorso: () => attivo,
+    allaFine: (cb) => { fine.add(cb); return () => { fine.delete(cb) } },
+    inizia: () => { attivo = true },
+    finisci: () => {
+      if (!attivo) return
+      attivo = false
+      for (const cb of [...fine]) cb()
+    }
+  }
+}
+
+/** Quello della finestra: lo usano i divisori del mosaico e la persistenza. */
+export const trascinamentoDivisori = creaTrascinamento()
 
 export type Persistenza = {
   avvia: () => void
@@ -61,10 +93,17 @@ export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
   let chiuso = false
   let applicando = false
   let disiscrivi: (() => void) | undefined
+  let disiscriviFine: (() => void) | undefined
+  let rimandato = false
 
-  const salvaOra = (): void => {
+  const scrivi = (): void => {
     if (!caricato || chiuso || applicando) return
+    rimandato = false
     deps.salva(deps.esporta())
+  }
+  const salvaOra = (): void => {
+    if (deps.trascinamento?.inCorso() === true) { rimandato = true; return }
+    scrivi()
   }
 
   return {
@@ -72,6 +111,7 @@ export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
       // L'iscrizione precede il caricamento: i cambiamenti che arrivano nel
       // frattempo li ferma `caricato`, non l'assenza di un ascoltatore.
       disiscrivi = deps.sottoscrivi(salvaOra)
+      disiscriviFine = deps.trascinamento?.allaFine(() => { if (rimandato) scrivi() })
 
       void deps.carica().then(
         (l) => {
@@ -92,7 +132,8 @@ export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
 
     // Con la scrittura immediata non c'è più niente in sospeso da svuotare, ma
     // un'uscita è l'unico momento in cui vale la pena di essere ridondanti.
-    salvaSubito: salvaOra,
+    // Alla chiusura anche a metà di un trascinamento.
+    salvaSubito: scrivi,
 
     applicaDaFuori(l) {
       // Lo store notifica i sottoscritti in modo sincrono: la bandiera copre
@@ -109,6 +150,8 @@ export function creaPersistenza(deps: PersistenzaDeps): Persistenza {
       chiuso = true
       disiscrivi?.()
       disiscrivi = undefined
+      disiscriviFine?.()
+      disiscriviFine = undefined
     }
   }
 }

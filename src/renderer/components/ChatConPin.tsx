@@ -13,7 +13,17 @@ import { workspaceCorrente } from '../workspace-corrente'
 
 export type VistaPin = { protetta: boolean; chiusa: boolean }
 
-/** Lo stato del PIN di una chat, riletto ogni tre secondi e a ogni cambio. */
+/**
+ * Ogni quanto si rilegge il PIN di una chat (0.80.0). Solo una chat protetta e
+ * aperta cambia senza avviso: si richiude da sola dopo l'inattività. Tutto il
+ * resto arriva con `pin:cambiato`; i 30 s sono una rete di sicurezza. Prima
+ * ogni riquadro faceva 4 chiamate ogni 3 s, protetto o no.
+ */
+export function ogniQuantoRileggerePin(v: VistaPin): number {
+  return v.protetta && !v.chiusa ? 3000 : 30_000
+}
+
+/** Lo stato del PIN di una chat, riletto a ogni cambio e ogni tanto (vedi sopra). */
 export function usePin(sessione: string | undefined): VistaPin & { rileggi: () => void } {
   const [v, setV] = useState<VistaPin>({ protetta: false, chiusa: false })
   const rileggi = useCallback((): void => {
@@ -24,10 +34,13 @@ export function usePin(sessione: string | undefined): VistaPin & { rileggi: () =
   }, [sessione])
   useEffect(() => {
     rileggi()
-    const t = setInterval(rileggi, 3000)
-    const via = window.gestore.pin.suCambiato(rileggi)
-    return () => { clearInterval(t); via() }
+    return window.gestore.pin.suCambiato(rileggi)
   }, [rileggi])
+  const passo = ogniQuantoRileggerePin(v)
+  useEffect(() => {
+    const t = setInterval(rileggi, passo)
+    return () => { clearInterval(t) }
+  }, [rileggi, passo])
   return { ...v, rileggi }
 }
 

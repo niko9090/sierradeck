@@ -108,7 +108,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         if (su == null) return@LaunchedEffect
         while (isActive) {
             statoSu = try { api.stato() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { statoSu }
-            delay(3000)
+            Davanti.pausa(3000)
         }
     }
     val stato = if (su != null) statoSu else statoAccoppiato
@@ -120,7 +120,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         if (su != null) return@LaunchedEffect
         while (isActive) {
             altri = try { apiAccoppiato.autopilotiAltri() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { altri ?: emptyList() }
-            delay(15_000)
+            Davanti.pausa(15_000)
         }
     }
     // Dalla scheda Domande: «apri la sua linguetta Domande» (0.38.0).
@@ -270,7 +270,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                 guastoDettaglio = if (e is Api.Errore && e.codice == 404) "Il computer non trova più questo autopilota: forse è stato eliminato."
                     else "Non riesco a leggere il dettaglio: ${e.message ?: "il computer non risponde"}. Riprovo da solo ogni due secondi."
             }
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 
@@ -1459,7 +1459,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
             try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.FILE_AUTOPILOTA)
             }
-            delay(4000)
+            Davanti.pausa(4000)
         }
     }
     LaunchedEffect(scelto) {

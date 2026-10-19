@@ -3,7 +3,7 @@ import { ascoltaSegnali, faseDiSessione, lavoraConSegnali, partitaConSegnali, pr
 import { indicatoreChat } from '@shared/segnali-chat'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
-import { creaPersistenza } from './persistenza-layout'
+import { creaPersistenza, trascinamentoDivisori } from './persistenza-layout'
 import { azioniDiFinestra, impostaIbernaLasciando } from './azioni-finestra'
 import type { AzioniWorkspace } from './workspace-azioni'
 import { ledDi } from '@shared/autopilota-vista'
@@ -133,7 +133,8 @@ function usaPersistenzaLayout(): void {
       salva: (l) => window.gestore.layout.salva(l, useLayoutStore.getState().congediDaMandare()),
       esporta: () => useLayoutStore.getState().esporta(),
       applica: (l) => useLayoutStore.getState().cambiaVista(l),
-      sottoscrivi: (cb) => useLayoutStore.subscribe(cb)
+      sottoscrivi: (cb) => useLayoutStore.subscribe(cb),
+      trascinamento: trascinamentoDivisori
     })
     persistenza.avvia()
 

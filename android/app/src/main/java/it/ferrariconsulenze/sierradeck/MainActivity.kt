@@ -104,6 +104,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // I controlli delle schermate aspettano finché l app torna davanti (2.80.0, vedi Davanti).
+    override fun onStart() {
+        super.onStart()
+        Davanti.imposta(true)
+    }
+
+    override fun onStop() {
+        Davanti.imposta(false)
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         apriDoveChiede(intent)

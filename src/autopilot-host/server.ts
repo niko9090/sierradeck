@@ -1940,13 +1940,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     let v = verdettoAccettato(letto, criteriPeggiorati(sulPrincipale.esiti, sulRamo.esiti), messaggio)
     let fresco = deps.archivio.leggi(a.id) ?? a
     fresco = conStatoChat(fresco, chatId, 'finita')
+    // Il ramo che non c'è più (0.80.0): niente da unire, e il diario lo dice
+    // invece di scrivere «unito» (era già unito e tolto, o non è mai nato).
+    let ramoTolto = false
     if (v.esito === 'ok' && deps.git !== undefined && autore.ramo !== undefined && fresco.ramoBase !== undefined) {
       const u = unisciRamo(deps.git, { cwd: fresco.cwd, ramo: autore.ramo, base: fresco.ramoBase })
       if (!u.ok) v = { esito: 'rifare', note: u.conflitto ? `Approvato, ma il ramo va in conflitto con ${fresco.ramoBase} su: ${u.file.join(', ')}. Nella tua cartella: git merge ${fresco.ramoBase}, risolvi tenendo il lavoro di tutti, git add -A && git commit.` : `Approvato, ma l’unione non è riuscita: ${u.motivo}` }
+      else ramoTolto = u.ramoMancante === true
     }
     if (v.esito === 'ok') {
       fresco = { ...fresco, chats: fresco.chats.map((c) => (c.id === autore.id ? { ...c, approvata: true, stato: 'finita' as const } : c)) }
-      annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), unito nel ramo principale. ${v.note}`.slice(0, 400), { chat: chatId, esito: 'approvato', di: autore.id })
+      const unito = ramoTolto ? `il ramo ${autore.ramo ?? ''} non c’è più: niente unito qui` : 'unito nel ramo principale'
+      annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), ${unito}. ${v.note}`.slice(0, 400), { chat: chatId, esito: 'approvato', di: autore.id })
       salva(fresco)
       // Si aprono i compiti che aspettavano questo; se non resta niente, una
       // chat autrice chiude il giro e il supervisore dichiara finito sui criteri.

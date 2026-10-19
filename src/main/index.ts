@@ -95,6 +95,7 @@ import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
+import { statInParallelo } from './stat-in-parallelo'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
@@ -202,6 +203,7 @@ import {
   type ScopeChat, type ScopeStore
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
+import { consoleNelRegistro } from './console-nel-registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -1255,6 +1257,8 @@ if (!app.requestSingleInstanceLock()) {
       portaAutopiloti = impostazioni.preferenze().portaAutopiloti
       // Da qui in poi i gestori globali scrivono nel file, non solo in console.
       registroGlobale = registro
+      // E anche ogni console.error/console.warn del main (0.80.0, voce 1 dell'analisi).
+      consoleNelRegistro(registro)
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
       // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
@@ -2933,25 +2937,31 @@ if (!app.requestSingleInstanceLock()) {
         let registro: RegistroProgetti | undefined
         try { registro = grezzo === undefined ? undefined : parseRegistro(JSON.parse(grezzo.toString('utf8'))) } catch { registro = undefined }
         return { manifesto, ...(registro !== undefined ? { registro } : {}) }
-      }, 60_000)
-      /** Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»). */
-      const registroDelPannello = async (): Promise<RegistroProgetti> => {
-        const q = await quadroPannello()
+      }, 60_000, () => Date.now(), 10 * 60_000)
+      /**
+       * Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»).
+       * `ancheVecchio` (0.80.0) solo per la vista: le azioni vogliono il Drive di adesso.
+       */
+      const registroDelPannello = async (ancheVecchio = false): Promise<RegistroProgetti> => {
+        const q = await quadroPannello(ancheVecchio)
         const prefissi = new Set(Object.keys(q?.manifesto.file ?? {}).map((k) => k.split('/')[0] ?? ''))
         ultimoRegistroPannello = registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
         return ultimoRegistroPannello
       }
-      const leggiPannello = async (): Promise<Pannello> => {
+      const leggiPannello = async (ancheVecchio = false): Promise<Pannello> => {
         const inizio = Date.now()
         const io = identitaPc.leggi()
-        const locali = chatLocaliDaIndice().map((c) => {
-          let mtime: number | undefined
-          try { mtime = statSync(c.jsonl).mtimeMs } catch { mtime = undefined }
+        // Le date vere dei file, sedici alla volta e fuori dal thread principale
+        // (0.80.0): erano ~670 statSync in fila a ogni lettura del pannello.
+        const chatQui = chatLocaliDaIndice()
+        const misure = await statInParallelo(chatQui.map((c) => c.jsonl))
+        const locali = chatQui.map((c, i) => {
+          const mtime = misure[i]?.mtimeMs
           return { sessione: c.sessione, titolo: c.titolo, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(mtime !== undefined ? { mtime } : {}) }
         })
         const dalManifesto = Date.now()
-        const manifesto = (await quadroPannello())?.manifesto
-        const registroVisto = await registroDelPannello()
+        const manifesto = (await quadroPannello(ancheVecchio))?.manifesto
+        const registroVisto = await registroDelPannello(ancheVecchio)
         const msManifesto = Date.now() - dalManifesto
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
@@ -3011,7 +3021,8 @@ if (!app.requestSingleInstanceLock()) {
       }
       const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
         ...(await (async () => {
-          const p = await leggiPannello()
+          // Solo per guardare (finestra, pagina, app): va bene il Drive di qualche minuto fa, riletto intanto.
+          const p = await leggiPannello(true)
           // Lo spazio sul Drive di ogni progetto (0.69.0), con l'avviso dei file grandi.
           return { ...p, progetti: conSpazioDrive(p.progetti, spazio.subito()?.misura?.perProgetto) }
         })()),
