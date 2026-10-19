@@ -74,12 +74,14 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
   // le operazioni sui workspace sono tutte pure (creano un nuovo archivio, non
   // mutano quello letto).
   let cache: { mtimeMs: number; size: number; archivio: Archivio } | undefined
+  /** L'ultima lettura ha trovato il file ma non è riuscita a leggerlo, e non c'era un letto bene. */
+  let illeggibile = false
 
   return {
     percorso,
 
     leggi(): Archivio {
-      if (!existsSync(percorso)) { cache = undefined; return archivioVuoto() }
+      if (!existsSync(percorso)) { cache = undefined; illeggibile = false; return archivioVuoto() }
 
       // Se il file non è cambiato dall'ultima lettura, si riusa il parsed.
       let st: ReturnType<typeof statSync> | undefined
@@ -92,13 +94,25 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
         return cache.archivio
       }
 
+      // Il file c'è ma non si legge (0.80.0): preso un attimo dall'antivirus o da
+      // un'altra scrittura. Prima si tornava l'archivio vuoto, e chi leggeva per
+      // aggiungere un workspace riscriveva il file con quello solo: tutti gli
+      // altri sparivano. Adesso si riprova una volta; poi l'ultimo letto bene,
+      // o, se non ce n'è, `scrivi` rifiuta finché una lettura non riesce.
       let testo: string
       try {
         testo = readFileSync(percorso, 'utf8')
-      } catch (err) {
-        console.error(`[workspace] lettura di ${percorso} fallita:`, err)
-        return archivioVuoto()
+      } catch {
+        try {
+          testo = readFileSync(percorso, 'utf8')
+        } catch (err) {
+          console.error(`[workspace] lettura di ${percorso} fallita due volte:`, err)
+          if (cache !== undefined) return cache.archivio
+          illeggibile = true
+          return archivioVuoto()
+        }
       }
+      illeggibile = false
 
       let grezzo: unknown
       try {
@@ -151,6 +165,12 @@ export function apriWorkspaceStore(dir: string): WorkspaceStore {
      * differenza fra un guasto che si vede e uno che si scopre domani.
      */
     scrivi(a: Archivio): boolean {
+      // Chi scrive ha letto un archivio vuoto **finto**: sul disco ci sono
+      // workspace che non ha visto. Scrivere adesso li cancellerebbe (0.80.0).
+      if (illeggibile && existsSync(percorso)) {
+        console.error(`[workspace] ${percorso} NON scritto: c'è ma non si è riuscito a leggerlo, e scrivere adesso cancellerebbe i workspace che contiene`)
+        return false
+      }
       // Il layout dell'utente e' composto a mano e nessuna sorgente puo'
       // rigenerarlo: si scrive per intero o non si scrive. Il come sta in
       // `scriviAtomico`, che da qui in poi vale per tutti i file dei dati.
