@@ -942,6 +942,14 @@ var notaDomandaAp = ''
 var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
 var pannelloAperto = null
+/** Le azioni della Salute che il telefono sa fare; le altre si fanno dal computer. */
+const AZIONI_DAL_TELEFONO = ['scarica-a-mano', 'installa', 'apri-autopilota', 'riprova-pc']
+/** I nomi delle azioni da fare dal computer, una volta sola ciascuno (0.81.0). */
+function azioniSoloDalComputer(voci) {
+  const nomi = []
+  for (const v of voci) for (const a of (v.azioni || [])) if (AZIONI_DAL_TELEFONO.indexOf(a.id) < 0 && nomi.indexOf(a.testo) < 0) nomi.push(a.testo)
+  return nomi
+}
 /** «Salute del sistema» (0.44.0): letta dal computer quando si apre. */
 var saluteVista = null
 var saluteErrore = ''
@@ -2163,7 +2171,7 @@ function pannello(s) {
       : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
-      : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
+      : ''
     // 0.70.0: i gruppi come sul PC (Da sistemare · Computer · Drive · Errori · Tutto), una riga per voce con la sua parola.
     const tutte = saluteVista.voci || []
     const gruppiDi = (v) => [v.tono !== 'ok' ? 'sistemare' : '', v.gruppo === 'pc' ? 'computer' : '', v.gruppo === 'drive' ? 'drive' : '', (v.gruppo === 'errori' || v.gruppo === 'consegne' || v.gruppo === 'aggiornamento') ? 'errori' : ''].filter(Boolean)
@@ -2174,6 +2182,9 @@ function pannello(s) {
       '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
         '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
     const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
+    // 0.81.0: le azioni che si fanno solo dal computer, dette una volta qui in cima, non riga per riga.
+    const soloPc = azioniSoloDalComputer(voci)
+    if (soloPc.length > 0) corpo += '<div class="sotto" style="margin-top:6px">Dal computer: ' + soloPc.map((t) => '«' + esc(t) + '»').join(', ') + '.</div>'
     if (voci.length === 0) corpo += '<div class="sotto" style="margin-top:8px">' + (gruppo === 'sistemare' ? '<span style="color:var(--verde)">Tutto a posto</span>' : 'Niente in questo gruppo.') + '</div>'
     corpo += voci.map((v) => {
       const st = v.stato || { parola: v.tono === 'ok' ? 'a posto' : v.tono === 'attenzione' ? 'da guardare' : 'da sistemare', colore: v.tono === 'ok' ? 'verde' : v.tono === 'attenzione' ? 'ambra' : 'rosso' }
@@ -2181,7 +2192,7 @@ function pannello(s) {
       return '<div class="salute-voce" style="border-left:3px solid ' + tinta + ';padding:4px 8px;margin-top:6px">' +
         '<div><b style="color:' + tinta + '">' + esc(st.parola) + '</b> · ' + esc(v.breve || v.titolo) +
         aiuto('salute:' + v.chiave, esc(v.titolo) + (v.spiegazione ? '<br><br>' + esc(v.spiegazione) : '') + (v.cosaFare ? '<br><br><b>Cosa fare:</b> ' + esc(v.cosaFare) : '')) + '</div>' +
-        ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
+        ((v.azioni || []).filter((a) => AZIONI_DAL_TELEFONO.indexOf(a.id) >= 0).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
         '</div>'
     }).join('')
     // La mappa dei PC (0.70.0): in fondo, a richiesta.

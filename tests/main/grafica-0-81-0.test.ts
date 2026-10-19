@@ -71,3 +71,25 @@ describe('3. «Ultimo tentativo» solo quando c è un tentativo non riuscito da 
     expect(fallitoHtml({ tentativoFallito: { titolo: 'La 0.81.0 non si è installata', motivo: 'file in uso', strade: ['Riprova'] } })).toContain('La 0.81.0 non si è installata')
   })
 })
+
+describe('4. Salute sulla pagina: «dal computer» detto una volta in cima', () => {
+  it('le azioni solo del PC si elencano una volta, senza doppioni; quelle del telefono restano tasti', async () => {
+    const { paginaClient } = await import('../../src/main/client-pagina')
+    const html = paginaClient()
+    const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
+    const pezzo = (inizio: string): string => { const i = script.indexOf(inizio); return script.slice(i, script.indexOf('\n}', i) + 2) }
+    const costante = script.slice(script.indexOf('const AZIONI_DAL_TELEFONO'), script.indexOf('\n', script.indexOf('const AZIONI_DAL_TELEFONO')))
+    const azioniSoloDalComputer = new Function(`${costante}; ${pezzo('function azioniSoloDalComputer(')}; return azioniSoloDalComputer`)() as (v: unknown[]) => string[]
+    const registro = { id: 'apri-registro', testo: 'Apri la cartella del registro' }
+    const voci = [
+      { azioni: [{ id: 'apri-account', testo: 'Apri Account → Drive' }] },
+      { azioni: [registro] },
+      { azioni: [registro] },
+      { azioni: [{ id: 'installa', testo: 'Installa' }] }
+    ]
+    expect(azioniSoloDalComputer(voci)).toEqual(['Apri Account → Drive', 'Apri la cartella del registro'])
+    expect(azioniSoloDalComputer([])).toEqual([])
+    expect(html).not.toContain("': dal computer</span>'")
+    expect(html).toContain(">Dal computer: ' + soloPc.map(")
+  })
+})
