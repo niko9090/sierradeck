@@ -25,3 +25,6 @@ android/.kotlin/
 
 # Le foto delle prove mostrano percorsi della macchina: restano sul PC.
 .sierradeck/quaderno/foto-*/
+
+# Gli errori mandati dagli altri PC e dal telefono (0.81.0): restano su questo PC, mai su GitHub.
+.sierradeck/errori-arrivati/
