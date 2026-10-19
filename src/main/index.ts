@@ -232,6 +232,10 @@ let identitaPcGlobale: IdentitaPcStore | undefined
 /** Lo storico degli errori di questo processo (0.81.0): per la voce «Errori» delle Impostazioni. */
 let storicoErroriGlobale: StoricoSuFile | undefined
 /** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
+/** «Manda al PC di sviluppo», per le Impostazioni del PC e per il telefono (0.81.0). */
+let mandaErroriGlobale: (() => Promise<{ ok: boolean; messaggio: string }>) | undefined
+/** Il nome del PC di sviluppo scelto, per la voce «Errori» del telefono. */
+let nomePcSviluppoGlobale: (() => string | undefined) | undefined
 let riceviErroriGlobale: ((invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
@@ -2399,7 +2403,7 @@ if (!app.requestSingleInstanceLock()) {
         return e.ok ? e : { ok: false, stato: 500, errore: e.errore }
       }
       riceviErroriGlobale = async (invio, chi) => salvaQui(invio, chi)
-      ipcMain.handle('errori:manda', async () => {
+      const mandaOra = async (): Promise<{ ok: boolean; messaggio: string }> => {
         const io = identitaPc.leggi()
         return await mandaErrori({
           pcSviluppo: impostazioni.preferenze().pcSviluppo,
@@ -2411,7 +2415,16 @@ if (!app.requestSingleInstanceLock()) {
           salvaQui: (invio) => salvaQui(invio, 'questo PC'),
           log: (riga) => registro.info(riga)
         })
-      })
+      }
+      mandaErroriGlobale = mandaOra
+      nomePcSviluppoGlobale = () => {
+        const pc = impostazioni.preferenze().pcSviluppo
+        if (pc === undefined) return undefined
+        if (pc === identitaPc.leggi().id) return nomeDaMostrare(identitaPc.leggi())
+        const b = postino.altrui().find((x) => x.pcId === pc)
+        return b !== undefined ? nomeDaMostrare(b) : 'un PC che non si vede adesso'
+      }
+      ipcMain.handle('errori:manda', () => mandaOra())
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
@@ -5110,6 +5123,15 @@ if (!app.requestSingleInstanceLock()) {
         // I file dal telefono (0.50.0): gli invii a metà aspettano qui, poi vanno nel progetto della chat.
         allegati: apriAllegati({ cartella: join(dati, 'allegati-in-arrivo') }),
         // La sezione File del telefono e della pagina (0.54.0): i progetti noti, in sola lettura.
+        errori: {
+          leggi: () => {
+            const storico = leggiStoricoDi(dati, storicoErroriGlobale?.leggi())
+            const pc = nomePcSviluppoGlobale?.()
+            return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }), ...(pc !== undefined ? { pcSviluppo: pc } : {}) }
+          },
+          aggiungi: (e: { dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }) => { storicoErroriGlobale?.aggiungi(e.testo, e.cosa, { dove: e.dove, ...(e.versione !== undefined ? { versione: e.versione } : {}) }) },
+          manda: () => mandaErroriGlobale?.() ?? Promise.resolve({ ok: false, messaggio: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' })
+        },
         erroriArrivati: (invio: InvioErrori, chi: string) => riceviErroriGlobale !== undefined ? riceviErroriGlobale(invio, chi) : Promise.resolve({ ok: false as const, stato: 409, errore: 'Questo PC non è ancora pronto a ricevere gli errori: riprova fra qualche secondo.' }),
         fileProgetti: apriFileProgetti({
           candidati: async (): Promise<string[]> => [

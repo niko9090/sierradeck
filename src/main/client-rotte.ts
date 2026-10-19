@@ -76,7 +76,7 @@ import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
 import { idTestoValido, type StatoSottofondo } from '@shared/sottofondo'
-import { leggiInvioErrori, type InvioErrori } from '@shared/storico-errori'
+import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceErrore } from '@shared/storico-errori'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -303,6 +303,16 @@ export type DipendenzeRotte = {
    * scrive nella cartella di SierraDeck, se è il PC di sviluppo.
    */
   erroriArrivati?: (invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>
+  /**
+   * Lo storico degli errori di questo PC per la pagina e l'app (0.81.0): lo
+   * leggono, ci aggiungono i propri errori (con il loro posto) e lo mandano
+   * al PC di sviluppo scelto qui.
+   */
+  errori?: {
+    leggi: () => { voci: VoceErrore[]; testo: string; pcSviluppo?: string }
+    aggiungi: (e: { dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }) => void
+    manda: () => Promise<{ ok: boolean; messaggio: string }>
+  }
   /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
   gestioneChat?: Pick<GestioneChat, 'spazio' | 'azione' | 'archiviate' | 'eArchiviata' | 'recupero' | 'ripristinaDalRecupero' | 'chiediSvuota' | 'svuota'>
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
@@ -1045,6 +1055,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──
+    // Lo storico degli errori di questo PC, dal telefono (0.81.0).
+    if (r.metodo === 'POST' && (r.percorso === '/api/errori' || r.percorso === '/api/errori/aggiungi' || r.percorso === '/api/errori/manda')) {
+      const lato = depsPieni.errori
+      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora lo storico degli errori: va aggiornato alla 0.81.0.' } }
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Lo storico degli errori di un PC si guarda da quel PC.' } }
+      if (r.percorso === '/api/errori') return OK(lato.leggi())
+      if (r.percorso === '/api/errori/manda') return OK(await lato.manda())
+      const l = leggiErroriDelTelefono(r.corpo)
+      for (const e of l) lato.aggiungi(e)
+      return OK({ aggiunti: l.length })
+    }
+
     // Lo storico degli errori di un altro PC o del telefono (0.81.0).
     if (r.metodo === 'POST' && r.percorso === '/api/errori/arrivati') {
       if (depsPieni.erroriArrivati === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere gli errori: va aggiornato alla 0.81.0.' } }

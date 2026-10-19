@@ -14,8 +14,12 @@ import type { Registro } from './registro'
  */
 
 export type StoricoSuFile = {
-  /** Un errore: il testo come va nel registro (con lo stack sotto, se c'è). */
-  aggiungi: (testo: string, cosa?: string) => void
+  /**
+   * Un errore: il testo come va nel registro (con lo stack sotto, se c'è).
+   * `altro` serve agli errori del telefono, che il PC tiene nel suo storico
+   * con il loro posto (pagina o app) e la loro versione.
+   */
+  aggiungi: (testo: string, cosa?: string, altro?: { dove?: DoveErrore; versione?: string }) => void
   leggi: () => StoricoErrori
   /** Scrive subito quello che aspetta (all'uscita). */
   scriviOra: () => void
@@ -50,10 +54,10 @@ export function apriStoricoErrori(dati: string, chi: 'app' | 'servizio', p: {
   }
   return {
     file,
-    aggiungi: (testo, cosa) => {
+    aggiungi: (testo, cosa, altro) => {
       let nomi: readonly string[] = []
       try { nomi = p.nomi?.() ?? [] } catch { nomi = [] }
-      storico = aggiungiErrore(storico, voceDaTesto({ testo, dove, quando: ora().toISOString(), versione: p.versione, nomi, ...(cosa !== undefined ? { cosa } : {}) }))
+      storico = aggiungiErrore(storico, voceDaTesto({ testo, dove: altro?.dove ?? dove, quando: ora().toISOString(), versione: altro?.versione ?? p.versione, nomi, ...(cosa !== undefined ? { cosa } : {}) }))
       if (timer === undefined) {
         timer = setTimeout(scriviOra, p.ritardoMs ?? 1000)
         timer.unref?.()

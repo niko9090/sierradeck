@@ -122,3 +122,45 @@ describe('chi manda: «Manda al PC di sviluppo»', () => {
     expect(e).toEqual({ ok: false, messaggio: 'Non mandati a Portatile: Portatile non raggiungibile' })
   })
 })
+
+describe('lo storico del PC per la pagina e l’app: /api/errori, /api/errori/aggiungi, /api/errori/manda', () => {
+  const lato = (): { aggiunti: unknown[]; mandati: number; dep: NonNullable<DipendenzeRotte['errori']> } => {
+    const aggiunti: unknown[] = []
+    const stato = { mandati: 0 }
+    return {
+      aggiunti,
+      get mandati() { return stato.mandati },
+      dep: {
+        leggi: () => ({ voci: storico().voci, testo: 'Errori di SierraDeck…', pcSviluppo: 'Portatile' }),
+        aggiungi: (e) => { aggiunti.push(e) },
+        manda: async () => { stato.mandati += 1; return { ok: true, messaggio: 'Mandati a Portatile: 1 errore.' } }
+      }
+    }
+  }
+  const rotteCon = (dep: NonNullable<DipendenzeRotte['errori']>): ReturnType<typeof rotteClient> => rotteClient({
+    dispositivi: apriDispositivi(cartella()), chat: () => [], autopiloti: async () => [], errori: dep
+  } as unknown as DipendenzeRotte)
+
+  it('il telefono legge lo storico, con il nome del PC di sviluppo, e lo fa mandare', async () => {
+    const l = lato()
+    const r = rotteCon(l.dep)
+    const letto = await r({ metodo: 'POST', percorso: '/api/errori', corpo: {}, dispositivo: 't1' })
+    expect(letto.corpo).toMatchObject({ testo: 'Errori di SierraDeck…', pcSviluppo: 'Portatile' })
+    const mandato = await r({ metodo: 'POST', percorso: '/api/errori/manda', corpo: {}, dispositivo: 't1' })
+    expect(mandato.corpo).toMatchObject({ ok: true })
+    expect(l.mandati).toBe(1)
+  })
+
+  it('il telefono aggiunge i suoi errori con il loro posto; al massimo venti per volta', async () => {
+    const l = lato()
+    const errori = Array.from({ length: 30 }, (_, i) => ({ testo: `boom ${i}`, cosa: 'apro una chat' }))
+    const e = await rotteCon(l.dep)({ metodo: 'POST', percorso: '/api/errori/aggiungi', corpo: { dove: 'app', versione: '2.81.0', errori }, dispositivo: 't1' })
+    expect(e.corpo).toEqual({ aggiunti: 20 })
+    expect(l.aggiunti[0]).toEqual({ dove: 'app', testo: 'boom 0', cosa: 'apro una chat', versione: '2.81.0' })
+  })
+
+  it('un altro PC non legge né scrive lo storico di questo', async () => {
+    const e = await rotteCon(lato().dep)({ metodo: 'POST', percorso: '/api/errori', corpo: {}, dispositivo: 'pc:pc-prova' })
+    expect(e.stato).toBe(403)
+  })
+})

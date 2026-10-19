@@ -307,3 +307,30 @@ export function leggiInvioErrori(x: unknown): { ok: true; invio: InvioErrori } |
   }))
   return { ok: true, invio: { da, ...(typeof o.versione === 'string' ? { versione: o.versione.slice(0, 40) } : {}), voci } }
 }
+
+/** Quanti errori il telefono può aggiungere con una richiesta: un difetto in giro non riempie lo storico del PC. */
+export const ERRORI_PER_RICHIESTA = 20
+
+/**
+ * Gli errori che la pagina o l'app mandano al loro PC (`POST /api/errori/aggiungi`):
+ * `{ dove, versione, errori: [{ testo, cosa? }] }`. I segreti li toglie il PC
+ * quando li mette nel suo storico.
+ */
+export function leggiErroriDelTelefono(x: unknown): Array<{ dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }> {
+  const o = typeof x === 'object' && x !== null ? x as Record<string, unknown> : {}
+  const dove = o.dove === 'app' ? 'app' : o.dove === 'pagina' ? 'pagina' : undefined
+  if (dove === undefined || !Array.isArray(o.errori)) return []
+  const versione = typeof o.versione === 'string' && o.versione.length <= 40 ? o.versione : undefined
+  const fuori: Array<{ dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }> = []
+  for (const e of o.errori.slice(0, ERRORI_PER_RICHIESTA)) {
+    const v = typeof e === 'object' && e !== null ? e as Record<string, unknown> : {}
+    if (typeof v.testo !== 'string' || v.testo.trim() === '') continue
+    fuori.push({
+      dove,
+      testo: v.testo.slice(0, LIMITI_STORICO.messaggio + LIMITI_STORICO.dettagli),
+      ...(typeof v.cosa === 'string' && v.cosa.trim() !== '' ? { cosa: v.cosa.slice(0, LIMITI_STORICO.cosa) } : {}),
+      ...(versione !== undefined ? { versione } : {})
+    })
+  }
+  return fuori
+}
