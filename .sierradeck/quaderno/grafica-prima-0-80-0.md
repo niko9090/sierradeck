@@ -1,6 +1,6 @@
 ---
 titolo: "Grafica 0.80.0, il «prima»: differenze PC/pagina/app, testi lunghi, cose tagliate"
-quando: 2026-10-19T14:30:00+02:00
+quando: 2026-10-19T16:30:00+02:00
 tag: ["0.80.0", "grafica", "analisi", "foto", "PC", "pagina", "app"]
 ---
 
@@ -135,9 +135,28 @@ La Revisione l'hanno fatta typescript-reviewer e kotlin-reviewer sul diff `f52c0
 
 **Esito:** vitest sui file toccati (643 test), typecheck pulito, JUnit verdi (FermaCasi 3, ChatGovernata 1, TonoDalVivo 1, Migrazione 1, AnalisiApp 18).
 
-## Ancora aperte dalla parte «prima» (per l'elenco)
-Da fare dopo, senza spostare niente:
-- testi tagliati: il workspace attivo nella fascia, la linguetta «Criteri», il testo d'esempio del campo dell'autopilota, l'id della sessione nella riga d'errore di Salute;
-- il riquadro «Account» più alto degli altri tre della catena;
-- Impostazioni del PC larghe 910 px con 400 px vuoti;
-- due «Strumenti ▾» nella stessa schermata di Account e Drive.
+## Voci aperte, fatte per la 0.81.0 (commit 012c441, 3c8c3b8, 25ed806)
+Nessuna funzione tolta o spostata. Foto in `foto-0-80-0/dopo/*-081.png`, fuori da git.
+
+| Voce | Prima | Dopo | Dove |
+|---|---|---|---|
+| Salute, riga d'errore | «(11111111-0800-…» tagliato a metà, su PC/pagina/app | la parentesi «(id, cartella)» sparisce dal titolo: ««Media con i test» non si apre — lenta…»; un id da solo resta con 8 cifre; il messaggio intero resta nella spiegazione | `titoloErrore` in `shared/salute.ts` (vale per i tre lati: il titolo lo compone il PC). Trappola: `breve()` taglia a 80 su una parola, e con l'id corto veniva «11111111…,…»: per questo la parentesi va tolta, non solo accorciata |
+| Linguette dell'autopilota | «Sta / facendo» su due righe, «Cr» fuori dal bordo | vanno a capo intere (`flex-wrap` + `nowrap`) | `.diario__schede` in `console.css` |
+| Testo d'esempio del campo | «…(le sue domande sono nella linguetta» tagliato | solo la prima parte; dove stanno le domande lo dice già il «?» | `ChatAutopilota.tsx` |
+| Impostazioni del PC | contenitore che scorre largo 960 px, barra in mezzo e 400 px vuoti | scorre a tutta larghezza; è il contenuto che resta a 960 px | `.impostazioni__corpo > *` |
+| Account e Drive | «Account» più alto, frecce storte | anelli alti uguali, frecce a metà | `.account__anello-e-freccia` |
+| Due «Strumenti ▾» | testata e sezione | il menu della sezione si chiama «Account ▾» (stesse voci); aggiornato anche l'aiuto del Drive «Ricollegalo (Account ▾ → Scollega…)» | `PannelloAccount.tsx`, `account-vista.ts` |
+| Workspace attivo nella fascia | «SierraDeck-prov…» a 120 px | quello attivo arriva a 240 px, gli altri restano a 120 | `.ws__voce--attivo` |
+| Ricerca dei Progetti (pagina, app) | «Cerca progetto, PC o cartel» | «Cerca progetto o PC» (la frase intera nel `title`); il PC, largo, tiene la frase lunga | `client-pagina.ts`, `PannelloDrive.kt` |
+
+**Revisione:** un revisore TypeScript; difetto trovato e corretto: l'aiuto del Drive nominava ancora «Strumenti ▾».
+**Esito:** vitest sui file toccati verdi, typecheck pulito, gradle (compila + MigrazioneTest) verde, guardia delle cancellazioni OK.
+
+**Spia dell'aggiornamento «cerco…»:** non è tagliata, il testo finisce proprio con «…». Niente da fare.
+
+## Ancora aperte (per l'elenco)
+- linguette delle chat nella Panoramica tagliate («Sviluppo · Spiega …») e la scheda «Revisione di Sviluppo» su tre righe nella colonna Domande stretta;
+- accanto a «Manda», due «?» uguali senza etichetta;
+- «Ultimo tentativo: nessuna installazione non riuscita da ricordare.» sempre a vista (PC e pagina);
+- pagina, barra in basso: «Auto-piloti» e «Imposta-zioni» a capo con il trattino. Cambiare i nomi solo con il sì di Nicholas;
+- pagina, Salute: «…: dal computer» ripetuto riga per riga.
