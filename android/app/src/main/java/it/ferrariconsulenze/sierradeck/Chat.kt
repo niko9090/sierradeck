@@ -1153,10 +1153,10 @@ private fun TastoMisura(
 
 /** Il colore di ogni stato: ambra per ciò che aspetta te, verde per chi lavora, accento per chi è guidato. */
 fun coloreTono(t: TonoChat?): androidx.compose.ui.graphics.Color = when (t) {
-    TonoChat.SCEGLIE, TonoChat.ASPETTA -> Banco.ambra
+    TonoChat.SCEGLIE -> Banco.ambra
     TonoChat.LAVORA -> Banco.verde
     TonoChat.GUIDATA -> Banco.accento
-    TonoChat.SPENTA, null -> Banco.testoQuieto
+    TonoChat.FERMA, TonoChat.SPENTA, null -> Banco.testoQuieto
 }
 
 /** Il LED di una chat: pieno se ha un terminale acceso, solo contorno se è spenta o chiusa (`null`). */

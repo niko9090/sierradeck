@@ -45,3 +45,18 @@ describe('1. «fermo» ha un colore solo', () => {
     expect(dalVivoHtml({ etichetta: 'al lavoro' })).toContain('var(--verde')
   })
 })
+
+describe('2. «aspettano te» è un numero solo, come sul PC', () => {
+  it('una chat che ha finito il turno è «ferma» e non entra nei conti di chi aspetta te', () => {
+    const p = new Function(`${estrai('function statoChat(')}; ${estrai('function riassuntoChat(')}; return { statoChat, riassuntoChat }`)() as {
+      statoChat: (c: object) => { tono: string; parola: string }
+      riassuntoChat: (c: object[]) => string
+    }
+    // Le due chat della foto «prima»: ferme a fine turno. Sul PC «Aspettano te 0».
+    const finite = [{ aspetta: true, viva: true }, { aspetta: true, viva: true }]
+    expect(finite.filter((c) => p.statoChat(c).tono === 'attesa')).toHaveLength(0)
+    expect(p.riassuntoChat(finite)).toBe('2 ferme')
+    // Una scelta aperta invece aspetta te, ovunque.
+    expect(p.statoChat({ chiede: true }).tono).toBe('attesa')
+  })
+})

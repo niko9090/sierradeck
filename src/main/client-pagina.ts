@@ -247,6 +247,7 @@ export function paginaClient(): string {
   /* Un lavoro concluso non chiama l'attenzione come uno in corso: si spegne. */
   .finito { background: var(--spento); opacity: .6 }
   .fermo { background: var(--spento) }
+  .ferma { background: var(--spento) }
   /* Una chat guidata da un autopilota: in moto, ma non per conto tuo. */
   .guidata { background: var(--accento); box-shadow: 0 0 5px color-mix(in srgb, var(--accento) 60%, transparent); }
   /* Una chat senza terminale acceso: il contorno, non il pieno. */
@@ -320,6 +321,7 @@ export function paginaClient(): string {
   /* La parola dello stato accanto al nome: si legge da lontano quanto il LED. */
   .voce__stato { font-size: var(--t0); letter-spacing: .06em; color: var(--testo-quieto); white-space: nowrap; }
   .voce__stato--attesa { color: var(--ambra); }
+  .voce__stato--ferma { color: var(--testo-quieto); }
   .voce__stato--lavoro { color: var(--verde); }
   .voce__stato--guidata { color: var(--accento); }
   .voce__freccia { color: var(--testo-quieto); }
@@ -1506,7 +1508,9 @@ function gruppiChat(s) {
 function statoChat(c) {
   if (c.chiede) return { tono: 'attesa', parola: 'aspetta che tu scelga' }
   if (c.aspetta && c.governata) return { tono: 'guidata', parola: 'ferma · ci pensa l’autopilota' }
-  if (c.aspetta) return { tono: 'attesa', parola: 'aspetta te' }
+  // 0.80.0: ha finito il turno = «ferma», come sul PC (chat-vista.ts) e nelle Domande,
+  // dove sta fra le «Tutte». «Aspetta te» solo per una domanda o una scelta.
+  if (c.aspetta) return { tono: 'ferma', parola: 'ferma' }
   if (c.viva === false) return { tono: 'spenta', parola: 'spenta' }
   if (c.governata) return { tono: 'guidata', parola: 'al lavoro · la guida un autopilota' }
   return { tono: 'lavoro', parola: 'al lavoro' }
@@ -1515,19 +1519,21 @@ function statoChat(c) {
 /** Tutte le chat in una riga: prima chi aspetta te, e solo i casi che ci sono. */
 function riassuntoChat(chat) {
   if (!chat || chat.length === 0) return 'nessuna chat aperta sul computer'
-  var scelgono = 0, aspettano = 0, lavorano = 0, guidate = 0, spente = 0
+  var scelgono = 0, aspettano = 0, lavorano = 0, guidate = 0, ferme = 0, spente = 0
   chat.forEach(function (c) {
     var st = statoChat(c)
     if (st.parola === 'aspetta che tu scelga') scelgono++
     else if (st.parola === 'aspetta te') aspettano++
     else if (st.tono === 'lavoro') lavorano++
     else if (st.tono === 'guidata') guidate++
+    else if (st.tono === 'ferma') ferme++
     else spente++
   })
   var pezzi = []
   if (scelgono) pezzi.push(scelgono === 1 ? '1 aspetta che tu scelga' : scelgono + ' aspettano che tu scelga')
   if (aspettano) pezzi.push(aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te')
   if (lavorano) pezzi.push(lavorano + ' al lavoro')
+  if (ferme) pezzi.push(ferme === 1 ? '1 ferma' : ferme + ' ferme')
   if (guidate) pezzi.push(guidate === 1 ? '1 con l’autopilota' : guidate + ' con gli autopiloti')
   if (spente) pezzi.push(spente === 1 ? '1 spenta' : spente + ' spente')
   return pezzi.join(' · ')
@@ -5971,7 +5977,7 @@ setInterval(() => {
 setInterval(() => {
   if (!chiave || document.hidden) return
   // 0.76.0: anche dentro una chat che chiede qualcosa, per la domanda breve a lato.
-  const ferma = dentro !== null && (ultimoStato.chat || []).some((c) => c.id === dentro && statoChat(c).tono === 'attesa')
+  const ferma = dentro !== null && (ultimoStato.chat || []).some((c) => c.id === dentro && (c.chiede || c.aspetta))
   if (scheda === 'domande' || ferma) leggiDomande()
 }, 2000)
 </script>
