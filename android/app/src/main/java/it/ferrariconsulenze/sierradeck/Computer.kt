@@ -207,7 +207,7 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
         // (2026-09-14): «se sto operando su una chat su una cartella in rete
         // gli altri come fanno a operare li'?». Si scrive nella cassetta di
         // quel PC; consegna il suo postino, quando e' acceso.
-        Sezione("Altri computer", aiuto = "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. «Chat … dal vivo» apre le chat di quel PC da qui, attraverso il PC a cui il telefono è accoppiato (serve la 0.48.0 su questo PC): le vedi e le comandi come dal PC, con la fascia viola «SU …» in cima. Si raggiungono con le stesse strade del PC (rete di casa, Tailscale, collegamento diretto) e solo con la chiave della stessa cassaforte. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.")
+        Sezione("Altri computer", aiuto = "Gli altri PC che usano lo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino verde = al lavoro, grigio = ferma (ha finito il turno). «Chat … dal vivo» apre le chat di quel PC da qui, attraverso il PC a cui il telefono è accoppiato (serve la 0.48.0 su questo PC): le vedi e le comandi come dal PC, con la fascia viola «SU …» in cima. Si raggiungono con le stesse strade del PC (rete di casa, Tailscale, collegamento diretto) e solo con la chiave della stessa cassaforte. «Azioni» lascia un'istruzione nella cassetta di quel PC: si esegue solo là, in una sua chat, quando è acceso — serve per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia). Se la cartella là non esiste, la voce fallisce e lo leggi qui.")
         Spacer(Modifier.height(8.dp))
         val pcs = pcVisti
         when {
@@ -260,8 +260,9 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
                                     Spacer(Modifier.width(8.dp))
                                     Text(ch.titolo.ifBlank { ch.cwd }, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     Text(
-                                        if (!p.vivo) "ultimo stato noto" else if (ch.aspetta) "aspetta te" else "al lavoro",
-                                        color = if (p.vivo && ch.aspetta) Banco.ambra else Banco.testoQuieto, fontSize = 11.sp
+                                        // 0.80.0: «ferma» e grigio come il LED accanto (prima «aspetta te» in ambra).
+                                        if (!p.vivo) "ultimo stato noto" else if (ch.aspetta) "ferma" else "al lavoro",
+                                        color = Banco.testoQuieto, fontSize = 11.sp
                                     )
                                 }
                             }

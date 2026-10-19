@@ -100,10 +100,13 @@ describe('0.74.0: pagina, la riga «dal vivo» non allarga la pagina', () => {
 
 describe('0.74.1: pagina, «Torna come prima» della trasformazione dei workspace', () => {
   it('la sezione si disegna dallo stato del PC e il tasto chiama la rotta giusta', () => {
-    const f = new Function('esc', `var migrazioneVista = null; var notaMigrazione = ''; ${funzione('migrazioneHtml')}; return function (s) { migrazioneVista = s; return migrazioneHtml() }`)((x: string) => x) as (s: unknown) => string
+    const f = new Function('esc', `var aiutiAperti = {}; ${funzione('aiuto')}; var migrazioneVista = null; var notaMigrazione = ''; ${funzione('migrazioneHtml')}; return function (s) { migrazioneVista = s; return migrazioneHtml() }`)((x: string) => x) as (s: unknown) => string
     expect(f(null)).toBe('')
     const fatta = f({ stato: 'fatta', dormienti: [{}, {}, {}] })
-    expect(fatta).toContain('(3) hanno la Panoramica')
+    // 0.80.0: il numero dice gli autopiloti nuovi, non i workspace; la spiegazione nel «?».
+    expect(fatta).toContain('Fatta: 3 autopiloti nuovi')
+    expect(fatta).toContain('data-aiuto="migrazione"')
+    expect(f({ stato: 'fatta', dormienti: [] })).toContain('Fatta: ogni workspace aveva già il suo autopilota.')
     expect(fatta).toContain(`onclick="cambiaMigrazione('torna')"`)
     expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain(`cambiaMigrazione('rifai')`)
     expect(f({ stato: 'fallita', motivo: 'disco pieno' })).toContain('disco pieno')

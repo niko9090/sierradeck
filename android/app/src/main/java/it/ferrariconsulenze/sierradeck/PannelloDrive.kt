@@ -371,7 +371,7 @@ fun SezionePannelloDrive(api: Api) {
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = q, onValueChange = { q = it }, placeholder = { Text("Cerca progetto, PC o cartella") }, singleLine = true, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = q, onValueChange = { q = it }, placeholder = { Text("Cerca progetto o PC", maxLines = 1) }, singleLine = true, modifier = Modifier.weight(1f))
             var aperto by remember { mutableStateOf(false) }
             Box {
                 TextButton(onClick = { aperto = true }) { Text("⇅ " + (ProgettiVista.ORDINI.firstOrNull { it.first == ordine }?.second ?: "Stato")) }

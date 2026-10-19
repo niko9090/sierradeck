@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { StatoMigrazione } from '@shared/migrazione-elenco'
+import { AIUTO_MIGRAZIONE, testoMigrazione, type StatoMigrazione } from '@shared/migrazione-elenco'
+import { Aiuto } from './Aiuto'
 
 /**
  * La trasformazione dei workspace nelle impostazioni (0.74.1): com'è andata,
@@ -14,14 +15,10 @@ export function RigaMigrazione(): React.JSX.Element | null {
     return window.gestore.migrazione.suCambio(leggi)
   }, [])
   if (s === null) return null
-  const testo = s.stato === 'fatta'
-    ? `Tutti i workspace di questo PC (${s.dormienti.length}) hanno la Panoramica, ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate.`
-    : s.stato === 'annullata' ? 'Workspace tornati come prima.'
-      : s.stato === 'fallita' ? `La trasformazione non è riuscita, tutto è com’era: ${s.motivo ?? ''}`
-        : 'Trasformazione a metà: si completa al prossimo avvio.'
+  const testo = testoMigrazione(s)
   return (
     <div className="impostazioni__riga">
-      <span className="con-aiuto">Panoramica in tutti i workspace<span className="impostazioni__nota" style={{ display: 'block' }}>{nota ?? testo}</span></span>
+      <span className="con-aiuto">Panoramica in tutti i workspace<Aiuto di="Panoramica in tutti i workspace">{AIUTO_MIGRAZIONE}</Aiuto><span className="impostazioni__nota" style={{ display: 'block' }}>{nota ?? testo}</span></span>
       {s.stato === 'fatta'
         ? <button className="tasto" onClick={() => { void window.gestore.migrazione.torna().then((e) => setNota(e.messaggio)).catch(() => undefined) }}>Torna come prima</button>
         : <button className="tasto" onClick={() => { void window.gestore.migrazione.rifai().then((e) => setNota(e.messaggio)).catch(() => undefined) }}>Trasforma tutti</button>}

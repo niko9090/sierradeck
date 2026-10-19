@@ -63,3 +63,27 @@ class ChatGovernataTest {
         assertEquals("finita", parolaChatGovernata("lavoro", "finita"))
     }
 }
+
+/** 0.80.0, dalla Revisione: i casi che mancavano. */
+class FermaCasiTest {
+    private fun chat(id: String, chiede: Boolean = false, aspetta: Boolean = false, governata: Boolean = false, viva: Boolean = true) =
+        Chat(id = id, titolo = id, chiede = chiede, aspetta = aspetta, governata = governata, viva = viva)
+
+    @Test
+    fun `una chat lavoro e al lavoro con l autopilota che gira, aspetta o si prepara, ferma se e finito o arreso`() {
+        for (ap in listOf("lavoro", "attesa", "intervista")) assertEquals("al lavoro", parolaChatGovernata(ap, "lavoro"))
+        for (ap in listOf("finito", "fallito", "pronto", "sospeso")) assertEquals("ferma: l’autopilota è fermo", parolaChatGovernata(ap, "lavoro"))
+    }
+
+    @Test
+    fun `solo le scelte contano fra chi ti aspetta, non ferma, guidata e spenta no`() {
+        val tutte = listOf(chat("a", aspetta = true), chat("b", aspetta = true, governata = true), chat("c", viva = false), chat("d", chiede = true))
+        assertEquals(1, chatCheTiAspettano(tutte))
+    }
+
+    @Test
+    fun `ferma resta ferma anche nella riga stretta`() {
+        assertEquals("ferma", parolaPerRiga(leggiChat(chiede = false, aspetta = true, governata = false, viva = true), 320))
+        assertEquals("ferma", parolaPerRiga(leggiChat(chiede = false, aspetta = true, governata = false, viva = true), 420))
+    }
+}
