@@ -41,3 +41,14 @@ class DalVivoTest {
         assertEquals("il suo autopilota", c.sottofondo?.nome)
     }
 }
+
+/** 0.80.0: «fermo» rosso anche nell'app, come `COLORE_DAL_VIVO` del PC; «finito» grigio. */
+class TonoDalVivoTest {
+    @Test
+    fun `ogni parola con il colore del PC`() {
+        assertEquals("verde", tonoDalVivo("al lavoro"))
+        assertEquals("ambra", tonoDalVivo("aspetta te"))
+        assertEquals("rosso", tonoDalVivo("fermo"))
+        assertEquals("quieto", tonoDalVivo("finito"))
+    }
+}

@@ -443,6 +443,14 @@ data class StatoDalVivo(
     val senzaSegni: String? = null
 )
 
+/** Il colore della parola dal vivo, come `COLORE_DAL_VIVO` del PC (0.80.0): «fermo» è rosso. */
+fun tonoDalVivo(etichetta: String): String = when (etichetta) {
+    "al lavoro" -> "verde"
+    "aspetta te" -> "ambra"
+    "fermo" -> "rosso"
+    else -> "quieto"
+}
+
 /** Un messaggio verso la chat e il suo stato vero (PC 0.69.0). */
 @Serializable
 data class StatoMessaggio(

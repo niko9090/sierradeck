@@ -50,7 +50,8 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown }, ora: numb
   else if (a.stato === 'intervista') s = stato('prepara', 'si prepara', 'blu', 'guarda il progetto e prepara i criteri')
   else if (a.stato === 'pronto') s = stato('pronto', 'pronto', 'blu', 'aspetta il tuo «Vai»')
   else if (a.stato === 'finito') s = stato('finito', 'finito', 'verde')
-  else s = stato('fermo', 'fermo', 'quieto', motivo)
+  // Rosso come il LED e la pagina/app (0.80.0): prima qui era grigio.
+  else s = stato('fermo', 'fermo', 'rosso', motivo)
 
   const gruppi: Exclude<GruppoAp, 'tutti'>[] = []
   if (s.id === 'guasto' || s.id === 'aspetta' || s.id === 'senza-segni' || s.id === 'pronto') gruppi.push('aspettano')

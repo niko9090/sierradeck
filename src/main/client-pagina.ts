@@ -849,7 +849,8 @@ async function chiediAp(percorso, corpo) {
 const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
 function dalVivoHtml(v) {
   if (!v || typeof v !== 'object') return ''
-  var colore = v.etichetta === 'al lavoro' ? 'var(--verde)' : v.etichetta === 'aspetta te' ? 'var(--ambra,#e0a33c)' : 'var(--testo-quieto,#8b949e)'
+  // I colori di COLORE_DAL_VIVO (0.80.0): «fermo» rosso come sul PC e nell'app.
+  var colore = v.etichetta === 'al lavoro' ? 'var(--verde)' : v.etichetta === 'aspetta te' ? 'var(--ambra,#e0a33c)' : v.etichetta === 'fermo' ? 'var(--rosso,#dc5f5f)' : 'var(--testo-quieto,#8b949e)'
   return '<span class="voce__sotto"><b style="color:' + colore + '">' + esc(v.etichetta || '') + '</b>' + (v.da ? ' · da ' + esc(v.da) : '') +
     (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>' +
     (v.ultimaAzione ? '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione) + '</span>' : '')

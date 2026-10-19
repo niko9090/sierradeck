@@ -1503,11 +1503,7 @@ private fun LinguettaFile(api: Api, autopilota: String) {
 /** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0): le parole del PC. */
 @Composable
 fun DalVivo(v: StatoDalVivo) {
-    val colore = when (v.etichetta) {
-        "al lavoro" -> Banco.verde
-        "aspetta te" -> Banco.ambra
-        else -> Banco.testoQuieto
-    }
+    val colore = coloreVista(tonoDalVivo(v.etichetta))
     Spacer(Modifier.height(4.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(v.etichetta, color = colore, fontWeight = FontWeight.Bold, fontSize = 12.sp)
