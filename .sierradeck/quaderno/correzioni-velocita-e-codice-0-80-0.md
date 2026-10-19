@@ -42,6 +42,9 @@ Revisione indipendente: **APPROVE**, senza problemi gravi. I due punti minori so
 - **I file sono CRLF**: le sostituzioni su più righe fatte con script non trovano il testo e non scrivono niente. Usare Edit.
 - **Mai `git checkout -- .` in un comando composto**: butta le modifiche non salvate. Il controllo dei comandi l'ha fermato.
 - Una chat dell'autopilota **non può** chiamare `/api/workspace/elimina`: è un divieto di Nicholas, e il controllo lo blocca.
+- **Gradle dopo una grossa unione con main.**
+  - Sintomo: `compileDebugKotlin` cade con centinaia di «Unresolved reference» a funzioni che esistono (`Ingresso`, `SchermoInstallazione`…). È la cache incrementale di Kotlin, non il codice.
+  - Rimedio: un giro con `gradle testDebugUnitTest assembleDebug --no-daemon -Pkotlin.incremental=false`. Dopo, anche il comando normale torna verde. Non serve cancellare `build/`.
 
 ## Fatte dopo, per la 0.81.0 (19/10 pomeriggio)
 
