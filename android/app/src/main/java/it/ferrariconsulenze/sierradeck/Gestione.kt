@@ -129,7 +129,13 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                 Text(v.nome, color = Banco.testo)
                                 Text(AzioniTelefono.rigaEliminato(v.chat, v.scadeIl), color = Banco.testoQuieto, fontSize = 11.sp)
                             }
-                            TextButton(enabled = !inCorso, onClick = { fai("ripristinare «${v.nome}»") { api.ripristinaWorkspace(v.nome, v.eliminatoIl) } }) { Text("Ripristina") }
+                            TextButton(enabled = !inCorso, onClick = {
+                                fai("ripristinare «${v.nome}»") {
+                                    api.ripristinaWorkspace(v.nome, v.eliminatoIl)
+                                    // Subito, senza aspettare che l'elenco dei workspace cambi: un secondo tocco direbbe «non è più nel recupero».
+                                    eliminati = eliminati.filter { it != v }
+                                }
+                            }) { Text("Ripristina") }
                         }
                     }
                 }

@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Archivio, WorkspaceSalvato } from '../../src/shared/workspace'
 import { chatDi, mettiNelRecupero, nomeLibero, ripristina, vociPerElenco, vociValide, leggiVoci, type WorkspaceInRecupero } from '../../src/shared/workspace-recupero'
-import { elencoRecuperoWorkspace, FILE_RECUPERO_WORKSPACE, mettiWorkspaceNelRecupero, ripristinaWorkspace } from '../../src/main/workspace-recupero-file'
+import { elencoRecuperoWorkspace, FILE_RECUPERO_WORKSPACE, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from '../../src/main/workspace-recupero-file'
+import { NOME_WORKSPACE_MAX } from '../../src/shared/azioni-telefono'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 
@@ -56,6 +57,25 @@ describe('le regole del recupero dei workspace', () => {
     expect(e.ok && e.nome).toBe('Prova (recuperato)')
   })
 
+  it('la revisione: un nome lungo con «(recuperato)» resta nei 60 caratteri', () => {
+    const lungo = 'n'.repeat(NOME_WORKSPACE_MAX)
+    const n = nomeLibero(lungo, [lungo])
+    expect(n.length).toBeLessThanOrEqual(NOME_WORKSPACE_MAX)
+    expect(n.endsWith(' (recuperato)')).toBe(true)
+    expect(nomeLibero(lungo, [lungo, n]).length).toBeLessThanOrEqual(NOME_WORKSPACE_MAX)
+  })
+
+  it('la revisione: una chat riaperta altrove nel frattempo resta lì, non torna doppia', () => {
+    const voci = mettiNelRecupero([], archivio('Lavoro', ws('Lavoro'), ws('Prova', 'a', 'b')), 'Prova', ORA)
+    // «a» è stata riaperta in «Lavoro» dopo l'eliminazione.
+    const e = ripristina(voci, archivio('Lavoro', ws('Lavoro', 'a')), { nome: 'Prova', eliminatoIl: ORA }, ORA)
+    expect(e.ok).toBe(true)
+    if (!e.ok) return
+    const sessioni = (nome: string): string[] => Object.values(e.archivio.workspace.find((w) => w.nome === nome)!.perSlot).flatMap((l) => l.panes.map((p) => p.sessionUuid))
+    expect(sessioni('Lavoro')).toEqual(['a'])
+    expect(sessioni('Prova')).toEqual(['b'])
+  })
+
   it('una voce scaduta o sconosciuta non torna, e lo dice', () => {
     const voci = mettiNelRecupero([], archivio('Lavoro', ws('Lavoro'), ws('Prova')), 'Prova', ORA)
     expect(ripristina(voci, archivio('Lavoro', ws('Lavoro')), { nome: 'Prova', eliminatoIl: ORA }, giorniDopo(31))).toMatchObject({ ok: false })
@@ -85,9 +105,11 @@ describe('il recupero sul disco', () => {
     expect(elencoRecuperoWorkspace(dati, ORA)).toEqual([])
   })
 
-  it('un file del recupero che non si legge non si riscrive vuoto', () => {
+  it('un file del recupero che non si legge non si riscrive vuoto, e l’eliminazione si ferma prima (la revisione)', () => {
     const dati = mkdtempSync(join(tmpdir(), 'sd-recupero-'))
+    expect(recuperoLeggibile(dati)).toBe(true)
     writeFileSync(join(dati, FILE_RECUPERO_WORKSPACE), '{ rotto')
+    expect(recuperoLeggibile(dati)).toBe(false)
     expect(mettiWorkspaceNelRecupero(dati, archivio('A', ws('A'), ws('B')), 'B', undefined, ORA)).toBe(false)
     expect(readFileSync(join(dati, FILE_RECUPERO_WORKSPACE), 'utf8')).toBe('{ rotto')
   })

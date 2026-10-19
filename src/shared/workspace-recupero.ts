@@ -1,4 +1,5 @@
-import type { Archivio, WorkspaceSalvato } from './workspace'
+import { unaChatUnWorkspace, type Archivio, type WorkspaceSalvato } from './workspace'
+import { NOME_WORKSPACE_MAX } from './azioni-telefono'
 
 /**
  * **Il recupero dei workspace eliminati** (0.81.0).
@@ -59,11 +60,16 @@ export function mettiNelRecupero(voci: readonly WorkspaceInRecupero[], prima: Ar
   return [{ workspace: w, eliminatoIl: adesso, ...(da !== undefined ? { da } : {}) }, ...vociValide(voci, adesso)]
 }
 
-/** Un nome libero: se nel frattempo ne è nato uno uguale, «Nome (recuperato)», poi «Nome (recuperato 2)»… */
+/**
+ * Un nome libero: se nel frattempo ne è nato uno uguale, «Nome (recuperato)»,
+ * poi «Nome (recuperato 2)»… Mai oltre i 60 caratteri di un nome di workspace:
+ * uno più lungo non si potrebbe più aprire né eliminare (la revisione).
+ */
 export function nomeLibero(nome: string, presi: readonly string[]): string {
   if (!presi.includes(nome)) return nome
   for (let i = 1; ; i += 1) {
-    const n = i === 1 ? `${nome} (recuperato)` : `${nome} (recuperato ${i})`
+    const coda = i === 1 ? ' (recuperato)' : ` (recuperato ${i})`
+    const n = `${nome.slice(0, NOME_WORKSPACE_MAX - coda.length).trimEnd()}${coda}`
     if (!presi.includes(n)) return n
   }
 }
@@ -82,10 +88,15 @@ export function ripristina(voci: readonly WorkspaceInRecupero[], a: Archivio, sc
   const v = valide.find((x) => x.workspace.nome === scelta.nome && x.eliminatoIl === scelta.eliminatoIl)
   if (v === undefined) return { ok: false, errore: `«${scelta.nome}» non è più nel recupero (dopo ${GIORNI_RECUPERO_WORKSPACE} giorni esce da solo).` }
   const nome = nomeLibero(v.workspace.nome, a.workspace.map((w) => w.nome))
+  // Una chat che nel frattempo è stata riaperta in un altro workspace resta
+  // lì: «una chat, un workspace» (la revisione). Senza, al primo passaggio nel
+  // ripristinato la stessa conversazione ripartiva due volte. Vince chi viene
+  // prima, e il ripristinato è in coda; gli altri workspace non si toccano.
+  const tornato = unaChatUnWorkspace([...a.workspace, { ...v.workspace, nome }]).at(-1) ?? { ...v.workspace, nome }
   return {
     ok: true,
     nome,
-    archivio: { ...a, workspace: [...a.workspace, { ...v.workspace, nome }] },
+    archivio: { ...a, workspace: [...a.workspace, { ...v.workspace, ...tornato, nome }] },
     voci: valide.filter((x) => x !== v)
   }
 }
