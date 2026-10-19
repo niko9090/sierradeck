@@ -5539,11 +5539,10 @@ function avvisaSeServe(stato) {
     }
     for (const c of (stato.chat || [])) {
       // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
-      // effetti, e fino alla 0.34 non si annunciava. Quelle guidate da un
-      // autopilota no (0.80.0): le loro domande arrivano già come domande, e
-      // la scelta va e viene mentre lavorano. Una scelta che va e viene in
-      // meno di un minuto si annuncia una volta (sceltaDaAnnunciare).
-      if (c.governata === true) { delete avvisati['k-' + c.id]; continue }
+      // effetti, e fino alla 0.34 non si annunciava. Anche per le governate,
+      // come nell'app: l'autopilota non concede permessi al posto tuo. Una
+      // scelta che va e viene in meno di un minuto si annuncia una volta
+      // (0.80.0, sceltaDaAnnunciare): ogni ritorno era una notifica nuova.
       const r = sceltaDaAnnunciare(c.chiede === true, avvisati['k-' + c.id], ora)
       if (r.visto === undefined) delete avvisati['k-' + c.id]
       else avvisati['k-' + c.id] = r.visto

@@ -118,12 +118,12 @@ describe('0.80.0: pagina, notifiche raggruppate e nel registro', () => {
     expect(b.registro).toEqual(['/api/avviso-mostrato pagina gruppo 3 cose aspettano te'])
   })
 
-  it('una chat guidata da un autopilota che chiede e smette di continuo non manda niente; una mia, una volta al minuto al massimo', () => {
+  it('una scelta che va e viene ogni 3 s si annuncia una volta, anche per una chat governata (il permesso lo dai tu)', () => {
     const b = banco()
     for (let i = 0; i < 10; i++) {
-      b.giro({ chat: [{ id: 'g', titolo: 'Governata', chiede: i % 2 === 0, governata: true }, { id: 'm', titolo: 'Mia', chiede: i % 2 === 0 }] }, 3000)
+      b.giro({ chat: [{ id: 'g', titolo: 'Governata', chiede: i % 2 === 0, governata: true }] }, 3000)
     }
-    expect(b.mandate.map((m) => m.titolo)).toEqual(['Mia aspetta che tu scelga'])
+    expect(b.mandate.map((m) => m.titolo)).toEqual(['Governata aspetta che tu scelga'])
   })
 
   it('aperta la pagina, le domande già lì non si annunciano (si vedono nella pagina)', () => {
