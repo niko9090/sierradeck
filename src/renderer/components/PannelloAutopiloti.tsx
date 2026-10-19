@@ -9,7 +9,7 @@ import type { Colore } from '@shared/stato-vista'
 const COLORE_AP: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 import { useEffect, useMemo, useState } from 'react'
 import { REGOLE_PUBBLICAZIONE, type RegolaPubblicazione } from '@shared/harness'
-import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
+import { BOZZA_AUTOPILOTA_VUOTA, controllaBozzaAutopilota, nomeDaCartella, nomeScritto, PARTENZE, type BozzaAutopilota, type Partenza } from '@shared/azioni-telefono'
 import type { Autopilota } from '@shared/autopilota'
 import { destinazioni } from '../destinazioni-autopilota'
 import { useLayoutStore } from '../state/layout'
@@ -127,9 +127,10 @@ export function PannelloAutopiloti({
       let workspace = r.workspace
       if (suoWorkspace) {
         const esistenti = (await window.gestore.workspace.stato()).nomi
-        const nome = nomeWorkspacePerAutopilota(r.nome !== '' ? r.nome : r.obiettivo.split(/\s+/).slice(0, 4).join(' '), esistenti)
+        // Il nome scritto, o quello della cartella: mai le prime parole del messaggio (0.80.0).
+        const nome = nomeWorkspacePerAutopilota(nomeScritto(r.nome, r.obiettivo) || nomeDaCartella(r.cwd), esistenti)
         window.dispatchEvent(new CustomEvent('sierradeck:vista-elenco', { detail: { nome, accesa: true } }))
-        await azioniDiFinestra().crea(nome)
+        await azioniDiFinestra().crea(nome, r.cwd)
         // La finestra è già nel workspace nuovo: la barra e la colonna lo devono sapere.
         window.dispatchEvent(new CustomEvent('sierradeck:rileggi-workspace'))
         workspace = nome

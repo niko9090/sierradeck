@@ -1434,7 +1434,7 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) }, (vecchio, nuovo) => {
+      registerLayoutIpc(workspaceStore, registro.info, (nome, cartella) => { void progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined).catch(() => undefined) }, (vecchio, nuovo) => {
         // La vista a elenco segue il nome del workspace (0.74.0).
         const p = impostazioni.preferenze()
         const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
@@ -5440,7 +5440,7 @@ if (!app.requestSingleInstanceLock()) {
           await clientAutopilota.assicuraServizio()
           let suo: string | undefined
           if (r.workspace === undefined && workspaceStore !== undefined) {
-            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd)
+            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd, r.obiettivo)
             const prima = workspaceStore.leggi()
             const dopo = aggiungiWorkspace(prima, suo)
             if (dopo !== prima) {

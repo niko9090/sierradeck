@@ -1128,7 +1128,7 @@ contextBridge.exposeInMainWorld('gestore', {
     altriPc: (): Promise<{ pc: string; nome: string; workspace: string[] }[]> => ipcRenderer.invoke('workspace:altriPc'),
     /** Apre qui un workspace di un altro PC, con le sue chat dal vivo (0.67.0). */
     apriDaAltroPc: (pc: string, nome: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('workspace:apriDaAltroPc', pc, nome),
-    crea: (nome: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome),
+    crea: (nome: string, cartella?: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:crea', nome, cartella),
     elimina: (nome: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:elimina', nome),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>

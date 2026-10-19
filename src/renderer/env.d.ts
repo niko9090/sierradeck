@@ -493,7 +493,7 @@ declare global {
         remote: () => Promise<Record<string, number>>
         altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
         apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
-        crea: (nome: string) => Promise<StatoWorkspace>
+        crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
         cambia: (nome: string, layout: LayoutSalvato, congedate?: string[]) => Promise<LayoutSalvato>
