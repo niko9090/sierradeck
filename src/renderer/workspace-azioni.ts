@@ -58,11 +58,19 @@ export type AzioniDeps = {
    * ed è la ragione per cui l'ordine qui dentro resta verificabile.
    */
   ibernaTutte?: () => string[]
+  /**
+   * Una riga nel registro (0.80.0). «Il workspace cambia da solo» non si
+   * poteva capire: nessun cambio lasciava traccia, né chi l'aveva chiesto.
+   */
+  annota?: (riga: string) => void
 }
+
+/** Il motivo di un cambio di workspace, per il registro: chi l'ha chiesto e perché. */
+export type PercheCambio = string
 
 export type AzioniWorkspace = {
   stato: () => Promise<StatoWorkspace>
-  cambia: (nome: string) => Promise<void>
+  cambia: (nome: string, perche?: PercheCambio) => Promise<void>
   crea: (nome: string) => Promise<StatoWorkspace>
   elimina: (nome: string) => Promise<StatoWorkspace>
   /** Applica un cambio deciso da un'altra finestra. */
@@ -97,6 +105,11 @@ export type AzioniWorkspace = {
  *    vivi, ed è l'unico modo perché cambiare vista non costi una sessione di
  *    lavoro.
  */
+/** La riga del registro per un cambio di workspace sullo schermo. */
+export function rigaCambio(da: string, a: string, perche?: PercheCambio): string {
+  return `[workspace] la finestra passa da «${da === '' ? '?' : da}» a «${a}»: ${perche ?? 'motivo non detto'}`
+}
+
 export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
   /**
    * Porta il layout di questa finestra da un workspace all'altro.
@@ -105,8 +118,9 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
    * chiamata parte l'archivio ha già cambiato l'attivo — l'ha cambiato `crea`,
    * `elimina`, o un'altra finestra.
    */
-  const trasloca = async (da: string, a: string): Promise<void> => {
+  const trasloca = async (da: string, a: string, perche: PercheCambio): Promise<void> => {
     if (da === a) return
+    deps.annota?.(rigaCambio(da, a, perche))
     // Come `cambia`: chi vuole la memoria libera lascia dormire le chat che
     // lascia. Prima mancava qui — e siccome `crea`, `elimina` e il seguire il
     // cambio di un'altra finestra passano tutti da `trasloca`, l'interruttore
@@ -152,8 +166,9 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
   return {
     stato: () => deps.stato(),
 
-    async cambia(nome) {
+    async cambia(nome, perche) {
       const da = deps.attivo()
+      if (nome !== da) deps.annota?.(rigaCambio(da, nome, perche))
       // Chi vuole la memoria libera lascia dormire quello che si sta lasciando.
       // Non è il comportamento predefinito: tenere i terminali vivi rende il
       // ritorno istantaneo, e per due workspace è la scelta giusta. Per sei
@@ -187,7 +202,7 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       // ancora dove si trova (avvio).
       const precedente = await daDove()
       const stato = await deps.crea(nome)
-      await trasloca(precedente, stato.attivo)
+      await trasloca(precedente, stato.attivo, `workspace «${nome}» creato da questa finestra`)
       return stato
     },
 
@@ -197,7 +212,7 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       // Se il workspace eliminato era l'attivo, il layout viene salvato sotto un
       // nome che non esiste più: è un no-op voluto lato Core, non un caso
       // particolare da trattare qui.
-      await trasloca(precedente, stato.attivo)
+      await trasloca(precedente, stato.attivo, `workspace «${nome}» eliminato da questa finestra`)
       // Dopo il trasloco, non prima: eliminando il workspace in primo piano è
       // `trasloca` a ricordarne i riquadri, e solo da lì in poi la memoria sa
       // quali terminali chiudere. Chiuderli è obbligatorio — un workspace
@@ -207,7 +222,7 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       return stato
     },
 
-    segui: (precedente, attivo) => trasloca(precedente, attivo),
+    segui: (precedente, attivo) => trasloca(precedente, attivo, 'un’altra finestra ha cambiato workspace'),
 
     acceso: (nome) => deps.memoria.acceso(nome),
 

@@ -305,7 +305,7 @@ export function App(): React.JSX.Element {
     // 0.72.0: la chat governata si vede sempre. Il riquadro è sparito: si torna nel suo workspace.
     tornaNelSuoWorkspace: (c: { workspace?: string }) => {
       if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
-      void azioniDiFinestra().cambia(c.workspace).then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
+      void azioniDiFinestra().cambia(c.workspace, 'una chat dell’autopilota non era più a schermo: torno nel suo workspace').then(() => window.gestore.workspace.stato()).then(aggiornaWorkspaceRef.current).catch(() => undefined)
     },
     segnala: (s: InvioMancato) => {
       if (s.autopilotaId === '') return
@@ -503,7 +503,7 @@ export function App(): React.JSX.Element {
     togli()
     void window.gestore.log.info(`[consegna] consegna ${c.id}: porto la finestra nel suo workspace «${c.workspace ?? '?'}», così la chat si vede`).catch(() => undefined)
     void azioniDiFinestra()
-      .cambia(c.workspace as string)
+      .cambia(c.workspace as string, `consegna ${c.id} dell’autopilota: la chat vive lì`)
       .then(() => window.gestore.workspace.stato())
       .then(aggiornaWorkspace)
       .then(porta)
@@ -552,7 +552,7 @@ export function App(): React.JSX.Element {
     // dell'autopilota.
     if (workspace !== undefined && workspace !== workspaceCorrente()) {
       void azioniDiFinestra()
-        .cambia(workspace)
+        .cambia(workspace, 'dal telefono: riprendere una chat che vive in quel workspace')
         .then(() => window.gestore.workspace.stato())
         .then(aggiornaWorkspace)
         .then(apri)
@@ -608,7 +608,7 @@ export function App(): React.JSX.Element {
         setTimeout(() => r.classList.remove('riquadro--guardato'), 3000)
       }
       if (d.workspace !== undefined && d.workspace !== workspaceCorrente()) {
-        void azioniDiFinestra().cambia(d.workspace).then(() => setTimeout(evidenzia, 800)).catch(() => undefined)
+        void azioniDiFinestra().cambia(d.workspace, '«guarda la chat»: la chat vive lì').then(() => setTimeout(evidenzia, 800)).catch(() => undefined)
       } else evidenzia()
     }
     window.addEventListener('sierradeck:guarda-chat', guarda)
@@ -785,7 +785,7 @@ export function App(): React.JSX.Element {
 
   useEffect(() => window.gestore.client.suWorkspace((nome) => {
     void azioniDiFinestra()
-      .cambia(nome)
+      .cambia(nome, 'chiesto dal processo principale (telefono, altro PC o workspace creato): vedi la riga [workspace] prima')
       // E si aggiorna anche l'etichetta. Il cambio arriva dal telefono, quindi
       // **ogni** finestra lo esegue: ognuna è mittente del proprio cambio, e
       // l'annuncio che aggiorna l'elenco salta di proposito chi l'ha chiesto.

@@ -4669,6 +4669,8 @@ if (!app.requestSingleInstanceLock()) {
           .map((w) => w.id)
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
+        // Ogni avviso nel registro (0.80.0): «mille notifiche quando un autopilota lavora» non lasciava traccia.
+        registro.info(`[notifica] domande dell’autopilota ${id} ${automatico ? 'arrivate da sole' : 'chieste da te'}: ${dove.tipo === 'pannello' ? 'porto avanti il pannello staccato' : dove.tipo === 'scheda' ? `linguetta «Domande» nella finestra ${dove.finestra}${automatico ? ', sopra le altre e lampeggia' : ''}` : 'apro il pannello delle domande'}`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)
@@ -6303,6 +6305,7 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
+                registro.info('[notifica] Windows: «SierraDeck aspetta per aggiornarsi»')
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },
