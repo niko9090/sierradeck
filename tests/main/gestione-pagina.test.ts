@@ -40,7 +40,7 @@ describe('la pagina: gestire chat e workspace', () => {
     const pezzo = (inizio: string, fine: string): string => script.slice(script.indexOf(inizio), script.indexOf(fine, script.indexOf(inizio)))
     const chiesti: { percorso: string; corpo?: unknown }[] = []
     let disegni = 0
-    const prova = new Function('chiedi', 'aiuto', 'esc', 'pannello', 'aggiorna',
+    const prova = new Function('chiedi', 'aiuto', 'esc', 'pannello', 'aggiorna', 'escJs',
       'var ultimoStato = {}; var notaGlobale = ""; var window = {};\n' +
       pezzo('var AIUTO_ELIMINA_WS', '// Le sezioni e le voci') + '\n' +
       pezzo('var wsEliminati = []', 'window.azioneChat =') +
@@ -48,8 +48,8 @@ describe('la pagina: gestire chat e workspace', () => {
     )((percorso: string, corpo?: unknown) => {
       chiesti.push({ percorso, ...(corpo !== undefined ? { corpo } : {}) })
       return Promise.resolve(percorso === '/api/workspace/recupero' ? { voci: [{ nome: 'Prova', eliminatoIl: '2026-10-19T12:00:00.000Z', scadeIl: '2026-11-18T12:00:00.000Z', chat: 2 }] } : { fatto: true })
-    }, (id: string, t: string) => `[?${id}:${t.length}]`, (t: string) => t, () => { disegni += 1 }, () => undefined) as {
-      html: () => string; ripristina: (i: number) => Promise<void>; nota: () => string; aiutoTesto: string; riga: typeof rigaEliminato
+    }, (id: string, t: string) => `[?${id}:${t.length}]`, (t: string) => t, () => { disegni += 1 }, () => undefined, (t: string) => t) as {
+      html: () => string; ripristina: (nome: string, eliminatoIl: string) => Promise<void>; nota: () => string; aiutoTesto: string; riga: typeof rigaEliminato
     }
     expect(prova.aiutoTesto).toBe(AIUTO_ELIMINA_WORKSPACE)
     expect(prova.riga({ chat: 2, scadeIl: '2026-11-18T12:00:00.000Z' })).toBe(rigaEliminato({ chat: 2, scadeIl: '2026-11-18T12:00:00.000Z' }))
@@ -60,10 +60,11 @@ describe('la pagina: gestire chat e workspace', () => {
     expect(html).toContain('Eliminati')
     expect(html).toContain('[?eliminati-ws:')
     expect(html).toContain('Prova <span class="sotto">2 chat · resta fino al 18/11</span>')
-    expect(html).toContain('ripristinaWs(0)')
+    // Per nome e momento, non per posizione (la revisione).
+    expect(html).toContain("ripristinaWs('Prova', '2026-10-19T12:00:00.000Z')")
     // Una sola lettura nei 30 s, anche se la scheda si ridisegna.
     expect(chiesti.filter((c) => c.percorso === '/api/workspace/recupero')).toHaveLength(1)
-    await prova.ripristina(0)
+    await prova.ripristina('Prova', '2026-10-19T12:00:00.000Z')
     expect(chiesti).toContainEqual({ percorso: '/api/workspace/ripristina', corpo: { nome: 'Prova', eliminatoIl: '2026-10-19T12:00:00.000Z' } })
     expect(prova.nota()).toBe('')
     expect(script).toContain("aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS))")

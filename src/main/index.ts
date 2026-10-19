@@ -105,7 +105,7 @@ import { creaTrasloco, type TraslocoApi } from './trasloco'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
-import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, ripristinaWorkspace } from './workspace-recupero-file'
+import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { fermoChiaro, type Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
@@ -5587,8 +5587,10 @@ if (!app.requestSingleInstanceLock()) {
           const dopo = eliminaWorkspace(precedente, nome)
           // La stessa copia del pannello: senza finestre si passa di qui.
           mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
-          if (dopo !== precedente) mettiWorkspaceNelRecupero(dati, precedente, nome)
-          store.scrivi(dopo)
+          // Come il pannello (0.81.0): senza recupero leggibile non si elimina; la voce dopo la scrittura.
+          if (dopo !== precedente && !recuperoLeggibile(dati)) throw new Error('il recupero dei workspace eliminati non si legge in questo momento: riprova fra poco')
+          if (!store.scrivi(dopo)) throw new Error('workspaces.json non si è potuto scrivere')
+          if (dopo !== precedente && !mettiWorkspaceNelRecupero(dati, precedente, nome)) registro.errore(`[workspace] «${nome}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
           annotaEliminato(dati, nome)
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,

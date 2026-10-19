@@ -25,7 +25,15 @@ function leggi(dati: string): WorkspaceInRecupero[] | undefined {
   return undefined
 }
 
-/** Prima di togliere `nome` dall'archivio: il workspace com'era va nel recupero. Falso se non è riuscito. */
+/**
+ * Prima di eliminare (la revisione): se il recupero non si legge, non si
+ * elimina, perché il workspace sparirebbe senza «Eliminati».
+ */
+export function recuperoLeggibile(dati: string): boolean {
+  return leggi(dati) !== undefined
+}
+
+/** Dopo aver tolto `nome` dall'archivio: il workspace com'era va nel recupero. Falso se non è riuscito. */
 export function mettiWorkspaceNelRecupero(dati: string, prima: Archivio, nome: string, da?: string, adesso = new Date().toISOString()): boolean {
   const voci = leggi(dati)
   if (voci === undefined) return false

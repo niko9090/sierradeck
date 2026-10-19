@@ -4362,14 +4362,14 @@ function eliminatiWsHtml() {
   caricaEliminatiWs(false)
   if (wsEliminati.length === 0) return ''
   return '<div class="sotto" style="margin-top:10px"><b>Eliminati</b>' + aiuto('eliminati-ws', esc(AIUTO_ELIMINA_WS)) + '</div>' +
-    wsEliminati.map(function (v, i) {
+    wsEliminati.map(function (v) {
       return '<div class="riga"><span>' + esc(v.nome) + ' <span class="sotto">' + esc(rigaEliminato(v)) + '</span></span>' +
-        '<button onclick="ripristinaWs(' + i + ')">Ripristina</button></div>'
+        '<button onclick="ripristinaWs(\\'' + escJs(v.nome) + '\\', \\'' + escJs(v.eliminatoIl) + '\\')">Ripristina</button></div>'
     }).join('')
 }
-window.ripristinaWs = async (i) => {
-  const v = wsEliminati[i]
-  if (!v) return
+// Per nome e momento, non per posizione: l'elenco può cambiare fra il disegno e il tocco.
+window.ripristinaWs = async (nome, eliminatoIl) => {
+  const v = { nome: nome, eliminatoIl: eliminatoIl }
   try {
     const r = await chiedi('/api/workspace/ripristina', { nome: v.nome, eliminatoIl: v.eliminatoIl })
     if (r && r.errore) notaGlobale = 'Non è andata: ' + r.errore
