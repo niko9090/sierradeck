@@ -720,7 +720,7 @@ function testoDettatoJs(base, finale, parziale) {
 }
 function micHtml(id) {
   var spiega = 'Tocca 🎤 e parla in italiano: il testo compare nel campo mentre parli. Tocca di nuovo per fermare. Non parte niente da solo: lo rileggi e premi tu il tasto per mandare. La pagina non registra e non salva l’audio: lo riconosce il browser del telefono, con le sue impostazioni.'
-  if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega) + '</span>'
+  if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega, 'dettatura non disponibile') + '</span>'
   var attivo = dettaturaAttiva && dettaturaAttiva.campo === id
   return '<button data-campo="' + esc(id) + '" onclick="detta(this.dataset.campo)" title="Detta con la voce" aria-label="Detta con il microfono">' + (attivo ? '■ ferma' : '🎤') + '</button>' +
     aiuto('mic-' + id, spiega, 'la dettatura con il microfono') + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
@@ -2938,7 +2938,7 @@ function vistaAutopilota(a) {
       micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
-      '<span class="sotto info-ap" role="note" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
     (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'

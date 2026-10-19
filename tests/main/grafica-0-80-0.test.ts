@@ -136,6 +136,8 @@ describe('Voci ancora aperte, fatte nella 0.81.0', () => {
     const msg = '[app] [chat] «Media con i test» (11111111-0800-4000-8000-000000000001, C:\\prova\\cartella) non si apre'
     expect(titoloErrore(msg)).toBe('[app] [chat] «Media con i test» non si apre')
     expect(titoloErrore('sessione 11111111-0800-4000-8000-000000000001 persa')).toBe('sessione 11111111… persa')
+    // Dalla Revisione: una cartella con le parentesi non lascia pezzi di percorso nel titolo.
+    expect(titoloErrore('«Media» (11111111-0800-4000-8000-000000000001, C:\\Program Files (x86)\\x) non si apre')).toBe('«Media» non si apre')
     expect(titoloErrore('x'.repeat(130))).toHaveLength(121)
     const s = componiSalute({ adesso: ORA, versione: '0.81.0', drive: { configurato: true, connesso: true }, pc: [], errori: [{ messaggio: msg, volte: 1, ultimo: '2026-10-19T11:50:00Z', primo: '2026-10-19T11:50:00Z' }], consegne: [], oreErrori: 24 })
     const v = s.voci.find((x) => x.chiave === 'errore:0')

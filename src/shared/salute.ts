@@ -136,7 +136,7 @@ export function erroriDalLog(righe: string[], adesso: number, ore: number): Erro
  */
 export function titoloErrore(messaggio: string): string {
   const corto = messaggio
-    .replace(/\s*\([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(, [^)]*)?\)/gi, '')
+    .replace(/\s*\([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(, (?:[^()]|\([^)]*\))*)?\)/gi, '')
     .replace(/\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '$1…')
   return corto.length > 120 ? `${corto.slice(0, 120)}…` : corto
 }
