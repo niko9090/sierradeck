@@ -30,3 +30,22 @@ describe('1. le linguette delle chat nella Panoramica non si tagliano a metà pa
     expect(css).toContain(`.pan-linguetta { display: inline-flex; align-items: center; gap: 6px; max-width: ${LARGHEZZA_LINGUETTA}px;`)
   })
 })
+
+describe('2. i due «?» accanto a «Manda» dicono di cosa parlano', () => {
+  it('PC: il dialogo con l autopilota e la dettatura hanno ognuno il suo nome', () => {
+    expect(readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')).toContain('<Aiuto di="come parlare all’autopilota">')
+    expect(readFileSync('src/renderer/components/TastoMicrofono.tsx', 'utf8')).toContain('<Aiuto di="la dettatura con il microfono">')
+  })
+  it('pagina: aiuto() porta il nome nel aria-label; senza nome resta «Spiegazione»', async () => {
+    const { paginaClient } = await import('../../src/main/client-pagina')
+    const html = paginaClient()
+    const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
+    const i = script.indexOf('function aiuto(')
+    const corpo = script.slice(i, script.indexOf('\n}', i) + 2)
+    const aiuto = new Function('esc', 'aiutiAperti', `${corpo}; return aiuto`)((s: unknown) => String(s), {}) as (id: string, t: string, di?: string) => string
+    expect(aiuto('mic-x', 'spiega', 'la dettatura con il microfono')).toContain('aria-label="Spiegazione: la dettatura con il microfono"')
+    expect(aiuto('x', 'spiega')).toContain('aria-label="Spiegazione"')
+    expect(script).toContain("aiuto('mic-' + id, spiega, 'la dettatura con il microfono')")
+    expect(script).toContain('aria-label="Spiegazione: come parlare all’autopilota"')
+  })
+})

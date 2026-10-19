@@ -700,9 +700,10 @@ function filtraImpostazioni(q) {
 // aperto, la spiegazione sotto. Lo stato sta in aiutiAperti, non nel DOM: la
 // pagina si ridisegna di continuo, e un <details> si richiuderebbe da solo.
 var aiutiAperti = {}
-function aiuto(id, testoHtml) {
+// di (0.81.0): di che cosa parla, per il lettore dello schermo, come il «?» del PC.
+function aiuto(id, testoHtml, di) {
   const aperto = aiutiAperti[id] === true
-  return '<button class="aiuto' + (aperto ? ' aiuto--aperto' : '') + '" data-aiuto="' + esc(id) + '" aria-expanded="' + aperto + '" aria-label="Spiegazione" title="Cos’è?" onclick="commutaAiuto(this.dataset.aiuto)">?</button>' +
+  return '<button class="aiuto' + (aperto ? ' aiuto--aperto' : '') + '" data-aiuto="' + esc(id) + '" aria-expanded="' + aperto + '" aria-label="' + (di ? 'Spiegazione: ' + esc(di) : 'Spiegazione') + '" title="' + (di ? 'Cos’è «' + esc(di) + '»?' : 'Cos’è?') + '" onclick="commutaAiuto(this.dataset.aiuto)">?</button>' +
     (aperto ? '<div class="aiuto-testo" role="note">' + testoHtml + '</div>' : '')
 }
 window.commutaAiuto = (id) => { aiutiAperti[id] = aiutiAperti[id] !== true; pannello(ultimoStato) }
@@ -722,7 +723,7 @@ function micHtml(id) {
   if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega) + '</span>'
   var attivo = dettaturaAttiva && dettaturaAttiva.campo === id
   return '<button data-campo="' + esc(id) + '" onclick="detta(this.dataset.campo)" title="Detta con la voce" aria-label="Detta con il microfono">' + (attivo ? '■ ferma' : '🎤') + '</button>' +
-    aiuto('mic-' + id, spiega) + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
+    aiuto('mic-' + id, spiega, 'la dettatura con il microfono') + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
 }
 var dettaturaUltimoCampo = ''
 window.detta = function (id) {
@@ -2926,7 +2927,7 @@ function vistaAutopilota(a) {
       micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
-      '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+      '<span class="sotto info-ap" role="note" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
     (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'
