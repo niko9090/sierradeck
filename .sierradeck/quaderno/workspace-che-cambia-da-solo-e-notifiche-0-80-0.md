@@ -34,6 +34,42 @@ Segnalate da Nicholas il 19/10: «il workspace sullo schermo cambia da solo» e 
 ## Test
 `workspace-azioni.test.ts`, `consegna-visibile.test.ts`, `consegna-in-sottofondo.test.ts`, `avvisi-raggruppati.test.ts`, `client-pagina-spunte-e-schede.test.ts`, `avvisi-chiusi.test.ts`, `AvvisiViciniTest.kt`.
 
+## La prova con un autopilota vero (copia di prova, 19/10, 26 minuti)
+Copia `SIERRADECK_PROVA` sulle porte 47660/47661. Il servizio vero (47640/47630) non è stato toccato.
+- **Scena:**
+  - schermo su «Predefinito»;
+  - autopilota «Prova notifiche» nel workspace «Prova AP», con due compiti (somma.js, media.js), che ha chiesto l'ok per unire;
+  - pagina del telefono in Edge headless con `Notification` finta che conta;
+  - `/api/stato` registrato ogni 3 s.
+- **Workspace:**
+  - 15 consegne per «Prova AP», tutte in sottofondo;
+  - **0 cambi dello schermo** (`[workspace] lo schermo passa`: 0).
+  - Con la 0.79.0 la finestra andava in «Prova AP» alla prima consegna dopo 45 s senza tasti, e a ogni consegna se tornavi indietro.
+- **Notifiche della pagina.** Gli stessi 459 stati sono stati rigiocati nella logica di prima e di dopo:
+
+  | | 0.79.0 | 0.80.0 | 0.80.0 + `governata` (528ea3c) |
+  |---|---|---|---|
+  | pagina sempre aperta | 6 | 4 | **2** (le due domande vere) |
+  | pagina riaperta ogni 5 min | 8 | 5 | **1** |
+
+  Dal vero, la pagina ha mostrato 4 avvisi:
+  - 3 «Sviluppo · … aspetta te», che erano chat dell'autopilota (corretto poi);
+  - 1 domanda.
+
+  Tutti e quattro sono nel registro del PC (`[avviso] pagina`).
+- **PC:** 2 righe `[avviso] PC: domande … in vista da sole`, una per domanda vera.
+- **App:** non provata nella copia (serve un telefono). Usa lo stesso `governata` che arriva dal PC, quindi la correzione vale anche lì.
+- **Difetti trovati e corretti** (vedi `correzioni-velocita-e-codice-0-80-0.md`):
+  - chat in sottofondo senza `governata`;
+  - riga di stato come «ultima riga»;
+  - Revisione mai aperta con il freno.
+
+**Come rifarla:**
+1. Gli script `prepara.mjs` (cartella, porte, credenziali senza refreshToken, progetto git) e `pilota.mjs` (workspace, autopilota, Edge headless, stati) stavano nello scratchpad della sessione. La ricetta è anche in `prova-con-chat-vere-in-una-copia.md`.
+2. Alle chiamate CDP serve un tempo massimo: senza, una sola chiamata appesa ferma il pilota.
+3. Alla fine:
+   - fermare gli alberi `electron.exe` della cartella del ramo;
+   - svuotare `.credentials.json` e cancellare la cartella.
+
 ## Resta da fare
-- **La prova nella copia di prova con un autopilota al lavoro, con i numeri** (quante notifiche e quanti cambi di workspace in N minuti, prima e dopo). Si contano con `grep -c "\[avviso\]"` e `grep -c "\[workspace\] lo schermo passa"` nel registro della copia. Non è ancora fatta: mai sul servizio vero.
-- Altre strade automatiche che toccano la finestra senza cambiare workspace (ripristino del layout, rispecchiamento ogni 2 minuti): ora scrivono già nel registro quando cambiano lo schermo. Da guardare con i numeri della prova.
+- Altre strade automatiche che toccano la finestra senza cambiare workspace (ripristino del layout, rispecchiamento ogni 2 minuti) scrivono già nel registro quando cambiano lo schermo. Nella prova non ne è comparsa nessuna.

@@ -43,9 +43,27 @@ Revisione indipendente: **APPROVE**, senza problemi gravi. I due punti minori so
 - **Mai `git checkout -- .` in un comando composto**: butta le modifiche non salvate. Il controllo dei comandi l'ha fermato.
 - Una chat dell'autopilota **non può** chiamare `/api/workspace/elimina`: è un divieto di Nicholas, e il controllo lo blocca.
 
+## Fatte dopo, per la 0.81.0 (19/10 pomeriggio)
+
+| Voce | Cosa | Prima | Dopo | Test |
+|---|---|---|---|---|
+| 4 | `driveAttivo()` in memoria. `stato()`, con la cassaforte su questo PC, rilegge le chiavi del Drive al massimo ogni 10 min; un PC nuovo guarda ogni volta | ~480 download delle chiavi l'ora (360 dallo stato per il servizio + 120 per ogni finestra) | ~6 l'ora | `sincronia-drive-poche-letture.test.ts` |
+| 5 | «Spazio delle chat»: misura di ogni chat in memoria finché i suoi file non cambiano, `todos/` riletta solo se cambia, 16 chat alla volta (`inParallelo`) | 698 chat vere: 3,5-6,4 s | 0,73 s la prima volta, 0,31 s le altre (stesso risultato byte per byte) | `gestione-chat.test.ts` |
+| 6 (in parte) | `GET /autopiloti` con ETag e 304. Il client del main tiene l'ultimo elenco e unisce le richieste che arrivano insieme | elenco vero 673 KB rimandato e riletto a ogni giro (3,5 ms di parse nel main, più il trasferimento), da finestre ogni 5 s, pannello ogni 2 s, pagina e app | 304 senza corpo quando non cambia | `server.test.ts`, `autopilot-client.test.ts` |
+
+**Non fatto, da chiedere a Nicholas:** il tetto alle `decisioni` (circa le ultime 200). Diario e conversazione con l'autopilota le mostrano tutte, quindi il tetto toglierebbe storia visibile. L'autopilota vero con 782 mosse pesa 415 KB.
+
+## Trovati nella prova con un autopilota vero (copia, 19/10)
+- **La Revisione non partiva mai con il freno a «niente nuove».**
+  - Causa: con la settimana al 72% il tetto della flotta era «quante chat lavorano», cioè 0 a lavoro finito.
+  - Effetto: i rami restavano fermi fino all'azzeramento della settimana. Il supervisore chiedeva «Chiudi tu la Revisione», cosa vietata.
+  - Ora: con nessuna chat al lavoro si apre una Revisione alla volta (`tettoDellaFlotta` in `flotta.ts`); con il freno a «fermo» niente.
+  - **Probabilmente è lo stesso blocco dei PC veri**, dove la settimana è sopra il 60%.
+- **Chat in sottofondo di un autopilota senza `governata`.** Pagina e app le annunciavano «aspetta te» a ogni fine turno. Ora `sottofondo.chat()` le segna governate.
+- **«Ultima riga» = riga di stato di Claude Code** («Opus · contesto 5% · 5 ore 8%…»). Ora `ultimaRigaDalloSchermo` la salta.
+
 ## Restano dall'elenco (velocità e codice)
-- 4: download dal Drive ogni 10 s per `driveAttivoAdesso`.
-- 5: `/api/chat/gestione/spazio` 2 s a ogni chiamata; il pannello manda 537 KB.
-- 6: `decisioni` degli autopiloti senza tetto.
+- 5: il pannello del Drive manda 537 KB a ogni chiamata.
+- 6: il tetto alle `decisioni` (vedi sopra).
 - 7: `/api/domande` moltiplica le chiamate al servizio.
 - APK non ridotto (R8): va provato con un'installazione fatta da Nicholas.
