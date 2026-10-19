@@ -15,7 +15,7 @@ describe('la voce «Errori» delle Impostazioni (0.81.0)', () => {
   })
 
   it('sta in «Info e aiuto» sul PC, e il pannello la mostra quando la ricerca la trova', () => {
-    expect(VOCI.find((v) => v.id === 'errori')).toMatchObject({ sezione: 'info', dove: ['pc'] })
+    expect(VOCI.find((v) => v.id === 'errori')).toMatchObject({ sezione: 'info', dove: ['pc', 'app', 'pagina'] })
     const src = readFileSync('src/renderer/components/PannelloImpostazioni.tsx', 'utf8')
     expect(src).toContain("{vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}")
   })

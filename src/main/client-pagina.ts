@@ -759,6 +759,66 @@ window.detta = function (id) {
   try { r.start() } catch (err) { dettaturaAttiva = null; notaDettatura = 'Il microfono non è partito: ' + err.message }
   pannello(ultimoStato)
 }
+// Lo storico degli errori (0.81.0). Gli errori di questa pagina vanno al PC,
+// che li tiene nel suo storico con «pagina» come posto e toglie i segreti.
+// La voce «Errori» delle impostazioni mostra lo storico del PC, con «Copia» e
+// «Manda al PC di sviluppo» (il PC lo sceglie nelle sue Impostazioni).
+var erroriDaMandare = []
+function annotaErrore(testo) {
+  if (!testo || testo.indexOf('(401)') >= 0) return
+  var cosa = 'scheda ' + scheda + (dentro ? ', dentro una chat' : '')
+  if (erroriDaMandare.length < 20) erroriDaMandare.push({ testo: String(testo).slice(0, 2600), cosa: cosa })
+}
+setInterval(function () {
+  if (!chiave || erroriDaMandare.length === 0) return
+  var errori = erroriDaMandare.splice(0, 20)
+  chiedi('/api/errori/aggiungi', { dove: 'pagina', errori: errori }).catch(function () {
+    // Il PC non risponde: si riprova al prossimo giro, senza superare i venti.
+    erroriDaMandare = errori.concat(erroriDaMandare).slice(0, 20)
+  })
+}, 10000)
+var erroriPc = null
+var notaErrori = ''
+window.leggiErrori = async () => {
+  try { erroriPc = await chiedi('/api/errori', {}); notaErrori = '' }
+  catch (e) { notaErrori = 'Lo storico non si legge adesso: ' + (e && e.message ? e.message : 'riprova') }
+  pannello(ultimoStato)
+}
+window.copiaErrori = async () => {
+  if (!erroriPc) return
+  try { await navigator.clipboard.writeText(erroriPc.testo); notaErrori = 'Copiato: incollalo nella chat che deve correggerli.' }
+  catch (e) { notaErrori = 'Non riesco a copiare da qui.' }
+  pannello(ultimoStato)
+}
+window.mandaErrori = async () => {
+  notaErrori = 'Mando…'
+  pannello(ultimoStato)
+  try { var e = await chiedi('/api/errori/manda', {}); notaErrori = e.messaggio }
+  catch (err) { notaErrori = 'Non mandati: ' + (err && err.message ? err.message : 'il computer non ha risposto') }
+  pannello(ultimoStato)
+}
+function oraErrore(iso) {
+  var d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  var due = function (n) { return (n < 10 ? '0' : '') + n }
+  return due(d.getDate()) + '/' + due(d.getMonth() + 1) + ' ' + due(d.getHours()) + ':' + due(d.getMinutes())
+}
+function sezioneErroriPagina() {
+  var testa = '<div class="riga con-aiuto"><b>Errori</b>' + aiuto('errori', 'Gli errori del computer, del servizio degli autopiloti, di questa pagina e dell’app: quando, dove, cosa si stava facendo, il messaggio e il punto del codice. Gli stessi errori ripetuti sono una riga sola. Password, chiavi e gettoni sono tolti prima di salvare.', 'Errori') + '</div>'
+  if (!erroriPc) return testa + '<div class="riga"><button onclick="leggiErrori()">Vedi gli errori</button></div>' + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
+  var voci = erroriPc.voci || []
+  var volte = voci.reduce(function (s, v) { return s + (v.volte || 1) }, 0)
+  var conto = voci.length === 0 ? 'Nessun errore registrato' : voci.length + (voci.length === 1 ? ' errore, ' : ' errori diversi, ') + volte + (volte === 1 ? ' volta' : ' volte')
+  var elenco = voci.slice(0, 5).map(function (v) {
+    return '<div class="sotto">' + esc(oraErrore(v.ultima)) + (v.volte > 1 ? ' · ' + v.volte + ' volte' : '') + ' · ' + esc(v.messaggio) + '</div>'
+  }).join('')
+  var dove = erroriPc.pcSviluppo ? 'PC di sviluppo: ' + esc(erroriPc.pcSviluppo) : 'Il PC di sviluppo si sceglie sul computer, in Impostazioni → Errori.'
+  return testa + '<div class="sotto">' + esc(conto) + '</div>' + elenco +
+    '<div class="riga"><button onclick="leggiErrori()">Aggiorna</button><button onclick="copiaErrori()"' + (voci.length === 0 ? ' disabled' : '') + '>Copia</button>' +
+    '<button onclick="mandaErrori()"' + (voci.length === 0 || !erroriPc.pcSviluppo ? ' disabled' : '') + '>Manda al PC di sviluppo</button>' +
+    aiuto('errori-manda', 'Il computer manda lo storico al PC di sviluppo, firmato con la chiave di casa. Là arriva nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub.', 'Manda al PC di sviluppo') + '</div>' +
+    '<div class="sotto">' + dove + '</div>' + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
+}
 /** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
 window.copiaDettagli = async () => {
   const st = ultimoStato || {}
@@ -1379,6 +1439,8 @@ window.chiudiNota = () => { notaGlobale = ''; pannello(ultimoStato) }
 window.addEventListener('unhandledrejection', (ev) => {
   const e = ev && ev.reason
   const testo = e && e.message ? e.message : String(e || 'errore')
+  // Anche nello storico degli errori del PC (0.81.0); il 401 no.
+  annotaErrore(testo + (e && e.stack ? String.fromCharCode(10) + e.stack : ''))
   // Il 401 ha la sua strada (dopo cinque di fila si torna al codice): non e'
   // «Non sono riuscito». Il confronto era con '401' esatto, che non arriva mai.
   if (testo.indexOf('(401)') >= 0) return
@@ -2373,6 +2435,7 @@ function pannello(s) {
       \${intestaImp('info')}
       \${vociImp('info')}
       <div class="riga"><button onclick="copiaDettagli()">Copia i dettagli</button></div>
+      \${sezioneErroriPagina()}
     </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
@@ -6039,6 +6102,8 @@ async function aggiorna() {
 // Se qualcosa esplode prima ancora di disegnare - un errore di sintassi, una
 // funzione che non c'e' - almeno si vede perche', invece di uno schermo nero.
 window.addEventListener('error', (ev) => {
+  // Anche nello storico degli errori del PC (0.81.0).
+  annotaErrore((ev && ev.message ? ev.message : 'errore') + (ev && ev.error && ev.error.stack ? String.fromCharCode(10) + ev.error.stack : ''))
   if (!app.innerHTML.trim()) {
     app.innerHTML = '<div class="ingresso"><div style="font-size:19px">SierraDeck</div>' +
       '<div class="errore">' + esc(ev.message) + '</div></div>'
