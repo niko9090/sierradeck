@@ -151,6 +151,21 @@ describe('creazione ed elenco', () => {
     expect((await chiama('GET', '/autopiloti')).dati.map((a: any) => a.id)).toEqual([id])
   })
 
+  // 0.81.0: l'elenco si rilegge ogni 2-5 s da più parti; se non è cambiato, 304.
+  it('l’elenco ha un ETag: lo stesso elenco risponde 304, uno cambiato no', async () => {
+    await creaAp()
+    const primo = await fetch(`http://127.0.0.1:${porta}/autopiloti`)
+    const etag = primo.headers.get('etag')
+    expect(primo.status).toBe(200)
+    expect(etag).toBeTruthy()
+    const di = (): Promise<Response> => fetch(`http://127.0.0.1:${porta}/autopiloti`, { headers: { 'If-None-Match': etag as string } })
+    const secondo = await di()
+    expect(secondo.status).toBe(304)
+    expect(await secondo.text()).toBe('')
+    await creaAp({ obiettivo: 'un altro obiettivo' })
+    expect((await di()).status).toBe(200)
+  })
+
   it('rifiuta una creazione senza obiettivo', async () => {
     expect((await chiama('POST', '/autopiloti', {
       cwd: process.cwd(), criteri: [{ descrizione: 'x' }]
