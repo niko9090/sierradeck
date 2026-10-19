@@ -91,7 +91,9 @@ function guarda(rtc: Rtc): () => void {
   const t = setInterval(() => { void rtc.cercaOfferte() }, 15)
   return () => clearInterval(t)
 }
-async function finche(cond: () => boolean, ms = 2000): Promise<void> {
+// Torna appena la condizione è vera: un tetto largo non allunga i test, li salva
+// a macchina carica (0.80.0: il canale non era ancora «spento» dopo 2 s).
+async function finche(cond: () => boolean, ms = 10_000): Promise<void> {
   const fine = Date.now() + ms
   while (!cond() && Date.now() < fine) await new Promise((r) => setTimeout(r, 5))
 }
@@ -197,8 +199,10 @@ describe('il collegamento WebRTC fra due PC', () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
     const pLap = rete.crea()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: pLap, casa })
+    // Tempi larghi per aprire, come i primi due test.
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: pLap, casa, tempi: larghi })
     const smetti = guarda(lap.rtc)
     fisso.rtc.avvia('lap')
     await finche(() => fisso.rtc.stato('lap') === 'aperto')
@@ -213,15 +217,16 @@ describe('il collegamento WebRTC fra due PC', () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
     const pLap = rete.crea() as PonteFinto
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: pLap, casa })
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: pLap, casa, tempi: larghi })
     const smetti = guarda(lap.rtc)
     fisso.rtc.avvia('lap')
     await finche(() => fisso.rtc.stato('lap') === 'aperto')
     smetti()
     const id = [...pLap.capi.keys()][0] ?? ''
     pLap.emetti({ id, tipo: 'messaggio', testo: 'AAAA-non-cifrato' })
-    await new Promise((r) => setTimeout(r, 20))
+    await finche(() => lap.registro.some((m) => m.includes('non autentico')))
     expect(lap.registro.some((m) => m.includes('non autentico'))).toBe(true)
     expect(lap.chiamate).toEqual([])
   })
@@ -229,8 +234,10 @@ describe('il collegamento WebRTC fra due PC', () => {
   it('una richiesta senza risposta chiude il canale (la prossima ne apre uno nuovo o cambia strada)', async () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa, rotta: () => new Promise(() => undefined) })
+    // Larghi per aprire; `richiesta` resta corta: è lei che si prova.
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi, rotta: () => new Promise(() => undefined) })
     const smetti = guarda(lap.rtc)
     fisso.rtc.avvia('lap')
     await finche(() => fisso.rtc.stato('lap') === 'aperto')
