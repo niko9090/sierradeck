@@ -543,7 +543,7 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
               {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
             </div>
             {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
-            {vede('errori') ? <SezioneErrori /> : null}
+            {vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}
           </section>
         ) : null}
       </div>

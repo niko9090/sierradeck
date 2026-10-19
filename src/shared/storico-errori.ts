@@ -256,3 +256,54 @@ export function testoDaCopiare(storico: StoricoErrori, p: { da?: string; version
   })
   return [testa, '', ...voci].join('\n')
 }
+
+/** Quanto può pesare uno storico mandato a un altro PC: il server ne accetta 256 KB. */
+export const BYTE_INVIO = 180 * 1024
+
+/**
+ * Lo storico che parte verso il PC di sviluppo, dentro `maxByte`: prima si
+ * tolgono i dettagli delle voci più vecchie, poi le voci più vecchie. Quelle
+ * recenti arrivano sempre intere.
+ */
+export function storicoPerLInvio(storico: StoricoErrori, maxByte: number = BYTE_INVIO): StoricoErrori {
+  const peso = (s: StoricoErrori): number => new TextEncoder().encode(JSON.stringify(s)).length
+  let voci = [...storico.voci]
+  for (let i = voci.length - 1; i >= 0 && peso({ voci }) > maxByte; i -= 1) {
+    const v = voci[i] as VoceErrore
+    if (v.dettagli !== undefined) { const { dettagli: _via, ...senza } = v; voci[i] = senza }
+  }
+  while (voci.length > 1 && peso({ voci }) > maxByte) voci = voci.slice(0, -1)
+  return { voci }
+}
+
+/** Il nome della cartella di chi manda: lettere, cifre, spazi, `-`, `_`, `.`; mai vuoto, mai `..`. */
+export function cartellaMittente(nome: string): string {
+  const pulito = nome.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 _.-]+/g, '-').replace(/^[\s.-]+|[\s.-]+$/g, '').slice(0, 40)
+  return pulito === '' ? 'sconosciuto' : pulito
+}
+
+/** Il nome del file di un arrivo: l'ora (UTC) senza caratteri vietati su Windows. */
+export function nomeFileArrivo(quando: Date, n = 1): string {
+  const base = quando.toISOString().slice(0, 19).replace(/:/g, '-').replace('T', '_')
+  return n <= 1 ? `${base}.json` : `${base}-${n}.json`
+}
+
+/** Il corpo di `POST /api/errori/arrivati`: chi manda, la sua versione, le voci. */
+export type InvioErrori = { da: string; versione?: string; voci: VoceErrore[] }
+
+export function leggiInvioErrori(x: unknown): { ok: true; invio: InvioErrori } | { ok: false; errore: string } {
+  const o = typeof x === 'object' && x !== null ? x as Record<string, unknown> : undefined
+  if (o === undefined) return { ok: false, errore: 'Lo storico non è arrivato intero (troppo grande o rotto).' }
+  const da = typeof o.da === 'string' ? o.da.trim() : ''
+  if (da === '') return { ok: false, errore: 'Manca chi manda gli errori.' }
+  const storico = leggiStorico(o)
+  if (storico.voci.length === 0) return { ok: false, errore: 'Non c’è nessun errore da ricevere.' }
+  // Di nuovo senza segreti: chi manda può essere una versione che non li toglieva tutti.
+  const voci = storico.voci.slice(0, LIMITI_STORICO.voci).map((v) => ({
+    ...v,
+    messaggio: taglia(togliSegreti(v.messaggio), LIMITI_STORICO.messaggio),
+    ...(v.cosa !== undefined ? { cosa: taglia(togliSegreti(v.cosa), LIMITI_STORICO.cosa) } : {}),
+    ...(v.dettagli !== undefined ? { dettagli: taglia(togliSegreti(v.dettagli), LIMITI_STORICO.dettagli) } : {})
+  }))
+  return { ok: true, invio: { da, ...(typeof o.versione === 'string' ? { versione: o.versione.slice(0, 40) } : {}), voci } }
+}

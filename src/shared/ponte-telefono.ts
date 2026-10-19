@@ -47,7 +47,9 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',
   '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota',
   // Il pannello delle chat e dei progetti del Drive di quel PC (0.58.0).
-  '/api/drive/pannello', '/api/drive/azione'
+  '/api/drive/pannello', '/api/drive/azione',
+  // Lo storico degli errori del telefono, verso il PC di sviluppo (0.81.0).
+  '/api/errori/arrivati'
 ]
 
 export function rottaPonte(percorso: string): boolean {

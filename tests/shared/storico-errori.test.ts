@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   aggiungiErrore,
+  cartellaMittente,
+  leggiInvioErrori,
+  nomeFileArrivo,
+  storicoPerLInvio,
   chiaveErrore,
   leggiStorico,
   puntoDelCodice,
@@ -139,5 +143,34 @@ describe('testoDaCopiare', () => {
 
   it('senza errori lo dice', () => {
     expect(testoDaCopiare({ voci: [] })).toContain('Nessun errore registrato.')
+  })
+})
+
+describe('l’invio al PC di sviluppo', () => {
+  it('lo storico che parte sta nel tetto: via prima i dettagli vecchi, poi le voci vecchie', () => {
+    let s: StoricoErrori = { voci: [] }
+    for (let i = 0; i < 30; i += 1) s = aggiungiErrore(s, voceDaTesto({ testo: `errore ${i} ${'y'.repeat(i)}\n${'    at f (/x/src/a.ts:1:1)\n'.repeat(40)}`, dove: 'pc', quando: new Date(Date.UTC(2026, 9, 19, 15, i)).toISOString() }))
+    const piccolo = storicoPerLInvio(s, 4000)
+    expect(new TextEncoder().encode(JSON.stringify(piccolo)).length).toBeLessThanOrEqual(4000)
+    expect(piccolo.voci[0]?.messaggio).toBe(s.voci[0]?.messaggio)
+    expect(storicoPerLInvio(s).voci).toHaveLength(30)
+  })
+
+  it('il nome della cartella di chi manda non esce mai dalla cartella degli arrivi', () => {
+    expect(cartellaMittente('../../Windows')).toBe('Windows')
+    expect(cartellaMittente('Portàtile: di casa')).toBe('Portatile- di casa')
+    expect(cartellaMittente('...')).toBe('sconosciuto')
+  })
+
+  it('il nome del file è l’ora, senza i due punti vietati su Windows', () => {
+    expect(nomeFileArrivo(new Date('2026-10-19T15:04:05.000Z'))).toBe('2026-10-19_15-04-05.json')
+    expect(nomeFileArrivo(new Date('2026-10-19T15:04:05.000Z'), 3)).toBe('2026-10-19_15-04-05-3.json')
+  })
+
+  it('chi riceve controlla il corpo e toglie di nuovo i segreti', () => {
+    expect(leggiInvioErrori(undefined).ok).toBe(false)
+    expect(leggiInvioErrori({ voci: [] }).ok).toBe(false)
+    const l = leggiInvioErrori({ da: 'Portatile', voci: [{ quando: 'q', messaggio: 'password=abc123 fallita' }] })
+    expect(l.ok && l.invio.voci[0]?.messaggio).toBe('password=‹tolto› fallita')
   })
 })

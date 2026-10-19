@@ -207,7 +207,8 @@ import {
 import { apriRegistro, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
 import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
-import { testoDaCopiare } from '@shared/storico-errori'
+import { testoDaCopiare, type InvioErrori } from '@shared/storico-errori'
+import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -230,6 +231,8 @@ import { apriDettatura, statoDettatura } from './dettatura'
 let identitaPcGlobale: IdentitaPcStore | undefined
 /** Lo storico degli errori di questo processo (0.81.0): per la voce «Errori» delle Impostazioni. */
 let storicoErroriGlobale: StoricoSuFile | undefined
+/** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
+let riceviErroriGlobale: ((invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
   if (identitaPcGlobale === undefined) throw new Error('identità del PC non ancora pronta')
@@ -2379,6 +2382,36 @@ if (!app.requestSingleInstanceLock()) {
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
         }
       }
+
+      // ── Lo storico degli errori verso il PC di sviluppo (0.81.0) ──
+      // Chi riceve scrive in <cartella di SierraDeck>/.sierradeck/errori-arrivati/<mittente>/.
+      // La cartella si cerca fra i progetti di questo PC: quella con il package.json di SierraDeck.
+      const salvaQui = (invio: InvioErrori, chi: string): { ok: true; file: string } | { ok: false; stato: number; errore: string } => {
+        const me = identitaPc.leggi().id
+        const candidati = registroProgetti.leggi().progetti.map((p) => p.percorsi[me] ?? '').filter((c) => c !== '' && existsSync(c))
+        const radice = cartellaDiSierraDeck(candidati)
+        if (radice === undefined) {
+          registro.info(`[errori] ${invio.voci.length} errori da «${invio.da}» (${chi}) rifiutati: su questo PC non c’è la cartella di SierraDeck`)
+          return { ok: false, stato: 409, errore: 'Su questo PC non c’è la cartella di SierraDeck: scegli come PC di sviluppo quello dove c’è.' }
+        }
+        const e = salvaErroriArrivati(radice, invio)
+        registro.info(e.ok ? `[errori] arrivati ${invio.voci.length} errori da «${invio.da}» (${chi}): ${e.file}` : `[errori] errori da «${invio.da}» non salvati: ${e.errore}`)
+        return e.ok ? e : { ok: false, stato: 500, errore: e.errore }
+      }
+      riceviErroriGlobale = async (invio, chi) => salvaQui(invio, chi)
+      ipcMain.handle('errori:manda', async () => {
+        const io = identitaPc.leggi()
+        return await mandaErrori({
+          pcSviluppo: impostazioni.preferenze().pcSviluppo,
+          io: { id: io.id, nome: nomeDaMostrare(io) },
+          versione: app.getVersion(),
+          storico: leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
+          nomeDi: (pc) => { const b = postino.altrui().find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined },
+          chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+          salvaQui: (invio) => salvaQui(invio, 'questo PC'),
+          log: (riga) => registro.info(riga)
+        })
+      })
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
@@ -5077,6 +5110,7 @@ if (!app.requestSingleInstanceLock()) {
         // I file dal telefono (0.50.0): gli invii a metà aspettano qui, poi vanno nel progetto della chat.
         allegati: apriAllegati({ cartella: join(dati, 'allegati-in-arrivo') }),
         // La sezione File del telefono e della pagina (0.54.0): i progetti noti, in sola lettura.
+        erroriArrivati: (invio: InvioErrori, chi: string) => riceviErroriGlobale !== undefined ? riceviErroriGlobale(invio, chi) : Promise.resolve({ ok: false as const, stato: 409, errore: 'Questo PC non è ancora pronto a ricevere gli errori: riprova fra qualche secondo.' }),
         fileProgetti: apriFileProgetti({
           candidati: async (): Promise<string[]> => [
             ...await (rotte.cartelle as () => Promise<string[]>)().catch(() => [] as string[]),

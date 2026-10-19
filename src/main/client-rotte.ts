@@ -76,6 +76,7 @@ import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
 import { idTestoValido, type StatoSottofondo } from '@shared/sottofondo'
+import { leggiInvioErrori, type InvioErrori } from '@shared/storico-errori'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -297,6 +298,11 @@ export type DipendenzeRotte = {
    * firmata), mai da un telefono.
    */
   rimozione?: LatoResidente
+  /**
+   * Gli errori mandati da un altro PC o dal telefono (0.81.0): questo PC li
+   * scrive nella cartella di SierraDeck, se è il PC di sviluppo.
+   */
+  erroriArrivati?: (invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>
   /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
   gestioneChat?: Pick<GestioneChat, 'spazio' | 'azione' | 'archiviate' | 'eArchiviata' | 'recupero' | 'ripristinaDalRecupero' | 'chiediSvuota' | 'svuota'>
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
@@ -1039,6 +1045,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──
+    // Lo storico degli errori di un altro PC o del telefono (0.81.0).
+    if (r.metodo === 'POST' && r.percorso === '/api/errori/arrivati') {
+      if (depsPieni.erroriArrivati === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere gli errori: va aggiornato alla 0.81.0.' } }
+      const l = leggiInvioErrori(r.corpo)
+      if (!l.ok) return { stato: 400, corpo: { errore: l.errore } }
+      const e = await depsPieni.erroriArrivati(l.invio, visore)
+      return e.ok ? OK({ arrivati: l.invio.voci.length }) : { stato: e.stato, corpo: { errore: e.errore } }
+    }
+
     if (r.metodo === 'POST' && r.percorso.startsWith('/api/rimozione/')) {
       const lato = depsPieni.rimozione
       if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo PC non sa ancora confrontare un progetto da togliere: va aggiornato alla 0.58.0.' } }
