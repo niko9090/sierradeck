@@ -121,6 +121,12 @@ function messaggioDi(e: unknown): string {
 
 export type Sincronia = {
   stato: () => Promise<StatoSync>
+  /**
+   * Il Drive lavora adesso (connesso, sbloccato, automatico acceso)? Senza
+   * rete (0.81.0): lo stato per l'autopilota lo chiedeva a `stato()` ogni
+   * 10 s, cioè 360 download delle chiavi l'ora.
+   */
+  driveAttivo: () => boolean
   /** Gli slug delle cartelle con una chat toccata sul Drive di recente: vive su qualche PC. */
   slugRecenti: (daMs: number, adesso?: number) => Set<string>
   /**
@@ -288,6 +294,8 @@ export function apriSincronia(deps: {
   log?: (m: string) => void
   /** Il portachiavi del sistema: senza, la maestra vive solo in memoria. */
   portachiavi?: Portachiavi
+  /** L'orologio, per i test (millisecondi). */
+  ora?: () => number
   /** Come si chiama questo PC: da' il nome alle copie in conflitto. */
   pcNome?: () => string
   /**
@@ -643,7 +651,17 @@ export function apriSincronia(deps: {
     if (c === undefined) return undefined
     try { return JSON.parse(c.blocco.toString('utf8')) as Cassaforte } catch { return undefined }
   }
+  /**
+   * Le chiavi del Drive lette da `stato()` (0.81.0). Con una cassaforte su
+   * questo PC il confronto serve solo ad accorgersi di una passphrase cambiata
+   * altrove: basta rifarlo ogni 10 minuti, non a ogni richiamo (le finestre lo
+   * chiedono ogni 30 s ciascuna). Chi scrive le chiavi lo dimentica.
+   */
+  const REMOTA_FRESCA_MS = 10 * 60_000
+  const ora = deps.ora ?? Date.now
+  let remotaLetta: { il: number; valore: Cassaforte | undefined } | undefined
   const caricaChiavi = async (c: Cassaforte): Promise<void> => {
+    remotaLetta = undefined
     const mag = deps.magazzino(FILE_CHIAVI)
     // Le chiavi cambiano di rado (creazione, cambio passphrase): niente gara,
     // si allinea alla versione presente e si sovrascrive.
@@ -696,7 +714,10 @@ export function apriSincronia(deps: {
       let ha = locale !== undefined
       let diversa = false
       if (deps.driveConnesso()) {
-        const remota = await scaricaChiavi().catch(() => undefined)
+        // Senza cassaforte qui si guarda sempre il Drive: è un PC nuovo che aspetta quella dell'altro.
+        const fresca = locale !== undefined && remotaLetta !== undefined && ora() - remotaLetta.il < REMOTA_FRESCA_MS
+        const remota = fresca ? remotaLetta?.valore : await scaricaChiavi().catch(() => undefined)
+        if (!fresca && locale !== undefined) remotaLetta = { il: ora(), valore: remota }
         if (!ha) ha = remota !== undefined
         else if (remota !== undefined && locale !== undefined) {
           // L'identita' di una cassaforte e' la chiave-maestra, e l'unico
@@ -722,6 +743,10 @@ export function apriSincronia(deps: {
         ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {}),
         ...(s.ultimaFusione !== undefined ? { ultimaFusione: s.ultimaFusione } : {})
       }
+    },
+
+    driveAttivo() {
+      return deps.driveConnesso() && maestra !== undefined && (leggiStato().auto ?? false)
     },
 
     info() {

@@ -5012,10 +5012,10 @@ if (!app.requestSingleInstanceLock()) {
        * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
        * aperta, salvataggio automatico acceso. Non solleva mai.
        */
+      // 0.81.0: in memoria. Con `stato()` ogni giro (10 s) scaricava le chiavi dal Drive.
       const driveAttivoAdesso = async (): Promise<boolean> => {
         try {
-          const s = await sincronia.stato()
-          return s.driveConnesso && s.sbloccato && sincronia.auto()
+          return sincronia.driveAttivo()
         } catch {
           return false
         }
