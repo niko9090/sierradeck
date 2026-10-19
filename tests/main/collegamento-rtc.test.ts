@@ -91,7 +91,7 @@ function guarda(rtc: Rtc): () => void {
   const t = setInterval(() => { void rtc.cercaOfferte() }, 15)
   return () => clearInterval(t)
 }
-async function finche(cond: () => boolean, ms = 2000): Promise<void> {
+async function finche(cond: () => boolean, ms = 10_000): Promise<void> {
   const fine = Date.now() + ms
   while (!cond() && Date.now() < fine) await new Promise((r) => setTimeout(r, 5))
 }

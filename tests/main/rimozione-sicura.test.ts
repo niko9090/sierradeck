@@ -4,6 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creaLatoResidente, creaRimozione } from '../../src/main/rimozione-sicura'
 import { classifica, destinazioneRecupero, riassunto, scadute } from '../../src/shared/rimozione-sicura'
+// In cima e non dentro il test (0.80.0): caricato là, trasformare client-rotte a
+// cache fredda superava da solo i 20 s del test, anche lanciando questo file da solo.
+import { rotteClient } from '../../src/main/client-rotte'
 
 // 0.58.0, tappa 3: togliere un progetto da un PC non residente senza perdere
 // niente. Solo cartelle temporanee e dati d'esempio, mai progetti veri.
@@ -177,7 +180,6 @@ describe('il giro intero, su cartelle temporanee', () => {
 
 describe('le rotte del residente: solo fra PC della stessa cassaforte', () => {
   it('un altro PC firmato sì; un telefono, il ponte e questo schermo no', async () => {
-    const { rotteClient } = await import('../../src/main/client-rotte')
     const s = scena()
     const rotte = rotteClient({ rimozione: s.residente, chat: () => [] } as unknown as Parameters<typeof rotteClient>[0])
     const chiama = (dispositivo: string) => rotte({ metodo: 'POST', percorso: '/api/rimozione/stato', corpo: { progetto: 'prog-1', cartella: '.sierradeck/recuperati/X', relativo: 'a.txt' }, dispositivo })
