@@ -59,7 +59,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaPulita, cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, statoRamo, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
+  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
 } from './worktree'
 
 export type Dipendenze = {
@@ -2446,23 +2446,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       } else if (m.tipo === 'chiudiChat') {
         const c = aggiornato.chats.find((x) => x.id === m.chat)
         if (c === undefined || c.stato === 'finita') continue
-        // Il ramo già nel principale, o tolto (0.80.0): la chat si chiude e basta.
-        // Prima andava in Revisione o tentava un'unione impossibile, e restava aperta.
-        if (deps.git !== undefined && c.ramo !== undefined && aggiornato.ramoBase !== undefined) {
-          if (c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
-          const s = statoRamo(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
-          // Con lavoro rimasto fuori dai commit (non salvato) si va per la strada di prima:
-          // togliere il worktree lo perderebbe.
-          if (s !== 'da-unire' && (c.cartella === undefined || cartellaPulita(deps.git, c.cartella))) {
-            if (s === 'unito' && c.cartella !== undefined) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
-            aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, approvata: true } : x))
-            annota(aggiornato, `chiudo la chat ${c.id}: il suo ramo ${c.ramo} ${s === 'unito' ? `è già in ${aggiornato.ramoBase}` : 'non esiste più'}`, { chat: c.id, esito: 'finito' })
-            if (c.id === chatId) chiusaQuesta = true
-            else deps.fermaLavoro(id, c.id)
-            apriDopo = apriDopo || aggiornato.compitiDaFare.length > 0
-            continue
-          }
-        }
         // Con la Revisione (0.71.0): il ramo non si unisce qui, va rivisto.
         if (c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione && c.approvata !== true && c.ramo !== undefined) {
           if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
@@ -2483,7 +2466,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
           const u = unisciRamo(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           unita = u.ok
-          if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+          // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
+          // lascia com'è (nessun --force su file che nessun ramo conserva).
+          if (u.ok && u.ramoMancante === true) annota(aggiornato, `${c.id}: il ramo ${c.ramo} non c'è più, il suo lavoro era già unito`)
+          else if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue

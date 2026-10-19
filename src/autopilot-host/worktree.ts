@@ -122,8 +122,17 @@ export function salvaLavoro(git: Git, cartella: string, messaggio: string): bool
 }
 
 export type EsitoUnione =
-  | { ok: true; unito: boolean }
+  | { ok: true; unito: boolean; ramoMancante?: true }
   | { ok: false; conflitto: boolean; file: string[]; motivo: string }
+
+/**
+ * Le righe di git che non sono nomi di file (0.80.0). L'uscita unisce stdout e
+ * stderr: il 18/10 «warning: … LF will be replaced by CRLF» era finito
+ * nell'elenco dei «file in conflitto» di c-4 e c-7.
+ */
+function soloFile(uscita: string): string[] {
+  return uscita.split(/\r?\n/).filter((x) => x.trim() !== '' && !/^(warning|hint|error|fatal):/i.test(x))
+}
 
 /**
  * Unisce il ramo di una chat nel ramo principale, nella cartella di lavoro.
@@ -135,17 +144,19 @@ export type EsitoUnione =
 export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: string }): EsitoUnione {
   const radice = radiceGit(git, p.cwd)
   if (radice === undefined) return { ok: false, conflitto: false, file: [], motivo: 'non è un repository git' }
+  // Niente da unire se il ramo non c'è più o è già contenuto nel principale
+  // (0.80.0): prima si guardava solo dopo il controllo della cartella, e un ramo
+  // già unito e tolto dava «not something we can merge». c-4 e c-7 della 0.79.0
+  // non si chiudevano più, a nessun giro.
+  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice).codice !== 0) return { ok: true, unito: false, ramoMancante: true }
+  if (git(['merge-base', '--is-ancestor', p.ramo, p.base], radice).codice === 0) return { ok: true, unito: false }
   const qui = ramoCorrente(git, radice)
   if (qui !== p.base) {
     return { ok: false, conflitto: false, file: [], motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»: non unisco` }
   }
-  // Niente da unire se il ramo e' gia' contenuto, o se non c'e' piu' (0.80.0):
-  // `git merge` di un ramo tolto falliva e la chat restava aperta per sempre.
-  if (!ramoEsiste(git, radice, p.ramo)) return { ok: true, unito: false }
-  if (git(['merge-base', '--is-ancestor', p.ramo, 'HEAD'], radice).codice === 0) return { ok: true, unito: false }
   const r = git([...firma(git, radice), 'merge', '--no-ff', '--no-edit', p.ramo], radice)
   if (r.codice === 0) return { ok: true, unito: true }
-  const inConflitto = git(['diff', '--name-only', '--diff-filter=U'], radice).uscita.split(/\r?\n/).filter((x) => x !== '')
+  const inConflitto = soloFile(git(['diff', '--name-only', '--diff-filter=U'], radice).uscita)
   git(['merge', '--abort'], radice)
   return {
     ok: false,
@@ -155,36 +166,6 @@ export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: strin
       ? `conflitto su ${inConflitto.join(', ')}`
       : `unione non riuscita: ${r.uscita.slice(0, 300)}`
   }
-}
-
-function ramoEsiste(git: Git, radice: string, ramo: string): boolean {
-  return git(['show-ref', '--verify', '--quiet', `refs/heads/${ramo}`], radice).codice === 0
-}
-
-/**
- * Il ramo di una chat rispetto al principale (0.80.0): `mancante` (tolto dopo
- * un'unione, o mai nato), `unito` (nessun commit che il principale non abbia
- * gia') o `da-unire`. Nel dubbio `da-unire`: si comporta come prima.
- *
- * Serve a `chiudiChat`: una chat il cui lavoro e' gia' nel principale si
- * chiude e basta, senza Revisione e senza un'unione che non puo' riuscire.
- */
-export function statoRamo(git: Git, p: { cwd: string; ramo: string; base: string }): 'mancante' | 'unito' | 'da-unire' {
-  const radice = radiceGit(git, p.cwd)
-  if (radice === undefined) return 'da-unire'
-  if (!ramoEsiste(git, radice, p.ramo)) return 'mancante'
-  const r = git(['rev-list', '--count', `${p.base}..${p.ramo}`], radice)
-  return r.codice === 0 && r.uscita.trim() === '0' ? 'unito' : 'da-unire'
-}
-
-/**
- * Niente lavoro fuori dai commit nella cartella di una chat (0.80.0): una
- * cartella che non c'e' piu' e' pulita; una che git non sa leggere no.
- */
-export function cartellaPulita(git: Git, cartella: string): boolean {
-  if (!existsSync(cartella)) return true
-  const r = git(['status', '--porcelain'], cartella)
-  return r.codice === 0 && r.uscita.trim() === ''
 }
 
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */
