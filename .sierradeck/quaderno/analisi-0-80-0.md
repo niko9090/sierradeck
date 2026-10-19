@@ -554,7 +554,7 @@ In alternativa, il comando di oggi lanciato solo a macchina quieta: nessun altro
   - le parti di (a) che restano;
   - voci 9 e 10 (stato sbagliato a vista);
   - voci 3, 4 e 5 (il PC che lavora a vuoto ogni 2-10 s).
-- **Foto «prima» della grafica:** non sono in questo commit. Vanno fatte dalla copia di prova con lo stesso script, aggiungendo `Page.captureScreenshot` dopo ogni apertura.
+- **Foto «prima» della grafica:** fatte da c-12 il 19/10. Sono in `foto-0-80-0/prima/` (fuori da git, mostrano percorsi della macchina). Le differenze fra PC, pagina e app, schermata per schermata, sono in `grafica-prima-0-80-0.md`, che va unita a questo elenco.
 - **Dopo le correzioni** rifare le stesse misure con `misura-080.mjs` e mettere i numeri «dopo» accanto a questi.
 
 ## Appendice: lo script delle misure (`misura-080.mjs`)

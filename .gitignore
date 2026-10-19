@@ -22,3 +22,6 @@ google-oauth.json
 
 # cache del compilatore Kotlin
 android/.kotlin/
+
+# Le foto delle prove mostrano percorsi della macchina: restano sul PC.
+.sierradeck/quaderno/foto-*/
