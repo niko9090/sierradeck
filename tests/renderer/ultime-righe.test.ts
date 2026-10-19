@@ -64,6 +64,17 @@ describe('ultimaRigaDalloSchermo', () => {
     expect(ultimaRigaDalloSchermo(undefined)).toBe('')
     expect(ultimaRigaDalloSchermo(['╭───╮', '│ > │', '╰───╯', '? for shortcuts'])).toBe('')
   })
+
+  // 0.81.0, dalla prova nella copia: l'avviso «aspetta te» mostrava la riga di stato.
+  it('salta la riga di stato di Claude Code (modello, contesto, limiti)', () => {
+    expect(ultimaRigaDalloSchermo([
+      '● Capito, chiudo qui.',
+      '✻ Sautéed for 1m 11s · done 16:11',
+      'Opus 5.5 · contesto 5% · 5 ore 8% (azzera 20:00) · settimana 72% · 0.43 $',
+      '⏵⏵ bypass permissions on (shift+tab to cycle)'
+    ])).toBe('✻ Sautéed for 1m 11s · done 16:11')
+    expect(ultimaRigaDalloSchermo(['Fatto.', 'Sonnet · context 12% · week 3%'])).toBe('Fatto.')
+  })
 })
 
 describe('ultimaRigaUtile', () => {
