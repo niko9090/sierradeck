@@ -1,8 +1,9 @@
-import { readdir, readFile, writeFile, mkdir, stat, unlink, utimes, rename } from 'node:fs/promises'
+import { readdir, readFile, writeFile, mkdir, unlink, utimes, rename } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
+import { statInParallelo } from '../stat-in-parallelo'
 
 /**
  * Cosa entra nel pacchetto, e da dove: la raccolta dei file veri e il loro
@@ -222,16 +223,17 @@ export async function firmaRadici(
 ): Promise<Map<string, { size: number; mtime: number; disco: string }>> {
   const firma = new Map<string, { size: number; mtime: number; disco: string }>()
   for (const r of radici) {
-    for (const rel of await fileDi(r)) {
-      const disco = join(r.cartella, ...rel.split('/'))
-      try {
-        const s = await stat(disco)
-        // Al millisecondo: e' la precisione con cui `utimes` lo rimette.
-        firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: Math.round(s.mtimeMs), disco })
-      } catch {
-        // file sparito fra l'elenco e lo stat: lo si ignora
-      }
-    }
+    const rels = await fileDi(r)
+    const dischi = rels.map((rel) => join(r.cartella, ...rel.split('/')))
+    // Sedici alla volta (0.80.0), nello stesso ordine di prima.
+    const stati = await statInParallelo(dischi)
+    rels.forEach((rel, i) => {
+      const s = stati[i]
+      // Un file sparito fra l'elenco e lo stat si ignora.
+      if (s === undefined) return
+      // Al millisecondo: e' la precisione con cui `utimes` lo rimette.
+      firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: Math.round(s.mtimeMs), disco: dischi[i] as string })
+    })
   }
   return firma
 }
@@ -240,14 +242,12 @@ export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte
   let file = 0
   let byte = 0
   for (const r of radici) {
-    for (const rel of await fileDi(r)) {
-      try {
-        const s = await stat(join(r.cartella, ...rel.split('/')))
-        file += 1
-        byte += s.size
-      } catch {
-        // un file sparito fra l'elenco e lo stat: semplicemente non lo si conta
-      }
+    const stati = await statInParallelo((await fileDi(r)).map((rel) => join(r.cartella, ...rel.split('/'))))
+    // Un file sparito fra l'elenco e lo stat semplicemente non si conta.
+    for (const s of stati) {
+      if (s === undefined) continue
+      file += 1
+      byte += s.size
     }
   }
   return { file, byte }

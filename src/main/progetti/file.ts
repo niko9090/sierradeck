@@ -1,6 +1,7 @@
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { compilaRegole, giudizio, type Regola } from '@shared/gitignore'
+import { statInParallelo } from '../stat-in-parallelo'
 
 /**
  * Quali file di un progetto vanno sul Drive.
@@ -79,22 +80,25 @@ export async function elencaFileProgetto(
         // illeggibile: si va avanti con le regole dei livelli sopra
       }
     }
+    const relDi = (nome: string): string => (rel === '' ? nome : `${rel}/${nome}`)
+    // I file di questa cartella si misurano insieme, sedici alla volta (0.80.0):
+    // uno alla volta il salvataggio passava minuti sui progetti grandi.
+    const daMisurare = voci.filter((v) => !v.isSymbolicLink() && v.isFile() && !ESCLUSI_SEMPRE.has(v.name) && !ignorato(qui, relDi(v.name), false))
+    const misure = await statInParallelo(daMisurare.map((v) => join(dir, v.name)))
+    const dimensione = new Map(daMisurare.map((v, i) => [v.name, misure[i]?.size]))
     for (const v of voci) {
       if (v.isSymbolicLink()) continue
-      const relVoce = rel === '' ? v.name : `${rel}/${v.name}`
+      const relVoce = relDi(v.name)
       if (v.isDirectory()) {
         if (ESCLUSI_SEMPRE.has(v.name) || cartellaEsclusa(relVoce)) continue
         if (ignorato(qui, relVoce, true)) continue
         await scendi(join(dir, v.name), relVoce, qui)
       } else if (v.isFile()) {
-        if (ESCLUSI_SEMPRE.has(v.name)) continue
-        if (ignorato(qui, relVoce, false)) continue
-        try {
-          const s = await stat(join(dir, v.name))
-          if (s.size > tettoByte) { troppoGrandi.push(relVoce); continue }
-        } catch {
-          continue
-        }
+        if (!dimensione.has(v.name)) continue
+        const size = dimensione.get(v.name)
+        // Sparito o illeggibile fra l'elenco e lo stat.
+        if (size === undefined) continue
+        if (size > tettoByte) { troppoGrandi.push(relVoce); continue }
         file.push(relVoce)
       }
     }
