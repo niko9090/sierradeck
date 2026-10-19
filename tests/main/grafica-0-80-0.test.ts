@@ -72,7 +72,7 @@ describe('3. un autopilota fermo non ha chat «al lavoro»', () => {
     const fermo = ap({ stato: 'sospeso', chats })
     expect(vistaAutopilota(fermo, ORA).chat).toMatchObject({ totali: 2, alLavoro: 0, testo: '2' })
     expect(alberoChat(fermo).figli[1]).toMatchObject({ stato: 'ferma', parola: 'ferma: l’autopilota è fermo' })
-    expect(chatAlLavoro(fermo, chats[1])).toBe(false)
+    expect(chatAlLavoro(fermo, { stato: 'lavoro' })).toBe(false)
     const inMoto = ap({ stato: 'lavoro', chats })
     expect(vistaAutopilota(inMoto, ORA).chat.testo).toBe('2 · 1 al lavoro')
     expect(alberoChat(inMoto).figli[1]).toMatchObject({ stato: 'lavoro', parola: 'al lavoro' })
