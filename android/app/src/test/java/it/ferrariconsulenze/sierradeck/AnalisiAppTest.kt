@@ -46,7 +46,7 @@ class AnalisiAppTest {
     }
 
     @Test
-    fun `il riassunto dice prima chi aspetta te, e solo quello che c e`() {
+    fun `il riassunto dice prima chi aspetta una scelta, poi chi lavora e chi e ferma`() {
         val r = riassuntoChat(listOf(chat("a", aspetta = true), chat("b"), chat("c"), chat("d", chiede = true)))
         // 0.80.0: chi ha finito il turno è «ferma», come sul PC e sulla pagina.
         assertEquals("1 aspetta che tu scelga · 2 al lavoro · 1 ferma", r)

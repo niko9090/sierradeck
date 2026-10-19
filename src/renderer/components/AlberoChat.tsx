@@ -11,7 +11,9 @@ const LED: Record<string, string> = {
   lavoro: 'led--lavoro',
   bloccata: 'led--attesa',
   pausa: 'led--finito',
-  finita: 'led--finito'
+  finita: 'led--finito',
+  // 0.80.0: segnata «lavoro» con l'autopilota fermo (vedi `chatAlLavoro`): grigia, non verde.
+  ferma: 'led--finito'
 }
 
 /** Il colore del ruolo: i quattro della tavolozza, più il viola dell'Interfaccia. */

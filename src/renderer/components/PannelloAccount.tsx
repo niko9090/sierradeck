@@ -347,7 +347,7 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
       ) : null}
       {parte === 'account' ? ((): React.JSX.Element => {
         // 0.70.0: la catena Account → Drive → Cassaforte → Salvataggio, ognuna con la sua parola;
-        // sotto un solo prossimo passo; le azioni rare in Strumenti ▾.
+        // sotto un solo prossimo passo; le azioni rare nel menu «Account ▾».
         const v = vistaAccount({ ...(utente !== undefined ? { utente } : {}), drive, sync, ora: Date.now() })
         const passo = v.prossimo
         const fai = (): void => {
@@ -358,11 +358,12 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
           <div className="account__catena-tutta">
             <div className="account__catena-testa">
               <span className="account__scheda-tit con-aiuto">Account e Drive<Aiuto di="Account e Drive">
-                Quattro anelli, da sinistra: sei <b>entrato</b>, il <b>Drive</b> di Google è collegato, la <b>cassaforte</b> (la passphrase che cifra i tuoi dati sul Drive) è aperta, l’ultimo <b>salvataggio</b> è recente. Il primo anello non a posto dice il prossimo passo. Salva ora, Ripristina, il salvataggio automatico e «Fondi con il Drive» stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>. Scollega, Cambia passphrase, Blocca ed Esci sono in Strumenti ▾.
+                Quattro anelli, da sinistra: sei <b>entrato</b>, il <b>Drive</b> di Google è collegato, la <b>cassaforte</b> (la passphrase che cifra i tuoi dati sul Drive) è aperta, l’ultimo <b>salvataggio</b> è recente. Il primo anello non a posto dice il prossimo passo. Salva ora, Ripristina, il salvataggio automatico e «Fondi con il Drive» stanno in <b>Progetti → «Salvataggio e arrivo»</b>; gli altri computer in <b>Salute</b>. Scollega, Cambia passphrase, Blocca ed Esci sono nel menu «Account ▾».
               </Aiuto></span>
               <span style={{ flex: 1 }} />
               <span style={{ position: 'relative' }}>
-                <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Strumenti ▾</button>
+                {/* 0.81.0: «Account ▾», non un secondo «Strumenti ▾» sotto quello delle Impostazioni. */}
+                <button className="tasto tasto--mini" aria-expanded={menu} onClick={() => setMenu(!menu)}>Account ▾</button>
                 {menu ? (
                   <TendinaMenu onChiudi={() => setMenu(false)}>
                     <button className="progetti__voce" disabled={!pronto} onClick={() => { setMenu(false); setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase…</button>

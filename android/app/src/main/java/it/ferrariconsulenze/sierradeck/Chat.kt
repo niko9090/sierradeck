@@ -241,8 +241,8 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         Fascia {
             Column(Modifier.weight(1f)) {
                 Serigrafia("Chat")
-                // Da lontano: quante lavorano e quante aspettano te, senza
-                // scorrere l'elenco.
+                // Da lontano: chi aspetta una tua scelta, chi lavora e chi è
+                // ferma, senza scorrere l'elenco (0.80.0: «ferma» come sul PC).
                 Text(
                     riassuntoChat(chat),
                     color = if (chatCheTiAspettano(chat) > 0) Banco.ambra else Banco.testoQuieto,
