@@ -21,3 +21,6 @@ Su questo PC ci sono due workspace nati per sbaglio. Si tolgono con **«Elimina 
   - **Da decidere con Nicholas** prima di eliminarlo: quell'autopilota va rifatto nel workspace NexoraOS, oppure si può togliere insieme al workspace?
 - **Il visitafacile vero su DESKTOP non va toccato.**
 - Le due cause sono i punti 2 e 3 del compito «Difetti di chat e workspace».
+
+## Test rossi su main il 19/10
+- `rimozione-sicura.test.ts` («un altro PC firmato sì…») cadeva per tempo scaduto anche da solo: caricava `client-rotte` dentro il test, e trasformarlo a cache fredda costa più dei 20 s concessi. Ora lo carica in cima al file. Nessun difetto nel programma.
