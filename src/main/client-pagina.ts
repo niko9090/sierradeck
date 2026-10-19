@@ -5626,7 +5626,8 @@ function avvisaSeServe(stato) {
       const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
       if (avvisati[chiaveF]) continue
       avvisati[chiaveF] = true
-      if (!nuovo || a.archiviato === true) continue
+      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
+      if (!nuovo || a.archiviato === true || (a.stato !== 'finito' && a.riparteDaSolo === true)) continue
       if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
       else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id })
     }

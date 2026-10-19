@@ -972,6 +972,17 @@ export function eFermo(a: Pick<Autopilota, 'stato'>): boolean {
 }
 
 /**
+ * Un fermo che riparte da solo (0.81.0): la pausa per i limiti del piano
+ * (`pausaLimitiFinoA`) o per un aggiornamento. Non aspetta Nicholas, quindi
+ * non vale una notifica (Telegram, pagina, app); si vede lo stesso nella
+ * banda e negli elenchi. Le notifiche restano per ciò che aspetta lui: una
+ * domanda, un lavoro finito, un errore che blocca.
+ */
+export function riparteDaSolo(a: Pick<Autopilota, 'pausaLimitiFinoA' | 'fermatoPerAggiornamento'>): boolean {
+  return a.pausaLimitiFinoA !== undefined || a.fermatoPerAggiornamento === true
+}
+
+/**
  * La chiave di **questo** fermo (0.37.0): id, momento del fermo, motivo.
  *
  * Lo stesso fermo ha sempre la stessa chiave, anche dopo un riavvio del PC o

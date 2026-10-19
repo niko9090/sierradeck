@@ -4,7 +4,10 @@ import type { Autopilota } from '@shared/autopilota'
 
 export type ConfigurazioneTelegram = { token: string; chat: string }
 
-export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'ripreso' | 'sospeso' | 'pronto'
+export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'sospeso' | 'pronto'
+
+/** Avvisi più vicini di così partono insieme in un messaggio solo (0.81.0), come sulla pagina e nell'app. */
+export const AVVISI_VICINI_MS = 20_000
 
 /** Telegram taglia a 4096 caratteri: si sta sotto, con margine. */
 const MESSAGGIO_MAX = 4000
@@ -96,9 +99,6 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
         ...a.criteri.slice(0, 8).map((c) => `• ${esc(tronca(c.descrizione, 120))}`)
       )
       break
-    case 'ripreso':
-      righe.push(`${testa} — ripreso dopo un riavvio ▶️`, obiettivo, `Interventi finora: ${a.cicli}`)
-      break
     default:
       righe.push(
         `${testa} — ho bisogno di te ❓`,
@@ -149,25 +149,68 @@ export function invioReale(url: string, corpo: unknown): Promise<boolean> {
   })
 }
 
+/**
+ * Il primo avviso parte subito; quelli che arrivano entro `AVVISI_VICINI_MS`
+ * dall'ultimo invio aspettano la fine della finestra e partono insieme, in un
+ * messaggio solo (0.81.0: «mille notifiche quando un autopilota lavora»).
+ * Ogni avviso, mandato da solo o insieme, ha la sua riga `[notifica]`.
+ */
 export function creaAvvisatore(deps: {
   configurazione: ConfigurazioneTelegram | undefined
   manda: (url: string, corpo: unknown) => Promise<boolean>
+  /** Per le prove: l'orologio e il timer. */
+  adesso?: () => number
+  dopo?: (ms: number, f: () => void) => void
 }): (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void> {
-  return async (tipo, a, domanda) => {
+  const adesso = deps.adesso ?? Date.now
+  const dopo = deps.dopo ?? ((ms: number, f: () => void) => { setTimeout(f, ms).unref?.() })
+  let ultimoInvio = Number.NEGATIVE_INFINITY
+  let inAttesa: { testo: string; riga: string }[] = []
+  let attesaArmata = false
+
+  const invia = async (testo: string, righe: string[]): Promise<void> => {
     const c = deps.configurazione
     if (c === undefined) return
+    ultimoInvio = adesso()
     try {
       const inviato = await deps.manda(`https://api.telegram.org/bot${c.token}/sendMessage`, {
         chat_id: c.chat,
-        text: componiAvviso(tipo, a, domanda),
+        text: testo,
         parse_mode: 'HTML'
       })
-      if (!inviato) console.error(`[autopilota] avviso Telegram non recapitato (${tipo}, ${a.id})`)
-      else console.log(`[notifica] Telegram: ${tipo} di «${a.nome}» (${a.id})`)
+      if (!inviato) console.error(`[autopilota] avviso Telegram non recapitato (${righe.join('; ')})`)
+      else for (const r of righe) console.log(`[notifica] Telegram: ${r}${righe.length > 1 ? ` (insieme ad altri ${righe.length - 1})` : ''}`)
     } catch (err) {
       // Il lavoro non dipende da Telegram: un guasto di rete costa un avviso,
       // non il lavoro in corso.
       console.error('[autopilota] invio Telegram fallito:', err)
+    }
+  }
+
+  const svuota = (): void => {
+    attesaArmata = false
+    const pronti = inAttesa
+    inAttesa = []
+    if (pronti.length === 0) return
+    const testo = pronti.length === 1
+      ? pronti[0]!.testo
+      : tronca([`<b>${pronti.length} avvisi da SierraDeck</b>`, ...pronti.map((p) => p.testo)].join('\n\n— — —\n\n'), MESSAGGIO_MAX)
+    void invia(testo, pronti.map((p) => p.riga))
+  }
+
+  return async (tipo, a, domanda) => {
+    if (deps.configurazione === undefined) return
+    const testo = componiAvviso(tipo, a, domanda)
+    const riga = `${tipo} di «${a.nome}» (${a.id})`
+    const ora = adesso()
+    if (!attesaArmata && ora - ultimoInvio >= AVVISI_VICINI_MS) {
+      await invia(testo, [riga])
+      return
+    }
+    inAttesa.push({ testo, riga })
+    if (!attesaArmata) {
+      attesaArmata = true
+      dopo(Math.max(0, ultimoInvio + AVVISI_VICINI_MS - ora), svuota)
     }
   }
 }

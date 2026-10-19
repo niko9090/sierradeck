@@ -49,7 +49,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo, riparteDaSolo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -524,6 +524,12 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
+  // Un fermo avvisa solo se aspetta Nicholas (0.81.0): la pausa per i limiti del
+  // piano o per un aggiornamento riparte da sola, e resta solo nel registro.
+  const avvisaFermo = (a: Autopilota): void => {
+    if (riparteDaSolo(a)) { console.info(`[notifica] nessun avviso per ${a.id}: si è fermato ma riparte da solo (${a.motivoSospensione ?? 'pausa'})`); return }
+    void deps.avvisa('sospeso', a)
+  }
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     deps.archivio.scrivi(conMomentoDelFermo({ ...a, ultimoEvento: ora }, ora))
@@ -957,7 +963,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         motivoSospensione: `la preparazione si e guastata: ${motivo}`.slice(0, MOTIVO_MAX)
       }
       salva(sospeso)
-      void deps.avvisa('sospeso', sospeso)
+      avvisaFermo(sospeso)
     }
   }
 
@@ -1125,7 +1131,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
       salva(sospeso)
       console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
-      void deps.avvisa('sospeso', sospeso)
+      avvisaFermo(sospeso)
     }
   }
 
@@ -1220,7 +1226,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           console.error(`[autopilota] ripresa di ${a.id} fallita:`, err)
         })
       }
-      void deps.avvisa('ripreso', a)
+      // «Ripreso dopo un riavvio» non chiede niente a Nicholas (0.81.0): solo nel registro.
+      console.info(`[notifica] nessun avviso per ${a.id}: ripreso dopo un riavvio, non aspetta te`)
     }
     return daRiavviare.length
   }
@@ -1306,7 +1313,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           stato: 'sospeso',
           motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile'
         })
-        void deps.avvisa('sospeso', corrente)
+        avvisaFermo(corrente)
         return
       }
 
@@ -1339,7 +1346,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           stato: 'sospeso',
           motivoSospensione: 'la preparazione continuava a rifare la stessa domanda'
         })
-        void deps.avvisa('sospeso', corrente)
+        avvisaFermo(corrente)
         return
       }
 
@@ -1393,7 +1400,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       stato: 'sospeso',
       motivoSospensione: `dopo ${SCAMBI_MAX} domande non ho una configurazione: riprova con un obiettivo più preciso`
     })
-    void deps.avvisa('sospeso', corrente)
+    avvisaFermo(corrente)
   }
 
   /**
@@ -1470,7 +1477,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         pausaLimitiFinoA: new Date(freno.riparteIl ?? Date.parse(deps.adesso()) + 30 * 60_000).toISOString()
       }
       salva(inPausa)
-      void deps.avvisa('sospeso', inPausa)
+      avvisaFermo(inPausa)
       return
     }
     // Senza git non ci sono cartelle separate: una chat sola, come prima. Con
@@ -2132,7 +2139,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       } else {
         const inPausa: Autopilota = { ...conSessione, stato: 'sospeso', motivoSospensione: freno.motivo, pausaLimitiFinoA: finoA }
         salva(inPausa)
-        void deps.avvisa('sospeso', inPausa)
+        avvisaFermo(inPausa)
       }
       return {}
     }

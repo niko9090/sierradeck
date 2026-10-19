@@ -293,7 +293,8 @@ object Avvisi {
                     // si resta all'id. Un autopilota archiviato tace.
                     val chiave = chiaveFermo(a)
                     vivi.add(chiave)
-                    if (!giaVisti.add(chiave) || primoGiro || a.optBoolean("archiviato", false)) continue
+                    // Un fermo che riparte da solo (limiti del piano, aggiornamento: PC 0.81.0) non chiede niente a te.
+                    if (!giaVisti.add(chiave) || primoGiro || a.optBoolean("archiviato", false) || a.optBoolean("riparteDaSolo", false)) continue
                     // `/api/stato` lo chiama `motivo` (e' il dettaglio,
                     // `/api/autopilota`, a chiamarlo `motivoSospensione`): la
                     // notifica leggeva il nome sbagliato e diceva sempre

@@ -1732,12 +1732,14 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } } })
     await avvia(server)
     await creaAp()
-    await attendi(() => avvisi.some((a) => a.tipo === 'sospeso'))
+    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('sospeso')
     expect(stato.motivoSospensione).toContain('97%')
     expect(stato.pausaLimitiFinoA).toBe('2026-08-09T12:00:00.000Z')
     expect(avviati).toHaveLength(0)
+    // 0.81.0: riparte da solo, quindi nessuna notifica (Telegram) per questo fermo.
+    expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
   })
 
   it('i divieti: il programma nega alla chat una cancellazione fuori dalle sue cartelle', async () => {

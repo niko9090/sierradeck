@@ -18,7 +18,7 @@ import { nomeDaMostrare } from '@shared/nome-pc'
 import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
-import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
+import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -1180,6 +1180,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // La chiave di **questo** fermo (id, momento, motivo): telefono e
           // pagina annunciano un fermo una volta sola, e quello nuovo si'.
           ...(eFermo(a) ? { fermo: chiaveFermo(a) } : {}),
+          // Un fermo che riparte da solo (limiti del piano, aggiornamento): pagina e app non lo annunciano (0.81.0).
+          ...(eFermo(a) && riparteDaSolo(a) ? { riparteDaSolo: true } : {}),
           // Messo da parte con «Archivia»: niente notifiche.
           ...(a.archiviato === true ? { archiviato: true } : {}),
           // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.

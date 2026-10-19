@@ -48,6 +48,18 @@ class AvvisiTest {
     }
 
     @Test
+    fun `un fermo che riparte da solo non disturba, dalla 0-81-0`() {
+        // La pausa per i limiti del piano o per un aggiornamento riparte da sola:
+        // il PC lo dice con riparteDaSolo e l'app non suona.
+        val avvisi = Avvisi.daAnnunciare(
+            stato("""{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|x|limiti","riparteDaSolo":true}]}"""),
+            mutableSetOf(),
+            primoGiro = false
+        )
+        assertEquals(0, avvisi.size)
+    }
+
+    @Test
     fun `anche un lavoro fallito`() {
         val avvisi = Avvisi.daAnnunciare(
             stato("""{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"fallito"}]}"""),
