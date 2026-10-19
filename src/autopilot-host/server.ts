@@ -28,7 +28,7 @@ import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
 } from './supervisore'
-import { dopoAvvioFallito, pianificaFlotta } from './flotta'
+import { dopoAvvioFallito, pianificaFlotta, tettoDellaFlotta } from './flotta'
 import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
@@ -821,10 +821,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // freno sui limiti del piano e il tetto tecnico.
     const freno = frenoAdesso()
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
-    const tetto = freno.apriNuove ? Math.min(freno.tetto, TETTO_CHAT_MAX) : attive
+    const { tetto, soloRevisioni } = tettoDellaFlotta(freno, attive, TETTO_CHAT_MAX)
     // Solo i compiti che non aspettano altri compiti ancora da unire (0.71.0).
     const fatti = compitiFatti(a.chats)
-    const pronti = a.compitiDaFare.filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
+    const pronti = a.compitiDaFare
+      .filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
+      .filter((t) => !soloRevisioni || (a.ruoliCompiti?.[t]?.ruolo ?? (chatDaRivedere(t) !== undefined ? 'revisione' : undefined)) === 'revisione')
     const piano = pianificaFlotta({
       chats: a.chats,
       compitiDaFare: pronti,

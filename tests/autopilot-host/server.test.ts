@@ -764,6 +764,21 @@ describe('flotta di chat', () => {
     expect(stato.chats.every((c: any) => c.stato === 'finita')).toBe(true)
   })
 
+  // 0.81.0, dalla prova nella copia (settimana al 72%): con il freno a «niente
+  // nuove» la Revisione non partiva mai e il supervisore chiedeva a Nicholas di
+  // chiuderla a mano. Adesso, con nessuna chat al lavoro, se ne apre una.
+  it('con il freno a «niente nuove», un lavoro finito va comunque alla Revisione, una alla volta', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 3)
+    await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: { cinqueOre: { percento: 8 }, settimana: { percento: 72 } } })
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    await attendi(() => chatAvviate.some((c) => c.compito.startsWith('Rivedi il ramo')))
+    await new Promise((r) => setTimeout(r, 100))
+    expect(chatAvviate.filter((c) => c.compito.startsWith('Rivedi il ramo'))).toHaveLength(1)
+  })
+
   it('una scomposizione illeggibile non impedisce di lavorare', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
       interroga: (p) => Promise.resolve({ testo: p.includes('va diviso fra') ? 'non ho capito' : '{"azione": "finito"}' })

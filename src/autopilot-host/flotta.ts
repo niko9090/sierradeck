@@ -28,6 +28,23 @@ export function chiatteAttive(chats: StatoChat[]): StatoChat[] {
 }
 
 /**
+ * Il tetto della flotta con il freno sui limiti del piano (0.81.0).
+ *
+ * Con il freno a «niente nuove» o «una chat sola» il tetto era quante chat
+ * lavorano: se non ne lavorava nessuna, zero. Un lavoro finito che aspettava
+ * solo la Revisione restava fermo fino all'azzeramento della settimana, e il
+ * supervisore chiedeva a Nicholas di chiudere la Revisione a mano (prova nella
+ * copia del 19/10, settimana al 72%). Una Revisione chiude lavoro già fatto:
+ * se nessuna chat lavora se ne apre una, e solo Revisioni. Con il freno a
+ * «fermo» (tetto 0) non si apre niente.
+ */
+export function tettoDellaFlotta(freno: { apriNuove: boolean; tetto: number }, attive: number, tettoMax: number): { tetto: number; soloRevisioni: boolean } {
+  if (freno.apriNuove) return { tetto: Math.min(freno.tetto, tettoMax), soloRevisioni: false }
+  if (attive === 0 && freno.tetto > 0) return { tetto: 1, soloRevisioni: true }
+  return { tetto: attive, soloRevisioni: false }
+}
+
+/**
  * Decide quante chat aprire e quali chiudere.
  *
  * Il tetto sulle chat contemporanee non è prudenza generica: ogni chat è un
