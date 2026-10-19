@@ -69,7 +69,7 @@ function reteFinta(opz: { nat?: 'aperto' | 'chiuso' } = {}) {
 
 const TEMPI = { attesaRisposta: 600, rileggiRisposta: 10, apertura: 200, richiesta: 300 }
 
-function pc(p: { io: string; nome: string; altri: string[]; scatola: Scatola; ponte: PonteRtc; casa: (id: string) => string | undefined; rotta?: (percorso: string, corpo: unknown) => Promise<{ stato: number; corpo: unknown }> }) {
+function pc(p: { io: string; nome: string; altri: string[]; scatola: Scatola; ponte: PonteRtc; casa: (id: string) => string | undefined; rotta?: (percorso: string, corpo: unknown) => Promise<{ stato: number; corpo: unknown }>; tempi?: Partial<typeof TEMPI> }) {
   const registro: string[] = []
   const chiamate: { percorso: string; corpo: unknown }[] = []
   const rtc = creaRtc({
@@ -81,7 +81,7 @@ function pc(p: { io: string; nome: string; altri: string[]; scatola: Scatola; po
     altriPc: () => p.altri,
     rotta: p.rotta ?? (async (percorso, corpo) => { chiamate.push({ percorso, corpo }); return { stato: 200, corpo: { chat: [{ id: '1', titolo: 'Trading' }], eco: corpo } } }),
     log: (m) => { registro.push(m) },
-    tempi: TEMPI
+    tempi: { ...TEMPI, ...p.tempi }
   })
   return { rtc, registro, chiamate }
 }
@@ -103,13 +103,16 @@ describe('il collegamento WebRTC fra due PC', () => {
   it('si apre con lo scambio sul Drive e porta le richieste del riquadro remoto', async () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa })
+    // Qui deve aprirsi: tempi larghi. Con 600 ms per la risposta, a macchina carica (la suite del servizio)
+    // la risposta arrivava dopo e lo stato diventava «fallito» senza un difetto vero (18/10).
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
     const smetti = guarda(lap.rtc)
     expect(fisso.rtc.stato('lap')).toBe('spento')
     fisso.rtc.avvia('lap')
     expect(fisso.rtc.stato('lap')).toBe('collegando')
-    await finche(() => fisso.rtc.stato('lap') === 'aperto')
+    await finche(() => fisso.rtc.stato('lap') === 'aperto', 15_000)
     smetti()
     expect(fisso.rtc.stato('lap')).toBe('aperto')
     // Sul Drive non resta niente: offerta e risposta si cancellano.
@@ -126,11 +129,13 @@ describe('il collegamento WebRTC fra due PC', () => {
   it('solo le rotte del riquadro remoto: le altre non arrivano nemmeno a quel PC', async () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa })
+    // Tempi larghi come sopra: con quelli corti, a suite intera, il canale non si apriva in tempo.
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000, richiesta: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
     const smetti = guarda(lap.rtc)
     fisso.rtc.avvia('lap')
-    await finche(() => fisso.rtc.stato('lap') === 'aperto')
+    await finche(() => fisso.rtc.stato('lap') === 'aperto', 15_000)
     smetti()
     // Dalla 0.55.0 la gestione di chat, workspace e autopiloti passa; il Drive di quel PC no.
     expect((await fisso.rtc.chiama('lap', '/api/drive/porta', { progetto: 'x' })).stato).toBe(403)

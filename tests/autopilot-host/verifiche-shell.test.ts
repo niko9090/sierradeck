@@ -119,7 +119,7 @@ describe('esecutoreReale', () => {
     const { codice, uscita } = await esecutoreReale(60_000)(comando, process.cwd())
     expect(uscita).toContain('parole: 3')
     expect(codice).toBe(0)
-  })
+  }, 60_000) // bash vera: a suite intera, con le altre chat al lavoro, l'avvio passava i 20 s
 
   it('un criterio non soddisfatto esce con un codice diverso da zero', async () => {
     const { codice } = await esecutoreReale(60_000)('[ 1 -eq 2 ]', process.cwd())
@@ -133,10 +133,12 @@ describe('esecutoreReale', () => {
     // il figlio in background eredita `stdout`/`stderr` e le tiene aperte, e
     // la callback di `execFile` scatta alla chiusura delle pipe, non
     // all'uscita del processo.
-    const TETTO_MS = 20_000
+    // Tetto largo (18/10, 0.80.0): a suite intera, con altre chat al lavoro, aprire `bash` ha
+    // preso fino a 14 s e il vecchio tetto di 20 s faceva cadere il test senza nessun difetto.
+    const TETTO_MS = 45_000
     const t0 = Date.now()
     const { uscita } = await esecutoreReale(TETTO_MS)(
-      ['sleep 30 &', 'sleep 1', 'echo fatto'].join('\n'), process.cwd()
+      ['sleep 60 &', 'sleep 1', 'echo fatto'].join('\n'), process.cwd()
     )
     const passato = Date.now() - t0
     expect(uscita).toContain('fatto')
@@ -146,8 +148,8 @@ describe('esecutoreReale', () => {
     // largo perche' la suite intera gira in parallelo e su una macchina carica
     // aprire `bash` puo' costare qualche secondo: e' la distanza dal tetto a
     // dire se la correzione c'e', non il valore preciso.
-    expect(passato).toBeLessThan(TETTO_MS / 2)
-  }, 40_000)
+    expect(passato).toBeLessThan(30_000)
+  }, 70_000)
 })
 
 describe('bashDaScartare', () => {

@@ -96,6 +96,16 @@ describe('criteri veloci', () => {
     expect(i2).not.toBe(i1)
     writeFileSync(join(dir, 'nuovo.txt'), 'abc')
     expect(improntaCodice(gitReale, dir)).not.toBe(i2)
-    expect(improntaCodice(gitReale, tmpdir())).toBeUndefined()
-  })
+    // Una cartella fuori da git: si crea dentro Temp e git non risale oltre Temp (con TEMP dentro un
+    // repository, come nei criteri lanciati con TEMP nel progetto, tmpdir() stessa era git: 18/10).
+    const fuori = mkdtempSync(join(tmpdir(), 'sd-nogit-'))
+    const prima = process.env.GIT_CEILING_DIRECTORIES
+    process.env.GIT_CEILING_DIRECTORIES = tmpdir()
+    try {
+      expect(improntaCodice(gitReale, fuori)).toBeUndefined()
+    } finally {
+      if (prima === undefined) delete process.env.GIT_CEILING_DIRECTORIES
+      else process.env.GIT_CEILING_DIRECTORIES = prima
+    }
+  }, 60_000) // quattro giri di git: a suite intera, con le altre chat al lavoro, passavano i 20 s
 })

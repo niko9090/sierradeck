@@ -9,11 +9,11 @@ tag: ["autopilota", "chiudiChat", "worktree", "workspace", "0.80.0", "per Nichol
 - `chiudiChat` (servizio, `server.ts`, mosse T4) prova sempre a unire prima di chiudere. `unisciRamo` chiedeva `merge-base --is-ancestor` su un ramo inesistente (codice 128), poi lanciava `git merge` → «not something we can merge». L'unione falliva, la chat restava aperta e il supervisore chiedeva a Nicholas di chiuderla a mano.
 - Una chat con la Revisione (`sviluppo`) e un ramo già unito andava **di nuovo** in Revisione.
 
-**Corretto nel ramo c-10** (`50597e7`):
+**Corretto in parallelo da c-10 (`50597e7`), c-11 (`aafccdb`, in main) e c-12.** All'unione si è tenuta la versione di c-11 in `unisciRamo` (`ramoMancante`), più il pezzo di c-10 che mancava: in `chiudiChat`, prima della Revisione, un ramo già unito o tolto chiude la chat invece di mandarla in Revisione (il caso di c-4 e c-7, che sono sviluppo). Le voci qui sotto sono quelle di c-10:
 - `ramoGiaChiuso` in `worktree.ts` risponde «mancante» solo se git trova il ramo principale e dice «non c'è» (codice 1) sul ramo della chat. Risponde «unito» se il ramo è già tutto nel principale. Nel dubbio risponde `undefined`, e la chat passa dall'unione normale.
 - `chiudiChat` chiude subito, senza Revisione né unione, quando il ramo è mancante, o già unito e senza niente di nuovo da salvare.
 - Su un ramo mancante niente `worktree remove --force`: la cartella si toglie solo se è vuota.
-- `unisciRamo` su un ramo mancante risponde `ok`, quindi anche l'«unione finale … non riuscita» (vista nella 0.79.0) non succede più.
+- `unisciRamo` su un ramo mancante risponde `ok` (con `ramoMancante`, versione di c-11), quindi anche l'«unione finale … non riuscita» (vista nella 0.79.0) non succede più.
 
 **Vale solo dopo che Nicholas installa la versione con la correzione.** Fino ad allora il servizio vero è la 0.79.0: le sei chat restano ferme. Regola di Nicholas: non si chiede mai a lui di chiuderle e non si mandano loro messaggi.
 
