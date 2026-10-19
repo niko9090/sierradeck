@@ -44,3 +44,23 @@ Nicholas, 19/10: «il workspace sullo schermo cambia da solo» e «arrivano mill
 ## Da confermare con Nicholas
 - Il 15/10 aveva scelto «la chat governata si vede sempre in un riquadro; il sottofondo solo se lo chiedo io» (0.72.0). Ora la chat è nel riquadro del suo workspace e in «Al lavoro in sottofondo» con Guarda, ma lo schermo non ci va da solo.
 - «Aspetta che tu scelga» anche per le chat governate da un autopilota (scelta voluta nell'app: «l'autopilota non concede permessi al posto tuo»). Va deciso **dai numeri del registro** dopo l'installazione: se sono la maggior parte delle notifiche, si possono raggruppare per autopilota.
+
+## Prova dal vero nella copia (19/10, build con le correzioni)
+Copia di prova con le porte 47670/47671 e la pagina in Edge con il permesso delle notifiche.
+
+**Dal telefono e con un clic vero** il registro scrive le tre righe attese:
+- `[workspace] lo schermo di questo PC va su «Prova-080-b»: chiesto da tel:tel-prova`;
+- `[workspace] la finestra passa … chiesto dal processo principale`;
+- `[notifica] tel:tel-prova: «Prova 3 aspetta te»`.
+
+Il clic sul nome dà «clic sul nome del workspace». Serve un evento vero del mouse: `element.click()` non basta.
+
+**Autopilota vero** creato dal telefono nel workspace «Prova-080-b», con lo schermo su «Prova-080-a»:
+- ha adottato le 2 chat già presenti e ha diviso il lavoro in 2 compiti;
+- in 17 controlli, uno ogni 30 s: **0 cambi di workspace, 0 notifiche**, e lo schermo sempre su «Prova-080-a».
+
+**Non provato dal vero:** una consegna vera a una chat non a schermo.
+- Il **freno dei limiti** («settimana al 67%: non apro chat nuove») ha bloccato le chat nuove. È giusto che protegga la quota di Nicholas.
+- Il dialogo («scrivi a Prova 5») non ha avuto risposta dal supervisore della copia (`duration_api_ms: 0`, uscito con 1, errore tagliato nel registro).
+- La strada è coperta dai test (`consegna-visibile`, `consegna-in-sottofondo`, `consegne-layout`).
+- Va riprovata con un autopilota vero quando il limite settimanale lo permette, o sul PC dopo l'installazione, leggendo le righe `[workspace]` e `[consegna]`.
