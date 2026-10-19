@@ -82,3 +82,32 @@ Materiale grezzo per l'elenco di c-10: **niente è stato corretto**. Copia di pr
 - **Trappola:** in uno script che costruisce JavaScript dentro un template di Node, `\s` diventa `s`. Scrivere `\\s`, altrimenti il cerca-tasto toglie le «s» dai nomi e non trova «Chat e workspace».
 - **Trappola:** alla prima accensione la finestra della copia si è bloccata. `Runtime.evaluate` e perfino `Debugger.enable` non rispondevano, mentre la foto funzionava e la CPU del renderer era ferma. Il ricaricamento non è bastato; riavviando la copia non è più successo. Da tenere d'occhio: potrebbe essere un blocco vero all'avvio.
 - **Esc** non chiude la colonna Domande né il pannello «Chat e workspace»: si richiudono con un secondo clic sul loro tasto.
+
+## Dopo (19/10, c-12): voce per voce
+Correzioni fatte in quest'ordine, un commit per voce. Le foto stanno in `foto-0-80-0/dopo/`, fuori da git, scattate dalla stessa copia di prova.
+
+**Test:**
+- vitest: `tests/main/grafica-0-80-0.test.ts` più i test toccati;
+- JUnit: `TonoDalVivoTest`, `ChatGovernataTest`, `AnalisiAppTest`.
+- Esito: verdi su `gradle testDebugUnitTest` con i filtri, typecheck pulito. La suite intera non è stata lanciata (la segue un'altra chat).
+
+| # | Prima | Dopo | Dove |
+|---|---|---|---|
+| 1 | «fermo» grigio nella tabella del PC; rosso nel LED, sulla pagina e nell'app. Nell'app il colore «quieto» finiva nel **blu**. La striscia «si è fermato» aveva l'ambra che lampeggia | rosso dappertutto, come la palette e `ledDi`; «finito» grigio; «quieto» grigio anche nell'app; LED rosso anche nella striscia | `COLORE_DAL_VIVO` (stato-dal-vivo), `vistaAutopilota`, `dalVivoHtml`, `tonoDalVivo` / `coloreVista` (app), campo `led` degli avvisi. Foto `pc-01-chat`, `pc-03-autopiloti` |
+| 2 | pagina: «Aspettano te 0 · Niente ti aspetta» e sotto il riquadro «ASPETTANO TE» con due chat, più «2 aspettano te» | una chat a fine turno è «**ferma**», come sul PC (`chat-vista.ts`), e sta fra le «Tutte»; «aspetta te» solo per una scelta aperta; riassunto «2 ferme» | `statoChat` / `riassuntoChat` della pagina, `StatoChat.kt` (tono `FERMA`, il pallino della voce Chat conta solo le scelte). Foto `pag-01-chat`, `pag-02-chat-elenco` |
+| 3 | «2 · 1 al lavoro» con l'autopilota fermo; LED verde su «chat 2» | `chatAlLavoro`: una chat è al lavoro solo se il suo autopilota gira. Nell'albero mandato a pagina e app la chat diventa «ferma: l'autopilota è fermo» | `shared/autopilota.ts`, vista, `alberoChat`, linguette, «Sta facendo», `parolaChatGovernata` (app). Foto `pc-03-autopiloti` |
+| 4 | pagina: «collegamento ottima / buona» | «linea ottima / buona», come «linea lenta» accanto. PC e app dicevano già «qualità ottima» | `lineaHtml`. Foto `pag-01-chat` |
+| 5 | PC «entrato», pagina «fuori · Prossimo passo: Entra» | **solo nella copia di prova**, niente da correggere. La catena è la stessa funzione (`vistaAccount`); cambia l'utente: il PC lo prende da `account:utente`, che solo con `SIERRADECK_PROVA` risponde con l'utente d'esempio (`index.ts`, «Nella copia di prova si entra con un utente d'esempio»), mentre la pagina legge `utenteAccount()`. Sul programma vero la fonte è una | — |
+| 6 | PC: nessun «Prossimo passo» per Entra, Crea la passphrase, Sblocca, Prova | una riga «Prossimo passo: …» per i passi senza tasto (`passoSulPc`); i tre tasti di prima restano dov'erano. Nella foto della copia non cambia niente, perché con il Drive non configurato il passo non c'è su nessun lato | `account-vista.ts`, `PannelloAccount.tsx`. Foto `pc-07-drive` |
+| 7 | due strisce impilate sopra le chat (avviso dell'autopilota fermo, poi Panoramica \| Tutte le chat affiancate); «Panoramica» due volte nella stessa riga | **non toccate**: unirle o spostarle è uno spostamento, quindi decide Nicholas | vedi la proposta qui sotto |
+
+**Proposta per Nicholas (voce 7, da approvare):**
+- **Le due strisce.** L'avviso «L'autopilota … si è fermato» con Vedi · Riprendi · Archivia · Chiudi può stare nella stessa riga di Panoramica | Tutte le chat affiancate, a sinistra, come una pastiglia rossa che si apre al tocco. Si guadagnano circa 45 px di chat, ed è la regola «una fascia sola» di DESIGN.md.
+- **«Panoramica» due volte.** Si può togliere la linguetta a sinistra («Panoramica» fra le linguette delle chat) e lasciare l'interruttore a destra. Anche questo è uno spostamento: niente senza il suo sì.
+
+**Rimasto fuori (da mettere nell'elenco):**
+- L'app usa ancora «aspetta te» per una chat a fine turno in tre punti che non leggono `StatoChat`:
+  - `Computer.kt:263` (le chat degli altri PC);
+  - `MandaA.kt:268`;
+  - `Avvisi.kt` («N su M chat aspettano te»).
+  Vanno allineati alla regola della voce 2 con un test, ma toccano le notifiche, che sono di c-134.
