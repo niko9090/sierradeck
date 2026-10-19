@@ -17,6 +17,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
 import { AzioniChat } from './AzioniChat'
+import { trascinamentoDivisori } from '../persistenza-layout'
 
 const SPESSORE_DIVISORE = 6
 
@@ -162,6 +163,7 @@ function Divider({ box, containerRef }: {
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     precedente.current = orizzontale ? e.clientX : e.clientY
+    trascinamentoDivisori.inizia()
 
     const onMove = (ev: PointerEvent): void => {
       const cont = containerRef.current
@@ -183,6 +185,8 @@ function Divider({ box, containerRef }: {
       // Il trascinamento successivo ne aggiungerebbe un secondo sullo stesso
       // riferimento, producendo ridimensionamenti a scatti.
       window.removeEventListener('pointercancel', fine)
+      // Il layout si scrive adesso, una volta, non a ogni pixel (0.80.0).
+      trascinamentoDivisori.finisci()
     }
 
     window.addEventListener('pointermove', onMove)
