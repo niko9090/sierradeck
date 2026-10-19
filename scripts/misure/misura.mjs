@@ -2,6 +2,7 @@
 //   node scripts/misure/misura.mjs avvia <etichetta>  → avvia la copia; tempi d'avvio, memoria dopo 15 s, rotte, memoria dopo 60 s
 //   node scripts/misure/misura.mjs apri               → 6 chat nuove (4 nel workspace corrente, 2 in un secondo), come dal telefono
 //   node scripts/misure/misura.mjs rotte <etichetta>  → tempi delle rotte principali (5 giri) e memoria
+//   node scripts/misure/misura.mjs cpu                → secondi di CPU in 30 s per tipo di processo
 //   node scripts/misure/misura.mjs ferma              → ferma la copia (solo i processi di questa cartella) e controlla le porte
 // I risultati vanno anche in note/prova-080/misure.jsonl. La copia usa le porte 47670/47671 e DevTools 9363.
 import { spawn, execFileSync } from 'node:child_process'
@@ -107,6 +108,24 @@ if (cosa === 'avvia') {
 } else if (cosa === 'rotte') {
   scrivi({ misura: 'rotte', ...(await rotte()) })
   scrivi({ misura: 'memoria', ...memoria() })
+} else if (cosa === 'cpu') {
+  // Secondi di CPU in 30 s, per tipo di processo (la finestra vera era all'84% di un core).
+  const tempi = () => {
+    const ids = albero().map((p) => p.ProcessId)
+    const righe = JSON.parse(ps(`Get-Process -Id ${ids.join(',')} -ErrorAction SilentlyContinue | Select-Object Id,@{n='s';e={$_.TotalProcessorTime.TotalSeconds}} | ConvertTo-Json -Compress`))
+    return new Map((Array.isArray(righe) ? righe : [righe]).map((r) => [r.Id, r.s]))
+  }
+  const tipi = new Map(albero().map((p) => {
+    const c = p.CommandLine ?? ''
+    const t = p.Name !== 'electron.exe' ? p.Name.replace(/\.exe$/, '') : c.includes('autopilot-host') ? 'servizio' : c.includes('pty-host') ? 'pty-host' : /--type=([a-z-]+)/.exec(c)?.[1] ?? 'main'
+    return [p.ProcessId, t]
+  }))
+  const prima = tempi()
+  await pausa(30000)
+  const dopo = tempi()
+  const perTipo = {}
+  for (const [id, s] of dopo) { const t = tipi.get(id) ?? '?'; perTipo[t] = Math.round(((perTipo[t] ?? 0) + s - (prima.get(id) ?? s)) * 100) / 100 }
+  scrivi({ misura: 'cpu-30s', secondiPerTipo: perTipo })
 } else if (cosa === 'ferma') {
   for (const p of albero()) { try { process.kill(p.ProcessId, 'SIGKILL') } catch { /* già uscito */ } }
   await pausa(3000)
