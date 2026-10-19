@@ -45,8 +45,8 @@ export const NOVITA: Novita[] = [
     righe: [
       '**Le chat finite si chiudono da sole,** anche quando il loro lavoro è già unito o il loro ramo non c’è più. Prima restavano aperte e andavano chiuse a mano.',
       '**Il workspace sullo schermo cambia solo quando lo scegli tu.** Le consegne di un autopilota per un altro workspace lavorano in sottofondo, senza portarti via. Ogni cambio di workspace è scritto nel registro, con il motivo.',
-      '**Niente workspace con nomi strani né cartelle vuote.** Il primo messaggio scritto a un autopilota non diventa più il nome di un workspace. Un progetto che vive su un altro PC non crea più una cartella vuota qui.',
-      '**Un workspace senza autopilota lo dice,** e offre «Crea l’autopilota» con il suo «?». «Prossimo passo» compare anche sul PC, per i passi che non hanno un tasto.',
+      '**Niente workspace con nomi strani né cartelle vuote.** Il workspace di un autopilota prende il nome che scrivi tu o quello della cartella, non il primo messaggio. Un progetto che vive su un altro PC non crea più una cartella vuota qui.',
+      '**Sul PC, un workspace senza autopilota lo dice nella Panoramica,** e offre «Crea l’autopilota» con il suo «?». «Prossimo passo» compare anche sul PC, per i passi che non hanno un tasto.',
       '**Gli elenchi dei workspace e delle chat non si svuotano più da soli** se per un istante non si riescono a leggere. Gli errori del programma finiscono anche nel registro.',
       '**Più veloce:** la pagina del telefono arriva subito e compressa, la vista dei Progetti non aspetta il Drive, il salvataggio sul Drive controlla più file insieme, i divisori si trascinano senza scatti, e l’app si ferma quando non la guardi.',
       '**Stati uguali dappertutto:** «fermo» è rosso e «quieto» grigio su PC, pagina e app; una chat a fine turno è «ferma», non «aspetta te»; le chat di un autopilota fermo non contano più come «al lavoro».',
