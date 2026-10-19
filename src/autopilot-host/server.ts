@@ -2466,7 +2466,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
           const u = unisciRamo(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           unita = u.ok
-          if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+          // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
+          // lascia com'è (nessun --force su file che nessun ramo conserva).
+          if (u.ok && u.ramoMancante === true) annota(aggiornato, `${c.id}: il ramo ${c.ramo} non c'è più, il suo lavoro era già unito`)
+          else if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue
