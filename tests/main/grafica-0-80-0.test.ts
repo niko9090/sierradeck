@@ -90,3 +90,17 @@ describe('4. l’accordo della riga del collegamento', () => {
     for (const p of parole) expect(p).toMatch(/a$|non ancora misurata|non arriva niente/)
   })
 })
+
+describe('6. il prossimo passo anche sul PC', () => {
+  it('i passi con il tasto restano tasti; gli altri diventano una riga, come sulla pagina', async () => {
+    const { passoSulPc, vistaAccount } = await import('@shared/account-vista')
+    const ora = Date.parse('2026-10-19T12:00:00Z')
+    const senzaPassphrase = vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: true, connesso: true }, sync: { haCassaforte: false, sbloccato: false }, ora })
+    expect(passoSulPc(senzaPassphrase.prossimo)).toEqual({ tasto: false, testo: 'Crea la passphrase' })
+    expect(passoSulPc(vistaAccount({ ora }).prossimo)).toEqual({ tasto: false, testo: 'Entra' })
+    const daCollegare = vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: true, connesso: false }, sync: { haCassaforte: false, sbloccato: false }, ora })
+    expect(passoSulPc(daCollegare.prossimo)).toEqual({ tasto: true, testo: 'Collega il Drive' })
+    // Drive non configurato in questa build: niente passo, su nessun lato.
+    expect(passoSulPc(vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: false, connesso: false }, sync: { haCassaforte: false, sbloccato: false }, ora }).prossimo)).toBeUndefined()
+  })
+})
