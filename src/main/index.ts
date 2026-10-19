@@ -6087,8 +6087,12 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
         const c = leggiConsegne({ consegne: [raw] })[0]
         const sf = sottofondo
-        // Solo se Nicholas l'ha chiesto (0.72.0): senza, la chat resta in un riquadro.
-        if (c === undefined || sf === undefined || c.sottofondo !== true) return false
+        // 0.80.0: anche senza il sottofondo chiesto. La finestra manda qui ogni
+        // consegna per un workspace che non è sullo schermo, invece di cambiarlo
+        // (lo schermo cambia solo quando lo sceglie Nicholas). La chat resta in
+        // un riquadro del suo workspace: `consegnaInSottofondo` la mette nel
+        // layout salvato e, aprendolo, il riquadro la prende.
+        if (c === undefined || sf === undefined) return false
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })

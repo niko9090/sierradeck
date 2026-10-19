@@ -25,16 +25,25 @@ export type ComePortare =
 /** Quanto deve durare la quiete della tastiera prima di cambiare workspace. */
 export const QUIETE_TASTIERA_MS = 45_000
 
+/**
+ * **0.80.0: un autopilota non cambia mai il workspace sullo schermo.**
+ * Nicholas, 19/10: «il workspace sullo schermo cambia da solo»; il criterio è
+ * che cambi solo quando lo sceglie lui. La chat governata resta comunque in un
+ * riquadro del **suo** workspace (la decisione del 15/10): la consegna parte
+ * in sottofondo, il riquadro entra nel layout salvato di quel workspace e,
+ * aprendolo, lo prende com'è; intanto si vede in «Al lavoro in sottofondo»
+ * con «Guarda». Si cambia workspace solo con «Guarda» (`subito` in App).
+ * `ultimoTasto` e `ora` restano per chi chiama; «cambia» e «aspetta» non
+ * escono più da qui.
+ */
 export function comePortare(
   c: { workspace?: string; sottofondo?: boolean },
   corrente: string | undefined,
-  ultimoTasto: number | undefined,
-  ora: number
+  _ultimoTasto: number | undefined,
+  _ora: number
 ): ComePortare {
   if (c.workspace === undefined || c.workspace === corrente) return 'qui'
-  if (c.sottofondo === true) return 'sottofondo'
-  if (ultimoTasto !== undefined && ora - ultimoTasto < QUIETE_TASTIERA_MS) return 'aspetta'
-  return 'cambia'
+  return 'sottofondo'
 }
 
 /** La riga della banda per una consegna che aspetta. */

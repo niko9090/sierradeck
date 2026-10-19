@@ -66,11 +66,13 @@ describe('nella finestra: il riquadro non c’è più', () => {
     for (let i = 0; i < 2_000 && coda.length > 0; i += 1) { coda.sort((a, b) => a.quando - b.quando); const x = coda.shift()!; ora = x.quando; x.f() }
     return { passate, tornate, passi }
   }
-  it('0.72.0: di serie torna nel suo workspace (la chat si vede), mai in sottofondo da sola', () => {
+  // 0.80.0: lo schermo cambia solo quando lo sceglie Nicholas. Prima (0.72.0)
+  // si tornava nel suo workspace fino a tre volte per consegna.
+  it('0.80.0: anche senza sottofondo chiesto, passa al sottofondo e non cambia mai lo schermo', () => {
     const r = giro(consegna as ConsegnaFinestra)
-    expect(r.passate).toEqual([])
-    expect(r.tornate.length).toBeGreaterThan(0)
-    expect(r.tornate[0]).toBe('c-7')
+    expect(r.passate).toEqual(['c-7'])
+    expect(r.tornate).toEqual([])
+    expect(r.passi.join('\n')).toContain('senza cambiare lo schermo')
   })
   it('con il sottofondo chiesto: passa al sottofondo e non chiama «torna nel suo workspace»', () => {
     const { passate, tornate, passi } = giro({ ...(consegna as ConsegnaFinestra), sottofondo: true })
