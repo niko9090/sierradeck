@@ -18,6 +18,7 @@ import { AutopilotiAltriPc } from './AutopilotiAltriPc'
 import { Aiuto } from './Aiuto'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { nomeWorkspacePerAutopilota } from '@shared/vista-elenco'
+import { EVENTO_NUOVO_AUTOPILOTA, prendiRichiestaNuovoAutopilota } from '../nuovo-autopilota'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -87,6 +88,15 @@ export function PannelloAutopiloti({
   const sessions = useSessionStore((s) => s.sessions)
   const caricaSessioni = useSessionStore((s) => s.load)
   const mete = useMemo(() => destinazioni(Object.values(panes), sessions), [panes, sessions])
+
+  // «Crea l'autopilota» dalla Panoramica (0.80.0): il modulo si apre da solo,
+  // sia se il pannello nasce adesso sia se era già aperto.
+  useEffect(() => {
+    const apri = (): void => { if (prendiRichiestaNuovoAutopilota()) setBozza({ ...BOZZA_VUOTA, cwd: mete[0]?.cwd ?? '' }) }
+    apri()
+    window.addEventListener(EVENTO_NUOVO_AUTOPILOTA, apri)
+    return () => window.removeEventListener(EVENTO_NUOVO_AUTOPILOTA, apri)
+  }, [mete])
 
   // L'indice può non essere ancora stato letto se non si è mai aperta la
   // finestra delle sessioni: senza, la lista offrirebbe solo le chat aperte.

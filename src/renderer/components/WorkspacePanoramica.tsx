@@ -13,6 +13,7 @@ import type { Segnale } from '@shared/segnali-chat'
 import { ChatAutopilota } from './ChatAutopilota'
 import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
+import { chiediNuovoAutopilota, SPIEGA_CREA_AUTOPILOTA } from '../nuovo-autopilota'
 import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
 
@@ -482,11 +483,22 @@ function orario(iso: string): string {
 }
 
 /** Senza autopilota: il primo messaggio dell'autopilota dormiente del workspace (0.74.1). */
-function PrimoMessaggio({ workspace, dormiente, onRicarica }: { workspace: string; dormiente?: Dormiente; onRicarica: () => void }): React.JSX.Element {
+export function PrimoMessaggio({ workspace, dormiente, onRicarica }: { workspace: string; dormiente?: Dormiente; onRicarica: () => void }): React.JSX.Element {
   const [primo, setPrimo] = useState('')
   const [nota, setNota] = useState<string | undefined>(undefined)
   const campo = useRef<HTMLTextAreaElement | null>(null)
-  if (dormiente?.cwd === undefined) return <p className="progetti__quieto">Nessun autopilota in questo workspace: le chat compaiono qui come schede.</p>
+  // Un workspace senza dormiente (nato dopo la 0.74.1): lo dice e offre il tasto (0.80.0).
+  if (dormiente?.cwd === undefined) {
+    return (
+      <div className="elenco-ws__autopilota">
+        <div className="progetti__quieto">Questo workspace non ha ancora un autopilota.</div>
+        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button className="tasto" onClick={chiediNuovoAutopilota}>Crea l’autopilota</button>
+          <Aiuto di="Crea l’autopilota">{SPIEGA_CREA_AUTOPILOTA}</Aiuto>
+        </span>
+      </div>
+    )
+  }
   const sveglia = (): void => {
     const testo = primo.trim()
     if (testo === '') return
