@@ -66,7 +66,7 @@ Revisione indipendente: **APPROVE**, senza problemi gravi. I due punti minori so
 - **«Ultima riga» = riga di stato di Claude Code** («Opus · contesto 5% · 5 ore 8%…»). Ora `ultimaRigaDalloSchermo` la salta.
 
 ## Restano dall'elenco (velocità e codice)
-- 5: il pannello del Drive manda 537 KB a ogni chiamata.
+- 5: il pannello del Drive manda 537 KB a ogni chiamata. Dalla 0.80.0 arriva compresso a pagina e app; resta da misurare sui dati veri quanto pesa ancora e se serve un «non cambiato».
 - 6: il tetto alle `decisioni` (vedi sopra).
-- 7: `/api/domande` moltiplica le chiamate al servizio.
+- 7: FATTA (7df5bec, 0.81.0). Le richieste di `/api/domande` entro 1 s, o con una lettura in viaggio, condividono quella lettura (4 chiamate al servizio). Una per visore, perché il PIN cambia cosa si vede; un POST la dimentica. Test in `client-rotte.test.ts`.
 - APK non ridotto (R8): va provato con un'installazione fatta da Nicholas.
