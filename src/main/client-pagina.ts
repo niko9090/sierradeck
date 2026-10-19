@@ -5778,11 +5778,12 @@ function lineaHtml() {
   const q = qualitaLinea(linea.misure)
   const giu = linea.fase === 'ricollego'
   // «Linea lenta» (0.56.0): qualcosa non arriva, ma non è caduta. Giallo, senza la fascia rossa.
+  // 0.80.0: «linea ottima/buona», non «collegamento ottima» (le parole sono femminili).
   const lenta = !giu && faseVistaLinea(linea, Date.now()) === 'lenta'
   const tacche = ['▂', '▄', '▆', '█'].map((c, i) => '<span style="opacity:' + (i < (giu ? 0 : q.tacche) ? 1 : 0.25) + '">' + c + '</span>').join('')
   const rov = rovesciaLinea(linea, Date.now())
   let h = tentativiHtml() + '<div class="linea-pagina' + (giu ? ' linea-pagina--giu linea-pagina--' + rov.colore : '') + '" onclick="apriStoriaLinea()" title="Il collegamento con il computer: le tacche dicono la qualità delle ultime chiamate, il numero il ritardo tipico. Tocca per la storia.">' +
-    '📶 ' + tacche + ' ' + (giu ? 'giù · ' + rov.testo : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'non connesso' : lenta ? '<span style="color:#e0a33c">linea lenta</span>' : 'collegamento ' + q.parola) + '</div>'
+    '📶 ' + tacche + ' ' + (giu ? 'giù · ' + rov.testo : q.ritardoMs !== undefined ? q.ritardoMs + ' ms' : '…') + ' · ' + (giu ? 'non connesso' : lenta ? '<span style="color:#e0a33c">linea lenta</span>' : 'linea ' + q.parola) + '</div>'
   if (giu) {
     const fra = fraSecondiLinea(linea, Date.now())
     h += '<div class="piastrella chiede linea-fascia"><b>Collegamento con il computer caduto da ' + durataBreve(Date.now() - (linea.cadutaIl || Date.now())) +

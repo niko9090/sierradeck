@@ -78,3 +78,15 @@ describe('3. un autopilota fermo non ha chat «al lavoro»', () => {
     expect(alberoChat(inMoto).figli[1]).toMatchObject({ stato: 'lavoro', parola: 'al lavoro' })
   })
 })
+
+describe('4. l’accordo della riga del collegamento', () => {
+  it('la pagina dice «linea ottima», non «collegamento ottima»; le parole della qualità sono femminili', async () => {
+    const { qualita } = await import('@shared/collegamento')
+    const lineaHtml = estrai('function lineaHtml(')
+    expect(lineaHtml).toContain("'linea ' + q.parola")
+    expect(lineaHtml).not.toContain("'collegamento ' + q.parola")
+    // Tutte femminili: stanno bene dopo «linea» e dopo «qualità» (PC e app).
+    const parole = new Set([0, 50, 400, 2000].map((ms) => qualita([{ ok: true, ms, alle: 1 }] as never).parola))
+    for (const p of parole) expect(p).toMatch(/a$|non ancora misurata|non arriva niente/)
+  })
+})
