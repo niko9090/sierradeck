@@ -567,3 +567,28 @@ describe('nel dubbio non si tocca, e non si dice «fatto» se non è vero', () =
     expect(x.g.recupero().chat).toEqual([])
   })
 })
+
+// 0.81.0: «Spazio delle chat» rimisurava ogni cartella di ~700 chat a ogni
+// apertura (2-6 s). Ora la misura resta finché i file non cambiano.
+describe('Spazio delle chat: la misura in memoria', () => {
+  it('ricalcola solo la chat i cui file sono cambiati, nello stesso ordine', async () => {
+    const x = scena()
+    const prima = await x.g.spazio()
+    const s1 = prima.chat.find((c) => c.sessione === S1)?.byte ?? 0
+    const s2 = prima.chat.find((c) => c.sessione === S2)?.byte ?? 0
+    expect(s1).toBeGreaterThan(0)
+    scrivi(x.radice, `projects/${SLUG}/${S1}.jsonl`, `{"sessione":"${S1}"}\n`.repeat(30))
+    const dopo = await x.g.spazio()
+    expect(dopo.chat.map((c) => c.sessione)).toEqual(prima.chat.map((c) => c.sessione))
+    expect(dopo.chat.find((c) => c.sessione === S1)?.byte).toBe(s1 + `{"sessione":"${S1}"}\n`.length * 20)
+    expect(dopo.chat.find((c) => c.sessione === S2)?.byte).toBe(s2)
+  })
+
+  it('un todo nuovo di quella chat si conta, anche se la sua trascrizione non cambia', async () => {
+    const x = scena()
+    const prima = (await x.g.spazio()).chat.find((c) => c.sessione === S2)?.byte ?? 0
+    scrivi(x.radice, `todos/${S2}.json`, '[1,2,3]')
+    const dopo = (await x.g.spazio()).chat.find((c) => c.sessione === S2)?.byte ?? 0
+    expect(dopo).toBe(prima + '[1,2,3]'.length)
+  })
+})

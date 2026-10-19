@@ -770,3 +770,18 @@ Su questo PC ci sono due workspace nati per sbaglio. Si tolgono con **«Elimina 
 
 ## Test rossi su main il 19/10
 - `rimozione-sicura.test.ts` («un altro PC firmato sì…») cadeva per tempo scaduto anche da solo: caricava `client-rotte` dentro il test, e trasformarlo a cache fredda costa più dei 20 s concessi. Ora lo carica in cima al file. Nessun difetto nel programma.
+
+## Numeri dopo le correzioni di c-11 (19/10)
+Misurati come prima, sulle stesse macchine e sugli stessi dati. Dettagli e test in `correzioni-velocita-e-codice-0-80-0.md`; prova con un autopilota vero in `workspace-che-cambia-da-solo-e-notifiche-0-80-0.md`.
+
+| Voce | Prima | Dopo |
+|---|---|---|
+| 3 · `progetti-drive.json` / `pc.json` a lettura | 1,14 / 1,05 ms | 0,062 / 0,052 ms |
+| 4 · download delle chiavi dal Drive | ~480 l'ora | ~6 l'ora |
+| 5 · `/api/chat/gestione/spazio` (698 chat) | 3,5-6,4 s | 0,31 s (0,73 s la prima volta) |
+| 6 · `GET /autopiloti` quando non cambia | 673 KB + 3,5 ms di parse nel main a ogni giro | 304, senza corpo |
+| 13 · pagina del telefono | 417 KB a ogni apertura | 118 KB, 0 alla riapertura |
+| `/api/stato` | 35 KB | 7,8 KB |
+| `stat` per il salvataggio sul Drive (1.234 file) | 20-24 s | 0,4 s |
+| Notifiche della pagina in 26 min con un autopilota al lavoro | 6 (8 riaprendo ogni 5 min) | 2 (1): solo le domande vere |
+| Cambi di workspace sullo schermo per 15 consegne di un autopilota | la finestra lo seguiva | 0 |

@@ -185,6 +185,17 @@ describe('le chat in sottofondo sul PC di casa', () => {
     expect(r?.colonne).toBe(120)
   })
 
+  // 0.81.0, dalla prova nella copia: senza `governata` la pagina annunciava
+  // «Sviluppo · … aspetta te» a ogni fine turno della chat di un autopilota.
+  it('la chat di un autopilota è governata, come nei riquadri; una chat di Nicholas no', () => {
+    const s = f.crea()
+    s.avvia({ sessione: SESSIONE, cwd: 'C:\\P', titolo: 'Sviluppo · Prova', perChi: PC, autopilota: { id: 'ap-1', chat: 'c-1' } })
+    expect(s.chat()[0]?.governata).toBe(true)
+    const t = f.crea()
+    t.avvia({ sessione: '99999999-2222-4333-8444-555555555555', cwd: 'C:\\P', titolo: 'Mia', perChi: PC })
+    expect(t.chat().find((c) => c.titolo === 'Mia')?.governata).toBeUndefined()
+  })
+
   it('se esce, la chat si toglie e il testo non consegnato resta per il prossimo avvio', () => {
     const s = f.crea()
     s.avvia({ sessione: SESSIONE, cwd: 'C:\\P', titolo: 'P', perChi: PC, testo: 'resta', idMessaggio: 'm-4' })

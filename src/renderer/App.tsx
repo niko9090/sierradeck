@@ -491,8 +491,9 @@ export function App(): React.JSX.Element {
     // **Prima si va dove la chat vive.** La sua conversazione puo' essere
     // salvata in un altro workspace: consegnare qui aprirebbe una seconda
     // copia sotto i tuoi occhi, e il lavoro andrebbe in quella.
-    // 0.72.0: la chat governata si vede sempre — la finestra va nel suo
-    // workspace, ma mai mentre scrivi; in sottofondo solo se l'hai chiesto.
+    // 0.80.0: lo schermo cambia solo con «Guarda» (subito). Altrimenti, se il
+    // suo workspace non è sullo schermo, la consegna va in sottofondo e la
+    // chat resta in un riquadro del suo workspace (vedi `comePortare`).
     const come = subito ? (c.workspace !== undefined && c.workspace !== workspaceCorrente() ? 'cambia' : 'qui') : comePortare(c, workspaceCorrente(), ultimoTasto.current, Date.now())
     if (come === 'qui') { togli(); porta(); return }
     if (come === 'sottofondo') {
@@ -1439,7 +1440,7 @@ export function App(): React.JSX.Element {
       if (s.precedente !== s.attivo && s.precedente === workspaceCorrente()) void window.gestore.log.info(`[schermo] «${s.precedente}» → «${s.attivo}» (segue un cambio fatto in un’altra finestra)`).catch(() => undefined)
       aggiornaWorkspace({ nomi: s.nomi, attivo: s.attivo })
       void azioniWorkspace.current
-        ?.segui(s.precedente, s.attivo)
+        ?.segui(s.precedente, s.attivo, 'segue il cambio fatto in un’altra finestra di questo PC')
         .then(() => {
           // **Eliminato da un'altra finestra.** Qui il trasloco ha messo in
           // memoria i riquadri del workspace sparito con i terminali ancora

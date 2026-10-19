@@ -51,7 +51,9 @@ export function senzaColori(grezzo: string): string {
  */
 const RUMORE_DI_INTERFACCIA =
   // 0.70.0: anche i piedi delle domande («Enter to confirm · Esc to cancel»): dal telefono si leggevano al posto della chat.
-  /^(\? for shortcuts|[›>]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*)$/i
+  // 0.81.0: anche la riga di stato (modello, contesto, limiti del piano), come in `panoramica.ts`:
+  // dalla prova nella copia, l'avviso «aspetta te» diceva «Opus · contesto 5% · 5 ore 8%…».
+  /^(\? for shortcuts|[›>]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/

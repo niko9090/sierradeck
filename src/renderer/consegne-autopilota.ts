@@ -452,7 +452,11 @@ function attendiEConsegna(
     // Una consegna alla volta (0.56.1): se un'altra sta usando la finestra in
     // un altro workspace, si aspetta che abbia scritto; poi si torna (anche
     // più di una volta, se nel frattempo la finestra è stata portata via).
-    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && c.sottofondo === true && ponte.passaAlSottofondo !== undefined) {
+    // 0.80.0: sempre, non solo con il sottofondo chiesto. Prima si tornava nel
+    // suo workspace fino a tre volte per consegna, senza guardare se stavi
+    // scrivendo: è il «workspace che cambia da solo». Senza `passaAlSottofondo`
+    // (le prove vecchie) resta il ritorno qui sotto.
+    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && ponte.passaAlSottofondo !== undefined) {
       lasciaTurno(c)
       ponte.registra?.(`consegna ${c.id}: il riquadro non c'è più in questa finestra (il workspace è cambiato): passa in sottofondo, senza cambiare lo schermo`)
       ponte.passaAlSottofondo(c)

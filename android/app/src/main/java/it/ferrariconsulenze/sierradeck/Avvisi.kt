@@ -82,6 +82,15 @@ object Avvisi {
     /** Il numero di una notifica: la sua famiglia, piu' l'impronta di chi la manda. */
     fun idAvviso(famiglia: Int, chiave: String): Int = famiglia + (chiave.hashCode() and MASCHERA)
 
+    /** Una scelta sparita da meno di così non si riannuncia quando torna (2.80.0). */
+    const val SCELTA_QUIETA_MS = 60_000L
+
+    /** Un avviso a meno di così dal precedente entra nella pila senza suonare (2.80.0). */
+    const val VICINI_MS = 20_000L
+
+    /** Se l'avviso di adesso deve suonare: no se l'ultimo ha suonato da poco (2.80.0). */
+    fun suona(ultimoSuono: Long?, adesso: Long): Boolean = ultimoSuono == null || adesso - ultimoSuono >= VICINI_MS
+
     /**
      * Cosa annunciare, dato lo stato del computer e ciò che si è già detto.
      *
@@ -161,6 +170,7 @@ object Avvisi {
                 // anche al primo giro: sta aspettando adesso.
                 vivi.add("k:$id")
                 if (c.optBoolean("chiede", false)) {
+                    giaVisti.removeAll { it.startsWith("kq:$id:") }
                     if (giaVisti.add("k:$id")) {
                         val titolo = c.optString("titolo").ifBlank { c.optString("cwd") }
                         avvisi.add(
@@ -179,7 +189,18 @@ object Avvisi {
                     giaVisti.add("c:$id")
                     continue
                 }
-                giaVisti.remove("k:$id")
+                // La scelta va e viene mentre la chat lavora (2.80.0): ogni ritorno
+                // era una notifica nuova. Si ricorda per un minuto di quiete
+                // (`kq:<id>:<ms>`), poi una scelta nuova è di nuovo una notizia.
+                val quieta = giaVisti.firstOrNull { it.startsWith("kq:$id:") }
+                if (adesso > 0 && "k:$id" in giaVisti) {
+                    val da = quieta?.substringAfterLast(':')?.toLongOrNull()
+                    when {
+                        da == null -> { giaVisti.add("kq:$id:$adesso"); vivi.add("kq:$id:$adesso") }
+                        adesso - da < SCELTA_QUIETA_MS -> vivi.add(quieta)
+                        else -> { giaVisti.remove("k:$id"); giaVisti.remove(quieta) }
+                    }
+                } else giaVisti.remove("k:$id")
                 if (c.optBoolean("governata", false)) continue
                 vivi.add("c:$id")
                 if (!c.optBoolean("aspetta", false)) {
@@ -321,7 +342,7 @@ object Avvisi {
     private fun pota(giaVisti: MutableSet<String>, vivi: Set<String>, stato: JSONObject, conAutopiloti: Boolean = true) {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
-        if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:"); note.add("t:") }
+        if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:"); note.add("kq:"); note.add("t:") }
         if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }

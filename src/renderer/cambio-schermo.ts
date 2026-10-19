@@ -17,6 +17,6 @@ export async function cambiaSchermo(
   const d = decidiCambioSchermo({ davanti: workspaceCorrente(), voluto: nome, causa, ...(dettaglio !== undefined ? { dettaglio } : {}) })
   void window.gestore.log.info(d.riga).catch(() => undefined)
   if (!d.cambia) return false
-  await azioni.cambia(nome)
+  await azioni.cambia(nome, `${causa}${dettaglio !== undefined && dettaglio !== '' ? `: ${dettaglio}` : ''}`)
   return true
 }

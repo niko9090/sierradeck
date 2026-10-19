@@ -10,6 +10,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import org.json.JSONObject
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Un giro di guardia: si chiede al computer come va, e si avvisa se serve.
@@ -135,6 +137,34 @@ object Ronda {
         salva(contesto)
     }
 
+    /** Quando ha suonato l'ultimo avviso (2.80.0). */
+    @Volatile private var ultimoSuono: Long? = null
+
+    /**
+     * Ogni avviso mostrato nel registro del computer (2.80.0): «mille notifiche»
+     * non lasciava traccia da nessuna parte. Su un thread suo, a fuoco e
+     * dimentica: un computer vecchio senza la rotta risponde 404, e va bene.
+     */
+    private fun riferisci(contesto: Context, a: Avvisi.Avviso) {
+        val collegamento = try { Collegamento(contesto) } catch (_: Exception) { return }
+        if (!collegamento.pronto) return
+        val corpo = JSONObject()
+            .put("da", "app")
+            .put("tipo", a.chiave.substringBefore(':'))
+            .put("titolo", a.titolo.take(80))
+            .toString()
+        Thread {
+            try {
+                val richiesta = Request.Builder()
+                    .url("${collegamento.indirizzo}/api/avviso-mostrato")
+                    .header("x-sierradeck-chiave", collegamento.chiave)
+                    .post(corpo.toRequestBody("application/json".toMediaType()))
+                    .build()
+                Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo)).newCall(richiesta).execute().close()
+            } catch (_: Exception) { }
+        }.start()
+    }
+
     private const val PREFERENZE = "ronda"
     private const val CHIAVE_GIA = "gia"
     private const val CHIAVE_AVVIATA = "avviata"
@@ -236,6 +266,11 @@ object Ronda {
         // Una per chat (app 2.74.0): un evento nuovo sostituisce quello di prima
         // della stessa chat e suona; lo stesso evento aggiornato no.
         costruttore.addExtras(android.os.Bundle().apply { putString(EXTRA_CHIAVE, a.chiave) })
+        // Vicini = un suono solo (2.80.0): un autopilota al lavoro faceva suonare
+        // il telefono a ogni avviso; quelli a meno di 20 s entrano nella pila in silenzio.
+        val ora = System.currentTimeMillis()
+        if (Avvisi.suona(ultimoSuono, ora)) ultimoSuono = ora else costruttore.setSilent(true)
+        riferisci(contesto, a)
         val g = gestore(contesto)
         try {
             val prima = g.activeNotifications.firstOrNull { it.id == a.id }?.notification?.extras?.getString(EXTRA_CHIAVE)

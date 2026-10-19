@@ -28,7 +28,7 @@ import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
 } from './supervisore'
-import { dopoAvvioFallito, pianificaFlotta } from './flotta'
+import { dopoAvvioFallito, pianificaFlotta, tettoDellaFlotta } from './flotta'
 import {
   componiPromptIntervista, giaChiesta, leggiEsitoIntervista, SCAMBI_MAX, TEMPO_PREPARAZIONE_MS
 } from './intervista'
@@ -821,10 +821,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // freno sui limiti del piano e il tetto tecnico.
     const freno = frenoAdesso()
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
-    const tetto = freno.apriNuove ? Math.min(freno.tetto, TETTO_CHAT_MAX) : attive
+    const { tetto, soloRevisioni } = tettoDellaFlotta(freno, attive, TETTO_CHAT_MAX)
     // Solo i compiti che non aspettano altri compiti ancora da unire (0.71.0).
     const fatti = compitiFatti(a.chats)
-    const pronti = a.compitiDaFare.filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
+    const pronti = a.compitiDaFare
+      .filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
+      .filter((t) => !soloRevisioni || (a.ruoliCompiti?.[t]?.ruolo ?? (chatDaRivedere(t) !== undefined ? 'revisione' : undefined)) === 'revisione')
     const piano = pianificaFlotta({
       chats: a.chats,
       compitiDaFare: pronti,
@@ -2991,6 +2993,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return {}
   }
 
+  /** L'ultimo elenco mandato con il suo ETag (0.81.0, `GET /autopiloti`). */
+  let ultimoElenco: { testo: string; etag: string } | undefined
+
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
     const percorso = url.pathname
@@ -3131,11 +3136,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (metodo === 'GET' && percorso === '/autopiloti') {
           // Con l'ultimo segno di vita delle sue chat (0.69.0), per «nessun
           // segno da 10 min»: segnali di Claude Code e turni mandati.
-          rispondi(res, 200, deps.archivio.elenca().map((a) => {
+          const testo = JSON.stringify(deps.archivio.elenca().map((a) => {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
             const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
             return segni.length === 0 ? a : { ...a, ultimoSegno: new Date(Math.max(...segni)).toISOString() }
           }))
+          // 0.81.0: «non cambiato» (304) a chi ha già questo elenco. Lo chiedono
+          // finestre, pannello e telefono ogni 2-5 s, e un autopilota con
+          // centinaia di mosse pesa centinaia di KB da rileggere ogni volta.
+          // Lo sha1 di ~700 KB costa 4 ms: se il testo è lo stesso dell'ultima volta, l'ETag anche.
+          if (ultimoElenco?.testo !== testo) ultimoElenco = { testo, etag: `"${createHash('sha1').update(testo).digest('base64url')}"` }
+          const etag = ultimoElenco.etag
+          if (req.headers['if-none-match'] === etag) {
+            res.writeHead(304, { ETag: etag })
+            res.end()
+            return
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', ETag: etag })
+          res.end(testo)
           return
         }
 

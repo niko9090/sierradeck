@@ -110,9 +110,12 @@ describe('le notifiche della pagina per un autopilota fermo', () => {
   const giro = (): ((stato: unknown) => void) & { mandate: string[] } => {
     const mandate: string[] = []
     const f = new Function('mandate', `
-      var avvisati = {}; var primoAvviso = false
+      var avvisati = {}; var primoAvviso = false; var ultimoAvvisoIl = undefined
       function Notification(titolo) { mandate.push(titolo) }
       Notification.permission = 'granted'
+      function chiedi() { return Promise.resolve() }
+      ${estrai('avvisiDaMostrare')}
+      ${estrai('sceltaDaAnnunciare')}
       ${estrai('avvisaSeServe')}
       return avvisaSeServe`)(mandate) as (stato: unknown) => void
     return Object.assign(f, { mandate })

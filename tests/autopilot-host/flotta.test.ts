@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  pianificaFlotta, chiatteAttive, dopoAvvioFallito, tentativiDi, TENTATIVI_AVVIO_MAX,
+  pianificaFlotta, chiatteAttive, dopoAvvioFallito, tentativiDi, tettoDellaFlotta, TENTATIVI_AVVIO_MAX,
   type StatoChat
 } from '../../src/autopilot-host/flotta'
 
@@ -142,5 +142,23 @@ describe('dopoAvvioFallito', () => {
     expect(tentativiDi(chats, 'A')).toBe(2)
     expect(tentativiDi(chats, 'B')).toBe(1)
     expect(tentativiDi(chats, 'Z')).toBe(0)
+  })
+})
+
+// 0.81.0: con il freno (limiti del piano) e nessuna chat al lavoro, la Revisione
+// di un lavoro finito si apre lo stesso, una alla volta; dalla prova nella copia.
+describe('tettoDellaFlotta', () => {
+  it('senza freno: il tetto del freno, entro il massimo', () => {
+    expect(tettoDellaFlotta({ apriNuove: true, tetto: 8 }, 0, 6)).toEqual({ tetto: 6, soloRevisioni: false })
+  })
+  it('«niente nuove» o «una» con nessuna chat al lavoro: una sola, e solo Revisioni', () => {
+    expect(tettoDellaFlotta({ apriNuove: false, tetto: 6 }, 0, 6)).toEqual({ tetto: 1, soloRevisioni: true })
+    expect(tettoDellaFlotta({ apriNuove: false, tetto: 1 }, 0, 6)).toEqual({ tetto: 1, soloRevisioni: true })
+  })
+  it('con chat al lavoro il freno tiene: niente di nuovo', () => {
+    expect(tettoDellaFlotta({ apriNuove: false, tetto: 6 }, 2, 6)).toEqual({ tetto: 2, soloRevisioni: false })
+  })
+  it('«fermo» (tetto 0): niente, nemmeno le Revisioni', () => {
+    expect(tettoDellaFlotta({ apriNuove: false, tetto: 0 }, 0, 6)).toEqual({ tetto: 0, soloRevisioni: false })
   })
 })

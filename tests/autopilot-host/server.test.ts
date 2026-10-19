@@ -151,6 +151,21 @@ describe('creazione ed elenco', () => {
     expect((await chiama('GET', '/autopiloti')).dati.map((a: any) => a.id)).toEqual([id])
   })
 
+  // 0.81.0: l'elenco si rilegge ogni 2-5 s da più parti; se non è cambiato, 304.
+  it('l’elenco ha un ETag: lo stesso elenco risponde 304, uno cambiato no', async () => {
+    await creaAp()
+    const primo = await fetch(`http://127.0.0.1:${porta}/autopiloti`)
+    const etag = primo.headers.get('etag')
+    expect(primo.status).toBe(200)
+    expect(etag).toBeTruthy()
+    const di = (): Promise<Response> => fetch(`http://127.0.0.1:${porta}/autopiloti`, { headers: { 'If-None-Match': etag as string } })
+    const secondo = await di()
+    expect(secondo.status).toBe(304)
+    expect(await secondo.text()).toBe('')
+    await creaAp({ obiettivo: 'un altro obiettivo' })
+    expect((await di()).status).toBe(200)
+  })
+
   it('rifiuta una creazione senza obiettivo', async () => {
     expect((await chiama('POST', '/autopiloti', {
       cwd: process.cwd(), criteri: [{ descrizione: 'x' }]
@@ -747,6 +762,21 @@ describe('flotta di chat', () => {
     expect(stato.stato).toBe('finito')
     expect(fermati).toContain(id)
     expect(stato.chats.every((c: any) => c.stato === 'finita')).toBe(true)
+  })
+
+  // 0.81.0, dalla prova nella copia (settimana al 72%): con il freno a «niente
+  // nuove» la Revisione non partiva mai e il supervisore chiedeva a Nicholas di
+  // chiuderla a mano. Adesso, con nessuna chat al lavoro, se ne apre una.
+  it('con il freno a «niente nuove», un lavoro finito va comunque alla Revisione, una alla volta', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 3)
+    await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: { cinqueOre: { percento: 8 }, settimana: { percento: 72 } } })
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    await attendi(() => chatAvviate.some((c) => c.compito.startsWith('Rivedi il ramo')))
+    await new Promise((r) => setTimeout(r, 100))
+    expect(chatAvviate.filter((c) => c.compito.startsWith('Rivedi il ramo'))).toHaveLength(1)
   })
 
   it('una scomposizione illeggibile non impedisce di lavorare', async () => {

@@ -224,8 +224,40 @@ export function creaClientAutopilota(p: {
     return dati
   }
 
+  /**
+   * L'elenco (0.81.0): l'ultimo ricevuto resta qui con il suo ETag, e il
+   * servizio risponde 304 se non è cambiato; le richieste che arrivano mentre
+   * una è in viaggio ne aspettano la risposta. Chi lo riceve non lo cambia.
+   */
+  let elencoTenuto: { etag: string; dati: Autopilota[] } | undefined
+  let elencoInViaggio: Promise<Autopilota[]> | undefined
+  const chiediElenco = async (): Promise<Autopilota[]> => {
+    let risposta: Response
+    try {
+      risposta = await fetch(`${base}/autopiloti`, {
+        headers: elencoTenuto !== undefined ? { 'If-None-Match': elencoTenuto.etag } : {},
+        signal: AbortSignal.timeout(attesaMs)
+      })
+    } catch (err) {
+      throw new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`)
+    }
+    if (risposta.status === 304 && elencoTenuto !== undefined) return elencoTenuto.dati
+    const testo = await risposta.text()
+    const dati: unknown = testo === '' ? undefined : JSON.parse(testo)
+    if (!risposta.ok) {
+      const motivo = (dati as { errore?: string } | undefined)?.errore ?? `stato ${risposta.status}`
+      throw new Error(`il servizio autopilota ha rifiutato la richiesta: ${motivo}`)
+    }
+    const etag = risposta.headers.get('etag')
+    elencoTenuto = etag !== null && Array.isArray(dati) ? { etag, dati: dati as Autopilota[] } : undefined
+    return dati as Autopilota[]
+  }
+
   return {
-    elenca: async () => (await chiama('/autopiloti', 'GET')) as Autopilota[],
+    elenca: () => {
+      elencoInViaggio ??= chiediElenco().finally(() => { elencoInViaggio = undefined })
+      return elencoInViaggio
+    },
     crea: async (nuovo) => (await chiama('/autopiloti', 'POST', nuovo)) as Autopilota,
     vai: async (id) =>
       (await chiama(`/autopiloti/${encodeURIComponent(id)}/vai`, 'POST')) as Autopilota,
