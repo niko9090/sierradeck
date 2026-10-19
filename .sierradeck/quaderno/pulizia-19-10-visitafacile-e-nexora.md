@@ -18,6 +18,16 @@ Compito della pulizia di oggi, punto 2: «se la chat VisitaFacile è vuota, mett
   - l'intervista è la chat `353b4549…` (674 KB, dalle 11:20 alle 11:28 del 19/10), in `~/.claude/projects/E--Users-nikof-Documents-VisitaFacile/`;
   - c'è anche `C:\Users\nikof\Progetti SierraDeck\dentro al mio server nexora c'è gia un`, vuota.
 
+## La domanda aperta dell'intervista (copiata da c-12 alle 13 del 19/10)
+- **Cosa cercava:** il progetto VisitaFacile sul NAS «nexora-nas», trovato su Tailscale. La cartella qui era vuota. Il NAS rispondeva, ma SSH era chiuso e la condivisione dei file dava «Accesso negato».
+- **La domanda per Nicholas:** «Come entro in nexora-nas per leggere il progetto VisitaFacile?». Le quattro scelte proposte:
+  - utente e password della condivisione (la consigliata: copia in sola lettura);
+  - accendere SSH e dire utente e porta;
+  - copiare lui i file nella cartella;
+  - «il progetto non è su nexora-nas».
+- **Se nessuno risponde:** «Mi fermo e aspetto: senza accesso non tocco il server e non provo altre password.»
+- Anche c-12, al secondo tentativo (con il sì del supervisore), si è fermata sulla stessa porta: `/api/workspace/elimina` vuole la chiave di un dispositivo, e scriverne uno in `dispositivi.json` è fuori dalle cartelle delle chat. **Strada per finire:** Nicholas, «⋯» del workspace → Elimina, sui due nomi.
+
 ## Perché non l'ho tolto
 Togliendo il workspace o la cartella VisitaFacile, l'autopilota resta senza casa e si perde la richiesta di Nicholas su NexoraOS. Il compito dice «se la chat non è vuota, fermati e scrivi a Nicholas cosa contiene».
 
