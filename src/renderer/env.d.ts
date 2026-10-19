@@ -470,7 +470,7 @@ declare global {
         mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
         nota: (id: string, testo: string) => Promise<void>
         /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
-        inSottofondo: (c: unknown, nonAschermo?: boolean) => Promise<boolean>
+        inSottofondo: (c: unknown) => Promise<boolean>
         file: (id: string) => Promise<import('@shared/file-autopilota').GruppoChat[]>
         diff: (id: string, chiave: string, percorso: string) => Promise<string>
         elimina: (id: string) => Promise<void>

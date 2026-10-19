@@ -303,8 +303,8 @@ export function App(): React.JSX.Element {
     sveglia: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.ibernata === true) useLayoutStore.getState().sveglia(paneId) },
     // La chat di un autopilota diventata remota (0.52.5): torna qui, e il cancello decide.
     riportaQui: (paneId: string) => { const p = useLayoutStore.getState().panes[paneId]; if (p?.remoto !== undefined && p.autopilota !== undefined) useLayoutStore.getState().rendiLocale(paneId) },
-    // Il riquadro è sparito (0.80.0): in sottofondo, chiesto o no; lo schermo non si sposta.
-    passaAlSottofondo: (c: Consegna) => { void window.gestore.autopilota.inSottofondo(c, true).catch(() => undefined) },
+    // In sottofondo solo se Nicholas l'ha chiesto (0.72.0): il Ponte lo chiama solo allora.
+    passaAlSottofondo: (c: Consegna) => { void window.gestore.autopilota.inSottofondo(c).catch(() => undefined) },
     // 0.72.0: la chat governata si vede sempre. Il riquadro è sparito: si torna nel suo workspace.
     tornaNelSuoWorkspace: (c: { workspace?: string }) => {
       if (c.workspace === undefined || c.workspace === workspaceCorrente()) return
@@ -498,11 +498,7 @@ export function App(): React.JSX.Element {
     if (come === 'sottofondo') {
       togli()
       void window.gestore.log.info(`[consegna] consegna ${c.id}: lavora in sottofondo nel workspace «${c.workspace ?? '?'}», ${c.sottofondo === true ? 'come hai chiesto' : 'perché non è quello davanti e lo schermo cambia solo quando lo scegli tu'} (si vede in «Al lavoro in sottofondo», con Guarda)`).catch(() => undefined)
-      // Senza `true` il Core la rifiutava (valeva solo il sottofondo chiesto) e
-      // la consegna non arrivava. Se il sottofondo non la prende: banda con Guarda.
-      void window.gestore.autopilota.inSottofondo(c, true)
-        .then((presa) => { if (!presa) setInAttesaDiQuiete((v) => (v.some((x) => x.id === c.id) ? v : [...v, c])) })
-        .catch(() => undefined)
+      void window.gestore.autopilota.inSottofondo(c).catch(() => undefined)
       return
     }
     if (come === 'aspetta') {

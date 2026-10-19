@@ -4690,8 +4690,6 @@ if (!app.requestSingleInstanceLock()) {
           .map((w) => w.id)
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
-        // Ogni avviso nel registro (0.80.0): «mille notifiche quando un autopilota lavora» non lasciava traccia.
-        registro.info(`[notifica] domande dell’autopilota ${id} ${automatico ? 'arrivate da sole' : 'chieste da te'}: ${dove.tipo === 'pannello' ? 'porto avanti il pannello staccato' : dove.tipo === 'scheda' ? `linguetta «Domande» nella finestra ${dove.finestra}${automatico ? ', sopra le altre e lampeggia' : ''}` : 'apro il pannello delle domande'}`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)
@@ -6091,13 +6089,11 @@ if (!app.requestSingleInstanceLock()) {
       }
       // Dal renderer (0.60.8): una consegna che la finestra non può portare
       // senza cambiare workspace torna qui e va in sottofondo.
-      ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown, nonAschermo: unknown) => {
+      ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
         const c = leggiConsegne({ consegne: [raw] })[0]
         const sf = sottofondo
-        // Se Nicholas l'ha chiesto (0.72.0), o se la chat non è sullo schermo
-        // (0.80.0): lo schermo non si sposta per un autopilota. La chat resta nel
-        // riquadro del suo workspace, che la adotta quando ci vai.
-        if (c === undefined || sf === undefined || (c.sottofondo !== true && nonAschermo !== true)) return false
+        // Solo se Nicholas l'ha chiesto (0.72.0): senza, la chat resta in un riquadro.
+        if (c === undefined || sf === undefined || c.sottofondo !== true) return false
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })
@@ -6328,7 +6324,6 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
-                registro.info('[notifica] Windows: «SierraDeck aspetta per aggiornarsi»')
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },

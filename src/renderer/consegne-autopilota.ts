@@ -452,11 +452,7 @@ function attendiEConsegna(
     // Una consegna alla volta (0.56.1): se un'altra sta usando la finestra in
     // un altro workspace, si aspetta che abbia scritto; poi si torna (anche
     // più di una volta, se nel frattempo la finestra è stata portata via).
-    // 0.80.0: lo schermo cambia solo quando lo sceglie Nicholas. Un riquadro
-    // perso a metà consegna passa sempre al sottofondo (il terminale nascosto
-    // della chat, o il Core); «torna nel suo workspace» resta solo per chi non
-    // ha il sottofondo (le prove).
-    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && ponte.passaAlSottofondo !== undefined) {
+    if (ora === undefined && passato >= RIQUADRO_PERSO_MS && c.sottofondo === true && ponte.passaAlSottofondo !== undefined) {
       lasciaTurno(c)
       ponte.registra?.(`consegna ${c.id}: il riquadro non c'è più in questa finestra (il workspace è cambiato): passa in sottofondo, senza cambiare lo schermo`)
       ponte.passaAlSottofondo(c)

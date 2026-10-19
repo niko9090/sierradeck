@@ -2288,7 +2288,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       // Come dal pannello del PC (0.55.0): la finestra lo crea, ci va e lo
       // dice alle altre. Un nome che c'è già non è un errore: ci si va.
-      deps.log?.(`[workspace] «${nome}» creato e messo sullo schermo di questo PC: chiesto da ${visore}`)
       if (deps.azioneFinestra !== undefined) {
         const e = await deps.azioneFinestra({ tipo: 'workspace', azione: 'crea', nome })
         if (!e.ok) return { stato: 409, corpo: { errore: `Il workspace «${nome}» non è stato creato: ${e.errore ?? 'la finestra del computer non ha detto perché'}.` } }
@@ -2593,19 +2592,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const e = await deps.progettoDelWorkspace(nome)
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
-    // Una notifica mostrata dal telefono (0.80.0): solo una riga nel registro, per
-    // capire da dove vengono «mille notifiche quando un autopilota lavora».
-    if (r.metodo === 'POST' && r.percorso === '/api/notifica') {
-      const titolo = stringa(r.corpo, 'titolo').replace(/\s+/g, ' ').slice(0, 160)
-      const tag = stringa(r.corpo, 'tag').slice(0, 80)
-      if (titolo !== '') deps.log?.(`[notifica] ${visore}: «${titolo}»${tag !== '' ? ` (${tag})` : ''}`)
-      return OK({ fatto: true })
-    }
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {
       const nome = stringa(r.corpo, 'nome')
       if (nome === '') return { stato: 400, corpo: { errore: 'serve il nome' } }
-      // Chi sposta lo schermo di questo PC (0.80.0): «il workspace cambia da solo».
-      deps.log?.(`[workspace] lo schermo di questo PC va su «${nome}»: chiesto da ${visore} (scelta del workspace)`)
       await deps.cambiaWorkspace(nome)
       return OK({ fatto: true })
     }

@@ -42,7 +42,7 @@ export function comePortare(
   return 'sottofondo'
 }
 
-/** La riga della banda per una consegna che il sottofondo non ha preso: si va solo con Guarda. */
+/** La riga della banda per una consegna che aspetta. */
 export function rigaInAttesa(c: { titolo: string; workspace?: string }): string {
-  return `L’autopilota deve scrivere nella chat «${c.titolo || 'senza nome'}», nel workspace «${c.workspace ?? '?'}». Premi Guarda per andarci.`
+  return `L’autopilota deve scrivere nella chat «${c.titolo || 'senza nome'}», nel workspace «${c.workspace ?? '?'}». Aspetto che smetti di scrivere per portarti lì.`
 }

@@ -9,10 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import org.json.JSONObject
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import kotlin.concurrent.thread
 
 /**
  * Un giro di guardia: si chiede al computer come va, e si avvisa se serve.
@@ -246,28 +243,6 @@ object Ronda {
         } catch (_: Exception) { }
         g.notify(a.id, costruttore.build())
         riassumi(contesto)
-        segnalaAlPc(contesto, a)
-    }
-
-    /**
-     * Ogni notifica anche nel registro del computer (PC 0.80.0): «mille
-     * notifiche quando un autopilota lavora» non lasciava nessuna traccia. In
-     * un filo a parte e senza attese: un PC più vecchio risponde 404, e va bene.
-     */
-    private fun segnalaAlPc(contesto: Context, a: Avvisi.Avviso) {
-        val collegamento = Collegamento(contesto)
-        if (!collegamento.pronto) return
-        thread(start = true, isDaemon = true) {
-            try {
-                val corpo = JSONObject().put("titolo", a.titolo).put("tag", a.chiave).toString()
-                val richiesta = Request.Builder()
-                    .url("${collegamento.indirizzo}/api/notifica")
-                    .header("x-sierradeck-chiave", collegamento.chiave)
-                    .post(corpo.toRequestBody("application/json; charset=utf-8".toMediaType()))
-                    .build()
-                Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo)).newCall(richiesta).execute().close()
-            } catch (_: Exception) { }
-        }
     }
 
     /**

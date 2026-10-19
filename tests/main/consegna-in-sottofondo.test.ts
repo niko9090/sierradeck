@@ -20,13 +20,10 @@ const AP = { id: 'ap-prova', chat: 'chat-1' }
 const consegna: Consegna = { id: 'c-7', autopilotaId: AP.id, chatId: AP.chat, cwd: 'C:\\Progetti\\Prova', sessionId: SESSIONE, titolo: 'Prova', cosa: 'scrivi', testo: 'Leggi ed esegui le istruzioni', workspace: 'Prova' }
 
 describe('dove va una consegna', () => {
-  it('0.80.0: anche senza sottofondo chiesto, un workspace che non si vede va in sottofondo (lo schermo non si sposta)', () => {
-    expect(doveConsegnare({ workspace: 'Prova', inFinestra: false, inSottofondo: false, accesaNascosta: false, visibili: ['MT5'] })).toBe('sottofondo')
-    expect(doveConsegnare({ workspace: 'Prova', inFinestra: false, inSottofondo: true, accesaNascosta: false, visibili: ['MT5'] })).toBe('sottofondo')
-    expect(doveConsegnare({ inFinestra: false, inSottofondo: false, accesaNascosta: true, visibili: ['MT5'] })).toBe('sottofondo')
-    // Il suo workspace si vede, o non ne ha uno: la finestra.
-    expect(doveConsegnare({ workspace: 'Prova', inFinestra: false, inSottofondo: false, accesaNascosta: false, visibili: ['Prova'] })).toBe('finestra')
-    expect(doveConsegnare({ inFinestra: false, inSottofondo: false, accesaNascosta: false, visibili: ['MT5'] })).toBe('finestra')
+  it('0.72.0: di serie sempre la finestra (la chat governata si vede), anche se il suo workspace non è sullo schermo', () => {
+    expect(doveConsegnare({ workspace: 'Prova', inFinestra: false, inSottofondo: false, accesaNascosta: false, visibili: ['MT5'] })).toBe('finestra')
+    expect(doveConsegnare({ workspace: 'Prova', inFinestra: false, inSottofondo: true, accesaNascosta: false, visibili: ['MT5'] })).toBe('finestra')
+    expect(doveConsegnare({ inFinestra: false, inSottofondo: false, accesaNascosta: true, visibili: ['MT5'] })).toBe('finestra')
   })
   it('con il sottofondo chiesto da Nicholas: le regole della 0.60.8', () => {
     const chiesto = { sottofondoChiesto: true }
@@ -69,11 +66,11 @@ describe('nella finestra: il riquadro non c’è più', () => {
     for (let i = 0; i < 2_000 && coda.length > 0; i += 1) { coda.sort((a, b) => a.quando - b.quando); const x = coda.shift()!; ora = x.quando; x.f() }
     return { passate, tornate, passi }
   }
-  it('0.80.0: di serie in sottofondo, mai «torna nel suo workspace» (lo schermo lo sceglie Nicholas)', () => {
-    const { passate, tornate, passi } = giro(consegna as ConsegnaFinestra)
-    expect(passate).toEqual(['c-7'])
-    expect(tornate).toEqual([])
-    expect(passi.join(' ')).toContain('passa in sottofondo, senza cambiare lo schermo')
+  it('0.72.0: di serie torna nel suo workspace (la chat si vede), mai in sottofondo da sola', () => {
+    const r = giro(consegna as ConsegnaFinestra)
+    expect(r.passate).toEqual([])
+    expect(r.tornate.length).toBeGreaterThan(0)
+    expect(r.tornate[0]).toBe('c-7')
   })
   it('con il sottofondo chiesto: passa al sottofondo e non chiama «torna nel suo workspace»', () => {
     const { passate, tornate, passi } = giro({ ...(consegna as ConsegnaFinestra), sottofondo: true })

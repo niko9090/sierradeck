@@ -1547,26 +1547,3 @@ describe('0.77.0: la Panoramica del workspace per la pagina e l’app', () => {
     expect(ROTTE_PONTE).toContain('/api/panoramica')
   })
 })
-
-describe('notifiche e cambi di workspace nel registro (0.80.0)', () => {
-  it('una notifica del telefono diventa una riga con chi l’ha mostrata', async () => {
-    const righe: string[] = []
-    const r = await rotteClient(deps({ log: (x) => { righe.push(x) } }))({ metodo: 'POST', percorso: '/api/notifica', corpo: { titolo: 'Revisione  aspetta te', tag: 'chat-c-3' }, dispositivo: 'tel-1' })
-    expect(r.stato).toBe(200)
-    expect(righe).toEqual(['[notifica] tel:tel-1: «Revisione aspetta te» (chat-c-3)'])
-  })
-
-  it('senza titolo non scrive niente', async () => {
-    const righe: string[] = []
-    await rotteClient(deps({ log: (x) => { righe.push(x) } }))({ metodo: 'POST', percorso: '/api/notifica', corpo: {}, dispositivo: 'tel-1' })
-    expect(righe).toEqual([])
-  })
-
-  it('chi sposta lo schermo del PC da lontano resta nel registro', async () => {
-    const righe: string[] = []
-    let andato = ''
-    await rotteClient(deps({ log: (x) => { righe.push(x) }, cambiaWorkspace: (n) => { andato = n; return Promise.resolve() } }))({ metodo: 'POST', percorso: '/api/workspace', corpo: { nome: 'casa' }, dispositivo: 'tel-1' })
-    expect(andato).toBe('casa')
-    expect(righe).toEqual(['[workspace] lo schermo di questo PC va su «casa»: chiesto da tel:tel-1 (scelta del workspace)'])
-  })
-})
