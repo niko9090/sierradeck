@@ -4,7 +4,8 @@ import { terminaliDi, type MemoriaWorkspace } from './memoria-workspace'
 
 export type AzioniDeps = {
   stato: () => Promise<StatoWorkspace>
-  crea: (nome: string) => Promise<StatoWorkspace>
+  /** Con la cartella: il workspace di chi lavora già lì (0.80.0), senza progetto nuovo. */
+  crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>
   elimina: (nome: string) => Promise<StatoWorkspace>
   cambia: (nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
   migra: (da: string, nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
@@ -63,7 +64,7 @@ export type AzioniDeps = {
 export type AzioniWorkspace = {
   stato: () => Promise<StatoWorkspace>
   cambia: (nome: string) => Promise<void>
-  crea: (nome: string) => Promise<StatoWorkspace>
+  crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>
   elimina: (nome: string) => Promise<StatoWorkspace>
   /** Applica un cambio deciso da un'altra finestra. */
   segui: (precedente: string, attivo: string) => Promise<void>
@@ -178,7 +179,7 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       deps.cambiaVista(deps.memoria.recupera(nome, dalDisco))
     },
 
-    async crea(nome) {
+    async crea(nome, cartella) {
       // Da dove si parte lo dice **questa finestra**, non l'archivio: l'attivo
       // dell'archivio e' dell'applicazione, e con due finestre su workspace
       // diversi e' quello dell'altra. Il layout di qui verrebbe salvato sotto un
@@ -186,7 +187,7 @@ export function creaAzioniWorkspace(deps: AzioniDeps): AzioniWorkspace {
       // qualcun altro. Si ripiega sull'archivio solo se la finestra non sa
       // ancora dove si trova (avvio).
       const precedente = await daDove()
-      const stato = await deps.crea(nome)
+      const stato = await deps.crea(nome, cartella)
       await trasloca(precedente, stato.attivo)
       return stato
     },

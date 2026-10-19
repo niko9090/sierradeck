@@ -880,7 +880,7 @@ export function apriSincronia(deps: {
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       if (deps.progetti === undefined) return { ok: false, messaggio: 'Nessun progetto sul Drive.' }
       const prefisso = prefissoProgetto(id)
-      const radici = deps.progetti.preparaRipristino().filter((r) => r.prefisso === prefisso)
+      const radici = deps.progetti.preparaRipristino(new Set([id])).filter((r) => r.prefisso === prefisso)
       if (radici.length === 0) return { ok: false, messaggio: 'Progetto senza cartella su questo PC.' }
       // Come ogni cosa che tocca il manifesto: uno alla volta. Prima girava
       // fuori dal lavoro esclusivo e poteva sovrapporsi a un salvataggio.

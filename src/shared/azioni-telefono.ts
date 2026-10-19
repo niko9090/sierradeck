@@ -135,9 +135,11 @@ export function controllaNomeWorkspace(nome: string, esistenti: readonly string[
  * che quel PC ha davanti. Nel collaudo dell'11/10 la chat dell'autopilota di
  * prova è comparsa dentro MT5, sullo schermo del portatile.
  */
-export function workspaceDellAutopilota(nome: string, cwd: string): string {
-  const daCartella = cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
-  for (const candidato of [nome, daCartella, 'Autopilota']) {
+export function workspaceDellAutopilota(nome: string, cwd: string, obiettivo?: string): string {
+  // Con l'obiettivo, il nome conta solo se l'ha scritto Nicholas (0.80.0): mai
+  // le prime parole del messaggio.
+  const scelto = obiettivo === undefined ? nome : nomeScritto(nome, obiettivo)
+  for (const candidato of [scelto, nomeDaCartella(cwd), 'Autopilota']) {
     // eslint-disable-next-line no-control-regex
     const pulito = candidato.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, NOME_WORKSPACE_MAX).trim()
     if (controllaNomeWorkspace(pulito).ok) return pulito
@@ -196,6 +198,24 @@ export type RichiestaAutopilota = {
   vaSulCloud?: true
   workspace?: string
   partenza: Partenza
+}
+
+/** L'ultima parte di un percorso: il nome della cartella. */
+export function nomeDaCartella(cwd: string): string {
+  return cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? ''
+}
+
+/**
+ * Il nome di un autopilota **scritto da Nicholas**, o '' se è quello ricavato
+ * dall'obiettivo (0.80.0). Il caso del 19/10: il primo messaggio all'autopilota
+ * («dentro al mio server … c'è gia un») diventava il nome di un workspace,
+ * con la sua cartella. Il nome di un workspace viene dal nome scritto o dalla
+ * cartella, mai dal messaggio. Il telefono manda il nome già ricavato con la
+ * stessa regola: per questo si confronta con `nomeDaObiettivo`.
+ */
+export function nomeScritto(nome: string, obiettivo: string): string {
+  const n = nome.trim()
+  return n === '' || n === nomeDaObiettivo(obiettivo) ? '' : n
 }
 
 /** Se il nome è vuoto: le prime otto parole dell'obiettivo, al massimo 60 caratteri (come il PC). */

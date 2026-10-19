@@ -9,6 +9,7 @@ import { APP_ID, portePerLaProva } from './identita-app'
 import { creaRtc } from './rtc/collegamento-rtc'
 import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
+import { sceltaCartellaWorkspace } from '@shared/cartella-workspace'
 import { creaOspite, type Ospite } from './ospite'
 import { casaAltrove, casaPerAutopilota } from '@shared/ospite-chat'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -562,7 +563,7 @@ let gestioneChatGlobale: GestioneChat | undefined
 /** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
 let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
 /** «Creare un workspace crea il progetto» (0.65.1): la cartella del progetto di un workspace, creata se serve. */
-let progettoPerWorkspaceGlobale: ((nome: string) => Promise<string | undefined>) | undefined
+let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Promise<string | undefined>) | undefined
 /** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 let traslocoGlobale: TraslocoApi | undefined
@@ -1437,7 +1438,7 @@ if (!app.requestSingleInstanceLock()) {
       // Dove stavano le finestre: va aperto prima che ne nasca una, perche' e'
       // la prima ad avere bisogno di sapere dove tornare.
       finestreStore = apriFinestreStore(dati)
-      registerLayoutIpc(workspaceStore, registro.info, (nome) => { void progettoPerWorkspaceGlobale?.(nome).catch(() => undefined) }, (vecchio, nuovo) => {
+      registerLayoutIpc(workspaceStore, registro.info, (nome, cartella) => { void progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined).catch(() => undefined) }, (vecchio, nuovo) => {
         // La vista a elenco segue il nome del workspace (0.74.0).
         const p = impostazioni.preferenze()
         const lista = rinominaInElenco(p.workspaceElenco, vecchio, nuovo)
@@ -2642,17 +2643,26 @@ if (!app.requestSingleInstanceLock()) {
        * PC residente. Se il progetto esiste già su un altro PC non si crea
        * niente: resta suo, e qui si guarda da là.
        */
-      progettoPerWorkspaceGlobale = async (nome: string): Promise<string | undefined> => {
+      progettoPerWorkspaceGlobale = async (nome: string, opz?: { crea?: boolean }): Promise<string | undefined> => {
         const io = identitaPc.leggi()
-        if (nome.trim() === '' || nomeNormalizzato(nome) === nomeNormalizzato('Predefinito')) return undefined
-        const gruppi = raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case())
-        const g = gruppi.find((x) => nomeNormalizzato(x.nome) === nomeNormalizzato(nome))
-        const qui = g?.percorsi.find((x) => x.pc === io.id && existsSync(x.percorso))?.percorso
-        if (qui !== undefined) return qui
-        if (g !== undefined && g.percorsi.some((x) => x.pc !== io.id)) return undefined
-        const radice = io.cartellaProgetti
-        const cartella = join(radice, cartellaDaNomeWorkspace(nome))
-        if (!cartellaDiProgettoValida(cartella, homedir())) { registro.info(`[workspace] «${nome}»: la cartella ${cartella} non va bene per un progetto, non la creo`); return undefined }
+        const cartella = join(io.cartellaProgetti, cartellaDaNomeWorkspace(nome))
+        const ws = workspaceStore?.leggi().workspace.find((w) => w.nome === nome)
+        const scelta = sceltaCartellaWorkspace({
+          nome,
+          io,
+          gruppi: raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case()),
+          casaDi: (chiave) => unaCasa.case().case[chiave],
+          remoti: ws === undefined ? [] : Object.values(ws.perSlot).flatMap((l) => l.panes).flatMap((p) => (p.remoto !== undefined ? [{ pcId: p.remoto.pcId, pcNome: p.remoto.pcNome }] : [])),
+          battiti: postino.altrui(),
+          esiste: existsSync,
+          cartellaNuova: cartella,
+          valida: cartellaDiProgettoValida(cartella, homedir())
+        })
+        if (scelta.tipo === 'qui') return scelta.cartella
+        if (scelta.tipo === 'altrove') { registro.info(`[workspace] «${nome}» vive su ${scelta.pcNome} (${scelta.perche}): qui non creo cartelle`); return undefined }
+        if (scelta.tipo === 'niente') { if (scelta.perche.startsWith('la cartella')) registro.info(`[workspace] «${nome}»: ${scelta.perche}, non la creo`); return undefined }
+        // Leggere non crea (0.80.0): la finestra della chat nuova chiede solo dove sta il progetto.
+        if (opz?.crea === false) return undefined
         try { mkdirSync(cartella, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
         const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: io.id, percorso: cartella, adesso: new Date().toISOString() })
         registroProgetti.scrivi(reg)
@@ -4057,7 +4067,7 @@ if (!app.requestSingleInstanceLock()) {
       // Le due cartelle-base di una chat nuova: Documenti e quella dei progetti.
       ipcMain.handle('sistema:cartelleBase', async (_e, ws: unknown) => {
         // La cartella del progetto del workspace (0.65.1): lì nascono le chat nuove.
-        const cartella = typeof ws === 'string' && ws !== '' ? await progettoPerWorkspaceGlobale?.(ws).catch(() => undefined) : undefined
+        const cartella = typeof ws === 'string' && ws !== '' ? await progettoPerWorkspaceGlobale?.(ws, { crea: false }).catch(() => undefined) : undefined
         return { documenti: app.getPath('documents'), progetti: identitaPc.leggi().cartellaProgetti, casa: homedir(), ...(cartella !== undefined ? { workspace: cartella } : {}) }
       })
       // Creare la cartella di una chat nuova: solo sotto Documenti o sotto la
@@ -5441,7 +5451,7 @@ if (!app.requestSingleInstanceLock()) {
           await clientAutopilota.assicuraServizio()
           let suo: string | undefined
           if (r.workspace === undefined && workspaceStore !== undefined) {
-            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd)
+            suo = workspaceDellAutopilota(r.nome ?? '', r.cwd, r.obiettivo)
             const prima = workspaceStore.leggi()
             const dopo = aggiungiWorkspace(prima, suo)
             if (dopo !== prima) {
