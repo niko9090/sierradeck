@@ -153,6 +153,7 @@ describe('Voci ancora aperte, fatte nella 0.81.0', () => {
     const account = readFileSync('src/renderer/components/PannelloAccount.tsx', 'utf8')
     expect(account).not.toContain('>Strumenti ▾<')
     expect(account).toContain('>Account ▾<')
+    expect(readFileSync('src/shared/account-vista.ts', 'utf8')).not.toContain('Strumenti ▾')
   })
   it('pagina e app: il campo di ricerca dei progetti non si taglia', () => {
     expect(script).toContain('placeholder="Cerca progetto o PC"')

@@ -5,7 +5,7 @@ import { statoCassaforte, statoDrive } from './stato-sistema'
  * Account e Drive riprogettati (0.70.0): una catena di quattro tessere —
  * Account → Drive → Cassaforte → Salvataggio — ognuna con la sua parola, e
  * sotto un solo «prossimo passo». Le azioni rare (Scollega, Cambia
- * passphrase, Blocca, Esci) stanno in «Strumenti ▾». Prima: due schede con
+ * passphrase, Blocca, Esci) stanno nel menu «Account ▾». Prima: due schede con
  * «collegato ✓»/«da creare» in grigio e un riquadro diverso per ogni caso.
  */
 
@@ -50,7 +50,7 @@ export function vistaAccount(a: IngressoAccount): { tessere: TesseraAccount[]; p
   const rischio = drive?.connesso === true ? rischioSetteGiorni(drive.collegatoIl, ora) : undefined
   let vDrive = statoDrive(drive)
   if (rischio?.scade === true) {
-    vDrive = stato('scade', 'scade', 'ambra', `collegato ${rischio.giorni} giorni fa: se l’app OAuth di Google è ancora «in prova», al settimo giorno perde il permesso. Ricollegalo (Strumenti ▾ → Scollega, poi Connetti)`)
+    vDrive = stato('scade', 'scade', 'ambra', `collegato ${rischio.giorni} giorni fa: se l’app OAuth di Google è ancora «in prova», al settimo giorno perde il permesso. Ricollegalo (Account ▾ → Scollega, poi Connetti)`)
   }
   const tessere: TesseraAccount[] = [
     { id: 'account', titolo: 'Account', vista: utente !== undefined ? stato('entrato', 'entrato', 'verde') : stato('fuori', 'fuori', 'ambra'), ...(utente !== undefined ? { sotto: utente.email } : {}) },
