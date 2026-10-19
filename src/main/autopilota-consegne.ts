@@ -110,11 +110,14 @@ export function doveConsegnare(p: {
   accesaNascosta: boolean
   /** I workspace sullo schermo, uno per finestra. */
   visibili: readonly string[]
-  /** Nicholas ha chiesto il sottofondo per quell'autopilota (0.72.0). Senza, mai. */
+  /**
+   * Nicholas ha chiesto il sottofondo per quell'autopilota (0.72.0). Dalla
+   * 0.80.0 non cambia la scelta: lo schermo non si sposta mai per un autopilota,
+   * quindi una chat il cui workspace non si vede va in sottofondo comunque.
+   */
   sottofondoChiesto?: boolean
 }): 'finestra' | 'sottofondo' {
   if (p.inFinestra) return 'finestra'
-  if (p.sottofondoChiesto !== true) return 'finestra'
   if (p.inSottofondo || p.accesaNascosta) return 'sottofondo'
   if (p.workspace !== undefined && !p.visibili.includes(p.workspace)) return 'sottofondo'
   return 'finestra'

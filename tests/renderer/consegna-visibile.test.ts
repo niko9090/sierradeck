@@ -1,30 +1,28 @@
 import { describe, it, expect } from 'vitest'
-import { comePortare, QUIETE_TASTIERA_MS, rigaInAttesa } from '../../src/renderer/consegna-visibile'
+import { comePortare, rigaInAttesa } from '../../src/renderer/consegna-visibile'
 
 /**
- * La chat governata da un autopilota si vede sempre (0.72.0): la finestra va
- * nel suo workspace, ma mai mentre scrivi; in sottofondo solo se l'hai chiesto.
+ * Lo schermo cambia solo quando lo sceglie Nicholas (0.80.0): una consegna per
+ * una chat di un altro workspace non sposta la finestra, mai, nemmeno quando
+ * non stai scrivendo. Va al terminale nascosto o in sottofondo.
  */
-const ORA = 1_000_000_000
 describe('come portare una consegna', () => {
   it('nel workspace che hai davanti, o senza workspace: qui', () => {
-    expect(comePortare({ workspace: 'NexoraOS' }, 'NexoraOS', undefined, ORA)).toBe('qui')
-    expect(comePortare({}, 'SierraDeck', undefined, ORA)).toBe('qui')
+    expect(comePortare({ workspace: 'NexoraOS' }, 'NexoraOS')).toBe('qui')
+    expect(comePortare({}, 'SierraDeck')).toBe('qui')
   })
-  it('in un altro workspace e non stai scrivendo: la finestra ci va', () => {
-    expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', undefined, ORA)).toBe('cambia')
-    expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', ORA - QUIETE_TASTIERA_MS - 1, ORA)).toBe('cambia')
+  it('in un altro workspace: sottofondo, mai «cambia» da solo', () => {
+    expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck')).toBe('sottofondo')
+    expect(comePortare({ workspace: 'NexoraOS', sottofondo: true }, 'SierraDeck')).toBe('sottofondo')
+    expect(comePortare({ workspace: 'NexoraOS' }, undefined)).toBe('sottofondo')
   })
-  it('in un altro workspace mentre scrivi: aspetta, mai un cambio a metà frase', () => {
-    expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', ORA - 2000, ORA)).toBe('aspetta')
+  it('chiesto il sottofondo ma il suo workspace è quello davanti: si vede nel riquadro', () => {
+    expect(comePortare({ workspace: 'NexoraOS', sottofondo: true }, 'NexoraOS')).toBe('qui')
   })
-  it('in sottofondo solo se l’hai chiesto tu', () => {
-    expect(comePortare({ workspace: 'NexoraOS', sottofondo: true }, 'SierraDeck', undefined, ORA)).toBe('sottofondo')
-    // Chiesto, ma il suo workspace è quello davanti: si vede comunque, nel riquadro.
-    expect(comePortare({ workspace: 'NexoraOS', sottofondo: true }, 'NexoraOS', undefined, ORA)).toBe('qui')
-  })
-  it('la banda dice quale chat e quale workspace', () => {
-    expect(rigaInAttesa({ titolo: 'NexoraOS – definizione', workspace: 'NexoraOS' })).toContain('«NexoraOS – definizione», nel workspace «NexoraOS»')
+  it('la banda dice quale chat, quale workspace e che si va solo con Guarda', () => {
+    const r = rigaInAttesa({ titolo: 'NexoraOS – definizione', workspace: 'NexoraOS' })
+    expect(r).toContain('«NexoraOS – definizione», nel workspace «NexoraOS»')
+    expect(r).toContain('Guarda')
   })
 })
 

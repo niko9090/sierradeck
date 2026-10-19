@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { creaFreno, creaRegistroConsegne, finestraPerRipresa, primoSlotLibero } from '../../src/main/consegne-layout'
+import { apriOSottofondo, creaFreno, creaRegistroConsegne, finestraPerRipresa, primoSlotLibero } from '../../src/main/consegne-layout'
 
 /**
  * La regola che mancava da quattro giri di correzioni: **un salvataggio è la
@@ -160,5 +160,19 @@ describe('finestraPerRipresa: a chi dare una chat ripresa dal telefono', () => {
   })
   it('senza finestre non sceglie nessuno', () => {
     expect(finestraPerRipresa('Lavoro', [])).toBeUndefined()
+  })
+})
+
+describe('riaprire una chat chiesta da lontano: lo schermo non si sposta (0.80.0)', () => {
+  it('da un altro PC o dal telefono, workspace non a schermo: sottofondo', () => {
+    expect(apriOSottofondo({ schermoFermo: true, aSchermo: 'SierraDeck', suo: 'NexoraOS', conSottofondo: true })).toBe('sottofondo')
+    expect(apriOSottofondo({ schermoFermo: true, aSchermo: undefined, suo: 'NexoraOS', conSottofondo: true })).toBe('sottofondo')
+  })
+  it('il suo workspace è già a schermo: nella finestra', () => {
+    expect(apriOSottofondo({ schermoFermo: true, aSchermo: 'NexoraOS', suo: 'NexoraOS', conSottofondo: true })).toBe('finestra')
+  })
+  it('«Mostra qui» (un clic sul PC) o niente sottofondo: nella finestra', () => {
+    expect(apriOSottofondo({ schermoFermo: false, aSchermo: 'SierraDeck', suo: 'NexoraOS', conSottofondo: true })).toBe('finestra')
+    expect(apriOSottofondo({ schermoFermo: true, aSchermo: 'SierraDeck', suo: 'NexoraOS', conSottofondo: false })).toBe('finestra')
   })
 })

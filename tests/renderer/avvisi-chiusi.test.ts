@@ -113,6 +113,10 @@ describe('le notifiche della pagina per un autopilota fermo', () => {
       var avvisati = {}; var primoAvviso = false
       function Notification(titolo) { mandate.push(titolo) }
       Notification.permission = 'granted'
+      // Ogni notifica va anche al PC (0.80.0): /api/notifica.
+      var segnalate = []
+      function chiedi(percorso, corpo) { segnalate.push(percorso + ' ' + corpo.titolo); return Promise.resolve() }
+      ${estrai('notifica')}
       ${estrai('avvisaSeServe')}
       return avvisaSeServe`)(mandate) as (stato: unknown) => void
     return Object.assign(f, { mandate })

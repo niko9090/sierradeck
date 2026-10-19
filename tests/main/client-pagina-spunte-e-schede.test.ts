@@ -67,7 +67,7 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     const mandate: { titolo: string; tag: string }[] = []
     class N { static permission = 'granted'; static requestPermission(): void {} constructor(titolo: string, o: { tag: string }) { mandate.push({ titolo, tag: o.tag }) } }
     let ora = Date.parse('2026-10-15T20:00:00Z')
-    const fn = new Function('Notification', 'Date', `var avvisati = {}; var primoAvviso = false; var ATTESA_CHAT_MS = 3 * 60000; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
+    const fn = new Function('Notification', 'Date', `var avvisati = {}; var primoAvviso = false; var ATTESA_CHAT_MS = 3 * 60000; function chiedi() { return Promise.resolve() } ${funzione('notifica')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
       N, { now: () => ora }
     ) as (s: unknown) => void
     return { mandate, giro: (s: unknown, piu = 0): void => { ora += piu; fn(s) } }

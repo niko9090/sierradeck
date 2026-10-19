@@ -1096,7 +1096,7 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Una riga nel diario dell'autopilota, scritta dal programma. */
     nota: (id: string, testo: string): Promise<void> => ipcRenderer.invoke('autopilota:nota', id, testo),
     /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
-    inSottofondo: (c: unknown): Promise<boolean> => ipcRenderer.invoke('autopilota:inSottofondo', c),
+    inSottofondo: (c: unknown, nonAschermo?: boolean): Promise<boolean> => ipcRenderer.invoke('autopilota:inSottofondo', c, nonAschermo === true),
     /** La linguetta «File»: i file cambiati per chat, e il diff di uno (solo lettura). */
     file: (id: string): Promise<import('@shared/file-autopilota').GruppoChat[]> => ipcRenderer.invoke('autopilota:file', id),
     diff: (id: string, chiave: string, percorso: string): Promise<string> => ipcRenderer.invoke('autopilota:diff', id, chiave, percorso),

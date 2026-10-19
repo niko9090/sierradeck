@@ -186,3 +186,15 @@ export function finestraPerRipresa(
   }
   return finestre[0]?.id
 }
+
+/**
+ * Dove riaprire una chat chiesta da lontano (0.80.0): lo schermo cambia solo
+ * quando lo sceglie Nicholas sul PC. Con `schermoFermo` (un altro PC, il
+ * telefono) una chat di un workspace che la finestra non mostra riparte in
+ * sottofondo, nel suo workspace; senza sottofondo, o se il workspace è già
+ * quello a schermo, si apre nella finestra.
+ */
+export function apriOSottofondo(p: { schermoFermo: boolean; aSchermo: string | undefined; suo: string; conSottofondo: boolean }): 'finestra' | 'sottofondo' {
+  if (!p.schermoFermo || !p.conSottofondo || p.aSchermo === p.suo) return 'finestra'
+  return 'sottofondo'
+}

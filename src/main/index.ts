@@ -41,7 +41,7 @@ import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
 import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
-import { finestraPerRipresa } from './consegne-layout'
+import { apriOSottofondo, finestraPerRipresa } from './consegne-layout'
 import type { AzioneFinestra, EsitoAzioneFinestra, RichiestaAutopilota } from '@shared/azioni-telefono'
 import { workspaceDellAutopilota } from '@shared/azioni-telefono'
 import { apriPartenzeSubito } from './partenze-subito'
@@ -345,7 +345,7 @@ let ptyClient: PtyHostClient | undefined
  * quello attivo: «Riapri là», il telefono, il ponte, un altro PC, «Mostra
  * qui». La scelta (`workspaceDiApertura`) e il perché vanno nel registro.
  */
-async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?: string; titolo?: string; come: string; elencaAutopiloti: () => Promise<{ nome?: string; workspace?: string; sessionId?: string; cwd: string }[]> }): Promise<void> {
+async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?: string; titolo?: string; come: string; schermoFermo?: true; elencaAutopiloti: () => Promise<{ nome?: string; workspace?: string; sessionId?: string; cwd: string }[]> }): Promise<void> {
   const store = workspaceStore
   const autopiloti = await o.elencaAutopiloti().catch(() => [])
   const archivio = store?.leggi() ?? { versione: 1, attivo: '', workspace: [] }
@@ -359,6 +359,15 @@ async function apriNelSuoWorkspace(cwd: string, sessione: string, o: { chiesto?:
   const finestra = vive.find((w) => w.id === scelta)
   registroGlobale?.info(`[apertura] «${o.titolo ?? sessione.slice(0, 8)}» (${sessione.slice(0, 8)}): ${o.come} nel workspace «${s.nome}» — ${s.perche}${s.creare ? ' (su questo PC non c’era: creato con quel nome)' : ''}${finestra === undefined ? '; nessuna finestra aperta: non la apro' : ''}`)
   if (finestra === undefined) return
+  // Lo schermo cambia solo quando lo sceglie Nicholas sul PC (0.80.0): chiesta da
+  // un altro PC o dal telefono, una chat di un workspace che non è a schermo
+  // riparte in sottofondo nel suo workspace; il riquadro la adotta quando ci vai.
+  const aSchermo = workspaceDellaFinestra(finestra.id)
+  if (apriOSottofondo({ schermoFermo: o.schermoFermo === true, aSchermo, suo: s.nome, conSottofondo: sottofondo !== undefined }) === 'sottofondo' && sottofondo !== undefined) {
+    registroGlobale?.info(`[workspace] lo schermo resta su «${aSchermo ?? '?'}»: «${o.titolo ?? sessione.slice(0, 8)}» riparte in sottofondo nel suo workspace «${s.nome}» (${o.come})`)
+    sottofondo.avvia({ sessione, cwd, titolo: o.titolo ?? sessione.slice(0, 8), perChi: { id: 'ripresa', nome: 'telefono o altro PC' }, workspace: s.nome })
+    return
+  }
   finestra.webContents.send('client:apri', { cartella: cwd, sessione, workspace: s.nome, ...(o.titolo !== undefined && o.titolo !== '' ? { nome: o.titolo } : {}) })
 }
 /** Le chat in sottofondo (0.58.4): senza riquadro, per chi le usa da lontano. */
@@ -5531,7 +5540,7 @@ if (!app.requestSingleInstanceLock()) {
         // Nel suo workspace (0.59.0): dell'autopilota, del riquadro salvato,
         // del riquadro di chi chiede, del progetto, della cartella. Mai quello attivo.
         riprendiSessione: (cwd: string, sessione: string, chiesto?: string) => {
-          void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', elencaAutopiloti: () => clientAutopilota.elenca() })
+          void apriNelSuoWorkspace(cwd, sessione, { ...(chiesto !== undefined ? { chiesto } : {}), come: 'riapro la conversazione (chiesta da un altro PC o dal telefono)', schermoFermo: true, elencaAutopiloti: () => clientAutopilota.elenca() })
         },
         aggiungiWorkspace: async (nome: string) => {
           const store = workspaceStore
@@ -6070,11 +6079,13 @@ if (!app.requestSingleInstanceLock()) {
       }
       // Dal renderer (0.60.8): una consegna che la finestra non può portare
       // senza cambiare workspace torna qui e va in sottofondo.
-      ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown) => {
+      ipcMain.handle('autopilota:inSottofondo', (_e, raw: unknown, nonAschermo: unknown) => {
         const c = leggiConsegne({ consegne: [raw] })[0]
         const sf = sottofondo
-        // Solo se Nicholas l'ha chiesto (0.72.0): senza, la chat resta in un riquadro.
-        if (c === undefined || sf === undefined || c.sottofondo !== true) return false
+        // Se Nicholas l'ha chiesto (0.72.0), o se la chat non è sullo schermo
+        // (0.80.0): lo schermo non si sposta per un autopilota. La chat resta nel
+        // riquadro del suo workspace, che la adotta quando ci vai.
+        if (c === undefined || sf === undefined || (c.sottofondo !== true && nonAschermo !== true)) return false
         const conWs = versoIlSuoWorkspace(c, (sessionId) => workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessionId))
         return consegnaInSottofondo(sf, conWs, ptyDiSessione(c.sessionId))
       })
