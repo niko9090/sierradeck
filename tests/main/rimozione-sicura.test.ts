@@ -175,8 +175,7 @@ describe('il giro intero, su cartelle temporanee', () => {
   })
 })
 
-// Monta le rotte vere del client: con la macchina carica da altre chat sta sui 20 s di regola (19/10).
-describe('le rotte del residente: solo fra PC della stessa cassaforte', { timeout: 90_000 }, () => {
+describe('le rotte del residente: solo fra PC della stessa cassaforte', () => {
   it('un altro PC firmato sì; un telefono, il ponte e questo schermo no', async () => {
     const { rotteClient } = await import('../../src/main/client-rotte')
     const s = scena()
