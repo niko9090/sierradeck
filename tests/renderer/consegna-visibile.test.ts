@@ -11,10 +11,13 @@ describe('come portare una consegna', () => {
     expect(comePortare({ workspace: 'NexoraOS' }, 'NexoraOS', undefined, ORA)).toBe('qui')
     expect(comePortare({}, 'SierraDeck', undefined, ORA)).toBe('qui')
   })
-  // 0.80.0: lo schermo cambia solo quando lo sceglie Nicholas.
-  it('in un altro workspace: mai cambiare lo schermo, la consegna va in sottofondo (stia scrivendo o no)', () => {
+  // 0.80.0: lo schermo cambia solo quando lo sceglie Nicholas. Prima la finestra
+  // andava nel workspace della consegna dopo 45 s di tastiera ferma.
+  it('in un altro workspace: in sottofondo, mai la finestra che cambia da sola', () => {
     expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', undefined, ORA)).toBe('sottofondo')
     expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', ORA - QUIETE_TASTIERA_MS - 1, ORA)).toBe('sottofondo')
+  })
+  it('in un altro workspace mentre scrivi: in sottofondo anche qui', () => {
     expect(comePortare({ workspace: 'NexoraOS' }, 'SierraDeck', ORA - 2000, ORA)).toBe('sottofondo')
   })
   it('in sottofondo solo se l’hai chiesto tu', () => {

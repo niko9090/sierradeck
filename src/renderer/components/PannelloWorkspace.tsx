@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { azioniDiFinestra } from '../azioni-finestra'
+import { cambiaSchermo } from '../cambio-schermo'
 import type { AzioniWorkspace } from '../workspace-azioni'
 import type { StatoWorkspace } from '../../main/ipc'
 import { ModaleConferma } from './ModaleConferma'
@@ -58,7 +59,7 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
 
   const cambia = (nome: string): void =>
     esegui(async () => {
-      await azioni.current?.cambia(nome, 'Nicholas: pannello dei workspace')
+      if (azioni.current !== undefined) await cambiaSchermo(nome, 'nicholas', 'dal pannello dei workspace', azioni.current)
       onStato({ ...stato, attivo: nome })
       setGiro((n) => n + 1)
     })

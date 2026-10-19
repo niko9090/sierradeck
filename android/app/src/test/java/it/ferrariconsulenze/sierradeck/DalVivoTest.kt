@@ -41,3 +41,25 @@ class DalVivoTest {
         assertEquals("il suo autopilota", c.sottofondo?.nome)
     }
 }
+
+/** 0.80.0: «fermo» rosso anche nell'app, come `COLORE_DAL_VIVO` del PC; «finito» grigio. */
+class TonoDalVivoTest {
+    @Test
+    fun `ogni parola con il colore del PC`() {
+        assertEquals("verde", tonoDalVivo("al lavoro"))
+        assertEquals("ambra", tonoDalVivo("aspetta te"))
+        assertEquals("rosso", tonoDalVivo("fermo"))
+        assertEquals("quieto", tonoDalVivo("finito"))
+    }
+}
+
+/** 0.80.0: con l'autopilota fermo una sua chat «lavoro» non è al lavoro, come sul PC. */
+class ChatGovernataTest {
+    @Test
+    fun `la chat di un autopilota fermo non e al lavoro`() {
+        assertEquals("al lavoro", parolaChatGovernata("lavoro", "lavoro"))
+        assertEquals("ferma: l’autopilota è fermo", parolaChatGovernata("sospeso", "lavoro"))
+        assertEquals("ferma, aspetta una risposta", parolaChatGovernata("sospeso", "bloccata"))
+        assertEquals("finita", parolaChatGovernata("lavoro", "finita"))
+    }
+}

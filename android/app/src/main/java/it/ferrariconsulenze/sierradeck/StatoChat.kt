@@ -12,7 +12,8 @@ package it.ferrariconsulenze.sierradeck
  * L'ordine dei casi è quello di cosa conta di più per chi guarda:
  * 1. **sceglie** — sullo schermo c'è un elenco di scelte (un permesso, «vuoi
  *    procedere?»): la chat è bloccata finché non tocchi un'opzione;
- * 2. **aspetta te** — ha finito il turno e aspetta la prossima istruzione;
+ * 2. **ferma** — ha finito il turno (0.80.0: come sul PC; «aspetta te» è solo
+ *    per una scelta, e nelle Domande le chat ferme stanno fra le «Tutte»);
  * 3. **guidata** — la governa un autopilota: se si ferma, parla lui per lei;
  * 4. **spenta** — nessun terminale acceso (ibernata, o appena aperta);
  * 5. **al lavoro** — tutto il resto: sta scrivendo o pensando.
@@ -20,7 +21,7 @@ package it.ferrariconsulenze.sierradeck
  * Pura, cosi' si prova senza Compose, e con la stessa regola della pagina
  * servita dal computer (`statoChat` in `client-pagina.ts`).
  */
-enum class TonoChat { SCEGLIE, ASPETTA, GUIDATA, SPENTA, LAVORA }
+enum class TonoChat { SCEGLIE, FERMA, GUIDATA, SPENTA, LAVORA }
 
 data class LetturaChat(
     val tono: TonoChat,
@@ -42,8 +43,8 @@ fun leggiChat(chiede: Boolean, aspetta: Boolean, governata: Boolean, viva: Boole
         "Ha finito il turno. La governa un autopilota, che le darà lui la prossima istruzione: non serve niente da te, a meno che tu voglia intervenire."
     )
     aspetta -> LetturaChat(
-        TonoChat.ASPETTA, "aspetta te",
-        "Ha finito il turno e aspetta la tua prossima istruzione: scrivila nel campo in fondo."
+        TonoChat.FERMA, "ferma",
+        "Ha finito il turno: se hai un’altra istruzione, scrivila nel campo in fondo."
     )
     !viva -> LetturaChat(
         TonoChat.SPENTA, "spenta",
@@ -71,16 +72,16 @@ fun riassuntoChat(chat: List<Chat>): String {
     val conti = chat.groupingBy { leggiChat(it).tono }.eachCount()
     val pezzi = mutableListOf<String>()
     conti[TonoChat.SCEGLIE]?.let { pezzi += if (it == 1) "1 aspetta che tu scelga" else "$it aspettano che tu scelga" }
-    conti[TonoChat.ASPETTA]?.let { pezzi += if (it == 1) "1 aspetta te" else "$it aspettano te" }
     conti[TonoChat.LAVORA]?.let { pezzi += "$it al lavoro" }
+    conti[TonoChat.FERMA]?.let { pezzi += if (it == 1) "1 ferma" else "$it ferme" }
     conti[TonoChat.GUIDATA]?.let { pezzi += if (it == 1) "1 con l'autopilota" else "$it con gli autopiloti" }
     conti[TonoChat.SPENTA]?.let { pezzi += if (it == 1) "1 spenta" else "$it spente" }
     return pezzi.joinToString(" · ")
 }
 
-/** Quante chat vive chiedono qualcosa a te adesso: una scelta, o la prossima istruzione. */
+/** Quante chat vive chiedono qualcosa a te adesso: una scelta (0.80.0: una chat ferma a fine turno no, come sul PC). */
 fun chatCheTiAspettano(chat: List<Chat>): Int =
-    chat.count { val t = leggiChat(it).tono; t == TonoChat.SCEGLIE || t == TonoChat.ASPETTA }
+    chat.count { leggiChat(it).tono == TonoChat.SCEGLIE }
 
 /**
  * «su portatile · acceso», «su portatile · spento», o solo «su portatile» con
@@ -105,7 +106,7 @@ fun etichettaAltrove(nome: String, acceso: Boolean?): String = when (acceso) {
 fun parolaPerRiga(l: LetturaChat, larghezzaDp: Int): String =
     if (larghezzaDp >= RIGA_LARGA_DP) l.parola else when (l.tono) {
         TonoChat.SCEGLIE -> "scegli tu"
-        TonoChat.ASPETTA -> "aspetta te"
+        TonoChat.FERMA -> "ferma"
         TonoChat.GUIDATA -> if (l.parola.startsWith("ferma")) "ferma · AP" else "lavora · AP"
         TonoChat.SPENTA -> "spenta"
         TonoChat.LAVORA -> "al lavoro"

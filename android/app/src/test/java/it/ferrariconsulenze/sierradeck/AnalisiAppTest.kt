@@ -26,8 +26,9 @@ class AnalisiAppTest {
     }
 
     @Test
-    fun `una chat che ha finito aspetta te, ma non se la guida un autopilota`() {
-        assertEquals(TonoChat.ASPETTA, leggiChat(chat("a", aspetta = true)).tono)
+    fun `una chat che ha finito il turno e ferma, come sul PC, e guidata se la guida un autopilota`() {
+        assertEquals(TonoChat.FERMA, leggiChat(chat("a", aspetta = true)).tono)
+        assertEquals("ferma", leggiChat(chat("a", aspetta = true)).parola)
         assertEquals(TonoChat.GUIDATA, leggiChat(chat("a", aspetta = true, governata = true)).tono)
     }
 
@@ -47,8 +48,9 @@ class AnalisiAppTest {
     @Test
     fun `il riassunto dice prima chi aspetta te, e solo quello che c e`() {
         val r = riassuntoChat(listOf(chat("a", aspetta = true), chat("b"), chat("c"), chat("d", chiede = true)))
-        assertEquals("1 aspetta che tu scelga · 1 aspetta te · 2 al lavoro", r)
-        assertEquals(2, chatCheTiAspettano(listOf(chat("a", aspetta = true), chat("b", chiede = true), chat("c"))))
+        // 0.80.0: chi ha finito il turno è «ferma», come sul PC e sulla pagina.
+        assertEquals("1 aspetta che tu scelga · 2 al lavoro · 1 ferma", r)
+        assertEquals(1, chatCheTiAspettano(listOf(chat("a", aspetta = true), chat("b", chiede = true), chat("c"))))
         assertEquals("nessuna chat aperta sul computer", riassuntoChat(emptyList()))
     }
 

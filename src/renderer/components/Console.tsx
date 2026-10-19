@@ -4,7 +4,7 @@ import { useLayoutStore } from '../state/layout'
 import { useSessionStore } from '../state/sessions'
 import { proponiNuovaChat, type PropostaChat } from '../nuova-chat'
 import { ModaleNuovaChat } from './ModaleNuovaChat'
-import { azioniDiFinestra } from '../azioni-finestra'
+import { cambiaSchermo } from '../cambio-schermo'
 import { MenuWorkspace } from './MenuWorkspace'
 import { SuAltriPc } from './SuAltriPc'
 import { serveIlMenu } from '../menu-workspace'
@@ -145,8 +145,7 @@ export function Console({
     // Dove la finestra si trova lo sa `workspace-corrente`, non questa prop: la
     // prop è ferma al render, e le azioni la aggiornano da sé prima di mettere a
     // schermo il layout nuovo.
-    void azioniDiFinestra()
-      .cambia(nome, 'Nicholas: linguetta, scorciatoia o menu dei workspace')
+    void cambiaSchermo(nome, 'nicholas', 'dalla barra')
       // L'annuncio del cambio non torna a chi lo ha chiesto — di proposito, o
       // riscriverebbe il layout appena salvato — quindi questa finestra deve
       // rileggere da se' dove si trova. Senza, restava evidenziato il workspace

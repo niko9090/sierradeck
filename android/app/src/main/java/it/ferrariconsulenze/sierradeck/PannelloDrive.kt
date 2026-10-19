@@ -304,6 +304,8 @@ fun coloreVista(c: String): Color = when (c) {
     "verde" -> Banco.verde
     "ambra" -> Banco.ambra
     "rosso" -> Banco.rosso
+    // 0.80.0: «quieto» è il grigio del PC; prima finiva nel blu qui sotto.
+    "quieto" -> Banco.testoQuieto
     // PC 0.71: il ruolo «Interfaccia».
     "viola" -> Color(0xFFB48CFF)
     else -> Color(0xFF4AA3FF)
