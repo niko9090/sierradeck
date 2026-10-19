@@ -32,3 +32,14 @@ Togliendo il workspace o la cartella VisitaFacile, l'autopilota resta senza casa
 ## Causa (va in «Difetti di chat e workspace», punti 2 e 3)
 - Aprire «visitafacile», che vive su DESKTOP, ha creato qui una cartella vuota nuova.
 - Il primo messaggio all'autopilota è diventato il nome di un workspace con la sua cartella.
+
+## Dopo (19/10, 12:15)
+- **`/api/workspace/elimina` è vietata alle chat**, e non va aggirata né con altre rotte né a mano sui file. I due workspace li toglie Nicholas con «Elimina workspace» (recupero di 30 giorni). Sono scritti in `analisi-0-80-0.md`.
+- **La cartella «…\ap-f1e631f5-c-11\$APPDATA\SierraDeck\$S\chiave.txt» non viene da un test.** L'ha creata la chat c-11 con un suo comando di shell, quello che preparava una chiave per un dispositivo temporaneo:
+  - dentro `node -e '…'` il percorso è arrivato con `$APPDATA` e `$S` non sostituiti;
+  - Node ha scritto il file in una cartella che si chiama proprio «$APPDATA», sotto la cartella di lavoro di c-11.
+  - In `src`, `tests` e `scripts` (main e rami c-10/c-11/c-12) nessun test scrive `chiave.txt` o un `$APPDATA` letterale.
+  - Quel comando ha anche aggiunto il dispositivo «collaudoc11tmp» al `dispositivi.json` vero e ha chiamato `/api/workspace/elimina` sui due workspace.
+  - Alle 12:10 il dispositivo era già tolto (resta solo il telefono), i due workspace c'erano ancora e non risultavano fra gli eliminati: nessun danno.
+  - La cartella sparisce quando si toglie il worktree di c-11: non va cancellata a mano.
+- **Trappola:** in un comando, una variabile messa dentro le virgolette singole di `node -e '…'` non viene sostituita. Il percorso va passato come argomento (`node -e '…' "$S"` e `process.argv[1]`) o costruito in JavaScript con `process.env.APPDATA`.
