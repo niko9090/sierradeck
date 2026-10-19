@@ -79,9 +79,9 @@ describe('chi riceve: la rotta /api/errori/arrivati', () => {
     expect(e.stato).toBe(409)
   })
 
-  it('passa sul canale WebRTC e dal ponte del telefono', () => {
+  it('passa sul canale WebRTC; il telefono non lo chiede attraverso il ponte (lo manda il suo PC)', () => {
     expect(ROTTE_VIA_CANALE).toContain('/api/errori/arrivati')
-    expect(ROTTE_PONTE).toContain('/api/errori/arrivati')
+    expect(ROTTE_PONTE).not.toContain('/api/errori/arrivati')
   })
 })
 

@@ -423,6 +423,8 @@ fun Principale(
         PcCorrente.versione = null
         try { PcCorrente.versione = api.ciao().versione.takeIf { it.isNotBlank() } } catch (_: Exception) { }
     }
+    // Gli errori dell'app che aspettano (app 2.81.0): al PC, nel suo storico.
+    LaunchedEffect(api) { ErroriApp.mandaCoda(contesto, api) }
 
     LaunchedEffect(api) {
         val strada = Linea.stradaDiIndirizzo(indirizzo)
