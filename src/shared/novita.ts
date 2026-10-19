@@ -49,7 +49,7 @@ export const NOVITA: Novita[] = [
       '**Sul PC, un workspace senza autopilota lo dice nella Panoramica,** e offre «Crea l’autopilota» con il suo «?». «Prossimo passo» compare anche sul PC, per i passi che non hanno un tasto.',
       '**Gli elenchi dei workspace e delle chat non si svuotano più da soli** se per un istante non si riescono a leggere. Gli errori del programma finiscono anche nel registro.',
       '**Più veloce:** la pagina del telefono arriva subito e compressa, la vista dei Progetti non aspetta il Drive, il salvataggio sul Drive controlla più file insieme, i divisori si trascinano senza scatti, e l’app si ferma quando non la guardi.',
-      '**Stati uguali dappertutto:** «fermo» è rosso e «quieto» grigio su PC, pagina e app; una chat a fine turno è «ferma», non «aspetta te»; le chat di un autopilota fermo non contano più come «al lavoro».',
+      '**Stati uguali dappertutto:** «fermo» è rosso e «quieto» grigio su PC, pagina e app; una chat a fine turno è «ferma», non «aspetta te»; le chat di un autopilota fermo non contano più come «al lavoro». **Meno notifiche:** la chat in sottofondo di un autopilota non è più «aspetta te», gli avvisi vicini arrivano insieme e una consegna per un workspace nascosto non si perde più.',
       '**Gestione delle chat più precisa:** «Chiudi» è spento, con il motivo, se la chat non è aperta; la conferma di «Elimina dal PC» nomina solo le chat che si possono davvero eliminare; lo stesso «?» per «anche dal Drive» su PC, pagina e app.'
     ]
   },
