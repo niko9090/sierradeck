@@ -258,7 +258,7 @@ function componiPagina(): string {
   /* Un lavoro concluso non chiama l'attenzione come uno in corso: si spegne. */
   .finito { background: var(--spento); opacity: .6 }
   .fermo { background: var(--spento) }
-  .ferma { background: var(--spento) }
+  .led.ferma { background: var(--spento) }
   /* Una chat guidata da un autopilota: in moto, ma non per conto tuo. */
   .guidata { background: var(--accento); box-shadow: 0 0 5px color-mix(in srgb, var(--accento) 60%, transparent); }
   /* Una chat senza terminale acceso: il contorno, non il pieno. */
@@ -1530,11 +1530,10 @@ function statoChat(c) {
 /** Tutte le chat in una riga: prima chi aspetta te, e solo i casi che ci sono. */
 function riassuntoChat(chat) {
   if (!chat || chat.length === 0) return 'nessuna chat aperta sul computer'
-  var scelgono = 0, aspettano = 0, lavorano = 0, guidate = 0, ferme = 0, spente = 0
+  var scelgono = 0, lavorano = 0, guidate = 0, ferme = 0, spente = 0
   chat.forEach(function (c) {
     var st = statoChat(c)
     if (st.parola === 'aspetta che tu scelga') scelgono++
-    else if (st.parola === 'aspetta te') aspettano++
     else if (st.tono === 'lavoro') lavorano++
     else if (st.tono === 'guidata') guidate++
     else if (st.tono === 'ferma') ferme++
@@ -1542,7 +1541,6 @@ function riassuntoChat(chat) {
   })
   var pezzi = []
   if (scelgono) pezzi.push(scelgono === 1 ? '1 aspetta che tu scelga' : scelgono + ' aspettano che tu scelga')
-  if (aspettano) pezzi.push(aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te')
   if (lavorano) pezzi.push(lavorano + ' al lavoro')
   if (ferme) pezzi.push(ferme === 1 ? '1 ferma' : ferme + ' ferme')
   if (guidate) pezzi.push(guidate === 1 ? '1 con l’autopilota' : guidate + ' con gli autopiloti')
@@ -1778,8 +1776,9 @@ function pannello(s) {
   const inMoto = (s.autopiloti || []).filter((a) => a.stato === 'lavoro')
   const fermi = (s.autopiloti || []).filter((a) => a.stato === 'sospeso' || a.stato === 'fallito')
   // Chi aspetta te senza essere una domanda: un autopilota pronto (il via),
-  // una chat su una scelta o che ha finito il turno. Prima Adesso
-  // diceva «Nessuno ti aspetta» anche con uno di questi davanti.
+  // una chat su una scelta. Prima Adesso diceva «Nessuno ti aspetta» anche
+  // con uno di questi davanti. 0.80.0: una chat che ha finito il turno è
+  // «ferma», come sul PC, e qui non conta più.
   const pronti = (s.autopiloti || []).filter((a) => a.stato === 'pronto')
   const chatAttesa = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa')
 
@@ -2086,8 +2085,8 @@ function pannello(s) {
           '<br><span class="sotto">' + (b.vivo ? 'acceso' : 'spento, ultimo segno ' + esc(String(b.battito || '').slice(0, 16).replace('T', ' '))) +
           ' · ' + (b.chat || []).length + ' chat aperte · ' + (b.cartelle || []).length + ' cartelle</span>' +
           (b.chat || []).slice(0, 8).map((c) =>
-            '<span class="sotto" style="display:flex;gap:6px;align-items:center"><span class="led ' + (!b.vivo ? 'spenta' : c.aspetta ? 'attesa' : 'lavoro') + '"></span>' +
-            esc(c.titolo || c.cwd) + ' · ' + (!b.vivo ? 'ultimo stato noto' : c.aspetta ? 'aspetta te' : 'al lavoro') + '</span>').join('') +
+            '<span class="sotto" style="display:flex;gap:6px;align-items:center"><span class="led ' + (!b.vivo ? 'spenta' : c.aspetta ? 'ferma' : 'lavoro') + '"></span>' +
+            esc(c.titolo || c.cwd) + ' · ' + (!b.vivo ? 'ultimo stato noto' : c.aspetta ? 'ferma' : 'al lavoro') + '</span>').join('') +
           '</button>').join('') +
         '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Chiudi</button></div></div>'
     }
@@ -4658,12 +4657,14 @@ var notaMigrazione = ''
 function migrazioneHtml() {
   var s = migrazioneVista
   if (!s) return ''
+  // 0.80.0: la riga corta di testoMigrazione (shared/migrazione-elenco), la spiegazione nel «?».
+  var n = (s.dormienti || []).length
   var testo = s.stato === 'fatta'
-    ? 'Tutti i workspace del computer (' + (s.dormienti || []).length + ') hanno la Panoramica, ognuno con il suo autopilota fermo finché non gli scrivi. Le chat non sono state toccate.'
+    ? (n === 0 ? 'Fatta: ogni workspace aveva già il suo autopilota.' : n === 1 ? 'Fatta: 1 autopilota nuovo, fermo finché non gli scrivi.' : 'Fatta: ' + n + ' autopiloti nuovi, fermi finché non gli scrivi.')
     : s.stato === 'annullata' ? 'Workspace tornati come prima.'
       : s.stato === 'fallita' ? 'La trasformazione non è riuscita, tutto è com’era: ' + (s.motivo || '')
         : 'Trasformazione a metà: si completa al prossimo avvio del computer.'
-  return '<div class="sotto" style="margin-top:10px"><b>Panoramica in tutti i workspace</b></div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
+  return '<div class="sotto" style="margin-top:10px"><b>Panoramica in tutti i workspace</b> ' + aiuto('migrazione', 'Ogni workspace del computer ha la Panoramica, con il suo autopilota. Quelli nuovi stanno fermi finché non gli scrivi. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era.') + '</div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
     '<div class="riga">' + (s.stato === 'fatta'
       ? '<button onclick="cambiaMigrazione(\\'torna\\')">Torna come prima</button>'
       : '<button onclick="cambiaMigrazione(\\'rifai\\')">Trasforma tutti</button>') + '</div>'

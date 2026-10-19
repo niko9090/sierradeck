@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { COLORE_DAL_VIVO } from '@shared/stato-dal-vivo'
@@ -102,5 +103,28 @@ describe('6. il prossimo passo anche sul PC', () => {
     expect(passoSulPc(daCollegare.prossimo)).toEqual({ tasto: true, testo: 'Collega il Drive' })
     // Drive non configurato in questa build: niente passo, su nessun lato.
     expect(passoSulPc(vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: false, connesso: false }, sync: { haCassaforte: false, sbloccato: false }, ora }).prossimo)).toBeUndefined()
+  })
+})
+
+describe('Revisione delle voci 1-6 (0.80.0)', () => {
+  it('l albero sul PC dà alla chat «ferma» un LED grigio, non il verde di ripiego', () => {
+    const albero = readFileSync('src/renderer/components/AlberoChat.tsx', 'utf8')
+    expect(albero).toMatch(/ferma: 'led--finito'/)
+  })
+  it('la pagina: l elenco degli altri PC dice «ferma» come la regola delle chat; il LED è un selettore .led.ferma', () => {
+    expect(script).not.toContain("c.aspetta ? 'aspetta te' : 'al lavoro'")
+    expect(script).toContain("c.aspetta ? 'ferma' : 'al lavoro'")
+    expect(html).toContain('.led.ferma {')
+  })
+})
+
+describe('Impostazioni: la riga della trasformazione dei workspace (0.80.0)', () => {
+  it('niente più «(0)»: il numero sono gli autopiloti nuovi, detto per quello che è', async () => {
+    const { testoMigrazione } = await import('@shared/migrazione-elenco')
+    const d = { workspace: 'w', chat: 0 }
+    expect(testoMigrazione({ stato: 'fatta', dormienti: [] })).toBe('Fatta: ogni workspace aveva già il suo autopilota.')
+    expect(testoMigrazione({ stato: 'fatta', dormienti: [d] })).toBe('Fatta: 1 autopilota nuovo, fermo finché non gli scrivi.')
+    expect(testoMigrazione({ stato: 'fatta', dormienti: [d, d] })).toBe('Fatta: 2 autopiloti nuovi, fermi finché non gli scrivi.')
+    expect(testoMigrazione({ stato: 'fallita', motivo: 'disco pieno', dormienti: [] })).toContain('disco pieno')
   })
 })
