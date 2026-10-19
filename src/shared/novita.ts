@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.80.0',
+    righe: [
+      '**Le chat finite si chiudono da sole,** anche quando il loro lavoro è già unito o il loro ramo non c’è più. Prima restavano aperte e andavano chiuse a mano.',
+      '**Il workspace sullo schermo cambia solo quando lo scegli tu.** Le consegne di un autopilota per un altro workspace lavorano in sottofondo, senza portarti via. Ogni cambio di workspace è scritto nel registro, con il motivo.',
+      '**Niente workspace con nomi strani né cartelle vuote.** Il workspace di un autopilota prende il nome che scrivi tu o quello della cartella, non il primo messaggio. Un progetto che vive su un altro PC non crea più una cartella vuota qui.',
+      '**Sul PC, un workspace senza autopilota lo dice nella Panoramica,** e offre «Crea l’autopilota» con il suo «?». «Prossimo passo» compare anche sul PC, per i passi che non hanno un tasto.',
+      '**Gli elenchi dei workspace e delle chat non si svuotano più da soli** se per un istante non si riescono a leggere. Gli errori del programma finiscono anche nel registro.',
+      '**Più veloce:** la pagina del telefono arriva subito e compressa, la vista dei Progetti non aspetta il Drive, il salvataggio sul Drive controlla più file insieme, i divisori si trascinano senza scatti, e l’app si ferma quando non la guardi.',
+      '**Stati uguali dappertutto:** «fermo» è rosso e «quieto» grigio su PC, pagina e app; una chat a fine turno è «ferma», non «aspetta te»; le chat di un autopilota fermo non contano più come «al lavoro».',
+      '**Gestione delle chat più precisa:** «Chiudi» è spento, con il motivo, se la chat non è aperta; la conferma di «Elimina dal PC» nomina solo le chat che si possono davvero eliminare; lo stesso «?» per «anche dal Drive» su PC, pagina e app.'
+    ]
+  },
+  {
     versione: '0.79.0',
     righe: [
       '**Tre azioni chiare per ogni chat: Chiudi, Archivia, Elimina dal PC.** Le trovi nel riquadro (dietro ⋯, il tasto 🗂), nelle schede della Panoramica e in «Riprendi una conversazione», ognuna con il suo «?». Chiudi ferma la chat e lascia tutto. Archivia la toglie dagli elenchi senza cancellare niente. Elimina dal PC libera davvero spazio: dice quanto prima di farlo.',
