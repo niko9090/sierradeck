@@ -135,6 +135,26 @@ function soloFile(uscita: string): string[] {
 }
 
 /**
+ * Il ramo di una chat che non ha più niente da unire (0.80.0): non c'è più
+ * (unito e tolto) o è già tutto nel ramo principale. Serve a `chiudiChat`
+ * prima della Revisione: c-4 e c-7 (sviluppo, ramo già tolto) andavano in
+ * Revisione invece di chiudersi.
+ *
+ * `undefined` quando c'è ancora lavoro da unire o git non risponde: nel dubbio
+ * si passa dalla strada normale. «mancante» solo se git trova il ramo
+ * principale e risponde «non c'è» (codice 1) sul ramo della chat.
+ */
+export function ramoGiaChiuso(git: Git, p: { cwd: string; ramo: string; base: string }): 'mancante' | 'unito' | undefined {
+  const radice = radiceGit(git, p.cwd)
+  if (radice === undefined) return undefined
+  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.base}`], radice).codice !== 0) return undefined
+  const r = git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
+  if (r.codice === 1) return 'mancante'
+  if (r.codice !== 0) return undefined
+  return git(['merge-base', '--is-ancestor', `refs/heads/${p.ramo}`, `refs/heads/${p.base}`], radice).codice === 0 ? 'unito' : undefined
+}
+
+/**
  * Unisce il ramo di una chat nel ramo principale, nella cartella di lavoro.
  *
  * Solo se la cartella di lavoro e' sul ramo principale. Un conflitto annulla

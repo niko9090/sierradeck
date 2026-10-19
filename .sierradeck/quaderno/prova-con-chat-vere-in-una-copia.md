@@ -56,3 +56,15 @@ Usato per la 0.79.0 (gestione delle chat). Serve ogni volta che una funzione toc
 - **Le chat nascono ferme sulla domanda di fiducia della cartella** (solo nella copia): il compito può restare nel campo e la chat ferma. Rispondere «Yes» dalle domande a destra; se resta ferma, dirlo all'autopilota dal campo della dashboard («ridalle il compito»): lo fa.
 - **Foto della pagina con `Emulation.setDeviceMetricsOverride`**: cambiare la larghezza a ogni scatto riporta in cima la chat con l'autopilota. Prima dello scatto chiamare `scorriChatAp()`; su un telefono vero non succede (verificato: all'apertura `scrollTop` è in fondo).
 - **Dopo un riavvio la copia riapre le chat che c'erano**, anche ferme sulla fiducia: nelle foto finali compaiono come «aspetta te».
+
+## Misure in copia (analisi 0.80.0, 19/10)
+- **Ci sono gli script:** `node scripts/misure/prepara.mjs [--conversazioni]`, poi `node scripts/misure/misura.mjs avvia|apri|rotte|ferma <etichetta>`.
+  - Porte 47670/47671, DevTools 9363, chiave del telefono finto in `note/prova-080/chiave.txt`.
+  - Risultati in `note/prova-080/misure.jsonl`.
+- **Prima di fidarti dei tempi dell'interfaccia, guarda il carico del PC:** `Get-CimInstance Win32_Processor` → `LoadPercentage`.
+  - Con le altre chat che fanno test e gradle il PC sta al 100%, e una valutazione banale nel renderer arriva a 46 s, anche se la copia usa 0,2 s di CPU ogni 15 s.
+  - I tempi delle rotte (mediana di 5) restano stabili.
+- **Un riquadro in `workspaces.json` senza `sessionUuid` viene scartato all'avvio.** Per avere chat aperte usa `misura.mjs apri`, che passa da `/api/apri` come il telefono.
+- **I `tasklist | findstr "Code.exe Cursor.exe …"` sotto le chat li lancia Claude Code all'avvio** (cerca gli editor), non SierraDeck.
+- **Un `Get-CimInstance … -like '*prova-080*'` lanciato da PowerShell trova anche sé stesso:** «4 processi rimasti» erano i comandi di controllo.
+- **`sed -i` su uno script con `\u0000` si mangia le barre rovesciate**, come l'heredoc: per gli script usa Write o Edit.

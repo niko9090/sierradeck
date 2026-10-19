@@ -271,7 +271,7 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
   '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
   // Gestire quel PC dal telefono attraverso il ponte (0.55.0): le stesse di ROTTE_PONTE.
-  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto',
+  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto', '/api/workspace/recupero', '/api/workspace/ripristina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
   '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).

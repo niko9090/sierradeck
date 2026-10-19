@@ -32,7 +32,7 @@ export const ROTTE_PONTE: readonly string[] = [
   // workspace, chiudere/togliere/rinominare una chat, la cartella per una chat
   // nuova, le conversazioni da riprendere e gli autopiloti. Passa solo verso
   // un PC della stessa cassaforte (la chiave di casa, regola della 0.47).
-  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto',
+  '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto', '/api/workspace/recupero', '/api/workspace/ripristina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
   // Chiudere una chat di prova (0.63.0): se lo è, lo decide il PC dove vive.
   '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
@@ -107,6 +107,7 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/workspace/crea': return `creo il workspace «${s('nome')}»`
     case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`
     case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`
+    case '/api/workspace/ripristina': return `rimetto il workspace «${s('nome')}» dal recupero`
     case '/api/autopilota/crea': return `creo un autopilota in ${s('cartella') !== '' ? s('cartella') : s('cwd')}`
     case '/api/autopilota/manda-adesso': return `mando subito i messaggi in coda dell’autopilota ${s('autopilota')}`
     case '/api/autopilota/archivia': return `${corpo?.archivia === false ? 'tolgo dall’archivio' : 'archivio'} l’autopilota ${s('autopilota')}`

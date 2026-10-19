@@ -22,7 +22,7 @@ import { avvisiDaMostrare, sceltaDaAnnunciare } from '@shared/avvisi-raggruppati
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
 import { testoAvvio } from '@shared/sottofondo'
 import {
-  PARTENZE, ULTIMO_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
+  AIUTO_ELIMINA_WORKSPACE, PARTENZE, ULTIMO_WORKSPACE, rigaEliminato, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
@@ -672,6 +672,9 @@ var CONFERME = ${JSON.stringify({
   eliminaWorkspace: confermaEliminaWorkspace('§N'), eliminaAutopilota: confermaEliminaAutopilota('§N')
 })}
 var PARTENZE = ${JSON.stringify(PARTENZE)}
+// Il recupero dei workspace (0.81.0): il «?» e la riga sotto il nome, come sul PC e nell'app.
+var AIUTO_ELIMINA_WS = ${JSON.stringify(AIUTO_ELIMINA_WORKSPACE)}
+${rigaEliminato.toString()}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
 // La gestione delle chat (0.79.0): i testi del PC, da src/shared/gestione-chat-vista.ts. §N è il nome, §B lo spazio.
@@ -2433,8 +2436,9 @@ function pannello(s) {
       (attivoWs ? '<div class="riga"><input id="ws-rinomina" placeholder="nome nuovo per «' + esc(attivoWs) + '»">' +
         '<button onclick="rinominaWorkspace()">Rinomina</button></div>' +
         '<div class="riga">' + ((s.workspace.nomi || []).length > 1
-          ? '<button class="pericolo" onclick="chiediAzione(\\'eliminaWorkspace\\', \\'' + escJs(attivoWs) + '\\')">Elimina «' + esc(attivoWs) + '»…</button>'
+          ? '<button class="pericolo" onclick="chiediAzione(\\'eliminaWorkspace\\', \\'' + escJs(attivoWs) + '\\')">Elimina «' + esc(attivoWs) + '»…</button>' + aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS))
           : '<span class="sotto">' + esc(ULTIMO_WORKSPACE) + '</span>') + '</div>' + confermaHtml('ws:' + attivoWs) : '') +
+      eliminatiWsHtml() +
       '</div>'
     : ''
 
@@ -4328,7 +4332,7 @@ window.faiAzione = async () => {
   confermaPg = null
   if (!a) return
   try {
-    if (a.tipo === 'eliminaWorkspace') await chiedi('/api/workspace/elimina', { nome: a.id })
+    if (a.tipo === 'eliminaWorkspace') { await chiedi('/api/workspace/elimina', { nome: a.id }); caricaEliminatiWs(true) }
     else if (a.tipo === 'sposta') await chiedi('/api/chat/sposta', { chat: a.id, workspace: a.ws })
     else if (a.tipo === 'dormi') await chiedi('/api/chat/dormi', { chat: a.id })
     else if (a.tipo === 'chiudi') { await chiedi('/api/chat/chiudi', { chat: a.id }); if (dentro === a.id) { dentro = null; righeDentro = []; righeGrezze = [] } }
@@ -4336,6 +4340,43 @@ window.faiAzione = async () => {
   } catch (e) {
     notaGlobale = 'Non è andata: ' + ((e && e.message) || 'il computer non risponde')
   }
+  aggiorna()
+}
+/**
+ * I workspace eliminati negli ultimi 30 giorni (0.81.0), con «Ripristina».
+ * Si rileggono al più ogni 30 s mentre la scheda si ridisegna, e subito dopo
+ * un'eliminazione o un ripristino.
+ */
+var wsEliminati = []
+var wsEliminatiIl = 0
+function caricaEliminatiWs(subito) {
+  if (!subito && Date.now() - wsEliminatiIl < 30000) return
+  wsEliminatiIl = Date.now()
+  chiedi('/api/workspace/recupero').then(function (r) {
+    var prima = JSON.stringify(wsEliminati)
+    wsEliminati = (r && r.voci) || []
+    if (JSON.stringify(wsEliminati) !== prima) pannello(ultimoStato)
+  }).catch(function () { })
+}
+function eliminatiWsHtml() {
+  caricaEliminatiWs(false)
+  if (wsEliminati.length === 0) return ''
+  return '<div class="sotto" style="margin-top:10px"><b>Eliminati</b>' + aiuto('eliminati-ws', esc(AIUTO_ELIMINA_WS)) + '</div>' +
+    wsEliminati.map(function (v, i) {
+      return '<div class="riga"><span>' + esc(v.nome) + ' <span class="sotto">' + esc(rigaEliminato(v)) + '</span></span>' +
+        '<button onclick="ripristinaWs(' + i + ')">Ripristina</button></div>'
+    }).join('')
+}
+window.ripristinaWs = async (i) => {
+  const v = wsEliminati[i]
+  if (!v) return
+  try {
+    const r = await chiedi('/api/workspace/ripristina', { nome: v.nome, eliminatoIl: v.eliminatoIl })
+    if (r && r.errore) notaGlobale = 'Non è andata: ' + r.errore
+  } catch (e) {
+    notaGlobale = 'Non è andata: ' + ((e && e.message) || 'il computer non risponde')
+  }
+  caricaEliminatiWs(true)
   aggiorna()
 }
 window.azioneChat = async (azione, id) => {

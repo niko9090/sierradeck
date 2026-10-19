@@ -505,6 +505,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun eliminaWorkspace(nome: String): Fatto =
         json.decodeFromString(corpoTesto("/api/workspace/elimina", oggetto { put("nome", nome) }))
 
+    /** I workspace eliminati negli ultimi 30 giorni (PC 0.81.0). Un PC più vecchio risponde «non trovato». */
+    suspend fun recuperoWorkspace(): RecuperoWs =
+        json.decodeFromString(corpoTesto("/api/workspace/recupero", null))
+
+    /** «Ripristina»: il workspace torna sul PC, lo schermo del PC non cambia. */
+    suspend fun ripristinaWorkspace(nome: String, eliminatoIl: String): Ripristinato =
+        json.decodeFromString(corpoTesto("/api/workspace/ripristina", oggetto { put("nome", nome); put("eliminatoIl", eliminatoIl) }))
+
     // ─── la coda condivisa dei comandi di un progetto ───
     suspend fun coda(progetto: String): Coda =
         json.decodeFromString(corpoTesto("/api/coda", oggetto { put("progetto", progetto) }))

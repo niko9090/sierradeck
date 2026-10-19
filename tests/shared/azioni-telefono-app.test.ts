@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
-  BOZZA_AUTOPILOTA_VUOTA, PARTENZE, ULTIMO_WORKSPACE, bozzaDaCorpo, confermaChiudi, confermaDormi, confermaEliminaAutopilota,
+  AIUTO_ELIMINA_WORKSPACE, BOZZA_AUTOPILOTA_VUOTA, PARTENZE, ULTIMO_WORKSPACE, bozzaDaCorpo, rigaEliminato, confermaChiudi, confermaDormi, confermaEliminaAutopilota,
   confermaEliminaWorkspace, confermaRinominaWorkspace, confermaSposta, controllaBozzaAutopilota, controllaNomeWorkspace,
   leggiAzioneFinestra, nomeDaObiettivo, percorsoAssoluto, type BozzaAutopilota
 } from '../../src/shared/azioni-telefono'
@@ -42,6 +42,9 @@ function esempio(): Record<string, unknown> {
     partenze: PARTENZE,
     regole: REGOLE_PUBBLICAZIONE,
     ultimoWorkspace: ULTIMO_WORKSPACE,
+    // Il recupero dei workspace (0.81.0): il «?» e la riga sotto il nome.
+    aiutoEliminaWorkspace: AIUTO_ELIMINA_WORKSPACE,
+    righeEliminato: [{ chat: 1, scadeIl: '2026-11-18T12:00:00.000Z' }, { chat: 3, scadeIl: '2026-01-05T12:00:00.000Z' }].map((v) => ({ ...v, riga: rigaEliminato(v) })),
     conferme: {
       dormi: confermaDormi('Esempio'),
       chiudi: confermaChiudi('Esempio'),
@@ -78,7 +81,10 @@ describe('le regole per gestire dal telefono', () => {
   it('le conferme dicono cosa succede e cosa no', () => {
     expect(confermaDormi('X').testo).toContain('con «Svegliala» riparte da dove era')
     expect(confermaChiudi('X').testo).toContain('La conversazione non si cancella')
-    expect(confermaEliminaWorkspace('X').testo).toContain('workspaces.prima-dell-eliminazione.json')
+    // 0.81.0: corto, con il recupero di 30 giorni; il resto (Drive, nome «recuperato») è nel «?».
+    expect(confermaEliminaWorkspace('X').testo).toContain('30 giorni')
+    expect(AIUTO_ELIMINA_WORKSPACE).toContain('Togli dal Drive')
+    expect(rigaEliminato({ chat: 3, scadeIl: '2026-11-18T12:00:00.000Z' })).toBe('3 chat · resta fino al 18/11')
   })
   it('l’app ha gli stessi casi e gli stessi testi (resources/azioni/azioni-0.55.json)', () => {
     const fatto = esempio()
