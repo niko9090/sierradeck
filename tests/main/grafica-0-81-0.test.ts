@@ -49,3 +49,25 @@ describe('2. i due «?» accanto a «Manda» dicono di cosa parlano', () => {
     expect(script).toContain('aria-label="Spiegazione: come parlare all’autopilota"')
   })
 })
+
+describe('3. «Ultimo tentativo» solo quando c è un tentativo non riuscito da ricordare', () => {
+  it('la regola: senza tentativo niente riga, con il tentativo la riga c è', async () => {
+    const { tentativoDaRicordare } = await import('@shared/stato-sistema')
+    expect(tentativoDaRicordare(undefined)).toBeUndefined()
+    expect(tentativoDaRicordare({})).toBeUndefined()
+    const f = { titolo: 'La 0.81.0 non si è installata', motivo: 'file in uso', strade: ['Riprova'] }
+    expect(tentativoDaRicordare({ tentativoFallito: f })).toBe(f)
+  })
+  it('PC e pagina: la frase vuota «nessuna installazione non riuscita» non c è più; il tentativo vero sì', async () => {
+    expect(readFileSync('src/renderer/components/SezioneAggiornamenti.tsx', 'utf8')).not.toContain('nessuna installazione non riuscita')
+    const { paginaClient } = await import('../../src/main/client-pagina')
+    const html = paginaClient()
+    expect(html).not.toContain('nessuna installazione non riuscita')
+    const script = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'))
+    const i = script.indexOf('function fallitoHtml(')
+    const corpo = script.slice(i, script.indexOf('\n}', i) + 2)
+    const fallitoHtml = new Function('esc', `${corpo}; return fallitoHtml`)((s: unknown) => String(s)) as (a: unknown) => string
+    expect(fallitoHtml({ fase: 'aggiornato' })).toBe('')
+    expect(fallitoHtml({ tentativoFallito: { titolo: 'La 0.81.0 non si è installata', motivo: 'file in uso', strade: ['Riprova'] } })).toContain('La 0.81.0 non si è installata')
+  })
+})

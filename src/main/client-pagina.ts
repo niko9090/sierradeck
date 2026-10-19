@@ -2309,7 +2309,7 @@ function pannello(s) {
       <div class="sotto" style="margin-top:10px">Versione del computer: \${esc((s.computer && s.computer.versione) || 'non ancora letta')}\${aiuto('imp-versioni', 'Questa pagina la serve quel computer: è sempre della sua stessa versione.')}</div>
       <div class="sotto" style="margin-top:10px"><b>Aggiornamento del computer</b></div>
       <div class="sotto">\${esc(descriviAggiornamento())}</div>
-      \${fallitoHtml(aggiornamentoVisto) || '<div class="sotto">Ultimo tentativo: nessuna installazione non riuscita da ricordare.</div>'}
+      \${fallitoHtml(aggiornamentoVisto)}
       <div class="riga">
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
