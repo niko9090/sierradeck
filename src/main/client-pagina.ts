@@ -703,9 +703,10 @@ function filtraImpostazioni(q) {
 // aperto, la spiegazione sotto. Lo stato sta in aiutiAperti, non nel DOM: la
 // pagina si ridisegna di continuo, e un <details> si richiuderebbe da solo.
 var aiutiAperti = {}
-function aiuto(id, testoHtml) {
+// di (0.81.0): di che cosa parla, per il lettore dello schermo, come il «?» del PC.
+function aiuto(id, testoHtml, di) {
   const aperto = aiutiAperti[id] === true
-  return '<button class="aiuto' + (aperto ? ' aiuto--aperto' : '') + '" data-aiuto="' + esc(id) + '" aria-expanded="' + aperto + '" aria-label="Spiegazione" title="Cos’è?" onclick="commutaAiuto(this.dataset.aiuto)">?</button>' +
+  return '<button class="aiuto' + (aperto ? ' aiuto--aperto' : '') + '" data-aiuto="' + esc(id) + '" aria-expanded="' + aperto + '" aria-label="' + (di ? 'Spiegazione: ' + esc(di) : 'Spiegazione') + '" title="' + (di ? 'Cos’è «' + esc(di) + '»?' : 'Cos’è?') + '" onclick="commutaAiuto(this.dataset.aiuto)">?</button>' +
     (aperto ? '<div class="aiuto-testo" role="note">' + testoHtml + '</div>' : '')
 }
 window.commutaAiuto = (id) => { aiutiAperti[id] = aiutiAperti[id] !== true; pannello(ultimoStato) }
@@ -722,10 +723,10 @@ function testoDettatoJs(base, finale, parziale) {
 }
 function micHtml(id) {
   var spiega = 'Tocca 🎤 e parla in italiano: il testo compare nel campo mentre parli. Tocca di nuovo per fermare. Non parte niente da solo: lo rileggi e premi tu il tasto per mandare. La pagina non registra e non salva l’audio: lo riconosce il browser del telefono, con le sue impostazioni.'
-  if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega) + '</span>'
+  if (!dettaturaDelBrowser()) return '<span class="sotto">🎤 il riconoscimento vocale non c’è in questo browser' + aiuto('mic-no', 'Questo browser non ha il riconoscimento vocale (Web Speech API). Su Android usa Chrome, oppure l’app SierraDeck, che ha il microfono. ' + spiega, 'dettatura non disponibile') + '</span>'
   var attivo = dettaturaAttiva && dettaturaAttiva.campo === id
   return '<button data-campo="' + esc(id) + '" onclick="detta(this.dataset.campo)" title="Detta con la voce" aria-label="Detta con il microfono">' + (attivo ? '■ ferma' : '🎤') + '</button>' +
-    aiuto('mic-' + id, spiega) + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
+    aiuto('mic-' + id, spiega, 'la dettatura con il microfono') + (notaDettatura && attivo === false && dettaturaUltimoCampo === id ? '<span class="sotto">' + esc(notaDettatura) + '</span>' : '')
 }
 var dettaturaUltimoCampo = ''
 window.detta = function (id) {
@@ -944,6 +945,14 @@ var notaDomandaAp = ''
 var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
 var pannelloAperto = null
+/** Le azioni della Salute che il telefono sa fare; le altre si fanno dal computer. */
+const AZIONI_DAL_TELEFONO = ['scarica-a-mano', 'installa', 'apri-autopilota', 'riprova-pc']
+/** I nomi delle azioni da fare dal computer, una volta sola ciascuno (0.81.0). */
+function azioniSoloDalComputer(voci) {
+  const nomi = []
+  for (const v of voci) for (const a of (v.azioni || [])) if (AZIONI_DAL_TELEFONO.indexOf(a.id) < 0 && nomi.indexOf(a.testo) < 0) nomi.push(a.testo)
+  return nomi
+}
 /** «Salute del sistema» (0.44.0): letta dal computer quando si apre. */
 var saluteVista = null
 var saluteErrore = ''
@@ -2165,7 +2174,7 @@ function pannello(s) {
       : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
-      : '<span class="sotto">' + esc(a.testo) + ': dal computer</span>'
+      : ''
     // 0.70.0: i gruppi come sul PC (Da sistemare · Computer · Drive · Errori · Tutto), una riga per voce con la sua parola.
     const tutte = saluteVista.voci || []
     const gruppiDi = (v) => [v.tono !== 'ok' ? 'sistemare' : '', v.gruppo === 'pc' ? 'computer' : '', v.gruppo === 'drive' ? 'drive' : '', (v.gruppo === 'errori' || v.gruppo === 'consegne' || v.gruppo === 'aggiornamento') ? 'errori' : ''].filter(Boolean)
@@ -2176,6 +2185,9 @@ function pannello(s) {
       '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
         '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
     const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
+    // 0.81.0: le azioni che si fanno solo dal computer, dette una volta qui in cima, non riga per riga.
+    const soloPc = azioniSoloDalComputer(voci)
+    if (soloPc.length > 0) corpo += '<div class="sotto" style="margin-top:6px">Dal computer: ' + soloPc.map((t) => '«' + esc(t) + '»').join(', ') + '.</div>'
     if (voci.length === 0) corpo += '<div class="sotto" style="margin-top:8px">' + (gruppo === 'sistemare' ? '<span style="color:var(--verde)">Tutto a posto</span>' : 'Niente in questo gruppo.') + '</div>'
     corpo += voci.map((v) => {
       const st = v.stato || { parola: v.tono === 'ok' ? 'a posto' : v.tono === 'attenzione' ? 'da guardare' : 'da sistemare', colore: v.tono === 'ok' ? 'verde' : v.tono === 'attenzione' ? 'ambra' : 'rosso' }
@@ -2183,7 +2195,7 @@ function pannello(s) {
       return '<div class="salute-voce" style="border-left:3px solid ' + tinta + ';padding:4px 8px;margin-top:6px">' +
         '<div><b style="color:' + tinta + '">' + esc(st.parola) + '</b> · ' + esc(v.breve || v.titolo) +
         aiuto('salute:' + v.chiave, esc(v.titolo) + (v.spiegazione ? '<br><br>' + esc(v.spiegazione) : '') + (v.cosaFare ? '<br><br><b>Cosa fare:</b> ' + esc(v.cosaFare) : '')) + '</div>' +
-        ((v.azioni || []).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
+        ((v.azioni || []).filter((a) => AZIONI_DAL_TELEFONO.indexOf(a.id) >= 0).length > 0 ? '<div class="riga">' + v.azioni.map(azione).join('') + '</div>' : '') +
         '</div>'
     }).join('')
     // La mappa dei PC (0.70.0): in fondo, a richiesta.
@@ -2311,7 +2323,7 @@ function pannello(s) {
       <div class="sotto" style="margin-top:10px">Versione del computer: \${esc((s.computer && s.computer.versione) || 'non ancora letta')}\${aiuto('imp-versioni', 'Questa pagina la serve quel computer: è sempre della sua stessa versione.')}</div>
       <div class="sotto" style="margin-top:10px"><b>Aggiornamento del computer</b></div>
       <div class="sotto">\${esc(descriviAggiornamento())}</div>
-      \${fallitoHtml(aggiornamentoVisto) || '<div class="sotto">Ultimo tentativo: nessuna installazione non riuscita da ricordare.</div>'}
+      \${fallitoHtml(aggiornamentoVisto)}
       <div class="riga">
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'disponibile'
           ? '<button onclick="scaricaAggiornamento()">Scarica</button>' : ''}
@@ -2929,7 +2941,7 @@ function vistaAutopilota(a) {
       micHtml('dialogo-' + a.id) +
       // I file dal telefono (0.50.0): nella sua cartella, e il messaggio nel suo dialogo.
       '<button data-ap="' + esc(a.id) + '" onclick="scegliFileAp(this.dataset.ap)" title="Scegli file: lo mandi a questo autopilota (fino a 100 MB). Finisce nella sua cartella di lavoro, in .sierradeck/allegati, fuori da git, e lui lo trova nel dialogo. Se nella casella hai scritto qualcosa, va come nota.">📎 Allega</button>' +
-      '<span class="sotto info-ap" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
+      '<span class="sotto info-ap" role="note" tabindex="0" aria-label="Spiegazione: come parlare all’autopilota" title="Qui parli con l’autopilota, non con la chat che esegue. Risponde con parole sue; se è un’istruzione la applica e la consegna alla chat alla fine del turno che ha in mano. Se ha una domanda aperta, quello che scrivi è la risposta e arriva subito.">?</span>' +
     '</div>' +
     (notaDialogo ? '<div class="errore">' + esc(notaDialogo) + '</div>' : '') +
     (allegatoNota ? '<div class="sotto">' + esc(allegatoNota) + '</div>' : '') + '</div>'
