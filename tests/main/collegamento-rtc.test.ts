@@ -129,11 +129,13 @@ describe('il collegamento WebRTC fra due PC', () => {
   it('solo le rotte del riquadro remoto: le altre non arrivano nemmeno a quel PC', async () => {
     const drive = scatolaInMemoria()
     const rete = reteFinta()
-    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa })
-    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa })
+    // Tempi larghi come sopra: con quelli corti, a suite intera, il canale non si apriva in tempo.
+    const larghi = { attesaRisposta: 15_000, apertura: 5_000, richiesta: 5_000 }
+    const fisso = pc({ io: 'fisso', nome: 'PC-Fisso', altri: ['lap'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
+    const lap = pc({ io: 'lap', nome: 'LAPTOP', altri: ['fisso'], scatola: drive, ponte: rete.crea(), casa, tempi: larghi })
     const smetti = guarda(lap.rtc)
     fisso.rtc.avvia('lap')
-    await finche(() => fisso.rtc.stato('lap') === 'aperto')
+    await finche(() => fisso.rtc.stato('lap') === 'aperto', 15_000)
     smetti()
     // Dalla 0.55.0 la gestione di chat, workspace e autopiloti passa; il Drive di quel PC no.
     expect((await fisso.rtc.chiama('lap', '/api/drive/porta', { progetto: 'x' })).stato).toBe(403)
