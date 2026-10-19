@@ -85,7 +85,7 @@ class AzioniTelefonoTest {
     }
 
     @Test
-    fun `il recupero dei workspace - il «?» e la riga sotto il nome sono quelli del PC (0.81.0)`() {
+    fun `il recupero dei workspace - il «?» e la riga sotto il nome sono quelli del PC, dalla 0-81-0`() {
         assertEquals(s(fx, "aiutoEliminaWorkspace"), AzioniTelefono.AIUTO_ELIMINA_WORKSPACE)
         for (r in fx["righeEliminato"]!!.jsonArray) {
             val o = r.jsonObject
