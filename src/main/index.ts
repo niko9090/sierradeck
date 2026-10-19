@@ -203,6 +203,7 @@ import {
   type ScopeChat, type ScopeStore
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
+import { consoleNelRegistro } from './console-nel-registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -1256,6 +1257,8 @@ if (!app.requestSingleInstanceLock()) {
       portaAutopiloti = impostazioni.preferenze().portaAutopiloti
       // Da qui in poi i gestori globali scrivono nel file, non solo in console.
       registroGlobale = registro
+      // E anche ogni console.error/console.warn del main (0.80.0, voce 1 dell'analisi).
+      consoleNelRegistro(registro)
       // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
       providerStore = apriProviderStore(dati)
       // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
