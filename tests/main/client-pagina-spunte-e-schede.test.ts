@@ -67,7 +67,7 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     const mandate: { titolo: string; tag: string }[] = []
     class N { static permission = 'granted'; static requestPermission(): void {} constructor(titolo: string, o: { tag: string }) { mandate.push({ titolo, tag: o.tag }) } }
     let ora = Date.parse('2026-10-15T20:00:00Z')
-    const fn = new Function('Notification', 'Date', `var avvisati = {}; var primoAvviso = false; var ATTESA_CHAT_MS = 3 * 60000; function chiedi() { return Promise.resolve() } ${funzione('notifica')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
+    const fn = new Function('Notification', 'Date', `var avvisati = {}; var primoAvviso = false; var ATTESA_CHAT_MS = 3 * 60000; function chiedi() { return Promise.resolve() } ${funzione('notifica')}; ${funzione('mandaInsieme')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
       N, { now: () => ora }
     ) as (s: unknown) => void
     return { mandate, giro: (s: unknown, piu = 0): void => { ora += piu; fn(s) } }
@@ -85,10 +85,10 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     const b = banco()
     b.giro({ chat: [{ id: 'c1', titolo: 'Trading', chiede: true }], aggiornamento: { fase: 'pronto', versione: '0.74.0' } })
     b.giro({ chat: [], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 1000)
-    expect(b.mandate).toEqual([
-      { titolo: 'Trading aspetta che tu scelga', tag: 'chat-c1' },
-      { titolo: 'SierraDeck 0.74.0 è pronta sul computer', tag: 'versione' }
-    ])
+    // Nati nello stesso giro (0.80.0): una notifica sola che li elenca; la versione non torna.
+    expect(b.mandate).toEqual([{ titolo: '2 avvisi da SierraDeck', tag: 'gruppo' }])
+    b.giro({ chat: [{ id: 'c2', titolo: 'Sito', chiede: true }], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 1000)
+    expect(b.mandate[1]).toEqual({ titolo: 'Sito aspetta che tu scelga', tag: 'chat-c2' })
   })
 })
 

@@ -117,6 +117,7 @@ describe('le notifiche della pagina per un autopilota fermo', () => {
       var segnalate = []
       function chiedi(percorso, corpo) { segnalate.push(percorso + ' ' + corpo.titolo); return Promise.resolve() }
       ${estrai('notifica')}
+      ${estrai('mandaInsieme')}
       ${estrai('avvisaSeServe')}
       return avvisaSeServe`)(mandate) as (stato: unknown) => void
     return Object.assign(f, { mandate })

@@ -1198,6 +1198,8 @@ describe('le notifiche della pagina nel registro del computer (0.80.0)', () => {
     const aiutante = script.slice(script.indexOf('function notifica('), script.indexOf('function notifica(') + 300)
     expect(aiutante).toContain('new Notification(titolo, opzioni)')
     expect(aiutante).toContain("chiedi('/api/notifica'")
-    expect(script.split('notifica(').length - 1).toBeGreaterThanOrEqual(8)
+    // Gli avvisi di un giro partono insieme (0.80.0): uno com'è, più di uno in una notifica sola.
+    expect(script).toContain('mandaInsieme(pronti)')
+    expect(script.split('notifica(').length - 1).toBeGreaterThanOrEqual(3)
   })
 })
