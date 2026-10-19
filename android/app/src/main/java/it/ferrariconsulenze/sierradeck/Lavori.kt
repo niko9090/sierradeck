@@ -590,7 +590,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                                 color = Banco.testoQuieto, fontSize = 13.sp
                             )
                         } else det.chats.forEachIndexed { i, ch ->
-                            val stato = when (ch.stato) { "lavoro" -> "al lavoro"; "bloccata" -> "ferma, aspetta una risposta"; else -> "finita" }
+                            val stato = parolaChatGovernata(det.stato, ch.stato)
                             Text(
                                 "chat ${i + 1} · $stato · ${ch.cicli} " + (if (ch.cicli == 1) "giro" else "giri") +
                                     (if (det.chats.size > 1) "\n${ch.compito}" else ""),

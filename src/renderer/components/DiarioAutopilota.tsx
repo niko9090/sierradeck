@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MISURE, divisioneTrascinata, limita, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
-import type { Autopilota } from '@shared/autopilota'
+import { chatAlLavoro, type Autopilota } from '@shared/autopilota'
 import { LARGHEZZA_DIARIO } from '@shared/preferenze'
 import { passoDaTasto, postoDalDocumento, quotaDiario } from '../diario-misura'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
@@ -408,7 +408,7 @@ export function DiarioAutopilota({
                   <span className="diario__scheda-conto">{autopilota.compitiDaFare.length}</span>
                 ) : null}
                 {l.id === 'lavoro' && autopilota.chats.length > 1 ? (
-                  <span className="diario__scheda-conto">{autopilota.chats.filter((c) => c.stato === 'lavoro').length}</span>
+                  <span className="diario__scheda-conto">{autopilota.chats.filter((c) => chatAlLavoro(autopilota, c)).length}</span>
                 ) : null}
               </button>
             ))}

@@ -52,3 +52,14 @@ class TonoDalVivoTest {
         assertEquals("quieto", tonoDalVivo("finito"))
     }
 }
+
+/** 0.80.0: con l'autopilota fermo una sua chat «lavoro» non è al lavoro, come sul PC. */
+class ChatGovernataTest {
+    @Test
+    fun `la chat di un autopilota fermo non e al lavoro`() {
+        assertEquals("al lavoro", parolaChatGovernata("lavoro", "lavoro"))
+        assertEquals("ferma: l’autopilota è fermo", parolaChatGovernata("sospeso", "lavoro"))
+        assertEquals("ferma, aspetta una risposta", parolaChatGovernata("sospeso", "bloccata"))
+        assertEquals("finita", parolaChatGovernata("lavoro", "finita"))
+    }
+}

@@ -60,3 +60,21 @@ describe('2. «aspettano te» è un numero solo, come sul PC', () => {
     expect(p.statoChat({ chiede: true }).tono).toBe('attesa')
   })
 })
+
+describe('3. un autopilota fermo non ha chat «al lavoro»', () => {
+  it('la tabella, l albero (pagina e app) e i LED usano la stessa regola', async () => {
+    const { chatAlLavoro } = await import('@shared/autopilota')
+    const { alberoChat } = await import('@shared/harness')
+    const chats = [
+      { id: 'c-1', compito: 'Spiega', stato: 'finita' as const, cicli: 1 },
+      { id: 'c-2', compito: 'Scrivi', stato: 'lavoro' as const, cicli: 2 }
+    ]
+    const fermo = ap({ stato: 'sospeso', chats })
+    expect(vistaAutopilota(fermo, ORA).chat).toMatchObject({ totali: 2, alLavoro: 0, testo: '2' })
+    expect(alberoChat(fermo).figli[1]).toMatchObject({ stato: 'ferma', parola: 'ferma: l’autopilota è fermo' })
+    expect(chatAlLavoro(fermo, chats[1])).toBe(false)
+    const inMoto = ap({ stato: 'lavoro', chats })
+    expect(vistaAutopilota(inMoto, ORA).chat.testo).toBe('2 · 1 al lavoro')
+    expect(alberoChat(inMoto).figli[1]).toMatchObject({ stato: 'lavoro', parola: 'al lavoro' })
+  })
+})

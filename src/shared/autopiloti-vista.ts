@@ -1,4 +1,4 @@
-import type { Autopilota } from './autopilota'
+import { chatAlLavoro, type Autopilota } from './autopilota'
 import { statoAutopilotaDalVivo } from './stato-dal-vivo'
 import { stato, trova, type StatoVista } from './stato-vista'
 
@@ -61,7 +61,7 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown }, ora: numb
 
   const fatti = a.criteri.filter((c) => c.soddisfatto).length
   const totali = a.criteri.length
-  const alLavoro = a.chats.filter((c) => c.stato === 'lavoro').length
+  const alLavoro = a.chats.filter((c) => chatAlLavoro(a, c)).length
   const azione: AzioneAp = s.id === 'aspetta' ? 'rispondi'
     : s.id === 'al-lavoro' || s.id === 'senza-segni' || s.id === 'prepara' ? 'ferma'
       : 'riprendi'

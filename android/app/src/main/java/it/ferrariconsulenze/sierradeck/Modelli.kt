@@ -443,6 +443,16 @@ data class StatoDalVivo(
     val senzaSegni: String? = null
 )
 
+/**
+ * La parola di una chat governata (0.80.0, come `chatAlLavoro` del PC): segnata
+ * «lavoro» ma con l'autopilota fermo non è al lavoro.
+ */
+fun parolaChatGovernata(statoAutopilota: String, statoChat: String): String = when (statoChat) {
+    "lavoro" -> if (statoAutopilota == "lavoro" || statoAutopilota == "attesa" || statoAutopilota == "intervista") "al lavoro" else "ferma: l’autopilota è fermo"
+    "bloccata" -> "ferma, aspetta una risposta"
+    else -> "finita"
+}
+
 /** Il colore della parola dal vivo, come `COLORE_DAL_VIVO` del PC (0.80.0): «fermo» è rosso. */
 fun tonoDalVivo(etichetta: String): String = when (etichetta) {
     "al lavoro" -> "verde"
