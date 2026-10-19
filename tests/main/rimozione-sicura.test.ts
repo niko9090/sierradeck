@@ -187,5 +187,5 @@ describe('le rotte del residente: solo fra PC della stessa cassaforte', () => {
     expect((await chiama('tel-esempio')).stato).toBe(403)
     expect((await chiama('pc:tel:tel-esempio@PC-ESEMPIO')).stato).toBe(403)
     expect((await chiama('locale')).stato).toBe(403)
-  })
+  }, 60_000) // client-rotte è grande: a suite intera il solo import passava i 20 s
 })

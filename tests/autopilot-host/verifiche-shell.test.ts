@@ -119,7 +119,7 @@ describe('esecutoreReale', () => {
     const { codice, uscita } = await esecutoreReale(60_000)(comando, process.cwd())
     expect(uscita).toContain('parole: 3')
     expect(codice).toBe(0)
-  })
+  }, 60_000) // bash vera: a suite intera, con le altre chat al lavoro, l'avvio passava i 20 s
 
   it('un criterio non soddisfatto esce con un codice diverso da zero', async () => {
     const { codice } = await esecutoreReale(60_000)('[ 1 -eq 2 ]', process.cwd())
