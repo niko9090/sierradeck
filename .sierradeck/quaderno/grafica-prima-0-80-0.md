@@ -111,3 +111,33 @@ Correzioni fatte in quest'ordine, un commit per voce. Le foto stanno in `foto-0-
   - `MandaA.kt:268`;
   - `Avvisi.kt` («N su M chat aspettano te»).
   Vanno allineati alla regola della voce 2 con un test, ma toccano le notifiche, che sono di c-134.
+
+## Revisione delle voci 1-6 e riga della trasformazione (19/10, c-12)
+La Revisione l'hanno fatta typescript-reviewer e kotlin-reviewer sul diff `f52c019..f7e134d`. Le correzioni sono nel commit `7b6872f`.
+
+**Corretto:**
+- **Albero sul PC** (`AlberoChat.tsx`): non conosceva lo stato nuovo `ferma` e gli dava il LED verde di ripiego. Ora è grigio.
+- **Chat degli altri PC**, sulla pagina e nell'app (`Computer.kt`): il LED era grigio ma il testo restava «aspetta te» in ambra. Ora «ferma» in grigio, e il «?» non dice più «pallino ambra = aspetta te».
+- **Codice della pagina:**
+  - il selettore `.led.ferma` ha preso il posto di `.ferma`, che era nudo;
+  - tolto il contatore morto «aspetta te» in `riassuntoChat`.
+- **Test e testi superati:**
+  - test JUnit aggiunti (`FermaCasiTest`) per `parolaChatGovernata` con tutti gli stati, per `chatCheTiAspettano` e per `parolaPerRiga`;
+  - aggiornati il nome di un test e due commenti superati.
+
+**Lasciato, per c-134 (notifiche):** `Avvisi.kt` dell'app manda ancora «"X" aspetta te» e «N su M chat aspettano te» per le chat a fine turno. Il pallino della barra invece conta solo le scelte.
+
+**Impostazioni → Chat e autopiloti, «(0)»:**
+- **Prima:** la frase era «Tutti i workspace di questo PC (0) hanno la Panoramica…». Il numero contava gli autopiloti **nuovi**, non i workspace.
+- **Dopo:** «Fatta: ogni workspace aveva già il suo autopilota.» oppure «Fatta: N autopiloti nuovi, fermi finché non gli scrivi.», e la spiegazione intera dietro il «?».
+- **Dove:** `testoMigrazione` + `AIUTO_MIGRAZIONE` in `shared/migrazione-elenco.ts`, `RigaMigrazione.tsx`, `migrazioneHtml` della pagina, `Migrazione.kt`.
+- **Foto:** `dopo/pc-09-impostazioni`, `dopo/pag-09-impostazioni`.
+
+**Esito:** vitest sui file toccati (643 test), typecheck pulito, JUnit verdi (FermaCasi 3, ChatGovernata 1, TonoDalVivo 1, Migrazione 1, AnalisiApp 18).
+
+## Ancora aperte dalla parte «prima» (per l'elenco)
+Da fare dopo, senza spostare niente:
+- testi tagliati: il workspace attivo nella fascia, la linguetta «Criteri», il testo d'esempio del campo dell'autopilota, l'id della sessione nella riga d'errore di Salute;
+- il riquadro «Account» più alto degli altri tre della catena;
+- Impostazioni del PC larghe 910 px con 400 px vuoti;
+- due «Strumenti ▾» nella stessa schermata di Account e Drive.
