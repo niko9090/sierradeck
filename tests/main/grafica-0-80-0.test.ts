@@ -131,14 +131,15 @@ describe('Impostazioni: la riga della trasformazione dei workspace (0.80.0)', ()
 
 describe('Voci ancora aperte, fatte nella 0.81.0', () => {
   const css = readFileSync('src/renderer/console.css', 'utf8')
-  it('Salute: l id della sessione nella riga d errore diventa le prime 8 cifre; intero resta nella spiegazione', async () => {
+  it('Salute: la riga d errore non porta l id della sessione e la cartella; intero resta nella spiegazione', async () => {
     const { componiSalute, titoloErrore } = await import('@shared/salute')
-    const msg = '[app] [chat] «Media con i test» (11111111-0800-4000-8000-000000000001) non partita'
-    expect(titoloErrore(msg)).toBe('[app] [chat] «Media con i test» (11111111…) non partita')
+    const msg = '[app] [chat] «Media con i test» (11111111-0800-4000-8000-000000000001, C:\\prova\\cartella) non si apre'
+    expect(titoloErrore(msg)).toBe('[app] [chat] «Media con i test» non si apre')
+    expect(titoloErrore('sessione 11111111-0800-4000-8000-000000000001 persa')).toBe('sessione 11111111… persa')
     expect(titoloErrore('x'.repeat(130))).toHaveLength(121)
     const s = componiSalute({ adesso: ORA, versione: '0.81.0', drive: { configurato: true, connesso: true }, pc: [], errori: [{ messaggio: msg, volte: 1, ultimo: '2026-10-19T11:50:00Z', primo: '2026-10-19T11:50:00Z' }], consegne: [], oreErrori: 24 })
     const v = s.voci.find((x) => x.chiave === 'errore:0')
-    expect(v?.titolo).toContain('(11111111…)')
+    expect(v?.titolo).toBe('10 minuti fa: [app] [chat] «Media con i test» non si apre')
     expect(v?.spiegazione).toContain('11111111-0800-4000-8000-000000000001')
   })
   it('PC: le linguette dell autopilota vanno a capo intere; le Impostazioni scorrono a tutta larghezza', () => {
