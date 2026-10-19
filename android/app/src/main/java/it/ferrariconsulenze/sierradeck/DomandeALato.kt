@@ -55,7 +55,7 @@ fun DomandaBreveInCima(api: Api, chat: Chat) {
         if (!(chat.chiede || chat.aspetta)) { conv = null; return@LaunchedEffect }
         while (isActive) {
             conv = try { RegolaDomande.diChat(api.domande().conversazioni, chat.id) } catch (e: Exception) { conv }
-            delay(2500)
+            Davanti.pausa(2500)
         }
     }
     val c = conv ?: return

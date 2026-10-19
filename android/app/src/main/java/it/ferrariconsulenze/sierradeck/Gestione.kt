@@ -229,7 +229,7 @@ fun BandaPcIndietro(apiAccoppiato: Api, pcId: String, nome: String, versione: St
     androidx.compose.runtime.LaunchedEffect(pcId, segui) {
         while (segui) {
             nota = try { apiAccoppiato.installaLaStato().avanzamenti.firstOrNull { it.pcId == pcId }?.messaggio ?: nota } catch (_: Exception) { nota }
-            kotlinx.coroutines.delay(3000)
+            Davanti.pausa(3000)
         }
     }
     Column(Modifier.fillMaxWidth().background(Banco.ambra.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 6.dp)) {

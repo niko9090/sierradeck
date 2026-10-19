@@ -168,7 +168,7 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
                     if (e !is java.io.IOException) Collegamenti.passo(su.pcId, EventoLinea.Errore(System.currentTimeMillis(), "irraggiungibile", e.message ?: "il computer non risponde"))
                 }
             }
-            delay(250)
+            Davanti.pausa(250)
         }
     }
     BackHandler { if (aperta != null) aperta = null else SuPc.corrente = null }
@@ -524,13 +524,13 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
             } catch (e: Exception) {
                 if (PinChat.chiusa(e)) {
                     chiusaPin = true; storia = null; guasto = null
-                    delay(2000)
+                    Davanti.pausa(2000)
                     continue
                 }
                 if (api.ponte != null) {
                     // Attraverso il ponte non c'e' il ripiego sullo schermo: si dice il perche'.
                     guasto = if (e is Api.Errore) Nota.spiega(e, "leggere questa chat") else "Non riesco a leggere questa chat: ${e.message ?: "il PC non risponde"}"
-                    delay(2000)
+                    Davanti.pausa(2000)
                     continue
                 }
                 // Un computer più vecchio non conosce la cronologia: si
@@ -553,7 +553,7 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     guasto = "Non riesco a leggere questa chat: ${e2.message ?: "il computer non risponde"}"
                 }
             }
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 

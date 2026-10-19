@@ -239,6 +239,11 @@ object RegolePanoramica {
     /** Pezzi di codici colore rimasti senza ESC: «;2;153;153m». */
     private val ANSI_SPEZZATO = Regex(";?(?:\\d{1,3};)+\\d{1,3}m")
     private val TRATTI = Regex("[─━═╌╍┄┅┈┉]")
+    // Compilate una volta (2.80.0): erano dentro righeDalVivo e la scheda, a ogni giro.
+    private val A_CAPO = Regex("\\r?\\n")
+    private val BORDO_SINISTRO = Regex("^\\s*[│┃║]\\s?")
+    private val BORDO_DESTRO = Regex("\\s*[│┃║]\\s*$")
+    internal val PREFISSO_TITOLO = Regex("^[^·]+ · ")
 
     /** Una riga fatta per lo più di tratti è una cornice, anche con un titolo dentro (PC 0.78.0). */
     private fun eCornice(r: String): Boolean {
@@ -248,9 +253,9 @@ object RegolePanoramica {
 
     /** Le ultime righe dal vivo, pulite. Sul telefono 3 in «Adesso» (revisione UI/UX della 0.78.0). */
     fun righeDalVivo(righe: List<String>, quante: Int = 2): List<String> {
-        val pulite = righe.flatMap { it.split(Regex("\\r?\\n")) }
+        val pulite = righe.flatMap { it.split(A_CAPO) }
             .map { it.replace(ANSI, "").replace(ANSI_SPEZZATO, "").trimEnd() }
-            .map { it.replace(Regex("^\\s*[│┃║]\\s?"), "").replace(Regex("\\s*[│┃║]\\s*$"), "") }
+            .map { it.replace(BORDO_SINISTRO, "").replace(BORDO_DESTRO, "") }
             .filter { it.isNotBlank() && RUMORE.none { x -> x.containsMatchIn(it) } && !eCornice(it) }
         val senzaDoppi = pulite.filterIndexed { i, r -> i == 0 || r.trim() != pulite[i - 1].trim() }
         return senzaDoppi.takeLast(quante).map { if (it.length > 160) it.take(159) + "…" else it }
@@ -303,7 +308,7 @@ private fun SchedaTel(s: SchedaPanoramica, quante: Int, onApri: (String) -> Unit
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Text(
-            (RegolePanoramica.SIMBOLO[s.stato] ?: "") + "  " + (s.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: "Chat") + " · " + s.titolo.replace(Regex("^[^·]+ · "), "") + (if (s.soloMia) " · solo tua" else ""),
+            (RegolePanoramica.SIMBOLO[s.stato] ?: "") + "  " + (s.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: "Chat") + " · " + s.titolo.replace(RegolePanoramica.PREFISSO_TITOLO, "") + (if (s.soloMia) " · solo tua" else ""),
             color = colore, maxLines = 1
         )
         if (quante > 0) {
