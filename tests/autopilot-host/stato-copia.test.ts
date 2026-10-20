@@ -25,4 +25,9 @@ describe('la copia di una chat (c-310)', () => {
     expect(statoCopia(gitCheRisale(undefined), cartella)).toBe('non-git')
     expect(statoCopia(gitCheRisale(join(cartella, '..')), cartella)).toBe('non-git')
   })
+
+  it('git che non risponde (tempo scaduto) non chiude la chat: resta ok (Revisione)', () => {
+    const muto: Git = () => ({ codice: 1, uscita: '' })
+    expect(statoCopia(muto, cartella)).toBe('ok')
+  })
 })

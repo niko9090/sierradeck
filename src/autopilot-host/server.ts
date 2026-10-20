@@ -697,7 +697,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const chatSenzaLavoro = (c: ChatGovernata | undefined): string | undefined => {
     if (c === undefined) return undefined
     if (c.stato === 'finita') return 'è finita'
-    if (deps.copia === undefined || c.cartella === undefined) return undefined
+    // La Revisione lavora nella cartella dell'autore: se sparisce, il verdetto arriva lo stesso.
+    if (deps.copia === undefined || c.cartella === undefined || c.ruolo === 'revisione') return undefined
     const copia = deps.copia(c.cartella)
     if (copia === 'mancante') return 'la sua copia del progetto non c’è più'
     if (copia === 'non-git') return 'la sua copia del progetto non è più un repository git'
@@ -840,7 +841,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `pubblicazione: hai detto sì (${risposta})` }]
       }
       salva(ripreso)
-      void avviaLavoro(ripreso, istruzionePubblica(ripreso, piano, false), chat).catch((err: unknown) => {
+      // Rimessa al lavoro anche qui (c-310): una chat finita la rete non la raggiunge.
+      void avviaLavoro(ripreso, istruzionePubblica(ripreso, piano, false), chat === undefined ? undefined : { ...chat, stato: 'lavoro' }).catch((err: unknown) => {
         console.error(`[autopilota] pubblicazione di ${a.id} non partita:`, err)
       })
       return
@@ -2215,6 +2217,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const chiusa = conStatoChat(a, questa.id, 'finita')
         annota(chiusa, `chiudo la chat ${questa.id}: ${senzaLavoro}, non ha più dove lavorare`)
         salva(chiusa)
+        // Il suo posto si libera: i compiti in coda partono, come dopo chiudiChat.
+        void apriChatMancanti(chiusa).catch((err: unknown) => {
+          console.error(`[autopilota] apertura delle chat di ${id} fallita:`, err)
+        })
       }
       console.info(`[autopilota] ${id} — fine turno di ${questa.id}, che ${senzaLavoro}: niente giro e niente supervisore`)
       return {}

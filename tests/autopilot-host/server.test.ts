@@ -2943,4 +2943,48 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     expect(fermati).toEqual(['ap-cc::c-15'])
     expect(archivio.leggi('ap-cc')!.decisioni.map((d) => d.cosa).join(' | ')).toContain('c-15 era già finita: fermo il suo processo')
   })
+
+  it('Revisione: chiusa per copia mancante, i compiti in coda partono subito', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
+    await avvia(server)
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(process.cwd(), 'non-esiste-c-13') }])
+    archivio.scrivi({ ...archivio.leggi('ap-cc')!, compitiDaFare: ['Il pezzo dopo'] })
+    await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
+    await attendi(() => archivio.leggi('ap-cc')!.chats.length === 2)
+    const nuova = archivio.leggi('ap-cc')!.chats.find((c) => c.id !== 'c-13')
+    expect(nuova?.compito).toBe('Il pezzo dopo')
+    expect(chatAvviate.some((c) => c.compito === 'Il pezzo dopo')).toBe(true)
+  })
+
+  it('Revisione: un revisore senza la cartella dell’autore dà lo stesso il suo verdetto', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
+    await avvia(server)
+    const via = join(process.cwd(), 'non-esiste-c-1')
+    flotta([
+      { id: 'c-1', compito: 'A', stato: 'finita', cicli: 2, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: via },
+      { id: 'c-2', compito: 'Rivedi il ramo ap/ap-cc/c-1 della chat c-1 («A»)', stato: 'lavoro', cicli: 0, ruolo: 'revisione', revisioneDi: 'c-1', cartella: via }
+    ])
+    const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-2', eventoStop({ session_id: 's-2', last_assistant_message: 'Guardato tutto.' }))
+    // Senza la riga del verdetto la Revisione glielo chiede: non è stata chiusa per la copia.
+    expect(r.dati.decision).toBe('block')
+    expect(String(r.dati.reason)).toContain('REVISIONE: OK')
+    expect(archivio.leggi('ap-cc')!.chats.find((c) => c.id === 'c-2')?.stato).toBe('lavoro')
+  })
+
+  it('Revisione: il «sì» tardivo alla pubblicazione arriva alla chat anche se il lavoro l’aveva chiusa', async () => {
+    server = ambiente({ scadenzaDomandaMs: 150 })
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'stabile', vaSulCloud: true })
+    archivio.scrivi({ ...archivio.leggi(id)!, chats: [{ id: 'c-1', compito: 'tutto', stato: 'lavoro', cicli: 1, sessionId: 's-1' }] })
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => archivio.leggi(id)?.stato === 'finito')
+    expect(archivio.leggi(id)!.chats[0]?.stato).toBe('finita')
+    const aperte = (await chiama('GET', '/domande')).dati
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'sì, vai' })
+    await attendi(() => chatAvviate.some((c) => c.id === 'c-1'))
+    expect(chatAvviate.some((c) => c.id === 'c-1')).toBe(true)
+    expect(messaggiDiRipresa.some((m) => m.includes('pubblica'))).toBe(true)
+  })
 })

@@ -74,9 +74,13 @@ function sottocartellaDelRamo(git: Git, radice: string, cartella: string): boole
  */
 export function statoCopia(git: Git, cartella: string): 'ok' | 'mancante' | 'non-git' {
   if (!existsSync(cartella)) return 'mancante'
-  const radice = radiceGit(git, cartella)
-  if (radice === undefined || !(stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella))) return 'non-git'
-  return 'ok'
+  // Solo un «no» detto da git chiude la chat: un git che non risponde (tempo
+  // scaduto, PC carico) non dice niente sulla copia (Revisione c-310).
+  const r = git(['rev-parse', '--show-toplevel'], cartella)
+  if (r.codice !== 0) return /not a git repository/i.test(r.uscita) ? 'non-git' : 'ok'
+  const radice = r.uscita.split(/\r?\n/)[0] ?? ''
+  if (radice === '' || stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella)) return 'ok'
+  return 'non-git'
 }
 
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
