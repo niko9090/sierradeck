@@ -44,3 +44,12 @@ Gli script sono nello scratchpad della sessione: `albero2.mjs` e `albero2-prima.
 - Una riproduzione **non** deve fare pulizia «per nome» (per esempio «ogni processo vitest creato negli ultimi 40 s»). La prima prova di c-17 l'ha fatto e ha chiuso anche circa 5 lavoratori delle suite orfane del servizio. Andavano chiusi comunque, ma non dovevo farlo io. La pulizia va fatta solo sui WINPID trovati da `ps` per la propria radice.
 - Le suite orfane già in giro **non** le chiude questa correzione: vale per le prossime scadenze, dopo l'installazione della versione nuova.
 - In un test, `.sort()` sui numeri ordina come stringhe (31500 viene prima di 8440). Va usato `sort((a, b) => a - b)`.
+
+## 20/10, 17:10: la quiete non arriva (c-17, consegne c-312 e c-322)
+- Prima di misurare a pezzi bisogna aspettare che le altre esecuzioni di vitest finiscano. Alle 17:10 erano **21 suite aperte**: la più vecchia dalle 15:41, una nuova ogni 2-5 minuti, CPU al 100%. Una suite completa dura circa 20 minuti, quindi quelle con più di 30 minuti sono rimaste appese.
+- Il servizio installato è ancora la 0.80.1, **senza** questa correzione: ogni criterio scaduto lascia accesa la sua suite e il numero cresce. La quiete non arriva da sola, e ogni misura fatta in queste condizioni misura il carico del PC, non i test.
+- **Per sbloccare** serve una delle due:
+  - Nicholas installa una versione con la correzione (`1e9add64`, `6e508683`);
+  - Nicholas, o il supervisore, autorizza a chiudere una volta le suite del servizio aperte da più di 30 minuti (catena `npx` → node di `vitest.mjs`, mai quelle delle chat).
+  
+  Poi si misura a pezzi, una cartella alla volta.
