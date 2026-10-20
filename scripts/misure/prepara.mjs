@@ -12,11 +12,12 @@ const SD = join(RADICE, 'dati', 'SierraDeck')
 const CLAUDE = join(RADICE, 'claude')
 const CARTELLA = join(RADICE, 'SierraDeck-prova-080')
 const FILE_CHIAVE = join(RADICE, 'chiave.txt')
+const PORTA = Number(process.env.SD_MISURE_PORTA ?? 47670)
 
 for (const d of [SD, CLAUDE, CARTELLA]) mkdirSync(d, { recursive: true })
 const chiave = existsSync(FILE_CHIAVE) ? readFileSync(FILE_CHIAVE, 'utf8').trim() : randomBytes(32).toString('hex')
 writeFileSync(FILE_CHIAVE, chiave)
-writeFileSync(join(SD, 'impostazioni.json'), JSON.stringify({ versione: 1, preferenze: { portaClient: 47670, portaAutopiloti: 47671 } }))
+writeFileSync(join(SD, 'impostazioni.json'), JSON.stringify({ versione: 1, preferenze: { portaClient: PORTA, portaAutopiloti: PORTA + 1 } }))
 const ora = new Date().toISOString()
 writeFileSync(join(SD, 'dispositivi.json'), JSON.stringify({ versione: 1, dispositivi: [{ id: 'tel-prova', nome: 'Telefono di prova', segno: createHash('sha256').update(chiave).digest('hex'), collegatoIl: ora, ultimoAccesso: ora }] }))
 // Claude Code a parte: credenziali senza refreshToken, così la copia non rinnova mai quelle vere.

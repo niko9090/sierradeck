@@ -4,7 +4,8 @@
 //   node scripts/misure/misura.mjs rotte <etichetta>  → tempi delle rotte principali (5 giri) e memoria
 //   node scripts/misure/misura.mjs cpu                → secondi di CPU in 30 s per tipo di processo
 //   node scripts/misure/misura.mjs ferma              → ferma la copia (solo i processi di questa cartella) e controlla le porte
-// I risultati vanno anche in note/prova-080/misure.jsonl. La copia usa le porte 47670/47671 e DevTools 9363.
+// I risultati vanno anche in note/prova-080/misure.jsonl. La copia usa le porte 47670/47671 e DevTools 9363;
+// se le usa già un'altra copia: SD_MISURE_PORTA=47680 SD_MISURE_DEBUG=9373 (stesse variabili anche per prepara.mjs).
 import { spawn, execFileSync } from 'node:child_process'
 import { readFileSync, appendFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,8 +13,8 @@ import { join } from 'node:path'
 const PROGETTO = process.cwd()
 const RADICE = join(PROGETTO, 'note', 'prova-080')
 const CHIAVE = readFileSync(join(RADICE, 'chiave.txt'), 'utf8').trim()
-const PORTA = 47670
-const DEBUG = 9363
+const PORTA = Number(process.env.SD_MISURE_PORTA ?? 47670)
+const DEBUG = Number(process.env.SD_MISURE_DEBUG ?? 9363)
 const [, , cosa = 'avvia', etichetta = 'prima'] = process.argv
 const pausa = (ms) => new Promise((r) => setTimeout(r, ms))
 const scrivi = (o) => { appendFileSync(join(RADICE, 'misure.jsonl'), JSON.stringify({ etichetta, quando: new Date().toISOString(), ...o }) + '\n'); console.log(JSON.stringify(o)) }
