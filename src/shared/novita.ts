@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.81.1',
+    righe: [
+      '**Le chat chiuse non ricevono più giri né compiti.**'
+    ]
+  },
+  {
     versione: '0.81.0',
     righe: [
       '**Sei dentro la conversazione dell’autopilota,** su PC, pagina e app. Ogni tua risposta compare come «Hai risposto: …», con una riga su cosa ne è stato fatto. Una domanda già risposta, o già risolta dallo stato vero, non torna più, e le domande sono sempre in italiano.',
