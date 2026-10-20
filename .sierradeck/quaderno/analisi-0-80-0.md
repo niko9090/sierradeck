@@ -1,6 +1,6 @@
 ---
 titolo: "Analisi 0.80.0: numeri misurati e problemi in ordine di importanza (PC, pagina, app)"
-quando: 2026-10-20T18:30:00+02:00
+quando: 2026-10-20T22:30:00+02:00
 tag: ["0.80.0", "analisi", "prestazioni", "memoria", "errori silenziosi", "codice doppio", "grafica"]
 ---
 
@@ -18,7 +18,7 @@ Le correzioni vengono dopo, su un ramo, ciascuna con il suo test e la Revisione.
 | Elenco per importanza | §3 (come scritto il 19/10); §«Elenco aggiornato al 20/10: cosa resta, in ordine» (c-18) e §«Elenco aggiornato al 20/10, voce per voce» (in fondo: FATTO / IN PARTE / APERTO per ogni voce, controllato nel codice) |
 | Notifiche | §«Notifiche 0.81.0, la prova nella copia (20/10, c-17)» e la riga di c-241 nella tabella di c-11 |
 | Workspace sbagliati | §«Da togliere con «Elimina workspace»: i due workspace sbagliati del 19/10» |
-| Foto della grafica | Le foto del 19/10 sono in `note/foto-0-80-0/` della cartella principale (23 PNG di PC e pagina), fuori da git. Le cartelle `prima/` e `dopo/` di c-12 citate in `grafica-prima-0-80-0.md` non si trovano più sul disco: **mancano, le fa c-12** |
+| Foto della grafica | §«Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)», in fondo. **Prima:** 23 foto del 19/10 in `note/foto-0-80-0/` della cartella principale. **Dopo:** 24 foto della 0.81.1 in `note/foto-0-81-0/dopo/` del ramo c-32, con gli stessi nomi. Tutte fuori da git. Le cartelle `prima/` e `dopo/` di c-12 non ci sono più: le sostituiscono queste due |
 
 **Non misurato il 20/10:** CPU con le chat al lavoro, il PC era al 100%; da rifare con misura-080.mjs dopo il rilascio.
 
@@ -1122,3 +1122,96 @@ La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
 - **Con una sola suite alla volta tutti e due stanno sotto i 9 minuti** (290 s e 390 s, misura di c-324): i rossi per tempo erano carico, non test appesi. Il tetto di 20 minuti (c-24) ci sta dentro solo se le suite intere non girano in più chat insieme.
 
 **0.81.1 (20/10, c-289):** patch da `2a441dcb` (main 328e53f9 + versione). Porta c-310 (b25fd78b): «le chat chiuse non ricevono più giri né compiti». App Android invariata, 2.81.0 riallegata. Non installata. **Dopo l'installazione, tre gesti di Nicholas:** 1) l'autopilota «Recupero VisitaFacile» → «Sposta in…» → NexoraOS; 2) Workspace → «⋯» su «dentro al mio server nexora c'è gia un» → Elimina; 3) Workspace → «⋯» su «visitafacile» → Elimina. Tutti e due restano 30 giorni in «Eliminati». **Il visitafacile su DESKTOP non si tocca.**
+
+## Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)
+
+Fatta il 20/10 sera su main `fb12ad3d` (0.81.1), senza cambiare codice e senza installare niente.
+
+- **Prima:** le 23 foto del 19/10 in `note/foto-0-80-0/` della cartella principale (v0.79.0, copia di c-10).
+- **Dopo:** 24 foto in `note/foto-0-81-0/dopo/` del ramo c-32, con gli stessi nomi più `34b`. Tutte e due le cartelle sono fuori da git.
+- **Gli script** per rifarle sono in `note/foto-0-81-0/script/`: `prepara.mjs`, `cdp.mjs`, `clic.mjs`, `scatta.mjs`, più `copri.txt`, il pezzo di JavaScript che copre il percorso di Documenti.
+
+**La copia di prova:**
+- `SIERRADECK_PROVA=E:\prova-081\dati` e `CLAUDE_CONFIG_DIR` di prova;
+- porte 47690/47691 dentro `preferenze`, debug 9383 (PC) e 9384 (Edge headless a 412×915 per la pagina). Le porte vere non sono state toccate;
+- due workspace come il 19/10: «Prova-081-a» con 4 chat e «Prova-081-b» con 2;
+- nome del PC «PC di prova»;
+- tre sessioni haiku vere («Rispondi solo: ok»), così «Riprendi» non è vuoto.
+
+**Niente dati privati nelle foto:**
+- cartella neutra `E:\prova-081`;
+- nome del PC scelto;
+- nessun indirizzo a vista;
+- nella foto 20 il percorso di Documenti è coperto a schermo con «…\Documenti».
+
+**Le foto «prima» non valgono tutte:**
+- `13`…`19` del 19/10 sono **lo stesso file** (stesso md5): il clic non era andato, e mostrano tutte le chat affiancate;
+- `11` e `12` sono uguali fra loro.
+
+Per quelle schermate il confronto si fa con la descrizione di `grafica-prima-0-80-0.md`.
+
+**App Android:** **nessuna foto**. `adb devices` è vuoto, non c'è emulatore né AVD. Il confronto con l'app è fatto leggendo il Kotlin, come il 19/10.
+
+**Due differenze della copia, non del programma:**
+- **Niente Drive:** Progetti è vuoto su PC e pagina (il 19/10 la copia aveva l'indice vero da 1,4 GB).
+- **Gli autopiloti:** quelli della Panoramica sono «dormienti» e non compaiono in Autopiloti (`migrazione-elenco.ts:18`).
+
+| Schermata | Prima (0.79.0) | Dopo (0.81.1) | Cosa è cambiato | PC / pagina / app | Testi lunghi senza «?» |
+|---|---|---|---|---|---|
+| `00-pc-avvio` | mosaico vuoto «Nessuna chat aperta», «Tutte le chat affiancate» acceso | si apre già nella **Panoramica** del workspace, con l'autopilota a sinistra (uguale a `10`) | la trasformazione dà la Panoramica a ogni workspace; v0.81.1 | — | la striscia «Tutti i workspace di questo PC hanno la Panoramica… Le chat sono rimaste com'erano.» è ancora una riga lunga a vista, con Torna come prima · Chiudi |
+| `01-pc-sei-chat` | workspace b affiancato; «Prova 6» ferma su «non ancora arrivata al prompt» con un paragrafo di 4 righe | workspace b affiancato, le due chat al prompt | niente «chat che non parte» in questa prova; percorsi neutri | la pagina dice **«chiusa»** per Prova 5 e 6 anche quando girano (difetto 1 sotto) | — |
+| `10-pc-panoramica` | a sinistra «Nessun autopilota in questo workspace» sotto il titolo «Il suo autopilota aspetta il tuo primo messaggio» (contraddizione) | a sinistra «Autopilota di «Prova-081-a» · Aspetta il tuo primo messaggio», campo, Manda, 🎤, «?» | **contraddizione tolta**; linguette in ordine 1-2-3-4 | solo PC | restano **«AL LAVORO · 0 — Nessuna chat al lavoro»** e subito sotto **«ADESSO · 0 — Nessuna chat al lavoro»**: lo stesso detto due volte (voce 7 di c-12, ancora aperta) |
+| `11-pc-tutte-affiancate` | (era uguale a `12`) | 4 chat affiancate di «Prova-081-a» | — | solo PC | — |
+| `12-pc-progetti` / `4pc-progetti` | tabella con 7 progetti «da sistemare · senza casa» | «Nessun progetto ancora.» (copia senza Drive) | struttura uguale: linguette, «Cerca progetto, PC o cartella (/)», Aggiorna, Strumenti ▾ | la pagina dice «Nessun progetto **in questo gruppo**.» per la stessa lista vuota: due frasi diverse | — |
+| `13-pc-autopiloti` | (la foto non c'era: era il mosaico) | tabella vuota «Nessun autopilota · Affida un lavoro» | — | pagina: «Nessun autopilota su questo computer.»; app: «Nessun autopilota su questo PC.» (`Lavori.kt:161`). **Tre frasi diverse** per la stessa cosa | — |
+| `14-pc-domande` | (era il mosaico) | colonna a destra «Aspettano te 0 · Tutte 4», «Niente ti aspetta. Le chat che hanno finito il turno sono in «Tutte».» | — | pagina uguale nei numeri | — |
+| `15-pc-chat-e-workspace` | (era il mosaico) | finestra a gruppi Le chat / I workspace / Gli strumenti delle chat, un «?» per tasto | — | solo PC | la testata dice «workspace «Prova-081-a» · **2 in tutto**»: con 4 chat a vista non si capisce che sono 2 *workspace* (`PannelloChat.tsx:41`) |
+| `16-pc-file` | (era il mosaico) | File nella cartella del workspace, «Cartella vuota.» | — | pagina: elenco delle cartelle (Note-di-prova, Prova-081-a, Prova-081-b) | — |
+| `17-pc-salute` | (era il mosaico) | «1 da guardare · Drive non configurato» con il tasto «Apri Account → Drive» | — | pagina: una riga sola «Dal computer: «Apri Account → Drive».» (correzione di c-12 vista funzionare); **niente più id tagliato** nella riga d'errore | — |
+| `18-pc-impostazioni` | (era il mosaico) | contenuto a 960 px, scorrimento a tutta larghezza; «Fatta: 2 autopiloti nuovi, fermi finché non gli scrivi.»; niente più «Ultimo tentativo: nessuna installazione…» | **il «(0)» è sparito**; la riga inutile non c'è più | pagina uguale (vedi `37`) | «Fatta: 2 autopiloti nuovi» mentre Autopiloti dice «Nessun autopilota»: chi legge cerca due autopiloti che non trova (difetto 4) |
+| `19-pc-riprendi` | (era il mosaico) | «3 progetti · 3 chat · 3 sessioni», gruppi per progetto | — | solo PC (la pagina ha «Riprendi una conversazione» in Chat) | — |
+| `20-pc-nuova-chat` | «Lasciandolo vuoto prende il nome della cartella.» con 4 posti (c'era «Nel progetto «Prova-080-a»») | 3 posti (Documenti, Fra i progetti SierraDeck, Altrove) più «e mettila sul Drive» | **testo che si contraddice**: sotto il nome «La cartella si chiamerà «Nuova chat».», in fondo, in arancione, «Serve un nome: diventa anche la cartella.», e «Apri la chat» spento (difetto 5) | solo PC | — |
+| `21-pc-strumenti` | menu Modello · Usate da altri PC · Crea, rinomina… · Panoramica · Nuova finestra · Negozio | uguale | **ancora tagliato:** «Predefinito (quello del tuo accoun» nella tendina | solo PC | — |
+| `30-tel-inizio` | «Collegato a» con il nome vero del PC, «collegamento ottima», riquadro ambra «ASPETTANO TE» con 4 chat «aspetta te» | «Collegato a PC di prova», «**linea ottima**», nessun riquadro ambra, chat «ferma» in grigio | accordo corretto; «ferma» al posto di «aspetta te» (c-12 voci 2 e 4); niente pallini ambra sulla barra | PC: «ferma» uguale | sotto «In moto adesso» c'è **«IN MOTO 4»** con 4 chat ferme (difetto 2) |
+| `31-tel-progetti` | 7 progetti, «Cerca progetto, PC o cartel» tagliato | «Cerca progetto o PC» intero; lista vuota | ricerca non più tagliata | — | «Strumenti» sempre aperto, più una seconda fila (Code, Il contenuto del Drive, Quaderno) e un «Aggiorna» a parte: come il 19/10 |
+| `32-tel-autopiloti` | «Nessun autopilota su questo computer.» | uguale | — | vedi `13`: tre frasi diverse | — |
+| `33-tel-domande` | come `30` | come `30` | come `30` | — | righe vuote con solo «›» sotto Prova 1 e 2, e «Opus 5.5 · 0.00 $» in carattere mono sotto Prova 3 e 4 (difetto 3) |
+| `34-tel-chat` / `34b` | «4 aspettano te», ambra; Prova 5 e 6 «chiusa» | «4 ferme», grigio; Prova 5 e 6 **ancora «chiusa»** | conteggio e colore giusti | `34b`: rifatta dopo aver aperto il workspace b sul PC, con 6 claude.exe vivi. Dice ancora «chiusa · tocca per riaprirla» (difetto 1) | la riga «chiusa · tocca per riaprirla sul computer, con la su…» è tagliata a ogni voce |
+| `35-tel-file` | elenco con le cartelle dei rami (`ap-f1e631f5-c-1`…) | solo le tre cartelle di prova | — (dipende dai dati) | PC apre la cartella del workspace; pagina la radice dei progetti | — |
+| `36-tel-salute` | 2 da guardare, riga d'errore ««Prova 6» (» con l'id della sessione tagliato, «…: dal computer» per riga | 1 da guardare; una sola riga «Dal computer: «Apri Account → Drive».» | correzioni di c-12 viste funzionare | uguale al PC nei numeri | — |
+| `37-tel-impostazioni` | «Ultimo tentativo: nessuna installazione…», «Tutti i workspace del computer (0) hanno la Panoramica…» (4 righe) | niente riga d'ultimo tentativo; «Fatta: 2 autopiloti nuovi, fermi finché non gli scrivi.» con «?» | testo corto con «?» | uguale al PC (`18`); app `Migrazione.kt` stesso testo (commit di c-12) | «Account fuori · Prossimo passo, sul computer: Entra» resta, ma è della copia di prova (c-12 voce 5) |
+
+### Difetti trovati (da correggere in un'altra chat: qui non si cambia codice)
+
+1. **Pagina e app: le chat del workspace che non è davanti si vedono «chiusa» anche se girano.**
+   - **Passi:** copia con due workspace; si apre «Prova-081-b» (le sue chat partono), si torna su «Prova-081-a». I `claude.exe` delle 6 chat sono vivi. `/api/stato` dà `chat` con le sole 4 di «Prova-081-a», e la pagina mette Prova 5 e 6 fra le salvate: «chiusa · tocca per riaprirla».
+   - **Dove:** `client-rotte.ts:1193` legge `deps.chat()`, cioè `chatAperte`, che viene da `chatDiQui()` (`index.ts:389-391`). Lì ci sono solo le chat che la finestra racconta (`chatDallaFinestra`, `index.ts:6178`) più il sottofondo: quelle del workspace dietro non ci sono. La pagina le prende per salvate in `gruppiChat` (`client-pagina.ts:1605`, testo a `:2093`); l'app fa lo stesso (`Chat.kt:362`).
+   - Toccandola, il telefono chiede di «riaprire» una chat già aperta. C'era già il 19/10 (`34-tel-chat` prima).
+2. **Pagina, «IN MOTO 4» con quattro chat ferme**, sotto il titolo «In moto adesso».
+   - **Dove:** il numero è `inMoto.length + (s.chat || []).length` (`client-pagina.ts:1882-1883`), cioè conta tutte le chat, ferme comprese; il titolo è a `:2550`.
+   - Sul PC «AL LAVORO · 0». Una delle due parole va cambiata, oppure si contano solo le chat al lavoro.
+3. **Pagina, righe vuote con solo «›» e consumo in carattere mono** sotto le chat del polso e dell'elenco Chat.
+   - **Cosa:** è `c.ultimaRiga` (`client-pagina.ts:1897` e la riga `voce__sotto` dell'elenco). Quando l'ultima riga dello schermo è il prompt vuoto di Claude Code, resta il solo «›»; quando è la riga di stato, esce «Opus 5.5 · 0.00 $».
+   - **Proposta:** non mostrarla se, dopo aver tolto il prompt, è vuota o è la riga di stato.
+4. **«Fatta: 2 autopiloti nuovi» contro «Nessun autopilota».**
+   - **Cosa:** sono i dormienti della Panoramica, che per regola non stanno in Autopiloti (`migrazione-elenco.ts:18-21`), ma il testo li chiama «autopiloti» (`migrazione-elenco.ts:165`). Lo vede chi legge le Impostazioni e poi apre Autopiloti, su PC, pagina e app.
+   - **Proposta (solo testo):** «Fatta: 2 workspace con la Panoramica; il loro autopilota nasce al primo messaggio.»
+5. **Nuova chat (PC): il dialogo si contraddice.**
+   - **Cosa:** con «Fra i progetti SierraDeck» scelto e il nome vuoto, sotto il campo dice «La cartella si chiamerà «Nuova chat».» (`ModaleNuovaChat.tsx:147`), in fondo «Serve un nome: diventa anche la cartella.» (`nuova-chat.ts:135`), e «Apri la chat» è spento.
+   - **Proposta:** o il nome vuoto vale «Nuova chat», come dice la prima riga, o la prima riga non lo promette.
+6. **Ancora aperti dal 19/10, visti nelle foto:**
+   - **Panoramica:** «AL LAVORO · 0» e «ADESSO · 0» con la stessa frase (`WorkspacePanoramica.tsx:229` e `:289`).
+   - **Strumenti:** la tendina del modello è tagliata («quello del tuo accoun»).
+   - **Testi del vuoto:** tre frasi diverse per «nessun autopilota» (PC, pagina, app) e due per «nessun progetto» (PC «ancora», pagina «in questo gruppo»).
+   - **Chat e workspace:** la testata «· 2 in tutto» senza dire di cosa (`PannelloChat.tsx:41`).
+
+**Le correzioni di c-12 viste funzionare nella 0.81.1:**
+- «linea ottima»;
+- «ferma» in grigio al posto di «aspetta te»;
+- niente «(0)» nella frase della Panoramica;
+- niente riga «Ultimo tentativo…»;
+- Salute con «Dal computer:» una volta sola;
+- ricerca dei Progetti non tagliata;
+- Panoramica senza «Nessun autopilota in questo workspace».
+
+**Rimasto da fare a mano:** la cartella `E:\prova-081` (156 MB: dati della copia, profilo di Edge, le 3 sessioni di prova). La guardia delle cancellazioni non la lascia togliere a una chat, perché è fuori dalle cartelle dell'autopilota. La copia delle credenziali dentro è già stata svuotata (`{}`). Si può cancellare tutta: non serve più a niente.
