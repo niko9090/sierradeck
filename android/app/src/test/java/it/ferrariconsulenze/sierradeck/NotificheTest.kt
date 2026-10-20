@@ -40,8 +40,8 @@ class NotificheTest {
         assertTrue(giro(ferma, gia, t0).isEmpty())
         val avvisi = giro(ferma, gia, t0 + 3 * min)
         assertEquals(1, avvisi.size)
-        assertEquals("«Trading» aspetta te", avvisi[0].titolo)
-        assertEquals("Da 3 min. Fatto, vuoi che pubblichi?", avvisi[0].testo)
+        assertEquals("«Trading» ha finito il turno", avvisi[0].titolo)
+        assertEquals("Ferma da 3 min. Fatto, vuoi che pubblichi?", avvisi[0].testo)
         assertTrue(giro(ferma, gia, t0 + 30 * min).isEmpty())
     }
 

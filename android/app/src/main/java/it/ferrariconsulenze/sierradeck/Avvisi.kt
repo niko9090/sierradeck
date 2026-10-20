@@ -227,8 +227,8 @@ object Avvisi {
                 avvisi.add(
                     Avviso(
                         chiave = "c:$id",
-                        titolo = "«$titolo» aspetta te",
-                        testo = if (daQuanto >= 60_000L) "Da ${daQuanto / 60_000L} min. $riga" else riga,
+                        titolo = "«$titolo» ha finito il turno",
+                        testo = if (daQuanto >= 60_000L) "Ferma da ${daQuanto / 60_000L} min. $riga" else riga,
                         chat = id,
                         id = idAvviso(ID_CHAT, id),
                         causa = "la chat $id ha finito il turno e aspetta da ${daQuanto / 60_000L} min"
@@ -395,16 +395,19 @@ fun chiaveFermo(a: JSONObject): String {
 fun rigaPresenza(stato: JSONObject): String {
     val chat = stato.optJSONArray("chat")
     val quante = chat?.length() ?: 0
+    // «aspetta te» solo per una scelta aperta; una chat a fine turno è «ferma» (0.80.0, come PC e pagina).
     var aspettano = 0
+    var ferme = 0
     for (i in 0 until quante) {
         val c = chat?.optJSONObject(i) ?: continue
-        val chiede = c.optBoolean("chiede", false)
-        if (chiede || (c.optBoolean("aspetta", false) && !c.optBoolean("governata", false))) aspettano += 1
+        if (c.optBoolean("chiede", false)) aspettano += 1
+        else if (c.optBoolean("aspetta", false) && !c.optBoolean("governata", false)) ferme += 1
     }
     val domande = stato.optJSONArray("domande")?.length() ?: 0
     return when {
         domande > 0 -> if (domande == 1) "Un autopilota ti sta chiedendo una cosa" else "$domande domande aspettano te"
-        aspettano > 0 -> "$aspettano su $quante chat aspettano te"
+        aspettano > 0 -> if (aspettano == 1) "1 su $quante chat aspetta te" else "$aspettano su $quante chat aspettano te"
+        ferme > 0 -> if (ferme == 1) "1 su $quante chat ferma" else "$ferme su $quante chat ferme"
         quante > 0 -> "$quante chat, nessuna ti aspetta"
         else -> "Nessuna chat aperta"
     }
