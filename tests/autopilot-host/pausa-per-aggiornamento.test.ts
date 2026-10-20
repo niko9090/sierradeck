@@ -123,11 +123,19 @@ describe('la pausa per aggiornare', () => {
     expect(archivio.leggi('ap-notte')?.stato).toBe('lavoro')
   })
 
-  it('senza la pausa, lo stesso silenzio lo sospende', () => {
+  it('senza la pausa, lo stesso silenzio mette la chat da parte (0.80.1: non sospende)', () => {
     archivio.scrivi(alLavoro())
     orologio += SILENZIO_MS * 3
     server.controllaChatFerme()
-    expect(archivio.leggi('ap-notte')?.stato).toBe('sospeso')
+    expect(archivio.leggi('ap-notte')?.stato).toBe('lavoro')
+    expect(archivio.leggi('ap-notte')?.daParte).toEqual(['ap-notte'])
+  })
+
+  it('con la pausa la chat non va nemmeno da parte', () => {
+    archivio.scrivi(alLavoro({ fermatoPerAggiornamento: true }))
+    orologio += SILENZIO_MS * 3
+    server.controllaChatFerme()
+    expect(archivio.leggi('ap-notte')?.daParte).toBeUndefined()
   })
 })
 

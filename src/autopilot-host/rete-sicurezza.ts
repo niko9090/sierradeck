@@ -165,6 +165,16 @@ export function applicaRete(
 }
 
 /**
+ * Il giro che si rifà quando i criteri passano ma il supervisore non ha deciso
+ * (0.80.1): non si sospende, si chiede alla chat di dire in chiaro se ha finito.
+ */
+export function istruzioniRiprova(obiettivo: string): string {
+  return 'I criteri passano tutti, ma il supervisore non ha detto se il lavoro è concluso: rifaccio il giro.\n\n' +
+    'Rileggi l’obiettivo. Se manca qualcosa, fallo. Se è tutto fatto, scrivi in poche righe cosa hai fatto e perché è concluso.\n\n' +
+    `Obiettivo: ${obiettivo}`
+}
+
+/**
  * La decisione di prima, quando il supervisore non c'è o non serve.
  *
  * È il motore a regole che ha retto fin qui: nessuno lo butta via, perché è
@@ -178,13 +188,14 @@ function dalleRegole(ctx: Contesto): Decisione {
   if (bocciati.length === 0 && nonMisurabili.length === 0) {
     // Tutto verde, ma le regole da sole **non chiudono**: i comandi dicono che
     // non c'è niente di rotto, non che il lavoro è finito. A dirlo deve essere
-    // qualcuno che l'ha guardato, e se quel qualcuno non ha risposto ci si ferma
-    // e lo si scrive — chiudere da soli un lavoro incompleto è il fallimento
-    // silenzioso peggiore che questo sistema possa produrre.
-    return {
-      tipo: 'sospendi',
-      motivo: 'i comandi passano tutti, ma il supervisore non ha detto se il lavoro e concluso'
-    }
+    // qualcuno che l'ha guardato — chiudere da soli un lavoro incompleto è il
+    // fallimento silenzioso peggiore che questo sistema possa produrre.
+    //
+    // Fino alla 0.80.0 qui ci si sospendeva, e il 19/10 un autopilota è rimasto
+    // fermo per una risposta mancata. Ora si rifà il giro (0.80.1): la chat
+    // rilegge l'obiettivo e chiude il turno, e alla fermata dopo il supervisore
+    // viene interrogato di nuovo. Il giro a vuoto lo ferma comunque l'antiloop.
+    return { tipo: 'prosegui', istruzioni: istruzioniRiprova(a.obiettivo) }
   }
 
   if (strategieFinite(inCerchioDa, a.limiti.stalloMax)) {

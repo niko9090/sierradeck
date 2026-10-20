@@ -223,12 +223,33 @@ describe('hook Stop', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
-  it('non dichiara finito quando il giudizio e illeggibile', async () => {
-    server = ambiente({ interroga: () => Promise.resolve({ testo: 'boh' }) })
+  it('non dichiara finito quando il giudizio e illeggibile, e non sospende: rifà il giro (0.80.1)', async () => {
+    let domande = 0
+    server = ambiente({ interroga: () => { domande++; return Promise.resolve({ testo: 'boh' }) } })
+    await avvia(server)
+    const id = await creaAp()
+    const r = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
+    // Il supervisore è stato riprovato una volta prima delle regole.
+    expect(domande).toBe(2)
+    expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
+  })
+
+  it('0.80.1: un supervisore che non risponde la prima volta si riprova subito', async () => {
+    let domande = 0
+    server = ambiente({
+      interroga: () => {
+        domande++
+        return domande === 1 ? Promise.reject(new Error('tempo scaduto')) : Promise.resolve({ testo: '{"azione": "finito"}' })
+      }
+    })
     await avvia(server)
     const id = await creaAp()
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    expect(domande).toBe(2)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
   it('una domanda della chat mette l autopilota in attesa e ne conserva il testo', async () => {
@@ -959,7 +980,7 @@ describe('eliminazione', () => {
 
   it('eliminare chiude anche le sue domande in sospeso', async () => {
     server = ambiente({
-      interroga: () => Promise.resolve({ testo: '{"finito": false, "istruzioni": "", "domandaUtente": "Quale?"}' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "chiedi", "domanda": "Quale?"}' }),
       scadenzaDomandaMs: 5000
     })
     await avvia(server)
@@ -1316,7 +1337,9 @@ describe('la chat viva che non finisce mai', () => {
   let ora = Date.parse('2026-08-09T10:00:00.000Z')
   const adesso = (): string => new Date(ora).toISOString()
 
-  it('viene sospesa e detta, invece di restare al lavoro per sempre', async () => {
+  it('0.80.1: viene messa da parte e detta, senza sospendere l autopilota', async () => {
+    // Il 19/10 sei autopiloti si sono fermati per «una chat non da segnali».
+    // Ora si mette da parte solo la chat che tace, con una riga per Nicholas.
     ora = Date.parse('2026-08-09T10:00:00.000Z')
     server = ambiente({ silenzioMassimoMs: 30 * 60_000, adesso })
     await avvia(server)
@@ -1327,9 +1350,21 @@ describe('la chat viva che non finisce mai', () => {
     server.controllaChatFerme()
 
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(stato.stato).toBe('sospeso')
-    expect(stato.motivoSospensione).toMatch(/nessun segnale|ferma/i)
-    expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(true)
+    expect(stato.stato).toBe('lavoro')
+    expect(stato.motivoSospensione).toBeUndefined()
+    expect(stato.daParte).toEqual([id])
+    expect(stato.decisioni.some((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'da-parte')).toBe(true)
+    expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(false)
+
+    // Il giro dopo non la rimette da parte una seconda volta.
+    const prima = stato.decisioni.length
+    ora += 5 * 60_000
+    server.controllaChatFerme()
+    expect((await chiama('GET', '/autopiloti')).dati[0].decisioni.length).toBe(prima)
+
+    // Appena chiude un turno torna nel conto.
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect((await chiama('GET', '/autopiloti')).dati[0].daParte).toBeUndefined()
   })
 
   it('una chat che parla non viene toccata', async () => {
@@ -1368,10 +1403,13 @@ describe('la chat viva che non finisce mai', () => {
     server.controllaChatFerme()
     // Cinquanta minuti senza hook, ma un battito venticinque minuti fa: vive.
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
-    // Poi il silenzio vero: trentuno minuti dall'ultimo battito.
+    // Poi il silenzio vero: trentuno minuti dall'ultimo battito. Dalla 0.80.1
+    // la chat va da parte e l'autopilota resta al lavoro.
     ora += 7 * 60_000
     server.controllaChatFerme()
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopo.stato).toBe('lavoro')
+    expect(dopo.daParte).toHaveLength(1)
   })
 
   it('IL DIFETTO: rispondere di mattina non fa sospendere un istante dopo', async () => {
