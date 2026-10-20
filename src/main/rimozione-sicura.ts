@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { createReadStream, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, appendFileSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, appendFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { dirname, join, parse, relative, resolve, sep } from 'node:path'
 import { PEZZO_BYTE } from '@shared/allegati'
 import {
@@ -186,8 +186,23 @@ export function leggiElencoRecupero(dati: string): CartellaInRecupero[] {
   try { const x = JSON.parse(readFileSync(fileElencoRecupero(dati), 'utf8')) as unknown; return Array.isArray(x) ? x as CartellaInRecupero[] : [] } catch { return [] }
 }
 function scriviElencoRecupero(dati: string, e: CartellaInRecupero[]): void {
-  mkdirSync(dirname(fileElencoRecupero(dati)), { recursive: true })
-  scriviJsonAtomico(fileElencoRecupero(dati), e, 'rimozione')
+  const file = fileElencoRecupero(dati)
+  mkdirSync(dirname(file), { recursive: true })
+  // Un elenco che c'è ma non si legge (analisi 0.81.0) si leggeva come vuoto, e
+  // questa scrittura lo sostituiva: le cartelle già nel recupero restavano senza
+  // «Ripristina». Prima di riscriverlo se ne tiene una copia accanto, e lo si dice.
+  if (existsSync(file)) {
+    let leggibile = true
+    try { JSON.parse(readFileSync(file, 'utf8')) } catch { leggibile = false }
+    if (!leggibile) {
+      const accanto = `${file}.illeggibile-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      try { copyFileSync(file, accanto); console.error(`[rimozione] elenco del recupero illeggibile: messo da parte in ${accanto}`) } catch (err) {
+        console.error(`[rimozione] elenco del recupero illeggibile e non copiabile (${String(err)}): non lo riscrivo`)
+        return
+      }
+    }
+  }
+  scriviJsonAtomico(file, e, 'rimozione')
 }
 
 /**

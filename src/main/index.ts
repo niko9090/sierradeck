@@ -124,6 +124,7 @@ import { apriImpostazioniStore } from './impostazioni-store'
 import { apriEtichetteStore } from './etichette-store'
 import { apriChiavi } from './chiavi'
 import { creaGuardianoPin, type GuardianoPin } from './pin-guardiano'
+import { apriFilePin } from './pin-file'
 import { ANTEPRIMA_NASCOSTA } from '@shared/pin-chat'
 import { apriQuaderno } from './quaderno-store'
 import { apriDispositivi } from './dispositivi'
@@ -205,7 +206,7 @@ import {
   apriScopeStore, scopeVuoto, scopeInerte, componiScope, fondiImpostazioni, leggiGlobaliPerScope,
   type ScopeChat, type ScopeStore
 } from './negozio/scope'
-import { apriRegistro, type Registro } from './registro'
+import { apriRegistro, FILE_DEL_REGISTRO, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
@@ -1219,10 +1220,10 @@ if (!app.requestSingleInstanceLock()) {
       // Il PIN delle chat (0.49.0): le impostazioni con la sola impronta in
       // pin-chat.json, accanto ai dati; gli sblocchi solo in memoria (si
       // richiude tutto alla chiusura dell'app).
-      const filePin = join(dati, 'pin-chat.json')
+      const filePin = apriFilePin(join(dati, 'pin-chat.json'), { log: (m) => registro.errore(m) })
       guardianoPin = creaGuardianoPin({
-        leggi: () => { try { return JSON.parse(readFileSync(filePin, 'utf8')) as unknown } catch { return undefined } },
-        scrivi: (p) => { writeFileSync(filePin, JSON.stringify(p, null, 2), 'utf8') },
+        leggi: filePin.leggi,
+        scrivi: filePin.scrivi,
         passphraseGiusta: async (p) => (await sincroniaGlobale?.verificaPassphrase(p)) === true,
         log: (m) => registro.info(m)
       })
@@ -1770,7 +1771,7 @@ if (!app.requestSingleInstanceLock()) {
       if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento() === undefined) {
         try {
           const cartellaLog = join(dati, 'log')
-          const file = readdirSync(cartellaLog).filter((f) => /^sierradeck-d{4}-d{2}-d{2}.log$/.test(f)).sort()
+          const file = readdirSync(cartellaLog).filter((f) => FILE_DEL_REGISTRO.test(f)).sort()
           const trovato = scollegamentoDalRegistro(file.map((f) => { try { return readFileSync(join(cartellaLog, f), 'utf8') } catch { return '' } }))
           if (trovato !== undefined) {
             contoDrive.ricordaScollegamento(trovato)

@@ -1,6 +1,29 @@
 import { existsSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 
+/** Quante volte si riprova una rinomina rifiutata per un file tenuto un attimo da altri, e quanto si aspetta fra una e l'altra. */
+export const RIPROVE_RINOMINA = 4
+const ATTESA_RINOMINA_MS = 60
+
+/**
+ * Su Windows un antivirus o l'indicizzatore che tiene aperto il file per un
+ * attimo fa fallire la rinomina con EPERM, EBUSY o EACCES. Prima bastava
+ * quell'attimo a perdere il salvataggio (analisi 0.81.0): ora si riprova
+ * qualche volta, aspettando poco, prima di arrendersi.
+ */
+export function rinominaConRiprova(da: string, a: string, rinomina: (da: string, a: string) => void = renameSync): void {
+  for (let i = 0; ; i += 1) {
+    try {
+      rinomina(da, a)
+      return
+    } catch (err) {
+      const codice = (err as { code?: string }).code
+      if (i >= RIPROVE_RINOMINA || (codice !== 'EPERM' && codice !== 'EBUSY' && codice !== 'EACCES')) throw err
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ATTESA_RINOMINA_MS * (i + 1))
+    }
+  }
+}
+
 /**
  * Scrive un file per intero o non lo scrive affatto.
  *
@@ -40,7 +63,7 @@ export function scriviAtomico(
       // dell'API è leggibile da chiunque.
       ...(opzioni.mode !== undefined ? { mode: opzioni.mode } : {})
     })
-    renameSync(temporaneo, percorso)
+    rinominaConRiprova(temporaneo, percorso)
     return true
   } catch (err) {
     console.error(`[${etichetta}] salvataggio in ${percorso} fallito:`, err)

@@ -35,6 +35,9 @@ export type Registro = {
 /** Quanti giorni di registro si tengono: due settimane bastano a ricostruire un guasto. */
 export const GIORNI_TENUTI = 14
 
+/** Il nome di un file del registro (`sierradeck-AAAA-MM-GG.log`), con il giorno nel primo gruppo. */
+export const FILE_DEL_REGISTRO = /^sierradeck-(\d{4}-\d{2}-\d{2})\.log$/
+
 function fileDelGiorno(cartella: string, ora = new Date()): string {
   return join(cartella, `sierradeck-${ora.toISOString().slice(0, 10)}.log`)
 }
@@ -85,7 +88,7 @@ export function apriRegistro(
   try {
     const limite = Date.now() - GIORNI_TENUTI * 24 * 60 * 60_000
     for (const nome of readdirSync(cartella)) {
-      const m = /^sierradeck-(\d{4}-\d{2}-\d{2})\.log$/.exec(nome)
+      const m = FILE_DEL_REGISTRO.exec(nome)
       if (m?.[1] === undefined) continue
       const giornoFile = Date.parse(`${m[1]}T00:00:00Z`)
       if (!Number.isNaN(giornoFile) && giornoFile < limite) rmSync(join(cartella, nome), { force: true })
