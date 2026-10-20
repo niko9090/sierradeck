@@ -3,6 +3,11 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { causaDaAutopilota, decidiCambioSchermo, leggiCausa, type CausaCambio } from '../../src/shared/cambio-schermo'
 import { comePortare } from '../../src/renderer/consegna-visibile'
+// In cima, non dentro il test: `window` lo leggono solo quando si chiamano, e
+// l'import a freddo dentro il test (con `resetModules`) costava fino a 8 s col
+// PC carico, contro i 0,3 s degli altri (20/10).
+import { impostaWorkspaceCorrente } from '../../src/renderer/workspace-corrente'
+import { cambiaSchermo } from '../../src/renderer/cambio-schermo'
 
 /**
  * Nicholas, 19/10 (0.80.0): «il workspace sullo schermo cambia da solo». Ogni
@@ -43,13 +48,11 @@ describe('la regola', () => {
 })
 
 describe('il punto unico', () => {
-  afterEach(() => { vi.unstubAllGlobals(); vi.resetModules() })
+  afterEach(() => { vi.unstubAllGlobals() })
 
   it('scrive nel registro e, per un autopilota, non cambia', async () => {
     const righe: string[] = []
     vi.stubGlobal('window', { gestore: { log: { info: (r: string) => { righe.push(r); return Promise.resolve() } } } })
-    const { impostaWorkspaceCorrente } = await import('../../src/renderer/workspace-corrente')
-    const { cambiaSchermo } = await import('../../src/renderer/cambio-schermo')
     impostaWorkspaceCorrente('A')
     const cambiati: string[] = []
     const azioni = { cambia: async (n: string): Promise<void> => { cambiati.push(n) } }
