@@ -125,6 +125,12 @@ export type Preferenze = {
    */
   chatSoloMie?: string[]
   /**
+   * Il PC di sviluppo (0.81.0): l'id del PC a cui «Manda al PC di sviluppo»
+   * porta lo storico degli errori. Si sceglie nelle Impostazioni, fra i PC
+   * conosciuti: nessun nome di PC nel codice.
+   */
+  pcSviluppo?: string
+  /**
    * Come si veste la console.
    *
    * Due risposte opposte alla stessa domanda - cosa deve fare la cornice
@@ -282,6 +288,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     workspaceElenco: Array.isArray(o.workspaceElenco)
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
+    ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
     ...(Array.isArray(o.chatSoloMie)
       ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }
       : {}),

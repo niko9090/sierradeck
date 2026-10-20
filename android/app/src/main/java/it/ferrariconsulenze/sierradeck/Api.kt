@@ -245,6 +245,21 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("ancheDalDrive", ancheDalDrive); put("gettone", gettone); put("frase", frase)
         }))
 
+    // ─── lo storico degli errori (PC 0.81.0) ───
+    suspend fun storicoErrori(): StoricoErroriPc = json.decodeFromString(corpoTesto("/api/errori", oggetto { }))
+
+    suspend fun mandaErrori(): EsitoInvioErrori = json.decodeFromString(corpoTesto("/api/errori/manda", oggetto { }))
+
+    /** Gli errori di quest'app, al PC: lui li tiene nel suo storico con «app» come posto. */
+    suspend fun aggiungiErrori(versione: String, errori: List<ErroreDaMandare>) {
+        corpoTesto("/api/errori/aggiungi", oggetto {
+            put("dove", "app"); put("versione", versione)
+            put("errori", kotlinx.serialization.json.JsonArray(errori.map { e ->
+                buildJsonObject { put("testo", e.testo); e.cosa?.let { put("cosa", it) } }
+            }))
+        })
+    }
+
     // ─── il nome scelto di questo computer (PC 0.52.4) ───
     suspend fun nomePc(nome: String): NomeComputer =
         json.decodeFromString(corpoTesto("/api/nome-pc", oggetto { put("nome", nome) }))
