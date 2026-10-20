@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,6 +87,9 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
     var elimina by remember { mutableStateOf<String?>(null) }
     var errore by remember { mutableStateOf<String?>(null) }
     var inCorso by remember { mutableStateOf(false) }
+    var filtro by remember { mutableStateOf("") }
+    /** La riga con il «⋯» aperto: 'q:nome' (di qui) o 'a:pc:nome' (di un altro PC). */
+    var menuDi by remember { mutableStateOf<String?>(null) }
     // I workspace eliminati negli ultimi 30 giorni (PC 0.81.0): si rileggono quando cambia l'elenco.
     // Un PC più vecchio non li tiene: allora la sezione non c'è.
     var eliminati by remember { mutableStateOf<List<VoceRecuperoWs>>(emptyList()) }
@@ -106,24 +112,63 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
             Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                 errore?.let { Spacer(Modifier.height(6.dp)); Text(it, color = Banco.rosso, fontSize = 12.sp) }
                 Spacer(Modifier.height(8.dp))
-                for (n in workspace.nomi) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(n, color = if (n == workspace.attivo) Banco.accento else Banco.testo, fontWeight = if (n == workspace.attivo) FontWeight.Bold else FontWeight.Normal)
-                            val quante = workspace.chat.count { it.workspace == n }
-                            Text((if (n == workspace.attivo) "davanti sul computer · " else "") + if (quante == 1) "1 chat" else "$quante chat", color = Banco.testoQuieto, fontSize = 11.sp)
+                // Il menu dei workspace (PC 0.82.0), come sul PC e sulla pagina: la ricerca in
+                // cima, «Recenti» e un gruppo per PC, le azioni di ogni riga dietro «⋯».
+                // La finestra ha un'altezza massima e scorre dentro; il «⋯» è un menu
+                // di sistema, che sta sempre dentro lo schermo.
+                OutlinedTextField(
+                    value = filtro, onValueChange = { filtro = it; menuDi = null }, singleLine = true,
+                    placeholder = { Text("Cerca fra ${workspace.nomi.size} workspace") }, modifier = Modifier.fillMaxWidth()
+                )
+                val cartella = FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false
+                val gruppi = MenuWorkspace.gruppi(workspace.nomi, workspace.attivo, workspace.recenti, filtro, nomePc, workspace.altrove)
+                if (gruppi.isEmpty()) Text("Nessun workspace con «${filtro.trim()}».", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+                for (g in gruppi) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(g.titolo.uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    for (v in g.voci) {
+                        val chiave = (if (v.qui) "q:" else "a:${v.pcId}:") + v.nome
+                        val davanti = v.qui && v.nome == workspace.attivo
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f).clickable(enabled = !inCorso) {
+                                // Toccare una riga di qui ci va; una di un altro PC apre il suo «⋯».
+                                if (!v.qui) menuDi = chiave else if (!davanti) fai("passare a «${v.nome}»") { api.cambiaWorkspace(v.nome) }
+                            }.padding(vertical = 8.dp)) {
+                                Text((if (davanti) "✓ " else "") + v.nome, color = if (davanti) Banco.accento else Banco.testo, fontWeight = if (davanti) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                                val quante = workspace.chat.count { it.workspace == v.nome }
+                                Text(
+                                    if (!v.qui) "su ${v.pcNome ?: "un altro PC"}" else (if (davanti) "davanti sul computer · " else "") + if (quante == 1) "1 chat" else "$quante chat",
+                                    color = Banco.testoQuieto, fontSize = 11.sp
+                                )
+                            }
+                            Box {
+                                TextButton(enabled = !inCorso, onClick = { menuDi = if (menuDi == chiave) null else chiave }) { Text("⋯", fontSize = 18.sp) }
+                                DropdownMenu(expanded = menuDi == chiave, onDismissRequest = { menuDi = null }) {
+                                    // L'app non apre dal vivo un workspace di un altro PC (lo fa il PC): lì resta «Porta qui».
+                                    for (a in MenuWorkspace.azioni(v, workspace.attivo, workspace.nomi.size, cartella = cartella).filter { v.qui || it.azione != "apri" }) {
+                                        DropdownMenuItem(
+                                            text = { Text(a.etichetta, color = if (a.spenta != null) Banco.testoQuieto else if (a.pericolo) Banco.rosso else Banco.testo) },
+                                            enabled = a.spenta == null && !inCorso,
+                                            onClick = {
+                                                menuDi = null
+                                                when (a.azione) {
+                                                    "apri" -> fai("passare a «${v.nome}»") { api.cambiaWorkspace(v.nome) }
+                                                    "rinomina" -> { rinomina = v.nome; nomeNuovo = v.nome }
+                                                    "cartella" -> scope.launch { apriCartellaDa(api, nomePc, workspace = v.nome); if (Apertura.cartellaRichiesta != null) onChiudi() }
+                                                    "elimina" -> elimina = v.nome
+                                                    "portaQui" -> fai("portare qui «${v.nome}»") {
+                                                        val r = api.drivePortaWorkspace(v.nome)
+                                                        if (!r.ok) throw Exception(r.messaggio ?: r.errore ?: "non riuscito")
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        if (n != workspace.attivo) TextButton(enabled = !inCorso, onClick = { fai("passare a «$n»") { api.cambiaWorkspace(n) } }) { Text("Vai") }
-                        // «Apri cartella» (PC 0.82.0): la sezione File sulla cartella del progetto del workspace.
-                        if (FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false) IconButton(enabled = !inCorso, onClick = {
-                            scope.launch { apriCartellaDa(api, nomePc, workspace = n); if (Apertura.cartellaRichiesta != null) onChiudi() }
-                        }) { Icon(Icons.Filled.Folder, "Apri la cartella di «$n»", tint = Banco.testo) }
-                        TextButton(enabled = !inCorso, onClick = { rinomina = n; nomeNuovo = n }) { Text("Rinomina") }
-                        TextButton(enabled = !inCorso, onClick = {
-                            if (workspace.nomi.size <= 1) errore = AzioniTelefono.ULTIMO_WORKSPACE else elimina = n
-                        }) { Text("Elimina", color = Banco.rosso) }
+                        HorizontalDivider(color = Banco.incisione)
                     }
-                    HorizontalDivider(color = Banco.incisione)
                 }
                 if (eliminati.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
@@ -249,7 +294,8 @@ object PcIndietro {
         if (versione.isNullOrBlank()) return null
         // Il quaderno personale non conta: è solo del PC accoppiato e non passa dal ponte,
         // quindi su un altro PC non manca niente di quello che il telefono userebbe là.
-        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE && it != FunzionePc.PANNELLO_DRIVE && it != FunzionePc.GESTIONE_CHAT }
+        // «Apri cartella» (0.82.0) neanche: su un PC che non ce l'ha il tasto non compare.
+        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE && it != FunzionePc.PANNELLO_DRIVE && it != FunzionePc.GESTIONE_CHAT && it != FunzionePc.CARTELLA }
         val indietroDalCollegato = accoppiato != null && Aggiornamenti.piuNuova(versione, accoppiato)
         if (mancano.isEmpty() && !indietroDalCollegato) return null
         val cosa = if (mancano.isEmpty()) "" else " Là non ci sono ancora: " + mancano.joinToString("; ") { it.nome.replaceFirstChar { c -> c.lowercase() } } + "."

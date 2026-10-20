@@ -534,7 +534,9 @@ data class Workspace(
      */
     val chat: List<ChatSalvata> = emptyList(),
     /** PC 0.65.1: i workspace degli altri PC che qui non ci sono, a parte («Su altri PC»). */
-    val altrove: List<WorkspaceAltrove> = emptyList()
+    val altrove: List<WorkspaceAltrove> = emptyList(),
+    /** PC 0.82.0: dove Nicholas è andato per ultimo, per «Recenti» del menu dei workspace. */
+    val recenti: List<String> = emptyList()
 )
 
 @Serializable
