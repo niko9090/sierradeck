@@ -2906,7 +2906,8 @@ function vistaAutopilota(a) {
   // Con la Panoramica 2 (0.78.0) solo la conversazione; gli eventi in «Cosa è successo ▸».
   const conPan = !!(panoramicaAp && panoramicaAp.situazione)
   // Le righe corte dei traguardi (0.79.0: «Revisione: ha approvato …, unito.») restano nella conversazione.
-  const inConversazione = (b) => b.da !== 'nota' || b.tono === 'traguardo'
+  // 0.81.0: anche «Ha finito.» e «Si è fermato.».
+  const inConversazione = (b) => b.da !== 'nota' || b.tono === 'traguardo' || b.tono === 'fine' || b.tono === 'fermo'
   const eventi = conPan ? (a.chat || []).filter((b) => !inConversazione(b)).reverse() : []
   const eventiHtml = eventi.length ? rigaApri('eventi', 'Cosa è successo · ' + eventi.length) + (panAperte.eventi ? '<div class="pan-tel-eventi">' + eventi.slice(0, 50).map((b) => '<div class="nota-ap"><span class="quando">' + ora(b.quando) + '</span><span>' + esc(b.testo) + (b.volte ? ' ×' + b.volte : '') + '</span></div>').join('') + '</div>' : '') : ''
   // Senza la Panoramica 2 il diario è intero: le righe corte dei traguardi sarebbero un doppione.

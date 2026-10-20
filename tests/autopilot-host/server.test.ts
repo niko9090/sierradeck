@@ -1369,6 +1369,122 @@ describe('la chat viva che non finisce mai', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].daParte).toBeUndefined()
   })
 
+  it('0.81.0: dopo 5 minuti di silenzio una riga per Nicholas, una volta sola finché non riparla', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ silenzioMassimoMs: 30 * 60_000, adesso })
+    await avvia(server)
+    const id = await creaAp()
+    const mute = async (): Promise<number> =>
+      (await chiama('GET', '/autopiloti')).dati[0].decisioni.filter((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'muta').length
+
+    ora += 4 * 60_000
+    server.controllaChatFerme()
+    expect(await mute()).toBe(0)
+    ora += 2 * 60_000
+    server.controllaChatFerme()
+    expect(await mute()).toBe(1)
+    // Il giro dopo non la ripete.
+    ora += 2 * 60_000
+    server.controllaChatFerme()
+    expect(await mute()).toBe(1)
+    // Riparla (un battito dal Gestore), poi tace di nuovo: si ridice.
+    await chiama('POST', '/battiti', { segni: [{ autopilota: id }] })
+    ora += 6 * 60_000
+    server.controllaChatFerme()
+    expect(await mute()).toBe(2)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+  })
+
+  it('0.81.0: la riga del silenzio resta anche quando nello stesso giro la chat va da parte', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ silenzioMassimoMs: 10 * 60_000, adesso })
+    await avvia(server)
+    await creaAp()
+    ora += 6 * 60_000
+    server.controllaChatFerme()
+    ora += 5 * 60_000
+    server.controllaChatFerme()
+    const esiti = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { traguardo?: { esito: string } }) => d.traguardo?.esito).filter(Boolean)
+    expect(esiti).toEqual(['muta', 'da-parte'])
+  })
+
+  it('0.81.0: una consegna che nessuna finestra ritira è detta una volta («mai partita»)', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ adesso })
+    await avvia(server)
+    const id = await creaAp()
+    const inVolo = (consegna: string): void => {
+      const a = archivio.leggi(id)!
+      archivio.scrivi({ ...a, inVolo: [{ consegna, quando: adesso(), messaggi: [{ id: `m-${consegna}`, quando: adesso(), testo: 'fai X', chats: [id] }] }] })
+    }
+    // Appena creato l'autopilota è «in lavorazione»: la rimessa in coda aspetta che finisca.
+    const arrivate = async (n: number): Promise<any[]> => {
+      for (let i = 0; i < 300; i += 1) {
+        const d = (await chiama('GET', '/autopiloti')).dati[0].decisioni
+        if (d.filter((x: { cosa: string }) => x.cosa.includes('non è arrivata nella chat')).length >= n) return d
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      return (await chiama('GET', '/autopiloti')).dati[0].decisioni
+    }
+    inVolo('c-91')
+    server.riportaInCoda('c-91', 'nessuna finestra l ha ritirata')
+    await arrivate(1)
+    inVolo('c-92')
+    server.riportaInCoda('c-92', 'nessuna finestra l ha ritirata')
+    const decisioni = await arrivate(2)
+    expect(decisioni.filter((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'mai-partita')).toHaveLength(1)
+    expect(decisioni.filter((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))).toHaveLength(2)
+  })
+
+  it('la Revisione: dopo un riavvio, senza segnali in memoria, nessuna riga «muta» (non torna ogni 5 minuti)', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-riavvio-muta-'))
+    server = ambiente({ silenzioMassimoMs: 60 * 60_000, adesso, cartellaArchivio: cartella })
+    await avvia(server)
+    await creaAp()
+    await new Promise<void>((r) => { server.close(() => { r() }) })
+    // Il servizio riparte: la memoria dei segnali è vuota.
+    server = ambiente({ silenzioMassimoMs: 60 * 60_000, adesso, cartellaArchivio: cartella })
+    await avvia(server)
+    for (let i = 0; i < 4; i += 1) {
+      ora += 6 * 60_000
+      server.controllaChatFerme()
+    }
+    const esiti = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { traguardo?: { esito: string } }) => d.traguardo?.esito)
+    expect(esiti.filter((e: string | undefined) => e === 'muta')).toHaveLength(0)
+  })
+
+  it('la Revisione: chi aspetta una risposta di Nicholas non è detto «muto»', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    const domande = creaRegistroDomande({ adesso: () => ora })
+    server = ambiente({ silenzioMassimoMs: 60 * 60_000, adesso, domande })
+    await avvia(server)
+    const id = await creaAp()
+    domande.apri({ autopilotaId: id, testo: 'Quale versione pubblico?', scadenzaMs: 60 * 60_000 })
+    ora += 6 * 60_000
+    server.controllaChatFerme()
+    const esiti = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { traguardo?: { esito: string } }) => d.traguardo?.esito)
+    expect(esiti).not.toContain('muta')
+  })
+
+  it('la Revisione: una consegna sostituita da una più nuova non è «mai partita»', async () => {
+    ora = Date.parse('2026-08-09T10:00:00.000Z')
+    server = ambiente({ adesso })
+    await avvia(server)
+    const id = await creaAp()
+    const a = archivio.leggi(id)!
+    archivio.scrivi({ ...a, inVolo: [{ consegna: 'c-93', quando: adesso(), messaggi: [{ id: 'm-93', quando: adesso(), testo: 'fai X', chats: [id] }] }] })
+    server.riportaInCoda('c-93', 'sostituita dalla c-94 prima di essere ritirata')
+    let decisioni: any[] = []
+    for (let i = 0; i < 300; i += 1) {
+      decisioni = (await chiama('GET', '/autopiloti')).dati[0].decisioni
+      if (decisioni.some((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))) break
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    expect(decisioni.some((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))).toBe(true)
+    expect(decisioni.some((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'mai-partita')).toBe(false)
+  })
+
   it('una chat che parla non viene toccata', async () => {
     ora = Date.parse('2026-08-09T10:00:00.000Z')
     server = ambiente({
