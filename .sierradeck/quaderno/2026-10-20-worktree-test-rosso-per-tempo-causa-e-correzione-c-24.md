@@ -27,5 +27,14 @@ tetto del tempo non è stato alzato.
 | Test più lento | 51 s | 19 s |
 | Test senza git (piano, cartelle vuote) | 5,5 s / 6,9 s | 0,08 s / 0,16 s |
 
+`fea2942c` del ramo c-23 tocca lo stesso `worktree.test.ts`: non va preso,
+perché `a850b524` lo sostituisce.
+
+Sul ramo c-24 sono uniti anche c-231 (suite a 20 minuti: `459d0bae`, `3a865b07`,
+`5a1f43be`) e main (`c9a9fc94`). Typecheck verde.
+La suite intera non è ancora partita alle 14:11, perché giravano già 7 suite
+`vitest run --maxWorkers=2` di altre chat, la più vecchia dalle 12:08. I numeri
+della suite si aggiungono qui quando gira.
+
 **Regola:** nei test con git vero, preparare il repository una volta sola e
 copiarlo. Ogni processo in meno conta molto di più a PC carico.
