@@ -1082,3 +1082,38 @@ In 23 la parte dei polsi è stata lasciata così di proposito: potarli cambiereb
 - **Una riga `[ERRORE]` a ogni avvio**, `autopilota:elenca … il servizio autopilota non risponde sulla porta`: la finestra chiede l'elenco 300 ms prima che il servizio sia in ascolto. Si ripara da solo al giro dopo, ma sporca la conta degli errori, come il `MaxListenersExceededWarning` del 19/10. Rimedio: aspettare `in ascolto`, oppure trattare il primo rifiuto come «non ancora partito».
 
 **Cosa resta da misurare, e solo dopo che Nicholas installa la 0.81.0:** CPU con le chat al lavoro (`misura.mjs cpu` sul PC vero), ponte fra due PC, app su un telefono.
+
+## Chiusura della 0.81.0 (20/10 sera, c-289)
+
+### Rami
+La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
+- **c-12-salva** (c1ad7e20) e **c-12-salva2** (0e4f0505): **uniti**. `salvaLavoro` salva anche nella sottocartella del progetto che il ramo contiene, maiuscole comprese. Revisione fatta da c-12; il test fallisce senza la correzione.
+- **c-10, docs** (db268e9f): **unito** (f3dd16eb). Il «Riepilogo prima e dopo» qui sopra. Un solo conflitto, su questo file: tenute tutte e due le sezioni.
+- **c-289-sposta**: «Sposta in un altro workspace» per gli autopiloti, più la correzione del test dell'intervista (sotto). Passato dalla Revisione: un difetto bloccante trovato e corretto, cioè lo spostamento a turno in corso che tornava indietro.
+- Nessun altro ramo `ap/ap-f1e631f5/*` resta avanti rispetto a main con lavoro non unito.
+
+### I due workspace sbagliati del 19/10: cosa manca e come si fa
+- **Non tolti ancora, e non li può togliere una chat.** Le rotte `/api` del servizio vero sono vietate alle chat. Sul PC c'è la 0.80.1, che non ha «Elimina» con il recupero di 30 giorni.
+- Mancava un pezzo: **spostare l'autopilota** «Recupero VisitaFacile da nexora-nas» (`ap-79a4ce02`) in NexoraOS, come ha risposto Nicholas il 20/10. Senza quel pezzo, «Elimina» rifiuta il workspace «dentro al mio server nexora c'è gia un», perché è la casa di un autopilota attivo. **Adesso c'è, nella 0.81.0: «Sposta in…»** nel dettaglio dell'autopilota, su PC, pagina e app.
+- **Dopo l'install della 0.81.0, tre gesti di Nicholas:**
+  1. Autopiloti → «Recupero VisitaFacile…» → «Sposta in…» → NexoraOS;
+  2. Workspace → «⋯» su «dentro al mio server nexora c'è gia un» → Elimina;
+  3. Workspace → «⋯» su «visitafacile» → Elimina.
+  Tutti e due restano 30 giorni in Workspace → «Eliminati» → «Ripristina».
+- `E:\…\VisitaFacile` non è più vuota: contiene `STATO_PROGETTO.md`, scritto dall'autopilota, e resta dov'è. La cartella vuota `Progetti SierraDeck\visitafacile` va nel recupero da sola. **Il visitafacile vero su DESKTOP non si tocca.**
+
+### I criteri dei test che scadevano
+- Non era un file appeso. Erano **13 corse di criteri già scaduti, rimaste vive dalle 15:41 alle 17:00**: la 0.80.1 installata non chiude la catena bash → npx → vitest, e la correzione 1e9add64 c'è solo in main. Chiuse alle 17:30. Dettagli in `criteri-vitest-scaduti-restano-vivi-0-80-1.md`.
+- **Un test lento di suo:** «riprendere un autopilota in intervista» (`tests/autopilot-host/server.test.ts`). Aspettava che `/domande` si svuotasse. Dalla 0.71 la domanda scaduta resta aperta, quindi faceva sempre 80 giri a vuoto: 14-16 s, oltre i 20 s a PC carico. Corretto (7601daad): ora dura **0,9 s**, con le stesse verifiche.
+- `file-autopilota.test.ts`: oltre i 60 s a PC carico, corretto in main da 498f2b7f (meno avvii di git).
+
+**Tempi misurati sul main del 20/10, col PC carico dalle suite di altre chat:**
+
+| suite | quando | file | test | esito | durata |
+|---|---|---|---|---|---|
+| `tests/main` | 16:18 (13 orfane vive) | 189 | 1804 | tutti verdi, 1 worker uscito | 1386 s |
+| `tests/autopilot-host tests/renderer tests/shared tests/pty-host` | 16:41 | 250 | 2724 | tutti verdi | 1077 s |
+| `tests/main` | 17:36 (orfane chiuse, 4 suite di altre chat) | 190 | 1809 | 1 rosso per tempo (`file-autopilota`, poi corretto) | 1138 s |
+
+- Nella corsa delle 17:36 i test veri sono 818 s; il resto è trasformazione e import (486 + 556 s), sommati sui processi.
+- **Sopra i 9 minuti anche tutto verde:** a PC quieto non si è mai potuto misurare, perché c'erano sempre altre chat al lavoro. Il tetto di 20 minuti (c-24) ci sta dentro solo se le suite intere non girano in più chat insieme.
