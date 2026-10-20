@@ -58,6 +58,20 @@ function sottocartellaDelRamo(git: Git, radice: string, cartella: string): boole
   return r.codice === 0 && r.uscita !== ''
 }
 
+/**
+ * La copia di una chat può ancora lavorare? (c-310, 20/10) Il 20/10 c-13 e
+ * c-15 avevano la cartella rimasta senza `.git` dopo l'unione: ricevevano un
+ * giro del supervisore ogni 40 secondi senza poter fare niente. «non-git» vale
+ * anche per la cartella da cui git risale a un altro repository, come in
+ * `salvaLavoro`.
+ */
+export function statoCopia(git: Git, cartella: string): 'ok' | 'mancante' | 'non-git' {
+  if (!existsSync(cartella)) return 'mancante'
+  const radice = radiceGit(git, cartella)
+  if (radice === undefined || !(stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella))) return 'non-git'
+  return 'ok'
+}
+
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
   const r = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
   return r.codice === 0 && r.uscita !== '' && r.uscita !== 'HEAD' ? r.uscita.split(/\r?\n/)[0] : undefined

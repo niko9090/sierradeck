@@ -33,7 +33,7 @@ export function esecutoreNelMosaico(p: {
 }): {
   /** Torna l'id della consegna messa in coda (0.56.4). */
   avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
-  ferma: (id: string, chatId?: string) => void
+  ferma: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
@@ -99,15 +99,18 @@ export function esecutoreNelMosaico(p: {
       return Promise.resolve(messa.id)
     },
 
-    ferma(id, chatId) {
+    ferma(id, chatId, chi) {
       const chiavi = chatId === undefined
         ? [...vive.keys()].filter((k) => k === id || k.startsWith(`${id}::`))
         : [chiave(id, chatId)]
       // Prima si tolgono gli ordini non ancora ritirati: consegnarli dopo aver
-      // fermato l'autopilota vorrebbe dire farlo ripartire da solo.
-      p.consegne.dimentica(id)
+      // fermato l'autopilota vorrebbe dire farlo ripartire da solo. Fermando
+      // una chat sola, solo i suoi (c-310): quelli delle sorelle restano.
+      p.consegne.dimentica(id, chatId)
       for (const k of chiavi) {
-        const viva = vive.get(k)
+        // Una chat finita sopravvissuta a un riavvio del servizio non è più fra
+        // le vive: con la sua sessione la si ferma lo stesso (c-310).
+        const viva = vive.get(k) ?? (chatId !== undefined && chi !== undefined ? { autopilotaId: id, ...chi } : undefined)
         if (viva === undefined) continue
         vive.delete(k)
         p.consegne.metti({

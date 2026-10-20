@@ -93,7 +93,7 @@ export type Consegne = {
   preleva: () => Consegna[]
   inAttesa: () => number
   /** Toglie le consegne di un autopilota: fermarlo non deve lasciargli ordini in coda. */
-  dimentica: (autopilotaId: string) => void
+  dimentica: (autopilotaId: string, chatId?: string) => void
 }
 
 /**
@@ -236,9 +236,10 @@ export function creaConsegne(
 
     inAttesa: () => coda.length,
 
-    dimentica(autopilotaId) {
+    dimentica(autopilotaId, chatId) {
       for (let i = coda.length - 1; i >= 0; i -= 1) {
-        if (coda[i]?.consegna.autopilotaId === autopilotaId) coda.splice(i, 1)
+        const c = coda[i]?.consegna
+        if (c?.autopilotaId === autopilotaId && (chatId === undefined || c.chatId === chatId)) coda.splice(i, 1)
       }
       salva()
     }

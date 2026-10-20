@@ -101,6 +101,24 @@ describe('l autopilota che scrive nelle chat', () => {
     esecutore.ferma('ap-1', 'ch-1')
     expect(esecutore.attivi()).toEqual(['ap-1::ch-2'])
   })
+
+  it('fermare una chat sola lascia in coda gli ordini delle sorelle (c-310)', async () => {
+    const { consegne, esecutore } = banco()
+    const a = autopilota()
+    await esecutore.avvia(a, undefined, { id: 'ch-1', compito: 'x', stato: 'lavoro', cicli: 0 })
+    await esecutore.avvia(a, undefined, { id: 'ch-2', compito: 'y', stato: 'lavoro', cicli: 0 })
+    esecutore.ferma('ap-1', 'ch-1')
+    const rimaste = consegne.preleva()
+    expect(rimaste.map((c) => `${c.chatId}:${c.cosa}`)).toEqual(['ch-2:scrivi', 'ch-1:interrompi'])
+  })
+
+  it('una chat finita che il servizio non governa più si ferma con la sua sessione (c-310)', () => {
+    // Dopo un riavvio del servizio la chat non è fra le vive: prima `ferma` non faceva niente.
+    const { consegne, esecutore } = banco()
+    esecutore.ferma('ap-1', 'c-15', { sessionId: 's-15', workspace: 'w' })
+    const [c] = consegne.preleva()
+    expect(c).toMatchObject({ cosa: 'interrompi', chatId: 'c-15', sessionId: 's-15', workspace: 'w' })
+  })
 })
 
 describe('il primo messaggio', () => {
