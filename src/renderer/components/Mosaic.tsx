@@ -17,6 +17,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
 import { AzioniChat } from './AzioniChat'
+import { TastoCartella } from './TastoCartella'
 import { trascinamentoDivisori } from '../persistenza-layout'
 
 const SPESSORE_DIVISORE = 6
@@ -415,6 +416,8 @@ export function Mosaic({
                   <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
                   {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
                   {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
+                  {/* «Apri cartella» (0.82.0): la cartella del progetto in Esplora file. */}
+                  {data.remoto === undefined ? <TastoCartella paneId={paneId} titolo={nomi.get(paneId) ?? data.title} /> : null}
                   {/* Chiudi, Archivia, Elimina dal PC (0.79.0): «Chiudi» qui è lo stesso gesto della ×. */}
                   {data.remoto === undefined ? (
                     <AzioniChat sessione={data.sessionUuid} titolo={nomi.get(paneId) ?? data.title} onChiudi={() => { void window.gestore.remoto.segnaChiusa(data.sessionUuid, data.title).catch(() => undefined); closePane(paneId) }} />
@@ -424,7 +427,7 @@ export function Mosaic({
                   className="comando-riquadro"
                   aria-expanded={rari.has(paneId)}
                   onClick={() => setRari((x) => { const n = new Set(x); if (n.has(paneId)) n.delete(paneId); else n.add(paneId); return n })}
-                  title={rari.has(paneId) ? 'Nascondi i comandi' : 'Altri comandi: sposta in un’altra finestra o workspace, quale PC la ospita, PIN'}
+                  title={rari.has(paneId) ? 'Nascondi i comandi' : 'Altri comandi: sposta in un’altra finestra o workspace, quale PC la ospita, PIN, apri la cartella'}
                   aria-label={`Altri comandi di ${data.title}`}
                 >
                   ⋯

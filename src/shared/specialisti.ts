@@ -1,5 +1,7 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import { RUOLI, RUOLI_ORDINE, type Ruolo, type SchedaRuolo } from './ruoli-agenti'
+import { attivitaDi, type Attivita } from './colori-attivita'
+import { cosaFaChat, daQuanto } from './panoramica'
 
 /**
  * Gli specialisti di un autopilota, visibili (0.73.0).
@@ -25,6 +27,12 @@ export type Specialista = {
   stato: string
   attivo: boolean
   ultimaAzione: string
+  /** Cosa fa (0.82.0): il colore fisso e il simbolo, dalla tabella unica `colori-attivita.ts`. */
+  attivita: Attivita
+  /** Cosa fa in parole semplici, dal registro: «lavora a: «…»», «rilegge il lavoro di Sviluppo: «…»». */
+  cosa: string
+  /** Da quanto è in quello stato: «da 12 min»; vuoto se non si sa. */
+  quanto: string
   /** Per «Guarda»: la sessione di Claude Code e il workspace dove sta il riquadro. */
   sessionId?: string
   workspace?: string
@@ -78,7 +86,15 @@ const postoRuolo = (r: Ruolo | undefined): number => (r === undefined ? RUOLI_OR
 const numeroChat = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[1] ?? NaN); return Number.isFinite(n) ? n : 0 }
 const ruoliDi = (a: Autopilota): Ruolo[] => a.chats.map((c) => c.ruolo).filter((r): r is Ruolo => r !== undefined)
 
-export function specialistiDi(a: Autopilota): Specialisti {
+/** Lo stato che conta per il colore: con l'autopilota finito sono finite tutte; fermo l'autopilota, è ferma anche chi «lavorava». */
+function statoVero(a: Autopilota, c: ChatGovernata): string {
+  if (a.stato === 'finito') return 'finita'
+  if ((a.stato === 'sospeso' || a.stato === 'fallito') && c.stato !== 'finita') return 'ferma'
+  return c.stato
+}
+
+export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
+  const quanto = (dal: string | undefined): string => (ora === undefined || dal === undefined ? '' : daQuanto(Date.parse(dal), ora))
   const nome = a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40)
   if (a.chats.length > 0) {
     return {
@@ -95,6 +111,9 @@ export function specialistiDi(a: Autopilota): Specialisti {
         stato: PAROLE[c.stato] ?? c.stato,
         attivo: c.stato === 'lavoro',
         ultimaAzione: c.ultimaAzione ?? '',
+        attivita: attivitaDi(c.ruolo, statoVero(a, c)),
+        cosa: cosaFaChat(c, a.chats, c.stato === 'finita' || a.stato === 'finito'),
+        quanto: quanto(c.dal),
         ...(c.sessionId !== undefined ? { sessionId: c.sessionId } : {}),
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
         ...(c.stato === 'finita' || a.stato === 'finito' ? { chiusa: true as const } : {})
@@ -114,6 +133,9 @@ export function specialistiDi(a: Autopilota): Specialisti {
       stato: a.stato === 'lavoro' ? 'al lavoro' : a.stato === 'attesa' ? 'aspetta te' : a.stato === 'finito' ? 'finita' : 'ferma',
       attivo: a.stato === 'lavoro',
       ultimaAzione: a.ultimaAzioneChat ?? '',
+      attivita: attivitaDi(undefined, a.stato),
+      cosa: a.stato === 'finito' ? 'ha finito l’obiettivo' : 'lavora all’obiettivo',
+      quanto: '',
       sessionId: a.sessionId,
       ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
       ...(a.stato === 'finito' ? { chiusa: true as const } : {})

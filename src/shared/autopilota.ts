@@ -144,9 +144,15 @@ export type MessaggioPerLaChat = {
  * specialista finisce, senza righe tecniche). `chat` è chi l'ha fatto; `di` la
  * chat di cui parla (per la Revisione: quella che ha riletto).
  */
-export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta']
+/**
+ * `nota` (0.82.0): il fatto, scritto dal programma, di un traguardo
+ * `gia-fatto` — una domanda che non arriva a Nicholas perché è già successo.
+ */
+export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string; nota?: string }
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto']
+/** Quanto è lunga al più la nota di un traguardo. */
+export const NOTA_TRAGUARDO_MAX = 200
 
 /**
  * Dopo quanto silenzio una chat si dice a Nicholas (0.81.0, «Nicholas
@@ -848,7 +854,7 @@ export function parseAutopilota(raw: unknown): {
       const cosa = stringaNonVuota(dd.cosa)
       const t = dd.traguardo as Record<string, unknown> | undefined
       const traguardo: Traguardo | undefined = typeof t === 'object' && t !== null && typeof t.chat === 'string' && t.chat !== '' && ESITI_TRAGUARDO.includes(t.esito as EsitoTraguardo)
-        ? { chat: t.chat, esito: t.esito as EsitoTraguardo, ...(typeof t.di === 'string' && t.di !== '' ? { di: t.di } : {}) }
+        ? { chat: t.chat, esito: t.esito as EsitoTraguardo, ...(typeof t.di === 'string' && t.di !== '' ? { di: t.di } : {}), ...(typeof t.nota === 'string' && t.nota !== '' ? { nota: t.nota.slice(0, NOTA_TRAGUARDO_MAX) } : {}) }
         : undefined
       if (quando !== undefined && cosa !== undefined) decisioni.push({ quando, cosa, ...(traguardo !== undefined ? { traguardo } : {}) })
     }

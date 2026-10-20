@@ -15,6 +15,8 @@ import { AdessoAutopilota } from './DalVivoAutopilota'
 import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
+import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
+import { coloreDi } from '@shared/colori-attivita'
 import { chiediNuovoAutopilota, SPIEGA_CREA_AUTOPILOTA } from '../nuovo-autopilota'
 import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
@@ -54,7 +56,6 @@ export type SchedaVista = SchedaChat & {
 
 export const PANORAMICA = 'panoramica'
 
-const COLORE: Record<string, string> = { blu: 'var(--blu)', viola: 'var(--viola, #a78bfa)', verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', quieto: 'var(--testo-quieto)' }
 const COLORE_STATO: Record<StatoScheda, string> = { chiede: 'var(--ambra)', lavora: 'var(--verde)', ferma: 'var(--testo-quieto)', finita: 'var(--testo-quieto)' }
 const PAROLA_STATO: Record<StatoScheda, string> = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' }
 
@@ -285,6 +286,7 @@ export function RiassuntoAlLavoro({ righe, schede, onApri }: { righe: RigaAlLavo
       <div className="serigrafia" aria-live="polite">
         <span className={aspettano > 0 ? 'pan2-riassunto__aspettano' : undefined}>{titoloAlLavoro(righe)}</span>
         <Aiuto di="Chi lavora adesso">Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.</Aiuto>
+        <LegendaAttivita />
       </div>
       {righe.length === 0 ? <p className="pan2-vuoto">Nessuna chat al lavoro.</p> : (
         <ul className="pan2-riassunto__elenco">
@@ -293,7 +295,7 @@ export function RiassuntoAlLavoro({ righe, schede, onApri }: { righe: RigaAlLavo
             return (
               <li key={r.id}>
                 <button className={`pan2-riassunto__riga${r.aspettaTe ? ' pan2-riassunto__riga--chiede' : ''}`} disabled={pane === undefined} onClick={() => { if (pane !== undefined) onApri(pane) }} title={`${r.chi}: ${r.cosa}`}>
-                  <Pallino stato={r.aspettaTe ? 'chiede' : 'lavora'} />
+                  <SegnoAttivita attivita={r.attivita} />
                   <PillolaRuolo {...(r.ruolo !== undefined ? { ruolo: r.ruolo } : {})} nome={r.chi} />
                   <span className="pan2-riassunto__cosa">{r.cosa}</span>
                   <span className="pan2-riassunto__quanto">{sottoAlLavoro(r)}</span>
@@ -313,7 +315,7 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
   const r = ruolo !== undefined ? RUOLI[ruolo] : undefined
   const testo = nome ?? r?.nome ?? CHAT_GENERICA
   return (
-    <span className="pan2-ruolo" style={{ color: r !== undefined ? COLORE[r.colore] : 'var(--testo-quieto)', borderColor: r !== undefined ? COLORE[r.colore] : 'var(--bordo)' }}>
+    <span className="pan2-ruolo" style={{ color: r !== undefined ? coloreDi(r.colore) : 'var(--testo-quieto)', borderColor: r !== undefined ? coloreDi(r.colore) : 'var(--bordo)' }}>
       <b aria-hidden>{ruolo !== undefined ? LETTERA_RUOLO[ruolo] : '·'}</b>{testo}
     </span>
   )
@@ -358,7 +360,7 @@ function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; a
       <div ref={testo} className={`pan2-obiettivo${tutto ? ' pan2-obiettivo--tutto' : ''}`} title={s.obiettivo}>{s.obiettivo}</div>
       {tagliato || tutto ? <button className="collegamento pan2-tutto" onClick={() => setTutto((v) => !v)}>{tutto ? 'Meno' : 'Mostra tutto'}</button> : null}
       <div className="pan2-stato">
-        <span className="pan2-stato__parola" style={{ color: COLORE[s.stato.colore] ?? 'var(--testo)' }} title={s.stato.ragione}>
+        <span className="pan2-stato__parola" style={{ color: coloreDi(s.stato.colore) }} title={s.stato.ragione}>
           {s.stato.simbolo} {s.stato.parola}
         </span>
         {s.stato.id === 'da-verificare' ? <span className="pan2-stato__perche">dice finito · criteri {s.criteri.testo}</span> : null}

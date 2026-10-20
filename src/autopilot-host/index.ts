@@ -23,6 +23,7 @@ import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitReale, statoCopia } from './worktree'
 import { creaMisuratore } from './misura-pc'
+import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -331,7 +332,14 @@ export function avviaServizio(): void {
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
     tempi: apriRegistroTempi(archivio.cartella),
     // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.
-    memoria: apriMemoria(archivio.cartella)
+    memoria: apriMemoria(archivio.cartella),
+    // Prima di chiedere a Nicholas (0.82.0): release pubblicate (gh, rilette
+    // al più ogni 2 minuti), versione in uso, rami uniti, chat chiuse.
+    statoVero: creaStatoVero({
+      ...(process.env.SIERRADECK_VERSIONE !== undefined ? { versione: process.env.SIERRADECK_VERSIONE } : {}),
+      release: releaseConMemoria(ghRelease, 2 * 60_000),
+      git: gitReale
+    })
   })
 
   serverPronto = server

@@ -116,7 +116,9 @@ data class RigaAlLavoro(
     val quanto: String = "",
     /** PC 0.79.0: cosa fa in questo momento, dai segnali: «fa girare i test». Assente da un PC che non lo manda. */
     val adesso: String? = null,
-    val aspettaTe: Boolean = false
+    val aspettaTe: Boolean = false,
+    /** PC 0.82.0: cosa fa, per il colore fisso e il simbolo (`TabellaAttivita`). */
+    val attivita: String? = null
 )
 
 @Serializable
@@ -429,6 +431,7 @@ fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(RegolePanoramica.titoloAlLavoro(righe), color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Aiuto("Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.", di = "Al lavoro")
+            LegendaAttivita()
         }
         if (righe.isEmpty()) Text("Nessuna chat al lavoro.", color = Banco.testoQuieto, fontSize = 12.sp)
         // Aperte tutte, scorrono in un'altezza fissa: la conversazione sotto non si schiaccia.
@@ -441,7 +444,8 @@ fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (r.aspettaTe) "◆" else "●", color = if (r.aspettaTe) Banco.ambra else Banco.verde)
+                // PC 0.82.0: il simbolo nel colore fisso di cosa fa.
+                SegnoAttivita(Attivita.diRiga(r))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text("${r.chi}  ${r.cosa}", color = Banco.testo, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)

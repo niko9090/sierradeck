@@ -270,7 +270,7 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   // Le case delle chat (0.52.0, «Ospitata da»): la scelta arriva subito agli altri PC.
   '/api/case',
   // La sezione File del telefono attraverso il ponte (0.54.0): pezzi da 96 KB, come gli allegati.
-  '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
+  '/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/file/cartella',
   '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
   // Gestire quel PC dal telefono attraverso il ponte (0.55.0): le stesse di ROTTE_PONTE.
   '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto', '/api/workspace/recupero', '/api/workspace/ripristina',

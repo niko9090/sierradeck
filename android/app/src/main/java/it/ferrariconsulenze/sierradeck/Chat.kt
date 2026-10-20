@@ -387,7 +387,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         },
         onChiudi = { mostraNuova = false }
     )
-    if (mostraWorkspace) GestioneWorkspace(api, workspace, nomePc, onChiudi = { mostraWorkspace = false })
+    if (mostraWorkspace) GestioneWorkspace(api, workspace, nomePc, onChiudi = { mostraWorkspace = false }, versionePc = versionePc)
     if (mostraRiprendi) SceltaSessione(
         api,
         nomePc = nomePc,
@@ -599,6 +599,11 @@ private fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndiet
                     DropdownMenuItem(text = { Text(if (chat.pin == null) "Proteggi con il PIN…" else "Togli il PIN…") }, onClick = { menuAperto = false; pinDa = chat.pin == null })
                     DropdownMenuItem(text = { Text("Ospitata da… (quale PC la fa girare)") }, onClick = { menuAperto = false; ospite = true })
                     DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
+                    // «Apri cartella» (PC 0.82.0): la sezione File sulla cartella della chat.
+                    if (FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false) DropdownMenuItem(text = { Text("Apri cartella") }, onClick = {
+                        menuAperto = false
+                        scope.launch { apriCartellaDa(api, nomePc, chat = chat.id) }
+                    })
                     // Con un PC più vecchio della 0.79.0 la voce non c'è (revisione ECC): là non saprebbe farlo.
                     if (!chat.sessione.isNullOrBlank() && FunzioniPc.disponibile(FunzionePc.GESTIONE_CHAT, versionePc) != false) DropdownMenuItem(text = { Text("Archivia o elimina dal PC…") }, onClick = { menuAperto = false; gestendo = true })
                 }

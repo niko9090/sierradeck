@@ -186,4 +186,21 @@ class FileTelefonoTest {
         assertEquals("La sezione File e i file dal PC al telefono arriva aggiornando PC-ESEMPIO alla 0.54.0.", FunzioniPc.testoMancante(FunzionePc.FILE, "PC-ESEMPIO"))
         assertTrue(fx["regole"] is JsonArray)
     }
+
+    @Test
+    fun `apri cartella del PC 0_82_0 passa dal ponte, trova il progetto dell elenco e spiega quando non si apre`() {
+        assertTrue("/api/file/cartella" in Ponte.ROTTE)
+        assertTrue("/api/file/cartella" in Api.ROTTE_LENTE)
+        val progetti = listOf(ProgettoFile("Sito", "C:\\Progetti\\Sito"), ProgettoFile("Altro", "C:\\Progetti\\Altro"))
+        assertEquals(progetti[0], FileVista.progettoPer(progetti, "c:\\progetti\\sito"))
+        // Uno che l'elenco non ha ancora: il nome dal percorso, il PC controlla.
+        assertEquals(ProgettoFile("Nuovo", "C:\\Progetti\\Nuovo\\"), FileVista.progettoPer(progetti, "C:\\Progetti\\Nuovo\\"))
+        assertEquals("La cartella è su PC-ALTRO: aprila da lì.", FileVista.spiegaCartella(Api.Errore(409, "{\"errore\":\"La cartella è su PC-ALTRO: aprila da lì.\"}"), "PC-ESEMPIO"))
+        assertEquals("«Apri cartella» di un workspace o di una chat arriva aggiornando PC-ESEMPIO alla 0.82.0.",
+            FileVista.spiegaCartella(Api.Errore(404, "{\"errore\":\"non trovato\"}"), "PC-ESEMPIO"))
+        assertEquals(false, FunzioniPc.disponibile(FunzionePc.CARTELLA, "0.81.1"))
+        assertEquals(true, FunzioniPc.disponibile(FunzionePc.CARTELLA, "0.82.0"))
+        val c = Api.json.decodeFromString(CartellaFile.serializer(), "{\"progetto\":\"C:\\\\Progetti\\\\Sito\",\"percorso\":\"src/main\",\"cartella\":\"C:\\\\Progetti\\\\Sito\\\\src\\\\main\",\"nuovo\":1}")
+        assertEquals(CartellaFile("C:\\Progetti\\Sito", "src/main", "C:\\Progetti\\Sito\\src\\main"), c)
+    }
 }

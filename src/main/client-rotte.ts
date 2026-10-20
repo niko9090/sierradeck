@@ -36,6 +36,7 @@ import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { MODELLI } from '@shared/modelli'
+import { testoCartellaNonQui, voceFileDi, type DoveCartella } from '@shared/apri-cartella'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
@@ -288,6 +289,8 @@ export type DipendenzeRotte = {
    * un progetto con una chat protetta e chiusa per chi guarda non si apre.
    */
   fileProgetti?: FileProgetti
+  /** «Apri cartella» (0.82.0): la cartella del progetto di un workspace o di una chat, dai dati del PC. */
+  cartellaDaAprire?: (q: { workspace?: string; chat?: string }) => Promise<DoveCartella>
   /** I file dal PC al telefono (0.54.0): la coda di ogni telefono, che lui ritira a pezzi. */
   alTelefono?: AlTelefono
   /**
@@ -1045,6 +1048,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         const conPin = await Promise.all(tutti.map(async (p) => ((await progettoChiuso(p.percorso)) !== undefined ? { ...p, chiuso: true } : p)))
         return OK({ progetti: conPin })
       }
+      // «Apri cartella» (0.82.0): dove si apre la sezione File per un workspace o una chat.
+      if (r.percorso === '/api/file/cartella') {
+        if (depsPieni.cartellaDaAprire === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora aprire la cartella di un workspace: aggiornalo alla 0.82.0.' } }
+        const chat = stringa(r.corpo, 'chat')
+        const workspace = stringa(r.corpo, 'workspace')
+        if (chat === '' && workspace === '') return { stato: 400, corpo: { errore: 'Manca il workspace o la chat.' } }
+        const dove = await depsPieni.cartellaDaAprire(chat !== '' ? { chat } : { workspace })
+        if (dove.tipo !== 'qui') return { stato: 409, corpo: { errore: testoCartellaNonQui(dove) } }
+        const voce = voceFileDi(dove.cartella, await fp.progetti(), process.platform === 'win32')
+        if (voce === undefined) return { stato: 409, corpo: { errore: `${dove.cartella} non è fra i progetti che si sfogliano da qui: aprila dal computer.` } }
+        return OK({ ...voce, cartella: dove.cartella })
+      }
       const progetto = stringa(r.corpo, 'progetto')
       const percorso = typeof (r.corpo as { percorso?: unknown } | undefined)?.percorso === 'string' ? (r.corpo as { percorso: string }).percorso : ''
       if (progetto === '') return { stato: 400, corpo: { errore: 'Manca il progetto.' } }
@@ -1360,7 +1375,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const { conversazioni, autopiloti } = await leggiConversazioni()
       const ora = adesso()
       const ap = autopilotaDelWorkspace(autopiloti, ws)
-      const specialisti = ap !== undefined ? specialistiDi(ap).elenco : []
+      const specialisti = ap !== undefined ? specialistiDi(ap, Date.now()).elenco : []
       const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
       const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
       const ruoloDi = (nome: string | undefined): Ruolo | undefined => RUOLI_ORDINE.find((k) => RUOLI[k].nome === nome)
@@ -1482,7 +1497,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
         albero: alberoChat(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
-        specialisti: specialistiDi(a),
+        specialisti: specialistiDi(a, Date.now()),
         // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
         // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
         domandeScheda: domandeScheda(a, tutteLeDomande),

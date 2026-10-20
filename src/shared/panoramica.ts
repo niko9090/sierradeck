@@ -2,6 +2,7 @@ import type { Autopilota, ChatGovernata } from './autopilota'
 import { vistaAutopilota } from './autopiloti-vista'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from './ruoli-agenti'
 import { compitoBreve, nomeChi } from './chat-autopilota'
+import { attivitaDi, type Attivita } from './colori-attivita'
 
 /**
  * La Panoramica del workspace dell'autopilota (0.77.0). Nicholas, 16/10:
@@ -414,6 +415,8 @@ export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota'; tono?
 /** Una riga del riassunto. */
 export type RigaAlLavoro = {
   id: string; chi: string; ruolo?: Ruolo; cosa: string; quanto: string; aspettaTe: boolean
+  /** Cosa fa, per il colore fisso e il simbolo (0.82.0, `colori-attivita.ts`). */
+  attivita: Attivita
   /** Cosa fa in questo momento, dai segnali (`attivita-chat.ts`): «fa girare i test», «modifica il codice (App.tsx)». */
   adesso?: string
 }
@@ -432,6 +435,18 @@ export function sottoAlLavoro(r: RigaAlLavoro): string {
 }
 
 const VERBO_RUOLO: Record<Ruolo, string> = { sviluppo: 'lavora a', interfaccia: 'lavora a', collaudo: 'prova', revisione: 'rilegge', rilascio: 'prepara' }
+
+/**
+ * Cosa fa una chat dell'autopilota, in parole semplici, dal registro (mai
+ * dalle sue parole): «lavora a: «…»», «rilegge il lavoro di Sviluppo: «…»».
+ * Con `finita` vero il verbo è al passato: «ha finito: «…»» (0.82.0, la
+ * scheda dell'autopilota mostra anche chi ha finito).
+ */
+export function cosaFaChat(g: Pick<ChatGovernata, 'compito' | 'ruolo' | 'revisioneDi'>, chats: readonly ChatGovernata[] | undefined, finita = false): string {
+  const autore = g.revisioneDi !== undefined ? chats?.find((c) => c.id === g.revisioneDi) : undefined
+  if (autore !== undefined) return `${finita ? 'ha riletto' : 'rilegge'} il lavoro di ${nomeChi(autore)}: «${compitoBreve(autore.compito)}»`
+  return `${finita ? 'ha finito' : g.ruolo !== undefined ? VERBO_RUOLO[g.ruolo] : 'lavora a'}: «${compitoBreve(g.compito)}»`
+}
 
 /**
  * Le righe del riassunto: solo le chat al lavoro o che aspettano te, prima
@@ -453,9 +468,7 @@ export function riassuntoAlLavoro(
     const ruolo = g?.ruolo ?? s.ruolo
     let cosa: string
     if (g !== undefined) {
-      const autore = g.revisioneDi !== undefined ? a?.chats.find((c) => c.id === g.revisioneDi) : undefined
-      if (autore !== undefined) cosa = `rilegge il lavoro di ${nomeChi(autore)}: «${compitoBreve(autore.compito)}»`
-      else cosa = `${ruolo !== undefined ? VERBO_RUOLO[ruolo] : 'lavora a'}: «${compitoBreve(g.compito)}»`
+      cosa = cosaFaChat({ ...g, ...(ruolo !== undefined ? { ruolo } : {}) }, a?.chats)
     } else if (a?.sessionId !== undefined && s.sessione === a.sessionId) {
       cosa = 'lavora all’obiettivo'
     } else {
@@ -469,6 +482,7 @@ export function riassuntoAlLavoro(
       cosa,
       quanto: s.suPc !== undefined ? `su ${s.suPc}` : daQuanto(s.dal, ora),
       aspettaTe: s.stato === 'chiede',
+      attivita: attivitaDi(ruolo, s.stato),
       ...(adessoDi(s) !== undefined ? { adesso: adessoDi(s) as string } : {})
     }
   })

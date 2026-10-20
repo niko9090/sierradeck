@@ -34,10 +34,12 @@ describe('il ruolo nell’albero delle chat', () => {
       throw new Error(nome)
     }
     const riga = (inizio: string): string => script.split(String.fromCharCode(10)).find((r) => r.startsWith(inizio)) ?? ''
-    const albero = new Function(`${riga('const esc =')}\n${estrai('coloreRuolo')}\n${estrai('alberoHtml')}\nreturn alberoHtml`)() as (a: unknown) => string
+    const albero = new Function(`${riga('const esc =')}\n${riga('var ATT = ')}\n${estrai('coloreNome')}\n${estrai('coloreRuolo')}\n${estrai('alberoHtml')}\nreturn alberoHtml`)() as (a: unknown) => string
     const h = albero({ stato: 'lavoro', ramoBase: 'main', albero: alberoChat(ap) })
     expect(h).toContain('>revisione</span>')
     expect(h).toContain('color:#b48cff')
+    // 0.82.0: la Revisione ha il suo rosa, non più l'ambra di «aspetta te».
+    expect(h).toContain('color:#f283c0')
     expect(h).toContain('approvato e unito')
   })
 })
