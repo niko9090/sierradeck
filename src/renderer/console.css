@@ -5141,6 +5141,8 @@ label.gc-voce { cursor: pointer; }
 
 /* Il riquadro «Adesso» (0.81.0): una riga per chat, le ferme in cima. */
 .adesso-ap { padding: 6px 10px; border-bottom: 1px solid var(--bordo); display: grid; gap: 2px; }
+/* Dentro la sezione «Adesso» della Panoramica: senza bordo, allineato alle schede. */
+.adesso-ap--dentro { padding: 4px 0; border-bottom: none; }
 .adesso-ap__riga { display: flex; gap: 8px; align-items: baseline; font-size: var(--t1); min-width: 0; }
 .adesso-ap__riga b { flex: none; }
 .adesso-ap__compito { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }

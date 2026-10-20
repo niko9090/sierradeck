@@ -95,7 +95,8 @@ export function ChatAutopilota({
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
       <RigaDalVivo autopilota={autopilota} />
       {/* 0.81.0 (Nicholas, 20/10): una riga per chat, anche quelle ferme o mai partite. */}
-      <AdessoAutopilota autopilota={autopilota} />
+      {/* Nella Panoramica le righe stanno nella sua sezione «Adesso», non due volte. */}
+      {soloConversazione ? null : <AdessoAutopilota autopilota={autopilota} />}
       <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
       {soloConversazione && eventi.length > 0 ? (
         <div className="chatap__eventi">
