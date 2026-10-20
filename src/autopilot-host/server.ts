@@ -73,7 +73,11 @@ export type Dipendenze = {
    */
   /** Può tornare l'id della consegna (0.56.4): serve a tenere «in volo» i messaggi che porta. */
   avviaLavoro: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<void | string>
-  fermaLavoro: (id: string, chatId?: string) => void
+  /**
+   * Con `chi` (c-310) si ferma anche una chat che questo servizio non sta
+   * governando: una chat finita sopravvissuta a un riavvio del servizio.
+   */
+  fermaLavoro: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
   /**
    * Le istruzioni che aspettano di essere portate dentro una chat.
    *
@@ -153,6 +157,12 @@ export type Dipendenze = {
    * vogliono: allora l'autopilota lavora come prima, con una chat sola.
    */
   git?: Git
+  /**
+   * Se la copia di una chat c'è ancora ed è il suo worktree (c-310): una chat
+   * senza copia non fa più giri. Assente in prova: le cartelle dei worktree
+   * del git finto non esistono sul disco.
+   */
+  copia?: (cartella: string) => 'ok' | 'mancante' | 'non-git'
   /**
    * Dove si scrivono i tempi di ogni giro (0.71.0). Assente nei test che non
    * lo chiedono: i giri si misurano lo stesso, ma non si salvano.
@@ -650,6 +660,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * di essere considerato fermo.
    */
   const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<void> => {
+    // c-310 (20/10): mai un compito a una chat finita. Sei consegne (c-233 …
+    // c-309) sono arrivate alla c-15 chiusa e l'hanno riaperta per niente. Chi
+    // la vuole riprendere davvero la passa già in `lavoro`; i messaggi tolti
+    // dalla coda ci tornano e aspettano.
+    if (chat?.stato === 'finita') {
+      console.warn(`[consegna] ${a.id}::${chat.id} è finita: non le mando niente${presi.length > 0 ? `, ${presi.length} messaggi restano in coda` : ''}`)
+      if (presi.length > 0) {
+        const fresco = deps.archivio.leggi(a.id)
+        if (fresco !== undefined) salva(rimettiInCoda(fresco, presi))
+      }
+      return Promise.resolve()
+    }
     ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
@@ -666,6 +688,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // fa come prima.
         if (typeof consegna === 'string' && consegna !== '' && presi.length > 0) segnaInVolo(a.id, consegna, presi)
       })
+  }
+
+  /**
+   * Perché una chat non può più lavorare, o `undefined` se può (c-310, 20/10):
+   * è finita, o la sua copia non c'è più o non è più un repository git. Una
+   * chat così non fa partire giri, non chiama il supervisore e non riceve
+   * compiti. La chat dell'ultimo giro (approvata e rimessa al lavoro dopo
+   * l'unione) la decide chi la chiama.
+   */
+  const chatSenzaLavoro = (c: ChatGovernata | undefined): string | undefined => {
+    if (c === undefined) return undefined
+    if (c.stato === 'finita') return 'è finita'
+    // La Revisione lavora nella cartella dell'autore: se sparisce, il verdetto arriva lo stesso.
+    if (deps.copia === undefined || c.cartella === undefined || c.ruolo === 'revisione') return undefined
+    const copia = deps.copia(c.cartella)
+    if (copia === 'mancante') return 'la sua copia del progetto non c’è più'
+    if (copia === 'non-git') return 'la sua copia del progetto non è più un repository git'
+    return undefined
   }
 
   const segnaInVolo = (id: string, consegna: string, messaggi: MessaggioPerLaChat[]): void => {
@@ -804,7 +844,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `pubblicazione: hai detto sì (${risposta})` }]
       }
       salva(ripreso)
-      void avviaLavoro(ripreso, istruzionePubblica(ripreso, piano, false), chat).catch((err: unknown) => {
+      // Rimessa al lavoro anche qui (c-310): una chat finita la rete non la raggiunge.
+      void avviaLavoro(ripreso, istruzionePubblica(ripreso, piano, false), chat === undefined ? undefined : { ...chat, stato: 'lavoro' }).catch((err: unknown) => {
         console.error(`[autopilota] pubblicazione di ${a.id} non partita:`, err)
       })
       return
@@ -2167,6 +2208,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // deve potersi fermare, non restare appesa a un padrone che non comanda più.
     if (a === undefined || a.stato !== 'lavoro') return {}
 
+    // c-310 (20/10): la fine turno di una chat finita, o senza più la sua
+    // copia, si lascia chiudere: niente criteri, niente supervisore, solo una
+    // riga nel registro. Prima ogni giro finiva in «prosegui» e la chat
+    // rispondeva «ok»: un giro ogni 40 secondi su c-13 e c-15. La chat
+    // dell'ultimo giro (approvata, rimessa al lavoro) passa: vedi «prosegui».
+    const questa = chatId !== undefined ? a.chats.find((c) => c.id === chatId) : undefined
+    const senzaLavoro = questa?.approvata === true && questa.stato === 'lavoro' ? undefined : chatSenzaLavoro(questa)
+    if (questa !== undefined && senzaLavoro !== undefined) {
+      if (questa.stato !== 'finita') {
+        const chiusa = conStatoChat(a, questa.id, 'finita')
+        annota(chiusa, `chiudo la chat ${questa.id}: ${senzaLavoro}, non ha più dove lavorare`)
+        salva(chiusa)
+        // Il suo posto si libera: i compiti in coda partono, come dopo chiudiChat.
+        void apriChatMancanti(chiusa).catch((err: unknown) => {
+          console.error(`[autopilota] apertura delle chat di ${id} fallita:`, err)
+        })
+      }
+      console.info(`[autopilota] ${id} — fine turno di ${questa.id}, che ${senzaLavoro}: niente giro e niente supervisore`)
+      return {}
+    }
+
     const sessionId = typeof corpo.session_id === 'string' ? corpo.session_id : undefined
     const ultimoMessaggio = typeof corpo.last_assistant_message === 'string' ? corpo.last_assistant_message : ''
     // Con quale chiave questa chat riceve i tuoi messaggi (vedi `dialogo.ts`):
@@ -2577,7 +2639,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         apriDopo = aggiornato.ramoBase !== undefined
       } else if (m.tipo === 'chiudiChat') {
         const c = aggiornato.chats.find((x) => x.id === m.chat)
-        if (c === undefined || c.stato === 'finita') continue
+        if (c === undefined) continue
+        // c-310 (20/10): chiudiChat su una chat già finita la ferma davvero, se
+        // il suo processo è ancora vivo, e lo dice. Prima si scartava in
+        // silenzio e la c-15 continuava a girare.
+        if (c.stato === 'finita') {
+          if (c.id === chatId) chiusaQuesta = true
+          else deps.fermaLavoro(id, c.id, c.sessionId !== undefined ? { sessionId: c.sessionId, ...(aggiornato.workspace !== undefined ? { workspace: aggiornato.workspace } : {}) } : undefined)
+          annota(aggiornato, `${c.id} era già finita: ${c.id === chatId ? 'il suo turno si chiude qui' : 'fermo il suo processo, se è ancora vivo'}`)
+          continue
+        }
         // Il lavoro è già nel ramo principale, o il ramo non c'è più (0.80.0):
         // la chat si chiude e basta, senza Revisione né unione. Prima l'unione
         // falliva a ogni giro e la chat restava aperta (c-1…c-9 il 19/10).
@@ -2856,6 +2927,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     if (decisione.tipo === 'prosegui') {
+      // c-310 (20/10): la chat dell'ultimo giro ha il ramo già unito e la copia
+      // tolta: «prosegui» la terrebbe a girare a vuoto. Quello che resta da
+      // fare diventa un compito in coda, per una chat con un ramo suo.
+      const ultimoGiro = mia?.approvata === true ? chatSenzaLavoro({ ...mia, stato: 'lavoro' }) : undefined
+      if (mia !== undefined && ultimoGiro !== undefined) {
+        aggiornato.chats = aggiornato.chats.map((c) => (c.id === mia.id ? { ...c, stato: 'finita' as const } : c))
+        if (!aggiornato.compitiDaFare.includes(decisione.istruzioni)) {
+          aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, decisione.istruzioni]
+          if (aggiornato.ruoliCompiti !== undefined) aggiornato.ruoliCompiti = { ...aggiornato.ruoliCompiti, [decisione.istruzioni]: { ruolo: 'sviluppo', dopo: [] } }
+        }
+        annota(aggiornato, `${mia.id} ${ultimoGiro}: quello che resta da fare va in coda come compito nuovo, per una chat con un ramo suo`)
+        salva(aggiornato)
+        void apriChatMancanti(deps.archivio.leggi(id) ?? aggiornato).catch((err: unknown) => {
+          console.error(`[autopilota] apertura delle chat di ${id} fallita:`, err)
+        })
+        return {}
+      }
       const presi = tuoi(aggiornato)
       const inCerchio: Autopilota = {
         ...presi.autopilota,
@@ -2928,9 +3016,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       if (conflitti.length > 0) {
         annota(aggiornato, `non è finito: ${conflitti.map((x) => `${x.chat.id} in conflitto su ${x.file.join(', ')}`).join('; ')}`)
+        // Chi deve risolvere un conflitto torna al lavoro, anche se era finita (c-310).
+        aggiornato.chats = aggiornato.chats.map((c) => (conflitti.some((x) => x.chat.id === c.id) ? { ...c, stato: 'lavoro' as const } : c))
         salva(aggiornato)
         for (const { chat, file } of conflitti) {
-          void avviaLavoro(aggiornato, `Prima di chiudere, il tuo ramo va unito al ramo principale ${aggiornato.ramoBase}, ma è in conflitto su: ${file.join(', ')}. Nella tua cartella: git merge ${aggiornato.ramoBase}, risolvi tenendo il lavoro di tutte e due le parti, git add -A && git commit.`, chat)
+          void avviaLavoro(aggiornato, `Prima di chiudere, il tuo ramo va unito al ramo principale ${aggiornato.ramoBase}, ma è in conflitto su: ${file.join(', ')}. Nella tua cartella: git merge ${aggiornato.ramoBase}, risolvi tenendo il lavoro di tutte e due le parti, git add -A && git commit.`, { ...chat, stato: 'lavoro' })
             .catch((err: unknown) => { console.error(`[autopilota] consegna del riallineamento a ${chat.id} fallita:`, err) })
         }
         return {}
@@ -3061,6 +3151,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // notifica dice che la chat e' ferma e perche'; cosa voglia lo ha scritto
     // lei, un istante prima, nel suo ultimo messaggio.
     const chat = chatId !== undefined ? a.chats.find((c) => c.id === chatId) : undefined
+    // c-310 (20/10): una chat finita che aspetta il suo input non è una
+    // domanda. Prima il supervisore le rispondeva e la risposta partiva come
+    // consegna nuova: così c-272 e c-309 sono arrivate alla c-15 chiusa.
+    const senzaLavoro = chat?.approvata === true && chat.stato === 'lavoro' ? undefined : chatSenzaLavoro(chat)
+    if (chat !== undefined && senzaLavoro !== undefined) {
+      console.info(`[autopilota] ${id} — notifica da ${chat.id}, che ${senzaLavoro}: non chiamo il supervisore e non le mando niente`)
+      return {}
+    }
     const sessione = chat?.sessionId ?? a.sessionId
     const detto = sessione !== undefined ? deps.ultimoDetto?.(a.cwd, sessione) : undefined
     const domandaGrezza = componiDomanda(`${tipo}: ${messaggio}`.trim(), detto)

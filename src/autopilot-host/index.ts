@@ -21,7 +21,7 @@ import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
-import { gitReale } from './worktree'
+import { gitReale, statoCopia } from './worktree'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -299,7 +299,7 @@ export function avviaServizio(): void {
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
     avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),
-    fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
+    fermaLavoro: (id, chatId, chi) => lavori.ferma(id, chatId, chi),
     avvisa,
     primaDiSpegnere: () => avvisa.svuotaOra(),
     domande,
@@ -323,6 +323,7 @@ export function avviaServizio(): void {
     istruzioni,
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale,
+    copia: (cartella) => statoCopia(gitReale, cartella),
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
     tempi: apriRegistroTempi(archivio.cartella),
     // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.

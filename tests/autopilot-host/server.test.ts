@@ -11,8 +11,8 @@ import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { nuovoAutopilota } from '@shared/autopilota'
-import type { Git } from '../../src/autopilot-host/worktree'
+import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
+import { statoCopia, type Git } from '../../src/autopilot-host/worktree'
 
 /**
  * Un git finto per la flotta: un repository sul ramo `main`, dove i worktree
@@ -50,6 +50,8 @@ function ambiente(
     silenzioMassimoMs?: number
     adesso?: () => string
     git?: Git
+    /** Il controllo delle copie delle chat (c-310): assente, non si controlla. */
+    copia?: (cartella: string) => 'ok' | 'mancante' | 'non-git'
     limiti?: unknown
     tempi?: ReturnType<typeof apriRegistroTempi>
     /** Per simulare un riavvio del servizio: lo stesso archivio e le domande da un file. */
@@ -90,6 +92,7 @@ function ambiente(
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
     adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
     ...(opts.git !== undefined ? { git: opts.git } : {}),
+    ...(opts.copia !== undefined ? { copia: opts.copia } : {}),
     ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {}),
     ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {}),
     ...(opts.versione !== undefined ? { versione: opts.versione } : {})
@@ -2846,5 +2849,164 @@ describe('chiudiChat su un ramo già unito e tolto (0.80.0, visto dal vero il 19
     expect(a.compitiDaFare.some((t) => t.startsWith('Rivedi il ramo'))).toBe(false)
     expect(chiesti.some((x) => x.includes('merge') && x.includes('c-4'))).toBe(false)
     expect(fermati).toContain('ap-ch::c-4')
+  })
+})
+
+describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 e c-15)', () => {
+  async function attendi(condizione: () => boolean): Promise<void> {
+    for (let i = 0; i < 120 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
+  }
+  /** Le copie come sul disco vero: quelle che non esistono mancano. */
+  const copiaVera = (c: string): 'ok' | 'mancante' | 'non-git' => statoCopia(gitFinto, c)
+  const criterioRosso = [{ descrizione: 'I test passano', comando: 'node t.js', soddisfatto: false }]
+  /** Un supervisore che conta le chiamate e dice sempre «prosegui», come il 20/10. */
+  function supervisoreContato(mosse = ''): { interroga: Interrogazione; chiamate: () => number } {
+    let n = 0
+    return {
+      interroga: () => { n += 1; return Promise.resolve({ testo: `{"azione": "prosegui", "istruzioni": "Correggi i test rossi", "perche": "rosso"${mosse}}` }) },
+      chiamate: () => n
+    }
+  }
+  function flotta(chats: ChatGovernata[]): void {
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-cc', nome: 'Cc', obiettivo: 'o', cwd: process.cwd(), criteri: criterioRosso, iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      ramoBase: 'main',
+      chats
+    })
+  }
+
+  it('chat finita con un criterio rosso: la fine turno non chiama il supervisore e non misura i criteri', async () => {
+    const sup = supervisoreContato()
+    let misure = 0
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => { misure += 1; return Promise.resolve({ codice: 1, uscita: 'rosso' }) } })
+    await avvia(server)
+    flotta([
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+    ])
+    for (let i = 0; i < 3; i += 1) {
+      const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-15', eventoStop({ session_id: 's-15', last_assistant_message: 'ok' }))
+      expect(r.dati).toEqual({})
+    }
+    expect(sup.chiamate()).toBe(0)
+    expect(misure).toBe(0)
+    expect(archivio.leggi('ap-cc')!.chats.find((c) => c.id === 'c-15')?.cicli).toBe(9)
+  })
+
+  it('chat al lavoro con la copia che non c’è più: si chiude, senza supervisore', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
+    await avvia(server)
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(process.cwd(), 'non-esiste-c-13') }])
+    const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
+    expect(r.dati).toEqual({})
+    expect(sup.chiamate()).toBe(0)
+    const a = archivio.leggi('ap-cc')!
+    expect(a.chats[0]?.stato).toBe('finita')
+    expect(a.decisioni.map((d) => d.cosa).join(' | ')).toContain('chiudo la chat c-13: la sua copia del progetto non c’è più')
+  })
+
+  it('la copia che non è più un repository git conta come mancante', async () => {
+    const sup = supervisoreContato()
+    // git risale a un altro repository: la cartella è rimasta senza `.git`.
+    const gitAltrove: Git = (args, cwd) => (args.join(' ') === 'rev-parse --show-toplevel' ? { codice: 0, uscita: join(cwd, '..') } : gitFinto(args, cwd))
+    server = ambiente({ git: gitAltrove, copia: (c) => statoCopia(gitAltrove, c), limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
+    await avvia(server)
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: process.cwd() }])
+    await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
+    expect(sup.chiamate()).toBe(0)
+    expect(archivio.leggi('ap-cc')!.decisioni.map((d) => d.cosa).join(' | ')).toContain('non è più un repository git')
+  })
+
+  it('la notifica di una chat finita non diventa un compito per lei', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
+    await avvia(server)
+    flotta([
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+    ])
+    await chiama('POST', '/hook/notification?ap=ap-cc&chat=c-15', {
+      session_id: 's-15', hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input'
+    })
+    expect(sup.chiamate()).toBe(0)
+    expect(chatAvviate.some((c) => c.id === 'c-15')).toBe(false)
+  })
+
+  it('il lavoro che resta dopo l’ultimo giro va a una chat nuova con un ramo, mai a quella finita', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
+    await avvia(server)
+    // L'ultimo giro: la chat approvata è rimessa al lavoro, ma il suo ramo è
+    // unito e la sua cartella tolta.
+    flotta([{ id: 'c-1', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: join(process.cwd(), 'non-esiste-c-1'), approvata: true }])
+    const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-1', eventoStop({ session_id: 's-1', last_assistant_message: 'fatto' }))
+    expect(r.dati).toEqual({})
+    await attendi(() => archivio.leggi('ap-cc')!.chats.length === 2)
+    const a = archivio.leggi('ap-cc')!
+    expect(a.chats.find((c) => c.id === 'c-1')?.stato).toBe('finita')
+    const nuova = a.chats.find((c) => c.id !== 'c-1')
+    expect(nuova?.compito).toContain('Correggi i test rossi')
+    expect(nuova?.ramo).toBeDefined()
+    expect(chatAvviate.some((c) => c.id === 'c-1')).toBe(false)
+  })
+
+  it('chiudiChat su una chat già finita ferma il suo processo e lo scrive', async () => {
+    const sup = supervisoreContato(', "mosse": [{"tipo": "chiudiChat", "chat": "c-15"}]')
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
+    await avvia(server)
+    flotta([
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+    ])
+    await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-16', eventoStop({ session_id: 's-16', last_assistant_message: 'avanti' }))
+    await attendi(() => fermati.includes('ap-cc::c-15'))
+    expect(fermati).toEqual(['ap-cc::c-15'])
+    expect(archivio.leggi('ap-cc')!.decisioni.map((d) => d.cosa).join(' | ')).toContain('c-15 era già finita: fermo il suo processo')
+  })
+
+  it('Revisione: chiusa per copia mancante, i compiti in coda partono subito', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
+    await avvia(server)
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(process.cwd(), 'non-esiste-c-13') }])
+    archivio.scrivi({ ...archivio.leggi('ap-cc')!, compitiDaFare: ['Il pezzo dopo'] })
+    await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
+    await attendi(() => archivio.leggi('ap-cc')!.chats.length === 2)
+    const nuova = archivio.leggi('ap-cc')!.chats.find((c) => c.id !== 'c-13')
+    expect(nuova?.compito).toBe('Il pezzo dopo')
+    expect(chatAvviate.some((c) => c.compito === 'Il pezzo dopo')).toBe(true)
+  })
+
+  it('Revisione: un revisore senza la cartella dell’autore dà lo stesso il suo verdetto', async () => {
+    const sup = supervisoreContato()
+    server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
+    await avvia(server)
+    const via = join(process.cwd(), 'non-esiste-c-1')
+    flotta([
+      { id: 'c-1', compito: 'A', stato: 'finita', cicli: 2, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: via },
+      { id: 'c-2', compito: 'Rivedi il ramo ap/ap-cc/c-1 della chat c-1 («A»)', stato: 'lavoro', cicli: 0, ruolo: 'revisione', revisioneDi: 'c-1', cartella: via }
+    ])
+    const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-2', eventoStop({ session_id: 's-2', last_assistant_message: 'Guardato tutto.' }))
+    // Senza la riga del verdetto la Revisione glielo chiede: non è stata chiusa per la copia.
+    expect(r.dati.decision).toBe('block')
+    expect(String(r.dati.reason)).toContain('REVISIONE: OK')
+    expect(archivio.leggi('ap-cc')!.chats.find((c) => c.id === 'c-2')?.stato).toBe('lavoro')
+  })
+
+  it('Revisione: il «sì» tardivo alla pubblicazione arriva alla chat anche se il lavoro l’aveva chiusa', async () => {
+    server = ambiente({ scadenzaDomandaMs: 150 })
+    await avvia(server)
+    const id = await creaAp({ pubblicazione: 'stabile', vaSulCloud: true })
+    archivio.scrivi({ ...archivio.leggi(id)!, chats: [{ id: 'c-1', compito: 'tutto', stato: 'lavoro', cicli: 1, sessionId: 's-1' }] })
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => archivio.leggi(id)?.stato === 'finito')
+    expect(archivio.leggi(id)!.chats[0]?.stato).toBe('finita')
+    const aperte = (await chiama('GET', '/domande')).dati
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'sì, vai' })
+    await attendi(() => chatAvviate.some((c) => c.id === 'c-1'))
+    expect(chatAvviate.some((c) => c.id === 'c-1')).toBe(true)
+    expect(messaggiDiRipresa.some((m) => m.includes('pubblica'))).toBe(true)
   })
 })
