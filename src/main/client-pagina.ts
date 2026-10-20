@@ -5597,7 +5597,7 @@ function avvisaSeServe(stato) {
     for (const d of (stato.domande || [])) {
       if (avvisati['d-' + d.id]) continue
       avvisati['d-' + d.id] = true
-      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + (d.testo || '') })
+      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + String(d.testo || '').slice(0, 60) })
     }
     for (const c of (stato.chat || [])) {
       // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli

@@ -129,7 +129,8 @@ export function causaAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string): 
   switch (tipo) {
     case 'finito': return 'lavoro finito'
     case 'pronto': return 'aspetta il tuo via'
-    case 'domanda': return `domanda: ${corta(domanda ?? '')}`
+    // Solo l'inizio: il testo intero è nelle Domande, il registro non è il posto (la Revisione).
+    case 'domanda': return `domanda: ${tronca((domanda ?? '').replace(/\s+/g, ' ').trim(), 60)}`
     default: return corta(a.motivoSospensione ?? '') || 'fermo'
   }
 }

@@ -143,7 +143,7 @@ object Avvisi {
                         // fisso, la seconda domanda aperta cancellava la prima
                         // e restava senza risposta perche' nessuno la vedeva.
                         id = idAvviso(ID_DOMANDA, id),
-                        causa = "domanda ${d.optString("autopilotaId").ifEmpty { id }}: ${d.optString("testo").take(120)}"
+                        causa = "domanda ${d.optString("autopilotaId").ifEmpty { id }}: ${d.optString("testo").take(60)}"
                     )
                 )
             }
