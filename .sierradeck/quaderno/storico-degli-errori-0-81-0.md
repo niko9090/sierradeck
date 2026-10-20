@@ -46,10 +46,10 @@ Chiesto da Nicholas il 19/10. Punti 1–3 sul ramo `ap/ap-f1e631f5/c-3`. Il 20/1
 Il codice sta in `src/main/errori-arrivati-lavoro.ts`. Il giro gira nel main ogni 2 minuti e subito dopo ogni arrivo.
 
 1. **Quiete.** Un arrivo aspetta 5 minuti senza altri arrivi (`QUIETE_MS`). Quelli vicini finiscono in un solo lavoro, e quindi in una sola release.
-2. **Quando non parte.** Se la settimana del piano è oltre l'80% (`limitiAggiornati(...).settimana.percento`), o se un autopilota in `intervista/pronto/lavoro/attesa` lavora su SierraDeck: nella cartella, sotto di lei o in `….sierradeck-wt`.
+2. **Quando non parte.** Se la settimana del piano è oltre l'80% (`limitiAggiornati(...).settimana.percento`), o se un autopilota in `intervista/pronto/lavoro/attesa/sospeso` lavora su SierraDeck (nella cartella, sotto di lei o in `….sierradeck-wt`), o se un nostro lavoro in `.lavori.json` è ancora aperto.
    - **Cosa scrive:** «Errori arrivati: li correggo appena finisce X», una volta, nel registro e nella voce «Errori» di PC, pagina e app (campo `arrivi`).
    - **Poi:** riparte da solo al giro dopo.
-   - **Fermi e archiviati non contano:** un autopilota sospeso per giorni bloccherebbe tutto.
+   - **Il sospeso conta, l'archiviato no** (Revisione del 20/10): un lavoro fermo ad aspettare Nicholas ripartirebbe sopra quello nuovo. Se un sospeso resta lì per giorni, la riga lo dice.
    - **Limiti non letti:** si parte lo stesso, e lo dice il registro.
 3. **L'avvio.** Un autopilota «Errori arrivati» con criteri (quindi niente intervista: parte subito) nel workspace del progetto (`workspaceDellAutopilota('', radice)`), aggiunto se manca, senza cambiare lo schermo.
    - **L'obiettivo:** elenca i file e i passi: riepilogo, correzione con test e Revisione, una release (bozza, poi `--draft=false`, mai installata), «errore X corretto nella versione Y» in `.sierradeck/quaderno/errori-arrivati.md`.
@@ -58,7 +58,8 @@ Il codice sta in `src/main/errori-arrivati-lavoro.ts`. Il giro gira nel main ogn
    - **La notifica:** l'autopilota prende `annuncio: {id, titolo, quando}`. Il PC manda una notifica Electron. Pagina (`avvisati['n-'+id]`) e app (`n:<id>` in `Avvisi.kt`) ne mandano una per id.
 5. **Lavoro finito.** I suoi file e il riepilogo vanno con `cancellaSicura` (modo recupero) in `errori-arrivati/.recupero/<mittente>/<file>.<ISO>`.
    - **I 30 giorni:** si contano dall'ora nel nome (`rename` tiene la data dell'arrivo). Poi `svuotaRecuperoScaduto` li toglie.
-   - **Fallito o sparito:** i file restano e il lavoro non riparte da solo.
+   - **Fallito o sparito:** i file restano e ripartono in un lavoro nuovo, al massimo `TENTATIVI_MAX` (2) volte. Poi la riga dice «non corretti dopo 2 tentativi: guardali tu».
+   - **Lo stato si scrive appena creato l'autopilota**, non solo a fine giro: se il giro cadesse lì, gli stessi file partirebbero due volte.
 6. **Lo stato.** In `errori-arrivati/.lavori.json`: chi è stato preso da quale lavoro. La cartella è fuori da git e non sporca la cartella principale, dove si uniscono i rami.
 
 **Trappola:** il criterio «riepilogo scritto» non può provare l'ordine (riepilogo PRIMA del codice). Lo dice l'obiettivo, e il giro lo manda appena c'è.
@@ -87,6 +88,18 @@ Trappole della prova:
 - **Per provare il recupero** si è fermata la copia, si è messo `stato: "finito"` nel JSON dell'autopilota della copia e la si è riavviata. Il primo giro parte 30 s dopo l'avvio.
 - **La prova non è stata ripetuta dopo la correzione dell'annuncio:** la copre il test.
 
+## La Revisione (20/10)
+
+Un revisore indipendente ha letto tutto il ramo. Corretto, con test:
+- **Alta:** passavano i segreti in stile variabile d'ambiente (`GITHUB_TOKEN=`, `DB_PASSWORD=`, `OPENAI_API_KEY=`), quelli in camelCase (`authToken`, `"refreshToken"`) e `utente:password@` negli indirizzi. Il motivo: per le regex `_` è una lettera, quindi `\b` non scattava. Ora ci sono le regole per i nomi con `_`/`-`, per il camelCase, per le credenziali negli indirizzi e per `?code=`/`sig=`.
+- **Media:** il nome utente con lo spazio (`C:\Users\Nome Cognome\…`) lasciava fuori il cognome. Un lavoro sospeso non contava come occupato. I file di un lavoro fallito non ripartivano mai.
+- **Bassa:**
+  - `/api/errori/arrivati` ora accetta solo un altro PC (il telefono usa `/aggiungi`);
+  - `punto` passa anche da `togliSegreti` in arrivo;
+  - i nomi riservati di Windows (`CON`, `NUL`, `COM1`) diventano `_CON`…;
+  - lo stato si scrive subito dopo la creazione dell'autopilota.
+
 ## Ancora da fare
 
-- **Prova nella copia di prova** (SIERRADECK_PROVA): un errore finto, l'invio, l'arrivo, l'avvio, il riepilogo, il recupero. Senza pubblicare release vere.
+- **La release 0.81.0**, con il resto della 0.81.0.
+- **Dal vero fra due PC:** l'invio firmato verso un altro PC è provato dai test (`errori-arrivati.test.ts`), non con due PC accesi.

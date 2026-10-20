@@ -74,6 +74,16 @@ describe('chi riceve: la rotta /api/errori/arrivati', () => {
     expect(JSON.stringify(e.corpo)).toContain('non è arrivato intero')
   })
 
+  it('solo da un altro PC: il telefono usa /api/errori/aggiungi (quello che arriva qui diventa un compito che cambia il codice)', async () => {
+    const visti: InvioErrori[] = []
+    const r = rotte(async (invio) => { visti.push(invio); return { ok: true, file: 'x.json' } })
+    for (const dispositivo of ['tel-prova', 'locale', undefined]) {
+      const e = await r({ metodo: 'POST', percorso: '/api/errori/arrivati', corpo: { da: 'x', voci: storico().voci }, ...(dispositivo !== undefined ? { dispositivo } : {}) })
+      expect(e.stato).toBe(403)
+    }
+    expect(visti).toHaveLength(0)
+  })
+
   it('un PC che non sa ancora ricevere lo dice', async () => {
     const e = await rotte(undefined)({ metodo: 'POST', percorso: '/api/errori/arrivati', corpo: { da: 'x', voci: storico().voci }, dispositivo: 'pc:pc-prova' })
     expect(e.stato).toBe(409)

@@ -44,9 +44,13 @@ describe('quando parte «Errori arrivati»', () => {
   it('non parte se un autopilota lavora già su SierraDeck: «li correggo appena finisce X»', () => {
     const occupato = [ap({ id: 'ap-1', nome: 'App Android', cwd: 'e:\\progetti\\sierradeck\\' })]
     expect(decidiErroriArrivati({ inAttesa, adesso: T0 + 3_600_000, autopiloti: occupato, radice })).toEqual({ azione: 'aspetta', testo: 'Errori arrivati (2 arrivi): li correggo appena finisce «App Android».' })
-    // Fermo, finito, archiviato o su un altro progetto: non conta.
-    const liberi = [ap({ id: 'a', stato: 'sospeso', cwd: radice }), ap({ id: 'b', stato: 'finito', cwd: radice }), ap({ id: 'c', cwd: radice, archiviato: true }), ap({ id: 'd' })]
+    // Sospeso ad aspettare Nicholas è ancora un lavoro su SierraDeck (Revisione del 20/10).
+    expect(decidiErroriArrivati({ inAttesa, adesso: T0 + 3_600_000, autopiloti: [ap({ id: 'a', nome: 'Fermo', stato: 'sospeso', cwd: radice })], radice }).azione).toBe('aspetta')
+    // Finito, fallito, archiviato o su un altro progetto: non conta.
+    const liberi = [ap({ id: 'b', stato: 'finito', cwd: radice }), ap({ id: 'e', stato: 'fallito', cwd: radice }), ap({ id: 'c', cwd: radice, archiviato: true }), ap({ id: 'd' })]
     expect(decidiErroriArrivati({ inAttesa, adesso: T0 + 3_600_000, autopiloti: liberi, radice }).azione).toBe('avvia')
+    // Un nostro lavoro ancora aperto, anche se il servizio non lo vede: mai un secondo.
+    expect(decidiErroriArrivati({ inAttesa, adesso: T0 + 3_600_000, autopiloti: [], radice, lavoroAperto: true })).toEqual({ azione: 'aspetta', testo: 'Errori arrivati (2 arrivi): li correggo appena finisce «Errori arrivati».' })
   })
 
   it('una copia di lavoro `SierraDeck.sierradeck-wt` è SierraDeck, `SierraDeck-prova` no', () => {
@@ -148,7 +152,7 @@ describe('il giro sul disco', () => {
     expect(arriviInAttesa(arrivi, leggiStatoArrivi(arrivi))).toEqual([])
   })
 
-  it('un lavoro fallito non mette i file nel recupero e non riparte da solo', async () => {
+  it('un lavoro fallito non mette i file nel recupero; riparte al massimo due volte, poi lo dice', async () => {
     const radice = radiceNuova()
     const f = arrivo(radice, 'PC-a', 'x', T0)
     const lista: AutopilotaVisto[] = []
@@ -158,7 +162,23 @@ describe('il giro sul disco', () => {
     lista.push(ap({ id: 'ap-1', stato: 'fallito', cwd: radice }))
     await giroErroriArrivati(g.d)
     expect(existsSync(f)).toBe(true)
-    expect(g.creati).toHaveLength(1)
+    expect(g.creati).toHaveLength(2)
+    lista.push(ap({ id: 'ap-2', stato: 'fallito', cwd: radice }))
+    expect(await giroErroriArrivati(g.d)).toBe('Errori arrivati: 1 arrivo non corretti dopo 2 tentativi: guardali tu in .sierradeck/errori-arrivati.')
+    expect(g.creati).toHaveLength(2)
+    expect(existsSync(f)).toBe(true)
+  })
+
+  it('lo stato è su disco appena creato l’autopilota, non solo a fine giro', async () => {
+    const radice = radiceNuova()
+    arrivo(radice, 'PC-a', 'x', T0)
+    // Nel momento in cui il giro dice «avviato», il lavoro deve già essere nel file:
+    // se il giro cadesse lì, al giro dopo gli stessi file non ripartirebbero.
+    let suDisco = -1
+    const g = deps(radice, { log: (r) => { if (r.includes('avviato')) suDisco = leggiStatoArrivi(cartellaArrivi(radice)).lavori.length } })
+    g.vai(T0 + QUIETE_MS)
+    await giroErroriArrivati(g.d)
+    expect(suDisco).toBe(1)
   })
 
   it('l’attesa si scrive nel registro una volta, non a ogni giro', async () => {

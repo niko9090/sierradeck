@@ -50,6 +50,24 @@ describe('togliSegreti', () => {
     expect(t).toContain('127.0.0.1')
   })
 
+  it('toglie anche i nomi in stile variabile d’ambiente, camelCase e le credenziali negli indirizzi (Revisione del 20/10)', () => {
+    const casi = [
+      'GOOGLE_CLIENT_SECRET=abcd1234efgh', 'OPENAI_API_KEY=abcdef123456', 'GITHUB_TOKEN=abcdef123456', 'DB_PASSWORD=hunter2',
+      'authToken: abc123def', '{"refreshToken":"abc123xyz"}', 'x-api-key: qwerty987', 'mongodb://utente:passw0rd@host/db',
+      'https://esempio.it/cb?code=abc123&state=zzz'
+    ]
+    for (const c of casi) expect(togliSegreti(c), c).not.toMatch(/abcd1234efgh|abcdef123456|hunter2|abc123def|abc123xyz|qwerty987|passw0rd|abc123|zzz/)
+    expect(togliSegreti('mongodb://utente:passw0rd@host/db')).toBe('mongodb://‹tolto›@host/db')
+    // Le parole normali che contengono quei nomi restano.
+    for (const frase of ['spinning: true', 'monkey: 3', 'opinion=buona', 'primary_keyboard=it']) expect(togliSegreti(frase)).toBe(frase)
+  })
+
+  it('copre tutto il nome dell’utente anche con lo spazio, ma non il resto della frase', () => {
+    expect(togliSegreti('C:\\Users\\Mario Rossi\\Documents\\x')).toBe('C:\\Users\\…\\Documents\\x')
+    expect(togliSegreti('/home/Mario Rossi/x')).toBe('/home/…/x')
+    expect(togliSegreti('manca C:\\Users\\mario e poi niente')).toBe('manca C:\\Users\\… e poi niente')
+  })
+
   it('copre i nomi passati da chi chiama (PC e utente), senza toccare le parole che li contengono', () => {
     expect(togliSegreti('PC-PROVA-1 non risponde; pcprova-1x resta', ['pc-prova-1'])).toBe('‹nome› non risponde; pcprova-1x resta')
   })
@@ -160,6 +178,16 @@ describe('l’invio al PC di sviluppo', () => {
     expect(cartellaMittente('../../Windows')).toBe('Windows')
     expect(cartellaMittente('Portàtile: di casa')).toBe('Portatile- di casa')
     expect(cartellaMittente('...')).toBe('sconosciuto')
+    // I nomi che Windows non sa creare.
+    expect(cartellaMittente('CON')).toBe('_CON')
+    expect(cartellaMittente('nul.txt')).toBe('_nul.txt')
+    expect(cartellaMittente('COM1')).toBe('_COM1')
+    expect(cartellaMittente('Console')).toBe('Console')
+  })
+
+  it('chi riceve toglie i segreti anche dal punto del codice', () => {
+    const l = leggiInvioErrori({ da: 'PC', voci: [{ quando: 'x', ultima: 'x', dove: 'pc', volte: 1, messaggio: 'boom', punto: 'C:\\Users\\mario\\x.ts:3' }] })
+    expect(l.ok && l.invio.voci[0]?.punto).toBe('C:\\Users\\…\\x.ts:3')
   })
 
   it('il nome del file è l’ora, senza i due punti vietati su Windows', () => {

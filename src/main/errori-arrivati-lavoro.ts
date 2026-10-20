@@ -61,7 +61,14 @@ export type Decisione =
   | { azione: 'aspetta'; testo: string }
   | { azione: 'avvia'; file: string[] }
 
-const STATI_AL_LAVORO = new Set(['intervista', 'pronto', 'lavoro', 'attesa'])
+/**
+ * Anche `sospeso`: un lavoro fermo ad aspettare Nicholas è ancora un lavoro su
+ * SierraDeck, e ripartirebbe sopra quello nuovo (Revisione del 20/10).
+ * L'archiviato no: Nicholas lo ha messo da parte.
+ */
+const STATI_AL_LAVORO = new Set(['intervista', 'pronto', 'lavoro', 'attesa', 'sospeso'])
+/** Dopo quanti lavori falliti un arrivo non riparte più da solo: lo guarda Nicholas. */
+export const TENTATIVI_MAX = 2
 
 function norma(p: string): string {
   return resolve(p).replace(/[\\/]+$/, '').toLowerCase()
@@ -86,6 +93,8 @@ export function decidiErroriArrivati(p: {
   radice: string
   settimanaPercento?: number
   quieteMs?: number
+  /** Un nostro lavoro ancora aperto: mai un secondo sopra, anche se il servizio non lo vede. */
+  lavoroAperto?: boolean
 }): Decisione {
   if (p.inAttesa.length === 0) return { azione: 'niente' }
   const ultimo = Math.max(...p.inAttesa.map((a) => a.il))
@@ -96,6 +105,7 @@ export function decidiErroriArrivati(p: {
   }
   const occupato = p.autopiloti.find((a) => a.archiviato !== true && STATI_AL_LAVORO.has(a.stato) && suSierraDeck(a.cwd, p.radice))
   if (occupato !== undefined) return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li correggo appena finisce «${occupato.nome}».` }
+  if (p.lavoroAperto === true) return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li correggo appena finisce «${NOME_LAVORO}».` }
   return { azione: 'avvia', file: [...p.inAttesa].sort((a, b) => a.il - b.il).map((a) => a.file) }
 }
 
@@ -161,10 +171,29 @@ export function scriviStatoArrivi(arrivi: string, s: StatoErroriArrivati): void 
   renameSync(`${file}.tmp`, file)
 }
 
+/**
+ * I file che non ripartono: quelli di un lavoro aperto o finito, e quelli già
+ * falliti `TENTATIVI_MAX` volte. Un lavoro fallito o sparito rimette i suoi
+ * in coda, così un errore non resta senza lavoro per sempre.
+ */
+export function arriviPresi(stato: StatoErroriArrivati): { presi: Set<string>; abbandonati: string[] } {
+  const presi = new Set<string>()
+  const falliti = new Map<string, number>()
+  for (const l of stato.lavori) {
+    for (const f of l.file) {
+      if (l.chiuso === undefined || l.chiuso.come === 'finito') presi.add(f)
+      else falliti.set(f, (falliti.get(f) ?? 0) + 1)
+    }
+  }
+  const abbandonati = [...falliti].filter(([f, n]) => n >= TENTATIVI_MAX && !presi.has(f)).map(([f]) => f)
+  for (const f of abbandonati) presi.add(f)
+  return { presi, abbandonati }
+}
+
 /** Gli arrivi che nessun lavoro ha ancora preso: `<mittente>/<ora>.json`. */
 export function arriviInAttesa(arrivi: string, stato: StatoErroriArrivati): ArrivoInAttesa[] {
   if (!existsSync(arrivi)) return []
-  const presi = new Set(stato.lavori.flatMap((l) => l.file))
+  const { presi } = arriviPresi(stato)
   const fuori: ArrivoInAttesa[] = []
   for (const mittente of readdirSync(arrivi, { withFileTypes: true })) {
     if (!mittente.isDirectory() || mittente.name.startsWith('.')) continue
@@ -269,7 +298,7 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
         const r = arriviNelRecupero(arrivi, existsSync(join(arrivi, riepilogo)) ? [...lavoro.file, riepilogo] : lavoro.file)
         d.log(`[errori arrivati] ${lavoro.id} finito: ${r.spostati.length} file nel recupero di ${GIORNI_RECUPERO} giorni${r.nonSpostati.length > 0 ? `, non spostati: ${r.nonSpostati.join('; ')}` : ''}`)
       } else {
-        d.log(`[errori arrivati] ${lavoro.id} ${come === 'fallito' ? 'fallito' : 'non c’è più'}: i ${lavoro.file.length} file restano dove sono, non riparto da solo`)
+        d.log(`[errori arrivati] ${lavoro.id} ${come === 'fallito' ? 'fallito' : 'non c’è più'}: i ${lavoro.file.length} file restano dove sono e ripartono in un lavoro nuovo (al massimo ${TENTATIVI_MAX} volte)`)
       }
     }
     // 2. I riepiloghi pronti: nella conversazione, una volta.
@@ -287,7 +316,8 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
     // 3. Gli arrivi nuovi.
     const inAttesa = arriviInAttesa(arrivi, stato)
     const settimana = d.settimanaPercento()
-    const dec = decidiErroriArrivati({ inAttesa, adesso, autopiloti, radice, ...(settimana !== undefined ? { settimanaPercento: settimana } : {}) })
+    const lavoroAperto = stato.lavori.some((l) => l.chiuso === undefined)
+    const dec = decidiErroriArrivati({ inAttesa, adesso, autopiloti, radice, lavoroAperto, ...(settimana !== undefined ? { settimanaPercento: settimana } : {}) })
     if (dec.azione === 'aspetta') {
       if (stato.attesa?.testo !== dec.testo) {
         stato.attesa = { testo: dec.testo, dal: ora }
@@ -302,6 +332,9 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
       const a = await d.crea({ nome: NOME_LAVORO, obiettivo: obiettivoErroriArrivati({ arrivi, file: dec.file, riepilogo }), cwd: radice, criteri: criteriErroriArrivati(riepilogo) })
       stato.lavori.push({ id, autopilota: a.id, file: dec.file, creatoIl: ora })
       delete stato.attesa
+      // Subito, non a fine giro: se l'autopilota c'è e lo stato no, al giro dopo
+      // gli stessi file partirebbero in un secondo lavoro.
+      scriviStatoArrivi(arrivi, stato)
       cambiato = true
       d.log(`[errori arrivati] avviato «${NOME_LAVORO}» (${a.id}) con ${arriviDi(dec.file.length)}`)
       riga = `${NOME_LAVORO}: al lavoro su ${arriviDi(dec.file.length)}.`
@@ -311,6 +344,9 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
       if (aperto !== undefined) riga = `${NOME_LAVORO}: al lavoro su ${arriviDi(aperto.file.length)}${aperto.riepilogoMandato !== undefined ? '' : ', il riepilogo arriva prima delle correzioni'}.`
       else if (inAttesa.length > 0) riga = `${NOME_LAVORO}: ${arriviDi(inAttesa.length)}, parto fra qualche minuto.`
     }
+    // Quelli falliti troppe volte non ripartono: lo si dice, invece di tacere.
+    const { abbandonati } = arriviPresi(stato)
+    if (abbandonati.length > 0 && riga === undefined) riga = `${NOME_LAVORO}: ${arriviDi(abbandonati.length)} non corretti dopo ${TENTATIVI_MAX} tentativi: guardali tu in .sierradeck/errori-arrivati.`
     const tolti = svuotaRecuperoScaduto(arrivi, adesso)
     if (tolti.length > 0) d.log(`[errori arrivati] tolti dal recupero dopo ${GIORNI_RECUPERO} giorni: ${tolti.length} file`)
   } catch (err) {

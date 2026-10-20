@@ -69,14 +69,24 @@ const SCHEMI_SEGRETI: Array<[RegExp, string]> = [
   [/\b1\/\/[A-Za-z0-9_-]{20,}/g, TOLTO],
   // JWT.
   [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/g, TOLTO],
-  // nome=valore, nome: valore, "nome": "valore".
-  [new RegExp(`(["']?\\b(?:${CAMPI_SEGRETI})\\b["']?\\s*[:=]\\s*["']?)[^\\s"'&,;}]+`, 'gi'), `$1${TOLTO}`],
+  // Credenziali dentro un indirizzo: `schema://utente:password@host`.
+  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/:@"']+:[^\s/@"']+@/gi, `$1${TOLTO}@`],
+  // Parametri di un indirizzo che portano un segreto: `?code=…&sig=…`.
+  [/([?&](?:code|key|sig|signature|state|token|access_token|auth)=)[^&\s#"']+/gi, `$1${TOLTO}`],
+  // nome=valore, nome: valore, "nome": "valore". Il nome anche dentro un nome
+  // più lungo con `_` o `-` (GITHUB_TOKEN, DB_PASSWORD, OPENAI_API_KEY,
+  // x-api-key): `\b` non bastava, perché per le regex `_` è una lettera.
+  [new RegExp(`(["']?(?<![A-Za-z0-9_-])(?:[A-Za-z0-9]+[_-])*(?:${CAMPI_SEGRETI}|(?<=[_-])key)(?:[_-][A-Za-z0-9]+)*(?![A-Za-z0-9])["']?\\s*[:=]\\s*["']?)[^\\s"'&,;}]+`, 'gi'), `$1${TOLTO}`],
+  // Lo stesso in camelCase: authToken, refreshToken, apiKey, clientSecret.
+  [/(["']?(?<![A-Za-z0-9])[a-z][a-z0-9]*(?:Token|Secret|Password|Passwd|Key|Pin|Cookie)(?![A-Za-z0-9])["']?\s*[:=]\s*["']?)[^\s"'&,;}]+/g, `$1${TOLTO}`],
   // Email.
   [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '‹email›'],
   // Percorsi con il nome dell'utente: Windows, Git Bash, macOS, Linux.
-  [/\b([A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)[^\\/\s"'`:]+/gi, '$1…'],
-  [/(^|[\s"'(=])(\/[a-z]\/Users\/)[^/\s"'`:]+/gi, '$1$2…'],
-  [/(^|[\s"'(=])(\/(?:Users|home)\/)[^/\s"'`:]+/g, '$1$2…'],
+  // Il nome può avere spazi («Nome Cognome»): tutto fino al separatore che
+  // segue, se c'è; altrimenti la sola parola.
+  [/\b([A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)(?:[^\\/\s"'`:]+(?: [^\\/\s"'`:]+){1,3}(?=[\\/])|[^\\/\s"'`:]+)/gi, '$1…'],
+  [/(^|[\s"'(=])(\/[a-z]\/Users\/)(?:[^/\s"'`:]+(?: [^/\s"'`:]+){1,3}(?=\/)|[^/\s"'`:]+)/gi, '$1$2…'],
+  [/(^|[\s"'(=])(\/(?:Users|home)\/)(?:[^/\s"'`:]+(?: [^/\s"'`:]+){1,3}(?=\/)|[^/\s"'`:]+)/g, '$1$2…'],
   // Indirizzi IP, tranne quelli di questa macchina.
   [/\b(?!127\.0\.0\.1\b)(?!0\.0\.0\.0\b)(?:\d{1,3}\.){3}\d{1,3}\b/g, '‹ip›'],
   // Stringhe lunghe che sembrano chiavi: esadecimali da 32 o base64 da 40 in su.
@@ -279,7 +289,9 @@ export function storicoPerLInvio(storico: StoricoErrori, maxByte: number = BYTE_
 /** Il nome della cartella di chi manda: lettere, cifre, spazi, `-`, `_`, `.`; mai vuoto, mai `..`. */
 export function cartellaMittente(nome: string): string {
   const pulito = nome.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 _.-]+/g, '-').replace(/^[\s.-]+|[\s.-]+$/g, '').slice(0, 40)
-  return pulito === '' ? 'sconosciuto' : pulito
+  if (pulito === '') return 'sconosciuto'
+  // CON, NUL, COM1… non si possono creare su Windows, neanche con un'estensione.
+  return /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(pulito) ? `_${pulito}` : pulito
 }
 
 /** Il nome del file di un arrivo: l'ora (UTC) senza caratteri vietati su Windows. */
@@ -303,7 +315,8 @@ export function leggiInvioErrori(x: unknown): { ok: true; invio: InvioErrori } |
     ...v,
     messaggio: taglia(togliSegreti(v.messaggio), LIMITI_STORICO.messaggio),
     ...(v.cosa !== undefined ? { cosa: taglia(togliSegreti(v.cosa), LIMITI_STORICO.cosa) } : {}),
-    ...(v.dettagli !== undefined ? { dettagli: taglia(togliSegreti(v.dettagli), LIMITI_STORICO.dettagli) } : {})
+    ...(v.dettagli !== undefined ? { dettagli: taglia(togliSegreti(v.dettagli), LIMITI_STORICO.dettagli) } : {}),
+    ...(v.punto !== undefined ? { punto: taglia(togliSegreti(v.punto), LIMITI_STORICO.cosa) } : {})
   }))
   return { ok: true, invio: { da, ...(typeof o.versione === 'string' ? { versione: o.versione.slice(0, 40) } : {}), voci } }
 }

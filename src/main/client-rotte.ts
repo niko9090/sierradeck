@@ -1081,6 +1081,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     // Lo storico degli errori di un altro PC o del telefono (0.81.0).
     if (r.metodo === 'POST' && r.percorso === '/api/errori/arrivati') {
+      // Solo da un altro PC: il telefono manda i suoi con /api/errori/aggiungi.
+      // Quello che arriva qui diventa il compito di un autopilota che cambia il codice.
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Gli errori arrivano qui solo da un altro PC con la stessa cassaforte.' } }
       if (depsPieni.erroriArrivati === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere gli errori: va aggiornato alla 0.81.0.' } }
       const l = leggiInvioErrori(r.corpo)
       if (!l.ok) return { stato: 400, corpo: { errore: l.errore } }
