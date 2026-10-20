@@ -399,7 +399,8 @@ export function adessoEFinite<T extends SchedaChat>(schede: readonly T[]): { ade
  */
 export function separaConversazione<B extends { da: 'tu' | 'lui' | 'nota'; tono?: string }>(battute: readonly B[]): { messaggi: B[]; eventi: B[] } {
   // Le righe corte dei traguardi (0.79.0: «Revisione: ha approvato …, unito.») stanno nella conversazione.
-  const inConversazione = (b: B): boolean => b.da !== 'nota' || b.tono === 'traguardo'
+  // 0.81.0: anche «Ha finito.» e «Si è fermato.», che contano per Nicholas.
+  const inConversazione = (b: B): boolean => b.da !== 'nota' || b.tono === 'traguardo' || b.tono === 'fine' || b.tono === 'fermo'
   return { messaggi: battute.filter(inConversazione), eventi: battute.filter((b) => !inConversazione(b)).reverse() }
 }
 

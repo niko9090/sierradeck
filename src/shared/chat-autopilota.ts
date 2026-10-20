@@ -1,4 +1,5 @@
 import type { Autopilota, ChatGovernata, Traguardo } from './autopilota'
+import { SILENZIO_DA_DIRE_MS } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
 import { RUOLI } from './ruoli-agenti'
 
@@ -238,10 +239,12 @@ export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): strin
   const chi = a.chats.find((c) => c.id === t.chat)
   // 0.80.1: la chat che tace è messa da parte, l'autopilota no. Anche la chat
   // singola, che non sta fra le `chats`.
-  if (t.esito === 'da-parte') {
-    const cosa = chi !== undefined ? ` («${compitoBreve(chi.compito)}»)` : ''
-    return `${chi !== undefined ? nomeChi(chi) : 'La chat'}${cosa} non chiude un turno da troppo: la metto da parte, le altre continuano. Torna da sola appena risponde.`
-  }
+  // 0.81.0: anche queste valgono per la chat singola, che non sta fra le `chats`.
+  const sola = (): string => `${chi !== undefined ? nomeChi(chi) : 'La chat'}${chi !== undefined ? ` («${compitoBreve(chi.compito)}»)` : ''}`
+  if (t.esito === 'da-parte') return `${sola()} non chiude un turno da troppo: la metto da parte, le altre continuano. Torna da sola appena risponde.`
+  if (t.esito === 'mai-partita') return `${sola()} non è partita: nessuna finestra l'ha aperta. Rimetto il compito in coda e riprovo.`
+  if (t.esito === 'muta') return `${sola()} non dà segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: aspetto. Se tace per un'ora la metto da parte e te lo dico.`
+  if (t.esito === 'unito' && chi === undefined) return 'Lavoro unito.'
   const di = t.di !== undefined ? a.chats.find((c) => c.id === t.di) : undefined
   if (chi === undefined) return undefined
   const lavoro = di ?? chi
@@ -253,5 +256,8 @@ export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): strin
     case 'approvato': return `${nomeChi(chi)}: ha approvato ${cosa}${diChi}, unito.`
     case 'da-rifare': return `${nomeChi(chi)}: rimanda ${cosa}${diChi} da correggere.`
     case 'chiede-te': return `${nomeChi(chi)}: rimanda di nuovo ${cosa}${diChi}, decidi tu come andare avanti.`
+    case 'aperta': return `${nomeChi(chi)}: comincia ${cosa}.`
+    case 'unito': return `${nomeChi(chi)}: ${cosa} unito.`
+    default: return undefined
   }
 }
