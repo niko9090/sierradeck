@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { leggiConfigurazione, componiAvviso, creaAvvisatore } from '../../src/autopilot-host/telegram'
+import { leggiConfigurazione, componiAvviso, creaAvvisatore, AVVISI_VICINI_MS } from '../../src/autopilot-host/telegram'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function conFile(contenuto: string): string {
@@ -119,6 +119,90 @@ describe('creaAvvisatore', () => {
   it('senza configurazione non manda niente e non solleva', async () => {
     const avvisa = creaAvvisatore({ configurazione: undefined, manda: () => Promise.reject(new Error('mai')) })
     await expect(avvisa('finito', ap())).resolves.toBeUndefined()
+  })
+
+  it('0.81.0: gli avvisi vicini partono insieme, il primo subito; ognuno nel registro', async () => {
+    const inviati: string[] = []
+    let ora = 1_000_000
+    let inSospeso: (() => void) | undefined
+    let attesaMs = -1
+    const avvisa = creaAvvisatore({
+      configurazione: { token: 't', chat: 'c' },
+      manda: (_url, corpo) => { inviati.push((corpo as { text: string }).text); return Promise.resolve(true) },
+      adesso: () => ora,
+      dopo: (ms, f) => { attesaMs = ms; inSospeso = f }
+    })
+    await avvisa('finito', ap({ nome: 'Uno' }))
+    expect(inviati).toHaveLength(1)
+    ora += 5_000
+    await avvisa('sospeso', ap({ nome: 'Due', motivoSospensione: 'la verifica non parte' }))
+    ora += 1_000
+    await avvisa('domanda', ap({ nome: 'Tre' }), 'Quale chiave?')
+    // Dentro i 20 s: aspettano, insieme.
+    expect(inviati).toHaveLength(1)
+    expect(attesaMs).toBe(AVVISI_VICINI_MS - 5_000)
+    ora += 14_000
+    inSospeso?.()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(inviati).toHaveLength(2)
+    expect(inviati[1]).toContain('2 avvisi da SierraDeck')
+    expect(inviati[1]).toContain('Due')
+    expect(inviati[1]).toContain('Quale chiave?')
+    // Passata la finestra, il prossimo parte subito.
+    ora += AVVISI_VICINI_MS
+    await avvisa('finito', ap({ nome: 'Quattro' }))
+    expect(inviati).toHaveLength(3)
+  })
+
+  it('la revisione: un gruppo troppo lungo non si tronca, parte un messaggio per avviso', async () => {
+    const inviati: string[] = []
+    let ora = 1_000_000
+    let inSospeso: (() => void) | undefined
+    const avvisa = creaAvvisatore({
+      configurazione: { token: 't', chat: 'c' },
+      manda: (_url, corpo) => { inviati.push((corpo as { text: string }).text); return Promise.resolve(true) },
+      adesso: () => ora,
+      dopo: (_ms, f) => { inSospeso = f }
+    })
+    await avvisa('finito', ap({ nome: 'Uno' }))
+    ora += 1_000
+    await avvisa('domanda', ap({ nome: 'Due' }), 'a'.repeat(1400))
+    await avvisa('domanda', ap({ nome: 'Tre' }), 'b'.repeat(1400))
+    await avvisa('domanda', ap({ nome: 'Quattro' }), 'c'.repeat(1400))
+    inSospeso?.()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(inviati).toHaveLength(4)
+    expect(inviati.slice(1).every((t) => !t.includes('avvisi da SierraDeck'))).toBe(true)
+  })
+
+  it('0.81.0: allo spegnimento gli avvisi in attesa partono subito, e il timer dopo non li rimanda', async () => {
+    const inviati: string[] = []
+    let ora = 1_000_000
+    let inSospeso: (() => void) | undefined
+    const avvisa = creaAvvisatore({
+      configurazione: { token: 't', chat: 'c' },
+      manda: (_url, corpo) => { inviati.push((corpo as { text: string }).text); return Promise.resolve(true) },
+      adesso: () => ora,
+      dopo: (_ms, f) => { inSospeso = f }
+    })
+    await avvisa('finito', ap({ nome: 'Uno' }))
+    ora += 1_000
+    await avvisa('domanda', ap({ nome: 'Due' }), 'serve una scelta')
+    expect(inviati).toHaveLength(1)
+    await avvisa.svuotaOra()
+    expect(inviati).toHaveLength(2)
+    expect(inviati[1]).toContain('Due')
+    inSospeso?.()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(inviati).toHaveLength(2)
+    // Senza niente in attesa non manda niente.
+    await avvisa.svuotaOra()
+    expect(inviati).toHaveLength(2)
+  })
+
+  it('0.81.0: «ripreso dopo un riavvio» non è più un avviso', () => {
+    expect(() => componiAvviso('ripreso' as never, ap())).not.toThrow()
+    expect(componiAvviso('ripreso' as never, ap())).not.toContain('ripreso dopo un riavvio')
   })
 
   it('un invio fallito non interrompe il lavoro', async () => {
