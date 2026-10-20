@@ -22,6 +22,7 @@ import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitReale, statoCopia } from './worktree'
+import { creaMisuratore } from './misura-pc'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -300,6 +301,9 @@ export function avviaServizio(): void {
     // strada e ogni chat riceveva l obiettivo intero.
     avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),
     fermaLavoro: (id, chatId, chi) => lavori.ferma(id, chatId, chi),
+    // 0.82.0: quante chat lavorano insieme lo decide questo PC; le finite si chiudono da sole.
+    misuraPc: creaMisuratore(),
+    chiudiChat: (id, chatId, chi) => { lavori.chiudi(id, chatId, chi) },
     avvisa,
     primaDiSpegnere: () => avvisa.svuotaOra(),
     domande,

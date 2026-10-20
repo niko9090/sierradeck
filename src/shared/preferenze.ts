@@ -10,6 +10,7 @@
  * questa finestra non deve accorgersi che esiste.
  */
 
+import type { RegolazionePosti } from './posti-chat'
 import { normalizzaScorciatoie, SCORCIATOIE_PREDEFINITE, type Scorciatoie } from './scorciatoie'
 
 export type Preferenze = {
@@ -130,6 +131,12 @@ export type Preferenze = {
    * conosciuti: nessun nome di PC nel codice.
    */
   pcSviluppo?: string
+  /**
+   * «Più chat / meno chat» (0.82.0): quante chat degli autopiloti lavorano
+   * insieme lo decide il PC (`@shared/posti-chat`); qui lo si sposta un poco.
+   * Assente = come dice il PC.
+   */
+  postiChat?: RegolazionePosti
   /**
    * Come si veste la console.
    *
@@ -289,6 +296,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
     ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
+    ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
     ...(Array.isArray(o.chatSoloMie)
       ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }
       : {}),

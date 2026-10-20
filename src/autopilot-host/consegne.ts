@@ -32,8 +32,9 @@ export type Consegna = {
   sessionId: string
   /** Il titolo del riquadro, quando va aperto. */
   titolo: string
-  cosa: 'scrivi' | 'interrompi'
-  /** Il testo da scrivere nella chat. Vuoto per «interrompi». */
+  /** `chiudi` (0.82.0): chiude la chat finita, ferma al prompt; la conversazione resta. */
+  cosa: 'scrivi' | 'interrompi' | 'chiudi'
+  /** Il testo da scrivere nella chat. Vuoto per «interrompi» e «chiudi». */
   testo: string
   /**
    * Il workspace in cui la chat deve stare, deciso dall'autopilota.
@@ -153,7 +154,7 @@ export function creaConsegne(
     for (const c of Array.isArray(lette) ? lette : []) {
       if (typeof c !== 'object' || c === null) continue
       const x = c as Partial<Consegna>
-      if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.sessionId !== 'string' || typeof x.cwd !== 'string' || (x.cosa !== 'scrivi' && x.cosa !== 'interrompi')) continue
+      if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.sessionId !== 'string' || typeof x.cwd !== 'string' || (x.cosa !== 'scrivi' && x.cosa !== 'interrompi' && x.cosa !== 'chiudi')) continue
       coda.push({ consegna: { chatId: '', titolo: '', testo: '', ...x } as Consegna, tentativi: 0 })
       // Il numero non torna indietro: c-N dopo il riavvio è sempre nuovo.
       const n = /^c-(\d+)$/.exec(x.id)?.[1]

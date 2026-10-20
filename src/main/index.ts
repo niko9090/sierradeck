@@ -5196,7 +5196,10 @@ if (!app.requestSingleInstanceLock()) {
             titolo: c.titolo,
             cwd: c.cwd,
             stato: c.viva === false ? 'spenta' : c.aspetta === true && c.governata !== true ? 'aspetta' : 'lavoro',
-            governata: c.governata === true
+            governata: c.governata === true,
+            // 0.82.0: per chiudere da sole le chat finite, solo se ferme al prompt.
+            ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
+            ferma: c.viva !== false && c.aspetta === true
           })),
           ...(limiti !== undefined ? { limiti } : {}),
           domandeAperte: domande.length + chatAperte.filter((c) => c.aspetta === true && c.governata !== true).length,
@@ -5207,7 +5210,8 @@ if (!app.requestSingleInstanceLock()) {
             return { nome: p.nome, chi: p.chi, inCoda: p.inCoda, ...(p.pcNome !== undefined ? { pcNome: p.pcNome } : {}), ...(percorso !== undefined ? { percorso } : {}) }
           }),
           driveAttivo: await driveAttivoAdesso(),
-          altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) }))
+          altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) })),
+          regolazionePosti: impostazioni.preferenze().postiChat ?? 0
         })
       }
       const rotte = {
@@ -5599,7 +5603,7 @@ if (!app.requestSingleInstanceLock()) {
           if (sf !== undefined) { chiudiSottofondoDaTe(sf, 'da lontano'); return }
           for (const w of finestreDiChat()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('client:chiudiChat', idChat)
+              w.webContents.send('client:chiudiChat', idChat, 'dal telefono')
             }
           }
         },
@@ -6255,6 +6259,11 @@ if (!app.requestSingleInstanceLock()) {
           else passo('niente da interrompere: la chat non è accesa')
           return true
         }
+        // 0.82.0: una chat finita, ferma al prompt, si chiude da sola.
+        if (c.cosa === 'chiudi') {
+          passo(chiudiSottofondoDaTe(c.sessionId, 'da sola: aveva finito') ? 'chiusa in sottofondo: aveva finito, il suo posto si libera' : 'niente da chiudere: la chat non è accesa')
+          return true
+        }
         const pronta = preparaConsegna(c, (rel, testo) => scriviFileConsegna(c.cwd, rel, testo))
         const idTesto = idTestoConsegna(c)
         try {
@@ -6336,6 +6345,22 @@ if (!app.requestSingleInstanceLock()) {
         conferma: async (ids) => { await postaAlServizio('/consegne/conferma', { ids }) },
         consegna: (c) => {
           const vive = finestreDiChat().filter((w) => !w.isDestroyed())
+          // 0.82.0: «chiudi» chiude la chat finita dov'è (sottofondo o riquadro),
+          // come la chiuderesti tu; la conversazione resta fra le chiuse.
+          if (c.cosa === 'chiudi') {
+            if (sottofondo?.ha(c.sessionId) === true) {
+              chiudiSottofondoDaTe(c.sessionId, 'da sola: aveva finito')
+              registro.info(`[consegna] ${c.id}: chat ${c.sessionId.slice(0, 8)} chiusa in sottofondo, aveva finito`)
+              return true
+            }
+            for (const w of vive) {
+              const p = (chatPerFinestra.get(w.id) ?? []).find((x) => x.sessione === c.sessionId)
+              if (p === undefined || w.webContents.isDestroyed()) continue
+              w.webContents.send('client:chiudiChat', p.id, 'da sola: aveva finito')
+              registro.info(`[consegna] ${c.id}: chat «${p.titolo}» chiusa, aveva finito`)
+            }
+            return true
+          }
           // **Mai cambiare il workspace sullo schermo** (0.60.8): se la chat non
           // si vede e il suo workspace non è quello di nessuna finestra, lavora
           // in sottofondo, e il riquadro la adotta quando quel workspace si apre.

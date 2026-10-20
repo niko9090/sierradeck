@@ -55,8 +55,10 @@ import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-aut
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
+import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
+import { chatAlLavoroSulPc, daChiudereDaSole, tettoNeiPosti } from './posti'
 import {
-  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma,
+  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma, STATO_PROGRAMMA_VALIDO_MS,
   type StatoProgramma
 } from './coordinatore'
 import {
@@ -172,6 +174,18 @@ export type Dipendenze = {
   orologio?: () => number
   /** Le risposte già date e le decisioni di Nicholas (0.71.0). Assente: in memoria. */
   memoria?: Memoria
+  /**
+   * Processori, memoria libera e carico di questo PC (0.82.0): decidono quante
+   * chat lavorano insieme. Assente (nei test che non la vogliono): posti al
+   * massimo, come prima.
+   */
+  misuraPc?: () => MisuraPc
+  /**
+   * Chiude una chat finita e ferma al prompt (0.82.0): il suo claude.exe si
+   * spegne, il riquadro si chiude, la conversazione resta. Assente: non si
+   * chiude niente da solo.
+   */
+  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
 }
 
 /** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
@@ -574,6 +588,75 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let statoProgramma: StatoProgramma | undefined
   /** T2: quanto lavoro in parallelo concede il piano, adesso. */
   const frenoAdesso = (): Freno => frenoDaiLimiti(statoProgramma?.limiti, Date.parse(deps.adesso()))
+  /**
+   * 0.82.0: quante chat degli autopiloti lavorano insieme su questo PC. Si
+   * ricalcola a ogni giro del guardiano (un minuto) dalla misura del PC; fra un
+   * giro e l'altro vale l'ultimo numero. Senza misura (test): il massimo.
+   */
+  let posti: StatoPosti | undefined
+  let ultimaMisura: MisuraPc | undefined
+  let regolazioneUsata: RegolazionePosti = 0
+  /** Gli autopiloti con compiti in fila già detti nella conversazione: la riga una volta per fila. */
+  const filaDetta = new Set<string>()
+  const regolazioneAdesso = (): RegolazionePosti => statoProgramma?.regolazionePosti ?? 0
+  const aggiornaPosti = (): void => {
+    if (deps.misuraPc === undefined) return
+    ultimaMisura = deps.misuraPc()
+    const regolazione = regolazioneAdesso()
+    // Cambiata a mano nelle Impostazioni: vale subito, senza la salita lenta.
+    if (regolazione !== regolazioneUsata) posti = undefined
+    regolazioneUsata = regolazione
+    const prima = posti?.posti
+    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, chatAlLavoroSulPc(deps.archivio.elenca()), regolazione), Date.parse(deps.adesso()))
+    if (prima !== undefined && prima !== posti.posti) {
+      console.info(`[posti] ${prima} → ${posti.posti} chat insieme (${posti.perche}; ${ultimaMisura.processori} processori, ${ultimaMisura.memoriaLiberaMb} MB liberi, carico ${ultimaMisura.caricoPercento}%)`)
+    }
+  }
+  const postiAdesso = (): number => {
+    if (posti === undefined) aggiornaPosti()
+    return posti?.posti ?? POSTI_MAX
+  }
+  /** Quanti compiti aspettano un posto, in tutti gli autopiloti al lavoro. */
+  const quantiInFila = (): number =>
+    deps.archivio.elenca().filter((a) => a.stato === 'lavoro' && a.archiviato !== true).reduce((n, a) => n + a.compitiDaFare.length, 0)
+  const postiChat = (): PostiChat => {
+    const n = postiAdesso()
+    const attive = chatAlLavoroSulPc(deps.archivio.elenca())
+    return {
+      attive,
+      posti: n,
+      inFila: attive >= n ? quantiInFila() : 0,
+      regolazione: regolazioneUsata,
+      perche: posti?.perche ?? 'massimo',
+      risale: posti?.salitaDal !== undefined,
+      ...(ultimaMisura !== undefined ? { misura: ultimaMisura } : {})
+    }
+  }
+  /**
+   * Le chat finite (o di un autopilota fermo da mezz'ora) ferme al prompt si
+   * chiudono da sole: il loro claude.exe si spegne e il posto si libera. Mai
+   * una chat al lavoro, mai una adottata, mai chi aspetta una risposta.
+   */
+  const chiuseDaSole = new Set<string>()
+  const chiudiFiniteDaSole = (): void => {
+    if (deps.chiudiChat === undefined || statoProgramma === undefined) return
+    const ora = Date.parse(deps.adesso())
+    if (Number.isNaN(ora) || ora - statoProgramma.letto > STATO_PROGRAMMA_VALIDO_MS) return
+    const accese = statoProgramma.chat.flatMap((c) => (c.sessione !== undefined ? [{ sessione: c.sessione, ferma: c.ferma === true }] : []))
+    // Chi è già stata chiusa non si richiude: il programma la toglie dall'elenco al giro dopo.
+    for (const k of [...chiuseDaSole]) if (!accese.some((c) => c.sessione === k)) chiuseDaSole.delete(k)
+    const fuori = daChiudereDaSole({ autopiloti: deps.archivio.elenca(), accese, ora, domandeAperte: (id) => deps.domande.aperte(id).length })
+      .filter((f) => !chiuseDaSole.has(f.sessionId))
+    for (const f of fuori) {
+      chiuseDaSole.add(f.sessionId)
+      const a = deps.archivio.leggi(f.autopilotaId)
+      if (a === undefined) continue
+      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })
+      annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
+      salva(a)
+      console.info(`[posti] ${f.autopilotaId}::${f.chatId ?? '-'} chiusa da sola: ${f.motivo}`)
+    }
+  }
   /** Le cartelle di un autopilota: la sua e i worktree delle sue chat. Per i divieti. */
   const cartelleDi = (a: Autopilota): string[] => [
     a.cwd,
@@ -910,7 +993,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // freno sui limiti del piano e il tetto tecnico.
     const freno = frenoAdesso()
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
-    const { tetto, soloRevisioni } = tettoDellaFlotta(freno, attive, TETTO_CHAT_MAX)
+    const delFreno = tettoDellaFlotta(freno, attive, TETTO_CHAT_MAX)
+    const soloRevisioni = delFreno.soloRevisioni
+    // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
+    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso())
     // Solo i compiti che non aspettano altri compiti ancora da unire (0.71.0).
     const fatti = compitiFatti(a.chats)
     const pronti = a.compitiDaFare
@@ -921,6 +1007,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       compitiDaFare: pronti,
       tetto
     })
+    // I compiti pronti che il PC non lascia partire adesso aspettano in fila:
+    // si dice una volta, e di nuovo solo dopo che la fila si è svuotata.
+    const restano = pronti.length - piano.daAprire.length
+    if (restano > 0 && tetto < delFreno.tetto && !filaDetta.has(a.id)) {
+      filaDetta.add(a.id)
+      const p = postiChat()
+      const conFila = deps.archivio.leggi(a.id) ?? a
+      annota(conFila, `${restano === 1 ? 'un compito' : `${restano} compiti`} ${IN_FILA} (${rigaPosti(p)} su questo PC)`)
+      salva(conFila)
+      if (piano.daAprire.length === 0) return conFila
+      a = conFila
+    } else if (restano === 0) {
+      filaDetta.delete(a.id)
+    }
     if (piano.daAprire.length === 0) return a
 
     const annotazioni: string[] = []
@@ -1102,7 +1202,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         continue
       }
       if (a.stato !== 'lavoro' || freno.livello === 'fermo' || inLavorazione.has(a.id)) continue
-      const ids = chatInPausaDaRiprendere(a.chats, freno.tetto)
+      const ids = chatInPausaDaRiprendere(a.chats, tettoNeiPosti(freno.tetto, a.chats.filter((c) => c.stato === 'lavoro').length, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()))
       if (ids.length > 0) {
         const ripreso: Autopilota = {
           ...a,
@@ -1202,6 +1302,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
   const controllaChatFerme = (): void => {
     consegnaAlleChatFerme()
+    // 0.82.0: prima i posti (la misura del PC) e le chat finite da chiudere,
+    // poi il freno, che apre i compiti in fila nei posti liberi.
+    aggiornaPosti()
+    chiudiFiniteDaSole()
     rispettaFreno()
     const limite = deps.silenzioMassimoMs ?? SILENZIO_MASSIMO_MS
     const ora = Date.parse(deps.adesso())
@@ -4028,6 +4132,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const ap = url.searchParams.get('ap') ?? undefined
           const giri = deps.tempi?.recenti(ap === '' ? undefined : ap, 50) ?? []
           rispondi(res, 200, { giri, riassunto: riassuntoTempi(giri) })
+          return
+        }
+
+        // 0.82.0: «N di M chat» su questo PC, con la misura che lo decide.
+        if (metodo === 'GET' && percorso === '/posti-chat') {
+          rispondi(res, 200, postiChat())
           return
         }
 
