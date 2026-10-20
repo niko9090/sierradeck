@@ -35,7 +35,8 @@ import {
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
-import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato } from './domande-doppie'
+import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero } from './domande-doppie'
+import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
   domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDallaChat, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
@@ -50,7 +51,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, ultimoTraguardoDi } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -172,6 +173,12 @@ export type Dipendenze = {
   orologio?: () => number
   /** Le risposte già date e le decisioni di Nicholas (0.71.0). Assente: in memoria. */
   memoria?: Memoria
+  /**
+   * Lo stato vero contro cui si controlla una domanda (0.82.0): release
+   * pubblicate, versione installata, rami e chat. Assente: la `versione` e le
+   * chat dell'autopilota, senza GitHub.
+   */
+  statoVero?: (a: Autopilota) => Promise<StatoVero>
 }
 
 /** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
@@ -2132,20 +2139,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const memoria = deps.memoria ?? apriMemoria(undefined)
   /**
    * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
-   * stato vero (la versione in uso) o già risposta, sullo stesso argomento o
-   * dalla stessa chat. Torna cosa dire alla chat al posto della risposta e la
-   * riga per il diario; la riga va anche nel registro del servizio.
+   * stato vero o già risposta, sullo stesso argomento o dalla stessa chat.
+   * Torna cosa dire alla chat al posto della risposta e la riga per il diario;
+   * la riga va anche nel registro del servizio. Dal 0.82.0 lo stato vero
+   * comprende le release pubblicate, i rami uniti e le chat chiuse, e una
+   * domanda già successa lascia nella conversazione «Già fatto: …».
    */
-  const domandaDaScartare = (a: Autopilota, chatId: string | undefined, domanda: string): { perLaChat: string; riga: string; risposta: string } | undefined => {
+  const statoVeroDi = async (a: Autopilota): Promise<StatoVero> => {
+    if (deps.statoVero !== undefined) {
+      try { return await deps.statoVero(a) } catch (err) { console.warn(`[domande] ${a.id} — stato vero non letto:`, err) }
+    }
+    return { ...statoDellaFlotta(a, deps.git), ...(deps.versione !== undefined ? { versioneInstallata: deps.versione } : {}) }
+  }
+  type Scarto = { perLaChat: string; riga: string; risposta: string; traguardo?: Traguardo }
+  const domandaDaScartare = async (a: Autopilota, chatId: string | undefined, domanda: string): Promise<Scarto | undefined> => {
     const breve = domanda.replace(/\s+/g, ' ').slice(0, 120)
     const chi = chatId !== undefined ? `${chatId}: ` : ''
-    const dalloStato = risoltaDalloStato(domanda, deps.versione !== undefined ? { versioneInstallata: deps.versione } : {})
-    let esito: { perLaChat: string; riga: string; risposta: string } | undefined
+    const dalloStato = risoltaDalloStato(domanda, await statoVeroDi(a))
+    let esito: Scarto | undefined
     if (dalloStato !== undefined) {
       esito = {
         risposta: `non serve: ${dalloStato}`,
         perLaChat: `Hai chiesto: «${domanda}»\n\nNon lo chiedo a Nicholas: ${dalloStato}. Prosegui tenendone conto.`,
-        riga: `${chi}«${breve}» non la chiedo: ${dalloStato}`
+        riga: `${chi}«${breve}» non la chiedo: ${dalloStato}`,
+        traguardo: { chat: chatId ?? a.id, esito: 'gia-fatto', nota: dalloStato.slice(0, NOTA_TRAGUARDO_MAX) }
       }
     } else {
       const gia = rispostaGiaData(memoria.risposte(a.id), domanda, chatId, Date.parse(deps.adesso()))
@@ -2784,11 +2801,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       inLavorazione.add(id)
       // **Le risposte già date non si richiedono** (0.71.0): la stessa domanda
       // riceve la risposta di prima; una simile la propone come consigliata.
-      const scarto = decisione.dalProgramma === true ? undefined : domandaDaScartare(aggiornato, chatId, decisione.domanda)
+      const scarto = decisione.dalProgramma === true ? undefined : await domandaDaScartare(aggiornato, chatId, decisione.domanda)
       if (scarto !== undefined) {
         inLavorazione.delete(id)
         const presi = tuoi(aggiornato)
-        annota(presi.autopilota, scarto.riga)
+        annota(presi.autopilota, scarto.riga, scarto.traguardo)
         salva(presi.autopilota)
         misura.esito = 'domanda già risolta'
         deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: scarto.risposta })
@@ -3238,10 +3255,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // **Già risolta o già risposta** (0.81.0): alla chat si dice cosa sa già,
     // e Nicholas non la vede. Lo stesso controllo delle domande del supervisore.
     const laDomanda = pronta.parti.domanda !== '' ? pronta.parti.domanda : domandaGrezza
-    const scarto = domandaDaScartare(ora, chatId, laDomanda)
+    const scarto = await domandaDaScartare(ora, chatId, laDomanda)
     if (scarto !== undefined) {
       const fresco = deps.archivio.leggi(id) ?? ora
-      annota(fresco, scarto.riga)
+      annota(fresco, scarto.riga, scarto.traguardo)
       salva(fresco)
       deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(fresco, chatId), domanda: laDomanda, risposta: scarto.risposta })
       void avviaLavoro(fresco, scarto.perLaChat, chat).catch((err: unknown) => {
