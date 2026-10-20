@@ -1,6 +1,6 @@
 ---
 titolo: "Notifiche solo utili (0.81.0): solo domande, lavori finiti, errori che bloccano; ogni notifica nel registro con la causa"
-quando: 2026-10-20T11:50:00+02:00
+quando: 2026-10-20T14:50:00+02:00
 tag: ["notifiche", "autopilota", "telegram", "0.81.0", "PC", "pagina", "app"]
 ---
 
@@ -86,7 +86,7 @@ Commit `14ce35e0` e `33a2a3ce` (correzioni della Revisione), uniti in main con `
   - il «Vai.» dal telefono;
   - la scelta «ESM» con `/api/scegli`, che vuole l'etichetta **senza** il numero: `"ESM (Recommended)"`; «1» dà «la scelta è cambiata».
 
-### Difetto visto nella prova (non corretto qui, da guardare)
+### Difetto visto nella prova (corretto poi da c-241: vedi «Collaudo da main di c-241»)
 **Le consegne in sottofondo non partono.**
 - Nella copia, le 2 chat avviate in sottofondo hanno avuto il testo nel campo, ma l'Invio non lo faceva partire. Il registro dice «Invio non lo fa partire … resta in coda, fermo, finché non si preme Riprova».
 - Sono rimaste ferme 14 minuti, senza nessun avviso a Nicholas. Sono partite subito quando lo schermo è passato su «Prova AP».
@@ -96,7 +96,75 @@ Commit `14ce35e0` e `33a2a3ce` (correzioni della Revisione), uniti in main con `
 ### Trappola
 **Il ramo sparisce dopo l'unione.** A metà prova la cartella di lavoro `ap-f1e631f5-c-17` è stata staccata da git (`.git` sparito, ramo tolto) dopo l'unione in main. Il lavoro era già in main. Per scrivere il rapporto ho ricreato il ramo da main nella cartella `ap-f1e631f5-c-17-quaderno`. In quella vecchia restano `out/`, `note/` (la copia) e la giunzione `node_modules`: si tolgono a mano (prima `cmd /c rmdir node_modules`).
 
+## Collaudo da main di c-241 (20/10 pomeriggio): i numeri con Telegram e il PC contati
+Ramo `ap/ap-f1e631f5/c-241`, partito da main `b17cca1b` (contiene c-17 e c-14). Copia di prova `SIERRADECK_PROVA` in `note/prova-241*`, porte 47700/47701. DevTools 9403 (finestra), 9404 (Edge, la pagina), inspector del main 9405. Il servizio vero (47630/47640) è rimasto in ascolto per tutto il tempo.
+
+**Come si è contato:**
+- **Pagina:** `Notification` finta che registra ogni notifica.
+  - Lo script «a ogni pagina nuova» di CDP muore con la sessione: la finta va messa con `Runtime.evaluate` nella pagina già aperta.
+- **PC:** spia nel main via `--inspect`. `require('electron')` passa dall'API della console (`includeCommandLineAPI`), e da lì si avvolgono `Notification.prototype.show` e `BrowserWindow.prototype.flashFrame`.
+- **Telegram:** `telegram_config.json` con un token finto. Ogni tentativo lascia la sua riga «[notifica] Telegram» o «non recapitato», e non arriva niente a nessuno.
+- **App:** nessun telefono collegato (`adb devices` vuoto). La coprono `AvvisiTest.kt` e `gradle testDebugUnitTest assembleDebug`, che è verde.
+
+### Prima, main senza correzioni (12:21–12:59, 38 min)
+- Le 3 consegne in sottofondo non sono mai partite:
+  - 2 sono rimaste ferme su «Invio non lo fa partire»;
+  - 1 è finita «lenta» dopo 180 s.
+- L'autopilota è restato al lavoro senza fare niente, con **0 notifiche e 0 righe** nel registro. Il guardiano del silenzio avvisa solo dopo 60 min.
+- È il difetto che c-17 aveva visto e non corretto (sopra).
+
+### Con le correzioni (13:03–14:20, 77 min, poi 14:28–14:32)
+- **Lavoro:**
+  - 246 righe `[consegna]`, 71 testi consegnati, 97 giri (64 revisione, 15 prosegui, 14 finito, 3 chiediUtente, 1 correggiCriterio);
+  - 696 stati letti ogni 5 s;
+  - 3 domande vere, a cui ho risposto come Nicholas;
+  - un secondo autopilota da un compito, arrivato a «finito» in 3,5 min.
+- **Notifiche:**
+
+| Lato | Notifiche | Righe nel registro | Note |
+|---|---|---|---|
+| Pagina | 6 domande o scelte + 1 «ha finito» | 7 `[avviso] pagina`, con la causa | 1 scelta ripetuta, poi corretta (vedi sotto) |
+| PC (Windows) | 6 lampeggi del pannello Domande, 0 notifiche di Windows | 3 `[avviso] PC` | doppio lampeggio per domanda, poi corretto |
+| Telegram | 3 domande + 1 finito | 4 righe | ogni domanda parte subito; la pagina ne mostra una per volta |
+| App | — | — | `AvvisiTest.kt` |
+
+- **0 notifiche per consegne, giri o cambi di stato.** Una sola riga `[notifica] nessun avviso … cambia strada da solo`.
+- **Rispetto ai 6→2 di c-11** (26 min, pagina): qui 7 notifiche in 81 minuti, tutte delle tre categorie. Dopo le correzioni sarebbero state 6 (la scelta ripetuta non parte più) e i lampeggi del PC 3.
+
+### Corretto qui (3 commit, Revisione APPROVE, test rossi con il codice vecchio)
+1. **Consegne in sottofondo che non partivano** (`56cd778e`, `src/main/sottofondo.ts`).
+   - **Causa, misurata con un pty a parte:** Claude Code 2.1.304, appena disegnato il campo, tiene da parte quello che si scrive per 6-10 s (di più con il PC carico) e lo mostra dopo.
+   - Il sottofondo, senza eco, dopo 8 s premeva Invio alla cieca. L'Invio arrivava attaccato al testo e diventava un a capo. Il testo sembrava perso e veniva riscritto: due copie nel campo, e nessun Invio lo faceva più partire.
+   - Lo stesso doppione si vede nel primo messaggio di questa chat c-241 sul PC vero.
+   - **Ora:** con il campo ancora vuoto si aspetta fino a 60 s che il testo compaia; oltre, è perso e si riscrive.
+   - Rispondere alle domande del terminale (`ESC[>0q`, `ESC[?u`, `OSC 7501`) **non** cambia niente: provato e scartato.
+2. **Scelta riannunciata** (`56cd778e`).
+   - Le chat in sottofondo non dicevano `sceltaAperta`, che i riquadri dicono.
+   - `statoChat` dopo ~20 s spegneva «chiede», e al segnale dopo la stessa scelta tornava come notifica nuova (11:08 e 11:12).
+3. **Causa per l'annuncio di «Errori arrivati»** su pagina, app e PC (`56cd778e`). Prima nel registro finiva «non detta (versione vecchia)».
+4. **Doppio lampeggio del pannello Domande** (`7da5f59d`).
+   - Il pannello aperto da solo lampeggia aprendosi. Al primo caricamento vede le domande passare da 0 a 1 e chiedeva un altro lampeggio, senza riga.
+   - **Ora:** entro 10 s non lampeggia di nuovo (`richiamoLampeggia`), e il richiamo che lampeggia scrive la sua riga.
+5. **Commit nel repository sbagliato** (`60923ac0`, `salvaLavoro`). Vedi la trappola sotto.
+
+### Trappola: il servizio della copia ha fatto commit nel mio ramo
+- La cartella di lavoro di una chat chiusa (`progetto-prova.sierradeck-wt/ap-…-c-3`) era rimasta senza `.git`, con dentro solo `.sierradeck/`. Stava dentro la mia cartella di lavoro, che era su un ramo `ap/…`.
+- Al «pronto per la revisione», git è risalito fino al mio repository e ha fatto commit due volte delle mie modifiche in corso. La guardia della 0.71.0 guardava solo che il ramo cominciasse con `ap/`.
+- **Ora** la radice git deve essere la cartella stessa.
+- **Finché la copia gira con il codice vecchio:** `git init -b fermo` nelle cartelle senza `.git`, e niente modifiche non salvate nella cartella che contiene la copia.
+
+### Difetti visti e NON corretti qui
+- **Autopilota che non riesce a dirsi finito.**
+  - La Revisione c-7 aspettava il ramo di c-3, che non esisteva più. Dalle 13:41 il supervisore ha detto «finito» 14 volte, e il giro ripartiva in revisione.
+  - L'autopilota ha chiesto a Nicholas di **chiudere a mano** la chat. Va contro la regola «mai chiedere a Nicholas di chiudere chat».
+  - Neanche la risposta «chiudile tu» lo ha sbloccato. Da correggere in `chiudiChat`/attesa della Revisione.
+- **Testi identici consegnati in fila alla stessa chat di Revisione** (c-8, c-11, c-13, c-14… fino a c-58).
+  - Con lo stesso testo, `contaMandati` non vede la riga in più e il testo risulta «perso» dopo l'Invio: 16 volte, e 1 fermo dopo 3 scritture.
+  - Non è una notifica, ma consuma.
+- **Il PC non ha una notifica di Windows per «lavoro finito»** né per una domanda: solo il pannello che lampeggia. Da decidere con Nicholas se aggiungerla.
+
 ## Resta
 - La prova dell'app su un telefono vero, dopo che Nicholas installa. Le righe `[avviso] app del telefono` con la causa dicono se arrivano solo le tre categorie.
-- Il difetto delle consegne in sottofondo che non partono (vedi sopra).
 - Decisione di Nicholas: tenere «aspetta te» dopo 3 min e «computer di nuovo raggiungibile», o spegnerli.
+- Decisione di Nicholas: una notifica di Windows sul PC per «finito» e per le domande, o basta il pannello che lampeggia.
+- L'autopilota che non si chiude con una Revisione su un ramo che non c'è più (sopra).

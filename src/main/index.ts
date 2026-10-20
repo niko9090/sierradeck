@@ -4720,7 +4720,7 @@ if (!app.requestSingleInstanceLock()) {
                 await clientAutopilota.annuncia(id, titolo, testo)
                 // La notifica del PC; pagina e app la mandano dall'id di `annuncio`.
                 try { new Notification({ title: titolo, body: testo.slice(0, 240) }).show() } catch { /* senza notifiche */ }
-                registro.info(`[avviso] PC: annuncio «${titolo}»`)
+                registro.info(`[avviso] PC: annuncio «${titolo}», causa: un riepilogo dell'autopilota ${id} che aspetta te`)
               },
               log: (riga) => registro.info(riga)
             })
@@ -4828,7 +4828,8 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('pannello:aperti', () => pannelliAperti())
       ipcMain.handle('pannello:richiama', (e) => {
         const w = BrowserWindow.fromWebContents(e.sender)
-        if (w !== null) richiamaPannello(w)
+        // Ogni lampeggio con la sua riga (c-241): questo non ne aveva.
+        if (w !== null && richiamaPannello(w)) registro.info('[avviso] PC: la finestra pannello Domande lampeggia, causa: domanda nuova che aspetta te')
       })
       // Le domande di un autopilota (0.39.1): si fa avanti la linguetta
       // «Domande» della sua scheda, non la colonna a destra. Ogni finestra di

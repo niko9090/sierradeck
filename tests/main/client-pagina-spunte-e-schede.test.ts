@@ -131,6 +131,15 @@ describe('0.80.0: pagina, notifiche raggruppate e nel registro', () => {
     ])
   })
 
+  it('il riepilogo di «Errori arrivati» ha la sua causa nel registro, come gli altri (c-241)', () => {
+    const b = banco()
+    b.giro({ autopiloti: [{ id: 'ap-e', nome: 'Errori arrivati', stato: 'lavoro', annuncio: { id: 'n-1', titolo: 'Errori arrivati: il riepilogo' } }] })
+    expect(b.mandate.map((m) => m.titolo)).toEqual(['Errori arrivati: il riepilogo'])
+    expect(b.registro).toEqual([
+      '/api/avviso-mostrato pagina annuncio Errori arrivati: il riepilogo | annuncio n-1 di «Errori arrivati»: un riepilogo che aspetta te'
+    ])
+  })
+
   it('una scelta che va e viene ogni 3 s si annuncia una volta, anche per una chat governata (il permesso lo dai tu)', () => {
     const b = banco()
     for (let i = 0; i < 10; i++) {

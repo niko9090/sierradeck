@@ -5,7 +5,7 @@ import { APP_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
-  chiavePannello, daRiaprire, leggiArchivioPannelli, ricordaPosizione, schermoDi, segnaAperto, sistemaPosizione,
+  chiavePannello, daRiaprire, leggiArchivioPannelli, ricordaPosizione, richiamoLampeggia, schermoDi, segnaAperto, sistemaPosizione,
   type ArchivioPannelli, type LinguettaStaccabile, type SchermoPannello
 } from '@shared/finestra-pannello'
 
@@ -30,6 +30,12 @@ let file = ''
 let preload = ''
 let uscendo = false
 let avvisa: () => void = () => undefined
+/** Quando ha lampeggiato l'ultima volta ogni finestra pannello (c-241). */
+const lampeggi = new Map<number, number>()
+function lampeggia(w: BrowserWindow): void {
+  lampeggi.set(w.id, Date.now())
+  w.flashFrame(true)
+}
 
 /** Questa finestra e' una finestra pannello (non di chat)? */
 export function ePannello(win: BrowserWindow): boolean {
@@ -101,7 +107,7 @@ export function portaAvantiPannello(autopilota: string, linguetta: LinguettaStac
     if (w.isMinimized()) w.restore()
     if (!w.isVisible()) w.showInactive()
     w.moveTop()
-    if (!w.isFocused()) w.flashFrame(true)
+    if (!w.isFocused()) lampeggia(w)
     return true
   }
   return false
@@ -131,7 +137,7 @@ export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile,
       sandbox: false
     }
   })
-  if (opzioni.inattiva === true) win.once('ready-to-show', () => { if (!win.isDestroyed()) { win.showInactive(); win.flashFrame(true) } })
+  if (opzioni.inattiva === true) win.once('ready-to-show', () => { if (!win.isDestroyed()) { win.showInactive(); lampeggia(win) } })
   aperte.set(win.id, { autopilota, linguetta })
   archivio = segnaAperto(archivio, autopilota, linguetta, true)
   salva()
@@ -147,6 +153,7 @@ export function apriPannello(autopilota: string, linguetta: LinguettaStaccabile,
   win.on('closed', () => {
     if (attesa !== undefined) clearTimeout(attesa)
     aperte.delete(win.id)
+    lampeggi.delete(win.id)
     // Chiusa da chi la usa: la linguetta torna al suo posto. Chiusa perche'
     // l'app esce: resta segnata, e al riavvio si riapre.
     if (!uscendo) {
@@ -171,9 +178,10 @@ export function rimettiPannello(autopilota: string, linguetta: LinguettaStaccabi
 }
 
 /** La finestra pannello che ha chiesto, se e' una: per farla lampeggiare a una domanda nuova. */
-export function richiamaPannello(win: BrowserWindow): void {
-  if (!ePannello(win) || win.isFocused()) return
-  win.flashFrame(true)
+export function richiamaPannello(win: BrowserWindow): boolean {
+  if (!ePannello(win) || win.isFocused() || !richiamoLampeggia(lampeggi.get(win.id), Date.now())) return false
+  lampeggia(win)
+  return true
 }
 
 /** Al riavvio: si riaprono le finestre che erano aperte, se l'autopilota esiste ancora. */

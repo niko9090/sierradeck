@@ -284,7 +284,8 @@ object Avvisi {
                             chiave = "n:$annuncio",
                             titolo = a.optJSONObject("annuncio")?.optString("titolo").orEmpty().ifBlank { nome },
                             testo = "Il riepilogo è nella conversazione di «$nome».",
-                            id = idAvviso(ID_AUTOPILOTA, "n:$id")
+                            id = idAvviso(ID_AUTOPILOTA, "n:$id"),
+                            causa = "annuncio $annuncio di «$nome»: un riepilogo che aspetta te"
                         )
                     )
                 }

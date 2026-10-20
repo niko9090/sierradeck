@@ -825,6 +825,7 @@ Misurati come prima, sulle stesse macchine e sugli stessi dati. Dettagli e test 
 | `/api/stato` | 35 KB | 7,8 KB |
 | `stat` per il salvataggio sul Drive (1.234 file) | 20-24 s | 0,4 s |
 | Notifiche della pagina in 26 min con un autopilota al lavoro | 6 (8 riaprendo ogni 5 min) | 2 (1): solo le domande vere |
+| Notifiche 0.81.0 in 81 min di autopilota (c-241: pagina, PC, Telegram; app con `AvvisiTest.kt`) | prima: consegne in sottofondo mai partite, 0 notifiche anche col lavoro fermo; pagina 7, PC 6 lampeggi con 3 righe | pagina 6, PC 3 lampeggi, Telegram 4: solo domande e «finito», ognuna con la sua riga; 0 per consegne, giri e cambi di stato (i due doppioni tolti sono provati dai test, non da una seconda prova lunga) |
 | Cambi di workspace sullo schermo per 15 consegne di un autopilota | la finestra lo seguiva | 0 |
 
 ## Notifiche 0.81.0, la prova nella copia (20/10, c-17)
