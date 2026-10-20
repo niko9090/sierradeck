@@ -3,6 +3,13 @@ import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { ordinaIndirizzi, trovaChatRemota, eIndirizzoTailscale, descriviIndirizzo } from '../../src/shared/pc-remoto'
 import type { BattitoPc } from '../../src/shared/posta'
 import { provaCasa } from '../../src/main/casa-firma'
+// In cima, non dentro il test: trasformare `client-server` a freddo col PC
+// carico costava da solo quasi tutti i 20 s del test (20/10).
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { creaServerClient } from '../../src/main/client-server'
+import { apriDispositivi } from '../../src/main/dispositivi'
 
 /**
  * Nicholas (2026-09-22): «possiamo lavorare su chat di altri pc come se
@@ -188,11 +195,6 @@ describe('bussare a un altro PC', () => {
 
 describe('i due lati insieme: il Client vero di un PC e il client remoto dell’altro', () => {
   it('con la chiave di casa si entra e si legge lo stato; con un’altra chiave e’ «chiave»', async () => {
-    const { creaServerClient } = await import('../../src/main/client-server')
-    const { apriDispositivi } = await import('../../src/main/dispositivi')
-    const { mkdtempSync } = await import('node:fs')
-    const { tmpdir } = await import('node:os')
-    const { join } = await import('node:path')
     const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-remoto-')))
     const server = creaServerClient({
       dispositivi,
