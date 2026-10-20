@@ -12,7 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
-import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, motivoSilenzio } from './guardiano'
+import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
@@ -333,6 +333,10 @@ export function conservaCambiUtente(
     riprendiAlRiavvio: fresco.riprendiAlRiavvio,
     tettoChat: fresco.tettoChat,
     limiti: fresco.limiti,
+    // Le chat messe da parte (0.80.1) le scrive il guardiano ogni 30 s, anche
+    // mentre questo turno dura minuti: si prendono dal disco, togliendo solo
+    // la chat di questo turno, che ha appena chiuso e quindi è viva.
+    daParte: tornaDaParte(fresco, chatId ?? calcolato.id).daParte,
     // **Il conto dei giri viene dal disco, non dal calcolo.** `suStop` lo
     // incrementa e lo scrive subito, in un giro sincrono: quando arriva qui,
     // il suo `+1` è già dentro `fresco`, insieme a quello di ogni chat sorella
@@ -1133,10 +1137,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // sempre con il pannello che diceva «al lavoro».
       const mute = chiTace(a, ultimoSegnale, ora, limite)
       if (mute.length === 0) continue
-      const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
-      salva(sospeso)
-      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
-      avvisaFermo(sospeso)
+      // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
+      // 19/10). Si mette da parte solo lei, le altre continuano, e nella
+      // conversazione resta una riga per Nicholas.
+      const daParte = messaDaParte(a, mute)
+      for (const m of mute) annota(daParte, `messa da parte: ${motivoSilenzio([m])}`, { chat: m.chatId ?? a.id, esito: 'da-parte' })
+      salva(daParte)
+      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)} Messa da parte, l'autopilota resta al lavoro.`)
     }
   }
 
@@ -2075,7 +2082,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             : c
         )
     const conSessione: Autopilota = {
-      ...a,
+      ...tornaDaParte(a, chiaveChat),
       chats,
       ...(sessionId !== undefined && chatId === undefined ? { sessionId } : {}),
       // 0.73.0: l'ultima cosa detta, per la scheda (accanto al ruolo).
@@ -2309,9 +2316,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         '- `quaderno` {"titolo", "corpo"}: una scheda nel quaderno del progetto (una decisione, una trappola, un errore risolto).',
         'Il programma rifiuta: chat e autopiloti non tuoi, «Porta qui», l’account, le preferenze, i file fuori dalle tue cartelle.'
       ].join('\n')
-      const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
+      let { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
         aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness
       )
+      // 0.80.1: un supervisore che non risponde (guasto, tempo scaduto, testo
+      // illeggibile) si riprova una volta subito, prima di lasciar decidere le
+      // regole. Le regole poi rifanno il giro: non si sospende più per questo.
+      if (suggerita === undefined) {
+        console.warn(`[autopilota] ${id} — il supervisore non ha risposto: riprovo una volta`)
+        const ancora = await chiediDecisione(
+          aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneNuova ?? sessioneDiPartenza, tuoiNelQuadro, harness
+        )
+        suggerita = ancora.decisione
+        if (ancora.sessionId !== undefined) sessioneNuova = ancora.sessionId
+      }
       mosseChieste = suggerita?.mosse
       misura.crono.segna('supervisore')
       if (sessioneNuova !== undefined) {
@@ -2415,6 +2433,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    aggiornato.daParte = conCambiUtente.daParte
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo
     aggiornato.daConsegnare = conCambiUtente.daConsegnare

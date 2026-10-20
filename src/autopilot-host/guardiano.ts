@@ -124,7 +124,10 @@ export function chiTace(
    */
   const quando = (chiave: string): number => quandoHaParlato(chiave) ?? ripiego
 
+  // 0.80.1: chi è già messo da parte non si conta una seconda volta.
+  const daParte = new Set(a.daParte ?? [])
   if (a.chats.length === 0) {
+    if (daParte.has(a.id)) return []
     const da = ora - quando(chiaveTurno(a.id))
     return da > limite ? [{ da }] : []
   }
@@ -142,6 +145,7 @@ export function chiTace(
     // e dargli pure la colpa: «una chat non dà segnali» mentre era lei ad
     // aspettare.
     if (chat.stato === 'finita' || chat.stato === 'bloccata' || chat.stato === 'pausa') continue
+    if (daParte.has(chat.id)) continue
     /**
      * Il ripiego a due passi: prima il turno di **questa** chat, poi quello
      * dell'autopilota. Il secondo serve alle flotte nate prima di questa
@@ -181,4 +185,23 @@ export function motivoSilenzio(mute: ChatMuta[]): string {
     `${mute.length === 1 ? 'una chat non dà segnali' : `${mute.length} chat non danno segnali`}: ` +
     `${elenco}.${coda}`
   )
+}
+
+/**
+ * Mette da parte le chat che tacciono (0.80.1), senza toccare lo stato
+ * dell'autopilota: la chiave è l'id della chat, o l'id dell'autopilota per la
+ * chat singola.
+ */
+export function messaDaParte(a: Autopilota, mute: ChatMuta[]): Autopilota {
+  const chiavi = new Set(a.daParte ?? [])
+  for (const m of mute) chiavi.add(m.chatId ?? a.id)
+  return { ...a, daParte: [...chiavi] }
+}
+
+/** La chat ha chiuso un turno: è viva, torna nel conto del guardiano. */
+export function tornaDaParte(a: Autopilota, chiave: string): Autopilota {
+  if (a.daParte === undefined || !a.daParte.includes(chiave)) return a
+  const resto = a.daParte.filter((k) => k !== chiave)
+  const { daParte: _via, ...senza } = a
+  return resto.length > 0 ? { ...senza, daParte: resto } : senza
 }
