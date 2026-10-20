@@ -12,6 +12,8 @@ type Props = {
   onCambia: (nome: string) => void
   /** «Crea, rinomina o elimina…»: apre il pannello dei workspace. */
   onGestisci: () => void
+  /** «Apri cartella» (0.82.0): la cartella del progetto del workspace in Esplora file. */
+  onApriCartella?: (nome: string) => void
 }
 
 /**
@@ -29,7 +31,7 @@ type Props = {
  * qualunque cosa esca dal suo rettangolo viene tagliata. Nella 0.27.0 la
  * tendina era figlia della fascia e si vedeva solo la prima riga.
  */
-export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCambia, onGestisci }: Props): React.JSX.Element {
+export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCambia, onGestisci, onApriCartella }: Props): React.JSX.Element {
   const [filtro, setFiltro] = useState('')
   const [evidenziato, setEvidenziato] = useState(0)
   const [conti, setConti] = useState<Map<string, number>>(new Map())
@@ -191,6 +193,10 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
         ) : null}
         <div className="ws-menu__piede">
           <span className="ws-menu__aiuto">↑↓ e Invio, oppure scrivi il nome</span>
+          {onApriCartella !== undefined ? (
+            <button className="tasto" tabIndex={-1} title={`Apri la cartella del progetto di «${attivo}» in Esplora file`}
+              onClick={() => { onAperto(false); onApriCartella(attivo) }}>📁 Apri cartella</button>
+          ) : null}
           <button className="tasto" tabIndex={-1} onClick={() => { onAperto(false); onGestisci() }}>Crea, rinomina o elimina…</button>
         </div>
       </div>

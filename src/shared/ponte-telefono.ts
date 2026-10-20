@@ -26,7 +26,7 @@ export const ROTTE_PONTE: readonly string[] = [
   // I file dal telefono (0.50.0): viaggiano a pezzi fino a quel PC, e si salvano nel progetto della chat là.
   '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla',
   // La sezione File (0.54.0): sfogliare i progetti di quel PC, in sola lettura, e ritirare i file che quel PC manda al telefono.
-  '/api/file/progetti', '/api/file/elenco', '/api/file/leggi',
+  '/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/file/cartella',
   '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
   // Gestire quel PC dal telefono (0.55.0), come dal PC che hai davanti: i
   // workspace, chiudere/togliere/rinominare una chat, la cartella per una chat

@@ -715,7 +715,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // l'app diceva «scaduto» mentre il PC creava il workspace, e chi
             // riprovava ne faceva due. Un test le tiene allineate.
             "/api/trasloco/salva", "/api/trasloco/togli", "/api/trasloco/ripristina", "/api/trasloco/avvia", "/api/trasloco/annulla",
-            "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco"
+            "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco", "/api/file/cartella"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

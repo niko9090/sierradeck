@@ -102,6 +102,7 @@ import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInR
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { creaTrasloco, type TraslocoApi } from './trasloco'
+import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
@@ -585,6 +586,8 @@ let ultimaRiparazione: (EsitoAvvio & { quando: string }) | undefined
 let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Promise<string | undefined>) | undefined
 /** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
+/** «Apri cartella» (0.82.0): dove sta la cartella del progetto di un workspace o di una chat. */
+let cartellaDaAprireGlobale: ((q: { workspace?: string; chat?: string }) => Promise<DoveCartella>) | undefined
 let traslocoGlobale: TraslocoApi | undefined
 /** «Elimina workspace» (0.81.0): perché no, e la cartella vuota che va nel recupero con lui. */
 let primaDiEliminareGlobale: PrimaDiEliminare | undefined
@@ -2881,6 +2884,48 @@ if (!app.requestSingleInstanceLock()) {
         return { ok: true, messaggio: `«${nome}» aperto: ${ws.panes.length} chat dal vivo su ${pcNome}.` }
       })
       // «Su altri PC» (0.65.1): i workspace dei battiti degli altri PC che qui non ci sono.
+      /**
+       * «Apri cartella» (0.82.0). Il percorso viene dai dati del workspace: il
+       * progetto registrato (senza crearlo: guardare non crea niente), poi le
+       * chat del workspace su questo PC. Una chat che guarda un altro PC ha la
+       * cartella là: qui si dice dove, non si apre una cartella che non c'è.
+       */
+      cartellaDaAprireGlobale = async (q) => {
+        const io = identitaPc.leggi()
+        const vietate = { casa: homedir(), documenti: app.getPath('documents') }
+        const riquadro = (p: PaneSalvato): RiquadroCartella =>
+          p.remoto === undefined || p.remoto.pcId === io.id ? { cwd: p.remoto?.cwd ?? p.cwd } : { cwd: p.remoto.cwd, remoto: { pcNome: p.remoto.pcNome } }
+        const salvati = workspaceStore?.leggi().workspace ?? []
+        if (q.chat !== undefined) {
+          const aperta = chatAperte.find((c) => c.id === q.chat)
+          const salvato = salvati.flatMap((w) => Object.values(w.perSlot).flatMap((l) => l.panes)).find((p) => p.id === q.chat)
+          return cartellaDiUnaChat(salvato?.remoto !== undefined ? riquadro(salvato) : aperta !== undefined ? { cwd: aperta.cwd } : salvato !== undefined ? riquadro(salvato) : undefined, existsSync)
+        }
+        const nome = q.workspace ?? ''
+        const w = salvati.find((x) => x.nome === nome)
+        if (w === undefined && !chatAperte.some((c) => c.workspace === nome)) return { tipo: 'niente', perche: `il workspace «${nome}» non c’è su questo PC` }
+        return cartellaDiUnWorkspace({
+          progetto: await progettoPerWorkspaceGlobale?.(nome, { crea: false }).catch(() => undefined),
+          // Prima le chat aperte adesso (le vere), poi i riquadri salvati.
+          riquadri: [
+            ...chatAperte.filter((c) => c.workspace === nome).map((c) => ({ cwd: c.cwd })),
+            ...(w === undefined ? [] : Object.values(w.perSlot).flatMap((l) => l.panes).map(riquadro))
+          ],
+          vietata: (c) => cartellaVietataPerChat(c, vietate),
+          esiste: existsSync
+        })
+      }
+      ipcMain.handle('cartella:apri', async (_e, raw: unknown) => {
+        const o = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
+        const q = typeof o.chat === 'string' ? { chat: o.chat } : typeof o.workspace === 'string' ? { workspace: o.workspace } : undefined
+        if (q === undefined) throw new Error('richiesta IPC non valida: manca il workspace o la chat')
+        const dove = await (cartellaDaAprireGlobale ?? (async () => ({ tipo: 'niente' as const, perche: 'non pronto' })))(q)
+        if (dove.tipo !== 'qui') return { ok: false, messaggio: testoCartellaNonQui(dove) }
+        // `openPath` non solleva: torna il motivo se non è andata.
+        const guaio = await shell.openPath(dove.cartella)
+        if (guaio !== '') { registro.info(`[cartella] ${dove.cartella} non si apre: ${guaio}`); return { ok: false, messaggio: `Windows non apre ${dove.cartella}: ${guaio}` } }
+        return { ok: true, messaggio: dove.cartella }
+      })
       ipcMain.handle('workspace:altriPc', () => suAltriPc(
         workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [],
         postino.altrui().map((b) => ({ pc: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) }))
