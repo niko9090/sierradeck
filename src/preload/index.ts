@@ -722,6 +722,12 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Un passo da ricordare nel registro (le consegne dell'autopilota). */
     info: (messaggio: string): Promise<void> => ipcRenderer.invoke('log:info', messaggio)
   },
+  /** Lo storico degli errori di questo PC (0.81.0), con il testo di «Copia». */
+  errori: {
+    storico: (): Promise<{ voci: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),
+    /** Manda lo storico al PC di sviluppo scelto nelle Impostazioni. */
+    manda: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('errori:manda')
+  },
   /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
   /**
    * I trasferimenti: le destinazioni di un progetto e le sessioni SFTP.

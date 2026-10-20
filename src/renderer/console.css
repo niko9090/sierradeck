@@ -2588,6 +2588,13 @@ select.comando-riquadro option {
   color: var(--testo-quieto);
 }
 
+/* Lo storico degli errori (0.81.0): una riga per errore, l'ora a sinistra. */
+.errori { display: flex; flex-direction: column; gap: var(--s2); }
+.errori__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.errori__voce { display: flex; gap: var(--s2); font-size: var(--t1); line-height: 1.4; }
+.errori__quando { flex: none; color: var(--testo-quieto); font-variant-numeric: tabular-nums; }
+.errori__messaggio { min-width: 0; overflow-wrap: anywhere; }
+
 .accenti { display: flex; align-items: center; gap: var(--s2); }
 .accento {
   width: 22px;

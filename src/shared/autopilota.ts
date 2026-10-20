@@ -87,6 +87,14 @@ export type Modifica = {
 /** Oltre queste, le più vecchie si dimenticano: il file non deve crescere per sempre. */
 export const MODIFICHE_RICORDATE = 10
 
+function parseAnnuncio(x: unknown): { id: string; titolo: string; quando: string } | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  return typeof o.id === 'string' && o.id !== '' && typeof o.titolo === 'string' && typeof o.quando === 'string'
+    ? { id: o.id, titolo: o.titolo, quando: o.quando }
+    : undefined
+}
+
 /**
  * Una battuta del dialogo fra chi ha affidato il lavoro e l'autopilota.
  *
@@ -302,6 +310,12 @@ export type Autopilota = {
    * lo toglie dall'archivio.
    */
   archiviato?: boolean
+  /**
+   * L'ultimo annuncio del programma a Nicholas (0.81.0, «Errori arrivati»: il
+   * riepilogo prima delle correzioni). Il testo sta nel dialogo; qui l'id, con
+   * cui PC, pagina e app mandano **una** notifica sola.
+   */
+  annuncio?: { id: string; titolo: string; quando: string }
   limiti: Limiti
   /**
    * Se riprendere **questo** autopilota quando il servizio torna su.
@@ -867,6 +881,7 @@ export function parseAutopilota(raw: unknown): {
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
       ...(stringaNonVuota(o.fermatoIl) !== undefined ? { fermatoIl: o.fermatoIl as string } : {}),
       ...(o.archiviato === true ? { archiviato: true } : {}),
+      ...(parseAnnuncio(o.annuncio) !== undefined ? { annuncio: parseAnnuncio(o.annuncio) as { id: string; titolo: string; quando: string } } : {}),
       intervista: Array.isArray(o.intervista)
         ? o.intervista.flatMap((s) => {
             if (typeof s !== 'object' || s === null) return []
@@ -984,6 +999,19 @@ export function portaAutopilotiDa(ambiente: Record<string, string | undefined>):
 /** Fermo vuol dire sospeso o fallito: aspetta te, non lavora. */
 export function eFermo(a: Pick<Autopilota, 'stato'>): boolean {
   return a.stato === 'sospeso' || a.stato === 'fallito'
+}
+
+/**
+ * Un fermo che riparte da solo (0.81.0): la pausa per i limiti del piano
+ * (`pausaLimitiFinoA`) o per un aggiornamento. Non aspetta Nicholas, quindi
+ * non vale una notifica (Telegram, pagina, app); si vede lo stesso nella
+ * banda e negli elenchi. Le notifiche restano per ciò che aspetta lui: una
+ * domanda, un lavoro finito, un errore che blocca.
+ */
+export function riparteDaSolo(a: Pick<Autopilota, 'stato' | 'pausaLimitiFinoA' | 'fermatoPerAggiornamento'>): boolean {
+  // Solo un «sospeso» riparte da solo: un «fallito» con una pausa rimasta
+  // addosso non riparte mai, e deve avvisare (la revisione).
+  return a.stato === 'sospeso' && (a.pausaLimitiFinoA !== undefined || a.fermatoPerAggiornamento === true)
 }
 
 /**

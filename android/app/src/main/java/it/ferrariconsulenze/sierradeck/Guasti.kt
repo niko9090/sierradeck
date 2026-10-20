@@ -35,6 +35,8 @@ object Guasti {
                 File(contesto.filesDir, FILE).writeText(
                     "${errore.javaClass.simpleName}: ${errore.message}\n\n$testo"
                 )
+                // Anche nella coda verso lo storico degli errori del PC (app 2.81.0).
+                ErroriApp.annota(contesto, "${errore.javaClass.simpleName}: ${errore.message}\n$testo", "l’app si è chiusa")
             } catch (e: Exception) {
                 // Se non si riesce nemmeno a scrivere il guasto, non c'è altro
                 // da fare: si lascia il campo a chi c'era prima di noi.

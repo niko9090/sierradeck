@@ -173,3 +173,11 @@ describe('conservaCambiUtente — le chat messe da parte (0.80.1)', () => {
     expect(conservaCambiUtente(letto, fresco, 'c-1', letto.decisioni.length).daParte).toBeUndefined()
   })
 })
+
+describe('0.81.0: l’annuncio a Nicholas non sparisce con la fotografia di inizio turno', () => {
+  it('il riepilogo di «Errori arrivati» annunciato durante il turno resta (prova del 20/10)', () => {
+    const letto = base()
+    const adesso: Autopilota = { ...letto, annuncio: { id: 'n-1', titolo: 'Errori arrivati: il riepilogo', quando: '2026-08-27T10:06:00.000Z' } }
+    expect(conservaCambiUtente({ ...letto, cicli: 6 }, adesso, 'c-1', letto.decisioni.length).annuncio).toEqual(adesso.annuncio)
+  })
+})

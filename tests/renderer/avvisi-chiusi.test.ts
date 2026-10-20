@@ -134,6 +134,16 @@ describe('le notifiche della pagina per un autopilota fermo', () => {
     expect(g.mandate).toHaveLength(2)
   })
 
+  it('0.81.0: un fermo che riparte da solo tace; se poi resta fermo davvero (stessa chiave) si annuncia', () => {
+    const g = giro()
+    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti', { riparteDaSolo: true })] })
+    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti', { riparteDaSolo: true })] })
+    expect(g.mandate).toEqual([])
+    // La ripartenza non è riuscita: il PC toglie la pausa, il fermo è vero.
+    g({ autopiloti: [fermo('ap-1|sospeso|t1|limiti')] })
+    expect(g.mandate).toEqual(['Lavoro si è fermato'])
+  })
+
   it('un archiviato non manda notifiche', () => {
     const g = giro()
     g({ autopiloti: [fermo('ap-1|sospeso|t1|m', { archiviato: true })] })

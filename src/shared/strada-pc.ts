@@ -254,6 +254,8 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/sottofondo/avvia', '/api/sottofondo/stato',
   // Gli autopiloti di quel PC (0.59.0): rispondere alle loro domande.
   '/api/rispondi',
+  // Lo storico degli errori verso il PC di sviluppo (0.81.0), anche da reti diverse.
+  '/api/errori/arrivati',
   // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
   '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica',
   // Il trasloco di un progetto (0.65.0): «Sposta progetto» e «Rendi residente», anche fra reti diverse.

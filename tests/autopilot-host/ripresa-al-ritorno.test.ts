@@ -91,7 +91,8 @@ describe('quando il Gestore torna su', () => {
     expect(stato).toBe(200)
     expect(dati.ripresi).toBe(1)
     expect(ripartite).toEqual([{ id: 'ap-notte' }])
-    expect(avvisi).toContain('ripreso')
+    // 0.81.0: ripreso dopo un riavvio non chiede niente a Nicholas: nessun avviso.
+    expect(avvisi).not.toContain('ripreso')
   })
 
   it('non tocca chi era stato fermato da qualcuno', async () => {

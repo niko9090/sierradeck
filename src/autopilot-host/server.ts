@@ -50,7 +50,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -126,6 +126,8 @@ export type Dipendenze = {
   silenzioMassimoMs?: number
   /** Avvisa l'utente dove non è davanti allo schermo. Non deve mai sollevare. */
   avvisa: (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>
+  /** Prima di uscire per un aggiornamento: gli avvisi Telegram in attesa partono (0.81.0). */
+  primaDiSpegnere?: () => Promise<void>
   /** Il momento attuale in ISO. Iniettato perché i test non aspettino sei ore. */
   adesso: () => string
   /**
@@ -366,7 +368,11 @@ export function conservaCambiUtente(
     // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
     // 16/10: la fotografia di inizio turno li cancellava.
     ...(fresco.adottate !== undefined ? { adottate: fresco.adottate } : {}),
-    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {})
+    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {}),
+    // L'annuncio a Nicholas (0.81.0): lo scrive la rotta `/annuncio` mentre il
+    // turno lavora. Visto nella prova del 20/10: la fotografia di inizio turno
+    // lo cancellava, il testo restava nel dialogo ma pagina e app perdevano la notifica.
+    ...(fresco.annuncio !== undefined ? { annuncio: fresco.annuncio } : {})
   }
 }
 
@@ -534,6 +540,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const segniDal = deps.adesso()
   // L'ultimo salvato di ogni autopilota, per non rileggere il file a ogni giro.
   const salvati = new Map<string, Autopilota>()
+  // Un fermo avvisa solo se aspetta Nicholas (0.81.0): la pausa per i limiti del
+  // piano o per un aggiornamento riparte da sola, e resta solo nel registro.
+  const avvisaFermo = (a: Autopilota): void => {
+    if (riparteDaSolo(a)) { console.info(`[notifica] nessun avviso per ${a.id}: si è fermato ma riparte da solo (${a.motivoSospensione ?? 'pausa'})`); return }
+    void deps.avvisa('sospeso', a)
+  }
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
@@ -983,7 +995,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         motivoSospensione: `la preparazione si e guastata: ${motivo}`.slice(0, MOTIVO_MAX)
       }
       salva(sospeso)
-      void deps.avvisa('sospeso', sospeso)
+      avvisaFermo(sospeso)
     }
   }
 
@@ -1026,7 +1038,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(ripreso, `riparto: ${freno.motivo}`)
         salva(ripreso)
         void (ripreso.chats.length === 0 && ripreso.cicli === 0 ? avviaAutopilota({ ...ripreso, stato: 'lavoro', motivoSospensione: undefined }) : riprendiAutopilota(ripreso))
-          .catch((err: unknown) => { console.error(`[autopilota] ripartenza dopo il freno di ${a.id} fallita:`, err) })
+          .catch((err: unknown) => {
+            console.error(`[autopilota] ripartenza dopo il freno di ${a.id} fallita:`, err)
+            // Non riparte più da solo (la pausa è tolta): adesso aspetta Nicholas (0.81.0).
+            // La ripartenza salva «al lavoro» prima di avviare la chat: chi fallisce
+            // resta lì senza chat, quindi l'avviso parte anche se non risulta fermo.
+            const dopo = deps.archivio.leggi(a.id)
+            if (dopo === undefined || riparteDaSolo(dopo)) return
+            const motivo = `non è ripartito dopo la pausa per i limiti: ${err instanceof Error ? err.message : String(err)}`
+            avvisaFermo(eFermo(dopo) ? dopo : { ...dopo, motivoSospensione: motivo })
+          })
         continue
       }
       if (a.stato !== 'lavoro' || freno.livello === 'fermo' || inLavorazione.has(a.id)) continue
@@ -1249,7 +1270,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           console.error(`[autopilota] ripresa di ${a.id} fallita:`, err)
         })
       }
-      void deps.avvisa('ripreso', a)
+      // «Ripreso dopo un riavvio» non chiede niente a Nicholas (0.81.0): solo nel registro.
+      console.info(`[notifica] nessun avviso per ${a.id}: ripreso dopo un riavvio, non aspetta te`)
     }
     return daRiavviare.length
   }
@@ -1330,12 +1352,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (esito === undefined) {
         // Non aver capito la propria intervista è un guasto dell'autopilota,
         // non dell'utente: si ferma e lo dice, invece di partire a caso.
-        salva({
-          ...corrente,
-          stato: 'sospeso',
-          motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile'
-        })
-        void deps.avvisa('sospeso', corrente)
+        const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: 'la preparazione non ha prodotto una configurazione leggibile' }
+        salva(sospesoOra)
+        avvisaFermo(sospesoOra)
         return
       }
 
@@ -1363,12 +1382,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         // Nemmeno così ne è uscita una configurazione: meglio fermarsi e dirlo
         // che continuare a chiedere.
-        salva({
-          ...corrente,
-          stato: 'sospeso',
-          motivoSospensione: 'la preparazione continuava a rifare la stessa domanda'
-        })
-        void deps.avvisa('sospeso', corrente)
+        const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: 'la preparazione continuava a rifare la stessa domanda' }
+        salva(sospesoOra)
+        avvisaFermo(sospesoOra)
         return
       }
 
@@ -1417,12 +1433,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
     // Sei giri senza arrivare a una configurazione: continuare sarebbe un
     // interrogatorio, e l'utente sta delegando proprio per non subirlo.
-    salva({
-      ...corrente,
-      stato: 'sospeso',
-      motivoSospensione: `dopo ${SCAMBI_MAX} domande non ho una configurazione: riprova con un obiettivo più preciso`
-    })
-    void deps.avvisa('sospeso', corrente)
+    const sospesoOra: Autopilota = { ...corrente, stato: 'sospeso', motivoSospensione: `dopo ${SCAMBI_MAX} domande non ho una configurazione: riprova con un obiettivo più preciso` }
+    salva(sospesoOra)
+    avvisaFermo(sospesoOra)
   }
 
   /**
@@ -1499,7 +1512,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         pausaLimitiFinoA: new Date(freno.riparteIl ?? Date.parse(deps.adesso()) + 30 * 60_000).toISOString()
       }
       salva(inPausa)
-      void deps.avvisa('sospeso', inPausa)
+      avvisaFermo(inPausa)
       return
     }
     // Senza git non ci sono cartelle separate: una chat sola, come prima. Con
@@ -2192,7 +2205,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       } else {
         const inPausa: Autopilota = { ...conSessione, stato: 'sospeso', motivoSospensione: freno.motivo, pausaLimitiFinoA: finoA }
         salva(inPausa)
-        void deps.avvisa('sospeso', inPausa)
+        avvisaFermo(inPausa)
       }
       return {}
     }
@@ -2819,9 +2832,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (chiesto !== undefined) deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: chiesto, risposta: decisione.istruzioni.split('\n\nObiettivo:')[0] ?? decisione.istruzioni })
       if (decisione.strategia !== undefined) {
         console.warn(`[autopilota] ${id} in difficolta, provo: ${decisione.strategia}`)
-        // Una volta sola, all'ingresso nel recupero: un messaggio per ogni
-        // strategia sarebbe la raffica di notifiche che nessuno vuole.
-        if (decisione.strategia === STRATEGIE[0].nome) void deps.avvisa('stallo', inCerchio)
+        // Nessun avviso (0.81.0): cambia strada da solo e continua, non aspetta
+        // Nicholas e non è un errore che blocca. Se poi si ferma, avvisa il fermo.
+        if (decisione.strategia === STRATEGIE[0].nome) console.info(`[notifica] nessun avviso per ${id}: in difficoltà, cambia strada da solo (${decisione.strategia})`)
       }
       return { decision: 'block', reason: conPreambolo(presi.testi, decisione.istruzioni) }
     }
@@ -3190,7 +3203,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           console.info('[autopilota] mi spengo: il Gestore ha una versione più nuova')
           // Dopo la risposta, non prima: chi ha chiesto deve sapere che è
           // stata accolta, altrimenti aspetta un servizio che è già morto.
-          setTimeout(() => process.exit(0), 150)
+          // Gli avvisi raccolti negli ultimi 20 s partono prima, ma al massimo 3 s (0.81.0).
+          setTimeout(() => {
+            const tetto = new Promise<void>((ris) => { setTimeout(ris, 3000).unref?.() })
+            void Promise.race([(deps.primaDiSpegnere?.() ?? Promise.resolve()).catch(() => undefined), tetto]).finally(() => process.exit(0))
+          }, 150)
           return
         }
 
@@ -3470,6 +3487,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             salva(dopo)
           }
           rispondi(res, 200, { tolti: scritti.length })
+          return
+        }
+
+        // Un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»): il
+        // testo nella conversazione dell'autopilota, come una sua battuta, e
+        // l'id nuovo in `annuncio`, con cui PC, pagina e app mandano una
+        // notifica sola. Non è una battuta da elaborare: niente supervisore.
+        const annuncio = /^\/autopiloti\/([^/]+)\/annuncio$/.exec(percorso)
+        if (metodo === 'POST' && annuncio !== null) {
+          const id = decodeURIComponent(annuncio[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim().slice(0, 4000) : ''
+          const titolo = typeof corpo?.titolo === 'string' && corpo.titolo.trim() !== '' ? corpo.titolo.trim().slice(0, 120) : a.nome
+          if (testo === '') {
+            rispondi(res, 400, { errore: 'serve il testo' })
+            return
+          }
+          const quando = deps.adesso()
+          salva({
+            ...a,
+            dialogo: [...a.dialogo, { quando, da: 'lui' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO),
+            annuncio: { id: randomUUID(), titolo, quando }
+          })
+          rispondi(res, 200, { fatto: true })
           return
         }
 

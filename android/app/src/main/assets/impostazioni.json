@@ -403,6 +403,26 @@
       ]
     },
     {
+      "id": "errori",
+      "sezione": "info",
+      "titolo": "Errori",
+      "spiega": "Gli errori del computer, del servizio degli autopiloti, della pagina e dell’app, con quando, dove, cosa si stava facendo e il punto del codice. Gli stessi errori ripetuti sono una riga sola. «Copia» li mette in un testo da incollare a una chat, «Manda al PC di sviluppo» li porta al PC scelto; password e chiavi non ci sono mai.",
+      "parole": [
+        "errore",
+        "storico",
+        "problemi",
+        "guasti",
+        "copia",
+        "manda",
+        "pc di sviluppo"
+      ],
+      "dove": [
+        "pc",
+        "app",
+        "pagina"
+      ]
+    },
+    {
       "id": "copia-dettagli",
       "sezione": "info",
       "titolo": "Copia i dettagli",
@@ -457,6 +477,7 @@
         "stile",
         "scorciatoie",
         "registro",
+        "errori",
         "copia-dettagli"
       ]
     },
@@ -476,6 +497,7 @@
         "stile",
         "controllo-continuo",
         "notifiche-android",
+        "errori",
         "copia-dettagli"
       ]
     },
@@ -489,6 +511,7 @@
         "quaderno-personale",
         "account-google",
         "notifiche-pagina",
+        "errori",
         "copia-dettagli",
         "scollega"
       ]
@@ -586,21 +609,24 @@
       "dove": "pc",
       "trovate": [
         "porte",
-        "account-google"
+        "account-google",
+        "errori"
       ]
     },
     {
       "q": "porta",
       "dove": "app",
       "trovate": [
-        "account-google"
+        "account-google",
+        "errori"
       ]
     },
     {
       "q": "porta",
       "dove": "pagina",
       "trovate": [
-        "account-google"
+        "account-google",
+        "errori"
       ]
     },
     {

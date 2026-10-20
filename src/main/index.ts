@@ -28,7 +28,7 @@ import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeIm
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
-import { cpus, homedir, hostname } from 'node:os'
+import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -207,6 +207,10 @@ import {
 } from './negozio/scope'
 import { apriRegistro, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
+import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
+import { testoDaCopiare, type InvioErrori } from '@shared/storico-errori'
+import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
+import { giroErroriArrivati } from './errori-arrivati-lavoro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -227,6 +231,18 @@ import { apriDettatura, statoDettatura } from './dettatura'
  * Client (`/api/stato`, `/api/pc`) che nasce in un altro punto dell'avvio.
  */
 let identitaPcGlobale: IdentitaPcStore | undefined
+/** Lo storico degli errori di questo processo (0.81.0): per la voce «Errori» delle Impostazioni. */
+let storicoErroriGlobale: StoricoSuFile | undefined
+/** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
+/** «Manda al PC di sviluppo», per le Impostazioni del PC e per il telefono (0.81.0). */
+let mandaErroriGlobale: (() => Promise<{ ok: boolean; messaggio: string }>) | undefined
+/** Il nome del PC di sviluppo scelto, per la voce «Errori» del telefono. */
+let nomePcSviluppoGlobale: (() => string | undefined) | undefined
+/** La riga di «Errori arrivati» (0.81.0) per le Impostazioni di PC, pagina e app; e il giro da chiamare dopo un arrivo. */
+let rigaArriviGlobale: string | undefined
+let giroArriviGlobale: (() => void) | undefined
+let radiceSierraDeckGlobale: (() => string | undefined) | undefined
+let riceviErroriGlobale: ((invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
   if (identitaPcGlobale === undefined) throw new Error('identità del PC non ancora pronta')
@@ -1153,6 +1169,12 @@ if (cartellaProva !== undefined && cartellaProva !== '') {
 // Windows tiene separati la finestra e il collegamento fissato.
 if (process.platform === 'win32') app.setAppUserModelId(APP_ID)
 
+// Più di dieci `before-quit` sono voluti (ognuno chiude la sua parte): senza
+// questa riga Node scriveva a ogni avvio «MaxListenersExceededWarning», che
+// finiva nello storico degli errori come un guasto (visto nella prova della
+// 0.81.0) e sarebbe partito come «Errori arrivati».
+app.setMaxListeners(30)
+
 if (!app.requestSingleInstanceLock()) {
   app.exit(0)
 } else {
@@ -1186,7 +1208,20 @@ if (!app.requestSingleInstanceLock()) {
       const dati = cartellaDati(app.getPath('appData'), APP_DATA_DIR_PRECEDENTE, APP_DATA_DIR_NAME)
       // Il registro della sessione: prima riga = versione e ambiente, così un
       // log allegato dice subito «quale versione stava girando davvero».
-      const registro = apriRegistro(dati, app.getVersion())
+      // Ogni errore anche nello storico degli errori (0.81.0), senza segreti né
+      // il nome di questo PC o dell'utente.
+      storicoErroriGlobale = apriStoricoErrori(dati, 'app', {
+        versione: app.getVersion(),
+        nomi: () => {
+          const n: string[] = [hostname()]
+          try { n.push(userInfo().username) } catch { /* senza utente */ }
+          try { const scelto = identitaPcGlobale?.leggi().nome; if (scelto !== undefined) n.push(scelto) } catch { /* non ancora pronta */ }
+          return n
+        }
+      })
+      const storicoErrori = storicoErroriGlobale
+      app.on('will-quit', () => { storicoErrori.scriviOra() })
+      const registro = conStorico(apriRegistro(dati, app.getVersion()), storicoErrori)
       // Le chat chiuse da te (0.60.9): «chiusa» con l'ora, per i PC che la
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
@@ -2369,6 +2404,50 @@ if (!app.requestSingleInstanceLock()) {
           return { stato: 502, corpo: { errore: `${nome}: ${err instanceof Error ? err.message : String(err)}`, su: nome } }
         }
       }
+
+      // ── Lo storico degli errori verso il PC di sviluppo (0.81.0) ──
+      // Chi riceve scrive in <cartella di SierraDeck>/.sierradeck/errori-arrivati/<mittente>/.
+      // La cartella si cerca fra i progetti di questo PC: quella con il package.json di SierraDeck.
+      const radiceSierraDeck = (): string | undefined => {
+        const me = identitaPc.leggi().id
+        return cartellaDiSierraDeck(registroProgetti.leggi().progetti.map((p) => p.percorsi[me] ?? '').filter((c) => c !== '' && existsSync(c)))
+      }
+      radiceSierraDeckGlobale = radiceSierraDeck
+      const salvaQui = (invio: InvioErrori, chi: string): { ok: true; file: string } | { ok: false; stato: number; errore: string } => {
+        const radice = radiceSierraDeck()
+        if (radice === undefined) {
+          registro.info(`[errori] ${invio.voci.length} errori da «${invio.da}» (${chi}) rifiutati: su questo PC non c’è la cartella di SierraDeck`)
+          return { ok: false, stato: 409, errore: 'Su questo PC non c’è la cartella di SierraDeck: scegli come PC di sviluppo quello dove c’è.' }
+        }
+        const e = salvaErroriArrivati(radice, invio)
+        registro.info(e.ok ? `[errori] arrivati ${invio.voci.length} errori da «${invio.da}» (${chi}): ${e.file}` : `[errori] errori da «${invio.da}» non salvati: ${e.errore}`)
+        // «Errori arrivati» (0.81.0): il giro guarda subito, e parte dopo la quiete.
+        if (e.ok) giroArriviGlobale?.()
+        return e.ok ? e : { ok: false, stato: 500, errore: e.errore }
+      }
+      riceviErroriGlobale = async (invio, chi) => salvaQui(invio, chi)
+      const mandaOra = async (): Promise<{ ok: boolean; messaggio: string }> => {
+        const io = identitaPc.leggi()
+        return await mandaErrori({
+          pcSviluppo: impostazioni.preferenze().pcSviluppo,
+          io: { id: io.id, nome: nomeDaMostrare(io) },
+          versione: app.getVersion(),
+          storico: leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
+          nomeDi: (pc) => { const b = postino.altrui().find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined },
+          chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
+          salvaQui: (invio) => salvaQui(invio, 'questo PC'),
+          log: (riga) => registro.info(riga)
+        })
+      }
+      mandaErroriGlobale = mandaOra
+      nomePcSviluppoGlobale = () => {
+        const pc = impostazioni.preferenze().pcSviluppo
+        if (pc === undefined) return undefined
+        if (pc === identitaPc.leggi().id) return nomeDaMostrare(identitaPc.leggi())
+        const b = postino.altrui().find((x) => x.pcId === pc)
+        return b !== undefined ? nomeDaMostrare(b) : 'un PC che non si vede adesso'
+      }
+      ipcMain.handle('errori:manda', () => mandaOra())
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
@@ -4235,6 +4314,11 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
       ipcMain.handle('log:errore', (_e, messaggio: string) => registro.errore(String(messaggio)))
+      // Lo storico degli errori (0.81.0): PC e servizio insieme, e il testo di «Copia».
+      ipcMain.handle('errori:storico', () => {
+        const storico = leggiStoricoDi(dati, storicoErrori.leggi())
+        return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
+      })
       // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
       // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
       // console del renderer, e dopo un guasto il registro non diceva niente.
@@ -4601,6 +4685,55 @@ if (!app.requestSingleInstanceLock()) {
       })
       partenzeSubitoGlobale = partenze
       setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
+
+      // «Errori arrivati» (0.81.0): sul PC dove arrivano gli errori, un lavoro
+      // dell'autopilota nel workspace di SierraDeck, partito da solo. Le regole
+      // (quiete, limiti, un lavoro alla volta, riepilogo, recupero) stanno in
+      // errori-arrivati-lavoro.ts.
+      {
+        let inCorso = false
+        const giro = async (): Promise<void> => {
+          if (inCorso) return
+          inCorso = true
+          try {
+            rigaArriviGlobale = await giroErroriArrivati({
+              radice: () => radiceSierraDeckGlobale?.(),
+              adesso: () => Date.now(),
+              autopiloti: async () => (await clientAutopilota.elenca()).map((a) => ({ id: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), stato: a.stato, cwd: a.cwd, ...(a.archiviato === true ? { archiviato: true } : {}) })),
+              settimanaPercento: () => limitiAggiornati([...polsi.values()], Date.now())?.settimana?.percento,
+              crea: async (p) => {
+                await clientAutopilota.assicuraServizio()
+                // Nel workspace del progetto SierraDeck, aggiunto se manca, senza cambiare lo schermo.
+                const ws = workspaceDellAutopilota('', p.cwd)
+                if (workspaceStore !== undefined) {
+                  const prima = workspaceStore.leggi()
+                  const dopo = aggiungiWorkspace(prima, ws)
+                  if (dopo !== prima) {
+                    workspaceStore.scrivi(dopo)
+                    for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+                  }
+                }
+                const a = await clientAutopilota.crea({ ...p, workspace: ws })
+                return { id: a.id }
+              },
+              annuncia: async (id, titolo, testo) => {
+                await clientAutopilota.annuncia(id, titolo, testo)
+                // La notifica del PC; pagina e app la mandano dall'id di `annuncio`.
+                try { new Notification({ title: titolo, body: testo.slice(0, 240) }).show() } catch { /* senza notifiche */ }
+                registro.info(`[avviso] PC: annuncio «${titolo}»`)
+              },
+              log: (riga) => registro.info(riga)
+            })
+          } catch (err) {
+            registro.info(`[errori arrivati] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          } finally {
+            inCorso = false
+          }
+        }
+        giroArriviGlobale = () => { void giro() }
+        setInterval(() => { void giro() }, 120_000)
+        setTimeout(() => { void giro() }, 30_000)
+      }
       registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
       primaDiEliminareGlobale = {
         rifiuto: async (nome) => {
@@ -4718,7 +4851,7 @@ if (!app.requestSingleInstanceLock()) {
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
         // Ogni avviso nel registro (0.80.0): «mille notifiche» non lasciava righe.
-        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'})`)
+        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'}), causa: domanda nuova che aspetta te`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)
@@ -5081,6 +5214,16 @@ if (!app.requestSingleInstanceLock()) {
         // I file dal telefono (0.50.0): gli invii a metà aspettano qui, poi vanno nel progetto della chat.
         allegati: apriAllegati({ cartella: join(dati, 'allegati-in-arrivo') }),
         // La sezione File del telefono e della pagina (0.54.0): i progetti noti, in sola lettura.
+        errori: {
+          leggi: () => {
+            const storico = leggiStoricoDi(dati, storicoErroriGlobale?.leggi())
+            const pc = nomePcSviluppoGlobale?.()
+            return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }), ...(pc !== undefined ? { pcSviluppo: pc } : {}), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
+          },
+          aggiungi: (e: { dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }) => { storicoErroriGlobale?.aggiungi(e.testo, e.cosa, { dove: e.dove, ...(e.versione !== undefined ? { versione: e.versione } : {}) }) },
+          manda: () => mandaErroriGlobale?.() ?? Promise.resolve({ ok: false, messaggio: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' })
+        },
+        erroriArrivati: (invio: InvioErrori, chi: string) => riceviErroriGlobale !== undefined ? riceviErroriGlobale(invio, chi) : Promise.resolve({ ok: false as const, stato: 409, errore: 'Questo PC non è ancora pronto a ricevere gli errori: riprova fra qualche secondo.' }),
         fileProgetti: apriFileProgetti({
           candidati: async (): Promise<string[]> => [
             ...await (rotte.cartelle as () => Promise<string[]>)().catch(() => [] as string[]),
@@ -6385,6 +6528,7 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
+                registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi», causa: aggiornamento pronto, aspetta che le chat siano quiete')
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },

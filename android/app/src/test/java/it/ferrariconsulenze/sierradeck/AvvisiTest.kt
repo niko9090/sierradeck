@@ -48,6 +48,28 @@ class AvvisiTest {
     }
 
     @Test
+    fun `un fermo che riparte da solo non disturba, dalla 0-81-0`() {
+        // La pausa per i limiti del piano o per un aggiornamento riparte da sola:
+        // il PC lo dice con riparteDaSolo e l'app non suona.
+        val avvisi = Avvisi.daAnnunciare(
+            stato("""{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|x|limiti","riparteDaSolo":true}]}"""),
+            mutableSetOf(),
+            primoGiro = false
+        )
+        assertEquals(0, avvisi.size)
+    }
+
+    @Test
+    fun `un fermo che riparte da solo e poi resta fermo davvero si annuncia, dalla 0-81-0`() {
+        val visti = mutableSetOf<String>()
+        val pausa = """{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|t1|limiti","riparteDaSolo":true}]}"""
+        assertEquals(0, Avvisi.daAnnunciare(stato(pausa), visti, primoGiro = false).size)
+        // Stessa chiave, senza la pausa: la ripartenza non è riuscita.
+        val vero = """{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"sospeso","fermo":"ap-1|sospeso|t1|limiti"}]}"""
+        assertEquals(1, Avvisi.daAnnunciare(stato(vero), visti, primoGiro = false).size)
+    }
+
+    @Test
     fun `anche un lavoro fallito`() {
         val avvisi = Avvisi.daAnnunciare(
             stato("""{"autopiloti":[{"id":"ap-1","nome":"Notte","stato":"fallito"}]}"""),
@@ -213,5 +235,19 @@ class AvvisiTest {
         val visti = mutableSetOf<String>()
         val s = stato("""{"autopiloti":[{"id":"ap-1","nome":"N","stato":"sospeso","fermo":"k","archiviato":true}]}""")
         assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
+    }
+
+    @Test
+    fun `il riepilogo di Errori arrivati si annuncia una volta sola, anche al lavoro`() {
+        // 2.81.0: il programma manda a Nicholas il riepilogo prima delle
+        // correzioni, con una notifica sola: un id nuovo, una notifica nuova.
+        val visti = mutableSetOf<String>()
+        val s = stato("""{"autopiloti":[{"id":"ap-e","nome":"Errori arrivati","stato":"lavoro","annuncio":{"id":"n-1","titolo":"Errori arrivati: il riepilogo"}}]}""")
+        val primo = Avvisi.daAnnunciare(s, visti, primoGiro = false)
+        assertEquals(1, primo.size)
+        assertEquals("Errori arrivati: il riepilogo", primo[0].titolo)
+        assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
+        val nuovo = stato("""{"autopiloti":[{"id":"ap-e","nome":"Errori arrivati","stato":"lavoro","annuncio":{"id":"n-2","titolo":"x"}}]}""")
+        assertEquals(1, Avvisi.daAnnunciare(nuovo, visti, primoGiro = false).size)
     }
 }

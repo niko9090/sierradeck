@@ -4,7 +4,10 @@ import type { Autopilota } from '@shared/autopilota'
 
 export type ConfigurazioneTelegram = { token: string; chat: string }
 
-export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'ripreso' | 'sospeso' | 'pronto'
+export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'sospeso' | 'pronto'
+
+/** Avvisi più vicini di così partono insieme in un messaggio solo (0.81.0), come sulla pagina e nell'app. */
+export const AVVISI_VICINI_MS = 20_000
 
 /** Telegram taglia a 4096 caratteri: si sta sotto, con margine. */
 const MESSAGGIO_MAX = 4000
@@ -96,9 +99,6 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
         ...a.criteri.slice(0, 8).map((c) => `• ${esc(tronca(c.descrizione, 120))}`)
       )
       break
-    case 'ripreso':
-      righe.push(`${testa} — ripreso dopo un riavvio ▶️`, obiettivo, `Interventi finora: ${a.cicli}`)
-      break
     default:
       righe.push(
         `${testa} — ho bisogno di te ❓`,
@@ -118,6 +118,21 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
   }
 
   return tronca(righe.join('\n'), MESSAGGIO_MAX)
+}
+
+/**
+ * Perché parte un avviso, in una riga per il registro (0.81.0): «ogni notifica
+ * nel registro con la causa». Il motivo del fermo o l'inizio della domanda.
+ */
+export function causaAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string): string {
+  const corta = (t: string): string => tronca(t.replace(/\s+/g, ' ').trim(), 120)
+  switch (tipo) {
+    case 'finito': return 'lavoro finito'
+    case 'pronto': return 'aspetta il tuo via'
+    // Solo l'inizio: il testo intero è nelle Domande, il registro non è il posto (la Revisione).
+    case 'domanda': return `domanda: ${tronca((domanda ?? '').replace(/\s+/g, ' ').trim(), 60)}`
+    default: return corta(a.motivoSospensione ?? '') || 'fermo'
+  }
 }
 
 /** Oltre questo l'invio si considera perso: meglio un avviso mancato che una
@@ -149,25 +164,77 @@ export function invioReale(url: string, corpo: unknown): Promise<boolean> {
   })
 }
 
+/**
+ * Il primo avviso parte subito; quelli che arrivano entro `AVVISI_VICINI_MS`
+ * dall'ultimo invio aspettano la fine della finestra e partono insieme, in un
+ * messaggio solo (0.81.0: «mille notifiche quando un autopilota lavora»).
+ * Ogni avviso, mandato da solo o insieme, ha la sua riga `[notifica]`.
+ */
+/** Manda un avviso; `svuotaOra` manda subito quelli in attesa (allo spegnimento). */
+export type Avvisatore = ((tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>) & { svuotaOra: () => Promise<void> }
+
 export function creaAvvisatore(deps: {
   configurazione: ConfigurazioneTelegram | undefined
   manda: (url: string, corpo: unknown) => Promise<boolean>
-}): (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void> {
-  return async (tipo, a, domanda) => {
+  /** Per le prove: l'orologio e il timer. */
+  adesso?: () => number
+  dopo?: (ms: number, f: () => void) => void
+}): Avvisatore {
+  const adesso = deps.adesso ?? Date.now
+  const dopo = deps.dopo ?? ((ms: number, f: () => void) => { setTimeout(f, ms).unref?.() })
+  let ultimoInvio = Number.NEGATIVE_INFINITY
+  let inAttesa: { testo: string; riga: string }[] = []
+  let attesaArmata = false
+
+  const invia = async (testo: string, righe: string[]): Promise<void> => {
     const c = deps.configurazione
     if (c === undefined) return
+    ultimoInvio = adesso()
     try {
       const inviato = await deps.manda(`https://api.telegram.org/bot${c.token}/sendMessage`, {
         chat_id: c.chat,
-        text: componiAvviso(tipo, a, domanda),
+        text: testo,
         parse_mode: 'HTML'
       })
-      if (!inviato) console.error(`[autopilota] avviso Telegram non recapitato (${tipo}, ${a.id})`)
-      else console.log(`[notifica] Telegram: ${tipo} di «${a.nome}» (${a.id})`)
+      if (!inviato) console.error(`[autopilota] avviso Telegram non recapitato (${righe.join('; ')})`)
+      else for (const r of righe) console.log(`[notifica] Telegram: ${r}${righe.length > 1 ? ` (insieme ad altri ${righe.length - 1})` : ''}`)
     } catch (err) {
       // Il lavoro non dipende da Telegram: un guasto di rete costa un avviso,
       // non il lavoro in corso.
       console.error('[autopilota] invio Telegram fallito:', err)
     }
   }
+
+  const svuota = async (): Promise<void> => {
+    attesaArmata = false
+    const pronti = inAttesa
+    inAttesa = []
+    if (pronti.length === 0) return
+    const insieme = [`<b>${pronti.length} avvisi da SierraDeck</b>`, ...pronti.map((p) => p.testo)].join('\n\n— — —\n\n')
+    // Troncare un gruppo può tagliare a metà un tag HTML, e Telegram lo
+    // rifiuterebbe tutto: se non ci sta, un messaggio per avviso (la revisione).
+    if (pronti.length === 1 || insieme.length > MESSAGGIO_MAX) {
+      for (const p of pronti) await invia(p.testo, [p.riga])
+      return
+    }
+    await invia(insieme, pronti.map((p) => p.riga))
+  }
+
+  const avvisa = async (tipo: TipoAvviso, a: Autopilota, domanda?: string): Promise<void> => {
+    if (deps.configurazione === undefined) return
+    const testo = componiAvviso(tipo, a, domanda)
+    const riga = `${tipo} di «${a.nome}» (${a.id}), causa: ${causaAvviso(tipo, a, domanda)}`
+    const ora = adesso()
+    if (!attesaArmata && ora - ultimoInvio >= AVVISI_VICINI_MS) {
+      await invia(testo, [riga])
+      return
+    }
+    inAttesa.push({ testo, riga })
+    if (!attesaArmata) {
+      attesaArmata = true
+      dopo(Math.max(0, ultimoInvio + AVVISI_VICINI_MS - ora), () => { void svuota() })
+    }
+  }
+  // Il timer, se scatta dopo, trova la coda vuota e non manda niente due volte.
+  return Object.assign(avvisa, { svuotaOra: svuota })
 }
