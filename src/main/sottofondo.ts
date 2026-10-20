@@ -42,6 +42,15 @@ const CONTROLLO_DOPO_MS = 3_000
 const INVII_MAX = 3
 /** Oltre questo, senza vedere il testo nel campo, l'Invio si preme lo stesso (0.75.4). */
 const ECO_MAX_MS = 8_000
+/**
+ * Con il campo ancora **vuoto**, invece, non si preme Invio alla cieca (0.81.0,
+ * c-241): Claude Code appena avviato tiene da parte quello che si scrive per
+ * 6-10 s, di più con il PC carico, e lo mostra dopo. Un Invio premuto intanto
+ * arriva attaccato al testo e diventa un a capo; il testo sembrava perso, si
+ * riscriveva, e nel campo finiva due volte senza partire più. Si aspetta fin qui
+ * che compaia; oltre, è perso davvero e si riscrive.
+ */
+const ECO_CAMPO_VUOTO_MAX_MS = 60_000
 /** Quante volte si riscrive un testo che Claude Code ha perso prima di dirlo. */
 const SCRITTURE_MAX = 3
 /** Il silenzio che serve prima di scrivere: più largo dei riquadri (una conversazione ripresa si carica a riprese). */
@@ -224,6 +233,21 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
   /** Le voci con testo in coda di chat uscite: ripartono al prossimo avvio. */
   const codaOrfana = new Map<string, VoceSottofondo>()
 
+  /**
+   * Claude Code non ha preso il testo (stava ancora caricando): torna in coda e
+   * si riscrive quando il campo è di nuovo pronto. Mai «consegnato».
+   */
+  const nonPreso = (v: Viva, s: NonNullable<Viva['inScrittura']>, ora: number): void => {
+    v.inScrittura = undefined
+    const n = (v.scritture.get(s.id) ?? 0) + 1
+    v.scritture.set(s.id, n)
+    v.attivita.ultimoDato = ora
+    if (n >= SCRITTURE_MAX) {
+      v.fermi.add(s.id)
+      cambiaFase(v, 'aspetta', `il testo ${s.id} non entra: scritto ${n} volte, Claude Code non lo prende. Resta in coda, fermo: Riprova da chi l’ha mandato lo rimette in giro`)
+    } else cambiaFase(v, 'avvio', `il testo ${s.id} si è perso (Claude Code non era ancora pronto): lo riscrivo appena il campo è pronto (tentativo ${n + 1} di ${SCRITTURE_MAX})`)
+  }
+
   /** Un giro: per ogni chat, la fase dallo schermo e, se pronta, il prossimo testo. */
   const giro = (): void => {
     const ora = adesso()
@@ -238,6 +262,15 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           // L'Invio dopo l'eco (0.75.4): testo e Invio non arrivano mai insieme.
           const eco = testoNelCampo(righe, s.testo) && ora - v.attivita.ultimoDato >= PAUSA_INVIO_MS
           if (!eco && ora - s.il < ECO_MAX_MS) continue
+          if (!eco && testoPerso(righe, s.testo, s.prima)) {
+            // Il campo è ancora vuoto: Claude Code non l'ha ancora mostrato (vedi ECO_CAMPO_VUOTO_MAX_MS).
+            if (ora - s.il < ECO_CAMPO_VUOTO_MAX_MS) {
+              cambiaFase(v, 'consegna', `il testo ${s.id} è scritto ma Claude Code non lo mostra ancora: aspetto che compaia prima di premere Invio`)
+              continue
+            }
+            nonPreso(v, s, ora)
+            continue
+          }
           s.invii = 1
           s.il = ora
           d.scrivi(v.ptyId, '\r')
@@ -266,16 +299,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           continue
         }
         if (testoPerso(righe, s.testo, s.prima)) {
-          // Claude Code non l'ha preso (stava ancora caricando): torna in coda
-          // e si riscrive quando il campo è di nuovo pronto. Mai «consegnato».
-          v.inScrittura = undefined
-          const n = (v.scritture.get(s.id) ?? 0) + 1
-          v.scritture.set(s.id, n)
-          v.attivita.ultimoDato = ora
-          if (n >= SCRITTURE_MAX) {
-            v.fermi.add(s.id)
-            cambiaFase(v, 'aspetta', `il testo ${s.id} non entra: scritto ${n} volte, Claude Code non lo prende. Resta in coda, fermo: Riprova da chi l’ha mandato lo rimette in giro`)
-          } else cambiaFase(v, 'avvio', `il testo ${s.id} si è perso (Claude Code non era ancora pronto): lo riscrivo appena il campo è pronto (tentativo ${n + 1} di ${SCRITTURE_MAX})`)
+          nonPreso(v, s, ora)
           continue
         }
         if (s.invii < INVII_MAX) {
@@ -385,7 +409,7 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       return undefined
     },
     /** Le chat per `/api/stato` e per il battito: come quelle dei riquadri. */
-    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa; autopilota?: { id: string; chat: string }; governata?: true }[] {
+    chat(): { id: string; titolo: string; cwd: string; sessione: string; aspetta: boolean; viva: boolean; ultimaRiga: string; coda: string[]; codaGrezza: string[]; sottofondo: ChiUsa; sceltaAperta?: true; autopilota?: { id: string; chat: string }; governata?: true }[] {
       const ora = adesso()
       return [...vive.values()].map((v) => {
         const r = (() => { try { return righeDaSchermo(v.term.buffer.active, v.term.rows, 60) } catch { return { pulite: [] as string[], grezze: [] as string[] } } })()
@@ -400,6 +424,10 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
           coda: r.pulite,
           codaGrezza: r.grezze,
           sottofondo: v.voce.perChi,
+          // La scelta sullo schermo, come i riquadri (c-241). Senza, dopo una ventina di
+          // secondi i segnali cedevano allo schermo «senza scelte» (statoChat): la chat
+          // smetteva di chiedere e al segnale dopo la stessa scelta si riannunciava.
+          ...(sceltaSulloSchermo(r.pulite) ? { sceltaAperta: true as const } : {}),
           // Di un autopilota: governata come nei riquadri (0.81.0). Senza, pagina e app
           // la annunciavano «aspetta te» a ogni fine turno, come se aspettasse Nicholas.
           ...(v.voce.autopilota !== undefined ? { autopilota: v.voce.autopilota, governata: true as const } : {})

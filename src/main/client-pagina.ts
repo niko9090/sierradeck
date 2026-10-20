@@ -5680,7 +5680,7 @@ function avvisaSeServe(stato) {
       // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»): una volta per id.
       if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id]) {
         avvisati['n-' + a.annuncio.id] = true
-        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id })
+        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id, causa: 'annuncio ' + a.annuncio.id + ' di «' + a.nome + '»: un riepilogo che aspetta te' })
       }
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue

@@ -246,6 +246,8 @@ class AvvisiTest {
         val primo = Avvisi.daAnnunciare(s, visti, primoGiro = false)
         assertEquals(1, primo.size)
         assertEquals("Errori arrivati: il riepilogo", primo[0].titolo)
+        // c-241: con la causa, come gli altri; senza, nel registro «non detta (versione vecchia)».
+        assertTrue(primo[0].causa.startsWith("annuncio n-1 di «Errori arrivati»"))
         assertEquals(0, Avvisi.daAnnunciare(s, visti, primoGiro = false).size)
         val nuovo = stato("""{"autopiloti":[{"id":"ap-e","nome":"Errori arrivati","stato":"lavoro","annuncio":{"id":"n-2","titolo":"x"}}]}""")
         assertEquals(1, Avvisi.daAnnunciare(nuovo, visti, primoGiro = false).size)

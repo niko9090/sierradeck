@@ -4720,7 +4720,7 @@ if (!app.requestSingleInstanceLock()) {
                 await clientAutopilota.annuncia(id, titolo, testo)
                 // La notifica del PC; pagina e app la mandano dall'id di `annuncio`.
                 try { new Notification({ title: titolo, body: testo.slice(0, 240) }).show() } catch { /* senza notifiche */ }
-                registro.info(`[avviso] PC: annuncio «${titolo}»`)
+                registro.info(`[avviso] PC: annuncio «${titolo}», causa: un riepilogo dell'autopilota ${id} che aspetta te`)
               },
               log: (riga) => registro.info(riga)
             })
