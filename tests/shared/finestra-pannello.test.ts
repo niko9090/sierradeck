@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   sistemaPosizione, schermoDi, ricordaPosizione, segnaAperto, daRiaprire, leggiArchivioPannelli, chiavePannello,
-  GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, type SchermoPannello
+  GRANDEZZA_MINIMA, GRANDEZZA_PREDEFINITA, richiamoLampeggia, RICHIAMO_VICINO_MS, type SchermoPannello
 } from '@shared/finestra-pannello'
 
 /**
@@ -52,5 +52,13 @@ describe('l archivio delle finestre pannello', () => {
   it('scarta quello che non capisce', () => {
     expect(leggiArchivioPannelli({ posizioni: { x: { schermo: 1 } }, aperti: [{ autopilota: '../x', linguetta: 'domande' }, { autopilota: 'a', linguetta: 'boh' }] }))
       .toEqual({ posizioni: {}, aperti: [] })
+  })
+})
+
+describe('il richiamo del pannello Domande (c-241)', () => {
+  it('appena lampeggiato non lampeggia di nuovo per la stessa domanda; dopo 10 s sì', () => {
+    expect(richiamoLampeggia(undefined, 1000)).toBe(true)
+    expect(richiamoLampeggia(1000, 1000 + 6000)).toBe(false)
+    expect(richiamoLampeggia(1000, 1000 + RICHIAMO_VICINO_MS)).toBe(true)
   })
 })

@@ -152,3 +152,17 @@ export function doveMostrareDomande(p: {
   if (prima !== undefined) return { tipo: 'scheda', finestra: prima }
   return { tipo: 'apri-pannello' }
 }
+
+/** Un richiamo così vicino all'ultimo lampeggio della stessa finestra è la stessa domanda (c-241). */
+export const RICHIAMO_VICINO_MS = 10_000
+
+/**
+ * Il pannello che chiede attenzione per una domanda nuova lampeggia solo se non
+ * l'ha appena fatto (0.81.0, c-241). Il pannello aperto da solo per una domanda
+ * lampeggia aprendosi; al suo primo caricamento vede le domande passare da
+ * nessuna a una e chiedeva un secondo lampeggio per la stessa, senza riga nel
+ * registro (visto nella copia di prova: 2 lampeggi in 6 s).
+ */
+export function richiamoLampeggia(ultimoLampeggio: number | undefined, ora: number): boolean {
+  return ultimoLampeggio === undefined || ora - ultimoLampeggio >= RICHIAMO_VICINO_MS
+}
