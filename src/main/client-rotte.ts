@@ -2641,12 +2641,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
     // Una notifica mostrata dalla pagina o dall'app (0.80.0): nel registro di
-    // questo PC, così «mille notifiche» si contano. Solo il tipo e un titolo corto.
+    // questo PC, così «mille notifiche» si contano. Il tipo, un titolo corto e
+    // la causa (0.81.0); se era in un gruppo, quanti erano insieme.
     if (r.metodo === 'POST' && r.percorso === '/api/avviso-mostrato') {
       const da = stringa(r.corpo, 'da') === 'app' ? 'app' : 'pagina'
       const tipo = stringa(r.corpo, 'tipo').replace(/[^\w:-]/g, '').slice(0, 30) || '?'
       const titolo = stringa(r.corpo, 'titolo').replace(/\s+/g, ' ').slice(0, 80)
-      deps.log?.(`[avviso] ${da} del telefono: ${tipo}${titolo !== '' ? ` «${titolo}»` : ''}`)
+      const causa = stringa(r.corpo, 'causa').replace(/\s+/g, ' ').trim().slice(0, 160)
+      const n = (r.corpo as Record<string, unknown> | undefined)?.gruppo
+      const gruppo = typeof n === 'number' && Number.isFinite(n) ? Math.floor(n) : 0
+      deps.log?.(`[avviso] ${da} del telefono: ${tipo}${titolo !== '' ? ` «${titolo}»` : ''}, causa: ${causa !== '' ? causa : 'non detta (versione vecchia)'}${gruppo > 1 ? ` (in un gruppo di ${gruppo})` : ''}`)
       return OK({ fatto: true })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {

@@ -8,7 +8,8 @@
  * Niente costanti esterne e niente template literal: il corpo delle funzioni
  * finisce così com'è dentro la pagina.
  */
-export type AvvisoPagina = { tipo: string; titolo: string; corpo: string; tag: string }
+/** `causa` (0.81.0): perché parte, per la riga del registro del PC. */
+export type AvvisoPagina = { tipo: string; titolo: string; corpo: string; tag: string; causa?: string }
 
 /**
  * Cosa mostrare di quello che è nuovo adesso. Uno da solo, lontano dal

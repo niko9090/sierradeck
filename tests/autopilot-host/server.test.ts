@@ -607,31 +607,22 @@ describe('avvisi verso l esterno', () => {
     expect(avvisi.map((a) => a.tipo)).toEqual(['finito'])
   })
 
-  it('avvisa quando entra in difficolta, ma continua a lavorare', async () => {
+  it('in difficolta cambia strada senza avvisare: non aspetta Nicholas e non è un errore che blocca (0.81.0)', async () => {
     server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
     await avvia(server)
     const id = await creaAp()
     for (let i = 0; i < 4; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.some((a) => a.tipo === 'stallo')).toBe(true)
-    // L'avviso dice «sto cambiando strada», non «mi sono fermato»: lo stato
-    // resta al lavoro, ed e' il punto di tutto il meccanismo.
+    expect(avvisi).toEqual([])
+    // Resta al lavoro con la strategia nuova: è il punto di tutto il meccanismo.
     const dopo = (await chiama('GET', '/autopiloti')).dati as { stato: string; strategia?: string }[]
     expect(dopo.at(0)?.stato).toBe('lavoro')
     expect(dopo.at(0)?.strategia).toBe(STRATEGIE[0].nome)
-  })
-
-  it('avvisa una volta sola mentre prova una strategia dopo l altra', async () => {
-    // Un messaggio per ogni tentativo sarebbe la raffica di notifiche che
-    // l'utente ha chiesto di non ricevere.
-    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
-    await avvia(server)
-    const id = await creaAp()
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.filter((a) => a.tipo === 'stallo')).toHaveLength(1)
+    expect(avvisi).toEqual([])
   })
 
   it('avvisa della domanda prima di mettersi ad aspettare', async () => {

@@ -134,7 +134,11 @@ object ControlloApp {
             .addAction(0, "Scarica e installa", tocco)
             .setAutoCancel(true)
             .build()
-        try { NotificationManagerCompat.from(contesto).notify(ID_NOTIFICA, n) } catch (e: SecurityException) {
+        try {
+            NotificationManagerCompat.from(contesto).notify(ID_NOTIFICA, n)
+            // Anche questa nel registro del computer, con la causa (2.81.0).
+            Ronda.riferisci(contesto, "app", "È uscita l'app ${a.versione}", "app ${a.versione} pubblicata (interruttore «Versione pronta» acceso)")
+        } catch (e: SecurityException) {
             Log.i("SierraDeck", "notifica dell'aggiornamento non permessa: ${e.message}")
         }
     }

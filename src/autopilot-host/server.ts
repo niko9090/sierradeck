@@ -2820,9 +2820,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (chiesto !== undefined) deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: chiesto, risposta: decisione.istruzioni.split('\n\nObiettivo:')[0] ?? decisione.istruzioni })
       if (decisione.strategia !== undefined) {
         console.warn(`[autopilota] ${id} in difficolta, provo: ${decisione.strategia}`)
-        // Una volta sola, all'ingresso nel recupero: un messaggio per ogni
-        // strategia sarebbe la raffica di notifiche che nessuno vuole.
-        if (decisione.strategia === STRATEGIE[0].nome) void deps.avvisa('stallo', inCerchio)
+        // Nessun avviso (0.81.0): cambia strada da solo e continua, non aspetta
+        // Nicholas e non è un errore che blocca. Se poi si ferma, avvisa il fermo.
+        if (decisione.strategia === STRATEGIE[0].nome) console.info(`[notifica] nessun avviso per ${id}: in difficoltà, cambia strada da solo (${decisione.strategia})`)
       }
       return { decision: 'block', reason: conPreambolo(presi.testi, decisione.istruzioni) }
     }

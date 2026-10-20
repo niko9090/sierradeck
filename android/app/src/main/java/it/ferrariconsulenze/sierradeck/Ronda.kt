@@ -145,13 +145,18 @@ object Ronda {
      * non lasciava traccia da nessuna parte. Su un thread suo, a fuoco e
      * dimentica: un computer vecchio senza la rotta risponde 404, e va bene.
      */
-    private fun riferisci(contesto: Context, a: Avvisi.Avviso) {
+    private fun riferisci(contesto: Context, a: Avvisi.Avviso) =
+        riferisci(contesto, a.chiave.substringBefore(':'), a.titolo, a.causa)
+
+    /** Lo stesso, per un avviso che non passa dalla ronda (l'app nuova): tipo, titolo e causa (2.81.0). */
+    fun riferisci(contesto: Context, tipo: String, titolo: String, causa: String) {
         val collegamento = try { Collegamento(contesto) } catch (_: Exception) { return }
         if (!collegamento.pronto) return
         val corpo = JSONObject()
             .put("da", "app")
-            .put("tipo", a.chiave.substringBefore(':'))
-            .put("titolo", a.titolo.take(80))
+            .put("tipo", tipo)
+            .put("titolo", titolo.take(80))
+            .put("causa", causa.take(160))
             .toString()
         Thread {
             try {

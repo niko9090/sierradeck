@@ -1581,3 +1581,18 @@ describe('/api/domande non moltiplica le chiamate al servizio', () => {
     expect(lette).toBe(2)
   })
 })
+
+describe('0.81.0: ogni notifica del telefono nel registro con la causa', () => {
+  it('la pagina e l app dicono tipo, titolo, causa e il gruppo; un telefono vecchio senza causa lo dice', async () => {
+    const righe: string[] = []
+    const r = rotteClient(deps({ log: (riga: string) => { righe.push(riga) } }))
+    await r({ metodo: 'POST', percorso: '/api/avviso-mostrato', corpo: { da: 'pagina', tipo: 'fermo', titolo: 'Sito si è fermato', causa: 'autopilota ap-1 sospeso:  la chat non parte', gruppo: 2 } })
+    await r({ metodo: 'POST', percorso: '/api/avviso-mostrato', corpo: { da: 'app', tipo: 'f', titolo: 'SierraDeck ha finito un lavoro', causa: 'autopilota ap-1 finito' } })
+    await r({ metodo: 'POST', percorso: '/api/avviso-mostrato', corpo: { da: 'app', tipo: 'd', titolo: 'Una domanda' } })
+    expect(righe).toEqual([
+      '[avviso] pagina del telefono: fermo «Sito si è fermato», causa: autopilota ap-1 sospeso: la chat non parte (in un gruppo di 2)',
+      '[avviso] app del telefono: f «SierraDeck ha finito un lavoro», causa: autopilota ap-1 finito',
+      '[avviso] app del telefono: d «Una domanda», causa: non detta (versione vecchia)'
+    ])
+  })
+})
