@@ -701,7 +701,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /**
    * Chi ha una fermata in lavorazione adesso.
    *
-   * Verificare i criteri — seriali, fino a dieci minuti l'uno — riparare un
+   * Verificare i criteri — seriali, fino a dieci minuti l'uno, venti la suite dei test — riparare un
    * comando, chiedere un giudizio al supervisore: è lavoro, non silenzio.
    * Senza questo insieme il guardiano sospenderebbe proprio gli autopiloti che
    * stanno facendo quello che gli è stato chiesto.
@@ -2404,7 +2404,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
 
     // Fra la lettura in cima e qui sono passati i criteri — seriali, fino a
-    // dieci minuti l'uno — e la decisione del supervisore. In tutto quel tempo
+    // dieci minuti l'uno (venti la suite dei test) — e la decisione del supervisore. In tutto quel tempo
     // l'utente può aver premuto «Ferma» (stato 'sospeso') o «Elimina» (il file
     // non c'è più). I salvataggi qui sotto partono dalla copia letta all'inizio:
     // scriverla adesso resusciterebbe un autopilota fermato, o ne ricreerebbe uno
