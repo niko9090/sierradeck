@@ -8,6 +8,7 @@ import { cancellaVoci, firmaRadici, percorsoSicuro, ripristina, type Radice } fr
 import type { Voce } from './pacchetto'
 import type { Archivio } from './archivio'
 import type { Progresso } from './motore'
+import { inParallelo } from '../stat-in-parallelo'
 
 /**
  * La sincronizzazione **incrementale**: manda solo ciò che è cambiato.
@@ -571,10 +572,14 @@ export async function ripristinaIncrementale(deps: {
   const conflitti: Conflitto[] = []
   const candidati = Object.keys(manifesto.file).filter((p) => scelto(p) && deps.escludi?.(p) !== true)
   const daScaricare: string[] = []
-  for (const p of candidati) {
+  // Le date dei file di qui, sedici alla volta (0.81.0): uno alla volta, un
+  // ripristino senza niente di nuovo su ~960 chat vere costava 28 s.
+  const dischi = candidati.map((p) => discoDi(perPrefisso, p))
+  const firme = await inParallelo(dischi, (d) => (d === undefined ? Promise.resolve(undefined) : firmaSuDisco(d)))
+  for (const [i, p] of candidati.entries()) {
     const voce = manifesto.file[p] as VoceManifesto
-    const disco = discoDi(perPrefisso, p)
-    const locale = disco === undefined ? undefined : await firmaSuDisco(disco)
+    const disco = dischi[i]
+    const locale = firme[i]
     const sapevo = prec?.file[p]
     if (locale !== undefined && sapevo !== undefined) {
       const driveUguale = stessaFirma(voce, sapevo)
