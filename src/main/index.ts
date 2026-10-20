@@ -105,7 +105,8 @@ import { creaTrasloco, type TraslocoApi } from './trasloco'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
-import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
+import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
+import { cartellaVuotaDaRecuperare, motivoPerNonEliminare } from '@shared/workspace-recupero'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { fermoChiaro, type Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
@@ -166,7 +167,7 @@ import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRem
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
-import { statoDi as statoWorkspaceDi } from './ipc'
+import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { creaChiuseStore } from './chiuse-store'
 import { creaRispecchia } from './rispecchia-workspace'
@@ -568,6 +569,8 @@ let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Pr
 /** Un workspace che c'è già diventa un progetto, con le sue chat mai usate (0.65.1). */
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 let traslocoGlobale: TraslocoApi | undefined
+/** «Elimina workspace» (0.81.0): perché no, e la cartella vuota che va nel recupero con lui. */
+let primaDiEliminareGlobale: PrimaDiEliminare | undefined
 /** I traslochi chiesti da qui con «Sposta progetto», che girano su un altro PC (0.65.0): l'ultimo stato letto da lui. */
 const traslochiSeguiti = new Map<string, { pc: string; ultimo?: Trasloco; letto: number }>()
 /** Il lato di questo PC quando un altro gli trasloca un progetto (0.65.0): le rotte `/api/trasloco/*`. */
@@ -1446,6 +1449,10 @@ if (!app.requestSingleInstanceLock()) {
         if (lista === p.workspaceElenco) return
         const nuove = impostazioni.impostaPreferenze({ ...p, workspaceElenco: lista })
         for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+      }, {
+        // Pronte più tardi (servono gli autopiloti): fino ad allora si chiede ogni volta.
+        rifiuto: async (nome) => primaDiEliminareGlobale?.rifiuto?.(nome),
+        cartella: async (nome, dopo) => primaDiEliminareGlobale?.cartella?.(nome, dopo)
       })
       registerFinestreIpc(apriNuovaFinestra)
 
@@ -4595,6 +4602,25 @@ if (!app.requestSingleInstanceLock()) {
       partenzeSubitoGlobale = partenze
       setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
       registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
+      primaDiEliminareGlobale = {
+        rifiuto: async (nome) => {
+          const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)
+          if (w === undefined) return undefined
+          let autopiloti: Autopilota[]
+          // Senza l'elenco non si sa se è la casa di un autopilota: meglio aspettare che lasciarlo senza casa.
+          try { autopiloti = await clientAutopilota.elenca() } catch { return `Non elimino «${nome}»: non riesco a sapere se un autopilota ci lavora. Riprova fra poco.` }
+          return motivoPerNonEliminare(w, chatAperte, autopiloti)
+        },
+        cartella: async (nome, dopo) => {
+          // Due nomi possono dare la stessa cartella («A:B» e «A-B»): se resta un workspace che la porta nel nome, è sua.
+          if (dopo.workspace.some((w) => cartellaDaNomeWorkspace(w.nome) === cartellaDaNomeWorkspace(nome))) return undefined
+          const cartella = join(identitaPc.leggi().cartellaProgetti, cartellaDaNomeWorkspace(nome))
+          const autopiloti = await clientAutopilota.elenca().catch(() => undefined)
+          // Senza l'elenco la cartella resta dov'è: potrebbe essere di un autopilota.
+          if (autopiloti === undefined) return undefined
+          return cartellaVuotaDaRecuperare(cartella, cartellaVuota(cartella), dopo, autopiloti, dentroCartella) ? cartella : undefined
+        }
+      }
 
       // **Le chat già avviate adottate** (0.78.0, Nicholas: «le chat già avviate
       // non le hai convertite»). Gli autopiloti veri diventano l'autopilota del
@@ -5580,9 +5606,17 @@ if (!app.requestSingleInstanceLock()) {
             if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('client:workspace', nome)
           }
         },
+        rifiutoEliminaWorkspace: async (nome: string) => primaDiEliminareGlobale?.rifiuto?.(nome),
         eliminaWorkspace: async (nome: string) => {
           const store = workspaceStore
           if (store === undefined) return
+          // Come il pannello (0.81.0): una chat al lavoro o un autopilota attivo dicono di no, con il motivo.
+          const no = await primaDiEliminareGlobale?.rifiuto?.(nome)
+          if (no !== undefined) throw new Error(no)
+          // Prima la cartella, poi lettura e scrittura senza await nel mezzo (la revisione).
+          const prova = store.leggi()
+          const daProva = eliminaWorkspace(prova, nome)
+          const cartella = daProva !== prova ? await primaDiEliminareGlobale?.cartella?.(nome, daProva) : undefined
           const precedente = store.leggi()
           const dopo = eliminaWorkspace(precedente, nome)
           // La stessa copia del pannello: senza finestre si passa di qui.
@@ -5590,7 +5624,7 @@ if (!app.requestSingleInstanceLock()) {
           // Come il pannello (0.81.0): senza recupero leggibile non si elimina; la voce dopo la scrittura.
           if (dopo !== precedente && !recuperoLeggibile(dati)) throw new Error('il recupero dei workspace eliminati non si legge in questo momento: riprova fra poco')
           if (!store.scrivi(dopo)) throw new Error('workspaces.json non si è potuto scrivere')
-          if (dopo !== precedente && !mettiWorkspaceNelRecupero(dati, precedente, nome)) registro.errore(`[workspace] «${nome}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
+          if (dopo !== precedente && !mettiWorkspaceNelRecupero(dati, precedente, nome, undefined, new Date().toISOString(), cartella)) registro.errore(`[workspace] «${nome}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
           annotaEliminato(dati, nome)
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,

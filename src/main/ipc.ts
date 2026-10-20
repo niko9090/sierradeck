@@ -1029,6 +1029,12 @@ export function assorbiOrfani(store: WorkspaceStore): void {
   spingiLayout(piuBassa.w.id, dove, daConsegnare(store.leggi(), dove, piuBassa.w))
 }
 
+/** Le due domande prima di eliminare un workspace (0.81.0): vedi `registerLayoutIpc`. */
+export type PrimaDiEliminare = {
+  rifiuto?: (nome: string) => Promise<string | undefined>
+  cartella?: (nome: string, dopo: Archivio) => Promise<string | undefined>
+}
+
 export function registerLayoutIpc(
   store: WorkspaceStore,
   /**
@@ -1048,7 +1054,13 @@ export function registerLayoutIpc(
    */
   dopoCreato: (nome: string, cartella?: string) => void = () => {},
   /** Un workspace rinominato (`nuovo`) o eliminato (`undefined`), 0.74.0: la vista a elenco segue il nome. */
-  dopoNome: (vecchio: string, nuovo: string | undefined) => void = () => {}
+  dopoNome: (vecchio: string, nuovo: string | undefined) => void = () => {},
+  /**
+   * «Elimina workspace» (0.81.0): `rifiuto` dice perché no (una chat al
+   * lavoro, un autopilota attivo); `cartella` è la cartella vuota del
+   * progetto che va nel recupero con il workspace, se ce n'è una.
+   */
+  elimina: PrimaDiEliminare = {}
 ): void {
   /**
    * Il layout che spetta a questa finestra, con lo scontrino che le dà diritto a
@@ -1221,7 +1233,15 @@ export function registerLayoutIpc(
     return statoDi(a)
   })
 
-  ipcMain.handle('workspace:elimina', (event, raw: unknown): StatoWorkspace => {
+  ipcMain.handle('workspace:elimina', async (event, raw: unknown): Promise<StatoWorkspace> => {
+    const no = await elimina.rifiuto?.(validateNomeWorkspace(raw))
+    if (no !== undefined) throw new Error(no)
+    // La cartella si chiede prima di leggere l'archivio (la revisione): fra la
+    // lettura e la scrittura non ci deve essere nessun await, o un salvataggio
+    // arrivato nel mezzo verrebbe riscritto con l'archivio di prima.
+    const prova = store.leggi()
+    const daProva = eliminaWorkspace(prova, validateNomeWorkspace(raw))
+    const cartella = daProva !== prova ? await elimina.cartella?.(validateNomeWorkspace(raw), daProva) : undefined
     const precedente = store.leggi()
     const a = eliminaWorkspace(precedente, validateNomeWorkspace(raw))
     // Una copia prima di togliere: eliminare e' l'unica azione qui che non
@@ -1235,7 +1255,7 @@ export function registerLayoutIpc(
       throw new Error('Non elimino il workspace: il recupero dei workspace eliminati non si legge in questo momento, e senza non lo potresti ripristinare. Riprova fra poco.')
     }
     scriviOSolleva(a, "l'eliminazione del workspace")
-    if (a !== precedente && !mettiWorkspaceNelRecupero(dirname(store.percorso), precedente, validateNomeWorkspace(raw))) {
+    if (a !== precedente && !mettiWorkspaceNelRecupero(dirname(store.percorso), precedente, validateNomeWorkspace(raw), undefined, new Date().toISOString(), cartella)) {
       console.error(`[workspace] «${validateNomeWorkspace(raw)}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
     }
     // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
