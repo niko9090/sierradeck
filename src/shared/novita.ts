@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.81.0',
+    righe: [
+      '**Sei dentro la conversazione dell’autopilota,** su PC, pagina e app. Ogni tua risposta compare come «Hai risposto: …», con una riga su cosa ne è stato fatto. Una domanda già risposta, o già risolta dallo stato vero, non torna più, e le domande sono sempre in italiano.',
+      '**Riquadro «Adesso»:** una riga per chat, con cosa fa, da quanto, e se è ferma e perché. Nella conversazione arrivano righe brevi solo per quello che conta: chat aperta, finita, ferma, mai partita o muta da 5 minuti, unione.',
+      '**Notifiche solo utili:** una domanda che ti aspetta, un lavoro finito, un errore che blocca. Quelle vicine arrivano insieme, e non ci sono più avvisi per consegne, giri o cambi di stato. Ogni notifica è scritta nel registro, con il motivo.',
+      '**«Elimina workspace», con il suo «?»:** dice di no, con il motivo, se una sua chat sta lavorando o se è la casa di un autopilota attivo. Altrimenti tiene il workspace, le sue chat e la cartella vuota nel recupero per 30 giorni (Workspace → «Eliminati» → «Ripristina»), su PC, pagina e app.',
+      '**Storico degli errori:** nelle Impostazioni c’è la voce «Errori», con «Copia» e «Manda al PC di sviluppo», su PC, pagina e app, crash dell’app compresi. I segreti sono tolti e gli errori ripetuti raggruppati.',
+      '**«Errori arrivati»:** sul PC di sviluppo, gli errori ricevuti avviano da soli un lavoro dell’autopilota, che prima ti manda un riepilogo e poi corregge. Non parte se i limiti del piano sono quasi finiti o se c’è già un lavoro su SierraDeck, e lo dice.',
+      '**Drive e dati più sicuri:** una copia di conflitto non si perde più, «troppe richieste» si ritenta, e la fusione si ferma se i file del Drive non si leggono. PIN, recupero e salvataggi non si perdono per un istante. Un ripristino senza niente di nuovo è più veloce.',
+      '**Criteri degli autopiloti più affidabili:** la suite dei test ha 20 minuti, un criterio scaduto chiude anche i suoi processi, e il lavoro di una chat si salva solo nella sua copia del progetto.'
+    ]
+  },
+  {
     versione: '0.80.1',
     righe: [
       '**Gli autopiloti non si fermano più per una chat che tace.** Si mette da parte solo quella chat, le altre continuano, e nella conversazione trovi una riga che lo dice. La chat torna da sola appena chiude un turno.',

@@ -28,12 +28,20 @@ export type StatoDalVivo = {
   da: string
   /** L'ultima cosa fatta, una riga. */
   ultimaAzione: string
-  /** Al lavoro ma senza un segno di vita da almeno `SENZA_SEGNI_MS`. */
+  /** Al lavoro ma senza un segno di vita da almeno `SENZA_SEGNI_AUTOPILOTA_MS`. */
   senzaSegni?: string
 }
 
 /** Dopo quanto una chat «al lavoro» che non fa niente si segnala. */
 export const SENZA_SEGNI_MS = 10 * 60_000
+/**
+ * Per un autopilota: cinque minuti, come «Adesso» (`MUTA_DA_MS`) e la riga
+ * della conversazione. Sulla stessa scheda «Adesso» diceva già «nessun segno
+ * da 7 min» e questo avviso taceva fino a 10 (Revisione c-16, 20/10). Le chat
+ * in sottofondo (`SENZA_SEGNI_MS`) restano a 10: lì il battito del Gestore non
+ * è garantito.
+ */
+export const SENZA_SEGNI_AUTOPILOTA_MS = 5 * 60_000
 
 export function durata(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return ''
@@ -67,7 +75,7 @@ export function statoAutopilotaDalVivo(a: Pick<Autopilota, 'stato' | 'ultimoEven
     ultimaAzione: ultima !== undefined ? UNA_RIGA(ultima.cosa) : ''
   }
   const segno = ultimoSegno ?? (Number.isNaN(dal) ? undefined : dal)
-  if (etichetta === 'al lavoro' && segno !== undefined && ora - segno >= SENZA_SEGNI_MS) fuori.senzaSegni = `nessun segno da ${durata(ora - segno)}`
+  if (etichetta === 'al lavoro' && segno !== undefined && ora - segno >= SENZA_SEGNI_AUTOPILOTA_MS) fuori.senzaSegni = `nessun segno da ${durata(ora - segno)}`
   return fuori
 }
 
