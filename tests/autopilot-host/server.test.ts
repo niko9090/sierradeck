@@ -56,6 +56,8 @@ function ambiente(
     cartellaArchivio?: string
     domande?: ReturnType<typeof creaRegistroDomande>
     memoria?: ReturnType<typeof apriMemoria>
+    /** La versione installata, come la passa il Gestore (0.81.0: le domande già risolte). */
+    versione?: string
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
@@ -87,7 +89,8 @@ function ambiente(
     adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
     ...(opts.git !== undefined ? { git: opts.git } : {}),
     ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {}),
-    ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {})
+    ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {}),
+    ...(opts.versione !== undefined ? { versione: opts.versione } : {})
   })
 }
 function creaServerCon(opts: Parameters<typeof ambiente>[0]): ServerAutopiloti {
@@ -223,12 +226,33 @@ describe('hook Stop', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
-  it('non dichiara finito quando il giudizio e illeggibile', async () => {
-    server = ambiente({ interroga: () => Promise.resolve({ testo: 'boh' }) })
+  it('non dichiara finito quando il giudizio e illeggibile, e non sospende: rifà il giro (0.80.1)', async () => {
+    let domande = 0
+    server = ambiente({ interroga: () => { domande++; return Promise.resolve({ testo: 'boh' }) } })
+    await avvia(server)
+    const id = await creaAp()
+    const r = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
+    // Il supervisore è stato riprovato una volta prima delle regole.
+    expect(domande).toBe(2)
+    expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
+  })
+
+  it('0.80.1: un supervisore che non risponde la prima volta si riprova subito', async () => {
+    let domande = 0
+    server = ambiente({
+      interroga: () => {
+        domande++
+        return domande === 1 ? Promise.reject(new Error('tempo scaduto')) : Promise.resolve({ testo: '{"azione": "finito"}' })
+      }
+    })
     await avvia(server)
     const id = await creaAp()
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    expect(domande).toBe(2)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
   it('una domanda della chat mette l autopilota in attesa e ne conserva il testo', async () => {
@@ -959,7 +983,7 @@ describe('eliminazione', () => {
 
   it('eliminare chiude anche le sue domande in sospeso', async () => {
     server = ambiente({
-      interroga: () => Promise.resolve({ testo: '{"finito": false, "istruzioni": "", "domandaUtente": "Quale?"}' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "chiedi", "domanda": "Quale?"}' }),
       scadenzaDomandaMs: 5000
     })
     await avvia(server)
@@ -1316,7 +1340,9 @@ describe('la chat viva che non finisce mai', () => {
   let ora = Date.parse('2026-08-09T10:00:00.000Z')
   const adesso = (): string => new Date(ora).toISOString()
 
-  it('viene sospesa e detta, invece di restare al lavoro per sempre', async () => {
+  it('0.80.1: viene messa da parte e detta, senza sospendere l autopilota', async () => {
+    // Il 19/10 sei autopiloti si sono fermati per «una chat non da segnali».
+    // Ora si mette da parte solo la chat che tace, con una riga per Nicholas.
     ora = Date.parse('2026-08-09T10:00:00.000Z')
     server = ambiente({ silenzioMassimoMs: 30 * 60_000, adesso })
     await avvia(server)
@@ -1327,9 +1353,21 @@ describe('la chat viva che non finisce mai', () => {
     server.controllaChatFerme()
 
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(stato.stato).toBe('sospeso')
-    expect(stato.motivoSospensione).toMatch(/nessun segnale|ferma/i)
-    expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(true)
+    expect(stato.stato).toBe('lavoro')
+    expect(stato.motivoSospensione).toBeUndefined()
+    expect(stato.daParte).toEqual([id])
+    expect(stato.decisioni.some((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'da-parte')).toBe(true)
+    expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(false)
+
+    // Il giro dopo non la rimette da parte una seconda volta.
+    const prima = stato.decisioni.length
+    ora += 5 * 60_000
+    server.controllaChatFerme()
+    expect((await chiama('GET', '/autopiloti')).dati[0].decisioni.length).toBe(prima)
+
+    // Appena chiude un turno torna nel conto.
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
+    expect((await chiama('GET', '/autopiloti')).dati[0].daParte).toBeUndefined()
   })
 
   it('una chat che parla non viene toccata', async () => {
@@ -1368,10 +1406,13 @@ describe('la chat viva che non finisce mai', () => {
     server.controllaChatFerme()
     // Cinquanta minuti senza hook, ma un battito venticinque minuti fa: vive.
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
-    // Poi il silenzio vero: trentuno minuti dall'ultimo battito.
+    // Poi il silenzio vero: trentuno minuti dall'ultimo battito. Dalla 0.80.1
+    // la chat va da parte e l'autopilota resta al lavoro.
     ora += 7 * 60_000
     server.controllaChatFerme()
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopo.stato).toBe('lavoro')
+    expect(dopo.daParte).toHaveLength(1)
   })
 
   it('IL DIFETTO: rispondere di mattina non fa sospendere un istante dopo', async () => {
@@ -2293,6 +2334,83 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     expect(r.dati.decision).toBe('block')
     expect(r.dati.reason).toContain('di prova')
     expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('«installi la 0.80.0?» con la 0.80.1 già installata non si chiede: la chat lo sa dal programma (0.81.0)', async () => {
+    server = creaServerCon({ versione: '0.80.1', interroga: () => Promise.resolve({ testo: chiede('Installi tu la 0.80.0 su questo PC?') }) })
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-ver', nome: 'Ver', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    const r = await chiama('POST', '/hook/stop?ap=ap-ver', eventoStop())
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('già installata la 0.80.1')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+    expect(archivio.leggi('ap-ver')!.decisioni.at(-1)?.cosa).toContain('non la chiedo')
+  })
+
+  it('la stessa domanda in un’altra lingua, già risposta, non si rifà (0.81.0)', async () => {
+    const memoria = apriMemoria(undefined)
+    memoria.ricordaRisposta('ap-en', 'Installi tu la 0.80.0 su questo PC?', 'sì, fatto', '2026-10-20T06:51:20Z', 'c-10')
+    server = creaServerCon({ memoria, versione: '0.79.0', adesso: () => '2026-10-20T07:00:00.000Z', interroga: () => Promise.resolve({ testo: chiede('Will you install the 0.80.0 on this PC?') }) })
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-en', nome: 'En', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-10-20T06:00:00.000Z' }), stato: 'lavoro' })
+    const r = await chiama('POST', '/hook/stop?ap=ap-en', eventoStop())
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('sì, fatto')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('la gemella a fine turno riprende anche la sorella che aveva chiesto da una notifica (0.81.0)', async () => {
+    // c-10 ha chiesto da una notifica: nessun turno trattenuto. c-12 chiede la
+    // stessa cosa a fine turno e aspetta con l'hook: la risposta arriva a c-12
+    // «in tempo», e la via delle risposte tardive (che riprendeva c-10) non scatta.
+    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const prima = domande.apri({ autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', scadenzaMs: 60_000 })
+    domande.ricorda(prima.id, { autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', grezza: 'Installi la 0.80.0 su questo PC?', chatId: 'c-10' })
+    server = creaServerCon({ domande, versione: '0.79.0', esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 adesso, così chiudo le chat finite?') }) })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-gem', nome: 'Gem', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [
+        { id: 'c-10', compito: 'a', stato: 'bloccata', cicli: 1, sessionId: 's-10' },
+        { id: 'c-12', compito: 'b', stato: 'lavoro', cicli: 1, sessionId: 's-12' }
+      ]
+    })
+    const fineTurno = chiama('POST', '/hook/stop?ap=ap-gem&chat=c-12', eventoStop({ session_id: 's-12' }))
+    for (let i = 0; i < 80 && archivio.leggi('ap-gem')!.chats.find((c) => c.id === 'c-12')!.stato !== 'bloccata'; i += 1) await new Promise((r) => setTimeout(r, 25))
+    expect(domande.aperte('ap-gem')).toHaveLength(1)
+
+    await chiama('POST', `/domande/${prima.id}/risposta`, { risposta: 'Sì, installo' })
+    const r = await fineTurno
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('Sì, installo')
+    expect(chatAvviate.map((c) => c.id)).toEqual(['c-10'])
+    expect(archivio.leggi('ap-gem')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
+  })
+
+  it('scaduta l’attesa della prima, la stessa domanda di una sorella non apre niente e la risposta le riprende tutte e due (0.81.0)', async () => {
+    server = creaServerCon({ versione: '0.79.0', scadenzaDomandaMs: 200, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 su questo PC?') }) })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-sca', nome: 'Sca', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [
+        { id: 'c-10', compito: 'a', stato: 'lavoro', cicli: 1, sessionId: 's-10' },
+        { id: 'c-12', compito: 'b', stato: 'lavoro', cicli: 1, sessionId: 's-12' }
+      ]
+    })
+    // c-10 chiede a fine turno; nessuno risponde entro la scadenza: l'hook la lascia andare.
+    expect((await chiama('POST', '/hook/stop?ap=ap-sca&chat=c-10', eventoStop({ session_id: 's-10' }))).dati).toEqual({})
+    // c-12 chiede la stessa cosa: si aggancia, non si apre una seconda domanda.
+    expect((await chiama('POST', '/hook/stop?ap=ap-sca&chat=c-12', eventoStop({ session_id: 's-12' }))).dati).toEqual({})
+    const aperte = (await chiama('GET', '/domande')).dati
+    expect(aperte).toHaveLength(1)
+    expect(aperte[0].inFila ?? 0).toBe(0)
+    expect(archivio.leggi('ap-sca')!.chats.map((c) => c.stato)).toEqual(['bloccata', 'bloccata'])
+
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'Sì, installo' })
+    expect(chatAvviate.map((c) => c.id).sort()).toEqual(['c-10', 'c-12'])
+    expect(archivio.leggi('ap-sca')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
   })
 
   it('una alla volta: due domande dello stesso autopilota, se ne vede una con quante aspettano', async () => {

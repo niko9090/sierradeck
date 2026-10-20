@@ -137,8 +137,8 @@ export type MessaggioPerLaChat = {
  * chat di cui parla (per la Revisione: quella che ha riletto).
  */
 export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te']
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte']
 
 export type Decisione = { quando: string; cosa: string; traguardo?: Traguardo }
 
@@ -396,6 +396,13 @@ export type Autopilota = {
   commitBase?: string
   /** Fermo per i limiti del piano fino a questo istante (ISO): poi riparte da solo. */
   pausaLimitiFinoA?: string
+  /**
+   * Le chat messe da parte perché non chiudono un turno da troppo (0.80.1): la
+   * chiave è l'id della chat, o l'id dell'autopilota per la chat singola. Il
+   * guardiano non le conta più e l'autopilota resta al lavoro con le altre;
+   * una chat torna nel conto appena chiude di nuovo un turno.
+   */
+  daParte?: string[]
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
   pubblicazioneInAttesa?: boolean
   /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
@@ -871,6 +878,7 @@ export function parseAutopilota(raw: unknown): {
       ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
       ...(typeof o.commitBase === 'string' && /^[0-9a-f]{7,64}$/.test(o.commitBase) ? { commitBase: o.commitBase } : {}),
       ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
+      ...(Array.isArray(o.daParte) && o.daParte.some((x) => typeof x === 'string' && x !== '') ? { daParte: o.daParte.filter((x): x is string => typeof x === 'string' && x !== '') } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
       ...(o.pubblicazioneIstruita === true ? { pubblicazioneIstruita: true } : {}),
       chats,

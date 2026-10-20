@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.80.1',
+    righe: [
+      '**Gli autopiloti non si fermano più per una chat che tace.** Si mette da parte solo quella chat, le altre continuano, e nella conversazione trovi una riga che lo dice. La chat torna da sola appena chiude un turno.',
+      '**Un supervisore che non risponde o non decide non ferma più il lavoro:** si riprova subito una volta, poi si rifà il giro invece di sospendere.',
+      '**Un criterio rosso solo per tempo scaduto si rimisura una volta da solo** prima di contare: sul PC carico capitava a comandi sani.'
+    ]
+  },
+  {
     versione: '0.80.0',
     righe: [
       '**Le chat finite si chiudono da sole,** anche quando il loro lavoro è già unito o il loro ramo non c’è più. Prima restavano aperte e andavano chiuse a mano.',

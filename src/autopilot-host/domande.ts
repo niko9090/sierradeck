@@ -32,7 +32,20 @@ export type DomandaAperta = {
 }
 
 /** Il contesto di una domanda: serve alla risposta tardiva per riprendere la chat giusta. */
-export type ContestoDomanda = { autopilotaId: string; testo: string; grezza?: string; chatId?: string; pubblica?: boolean }
+export type ContestoDomanda = {
+  autopilotaId: string
+  testo: string
+  grezza?: string
+  chatId?: string
+  pubblica?: boolean
+  /** Altre chat che hanno chiesto la stessa cosa (0.81.0): la risposta riprende anche loro. */
+  ancheChat?: string[]
+  /**
+   * La chat che ha chiesto aspetta la risposta con il turno trattenuto (le
+   * domande del supervisore a fine turno): riparte da lì, non va ripresa a parte.
+   */
+  trattenuta?: boolean
+}
 
 export type Risposta = { risposta: string; da: Provenienza }
 

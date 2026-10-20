@@ -182,6 +182,12 @@ export function nomeChi(c: Pick<ChatGovernata, 'ruolo'> | undefined): string {
  */
 export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): string | undefined {
   const chi = a.chats.find((c) => c.id === t.chat)
+  // 0.80.1: la chat che tace è messa da parte, l'autopilota no. Anche la chat
+  // singola, che non sta fra le `chats`.
+  if (t.esito === 'da-parte') {
+    const cosa = chi !== undefined ? ` («${compitoBreve(chi.compito)}»)` : ''
+    return `${chi !== undefined ? nomeChi(chi) : 'La chat'}${cosa} non chiude un turno da troppo: la metto da parte, le altre continuano. Torna da sola appena risponde.`
+  }
   const di = t.di !== undefined ? a.chats.find((c) => c.id === t.di) : undefined
   if (chi === undefined) return undefined
   const lavoro = di ?? chi
