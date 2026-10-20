@@ -2118,6 +2118,7 @@ export function App(): React.JSX.Element {
             onAlLogin={setAlLogin}
             onChiudi={() => setAperto(undefined)}
             workspaceAttivo={workspace.attivo}
+            workspaceNomi={workspace.nomi}
           />
         ) : null}
 

@@ -472,6 +472,8 @@ declare global {
         sottofondo: (id: string, si: boolean) => Promise<void>
         ricontrollaCriteri: (id: string) => Promise<void>
         archivia: (id: string, archivia: boolean) => Promise<void>
+        /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */
+        spostaInWorkspace: (id: string, workspace: string) => Promise<void>
         mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
         nota: (id: string, testo: string) => Promise<void>
         /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */

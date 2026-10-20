@@ -5656,6 +5656,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
         archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
+        spostaAutopilota: (id: string, workspace: string) => clientAutopilota.spostaInWorkspace(id, workspace),
         mandaAdessoAutopilota: (id: string) => clientAutopilota.mandaAdesso(id),
         installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
         installaLaStato: () => installaLaGlobale?.stato() ?? [],

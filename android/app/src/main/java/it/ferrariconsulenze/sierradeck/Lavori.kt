@@ -345,7 +345,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
         // cui vuoi premere «Riprendi» e' proprio dopo aver letto perche' si e'
         // fermato.
         Column(Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            AzioniAutopilota(api, breve.id, det?.stato ?: breve.stato)
+            AzioniAutopilota(api, breve.id, det?.stato ?: breve.stato, det?.workspace)
         }
         HorizontalDivider(color = Banco.incisione)
 
@@ -688,9 +688,20 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
 }
 
 @Composable
-private fun AzioniAutopilota(api: Api, id: String, stato: String) {
+private fun AzioniAutopilota(api: Api, id: String, stato: String, workspace: String? = null) {
     val scope = rememberCoroutineScope()
     var inCorso by remember(id, stato) { mutableStateOf(false) }
+    // «Sposta in…» (PC 0.81.0): i workspace del PC si leggono quando servono.
+    var nomiWs by remember(id) { mutableStateOf<List<String>?>(null) }
+    nomiWs?.let { nomi ->
+        SceltaWorkspace("Sposta l’autopilota in…", nomi, tranne = workspace, onScegli = { verso ->
+            nomiWs = null
+            scope.launch {
+                if (tentaGestione("spostarlo", SuPc.corrente?.nome) { api.spostaAutopilota(id, verso) } != null)
+                    Nota.mostra("Il suo lavoro ora compare in «$verso». La cartella e le chat già aperte restano dove sono.")
+            }
+        }, onChiudi = { nomiWs = null })
+    }
     /** `cosa` all'infinito: finisce in «Non sono riuscito a …» se il computer dice di no. */
     fun fai(cosa: String, azione: suspend () -> Unit) {
         inCorso = true
@@ -754,6 +765,11 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String) {
                 }
             }
         }
+    }
+    TextButton(enabled = !inCorso, onClick = {
+        scope.launch { tentaGestione("leggere i workspace", SuPc.corrente?.nome) { api.stato().workspace.nomi }?.let { nomi -> if (nomi.any { it != workspace }) nomiWs = nomi else Nota.mostra("Sul computer non c’è un altro workspace.") } }
+    }) {
+        Text("Sposta in un altro workspace…" + if (!workspace.isNullOrBlank()) " (adesso «$workspace»)" else "", fontSize = 12.sp)
     }
 }
 

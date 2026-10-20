@@ -47,6 +47,8 @@ type Props = {
    * sotto gli occhi di chi guardava altro.
    */
   workspaceAttivo: string
+  /** I workspace di questo PC, per «Sposta in…» (0.81.0). */
+  workspaceNomi?: string[]
 }
 
 /**
@@ -64,7 +66,8 @@ export function PannelloAutopiloti({
   onErrore,
   onAlLogin,
   onChiudi,
-  workspaceAttivo
+  workspaceAttivo,
+  workspaceNomi = []
 }: Props): React.JSX.Element {
   const [bozza, setBozza] = useState<Bozza | undefined>(undefined)
   // 0.74.0: l'autopilota nuovo nasce nel suo workspace, con la vista a elenco
@@ -481,6 +484,17 @@ export function PannelloAutopiloti({
                   title={sel.archiviato === true ? 'Lo rimette fra quelli che ti avvisano, senza farlo ripartire' : 'Lo mette da parte: resta qui, ma niente banda in alto e niente notifiche'}>
                   {sel.archiviato === true ? 'Archiviato · togli' : 'Archivia'}
                 </button>
+              ) : null}
+              {/* «Sposta in…» (0.81.0, Nicholas: «Spostalo in NexoraOS»). */}
+              {workspaceNomi.some((n) => n !== sel.workspace) ? (
+                <span className="con-aiuto">
+                  <select className="tasto tasto--mini" disabled={inCorso} value="" aria-label="Sposta in un altro workspace"
+                    onChange={(e) => { const ws = e.target.value; if (ws !== '') esegui(() => window.gestore.autopilota.spostaInWorkspace(sel.id, ws)) }}>
+                    <option value="">Sposta in…</option>
+                    {workspaceNomi.filter((n) => n !== sel.workspace).map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <Aiuto di="Sposta in">Cambia il workspace dove compare il suo lavoro{sel.workspace !== undefined ? ` (adesso «${sel.workspace}»)` : ''}. La cartella e le chat già aperte restano dove sono. Dopo, il workspace di prima si può eliminare.</Aiuto>
+                </span>
               ) : null}
               <span className="con-aiuto" style={{ marginLeft: 'auto' }}>
                 {togli === sel.id ? (

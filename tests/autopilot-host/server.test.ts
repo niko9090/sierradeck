@@ -2198,6 +2198,19 @@ describe('«Archivia» e il momento del fermo (0.37.0)', () => {
     expect((await chiama('POST', '/autopiloti/ap-vivo/archivia', { archivia: true })).stato).toBe(409)
   })
 
+  it('«Sposta in un altro workspace» cambia solo il workspace, anche mentre lavora (0.81.0)', async () => {
+    server = ambiente()
+    await avvia(server)
+    scriviFermo('ap-vivo', 'lavoro')
+    const r = await chiama('POST', '/autopiloti/ap-vivo/workspace', { workspace: ' Nuovo ' })
+    expect(r.stato).toBe(200)
+    expect(r.dati.workspace).toBe('Nuovo')
+    expect(r.dati.stato).toBe('lavoro')
+    expect(r.dati.cwd).toBe(process.cwd())
+    expect((await chiama('POST', '/autopiloti/ap-vivo/workspace', { workspace: '' })).stato).toBe(400)
+    expect((await chiama('POST', '/autopiloti/ap-nessuno/workspace', { workspace: 'Nuovo' })).stato).toBe(404)
+  })
+
   it('«Ferma» scrive il momento del fermo, e riprendere lo toglie insieme all archiviazione', async () => {
     server = ambiente()
     await avvia(server)

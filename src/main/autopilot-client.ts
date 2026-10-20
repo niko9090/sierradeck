@@ -102,6 +102,8 @@ export type ClientAutopilota = {
   ricontrollaCriteri: (id: string) => Promise<void>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
   archivia: (id: string, archivia: boolean) => Promise<void>
+  /** «Sposta in un altro workspace» (0.81.0): dove compare il suo lavoro. */
+  spostaInWorkspace: (id: string, workspace: string) => Promise<void>
   /** «Manda adesso» (0.69.0): i messaggi in coda escono subito. */
   mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
@@ -298,6 +300,9 @@ export function creaClientAutopilota(p: {
     mandaAdesso: async (id) => (await chiama(`/autopiloti/${encodeURIComponent(id)}/manda-adesso`, 'POST', {})) as { mandate: number; messaggio?: string },
     archivia: async (id, archivia) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/archivia`, 'POST', { archivia })
+    },
+    spostaInWorkspace: async (id, workspace) => {
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/workspace`, 'POST', { workspace })
     },
     elimina: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'DELETE') },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],

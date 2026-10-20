@@ -382,6 +382,8 @@ export type DipendenzeRotte = {
   installaLaStato?: () => unknown[]
   /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
   archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
+  /** «Sposta in un altro workspace» (0.81.0), come dal pannello del PC. */
+  spostaAutopilota?: (id: string, workspace: string) => Promise<void>
   /** «Manda adesso» (0.69.0). */
   mandaAdessoAutopilota?: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
@@ -1244,6 +1246,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // Dal telefono si leggeva la cartella della prima chat dell'elenco,
           // che con piu' progetti aperti e' semplicemente un'altra cosa.
           cwd: a.cwd,
+          // Il workspace dove compare il suo lavoro, per «Sposta in…» (0.81.0).
+          ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
           fatti: a.criteri.filter((c) => c.soddisfatto).length,
           criteri: a.criteri.length
         })),
@@ -2558,6 +2562,19 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const archivia = (r.corpo as { archivia?: unknown } | undefined)?.archivia !== false
       if (archivia && !eFermo(a)) return { stato: 409, corpo: { errore: 'Si archivia solo un autopilota fermo (sospeso o fallito): prima fermalo con «Ferma».' } }
       await deps.archiviaAutopilota(id, archivia)
+      return OK({ fatto: true })
+    }
+    // «Sposta in un altro workspace» (0.81.0): solo verso un workspace che c'è.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/sposta') {
+      const id = stringa(r.corpo, 'autopilota')
+      const ws = stringa(r.corpo, 'workspace').trim()
+      if (id === '' || ws === '') return { stato: 400, corpo: { errore: 'servono l autopilota e il workspace' } }
+      if (deps.spostaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora spostare un autopilota: aggiornalo alla 0.81.0.' } }
+      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
+      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
+      const nomi = (await deps.workspace().catch(() => ({ nomi: [] as string[] }))).nomi
+      if (!nomi.includes(ws)) return { stato: 404, corpo: { errore: `Il workspace «${ws}» non c’è su questo computer.` } }
+      await deps.spostaAutopilota(id, ws)
       return OK({ fatto: true })
     }
 

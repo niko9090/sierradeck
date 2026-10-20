@@ -3628,6 +3628,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // «Sposta in un altro workspace» (0.81.0, Nicholas: «Spostalo in
+        // NexoraOS»): cambia solo dove compare il suo lavoro, non la cartella né
+        // le chat già aperte. Così il workspace di prima si può eliminare.
+        const sposta = /^\/autopiloti\/([^/]+)\/workspace$/.exec(percorso)
+        if (metodo === 'POST' && sposta !== null) {
+          const id = decodeURIComponent(sposta[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req)
+          const ws = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>).workspace : undefined
+          if (typeof ws !== 'string' || ws.trim() === '' || ws.length > 200) {
+            rispondi(res, 400, { errore: 'manca il nome del workspace' })
+            return
+          }
+          salva({ ...a, workspace: ws.trim() })
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
         // Il via, dopo aver letto cosa ha deciso.
         const via = /^\/autopiloti\/([^/]+)\/vai$/.exec(percorso)
         if (metodo === 'POST' && via !== null) {

@@ -1561,6 +1561,10 @@ export function registerAutopilotaIpc(
     client.nota(validaIdAutopilota(id), typeof testo === 'string' ? testo.slice(0, 500) : ''))
   ipcMain.handle('autopilota:archivia', (_e, id: unknown, archivia: unknown) =>
     client.archivia(validaIdAutopilota(id), archivia !== false))
+  ipcMain.handle('autopilota:spostaInWorkspace', (_e, id: unknown, workspace: unknown) => {
+    if (typeof workspace !== 'string' || workspace.trim() === '') throw new Error('richiesta IPC non valida')
+    return client.spostaInWorkspace(validaIdAutopilota(id), workspace)
+  })
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:mandaAdesso', (_e, id: unknown) => client.mandaAdesso(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:domande', () => client.domande())
