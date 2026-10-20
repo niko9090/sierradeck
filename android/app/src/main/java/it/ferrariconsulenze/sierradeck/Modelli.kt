@@ -436,6 +436,42 @@ fun sottoAutopilota(v: VistaAutopilotaApp): String = listOfNotNull(v.da.takeIf {
 
 /** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
 @Serializable
+data class RigaAdesso(
+    val id: String = "",
+    val chi: String = "",
+    val compito: String = "",
+    val testo: String = "",
+    /** lavoro | aspetta | pausa | ferma */
+    val tono: String = "lavoro"
+)
+
+/**
+ * Il riquadro «Adesso» (PC 0.81.0): cosa fa ogni chat dell'autopilota, da
+ * quanto, e se è ferma perché. Le righe sono già scritte dal PC.
+ */
+@Serializable
+data class Adesso(
+    val righe: List<RigaAdesso> = emptyList(),
+    val finite: Int = 0,
+    val aiuto: String = ""
+)
+
+/** Lo stesso colore del PC (`COLORE_ADESSO`). */
+fun coloreAdesso(tono: String): String = when (tono) {
+    "ferma" -> "rosso"
+    "aspetta" -> "ambra"
+    "pausa" -> "quieto"
+    else -> "verde"
+}
+
+/** «2 chat finite»: le finite non hanno una riga ciascuna. */
+fun righeFinite(n: Int): String? = when {
+    n <= 0 -> null
+    n == 1 -> "1 chat finita"
+    else -> "$n chat finite"
+}
+
+@Serializable
 data class StatoDalVivo(
     val etichetta: String = "",
     val da: String = "",
@@ -599,6 +635,8 @@ data class AutopilotaDettaglio(
     /** PC 0.69.0: stato dal vivo e messaggi verso la chat. */
     val dalVivo: StatoDalVivo? = null,
     val messaggi: List<StatoMessaggio> = emptyList(),
+    /** PC 0.81.0: il riquadro «Adesso», una riga per chat. Assente con un PC più vecchio. */
+    val adesso: Adesso? = null,
     val id: String = "",
     val nome: String = "",
     /** L'obiettivo come l'ha capito lui (riscritto dalla preparazione). */

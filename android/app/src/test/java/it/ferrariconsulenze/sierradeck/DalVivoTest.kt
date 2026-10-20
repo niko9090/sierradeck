@@ -87,3 +87,29 @@ class FermaCasiTest {
         assertEquals("ferma", parolaPerRiga(leggiChat(chiede = false, aspetta = true, governata = false, viva = true), 420))
     }
 }
+
+/** PC 0.81.0: il riquadro «Adesso», una riga per chat, scritta dal PC. */
+class AdessoTest {
+    @Test
+    fun `le righe arrivano come le scrive il PC, la ferma in rosso`() {
+        val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """
+            {"id":"ap-1","stato":"lavoro","adesso":{"righe":[
+              {"id":"c-14","chi":"c-14","compito":"Lo storico","testo":"non è ancora partita: aperta 14 h 4 min fa, nessun segno","tono":"ferma"},
+              {"id":"c-13","chi":"Sviluppo","compito":"Le domande","testo":"al lavoro da 20 min","tono":"lavoro"}],
+             "finite":2,"aiuto":"Una riga per ogni chat"}}
+        """)
+        val a = d.adesso!!
+        assertEquals(listOf("c-14", "c-13"), a.righe.map { it.id })
+        assertEquals("rosso", coloreAdesso(a.righe[0].tono))
+        assertEquals("verde", coloreAdesso(a.righe[1].tono))
+        assertEquals("ambra", coloreAdesso("aspetta"))
+        assertEquals("2 chat finite", righeFinite(a.finite))
+        assertNull(righeFinite(0))
+    }
+
+    @Test
+    fun `un PC vecchio non manda «Adesso»`() {
+        val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","stato":"lavoro"}""")
+        assertNull(d.adesso)
+    }
+}
