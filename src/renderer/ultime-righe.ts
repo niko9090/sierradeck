@@ -53,10 +53,18 @@ const RUMORE_DI_INTERFACCIA =
   // 0.70.0: anche i piedi delle domande («Enter to confirm · Esc to cancel»): dal telefono si leggevano al posto della chat.
   // 0.81.0: anche la riga di stato (modello, contesto, limiti del piano), come in `panoramica.ts`:
   // dalla prova nella copia, l'avviso «aspetta te» diceva «Opus · contesto 5% · 5 ore 8%…».
-  /^(\? for shortcuts|[›>]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
+  // 0.82.0: anche il campo vuoto «❯»: sulla pagina ogni chat ferma aveva sotto il nome una riga con il solo «❯».
+  /^(\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/
+
+/**
+ * Una cornice con il titolo della chat dentro (\u00ab\u2500\u2500\u2500\u2500 Somma: cosa fa \u2500\u00bb, 0.82.0):
+ * comincia e finisce con caratteri di riquadro. Tagliata a 160 caratteri,
+ * sulla pagina restava una riga di soli trattini sotto ogni chat ferma.
+ */
+const CORNICE_CON_TITOLO = /^[\u2500-\u257f]{3,}.*[\u2500-\u257f]$/
 
 /**
  * L'ultima riga che dice qualcosa, letta dallo **schermo disegnato**.
@@ -75,7 +83,7 @@ export function ultimaRigaDalloSchermo(righe: string[] | undefined): string {
       .replace(/^[\u2502\u2503]\s?/, '')
       .replace(/\s?[\u2502\u2503]\s*$/, '')
       .trim()
-    if (riga === '' || SOLO_CORNICE.test(riga) || RUMORE_DI_INTERFACCIA.test(riga)) continue
+    if (riga === '' || SOLO_CORNICE.test(riga) || CORNICE_CON_TITOLO.test(riga) || RUMORE_DI_INTERFACCIA.test(riga)) continue
     return riga.slice(0, RIGA_MAX)
   }
   return ''

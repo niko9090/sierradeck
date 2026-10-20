@@ -8,6 +8,8 @@ import { ChatAutopilota } from './ChatAutopilota'
 import { domandaArrivata } from '@shared/domande-autopilota'
 import { segnaSchedaInVista } from '../schede-in-vista'
 import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
+import { TendinaMenu } from './TendinaMenu'
+import { divisioneLinguette } from '../linguette-diario'
 
 /** Le linguette sotto la chat: una cosa per volta, ognuna con tutto lo spazio. */
 type Linguetta = 'domande' | 'lavoro' | 'istruzioni' | 'file' | 'obiettivo' | 'criteri' | 'compiti' | 'diario'
@@ -94,6 +96,7 @@ export function DiarioAutopilota({
     bersaglio.addEventListener('pointercancel', molla)
   }
   const [linguetta, setLinguetta] = useState<Linguetta>('lavoro')
+  const [altreAperte, setAltreAperte] = useState(false)
   /**
    * Le sue domande aperte (0.38.0): il numerino della linguetta «Domande» e
    * le schede da rispondere. Si rileggono ogni due secondi dal servizio.
@@ -270,6 +273,7 @@ export function DiarioAutopilota({
   const visibile = staccate.includes(linguetta)
     ? (LINGUETTE.find((l) => !staccate.includes(l.id) && l.id !== 'domande')?.id ?? 'lavoro')
     : linguetta
+  const { inVista, altre } = divisioneLinguette(LINGUETTE.filter((l) => (l.id !== 'domande' || schede.length > 0) && !staccate.includes(l.id)), visibile)
   const pannello = (): React.JSX.Element => (
     <LinguettaAutopilota
       autopilota={autopilota}
@@ -381,7 +385,7 @@ export function DiarioAutopilota({
 
         <div className="diario__lato">
           <div className="diario__schede" role="tablist" ref={barra}>
-            {LINGUETTE.filter((l) => (l.id !== 'domande' || schede.length > 0) && !staccate.includes(l.id)).map((l) => (
+            {inVista.map((l) => (
               <button
                 draggable
                 onDragEnd={(e) => fineTrascinamento(l.id, e)}
@@ -412,6 +416,19 @@ export function DiarioAutopilota({
                 ) : null}
               </button>
             ))}
+            {/* 0.82.0: le linguette rare dietro «⋯», così la barra sta su una riga. */}
+            {altre.length > 0 ? (
+              <span style={{ position: 'relative' }}>
+                <button className="diario__scheda" aria-expanded={altreAperte} aria-haspopup="menu" title={`Altre linguette: ${altre.map((l) => l.nome).join(', ')}`} aria-label="Altre linguette" onClick={() => setAltreAperte((v) => !v)}>⋯</button>
+                {altreAperte ? (
+                  <TendinaMenu onChiudi={() => setAltreAperte(false)}>
+                    {altre.map((l) => (
+                      <button key={l.id} role="menuitem" className="progetti__voce" title={l.titolo} onClick={() => { setAltreAperte(false); setLinguetta(l.id) }}>{l.nome}</button>
+                    ))}
+                  </TendinaMenu>
+                ) : null}
+              </span>
+            ) : null}
             <span style={{ flex: 1 }} />
             {!staccate.includes(linguetta) ? (
               <button
@@ -420,7 +437,7 @@ export function DiarioAutopilota({
                 title="Stacca questa linguetta in una finestra sua, da spostare dove vuoi, anche su un altro schermo. Si rimette dalla sua finestra («Rimetti al suo posto») o chiudendola. Puoi anche trascinare una linguetta fuori da questa barra"
                 aria-label="Stacca la linguetta in una finestra"
               >
-                ⧉ Stacca
+                ⧉
               </button>
             ) : null}
           </div>

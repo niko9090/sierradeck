@@ -206,6 +206,13 @@ object RegolePanoramica {
     }
 
     /** Il titolo del riassunto: «Al lavoro · 3 · ◆ 1 aspetta te». */
+    /** 0.82.0: «Adesso» vuoto non si mostra se sopra c'è già «Al lavoro» (un PC della 0.78 non lo manda). */
+    fun mostraAdesso(quante: Int, conAlLavoro: Boolean): Boolean = quante > 0 || !conAlLavoro
+
+    /** 0.82.0: la riga dal vivo senza la parola dello stato, che la testata dice già: ultima azione, da quanto, ⚠. */
+    fun rigaDalVivoSenzaStato(v: StatoDalVivo): String =
+        listOfNotNull(v.ultimaAzione.takeIf { it.isNotBlank() }, v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, v.senzaSegni?.let { "⚠ $it" }).joinToString(" · ")
+
     fun titoloAlLavoro(righe: List<RigaAlLavoro>): String {
         val aspettano = righe.count { it.aspettaTe }
         return "Al lavoro · ${righe.size}" + when (aspettano) { 0 -> ""; 1 -> " · ◆ 1 aspetta te"; else -> " · ◆ $aspettano aspettano te" }
@@ -360,9 +367,12 @@ fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
         }
         val sz = RegolePanoramica.sezioni(p.schede)
         // ─── Adesso ───
-        Serigrafia("Adesso · ${sz.adesso.size}", modifier = Modifier.padding(top = 10.dp))
-        if (sz.adesso.isEmpty()) Text("Nessuna chat al lavoro.", color = Banco.testoQuieto, modifier = Modifier.padding(vertical = 6.dp))
-        for (s in sz.adesso) SchedaTel(s, 3, onApri)
+        // 0.82.0: vuoto, «Adesso» ripeteva «Nessuna chat al lavoro» di «Al lavoro» più sopra.
+        if (RegolePanoramica.mostraAdesso(sz.adesso.size, p.alLavoro != null)) {
+            Serigrafia("Adesso · ${sz.adesso.size}", modifier = Modifier.padding(top = 10.dp))
+            if (sz.adesso.isEmpty()) Text("Nessuna chat al lavoro.", color = Banco.testoQuieto, modifier = Modifier.padding(vertical = 6.dp))
+            for (s in sz.adesso) SchedaTel(s, 3, onApri)
+        }
         // ─── Piano ───
         val piano = p.piano.filter { it.compiti.isNotEmpty() }
         if (piano.isNotEmpty()) {
