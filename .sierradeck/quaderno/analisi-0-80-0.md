@@ -806,6 +806,18 @@ Su questo PC ci sono due workspace nati per sbaglio. Si tolgono con **«Elimina 
 - **Il visitafacile vero su DESKTOP non va toccato.**
 - Le due cause sono i punti 2 e 3 del compito «Difetti di chat e workspace».
 
+### Stato al 20/10, 10:00 (c-26): NON ancora tolti, e perché
+- Sul PC è installata la **0.80.1**, che **non** ha «Elimina workspace» con il recupero di 30 giorni (`c7b4934` è solo in main, va nella 0.81.0). Con la 0.80.1 «Elimina» toglie il workspace senza recupero: non va usato.
+- Far girare il codice di main sui file veri mentre il programma è acceso non vale: la finestra e il servizio tengono `workspaces.json` e gli autopiloti in memoria e li riscrivono. Le rotte `/api` del servizio vero sono vietate alle chat.
+- Lo stato è cambiato dal 19/10:
+  - l'autopilota `ap-79a4ce02` («Recupero VisitaFacile da nexora-nas») ha avuto il «Vai» di Nicholas il 20/10 alle 08:40, è **al lavoro** (messo da parte alle 09:49 per «nessun segnale da 60 minuti»). `motivoPerNonEliminare` rifiuta di eliminare la sua casa finché non è spostato o sospeso;
+  - `E:\Users\nikof\Documents\VisitaFacile` **non è più vuota**: dentro ci sono `STATO_PROGETTO.md` e `.sierradeck/`, scritti dall'autopilota. Non va nel recupero. Vuota resta solo `C:\Users\nikof\Progetti SierraDeck\visitafacile`, che «Elimina» sposta da sola;
+  - nel programma non c'è un comando per spostare un autopilota in un altro workspace.
+- **Come si fa, dopo che Nicholas installa la 0.81.0:**
+  1. l'autopilota `ap-79a4ce02` va nel workspace NexoraOS (serve un «Sposta in un altro workspace» per gli autopiloti, oppure Nicholas lo ferma e lo riavvia da NexoraOS con lo stesso obiettivo);
+  2. «⋯» del workspace «dentro al mio server nexora c'è gia un» → Elimina; poi «visitafacile» → Elimina. La cartella vuota `Progetti SierraDeck\visitafacile` va da sola in `workspaces-recupero-cartelle\`.
+- **Come si rimettono (30 giorni):** pannello Workspace → «Eliminati» → «Ripristina» (anche dalla pagina e dall'app). Il workspace torna con le sue chat e i suoi riquadri; la cartella torna dov'era, se lì non è nata un'altra cartella.
+
 ## Test rossi su main il 19/10
 - `rimozione-sicura.test.ts` («un altro PC firmato sì…») cadeva per tempo scaduto anche da solo: caricava `client-rotte` dentro il test, e trasformarlo a cache fredda costa più dei 20 s concessi. Ora lo carica in cima al file. Nessun difetto nel programma.
 
