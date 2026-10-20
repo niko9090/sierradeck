@@ -752,6 +752,8 @@ fun Computer(api: Api, stato: Stato?, parte: ParteComputer = ParteComputer.IMPOS
             cm.setPrimaryClip(android.content.ClipData.newPlainText("SierraDeck", testo))
             Nota.mostra("Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.")
         }) { Text("Copia i dettagli") }
+        // Lo storico degli errori (app 2.81.0): quello del PC, con «Copia» e «Manda al PC di sviluppo».
+        if (imp) SezioneErroriApp(api)
         }
             if (imp) Divisore()
         }

@@ -76,6 +76,7 @@ import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
 import { idTestoValido, type StatoSottofondo } from '@shared/sottofondo'
+import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceErrore } from '@shared/storico-errori'
 
 /**
  * Cosa può fare il Client, e cosa no.
@@ -297,6 +298,21 @@ export type DipendenzeRotte = {
    * firmata), mai da un telefono.
    */
   rimozione?: LatoResidente
+  /**
+   * Gli errori mandati da un altro PC o dal telefono (0.81.0): questo PC li
+   * scrive nella cartella di SierraDeck, se è il PC di sviluppo.
+   */
+  erroriArrivati?: (invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>
+  /**
+   * Lo storico degli errori di questo PC per la pagina e l'app (0.81.0): lo
+   * leggono, ci aggiungono i propri errori (con il loro posto) e lo mandano
+   * al PC di sviluppo scelto qui.
+   */
+  errori?: {
+    leggi: () => { voci: VoceErrore[]; testo: string; pcSviluppo?: string }
+    aggiungi: (e: { dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }) => void
+    manda: () => Promise<{ ok: boolean; messaggio: string }>
+  }
   /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
   gestioneChat?: Pick<GestioneChat, 'spazio' | 'azione' | 'archiviate' | 'eArchiviata' | 'recupero' | 'ripristinaDalRecupero' | 'chiediSvuota' | 'svuota'>
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
@@ -1051,6 +1067,30 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──
+    // Lo storico degli errori di questo PC, dal telefono (0.81.0).
+    if (r.metodo === 'POST' && (r.percorso === '/api/errori' || r.percorso === '/api/errori/aggiungi' || r.percorso === '/api/errori/manda')) {
+      const lato = depsPieni.errori
+      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora lo storico degli errori: va aggiornato alla 0.81.0.' } }
+      if (daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Lo storico degli errori di un PC si guarda da quel PC.' } }
+      if (r.percorso === '/api/errori') return OK(lato.leggi())
+      if (r.percorso === '/api/errori/manda') return OK(await lato.manda())
+      const l = leggiErroriDelTelefono(r.corpo)
+      for (const e of l) lato.aggiungi(e)
+      return OK({ aggiunti: l.length })
+    }
+
+    // Lo storico degli errori di un altro PC o del telefono (0.81.0).
+    if (r.metodo === 'POST' && r.percorso === '/api/errori/arrivati') {
+      // Solo da un altro PC: il telefono manda i suoi con /api/errori/aggiungi.
+      // Quello che arriva qui diventa il compito di un autopilota che cambia il codice.
+      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'Gli errori arrivano qui solo da un altro PC con la stessa cassaforte.' } }
+      if (depsPieni.erroriArrivati === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora ricevere gli errori: va aggiornato alla 0.81.0.' } }
+      const l = leggiInvioErrori(r.corpo)
+      if (!l.ok) return { stato: 400, corpo: { errore: l.errore } }
+      const e = await depsPieni.erroriArrivati(l.invio, visore)
+      return e.ok ? OK({ arrivati: l.invio.voci.length }) : { stato: e.stato, corpo: { errore: e.errore } }
+    }
+
     if (r.metodo === 'POST' && r.percorso.startsWith('/api/rimozione/')) {
       const lato = depsPieni.rimozione
       if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo PC non sa ancora confrontare un progetto da togliere: va aggiornato alla 0.58.0.' } }
@@ -1196,6 +1236,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           ...(eFermo(a) && riparteDaSolo(a) ? { riparteDaSolo: true } : {}),
           // Messo da parte con «Archivia»: niente notifiche.
           ...(a.archiviato === true ? { archiviato: true } : {}),
+          // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»):
+          // pagina e app lo notificano una volta, per id.
+          ...(a.annuncio !== undefined ? { annuncio: { id: a.annuncio.id, titolo: a.annuncio.titolo } } : {}),
           // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.
           // Dal telefono si leggeva la cartella della prima chat dell'elenco,
           // che con piu' progetti aperti e' semplicemente un'altra cosa.

@@ -1,5 +1,5 @@
 import { dirname, join } from 'node:path'
-import { homedir } from 'node:os'
+import { homedir, hostname, userInfo } from 'node:os'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
@@ -7,6 +7,7 @@ import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuaderno } from '../main/quaderno-store'
 import { apriRegistro, type Registro } from '../main/registro'
+import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
@@ -175,7 +176,20 @@ function percorsiConfigTelegram(): string[] {
  * tutto il servizio.
  */
 function reteDiSicurezza(): void {
-  const registro = apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?', 'servizio')
+  const dati = join(cartellaStato(), '..')
+  const versione = process.env.SIERRADECK_VERSIONE ?? '?'
+  // Ogni errore anche nello storico degli errori (0.81.0), in un file suo:
+  // il programma scrive nel proprio, e la voce «Errori» li unisce.
+  const storico = apriStoricoErrori(dati, 'servizio', {
+    versione,
+    nomi: () => {
+      const n: string[] = [hostname()]
+      try { n.push(userInfo().username) } catch { /* senza utente */ }
+      return n
+    }
+  })
+  process.on('exit', () => { storico.scriviOra() })
+  const registro = conStorico(apriRegistro(dati, versione, 'servizio'), storico)
   consoleNelRegistro(registro)
   const scrivi = (che: string, motivo: unknown): void => {
     const m = motivo instanceof Error

@@ -273,6 +273,22 @@ object Avvisi {
             vivi.add("s:$id")
             vivi.add("p:$id")
             val nome = a.optString("nome", "Un autopilota")
+            // Un annuncio del programma (2.81.0, il riepilogo di «Errori
+            // arrivati»): una notifica sola per id, anche al lavoro.
+            val annuncio = a.optJSONObject("annuncio")?.optString("id").orEmpty()
+            if (annuncio.isNotEmpty()) {
+                vivi.add("n:$annuncio")
+                if (giaVisti.add("n:$annuncio") && !primoGiro && !a.optBoolean("archiviato", false)) {
+                    avvisi.add(
+                        Avviso(
+                            chiave = "n:$annuncio",
+                            titolo = a.optJSONObject("annuncio")?.optString("titolo").orEmpty().ifBlank { nome },
+                            testo = "Il riepilogo è nella conversazione di «$nome».",
+                            id = idAvviso(ID_AUTOPILOTA, "n:$id")
+                        )
+                    )
+                }
+            }
             when (a.optString("stato")) {
                 "finito" -> {
                     if (!giaVisti.add("f:$id") || primoGiro) continue
@@ -355,7 +371,7 @@ object Avvisi {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
         if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:"); note.add("kq:"); note.add("t:") }
-        if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
+        if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:"); note.add("n:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }
     }

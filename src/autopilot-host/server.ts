@@ -368,7 +368,11 @@ export function conservaCambiUtente(
     // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
     // 16/10: la fotografia di inizio turno li cancellava.
     ...(fresco.adottate !== undefined ? { adottate: fresco.adottate } : {}),
-    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {})
+    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {}),
+    // L'annuncio a Nicholas (0.81.0): lo scrive la rotta `/annuncio` mentre il
+    // turno lavora. Visto nella prova del 20/10: la fotografia di inizio turno
+    // lo cancellava, il testo restava nel dialogo ma pagina e app perdevano la notifica.
+    ...(fresco.annuncio !== undefined ? { annuncio: fresco.annuncio } : {})
   }
 }
 
@@ -3466,6 +3470,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             salva(dopo)
           }
           rispondi(res, 200, { tolti: scritti.length })
+          return
+        }
+
+        // Un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»): il
+        // testo nella conversazione dell'autopilota, come una sua battuta, e
+        // l'id nuovo in `annuncio`, con cui PC, pagina e app mandano una
+        // notifica sola. Non è una battuta da elaborare: niente supervisore.
+        const annuncio = /^\/autopiloti\/([^/]+)\/annuncio$/.exec(percorso)
+        if (metodo === 'POST' && annuncio !== null) {
+          const id = decodeURIComponent(annuncio[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim().slice(0, 4000) : ''
+          const titolo = typeof corpo?.titolo === 'string' && corpo.titolo.trim() !== '' ? corpo.titolo.trim().slice(0, 120) : a.nome
+          if (testo === '') {
+            rispondi(res, 400, { errore: 'serve il testo' })
+            return
+          }
+          const quando = deps.adesso()
+          salva({
+            ...a,
+            dialogo: [...a.dialogo, { quando, da: 'lui' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO),
+            annuncio: { id: randomUUID(), titolo, quando }
+          })
+          rispondi(res, 200, { fatto: true })
           return
         }
 
