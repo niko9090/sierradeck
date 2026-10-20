@@ -53,3 +53,9 @@ Togliendo il workspace o la cartella VisitaFacile, l'autopilota resta senza casa
   - Alle 12:10 il dispositivo era già tolto (resta solo il telefono), i due workspace c'erano ancora e non risultavano fra gli eliminati: nessun danno.
   - La cartella sparisce quando si toglie il worktree di c-11: non va cancellata a mano.
 - **Trappola:** in un comando, una variabile messa dentro le virgolette singole di `node -e '…'` non viene sostituita. Il percorso va passato come argomento (`node -e '…' "$S"` e `process.argv[1]`) o costruito in JavaScript con `process.env.APPDATA`.
+
+## 20/10, 10:00 (c-26, consegna c-298): ancora bloccata
+- Installata c'è la 0.80.1: «Elimina workspace» con recupero è solo in main (0.81.0, non pubblicata). Il codice di main sui file veri a programma acceso verrebbe riscritto dalla memoria della finestra e del servizio; `/api` del servizio vero è vietata. Niente toccato.
+- L'autopilota `ap-79a4ce02` ora è **al lavoro** (Nicholas ha dato «Vai» il 20/10) e ha scritto `STATO_PROGETTO.md` in `E:\Users\nikof\Documents\VisitaFacile`: quella cartella non è più vuota e non va nel recupero.
+- Non esiste un comando per spostare un autopilota in un altro workspace: va scritto (funzione nuova) oppure Nicholas lo riavvia da NexoraOS.
+- Passi e «come si rimettono» in `analisi-0-80-0.md`, sezione «Stato al 20/10».
