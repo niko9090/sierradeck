@@ -63,6 +63,30 @@ Il codice sta in `src/main/errori-arrivati-lavoro.ts`. Il giro gira nel main ogn
 
 **Trappola:** il criterio «riepilogo scritto» non può provare l'ordine (riepilogo PRIMA del codice). Lo dice l'obiettivo, e il giro lo manda appena c'è.
 
+## La prova nella copia di prova (20/10, c-14)
+
+Copia con `SIERRADECK_PROVA`, porte 47680/47681 e DevTools 9373; il servizio vero non è stato toccato. Come PC di sviluppo la copia stessa. Come «cartella di SierraDeck» una cartella finta: `package.json` con nome `sierradeck`, git senza remoto, quindi nessuna release possibile.
+
+| Passo | Esito |
+|---|---|
+| Errore finto della pagina (`/api/errori/aggiungi`), poi «Manda» (`/api/errori/manda`) | Arrivato in `errori-arrivati/PC-Fisso/2026-10-20_07-49-13.json`, senza percorsi personali; i due invii raggruppati («volte: 2») |
+| Voce «Errori» | «1 arrivo, parto fra qualche minuto», poi «al lavoro su 1 arrivo» |
+| Avvio da solo | Dopo 5 min e 22 s, autopilota «Errori arrivati» nel workspace «SierraDeck», diviso in Sviluppo e Rilascio, in sottofondo senza cambiare lo schermo |
+| Riepilogo | Scritto dalla chat prima di ogni modifica, nella conversazione come battuta sua, annuncio con un id, una riga `[avviso] PC: annuncio` nel registro |
+| Recupero | Lavoro segnato finito, giro all'avvio: i file e il riepilogo in `.recupero/` con l'ora nel nome, lavoro chiuso «finito» |
+
+Cosa ha trovato la prova, già corretto:
+- **L'annuncio spariva a fine turno.** `conservaCambiUtente` riprendeva dal disco dialogo e adottate, ma non `annuncio`. Il testo restava nel dialogo, l'id per la notifica di pagina e app no. Corretto, con test in `conserva-cambi-utente.test.ts`.
+- **Un falso guasto a ogni avvio.** `MaxListenersExceededWarning` (12 `before-quit`, tutti dentro `whenReady`, registrati una volta) finiva nello storico, e avrebbe fatto partire un lavoro «Errori arrivati» a ogni invio. Ora c'è `app.setMaxListeners(30)`, con un test che conta i `before-quit`.
+  - **Da sapere:** la chat della prova aveva supposto il contrario («registrato più volte, non alzare il tetto»), ma non aveva il codice. Alzare il tetto è la correzione giusta.
+- **Un criterio che violava la guardia.** Il criterio con il comando della guardia conteneva la parola `rimraf`, e la guardia lo trovava. Tolto: la guardia è già un test della suite.
+
+Trappole della prova:
+- **La cartella finta va fuori dalla copia di lavoro.** `cartellaDiSierraDeck` scarta apposta tutto ciò che sta sotto `….sierradeck-wt`. Messa nello scratchpad.
+- **La chat della copia è rimasta 19 minuti sulla domanda di fiducia** della sua copia di lavoro (`SierraDeck.sierradeck-wt/ap-…-c-1`, che non è nella `.claude.json` di prova). Succede solo nella copia.
+- **Per provare il recupero** si è fermata la copia, si è messo `stato: "finito"` nel JSON dell'autopilota della copia e la si è riavviata. Il primo giro parte 30 s dopo l'avvio.
+- **La prova non è stata ripetuta dopo la correzione dell'annuncio:** la copre il test.
+
 ## Ancora da fare
 
 - **Prova nella copia di prova** (SIERRADECK_PROVA): un errore finto, l'invio, l'arrivo, l'avvio, il riepilogo, il recupero. Senza pubblicare release vere.

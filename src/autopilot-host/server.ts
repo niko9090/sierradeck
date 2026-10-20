@@ -361,7 +361,11 @@ export function conservaCambiUtente(
     // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
     // 16/10: la fotografia di inizio turno li cancellava.
     ...(fresco.adottate !== undefined ? { adottate: fresco.adottate } : {}),
-    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {})
+    ...(fresco.perAdottate !== undefined ? { perAdottate: fresco.perAdottate } : {}),
+    // L'annuncio a Nicholas (0.81.0): lo scrive la rotta `/annuncio` mentre il
+    // turno lavora. Visto nella prova del 20/10: la fotografia di inizio turno
+    // lo cancellava, il testo restava nel dialogo ma pagina e app perdevano la notifica.
+    ...(fresco.annuncio !== undefined ? { annuncio: fresco.annuncio } : {})
   }
 }
 
