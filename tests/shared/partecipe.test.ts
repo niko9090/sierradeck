@@ -53,9 +53,24 @@ describe('il riquadro «Adesso»: una riga per chat', () => {
     expect(adessoDi(a, ORA).righe[0]?.tono).toBe('lavoro')
   })
 
-  it('al lavoro ma senza segni da un quarto d’ora: ferma, con da quanto', () => {
+  it('al lavoro ma senza segni da cinque minuti: ferma, con da quanto', () => {
     const a = ap({ chats: [chat('c-1', { dal: iso(ORA - 60 * MIN) })], segniChat: { 'c-1': iso(ORA - MUTA_DA_MS - 5 * MIN) } })
-    expect(adessoDi(a, ORA).righe[0]).toMatchObject({ tono: 'ferma', testo: 'nessun segno da 20 min' })
+    expect(adessoDi(a, ORA).righe[0]).toMatchObject({ tono: 'ferma', testo: 'nessun segno da 10 min' })
+  })
+
+  it('PROVA DEL 20/10: quando la conversazione dice «non dà segnali da 5 minuti», «Adesso» non la dà verde', () => {
+    // c-2 al lavoro da 11 min, ultimo segno 6 min fa; c-1 aperta da 6 min, mai partita.
+    const a = ap({
+      chats: [chat('c-1', { cicli: 0, dal: iso(ORA - 6 * MIN) }), chat('c-2', { dal: iso(ORA - 11 * MIN) })],
+      segniChat: { 'c-2': iso(ORA - 6 * MIN) },
+      segniDal: iso(ORA - 30 * MIN)
+    })
+    const righe = adessoDi(a, ORA).righe
+    expect(righe.find((r) => r.id === 'c-2')).toMatchObject({ tono: 'ferma', testo: 'nessun segno da 6 min' })
+    expect(righe.find((r) => r.id === 'c-1')).toMatchObject({ tono: 'ferma', testo: 'non è ancora partita: aperta 6 min fa, nessun segno' })
+    // Un segno di 4 minuti fa: ancora al lavoro.
+    const viva = ap({ chats: [chat('c-2', { dal: iso(ORA - 11 * MIN) })], segniChat: { 'c-2': iso(ORA - 4 * MIN) }, segniDal: iso(ORA - 30 * MIN) })
+    expect(adessoDi(viva, ORA).righe[0]?.tono).toBe('lavoro')
   })
 
   it('messa da parte (0.80.1): ferma, e dice che torna da sola', () => {

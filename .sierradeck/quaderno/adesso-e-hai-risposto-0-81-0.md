@@ -18,9 +18,15 @@ mentre risultavano «al lavoro», e le sue risposte sparivano senza un esito.
 - **Da quanto**: ogni chat ha `dal`, timbrato in `salva()` del servizio con
   `conStatiDatati` (nuova chat o stato cambiato → adesso). Le chat nate prima
   della 0.81.0 non hanno `dal`: niente durata, non si inventa.
-- **Ferma**: messa da parte (0.80.1), nessun segno da 15 min (`segniChat`,
+- **Ferma**: messa da parte (0.80.1), nessun segno da 5 min (`segniChat`,
   aggiunto in memoria da `GET /autopiloti`, non salvato), mai partita
-  (cicli 0, nessun segno, aperta da ≥10 min), autopilota non in lavoro.
+  (cicli 0, nessun segno, aperta da ≥5 min), autopilota non in lavoro.
+- **Soglie a 5 min, non 15/10 (c-16, 20/10).** Devono essere uguali alla riga che
+  la conversazione scrive a Nicholas (`SILENZIO_DA_DIRE_MS`, c-10). Nella prova
+  del 20/10 con 15 min la stessa chat era «non dà segnali da 5 minuti» nella
+  conversazione e verde «al lavoro da 11 min» in «Adesso» per dieci minuti.
+  Chi cambia una delle due soglie cambia anche l'altra (test «PROVA DEL 20/10»
+  in `tests/shared/partecipe.test.ts`).
 - **«Hai risposto: …»**: `conversazione()` in `chat-autopilota.ts`; sotto,
   `esitoRisposta` cerca nelle decisioni da 5 s prima a 30 min dopo la risposta
   (pubblica / non pubblica / «risposta tardiva (c-N): …» → chi l'ha ricevuta).
@@ -28,7 +34,7 @@ mentre risultavano «al lavoro», e le sue risposte sparivano senza un esito.
 
 - **Muta senza segni**: i segni stanno solo in memoria nel servizio. Il servizio
   manda `segniDal` (il suo avvio): senza segni una chat è muta da
-  max(`segniDal`, `dal`), e nei primi 10 min dopo un riavvio non si giudica.
+  max(`segniDal`, `dal`), e nei primi 5 min dopo un riavvio non si giudica.
 - **Nella Panoramica** le righe stanno nella sezione «Adesso» del centro (che
   prima guardava solo le finestre e diceva «Nessuna chat al lavoro» mentre c-14
   era ferma): tutte se nessuna finestra lavora, solo le ferme sotto le schede.

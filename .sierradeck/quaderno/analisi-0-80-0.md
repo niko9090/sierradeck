@@ -816,6 +816,7 @@ Su questo PC ci sono due workspace nati per sbaglio. Si tolgono con **«Elimina 
 - **Come si fa, dopo che Nicholas installa la 0.81.0:**
   1. l'autopilota `ap-79a4ce02` va nel workspace NexoraOS (serve un «Sposta in un altro workspace» per gli autopiloti, oppure Nicholas lo ferma e lo riavvia da NexoraOS con lo stesso obiettivo);
   2. «⋯» del workspace «dentro al mio server nexora c'è gia un» → Elimina; poi «visitafacile» → Elimina. La cartella vuota `Progetti SierraDeck\visitafacile` va da sola in `workspaces-recupero-cartelle\`.
+- **Ramo c-26:** unito in main (`73a8644f`); contiene solo queste note, nessun codice e nessun dato vero toccato. La pulizia resta da fare con i passi sopra.
 - **Come si rimettono (30 giorni):** pannello Workspace → «Eliminati» → «Ripristina» (anche dalla pagina e dall'app). Il workspace torna con le sue chat e i suoi riquadri; la cartella torna dov'era, se lì non è nata un'altra cartella.
 
 ## Test rossi su main il 19/10

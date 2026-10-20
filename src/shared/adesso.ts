@@ -44,10 +44,19 @@ export type SegniDalVivo = {
   segniDal?: string
 }
 
-/** Una chat che non chiude un turno né dà segni da tanto è ferma, anche se è scritta «al lavoro». */
-export const MUTA_DA_MS = 15 * 60_000
-/** Aperta da tanto senza un turno chiuso né un segno: non è mai partita. */
-export const MAI_PARTITA_DA_MS = 10 * 60_000
+/**
+ * Una chat che non chiude un turno né dà segni da tanto è ferma, anche se è
+ * scritta «al lavoro». I segni comprendono il battito del Gestore dentro un
+ * turno lungo, quindi cinque minuti di silenzio vogliono dire davvero ferma.
+ *
+ * Cinque minuti come la riga che la conversazione scrive a Nicholas
+ * (`SILENZIO_DA_DIRE_MS`, c-10). Con 15 la prova del 20/10 ha dato per dieci
+ * minuti la stessa chat «non dà segnali da 5 minuti» nella conversazione e
+ * verde «al lavoro da 11 min» in «Adesso».
+ */
+export const MUTA_DA_MS = 5 * 60_000
+/** Aperta da tanto senza un turno chiuso né un segno: non è mai partita. Stessa soglia, per lo stesso motivo. */
+export const MAI_PARTITA_DA_MS = 5 * 60_000
 
 /** «3 min», «2 h 10 min», «1 g 4 h»: corto, da leggere in una riga. */
 export function durata(ms: number): string {
@@ -150,4 +159,4 @@ export const COLORE_ADESSO: Record<RigaAdesso['tono'], 'rosso' | 'ambra' | 'quie
 }
 
 /** Il «?» del riquadro, uguale dappertutto. */
-export const AIUTO_ADESSO = 'Una riga per ogni chat dell’autopilota: cosa fa e da quanto. Una chat ferma sta in cima, in rosso, con il perché: non chiude un turno, non dà segni da un quarto d’ora, o non è mai partita. Le chat finite sono contate in fondo.'
+export const AIUTO_ADESSO = 'Una riga per ogni chat dell’autopilota: cosa fa e da quanto. Una chat ferma sta in cima, in rosso, con il perché: non chiude un turno, non dà segni da cinque minuti, o non è mai partita. Le chat finite sono contate in fondo.'
