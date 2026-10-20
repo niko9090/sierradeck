@@ -5597,7 +5597,7 @@ function avvisaSeServe(stato) {
     for (const d of (stato.domande || [])) {
       if (avvisati['d-' + d.id]) continue
       avvisati['d-' + d.id] = true
-      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id })
+      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + String(d.testo || '').slice(0, 60) })
     }
     for (const c of (stato.chat || [])) {
       // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
@@ -5609,7 +5609,7 @@ function avvisaSeServe(stato) {
       if (r.visto === undefined) delete avvisati['k-' + c.id]
       else avvisati['k-' + c.id] = r.visto
       // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id })
+      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
@@ -5617,7 +5617,7 @@ function avvisaSeServe(stato) {
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue
         avvisati['p-' + a.id] = true
-        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
+        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id, causa: 'autopilota ' + a.id + ' pronto, aspetta il via' })
         continue
       }
       // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
@@ -5625,11 +5625,14 @@ function avvisaSeServe(stato) {
       // Un fermo si annuncia **una volta**, con la sua chiave (id, momento,
       // motivo: 0.37.0); uno nuovo ha una chiave nuova. Un archiviato tace.
       const chiaveF = a.stato === 'finito' ? 'f-' + a.id + 'finito' : 'f-' + (a.fermo || (a.id + a.stato))
+      // Un fermo che riparte da solo (limiti del piano, aggiornamento) non chiede niente a te (0.81.0).
+      // Non si segna come visto: se poi resta fermo davvero, con la stessa chiave, si annuncia.
+      if (a.stato !== 'finito' && a.riparteDaSolo === true) continue
       if (avvisati[chiaveF]) continue
       avvisati[chiaveF] = true
       if (!nuovo || a.archiviato === true) continue
-      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
-      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id })
+      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id, causa: 'autopilota ' + a.id + ' finito' })
+      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id, causa: 'autopilota ' + a.id + ' ' + a.stato + ': ' + (a.motivo || 'senza motivo') })
     }
     // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
     // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
@@ -5641,23 +5644,22 @@ function avvisaSeServe(stato) {
         if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
         if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
         avvisati[chiaveChat] = true
-        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' aspetta te', corpo: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id })
+        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' aspetta te', corpo: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
       } else {
         delete avvisati[chiaveChat]
         delete avvisati['t-' + c.id]
       }
     }
-    // Una versione del computer pronta da installare (0.74.0): una volta per versione. La installi tu.
-    const agg = stato.aggiornamento
-    if (agg && agg.fase === 'pronto' && agg.versione && !avvisati['v-' + agg.versione]) {
-      avvisati['v-' + agg.versione] = true
-      if (nuovo) nuovi.push({ tipo: 'versione', titolo: 'SierraDeck ' + agg.versione + ' è pronta sul computer', corpo: 'Scaricata e pronta da installare: la installi tu, quando vuoi.', tag: 'versione' })
-    }
+    // La versione pronta non è più una notifica (0.81.0): solo domande che
+    // aspettano te, lavori finiti ed errori che bloccano. La banda nella pagina resta.
     // Vicini = uno solo (0.80.0); ognuno mostrato nel registro del computer.
+    // Nel registro va ogni avviso, anche dentro un gruppo, con la sua causa (0.81.0).
     for (const m of avvisiDaMostrare(nuovi, ultimoAvvisoIl, ora)) {
       new Notification(m.titolo, { body: m.corpo, tag: m.tag })
       ultimoAvvisoIl = ora
-      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: m.tipo, titolo: m.titolo }).catch(function () { })
+    }
+    for (const n of nuovi) {
+      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: n.tipo, titolo: n.titolo, causa: n.causa, gruppo: nuovi.length > 1 ? nuovi.length : undefined }).catch(function () { })
     }
     primoAvviso = false
   } catch (e) { }

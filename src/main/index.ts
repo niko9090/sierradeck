@@ -4718,7 +4718,7 @@ if (!app.requestSingleInstanceLock()) {
         const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
         const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
         // Ogni avviso nel registro (0.80.0): «mille notifiche» non lasciava righe.
-        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'})`)
+        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'}), causa: domanda nuova che aspetta te`)
         if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
         if (dove.tipo === 'scheda') {
           const w = BrowserWindow.fromId(dove.finestra)
@@ -6385,6 +6385,7 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
+                registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi», causa: aggiornamento pronto, aspetta che le chat siano quiete')
                 try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
               }
             },

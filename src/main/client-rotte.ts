@@ -18,7 +18,7 @@ import { nomeDaMostrare } from '@shared/nome-pc'
 import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
-import { chiaveFermo, eFermo, type Autopilota } from '@shared/autopilota'
+import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -1192,6 +1192,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // La chiave di **questo** fermo (id, momento, motivo): telefono e
           // pagina annunciano un fermo una volta sola, e quello nuovo si'.
           ...(eFermo(a) ? { fermo: chiaveFermo(a) } : {}),
+          // Un fermo che riparte da solo (limiti del piano, aggiornamento): pagina e app non lo annunciano (0.81.0).
+          ...(eFermo(a) && riparteDaSolo(a) ? { riparteDaSolo: true } : {}),
           // Messo da parte con «Archivia»: niente notifiche.
           ...(a.archiviato === true ? { archiviato: true } : {}),
           // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.
@@ -2639,12 +2641,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
     }
     // Una notifica mostrata dalla pagina o dall'app (0.80.0): nel registro di
-    // questo PC, così «mille notifiche» si contano. Solo il tipo e un titolo corto.
+    // questo PC, così «mille notifiche» si contano. Il tipo, un titolo corto e
+    // la causa (0.81.0); se era in un gruppo, quanti erano insieme.
     if (r.metodo === 'POST' && r.percorso === '/api/avviso-mostrato') {
       const da = stringa(r.corpo, 'da') === 'app' ? 'app' : 'pagina'
       const tipo = stringa(r.corpo, 'tipo').replace(/[^\w:-]/g, '').slice(0, 30) || '?'
       const titolo = stringa(r.corpo, 'titolo').replace(/\s+/g, ' ').slice(0, 80)
-      deps.log?.(`[avviso] ${da} del telefono: ${tipo}${titolo !== '' ? ` «${titolo}»` : ''}`)
+      const causa = stringa(r.corpo, 'causa').replace(/\s+/g, ' ').trim().slice(0, 160)
+      const n = (r.corpo as Record<string, unknown> | undefined)?.gruppo
+      const gruppo = typeof n === 'number' && Number.isFinite(n) ? Math.floor(n) : 0
+      deps.log?.(`[avviso] ${da} del telefono: ${tipo}${titolo !== '' ? ` «${titolo}»` : ''}, causa: ${causa !== '' ? causa : 'non detta (versione vecchia)'}${gruppo > 1 ? ` (in un gruppo di ${gruppo})` : ''}`)
       return OK({ fatto: true })
     }
     if (r.metodo === 'POST' && r.percorso === '/api/workspace') {

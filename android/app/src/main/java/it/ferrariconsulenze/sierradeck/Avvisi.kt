@@ -43,7 +43,9 @@ object Avvisi {
          */
         val scelta: String? = null,
         /** Le notifiche con lo stesso numero si sostituiscono a vicenda. */
-        val id: Int
+        val id: Int,
+        /** Perché parte, per la riga `[avviso]` nel registro del computer (2.81.0). */
+        val causa: String = ""
     )
 
     /**
@@ -140,7 +142,8 @@ object Avvisi {
                         // Una per domanda, non una sola per tutte: con l'id
                         // fisso, la seconda domanda aperta cancellava la prima
                         // e restava senza risposta perche' nessuno la vedeva.
-                        id = idAvviso(ID_DOMANDA, id)
+                        id = idAvviso(ID_DOMANDA, id),
+                        causa = "domanda ${d.optString("autopilotaId").ifEmpty { id }}: ${d.optString("testo").take(60)}"
                     )
                 )
             }
@@ -179,7 +182,8 @@ object Avvisi {
                                 titolo = "«$titolo» aspetta che tu scelga",
                                 testo = "Sullo schermo c'è un elenco di scelte (un permesso, «vuoi procedere?»). Tocca per vedere le opzioni.",
                                 scelta = id,
-                                id = idAvviso(ID_CHAT, id)
+                                id = idAvviso(ID_CHAT, id),
+                                causa = "la chat $id è ferma su una scelta" + if (c.optBoolean("governata", false)) " (governata da un autopilota)" else ""
                             )
                         )
                     }
@@ -226,7 +230,8 @@ object Avvisi {
                         titolo = "«$titolo» aspetta te",
                         testo = if (daQuanto >= 60_000L) "Da ${daQuanto / 60_000L} min. $riga" else riga,
                         chat = id,
-                        id = idAvviso(ID_CHAT, id)
+                        id = idAvviso(ID_CHAT, id),
+                        causa = "la chat $id ha finito il turno e aspetta da ${daQuanto / 60_000L} min"
                     )
                 )
             }
@@ -243,7 +248,8 @@ object Avvisi {
                         chiave = chiave,
                         titolo = "SierraDeck $versione è pronta sul computer",
                         testo = "Scaricata e pronta da installare. La installi tu, quando vuoi: Impostazioni → Aggiornamenti.",
-                        id = idAvviso(ID_VERSIONE, "pc")
+                        id = idAvviso(ID_VERSIONE, "pc"),
+                        causa = "versione $versione del computer pronta (interruttore «Versione pronta» acceso)"
                     )
                 )
             }
@@ -279,7 +285,8 @@ object Avvisi {
                             // nell'elenco: due lavori che finiscono a distanza
                             // di minuti cambiano posto, e il secondo
                             // cancellerebbe il primo.
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id finito"
                         )
                     )
                 }
@@ -293,6 +300,9 @@ object Avvisi {
                     // si resta all'id. Un autopilota archiviato tace.
                     val chiave = chiaveFermo(a)
                     vivi.add(chiave)
+                    // Un fermo che riparte da solo (limiti del piano, aggiornamento: PC 0.81.0) non chiede niente a te.
+                    // Non si segna come visto: se poi resta fermo davvero, con la stessa chiave, si annuncia.
+                    if (a.optBoolean("riparteDaSolo", false)) continue
                     if (!giaVisti.add(chiave) || primoGiro || a.optBoolean("archiviato", false)) continue
                     // `/api/stato` lo chiama `motivo` (e' il dettaglio,
                     // `/api/autopilota`, a chiamarlo `motivoSospensione`): la
@@ -304,7 +314,8 @@ object Avvisi {
                             chiave = chiave,
                             titolo = "$nome si è fermato",
                             testo = if (motivo.isEmpty()) "Serve una tua occhiata." else motivo,
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id ${a.optString("stato")}: ${motivo.ifEmpty { "senza motivo" }.take(120)}"
                         )
                     )
                 }
@@ -319,7 +330,8 @@ object Avvisi {
                             chiave = "p:$id",
                             titolo = "$nome aspetta il tuo via",
                             testo = "Ha letto il progetto e capito l'obiettivo. Non comincia finché non glielo dici: apri Lavori e premi «Vai».",
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id pronto, aspetta il via"
                         )
                     )
                 }

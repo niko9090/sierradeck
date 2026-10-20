@@ -272,7 +272,11 @@ object RicevitoreConsegne {
             .addAction(0, "Condividi", condividi)
             .setAutoCancel(true)
             .build()
-        try { NotificationManagerCompat.from(c).notify(n, notifica) } catch (e: SecurityException) {
+        try {
+            NotificationManagerCompat.from(c).notify(n, notifica)
+            // Anche questa nel registro del computer, con la causa (2.81.0); il nome del file no.
+            Ronda.riferisci(c, "file", "Hai ricevuto un file", "file mandato dal computer (interruttore «File ricevuti» acceso)")
+        } catch (e: SecurityException) {
             Log.i("SierraDeck", "notifica del file non permessa: ${e.message}")
         }
     }

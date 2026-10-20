@@ -58,6 +58,8 @@ function ambiente(
     memoria?: ReturnType<typeof apriMemoria>
     /** La versione installata, come la passa il Gestore (0.81.0: le domande già risolte). */
     versione?: string
+    /** La chat non parte (il Gestore la rifiuta). */
+    avvioFallisce?: boolean
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
@@ -75,7 +77,7 @@ function ambiente(
       avviati.push(a.id)
       if (chat !== undefined) chatAvviate.push({ id: chat.id, compito: chat.compito })
       if (messaggio !== undefined) messaggiDiRipresa.push(messaggio)
-      return Promise.resolve()
+      return opts.avvioFallisce === true ? Promise.reject(new Error('la chat non parte')) : Promise.resolve()
     },
     fermaLavoro: (id, chatId) => { fermati.push(chatId === undefined ? id : `${id}::${chatId}`) },
     avvisa: (tipo, a, domanda) => {
@@ -605,31 +607,22 @@ describe('avvisi verso l esterno', () => {
     expect(avvisi.map((a) => a.tipo)).toEqual(['finito'])
   })
 
-  it('avvisa quando entra in difficolta, ma continua a lavorare', async () => {
+  it('in difficolta cambia strada senza avvisare: non aspetta Nicholas e non è un errore che blocca (0.81.0)', async () => {
     server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
     await avvia(server)
     const id = await creaAp()
     for (let i = 0; i < 4; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.some((a) => a.tipo === 'stallo')).toBe(true)
-    // L'avviso dice «sto cambiando strada», non «mi sono fermato»: lo stato
-    // resta al lavoro, ed e' il punto di tutto il meccanismo.
+    expect(avvisi).toEqual([])
+    // Resta al lavoro con la strategia nuova: è il punto di tutto il meccanismo.
     const dopo = (await chiama('GET', '/autopiloti')).dati as { stato: string; strategia?: string }[]
     expect(dopo.at(0)?.stato).toBe('lavoro')
     expect(dopo.at(0)?.strategia).toBe(STRATEGIE[0].nome)
-  })
-
-  it('avvisa una volta sola mentre prova una strategia dopo l altra', async () => {
-    // Un messaggio per ogni tentativo sarebbe la raffica di notifiche che
-    // l'utente ha chiesto di non ricevere.
-    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
-    await avvia(server)
-    const id = await creaAp()
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.filter((a) => a.tipo === 'stallo')).toHaveLength(1)
+    expect(avvisi).toEqual([])
   })
 
   it('avvisa della domanda prima di mettersi ad aspettare', async () => {
@@ -1773,12 +1766,27 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } } })
     await avvia(server)
     await creaAp()
-    await attendi(() => avvisi.some((a) => a.tipo === 'sospeso'))
+    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('sospeso')
     expect(stato.motivoSospensione).toContain('97%')
     expect(stato.pausaLimitiFinoA).toBe('2026-08-09T12:00:00.000Z')
     expect(avviati).toHaveLength(0)
+    // 0.81.0: riparte da solo, quindi nessuna notifica (Telegram) per questo fermo.
+    expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
+  })
+
+  it('0.81.0: se la ripartenza dopo la pausa per i limiti fallisce, l avviso parte', async () => {
+    server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } }, avvioFallisce: true })
+    await avvia(server)
+    await creaAp()
+    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
+    expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
+    // Il piano si libera: il freno lo fa ripartire, ma la chat non parte.
+    await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: LIMITI_LIBERI })
+    server.controllaChatFerme()
+    await attendi(() => avvisi.some((a) => a.tipo === 'sospeso'))
+    expect(avvisi.filter((a) => a.tipo === 'sospeso')).toHaveLength(1)
   })
 
   it('i divieti: il programma nega alla chat una cancellazione fuori dalle sue cartelle', async () => {

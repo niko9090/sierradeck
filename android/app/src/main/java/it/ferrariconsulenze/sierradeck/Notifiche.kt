@@ -12,8 +12,11 @@ import android.content.Context
  *   e l'altro non sono una notizia);
  * - **finito**: un lavoro finito;
  * - **fermo**: un lavoro fermo per un errore;
- * - **versione**: una versione pronta da installare (dell'app o del computer);
- * - **collegamento**: il computer perso o ripreso, ma solo dopo [PERSO_DOPO_MS].
+ * - **versione**: una versione pronta da installare (dell'app o del computer).
+ *   Spenta di partenza dalla 2.81.0: le notifiche sono solo per una domanda
+ *   che aspetta te, un lavoro finito, un errore che blocca. La banda nell'app resta;
+ * - **collegamento**: il computer perso o ripreso, ma solo dopo [PERSO_DOPO_MS]
+ *   (il computer che non si raggiunge è un errore che blocca tutto).
  *
  * Il resto non suona più: i file consegnati al telefono hanno il loro
  * interruttore, spento di partenza; i cambi di stato brevi, i battiti e i
@@ -26,7 +29,7 @@ enum class TipoNotifica(val chiave: String, val nome: String, val spiega: String
     DOMANDA("domanda", "Domande e attese", "Una domanda o una scelta che aspetta te, un autopilota che aspetta il via, una chat che aspetta te da almeno 3 minuti."),
     FINITO("finito", "Lavoro finito", "Un autopilota che ha finito il suo lavoro."),
     FERMO("fermo", "Lavoro fermo", "Un autopilota che si è fermato per un errore e ha bisogno di te."),
-    VERSIONE("versione", "Versione pronta", "Una versione nuova dell'app o del computer, pronta da installare."),
+    VERSIONE("versione", "Versione pronta", "Una versione nuova dell'app o del computer, pronta da installare. Spenta di partenza: la vedi comunque nella banda in alto.", acceso = false),
     COLLEGAMENTO("collegamento", "Computer scollegato", "Il computer non si raggiunge da più di 5 minuti, e quando torna."),
     FILE("file", "File ricevuti", "Un file mandato dal computer al telefono. Spento di partenza: il file lo trovi comunque in File.", acceso = false)
 }
@@ -70,14 +73,16 @@ object Notifiche {
             val minuti = prima.persoDal?.let { ((adesso - it) / 60_000L).coerceAtLeast(1) }
             return Linea() to Avvisi.Avviso(
                 chiave = "$chiave:tornato", titolo = "$nomePc è di nuovo raggiungibile",
-                testo = if (minuti != null) "Era irraggiungibile da $minuti min." else "Il collegamento è tornato.", id = id
+                testo = if (minuti != null) "Era irraggiungibile da $minuti min." else "Il collegamento è tornato.", id = id,
+                causa = "computer di nuovo raggiungibile" + (minuti?.let { " dopo $it min" } ?: "")
             )
         }
         val dal = prima.persoDal ?: adesso
         if (prima.detto || adesso - dal < PERSO_DOPO_MS) return Linea(dal, prima.detto) to null
         return Linea(dal, true) to Avvisi.Avviso(
             chiave = "$chiave:perso", titolo = "$nomePc non si raggiunge",
-            testo = "Da ${(adesso - dal) / 60_000L} min nessuna risposta: è spento, oppure il telefono è fuori dalla rete di casa e senza Tailscale.", id = id
+            testo = "Da ${(adesso - dal) / 60_000L} min nessuna risposta: è spento, oppure il telefono è fuori dalla rete di casa e senza Tailscale.", id = id,
+            causa = "computer irraggiungibile da ${(adesso - dal) / 60_000L} min"
         )
     }
 
