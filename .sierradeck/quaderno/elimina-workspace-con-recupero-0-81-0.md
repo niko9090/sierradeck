@@ -1,6 +1,6 @@
 ---
 titolo: "«Elimina workspace» con il recupero di 30 giorni (0.81.0)"
-quando: 2026-10-19T18:30:00+02:00
+quando: 2026-10-20T11:30:00+02:00
 tag: ["workspace", "recupero", "0.81.0", "PC", "pagina", "app"]
 ---
 
@@ -27,6 +27,18 @@ Le due rotte passano dal ponte. `ripristina` è vietata agli autopiloti, come `e
 **Trappola per chi scrive codice Kotlin da uno script Node:** `${…}` dentro un template literal JS diventa interpolazione di JS. I `${` di Kotlin vanno scritti `\${`.
 
 **Trappola dei test Kotlin:** un nome di test fra apici inversi non può contenere punti («0.81.0»). Gradle si ferma con `Name contains illegal characters: ..` in `compileDebugUnitTestKotlin`: si scrive «0-81-0».
+
+**Aggiunto da c-15 (20/10).**
+- **Quando dice di no.** `motivoPerNonEliminare` (`@shared/workspace-recupero`) rifiuta, con il motivo, un workspace che ha una chat che sta lavorando (viva e non ferma ad aspettare) o che è la casa (`workspace`) di un autopilota in intervista, pronto, al lavoro o in attesa. Sospeso, finito e fallito non bloccano.
+  - Se l'elenco degli autopiloti non si legge (servizio giù), si rifiuta: meglio aspettare che lasciare un autopilota senza casa.
+  - Vale per tutte e tre le strade: IPC `workspace:elimina` (ora async), `eliminaWorkspace` in `index.ts`, e la rotta `/api/workspace/elimina`, che risponde **409 con `errore`** prima di passare dalla finestra (dep `rifiutoEliminaWorkspace`).
+  - **Trappola della pagina:** `chiedi()` non solleva sui 409 (li restituisce come oggetto). Prima il motivo si perdeva in silenzio: `faiAzione` ora legge `r.errore` e lo mette in `notaGlobale`.
+- **La cartella vuota nel recupero.** Se `cartellaProgetti\<nome>` è vuota e non la usa un riquadro dei workspace che restano né un autopilota (in qualunque stato), va in `workspaces-recupero-cartelle\<ora>\` attraverso `cancellaSicura` (modo «recupero», `dentro` la radice dei progetti). La voce del recupero ha `cartella: { originale, spostataIn }`.
+  - «Ripristina» la rimette dov'era, se lì non è nata un'altra cartella.
+  - Se la voce non si scrive, la cartella torna subito dov'era.
+  - Dopo 30 giorni esce con la voce (sempre `cancellaSicura`, solo dentro il recupero), alla prossima eliminazione.
+  - Il progetto resta nel registro dei progetti: non si toglie niente lì.
+- Test: `tests/shared/workspace-elimina-rifiuto.test.ts`.
 
 **Restano da fare:**
 - i due workspace sbagliati del 19/10 («visitafacile» qui e «dentro al mio server nexora c'è gia un») si tolgono con questo «Elimina», **dopo** che Nicholas installa la 0.81.0;

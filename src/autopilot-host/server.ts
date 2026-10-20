@@ -12,7 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
-import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, motivoSilenzio } from './guardiano'
+import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
@@ -35,6 +35,7 @@ import {
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
 import { componiDomanda } from './trascrizione'
+import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato } from './domande-doppie'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
   domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDallaChat, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
@@ -55,7 +56,7 @@ import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import {
-  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, domandaGemella, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma,
+  daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma,
   type StatoProgramma
 } from './coordinatore'
 import {
@@ -333,6 +334,10 @@ export function conservaCambiUtente(
     riprendiAlRiavvio: fresco.riprendiAlRiavvio,
     tettoChat: fresco.tettoChat,
     limiti: fresco.limiti,
+    // Le chat messe da parte (0.80.1) le scrive il guardiano ogni 30 s, anche
+    // mentre questo turno dura minuti: si prendono dal disco, togliendo solo
+    // la chat di questo turno, che ha appena chiuso e quindi è viva.
+    daParte: tornaDaParte(fresco, chatId ?? calcolato.id).daParte,
     // **Il conto dei giri viene dal disco, non dal calcolo.** `suStop` lo
     // incrementa e lo scrive subito, in un giro sincrono: quando arriva qui,
     // il suo `+1` è già dentro `fresco`, insieme a quello di ogni chat sorella
@@ -709,7 +714,37 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     contesto.set(id, x)
     deps.domande.ricorda?.(id, x)
   }
-  for (const d of deps.domande.aperte()) if (d.contesto !== undefined) contesto.set(d.id, d.contesto)
+  // Un turno trattenuto non sopravvive a un riavvio del servizio: dal disco
+  // nessuna domanda ha più un hook che la aspetta (0.81.0).
+  for (const d of deps.domande.aperte()) if (d.contesto !== undefined) contesto.set(d.id, { ...d.contesto, trattenuta: false })
+
+  /**
+   * Riprende UNA chat della flotta ferma su una domanda, con la risposta. Se
+   * quella chat non è più bloccata (già ripresa, finita, o l'autopilota
+   * fermato) non fa niente: chiamarla due volte non la riavvia due volte.
+   */
+  const riprendiChatBloccata = (autopilotaId: string, chatId: string, domanda: string, risposta: string, perche: string): void => {
+    const ora = deps.archivio.leggi(autopilotaId)
+    if (ora === undefined) return
+    const chat = ora.chats.find((c) => c.id === chatId)
+    if (ora.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') return
+    // Con la risposta entrano anche i messaggi che aspettavano questa chat.
+    const presi = prendiMessaggiPer(conStatoChat(ora, chatId, 'lavoro'), chatId)
+    const ripresa = presi.autopilota
+    salva({
+      ...ripresa,
+      motivoSospensione: undefined,
+      decisioni: [...ora.decisioni, { quando: deps.adesso(), cosa: `${perche} (${chatId}): ${risposta}` }]
+    })
+    void avviaLavoro(
+      ripresa,
+      conPreambolo(presi.testi, componiRisposta(domanda, risposta)),
+      { ...chat, stato: 'lavoro' },
+      presi.presi
+    ).catch((err: unknown) => {
+      console.error(`[autopilota] ripresa della chat ${chatId} di ${autopilotaId} fallita:`, err)
+    })
+  }
 
   /**
    * Una risposta arrivata dopo che la chat si era già fermata.
@@ -773,24 +808,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // `lavoro`. Se quella chat non è più bloccata (già ripresa, finita, o
     // l'autopilota fermato) non si fa niente.
     if (dati.chatId !== undefined) {
-      const chat = a.chats.find((c) => c.id === dati.chatId)
-      if (a.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') return
-      // Con la risposta entrano anche i messaggi che aspettavano questa chat.
-      const presi = prendiMessaggiPer(conStatoChat(a, dati.chatId, 'lavoro'), dati.chatId)
-      const ripresa = presi.autopilota
-      salva({
-        ...ripresa,
-        motivoSospensione: undefined,
-        decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva (${dati.chatId}): ${risposta}` }]
-      })
-      void avviaLavoro(
-        ripresa,
-        conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)),
-        { ...chat, stato: 'lavoro' },
-        presi.presi
-      ).catch((err: unknown) => {
-        console.error(`[autopilota] ripresa della chat ${dati.chatId} di ${dati.autopilotaId} fallita:`, err)
-      })
+      riprendiChatBloccata(dati.autopilotaId, dati.chatId, dati.testo, risposta, 'risposta tardiva')
       return
     }
 
@@ -1126,10 +1144,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // sempre con il pannello che diceva «al lavoro».
       const mute = chiTace(a, ultimoSegnale, ora, limite)
       if (mute.length === 0) continue
-      const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
-      salva(sospeso)
-      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
-      void deps.avvisa('sospeso', sospeso)
+      // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
+      // 19/10). Si mette da parte solo lei, le altre continuano, e nella
+      // conversazione resta una riga per Nicholas.
+      const daParte = messaDaParte(a, mute)
+      for (const m of mute) annota(daParte, `messa da parte: ${motivoSilenzio([m])}`, { chat: m.chatId ?? a.id, esito: 'da-parte' })
+      salva(daParte)
+      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)} Messa da parte, l'autopilota resta al lavoro.`)
     }
   }
 
@@ -2013,6 +2034,37 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
   const memoria = deps.memoria ?? apriMemoria(undefined)
+  /**
+   * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
+   * stato vero (la versione in uso) o già risposta, sullo stesso argomento o
+   * dalla stessa chat. Torna cosa dire alla chat al posto della risposta e la
+   * riga per il diario; la riga va anche nel registro del servizio.
+   */
+  const domandaDaScartare = (a: Autopilota, chatId: string | undefined, domanda: string): { perLaChat: string; riga: string; risposta: string } | undefined => {
+    const breve = domanda.replace(/\s+/g, ' ').slice(0, 120)
+    const chi = chatId !== undefined ? `${chatId}: ` : ''
+    const dalloStato = risoltaDalloStato(domanda, deps.versione !== undefined ? { versioneInstallata: deps.versione } : {})
+    let esito: { perLaChat: string; riga: string; risposta: string } | undefined
+    if (dalloStato !== undefined) {
+      esito = {
+        risposta: `non serve: ${dalloStato}`,
+        perLaChat: `Hai chiesto: «${domanda}»\n\nNon lo chiedo a Nicholas: ${dalloStato}. Prosegui tenendone conto.`,
+        riga: `${chi}«${breve}» non la chiedo: ${dalloStato}`
+      }
+    } else {
+      const gia = rispostaGiaData(memoria.risposte(a.id), domanda, chatId, Date.parse(deps.adesso()))
+      if (gia !== undefined) {
+        const quando = gia.quando.slice(0, 10)
+        esito = {
+          risposta: `${gia.risposta} (la tua risposta del ${quando})`,
+          perLaChat: `${componiRisposta(domanda, gia.risposta)}\n\n(Nicholas l'ha già detto il ${quando}, a «${gia.domanda.slice(0, 200)}»: non richiederlo.)`,
+          riga: `${chi}«${breve}» non la richiedo: ${gia.perche === 'stessa chat' ? 'questa chat l’aveva già chiesta' : 'stesso argomento'}, avevi risposto «${gia.risposta.slice(0, 120)}» il ${quando}`
+        }
+      }
+    }
+    if (esito !== undefined) console.log(`[domande] ${a.id} — scartata: ${esito.riga}`)
+    return esito
+  }
   /** Quando ha fatto le ultime domande ogni autopilota: il limite all'ora (0.71.0). */
   const domandeOra = new Map<string, number[]>()
   /** Le firme degli ultimi giri di ogni chat, per l'antiloop (0.71.0). */
@@ -2076,7 +2128,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             : c
         )
     const conSessione: Autopilota = {
-      ...a,
+      ...tornaDaParte(a, chiaveChat),
       chats,
       ...(sessionId !== undefined && chatId === undefined ? { sessionId } : {}),
       // 0.73.0: l'ultima cosa detta, per la scheda (accanto al ruolo).
@@ -2310,9 +2362,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         '- `quaderno` {"titolo", "corpo"}: una scheda nel quaderno del progetto (una decisione, una trappola, un errore risolto).',
         'Il programma rifiuta: chat e autopiloti non tuoi, «Porta qui», l’account, le preferenze, i file fuori dalle tue cartelle.'
       ].join('\n')
-      const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
+      let { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
         aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness
       )
+      // 0.80.1: un supervisore che non risponde (guasto, tempo scaduto, testo
+      // illeggibile) si riprova una volta subito, prima di lasciar decidere le
+      // regole. Le regole poi rifanno il giro: non si sospende più per questo.
+      if (suggerita === undefined) {
+        console.warn(`[autopilota] ${id} — il supervisore non ha risposto: riprovo una volta`)
+        const ancora = await chiediDecisione(
+          aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneNuova ?? sessioneDiPartenza, tuoiNelQuadro, harness
+        )
+        suggerita = ancora.decisione
+        if (ancora.sessionId !== undefined) sessioneNuova = ancora.sessionId
+      }
       mosseChieste = suggerita?.mosse
       misura.crono.segna('supervisore')
       if (sessioneNuova !== undefined) {
@@ -2416,6 +2479,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    aggiornato.daParte = conCambiUtente.daParte
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo
     aggiornato.daConsegnare = conCambiUtente.daConsegnare
@@ -2592,6 +2656,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       inLavorazione.add(id)
       // **Le risposte già date non si richiedono** (0.71.0): la stessa domanda
       // riceve la risposta di prima; una simile la propone come consigliata.
+      const scarto = decisione.dalProgramma === true ? undefined : domandaDaScartare(aggiornato, chatId, decisione.domanda)
+      if (scarto !== undefined) {
+        inLavorazione.delete(id)
+        const presi = tuoi(aggiornato)
+        annota(presi.autopilota, scarto.riga)
+        salva(presi.autopilota)
+        misura.esito = 'domanda già risolta'
+        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: scarto.risposta })
+        return { decision: 'block', reason: conPreambolo(presi.testi, scarto.perLaChat) }
+      }
       const giaDetta = memoria.rispostaPer(aggiornato.id, decisione.domanda)
       if (giaDetta.esatta !== undefined && decisione.dalProgramma !== true) {
         inLavorazione.delete(id)
@@ -2634,11 +2708,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const gemella = chatId !== undefined
         // Si confrontano le domande vere, senza la cornice di `domandaChiara`:
         // l'obiettivo, uguale per tutte, le faceva sembrare tutte gemelle.
-        ? domandaGemella(
+        // Anche per argomento (0.81.0): «Installi la 0.80.0?» e «Will you
+        // install the 0.80.0?» non hanno parole in comune.
+        ? aperteSulloStesso(
             deps.domande.aperte(aggiornato.id).map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.testo })),
             aggiornato.id,
-            decisione.domanda
-          )
+            pronta.parti.domanda !== '' ? pronta.parti.domanda : decisione.domanda
+          )[0]?.id
         : undefined
       const domanda = gemella !== undefined
         ? { id: gemella }
@@ -2655,8 +2731,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         grezza: decisione.domanda,
         // Di quale chat era la domanda: serve a riprendere **solo lei** se la
         // risposta arriva tardi (vedi suRispostaTardiva). C'è solo per le flotte.
-        ...(chatId !== undefined ? { chatId } : {})
+        ...(chatId !== undefined ? { chatId } : {}),
+        trattenuta: true
       })
+      // Di chi è la domanda a cui ci si aggancia (0.81.0): serve sotto, dopo la risposta.
+      const diChi = gemella !== undefined ? contesto.get(gemella) : undefined
       // Con una flotta la domanda ferma **solo** la chat che l'ha posta: si marca
       // quella `bloccata` e l'autopilota resta `lavoro`, così le sorelle
       // continuano invece di fermarsi tutte. Con una chat sola vale il vecchio
@@ -2678,7 +2757,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // aperta e una risposta tardiva farà riprendere il lavoro. La chat resta
         // `bloccata` (flotta) o l'autopilota `attesa` (chat sola): non si tocca.
         console.warn(`[autopilota] ${id} in attesa di risposta: ${decisione.domanda}`)
+        // Il turno non è più trattenuto: da qui la chat riparte da una ripresa
+        // (Revisione 0.81.0), anche se a ricevere la risposta è una gemella.
+        const mio = gemella === undefined ? contesto.get(domanda.id) : undefined
+        if (mio !== undefined && mio.trattenuta === true) ricordaContesto(domanda.id, { ...mio, trattenuta: false })
+        // Una gemella il cui turno è scaduto riparte con la risposta tardiva
+        // della domanda a cui si è agganciata (0.81.0): prima restava bloccata.
+        const suo = gemella !== undefined ? contesto.get(gemella) : undefined
+        if (gemella !== undefined && suo !== undefined && chatId !== undefined && suo.chatId !== chatId && !(suo.ancheChat ?? []).includes(chatId)) {
+          ricordaContesto(gemella, { ...suo, ancheChat: [...(suo.ancheChat ?? []), chatId] })
+        }
         return {}
+      }
+      // La domanda era di una sorella che non aspetta con il turno trattenuto
+      // (nata da una notifica): la risposta è arrivata a questa chat, che la
+      // aspettava, e la via delle risposte tardive non scatta. Si riprende anche lei.
+      if (diChi?.chatId !== undefined && diChi.chatId !== chatId && diChi.trattenuta !== true) {
+        riprendiChatBloccata(id, diChi.chatId, diChi.testo, risposta.risposta, 'stessa domanda di un’altra chat, stessa risposta')
       }
 
       const dopoRisposta = deps.archivio.leggi(id) ?? aggiornato
@@ -2985,6 +3080,43 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       partiDaRisposta
     )
     const testo = pronta.testo
+    // **Già risolta o già risposta** (0.81.0): alla chat si dice cosa sa già,
+    // e Nicholas non la vede. Lo stesso controllo delle domande del supervisore.
+    const laDomanda = pronta.parti.domanda !== '' ? pronta.parti.domanda : domandaGrezza
+    const scarto = domandaDaScartare(ora, chatId, laDomanda)
+    if (scarto !== undefined) {
+      const fresco = deps.archivio.leggi(id) ?? ora
+      annota(fresco, scarto.riga)
+      salva(fresco)
+      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(fresco, chatId), domanda: laDomanda, risposta: scarto.risposta })
+      void avviaLavoro(fresco, scarto.perLaChat, chat).catch((err: unknown) => {
+        console.error(`[autopilota] risposta già data non consegnata a ${id}:`, err)
+      })
+      return {}
+    }
+    // **La stessa domanda è già aperta** (da questa chat o da una sorella): non
+    // se ne apre un'altra. La chat resta ferma e riparte con la risposta a
+    // quella aperta: se era sua porta già il suo `chatId`, se era di una
+    // sorella la chat si aggancia con `ancheChat`.
+    if (chatId !== undefined) {
+      const aperte = deps.domande.aperte(id).filter((d) => contesto.get(d.id)?.chatId !== undefined)
+      const gemella = aperteSulloStesso(aperte.map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.parti?.domanda ?? d.testo })), id, laDomanda)[0]
+      const suo = gemella !== undefined ? contesto.get(gemella.id) : undefined
+      if (gemella !== undefined && suo !== undefined) {
+        const fresco = deps.archivio.leggi(id) ?? ora
+        const breve = laDomanda.replace(/\s+/g, ' ').slice(0, 120)
+        const riga = suo.chatId === chatId
+          ? `${chatId}: «${breve}» non la richiedo, la stessa domanda di questa chat aspetta già la tua risposta`
+          : `${chatId}: «${breve}» è la stessa domanda di ${suo.chatId}, aspetta la stessa risposta`
+        if (suo.chatId !== chatId && !(suo.ancheChat ?? []).includes(chatId)) {
+          ricordaContesto(gemella.id, { ...suo, ancheChat: [...(suo.ancheChat ?? []), chatId] })
+        }
+        console.log(`[domande] ${id} — scartata: ${riga}`)
+        annota(fresco, riga)
+        salva(conStatoChat(fresco, chatId, 'bloccata'))
+        return {}
+      }
+    }
     // L'attesa deve avere una via d'uscita. Prima si salvava solo `stato:
     // 'attesa'` e ci si fermava lì: ma il guardiano guarda solo le chat «in
     // lavoro» e la ripresa al riavvio pure, e senza una domanda aperta non c'era
@@ -3002,6 +3134,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ricordaContesto(domanda.id, {
       autopilotaId: a.id,
       testo,
+      grezza: laDomanda,
       ...(chatId !== undefined ? { chatId } : {})
     })
     // Come per una domanda dello Stop: con una flotta la notifica ferma **solo**
@@ -3761,12 +3894,48 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (chiesta !== undefined) {
             const apChiesto = deps.archivio.leggi(chiesta.autopilotaId)
             const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
-            memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso())
+            memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
             if (apChiesto !== undefined) memoria.ricordaDecisione(apChiesto.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
           }
+          // Le chat agganciate a questa domanda (0.81.0): si leggono prima che
+          // la risposta tolga il contesto.
+          const agganciate = (idD: string): { domanda: string; chat: string[] } | undefined => {
+            const c = contesto.get(idD) ?? deps.domande.aperte().find((d) => d.id === idD)?.contesto
+            return c?.ancheChat !== undefined && c.ancheChat.length > 0 ? { domanda: c.testo, chat: c.ancheChat } : undefined
+          }
+          const riprendiAgganciate = (autopilotaId: string, x: { domanda: string; chat: string[] } | undefined): void => {
+            for (const c of x?.chat ?? []) riprendiChatBloccata(autopilotaId, c, x?.domanda ?? '', testo, 'stessa domanda di un’altra chat, stessa risposta')
+          }
+          const agganciatePrincipale = agganciate(idDomanda)
           if (!deps.domande.rispondi(idDomanda, testo, da)) {
             rispondi(res, 404, { errore: 'domanda inesistente o gia risposta' })
             return
+          }
+          if (chiesta !== undefined) riprendiAgganciate(chiesta.autopilotaId, agganciatePrincipale)
+          // **Una risposta vale per tutte le domande uguali ancora aperte**
+          // (0.81.0): il 20/10 «Installi la 0.80.0?» era aperta due volte, da
+          // due chat e in due lingue, e Nicholas ha dovuto rispondere due volte.
+          // Ognuna riprende la sua chat con la stessa risposta.
+          if (chiesta !== undefined && deps.archivio.leggi(chiesta.autopilotaId)?.stato !== 'intervista') {
+            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
+            const uguali = aperteSulloStesso(
+              deps.domande.aperte(chiesta.autopilotaId).map((d) => ({ ...d, testo: d.parti?.domanda ?? contesto.get(d.id)?.grezza ?? d.testo })),
+              chiesta.autopilotaId,
+              laDomanda
+            )
+            for (const d of uguali) {
+              const suoi = agganciate(d.id)
+              const suaChat = d.contesto?.chatId ?? contesto.get(d.id)?.chatId
+              if (!deps.domande.rispondi(d.id, testo, da)) continue
+              memoria.ricordaRisposta(chiesta.autopilotaId, d.testo, testo, deps.adesso(), suaChat)
+              riprendiAgganciate(chiesta.autopilotaId, suoi)
+              console.log(`[domande] ${chiesta.autopilotaId} — la tua risposta a «${laDomanda.slice(0, 80)}» vale anche per «${d.testo.slice(0, 80)}»: chiusa`)
+              const ap = deps.archivio.leggi(chiesta.autopilotaId)
+              if (ap !== undefined) {
+                annota(ap, `la tua risposta («${testo.slice(0, 80)}») vale anche per una domanda uguale ancora aperta: non te la rifaccio`)
+                salva(ap)
+              }
+            }
           }
           // La traccia nella chat con l'autopilota (0.38.0): la domanda e la
           // risposta, una sotto l'altra. Le domande della preparazione hanno

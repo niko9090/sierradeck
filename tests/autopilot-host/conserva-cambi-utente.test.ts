@@ -158,6 +158,22 @@ describe('0.78.0: le chat adottate non spariscono con la fotografia di inizio tu
   })
 })
 
+describe('conservaCambiUtente — le chat messe da parte (0.80.1)', () => {
+  it('non perde una sorella messa da parte dal guardiano durante il turno', () => {
+    const letto = base()
+    const fresco: Autopilota = { ...letto, daParte: ['c-2'] }
+    expect(conservaCambiUtente(letto, fresco, 'c-1', letto.decisioni.length).daParte).toEqual(['c-2'])
+  })
+
+  it('non resuscita una sorella tornata nel frattempo, e toglie la chat di questo turno', () => {
+    const letto: Autopilota = { ...base(), daParte: ['c-1', 'c-2'] }
+    // Intanto c-2 ha chiuso un turno: sul disco non e piu da parte.
+    const fresco: Autopilota = { ...letto, daParte: ['c-1'] }
+    // Questo turno e di c-1, che ha appena chiuso: torna nel conto anche lei.
+    expect(conservaCambiUtente(letto, fresco, 'c-1', letto.decisioni.length).daParte).toBeUndefined()
+  })
+})
+
 describe('0.81.0: l’annuncio a Nicholas non sparisce con la fotografia di inizio turno', () => {
   it('il riepilogo di «Errori arrivati» annunciato durante il turno resta (prova del 20/10)', () => {
     const letto = base()

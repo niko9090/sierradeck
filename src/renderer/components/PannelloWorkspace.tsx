@@ -61,7 +61,8 @@ export function PannelloWorkspace({ stato, onStato, onChiudi }: Props): React.JS
     setInCorso(true)
     setErrore(undefined)
     void op()
-      .catch((e: unknown) => setErrore(String(e)))
+      // Il motivo e basta (0.81.0): «Non elimino … : la chat … sta lavorando», senza il prefisso dell'IPC.
+      .catch((e: unknown) => setErrore(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e)))
       .finally(() => setInCorso(false))
   }
 

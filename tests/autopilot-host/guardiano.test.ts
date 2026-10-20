@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { chiaveTurno, chiTace, motivoSilenzio } from '../../src/autopilot-host/guardiano'
+import { chiaveTurno, chiTace, messaDaParte, motivoSilenzio, tornaDaParte } from '../../src/autopilot-host/guardiano'
+import { rigaTraguardo } from '@shared/chat-autopilota'
+import { parseAutopilota } from '@shared/autopilota'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 /**
@@ -135,5 +137,51 @@ describe('chi sta aspettando una persona non e muto', () => {
     const a = ap({ chats: [chat('ch-1', { stato: 'bloccata' }), chat('ch-2')] })
     const mute = chiTace(a, () => ORA - 5 * 60 * 60_000, ORA, LIMITE)
     expect(mute.map((m) => m.chatId)).toEqual(['ch-2'])
+  })
+})
+
+describe('0.80.1: la chat che tace va da parte, l autopilota no', () => {
+  const turni = new Map([
+    [chiaveTurno('ap-1', 'ch-viva'), ORA - 60_000],
+    [chiaveTurno('ap-1', 'ch-ferma'), ORA - LIMITE - 5 * 60_000]
+  ])
+
+  it('solo la chat muta va da parte, le altre restano nel conto', () => {
+    const a = ap({ chats: [chat('ch-viva'), chat('ch-ferma')] })
+    const mute = chiTace(a, (k) => turni.get(k), ORA, LIMITE)
+    const dopo = messaDaParte(a, mute)
+    expect(dopo.stato).toBe(a.stato)
+    expect(dopo.daParte).toEqual(['ch-ferma'])
+    // Il giro dopo non la conta piu: niente seconda riga per la stessa chat.
+    expect(chiTace(dopo, (k) => turni.get(k), ORA, LIMITE)).toEqual([])
+  })
+
+  it('la chat singola va da parte con la chiave dell autopilota', () => {
+    const a = ap()
+    const muto = new Map([[chiaveTurno('ap-1'), ORA - LIMITE - 60_000]])
+    const dopo = messaDaParte(a, chiTace(a, (k) => muto.get(k), ORA, LIMITE))
+    expect(dopo.daParte).toEqual(['ap-1'])
+    expect(chiTace(dopo, (k) => muto.get(k), ORA, LIMITE)).toEqual([])
+  })
+
+  it('torna nel conto appena chiude un turno', () => {
+    const a = ap({ chats: [chat('ch-a'), chat('ch-b')], daParte: ['ch-a', 'ch-b'] })
+    expect(tornaDaParte(a, 'ch-a').daParte).toEqual(['ch-b'])
+    expect('daParte' in tornaDaParte(tornaDaParte(a, 'ch-a'), 'ch-b')).toBe(false)
+    expect(tornaDaParte(a, 'ch-z')).toBe(a)
+  })
+
+  it('il campo sopravvive al salvataggio', () => {
+    const a = ap({ daParte: ['ch-a'] })
+    expect(parseAutopilota({ ...JSON.parse(JSON.stringify(a)), versione: 1 }).autopilota?.daParte).toEqual(['ch-a'])
+  })
+
+  it('la riga per Nicholas dice chi e messo da parte e che le altre continuano', () => {
+    const a = ap({ chats: [chat('ch-ferma')] })
+    const riga = rigaTraguardo(a, { chat: 'ch-ferma', esito: 'da-parte' }) ?? ''
+    expect(riga).toMatch(/da parte/)
+    expect(riga).toMatch(/le altre continuano/)
+    // Chat singola: non sta fra le chats, ma la riga c'e lo stesso.
+    expect(rigaTraguardo(ap(), { chat: 'ap-1', esito: 'da-parte' })).toMatch(/^La chat non chiude/)
   })
 })

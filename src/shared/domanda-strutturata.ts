@@ -87,6 +87,26 @@ export function leggiParti(x: unknown): PartiDomanda {
   }
 }
 
+/** Parole che dicono la lingua: brevi, frequenti, e diverse fra le due. */
+const PAROLE_EN = new Set(['the', 'will', 'you', 'your', 'is', 'are', 'this', 'that', 'should', 'would', 'can', 'could', 'do', 'does', 'it', 'be', 'with', 'for', 'have', 'has', 'what', 'which', 'on', 'of', 'and', 'or', 'so', 'to', 'if', 'we', 'i', 'want', 'now', 'their', 'own', 'its'])
+const PAROLE_IT = new Set(['il', 'lo', 'la', 'gli', 'le', 'di', 'che', 'è', 'e', 'un', 'una', 'per', 'con', 'non', 'si', 'questo', 'questa', 'sono', 'ho', 'hai', 'vuoi', 'come', 'cosa', 'perché', 'del', 'della', 'dei', 'delle', 'nel', 'nella', 'su', 'così', 'già', 'tu', 'io', 'mi', 'ti', 'ci', 'oppure', 'adesso', 'ora', 'quale', 'quali', 'se'])
+
+/**
+ * Una domanda scritta in un'altra lingua (in pratica: in inglese; 0.81.0, Nicholas
+ * se l'è vista arrivare in inglese il 20/10). Conta le
+ * parole tipiche delle due lingue; i nomi di file, rami e comandi non pesano.
+ */
+export function sembraNonItaliano(testo: string): boolean {
+  const parole = testo.toLowerCase().replace(/`[^`]*`/g, ' ').split(/[^\p{L}]+/u).filter((p) => p !== '')
+  let en = 0
+  let it = 0
+  for (const p of parole) {
+    if (PAROLE_EN.has(p)) en += 1
+    if (PAROLE_IT.has(p)) it += 1
+  }
+  return en >= 3 && en > it * 2
+}
+
 export type Validazione = { completa: boolean; mancano: ParteDomanda[]; note: string[] }
 
 /** Le parti che mancano, o che non vanno. */
@@ -99,6 +119,7 @@ export function validaDomanda(p: PartiDomanda): Validazione {
   else if (!p.domanda.includes('?')) { mancano.push('domanda'); note.push('la domanda non ha il punto interrogativo: non si capisce cosa chiedi') }
   else if ((p.domanda.match(/\?/g) ?? []).length > 1) { mancano.push('domanda'); note.push('ci sono più domande in una: fanne una sola, la più importante') }
   else if (PAROLE_VAGHE.test(p.domanda)) { mancano.push('domanda'); note.push(`la domanda è vaga («${PAROLE_VAGHE.exec(p.domanda)?.[0] ?? ''}»): di' esattamente di cosa si tratta, chi legge non ha seguito il lavoro`) }
+  else if (sembraNonItaliano([p.domanda, p.staFacendo, p.perche].join(' '))) { mancano.push('domanda'); note.push('la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)') }
   if (p.perche.length < 10) mancano.push('perche')
   const buone = p.scelte.filter((s) => s.scelta !== '' && s.conseguenza.length >= 5)
   if (buone.length < 2) {
@@ -152,6 +173,7 @@ export const REGOLE_DOMANDA = [
   '5. `seNonRispondi`: cosa fai se non risponde (aspetti, scegli tu una strada prudente, ti fermi…).',
   'Segna con `"consigliata": true` la scelta che consigli (una sola). Una domanda sola, al massimo 200 caratteri,',
   'in parole semplici e senza parole vaghe («qualcosa», «come prima», «quella cosa»): di’ esattamente di cosa si tratta.',
+  'Sempre in italiano, anche se il lavoro è in inglese.',
   'Le conseguenze in breve. Non chiedere di nuovo una cosa a cui ha già risposto: le sue risposte sono nel quadro.',
   'Il programma controlla che ci siano tutte: una domanda incompleta ti torna indietro da riscrivere.'
 ]

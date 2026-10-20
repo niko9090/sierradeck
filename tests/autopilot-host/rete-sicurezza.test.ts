@@ -131,13 +131,18 @@ describe('applicaRete', () => {
     expect(nota).toContain('non ha risposto')
   })
 
-  it('senza supervisore, tutto verde non basta per chiudere', () => {
+  it('senza supervisore, tutto verde non basta per chiudere: si rifà il giro (0.80.1)', () => {
     // I comandi dicono che non c'e' niente di rotto, non che il lavoro e'
-    // finito. A dirlo deve essere qualcuno che l'ha guardato: se non ha
-    // risposto ci si ferma e lo si scrive.
+    // finito. A dirlo deve essere qualcuno che l'ha guardato. Fino alla 0.80.0
+    // ci si sospendeva; ora si rifà il giro e il supervisore torna a decidere.
     const { mossa } = applicaRete(CTX([PASSATO]), undefined)
-    expect(mossa.tipo).toBe('sospendi')
-    if (mossa.tipo === 'sospendi') expect(mossa.motivo).toContain('supervisore')
+    expect(mossa.tipo).toBe('prosegui')
+    if (mossa.tipo === 'prosegui') expect(mossa.istruzioni).toContain('supervisore non ha detto')
+  })
+
+  it('un supervisore che non decide (azione senza istruzioni) non sospende', () => {
+    const { mossa } = applicaRete(CTX([PASSATO]), { azione: 'chiedi' })
+    expect(mossa.tipo).toBe('prosegui')
   })
 
   it('senza supervisore ed esaurite le strade, chiede all utente', () => {

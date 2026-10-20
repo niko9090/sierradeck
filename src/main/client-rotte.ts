@@ -435,6 +435,8 @@ export type DipendenzeRotte = {
    */
   aggiungiWorkspace?: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
+  /** Perché non eliminare `nome` (0.81.0): una chat al lavoro, un autopilota attivo. `undefined` se si può. */
+  rifiutoEliminaWorkspace?: (nome: string) => Promise<string | undefined>
   /** I workspace eliminati negli ultimi 30 giorni (0.81.0). Senza: un PC che non li tiene. */
   recuperoWorkspace?: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>
   /** «Ripristina»: il workspace torna nella fascia, lo schermo non cambia. */
@@ -2382,6 +2384,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           return { stato: STATO_CHIUSA, corpo: { ...rifiutoChiusa(titolo), errore: `Nel workspace «${nome}» c’è la chat «${titolo}», protetta dal PIN: aprila con il PIN, poi elimina il workspace.`, ...(aperta !== undefined ? { chat: aperta.id } : {}) } }
         }
       }
+      // Il motivo detto subito, uguale su pagina e app (0.81.0), prima di passare dalla finestra.
+      const no = await deps.rifiutoEliminaWorkspace?.(nome)
+      if (no !== undefined) return { stato: 409, corpo: { errore: no } }
       // Come dal pannello del PC (0.55.0): copia di sicurezza, terminali spenti.
       if (deps.azioneFinestra !== undefined) {
         const e = await deps.azioneFinestra({ tipo: 'workspace', azione: 'elimina', nome })

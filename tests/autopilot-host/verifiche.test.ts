@@ -18,6 +18,48 @@ describe('eseguiCriteri', () => {
     expect(esiti[0]?.passato).toBe(true)
   })
 
+  it('0.80.1: un rosso per tempo scaduto si rimisura una volta, e il secondo esito vale', async () => {
+    let volte = 0
+    const finto: Esecutore = () => {
+      volte++
+      return Promise.resolve(volte === 1
+        ? { codice: 1, uscita: 'compilo...\n[comando interrotto dopo 600s]' }
+        : { codice: 0, uscita: 'tutto verde' })
+    }
+    const esiti = await eseguiCriteri([CON_COMANDO], 'C:\\p', finto)
+    expect(volte).toBe(2)
+    expect(esiti[0]?.passato).toBe(true)
+    expect(esiti[0]?.uscita).toBe('tutto verde')
+  })
+
+  it('0.80.1: se scade di nuovo è rosso davvero, rimisurato una volta sola', async () => {
+    let volte = 0
+    const finto: Esecutore = () => {
+      volte++
+      return Promise.resolve({ codice: 1, uscita: '[comando interrotto dopo 600s]' })
+    }
+    const esiti = await eseguiCriteri([CON_COMANDO], 'C:\\p', finto)
+    expect(volte).toBe(2)
+    expect(esiti[0]?.passato).toBe(false)
+    expect(esiti[0]?.uscita).toContain('rimisurato una volta')
+  })
+
+  it('0.80.1: un rosso vero (non per tempo) non si rimisura', async () => {
+    let volte = 0
+    const finto: Esecutore = () => { volte++; return Promise.resolve({ codice: 1, uscita: '2 test rossi' }) }
+    await eseguiCriteri([CON_COMANDO], 'C:\\p', finto)
+    expect(volte).toBe(1)
+  })
+
+  it('0.80.1: con l esecutore vero il tempo scaduto si riconosce e si rimisura', async () => {
+    const vero = esecutoreReale(300)
+    let volte = 0
+    const contato: Esecutore = (c, cwd) => { volte++; return vero(c, cwd) }
+    const esiti = await eseguiCriteri([{ descrizione: 'lento', comando: 'node -e "setTimeout(()=>{},5000)"', soddisfatto: false }], process.cwd(), contato)
+    expect(volte).toBe(2)
+    expect(esiti[0]?.passato).toBe(false)
+  }, 20_000)
+
   it('un codice diverso da zero e un criterio non soddisfatto', async () => {
     const finto: Esecutore = () => Promise.resolve({ codice: 1, uscita: '2 test rossi' })
     const esiti = await eseguiCriteri([CON_COMANDO], 'C:\\p', finto)
