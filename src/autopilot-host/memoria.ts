@@ -16,7 +16,8 @@ import { scriviJsonAtomico } from '@shared/scrittura-atomica'
  *   le legge a ogni giro, sopra a tutto il resto.
  */
 
-export type RispostaRicordata = { domanda: string; risposta: string; quando: string }
+/** `chat`: la chat della flotta che aveva chiesto (0.81.0), per riconoscere chi richiede. */
+export type RispostaRicordata = { domanda: string; risposta: string; quando: string; chat?: string }
 export type DecisioneRicordata = { testo: string; quando: string }
 
 const RISPOSTE_MAX = 40
@@ -64,7 +65,9 @@ export function sezioneDecisioni(decisioni: DecisioneRicordata[]): string {
 type FileMemoria = { versione: 1; risposte: Record<string, RispostaRicordata[]>; decisioni: Record<string, DecisioneRicordata[]> }
 
 export type Memoria = {
-  ricordaRisposta: (autopilota: string, domanda: string, risposta: string, quando: string) => void
+  ricordaRisposta: (autopilota: string, domanda: string, risposta: string, quando: string, chat?: string) => void
+  /** Le risposte ricordate di un autopilota, dalla più vecchia. */
+  risposte: (autopilota: string) => RispostaRicordata[]
   rispostaPer: (autopilota: string, domanda: string) => { esatta?: RispostaRicordata; simile?: RispostaRicordata }
   ricordaDecisione: (cwd: string, testo: string, quando: string) => void
   decisioni: (cwd: string) => DecisioneRicordata[]
@@ -85,12 +88,13 @@ export function apriMemoria(cartella: string | undefined): Memoria {
   }
   const chiaveCwd = (cwd: string): string => cwd.replace(/[\\/]+$/, '').toLowerCase()
   return {
-    ricordaRisposta(autopilota, domanda, risposta, quando) {
+    ricordaRisposta(autopilota, domanda, risposta, quando, chat) {
       if (domanda.trim() === '' || risposta.trim() === '') return
       const elenco = (m.risposte[autopilota] ?? []).filter((r) => normalizzaDomanda(r.domanda) !== normalizzaDomanda(domanda))
-      m.risposte[autopilota] = [...elenco, { domanda: domanda.slice(0, 600), risposta: risposta.slice(0, 600), quando }].slice(-RISPOSTE_MAX)
+      m.risposte[autopilota] = [...elenco, { domanda: domanda.slice(0, 600), risposta: risposta.slice(0, 600), quando, ...(chat !== undefined ? { chat } : {}) }].slice(-RISPOSTE_MAX)
       salva()
     },
+    risposte: (autopilota) => m.risposte[autopilota] ?? [],
     rispostaPer: (autopilota, domanda) => trovaRisposta(m.risposte[autopilota] ?? [], domanda),
     ricordaDecisione(cwd, testo, quando) {
       const t = testo.replace(/\s+/g, ' ').trim()
