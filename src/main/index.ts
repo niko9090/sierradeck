@@ -105,6 +105,7 @@ import { creaTrasloco, type TraslocoApi } from './trasloco'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
+import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { fermoChiaro, type Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
@@ -5586,7 +5587,10 @@ if (!app.requestSingleInstanceLock()) {
           const dopo = eliminaWorkspace(precedente, nome)
           // La stessa copia del pannello: senza finestre si passa di qui.
           mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
-          store.scrivi(dopo)
+          // Come il pannello (0.81.0): senza recupero leggibile non si elimina; la voce dopo la scrittura.
+          if (dopo !== precedente && !recuperoLeggibile(dati)) throw new Error('il recupero dei workspace eliminati non si legge in questo momento: riprova fra poco')
+          if (!store.scrivi(dopo)) throw new Error('workspaces.json non si è potuto scrivere')
+          if (dopo !== precedente && !mettiWorkspaceNelRecupero(dati, precedente, nome)) registro.errore(`[workspace] «${nome}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
           annotaEliminato(dati, nome)
           // Se si è cancellato il workspace ATTIVO, l'attivo si è spostato su un
           // altro: le finestre che mostravano quello cancellato devono seguirlo,
@@ -5603,6 +5607,20 @@ if (!app.requestSingleInstanceLock()) {
               }
             }
           }
+        },
+        // Il recupero dei workspace (0.81.0): dal telefono e dagli altri PC come dal pannello.
+        recuperoWorkspace: async () => elencoRecuperoWorkspace(dati),
+        ripristinaWorkspace: async (nome: string, eliminatoIl: string) => {
+          const store = workspaceStore
+          if (store === undefined) return { ok: false as const, errore: 'I workspace di questo PC non sono ancora pronti: riprova fra poco.' }
+          const e = ripristinaWorkspace(dati, store.leggi(), { nome, eliminatoIl }, (a) => store.scrivi(a))
+          if (!e.ok) return e
+          registro.info(`[workspace] «${e.nome}» ripristinato dal recupero (eliminato il ${eliminatoIl}): lo schermo resta dov'è`)
+          const stato = { nomi: e.archivio.workspace.map((w) => w.nome), attivo: e.archivio.attivo }
+          for (const w of finestreDiChat()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:ripristinato', stato)
+          }
+          return { ok: true as const, nome: e.nome }
         },
         salvataggi: async () =>
           apriIstantaneeStore(dati).elenca().map((i) => ({

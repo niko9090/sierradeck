@@ -2553,3 +2553,45 @@ describe('0.76.0: gli specialisti anche per gli autopiloti che ci sono già', ()
     expect(archivio.leggi(id)?.organizzazione).toBe('Lavoro piccolo: una chat sola, che fa tutto.')
   })
 })
+
+describe('chiudiChat su un ramo già unito e tolto (0.80.0, visto dal vero il 19/10)', () => {
+  async function attendi(condizione: () => boolean): Promise<void> {
+    for (let i = 0; i < 120 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
+  }
+  it('la chat si chiude subito: niente Revisione, niente unione che fallisce', async () => {
+    const chiesti: string[] = []
+    // Il ramo principale c'è, il ramo della chat no: com'era per c-4 e c-7.
+    const gitSenzaRamo: Git = (args, cwd) => {
+      const a = args.join(' ')
+      chiesti.push(a)
+      if (a === 'rev-parse --verify --quiet refs/heads/main') return { codice: 0, uscita: 'abc' }
+      if (a.startsWith('rev-parse --verify --quiet refs/heads/ap/')) return { codice: 1, uscita: '' }
+      if (a.includes('merge')) return { codice: 1, uscita: 'merge: ap/ap-ch/c-4 - not something we can merge' }
+      return gitFinto(args, cwd)
+    }
+    server = ambiente({
+      git: gitSenzaRamo, limiti: LIMITI_LIBERI,
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "fatto", "mosse": [{"tipo": "chiudiChat", "chat": "c-4"}]}' })
+    })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-ch', nome: 'Ch', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      ramoBase: 'main',
+      chats: [
+        { id: 'c-4', compito: 'Interfaccia', stato: 'lavoro', cicli: 3, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-4', cartella: join(process.cwd(), 'non-esiste-c-4') },
+        { id: 'c-10', compito: 'Analisi', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-10', cartella: join(process.cwd(), 'non-esiste-c-10') }
+      ]
+    })
+    await chiama('POST', '/hook/stop?ap=ap-ch&chat=c-10', eventoStop({ session_id: 's-10', last_assistant_message: 'fatto' }))
+    await attendi(() => archivio.leggi('ap-ch')!.chats.find((c) => c.id === 'c-4')?.stato === 'finita')
+    const a = archivio.leggi('ap-ch')!
+    const diario = a.decisioni.map((d) => d.cosa).join(' | ')
+    expect(diario).toContain('chiudo la chat c-4: il suo ramo è già stato unito e tolto')
+    expect(diario).not.toContain('non si chiude')
+    expect(a.compitiDaFare.some((t) => t.startsWith('Rivedi il ramo'))).toBe(false)
+    expect(chiesti.some((x) => x.includes('merge') && x.includes('c-4'))).toBe(false)
+    expect(fermati).toContain('ap-ch::c-4')
+  })
+})

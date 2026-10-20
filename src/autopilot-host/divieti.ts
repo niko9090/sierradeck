@@ -87,7 +87,7 @@ export type RichiestaStrumento = {
 /** Le rotte del programma che fanno cose vietate: una chat non ci deve bussare. */
 const ROTTE_VIETATE = [
   '/api/drive/porta', '/api/drive/portaWorkspace', '/api/account/esci', '/api/account/entra',
-  '/api/preferenze', '/api/workspace/elimina', '/api/autopilota/elimina', '/api/autopilota/ferma',
+  '/api/preferenze', '/api/workspace/elimina', '/api/workspace/ripristina', '/api/autopilota/elimina', '/api/autopilota/ferma',
   '/api/chat/chiudi'
 ]
 

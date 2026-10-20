@@ -59,7 +59,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, salvaLavoro, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
+  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, salvaLavoro, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
 } from './worktree'
 
 export type Dipendenze = {
@@ -2472,6 +2472,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       } else if (m.tipo === 'chiudiChat') {
         const c = aggiornato.chats.find((x) => x.id === m.chat)
         if (c === undefined || c.stato === 'finita') continue
+        // Il lavoro è già nel ramo principale, o il ramo non c'è più (0.80.0):
+        // la chat si chiude e basta, senza Revisione né unione. Prima l'unione
+        // falliva a ogni giro e la chat restava aperta (c-1…c-9 il 19/10).
+        // «unito» vale solo se nella sua cartella non c'era altro da salvare.
+        const git = deps.git
+        const chiuso = git !== undefined && c.ramo !== undefined && aggiornato.ramoBase !== undefined
+          ? ramoGiaChiuso(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+          : undefined
+        if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`))))) {
+          if (c.cartella !== undefined && c.ramo !== undefined) {
+            // Ramo mancante: niente `worktree remove --force` su una cartella che
+            // non è più un worktree; si toglie solo se è rimasta vuota.
+            if (chiuso === 'unito') togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+            else togliCartellaVuota(c.cartella)
+          }
+          aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
+          annota(aggiornato, `chiudo la chat ${c.id}: ${chiuso === 'unito' ? 'il suo lavoro è già nel ramo principale' : 'il suo ramo è già stato unito e tolto'}`, { chat: c.id, esito: 'finito' })
+          if (c.id === chatId) chiusaQuesta = true
+          else deps.fermaLavoro(id, c.id)
+          apriDopo = apriDopo || aggiornato.compitiDaFare.length > 0
+          continue
+        }
         // Con la Revisione (0.71.0): il ramo non si unisce qui, va rivisto.
         if (c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione && c.approvata !== true && c.ramo !== undefined) {
           if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)

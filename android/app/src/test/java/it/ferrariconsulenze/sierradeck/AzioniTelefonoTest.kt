@@ -85,6 +85,17 @@ class AzioniTelefonoTest {
     }
 
     @Test
+    fun `il recupero dei workspace - il «?» e la riga sotto il nome sono quelli del PC, dalla 0-81-0`() {
+        assertEquals(s(fx, "aiutoEliminaWorkspace"), AzioniTelefono.AIUTO_ELIMINA_WORKSPACE)
+        for (r in fx["righeEliminato"]!!.jsonArray) {
+            val o = r.jsonObject
+            assertEquals(s(o, "riga"), AzioniTelefono.rigaEliminato(o["chat"]!!.jsonPrimitive.content.toInt(), s(o, "scadeIl")))
+        }
+        assertTrue("/api/workspace/recupero" in Ponte.ROTTE)
+        assertTrue("/api/workspace/ripristina" in Ponte.ROTTE)
+    }
+
+    @Test
     fun `le rotte della gestione passano dal ponte, e un PC di prima lo dice`() {
         for (r in listOf("/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/chat/chiudi", "/api/chat/dormi",
             "/api/chat/sveglia", "/api/chat/sposta", "/api/sfoglia", "/api/cartelle", "/api/sessioni", "/api/autopilota/crea", "/api/autopilota/elimina")) {

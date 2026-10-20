@@ -163,6 +163,7 @@ export function creaAvvisatore(deps: {
         parse_mode: 'HTML'
       })
       if (!inviato) console.error(`[autopilota] avviso Telegram non recapitato (${tipo}, ${a.id})`)
+      else console.log(`[notifica] Telegram: ${tipo} di «${a.nome}» (${a.id})`)
     } catch (err) {
       // Il lavoro non dipende da Telegram: un guasto di rete costa un avviso,
       // non il lavoro in corso.

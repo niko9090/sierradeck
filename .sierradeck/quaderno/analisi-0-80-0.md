@@ -100,6 +100,44 @@ Numeri in ms dove non è detto altro. Per ogni giro: A / B / C.
 - **La pagina del telefono** ripete 417 KB non compressi a ogni apertura.
 - **Le schermate del PC** si aprono tutte sotto i 300 ms tranne Progetti alla prima apertura (330-650 ms).
 
+### Numeri dopo (19/10 pomeriggio, main `836d2dd`, c-10)
+
+**Come sono stati presi:**
+- copia nuova con `scripts/misure/prepara.mjs --conversazioni` (le stesse conversazioni vere copiate, 31 cartelle);
+- misure con `scripts/misure/misura.mjs` (`avvia`, `apri` per 6 chat, `rotte` con la mediana di 5 giri, `cpu` per 30 s);
+- il PC era **al 100% di CPU** per il lavoro delle altre chat, quindi i tempi d'avvio sono pessimisti, mentre memoria e mediane delle rotte sono confrontabili.
+
+«Interfaccia pronta» qui vuol dire più di 5 tasti nel DOM. È più vicino al «primo disegno» della tabella sopra che all'«interfaccia completa».
+
+| Misura | Prima | Dopo | |
+|---|---|---|---|
+| Avvio normale, interfaccia pronta | 6,3 s (c-10), 7,6–9,2 s (tabella sopra) | **5,3 · 5,6 · 6,0 s** | meglio, nonostante il carico |
+| Primo avvio con le conversazioni | 23–28 s | **72 s** | vedi sotto: carico, non codice |
+| Memoria programma, vuota (privata) | 380 MB | **335–345 MB** | −40 MB |
+| Memoria programma con 6 chat | 469 MB | **452 MB** | finestra 79 MB, main 139, pty-host 92 |
+| `/api/file/progetti` (Progetti) | 177–272 ms | **54 ms** | ×3–5 più veloce (`225636e`) |
+| `/api/drive/pannello` | 516–537 KB, 190–230 ms | 524 KB, 187 ms; **46 KB compresso** | il peso resta, il filo è leggero |
+| Pagina del telefono `/` | 417 KB non compressa | **116 KB compressa** (gzip) | −72% (`e244ef9`) |
+| `/api/chat/gestione/spazio` | 1,8–2,3 s | **0,93–1,1 s** | metà, ancora senza memoria fra chiamate |
+| `/api/negozio` alla prima | 12,9–30 s | **7,3 s** | poi 30 ms |
+| `/api/stato`, `/api/sessioni`, `/api/panoramica` | 8–36 ms | 15 · 16 · 27 ms | uguali |
+| CPU in 30 s, 6 chat ferme | 0,36 s ogni 15 s | finestra 0,34 s, main 0,56 s, GPU 0,08 s | uguale: a chat ferme non si vede |
+
+**Il primo avvio da 72 s non è un peggioramento del codice.**
+- Quasi tutto il tempo (66 s, dalle 14:01:31 alle 14:02:37) è la rimappatura delle 11 chat con la cartella di un altro PC.
+- Nel «prima» la stessa riga aveva impiegato 14 s. Il lavoro è uguale (riscrive le trascrizioni a flusso), quindi la differenza è il carico del PC.
+- Nella copia il registro dei progetti è vuoto, per cui quelle chat sembrano senza casa: vengono adottate in 6 cartelle **vuote** di «Progetti SierraDeck». Sul PC vero il registro dice dove vivono (`altrove`) e la cartella non si crea (`aa3579b`). Per provare quel caso nella copia serve un registro dei progetti con un altro PC residente.
+
+**Nuovo nel registro della copia:**
+- `MaxListenersExceededWarning: 11 before-quit listeners` all'avvio. Si vede solo da quando gli avvisi del main vanno nel registro (`6bdf5e9`).
+- **Non è una perdita.** Sono 12 `app.on('before-quit', …)` fissi in `index.ts` e `finestre-pannello.ts`, uno per timer, registrati una volta sola all'avvio.
+- L'effetto è solo una falsa riga `[ERRORE]` a ogni avvio, che sporca la conta degli errori nel registro.
+- Rimedio da una riga: `app.setMaxListeners(30)` in cima al main. Va in Bassa.
+
+**Non misurato dopo:**
+- la CPU con le chat al lavoro, cioè la situazione dell'84% di un core sul programma vero: servono chat che scrivono, quindi consumo del piano. Si misura sul PC vero dopo l'installazione, con lo stesso `misura.mjs cpu`;
+- le foto «dopo» della grafica, che fa c-12.
+
 **Non misurato:**
 - il Drive vero e il primo giro di un PC nuovo sul Drive (serve un account di prova);
 - il ponte verso un altro PC (servono due PC);
@@ -771,6 +809,9 @@ Su questo PC ci sono due workspace nati per sbaglio. Si tolgono con **«Elimina 
 ## Test rossi su main il 19/10
 - `rimozione-sicura.test.ts` («un altro PC firmato sì…») cadeva per tempo scaduto anche da solo: caricava `client-rotte` dentro il test, e trasformarlo a cache fredda costa più dei 20 s concessi. Ora lo carica in cima al file. Nessun difetto nel programma.
 
+---
+
+**Seconda passata:** `analisi-0-80-0-c10.md` (c-10). Aggiunge la CPU del programma vero (finestra all'84% di un core), il registro vero 13–19/10 (941 WebRTC falliti, 78 salute del servizio non risposta, git sincrono), le segnalazioni dei 5 agenti ECC e gli script `scripts/misure/`.
 ## Numeri dopo le correzioni di c-11 (19/10)
 Misurati come prima, sulle stesse macchine e sugli stessi dati. Dettagli e test in `correzioni-velocita-e-codice-0-80-0.md`; prova con un autopilota vero in `workspace-che-cambia-da-solo-e-notifiche-0-80-0.md`.
 

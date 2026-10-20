@@ -1547,3 +1547,37 @@ describe('0.77.0: la Panoramica del workspace per la pagina e l’app', () => {
     expect(ROTTE_PONTE).toContain('/api/panoramica')
   })
 })
+
+// 0.81.0, voce 7 dell'analisi: /api/domande erano quattro chiamate al servizio per ogni
+// richiesta, e la chiedono PC, pagina e app ogni 2-3 s ciascuno.
+describe('/api/domande non moltiplica le chiamate al servizio', () => {
+  it('entro un secondo, e mentre una lettura è in viaggio, si usa quella; un POST la dimentica; dopo un secondo si rilegge', async () => {
+    let ora = 1_000_000
+    let lette = 0
+    const rotte = rotteClient(deps({
+      adesso: () => ora,
+      domande: () => { lette += 1; return new Promise((r) => setTimeout(() => r([{ id: 'd-1', autopilotaId: 'ap-1', testo: 'Quale chiave?' }]), 20)) }
+    }))
+    const get = (): Promise<unknown> => rotte({ metodo: 'GET', percorso: '/api/domande', corpo: undefined })
+    const [a, b] = await Promise.all([get(), get()])
+    expect(lette).toBe(1)
+    expect(a).toEqual(b)
+    ora += 500
+    await get()
+    expect(lette).toBe(1)
+    await rotte({ metodo: 'POST', percorso: '/api/rispondi', corpo: { domanda: 'd-1', risposta: 'sì' } })
+    await get()
+    expect(lette).toBe(2)
+    ora += 1001
+    await get()
+    expect(lette).toBe(3)
+  })
+
+  it('ogni visore ha la sua lettura: le chat chiuse dal PIN non passano da uno all’altro', async () => {
+    let lette = 0
+    const rotte = rotteClient(deps({ adesso: () => 5, domande: () => { lette += 1; return Promise.resolve([]) } }))
+    await rotte({ metodo: 'GET', percorso: '/api/domande', corpo: undefined, dispositivo: 'tel-a' })
+    await rotte({ metodo: 'GET', percorso: '/api/domande', corpo: undefined, dispositivo: 'tel-b' })
+    expect(lette).toBe(2)
+  })
+})

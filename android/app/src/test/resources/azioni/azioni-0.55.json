@@ -350,6 +350,19 @@
     }
   ],
   "ultimoWorkspace": "L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout.",
+  "aiutoEliminaWorkspace": "Eliminare toglie il workspace dalla fascia e spegne i terminali delle sue chat. Le conversazioni non si cancellano: restano su disco e nell’elenco delle chat. Il workspace, con la disposizione dei suoi riquadri, resta 30 giorni in «Eliminati»: «Ripristina» lo rimette nella fascia senza cambiare lo schermo, e le sue chat ripartono quando ci vai. Se nel frattempo ne hai creato uno con lo stesso nome, torna come «nome (recuperato)». Dopo 30 giorni esce da solo. Se il workspace viaggia anche sul Drive, lì resta: si toglie con «Togli dal Drive».",
+  "righeEliminato": [
+    {
+      "chat": 1,
+      "scadeIl": "2026-11-18T12:00:00.000Z",
+      "riga": "1 chat · resta fino al 18/11"
+    },
+    {
+      "chat": 3,
+      "scadeIl": "2026-01-05T12:00:00.000Z",
+      "riga": "3 chat · resta fino al 05/01"
+    }
+  ],
   "conferme": {
     "dormi": {
       "titolo": "Mettere a dormire «Esempio»?",
@@ -368,7 +381,7 @@
     },
     "eliminaWorkspace": {
       "titolo": "Eliminare il workspace «Lavoro»?",
-      "testo": "Il workspace sparisce dalla fascia e le chat che contiene escono dalla disposizione: i loro terminali si spengono. Le conversazioni restano su disco e si ritrovano nell’elenco Chat (Sessioni), da dove si riaprono in un altro workspace. Prima di eliminare viene messa da parte una copia dell’archivio dei workspace (workspaces.prima-dell-eliminazione.json, nella cartella dei dati). Se il workspace viaggia anche sul Drive, lì resta: si toglie da lì con «Togli dal Drive» nella scheda Drive.",
+      "testo": "Le sue chat si chiudono, le conversazioni restano. Per 30 giorni lo ritrovi in «Eliminati», con «Ripristina».",
       "azione": "Elimina il workspace"
     },
     "rinominaWorkspace": {

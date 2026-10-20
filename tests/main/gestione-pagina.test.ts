@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { paginaClient } from '../../src/main/client-pagina'
-import { confermaChiudi, confermaDormi, confermaEliminaWorkspace, confermaSposta, PARTENZE } from '../../src/shared/azioni-telefono'
+import { AIUTO_ELIMINA_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaWorkspace, confermaSposta, PARTENZE, rigaEliminato } from '../../src/shared/azioni-telefono'
 
 /**
  * La pagina del telefono (0.55.0), in versione semplice: le stesse azioni
@@ -34,6 +34,40 @@ describe('la pagina: gestire chat e workspace', () => {
       expect(script, pezzo).toContain(pezzo)
     }
     for (const rotta of ['/api/chat/dormi', '/api/chat/sposta', '/api/chat/chiudi', '/api/workspace/rinomina', '/api/workspace/elimina']) expect(script, rotta).toContain(rotta)
+  })
+
+  it('i workspace eliminati (0.81.0): elenco con «Ripristina» e il «?», come sul PC', async () => {
+    const pezzo = (inizio: string, fine: string): string => script.slice(script.indexOf(inizio), script.indexOf(fine, script.indexOf(inizio)))
+    const chiesti: { percorso: string; corpo?: unknown }[] = []
+    let disegni = 0
+    const prova = new Function('chiedi', 'aiuto', 'esc', 'pannello', 'aggiorna', 'escJs',
+      'var ultimoStato = {}; var notaGlobale = ""; var window = {};\n' +
+      pezzo('var AIUTO_ELIMINA_WS', '// Le sezioni e le voci') + '\n' +
+      pezzo('var wsEliminati = []', 'window.azioneChat =') +
+      ';return { html: eliminatiWsHtml, ripristina: window.ripristinaWs, nota: function () { return notaGlobale }, aiutoTesto: AIUTO_ELIMINA_WS, riga: rigaEliminato }'
+    )((percorso: string, corpo?: unknown) => {
+      chiesti.push({ percorso, ...(corpo !== undefined ? { corpo } : {}) })
+      return Promise.resolve(percorso === '/api/workspace/recupero' ? { voci: [{ nome: 'Prova', eliminatoIl: '2026-10-19T12:00:00.000Z', scadeIl: '2026-11-18T12:00:00.000Z', chat: 2 }] } : { fatto: true })
+    }, (id: string, t: string) => `[?${id}:${t.length}]`, (t: string) => t, () => { disegni += 1 }, () => undefined, (t: string) => t) as {
+      html: () => string; ripristina: (nome: string, eliminatoIl: string) => Promise<void>; nota: () => string; aiutoTesto: string; riga: typeof rigaEliminato
+    }
+    expect(prova.aiutoTesto).toBe(AIUTO_ELIMINA_WORKSPACE)
+    expect(prova.riga({ chat: 2, scadeIl: '2026-11-18T12:00:00.000Z' })).toBe(rigaEliminato({ chat: 2, scadeIl: '2026-11-18T12:00:00.000Z' }))
+    expect(prova.html()).toBe('')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(disegni).toBe(1)
+    const html = prova.html()
+    expect(html).toContain('Eliminati')
+    expect(html).toContain('[?eliminati-ws:')
+    expect(html).toContain('Prova <span class="sotto">2 chat · resta fino al 18/11</span>')
+    // Per nome e momento, non per posizione (la revisione).
+    expect(html).toContain("ripristinaWs('Prova', '2026-10-19T12:00:00.000Z')")
+    // Una sola lettura nei 30 s, anche se la scheda si ridisegna.
+    expect(chiesti.filter((c) => c.percorso === '/api/workspace/recupero')).toHaveLength(1)
+    await prova.ripristina('Prova', '2026-10-19T12:00:00.000Z')
+    expect(chiesti).toContainEqual({ percorso: '/api/workspace/ripristina', corpo: { nome: 'Prova', eliminatoIl: '2026-10-19T12:00:00.000Z' } })
+    expect(prova.nota()).toBe('')
+    expect(script).toContain("aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS))")
   })
 
   it('«Affida» manda tutti i campi della finestra del PC', () => {

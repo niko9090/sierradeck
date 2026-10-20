@@ -419,6 +419,10 @@ export type DipendenzeRotte = {
    */
   aggiungiWorkspace?: (nome: string) => Promise<void>
   eliminaWorkspace: (nome: string) => Promise<void>
+  /** I workspace eliminati negli ultimi 30 giorni (0.81.0). Senza: un PC che non li tiene. */
+  recuperoWorkspace?: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>
+  /** «Ripristina»: il workspace torna nella fascia, lo schermo non cambia. */
+  ripristinaWorkspace?: (nome: string, eliminatoIl: string) => Promise<{ ok: true; nome: string } | { ok: false; errore: string }>
   /**
    * I progetti sul Drive con chi li ha in mano e quanti comandi aspettano
    * nella coda condivisa: dal telefono si vede, si aggiunge, si toglie.
@@ -823,6 +827,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     stato: 504,
     corpo: { errore: `il servizio degli autopiloti di questo computer non ha risposto in tempo mentre provavo a ${cosa} (${e instanceof Error ? e.message.slice(0, 160) : String(e).slice(0, 160)}): può darsi che sia già successo, guarda lo stato nella scheda fra qualche secondo prima di riprovare` }
   })
+  /**
+   * Le conversazioni delle Domande lette da poco, per visore (0.81.0, voce 7
+   * dell'analisi). PC, pagina e app le chiedono ogni 2-3 s ciascuno, e ogni
+   * lettura sono quattro chiamate al servizio: chi chiede entro un secondo, o
+   * mentre una lettura è in viaggio, ha quella. Un'azione (POST) le dimentica,
+   * così la risposta appena data si vede subito.
+   */
+  const conversazioniLette = new Map<string, { il: number; p: Promise<unknown> }>()
+  const CONVERSAZIONI_FRESCHE_MS = 1000
   return async (r: {
     metodo: string
     percorso: string
@@ -830,6 +843,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     dispositivo?: string
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
+    if (r.metodo === 'POST') conversazioniLette.clear()
     /**
      * Un progetto con una chat protetta dal PIN, chiusa per chi guarda (0.54.0):
      * i suoi file non si vedono. Le chat aperte e quelle salvate nei workspace.
@@ -1228,7 +1242,17 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
      * `/api/rispondi`, `/api/scegli`, `/api/scrivi`.
      */
     // Le conversazioni delle Domande (0.36.0): per /api/domande e, dalla 0.77.0, per le domande brevi della Panoramica.
-    const leggiConversazioni = async (): Promise<{ voci: ReturnType<typeof raccogliDomande>; conversazioni: ReturnType<typeof conversazioniDomande>; autopiloti: Autopilota[] }> => {
+    type Conversazioni = { voci: ReturnType<typeof raccogliDomande>; conversazioni: ReturnType<typeof conversazioniDomande>; autopiloti: Autopilota[] }
+    const leggiConversazioni = (): Promise<Conversazioni> => {
+      const gia = conversazioniLette.get(visore)
+      if (gia !== undefined && adesso() - gia.il < CONVERSAZIONI_FRESCHE_MS) return gia.p as Promise<Conversazioni>
+      // In viaggio vale come fresca: `il` si fissa quando arriva.
+      const voce = { il: Number.POSITIVE_INFINITY, p: leggiConversazioniOra() as Promise<unknown> }
+      conversazioniLette.set(visore, voce)
+      voce.p.then(() => { voce.il = adesso() }, () => { if (conversazioniLette.get(visore) === voce) conversazioniLette.delete(visore) })
+      return voce.p as Promise<Conversazioni>
+    }
+    const leggiConversazioniOra = async (): Promise<Conversazioni> => {
       const [autopiloti, domande, battiti, risolte] = await Promise.all([
         deps.autopiloti().catch(() => [] as Autopilota[]),
         deps.domande().catch(() => []),
@@ -2326,6 +2350,23 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       await deps.eliminaWorkspace(nome)
       return OK({ fatto: true })
+    }
+
+    // Il recupero dei workspace eliminati (0.81.0): 30 giorni, poi escono da soli.
+    if (r.metodo === 'GET' && r.percorso === '/api/workspace/recupero') {
+      if (deps.recuperoWorkspace === undefined) return OK({ voci: [], senzaRecupero: true })
+      return OK({ voci: await deps.recuperoWorkspace() })
+    }
+    if (r.metodo === 'POST' && r.percorso === '/api/workspace/ripristina') {
+      let nome: string
+      try { nome = validateNomeWorkspace(stringa(r.corpo, 'nome')) }
+      catch { return { stato: 400, corpo: { errore: 'nome non valido' } } }
+      const eliminatoIl = stringa(r.corpo, 'eliminatoIl')
+      if (eliminatoIl === '') return { stato: 400, corpo: { errore: 'serve il momento dell’eliminazione' } }
+      if (deps.ripristinaWorkspace === undefined) return { stato: 409, corpo: { errore: 'Questo computer non tiene ancora i workspace eliminati: aggiornalo alla 0.81.0.' } }
+      const e = await deps.ripristinaWorkspace(nome, eliminatoIl)
+      deps.log?.(`[workspace] ripristino di «${nome}» chiesto da ${visore}: ${e.ok ? `tornato come «${e.nome}»` : e.errore}`)
+      return e.ok ? OK({ fatto: true, nome: e.nome }) : { stato: 409, corpo: { errore: e.errore } }
     }
 
     // Rinominare un workspace (0.55.0), come «✎ Rinomina» del pannello: le

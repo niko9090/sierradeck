@@ -1,4 +1,5 @@
 import { annotaEliminato } from './workspace-ritrova'
+import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
@@ -1227,12 +1228,34 @@ export function registerLayoutIpc(
     // passa dal rifiuto dei congedi, e un clic sbagliato non deve costare le
     // chat di un workspace.
     mettiDaParteArchivio(store.percorso, 'workspaces.prima-dell-eliminazione.json')
+    // Il workspace intero, con i suoi layout, nel recupero per 30 giorni (0.81.0):
+    // con il recupero illeggibile non si elimina, e la voce si scrive solo dopo
+    // che l'archivio è stato scritto (se no resterebbe anche fra gli eliminati).
+    if (a !== precedente && !recuperoLeggibile(dirname(store.percorso))) {
+      throw new Error('Non elimino il workspace: il recupero dei workspace eliminati non si legge in questo momento, e senza non lo potresti ripristinare. Riprova fra poco.')
+    }
     scriviOSolleva(a, "l'eliminazione del workspace")
+    if (a !== precedente && !mettiWorkspaceNelRecupero(dirname(store.percorso), precedente, validateNomeWorkspace(raw))) {
+      console.error(`[workspace] «${validateNomeWorkspace(raw)}» eliminato ma non messo nel recupero: resta solo workspaces.prima-dell-eliminazione.json`)
+    }
     // Annotata (0.65.1): un workspace eliminato da Nicholas non si «ritrova» dalle copie.
     annotaEliminato(dirname(store.percorso), validateNomeWorkspace(raw))
     dopoNome(validateNomeWorkspace(raw), undefined)
     if (a.attivo !== precedente.attivo) annunciaCambio(event, a, precedente.attivo)
     return statoDi(a)
+  })
+
+  // Il recupero dei workspace eliminati (0.81.0): l'elenco e «Ripristina».
+  // Ripristinare non cambia lo schermo: il workspace torna nella fascia di
+  // tutte le finestre e ci vai tu.
+  ipcMain.handle('workspace:recupero', () => elencoRecuperoWorkspace(dirname(store.percorso)))
+  ipcMain.handle('workspace:ripristina', (_event, rawNome: unknown, rawQuando: unknown): StatoWorkspace => {
+    const nome = validateNomeWorkspace(rawNome)
+    if (typeof rawQuando !== 'string' || rawQuando === '') throw new Error('richiesta IPC non valida: manca il momento dell’eliminazione')
+    const e = ripristinaWorkspace(dirname(store.percorso), store.leggi(), { nome, eliminatoIl: rawQuando }, (a) => store.scrivi(a))
+    if (!e.ok) throw new Error(e.errore)
+    registro.inviaATutte('workspace:ripristinato', statoDi(e.archivio))
+    return statoDi(e.archivio)
   })
 
   // Rinominare è solo un'etichetta: le chat e i loro terminali non si toccano,
