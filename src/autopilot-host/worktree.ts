@@ -38,11 +38,16 @@ function stessaCartella(a: string, b: string): boolean {
 }
 
 function normale(x: string): string {
+  const r = vero(x)
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+/** Il percorso vero, con le maiuscole che ha sul disco. */
+function vero(x: string): string {
   let r = resolve(x)
   // git scrive il percorso vero (collegamenti risolti): lo stesso per l'altro.
   try { r = realpathSync.native(r) } catch { /* resta com'è */ }
-  r = r.replace(/[\\/]+$/, '')
-  return process.platform === 'win32' ? r.toLowerCase() : r
+  return r.replace(/[\\/]+$/, '')
 }
 
 /**
@@ -52,7 +57,9 @@ function normale(x: string): string {
  * rimasta di una chat chiusa dentro un altro worktree invece non è nel ramo.
  */
 function sottocartellaDelRamo(git: Git, radice: string, cartella: string): boolean {
-  const rel = relative(normale(radice), normale(cartella))
+  // Senza minuscole: `git ls-tree` distingue «App» da «app» (c-289, 20/10).
+  // Su Windows `relative` confronta già senza maiuscole e tiene quelle della cartella.
+  const rel = relative(vero(radice), vero(cartella))
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
   const r = git(['ls-tree', '-d', '--name-only', 'HEAD', '--', rel.split(sep).join('/')], radice)
   return r.codice === 0 && r.uscita !== ''
