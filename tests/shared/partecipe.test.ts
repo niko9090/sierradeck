@@ -94,6 +94,32 @@ describe('il riquadro «Adesso»: una riga per chat', () => {
     expect(adessoDi(muto, ORA).righe[0]?.testo).toBe('nessun segno da 30 min')
   })
 
+  it('Revisione: senza segni una chat «al lavoro» da ore è muta da quando il servizio li raccoglie', () => {
+    const muta = ap({ chats: [chat('c-14', { dal: iso(ORA - 844 * MIN) })], segniDal: iso(ORA - 30 * MIN) })
+    expect(adessoDi(muta, ORA).righe[0]).toMatchObject({ tono: 'ferma', testo: 'nessun segno da 30 min' })
+    // Servizio appena ripartito: nessuno ha ancora dato un segno, non si giudica.
+    const riavvio = ap({ chats: [chat('c-14', { dal: iso(ORA - 844 * MIN) })], segniDal: iso(ORA - 2 * MIN) })
+    expect(adessoDi(riavvio, ORA).righe[0]?.tono).toBe('lavoro')
+    // Un servizio vecchio, senza la data: non si inventa niente.
+    expect(adessoDi(ap({ chats: [chat('c-14', { dal: iso(ORA - 844 * MIN) })] }), ORA).righe[0]?.tono).toBe('lavoro')
+  })
+
+  it('Revisione: una chat di prima della 0.81.0 (senza `dal`) mai partita si vede lo stesso', () => {
+    const a = ap({ chats: [chat('c-15', { cicli: 0 })], segniDal: iso(ORA - 20 * MIN) })
+    expect(adessoDi(a, ORA).righe[0]).toMatchObject({ tono: 'ferma', testo: 'non è ancora partita: nessun segno da 20 min' })
+  })
+
+  it('Revisione: con l’autopilota in attesa le chat della flotta lavorano; fermo, dice perché', () => {
+    const attesa = ap({ stato: 'attesa', chats: [chat('c-1', { dal: iso(ORA - 5 * MIN) })] })
+    expect(adessoDi(attesa, ORA).righe[0]).toMatchObject({ tono: 'lavoro', testo: 'al lavoro da 5 min' })
+    const fermo = ap({ stato: 'sospeso', motivoSospensione: 'tetto di cicli', chats: [chat('c-1')] })
+    expect(adessoDi(fermo, ORA).righe[0]?.testo).toBe('ferma: l’autopilota è fermo (tetto di cicli)')
+  })
+
+  it('Revisione: la chat sola che aspetta te non dice un «da quanto» falso', () => {
+    expect(adessoDi(ap({ stato: 'attesa', ultimoEvento: iso(ORA - 10_000) }), ORA).righe[0]?.testo).toBe('aspetta la tua risposta')
+  })
+
   it('niente righe per chi non è ancora partito o ha finito', () => {
     expect(adessoDi(ap({ stato: 'intervista' }), ORA).righe).toEqual([])
     expect(adessoDi(ap({ stato: 'finito', chats: [chat('c-1', { stato: 'finita' })] }), ORA)).toEqual({ righe: [], finite: 0 })
@@ -147,7 +173,30 @@ describe('«Hai risposto: …» e cosa ne è stato fatto', () => {
       { quando: iso(ORA + 1_000), cosa: 'risposta tardiva (c-3): un’altra cosa' },
       { quando: iso(ORA + 3 * 60 * MIN), cosa: 'risposta tardiva (c-3): il fisso' }
     ] })
-    expect(esitoRisposta(a, iso(ORA), 'il fisso')).toBe('Ricevuta: la porto alla chat che l’aveva chiesta.')
+    // L'unica riga sua è di ore dopo: non è lei, e il lavoro è andato avanti.
+    expect(esitoRisposta(a, iso(ORA), 'il fisso')).toBe('Ricevuta.')
+  })
+
+  it('Revisione: il «sì» a «pubblico?» non diventa l’esito di un’altra risposta data prima', () => {
+    const a = ap({ chats: [chat('c-3')], decisioni: [
+      { quando: iso(ORA + 10 * MIN), cosa: 'pubblicazione: hai detto sì (sì)' },
+      { quando: iso(ORA + 1_000), cosa: 'risposta tardiva (c-3): ok, vai avanti' }
+    ] })
+    expect(esitoRisposta(a, iso(ORA), 'ok, vai avanti')).toBe('c-3 («Il compito di c-3») l’ha ricevuta e riprende il lavoro.')
+    expect(esitoRisposta(a, iso(ORA + 10 * MIN - 1_000), 'sì')).toBe('Pubblica.')
+  })
+
+  it('Revisione: due «sì» vicini prendono ciascuno la riga più vicina', () => {
+    const a = ap({ chats: [chat('c-1'), chat('c-2')], decisioni: [
+      { quando: iso(ORA + 1_000), cosa: 'risposta tardiva (c-1): sì' },
+      { quando: iso(ORA + 5 * MIN + 1_000), cosa: 'risposta tardiva (c-2): sì' }
+    ] })
+    expect(esitoRisposta(a, iso(ORA + 5 * MIN), 'sì')).toMatch(/^c-2 /)
+  })
+
+  it('Revisione: una risposta vecchia senza traccia non promette niente', () => {
+    const a = ap({ decisioni: [{ quando: iso(ORA + 2 * 60 * MIN), cosa: 'giro 40' }] })
+    expect(esitoRisposta(a, iso(ORA), 'il fisso')).toBe('Ricevuta.')
   })
 
   it('la risposta arrivata a una chat della flotta («risposta tardiva (c-3): …») non resta una riga grezza', () => {

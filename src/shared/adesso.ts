@@ -37,6 +37,11 @@ export type Adesso = {
 export type SegniDalVivo = {
   ultimoSegno?: string
   segniChat?: Record<string, string>
+  /**
+   * Da quando il servizio raccoglie i segni (il suo avvio). Senza segni una
+   * chat è muta da qui, non da sempre: dopo un riavvio nessuno ne ha ancora.
+   */
+  segniDal?: string
 }
 
 /** Una chat che non chiude un turno né dà segni da tanto è ferma, anche se è scritta «al lavoro». */
@@ -70,8 +75,11 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   // Senza ruolo «Una chat» non distingue niente: allora il suo nome, «c-14».
   const base = { id: c.id, chi: c.ruolo !== undefined ? nomeChi(c) : c.id, compito: compitoBreve(c.compito) }
   const dal = daQuanto(c.dal, ora)
-  if (a.stato !== 'lavoro') {
-    return { ...base, testo: `ferma: l’autopilota è ${a.stato === 'attesa' ? 'in attesa di te' : 'fermo'}`, tono: a.stato === 'attesa' ? 'aspetta' : 'ferma' }
+  // In «attesa» le chat della flotta continuano (come `chatAlLavoro`): solo
+  // con l'autopilota fermo sono ferme tutte, con il suo motivo.
+  if (a.stato !== 'lavoro' && a.stato !== 'attesa') {
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${a.motivoSospensione})` : ''
+    return { ...base, testo: `ferma: l’autopilota è fermo${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(c.id) === true) {
     return { ...base, testo: `ferma${dal}: non chiude un turno, messa da parte. Torna da sola appena risponde`, tono: 'ferma' }
@@ -80,11 +88,19 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   if (c.stato === 'pausa') return { ...base, testo: `in pausa per i limiti del piano${dal}`, tono: 'pausa' }
   const segno = istante(a.segniChat?.[c.id])
   const aperta = istante(c.dal)
-  if (c.cicli === 0 && segno === undefined && aperta !== undefined && ora - aperta >= MAI_PARTITA_DA_MS) {
+  const raccolti = istante(a.segniDal)
+  // Dopo un riavvio del servizio una chat viva dà un segno entro pochi minuti:
+  // prima di allora l'assenza di segni non dice niente.
+  const senzaSegni = segno === undefined && (raccolti === undefined || ora - raccolti >= MAI_PARTITA_DA_MS)
+  if (c.cicli === 0 && senzaSegni && aperta !== undefined && ora - aperta >= MAI_PARTITA_DA_MS) {
     return { ...base, testo: `non è ancora partita: aperta ${durata(ora - aperta)} fa, nessun segno`, tono: 'ferma' }
   }
-  if (segno !== undefined && ora - segno >= MUTA_DA_MS) {
-    return { ...base, testo: `nessun segno da ${durata(ora - segno)}`, tono: 'ferma' }
+  // Muta da: l'ultimo segno; senza segni, da quando li si raccoglie (o da quando
+  // è al lavoro, se è dopo). Senza nessuna delle due date non si giudica.
+  const riferimento = segno ?? (raccolti === undefined ? undefined : Math.max(raccolti, aperta ?? raccolti))
+  if (riferimento !== undefined && ora - riferimento >= MUTA_DA_MS) {
+    const testo = c.cicli === 0 && segno === undefined ? `non è ancora partita: nessun segno da ${durata(ora - riferimento)}` : `nessun segno da ${durata(ora - riferimento)}`
+    return { ...base, testo, tono: 'ferma' }
   }
   const ultima = c.ultimaAzione !== undefined && c.ultimaAzione !== '' ? ` · ${c.ultimaAzione}` : ''
   return { ...base, testo: `al lavoro${dal}${ultima}`, tono: 'lavoro' }
@@ -93,8 +109,8 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
 /** La riga quando l'autopilota lavora con una chat sola. */
 function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   const base = { id: a.id, chi: 'La chat', compito: compitoBreve(a.nome !== '' ? a.nome : a.obiettivo) }
-  const dal = daQuanto(a.ultimoEvento, ora)
-  if (a.stato === 'attesa') return { ...base, testo: `aspetta la tua risposta${dal}`, tono: 'aspetta' }
+  // Niente «da quanto»: `ultimoEvento` cambia a ogni salvataggio, non è l'ora della domanda.
+  if (a.stato === 'attesa') return { ...base, testo: 'aspetta la tua risposta', tono: 'aspetta' }
   if (a.stato !== 'lavoro') {
     const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${a.motivoSospensione}` : ''
     return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
@@ -102,7 +118,8 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   if (a.daParte?.includes(a.id) === true) {
     return { ...base, testo: 'ferma: non chiude un turno, messa da parte. Torna da sola appena risponde', tono: 'ferma' }
   }
-  const segno = istante(a.ultimoSegno)
+  const raccolti = istante(a.segniDal)
+  const segno = istante(a.ultimoSegno) ?? raccolti
   if (segno !== undefined && ora - segno >= MUTA_DA_MS) {
     return { ...base, testo: `nessun segno da ${durata(ora - segno)}`, tono: 'ferma' }
   }

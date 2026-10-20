@@ -528,10 +528,16 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
+  // 0.81.0: da quando il servizio raccoglie i segni di vita. Prima di un
+  // riavvio non ne ha nessuno: «nessun segno» si misura da qui, non dall'eterno.
+  const segniDal = deps.adesso()
+  // L'ultimo salvato di ogni autopilota, per non rileggere il file a ogni giro.
+  const salvati = new Map<string, Autopilota>()
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
-    const datato = a.chats.length > 0 ? conStatiDatati(a, deps.archivio.leggi(a.id), ora) : a
+    const datato = a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a
+    salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }
 
@@ -3182,7 +3188,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const testo = JSON.stringify(deps.archivio.elenca().map((a) => {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
             const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
-            if (segni.length === 0) return a
+            if (segni.length === 0) return { ...a, segniDal }
             // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
             const segniChat: Record<string, string> = {}
             if (a.chats.length > 0) {
@@ -3191,7 +3197,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
                 if (t !== undefined) segniChat[c.id] = new Date(t).toISOString()
               }
             }
-            return { ...a, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}) }
+            return { ...a, segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}) }
           }))
           // 0.81.0: «non cambiato» (304) a chi ha già questo elenco. Lo chiedono
           // finestre, pannello e telefono ogni 2-5 s, e un autopilota con

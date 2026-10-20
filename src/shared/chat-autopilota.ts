@@ -146,23 +146,32 @@ const RISPOSTA_USATA_ENTRO_MS = 30 * 60_000
  */
 export function esitoRisposta(a: Pick<Autopilota, 'decisioni' | 'chats' | 'stato'>, quando: string, risposta: string): string {
   const da = Date.parse(quando)
-  const inizio = risposta.replace(/\s+/g, ' ').trim().slice(0, 40)
-  const dopo = a.decisioni.filter((d) => {
-    const t = Date.parse(d.quando)
-    return !Number.isNaN(da) && !Number.isNaN(t) && t >= da - 5_000 && t - da <= RISPOSTA_USATA_ENTRO_MS
-  })
-  for (const d of dopo) {
+  if (Number.isNaN(da)) return 'Ricevuta.'
+  const pulito = (t: string): string => t.replace(/\s+/g, ' ').trim()
+  const inizio = pulito(risposta).slice(0, 20)
+  // È la sua solo se il servizio ripete le stesse parole: due risposte vicine
+  // non si scambiano l'esito.
+  const suo = (testo: string): boolean => inizio === '' || pulito(testo).startsWith(inizio)
+  const vicine = a.decisioni
+    .map((d) => ({ d, t: Date.parse(d.quando) }))
+    .filter(({ t }) => !Number.isNaN(t) && t >= da - 5_000 && t - da <= RISPOSTA_USATA_ENTRO_MS)
+    .sort((x, y) => Math.abs(x.t - da) - Math.abs(y.t - da))
+  for (const { d } of vicine) {
     const cosa = d.cosa
-    if (cosa.startsWith('pubblicazione: hai detto sì')) return 'Pubblica.'
-    if (cosa.startsWith('non pubblico: hai risposto')) return 'Non pubblica, come hai detto.'
+    const si = /^pubblicazione: hai detto sì \((.*)\)$/s.exec(cosa)
+    if (si !== null && suo(si[1] ?? '')) return 'Pubblica.'
+    const no = /^non pubblico: hai risposto «(.*)»$/s.exec(cosa)
+    if (no !== null && suo(no[1] ?? '')) return 'Non pubblica, come hai detto.'
     const ricevuta = /^risposta (?:tardiva|dell utente)(?: \(([^)]+)\))?:\s*(.*)$/s.exec(cosa)
-    if (ricevuta === null) continue
-    const testo = (ricevuta[2] ?? '').replace(/\s+/g, ' ').trim()
-    if (inizio !== '' && !testo.startsWith(inizio.slice(0, 20))) continue
+    if (ricevuta === null || !suo(ricevuta[2] ?? '')) continue
     const chat = a.chats.find((c) => c.id === ricevuta[1])
     const chi = chat !== undefined ? `${chat.ruolo !== undefined ? nomeChi(chat) : chat.id} («${compitoBreve(chat.compito, 40)}»)` : 'La chat'
     return `${chi} l’ha ricevuta e riprende il lavoro.`
   }
+  // Nessuna traccia, ma il lavoro è andato avanti oltre la finestra: non si
+  // promette niente che non risulti.
+  const oltre = a.decisioni.some((d) => Date.parse(d.quando) - da > RISPOSTA_USATA_ENTRO_MS)
+  if (oltre) return 'Ricevuta.'
   return a.stato === 'lavoro' || a.stato === 'attesa'
     ? 'Ricevuta: la porto alla chat che l’aveva chiesta.'
     : 'Ricevuta. L’autopilota è fermo: la userà quando riparte.'
