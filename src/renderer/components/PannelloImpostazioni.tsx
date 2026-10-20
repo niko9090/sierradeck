@@ -590,11 +590,16 @@ export function PannelloImpostazioni(
     if (el === null || tab !== 'generali') { setQui(undefined); return }
     const leggi = (): void => {
       const cima = el.getBoundingClientRect().top + 24
-      setQui(sezioneInVista(SEZIONI.map((s) => ({ id: s.id, cima: document.getElementById(`imp-${s.id}`)?.getBoundingClientRect().top })), cima))
+      const inFondo = el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+      setQui(sezioneInVista(SEZIONI.map((s) => ({ id: s.id, cima: document.getElementById(`imp-${s.id}`)?.getBoundingClientRect().top })), cima, inFondo))
     }
     leggi()
     el.addEventListener('scroll', leggi, { passive: true })
-    return () => el.removeEventListener('scroll', leggi)
+    // Anche quando le sezioni cambiano senza scorrere: la ricerca, una sezione che finisce di caricare.
+    const ro = new ResizeObserver(leggi)
+    ro.observe(el)
+    if (el.firstElementChild !== null) ro.observe(el.firstElementChild)
+    return () => { el.removeEventListener('scroll', leggi); ro.disconnect() }
   }, [tab])
   const vai = (id: string): void => {
     if (tab !== 'generali') setTab('generali')

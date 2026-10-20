@@ -24,5 +24,7 @@ class GraficaMenoCaoticaTest {
         assertEquals("ha adottato una chat · da 22 min", RegolePanoramica.rigaDalVivoSenzaStato(v))
         assertEquals("da 3 min · ⚠ nessun segno da 10 min", RegolePanoramica.rigaDalVivoSenzaStato(StatoDalVivo("al lavoro", "3 min", "", "nessun segno da 10 min")))
         assertEquals("", RegolePanoramica.rigaDalVivoSenzaStato(StatoDalVivo(etichetta = "fermo")))
+        // Come PC e pagina: «da 22 min» da solo non si mostra.
+        assertEquals("", RegolePanoramica.rigaDalVivoSenzaStato(StatoDalVivo(etichetta = "fermo", da = "22 min")))
     }
 }

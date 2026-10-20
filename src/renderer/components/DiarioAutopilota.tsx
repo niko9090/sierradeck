@@ -397,6 +397,7 @@ export function DiarioAutopilota({
                 onClick={() => {
                   if (l.id === 'domande' && linguetta !== 'domande') primaDelleDomande.current = linguetta
                   setLinguetta(l.id)
+                  setAltreAperte(false)
                 }}
               >
                 {l.nome}

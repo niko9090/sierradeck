@@ -211,7 +211,7 @@ object RegolePanoramica {
 
     /** 0.82.0: la riga dal vivo senza la parola dello stato, che la testata dice già: ultima azione, da quanto, ⚠. */
     fun rigaDalVivoSenzaStato(v: StatoDalVivo): String =
-        listOfNotNull(v.ultimaAzione.takeIf { it.isNotBlank() }, v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, v.senzaSegni?.let { "⚠ $it" }).joinToString(" · ")
+        if (v.ultimaAzione.isBlank() && v.senzaSegni == null) "" else listOfNotNull(v.ultimaAzione.takeIf { it.isNotBlank() }, v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, v.senzaSegni?.let { "⚠ $it" }).joinToString(" · ")
 
     fun titoloAlLavoro(righe: List<RigaAlLavoro>): String {
         val aspettano = righe.count { it.aspettaTe }

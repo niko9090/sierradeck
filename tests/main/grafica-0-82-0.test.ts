@@ -63,6 +63,8 @@ describe('le Impostazioni', () => {
     expect(sezioneInVista(t, 24)).toBe('computer')
     expect(sezioneInVista(t, -500)).toBe('aggiornamenti')
     expect(sezioneInVista([{ id: 'x', cima: undefined }], 0)).toBeUndefined()
+    // In fondo le sezioni corte non salgono mai in cima: si accende l'ultima presente.
+    expect(sezioneInVista(t, 24, true)).toBe('chat')
   })
   it('il rimando a «Riparti al login» sta nel «?» della sezione, non in una riga fissa', () => {
     expect(SEZIONI.find((s) => s.id === 'chat')?.spiega).toContain('Riparti al login')
@@ -112,6 +114,6 @@ describe('app: le stesse regole', () => {
   it('Kotlin: «Adesso» vuoto e la riga dal vivo senza stato', () => {
     const k = leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Panoramica.kt')
     expect(k).toContain('RegolePanoramica.mostraAdesso(sz.adesso.size, p.alLavoro != null)')
-    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt')).toContain('DalVivo(it, senzaStato = true)')
+    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt')).toContain('DalVivo(it, senzaStato = it.etichetta == statoInParole(s))')
   })
 })

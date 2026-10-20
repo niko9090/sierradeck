@@ -115,8 +115,10 @@ export function sezioniDi(dove: Dove, q = ''): { sezione: Sezione; voci: Voce[] 
  * sopra la cima della parte che scorre. Le sezioni senza titolo in pagina (cercate
  * via, o in un'altra scheda) non contano; nessun titolo in pagina = nessuna.
  */
-export function sezioneInVista(titoli: readonly { id: string; cima: number | undefined }[], cima: number): string | undefined {
+export function sezioneInVista(titoli: readonly { id: string; cima: number | undefined }[], cima: number, inFondo = false): string | undefined {
   const presenti = titoli.filter((t): t is { id: string; cima: number } => t.cima !== undefined)
   if (presenti.length === 0) return undefined
+  // In fondo le sezioni corte non arrivano mai in cima: si accende l'ultima (Revisione 0.82.0).
+  if (inFondo) return presenti.at(-1)!.id
   return presenti.filter((t) => t.cima <= cima).at(-1)?.id ?? presenti[0]!.id
 }

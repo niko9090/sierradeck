@@ -329,7 +329,8 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     }
                     // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
                     // 0.82.0: lo stato è già nella riga sopra, qui solo ultima azione, da quanto e ⚠.
-                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = true) }
+                    // (solo se la riga sopra dice la stessa parola: altrimenti l'etichetta del PC resta, Revisione 0.82.0)
+                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(s)) }
                     det?.adesso?.let { AdessoVista(it) }
                     MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
                         scopeMessaggi.launch {
