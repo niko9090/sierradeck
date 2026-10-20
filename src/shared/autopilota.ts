@@ -87,6 +87,14 @@ export type Modifica = {
 /** Oltre queste, le più vecchie si dimenticano: il file non deve crescere per sempre. */
 export const MODIFICHE_RICORDATE = 10
 
+function parseAnnuncio(x: unknown): { id: string; titolo: string; quando: string } | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  return typeof o.id === 'string' && o.id !== '' && typeof o.titolo === 'string' && typeof o.quando === 'string'
+    ? { id: o.id, titolo: o.titolo, quando: o.quando }
+    : undefined
+}
+
 /**
  * Una battuta del dialogo fra chi ha affidato il lavoro e l'autopilota.
  *
@@ -311,6 +319,12 @@ export type Autopilota = {
    * lo toglie dall'archivio.
    */
   archiviato?: boolean
+  /**
+   * L'ultimo annuncio del programma a Nicholas (0.81.0, «Errori arrivati»: il
+   * riepilogo prima delle correzioni). Il testo sta nel dialogo; qui l'id, con
+   * cui PC, pagina e app mandano **una** notifica sola.
+   */
+  annuncio?: { id: string; titolo: string; quando: string }
   limiti: Limiti
   /**
    * Se riprendere **questo** autopilota quando il servizio torna su.
@@ -875,6 +889,7 @@ export function parseAutopilota(raw: unknown): {
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
       ...(stringaNonVuota(o.fermatoIl) !== undefined ? { fermatoIl: o.fermatoIl as string } : {}),
       ...(o.archiviato === true ? { archiviato: true } : {}),
+      ...(parseAnnuncio(o.annuncio) !== undefined ? { annuncio: parseAnnuncio(o.annuncio) as { id: string; titolo: string; quando: string } } : {}),
       intervista: Array.isArray(o.intervista)
         ? o.intervista.flatMap((s) => {
             if (typeof s !== 'object' || s === null) return []

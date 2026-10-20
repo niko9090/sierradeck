@@ -94,7 +94,7 @@ export function confermaEliminaWorkspace(nome: string): Conferma {
 }
 
 /** Il «?» di «Elimina» e di «Eliminati», uguale su PC, pagina e app (0.81.0). */
-export const AIUTO_ELIMINA_WORKSPACE = 'Eliminare toglie il workspace dalla fascia e spegne i terminali delle sue chat. Le conversazioni non si cancellano: restano su disco e nell’elenco delle chat. Il workspace, con la disposizione dei suoi riquadri, resta 30 giorni in «Eliminati»: «Ripristina» lo rimette nella fascia senza cambiare lo schermo, e le sue chat ripartono quando ci vai. Se nel frattempo ne hai creato uno con lo stesso nome, torna come «nome (recuperato)». Dopo 30 giorni esce da solo. Se il workspace viaggia anche sul Drive, lì resta: si toglie con «Togli dal Drive».'
+export const AIUTO_ELIMINA_WORKSPACE = 'Eliminare toglie il workspace dalla fascia e spegne i terminali delle sue chat. Le conversazioni non si cancellano: restano su disco e nell’elenco delle chat. Il workspace, con la disposizione dei suoi riquadri, resta 30 giorni in «Eliminati»: «Ripristina» lo rimette nella fascia senza cambiare lo schermo, e le sue chat ripartono quando ci vai. Se nel frattempo ne hai creato uno con lo stesso nome, torna come «nome (recuperato)». Dopo 30 giorni esce da solo. Se il workspace viaggia anche sul Drive, lì resta: si toglie con «Togli dal Drive». Se la cartella del progetto è vuota e non la usa nessun altro, va nel recupero con lui e torna con «Ripristina». Non si elimina un workspace con una chat che sta lavorando, o che è la casa di un autopilota attivo: lo dice, e lo fai dopo.'
 
 /** La riga sotto il nome di un workspace eliminato: quante chat e fino a quando resta. */
 export function rigaEliminato(v: { chat: number; scadeIl: string }): string {

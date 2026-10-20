@@ -120,6 +120,21 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
   return tronca(righe.join('\n'), MESSAGGIO_MAX)
 }
 
+/**
+ * Perché parte un avviso, in una riga per il registro (0.81.0): «ogni notifica
+ * nel registro con la causa». Il motivo del fermo o l'inizio della domanda.
+ */
+export function causaAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string): string {
+  const corta = (t: string): string => tronca(t.replace(/\s+/g, ' ').trim(), 120)
+  switch (tipo) {
+    case 'finito': return 'lavoro finito'
+    case 'pronto': return 'aspetta il tuo via'
+    // Solo l'inizio: il testo intero è nelle Domande, il registro non è il posto (la Revisione).
+    case 'domanda': return `domanda: ${tronca((domanda ?? '').replace(/\s+/g, ' ').trim(), 60)}`
+    default: return corta(a.motivoSospensione ?? '') || 'fermo'
+  }
+}
+
 /** Oltre questo l'invio si considera perso: meglio un avviso mancato che una
  * promessa che non si risolve mai e blocca chi la aspetta. */
 const TIMEOUT_INVIO_MS = 10_000
@@ -208,7 +223,7 @@ export function creaAvvisatore(deps: {
   const avvisa = async (tipo: TipoAvviso, a: Autopilota, domanda?: string): Promise<void> => {
     if (deps.configurazione === undefined) return
     const testo = componiAvviso(tipo, a, domanda)
-    const riga = `${tipo} di «${a.nome}» (${a.id})`
+    const riga = `${tipo} di «${a.nome}» (${a.id}), causa: ${causaAvviso(tipo, a, domanda)}`
     const ora = adesso()
     if (!attesaArmata && ora - ultimoInvio >= AVVISI_VICINI_MS) {
       await invia(testo, [riga])

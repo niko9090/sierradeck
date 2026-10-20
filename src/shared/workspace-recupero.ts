@@ -20,6 +20,11 @@ export type WorkspaceInRecupero = {
   eliminatoIl: string
   /** Chi l'ha chiesto: il PC stesso, `tel:<id>`, `pc:<nome>`. Solo per raccontarlo. */
   da?: string
+  /**
+   * La cartella vuota del progetto, spostata con `cancellaSicura` nel recupero
+   * insieme al workspace: «Ripristina» la rimette dov'era.
+   */
+  cartella?: { originale: string; spostataIn: string }
 }
 
 /** Quello che pagina e app vedono: niente layout, solo cosa c'era. */
@@ -108,4 +113,65 @@ export function leggiVoci(raw: unknown): WorkspaceInRecupero[] {
     const v = x as Partial<WorkspaceInRecupero> | null
     return typeof v === 'object' && v !== null && typeof v.eliminatoIl === 'string' && typeof v.workspace?.nome === 'string' && typeof v.workspace.perSlot === 'object' && v.workspace.perSlot !== null
   })
+}
+
+/**
+ * **Quando «Elimina workspace» dice di no** (0.81.0). Eliminare spegne i
+ * terminali delle sue chat: una chat che sta lavorando perderebbe il turno a
+ * metà, e un autopilota attivo resterebbe senza la casa dove compare il suo
+ * lavoro. Si rifiuta e si dice perché, con la strada per farlo dopo.
+ */
+export type ChatPerEliminare = { sessione?: string; titolo: string; viva?: boolean; aspetta?: boolean }
+export type AutopilotaPerEliminare = { nome?: string; obiettivo: string; stato: string; workspace?: string; cwd?: string }
+
+/** Gli stati in cui un autopilota sta ancora facendo qualcosa (sospeso, finito e fallito no). */
+const STATI_ATTIVI: Record<string, string> = { intervista: 'in intervista', pronto: 'pronto a partire', lavoro: 'al lavoro', attesa: 'in attesa' }
+
+function nomeAutopilota(a: AutopilotaPerEliminare): string {
+  const n = (a.nome ?? '').trim() !== '' ? (a.nome as string).trim() : a.obiettivo.replace(/\s+/g, ' ').trim()
+  return n.length > 40 ? `${n.slice(0, 39).trimEnd()}…` : n
+}
+
+/** Il motivo per non eliminare `w`, o `undefined` se si può. */
+export function motivoPerNonEliminare(
+  w: WorkspaceSalvato | undefined,
+  chat: readonly ChatPerEliminare[],
+  autopiloti: readonly AutopilotaPerEliminare[]
+): string | undefined {
+  if (w === undefined) return undefined
+  const sessioni = new Set<string>()
+  for (const l of Object.values(w.perSlot ?? {})) for (const p of l.panes ?? []) if (p.sessionUuid !== undefined && p.sessionUuid !== '') sessioni.add(p.sessionUuid)
+  const alLavoro = chat.filter((c) => c.viva === true && c.aspetta !== true && c.sessione !== undefined && sessioni.has(c.sessione))
+  if (alLavoro.length > 0) {
+    const chi = alLavoro.length === 1 ? `la chat «${alLavoro[0]!.titolo}» sta lavorando` : `${alLavoro.length} chat stanno lavorando`
+    return `Non elimino «${w.nome}»: ${chi}. Riprova quando ha finito.`
+  }
+  const attivo = autopiloti.find((a) => a.workspace === w.nome && STATI_ATTIVI[a.stato] !== undefined)
+  if (attivo !== undefined) {
+    return `Non elimino «${w.nome}»: è la casa dell’autopilota «${nomeAutopilota(attivo)}», ${STATI_ATTIVI[attivo.stato]}. Prima fermalo o eliminalo.`
+  }
+  return undefined
+}
+
+/**
+ * La cartella del progetto che va nel recupero insieme al workspace (il caso
+ * «visitafacile» del 19/10: un workspace sbagliato lascia una cartella vuota
+ * nella radice dei progetti). Solo se è **vuota** e nessun altro la usa: né un
+ * riquadro di un workspace che resta, né un autopilota, in nessuno stato. Una
+ * cartella con anche un solo file non si tocca mai.
+ */
+export function cartellaVuotaDaRecuperare(
+  cartella: string,
+  vuota: boolean,
+  dopo: Archivio,
+  autopiloti: readonly AutopilotaPerEliminare[],
+  /** `figlio` è `padre` o sta dentro. */
+  dentro: (figlio: string, padre: string) => boolean
+): boolean {
+  if (!vuota) return false
+  const usa = (cwd: string | undefined): boolean => cwd !== undefined && cwd !== '' && dentro(cwd, cartella)
+  for (const w of dopo.workspace) {
+    for (const l of Object.values(w.perSlot ?? {})) for (const p of l.panes ?? []) if (usa(p.cwd)) return false
+  }
+  return !autopiloti.some((a) => usa(a.cwd))
 }

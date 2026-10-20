@@ -759,6 +759,66 @@ window.detta = function (id) {
   try { r.start() } catch (err) { dettaturaAttiva = null; notaDettatura = 'Il microfono non è partito: ' + err.message }
   pannello(ultimoStato)
 }
+// Lo storico degli errori (0.81.0). Gli errori di questa pagina vanno al PC,
+// che li tiene nel suo storico con «pagina» come posto e toglie i segreti.
+// La voce «Errori» delle impostazioni mostra lo storico del PC, con «Copia» e
+// «Manda al PC di sviluppo» (il PC lo sceglie nelle sue Impostazioni).
+var erroriDaMandare = []
+function annotaErrore(testo) {
+  if (!testo || testo.indexOf('(401)') >= 0) return
+  var cosa = 'scheda ' + scheda + (dentro ? ', dentro una chat' : '')
+  if (erroriDaMandare.length < 20) erroriDaMandare.push({ testo: String(testo).slice(0, 2600), cosa: cosa })
+}
+setInterval(function () {
+  if (!chiave || erroriDaMandare.length === 0) return
+  var errori = erroriDaMandare.splice(0, 20)
+  chiedi('/api/errori/aggiungi', { dove: 'pagina', errori: errori }).catch(function () {
+    // Il PC non risponde: si riprova al prossimo giro, senza superare i venti.
+    erroriDaMandare = errori.concat(erroriDaMandare).slice(0, 20)
+  })
+}, 10000)
+var erroriPc = null
+var notaErrori = ''
+window.leggiErrori = async () => {
+  try { erroriPc = await chiedi('/api/errori', {}); notaErrori = '' }
+  catch (e) { notaErrori = 'Lo storico non si legge adesso: ' + (e && e.message ? e.message : 'riprova') }
+  pannello(ultimoStato)
+}
+window.copiaErrori = async () => {
+  if (!erroriPc) return
+  try { await navigator.clipboard.writeText(erroriPc.testo); notaErrori = 'Copiato: incollalo nella chat che deve correggerli.' }
+  catch (e) { notaErrori = 'Non riesco a copiare da qui.' }
+  pannello(ultimoStato)
+}
+window.mandaErrori = async () => {
+  notaErrori = 'Mando…'
+  pannello(ultimoStato)
+  try { var e = await chiedi('/api/errori/manda', {}); notaErrori = e.messaggio }
+  catch (err) { notaErrori = 'Non mandati: ' + (err && err.message ? err.message : 'il computer non ha risposto') }
+  pannello(ultimoStato)
+}
+function oraErrore(iso) {
+  var d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  var due = function (n) { return (n < 10 ? '0' : '') + n }
+  return due(d.getDate()) + '/' + due(d.getMonth() + 1) + ' ' + due(d.getHours()) + ':' + due(d.getMinutes())
+}
+function sezioneErroriPagina() {
+  var testa = '<div class="riga con-aiuto"><b>Errori</b>' + aiuto('errori', 'Gli errori del computer, del servizio degli autopiloti, di questa pagina e dell’app: quando, dove, cosa si stava facendo, il messaggio e il punto del codice. Gli stessi errori ripetuti sono una riga sola. Password, chiavi e gettoni sono tolti prima di salvare.', 'Errori') + '</div>'
+  if (!erroriPc) return testa + '<div class="riga"><button onclick="leggiErrori()">Vedi gli errori</button></div>' + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
+  var voci = erroriPc.voci || []
+  var volte = voci.reduce(function (s, v) { return s + (v.volte || 1) }, 0)
+  var conto = voci.length === 0 ? 'Nessun errore registrato' : voci.length + (voci.length === 1 ? ' errore, ' : ' errori diversi, ') + volte + (volte === 1 ? ' volta' : ' volte')
+  var elenco = voci.slice(0, 5).map(function (v) {
+    return '<div class="sotto">' + esc(oraErrore(v.ultima)) + (v.volte > 1 ? ' · ' + v.volte + ' volte' : '') + ' · ' + esc(v.messaggio) + '</div>'
+  }).join('')
+  var dove = erroriPc.pcSviluppo ? 'PC di sviluppo: ' + esc(erroriPc.pcSviluppo) : 'Il PC di sviluppo si sceglie sul computer, in Impostazioni → Errori.'
+  return testa + '<div class="sotto">' + esc(conto) + '</div>' + elenco +
+    '<div class="riga"><button onclick="leggiErrori()">Aggiorna</button><button onclick="copiaErrori()"' + (voci.length === 0 ? ' disabled' : '') + '>Copia</button>' +
+    '<button onclick="mandaErrori()"' + (voci.length === 0 || !erroriPc.pcSviluppo ? ' disabled' : '') + '>Manda al PC di sviluppo</button>' +
+    aiuto('errori-manda', 'Il computer manda lo storico al PC di sviluppo, firmato con la chiave di casa. Là arriva nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub.', 'Manda al PC di sviluppo') + '</div>' +
+    '<div class="sotto">' + dove + '</div>' + (erroriPc.arrivi ? '<div class="sotto">' + esc(erroriPc.arrivi) + '</div>' : '') + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
+}
 /** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
 window.copiaDettagli = async () => {
   const st = ultimoStato || {}
@@ -1379,6 +1439,8 @@ window.chiudiNota = () => { notaGlobale = ''; pannello(ultimoStato) }
 window.addEventListener('unhandledrejection', (ev) => {
   const e = ev && ev.reason
   const testo = e && e.message ? e.message : String(e || 'errore')
+  // Anche nello storico degli errori del PC (0.81.0); il 401 no.
+  annotaErrore(testo + (e && e.stack ? String.fromCharCode(10) + e.stack : ''))
   // Il 401 ha la sua strada (dopo cinque di fila si torna al codice): non e'
   // «Non sono riuscito». Il confronto era con '401' esatto, che non arriva mai.
   if (testo.indexOf('(401)') >= 0) return
@@ -2373,6 +2435,7 @@ function pannello(s) {
       \${intestaImp('info')}
       \${vociImp('info')}
       <div class="riga"><button onclick="copiaDettagli()">Copia i dettagli</button></div>
+      \${sezioneErroriPagina()}
     </div>\`
 
   const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
@@ -4333,7 +4396,8 @@ window.faiAzione = async () => {
   confermaPg = null
   if (!a) return
   try {
-    if (a.tipo === 'eliminaWorkspace') { await chiedi('/api/workspace/elimina', { nome: a.id }); caricaEliminatiWs(true) }
+    // Il 409 è una risposta con il motivo (0.81.0): «Non elimino …: la chat … sta lavorando». Si dice.
+    if (a.tipo === 'eliminaWorkspace') { const r = await chiedi('/api/workspace/elimina', { nome: a.id }); if (r && r.errore) notaGlobale = r.errore; else caricaEliminatiWs(true) }
     else if (a.tipo === 'sposta') await chiedi('/api/chat/sposta', { chat: a.id, workspace: a.ws })
     else if (a.tipo === 'dormi') await chiedi('/api/chat/dormi', { chat: a.id })
     else if (a.tipo === 'chiudi') { await chiedi('/api/chat/chiudi', { chat: a.id }); if (dentro === a.id) { dentro = null; righeDentro = []; righeGrezze = [] } }
@@ -5597,7 +5661,7 @@ function avvisaSeServe(stato) {
     for (const d of (stato.domande || [])) {
       if (avvisati['d-' + d.id]) continue
       avvisati['d-' + d.id] = true
-      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id })
+      if (nuovo) nuovi.push({ tipo: 'domanda', titolo: 'SierraDeck ti sta chiedendo una cosa', corpo: d.testo, tag: d.id, causa: 'domanda ' + (d.autopilotaId || d.id) + ': ' + String(d.testo || '').slice(0, 60) })
     }
     for (const c of (stato.chat || [])) {
       // Una chat ferma su una scelta (un permesso): e' una domanda a tutti gli
@@ -5609,15 +5673,20 @@ function avvisaSeServe(stato) {
       if (r.visto === undefined) delete avvisati['k-' + c.id]
       else avvisati['k-' + c.id] = r.visto
       // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id })
+      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
     for (const a of (stato.autopilotiLetti === false ? [] : (stato.autopiloti || []))) {
+      // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»): una volta per id.
+      if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id]) {
+        avvisati['n-' + a.annuncio.id] = true
+        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id })
+      }
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue
         avvisati['p-' + a.id] = true
-        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id })
+        if (nuovo) nuovi.push({ tipo: 'pronto', titolo: a.nome + ' aspetta il tuo via', corpo: 'Ha letto il progetto e capito l’obiettivo: apri Lavori e premi «Vai».', tag: a.id, causa: 'autopilota ' + a.id + ' pronto, aspetta il via' })
         continue
       }
       // Chi riparte torna annunciabile: se si ferma di nuovo e' una notizia.
@@ -5631,8 +5700,8 @@ function avvisaSeServe(stato) {
       if (avvisati[chiaveF]) continue
       avvisati[chiaveF] = true
       if (!nuovo || a.archiviato === true) continue
-      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id })
-      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id })
+      if (a.stato === 'finito') nuovi.push({ tipo: 'finito', titolo: a.nome + ' ha finito', corpo: 'Il lavoro è concluso: puoi guardare il risultato.', tag: a.id, causa: 'autopilota ' + a.id + ' finito' })
+      else nuovi.push({ tipo: 'fermo', titolo: a.nome + ' si è fermato', corpo: a.motivo || 'Serve una tua occhiata.', tag: a.id, causa: 'autopilota ' + a.id + ' ' + a.stato + ': ' + (a.motivo || 'senza motivo') })
     }
     // Una chat tua che aspetta te: solo dopo ATTESA_CHAT_MS (0.74.0, come
     // l'app). Le pause brevi fra un turno e l'altro erano la maggior parte
@@ -5644,23 +5713,22 @@ function avvisaSeServe(stato) {
         if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
         if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
         avvisati[chiaveChat] = true
-        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' aspetta te', corpo: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id })
+        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' ha finito il turno', corpo: 'Ferma da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
       } else {
         delete avvisati[chiaveChat]
         delete avvisati['t-' + c.id]
       }
     }
-    // Una versione del computer pronta da installare (0.74.0): una volta per versione. La installi tu.
-    const agg = stato.aggiornamento
-    if (agg && agg.fase === 'pronto' && agg.versione && !avvisati['v-' + agg.versione]) {
-      avvisati['v-' + agg.versione] = true
-      if (nuovo) nuovi.push({ tipo: 'versione', titolo: 'SierraDeck ' + agg.versione + ' è pronta sul computer', corpo: 'Scaricata e pronta da installare: la installi tu, quando vuoi.', tag: 'versione' })
-    }
+    // La versione pronta non è più una notifica (0.81.0): solo domande che
+    // aspettano te, lavori finiti ed errori che bloccano. La banda nella pagina resta.
     // Vicini = uno solo (0.80.0); ognuno mostrato nel registro del computer.
+    // Nel registro va ogni avviso, anche dentro un gruppo, con la sua causa (0.81.0).
     for (const m of avvisiDaMostrare(nuovi, ultimoAvvisoIl, ora)) {
       new Notification(m.titolo, { body: m.corpo, tag: m.tag })
       ultimoAvvisoIl = ora
-      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: m.tipo, titolo: m.titolo }).catch(function () { })
+    }
+    for (const n of nuovi) {
+      chiedi('/api/avviso-mostrato', { da: 'pagina', tipo: n.tipo, titolo: n.titolo, causa: n.causa, gruppo: nuovi.length > 1 ? nuovi.length : undefined }).catch(function () { })
     }
     primoAvviso = false
   } catch (e) { }
@@ -6043,6 +6111,8 @@ async function aggiorna() {
 // Se qualcosa esplode prima ancora di disegnare - un errore di sintassi, una
 // funzione che non c'e' - almeno si vede perche', invece di uno schermo nero.
 window.addEventListener('error', (ev) => {
+  // Anche nello storico degli errori del PC (0.81.0).
+  annotaErrore((ev && ev.message ? ev.message : 'errore') + (ev && ev.error && ev.error.stack ? String.fromCharCode(10) + ev.error.stack : ''))
   if (!app.innerHTML.trim()) {
     app.innerHTML = '<div class="ingresso"><div style="font-size:19px">SierraDeck</div>' +
       '<div class="errore">' + esc(ev.message) + '</div></div>'

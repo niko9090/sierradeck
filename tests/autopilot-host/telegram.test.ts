@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { leggiConfigurazione, componiAvviso, creaAvvisatore, AVVISI_VICINI_MS } from '../../src/autopilot-host/telegram'
+import { leggiConfigurazione, componiAvviso, creaAvvisatore, causaAvviso, AVVISI_VICINI_MS } from '../../src/autopilot-host/telegram'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 function conFile(contenuto: string): string {
@@ -213,5 +213,25 @@ describe('creaAvvisatore', () => {
       manda: () => Promise.reject(new Error('rete assente'))
     })
     await expect(avvisa('stallo', ap())).resolves.toBeUndefined()
+  })
+})
+
+describe('causa nel registro (0.81.0)', () => {
+  it('ogni tipo ha la sua causa in una riga', () => {
+    expect(causaAvviso('finito', ap())).toBe('lavoro finito')
+    expect(causaAvviso('pronto', ap())).toBe('aspetta il tuo via')
+    expect(causaAvviso('domanda', ap(), 'Unisco\n  il ramo?')).toBe('domanda: Unisco il ramo?')
+    expect(causaAvviso('sospeso', ap({ motivoSospensione: 'la chat non parte' }))).toBe('la chat non parte')
+    expect(causaAvviso('sospeso', ap())).toBe('fermo')
+  })
+
+  it('la riga [notifica] Telegram dice la causa', async () => {
+    const righe: string[] = []
+    const spia = vi.spyOn(console, 'log').mockImplementation((r: unknown) => { righe.push(String(r)) })
+    try {
+      const avvisa = creaAvvisatore({ configurazione: { token: 't', chat: 'c' }, manda: () => Promise.resolve(true) })
+      await avvisa('sospeso', ap({ motivoSospensione: 'tre test rossi da ore' }))
+    } finally { spia.mockRestore() }
+    expect(righe).toEqual(['[notifica] Telegram: sospeso di «Test verdi» (ap-1), causa: tre test rossi da ore'])
   })
 })

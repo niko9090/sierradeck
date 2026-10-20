@@ -56,6 +56,8 @@ function ambiente(
     cartellaArchivio?: string
     domande?: ReturnType<typeof creaRegistroDomande>
     memoria?: ReturnType<typeof apriMemoria>
+    /** La versione installata, come la passa il Gestore (0.81.0: le domande già risolte). */
+    versione?: string
     /** La chat non parte (il Gestore la rifiuta). */
     avvioFallisce?: boolean
   } = {}
@@ -89,7 +91,8 @@ function ambiente(
     adesso: opts.adesso ?? (() => '2026-08-09T10:05:00.000Z'),
     ...(opts.git !== undefined ? { git: opts.git } : {}),
     ...(opts.tempi !== undefined ? { tempi: opts.tempi } : {}),
-    ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {})
+    ...(opts.memoria !== undefined ? { memoria: opts.memoria } : {}),
+    ...(opts.versione !== undefined ? { versione: opts.versione } : {})
   })
 }
 function creaServerCon(opts: Parameters<typeof ambiente>[0]): ServerAutopiloti {
@@ -604,31 +607,22 @@ describe('avvisi verso l esterno', () => {
     expect(avvisi.map((a) => a.tipo)).toEqual(['finito'])
   })
 
-  it('avvisa quando entra in difficolta, ma continua a lavorare', async () => {
+  it('in difficolta cambia strada senza avvisare: non aspetta Nicholas e non è un errore che blocca (0.81.0)', async () => {
     server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
     await avvia(server)
     const id = await creaAp()
     for (let i = 0; i < 4; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.some((a) => a.tipo === 'stallo')).toBe(true)
-    // L'avviso dice «sto cambiando strada», non «mi sono fermato»: lo stato
-    // resta al lavoro, ed e' il punto di tutto il meccanismo.
+    expect(avvisi).toEqual([])
+    // Resta al lavoro con la strategia nuova: è il punto di tutto il meccanismo.
     const dopo = (await chiama('GET', '/autopiloti')).dati as { stato: string; strategia?: string }[]
     expect(dopo.at(0)?.stato).toBe('lavoro')
     expect(dopo.at(0)?.strategia).toBe(STRATEGIE[0].nome)
-  })
-
-  it('avvisa una volta sola mentre prova una strategia dopo l altra', async () => {
-    // Un messaggio per ogni tentativo sarebbe la raffica di notifiche che
-    // l'utente ha chiesto di non ricevere.
-    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: 'sempre uguale' }) })
-    await avvia(server)
-    const id = await creaAp()
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
     }
-    expect(avvisi.filter((a) => a.tipo === 'stallo')).toHaveLength(1)
+    expect(avvisi).toEqual([])
   })
 
   it('avvisa della domanda prima di mettersi ad aspettare', async () => {
@@ -2235,6 +2229,26 @@ describe('una nota del programma nel diario (0.37.5)', () => {
   })
 })
 
+describe('un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»)', () => {
+  it('il riepilogo entra nella conversazione come battuta sua, con un id nuovo per la notifica sola', async () => {
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-e', nome: 'Errori arrivati', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro'
+    })
+    expect((await chiama('POST', '/autopiloti/ap-e/annuncio', { titolo: 'Errori arrivati: il riepilogo', testo: '2 errori dalla pagina, causa capita' })).stato).toBe(200)
+    const a = archivio.leggi('ap-e')
+    expect(a?.dialogo.at(-1)).toMatchObject({ da: 'lui', testo: '2 errori dalla pagina, causa capita', traccia: true })
+    expect(a?.annuncio?.titolo).toBe('Errori arrivati: il riepilogo')
+    const primo = a?.annuncio?.id
+    await chiama('POST', '/autopiloti/ap-e/annuncio', { testo: 'un altro' })
+    expect(archivio.leggi('ap-e')?.annuncio?.id).not.toBe(primo)
+    expect((await chiama('POST', '/autopiloti/ap-e/annuncio', { testo: ' ' })).stato).toBe(400)
+    expect((await chiama('POST', '/autopiloti/nessuno/annuncio', { testo: 'x' })).stato).toBe(404)
+  })
+})
+
 describe('i tempi di ogni giro (0.71.0)', () => {
   it('una fermata si misura fase per fase e si legge da /tempi', async () => {
     const tempi = apriRegistroTempi(mkdtempSync(join(tmpdir(), 'ap-tempi-')))
@@ -2464,6 +2478,83 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     expect(r.dati.decision).toBe('block')
     expect(r.dati.reason).toContain('di prova')
     expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('«installi la 0.80.0?» con la 0.80.1 già installata non si chiede: la chat lo sa dal programma (0.81.0)', async () => {
+    server = creaServerCon({ versione: '0.80.1', interroga: () => Promise.resolve({ testo: chiede('Installi tu la 0.80.0 su questo PC?') }) })
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-ver', nome: 'Ver', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    const r = await chiama('POST', '/hook/stop?ap=ap-ver', eventoStop())
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('già installata la 0.80.1')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+    expect(archivio.leggi('ap-ver')!.decisioni.at(-1)?.cosa).toContain('non la chiedo')
+  })
+
+  it('la stessa domanda in un’altra lingua, già risposta, non si rifà (0.81.0)', async () => {
+    const memoria = apriMemoria(undefined)
+    memoria.ricordaRisposta('ap-en', 'Installi tu la 0.80.0 su questo PC?', 'sì, fatto', '2026-10-20T06:51:20Z', 'c-10')
+    server = creaServerCon({ memoria, versione: '0.79.0', adesso: () => '2026-10-20T07:00:00.000Z', interroga: () => Promise.resolve({ testo: chiede('Will you install the 0.80.0 on this PC?') }) })
+    await avvia(server)
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-en', nome: 'En', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-10-20T06:00:00.000Z' }), stato: 'lavoro' })
+    const r = await chiama('POST', '/hook/stop?ap=ap-en', eventoStop())
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('sì, fatto')
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+  })
+
+  it('la gemella a fine turno riprende anche la sorella che aveva chiesto da una notifica (0.81.0)', async () => {
+    // c-10 ha chiesto da una notifica: nessun turno trattenuto. c-12 chiede la
+    // stessa cosa a fine turno e aspetta con l'hook: la risposta arriva a c-12
+    // «in tempo», e la via delle risposte tardive (che riprendeva c-10) non scatta.
+    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const prima = domande.apri({ autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', scadenzaMs: 60_000 })
+    domande.ricorda(prima.id, { autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', grezza: 'Installi la 0.80.0 su questo PC?', chatId: 'c-10' })
+    server = creaServerCon({ domande, versione: '0.79.0', esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 adesso, così chiudo le chat finite?') }) })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-gem', nome: 'Gem', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [
+        { id: 'c-10', compito: 'a', stato: 'bloccata', cicli: 1, sessionId: 's-10' },
+        { id: 'c-12', compito: 'b', stato: 'lavoro', cicli: 1, sessionId: 's-12' }
+      ]
+    })
+    const fineTurno = chiama('POST', '/hook/stop?ap=ap-gem&chat=c-12', eventoStop({ session_id: 's-12' }))
+    for (let i = 0; i < 80 && archivio.leggi('ap-gem')!.chats.find((c) => c.id === 'c-12')!.stato !== 'bloccata'; i += 1) await new Promise((r) => setTimeout(r, 25))
+    expect(domande.aperte('ap-gem')).toHaveLength(1)
+
+    await chiama('POST', `/domande/${prima.id}/risposta`, { risposta: 'Sì, installo' })
+    const r = await fineTurno
+    expect(r.dati.decision).toBe('block')
+    expect(r.dati.reason).toContain('Sì, installo')
+    expect(chatAvviate.map((c) => c.id)).toEqual(['c-10'])
+    expect(archivio.leggi('ap-gem')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
+  })
+
+  it('scaduta l’attesa della prima, la stessa domanda di una sorella non apre niente e la risposta le riprende tutte e due (0.81.0)', async () => {
+    server = creaServerCon({ versione: '0.79.0', scadenzaDomandaMs: 200, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 su questo PC?') }) })
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-sca', nome: 'Sca', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [
+        { id: 'c-10', compito: 'a', stato: 'lavoro', cicli: 1, sessionId: 's-10' },
+        { id: 'c-12', compito: 'b', stato: 'lavoro', cicli: 1, sessionId: 's-12' }
+      ]
+    })
+    // c-10 chiede a fine turno; nessuno risponde entro la scadenza: l'hook la lascia andare.
+    expect((await chiama('POST', '/hook/stop?ap=ap-sca&chat=c-10', eventoStop({ session_id: 's-10' }))).dati).toEqual({})
+    // c-12 chiede la stessa cosa: si aggancia, non si apre una seconda domanda.
+    expect((await chiama('POST', '/hook/stop?ap=ap-sca&chat=c-12', eventoStop({ session_id: 's-12' }))).dati).toEqual({})
+    const aperte = (await chiama('GET', '/domande')).dati
+    expect(aperte).toHaveLength(1)
+    expect(aperte[0].inFila ?? 0).toBe(0)
+    expect(archivio.leggi('ap-sca')!.chats.map((c) => c.stato)).toEqual(['bloccata', 'bloccata'])
+
+    await chiama('POST', `/domande/${aperte[0].id}/risposta`, { risposta: 'Sì, installo' })
+    expect(chatAvviate.map((c) => c.id).sort()).toEqual(['c-10', 'c-12'])
+    expect(archivio.leggi('ap-sca')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
   })
 
   it('una alla volta: due domande dello stesso autopilota, se ne vede una con quante aspettano', async () => {

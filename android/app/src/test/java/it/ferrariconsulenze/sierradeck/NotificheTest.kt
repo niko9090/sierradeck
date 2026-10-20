@@ -40,8 +40,8 @@ class NotificheTest {
         assertTrue(giro(ferma, gia, t0).isEmpty())
         val avvisi = giro(ferma, gia, t0 + 3 * min)
         assertEquals(1, avvisi.size)
-        assertEquals("«Trading» aspetta te", avvisi[0].titolo)
-        assertEquals("Da 3 min. Fatto, vuoi che pubblichi?", avvisi[0].testo)
+        assertEquals("«Trading» ha finito il turno", avvisi[0].titolo)
+        assertEquals("Ferma da 3 min. Fatto, vuoi che pubblichi?", avvisi[0].testo)
         assertTrue(giro(ferma, gia, t0 + 30 * min).isEmpty())
     }
 
@@ -97,7 +97,10 @@ class NotificheTest {
         assertEquals(listOf("d:1", "s:ap"), Notifiche.filtra(avvisi, mapOf("finito" to false)).map { it.chiave })
         assertFalse(Notifiche.suona(TipoNotifica.FILE, emptyMap()))
         assertTrue(Notifiche.suona(TipoNotifica.FILE, mapOf("file" to true)))
-        assertTrue(TipoNotifica.values().filter { it != TipoNotifica.FILE }.all { Notifiche.suona(it, emptyMap()) })
+        // 2.81.0: solo domande, lavori finiti ed errori che bloccano suonano di partenza.
+        assertTrue(TipoNotifica.values().filter { it != TipoNotifica.FILE && it != TipoNotifica.VERSIONE }.all { Notifiche.suona(it, emptyMap()) })
+        assertFalse(Notifiche.suona(TipoNotifica.VERSIONE, emptyMap()))
+        assertTrue(Notifiche.suona(TipoNotifica.VERSIONE, mapOf("versione" to true)))
     }
 
     @Test
@@ -136,5 +139,17 @@ class NotificheTest {
         assertTrue(gia.any { it.startsWith("t:c1:") })
         giro("""{"chat":[],"autopiloti":[]}""", gia, t0 + min)
         assertTrue(gia.none { it.startsWith("t:") })
+    }
+
+    @Test
+    fun `ogni avviso porta la sua causa per il registro del computer`() {
+        val gia = mutableSetOf<String>()
+        giro("""{"autopiloti":[{"id":"ap1","nome":"Notte","stato":"lavoro"}]}""", gia, t0)
+        val d = giro("""{"domande":[{"id":"d1","autopilotaId":"ap1","testo":"Unisco il ramo?"}],"autopiloti":[]}""", gia, t0 + min).single()
+        assertEquals("domanda ap1: Unisco il ramo?", d.causa)
+        val fermo = giro("""{"autopiloti":[{"id":"ap1","nome":"Notte","stato":"sospeso","motivo":"la chat non parte"}]}""", gia, t0 + 2 * min).single()
+        assertEquals("autopilota ap1 sospeso: la chat non parte", fermo.causa)
+        val (_, perso) = Notifiche.linea(Notifiche.Linea(persoDal = t0), false, t0 + 6 * min, "PC")
+        assertEquals("computer irraggiungibile da 6 min", perso?.causa)
     }
 }

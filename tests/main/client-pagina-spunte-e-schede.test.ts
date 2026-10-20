@@ -82,18 +82,15 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     b.giro(ferma); b.giro(ferma, 2 * 60000); b.giro(lavora, 30000)
     expect(b.mandate).toEqual([])
     b.giro(ferma, 60000); b.giro(ferma, 3 * 60000); b.giro(ferma, 60000)
-    expect(b.mandate).toEqual([{ titolo: 'Trading aspetta te', tag: 'chat-c1' }])
+    expect(b.mandate).toEqual([{ titolo: 'Trading ha finito il turno', tag: 'chat-c1' }])
   })
-  it('scelta e attesa della stessa chat hanno la stessa etichetta (una notifica per chat); la versione pronta una volta', () => {
+  it('scelta e attesa della stessa chat hanno la stessa etichetta (una notifica per chat); la versione pronta non è una notifica (0.81.0)', () => {
     const b = banco()
     b.giro({ chat: [{ id: 'c1', titolo: 'Trading', chiede: true }] })
-    // Lontani più di 20 s: due notifiche, ognuna con la sua etichetta (0.80.0).
+    // La versione pronta non aspetta te, non è un lavoro finito né un errore: resta la banda nella pagina.
     b.giro({ chat: [], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 30_000)
     b.giro({ chat: [], aggiornamento: { fase: 'pronto', versione: '0.74.0' } }, 30_000)
-    expect(b.mandate).toEqual([
-      { titolo: 'Trading aspetta che tu scelga', tag: 'chat-c1' },
-      { titolo: 'SierraDeck 0.74.0 è pronta sul computer', tag: 'versione' }
-    ])
+    expect(b.mandate).toEqual([{ titolo: 'Trading aspetta che tu scelga', tag: 'chat-c1' }])
   })
 })
 
@@ -104,18 +101,34 @@ describe('0.80.0: pagina, notifiche raggruppate e nel registro', () => {
     let ora = Date.parse('2026-10-19T12:00:00Z')
     const registro: string[] = []
     const fn = new Function('Notification', 'Date', 'registro', `var avvisati = {}; var primoAvviso = false; var ultimoAvvisoIl = undefined; var ATTESA_CHAT_MS = 3 * 60000;
-      function chiedi(percorso, corpo) { registro.push(percorso + ' ' + corpo.da + ' ' + corpo.tipo + ' ' + corpo.titolo); return Promise.resolve() }
+      function chiedi(percorso, corpo) { registro.push(percorso + ' ' + corpo.da + ' ' + corpo.tipo + ' ' + corpo.titolo + ' | ' + corpo.causa + (corpo.gruppo ? ' | ' + corpo.gruppo : '')); return Promise.resolve() }
       ${funzione('avvisiDaMostrare')}; ${funzione('sceltaDaAnnunciare')}; ${funzione('avvisaSeServe')}; return avvisaSeServe`)(
       N, { now: () => ora }, registro
     ) as (s: unknown) => void
     return { mandate, registro, giro: (s: unknown, piu = 0): void => { ora += piu; fn(s) } }
   }
 
-  it('tre domande insieme: una notifica sola, e una riga nel registro del computer', () => {
+  it('tre domande insieme: una notifica sola, e nel registro del computer ognuna con la sua causa (0.81.0)', () => {
     const b = banco()
-    b.giro({ domande: [{ id: 'd1', testo: 'a' }, { id: 'd2', testo: 'b' }, { id: 'd3', testo: 'c' }] })
+    b.giro({ domande: [{ id: 'd1', autopilotaId: 'ap-1', testo: 'a' }, { id: 'd2', testo: 'b' }, { id: 'd3', testo: 'c' }] })
     expect(b.mandate).toEqual([{ titolo: '3 cose aspettano te', tag: 'sierradeck-gruppo' }])
-    expect(b.registro).toEqual(['/api/avviso-mostrato pagina gruppo 3 cose aspettano te'])
+    expect(b.registro).toEqual([
+      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda ap-1: a | 3',
+      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda d2: b | 3',
+      '/api/avviso-mostrato pagina domanda SierraDeck ti sta chiedendo una cosa | domanda d3: c | 3'
+    ])
+  })
+
+  it('fermo e finito hanno la causa nel registro; un fermo che riparte da solo non avvisa (0.81.0)', () => {
+    const b = banco()
+    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'lavoro' }, { id: 'ap-2', nome: 'App', stato: 'lavoro' }] })
+    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'sospeso', motivo: 'la chat non parte', fermo: 'k1' }, { id: 'ap-2', nome: 'App', stato: 'sospeso', motivo: 'limiti', fermo: 'k2', riparteDaSolo: true }] }, 30_000)
+    b.giro({ autopiloti: [{ id: 'ap-1', nome: 'Sito', stato: 'finito' }] }, 60_000)
+    expect(b.mandate.map((m) => m.titolo)).toEqual(['Sito si è fermato', 'Sito ha finito'])
+    expect(b.registro).toEqual([
+      '/api/avviso-mostrato pagina fermo Sito si è fermato | autopilota ap-1 sospeso: la chat non parte',
+      '/api/avviso-mostrato pagina finito Sito ha finito | autopilota ap-1 finito'
+    ])
   })
 
   it('una scelta che va e viene ogni 3 s si annuncia una volta, anche per una chat governata (il permesso lo dai tu)', () => {

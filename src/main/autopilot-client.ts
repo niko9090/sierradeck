@@ -106,6 +106,8 @@ export type ClientAutopilota = {
   mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
   nota: (id: string, testo: string) => Promise<void>
+  /** Un annuncio a Nicholas nella conversazione dell'autopilota, con una notifica sola (0.81.0). */
+  annuncia: (id: string, titolo: string, testo: string) => Promise<void>
   elimina: (id: string) => Promise<void>
   domande: () => Promise<DomandaAperta[]>
   /** Le domande delle chat a cui l'autopilota ha risposto da solo (0.71.1). Un servizio vecchio non le ha: vuoto. */
@@ -289,6 +291,9 @@ export function creaClientAutopilota(p: {
     },
     nota: async (id, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })
+    },
+    annuncia: async (id, titolo, testo) => {
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/annuncio`, 'POST', { titolo, testo })
     },
     mandaAdesso: async (id) => (await chiama(`/autopiloti/${encodeURIComponent(id)}/manda-adesso`, 'POST', {})) as { mandate: number; messaggio?: string },
     archivia: async (id, archivia) => {

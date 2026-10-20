@@ -43,7 +43,9 @@ object Avvisi {
          */
         val scelta: String? = null,
         /** Le notifiche con lo stesso numero si sostituiscono a vicenda. */
-        val id: Int
+        val id: Int,
+        /** Perché parte, per la riga `[avviso]` nel registro del computer (2.81.0). */
+        val causa: String = ""
     )
 
     /**
@@ -140,7 +142,8 @@ object Avvisi {
                         // Una per domanda, non una sola per tutte: con l'id
                         // fisso, la seconda domanda aperta cancellava la prima
                         // e restava senza risposta perche' nessuno la vedeva.
-                        id = idAvviso(ID_DOMANDA, id)
+                        id = idAvviso(ID_DOMANDA, id),
+                        causa = "domanda ${d.optString("autopilotaId").ifEmpty { id }}: ${d.optString("testo").take(60)}"
                     )
                 )
             }
@@ -179,7 +182,8 @@ object Avvisi {
                                 titolo = "«$titolo» aspetta che tu scelga",
                                 testo = "Sullo schermo c'è un elenco di scelte (un permesso, «vuoi procedere?»). Tocca per vedere le opzioni.",
                                 scelta = id,
-                                id = idAvviso(ID_CHAT, id)
+                                id = idAvviso(ID_CHAT, id),
+                                causa = "la chat $id è ferma su una scelta" + if (c.optBoolean("governata", false)) " (governata da un autopilota)" else ""
                             )
                         )
                     }
@@ -223,10 +227,11 @@ object Avvisi {
                 avvisi.add(
                     Avviso(
                         chiave = "c:$id",
-                        titolo = "«$titolo» aspetta te",
-                        testo = if (daQuanto >= 60_000L) "Da ${daQuanto / 60_000L} min. $riga" else riga,
+                        titolo = "«$titolo» ha finito il turno",
+                        testo = if (daQuanto >= 60_000L) "Ferma da ${daQuanto / 60_000L} min. $riga" else riga,
                         chat = id,
-                        id = idAvviso(ID_CHAT, id)
+                        id = idAvviso(ID_CHAT, id),
+                        causa = "la chat $id ha finito il turno e aspetta da ${daQuanto / 60_000L} min"
                     )
                 )
             }
@@ -243,7 +248,8 @@ object Avvisi {
                         chiave = chiave,
                         titolo = "SierraDeck $versione è pronta sul computer",
                         testo = "Scaricata e pronta da installare. La installi tu, quando vuoi: Impostazioni → Aggiornamenti.",
-                        id = idAvviso(ID_VERSIONE, "pc")
+                        id = idAvviso(ID_VERSIONE, "pc"),
+                        causa = "versione $versione del computer pronta (interruttore «Versione pronta» acceso)"
                     )
                 )
             }
@@ -267,6 +273,22 @@ object Avvisi {
             vivi.add("s:$id")
             vivi.add("p:$id")
             val nome = a.optString("nome", "Un autopilota")
+            // Un annuncio del programma (2.81.0, il riepilogo di «Errori
+            // arrivati»): una notifica sola per id, anche al lavoro.
+            val annuncio = a.optJSONObject("annuncio")?.optString("id").orEmpty()
+            if (annuncio.isNotEmpty()) {
+                vivi.add("n:$annuncio")
+                if (giaVisti.add("n:$annuncio") && !primoGiro && !a.optBoolean("archiviato", false)) {
+                    avvisi.add(
+                        Avviso(
+                            chiave = "n:$annuncio",
+                            titolo = a.optJSONObject("annuncio")?.optString("titolo").orEmpty().ifBlank { nome },
+                            testo = "Il riepilogo è nella conversazione di «$nome».",
+                            id = idAvviso(ID_AUTOPILOTA, "n:$id")
+                        )
+                    )
+                }
+            }
             when (a.optString("stato")) {
                 "finito" -> {
                     if (!giaVisti.add("f:$id") || primoGiro) continue
@@ -279,7 +301,8 @@ object Avvisi {
                             // nell'elenco: due lavori che finiscono a distanza
                             // di minuti cambiano posto, e il secondo
                             // cancellerebbe il primo.
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id finito"
                         )
                     )
                 }
@@ -307,7 +330,8 @@ object Avvisi {
                             chiave = chiave,
                             titolo = "$nome si è fermato",
                             testo = if (motivo.isEmpty()) "Serve una tua occhiata." else motivo,
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id ${a.optString("stato")}: ${motivo.ifEmpty { "senza motivo" }.take(120)}"
                         )
                     )
                 }
@@ -322,7 +346,8 @@ object Avvisi {
                             chiave = "p:$id",
                             titolo = "$nome aspetta il tuo via",
                             testo = "Ha letto il progetto e capito l'obiettivo. Non comincia finché non glielo dici: apri Lavori e premi «Vai».",
-                            id = idAvviso(ID_AUTOPILOTA, id)
+                            id = idAvviso(ID_AUTOPILOTA, id),
+                            causa = "autopilota $id pronto, aspetta il via"
                         )
                     )
                 }
@@ -346,7 +371,7 @@ object Avvisi {
         val note = mutableListOf<String>()
         if (stato.optJSONArray("domande") != null) note.add("d:")
         if (stato.optJSONArray("chat") != null) { note.add("c:"); note.add("k:"); note.add("kq:"); note.add("t:") }
-        if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:") }
+        if (conAutopiloti && stato.optJSONArray("autopiloti") != null) { note.add("f:"); note.add("s:"); note.add("p:"); note.add("n:") }
         if (note.isEmpty()) return
         giaVisti.retainAll { chiave -> note.none { chiave.startsWith(it) } || chiave in vivi }
     }
@@ -370,16 +395,19 @@ fun chiaveFermo(a: JSONObject): String {
 fun rigaPresenza(stato: JSONObject): String {
     val chat = stato.optJSONArray("chat")
     val quante = chat?.length() ?: 0
+    // «aspetta te» solo per una scelta aperta; una chat a fine turno è «ferma» (0.80.0, come PC e pagina).
     var aspettano = 0
+    var ferme = 0
     for (i in 0 until quante) {
         val c = chat?.optJSONObject(i) ?: continue
-        val chiede = c.optBoolean("chiede", false)
-        if (chiede || (c.optBoolean("aspetta", false) && !c.optBoolean("governata", false))) aspettano += 1
+        if (c.optBoolean("chiede", false)) aspettano += 1
+        else if (c.optBoolean("aspetta", false) && !c.optBoolean("governata", false)) ferme += 1
     }
     val domande = stato.optJSONArray("domande")?.length() ?: 0
     return when {
         domande > 0 -> if (domande == 1) "Un autopilota ti sta chiedendo una cosa" else "$domande domande aspettano te"
-        aspettano > 0 -> "$aspettano su $quante chat aspettano te"
+        aspettano > 0 -> if (aspettano == 1) "1 su $quante chat aspetta te" else "$aspettano su $quante chat aspettano te"
+        ferme > 0 -> if (ferme == 1) "1 su $quante chat ferma" else "$ferme su $quante chat ferme"
         quante > 0 -> "$quante chat, nessuna ti aspetta"
         else -> "Nessuna chat aperta"
     }
