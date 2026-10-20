@@ -826,3 +826,17 @@ Misurati come prima, sulle stesse macchine e sugli stessi dati. Dettagli e test 
 | `stat` per il salvataggio sul Drive (1.234 file) | 20-24 s | 0,4 s |
 | Notifiche della pagina in 26 min con un autopilota al lavoro | 6 (8 riaprendo ogni 5 min) | 2 (1): solo le domande vere |
 | Cambi di workspace sullo schermo per 15 consegne di un autopilota | la finestra lo seguiva | 0 |
+
+## Notifiche 0.81.0, la prova nella copia (20/10, c-17)
+Copia di prova (`SIERRADECK_PROVA`), un autopilota al lavoro per 50 minuti (08:50–09:48): 2 compiti, poi la Revisione. Il servizio vero non è stato toccato. Dettagli in `notifiche-solo-utili-0-81-0.md`.
+
+| Misura | 0.80.1 (main prima) | 0.81.0 (dopo c-17) |
+|---|---|---|
+| Stati letti dalla pagina (ogni 5 s) | 448 | gli stessi 448, rigiocati |
+| Consegne fatte dall'autopilota | 77 | 77 |
+| Notifiche della pagina | 2 | 2, tutte e due utili: una scelta vera e una domanda dell'autopilota |
+| Righe `[avviso]` nel registro con la causa | 0 su 2 | 2 su 2 |
+| Notifiche per consegne, giri o cambi di stato | 0 | 0 |
+| «Versione pronta» e «in difficoltà, provo un'altra strada» | notificavano | non notificano più (resta la banda / la riga `[notifica]`) |
+
+Il rumore l'aveva già tolto c-11 (da 6 a 2). La 0.81.0 mette la causa di ogni notifica nel registro, su PC, pagina e app, e lascia solo tre categorie: domanda che aspetta Nicholas, lavoro finito, errore che blocca.
