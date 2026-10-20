@@ -67,6 +67,8 @@ export function nomeDi(percorso: string): string {
  * a gruppi, o il primo salvataggio (migliaia di file, uno per volta) durerebbe
  * minuti inutili. Sei è un buon compromesso senza infastidire i limiti di Drive. */
 export const PARALLELI = 6
+/** Da quanti file da scaricare conviene un elenco intero del Drive invece di una ricerca per file. */
+export const ELENCO_DA = 20
 
 /** Esegue `fn` su ogni elemento con al massimo `limite` in corso insieme. */
 export async function conLimite<T>(items: T[], limite: number, fn: (x: T) => Promise<void>): Promise<void> {
@@ -595,6 +597,13 @@ export async function ripristinaIncrementale(deps: {
     daScaricare.push(p)
   }
 
+  // Con tanti file da scaricare, un elenco solo (una richiesta ogni mille file)
+  // insegna all'archivio dove sta ognuno. Senza, il primo giro di un PC nuovo
+  // cercava ogni file per nome prima di scaricarlo: 943 ricerche in più su 943
+  // chat (0.81.0, misura col Drive finto). Se l'elenco non riesce si va avanti
+  // come prima, cercando file per file.
+  if (daScaricare.length >= ELENCO_DA) await deps.archivio.elenca().catch(() => undefined)
+
   const voci: Voce[] = []
   let fatto = 0
   await conLimite(daScaricare, PARALLELI, async (percorso) => {
@@ -637,7 +646,20 @@ export async function ripristinaIncrementale(deps: {
           const copia = nomeCopiaConflitto(percorso, pcNome, adesso)
           const discoCopia = discoDi(perPrefisso, copia)
           if (discoCopia !== undefined) {
-            await rename(disco, discoCopia).catch(() => undefined)
+            // La copia deve esistere davvero prima di sovrascrivere il mio: se
+            // non nasce (file aperto in un editor, disco pieno) si tiene il mio
+            // e si riprova al prossimo giro. Prima il fallimento si ingoiava e
+            // il Drive cancellava le modifiche di qui.
+            const copiata = await rename(disco, discoCopia).then(() => true, async () => {
+              const mio = await readFile(disco).catch(() => undefined)
+              if (mio === undefined) return false
+              return scriviSuDisco(discoCopia, mio, locale.mtime).then(() => true, () => false)
+            })
+            if (!copiata) {
+              console.warn(`[sync] ${percorso}: la copia di conflitto non si crea, tengo il mio e riprovo al prossimo giro`)
+              conflitti.push({ percorso, vinto: 'mio' })
+              return
+            }
             conflitti.push({ percorso, vinto: 'drive', copia })
           } else {
             conflitti.push({ percorso, vinto: 'drive' })
