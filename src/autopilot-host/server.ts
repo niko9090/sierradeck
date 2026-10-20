@@ -12,7 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete } from './rete-sicurezza'
-import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, motivoSilenzio } from './guardiano'
+import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
@@ -1122,10 +1122,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // sempre con il pannello che diceva «al lavoro».
       const mute = chiTace(a, ultimoSegnale, ora, limite)
       if (mute.length === 0) continue
-      const sospeso: Autopilota = { ...a, stato: 'sospeso', motivoSospensione: motivoSilenzio(mute) }
-      salva(sospeso)
-      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)}`)
-      void deps.avvisa('sospeso', sospeso)
+      // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
+      // 19/10). Si mette da parte solo lei, le altre continuano, e nella
+      // conversazione resta una riga per Nicholas.
+      const daParte = messaDaParte(a, mute)
+      for (const m of mute) annota(daParte, `messa da parte: ${motivoSilenzio([m])}`, { chat: m.chatId ?? a.id, esito: 'da-parte' })
+      salva(daParte)
+      console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)} Messa da parte, l'autopilota resta al lavoro.`)
     }
   }
 
@@ -2072,7 +2075,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             : c
         )
     const conSessione: Autopilota = {
-      ...a,
+      ...tornaDaParte(a, chiaveChat),
       chats,
       ...(sessionId !== undefined && chatId === undefined ? { sessionId } : {}),
       // 0.73.0: l'ultima cosa detta, per la scheda (accanto al ruolo).
