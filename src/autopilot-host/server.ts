@@ -333,6 +333,10 @@ export function conservaCambiUtente(
     riprendiAlRiavvio: fresco.riprendiAlRiavvio,
     tettoChat: fresco.tettoChat,
     limiti: fresco.limiti,
+    // Le chat messe da parte (0.80.1) le scrive il guardiano ogni 30 s, anche
+    // mentre questo turno dura minuti: si prendono dal disco, togliendo solo
+    // la chat di questo turno, che ha appena chiuso e quindi è viva.
+    daParte: tornaDaParte(fresco, chatId ?? calcolato.id).daParte,
     // **Il conto dei giri viene dal disco, non dal calcolo.** `suStop` lo
     // incrementa e lo scrive subito, in un giro sincrono: quando arriva qui,
     // il suo `+1` è già dentro `fresco`, insieme a quello di ogni chat sorella
@@ -2426,6 +2430,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    aggiornato.daParte = conCambiUtente.daParte
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo
     aggiornato.daConsegnare = conCambiUtente.daConsegnare
