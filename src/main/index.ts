@@ -208,7 +208,7 @@ import { apriRegistro, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
 import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
 import { testoDaCopiare, type InvioErrori } from '@shared/storico-errori'
-import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
+import { cartellaDiSierraDeck, giroErroriArrivati, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -231,11 +231,13 @@ import { apriDettatura, statoDettatura } from './dettatura'
 let identitaPcGlobale: IdentitaPcStore | undefined
 /** Lo storico degli errori di questo processo (0.81.0): per la voce «Errori» delle Impostazioni. */
 let storicoErroriGlobale: StoricoSuFile | undefined
-/** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
 /** «Manda al PC di sviluppo», per le Impostazioni del PC e per il telefono (0.81.0). */
 let mandaErroriGlobale: (() => Promise<{ ok: boolean; messaggio: string }>) | undefined
 /** Il nome del PC di sviluppo scelto, per la voce «Errori» del telefono. */
 let nomePcSviluppoGlobale: (() => string | undefined) | undefined
+/** La cartella di SierraDeck su questo PC, se c'è: lì arrivano gli errori (0.81.0). */
+let radiceSierraDeckGlobale: (() => string | undefined) | undefined
+/** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
 let riceviErroriGlobale: ((invio: InvioErrori, chi: string) => Promise<{ ok: true; file: string } | { ok: false; stato: number; errore: string }>) | undefined
 /** Cambia il nome scelto e lo dice alle finestre; il battito lo porta agli altri PC al prossimo giro. */
 function impostaNomePc(nome: string): import('./progetti/pc').IdentitaPc {
@@ -2390,10 +2392,14 @@ if (!app.requestSingleInstanceLock()) {
       // ── Lo storico degli errori verso il PC di sviluppo (0.81.0) ──
       // Chi riceve scrive in <cartella di SierraDeck>/.sierradeck/errori-arrivati/<mittente>/.
       // La cartella si cerca fra i progetti di questo PC: quella con il package.json di SierraDeck.
-      const salvaQui = (invio: InvioErrori, chi: string): { ok: true; file: string } | { ok: false; stato: number; errore: string } => {
+      const radiceSierraDeck = (): string | undefined => {
         const me = identitaPc.leggi().id
         const candidati = registroProgetti.leggi().progetti.map((p) => p.percorsi[me] ?? '').filter((c) => c !== '' && existsSync(c))
-        const radice = cartellaDiSierraDeck(candidati)
+        return cartellaDiSierraDeck(candidati)
+      }
+      radiceSierraDeckGlobale = radiceSierraDeck
+      const salvaQui = (invio: InvioErrori, chi: string): { ok: true; file: string } | { ok: false; stato: number; errore: string } => {
+        const radice = radiceSierraDeck()
         if (radice === undefined) {
           registro.info(`[errori] ${invio.voci.length} errori da «${invio.da}» (${chi}) rifiutati: su questo PC non c’è la cartella di SierraDeck`)
           return { ok: false, stato: 409, errore: 'Su questo PC non c’è la cartella di SierraDeck: scegli come PC di sviluppo quello dove c’è.' }
@@ -4663,6 +4669,53 @@ if (!app.requestSingleInstanceLock()) {
       partenzeSubitoGlobale = partenze
       setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
       registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
+
+      // **Errori arrivati** (0.81.0): sul PC con la cartella di SierraDeck, gli
+      // errori arrivati fanno partire da soli un lavoro dell'autopilota (il
+      // primo passo è il riepilogo a Nicholas). Non parte con il piano quasi
+      // finito o con un altro lavoro su SierraDeck, e lo dice una volta.
+      {
+        let inCorso = false
+        const giro = async (): Promise<void> => {
+          const radice = radiceSierraDeckGlobale?.()
+          if (radice === undefined || inCorso) return
+          inCorso = true
+          try {
+            await giroErroriArrivati({
+              radice,
+              autopiloti: async () => (await clientAutopilota.elenca()).map((a) => ({ id: a.id, nome: a.nome, stato: a.stato, cwd: a.cwd, ...(a.archiviato === true ? { archiviato: true } : {}) })),
+              freno: () => { const ora = Date.now(); return frenoDaiLimiti(limitiPerFreno(limitiAggiornati([...polsi.values()], ora)), ora) },
+              avvia: async (lavoro) => {
+                await clientAutopilota.assicuraServizio()
+                let workspace: string | undefined
+                if (workspaceStore !== undefined) {
+                  workspace = workspaceDellAutopilota(lavoro.nome, radice, lavoro.obiettivo)
+                  const prima = workspaceStore.leggi()
+                  const dopo = aggiungiWorkspace(prima, workspace)
+                  if (dopo !== prima) {
+                    workspaceStore.scrivi(dopo)
+                    for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+                  }
+                }
+                const a = await clientAutopilota.crea({ ...lavoro, cwd: radice, ...(workspace !== undefined ? { workspace } : {}) })
+                partenze.segna(a.id)
+                return a.id
+              },
+              dici: (riga) => {
+                registro.info(`[avviso] PC: ${riga}`)
+                try { new Notification({ title: 'SierraDeck', body: riga }).show() } catch { /* senza notifiche */ }
+              },
+              log: (riga) => registro.info(riga)
+            })
+          } catch (err) {
+            registro.errore(`[errori] giro degli errori arrivati non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          } finally {
+            inCorso = false
+          }
+        }
+        setInterval(() => { void giro() }, 2 * 60_000)
+        setTimeout(() => { void giro() }, 60_000)
+      }
 
       // **Le chat già avviate adottate** (0.78.0, Nicholas: «le chat già avviate
       // non le hai convertite»). Gli autopiloti veri diventano l'autopilota del

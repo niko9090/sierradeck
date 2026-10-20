@@ -1,7 +1,9 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { cancellaSicura } from '@shared/cancella-sicura'
-import { cartellaMittente, nomeFileArrivo, storicoPerLInvio, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
+import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { cartellaMittente, leggiInvioErrori, nomeFileArrivo, storicoPerLInvio, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
+import { decidiLavoroErrori, lavoroPerErrori, type ArrivoErrori, type DecisioneErrori, type LavoroErrori, type StatoLavoriErrori } from '@shared/errori-lavoro'
 
 /**
  * Gli errori che arrivano da un altro PC o dal telefono (0.81.0), sul PC di
@@ -152,4 +154,128 @@ export async function mandaErrori(p: {
     p.log(`[errori] NON mandati a ${chiamato}: ${perche}`)
     return { ok: false, messaggio: `Non mandati a ${chiamato}: ${perche}` }
   }
+}
+
+// ── «Errori arrivati» (0.81.0): il lavoro dell'autopilota che parte da solo ──
+
+/** Il registro dei lavori avviati per gli arrivi, accanto agli arrivi (esclusi da git con loro). */
+export function fileLavoriErrori(radice: string): string { return join(radice, CARTELLA_ARRIVI, '.lavori.json') }
+
+export function leggiLavoriErrori(radice: string): StatoLavoriErrori {
+  try {
+    const o = JSON.parse(readFileSync(fileLavoriErrori(radice), 'utf8')) as Partial<StatoLavoriErrori>
+    const lavori = Array.isArray(o.lavori)
+      ? o.lavori.filter((l): l is LavoroErrori => typeof l === 'object' && l !== null && typeof l.autopilota === 'string' && Array.isArray(l.file) && typeof l.avviatoIl === 'string')
+      : []
+    const np = o.nonPartiti
+    return { lavori, ...(np !== undefined && Array.isArray(np.file) && typeof np.motivo === 'string' ? { nonPartiti: np } : {}) }
+  } catch {
+    return { lavori: [] }
+  }
+}
+
+function scriviLavoriErrori(radice: string, s: StatoLavoriErrori): void {
+  mkdirSync(join(radice, CARTELLA_ARRIVI), { recursive: true })
+  scriviJsonAtomico(fileLavoriErrori(radice), s, 'errori')
+}
+
+/** Gli arrivi ancora da sistemare: un file per arrivo, fuori dal recupero. */
+export function leggiArrivi(radice: string): ArrivoErrori[] {
+  const cartella = join(radice, CARTELLA_ARRIVI)
+  if (!existsSync(cartella)) return []
+  const arrivi: ArrivoErrori[] = []
+  for (const mittente of readdirSync(cartella)) {
+    if (mittente.startsWith('.')) continue
+    const c = join(cartella, mittente)
+    try { if (!statSync(c).isDirectory()) continue } catch { continue }
+    for (const nome of readdirSync(c)) {
+      if (!nome.endsWith('.json')) continue
+      const file = join(c, nome)
+      try {
+        const o = JSON.parse(readFileSync(file, 'utf8')) as { arrivato?: unknown }
+        const letto = leggiInvioErrori(o)
+        if (!letto.ok) continue
+        const quando = typeof o.arrivato === 'string' ? Date.parse(o.arrivato) : NaN
+        arrivi.push({ file, da: letto.invio.da, arrivato: Number.isNaN(quando) ? statSync(file).mtimeMs : quando, voci: letto.invio.voci })
+      } catch { /* un file a metà si legge al giro dopo */ }
+    }
+  }
+  return arrivi
+}
+
+/** La nota nel rapporto degli errori corretti, in fondo a una scheda del quaderno. */
+export const SCHEDA_ERRORI_CORRETTI = join('.sierradeck', 'quaderno', 'errori-arrivati-corretti.md')
+
+function annotaNelRapporto(radice: string, righe: string[], quando: string): void {
+  const file = join(radice, SCHEDA_ERRORI_CORRETTI)
+  mkdirSync(dirname(file), { recursive: true })
+  const testa = existsSync(file) ? '' : `---\ntitolo: "Errori arrivati e corretti"\nquando: ${quando}\ntag: ["errori", "errori arrivati"]\n---\n\nScritta dal programma: ogni riga è un arrivo corretto, messo nel recupero di 30 giorni.\n\n`
+  appendFileSync(file, `${testa}${righe.map((r) => `- ${quando.slice(0, 10)}: ${r}`).join('\n')}\n`, 'utf8')
+}
+
+/**
+ * Un giro: chiude i lavori finiti (arrivi nel recupero, nota nel rapporto),
+ * poi decide se avviarne uno per gli arrivi nuovi. Chiamato all'arrivo e a
+ * intervalli, solo sul PC dove c'è la cartella di SierraDeck.
+ */
+export async function giroErroriArrivati(d: {
+  radice: string
+  autopiloti: () => Promise<Array<{ id: string; nome: string; stato: string; cwd: string; archiviato?: boolean }>>
+  freno: () => { livello: string; motivo: string }
+  /** Avvia l'autopilota e restituisce il suo id. */
+  avvia: (lavoro: ReturnType<typeof lavoroPerErrori>) => Promise<string>
+  /** Una riga per Nicholas (registro e una notifica): solo per «non parto». */
+  dici: (riga: string) => void
+  log: (riga: string) => void
+  adesso?: Date
+}): Promise<DecisioneErrori> {
+  const adesso = d.adesso ?? new Date()
+  let stato = leggiLavoriErrori(d.radice)
+  const autopiloti = await d.autopiloti()
+  // 1) I lavori finiti: gli arrivi nel recupero, la nota nel rapporto.
+  let cambiato = false
+  const versione = (): string => {
+    try { return String((JSON.parse(readFileSync(join(d.radice, 'package.json'), 'utf8')) as { version?: unknown }).version ?? '?') } catch { return '?' }
+  }
+  const lavori = stato.lavori.map((l) => {
+    if (l.chiusoIl !== undefined) return l
+    const a = autopiloti.find((x) => x.id === l.autopilota)
+    const finito = a?.stato === 'finito'
+    if (a !== undefined && !finito && a.stato !== 'fallito' && a.archiviato !== true) return l
+    cambiato = true
+    if (!finito) {
+      d.log(`[errori] il lavoro ${l.autopilota} non è finito bene (${a === undefined ? 'tolto' : a.archiviato === true ? 'archiviato' : a.stato}): i suoi ${l.file.length} arrivi restano dove sono`)
+      return { ...l, chiusoIl: adesso.toISOString() }
+    }
+    const v = versione()
+    const note: string[] = []
+    for (const f of l.file) {
+      const e = arrivoCorretto(d.radice, f, v)
+      if (e.ok) note.push(e.nota)
+      else d.log(`[errori] ${e.errore}`)
+    }
+    if (note.length > 0) annotaNelRapporto(d.radice, note, adesso.toISOString())
+    d.log(`[errori] lavoro ${l.autopilota} finito: ${note.length} arrivi nel recupero di 30 giorni, nota in ${SCHEDA_ERRORI_CORRETTI}`)
+    return { ...l, chiusoIl: adesso.toISOString() }
+  })
+  if (cambiato) stato = { ...stato, lavori }
+  // 2) Gli arrivi nuovi.
+  const decisione = decidiLavoroErrori({
+    arrivi: leggiArrivi(d.radice), stato, radice: d.radice, autopiloti, freno: d.freno(), adesso: adesso.getTime()
+  })
+  if (decisione.azione === 'avvia') {
+    const lavoro = lavoroPerErrori(decisione.arrivi, adesso)
+    const id = await d.avvia(lavoro)
+    const file = decisione.arrivi.map((a) => a.file)
+    d.log(`[errori] avviato «${lavoro.nome}» (${id}) per ${file.length} arrivi`)
+    const { nonPartiti: _vecchio, ...resto } = stato
+    stato = { ...resto, lavori: [...stato.lavori, { autopilota: id, file, avviatoIl: adesso.toISOString() }] }
+    cambiato = true
+  } else if (decisione.azione === 'non-parte' && !decisione.giaDetto) {
+    d.dici(`Errori arrivati: non parto, ${decisione.motivo}.`)
+    stato = { ...stato, nonPartiti: { file: decisione.file, motivo: decisione.motivo } }
+    cambiato = true
+  }
+  if (cambiato) scriviLavoriErrori(d.radice, stato)
+  return decisione
 }

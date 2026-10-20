@@ -56,5 +56,24 @@ Copia con `SIERRADECK_PROVA`, porte 47680/47681, DevTools 9373. Gli script sono 
 - **Trappola:** `Page.captureScreenshot` si blocca se la finestra della copia non è in primo piano, e con il PC al 100%. I clic con `Runtime.evaluate` vanno lo stesso.
 - **Primo errore vero preso da solo:** `MaxListenersExceededWarning: 11 before-quit listeners`. In `src/main/index.ts` ci sono 11 `app.on('before-quit')`, già in main, non dello storico. Va bene, ma andrebbe ridotto o alzato il tetto: è da proporre.
 
-## Ancora da fare
-- **«Errori arrivati»:** l'autopilota che parte da solo, con il riepilogo a Nicholas prima di toccare il codice. Userà `arrivoCorretto` dopo la release.
+## «Errori arrivati»: il lavoro che parte da solo (20/10)
+- **Dove:** la parte pura sta in `src/shared/errori-lavoro.ts` (`decidiLavoroErrori`, `lavoroPerErrori`). Il giro sta in `giroErroriArrivati` (`src/main/errori-arrivati.ts`). In `index.ts` gira ogni 2 minuti, la prima volta 60 s dopo l'avvio, solo se c'è la cartella di SierraDeck.
+- **Quando parte:** gli errori vicini vanno in un solo lavoro. Si aspettano 10 minuti dall'ultimo arrivo.
+- **Quando non parte:**
+  - c'è già un autopilota non archiviato su quella cartella (intervista, pronto, lavoro, attesa o sospeso);
+  - il freno dei limiti è a «una» o «fermo», cioè dall'80% in su.
+
+  Lo dice UNA volta per lo stesso gruppo di arrivi: una riga `[avviso]` nel registro e una notifica.
+- **Il registro dei lavori:** `errori-arrivati/.lavori.json`. Un arrivo avviato non riparte mai da solo, nemmeno se il lavoro fallisce.
+- **Lavoro finito:** gli arrivi vanno nel recupero con `arrivoCorretto`. La versione si legge dal `package.json` di quel momento. La nota va in `.sierradeck/quaderno/errori-arrivati-corretti.md`, scritta dal programma.
+- **Fallito, archiviato o tolto:** gli arrivi restano dove sono.
+- **L'obiettivo dato all'autopilota:**
+  - PRIMA un riepilogo con AskUserQuestion: una sola domanda, quindi una sola notifica, con «Procedi» e «Aspetta»;
+  - poi la correzione con test, la Revisione e una release patch mai installata;
+  - i file degli arrivi non vanno toccati: li sistema il programma.
+- **Prova nella copia (fatta):**
+  - un arrivo di 20 minuti prima; la copia ha avviato «Errori arrivati 20/10» da sola, 60 s dopo l'avvio;
+  - la chat è partita in sottofondo, senza cambiare lo schermo;
+  - risposto «Yes» alla domanda di fiducia, che c'è solo nella copia, è arrivato il riepilogo come domanda unica: errore, da dove, causa «NON capita», cosa farebbe, «Lavoro: nullo»;
+  - codice non toccato (git pulito); non ho risposto e ho fermato la copia.
+- **Trappola:** `/api/scegli` vuole `opzione` = il TESTO della scelta, non il numero. Con il numero risponde «la scelta è cambiata: guarda di nuovo».

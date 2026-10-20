@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { arrivoCorretto, cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati, svuotaRecuperoArrivi } from '../../src/main/errori-arrivati'
+import { arrivoCorretto, cartellaDiSierraDeck, giroErroriArrivati, leggiArrivi, leggiLavoriErrori, mandaErrori, salvaErroriArrivati, SCHEDA_ERRORI_CORRETTI, svuotaRecuperoArrivi } from '../../src/main/errori-arrivati'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { aggiungiErrore, voceDaTesto, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
@@ -199,5 +199,73 @@ describe('dopo la correzione: il recupero di 30 giorni', () => {
     writeFileSync(join(c, 'senza-ora.json'), '{}')
     expect(svuotaRecuperoArrivi(radice, new Date('2026-10-20T10:00:00.000Z'))).toEqual([join('Portatile', 'a.json.2026-09-01T10-00-00-000Z')])
     expect(readdirSync(c).sort()).toEqual(['b.json.2026-10-10T10-00-00-000Z', 'senza-ora.json'])
+  })
+})
+
+describe('Errori arrivati: il giro sul PC di sviluppo', () => {
+  type Ap = { id: string; nome: string; stato: string; cwd: string; archiviato?: boolean }
+  const prepara = () => {
+    const radice = progetto('SierraDeck')
+    writeFileSync(join(radice, 'package.json'), JSON.stringify({ name: 'sierradeck', version: '0.81.1' }))
+    const a = salvaErroriArrivati(radice, { da: 'Portatile', versione: '0.81.0', voci: storico(1).voci }, new Date(quando))
+    if (!a.ok) throw new Error(a.errore)
+    const autopiloti: Ap[] = []
+    const avviati: string[] = []
+    const detti: string[] = []
+    const righe: string[] = []
+    const deps = (adesso: string, freno = { livello: 'pieno', motivo: 'via libera' }) => ({
+      radice,
+      autopiloti: async () => autopiloti,
+      freno: () => freno,
+      avvia: async (l: { nome: string; obiettivo: string }) => { avviati.push(l.obiettivo); autopiloti.push({ id: `ap-${avviati.length}`, nome: l.nome, stato: 'lavoro', cwd: radice }); return `ap-${avviati.length}` },
+      dici: (r: string) => { detti.push(r) },
+      log: (r: string) => { righe.push(r) },
+      adesso: new Date(adesso)
+    })
+    return { radice, file: a.file, autopiloti, avviati, detti, righe, deps }
+  }
+
+  it('avvia un lavoro solo dopo l’attesa, una volta; a lavoro finito l’arrivo va nel recupero con la nota nel rapporto', async () => {
+    const p = prepara()
+    expect((await giroErroriArrivati(p.deps('2026-10-19T15:05:00.000Z'))).azione).toBe('aspetta')
+    expect((await giroErroriArrivati(p.deps('2026-10-19T15:11:00.000Z'))).azione).toBe('avvia')
+    expect(p.avviati).toHaveLength(1)
+    expect(p.avviati[0]).toContain(p.file)
+    expect((await giroErroriArrivati(p.deps('2026-10-19T15:20:00.000Z'))).azione).toBe('niente')
+    expect(leggiLavoriErrori(p.radice).lavori).toEqual([{ autopilota: 'ap-1', file: [p.file], avviatoIl: '2026-10-19T15:11:00.000Z' }])
+    p.autopiloti[0]!.stato = 'finito'
+    await giroErroriArrivati(p.deps('2026-10-19T18:00:00.000Z'))
+    expect(leggiArrivi(p.radice)).toEqual([])
+    expect(readdirSync(join(p.radice, '.sierradeck', 'errori-arrivati', '.recupero', 'Portatile'))).toHaveLength(1)
+    const nota = readFileSync(join(p.radice, SCHEDA_ERRORI_CORRETTI), 'utf8')
+    expect(nota).toMatch(/^---\ntitolo: "Errori arrivati e corretti"/)
+    expect(nota).toContain('- 2026-10-19: Errori arrivati da «Portatile» il 2026-10-19 (1) corretti nella versione 0.81.1: boom')
+    expect(leggiLavoriErrori(p.radice).lavori[0]!.chiusoIl).toBe('2026-10-19T18:00:00.000Z')
+    expect(p.detti).toEqual([])
+  })
+
+  it('un lavoro fallito non sposta niente e non riparte da solo', async () => {
+    const p = prepara()
+    await giroErroriArrivati(p.deps('2026-10-19T15:11:00.000Z'))
+    p.autopiloti[0]!.stato = 'fallito'
+    await giroErroriArrivati(p.deps('2026-10-19T16:00:00.000Z'))
+    expect(leggiArrivi(p.radice).map((a) => a.file)).toEqual([p.file])
+    expect(p.avviati).toHaveLength(1)
+    expect(p.righe.some((r) => r.includes('non è finito bene (fallito)'))).toBe(true)
+  })
+
+  it('con un altro lavoro su SierraDeck o il piano quasi finito non parte, e lo dice una volta', async () => {
+    const p = prepara()
+    p.autopiloti.push({ id: 'ap-altro', nome: 'Notifiche', stato: 'lavoro', cwd: p.radice })
+    await giroErroriArrivati(p.deps('2026-10-19T15:11:00.000Z'))
+    await giroErroriArrivati(p.deps('2026-10-19T15:13:00.000Z'))
+    expect(p.avviati).toEqual([])
+    expect(p.detti).toEqual(['Errori arrivati: non parto, c’è già un lavoro su SierraDeck («Notifiche»): gli errori arrivati aspettano che finisca.'])
+    p.autopiloti[0]!.stato = 'finito'
+    const freno = { livello: 'fermo', motivo: 'settimana al 97%' }
+    await giroErroriArrivati(p.deps('2026-10-19T15:15:00.000Z', freno))
+    expect(p.detti[1]).toBe('Errori arrivati: non parto, i limiti del piano sono quasi finiti (settimana al 97%): gli errori arrivati aspettano.')
+    expect((await giroErroriArrivati(p.deps('2026-10-19T15:20:00.000Z'))).azione).toBe('avvia')
+    expect(leggiLavoriErrori(p.radice).nonPartiti).toBeUndefined()
   })
 })
