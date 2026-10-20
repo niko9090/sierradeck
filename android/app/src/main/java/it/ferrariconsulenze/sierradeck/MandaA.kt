@@ -265,7 +265,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
                                             listOfNotNull(
                                                 if (recente) "recente" else null,
                                                 if (x.tipo == "autopilota") "autopilota: lo trova nel dialogo" else if (x.pcId != null) "chat di un altro PC, attraverso il PC accoppiato" else "chat di questo PC",
-                                                if (x.aspetta) "aspetta te" else null
+                                                if (x.aspetta) "ferma" else null
                                             ).joinToString(" · "),
                                             color = Banco.testoQuieto, fontSize = 11.sp
                                         )

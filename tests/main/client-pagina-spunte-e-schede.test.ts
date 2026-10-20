@@ -82,7 +82,7 @@ describe('0.74.0: pagina, solo notifiche utili', () => {
     b.giro(ferma); b.giro(ferma, 2 * 60000); b.giro(lavora, 30000)
     expect(b.mandate).toEqual([])
     b.giro(ferma, 60000); b.giro(ferma, 3 * 60000); b.giro(ferma, 60000)
-    expect(b.mandate).toEqual([{ titolo: 'Trading aspetta te', tag: 'chat-c1' }])
+    expect(b.mandate).toEqual([{ titolo: 'Trading ha finito il turno', tag: 'chat-c1' }])
   })
   it('scelta e attesa della stessa chat hanno la stessa etichetta (una notifica per chat); la versione pronta non è una notifica (0.81.0)', () => {
     const b = banco()

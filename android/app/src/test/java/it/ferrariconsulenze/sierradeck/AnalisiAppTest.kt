@@ -160,9 +160,12 @@ class AnalisiAppTest {
 
     @Test
     fun `la riga fissa non conta le governate e conta le scelte`() {
-        assertEquals("1 su 2 chat aspettano te", rigaPresenza(JSONObject("""{"chat":[{"id":"a","aspetta":true,"governata":true},{"id":"b","chiede":true}]}""")))
+        assertEquals("1 su 2 chat aspetta te", rigaPresenza(JSONObject("""{"chat":[{"id":"a","aspetta":true,"governata":true},{"id":"b","chiede":true}]}""")))
         assertEquals("2 chat, nessuna ti aspetta", rigaPresenza(JSONObject("""{"chat":[{"id":"a","aspetta":true,"governata":true},{"id":"b"}]}""")))
         assertEquals("Un autopilota ti sta chiedendo una cosa", rigaPresenza(JSONObject("""{"domande":[{"id":"d"}]}""")))
+        // Una chat a fine turno è «ferma», non «aspetta te» (0.80.0, come PC e pagina).
+        assertEquals("1 su 2 chat ferma", rigaPresenza(JSONObject("""{"chat":[{"id":"a","aspetta":true},{"id":"b"}]}""")))
+        assertEquals("1 su 2 chat aspetta te", rigaPresenza(JSONObject("""{"chat":[{"id":"a","aspetta":true},{"id":"b","chiede":true}]}""")))
     }
 
     // ── Lavori e consumi ─────────────────────────────────────────────────
