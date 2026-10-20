@@ -369,6 +369,13 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       const orologio = setTimeout(() => {
         interrotto = true
         const ferma = (gruppo: number[]): void => {
+          // Uscita da sola mentre si aspettava `ps`: il suo PID può già essere di
+          // un altro processo, quindi solo i discendenti che `ps` ha visto vivi.
+          if (figlio.exitCode !== null || figlio.signalCode !== null) {
+            const resto = gruppo.filter((w) => w !== figlio.pid)
+            if (resto.length > 0) spawn('taskkill', ['/F', '/T', ...resto.flatMap((w) => ['/PID', String(w)])], { windowsHide: true, stdio: 'ignore' }).unref()
+            return
+          }
           terminaAlbero(figlio.pid, { ripiego: () => { figlio.kill() }, gruppo: () => gruppo })
         }
         // Anche quello che la bash di Git ha avviato fuori dall'albero di Windows (0.81.0):
