@@ -161,3 +161,30 @@ describe('la fusione interrotta e ripresa', () => {
     expect((await syncA.salva()).ok).toBe(true)
   })
 })
+
+describe('la fusione con un workspaces.json del Drive che non si legge (0.81.0)', () => {
+  it('si ferma e lo dice, invece di ricaricare la sola lista di qui', async () => {
+    const drive = driveCondiviso()
+    const a = pc('A'); const b = pc('B')
+    writeFileSync(join(a.dati, 'workspaces.json'), JSON.stringify({ versione: 1, attivo: 'Di-A', workspace: [{ nome: 'Di-A', perSlot: {} }] }))
+    chat(a, 'solo-a', 2)
+    const syncA = apri(a, drive)
+    expect((await syncA.creaPassphrase('passphrase-robusta-1')).ok).toBe(true)
+    expect((await syncA.salva()).ok).toBe(true)
+    // Da qui in poi il Drive dà un contenuto rovinato per tutto tranne il manifesto.
+    const vero = drive.archivio()
+    let rotto = false
+    const rovinato: Archivio = { ...vero, scarica: async (nome, p) => (rotto && nome !== 'sierradeck.manifesto' ? Buffer.from('rovinato') : vero.scarica(nome, p)) }
+    const syncB = apri(b, { magazzino: drive.magazzino, archivio: () => rovinato })
+    expect((await syncB.sblocca('passphrase-robusta-1')).ok).toBe(true)
+    rotto = true
+    const r = await syncB.eseguiFusione({ voci: {}, workspace: { modo: 'unione', escludi: [] } })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.messaggio).toMatch(/workspaces\.json.*non si legge/)
+    // E sul Drive i workspace di A sono ancora lì.
+    rotto = false
+    const piano = await syncA.anteprimaFusione()
+    expect(piano.ok).toBe(true)
+  })
+})

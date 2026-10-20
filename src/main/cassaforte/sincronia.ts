@@ -1071,14 +1071,26 @@ export function apriSincronia(deps: {
       try {
         log('FUSIONE richiesta')
         const esitoM = await leggiManifesto(deps.archivio(), m)
+        // Un manifesto, o un workspaces.json/progetti-drive.json, che il Drive
+        // ha ma che non si legge NON vale «assente» (analisi 0.81.0): la
+        // fusione li ricaricava con la sola lista di qui, e i workspace e i
+        // progetti degli altri PC sparivano dal Drive. Ci si ferma e lo si dice.
+        if (esitoM.stato === 'illeggibile') return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave: non fondo niente.' }
         const manifestoDrive = esitoM.stato === 'ok' ? esitoM.manifesto : manifestoVuoto()
         // I workspace e il registro si fondono prima, sul disco: poi salgono
         // come file qualunque, insieme alle scelte.
         const rawArchivio = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/workspaces.json')
+        const rawRegistro = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/progetti-drive.json')
+        const illeggibili = ([['sierradeck/workspaces.json', rawArchivio], ['sierradeck/progetti-drive.json', rawRegistro]] as const)
+          .filter(([p, raw]) => raw === undefined && manifestoDrive.file[p] !== undefined).map(([p]) => p.slice('sierradeck/'.length))
+        if (illeggibili.length > 0) {
+          log(`FUSIONE fermata: ${illeggibili.join(' e ')} sul Drive non si legge`)
+          return { ok: false, messaggio: `${illeggibili.join(' e ')} sul Drive non si legge: non fondo, per non cancellare quello degli altri PC. Riprova fra poco.` }
+        }
         const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
         const archivioFuso = fondiArchivi(deps.workspaceLocale?.leggi(), archivioDrive, scelte.workspace.modo, scelte.workspace.escludi, { ...(deps.pcId !== undefined ? { io: deps.pcId() } : {}) })
         if (archivioFuso !== undefined) deps.workspaceLocale?.scrivi(archivioFuso)
-        const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/progetti-drive.json'))
+        const registroDrive = parseRegistro(rawRegistro)
         const registroFuso = fondiRegistri(deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }, registroDrive)
         deps.registroProgetti?.scrivi(registroFuso)
         const voci: Record<string, 'carica' | 'scarica' | 'copia' | 'salta'> = {
