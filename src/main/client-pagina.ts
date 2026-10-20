@@ -31,6 +31,7 @@ import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
+import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -167,6 +168,7 @@ function componiPagina(): string {
   .pan-tel-scheda:disabled { opacity: 0.65; }
   .pan-tel-testa { display: flex; gap: 6px; align-items: baseline; overflow: hidden; white-space: nowrap; }
   .pan-tel-scheda--chiede .pan-tel-pallino { color: var(--ambra); } .pan-tel-scheda--lavora .pan-tel-pallino { color: var(--verde); }
+  .segno-attivita { font-weight: 700; flex: none; } /* 0.82.0: il simbolo di cosa fa una chat, nel suo colore fisso */
   .pan-tel-azione { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 11px; color: var(--testo-quieto); }
   .pan-tel-righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -708,6 +710,28 @@ var GC = ${JSON.stringify({
     svuota: confermaChiediSvuota(false), svuotaDrive: confermaChiediSvuota(true)
   }
 })}
+// I colori fissi di cosa fa una chat (0.82.0), la stessa tabella del PC e dell'app: src/shared/colori-attivita.ts.
+var ATT = ${JSON.stringify({ attivita: ATTIVITA, ordine: ATTIVITA_ORDINE, colori: COLORI, titolo: TITOLO_LEGENDA })}
+function coloreNome(c) { return ATT.colori[c] || ATT.colori.quieto }
+// Il simbolo di un'attività nel suo colore: mai il colore da solo (0.82.0).
+function segnoAttivita(id) {
+  var a = ATT.attivita[id]
+  if (!a) return ''
+  return '<span class="segno-attivita" style="color:' + coloreNome(a.colore) + '" title="' + esc(a.nome + ': ' + a.spiega) + '" aria-label="' + esc(a.nome) + '">' + a.icona + '</span>'
+}
+// «al lavoro» per i ruoli, altrimenti «aspetta te», «ferma», «finita»: come parolaStato del PC.
+function parolaStatoAtt(id) {
+  var a = ATT.attivita[id]
+  if (!a) return ''
+  return ['aspetta', 'ferma', 'finita'].indexOf(id) >= 0 ? a.parola : 'al lavoro'
+}
+// La legenda dei colori dietro «?».
+function legendaAttivita(id) {
+  return aiuto(id, '<b>' + esc(ATT.titolo) + '</b>' + ATT.ordine.map(function (k) {
+    var a = ATT.attivita[k]
+    return '<div><span style="color:' + coloreNome(a.colore) + '">' + a.icona + ' <b>' + esc(a.nome) + '</b></span> — ' + esc(a.spiega) + '</div>'
+  }).join(''), ATT.titolo.toLowerCase())
+}
 // Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
 var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
@@ -2923,9 +2947,10 @@ function schedaTelHtml(s, quante) {
 function alLavoroHtml(righe) {
   const aspettano = righe.filter((r) => r.aspettaTe).length
   return '<div class="serigrafia" id="al-lavoro-ap">Al lavoro · ' + righe.length + (aspettano ? ' <span class="pan-tel-aspettano">· ◆ ' + (aspettano === 1 ? '1 aspetta te' : aspettano + ' aspettano te') + '</span>' : '') +
-    aiuto('al-lavoro', 'Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.') + '</div>' +
+    aiuto('al-lavoro', 'Una riga per chat al lavoro: chi è, cosa fa adesso, da quanto. ◆ vuol dire che aspetta una tua risposta. Si aggiorna da sola; tocca una riga per aprire la sua chat.') + legendaAttivita('al-lavoro-colori') + '</div>' +
     (righe.length ? righe.slice(0, panAperte['al-lavoro'] ? righe.length : 3).map((r) => {
-      const corpo = '<span class="pan-tel-pallino">' + (r.aspettaTe ? '◆' : '●') + '</span><span class="pan-tel-al-lavoro__testo"><b>' + esc(r.chi) + '</b> ' + esc(r.cosa) +
+      // 0.82.0: il simbolo nel colore fisso di cosa fa; da un PC più vecchio il pallino di prima.
+      const corpo = (r.attivita ? segnoAttivita(r.attivita) : '<span class="pan-tel-pallino">' + (r.aspettaTe ? '◆' : '●') + '</span>') + '<span class="pan-tel-al-lavoro__testo"><b>' + esc(r.chi) + '</b> ' + esc(r.cosa) +
         // «adesso» (0.79.0): cosa fa in questo momento, dai segnali; come sottoAlLavoro del PC.
         '<span class="sotto">' + (r.aspettaTe ? '<b class="pan-tel-stato--ambra">' + esc(r.adesso || 'aspetta te') + '</b>' : esc(r.adesso || '')) + ((r.aspettaTe || r.adesso) && r.quanto ? ' · ' : '') + esc(r.quanto || '') + '</span></span>'
       return apPc
@@ -4642,23 +4667,26 @@ function quote(q) {
  */
 /** Il colore del ruolo di una chat (0.71.0), come sul PC e nell'app. */
 function coloreRuolo(c) {
-  return ({ verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', viola: '#b48cff' })[c] || 'inherit'
+  // 0.82.0: dalla tabella unica (ATT); un nome sconosciuto resta grigio.
+  return coloreNome(c)
 }
 /**
  * Gli specialisti (PC 0.73.0): come è organizzato il lavoro, poi uno per chat
  * con il ruolo, lo stato, l'ultima cosa detta e «Guarda», che apre la sua chat.
  */
 function specialistiHtml(s) {
-  var colori = { blu: 'var(--blu,#4aa3ff)', viola: '#a78bfa', verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', quieto: 'var(--testo-quieto,#9aa1a9)' }
   return '<div class="serigrafia" style="margin-top:10px">' + ((s.elenco || []).length > 1 ? 'Specialisti (' + s.elenco.length + ')' : 'La sua chat') +
-      aiuto('ap-specialisti', 'Quando parte, l’autopilota decide se dividere il lavoro: ogni specialista (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) lavora in una chat sua, con il ruolo nel nome, nel workspace del progetto. Il lavoro di una chat entra solo dopo l’ok della Revisione. Per un lavoro piccolo resta una chat sola. «Guarda» apre la sua chat.') + '</div>' +
+      aiuto('ap-specialisti', 'Quando parte, l’autopilota decide se dividere il lavoro: ogni specialista (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) lavora in una chat sua, con il ruolo nel nome, nel workspace del progetto. Il lavoro di una chat entra solo dopo l’ok della Revisione. Per un lavoro piccolo resta una chat sola. «Guarda» apre la sua chat.') + legendaAttivita('ap-colori') + '</div>' +
     '<div class="sotto">' + esc(s.riga || '') + '</div>' +
     (s.elenco || []).map(function (x) {
       return '<div class="sotto" style="border-top:1px solid var(--incisione,#2a2a2a);padding-top:4px;margin-top:4px">' +
-        '<b style="color:' + (colori[x.colore] || colori.quieto) + '">' + esc(x.ruolo) + '</b> · <span style="color:' + (x.attivo ? 'var(--verde,#3c9)' : 'var(--testo-quieto,#9aa1a9)') + '">' + esc(x.stato) + '</span>' +
+        // 0.82.0: il colore fisso di cosa fa, con il simbolo; un PC più vecchio non manda «attivita».
+        (x.attivita
+          ? segnoAttivita(x.attivita) + ' <b style="color:' + coloreNome((ATT.attivita[x.attivita] || {}).colore) + '">' + esc(x.ruolo) + '</b> · <span>' + esc([parolaStatoAtt(x.attivita), x.quanto || ''].filter(Boolean).join(' · ')) + '</span>'
+          : '<b style="color:' + coloreNome(x.colore) + '">' + esc(x.ruolo) + '</b> · <span style="color:' + (x.attivo ? 'var(--verde,#3c9)' : 'var(--testo-quieto,#9aa1a9)') + '">' + esc(x.stato) + '</span>') +
         // 0.74.0: chi ha finito ha chiuso la sua chat: niente «Guarda».
         (x.chiusa ? ' <span style="color:var(--testo-quieto,#9aa1a9)">· chat chiusa</span>' : x.sessionId ? ' <button style="margin-left:6px" data-s="' + esc(x.sessionId) + '" onclick="guardaSpecialista(this.dataset.s)">Guarda</button>' : '') +
-        '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(x.compito || '') + '</div>' +
+        '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(x.compito || '') + '">' + esc(x.cosa || x.compito || '') + '</div>' +
         (x.ultimaAzione ? '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--testo-quieto,#9aa1a9)">' + esc(x.ultimaAzione) + '</div>' : '') +
         '</div>'
     }).join('')

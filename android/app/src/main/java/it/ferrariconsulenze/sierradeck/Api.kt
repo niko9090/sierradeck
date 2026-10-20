@@ -679,6 +679,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     // ─── la sezione File (PC 0.54.0): i progetti del PC, in sola lettura ───
     suspend fun fileProgetti(): ProgettiFile = json.decodeFromString(corpoTesto("/api/file/progetti", oggetto { }))
 
+    /** «Apri cartella» (PC 0.82.0): dove sta la cartella di un workspace o di una chat, per la sezione File. */
+    suspend fun fileCartella(workspace: String? = null, chat: String? = null): CartellaFile =
+        json.decodeFromString(corpoTesto("/api/file/cartella", oggetto { if (chat != null) put("chat", chat) else put("workspace", workspace ?: "") }))
+
     suspend fun fileElenco(progetto: String, percorso: String): ElencoFile =
         json.decodeFromString(corpoTesto("/api/file/elenco", oggetto { put("progetto", progetto); put("percorso", percorso) }))
 

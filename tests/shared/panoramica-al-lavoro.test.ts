@@ -59,7 +59,9 @@ describe('il riassunto accanto alla conversazione', () => {
     ], ORA)
     // A parità di ruolo (nessuno) e di nascita, per id: l'ordine fisso della Panoramica.
     expect(r.map((x) => x.id)).toEqual(['p-col', 'p-int', 'p-rev', 'p-ap', 'p-la', 'p-mia'])
-    expect(r[0]).toEqual({ id: 'p-col', chi: 'Collaudo', ruolo: 'collaudo', cosa: 'prova: «Prova dal vero in una copia»', quanto: 'adesso', aspettaTe: true })
+    expect(r[0]).toEqual({ id: 'p-col', chi: 'Collaudo', ruolo: 'collaudo', cosa: 'prova: «Prova dal vero in una copia»', quanto: 'adesso', aspettaTe: true, attivita: 'aspetta' })
+    // 0.82.0: il colore fisso di cosa fa — il ruolo al lavoro, «aspetta» quando aspetta te.
+    expect(r.map((x) => x.attivita)).toEqual(['aspetta', 'interfaccia', 'revisione', 'sviluppo', 'sviluppo', 'sviluppo'])
     expect(r[1]).toMatchObject({ chi: 'Interfaccia', cosa: 'lavora a: «Interfaccia della gestione delle chat su PC, pagina e app»', quanto: 'da 12 min', aspettaTe: false })
     expect(r[2]).toMatchObject({ chi: 'Revisione', cosa: 'rilegge il lavoro di Sviluppo: «Il motore della gestione delle chat»', quanto: 'da 3 min' })
     expect(r[5]).toMatchObject({ chi: 'Chat', cosa: 'chat del workspace: «Prove di grafica»', quanto: 'da 2 h' })
@@ -74,8 +76,8 @@ describe('il riassunto accanto alla conversazione', () => {
 
   it('titolo e riga quieta', () => {
     const r = [
-      { id: 'a', chi: 'Sviluppo', cosa: 'x', quanto: 'da 3 min', aspettaTe: false },
-      { id: 'b', chi: 'Collaudo', cosa: 'y', quanto: 'adesso', aspettaTe: true }
+      { id: 'a', chi: 'Sviluppo', cosa: 'x', quanto: 'da 3 min', aspettaTe: false, attivita: 'sviluppo' as const },
+      { id: 'b', chi: 'Collaudo', cosa: 'y', quanto: 'adesso', aspettaTe: true, attivita: 'aspetta' as const }
     ]
     expect(titoloAlLavoro(r)).toBe('Al lavoro · 2 · ◆ 1 aspetta te')
     expect(titoloAlLavoro([...r, { ...r[1]!, id: 'c' }])).toBe('Al lavoro · 3 · ◆ 2 aspettano te')

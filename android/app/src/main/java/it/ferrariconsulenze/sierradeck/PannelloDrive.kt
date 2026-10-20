@@ -306,9 +306,8 @@ fun coloreVista(c: String): Color = when (c) {
     "rosso" -> Banco.rosso
     // 0.80.0: «quieto» è il grigio del PC; prima finiva nel blu qui sotto.
     "quieto" -> Banco.testoQuieto
-    // PC 0.71: il ruolo «Interfaccia».
-    "viola" -> Color(0xFFB48CFF)
-    else -> Color(0xFF4AA3FF)
+    // PC 0.71: il ruolo «Interfaccia»; PC 0.82.0: gli altri colori dei ruoli, dalla tabella unica.
+    else -> if (c in TabellaAttivita.colori) Attivita.colore(c) else Color(0xFF4AA3FF)
 }
 
 @Composable

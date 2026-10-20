@@ -245,6 +245,8 @@ export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): strin
   if (t.esito === 'mai-partita') return `${sola()} non è partita: nessuna finestra l'ha aperta. Rimetto il compito in coda e riprovo.`
   if (t.esito === 'muta') return `${sola()} non dà segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: aspetto. Se tace per un'ora la metto da parte e te lo dico.`
   if (t.esito === 'unito' && chi === undefined) return 'Lavoro unito.'
+  // 0.82.0: una domanda che non ti arriva perché è già successo.
+  if (t.esito === 'gia-fatto') return `Già fatto: ${t.nota ?? 'la domanda era già risolta'}. Non te lo chiedo.`
   const di = t.di !== undefined ? a.chats.find((c) => c.id === t.di) : undefined
   if (chi === undefined) return undefined
   const lavoro = di ?? chi

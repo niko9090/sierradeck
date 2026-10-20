@@ -8,6 +8,7 @@
         "cosa": "prova: «Prova dal vero in una copia»",
         "quanto": "adesso",
         "aspettaTe": true,
+        "attivita": "aspetta",
         "adesso": "aspetta il tuo permesso: fa girare i test"
       },
       {
@@ -15,7 +16,8 @@
         "chi": "Chat",
         "cosa": "chat del workspace: «senza tempo»",
         "quanto": "",
-        "aspettaTe": true
+        "aspettaTe": true,
+        "attivita": "aspetta"
       },
       {
         "id": "p-int",
@@ -24,6 +26,7 @@
         "cosa": "lavora a: «Interfaccia della gestione delle chat su PC, pagina e app»",
         "quanto": "da 12 min",
         "aspettaTe": false,
+        "attivita": "interfaccia",
         "adesso": "modifica il codice (App.tsx)"
       }
     ]

@@ -29,6 +29,13 @@ data class ProgettoFile(val nome: String = "", val percorso: String = "", val do
 @Serializable
 data class ProgettiFile(val progetti: List<ProgettoFile> = emptyList())
 
+/** «Apri cartella» (PC 0.82.0): il progetto della sezione File che contiene la cartella, e il percorso dentro. */
+@Serializable
+data class CartellaFile(val progetto: String = "", val percorso: String = "", val cartella: String = "")
+
+/** Dove aprire la sezione File: su quale PC (`null`: quello accoppiato), quale progetto, quale cartella dentro. */
+data class CartellaRichiesta(val pcId: String?, val progetto: String, val percorso: String)
+
 @Serializable
 data class VoceFile(
     val nome: String = "",
@@ -91,6 +98,20 @@ data class PezzoConsegna(val dati: String = "", val letti: Int = 0, val byte: Lo
 data class RifiutoPin(val errore: String = "", val pin: String? = null, val chat: String? = null)
 
 object FileVista {
+    /**
+     * Il progetto dell'elenco su cui aprire la cartella (PC 0.82.0). Se il
+     * PC l'ha appena aggiunto e l'elenco non lo ha ancora, uno con il nome
+     * preso dal percorso: la sezione lo sfoglia lo stesso, il PC controlla.
+     */
+    fun progettoPer(progetti: List<ProgettoFile>, progetto: String): ProgettoFile =
+        progetti.firstOrNull { it.percorso.equals(progetto, ignoreCase = true) }
+            ?: ProgettoFile(nome = progetto.trimEnd('/', Char(92)).substringAfterLast(Char(92)).substringAfterLast('/'), percorso = progetto)
+
+    /** Perché «Apri cartella» non ha aperto niente: il motivo del PC, o che il PC è più vecchio. */
+    fun spiegaCartella(e: Throwable, nomePc: String?): String =
+        if (e is Api.Errore && e.codice == 404 && e.corpo.contains("\"non trovato\"")) FunzioniPc.testoMancante(FunzionePc.CARTELLA, nomePc)
+        else motivo(e)
+
     /** Uguali a `src/shared/file-telefono.ts`. */
     const val PEZZO_BYTE = 96 * 1024
     const val ANTEPRIMA_TESTO_BYTE = 512L * 1024

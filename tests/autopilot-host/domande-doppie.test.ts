@@ -23,7 +23,7 @@ const EN = 'Will you install the 0.80.0 on this PC so finished chats close on th
 
 describe('l argomento di una domanda', () => {
   it('riconosce «installare la stessa versione» in due lingue', () => {
-    expect(argomentoDi(IT)).toEqual({ installa: true, versioni: ['0.80.0'] })
+    expect(argomentoDi(IT)).toEqual({ installa: true, pubblica: false, versioni: ['0.80.0'] })
     expect(stessoArgomento(IT, EN)).toBe(true)
   })
 
