@@ -36,5 +36,9 @@ La suite intera non è ancora partita alle 14:11, perché giravano già 7 suite
 `vitest run --maxWorkers=2` di altre chat, la più vecchia dalle 12:08. I numeri
 della suite si aggiungono qui quando gira.
 
+Primo esito, 14:30, PC carico: girano solo i file toccati dalle due correzioni
+(`worktree.test.ts`, `worktree-corto.test.ts`, `verifiche.test.ts`,
+`hook-autopilota.test.ts`). 4 file e 38 test verdi, 0 rossi, in 140 s.
+
 **Regola:** nei test con git vero, preparare il repository una volta sola e
 copiarlo. Ogni processo in meno conta molto di più a PC carico.
