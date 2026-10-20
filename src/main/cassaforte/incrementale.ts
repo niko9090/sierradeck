@@ -656,8 +656,12 @@ export async function ripristinaIncrementale(deps: {
               return scriviSuDisco(discoCopia, mio, locale.mtime).then(() => true, () => false)
             })
             if (!copiata) {
-              console.warn(`[sync] ${percorso}: la copia di conflitto non si crea, tengo il mio e riprovo al prossimo giro`)
-              conflitti.push({ percorso, vinto: 'mio' })
+              // Come quando vince il mio: la versione del Drive resta accanto,
+              // così il salvataggio di qui non la fa sparire per l'altro PC.
+              console.warn(`[sync] ${percorso}: la copia di conflitto non si crea, tengo il mio e metto accanto quella del Drive`)
+              const delDrive = nomeCopiaConflitto(percorso, 'drive', adesso)
+              voci.push({ percorso: delDrive, contenuto: chiaro, mtime: voce.mtime })
+              conflitti.push({ percorso, vinto: 'mio', copia: delDrive })
               return
             }
             conflitti.push({ percorso, vinto: 'drive', copia })

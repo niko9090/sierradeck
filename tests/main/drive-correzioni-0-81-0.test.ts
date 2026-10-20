@@ -44,7 +44,10 @@ describe('la copia di conflitto che non si crea', () => {
       radici: [{ prefisso: 'progetto-p', cartella: b }], maestra, archivio, manifestoPrec: rB.manifesto as Manifesto, pcNome: 'Portatile', adesso
     })
     expect(readFileSync(join(b, 'src', 'x.ts'), 'utf8')).toBe('lavoro-di-B')
-    expect(r.conflitti).toEqual([{ percorso: 'progetto-p/src/x.ts', vinto: 'mio' }])
+    // E la versione del Drive resta accanto: il prossimo salvataggio di B non la fa sparire per A.
+    const delDrive = nomeCopiaConflitto('progetto-p/src/x.ts', 'drive', adesso)
+    expect(r.conflitti).toEqual([{ percorso: 'progetto-p/src/x.ts', vinto: 'mio', copia: delDrive }])
+    expect(readFileSync(join(b, ...delDrive.slice('progetto-p/'.length).split('/')), 'utf8')).toBe('di-A')
   })
 })
 
@@ -103,6 +106,22 @@ describe('un 403 di Google', () => {
 
   it('«troppe richieste» si riprova', async () => {
     const corpo = JSON.stringify({ error: { code: 403, message: 'User Rate Limit Exceeded', errors: [{ reason: 'userRateLimitExceeded' }] } })
+    const d = driveCon(new Response(corpo, { status: 403 }))
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
+    expect((await a.elenca()).size).toBe(0)
+    expect(d.chiamate()).toBe(2)
+  })
+
+  it('il Drive pieno no: aspettare non lo svuota', async () => {
+    const corpo = JSON.stringify({ error: { code: 403, message: "The user's Drive storage quota has been exceeded.", errors: [{ reason: 'storageQuotaExceeded' }] } })
+    const d = driveCon(new Response(corpo, { status: 403 }))
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
+    await expect(a.elenca()).rejects.toThrow(/403/)
+    expect(d.chiamate()).toBe(1)
+  })
+
+  it('la quota al minuto del 12/10 sì', async () => {
+    const corpo = JSON.stringify({ error: { code: 403, message: "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute per user'", errors: [{ reason: 'rateLimitExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
     const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
     expect((await a.elenca()).size).toBe(0)

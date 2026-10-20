@@ -256,7 +256,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
   const limiteDiVelocita = async (r: Response): Promise<boolean> => {
     if (r.status !== 403) return false
     const testo = await r.clone().text().catch(() => '')
-    return /rateLimitExceeded|userRateLimitExceeded|Quota exceeded|quotaExceeded/i.test(testo)
+    // Non «storageQuotaExceeded» (Drive pieno): quello non passa aspettando.
+    return /\b(user)?rateLimitExceeded\b|Quota exceeded for quota metric|per minute/i.test(testo)
   }
 
   // Con migliaia di file, un intoppo di rete o un limite momentaneo di Drive
@@ -388,7 +389,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           const stato = (e as { stato?: number }).stato
           // Un id ricordato che non c'e' piu': si dimentica e si rifa' il giro.
           if (stato === 404 && idPerNome.has(nome) && i < RITENTI) { idPerNome.delete(nome); continue }
-          if (i >= RITENTI || stato === undefined || !(transitorio(stato) || (stato === 403 && /rate ?limit|quota exceeded/i.test(String((e as Error).message))))) throw e
+          if (i >= RITENTI || stato === undefined || !(transitorio(stato) || (stato === 403 && /rate ?limit exceeded|quota exceeded for quota metric/i.test(String((e as Error).message))))) throw e
           await pausa(attesa); attesa *= 2
         }
       }
