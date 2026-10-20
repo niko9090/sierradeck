@@ -12,7 +12,8 @@ import { ROTTE_LENTE } from '../../src/main/pc-remoto'
 describe('le rotte lente dell’app', () => {
   it('comprendono quelle del ponte del PC', () => {
     const api = readFileSync(join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'java', 'it', 'ferrariconsulenze', 'sierradeck', 'Api.kt'), 'utf8')
-    const blocco = /val ROTTE_LENTE = setOf\(([\s\S]*?)\n\s*\)/.exec(api)?.[1] ?? ''
+    // Senza i commenti: una rotta citata in un commento non conta.
+    const blocco = (/val ROTTE_LENTE = setOf\(([\s\S]*?)\n\s*\)/.exec(api)?.[1] ?? '').replace(/\/\/.*$/gm, '')
     const app = new Set([...blocco.matchAll(/"(\/api\/[^"]+)"/g)].map((m) => m[1]))
     expect(app.size).toBeGreaterThan(0)
     expect(ROTTE_LENTE.filter((r) => !app.has(r))).toEqual([])

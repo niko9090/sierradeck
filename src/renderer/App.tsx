@@ -1293,7 +1293,13 @@ export function App(): React.JSX.Element {
     return () => clearTimeout(h)
   }, [aggiornamento.fase])
 
-  const { progress, setProgress, setEsito, load: caricaSessioni } = useSessionStore()
+  // Solo le azioni, che non cambiano mai (0.81.0): abbonarsi a tutto lo store
+  // ridisegnava l'intera finestra a ogni avanzamento dell'indice (7 volte al
+  // secondo durante un'indicizzazione) e a ogni elenco nuovo delle sessioni.
+  // L'avanzamento lo legge solo la schermata d'avvio, da sé.
+  const setProgress = useSessionStore((s) => s.setProgress)
+  const setEsito = useSessionStore((s) => s.setEsito)
+  const caricaSessioni = useSessionStore((s) => s.load)
 
   // L'elenco arriva **nuovo** a ogni giro di polling (5s): senza confronto,
   // `setAutopiloti` cambierebbe l'identità dello stato anche quando nulla è
@@ -1594,7 +1600,7 @@ export function App(): React.JSX.Element {
     // Prima del quarto di secondo: il fondo e basta, che è quello che si vede
     // comunque mentre la finestra si apre.
     return attesaVisibile ? (
-      <SchermataAvvio avanzamento={progress} />
+      <SchermataAvvioConAvanzamento />
     ) : (
       <div style={{ height: '100vh', background: 'var(--fondo)' }} />
     )
@@ -2282,4 +2288,10 @@ export function App(): React.JSX.Element {
       </Fumetti>
     </div>
   )
+}
+
+/** La schermata d'avvio con l'avanzamento dell'indice: si abbona lei, non tutta l'App. */
+function SchermataAvvioConAvanzamento(): React.JSX.Element {
+  const progress = useSessionStore((s) => s.progress)
+  return <SchermataAvvio avanzamento={progress} />
 }
