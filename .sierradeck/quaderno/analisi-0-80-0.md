@@ -1120,3 +1120,5 @@ La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
 
 - Nella corsa delle 17:36 i test veri sono 818 s; il resto è trasformazione e import (486 + 556 s), sommati sui processi.
 - **Con una sola suite alla volta tutti e due stanno sotto i 9 minuti** (290 s e 390 s, misura di c-324): i rossi per tempo erano carico, non test appesi. Il tetto di 20 minuti (c-24) ci sta dentro solo se le suite intere non girano in più chat insieme.
+
+**0.81.1 (20/10, c-289):** patch da `2a441dcb` (main 328e53f9 + versione). Porta c-310 (b25fd78b): «le chat chiuse non ricevono più giri né compiti». App Android invariata, 2.81.0 riallegata. Non installata. **Dopo l'installazione, tre gesti di Nicholas:** 1) l'autopilota «Recupero VisitaFacile» → «Sposta in…» → NexoraOS; 2) Workspace → «⋯» su «dentro al mio server nexora c'è gia un» → Elimina; 3) Workspace → «⋯» su «visitafacile» → Elimina. Tutti e due restano 30 giorni in «Eliminati». **Il visitafacile su DESKTOP non si tocca.**
