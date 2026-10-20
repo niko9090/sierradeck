@@ -879,6 +879,8 @@ const app = document.getElementById('app')
 var dentro = null
 // Una chat chiusa da te sul computer mentre la guardavi da qui (0.60.9): lo si dice, una riga.
 var notaChiusa = ''
+/** «Apri cartella» (0.82.0): perché la cartella non si è aperta. */
+var notaCartella = ''
 var righeDentro = []
 var cartelle = null
 // Le stesse righe con i loro colori: si vestono qui, nel telefono.
@@ -1724,7 +1726,7 @@ function impronta(s) {
     // Le scelte fanno comparire e sparire dei pulsanti: se non entrano
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
     scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
-    notaScelta || '',
+    notaScelta || '', notaCartella,
     // I «?» aperti (0.71.0): senza, il tocco cambiava aiutiAperti e la pagina non si ridisegnava.
     JSON.stringify(aiutiAperti),
     // **Anche cio' che si e' letto apposta.** Il dettaglio di un autopilota,
@@ -2058,6 +2060,7 @@ function pannello(s) {
             : '<button onclick="chiediAzione(\\'dormi\\', \\'' + escJs(aperta.id) + '\\')">Metti a dormire</button>'}
           <button class="pericolo" onclick="chiediAzione('chiudi', '\${escJs(aperta.id)}')">Chiudi la chat…</button>
         </div>
+        <div class="riga"><button onclick="apriCartella({ chat: '\${escJs(aperta.id)}' })">📁 Apri cartella</button></div>
         \${aperta.sessione ? '<div class="riga gc-riga">' + gcTastiHtml(aperta.sessione, aperta.titolo || aperta.cwd, 'c-' + aperta.id) + '</div>' : ''}
         \${((s.workspace && s.workspace.nomi) || []).length > 1 ? \`
         <div class="riga">
@@ -2543,6 +2546,8 @@ function pannello(s) {
         ? '<div class="sotto" style="margin-top:10px"><b>Su altri PC</b>' + aiuto('su-altri-pc', 'Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.') + '</div>' +
           (s.workspace.altrove || []).map((p) => '<div class="sotto">' + esc(p.nome) + ': ' + p.workspace.map(esc).join(', ') + '</div>').join('')
         : '') +
+      // «Apri cartella» (0.82.0): la sezione File sulla cartella del progetto del workspace.
+      (attivoWs ? '<div class="riga"><button onclick="apriCartella({ workspace: \\'' + escJs(attivoWs) + '\\' })">📁 Apri cartella</button></div>' : '') +
       '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
       '<button onclick="creaWorkspace()">Crea</button></div>' +
       (attivoWs ? '<div class="riga"><input id="ws-rinomina" placeholder="nome nuovo per «' + esc(attivoWs) + '»">' +
@@ -2574,6 +2579,7 @@ function pannello(s) {
       (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
     chat: driveScollegatoHtml(s) +
       (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
+      (notaCartella ? '<div class="nota-chiusa" role="status">' + esc(notaCartella) + ' <button class="riga-altro" onclick="notaCartella=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
       (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
       (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
       '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
@@ -3656,6 +3662,26 @@ async function fileVai(progetto, percorso) {
     else fileErrore = fileMotivo(e)
   }
   pannello(ultimoStato)
+}
+/**
+ * «Apri cartella» (0.82.0): il PC trova la cartella del progetto del workspace
+ * o della chat e il progetto della sezione File che la contiene; qui si apre
+ * File lì. Se non si può (la cartella è su un altro PC, non c'è) lo si dice.
+ */
+window.apriCartella = async (q) => {
+  notaCartella = ''
+  var r
+  try { r = await chiedi('/api/file/cartella', q) } catch (e) {
+    notaCartella = e && e.stato === 404 ? 'Questo computer non sa ancora aprire le cartelle: arriva aggiornandolo alla 0.82.0.' : fileMotivo(e)
+    pannello(ultimoStato)
+    return
+  }
+  // Il 409 non solleva: torna con il motivo (la cartella è su un altro PC, non c'è).
+  if (!r || r.errore || !r.progetto) { notaCartella = (r && r.errore) || 'Il computer non ha detto dove sta la cartella.'; pannello(ultimoStato); return }
+  await leggiFileProgetti()
+  if (scheda !== 'file') vaiScheda('file')
+  fileNota = ''
+  await fileVai(r.progetto, r.percorso || '')
 }
 window.fileApri = (el) => { fileNota = ''; fileVai(el.dataset.p, el.dataset.r || '') }
 window.fileProgettiTutti = () => { if (fileVista && fileVista.url) URL.revokeObjectURL(fileVista.url); fileDove = null; fileElenco = null; fileVista = null; filePin = null; fileNota = ''; pannello(ultimoStato) }

@@ -40,7 +40,8 @@ enum class FunzionePc(val minima: String, val nome: String) {
     INSTALLA_LA("0.56.2", "Aggiornare gli altri PC dal telefono («Installa là»)"),
     QUADERNO_PERSONALE("0.57.0", "Il quaderno personale"),
     PANNELLO_DRIVE("0.58.0", "Il pannello delle chat e dei progetti del Drive"),
-    GESTIONE_CHAT("0.79.0", "Archiviare ed eliminare le chat dal PC, lo spazio delle chat e il recupero")
+    GESTIONE_CHAT("0.79.0", "Archiviare ed eliminare le chat dal PC, lo spazio delle chat e il recupero"),
+    CARTELLA("0.82.0", "«Apri cartella» di un workspace o di una chat")
 }
 
 /** La versione del computer a cui si è collegati, quando la si sa. */

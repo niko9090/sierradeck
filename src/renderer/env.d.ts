@@ -500,6 +500,8 @@ declare global {
         remote: () => Promise<Record<string, number>>
         altriPc: () => Promise<{ pc: string; nome: string; workspace: string[] }[]>
         apriDaAltroPc: (pc: string, nome: string) => Promise<{ ok: boolean; messaggio: string }>
+        /** «Apri cartella» (0.82.0): la cartella del progetto del workspace o della chat, in Esplora file. */
+        apriCartella: (q: { workspace: string } | { chat: string }) => Promise<{ ok: boolean; messaggio: string }>
         crea: (nome: string, cartella?: string) => Promise<StatoWorkspace>
         elimina: (nome: string) => Promise<StatoWorkspace>
         recupero: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>

@@ -95,7 +95,7 @@ describe('le regole pure', () => {
     expect(leggiIdDomandaConferma('d-autopilota')).toBeUndefined()
   })
   it('le rotte nuove passano dal ponte e dal canale WebRTC', () => {
-    for (const r of ['/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta']) {
+    for (const r of ['/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/file/cartella', '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta']) {
       expect(ROTTE_PONTE).toContain(r)
       expect(ROTTE_VIA_CANALE).toContain(r)
     }
@@ -206,6 +206,13 @@ async function portatile(cartellaCoda?: string): Promise<PcFinto> {
     pin: g,
     allegati: apriAllegati({ cartella: tmp('sd-ft-lav-'), segnaInternet: false }),
     fileProgetti: apriFileProgetti({ candidati: async () => [cwd, segreto], home: 'C:\\Users\\Esempio' }),
+    // «Apri cartella» (0.82.0): la cartella la dicono i dati del PC; qui, d'esempio.
+    cartellaDaAprire: async (q: { workspace?: string; chat?: string }) =>
+      q.chat === 'p-1' ? { tipo: 'qui', cartella: join(cwd, 'docs') }
+        : q.workspace === 'Clienti' ? { tipo: 'qui', cartella: cwd }
+          : q.workspace === 'Lontano' ? { tipo: 'altrove', pcNome: 'PC-ALTRO' }
+            : q.workspace === 'Fuori' ? { tipo: 'qui', cartella: tmpdir() }
+              : { tipo: 'niente', perche: 'questa chat non c’è più' },
     alTelefono: coda
   } as unknown as DipendenzeRotte)
   const s = creaServerClient({ dispositivi, chiaveDiCasa: () => K, rotta: (r) => rotte(r) })
@@ -238,6 +245,22 @@ describe('le rotte della sezione File, dal telefono', () => {
     expect((await tel('/api/pin/sblocca', { chat: 'p-2', pin: '0000' })).stato).toBe(403)
     expect((await tel('/api/pin/sblocca', { chat: 'p-2', pin: '4821' })).stato).toBe(200)
     expect((await tel('/api/file/elenco', { progetto: pc.segreto, percorso: '' })).stato).toBe(200)
+  })
+  it('«Apri cartella» (0.82.0): il progetto e il percorso per la sezione File; altrove o fuori dai progetti, il motivo', async () => {
+    const pc = await portatile()
+    const tel = (p: string, c: Record<string, unknown>): ReturnType<typeof post> => post(pc.porta, p, c, pc.chiaveTelefono)
+    expect(await tel('/api/file/cartella', { chat: 'p-1' })).toEqual({ stato: 200, corpo: { progetto: pc.cwd, percorso: 'docs', cartella: join(pc.cwd, 'docs') } })
+    expect((await tel('/api/file/cartella', { workspace: 'Clienti' })).corpo).toMatchObject({ progetto: pc.cwd, percorso: '' })
+    const lontano = await tel('/api/file/cartella', { workspace: 'Lontano' })
+    expect(lontano).toEqual({ stato: 409, corpo: { errore: 'La cartella è su PC-ALTRO: aprila da lì.' } })
+    expect((await tel('/api/file/cartella', { chat: 'sparita' })).corpo.errore).toBe('Nessuna cartella da aprire: questa chat non c’è più.')
+    // Una cartella che non sta in nessun progetto noto non si sfoglia: si dice, e basta.
+    const fuori = await tel('/api/file/cartella', { workspace: 'Fuori' })
+    expect(fuori.stato).toBe(409)
+    expect(String(fuori.corpo.errore)).toMatch(/non è fra i progetti/)
+    expect((await tel('/api/file/cartella', {})).stato).toBe(400)
+    // Il percorso che torna è quello che /api/file/elenco accetta.
+    expect((await tel('/api/file/elenco', { progetto: pc.cwd, percorso: 'docs' })).stato).toBe(200)
   })
   it('traversal e cartelle estranee: 400 e 403, mai il contenuto', async () => {
     const pc = await portatile()
