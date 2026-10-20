@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
 
 /**
@@ -34,14 +34,28 @@ export function radiceGit(git: Git, cwd: string): string | undefined {
 
 /** Lo stesso percorso, scritto da git (barre in avanti) o da Node; su Windows senza maiuscole. */
 function stessaCartella(a: string, b: string): boolean {
-  const n = (x: string): string => {
-    let r = resolve(x)
-    // git scrive il percorso vero (collegamenti risolti): lo stesso per l'altro.
-    try { r = realpathSync.native(r) } catch { /* resta com'è */ }
-    r = r.replace(/[\\/]+$/, '')
-    return process.platform === 'win32' ? r.toLowerCase() : r
-  }
-  return n(a) === n(b)
+  return normale(a) === normale(b)
+}
+
+function normale(x: string): string {
+  let r = resolve(x)
+  // git scrive il percorso vero (collegamenti risolti): lo stesso per l'altro.
+  try { r = realpathSync.native(r) } catch { /* resta com'è */ }
+  r = r.replace(/[\\/]+$/, '')
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+/**
+ * La cartella è una sottocartella del progetto stesso (Revisione, 20/10): un
+ * autopilota su `repo/app` lavora in `<worktree>/app`, e git risale giustamente
+ * al worktree. La si riconosce perché il ramo la contiene già; la cartella
+ * rimasta di una chat chiusa dentro un altro worktree invece non è nel ramo.
+ */
+function sottocartellaDelRamo(git: Git, radice: string, cartella: string): boolean {
+  const rel = relative(normale(radice), normale(cartella))
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
+  const r = git(['ls-tree', '-d', '--name-only', 'HEAD', '--', rel.split(sep).join('/')], radice)
+  return r.codice === 0 && r.uscita !== ''
 }
 
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
@@ -128,7 +142,7 @@ export function salvaLavoro(git: Git, cartella: string, messaggio: string): bool
   // risalire git a quella, anche lei su un ramo `ap/…`, e il commit prendeva il
   // suo lavoro in corso.
   const radice = radiceGit(git, cartella)
-  if (radice === undefined || !stessaCartella(radice, cartella)) {
+  if (radice === undefined || !(stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella))) {
     console.warn(`[autopilota] non salvo in ${cartella}: non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
     return false
   }
