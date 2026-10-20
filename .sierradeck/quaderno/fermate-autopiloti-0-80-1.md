@@ -7,6 +7,21 @@ tag: ["0.80.1", "autopilota", "guardiano", "supervisore", "criteri"]
 # Perché
 Il 19/10 ci sono state 6 sospensioni per «una chat non dà segnali» e 1 per «il supervisore non ha detto se il lavoro è concluso». Nicholas ha chiesto una patch prima della 0.81.0 (c-184). Ramo `ap/ap-f1e631f5/c-12-0-80-1`, fatto a partire da v0.80.0 (a22c1df), non da main.
 
+# Pubblicata (20/10, NON installata)
+- **Release:** v0.80.1, tag 70463a6. Non è una bozza ed è la «latest». `latest/download/latest.yml` dice 0.80.1.
+- **Allegati (5):**
+  - installer 0.80.1 con il suo blockmap;
+  - `latest.yml`;
+  - `SierraDeck-2.80.0.apk`: `android/` non è cambiato, quindi è la stessa app 2.80.0 ricostruita release, firmata «O=Ferrari Consulenze», stessa dimensione dell'allegato della 0.80.0;
+  - `app-android.json`, che dice 2.80.0 per il programma 0.80.1.
+- **Controlli prima:**
+  - typecheck verde;
+  - guardia delle cancellazioni verde;
+  - suite intera: 4316 test passati, 2 saltati;
+  - gradle `testDebugUnitTest assembleDebug`: uscita 0.
+- **Revisione** (typescript-reviewer): niente di bloccante. La corsa su `daParte` è corretta (c7dd1e4).
+- **Trappola:** il worktree ha bisogno di `google-oauth.json` copiato dalla cartella principale (è in .gitignore), altrimenti `npm run pubblica` si ferma prima della build.
+
 # Cosa cambia
 1. **Chat muta → messa da parte, non sospensione.**
    - In `controllaChatFerme` (server.ts) `chiTace` non porta più a `stato: 'sospeso'`. La chiave della chat (`chatId`, o l'id dell'autopilota se la chat è una sola) finisce in `Autopilota.daParte`.
@@ -30,4 +45,9 @@ Il 19/10 ci sono state 6 sospensioni per «una chat non dà segnali» e 1 per «
   - È la richiesta di Nicholas («non sospende più»). Se serve, nella 0.81.0 si aggiunge una notifica «errore che blocca».
 - **Un test vecchio passava per caso:** «eliminare chiude anche le sue domande» usava un formato del supervisore che non esiste più (`domandaUtente`).
 - **Heredoc di Bash con Python:** `\\n` diventa un a capo vero dentro le stringhe TS. Per i testi con `\n` meglio usare Edit.
+- **Unione con il ramo di c-10** (notifiche 0.81.0, `avvisaFermo`):
+  - c'è un solo conflitto, in `server.ts`, dentro `controllaChatFerme`;
+  - si tiene la versione 0.80.1 («messa da parte»): lì non si sospende più, quindi non c'è nessun `avvisaFermo` da chiamare;
+  - gli altri `avvisaFermo`/`sospesoOra` di c-10 restano come sono.
+  - Con main (97f36c5) l'unione è pulita.
 - La pagina e l'app non leggono l'`esito` del traguardo, solo `tono` e testo: un esito nuovo non richiede cambi su `android/`.
