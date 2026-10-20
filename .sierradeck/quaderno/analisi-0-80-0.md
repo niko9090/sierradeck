@@ -1,6 +1,6 @@
 ---
 titolo: "Analisi 0.80.0: numeri misurati e problemi in ordine di importanza (PC, pagina, app)"
-quando: 2026-10-20T13:30:00+02:00
+quando: 2026-10-20T18:30:00+02:00
 tag: ["0.80.0", "analisi", "prestazioni", "memoria", "errori silenziosi", "codice doppio", "grafica"]
 ---
 
@@ -8,6 +8,19 @@ tag: ["0.80.0", "analisi", "prestazioni", "memoria", "errori silenziosi", "codic
 
 Fatta su main a 4416a72 (misure) e riletta su aafccdb (codice). Nessun codice cambiato.
 Le correzioni vengono dopo, su un ramo, ciascuna con il suo test e la Revisione.
+
+## Indice e stato al 20/10
+
+| Cosa | Dove sta |
+|---|---|
+| Numeri prima | §1 «I numeri» (come sono stati presi, tabella dei giri A/B/C) |
+| Numeri dopo | §«Numeri dopo (19/10 pomeriggio, main `836d2dd`, c-10)», §«Numeri dopo le correzioni di c-11 (19/10)» e §«Numeri del 20/10 e correzioni di c-18 (0.81.0)» (avvio, memoria, schermate, Drive, ponte) |
+| Elenco per importanza | §3 (come scritto il 19/10); §«Elenco aggiornato al 20/10: cosa resta, in ordine» (c-18) e §«Elenco aggiornato al 20/10, voce per voce» (in fondo: FATTO / IN PARTE / APERTO per ogni voce, controllato nel codice) |
+| Notifiche | §«Notifiche 0.81.0, la prova nella copia (20/10, c-17)» e la riga di c-241 nella tabella di c-11 |
+| Workspace sbagliati | §«Da togliere con «Elimina workspace»: i due workspace sbagliati del 19/10» |
+| Foto della grafica | Le foto del 19/10 sono in `note/foto-0-80-0/` della cartella principale (23 PNG di PC e pagina), fuori da git. Le cartelle `prima/` e `dopo/` di c-12 citate in `grafica-prima-0-80-0.md` non si trovano più sul disco: **mancano, le fa c-12** |
+
+**Non misurato il 20/10:** CPU con le chat al lavoro, il PC era al 100%; da rifare con misura-080.mjs dopo il rilascio.
 
 **Facce:**
 - **PC** = la finestra (`src/renderer`) e il processo principale (`src/main`);
@@ -593,6 +606,7 @@ In alternativa, il comando di oggi lanciato solo a macchina quieta: nessun altro
   - voci 9 e 10 (stato sbagliato a vista);
   - voci 3, 4 e 5 (il PC che lavora a vuoto ogni 2-10 s).
 - **Foto «prima» della grafica:** fatte da c-12 il 19/10. Sono in `foto-0-80-0/prima/` (fuori da git, mostrano percorsi della macchina). Le differenze fra PC, pagina e app, schermata per schermata, sono in `grafica-prima-0-80-0.md`, che va unita a questo elenco.
+- **Stato al 20/10:** quello che è fatto e quello che resta è in §«Elenco aggiornato al 20/10, voce per voce», in fondo. Vale più delle «prime correzioni consigliate» qui sopra, che sono del 19/10.
 - **Dopo le correzioni** rifare le stesse misure con `misura-080.mjs` e mettere i numeri «dopo» accanto a questi.
 
 ## Appendice: lo script delle misure (`misura-080.mjs`)
@@ -967,3 +981,77 @@ Già fatte da c-11, c-12, c-15 e c-18 (vedi sopra e `correzioni-velocita-e-codic
 - Con le chat al lavoro la suite supera sempre i 10 minuti del tetto di prima: il criterio era rosso per tempo, non per i test.
 - Correzione (c-231, 459d0bae + 3a865b07): la suite ha **20 minuti** (`TIMEOUT_SUITE_TEST_MS`), gli altri criteri il tempo di prima; tetto dell'hook Stop da 900 a **3600 s**, perché i criteri girano dentro quell'hook.
 - 18 min 48 s sta sotto i 20, ma con poco margine: se il carico cresce ancora, la strada è la `--retry=1` della sezione 4 o misurare la suite solo a PC quieto.
+
+## Elenco aggiornato al 20/10, voce per voce
+
+Lo stato di ogni voce del §3 e dei criteri del §2 è stato **controllato nel codice di main** il 20/10 (`6c44234`, con le correzioni di c-18), non solo dai messaggi dei commit.
+
+- **FATTO** = la correzione c'è nel codice, con un test.
+- **IN PARTE** = c'è una parte; il resto è scritto accanto.
+- **APERTO** = come il 19/10.
+
+I numeri di riga del §3 sono quelli del 19/10 e nel frattempo si sono spostati.
+
+**Per rifare le misure con un'altra copia accesa:** `scripts/misure/prepara.mjs` e `misura.mjs` accettano `SD_MISURE_PORTA` e `SD_MISURE_DEBUG`, per esempio `SD_MISURE_PORTA=47680 SD_MISURE_DEBUG=9373`. In una copia con `node_modules` nuova bisogna prima scaricare Electron (scheda `electron-binario-in-copia-nuova.md`).
+
+**In breve:**
+- dei 5 criteri del §2: 3 fatti (b1, b2, d) e 2 in parte (a, c);
+- delle 57 voci: 9 fatte (1, 2, 3, 4, 7, 9, 10, 13, 15), 7 in parte (5, 6, 11, 27, 29, 52, 56), 41 aperte;
+- le voci fatte sono tutte in Alta;
+- restano aperte in Alta le voci 8, 12 e 14. L'ordine di lavoro di c-18 (finestra all'84%, git sincrono del servizio, avvio, compressione nel main) è nella sottosezione «Elenco aggiornato al 20/10: cosa resta, in ordine», più sopra.
+
+### Criteri del §2
+
+| Voce | Stato | Commit | Cosa resta |
+|---|---|---|---|
+| (a) chat finite che non si chiudono | IN PARTE | aafccdb (da 12f85e0) | Punto 1 fatto: con il ramo mancante o già unito la chat si chiude prima della Revisione. Restano: nessun tetto ai tentativi di `chiudiChat` (punto 2); l'unione finale ripassa anche sulle chat finite (punto 3, ormai innocuo per i rami mancanti); il test con git vero (punto 4) |
+| (b1) cartella vuota per un progetto di un altro PC | FATTO | aa3579b | Il modale della chat nuova non dice ancora «vive su <PC>»: lo scrive solo il registro |
+| (b2) prima frase come nome del workspace | FATTO | c28e4a9 | — |
+| (c) workspace senza autopilota | IN PARTE | 2c00b19 | Sul PC c'è «Crea l'autopilota ?»; mancano pagina e app |
+| (d) workspace che cambia da solo, troppe notifiche | FATTO | 0c9d839, f35f7b8, b22892d, 468abbb, 903537c, b684c67, 14ce35e, 56cd778, 7da5f59, 0469fd3 | Da confermare con Nicholas le due scelte scritte in `workspace-che-cambia-da-solo-e-notifiche-0-80-0.md` |
+
+### Alta (1-15)
+
+| Voce | Stato | Commit | Cosa resta |
+|---|---|---|---|
+| 1 errori del main nel registro | FATTO | 6bdf5e9 | La falsa riga MaxListeners (Bassa) |
+| 2 `workspaces.json` riscritto vuoto | FATTO | 7680167 | — |
+| 3 due file riletti per chat ogni 2 s | FATTO | f27dd81 | — |
+| 4 Drive scaricato ogni 10 s | FATTO | 07d8f39 | — |
+| 5 pannello Drive e «Spazio delle chat» | IN PARTE | 9df8aa5, 225636e, e244ef9 | Il pannello del Drive manda ancora circa 524 KB (46 KB compressi) a ogni chiamata |
+| 6 autopiloti riletti interi | IN PARTE | d6647b5 | ETag/304 fatti. Mancano il tetto alle `decisioni` (serve il sì di Nicholas) e la rotta leggera senza gli archiviati |
+| 7 `/api/domande` moltiplicata | FATTO | 7df5bec | — |
+| 8 avvio di 8-9 s | APERTO | — | Manca anche la traccia delle fasi d'avvio |
+| 9 «quieto» blu nell'app | FATTO | 06d90db | Il ramo `else` resta blu |
+| 10 «Riavvia il computer ora» | FATTO | 79040275 (c-18) | — |
+| 11 due vocabolari per lo stato di una chat | IN PARTE | 395744d, 0469fd3 | «ferma» ora è uguale. Restano «aspetta che tu scelga» contro «aspetta te» e «spenta» contro «dorme»; manca una sola `statoChat` condivisa |
+| 12 «finito» verde e «da verificare» ambra | APERTO | — | — |
+| 13 pagina da 417 KB | FATTO | e244ef9 | — |
+| 14 APK non ridotto | APERTO | — | R8 va provato con un'installazione fatta da Nicholas |
+| 15 «0,0 MB» sulla pagina | FATTO | 79040275 (c-18) | — |
+
+### Media (16-35)
+
+| Voce | Stato | Cosa resta |
+|---|---|---|
+| 16-26 | APERTO | Nessuna correzione nel codice (adozioni, esito delle consegne, motivi del telefono, sottofondo a 500 ms, git di «File», dettaglio dell'autopilota, registri della Salute, memoria che cresce, traslochi, ponte WebRTC, JSON dell'app) |
+| 27 app che interroga in secondo piano | IN PARTE (d18a2e7) | `Davanti.pausa` c'è quasi ovunque. Restano `Drive.kt`, `Istruzioni.kt`, `PannelloDrive.kt` e `/api/aggiornamento` ogni 2 s in Computer |
+| 28 finestra ridotta a icona | APERTO | — |
+| 29 «?» piccolo e senza nome | IN PARTE (6ce2326) | Il nome «Spiegazione: …» c'è, ma lo passano solo 2 chiamate su 69; zona toccabile ancora 24 px / 32 dp |
+| 30-35 | APERTO | Spiegazioni nel `title`, `--blu` assente sulla pagina, spie del menu, colori a mano, testi lunghi senza «?», ricerca del Quaderno |
+
+In 23 la parte dei polsi è stata lasciata così di proposito: potarli cambierebbe lo storico della spesa.
+
+### Bassa (36-57)
+
+| Voce | Stato | Cosa resta |
+|---|---|---|
+| 36-51, 53-55 | APERTO | Nessuna correzione nel codice |
+| 52 rendering del PC | IN PARTE (46f2e657, c-18) | L'App non si abbona più a tutto lo store delle sessioni; resta `ricordaRighe` in `Terminal.tsx` |
+| 56 testi da sistemare | IN PARTE (14ce35e, 0469fd3) | «ha finito il turno» ora è uguale. Restano: il «lavoro finito» detto in due modi, «Versione pronta» solo nell'app, i due significati di «Chiudi», «Chiarore», i titoli delle Impostazioni dell'app, il Quaderno senza «?» |
+| 57 accessibilità | APERTO | — |
+
+**Da dove ripartire, al 20/10:**
+1. le voci aperte di Alta: 12 e 11 tolgono contraddizioni a vista, 8 richiede prima la traccia d'avvio, 14 aspetta Nicholas;
+2. le parti mancanti di (a) e (c);
+3. in Media, le voci 17 e 18, cioè gli errori ingoiati sulle consegne e sul telefono.
