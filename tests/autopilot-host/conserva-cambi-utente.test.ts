@@ -181,3 +181,20 @@ describe('0.81.0: l’annuncio a Nicholas non sparisce con la fotografia di iniz
     expect(conservaCambiUtente({ ...letto, cicli: 6 }, adesso, 'c-1', letto.decisioni.length).annuncio).toEqual(adesso.annuncio)
   })
 })
+
+describe('conservaCambiUtente — «Sposta in un altro workspace» (0.81.0)', () => {
+  it('lo spostamento fatto a turno in corso resta: il turno non rimette il workspace di prima', () => {
+    // Il caso di Nicholas: l'autopilota è al lavoro quando lo sposta. Il turno
+    // ha letto «Vecchio»; sul disco intanto c'è «Nuovo».
+    const letto: Autopilota = { ...base(), workspace: 'Vecchio' }
+    const calcolato: Autopilota = { ...letto, cicli: 6 }
+    const fresco: Autopilota = { ...letto, workspace: 'Nuovo' }
+
+    expect(conservaCambiUtente(calcolato, fresco, 'c-1', letto.decisioni.length).workspace).toBe('Nuovo')
+  })
+
+  it('senza spostamenti il workspace resta quello che era', () => {
+    const letto: Autopilota = { ...base(), workspace: 'Vecchio' }
+    expect(conservaCambiUtente({ ...letto }, { ...letto }, 'c-1', letto.decisioni.length).workspace).toBe('Vecchio')
+  })
+})

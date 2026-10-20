@@ -397,8 +397,6 @@ describe('ferma e riprendi', () => {
     // dopo il suo file non era piu' rileggibile e l'autopilota spariva
     // dall'elenco: per l'utente, «va in errore e si cancella».
     let domande = 0
-    // Prima di tutto: la domanda puo' scadere prima ancora che il test la veda.
-    const avvisi = vi.spyOn(console, 'warn')
     server = ambiente({
       interroga: (prompt) => {
         if (!prompt.includes('Stai preparando un autopilota')) {
@@ -409,6 +407,8 @@ describe('ferma e riprendi', () => {
       },
       scadenzaInterviataMs: 60
     })
+    // Prima di avviare: la domanda puo' scadere prima ancora che il test la veda.
+    const avvisi = vi.spyOn(console, 'warn')
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
       obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []

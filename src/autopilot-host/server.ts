@@ -336,6 +336,9 @@ export function conservaCambiUtente(
     riprendiAlRiavvio: fresco.riprendiAlRiavvio,
     tettoChat: fresco.tettoChat,
     limiti: fresco.limiti,
+    // «Sposta in un altro workspace» (0.81.0) si può fare a turno in corso:
+    // con la fotografia di inizio turno il workspace tornava quello di prima.
+    ...(fresco.workspace !== undefined ? { workspace: fresco.workspace } : {}),
     // Le chat messe da parte (0.80.1) le scrive il guardiano ogni 30 s, anche
     // mentre questo turno dura minuti: si prendono dal disco, togliendo solo
     // la chat di questo turno, che ha appena chiuso e quindi è viva.
@@ -2531,6 +2534,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    // «Sposta in un altro workspace» (0.81.0) a turno in corso.
+    if (conCambiUtente.workspace !== undefined) aggiornato.workspace = conCambiUtente.workspace
     aggiornato.daParte = conCambiUtente.daParte
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo

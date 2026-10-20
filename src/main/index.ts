@@ -4735,7 +4735,7 @@ if (!app.requestSingleInstanceLock()) {
         setInterval(() => { void giro() }, 120_000)
         setTimeout(() => { void giro() }, 30_000)
       }
-      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
+      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id), () => workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [])
       primaDiEliminareGlobale = {
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)

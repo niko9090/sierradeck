@@ -1498,7 +1498,9 @@ function annunciaCambio(
 export function registerAutopilotaIpc(
   client: ClientAutopilota,
   /** «Parte da solo» (0.55.0): il PC gli darà il via quando è pronto. */
-  partenzaSubito?: (id: string) => void
+  partenzaSubito?: (id: string) => void,
+  /** I workspace che ci sono, per «Sposta in…» (0.81.0): solo verso uno di questi. */
+  nomiWorkspace?: () => string[]
 ): void {
   ipcMain.handle('autopilota:elenca', async () => {
     await client.assicuraServizio()
@@ -1563,6 +1565,7 @@ export function registerAutopilotaIpc(
     client.archivia(validaIdAutopilota(id), archivia !== false))
   ipcMain.handle('autopilota:spostaInWorkspace', (_e, id: unknown, workspace: unknown) => {
     if (typeof workspace !== 'string' || workspace.trim() === '') throw new Error('richiesta IPC non valida')
+    if (nomiWorkspace !== undefined && !nomiWorkspace().includes(workspace)) throw new Error(`il workspace «${workspace}» non c’è su questo computer`)
     return client.spostaInWorkspace(validaIdAutopilota(id), workspace)
   })
   ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))

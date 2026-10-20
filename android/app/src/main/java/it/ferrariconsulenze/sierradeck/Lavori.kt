@@ -767,7 +767,13 @@ private fun AzioniAutopilota(api: Api, id: String, stato: String, workspace: Str
         }
     }
     TextButton(enabled = !inCorso, onClick = {
-        scope.launch { tentaGestione("leggere i workspace", SuPc.corrente?.nome) { api.stato().workspace.nomi }?.let { nomi -> if (nomi.any { it != workspace }) nomiWs = nomi else Nota.mostra("Sul computer non c’è un altro workspace.") } }
+        scope.launch { tentaGestione("leggere i workspace", SuPc.corrente?.nome) { api.stato().workspace.nomi }?.let { nomi ->
+            if (nomi.any { it != workspace }) {
+                nomiWs = nomi
+            } else {
+                Nota.mostra("Sul computer non c’è un altro workspace.")
+            }
+        } }
     }) {
         Text("Sposta in un altro workspace…" + if (!workspace.isNullOrBlank()) " (adesso «$workspace»)" else "", fontSize = 12.sp)
     }
