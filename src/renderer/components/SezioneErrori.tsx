@@ -15,7 +15,7 @@ type PcScelta = { id: string; nome: string }
  * resto dietro i «?».
  */
 export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; scegliPc?: (id: string | undefined) => void }): React.JSX.Element {
-  const [storico, setStorico] = useState<{ voci: VoceErrore[]; testo: string } | undefined>(undefined)
+  const [storico, setStorico] = useState<{ voci: VoceErrore[]; testo: string; arrivi?: string } | undefined>(undefined)
   const [tutti, setTutti] = useState(false)
   const [nota, setNota] = useState<string | undefined>(undefined)
   const [pc, setPc] = useState<PcScelta[]>([])
@@ -82,6 +82,11 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
         <button className="tasto" onClick={mandaOra} disabled={manda || pcSviluppo === undefined || voci.length === 0}>{manda ? 'Mando…' : 'Manda al PC di sviluppo'}</button>
         <Aiuto di="Manda al PC di sviluppo">Manda lo storico al PC scelto, firmato con la chiave di casa. Là arriva nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub: chi corregge il programma lo trova lì.</Aiuto>
       </div>
+      {storico?.arrivi !== undefined ? (
+        <div className="impostazioni__nota con-aiuto">{storico.arrivi}
+          <Aiuto di="Errori arrivati">Su questo PC di sviluppo gli errori arrivati diventano da soli un lavoro dell’autopilota «Errori arrivati» nel workspace di SierraDeck. Prima di toccare il codice ti manda un riepilogo, con una notifica sola. Poi corregge, con test e Revisione, e pubblica una release che non installa. Gli arrivi vicini vanno nello stesso lavoro. Se la settimana del piano è oltre l’80%, o se un altro autopilota lavora già su SierraDeck, aspetta e riparte da solo. A lavoro finito i file vanno nel recupero per 30 giorni.</Aiuto>
+        </div>
+      ) : null}
       {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
     </div>
   )

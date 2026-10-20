@@ -1229,6 +1229,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           ...(eFermo(a) ? { fermo: chiaveFermo(a) } : {}),
           // Messo da parte con «Archivia»: niente notifiche.
           ...(a.archiviato === true ? { archiviato: true } : {}),
+          // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»):
+          // pagina e app lo notificano una volta, per id.
+          ...(a.annuncio !== undefined ? { annuncio: { id: a.annuncio.id, titolo: a.annuncio.titolo } } : {}),
           // Dove lavora: serve al Quaderno, che e' quello che **lui** produce.
           // Dal telefono si leggeva la cartella della prima chat dell'elenco,
           // che con piu' progetti aperti e' semplicemente un'altra cosa.

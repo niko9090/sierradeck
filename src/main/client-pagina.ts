@@ -817,7 +817,7 @@ function sezioneErroriPagina() {
     '<div class="riga"><button onclick="leggiErrori()">Aggiorna</button><button onclick="copiaErrori()"' + (voci.length === 0 ? ' disabled' : '') + '>Copia</button>' +
     '<button onclick="mandaErrori()"' + (voci.length === 0 || !erroriPc.pcSviluppo ? ' disabled' : '') + '>Manda al PC di sviluppo</button>' +
     aiuto('errori-manda', 'Il computer manda lo storico al PC di sviluppo, firmato con la chiave di casa. Là arriva nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub.', 'Manda al PC di sviluppo') + '</div>' +
-    '<div class="sotto">' + dove + '</div>' + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
+    '<div class="sotto">' + dove + '</div>' + (erroriPc.arrivi ? '<div class="sotto">' + esc(erroriPc.arrivi) + '</div>' : '') + (notaErrori ? '<div class="sotto">' + esc(notaErrori) + '</div>' : '')
 }
 /** «Copia i dettagli» (0.56.0): versioni e collegamento in un testo solo, per chiedere aiuto. Niente chiavi. */
 window.copiaDettagli = async () => {
@@ -5676,6 +5676,11 @@ function avvisaSeServe(stato) {
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
     for (const a of (stato.autopilotiLetti === false ? [] : (stato.autopiloti || []))) {
+      // Un annuncio del programma (0.81.0, il riepilogo di «Errori arrivati»): una volta per id.
+      if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id]) {
+        avvisati['n-' + a.annuncio.id] = true
+        if (nuovo && a.archiviato !== true) nuovi.push({ tipo: 'annuncio', titolo: a.annuncio.titolo || a.nome, corpo: 'Il riepilogo è nella conversazione di «' + a.nome + '».', tag: 'n-' + a.id })
+      }
       if (a.stato === 'pronto') {
         if (avvisati['p-' + a.id]) continue
         avvisati['p-' + a.id] = true

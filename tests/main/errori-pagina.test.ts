@@ -20,7 +20,7 @@ const estrai = (inizio: string): string => {
 }
 
 type Voce = { ultima: string; volte: number; messaggio: string }
-function sezione(erroriPc: { voci: Voce[]; testo: string; pcSviluppo?: string } | null): string {
+function sezione(erroriPc: { voci: Voce[]; testo: string; pcSviluppo?: string; arrivi?: string } | null): string {
   const corpo = `
     var aiuto = function (id, t, di) { return '<button class="aiuto" data-aiuto="' + id + '">?</button>' }
     var esc = function (s) { return String(s).replace(/</g, '&lt;') }
@@ -57,5 +57,16 @@ describe('la voce «Errori» sulla pagina', () => {
   it('gli errori della pagina vanno al PC con «pagina» come posto, al massimo venti per volta', () => {
     expect(script).toContain("chiedi('/api/errori/aggiungi', { dove: 'pagina', errori: errori })")
     expect(estrai('function annotaErrore(')).toContain('erroriDaMandare.length < 20')
+  })
+
+  it('sul PC di sviluppo si vede cosa fa «Errori arrivati» (0.81.0)', () => {
+    const s = sezione({ voci: [], testo: '', arrivi: 'Errori arrivati (1 arrivo): li correggo appena finisce «App <Android>».' })
+    expect(s).toContain('li correggo appena finisce «App &lt;Android>»')
+    expect(sezione({ voci: [], testo: '' })).not.toContain('Errori arrivati')
+  })
+
+  it('il riepilogo di «Errori arrivati» si notifica una volta per id, come i lavori finiti', () => {
+    expect(script).toContain("if (a.annuncio && a.annuncio.id && !avvisati['n-' + a.annuncio.id])")
+    expect(script).toContain("tipo: 'annuncio'")
   })
 })

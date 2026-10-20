@@ -41,7 +41,7 @@ data class VoceErroreApp(
 
 /** Quello che `POST /api/errori` risponde: le voci, il testo di «Copia», il PC di sviluppo scelto sul PC. */
 @Serializable
-data class StoricoErroriPc(val voci: List<VoceErroreApp> = emptyList(), val testo: String = "", val pcSviluppo: String? = null)
+data class StoricoErroriPc(val voci: List<VoceErroreApp> = emptyList(), val testo: String = "", val pcSviluppo: String? = null, val arrivi: String? = null)
 
 @Serializable
 data class EsitoInvioErrori(val ok: Boolean = false, val messaggio: String = "")
@@ -163,6 +163,8 @@ fun SezioneErroriApp(api: Api) {
                 s.pcSviluppo?.let { "PC di sviluppo: $it" } ?: "Il PC di sviluppo si sceglie sul computer, in Impostazioni → Errori.",
                 color = Banco.testoQuieto, fontSize = 12.sp
             )
+            // «Errori arrivati» (2.81.0): sul PC di sviluppo, cosa ne sta facendo.
+            s.arrivi?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
         }
         nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)) }
     }

@@ -2064,6 +2064,26 @@ describe('una nota del programma nel diario (0.37.5)', () => {
   })
 })
 
+describe('un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»)', () => {
+  it('il riepilogo entra nella conversazione come battuta sua, con un id nuovo per la notifica sola', async () => {
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-e', nome: 'Errori arrivati', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      stato: 'lavoro'
+    })
+    expect((await chiama('POST', '/autopiloti/ap-e/annuncio', { titolo: 'Errori arrivati: il riepilogo', testo: '2 errori dalla pagina, causa capita' })).stato).toBe(200)
+    const a = archivio.leggi('ap-e')
+    expect(a?.dialogo.at(-1)).toMatchObject({ da: 'lui', testo: '2 errori dalla pagina, causa capita', traccia: true })
+    expect(a?.annuncio?.titolo).toBe('Errori arrivati: il riepilogo')
+    const primo = a?.annuncio?.id
+    await chiama('POST', '/autopiloti/ap-e/annuncio', { testo: 'un altro' })
+    expect(archivio.leggi('ap-e')?.annuncio?.id).not.toBe(primo)
+    expect((await chiama('POST', '/autopiloti/ap-e/annuncio', { testo: ' ' })).stato).toBe(400)
+    expect((await chiama('POST', '/autopiloti/nessuno/annuncio', { testo: 'x' })).stato).toBe(404)
+  })
+})
+
 describe('i tempi di ogni giro (0.71.0)', () => {
   it('una fermata si misura fase per fase e si legge da /tempi', async () => {
     const tempi = apriRegistroTempi(mkdtempSync(join(tmpdir(), 'ap-tempi-')))

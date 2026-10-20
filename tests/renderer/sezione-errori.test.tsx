@@ -19,4 +19,10 @@ describe('la voce «Errori» delle Impostazioni (0.81.0)', () => {
     const src = readFileSync('src/renderer/components/PannelloImpostazioni.tsx', 'utf8')
     expect(src).toContain("{vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}")
   })
+
+  it('sul PC di sviluppo mostra la riga di «Errori arrivati» con il suo «?»', () => {
+    const src = readFileSync('src/renderer/components/SezioneErrori.tsx', 'utf8')
+    expect(src).toContain('{storico?.arrivi !== undefined ? (')
+    expect(src).toContain('<Aiuto di="Errori arrivati">')
+  })
 })

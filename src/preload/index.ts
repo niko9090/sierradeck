@@ -724,7 +724,7 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   /** Lo storico degli errori di questo PC (0.81.0), con il testo di «Copia». */
   errori: {
-    storico: (): Promise<{ voci: unknown[]; testo: string }> => ipcRenderer.invoke('errori:storico'),
+    storico: (): Promise<{ voci: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),
     /** Manda lo storico al PC di sviluppo scelto nelle Impostazioni. */
     manda: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('errori:manda')
   },

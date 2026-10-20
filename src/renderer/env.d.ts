@@ -274,7 +274,7 @@ declare global {
       }
       /** Lo storico degli errori di questo PC (0.81.0): programma e servizio insieme. */
       errori: {
-        storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; testo: string }>
+        storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; testo: string; arrivi?: string }>
         manda: () => Promise<{ ok: boolean; messaggio: string }>
       }
       /** I file del progetto, di qua e sul suo server. */

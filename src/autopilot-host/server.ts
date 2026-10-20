@@ -3323,6 +3323,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // Un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»): il
+        // testo nella conversazione dell'autopilota, come una sua battuta, e
+        // l'id nuovo in `annuncio`, con cui PC, pagina e app mandano una
+        // notifica sola. Non è una battuta da elaborare: niente supervisore.
+        const annuncio = /^\/autopiloti\/([^/]+)\/annuncio$/.exec(percorso)
+        if (metodo === 'POST' && annuncio !== null) {
+          const id = decodeURIComponent(annuncio[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+          const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim().slice(0, 4000) : ''
+          const titolo = typeof corpo?.titolo === 'string' && corpo.titolo.trim() !== '' ? corpo.titolo.trim().slice(0, 120) : a.nome
+          if (testo === '') {
+            rispondi(res, 400, { errore: 'serve il testo' })
+            return
+          }
+          const quando = deps.adesso()
+          salva({
+            ...a,
+            dialogo: [...a.dialogo, { quando, da: 'lui' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO),
+            annuncio: { id: randomUUID(), titolo, quando }
+          })
+          rispondi(res, 200, { fatto: true })
+          return
+        }
+
         // Una nota nel diario dal programma (0.37.5): per esempio «il compito è
         // nella chat X ma non è partito», cosi' il supervisore la vede.
         const nota = /^\/autopiloti\/([^/]+)\/nota$/.exec(percorso)
