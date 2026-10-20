@@ -114,7 +114,8 @@ export function vociDecisioni(a: Autopilota): VoceDiario[] {
         dettaglio: accorcia(cosa.slice('configurato da sé:'.length))
       }
     }
-    if (cosa.startsWith('risposta tardiva:') || cosa.startsWith('risposta dell utente')) {
+    // «risposta tardiva (c-3): …» è quella di una chat della flotta (0.81.0: prima restava una riga grezza).
+    if (cosa.startsWith('risposta tardiva') || cosa.startsWith('risposta dell utente')) {
       const dopoDuePunti = cosa.slice(cosa.indexOf(':') + 1)
       return {
         quando: d.quando,

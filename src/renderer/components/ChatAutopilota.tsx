@@ -1,4 +1,4 @@
-import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
+import { AdessoAutopilota, MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -94,6 +94,9 @@ export function ChatAutopilota({
   return (
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
       <RigaDalVivo autopilota={autopilota} />
+      {/* 0.81.0 (Nicholas, 20/10): una riga per chat, anche quelle ferme o mai partite. */}
+      {/* Nella Panoramica le righe stanno nella sua sezione «Adesso», non due volte. */}
+      {soloConversazione ? null : <AdessoAutopilota autopilota={autopilota} />}
       <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
       {soloConversazione && eventi.length > 0 ? (
         <div className="chatap__eventi">

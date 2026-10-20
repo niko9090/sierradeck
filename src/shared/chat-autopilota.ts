@@ -51,7 +51,7 @@ export function conversazione(a: Autopilota): Battuta[] {
   // subito dopo la richiesta, nell'ordine in cui le ha fatte.
   for (const s of a.intervista) {
     metti({ quando: a.iniziatoIl, da: 'lui', testo: s.domanda, tono: 'domanda' })
-    metti({ quando: a.iniziatoIl, da: 'tu', testo: s.risposta })
+    metti({ quando: a.iniziatoIl, da: 'tu', testo: haiRisposto(s.risposta), dettaglio: 'L’ha usata per preparare il lavoro.' })
   }
 
   // Le domande e risposte della linguetta «Domande» (0.38.0) stanno nel
@@ -64,7 +64,8 @@ export function conversazione(a: Autopilota): Battuta[] {
     if (v.tipo === 'tu' && tracce.some((t) => t !== '' && (v.dettaglio ?? v.titolo).replace(/\s+/g, ' ').trim().startsWith(t.slice(0, 50)))) continue
     if (v.tipo === 'tu') {
       // Una tua risposta arrivata a una sua domanda: è una battuta tua.
-      metti({ quando: v.quando, da: 'tu', testo: v.dettaglio ?? v.titolo })
+      const testo = v.dettaglio ?? v.titolo
+      metti({ quando: v.quando, da: 'tu', testo: haiRisposto(testo), dettaglio: esitoRisposta(a, v.quando, testo) })
       continue
     }
     metti({
@@ -86,6 +87,12 @@ export function conversazione(a: Autopilota): Battuta[] {
   }
 
   for (const s of a.dialogo) {
+    // 0.81.0 (Nicholas, 20/10: «non mi sento partecipe»): la tua risposta a una
+    // sua domanda si legge come tale, con sotto cosa ne è stato fatto.
+    if (s.da === 'tu' && s.traccia === true) {
+      metti({ quando: s.quando, da: 'tu', testo: haiRisposto(s.testo), dettaglio: esitoRisposta(a, s.quando, s.testo) })
+      continue
+    }
     metti({
       quando: s.quando,
       da: s.da,
@@ -121,6 +128,53 @@ export function conversazione(a: Autopilota): Battuta[] {
   // che l'intervista resta domanda-risposta-domanda-risposta.
   righe.sort((x, y) => x.b.quando.localeCompare(y.b.quando) || x.ordine - y.ordine)
   return comprimiNote(righe.map((r) => r.b))
+}
+
+/** «Hai risposto: …» (0.81.0): la tua risposta si riconosce a colpo d'occhio. */
+export function haiRisposto(testo: string): string {
+  return `Hai risposto: ${testo.trim()}`
+}
+
+/** Quanto dopo una risposta si cerca la riga del servizio che l'ha usata. */
+const RISPOSTA_USATA_ENTRO_MS = 30 * 60_000
+
+/**
+ * Cosa ne è stato fatto della tua risposta (0.81.0), in una riga, dalle righe
+ * del servizio scritte dopo: chi l'ha ricevuta, se ha pubblicato o no. Se
+ * ancora niente l'ha usata, lo dice: è la differenza fra «l'ha letta» e «è
+ * caduta nel vuoto».
+ */
+export function esitoRisposta(a: Pick<Autopilota, 'decisioni' | 'chats' | 'stato'>, quando: string, risposta: string): string {
+  const da = Date.parse(quando)
+  if (Number.isNaN(da)) return 'Ricevuta.'
+  const pulito = (t: string): string => t.replace(/\s+/g, ' ').trim()
+  const inizio = pulito(risposta).slice(0, 20)
+  // È la sua solo se il servizio ripete le stesse parole: due risposte vicine
+  // non si scambiano l'esito.
+  const suo = (testo: string): boolean => inizio === '' || pulito(testo).startsWith(inizio)
+  const vicine = a.decisioni
+    .map((d) => ({ d, t: Date.parse(d.quando) }))
+    .filter(({ t }) => !Number.isNaN(t) && t >= da - 5_000 && t - da <= RISPOSTA_USATA_ENTRO_MS)
+    .sort((x, y) => Math.abs(x.t - da) - Math.abs(y.t - da))
+  for (const { d } of vicine) {
+    const cosa = d.cosa
+    const si = /^pubblicazione: hai detto sì \((.*)\)$/s.exec(cosa)
+    if (si !== null && suo(si[1] ?? '')) return 'Pubblica.'
+    const no = /^non pubblico: hai risposto «(.*)»$/s.exec(cosa)
+    if (no !== null && suo(no[1] ?? '')) return 'Non pubblica, come hai detto.'
+    const ricevuta = /^risposta (?:tardiva|dell utente)(?: \(([^)]+)\))?:\s*(.*)$/s.exec(cosa)
+    if (ricevuta === null || !suo(ricevuta[2] ?? '')) continue
+    const chat = a.chats.find((c) => c.id === ricevuta[1])
+    const chi = chat !== undefined ? `${chat.ruolo !== undefined ? nomeChi(chat) : chat.id} («${compitoBreve(chat.compito, 40)}»)` : 'La chat'
+    return `${chi} l’ha ricevuta e riprende il lavoro.`
+  }
+  // Nessuna traccia, ma il lavoro è andato avanti oltre la finestra: non si
+  // promette niente che non risulti.
+  const oltre = a.decisioni.some((d) => Date.parse(d.quando) - da > RISPOSTA_USATA_ENTRO_MS)
+  if (oltre) return 'Ricevuta.'
+  return a.stato === 'lavoro' || a.stato === 'attesa'
+    ? 'Ricevuta: la porto alla chat che l’aveva chiesta.'
+    : 'Ricevuta. L’autopilota è fermo: la userà quando riparte.'
 }
 
 /**

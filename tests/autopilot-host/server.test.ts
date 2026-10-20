@@ -171,6 +171,13 @@ describe('creazione ed elenco', () => {
     expect((await di()).status).toBe(200)
   })
 
+  // 0.81.0, «Adesso»: senza segni una chat è muta da quando il servizio li raccoglie.
+  it('l’elenco dice da quando il servizio raccoglie i segni, anche senza segni', async () => {
+    await creaAp()
+    const [a] = (await chiama('GET', '/autopiloti')).dati
+    expect(Number.isNaN(Date.parse(a.segniDal))).toBe(false)
+  })
+
   it('rifiuta una creazione senza obiettivo', async () => {
     expect((await chiama('POST', '/autopiloti', {
       cwd: process.cwd(), criteri: [{ descrizione: 'x' }]

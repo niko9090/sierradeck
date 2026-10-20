@@ -4,6 +4,7 @@ import { haDomandaAperta } from '@shared/chat-autopilota'
 import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
 import type { Colore } from '@shared/stato-vista'
 import { Aiuto } from './Aiuto'
+import { adessoDi, AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «io voglio sempre vedere
@@ -127,4 +128,35 @@ export function RigaDalVivoPronta({ dalVivo: s }: { dalVivo: StatoDalVivo | unde
 export function MessaggiPronti({ messaggi, onManda, inCorso }: { messaggi: StatoMessaggio[] | undefined; onManda: () => void; inCorso: boolean }): React.JSX.Element | null {
   if (messaggi === undefined || messaggi.length === 0) return null
   return <MessaggiCompattiVista messaggi={messaggi} onManda={onManda} inCorso={inCorso} />
+}
+
+/**
+ * Il riquadro «Adesso» (0.81.0): una riga per chat, cosa fa, da quanto, e se è
+ * ferma perché. Le righe le calcola `adessoDi`, la stessa della pagina e dell'app.
+ */
+export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = false }: {
+  autopilota: Autopilota
+  /** Dentro la sezione «Adesso» della Panoramica: senza titolo, ce l'ha già. */
+  dentro?: boolean
+  /** Solo le chat ferme: sotto le schede delle finestre, il resto lo dicono loro. */
+  soloFerme?: boolean
+}): React.JSX.Element | null {
+  const ora = useOra()
+  const tutto = adessoDi(a as Autopilota & SegniDalVivo, ora)
+  const righe = soloFerme ? tutto.righe.filter((r) => r.tono === 'ferma') : tutto.righe
+  const finite = soloFerme ? 0 : tutto.finite
+  if (righe.length === 0 && finite === 0) return null
+  return (
+    <div className={`adesso-ap${dentro ? ' adesso-ap--dentro' : ''}`} aria-label="Adesso">
+      {dentro ? null : <span className="serigrafia con-aiuto">Adesso<Aiuto di="il riquadro Adesso">{AIUTO_ADESSO}</Aiuto></span>}
+      {righe.map((r) => (
+        <div key={r.id} className={`adesso-ap__riga adesso-ap__riga--${r.tono}`}>
+          <b style={{ color: TINTA[COLORE_ADESSO[r.tono]] }}>{r.chi}</b>
+          <span className="adesso-ap__compito" title={r.compito}>{r.compito}</span>
+          <span className="adesso-ap__testo" style={{ color: r.tono === 'lavoro' ? undefined : TINTA[COLORE_ADESSO[r.tono]] }}>{r.testo}</span>
+        </div>
+      ))}
+      {finite > 0 ? <div className="adesso-ap__finite">{finite === 1 ? '1 chat finita' : `${finite} chat finite`}</div> : null}
+    </div>
+  )
 }

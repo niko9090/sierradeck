@@ -5145,3 +5145,14 @@ label.gc-voce { cursor: pointer; }
 .pan2-gestione { position: absolute; top: 6px; right: 86px; }
 .pan2-chatferma .pan2-gestione { top: auto; bottom: 4px; }
 .pan2-gestione .comando-riquadro { font-size: 12px; }
+
+/* Il riquadro «Adesso» (0.81.0): una riga per chat, le ferme in cima. */
+.adesso-ap { padding: 6px 10px; border-bottom: 1px solid var(--bordo); display: grid; gap: 2px; }
+/* Dentro la sezione «Adesso» della Panoramica: senza bordo, allineato alle schede. */
+.adesso-ap--dentro { padding: 4px 0; border-bottom: none; }
+.adesso-ap__riga { display: flex; gap: 8px; align-items: baseline; font-size: var(--t1); min-width: 0; }
+.adesso-ap__riga b { flex: none; }
+.adesso-ap__compito { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
+.adesso-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adesso-ap__riga--ferma .adesso-ap__testo { white-space: normal; }
+.adesso-ap__finite { font-size: var(--t1); color: var(--testo-quieto); }

@@ -18,6 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
@@ -325,6 +329,7 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                     }
                     // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
                     (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it) }
+                    det?.adesso?.let { AdessoVista(it) }
                     MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
                         scopeMessaggi.launch {
                             try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id) } catch (_: Exception) { }
@@ -1511,6 +1516,33 @@ fun DalVivo(v: StatoDalVivo) {
         v.senzaSegni?.let { Text(" · ⚠ $it", color = Banco.ambra, fontSize = 12.sp) }
     }
     if (v.ultimaAzione.isNotBlank()) Text(v.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+}
+
+/** Il riquadro «Adesso» (PC 0.81.0): una riga per chat, le ferme in cima e in rosso. */
+@Composable
+fun AdessoVista(a: Adesso) {
+    if (a.righe.isEmpty() && a.finite == 0) return
+    Spacer(Modifier.height(6.dp))
+    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(6.dp)).padding(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Adesso", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Aiuto(a.aiuto, di = "Adesso")
+        }
+        a.righe.forEach { r ->
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(r.chi) }
+                    if (r.compito.isNotBlank()) withStyle(SpanStyle(color = Banco.testoQuieto)) { append(" · ${r.compito}") }
+                    append(" — ")
+                    withStyle(SpanStyle(color = coloreVista(coloreAdesso(r.tono)))) { append(r.testo) }
+                },
+                color = Banco.testo,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 3.dp)
+            )
+        }
+        righeFinite(a.finite)?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp)) }
+    }
 }
 
 /**

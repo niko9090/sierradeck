@@ -194,6 +194,12 @@ export type ChatGovernata = {
   rifacimenti?: number
   /** L'ultima cosa che ha detto a fine turno, in una riga (0.73.0): la scheda la mostra accanto al ruolo. */
   ultimaAzione?: string
+  /**
+   * Da quando è nello stato che ha (ISO, 0.81.0): per il riquadro «Adesso»,
+   * «al lavoro da 12 min», «aspetta te da 1 h». Lo scrive il salvataggio del
+   * servizio quando lo stato cambia (`conStatiDatati`).
+   */
+  dal?: string
 }
 
 /** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
@@ -564,7 +570,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(revisioneDi !== undefined ? { revisioneDi } : {}),
     ...(o.approvata === true ? { approvata: true } : {}),
     ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {}),
-    ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {})
+    ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {}),
+    ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {})
   }
 }
 
@@ -1030,6 +1037,24 @@ export function conMomentoDelFermo(a: Autopilota, adesso: string): Autopilota {
   if (a.fermatoIl === undefined && a.archiviato === undefined) return a
   const { fermatoIl: _f, archiviato: _a, ...resto } = a
   return resto
+}
+
+/**
+ * Segna da quando ogni chat è nello stato che ha (0.81.0, riquadro «Adesso»).
+ * `prima` è la copia salvata: una chat nuova, o che ha cambiato stato, prende
+ * `adesso`; le altre tengono il loro `dal`, anche se il calcolo lo aveva perso.
+ */
+export function conStatiDatati(a: Autopilota, prima: Autopilota | undefined, adesso: string): Autopilota {
+  let cambiato = false
+  const chats = a.chats.map((c) => {
+    const vecchia = prima?.chats.find((x) => x.id === c.id)
+    // Una chat nata prima del campo resta senza: «da quanto» non si inventa.
+    const dal = vecchia !== undefined && vecchia.stato === c.stato ? (vecchia.dal ?? c.dal) : adesso
+    if (dal === c.dal || dal === undefined) return c
+    cambiato = true
+    return { ...c, dal }
+  })
+  return cambiato ? { ...a, chats } : a
 }
 
 /**

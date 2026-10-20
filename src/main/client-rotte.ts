@@ -22,6 +22,7 @@ import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/aut
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
+import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
@@ -1477,6 +1478,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
         // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.69.0).
         dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
+        // 0.81.0 (Nicholas, 20/10): una riga per chat, anche le ferme o mai partite.
+        adesso: { ...adessoDi(a as Autopilota & SegniDalVivo, adesso()), aiuto: AIUTO_ADESSO },
         messaggi: statoMessaggi(a, adesso(), oraBreve),
         // I tempi dei suoi giri (0.71.0): quanto ci mette, e dove.
         ...(await (async () => { const t = await deps.tempiAutopilota?.(id).catch(() => undefined); return t !== undefined ? { tempi: t } : {} })())

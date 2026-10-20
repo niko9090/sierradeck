@@ -50,7 +50,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, eFermo, riparteDaSolo } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -535,6 +535,11 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
+  // 0.81.0: da quando il servizio raccoglie i segni di vita. Prima di un
+  // riavvio non ne ha nessuno: «nessun segno» si misura da qui, non dall'eterno.
+  const segniDal = deps.adesso()
+  // L'ultimo salvato di ogni autopilota, per non rileggere il file a ogni giro.
+  const salvati = new Map<string, Autopilota>()
   // Un fermo avvisa solo se aspetta Nicholas (0.81.0): la pausa per i limiti del
   // piano o per un aggiornamento riparte da sola, e resta solo nel registro.
   const avvisaFermo = (a: Autopilota): void => {
@@ -543,7 +548,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
-    deps.archivio.scrivi(conMomentoDelFermo({ ...a, ultimoEvento: ora }, ora))
+    // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
+    const datato = a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a
+    salvati.set(a.id, datato)
+    deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }
 
   /**
@@ -3311,7 +3319,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const testo = JSON.stringify(deps.archivio.elenca().map((a) => {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
             const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
-            return segni.length === 0 ? a : { ...a, ultimoSegno: new Date(Math.max(...segni)).toISOString() }
+            if (segni.length === 0) return { ...a, segniDal }
+            // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
+            const segniChat: Record<string, string> = {}
+            if (a.chats.length > 0) {
+              for (const c of a.chats) {
+                const t = ultimoSegnale(chiaveTurno(a.id, c.id))
+                if (t !== undefined) segniChat[c.id] = new Date(t).toISOString()
+              }
+            }
+            return { ...a, segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}) }
           }))
           // 0.81.0: «non cambiato» (304) a chi ha già questo elenco. Lo chiedono
           // finestre, pannello e telefono ogni 2-5 s, e un autopilota con
