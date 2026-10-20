@@ -370,6 +370,15 @@ export function conDivieti(esegui: Esecutore): Esecutore {
 export const CODICE_RIFIUTATO = 126
 
 /**
+ * Il criterio è rosso solo perché il suo tempo è scaduto (lo dice la riga che
+ * `esecutoreReale` aggiunge in fondo all'uscita). Sul PC carico di chat al
+ * lavoro capita a comandi sani: per questo si rimisura una volta (0.80.1).
+ */
+export function scadutoPerTempo(codice: number, uscita: string): boolean {
+  return codice !== 0 && /\[comando interrotto dopo \d+s\]$/.test(uscita.trimEnd())
+}
+
+/**
  * Esegue i criteri che hanno un comando, in ordine.
  *
  * In ordine e non in parallelo: sono comandi di build e di test sulla stessa
@@ -386,7 +395,17 @@ export async function eseguiCriteri(
     const comando = criterio.comando
     if (comando === undefined) continue
     try {
-      const { codice, uscita } = await esegui(comando, cwd)
+      let { codice, uscita } = await esegui(comando, cwd)
+      // 0.80.1: un rosso per tempo scaduto non si conta subito. Si rimisura una
+      // volta da solo; se scade ancora, allora è rosso davvero.
+      if (scadutoPerTempo(codice, uscita)) {
+        console.warn(`[criterio] «${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
+        const seconda = await esegui(comando, cwd)
+        codice = seconda.codice
+        uscita = scadutoPerTempo(seconda.codice, seconda.uscita)
+          ? `[rimisurato una volta: scaduto di nuovo]\n${seconda.uscita}`
+          : seconda.uscita
+      }
       esiti.push({
         descrizione: criterio.descrizione,
         comando,
