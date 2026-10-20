@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { execFileSync } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -68,12 +68,44 @@ describe('lettura di git', () => {
 })
 
 // git vero: con la macchina carica da altre chat supera i 20 s di regola.
+/**
+ * Ogni avvio di git, col PC carico, costa da 0,5 a 4 s (20/10: il test faceva
+ * circa 36 avvii e arrivava a 40-60 s). Per questo autore e configurazione
+ * passano dall'ambiente invece che da tre `git config`, e le chiamate al diff,
+ * che ricalcolano tutto l'elenco, passano da un git vero che ricorda le
+ * risposte: il repository non cambia fra una chiamata e l'altra, quindi la
+ * stessa domanda ha la stessa risposta.
+ */
+const ambienteGit = {
+  ...process.env,
+  GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
+  GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.autocrlf', GIT_CONFIG_VALUE_0: 'false'
+}
+
+type Risposta = { codice: number; uscita: string }
+function gitCheRicorda(): (args: string[], cwd: string) => Promise<Risposta> {
+  const viste = new Map<string, Promise<Risposta>>()
+  return (args, cwd) => {
+    const chiave = cwd + '|' + args.join('|')
+    let r = viste.get(chiave)
+    if (r === undefined) {
+      r = new Promise((ok) => {
+        execFile('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8', windowsHide: true, env: ambienteGit }, (err, stdout) => {
+          ok({ codice: err === null ? 0 : typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1, uscita: stdout ?? '' })
+        })
+      })
+      viste.set(chiave, r)
+    }
+    return r
+  }
+}
+
 describe('con un repository git vero', { timeout: 60_000 }, () => {
   it('file in commit dalla partenza e file da salvare, con il diff', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-file-'))
     try {
-      const g = (...a: string[]): string => execFileSync('git', a, { cwd: dir, encoding: 'utf8' })
-      g('init', '-q'); g('config', 'user.email', 't@t'); g('config', 'user.name', 't'); g('config', 'core.autocrlf', 'false')
+      const g = (...a: string[]): string => execFileSync('git', a, { cwd: dir, encoding: 'utf8', env: ambienteGit })
+      g('init', '-q')
       writeFileSync(join(dir, 'a.txt'), 'uno\ndue\n'); g('add', '.'); g('commit', '-qm', 'base')
       const base = g('rev-parse', 'HEAD').trim()
       writeFileSync(join(dir, 'b.txt'), 'nuovo\n'); g('add', '.'); g('commit', '-qm', 'lavoro')
@@ -86,11 +118,12 @@ describe('con un repository git vero', { timeout: 60_000 }, () => {
         { percorso: 'sub/c.txt', stato: 'nuovo', piu: 2, meno: 0, salvato: false },
         { percorso: 'b.txt', stato: 'nuovo', piu: 1, meno: 0, salvato: true }
       ])
-      const d = await diffDellAutopilota(a, 'principale', 'a.txt')
+      const git = gitCheRicorda()
+      const d = await diffDellAutopilota(a, 'principale', 'a.txt', git)
       expect(leggiDiff(d).righe.filter((r) => r.tipo === 'piu').map((r) => r.testo)).toEqual(['DUE'])
-      expect(await diffDellAutopilota(a, 'principale', 'sub/c.txt')).toContain('+x')
-      await expect(diffDellAutopilota(a, 'principale', '../fuori.txt')).rejects.toThrow()
-      await expect(diffDellAutopilota(a, 'principale', 'non-cambiato.txt')).rejects.toThrow()
+      expect(await diffDellAutopilota(a, 'principale', 'sub/c.txt', git)).toContain('+x')
+      await expect(diffDellAutopilota(a, 'principale', '../fuori.txt', git)).rejects.toThrow()
+      await expect(diffDellAutopilota(a, 'principale', 'non-cambiato.txt', git)).rejects.toThrow()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
