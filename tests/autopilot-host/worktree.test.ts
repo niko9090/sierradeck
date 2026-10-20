@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
+import { cpSync, mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -18,17 +18,31 @@ const esegui = (args: string[], cwd: string): string => {
   return r.uscita
 }
 
+// Il repository di partenza si crea una volta sola e si copia per ogni test (20/10).
+// Prima ogni test lanciava sei processi git nel beforeEach: col PC al 100% un
+// processo costa un secondo o più, e il beforeEach (20 s di regola) cadeva
+// anche nei test che git non lo usano.
+let modello = ''
+beforeAll(() => {
+  modello = join(mkdtempSync(join(tmpdir(), 'sd-wt-modello-')), 'progetto')
+  mkdirSync(modello)
+  esegui(['init', '-q', '-b', 'main'], modello)
+  esegui(['config', 'user.name', 'Prova'], modello)
+  esegui(['config', 'user.email', 'prova@example.com'], modello)
+  esegui(['config', 'core.autocrlf', 'false'], modello)
+  // Ogni commit e ogni merge lanciano anche `git maintenance run --auto --detach`:
+  // un processo in più, che resta in sottofondo a pesare sul PC. Qui non serve.
+  esegui(['config', 'maintenance.auto', 'false'], modello)
+  esegui(['config', 'gc.auto', '0'], modello)
+  writeFileSync(join(modello, 'a.txt'), 'uno\n')
+  esegui(['add', '-A'], modello)
+  esegui(['commit', '-q', '-m', 'inizio'], modello)
+})
+
 let progetto = ''
 beforeEach(() => {
   progetto = join(mkdtempSync(join(tmpdir(), 'sd-wt-')), 'progetto')
-  mkdirSync(progetto)
-  esegui(['init', '-q', '-b', 'main'], progetto)
-  esegui(['config', 'user.name', 'Prova'], progetto)
-  esegui(['config', 'user.email', 'prova@example.com'], progetto)
-  esegui(['config', 'core.autocrlf', 'false'], progetto)
-  writeFileSync(join(progetto, 'a.txt'), 'uno\n')
-  esegui(['add', '-A'], progetto)
-  esegui(['commit', '-q', '-m', 'inizio'], progetto)
+  cpSync(modello, progetto, { recursive: true })
 })
 
 // git vero (worktree, commit, unione): con la macchina carica da altre chat supera i 20 s di regola.
