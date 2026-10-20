@@ -966,3 +966,30 @@ Già fatte da c-11, c-12, c-15 e c-18 (vedi sopra e `correzioni-velocita-e-codic
 - Con le chat al lavoro la suite supera sempre i 10 minuti del tetto di prima: il criterio era rosso per tempo, non per i test.
 - Correzione (c-231, 459d0bae + 3a865b07): la suite ha **20 minuti** (`TIMEOUT_SUITE_TEST_MS`), gli altri criteri il tempo di prima; tetto dell'hook Stop da 900 a **3600 s**, perché i criteri girano dentro quell'hook.
 - 18 min 48 s sta sotto i 20, ma con poco margine: se il carico cresce ancora, la strada è la `--retry=1` della sezione 4 o misurare la suite solo a PC quieto.
+
+## Riepilogo prima e dopo per Nicholas (20/10 pomeriggio, c-10)
+
+**Come:** stessa copia e stessi script del 19/10 (`scripts/misure/prepara.mjs --conversazioni`, poi `misura.mjs avvia · apri · rotte · cpu · ferma`), su main `ec1c3002` con il ramo c-10, cioè quasi tutta la 0.81.0. PC al 100% di CPU e con poca memoria libera per le altre chat al lavoro. Un secondo avvio normale non è partito perché la memoria era finita: vale un avvio solo.
+
+| | Prima (19/10, `4416a72`) | Dopo (20/10, quasi 0.81.0) |
+|---|---|---|
+| Avvio normale, interfaccia | 7,6–9,2 s | **6,9–7,5 s** (c-18), **7,4 s** (qui, a macchina più carica) |
+| Avvio, pagina del telefono in ascolto | 2,8–7,7 s | 2,3–4,6 s |
+| Memoria del programma, vuoto (privata) | 340–380 MB | 323 MB a 15 s, 348 MB a 60 s |
+| Memoria del programma con 6 chat | 469 MB | 474 MB (finestra 87, main 152, pty-host 82): uguale |
+| CPU in 30 s, 6 chat ferme | 0,36 s ogni 15 s | finestra 0,73 s, main 0,41 s, GPU 0,47 s: poco; con le chat al lavoro va misurata sul PC vero |
+| Progetti (`/api/file/progetti`) | 177–272 ms | 38–72 ms |
+| Spazio delle chat | 1,8–2,3 s (6,4 s sul PC vero) | 0,3–0,8 s |
+| Pannello del Drive | 537 KB a ogni apertura | 605 KB, compresso sul filo (cresce con le chat) |
+| Pagina del telefono | 417 KB sul filo a ogni apertura | 121 KB, 0 riaprendo |
+| `/api/stato`, `/api/sessioni`, `/api/panoramica` | 8–72 ms | 13–22 ms (mediana) |
+| Primo giro di un PC nuovo sul Drive | 1886 richieste a Google | 982 (−48%) |
+| Ripristino dal Drive senza niente di nuovo | 27–28 s | 0,6 s |
+| Notifiche della pagina in 26 min di autopilota | 6 | 2, tutte utili |
+| `/api/negozio` la prima volta | 12,9 s | 24–29 s: è il catalogo scaricato da internet, dipende dalla rete; poi 30 ms |
+
+**Due cose nuove viste oggi** (Bassa, da mettere in elenco, nessuna correzione fatta qui):
+- **Primo avvio di una copia nuova: 166 s.** 147 s se ne vanno nella riga «11 chat rimappate nelle cartelle di qui» (13:47:49 → 13:50:16). È lo stesso lavoro del 19/10, che allora aveva preso 66 s a macchina meno carica. Succede solo nella copia, perché il registro dei progetti è vuoto (sul PC vero quelle chat sono `altrove`). Il lavoro però è sincrono e tiene l'interfaccia ferma: se capita a un PC nuovo, Nicholas vede la finestra vuota per minuti.
+- **Una riga `[ERRORE]` a ogni avvio**, `autopilota:elenca … il servizio autopilota non risponde sulla porta`: la finestra chiede l'elenco 300 ms prima che il servizio sia in ascolto. Si ripara da solo al giro dopo, ma sporca la conta degli errori, come il `MaxListenersExceededWarning` del 19/10. Rimedio: aspettare `in ascolto`, oppure trattare il primo rifiuto come «non ancora partito».
+
+**Cosa resta da misurare, e solo dopo che Nicholas installa la 0.81.0:** CPU con le chat al lavoro (`misura.mjs cpu` sul PC vero), ponte fra due PC, app su un telefono.
