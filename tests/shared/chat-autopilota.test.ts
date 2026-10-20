@@ -33,9 +33,9 @@ describe('conversazione', () => {
     const b = conversazione(a).slice(1, 5)
     expect(b.map((x) => [x.da, x.testo])).toEqual([
       ['lui', 'Quale suite di test?'],
-      ['tu', 'vitest'],
+      ['tu', 'Hai risposto: vitest'],
       ['lui', 'Anche il typecheck?'],
-      ['tu', 'sì']
+      ['tu', 'Hai risposto: sì']
     ])
     expect(b[0]?.tono).toBe('domanda')
   })
@@ -57,7 +57,7 @@ describe('conversazione', () => {
     expect(b.map((x) => x.da)).toEqual(['nota', 'tu', 'lui', 'tu'])
     expect(b[0]).toMatchObject({ tono: 'decisione', testo: 'Ha deciso: prosegui' })
     expect(b[2]).toMatchObject({ testo: 'Va bene, cambio il criterio.', dettaglio: 'cambio applicato' })
-    expect(b[3]).toMatchObject({ da: 'tu', testo: 'usa la cartella tests' })
+    expect(b[3]).toMatchObject({ da: 'tu', testo: 'Hai risposto: usa la cartella tests' })
   })
 
   it('«nessun cambio» non si legge accanto alla risposta: non dice niente', () => {

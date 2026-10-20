@@ -1,0 +1,136 @@
+import type { Autopilota, ChatGovernata } from './autopilota'
+import { compitoBreve, nomeChi } from './chat-autopilota'
+
+/**
+ * Il riquadro «Adesso» (0.81.0): una riga per chat, con cosa fa, da quanto,
+ * e se è ferma, perché.
+ *
+ * Nicholas, 20/10: «non mi sento partecipe». c-14 e c-15 sono rimaste ferme
+ * 844 minuti senza che nessuno glielo dicesse, mentre la scheda le dava «al
+ * lavoro». Qui lo stato di ogni chat si legge dai fatti: lo stato salvato, da
+ * quando (`dal`), l'ultimo segno di vita arrivato al servizio, la chat messa da
+ * parte (0.80.1).
+ *
+ * Pura: la calcola il PC, e la pagina e l'app mostrano le righe come sono.
+ */
+
+export type RigaAdesso = {
+  /** La chiave della chat: la sua nella flotta, l'autopilota per la chat sola. */
+  id: string
+  /** «Sviluppo», «Revisione», «Una chat»… */
+  chi: string
+  /** Il compito in poche parole. */
+  compito: string
+  /** La riga: «al lavoro da 12 min», «ferma da 40 min: non chiude un turno». */
+  testo: string
+  /** Il colore: `ferma` è quella che deve saltare all'occhio. */
+  tono: 'lavoro' | 'aspetta' | 'pausa' | 'ferma'
+}
+
+export type Adesso = {
+  righe: RigaAdesso[]
+  /** Le chat finite non hanno una riga ciascuna: solo quante sono. */
+  finite: number
+}
+
+/** Le informazioni dal vivo che il servizio aggiunge all'elenco (non salvate). */
+export type SegniDalVivo = {
+  ultimoSegno?: string
+  segniChat?: Record<string, string>
+}
+
+/** Una chat che non chiude un turno né dà segni da tanto è ferma, anche se è scritta «al lavoro». */
+export const MUTA_DA_MS = 15 * 60_000
+/** Aperta da tanto senza un turno chiuso né un segno: non è mai partita. */
+export const MAI_PARTITA_DA_MS = 10 * 60_000
+
+/** «3 min», «2 h 10 min», «1 g 4 h»: corto, da leggere in una riga. */
+export function durata(ms: number): string {
+  const min = Math.max(0, Math.floor(ms / 60_000))
+  if (min < 1) return 'meno di un minuto'
+  if (min < 60) return `${min} min`
+  const ore = Math.floor(min / 60)
+  if (ore < 24) return min % 60 === 0 ? `${ore} h` : `${ore} h ${min % 60} min`
+  const giorni = Math.floor(ore / 24)
+  return ore % 24 === 0 ? `${giorni} g` : `${giorni} g ${ore % 24} h`
+}
+
+const istante = (s: string | undefined): number | undefined => {
+  const t = Date.parse(s ?? '')
+  return Number.isNaN(t) ? undefined : t
+}
+
+const daQuanto = (dal: string | undefined, ora: number): string => {
+  const t = istante(dal)
+  return t === undefined ? '' : ` da ${durata(ora - t)}`
+}
+
+/** La riga di una chat della flotta. */
+function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): RigaAdesso {
+  // Senza ruolo «Una chat» non distingue niente: allora il suo nome, «c-14».
+  const base = { id: c.id, chi: c.ruolo !== undefined ? nomeChi(c) : c.id, compito: compitoBreve(c.compito) }
+  const dal = daQuanto(c.dal, ora)
+  if (a.stato !== 'lavoro') {
+    return { ...base, testo: `ferma: l’autopilota è ${a.stato === 'attesa' ? 'in attesa di te' : 'fermo'}`, tono: a.stato === 'attesa' ? 'aspetta' : 'ferma' }
+  }
+  if (a.daParte?.includes(c.id) === true) {
+    return { ...base, testo: `ferma${dal}: non chiude un turno, messa da parte. Torna da sola appena risponde`, tono: 'ferma' }
+  }
+  if (c.stato === 'bloccata') return { ...base, testo: `aspetta la tua risposta${dal}`, tono: 'aspetta' }
+  if (c.stato === 'pausa') return { ...base, testo: `in pausa per i limiti del piano${dal}`, tono: 'pausa' }
+  const segno = istante(a.segniChat?.[c.id])
+  const aperta = istante(c.dal)
+  if (c.cicli === 0 && segno === undefined && aperta !== undefined && ora - aperta >= MAI_PARTITA_DA_MS) {
+    return { ...base, testo: `non è ancora partita: aperta ${durata(ora - aperta)} fa, nessun segno`, tono: 'ferma' }
+  }
+  if (segno !== undefined && ora - segno >= MUTA_DA_MS) {
+    return { ...base, testo: `nessun segno da ${durata(ora - segno)}`, tono: 'ferma' }
+  }
+  const ultima = c.ultimaAzione !== undefined && c.ultimaAzione !== '' ? ` · ${c.ultimaAzione}` : ''
+  return { ...base, testo: `al lavoro${dal}${ultima}`, tono: 'lavoro' }
+}
+
+/** La riga quando l'autopilota lavora con una chat sola. */
+function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
+  const base = { id: a.id, chi: 'La chat', compito: compitoBreve(a.nome !== '' ? a.nome : a.obiettivo) }
+  const dal = daQuanto(a.ultimoEvento, ora)
+  if (a.stato === 'attesa') return { ...base, testo: `aspetta la tua risposta${dal}`, tono: 'aspetta' }
+  if (a.stato !== 'lavoro') {
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${a.motivoSospensione}` : ''
+    return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
+  }
+  if (a.daParte?.includes(a.id) === true) {
+    return { ...base, testo: 'ferma: non chiude un turno, messa da parte. Torna da sola appena risponde', tono: 'ferma' }
+  }
+  const segno = istante(a.ultimoSegno)
+  if (segno !== undefined && ora - segno >= MUTA_DA_MS) {
+    return { ...base, testo: `nessun segno da ${durata(ora - segno)}`, tono: 'ferma' }
+  }
+  const ultima = a.ultimaAzioneChat !== undefined && a.ultimaAzioneChat !== '' ? ` · ${a.ultimaAzioneChat}` : ''
+  return { ...base, testo: `al lavoro${ultima}`, tono: 'lavoro' }
+}
+
+/**
+ * Le righe di «Adesso». Prima le ferme, poi chi aspetta te, poi le altre: la
+ * cosa da sapere sta in cima. Niente righe per un autopilota finito o che non
+ * è ancora partito: la scheda lo dice già.
+ */
+export function adessoDi(a: Autopilota & SegniDalVivo, ora: number): Adesso {
+  if (a.stato === 'finito' || a.stato === 'intervista' || a.stato === 'pronto') return { righe: [], finite: 0 }
+  if (a.chats.length === 0) return a.sessionId === undefined ? { righe: [], finite: 0 } : { righe: [rigaSola(a, ora)], finite: 0 }
+  const vive = a.chats.filter((c) => c.stato !== 'finita')
+  const peso: Record<RigaAdesso['tono'], number> = { ferma: 0, aspetta: 1, pausa: 2, lavoro: 3 }
+  const righe = vive.map((c) => rigaChat(a, c, ora)).sort((x, y) => peso[x.tono] - peso[y.tono])
+  return { righe, finite: a.chats.length - vive.length }
+}
+
+/** Lo stesso colore su PC, pagina e app. */
+export const COLORE_ADESSO: Record<RigaAdesso['tono'], 'rosso' | 'ambra' | 'quieto' | 'verde'> = {
+  ferma: 'rosso',
+  aspetta: 'ambra',
+  pausa: 'quieto',
+  lavoro: 'verde'
+}
+
+/** Il «?» del riquadro, uguale dappertutto. */
+export const AIUTO_ADESSO = 'Una riga per ogni chat dell’autopilota: cosa fa e da quanto. Una chat ferma sta in cima, in rosso, con il perché: non chiude un turno, non dà segni da un quarto d’ora, o non è mai partita. Le chat finite sono contate in fondo.'

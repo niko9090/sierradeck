@@ -60,7 +60,7 @@ describe('dopo la risposta: domanda e risposta nella chat, la linguetta va avant
     const chat = conversazione(a)
     const i = chat.findIndex((b) => b.testo === 'Serve la chiave dell’API: dove la trovo?')
     expect(chat[i]).toMatchObject({ da: 'lui' })
-    expect(chat[i + 1]).toMatchObject({ da: 'tu', testo: 'nel file .env' })
+    expect(chat[i + 1]).toMatchObject({ da: 'tu', testo: 'Hai risposto: nel file .env' })
     expect(staPensando(a)).toBe(false)
     // E la traccia sopravvive alla rilettura del file.
     const letto = parseAutopilota(JSON.parse(JSON.stringify({ ...a, versione: 1 })))
