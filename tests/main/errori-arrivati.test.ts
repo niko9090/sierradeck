@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from '../../src/main/errori-arrivati'
+import { arrivoCorretto, cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati, svuotaRecuperoArrivi } from '../../src/main/errori-arrivati'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { aggiungiErrore, voceDaTesto, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
@@ -162,5 +162,42 @@ describe('lo storico del PC per la pagina e l’app: /api/errori, /api/errori/ag
   it('un altro PC non legge né scrive lo storico di questo', async () => {
     const e = await rotteCon(lato().dep)({ metodo: 'POST', percorso: '/api/errori', corpo: {}, dispositivo: 'pc:pc-prova' })
     expect(e.stato).toBe(403)
+  })
+})
+
+describe('dopo la correzione: il recupero di 30 giorni', () => {
+  it('sposta l’arrivo nel recupero e dà la riga per il rapporto', () => {
+    const radice = progetto('SierraDeck')
+    const a = salvaErroriArrivati(radice, { da: 'Portatile', versione: '0.80.0', voci: storico(2).voci }, new Date(quando))
+    if (!a.ok) throw new Error(a.errore)
+    const e = arrivoCorretto(radice, a.file, '0.81.0')
+    if (!e.ok) throw new Error(e.errore)
+    expect(e.nota).toBe('Errori arrivati da «Portatile» il 2026-10-19 (2) corretti nella versione 0.81.0: boom x; boom')
+    expect(readdirSync(join(radice, '.sierradeck', 'errori-arrivati', 'Portatile'))).toEqual([])
+    const nelRecupero = readdirSync(join(radice, '.sierradeck', 'errori-arrivati', '.recupero', 'Portatile'))
+    expect(nelRecupero).toHaveLength(1)
+    expect(nelRecupero[0]).toMatch(/^2026-10-19_15-00-00\.json\.\d{4}-/)
+  })
+
+  it('rifiuta un file fuori dalla cartella degli arrivi, o già nel recupero', () => {
+    const radice = progetto('SierraDeck')
+    const fuori = join(radice, 'package.json')
+    expect(arrivoCorretto(radice, fuori, '0.81.0').ok).toBe(false)
+    expect(readFileSync(fuori, 'utf8')).toContain('sierradeck')
+    const gia = join(radice, '.sierradeck', 'errori-arrivati', '.recupero', 'Portatile', 'x.json')
+    mkdirSync(join(gia, '..'), { recursive: true })
+    writeFileSync(gia, '{}')
+    expect(arrivoCorretto(radice, gia, '0.81.0').ok).toBe(false)
+  })
+
+  it('dopo 30 giorni li toglie, prima no', () => {
+    const radice = progetto('SierraDeck')
+    const c = join(radice, '.sierradeck', 'errori-arrivati', '.recupero', 'Portatile')
+    mkdirSync(c, { recursive: true })
+    writeFileSync(join(c, 'a.json.2026-09-01T10-00-00-000Z'), '{}')
+    writeFileSync(join(c, 'b.json.2026-10-10T10-00-00-000Z'), '{}')
+    writeFileSync(join(c, 'senza-ora.json'), '{}')
+    expect(svuotaRecuperoArrivi(radice, new Date('2026-10-20T10:00:00.000Z'))).toEqual([join('Portatile', 'a.json.2026-09-01T10-00-00-000Z')])
+    expect(readdirSync(c).sort()).toEqual(['b.json.2026-10-10T10-00-00-000Z', 'senza-ora.json'])
   })
 })

@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { cancellaSicura } from '@shared/cancella-sicura'
 import { cartellaMittente, nomeFileArrivo, storicoPerLInvio, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 
 /**
@@ -58,6 +59,62 @@ export function salvaErroriArrivati(radice: string, invio: InvioErrori, quando: 
     }
   }
   return { ok: false, errore: 'Troppi arrivi nello stesso secondo: riprova.' }
+}
+
+/** Dove vanno gli arrivi già corretti: 30 giorni, poi via. */
+export const CARTELLA_RECUPERO_ARRIVI = '.recupero'
+export const GIORNI_RECUPERO_ARRIVI = 30
+
+/**
+ * Dopo la correzione (0.81.0): l'arrivo va nel recupero di 30 giorni, con
+ * `cancellaSicura`, e torna la riga per il rapporto («errore X corretto nella
+ * versione Y»). Solo file dentro la cartella degli arrivi.
+ */
+export function arrivoCorretto(radice: string, file: string, versione: string): { ok: true; nota: string; dove: string } | { ok: false; errore: string } {
+  const arrivi = join(radice, CARTELLA_ARRIVI)
+  const dentro = relative(arrivi, resolve(file))
+  if (dentro === '' || dentro.startsWith('..') || isAbsolute(dentro) || dentro.split(/[\\/]/)[0] === CARTELLA_RECUPERO_ARRIVI) {
+    return { ok: false, errore: `Non è un arrivo degli errori: ${file}` }
+  }
+  let letto: { da?: unknown; arrivato?: unknown; voci?: unknown }
+  try {
+    letto = JSON.parse(readFileSync(file, 'utf8')) as typeof letto
+  } catch (err) {
+    return { ok: false, errore: `Non riesco a leggere l’arrivo: ${err instanceof Error ? err.message : String(err)}` }
+  }
+  const voci = Array.isArray(letto.voci) ? letto.voci as Array<{ messaggio?: unknown }> : []
+  const messaggi = voci.map((v) => (typeof v.messaggio === 'string' ? (v.messaggio.split('\n')[0] ?? '').slice(0, 120) : '')).filter((m) => m !== '')
+  const da = typeof letto.da === 'string' ? letto.da : basename(dirname(file))
+  const il = typeof letto.arrivato === 'string' ? letto.arrivato.slice(0, 10) : '?'
+  const nota = `Errori arrivati da «${da}» il ${il} (${messaggi.length}) corretti nella versione ${versione}: ${messaggi.join('; ')}`
+  const cartella = join(arrivi, CARTELLA_RECUPERO_ARRIVI, dirname(dentro))
+  try {
+    cancellaSicura(file, { dentro: [arrivi], come: { modo: 'recupero', cartella } })
+  } catch (err) {
+    return { ok: false, errore: `Non l’ho messo nel recupero: ${err instanceof Error ? err.message : String(err)}` }
+  }
+  return { ok: true, nota, dove: cartella }
+}
+
+/** Toglie dal recupero gli arrivi corretti da più di 30 giorni (l'ora è nel nome, la mette `cancellaSicura`). */
+export function svuotaRecuperoArrivi(radice: string, adesso: Date = new Date()): string[] {
+  const recupero = join(radice, CARTELLA_ARRIVI, CARTELLA_RECUPERO_ARRIVI)
+  if (!existsSync(recupero)) return []
+  const limite = adesso.getTime() - GIORNI_RECUPERO_ARRIVI * 24 * 60 * 60 * 1000
+  const tolti: string[] = []
+  for (const mittente of readdirSync(recupero)) {
+    const c = join(recupero, mittente)
+    if (!statSync(c).isDirectory()) continue
+    for (const nome of readdirSync(c)) {
+      const m = /\.(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/.exec(nome)
+      if (m === null) continue
+      const quando = Date.parse(`${m[1]}T${m[2]}:${m[3]}:${m[4]}.${m[5]}Z`)
+      if (Number.isNaN(quando) || quando > limite) continue
+      cancellaSicura(join(c, nome), { dentro: [recupero] })
+      tolti.push(join(mittente, nome))
+    }
+  }
+  return tolti
 }
 
 /**

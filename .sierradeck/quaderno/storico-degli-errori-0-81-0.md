@@ -41,8 +41,20 @@ Chiesto da Nicholas il 19/10. Ramo `ap/ap-f1e631f5/c-3`.
 - **Il codice della pagina** vive in un template TS: niente backtick né `${` nel JS che si aggiunge.
 - **La voce «Errori» è in `VOCI`** con `dove: pc, app, pagina`. Ogni cambio riscrive `android/app/src/main/assets/impostazioni.json` (con `AGGIORNA=1 npx vitest run tests/shared/impostazioni-struttura.test.ts`).
 
-## Ancora da fare
+8. **Dopo la correzione.** `arrivoCorretto(radice, file, versione)` sposta l'arrivo con `cancellaSicura` (modo recupero) in `errori-arrivati/.recupero/<mittente>/`. Restituisce la riga per il rapporto: «Errori arrivati da «X» il <data> (N) corretti nella versione Y: …».
+   - **I 30 giorni:** `svuotaRecuperoArrivi` toglie quelli spostati da più di 30 giorni. L'ora è nel nome, la mette `cancellaSicura`.
+   - **Cosa rifiuta:** file fuori dagli arrivi e file già nel recupero.
 
-- **Prova nella copia di prova** (SIERRADECK_PROVA): un errore finto, l'invio, l'arrivo, il recupero.
-- **Dopo la correzione** il file va nel recupero di 30 giorni con `cancellaSicura`, con la nota nel rapporto.
-- **«Errori arrivati»:** l'autopilota che parte da solo, con il riepilogo a Nicholas prima di toccare il codice.
+## Prova nella copia (20/10, fatta)
+Copia con `SIERRADECK_PROVA`, porte 47680/47681, DevTools 9373. Gli script sono nello scratchpad della chat: `prepara.mjs`, `prova.mjs`, `cdp.mjs`, `recupero.ts`.
+- **Il trucco per la cartella di SierraDeck:** un `progetti-drive.json` con un progetto che punta a una cartella con `package.json` di nome `sierradeck`. Deve stare FUORI da `….sierradeck-wt`, che è escluso: niente `note/` di un worktree.
+- **Esiti:**
+  - due errori finti dalla pagina, con token e Bearer, sono diventati una voce sola con «2 volte» e i segreti `‹tolto›`;
+  - clic vero su «Manda al PC di sviluppo» con «(questo)» scelto: «Fatto: 2 errori…», file `2026-10-20_07-02-49.json` senza segreti;
+  - `arrivoCorretto` lo ha spostato nel recupero; dopo 31 giorni (data finta) `svuotaRecuperoArrivi` lo toglie, oggi no.
+- **Non provato dal vero:** l'invio firmato fra due PC (`/api/errori/arrivati` con la chiave di casa). È coperto dai test delle rotte. Servirebbero due copie accoppiate.
+- **Trappola:** `Page.captureScreenshot` si blocca se la finestra della copia non è in primo piano, e con il PC al 100%. I clic con `Runtime.evaluate` vanno lo stesso.
+- **Primo errore vero preso da solo:** `MaxListenersExceededWarning: 11 before-quit listeners`. In `src/main/index.ts` ci sono 11 `app.on('before-quit')`, già in main, non dello storico. Va bene, ma andrebbe ridotto o alzato il tetto: è da proporre.
+
+## Ancora da fare
+- **«Errori arrivati»:** l'autopilota che parte da solo, con il riepilogo a Nicholas prima di toccare il codice. Userà `arrivoCorretto` dopo la release.
