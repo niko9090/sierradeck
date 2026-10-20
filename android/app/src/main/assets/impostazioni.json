@@ -232,6 +232,25 @@
       ]
     },
     {
+      "id": "posti-chat",
+      "sezione": "chat",
+      "titolo": "Quante chat degli autopiloti lavorano insieme",
+      "spiega": "Il numero lo decide questo PC dai processori, dalla memoria libera e da quanto è occupato, fra 2 e 8: le chat in più aspettano in fila. «Più chat» ne fa lavorare di più insieme, «Meno chat» lascia il PC più libero per te.",
+      "parole": [
+        "posti",
+        "fila",
+        "carico",
+        "processori",
+        "memoria",
+        "più chat",
+        "meno chat",
+        "contemporanee"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
       "id": "attesa-chat",
       "sezione": "chat",
       "titolo": "Avanzamento all’apertura di una chat lunga",
@@ -468,6 +487,7 @@
         "pin",
         "quaderno-personale",
         "iberna",
+        "posti-chat",
         "attesa-chat",
         "posto-autopilota",
         "account-google",

@@ -97,6 +97,16 @@ fun coloreLed(led: String, stato: String): Color = when (led) {
     else -> coloreStato(stato)
 }
 
+/** «N di M chat» (PC 0.82.0) in cima agli autopiloti, con il perché dietro «?». Ambra quando il computer è pieno. */
+@Composable
+fun RigaPostiChat(p: PostiChat?) {
+    if (p == null || p.riga.isBlank()) return
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(p.riga, color = if (p.pieno) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp)
+        Aiuto(p.spiega, di = "Chat al lavoro insieme")
+    }
+}
+
 /**
  * «Lavori»: gli autopiloti, con dentro tutto quello che il pannello del computer
  * mostra — dove sono nel percorso, i criteri che si sono dati, cosa hanno deciso.
@@ -156,6 +166,7 @@ fun Lavori(apiAccoppiato: Api, statoAccoppiato: Stato?, apri: String? = null, on
         Column(Modifier.fillMaxSize()) {
             if (su != null) { FasciaSuPc(su, null) { SuPc.corrente = null }; BandaPcIndietro(apiAccoppiato, su.pcId, su.nome, statoSu?.computer?.versione) }
             FasciaLavori(lista) { delega = true }
+            RigaPostiChat(stato?.postiChat)
             if (lista.isEmpty() && AutopilotiAltri.righe(altri ?: emptyList()).isNotEmpty()) {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
                     item { Text("Nessun autopilota su questo PC.", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(12.dp)) }

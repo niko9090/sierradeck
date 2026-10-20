@@ -2762,6 +2762,22 @@ select.comando-riquadro option {
 
 .versione:hover { color: var(--testo); background: var(--chassis-premuto); }
 
+/* «N di M chat» (0.82.0): quante chat degli autopiloti lavorano su questo PC.
+   Quieto finché c'è posto; ambra quando è pieno e qualcosa aspetta in fila. */
+.posti-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+  white-space: nowrap;
+  padding: 0 var(--s2);
+}
+.posti-chat--pieno .posti-chat__riga { color: var(--ambra); }
+
+/* Tre scelte una accanto all'altra (Impostazioni, «più chat / meno chat»). */
+.scelte-segmentate { display: inline-flex; flex-wrap: wrap; gap: var(--s1); }
+
 /* Il codice di accoppiamento: grande e distanziato, perche' si legge da qui e
    si digita su un telefono tenuto nell'altra mano. */
 .codice-accoppiamento {

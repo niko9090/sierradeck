@@ -1,4 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
+import { rigaPosti, spiegaPosti, type PostiChat } from '@shared/posti-chat'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
@@ -198,6 +199,8 @@ export type DipendenzeRotte = {
   autopiloti: () => Promise<Autopilota[]>
   /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
   tempiAutopilota?: (id: string) => Promise<string | undefined>
+  /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
+  postiChat?: () => Promise<PostiChat | undefined>
   /** Risponde alla domanda di un autopilota. */
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
   /** Le domande in attesa di risposta. */
@@ -1166,10 +1169,11 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // i fermi gia' annunciati e, al ritorno del servizio, li annunciava tutti
       // di nuovo. Con il segnale sa che non ha letto niente.
       let autopilotiLetti = true
-      const [autopiloti, domande, workspace] = await Promise.all([
+      const [autopiloti, domande, workspace, postiChat] = await Promise.all([
         deps.autopiloti().catch(() => { autopilotiLetti = false; return [] as Autopilota[] }),
         deps.domande().catch(() => []),
-        deps.workspace().catch(() => ({ nomi: [], attivo: '' }))
+        deps.workspace().catch(() => ({ nomi: [], attivo: '' })),
+        deps.postiChat?.().catch(() => undefined) ?? Promise.resolve(undefined)
       ])
       // Quante domande aspettano te, con la stessa funzione delle Domande
       // (0.37.2): il pallino del telefono e della pagina dice lo stesso numero
@@ -1186,6 +1190,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }))
       return OK({
         domandeInAttesa,
+        // 0.82.0: «N di M chat» su questo PC, con il perché per il «?».
+        // Con i testi già scritti: la pagina e l'app li mostrano come il PC.
+        ...(postiChat !== undefined ? { postiChat: { ...postiChat, riga: rigaPosti(postiChat), spiega: spiegaPosti(postiChat) } } : {}),
         // Quanti file aspettano questo telefono (0.54.0): l'app li ritira subito.
         ...(depsPieni.alTelefono !== undefined && eTelefono(visore) ? { consegne: depsPieni.alTelefono.perTelefono(visore).length } : {}),
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e

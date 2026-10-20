@@ -105,7 +105,7 @@ describe('misura del PC (Windows: niente loadavg)', () => {
 
   it('media mobile: un picco solo non porta il carico al 100%', () => {
     let t = 0
-    const letture = [[0, 0], [10, 90], [110, 90], [120, 180]]
+    const letture: Array<[number, number]> = [[0, 0], [10, 90], [110, 90], [120, 180]]
     const misura = creaMisuratore({
       cpus: () => { const [o, i] = letture[Math.min(t++, letture.length - 1)]!; return [cpu(o, i)] },
       libera: () => 4 * 1024 * 1024 * 1024,
