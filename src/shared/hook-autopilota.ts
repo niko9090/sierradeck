@@ -15,8 +15,11 @@
  * Deve coprire una verifica lenta più il giudizio del supervisore: un hook
  * scaduto lascia la chat ferma senza che nessuno lo sappia, che è il guasto
  * peggiore per un sistema il cui scopo è non lasciarla ferma.
+ *
+ * 0.81.0: da 900 a 3600. La suite dei test ha 20 minuti (`TIMEOUT_SUITE_TEST_MS`)
+ * e, se scade, una rimisura: 40 minuti di soli criteri, più il supervisore.
  */
-export const TIMEOUT_HOOK_S = 900
+export const TIMEOUT_HOOK_S = 3600
 
 /**
  * L'id dell'autopilota viaggia **nell'URL**, non nel corpo: al primo `Stop` il
