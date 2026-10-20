@@ -33,6 +33,8 @@ Non vengono mai presi:
 
 `terminaAlbero` chiude la radice come prima, poi tutto il gruppo con **un solo** `taskkill /F /T /PID a /PID b …`. Se `ps` manca o non risponde, scrive un `console.warn` e chiude solo l'albero di Windows.
 
+**Revisione:** due giri, poi APPROVE. Le correzioni chieste sono già nel codice: PGID solo se la radice è capo, esclusioni, `ps` asincrono e `taskkill` unico. In più, commit `6e508683`: se la bash esce da sola mentre si aspetta `ps`, il suo PID può essere già passato a un altro processo, quindi **non** si fa `taskkill` su di lui, solo sui discendenti che `ps` ha visto.
+
 ## La prova dal vero
 Gli script sono nello scratchpad della sessione: `albero2.mjs` e `albero2-prima.mjs`. Lanciano `npx vitest run` su un test che dorme 90 s, lo fermano come il servizio e contano i sopravvissuti:
 - **prima** (solo `taskkill /T`): 3 processi vivi dopo l'interruzione (bash, bash, node vitest);
