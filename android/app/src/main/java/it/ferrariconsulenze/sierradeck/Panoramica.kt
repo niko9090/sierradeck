@@ -200,7 +200,8 @@ object RegolePanoramica {
      * PC 0.79.0: le righe corte dei traguardi («Revisione: ha approvato …, unito.») restano nella conversazione.
      */
     fun separaConversazione(battute: List<Battuta>): Pair<List<Battuta>, List<Battuta>> {
-        fun inConversazione(b: Battuta) = b.da != "nota" || b.tono == "traguardo"
+        // PC 0.81.0: anche «Ha finito.» e «Si è fermato.».
+        fun inConversazione(b: Battuta) = b.da != "nota" || b.tono == "traguardo" || b.tono == "fine" || b.tono == "fermo"
         return battute.filter { inConversazione(it) } to battute.filter { !inConversazione(it) }.reversed()
     }
 

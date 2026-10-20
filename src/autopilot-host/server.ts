@@ -50,7 +50,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo } from '@shared/autopilota'
+import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -622,6 +622,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * un messaggio solo.
    */
   const scrittoNelTurno = new Set<string>()
+  /** Le chat già dette mute a Nicholas (0.81.0), «autopilota|chat»: si ridice solo dopo che hanno ripreso. */
+  const mutaDetta = new Map<string, number>()
   const ultimoSegnale = (chiave: string): number | undefined => {
     const turno = ultimoTurno.get(chiave)
     const segno = ultimoSegno.get(chiave)
@@ -701,10 +703,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         continue
       }
       const rimessi = rimettiInCoda(a, v.messaggi)
+      // 0.81.0: la riga corta per Nicholas, una volta sola per chat (non a ogni tentativo).
+      const chi = v.messaggi.find((x) => x.chats.length > 0)?.chats[0] ?? a.id
+      // Solo quando nessuna finestra l'ha ritirata: una consegna sostituita da una
+      // più nuova non è un guasto (la Revisione).
+      const giaDetta = !perche.startsWith('nessuna finestra') || ultimoTraguardoDi(a, chi)?.esito === 'mai-partita'
       salva({
         ...rimessi,
         inVolo: (a.inVolo ?? []).filter((x) => x.consegna !== consegna),
-        decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `la consegna ${consegna} non è arrivata nella chat (${perche}): rimetto in coda ${v.messaggi.length} messaggi, ripartono appena la chat è ferma` }]
+        decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `la consegna ${consegna} non è arrivata nella chat (${perche}): rimetto in coda ${v.messaggi.length} messaggi, ripartono appena la chat è ferma`, ...(giaDetta ? {} : { traguardo: { chat: chi, esito: 'mai-partita' as const } }) }]
       })
       console.info(`[autopilota] ${a.id} — consegna ${consegna} non arrivata (${perche}): ${v.messaggi.length} messaggi di nuovo in coda`)
     }
@@ -925,7 +932,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       compitiDaFare: a.compitiDaFare.filter((t) => !aperti.has(t)),
       decisioni: [
         ...a.decisioni,
-        ...nuove.map((c) => ({ quando: deps.adesso(), cosa: `apro la chat ${c.id}${c.ruolo !== undefined ? ` (${RUOLI[c.ruolo].nome})` : ''}${c.ramo !== undefined ? ` (ramo ${c.ramo})` : ''}: ${c.compito.slice(0, 120)}` })),
+        ...nuove.map((c) => ({ quando: deps.adesso(), cosa: `apro la chat ${c.id}${c.ruolo !== undefined ? ` (${RUOLI[c.ruolo].nome})` : ''}${c.ramo !== undefined ? ` (ramo ${c.ramo})` : ''}: ${c.compito.slice(0, 120)}`, traguardo: { chat: c.id, esito: 'aperta' as const } })),
         ...riusate.map((r) => ({ quando: deps.adesso(), cosa: `riuso la chat ${r.chat.id} (Revisione) per rivedere di nuovo: ${r.chat.compito.slice(0, 100)}` })),
         ...annotazioni.map((cosa) => ({ quando: deps.adesso(), cosa }))
       ]
@@ -1167,12 +1174,40 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // bastava che una chat della flotta chiudesse i suoi turni perche' tutte
       // le altre risultassero vive, e quella impiantata restava appesa per
       // sempre con il pannello che diceva «al lavoro».
+      // 0.81.0: chi tace da 5 minuti si dice a Nicholas, una volta per silenzio.
+      // Solo con un segnale vero in memoria (la Revisione): dopo un riavvio il
+      // ripiego è l'ultimo salvataggio, che questa stessa riga sposterebbe, e
+      // la riga tornerebbe ogni 5 minuti. Chi aspetta una risposta di Nicholas
+      // non è muta: aspetta lui.
+      const conSegnale = (m: { chatId?: string }): boolean =>
+        (m.chatId !== undefined ? ultimoSegnale(chiaveTurno(a.id, m.chatId)) : undefined) !== undefined || ultimoSegnale(chiaveTurno(a.id)) !== undefined
+      const zitte = deps.domande.aperte(a.id).length > 0
+        ? []
+        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite)).filter(conSegnale)
+      const chiaveZitta = (m: { chatId?: string }): string => `${a.id}|${m.chatId ?? a.id}`
+      const chiaviZitte = new Set(zitte.map(chiaveZitta))
+      for (const k of [...mutaDetta.keys()]) if (k.startsWith(`${a.id}|`) && !chiaviZitte.has(k)) mutaDetta.delete(k)
+      // Si ricorda da quale segnale parte il silenzio detto: se nel frattempo
+      // la chat ha riparlato (anche fra due giri), è un silenzio nuovo.
+      const nuoveZitte = zitte.filter((m) => mutaDetta.get(chiaveZitta(m)) !== ora - m.da && m.da <= limite)
+      // Chi scrive dopo (la messa da parte) parte da qui, o la riga si perde.
+      let base: Autopilota = a
+      if (nuoveZitte.length > 0) {
+        const detta: Autopilota = { ...a }
+        for (const m of nuoveZitte) {
+          mutaDetta.set(chiaveZitta(m), ora - m.da)
+          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(limite / 60_000)} minuti la metto da parte`, { chat: m.chatId ?? a.id, esito: 'muta' })
+        }
+        salva(detta)
+        base = detta
+        console.info(`[autopilota] ${a.id} — ${nuoveZitte.length} chat senza segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: detto a Nicholas`)
+      }
       const mute = chiTace(a, ultimoSegnale, ora, limite)
       if (mute.length === 0) continue
       // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
       // 19/10). Si mette da parte solo lei, le altre continuano, e nella
       // conversazione resta una riga per Nicholas.
-      const daParte = messaDaParte(a, mute)
+      const daParte = messaDaParte(base, mute)
       for (const m of mute) annota(daParte, `messa da parte: ${motivoSilenzio([m])}`, { chat: m.chatId ?? a.id, esito: 'da-parte' })
       salva(daParte)
       console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)} Messa da parte, l'autopilota resta al lavoro.`)
@@ -2231,7 +2266,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
       const u = unisciRamo(deps.git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
       if (u.ok && u.unito) {
-        annota(conSessione, `unito il ramo ${mia.ramo} in ${conSessione.ramoBase}`)
+        annota(conSessione, `unito il ramo ${mia.ramo} in ${conSessione.ramoBase}`, { chat: mia.id, esito: 'unito' })
         salva(conSessione)
       } else if (!u.ok && u.conflitto) {
         annota(conSessione, `il ramo ${mia.ramo} va in conflitto con ${conSessione.ramoBase} (${u.file.join(', ')}): la chat si riallinea`)

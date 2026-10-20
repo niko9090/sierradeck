@@ -145,8 +145,23 @@ export type MessaggioPerLaChat = {
  * chat di cui parla (per la Revisione: quella che ha riletto).
  */
 export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte']
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta']
+
+/**
+ * Dopo quanto silenzio una chat si dice a Nicholas (0.81.0, «Nicholas
+ * partecipe»): una riga sola, con cosa si fa. Messa da parte resta a un'ora.
+ */
+export const SILENZIO_DA_DIRE_MS = 5 * 60_000
+
+/** L'ultimo traguardo di una chat, per non ripetere la stessa riga (0.81.0). */
+export function ultimoTraguardoDi(a: Pick<Autopilota, 'decisioni'>, chat: string): Traguardo | undefined {
+  for (let i = a.decisioni.length - 1; i >= 0; i -= 1) {
+    const t = a.decisioni[i]?.traguardo
+    if (t !== undefined && t.chat === chat) return t
+  }
+  return undefined
+}
 
 export type Decisione = { quando: string; cosa: string; traguardo?: Traguardo }
 

@@ -63,6 +63,18 @@ class PanoramicaTest {
         assertEquals(listOf("finita"), z.finite.map { it.id })
     }
 
+    @Test fun `ha finito e si e fermato restano nella conversazione, dalla 0-81-0`() {
+        val b = listOf(
+            Battuta(da = "tu", testo = "1"),
+            Battuta(da = "nota", testo = "giro", tono = "lavoro"),
+            Battuta(da = "nota", testo = "Si è fermato.", tono = "fermo"),
+            Battuta(da = "nota", testo = "Ha finito.", tono = "fine")
+        )
+        val (messaggi, eventi) = RegolePanoramica.separaConversazione(b)
+        assertEquals(listOf("1", "Si è fermato.", "Ha finito."), messaggi.map { it.testo })
+        assertEquals(listOf("giro"), eventi.map { it.testo })
+    }
+
     @Test fun conversazioneSenzaEventi() {
         val b = listOf(Battuta(da = "tu", testo = "1"), Battuta(da = "nota", testo = "2"), Battuta(da = "lui", testo = "3"), Battuta(da = "nota", testo = "4"))
         val (messaggi, eventi) = RegolePanoramica.separaConversazione(b)
