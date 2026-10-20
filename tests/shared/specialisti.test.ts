@@ -21,14 +21,14 @@ describe('specialisti', () => {
     const s = specialistiDi(ap({
       organizzazione: rigaFlotta(['sviluppo', 'collaudo', 'revisione']),
       chats: [
-        { id: 'c-1', compito: 'scrivi la funzione', stato: 'lavoro', cicli: 2, ruolo: 'sviluppo', sessionId: 's-1', ultimaAzione: 'Ho aggiunto il test.' },
+        { id: 'c-1', compito: 'scrivi la funzione', stato: 'lavoro', cicli: 2, ruolo: 'sviluppo', sessionId: 's-1', ultimaAzione: 'Ho aggiunto il test.', dal: '2026-10-15T10:48:00.000Z' },
         { id: 'c-2', compito: 'prova dal vero', stato: 'pausa', cicli: 0, ruolo: 'collaudo' }
       ]
-    }))
+    }), Date.parse('2026-10-15T11:00:00.000Z'))
     expect(s.riga).toBe('Lavoro diviso fra specialisti, ognuno nella sua chat: Sviluppo, Collaudo, Revisione')
     expect(s.elenco).toEqual([
-      { id: 'c-1', ruolo: 'Sviluppo', colore: 'blu', compito: 'scrivi la funzione', stato: 'al lavoro', attivo: true, ultimaAzione: 'Ho aggiunto il test.', sessionId: 's-1', workspace: 'Notte' },
-      { id: 'c-2', ruolo: 'Collaudo', colore: 'verde', compito: 'prova dal vero', stato: 'in pausa per i limiti del piano', attivo: false, ultimaAzione: '', workspace: 'Notte' }
+      { id: 'c-1', ruolo: 'Sviluppo', colore: 'blu', compito: 'scrivi la funzione', stato: 'al lavoro', attivo: true, ultimaAzione: 'Ho aggiunto il test.', attivita: 'sviluppo', cosa: 'lavora a: «scrivi la funzione»', quanto: 'da 12 min', sessionId: 's-1', workspace: 'Notte' },
+      { id: 'c-2', ruolo: 'Collaudo', colore: 'acqua', compito: 'prova dal vero', stato: 'in pausa per i limiti del piano', attivo: false, ultimaAzione: '', attivita: 'ferma', cosa: 'prova: «prova dal vero»', quanto: '', workspace: 'Notte' }
     ])
   })
 
@@ -86,5 +86,25 @@ describe('0.76.0: lo stesso ordine in ogni workspace', () => {
       { id: 'c-4', compito: 'collaudo a', stato: 'lavoro', cicli: 0, ruolo: 'collaudo' }
     ] })
     expect(specialistiDi(a).elenco.map((s) => s.id)).toEqual(['c-3', 'c-4', 'c-10', 'c-1', 'c-2'])
+  })
+
+  it('0.82.0: una riga per agente con il colore di cosa fa, cosa fa in parole semplici e da quanto', () => {
+    const ora = Date.parse('2026-10-15T12:00:00.000Z')
+    const s = specialistiDi(ap({ stato: 'lavoro', chats: [
+      { id: 'c-1', compito: 'Il motore. Poi il resto.', stato: 'finita', cicli: 1, ruolo: 'sviluppo', dal: '2026-10-15T11:00:00.000Z' },
+      { id: 'c-2', compito: 'Rileggi', stato: 'lavoro', cicli: 1, ruolo: 'revisione', revisioneDi: 'c-1', dal: '2026-10-15T11:57:00.000Z' },
+      { id: 'c-3', compito: 'La pagina', stato: 'bloccata', cicli: 1, ruolo: 'interfaccia', dal: '2026-10-15T11:59:40.000Z' }
+    ] }), ora)
+    expect(s.elenco.map((x) => [x.ruolo, x.attivita, x.cosa, x.quanto])).toEqual([
+      ['Sviluppo', 'finita', 'ha finito: «Il motore»', 'da 1 h'],
+      ['Interfaccia', 'aspetta', 'lavora a: «La pagina»', 'adesso'],
+      ['Revisione', 'revisione', 'rilegge il lavoro di Sviluppo: «Il motore»', 'da 3 min']
+    ])
+    // Fermo l'autopilota, è ferma anche chi «lavorava»; finito, sono finite tutte.
+    expect(specialistiDi(ap({ stato: 'sospeso', chats: [{ id: 'c-2', compito: 'x', stato: 'lavoro', cicli: 1, ruolo: 'collaudo' }] })).elenco[0]?.attivita).toBe('ferma')
+    expect(specialistiDi(ap({ stato: 'finito', chats: [{ id: 'c-2', compito: 'x', stato: 'lavoro', cicli: 1, ruolo: 'collaudo' }] })).elenco[0]?.attivita).toBe('finita')
+    // La chat unica: senza ruolo, al lavoro è sviluppo.
+    expect(specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0' })).elenco[0]).toMatchObject({ attivita: 'sviluppo', cosa: 'lavora all’obiettivo' })
+    expect(specialistiDi(ap({ stato: 'attesa', sessionId: 's-0' })).elenco[0]?.attivita).toBe('aspetta')
   })
 })

@@ -1353,7 +1353,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const { conversazioni, autopiloti } = await leggiConversazioni()
       const ora = adesso()
       const ap = autopilotaDelWorkspace(autopiloti, ws)
-      const specialisti = ap !== undefined ? specialistiDi(ap).elenco : []
+      const specialisti = ap !== undefined ? specialistiDi(ap, Date.now()).elenco : []
       const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
       const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
       const ruoloDi = (nome: string | undefined): Ruolo | undefined => RUOLI_ORDINE.find((k) => RUOLI[k].nome === nome)
@@ -1475,7 +1475,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
         albero: alberoChat(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
-        specialisti: specialistiDi(a),
+        specialisti: specialistiDi(a, Date.now()),
         // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
         // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
         domandeScheda: domandeScheda(a, tutteLeDomande),

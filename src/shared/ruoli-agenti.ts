@@ -1,4 +1,5 @@
 import { ultimoOggettoCon } from './json-tollerante'
+import { ATTIVITA, type NomeColore } from './colori-attivita'
 
 /**
  * Gli agenti specializzati dell'autopilota (0.71.0). Nicholas: «soprattutto
@@ -28,7 +29,8 @@ export type SchedaRuolo = {
   nome: string
   /** La parola corta sul riquadro e nell'albero. */
   parola: string
-  colore: 'blu' | 'viola' | 'verde' | 'ambra' | 'rosso'
+  /** Dalla tabella unica delle attività (0.82.0, `colori-attivita.ts`). */
+  colore: NomeColore
   /** Lavora nel suo worktree e il suo ramo passa dalla Revisione. */
   conRevisione: boolean
   /** Le istruzioni del ruolo, in testa al primo messaggio della chat. */
@@ -37,23 +39,23 @@ export type SchedaRuolo = {
 
 export const RUOLI: Record<Ruolo, SchedaRuolo> = {
   sviluppo: {
-    nome: 'Sviluppo', parola: 'sviluppo', colore: 'blu', conRevisione: true,
+    nome: 'Sviluppo', parola: 'sviluppo', colore: ATTIVITA.sviluppo.colore, conRevisione: true,
     istruzioni: 'Sei l’agente di SVILUPPO. Scrivi il codice del tuo compito nella tua cartella, con i test che lo provano. Fai commit piccoli con messaggi chiari. Non toccare file che non servono al tuo compito: altre chat lavorano in parallelo. Quando il compito è fatto dillo in una riga: un revisore leggerà il tuo ramo prima che venga unito.'
   },
   interfaccia: {
-    nome: 'Interfaccia', parola: 'interfaccia', colore: 'viola', conRevisione: true,
+    nome: 'Interfaccia', parola: 'interfaccia', colore: ATTIVITA.interfaccia.colore, conRevisione: true,
     istruzioni: 'Sei l’agente di INTERFACCIA. Ti occupi di quello che vede la persona: PC, pagina del telefono e app devono dire le stesse cose, con le stesse parole. Testi corti, la spiegazione dietro un «?», gli stati in una parola con il colore, niente funzioni tolte. Prova con clic veri, non solo con i test. Un revisore leggerà il tuo ramo prima che venga unito.'
   },
   collaudo: {
-    nome: 'Collaudo', parola: 'collaudo', colore: 'verde', conRevisione: true,
+    nome: 'Collaudo', parola: 'collaudo', colore: ATTIVITA.collaudo.colore, conRevisione: true,
     istruzioni: 'Sei l’agente di COLLAUDO. Scrivi ed esegui i test e le prove dal vero del compito, trova i difetti e descrivili con i passi per riprodurli. Correggi solo i test; un difetto del prodotto lo segnali con file e riga. Le prove dal vero si fanno solo su copie e progetti di prova, mai sulle chat vere.'
   },
   revisione: {
-    nome: 'Revisione', parola: 'revisione', colore: 'ambra', conRevisione: false,
+    nome: 'Revisione', parola: 'revisione', colore: ATTIVITA.revisione.colore, conRevisione: false,
     istruzioni: 'Sei l’agente di REVISIONE. Leggi il lavoro di un’altra chat (il suo ramo) e decidi se si può unire. NON modifichi file e NON fai commit: il programma te lo impedisce. Guarda il diff, esegui i test, cerca difetti veri (comportamento sbagliato, casi mancanti, dati privati nel codice). Chiudi SEMPRE con una riga sola, l’ultima del messaggio, in una di queste due forme:\nREVISIONE: OK <ramo> — con almeno un file:riga che hai controllato\nREVISIONE: DA RIFARE <ramo>: cosa correggere, con file:riga'
   },
   rilascio: {
-    nome: 'Rilascio', parola: 'rilascio', colore: 'rosso', conRevisione: false,
+    nome: 'Rilascio', parola: 'rilascio', colore: ATTIVITA.rilascio.colore, conRevisione: false,
     istruzioni: 'Sei l’agente di RILASCIO. Lavori dopo che gli altri compiti sono uniti: versione, voce delle novità, note, controlli finali. NON pubblichi e NON installi niente da solo: la pubblicazione la decide la regola del progetto e l’installazione la fa solo Nicholas. Prepara tutto e dillo in una riga.'
   }
 }

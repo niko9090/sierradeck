@@ -4930,8 +4930,13 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .scheda-domanda__scelte .scheda-domanda__consigliata { box-shadow: inset 0 0 0 1px var(--verde); }
 
 /* Gli specialisti dell'autopilota (0.73.0). */
-.specialisti__voce { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--incisione, #2a2a2a); }
-.specialisti__stato { font-size: var(--t1); }
+.specialisti__voce { display: grid; grid-template-columns: auto auto 1fr auto; gap: 2px 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--incisione, #2a2a2a); }
+.specialisti__stato { font-size: var(--t1); color: var(--testo-quieto); }
+/* 0.82.0: il segno di cosa fa una chat (simbolo + parola, colore dalla tabella unica) e la sua legenda dietro «?». */
+.segno-attivita { display: inline-flex; gap: 4px; align-items: baseline; font-weight: 600; white-space: nowrap; }
+.segno-attivita__parola { font-size: var(--t1); }
+.legenda-attivita { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+.legenda-attivita__voce { display: block; }
 .specialisti__compito, .specialisti__ultima { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t1); }
 .riquadro--guardato { outline: 2px solid var(--accento, #4aa3ff); outline-offset: -2px; }
 

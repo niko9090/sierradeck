@@ -309,7 +309,7 @@ data class Specialisti(val riga: String = "", val elenco: List<Specialista> = em
 data class Specialista(
     val id: String = "",
     val ruolo: String = "",
-    /** blu, viola, verde, ambra, rosso, quieto. */
+    /** Un nome della tabella dei colori (`TabellaAttivita.colori`). */
     val colore: String = "quieto",
     val compito: String = "",
     val stato: String = "",
@@ -318,7 +318,12 @@ data class Specialista(
     val sessionId: String? = null,
     val workspace: String? = null,
     /** PC 0.74.0: ha finito e la sua chat si è chiusa da sola. */
-    val chiusa: Boolean = false
+    val chiusa: Boolean = false,
+    /** PC 0.82.0: cosa fa, per il colore fisso (`TabellaAttivita`); assente da un PC più vecchio. */
+    val attivita: String? = null,
+    /** PC 0.82.0: cosa fa in parole semplici e da quanto. */
+    val cosa: String = "",
+    val quanto: String = ""
 )
 
 /** La linguetta «File» (0.38.0): i file cambiati, per chat. */
