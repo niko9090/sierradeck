@@ -2309,9 +2309,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         '- `quaderno` {"titolo", "corpo"}: una scheda nel quaderno del progetto (una decisione, una trappola, un errore risolto).',
         'Il programma rifiuta: chat e autopiloti non tuoi, «Porta qui», l’account, le preferenze, i file fuori dalle tue cartelle.'
       ].join('\n')
-      const { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
+      let { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
         aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness
       )
+      // 0.80.1: un supervisore che non risponde (guasto, tempo scaduto, testo
+      // illeggibile) si riprova una volta subito, prima di lasciar decidere le
+      // regole. Le regole poi rifanno il giro: non si sospende più per questo.
+      if (suggerita === undefined) {
+        console.warn(`[autopilota] ${id} — il supervisore non ha risposto: riprovo una volta`)
+        const ancora = await chiediDecisione(
+          aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneNuova ?? sessioneDiPartenza, tuoiNelQuadro, harness
+        )
+        suggerita = ancora.decisione
+        if (ancora.sessionId !== undefined) sessioneNuova = ancora.sessionId
+      }
       mosseChieste = suggerita?.mosse
       misura.crono.segna('supervisore')
       if (sessioneNuova !== undefined) {

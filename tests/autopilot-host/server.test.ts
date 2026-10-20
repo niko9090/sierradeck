@@ -223,12 +223,33 @@ describe('hook Stop', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
-  it('non dichiara finito quando il giudizio e illeggibile', async () => {
-    server = ambiente({ interroga: () => Promise.resolve({ testo: 'boh' }) })
+  it('non dichiara finito quando il giudizio e illeggibile, e non sospende: rifà il giro (0.80.1)', async () => {
+    let domande = 0
+    server = ambiente({ interroga: () => { domande++; return Promise.resolve({ testo: 'boh' }) } })
+    await avvia(server)
+    const id = await creaAp()
+    const r = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
+    // Il supervisore è stato riprovato una volta prima delle regole.
+    expect(domande).toBe(2)
+    expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
+  })
+
+  it('0.80.1: un supervisore che non risponde la prima volta si riprova subito', async () => {
+    let domande = 0
+    server = ambiente({
+      interroga: () => {
+        domande++
+        return domande === 1 ? Promise.reject(new Error('tempo scaduto')) : Promise.resolve({ testo: '{"azione": "finito"}' })
+      }
+    })
     await avvia(server)
     const id = await creaAp()
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    expect(domande).toBe(2)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
   it('una domanda della chat mette l autopilota in attesa e ne conserva il testo', async () => {
@@ -959,7 +980,7 @@ describe('eliminazione', () => {
 
   it('eliminare chiude anche le sue domande in sospeso', async () => {
     server = ambiente({
-      interroga: () => Promise.resolve({ testo: '{"finito": false, "istruzioni": "", "domandaUtente": "Quale?"}' }),
+      interroga: () => Promise.resolve({ testo: '{"azione": "chiedi", "domanda": "Quale?"}' }),
       scadenzaDomandaMs: 5000
     })
     await avvia(server)
