@@ -47,7 +47,7 @@ object Ponte {
         // I file dal telefono (PC 0.50.0): a pezzi fino a quel PC.
         "/api/allegati/inizia", "/api/allegati/pezzo", "/api/allegati/stato", "/api/allegati/fine", "/api/allegati/annulla",
         // La sezione File (PC 0.54.0): sfogliare i progetti di quel PC e ritirare i file che manda al telefono.
-        "/api/file/progetti", "/api/file/elenco", "/api/file/leggi",
+        "/api/file/progetti", "/api/file/elenco", "/api/file/leggi", "/api/file/cartella",
         "/api/consegne", "/api/consegne/pezzo", "/api/consegne/ricevuta",
         // Gestire quel PC (PC 0.55.0): workspace, chiudere/togliere/rinominare le chat,
         // la cartella per una chat nuova, le conversazioni, gli autopiloti.

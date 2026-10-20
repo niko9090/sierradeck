@@ -154,6 +154,13 @@ export function Console({
       .then((stato) => onStatoWorkspace?.(stato))
       .catch((err: unknown) => setErroreWs(String(err)))
   }
+  /** «Apri cartella» (0.82.0): il PC trova la cartella del progetto; se non si apre, il perché accanto ai workspace. */
+  const apriCartellaWs = (nome: string): void => {
+    setErroreWs(undefined)
+    void window.gestore.workspace.apriCartella({ workspace: nome })
+      .then((r) => { if (!r.ok) setErroreWs(r.messaggio) })
+      .catch((err: unknown) => setErroreWs(String(err)))
+  }
   useEffect(() => {
     window.gestore.sistema.cartellaUtente().then(setCasa).catch(() => setCasa(''))
   }, [])
@@ -400,6 +407,7 @@ export function Console({
               onCambia={cambiaWorkspace}
               onGestisci={() => commuta('workspace')}
               onStato={(s) => onStatoWorkspace?.(s)}
+              onApriCartella={apriCartellaWs}
             />
           ) : nomiWs.map((n) => (
             <button
@@ -426,6 +434,8 @@ export function Console({
           ))}
           {menuPinWs !== undefined ? (
             <MenuPin x={menuPinWs.x} y={menuPinWs.y} onChiudi={() => setMenuPinWs(undefined)} voci={[
+              // «Apri cartella» (0.82.0): la cartella del progetto del workspace in Esplora file.
+              { testo: `Apri la cartella di «${menuPinWs.nome}»`, azione: () => { apriCartellaWs(menuPinWs.nome); setMenuPinWs(undefined) } },
               ...(!pinWs.attivo ? [{ testo: 'Il PIN è spento: accendilo dalle Impostazioni → PIN delle chat', azione: () => setMenuPinWs(undefined), spenta: true }] : []),
               pinWs.workspace.includes(menuPinWs.nome)
                 ? { testo: `Togli il PIN da «${menuPinWs.nome}»`, azione: () => { void window.gestore.pin.proteggiWorkspace(menuPinWs.nome, false); setMenuPinWs(undefined) } }
@@ -434,7 +444,7 @@ export function Console({
           ) : null}
           {!serveIlMenu(nomiWs) ? <SuAltriPc /> : null}
           {erroreWs !== undefined ? (
-            <span className="misura" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠</span>
+            <span className="misura" role="status" style={{ color: 'var(--ambra)' }} title={erroreWs}>⚠ {erroreWs.length > 60 ? `${erroreWs.slice(0, 60)}…` : erroreWs}</span>
           ) : null}
           <button
             className="tasto tasto--icona"
