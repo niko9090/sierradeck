@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -212,6 +212,8 @@ export function terminaAlbero(
     esegui?: (file: string, argomenti: string[]) => void
     uccidi?: (pid: number, segnale: NodeJS.Signals) => void
     ripiego?: () => void
+    /** Su Windows, i WINPID che la bash di Git ha avviato fuori dall'albero di Windows (`gruppoMsys`). */
+    gruppo?: () => number[]
   } = {}
 ): void {
   if (pid === undefined) return
@@ -221,14 +223,83 @@ export function terminaAlbero(
   })
   const uccidi = strumenti.uccidi ?? ((p, segnale) => process.kill(p, segnale))
   const modo = modoDiTerminare(pid, piattaforma)
+  // Letti prima di chiudere la radice: dopo, il gruppo non si ritrova più.
+  let gruppo: number[] = []
+  try { gruppo = (strumenti.gruppo?.() ?? []).filter((w) => w !== pid) } catch { gruppo = [] }
   try {
-    if (modo.tipo === 'taskkill') esegui(modo.file, modo.argomenti)
-    else uccidi(modo.pid, 'SIGKILL')
+    if (modo.tipo === 'taskkill') {
+      esegui(modo.file, modo.argomenti)
+      // Un solo taskkill per tutto il gruppo: su un PC già carico non se ne lanciano dieci.
+      if (gruppo.length > 0) esegui('taskkill', ['/F', '/T', ...gruppo.flatMap((w) => ['/PID', String(w)])])
+    } else uccidi(modo.pid, 'SIGKILL')
   } catch {
     // Il gruppo puo' essere gia' morto, o `taskkill` non esserci: si prova
     // almeno con la strada di prima, che e' meglio di niente.
     strumenti.ripiego?.()
   }
+}
+
+/**
+ * Dove sta il `ps` di Git per la bash dei criteri: accanto, o in `usr/bin`
+ * quando la bash è il lanciatore di `Git/bin`.
+ */
+export function psAccanto(bash: string, esiste: (percorso: string) => boolean = (p) => existsSync(p)): string | undefined {
+  const cartella = dirname(bash)
+  return [join(cartella, 'ps.exe'), join(cartella, '..', 'usr', 'bin', 'ps.exe')].find((p) => esiste(p))
+}
+
+/**
+ * I WINPID di tutto quello che è partito dalla bash `radice` (0.81.0), letti
+ * dall'uscita di `ps` di Git (colonne PID, PPID, PGID, WINPID).
+ *
+ * Il 20/10 le suite dei test scadute restavano vive: sette `vitest run` insieme,
+ * il PC al 100% e ogni misura dopo scadeva di nuovo. La bash di Git avvia `npx`
+ * in processi che per Windows hanno un altro padre, quindi `taskkill /T` sulla
+ * bash non li vede. `ps` invece li conosce: si seguono i figli per PPID e si
+ * aggiunge il gruppo (PGID) della radice, **solo** se la radice ne è il capo.
+ *
+ * Prudenza, perché sbagliare qui chiude processi di altri: senza l'intestazione
+ * attesa non si prende niente, e non si prendono mai `escludi` (il servizio
+ * stesso e suo padre) né i PID di sistema.
+ */
+export function winpidDelGruppo(uscitaPs: string, radice: number, escludi: number[] = []): number[] {
+  const linee = uscitaPs.split(/\r?\n/)
+  const intestazione = linee.find((r) => /\bWINPID\b/.test(r))
+  if (intestazione === undefined || !/^\s*PID\s+PPID\s+PGID\s+WINPID\b/.test(intestazione)) return []
+  const righe = linee.map((r) => r.replace(/^\s*[A-Za-z]?\s+/, '').trim().split(/\s+/).slice(0, 4))
+    .filter((c) => c.length === 4 && c.every((n) => /^\d+$/.test(n)))
+    .map((c) => c.map(Number))
+    .map(([pid, ppid, pgid, winpid]) => ({ pid: pid as number, ppid: ppid as number, pgid: pgid as number, winpid: winpid as number }))
+  const capo = righe.find((r) => r.winpid === radice)
+  if (capo === undefined) return []
+  const suoGruppo = capo.pgid === capo.pid && capo.pgid > 1
+  const presi = new Set<number>([capo.pid])
+  for (let cresciuto = true; cresciuto;) {
+    cresciuto = false
+    for (const r of righe) {
+      if (!presi.has(r.pid) && (presi.has(r.ppid) || (suoGruppo && r.pgid === capo.pgid))) { presi.add(r.pid); cresciuto = true }
+    }
+  }
+  const vietati = new Set(escludi)
+  return [...new Set(righe.filter((r) => presi.has(r.pid)).map((r) => r.winpid))].filter((w) => w > 4 && !vietati.has(w))
+}
+
+/**
+ * `winpidDelGruppo` dal vivo: chiede a `ps` di Git, al massimo 5 s, **senza
+ * fermare il servizio** (proprio quando scade un criterio il PC è carico e `ps`
+ * è lento). Senza `ps`, o se `ps` non risponde, niente.
+ */
+export function gruppoMsys(bash: string, radice: number): Promise<number[]> {
+  const ps = psAccanto(bash)
+  if (ps === undefined) return Promise.resolve([])
+  return new Promise((risolvi) => {
+    execFile(ps, [], { encoding: 'utf8', timeout: 5000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (errore, uscita) => {
+      if (errore !== null) { console.warn(`[criterio] ps di Git non risponde: chiudo solo l'albero di Windows (${errore.message})`); risolvi([]); return }
+      const gruppo = winpidDelGruppo(uscita, radice, [process.pid, process.ppid])
+      if (gruppo.length === 0) console.warn(`[criterio] ps di Git non conosce la bash ${radice}: chiudo solo l'albero di Windows`)
+      risolvi(gruppo)
+    })
+  })
 }
 
 /**
@@ -297,7 +368,14 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       let interrotto = false
       const orologio = setTimeout(() => {
         interrotto = true
-        terminaAlbero(figlio.pid, { ripiego: () => { figlio.kill() } })
+        const ferma = (gruppo: number[]): void => {
+          terminaAlbero(figlio.pid, { ripiego: () => { figlio.kill() }, gruppo: () => gruppo })
+        }
+        // Anche quello che la bash di Git ha avviato fuori dall'albero di Windows (0.81.0):
+        // il gruppo si legge prima, mentre la radice è ancora viva.
+        if (bash !== undefined && process.platform === 'win32' && figlio.pid !== undefined) {
+          void gruppoMsys(bash, figlio.pid).then(ferma, () => { ferma([]) })
+        } else ferma([])
       }, timeoutMs)
 
       const rispondi = (codice: number, coda = ''): void => {
