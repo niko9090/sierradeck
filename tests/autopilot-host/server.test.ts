@@ -1,7 +1,7 @@
 import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { apriRegistroTempi } from '../../src/autopilot-host/tempi'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -397,6 +397,8 @@ describe('ferma e riprendi', () => {
     // dopo il suo file non era piu' rileggibile e l'autopilota spariva
     // dall'elenco: per l'utente, «va in errore e si cancella».
     let domande = 0
+    // Prima di tutto: la domanda puo' scadere prima ancora che il test la veda.
+    const avvisi = vi.spyOn(console, 'warn')
     server = ambiente({
       interroga: (prompt) => {
         if (!prompt.includes('Stai preparando un autopilota')) {
@@ -414,10 +416,17 @@ describe('ferma e riprendi', () => {
 
     for (let i = 0; i < 80 && domande === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
     // La domanda scade e l'autopilota resta in intervista: e' li' che l'utente
-    // preme «Riprendi».
-    for (let i = 0; i < 80; i += 1) {
-      if ((await chiama('GET', '/domande')).dati.length === 0) break
-      await new Promise((r) => setTimeout(r, 25))
+    // preme «Riprendi». Dalla 0.71 la domanda scaduta resta aperta nelle Domande
+    // (si risponde anche tardi), quindi `/domande` non si svuota piu': il ciclo
+    // che lo aspettava girava a vuoto 80 volte e a PC carico superava i 20 s
+    // (20/10). Il segno della scadenza e' la riga del servizio.
+    try {
+      for (let i = 0; i < 400; i += 1) {
+        if (avvisi.mock.calls.some((c) => String(c[0]).includes('attende una risposta per prepararsi'))) break
+        await new Promise((r) => setTimeout(r, 25))
+      }
+    } finally {
+      avvisi.mockRestore()
     }
     expect((await chiama('POST', `/autopiloti/${dati.id}/riprendi`)).stato).toBe(200)
 
