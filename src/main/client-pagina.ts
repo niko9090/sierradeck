@@ -579,6 +579,9 @@ function componiPagina(): string {
   .battuta--tu { margin-left: auto; background: color-mix(in srgb, var(--accento) 12%, transparent); }
   .battuta--lui { margin-right: auto; background: color-mix(in srgb, var(--verde) 10%, transparent); }
   .battuta__chi, .battuta__esito { font-size: 11px; color: var(--testo-quieto); }
+  .adesso-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); }
+  .adesso-ap__riga { font-size: var(--t1); line-height: 1.35; overflow-wrap: anywhere; }
+  .adesso-ap__compito { color: var(--testo-quieto); }
   .pensa { color: var(--ambra); }
   /* La chat con lui (0.29.0): in cima, scorre da sola e resta in fondo; le
      sue decisioni sono note quiete con il filo colorato a sinistra. */
@@ -867,6 +870,21 @@ async function chiediAp(percorso, corpo) {
  */
 /** I colori degli stati in una parola (0.70.0), come sul PC. */
 const COLORE_VISTA = { verde: 'var(--verde,#3c9)', ambra: 'var(--ambra,#e0a33c)', rosso: 'var(--rosso,#dc5f5f)', blu: 'var(--blu,#4aa3ff)', quieto: 'var(--testo-quieto,#9aa1a9)' }
+/**
+ * Il riquadro «Adesso» (0.81.0, come sul PC): una riga per chat, cosa fa, da
+ * quanto, e se è ferma perché. Le righe arrivano calcolate dal computer.
+ */
+function adessoHtml(x) {
+  if (!x || !Array.isArray(x.righe) || (x.righe.length === 0 && !x.finite)) return ''
+  var tinta = { ferma: 'var(--rosso,#dc5f5f)', aspetta: 'var(--ambra,#e0a33c)', pausa: 'var(--testo-quieto,#8b949e)', lavoro: 'var(--verde)' }
+  return '<div class="adesso-ap"><div class="serigrafia">Adesso' + aiuto('ap-adesso', x.aiuto || '') + '</div>' +
+    x.righe.map(function (r) {
+      return '<div class="adesso-ap__riga"><b style="color:' + (tinta[r.tono] || 'inherit') + '">' + esc(r.chi) + '</b> ' +
+        '<span class="adesso-ap__compito">' + esc(r.compito) + '</span> ' +
+        '<span' + (r.tono === 'lavoro' ? '' : ' style="color:' + (tinta[r.tono] || 'inherit') + '"') + '>' + esc(r.testo) + '</span></div>'
+    }).join('') +
+    (x.finite ? '<div class="sotto">' + (x.finite === 1 ? '1 chat finita' : x.finite + ' chat finite') + '</div>' : '') + '</div>'
+}
 function dalVivoHtml(v) {
   if (!v || typeof v !== 'object') return ''
   // I colori di COLORE_DAL_VIVO (0.80.0): «fermo» rosso come sul PC e nell'app.
@@ -1634,7 +1652,7 @@ function impronta(s) {
     JSON.stringify(panAperte),
     // La gestione delle chat (0.79.0): linguette, scelte, conferme, svuota.
     gcImpronta(),
-    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
@@ -1883,7 +1901,7 @@ function pannello(s) {
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
-      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
