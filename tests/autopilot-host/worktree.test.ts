@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
+import { cpSync, mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -18,17 +18,37 @@ const esegui = (args: string[], cwd: string): string => {
   return r.uscita
 }
 
+// Il repository di partenza si fa con git una volta sola e ogni test ne riceve
+// una copia (20/10): a PC carico ogni processo git costa più di un secondo, e
+// sei processi per test (init, config, commit) portavano il file oltre il tempo.
+let modello = ''
+beforeAll(() => {
+  modello = join(mkdtempSync(join(tmpdir(), 'sd-wt-modello-')), 'progetto')
+  mkdirSync(modello)
+  esegui(['init', '-q', '-b', 'main'], modello)
+  esegui(['config', 'user.name', 'Prova'], modello)
+  esegui(['config', 'user.email', 'prova@example.com'], modello)
+  esegui(['config', 'core.autocrlf', 'false'], modello)
+  writeFileSync(join(modello, 'a.txt'), 'uno\n')
+  esegui(['add', '-A'], modello)
+  esegui(['commit', '-q', '-m', 'inizio'], modello)
+}, 120_000)
+
 let progetto = ''
 beforeEach(() => {
   progetto = join(mkdtempSync(join(tmpdir(), 'sd-wt-')), 'progetto')
-  mkdirSync(progetto)
-  esegui(['init', '-q', '-b', 'main'], progetto)
-  esegui(['config', 'user.name', 'Prova'], progetto)
-  esegui(['config', 'user.email', 'prova@example.com'], progetto)
-  esegui(['config', 'core.autocrlf', 'false'], progetto)
-  writeFileSync(join(progetto, 'a.txt'), 'uno\n')
-  esegui(['add', '-A'], progetto)
-  esegui(['commit', '-q', '-m', 'inizio'], progetto)
+  cpSync(modello, progetto, { recursive: true })
+})
+
+describe('il repository di partenza', { timeout: 60_000 }, () => {
+  it('ogni test ne ha una copia sua: un commit in una copia non tocca il modello', () => {
+    writeFileSync(join(progetto, 'c.txt'), 'solo qui\n')
+    esegui(['add', '-A'], progetto)
+    esegui(['commit', '-q', '-m', 'solo qui'], progetto)
+    expect(esegui(['rev-list', '--count', 'HEAD'], progetto)).toBe('2')
+    expect(esegui(['rev-list', '--count', 'HEAD'], modello)).toBe('1')
+    expect(radiceGit(git, progetto)?.replace(/\\/g, '/').toLowerCase()).toBe(progetto.replace(/\\/g, '/').toLowerCase())
+  })
 })
 
 // git vero (worktree, commit, unione): con la macchina carica da altre chat supera i 20 s di regola.

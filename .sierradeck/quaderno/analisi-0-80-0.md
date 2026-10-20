@@ -942,3 +942,15 @@ Già fatte da c-11, c-12, c-15 e c-18 (vedi sopra e `correzioni-velocita-e-codic
 7. c-4 #14: APK ridotto con R8 (16 MB → 3-5 MB attesi). Va provato con un'installazione fatta da Nicholas.
 
 **Media e bassa:** come nella sezione 3 (voci 16-57), tranne quelle segnate come fatte.
+
+## Tempo vero della suite intera (20/10, ramo c-231)
+
+| Quando | Carico | Comando | Durata | Esito |
+|---|---|---|---|---|
+| 20/10 11:45 | **carico**: 17 processi `claude`, 61 `node` (13-14 chat al lavoro) | `npx vitest run --maxWorkers=2` | **1128 s (18 min 48 s)**; import 267 s, test 857 s | 4384 verdi, 1 rosso per tempo (`worktree.test.ts`, «due chat che toccano la stessa riga», 70 s), 2 saltati |
+| 19/10 12:56 (sez. 4) | carico | stesso | 926 s | 1 rosso per tempo |
+| PC scarico | — | stesso | **da misurare**: oggi il PC non è mai stato senza chat al lavoro | — |
+
+- Con le chat al lavoro la suite supera sempre i 10 minuti del tetto di prima: il criterio era rosso per tempo, non per i test.
+- Correzione (c-231, 459d0bae + 3a865b07): la suite ha **20 minuti** (`TIMEOUT_SUITE_TEST_MS`), gli altri criteri il tempo di prima; tetto dell'hook Stop da 900 a **3600 s**, perché i criteri girano dentro quell'hook.
+- 18 min 48 s sta sotto i 20, ma con poco margine: se il carico cresce ancora, la strada è la `--retry=1` della sezione 4 o misurare la suite solo a PC quieto.

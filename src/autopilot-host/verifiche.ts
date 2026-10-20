@@ -7,11 +7,26 @@ import { cancellaSicura } from '@shared/cancella-sicura'
 import { giudicaCancellazioni } from './divieti'
 import type { EsitoVerifica } from './decisione'
 
-export type Esecutore = (comando: string, cwd: string) => Promise<{ codice: number; uscita: string }>
+/** `timeoutMs`, quando c'è, prende il posto del tetto dell'esecutore per quel solo comando. */
+export type Esecutore = (comando: string, cwd: string, timeoutMs?: number) => Promise<{ codice: number; uscita: string }>
 
 /** Oltre questo, l'uscita di un comando non aggiunge informazione utile. */
 const USCITA_MAX = 4000
 const TIMEOUT_PREDEFINITO_MS = 10 * 60_000
+/**
+ * La suite intera dei test ha un tempo suo (0.81.0). Il 20/10, con 13 chat al
+ * lavoro sul PC, `vitest run` superava i 10 minuti e il criterio diventava
+ * rosso senza un solo test fallito; la rimisura cadeva nello stesso carico.
+ */
+export const TIMEOUT_SUITE_TEST_MS = 20 * 60_000
+
+/**
+ * Il tempo concesso a un criterio: più lungo per la suite dei test, quello
+ * dell'esecutore (`undefined`) per tutti gli altri.
+ */
+export function tempoDelCriterio(comando: string): number | undefined {
+  return /\bvitest\b|\bjest\b|\bnpm\s+(run\s+)?test\b/i.test(comando) ? TIMEOUT_SUITE_TEST_MS : undefined
+}
 
 /** Dove si cerca una shell POSIX su Windows, prima di rassegnarsi a `cmd`. */
 const BASH_NOTI = [
@@ -318,7 +333,7 @@ export function gruppoMsys(bash: string, radice: number): Promise<number[]> {
  * criterio finiva in un secondo, l'autopilota ripartiva dieci minuti dopo, e i
  * criteri successivi — che sono seriali per scelta — aspettavano dietro.
  */
-export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esecutore {
+export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): Esecutore {
   const bash = trovaBash()
   // Detto una volta sola, all'avvio: quale shell misura i criteri. Senza questa
   // riga, una shell sbagliata si manifesta solo come sei criteri che falliscono
@@ -328,8 +343,9 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
       ? `[autopilota] i criteri girano in ${bash}`
       : '[autopilota] nessuna bash trovata: i criteri girano in cmd.exe'
   )
-  return (comando, cwd) =>
+  return (comando, cwd, perQuesto) =>
     new Promise((risolvi) => {
+      const timeoutMs = perQuesto ?? predefinitoMs
       const temp = tmpdir()
       const cartella = mkdtempSync(join(temp, 'sierradeck-criterio-'))
       const script = join(cartella, nomeScript(bash))
@@ -441,13 +457,13 @@ export function esecutoreReale(timeoutMs: number = TIMEOUT_PREDEFINITO_MS): Esec
  * suo esito è «non misurato», con il motivo.
  */
 export function conDivieti(esegui: Esecutore): Esecutore {
-  return async (comando, cwd) => {
+  return async (comando, cwd, timeoutMs) => {
     const g = giudicaCancellazioni(comando, cwd, [cwd], false)
     if (!g.ok) {
       console.warn(`[autopilota] criterio non eseguito — ${g.motivo}`)
       return { codice: CODICE_RIFIUTATO, uscita: `SierraDeck non esegue questo criterio. ${g.motivo}` }
     }
-    return esegui(comando, cwd)
+    return esegui(comando, cwd, timeoutMs)
   }
 }
 
@@ -479,13 +495,16 @@ export async function eseguiCriteri(
   for (const criterio of criteri) {
     const comando = criterio.comando
     if (comando === undefined) continue
+    const tempo = tempoDelCriterio(comando)
+    // Senza un tempo suo il comando si chiama come prima: l'esecutore usa il proprio tetto.
+    const lancia = (): ReturnType<Esecutore> => tempo !== undefined ? esegui(comando, cwd, tempo) : esegui(comando, cwd)
     try {
-      let { codice, uscita } = await esegui(comando, cwd)
+      let { codice, uscita } = await lancia()
       // 0.80.1: un rosso per tempo scaduto non si conta subito. Si rimisura una
       // volta da solo; se scade ancora, allora è rosso davvero.
       if (scadutoPerTempo(codice, uscita)) {
         console.warn(`[criterio] «${criterio.descrizione}» rosso per tempo scaduto: lo rimisuro una volta`)
-        const seconda = await esegui(comando, cwd)
+        const seconda = await lancia()
         codice = seconda.codice
         uscita = scadutoPerTempo(seconda.codice, seconda.uscita)
           ? `[rimisurato una volta: scaduto di nuovo]\n${seconda.uscita}`

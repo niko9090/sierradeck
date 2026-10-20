@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { eseguiCriteri, esecutoreReale, type Esecutore } from '../../src/autopilot-host/verifiche'
+import { conDivieti, eseguiCriteri, esecutoreReale, tempoDelCriterio, TIMEOUT_SUITE_TEST_MS, type Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Criterio } from '@shared/autopilota'
 
 const CON_COMANDO: Criterio = { descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }
@@ -59,6 +59,58 @@ describe('eseguiCriteri', () => {
     expect(volte).toBe(2)
     expect(esiti[0]?.passato).toBe(false)
   }, 20_000)
+
+  it('0.81.0: la suite dei test ha 20 minuti, gli altri criteri il tempo di prima', () => {
+    expect(tempoDelCriterio('npx vitest run --maxWorkers=2')).toBe(TIMEOUT_SUITE_TEST_MS)
+    expect(tempoDelCriterio('npm test')).toBe(TIMEOUT_SUITE_TEST_MS)
+    expect(tempoDelCriterio('npm run test -- --run')).toBe(TIMEOUT_SUITE_TEST_MS)
+    expect(TIMEOUT_SUITE_TEST_MS).toBe(20 * 60_000)
+    expect(tempoDelCriterio('npm run typecheck')).toBeUndefined()
+    expect(tempoDelCriterio('cd android && gradle testDebugUnitTest assembleDebug --no-daemon')).toBeUndefined()
+    expect(tempoDelCriterio('bash -c \'! git grep -nE "rmSync" -- src\'')).toBeUndefined()
+  })
+
+  it('0.81.0: eseguiCriteri passa il tempo lungo solo alla suite', async () => {
+    const tempi: Record<string, number | undefined> = {}
+    const finto: Esecutore = (c, _cwd, t) => { tempi[c] = t; return Promise.resolve({ codice: 0, uscita: 'ok' }) }
+    await eseguiCriteri([
+      { descrizione: 'test', comando: 'npx vitest run --maxWorkers=2', soddisfatto: false },
+      { descrizione: 'tipi', comando: 'npm run typecheck', soddisfatto: false }
+    ], 'C:\\p', finto)
+    expect(tempi['npx vitest run --maxWorkers=2']).toBe(TIMEOUT_SUITE_TEST_MS)
+    expect('npm run typecheck' in tempi).toBe(true)
+    expect(tempi['npm run typecheck']).toBeUndefined()
+  })
+
+  it('0.81.0: con l esecutore vero, la suite lenta entro il suo tempo è verde e un altro criterio lento resta rosso', async () => {
+    // Tempi in scala: il tetto dell'esecutore 300 ms, quello della suite 40 s (il PC carico può metterci secondi solo ad avviare node).
+    const vero = esecutoreReale(300)
+    const lento = 'node -e "setTimeout(()=>{},1500)"'
+    let volte = 0
+    const inScala: Esecutore = (_c, cwd, t) => { volte++; return vero(lento, cwd, t === undefined ? undefined : t / 30) }
+    const [suite] = await eseguiCriteri([{ descrizione: 'test', comando: 'npx vitest run', soddisfatto: false }], process.cwd(), inScala)
+    expect(suite?.passato).toBe(true)
+    expect(volte).toBe(1)
+    const [tipi] = await eseguiCriteri([{ descrizione: 'tipi', comando: 'npm run typecheck', soddisfatto: false }], process.cwd(), inScala)
+    expect(tipi?.passato).toBe(false)
+    expect(tipi?.uscita).toContain('[comando interrotto dopo 0s]')
+  }, 120_000)
+
+  it('0.81.0: la suite che fallisce davvero resta rossa e non si rimisura', async () => {
+    let volte = 0
+    const finto: Esecutore = () => { volte++; return Promise.resolve({ codice: 1, uscita: 'Tests  2 failed | 4328 passed' }) }
+    const [e] = await eseguiCriteri([{ descrizione: 'test', comando: 'npx vitest run --maxWorkers=2', soddisfatto: false }], 'C:\\p', finto)
+    expect(e?.passato).toBe(false)
+    expect(e?.uscita).toContain('2 failed')
+    expect(volte).toBe(1)
+  })
+
+  it('0.81.0: conDivieti porta il tempo del criterio fino all esecutore', async () => {
+    let ricevuto: number | undefined
+    const esegui = conDivieti((_c, _cwd, t) => { ricevuto = t; return Promise.resolve({ codice: 0, uscita: 'ok' }) })
+    await eseguiCriteri([{ descrizione: 'test', comando: 'npx vitest run', soddisfatto: false }], process.cwd(), esegui)
+    expect(ricevuto).toBe(TIMEOUT_SUITE_TEST_MS)
+  })
 
   it('un codice diverso da zero e un criterio non soddisfatto', async () => {
     const finto: Esecutore = () => Promise.resolve({ codice: 1, uscita: '2 test rossi' })
