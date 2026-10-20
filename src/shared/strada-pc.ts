@@ -278,7 +278,7 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).
   '/api/panoramica',
-  '/api/autopilota/archivia', '/api/autopilota/manda-adesso', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/autopilota/archivia', '/api/autopilota/sposta', '/api/autopilota/manda-adesso', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
   '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',

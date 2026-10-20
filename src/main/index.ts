@@ -4735,7 +4735,7 @@ if (!app.requestSingleInstanceLock()) {
         setInterval(() => { void giro() }, 120_000)
         setTimeout(() => { void giro() }, 30_000)
       }
-      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id))
+      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id), () => workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [])
       primaDiEliminareGlobale = {
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)
@@ -5656,6 +5656,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
         archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
+        spostaAutopilota: (id: string, workspace: string) => clientAutopilota.spostaInWorkspace(id, workspace),
         mandaAdessoAutopilota: (id: string) => clientAutopilota.mandaAdesso(id),
         installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
         installaLaStato: () => installaLaGlobale?.stato() ?? [],

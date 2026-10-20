@@ -1979,6 +1979,13 @@ function pannello(s) {
         \${apAperto.stato === 'sospeso' || apAperto.stato === 'fallito' ? '<button data-ap="' + esc(apAperto.id) + '" onclick="archiviaAp(this.dataset.ap)" title="Esce dall’elenco dei lavori; non si cancella niente">Archivia</button>' : ''}
         <button onclick="apriPannello('quaderno')">Quaderno</button>
       </div>
+      \${!apPc && ((s.workspace && s.workspace.nomi) || []).some((n) => n !== apAperto.workspace) ? \`
+      <div class="riga">
+        <select id="ap-sposta" style="flex:1" aria-label="Sposta in un altro workspace">
+          \${(s.workspace.nomi || []).filter((n) => n !== apAperto.workspace).map((n) => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('')}
+        </select>
+        <button data-ap="\${esc(apAperto.id)}" onclick="spostaAp(this.dataset.ap)">Sposta lì</button>\${aiuto('ap-sposta', 'Cambia il workspace dove compare il suo lavoro' + (apAperto.workspace ? ' (adesso «' + esc(apAperto.workspace) + '»)' : '') + '. La cartella e le chat già aperte restano dove sono. Dopo, il workspace di prima si può eliminare.')}
+      </div>\` : ''}
       <div class="riga">
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.sottofondo === true ? 'checked' : ''} data-ap="\${esc(apAperto.id)}" onchange="sottofondoAp(this.dataset.ap, this.checked)"> Lavora in sottofondo\${aiuto('ap-sottofondo', 'Di serie la sua chat sta in un riquadro del suo workspace sul computer, e quando l’autopilota le scrive il computer va in quel workspace (mai mentre stai scrivendo lì). Accesa, la chat lavora senza riquadro: la vedi in «in sottofondo» con Guarda.')}</label>
@@ -3356,6 +3363,15 @@ window.eliminaAp = async (id) => {
 window.archiviaAp = async (id) => {
   try { await chiediAp('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
   catch (e) { notaGlobale = 'Non l’ho archiviato: ' + ((e && e.message) || 'il computer non risponde') }
+  aggiorna()
+}
+
+// «Sposta in un altro workspace» (0.81.0), come dal pannello del PC.
+window.spostaAp = async (id) => {
+  const scelta = document.getElementById('ap-sposta')
+  if (!scelta || !scelta.value) return
+  try { await chiediAp('/api/autopilota/sposta', { autopilota: id, workspace: scelta.value }); notaGlobale = 'Spostato in «' + scelta.value + '».' }
+  catch (e) { notaGlobale = 'Non l’ho spostato: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
 }
 

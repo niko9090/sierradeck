@@ -336,6 +336,9 @@ export function conservaCambiUtente(
     riprendiAlRiavvio: fresco.riprendiAlRiavvio,
     tettoChat: fresco.tettoChat,
     limiti: fresco.limiti,
+    // «Sposta in un altro workspace» (0.81.0) si può fare a turno in corso:
+    // con la fotografia di inizio turno il workspace tornava quello di prima.
+    ...(fresco.workspace !== undefined ? { workspace: fresco.workspace } : {}),
     // Le chat messe da parte (0.80.1) le scrive il guardiano ogni 30 s, anche
     // mentre questo turno dura minuti: si prendono dal disco, togliendo solo
     // la chat di questo turno, che ha appena chiuso e quindi è viva.
@@ -2531,6 +2534,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     aggiornato.riprendiAlRiavvio = conCambiUtente.riprendiAlRiavvio
     aggiornato.tettoChat = conCambiUtente.tettoChat
     aggiornato.limiti = conCambiUtente.limiti
+    // «Sposta in un altro workspace» (0.81.0) a turno in corso.
+    if (conCambiUtente.workspace !== undefined) aggiornato.workspace = conCambiUtente.workspace
     aggiornato.daParte = conCambiUtente.daParte
     // E il dialogo con te, con i messaggi che aspettano di entrare nella chat.
     aggiornato.dialogo = conCambiUtente.dialogo
@@ -3624,6 +3629,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const { archiviato: _a, ...resto } = a
             salva(resto)
           }
+          rispondi(res, 200, deps.archivio.leggi(id))
+          return
+        }
+
+        // «Sposta in un altro workspace» (0.81.0, Nicholas: «Spostalo in
+        // NexoraOS»): cambia solo dove compare il suo lavoro, non la cartella né
+        // le chat già aperte. Così il workspace di prima si può eliminare.
+        const sposta = /^\/autopiloti\/([^/]+)\/workspace$/.exec(percorso)
+        if (metodo === 'POST' && sposta !== null) {
+          const id = decodeURIComponent(sposta[1]!)
+          const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
+            return
+          }
+          const corpo = await leggiCorpo(req)
+          const ws = typeof corpo === 'object' && corpo !== null ? (corpo as Record<string, unknown>).workspace : undefined
+          if (typeof ws !== 'string' || ws.trim() === '' || ws.length > 200) {
+            rispondi(res, 400, { errore: 'manca il nome del workspace' })
+            return
+          }
+          salva({ ...a, workspace: ws.trim() })
           rispondi(res, 200, deps.archivio.leggi(id))
           return
         }

@@ -1097,6 +1097,8 @@ contextBridge.exposeInMainWorld('gestore', {
     ricontrollaCriteri: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ricontrollaCriteri', id),
     /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
     archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
+    /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */
+    spostaInWorkspace: (id: string, workspace: string): Promise<void> => ipcRenderer.invoke('autopilota:spostaInWorkspace', id, workspace),
     /** «Manda adesso» (0.69.0): i messaggi in coda escono subito, anche durante il turno. */
     mandaAdesso: (id: string): Promise<{ mandate: number; messaggio?: string }> => ipcRenderer.invoke('autopilota:mandaAdesso', id),
     /** Una riga nel diario dell'autopilota, scritta dal programma. */
