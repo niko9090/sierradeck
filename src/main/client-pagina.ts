@@ -3279,7 +3279,7 @@ function vistaIstruzioniAp(x) {
       '<b>→ ' + esc(i.chatTitolo || i.chatId) + '</b> ' +
       '<span class="istr-ap__esito istr-ap__esito--' + esc(i.esito) + '">' + esc(esiti[i.esito] || i.esito) + '</span></summary>' +
       (i.perche ? '<div class="sotto"><b>Perché:</b> ' + esc(i.perche) + '</div>' : '') +
-      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
+      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : i.cosa === 'chiudi' ? '<div class="sotto">Ha chiuso la chat finita, per liberare il posto (la conversazione resta).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
       (apIstrCorreggi === i.id
         ? '<div class="riga"><textarea id="correggi-istr-ap" rows="3" placeholder="Cosa c’è di sbagliato, o cosa doveva scrivere invece"></textarea></div>' +
           '<div class="riga"><button class="primario" data-i="' + esc(i.id) + '" onclick="mandaCorrezioneAp(this.dataset.i)">Manda la correzione</button><button onclick="correggiIstrAp(null)">Annulla</button></div>'

@@ -251,3 +251,28 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     expect((await chiama('GET', '/posti-chat'))).toMatchObject({ posti: 8, regolazione: 1 })
   })
 })
+
+describe('la consegna «chiudi» (0.82.0)', () => {
+  it('l esecutore la mette in coda senza testo, nel workspace della chat, e smette di governarla', async () => {
+    const { creaConsegne } = await import('../../src/autopilot-host/consegne')
+    const { esecutoreNelMosaico } = await import('../../src/autopilot-host/nel-mosaico')
+    const consegne = creaConsegne()
+    const e = esecutoreNelMosaico({ consegne, nuovaSessione: () => 's-nuova', ricorda: () => {} })
+    const a = autopilota({ id: 'ap-1', chats: [chat('c-1', 'lavoro')] })
+    await e.avvia(a, undefined, a.chats[0])
+    expect(e.attivi()).toEqual(['ap-1::c-1'])
+    e.chiudi('ap-1', 'c-1', { sessionId: 's-c-1', workspace: 'Lavoro' })
+    expect(e.attivi()).toEqual([])
+    const fuori = consegne.ritira().filter((c) => c.cosa === 'chiudi')
+    expect(fuori).toHaveLength(1)
+    expect(fuori[0]).toMatchObject({ autopilotaId: 'ap-1', chatId: 'c-1', sessionId: 's-c-1', testo: '', workspace: 'Lavoro' })
+  })
+
+  it('il programma la legge (senza testo non è scartata) e la linguetta Istruzioni la ricorda', async () => {
+    const { leggiConsegne } = await import('../../src/main/autopilota-consegne')
+    const { leggiIstruzioni } = await import('@shared/istruzioni-autopilota')
+    expect(leggiConsegne({ consegne: [{ id: 'c-9', autopilotaId: 'ap-1', chatId: 'c-1', sessionId: 's-c-1', cwd: '', titolo: '', cosa: 'chiudi', testo: '' }] }))
+      .toMatchObject([{ id: 'c-9', cosa: 'chiudi' }])
+    expect(leggiIstruzioni({ istruzioni: [{ id: 'x', quando: iso(ORA), testo: '', cosa: 'chiudi' }] })[0]?.cosa).toBe('chiudi')
+  })
+})
