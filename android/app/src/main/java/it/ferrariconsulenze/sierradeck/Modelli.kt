@@ -434,7 +434,6 @@ data class AutopilotaBreve(
 /** La riga sotto il nome di un autopilota (PC 0.70): «da 6 min · criteri 0/1». */
 fun sottoAutopilota(v: VistaAutopilotaApp): String = listOfNotNull(v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, "criteri ${v.criteri.testo}").joinToString(" · ")
 
-/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
 @Serializable
 data class RigaAdesso(
     val id: String = "",
@@ -471,6 +470,7 @@ fun righeFinite(n: Int): String? = when {
     else -> "$n chat finite"
 }
 
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
 @Serializable
 data class StatoDalVivo(
     val etichetta: String = "",

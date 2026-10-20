@@ -111,5 +111,8 @@ class AdessoTest {
     fun `un PC vecchio non manda «Adesso»`() {
         val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","stato":"lavoro"}""")
         assertNull(d.adesso)
+        // Un riquadro vuoto non ha righe: `AdessoVista` non disegna niente.
+        val vuoto = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","adesso":{}}""").adesso!!
+        assertTrue(vuoto.righe.isEmpty() && vuoto.finite == 0)
     }
 }
