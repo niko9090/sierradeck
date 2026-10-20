@@ -33,7 +33,11 @@ Seguito della scheda di c-7 «Notifiche 0.81.0: cosa è fatto e cosa resta». Ra
 - Vitest: `tests/shared/notifiche-solo-utili.test.ts`, `tests/autopilot-host/telegram.test.ts`, `tests/autopilot-host/server.test.ts` (freno oltre il 95%: nessun avviso), `tests/autopilot-host/ripresa-al-ritorno.test.ts` (nessun «ripreso»), `tests/renderer/avvisi-chiusi.test.ts` (pagina).
 - App: `AvvisiTest.kt`.
 
+## Fatto il 20/10 (dopo la 0.80.1)
+- **Ripartenza dopo il freno fallita.** La prima correzione non avvisava mai: la ripartenza salva «al lavoro» prima di avviare la chat, quindi `eFermo` era sempre falso. Ora avvisa comunque, con il motivo «non è ripartito dopo la pausa per i limiti». Test in `server.test.ts`, verificato rosso con il codice vecchio.
+- **Allo spegnimento** (`POST /spegni`, aggiornamento) gli avvisi Telegram in attesa partono subito con `avvisatore.svuotaOra()`, aspettati al massimo 3 s. Il timer, se scatta dopo, non li rimanda.
+- **Unione con la 0.80.1** (c-12): una chat che tace va da parte e non sospende più. Il conflitto in `controllaChatFerme` è risolto tenendo la 0.80.1.
+- **Trappola:** un heredoc Bash `<<'EOF'` riduce `\\n` a `\n` dentro gli script di sostituzione. Gli script con backslash si scrivono con Write.
+
 ## Resta
-- Gli avvisi Telegram in attesa (fino a 20 s) si perdono se il servizio esce proprio allora, per esempio durante un aggiornamento. Si risolve con uno svuotamento allo spegnimento ordinato. È bassa priorità e non è fatto.
-- Il caso «ripartenza dopo il freno fallita, quindi avviso» non ha un test: serve un `riprendiAutopilota` che fallisce nel finto del server.
 - La prova nella copia di prova con un autopilota al lavoro, e i numeri: non ancora con questa versione. Quella di c-11 (26 minuti, notifiche della pagina da 6 a 2) è nella scheda «workspace che cambia da solo e notifiche».
