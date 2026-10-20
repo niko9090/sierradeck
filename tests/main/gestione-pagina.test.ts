@@ -30,7 +30,7 @@ describe('la pagina: gestire chat e workspace', () => {
   })
 
   it('ci sono i tasti: dormi, sveglia, sposta, chiudi, rinomina ed elimina il workspace', () => {
-    for (const pezzo of ["chiediAzione(\\'dormi\\'", "azioneChat(\\'sveglia\\'", "chiediAzione('sposta'", "chiediAzione('chiudi'", 'rinominaWorkspace()', "chiediAzione(\\'eliminaWorkspace\\'"]) {
+    for (const pezzo of ["chiediAzione(\\'dormi\\'", "azioneChat(\\'sveglia\\'", "chiediAzione('sposta'", "chiediAzione('chiudi'", 'rinominaWorkspace(this.dataset.n)', "chiediAzione('eliminaWorkspace'"]) {
       expect(script, pezzo).toContain(pezzo)
     }
     for (const rotta of ['/api/chat/dormi', '/api/chat/sposta', '/api/chat/chiudi', '/api/workspace/rinomina', '/api/workspace/elimina']) expect(script, rotta).toContain(rotta)
