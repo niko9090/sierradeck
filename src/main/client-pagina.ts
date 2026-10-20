@@ -5712,7 +5712,7 @@ function avvisaSeServe(stato) {
         if (!avvisati['t-' + c.id]) avvisati['t-' + c.id] = ora
         if (ora - avvisati['t-' + c.id] < ATTESA_CHAT_MS) continue
         avvisati[chiaveChat] = true
-        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' aspetta te', corpo: 'Da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
+        if (nuovo) nuovi.push({ tipo: 'aspetta', titolo: (c.titolo || 'Una chat') + ' ha finito il turno', corpo: 'Ferma da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min. ' + (c.ultimaRiga || 'Ha finito di scrivere.'), tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' ha finito il turno e aspetta da ' + Math.round((ora - avvisati['t-' + c.id]) / 60000) + ' min' })
       } else {
         delete avvisati[chiaveChat]
         delete avvisati['t-' + c.id]
