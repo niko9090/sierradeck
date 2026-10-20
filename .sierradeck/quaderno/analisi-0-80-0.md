@@ -1090,6 +1090,7 @@ La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
 - **c-12-salva** (c1ad7e20) e **c-12-salva2** (0e4f0505): **uniti**. `salvaLavoro` salva anche nella sottocartella del progetto che il ramo contiene, maiuscole comprese. Revisione fatta da c-12; il test fallisce senza la correzione.
 - **c-10, docs** (db268e9f): **unito** (f3dd16eb). Il «Riepilogo prima e dopo» qui sopra. Un solo conflitto, su questo file: tenute tutte e due le sezioni.
 - **c-289-sposta**: «Sposta in un altro workspace» per gli autopiloti, più la correzione del test dell'intervista (sotto). Passato dalla Revisione: un difetto bloccante trovato e corretto, cioè lo spostamento a turno in corso che tornava indietro.
+- **c-310**: **unito** (b25fd78b). Le chat chiuse non ricevono più giri né compiti: fine turno e notifica di una chat finita, o con la copia mancante o non più git, non chiamano il supervisore; nessuna consegna a una chat finita; chiudiChat su una chat già finita la ferma e lo scrive; fermare una chat toglie solo i suoi ordini. Revisione (agente typescript-reviewer): 4 difetti trovati e corretti in c89a5fb6, ognuno con il suo test. (1) il «sì» tardivo alla pubblicazione veniva scartato; (2) una chat chiusa per copia mancante non liberava il posto ai compiti in coda; (3) un git che non risponde chiudeva la chat; (4) la Revisione si chiudeva se mancava la cartella dell'autore. Nessun dato privato nei test. Dopo l'unione: server, stato-copia e nel-mosaico 176/176, tsc verde.
 - Nessun altro ramo `ap/ap-f1e631f5/*` resta avanti rispetto a main con lavoro non unito.
 
 ### I due workspace sbagliati del 19/10: cosa manca e come si fa
@@ -1114,6 +1115,8 @@ La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
 | `tests/main` | 16:18 (13 orfane vive) | 189 | 1804 | tutti verdi, 1 worker uscito | 1386 s |
 | `tests/autopilot-host tests/renderer tests/shared tests/pty-host` | 16:41 | 250 | 2724 | tutti verdi | 1077 s |
 | `tests/main` | 17:36 (orfane chiuse, 4 suite di altre chat) | 190 | 1809 | 1 rosso per tempo (`file-autopilota`, poi corretto) | 1138 s |
+| `tests/main` | sera, c-324 (1 sola altra suite accesa) | 190 | 1809 | tutti verdi, niente di appeso | **290 s** |
+| `tests/autopilot-host tests/renderer tests/shared tests/pty-host` | sera, c-324, subito dopo | 251 | 2736 | tutti verdi | **390 s** |
 
 - Nella corsa delle 17:36 i test veri sono 818 s; il resto è trasformazione e import (486 + 556 s), sommati sui processi.
-- **Sopra i 9 minuti anche tutto verde:** a PC quieto non si è mai potuto misurare, perché c'erano sempre altre chat al lavoro. Il tetto di 20 minuti (c-24) ci sta dentro solo se le suite intere non girano in più chat insieme.
+- **Con una sola suite alla volta tutti e due stanno sotto i 9 minuti** (290 s e 390 s, misura di c-324): i rossi per tempo erano carico, non test appesi. Il tetto di 20 minuti (c-24) ci sta dentro solo se le suite intere non girano in più chat insieme.
