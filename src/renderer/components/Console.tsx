@@ -399,6 +399,7 @@ export function Console({
               onAperto={setMenuWsAperto}
               onCambia={cambiaWorkspace}
               onGestisci={() => commuta('workspace')}
+              onStato={(s) => onStatoWorkspace?.(s)}
             />
           ) : nomiWs.map((n) => (
             <button

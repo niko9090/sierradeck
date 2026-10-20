@@ -1,6 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { contaChatPerWorkspace, filtraWorkspace } from '../menu-workspace'
+import { contaChatPerWorkspace } from '../menu-workspace'
+import { azioniDiFinestra } from '../azioni-finestra'
+import type { StatoWorkspace } from '../../main/ipc'
+import { azioniMenuWorkspace, gruppiMenuWorkspace, postoTendina, vociInFila, type PostoTendina, type VoceAzioneWs, type VoceMenuWs } from '@shared/menu-workspace'
+import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } from '@shared/azioni-telefono'
+import { ModaleConferma } from './ModaleConferma'
+import { ModaleSposta } from './ModaleSposta'
 
 type Props = {
   nomi: string[]
@@ -12,50 +18,82 @@ type Props = {
   onCambia: (nome: string) => void
   /** «Crea, rinomina o elimina…»: apre il pannello dei workspace. */
   onGestisci: () => void
+  /** Dopo un'azione dal «⋯» (rinomina, elimina): lo stato nuovo dei workspace. */
+  onStato?: (s: StatoWorkspace) => void
+  /** «Apri cartella» dal «⋯»: la cartella del progetto di quel workspace. */
+  onApriCartella?: (nome: string) => void
 }
 
+/** La larghezza voluta della tendina e del «⋯»: si stringono se la finestra è più stretta. */
+const LARGHEZZA = 440
+const LARGHEZZA_AZIONI = 240
+
 /**
- * Il menu a tendina dei workspace, per quando sono tanti.
+ * Il menu a tendina dei workspace, per quando sono tanti (0.82.0 rifatto).
  *
- * Il tasto mostra il nome **intero** di dove sei e quanti workspace ci sono;
- * la tendina li elenca tutti per esteso, con quante chat ha ciascuno e il
- * pallino di chi aspetta una tua risposta. Frecce e Invio per scegliere;
- * scrivendo un pezzo del nome l'elenco si restringe (Backspace cancella,
- * senza una casella in mezzo: Nicholas, 16/09, «mi fa vedere solo il cerca e
- * non mi serve, voglio l'elenco»).
+ * Il tasto mostra il nome **intero** di dove sei e quanti workspace ci sono.
+ * La tendina: in cima la ricerca per nome, sotto l'elenco intero in gruppi —
+ * «Recenti», «Questo PC», e uno per ogni altro PC — con quante chat ha
+ * ciascuno e il pallino di chi aspetta una risposta. Il clic su una riga ci
+ * va; le altre azioni (rinomina, Apri cartella, Sposta, Elimina; per gli altri
+ * PC Apri e Porta qui) stanno dietro «⋯». Le regole sono in
+ * `@shared/menu-workspace`, le stesse della pagina e dell'app.
  *
- * La tendina sta in un portale, attaccata al `body` e posizionata sotto il
- * tasto: la fascia dei workspace scorre in orizzontale (`overflow-x: auto`) e
- * qualunque cosa esca dal suo rettangolo viene tagliata. Nella 0.27.0 la
- * tendina era figlia della fascia e si vedeva solo la prima riga.
+ * La ricerca è una casella **sopra** l'elenco, che resta sempre in vista
+ * (Nicholas, 16/09: «mi fa vedere solo il cerca e non mi serve, voglio
+ * l'elenco»).
+ *
+ * Sta sempre dentro la finestra: posizione e altezza massima da `postoTendina`,
+ * ricalcolate a ogni apertura e se la finestra cambia; dentro, l'elenco scorre.
+ * È in un portale attaccato al `body`: la fascia dei workspace scorre in
+ * orizzontale e taglierebbe tutto quello che le esce dal rettangolo.
  */
-export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCambia, onGestisci }: Props): React.JSX.Element {
+export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCambia, onGestisci, onStato, onApriCartella }: Props): React.JSX.Element {
   const [filtro, setFiltro] = useState('')
   const [evidenziato, setEvidenziato] = useState(0)
   const [conti, setConti] = useState<Map<string, number>>(new Map())
   /** Quante chat di altri PC per workspace (0.39.3). */
   const [remote, setRemote] = useState<Record<string, number>>({})
-  /** I workspace degli altri PC che qui non ci sono (0.65.1): a parte, sotto. */
+  /** I workspace degli altri PC che qui non ci sono (0.65.1): un gruppo per PC. */
   const [altrove, setAltrove] = useState<{ pc: string; nome: string; workspace: string[] }[]>([])
+  const [recenti, setRecenti] = useState<string[]>([])
+  const [nomePc, setNomePc] = useState<string | undefined>(undefined)
   const [porto, setPorto] = useState<string | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  const [posto, setPosto] = useState<{ top: number; left: number } | undefined>(undefined)
+  const [posto, setPosto] = useState<PostoTendina | undefined>(undefined)
+  /** Il «⋯» aperto: di quale riga e dove. */
+  const [azioniDi, setAzioniDi] = useState<{ voce: VoceMenuWs; posto: PostoTendina } | undefined>(undefined)
+  const [rinomina, setRinomina] = useState<{ vecchio: string; testo: string } | undefined>(undefined)
+  const [daEliminare, setDaEliminare] = useState<string | undefined>(undefined)
+  /** «Sposta su un altro PC…»: la cartella del progetto ('' = da scegliere). */
+  const [sposta, setSposta] = useState<string | undefined>(undefined)
   const tasto = useRef<HTMLButtonElement>(null)
+  const cerca = useRef<HTMLInputElement>(null)
   const lista = useRef<HTMLDivElement>(null)
+  const azioni = useRef<ReturnType<typeof azioniDiFinestra> | undefined>(undefined)
+  /** Il motivo di un'eliminazione rifiutata: il menu si riapre e lo mostra. */
+  const erroreDaMostrare = useRef<string | undefined>(undefined)
   const quantiChiamano = nomi.filter((n) => chiamano?.has(n) === true && n !== attivo).length
 
-  const visibili = filtraWorkspace(nomi, filtro)
-  const scegli = (n: string): void => { onAperto(false); if (n !== attivo) onCambia(n) }
+  const gruppi = gruppiMenuWorkspace({ nomi, attivo, recenti, filtro, nomePc, altrove })
+  const fila = vociInFila(gruppi)
+  const chiudi = (): void => { setAzioniDi(undefined); setRinomina(undefined); onAperto(false) }
+  const scegli = (v: VoceMenuWs): void => {
+    if (!v.qui) { apriDaAltroPc(v); return }
+    chiudi()
+    if (v.nome !== attivo) onCambia(v.nome)
+  }
 
-  // Dove mettere la tendina: sotto il tasto, allineata a sinistra, senza
-  // uscire dalla finestra. Si ricalcola a ogni apertura e se la finestra cambia.
+  // Dove mettere la tendina: sotto il tasto (o sopra, se sotto non c'è
+  // posto), mai fuori dalla finestra. Si ricalcola a ogni apertura e se la
+  // finestra cambia; aprendo, il «⋯» di prima si chiude.
   useLayoutEffect(() => {
     if (!aperto) return
     const misura = (): void => {
       const r = tasto.current?.getBoundingClientRect()
       if (r === undefined) return
-      const larghezza = Math.min(480, window.innerWidth - 32)
-      setPosto({ top: r.bottom + 4, left: Math.max(16, Math.min(r.left, window.innerWidth - larghezza - 16)) })
+      setPosto(postoTendina({ ancora: r, finestra: { larghezza: window.innerWidth, altezza: window.innerHeight }, larghezza: LARGHEZZA }))
+      setAzioniDi(undefined)
     }
     misura()
     window.addEventListener('resize', misura)
@@ -65,135 +103,230 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   useEffect(() => {
     if (!aperto) return
     setFiltro('')
-    setErrore(undefined)
-    setEvidenziato(Math.max(0, nomi.indexOf(attivo)))
+    setErrore(erroreDaMostrare.current)
+    erroreDaMostrare.current = undefined
+    setEvidenziato(0)
     void window.gestore.workspace.dove().then((d) => setConti(contaChatPerWorkspace(d))).catch(() => undefined)
     void window.gestore.workspace.remote().then(setRemote).catch(() => undefined)
     void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
-    // La tendina ha il fuoco (tabIndex -1) così la tastiera arriva a lei e non
-    // al terminale sotto.
-    setTimeout(() => lista.current?.focus(), 0)
-  }, [aperto, nomi, attivo])
+    void window.gestore.workspace.recenti?.()?.then(setRecenti).catch(() => undefined)
+    void window.gestore.posta?.identita?.()?.then((i) => setNomePc(i.nome)).catch(() => undefined)
+    // La ricerca ha il fuoco: la tastiera arriva a lei e non al terminale sotto.
+    setTimeout(() => cerca.current?.focus(), 0)
+  }, [aperto])
 
   useEffect(() => {
-    if (evidenziato >= visibili.length) setEvidenziato(Math.max(0, visibili.length - 1))
-  }, [visibili.length, evidenziato])
+    if (evidenziato >= fila.length) setEvidenziato(Math.max(0, fila.length - 1))
+  }, [fila.length, evidenziato])
 
   useEffect(() => {
     if (!aperto) return
     const voce = lista.current?.querySelectorAll<HTMLElement>('.ws-menu__voce')[evidenziato]
-    voce?.scrollIntoView({ block: 'nearest' })
+    voce?.scrollIntoView?.({ block: 'nearest' })
   }, [aperto, evidenziato])
 
+  const apriAzioni = (v: VoceMenuWs, el: HTMLElement): void => {
+    const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).length
+    setAzioniDi({
+      voce: v,
+      posto: postoTendina({ ancora: el.getBoundingClientRect(), finestra: { larghezza: window.innerWidth, altezza: window.innerHeight }, larghezza: LARGHEZZA_AZIONI, altezza: quante * 34 + 12, aDestra: true })
+    })
+  }
+
+  const apriDaAltroPc = (v: VoceMenuWs): void => {
+    if (v.pc === undefined) return
+    setPorto(v.nome)
+    setAzioniDi(undefined)
+    void window.gestore.workspace.apriDaAltroPc(v.pc.id, v.nome)
+      .then((r) => { if (r.ok) chiudi(); else setErrore(r.messaggio) })
+      .catch((err: unknown) => setErrore(String(err)))
+      .finally(() => setPorto(undefined))
+  }
+
+  const confermaRinomina = (): void => {
+    if (rinomina === undefined) return
+    const { vecchio, testo } = rinomina
+    if (testo.trim() === vecchio) { setRinomina(undefined); return }
+    const c = controllaNomeWorkspace(testo, nomi.filter((n) => n !== vecchio))
+    if (!c.ok) { setErrore(c.errore); return }
+    setRinomina(undefined)
+    void window.gestore.workspace.rinomina(vecchio, c.nome)
+      .then((s) => { setErrore(undefined); onStato?.(s) })
+      .catch((err: unknown) => setErrore(senzaPrefisso(err)))
+  }
+
+  const fai = (a: VoceAzioneWs, v: VoceMenuWs): void => {
+    if (a.spenta !== undefined) return
+    setAzioniDi(undefined)
+    setErrore(undefined)
+    switch (a.azione) {
+      case 'apri': scegli(v); return
+      case 'rinomina': setRinomina({ vecchio: v.nome, testo: v.nome }); return
+      case 'cartella': chiudi(); onApriCartella?.(v.nome); return
+      case 'sposta':
+        chiudi()
+        void window.gestore.sistema.cartelleBase(v.nome)
+          .then((b) => setSposta(b.workspace ?? ''))
+          .catch(() => setSposta(''))
+        return
+      case 'elimina': chiudi(); setDaEliminare(v.nome); return
+      case 'portaQui':
+        setPorto(v.nome)
+        void window.gestore.sync.portaQuiWorkspace(v.nome).finally(() => {
+          setPorto(undefined)
+          void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
+        })
+    }
+  }
+
   const suTasto = (e: React.KeyboardEvent): void => {
-    if (e.key === 'Escape') { e.preventDefault(); onAperto(false); return }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setEvidenziato((i) => (visibili.length === 0 ? 0 : (i + 1) % visibili.length)); return }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setEvidenziato((i) => (visibili.length === 0 ? 0 : (i - 1 + visibili.length) % visibili.length)); return }
-    if (e.key === 'Home') { e.preventDefault(); setEvidenziato(0); return }
-    if (e.key === 'End') { e.preventDefault(); setEvidenziato(Math.max(0, visibili.length - 1)); return }
+    if (rinomina !== undefined) return
+    if (e.key === 'Escape') { e.preventDefault(); if (azioniDi !== undefined) setAzioniDi(undefined); else chiudi(); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i + 1) % fila.length)); return }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i - 1 + fila.length) % fila.length)); return }
     if (e.key === 'Enter') {
       e.preventDefault()
-      const n = visibili[evidenziato] ?? visibili[0]
-      if (n !== undefined) scegli(n)
+      const v = fila[evidenziato] ?? fila[0]
+      if (v !== undefined) scegli(v)
       return
     }
-    if (e.key === 'Backspace') { e.preventDefault(); setFiltro((f) => f.slice(0, -1)); return }
-    // Un carattere stampabile, senza Ctrl o Alt: si sta scrivendo un pezzo del nome.
-    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    // Il tasto «menu» (o Maiusc+F10) apre il «⋯» della riga evidenziata.
+    if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
       e.preventDefault()
-      setFiltro((f) => f + e.key)
-      setEvidenziato(0)
+      const v = fila[evidenziato]
+      const el = lista.current?.querySelectorAll<HTMLElement>('.ws-menu__altro')[evidenziato]
+      if (v !== undefined && el !== undefined) apriAzioni(v, el)
     }
+  }
+
+  let indice = -1
+  const riga = (v: VoceMenuWs): React.JSX.Element => {
+    indice += 1
+    const i = indice
+    const chiama = v.qui && chiamano?.has(v.nome) === true
+    const quante = conti.get(v.nome)
+    const chiave = v.qui ? v.nome : `${v.pc?.id ?? ''}:${v.nome}`
+    const aperteLe = azioniDi !== undefined && azioniDi.voce.nome === v.nome && azioniDi.voce.qui === v.qui
+    if (rinomina !== undefined && v.qui && rinomina.vecchio === v.nome) {
+      return (
+        <div key={chiave} className="ws-menu__voce ws-menu__voce--rinomina">
+          <input
+            autoFocus
+            className="campo campo--compatto"
+            aria-label={`Nome nuovo per «${v.nome}»`}
+            value={rinomina.testo}
+            maxLength={NOME_WORKSPACE_MAX}
+            onChange={(e) => setRinomina({ vecchio: v.nome, testo: e.target.value })}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') { e.preventDefault(); confermaRinomina() }
+              else if (e.key === 'Escape') { e.preventDefault(); setRinomina(undefined); cerca.current?.focus() }
+            }}
+          />
+          <button className="tasto tasto--mini tasto--primario" onClick={confermaRinomina}>Rinomina</button>
+          <button className="tasto tasto--mini" onClick={() => { setRinomina(undefined); cerca.current?.focus() }}>Annulla</button>
+        </div>
+      )
+    }
+    return (
+      <div
+        key={chiave}
+        id={`ws-menu-voce-${i}`}
+        role="option"
+        aria-selected={v.qui && v.nome === attivo}
+        className={[
+          'ws-menu__voce',
+          v.qui && v.nome === attivo ? 'ws-menu__voce--attiva' : '',
+          chiama ? 'ws-menu__voce--chiama' : '',
+          !v.qui ? 'ws-menu__voce--altrove' : '',
+          i === evidenziato ? 'ws-menu__voce--evidenziata' : ''
+        ].filter((c) => c !== '').join(' ')}
+        onMouseEnter={() => setEvidenziato(i)}
+      >
+        <button
+          className="ws-menu__voce-va"
+          tabIndex={-1}
+          disabled={porto !== undefined}
+          onClick={() => scegli(v)}
+          title={!v.qui ? `Apre qui «${v.nome}»: le sue chat dal vivo su ${v.pc?.nome ?? 'l’altro PC'}` : chiama ? `In «${v.nome}» qualcuno aspetta una tua risposta` : v.nome === attivo ? `Sei in «${v.nome}»` : `Passa a «${v.nome}»`}
+        >
+          <span className="ws-menu__spunta" aria-hidden>{v.qui && v.nome === attivo ? '✓' : ''}</span>
+          <span className="ws-menu__voce-nome">{v.nome}</span>
+          {chiama ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
+          {v.qui && (remote[v.nome] ?? 0) > 0 ? (
+            <span className="segno-remoto" title={`In «${v.nome}» ${remote[v.nome]} chat lavorano su un altro PC: si guardano e si comandano a distanza`}>
+              {remote[v.nome]} su altri PC
+            </span>
+          ) : null}
+          <span className="ws-menu__conta">{porto === v.nome ? '…' : !v.qui ? '' : quante === undefined ? '' : quante === 1 ? '1 chat' : `${quante} chat`}</span>
+        </button>
+        <button
+          className="ws-menu__altro"
+          tabIndex={-1}
+          aria-label={`Altre azioni per «${v.nome}»`}
+          aria-haspopup="menu"
+          aria-expanded={aperteLe}
+          title={v.qui ? 'Altre azioni: rinomina, Apri cartella, Sposta, Elimina' : 'Altre azioni: Apri, Porta qui'}
+          onClick={(e) => { e.stopPropagation(); if (aperteLe) setAzioniDi(undefined); else apriAzioni(v, e.currentTarget) }}
+        >⋯</button>
+      </div>
+    )
   }
 
   const tendina = aperto && posto !== undefined ? (
     <>
-      <div className="ws-menu__velo" onMouseDown={() => onAperto(false)} />
+      <div className="ws-menu__velo" onMouseDown={chiudi} />
       <div
-        ref={lista}
         className="ws-menu__tendina"
-        style={{ top: posto.top, left: posto.left }}
-        role="listbox"
-        aria-label="Workspace"
-        aria-activedescendant={visibili[evidenziato] !== undefined ? `ws-menu-voce-${evidenziato}` : undefined}
-        tabIndex={-1}
+        style={{ top: posto.top, left: posto.left, width: posto.larghezza, maxHeight: posto.altezzaMax }}
         onKeyDown={suTasto}
       >
-        {filtro !== '' ? (
-          <div className="ws-menu__cerca" aria-live="polite">
-            Cerchi «<b>{filtro}</b>» — Backspace per cancellare, Invio per il primo
-          </div>
-        ) : null}
-        <div className="ws-menu__lista">
-          {visibili.length === 0 ? <div className="ws-menu__vuoto">Nessun workspace con «{filtro}».</div> : null}
-          {visibili.map((n, i) => {
-            const chiama = chiamano?.has(n) === true
-            const quante = conti.get(n)
-            return (
-              <button
-                key={n}
-                id={`ws-menu-voce-${i}`}
-                role="option"
-                aria-selected={n === attivo}
-                tabIndex={-1}
-                className={[
-                  'ws-menu__voce',
-                  n === attivo ? 'ws-menu__voce--attiva' : '',
-                  chiama ? 'ws-menu__voce--chiama' : '',
-                  i === evidenziato ? 'ws-menu__voce--evidenziata' : ''
-                ].filter((c) => c !== '').join(' ')}
-                onMouseEnter={() => setEvidenziato(i)}
-                onClick={() => scegli(n)}
-                title={chiama ? `In «${n}» qualcuno aspetta una tua risposta` : n === attivo ? `Sei in «${n}»` : `Passa a «${n}»`}
-              >
-                <span className="ws-menu__spunta" aria-hidden>{n === attivo ? '✓' : ''}</span>
-                <span className="ws-menu__voce-nome">{n}</span>
-                {chiama ? <span className="ws__chiama" aria-label="richiede il tuo intervento">●</span> : null}
-                {(remote[n] ?? 0) > 0 ? (
-                  <span className="segno-remoto" title={`In «${n}» ${remote[n]} chat lavorano su un altro PC: si guardano e si comandano a distanza`}>
-                    {remote[n]} su altri PC
-                  </span>
-                ) : null}
-                <span className="ws-menu__conta">{quante === undefined ? '' : quante === 1 ? '1 chat' : `${quante} chat`}</span>
-              </button>
-            )
-          })}
+        <input
+          ref={cerca}
+          className="campo campo--compatto ws-menu__ricerca"
+          type="search"
+          placeholder={`Cerca fra ${nomi.length} workspace`}
+          aria-label="Cerca un workspace per nome"
+          aria-controls="ws-menu-lista"
+          aria-activedescendant={fila[evidenziato] !== undefined ? `ws-menu-voce-${evidenziato}` : undefined}
+          value={filtro}
+          onChange={(e) => { setFiltro(e.target.value); setEvidenziato(0); setAzioniDi(undefined) }}
+        />
+        <div ref={lista} id="ws-menu-lista" className="ws-menu__lista" role="listbox" aria-label="Workspace" onScroll={() => setAzioniDi(undefined)}>
+          {fila.length === 0 ? <div className="ws-menu__vuoto">Nessun workspace con «{filtro}».</div> : null}
+          {gruppi.map((g) => (
+            <div key={g.chiave} className="ws-menu__gruppo" role="group" aria-label={g.titolo}>
+              <div className="ws-menu__titolo">{g.titolo}</div>
+              {g.voci.map(riga)}
+            </div>
+          ))}
         </div>
-        {altrove.length > 0 && filtro === '' ? (
-          <div className="ws-menu__lista" style={{ borderTop: '1px solid var(--incisione, #333)', marginTop: 4, paddingTop: 4 }}>
-            <div className="ws-menu__cerca" title="La lista di questo PC resta sua: questi workspace vivono su altri PC. «Porta qui» li aggiunge qui, con le loro chat.">Su altri PC</div>
-            {altrove.flatMap((p) => p.workspace.map((n) => (
-              <div key={`${p.pc}:${n}`} className="ws-menu__voce ws-menu__voce--altrove">
-                <span className="ws-menu__voce-nome">{n}</span>
-                <span className="ws-menu__conta">{p.nome}</span>
-                <button className="tasto tasto--mini tasto--acceso" tabIndex={-1} disabled={porto !== undefined}
-                  title={`Apre qui «${n}»: le sue chat dal vivo su ${p.nome}, dove continuano a girare. Su ${p.nome} non cambia niente.`}
-                  onClick={() => {
-                    setPorto(n)
-                    void window.gestore.workspace.apriDaAltroPc(p.pc, n)
-                      .then((r) => { if (r.ok) onAperto(false); else setErrore(r.messaggio) })
-                      .catch((err: unknown) => setErrore(String(err)))
-                      .finally(() => setPorto(undefined))
-                  }}>{porto === n ? '…' : 'Apri'}</button>
-                <button className="tasto tasto--mini" tabIndex={-1} disabled={porto !== undefined}
-                  title={`Porta qui «${n}» con le sue chat (le copia dal Drive). Su ${p.nome} non cambia niente.`}
-                  onClick={() => {
-                    setPorto(n)
-                    void window.gestore.sync.portaQuiWorkspace(n).finally(() => {
-                      setPorto(undefined)
-                      void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
-                    })
-                  }}>Porta qui</button>
-              </div>
-            )))}
-            {errore !== undefined ? <div className="ws-menu__vuoto" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
-          </div>
-        ) : null}
+        {errore !== undefined ? <div className="ws-menu__vuoto" style={{ color: 'var(--ambra)' }}>{errore}</div> : null}
         <div className="ws-menu__piede">
-          <span className="ws-menu__aiuto">↑↓ e Invio, oppure scrivi il nome</span>
-          <button className="tasto" tabIndex={-1} onClick={() => { onAperto(false); onGestisci() }}>Crea, rinomina o elimina…</button>
+          <span className="ws-menu__aiuto">↑↓ e Invio · «⋯» per le azioni</span>
+          <button className="tasto" tabIndex={-1} onClick={() => { chiudi(); onGestisci() }}>Crea, rinomina o elimina…</button>
         </div>
       </div>
+      {azioniDi !== undefined ? (
+        <div
+          className="ws-menu__azioni"
+          role="menu"
+          aria-label={`Azioni per «${azioniDi.voce.nome}»`}
+          style={{ top: azioniDi.posto.top, left: azioniDi.posto.left, width: azioniDi.posto.larghezza, maxHeight: azioniDi.posto.altezzaMax }}
+          onKeyDown={suTasto}
+        >
+          {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).map((a) => (
+            <button
+              key={a.azione}
+              role="menuitem"
+              className={`ws-menu__azione${a.pericolo === true ? ' ws-menu__azione--pericolo' : ''}`}
+              disabled={a.spenta !== undefined || porto !== undefined}
+              title={a.spenta ?? a.spiega}
+              onClick={() => fai(a, azioniDi.voce)}
+            >{a.etichetta}</button>
+          ))}
+        </div>
+      ) : null}
     </>
   ) : null
 
@@ -202,7 +335,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
       <button
         ref={tasto}
         className={`ws-menu__tasto${quantiChiamano > 0 ? ' ws-menu__tasto--chiama' : ''}`}
-        onClick={() => onAperto(!aperto)}
+        onClick={() => (aperto ? chiudi() : onAperto(true))}
         aria-haspopup="listbox"
         aria-expanded={aperto}
         title={`Sei in «${attivo}». ${nomi.length} workspace: premi per vederli tutti`}
@@ -213,6 +346,29 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
         <span className="ws-menu__freccia" aria-hidden>▾</span>
       </button>
       {tendina !== null ? createPortal(tendina, document.body) : null}
+      {daEliminare !== undefined ? (
+        <ModaleConferma
+          titolo={confermaEliminaWorkspace(daEliminare).titolo}
+          testo={confermaEliminaWorkspace(daEliminare).testo}
+          etichettaAzione={confermaEliminaWorkspace(daEliminare).azione}
+          onConferma={() => {
+            const nome = daEliminare
+            setDaEliminare(undefined)
+            azioni.current ??= azioniDiFinestra()
+            void azioni.current.elimina(nome)
+              .then((s) => onStato?.(s))
+              // Il motivo resta in vista: si riapre il menu con la riga d'errore.
+              .catch((err: unknown) => { erroreDaMostrare.current = senzaPrefisso(err); onAperto(true) })
+          }}
+          onAnnulla={() => setDaEliminare(undefined)}
+        />
+      ) : null}
+      {sposta !== undefined ? <ModaleSposta {...(sposta !== '' ? { cwdIniziale: sposta } : {})} onChiudi={() => setSposta(undefined)} /> : null}
     </div>
   )
+}
+
+/** Il motivo e basta, senza il prefisso dell'IPC (come il pannello dei workspace). */
+function senzaPrefisso(err: unknown): string {
+  return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
 }
