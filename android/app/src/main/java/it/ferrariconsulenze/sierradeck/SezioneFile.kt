@@ -81,9 +81,11 @@ fun SezioneFile(api: Api) {
     val scope = rememberCoroutineScope()
     var parte by remember { mutableStateOf(ParteFile.PROGETTI) }
     var altri by remember { mutableStateOf<List<PcRemoto>>(emptyList()) }
+    var altriLetti by remember { mutableStateOf(false) }
     var pcScelto by remember { mutableStateOf<PcRemoto?>(null) }
     LaunchedEffect(api) {
         try { val e = api.pc(); altri = e.pc.filter { it.pcId != e.io } } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        altriLetti = true
     }
     val apiPc = remember(api, pcScelto) { pcScelto?.let { api.suPc(it.pcId) } ?: api }
     val nomePc = pcScelto?.mostra ?: PcCorrente.nome ?: "questo PC"
@@ -116,6 +118,23 @@ fun SezioneFile(api: Api) {
         }
     }
     LaunchedEffect(apiPc) { if (FunzioniPc.disponibile(FunzionePc.FILE, versionePc) != false) carica() else errore = FunzioniPc.testoMancante(FunzionePc.FILE, nomePc) }
+
+    // «Apri cartella» (PC 0.82.0): prima il PC giusto, poi, letti i suoi progetti, la cartella.
+    val richiesta = Apertura.cartellaRichiesta
+    LaunchedEffect(richiesta, altriLetti, apiPc, progetti) {
+        val r = richiesta ?: return@LaunchedEffect
+        if (r.pcId != pcScelto?.pcId) {
+            if (r.pcId == null) { pcScelto = null; return@LaunchedEffect }
+            val pc = altri.firstOrNull { it.pcId == r.pcId }
+            if (pc != null) pcScelto = pc
+            else if (altriLetti) { Apertura.cartellaRichiesta = null; nota = "Il PC di quella cartella non risponde: riprova quando è acceso." }
+            return@LaunchedEffect
+        }
+        val elencoProgetti = progetti ?: return@LaunchedEffect
+        Apertura.cartellaRichiesta = null
+        parte = ParteFile.PROGETTI
+        vai(FileVista.progettoPer(elencoProgetti, r.progetto), r.percorso)
+    }
 
     /** Lo scaricamento nella cache dell'app, con l'avanzamento: per guardare, salvare e condividere. */
     suspend fun inCache(v: VoceFile, massimo: Long = Long.MAX_VALUE): File? {
@@ -319,6 +338,20 @@ fun SezioneFile(api: Api) {
 }
 
 private enum class ParteFile { PROGETTI, RICEVUTI }
+
+/**
+ * «Apri cartella» (PC 0.82.0) dal menu di una chat o dai workspace: il PC dice
+ * dove sta la cartella (dai suoi dati) e la sezione File si apre lì, sullo
+ * stesso PC di `api`. Se non si può, la riga del perché.
+ */
+suspend fun apriCartellaDa(api: Api, nomePc: String?, workspace: String? = null, chat: String? = null) {
+    try {
+        val c = api.fileCartella(workspace, chat)
+        Apertura.apriCartella(CartellaRichiesta(api.ponte, c.progetto, c.percorso))
+    } catch (e: CancellationException) { throw e } catch (e: Exception) {
+        Nota.mostra(FileVista.spiegaCartella(e, nomePc))
+    }
+}
 
 /** Quello che si sta guardando: il file nella cache dell'app. */
 data class Anteprima(val nome: String, val tipo: String, val file: File, val tagliato: Boolean = false)

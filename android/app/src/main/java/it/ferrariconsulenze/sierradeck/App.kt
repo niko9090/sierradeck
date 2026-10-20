@@ -108,6 +108,9 @@ object Apertura {
 
     /** Porta alla scheda Chat, dentro quella chat. */
     fun apriChat(id: String) { chatRichiesta = id; schedaRichiesta = Scheda.CHAT }
+    /** «Apri cartella» (PC 0.82.0): la cartella da aprire nella sezione File. */
+    var cartellaRichiesta by mutableStateOf<CartellaRichiesta?>(null)
+    fun apriCartella(r: CartellaRichiesta) { cartellaRichiesta = r; schedaRichiesta = Scheda.FILE }
     /** Dalla notifica dell'aggiornamento (0.43.0): versione e APK da installare. */
     var aggiornamento by mutableStateOf<Pair<String, String>?>(null)
     /** I file condivisi con SierraDeck da un'altra app (app 2.50.0): si apre «Manda a…». */

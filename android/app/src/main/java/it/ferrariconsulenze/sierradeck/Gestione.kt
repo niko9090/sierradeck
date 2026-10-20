@@ -14,8 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -72,7 +76,7 @@ fun DialogoConferma(c: Conferma, pericolo: Boolean = false, onSi: () -> Unit, on
  * finestra (copia di sicurezza prima di eliminare, terminali spenti).
  */
 @Composable
-fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi: () -> Unit) {
+fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi: () -> Unit, versionePc: String? = PcCorrente.versione) {
     val scope = rememberCoroutineScope()
     var nuovo by remember { mutableStateOf("") }
     var rinomina by remember { mutableStateOf<String?>(null) }
@@ -110,6 +114,10 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                             Text((if (n == workspace.attivo) "davanti sul computer · " else "") + if (quante == 1) "1 chat" else "$quante chat", color = Banco.testoQuieto, fontSize = 11.sp)
                         }
                         if (n != workspace.attivo) TextButton(enabled = !inCorso, onClick = { fai("passare a «$n»") { api.cambiaWorkspace(n) } }) { Text("Vai") }
+                        // «Apri cartella» (PC 0.82.0): la sezione File sulla cartella del progetto del workspace.
+                        if (FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false) IconButton(enabled = !inCorso, onClick = {
+                            scope.launch { apriCartellaDa(api, nomePc, workspace = n); if (Apertura.cartellaRichiesta != null) onChiudi() }
+                        }) { Icon(Icons.Filled.Folder, "Apri la cartella di «$n»", tint = Banco.testo) }
                         TextButton(enabled = !inCorso, onClick = { rinomina = n; nomeNuovo = n }) { Text("Rinomina") }
                         TextButton(enabled = !inCorso, onClick = {
                             if (workspace.nomi.size <= 1) errore = AzioniTelefono.ULTIMO_WORKSPACE else elimina = n
