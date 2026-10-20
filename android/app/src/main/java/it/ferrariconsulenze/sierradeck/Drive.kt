@@ -154,13 +154,13 @@ fun SezioneDrive(api: Api) {
                 )
                 if (u.riavvioConsigliato == true && !riavviato) {
                     Spacer(Modifier.height(6.dp))
-                    Text("Sono arrivate chat o cartelle: il computer si riavvia da solo fra pochi secondi per mostrarle nei workspace. Se non lo fa (per esempio se la sua finestra è chiusa), chiediglielo da qui.", color = Banco.testoQuieto, fontSize = 12.sp)
+                    Text("Sono arrivate chat o cartelle: SierraDeck sul computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(4.dp))
                     Button(shape = MaterialTheme.shapes.small, onClick = {
                         scope.launch {
                             try { val r = api.driveRiavvia(); riavviato = r.ok; if (!r.ok) messaggio = r.messaggio ?: "Non riavviato." } catch (e: Exception) { messaggio = "Non riesco a chiedere il riavvio: ${e.message ?: "il computer non risponde"}" }
                         }
-                    }) { Text("Riavvia il computer ora") }
+                    }) { Text("Riavvia SierraDeck sul computer") }
                 }
                 Spacer(Modifier.height(6.dp))
             }

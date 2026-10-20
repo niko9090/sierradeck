@@ -2303,8 +2303,8 @@ function pannello(s) {
       const u = l.ultimo
       testa += '<div class="sotto" style="margin-top:8px">' + esc(etichettaLavoro(u.tipo)) + ': ' + (u.esito === 'ok' ? 'fatto' : u.esito === 'annullato' ? 'annullato' : 'non riuscito') + (u.messaggio ? ' — ' + esc(u.messaggio) : '') + '</div>'
       if (u.riavvioConsigliato && !driveRiavviato) {
-        testa += '<div class="sotto" style="margin-top:6px">Sono arrivate chat o cartelle: il computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.</div>' +
-          '<div class="riga"><button class="primario" onclick="driveRiavvia()">Riavvia il computer ora</button></div>'
+        testa += '<div class="sotto" style="margin-top:6px">Sono arrivate chat o cartelle: SierraDeck sul computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.</div>' +
+          '<div class="riga"><button class="primario" onclick="driveRiavvia()">Riavvia SierraDeck sul computer</button></div>'
       }
     }
     if (driveErrore) testa += '<div class="sotto" style="margin-top:6px">' + esc(driveErrore) + '</div>'
@@ -2623,7 +2623,8 @@ sceltaFile.type = 'file'
 sceltaFile.multiple = true
 sceltaFile.style.display = 'none'
 function apriScelta() { if (!sceltaFile.isConnected) document.body.appendChild(sceltaFile); sceltaFile.value = ''; sceltaFile.click() }
-function inMb(b) { return (b / 1048576).toFixed(1).replace('.', ',') + ' MB' }
+// Come misura() di file-telefono e inMb() di allegati: «40 byte», «12 KB», «3,4 MB», «12 MB» (mai «0,0 MB»).
+function inMb(b) { if (b < 1024) return b + ' byte'; if (b < 1048576) return Math.max(1, Math.round(b / 1024)) + ' KB'; const mb = b / 1048576; return mb >= 10 ? Math.round(mb) + ' MB' : mb.toFixed(1).replace('.', ',') + ' MB' }
 function nuovoIdInvio() {
   const a = new Uint8Array(12)
   crypto.getRandomValues(a)

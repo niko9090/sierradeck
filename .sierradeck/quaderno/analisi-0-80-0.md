@@ -1,6 +1,6 @@
 ---
 titolo: "Analisi 0.80.0: numeri misurati e problemi in ordine di importanza (PC, pagina, app)"
-quando: 2026-10-19T13:30:00+02:00
+quando: 2026-10-20T13:30:00+02:00
 tag: ["0.80.0", "analisi", "prestazioni", "memoria", "errori silenziosi", "codice doppio", "grafica"]
 ---
 
@@ -841,3 +841,104 @@ Copia di prova (`SIERRADECK_PROVA`), un autopilota al lavoro per 50 minuti (08:5
 | «Versione pronta» e «in difficoltà, provo un'altra strada» | notificavano | non notificano più (resta la banda / la riga `[notifica]`) |
 
 Il rumore l'aveva già tolto c-11 (da 6 a 2). La 0.81.0 mette la causa di ogni notifica nel registro, su PC, pagina e app, e lascia solo tre categorie: domanda che aspetta Nicholas, lavoro finito, errore che blocca.
+
+---
+
+## Numeri del 20/10 e correzioni di c-18 (0.81.0)
+
+### Come
+- **Stesso script** delle misure del 19/10 (`misura-080.mjs`, in appendice), sul ramo c-18 = main `6297a3f` più le correzioni qui sotto. Costruito con `npm run build` prima delle ultime due correzioni (ripristino in parallelo, store delle sessioni).
+- **Copia di prova** `note/prova-080` (`scripts/misure/prepara.mjs --conversazioni`): **960 conversazioni vere, 1,6 GB** (il 19/10 erano 699). Porte 47670/47671, debug 9363/9364, mai le porte vere. Drive non collegato.
+- **Tre giri:** 1 = primo avvio della copia nuova (indicizza tutto); 2 e 3 = avvii normali. Le altre chat lavoravano sulla macchina: i tempi si confrontano con quelli del 19/10 (anche allora carica), non con una macchina vuota.
+- **Trappola dello script:** lanciato con `| grep` dentro un `for` e con `timeout`, il secondo giro è rimasto appeso 30 minuti senza scrivere niente. Lanciato da solo con l'uscita su file (`> giro2.txt`) va liscio. Fra un giro e l'altro controllare che non restino `electron.exe` della copia.
+
+### Avvio, memoria, schermate (19/10 → 20/10)
+
+| Misura | 19/10 (A · B · C) | 20/10 (1 · 2 · 3) | |
+|---|---|---|---|
+| Avvio: pagina in ascolto | 7709 · 4007 · 2804 ms | **2450 · 2647 · 2288 ms** | più presto |
+| Avvio: primo disegno React | — · 6399 · 4558 ms | **4405 · 4522 · 3616 ms** | |
+| **Avvio: interfaccia completa** | 28324 · 9241 · 7648 ms | **23824 · 7473 · 6912 ms** | −15-20%, con 260 chat in più |
+| Memoria privata a 20 s, programma intero | 340 · 358 · 363 MB | 340 · 356 · 367 MB | uguale |
+| … main / finestra (privata) | 130/51 · 112/52 · 113/58 | 127/52 · 114/52 · 111/57 | uguale |
+| Dopo ~3 min di giro, main / finestra | — · 139/73 · 142/82 | 158/76 · 147/78 · 153/78 | main +10 MB: 260 chat in più nell'indice |
+| Progetti (fredda / calda) | 646/234 · 519/254 · 332/242 | 701/188 · 625/244 · 249/229 | uguale; resta la più lenta |
+| Impostazioni | 201/109 · 150/71 · 127/64 | 135/64 · 145/66 · 159/72 | uguale |
+| Negozio | 70/18 · 75/286 · 72/17 | 93/17 · 97/17 · 89/16 | uguale |
+| Autopiloti · Salute | ≤ 150 · ≤ 57 | ≤ 22 · ≤ 49 | |
+| Elenco chat («Riprendi») | 187/217 · 195/110 · 266/147 | 217/319 · 193/253 · 315/183 | 960 chat invece di 699 |
+| Drive (Account e Drive) | — · 76/76 · 83/74 | 82/68 · 74/66 · 224/71 | |
+| Panoramica | 17-27 | 17 | workspace vuoto: poco indicativo |
+| `/api/negozio` la prima volta | **12908 ms** | 23 · 32 · 29 ms | |
+| `/api/chat/gestione/spazio` | 1785-2296 ms (699 chat) | **567-812 ms (960 chat)** | c-11 |
+| `/api/drive/pannello` | 210-240 ms, 537 KB | 180-207 ms, 581 KB (compresso sul filo, c-11) | il peso cresce con le chat |
+| `/api/stato`, `/api/domande`, `/api/panoramica` | 8-72 ms | 3-43 ms | |
+| Pagina del telefono, peso sul filo | 417 KB | **121 KB** (423 KB decompressa) | c-11 |
+| Pagina pronta (tre caricamenti) | 713-1519 ms | 633-1932 ms | dipende dal carico |
+
+### Ponte
+- **Non misurabile nella copia:** serve un secondo PC accoppiato sulla stessa cassaforte. In locale `/api/ponte` verso un PC che non c'è risponde 502 in 9-15 ms: è il costo del ponte di qui, non del viaggio.
+- **Il ponte vero** (registro dei PC veri, c-10): 941 tentativi WebRTC falliti in 7 giorni verso il portatile, con ricaduta sul Drive. Resta in elenco (c-10 #32).
+
+### Drive: chiamate e primo giro di un PC nuovo
+**Come:** `scripts/misure/drive-finto.misura.ts`, lanciato con `npx vitest run --config scripts/misure/vitest.misure.config.ts` (variabili `MISURA_CHAT`, `MISURA_LATENZA_MS`).
+- Usa **lo stesso adattatore del programma** (`creaArchivioDrive`) contro un Drive finto in memoria, che risponde come l'API v3 e conta le richieste per tipo.
+- Le chat vere di `~/.claude/projects` si **leggono soltanto**: il setup dei test fa fallire ogni scrittura fuori dalla cartella finta.
+- Niente account vero.
+- Tempi senza latenza di rete: misurano il lavoro del PC (cifrare, comprimere, scrivere), non il viaggio.
+- Esiti in `note/misure-drive/esiti.jsonl`.
+
+| Giro | Prima (20/10 mattina) | Dopo | |
+|---|---|---|---|
+| Primo salvataggio (943-978 chat, ~580 MB) | 2831 richieste: 944 ricerche + 943 creazioni + 943 scritture; 190 s | 2939 (978 chat), 174 s | uguale: chi crea cerca sempre, per non fare doppioni |
+| Salvataggio senza cambi | 9 richieste (le chat aperte in quel momento) | 24 | dipende da quante chat scrivono in quel minuto |
+| **Primo giro di un PC nuovo** (tutto giù) | **1886 richieste: 943 ricerche + 943 scaricamenti**, 368 s | **982: 1 elenco + 1 ricerca + 980 scaricamenti**, 426 s | **−48% di richieste a Google** |
+| **Ripristino senza niente di nuovo** | 2 richieste, **27-28 s** | 2 richieste, **0,6 s** | `stat` sedici alla volta invece di uno |
+
+**Cosa dicono:**
+- Il primo giro di un PC nuovo cercava ogni file per nome prima di scaricarlo. Con la quota «Queries per minute» di Google (il 403 durato ore il 12/10) erano 943 occasioni in più di essere fermati. Ora basta un elenco.
+- I 370-430 s del primo giro, senza rete, sono lavoro del PC: decifrare, decomprimere (`gunzipSync`, sincrono nel main) e scrivere 580 MB. È la voce 13 di c-10 (compressione fuori dal main), e resta da fare.
+
+### Correzioni fatte da c-18, ognuna con test e passata dalla Revisione
+
+| Voce | Cosa | Test | Commit |
+|---|---|---|---|
+| c-10 A1 | Ripristino: se la copia di conflitto del file di qui non nasce (file aperto, disco pieno), si tiene il file di qui e la versione del Drive va **accanto**. Prima il fallimento si ingoiava e il Drive sovrascriveva le modifiche | `drive-correzioni-0-81-0.test.ts` | `0ac89910`, `69d1ee57` |
+| c-10 31 | Il 403 «troppe richieste» e la quota al minuto di Google si ritentano come un 429; i 403 veri e «Drive pieno» no | idem | `0ac89910`, `69d1ee57` |
+| nuova | Primo giro di un PC nuovo: un elenco invece di una ricerca per file (da 20 file in su) | idem | `0ac89910` |
+| c-10 A2 | `pin-chat.json`: la lettura si riprova; un file illeggibile si mette da parte (`.illeggibile-<quando>`) prima di riscriverlo; scrittura atomica | `dati-non-persi-0-81-0.test.ts` | `79040275` |
+| c-10 A3 | Elenco del recupero dei progetti illeggibile: copia accanto prima di riscriverlo, così le cartelle già nel recupero non perdono «Ripristina» | idem | `79040275` |
+| c-10 A7 | `scriviAtomico`: una rinomina rifiutata per un attimo (EPERM/EBUSY/EACCES, antivirus) si riprova 4 volte, al massimo 0,6 s | idem | `79040275` |
+| c-10 30 | Regex dei file del registro senza le barre: «scollegato dal…» non si ritrovava mai. Ora `FILE_DEL_REGISTRO` | idem | `79040275` |
+| c-4 10 | Pagina e app: «Riavvia SierraDeck sul computer». Prima diceva «Riavvia il computer ora», ma si riavvia solo il programma | `pagina-testi-0-81-0.test.ts` | `79040275` |
+| c-4 15 | Pagina: «40 byte», «12 KB» invece di «0,0 MB», con la stessa regola del PC e dell'app | idem | `79040275` |
+| c-10 A5 | Fusione: se il manifesto, `workspaces.json` o `progetti-drive.json` del Drive non si leggono, si ferma e lo dice. Prima ricaricava la sola lista di qui, e i workspace degli altri PC sparivano | `cassaforte-fusione-interrotta.test.ts` | `8e3cb4ca` |
+| nuova | Ripristino senza niente di nuovo: `stat` sedici alla volta (28 s → 0,6 s) | test esistenti del ripristino | `48f76a2d` |
+| c-10 22 | App: le rotte lente comprendono quelle del ponte del PC (`workspace/crea`, `trasloco/*`, `file/*`). Con 15 s l'app diceva «scaduto» mentre il PC creava il workspace, e chi riprovava ne faceva due | `tests/android/rotte-lente-app.test.ts`, che le tiene allineate | `48f76a2d` |
+| c-4 52, c-10 10 | Finestra: l'App non si abbona più a tutto lo store delle sessioni. Prima si ridisegnava intera a ogni avanzamento dell'indice | `app-store-sessioni.test.ts` | `46f2e657` |
+
+**Revisione** (agente indipendente, due passate): **APPROVE** tutte e due le volte.
+- La prima ha chiesto due cose: tenere accanto la versione del Drive nel caso «tengo il mio», e non ritentare «Drive pieno». Fatte in `69d1ee57`.
+- La seconda ha chiesto che il test delle rotte non conti quelle scritte nei commenti. Fatto in `46f2e657`.
+
+### Elenco aggiornato al 20/10: cosa resta, in ordine
+Già fatte da c-11, c-12, c-15 e c-18 (vedi sopra e `correzioni-velocita-e-codice-0-80-0.md`):
+- c-4: 1-5, 7, 9, 10, 13, 15;
+- c-10: A1-A3, A5, A7, 22, 30, 31.
+
+**Alta, da fare:**
+1. **Finestra all'84% di un core con le chat al lavoro** (c-10 #10).
+   - Lo schermo di ogni riquadro si legge ogni 400 ms, anche a finestra ridotta (`App.tsx:347-362`).
+   - Il PIN si interroga per riquadro; `Mosaic` non è memorizzato.
+   - Lo store delle sessioni è fatto. Il resto va misurato con chat che scrivono: sul PC vero dopo l'installazione, con `misura.mjs cpu`.
+2. **Servizio degli autopiloti bloccato dal git sincrono** (c-10 #11, `autopilot-host/worktree.ts:24`, `spawnSync`): fino a 6,5 s senza rispondere, 78 volte «salute non risposta» in 7 giorni.
+3. **Avvio a 7-9 s** (c-4 #8): 3,6-4,5 s prima del primo disegno, poi altri 3 s. Prima di toccare qualcosa serve una traccia delle fasi nel registro.
+4. **Compressione e cifratura sincrone nel main** (c-10 #13): il primo giro di un PC nuovo è 370-430 s di lavoro del PC, con finestra e telefono fermi a tratti.
+5. Tre guasti di c-10 su cui non si è ancora lavorato:
+   - A4: «Annulla l'unione» non registrato;
+   - A6: cancellazioni fallite tolte lo stesso dal manifesto;
+   - A8: messaggi riscritti di continuo a una chat adottata.
+6. c-4 #6: tetto alle `decisioni` degli autopiloti. **Serve il sì di Nicholas**, perché toglie storia visibile.
+7. c-4 #14: APK ridotto con R8 (16 MB → 3-5 MB attesi). Va provato con un'installazione fatta da Nicholas.
+
+**Media e bassa:** come nella sezione 3 (voci 16-57), tranne quelle segnate come fatte.

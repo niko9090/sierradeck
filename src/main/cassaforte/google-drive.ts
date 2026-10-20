@@ -250,6 +250,15 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
   const pausa = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
   const transitorio = (stato: number): boolean => stato === 429 || stato === 408 || stato >= 500
   const RITENTI = 4
+  // Google risponde 403 (non 429) anche per «troppe richieste»: rateLimitExceeded,
+  // userRateLimitExceeded, o la quota al minuto del 12/10. Quelli passano da soli
+  // aspettando; un 403 vero (permesso negato) no, e risale subito.
+  const limiteDiVelocita = async (r: Response): Promise<boolean> => {
+    if (r.status !== 403) return false
+    const testo = await r.clone().text().catch(() => '')
+    // Non «storageQuotaExceeded» (Drive pieno): quello non passa aspettando.
+    return /\b(user)?rateLimitExceeded\b|Quota exceeded for quota metric|per minute/i.test(testo)
+  }
 
   // Con migliaia di file, un intoppo di rete o un limite momentaneo di Drive
   // capitano: si riprova con attesa che raddoppia. Solo per le chiamate
@@ -265,7 +274,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
         if (i >= RITENTI || (e as { definitivo?: boolean }).definitivo === true) throw e
         await pausa(attesa); attesa *= 2; continue
       }
-      if (!r.ok && transitorio(r.status) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }
+      if (!r.ok && (transitorio(r.status) || await limiteDiVelocita(r)) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }
       if (!r.ok) throw await errore(r, cosa)
       return r
     }
@@ -380,7 +389,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           const stato = (e as { stato?: number }).stato
           // Un id ricordato che non c'e' piu': si dimentica e si rifa' il giro.
           if (stato === 404 && idPerNome.has(nome) && i < RITENTI) { idPerNome.delete(nome); continue }
-          if (i >= RITENTI || stato === undefined || !transitorio(stato)) throw e
+          if (i >= RITENTI || stato === undefined || !(transitorio(stato) || (stato === 403 && /rate ?limit exceeded|quota exceeded for quota metric/i.test(String((e as Error).message))))) throw e
           await pausa(attesa); attesa *= 2
         }
       }
