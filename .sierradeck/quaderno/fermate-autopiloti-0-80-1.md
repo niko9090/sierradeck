@@ -1,6 +1,6 @@
 ---
 titolo: "0.80.1: gli autopiloti non si fermano più per una chat muta, un supervisore muto o un criterio scaduto"
-quando: 2026-10-20T12:00:00+02:00
+quando: 2026-10-20T09:05:00+02:00
 tag: ["0.80.1", "autopilota", "guardiano", "supervisore", "criteri"]
 ---
 
@@ -51,3 +51,8 @@ Il 19/10 ci sono state 6 sospensioni per «una chat non dà segnali» e 1 per «
   - gli altri `avvisaFermo`/`sospesoOra` di c-10 restano come sono.
   - Con main (97f36c5) l'unione è pulita.
 - La pagina e l'app non leggono l'`esito` del traguardo, solo `tono` e testo: un esito nuovo non richiede cambi su `android/`.
+
+# Come è arrivata in main (20/10, c-13)
+- Il 20/10 alle 08:58 i commit 5e1fbe5…93d7487 non erano ancora in main: c-12 non era stata chiusa.
+- c-13 ha unito il tag `v0.80.1` nel suo ramo (merge d8d83bc, senza conflitti con main 97f36c5). Entra in main con l'unione di fine turno di c-13.
+- Dopo questa unione `package.json` in main dice 0.80.1: la 0.81.0 parte da qui.

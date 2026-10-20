@@ -4350,7 +4350,8 @@ window.faiAzione = async () => {
   confermaPg = null
   if (!a) return
   try {
-    if (a.tipo === 'eliminaWorkspace') { await chiedi('/api/workspace/elimina', { nome: a.id }); caricaEliminatiWs(true) }
+    // Il 409 è una risposta con il motivo (0.81.0): «Non elimino …: la chat … sta lavorando». Si dice.
+    if (a.tipo === 'eliminaWorkspace') { const r = await chiedi('/api/workspace/elimina', { nome: a.id }); if (r && r.errore) notaGlobale = r.errore; else caricaEliminatiWs(true) }
     else if (a.tipo === 'sposta') await chiedi('/api/chat/sposta', { chat: a.id, workspace: a.ws })
     else if (a.tipo === 'dormi') await chiedi('/api/chat/dormi', { chat: a.id })
     else if (a.tipo === 'chiudi') { await chiedi('/api/chat/chiudi', { chat: a.id }); if (dentro === a.id) { dentro = null; righeDentro = []; righeGrezze = [] } }
