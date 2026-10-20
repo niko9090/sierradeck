@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, rmdirSync } from 'node:fs'
-import { basename, dirname, join, relative } from 'node:path'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
 
 /**
@@ -30,6 +30,18 @@ export function radiceGit(git: Git, cwd: string): string | undefined {
   if (!existsSync(cwd)) return undefined
   const r = git(['rev-parse', '--show-toplevel'], cwd)
   return r.codice === 0 && r.uscita !== '' ? r.uscita.split(/\r?\n/)[0] : undefined
+}
+
+/** Lo stesso percorso, scritto da git (barre in avanti) o da Node; su Windows senza maiuscole. */
+function stessaCartella(a: string, b: string): boolean {
+  const n = (x: string): string => {
+    let r = resolve(x)
+    // git scrive il percorso vero (collegamenti risolti): lo stesso per l'altro.
+    try { r = realpathSync.native(r) } catch { /* resta com'è */ }
+    r = r.replace(/[\\/]+$/, '')
+    return process.platform === 'win32' ? r.toLowerCase() : r
+  }
+  return n(a) === n(b)
 }
 
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
@@ -111,6 +123,15 @@ export function salvaLavoro(git: Git, cartella: string, messaggio: string): bool
   // worktree vero fa risalire git al repository che la contiene: il 13/10, nella
   // prova, un worktree mancato dentro `note/` ha fatto un commit con tutto il
   // lavoro in corso nel repository di SierraDeck. Qui si committa solo su `ap/…`.
+  // E solo nella cartella stessa (c-241, 20/10): la cartella di una chat chiusa,
+  // rimasta senza `.git` dentro la cartella di lavoro di un'altra chat, faceva
+  // risalire git a quella, anche lei su un ramo `ap/…`, e il commit prendeva il
+  // suo lavoro in corso.
+  const radice = radiceGit(git, cartella)
+  if (radice === undefined || !stessaCartella(radice, cartella)) {
+    console.warn(`[autopilota] non salvo in ${cartella}: non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
+    return false
+  }
   const ramo = ramoCorrente(git, cartella)
   if (ramo === undefined || !ramo.startsWith('ap/')) {
     console.warn(`[autopilota] non salvo in ${cartella}: è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
