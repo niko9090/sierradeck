@@ -30,6 +30,9 @@ vuoto, il ramo è già in main.
 | c-241 | già in main | Unito dall'autopilota (b8cc5b4b). |
 | c-23 | **scartato, superato** | Era un'altra correzione di `worktree.test.ts` (fea2942c). Quella in main di c-24 (a850b52) risolve lo stesso rosso per tempo, e c-24 lo scrive: «fea2942c non serve». Unirle avrebbe dato un conflitto sullo stesso test. |
 | c-248 | **scartato, superato** | È lo stesso commit di c-23. |
+| c-10 (dopo, db268e9f) | **da unire** | Commit nuovo, arrivato dopo l'unione 38a82da4. Contiene solo docs: il riepilogo prima e dopo nel rapporto di analisi. |
+| c-12-salva2 (c3abdd26) | **da unire dopo la Revisione** | Correzione vera: `salvaLavoro` riconosce la sottocartella del worktree anche quando le maiuscole sono diverse (nota di c-289). |
+| c-28 | già in main | Unita alle 14:50. |
 
 Le chat dei rami scartati o già in main non hanno altro da unire. Si possono
 chiudere con `chiudiChat`, che chiude i rami già uniti o mancanti. Per c-3, c-19,
@@ -38,7 +41,13 @@ qui è doppio.
 
 ## Controlli dopo l'unione di c-10 (nel ramo c-25)
 
-Vedi la sezione «Esito dei controlli» qui sotto.
+- Typecheck verde. Guardia delle cancellazioni verde.
+- Primo giro delle suite, col PC carico (circa 20 minuti l'una):
+  - `tests/main`: 1 file rosso, 1 test;
+  - le altre suite: 2 file rossi, 4 test.
+- Il rosso in `tests/autopilot-host/server.test.ts` («riprendere un autopilota in intervista…») è un tempo scaduto (20 s), non un difetto. Da solo passa: 17 s col ramo, 14,6 s col `server.ts` di main. Il test è lento di suo, c-10 non c'entra.
+- Gli altri file rossi non sono stati identificati. Il secondo giro è stato lanciato ma non aspettato.
+- **Esito dei test: lo misura il programma.**
 
 ## Trappola del worktree
 

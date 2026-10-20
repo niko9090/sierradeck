@@ -37,16 +37,17 @@ describe('salvaLavoro solo sul ramo dell’autopilota', () => {
   })
 
   it('salva invece in una sottocartella del progetto, se il ramo la contiene (Revisione, 20/10)', () => {
-    // Un autopilota su `repo/app` lavora in `<worktree>/app`: git risale al
+    // Un autopilota su `repo/app` lavora in `<worktree>/App`: git risale al
     // worktree, che è il suo. Il controllo di c-241 la scartava e il lavoro restava fuori dai commit.
+    // «App» con la maiuscola: `git ls-tree` distingue le maiuscole (c-289).
     const repo = mkdtempSync(join(tmpdir(), 'sd-salva-'))
     gitReale(['init', '-q', '-b', 'ap/ap-esempio/c-1'], repo)
-    mkdirSync(join(repo, 'app'))
-    writeFileSync(join(repo, 'app', 'a.txt'), 'a')
+    mkdirSync(join(repo, 'App'))
+    writeFileSync(join(repo, 'App', 'a.txt'), 'a')
     gitReale(['add', '-A'], repo)
     gitReale(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '-m', 'primo'], repo)
-    writeFileSync(join(repo, 'app', 'nuovo.txt'), 'lavoro della chat')
-    expect(salvaLavoro(gitReale, join(repo, 'app'), 'autopilota: lavoro in app')).toBe(true)
+    writeFileSync(join(repo, 'App', 'nuovo.txt'), 'lavoro della chat')
+    expect(salvaLavoro(gitReale, join(repo, 'App'), 'autopilota: lavoro in app')).toBe(true)
     expect(gitReale(['log', '--oneline'], repo).uscita.split('\n')).toHaveLength(2)
-  })
+  }, 60_000) // sette comandi di git: col PC carico ognuno prende secondi
 })

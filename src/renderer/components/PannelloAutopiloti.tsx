@@ -241,7 +241,7 @@ export function PannelloAutopiloti({
           ) : null}
         </span>
         <Aiuto di="Autopiloti">
-          Un autopilota guida una o più chat verso un obiettivo, finché i criteri di fine non sono soddisfatti. Stato: <span style={{ color: 'var(--verde)' }}>al lavoro</span>, <span style={{ color: 'var(--ambra)' }}>aspetta te</span> (una domanda nelle Domande), <span style={{ color: 'var(--ambra)' }}>senza segni</span> (nessun segno da 10 minuti), <span style={{ color: 'var(--blu)' }}>si prepara</span> o <span style={{ color: 'var(--blu)' }}>pronto</span> (aspetta il tuo «Vai»), fermo, finito, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Clic su una riga: il dettaglio con obiettivo, criteri e messaggi.
+          Un autopilota guida una o più chat verso un obiettivo, finché i criteri di fine non sono soddisfatti. Stato: <span style={{ color: 'var(--verde)' }}>al lavoro</span>, <span style={{ color: 'var(--ambra)' }}>aspetta te</span> (una domanda nelle Domande), <span style={{ color: 'var(--ambra)' }}>senza segni</span> (nessun segno da 5 minuti), <span style={{ color: 'var(--blu)' }}>si prepara</span> o <span style={{ color: 'var(--blu)' }}>pronto</span> (aspetta il tuo «Vai»), fermo, finito, <span style={{ color: 'var(--rosso)' }}>guasto</span>. Clic su una riga: il dettaglio con obiettivo, criteri e messaggi.
         </Aiuto>
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>

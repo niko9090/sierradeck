@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { durata, etichettaSottofondo, oraBreve, statoAutopilotaDalVivo, statoMessaggi, SENZA_SEGNI_MS } from '@shared/stato-dal-vivo'
+import { durata, etichettaSottofondo, oraBreve, statoAutopilotaDalVivo, statoMessaggi, SENZA_SEGNI_AUTOPILOTA_MS } from '@shared/stato-dal-vivo'
 
 /**
  * Si vede sempre chi lavora (0.69.0): «io voglio sempre vedere tutto, almeno
@@ -23,10 +23,10 @@ describe('lo stato di un autopilota, dal vivo', () => {
     expect(s.da).toBe('12 min')
     expect(s.ultimaAzione).toBe('la chat lavora e 1 messaggio aspettava da 3 min: glieli scrivo adesso, durante il turno')
   })
-  it('«nessun segno da 10 min» solo per chi è al lavoro e tace', () => {
-    expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro' }, ORA, ORA - SENZA_SEGNI_MS).senzaSegni).toBe('nessun segno da 10 min')
+  it('«nessun segno da 5 min» solo per chi è al lavoro e tace, come «Adesso»', () => {
+    expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro' }, ORA, ORA - SENZA_SEGNI_AUTOPILOTA_MS).senzaSegni).toBe('nessun segno da 5 min')
     expect(statoAutopilotaDalVivo({ ...base, stato: 'lavoro' }, ORA, ORA - 60_000).senzaSegni).toBeUndefined()
-    expect(statoAutopilotaDalVivo({ ...base, stato: 'sospeso' }, ORA, ORA - SENZA_SEGNI_MS * 3).senzaSegni).toBeUndefined()
+    expect(statoAutopilotaDalVivo({ ...base, stato: 'sospeso' }, ORA, ORA - SENZA_SEGNI_AUTOPILOTA_MS * 3).senzaSegni).toBeUndefined()
   })
   it('le chat in sottofondo, nelle stesse parole', () => {
     expect(etichettaSottofondo('lavora')).toBe('al lavoro')
