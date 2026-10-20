@@ -155,13 +155,16 @@ export function invioReale(url: string, corpo: unknown): Promise<boolean> {
  * messaggio solo (0.81.0: «mille notifiche quando un autopilota lavora»).
  * Ogni avviso, mandato da solo o insieme, ha la sua riga `[notifica]`.
  */
+/** Manda un avviso; `svuotaOra` manda subito quelli in attesa (allo spegnimento). */
+export type Avvisatore = ((tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>) & { svuotaOra: () => Promise<void> }
+
 export function creaAvvisatore(deps: {
   configurazione: ConfigurazioneTelegram | undefined
   manda: (url: string, corpo: unknown) => Promise<boolean>
   /** Per le prove: l'orologio e il timer. */
   adesso?: () => number
   dopo?: (ms: number, f: () => void) => void
-}): (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void> {
+}): Avvisatore {
   const adesso = deps.adesso ?? Date.now
   const dopo = deps.dopo ?? ((ms: number, f: () => void) => { setTimeout(f, ms).unref?.() })
   let ultimoInvio = Number.NEGATIVE_INFINITY
@@ -187,7 +190,7 @@ export function creaAvvisatore(deps: {
     }
   }
 
-  const svuota = (): void => {
+  const svuota = async (): Promise<void> => {
     attesaArmata = false
     const pronti = inAttesa
     inAttesa = []
@@ -196,13 +199,13 @@ export function creaAvvisatore(deps: {
     // Troncare un gruppo può tagliare a metà un tag HTML, e Telegram lo
     // rifiuterebbe tutto: se non ci sta, un messaggio per avviso (la revisione).
     if (pronti.length === 1 || insieme.length > MESSAGGIO_MAX) {
-      void (async () => { for (const p of pronti) await invia(p.testo, [p.riga]) })()
+      for (const p of pronti) await invia(p.testo, [p.riga])
       return
     }
-    void invia(insieme, pronti.map((p) => p.riga))
+    await invia(insieme, pronti.map((p) => p.riga))
   }
 
-  return async (tipo, a, domanda) => {
+  const avvisa = async (tipo: TipoAvviso, a: Autopilota, domanda?: string): Promise<void> => {
     if (deps.configurazione === undefined) return
     const testo = componiAvviso(tipo, a, domanda)
     const riga = `${tipo} di «${a.nome}» (${a.id})`
@@ -214,7 +217,9 @@ export function creaAvvisatore(deps: {
     inAttesa.push({ testo, riga })
     if (!attesaArmata) {
       attesaArmata = true
-      dopo(Math.max(0, ultimoInvio + AVVISI_VICINI_MS - ora), svuota)
+      dopo(Math.max(0, ultimoInvio + AVVISI_VICINI_MS - ora), () => { void svuota() })
     }
   }
+  // Il timer, se scatta dopo, trova la coda vuota e non manda niente due volte.
+  return Object.assign(avvisa, { svuotaOra: svuota })
 }

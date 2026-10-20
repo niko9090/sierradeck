@@ -287,6 +287,7 @@ export function avviaServizio(): void {
     avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),
     fermaLavoro: (id, chatId) => lavori.ferma(id, chatId),
     avvisa,
+    primaDiSpegnere: () => avvisa.svuotaOra(),
     domande,
     // Da dove si legge cosa ha chiesto la chat: senza, all'utente si girava una
     // riga di servizio a cui non si puo' rispondere.

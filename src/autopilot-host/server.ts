@@ -125,6 +125,8 @@ export type Dipendenze = {
   silenzioMassimoMs?: number
   /** Avvisa l'utente dove non è davanti allo schermo. Non deve mai sollevare. */
   avvisa: (tipo: TipoAvviso, a: Autopilota, domanda?: string) => Promise<void>
+  /** Prima di uscire per un aggiornamento: gli avvisi Telegram in attesa partono (0.81.0). */
+  primaDiSpegnere?: () => Promise<void>
   /** Il momento attuale in ISO. Iniettato perché i test non aspettino sei ore. */
   adesso: () => string
   /**
@@ -1013,8 +1015,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           .catch((err: unknown) => {
             console.error(`[autopilota] ripartenza dopo il freno di ${a.id} fallita:`, err)
             // Non riparte più da solo (la pausa è tolta): adesso aspetta Nicholas (0.81.0).
+            // La ripartenza salva «al lavoro» prima di avviare la chat: chi fallisce
+            // resta lì senza chat, quindi l'avviso parte anche se non risulta fermo.
             const dopo = deps.archivio.leggi(a.id)
-            if (dopo !== undefined && eFermo(dopo)) avvisaFermo(dopo)
+            if (dopo === undefined || riparteDaSolo(dopo)) return
+            const motivo = `non è ripartito dopo la pausa per i limiti: ${err instanceof Error ? err.message : String(err)}`
+            avvisaFermo(eFermo(dopo) ? dopo : { ...dopo, motivoSospensione: motivo })
           })
         continue
       }
@@ -3071,7 +3077,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           console.info('[autopilota] mi spengo: il Gestore ha una versione più nuova')
           // Dopo la risposta, non prima: chi ha chiesto deve sapere che è
           // stata accolta, altrimenti aspetta un servizio che è già morto.
-          setTimeout(() => process.exit(0), 150)
+          // Gli avvisi raccolti negli ultimi 20 s partono prima, ma al massimo 3 s (0.81.0).
+          setTimeout(() => {
+            const tetto = new Promise<void>((ris) => { setTimeout(ris, 3000).unref?.() })
+            void Promise.race([(deps.primaDiSpegnere?.() ?? Promise.resolve()).catch(() => undefined), tetto]).finally(() => process.exit(0))
+          }, 150)
           return
         }
 

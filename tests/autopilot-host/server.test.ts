@@ -56,6 +56,8 @@ function ambiente(
     cartellaArchivio?: string
     domande?: ReturnType<typeof creaRegistroDomande>
     memoria?: ReturnType<typeof apriMemoria>
+    /** La chat non parte (il Gestore la rifiuta). */
+    avvioFallisce?: boolean
   } = {}
 ): ServerAutopiloti {
   limitiDaSpingere = opts.limiti
@@ -73,7 +75,7 @@ function ambiente(
       avviati.push(a.id)
       if (chat !== undefined) chatAvviate.push({ id: chat.id, compito: chat.compito })
       if (messaggio !== undefined) messaggiDiRipresa.push(messaggio)
-      return Promise.resolve()
+      return opts.avvioFallisce === true ? Promise.reject(new Error('la chat non parte')) : Promise.resolve()
     },
     fermaLavoro: (id, chatId) => { fermati.push(chatId === undefined ? id : `${id}::${chatId}`) },
     avvisa: (tipo, a, domanda) => {
@@ -1778,6 +1780,19 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     expect(avviati).toHaveLength(0)
     // 0.81.0: riparte da solo, quindi nessuna notifica (Telegram) per questo fermo.
     expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
+  })
+
+  it('0.81.0: se la ripartenza dopo la pausa per i limiti fallisce, l avviso parte', async () => {
+    server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } }, avvioFallisce: true })
+    await avvia(server)
+    await creaAp()
+    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
+    expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
+    // Il piano si libera: il freno lo fa ripartire, ma la chat non parte.
+    await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: LIMITI_LIBERI })
+    server.controllaChatFerme()
+    await attendi(() => avvisi.some((a) => a.tipo === 'sospeso'))
+    expect(avvisi.filter((a) => a.tipo === 'sospeso')).toHaveLength(1)
   })
 
   it('i divieti: il programma nega alla chat una cancellazione fuori dalle sue cartelle', async () => {
