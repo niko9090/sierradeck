@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { paginaClient } from '../../src/main/client-pagina'
 import { domandaBreve, type Conversazione } from '@shared/domande-conversazioni'
+import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
 
 /**
  * 0.76.0 sulla pagina del telefono: dentro una chat, la sua domanda breve sta
@@ -42,7 +43,8 @@ describe('0.78.0: la Panoramica 2 sul telefono', () => {
   const creaParti = (aperte: Record<string, boolean> = {}, apPc: string | null = null) => new Function('esc', 'aiuto', 'apPc', 'pannello', 'ultimoStato', `
     const RUOLO_NOME = { sviluppo: 'Sviluppo', revisione: 'Revisione' }; const SIMBOLO_SCHEDA = { chiede: '◆', lavora: '●', ferma: '■', finita: '✓' }; const PAROLA_SCHEDA = { chiede: 'aspetta te', lavora: 'al lavoro', ferma: 'ferma', finita: 'finita' };
     var panAperte = Object.assign({ criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }, ${JSON.stringify(aperte)});
-    ${['rigaApri', 'schedaTelHtml', 'panoramicaVecchiaHtml', 'alLavoroHtml', 'panoramicaHtml', 'panoramicaTestaHtml', 'panoramicaRestoHtml'].map(funzione).join('; ')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, apPc, () => undefined, null) as (p: unknown, parte: 'testa' | 'resto') => string
+    var ATT = ${JSON.stringify({ attivita: ATTIVITA, ordine: ATTIVITA_ORDINE, colori: COLORI, titolo: TITOLO_LEGENDA })};
+    ${['coloreNome', 'segnoAttivita', 'parolaStatoAtt', 'legendaAttivita', 'rigaApri', 'schedaTelHtml', 'panoramicaVecchiaHtml', 'alLavoroHtml', 'panoramicaHtml', 'panoramicaTestaHtml', 'panoramicaRestoHtml'].map(funzione).join('; ')}; return panoramicaHtml`)((x: string) => x, (_i: string, t: string) => `[?${t}]`, apPc, () => undefined, null) as (p: unknown, parte: 'testa' | 'resto') => string
   // Le due parti di seguito: sopra la conversazione la testa, sotto il resto (0.79.0).
   const crea = (aperte: Record<string, boolean> = {}) => (p: unknown): string => { const f = creaParti(aperte); return f(p, 'testa') + f(p, 'resto') }
   const schede = [

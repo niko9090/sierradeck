@@ -8,8 +8,8 @@ import { TastoMicrofono } from './TastoMicrofono'
 import type { StatoSottofondo } from '@shared/sottofondo'
 import { etichettaSottofondo } from '@shared/stato-dal-vivo'
 import type { Dormiente } from '@shared/migrazione-elenco'
-
-const COLORE: Record<string, string> = { blu: 'var(--blu)', viola: 'var(--viola, #a78bfa)', verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', quieto: 'var(--testo-quieto)' }
+// I colori dei ruoli: dalla tabella unica delle attività (0.82.0).
+import { coloreDi } from '@shared/colori-attivita'
 
 /**
  * La colonna della vista a elenco (0.74.0): l'autopilota del workspace con i
@@ -73,7 +73,7 @@ export function ElencoWorkspace({
       {/* Ferma non è un guasto: pallino quieto, l'ambra solo per chi ti chiede qualcosa. */}
       <span className={`led${v.chiede ? ' led--attesa' : v.lavora ? ' led--lavoro' : ''}`} />
       <span className="elenco-ws__corpo">
-        {ruolo !== undefined ? <b style={{ color: colore !== undefined ? COLORE[colore] : undefined }}>{ruolo}</b> : <span className="elenco-ws__titolo">{v.titolo}</span>}
+        {ruolo !== undefined ? <b style={{ color: colore !== undefined ? coloreDi(colore) : undefined }}>{ruolo}</b> : <span className="elenco-ws__titolo">{v.titolo}</span>}
         {compito !== undefined && compito !== '' ? <span className="elenco-ws__compito">{compito}</span> : null}
       </span>
       <span className="elenco-ws__stato">{v.chiede ? 'aspetta te' : v.lavora ? 'al lavoro' : 'ferma'}</span>
@@ -137,7 +137,7 @@ export function ElencoWorkspace({
                 <div key={x.id} className="elenco-ws__voce elenco-ws__voce--chiusa" title={x.ultimaAzione !== '' ? x.ultimaAzione : x.compito}>
                   <span className="led led--finito" />
                   <span className="elenco-ws__corpo">
-                    <b style={{ color: COLORE[x.colore] }}>{x.ruolo}</b>
+                    <b style={{ color: coloreDi(x.colore) }}>{x.ruolo}</b>
                     {x.compito !== '' ? <span className="elenco-ws__compito">{x.compito}</span> : null}
                   </span>
                   <span className="elenco-ws__stato">{x.stato} · {x.chiusa === true ? 'chat chiusa' : 'non aperta qui'}</span>

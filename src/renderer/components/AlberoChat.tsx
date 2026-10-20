@@ -1,5 +1,6 @@
 import type { Autopilota } from '@shared/autopilota'
 import { alberoChat, type NodoAlbero } from '@shared/harness'
+import { coloreDi } from '@shared/colori-attivita'
 
 /**
  * L'albero delle chat di un autopilota (T7, 0.36.0): il coordinatore in cima,
@@ -16,8 +17,8 @@ const LED: Record<string, string> = {
   ferma: 'led--finito'
 }
 
-/** Il colore del ruolo: i quattro della tavolozza, più il viola dell'Interfaccia. */
-const coloreRuolo = (c: string): string => (c === 'viola' ? '#b48cff' : `var(--${c})`)
+/** Il colore del ruolo, dalla tabella unica delle attività (0.82.0). */
+const coloreRuolo = coloreDi
 
 function Nodo({ n }: { n: NodoAlbero }): React.JSX.Element {
   return (

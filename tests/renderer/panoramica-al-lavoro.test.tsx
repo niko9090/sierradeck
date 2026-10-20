@@ -16,8 +16,8 @@ describe('la Panoramica del PC: conversazione grande e riassunto accanto', () =>
     const html = renderToStaticMarkup(
       <RiassuntoAlLavoro
         righe={[
-          { id: 'p-1', chi: 'Collaudo', ruolo: 'collaudo', cosa: 'prova: «la copia»', quanto: 'adesso', aspettaTe: true },
-          { id: 'p-2', chi: 'Sviluppo', ruolo: 'sviluppo', cosa: 'lavora a: «Somma»', quanto: 'da 12 min', aspettaTe: false }
+          { id: 'p-1', chi: 'Collaudo', ruolo: 'collaudo', cosa: 'prova: «la copia»', quanto: 'adesso', aspettaTe: true, attivita: 'aspetta' },
+          { id: 'p-2', chi: 'Sviluppo', ruolo: 'sviluppo', cosa: 'lavora a: «Somma»', quanto: 'da 12 min', aspettaTe: false, attivita: 'sviluppo' }
         ]}
         schede={schede}
         onApri={() => undefined}

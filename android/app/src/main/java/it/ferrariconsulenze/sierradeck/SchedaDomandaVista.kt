@@ -197,29 +197,39 @@ fun SchedaDomandaVista(
  */
 @Composable
 fun SpecialistiVista(s: Specialisti, onGuarda: (String) -> Unit) {
-    Text(if (s.elenco.size > 1) "SPECIALISTI (${s.elenco.size})" else "LA SUA CHAT", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (s.elenco.size > 1) "SPECIALISTI (${s.elenco.size})" else "LA SUA CHAT", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        LegendaAttivita()
+    }
     if (s.riga.isNotBlank()) Text(s.riga, color = Banco.testoQuieto, fontSize = 12.sp)
     for (x in s.elenco) {
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            // PC 0.82.0: una riga per agente — colore fisso e simbolo di cosa fa, ruolo, stato e da quanto.
+            val att = Attivita.diSpecialista(x)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(x.ruolo, color = coloreRuolo(x.colore), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Text(" · ${x.stato}", color = if (x.attivo) Banco.verde else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                SegnoAttivita(att)
+                Spacer(Modifier.width(6.dp))
+                Text(x.ruolo, color = Attivita.coloreDi(att), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(" · " + RegoleAgenti.statoEQuanto(x), color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 // PC 0.74.0: chi ha finito ha chiuso la sua chat da solo.
                 if (x.chiusa) Text("chat chiusa", color = Banco.testoQuieto, fontSize = 11.sp)
                 else x.sessionId?.let { sid -> TextButton(onClick = { onGuarda(sid) }) { Text("Guarda", fontSize = 12.sp) } }
             }
-            if (x.compito.isNotBlank()) Text(x.compito, color = Banco.testo, fontSize = 12.sp, maxLines = 2)
+            val cosa = x.cosa.ifBlank { x.compito }
+            if (cosa.isNotBlank()) Text(cosa, color = Banco.testo, fontSize = 12.sp, maxLines = 2)
             if (x.ultimaAzione.isNotBlank()) Text(x.ultimaAzione, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
         }
     }
 }
 
-/** Il colore di un ruolo, come sul PC e nella pagina. */
-fun coloreRuolo(c: String) = when (c) {
-    "blu" -> Banco.accento
-    "viola" -> androidx.compose.ui.graphics.Color(0xFFA78BFA)
-    "verde" -> Banco.verde
-    "ambra" -> Banco.ambra
-    "rosso" -> Banco.rosso
-    else -> Banco.testoQuieto
+/** Il colore di un ruolo, dalla tabella unica (PC 0.82.0). */
+fun coloreRuolo(c: String) = Attivita.colore(c)
+
+/** I testi della riga di un agente, uguali al PC (provati in `RegoleAgentiTest`). */
+object RegoleAgenti {
+    /** «al lavoro · da 12 min», «aspetta te», «finita»; da un PC più vecchio lo stato in parole che manda. */
+    fun statoEQuanto(x: Specialista): String {
+        if (x.attivita == null) return x.stato
+        return listOf(Attivita.parolaStato(Attivita.diSpecialista(x)), x.quanto).filter { it.isNotBlank() }.joinToString(" · ")
+    }
 }
