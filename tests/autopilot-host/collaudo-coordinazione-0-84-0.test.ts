@@ -67,12 +67,14 @@ describe('collaudo: il segnale di fine turno', () => {
   // il segnale vale «avanti» e il «fatto» si perde. Causa: `pulisci` toglie gli
   // asterischi solo in testa e in coda alla riga (src/shared/segnali-flotta.ts:62),
   // la regex di riga 72 vuole i due punti subito dopo «SEGNALE».
-  it.fails('D3: «**SEGNALE:** fatto» (grassetto sull etichetta) si legge come fatto', () => {
+  it('D3: «**SEGNALE:** fatto» (grassetto sull etichetta) si legge come fatto', () => {
     const msg = 'Ho finito il pezzo.\n**SEGNALE:** fatto — test verdi'
     // Il programma la toglie come riga di segnale…
     expect(senzaRigaSegnale(msg)).toBe('Ho finito il pezzo.')
     // …quindi deve anche leggerla.
     expect(rigaSegnale(msg, sorelle, 'c-1')?.tipo).toBe('fatto')
+    expect(rigaSegnale('**SEGNALE**: bloccata — gradle non parte', sorelle, 'c-1')).toMatchObject({ tipo: 'bloccata', motivo: 'gradle non parte' })
+    expect(senzaRigaSegnale('Ok.\n**SEGNALE**: avanti')).toBe('Ok.')
   })
 })
 
