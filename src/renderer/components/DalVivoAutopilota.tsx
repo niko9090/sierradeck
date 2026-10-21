@@ -33,10 +33,26 @@ const segno = (a: Autopilota): number | undefined => {
   return Number.isNaN(t) ? undefined : t
 }
 
-export function RigaDalVivo({ autopilota: a }: { autopilota: Autopilota }): React.JSX.Element {
+export function RigaDalVivo({ autopilota: a, senzaStato = false }: {
+  autopilota: Autopilota
+  /**
+   * Nella Panoramica (0.82.0): la parola dello stato la dice già la testata
+   * sopra. Qui resta una riga sola: l'ultima azione, da quanto e l'avviso ⚠.
+   */
+  senzaStato?: boolean
+}): React.JSX.Element | null {
   const ora = useOra()
   const d = haDomandaAperta(a)
   const s = statoAutopilotaDalVivo({ ...a, ...(d !== undefined ? { domanda: d } : {}) }, ora, segno(a))
+  if (senzaStato) {
+    if (s.ultimaAzione === '' && s.senzaSegni === undefined) return null
+    return (
+      <span className="dal-vivo misura" title={s.ultimaAzione} style={{ display: 'block', fontSize: 'var(--t1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {s.ultimaAzione}{s.da !== '' ? ` · da ${s.da}` : ''}
+        {s.senzaSegni !== undefined ? <span style={{ color: 'var(--ambra)' }}> · ⚠ {s.senzaSegni}</span> : null}
+      </span>
+    )
+  }
   return (
     <span className="dal-vivo" style={{ display: 'block', fontSize: 'var(--t1)' }}>
       <b style={{ color: COLORE(s.etichetta) }}>{s.etichetta}</b>

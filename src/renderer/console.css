@@ -1016,6 +1016,12 @@ input.campo {
   border-top: 1px solid var(--luce-tenue);
 }
 
+/* 0.82.0: due avvisi impilati prendevano 100 px sopra le chat (tasti alti 34 px).
+   Righe basse e tasti piccoli: lo stesso avviso, con gli stessi tasti, in 30 px. */
+.banda .banda__voce { padding: var(--s1) var(--s3); }
+.banda .banda__voce .tasto { padding: 2px 10px; font-size: var(--t1); }
+.banda + .banda { border-top: 1px solid var(--luce-tenue); }
+
 .banda__voce--blocco .banda__testo {
   color: var(--testo);
 }

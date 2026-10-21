@@ -328,7 +328,9 @@ private fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: ()
                         }
                     }
                     // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
-                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it) }
+                    // 0.82.0: lo stato è già nella riga sopra, qui solo ultima azione, da quanto e ⚠.
+                    // (solo se la riga sopra dice la stessa parola: altrimenti l'etichetta del PC resta, Revisione 0.82.0)
+                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(s)) }
                     det?.adesso?.let { AdessoVista(it) }
                     MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
                         scopeMessaggi.launch {
@@ -1529,9 +1531,14 @@ private fun LinguettaFile(api: Api, autopilota: String) {
 
 /** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0): le parole del PC. */
 @Composable
-fun DalVivo(v: StatoDalVivo) {
+fun DalVivo(v: StatoDalVivo, senzaStato: Boolean = false) {
     val colore = coloreVista(tonoDalVivo(v.etichetta))
     Spacer(Modifier.height(4.dp))
+    if (senzaStato) {
+        val riga = RegolePanoramica.rigaDalVivoSenzaStato(v)
+        if (riga.isNotBlank()) Text(riga, color = if (v.senzaSegni != null) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(v.etichetta, color = colore, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         if (v.da.isNotBlank()) Text(" · da ${v.da}", color = Banco.testoQuieto, fontSize = 12.sp)

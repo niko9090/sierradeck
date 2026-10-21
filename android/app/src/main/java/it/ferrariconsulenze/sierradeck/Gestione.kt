@@ -250,7 +250,7 @@ object PcIndietro {
         // Il quaderno personale non conta: è solo del PC accoppiato e non passa dal ponte,
         // quindi su un altro PC non manca niente di quello che il telefono userebbe là.
         // Manca là solo ciò che il PC collegato ha già (PC 0.82.0, «Apri cartella»): a versioni uguali non manca niente.
-        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && FunzioniPc.disponibile(it, accoppiato) != false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE && it != FunzionePc.PANNELLO_DRIVE && it != FunzionePc.GESTIONE_CHAT }
+        val mancano = FunzionePc.entries.filter { FunzioniPc.disponibile(it, versione) == false && FunzioniPc.disponibile(it, accoppiato) != false && it.minima != FunzionePc.INSTALLA_LA.minima && it != FunzionePc.QUADERNO_PERSONALE && it != FunzionePc.PANNELLO_DRIVE && it != FunzionePc.GESTIONE_CHAT && it != FunzionePc.CARTELLA }
         val indietroDalCollegato = accoppiato != null && Aggiornamenti.piuNuova(versione, accoppiato)
         if (mancano.isEmpty() && !indietroDalCollegato) return null
         val cosa = if (mancano.isEmpty()) "" else " Là non ci sono ancora: " + mancano.joinToString("; ") { it.nome.replaceFirstChar { c -> c.lowercase() } } + "."
