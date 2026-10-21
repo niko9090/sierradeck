@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,14 +23,14 @@ function finto() {
   const fermati: string[] = []
   const log: string[] = []
   let n = 0
+  let inSospeso = 0
+  const attese: (() => void)[] = []
   const dati = mkdtempSync(join(tmpdir(), 'sd-sottofondo-'))
   const manda = (id: string, data: string): void => ascolti.get(id)?.({ id, kind: 'data', data })
   /** Claude Code finto: il campo, e all'Invio il messaggio sale fra i mandati. */
   let campo = ''
   let trattieni = false
   let trattenuti = ''
-  /** Le scritture che xterm non ha ancora elaborato: «digerisci» aspetta che siano zero. */
-  let daElaborare = 0
   const disegnaCampo = (id: string): void => manda(id, `\x1b[2J\x1b[H Benvenuto\r\n\r\n❯ ${campo}\r\n  ? for shortcuts`)
   const crea = (): ReturnType<typeof creaSottofondo> => creaSottofondo({
     dati,
@@ -51,23 +51,25 @@ function finto() {
     },
     ferma: (id) => { fermati.push(id) },
     creaTerminale: (cols, rows) => {
+      // Si contano le scritture non ancora digerite da xterm: `digerisci` aspetta
+      // quelle, non un tempo fisso che a PC carico non basta (21/10).
       const t = new Terminal({ cols, rows, allowProposedApi: true })
-      const scrivi = t.write.bind(t)
-      t.write = (data: string | Uint8Array, cb?: () => void): void => { daElaborare += 1; scrivi(data, () => { daElaborare -= 1; cb?.() }) }
+      const scriviVero = t.write.bind(t)
+      t.write = ((data: string) => {
+        inSospeso += 1
+        scriviVero(data, () => {
+          inSospeso -= 1
+          if (inSospeso === 0) attese.splice(0).forEach((r) => r())
+        })
+      }) as typeof t.write
       return t as unknown as TerminaleMuto
     },
     log: (m) => { log.push(m) },
     adesso: () => ora,
     timer: (f) => f()
   })
-  /**
-   * xterm headless scrive in modo asincrono: si aspetta che abbia elaborato
-   * tutto quello che ha ricevuto (non un tempo fisso, che sotto carico non basta).
-   */
-  const digerisci = async (): Promise<void> => {
-    await new Promise((r) => setImmediate(r))
-    await vi.waitFor(() => { if (daElaborare > 0) throw new Error(`xterm ha ancora ${daElaborare} scritture`) }, { timeout: 5000, interval: 2 })
-  }
+  /** xterm headless scrive in modo asincrono: si aspetta che abbia digerito tutto. */
+  const digerisci = (): Promise<void> => inSospeso === 0 ? Promise.resolve() : new Promise((r) => { attese.push(r) })
   return { crea, ascolti, scritto, avviati, fermati, log, dati, disegnaCampo, digerisci, avanti: (ms: number) => { ora += ms }, campo: () => campo, perdiCampo: () => { campo = '' },
     trattieni: () => { trattieni = true },
     /** Mostra quello che teneva da parte; un Invio arrivato intanto diventa un a capo, come nel vero. */

@@ -58,3 +58,11 @@ Il criterio intero (`tests/autopilot-host tests/renderer tests/shared tests/pty-
 - **`autopilot-host/worktree.test.ts`:** 5-16 s per test. Sono git veri: worktree, unioni, conflitti.
 - **`server.test.ts`, «riprendere un autopilota in intervista»:** 7,8 s. Interroga il servizio a ripetizione e crea l'autopilota con `cwd: process.cwd()`, cioè dentro il repository vero, che è grande.
 - **Altri file con `await import('../../src/main/…')` dentro i test**, senza mock: `portatile-non-raggiunto`, `grafica-0-81-0`, `residenza`, `registro`, `quaderno-store`, `prove-senza-avanzi`, `identita-app`, `consegna-durante-il-turno`, `cassaforte-motore`, `cassaforte-magazzino`, `cassaforte-google-drive`. Se uno diventa rosso per tempo, la correzione è la stessa: import in cima.
+
+## Attese fisse sullo schermo di xterm (21/10, c-39)
+- **Trappola:** `digerisci = () => new Promise(r => setTimeout(r, 20))` nei test con `@xterm/headless`. A PC carico xterm non ha ancora scritto e il test legge lo schermo vecchio.
+- **Rimedio (in `tests/main/sottofondo.test.ts`):** nel `creaTerminale` del finto, avvolgere `t.write` e passare il callback di xterm (`write(data, cb)`). Si contano le scritture in sospeso e `digerisci` aspetta che siano zero.
+- **Controprova:** con un `digerisci` che non aspetta niente devono cadere dei test. Se non cade niente, l'attesa non serve a nulla.
+- **Ancora da fare:** lo stesso `setTimeout(r, 20)` c'è in `consegna-durante-il-turno.test.ts` e in `consegna-in-sottofondo.test.ts`.
+- **Sotto carico doppio** (le due suite in parallelo) cadono per tempo `cassaforte-pacchetto` (20 s) e `ospite` «claude.exe parte solo da lì» (60 s). Da soli passano.
+- **Copia di lavoro di una chat senza `node_modules`:** si collega quello della cartella principale con una junction (`New-Item -ItemType Junction -Path node_modules -Target <principale>\node_modules`). Git la ignora (`node_modules/`). Si toglie con `cmd /c rmdir node_modules`, che toglie solo il collegamento.

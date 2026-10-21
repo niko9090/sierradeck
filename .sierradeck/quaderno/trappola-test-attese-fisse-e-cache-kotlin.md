@@ -11,7 +11,7 @@ Con il PC al 100%, il test «un testo che Claude Code perde torna in coda…»
 cadeva ogni tanto (21/10).
 
 Ora il `creaTerminale` del test avvolge `write` e conta le scritture non ancora
-elaborate. `digerisci` aspetta con `vi.waitFor` che il conto torni a zero:
+elaborate. `digerisci` aspetta che il conto torni a zero:
 sotto carico passa 10 volte su 10.
 
 **Regola:** nei test con xterm si aspetta la callback di `write`, mai un tempo

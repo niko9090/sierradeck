@@ -25,6 +25,29 @@ main e le suite sono verdi. La bozza delle novità (7 righe) è pronta.
 - `npm run typecheck`: 0 errori. Guardia delle cancellazioni: pulita.
 - Nessun test rosso: niente da attribuire a c-35, c-37 o c-38.
 
+## Test che cadeva a PC carico: tests/main/sottofondo.test.ts (21/10)
+- Su main d4884af0 (00:35) era caduto «un testo che Claude Code perde torna in
+  coda e si riscrive». Era un problema di tempo, non un difetto del codice.
+- **Causa:** `digerisci()` aspettava 20 ms fissi che xterm headless finisse di
+  scrivere. Sotto carico non bastano: lo schermo letto è quello di prima.
+- **Correzione (solo nel test):** il terminale di prova conta le scritture in
+  sospeso con il callback di `write`. `digerisci()` aspetta che arrivino a zero.
+  I controlli sono rimasti tutti, compreso «mai consegnato senza esserlo».
+- **Controprova:** con `digerisci()` che non aspetta niente cadono 7 test su 16,
+  compreso questo. Quindi adesso l'attesa è vera, non fortuna.
+- **Esiti:** il file da solo 5 volte di fila, 16/16 ogni volta. Poi la suite
+  principale (copia c-39, con la correzione) in parallelo all'altra suite
+  (cartella principale), alle 02:53–03:05:
+  - altra suite: **2816/2816**;
+  - suite principale: 1822 passati e 2 caduti per tempo scaduto sotto il carico
+    doppio, cioè `cassaforte-pacchetto` (limite 20 s) e `ospite` (legge tutto
+    src, limite 60 s).
+  - Quei due erano passati con la suite da sola (1824/1824) e non toccano i rami
+    della 0.82.0. `sottofondo` è passato (1,5 s).
+- Lo stesso `setTimeout(r, 20)` c'è anche in `consegna-durante-il-turno.test.ts`
+  e in `consegna-in-sottofondo.test.ts`: se cadono a PC carico, il rimedio è lo
+  stesso.
+
 ## Da decidere per Nicholas
 - **c-38 ha messo Istruzioni, File e «Ha deciso» della scheda dell'autopilota
   dietro «⋯»** (non tolte). La regola dice niente funzioni spostate senza il suo
@@ -107,7 +130,7 @@ Restano due limiti, scritti nella scheda:
   perde torna in coda e si riscrive». La causa era nella prova, non nel
   programma: `digerisci` aspettava 20 ms fissi che xterm elaborasse lo
   schermo, e con il PC al 100% non bastavano. Ora aspetta che xterm abbia
-  elaborato tutte le scritture ricevute (callback di `write` e `vi.waitFor`).
+  elaborato tutte le scritture ricevute (callback di `write`; in main è la versione di un'altra chat che ha fatto la stessa correzione, tenuta all'unione).
   Asserzioni e tempi finti sono gli stessi di prima. Sotto carico (suite main
   in parallelo, più Gradle) passa **10 volte su 10**, con tutti i 16 test del
   file.
