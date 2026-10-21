@@ -1,4 +1,5 @@
 import type { PartiDomanda } from './domanda-strutturata'
+import { senzaRigaSegnale } from './segnali-flotta'
 
 /**
  * Tutto quello che aspetta una risposta da chi guarda il telefono, in un
@@ -186,7 +187,8 @@ export const RISOLTE_PER_ORE = 12
  */
 export function domandaInFondo(testo: string | undefined): string | undefined {
   if (testo === undefined) return undefined
-  const paragrafi = testo.replace(/\r/g, '').split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p !== '')
+  // 0.84.0: la riga «SEGNALE: …» per l'autopilota non nasconde la domanda.
+  const paragrafi = senzaRigaSegnale(testo).replace(/\r/g, '').split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p !== '')
   const finisceConDomanda = (p: string): boolean => /\?[\s*_`)»"'”]*$/.test(p)
   const elenco = (p: string): boolean => p.split('\n').every((r) => /^\s*(\d{1,2}[.)]|[-*•]|[A-Za-z][.)])\s+\S/.test(r))
   const ultimo = paragrafi[paragrafi.length - 1]

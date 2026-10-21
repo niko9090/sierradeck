@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
@@ -25,10 +25,62 @@ export const gitReale: Git = (args, cwd) => {
   return { codice: r.status ?? 1, uscita: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() }
 }
 
+/**
+ * **Git senza fermare il servizio** (0.84.0). `spawnSync` blocca tutto il
+ * processo finché git non finisce: il 20/10 la sola fase «unione» dei giri ha
+ * tenuto fermo il servizio 33 minuti in tutto, fino a 95 s di fila, e intanto
+ * non rispondeva agli hook delle chat né alla salute (l'app lo credeva spento e
+ * ne avviava doppioni). Le operazioni dei giri (salvare, unire, togliere un
+ * worktree) si scrivono una volta sola come «passi» che chiedono git, e girano
+ * sia col git sincrono (test, creazione) sia con questo.
+ */
+export type GitAsincrono = (args: string[], cwd: string) => Promise<EsitoGit>
+
+export const gitAsincronoReale: GitAsincrono = (args, cwd) => new Promise((ris) => {
+  let uscita = ''
+  let finito = false
+  const fine = (codice: number): void => { if (finito) return; finito = true; clearTimeout(tempo); ris({ codice, uscita: uscita.trim() }) }
+  // Niente stdin: git che chiede qualcosa (credenziali) deve fallire subito, non aspettare 120 s.
+  const p = spawn('git', args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  const tempo = setTimeout(() => { p.kill(); fine(1) }, 120_000)
+  p.stdout.on('data', (d: Buffer) => { uscita += d.toString('utf8') })
+  p.stderr.on('data', (d: Buffer) => { uscita += d.toString('utf8') })
+  p.on('error', (err) => { uscita += String(err); fine(1) })
+  p.on('close', (codice) => { fine(codice ?? 1) })
+})
+
+/** Il git sincrono fatto passare per asincrono: per i test e per chi non ne ha uno vero. */
+export function comeAsincrono(git: Git): GitAsincrono {
+  return (args, cwd) => Promise.resolve(git(args, cwd))
+}
+
+type Chiamata = { args: string[]; cwd: string }
+type Passi<T> = Generator<Chiamata, T, EsitoGit>
+
+function* chiedi(args: string[], cwd: string): Passi<EsitoGit> {
+  return yield { args, cwd }
+}
+
+function inLinea<T>(git: Git, passi: Passi<T>): T {
+  let r = passi.next()
+  while (r.done !== true) r = passi.next(git(r.value.args, r.value.cwd))
+  return r.value
+}
+
+async function aspettando<T>(git: GitAsincrono, passi: Passi<T>): Promise<T> {
+  let r = passi.next()
+  while (r.done !== true) r = passi.next(await git(r.value.args, r.value.cwd))
+  return r.value
+}
+
 /** La radice del repository che contiene `cwd`, o `undefined` se non e' git. */
 export function radiceGit(git: Git, cwd: string): string | undefined {
+  return inLinea(git, radicePassi(cwd))
+}
+
+function* radicePassi(cwd: string): Passi<string | undefined> {
   if (!existsSync(cwd)) return undefined
-  const r = git(['rev-parse', '--show-toplevel'], cwd)
+  const r = yield* chiedi(['rev-parse', '--show-toplevel'], cwd)
   return r.codice === 0 && r.uscita !== '' ? r.uscita.split(/\r?\n/)[0] : undefined
 }
 
@@ -56,12 +108,12 @@ function vero(x: string): string {
  * al worktree. La si riconosce perché il ramo la contiene già; la cartella
  * rimasta di una chat chiusa dentro un altro worktree invece non è nel ramo.
  */
-function sottocartellaDelRamo(git: Git, radice: string, cartella: string): boolean {
+function* sottocartellaDelRamo(radice: string, cartella: string): Passi<boolean> {
   // Senza minuscole: `git ls-tree` distingue «App» da «app» (c-289, 20/10).
   // Su Windows `relative` confronta già senza maiuscole e tiene quelle della cartella.
   const rel = relative(vero(radice), vero(cartella))
   if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return false
-  const r = git(['ls-tree', '-d', '--name-only', 'HEAD', '--', rel.split(sep).join('/')], radice)
+  const r = yield* chiedi(['ls-tree', '-d', '--name-only', 'HEAD', '--', rel.split(sep).join('/')], radice)
   return r.codice === 0 && r.uscita !== ''
 }
 
@@ -79,12 +131,16 @@ export function statoCopia(git: Git, cartella: string): 'ok' | 'mancante' | 'non
   const r = git(['rev-parse', '--show-toplevel'], cartella)
   if (r.codice !== 0) return /not a git repository/i.test(r.uscita) ? 'non-git' : 'ok'
   const radice = r.uscita.split(/\r?\n/)[0] ?? ''
-  if (radice === '' || stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella)) return 'ok'
+  if (radice === '' || stessaCartella(radice, cartella) || inLinea(git, sottocartellaDelRamo(radice, cartella))) return 'ok'
   return 'non-git'
 }
 
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
-  const r = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
+  return inLinea(git, ramoPassi(cwd))
+}
+
+function* ramoPassi(cwd: string): Passi<string | undefined> {
+  const r = yield* chiedi(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
   return r.codice === 0 && r.uscita !== '' && r.uscita !== 'HEAD' ? r.uscita.split(/\r?\n/)[0] : undefined
 }
 
@@ -147,8 +203,8 @@ export function creaWorktree(git: Git, p: { cwd: string; autopilota: string; cha
 }
 
 /** Il nome con cui l'autopilota firma i commit, se il progetto non ne ha uno. */
-function firma(git: Git, cwd: string): string[] {
-  const nome = git(['config', 'user.name'], cwd)
+function* firma(cwd: string): Passi<string[]> {
+  const nome = yield* chiedi(['config', 'user.name'], cwd)
   return nome.codice === 0 && nome.uscita !== '' ? [] : ['-c', 'user.name=SierraDeck autopilota', '-c', 'user.email=autopilota@sierradeck.local']
 }
 
@@ -157,6 +213,14 @@ function firma(git: Git, cwd: string): string[] {
  * Torna vero se ha fatto un commit.
  */
 export function salvaLavoro(git: Git, cartella: string, messaggio: string): boolean {
+  return inLinea(git, salvaPassi(cartella, messaggio))
+}
+
+export function salvaLavoroAsincrono(git: GitAsincrono, cartella: string, messaggio: string): Promise<boolean> {
+  return aspettando(git, salvaPassi(cartella, messaggio))
+}
+
+function* salvaPassi(cartella: string, messaggio: string): Passi<boolean> {
   if (!existsSync(cartella)) return false
   // **Solo sul ramo dell'autopilota** (0.71.0). Una cartella che non è (più) un
   // worktree vero fa risalire git al repository che la contiene: il 13/10, nella
@@ -166,19 +230,19 @@ export function salvaLavoro(git: Git, cartella: string, messaggio: string): bool
   // rimasta senza `.git` dentro la cartella di lavoro di un'altra chat, faceva
   // risalire git a quella, anche lei su un ramo `ap/…`, e il commit prendeva il
   // suo lavoro in corso.
-  const radice = radiceGit(git, cartella)
-  if (radice === undefined || !(stessaCartella(radice, cartella) || sottocartellaDelRamo(git, radice, cartella))) {
+  const radice = yield* radicePassi(cartella)
+  if (radice === undefined || !(stessaCartella(radice, cartella) || (yield* sottocartellaDelRamo(radice, cartella)))) {
     console.warn(`[autopilota] non salvo in ${cartella}: non è un worktree suo (git risale a ${radice ?? 'nessun repository'})`)
     return false
   }
-  const ramo = ramoCorrente(git, cartella)
+  const ramo = yield* ramoPassi(cartella)
   if (ramo === undefined || !ramo.startsWith('ap/')) {
     console.warn(`[autopilota] non salvo in ${cartella}: è sul ramo «${ramo ?? '?'}», non su un ramo dell'autopilota`)
     return false
   }
-  if (git(['add', '-A'], cartella).codice !== 0) return false
-  if (git(['diff', '--cached', '--quiet'], cartella).codice === 0) return false
-  return git([...firma(git, cartella), 'commit', '-m', messaggio, '--no-verify'], cartella).codice === 0
+  if ((yield* chiedi(['add', '-A'], cartella)).codice !== 0) return false
+  if ((yield* chiedi(['diff', '--cached', '--quiet'], cartella)).codice === 0) return false
+  return (yield* chiedi([...(yield* firma(cartella)), 'commit', '-m', messaggio, '--no-verify'], cartella)).codice === 0
 }
 
 export type EsitoUnione =
@@ -205,13 +269,21 @@ function soloFile(uscita: string): string[] {
  * principale e risponde «non c'è» (codice 1) sul ramo della chat.
  */
 export function ramoGiaChiuso(git: Git, p: { cwd: string; ramo: string; base: string }): 'mancante' | 'unito' | undefined {
-  const radice = radiceGit(git, p.cwd)
+  return inLinea(git, giaChiusoPassi(p))
+}
+
+export function ramoGiaChiusoAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<'mancante' | 'unito' | undefined> {
+  return aspettando(git, giaChiusoPassi(p))
+}
+
+function* giaChiusoPassi(p: { cwd: string; ramo: string; base: string }): Passi<'mancante' | 'unito' | undefined> {
+  const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return undefined
-  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.base}`], radice).codice !== 0) return undefined
-  const r = git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
+  if ((yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.base}`], radice)).codice !== 0) return undefined
+  const r = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
   if (r.codice === 1) return 'mancante'
   if (r.codice !== 0) return undefined
-  return git(['merge-base', '--is-ancestor', `refs/heads/${p.ramo}`, `refs/heads/${p.base}`], radice).codice === 0 ? 'unito' : undefined
+  return (yield* chiedi(['merge-base', '--is-ancestor', `refs/heads/${p.ramo}`, `refs/heads/${p.base}`], radice)).codice === 0 ? 'unito' : undefined
 }
 
 /**
@@ -222,22 +294,30 @@ export function ramoGiaChiuso(git: Git, p: { cwd: string; ramo: string; base: st
  * conflitto: e' la chat a riallinearsi, nel suo worktree.
  */
 export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: string }): EsitoUnione {
-  const radice = radiceGit(git, p.cwd)
+  return inLinea(git, unisciPassi(p))
+}
+
+export function unisciRamoAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<EsitoUnione> {
+  return aspettando(git, unisciPassi(p))
+}
+
+function* unisciPassi(p: { cwd: string; ramo: string; base: string }): Passi<EsitoUnione> {
+  const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, conflitto: false, file: [], motivo: 'non è un repository git' }
   // Niente da unire se il ramo non c'è più o è già contenuto nel principale
   // (0.80.0): prima si guardava solo dopo il controllo della cartella, e un ramo
   // già unito e tolto dava «not something we can merge». c-4 e c-7 della 0.79.0
   // non si chiudevano più, a nessun giro.
-  if (git(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice).codice !== 0) return { ok: true, unito: false, ramoMancante: true }
-  if (git(['merge-base', '--is-ancestor', p.ramo, p.base], radice).codice === 0) return { ok: true, unito: false }
-  const qui = ramoCorrente(git, radice)
+  if ((yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)).codice !== 0) return { ok: true, unito: false, ramoMancante: true }
+  if ((yield* chiedi(['merge-base', '--is-ancestor', p.ramo, p.base], radice)).codice === 0) return { ok: true, unito: false }
+  const qui = yield* ramoPassi(radice)
   if (qui !== p.base) {
     return { ok: false, conflitto: false, file: [], motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»: non unisco` }
   }
-  const r = git([...firma(git, radice), 'merge', '--no-ff', '--no-edit', p.ramo], radice)
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-edit', p.ramo], radice)
   if (r.codice === 0) return { ok: true, unito: true }
-  const inConflitto = soloFile(git(['diff', '--name-only', '--diff-filter=U'], radice).uscita)
-  git(['merge', '--abort'], radice)
+  const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
+  yield* chiedi(['merge', '--abort'], radice)
   return {
     ok: false,
     conflitto: inConflitto.length > 0,
@@ -250,16 +330,24 @@ export function unisciRamo(git: Git, p: { cwd: string; ramo: string; base: strin
 
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */
 export function togliWorktree(git: Git, p: { cwd: string; cartella: string; ramo: string }): void {
-  const radice = radiceGit(git, p.cwd)
+  inLinea(git, togliPassi(p))
+}
+
+export function togliWorktreeAsincrono(git: GitAsincrono, p: { cwd: string; cartella: string; ramo: string }): Promise<void> {
+  return aspettando(git, togliPassi(p))
+}
+
+function* togliPassi(p: { cwd: string; cartella: string; ramo: string }): Passi<void> {
+  const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return
   // La cartella radice del worktree (la chat puo' lavorare in una sottocartella).
   let radiceWt = p.cartella
   while (dirname(radiceWt) !== radiceWt && basename(dirname(radiceWt)) !== basename(cartellaWorktreeDi(radice))) {
     radiceWt = dirname(radiceWt)
   }
-  git(['worktree', 'remove', '--force', radiceWt], radice)
-  git(['branch', '-d', p.ramo], radice)
-  git(['worktree', 'prune'], radice)
+  yield* chiedi(['worktree', 'remove', '--force', radiceWt], radice)
+  yield* chiedi(['branch', '-d', p.ramo], radice)
+  yield* chiedi(['worktree', 'prune'], radice)
   togliCartellaVuota(radiceWt)
 }
 

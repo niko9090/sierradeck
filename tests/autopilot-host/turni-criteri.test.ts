@@ -92,3 +92,26 @@ describe('turni dei criteri: chi aspetta un’unione non ferma la fila (Revision
     expect(ordine).toEqual(['copia', 'unione finita', 'principale'])
   })
 })
+
+describe('turni: una sola unione per cartella (Revisione 0.84.0)', () => {
+  it('due unioni nella stessa cartella vanno una dopo l’altra, in cartelle diverse insieme', async () => {
+    const turni = creaTurni()
+    const ordine: string[] = []
+    let attive = 0
+    let picco = 0
+    const unione = (nome: string) => async (): Promise<void> => {
+      attive += 1; picco = Math.max(picco, attive)
+      ordine.push(`parte ${nome}`)
+      await new Promise((r) => setTimeout(r, 20))
+      ordine.push(`finisce ${nome}`)
+      attive -= 1
+    }
+    await Promise.all([turni.unione('C:/principale', unione('c-1')), turni.unione('C:\\principale\\', unione('c-2'))])
+    expect(picco).toBe(1)
+    expect(ordine).toEqual(['parte c-1', 'finisce c-1', 'parte c-2', 'finisce c-2'])
+
+    picco = 0
+    await Promise.all([turni.unione('C:/uno', unione('a')), turni.unione('C:/due', unione('b'))])
+    expect(picco).toBe(2)
+  })
+})

@@ -15,6 +15,7 @@ import { applicaRete, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervi
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
+import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
@@ -22,6 +23,7 @@ import { TURNI_PC, type TurniCriteri } from './turni-criteri'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
+import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, parolaSegnale, quadroFlotta, rigaDoppione, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
@@ -66,7 +68,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, salvaLavoro, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
+  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 
 export type Dipendenze = {
@@ -157,7 +159,7 @@ export type Dipendenze = {
    */
   quaderno?: (
     cwd: string,
-    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string }
+    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string; file?: string }
   ) => void
   /**
    * Git, per i worktree delle chat, l'unione dei loro rami, il push e il
@@ -165,6 +167,11 @@ export type Dipendenze = {
    * vogliono: allora l'autopilota lavora come prima, con una chat sola.
    */
   git?: Git
+  /**
+   * Lo stesso git senza fermare il servizio (0.84.0): salvare, unire e togliere
+   * i worktree a fine turno passano da qui. Senza, si usa `git` così com'è.
+   */
+  gitAsincrono?: GitAsincrono
   /**
    * Se la copia di una chat c'è ancora ed è il suo worktree (c-310): una chat
    * senza copia non fa più giri. Assente in prova: le cartelle dei worktree
@@ -189,9 +196,10 @@ export type Dipendenze = {
   /**
    * Chiude una chat finita e ferma al prompt (0.82.0): il suo claude.exe si
    * spegne, il riquadro si chiude, la conversazione resta. Assente: non si
-   * chiude niente da solo.
+   * chiude niente da solo. Con `alRecupero` (0.84.0, agente finito) la
+   * conversazione esce dall'elenco e va nel recupero di 30 giorni.
    */
-  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
+  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
   /**
    * Lo stato vero contro cui si controlla una domanda (0.82.0): release
    * pubblicate, versione installata, rami e chat. Assente: la `versione` e le
@@ -415,6 +423,49 @@ export function conservaCambiUtente(
   }
 }
 
+/**
+ * **La coda presa dal disco**, per i salvataggi di un turno (0.84.0).
+ *
+ * Mentre una fermata lavora (minuti: unione, criteri, supervisore) altri
+ * scrivono lo stesso autopilota: il guardiano porta i messaggi alle chat
+ * sorelle ferme e mette da parte quelle mute, le consegne segnano i messaggi
+ * in viaggio, una consegna fallita li rimette in coda. Un salvataggio con la
+ * fotografia di inizio turno riportava in coda i messaggi già consegnati (la
+ * chat li riceveva due volte) e cancellava le righe del guardiano.
+ *
+ * Si tiene il calcolo del turno e si prendono dal disco solo quelle parti:
+ * la coda senza i messaggi che **questo** turno ha preso per la sua chat, i
+ * messaggi in viaggio, il dialogo, le chat messe da parte (tranne questa, che
+ * ha appena parlato) e le decisioni degli altri, sotto quelle nuove del turno.
+ */
+export function codaDalDisco(
+  calcolato: Autopilota,
+  disco: Autopilota,
+  chiave: string,
+  presiDalTurno: readonly MessaggioPerLaChat[],
+  decisioniBase: number
+): Autopilota {
+  const presi = new Set(presiDalTurno.map((m) => m.id))
+  const daConsegnare = disco.daConsegnare.flatMap((m) => {
+    if (!presi.has(m.id) || !m.chats.includes(chiave)) return [m]
+    const chats = m.chats.filter((c) => c !== chiave)
+    return chats.length > 0 ? [{ ...m, chats }] : []
+  })
+  const { daParte: _calcolata, ...senzaDaParte } = calcolato
+  const daParte = tornaDaParte(disco, chiave).daParte
+  return {
+    ...senzaDaParte,
+    daConsegnare,
+    ...(disco.inVolo !== undefined ? { inVolo: disco.inVolo } : {}),
+    dialogo: disco.dialogo,
+    ...(daParte !== undefined ? { daParte } : {}),
+    // Si confronta solo con quelle scritte da quando il turno è partito: una
+    // riga uguale di un turno di prima (la traccia dei criteri, che conta i
+    // giri in cerchio) è un'altra riga, non un doppione.
+    decisioni: [...disco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), disco.decisioni.slice(decisioniBase))]
+  }
+}
+
 function criteriDa(raw: unknown): Criterio[] {
   if (!Array.isArray(raw)) return []
   const criteri: Criterio[] = []
@@ -558,6 +609,13 @@ export type ServerAutopiloti = Server & {
 const SILENZIO_MASSIMO_MS = 60 * 60_000
 
 /**
+ * Quante volte, ogni 5 s, si riprova a rimettere in coda una consegna fallita
+ * mentre la sua chat ha la fermata in giudizio: mezz'ora, quanto dura un turno
+ * con la suite dei test e il supervisore (0.84.0; prima 60, cioè 5 minuti).
+ */
+const RIPORTA_IN_CODA_TENTATIVI = 360
+
+/**
  * Sotto questa distanza, due riprese sono la stessa ripresa.
  *
  * Mezzo minuto copre il caso reale: il Gestore avvia il servizio, aspetta che
@@ -587,10 +645,34 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (riparteDaSolo(a)) { console.info(`[notifica] nessun avviso per ${a.id}: si è fermato ma riparte da solo (${a.motivoSospensione ?? 'pausa'})`); return }
     void deps.avvisa('sospeso', a)
   }
+  /**
+   * Lo storico nel quaderno (0.84.0): si riscrive solo quando c'è una voce
+   * nuova, non a ogni salvataggio. In memoria l'ultima voce scritta per lavoro:
+   * dopo un riavvio del servizio la scheda si riscrive una volta, identica.
+   */
+  const storicoScritto = new Map<string, string>()
+  const aggiornaStorico = (a: Autopilota): Autopilota => {
+    if (deps.quaderno === undefined || a.cwd === '') return a
+    const voci = vociStorico(a)
+    if (voci.length === 0) return a
+    const ultima = voci[voci.length - 1]!
+    const impronta = `${voci.length}|${ultima.quando}|${ultima.testo}`
+    if (storicoScritto.get(a.id) === impronta) return a
+    const file = fileStorico(a)
+    try {
+      deps.quaderno(a.cwd, { titolo: titoloStorico(a), corpo: corpoStorico(a, voci), tag: ['storico', 'autopilota'], file })
+      storicoScritto.set(a.id, impronta)
+      return a.storico === file ? a : { ...a, storico: file }
+    } catch (err) {
+      // Uno storico che non si scrive non ferma il lavoro: si riprova alla voce dopo.
+      console.error(`[autopilota] storico di ${a.id} non scritto:`, err)
+      return a
+    }
+  }
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
-    const datato = a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a
+    const datato = aggiornaStorico(a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a)
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }
@@ -670,8 +752,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       chiuseDaSole.set(f.sessionId, ora)
       const a = deps.archivio.leggi(f.autopilotaId)
       if (a === undefined) continue
-      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })
-      annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
+      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}), ...(f.alRecupero === true ? { alRecupero: true } : {}) })
+      if (f.alRecupero === true) {
+        // Una volta sola: se Nicholas la rimette con «Ripristina», resta dov'è.
+        a.chats = a.chats.map((c) => (c.id === f.chatId ? { ...c, nelRecupero: deps.adesso() } : c))
+        annota(a, `chiudo la chat ${f.chatId ?? a.id}: ${f.motivo}. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: f.chatId ?? a.id, esito: 'nel-recupero' })
+      } else annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
       salva(a)
       console.info(`[posti] ${f.autopilotaId}::${f.chatId ?? '-'} chiusa da sola: ${f.motivo}`)
     }
@@ -697,6 +783,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(a.consegna !== undefined ? { consegna: a.consegna } : {})
   })
   /** Una riga nel diario, senza perdere quelle che ci sono. */
+  /**
+   * «Parto» (0.84.0): il primo hook di una chat della flotta è la prova che è
+   * partita davvero. Si scrive solo se la chat non ha ancora nessun segnale;
+   * da lì in poi parla lei, a ogni fine turno.
+   */
+  const segnaPartenza = (id: string, chatId: string | undefined): void => {
+    if (chatId === undefined) return
+    const a = deps.archivio.leggi(id)
+    const c = a?.chats.find((x) => x.id === chatId)
+    if (a === undefined || c === undefined || c.segnale !== undefined || c.stato !== 'lavoro') return
+    salva({
+      ...a,
+      chats: a.chats.map((x) => (x.id === chatId ? { ...x, segnale: { tipo: 'parto' as const, quando: deps.adesso(), dichiarato: false } } : x)),
+      decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `segnale da ${chatId}: partita` }]
+    })
+  }
+
   const annota = (a: Autopilota, cosa: string, traguardo?: Traguardo): void => {
     // Il traguardo (0.79.0): la riga corta nella conversazione, accanto a questa tecnica.
     a.decisioni = [...a.decisioni, { quando: deps.adesso(), cosa, ...(traguardo !== undefined ? { traguardo } : {}) }]
@@ -841,10 +944,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     for (const a of deps.archivio.elenca()) {
       const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
       if (v === undefined) continue
-      // Chi ha una fermata o un dialogo in corso riscrive la coda con la sua
-      // copia: si riprova fra poco, invece di farsi cancellare.
-      if (inLavorazione.has(a.id) || dialoghiInCorso.has(a.id)) {
-        if (giro < 60) setTimeout(() => { riportaInCoda(consegna, perche, giro + 1) }, 5000).unref?.()
+      // Chi ha un dialogo in corso riscrive la coda con la sua copia: si riprova
+      // fra poco, invece di farsi cancellare. Una fermata no (0.84.0): salva con
+      // la coda presa dal disco (`codaDalDisco`), quindi aspetta solo la chat
+      // della consegna. Prima si aspettava ogni fermata dell'autopilota e dopo
+      // 5 minuti si smetteva in silenzio: i messaggi restavano «in viaggio».
+      const perChi = [...new Set(v.messaggi.flatMap((m) => m.chats))]
+      if (inLavorazione.has(a.id) || dialoghiInCorso.has(a.id) || perChi.some((c) => chatInGiudizio(a, c))) {
+        if (giro < RIPORTA_IN_CODA_TENTATIVI) setTimeout(() => { riportaInCoda(consegna, perche, giro + 1) }, 5000).unref?.()
+        else console.warn(`[autopilota] ${a.id} — consegna ${consegna}: dopo ${RIPORTA_IN_CODA_TENTATIVI} tentativi i messaggi restano in viaggio, tornano in coda al riavvio del servizio`)
         continue
       }
       const rimessi = rimettiInCoda(a, v.messaggi)
@@ -871,6 +979,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * stanno facendo quello che gli è stato chiesto.
    */
   const inLavorazione = new Set<string>()
+  /**
+   * Le fermate in giudizio, **chat per chat** (0.84.0). Prima una fermata
+   * segnava in `inLavorazione` tutto l'autopilota, e il guardiano saltava tutte
+   * le sue chat: con dieci chat e criteri da venti minuti ce n'era quasi sempre
+   * una in giudizio, e i messaggi per le altre, ferme, aspettavano ore (36
+   * consegne in ritardo dal 19 al 21/10, fino a 5,7 ore). Ora il guardiano
+   * salta solo la chat della fermata. Un contatore, non un insieme: lo stesso
+   * turno può arrivare due volte.
+   */
+  const fermateInCorso = new Map<string, number>()
+  const fermataInCorso = (id: string, chatId?: string): boolean => (fermateInCorso.get(chiaveTurno(id, chatId)) ?? 0) > 0
+  /** L'autopilota ha qualcosa in lavorazione: una fermata di una sua chat, un dialogo, una risposta. */
+  const occupato = (id: string): boolean => {
+    if (inLavorazione.has(id)) return true
+    for (const k of fermateInCorso.keys()) if (k === id || k.startsWith(`${id}::`)) return true
+    return false
+  }
+  /** Per il guardiano: la chat (o l'autopilota a chat sola) ha una fermata in giudizio. */
+  const chatInGiudizio = (a: Autopilota, chatId: string | undefined): boolean =>
+    fermataInCorso(a.id, chatId === a.id ? undefined : chatId) || (a.chats.length === 0 && fermataInCorso(a.id))
 
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
   const contesto = new Map<string, ContestoDomanda>()
@@ -1016,6 +1144,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const soloRevisioni = delFreno.soloRevisioni
     // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
     const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso())
+    // 0.84.0: prima di aprire, nessun lavoro dato due volte. Un compito che una
+    // chat ha già esce dalla coda, e lo si scrive nelle decisioni.
+    const senzaDoppi = codaSenzaDoppioni(a.compitiDaFare, a.chats)
+    if (senzaDoppi.tolti.length > 0) {
+      const pulito: Autopilota = { ...(deps.archivio.leggi(a.id) ?? a) }
+      pulito.compitiDaFare = codaSenzaDoppioni(pulito.compitiDaFare, pulito.chats).compiti
+      for (const d of senzaDoppi.tolti) annota(pulito, rigaDoppione(d))
+      console.info(`[autopilota] ${a.id} — ${senzaDoppi.tolti.map(rigaDoppione).join('; ')}`)
+      salva(pulito)
+      a = pulito
+    }
     // Solo i compiti che non aspettano altri compiti ancora da unire (0.71.0).
     const fatti = compitiFatti(a.chats)
     const pronti = a.compitiDaFare
@@ -1220,7 +1359,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           })
         continue
       }
-      if (a.stato !== 'lavoro' || freno.livello === 'fermo' || inLavorazione.has(a.id)) continue
+      if (a.stato !== 'lavoro' || freno.livello === 'fermo' || occupato(a.id)) continue
       const ids = chatInPausaDaRiprendere(a.chats, tettoNeiPosti(freno.tetto, a.chats.filter((c) => c.stato === 'lavoro').length, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()))
       if (ids.length > 0) {
         const ripreso: Autopilota = {
@@ -1265,7 +1404,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (opz.autopilota !== undefined && elenco.id !== opz.autopilota) continue
       if (inLavorazione.has(elenco.id)) continue
       if (opz.daDialogo !== true && dialoghiInCorso.has(elenco.id)) continue
+      // 0.84.0: si salta solo la chat con la fermata in giudizio, non le sorelle.
       const ferme = chatFerme(elenco, (k) => fermaDal.get(k), ora, opz.forza === true || opz.subito === true ? 0 : FERMA_DA_MS)
+        .filter((f) => !chatInGiudizio(elenco, f.chatId))
       let a = elenco
       for (const f of ferme) {
         const presi = prendiMessaggiPer(a, f.chatId ?? a.id)
@@ -1298,6 +1439,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // Mai più di un messaggio in coda in Claude Code (0.72.0): uno è già
         // scritto in questo turno, gli altri aspettano la fine e partono uniti.
         if (scrittoNelTurno.has(chiaveTurno(a.id, v.chatId))) continue
+        // La sua fermata è in giudizio: i messaggi li porta la risposta all'hook.
+        if (chatInGiudizio(a, v.chatId)) continue
         const presi = prendiMessaggiPer(a, v.chatId ?? a.id)
         if (presi.testi.length === 0) continue
         const chat = v.chatId === undefined ? undefined : presi.autopilota.chats.find((c) => c.id === v.chatId)
@@ -1330,7 +1473,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return
     for (const a of deps.archivio.elenca()) {
-      if (a.stato !== 'lavoro' || inLavorazione.has(a.id)) continue
+      // 0.84.0: una fermata in giudizio toglie dal conto solo la sua chat (sotto).
+      if (a.stato !== 'lavoro' || inLavorazione.has(a.id) || (a.chats.length === 0 && fermataInCorso(a.id))) continue
       // Chi e' in pausa per aggiornamento tace **perche' gliel'abbiamo chiesto
       // noi**: sospenderlo per silenzio vorrebbe dire punirlo di aver
       // obbedito, e - peggio - marcarlo `sospeso`, cioe' proprio lo stato che
@@ -1350,7 +1494,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         (m.chatId !== undefined ? ultimoSegnale(chiaveTurno(a.id, m.chatId)) : undefined) !== undefined || ultimoSegnale(chiaveTurno(a.id)) !== undefined
       const zitte = deps.domande.aperte(a.id).length > 0
         ? []
-        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite)).filter(conSegnale)
+        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite)).filter(conSegnale).filter((m) => !chatInGiudizio(a, m.chatId))
       const chiaveZitta = (m: { chatId?: string }): string => `${a.id}|${m.chatId ?? a.id}`
       const chiaviZitte = new Set(zitte.map(chiaveZitta))
       for (const k of [...mutaDetta.keys()]) if (k.startsWith(`${a.id}|`) && !chiaviZitte.has(k)) mutaDetta.delete(k)
@@ -1369,7 +1513,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         base = detta
         console.info(`[autopilota] ${a.id} — ${nuoveZitte.length} chat senza segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: detto a Nicholas`)
       }
-      const mute = chiTace(a, ultimoSegnale, ora, limite)
+      const mute = chiTace(a, ultimoSegnale, ora, limite).filter((m) => !chatInGiudizio(a, m.chatId))
       if (mute.length === 0) continue
       // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
       // 19/10). Si mette da parte solo lei, le altre continuano, e nella
@@ -2255,8 +2399,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
   // Un'unione non cade mai sotto un comando lungo che misura la stessa cartella (0.82.1).
+  const gitA = (git: Git): GitAsincrono => deps.gitAsincrono ?? comeAsincrono(git)
   const unisciAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> =>
-    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamo(git, p))
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
+  // Anche togliere un worktree e guardare se un ramo è già chiuso girano nella
+  // cartella di lavoro: mai a metà di un'unione (Revisione 0.84.0).
+  const togliAlTurno = (git: Git, p: { cwd: string; cartella: string; ramo: string }): Promise<void> =>
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => togliWorktreeAsincrono(gitA(git), p))
+  const chiusoAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<'mancante' | 'unito' | undefined> =>
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => ramoGiaChiusoAsincrono(gitA(git), p))
   const memoria = deps.memoria ?? apriMemoria(undefined)
   /**
    * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
@@ -2372,6 +2523,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Con quale chiave questa chat riceve i tuoi messaggi (vedi `dialogo.ts`):
     // la sua nella flotta, l'autopilota per la chat singola.
     const chiaveChat = chatId ?? id
+    // 0.84.0: i messaggi che questo turno prende per la sua chat, e i salvataggi
+    // a turno avviato con la coda presa dal disco (`codaDalDisco`): intanto il
+    // guardiano serve le chat sorelle.
+    const presiNelTurno: MessaggioPerLaChat[] = []
+    const salvaNelTurno = (x: Autopilota): void => {
+      const disco = deps.archivio.leggi(id)
+      salva(disco === undefined ? x : codaDalDisco(x, disco, chiaveChat, presiNelTurno, a.decisioni.length))
+    }
+    // 0.84.0: il segnale con cui la chat chiude il turno (fatto, bloccata,
+    // aspetto, avanti). L'autopilota lo tiene sulla chat: è il quadro unico.
+    const sorelle = a.chats.map((c) => c.id)
+    const segnaleQui = chatId !== undefined
+      ? segnaleDiFineTurno(ultimoMessaggio, { sorelle, me: chatId, quando: deps.adesso(), ...(chatAttesa(ultimoMessaggio, sorelle, chatId) !== undefined ? { aspettaDi: chatAttesa(ultimoMessaggio, sorelle, chatId) } : {}) })
+      : undefined
+    const segnalePrima = chatId !== undefined ? a.chats.find((c) => c.id === chatId)?.segnale : undefined
     // La sessione appartiene alla chat che si e' fermata: con una flotta,
     // scriverla sull'autopilota farebbe riprendere tutte le chat dalla
     // conversazione dell'ultima che ha parlato.
@@ -2379,7 +2545,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? a.chats
       : a.chats.map((c) =>
           c.id === chatId
-            ? { ...c, cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}) }
+            ? { ...c, cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}), ...(segnaleQui !== undefined ? { segnale: segnaleQui } : {}) }
             : c
         )
     const conSessione: Autopilota = {
@@ -2389,6 +2555,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // 0.73.0: l'ultima cosa detta, per la scheda (accanto al ruolo).
       ...(chatId === undefined && rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzioneChat: rigaUltimaAzione(ultimoMessaggio) } : {}),
       cicli: a.cicli + 1
+    }
+    // Un segnale che chiede una decisione si scrive una volta, quando cambia.
+    if (segnaleQui !== undefined && segnaleQui.tipo !== 'avanti' && segnaleNuovo(segnalePrima, segnaleQui)) {
+      annota(conSessione, `segnale da ${chatId ?? id}: ${parolaSegnale(segnaleQui)}`)
     }
 
     // **Il ciclo si scrive adesso, prima dei criteri.** Erano l'unica cosa
@@ -2463,17 +2633,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // si unisce solo dopo l'ok della Revisione.
     const conRevisione = mia?.ruolo !== undefined && RUOLI[mia.ruolo].conRevisione
     if (deps.git !== undefined && conRevisione && mia?.cartella !== undefined && mia.approvata !== true) {
-      salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
+      await salvaLavoroAsincrono(gitA(deps.git), mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
     }
     if (deps.git !== undefined && !conRevisione && mia?.ramo !== undefined && mia.cartella !== undefined && conSessione.ramoBase !== undefined) {
-      salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
+      await salvaLavoroAsincrono(gitA(deps.git), mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
       const u = await unisciAlTurno(deps.git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
       if (u.ok && u.unito) {
         annota(conSessione, `unito il ramo ${mia.ramo} in ${conSessione.ramoBase}`, { chat: mia.id, esito: 'unito' })
-        salva(conSessione)
+        salvaNelTurno(conSessione)
       } else if (!u.ok && u.conflitto) {
         annota(conSessione, `il ramo ${mia.ramo} va in conflitto con ${conSessione.ramoBase} (${u.file.join(', ')}): la chat si riallinea`)
-        salva(conSessione)
+        salvaNelTurno(conSessione)
         return {
           decision: 'block',
           reason: [
@@ -2487,7 +2657,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
       } else if (!u.ok) {
         annota(conSessione, `unione del ramo ${mia.ramo} rimandata: ${u.motivo}`)
-        salva(conSessione)
+        salvaNelTurno(conSessione)
       }
     }
 
@@ -2528,7 +2698,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             cosa: `comando di verifica riparato per «${descrizione}»: ${comando}`
           }))
         ]
-        salva(conSessione)
+        salvaNelTurno(conSessione)
         esiti = await eseguiCriteri(conSessione.criteri, conSessione.cwd, deps.esegui)
       }
     }
@@ -2607,11 +2777,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           ? '- **Autonomia completa**: le chat di questo progetto stanno sul Drive di SierraDeck. Non fare domande a Nicholas: decidi tu con il progetto, i criteri e il quaderno. `chiedi` solo per una cosa che nessuno qui può sapere (una credenziale). Commit, unione e pubblicazione seguono la regola del progetto.'
           : '- Le chat di questo progetto non stanno sul Drive: lavora come sempre, e chiedi a Nicholas quando serve davvero. Niente push, niente pubblicazione.',
         '',
+        // 0.84.0: lo stato di tutte le chat in un punto solo, dai loro segnali.
+        ...(aggiornato.chats.length > 0 ? [...quadroFlotta(aggiornato.chats, Date.parse(deps.adesso()), chatId), ''] : []),
         '## Mosse sul programma (facoltative, nel campo "mosse")',
         aggiornato.chats.length > 0
           ? `Le tue chat: ${aggiornato.chats.map((c) => `${c.id} (${c.stato}: ${c.compito.slice(0, 60)})`).join('; ')}. Questa è ${chatId ?? 'la chat principale'}.`
           : 'Lavori con una chat sola.',
-        '- `apriChat` {"compito"}: apre una chat nuova per un pezzo di lavoro **indipendente** (sua copia del progetto, suo ramo). Solo se serve davvero: il freno sui limiti del piano decide se si apre adesso o dopo.',
+        '- `apriChat` {"compito"}: apre una chat nuova per un pezzo di lavoro **indipendente** (sua copia del progetto, suo ramo). Solo se serve davvero: il freno sui limiti del piano decide se si apre adesso o dopo. Un compito che una chat ha già non si apre una seconda volta: il programma lo rifiuta.',
         '- `chiudiChat` {"chat"}: una tua chat ha finito il suo pezzo: il suo lavoro si unisce e la chat si chiude.',
         ...(aggiornato.chats.some((c) => c.ruolo !== undefined)
           ? [`- **Agenti specializzati**: ${aggiornato.chats.filter((c) => c.ruolo !== undefined).map((c) => `${c.id} è ${RUOLI[c.ruolo ?? 'sviluppo'].nome}`).join(', ')}. Quando il compito di una chat è fatto usa \`chiudiChat\` su di lei: il suo ramo passa dalla Revisione prima di essere unito. «finito» solo quando tutto l’obiettivo è fatto.`]
@@ -2765,8 +2937,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // messaggio non le arriva in mezzo a un'azione. Si prendono solo nei rami
     // che scrivono davvero nella chat; se il turno finisce con una fermata
     // restano in coda e arrivano alla ripresa.
-    const tuoi = (base: Autopilota): { autopilota: Autopilota; testi: string[] } =>
-      prendiMessaggiPer(base, chiaveChat)
+    const tuoi = (base: Autopilota): { autopilota: Autopilota; testi: string[] } => {
+      const presi = prendiMessaggiPer(base, chiaveChat)
+      presiNelTurno.push(...presi.presi)
+      return presi
+    }
 
     // ── T4: le mosse chieste dal supervisore, passate dai divieti ──
     let apriDopo = false
@@ -2776,7 +2951,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // L'autopilota la sblocca, le sposta il lavoro o la chiude (`attese-chat`).
     const inAttesa = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
     if (inAttesa !== undefined && decisione.tipo === 'prosegui') {
-      const attesa = prossimaAttesa(inAttesa.aspetta, chatAttesa(ultimoMessaggio, aggiornato.chats.map((c) => c.id), inAttesa.id))
+      const attesa = prossimaAttesa(inAttesa.aspetta, inAttesa.segnale !== undefined ? attesaDalSegnale(inAttesa.segnale) : chatAttesa(ultimoMessaggio, aggiornato.chats.map((c) => c.id), inAttesa.id))
       aggiornato.chats = aggiornato.chats.map((c) => {
         if (c.id !== inAttesa.id) return c
         const n = { ...c }
@@ -2793,7 +2968,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (iv.tipo === 'chiudi') {
           // Il lavoro fatto resta sul suo ramo (non si unisce e non si toglie): il
           // compito che riparte lo riprende da lì, dopo quello della chat attesa.
-          if (deps.git !== undefined && inAttesa.cartella !== undefined) salvaLavoro(deps.git, inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
+          if (deps.git !== undefined && inAttesa.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
           const ripreso = compitoRipreso(inAttesa.compito, iv.compitoDopo) + (inAttesa.ramo !== undefined ? `\nIl lavoro già fatto sta nel ramo ${inAttesa.ramo}: unisci anche quello (git merge ${inAttesa.ramo}).` : '')
           // Il compito della chat chiusa non è fatto: cambia nome, così non conta
           // in `compitiFatti`, e chi lo aspettava aspetta adesso quello ripreso.
@@ -2815,6 +2990,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         continue
       }
       if (m.tipo === 'apriChat') {
+        // 0.84.0: lo stesso compito non va mai a due chat.
+        const gia = chiHaGia(m.compito, aggiornato.chats) ?? (codaSenzaDoppioni([...aggiornato.compitiDaFare, m.compito], []).tolti.length > 0 ? 'coda' : undefined)
+        if (gia !== undefined) {
+          annota(aggiornato, `mossa rifiutata dal programma (apriChat): ${rigaDoppione({ compito: m.compito, chi: gia })}`)
+          continue
+        }
         aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, m.compito]
         // Con i ruoli (0.71.0) anche una chat aperta a metà lavoro ha il suo.
         if (aggiornato.ruoliCompiti !== undefined && aggiornato.ruoliCompiti[m.compito] === undefined) {
@@ -2847,16 +3028,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // «unito» vale solo se nella sua cartella non c'era altro da salvare.
         const git = deps.git
         const chiuso = git !== undefined && c.ramo !== undefined && aggiornato.ramoBase !== undefined
-          ? ramoGiaChiuso(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+          ? await chiusoAlTurno(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           : undefined
-        if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`))))) {
+        if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !(await salvaLavoroAsincrono(gitA(git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)))))) {
           if (c.cartella !== undefined && c.ramo !== undefined) {
             // Ramo mancante: niente `worktree remove --force` su una cartella che
             // non è più un worktree; si toglie solo se è rimasta vuota.
-            if (chiuso === 'unito') togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+            if (chiuso === 'unito') await togliAlTurno(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
             else togliCartellaVuota(c.cartella)
           }
-          aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
+          aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, conclusa: { il: deps.adesso(), come: chiuso === 'unito' ? 'unito' as const : 'tolto' as const } } : x))
           annota(aggiornato, `chiudo la chat ${c.id}: ${chiuso === 'unito' ? 'il suo lavoro è già nel ramo principale' : 'il suo ramo è già stato unito e tolto'}`, { chat: c.id, esito: 'finito' })
           if (c.id === chatId) chiusaQuesta = true
           else deps.fermaLavoro(id, c.id)
@@ -2865,7 +3046,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         // Con la Revisione (0.71.0): il ramo non si unisce qui, va rivisto.
         if (c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione && c.approvata !== true && c.ramo !== undefined) {
-          if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
+          if (deps.git !== undefined && c.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
           aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
           const t = testoRevisione(c)
           if (!aggiornato.compitiDaFare.includes(t)) {
@@ -2880,17 +3061,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         let unita = true
         if (deps.git !== undefined && c.ramo !== undefined && c.cartella !== undefined && aggiornato.ramoBase !== undefined) {
-          salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
+          await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
           const u = await unisciAlTurno(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           unita = u.ok
           // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
           // lascia com'è (nessun --force su file che nessun ramo conserva).
           if (u.ok && u.ramoMancante === true) annota(aggiornato, `${c.id}: il ramo ${c.ramo} non c'è più, il suo lavoro era già unito`)
-          else if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+          else if (u.ok) await togliAlTurno(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue
-        aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
+        aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, conclusa: { il: deps.adesso(), come: 'unito' as const } } : x))
         annota(aggiornato, `chiudo la chat ${c.id}: il suo pezzo è fatto`, { chat: c.id, esito: 'finito' })
         if (c.id === chatId) chiusaQuesta = true
         else deps.fermaLavoro(id, c.id)
@@ -2905,15 +3086,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
     }
     if (apriDopo) {
-      salva(aggiornato)
+      salvaNelTurno(aggiornato)
       void apriChatMancanti(deps.archivio.leggi(id) ?? aggiornato).catch((err: unknown) => {
         console.error(`[autopilota] apertura delle chat di ${id} fallita:`, err)
       })
+      // 0.84.0: le chat appena aperte sono già su disco (l'apertura salva prima
+      // di avviarle). I salvataggi qui sotto partono da `aggiornato`: senza
+      // rileggerle, la chat nuova spariva dall'elenco e il suo compito tornava
+      // in coda, pronto a essere dato una seconda volta.
+      const aperte = deps.archivio.leggi(id)
+      if (aperte !== undefined) {
+        aggiornato.chats = aperte.chats
+        aggiornato.compitiDaFare = aperte.compitiDaFare
+        aggiornato.decisioni = aperte.decisioni
+        if (aperte.ruoliCompiti !== undefined) aggiornato.ruoliCompiti = aperte.ruoliCompiti
+      }
     }
     if (chiusaQuesta && decisione.tipo !== 'finito') {
       // Già salvato prima di aprire le chat nuove (0.71.0): risalvarlo qui riscriveva
       // la copia di prima sopra quella con le chat appena aperte, che sparivano.
-      if (!apriDopo) salva(aggiornato)
+      if (!apriDopo) salvaNelTurno(aggiornato)
       return {}
     }
 
@@ -2929,7 +3121,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (!esame.ok) {
         const msg = messaggioCriterio(descrizione, comando, esame)
         annota(aggiornato, msg)
-        salva(aggiornato)
+        salvaNelTurno(aggiornato)
         return { decision: 'block', reason: `${msg}\n\nIl criterio resta com'era. Prosegui verso l'obiettivo: ${aggiornato.obiettivo}` }
       }
       const presi = tuoi(aggiornato)
@@ -2943,7 +3135,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           { quando: deps.adesso(), cosa: `criterio corretto — «${descrizione}»: ${comando}` }
         ]
       }
-      salva(conNuovoCriterio)
+      salvaNelTurno(conNuovoCriterio)
       return {
         decision: 'block',
         reason: conPreambolo(
@@ -2973,25 +3165,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // poi passa comunque, con un'avvertenza. Quelle scritte dal programma
       // sono complete per costruzione.
       const sessioneSup = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.sessioneSupervisore : aggiornato.sessioneSupervisore
-      inLavorazione.add(id)
+      // Mentre il supervisore riscrive la domanda la chat è in giudizio: la
+      // segna già l'hook (`fermateInCorso`), solo lei (0.84.0).
       // **Le risposte già date non si richiedono** (0.71.0): la stessa domanda
       // riceve la risposta di prima; una simile la propone come consigliata.
       const scarto = decisione.dalProgramma === true ? undefined : await domandaDaScartare(aggiornato, chatId, decisione.domanda)
       if (scarto !== undefined) {
-        inLavorazione.delete(id)
         const presi = tuoi(aggiornato)
         annota(presi.autopilota, scarto.riga, scarto.traguardo)
-        salva(presi.autopilota)
+        salvaNelTurno(presi.autopilota)
         misura.esito = 'domanda già risolta'
         deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: scarto.risposta })
         return { decision: 'block', reason: conPreambolo(presi.testi, scarto.perLaChat) }
       }
       const giaDetta = memoria.rispostaPer(aggiornato.id, decisione.domanda)
       if (giaDetta.esatta !== undefined && decisione.dalProgramma !== true) {
-        inLavorazione.delete(id)
         const presi = tuoi(aggiornato)
         annota(presi.autopilota, `la stessa domanda aveva già una tua risposta (${giaDetta.esatta.quando.slice(0, 10)}): «${giaDetta.esatta.risposta.slice(0, 120)}», non la richiedo`)
-        salva(presi.autopilota)
+        salvaNelTurno(presi.autopilota)
         misura.esito = 'risposta già data'
         deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: `${giaDetta.esatta.risposta} (la tua risposta del ${giaDetta.esatta.quando.slice(0, 10)})` })
         return { decision: 'block', reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, giaDetta.esatta.risposta)) }
@@ -3004,10 +3195,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const fatteOra = (domandeOra.get(aggiornato.id) ?? []).filter((t) => oraMs - t < 3_600_000)
       const consigliata = partiPrima.scelte.find((s) => s.consigliata === true)
       if (fatteOra.length >= DOMANDE_ORA_MAX && consigliata !== undefined && decisione.dalProgramma !== true) {
-        inLavorazione.delete(id)
         const presi = tuoi(aggiornato)
         annota(presi.autopilota, `troppe domande nell'ultima ora (${fatteOra.length}): «${partiPrima.domanda.slice(0, 120)}» la decido io con la scelta consigliata («${consigliata.scelta}»)`)
-        salva(presi.autopilota)
+        salvaNelTurno(presi.autopilota)
         misura.esito = 'deciso senza chiedere'
         deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: partiPrima.domanda, risposta: `${consigliata.scelta}: ${consigliata.conseguenza} (la scelta consigliata: ${fatteOra.length} domande nell'ultima ora)` })
         return { decision: 'block', reason: conPreambolo(presi.testi, `Hai già chiesto ${fatteOra.length} cose a Nicholas nell'ultima ora: questa la decidi tu con la scelta consigliata.\n«${partiPrima.domanda}» → ${consigliata.scelta}: ${consigliata.conseguenza}`) }
@@ -3019,7 +3209,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
         partiDaRisposta,
         aggiornato.chats
-      ).finally(() => inLavorazione.delete(id))
+      )
       if (pronta.riscritta) annota(aggiornato, 'la domanda era incompleta: il supervisore l’ha riscritta')
       if (pronta.avvertenza !== undefined) annota(aggiornato, `domanda passata incompleta: ${pronta.avvertenza}`)
       const testoDomanda = pronta.testo
@@ -3062,7 +3252,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // continuano invece di fermarsi tutte. Con una chat sola vale il vecchio
       // stato globale `attesa`. In entrambi i casi l'hook resta trattenuto qui
       // sotto: è ciò che blocca il claude.exe di QUESTA chat, non le altre.
-      salva(
+      salvaNelTurno(
         chatId !== undefined
           ? { ...conStatoChat(aggiornato, chatId, 'bloccata'), motivoSospensione: decisione.domanda }
           : { ...aggiornato, stato: 'attesa', motivoSospensione: decisione.domanda }
@@ -3131,7 +3321,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (aggiornato.ruoliCompiti !== undefined) aggiornato.ruoliCompiti = { ...aggiornato.ruoliCompiti, [decisione.istruzioni]: { ruolo: 'sviluppo', dopo: [] } }
         }
         annota(aggiornato, `${mia.id} ${ultimoGiro}: quello che resta da fare va in coda come compito nuovo, per una chat con un ramo suo`)
-        salva(aggiornato)
+        salvaNelTurno(aggiornato)
         void apriChatMancanti(deps.archivio.leggi(id) ?? aggiornato).catch((err: unknown) => {
           console.error(`[autopilota] apertura delle chat di ${id} fallita:`, err)
         })
@@ -3146,7 +3336,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         strategia: decisione.strategia,
         decisioni: [...aggiornato.decisioni, { quando: deps.adesso(), cosa: traccia(esiti) }]
       }
-      salva(inCerchio)
+      salvaNelTurno(inCerchio)
       // La chat aveva finito il turno con una domanda e il supervisore le ha
       // risposto (0.71.1): la domanda resta visibile nelle Domande, con la risposta.
       const chiesto = domandaInFondo(ultimoMessaggio)
@@ -3162,7 +3352,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
     if (decisione.tipo === 'sospendi') {
       const sospeso: Autopilota = { ...aggiornato, stato: 'sospeso', motivoSospensione: decisione.motivo }
-      salva(sospeso)
+      salvaNelTurno(sospeso)
       console.warn(`[autopilota] ${id} sospeso: ${decisione.motivo}`)
       void deps.avvisa(decisione.motivo.startsWith('stallo') ? 'stallo' : 'sospeso', sospeso)
       return {}
@@ -3174,7 +3364,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (nonApprovate.length > 0) {
       for (const c of nonApprovate) {
         if (inRevisione(c)) continue
-        if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
+        if (deps.git !== undefined && c.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
         const t = testoRevisione(c)
         aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, t]
         aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), [t]: { ruolo: 'revisione', dopo: [] } }
@@ -3185,7 +3375,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       for (const c of nonApprovate) if (c.id !== chatId && c.stato !== 'finita') deps.fermaLavoro(id, c.id)
       aggiornato.chats = aggiornato.chats.map((x) => (nonApprovate.some((n) => n.id === x.id) ? { ...x, stato: 'finita' as const } : x))
       annota(aggiornato, `l'obiettivo sembra raggiunto, ma ${nonApprovate.map((c) => c.id).join(', ')} aspettano l'ok della Revisione prima di essere uniti: finisco dopo`)
-      salva(aggiornato)
+      salvaNelTurno(aggiornato)
       void apriChatMancanti(deps.archivio.leggi(id) ?? aggiornato).catch((err: unknown) => { console.error(`[autopilota] revisioni di ${id} non aperte:`, err) })
       return {}
     }
@@ -3201,7 +3391,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (c.ramo === undefined || c.cartella === undefined) continue
         // Il revisore lavora nella cartella di un altro: non ha un ramo suo da unire.
         if (c.ruolo === 'revisione') continue
-        salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (fine)`)
+        await salvaLavoroAsincrono(gitA(git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (fine)`)
         const u = await unisciAlTurno(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
         if (u.ok) { if (u.unito) unitoQualcosa = true }
         else if (u.conflitto) conflitti.push({ chat: c, file: u.file })
@@ -3211,7 +3401,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(aggiornato, `non è finito: ${conflitti.map((x) => `${x.chat.id} in conflitto su ${x.file.join(', ')}`).join('; ')}`)
         // Chi deve risolvere un conflitto torna al lavoro, anche se era finita (c-310).
         aggiornato.chats = aggiornato.chats.map((c) => (conflitti.some((x) => x.chat.id === c.id) ? { ...c, stato: 'lavoro' as const } : c))
-        salva(aggiornato)
+        salvaNelTurno(aggiornato)
         for (const { chat, file } of conflitti) {
           void avviaLavoro(aggiornato, `Prima di chiudere, il tuo ramo va unito al ramo principale ${aggiornato.ramoBase}, ma è in conflitto su: ${file.join(', ')}. Nella tua cartella: git merge ${aggiornato.ramoBase}, risolvi tenendo il lavoro di tutte e due le parti, git add -A && git commit.`, { ...chat, stato: 'lavoro' })
             .catch((err: unknown) => { console.error(`[autopilota] consegna del riallineamento a ${chat.id} fallita:`, err) })
@@ -3223,7 +3413,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const rotti = dopoUnione.filter((e) => !e.passato)
         if (rotti.length > 0) {
           annota(aggiornato, `dopo l'unione non passa: ${rotti.map((e) => e.descrizione).join(', ')}`)
-          salva(aggiornato)
+          salvaNelTurno(aggiornato)
           return {
             decision: 'block',
             reason: `Il lavoro delle chat è stato unito nel ramo ${aggiornato.ramoBase}, ma insieme non passa: ${rotti.map((e) => `«${e.descrizione}»`).join(', ')}. Nella tua cartella fai git merge ${aggiornato.ramoBase}, correggi e fai commit.`
@@ -3232,8 +3422,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       for (const c of aggiornato.chats) {
         if (c.ruolo === 'revisione') continue
-        if (c.ramo !== undefined && c.cartella !== undefined) togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+        if (c.ramo !== undefined && c.cartella !== undefined) await togliAlTurno(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
       }
+      // Tutti i rami sono nel principale (0.84.0): ogni chat ha concluso.
+      const il = deps.adesso()
+      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
       pulisciWorktreeVuoti(aggiornato.cwd)
     }
 
@@ -3253,14 +3446,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const testo = testoDellaDomanda(nomeDi(aggiornato), partiPub)
         const d = deps.domande.apri({ autopilotaId: aggiornato.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: partiPub.scelte.map((s) => s.scelta), parti: partiPub })
         ricordaContesto(d.id, { autopilotaId: aggiornato.id, testo, pubblica: true, ...(chatId !== undefined ? { chatId } : {}) })
-        salva({ ...aggiornato, pubblicazioneInAttesa: true })
+        salvaNelTurno({ ...aggiornato, pubblicazioneInAttesa: true })
         void deps.avvisa('domanda', aggiornato, testo)
         const r = await deps.domande.attendi(d.id)
         if (r !== undefined && eUnSi(r.risposta)) {
           contesto.delete(d.id)
           const istruito: Autopilota = { ...(deps.archivio.leggi(id) ?? aggiornato), pubblicazioneIstruita: true, pubblicazioneInAttesa: undefined }
           annota(istruito, `pubblicazione: hai detto sì (${r.risposta})`)
-          salva(istruito)
+          salvaNelTurno(istruito)
           return { decision: 'block', reason: istruzionePubblica(istruito, piano, mandato) }
         }
         if (r !== undefined) {
@@ -3274,7 +3467,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       } else {
         const istruito: Autopilota = { ...aggiornato, pubblicazioneIstruita: true }
         annota(istruito, piano.pubblica === 'sempre' ? 'pubblico (regola beta)' : 'pubblico secondo la regola del progetto')
-        salva(istruito)
+        salvaNelTurno(istruito)
         return { decision: 'block', reason: istruzionePubblica(istruito, piano, mandato) }
       }
     }
@@ -4411,6 +4604,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (a === undefined) { rispondi(res, 200, {}); return }
           // Prima i divieti di ruolo (0.71.0): la Revisione non scrive, nessuno installa.
           const chatPre = url.searchParams.get('chat') ?? undefined
+          if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           const g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
@@ -4454,6 +4648,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // minuti prima di scriverlo, e in quei minuti il guardiano gira.
           ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
           if (hook[1] !== 'stop') {
+            segnaPartenza(id, chatId)
             rispondi(res, 200, await suNotification(id, chatId, corpo))
             return
           }
@@ -4462,11 +4657,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // giudizio del supervisore. Il guardiano deve saltarlo, o
           // sospenderebbe proprio chi sta facendo quello che gli è stato
           // chiesto.
-          inLavorazione.add(id)
+          //
+          // 0.84.0: lo si segna per **questa chat**, non per tutto l'autopilota:
+          // il guardiano salta lei e continua a servire le sorelle.
+          const chiaveFermata = chiaveTurno(id, chatId)
+          fermateInCorso.set(chiaveFermata, (fermateInCorso.get(chiaveFermata) ?? 0) + 1)
           try {
             rispondi(res, 200, await stopUnaVolta(id, chatId, corpo))
           } finally {
-            inLavorazione.delete(id)
+            const resta = (fermateInCorso.get(chiaveFermata) ?? 1) - 1
+            if (resta > 0) fermateInCorso.set(chiaveFermata, resta)
+            else fermateInCorso.delete(chiaveFermata)
           }
           return
         }
@@ -4493,7 +4694,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const ricontrollaCriteri = async (id: string): Promise<boolean> => {
     const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
-    if (a === undefined || a.stato === 'lavoro' || a.criteri.every((c) => c.comando === undefined) || inLavorazione.has(a.id)) return false
+    if (a === undefined || a.stato === 'lavoro' || a.criteri.every((c) => c.comando === undefined) || occupato(a.id)) return false
     const m = await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, a.cwd) !== undefined ? { impronta: improntaCodice(deps.git, a.cwd) as string } : {}) })
     const fresco = deps.archivio.leggi(a.id)
     if (fresco === undefined) return false
