@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applicaRete, fallitiDavvero } from '../../src/autopilot-host/rete-sicurezza'
+import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore, TETTO_SUPERVISORE_MANCATO } from '../../src/autopilot-host/rete-sicurezza'
 import type { EsitoVerifica } from '../../src/autopilot-host/decisione'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -173,5 +173,31 @@ describe('chiudere con criteri mai misurati', () => {
     }
     const { mossa } = applicaRete(CTX([altroVerde, NON_MISURABILE]), { azione: 'finito' })
     expect(mossa.tipo).not.toBe('finito')
+  })
+})
+
+describe('supervisore che non risponde (0.82.1)', () => {
+  const regole = { tipo: 'prosegui' as const, istruzioni: 'Rileggi l’obiettivo.' }
+
+  it('la chat prosegue con l’ultima istruzione valida', () => {
+    const r = senzaSupervisore({ regole, ultimeIstruzioni: 'Scrivi il test della coda.', mancati: 0 })
+    expect(r.mossa.tipo).toBe('prosegui')
+    expect(r.mossa.tipo === 'prosegui' && r.mossa.istruzioni).toContain('Scrivi il test della coda.')
+    expect(r.mancati).toBe(1)
+    expect(r.avvisaNicholas).toBe(false)
+  })
+
+  it('senza un’istruzione di prima decidono le regole; se chiedono a Nicholas vincono loro', () => {
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: undefined, mancati: 0 }).mossa).toEqual(regole)
+    const chiedi = { tipo: 'chiediUtente' as const, domanda: 'Come procedo?' }
+    expect(senzaSupervisore({ regole: chiedi, ultimeIstruzioni: 'Vai avanti.', mancati: 0 }).mossa).toEqual(chiedi)
+  })
+
+  it('al tetto una riga a Nicholas, una volta sola; poi lo si interroga un giro ogni tetto', () => {
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'x', mancati: TETTO_SUPERVISORE_MANCATO - 1 }).avvisaNicholas).toBe(true)
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'x', mancati: TETTO_SUPERVISORE_MANCATO }).avvisaNicholas).toBe(false)
+    expect([0, 1, 2, 3, 4, 5, 6].map(interrogaSupervisore)).toEqual([true, true, true, true, false, false, true])
+    expect(rigaSupervisoreMancato('Sistemare la coda')).toContain('«Sistemare la coda»')
+    expect(rigaSupervisoreMancato('Sistemare la coda')).not.toMatch(/sospes[oa] (il|la)/)
   })
 })

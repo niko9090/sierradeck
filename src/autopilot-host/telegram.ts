@@ -4,7 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 
 export type ConfigurazioneTelegram = { token: string; chat: string }
 
-export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'sospeso' | 'pronto'
+export type TipoAvviso = 'finito' | 'stallo' | 'domanda' | 'sospeso' | 'pronto' | 'avviso'
 
 /** Avvisi più vicini di così partono insieme in un messaggio solo (0.81.0), come sulla pagina e nell'app. */
 export const AVVISI_VICINI_MS = 20_000
@@ -99,6 +99,10 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
         ...a.criteri.slice(0, 8).map((c) => `• ${esc(tronca(c.descrizione, 120))}`)
       )
       break
+    case 'avviso':
+      // Una riga da sapere, non una domanda (0.82.1): il lavoro continua.
+      righe.push(`${testa} — da sapere ℹ️`, esc(tronca(domanda ?? '', 800)))
+      break
     default:
       righe.push(
         `${testa} — ho bisogno di te ❓`,
@@ -129,6 +133,7 @@ export function causaAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string): 
   switch (tipo) {
     case 'finito': return 'lavoro finito'
     case 'pronto': return 'aspetta il tuo via'
+    case 'avviso': return corta(domanda ?? '')
     // Solo l'inizio: il testo intero è nelle Domande, il registro non è il posto (la Revisione).
     case 'domanda': return `domanda: ${tronca((domanda ?? '').replace(/\s+/g, ' ').trim(), 60)}`
     default: return corta(a.motivoSospensione ?? '') || 'fermo'

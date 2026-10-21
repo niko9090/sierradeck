@@ -7,26 +7,32 @@ import { eseguiCriteri, type Esecutore } from './verifiche'
 import type { Git } from './worktree'
 
 /**
- * I criteri misurati senza rifare il lavoro già fatto (0.71.0).
+ * I criteri misurati senza rifare il lavoro già fatto (0.71.0, 0.82.1).
  *
  * Misurato sul PC vero (9–13/10): fra la fine di un turno e la risposta
  * dell'hook Stop passavano **155 s** di mediana, e il supervisore ne pesava 17.
  * Il resto erano i criteri rilanciati **in fila a ogni fermata**, anche quando
  * dal giro prima non era cambiato un byte: npm test, typecheck, gradle.
  *
- * Tre regole:
- * 1. **Cache sull'impronta del codice.** Se HEAD, lo stato e il diff della
- *    cartella sono quelli dell'ultima misura, l'esito si riusa (fino a
- *    `VALIDITA_MS`). I comandi che guardano fuori dal progetto (gh, rete) non
- *    si mettono mai in cache: il loro esito cambia senza che cambi il codice.
- * 2. **I pesanti a turni alterni.** Le suite intere e gradle si misurano ogni
+ * Le regole:
+ * 1. **L'esito si ricorda per commit e comando** (0.82.1). Si rimisura solo se
+ *    è cambiato il commit della cartella (main, o il ramo della chat). Fino
+ *    alla 0.82.0 l'impronta era HEAD più lo stato e il diff, e scadeva dopo 10
+ *    minuti: nella cartella principale le consegne e i file del programma
+ *    cambiano di continuo senza un commit, e il 21/10 si sono contati 452
+ *    criteri lanciati in mezza giornata. Gli esiti «non misurato» e «scaduto
+ *    per tempo» non si ricordano: non dicono niente sul commit.
+ *    I comandi che guardano fuori dal progetto (gh, rete) non si mettono mai
+ *    in cache: il loro esito cambia senza che cambi il codice.
+ * 2. **Una misura sola per commit e comando**: se due chat chiedono la stessa
+ *    nello stesso momento, la seconda aspetta l'esito della prima.
+ * 3. **I pesanti a turni alterni.** Le suite intere e gradle si misurano ogni
  *    `OGNI_TURNI` turni, e sempre prima di accettare «finito». Negli altri
  *    turni vale l'ultimo esito, segnato come tale nel quadro del supervisore.
- * 3. **In parallelo, ma poco.** Al massimo `PARALLELI` comandi insieme: di più
- *    si contendono il disco e la CPU e il tempo non scende.
+ *    Uno alla volta per PC e mai durante un'unione: `turni-criteri`.
+ * 4. **In parallelo, ma poco.** Al massimo `PARALLELI` comandi insieme.
  */
 
-export const VALIDITA_MS = 10 * 60_000
 export const OGNI_TURNI = 3
 export const PARALLELI = 2
 
@@ -37,15 +43,28 @@ export function guardaFuori(comando: string): boolean {
 
 /** Comandi lunghi: suite intere, build Android, ecc. */
 export function ePesante(comando: string): boolean {
-  return /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b/i.test(comando)
+  return /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b/i.test(comando)
 }
 
 /**
- * L'impronta del codice di una cartella git: HEAD, lo stato (anche i file non
- * tracciati) e il diff, più dimensione e data dei file non tracciati (il diff
- * non li vede). `undefined` se non è git: allora niente cache.
+ * L'impronta del codice di una cartella git: il suo commit (0.82.1).
+ * `undefined` se non è git: allora niente cache.
  */
 export function improntaCodice(git: Git, cwd: string): string | undefined {
+  const head = git(['rev-parse', 'HEAD'], cwd)
+  if (head.codice !== 0) return undefined
+  const commit = head.uscita.trim()
+  return /^[0-9a-f]{7,64}$/i.test(commit) ? commit : undefined
+}
+
+/**
+ * L'impronta del **lavoro** in una cartella git: HEAD, lo stato (anche i file
+ * non tracciati) e il diff, più dimensione e data dei file non tracciati (il
+ * diff non li vede). Era l'impronta della cache fino alla 0.82.0; adesso serve
+ * solo all'antiloop, che deve vedere anche il lavoro non ancora salvato di una
+ * chat che lavora nella cartella principale.
+ */
+export function improntaLavoro(git: Git, cwd: string): string | undefined {
   const head = git(['rev-parse', 'HEAD'], cwd)
   if (head.codice !== 0) return undefined
   const stato = git(['status', '--porcelain', '-uall'], cwd)
@@ -59,7 +78,16 @@ export function improntaCodice(git: Git, cwd: string): string | undefined {
   return h.digest('hex').slice(0, 24)
 }
 
+
 export type MemoriaCriteri = Map<string, { impronta: string | undefined; quando: number; esito: EsitoVerifica }>
+
+/** Le misure in corso, per commit e comando: chi arriva dopo aspetta questa. */
+const inVolo = new Map<string, Promise<EsitoVerifica | undefined>>()
+
+/** Un esito che vale per il suo commit: misurato, e non fermato dal tempo. */
+export function daRicordare(e: EsitoVerifica): boolean {
+  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita)
+}
 
 export type Misura = {
   esiti: EsitoVerifica[]
@@ -71,48 +99,71 @@ export type Misura = {
   durate: { descrizione: string; ms: number }[]
 }
 
-const chiave = (cwd: string, c: { descrizione: string; comando?: string }): string => `${cwd}\0${c.descrizione}\0${c.comando ?? ''}`
+const chiaveCommit = (impronta: string, comando: string): string => `commit\0${impronta}\0${comando}`
+const chiaveUltimo = (cwd: string, comando: string): string => `ultimo\0${cwd}\0${comando}`
 
 export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Esecutore, opz: {
   memoria: MemoriaCriteri
   adesso: () => number
-  /** L'impronta del codice adesso; assente = niente cache. */
+  /** Il commit della cartella adesso; assente = niente cache. */
   impronta?: string
   /** `true` per misurare anche i pesanti (turno multiplo di OGNI_TURNI, o prima di «finito»). */
   tutti: boolean
   paralleli?: number
 }): Promise<Misura> {
-  const ora = opz.adesso()
   const daCache: string[] = []
   const rimandati: string[] = []
   const daEseguire: Criterio[] = []
   const pronti = new Map<string, EsitoVerifica>()
+  const conNome = (e: EsitoVerifica, c: Criterio): EsitoVerifica => ({ ...e, descrizione: c.descrizione })
   for (const c of criteri) {
     if (c.comando === undefined) continue
-    const m = opz.memoria.get(chiave(cwd, c))
-    const fresca = m !== undefined && ora - m.quando < VALIDITA_MS
-    if (m !== undefined && fresca && opz.impronta !== undefined && m.impronta === opz.impronta && !guardaFuori(c.comando)) {
-      pronti.set(c.descrizione, m.esito); daCache.push(c.descrizione); continue
+    const ricordato = opz.impronta !== undefined && !guardaFuori(c.comando) ? opz.memoria.get(chiaveCommit(opz.impronta, c.comando)) : undefined
+    if (ricordato !== undefined) {
+      pronti.set(c.descrizione, conNome(ricordato.esito, c)); daCache.push(c.descrizione); continue
     }
-    if (!opz.tutti && m !== undefined && ePesante(c.comando)) {
+    const ultimo = opz.memoria.get(chiaveUltimo(cwd, c.comando))
+    if (!opz.tutti && ultimo !== undefined && ePesante(c.comando)) {
       // Si dice nel quadro che è l'esito di prima (`rimandatoDal`): il supervisore non deve crederlo fresco.
-      pronti.set(c.descrizione, { ...m.esito, rimandatoDal: new Date(m.quando).toISOString() }); rimandati.push(c.descrizione); continue
+      pronti.set(c.descrizione, { ...conNome(ultimo.esito, c), rimandatoDal: new Date(ultimo.quando).toISOString() }); rimandati.push(c.descrizione); continue
     }
     daEseguire.push(c)
   }
   const durate: { descrizione: string; ms: number }[] = []
+  const misuraUno = async (c: Criterio, comando: string): Promise<EsitoVerifica | undefined> => {
+    const t0 = opz.adesso()
+    const [e] = await eseguiCriteri([c], cwd, esegui)
+    durate.push({ descrizione: c.descrizione, ms: opz.adesso() - t0 })
+    if (e === undefined) return undefined
+    const quando = opz.adesso()
+    opz.memoria.set(chiaveUltimo(cwd, comando), { impronta: opz.impronta, quando, esito: e })
+    if (opz.impronta !== undefined && !guardaFuori(comando) && daRicordare(e)) {
+      opz.memoria.set(chiaveCommit(opz.impronta, comando), { impronta: opz.impronta, quando, esito: e })
+    }
+    return e
+  }
   const quanti = Math.max(1, opz.paralleli ?? PARALLELI)
   let i = 0
   const lavoratore = async (): Promise<void> => {
     while (i < daEseguire.length) {
       const c = daEseguire[i++]
-      if (c === undefined) continue
-      const t0 = opz.adesso()
-      const [e] = await eseguiCriteri([c], cwd, esegui)
-      durate.push({ descrizione: c.descrizione, ms: opz.adesso() - t0 })
-      if (e === undefined) continue
-      pronti.set(c.descrizione, e)
-      opz.memoria.set(chiave(cwd, c), { impronta: opz.impronta, quando: opz.adesso(), esito: e })
+      if (c === undefined || c.comando === undefined) continue
+      const comando = c.comando
+      let e: EsitoVerifica | undefined
+      if (opz.impronta !== undefined && !guardaFuori(comando)) {
+        const k = chiaveCommit(opz.impronta, comando)
+        const gia = inVolo.get(k)
+        if (gia !== undefined) {
+          // Un'altra chat la sta misurando adesso, sullo stesso commit: si aspetta quella.
+          e = await gia
+          if (e !== undefined) daCache.push(c.descrizione)
+        } else {
+          const p = misuraUno(c, comando)
+          inVolo.set(k, p)
+          try { e = await p } finally { inVolo.delete(k) }
+        }
+      } else e = await misuraUno(c, comando)
+      if (e !== undefined) pronti.set(c.descrizione, conNome(e, c))
     }
   }
   await Promise.all(Array.from({ length: Math.min(quanti, daEseguire.length) }, () => lavoratore()))
