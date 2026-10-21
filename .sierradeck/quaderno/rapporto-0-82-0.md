@@ -103,7 +103,17 @@ Restano due limiti, scritti nella scheda:
 **Prove.**
 - `typecheck` pulito.
 - Test di autopilot-host, renderer, shared, pty-host e main: 4632 passati.
-- Un test di `sottofondo` è caduto una volta, durante un giro con il PC al 100%.
-  Rilanciato da solo è passato 3 volte su 3: dipende dal tempo, non da un
-  difetto.
-- Android: `gradle testDebugUnitTest assembleDebug` (esito sotto).
+- Il test di `sottofondo` caduto sotto carico è «un testo che Claude Code
+  perde torna in coda e si riscrive». La causa era nella prova, non nel
+  programma: `digerisci` aspettava 20 ms fissi che xterm elaborasse lo
+  schermo, e con il PC al 100% non bastavano. Ora aspetta che xterm abbia
+  elaborato tutte le scritture ricevute (callback di `write` e `vi.waitFor`).
+  Asserzioni e tempi finti sono gli stessi di prima. Sotto carico (suite main
+  in parallelo, più Gradle) passa **10 volte su 10**, con tutti i 16 test del
+  file.
+- Android, sul codice unito (main b9dab2d0): `gradle testDebugUnitTest
+  assembleDebug`, **BUILD SUCCESSFUL**, 390 test, 0 falliti, 1 saltato. L'APK
+  debug si compila. Nel progetto non c'è `gradlew`: si usa `gradle`.
+  Una prima build ha dato «Unresolved reference» in `Gestione.kt`
+  (`TitoloDialogo`, `apriCartellaDa`, `Aiuto`). Era la cache incrementale di
+  Kotlin rimasta da prima dell'unione: rilanciata sullo stesso albero, è verde.
