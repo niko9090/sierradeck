@@ -27,13 +27,19 @@ describe('la riga riassuntiva dell’autopilota', () => {
   it('dice stato, criteri, chat e giri; prima le domande', () => {
     const ap = { stato: 'lavoro', vista: { stato: { parola: 'al lavoro' } }, criteri: 3, fatti: 1 }
     expect(riassunto(ap, { chats: [{}, {}], cicli: 5 })).toBe('al lavoro · criteri 1/3 · 2 chat · 5 giri')
-    expect(riassunto({ stato: 'sospeso', criteri: 0, fatti: 0 }, { domandeScheda: [{}], cicli: 1 })).toBe('1 domanda per te · sospeso · 1 giro')
+    expect(riassunto({ stato: 'sospeso', criteri: 0, fatti: 0 }, { domandeScheda: [{}], cicli: 1 })).toBe('1 domanda per te · fermo · 1 giro')
     // Senza dettaglio (non ancora letto) la riga c'è lo stesso.
     expect(riassunto(ap, null)).toBe('al lavoro · criteri 1/3 · 0 giri')
   })
   it('è la stessa riga dell’app', () => {
     const kt = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/SchedaAutopilota.kt', 'utf8')
-    for (const t of ['"1 domanda per te"', '"criteri ${criteri.count { it.soddisfatto }}/${criteri.size}"', '"$chat chat"', '"1 giro"', '"$giri giri"', 'joinToString(" · ")']) expect(kt, t).toContain(t)
+    for (const t of ['"1 domanda per te"', '"criteri $fatti/$criteri"', '"$chat chat"', '"1 giro"', '"$giri giri"', 'joinToString(" · ")']) expect(kt, t).toContain(t)
+    // Le parole dello stato: quelle di statoInParole dell'app.
+    const lavori = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt', 'utf8')
+    for (const [id, parola] of [['lavoro', 'al lavoro'], ['intervista', 'si prepara'], ['sospeso', 'fermo'], ['fallito', 'guasto']]) {
+      expect(lavori).toContain(`"${id}" -> "${parola}"`)
+      expect(riassunto({ stato: id, criteri: 0, fatti: 0 }, null)).toBe(`${parola} · 0 giri`)
+    }
   })
   it('chiusa, sotto restano solo la conversazione e la casella', () => {
     expect(html).toContain('.riassunto-chiuso .solo-riassunto { display: none; }')

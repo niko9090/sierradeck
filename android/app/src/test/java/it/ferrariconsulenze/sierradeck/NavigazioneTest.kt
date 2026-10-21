@@ -89,9 +89,10 @@ class NavigazioneTest {
 
     @Test
     fun `Cerca porta nella sezione di Altro che ha quell impostazione`() {
-        for (s in SezioneAltro.entries) s.impostazione?.let { if (s != SezioneAltro.CHAT) assertEquals(it, s, SezioneAltro.diImpostazione(it)) }
-        // Nell'app l'unica voce di «chat» è il quaderno personale.
-        assertEquals(SezioneAltro.QUADERNO, SezioneAltro.diImpostazione("chat"))
+        for (s in SezioneAltro.entries) s.impostazione?.let { assertEquals(it, s, SezioneAltro.diImpostazione(it)) }
+        // Nella sezione «chat» solo il quaderno personale ha la sua sezione (Revisione c-46).
+        assertEquals(SezioneAltro.QUADERNO, SezioneAltro.diImpostazione("chat", "quaderno-personale"))
+        assertEquals(SezioneAltro.CHAT, SezioneAltro.diImpostazione("chat", "pin"))
         assertEquals(SezioneAltro.INFO, SezioneAltro.diImpostazione("sconosciuta"))
     }
 

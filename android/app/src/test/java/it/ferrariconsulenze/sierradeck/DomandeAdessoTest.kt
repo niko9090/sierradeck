@@ -52,6 +52,15 @@ class DomandeAdessoTest {
         val lavori = File("src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt").readText()
         // La testa viene prima di tutto il resto della lista.
         assertTrue(lavori.indexOf("testa()") in 0 until lavori.indexOf("key = \"su-pc\""))
+        // Le domande sono del PC accoppiato: non sopra gli autopiloti di un altro PC (Revisione c-46).
+        assertTrue(lavori.contains("if (su == null) testa()"))
+        // Si leggono fuori dalla lista (scorrendo non si fermano), e non dentro un autopilota.
+        assertTrue(adesso.contains("if (!dettaglio) PolsoDomande(api, domande)"))
+        val cima = File("src/main/java/it/ferrariconsulenze/sierradeck/DomandeAdesso.kt").readText()
+        assertTrue(!cima.contains("item(key = \"domande-polso\")"))
+        // Dentro un autopilota la banda delle urgenze torna anche in Adesso.
+        val app = File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
+        assertTrue(app.contains("if (posto.voce != VoceBarra.ADESSO || adessoDettaglio) BandaUrgenze("))
     }
 
     @Test

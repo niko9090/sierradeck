@@ -7,6 +7,7 @@ tag: ["rapporto", "0.83.0", "android", "rilascio"]
 **Stato (21/10, 15:30, c-52 Rilascio, ramo `ap/ap-f1e631f5/c-52` da main 4c292282):**
 - versioni alzate: `package.json` 0.83.0, app `versionCode` 139 e `versionName` 2.83.0 (b953e665);
 - novità 0.83.0 scritte in `src/shared/novita.ts`, con un posto segnato «Velocità: dopo c-48»;
+- le 5 correzioni della Revisione di c-46 riportate sul codice di oggi (vedi la tabella dei rami);
 - mancano: l'unione di c-48, la prova sull'emulatore, le foto, i numeri della velocità e Gradle.
 
 La release **non è pubblicata e non è installata**.
@@ -123,6 +124,7 @@ Sul main 4c292282, 21/10 alle 15:10, esclusi i file di questo ramo:
 | c-24 | 674b4b78, 677b4197 (solo schede) | **unito con cherry-pick** | presi da c-51 come e2adfda3 e a03d2366 |
 | c-45 | in main (`ef545158`) | unito | mappa prima e dopo |
 | c-46 | in main (`41d63746`) | unito | quattro voci, file divisi, schermata dell'autopilota (c-509) |
+| c-46 (Revisione) | `note/revisione-c46.patch` nel worktree di c-46, mai entrata in main | **correzioni della Revisione riportate da c-52** sul ramo c-52 | 5 difetti: (1) in Adesso, con un autopilota aperto, la banda delle urgenze torna (`adessoDettaglio`); (2) il polso delle domande sta fuori dalla lista e si ferma nel dettaglio; (3) le domande non stanno più sopra gli autopiloti di un altro PC (`if (su == null) testa()`); (4) «Cerca» porta alla sezione giusta di Altro (`SezioneAltro.diImpostazione(id, voce)`: «quaderno-personale» → Quaderno, il resto di «chat» → Chat); (5) la riga riassuntiva è uguale fra app e pagina (`RiassuntoAutopilota.di(stato, fatti, criteri, …)`, parole di `statoInParole` anche sulla pagina). `git apply` falliva perché la patch non ha le righe `index`; con `patch -p1 -F3` sono entrate tutte le parti, con un solo spostamento di una riga in DettaglioAutopilota, controllato a mano. Test: vitest della pagina e del riassunto, tutto `tests/main` e typecheck verdi; i test Kotlin (`NavigazioneTest`, `SchedaAutopilotaTest`, `DomandeAdessoTest`) quando Gradle è libero, dopo c-48 |
 | c-47 | in main (`8004c69a`) | **chiuso, doppio di c-46** | c-510 faceva la stessa schermata di c-509; in main c'è solo la sua scheda |
 | c-48 | prima parte in main (`6c735bb2`); 5 commit fuori (ae632778…188824ed) | **da unire dopo la Revisione** | velocità; alle 15:30 sta ancora misurando. L'unione la fa il supervisore |
 | c-49 | in main (`896eb89e`, `31b542ce`) | unito; chat chiusa | leggibilità, giri 1 e 2, più il rosso AA |
@@ -133,13 +135,14 @@ Sul main 4c292282, 21/10 alle 15:10, esclusi i file di questo ramo:
 ## Cosa resta, in ordine (dopo l'unione di c-48)
 1. Fare `git fetch` e aggiornare il ramo c-52 da main.
 2. Ricontrollare i dati privati sul diff di c-48 e i file Kotlin sotto le 800 righe.
-3. Lanciare `cd android && gradle testDebugUnitTest assembleDebug --no-daemon`, un Gradle alla volta.
-4. Sull'emulatore `sd11`, con l'app di main e una copia di prova (`SIERRADECK_PROVA`):
+3. Unire main nel ramo c-52 e risolvere i conflitti: c-48 tocca anche App.kt, Adesso.kt, DomandeAdesso.kt, Lavori.kt e DettaglioAutopilota.kt, come le correzioni di c-46.
+4. Lanciare `cd android && gradle testDebugUnitTest assembleDebug --no-daemon`, un Gradle alla volta.
+5. Sull'emulatore `sd11`, con l'app di main e una copia di prova (`SIERRADECK_PROVA`):
    - scrivere all'autopilota e vedere «Hai risposto: …»;
    - fare le foto prima (2.82.0) e dopo di Adesso, Chat, Progetti, Altro e autopilota, in tema scuro e chiaro e con i caratteri a 1.3.
-5. Scrivere i numeri «dopo» di c-48 nella tabella del § 4 e la riga della velocità in `novita.ts`, al posto segnato.
-6. Mandare a Nicholas la mappa con le foto.
-7. Rilanciare tutti i controlli; poi la pubblicazione, quando la decide la regola del progetto: `npm run pubblica`, `npm run allega-apk`, release non bozza, controllo di latest.yml e app-android.json.
+6. Scrivere i numeri «dopo» di c-48 nella tabella del § 4 e la riga della velocità in `novita.ts`, al posto segnato.
+7. Mandare a Nicholas la mappa con le foto.
+8. Rilanciare tutti i controlli; poi la pubblicazione, quando la decide la regola del progetto: `npm run pubblica`, `npm run allega-apk`, release non bozza, controllo di latest.yml e app-android.json.
 
 ## Foto
 

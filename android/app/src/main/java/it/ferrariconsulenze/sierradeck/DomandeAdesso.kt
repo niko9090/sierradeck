@@ -50,9 +50,10 @@ class DomandeLette {
 }
 
 /**
- * Legge le domande finché la testa di Adesso è composta: con un autopilota o
- * una conversazione aperti la lista non c'è, e le letture si fermano (prima
- * `/api/domande` andava ogni 2 secondi anche dentro un autopilota).
+ * Legge le domande finché la lista di Adesso (o una conversazione) è davanti:
+ * dentro un autopilota le letture si fermano, e le urgenze le dice la banda
+ * in cima (prima `/api/domande` andava ogni 2 secondi anche lì). Sta fuori
+ * dalla lista: scorrendo in giù non si ferma.
  */
 @Composable
 internal fun PolsoDomande(api: Api, d: DomandeLette) {
@@ -108,7 +109,6 @@ object DomandeAdesso {
  * intera; con un PC più vecchio della 0.36 le schede di prima.
  */
 fun LazyListScope.domandeInCima(api: Api, d: DomandeLette, onApri: (Conversazione) -> Unit) {
-    item(key = "domande-polso") { PolsoDomande(api, d) }
     val conv = d.conversazioni
     val elenco = d.voci
     d.guasto?.let { g -> item(key = "domande-guasto") { Text(g, color = Banco.ambra, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) } }

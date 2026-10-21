@@ -87,7 +87,7 @@ private fun ElencoAltro(struttura: StrutturaImp, onApri: (SezioneAltro) -> Unit)
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(v.titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
                     Aiuto(v.spiega, di = v.titolo)
-                    TextButton(onClick = { onApri(SezioneAltro.diImpostazione(v.sezione)) }) { Text("Apri ›") }
+                    TextButton(onClick = { onApri(SezioneAltro.diImpostazione(v.sezione, v.id)) }) { Text("Apri ›") }
                 }
             }
         }
