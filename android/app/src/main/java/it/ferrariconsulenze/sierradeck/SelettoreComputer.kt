@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,7 +58,7 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
         Modifier
             .fillMaxWidth()
             .background(Banco.chassis)
-            .clickable(onClick = onApri)
+            .tocco(onClick = onApri)
             .padding(horizontal = 14.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -82,7 +81,7 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
             // L'hostname, piccolo (2.52.4): il nome è quello scelto.
             if (!sotto.isNullOrBlank()) {
                 Spacer(Modifier.width(6.dp))
-                Text(sotto, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+                Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
             }
         }
         // La qualità del collegamento con questo computer, sempre in vista
@@ -155,7 +154,7 @@ fun SelettoreComputer(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { if (p.indirizzo != correnteIndirizzo) onScegli(p.indirizzo) }
+                        .tocco { if (p.indirizzo != correnteIndirizzo) onScegli(p.indirizzo) }
                         .padding(horizontal = 14.dp, vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -189,10 +188,10 @@ fun SelettoreComputer(
                             elenco = Postazioni.elenca(contesto)
                         }
                     )
-                    IconButton(onClick = { daRinominare = p }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { daRinominare = p }) {
                         Icon(Icons.Filled.Edit, "Rinomina", tint = Banco.testoQuieto, modifier = Modifier.size(17.dp))
                     }
-                    IconButton(onClick = { daDimenticare = p }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { daDimenticare = p }) {
                         Icon(Icons.Filled.Delete, "Dimentica", tint = Banco.testoQuieto, modifier = Modifier.size(17.dp))
                     }
                 }
@@ -202,7 +201,7 @@ fun SelettoreComputer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onAggiungi)
+                    .tocco(onClick = onAggiungi)
                     .padding(horizontal = 18.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

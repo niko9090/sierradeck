@@ -50,4 +50,28 @@ class SchedaAutopilotaTest {
         )
         assertEquals(listOf("sì", "no"), d.domandeScheda[0].opzioni)
     }
+
+    @Test
+    fun `la riga riassuntiva dice stato, criteri, chat e giri, prima le domande`() {
+        val criteri = listOf(Criterio(soddisfatto = true), Criterio(), Criterio())
+        assertEquals("al lavoro · criteri 1/3 · 2 chat · 5 giri", RiassuntoAutopilota.di("lavoro", criteri, 2, 5, 0))
+        assertEquals("1 domanda per te · fermo · 1 giro", RiassuntoAutopilota.di("sospeso", emptyList(), 0, 1, 1))
+    }
+
+    @Test
+    fun `sopra la casella solo la conversazione, e la casella sopra la tastiera`() {
+        // c-509, Nicholas (21/10): «non si vede nulla, troppe info che occupano tutto lo schermo».
+        val k = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt").readText()
+        assertTrue(k.contains("Column(Modifier.fillMaxSize().imePadding())"))
+        assertTrue(k.contains("var riassuntoAperto by remember(breve.id) { mutableStateOf(false) }"))
+        // Le parti stanno nella riga aperta, non più in una seconda lista sotto la chat.
+        assertFalse(k.contains("Modifier.weight(0.8f)"))
+        assertTrue(k.indexOf("if (riassuntoAperto) LazyColumn") < k.indexOf("} else LazyColumn"))
+        // La Panoramica sta solo nella riga aperta (prima era anche sopra la conversazione).
+        val conversazione = k.substring(k.indexOf("} else LazyColumn"), k.indexOf("la casella: sempre in basso"))
+        assertFalse(conversazione.contains("PanoramicaVista"))
+        val app = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
+        assertTrue(app.contains(".consumeWindowInsets(pad)"))
+        assertTrue(java.io.File("src/main/AndroidManifest.xml").readText().contains("adjustResize"))
+    }
 }

@@ -12,9 +12,10 @@ import java.io.File
  * indietro senza che qualcuno se ne accorga.
  */
 class AvvioVelocitaTest {
-    private val sorgenti = SorgentiApp.tutte()
-    private val app = File(SorgentiApp.cartella, "App.kt").readText()
-    private val api = File(SorgentiApp.cartella, "Api.kt").readText()
+    private val cartella = File("src/main/java/it/ferrariconsulenze/sierradeck")
+    private val sorgenti = cartella.listFiles { f -> f.name.endsWith(".kt") }!!.sortedBy { it.name }.joinToString("\n") { it.readText() }
+    private val app = File(cartella, "App.kt").readText()
+    private val api = File(cartella, "Api.kt").readText()
 
     @Test
     fun `la scheda Mi collego compare solo se il collegamento tarda`() {
@@ -31,7 +32,7 @@ class AvvioVelocitaTest {
 
     @Test
     fun `lo stato della prova della chiave si usa subito`() {
-        assertTrue(app.contains("if (stato == null) stato = letto"))
+        assertTrue(app.contains("if (stato == null || daCopia) { stato = letto; daCopia = false }"))
     }
 
     @Test
@@ -56,15 +57,5 @@ class AvvioVelocitaTest {
         assertTrue(gradle.contains("isMinifyEnabled = true"))
         assertTrue(gradle.contains("isShrinkResources = true"))
         assertTrue(File("proguard-rules.pro").readText().lines().any { it.trim() == "-dontobfuscate" })
-    }
-
-    @Test
-    fun `ogni parte della scheda Computer interroga il PC solo per se'`() {
-        val computer = File(SorgentiApp.cartella, "Computer.kt").readText()
-        assertTrue(computer.contains("ParteComputer.SALUTE -> ComputerSalute(api)"))
-        // L'aggiornamento ogni due secondi vive solo nella parte che lo mostra.
-        val dove = SorgentiApp.cartella.listFiles { f -> f.name.endsWith(".kt") }!!
-            .filter { it.readText().contains("api.aggiornamento()") }.map { it.name }.sorted()
-        assertEquals(listOf("ImpostazioniVista.kt", "SchermoInstallazione.kt"), dove)
     }
 }

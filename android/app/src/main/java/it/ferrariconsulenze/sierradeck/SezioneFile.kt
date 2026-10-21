@@ -272,7 +272,7 @@ fun SezioneFile(api: Api) {
                     Tessera(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), onClick = { scope.launch { vai(x, "") } }) {
                         Column(Modifier.padding(12.dp)) {
                             Text((if (x.chiuso) "🔒 " else "📁 ") + x.nome, fontWeight = FontWeight.Bold, color = Banco.testo)
-                            if (x.doppio || x.chiuso) Text(x.percorso + if (x.chiuso) " · protetto dal PIN di una sua chat" else "", color = Banco.testoQuieto, fontSize = 11.sp)
+                            if (x.doppio || x.chiuso) Text(x.percorso + if (x.chiuso) " · protetto dal PIN di una sua chat" else "", color = Banco.testoQuieto, fontSize = 12.sp)
                         }
                     }
                 }
@@ -303,7 +303,7 @@ fun SezioneFile(api: Api) {
                     Tessera(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(v.nome, color = Banco.testo, fontWeight = FontWeight.Bold)
-                            Text(FileVista.misura(v.byte) + if (v.quando > 0) " · " + java.text.SimpleDateFormat("d MMM yyyy HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(v.quando)) else "", color = Banco.testoQuieto, fontSize = 11.sp)
+                            Text(FileVista.misura(v.byte) + if (v.quando > 0) " · " + java.text.SimpleDateFormat("d MMM yyyy HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(v.quando)) else "", color = Banco.testoQuieto, fontSize = 12.sp)
                             FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 val tipo = FileVista.tipo(v.nome)
                                 if (tipo != "altro") Voce("Guarda", attiva = true) {
@@ -506,10 +506,10 @@ private fun ParteRicevuti(onNota: (String?) -> Unit, nota: String?) {
                     Text(
                         "${FileVista.misura(r.byte)} · da ${r.daPc.ifBlank { "un PC" }}" + (r.daChat?.let { " (chat «$it»)" } ?: "") + " · " +
                             java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.ITALIAN).format(java.util.Date(r.quando)),
-                        color = Banco.testoQuieto, fontSize = 11.sp
+                        color = Banco.testoQuieto, fontSize = 12.sp
                     )
                     r.nota?.let { Text("Nota: $it", color = Banco.testo, fontSize = 12.sp) }
-                    r.salvatoIn?.let { Text("Salvato in $it", color = Banco.verde, fontSize = 11.sp) }
+                    r.salvatoIn?.let { Text("Salvato in $it", color = Banco.verde, fontSize = 12.sp) }
                     FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Voce("Apri", attiva = true) { try { contesto.startActivity(Ricevuti.intentApri(contesto, r)) } catch (_: Exception) { onNota("Nessuna app sa aprire ${r.nome}: prova Condividi.") } }
                         Voce("Salva", attiva = false) { scope.launch { onNota(withContext(Dispatchers.IO) { RicevitoreConsegne.salva(contesto, r.id) }) } }

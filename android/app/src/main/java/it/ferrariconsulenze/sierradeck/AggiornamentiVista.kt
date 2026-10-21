@@ -1,18 +1,35 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,13 +40,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.LinearProgressIndicator
-
-// Gli aggiornamenti dell'app e del computer, nelle Impostazioni.
-// Spostati così com'erano da Computer.kt nella 0.83.0.
+import androidx.compose.material3.Switch
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 
 @Composable
 internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
@@ -183,7 +206,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         val uri = LocalUriHandler.current
         Spacer(Modifier.height(8.dp))
         Column(Modifier.fillMaxWidth().border(1.dp, Banco.ambra, MaterialTheme.shapes.small).padding(12.dp)) {
-            Text("L’ULTIMA INSTALLAZIONE NON È RIUSCITA", color = Banco.ambra, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("L’ULTIMA INSTALLAZIONE NON È RIUSCITA", color = Banco.ambra, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(testoTentativoFallito(fallito), color = Banco.testo, fontSize = 13.sp)
             linkAmmessoApp(fallito.pagina)?.let { link ->
@@ -322,7 +345,7 @@ private fun RiquadroAggiornamento(
             }
             if (poscritto != null) {
                 Spacer(Modifier.height(6.dp))
-                Text(poscritto, color = Banco.testoQuieto, fontSize = 11.sp)
+                Text(poscritto, color = Banco.testoQuieto, fontSize = 12.sp)
             }
         }
     }

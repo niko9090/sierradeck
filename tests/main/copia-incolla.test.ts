@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { vociMenuApplicazione, vociMenuContestuale } from '../../src/main/menu-modifica'
 import { paginaClient } from '../../src/main/client-pagina'
-import { sorgentiApp } from '../android/sorgenti-app'
 
 /**
  * Nicholas (30/09): «nella chat con l'autopilota non riesco né a copiare né a
@@ -58,7 +57,7 @@ describe('copia e incolla nella chat con l autopilota', () => {
   })
 
   it('l app Android rende selezionabile la chat con lui', () => {
-    const lavori = sorgentiApp()
+    const lavori = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt', 'utf8')
     const pezzo = lavori.slice(lavori.indexOf('items(messaggi) { b ->'), lavori.indexOf('items(messaggi) { b ->') + 700)
     expect(pezzo).toContain('SelectionContainer')
   })

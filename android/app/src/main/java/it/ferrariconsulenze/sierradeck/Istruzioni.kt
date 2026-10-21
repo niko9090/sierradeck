@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -119,7 +118,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
             try { lista = api.istruzioniAutopilota(autopilota).istruzioni; guasto = null } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.ISTRUZIONI)
             }
-            delay(4000)
+            Davanti.pausa(4000)
         }
     }
     RigaConAiuto("Le istruzioni scritte alle sue chat, per intero.", "Quello che l'autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso vedi solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Tocca un'istruzione per aprirla; tieni premuto sul testo per copiarlo. «Correggi» gli scrive una nota legata a quell'istruzione.")
@@ -132,14 +131,14 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
     l?.forEachIndexed { k, i ->
         val apri = aperta == i.id || (aperta == null && k == 0)
         Spacer(Modifier.height(8.dp))
-        Column(Modifier.fillMaxWidth().clickable { aperta = if (apri) "" else i.id }) {
+        Column(Modifier.fillMaxWidth().tocco { aperta = if (apri) "" else i.id }) {
             Row {
-                Text(quandoBreve(i.quando), color = Banco.testoQuieto, fontSize = 11.sp)
+                Text(quandoBreve(i.quando), color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 Text("→ ${i.chatTitolo.ifBlank { i.chatId }}", color = Banco.testo, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    esitoIstruzione(i.esito), fontSize = 11.sp,
+                    esitoIstruzione(i.esito), fontSize = 12.sp,
                     color = when (i.esito) { "partita", "consegnata" -> Banco.verde; "non-partita", "persa" -> Banco.rosso; else -> Banco.ambra }
                 )
             }
@@ -154,7 +153,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
                     for (r in righeMarkdown(i.testo)) when (r.tipo) {
                         "titolo" -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         "voce" -> Text(buildAnnotatedString { append("• "); append(inRigaMd(r.testo)) }, color = Banco.testo, fontSize = 13.sp)
-                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 11.sp, fontFamily = FontTerminale)
+                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 12.sp, fontFamily = FontTerminale)
                         "vuota" -> Spacer(Modifier.height(4.dp))
                         else -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp)
                     }

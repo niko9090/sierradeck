@@ -1,17 +1,47 @@
 package it.ferrariconsulenze.sierradeck
 
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -25,14 +55,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
-
-// «Affida un lavoro»: il modulo che prepara un autopilota nuovo.
-// Spostato così com'era da Lavori.kt nella 0.83.0.
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * Affida un lavoro nuovo (app 2.55.0), alla pari con la finestra «Nuovo
@@ -91,7 +130,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                         androidx.compose.material3.FilterChip(selected = pcScelto?.pcId == p.pcId, onClick = { pcScelto = PcPonte(p.pcId, p.mostra) }, label = { Text(p.mostra, fontSize = 12.sp, color = VIOLA_ALTRO_PC) })
                     }
                 }
-                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 11.sp)
+                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── l'obiettivo ───
@@ -102,7 +141,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     placeholder = { Text("L’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito, dove guardare.", fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth().height(170.dp)
                 )
-                Text("Tutto quello che scrivi arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.", color = Banco.testoQuieto, fontSize = 11.sp)
+                Text("Tutto quello che scrivi arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.", color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── la cartella ───
@@ -112,11 +151,11 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 val recenti = (cartelle ?: emptyList()).filter { it !in aperte }
                 if (cartelle == null) Text("Carico le cartelle di $nomeDest…", color = Banco.testoQuieto, fontSize = 12.sp)
                 if (aperte.isNotEmpty()) {
-                    Text("Chat aperte adesso", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Chat aperte adesso", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     for (c in aperte) RigaCartella(c, c == bozza.cwd) { bozza = bozza.copy(cwd = c) }
                 }
                 if (recenti.isNotEmpty()) {
-                    Text("Progetti recenti", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Progetti recenti", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     for (c in recenti.take(30)) RigaCartella(c, c == bozza.cwd) { bozza = bozza.copy(cwd = c) }
                 }
                 TextButton(onClick = { sfoglia = true }) { Text("Altra cartella: sfoglia $nomeDest…") }
@@ -126,7 +165,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 val nomiWs = statoDest?.workspace?.nomi ?: emptyList()
                 if (nomiWs.isNotEmpty()) {
                     SceltaWorkspaceRiga(nomiWs, bozza.workspace) { bozza = bozza.copy(workspace = it) }
-                    Text("Le chat che apre nascono in questo workspace, anche se sul computer stai guardando altro.", color = Banco.testoQuieto, fontSize = 11.sp)
+                    Text("Le chat che apre nascono in questo workspace, anche se sul computer stai guardando altro.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(10.dp))
                 }
 
@@ -178,7 +217,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     scope.launch {
                         try {
                             apiDest.creaAutopilota(r)
-                            Nota.mostra("Affidato a $nomeDest: legge il progetto e, se ha domande, arrivano nella scheda Domande." + if (r.partenza == "subito") " Appena è pronto comincia da solo." else " Poi aspetta il tuo «Vai».")
+                            Nota.mostra("Affidato a $nomeDest: legge il progetto e, se ha domande, arrivano in cima ad Adesso." + if (r.partenza == "subito") " Appena è pronto comincia da solo." else " Poi aspetta il tuo «Vai».")
                             onChiudi()
                         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Api.Errore) {
                             errore = spiegaGestione(e, "affidarlo a $nomeDest", nomeDest)
@@ -205,8 +244,83 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
 private fun RigaCartella(c: String, scelta: Boolean, onClick: () -> Unit) {
     // Il nome, e sotto il percorso: due progetti con lo stesso nome in dischi
     // diversi erano indistinguibili.
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 5.dp)) {
+    Column(Modifier.fillMaxWidth().tocco(onClick = onClick).padding(vertical = 5.dp)) {
         Text(c.substringAfterLast('\\').substringAfterLast('/'), color = if (scelta) Banco.accento else Banco.testo, fontWeight = if (scelta) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp)
-        Text(c, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+        Text(c, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
     }
+}
+
+/** Il quaderno di una cartella: le schede lasciate dalle chat e dagli autopiloti. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
+    var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
+    var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
+    // PC 0.70: la ricerca e il tag scelto, come sul PC.
+    var domanda by remember { mutableStateOf("") }
+    var tagScelto by remember { mutableStateOf<String?>(null) }
+    // «Nessuna scheda» e «non riesco a leggerle» sono due cose diverse: prima
+    // un 403 (cartella non conosciuta) si leggeva come un quaderno vuoto.
+    var guasto by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(cwd) {
+        schede = try { api.quaderno(cwd).schede } catch (e: Exception) {
+            guasto = if (e is Api.Errore) Nota.spiega(e, "leggere il quaderno") else "Non sono riuscito a leggere il quaderno: ${e.message ?: "il computer non risponde"}"
+            emptyList()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (aperta != null) aperta = null else onChiudi() },
+        title = { Text(aperta?.titolo?.ifBlank { "Quaderno" } ?: "Quaderno") },
+        text = {
+            Column(Modifier.fillMaxWidth().height(380.dp).verticalScroll(rememberScrollState())) {
+                val ap = aperta
+                if (ap != null) {
+                    Text(QuadernoVista.quandoBreve(ap.quando, java.time.Instant.now()), color = Banco.testoQuieto, fontSize = 12.sp)
+                    Text(ap.corpo, color = Banco.testo, fontSize = 13.sp)
+                } else when {
+                    guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
+                    schede == null -> Text("Carico…", color = Banco.testoQuieto)
+                    schede!!.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Nessuna scheda in questa cartella.", color = Banco.testoQuieto, modifier = Modifier.weight(1f))
+                        Aiuto("Il quaderno (.sierradeck/quaderno) si riempie quando le chat annotano decisioni, vincoli ed errori risolti.", di = "Quaderno")
+                    }
+                    else -> {
+                        val tutte = schede!!
+                        OutlinedTextField(value = domanda, onValueChange = { domanda = it }, singleLine = true,
+                            placeholder = { Text("Cerca fra le schede", fontSize = 13.sp) }, modifier = Modifier.fillMaxWidth())
+                        val tags = QuadernoVista.tuttiITag(tutte)
+                        if (tags.isNotEmpty()) {
+                            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                androidx.compose.material3.FilterChip(selected = tagScelto == null, onClick = { tagScelto = null }, label = { Text("Tutte ${tutte.size}") })
+                                for ((t, n) in tags) {
+                                    androidx.compose.material3.FilterChip(selected = tagScelto == t, onClick = { tagScelto = if (tagScelto == t) null else t }, label = { Text("$t $n") })
+                                }
+                            }
+                        }
+                        val ora = java.time.Instant.now()
+                        val viste = QuadernoVista.filtra(tutte, domanda, tagScelto)
+                        if (viste.isEmpty()) Text("Nessuna scheda per questa ricerca.", color = Banco.testoQuieto, fontSize = 13.sp)
+                        for (s in viste) {
+                            Column(Modifier.fillMaxWidth().tocco {
+                                scope.launch { aperta = tenta("aprire la scheda del quaderno") { api.scheda(cwd, s.file) } }
+                            }.padding(vertical = 8.dp)) {
+                                Text(s.titolo.ifBlank { s.file }, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                if (s.assaggio.isNotBlank()) Text(s.assaggio, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+                                Text((listOf(QuadernoVista.quandoBreve(s.quando, ora)) + s.tag).joinToString(" · "), color = Banco.testoQuieto, fontSize = 12.sp)
+                            }
+                            HorizontalDivider(color = Banco.incisione)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { if (aperta != null) aperta = null else onChiudi() }) {
+                Text(if (aperta != null) "Indietro" else "Chiudi")
+            }
+        }
+    )
 }

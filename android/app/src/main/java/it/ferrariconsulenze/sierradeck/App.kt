@@ -4,17 +4,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -37,6 +42,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -49,30 +55,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * **Il menu principale** (app 2.61.0, PC 0.61.0): le sette voci del PC, nello
- * stesso ordine, con lo stesso nome corto della pagina. L'ordine e i nomi
- * vengono da `src/shared/menu-principale.ts`, scritti in `assets/menu.json`:
- * `MenuPrincipaleTest` controlla che questo enum sia uguale.
- *
- * Prima (fino alla 2.60): Chat, Domande, Lavori, Negozio, File, Progetti,
- * Computer. Lavori è diventato Autopiloti, il Negozio sta dentro Chat,
- * «Computer» si è diviso fra Impostazioni, Salute e Progetti.
- *
- * «Adesso» non c'è più, ed è stata una rimozione, non una perdita: nove volte
- * su dieci era vuota, e quando non lo era diceva cose che dovevi **andare a
- * cercare** proprio mentre erano urgenti. Ciò che conteneva — una domanda che
- * aspetta, un autopilota fermo — adesso compare come una banda in cima a
- * qualunque schermata tu stia guardando. Le urgenze si portano a chi guarda;
- * non si mettono in una stanza in fondo al corridoio.
+ * Le destinazioni di prima (app 2.61.0, le sette voci del PC): restano come
+ * **destinazione** per chi chiede di aprire l'app in un posto — una notifica,
+ * «Apri la chat», «Apri cartella», «Chat di X dal vivo». Dalla 2.83.0 la barra
+ * ha quattro voci (`VoceBarra`, in `Navigazione.kt`) e `Navigazione.verso` dice in
+ * quale voce sta ogni destinazione; l'ordine e i nomi corti restano quelli del
+ * PC (`MenuPrincipaleTest`).
  */
 enum class Scheda(val id: String, val breve: String) {
     PROGETTI("progetti", "Progetti"),
@@ -83,9 +90,6 @@ enum class Scheda(val id: String, val breve: String) {
     SALUTE("salute", "Salute"),
     IMPOSTAZIONI("impostazioni", "Imposta\u00adzioni")
 }
-
-/** Dentro «Chat» (app 2.61.0): le chat, i workspace e il Negozio. */
-enum class ParteChat { CHAT, WORKSPACE, NEGOZIO }
 
 /**
  * Dove aprire l'app quando lo chiede qualcun altro: una notifica toccata.
@@ -214,15 +218,30 @@ fun Principale(
     onScollega: () -> Unit
 ) {
     val contesto = LocalContext.current
-    // Si apre sulle chat: e' quello per cui si prende in mano il telefono.
-    var scheda by remember { mutableStateOf(Scheda.CHAT) }
-    /** Dalla scheda Domande alla linguetta «Domande» di un autopilota (0.38.0). */
+    // Si apre su Adesso (2.83.0): le domande per te in cima. Prima sulle chat.
+    var posto by remember { mutableStateOf(Navigazione.INIZIO) }
+    /** L'autopilota da aprire in Adesso (da una notifica). */
     var apriAutopilota by remember { mutableStateOf<String?>(null) }
     // Una notifica toccata porta dove serve, una volta.
     LaunchedEffect(Apertura.schedaRichiesta) {
-        Apertura.schedaRichiesta?.let { scheda = it; Apertura.schedaRichiesta = null }
+        Apertura.schedaRichiesta?.let { posto = Navigazione.verso(posto, it); Apertura.schedaRichiesta = null }
     }
+    // «Indietro» (2.83.0), uguale in tutte le voci: i dettagli li chiudono le
+    // schermate (i loro BackHandler stanno più in fondo e vincono), poi la
+    // sezione di Altro, la prima linguetta, Adesso; da Adesso si esce.
+    BackHandler(enabled = Navigazione.indietro(posto) != null) { Navigazione.indietro(posto)?.let { posto = it } }
     var stato by remember { mutableStateOf<Stato?>(null) }
+    /**
+     * La copia dell'ultimo stato (0.83.0, `CopiaStato`): all'apertura si vede
+     * subito quello che c'era, e il primo stato vero lo sostituisce. Finché
+     * `daCopia`, lo stato non viene dal computer di adesso.
+     */
+    var daCopia by remember { mutableStateOf(false) }
+    val soloSeCambia = remember { StatoSoloSeCambia { Api.json.decodeFromString<Stato>(it) } }
+    LaunchedEffect(indirizzo) {
+        val copia = withContext(Dispatchers.IO) { CopiaStato.leggi(contesto.filesDir, indirizzo) }
+        if (stato == null && copia != null) { stato = copia; daCopia = true; soloSeCambia.parteDa(copia) }
+    }
     /**
      * Il collegamento con questo computer (app 2.56.0): **uno solo**, quello di
      * `Collegamenti`, fatto avanzare da ogni risposta dell'`Api` — lo stato, la
@@ -296,7 +315,7 @@ fun Principale(
                         val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
                         // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
                         // adesso, non al primo giro del polso (0.83.0).
-                        if (stato == null) stato = letto
+                        if (stato == null || daCopia) { stato = letto; daCopia = false }
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
@@ -325,7 +344,7 @@ fun Principale(
                 e(EventoTentativo.Fallita(s, System.currentTimeMillis(), ultimo))
             }
         }
-        e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre dalla scheda Computer, «Altri computer»"))
+        e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre da Altro › Altri computer"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
         mostraScheda.cancel()
@@ -434,6 +453,9 @@ fun Principale(
     LaunchedEffect(api) {
         val strada = Linea.stradaDiIndirizzo(indirizzo)
         var ultimaIl = 0L
+        var copiaIl = 0L
+        var copiato: String? = null
+        var uguali = 0
         while (isActive) {
             // Con la linea su si legge ogni due secondi; caduta, si riprova con
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
@@ -441,10 +463,14 @@ fun Principale(
             if (!Linea.eOra(Collegamenti.di(Collegamenti.ACCOPPIATO), ultimaIl, System.currentTimeMillis())) { delay(250); continue }
             // Con l'app dietro, ogni 15 secondi invece di 2 (app 2.69.0): il PC rispondeva lo stesso a ogni giro.
             if (!PolsoApp.tocca(cicloVita.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED), ultimaIl, System.currentTimeMillis())) { delay(1000); continue }
+            // Calmo (0.83.0): lo stato non cambia da qualche giro, il prossimo fra 3 s invece di 2.
+            if (System.currentTimeMillis() - ultimaIl < PolsoApp.davantiOgni(uguali)) { delay(250); continue }
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
-                val (letto, grezzo) = api.statoConTesto()
+                // Solo se è cambiato (0.83.0, `StatoSoloSeCambia`): uguale, niente decodifica e niente ridisegno.
+                val grezzo = api.statoGrezzo()
+                val (letto, cambiato) = withContext(Dispatchers.Default) { soloSeCambia.leggi(grezzo) }
                 letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
@@ -479,7 +505,13 @@ fun Principale(
                 // quando risponde la versione nuova.
                 val ferma = letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null
                 if (ferma && Installazione.da != null) Installazione.finita(contesto)
-                stato = letto; giriFalliti = 0; rifiuti = 0
+                if (cambiato || daCopia) { stato = letto; daCopia = false }
+                uguali = if (cambiato) 0 else uguali + 1
+                giriFalliti = 0; rifiuti = 0
+                if (grezzo != copiato && System.currentTimeMillis() - copiaIl >= CopiaStato.OGNI_MS) {
+                    copiaIl = System.currentTimeMillis(); copiato = grezzo
+                    launch(Dispatchers.IO) { CopiaStato.salva(contesto.filesDir, indirizzo, grezzo) }
+                }
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata
                 // l'ultima volta, e come si chiama davvero — il nome della
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si
@@ -559,9 +591,12 @@ fun Principale(
 
     Scaffold(
         containerColor = Banco.fondo,
-        bottomBar = { Fascia(scheda, stato) { scheda = it } }
+        // Con la tastiera aperta la barra sparisce (c-509): resta posto alla conversazione.
+        bottomBar = { if (!tastieraAperta()) BarraVoci(posto.voce, stato) { posto = Navigazione.tocca(posto, it) } }
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
+        // consumeWindowInsets: dentro, imePadding conta solo la tastiera oltre la
+        // barra in basso (2.83.0, c-509: la casella dell'autopilota resta in vista).
+        Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize()) {
             // Con quale computer stai parlando. Sopra ogni schermata e non
             // dentro «Computer», perche' cambiare macchina e' un gesto che si fa
             // **mentre** si sta facendo altro: guardi una chat, ti accorgi che e'
@@ -626,7 +661,8 @@ fun Principale(
             BandaDriveScollegato(stato?.driveScollegato)
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
-            BandaUrgenze(api, stato, connesso, onApriDomande = { scheda = Scheda.DOMANDE })
+            // In Adesso non serve (2.83.0): le domande ci sono già, in cima.
+            if (posto.voce != VoceBarra.ADESSO) BandaUrgenze(api, stato, connesso, onApriDomande = { posto = Navigazione.verso(posto, Scheda.DOMANDE) })
             appNuova?.let { (nome, _) ->
                 BandaAggiornamentoApp(
                     nome = nome,
@@ -635,121 +671,92 @@ fun Principale(
                 )
             }
             Box(Modifier.weight(1f).fillMaxSize()) {
-                when (scheda) {
-                    // «Progetti» (app 2.58.2): il pannello delle chat e dei progetti; dalla 2.61.0 con il Drive e le code dei progetti.
-                    Scheda.PROGETTI -> Column(Modifier.fillMaxSize()) {
-                        var drive by remember { mutableStateOf(false) }
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            for ((d, t) in listOf(false to "Progetti e chat", true to "Drive e code")) {
-                                TextButton(onClick = { drive = d }) { Text(t, color = if (drive == d) Banco.accento else Banco.testoQuieto, fontWeight = if (drive == d) FontWeight.Bold else FontWeight.Normal) }
-                            }
-                        }
-                        Box(Modifier.weight(1f)) {
-                            if (!drive) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
-                            // Il contenuto del Drive e le code dei progetti: prima erano nella scheda «Computer».
-                            else Computer(api, stato, ParteComputer.PROGETTI)
+                when (posto.voce) {
+                    VoceBarra.ADESSO -> Adesso(api, stato, apriAutopilota, onAperto = { apriAutopilota = null })
+                    VoceBarra.CHAT -> ConLinguette(posto, { posto = Navigazione.linguetta(posto, it) }) { i ->
+                        when (i) {
+                            0 -> Chat(api, stato, deposito)
+                            1 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) { SezioneWorkspaceChat(api, stato) }
+                            else -> Negozio(api)
                         }
                     }
-                    Scheda.AUTOPILOTI -> Lavori(api, stato, apri = apriAutopilota, onAperto = { apriAutopilota = null })
-                    Scheda.DOMANDE -> Domande(api, stato, onApriAutopilota = { id -> apriAutopilota = id; scheda = Scheda.AUTOPILOTI })
-                    Scheda.CHAT -> Column(Modifier.fillMaxSize()) {
-                        var parte by remember { mutableStateOf(ParteChat.CHAT) }
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            for ((p, t) in listOf(ParteChat.CHAT to "Chat", ParteChat.WORKSPACE to "Workspace", ParteChat.NEGOZIO to "Negozio")) {
-                                TextButton(onClick = { parte = p }) { Text(t, color = if (parte == p) Banco.accento else Banco.testoQuieto, fontWeight = if (parte == p) FontWeight.Bold else FontWeight.Normal) }
-                            }
-                        }
-                        Box(Modifier.weight(1f)) {
-                            when (parte) {
-                                ParteChat.CHAT -> Chat(api, stato, deposito)
-                                ParteChat.WORKSPACE -> Computer(api, stato, ParteComputer.CHAT)
-                                ParteChat.NEGOZIO -> Negozio(api)
-                            }
+                    VoceBarra.PROGETTI -> ConLinguette(posto, { posto = Navigazione.linguetta(posto, it) }) { i ->
+                        when (i) {
+                            // Il pannello delle chat e dei progetti (app 2.58.2).
+                            0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
+                            // I file dei progetti dei PC e quelli ricevuti (app 2.54.0).
+                            1 -> SezioneFile(api)
+                            // Il contenuto del Drive e le code dei progetti.
+                            else -> DriveECode(api, stato)
                         }
                     }
-                    // La sezione File (app 2.54.0): i progetti dei PC e i file ricevuti.
-                    Scheda.FILE -> SezioneFile(api)
-                    // Salute (app 2.61.0): la salute del sistema, gli altri computer e i consumi.
-                    Scheda.SALUTE -> Computer(api, stato, ParteComputer.SALUTE)
-                    Scheda.IMPOSTAZIONI -> Computer(api, stato, ParteComputer.IMPOSTAZIONI)
+                    VoceBarra.ALTRO -> Altro(
+                        api, posto.sezione,
+                        onApri = { posto = Navigazione.apri(posto, it) },
+                        onIndietro = { posto = posto.copy(sezione = null) }
+                    )
                 }
             }
         }
     }
 }
 
-/** La fascia in basso. Ogni voce porta il suo pallino di urgenza, così si vede
- *  da dove ti chiamano anche senza aprire la scheda. */
-@Composable
-private fun Fascia(
-    attuale: Scheda,
-    stato: Stato?,
-    onScegli: (Scheda) -> Unit
-) {
-    val fermi = stato?.autopiloti?.any { it.stato == "sospeso" || it.stato == "fallito" } == true
-    // Uno che si e' preparato e aspetta il via e' fermo quanto uno sospeso:
-    // senza di te non parte. Ambra, non rosso: non e' andato storto niente.
-    val pronti = stato?.autopiloti?.any { it.stato == "pronto" } == true
-    val allarmeLavori: Color? = if (fermi) Banco.rosso else if (pronti) Banco.ambra else null
-    // Domande degli autopiloti e chat che aspettano una scelta: e' quello che
-    // chiede davvero qualcosa a te. Le chat ferme non contano, o il pallino
-    // sarebbe acceso sempre.
-    val chiedono = stato?.let { domandeInAttesa(it) } ?: 0
-    val allarmeDomande: Color? = if (chiedono > 0) Banco.ambra else null
-    // Le chat ferme su una scelta (0.80.0: come la pagina e il PC; una chat
-    // che ha finito il turno è «ferma» e non accende il pallino).
-    val aspettano = stato?.chat?.count { leggiChat(it).tono == TonoChat.SCEGLIE } ?: 0
-    val allarmeChat: Color? = if (aspettano > 0) Banco.ambra else null
+/**
+ * Quanti rifiuti di fila prima di dire che c'è un problema.
+ *
+ * Il giro è di due secondi: cinque sono dieci secondi di «non ti riconosco»
+ * ininterrotti, che nessun inciampo momentaneo del computer produce. Una revoca
+ * vera, invece, dura per sempre e li raggiunge in dieci secondi.
+ */
+private const val RIFIUTI_PER_ARRENDERSI = 5
 
-    // Il menu principale (app 2.61.0): le sette voci del PC, nello stesso ordine.
-    NavigationBar(containerColor = Banco.chassis) {
-        for (s in Scheda.entries) {
-            val (icona, allarme, numero) = when (s) {
-                Scheda.PROGETTI -> Triple(Icons.Filled.Dashboard, null, 0)
-                Scheda.AUTOPILOTI -> Triple(Icons.Filled.SmartToy, allarmeLavori, 0)
-                Scheda.DOMANDE -> Triple(Icons.Filled.QuestionAnswer, allarmeDomande, chiedono)
-                Scheda.CHAT -> Triple(Icons.Filled.Forum, allarmeChat, aspettano)
-                Scheda.FILE -> Triple(Icons.Filled.Folder, null, 0)
-                Scheda.SALUTE -> Triple(Icons.Filled.Favorite, null, 0)
-                Scheda.IMPOSTAZIONI -> Triple(Icons.Filled.Settings, null, 0)
-            }
-            voce(attuale, s, s.breve, icona, allarme = allarme, onScegli, numero = numero)
+/**
+ * «Il computer non ti riconosce più.»
+ *
+ * Al posto di quello che c'era prima, cioè niente: l'app cancellava chiave e
+ * indirizzo e si ritrovava alla schermata del codice QR, senza dire perché.
+ * Chi guardava vedeva un'app che si era dimenticata di tutto da sola.
+ *
+ * Qui si dice cosa è successo e si lasciano due strade, senza prenderne
+ * nessuna al posto di chi legge: riprovare — perché il computer potrebbe essere
+ * appena tornato — o rifare l'accoppiamento, che è l'unica cosa che serve se il
+ * telefono è stato tolto davvero dall'elenco.
+ */
+@Composable
+private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Il computer non ti riconosce",
+                color = Banco.testo,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Da qualche secondo risponde che questo telefono non è fra i suoi. " +
+                    "Può essere passeggero: riprova. Se è stato tolto dall'elenco dei " +
+                    "dispositivi, serve rifare l'accoppiamento con il codice QR.",
+                color = Banco.testoQuieto,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(onClick = onRiprova) { Text("Riprova") }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onRiaccoppia) { Text("Rifai l'accoppiamento") }
         }
     }
 }
 
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.voce(
-    attuale: Scheda,
-    quale: Scheda,
-    testo: String,
-    icona: ImageVector,
-    /** Il colore del pallino, o `null` se non c'e' niente da segnalare. */
-    allarme: Color?,
-    onScegli: (Scheda) -> Unit,
-    /** Il numero nel pallino (domande, chat che aspettano): con sette voci non sta nel nome. */
-    numero: Int = 0
-) {
-    NavigationBarItem(
-        selected = attuale == quale,
-        onClick = { onScegli(quale) },
-        icon = {
-            if (allarme != null) {
-                BadgedBox(badge = { Badge(containerColor = allarme) { if (numero > 0) Text("$numero", fontSize = 9.sp) } }) {
-                    Icon(icona, contentDescription = testo)
-                }
-            } else {
-                Icon(icona, contentDescription = testo)
-            }
-        },
-        label = { Text(testo, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-        alwaysShowLabel = true,
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Banco.accento,
-            selectedTextColor = Banco.testo,
-            indicatorColor = Banco.incisione,
-            unselectedIconColor = Banco.testoQuieto,
-            unselectedTextColor = Banco.testoQuieto
-        )
-    )
+/** Ogni quanto l'app chiede lo stato al PC quando non è davanti (app 2.69.0). */
+object PolsoApp {
+    const val DIETRO_OGNI_MS = 15_000L
+    fun tocca(davanti: Boolean, ultimaIl: Long, ora: Long): Boolean = davanti || ora - ultimaIl >= DIETRO_OGNI_MS
+
+    /** Dopo quanti giri uguali di fila lo stato si chiede più di rado (0.83.0). */
+    const val CALMO_DOPO = 5
+    /** Più di rado, ma sotto `Linea.LENTA_DOPO_MS`: la linea non sembra lenta. */
+    const val CALMO_OGNI_MS = 3000L
+
+    /** Ogni quanto si chiede lo stato con l'app davanti: 2 s, 3 s se non cambia da `CALMO_DOPO` giri. */
+    fun davantiOgni(uguali: Int): Long = if (uguali >= CALMO_DOPO) CALMO_OGNI_MS else Linea.KEEPALIVE_OGNI_MS
 }

@@ -9,8 +9,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Il menu principale (app 2.61.0, PC 0.61.0): la fascia in basso ha le stesse
- * sette voci del PC e della pagina, nello stesso ordine e con gli stessi nomi
+ * Il menu principale (app 2.61.0, PC 0.61.0): le sette voci del PC e della
+ * pagina, che dalla 2.83.0 sono le destinazioni dentro le quattro voci della barra, nello stesso ordine e con gli stessi nomi
  * corti. Le voci le scrive il PC in `assets/menu.json`
  * (`tests/shared/menu-principale.test.ts`).
  */
@@ -33,8 +33,6 @@ class MenuPrincipaleTest {
     fun `le voci di prima non ci sono piu`() {
         val nomi = Scheda.entries.map { it.name }
         for (via in listOf("LAVORI", "NEGOZIO", "COMPUTER")) assertFalse(via, via in nomi)
-        // La vecchia scheda «Computer» si è divisa: ogni parte ha la sua voce.
-        assertEquals(listOf("IMPOSTAZIONI", "SALUTE", "PROGETTI", "CHAT"), ParteComputer.entries.map { it.name })
-        assertEquals(listOf("CHAT", "WORKSPACE", "NEGOZIO"), ParteChat.entries.map { it.name })
+        // Dalla 2.83.0 la barra ha quattro voci (`NavigazioneTest`); le sette restano destinazioni.
     }
 }

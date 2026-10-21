@@ -116,3 +116,29 @@ export function voceMenu(id: IdMenu): VoceMenu {
   if (v === undefined) throw new Error(`voce di menu sconosciuta: ${id}`)
   return v
 }
+
+/**
+ * **Le quattro voci del telefono** (0.83.0): app e pagina servita dal PC.
+ * Sette voci in 360 punti erano troppe; sul telefono si raggruppano in
+ * quattro, ognuna con le voci del PC che contiene e le sue linguette in cima.
+ * Ogni funzione resta a due tocchi al massimo. L'app le legge da
+ * `assets/menu.json` (chiave `telefono`) e le controlla in `NavigazioneTest.kt`;
+ * la mappa per esteso sta nel quaderno: `app-android-0-83-0.md`.
+ */
+export type IdTelefono = 'adesso' | 'chat' | 'progetti' | 'altro'
+
+export type VoceTelefono = {
+  id: IdTelefono
+  nome: string
+  /** Le voci del PC che stanno qui dentro. */
+  contiene: readonly IdMenu[]
+  /** Le linguette in cima, nell'ordine (vuoto: una pagina sola). */
+  linguette: readonly string[]
+}
+
+export const MENU_TELEFONO: readonly VoceTelefono[] = [
+  { id: 'adesso', nome: 'Adesso', contiene: ['domande', 'autopiloti'], linguette: [] },
+  { id: 'chat', nome: 'Chat', contiene: ['chat'], linguette: ['Chat', 'Workspace', 'Negozio'] },
+  { id: 'progetti', nome: 'Progetti', contiene: ['progetti', 'file'], linguette: ['Progetti', 'File', 'Drive'] },
+  { id: 'altro', nome: 'Altro', contiene: ['salute', 'impostazioni'], linguette: [] }
+]

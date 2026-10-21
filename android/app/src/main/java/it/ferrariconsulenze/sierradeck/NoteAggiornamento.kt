@@ -167,7 +167,7 @@ fun DialogoNoteAggiornamento(
                     }
                     note.note.forEachIndexed { i, n ->
                         Spacer(Modifier.height(12.dp))
-                        Text(etichettaNota(n, i, note.versione).uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(etichettaNota(n, i, note.versione).uppercase(), color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         for (r in righeNote(n)) {
                             Spacer(Modifier.height(6.dp))
                             if (r.tipo == "voce") {

@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +23,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
@@ -301,19 +301,19 @@ object ProgettiVista {
 private data class DaConfermare(val titolo: String, val testo: String, val bottone: String, val fai: suspend () -> EsitoAzioneDrive)
 
 fun coloreVista(c: String): Color = when (c) {
-    "verde" -> Banco.verde
-    "ambra" -> Banco.ambra
-    "rosso" -> Banco.rosso
+    "verde" -> ColoreStato.verde
+    "ambra" -> ColoreStato.ambra
+    "rosso" -> ColoreStato.rosso
     // 0.80.0: «quieto» è il grigio del PC; prima finiva nel blu qui sotto.
-    "quieto" -> Banco.testoQuieto
+    "quieto" -> ColoreStato.quieto
     // PC 0.71: il ruolo «Interfaccia»; PC 0.82.0: gli altri colori dei ruoli, dalla tabella unica.
-    else -> if (c in TabellaAttivita.colori) Attivita.colore(c) else Color(0xFF4AA3FF)
+    else -> if (c in TabellaAttivita.colori) Attivita.colore(c) else ColoreStato.blu
 }
 
 @Composable
 private fun Titoletto(testo: String, aiuto: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
-        Text(testo.uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(testo.uppercase(), color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         if (aiuto != null) Aiuto(aiuto, di = testo)
     }
 }
@@ -345,9 +345,9 @@ fun SezionePannelloDrive(api: Api) {
     LaunchedEffect(spenta) { if (!spenta) leggi() }
     // Analisi, unione e traslochi lavorano sul PC: finché lavorano, il pannello si rilegge.
     val lavora = p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } == true
-    LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
+    LaunchedEffect(lavora) { while (lavora) { Davanti.pausa(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
     val senzaSpazio = p != null && p?.spazio == null
-    LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { kotlinx.coroutines.delay(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
+    LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { Davanti.pausa(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
 
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.PANNELLO_DRIVE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
@@ -356,6 +356,8 @@ fun SezionePannelloDrive(api: Api) {
 
     // Il dettaglio a tutto schermo: «‹ Progetti» torna all'elenco.
     val sel = scelto?.let { id -> d.progetti.firstOrNull { it.id == id } }
+    // «Indietro» (2.83.0): chiude il dettaglio o lo strumento aperto, invece di uscire dall'app.
+    androidx.activity.compose.BackHandler(enabled = sel != null || strumento != null) { if (sel != null) scelto = null else strumento = null }
     if (sel != null) {
         DettaglioProgetto(d, sel, onIndietro = { scelto = null }, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
     } else {
@@ -383,7 +385,7 @@ fun SezionePannelloDrive(api: Api) {
         if (righe.isEmpty()) Text(if (q.isNotBlank()) "Nessun progetto per «$q»." else if (gruppo == "da-sistemare") "Tutto a posto" else "Nessun progetto in questo gruppo.", color = if (gruppo == "da-sistemare") Banco.verde else Banco.testoQuieto, fontSize = 13.sp)
         for (r in righe.take(quante)) {
             val v = ProgettiVista.vistaDi(r)
-            Column(Modifier.fillMaxWidth().clickable { scelto = r.id; strumento = null }.padding(vertical = 8.dp)) {
+            Column(Modifier.fillMaxWidth().tocco { scelto = r.id; strumento = null }.padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(r.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text("● ${v.stato.parola}", color = coloreVista(v.stato.colore), fontSize = 13.sp)
@@ -436,7 +438,15 @@ fun SezionePannelloDrive(api: Api) {
 private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro: () -> Unit, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
     val v = ProgettiVista.vistaDi(r)
     val ids = r.ids.ifEmpty { listOf(r.id) }
-    TextButton(onClick = onIndietro) { Text("‹ Progetti") }
+    var quaderno by remember(r.id) { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onIndietro, modifier = Modifier.heightIn(min = 48.dp)) { Text("‹ Progetti") }
+        Spacer(Modifier.weight(1f))
+        // Il quaderno del progetto (2.83.0): prima solo dal dettaglio di un suo autopilota.
+        val cartella = r.cartelle.firstOrNull { it.pc == d.io.id }?.percorso ?: r.cartellaTrovata
+        if (cartella != null) TextButton(onClick = { quaderno = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno") }
+        if (quaderno && cartella != null) Quaderno(api, cartella, onChiudi = { quaderno = false })
+    }
     Text(r.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     Text(v.stato.parola + (v.stato.ragione?.let { " · $it" } ?: ""), color = coloreVista(v.stato.colore), fontSize = 13.sp,
         modifier = Modifier.padding(vertical = 4.dp).border(1.dp, coloreVista(v.stato.colore), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp))
@@ -502,7 +512,7 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
     for (c in chat.take(30)) {
         val come = PannelloDriveRegole.comeAprire(c, r)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("●", color = if (c.alLavoroSu.isNotEmpty()) Color(0xFF4AA3FF) else Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
+            Text("●", color = if (c.alLavoroSu.isNotEmpty()) ColoreStato.blu else ColoreStato.quieto, fontSize = 12.sp, modifier = Modifier.padding(end = 6.dp))
             Text(c.titolo, color = Banco.testo, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             when (come) {
                 is AperturaChat.Qui -> TextButton(onClick = { fai({ api.apriChatProgetto(come.cwd, c.sessione, null, c.titolo) }, "aprire la chat") }) { Text("Apri", fontSize = 12.sp) }
@@ -529,7 +539,7 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Trasloco(t: TraslocoDrive, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) { Text("SPOSTAMENTO DI «${t.nome}» SU ${t.verso.nome} · ${TraslocoRegole.stato(t)}", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.", di = "SPOSTAMENTO") }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) { Text("SPOSTAMENTO DI «${t.nome}» SU ${t.verso.nome} · ${TraslocoRegole.stato(t)}", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold); Aiuto("Raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.", di = "SPOSTAMENTO") }
     androidx.compose.material3.LinearProgressIndicator(progress = { TraslocoRegole.percento(t) / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = if (t.fermo != null) Banco.ambra else Banco.verde)
     TraslocoRegole.attuale(t)?.takeIf { t.finitoIl == null }?.let { (id, titolo) -> Text("$titolo: ${TraslocoRegole.passo(t, id).dettaglio ?: "…"}", color = Banco.testo, fontSize = 12.sp) }
     // Un PC spento (PC 0.71.1): il motivo in chiaro, con il nome scelto, e le due scelte.

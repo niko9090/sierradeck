@@ -49,5 +49,50 @@
       "icona": "⚙",
       "spiega": "Solo le preferenze: aggiornamenti, nome del computer e rete, comportamento delle chat, l’account Google, aspetto, notifiche. Niente che abbia già un suo tasto in questa barra."
     }
+  ],
+  "telefono": [
+    {
+      "id": "adesso",
+      "nome": "Adesso",
+      "contiene": [
+        "domande",
+        "autopiloti"
+      ],
+      "linguette": []
+    },
+    {
+      "id": "chat",
+      "nome": "Chat",
+      "contiene": [
+        "chat"
+      ],
+      "linguette": [
+        "Chat",
+        "Workspace",
+        "Negozio"
+      ]
+    },
+    {
+      "id": "progetti",
+      "nome": "Progetti",
+      "contiene": [
+        "progetti",
+        "file"
+      ],
+      "linguette": [
+        "Progetti",
+        "File",
+        "Drive"
+      ]
+    },
+    {
+      "id": "altro",
+      "nome": "Altro",
+      "contiene": [
+        "salute",
+        "impostazioni"
+      ],
+      "linguette": []
+    }
   ]
 }

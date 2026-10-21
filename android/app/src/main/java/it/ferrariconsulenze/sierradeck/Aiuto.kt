@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,8 +56,8 @@ fun Aiuto(testo: String, di: String? = null, modifier: Modifier = Modifier) {
     var aperto by remember { mutableStateOf(false) }
     Box(
         modifier
-            .size(32.dp)
-            .clickable { aperto = true }
+            .size(48.dp)
+            .tocco { aperto = true }
             .semantics { contentDescription = Spiegazioni.descrizione(di) },
         contentAlignment = Alignment.Center
     ) {

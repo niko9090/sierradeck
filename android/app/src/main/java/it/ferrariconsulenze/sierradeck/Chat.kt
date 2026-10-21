@@ -1,7 +1,8 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,8 +14,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,19 +41,24 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.clip
 
@@ -192,7 +214,7 @@ private fun AvvisoChiusa(testo: String?, onVia: () -> Unit) {
         testo,
         color = Banco.testoQuieto,
         fontSize = 13.sp,
-        modifier = Modifier.fillMaxWidth().clickable { onVia() }.padding(horizontal = 12.dp, vertical = 8.dp)
+        modifier = Modifier.fillMaxWidth().tocco { onVia() }.padding(horizontal = 12.dp, vertical = 8.dp)
     )
 }
 
@@ -219,7 +241,7 @@ private fun ElencoChat(
         // La fascia dell'elenco: l'etichetta a stencil dice dove sei, i due
         // gesti stanno a destra dentro un contorno — prima erano due scritte
         // sospese in mezzo al nulla, e non sembravano nemmeno premibili.
-        Fascia {
+        FasciaChat {
             Column(Modifier.weight(1f)) {
                 Serigrafia("Chat")
                 // Da lontano: chi aspetta una tua scelta, chi lavora e chi è
@@ -227,7 +249,7 @@ private fun ElencoChat(
                 Text(
                     riassuntoChat(chat),
                     color = if (chatCheTiAspettano(chat) > 0) Banco.ambra else Banco.testoQuieto,
-                    fontSize = 11.sp, maxLines = 2
+                    fontSize = 12.sp, maxLines = 2
                 )
             }
             // Anche su un altro PC, attraverso il ponte (0.55.0): prima qui
@@ -254,7 +276,7 @@ private fun ElencoChat(
                             Serigrafia(g.workspace, colore = if (g.attivo) Banco.accento else Banco.testoQuieto)
                             if (g.attivo) {
                                 Spacer(Modifier.width(8.dp))
-                                Text("davanti", color = Banco.testoQuieto, fontSize = 11.sp)
+                                Text("davanti", color = Banco.testoQuieto, fontSize = 12.sp)
                             }
                             Spacer(Modifier.weight(1f))
                             Text("${g.voci.size}", color = Banco.testoQuieto, fontSize = 12.sp)
@@ -292,17 +314,19 @@ private fun ElencoChat(
                                             if (viva.pin == "chiusa") Text("🔒 ", fontSize = 12.sp)
                                             Text(nomeChat(viva), color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                             Spacer(Modifier.width(8.dp))
-                                            Text(parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1, softWrap = false)
+                                            Text(parola, color = coloreTono(lettura.tono), fontSize = 12.sp, maxLines = 1, softWrap = false)
+                                            // Il «⋯» della chat anche qui (2.83.0): Rinomina, Sposta, Chiudi… a due tocchi.
+                                            MenuChat(api, viva, workspace, nomePc, versionePc, onLasciata = {})
                                         }
                                     }
                                     // Il progetto e' in mano a un altro PC: una parola quieta, non un avviso.
                                     if (!viva.altrove.isNullOrBlank()) {
-                                        Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                        Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                     }
                                     // Al lavoro in sottofondo (PC 0.69.0): si vede sempre; toccandola la guardi dal vivo,
                                     // e sul PC non cambia niente.
                                     viva.sottofondo?.let { sf ->
-                                        Text("in sottofondo sul PC${if (sf.nome.isNotBlank()) " · ${sf.nome}" else ""} · tocca per guardarla", color = Banco.ambra, fontSize = 11.sp, maxLines = 1)
+                                        Text("in sottofondo sul PC${if (sf.nome.isNotBlank()) " · ${sf.nome}" else ""} · tocca per guardarla", color = Banco.ambra, fontSize = 12.sp, maxLines = 1)
                                     }
                                     if (!viva.ultimaRiga.isNullOrBlank()) {
                                         Spacer(Modifier.height(4.dp))
@@ -335,7 +359,7 @@ private fun ElencoChat(
                                         Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
                                     }
                                     if (!salvata.altrove.isNullOrBlank()) {
-                                        Text("il progetto è in mano a ${salvata.altrove}: riaprila da là, o scrivile da Computer → Altri computer", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
+                                        Text("il progetto è in mano a ${salvata.altrove}: riaprila da là, o scrivile da Computer → Altri computer", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
@@ -393,7 +417,7 @@ private fun ElencoChat(
  * galleggiare sul fondo.
  */
 @Composable
-internal fun Fascia(contenuto: @Composable RowScope.() -> Unit) {
+internal fun FasciaChat(contenuto: @Composable RowScope.() -> Unit) {
     Column {
         Row(
             Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 10.dp, vertical = 8.dp),
@@ -457,10 +481,10 @@ internal fun TastoMisura(
 
 /** Il colore di ogni stato: ambra per ciò che aspetta te, verde per chi lavora, accento per chi è guidato. */
 fun coloreTono(t: TonoChat?): androidx.compose.ui.graphics.Color = when (t) {
-    TonoChat.SCEGLIE -> Banco.ambra
-    TonoChat.LAVORA -> Banco.verde
+    TonoChat.SCEGLIE -> ColoreStato.ambra
+    TonoChat.LAVORA -> ColoreStato.verde
     TonoChat.GUIDATA -> Banco.accento
-    TonoChat.FERMA, TonoChat.SPENTA, null -> Banco.testoQuieto
+    TonoChat.FERMA, TonoChat.SPENTA, null -> ColoreStato.quieto
 }
 
 /** Il LED di una chat: pieno se ha un terminale acceso, solo contorno se è spenta o chiusa (`null`). */
@@ -474,6 +498,3 @@ fun LedChat(tono: TonoChat?) {
             .then(if (tono == null || tono == TonoChat.SPENTA) Modifier.border(1.dp, c, CircleShape) else Modifier.background(c))
     )
 }
-
-/** Nome e modello scelti nella finestra della chat nuova, per chi la apre (la finestra si chiude nello stesso tocco). */
-internal object NuovaChat { var nome: String = ""; var modello: String = "default" }

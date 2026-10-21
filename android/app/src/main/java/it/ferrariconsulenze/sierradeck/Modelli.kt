@@ -322,6 +322,60 @@ data class SceltaScheda(
 @Serializable
 data class DettaglioScheda(val etichetta: String = "", val testo: String = "")
 
+/** Gli specialisti di un autopilota (PC 0.73.0): come è organizzato il lavoro, e uno per chat. */
+@Serializable
+data class Specialisti(val riga: String = "", val elenco: List<Specialista> = emptyList())
+
+@Serializable
+data class Specialista(
+    val id: String = "",
+    val ruolo: String = "",
+    /** Un nome della tabella dei colori (`TabellaAttivita.colori`). */
+    val colore: String = "quieto",
+    val compito: String = "",
+    val stato: String = "",
+    val attivo: Boolean = false,
+    val ultimaAzione: String = "",
+    val sessionId: String? = null,
+    val workspace: String? = null,
+    /** PC 0.74.0: ha finito e la sua chat si è chiusa da sola. */
+    val chiusa: Boolean = false,
+    /** PC 0.82.0: cosa fa, per il colore fisso (`TabellaAttivita`); assente da un PC più vecchio. */
+    val attivita: String? = null,
+    /** PC 0.82.0: cosa fa in parole semplici e da quanto. */
+    val cosa: String = "",
+    val quanto: String = ""
+)
+
+/** La linguetta «File» (0.38.0): i file cambiati, per chat. */
+@Serializable
+data class FileAutopilota(val gruppi: List<GruppoFile> = emptyList())
+
+@Serializable
+data class GruppoFile(
+    val chiave: String = "",
+    val nome: String = "",
+    val cartella: String = "",
+    val ramo: String? = null,
+    val base: String = "",
+    val file: List<FileCambiato> = emptyList(),
+    val errore: String? = null
+)
+
+@Serializable
+data class FileCambiato(
+    val percorso: String = "",
+    val vecchio: String? = null,
+    val stato: String = "modificato",
+    val piu: Int = 0,
+    val meno: Int = 0,
+    val salvato: Boolean = false,
+    val binario: Boolean? = null
+)
+
+@Serializable
+data class DiffFile(val diff: String = "")
+
 @Serializable
 data class Conversazione(
     val chiave: String = "",
@@ -354,6 +408,120 @@ fun aspettaTe(c: Conversazione): Boolean = c.vista?.let { it.id != "finito" } ?:
 /** PC 0.73.1: nel numero solo chi aspetta davvero; le risposte già date dall'autopilota stanno nella lista, non nel conto. */
 fun contaAspettanoTe(tutte: List<Conversazione>): Int =
     tutte.count { c -> c.vista?.let { it.id != "finito" && it.id != "risposta" } ?: c.chiede }
+
+/** Un nodo dell'albero delle chat di un autopilota (T7, 0.36.0). */
+@Serializable
+data class RuoloChat(val id: String = "", val nome: String = "", val parola: String = "", val colore: String = "quieto")
+
+@Serializable
+data class NodoAlbero(
+    /** PC 0.71: il ruolo della chat (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio) e se il suo ramo è approvato. */
+    val ruolo: RuoloChat? = null,
+    val revisioneDi: String? = null,
+    val approvata: Boolean = false,
+    val id: String = "",
+    /** "coordinatore" o "chat". */
+    val tipo: String = "chat",
+    val titolo: String = "",
+    val stato: String = "",
+    val parola: String = "",
+    val ramo: String? = null,
+    val cartella: String? = null,
+    val cicli: Int = 0,
+    val figli: List<NodoAlbero> = emptyList()
+)
+
+@Serializable
+data class AutopilotaBreve(
+    val id: String,
+    val nome: String = "",
+    /** intervista | pronto | lavoro | attesa | sospeso | finito | fallito */
+    val stato: String = "",
+    /** Colore/urgenza del LED, deciso dal desktop. */
+    val led: String = "",
+    val cicli: Int = 0,
+    val strategia: String = "",
+    val motivo: String = "",
+    val cwd: String = "",
+    val fatti: Int = 0,
+    val criteri: Int = 0,
+    /** Si vede sempre chi lavora (PC 0.69.0): le parole le decide il PC. */
+    val dalVivo: StatoDalVivo? = null,
+    /** PC 0.70: lo stato in una parola, i criteri, l'ultima azione, il verbo. */
+    val vista: VistaAutopilotaApp? = null
+)
+
+@Serializable data class CriteriVistaApp(val fatti: Int = 0, val totali: Int = 0, val testo: String = "—")
+@Serializable data class VistaAutopilotaApp(
+    val stato: StatoVistaDrive = StatoVistaDrive(), val criteri: CriteriVistaApp = CriteriVistaApp(),
+    val ultima: String = "", val da: String = "", val azione: String = "nessuna"
+)
+
+/** La riga sotto il nome di un autopilota (PC 0.70): «da 6 min · criteri 0/1». */
+fun sottoAutopilota(v: VistaAutopilotaApp): String = listOfNotNull(v.da.takeIf { it.isNotBlank() }?.let { "da $it" }, "criteri ${v.criteri.testo}").joinToString(" · ")
+
+@Serializable
+data class RigaAdesso(
+    val id: String = "",
+    val chi: String = "",
+    val compito: String = "",
+    val testo: String = "",
+    /** lavoro | aspetta | pausa | ferma */
+    val tono: String = "lavoro"
+)
+
+/**
+ * Il riquadro «Adesso» (PC 0.81.0): cosa fa ogni chat dell'autopilota, da
+ * quanto, e se è ferma perché. Le righe sono già scritte dal PC.
+ */
+@Serializable
+data class Adesso(
+    val righe: List<RigaAdesso> = emptyList(),
+    val finite: Int = 0,
+    val aiuto: String = ""
+)
+
+/** Lo stesso colore del PC (`COLORE_ADESSO`). */
+fun coloreAdesso(tono: String): String = when (tono) {
+    "ferma" -> "rosso"
+    "aspetta" -> "ambra"
+    "pausa" -> "quieto"
+    else -> "verde"
+}
+
+/** «2 chat finite»: le finite non hanno una riga ciascuna. */
+fun righeFinite(n: Int): String? = when {
+    n <= 0 -> null
+    n == 1 -> "1 chat finita"
+    else -> "$n chat finite"
+}
+
+/** «al lavoro · da 12 min», l'ultima azione, «nessun segno da 10 min» (PC 0.69.0). */
+@Serializable
+data class StatoDalVivo(
+    val etichetta: String = "",
+    val da: String = "",
+    val ultimaAzione: String = "",
+    val senzaSegni: String? = null
+)
+
+/**
+ * La parola di una chat governata (0.80.0, come `chatAlLavoro` del PC): segnata
+ * «lavoro» ma con l'autopilota fermo non è al lavoro.
+ */
+fun parolaChatGovernata(statoAutopilota: String, statoChat: String): String = when (statoChat) {
+    "lavoro" -> if (statoAutopilota == "lavoro" || statoAutopilota == "attesa" || statoAutopilota == "intervista") "al lavoro" else "ferma: l’autopilota è fermo"
+    "bloccata" -> "ferma, aspetta una risposta"
+    else -> "finita"
+}
+
+/** Il colore della parola dal vivo, come `COLORE_DAL_VIVO` del PC (0.80.0): «fermo» è rosso. */
+fun tonoDalVivo(etichetta: String): String = when (etichetta) {
+    "al lavoro" -> "verde"
+    "aspetta te" -> "ambra"
+    "fermo" -> "rosso"
+    else -> "quieto"
+}
 
 /** Un messaggio verso la chat e il suo stato vero (PC 0.69.0). */
 @Serializable
@@ -406,308 +574,3 @@ data class ChatSalvata(
     /** Il progetto di questa chat e' in mano a un altro PC: il suo nome. */
     val altrove: String? = null
 )
-
-// ─── /api/dentro ───  (le ultime righe del terminale di UNA chat)
-@Serializable
-data class Dentro(
-    val chat: String = "",
-    val titolo: String = "",
-    /** Righe ripulite (senza codici ANSI). */
-    val righe: List<String> = emptyList(),
-    /** Righe grezze con i codici ANSI: sono queste che la nativa colora. */
-    val grezze: List<String> = emptyList(),
-    val continua: List<Boolean> = emptyList(),
-    val colonne: Int = 0,
-    val scelte: Scelte? = null
-)
-
-// ─── /api/consumi ───
-@Serializable
-data class Consumi(
-    val oggi: Quota = Quota(),
-    val settimana: Quota = Quota(),
-    val totale: Quota = Quota(),
-    /** I limiti del piano, letti dal computer (dalla 0.31): finestra di 5 ore e settimana. */
-    val limiti: Limiti? = null,
-    /** La spesa che Claude Code stima, in dollari. */
-    val costo: Costo? = null,
-    /** Le chat aperte sul computer con il loro contesto, gia' detto in parole (dalla 0.37). */
-    val chatAperte: List<ChatConsumo> = emptyList(),
-    /** Cosa farebbe adesso il freno degli autopiloti con questi limiti (dalla 0.37). */
-    val freno: FrenoConsumi? = null
-)
-
-/**
- * Una finestra del piano. Dalla 0.37 il computer manda anche `stato`
- * («fresca», «vecchia», «azzerata») e `etichetta`, la frase intera — la
- * stessa della console e della pagina: l'app la mostra cosi' com'e'.
- */
-@Serializable
-data class Finestra(
-    val percento: Double = 0.0,
-    val resettaIl: Long? = null,
-    val stato: String? = null,
-    val etichetta: String? = null,
-    /** PC 0.70: la parola (libero, attento, pieno, vecchia, attesa) con il colore. */
-    val vista: StatoVistaDrive? = null
-)
-
-@Serializable
-data class ContestoChat(val percento: Int = 0, val usati: Long = 0, val dimensione: Long = 0)
-
-@Serializable
-data class ChatConsumo(
-    val sessione: String = "",
-    val titolo: String? = null,
-    val modello: String? = null,
-    val contesto: ContestoChat? = null,
-    val contestoEtichetta: String? = null,
-    /** PC 0.70: il contesto in una parola (libera, piena, riassumi). */
-    val vista: StatoVistaDrive? = null
-)
-
-@Serializable
-data class FrenoConsumi(val livello: String = "", val titolo: String = "", val spiegazione: String = "", val motivo: String = "")
-
-@Serializable
-data class Limiti(val cinqueOre: Finestra? = null, val settimana: Finestra? = null, val letti: Long = 0, val modello: String? = null)
-
-@Serializable
-data class Costo(val oggi: Double = 0.0, val settimana: Double = 0.0, val totale: Double = 0.0, val chat: Int = 0)
-
-@Serializable
-data class Quota(
-    val ingresso: Long = 0,
-    val uscita: Long = 0,
-    val cache: Long = 0,
-    val chat: Int = 0
-)
-
-// ─── /api/cartelle ───  (è una lista di percorsi, non di oggetti)
-@Serializable
-data class Cartelle(val cartelle: List<String> = emptyList())
-
-// ─── /api/preferenze ───
-@Serializable
-data class PreferenzeInvolucro(val preferenze: Preferenze = Preferenze())
-
-@Serializable
-data class Preferenze(
-    /** banco | foglio */
-    val stile: String = "banco",
-    /** Chiarore del fondo, 0..100. */
-    val chiarore: Int = 20
-)
-
-// ─── /api/aggiornamento (del computer) ───
-@Serializable
-data class Aggiornamento(
-    val fase: String = "",
-    val versione: String? = null,
-    val percento: Int? = null,
-    val errore: String? = null,
-    /**
-     * Quante chat stanno finendo quello che avevano in mano, in fase «attendo».
-     *
-     * Fra «Installa» e il computer che si chiude c'e' un'attesa vera: un
-     * aggiornamento non uccide piu' le chat dove sono arrivate, aspetta che
-     * ognuna chiuda il turno. Senza questo numero, da qui si vedrebbe un tasto
-     * premuto e nient'altro - e un'attesa legittima di due minuti e' identica
-     * a un tasto rotto.
-     */
-    val chatOccupate: Int? = null,
-    /**
-     * Cosa aspetta, quando non sono le chat: il lavoro con il Drive, con il
-     * conto dei file. Manca sui computer prima della 0.28.1.
-     */
-    val attesa: String? = null,
-    /** Le chat che si aspettano, con i nomi (PC 0.67.1). */
-    val attesaChat: String? = null,
-    /**
-     * Quello che l'installer sta scrivendo **adesso**, parola per parola.
-     *
-     * Arriva solo mentre il computer si sta aggiornando, e non lo manda
-     * SierraDeck — che in quel momento e' chiuso — ma l'installer stesso, che
-     * prende in prestito la porta rimasta libera. Quando c'e', questa e' la
-     * verita' e non si deduce piu' niente dal silenzio.
-     */
-    val testo: String? = null,
-    /**
-     * L'ultima installazione sul computer non e' riuscita (0.39.2): al riavvio
-     * era ancora sulla versione di prima. Manca sui computer piu' vecchi.
-     */
-    val tentativoFallito: TentativoFallitoPc? = null
-)
-
-/** Il perche' e le strade di un'installazione non riuscita, scritti dal computer. */
-@Serializable
-data class TentativoFallitoPc(
-    val versione: String = "",
-    val da: String = "",
-    val quando: String = "",
-    val titolo: String = "",
-    val motivo: String = "",
-    val strade: List<String> = emptyList(),
-    val pagina: String = ""
-)
-
-// ─── /api/sessioni ───
-/** `nascoste` (PC 0.60.0): le chat senza nome fuori dall'elenco, non cancellate. */
-@Serializable
-data class Sessioni(val sessioni: List<SessioneRipresa> = emptyList(), val nascoste: Int = 0)
-
-@Serializable
-data class SessioneRipresa(
-    val id: String = "",
-    val cwd: String = "",
-    val titolo: String = "",
-    val quando: String = "",
-    /**
-     * La cartella di questa chat sta su un altro PC: il suo nome. Riprenderla
-     * qui non si puo' (il computer risponde 409 e lo spiega); si vede, per
-     * sapere dove andarla a cercare.
-     */
-    val altrove: String? = null,
-    /**
-     * Quel PC e' acceso adesso (dal suo battito sul Drive, 0.35.0): e' la
-     * stessa etichetta del computer, «su X · acceso» o «spento». Assente nei
-     * computer piu' vecchi.
-     */
-    val altroveAcceso: Boolean? = null,
-    /** L'id di quel PC (PC 0.58.4): per scriverle da qui, e là parte in sottofondo. */
-    val altrovePc: String? = null,
-    /** Senza nome (PC 0.60.0): c'è solo con «mostra anche le senza nome». */
-    val senzaNome: Boolean = false
-)
-
-// ─── risposta generica delle azioni ───
-@Serializable
-data class Fatto(val fatto: Boolean = false, val autopilota: String? = null)
-
-// ─── il recupero dei workspace eliminati (PC 0.81.0) ───
-@Serializable
-data class VoceRecuperoWs(val nome: String, val eliminatoIl: String, val scadeIl: String = "", val chat: Int = 0, val da: String? = null)
-
-@Serializable
-data class RecuperoWs(val voci: List<VoceRecuperoWs> = emptyList(), val senzaRecupero: Boolean = false)
-
-@Serializable
-data class Ripristinato(val fatto: Boolean = false, val nome: String? = null)
-
-/**
- * Un pezzo di conversazione, e quanto ce n’è in tutto.
- *
- * `da` è l’indice della prima riga di questo pezzo dentro tutta la
- * cronologia: con quello e `totale` si sa se sopra c’è ancora roba, e quindi
- * se ha senso offrire di risalire.
- */
-@Serializable
-data class Storia(
-    val chat: String = "",
-    val totale: Int = 0,
-    val da: Int = 0,
-    val righe: List<String> = emptyList(),
-    val grezze: List<String> = emptyList(),
-    /** Riga per riga: continua la precedente, spezzata solo dal terminale del PC (PC 0.52.6). */
-    val continua: List<Boolean> = emptyList(),
-    /** Le colonne del terminale del PC (PC 0.52.6; 0 = PC più vecchio). */
-    val colonne: Int = 0,
-    /**
-     * Le scelte che il terminale sta aspettando, quando ne aspetta.
-     *
-     * Ha un valore predefinito, come tutto qui dentro, e non per abitudine: un
-     * computer con una versione precedente non manda questo campo, e senza il
-     * predefinito la lettura della risposta fallirebbe **tutta** — cioe' una
-     * schermata vuota al posto della chat.
-     */
-    val scelte: Scelte? = null
-)
-
-/**
- * Un elenco di scelte disegnato dal terminale, reso toccabile.
- *
- * Quando Claude Code chiede «vuoi riprendere questa conversazione?» non aspetta
- * parole: aspetta una freccia e un invio. Su un telefono quei tasti non
- * esistono, e senza questi pulsanti la domanda si poteva solo leggere.
- */
-@Serializable
-data class Scelte(
-    val opzioni: List<Opzione> = emptyList(),
-    /** Su quale riga e' fermo il cursore adesso. */
-    val corrente: Int = 0,
-    /** Scelta multipla (PC 0.52.5): ogni tocco spunta, «Submit» manda. */
-    val multipla: Boolean = false
-)
-
-@Serializable
-data class Opzione(
-    val numero: Int = 0,
-    val testo: String = "",
-    /** Quella su cui il cursore e' fermo: e' anche quella che prenderebbe un invio secco. */
-    val scelta: Boolean = false,
-    /** La spiegazione sotto l'opzione, nelle domande di Claude Code (PC 0.52.5). */
-    val descrizione: String = "",
-    /** «Type something.»: si risponde scrivendo nel campo, non toccando. */
-    val libera: Boolean = false,
-    /** Scelta multipla: la casella è spuntata (null = non è una casella). */
-    val spuntata: Boolean? = null,
-    /** Scelta multipla: la riga «Submit», che manda le spunte. */
-    val invio: Boolean = false
-)
-
-/** Chi è entrato sul computer. Sola lettura. */
-@Serializable
-data class Account(
-    val entrato: Boolean = false,
-    val email: String? = null,
-    /** PC 0.70: la catena Account → Drive → Cassaforte → Salvataggio, con le parole decise dal PC. */
-    val catena: CatenaAccount? = null
-)
-
-@Serializable
-data class TesseraAccount(val id: String = "", val titolo: String = "", val vista: StatoVistaDrive? = null, val sotto: String? = null)
-
-@Serializable
-data class PassoAccount(val id: String = "", val testo: String = "")
-
-@Serializable
-data class CatenaAccount(val tessere: List<TesseraAccount> = emptyList(), val prossimo: PassoAccount? = null)
-
-/** La riga «Prossimo passo, sul computer: …» della catena; null se è tutto a posto o se il PC è di prima. */
-fun passoAccount(a: Account?): String? = a?.catena?.prossimo?.testo?.takeIf { it.isNotBlank() }?.let { "Prossimo passo, sul computer: $it" }
-
-/** Chi risponde dall’altra parte, e con quale versione. */
-@Serializable
-data class Ciao(val programma: String = "", val versione: String = "")
-
-/** Una cartella dentro cui si può scendere. */
-@Serializable
-data class VoceCartella(val nome: String = "", val percorso: String = "")
-
-/**
- * Un giro di sfoglio del disco del computer.
- *
- * Senza percorso arrivano i punti di partenza — dischi, cartella dell'utente,
- * progetti già noti — perché su un telefono risalire una gerarchia dalla radice
- * è l'unica cosa peggiore che digitare un percorso di Windows a mano.
- */
-@Serializable
-data class Sfoglia(
-    val percorso: String = "",
-    /** La cartella che contiene questa: il tasto «su». Assente in cima. */
-    val su: String? = null,
-    val voci: List<VoceCartella> = emptyList(),
-    val radici: Boolean = false,
-    /** Qui dentro c'è già un progetto Claude Code. */
-    val progetto: Boolean = false
-)
-
-/** L'app da scaricare, come la sa il computer (`/api/app`): versione dell'APK e indirizzo. */
-@Serializable
-data class AppScaricabile(
-    val versione: String = "",
-    val url: String = ""
-)
-
-/** Il nome da mostrare di una chat: quello distinto del PC 0.70 («Nome #2»), poi il titolo, poi la cartella. */
-fun nomeChat(c: Chat): String = c.nome?.takeIf { it.isNotBlank() } ?: c.titolo.ifBlank { c.cwd }

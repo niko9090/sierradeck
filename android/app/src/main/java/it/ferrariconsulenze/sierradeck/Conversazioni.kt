@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -76,10 +75,10 @@ fun domandeInAttesa(s: Stato): Int = s.domandeInAttesa ?: (s.domande.size + s.ch
  * mostrano la stessa cosa.
  */
 @Composable
-fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}) {
-    var apertaChiave by remember { mutableStateOf<String?>(null) }
+fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}, iniziale: String? = null) {
+    var apertaChiave by remember { mutableStateOf(iniziale) }
     // PC 0.70: di partenza solo quello che aspetta davvero te; le chat che hanno finito il turno in «Tutte».
-    var soloAspettano by remember { mutableStateOf(true) }
+    var soloAspettano by remember { mutableStateOf(tutte.firstOrNull { it.chiave == iniziale }?.let { aspettaTe(it) } ?: true) }
     val nAspettano = contaAspettanoTe(tutte)
     val elenco = if (soloAspettano && tutte.any { aspettaTe(it) }) tutte.filter { aspettaTe(it) } else tutte
     val aperta = elenco.firstOrNull { it.chiave == apertaChiave } ?: elenco.first()
@@ -120,7 +119,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
         ) {
             if (nAspettano > 0 && nAspettano < tutte.size) {
                 Text(if (soloAspettano) "Aspettano te $nAspettano · Tutte ${tutte.size} ›" else "‹ Solo chi aspetta te ($nAspettano)", color = Banco.accento, fontSize = 13.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable { soloAspettano = !soloAspettano }.padding(horizontal = 8.dp, vertical = 8.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).tocco { soloAspettano = !soloAspettano }.padding(horizontal = 8.dp, vertical = 8.dp))
             }
             for (c in elenco) {
                 val sel = c.chiave == aperta.chiave
@@ -128,11 +127,11 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     Modifier
                         .clip(RoundedCornerShape(16.dp))
                         .border(if (sel) 2.dp else 1.dp, if (sel) Banco.accento else Banco.incisione, RoundedCornerShape(16.dp))
-                        .clickable { apertaChiave = c.chiave }
+                        .tocco { apertaChiave = c.chiave }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(c.vista?.let { coloreVista(it.colore) } ?: if (c.chiede) Banco.ambra else Banco.testoQuieto))
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(c.vista?.let { coloreVista(it.colore) } ?: if (c.chiede) ColoreStato.ambra else ColoreStato.quieto))
                     Spacer(Modifier.width(6.dp))
                     Text(titoloConSegno(c), color = if (c.suPc != null) ColoreRemoto else Banco.testo, fontSize = 13.sp, maxLines = 1, fontWeight = if (sel || c.suPc != null) FontWeight.Bold else FontWeight.Normal)
                 }
@@ -141,7 +140,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
             Text(
                 (aperta.vista?.let { "${it.parola} · " } ?: if (aperta.tipo == "autopilota") "Autopilota · " else if (aperta.chiede) "Chat · aspetta che tu scelga · " else "Chat · ha finito il turno · ") + aperta.sotto,
-                color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2
+                color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2
             )
             // Le domande di un autopilota si rispondono nella sua scheda,
             // linguetta «Domande», una per volta (0.38.0).
@@ -172,13 +171,15 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     },
                     onScrivi = { t -> manda({ api.rispondiConversazione(aperta.risposta, t) }, t) }
                 )
-                inAttesa.lastOrNull()?.let { Text("mandato: «$it», aspetto il computer", color = Banco.testoQuieto, fontSize = 11.sp) }
+                inAttesa.lastOrNull()?.let { Text("mandato: «$it», aspetto il computer", color = Banco.testoQuieto, fontSize = 12.sp) }
                 nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
             }
             return@Column
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = lista) {
-            items(aperta.messaggi) { m ->
+            // Chiavi stabili (0.83.0): un messaggio nuovo in fondo non fa ridisegnare gli altri.
+            val chiavi = ChiaviElenco.di(aperta.messaggi, ChiaviElenco::messaggio)
+            itemsIndexed(aperta.messaggi, key = { i, _ -> chiavi[i] }) { _, m ->
                 Messaggio(m, aperta, inCorso) { o ->
                     // Una chat: si sceglie nell'elenco del terminale. Un autopilota
                     // (domande iniziali, «Pubblico adesso?»): toccare un'opzione e'
@@ -190,7 +191,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
                 }
             }
-            items(inAttesa) { t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
+            val inAttesaChiavi = ChiaviElenco.di(inAttesa) { "attesa|${it.hashCode()}" }
+            itemsIndexed(inAttesa, key = { i, _ -> inAttesaChiavi[i] }) { _, t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
         }
         Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp)) {
             nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
@@ -221,7 +223,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
             TastoMicrofono(testo) { testo = it.take(50_000) }
             Text(
                 if (aperta.risposta.via == "rispondi") "La risposta arriva subito alla chat ferma." else "Arriva nella chat come se l’avessi scritto lì.",
-                color = Banco.testoQuieto, fontSize = 11.sp
+                color = Banco.testoQuieto, fontSize = 12.sp
             )
         }
     }
@@ -233,7 +235,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
     if (m.da == "nota") {
         Text(
             (m.quando?.drop(11)?.take(5)?.let { "$it  " } ?: "") + m.testo,
-            color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale,
+            color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale,
             modifier = Modifier.padding(vertical = 2.dp)
         )
         return
@@ -251,7 +253,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
         ) {
             Text(
                 chi ?: ((if (tuo) "tu" else c.titolo) + (m.quando?.drop(11)?.take(5)?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")),
-                color = Banco.testoQuieto, fontSize = 11.sp
+                color = Banco.testoQuieto, fontSize = 12.sp
             )
             // Il testo si seleziona e si copia (tocco lungo).
             SelectionContainer { Text(m.testo, color = Banco.testo, fontSize = 14.sp) }
@@ -266,7 +268,7 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
                             .clip(RoundedCornerShape(8.dp))
                             .background(Banco.fondo)
                             .border(if (o.scelta) 2.dp else 1.dp, if (o.scelta) Banco.ambra else Banco.incisione, RoundedCornerShape(8.dp))
-                            .clickable(enabled = !occupato) { onOpzione(o) }
+                            .tocco(enabled = !occupato) { onOpzione(o) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

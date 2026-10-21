@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { sorgentiApp } from '../android/sorgenti-app'
 
 /**
  * La finestra di creazione dell'autopilota dice la stessa cosa sui tre lati
@@ -11,7 +10,7 @@ describe('i testi della creazione: «va sul cloud» = le chat stanno sul Drive',
   const lati = {
     pc: readFileSync('src/renderer/components/PannelloAutopiloti.tsx', 'utf8'),
     pagina: readFileSync('src/main/client-pagina.ts', 'utf8'),
-    app: sorgentiApp()
+    app: readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Delega.kt', 'utf8')
   }
 
   it('la spunta si chiama allo stesso modo su PC, pagina e app', () => {

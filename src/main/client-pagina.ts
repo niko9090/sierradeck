@@ -26,12 +26,16 @@ import {
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
-import { MENU_PRINCIPALE } from '@shared/menu-principale'
+import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
+import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
+
+/** I segni delle quattro voci nella fascia (0.83.0): si leggono anche in piccolo, mai emoji. */
+const ICONE_TELEFONO: Record<IdTelefono, string> = { adesso: '◉', chat: '▭', progetti: '▦', altro: '☰' }
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -113,7 +117,7 @@ function componiPagina(): string {
        il Foglio sul computer non cambiava niente qui. Questi sono i valori del
        telefono - piu' grandi, perche' 10px a braccio teso non si leggono - e
        vestiti() li rimette sopra quelli del computer, sugli stessi nomi. */
-    --t0: 11px; --t1: 13px; --t2: 15px; --t3: 17px; --t4: 22px;
+    --t0: 0.75rem; --t1: 0.8125rem; --t2: 0.9375rem; --t3: 1.0625rem; --t4: 1.375rem;
     --s1: 6px; --s2: 12px; --s3: 18px; --s4: 28px;
     /* Il raggio arriva come arriva: l'identita' non si adatta. I 14px di prima
        erano la ragione singola per cui questa pagina sembrava un modulo web
@@ -123,15 +127,15 @@ function componiPagina(): string {
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0; background: var(--fondo-cupo); color: var(--testo);
-    font: 16px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font: 100%/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
   header {
     position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
     padding: 14px 16px; background: var(--fondo); border-bottom: 1px solid var(--bordo);
   }
-  header b { font-size: 15px; letter-spacing: .04em; }
-  header span { margin-left: auto; font-size: 12px; color: var(--testo-quieto); }
+  header b { font-size: 0.9375rem; letter-spacing: .04em; }
+  header span { margin-left: auto; font-size: 0.75rem; color: var(--testo-quieto); }
   /* «minmax(0, 1fr)» e non «1fr»: in una griglia la colonna cresce fino al
      contenuto piu' largo, e basta una riga di terminale che non va a capo
      perche' **tutte** le piastrelle diventino piu' larghe dello schermo. Cosi'
@@ -146,9 +150,9 @@ function componiPagina(): string {
      chat e vedi lampeggiare in fondo che qualcuno ti aspetta. */
   .fascia {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    /* Le sette voci del menu principale (0.61.0), sette colonne: i nomi
-       lunghi vanno a capo al trattino morbido invece di uscire. */
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    /* Le quattro voci dell'app (0.83.0), quattro colonne: il nome sta su una
+       riga, grande quanto il testo che il telefono ha scelto. */
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
     background: var(--fondo); border-top: 1px solid var(--bordo);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -157,6 +161,21 @@ function componiPagina(): string {
     min-height: 56px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto);
   }
   .fascia__voce--qui { color: var(--testo); background: var(--chassis); }
+  .fascia__voce--qui .fascia__icona { color: var(--accento); }
+  /* Il pallino di una voce (0.83.0), come il Badge dell'app: il colore dalla
+     tabella del PC (ambra aspetta te, rosso fermo), il numero in nero sopra. */
+  .fascia__pallino {
+    position: absolute; top: -6px; left: calc(100% + 2px); min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; color: #000; font-size: 0.75rem; font-weight: 700; line-height: 18px; text-align: center;
+  }
+  .fascia__pallino:empty { min-width: 10px; width: 10px; height: 10px; padding: 0; top: -2px; }
+  /* Le linguette in cima a Chat e Progetti (0.83.0): tasti alti 48 px. */
+  .linguette { display: flex; gap: 4px; border-bottom: 1px solid var(--bordo); }
+  .linguetta { flex: 1 1 0; min-height: 48px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto); font-size: var(--t2); }
+  .linguetta--qui { color: var(--testo); font-weight: 700; box-shadow: inset 0 -3px 0 var(--accento); }
+  /* L'elenco di Altro (0.83.0): una voce per riga, alta almeno 48 px. */
+  .cartella.voce-altro { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; width: 100%; min-height: 56px; text-align: left; }
+  .voce-altro .sotto { margin: 0; }
   /* La Panoramica sul telefono (0.77.0): schede alte 96 px, 2 righe dal vivo. */
   .pan-tel { margin: 8px 0; }
   .pan-tel-riga { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
@@ -169,8 +188,8 @@ function componiPagina(): string {
   .pan-tel-testa { display: flex; gap: 6px; align-items: baseline; overflow: hidden; white-space: nowrap; }
   .pan-tel-scheda--chiede .pan-tel-pallino { color: var(--ambra); } .pan-tel-scheda--lavora .pan-tel-pallino { color: var(--verde); }
   .segno-attivita { font-weight: 700; flex: none; } /* 0.82.0: il simbolo di cosa fa una chat, nel suo colore fisso */
-  .pan-tel-azione { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 11px; color: var(--testo-quieto); }
+  .pan-tel-azione { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 0.75rem; color: var(--testo-quieto); }
   .pan-tel-righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Panoramica 2 (0.78.0): situazione, adesso, piano a liste, chat, finite; tocchi da 48 px. */
   .pan-tel2 .serigrafia { margin-top: 12px; }
@@ -179,14 +198,14 @@ function componiPagina(): string {
   .pan-tel-al-lavoro { display: flex; gap: 8px; align-items: flex-start; width: 100%; min-height: 48px; margin-top: 6px; padding: 8px 10px; text-align: left; border: 1px solid var(--incisione); border-left: 3px solid var(--verde); border-radius: 8px; background: none; color: var(--testo); font: inherit; }
   .pan-tel-al-lavoro--chiede { border-left-color: var(--ambra); }
   .pan-tel-al-lavoro__testo { display: flex; flex-direction: column; min-width: 0; }
-  .nota-ap.nota-ap--traguardo { font-size: 13px; color: var(--testo); border-left-color: var(--verde); }
+  .nota-ap.nota-ap--traguardo { font-size: 0.8125rem; color: var(--testo); border-left-color: var(--verde); }
   /* Il campo per scrivere all'autopilota resta in fondo allo schermo, sopra la fascia (0.79.0, con .ancorata). */
   .casella-ap { z-index: 2; }
   /* Compatto (prova dal vero del 18/10): alto 190 px copriva la fine della conversazione. */
   .casella-ap { border-top: 1px solid var(--bordo, #2a2f3a); }
   .casella-ap .riga { margin: 4px 0; }
   .casella-ap textarea { min-height: 52px; max-height: 30vh; }
-  .casella-ap button { min-height: 40px; padding: 4px 12px; }
+  .casella-ap button { min-height: 48px; padding: 4px 12px; }
   .pan-tel-situazione { display: flex; flex-direction: column; gap: 4px; }
   .pan-tel-obiettivo { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-apri { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 4px; padding: 0 8px; text-align: left; background: none; border: 0; border-top: 1px solid var(--bordo, #2a2f3a); color: var(--testo); }
@@ -199,9 +218,9 @@ function componiPagina(): string {
   .pan-tel-compito { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 48px; margin-top: 6px; padding: 8px 10px; text-align: left; border: 1px solid var(--bordo, #2a2f3a); border-radius: 8px; background: var(--chassis); color: var(--testo); }
   .pan-tel-compito--chiuso { color: var(--testo-quieto); }
   .pan-tel-compito__testo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .pan-tel-eventi .nota-ap { font-size: 12px; }
-  .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
-  .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
+  .pan-tel-eventi .nota-ap { font-size: 0.75rem; }
+  .fascia__nome { font-size: 0.8125rem; line-height: 1.15; letter-spacing: .02em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 2px; }
+  .fascia__icona { position: relative; font-size: 1.125rem; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
   .fascia .led { margin-right: 0; }
   /* Una destinazione senza niente da segnalare non porta un puntino grigio:
@@ -214,7 +233,7 @@ function componiPagina(): string {
   .drive-riga .led { margin-top: 4px; flex: 0 0 auto; }
   .drive-riga__testo { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
   .drive-riga summary { color: var(--testo-quieto); cursor: pointer; margin-top: 2px; }
-  .drive-riga__chiudi { flex: 0 0 auto; min-width: 36px; min-height: 36px; background: none; border: 0; color: var(--testo-quieto); font-size: 18px; }
+  .drive-riga__chiudi { flex: 0 0 auto; min-width: 48px; min-height: 48px; background: none; border: 0; color: var(--testo-quieto); font-size: 1.125rem; }
   .piastrella {
     background: var(--chassis); border: 1px solid var(--bordo);
     border-radius: var(--raggio); padding: var(--s3);
@@ -229,7 +248,10 @@ function componiPagina(): string {
     width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; margin-left: 6px;
     border-radius: 50%; font-size: var(--t1); font-weight: 700; line-height: 1;
     color: var(--testo-quieto); background: var(--chassis); border: 1px solid var(--luce-incisione);
+    position: relative;
   }
+  /* Il «?» resta piccolo da vedere ma si tocca su 48px (0.83.0). */
+  .aiuto::after { content: ''; position: absolute; inset: -12px; }
   .aiuto--aperto { color: var(--testo); border-color: var(--testo-quieto); }
   .aiuto-testo {
     display: block; width: 100%; flex-basis: 100%; box-sizing: border-box; margin: 6px 0;
@@ -304,7 +326,7 @@ function componiPagina(): string {
 
   /* Quando il computer non risponde. Non un avviso fra gli altri: cambia il
      significato di tutto quello che sta sotto, quindi sta sopra tutto. */
-  .linea-pagina { margin: 6px 16px 0; font-size: 12px; opacity: .8; cursor: pointer; letter-spacing: .5px; }
+  .linea-pagina { margin: 6px 16px 0; font-size: 0.75rem; opacity: .8; cursor: pointer; letter-spacing: .5px; }
   .linea-pagina--giu { color: #dc5f5f; opacity: 1; }
   .linea-pagina--ambra { color: #e0a33c; }
   .schermata--giu .dentro, .schermata--giu .voce, .schermata--giu .piastrella:not(.linea-fascia) { opacity: .5; filter: grayscale(.6); }
@@ -348,7 +370,7 @@ function componiPagina(): string {
   .testata-dentro { display: flex; align-items: center; gap: var(--s2); }
   .testata-dentro__nome { flex: 1; min-width: 0; font-size: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .indietro, .altro {
-    min-width: 44px; min-height: 44px; padding: 0; font-size: var(--t4);
+    min-width: 48px; min-height: 48px; padding: 0; font-size: var(--t4);
     background: none; border: 0; box-shadow: none; color: var(--testo-quieto);
   }
   /* Il percorso e' un dettaglio, non un titolo: tagliato **da sinistra**,
@@ -361,6 +383,13 @@ function componiPagina(): string {
   .dentro--alto { max-height: none; height: 58vh; }
   /* Il campo di risposta e' l'unico testo che si scrive da un telefono, e sta
      dove arriva il pollice. */
+  /* 0.83.0 (c-509, Nicholas: «troppe info che occupano tutto lo schermo»): una
+     riga riassuntiva; chiusa, sotto ci sono solo la conversazione e la casella. */
+  .riassunto-ap { display: flex; width: 100%; min-height: 48px; align-items: center; gap: 8px; text-align: left; margin: 6px 0; }
+  .riassunto-ap span { flex: 1; }
+  .riassunto-ap b { color: var(--accento); font-weight: 600; white-space: nowrap; }
+  .riassunto-ap--domande span { color: var(--ambra); }
+  .riassunto-chiuso .solo-riassunto { display: none; }
   .ancorata {
     position: sticky; bottom: calc(60px + env(safe-area-inset-bottom));
     background: var(--fondo-cupo); padding: var(--s2) 0;
@@ -409,7 +438,7 @@ function componiPagina(): string {
   /* Quando domina una domanda, tutto il resto collassa qui dentro. */
   .riga-altro {
     width: 100%; text-align: left; background: none; border: 0; box-shadow: none;
-    color: var(--testo-quieto); font-size: var(--t2); padding: var(--s2) 0; min-height: 44px;
+    color: var(--testo-quieto); font-size: var(--t2); padding: var(--s2) 0; min-height: 48px;
   }
   /* Bersagli grandi: si usa in piedi, con una mano, e un tasto piccolo su un
      telefono e' un tasto che si sbaglia. */
@@ -444,23 +473,23 @@ function componiPagina(): string {
      diventava larga 537 px su un telefono da 390, e il «?» e i tasti a destra finivano fuori schermo. */
   select { max-width: 100%; min-width: 0; }
   .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
-  .ws button { padding: 10px 14px; min-height: 44px; }
+  .ws button { padding: 10px 14px; min-height: 48px; }
   .ws button.attivo { border-color: var(--accento); color: var(--testo); }
   /* Il menu dei workspace (0.82.0): la ricerca in cima, i gruppi, «⋯» per riga.
      L'elenco ha un'altezza massima e scorre dentro: con 30 workspace la pagina non diventa lunghissima. */
   .ws-cerca { width: 100%; box-sizing: border-box; margin-top: var(--s2); }
   .ws-elenco { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; margin-top: var(--s2); }
   .ws-gruppo + .ws-gruppo { margin-top: var(--s2); }
-  .ws-titolo { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
+  .ws-titolo { font-size: 0.75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
   .ws-riga { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--incisione); }
   .ws-riga.attivo { background: var(--chassis-premuto); border-radius: var(--raggio); }
   .ws-riga.attivo .ws-segno { color: var(--accento); }
   .ws-riga .ws-va, .ws-riga .ws-altro { border: 0; background: transparent; box-shadow: none; }
-  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 44px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 48px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
   .ws-riga .ws-segno { width: 14px; flex: none; }
   .ws-riga .ws-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ws-riga .ws-conta { margin-left: auto; font-size: 12px; color: var(--testo-quieto); white-space: nowrap; }
-  .ws-riga .ws-altro { min-width: 44px; min-height: 44px; padding: 0; font-size: 18px; color: var(--testo-quieto); }
+  .ws-riga .ws-conta { margin-left: auto; font-size: 0.75rem; color: var(--testo-quieto); white-space: nowrap; }
+  .ws-riga .ws-altro { min-width: 48px; min-height: 48px; padding: 0; font-size: 1.125rem; color: var(--testo-quieto); }
   .ws-riga .ws-altro[aria-expanded="true"] { color: var(--accento); }
   .ws-azioni { flex-wrap: wrap; margin: 0 0 var(--s2) 0; padding-left: 26px; }
   /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
@@ -468,7 +497,7 @@ function componiPagina(): string {
   .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
   .nota-chiusa { margin: var(--s2); padding: var(--s2); border-radius: 8px; background: var(--fondo-alto, rgba(127,127,127,.12)); font-size: var(--t2); }
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
-  .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
+  .ingresso input { width: 100%; text-align: center; font-size: 1.625rem; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: var(--ambra); font-size: var(--t1); margin-top: var(--s2); }
   /* Il negozio (0.53.0): una voce per riga, lo stato col colore che decide il computer. */
   .neg-voce { border-top: 1px solid var(--bordo); padding: 8px 0; }
@@ -548,7 +577,7 @@ function componiPagina(): string {
   .passi { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .passo {
     display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    font-size: 0.75rem; letter-spacing: .09em; text-transform: uppercase;
     color: var(--testo-quieto);
   }
   .passo-led {
@@ -581,27 +610,27 @@ function componiPagina(): string {
   /* La percentuale, con il colore di cio' che misura: i giri della
      preparazione non sono i criteri del lavoro. */
   .misura { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
-  .misura b { font-size: 26px; font-variant-numeric: tabular-nums; }
+  .misura b { font-size: 1.625rem; font-variant-numeric: tabular-nums; }
   .misura--preparazione b { color: var(--accento) }
   .misura--lavoro b { color: var(--verde) }
   .misura--attesa b { color: var(--ambra) }
   .misura--fermo b { color: var(--rosso) }
 
-  .criteri { list-style: none; margin: 12px 0 0; padding: 0; font-size: 13px; color: var(--testo-quieto); }
+  .criteri { list-style: none; margin: 12px 0 0; padding: 0; font-size: 0.8125rem; color: var(--testo-quieto); }
   .criteri li { padding: 3px 0; }
   .criteri li.fatto { color: var(--verde); }
 
-  .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
+  .serigrafia { font-size: 0.75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
   /* Una riga fitta dentro un dettaglio (le decisioni). Prima si chiamava
      «.voce» come le righe degli elenchi, e scritta dopo le sovrascriveva: chat
      e autopiloti in elenco perdevano il margine e diventavano grigio chiaro. */
-  .voce--riga { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; min-height: 0; background: none; border: 0; }
+  .voce--riga { font-size: 0.75rem; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; min-height: 0; background: none; border: 0; }
   /* Il dialogo con l'autopilota: le tue battute a destra, le sue a sinistra,
      come in ogni conversazione. */
-  .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 0.8125rem; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
   .battuta--tu { margin-left: auto; background: color-mix(in srgb, var(--accento) 12%, transparent); }
   .battuta--lui { margin-right: auto; background: color-mix(in srgb, var(--verde) 10%, transparent); }
-  .battuta__chi, .battuta__esito { font-size: 11px; color: var(--testo-quieto); }
+  .battuta__chi, .battuta__esito { font-size: 0.75rem; color: var(--testo-quieto); }
   .adesso-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); }
   .adesso-ap__riga { font-size: var(--t1); line-height: 1.35; overflow-wrap: anywhere; }
   .adesso-ap__compito { color: var(--testo-quieto); }
@@ -610,7 +639,7 @@ function componiPagina(): string {
      sue decisioni sono note quiete con il filo colorato a sinistra. */
   .flusso-ap { max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
   .battuta--domanda, .battuta--pronto { border: 1px solid var(--ambra); background: color-mix(in srgb, var(--ambra) 10%, transparent); }
-  .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
+  .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 0.75rem; color: var(--testo-quieto); }
   /* La linguetta «File» e il diff (0.38.0). */
   .file-ap { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
   .file-ap--scelto { border-color: var(--ambra); }
@@ -622,16 +651,16 @@ function componiPagina(): string {
   /* La linguetta «Istruzioni» (0.41.0). */
   .istr-ap { border: 1px solid var(--bordo); border-radius: 8px; padding: 6px 8px; margin-top: 8px; }
   .istr-ap summary { cursor: pointer; }
-  .istr-ap__testo { margin-top: 6px; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
-  .istr-ap__esito { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
+  .istr-ap__testo { margin-top: 6px; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.45; }
+  .istr-ap__esito { font-size: 0.75rem; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
   .istr-ap__esito--partita, .istr-ap__esito--consegnata { color: var(--verde); }
   .istr-ap__esito--in-coda { color: #e0a33c; }
   .istr-ap__esito--non-partita, .istr-ap__esito--persa { color: #dc5f5f; }
   .md-titolo { font-weight: 700; margin-top: 6px; }
   .md-voce { padding-left: 8px; }
   .md-vuota { height: 6px; }
-  .md-blocco { background: rgba(127,127,127,.12); padding: 6px; overflow: auto; font-size: 12px; }
-  .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .md-blocco { background: rgba(127,127,127,.12); padding: 6px; overflow: auto; font-size: 0.75rem; }
+  .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 0.75rem; }
   .diff-ap__riga { white-space: pre; padding: 0 4px; }
   .diff-ap__riga--piu { background: rgba(84, 192, 122, .18); }
   .diff-ap__riga--meno { background: rgba(220, 95, 95, .18); }
@@ -650,17 +679,17 @@ function componiPagina(): string {
   .info-ap { margin-left: auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--bordo); border-radius: 50%; }
   /* Le linguette sotto la chat: una cosa per volta. */
   .linguette { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid var(--bordo); overflow-x: auto; }
-  .linguetta { flex: 0 0 auto; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 10px; font-size: 12px; color: var(--testo-quieto); min-height: 0; }
+  .linguetta { flex: 0 0 auto; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 10px; font-size: 0.75rem; color: var(--testo-quieto); min-height: 0; }
   .linguetta--attiva { color: var(--testo); border-bottom-color: var(--verde); }
-  .linguetta small { color: var(--testo-quieto); font-size: 10px; }
+  .linguetta small { color: var(--testo-quieto); font-size: 0.75rem; }
   .tab-ap { padding-top: 10px; }
-  .compiti-ap { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--testo); }
+  .compiti-ap { margin: 4px 0 0; padding-left: 18px; font-size: 0.8125rem; color: var(--testo); }
   .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
 
   /* Il tasto che sta per disfare qualcosa lo dice, per un attimo: il secondo
      tocco e' la conferma, e il colore e' quello di uno stato, non un ornamento. */
   button.pericolo { border-color: var(--rosso); color: var(--rosso); }
-  .spunta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--testo-quieto); }
+  .spunta { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--testo-quieto); }
   .spunta input { width: 20px; height: 20px; }
 
   /* La gestione delle chat (0.79.0). */
@@ -673,9 +702,9 @@ function componiPagina(): string {
   .gc-rifiuti { margin: 6px 0 0; padding-left: 18px; font-size: var(--t1); color: var(--ambra); }
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
-  .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .numero b { display: block; font-size: 1.625rem; font-variant-numeric: tabular-nums; }
   .numero b.v { color: var(--verde) } .numero b.a { color: var(--ambra) }
-  .numero span { font-size: 11px; color: var(--testo-quieto); }
+  .numero span { font-size: 0.75rem; color: var(--testo-quieto); }
 </style>
 </head>
 <body>
@@ -740,6 +769,19 @@ function legendaAttivita(id) {
 }
 // Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
 var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
+// Le quattro voci del telefono (0.83.0), le stesse dell'app: MENU_TELEFONO in
+// src/shared/menu-principale.ts; le regole di dove si va (e di «indietro»)
+// sono quelle di src/shared/navigazione-telefono.ts, uguali a Navigazione.kt.
+var VOCI = ${JSON.stringify(MENU_TELEFONO.map((v) => ({ id: v.id, nome: v.nome, linguette: v.linguette, icona: ICONE_TELEFONO[v.id], spiega: v.contiene.map((id) => MENU_PRINCIPALE.find((m) => m.id === id)?.nome ?? id).join(', ') })))}
+var SEZIONI_ALTRO = ${JSON.stringify(SEZIONI_ALTRO)}
+${postoIniziale.toString()}
+${toccaVoce.toString()}
+${scegliLinguetta.toString()}
+${linguettaDi.toString()}
+${apriSezioneAltro.toString()}
+${indietroTelefono.toString()}
+${versoDestinazione.toString()}
+${pannelliDelPosto.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -748,7 +790,9 @@ function filtraImpostazioni(q) {
   for (const el of document.querySelectorAll('[data-sezione]')) {
     const id = el.getAttribute('data-sezione')
     const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id)
-    const chiavi = g ? g.voci.map((v) => v.chiave) : ['aspetto stile colore chiarore banco foglio tema']
+    // Le voci di Altro (0.83.0) portano anche il loro titolo, senza accenti come le parole cercate.
+    const proprie = (el.getAttribute('data-chiavi') || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+    const chiavi = (g ? g.voci.map((v) => v.chiave) : id === 'aspetto' ? ['aspetto stile colore chiarore banco foglio tema'] : []).concat(proprie ? [proprie] : [])
     const vede = parole.length === 0 || chiavi.some((c) => parole.every((p) => c.indexOf(p) >= 0))
     el.style.display = vede ? '' : 'none'
   }
@@ -817,7 +861,7 @@ window.detta = function (id) {
 var erroriDaMandare = []
 function annotaErrore(testo) {
   if (!testo || testo.indexOf('(401)') >= 0) return
-  var cosa = 'scheda ' + scheda + (dentro ? ', dentro una chat' : '')
+  var cosa = 'voce ' + posto.voce + (posto.sezione ? ' › ' + posto.sezione : '') + (dentro ? ', dentro una chat' : '')
   if (erroriDaMandare.length < 20) erroriDaMandare.push({ testo: String(testo).slice(0, 2600), cosa: cosa })
 }
 setInterval(function () {
@@ -1067,6 +1111,8 @@ var apDettaglio = null
 var apTab = 'obiettivo'
 /** Dove si era prima che una domanda portasse alla linguetta «Domande» (0.38.0). */
 var apTabPrima = 'obiettivo'
+/** La riga riassuntiva dell'autopilota (0.83.0): chiusa, sotto solo la conversazione. */
+var apRiassunto = false
 /** Quale domanda si guarda (una per volta) e quali si sono gia' viste. */
 var apDomandaI = 0
 var apDomandeViste = null
@@ -1320,8 +1366,8 @@ function vistaConversazioni() {
   var nAspettano = tutte.filter(function (c) { return c.vista ? (c.vista.id !== 'finito' && c.vista.id !== 'risposta') : c.chiede }).length
   var elenco = filtro === 'aspettano' ? tutte.filter(aspettaTeConv) : tutte
   var filtri = tutte.length === 0 ? '' : '<div class="riga" style="gap:6px;flex-wrap:wrap">' +
-    '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +
-    '<button' + (filtro === 'tutte' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'tutte\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Tutte ' + tutte.length + '</button></div>'
+    '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +
+    '<button' + (filtro === 'tutte' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'tutte\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px">Tutte ' + tutte.length + '</button></div>'
   if (elenco.length === 0 && tutte.length > 0) {
     return filtri + '<div class="piastrella"><div class="sotto">Niente ti aspetta. Le chat che hanno finito il turno sono in «Tutte».</div></div>'
   }
@@ -1415,8 +1461,21 @@ var ultimaImpronta = ''
  * ancora piu' sotto. In basso e' il posto giusto, e' dove arriva il pollice.
  * La cura e' una fascia fissa, non una fascia in meno.
  */
-// Si parte dalle Domande (0.61.0): sono quelle che aspettano te, con sotto quello che è in moto.
-var scheda = 'domande'
+// Dove si è (0.83.0): la voce, la linguetta di ogni voce, la sezione di Altro.
+// Si parte da Adesso: in cima le domande che aspettano te, sotto gli autopiloti.
+var posto = postoIniziale()
+/** Si vede adesso quello che prima era la destinazione «nome» delle sette voci? */
+function inVista(nome) {
+  if (nome === 'domande' || nome === 'autopiloti') return posto.voce === 'adesso'
+  if (nome === 'chat') return posto.voce === 'chat'
+  if (nome === 'progetti') return posto.voce === 'progetti' && linguettaDi(posto) === 0
+  if (nome === 'file') return posto.voce === 'progetti' && linguettaDi(posto) === 1
+  if (nome === 'salute') return posto.voce === 'altro' && posto.sezione === 'salute'
+  if (nome === 'impostazioni') return posto.voce === 'altro' && SEZIONI_ALTRO.some((x) => x.impostazioni && x.id === posto.sezione)
+  return false
+}
+/** Un pannello è aperto: a mano, o perché la linguetta (o la sezione) in cui sei lo mostra. */
+function aperto(nome) { return pannelloAperto === nome || pannelliDelPosto(posto).indexOf(nome) >= 0 }
 /**
  * La chat di cui e' aperto il menu «altro».
  *
@@ -1527,10 +1586,10 @@ function ingresso(messaggio) {
   app.innerHTML = \`
     <div class="ingresso">
       ${LOGO}
-      <div style="font-size:19px;margin-bottom:6px">SierraDeck</div>
+      <div style="font-size:1.1875rem;margin-bottom:6px">SierraDeck</div>
       <div class="sotto">Sul computer apri <b>Impostazioni → Client</b> e leggi il codice.</div>
       <input id="codice" inputmode="numeric" maxlength="6" placeholder="······" aria-label="codice">
-      <input id="nome" placeholder="nome di questo dispositivo" style="font-size:15px;letter-spacing:normal">
+      <input id="nome" placeholder="nome di questo dispositivo" style="font-size:0.9375rem;letter-spacing:normal">
       <button class="primario" id="entra" style="margin-top:12px">Collega</button>
       <div class="errore" id="errore">\${esc(messaggio || '')}</div>
     </div>\`
@@ -1754,7 +1813,7 @@ function impronta(s) {
   // stato del computer, ma cambia la pagina.
   const qui = [
     dentro, dentroAp, pannelloAperto, schedaAperta && schedaAperta.file,
-    scheda, altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
+    JSON.stringify(posto), altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
     righeDentro[righeDentro.length - 1] || '', giriFalliti >= 2,
     // Le scelte fanno comparire e sparire dei pulsanti: se non entrano
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
@@ -1802,10 +1861,10 @@ function impronta(s) {
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
     domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
     // Il negozio: cosa si e' letto, cosa sta lavorando (coi secondi), i guasti e le conferme.
-    pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
+    aperto('negozio') ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
     domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '', domandeFiltro,
     // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
-    (pannelloAperto === 'file' || scheda === 'file') ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
+    (pannelloAperto === 'file' || inVista('file')) ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length + quadernoTag : '',
     sessioniViste ? sessioniViste.length : '',
@@ -1838,7 +1897,13 @@ function rimettiScorrimento(dove) {
  * chat e vedi lampeggiare in fondo che qualcuno ti aspetta.
  */
 function ledDestinazione(nome, s) {
-  if (giriFalliti >= 2) return nome === 'salute' ? 'rosso' : 'fermo'
+  if (giriFalliti >= 2) return nome === 'salute' || nome === 'altro' ? 'rosso' : 'fermo'
+  // Le quattro voci del telefono (0.83.0): il LED più urgente delle voci del PC che contengono.
+  if (nome === 'adesso') {
+    const l = [ledDestinazione('autopiloti', s), ledDestinazione('domande', s)]
+    return l.indexOf('rosso') >= 0 ? 'rosso' : l.indexOf('attesa') >= 0 ? 'attesa' : l.indexOf('lavoro') >= 0 ? 'lavoro' : ''
+  }
+  if (nome === 'altro') return ledDestinazione('impostazioni', s)
   const aps = s.autopiloti || []
   // Dal LED deciso dal computer, come ogni altro LED della pagina: chi si
   // prepara e fa una domanda chiede, chi si prepara in silenzio e' in moto.
@@ -1879,19 +1944,78 @@ function postiChatHtml(s) {
     aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>'), 'Chat al lavoro insieme') + '</div>'
 }
 
-/** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
-function fascia(s) {
+/**
+ * Il pallino di una voce della fascia (0.83.0), come nell'app: rosso se un
+ * autopilota \u00e8 fermo, ambra se qualcosa aspetta te, con il numero; i colori
+ * dalla tabella del PC (ATT), e sempre una parola per chi non vede il colore.
+ */
+function pallinoVoce(id, s) {
   const chiedono = domandeInAttesa(s)
-  // Il menu principale (0.61.0): le sette voci del PC, nello stesso ordine.
-  return '<nav class="fascia" aria-label="Menu principale">' + MENU.map((v) => {
+  if (id === 'adesso') {
+    const fermi = (s.autopiloti || []).some((a) => ledAutopilota(a, false) === 'rosso')
+    if (fermi) return { colore: 'rosso', numero: chiedono, dice: 'un autopilota \u00e8 fermo' }
+    if (chiedono > 0) return { colore: 'ambra', numero: chiedono, dice: chiedono === 1 ? 'una domanda per te' : chiedono + ' domande per te' }
+    if ((s.autopiloti || []).some((a) => ledAutopilota(a, false) === 'attesa')) return { colore: 'ambra', numero: 0, dice: 'un autopilota aspetta il via' }
+    return null
+  }
+  if (id === 'chat') {
+    const n = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa').length
+    return n > 0 ? { colore: 'ambra', numero: n, dice: n === 1 ? 'una chat aspetta una scelta' : n + ' chat aspettano una scelta' } : null
+  }
+  if (id === 'altro' && giriFalliti >= 2) return { colore: 'rosso', numero: 0, dice: 'il computer non risponde' }
+  if (id === 'altro' && aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto') return { colore: 'ambra', numero: 0, dice: 'un aggiornamento \u00e8 pronto' }
+  return null
+}
+
+/** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento: le quattro voci dell'app (0.83.0). */
+function fascia(s) {
+  return '<nav class="fascia" aria-label="Menu principale">' + VOCI.map((v) => {
     const l = ledDestinazione(v.id, s)
-    const numero = v.id === 'domande' && chiedono > 0 ? ' \u00b7 ' + chiedono : ''
-    return '<button class="fascia__voce' + (scheda === v.id ? ' fascia__voce--qui' : '') + '"' +
-      (scheda === v.id ? ' aria-current="page"' : '') + ' title="' + esc(v.spiega) + '"' +
-      ' onclick="vaiScheda(\\'' + v.id + '\\')">' +
-      '<span class="fascia__icona" aria-hidden="true">' + v.icona + '<span class="led ' + (l || 'nessuno') + '"></span></span>' +
-      '<span class="fascia__nome">' + v.breve + numero + '</span></button>'
+    const p = pallinoVoce(v.id, s)
+    const qui = posto.voce === v.id
+    const fondo = p ? coloreNome(p.colore) : ''
+    return '<button class="fascia__voce' + (qui ? ' fascia__voce--qui' : '') + '"' +
+      (qui ? ' aria-current="page"' : '') + ' title="' + esc(v.spiega) + '"' +
+      ' aria-label="' + esc(v.nome + (p ? ', ' + p.dice : '')) + '"' +
+      ' onclick="vaiVoce(\\'' + v.id + '\\')">' +
+      '<span class="fascia__icona" aria-hidden="true">' + v.icona +
+      (p ? '<span class="fascia__pallino" style="background:' + fondo + '">' + (p.numero > 0 ? p.numero : '') + '</span>' : '<span class="led ' + (l === 'lavoro' ? 'lavoro' : 'nessuno') + '"></span>') +
+      '</span>' +
+      '<span class="fascia__nome">' + esc(v.nome) + '</span></button>'
   }).join('') + '</nav>'
+}
+
+/** Le linguette in cima a Chat e Progetti (0.83.0): tasti alti 48 px, la scelta in accento. */
+function linguetteHtml() {
+  const v = VOCI.find((x) => x.id === posto.voce)
+  if (!v || v.linguette.length === 0) return ''
+  const scelta = linguettaDi(posto)
+  return '<div class="linguette" role="tablist">' + v.linguette.map((nome, i) =>
+    '<button role="tab" class="linguetta' + (i === scelta ? ' linguetta--qui' : '') + '" aria-selected="' + (i === scelta) + '" onclick="vaiLinguetta(' + i + ')">' + esc(nome) + '</button>'
+  ).join('') + '</div>'
+}
+
+/**
+ * Di tutte le piastrelle delle impostazioni, quella della sezione «id» (0.83.0):
+ * ognuna comincia con il suo data-sezione, e stanno una dopo l'altra.
+ */
+function sezioneImpostazioni(tutte, id) {
+  const inizio = '<div class="piastrella" data-sezione="'
+  const pezzo = tutte.split(inizio).find((p) => p.indexOf(id + '"') === 0)
+  return pezzo ? inizio + pezzo : ''
+}
+
+/**
+ * Altro (0.83.0): un elenco, una sezione per tocco, con \u00abCerca\u00bb in cima. Prima
+ * erano Salute e Impostazioni, una pagina lunga ciascuna.
+ */
+function elencoAltroHtml() {
+  return '<div class="piastrella"><div class="titolo">Altro' + aiuto('altro', 'La salute del sistema, gli altri computer, i consumi e le impostazioni. Tocca una voce per aprirla; \u00abindietro\u00bb torna qui. \u00abCerca\u00bb trova anche le singole impostazioni.') + '</div>' +
+    '<div class="riga"><input id="cerca-impostazioni" type="search" placeholder="Cerca: aggiornamento, colore…" aria-label="Cerca nelle impostazioni" oninput="filtraImpostazioni(this.value)"></div>' +
+    SEZIONI_ALTRO.map((x) =>
+      '<button class="cartella voce-altro" data-sezione="' + esc(x.id) + '" data-chiavi="' + esc((x.titolo + ' ' + x.sotto).toLowerCase()) + '" onclick="apriSezione(this.dataset.sezione)">' +
+      '<b>' + esc(x.titolo) + '</b><span class="sotto">' + esc(x.sotto) + '</span></button>'
+    ).join('') + '</div>'
 }
 
 function pannello(s) {
@@ -2006,7 +2130,7 @@ function pannello(s) {
     chatAttesa.map((c) =>
       '<div class="polso"><span class="polso__nome">' + esc(c.nome || c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
     ).join('') +
-    (chatAttesa.length ? '<div class="riga"><button onclick="vaiScheda(\\'domande\\')">Rispondi dalla scheda Domande</button></div>' : '') +
+    (chatAttesa.length ? '<div class="riga"><button onclick="window.scrollTo(0, 0)">Rispondi qui in cima</button></div>' : '') +
     '</div>'
 
   const panoramica = (s.domande || []).length > 0 || fermi.length > 0 || inMoto.length > 0 || (s.chat || []).length > 0 || pronti.length > 0
@@ -2037,7 +2161,9 @@ function pannello(s) {
       <button class="indietro" onclick="chiudiAp()" aria-label="Torna all’elenco">‹</button>
       <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}\${apPc ? ' <span class="sotto">· gira su ' + esc(apPcNome) + '</span>' : ''}</div>
     </div>
-    <div class="piastrella">
+    <button class="riassunto-ap\${apDettaglio && (apDettaglio.domandeScheda || []).length ? ' riassunto-ap--domande' : ''}" aria-expanded="\${apRiassunto}" onclick="giraRiassuntoAp()"><span>\${esc(riassuntoApTesto(apAperto, apDettaglio))}</span><b>\${apRiassunto ? 'Chiudi ▴' : 'Dettagli ▾'}</b></button>
+    <div class="piastrella \${apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'}">
+      <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
       <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
@@ -2045,7 +2171,9 @@ function pannello(s) {
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      </div>
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
+      <div class="solo-riassunto">
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
@@ -2071,6 +2199,7 @@ function pannello(s) {
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.sottofondo === true ? 'checked' : ''} data-ap="\${esc(apAperto.id)}" onchange="sottofondoAp(this.dataset.ap, this.checked)"> Lavora in sottofondo\${aiuto('ap-sottofondo', 'Di serie la sua chat sta in un riquadro del suo workspace sul computer, e quando l’autopilota le scrive il computer va in quel workspace (mai mentre stai scrivendo lì). Accesa, la chat lavora senza riquadro: la vedi in «in sottofondo» con Guarda.')}</label>
         <button class="\${confermando === 'ap-' + apAperto.id ? 'pericolo' : ''}" data-ap="\${esc(apAperto.id)}" onclick="eliminaAp(this.dataset.ap)">\${confermando === 'ap-' + apAperto.id ? 'Sicuro? Elimina' : 'Elimina'}</button>
+      </div>
       </div>
     </div>\`
     : (s.autopiloti || []).map((a) => \`
@@ -2128,7 +2257,7 @@ function pannello(s) {
       </div>\` : ''}
     \${pinDentro ? \`
     <div class="piastrella" style="text-align:center">
-      <div style="font-size:38px">🔒</div>
+      <div style="font-size:2.375rem">🔒</div>
       <div><b>Questa chat è protetta dal PIN</b>\${aiuto('pin', 'Continua a lavorare sul computer: qui non si vede e non si scrive finché non metti il PIN. Lo controlla il computer, e la chat si richiude da sola dopo il tempo di inattività scelto là.')}</div>
       <div class="riga">
         <input id="pin-dentro" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off">
@@ -2158,7 +2287,7 @@ function pannello(s) {
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
     </div>\`}\`
     : '<div class="sotto" style="padding:6px 16px 0">' + esc(riassuntoChat(s.chat || [])) + '</div>' + gruppiChat(s).map((g) =>
-      '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:11px">' +
+      '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:0.75rem">' +
         esc(g.workspace) + (g.attivo ? ' · davanti' : '') + ' · ' + g.voci.length + '</div>' +
       (g.voci.length === 0
         ? '<div class="sotto" style="padding:2px 24px 8px">nessuna chat</div>'
@@ -2206,7 +2335,7 @@ function pannello(s) {
   const delega = !delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="apriDelega()">Affida un lavoro</button></div></div>'
     : \`<div class="piastrella chiede">
-         <div class="titolo">Cosa vuoi che faccia?\${aiuto('delega', 'Descrivilo con parole tue. Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».')}</div>
+         <div class="titolo">Cosa vuoi che faccia?\${aiuto('delega', 'Descrivilo con parole tue. Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi in cima ad Adesso) e aspetta il tuo «Vai».')}</div>
          <div class="riga">
            <textarea id="delega-obiettivo" rows="8" placeholder="Tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito. Nessun limite: puoi incollare un documento."></textarea>
          </div>
@@ -2257,7 +2386,7 @@ function pannello(s) {
 
   // Gli altri computer, e le azioni da eseguire solo la'. Stessa forma della
   // coda: elenco, poi la cassetta di uno.
-  const elencoPc = pannelloAperto !== 'pc' ? '' : (() => {
+  const elencoPc = !aperto('pc') ? '' : (() => {
     const pc = pcVisti || []
     if (pcAperto === null) {
       return '<div class="piastrella"><div class="titolo">Altri computer' + aiuto('altri-pc', 'I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).') + '</div>' +
@@ -2301,7 +2430,7 @@ function pannello(s) {
       '<button class="primario" onclick="mandaPosta()">Manda a ' + esc(b.nome) + '</button></div></div>'
   })()
 
-  const elencoCode = pannelloAperto !== 'code' ? '' : (() => {
+  const elencoCode = !aperto('code') ? '' : (() => {
     const progetti = (s.progetti || [])
     if (codaProgetto === null) {
       return '<div class="piastrella"><div class="titolo">Code dei progetti' + aiuto('code', 'Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.') + '</div>' +
@@ -2336,7 +2465,7 @@ function pannello(s) {
   })()
 
   // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
-  const vistaSalute = scheda !== 'salute' ? '' : (() => {
+  const vistaSalute = !inVista('salute') ? '' : (() => {
     const testa = '<div class="piastrella"><div class="titolo">Salute del sistema' + aiuto('salute', 'Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.') + '</div>'
     if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div></div>'
     if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
@@ -2355,7 +2484,7 @@ function pannello(s) {
     const gruppo = saluteGruppo || (conti.sistemare > 0 ? 'sistemare' : 'computer')
     let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' +
       '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
-        '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
+        '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
     const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
     // 0.81.0: le azioni che si fanno solo dal computer, dette una volta qui in cima, non riga per riga.
     const soloPc = azioniSoloDalComputer(voci)
@@ -2375,7 +2504,7 @@ function pannello(s) {
     return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button></div></div>'
   })()
 
-  const vistaDrive = pannelloAperto !== 'drive' ? '' : (() => {
+  const vistaDrive = !aperto('drive') ? '' : (() => {
     const c = driveCatalogo
     const l = driveLavoro || {}
     const inc = l.inCorso
@@ -2455,7 +2584,7 @@ function pannello(s) {
     return testa + corpo + '<div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
   })()
 
-  const vistaConsumi = pannelloAperto !== 'consumi' ? '' : \`
+  const vistaConsumi = !aperto('consumi') ? '' : \`
     <div class="piastrella">
       <div class="titolo">Consumi</div>
       \${consumiVisti === null
@@ -2485,11 +2614,9 @@ function pannello(s) {
     return '<div class="titolo">' + esc(g.sezione.titolo) + (testo ? aiuto('imp:' + id, testo) : '') + '</div>'
   }
   const vociImp = () => ''
-  const vistaImpostazioni = scheda !== 'impostazioni' ? '' : \`
-    <div class="piastrella">
-      <div class="titolo">Impostazioni</div>
-      <div class="riga"><input id="cerca-impostazioni" placeholder="Cerca (per esempio: aggiornamento, colore, notifiche)" oninput="filtraImpostazioni(this.value)"></div>
-    </div>
+  // 0.83.0: ogni sezione è una voce di Altro, e se ne mostra una sola: la
+  // piastrella con il suo data-sezione (la ricerca sta nell'elenco di Altro).
+  const tutteImpostazioni = !inVista('impostazioni') ? '' : \`
     <div class="piastrella" data-sezione="aggiornamenti">
       \${intestaImp('aggiornamenti')}
       <div class="sotto" style="margin-top:10px">Versione del computer: \${esc((s.computer && s.computer.versione) || 'non ancora letta')}\${aiuto('imp-versioni', 'Questa pagina la serve quel computer: è sempre della sua stessa versione.')}</div>
@@ -2607,42 +2734,57 @@ function pannello(s) {
   const inMotoAdesso = driveScollegatoHtml(s) + fermo + invito + bloccati + aspettanoTe + panoramica +
     (inMoto.length + (s.chat || []).length > 0 ? polso : '')
   const inCoda = (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0)
-  // Le sette destinazioni del menu principale (0.61.0), nello stesso ordine del PC.
+  // Le quattro voci del telefono (0.83.0), come nell'app: ogni voce del PC
+  // finisce in una sola (MENU_TELEFONO), con le sue linguette o il suo elenco.
+  const lingua = linguettaDi(posto)
+  // Le note che una chat o «Apri cartella» lasciano: in cima a Chat, in ogni linguetta.
+  const noteChat = driveScollegatoHtml(s) +
+    (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
+    (notaCartella ? '<div class="nota-chiusa" role="status">' + esc(notaCartella) + ' <button class="riga-altro" onclick="notaCartella=\\'\\';pannello(ultimoStato)">ok</button></div>' : '')
   const schermate = {
-    // «Progetti»: il pannello delle chat e dei progetti, con quello che era del Drive e delle code.
-    progetti: pannelloDriveHtml() +
-      '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code dei progetti' + (inCoda > 0 ? ' \u00b7 ' + inCoda : '') + '</button>' +
-      '<button onclick="apriPannello(\\'drive\\')">Il contenuto del Drive</button>' +
-      '<button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
-      elencoCode + vistaDrive + vistaQuaderno,
-    autopiloti: postiChatHtml(s) +
-      (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega,
-    // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
-    // polso, poi la calma. Sotto, quello che è in moto adesso.
-    domande: (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
-      (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
-    chat: driveScollegatoHtml(s) +
-      (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
-      (notaCartella ? '<div class="nota-chiusa" role="status">' + esc(notaCartella) + ' <button class="riga-altro" onclick="notaCartella=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
-      (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
-      (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
-      '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
-      '<button onclick="apriPannello(\\'chatgestione\\')">Spazio delle chat</button>' +
-      '<button onclick="apriPannello(\\'negozio\\')">Negozio</button></div>' +
-      elencoSessioni + (pannelloAperto === 'chatgestione' ? gestioneChatHtml() : '') + (pannelloAperto === 'negozio' ? negozioHtml() : '') + paneWorkspace,
-    file: fileHtml(),
-    salute:
-      '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Gli altri computer</button>' +
-      '<button onclick="apriPannello(\\'consumi\\')">Consumi</button></div>' +
-      elencoPc + vistaConsumi + vistaSalute,
-    impostazioni: vistaImpostazioni
+    // «Adesso»: in cima le domande per te, sotto gli autopiloti e quello che è
+    // in moto. Con un autopilota aperto c'è solo lui: la casella in fondo e,
+    // sopra, la sua conversazione.
+    adesso: apAperto
+      ? autopiloti
+      : (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
+        '<div class="solco"></div><div class="titolo">Autopiloti</div>' + postiChatHtml(s) +
+        (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega +
+        (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
+    // «Chat»: Chat · Workspace · Negozio.
+    chat: noteChat + (lingua === 1
+      ? (paneWorkspace || '<div class="vuoto">Nessun workspace sul computer.</div>')
+      : lingua === 2
+        ? negozioHtml()
+        : (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
+          (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
+          '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
+          '<button onclick="apriPannello(\\'chatgestione\\')">Spazio delle chat</button></div>' +
+          elencoSessioni + (pannelloAperto === 'chatgestione' ? gestioneChatHtml() : '')),
+    // «Progetti»: Progetti · File · Drive (con le code dei progetti).
+    progetti: lingua === 1
+      ? fileHtml()
+      : lingua === 2
+        ? vistaDrive + elencoCode
+        : pannelloDriveHtml() +
+          '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Quaderno</button>' +
+          '<button onclick="vaiLinguetta(2)">Code dei progetti' + (inCoda > 0 ? ' \u00b7 ' + inCoda : '') + '</button></div>' +
+          vistaQuaderno,
+    // «Altro»: l'elenco, o la sezione aperta.
+    altro: posto.sezione === null
+      ? elencoAltroHtml()
+      : posto.sezione === 'salute' ? vistaSalute
+      : posto.sezione === 'pc' ? elencoPc
+      : posto.sezione === 'consumi' ? vistaConsumi
+      : sezioneImpostazioni(tutteImpostazioni, posto.sezione)
   }
 
   app.innerHTML = \`
     <main class="schermata\${linea.fase === 'ricollego' ? ' schermata--giu' : ''}">
       \${lineaHtml()}
       \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
-      \${schermate[scheda] || schermate.domande}
+      \${linguetteHtml()}
+      \${schermate[posto.voce] || schermate.adesso}
     </main>
     \${fascia(s)}\`
 
@@ -2650,7 +2792,10 @@ function pannello(s) {
     const campo = document.getElementById(id)
     if (campo) campo.value = scritti[id]
   }
+  // La ricerca di Altro resta applicata anche dopo un ridisegno (0.83.0).
+  if (scritti['cerca-impostazioni']) filtraImpostazioni(scritti['cerca-impostazioni'])
   rimettiScorrimento(dove)
+  armaIndietro()
 }
 
 /**
@@ -2901,7 +3046,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -3054,6 +3199,21 @@ window.apriDaPanoramica = async (id) => {
   vaiScheda('chat')
   await guarda(id)
 }
+
+/** La riga riassuntiva (0.83.0, uguale all'app): prima le domande, poi stato, criteri, chat e giri. */
+function riassuntoApTesto(ap, d) {
+  const pezzi = []
+  const dom = d && d.domandeScheda ? d.domandeScheda.length : 0
+  if (dom > 0) pezzi.push(dom === 1 ? '1 domanda per te' : dom + ' domande per te')
+  pezzi.push(ap.vista ? ap.vista.stato.parola : ap.stato)
+  if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
+  const chat = d && d.chats ? d.chats.length : 0
+  if (chat > 0) pezzi.push(chat + ' chat')
+  const giri = (d && d.cicli) || 0
+  pezzi.push(giri === 1 ? '1 giro' : giri + ' giri')
+  return pezzi.join(' · ')
+}
+window.giraRiassuntoAp = () => { apRiassunto = !apRiassunto; pannello(ultimoStato) }
 
 function vistaAutopilota(a) {
   const passi = (a.passaggi || []).map((p) => {
@@ -3216,12 +3376,12 @@ function vistaAutopilota(a) {
   }
 
   return '<div class="dettaglio">' +
-    '<div class="passi">' + passi + '</div>' +
-    '<div class="serigrafia" style="margin-top:10px">Chat con lui</div>' +
+    '<div class="passi solo-riassunto">' + passi + '</div>' +
+    '<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>' +
     '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
     casella +
-    barraLinguette +
-    '<div class="tab-ap">' + dentro + '</div>' +
+    '<div class="solo-riassunto">' + barraLinguette +
+    '<div class="tab-ap">' + dentro + '</div></div>' +
     '</div>'
 }
 
@@ -3725,7 +3885,7 @@ window.apriCartella = async (q) => {
   // Il 409 non solleva: torna con il motivo (la cartella è su un altro PC, non c'è).
   if (!r || r.errore || !r.progetto) { notaCartella = (r && r.errore) || 'Il computer non ha detto dove sta la cartella.'; pannello(ultimoStato); return }
   await leggiFileProgetti()
-  if (scheda !== 'file') vaiScheda('file')
+  if (!inVista('file')) vaiScheda('file')
   fileNota = ''
   await fileVai(r.progetto, r.percorso || '')
 }
@@ -3860,6 +4020,13 @@ function fileHtml() {
 }
 
 window.apriPannello = async (quale) => {
+  // Il pannello che la linguetta o la sezione mostra già aperto (0.83.0): il
+  // suo «Chiudi» torna indietro, alla prima linguetta o all'elenco di Altro.
+  if (pannelloAperto !== quale && pannelliDelPosto(posto).indexOf(quale) >= 0) {
+    const dove = indietroTelefono(posto)
+    if (dove) vaiAlPosto(dove)
+    return
+  }
   pannelloAperto = pannelloAperto === quale ? null : quale
   // A ogni apertura, non solo la prima: letto una volta, l'elenco restava
   // quello di quando la pagina era stata aperta.
@@ -4036,14 +4203,14 @@ window.pulisciPosta = async () => {
 // I consumi si rileggono mentre il pannello e' aperto: i limiti del piano
 // salgono mentre guardi, ed e' proprio quello che si vuole vedere.
 setInterval(async () => {
-  if (pannelloAperto !== 'consumi' || !chiave || document.hidden) return
+  if (!aperto('consumi') || !chiave || document.hidden) return
   await leggiConsumi()
   pannello(ultimoStato)
 }, 30000)
 
 // La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'pc' || !chiave || document.hidden) return
+  if (!aperto('pc') || !chiave || document.hidden) return
   try { if (pcAperto !== null) await leggiPosta(); else await leggiPc() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
@@ -4135,7 +4302,7 @@ window.driveRiavvia = async () => {
 // Il lavoro sul computer, ogni due secondi finche' il pannello Drive e' aperto;
 // quando finisce, il catalogo e' cambiato e si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'drive' || !chiave || document.hidden) return
+  if (!aperto('drive') || !chiave || document.hidden) return
   try { driveLavoro = await chiedi('/api/drive/lavoro') } catch (e) { return }
   const adesso = !!(driveLavoro && driveLavoro.inCorso)
   if (driveEraInCorso && !adesso) { driveInCorso = null; await leggiDrive() }
@@ -4146,7 +4313,7 @@ setInterval(async () => {
 // La coda condivisa cambia dal computer (una voce consegnata): si rilegge
 // ogni dieci secondi finche' e' aperta, come fa l'app.
 setInterval(async () => {
-  if (pannelloAperto !== 'code' || codaProgetto === null || !chiave || document.hidden) return
+  if (!aperto('code') || codaProgetto === null || !chiave || document.hidden) return
   try { await leggiCoda() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
@@ -4753,7 +4920,7 @@ function alberoHtml(a) {
       var led = f.stato === 'lavoro' ? 'lavoro' : f.stato === 'bloccata' ? 'attesa' : 'spenta'
       return '<div class="sotto" style="margin-left:6px;padding-left:12px;border-left:1px solid var(--bordo)">' +
         '<span class="led ' + led + '"></span>' +
-        (f.ruolo ? '<span class="ruolo-chat" style="color:' + coloreRuolo(f.ruolo.colore) + ';border:1px solid ' + coloreRuolo(f.ruolo.colore) + ';border-radius:999px;padding:0 6px;margin-right:4px;font-size:11px">' + esc(f.ruolo.parola) + '</span>' : '') +
+        (f.ruolo ? '<span class="ruolo-chat" style="color:' + coloreRuolo(f.ruolo.colore) + ';border:1px solid ' + coloreRuolo(f.ruolo.colore) + ';border-radius:999px;padding:0 6px;margin-right:4px;font-size:0.75rem">' + esc(f.ruolo.parola) + '</span>' : '') +
         esc(f.titolo) + ' · ' + esc(f.parola) + (f.approvata ? ' · approvato e unito' : '') + ' · ' + f.cicli + (f.cicli === 1 ? ' giro' : ' giri') +
         (f.ramo ? ' · <span class="percorso" style="display:inline">' + esc(f.ramo) + '</span>' : '') + '</div>'
     }).join('')
@@ -4855,7 +5022,7 @@ function bloccoNoteHtml(b) {
   if (!b) return ''
   if (b.tipo === 'titolo') return '<div style="margin-top:8px"><b>' + pezzi(b.pezzi) + '</b></div>'
   if (b.tipo === 'paragrafo') return '<div class="sotto" style="margin-top:6px">' + pezzi(b.pezzi) + '</div>'
-  if (b.tipo === 'codice') return '<pre style="white-space:pre-wrap;font-size:12px">' + esc(b.testo) + '</pre>'
+  if (b.tipo === 'codice') return '<pre style="white-space:pre-wrap;font-size:0.75rem">' + esc(b.testo) + '</pre>'
   if (b.tipo === 'elenco') return '<ul style="margin:6px 0 0 0;padding-left:18px">' + (b.voci || []).map(function (v) { return '<li class="sotto" style="margin-top:6px">' + pezzi(v) + '</li>' }).join('') + '</ul>'
   return ''
 }
@@ -4954,8 +5121,8 @@ function quadernoHtml(schede, aperta, tag, cartella, ora) {
   h += '<div class="riga" style="gap:6px"><input placeholder="Cerca fra le schede" value="' + esc(quadernoQ) + '" oninput="quadernoCerca(this.value)" style="flex:1;min-width:0"></div>'
   if (tags.length) {
     h += '<div class="riga" style="gap:4px;flex-wrap:wrap">' +
-      '<button' + (tag ? '' : ' class="primario"') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'\\')">Tutte ' + tutte.length + '</button>' +
-      tags.map((t) => '<button' + (tag === t ? ' class="primario"' : '') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'' + escJs(t) + '\\')">' + esc(t) + ' ' + conti[t] + '</button>').join('') + '</div>'
+      '<button' + (tag ? '' : ' class="primario"') + ' style="flex:none;width:auto;min-height:48px;padding:6px 12px" onclick="quadernoSceltaTag(\\'\\')">Tutte ' + tutte.length + '</button>' +
+      tags.map((t) => '<button' + (tag === t ? ' class="primario"' : '') + ' style="flex:none;width:auto;min-height:48px;padding:6px 12px" onclick="quadernoSceltaTag(\\'' + escJs(t) + '\\')">' + esc(t) + ' ' + conti[t] + '</button>').join('') + '</div>'
   }
   const viste = tutte.filter((x) => !tag || (x.tag || []).indexOf(tag) >= 0).slice().sort((a, b) => (b.quando > a.quando ? 1 : b.quando < a.quando ? -1 : 0))
   h += viste.map((x) => {
@@ -5341,7 +5508,7 @@ function pdElencoHtml() {
   for (const x of righe) for (const g of x.v.gruppi) conti[g] = (conti[g] || 0) + 1
   if (pdGruppo === 'da-sistemare' && conti['da-sistemare'] === 0) pdGruppo = 'tutti'
   let h = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin-top:6px">' +
-    PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px;font-size:15px' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
+    PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px;font-size:0.9375rem' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
     '<div class="riga" style="gap:6px"><input placeholder="Cerca progetto o PC" title="Cerca per progetto, PC o cartella" value="' + esc(pdQ) + '" oninput="pdCerca(this.value)" style="flex:1;min-width:0">' +
     '<select onchange="pdOrdina(this.value)" title="Ordina">' + PD_ORDINI.map((o) => '<option value="' + o[0] + '"' + (pdOrdine === o[0] ? ' selected' : '') + '>⇅ ' + o[1] + '</option>').join('') + '</select></div></div>'
   const scelte = pdOrdinate(righe.filter((x) => pdGruppo === 'tutti' || x.v.gruppi.indexOf(pdGruppo) >= 0).map((x) => x.r))
@@ -5393,7 +5560,7 @@ function pdDettaglioHtml(r) {
   const ids = r.ids || [r.id]
   let h = '<div class="riga" style="margin-top:6px"><button onclick="pdIndietro()">‹ Progetti</button></div>' +
     '<div class="titolo" style="margin-top:8px">' + esc(r.nome) + '</div>' +
-    '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:13px">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
+    '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:0.8125rem">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
   h += pdSpostaHtml(r, v)
   // Le azioni in vista, prima di tutto: la principale piena, «Togli da questo PC» in rosso, ognuna con il «?».
   const pericolo = r.azioni.find((a) => a.id === 'solo-cloud-qui')
@@ -5694,38 +5861,122 @@ window.scegli = async (testo) => {
  */
 window.apriAltro = (id) => { altroAperto = altroAperto === id ? null : id; pannello(ultimoStato) }
 
-window.vaiScheda = (nome) => {
-  if (scheda === nome) return
-  scheda = nome
-  if (nome === 'domande') { domandeViste = null; leggiDomande() }
-  if (nome === 'progetti') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
-  // Salute, File e Impostazioni (0.61.0) sono destinazioni: si leggono entrando.
-  if (nome === 'salute') leggiSalute().then(() => pannello(ultimoStato))
-  if (nome === 'impostazioni') Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(() => pannello(ultimoStato))
-  if (nome === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(() => pannello(ultimoStato)) }
+/**
+ * Va in un posto nuovo (0.83.0): chiude quello che era aperto nella schermata
+ * di prima e legge dal computer quello che la nuova mostra.
+ */
+function vaiAlPosto(nuovo) {
+  const prima = posto
+  posto = nuovo
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
   pannelloAperto = null
   dentro = null
-  dentroAp = null
+  dentroAp = null; apPc = null; apPcNome = ''; apDettaglio = null; apRiassunto = false
   // Anche il menu «altro» di una chat, la scheda del quaderno, la coda e il
   // PC aperti: restavano aperti e ricomparivano tornando, fuori contesto.
   altroAperto = null; schedaAperta = null; codaProgetto = null; pcAperto = null
-  try { history.pushState({ scheda: nome }, '') } catch (e) { /* niente cronologia, pazienza */ }
+  pdScelto = ''; pdStrumento = ''
+  const entra = (cosa, quando) => { if (quando && JSON.stringify(prima) !== JSON.stringify(nuovo)) cosa() }
+  const ridisegna = () => pannello(ultimoStato)
+  // Si legge entrando, come prima con le sette destinazioni.
+  entra(() => { domandeViste = null; leggiDomande() }, nuovo.voce === 'adesso' && prima.voce !== 'adesso')
+  entra(() => { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(ridisegna) }, inVista('progetti'))
+  entra(() => { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(ridisegna) }, inVista('file'))
+  entra(() => { driveRiavviato = false; leggiDrive().then(ridisegna) }, aperto('drive'))
+  entra(() => { negozioNota = ''; leggiNegozio().then(() => { if (negozioFamiglia === 'mcp') negozioProvaMcp(); ridisegna() }) }, aperto('negozio'))
+  entra(() => { leggiSalute().then(ridisegna) }, inVista('salute'))
+  entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
+  entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
+  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
   pannello(ultimoStato)
+  window.scrollTo(0, 0)
 }
 
-window.addEventListener('popstate', (ev) => {
-  // Indietro: prima si chiude quello che si sta guardando, poi si torna alla
-  // destinazione precedente. Uscire dall'app resta l'ultima delle possibilita'.
-  if (dentro || dentroAp || schedaAperta || pannelloAperto) {
-    dentro = null; dentroAp = null; schedaAperta = null; pannelloAperto = null; altroAperto = null
-    pannello(ultimoStato)
-    return
+/** Il tocco su una voce della fascia: sulla voce in cui sei già, torna al suo inizio. */
+window.vaiVoce = (id) => vaiAlPosto(toccaVoce(posto, id))
+window.vaiLinguetta = (i) => { if (i !== linguettaDi(posto)) vaiAlPosto(scegliLinguetta(posto, i)) }
+window.apriSezione = (id) => vaiAlPosto(apriSezioneAltro(posto, id))
+/** Le destinazioni di prima (domande, autopiloti, chat, file…): i salti da dentro la pagina. */
+window.vaiScheda = (nome) => {
+  const nuovo = versoDestinazione(posto, nome)
+  if (JSON.stringify(nuovo) !== JSON.stringify(posto)) vaiAlPosto(nuovo)
+}
+
+/**
+ * C'è qualcosa da chiudere con «indietro» prima di cambiare posto? I passi 1
+ * e 2 della regola: il dialogo o il menu aperto, poi il dettaglio aperto.
+ * Restituisce la funzione che lo chiude, o null.
+ */
+function daChiudere() {
+  // 1. Il menu «⋯» di una chat o di un workspace, una conferma in corso.
+  if (altroAperto) return () => { altroAperto = null }
+  if (wsAperto) return () => { wsAperto = '' }
+  if (confermando) return () => { confermando = null }
+  // 2. Il dettaglio: la chat, l'autopilota, la scheda del quaderno, il file
+  // guardato, la cartella (si risale di una), il progetto, la coda, il PC.
+  if (dentro) return () => { window.chiudiDentro() }
+  if (dentroAp) return () => { window.chiudiAp() }
+  if (schedaAperta) return () => { schedaAperta = null }
+  if (fileVista) return () => { window.fileChiudiVista() }
+  if (filePin) return () => { window.fileProgettiTutti() }
+  if (fileDove && inVista('file')) {
+    const pezzi = (fileDove.percorso || '').split('/').filter((x) => x !== '')
+    return pezzi.length > 0 ? () => { fileVai(fileDove.progetto, pezzi.slice(0, -1).join('/')) } : () => { window.fileProgettiTutti() }
   }
-  const dove = (ev.state && ev.state.scheda) || 'domande'
-  scheda = dove
-  pannello(ultimoStato)
+  if (pdScelto || pdStrumento) return () => { window.pdIndietro() }
+  if (codaProgetto) return () => { window.chiudiCoda() }
+  if (pcAperto) return () => { window.chiudiPc() }
+  // Un pannello aperto a mano (Riprendi, Spazio delle chat, Quaderno…), non quello della linguetta.
+  if (pannelloAperto && pannelliDelPosto(posto).indexOf(pannelloAperto) < 0) return () => { pannelloAperto = null }
+  return null
+}
+
+/**
+ * «Indietro» (0.83.0), uguale all'app in tutte e quattro le voci: 1. chiude il
+ * dialogo o il menu, 2. il dettaglio, 3. torna all'elenco di Altro o alla
+ * prima linguetta, 4. torna ad Adesso, 5. da Adesso esce.
+ *
+ * Il tasto indietro del telefono (e del browser) consuma una voce della
+ * cronologia: davanti ce ne teniamo tante quanti sono i passi indietro
+ * possibili, spinte **al tocco**. Chrome salta, con il tasto indietro, le
+ * voci aggiunte senza un tocco: rimetterle dentro popstate farebbe uscire
+ * dalla pagina al secondo indietro. Lì se ne rimette una solo se sono finite.
+ * Da Adesso, con niente di aperto, non ne resta nessuna e indietro esce.
+ */
+var entrateIndietro = 0
+var ignoraPopstate = false
+/** Quanti indietro servono per uscire: le cose aperte, i livelli di cartella, i passi fino ad Adesso. */
+function passiIndietro() {
+  let n = [altroAperto || wsAperto || confermando, dentro, dentroAp, schedaAperta, fileVista, filePin, pdScelto || pdStrumento, codaProgetto, pcAperto,
+    pannelloAperto && pannelliDelPosto(posto).indexOf(pannelloAperto) < 0].filter(Boolean).length
+  if (fileDove && inVista('file')) n += (fileDove.percorso || '').split('/').filter((x) => x !== '').length + 1
+  for (let p = indietroTelefono(posto); p; p = indietroTelefono(p)) n += 1
+  return n
+}
+function armaIndietro() {
+  const servono = passiIndietro()
+  try {
+    while (entrateIndietro < servono) { history.pushState({ sierradeck: 'indietro' }, ''); entrateIndietro += 1 }
+    // Tornati ad Adesso con i tasti: le voci in più si tolgono, così indietro esce subito.
+    if (servono === 0 && entrateIndietro > 0) { ignoraPopstate = true; history.go(-entrateIndietro); entrateIndietro = 0 }
+  } catch (e) { /* niente cronologia, pazienza */ }
+}
+window.addEventListener('popstate', () => {
+  if (ignoraPopstate) { ignoraPopstate = false; return }
+  entrateIndietro = Math.max(0, entrateIndietro - 1)
+  const chiudi = daChiudere()
+  if (chiudi) {
+    chiudi()
+    pannello(ultimoStato)
+  } else {
+    const dove = indietroTelefono(posto)
+    if (dove) vaiAlPosto(dove)
+  }
+  // Solo se le voci sono finite prima dei passi (una cartella aperta senza tocchi).
+  if (entrateIndietro === 0 && passiIndietro() > 0) {
+    try { history.pushState({ sierradeck: 'indietro' }, ''); entrateIndietro = 1 } catch (e) { /* pazienza */ }
+  }
 })
 
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
@@ -5786,13 +6037,13 @@ async function accoppiaDalQr() {
  */
 const MISURE = {
   banco: {
-    '--t0': '11px', '--t1': '13px', '--t2': '15px', '--t3': '17px', '--t4': '22px',
+    '--t0': '0.75rem', '--t1': '0.8125rem', '--t2': '0.9375rem', '--t3': '1.0625rem', '--t4': '1.375rem',
     '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
   },
   // Il Foglio sale con lo stesso rapporto: la sua gerarchia e' il testo, non
   // avendo ne' rilievi ne' solchi, e comprimerla lo renderebbe illeggibile.
   foglio: {
-    '--t0': '12px', '--t1': '14px', '--t2': '16px', '--t3': '19px', '--t4': '26px',
+    '--t0': '0.75rem', '--t1': '0.875rem', '--t2': '1rem', '--t3': '1.1875rem', '--t4': '1.625rem',
     '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
   }
 }
@@ -5879,7 +6130,7 @@ function avvisaSeServe(stato) {
       if (r.visto === undefined) delete avvisati['k-' + c.id]
       else avvisati['k-' + c.id] = r.visto
       // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
+      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi da Adesso.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
@@ -6320,7 +6571,7 @@ window.addEventListener('error', (ev) => {
   // Anche nello storico degli errori del PC (0.81.0).
   annotaErrore((ev && ev.message ? ev.message : 'errore') + (ev && ev.error && ev.error.stack ? String.fromCharCode(10) + ev.error.stack : ''))
   if (!app.innerHTML.trim()) {
-    app.innerHTML = '<div class="ingresso"><div style="font-size:19px">SierraDeck</div>' +
+    app.innerHTML = '<div class="ingresso"><div style="font-size:1.1875rem">SierraDeck</div>' +
       '<div class="errore">' + esc(ev.message) + '</div></div>'
   }
 })
@@ -6343,7 +6594,7 @@ setInterval(() => {
   if (!chiave || document.hidden) return
   // 0.76.0: anche dentro una chat che chiede qualcosa, per la domanda breve a lato.
   const ferma = dentro !== null && (ultimoStato.chat || []).some((c) => c.id === dentro && (c.chiede || c.aspetta))
-  if (scheda === 'domande' || ferma) leggiDomande()
+  if (inVista('domande') || ferma) leggiDomande()
 }, 2000)
 </script>
 </body>

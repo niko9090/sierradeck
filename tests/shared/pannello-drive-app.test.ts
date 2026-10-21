@@ -120,10 +120,10 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
     const h3 = disegna(conTrasloco, '', 'spazio')
     for (const t of ['Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h3).toContain(t)
   })
-  it('«Progetti» è una destinazione propria della pagina (0.58.2)', () => {
+  it('«Progetti» è una voce propria della pagina (0.58.2; 0.83.0 la prima linguetta)', () => {
     const html = paginaClient()
     expect(html).toContain('"id":"progetti"')
-    expect(html).toContain('progetti: pannelloDriveHtml()')
+    expect(html).toContain(': pannelloDriveHtml() +')
   })
 })
 
