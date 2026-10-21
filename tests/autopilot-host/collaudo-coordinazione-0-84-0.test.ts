@@ -147,7 +147,7 @@ describe('collaudo: agente finito, i casi del 20-21/10', () => {
   // dell'autopilota (T6) non riceve `conclusa`: in src/autopilot-host/server.ts:3435
   // `conclusa` va solo alle chat con `ramo`. Quindi c-63/c-64 (Rilascio del
   // 21/10) restano fra le chiuse e non vanno mai nel recupero.
-  it.fails('D2: a lavoro finito (T6) anche la chat di Rilascio senza ramo è conclusa', () => {
+  it('D2: a lavoro finito (T6) anche la chat di Rilascio senza ramo è conclusa', () => {
     // Come la lascia T6: tutte «finita», `conclusa` solo a chi ha un ramo.
     const rilascio = chat('c-63', 'finita', { ruolo: 'rilascio' })
     const a = autopilota({ id: 'a', stato: 'finito', chats: [chat('c-61', 'finita', { ramo: 'ap/x/c-61', conclusa: unito }), rilascio] })

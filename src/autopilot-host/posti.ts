@@ -61,7 +61,8 @@ export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
   if (c.stato !== 'finita' && !(a.stato === 'finito' && c.stato === 'lavoro' && c.conclusa !== undefined)) return false
   if (c.sessionId === a.sessionId) return false
   if ((a.adottate ?? []).some((x) => x.sessionId === c.sessionId)) return false
-  const chiuso = (x: ChatGovernata): boolean => x.conclusa !== undefined || x.approvata === true
+  // Collaudo 0.84.0 (D2): a lavoro finito, chi non ha un ramo (Rilascio) ha concluso anche senza `conclusa`.
+  const chiuso = (x: ChatGovernata): boolean => x.conclusa !== undefined || x.approvata === true || (a.stato === 'finito' && x.stato === 'finita' && x.ramo === undefined && x.ruolo !== 'revisione')
   if (c.ruolo === 'revisione') {
     const autore = a.chats.find((x) => x.id === c.revisioneDi)
     return autore !== undefined && chiuso(autore)

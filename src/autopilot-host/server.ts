@@ -3435,6 +3435,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
       pulisciWorktreeVuoti(aggiornato.cwd)
     }
+    // Collaudo 0.84.0 (D2): anche chi non ha un ramo (Rilascio, un Collaudo
+    // senza commit) ha concluso, e va nel recupero come le altre.
+    {
+      const il = deps.adesso()
+      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo === undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
+    }
 
     // ── La pubblicazione, secondo la regola del progetto ──
     const piano = pianoDi(aggiornato)
