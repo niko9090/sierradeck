@@ -99,6 +99,24 @@ describe('creaClientAutopilota', () => {
     expect(avvii).toBe(1)
   })
 
+  it('un avvio che non riporta su il servizio: il prossimo aspetta un minuto (0.84.0)', async () => {
+    // Registro del 20/10, 14:33: decine di doppioni nello stesso minuto, ognuno
+    // trovava la porta presa dal servizio vivo ma fermo e usciva.
+    let avvii = 0
+    let ora = 1_000_000
+    const righe: string[] = []
+    const client = creaClientAutopilota({ porta: 47594, avviaServizio: () => { avvii += 1 }, attesaMs: 50, portaInAscolto: async () => false, adesso: () => ora, log: (m) => { righe.push(m) } })
+    expect(await client.assicuraServizio()).toBe(false)
+    expect(await client.assicuraServizio()).toBe(false)
+    ora += 30_000
+    expect(await client.assicuraServizio()).toBe(false)
+    expect(avvii).toBe(1)
+    expect(righe.join(' ')).toContain('aspetto prima di riprovare')
+    ora += 31_000
+    await client.assicuraServizio()
+    expect(avvii).toBe(2)
+  })
+
   it('riferisce il motivo quando il servizio rifiuta la richiesta', async () => {
     server = createServer((_req, res) => {
       res.writeHead(400, { 'Content-Type': 'application/json' })

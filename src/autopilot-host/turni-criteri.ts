@@ -21,7 +21,7 @@ import type { Esecutore } from './verifiche'
 export type TurniCriteri = {
   /** Esegue `fai` quando tocca a lui: nessun altro pesante, nessuna unione in `cwd`. */
   pesante: <T>(cwd: string, fai: () => Promise<T>) => Promise<T>
-  /** Esegue l'unione quando nella cartella non gira nessun pesante; intanto non ne parte nessuno lì. */
+  /** Esegue l'unione quando nella cartella non gira nessun pesante né un'altra unione; intanto non ne parte nessuno lì. */
   unione: <T>(cwd: string, fai: () => T | Promise<T>) => Promise<T>
   /** Per il registro e le prove: chi gira adesso e quanti aspettano. */
   stato: () => { inCorso: string | undefined; inFila: number; unioni: number }
@@ -34,6 +34,8 @@ export function creaTurni(): TurniCriteri {
   const fila: { n: number; dove: string }[] = []
   let numero = 0
   const unioni = new Map<string, number>()
+  /** Le cartelle dove un'unione sta girando adesso (0.84.0): una alla volta per cartella. */
+  const unendo = new Set<string>()
   const attese = new Set<() => void>()
   const sveglia = (): void => { for (const f of [...attese]) f() }
   const aspetta = async (pronto: () => boolean): Promise<void> => {
@@ -67,8 +69,22 @@ export function creaTurni(): TurniCriteri {
       const dove = normale(cwd)
       unioni.set(dove, (unioni.get(dove) ?? 0) + 1)
       try {
-        await aspetta(() => inCorso !== dove)
-        return await fai()
+        // **Una sola unione per cartella** (Revisione 0.84.0). Con git
+        // sincrono un'unione era atomica; da asincrona cede il passo a ogni
+        // comando, e due `git merge` nella stessa cartella si pestavano
+        // (index.lock, e il `merge --abort` del secondo annullava il primo).
+        // Il posto si prende dentro il controllo: fra un `await` e l'altro
+        // un'altra unione vedrebbe la cartella ancora libera.
+        await aspetta(() => {
+          if (inCorso === dove || unendo.has(dove)) return false
+          unendo.add(dove)
+          return true
+        })
+        try {
+          return await fai()
+        } finally {
+          unendo.delete(dove)
+        }
       } finally {
         const resto = (unioni.get(dove) ?? 1) - 1
         if (resto > 0) unioni.set(dove, resto)
