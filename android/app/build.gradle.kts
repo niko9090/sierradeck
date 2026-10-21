@@ -61,7 +61,11 @@ android {
             // Firmato all'uscita dal forno: nessun passaggio a mano, nessuna password
             // da ricordare fra una versione e l'altra.
             signingConfig = signingConfigs.findByName("propria")
-            isMinifyEnabled = false
+            // R8 (0.83.0): meno codice da caricare all'apertura. Le regole e il
+            // perché dei nomi non offuscati sono in proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 

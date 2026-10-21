@@ -51,6 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -259,7 +262,10 @@ fun Principale(
     var schermataViaggio by remember(indirizzo) { mutableStateOf(gen > 0) }
     var versioneScelto by remember(indirizzo) { mutableStateOf<String?>(null) }
     LaunchedEffect(indirizzo, giroTent, gen) {
-        schedaTent = true
+        // «Mi collego a…» solo se il collegamento tarda (0.83.0, `AvvioCollegamento`): con il
+        // PC che risponde subito non compare, e l'elenco non salta quando si chiude.
+        schedaTent = schermataViaggio
+        val mostraScheda = launch { delay(AvvioCollegamento.MOSTRA_DOPO_MS); schedaTent = true }
         val ev = mutableListOf<EventoTentativo>()
         val dettagli = mutableMapOf<String, DettaglioStrada>()
         viaggio = Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())
@@ -295,7 +301,10 @@ fun Principale(
                     val k0 = System.currentTimeMillis()
                     viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0))
                     val chiaveOk = try {
-                        kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
+                        // adesso, non al primo giro del polso (0.83.0).
+                        if (stato == null) stato = letto
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
@@ -307,13 +316,17 @@ fun Principale(
                     } catch (x: Exception) {
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
                     }
+                    mostraScheda.cancel()
                     onEsito(gen, chiaveOk)
                     if (chiaveOk) {
-                        delay(1200)
-                        schermataViaggio = false
-                        delay(1300)
+                        val attesa = AvvioCollegamento.attesaPrimaDiChiudere(schedaTent || schermataViaggio)
+                        if (attesa > 0) {
+                            delay(1200)
+                            schermataViaggio = false
+                            delay(attesa - 1200)
+                        }
                         schedaTent = false
-                    }
+                    } else schedaTent = true
                     return@LaunchedEffect
                 }
                 dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis(), ultimo)
@@ -323,6 +336,8 @@ fun Principale(
         e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre da Altro › Altri computer"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
+        mostraScheda.cancel()
+        schedaTent = true
         // Resta su questo computer, con «Riprova»: mai un ritorno da solo su quello di prima.
         onEsito(gen, false)
     }
@@ -442,7 +457,10 @@ fun Principale(
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
                 // prossima sveglia.
-                try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                // Fuori dal thread dello schermo (0.83.0): rilegge il JSON e scrive le preferenze, ogni due secondi.
+                withContext(Dispatchers.Default) {
+                    try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                }
                 // L'ultima parola prima del silenzio. Va colta **mentre** il
                 // computer la dice: fra un istante non risponde piu'.
                 // L'aggiornamento puo' partire anche dallo schermo del
