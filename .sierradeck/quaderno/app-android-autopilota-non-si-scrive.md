@@ -21,3 +21,5 @@ Il servizio degli autopiloti, in locale sulla porta 47630, ha `POST /autopiloti/
 - L'id intero si legge da `GET /autopiloti`. `GET /autopiloti/<id>` non esiste («rotta sconosciuta»).
 - Si usa solo con le sue parole, e si dice da dove arrivano.
 - Il 21/10 il suo messaggio è passato così al dialogo di ap-f1e631f5.
+
+**c-506 (a c-3, 21/10):** è arrivata anche a c-3 la priorità della schermata dell'autopilota. c-3 non la fa: è di c-46 (vedi sopra), e due chat sugli stessi file Kotlin si scontrano. c-3 non ha domande aperte sulla 0.81.1 e non può chiudere le chat delle altre: lo fa il supervisore con chiudiChat.
