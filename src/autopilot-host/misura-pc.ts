@@ -33,6 +33,9 @@ export function caricoFra(prima: TempiCpu, dopo: TempiCpu): number | undefined {
   return Math.max(0, Math.min(100, ((dopo.occupato - prima.occupato) / tot) * 100))
 }
 
+/** Sotto questo intervallo (per processore, in ms) due letture non si confrontano. */
+export const LETTURA_MINIMA_MS = 1000
+
 /** Quanto pesa l'ultima lettura nella media: con un giro al minuto, circa tre minuti di memoria. */
 export const PESO_ULTIMA = 0.4
 
@@ -46,13 +49,20 @@ const fonteVera: Fonte = { cpus: () => os.cpus(), libera: () => os.freemem(), to
 
 /** Un misuratore con la sua memoria: chiamato a ogni giro, dà la misura del momento. */
 export function creaMisuratore(fonte: Fonte = fonteVera): () => MisuraPc {
-  let ultimi: TempiCpu | undefined
+  // La prima lettura si fa subito: senza, la prima misura (all'avvio del
+  // servizio, quando si riprendono le flotte) non sapeva il carico e lo dava a
+  // zero, e su un PC già pieno apriva sei chat invece di tre (misura del 21/10).
+  let ultimi: TempiCpu | undefined = tempiDa(fonte.cpus())
   let media: number | undefined
   return () => {
     const cpus = fonte.cpus()
     const adesso = tempiDa(cpus)
-    const letto = ultimi !== undefined ? caricoFra(ultimi, adesso) : undefined
-    ultimi = adesso
+    // Due letture a pochi millisecondi (la ripresa all'avvio subito dopo la
+    // creazione) non dicono niente: si tiene la lettura vecchia e si misura
+    // quando l'intervallo è di almeno un secondo.
+    const breve = ultimi !== undefined && adesso.totale - ultimi.totale < LETTURA_MINIMA_MS * Math.max(1, cpus.length)
+    const letto = ultimi !== undefined && !breve ? caricoFra(ultimi, adesso) : undefined
+    if (!breve) ultimi = adesso
     if (letto !== undefined) media = media === undefined ? letto : media * (1 - PESO_ULTIMA) + letto * PESO_ULTIMA
     return {
       processori: Math.max(1, cpus.length),

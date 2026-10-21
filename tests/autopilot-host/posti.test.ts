@@ -103,9 +103,17 @@ describe('misura del PC (Windows: niente loadavg)', () => {
     expect(caricoFra(dopo, dopo)).toBeUndefined()
   })
 
+  it('la prima misura sa già il carico: la prima lettura si fa alla creazione', () => {
+    let t = 0
+    const letture: Array<[number, number]> = [[0, 0], [9500, 500]]
+    const misura = creaMisuratore({ cpus: () => { const [o, i] = letture[Math.min(t++, 1)]!; return [cpu(o, i)] }, libera: () => 0, totale: () => 0 })
+    expect(misura().caricoPercento).toBe(95)
+  })
+
   it('media mobile: un picco solo non porta il carico al 100%', () => {
     let t = 0
-    const letture: Array<[number, number]> = [[0, 0], [10, 90], [110, 90], [120, 180]]
+    // La prima lettura la fa il misuratore appena creato: la prima misura sa già il carico.
+    const letture: Array<[number, number]> = [[0, 0], [0, 0], [1000, 9000], [11000, 9000], [12000, 18000]]
     const misura = creaMisuratore({
       cpus: () => { const [o, i] = letture[Math.min(t++, letture.length - 1)]!; return [cpu(o, i)] },
       libera: () => 4 * 1024 * 1024 * 1024,
@@ -116,6 +124,15 @@ describe('misura del PC (Windows: niente loadavg)', () => {
     // 100% per un giro: 10·0,6 + 100·0,4 = 46.
     expect(misura().caricoPercento).toBe(46)
     expect(misura().caricoPercento).toBe(32)
+  })
+
+  it('due letture a pochi millisecondi non si confrontano: si aspetta un intervallo vero', () => {
+    let t = 0
+    // Creazione, poi una misura subito (5 ms tutti occupati), poi una dopo 2 secondi al 50%.
+    const letture: Array<[number, number]> = [[0, 0], [5, 0], [1000, 1000]]
+    const misura = creaMisuratore({ cpus: () => { const [o, i] = letture[Math.min(t++, letture.length - 1)]!; return [cpu(o, i)] }, libera: () => 0, totale: () => 0 })
+    expect(misura().caricoPercento).toBe(0)
+    expect(misura().caricoPercento).toBe(50)
   })
 })
 
