@@ -41,7 +41,7 @@ import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero }
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
-  domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDallaChat, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
+  domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
 import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
 import {
@@ -56,6 +56,7 @@ import type { TipoAvviso } from './telegram'
 import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
+import { compitoInBreve, partiDaChatFerma, senzaNotificaClaude } from '@shared/domanda-chiara'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
@@ -531,6 +532,8 @@ export type ServerAutopiloti = Server & {
    * già o non ha criteri con un comando.
    */
   ricontrollaCriteri: (id: string) => Promise<boolean>
+  /** Chiude le domande aperte ormai superate (0.84.0); torna quante. */
+  ricontrollaDomande: () => Promise<number>
 }
 
 /**
@@ -2218,8 +2221,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       annota(fresco, `Revisione ${chatId}: ${autore.id} rimandato indietro ${rifacimenti} volte, chiedo a te`, { chat: chatId, esito: 'chiede-te', di: autore.id })
       salva(fresco)
       const parti = {
-        staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat ${autore.id} («${autore.compito.slice(0, 80)}»).`,
-        domanda: 'Come vado avanti con questo pezzo?',
+        // 0.84.0: «Come vado avanti con questo pezzo?» → Nicholas: «quale pezzo???».
+        // La domanda nomina il lavoro, senza la sigla della chat.
+        staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat che fa «${compitoInBreve(autore.compito, 80)}».`,
+        domanda: `Come vado avanti con «${compitoInBreve(autore.compito, 80)}», che la Revisione ha già rimandato indietro ${rifacimenti} volte?`,
         perche: `L’ultima richiesta della Revisione: ${v.note.slice(0, 200)}`,
         scelte: [
           { scelta: 'rifallo ancora', conseguenza: 'La chat corregge di nuovo e la Revisione la rivede.', consigliata: true },
@@ -3012,7 +3017,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         nomeDi(aggiornato),
         partiPrima,
         decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
-        partiDaRisposta
+        partiDaRisposta,
+        aggiornato.chats
       ).finally(() => inLavorazione.delete(id))
       if (pronta.riscritta) annota(aggiornato, 'la domanda era incompleta: il supervisore l’ha riscritta')
       if (pronta.avvertenza !== undefined) annota(aggiornato, `domanda passata incompleta: ${pronta.avvertenza}`)
@@ -3401,7 +3407,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
         ]
       })
-      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(ora, chatId), domanda: domandaInFondo(detto) ?? (messaggio !== '' ? messaggio : domandaGrezza), risposta: esito.risposta })
+      // La domanda intera accanto alla risposta (0.84.0): prima, senza «?» in
+      // fondo, restava «Claude is waiting for your input» (21/10, 19 volte).
+      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(ora, chatId), domanda: domandaInFondo(detto) ?? (senzaNotificaClaude(domandaGrezza) || domandaGrezza), risposta: esito.risposta })
       const aggiornato = deps.archivio.leggi(id) ?? a
       void avviaLavoro(aggiornato, esito.risposta, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta non consegnata a ${id}:`, err)
@@ -3415,17 +3423,31 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Con le sue cinque parti (0.41.0): se il supervisore l'ha scritta
     // incompleta la riscrive una volta; se il supervisore non ha risposto
     // resta la domanda della chat, con l'avvertenza.
+    // Senza il supervisore (0.84.0) la domanda la scrive il programma, chiara:
+    // prima era «idle_prompt: Claude is waiting for your input» più il
+    // messaggio intero, con «⚠ Domanda incompleta» (21/10).
+    const partiPrima = esito?.tipo === 'chiedi'
+      ? (esito.parti ?? leggiParti(esito.domanda))
+      : (() => {
+          // Senza il messaggio della chat resta quello della notifica («quale chiave uso?»).
+          const dettoChat = detto !== undefined && detto.trim() !== '' ? detto : senzaNotificaClaude(messaggio)
+          const inFondo = domandaInFondo(dettoChat)
+          return partiDaChatFerma({ compito: chat?.compito ?? '', obiettivo: a.obiettivo, detto: dettoChat, ...(inFondo !== undefined ? { domandaInFondo: inFondo } : {}) })
+        })()
     const pronta = await domandaControllata(
       nomeDi(a),
-      esito?.tipo === 'chiedi' ? (esito.parti ?? leggiParti(esito.domanda)) : partiDallaChat(a, domandaGrezza),
+      partiPrima,
       esito?.tipo === 'chiedi' ? async (richiesta) => (await deps.interroga(richiesta, a.cwd, undefined)).testo : undefined,
-      partiDaRisposta
+      partiDaRisposta,
+      a.chats
     )
     const testo = pronta.testo
     // **Già risolta o già risposta** (0.81.0): alla chat si dice cosa sa già,
-    // e Nicholas non la vede. Lo stesso controllo delle domande del supervisore.
+    // e Nicholas non la vede. Lo stesso controllo delle domande del supervisore,
+    // sulla domanda con le sigle (0.84.0): «chiudo la c-15?» si riconosce da lì.
     const laDomanda = pronta.parti.domanda !== '' ? pronta.parti.domanda : domandaGrezza
-    const scarto = await domandaDaScartare(ora, chatId, laDomanda)
+    const scarto = (partiPrima.domanda !== '' && partiPrima.domanda !== laDomanda ? await domandaDaScartare(ora, chatId, partiPrima.domanda) : undefined) ??
+      await domandaDaScartare(ora, chatId, laDomanda)
     if (scarto !== undefined) {
       const fresco = deps.archivio.leggi(id) ?? ora
       annota(fresco, scarto.riga, scarto.traguardo)
@@ -4492,5 +4514,60 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return true
   }
 
-  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  /**
+   * **Le domande già aperte, ricontrollate** (0.84.0). Il 21/10 sulla scheda
+   * Domande c'erano ancora due domande del mattino di chat già chiuse («la
+   * chat la chiudi tu», «gli strumenti sono bloccati»): Nicholas le vedeva
+   * come se aspettassero lui. Una domanda è superata quando:
+   * - l'autopilota non c'è più, o ha finito;
+   * - tutte le chat che la aspettano sono chiuse o senza la loro copia;
+   * - lo stato vero l'ha già risolta («pubblico la 0.81.1?» a 0.81.1 uscita):
+   *   allora le chat ferme ripartono sapendolo.
+   * Non si toccano le preparazioni né una domanda che un hook sta ancora
+   * aspettando: ci pensa la sua scadenza. Torna quante ne ha chiuse.
+   */
+  const ricontrollaDomande = async (): Promise<number> => {
+    let chiuse = 0
+    for (const d of deps.domande.aperte()) {
+      const c = contesto.get(d.id) ?? d.contesto
+      if (c?.trattenuta === true) continue
+      const a = deps.archivio.leggi(d.autopilotaId)
+      const chatIds = [c?.chatId, ...(c?.ancheChat ?? [])].filter((x): x is string => x !== undefined)
+      const laDomanda = c?.grezza ?? (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo)
+      let motivo: string | undefined
+      let daRiprendere = false
+      if (a === undefined) motivo = 'l’autopilota che la faceva non c’è più'
+      else if (a.stato === 'finito') motivo = 'il lavoro è già finito'
+      else if (a.stato === 'intervista' || chatIds.length === 0) continue
+      else {
+        const perche = chatIds.map((cid) => {
+          const ch = a.chats.find((x) => x.id === cid)
+          return ch === undefined ? 'non c’è più' : chatSenzaLavoro(ch)
+        })
+        if (perche.every((x) => x !== undefined)) {
+          const prima = a.chats.find((x) => x.id === chatIds[0])
+          motivo = prima !== undefined ? `la chat che lavorava a «${compitoInBreve(prima.compito, 60)}» ${perche[0]}` : 'la chat che l’aveva chiesta non c’è più'
+        } else {
+          const dalloStato = risoltaDalloStato(laDomanda, await statoVeroDi(a))
+          if (dalloStato !== undefined) { motivo = dalloStato; daRiprendere = true }
+        }
+      }
+      if (motivo === undefined) continue
+      if (!deps.domande.superata(d.id, motivo, a !== undefined ? chatDellaDomanda(a, c?.chatId) : undefined)) continue
+      contesto.delete(d.id)
+      chiuse += 1
+      const breve = (d.parti?.domanda ?? laDomanda).replace(/\s+/g, ' ').slice(0, 120)
+      console.log(`[domande] ${d.autopilotaId} — superata, chiusa: «${breve}» (${motivo})`)
+      if (a === undefined) continue
+      const fresco = deps.archivio.leggi(a.id)
+      if (fresco !== undefined) {
+        annota(fresco, `domanda chiusa perché superata: «${breve}» — ${motivo}`)
+        salva(fresco)
+      }
+      if (daRiprendere) for (const cid of chatIds) riprendiChatBloccata(a.id, cid, laDomanda, `Non serve più chiederlo: ${motivo}. Prosegui tenendone conto.`, 'domanda superata')
+    }
+    return chiuse
+  }
+
+  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

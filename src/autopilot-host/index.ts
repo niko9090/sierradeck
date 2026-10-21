@@ -381,6 +381,15 @@ export function avviaServizio(): void {
     setInterval(() => { server.controllaChatFerme() }, GUARDIA_MS).unref()
     // Niente più criteri ricontrollati da soli (0.72.0): si misurano solo
     // mentre l'autopilota lavora o su richiesta (POST …/ricontrolla-criteri).
+    // Le domande aperte ormai superate si chiudono da sole (0.84.0): all'avvio
+    // e ogni 10 minuti. Legge solo stato e git, non lancia comandi pesanti.
+    const ricontrollaDomande = (): void => {
+      void server.ricontrollaDomande()
+        .then((n) => { if (n > 0) console.info(`[domande] ${n} domande superate chiuse`) })
+        .catch((err: unknown) => { console.error('[domande] ricontrollo non riuscito:', err) })
+    }
+    ricontrollaDomande()
+    setInterval(ricontrollaDomande, 10 * 60_000).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa
