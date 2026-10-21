@@ -13,17 +13,48 @@ Censimento delle fermate non volute dal 15/10 al 21/10 alle 17:36. Le cause sono
 
 Gli script con cui li ho contati stavano nella cartella temporanea della chat c-56. Per rifarli basta cercare nel registro le righe citate qui sotto.
 
-## DESKTOP e LAPTOP: i registri non si leggono da qui
+## I tre PC accesi, con lo stesso conteggio (21/10 sera)
 
-Il ponte in sola lettura (`/api/ponte`, `ROTTE_PONTE` in `src/shared/ponte-telefono.ts`) non ha nessuna rotta per i registri. Vuole inoltre la chiave di un telefono abbinato. Da qui si vede solo il battito degli altri PC (`pc-altrui.json`):
+**Come si sono letti gli altri PC.** Il ponte non dà i registri, quindi si è passati da una chat su ciascun PC, come per il plugin ECC (`plugin-ecc-sui-pc-0-84-0.md`, punti 3 e 4):
+- dispositivo temporaneo «Collaudo Claude (temporaneo)», tolto alla fine;
+- sul DESKTOP la chat «Installa plugin ECC (temporanea)», che era già aperta;
+- sul LAPTOP una chat «Conta fermate nei registri (temporanea)», aperta con `/api/apri` e poi chiusa.
 
-| PC | Versione | Chat |
-|---|---|---|
-| DESKTOP | 0.82.1 | 4: Fionda, Rilascio, e 2 «aspetta» |
-| LAPTOP | 0.82.1 | 2: RdpManager, Rilascio |
-| NB-PROBOOK | 0.79.0 | ultimo battito il 20/10 |
+A ciascuna è stato dato lo stesso script **in sola lettura**, che legge `%APPDATA%\SierraDeck\log\sierradeck-2026-10-15…21.log`. L'esito è stato letto con `/api/storia`; le risposte sono arrivate alle 17:54–17:55 UTC. Lo script è passato anche su questo PC, così i numeri si confrontano.
 
-**Da fare:** per contare anche lì, serve una rotta del ponte che dia, in sola lettura, le righe «sospeso / in attesa / guasto» del registro. Altrimenti bisogna copiare i log a mano. La decisione spetta a Nicholas. Le correzioni qui sotto valgono per tutti i PC, perché il codice è lo stesso.
+Le righe contate si riconoscono da un pezzo del loro testo, per esempio «ferma da N s: consegno» o «doppione esce».
+
+| Riga del registro (15–21/10) | Fisso (questo) | DESKTOP (0.83.0) | LAPTOP (0.82.1) |
+|---|---|---|---|
+| chat ferma, messaggio consegnato tardi | 36 (19/10: 17, 20/10: 15, 21/10: 4); max 20503 s | **18** (16/10: 2, 19/10: 11, 20/10: 1, 21/10: 4); max **11006 s** (21/10 12:48, ap-35282210) | 1 (20/10); 126 s |
+| il servizio non risponde (salute o elenco) | 4266 (20/10: 1101, 21/10: 3035) | **357** (20/10: 307) | 7 |
+| unione git oltre 10 s nel giro | 66 (20/10: 48) | **6** (20/10); max 15,3 s (20/10 17:41) | 0 |
+| avvii del servizio | 117 (20/10: 62, 21/10: 45) | 33 (20/10: 18) | 10 |
+| … di cui doppioni usciti per porta presa | 102 | **16** (20/10 13:37) | 0 |
+| supervisore scaduto dopo 5 minuti | 65 | 11 (20/10: 9) | 2 (17/10) |
+| antiloop | 3 | 4 (19/10, ap-5748d8ff Fionda) | 3 (17/10, ap-fe95062e) |
+| in attesa di risposta (domanda a Nicholas) | 19 | 4 | 6 (17/10: 4, a partire da «installo pyarrow…») |
+| comando bloccato | 47 | 13 | 10 |
+| messa da parte | 2 | 0 | 0 |
+| guasto del programma | 0 | 0 | 0 |
+
+Note sul conteggio:
+- **«sospeso».** Lo script cerca «sospes» in ogni riga del servizio, e quindi conta anche righe di «finito», come provano le righe degli altri due PC. I numeri veri di sospensione per questo PC sono quelli della tabella delle fermate qui sotto.
+- **«idle_prompt».** Lo script lo trova anche dentro le notifiche dell'app, quindi non l'ho messo nella tabella.
+
+**Cosa dicono gli altri due PC:**
+- **Nessuna causa nuova.** Le righe più frequenti sul DESKTOP sono le stesse tre di qui:
+  - messaggi in ritardo fino a 3 ore → correzione 1;
+  - servizio che non risponde, con unioni lunghe il 20/10 → correzione 2;
+  - doppioni del servizio → correzione 3.
+  Sono più rari perché il DESKTOP ha meno chat insieme.
+- **Il LAPTOP ha avuto poco lavoro di autopilota** (l'ap-fe95062e del 17/10, ancora alla 0.69.0). Le sue fermate:
+  - 3 antiloop e 6 domande del 17/10: aspettavano un'installazione (pyarrow) che fa solo Nicholas, quindi non dipendono da SierraDeck;
+  - 2 supervisori scaduti: corretto in 0.82.1.
+- **Antiloop sul DESKTOP, 19/10** (ap-5748d8ff, Fionda): è la stessa guardia che qui ha fermato c-7, «3 giri di fila con la stessa istruzione e il codice fermo». È una fermata voluta, ha scritto il suo motivo e ha chiesto a Nicholas. Non ho letto il resto della riga, quindi non so cosa aspettasse.
+- **NB-PROBOOK:** spento, l'ultimo battito è del 20/10 alle 11:50. Non è stato letto.
+
+Le correzioni qui sotto valgono per tutti i PC, perché il codice è lo stesso.
 
 ## Fermate dell'autopilota (stato «sospeso» o domanda a Nicholas)
 
