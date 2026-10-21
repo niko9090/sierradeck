@@ -110,6 +110,8 @@ class StatoVeloceTest {
         val polso = sorgente("DomandeAdesso.kt")
         assertTrue(polso.contains("LaunchedEffect(api, d.giro, firma)"))
         assertTrue(polso.contains("if (firma != null && d.guasto == null) break"))
+        // Gli autopiloti degli altri PC, sotto le domande: una volta al minuto.
+        assertTrue(sorgente("Lavori.kt").contains("Davanti.pausa(60_000)"))
     }
 
     // ─── (c) chiavi stabili ───
