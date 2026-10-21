@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.84.0',
+    righe: [
+      '**Gli autopiloti non si fermano più da soli:** una chat in attesa di giudizio non blocca più le altre (prima i messaggi potevano arrivare con ore di ritardo), salvare e unire i rami non ferma più il servizio, e un servizio che non riparte non viene riavviato a raffica.',
+      '**Ogni chat dice all’autopilota come sta:** quando parte, quando ha finito, quando è bloccata e perché, quando aspetta un’altra chat. L’autopilota vede tutto in un punto solo e decide lui; lo stesso compito non viene mai dato a due chat.',
+      '**Storico di ogni lavoro nel quaderno:** chat aperte, consegne, unioni, chiusure, release e le tue decisioni, in italiano e senza ripetizioni. Sulla pagina del telefono e nell’app c’è il tasto «Storico».',
+      '**Una chat che ha finito si chiude da sola** quando il suo lavoro è unito o scartato. La conversazione va nel recupero di 30 giorni e si rimette con «Ripristina». Le chat al lavoro e quelle aperte da te non si toccano.',
+      '**Domande che si capiscono da sole:** dicono di quale lavoro parlano, senza sigle come «c-12» e senza «l’altra chat», e ogni scelta dice cosa comporta. Le domande ormai superate si chiudono da sole.',
+      '**Accanto a ogni risposta c’è la domanda intera:** nella conversazione, nelle Domande, nelle notifiche, sulla pagina e nell’app.',
+    ]
+  },
+  {
     versione: '0.83.0',
     righe: [
       '**App a quattro voci fisse in basso:** Adesso, Chat, Progetti e Altro. «Indietro» fa sempre la stessa cosa e ogni funzione si raggiunge in due tocchi al massimo. Nessuna funzione tolta.',
