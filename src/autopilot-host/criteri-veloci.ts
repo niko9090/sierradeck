@@ -47,14 +47,22 @@ export function ePesante(comando: string): boolean {
 }
 
 /**
- * L'impronta del codice di una cartella git: il suo commit (0.82.1).
+ * L'impronta del codice di una cartella git: il suo commit (0.82.1), più le
+ * modifiche non salvate ai file **tracciati**, se ce ne sono. Non contano i
+ * file non tracciati né `.sierradeck/` (consegne, quaderno): li scrive il
+ * programma di continuo, e sono loro che facevano rimisurare a vuoto. Le
+ * modifiche ai file tracciati invece contano: senza, una chat che lavora nella
+ * cartella principale senza fare commit vedrebbe sempre l'esito di prima.
  * `undefined` se non è git: allora niente cache.
  */
 export function improntaCodice(git: Git, cwd: string): string | undefined {
   const head = git(['rev-parse', 'HEAD'], cwd)
   if (head.codice !== 0) return undefined
   const commit = head.uscita.trim()
-  return /^[0-9a-f]{7,64}$/i.test(commit) ? commit : undefined
+  if (!/^[0-9a-f]{7,64}$/i.test(commit)) return undefined
+  const diff = git(['diff', 'HEAD', '--', '.', ':(exclude).sierradeck'], cwd)
+  if (diff.codice !== 0 || diff.uscita.trim() === '') return commit
+  return `${commit}+${createHash('sha256').update(diff.uscita).digest('hex').slice(0, 16)}`
 }
 
 /**
@@ -99,6 +107,19 @@ export type Misura = {
   durate: { descrizione: string; ms: number }[]
 }
 
+/** Quanti esiti si ricordano al massimo: il servizio gira per giorni, e un commit nuovo è una voce in più. */
+export const ESITI_RICORDATI = 600
+
+/** Scrive in memoria tenendo le ultime `ESITI_RICORDATI` voci (le più vecchie escono per prime). */
+function ricorda(memoria: MemoriaCriteri, k: string, v: { impronta: string | undefined; quando: number; esito: EsitoVerifica }): void {
+  memoria.delete(k)
+  memoria.set(k, v)
+  for (const vecchia of memoria.keys()) {
+    if (memoria.size <= ESITI_RICORDATI) break
+    memoria.delete(vecchia)
+  }
+}
+
 const chiaveCommit = (impronta: string, comando: string): string => `commit\0${impronta}\0${comando}`
 const chiaveUltimo = (cwd: string, comando: string): string => `ultimo\0${cwd}\0${comando}`
 
@@ -136,9 +157,9 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
     durate.push({ descrizione: c.descrizione, ms: opz.adesso() - t0 })
     if (e === undefined) return undefined
     const quando = opz.adesso()
-    opz.memoria.set(chiaveUltimo(cwd, comando), { impronta: opz.impronta, quando, esito: e })
+    ricorda(opz.memoria, chiaveUltimo(cwd, comando), { impronta: opz.impronta, quando, esito: e })
     if (opz.impronta !== undefined && !guardaFuori(comando) && daRicordare(e)) {
-      opz.memoria.set(chiaveCommit(opz.impronta, comando), { impronta: opz.impronta, quando, esito: e })
+      ricorda(opz.memoria, chiaveCommit(opz.impronta, comando), { impronta: opz.impronta, quando, esito: e })
     }
     return e
   }

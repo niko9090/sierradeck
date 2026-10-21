@@ -1316,7 +1316,11 @@ if (!app.requestSingleInstanceLock()) {
       gettoniMcp = apriGettoni(join(dati, 'gettoni-mcp.json'))
       ptyClient = registerPtyIpc(
         // Git nel PATH di ogni chat (0.82.1): senza, gli hook ECC rifiutano gli strumenti.
-        () => ({ ...gitPerLeChat(impostazioni.preferenze().percorsoGit), ...(providerStore?.env() ?? {}) }),
+        // Git per ultimo, sull'ambiente del fornitore: un suo PATH non lo toglie.
+        () => {
+          const fornitore = providerStore?.env() ?? {}
+          return { ...fornitore, ...gitPerLeChat(impostazioni.preferenze().percorsoGit, { ...process.env, ...fornitore }) }
+        },
         (cwd, autopilotaJson) => {
           const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
           // Nessun override per questa cartella: si lascia tutto com'era, senza

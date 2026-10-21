@@ -838,7 +838,9 @@ describe('flotta di chat', () => {
     expect(terzo).toEqual({})
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
-    const ripreso = stato.compitiDaFare.find((t: string) => t.includes('Ripreso dopo'))
+    // Il suo compito non conta come fatto (Revisione): cambia nome.
+    expect(stato.chats.find((c: any) => c.id === 'c-2').compito).toContain('rimandato')
+    const ripreso =stato.compitiDaFare.find((t: string) => t.includes('Ripreso dopo'))
     expect(ripreso).toContain('aggiorna i documenti')
     expect(stato.ruoliCompiti?.[ripreso]?.dopo).toEqual(['scrivi i test'])
     expect(stato.decisioni.some((d: any) => d.cosa.includes('c-2 aspetta c-1 da 3 giri: la chiudo'))).toBe(true)

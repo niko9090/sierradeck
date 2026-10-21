@@ -197,9 +197,13 @@ export function senzaSupervisore(p: {
 }): { mossa: Decisione; mancati: number; avvisaNicholas: boolean; nota: string } {
   const mancati = p.mancati + 1
   const avvisaNicholas = mancati === TETTO_SUPERVISORE_MANCATO
-  const riprova = interrogaSupervisore(mancati) ? 'lo riprovo al prossimo giro' : `lo riprovo fra ${TETTO_SUPERVISORE_MANCATO - (mancati % TETTO_SUPERVISORE_MANCATO)} giri`
+  // Il conto sale a ogni giro, interrogato o no: il prossimo giro interrogato è il primo `k` con `interrogaSupervisore(mancati + k - 1)`.
+  let fra = 1
+  while (!interrogaSupervisore(mancati + fra - 1)) fra += 1
+  const riprova = fra === 1 ? 'lo riprovo al prossimo giro' : `lo riprovo fra ${fra} giri`
   const ultime = p.ultimeIstruzioni?.trim() ?? ''
-  if (p.regole.tipo !== 'prosegui' || ultime === '') {
+  // Una strategia nuova delle regole (cerchio riconosciuto) vale più dell'istruzione di prima.
+  if (p.regole.tipo !== 'prosegui' || p.regole.strategia !== undefined || ultime === '') {
     return { mossa: p.regole, mancati, avvisaNicholas, nota: `il supervisore non ha risposto (${mancati} di fila): decidono le regole, ${riprova}` }
   }
   return {

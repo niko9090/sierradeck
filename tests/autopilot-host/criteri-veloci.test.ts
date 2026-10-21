@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
+import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
 import { gitReale } from '../../src/autopilot-host/worktree'
 
 /**
@@ -123,7 +123,20 @@ describe('criteri veloci', () => {
     writeFileSync(join(dir, 'nuovo.txt'), 'a')
     expect(improntaCodice(gitReale, dir)).toBe(i1)
     committa('secondo')
-    expect(improntaCodice(gitReale, dir)).not.toBe(i1)
+    const i2 = improntaCodice(gitReale, dir)
+    expect(i2).not.toBe(i1)
+    // Un file tracciato cambiato e non salvato conta (chi lavora senza commit);
+    // uno tracciato sotto .sierradeck (quaderno scritto dal programma) no.
+    mkdirSync(join(dir, '.sierradeck'))
+    writeFileSync(join(dir, 'codice.ts'), 'a')
+    writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'a')
+    gitReale(['add', '.'], dir)
+    committa('terzo')
+    const i3 = improntaCodice(gitReale, dir)
+    writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'b')
+    expect(improntaCodice(gitReale, dir)).toBe(i3)
+    writeFileSync(join(dir, 'codice.ts'), 'b')
+    expect(improntaCodice(gitReale, dir)).not.toBe(i3)
     // Una cartella fuori da git: si crea dentro Temp e git non risale oltre Temp (con TEMP dentro un
     // repository, come nei criteri lanciati con TEMP nel progetto, tmpdir() stessa era git: 18/10).
     const fuori = mkdtempSync(join(tmpdir(), 'sd-nogit-'))
@@ -136,4 +149,18 @@ describe('criteri veloci', () => {
       else process.env.GIT_CEILING_DIRECTORIES = prima
     }
   }, 60_000) // quattro giri di git: a suite intera, con le altre chat al lavoro, passavano i 20 s
+})
+
+describe('memoria dei criteri (Revisione 0.82.1)', () => {
+  it('tiene al più ESITI_RICORDATI voci: le più vecchie escono', async () => {
+    const memoria: MemoriaCriteri = new Map()
+    const esegui = async (): Promise<{ codice: number; uscita: string }> => ({ codice: 0, uscita: 'ok' })
+    const uno = [{ descrizione: 'tipi', comando: 'npm run typecheck', soddisfatto: false }]
+    for (let i = 0; i < ESITI_RICORDATI; i++) {
+      await misuraCriteri(uno, 'C:/p', esegui, { memoria, adesso: () => i, impronta: `c${String(i).padStart(7, '0')}`, tutti: true })
+    }
+    expect(memoria.size).toBeLessThanOrEqual(ESITI_RICORDATI)
+    expect([...memoria.keys()].some((k) => k.includes('c0000000'))).toBe(false)
+    expect([...memoria.keys()].some((k) => k.includes(`c${String(ESITI_RICORDATI - 1).padStart(7, '0')}`))).toBe(true)
+  })
 })

@@ -201,3 +201,18 @@ describe('supervisore che non risponde (0.82.1)', () => {
     expect(rigaSupervisoreMancato('Sistemare la coda')).not.toMatch(/sospes[oa] (il|la)/)
   })
 })
+
+describe('supervisore che non risponde: dettagli (Revisione 0.82.1)', () => {
+  it('una strategia nuova delle regole vale più dell’istruzione di prima', () => {
+    const regole = { tipo: 'prosegui' as const, strategia: 'cambia approccio', istruzioni: 'Prova un’altra strada.' }
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'Vai avanti.', mancati: 0 }).mossa).toEqual(regole)
+  })
+
+  it('dice giusto fra quanti giri lo riprova', () => {
+    const regole = { tipo: 'prosegui' as const, istruzioni: 'x' }
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 0 }).nota).toContain('al prossimo giro')
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 3 }).nota).toContain('fra 3 giri')
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 4 }).nota).toContain('fra 2 giri')
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 5 }).nota).toContain('al prossimo giro')
+  })
+})
