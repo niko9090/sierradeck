@@ -1,6 +1,6 @@
 ---
-titolo: "Collaudo 0.84.0 — coordinazione e agente finito: 4 difetti aperti (perché c-34 restava «lavoro»)"
-quando: 2026-10-21T20:30:00+02:00
+titolo: "Collaudo 0.84.0 — coordinazione e agente finito: 4 difetti, tutti corretti (perché c-34 restava «lavoro»)"
+quando: 2026-10-21T21:20:00+02:00
 tag: ["0.84.0", "collaudo", "autopilota", "agente-finito", "segnali", "trappola"]
 ---
 
@@ -20,7 +20,26 @@ diventa rosso e si toglie `.fails`).
 - Agente finito: c-52 (Rilascio senza ramo) chiusa con `chiudiChat` va nel
   recupero; mai chi chiede, mai un'adottata, mai la chat dell'autopilota.
 
-## Difetti (del prodotto, da correggere — non li ho toccati)
+## Correzioni (c-68, 21/10, ramo `ap/ap-f1e631f5/c-68`, per la 0.84.1)
+
+Tutti e 4 **corretti**, tolto `.fails`, test verdi (16 nel file):
+
+- **D1 corretto** — `riprendiAutopilota`: da un autopilota finito ripartono solo
+  le chat senza `conclusa`, `approvata` o `nelRecupero`. Se sono tutte
+  concluse si aprono solo i compiti in coda; un messaggio per l'autopilota
+  parte con la sua chat (altrimenti resterebbe appeso). Tolto il test
+  «fotografia» del comportamento vecchio.
+- **D2 corretto** — a T6 ricevono `conclusa` anche le chat senza ramo (tranne
+  le Revisioni); `agenteFinito` considera conclusa una chat `finita` senza
+  ramo di un autopilota `finito` (vale anche per c-63/c-64 già in archivio).
+- **D3 corretto** — `rigaSegnale` e `senzaRigaSegnale` accettano asterischi,
+  trattini bassi e apici fra «SEGNALE» e i due punti, e dopo.
+- **D4 corretto** — `daChiudereDaSole` salta del tutto una chat con
+  `nelRecupero`: è andata nel recupero una volta, se è accesa l'ha rimessa
+  Nicholas. Prezzo: se la chiusura verso il recupero si perde, non si
+  riprova da qui (la chiusura vera la fa `nelRecuperoQuandoChiusa`).
+
+## Difetti trovati da c-66 (descrizione originale)
 
 **D1 — la causa vera di c-34 «lavoro» nell'elenco.** `riprendiAutopilota`,
 `src/autopilot-host/server.ts:2015`: con `eraFinito` rimette a «lavoro» TUTTE

@@ -11,9 +11,8 @@ import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/au
 
 // Collaudo 0.84.0 (c-66, 21/10): controllo e coordinazione dell'autopilota e
 // agente finito, sui casi veri del 20-21/10 (c-34, c-52 e la flotta di
-// ap-f1e631f5). I test `it.fails` sono DIFETTI APERTI del prodotto, descritti
-// in `.sierradeck/quaderno/collaudo-coordinazione-0-84-0.md`: quando il
-// difetto è corretto il test diventa rosso, e allora si toglie `.fails`.
+// ap-f1e631f5). I test «D1»…«D4» erano DIFETTI APERTI (`it.fails`), descritti in
+// `.sierradeck/quaderno/collaudo-coordinazione-0-84-0.md`: corretti da c-68.
 
 const ORA = Date.parse('2026-10-21T12:00:00.000Z')
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -200,7 +199,7 @@ describe('collaudo: «Riprendi» su un autopilota finito (il caso c-34)', () => 
   // c-34, chiusa il 20/10 23:33 col ramo unito, torna «lavoro» (09:48 le
   // arrivano messaggi) finché non la richiude il supervisore alle 15:53.
   // Le chat concluse (ramo unito o tolto, o già nel recupero) devono restare chiuse.
-  it.fails('D1: «Riprendi» non riapre le chat che hanno finito col ramo unito', async () => {
+  it('D1: «Riprendi» non riapre le chat che hanno finito col ramo unito', async () => {
     const { avviate } = await ambiente()
     archivio.scrivi(autopilota({
       id: 'ap-a',
@@ -219,16 +218,24 @@ describe('collaudo: «Riprendi» su un autopilota finito (il caso c-34)', () => 
     expect(avviate).toEqual([])
   })
 
-  it('il comportamento di oggi, misurato: «Riprendi» riavvia anche le chat concluse', async () => {
-    // Fotografia del difetto D1 (vedi sopra): quando è corretto questo test
-    // diventa rosso insieme a D1, e si toglie.
+  it('D1: chi non ha concluso riparte; un messaggio per l autopilota con tutte le chat concluse parte con la sua chat', async () => {
     const { avviate } = await ambiente()
     archivio.scrivi(autopilota({
       id: 'ap-a', stato: 'finito', sessionId: 's-ap',
-      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-a/c-34', conclusa: unito }), chat('c-52', 'finita', { ruolo: 'rilascio', conclusa: unito, nelRecupero: PRIMA })]
+      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-a/c-34', conclusa: unito }), chat('c-2', 'finita', { ramo: 'ap/ap-a/c-2' })]
     }))
     await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
-    expect(archivio.leggi('ap-a')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
-    expect(avviate).toEqual(['c-34', 'c-52'])
+    expect(archivio.leggi('ap-a')!.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-34:finita', 'c-2:lavoro'])
+    expect(avviate).toEqual(['c-2'])
+
+    avviate.length = 0
+    archivio.scrivi(autopilota({
+      id: 'ap-b', stato: 'finito', sessionId: 's-bp',
+      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-b/c-34', conclusa: unito })],
+      daConsegnare: [{ id: 'm-1', testo: 'aggiungi la pagina di aiuto', quando: PRIMA, chats: ['ap-b'] }]
+    }))
+    await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-b/riprendi`, { method: 'POST' })
+    expect(archivio.leggi('ap-b')!.chats.map((c) => c.stato)).toEqual(['finita'])
+    expect(avviate).toEqual(['-'])
   })
 })
