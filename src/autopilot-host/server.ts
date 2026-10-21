@@ -65,7 +65,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, salvaLavoro, togliCartellaVuota, togliWorktree, togliWorktreeVuoti, unisciRamo, type Git
+  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 
 export type Dipendenze = {
@@ -164,6 +164,11 @@ export type Dipendenze = {
    * vogliono: allora l'autopilota lavora come prima, con una chat sola.
    */
   git?: Git
+  /**
+   * Lo stesso git senza fermare il servizio (0.84.0): salvare, unire e togliere
+   * i worktree a fine turno passano da qui. Senza, si usa `git` così com'è.
+   */
+  gitAsincrono?: GitAsincrono
   /**
    * Se la copia di una chat c'è ancora ed è il suo worktree (c-310): una chat
    * senza copia non fa più giri. Assente in prova: le cartelle dei worktree
@@ -2330,8 +2335,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
   // Un'unione non cade mai sotto un comando lungo che misura la stessa cartella (0.82.1).
+  const gitA = (git: Git): GitAsincrono => deps.gitAsincrono ?? comeAsincrono(git)
   const unisciAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> =>
-    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamo(git, p))
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
   const memoria = deps.memoria ?? apriMemoria(undefined)
   /**
    * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
@@ -2546,10 +2552,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // si unisce solo dopo l'ok della Revisione.
     const conRevisione = mia?.ruolo !== undefined && RUOLI[mia.ruolo].conRevisione
     if (deps.git !== undefined && conRevisione && mia?.cartella !== undefined && mia.approvata !== true) {
-      salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
+      await salvaLavoroAsincrono(gitA(deps.git), mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
     }
     if (deps.git !== undefined && !conRevisione && mia?.ramo !== undefined && mia.cartella !== undefined && conSessione.ramoBase !== undefined) {
-      salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
+      await salvaLavoroAsincrono(gitA(deps.git), mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
       const u = await unisciAlTurno(deps.git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
       if (u.ok && u.unito) {
         annota(conSessione, `unito il ramo ${mia.ramo} in ${conSessione.ramoBase}`, { chat: mia.id, esito: 'unito' })
@@ -2879,7 +2885,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (iv.tipo === 'chiudi') {
           // Il lavoro fatto resta sul suo ramo (non si unisce e non si toglie): il
           // compito che riparte lo riprende da lì, dopo quello della chat attesa.
-          if (deps.git !== undefined && inAttesa.cartella !== undefined) salvaLavoro(deps.git, inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
+          if (deps.git !== undefined && inAttesa.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
           const ripreso = compitoRipreso(inAttesa.compito, iv.compitoDopo) + (inAttesa.ramo !== undefined ? `\nIl lavoro già fatto sta nel ramo ${inAttesa.ramo}: unisci anche quello (git merge ${inAttesa.ramo}).` : '')
           // Il compito della chat chiusa non è fatto: cambia nome, così non conta
           // in `compitiFatti`, e chi lo aspettava aspetta adesso quello ripreso.
@@ -2933,13 +2939,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // «unito» vale solo se nella sua cartella non c'era altro da salvare.
         const git = deps.git
         const chiuso = git !== undefined && c.ramo !== undefined && aggiornato.ramoBase !== undefined
-          ? ramoGiaChiuso(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+          ? await ramoGiaChiusoAsincrono(gitA(git), { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           : undefined
-        if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`))))) {
+        if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !(await salvaLavoroAsincrono(gitA(git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)))))) {
           if (c.cartella !== undefined && c.ramo !== undefined) {
             // Ramo mancante: niente `worktree remove --force` su una cartella che
             // non è più un worktree; si toglie solo se è rimasta vuota.
-            if (chiuso === 'unito') togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+            if (chiuso === 'unito') await togliWorktreeAsincrono(gitA(git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
             else togliCartellaVuota(c.cartella)
           }
           aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
@@ -2951,7 +2957,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         // Con la Revisione (0.71.0): il ramo non si unisce qui, va rivisto.
         if (c.ruolo !== undefined && RUOLI[c.ruolo].conRevisione && c.approvata !== true && c.ramo !== undefined) {
-          if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
+          if (deps.git !== undefined && c.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
           aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
           const t = testoRevisione(c)
           if (!aggiornato.compitiDaFare.includes(t)) {
@@ -2966,13 +2972,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
         let unita = true
         if (deps.git !== undefined && c.ramo !== undefined && c.cartella !== undefined && aggiornato.ramoBase !== undefined) {
-          salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
+          await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
           const u = await unisciAlTurno(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           unita = u.ok
           // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
           // lascia com'è (nessun --force su file che nessun ramo conserva).
           if (u.ok && u.ramoMancante === true) annota(aggiornato, `${c.id}: il ramo ${c.ramo} non c'è più, il suo lavoro era già unito`)
-          else if (u.ok) togliWorktree(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+          else if (u.ok) await togliWorktreeAsincrono(gitA(deps.git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue
@@ -3257,7 +3263,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (nonApprovate.length > 0) {
       for (const c of nonApprovate) {
         if (inRevisione(c)) continue
-        if (deps.git !== undefined && c.cartella !== undefined) salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
+        if (deps.git !== undefined && c.cartella !== undefined) await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (pronto per la revisione)`)
         const t = testoRevisione(c)
         aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, t]
         aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), [t]: { ruolo: 'revisione', dopo: [] } }
@@ -3284,7 +3290,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (c.ramo === undefined || c.cartella === undefined) continue
         // Il revisore lavora nella cartella di un altro: non ha un ramo suo da unire.
         if (c.ruolo === 'revisione') continue
-        salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (fine)`)
+        await salvaLavoroAsincrono(gitA(git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (fine)`)
         const u = await unisciAlTurno(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
         if (u.ok) { if (u.unito) unitoQualcosa = true }
         else if (u.conflitto) conflitti.push({ chat: c, file: u.file })
@@ -3315,7 +3321,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       for (const c of aggiornato.chats) {
         if (c.ruolo === 'revisione') continue
-        if (c.ramo !== undefined && c.cartella !== undefined) togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+        if (c.ramo !== undefined && c.cartella !== undefined) await togliWorktreeAsincrono(gitA(git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
       }
       pulisciWorktreeVuoti(aggiornato.cwd)
     }

@@ -22,7 +22,7 @@ import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
-import { gitReale, statoCopia } from './worktree'
+import { gitAsincronoReale, gitReale, statoCopia } from './worktree'
 import { creaMisuratore } from './misura-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 
@@ -330,6 +330,8 @@ export function avviaServizio(): void {
     istruzioni,
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale,
+    // Salvare, unire e togliere i worktree senza fermare il servizio (0.84.0).
+    gitAsincrono: gitAsincronoReale,
     copia: (cartella) => statoCopia(gitReale, cartella),
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
     tempi: apriRegistroTempi(archivio.cartella),
