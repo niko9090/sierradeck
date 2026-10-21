@@ -67,8 +67,18 @@ Guardia delle cancellazioni, test di main, altri test, typecheck, Gradle: **da l
 | c-49 | in main (`896eb89e`) | unito | leggibilità, giri 1 e 2 |
 | c-50 | niente di suo in main | in corso | pagina del telefono a quattro voci |
 | c-51 | in main (`24b85f93`) | unito | rilascio: schede di stato |
-| c-11-velocita | 1 commit fuori (646673b1, 12:39) | _probabilmente da chiudere_ | non è un antenato di c-48, ma c-48 ha una versione successiva dello stesso commit di c-11 (12:59). Prima di chiudere, controllare che non manchi niente, con `git diff 646673b1 <commit 12:59 di c-48>` |
-| c-24 | 2 commit di sole schede fuori | _al supervisore_ | lo decide il supervisore |
+| c-11-velocita | 646673b1 | **chiuso senza unirlo** | superato: la patch è identica ad ae632778, che sta in c-48 (`git range-diff 646673b1^! ae632778^!` dà «=») |
+| c-24 | 674b4b78, 677b4197 (sole schede del quaderno) | **unito con cherry-pick** | presi in c-51 come e2adfda3 e a03d2366, senza conflitti |
+
+**Per la chat di Rilascio che viene dopo:**
+1. Parti da `git fetch`.
+2. Controlla che siano uniti in main:
+   - c-48 (al 21/10 alle 14:30 aveva 4 commit fuori, l'ultimo c37cc636);
+   - c-50.
+3. Controlla che ci siano le foto della mappa e della leggibilità e la prova «Hai risposto: …» sull'emulatore.
+4. Alza la versione: `package.json` 0.83.0, l'app con `versionCode` 139 e `versionName` 2.83.0.
+5. Esegui `npm run allega-apk`.
+6. Pubblica, non come bozza, e controlla latest.yml e app-android.json.
 
 ## Foto
 
