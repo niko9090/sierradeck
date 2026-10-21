@@ -7,6 +7,24 @@ type Props = {
   di?: string
 }
 
+type Rettangolo = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>
+
+/**
+ * Dove si apre il fumetto di un «?» dentro una barra che taglia (0.82.0).
+ *
+ * Le barre in alto (`.console`) scorrono di lato con `overflow-x: auto`, e
+ * questo taglia anche quello che esce in basso: il fumetto di «N di M chat»
+ * restava una striscia di pochi pixel sotto i tasti. Lì il fumetto si mette
+ * `fixed`, alle coordinate del tasto, e nessun contenitore lo taglia più.
+ */
+export function posizioneFissa(r: Rettangolo, finestra: { larghezza: number; altezza: number }, aDestra: boolean, inSu: boolean): React.CSSProperties {
+  return {
+    position: 'fixed',
+    ...(inSu ? { top: 'auto', bottom: Math.round(finestra.altezza - r.top + 6) } : { top: Math.round(r.bottom + 6), bottom: 'auto' }),
+    ...(aDestra ? { left: 'auto', right: Math.max(8, Math.round(finestra.larghezza - r.right)) } : { left: Math.round(r.left), right: 'auto' })
+  }
+}
+
 /**
  * Il tasto **?** (0.62.0, decisione di Nicholas del 12/10: «non si riesce a
  * leggere tutta la pappardella, piuttosto metti un punto di domanda e uno
@@ -21,6 +39,7 @@ export function Aiuto({ children, di }: Props): React.JSX.Element {
   const [aperto, setAperto] = useState(false)
   const [aDestra, setADestra] = useState(false)
   const [inSu, setInSu] = useState(false)
+  const [fisso, setFisso] = useState<React.CSSProperties | undefined>(undefined)
   const dove = useRef<HTMLSpanElement>(null)
 
   useLayoutEffect(() => {
@@ -29,8 +48,13 @@ export function Aiuto({ children, di }: Props): React.JSX.Element {
     // metà bassa della finestra (la riga dove si scrive, il fondo di un
     // pannello) lo apre verso l'alto, se no resterebbe tagliato.
     const r = dove.current.getBoundingClientRect()
-    setADestra(r.left + 440 > window.innerWidth)
-    setInSu(r.bottom > window.innerHeight * 0.6)
+    const destra = r.left + 440 > window.innerWidth
+    const su = r.bottom > window.innerHeight * 0.6
+    setADestra(destra)
+    setInSu(su)
+    setFisso(dove.current.closest('.console') !== null
+      ? posizioneFissa(r, { larghezza: window.innerWidth, altezza: window.innerHeight }, destra, su)
+      : undefined)
   }, [aperto])
 
   useEffect(() => {
@@ -67,6 +91,7 @@ export function Aiuto({ children, di }: Props): React.JSX.Element {
         <span
           className={`aiuto__testo${aDestra ? ' aiuto__testo--sinistra' : ''}${inSu ? ' aiuto__testo--su' : ''}`}
           role="note"
+          {...(fisso !== undefined ? { style: fisso } : {})}
           onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
         >
           {children}
