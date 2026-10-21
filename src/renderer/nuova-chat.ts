@@ -113,8 +113,9 @@ export type EsitoNuovaChatComposta =
 /**
  * La cartella e il nome, dal posto scelto.
  *
- * In Documenti o fra i progetti, il nome e' obbligatorio: e' lui a fare la
- * cartella, e si crea al momento. Altrove vale la regola di prima: la
+ * In Documenti o fra i progetti e' il nome a fare la cartella, che si crea al
+ * momento; vuoto vale «Nuova chat», come promette la riga sotto il campo
+ * (0.82.0: prima la riga lo prometteva e qui si rifiutava). Altrove vale la regola di prima: la
  * cartella deve esistere, e il nome se manca prende quello della cartella.
  */
 export function componiNuovaChat(p: { nome: string; posto: PostoChat; altrove: string; basi: BasiCartelle }): EsitoNuovaChatComposta {
@@ -131,8 +132,7 @@ export function componiNuovaChat(p: { nome: string; posto: PostoChat; altrove: s
     }
     return e.ok ? { ...e, daCreare: false } : e
   }
-  const nome = normalizzaTitolo(p.nome)
-  if (nome === '') return { ok: false, motivo: 'Serve un nome: diventa anche la cartella.' }
+  const nome = normalizzaTitolo(p.nome) || nomeCartellaDaNome('')
   const base = p.posto === 'documenti' ? p.basi.documenti : p.basi.progetti
   if (base.trim() === '') return { ok: false, motivo: 'Non so dove sta la cartella Documenti su questo PC.' }
   return { ok: true, cartella: unisciPercorso(base, nomeCartellaDaNome(nome)), nome, daCreare: true }

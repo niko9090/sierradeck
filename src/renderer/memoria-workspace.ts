@@ -25,6 +25,12 @@ export type MemoriaWorkspace = {
   /** Dice se quel workspace sta occupando risorse in questa finestra. */
   acceso: (nome: string) => boolean
   /**
+   * I workspace tenuti vivi, con il loro layout (0.82.0). Servono a pagina e
+   * app: le chat di un workspace che non è davanti girano ancora, e senza
+   * questo sul telefono risultavano «chiusa · tocca per riaprirla».
+   */
+  vivi: () => { nome: string; layout: LayoutSalvato }[]
+  /**
    * Sposta la memoria di un workspace sotto il nome nuovo, quando viene
    * rinominato. Senza, i suoi riquadri vivi resterebbero sotto il nome vecchio —
    * che nessuno chiede più — e al ritorno ripartirebbero da disco con `--resume`
@@ -51,6 +57,30 @@ export function terminaliDi(layout: LayoutSalvato): string[] {
     if (p.ptyId !== undefined) id.push(p.ptyId)
   }
   return id
+}
+
+/**
+ * Le chat vive dei workspace che non sono davanti (0.82.0).
+ *
+ * Cambiare workspace non spegne niente: i loro terminali girano ancora. La
+ * finestra però annunciava solo i riquadri a schermo, e pagina e app davano
+ * quelle chat per «chiusa · tocca per riaprirla» — toccando, se ne apriva una
+ * seconda copia. Solo i riquadri con un terminale acceso: un'ibernata o un
+ * riquadro remoto non sono chat accese qui.
+ */
+export function chatDietro(
+  vivi: { nome: string; layout: LayoutSalvato }[],
+  davanti: string
+): { workspace: string; pane: PaneSalvato & { ptyId: string } }[] {
+  const fuori: { workspace: string; pane: PaneSalvato & { ptyId: string } }[] = []
+  for (const w of vivi) {
+    if (w.nome === davanti) continue
+    for (const p of w.layout.panes) {
+      if (p.ptyId === undefined || p.ibernata === true || p.remoto !== undefined) continue
+      fuori.push({ workspace: w.nome, pane: { ...p, ptyId: p.ptyId } })
+    }
+  }
+  return fuori
 }
 
 /**
@@ -94,6 +124,10 @@ export function creaMemoriaWorkspace(): MemoriaWorkspace {
 
     acceso(nome) {
       return vivi.has(nome)
+    },
+
+    vivi() {
+      return [...vivi].map(([nome, layout]) => ({ nome, layout }))
     },
 
     rinomina(vecchio, nuovo) {

@@ -133,6 +133,12 @@ export type Chat = {
   aspetta?: boolean
   /** Se la governa un autopilota: allora è lui ad avvisare, non lei. */
   governata?: boolean
+  /**
+   * Sta in un workspace che la finestra tiene vivo ma non mostra (0.82.0):
+   * gira, ma non ha un riquadro a schermo. Pagina e app la vedono accesa; le
+   * consegne la trattano come prima (accesa nascosta), non come «in finestra».
+   */
+  dietro?: boolean
   /** Chi la governa: l'autopilota e la sua chat, come li conosce il servizio. */
   autopilota?: { id: string; chat: string }
   /**

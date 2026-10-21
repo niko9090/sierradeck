@@ -149,7 +149,7 @@ export function leggiStatoMigrazione(raw: unknown): StatoMigrazione | undefined 
 }
 
 /** La spiegazione della trasformazione fatta, dietro il «?» (0.80.0). */
-export const AIUTO_MIGRAZIONE = 'Ogni workspace di questo computer ha la Panoramica, con il suo autopilota. Quelli nuovi stanno fermi finché non gli scrivi. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era.'
+export const AIUTO_MIGRAZIONE = 'Ogni workspace di questo computer ha la Panoramica, con il suo autopilota. Quelle nuove partono solo al primo messaggio: fino ad allora non compaiono fra gli Autopiloti. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era.'
 
 /**
  * La riga corta della trasformazione (0.80.0), uguale su PC, pagina e app.
@@ -160,9 +160,10 @@ export const AIUTO_MIGRAZIONE = 'Ogni workspace di questo computer ha la Panoram
 export function testoMigrazione(s: Pick<StatoMigrazione, 'stato' | 'motivo' | 'dormienti'>): string {
   if (s.stato === 'fatta') {
     const n = s.dormienti.length
+    // 0.82.0: i dormienti non sono autopiloti (Autopiloti diceva «Nessun
+    // autopilota» sotto «Fatta: 2 autopiloti nuovi»): si dice quello che sono.
     return n === 0 ? 'Fatta: ogni workspace aveva già il suo autopilota.'
-      : n === 1 ? 'Fatta: 1 autopilota nuovo, fermo finché non gli scrivi.'
-        : `Fatta: ${n} autopiloti nuovi, fermi finché non gli scrivi.`
+      : `Fatta: Panoramica nuova in ${n} workspace, parte quando le scrivi.`
   }
   if (s.stato === 'annullata') return 'Workspace tornati come prima.'
   if (s.stato === 'fallita') return `La trasformazione non è riuscita, tutto è com’era: ${s.motivo ?? ''}`

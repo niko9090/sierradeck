@@ -670,6 +670,8 @@ process.on('unhandledRejection', (motivo) => {
 let aggiornamenti: ReturnType<typeof creaAggiornamenti> | undefined
 /** Quali chat ha ogni finestra: unite formano l'elenco che vede il telefono. */
 const chatPerFinestra = new Map<number, Chat[]>()
+/** Le chat vive dei workspace che ogni finestra tiene dietro (0.82.0), fuori dalle consegne. */
+const chatDietroPerFinestra = new Map<number, Chat[]>()
 /** L'icona nell'area di notifica, quando è stato possibile crearla. */
 let area: Tray | undefined
 /**
@@ -6193,14 +6195,18 @@ if (!app.requestSingleInstanceLock()) {
         // telefono se ne vedeva una sola.
         const win = BrowserWindow.fromWebContents(e.sender)
         if (win === null) return
-        chatPerFinestra.set(win.id, raw as Chat[])
+        // 0.82.0: le chat dei workspace tenuti vivi dietro arrivano a parte
+        // (`dietro`). Contano fra le chat di qui (pagina, app, posti), ma non
+        // per le consegne: per quelle non sono «in finestra», come prima.
+        chatPerFinestra.set(win.id, (raw as Chat[]).filter((c) => c.dietro !== true))
+        chatDietroPerFinestra.set(win.id, (raw as Chat[]).filter((c) => c.dietro === true))
         // La chat che si era fermata per l'aggiornamento e' tornata: adesso il
         // riquadro c'e', e le si puo' dire di riprendere. Non prima - all'avvio
         // le finestre stanno ancora nascendo, e un messaggio mandato allora non
         // troverebbe nessuno. Si toglie dall'elenco appena consegnato, perche'
         // questo annuncio arriva ogni pochi secondi.
         if (chatDaRiprendereDopoAggiornamento.size > 0) {
-          for (const c of raw as Chat[]) {
+          for (const c of chatPerFinestra.get(win.id) ?? []) {
             const sessione = c.sessione
             if (sessione === undefined || !chatDaRiprendereDopoAggiornamento.has(sessione)) continue
             chatDaRiprendereDopoAggiornamento.delete(sessione)
@@ -6223,9 +6229,9 @@ if (!app.requestSingleInstanceLock()) {
         for (const id of [...chatPerFinestra.keys()]) {
           const w = finestreDiChat().find((x) => x.id === id)
           // Una finestra chiusa non deve lasciare le sue chat nell'elenco.
-          if (w === undefined || w.isDestroyed()) chatPerFinestra.delete(id)
+          if (w === undefined || w.isDestroyed()) { chatPerFinestra.delete(id); chatDietroPerFinestra.delete(id) }
         }
-        chatDallaFinestra = [...chatPerFinestra.values()].flat()
+        chatDallaFinestra = [...chatPerFinestra.values(), ...chatDietroPerFinestra.values()].flat()
         // Lo stato dai segnali di Claude Code, lo schermo come riserva (0.45.0).
         chatAperte = conSegnali(chatDiQui())
         // Il battito delle chat governate che stanno lavorando, al servizio:

@@ -1634,7 +1634,9 @@ function gruppiChat(s) {
     attivo: nome === ws.attivo,
     voci: vive
       .filter((c) => {
-        const w = c.sessione ? dove[c.sessione] : undefined
+        // 0.82.0: prima il workspace che la chat dichiara (quelle dei workspace
+        // tenuti vivi dietro arrivano con il loro), poi dove è salvata.
+        const w = c.workspace && nomi.indexOf(c.workspace) >= 0 ? c.workspace : c.sessione ? dove[c.sessione] : undefined
         return (w && nomi.indexOf(w) >= 0 ? w : casa) === nome
       })
       .map((c) => ({ viva: c }))
@@ -1926,16 +1928,12 @@ function pannello(s) {
   const pronti = (s.autopiloti || []).filter((a) => a.stato === 'pronto')
   const chatAttesa = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa')
 
-  /** Il polso: una riga per cosa, non un cruscotto. */
-  const polso =
-    '<div class="solco"></div><div class="serigrafia riga-polso">IN MOTO<span>' +
-    (inMoto.length + (s.chat || []).length) + '</span></div>' +
-    inMoto.map((a) =>
-      '<div class="polso"><span class="led ' + led(a) + '"></span>' +
-      '<span class="polso__nome">' + esc(a.nome) + '</span>' +
-      '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
-    ).join('') +
-    (s.chat || []).map((c) =>
+  // 0.82.0: «IN MOTO» conta chi lavora davvero, dallo stato della chat: prima
+  // sommava tutte le chat, e con quattro ferme diceva «IN MOTO 4». Le altre
+  // restano in vista, sotto la loro riga.
+  const chatInMoto = (s.chat || []).filter((c) => !c.chiede && !c.aspetta && c.viva !== false)
+  const chatAltre = (s.chat || []).filter((c) => chatInMoto.indexOf(c) < 0)
+  const rigaChatPolso = (c) =>
       // Anche il LED di una chat si spegne quando il computer tace: scritto a
       // mano restava **verde** su dati di mezz'ora prima, che è esattamente
       // ciò che questo stato esiste per impedire. Visto in fotografia. E dice
@@ -1945,7 +1943,18 @@ function pannello(s) {
       // Al lavoro in sottofondo (0.69.0): si vede sempre, e «Guarda» mostra lo schermo dal vivo senza cambiare niente sul PC.
       (c.sottofondo ? '<span class="sotto" style="margin-left:6px">in sottofondo</span><button style="margin-left:6px" data-chat="' + esc(c.id) + '" onclick="guarda(this.dataset.chat)">Guarda</button>' : '') + '</div>' +
       (c.ultimaRiga ? '<div class="battito">' + esc(c.ultimaRiga) + '</div>' : '')
-    ).join('')
+
+  /** Il polso: una riga per cosa, non un cruscotto. */
+  const polso =
+    '<div class="solco"></div><div class="serigrafia riga-polso">IN MOTO<span>' +
+    (inMoto.length + chatInMoto.length) + '</span></div>' +
+    inMoto.map((a) =>
+      '<div class="polso"><span class="led ' + led(a) + '"></span>' +
+      '<span class="polso__nome">' + esc(a.nome) + '</span>' +
+      '<span class="polso__misura">' + (a.criteri ? Math.round(a.fatti / a.criteri * 100) : 0) + '%</span></div>'
+    ).join('') +
+    chatInMoto.map(rigaChatPolso).join('') +
+    (chatAltre.length > 0 ? '<div class="serigrafia riga-polso" style="margin-top:var(--s2)">ALTRE CHAT<span>' + chatAltre.length + '</span></div>' + chatAltre.map(rigaChatPolso).join('') : '')
 
   /** Quando non c'e' niente da fare: il vuoto **e'** il messaggio. */
   const calma =
@@ -4895,11 +4904,11 @@ function migrazioneHtml() {
   // 0.80.0: la riga corta di testoMigrazione (shared/migrazione-elenco), la spiegazione nel «?».
   var n = (s.dormienti || []).length
   var testo = s.stato === 'fatta'
-    ? (n === 0 ? 'Fatta: ogni workspace aveva già il suo autopilota.' : n === 1 ? 'Fatta: 1 autopilota nuovo, fermo finché non gli scrivi.' : 'Fatta: ' + n + ' autopiloti nuovi, fermi finché non gli scrivi.')
+    ? (n === 0 ? 'Fatta: ogni workspace aveva già il suo autopilota.' : 'Fatta: Panoramica nuova in ' + n + ' workspace, parte quando le scrivi.')
     : s.stato === 'annullata' ? 'Workspace tornati come prima.'
       : s.stato === 'fallita' ? 'La trasformazione non è riuscita, tutto è com’era: ' + (s.motivo || '')
         : 'Trasformazione a metà: si completa al prossimo avvio del computer.'
-  return '<div class="sotto" style="margin-top:10px"><b>Panoramica in tutti i workspace</b> ' + aiuto('migrazione', 'Ogni workspace del computer ha la Panoramica, con il suo autopilota. Quelli nuovi stanno fermi finché non gli scrivi. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era.') + '</div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
+  return '<div class="sotto" style="margin-top:10px"><b>Panoramica in tutti i workspace</b> ' + aiuto('migrazione', 'Ogni workspace del computer ha la Panoramica, con il suo autopilota. Quelle nuove partono solo al primo messaggio: fino ad allora non compaiono fra gli Autopiloti. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era.') + '</div><div class="sotto">' + esc(notaMigrazione || testo) + '</div>' +
     '<div class="riga">' + (s.stato === 'fatta'
       ? '<button onclick="cambiaMigrazione(\\'torna\\')">Torna come prima</button>'
       : '<button onclick="cambiaMigrazione(\\'rifai\\')">Trasforma tutti</button>') + '</div>'

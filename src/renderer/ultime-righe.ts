@@ -54,7 +54,8 @@ const RUMORE_DI_INTERFACCIA =
   // 0.81.0: anche la riga di stato (modello, contesto, limiti del piano), come in `panoramica.ts`:
   // dalla prova nella copia, l'avviso «aspetta te» diceva «Opus · contesto 5% · 5 ore 8%…».
   // 0.82.0: anche il campo vuoto «❯»: sulla pagina ogni chat ferma aveva sotto il nome una riga con il solo «❯».
-  /^(\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
+  // 0.82.0: anche la riga di stato con solo modello e costo («Opus 5.5 · 0.00 $»), di una chat appena aperta.
+  /^((.+ · )?\d+\.\d{2} \$|\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/
@@ -102,7 +103,9 @@ export function ultimaRigaUtile(testo: string): string {
     const riga = (righe[i] ?? '').trim()
     // Le cornici disegnate con i caratteri di riquadro non dicono niente: sono
     // decorazione, e da lontano contano meno di una riga di testo vero.
-    if (riga === '' || /^[─-╿\s]+$/.test(riga)) continue
+    // 0.82.0: anche qui le righe fisse dell'interfaccia (il campo vuoto «›»,
+    // la riga di stato): quando lo schermo manca, si leggevano sotto il nome.
+    if (riga === '' || /^[─-╿\s]+$/.test(riga) || RUMORE_DI_INTERFACCIA.test(riga)) continue
     return riga.slice(0, RIGA_MAX)
   }
   return ''

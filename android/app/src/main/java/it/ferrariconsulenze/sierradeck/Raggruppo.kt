@@ -39,7 +39,8 @@ fun raggruppaChat(vive: List<Chat>, ws: Workspace): List<GruppoChat> {
     val viveSessioni = vive.mapNotNull { it.sessione }.toSet()
     return ordine.map { nome ->
         val aperte = vive.filter { c ->
-            val w = c.sessione?.let { dove[it] }
+            // PC 0.82.0: prima il workspace che la chat dichiara, poi dove è salvata.
+            val w = c.workspace?.takeIf { it in nomi } ?: c.sessione?.let { dove[it] }
             (if (w != null && w in nomi) w else casa) == nome
         }.map { VoceChat(viva = it) }
         val ferme = ws.chat

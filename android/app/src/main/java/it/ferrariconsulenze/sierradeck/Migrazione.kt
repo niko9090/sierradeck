@@ -40,15 +40,15 @@ data class RispostaMigrazione(val stato: StatoMigrazioneApp? = null)
 data class EsitoMigrazioneApp(val ok: Boolean = false, val messaggio: String = "")
 
 /** La spiegazione dietro il «?», come `AIUTO_MIGRAZIONE` del PC. */
-const val AIUTO_MIGRAZIONE = "Ogni workspace del computer ha la Panoramica, con il suo autopilota. Quelli nuovi stanno fermi finché non gli scrivi. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era."
+const val AIUTO_MIGRAZIONE = "Ogni workspace del computer ha la Panoramica, con il suo autopilota. Quelle nuove partono solo al primo messaggio: fino ad allora non compaiono fra gli Autopiloti. Le chat non sono state toccate. «Torna come prima» rimette tutto com’era."
 
 /** Il testo della sezione, puro: lo stesso della pagina e del PC. */
 fun testoMigrazione(s: StatoMigrazioneApp): String = when (s.stato) {
     // 0.80.0: il numero sono gli autopiloti nuovi (prima «Tutti i workspace (0)…»); la spiegazione nel «?».
     "fatta" -> when (s.dormienti.size) {
         0 -> "Fatta: ogni workspace aveva già il suo autopilota."
-        1 -> "Fatta: 1 autopilota nuovo, fermo finché non gli scrivi."
-        else -> "Fatta: ${s.dormienti.size} autopiloti nuovi, fermi finché non gli scrivi."
+        // 0.82.0: i dormienti non sono autopiloti (Autopiloti diceva «Nessun autopilota»).
+        else -> "Fatta: Panoramica nuova in ${s.dormienti.size} workspace, parte quando le scrivi."
     }
     "annullata" -> "Workspace tornati come prima."
     "fallita" -> "La trasformazione non è riuscita, tutto è com’era: ${s.motivo ?: ""}"

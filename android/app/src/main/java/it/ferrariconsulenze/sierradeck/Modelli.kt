@@ -197,7 +197,9 @@ data class Chat(
      */
     val pin: String? = null,
     /** Lavora in sottofondo, senza riquadro sullo schermo del PC (PC 0.58.4; mostrato dalla 0.69.0). */
-    val sottofondo: ChiSottofondo? = null
+    val sottofondo: ChiSottofondo? = null,
+    /** PC 0.82.0: il workspace della chat; anche quelle dei workspace che il PC tiene vivi dietro, che prima mancavano (e risultavano «chiusa»). */
+    val workspace: String? = null
 )
 
 @Serializable
