@@ -59,6 +59,10 @@ object Banco {
         verde = c("--verde", verde)
         rosso = c("--rosso", rosso)
         t["--raggio"]?.let { dpDaToken(it) }?.let { raggio = it }
+        // Col chiarore al massimo il grigio quieto sui pannelli alti scende a
+        // 4,4:1 e il rosso a 3,8:1: si schiariscono quanto basta per AA.
+        testoQuieto = Color(Contrasto.almenoAA(testoQuieto.argb(), chassisAlto.argb(), testo.argb()))
+        rosso = Color(Contrasto.almenoAA(rosso.argb(), chassisAlto.argb(), testo.argb()))
     }
 }
 
@@ -105,11 +109,30 @@ object Contrasto {
         return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
     }
 
+    /**
+     * Il colore, avvicinato a `verso` a passi del 5 % finché sul fondo non arriva
+     * a 4,5:1 (AA per il testo normale). Se lo è già, resta com'è.
+     */
+    fun almenoAA(colore: Long, fondo: Long, verso: Long): Long {
+        var c = colore
+        var t = 0.0
+        while (rapporto(c, fondo) < 4.5 && t < 1.0) {
+            t += 0.05
+            fun mix(sh: Int): Long {
+                val a = (colore shr sh) and 0xFF
+                val b = (verso shr sh) and 0xFF
+                return (a + ((b - a) * t)).toLong().coerceIn(0, 255) shl sh
+            }
+            c = 0xFF000000L or mix(16) or mix(8) or mix(0)
+        }
+        return c
+    }
+
     /** Fra i candidati, quello che sul fondo si legge meglio. */
     fun migliore(fondo: Long, vararg candidati: Long): Long = candidati.maxBy { rapporto(it, fondo) }
 }
 
-private fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
+internal fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
 
 /** Il testo sopra un colore pieno: fondo o testo del banco, quello col contrasto più alto. */
 fun sopra(pieno: Color): Color =

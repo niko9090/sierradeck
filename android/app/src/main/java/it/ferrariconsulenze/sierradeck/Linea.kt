@@ -296,7 +296,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     val rov = Tentativi.rovescia(linea, adesso)
     val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; lenta -> Banco.ambra; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
     Row(
-        Modifier.background(Banco.fondo.copy(alpha = 0.6f)).tocco { storia = true }.padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.tocco { storia = true }.background(Banco.fondo.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         Text(Linea.icona(linea.strada), fontSize = 13.sp)
