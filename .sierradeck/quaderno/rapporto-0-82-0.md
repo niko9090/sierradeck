@@ -249,10 +249,11 @@ due workspace Prova-082-a con 3 chat e Prova-082-b con 1):
 (B accesa con A davanti), `pc-1-nuova-chat-nome-vuoto`,
 `pc-2-impostazioni-trasformazione`.
 
-**Controlli (c-43):** typecheck pulito. Test toccati verdi: collaudo-grafica,
-client-pagina, grafica-0-80-0, spunte-e-schede, tutto `tests/renderer` (693).
-Android `gradle testDebugUnitTest assembleDebug` verde (`RaggruppoTest` +1 test,
-`MigrazioneTest` aggiornato).
+**Controlli (c-43), sul ramo con main `8308b002` unito (c-36 compreso):**
+typecheck pulito, guardia delle cancellazioni pulita. `tests/main`: 195 file,
+**1857 passati**, 2 saltati. Servizio, renderer, condivisi, pty: 259 file,
+**2834 passati**. Android `gradle testDebugUnitTest assembleDebug`: verde, 394
+test, 0 falliti (`RaggruppoTest` +1, `MigrazioneTest` aggiornato).
 
 **Da sapere:** nella copia la finestra legge le chat dal flusso, non dallo
 schermo disegnato, anche per le chat davanti (sotto il nome compariva la cornice
