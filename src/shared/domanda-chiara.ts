@@ -17,15 +17,17 @@ import type { PartiDomanda } from './domanda-strutturata'
 
 /**
  * Una sigla di chat («c-12») o il ramo che la contiene («ap/ap-f1e631f5/c-12»).
- * Non dentro una parola («abc-12») né dentro un percorso.
+ * Non dentro una parola («abc-12»), un percorso o un nome di file («c-310.log»).
  */
-export const SIGLA_CHAT = /(?<![\p{L}\d_/-])(?:ap\/ap-[0-9a-f]+\/)?(c-\d+)(?![\d\p{L}])/giu
+export const SIGLA_CHAT = /(?<![\p{L}\d_/.-])(?:ap\/ap-[0-9a-f]+\/)?(c-\d+)(?![\d\p{L}]|\.\p{L})/giu
 
 /** Riferimenti che chi legge da lontano non può risolvere (0.84.0). */
 export const RIFERIMENTI_VAGHI = /(?<![\p{L}])(l['’]altra chat|l['’]altro autopilota|quell['’]altra|quell['’]autopilota|quel pezzo|questo pezzo|quel lavoro|quella chat|quella parte|come detto|di cui sopra|vedi sopra)(?![\p{L}])/iu
 
 /** La riga che Claude Code mette nella notifica di attesa: non è una domanda e non è italiano. */
-const NOTIFICA_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude (?:is waiting for your input|needs your (?:permission|attention)[^\n]*)\s*/i
+const NOTIFICA_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude (?:is waiting for your input|needs your attention)\s*/i
+/** La richiesta di permesso: si traduce, perché dice quale strumento (Revisione 0.84.0). */
+const PERMESSO_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude needs your permission to use ([^\n]+?)\s*$/im
 
 /** Le sigle che compaiono in un testo, senza doppioni, in minuscolo. */
 export function sigleIn(testo: string): string[] {
@@ -66,6 +68,17 @@ export function compitoInBreve(compito: string, max = 50): string {
 }
 
 /**
+ * Il nome di una chat dal suo compito, **senza sigle** (Revisione 0.84.0): il
+ * compito della Revisione è «Rivedi il ramo ap/…/c-12 della chat c-12 («…»)»,
+ * e il suo inizio portava le sigle dentro la domanda appena pulita.
+ */
+export function nomeCompito(compito: string, max = 50): string {
+  const rev = /^\s*Rivedi il ramo \S+ della chat c-\d+ \(«([\s\S]*)/.exec(compito)
+  const base = rev !== null ? `Revisione di: ${(rev[1] ?? '').replace(/»\)?\s*$/, '')}` : compito
+  return compitoInBreve(base.replace(SIGLA_CHAT, '').replace(/\(\s*\)/g, '').replace(/[ \t]{2,}/g, ' '), max)
+}
+
+/**
  * Le sigle sostituite con il compito della chat: «chiudo le chat c-7 e c-4?»
  * diventa «chiudo le chat «Collaudo della gestione…» e «Interfaccia…»?». Una
  * sigla che il programma non conosce diventa «una chat precedente».
@@ -73,7 +86,7 @@ export function compitoInBreve(compito: string, max = 50): string {
 export function senzaSigle(testo: string, chat: ChatConCompito[]): string {
   return testo.replace(SIGLA_CHAT, (_tutto, id: string) => {
     const c = chat.find((x) => x.id.toLowerCase() === id.toLowerCase())
-    const nome = c !== undefined ? compitoInBreve(c.compito) : ''
+    const nome = c !== undefined ? nomeCompito(c.compito) : ''
     return nome !== '' ? `«${nome}»` : 'una chat precedente'
   })
 }
@@ -92,7 +105,11 @@ export function partiSenzaSigle(p: PartiDomanda, chat: ChatConCompito[]): PartiD
 
 /** La notifica di Claude Code tolta dal testo («idle_prompt: Claude is waiting for your input»). */
 export function senzaNotificaClaude(testo: string): string {
-  return testo.replace(NOTIFICA_CLAUDE, '').replace(/^\s*La chat aveva appena detto:\s*/i, '').trim()
+  return testo
+    .replace(PERMESSO_CLAUDE, (_t, cosa: string) => `Chiede il tuo permesso per usare ${cosa}.`)
+    .replace(NOTIFICA_CLAUDE, '')
+    .replace(/^\s*La chat aveva appena detto:\s*/i, '')
+    .trim()
 }
 
 /**
@@ -108,7 +125,7 @@ export function partiDaChatFerma(p: {
   detto?: string
   domandaInFondo?: string
 }): PartiDomanda {
-  const lavoro = compitoInBreve(p.compito !== '' ? p.compito : p.obiettivo, 80)
+  const lavoro = nomeCompito(p.compito !== '' ? p.compito : p.obiettivo, 80)
   const detto = senzaNotificaClaude(p.detto ?? '')
   const vera = p.domandaInFondo !== undefined ? senzaNotificaClaude(p.domandaInFondo) : ''
   return {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  compitoInBreve, noteDiChiarezza, partiDaChatFerma, partiSenzaSigle, riferimentoVago, senzaNotificaClaude, senzaSigle, sigleIn
+  compitoInBreve, nomeCompito, noteDiChiarezza, partiDaChatFerma, partiSenzaSigle, riferimentoVago, senzaNotificaClaude, senzaSigle, sigleIn
 } from '@shared/domanda-chiara'
 import { domandaControllata, leggiParti, partiDaRisposta, validaDomanda, type PartiDomanda } from '@shared/domanda-strutturata'
 import { domandaInFondo } from '@shared/domande-telefono'
@@ -147,5 +147,20 @@ describe('il controllo prima di mostrare', () => {
   it('le note di chiarezza sono vuote per una domanda buona', () => {
     expect(noteDiChiarezza(intorno('Installo la 0.80.0 adesso?'))).toEqual([])
     expect(noteDiChiarezza(leggiParti('Uso npm o pnpm?'))).toEqual([])
+  })
+})
+
+describe('le correzioni della Revisione (0.84.0)', () => {
+  it('il compito della Revisione diventa un nome senza sigle', () => {
+    const compito = 'Rivedi il ramo ap/ap-f1e631f5/c-41 della chat c-41 («Grafica meno caotica (0.82.0): colonne più ordinate»)'
+    expect(nomeCompito(compito)).toBe('Revisione di: Grafica meno caotica (0.82.0)…')
+    expect(sigleIn(senzaSigle('Unisco c-42?', [{ id: 'c-42', compito }]))).toEqual([])
+  })
+  it('un nome di file con la sigla resta com’è', () => {
+    expect(sigleIn('ho scritto il registro in c-310.log')).toEqual([])
+    expect(senzaSigle('ho scritto il registro in c-310.log', CHAT)).toBe('ho scritto il registro in c-310.log')
+  })
+  it('la richiesta di permesso dice quale strumento, in italiano', () => {
+    expect(senzaNotificaClaude('permission_prompt: Claude needs your permission to use Bash')).toBe('Chiede il tuo permesso per usare Bash.')
   })
 })

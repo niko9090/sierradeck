@@ -164,3 +164,62 @@ describe('le domande già nella scheda, ricontrollate', () => {
     expect(await server!.ricontrollaDomande()).toBe(0)
   })
 })
+
+describe('le correzioni della Revisione (0.84.0)', () => {
+  it('una domanda che un hook sta aspettando non si chiude come superata', async () => {
+    await avvia({ interroga: () => Promise.reject(new Error('no')), chats: [chat('c-22', COMPITO, 'finita')] })
+    const d = registro.apri({ autopilotaId: 'ap-and', testo: 'Pubblico adesso?', scadenzaMs: 5000 })
+    registro.ricorda(d.id, { autopilotaId: 'ap-and', testo: d.testo, chatId: 'c-22', pubblica: true })
+    const attesa = registro.attendi(d.id)
+    expect(await server!.ricontrollaDomande()).toBe(0)
+    expect(registro.aperte('ap-and')).toHaveLength(1)
+    registro.rispondi(d.id, 'sì', 'modale')
+    expect(await attesa).toEqual({ risposta: 'sì', da: 'modale' })
+  })
+
+  it('la domanda generica del programma non riceve da sola un «fermati» di prima', async () => {
+    const memoria = apriMemoria(undefined)
+    memoria.ricordaRisposta('ap-and', `Cosa deve fare adesso la chat che lavora a «${COMPITO}»?`, 'fermati', new Date().toISOString(), 'c-23')
+    archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-chiare-')))
+    registro = creaRegistroDomande({ adesso: () => Date.now() })
+    const s = creaServer({
+      archivio, memoria,
+      esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
+      interroga: () => Promise.reject(new Error('no')),
+      avviaLavoro: () => Promise.resolve(),
+      fermaLavoro: () => {},
+      avvisa: () => Promise.resolve(),
+      domande: registro,
+      ultimoDetto: () => 'Ho finito la parte delle foto e mi fermo.',
+      scadenzaDomandaMs: 5000,
+      scadenzaInterviataMs: 5000,
+      adesso: () => new Date().toISOString()
+    })
+    server = s
+    await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-and', nome: 'App Android', obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-10-21T06:00:00.000Z' }),
+      stato: 'lavoro',
+      chats: [chat('c-23', COMPITO)]
+    })
+    await notifica('c-23')
+    expect(registro.aperte('ap-and')).toHaveLength(1)
+  })
+
+  it('due chat che chiedono la stessa cosa con le sigle: una domanda sola', async () => {
+    const domanda = {
+      staFacendo: 'Sto chiudendo il lavoro della versione 0.80.0.',
+      domanda: 'Chiudo adesso le chat finite c-7 e c-12, che hanno il ramo già in main?',
+      perche: 'Restano nell’elenco e confondono.',
+      scelte: [{ scelta: 'sì, chiudile', conseguenza: 'le chiudo e la conversazione va nel recupero', consigliata: true }, { scelta: 'no', conseguenza: 'restano aperte' }],
+      seNonRispondi: 'le lascio aperte'
+    }
+    await avvia({
+      interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'chiedi', domanda }) }),
+      chats: [chat('c-23', COMPITO), chat('c-24', 'Velocità dell’app'), chat('c-7', 'Collaudo della gestione delle chat'), chat('c-12', 'Rilascio 0.80.0')]
+    })
+    await notifica('c-23')
+    await notifica('c-24')
+    expect(registro.aperte('ap-and')).toHaveLength(1)
+  })
+})

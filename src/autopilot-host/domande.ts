@@ -219,8 +219,9 @@ export function creaRegistroDomande(deps: {
 
     superata(id, motivo, extra) {
       const voce = voci.get(id)
-      if (voce === undefined || voce.risposta !== undefined) return false
-      for (const r of voce.attese) r(undefined)
+      // Chi aspetta (un hook trattenuto, «pubblico?») decide da sé alla sua
+      // scadenza: chiuderla sotto di lui la farebbe sembrare scaduta (Revisione 0.84.0).
+      if (voce === undefined || voce.risposta !== undefined || voce.attese.length > 0) return false
       voci.delete(id)
       const d = voce.domanda
       const domanda = (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo).trim().slice(0, RISOLTA_MAX)

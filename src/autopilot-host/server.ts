@@ -58,7 +58,7 @@ import type { TipoAvviso } from './telegram'
 import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
-import { compitoInBreve, partiDaChatFerma, senzaNotificaClaude } from '@shared/domanda-chiara'
+import { nomeCompito, partiDaChatFerma, senzaNotificaClaude } from '@shared/domanda-chiara'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
@@ -2367,8 +2367,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const parti = {
         // 0.84.0: «Come vado avanti con questo pezzo?» → Nicholas: «quale pezzo???».
         // La domanda nomina il lavoro, senza la sigla della chat.
-        staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat che fa «${compitoInBreve(autore.compito, 80)}».`,
-        domanda: `Come vado avanti con «${compitoInBreve(autore.compito, 80)}», che la Revisione ha già rimandato indietro ${rifacimenti} volte?`,
+        staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat che fa «${nomeCompito(autore.compito, 80)}».`,
+        domanda: `Come vado avanti con «${nomeCompito(autore.compito, 80)}», che la Revisione ha già rimandato indietro ${rifacimenti} volte?`,
         perche: `L’ultima richiesta della Revisione: ${v.note.slice(0, 200)}`,
         scelte: [
           { scelta: 'rifallo ancora', conseguenza: 'La chat corregge di nuovo e la Revisione la rivede.', consigliata: true },
@@ -3221,11 +3221,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // l'obiettivo, uguale per tutte, le faceva sembrare tutte gemelle.
         // Anche per argomento (0.81.0): «Installi la 0.80.0?» e «Will you
         // install the 0.80.0?» non hanno parole in comune.
-        ? aperteSulloStesso(
+        // La grezza ha le sigle, la domanda pronta no (0.84.0): si confronta la
+        // grezza con la grezza, e la domanda pronta con quella mostrata.
+        ? (aperteSulloStesso(
             deps.domande.aperte(aggiornato.id).map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.testo })),
             aggiornato.id,
+            decisione.domanda
+          )[0] ?? aperteSulloStesso(
+            deps.domande.aperte(aggiornato.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo })),
+            aggiornato.id,
             pronta.parti.domanda !== '' ? pronta.parti.domanda : decisione.domanda
-          )[0]?.id
+          )[0])?.id
         : undefined
       const domanda = gemella !== undefined
         ? { id: gemella }
@@ -3639,8 +3645,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // e Nicholas non la vede. Lo stesso controllo delle domande del supervisore,
     // sulla domanda con le sigle (0.84.0): «chiudo la c-15?» si riconosce da lì.
     const laDomanda = pronta.parti.domanda !== '' ? pronta.parti.domanda : domandaGrezza
-    const scarto = (partiPrima.domanda !== '' && partiPrima.domanda !== laDomanda ? await domandaDaScartare(ora, chatId, partiPrima.domanda) : undefined) ??
-      await domandaDaScartare(ora, chatId, laDomanda)
+    // La grezza con le sigle, uguale in tutti i percorsi (gemelle, ricontrollo).
+    const grezza = partiPrima.domanda !== '' ? partiPrima.domanda : laDomanda
+    // «Cosa deve fare adesso la chat…?» la scrive il programma, sempre uguale:
+    // non va confrontata con le risposte di prima né con lo stato (Revisione
+    // 0.84.0), o un «fermati» di ieri fermerebbe ogni fermata nuova.
+    const generica = esito?.tipo !== 'chiedi' && domandaInFondo(detto !== undefined && detto.trim() !== '' ? detto : senzaNotificaClaude(messaggio)) === undefined
+    const scarto = generica
+      ? undefined
+      : (grezza !== laDomanda ? await domandaDaScartare(ora, chatId, grezza) : undefined) ?? await domandaDaScartare(ora, chatId, laDomanda)
     if (scarto !== undefined) {
       const fresco = deps.archivio.leggi(id) ?? ora
       annota(fresco, scarto.riga, scarto.traguardo)
@@ -3657,7 +3670,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // sorella la chat si aggancia con `ancheChat`.
     if (chatId !== undefined) {
       const aperte = deps.domande.aperte(id).filter((d) => contesto.get(d.id)?.chatId !== undefined)
-      const gemella = aperteSulloStesso(aperte.map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.parti?.domanda ?? d.testo })), id, laDomanda)[0]
+      const gemella = generica
+        ? undefined
+        : aperteSulloStesso(aperte.map((d) => ({ ...d, testo: contesto.get(d.id)?.grezza ?? d.parti?.domanda ?? d.testo })), id, grezza)[0]
       const suo = gemella !== undefined ? contesto.get(gemella.id) : undefined
       if (gemella !== undefined && suo !== undefined) {
         const fresco = deps.archivio.leggi(id) ?? ora
@@ -3691,7 +3706,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ricordaContesto(domanda.id, {
       autopilotaId: a.id,
       testo,
-      grezza: laDomanda,
+      grezza,
       ...(chatId !== undefined ? { chatId } : {})
     })
     // Come per una domanda dello Stop: con una flotta la notifica ferma **solo**
@@ -4747,7 +4762,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         })
         if (perche.every((x) => x !== undefined)) {
           const prima = a.chats.find((x) => x.id === chatIds[0])
-          motivo = prima !== undefined ? `la chat che lavorava a «${compitoInBreve(prima.compito, 60)}» ${perche[0]}` : 'la chat che l’aveva chiesta non c’è più'
+          motivo = prima !== undefined ? `la chat che lavorava a «${nomeCompito(prima.compito, 60)}» ${perche[0]}` : 'la chat che l’aveva chiesta non c’è più'
         } else {
           const dalloStato = risoltaDalloStato(laDomanda, await statoVeroDi(a))
           if (dalloStato !== undefined) { motivo = dalloStato; daRiprendere = true }
