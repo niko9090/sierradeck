@@ -41,6 +41,19 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.82.0',
+    righe: [
+      '**Quante chat lavorano insieme lo decide il PC:** processori, memoria libera e carico del momento, da 2 a 8. Sotto sforzo scende, poi risale. Le chat in più aspettano in fila, quelle finite o senza lavoro da un po’ si chiudono da sole. In vista c’è «N di M chat», con il motivo dietro «?», e nelle Impostazioni scegli fra «Meno chat», «Come dice il PC» e «Più chat».',
+      '**Un colore fisso per cosa fa una chat** (sviluppo, interfaccia, collaudo, revisione, rilascio, aspetta te, ferma, finita), uguale su PC, pagina e app, sempre con la sua parola e il suo simbolo. Legenda dietro «?».',
+      '**Chi sta lavorando:** per ogni autopilota, una riga per agente con colore, ruolo, cosa fa e da quanto.',
+      '**Domande solo su cose ancora da decidere:** prima di arrivarti, una domanda si confronta con le release pubblicate, la versione installata, i rami e le chat. Se è già successo, non arriva: trovi «Già fatto: …».',
+      '**Menu dei workspace rifatto:** resta dentro lo schermo, ha la ricerca per nome, i Recenti, «Questo PC» e un gruppo per ogni altro PC. Apri, rinomina, «Apri cartella» ed Elimina sono nel «⋯» di ogni workspace, su PC, pagina e app. Un workspace rinominato non torna più col nome vecchio.',
+      '**«Apri cartella»:** sul PC apre la cartella del workspace o della chat in Esplora file; sulla pagina e sull’app apre la sezione File su quella cartella.',
+      '**Meno cose in vista:** avvisi più bassi, niente stati ripetuti, le linguette meno usate dell’autopilota dietro «⋯». Nessuna funzione tolta.',
+      '**Righe più pulite:** pagina e app non danno più per chiuse le chat vive degli altri workspace, «In moto» conta solo chi lavora davvero, e sotto il nome di una chat non compaiono più cornici, modello e costo o suggerimenti del campo vuoto.'
+    ]
+  },
+  {
     versione: '0.81.1',
     righe: [
       '**Le chat chiuse non ricevono più giri né compiti.**'

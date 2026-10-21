@@ -4,24 +4,81 @@ quando: 2026-10-21T02:30:00+02:00
 tag: ["release", "0.82.0", "rapporto"]
 ---
 
-## Stato (21/10 03:55) — NON ancora pubblicata
+## Stato (21/10 05:20) — v0.82.0 PUBBLICATA, NON installata
 
-| Pezzo | Ramo | In main | Commit fuori da main |
-|---|---|---|---|
-| 1) chat insieme decise dal PC | c-33 | sì | 0 |
-| 2) colore fisso per attività | c-35 | sì | 0 |
-| 3) chi sta lavorando | c-35 | sì | 0 |
-| 4) domande contro lo stato vero | c-34 | sì | 0 |
-| 5) menu dei workspace rifatto | c-36 | sì (8185286c) | 0 |
-| 6) «Apri cartella» | c-37 | sì | 0 |
-| 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
-| collaudo della grafica | c-41 | no (lo rivede c-42) | **1** (aspetto) |
-| cinque difetti grafici | c-43 (con c-41 dentro) | no | finita, da unire |
-| rilascio (questa chat) | c-39 | sì | — |
+**Release:** https://github.com/niko9090/sierradeck/releases/tag/v0.82.0
+- Titolo «SierraDeck 0.82.0»: non bozza, non pre-release, **Latest**, una sola
+  release sul tag.
+- Il tag `v0.82.0` sta sul commit `e70faf87` (main 8faa6827 più il commit della
+  versione). Su origin è spinto **solo il tag**.
+- **Cinque allegati, tutti «uploaded»:**
+  - `SierraDeck-Setup-0.82.0.exe` (115.347.237 byte) con il suo `.blockmap`;
+  - `latest.yml`: `version: 0.82.0`, e la `size` combacia con l'exe;
+  - `SierraDeck-2.82.0.apk` (16,8 MB): APK di rilascio, versionCode 138, firma
+    verificata da `npm run allega-apk` («CN=Nicholas Ferrari, O=Ferrari
+    Consulenze, C=IT»). Ricompilato perché `android/` è cambiato dalla v0.81.1;
+  - `app-android.json`: app 2.82.0, punta all'APK della v0.82.0, programma 0.82.0.
+- **Controllato dal link pubblico** `releases/latest/download/…`: latest.yml dice
+  0.82.0 e app-android.json dice 2.82.0.
+- **Mai installata da noi.** L'installazione la fa solo Nicholas.
 
-Novità, versione e pubblicazione restano ferme finché c-41 e c-43 non hanno 0
-commit fuori da main e i 5 criteri con comando sono verdi sul main finale. La
-bozza delle novità è pronta (7 righe).
+**Novità (8 righe, in `src/shared/novita.ts`, le stesse nelle note di GitHub):**
+- chat insieme decise dal PC;
+- colore fisso per attività;
+- chi sta lavorando;
+- domande solo su cose da decidere;
+- menu dei workspace rifatto;
+- «Apri cartella»;
+- meno cose in vista;
+- righe più pulite (le correzioni di c-43).
+
+**I 5 criteri sul codice della release** (main 8faa6827 + `e70faf87`, uno alla
+volta, 21/10 04:59–05:07):
+
+| Criterio | Esito |
+|---|---|
+| guardia delle cancellazioni | pulita |
+| test del programma principale | 195 file, **1857 passati**, 2 saltati |
+| altri test (servizio, renderer, condivisi, pty) | 260 file, **2840 passati** |
+| `npm run typecheck` | 0 errori |
+| Android `gradle testDebugUnitTest assembleDebug` | **BUILD SUCCESSFUL** (3 min 23 s) |
+
+**Rami di questo lavoro, uno per uno:**
+
+| Ramo | Cosa | Esito |
+|---|---|---|
+| c-32 | analisi della grafica 0.79.0 → 0.81.1, i cinque difetti | **unito** nel ramo c-39 (85795bb9), solo due schede del quaderno, senza conflitti: è il «prima» a cui rimanda questo rapporto, e i suoi difetti li ha corretti c-43 |
+| c-33 | chat insieme decise dal PC (pezzo 1) | **unito** dopo la Revisione (b9dab2d0 e c6d06b2a), ramo chiuso |
+| c-34 | domande contro lo stato vero (pezzo 4) | **unito** dopo la Revisione, ramo chiuso |
+| c-35 | colore fisso e chi sta lavorando (pezzi 2 e 3) | **unito** dopo la Revisione, ramo chiuso |
+| c-36 | menu dei workspace (pezzo 5) | **unito** dopo la Revisione (8185286c), ramo chiuso |
+| c-37 | «Apri cartella» (pezzo 6) | **unito** dopo la Revisione, ramo chiuso |
+| c-38 | grafica meno caotica (pezzo 7) | **unito** dopo la Revisione (599852f9), ramo chiuso |
+| c-39 | rilascio (questa chat), correzione del test di sottofondo, i due difetti del «?» | si unisce a fine turno: versione, rapporto e unione di c-32 |
+| c-40 | — | ramo chiuso, niente fuori da main |
+| c-41 | collaudo della grafica (test `it.fails`) | **unito** dopo la revisione di c-42, 0 commit fuori |
+| c-42 | revisione di c-41 | ramo chiuso, niente fuori da main |
+| c-43 | i cinque difetti di c-32 (feddc338, 85bfd74c, b176a873) | **unito** (8faa6827), 0 commit fuori |
+
+**Misura «N di M» dopo l'unione di c-43** (04:57–04:58, script con il codice
+della 0.82.0):
+- 24 claude.exe accesi, carico 43–45%, 8,8 GB liberi su 24,5.
+- Risultato: **M = 6**, deciso dai processori (8 × 3/4). La finestra della copia
+  diceva «0 di 4 chat» un minuto prima, quando il carico era ancora più alto.
+- Il PC completamente a riposo **non c'è stato**: le altre chat lavoravano
+  sempre. In tutto M è passato da 2 a 3, a 4, a 6, salendo man mano che il
+  carico calava.
+
+**Foto «dopo» rifatte sul main finale:** `30-tel-inizio`, `34-tel-chat` e
+`10-pc-panoramica`, le schermate toccate da c-43.
+- **«In moto»** sulla pagina conta solo chi lavora: c'è l'autopilota fermo,
+  nessun «IN MOTO 4».
+- **«Seconda prova»** risulta ancora «chiusa». Nella copia è giusto: quella chat
+  non è mai stata accesa. La correzione 1 di c-43 (chat vive dei workspace
+  dietro) qui non si poteva mostrare, perché non c'era una chat viva.
+- Gli script delle foto sono in `note/foto-0-82-0/script/` della cartella
+  principale. Puntano a `R:` e alla copia di c-39, che a fine lavoro non c'è
+  più.
 
 ## Numeri e foto: cosa c'è e cosa manca (controllo del 21/10, 04:10)
 - **CPU e memoria prima e dopo (c-33): ci sono**, sezione «Limiti delle chat in
@@ -166,6 +223,9 @@ si installa. Per questo «N di M» viene dal codice della 0.82.0 in due modi:
 - **c-38 ha messo Istruzioni, File e «Ha deciso» della scheda dell'autopilota
   dietro «⋯»** (non tolte). La regola dice niente funzioni spostate senza il suo
   sì: lo decide lui, si può rimettere com'era.
+- **c-36 ha messo rinomina, Elimina e «Apri cartella» nel «⋯» di ogni
+  workspace** (prima erano tasti per il solo workspace davanti). Lo chiedeva la
+  consegna, ma è uno spostamento: lo vede lui.
 
 ## In attesa di Nicholas (dopo l'installazione, che fa solo lui)
 - I tre gesti per i workspace del 19/10: «Sposta in…» dell'autopilota
