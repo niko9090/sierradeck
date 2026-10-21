@@ -14,6 +14,7 @@ import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 import { MenuPin } from './ChatConPin'
 import { SottofondoQui } from './SottofondoQui'
+import { PostiChat } from './PostiChat'
 import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
 
 /**
@@ -307,6 +308,8 @@ export function Console({
       })}
       <div className="sezione sezione--vuota" />
       <div className="sezione">
+        {/* 0.82.0: quante chat degli autopiloti lavorano su questo PC, sempre in vista. */}
+        <PostiChat />
         {/* La versione e il modo di cercare un aggiornamento quando si vuole:
             l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
             ha voglia di aspettarle. */}

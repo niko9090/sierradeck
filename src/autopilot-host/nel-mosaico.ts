@@ -34,6 +34,8 @@ export function esecutoreNelMosaico(p: {
   /** Torna l'id della consegna messa in coda (0.56.4). */
   avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
   ferma: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
+  /** Chiude una chat finita, ferma al prompt (0.82.0): il riquadro si chiude, la conversazione resta. */
+  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
@@ -126,6 +128,22 @@ export function esecutoreNelMosaico(p: {
           ...(viva.workspace !== undefined ? { workspace: viva.workspace } : {})
         })
       }
+    },
+
+    chiudi(id, chatId, chi) {
+      // Non è più governata: se ripartisse (la Revisione riusa la sua chat)
+      // `avvia` la riapre con la stessa sessione.
+      vive.delete(chiave(id, chatId))
+      p.consegne.metti({
+        autopilotaId: id,
+        chatId: chatId ?? id,
+        cwd: '',
+        sessionId: chi.sessionId,
+        titolo: '',
+        cosa: 'chiudi',
+        testo: '',
+        ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {})
+      })
     },
 
     attivi: () => [...vive.keys()]

@@ -59,8 +59,27 @@ data class Stato(
     /** I progetti sul Drive: chi li ha in mano e quanti comandi aspettano nella coda condivisa. */
     val progetti: List<ProgettoBreve> = emptyList(),
     /** Le chat chiuse da te sul computer (PC 0.60.9), con l'ora: chi le guarda da qui lo dice e torna all'elenco. */
-    val chiuse: List<ChiusaDaTe> = emptyList()
+    val chiuse: List<ChiusaDaTe> = emptyList(),
+    /** «N di M chat» (PC 0.82.0): quante chat degli autopiloti lavorano insieme sul computer. Null da un PC più vecchio. */
+    val postiChat: PostiChat? = null
 )
+
+/**
+ * Quante chat degli autopiloti lavorano sul computer e quante ne lascia
+ * lavorare insieme (PC 0.82.0). I testi li scrive il computer, uguali al PC e
+ * alla pagina: qui si mostrano e basta.
+ */
+@Serializable
+data class PostiChat(
+    val attive: Int = 0,
+    val posti: Int = 0,
+    val inFila: Int = 0,
+    val riga: String = "",
+    val spiega: String = ""
+) {
+    /** Pieno: le chat nuove aspettano in fila. */
+    val pieno: Boolean get() = posti > 0 && attive >= posti
+}
 
 @Serializable
 data class ChiusaDaTe(val sessione: String = "", val il: String = "")

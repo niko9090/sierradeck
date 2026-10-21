@@ -239,6 +239,9 @@ function componiPagina(): string {
   }
   .aiuto-testo p { margin: 0 0 6px; }
   .aiuto-testo p:last-child { margin-bottom: 0; }
+  /* «N di M chat» (0.82.0): in cima agli autopiloti; ambra quando il PC è pieno. */
+  .posti-chat { display: flex; flex-wrap: wrap; align-items: center; margin: 0 0 var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
+  .posti-chat--pieno .posti-chat__riga { color: var(--ambra); }
   /* La serigrafia: le lettere incise sotto i LED di un banco. E' la sola
      struttura di questa pagina, e non si usa da nessun'altra parte. */
   .serigrafia {
@@ -1861,6 +1864,19 @@ function domandeInAttesa(s) {
   return (s.domande || []).length + (s.chat || []).filter((c) => c.chiede).length
 }
 
+/**
+ * «N di M chat» (0.82.0): quante chat degli autopiloti lavorano sul computer e
+ * quante ne lascia lavorare insieme, con il perché dietro «?». I testi li
+ * scrive il computer, uguali al PC e all'app. Niente da un computer più vecchio.
+ */
+function postiChatHtml(s) {
+  const p = s && s.postiChat
+  if (!p || typeof p.riga !== 'string') return ''
+  const pieno = p.attive >= p.posti
+  return '<div class="posti-chat' + (pieno ? ' posti-chat--pieno' : '') + '" role="status"><span class="posti-chat__riga">' + esc(p.riga) + '</span>' +
+    aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>'), 'Chat al lavoro insieme') + '</div>'
+}
+
 /** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
 function fascia(s) {
   const chiedono = domandeInAttesa(s)
@@ -2590,7 +2606,7 @@ function pannello(s) {
       '<button onclick="apriPannello(\\'drive\\')">Il contenuto del Drive</button>' +
       '<button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
       elencoCode + vistaDrive + vistaQuaderno,
-    autopiloti:
+    autopiloti: postiChatHtml(s) +
       (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega,
     // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
     // polso, poi la calma. Sotto, quello che è in moto adesso.
@@ -3284,7 +3300,7 @@ function vistaIstruzioniAp(x) {
       '<b>→ ' + esc(i.chatTitolo || i.chatId) + '</b> ' +
       '<span class="istr-ap__esito istr-ap__esito--' + esc(i.esito) + '">' + esc(esiti[i.esito] || i.esito) + '</span></summary>' +
       (i.perche ? '<div class="sotto"><b>Perché:</b> ' + esc(i.perche) + '</div>' : '') +
-      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
+      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : i.cosa === 'chiudi' ? '<div class="sotto">Ha chiuso la chat finita, per liberare il posto (la conversazione resta).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
       (apIstrCorreggi === i.id
         ? '<div class="riga"><textarea id="correggi-istr-ap" rows="3" placeholder="Cosa c’è di sbagliato, o cosa doveva scrivere invece"></textarea></div>' +
           '<div class="riga"><button class="primario" data-i="' + esc(i.id) + '" onclick="mandaCorrezioneAp(this.dataset.i)">Manda la correzione</button><button onclick="correggiIstrAp(null)">Annulla</button></div>'

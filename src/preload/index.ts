@@ -238,9 +238,9 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.on('client:caricaSalvataggio', h)
       return () => { ipcRenderer.off('client:caricaSalvataggio', h) }
     },
-    /** Una chat che il telefono chiede di chiudere. La conversazione resta. */
-    suChiusura: (cb: (idChat: string) => void): (() => void) => {
-      const h = (_e: unknown, id: string): void => cb(id)
+    /** Una chat che il telefono chiede di chiudere, o finita che si chiude da sola (0.82.0). La conversazione resta. */
+    suChiusura: (cb: (idChat: string, da?: string) => void): (() => void) => {
+      const h = (_e: unknown, id: string, da?: string): void => cb(id, typeof da === 'string' ? da : undefined)
       ipcRenderer.on('client:chiudiChat', h)
       return () => { ipcRenderer.off('client:chiudiChat', h) }
     },
@@ -1113,6 +1113,8 @@ contextBridge.exposeInMainWorld('gestore', {
     /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, testo intero, perché ed esito. */
     istruzioni: (id: string): Promise<import('@shared/istruzioni-autopilota').Istruzione[]> => ipcRenderer.invoke('autopilota:istruzioni', id),
     tempi: (id: string): Promise<string | undefined> => ipcRenderer.invoke('autopilota:tempi', id),
+    /** «N di M chat» su questo PC (0.82.0). */
+    postiChat: (): Promise<import('@shared/posti-chat').PostiChat | undefined> => ipcRenderer.invoke('autopilota:postiChat'),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>
