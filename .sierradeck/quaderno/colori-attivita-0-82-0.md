@@ -34,4 +34,5 @@ Consegna c-364 (ramo `ap/ap-f1e631f5/c-35`): un colore fisso per cosa fa una cha
 ## Trappole
 - Un PC di prima della 0.82.0 non manda `attivita`: pagina e app ricavano l'attività da ruolo e stato (`Attivita.diSpecialista`, `diRiga`) o tornano al pallino di prima.
 - I test della pagina che compongono funzioni estratte dallo script (`client-pagina-domande-a-lato`, `ruolo-visibile`) devono includere anche `var ATT` e le nuove funzioni, altrimenti `ReferenceError`.
+- Una voce nuova in `FunzionePc` (app) faceva comparire la fascia «PC indietro» anche a versioni uguali (c-37, «Apri cartella» 0.82.0). Ora `PcIndietro.testo` elenca solo ciò che il PC collegato ha già (b2fb4b96): una voce nuova non va più esclusa a mano.
 - `node_modules` nella copia: giunzione verso quello della cartella principale (vedi `chiusura-rami-0-81-0.md`).
