@@ -46,6 +46,79 @@ bozza delle novità è pronta (7 righe).
 - **App:** nessuna foto da nessuna chat, perché non ci sono né emulatore né
   telefono. Le controllano i test JUnit.
 
+## Foto della grafica, prima e dopo (c-39, 21/10 04:20–04:40)
+- **Prima:** le 24 foto di c-32 sulla 0.81.1, in `note/foto-0-81-0/dopo/` della
+  cartella principale.
+- **Dopo:** in `note/foto-0-82-0/dopo/` della cartella principale, fuori da git.
+  - Sono scattate dalla copia di prova sul codice di main c6d06b2a più le due
+    correzioni qui sotto. La barra mostra ancora «v0.81.1», perché la versione
+    non è ancora cambiata.
+  - Mostrano gli indirizzi di rete e il nome «PC di prova»: non si pubblicano.
+- **Avvertenza sul confronto:** la copia di c-32 aveva 4 chat finte e nessun
+  autopilota, questa ha 14 workspace e un autopilota con 3 agenti. Il confronto
+  vale per come è fatta la schermata, non riga per riga.
+- **Copia:**
+  - cartella `note/prova-c39` della mia copia di lavoro, vista come `R:`;
+  - porte 47740/47741 dentro `preferenze`;
+  - DevTools sulla 9403 per la finestra e sulla 9404 per Edge a 412 px;
+  - `SIERRADECK_PROVA` e `CLAUDE_CONFIG_DIR` di prova.
+  - Nel registro della copia non c'è nessuna traccia della 47630. Il servizio
+    vero è rimasto acceso e intatto.
+  - Spenta alle 04:42 con `avvia.ps1 -ferma`: nessun processo e nessuna porta
+    rimasti.
+
+| Foto (dopo) | Prima (0.81.1) | Cosa si vede ora | Cosa è cambiato |
+|---|---|---|---|
+| `10-pc-panoramica` | `10-pc-panoramica` | Panoramica di un autopilota fermo: obiettivo e criteri in cima, «Al lavoro», «Adesso» con una riga per agente (Sviluppo, Revisione), piano a colonne con l'etichetta colorata del ruolo | un solo «?» per le due viste; «Adesso» non ripete «Nessuna chat al lavoro»; i ruoli hanno colore e lettera (S, R) |
+| `11-pc-tutte-affiancate` | `11-pc-tutte-affiancate` | l'interruttore «Panoramica · Tutte le chat affiancate» con un «?» | bande sopra più basse (30 px invece di 51) |
+| `13-pc-autopiloti` | `13-pc-autopiloti` | elenco con chat, criteri, ultima azione, da quanto, stato | — (stessa tabella) |
+| `13b-pc-scheda-autopilota` | — | scheda: stato «fermo · da 1 min», criteri, «Dal vivo», **Specialisti**: una riga per agente con segno, ruolo, stato e cosa fa («lavora a: …», «rilegge: …») | nuovo (pezzi 2 e 3); Istruzioni, File e «Ha deciso» sono dietro «⋯» (da decidere per Nicholas) |
+| `15-pc-menu-workspace-560x380` | `15-pc-chat-e-workspace` (c-36: `note/foto-0-82-0/c-36/prima`) | il menu a 560×380 con 14 workspace: ricerca, «Recenti», «Questo PC · PC di prova», «⋯» per riga, piede «Crea, rinomina o elimina…»; finisce dentro la finestra e scorre | prima usciva dalla finestra (foto di c-36) |
+| `15b-…-ricerca-560x380` | — | «fat» → resta solo «Prova 07 fatture» | nuovo (ricerca) |
+| `18-pc-impostazioni` | `18-pc-impostazioni` | sezione «Chat e autopiloti»: «Chat degli autopiloti al lavoro insieme» con «Meno chat · Come dice il PC · Più chat» e «?» | nuovo (pezzo 1) |
+| `19-pc-posti-aiuto` | — | «0 di 2 chat» in alto e il suo «?» aperto: processori, memoria, carico, chiusura da sola, dove si regola | nuovo; **qui ho trovato e corretto due difetti** (sotto) |
+| `30-tel-inizio` | `30-tel-inizio` | pagina, Domande: «Niente da rispondere ?» e «In moto adesso» con l'autopilota fermo in una scheda con «Riprendi» e «Guarda» | prima: quattro chat ferme in «IN MOTO 4» (è il difetto 2 di c-41, ancora da correggere in c-43) |
+| `32-tel-autopiloti` | `32-tel-autopiloti` | «0 di 3 chat ?» in cima, l'autopilota in una riga con stato, da quanto e criteri | nuovo «N di M» anche sulla pagina |
+| `34-tel-chat` | `34-tel-chat` | le chat per workspace; «Seconda prova» dice «chiusa · tocca per riaprirla» | è il difetto 1 di c-41 (da c-43) |
+
+**Due difetti trovati nelle foto e corretti** (commit f9a43fc0, con i loro test):
+- **Il «?» di «N di M chat» nella barra in alto non si leggeva.**
+  - Il fumetto c'era, 420×194 px, ma la barra (`.console`, `overflow-x: auto`)
+    lo tagliava a una striscia di pochi pixel.
+  - Ora dentro una barra si apre `fixed`, alle coordinate del tasto
+    (`posizioneFissa` in `Aiuto.tsx`, `tests/renderer/aiuto-nelle-barre.test.ts`).
+  - Vale per tutti i «?» delle barre `.console`. Provato dal vero: si apre
+    intero, 420×212 px a (601, 43).
+- **Il «?» si contraddiceva.**
+  - Con il PC sotto sforzo e in risalita diceva insieme «sotto sforzo» e «si è
+    liberato». Ora dice «ne darebbe di più: il numero risale con calma».
+  - Il testo è lo stesso per pagina e app, perché arriva dal servizio.
+  - Corretto anche il rimando: «Impostazioni → Chat e autopiloti».
+
+**Trappola delle copie di prova:** un autopilota finto senza `iniziatoIl` né
+`ultimoEvento` riceve il 1° gennaio 1970. Risulta «fermo da 29875820 minuti» e
+le sue chat si chiudono da sole al primo giro. Si vede in `13-pc-autopiloti`.
+Non è un difetto di c-33, perché gli autopiloti veri li scrive il servizio con
+`iniziatoIl`. Nel `prepara.mjs` di c-39 ora ci sono tutti e due.
+
+## Misura del PC a riposo, «N di M» calcolato (pezzo 1)
+Il programma installato è la 0.81.1 e non ha `/posti-chat`, perché la 0.82.0 non
+si installa. Per questo «N di M» viene dal codice della 0.82.0 in due modi:
+- con `creaMisuratore` e `postiDalPc` su questo PC, sei giri da 10 s
+  (`note/prova-c39/misura-posti.ts`);
+- dalla copia di prova accesa, che usa le stesse funzioni.
+
+| Quando | Chat al lavoro (claude.exe accesi) | Carico | Memoria libera | «N di M» |
+|---|---|---|---|---|
+| 04:17–04:18, script | 28 claude.exe (tutte le chat di tutti gli autopiloti) | 73–92% | 7,0–7,2 GB su 24,5 | M = **4** (6 dai processori, ridotti per il carico sopra il 70%) |
+| 04:24, finestra della copia | 0 della copia | 97% | 6,7 GB | «**0 di 2** chat» (carico sopra l'85%: metà) |
+| ~04:38, pagina della copia | 0 della copia | in calo | — | «**0 di 3** chat»: il numero risale di un posto |
+
+- Si vede **M che scende col carico (4 → 2) e risale (2 → 3)**.
+- **A PC a riposo: manca.** In quella mezz'ora il carico non è mai sceso sotto
+  il 70%. La seconda misura la prendo dopo l'unione di c-43, quando meno chat
+  sono al lavoro. Se non scende, resta scritto che manca.
+
 ## Criterio «test del programma principale» rosso alle 01:36 UTC (21/10)
 - **Test caduto: non ricostruibile.** L'uscita salvata nel file dell'autopilota
   è tagliata all'inizio: c'è solo lo stderr normale di `cassaforte-sincronia`,
