@@ -137,6 +137,12 @@ Restano due limiti, scritti nella scheda:
   Asserzioni e tempi finti sono gli stessi di prima. Sotto carico (suite main
   in parallelo, più Gradle) passa **10 volte su 10**, con tutti i 16 test del
   file.
+- Test del programma principale, dopo le unioni di c-33 e c-36 (main
+  8185286c, 21/10): la misura delle 01:34 UTC era rossa, ma il test caduto
+  non si è ritrovato. Rilanciata due volte, `tests/main` è **verde**:
+  194 file, **1843 passati su 1845** (2 saltati), 0 falliti. Una volta a PC
+  tranquillo e una con i test del servizio e del renderer in parallelo.
+  Se ricade, va preso il nome esatto del test dall'esito di quella misura.
 - Android, sul codice unito (main b9dab2d0): `gradle testDebugUnitTest
   assembleDebug`, **BUILD SUCCESSFUL**, 390 test, 0 falliti, 1 saltato. L'APK
   debug si compila. Nel progetto non c'è `gradlew`: si usa `gradle`.
