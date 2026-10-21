@@ -64,6 +64,7 @@ import {
   annotaQuanteFinestre,
   assorbiOrfani, filtroIstruzioniPin } from './ipc'
 import { preparaAmbiente } from './preparazione'
+import { gitPerLeChat } from './git-nel-path'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde, validaIdAutopilota } from './validation'
 import {
@@ -1314,7 +1315,8 @@ if (!app.requestSingleInstanceLock()) {
       scopeStore = apriScopeStore(dati)
       gettoniMcp = apriGettoni(join(dati, 'gettoni-mcp.json'))
       ptyClient = registerPtyIpc(
-        () => providerStore?.env() ?? {},
+        // Git nel PATH di ogni chat (0.82.1): senza, gli hook ECC rifiutano gli strumenti.
+        () => ({ ...gitPerLeChat(impostazioni.preferenze().percorsoGit), ...(providerStore?.env() ?? {}) }),
         (cwd, autopilotaJson) => {
           const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
           // Nessun override per questa cartella: si lascia tutto com'era, senza
