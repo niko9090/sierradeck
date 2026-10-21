@@ -27,6 +27,7 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE } from '@shared/menu-principale'
+import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
@@ -445,6 +446,23 @@ function componiPagina(): string {
   .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
   .ws button { padding: 10px 14px; min-height: 44px; }
   .ws button.attivo { border-color: var(--accento); color: var(--testo); }
+  /* Il menu dei workspace (0.82.0): la ricerca in cima, i gruppi, «⋯» per riga.
+     L'elenco ha un'altezza massima e scorre dentro: con 30 workspace la pagina non diventa lunghissima. */
+  .ws-cerca { width: 100%; box-sizing: border-box; margin-top: var(--s2); }
+  .ws-elenco { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; margin-top: var(--s2); }
+  .ws-gruppo + .ws-gruppo { margin-top: var(--s2); }
+  .ws-titolo { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
+  .ws-riga { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--incisione); }
+  .ws-riga.attivo { background: var(--chassis-premuto); border-radius: var(--raggio); }
+  .ws-riga.attivo .ws-segno { color: var(--accento); }
+  .ws-riga .ws-va, .ws-riga .ws-altro { border: 0; background: transparent; box-shadow: none; }
+  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 44px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .ws-riga .ws-segno { width: 14px; flex: none; }
+  .ws-riga .ws-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-riga .ws-conta { margin-left: auto; font-size: 12px; color: var(--testo-quieto); white-space: nowrap; }
+  .ws-riga .ws-altro { min-width: 44px; min-height: 44px; padding: 0; font-size: 18px; color: var(--testo-quieto); }
+  .ws-riga .ws-altro[aria-expanded="true"] { color: var(--accento); }
+  .ws-azioni { flex-wrap: wrap; margin: 0 0 var(--s2) 0; padding-left: 26px; }
   /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
   .cartella.attivo { border-color: var(--accento); color: var(--testo); }
   .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
@@ -683,6 +701,9 @@ var PARTENZE = ${JSON.stringify(PARTENZE)}
 // Il recupero dei workspace (0.81.0): il «?» e la riga sotto il nome, come sul PC e nell'app.
 var AIUTO_ELIMINA_WS = ${JSON.stringify(AIUTO_ELIMINA_WORKSPACE)}
 ${rigaEliminato.toString()}
+// Il menu dei workspace (0.82.0): i gruppi e le azioni dietro «⋯», gli stessi del PC (src/shared/menu-workspace.ts).
+${gruppiMenuWorkspace.toString()}
+${azioniMenuWorkspace.toString()}
 var REGOLE = ${JSON.stringify(REGOLE_PUBBLICAZIONE)}
 var ULTIMO_WORKSPACE = ${JSON.stringify(ULTIMO_WORKSPACE)}
 // La gestione delle chat (0.79.0): i testi del PC, da src/shared/gestione-chat-vista.ts. §N è il nome, §B lo spazio.
@@ -1737,6 +1758,8 @@ function impronta(s) {
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
     scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
     notaScelta || '', notaCartella,
+    // Il menu dei workspace (0.82.0): il «⋯» aperto, la rinomina, la ricerca.
+    wsAperto + '|' + wsRinomina + '|' + wsFiltro,
     // I «?» aperti (0.71.0): senza, il tocco cambiava aiutiAperti e la pagina non si ridisegnava.
     JSON.stringify(aiutiAperti),
     // **Anche cio' che si e' letto apposta.** Il dettaglio di un autopilota,
@@ -2513,8 +2536,7 @@ function pannello(s) {
       \${sezioneErroriPagina()}
     </div>\`
 
-  const ws = (s.workspace && s.workspace.nomi || []).map((n) => \`
-    <button class="\${n === s.workspace.attivo ? 'attivo' : ''}" onclick="vaiA('\${escJs(n)}')">\${esc(n)}</button>\`).join('')
+  const ws = (s.workspace && s.workspace.nomi || []).length > 0
 
   // Chi arriva da un telefono Android puo' avere l'app, che sa fare una cosa
   // che il browser non puo': avvisare quando e' chiusa. Si dice una volta e si
@@ -2560,24 +2582,14 @@ function pannello(s) {
   // non c'e' piu': era un menu alla **fine** di uno scorrimento infinito, che
   // apriva i suoi pannelli ancora piu' sotto — con sei chat aperte, «Consumi»
   // era a dodici schermate dal pollice.
-  // Rinominare ed eliminare (0.55.0), sul workspace davanti, come il pannello del PC.
-  const attivoWs = (s.workspace && s.workspace.attivo) || ''
+  // Il menu dei workspace (0.82.0): ricerca, gruppi e «⋯» per riga, come sul PC
+  // (rinominare ed eliminare valgono per ogni workspace, non solo quello davanti).
   const paneWorkspace = ws
-    ? '<div class="piastrella"><div class="titolo">Workspace</div><div class="ws" style="margin-top:10px">' + ws + '</div>' +
-      // «Su altri PC» (0.65.1): i workspace degli altri PC, a parte; la lista di questo PC resta sua.
-      ((s.workspace && s.workspace.altrove || []).length > 0
-        ? '<div class="sotto" style="margin-top:10px"><b>Su altri PC</b>' + aiuto('su-altri-pc', 'Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.') + '</div>' +
-          (s.workspace.altrove || []).map((p) => '<div class="sotto">' + esc(p.nome) + ': ' + p.workspace.map(esc).join(', ') + '</div>').join('')
-        : '') +
-      // «Apri cartella» (0.82.0): la sezione File sulla cartella del progetto del workspace.
-      (attivoWs ? '<div class="riga"><button onclick="apriCartella({ workspace: \\'' + escJs(attivoWs) + '\\' })">📁 Apri cartella</button></div>' : '') +
+    ? '<div class="piastrella"><div class="titolo">Workspace' + aiuto('ws-menu', 'Tocca un workspace per metterlo davanti sul computer. «⋯» ha le altre azioni: rinomina, Apri cartella (la sezione File sulla cartella del suo progetto), Elimina. «Recenti» sono gli ultimi dove sei andato; sotto, uno per PC: quelli degli altri PC qui non ci sono, e «Porta qui» li copia dal Drive.') + '</div>' +
+      '<input id="ws-cerca" class="ws-cerca" type="search" placeholder="Cerca fra ' + (s.workspace.nomi || []).length + ' workspace" aria-label="Cerca un workspace per nome" oninput="wsCerca(this.value)" value="' + esc(wsFiltro) + '">' +
+      '<div id="ws-lista" class="ws-elenco">' + wsListaHtml(s) + '</div>' +
       '<div class="riga"><input id="ws-nuovo" placeholder="un workspace nuovo">' +
       '<button onclick="creaWorkspace()">Crea</button></div>' +
-      (attivoWs ? '<div class="riga"><input id="ws-rinomina" placeholder="nome nuovo per «' + esc(attivoWs) + '»">' +
-        '<button onclick="rinominaWorkspace()">Rinomina</button></div>' +
-        '<div class="riga">' + ((s.workspace.nomi || []).length > 1
-          ? '<button class="pericolo" onclick="chiediAzione(\\'eliminaWorkspace\\', \\'' + escJs(attivoWs) + '\\')">Elimina «' + esc(attivoWs) + '»…</button>' + aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS))
-          : '<span class="sotto">' + esc(ULTIMO_WORKSPACE) + '</span>') + '</div>' + confermaHtml('ws:' + attivoWs) : '') +
       eliminatiWsHtml() +
       '</div>'
     : ''
@@ -4138,13 +4150,84 @@ window.creaWorkspace = async () => {
   aggiorna()
 }
 
-window.rinominaWorkspace = async () => {
+/**
+ * Il menu dei workspace (0.82.0), come sul PC: la ricerca in cima, i gruppi
+ * «Recenti» e uno per PC (gruppiMenuWorkspace), le azioni di ogni riga dietro
+ * «⋯» (azioniMenuWorkspace). Scrivere nella ricerca ridisegna solo l'elenco,
+ * così la casella non perde il fuoco.
+ */
+var wsFiltro = ''
+/** La riga con il «⋯» aperto: 'q:nome' (di qui) o 'a:pc:nome' (di un altro PC). */
+var wsAperto = ''
+/** Il workspace che si sta rinominando. */
+var wsRinomina = ''
+function wsChiave(v) { return v.qui ? 'q:' + v.nome : 'a:' + (v.pc ? v.pc.id : '') + ':' + v.nome }
+function wsListaHtml(s) {
+  const w = s.workspace || { nomi: [], attivo: '' }
+  const nomi = w.nomi || []
+  const conti = {}
+  ;(w.chat || []).forEach((c) => { conti[c.workspace] = (conti[c.workspace] || 0) + 1 })
+  const gruppi = gruppiMenuWorkspace({ nomi: nomi, attivo: w.attivo, recenti: w.recenti || [], filtro: wsFiltro, altrove: w.altrove || [] })
+  if (gruppi.length === 0) return '<div class="vuoto">Nessun workspace con «' + esc(wsFiltro) + '».</div>'
+  return gruppi.map((g) => '<div class="ws-gruppo"><div class="ws-titolo">' + esc(g.titolo) + '</div>' + g.voci.map((v) => {
+    const k = wsChiave(v)
+    const davanti = v.qui && v.nome === w.attivo
+    const dati = ' data-k="' + esc(k) + '" data-n="' + esc(v.nome) + '" data-pc="' + esc(v.pc ? v.pc.id : '') + '"'
+    const quante = conti[v.nome] || 0
+    let h = '<div class="ws-riga' + (davanti ? ' attivo' : '') + '">' +
+      '<button class="ws-va"' + dati + ' onclick="wsTocca(this.dataset.k)"' + (davanti ? ' aria-current="true"' : '') + '>' +
+        '<span class="ws-segno" aria-hidden="true">' + (davanti ? '✓' : '') + '</span><span class="ws-nome">' + esc(v.nome) + '</span>' +
+        '<span class="ws-conta">' + (v.qui ? (quante === 1 ? '1 chat' : quante + ' chat') : esc(v.pc ? v.pc.nome : '')) + '</span></button>' +
+      '<button class="ws-altro"' + dati + ' aria-label="Altre azioni per «' + esc(v.nome) + '»" aria-expanded="' + (wsAperto === k) + '" onclick="wsApriAzioni(this.dataset.k)">⋯</button></div>'
+    if (v.qui && wsRinomina === v.nome) {
+      h += '<div class="riga ws-azioni"><input id="ws-rinomina" value="' + esc(v.nome) + '" aria-label="Nome nuovo per «' + esc(v.nome) + '»" onkeydown="if (event.key === \\'Enter\\') rinominaWorkspace(this.dataset.n)" data-n="' + esc(v.nome) + '">' +
+        '<button class="primario"' + dati + ' onclick="rinominaWorkspace(this.dataset.n)">Rinomina</button><button onclick="wsRinomina = \\'\\'; pannello(ultimoStato)">Annulla</button></div>'
+    } else if (wsAperto === k) {
+      // La pagina non apre dal vivo un workspace di un altro PC (lo fa il PC): lì resta «Porta qui».
+      const az = azioniMenuWorkspace(v, { attivo: w.attivo, quanti: nomi.length }).filter((a) => v.qui || a.azione !== 'apri')
+      h += '<div class="riga ws-azioni">' + az.map((a) => '<button' + dati + ' data-a="' + a.azione + '"' + (a.pericolo ? ' class="pericolo"' : '') +
+        (a.spenta ? ' disabled title="' + esc(a.spenta) + '"' : ' title="' + esc(a.spiega) + '"') + ' onclick="wsFai(this)">' + esc(a.etichetta) + '</button>').join('') +
+        (v.qui ? aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS)) : '') + '</div>'
+    }
+    if (v.qui) h += confermaHtml('ws:' + v.nome)
+    return h
+  }).join('') + '</div>').join('')
+}
+window.wsCerca = (testo) => {
+  wsFiltro = testo || ''
+  wsAperto = ''
+  const lista = document.getElementById('ws-lista')
+  if (lista && ultimoStato) lista.innerHTML = wsListaHtml(ultimoStato)
+}
+window.wsApriAzioni = (k) => { wsAperto = wsAperto === k ? '' : k; wsRinomina = ''; pannello(ultimoStato) }
+window.wsTocca = (k) => {
+  if (k.indexOf('q:') === 0) { wsAperto = ''; vaiA(k.slice(2)); return }
+  window.wsApriAzioni(k)
+}
+window.wsFai = (el) => {
+  const nome = el.dataset.n
+  const a = el.dataset.a
+  wsAperto = ''
+  if (a === 'apri') { vaiA(nome); return }
+  if (a === 'rinomina') { wsRinomina = nome; pannello(ultimoStato); setTimeout(() => { const c = document.getElementById('ws-rinomina'); if (c) { c.focus(); c.select() } }, 0); return }
+  if (a === 'cartella') { apriCartella({ workspace: nome }); return }
+  if (a === 'elimina') { chiediAzione('eliminaWorkspace', nome); return }
+  if (a === 'portaQui') { drivePortaWs(nome); return }
+  pannello(ultimoStato)
+}
+window.rinominaWorkspace = async (vecchio) => {
   const campo = document.getElementById('ws-rinomina')
   const nuovo = campo && campo.value.trim()
-  const vecchio = ultimoStato && ultimoStato.workspace && ultimoStato.workspace.attivo
   if (!nuovo || !vecchio) return
-  try { await chiedi('/api/workspace/rinomina', { nome: vecchio, nuovo: nuovo }); campo.value = '' }
-  catch (e) { notaGlobale = 'Non l’ho rinominato: ' + ((e && e.message) || 'il computer non risponde') }
+  wsRinomina = ''
+  // La casella ha il fuoco e con il fuoco in una casella la pagina non si ridisegna: va tolto.
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur()
+  if (nuovo === vecchio) { pannello(ultimoStato); return }
+  try {
+    // Il 409 è una risposta con il motivo («esiste già»): si dice.
+    const r = await chiedi('/api/workspace/rinomina', { nome: vecchio, nuovo: nuovo })
+    if (r && r.errore) notaGlobale = r.errore
+  } catch (e) { notaGlobale = 'Non l’ho rinominato: ' + ((e && e.message) || 'il computer non risponde') }
   aggiorna()
 }
 

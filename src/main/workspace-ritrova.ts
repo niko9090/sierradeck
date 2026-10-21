@@ -39,6 +39,15 @@ export function annotaEliminato(dati: string, nome: string, adesso = new Date().
   try { scriviJsonAtomico(f, v.slice(-500), 'workspace') } catch { /* solo un aiuto */ }
 }
 
+/**
+ * Una rinomina (0.82.0) annota il nome vecchio come se fosse eliminato: le
+ * copie di sicurezza fatte prima lo hanno ancora, e all'avvio la riparazione
+ * lo «ritrovava» e lo rimetteva in fondo, vuoto, accanto a quello rinominato.
+ */
+export function annotaRinominato(dati: string, vecchio: string, adesso = new Date().toISOString()): void {
+  annotaEliminato(dati, vecchio, adesso)
+}
+
 export function leggiEliminati(dati: string): Eliminato[] {
   try { const v = JSON.parse(readFileSync(join(dati, FILE_ELIMINATI), 'utf8')) as unknown; return Array.isArray(v) ? v.filter((x): x is Eliminato => typeof (x as Eliminato)?.nome === 'string' && typeof (x as Eliminato)?.quando === 'string') : [] } catch { return [] }
 }

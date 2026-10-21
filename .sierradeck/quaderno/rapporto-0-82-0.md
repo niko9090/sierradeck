@@ -143,3 +143,37 @@ Restano due limiti, scritti nella scheda:
   Una prima build ha dato «Unresolved reference» in `Gestione.kt`
   (`TitoloDialogo`, `apriCartellaDa`, `Aiuto`). Era la cache incrementale di
   Kotlin rimasta da prima dell'unione: rilanciata sullo stesso albero, è verde.
+
+## 5) Menu dei workspace rifatto — c-36 (21/10, 03:30)
+
+**Cosa c'è.** Su PC, pagina e app: in cima la ricerca per nome; gruppi
+«Recenti» (dove sei + gli ultimi dove sei andato, max 5, solo con più di 5
+workspace), «Questo PC», un gruppo per ogni altro PC; azioni di ogni workspace
+dietro «⋯» (apri, rinomina, Apri cartella, Sposta su un altro PC — solo sul PC,
+è il trasloco —, Elimina con recupero 30 gg; altri PC: Apri, Porta qui). Il piede
+«Crea, rinomina o elimina…» resta. Dettagli e trappole: `menu-workspace.md`.
+
+**Funzioni spostate (non tolte), da far vedere a Nicholas:** rinomina, elimina e
+«Apri cartella» erano righe/tasti per il solo workspace davanti (pagina:
+riquadro Workspace; PC: piede «📁 Apri cartella» messo da c-37; app: icona
+cartella). Ora sono nel «⋯» di **ogni** riga, come chiedeva la consegna.
+
+**Dentro lo schermo — foto dalla copia di prova** (30 workspace finti,
+`note/prova-c36/foto/prima` e `/dopo`, fuori da git): prima a 560×380 la tendina
+finiva a 384 px (fuori dalla finestra) e a 480×300 tagliata; dopo, a 800×500,
+560×380 e 480×300 finisce 8 px sopra il bordo e l'elenco scorre dentro; il «⋯»
+dell'ultima riga si apre sopra. Pagina: il riquadro Workspace da 982 a 698 px.
+
+**Guasti trovati e corretti strada facendo.**
+- Un workspace rinominato tornava col nome vecchio al riavvio (ripescato dalle
+  copie «migrazione-elenco-…»): ora la rinomina lo annota come eliminato.
+- «Apri cartella» da pagina e app rispondeva sempre «aggiornalo alla 0.82.0»
+  (la rotta di c-37 non era collegata in `index.ts`): collegata e provata.
+- `CompatibilitaVecchiTest` (Android) cadeva per la `FunzionePc.CARTELLA` nuova:
+  sistemato (main aveva la stessa correzione, tenuta la sua).
+
+**Revisione** (TypeScript e Kotlin, a parte): niente di grave; corretti 9 punti
+(tastiera nel «⋯», fuoco perso dopo rinomina e «Porta qui», errore di «Porta
+qui» muto, casella della rinomina che restava sulla pagina, nell'app voce
+spenta senza il perché e «⋯» che restava aperto con l'elenco cambiato, casi
+di test Kotlin mancanti per Sposta e PC senza «Apri cartella»).

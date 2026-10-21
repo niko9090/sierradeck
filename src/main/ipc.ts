@@ -1,5 +1,6 @@
-import { annotaEliminato } from './workspace-ritrova'
+import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
+import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
@@ -1265,6 +1266,12 @@ export function registerLayoutIpc(
     return statoDi(a)
   })
 
+  // «Recenti» del menu dei workspace (0.82.0): li tocca solo una scelta di
+  // Nicholas (dalla barra, dal pannello, dal telefono), non le consegne.
+  ipcMain.handle('workspace:recenti', (): string[] => leggiRecentiWorkspace(dirname(store.percorso)))
+  ipcMain.handle('workspace:recente', (_event, raw: unknown): string[] =>
+    toccaRecenteWorkspace(dirname(store.percorso), validateNomeWorkspace(raw)))
+
   // Il recupero dei workspace eliminati (0.81.0): l'elenco e «Ripristina».
   // Ripristinare non cambia lo schermo: il workspace torna nella fascia di
   // tutte le finestre e ci vai tu.
@@ -1301,6 +1308,8 @@ export function registerLayoutIpc(
       // salvataggio dopo la rinomina ricreava il workspace con il nome vecchio
       // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
       consegne.rinomina(vecchio, nuovo)
+      rinominaRecenteWorkspace(dirname(store.percorso), vecchio, nuovo)
+      annotaRinominato(dirname(store.percorso), vecchio)
       dopoNome(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
     }

@@ -1149,6 +1149,9 @@ contextBridge.exposeInMainWorld('gestore', {
     ripristina: (nome: string, eliminatoIl: string): Promise<StatoWorkspace> => ipcRenderer.invoke('workspace:ripristina', nome, eliminatoIl),
     rinomina: (vecchio: string, nuovo: string): Promise<StatoWorkspace> =>
       ipcRenderer.invoke('workspace:rinomina', vecchio, nuovo),
+    /** «Recenti» del menu (0.82.0): dove Nicholas è andato per ultimo, e segnarne uno. */
+    recenti: (): Promise<string[]> => ipcRenderer.invoke('workspace:recenti'),
+    recente: (nome: string): Promise<string[]> => ipcRenderer.invoke('workspace:recente', nome),
     cambia: async (nome: string, layout: LayoutSalvato, congedate?: string[]): Promise<LayoutSalvato> =>
       ricevi(await ipcRenderer.invoke('workspace:cambia', nome, layout, scontrino, congedate)),
     migra: async (da: string, nome: string, layout: LayoutSalvato): Promise<LayoutSalvato> =>

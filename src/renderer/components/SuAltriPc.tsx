@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { postoTendina, type PostoTendina } from '@shared/menu-workspace'
 
 type Altrove = { pc: string; nome: string; workspace: string[] }
 
@@ -17,7 +18,7 @@ export function SuAltriPc(): React.JSX.Element | null {
   const [aperto, setAperto] = useState(false)
   const [porto, setPorto] = useState<string | undefined>(undefined)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  const [posto, setPosto] = useState<{ top: number; left: number } | undefined>(undefined)
+  const [posto, setPosto] = useState<PostoTendina | undefined>(undefined)
   const tasto = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -38,9 +39,8 @@ export function SuAltriPc(): React.JSX.Element | null {
     if (!aperto) return
     const r = tasto.current?.getBoundingClientRect()
     if (r === undefined) return
-    // La stessa larghezza del CSS (.ws-menu__tendina: min(480px, 100vw - 32px)): con 420 usciva a destra.
-    const larghezza = Math.min(480, window.innerWidth - 32)
-    setPosto({ top: r.bottom + 4, left: Math.max(16, Math.min(r.left, window.innerWidth - larghezza - 16)) })
+    // Sempre dentro la finestra, come il menu dei workspace (0.82.0).
+    setPosto(postoTendina({ ancora: r, finestra: { larghezza: window.innerWidth, altezza: window.innerHeight }, larghezza: 440 }))
   }, [aperto])
 
   const quanti = altrove.reduce((n, p) => n + p.workspace.length, 0)
@@ -54,10 +54,10 @@ export function SuAltriPc(): React.JSX.Element | null {
       {aperto && posto !== undefined ? createPortal(
         <>
           <div className="ws-menu__velo" onMouseDown={() => setAperto(false)} />
-          <div className="ws-menu__tendina" style={{ top: posto.top, left: posto.left }} aria-label="Workspace su altri PC">
+          <div className="ws-menu__tendina" style={{ top: posto.top, left: posto.left, width: posto.larghezza, maxHeight: posto.altezzaMax }} aria-label="Workspace su altri PC">
             <div className="ws-menu__lista">
               {altrove.flatMap((p) => p.workspace.map((n) => (
-                <div key={`${p.pc}:${n}`} className="ws-menu__voce ws-menu__voce--altrove">
+                <div key={`${p.pc}:${n}`} className="ws-menu__voce ws-menu__voce--altrove ws-menu__voce--su-altri">
                   <span className="ws-menu__voce-nome">{n}</span>
                   <span className="ws-menu__conta">{p.nome}</span>
                   <button className="tasto tasto--mini tasto--acceso" disabled={porto !== undefined}

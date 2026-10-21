@@ -21,13 +21,14 @@ quella cartella (sul PC giusto, anche attraverso il ponte).
   workspace su questo PC, **mai** cartella utente, Documenti o radice di disco.
 
 **Dove sono i tasti.**
-- PC: piede della tendina dei workspace («📁 Apri cartella», per quello
-  attivo), tasto destro su una linguetta, comandi «⋯» della testata della chat
+- PC: «⋯» di ogni workspace nella tendina (c-36: prima era il piede «📁 Apri
+  cartella», solo per quello attivo), tasto destro su una linguetta, comandi «⋯» della testata della chat
   (`TastoCartella.tsx`). Il perché di un rifiuto compare accanto ai workspace
   (⚠ + testo corto) o accanto al tasto della chat.
-- Pagina: riquadro Workspace (per quello attivo) e menu «⋯» dentro una chat.
-- App: menu ⋮ della chat («Apri cartella») e icona cartella in Gestione dei
-  workspace; nascosti se il PC è più vecchio della 0.82.0 (`FunzionePc.CARTELLA`).
+- Pagina: «⋯» di ogni workspace nel riquadro Workspace (c-36) e menu «⋯»
+  dentro una chat.
+- App: menu ⋮ della chat («Apri cartella») e «⋯» di ogni workspace in
+  Gestione (c-36; prima un'icona cartella); nascosti se il PC è più vecchio della 0.82.0 (`FunzionePc.CARTELLA`).
 
 **La rotta** `POST /api/file/cartella` `{ workspace } | { chat }` →
 `{ progetto, percorso, cartella }`; 409 con `errore` se è altrove, se non c'è,
@@ -51,3 +52,12 @@ ponte e del canale (PC e app) e fra le rotte lente (legge i progetti come
   azzerarla lo rilancia e annulla `vai` a metà. `vai` va lanciato con `scope.launch`.
 - «Could not connect to Kotlin compile daemon» è solo un avviso: Gradle compila
   senza demone e il build può essere verde lo stesso (guardare i risultati dei test).
+- **(21/10, c-36) La rotta non era collegata**: `cartellaDaAprireGlobale` c'era,
+  ma non veniva passata come `cartellaDaAprire` alle deps delle rotte in
+  `index.ts` (accanto a `fileProgetti`), così pagina e app ricevevano sempre 409
+  «Questo computer non sa ancora aprire la cartella di un workspace: aggiornalo
+  alla 0.82.0.» anche da un PC 0.82.0. I test della rotta passavano perché
+  costruiscono le deps a mano. Collegata; un test in
+  `tests/main/menu-workspace-pagina.test.ts` guarda che il collegamento resti.
+  Lezione: una dep opzionale nuova di `client-rotte.ts` va cercata anche in
+  `index.ts`, non basta il test della rotta.

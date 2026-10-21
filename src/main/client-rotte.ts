@@ -343,7 +343,7 @@ export type DipendenzeRotte = {
    * mostra accanto a quelle vive (`chat` qui sopra), così nel tab Chat si vede
    * tutto quello che c'è sul computer e non solo il workspace davanti.
    */
-  workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[]; altrove?: { pc: string; nome: string; workspace: string[] }[] }>
+  workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[]; altrove?: { pc: string; nome: string; workspace: string[] }[]; recenti?: string[] }>
   cambiaWorkspace: (nome: string) => Promise<void>
   /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
   fermaAutopilota: (id: string) => Promise<void>

@@ -508,6 +508,9 @@ declare global {
         recupero: () => Promise<import('@shared/workspace-recupero').VoceRecupero[]>
         ripristina: (nome: string, eliminatoIl: string) => Promise<StatoWorkspace>
         rinomina: (vecchio: string, nuovo: string) => Promise<StatoWorkspace>
+        /** «Recenti» del menu (0.82.0): dove Nicholas è andato per ultimo, e segnarne uno. */
+        recenti: () => Promise<string[]>
+        recente: (nome: string) => Promise<string[]>
         cambia: (nome: string, layout: LayoutSalvato, congedate?: string[]) => Promise<LayoutSalvato>
         migra: (da: string, nome: string, layout: LayoutSalvato) => Promise<LayoutSalvato>
         spostaChat: (nome: string, pane: PaneSalvato) => Promise<boolean>

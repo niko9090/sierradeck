@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { annotaEliminato, riparaListaAllAvvio } from '../../src/main/workspace-ritrova'
+import { annotaEliminato, annotaRinominato, riparaListaAllAvvio } from '../../src/main/workspace-ritrova'
 import { apriWorkspaceStore } from '../../src/main/workspace-store'
 
 /**
@@ -52,5 +52,16 @@ describe('all’avvio la lista dei workspace si ripara da sola, senza togliere n
     annotaEliminato(b.dati, 'Money', '2026-10-12T10:00:00.000Z')
     const e = riparaListaAllAvvio({ dati: b.dati, store: b.store, io: { id: 'pc-io', nome: 'IO' }, radiceProgetti: b.claude, log: () => {}, adesso: () => b.adesso })
     expect(e.ritrovati.map((x) => x.nome)).toEqual(['MT5'])
+  })
+
+  it('un workspace rinominato non torna con il nome vecchio (0.82.0, trovato nella copia di prova)', () => {
+    const b = banco()
+    // «Money» rinominato in «Soldi» dopo la copia di stamattina, che ha ancora il nome vecchio.
+    const a = b.store.leggi()
+    b.store.scrivi({ ...a, workspace: [...a.workspace, { nome: 'Soldi', perSlot: {} }] })
+    annotaRinominato(b.dati, 'Money', '2026-10-12T11:00:00.000Z')
+    const e = riparaListaAllAvvio({ dati: b.dati, store: b.store, io: { id: 'pc-io', nome: 'IO' }, radiceProgetti: b.claude, log: () => {}, adesso: () => b.adesso })
+    expect(e.ritrovati.map((x) => x.nome)).toEqual(['MT5'])
+    expect(b.store.leggi().workspace.map((w) => w.nome)).toEqual(['Lavoro', 'Soldi', 'MT5'])
   })
 })

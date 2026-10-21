@@ -9,17 +9,8 @@
  */
 export const LINGUETTE_MAX = 6
 
-/** Senza accenti e maiuscole: «Dèsk» trova «desk». */
-function piano(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-}
-
-/** I nomi che contengono il testo cercato, nell'ordine di sempre; con testo vuoto, tutti. */
-export function filtraWorkspace(nomi: string[], filtro: string): string[] {
-  const f = piano(filtro.trim())
-  if (f === '') return nomi
-  return nomi.filter((n) => piano(n).includes(f))
-}
+/** Il filtro per nome sta in `@shared/menu-workspace`, uguale per pagina e app. */
+export { filtraWorkspace } from '@shared/menu-workspace'
 
 /** Quante chat per workspace, da «sessione → workspace». */
 export function contaChatPerWorkspace(dove: Record<string, string>): Map<string, number> {
