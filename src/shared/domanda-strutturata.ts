@@ -17,6 +17,8 @@
  * un lavoro fermo senza domanda.
  */
 
+import { noteDiChiarezza, partiSenzaSigle, testiDi, type ChatConCompito } from './domanda-chiara'
+
 export type SceltaDomanda = {
   scelta: string
   conseguenza: string
@@ -119,12 +121,22 @@ export function validaDomanda(p: PartiDomanda): Validazione {
   else if (!p.domanda.includes('?')) { mancano.push('domanda'); note.push('la domanda non ha il punto interrogativo: non si capisce cosa chiedi') }
   else if ((p.domanda.match(/\?/g) ?? []).length > 1) { mancano.push('domanda'); note.push('ci sono più domande in una: fanne una sola, la più importante') }
   else if (PAROLE_VAGHE.test(p.domanda)) { mancano.push('domanda'); note.push(`la domanda è vaga («${PAROLE_VAGHE.exec(p.domanda)?.[0] ?? ''}»): di' esattamente di cosa si tratta, chi legge non ha seguito il lavoro`) }
-  else if (sembraNonItaliano([p.domanda, p.staFacendo, p.perche].join(' '))) { mancano.push('domanda'); note.push('la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)') }
+  else if ([p.domanda, p.scelte.map((s) => `${s.scelta} ${s.conseguenza}`).join(' '), testiDi(p).join(' ')].some(sembraNonItaliano)) { mancano.push('domanda'); note.push('la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)') }
+  // 0.84.0: si capisce da sola, senza sigle di chat né «quel pezzo».
+  const chiarezza = noteDiChiarezza(p)
+  if (chiarezza.length > 0) {
+    if (!mancano.includes('domanda')) mancano.push('domanda')
+    note.push(...chiarezza)
+  }
   if (p.perche.length < 10) mancano.push('perche')
   const buone = p.scelte.filter((s) => s.scelta !== '' && s.conseguenza.length >= 5)
   if (buone.length < 2) {
     mancano.push('scelte')
     if (p.scelte.length >= 2) note.push('ogni scelta deve dire cosa succede se la scegli')
+  } else if (p.scelte.some((s) => s.conseguenza.length < 5)) {
+    // 0.84.0: **ogni** scelta, non due su tre.
+    mancano.push('scelte')
+    note.push(`ogni scelta deve dire cosa succede se la scegli: manca per ${p.scelte.filter((s) => s.conseguenza.length < 5).map((s) => `«${s.scelta}»`).join(', ')}`)
   } else if (p.scelte.some((s) => s.conseguenza.length > CONSEGUENZA_MAX)) {
     mancano.push('scelte')
     note.push(`le conseguenze vanno dette in breve (al massimo ${CONSEGUENZA_MAX} caratteri l’una)`)
@@ -172,7 +184,9 @@ export const REGOLE_DOMANDA = [
   '4. `scelte`: da due a cinque risposte possibili, ognuna con **la sua conseguenza** (cosa farai se sceglie quella);',
   '5. `seNonRispondi`: cosa fai se non risponde (aspetti, scegli tu una strada prudente, ti fermi…).',
   'Segna con `"consigliata": true` la scelta che consigli (una sola). Una domanda sola, al massimo 200 caratteri,',
-  'in parole semplici e senza parole vaghe («qualcosa», «come prima», «quella cosa»): di’ esattamente di cosa si tratta.',
+  'in parole semplici e senza parole vaghe («qualcosa», «come prima», «quella cosa», «quel pezzo», «l’altra chat»): di’ esattamente di cosa si tratta.',
+  'Mai sigle di chat («c-12») né nomi di rami: nomina il lavoro con il suo compito, a parole («la chat che rifà la schermata Adesso»).',
+  'Non chiedere cose già successe (una versione già pubblicata, un ramo già unito, una chat già chiusa): controlla prima.',
   'Sempre in italiano, anche se il lavoro è in inglese.',
   'Le conseguenze in breve. Non chiedere di nuovo una cosa a cui ha già risposto: le sue risposte sono nel quadro.',
   'Il programma controlla che ci siano tutte: una domanda incompleta ti torna indietro da riscrivere.'
@@ -217,14 +231,22 @@ export async function domandaControllata(
   chi: string,
   prima: PartiDomanda,
   riscrivi: ((richiesta: string) => Promise<string | undefined>) | undefined,
-  leggiRisposta: (testo: string) => PartiDomanda | undefined
+  leggiRisposta: (testo: string) => PartiDomanda | undefined,
+  /**
+   * Le chat dell'autopilota (0.84.0): le sigle («c-12») diventano il loro
+   * compito prima del controllo e dopo la riscrittura. Senza, le sigle restano
+   * un difetto da far riscrivere.
+   */
+  chat?: ChatConCompito[]
 ): Promise<DomandaPronta & { riscritta: boolean }> {
-  let p = prima
+  const pulisci = (x: PartiDomanda): PartiDomanda => (chat === undefined ? x : partiSenzaSigle(x, chat))
+  let p = pulisci(prima)
   let v = validaDomanda(p)
   let riscritta = false
   if (!v.completa && riscrivi !== undefined) {
     const t = await riscrivi(richiestaRiscrittura(p, v)).catch(() => undefined)
-    const seconda = t === undefined ? undefined : leggiRisposta(t)
+    const letta = t === undefined ? undefined : leggiRisposta(t)
+    const seconda = letta === undefined ? undefined : pulisci(letta)
     if (seconda !== undefined) {
       const v2 = validaDomanda(seconda)
       // La seconda vince se non è peggio della prima (e ha almeno la domanda).
@@ -324,20 +346,7 @@ export function domandaPerRegistro(p: DomandaPronta): { opzioni?: string[]; part
   }
 }
 
-/**
- * Quando il supervisore non ha risposto, resta la domanda della chat: le
- * parti che il programma conosce (cosa sta facendo), il resto vuoto. Passa
- * con l'avvertenza: meglio una domanda zoppa che un lavoro fermo in silenzio.
- */
-export function partiDallaChat(a: { obiettivo: string }, grezza: string): PartiDomanda {
-  return {
-    staFacendo: `La chat lavora a: ${breve(a.obiettivo.replace(/\s+/g, ' ').trim(), 200)}`,
-    domanda: grezza.trim(),
-    perche: '',
-    scelte: [],
-    seNonRispondi: 'la chat resta ferma su questa domanda finché non rispondi'
-  }
-}
+/* Quando il supervisore non ha risposto: `partiDaChatFerma` in `domanda-chiara.ts` (0.84.0). */
 
 /**
  * Le sezioni da disegnare, in ordine (la linguetta «Domande» del PC): prima la

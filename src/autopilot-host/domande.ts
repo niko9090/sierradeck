@@ -60,6 +60,12 @@ export type RegistroDomande = {
   rispondi: (id: string, risposta: string, da: Provenienza) => boolean
   aperte: (autopilotaId?: string) => DomandaAperta[]
   chiudiDi: (autopilotaId: string) => void
+  /**
+   * Chiude una domanda **superata** (0.84.0): la chat è chiusa, il lavoro è
+   * già fatto. Non è una risposta di Nicholas: niente risposta tardiva. Resta
+   * fra le risolte, con la domanda intera e il motivo. `false` se non c'era.
+   */
+  superata: (id: string, motivo: string, extra?: Pick<DomandaRisolta, 'chatId' | 'chatTitolo'>) => boolean
   /** Chiamata quando una risposta arriva dopo la scadenza dell'attesa. */
   suRispostaTardiva: (cb: (id: string, risposta: string, da: Provenienza) => void) => void
   /** Il contesto per la ripresa (0.71.0), salvato su disco con la domanda. */
@@ -74,6 +80,8 @@ export type RegistroDomande = {
 
 /** Quante risposte dell'autopilota si tengono, al massimo. */
 const RISOLTE_MAX = 40
+/** Quanto testo si tiene di domanda e risposta (0.84.0: era 1200, la domanda va vista intera). */
+const RISOLTA_MAX = 6000
 
 type Voce = {
   domanda: DomandaAperta
@@ -209,6 +217,26 @@ export function creaRegistroDomande(deps: {
       salva()
     },
 
+    superata(id, motivo, extra) {
+      const voce = voci.get(id)
+      // Chi aspetta (un hook trattenuto, «pubblico?») decide da sé alla sua
+      // scadenza: chiuderla sotto di lui la farebbe sembrare scaduta (Revisione 0.84.0).
+      if (voce === undefined || voce.risposta !== undefined || voce.attese.length > 0) return false
+      voci.delete(id)
+      const d = voce.domanda
+      const domanda = (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo).trim().slice(0, RISOLTA_MAX)
+      risolte = [...fresche(), {
+        autopilotaId: d.autopilotaId,
+        ...(extra?.chatId !== undefined ? { chatId: extra.chatId } : {}),
+        ...(extra?.chatTitolo !== undefined ? { chatTitolo: extra.chatTitolo } : {}),
+        domanda,
+        risposta: `Superata, non serve più: ${motivo}`,
+        quando: new Date(deps.adesso()).toISOString()
+      }]
+      salva()
+      return true
+    },
+
     suRispostaTardiva(cb) {
       tardiva = cb
     },
@@ -221,8 +249,8 @@ export function creaRegistroDomande(deps: {
     },
 
     risolta(r) {
-      const domanda = r.domanda.trim().slice(0, 1200)
-      const risposta = r.risposta.trim().slice(0, 1200)
+      const domanda = r.domanda.trim().slice(0, RISOLTA_MAX)
+      const risposta = r.risposta.trim().slice(0, RISOLTA_MAX)
       if (domanda === '' || risposta === '') return
       risolte = [...fresche(), { ...r, domanda, risposta, quando: new Date(deps.adesso()).toISOString() }]
       salva()

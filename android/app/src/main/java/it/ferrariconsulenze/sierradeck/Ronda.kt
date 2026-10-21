@@ -246,8 +246,10 @@ object Ronda {
                 .setLabel(if (a.domanda != null) "La tua risposta" else "Scrivi alla chat")
                 .build()
             val intento = Intent(contesto, RispostaVeloce::class.java).apply {
-                if (a.domanda != null) putExtra(RispostaVeloce.EXTRA_DOMANDA, a.domanda)
-                else putExtra(RispostaVeloce.EXTRA_CHAT, a.chat)
+                if (a.domanda != null) {
+                    putExtra(RispostaVeloce.EXTRA_DOMANDA, a.domanda)
+                    putExtra(RispostaVeloce.EXTRA_TESTO_DOMANDA, a.testo)
+                } else putExtra(RispostaVeloce.EXTRA_CHAT, a.chat)
                 putExtra(RispostaVeloce.EXTRA_NOTIFICA, a.id)
             }
             // `MUTABLE` è obbligatorio: è Android a scriverci dentro il testo che
