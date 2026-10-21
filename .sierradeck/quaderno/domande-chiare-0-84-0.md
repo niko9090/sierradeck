@@ -41,6 +41,15 @@ tag: ["0.84.0", "domande", "autopilota", "chiarezza", "c-61"]
 - `tests/autopilot-host/domande-chiare-servizio.test.ts`: nel servizio vero. Copre la notifica senza supervisore, le sigle nella domanda del supervisore, le risolte con la domanda vera, e il ricontrollo (chat chiusa, chat agganciate ancora vive, stato vero con ripresa, domanda trattenuta).
 - Kotlin: `RispostaVeloceTest`.
 
+# Revisione (21/10): 7 punti, tutti corretti
+- `superata` **non** chiude una domanda se qualcuno la sta aspettando con `attendi`. Il caso è «Pubblico adesso?», che non porta `trattenuta`: chiuderla la faceva sembrare scaduta.
+- **Gemelle**: la grezza (con le sigle) si confronta con la grezza, la domanda pronta con quella mostrata. Altrimenti due chat con la stessa domanda «c-7 e c-4» ne aprivano due.
+- `nomeCompito` toglie le sigle anche dal compito della Revisione («Rivedi il ramo ap/…/c-12 della chat c-12 («…»)» → «Revisione di: …»).
+- La domanda **generica** del programma («Cosa deve fare adesso la chat…?») non passa da `domandaDaScartare` né dalle gemelle. Altrimenti un «fermati» di ieri avrebbe risposto a ogni fermata nuova della stessa chat per 24 ore.
+- La grezza è la domanda con le sigle in tutti e due i percorsi: così il ricontrollo riconosce «chiudo la c-15?».
+- «Claude needs your permission to use X» diventa «Chiede il tuo permesso per usare X.».
+- I nomi di file come `c-310.log` non sono sigle.
+
 # Trappole
 - Le domande vecchie in `domande-aperte.json` hanno la «grezza» con «idle_prompt…». Due grezze così si somigliavano abbastanza da diventare **gemelle** (`aperteSulloStesso`): il 21/10 la domanda di c-22 aveva agganciate c-44, c-8 e c-40. Con la domanda scritta dal programma ogni chat ha la sua.
 - Gli hook ECC (GateGuard) erano attivi in questa copia: chiedono «i fatti» prima del primo Bash, Write ed Edit di ogni file. Sono il punto 3.5 della lista.
