@@ -61,6 +61,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -550,7 +551,9 @@ fun Principale(
         containerColor = Banco.fondo,
         bottomBar = { BarraVoci(posto.voce, stato) { posto = Navigazione.tocca(posto, it) } }
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize()) {
+        // consumeWindowInsets: dentro, imePadding conta solo la tastiera oltre la
+        // barra in basso (2.83.0, c-509: la casella dell'autopilota resta in vista).
+        Column(Modifier.padding(pad).consumeWindowInsets(pad).fillMaxSize()) {
             // Con quale computer stai parlando. Sopra ogni schermata e non
             // dentro «Computer», perche' cambiare macchina e' un gesto che si fa
             // **mentre** si sta facendo altro: guardi una chat, ti accorgi che e'

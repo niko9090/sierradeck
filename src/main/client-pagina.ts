@@ -361,6 +361,13 @@ function componiPagina(): string {
   .dentro--alto { max-height: none; height: 58vh; }
   /* Il campo di risposta e' l'unico testo che si scrive da un telefono, e sta
      dove arriva il pollice. */
+  /* 0.83.0 (c-509, Nicholas: «troppe info che occupano tutto lo schermo»): una
+     riga riassuntiva; chiusa, sotto ci sono solo la conversazione e la casella. */
+  .riassunto-ap { display: flex; width: 100%; min-height: 48px; align-items: center; gap: 8px; text-align: left; margin: 6px 0; }
+  .riassunto-ap span { flex: 1; }
+  .riassunto-ap b { color: var(--accento); font-weight: 600; white-space: nowrap; }
+  .riassunto-ap--domande span { color: var(--ambra); }
+  .riassunto-chiuso .solo-riassunto { display: none; }
   .ancorata {
     position: sticky; bottom: calc(60px + env(safe-area-inset-bottom));
     background: var(--fondo-cupo); padding: var(--s2) 0;
@@ -1067,6 +1074,8 @@ var apDettaglio = null
 var apTab = 'obiettivo'
 /** Dove si era prima che una domanda portasse alla linguetta «Domande» (0.38.0). */
 var apTabPrima = 'obiettivo'
+/** La riga riassuntiva dell'autopilota (0.83.0): chiusa, sotto solo la conversazione. */
+var apRiassunto = false
 /** Quale domanda si guarda (una per volta) e quali si sono gia' viste. */
 var apDomandaI = 0
 var apDomandeViste = null
@@ -2037,7 +2046,9 @@ function pannello(s) {
       <button class="indietro" onclick="chiudiAp()" aria-label="Torna all’elenco">‹</button>
       <div class="testata-dentro__nome"><span class="led \${led(apAperto)}"></span>\${esc(apAperto.nome)}\${apPc ? ' <span class="sotto">· gira su ' + esc(apPcNome) + '</span>' : ''}</div>
     </div>
-    <div class="piastrella">
+    <button class="riassunto-ap\${apDettaglio && (apDettaglio.domandeScheda || []).length ? ' riassunto-ap--domande' : ''}" aria-expanded="\${apRiassunto}" onclick="giraRiassuntoAp()"><span>\${esc(riassuntoApTesto(apAperto, apDettaglio))}</span><b>\${apRiassunto ? 'Chiudi ▴' : 'Dettagli ▾'}</b></button>
+    <div class="piastrella \${apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'}">
+      <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
       <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
       <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
@@ -2045,7 +2056,9 @@ function pannello(s) {
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
       \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      </div>
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
+      <div class="solo-riassunto">
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
         \${apAperto.stato === 'pronto'
@@ -2071,6 +2084,7 @@ function pannello(s) {
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
         <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.sottofondo === true ? 'checked' : ''} data-ap="\${esc(apAperto.id)}" onchange="sottofondoAp(this.dataset.ap, this.checked)"> Lavora in sottofondo\${aiuto('ap-sottofondo', 'Di serie la sua chat sta in un riquadro del suo workspace sul computer, e quando l’autopilota le scrive il computer va in quel workspace (mai mentre stai scrivendo lì). Accesa, la chat lavora senza riquadro: la vedi in «in sottofondo» con Guarda.')}</label>
         <button class="\${confermando === 'ap-' + apAperto.id ? 'pericolo' : ''}" data-ap="\${esc(apAperto.id)}" onclick="eliminaAp(this.dataset.ap)">\${confermando === 'ap-' + apAperto.id ? 'Sicuro? Elimina' : 'Elimina'}</button>
+      </div>
       </div>
     </div>\`
     : (s.autopiloti || []).map((a) => \`
@@ -2901,7 +2915,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -3054,6 +3068,21 @@ window.apriDaPanoramica = async (id) => {
   vaiScheda('chat')
   await guarda(id)
 }
+
+/** La riga riassuntiva (0.83.0, uguale all'app): prima le domande, poi stato, criteri, chat e giri. */
+function riassuntoApTesto(ap, d) {
+  const pezzi = []
+  const dom = d && d.domandeScheda ? d.domandeScheda.length : 0
+  if (dom > 0) pezzi.push(dom === 1 ? '1 domanda per te' : dom + ' domande per te')
+  pezzi.push(ap.vista ? ap.vista.stato.parola : ap.stato)
+  if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
+  const chat = d && d.chats ? d.chats.length : 0
+  if (chat > 0) pezzi.push(chat + ' chat')
+  const giri = (d && d.cicli) || 0
+  pezzi.push(giri === 1 ? '1 giro' : giri + ' giri')
+  return pezzi.join(' · ')
+}
+window.giraRiassuntoAp = () => { apRiassunto = !apRiassunto; pannello(ultimoStato) }
 
 function vistaAutopilota(a) {
   const passi = (a.passaggi || []).map((p) => {
@@ -3216,12 +3245,12 @@ function vistaAutopilota(a) {
   }
 
   return '<div class="dettaglio">' +
-    '<div class="passi">' + passi + '</div>' +
-    '<div class="serigrafia" style="margin-top:10px">Chat con lui</div>' +
+    '<div class="passi solo-riassunto">' + passi + '</div>' +
+    '<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>' +
     '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
     casella +
-    barraLinguette +
-    '<div class="tab-ap">' + dentro + '</div>' +
+    '<div class="solo-riassunto">' + barraLinguette +
+    '<div class="tab-ap">' + dentro + '</div></div>' +
     '</div>'
 }
 

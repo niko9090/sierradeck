@@ -68,3 +68,19 @@ fun rigaFile(f: FileCambiato): String =
  * questa altezza scorre.
  */
 fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande" || chiave == "istruzioni") 420 else 260
+
+/**
+ * La riga riassuntiva in cima all'autopilota (2.83.0, c-509): stato, criteri,
+ * chat e giri in una riga; prima le domande, se ce ne sono. Il tocco la apre.
+ */
+object RiassuntoAutopilota {
+    fun di(stato: String, criteri: List<Criterio>, chat: Int, giri: Int, domande: Int): String {
+        val pezzi = mutableListOf<String>()
+        if (domande > 0) pezzi += if (domande == 1) "1 domanda per te" else "$domande domande per te"
+        pezzi += statoInParole(stato)
+        if (criteri.isNotEmpty()) pezzi += "criteri ${criteri.count { it.soddisfatto }}/${criteri.size}"
+        if (chat > 0) pezzi += "$chat chat"
+        pezzi += if (giri == 1) "1 giro" else "$giri giri"
+        return pezzi.joinToString(" · ")
+    }
+}

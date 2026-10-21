@@ -29,6 +29,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -75,15 +76,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.text.style.TextAlign
 
 /**
- * Il dettaglio di un autopilota: la chat con lui in alto, le linguette sotto.
- *
- * Come la sezione sul PC (0.29.0). Nicholas: «in alto la parte di chat e
- * nelle varie tab le altre info, così vedo tutto senza scorrere come un
- * matto». La chat arriva composta dal computer (`AutopilotaDettaglio.chat`):
- * quello che gli hai chiesto, l'intervista, le sue decisioni come note, il
- * dialogo, la domanda aperta. Con una domanda aperta la casella risponde
- * (arriva subito alla chat ferma); altrimenti parla con il supervisore, che
- * risponde in qualche minuto.
+ * Il dettaglio di un autopilota (2.83.0): una riga riassuntiva in alto che si
+ * apre con un tocco, sotto solo la conversazione, la casella sempre in basso.
+ * La chat arriva composta dal computer (`AutopilotaDettaglio.chat`): quello
+ * che gli hai chiesto, l'intervista, le sue decisioni come note, il dialogo,
+ * «Hai risposto: …». La casella parla con il supervisore, che risponde in
+ * qualche minuto; le sue domande si rispondono in «Domande», nella riga aperta,
+ * o in cima ad Adesso.
  */
 @Composable
 internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }) {
@@ -103,14 +102,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
         SchermoMandaA(api, null, uris, fissa = DestinazioneFile("autopilota", breve.id, breve.nome)) { allegando = null }
     }
     var notaDialogo by remember(breve.id) { mutableStateOf<String?>(null) }
-    // Le parti del dettaglio (2.83.0): tutte in una pagina che scorre sotto la
-    // chat, non più linguette chiuse — ogni parte a due tocchi da Adesso.
-    // Nicholas (22/09): la chat e la casella devono restare in vista; la
-    // pagina delle parti prende meno spazio della chat e si nasconde.
-    var dettagliAperti by remember(breve.id) { mutableStateOf(true) }
-    val listaDettagli = rememberLazyListState()
-    /** Le domande gia' viste: una nuova apre la linguetta «Domande» (0.38.0). */
-    var domandeViste by remember(breve.id) { mutableStateOf<List<String>?>(null) }
+    // La riga riassuntiva (2.83.0, c-509): chiusa, sotto c'è solo la conversazione.
+    var riassuntoAperto by remember(breve.id) { mutableStateOf(false) }
     // Se il dettaglio non arriva lo si dice: prima la schermata restava con
     // la sola testata e nessuna spiegazione.
     var guastoDettaglio by remember(breve.id) { mutableStateOf<String?>(null) }
@@ -148,239 +141,108 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
         if (righe > 0 && totale > 0) lista.animateScrollToItem(totale - 1)
     }
 
-    Column(Modifier.fillMaxSize()) {
-        Column {
-            Row(
-                Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onIndietro, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
-                }
-                Spacer(Modifier.width(6.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        breve.nome,
-                        color = Banco.testo,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        fontSize = 15.sp
-                    )
-                    val s = det?.stato ?: breve.stato
-                    Text(statoInParole(s), color = coloreStato(s), fontSize = 12.sp)
-                    // **Perche'** si e' fermato: «fermo» da solo manda a cercare
-                    // altrove. Come la pagina: prima la strada che sta provando,
-                    // altrimenti il motivo della sospensione.
-                    if (s == "sospeso" || s == "fallito") {
-                        val strategia = det?.strategia?.takeIf { it.isNotBlank() } ?: breve.strategia.takeIf { it.isNotBlank() }
-                        val perche = if (strategia != null) "bloccato, provo: $strategia"
-                            else det?.motivoSospensione?.takeIf { it.isNotBlank() } ?: breve.motivo
-                        if (perche.isNotBlank()) {
-                            // Due righe: il motivo intero sta gia' nella striscia in alto e
-                            // nella linguetta «Obiettivo»; qui deve restare posto alla chat.
-                            Text(perche, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
-                        }
-                    }
-                    // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
-                    // 0.82.0: lo stato è già nella riga sopra, qui solo ultima azione, da quanto e ⚠.
-                    // (solo se la riga sopra dice la stessa parola: altrimenti l'etichetta del PC resta, Revisione 0.82.0)
-                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(s)) }
-                    det?.adesso?.let { AdessoVista(it) }
-                    MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
-                        scopeMessaggi.launch {
-                            try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id) } catch (_: Exception) { }
-                        }
-                    }
-                }
-                TextButton(onClick = { quadernoAperto = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno", fontSize = 13.sp) }
-                Punto(coloreLed(breve.led, det?.stato ?: breve.stato))
+    // Nicholas (21/10): «non si vede nulla, troppe info che occupano tutto lo
+    // schermo». Dalla 2.83.0: in alto una riga sola (stato, criteri, chat,
+    // giri) che si apre con un tocco; sotto solo la conversazione; la casella
+    // sempre in basso, sopra la tastiera. Niente è stato tolto: il resto sta
+    // nella riga aperta.
+    val schede = det?.domandeScheda ?: emptyList()
+    BackHandler(enabled = riassuntoAperto) { riassuntoAperto = false }
+    Column(Modifier.fillMaxSize().imePadding()) {
+        Row(
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onIndietro, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
             }
-            HorizontalDivider(color = Banco.incisione)
+            Text(breve.nome, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Punto(coloreLed(breve.led, det?.stato ?: breve.stato))
+            Spacer(Modifier.width(12.dp))
         }
-
-        // Il gesto principale sta **fuori** dallo scorrimento: il momento in
-        // cui vuoi premere «Riprendi» e' proprio dopo aver letto perche' si e'
-        // fermato.
-        Column(Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 16.dp, vertical = 8.dp)) {
-            AzioniAutopilota(api, breve.id, det?.stato ?: breve.stato, det?.workspace)
+        val s = det?.stato ?: breve.stato
+        val riga = RiassuntoAutopilota.di(s, det?.criteri ?: emptyList(), det?.chats?.size ?: 0, det?.cicli ?: breve.cicli, schede.size)
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).background(Banco.chassis)
+                .clickable { riassuntoAperto = !riassuntoAperto }.padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                riga, color = if (schede.isNotEmpty()) Banco.ambra else coloreStato(s),
+                fontSize = 14.sp, maxLines = 2, modifier = Modifier.weight(1f)
+            )
+            Text(if (riassuntoAperto) "Chiudi ▴" else "Dettagli ▾", color = Banco.accento, fontSize = 14.sp)
         }
         HorizontalDivider(color = Banco.incisione)
 
-        // ─── la chat con lui: tutto lo spazio che resta ───
-        //
-        // Le fasi e la misura **scorrono con la chat**, come prime voci
-        // dell'elenco: prima stavano fisse sopra e, con la tastiera aperta,
-        // mangiavano tutto lo spazio della meta' di sopra — la chat spariva e la
-        // casella finiva sotto le linguette, fuori dallo schermo.
-        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
-            // PC 0.79.0: chi lavora adesso, sempre in vista sopra la conversazione.
-            pan?.alLavoro?.let { r -> AlLavoro(r) { id -> Apertura.apriChat(id) } }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista) {
-                if (det != null && det.passaggi.isNotEmpty()) item {
+        if (riassuntoAperto) LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
+            item(key = "stato") {
+                Column(Modifier.padding(vertical = 8.dp)) {
+                        Text(statoInParole(s), color = coloreStato(s), fontSize = 12.sp)
+                        // **Perche'** si e' fermato: «fermo» da solo manda a cercare
+                        // altrove. Come la pagina: prima la strada che sta provando,
+                        // altrimenti il motivo della sospensione.
+                        if (s == "sospeso" || s == "fallito") {
+                            val strategia = det?.strategia?.takeIf { it.isNotBlank() } ?: breve.strategia.takeIf { it.isNotBlank() }
+                            val perche = if (strategia != null) "bloccato, provo: $strategia"
+                                else det?.motivoSospensione?.takeIf { it.isNotBlank() } ?: breve.motivo
+                            if (perche.isNotBlank()) {
+                                Text(perche, color = Banco.testoQuieto, fontSize = 13.sp)
+                            }
+                        }
+                        // Si vede sempre chi lavora, e lo stato di ogni messaggio (PC 0.69.0).
+                        // 0.82.0: lo stato è già nella riga sopra, qui solo ultima azione, da quanto e ⚠.
+                        // (solo se la riga sopra dice la stessa parola: altrimenti l'etichetta del PC resta, Revisione 0.82.0)
+                        (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(s)) }
+                        det?.adesso?.let { AdessoVista(it) }
+                        MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
+                            scopeMessaggi.launch {
+                                try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id) } catch (_: Exception) { }
+                            }
+                        }
                     Spacer(Modifier.height(8.dp))
-                    // Il motivo del fermo sta gia' nell'intestazione: qui la nota
-                    // delle fasi si mostra solo quando dice altro.
+                    AzioniAutopilota(api, breve.id, s, det?.workspace)
+                    TextButton(onClick = { quadernoAperto = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno del progetto") }
+                }
+            }
+            if (det != null && det.passaggi.isNotEmpty()) item(key = "fasi") {
+                Column {
+                    // Il motivo del fermo sta già sopra: qui la nota delle fasi solo quando dice altro.
                     Passaggi(det.passaggi, mostraNota = det.stato != "sospeso" && det.stato != "fallito")
                     Spacer(Modifier.height(6.dp))
                     Misura(det.misura, det.cicli)
                     det.tempi?.let { Text("Tempi: $it", color = Banco.testoQuieto, fontSize = 12.sp) }
-                    Spacer(Modifier.height(6.dp))
                 }
-                guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
-                // PC 0.77.0: la Panoramica in cima, una scheda per chat; il tocco apre la chat a tutto schermo.
-                pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
-                item { Serigrafia("Chat con lui") }
-                // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
-                // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
-                val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
-                if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
-                items(messaggi) { b ->
-                    // Il testo della chat con lui si seleziona e si copia (tocco
-                    // lungo): senza SelectionContainer un Text di Compose non e'
-                    // selezionabile, e Nicholas non riusciva a copiarne niente.
-                    // La casella sotto e' un campo di testo: l'incolla c'e' da se'.
-                    androidx.compose.foundation.text.selection.SelectionContainer {
-                        RigaChat(b, breve.nome) {
-                            scope.launch { tenta("farlo partire") { api.vaiAutopilota(breve.id) } }
-                        }
-                    }
-                }
-                if (pensa) item {
-                    Text(
-                        "● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.",
-                        color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                } else if (guarda) item {
-                    Text(
-                        "● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.",
-                        color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-                // PC 0.75.4: ha promesso lavoro ed è fermo. Mai più una promessa muta.
-                if (!pensa && det?.fermoConPromessa == true) item {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                        Text(
-                            "● L'autopilota è fermo (${det.stato}).",
-                            color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { scope.launch { tenta("riprenderlo") { api.riprendiAutopilota(breve.id) } } }) { Text("Riprendi") }
+            }
+            // PC 0.77.0/0.79.0: la Panoramica del suo workspace e chi lavora adesso.
+            pan?.let { p ->
+                item(key = "panoramica") {
+                    Column {
+                        p.alLavoro?.let { r -> AlLavoro(r) { id -> Apertura.apriChat(id) } }
+                        PanoramicaVista(p) { id -> Apertura.apriChat(id) }
                     }
                 }
             }
-            // Le sue domande non si rispondono da qui (0.38.0): stanno nella
-            // linguetta «Domande» qui sotto, una per volta. La casella parla con lui.
-            val domanda = false
-            if (det != null && (det.domandeScheda.isNotEmpty() || det.domanda)) {
-                Text(
-                    // Un PC prima della 0.38.0 non ha la linguetta: si dice dove rispondere.
-                    if (FunzioniPc.disponibile(FunzionePc.DOMANDE_AUTOPILOTA, PcCorrente.versione) == false)
-                        "Ti ha fatto una domanda: rispondi dalla cima di Adesso. " + FunzioniPc.testoMancante(FunzionePc.DOMANDE_AUTOPILOTA)
-                    else "Ti ha fatto una domanda: è qui sotto, in «Domande», con il numero di quelle aperte.",
-                    color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
-                )
+            // Un PC vecchio (2.52.6): quello che non manda ancora, una riga per parte.
+            val avvisi = FunzioniPc.avvisiScheda(PcCorrente.versione, PcCorrente.nome)
+            if (avvisi.isNotEmpty()) item(key = "avvisi") { Text(avvisi.joinToString("\n"), color = Banco.ambra, fontSize = 12.sp) }
+            val chiavi = linguetteAutopilota(schede.size)
+            val nomi = chiavi.map { k ->
+                when (k) {
+                    "domande" -> "Domande ${schede.size}"
+                    "istruzioni" -> "Istruzioni"
+                    "file" -> "File"
+                    "obiettivo" -> "Obiettivo"
+                    "criteri" -> "Criteri" + (det?.criteri?.takeIf { it.isNotEmpty() }?.let { " ${it.count { c -> c.soddisfatto }}/${it.size}" } ?: "")
+                    "compiti" -> "Compiti" + (det?.compitiDaFare?.takeIf { it.isNotEmpty() }?.let { " ${it.size}" } ?: "")
+                    "deciso" -> "Ha deciso"
+                    else -> "Altro"
+                }
             }
-            OutlinedTextField(
-                value = messaggio,
-                onValueChange = { messaggio = it },
-                label = { Text(if (domanda) "La tua risposta" else "Scrivigli qui: una domanda, un vincolo, «fermati», «riprendi»…") },
-                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, color = Banco.testo),
-                // Gli stessi colori della chat: il testo che scrivi si deve
-                // leggere sul fondo scuro.
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Banco.accento,
-                    unfocusedBorderColor = Banco.incisione,
-                    focusedContainerColor = Banco.fondo,
-                    unfocusedContainerColor = Banco.fondo,
-                    focusedTextColor = Banco.testo,
-                    unfocusedTextColor = Banco.testo,
-                    cursorColor = Banco.accento
-                ),
-                maxLines = 3,
-                modifier = Modifier.fillMaxWidth()
-            )
-            // Il microfono (2.75.0): il testo dettato va nel campo, lo mandi tu.
-            TastoMicrofono(messaggio) { messaggio = it }
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    enabled = messaggio.isNotBlank() && !mandando,
-                    shape = MaterialTheme.shapes.small,
-                    onClick = {
-                        val testo = messaggio.trim()
-                        val idDomanda = det?.domandaId
-                        mandando = true
-                        scope.launch {
-                            try {
-                                if (domanda && idDomanda != null) api.rispondi(idDomanda, testo)
-                                else api.dialogaAutopilota(breve.id, testo)
-                                messaggio = ""
-                                notaDialogo = null
-                                try { d = api.autopilota(breve.id) } catch (_: Exception) {}
-                            } catch (e: Api.Errore) {
-                                notaDialogo = if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.DIALOGO_AUTOPILOTA)
-                                else "Non sono riuscito a mandarlo (HTTP ${e.codice})."
-                            } catch (e: Exception) {
-                                notaDialogo = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
-                            }
-                            mandando = false
-                        }
-                    }
-                ) { Text(if (mandando) "Mando…" else if (domanda) "Rispondi" else "Manda") }
-                OutlinedButton(enabled = !mandando, shape = MaterialTheme.shapes.small, onClick = { sceglieFile.launch("*/*") }) { Text("📎 Allega") }
-                Text(
-                    if (domanda) "Arriva subito alla chat ferma." else "Risponde lui, il supervisore, in qualche minuto.",
-                    color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.weight(1f)
-                )
-            }
-            val nota = notaDialogo
-            if (nota != null) Text(nota, color = Banco.rosso, fontSize = 12.sp)
-            Spacer(Modifier.height(6.dp))
-        }
-        HorizontalDivider(color = Banco.incisione)
-
-        // ─── le sue parti: la meta' di sotto, in una pagina che scorre ───
-        // Un PC vecchio (2.52.6): quello che non manda ancora, detto in una riga
-        // per parte, invece di linguette vuote che sembrano un guasto.
-        val avvisi = FunzioniPc.avvisiScheda(PcCorrente.versione, PcCorrente.nome)
-        if (avvisi.isNotEmpty()) {
-            Text(
-                avvisi.joinToString("\n"),
-                color = Banco.ambra, fontSize = 11.sp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-        }
-        // Le linguette per chiave (0.38.0): «Domande» per prima solo se ce ne sono.
-        val schede = det?.domandeScheda ?: emptyList()
-        val chiavi = linguetteAutopilota(schede.size)
-        val nomi = chiavi.map { k ->
-            when (k) {
-                "domande" -> "Domande ${schede.size}"
-                "istruzioni" -> "Istruzioni"
-                "file" -> "File"
-                "obiettivo" -> "Obiettivo"
-                "criteri" -> "Criteri" + (det?.criteri?.takeIf { it.isNotEmpty() }?.let { " ${it.count { c -> c.soddisfatto }}/${it.size}" } ?: "")
-                "compiti" -> "Compiti" + (det?.compitiDaFare?.takeIf { it.isNotEmpty() }?.let { " ${it.size}" } ?: "")
-                "deciso" -> "Ha deciso"
-                else -> "Altro"
-            }
-        }
-        // Una domanda nuova apre le parti e le porta in cima, dove c'è «Domande».
-        val chiaviDomande = schede.map { it.chiave }
-        LaunchedEffect(chiaviDomande.joinToString("|")) {
-            if (domandaArrivata(domandeViste, schede)) { dettagliAperti = true; listaDettagli.scrollToItem(0) }
-            domandeViste = chiaviDomande
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Serigrafia("Le sue parti", modifier = Modifier.padding(start = 8.dp).weight(1f))
-            TextButton(onClick = { dettagliAperti = !dettagliAperti }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Text(if (dettagliAperti) "Nascondi ▾" else "Mostra ▴", fontSize = 13.sp)
-            }
-        }
-        // Istruzioni e File in fondo: si leggono dal PC solo quando ci si arriva scorrendo.
-        if (dettagliAperti) LazyColumn(Modifier.weight(0.8f).fillMaxWidth().padding(horizontal = 16.dp), state = listaDettagli) {
-          for (k in sezioniAutopilota(schede.size)) item(key = k) {
+            // Istruzioni e File in fondo: si leggono dal PC solo quando ci si arriva scorrendo.
+            for (k in sezioniAutopilota(schede.size)) item(key = k) {
             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Text(nomi[chiavi.indexOf(k)], color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(nomi[chiavi.indexOf(k)], color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
             when (k) {
                 "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id) } catch (_: Exception) {} } })
@@ -503,7 +365,102 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                 }
             }
             }
-          }
+            }
+        } else LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
+            guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
+            // PC 0.77.0: la Panoramica in cima, una scheda per chat; il tocco apre la chat a tutto schermo.
+            pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
+            item { Serigrafia("Chat con lui") }
+            // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
+            // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
+            val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
+            if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
+            items(messaggi) { b ->
+                // Il testo della chat con lui si seleziona e si copia (tocco
+                // lungo): senza SelectionContainer un Text di Compose non e'
+                // selezionabile, e Nicholas non riusciva a copiarne niente.
+                // La casella sotto e' un campo di testo: l'incolla c'e' da se'.
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    RigaChat(b, breve.nome) {
+                        scope.launch { tenta("farlo partire") { api.vaiAutopilota(breve.id) } }
+                    }
+                }
+            }
+            if (pensa) item {
+                Text(
+                    "● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.",
+                    color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
+                )
+            } else if (guarda) item {
+                Text(
+                    "● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.",
+                    color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+            // PC 0.75.4: ha promesso lavoro ed è fermo. Mai più una promessa muta.
+            if (!pensa && det?.fermoConPromessa == true) item {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                    Text(
+                        "● L'autopilota è fermo (${det.stato}).",
+                        color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { scope.launch { tenta("riprenderlo") { api.riprendiAutopilota(breve.id) } } }) { Text("Riprendi") }
+                }
+            }
+        }
+
+        // ─── la casella: sempre in basso, sopra la tastiera ───
+        HorizontalDivider(color = Banco.incisione)
+        Column(Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 12.dp, vertical = 6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = messaggio,
+                    onValueChange = { messaggio = it },
+                    placeholder = { Text("Scrivigli: risponde in qualche minuto", fontSize = 14.sp) },
+                    textStyle = LocalTextStyle.current.copy(fontSize = 15.sp, color = Banco.testo),
+                    // Gli stessi colori della chat: il testo si deve leggere sul fondo scuro.
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Banco.accento,
+                        unfocusedBorderColor = Banco.incisione,
+                        focusedContainerColor = Banco.fondo,
+                        unfocusedContainerColor = Banco.fondo,
+                        focusedTextColor = Banco.testo,
+                        unfocusedTextColor = Banco.testo,
+                        cursorColor = Banco.accento
+                    ),
+                    maxLines = 4,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    enabled = messaggio.isNotBlank() && !mandando,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    onClick = {
+                        val testo = messaggio.trim()
+                        mandando = true
+                        scope.launch {
+                            try {
+                                api.dialogaAutopilota(breve.id, testo)
+                                messaggio = ""
+                                notaDialogo = null
+                                try { d = api.autopilota(breve.id) } catch (_: Exception) {}
+                            } catch (e: Api.Errore) {
+                                notaDialogo = if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.DIALOGO_AUTOPILOTA)
+                                else "Non sono riuscito a mandarlo (HTTP ${e.codice})."
+                            } catch (e: Exception) {
+                                notaDialogo = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
+                            }
+                            mandando = false
+                        }
+                    }
+                ) { Text(if (mandando) "Mando…" else "Manda") }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Il microfono (2.75.0): il testo dettato va nel campo, lo mandi tu.
+                Box(Modifier.weight(1f)) { TastoMicrofono(messaggio) { messaggio = it } }
+                TextButton(enabled = !mandando, onClick = { sceglieFile.launch("*/*") }, modifier = Modifier.heightIn(min = 48.dp)) { Text("📎 Allega") }
+            }
+            notaDialogo?.let { Text(it, color = Banco.rosso, fontSize = 13.sp) }
         }
     }
 
