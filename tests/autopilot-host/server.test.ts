@@ -2161,6 +2161,35 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     expect(dopo.decisioni.map((d: any) => d.cosa).join(' | ')).toContain('ce l\'ha già la chat c-1')
   })
 
+  it('agente finito (0.84.0): chiudiChat su una chat sorella col ramo già tolto la segna conclusa', async () => {
+    let giro = 0
+    // Il ramo principale c'è, quello della chat no: unito e tolto.
+    const gitRamoTolto: Git = (args, cwd) => (args.join(' ') === 'rev-parse --verify --quiet refs/heads/main' ? { codice: 0, uscita: 'abc' } : args[0] === 'rev-parse' && args[1] === '--verify' ? { codice: 1, uscita: '' } : gitFinto(args, cwd))
+    server = ambiente({
+      git: gitRamoTolto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["a", "b"]}' })
+        giro += 1
+        return Promise.resolve({
+          testo: giro === 1
+            ? '{"azione": "prosegui", "istruzioni": "avanti", "mosse": [{"tipo": "chiudiChat", "chat": "c-2"}]}'
+            : '{"azione": "prosegui", "istruzioni": "avanti"}'
+        })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => archivio.leggi(id)?.chats.find((c) => c.id === 'c-2')?.stato === 'finita')
+    const c2 = archivio.leggi(id)!.chats.find((c) => c.id === 'c-2')!
+    expect(c2.stato).toBe('finita')
+    expect(c2.conclusa).toEqual({ il: '2026-08-09T10:05:00.000Z', come: 'tolto' })
+    // La chat che lavora non è toccata.
+    expect(archivio.leggi(id)!.chats.find((c) => c.id === 'c-1')!.conclusa).toBeUndefined()
+  })
+
   it('le domande gemelle di due chat sorelle arrivano una volta sola, e la risposta sblocca tutte e due', async () => {
     server = ambiente({
       git: gitFinto, limiti: LIMITI_LIBERI,

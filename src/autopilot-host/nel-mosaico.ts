@@ -36,7 +36,7 @@ export function esecutoreNelMosaico(p: {
   avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
   ferma: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
   /** Chiude una chat finita, ferma al prompt (0.82.0): il riquadro si chiude, la conversazione resta. */
-  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
+  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
@@ -143,7 +143,8 @@ export function esecutoreNelMosaico(p: {
         titolo: '',
         cosa: 'chiudi',
         testo: '',
-        ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {})
+        ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {}),
+        ...(chi.alRecupero === true ? { alRecupero: true } : {})
       })
     },
 

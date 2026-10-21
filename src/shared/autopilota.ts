@@ -156,8 +156,8 @@ export type MessaggioPerLaChat = {
  * `gia-fatto` — una domanda che non arriva a Nicholas perché è già successo.
  */
 export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string; nota?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto']
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto' | 'nel-recupero'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto', 'nel-recupero']
 /** Quanto è lunga al più la nota di un traguardo. */
 export const NOTA_TRAGUARDO_MAX = 200
 
@@ -228,6 +228,14 @@ export type ChatGovernata = SupervisoreMancato & {
    * servizio quando lo stato cambia (`conStatiDatati`).
    */
   dal?: string
+  /**
+   * **Agente finito** (0.84.0): il suo ramo è unito nel principale, o non
+   * c'è più (tolto o scartato). Con `stato: 'finita'` la chat non ha più
+   * niente da fare: si chiude e la conversazione va nel recupero di 30 giorni.
+   */
+  conclusa?: { il: string; come: 'unito' | 'tolto' }
+  /** Quando la sua conversazione è stata mandata nel recupero (0.84.0): non si rimanda. */
+  nelRecupero?: string
   /**
    * L'ultimo segnale della chat all'autopilota (0.84.0): partita, va avanti,
    * fatto, bloccata con il motivo, aspetta. Vedi `@shared/segnali-flotta`.
@@ -624,12 +632,22 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {}),
     ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {}),
     ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {}),
+    ...leggiConclusa(o.conclusa),
+    ...(typeof o.nelRecupero === 'string' && !Number.isNaN(Date.parse(o.nelRecupero)) ? { nelRecupero: o.nelRecupero } : {}),
     ...parseSupervisoreMancato(o),
     ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
       ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
       : {}),
     ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {})
   }
+}
+
+/** «Agente finito» (0.84.0): il ramo unito o tolto, letto dal disco. */
+function leggiConclusa(x: unknown): Pick<ChatGovernata, 'conclusa'> {
+  if (typeof x !== 'object' || x === null) return {}
+  const o = x as Record<string, unknown>
+  if (typeof o.il !== 'string' || Number.isNaN(Date.parse(o.il)) || (o.come !== 'unito' && o.come !== 'tolto')) return {}
+  return { conclusa: { il: o.il, come: o.come } }
 }
 
 /** I due campi di `SupervisoreMancato`, letti da un oggetto qualunque. */

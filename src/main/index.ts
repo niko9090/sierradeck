@@ -119,6 +119,7 @@ import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefon
 import { confermaDaRisposta, idDomandaConferma, leggiIdDomandaConferma, OPZIONI_CONFERMA, testoConferma, testoStato } from '@shared/file-telefono'
 import type { Autopilota } from '@shared/autopilota'
 import { preparaConsegna } from '@shared/consegna-breve'
+import { nelRecuperoQuandoChiusa } from './agente-finito'
 import { scriviFileConsegna } from './consegne-file'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
 import { aggiungiWorkspace, creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
@@ -6314,6 +6315,21 @@ if (!app.requestSingleInstanceLock()) {
        * finché non è partito davvero — anche dopo un riavvio. La chat entra
        * nel suo workspace salvato, così aprendolo il riquadro la adotta.
        */
+      /**
+       * Agente finito (0.84.0): dopo la chiusura, la conversazione esce
+       * dall'elenco e va nel recupero di 30 giorni. Una volta per sessione.
+       */
+      const versoIlRecupero = new Set<string>()
+      const agenteNelRecupero = (c: Consegna): void => {
+        const gc = gestioneChatGlobale
+        if (c.alRecupero !== true || gc === undefined || versoIlRecupero.has(c.sessionId)) return
+        versoIlRecupero.add(c.sessionId)
+        void nelRecuperoQuandoChiusa(c.sessionId, {
+          azione: (r) => gc.azione(r),
+          attendi: (ms) => new Promise((ok) => { setTimeout(ok, ms) }),
+          log: (riga) => { registro.info(riga) }
+        }).finally(() => { versoIlRecupero.delete(c.sessionId) })
+      }
       const consegnaInSottofondo = (sf: Sottofondo, c: Consegna, ptyGia: string | undefined): boolean => {
         const passo = (m: string): void => { registro.info(`[consegna] consegna ${c.id} per «${c.titolo}»: ${m}`) }
         const ws = c.workspace
@@ -6325,6 +6341,7 @@ if (!app.requestSingleInstanceLock()) {
         // 0.82.0: una chat finita, ferma al prompt, si chiude da sola.
         if (c.cosa === 'chiudi') {
           passo(chiudiSottofondoDaTe(c.sessionId, 'da sola: aveva finito') ? 'chiusa in sottofondo: aveva finito, il suo posto si libera' : 'niente da chiudere: la chat non è accesa')
+          agenteNelRecupero(c)
           return true
         }
         const pronta = preparaConsegna(c, (rel, testo) => scriviFileConsegna(c.cwd, rel, testo))
@@ -6414,6 +6431,7 @@ if (!app.requestSingleInstanceLock()) {
             if (sottofondo?.ha(c.sessionId) === true) {
               chiudiSottofondoDaTe(c.sessionId, 'da sola: aveva finito')
               registro.info(`[consegna] ${c.id}: chat ${c.sessionId.slice(0, 8)} chiusa in sottofondo, aveva finito`)
+              agenteNelRecupero(c)
               return true
             }
             for (const w of vive) {
@@ -6422,6 +6440,7 @@ if (!app.requestSingleInstanceLock()) {
               w.webContents.send('client:chiudiChat', p.id, 'da sola: aveva finito')
               registro.info(`[consegna] ${c.id}: chat «${p.titolo}» chiusa, aveva finito`)
             }
+            agenteNelRecupero(c)
             return true
           }
           // **Mai cambiare il workspace sullo schermo** (0.60.8): se la chat non
