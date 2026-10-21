@@ -100,6 +100,18 @@ class StatoVeloceTest {
         assertFalse(cambiato)
     }
 
+    @Test fun `b - Adesso rilegge le domande solo quando lo stato dice che sono cambiate`() {
+        val base = Api.json.decodeFromString<Stato>("""{"chat":[{"id":"a","ultimaRiga":"lavoro 1"}],"domandeInAttesa":1,"domande":[{"id":"d1","testo":"Vado?"}]}""")
+        // Una chat al lavoro che scrive una riga nuova non è una domanda.
+        assertEquals(DomandeAdesso.firma(base), DomandeAdesso.firma(base.copy(chat = listOf(base.chat[0].copy(ultimaRiga = "lavoro 2")))))
+        // Una domanda nuova, una chat che si ferma su una scelta: si rilegge.
+        assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(domande = base.domande + Domanda("d2", testo = "E poi?"))))
+        assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(chat = listOf(base.chat[0].copy(chiede = true)))))
+        val polso = sorgente("DomandeAdesso.kt")
+        assertTrue(polso.contains("LaunchedEffect(api, d.giro, firma)"))
+        assertTrue(polso.contains("if (firma != null && d.guasto == null) break"))
+    }
+
     // ─── (c) chiavi stabili ───
 
     @Test fun `c - chiavi uniche anche per righe uguali, e stabili aggiungendo in fondo`() {
