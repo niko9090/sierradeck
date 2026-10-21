@@ -2338,6 +2338,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const gitA = (git: Git): GitAsincrono => deps.gitAsincrono ?? comeAsincrono(git)
   const unisciAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> =>
     (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
+  // Anche togliere un worktree e guardare se un ramo è già chiuso girano nella
+  // cartella di lavoro: mai a metà di un'unione (Revisione 0.84.0).
+  const togliAlTurno = (git: Git, p: { cwd: string; cartella: string; ramo: string }): Promise<void> =>
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => togliWorktreeAsincrono(gitA(git), p))
+  const chiusoAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<'mancante' | 'unito' | undefined> =>
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => ramoGiaChiusoAsincrono(gitA(git), p))
   const memoria = deps.memoria ?? apriMemoria(undefined)
   /**
    * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
@@ -2939,13 +2945,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // «unito» vale solo se nella sua cartella non c'era altro da salvare.
         const git = deps.git
         const chiuso = git !== undefined && c.ramo !== undefined && aggiornato.ramoBase !== undefined
-          ? await ramoGiaChiusoAsincrono(gitA(git), { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+          ? await chiusoAlTurno(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           : undefined
         if (git !== undefined && (chiuso === 'mancante' || (chiuso === 'unito' && (c.cartella === undefined || !(await salvaLavoroAsincrono(gitA(git), c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)))))) {
           if (c.cartella !== undefined && c.ramo !== undefined) {
             // Ramo mancante: niente `worktree remove --force` su una cartella che
             // non è più un worktree; si toglie solo se è rimasta vuota.
-            if (chiuso === 'unito') await togliWorktreeAsincrono(gitA(git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+            if (chiuso === 'unito') await togliAlTurno(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
             else togliCartellaVuota(c.cartella)
           }
           aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
@@ -2978,7 +2984,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
           // lascia com'è (nessun --force su file che nessun ramo conserva).
           if (u.ok && u.ramoMancante === true) annota(aggiornato, `${c.id}: il ramo ${c.ramo} non c'è più, il suo lavoro era già unito`)
-          else if (u.ok) await togliWorktreeAsincrono(gitA(deps.git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+          else if (u.ok) await togliAlTurno(deps.git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue
@@ -3321,7 +3327,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       for (const c of aggiornato.chats) {
         if (c.ruolo === 'revisione') continue
-        if (c.ramo !== undefined && c.cartella !== undefined) await togliWorktreeAsincrono(gitA(git), { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
+        if (c.ramo !== undefined && c.cartella !== undefined) await togliAlTurno(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
       }
       pulisciWorktreeVuoti(aggiornato.cwd)
     }

@@ -40,7 +40,8 @@ export const gitAsincronoReale: GitAsincrono = (args, cwd) => new Promise((ris) 
   let uscita = ''
   let finito = false
   const fine = (codice: number): void => { if (finito) return; finito = true; clearTimeout(tempo); ris({ codice, uscita: uscita.trim() }) }
-  const p = spawn('git', args, { cwd, windowsHide: true })
+  // Niente stdin: git che chiede qualcosa (credenziali) deve fallire subito, non aspettare 120 s.
+  const p = spawn('git', args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
   const tempo = setTimeout(() => { p.kill(); fine(1) }, 120_000)
   p.stdout.on('data', (d: Buffer) => { uscita += d.toString('utf8') })
   p.stderr.on('data', (d: Buffer) => { uscita += d.toString('utf8') })

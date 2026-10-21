@@ -373,6 +373,7 @@ export function creaClientAutopilota(p: {
 
       const stato = await salute()
       if (stato?.vivo === true) {
+        avvioInutile = undefined
         // **Un servizio rimasto indietro va cambiato.** Sopravvive alla
         // chiusura dell'applicazione — è tutto il suo mestiere — e l'app lo
         // riavviava solo quando la porta era libera: dopo un aggiornamento
