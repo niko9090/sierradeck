@@ -5,15 +5,14 @@ import { join } from 'node:path'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { agenteFinito, daChiudereDaSole, FINITA_SI_CHIUDE_MS } from '../../src/autopilot-host/posti'
+import { agenteFinito, concluseAFine, daChiudereDaSole, FINITA_SI_CHIUDE_MS, NEL_RECUPERO_SI_RICHIUDE_MS } from '../../src/autopilot-host/posti'
 import { chiHaGia, codaSenzaDoppioni, quadroFlotta, rigaSegnale, segnaleDiFineTurno, senzaRigaSegnale } from '@shared/segnali-flotta'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 // Collaudo 0.84.0 (c-66, 21/10): controllo e coordinazione dell'autopilota e
 // agente finito, sui casi veri del 20-21/10 (c-34, c-52 e la flotta di
-// ap-f1e631f5). I test `it.fails` sono DIFETTI APERTI del prodotto, descritti
-// in `.sierradeck/quaderno/collaudo-coordinazione-0-84-0.md`: quando il
-// difetto è corretto il test diventa rosso, e allora si toglie `.fails`.
+// ap-f1e631f5). I test D1-D4 sono i difetti trovati dal collaudo e corretti
+// sullo stesso ramo (`.sierradeck/quaderno/collaudo-coordinazione-0-84-0.md`).
 
 const ORA = Date.parse('2026-10-21T12:00:00.000Z')
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -62,17 +61,14 @@ describe('collaudo: il segnale di fine turno', () => {
     expect(rigaSegnale('`SEGNALE: bloccata — gradle non parte`', sorelle, 'c-1')?.tipo).toBe('bloccata')
   })
 
-  // DIFETTO D3: `**SEGNALE:** fatto` (grassetto solo sull'etichetta) viene
-  // TOLTO dal messaggio da `senzaRigaSegnale`, ma `rigaSegnale` non lo legge:
-  // il segnale vale «avanti» e il «fatto» si perde. Causa: `pulisci` toglie gli
-  // asterischi solo in testa e in coda alla riga (src/shared/segnali-flotta.ts:62),
-  // la regex di riga 72 vuole i due punti subito dopo «SEGNALE».
-  it.fails('D3: «**SEGNALE:** fatto» (grassetto sull etichetta) si legge come fatto', () => {
+  // D3: `**SEGNALE:** fatto` (grassetto solo sull'etichetta) veniva tolto dal
+  // messaggio ma non letto: il «fatto» diventava «avanti».
+  it('D3: «**SEGNALE:** fatto» e «**SEGNALE**: fatto» si leggono e si tolgono', () => {
     const msg = 'Ho finito il pezzo.\n**SEGNALE:** fatto — test verdi'
-    // Il programma la toglie come riga di segnale…
     expect(senzaRigaSegnale(msg)).toBe('Ho finito il pezzo.')
-    // …quindi deve anche leggerla.
-    expect(rigaSegnale(msg, sorelle, 'c-1')?.tipo).toBe('fatto')
+    expect(rigaSegnale(msg, sorelle, 'c-1')).toMatchObject({ tipo: 'fatto', motivo: 'test verdi' })
+    expect(rigaSegnale('**SEGNALE**: aspetto c-2', sorelle, 'c-1')).toMatchObject({ tipo: 'aspetto', di: 'c-2' })
+    expect(senzaRigaSegnale('Domanda?\n**SEGNALE**: bloccata — manca la chiave')).toBe('Domanda?')
   })
 })
 
@@ -141,26 +137,33 @@ describe('collaudo: agente finito, i casi del 20-21/10', () => {
     expect(fuori.map((f) => f.chatId)).not.toContain('c-2')
   })
 
-  // DIFETTO D2: una chat di Rilascio (senza ramo) che finisce con il «finito»
-  // dell'autopilota (T6) non riceve `conclusa`: in src/autopilot-host/server.ts:3435
-  // `conclusa` va solo alle chat con `ramo`. Quindi c-63/c-64 (Rilascio del
-  // 21/10) restano fra le chiuse e non vanno mai nel recupero.
-  it.fails('D2: a lavoro finito (T6) anche la chat di Rilascio senza ramo è conclusa', () => {
-    // Come la lascia T6: tutte «finita», `conclusa` solo a chi ha un ramo.
-    const rilascio = chat('c-63', 'finita', { ruolo: 'rilascio' })
-    const a = autopilota({ id: 'a', stato: 'finito', chats: [chat('c-61', 'finita', { ramo: 'ap/x/c-61', conclusa: unito }), rilascio] })
-    expect(agenteFinito(a, rilascio)).toBe(true)
+  // D2: a lavoro finito (T6) `conclusa` andava solo alle chat con un ramo: le
+  // chat di Rilascio (c-63, c-64) non andavano mai nel recupero.
+  it('D2: a lavoro finito (T6) anche la chat di Rilascio senza ramo è conclusa', () => {
+    const il = iso(ORA)
+    const dopo = concluseAFine([
+      chat('c-61', 'finita', { ramo: 'ap/x/c-61' }),
+      chat('c-63', 'finita', { ruolo: 'rilascio' }),
+      chat('c-64', 'finita', { ruolo: 'revisione', revisioneDi: 'c-61' }),
+      chat('c-65', 'finita', { cicli: 0 }),
+      chat('c-66', 'finita', { ramo: 'ap/x/c-66', conclusa: { il: PRIMA, come: 'tolto' } })
+    ], il)
+    expect(dopo.map((c) => c.conclusa?.come ?? '-')).toEqual(['unito', 'unito', '-', '-', 'tolto'])
+    const a = autopilota({ id: 'a', stato: 'finito', chats: dopo })
+    expect(agenteFinito(a, dopo[1]!)).toBe(true)
   })
 
-  // DIFETTO D4: Nicholas rimette una conversazione con «Ripristina» e la apre
-  // per leggerla: la chat è accesa e ferma al prompt, ancora `finita` con
-  // `nelRecupero`. `daChiudereDaSole` (posti.ts:122) la richiude dopo 5 minuti
-  // e poi ogni `RICHIUDI_DOPO_MS`: la conversazione che ha ripreso gli sparisce
-  // dallo schermo. La scheda dice «se Nicholas la ripristina, resta dov'è».
-  it.fails('D4: una conversazione già mandata nel recupero e riaperta da Nicholas non si richiude', () => {
-    const a = autopilota({ id: 'a', chats: [chat('c-34', 'finita', { conclusa: unito, nelRecupero: PRIMA })] })
-    const fuori = daChiudereDaSole({ autopiloti: [a], accese: [{ sessione: 's-c-34', ferma: true }], ora: ORA, domandeAperte: () => 0 })
-    expect(fuori).toEqual([])
+  // D4: Nicholas rimette una conversazione con «Ripristina» e la riapre: è
+  // accesa, ferma e ancora `finita` con `nelRecupero`. Prima la si richiudeva
+  // ogni 10 minuti. Resta un solo nuovo tentativo, per una consegna persa.
+  it('D4: una conversazione già nel recupero e riaperta da Nicholas non si richiude', () => {
+    const accese = [{ sessione: 's-c-34', ferma: true }]
+    const ripristinata = autopilota({ id: 'a', chats: [chat('c-34', 'finita', { conclusa: unito, nelRecupero: iso(ORA - NEL_RECUPERO_SI_RICHIUDE_MS) })] })
+    expect(daChiudereDaSole({ autopiloti: [ripristinata], accese, ora: ORA, domandeAperte: () => 0 })).toEqual([])
+    // Appena mandata e ancora accesa (consegna persa): si riprova a chiuderla, senza rimandarla nel recupero.
+    const appena = autopilota({ id: 'a', chats: [chat('c-34', 'finita', { conclusa: unito, nelRecupero: iso(ORA - 11 * 60_000) })] })
+    const fuori = daChiudereDaSole({ autopiloti: [appena], accese, ora: ORA, domandeAperte: () => 0 })
+    expect(fuori.map((f) => [f.chatId, f.alRecupero])).toEqual([['c-34', undefined]])
   })
 })
 
@@ -190,15 +193,11 @@ describe('collaudo: «Riprendi» su un autopilota finito (il caso c-34)', () => 
     return { avviate }
   }
 
-  // DIFETTO D1 (la causa vera di c-34 «lavoro» nell'elenco): il 21/10 alle
-  // 03:24 l'autopilota ap-f1e631f5 è «finito» (T6 mette tutte le chat
-  // `finita`); alle 06:08 Nicholas preme «Riprendi» e `riprendiAutopilota`
-  // (src/autopilot-host/server.ts:2015) rimette a «lavoro» TUTTE le chat,
-  // perché `eraFinito` vale per tutte, e le riavvia una per una (riga 2033).
-  // c-34, chiusa il 20/10 23:33 col ramo unito, torna «lavoro» (09:48 le
-  // arrivano messaggi) finché non la richiude il supervisore alle 15:53.
-  // Le chat concluse (ramo unito o tolto, o già nel recupero) devono restare chiuse.
-  it.fails('D1: «Riprendi» non riapre le chat che hanno finito col ramo unito', async () => {
+  // D1 (la causa vera di c-34 «lavoro» nell'elenco): il 21/10 alle 03:24
+  // l'autopilota è «finito» (T6 mette tutte le chat `finita`); alle 06:08
+  // «Riprendi» rimetteva a «lavoro» TUTTE le chat e le riavviava, anche c-34,
+  // chiusa il 20/10 col ramo unito, finché il supervisore non la richiudeva.
+  it('D1: «Riprendi» non riapre le chat che hanno finito col ramo unito', async () => {
     const { avviate } = await ambiente()
     archivio.scrivi(autopilota({
       id: 'ap-a',
@@ -213,20 +212,35 @@ describe('collaudo: «Riprendi» su un autopilota finito (il caso c-34)', () => 
     const r = await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
     expect(r.status).toBe(200)
     const a = archivio.leggi('ap-a')!
-    expect(a.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-34:finita', 'c-52:finita', 'c-1:finita'])
-    expect(avviate).toEqual([])
+    // c-34 (ramo unito) e c-52 (nel recupero) restano chiuse; riparte solo
+    // l'ultima, per l'ultimo giro (come dopo l'ok della Revisione).
+    expect(a.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-34:finita', 'c-52:finita', 'c-1:lavoro'])
+    expect(avviate).toEqual(['c-1'])
   })
 
-  it('il comportamento di oggi, misurato: «Riprendi» riavvia anche le chat concluse', async () => {
-    // Fotografia del difetto D1 (vedi sopra): quando è corretto questo test
-    // diventa rosso insieme a D1, e si toglie.
+  it('D1: con tutte le chat concluse riparte solo l ultima, mai una già nel recupero', async () => {
     const { avviate } = await ambiente()
     archivio.scrivi(autopilota({
       id: 'ap-a', stato: 'finito', sessionId: 's-ap',
-      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-a/c-34', conclusa: unito }), chat('c-52', 'finita', { ruolo: 'rilascio', conclusa: unito, nelRecupero: PRIMA })]
+      chats: [
+        chat('c-1', 'finita', { ramo: 'ap/ap-a/c-1', conclusa: unito, dal: iso(ORA - 30 * 60_000) }),
+        chat('c-2', 'finita', { ramo: 'ap/ap-a/c-2', approvata: true, dal: iso(ORA - 20 * 60_000) }),
+        chat('c-3', 'finita', { ruolo: 'rilascio', conclusa: unito, nelRecupero: PRIMA, dal: iso(ORA - 10 * 60_000) })
+      ]
     }))
     await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
-    expect(archivio.leggi('ap-a')!.chats.map((c) => c.stato)).toEqual(['lavoro', 'lavoro'])
-    expect(avviate).toEqual(['c-34', 'c-52'])
+    expect(archivio.leggi('ap-a')!.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-1:finita', 'c-2:lavoro', 'c-3:finita'])
+    expect(avviate).toEqual(['c-2'])
+  })
+
+  it('D1: una chat finita col lavoro non chiuso (avvio rimandato) riparte', async () => {
+    const { avviate } = await ambiente()
+    archivio.scrivi(autopilota({
+      id: 'ap-a', stato: 'finito', sessionId: 's-ap',
+      chats: [chat('c-1', 'finita', { ramo: 'ap/ap-a/c-1', conclusa: unito }), chat('c-2', 'finita', { ramo: 'ap/ap-a/c-2' })]
+    }))
+    await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
+    expect(archivio.leggi('ap-a')!.chats.map((c) => c.stato)).toEqual(['finita', 'lavoro'])
+    expect(avviate).toEqual(['c-2'])
   })
 })

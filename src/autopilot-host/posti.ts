@@ -70,6 +70,32 @@ export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
 }
 
 /**
+ * Il lavoro della chat è chiuso per sempre (0.84.0): ramo unito o tolto,
+ * approvato dalla Revisione, o conversazione già mandata nel recupero. Una
+ * chat così non si riapre e non si riavvia, nemmeno con «Riprendi».
+ */
+export function chatConclusa(c: ChatGovernata): boolean {
+  return c.conclusa !== undefined || c.approvata === true || c.nelRecupero !== undefined
+}
+
+/**
+ * A lavoro finito tutto (T6) ogni chat che ha lavorato ha concluso: quelle
+ * con un ramo (unito nel principale) e anche quelle senza, come il Rilascio,
+ * che lavora nella cartella principale. Non la Revisione (vale il ramo che
+ * rivedeva) né una chat mai partita.
+ */
+export function concluseAFine(chats: ChatGovernata[], il: string): ChatGovernata[] {
+  return chats.map((c) => (c.ruolo !== 'revisione' && c.conclusa === undefined && (c.ramo !== undefined || c.cicli > 0) ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
+}
+
+/**
+ * Una chat già mandata nel recupero si richiude ancora una volta sola, se la
+ * consegna «chiudi» si è persa (`RICHIUDI_DOPO_MS`). Dopo, se è accesa, l'ha
+ * rimessa e riaperta Nicholas con «Ripristina»: resta aperta.
+ */
+export const NEL_RECUPERO_SI_RICHIUDE_MS = 2 * RICHIUDI_DOPO_MS
+
+/**
  * Le chat da chiudere da sole: **mai una chat al lavoro**, mai una chat
  * adottata (non è nostra), mai chi aspetta una risposta di Nicholas.
  *
@@ -110,6 +136,7 @@ export function daChiudereDaSole(p: {
     }
     for (const c of a.chats) {
       if (c.sessionId === undefined || adottate.has(c.sessionId)) continue
+      if (c.nelRecupero !== undefined && da(c.nelRecupero) >= NEL_RECUPERO_SI_RICHIUDE_MS) continue
       // L'agente finito (0.84.0): chiusa e nel recupero, anche se è già spenta
       // (resterebbe nell'elenco per sempre). Mai mentre lavora.
       if (agenteFinito(a, c) && !alLavoro.has(c.sessionId) && da(c.dal ?? a.ultimoEvento) >= FINITA_SI_CHIUDE_MS) {

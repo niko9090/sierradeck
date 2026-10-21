@@ -62,7 +62,7 @@ import { nomeCompito, partiDaChatFerma, senzaNotificaClaude } from '@shared/doma
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
-import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS, tettoNeiPosti } from './posti'
+import { chatAlLavoroSulPc, chatConclusa, concluseAFine, daChiudereDaSole, RICHIUDI_DOPO_MS, tettoNeiPosti } from './posti'
 import {
   daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma, STATO_PROGRAMMA_VALIDO_MS,
   type StatoProgramma
@@ -2008,11 +2008,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     const a = diviso.a
     const eraFinito = a.stato === 'finito'
+    // Da finito (T6 le mette tutte «finita») tornano al lavoro le chat il cui
+    // lavoro non è chiuso; mai quelle concluse, approvate o nel recupero (0.84.0:
+    // c-34, chiusa col ramo unito, rimessa al lavoro da «Riprendi» il 21/10).
+    // Se sono tutte concluse riparte solo l'ultima, per l'ultimo giro.
+    const aperte = eraFinito ? a.chats.filter((c) => !chatConclusa(c)) : []
+    const ultima = eraFinito && aperte.length === 0
+      ? [...a.chats].filter((c) => c.ruolo !== 'revisione' && c.nelRecupero === undefined).sort((x, y) => (x.dal ?? '').localeCompare(y.dal ?? '')).at(-1)
+      : undefined
+    const riapre = (c: ChatGovernata): boolean => c.stato !== 'finita' || (eraFinito && (aperte.includes(c) || c === ultima))
     let ripreso: Autopilota = {
       ...a,
       stato: 'lavoro',
       motivoSospensione: undefined,
-      chats: a.chats.map((c) => (c.stato !== 'finita' || eraFinito ? { ...c, stato: 'lavoro' as const } : c))
+      chats: a.chats.map((c) => (riapre(c) ? { ...c, stato: 'lavoro' as const } : c))
     }
     const daAvviare = ripreso.chats.filter((c) => c.stato !== 'finita')
     if (ripreso.chats.length === 0) {
@@ -2030,6 +2039,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return ripreso
     }
     salva(ripreso)
+    // Tutte nel recupero: nessuna conversazione da riprendere, si aprono i compiti in coda.
+    if (daAvviare.length === 0) return apriChatMancanti(ripreso)
     for (const chat of daAvviare) {
       const presi = prendiMessaggiPer(ripreso, chat.id)
       ripreso = presi.autopilota
@@ -3432,7 +3443,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       // Tutti i rami sono nel principale (0.84.0): ogni chat ha concluso.
       const il = deps.adesso()
-      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
+      aggiornato.chats = concluseAFine(aggiornato.chats, il)
       pulisciWorktreeVuoti(aggiornato.cwd)
     }
 

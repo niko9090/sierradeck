@@ -60,6 +60,8 @@ export const REGOLA_SEGNALE = [
 ]
 
 const pulisci = (r: string): string => r.replace(/^[*_`>\s•-]+|[*_`\s]+$/g, '').trim()
+/** «SEGNALE:», anche con il grassetto solo sull'etichetta (`**SEGNALE:** fatto`, `**SEGNALE**: fatto`). */
+const ETICHETTA = /^SEGNALE[*_`\s]*:[*_`\s]*/i
 const nota = (t: string | undefined): string | undefined => {
   const n = (t ?? '').replace(/^[\s—–:-]+/, '').trim()
   return n === '' ? undefined : n.slice(0, 200)
@@ -69,7 +71,7 @@ const nota = (t: string | undefined): string | undefined => {
 export function rigaSegnale(messaggio: string, sorelle: string[], me: string | undefined): Omit<SegnaleChat, 'quando'> | undefined {
   const righe = messaggio.split(/\r?\n/).map(pulisci).filter((r) => r !== '')
   for (let i = righe.length - 1; i >= Math.max(0, righe.length - 6); i -= 1) {
-    const m = /^SEGNALE\s*:\s*(parto|partit[ao]|avanti|continuo|prosegu\w*|fatto|finit[ao]|bloccat[ao]|aspett\w*)(?![\p{L}\d])\s*(.*)$/iu.exec(righe[i] ?? '')
+    const m = /^SEGNALE[*_`\s]*:[*_`\s]*(parto|partit[ao]|avanti|continuo|prosegu\w*|fatto|finit[ao]|bloccat[ao]|aspett\w*)(?![\p{L}\d])\s*(.*)$/iu.exec(righe[i] ?? '')
     if (m === null) continue
     const parola = (m[1] ?? '').toLowerCase()
     const resto = m[2] ?? ''
@@ -93,8 +95,8 @@ export function rigaSegnale(messaggio: string, sorelle: string[], me: string | u
  */
 export function senzaRigaSegnale(messaggio: string): string {
   const righe = messaggio.replace(/\r/g, '').split('\n')
-  if (!righe.some((r) => /^SEGNALE\s*:/i.test(pulisci(r)))) return messaggio
-  while (righe.length > 0 && (righe[righe.length - 1]?.trim() === '' || /^SEGNALE\s*:/i.test(pulisci(righe[righe.length - 1] ?? '')))) righe.pop()
+  if (!righe.some((r) => ETICHETTA.test(pulisci(r)))) return messaggio
+  while (righe.length > 0 && (righe[righe.length - 1]?.trim() === '' || ETICHETTA.test(pulisci(righe[righe.length - 1] ?? '')))) righe.pop()
   return righe.join('\n')
 }
 
