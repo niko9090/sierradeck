@@ -44,7 +44,7 @@ Mappa prima e dopo: `app-android-0-83-0.md`. Velocità: `velocita-app-0-83-0.md`
   - 76 funzioni dell'app prima e 76 dopo; 37 prima e 37 dopo in `FUNZIONI` del PC;
   - nessuna oltre i 2 tocchi.
 - **Foto:** in `foto-0-83-0/`. C'è anche il foglio unico `foglio-prima-dopo.jpg`.
-- **Mandata a Nicholas** per informazione, con le foto. Il suo sì alla ristrutturazione completa c'è già (21/10). Vedi § Foto.
+- **Mandata a Nicholas:** non confermato. Alle 17:40 c-52 ha provato a mandargli il foglio e la mappa con `manda_al_telefono`; tutti e due gli invii sono scaduti senza id, quindi non si sa se sono partiti. Non li ho ripetuti per non mandare doppioni: controllare nella coda File del PC. Il suo sì alla ristrutturazione completa c'è già (21/10). Vedi § Foto.
 
 ### 3. Navigazione a quattro voci
 - **Fatto:**
