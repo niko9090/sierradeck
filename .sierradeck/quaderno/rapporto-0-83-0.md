@@ -113,6 +113,7 @@ Sul main 4c292282, 21/10 alle 15:10, esclusi i file di questo ramo:
 | `tests/main` | 196 file e 1861 test passati, 2 saltati |
 | Autopilot-host, renderer, shared e pty-host | 261 file e 2853 test passati |
 | `tests/shared/novita*.test.ts` sul ramo c-52 | 9 passati |
+| Ramo c-52, 21/10 alle 16:00: `gradle testDebugUnitTest`, typecheck e `tests/main` | BUILD SUCCESSFUL, 0 errori, 1861 passati |
 | Gradle (`testDebugUnitTest assembleDebug`) | **da lanciare** dopo c-48, un Gradle alla volta |
 
 ## Rami delle chat di questo lavoro (21/10, 15:30)
@@ -135,7 +136,10 @@ Sul main 4c292282, 21/10 alle 15:10, esclusi i file di questo ramo:
 ## Cosa resta, in ordine (dopo l'unione di c-48)
 1. Fare `git fetch` e aggiornare il ramo c-52 da main.
 2. Ricontrollare i dati privati sul diff di c-48 e i file Kotlin sotto le 800 righe.
-3. Unire main nel ramo c-52 e risolvere i conflitti: c-48 tocca anche App.kt, Adesso.kt, DomandeAdesso.kt, Lavori.kt e DettaglioAutopilota.kt, come le correzioni di c-46.
+3. Unire main nel ramo c-52 e risolvere i conflitti come nella prova del 21/10 (`prova-unione-c48`, scheda `0-83-0-unione-c48-con-correzioni-c46.md`):
+   - c'è un solo conflitto, in DomandeAdesso.kt: il polso resta fuori dalla lista e riceve la firma di c-48;
+   - va portata la correzione di `tests/main/copia-incolla.test.ts` per `itemsIndexed`;
+   - sulla prova Gradle, typecheck e `tests/main` (1861) sono verdi.
 4. Lanciare `cd android && gradle testDebugUnitTest assembleDebug --no-daemon`, un Gradle alla volta.
 5. Sull'emulatore `sd11`, con l'app di main e una copia di prova (`SIERRADECK_PROVA`):
    - scrivere all'autopilota e vedere «Hai risposto: …»;
