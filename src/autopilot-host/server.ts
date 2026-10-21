@@ -11,13 +11,15 @@ import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type EsitoVerifica
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
-import { applicaRete } from './rete-sicurezza'
+import { applicaRete, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
-import { improntaCodice, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
+import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
+import { TURNI_PC, type TurniCriteri } from './turni-criteri'
+import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
@@ -51,7 +53,7 @@ import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
+import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -69,6 +71,8 @@ import {
 export type Dipendenze = {
   archivio: Archivio
   esegui: Esecutore
+  /** I turni dei comandi lunghi e delle unioni (0.82.1): quelli del PC, se assenti. */
+  turni?: TurniCriteri
   interroga: Interrogazione
   /**
    * Avvia la chat governata. Con `messaggio`, riprende una sessione ferma
@@ -2183,7 +2187,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // invece di scrivere «unito» (era già unito e tolto, o non è mai nato).
     let ramoTolto = false
     if (v.esito === 'ok' && deps.git !== undefined && autore.ramo !== undefined && fresco.ramoBase !== undefined) {
-      const u = unisciRamo(deps.git, { cwd: fresco.cwd, ramo: autore.ramo, base: fresco.ramoBase })
+      const u = await unisciAlTurno(deps.git, { cwd: fresco.cwd, ramo: autore.ramo, base: fresco.ramoBase })
       if (!u.ok) v = { esito: 'rifare', note: u.conflitto ? `Approvato, ma il ramo va in conflitto con ${fresco.ramoBase} su: ${u.file.join(', ')}. Nella tua cartella: git merge ${fresco.ramoBase}, risolvi tenendo il lavoro di tutti, git add -A && git commit.` : `Approvato, ma l’unione non è riuscita: ${u.motivo}` }
       else ramoTolto = u.ramoMancante === true
     }
@@ -2245,6 +2249,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const orologio = deps.orologio ?? Date.now
   const memoriaCriteri: MemoriaCriteri = new Map()
+  // Un'unione non cade mai sotto un comando lungo che misura la stessa cartella (0.82.1).
+  const unisciAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> =>
+    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamo(git, p))
   const memoria = deps.memoria ?? apriMemoria(undefined)
   /**
    * **Una domanda che Nicholas non deve vedere** (0.81.0): già risolta dallo
@@ -2455,7 +2462,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     if (deps.git !== undefined && !conRevisione && mia?.ramo !== undefined && mia.cartella !== undefined && conSessione.ramoBase !== undefined) {
       salvaLavoro(deps.git, mia.cartella, `autopilota ${conSessione.nome}: ${mia.compito.slice(0, 60)} (giro ${mia.cicli})`)
-      const u = unisciRamo(deps.git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
+      const u = await unisciAlTurno(deps.git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
       if (u.ok && u.unito) {
         annota(conSessione, `unito il ramo ${mia.ramo} in ${conSessione.ramoBase}`, { chat: mia.id, esito: 'unito' })
         salva(conSessione)
@@ -2564,6 +2571,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // `applicaRete` non lo lascia chiudere un lavoro che i comandi bocciano, né
     // proseguire senza dire cosa fare.
     let mosseChieste: unknown
+    // Il supervisore non ha risposto in questo giro (0.82.1): l'antiloop non conta questo giro.
+    let senzaRisposta = false
     if (decisione.tipo !== 'sospendi') {
       const inCerchioDa = ripetizioniFinali(aggiornato.decisioni, traccia(esiti))
       // **Il supervisore e' uno per chat.** La sua sessione sta sulla chat che
@@ -2605,32 +2614,42 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         '- `quaderno` {"titolo", "corpo"}: una scheda nel quaderno del progetto (una decisione, una trappola, un errore risolto).',
         'Il programma rifiuta: chat e autopiloti non tuoi, «Porta qui», l’account, le preferenze, i file fuori dalle tue cartelle.'
       ].join('\n')
-      let { decisione: suggerita, sessionId: sessioneNuova } = await chiediDecisione(
-        aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness
-      )
-      // 0.80.1: un supervisore che non risponde (guasto, tempo scaduto, testo
-      // illeggibile) si riprova una volta subito, prima di lasciar decidere le
-      // regole. Le regole poi rifanno il giro: non si sospende più per questo.
-      if (suggerita === undefined) {
-        console.warn(`[autopilota] ${id} — il supervisore non ha risposto: riprovo una volta`)
-        const ancora = await chiediDecisione(
-          aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneNuova ?? sessioneDiPartenza, tuoiNelQuadro, harness
-        )
-        suggerita = ancora.decisione
-        if (ancora.sessionId !== undefined) sessioneNuova = ancora.sessionId
-      }
+      // 0.82.1: niente più seconda interrogazione subito (altri 5 minuti con la
+      // chat ferma nell'hook). Chi ha mancato il tetto si riprova un giro ogni
+      // `TETTO_SUPERVISORE_MANCATO`; negli altri la chat prosegue e basta.
+      const prima: SupervisoreMancato = miaChat ?? aggiornato
+      const mancatiPrima = prima.supervisoreMancato ?? 0
+      const { decisione: suggerita, sessionId: sessioneNuova } = interrogaSupervisore(mancatiPrima)
+        ? await chiediDecisione(aggiornato, esiti, ultimoMessaggio, inCerchioDa, deps.interroga, sessioneDiPartenza, tuoiNelQuadro, harness)
+        : { decisione: undefined, sessionId: undefined }
       mosseChieste = suggerita?.mosse
       misura.crono.segna('supervisore')
-      if (sessioneNuova !== undefined) {
-        if (miaChat !== undefined) {
-          aggiornato.chats = aggiornato.chats.map((c) => (c.id === chatId ? { ...c, sessioneSupervisore: sessioneNuova } : c))
-        } else {
-          aggiornato.sessioneSupervisore = sessioneNuova
-        }
+      const regole = applicaRete({ a: aggiornato, esiti, inCerchioDa }, suggerita)
+      const senza = suggerita === undefined
+        ? senzaSupervisore({ regole: regole.mossa, ultimeIstruzioni: prima.ultimeIstruzioni, mancati: mancatiPrima })
+        : undefined
+      const mossa = senza?.mossa ?? regole.mossa
+      senzaRisposta = senza !== undefined
+      // Quello che il supervisore lascia a questa chat: la sessione, l'ultima
+      // istruzione valida, quante volte di fila non ha risposto.
+      const lascia = (x: SupervisoreMancato & { sessioneSupervisore?: string }): void => {
+        if (sessioneNuova !== undefined) x.sessioneSupervisore = sessioneNuova
+        if (senza !== undefined) x.supervisoreMancato = senza.mancati
+        else delete x.supervisoreMancato
+        if (suggerita !== undefined && mossa.tipo === 'prosegui') x.ultimeIstruzioni = mossa.istruzioni.slice(0, 8000)
+      }
+      if (miaChat !== undefined) {
+        aggiornato.chats = aggiornato.chats.map((c) => { if (c.id !== chatId) return c; const n = { ...c }; lascia(n); return n })
+      } else lascia(aggiornato)
+      if (senza?.avvisaNicholas === true) {
+        const riga = rigaSupervisoreMancato(miaChat?.compito)
+        console.warn(`[autopilota] ${id} — ${riga}`)
+        annota(aggiornato, riga)
+        void deps.avvisa('avviso', aggiornato, riga)
       }
 
-      const { mossa, nota } = applicaRete({ a: aggiornato, esiti, inCerchioDa }, suggerita)
       decisione = mossa
+      const nota = senza?.nota ?? regole.nota
       const perche = nota ?? suggerita?.perche
       if (perche !== undefined) {
         console.log(`[autopilota] ${id} — ${mossa.tipo}: ${perche}`)
@@ -2673,9 +2692,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // giri di fila è un giro a vuoto. Ci si ferma e lo si dice. Con criteri
     // rossi ci pensano già le strategie a gradini (strategie.ts). Senza git,
     // l'impronta è quello che la chat ha detto più gli esiti dei criteri.
-    if (decisione.tipo === 'prosegui' && decisione.strategia === undefined && esiti.every((e) => e.passato)) {
+    // 0.82.1: non quando la mossa viene dall'ultima istruzione valida perché il
+    // supervisore non ha risposto: lì l'istruzione è uguale per costruzione, e
+    // fermarsi sarebbe proprio la fermata che si vuole evitare. E l'impronta è
+    // quella del lavoro (anche non salvato), non il solo commit della cache.
+    if (decisione.tipo === 'prosegui' && decisione.strategia === undefined && esiti.every((e) => e.passato) && !senzaRisposta) {
       const k = chiaveTurno(id, chatId)
-      const impronta = improntaOra ?? `${createHash('sha256').update(ultimoMessaggio).digest('hex').slice(0, 16)}|${traccia(esiti)}`
+      const lavoro = deps.git !== undefined ? improntaLavoro(deps.git, conSessione.cwd) : undefined
+      const impronta = lavoro ?? `${createHash('sha256').update(ultimoMessaggio).digest('hex').slice(0, 16)}|${traccia(esiti)}`
       const g = registraGiro(storiaGiri.get(k) ?? [], firmaGiro('prosegui', decisione.istruzioni, impronta))
       storiaGiri.set(k, g.storia)
       if (g.cerchio) {
@@ -2742,6 +2766,43 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // ── T4: le mosse chieste dal supervisore, passate dai divieti ──
     let apriDopo = false
     let chiusaQuesta = false
+
+    // ── 0.82.1: una chat che aspetta un'altra chat per più di un giro ──
+    // L'autopilota la sblocca, le sposta il lavoro o la chiude (`attese-chat`).
+    const inAttesa = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
+    if (inAttesa !== undefined && decisione.tipo === 'prosegui') {
+      const attesa = prossimaAttesa(inAttesa.aspetta, chatAttesa(ultimoMessaggio, aggiornato.chats.map((c) => c.id), inAttesa.id))
+      aggiornato.chats = aggiornato.chats.map((c) => {
+        if (c.id !== inAttesa.id) return c
+        const n = { ...c }
+        if (attesa !== undefined) n.aspetta = attesa
+        else delete n.aspetta
+        return n
+      })
+      const iv = attesa !== undefined
+        ? interventoAttesa({ chat: inAttesa, attesa, aspettata: aggiornato.chats.find((c) => c.id === attesa.di), ramoBase: aggiornato.ramoBase })
+        : undefined
+      if (iv !== undefined) {
+        console.info(`[autopilota] ${id} — ${iv.nota}`)
+        annota(aggiornato, iv.nota)
+        if (iv.tipo === 'chiudi') {
+          // Il lavoro fatto resta sul suo ramo (non si unisce e non si toglie): il
+          // compito che riparte lo riprende da lì, dopo quello della chat attesa.
+          if (deps.git !== undefined && inAttesa.cartella !== undefined) salvaLavoro(deps.git, inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
+          const ripreso = compitoRipreso(inAttesa.compito, iv.compitoDopo) + (inAttesa.ramo !== undefined ? `\nIl lavoro già fatto sta nel ramo ${inAttesa.ramo}: unisci anche quello (git merge ${inAttesa.ramo}).` : '')
+          // Il compito della chat chiusa non è fatto: cambia nome, così non conta
+          // in `compitiFatti`, e chi lo aspettava aspetta adesso quello ripreso.
+          aggiornato.chats = aggiornato.chats.map((c) => (c.id === inAttesa.id ? { ...c, stato: 'finita' as const, compito: `${c.compito} (rimandato: riparte dopo «${iv.compitoDopo.slice(0, 60)}»)` } : c))
+          aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, ripreso]
+          const ruoli = Object.fromEntries(Object.entries(aggiornato.ruoliCompiti ?? {}).map(([t, r]) => [t, { ...r, dopo: r.dopo.map((d) => (d === inAttesa.compito ? ripreso : d)) }]))
+          aggiornato.ruoliCompiti = { ...ruoli, [ripreso]: { ruolo: inAttesa.ruolo ?? 'sviluppo', dopo: [iv.compitoDopo] } }
+          chiusaQuesta = true
+          apriDopo = aggiornato.ramoBase !== undefined
+        } else if (decisione.tipo === 'prosegui') {
+          decisione = { ...decisione, istruzioni: `${iv.istruzioni}\n\n${decisione.istruzioni}` }
+        }
+      }
+    }
     for (const m of leggiMosse(mosseChieste)) {
       const g = giudicaMossa(m, aggiornato.chats.map((c) => c.id))
       if (!g.ok) {
@@ -2815,7 +2876,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         let unita = true
         if (deps.git !== undefined && c.ramo !== undefined && c.cartella !== undefined && aggiornato.ramoBase !== undefined) {
           salvaLavoro(deps.git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (chiusa)`)
-          const u = unisciRamo(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+          const u = await unisciAlTurno(deps.git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
           unita = u.ok
           // Ramo già tolto (0.80.0): il suo lavoro era unito prima; la cartella si
           // lascia com'è (nessun --force su file che nessun ramo conserva).
@@ -3135,7 +3196,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // Il revisore lavora nella cartella di un altro: non ha un ramo suo da unire.
         if (c.ruolo === 'revisione') continue
         salvaLavoro(git, c.cartella, `autopilota ${aggiornato.nome}: ${c.compito.slice(0, 60)} (fine)`)
-        const u = unisciRamo(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
+        const u = await unisciAlTurno(git, { cwd: aggiornato.cwd, ramo: c.ramo, base: aggiornato.ramoBase })
         if (u.ok) { if (u.unito) unitoQualcosa = true }
         else if (u.conflitto) conflitti.push({ chat: c, file: u.file })
         else annota(aggiornato, `unione finale del ramo ${c.ramo} non riuscita: ${u.motivo}`)

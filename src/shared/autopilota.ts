@@ -177,7 +177,7 @@ export type Decisione = { quando: string; cosa: string; traguardo?: Traguardo }
  * Con `tettoChat` a 1 — il caso normale — ce n'è una sola e il `compito`
  * coincide con l'obiettivo. Oltre, ognuna porta avanti un pezzo diverso.
  */
-export type ChatGovernata = {
+export type ChatGovernata = SupervisoreMancato & {
   id: string
   compito: string
   /**
@@ -224,6 +224,19 @@ export type ChatGovernata = {
 }
 
 /** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
+/**
+ * **Quando il supervisore non risponde** (0.82.1). Sta sulla chat (o
+ * sull'autopilota con una chat sola), accanto alla sessione del supervisore.
+ */
+export type SupervisoreMancato = {
+  /** L'ultima istruzione valida del supervisore: con questa la chat prosegue se lui scade. */
+  ultimeIstruzioni?: string
+  /** Quante volte di fila non ha risposto; torna a zero alla prima risposta. */
+  supervisoreMancato?: number
+  /** La chat sorella che dice di aspettare, e da quanti giri di fila (0.82.1, solo sulle chat). */
+  aspetta?: { di: string; giri: number }
+}
+
 export type RuoloCompito = { ruolo: Ruolo; dopo: string[] }
 
 /** Oltre questo numero di chat contemporanee si ostacolano invece di aiutarsi. */
@@ -251,7 +264,7 @@ export type Limiti = {
 /** Una domanda dell'intervista e la risposta che ha ricevuto. */
 export type ScambioSalvato = { domanda: string; risposta: string }
 
-export type Autopilota = {
+export type Autopilota = SupervisoreMancato & {
   id: string
   nome: string
   /**
@@ -592,7 +605,19 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(o.approvata === true ? { approvata: true } : {}),
     ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {}),
     ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {}),
-    ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {})
+    ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {}),
+    ...parseSupervisoreMancato(o),
+    ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
+      ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
+      : {})
+  }
+}
+
+/** I due campi di `SupervisoreMancato`, letti da un oggetto qualunque. */
+export function parseSupervisoreMancato(o: Record<string, unknown>): SupervisoreMancato {
+  return {
+    ...(typeof o.ultimeIstruzioni === 'string' && o.ultimeIstruzioni.trim() !== '' ? { ultimeIstruzioni: o.ultimeIstruzioni } : {}),
+    ...(typeof o.supervisoreMancato === 'number' && o.supervisoreMancato > 0 ? { supervisoreMancato: Math.floor(o.supervisoreMancato) } : {})
   }
 }
 
@@ -896,6 +921,7 @@ export function parseAutopilota(raw: unknown): {
       ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
         ? { sessioneSupervisore: o.sessioneSupervisore as string }
         : {}),
+      ...parseSupervisoreMancato(o),
       ...(stringaNonVuota(o.sessioneIntervista) !== undefined
         ? { sessioneIntervista: o.sessioneIntervista as string }
         : {}),

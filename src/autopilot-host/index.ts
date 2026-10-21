@@ -11,6 +11,7 @@ import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
+import { conTurni } from './turni-criteri'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { apriRegistroTempi } from './tempi'
@@ -296,7 +297,8 @@ export function avviaServizio(): void {
   const server = creaServer({
     archivio,
     // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
-    esegui: conDivieti(esecutoreReale()),
+    // E i comandi lunghi uno alla volta per PC, mai durante un'unione (0.82.1).
+    esegui: conTurni(conDivieti(esecutoreReale())),
     interroga: interrogazioneReale(claudeCmd()),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.

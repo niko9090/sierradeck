@@ -100,7 +100,12 @@ export function ambientePty(
   env.CLAUDE_SESSION_UUID = sessionUuid
   // Le aggiunte vengono per ultime: sono una scelta esplicita dell'utente e
   // devono vincere su ciò che si trovava già nell'ambiente del Gestore.
-  for (const [nome, valore] of Object.entries(extra)) env[nome] = valore
+  // Su Windows i nomi non distinguono le maiuscole (0.82.1): un `PATH` aggiunto
+  // accanto al `Path` ereditato farebbero due variabili, e ne vincerebbe una a caso.
+  for (const [nome, valore] of Object.entries(extra)) {
+    for (const gia of Object.keys(env)) if (gia !== nome && gia.toUpperCase() === nome.toUpperCase()) delete env[gia]
+    env[nome] = valore
+  }
   return env
 }
 

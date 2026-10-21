@@ -165,6 +165,65 @@ export function applicaRete(
 }
 
 /**
+ * Dopo quante risposte mancate di fila del supervisore lo si dice a Nicholas
+ * (0.82.1). Da lì in poi lo si interroga un giro ogni `TETTO_SUPERVISORE_MANCATO`.
+ */
+export const TETTO_SUPERVISORE_MANCATO = 3
+
+/** Se in questo giro si interroga il supervisore, dopo `mancati` risposte mancate di fila. */
+export function interrogaSupervisore(mancati: number): boolean {
+  return mancati < TETTO_SUPERVISORE_MANCATO || mancati % TETTO_SUPERVISORE_MANCATO === 0
+}
+
+/**
+ * **Il supervisore scaduto non ferma la chat** (0.82.1).
+ *
+ * Il 21/10 il supervisore è scaduto 23 volte (5 minuti l'una) su un PC pieno
+ * di suite di test. Si riprovava subito una seconda volta, altri 5 minuti con
+ * la chat ferma nell'hook, e poi decidevano le regole, che con i criteri verdi
+ * sanno dire solo «rileggi l'obiettivo». Adesso non si riprova subito: la chat
+ * prosegue con l'**ultima istruzione valida** del supervisore, e lui viene
+ * interrogato di nuovo al giro dopo. Al tetto arriva una riga a Nicholas, una
+ * volta sola, e niente si sospende.
+ *
+ * `regole` è la mossa delle regole (`applicaRete` senza decisione): se chiede
+ * qualcosa a Nicholas vince lei, perché le strade sono finite davvero.
+ */
+export function senzaSupervisore(p: {
+  regole: Decisione
+  ultimeIstruzioni: string | undefined
+  /** Le risposte mancate di fila prima di questa. */
+  mancati: number
+}): { mossa: Decisione; mancati: number; avvisaNicholas: boolean; nota: string } {
+  const mancati = p.mancati + 1
+  const avvisaNicholas = mancati === TETTO_SUPERVISORE_MANCATO
+  // Il conto sale a ogni giro, interrogato o no: il prossimo giro interrogato è il primo `k` con `interrogaSupervisore(mancati + k - 1)`.
+  let fra = 1
+  while (!interrogaSupervisore(mancati + fra - 1)) fra += 1
+  const riprova = fra === 1 ? 'lo riprovo al prossimo giro' : `lo riprovo fra ${fra} giri`
+  const ultime = p.ultimeIstruzioni?.trim() ?? ''
+  // Una strategia nuova delle regole (cerchio riconosciuto) vale più dell'istruzione di prima.
+  if (p.regole.tipo !== 'prosegui' || p.regole.strategia !== undefined || ultime === '') {
+    return { mossa: p.regole, mancati, avvisaNicholas, nota: `il supervisore non ha risposto (${mancati} di fila): decidono le regole, ${riprova}` }
+  }
+  return {
+    mossa: {
+      tipo: 'prosegui',
+      istruzioni: `Il supervisore non ha risposto in tempo (${riprova}): prosegui con l’ultima istruzione valida.\n\n${ultime}`
+    },
+    mancati,
+    avvisaNicholas,
+    nota: `il supervisore non ha risposto (${mancati} di fila): la chat prosegue con l’ultima istruzione valida, ${riprova}`
+  }
+}
+
+/** La riga per Nicholas quando il supervisore ha mancato `TETTO_SUPERVISORE_MANCATO` volte di fila. */
+export function rigaSupervisoreMancato(lavoro: string | undefined): string {
+  const di = lavoro !== undefined && lavoro.trim() !== '' ? `del lavoro «${lavoro.trim().slice(0, 80)}» ` : ''
+  return `Il supervisore ${di}non risponde da ${TETTO_SUPERVISORE_MANCATO} giri. La chat lavora lo stesso con l’ultima istruzione valida e niente è sospeso; lo riprovo ogni ${TETTO_SUPERVISORE_MANCATO} giri.`
+}
+
+/**
  * Il giro che si rifà quando i criteri passano ma il supervisore non ha deciso
  * (0.80.1): non si sospende, si chiede alla chat di dire in chiaro se ha finito.
  */
