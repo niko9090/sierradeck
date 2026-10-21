@@ -92,8 +92,8 @@ describe('difetto 3: sotto il nome di una chat, niente righe vuote di interfacci
   })
   it('dal flusso: la cornice con il titolo, la riga di stato e i permessi non sono la riga (c-43, visto nella copia)', () => {
     const cornice = '─'.repeat(180) + ' Somma: cosa fa ─'
-    const flusso = ['1 more notice hidden', cornice, '❯', '─'.repeat(206), 'Opus 5.5 · 5 ore 6% (azzera 07:00) · settimana 28% · 0.00 $', '⏵⏵ bypass permissions on (shift+tab to cycle)', ''].join(String.fromCharCode(10))
-    expect(ultimaRigaUtile(flusso)).toBe('1 more notice hidden')
+    const flusso = ['Faro, Vetrina, Nodo', '1 more notice hidden', cornice, '❯', '─'.repeat(206), 'Opus 5.5 · 5 ore 6% (azzera 07:00) · settimana 28% · 0.00 $', '⏵⏵ bypass permissions on (shift+tab to cycle)', ''].join(String.fromCharCode(10))
+    expect(ultimaRigaUtile(flusso)).toBe('Faro, Vetrina, Nodo')
     expect(ultimaRigaUtile(['Faro', '◐ medium · /effort'].join(String.fromCharCode(10)))).toBe('Faro')
     expect(ultimaRigaDalloSchermo(['Faro', '◐ medium · /effort'])).toBe('Faro')
     expect(ultimaRigaDalloSchermo(['Faro', '❯ Try "create a util logging.py that..."'])).toBe('Faro')

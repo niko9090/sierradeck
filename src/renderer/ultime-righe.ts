@@ -55,9 +55,9 @@ const RUMORE_DI_INTERFACCIA =
   // dalla prova nella copia, l'avviso «aspetta te» diceva «Opus · contesto 5% · 5 ore 8%…».
   // 0.82.0: anche il campo vuoto «❯»: sulla pagina ogni chat ferma aveva sotto il nome una riga con il solo «❯».
   // 0.82.0: anche la riga di stato con solo modello e costo («Opus 5.5 · 0.00 $»), di una chat appena aperta,
-  // quella dello sforzo («◐ medium · /effort») e il suggerimento del campo vuoto («❯ Try "…"»), lette nella
+  // quella dello sforzo («◐ medium · /effort») e il suggerimento del campo vuoto («❯ Try "…"») e «1 more notice hidden», lette nella
   // copia di prova sotto ogni chat appena aperta.
-  /^(.*· \/effort|[›>❯]\s*Try ".*|(.+ · )?\d+\.\d{2} \$|\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
+  /^(\d+ more notices? hidden|.*· \/effort|[›>❯]\s*Try ".*|(.+ · )?\d+\.\d{2} \$|\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/
