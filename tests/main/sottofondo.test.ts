@@ -23,6 +23,8 @@ function finto() {
   const fermati: string[] = []
   const log: string[] = []
   let n = 0
+  let inSospeso = 0
+  const attese: (() => void)[] = []
   const dati = mkdtempSync(join(tmpdir(), 'sd-sottofondo-'))
   const manda = (id: string, data: string): void => ascolti.get(id)?.({ id, kind: 'data', data })
   /** Claude Code finto: il campo, e all'Invio il messaggio sale fra i mandati. */
@@ -48,13 +50,26 @@ function finto() {
       }
     },
     ferma: (id) => { fermati.push(id) },
-    creaTerminale: (cols, rows) => new Terminal({ cols, rows, allowProposedApi: true }) as unknown as TerminaleMuto,
+    creaTerminale: (cols, rows) => {
+      // Si contano le scritture non ancora digerite da xterm: `digerisci` aspetta
+      // quelle, non un tempo fisso che a PC carico non basta (21/10).
+      const t = new Terminal({ cols, rows, allowProposedApi: true })
+      const scriviVero = t.write.bind(t)
+      t.write = ((data: string) => {
+        inSospeso += 1
+        scriviVero(data, () => {
+          inSospeso -= 1
+          if (inSospeso === 0) attese.splice(0).forEach((r) => r())
+        })
+      }) as typeof t.write
+      return t as unknown as TerminaleMuto
+    },
     log: (m) => { log.push(m) },
     adesso: () => ora,
     timer: (f) => f()
   })
-  /** xterm headless scrive in modo asincrono: si aspetta che abbia digerito. */
-  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 20))
+  /** xterm headless scrive in modo asincrono: si aspetta che abbia digerito tutto. */
+  const digerisci = (): Promise<void> => inSospeso === 0 ? Promise.resolve() : new Promise((r) => { attese.push(r) })
   return { crea, ascolti, scritto, avviati, fermati, log, dati, disegnaCampo, digerisci, avanti: (ms: number) => { ora += ms }, campo: () => campo, perdiCampo: () => { campo = '' },
     trattieni: () => { trattieni = true },
     /** Mostra quello che teneva da parte; un Invio arrivato intanto diventa un a capo, come nel vero. */
