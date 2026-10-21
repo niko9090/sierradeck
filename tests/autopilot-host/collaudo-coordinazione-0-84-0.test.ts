@@ -159,7 +159,7 @@ describe('collaudo: agente finito, i casi del 20-21/10', () => {
   // `nelRecupero`. `daChiudereDaSole` (posti.ts:122) la richiude dopo 5 minuti
   // e poi ogni `RICHIUDI_DOPO_MS`: la conversazione che ha ripreso gli sparisce
   // dallo schermo. La scheda dice «se Nicholas la ripristina, resta dov'è».
-  it.fails('D4: una conversazione già mandata nel recupero e riaperta da Nicholas non si richiude', () => {
+  it('D4: una conversazione già mandata nel recupero e riaperta da Nicholas non si richiude', () => {
     const a = autopilota({ id: 'a', chats: [chat('c-34', 'finita', { conclusa: unito, nelRecupero: PRIMA })] })
     const fuori = daChiudereDaSole({ autopiloti: [a], accese: [{ sessione: 's-c-34', ferma: true }], ora: ORA, domandeAperte: () => 0 })
     expect(fuori).toEqual([])

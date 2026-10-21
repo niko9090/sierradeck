@@ -110,6 +110,9 @@ export function daChiudereDaSole(p: {
     }
     for (const c of a.chats) {
       if (c.sessionId === undefined || adottate.has(c.sessionId)) continue
+      // Collaudo 0.84.0 (D4): già mandata nel recupero. Se è accesa, l'ha
+      // rimessa Nicholas con «Ripristina»: resta dov'è.
+      if (c.nelRecupero !== undefined) continue
       // L'agente finito (0.84.0): chiusa e nel recupero, anche se è già spenta
       // (resterebbe nell'elenco per sempre). Mai mentre lavora.
       if (agenteFinito(a, c) && !alLavoro.has(c.sessionId) && da(c.dal ?? a.ultimoEvento) >= FINITA_SI_CHIUDE_MS) {
