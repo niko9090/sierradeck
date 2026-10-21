@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
+import { gitPerLeChat } from '../main/git-nel-path'
 import type { Autopilota } from '@shared/autopilota'
 import type { Giudizio } from './decisione'
 
@@ -118,7 +119,8 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
           timeout: opzioni?.timeoutMs ?? TIMEOUT_MS,
           windowsHide: true,
           maxBuffer: 10 * 1024 * 1024,
-          env: ambientePulito(process.env)
+          // Con Git nel PATH (0.82.1), come le chat: anche il supervisore è un `claude`.
+          env: { ...ambientePulito(process.env), ...gitPerLeChat() }
         },
         (err, stdout, stderr) => {
           if (err !== null) {

@@ -132,6 +132,12 @@ export type Preferenze = {
    */
   pcSviluppo?: string
   /**
+   * Dove sta Git per Windows (0.82.1), se il programma non lo trova da solo nel
+   * PATH o nel sistema: la cartella dell'installazione, o il suo `git.exe`.
+   * Le chat lo ricevono nel PATH (vedi `main/git-nel-path`).
+   */
+  percorsoGit?: string
+  /**
    * «Più chat / meno chat» (0.82.0): quante chat degli autopiloti lavorano
    * insieme lo decide il PC (`@shared/posti-chat`); qui lo si sposta un poco.
    * Assente = come dice il PC.
@@ -296,6 +302,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
     ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
+    ...(typeof o.percorsoGit === 'string' && o.percorsoGit.trim() !== '' && o.percorsoGit.length <= 400 ? { percorsoGit: o.percorsoGit.trim() } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
     ...(Array.isArray(o.chatSoloMie)
       ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }

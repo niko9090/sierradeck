@@ -247,24 +247,71 @@ describe('hook Stop', () => {
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('lavoro')
     expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
-    // Il supervisore è stato riprovato una volta prima delle regole.
-    expect(domande).toBe(2)
+    // 0.82.1: niente seconda interrogazione subito, la chat non resta ferma altri 5 minuti.
+    expect(domande).toBe(1)
     expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
   })
 
-  it('0.80.1: un supervisore che non risponde la prima volta si riprova subito', async () => {
+  it('0.82.1: supervisore scaduto: la chat prosegue con l’ultima istruzione valida, lui riprova al giro dopo', async () => {
     let domande = 0
+    let risponde = true
     server = ambiente({
       interroga: () => {
         domande++
-        return domande === 1 ? Promise.reject(new Error('tempo scaduto')) : Promise.resolve({ testo: '{"azione": "finito"}' })
+        return risponde
+          ? Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Aggiungi il test della coda e fai commit."}' })
+          : Promise.reject(new Error('interrogazione del supervisore fallita: scaduto dopo 5 minuti'))
       }
     })
     await avvia(server)
     const id = await creaAp()
-    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
-    expect(domande).toBe(2)
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
+    const primo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto metà.' }))
+    expect(primo.dati.reason).toContain('Aggiungi il test della coda')
+
+    risponde = false
+    domande = 0
+    const secondo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Ancora un pezzo.' }))
+    expect(secondo.dati.decision).toBe('block')
+    expect(secondo.dati.reason).toContain('ultima istruzione valida')
+    expect(secondo.dati.reason).toContain('Aggiungi il test della coda')
+    expect(domande).toBe(1)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+    expect(avvisi.some((v) => v.tipo === 'avviso')).toBe(false)
+  })
+
+  it('0.82.1: al tetto di risposte mancate arriva una riga a Nicholas, niente si sospende, e il supervisore si riprova a giri', async () => {
+    let domande = 0
+    server = ambiente({ interroga: () => { domande++; return Promise.reject(new Error('scaduto dopo 5 minuti')) } })
+    await avvia(server)
+    const id = await creaAp()
+    const giro = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Lavoro.' }))).dati
+    for (let i = 0; i < 3; i++) expect((await giro()).decision).toBe("block")
+    expect(domande).toBe(3)
+    const avvisiMancati = avvisi.filter((v) => v.tipo === 'avviso')
+    expect(avvisiMancati).toHaveLength(1)
+    expect(avvisiMancati[0]?.domanda).toContain('non risponde da 3 giri')
+    expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
+    // Dopo il tetto: interrogato al giro 4 (multiplo del tetto), saltato al 5 e al 6.
+    await giro(); await giro(); await giro()
+    expect(domande).toBe(4)
+    expect(avvisi.filter((v) => v.tipo === 'avviso')).toHaveLength(1)
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(stato.supervisoreMancato).toBe(6)
+  })
+
+  it('0.82.1: quando il supervisore torna a rispondere il conto riparte da zero', async () => {
+    let scaduto = true
+    server = ambiente({ interroga: () => (scaduto ? Promise.reject(new Error('scaduto')) : Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Avanti col pezzo due."}' })) })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Uno.' }))
+    expect((await chiama('GET', '/autopiloti')).dati[0].supervisoreMancato).toBe(1)
+    scaduto = false
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Due.' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.supervisoreMancato).toBeUndefined()
+    expect(stato.ultimeIstruzioni).toContain('Avanti col pezzo due.')
   })
 
   it('una domanda della chat mette l autopilota in attesa e ne conserva il testo', async () => {
@@ -765,6 +812,56 @@ describe('flotta di chat', () => {
     viste.length = 0
     await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-uno' }))
     expect(viste).toEqual([c1.sessioneSupervisore])
+  })
+
+  it('0.82.1: una chat che aspetta un’altra per più di un giro fa intervenire l’autopilota: sposta il lavoro, poi la chiude e il compito riparte dopo', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('va diviso fra') ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' : '{"azione": "prosegui", "istruzioni": "Continua il tuo compito."}' }),
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+    const fermata = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due', last_assistant_message: 'Resto in attesa di c-1: mi serve il suo lavoro.' }))).dati
+    const chat2 = async (): Promise<any> => (await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-2')
+
+    // Un giro solo di attesa: niente ancora.
+    const primo = await fermata()
+    expect(primo.reason).not.toContain('Non aspettare')
+    expect((await chat2()).aspetta).toEqual({ di: 'c-1', giri: 1 })
+    // Il secondo: l'autopilota le dice di fare intanto il resto.
+    const secondo = await fermata()
+    expect(secondo.decision).toBe('block')
+    expect(secondo.reason).toContain('Non aspettare la chat c-1')
+    // Il terzo: la chiude, e il suo compito torna in coda dopo quello di c-1.
+    const terzo = await fermata()
+    expect(terzo).toEqual({})
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
+    // Il suo compito non conta come fatto (Revisione): cambia nome.
+    expect(stato.chats.find((c: any) => c.id === 'c-2').compito).toContain('rimandato')
+    const ripreso =stato.compitiDaFare.find((t: string) => t.includes('Ripreso dopo'))
+    expect(ripreso).toContain('aggiorna i documenti')
+    expect(stato.ruoliCompiti?.[ripreso]?.dopo).toEqual(['scrivi i test'])
+    expect(stato.decisioni.some((d: any) => d.cosa.includes('c-2 aspetta c-1 da 3 giri: la chiudo'))).toBe(true)
+  })
+
+  it('0.82.1: se la chat attesa ha già finito, l’autopilota sblocca chi aspetta', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('va diviso fra') ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' : '{"azione": "prosegui", "istruzioni": "Continua il tuo compito."}' }),
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+    const a = archivio.leggi(id)
+    if (a === undefined) throw new Error('autopilota mancante')
+    archivio.scrivi({ ...a, chats: a.chats.map((c) => (c.id === "c-1" ? { ...c, stato: "finita" as const } : c)) })
+    const fermata = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due', last_assistant_message: 'Aspetto che c-1 abbia finito.' }))).dati
+    await fermata()
+    const secondo = await fermata()
+    expect(secondo.reason).toContain('Non c’è più niente da aspettare')
+    expect(secondo.reason).toContain('git merge main')
   })
 
   it('a lavoro finito ferma tutte le chat della flotta; con i ruoli, finisce solo dopo l’ok della Revisione su ogni ramo (0.71.0)', async () => {
