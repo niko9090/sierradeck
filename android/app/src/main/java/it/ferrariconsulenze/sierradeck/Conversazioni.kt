@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -178,7 +178,9 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
             return@Column
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp), state = lista) {
-            items(aperta.messaggi) { m ->
+            // Chiavi stabili (0.83.0): un messaggio nuovo in fondo non fa ridisegnare gli altri.
+            val chiavi = ChiaviElenco.di(aperta.messaggi, ChiaviElenco::messaggio)
+            itemsIndexed(aperta.messaggi, key = { i, _ -> chiavi[i] }) { _, m ->
                 Messaggio(m, aperta, inCorso) { o ->
                     // Una chat: si sceglie nell'elenco del terminale. Un autopilota
                     // (domande iniziali, «Pubblico adesso?»): toccare un'opzione e'
@@ -190,7 +192,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
                 }
             }
-            items(inAttesa) { t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
+            val inAttesaChiavi = ChiaviElenco.di(inAttesa) { "attesa|${it.hashCode()}" }
+            itemsIndexed(inAttesa, key = { i, _ -> inAttesaChiavi[i] }) { _, t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
         }
         Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp)) {
             nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }

@@ -127,6 +127,8 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         val testo = corpoTesto("/api/domande", null)
         return withContext(Dispatchers.Default) { json.decodeFromString<Domande>(testo) }
     }
+    /** Lo stato com'è arrivato, da decodificare solo se è cambiato (0.83.0, `StatoSoloSeCambia`). */
+    suspend fun statoGrezzo(): String = corpoTesto("/api/stato", null)
     /** Lo stato letto, insieme al testo grezzo: la guardia degli avvisi lo legge come JSON generico. */
     suspend fun statoConTesto(): Pair<Stato, String> {
         val testo = corpoTesto("/api/stato", null)

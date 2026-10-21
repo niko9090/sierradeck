@@ -232,6 +232,17 @@ fun Principale(
     BackHandler(enabled = Navigazione.indietro(posto) != null) { Navigazione.indietro(posto)?.let { posto = it } }
     var stato by remember { mutableStateOf<Stato?>(null) }
     /**
+     * La copia dell'ultimo stato (0.83.0, `CopiaStato`): all'apertura si vede
+     * subito quello che c'era, e il primo stato vero lo sostituisce. Finché
+     * `daCopia`, lo stato non viene dal computer di adesso.
+     */
+    var daCopia by remember { mutableStateOf(false) }
+    val soloSeCambia = remember { StatoSoloSeCambia { Api.json.decodeFromString<Stato>(it) } }
+    LaunchedEffect(indirizzo) {
+        val copia = withContext(Dispatchers.IO) { CopiaStato.leggi(contesto.filesDir, indirizzo) }
+        if (stato == null && copia != null) { stato = copia; daCopia = true; soloSeCambia.parteDa(copia) }
+    }
+    /**
      * Il collegamento con questo computer (app 2.56.0): **uno solo**, quello di
      * `Collegamenti`, fatto avanzare da ogni risposta dell'`Api` — lo stato, la
      * storia della chat, lo scrivere. Prima qui c'erano due controlli in più
@@ -304,7 +315,7 @@ fun Principale(
                         val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
                         // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
                         // adesso, non al primo giro del polso (0.83.0).
-                        if (stato == null) stato = letto
+                        if (stato == null || daCopia) { stato = letto; daCopia = false }
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
@@ -442,6 +453,8 @@ fun Principale(
     LaunchedEffect(api) {
         val strada = Linea.stradaDiIndirizzo(indirizzo)
         var ultimaIl = 0L
+        var copiaIl = 0L
+        var copiato: String? = null
         while (isActive) {
             // Con la linea su si legge ogni due secondi; caduta, si riprova con
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
@@ -452,7 +465,9 @@ fun Principale(
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
-                val (letto, grezzo) = api.statoConTesto()
+                // Solo se è cambiato (0.83.0, `StatoSoloSeCambia`): uguale, niente decodifica e niente ridisegno.
+                val grezzo = api.statoGrezzo()
+                val (letto, cambiato) = withContext(Dispatchers.Default) { soloSeCambia.leggi(grezzo) }
                 letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
@@ -487,7 +502,12 @@ fun Principale(
                 // quando risponde la versione nuova.
                 val ferma = letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null
                 if (ferma && Installazione.da != null) Installazione.finita(contesto)
-                stato = letto; giriFalliti = 0; rifiuti = 0
+                if (cambiato || daCopia) { stato = letto; daCopia = false }
+                giriFalliti = 0; rifiuti = 0
+                if (grezzo != copiato && System.currentTimeMillis() - copiaIl >= CopiaStato.OGNI_MS) {
+                    copiaIl = System.currentTimeMillis(); copiato = grezzo
+                    launch(Dispatchers.IO) { CopiaStato.salva(contesto.filesDir, indirizzo, grezzo) }
+                }
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata
                 // l'ultima volta, e come si chiama davvero — il nome della
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si

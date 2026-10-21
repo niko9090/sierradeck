@@ -213,6 +213,7 @@ object Postazioni {
     fun dimentica(contesto: Context, indirizzo: String) {
         scrivi(contesto, elenca(contesto).filter { it.indirizzo != indirizzo })
         Collegamento(contesto).scordaChiaveDi(indirizzo)
+        CopiaStato.dimentica(contesto.filesDir, indirizzo)
     }
 
     /** Le tenute restano tutte; delle altre sopravvivono le più recenti. */
