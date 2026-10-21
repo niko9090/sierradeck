@@ -1,4 +1,4 @@
-import { chatAlLavoro, type Autopilota } from '@shared/autopilota'
+import { chatAlLavoro, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 /**
  * Le regole del servizio sui posti delle chat (0.82.0): quante lavorano su
@@ -46,7 +46,28 @@ export const FERMO_SI_CHIUDE_MS = 30 * 60_000
 /** Una chat chiusa da sola e ancora accesa dopo questo (consegna persa, riaperta) si richiude. */
 export const RICHIUDI_DOPO_MS = 10 * 60_000
 
-export type DaChiudere = { autopilotaId: string; chatId?: string; sessionId: string; motivo: string }
+/** `alRecupero` (0.84.0): l'agente ha finito e il suo ramo è chiuso; la conversazione va nel recupero di 30 giorni. */
+export type DaChiudere = { autopilotaId: string; chatId?: string; sessionId: string; motivo: string; alRecupero?: true }
+
+/**
+ * **Agente finito** (0.84.0): la chat ha fatto il suo compito e il suo ramo
+ * è chiuso: unito nel principale, o tolto. Per una Revisione vale il ramo che
+ * rivedeva: finché l'autore può essere rimandato indietro, la Revisione riusa
+ * la sua conversazione e non si tocca.
+ */
+export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
+  if (c.sessionId === undefined || c.nelRecupero !== undefined) return false
+  // A lavoro finito tutto (T6) l'ultima chat resta «lavoro» nell'archivio: conta il ramo unito.
+  if (c.stato !== 'finita' && !(a.stato === 'finito' && c.stato === 'lavoro' && c.conclusa !== undefined)) return false
+  if (c.sessionId === a.sessionId) return false
+  if ((a.adottate ?? []).some((x) => x.sessionId === c.sessionId)) return false
+  const chiuso = (x: ChatGovernata): boolean => x.conclusa !== undefined || x.approvata === true
+  if (c.ruolo === 'revisione') {
+    const autore = a.chats.find((x) => x.id === c.revisioneDi)
+    return autore !== undefined && chiuso(autore)
+  }
+  return chiuso(c)
+}
 
 /**
  * Le chat da chiudere da sole: **mai una chat al lavoro**, mai una chat
@@ -69,6 +90,7 @@ export function daChiudereDaSole(p: {
   domandeAperte: (autopilotaId: string) => number
 }): DaChiudere[] {
   const ferme = new Set(p.accese.filter((c) => c.ferma).map((c) => c.sessione))
+  const alLavoro = new Set(p.accese.filter((c) => !c.ferma).map((c) => c.sessione))
   const fuori: DaChiudere[] = []
   const da = (iso: string | undefined): number => {
     const t = iso === undefined ? NaN : Date.parse(iso)
@@ -87,7 +109,14 @@ export function daChiudereDaSole(p: {
       continue
     }
     for (const c of a.chats) {
-      if (c.sessionId === undefined || !ferme.has(c.sessionId) || adottate.has(c.sessionId)) continue
+      if (c.sessionId === undefined || adottate.has(c.sessionId)) continue
+      // L'agente finito (0.84.0): chiusa e nel recupero, anche se è già spenta
+      // (resterebbe nell'elenco per sempre). Mai mentre lavora.
+      if (agenteFinito(a, c) && !alLavoro.has(c.sessionId) && da(c.dal ?? a.ultimoEvento) >= FINITA_SI_CHIUDE_MS) {
+        fuori.push({ autopilotaId: a.id, chatId: c.id, sessionId: c.sessionId, motivo: `ha finito e il suo ramo è ${c.conclusa?.come === 'tolto' ? 'chiuso' : 'unito'}`, alRecupero: true })
+        continue
+      }
+      if (!ferme.has(c.sessionId)) continue
       // Senza `dal` (chat nate prima della 0.81.0) vale l'ultimo evento dell'autopilota.
       const finitaDa = da(c.dal ?? a.ultimoEvento)
       if (c.stato === 'finita' && finitaDa >= FINITA_SI_CHIUDE_MS) {

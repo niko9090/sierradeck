@@ -268,6 +268,8 @@ export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): strin
     case 'chiede-te': return `${nomeChi(chi)}: rimanda di nuovo ${cosa}${diChi}, decidi tu come andare avanti.`
     case 'aperta': return `${nomeChi(chi)}: comincia ${cosa}.`
     case 'unito': return `${nomeChi(chi)}: ${cosa} unito.`
+    // 0.84.0: l'agente finito esce dall'elenco, la conversazione resta 30 giorni.
+    case 'nel-recupero': return `${nomeChi(chi)}: ha finito ${cosa}. La chiudo; la conversazione resta 30 giorni nel recupero e si rimette con «Ripristina».`
     default: return undefined
   }
 }

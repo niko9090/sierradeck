@@ -188,9 +188,10 @@ export type Dipendenze = {
   /**
    * Chiude una chat finita e ferma al prompt (0.82.0): il suo claude.exe si
    * spegne, il riquadro si chiude, la conversazione resta. Assente: non si
-   * chiude niente da solo.
+   * chiude niente da solo. Con `alRecupero` (0.84.0, agente finito) la
+   * conversazione esce dall'elenco e va nel recupero di 30 giorni.
    */
-  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
+  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
   /**
    * Lo stato vero contro cui si controlla una domanda (0.82.0): release
    * pubblicate, versione installata, rami e chat. Assente: la `versione` e le
@@ -667,8 +668,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       chiuseDaSole.set(f.sessionId, ora)
       const a = deps.archivio.leggi(f.autopilotaId)
       if (a === undefined) continue
-      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })
-      annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
+      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}), ...(f.alRecupero === true ? { alRecupero: true } : {}) })
+      if (f.alRecupero === true) {
+        // Una volta sola: se Nicholas la rimette con «Ripristina», resta dov'è.
+        a.chats = a.chats.map((c) => (c.id === f.chatId ? { ...c, nelRecupero: deps.adesso() } : c))
+        annota(a, `chiudo la chat ${f.chatId ?? a.id}: ${f.motivo}. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: f.chatId ?? a.id, esito: 'nel-recupero' })
+      } else annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
       salva(a)
       console.info(`[posti] ${f.autopilotaId}::${f.chatId ?? '-'} chiusa da sola: ${f.motivo}`)
     }
@@ -2851,7 +2856,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             if (chiuso === 'unito') togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
             else togliCartellaVuota(c.cartella)
           }
-          aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
+          aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, conclusa: { il: deps.adesso(), come: chiuso === 'unito' ? 'unito' as const : 'tolto' as const } } : x))
           annota(aggiornato, `chiudo la chat ${c.id}: ${chiuso === 'unito' ? 'il suo lavoro è già nel ramo principale' : 'il suo ramo è già stato unito e tolto'}`, { chat: c.id, esito: 'finito' })
           if (c.id === chatId) chiusaQuesta = true
           else deps.fermaLavoro(id, c.id)
@@ -2885,7 +2890,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           else annota(aggiornato, `${c.id} non si chiude: ${u.motivo}`)
         }
         if (!unita) continue
-        aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const } : x))
+        aggiornato.chats = aggiornato.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, conclusa: { il: deps.adesso(), come: 'unito' as const } } : x))
         annota(aggiornato, `chiudo la chat ${c.id}: il suo pezzo è fatto`, { chat: c.id, esito: 'finito' })
         if (c.id === chatId) chiusaQuesta = true
         else deps.fermaLavoro(id, c.id)
@@ -3228,6 +3233,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (c.ruolo === 'revisione') continue
         if (c.ramo !== undefined && c.cartella !== undefined) togliWorktree(git, { cwd: aggiornato.cwd, cartella: c.cartella, ramo: c.ramo })
       }
+      // Tutti i rami sono nel principale (0.84.0): ogni chat ha concluso.
+      const il = deps.adesso()
+      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
       pulisciWorktreeVuoti(aggiornato.cwd)
     }
 
