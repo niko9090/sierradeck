@@ -94,6 +94,14 @@ export function conversazione(a: Autopilota): Battuta[] {
       metti({ quando: s.quando, da: 'tu', testo: haiRisposto(s.testo), dettaglio: esitoRisposta(a, s.quando, s.testo) })
       continue
     }
+    // 0.83.0: una risposta scritta a mano a una sua domanda. La domanda intera
+    // sta sopra, se non è già la battuta appena prima (il via non lo è).
+    if (s.da === 'tu' && s.risponde !== undefined) {
+      const prima = righe[righe.length - 1]?.b
+      if (prima?.da !== 'lui' || prima.testo.trim() !== s.risponde) metti({ quando: s.quando, da: 'lui', testo: s.risponde, tono: 'domanda' })
+      metti({ quando: s.quando, da: 'tu', testo: haiRisposto(s.testo) })
+      continue
+    }
     metti({
       quando: s.quando,
       da: s.da,

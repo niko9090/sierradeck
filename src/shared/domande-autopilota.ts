@@ -123,6 +123,20 @@ export function tracciaDopoRisposta(domanda: string, risposta: string, quando: s
 }
 
 /**
+ * La sua domanda a cui stai rispondendo scrivendo a mano (0.83.0), se c'è.
+ *
+ * Nicholas (20/10): una risposta scritta a «gli dai il via?» compariva come
+ * un messaggio qualunque, e la domanda non si vedeva più. Vale l'ultima sua
+ * battuta, se finisce con «?» e tu non le hai già risposto; altrimenti, se si
+ * è preparato, il via. Le domande del registro passano da `/domande` (server).
+ */
+export function domandaInSospeso(a: Pick<Autopilota, 'dialogo' | 'stato'>): string | undefined {
+  const ultima = a.dialogo[a.dialogo.length - 1]
+  if (ultima?.da === 'lui' && /\?\s*$/.test(ultima.testo)) return ultima.testo.trim()
+  return a.stato === 'pronto' ? TESTO_VIA : undefined
+}
+
+/**
  * Dopo una risposta: quale domanda mostrare, o chiudere la linguetta.
  * `rimaste` sono le domande lette dopo la risposta.
  */
