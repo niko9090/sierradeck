@@ -121,3 +121,14 @@ describe('«N di M chat» e il «?» (0.82.0)', () => {
     expect(leggiPostiChat(p)).toEqual(p)
   })
 })
+
+describe('il «?» non si contraddice (0.82.0, visto nella copia di prova)', () => {
+  it('sotto sforzo e in risalita insieme: niente «si è liberato» accanto a «sotto sforzo»', () => {
+    // Visto dal vero: posti 2 per il carico al 96%, il PC ne darebbe 3, quindi `risale`.
+    const p: PostiChat = { attive: 0, posti: 2, inFila: 0, regolazione: 0, perche: 'carico', risale: true, misura: { ...SOTTO_CARICO, caricoPercento: 96 } }
+    const t = spiegaPosti(p)
+    expect(t).toContain('sotto sforzo')
+    expect(t).not.toContain('si è liberato')
+    expect(t).toContain('ne darebbe di più: il numero risale con calma, un posto ogni 3 minuti')
+  })
+})

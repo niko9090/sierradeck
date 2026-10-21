@@ -33,7 +33,7 @@ export function PostiChat(): React.JSX.Element | null {
       <Aiuto di="Chat al lavoro insieme">
         <span style={{ whiteSpace: 'pre-line' }}>{spiegaPosti(p)}</span>
         {'\n'}
-        <span style={{ display: 'block', marginTop: 6 }}>Si regola in Impostazioni → Autopiloti: «più chat» o «meno chat».</span>
+        <span style={{ display: 'block', marginTop: 6 }}>Si regola in Impostazioni → Chat e autopiloti: «Meno chat», «Come dice il PC» o «Più chat».</span>
       </Aiuto>
     </span>
   )

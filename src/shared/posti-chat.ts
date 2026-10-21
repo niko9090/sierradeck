@@ -147,7 +147,7 @@ export function spiegaPosti(p: PostiChat): string {
     massimo: `È il massimo: oltre ${POSTI_MAX} chat sulla stessa cartella si ostacolano.`
   }
   righe.push(motivo[p.perche])
-  if (p.risale) righe.push('Il PC si è liberato: il numero risale con calma, un posto ogni 3 minuti.')
+  if (p.risale) righe.push('Il PC ne darebbe di più: il numero risale con calma, un posto ogni 3 minuti.')
   if (p.regolazione !== 0) righe.push(`Nelle Impostazioni è scelto «${p.regolazione === 1 ? 'più chat' : 'meno chat'}».`)
   if (p.inFila > 0) righe.push(`${p.inFila === 1 ? 'Una chat aspetta' : `${p.inFila} chat aspettano`} in fila: parte quando si libera un posto.`)
   righe.push('Le chat finite si chiudono da sole dopo qualche minuto, e il loro posto si libera. La conversazione resta.')
