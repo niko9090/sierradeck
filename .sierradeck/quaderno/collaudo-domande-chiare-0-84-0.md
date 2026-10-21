@@ -39,3 +39,7 @@ Tutti gli 8 `it.fails` sono diventati `it` e passano.
 - Riavvio: `riapriDomandaIntervista` rilegge le parti dal testo con `partiDaTesto` (l'inverso di `testoDomanda`) e le controlla; un testo vecchio, non a parti, resta com'era.
 
 Trappola: la regex con lookbehind variabile `(?<=…c-\d+\/)` funziona in Node; non spostarla nella pagina servita senza provarla nei browser vecchi del telefono.
+
+# Revisione respinta senza un difetto nel codice (c-70, 21/10)
+La prima Revisione ha visto rossi i test e il TypeScript sul ramo. Il codice era a posto: avevo tolto la junction `node_modules` dalla copia della chat appena finito, e i criteri misurati nella copia non trovavano più `tsc` né vitest. Rimessa la junction: TypeScript pulito, 273 file e 2977 test verdi (servizio, renderer, condivisi, pty); i due test di Git rossi in una corsa sotto carico (scadenza a 9-10 s) passano da soli.
+**Regola:** la junction `node_modules` di una copia si toglie solo quando la chat si chiude (ramo unito o scartato), non a fine compito: la Revisione e i criteri misurano ancora lì.
