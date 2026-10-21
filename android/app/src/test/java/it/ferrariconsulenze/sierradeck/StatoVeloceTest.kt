@@ -114,6 +114,16 @@ class StatoVeloceTest {
         assertTrue(sorgente("Lavori.kt").contains("Davanti.pausa(60_000)"))
     }
 
+    @Test fun `b - stato fermo da cinque giri, il prossimo fra 3 s, se cambia di nuovo ogni 2 s`() {
+        assertEquals(2000L, PolsoApp.davantiOgni(0))
+        assertEquals(2000L, PolsoApp.davantiOgni(4))
+        assertEquals(3000L, PolsoApp.davantiOgni(5))
+        assertTrue("sotto la soglia della linea lenta", PolsoApp.CALMO_OGNI_MS < Linea.LENTA_DOPO_MS)
+        val app = sorgente("App.kt")
+        assertTrue(app.contains("uguali = if (cambiato) 0 else uguali + 1"))
+        assertTrue(app.contains("PolsoApp.davantiOgni(uguali)"))
+    }
+
     // ─── (c) chiavi stabili ───
 
     @Test fun `c - chiavi uniche anche per righe uguali, e stabili aggiungendo in fondo`() {
