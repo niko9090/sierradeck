@@ -133,7 +133,8 @@ fun SezioneFile(api: Api) {
         val elencoProgetti = progetti ?: return@LaunchedEffect
         Apertura.cartellaRichiesta = null
         parte = ParteFile.PROGETTI
-        vai(FileVista.progettoPer(elencoProgetti, r.progetto), r.percorso)
+        // Fuori dall effect: azzerare la richiesta lo rilancia e annullerebbe `vai` a metà.
+        scope.launch { vai(FileVista.progettoPer(elencoProgetti, r.progetto), r.percorso) }
     }
 
     /** Lo scaricamento nella cache dell'app, con l'avanzamento: per guardare, salvare e condividere. */

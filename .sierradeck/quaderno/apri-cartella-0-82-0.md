@@ -44,3 +44,10 @@ ponte e del canale (PC e app) e fra le rotte lente (legge i progetti come
   dopo 13 minuti di Gradle.
 - Nel worktree non c'è `node_modules` né `android/local.properties`: giunzione
   verso la cartella principale e copia del file (entrambi ignorati da git).
+- Una `FunzionePc` nuova entra da sola nella fascia «PC indietro»
+  (`PcIndietro.testo` in `Gestione.kt`): `CompatibilitaVecchiTest` cade finché
+  non la si esclude come `GESTIONE_CHAT`.
+- In `SezioneFile` l'effect che apre la cartella ha la richiesta fra le chiavi:
+  azzerarla lo rilancia e annulla `vai` a metà. `vai` va lanciato con `scope.launch`.
+- «Could not connect to Kotlin compile daemon» è solo un avviso: Gradle compila
+  senza demone e il build può essere verde lo stesso (guardare i risultati dei test).

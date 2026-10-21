@@ -25,7 +25,7 @@ export type Sezione = { id: IdSezione; titolo: string; spiega: string }
 export const SEZIONI: readonly Sezione[] = [
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', spiega: 'Le versioni di questo programma e del computer collegato, se ce n’è una nuova, cosa cambia, e com’è andato l’ultimo tentativo.' },
   { id: 'computer', titolo: 'Computer', spiega: 'Come si chiama questo computer, le porte, quali reti accetta e i dispositivi accoppiati. Gli altri PC e le strade per raggiungerli stanno in Salute.' },
-  { id: 'chat', titolo: 'Chat e autopiloti', spiega: 'Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. Dove vive ogni chat sta in Progetti.' },
+  { id: 'chat', titolo: 'Chat e autopiloti', spiega: 'Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. Dove vive ogni chat sta in Progetti. «Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.' },
   { id: 'drive', titolo: 'Drive e salvataggi', spiega: 'L’account Google del Drive, gli avvisi del salvataggio e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti.' },
   { id: 'aspetto', titolo: 'Aspetto', spiega: 'Colori, chiarezza e la disposizione dei pannelli.' },
   { id: 'notifiche', titolo: 'Notifiche', spiega: 'Quando e come avvisa che una chat o un autopilota ha bisogno di te.' },
@@ -108,4 +108,17 @@ export function cercaImpostazioni(q: string, dove: Dove, voci: readonly Voce[] =
 export function sezioniDi(dove: Dove, q = ''): { sezione: Sezione; voci: Voce[] }[] {
   const trovate = cercaImpostazioni(q, dove)
   return SEZIONI.map((sezione) => ({ sezione, voci: trovate.filter((v) => v.sezione === sezione.id) })).filter((g) => g.voci.length > 0)
+}
+
+/**
+ * La sezione che si sta leggendo (0.82.0): l'ultima il cui titolo è già salito
+ * sopra la cima della parte che scorre. Le sezioni senza titolo in pagina (cercate
+ * via, o in un'altra scheda) non contano; nessun titolo in pagina = nessuna.
+ */
+export function sezioneInVista(titoli: readonly { id: string; cima: number | undefined }[], cima: number, inFondo = false): string | undefined {
+  const presenti = titoli.filter((t): t is { id: string; cima: number } => t.cima !== undefined)
+  if (presenti.length === 0) return undefined
+  // In fondo le sezioni corte non arrivano mai in cima: si accende l'ultima (Revisione 0.82.0).
+  if (inFondo) return presenti.at(-1)!.id
+  return presenti.filter((t) => t.cima <= cima).at(-1)?.id ?? presenti[0]!.id
 }
