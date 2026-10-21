@@ -1,20 +1,17 @@
 ---
-titolo: "Rapporto 0.83.0: app Android ristrutturata, pronta per la pubblicazione"
-quando: 2026-10-21T17:30:00+02:00
+titolo: "Rapporto 0.83.0: app Android ristrutturata, pubblicata"
+quando: 2026-10-21T17:45:00+02:00
 tag: ["rapporto", "0.83.0", "android", "pagina", "rilascio"]
 ---
 
-**Stato (21/10, 17:30, c-52 Rilascio, ramo `ap/ap-f1e631f5/c-52` con dentro main 651e898d):**
-- tutto il codice della 0.83.0 è sul ramo c-52:
-  - main con c-48 (velocità);
-  - le 5 correzioni della Revisione di c-46;
-  - versioni 0.83.0 / app 2.83.0 (versionCode 139);
-  - novità in `src/shared/novita.ts`;
-- i controlli sono verdi (§ 11-15);
-- l'APK di rilascio con R8 si apre sull'emulatore senza crash;
-- le foto prima e dopo sono in `foto-0-83-0/`.
+**Stato (21/10, 17:45): v0.83.0 PUBBLICATA da c-55, non installata.**
+- Tag `v0.83.0` sul commit `67072521` (ramo c-55 = main con c-52 e c-53 dentro, quindi anche le correzioni della 0.82.1).
+- Release «SierraDeck 0.83.0», non bozza, Latest, 5 allegati: `SierraDeck-Setup-0.83.0.exe`, `.blockmap`, `latest.yml`, `SierraDeck-2.83.0.apk` (APK di rilascio da `npm run allega-apk`, firma «O=Ferrari Consulenze» verificata) e `app-android.json`.
+- Verificato con curl: `releases/latest/download/latest.yml` dice `version: 0.83.0` e la size dell'exe (115356072) combacia; `app-android.json` dice 2.83.0 e punta all'APK della v0.83.0.
+- Novità: 7 righe, da `src/shared/novita.ts`.
+- Controlli prima del tag (ramo c-55): typecheck 0 errori; `tests/main` 1869 passati e 2 saltati; servizio, renderer, condivisi e pty 2882 passati; Android 433 test unitari, 0 falliti, e `assembleDebug` ok; guardia delle cancellazioni ok; nessun file Kotlin oltre 800 righe.
 
-La release **non è pubblicata e non è installata**: pubblica chi decide la regola del progetto, installa solo Nicholas. Il ramo c-52 lo unisce in main il supervisore con chiudiChat.
+La release **non è installata**: installa solo Nicholas.
 
 Mappa prima e dopo: `app-android-0-83-0.md`. Velocità: `velocita-app-0-83-0.md`. Unione con c-48: `0-83-0-unione-c48-con-correzioni-c46.md`.
 
@@ -31,12 +28,14 @@ Mappa prima e dopo: `app-android-0-83-0.md`. Velocità: `velocita-app-0-83-0.md`
   - Nicholas scrive all'autopilota dall'app;
   - il messaggio parte e compare nella conversazione come «tu · 14:33 Prova dalla app 2.83.0, …»;
   - la casella resta in basso sopra la tastiera (foto `dopo-scuro-autopilota-mandato.jpg`).
-- **«Hai risposto: …» non è comparso nella prova, e il motivo è scritto qui.**
-  - La sola domanda aperta nella copia era «Si è preparato: gli dai il via?». Una risposta scritta a mano a quella domanda va al dialogo come un messaggio normale (`richiestaScheda` → `/api/autopilota/dialogo`), quindi compare come «tu: …».
-  - «Hai risposto: …» compare per «Vai» (`tracciaDopoRisposta(TESTO_VIA, …)`) e per le domande del registro (`/api/rispondi`). Nella copia il registro era vuoto.
-  - Toccare «Vai» avrebbe fatto partire davvero un autopilota con chat Claude sul PC già carico, quindi non l'ho fatto.
-  - Il codice di «Hai risposto» è quello della 0.81.0, già pubblicato e non toccato dalla 0.83.0.
-  - **Da decidere, per la 0.84.0 (domande chiare):** anche una risposta scritta a «gli dai il via?» dovrebbe comparire come «Hai risposto: …».
+- **«Hai risposto: …» anche per le risposte scritte a mano: corretto da c-52** (commit `f50a70ce` e `0aa46493`, 21/10). Era il difetto che Nicholas segnala dal 20/10: una risposta scritta nella casella a «gli dai il via?» compariva come un messaggio qualunque.
+  - **Cosa fa adesso il servizio** (`/autopiloti/:id/dialogo`):
+    - se c'è una domanda del registro aperta, il testo scritto a mano è la risposta a quella domanda, con la stessa strada di `/domande/:id/risposta`: la domanda si chiude e la chat che l'ha fatta riceve la risposta;
+    - se l'ultima battuta dell'autopilota finisce con «?», o se aspetta il via, la tua battuta ricorda la domanda (`risponde`) e il supervisore la legge come prima.
+  - **Cosa si vede** sul PC, sulla pagina e nell'app: la domanda intera e sotto «Hai risposto: …». La conversazione è una sola, composta dal PC (`conversazione()`).
+  - **Test:** `tests/autopilot-host/hai-risposto-a-mano-0-83-0.test.ts`, 5 test sulle rotte vere del servizio e sulle funzioni pure. Suite intera: 4720 passati e 2 saltati, typecheck senza errori.
+  - **Provato nella copia di prova** (`SIERRADECK_PROVA`, porte 47760/47761) con il codice di c-52, senza «Vai» e senza chat vere. Su Prova 5, che aspettava il via, ho scritto a mano dall'app sull'emulatore. Nell'app e sulla pagina compaiono «Mi sono preparato: … Mi dai il via?» e sotto «Hai risposto: Prima di partire togli il criterio». Il testo è corto perché `adb input` ha perso le ultime parole; il servizio ha salvato esattamente quello che è arrivato. Foto: `dopo-scuro-hai-risposto.jpg`, `pagina-dopo-hai-risposto.jpg`, `chiaro13-autopilota.jpg`.
+  - Dopo la prova la copia di prova è tornata al suo codice 0.82.0. Il codice di c-52 resta accanto in `T:\app\out-0.83.0-c52`, da togliere a mano (la cancellazione fuori dalle cartelle dell'autopilota è bloccata, giustamente).
 - **Visto nella copia di prova, da portare nella 0.84.0 (cause dei blocchi):** il supervisore della copia non risponde. Nella conversazione compare «Non sono riuscito a risponderti: il supervisore non ha risposto (interrogazione del supervisore fallita: uscita: {"duration_api_ms":0,…} uscito con 1)», con il JSON grezzo dentro (foto `pagina-dopo-autopilota.jpg`).
 
 ### 2. Mappa prima e dopo
@@ -44,7 +43,7 @@ Mappa prima e dopo: `app-android-0-83-0.md`. Velocità: `velocita-app-0-83-0.md`
   - 76 funzioni dell'app prima e 76 dopo; 37 prima e 37 dopo in `FUNZIONI` del PC;
   - nessuna oltre i 2 tocchi.
 - **Foto:** in `foto-0-83-0/`. C'è anche il foglio unico `foglio-prima-dopo.jpg`.
-- **Mandata a Nicholas:** non confermato. Alle 17:40 c-52 ha provato a mandargli il foglio e la mappa con `manda_al_telefono`; tutti e due gli invii sono scaduti senza id, quindi non si sa se sono partiti. Non li ho ripetuti per non mandare doppioni: controllare nella coda File del PC. Il suo sì alla ristrutturazione completa c'è già (21/10). Vedi § Foto.
+- **Mandata a Nicholas: in coda, aspetta la sua conferma.** Alle 17:40 c-52 ha chiesto di mandargli il foglio delle foto e la mappa con `manda_al_telefono`. La chiamata è scaduta, ma tutti e due i file sono nella coda del PC (`al-telefono/coda.json`, stato «conferma»), perché vengono da una cartella diversa da quella della chat. Partono quando Nicholas conferma; non vanno rimandati. Il suo sì alla ristrutturazione completa c'è già (21/10). Vedi § Foto.
 
 ### 3. Navigazione a quattro voci
 - **Fatto:**
@@ -82,7 +81,7 @@ La riga nelle novità: «avvio il 14 % più rapido, contenuto in vista il 19 % p
   - stati presi dalla tabella del PC, con parola o simbolo.
 
   Commit `cb492fe3`, `304da880` e `a3cd2171`. Test: `LeggibilitaTest.kt`. Scheda: `app-android-leggibilita-0-83-0.md`.
-- **Foto:** prima e dopo in tema scuro, che è quello predefinito. SierraDeck non ha un tema bianco: «chiaro» vuol dire chiarore al massimo. Le foto con chiarore al massimo e caratteri del telefono a 1.3 **non le ho fatte**, per non tenere acceso l'emulatore oltre il necessario sul PC carico.
+- **Foto:** prima e dopo in tema scuro, che è quello predefinito. In più, con «Foglio», chiarore al massimo e caratteri del telefono a 1.3: `chiaro13-adesso`, `-chat`, `-progetti`, `-altro`, `-altro-aspetto`, `-autopilota` (.jpg). Si legge tutto e niente esce dallo schermo. Anche al massimo il fondo resta grigio scuro: un tema bianco non c'è. Dopo le foto l'emulatore è tornato com'era (caratteri predefiniti, «Banco», chiarore a circa un quinto).
 
 ### 6. File Kotlin sotto le 800 righe e test unitari
 - **Fatto:** nessun file oltre 800 righe dopo c-48; il comando del criterio lo conferma (§ 11-15). Test unitari Kotlin verdi.
@@ -111,12 +110,7 @@ Vedi la tabella sotto.
   - versioni 0.83.0 e 2.83.0 (139);
   - novità con la riga della velocità;
   - R8 provato: `gradle assembleRelease` in locale dà un APK di 4,2 MB firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT»; sull'emulatore si apre (avvio 1960 ms) e tutte le schermate provate funzionano senza crash. Non servono regole keep in più.
-- **Al momento di pubblicare** (non lo fa c-52):
-  - `git fetch`;
-  - `npm run pubblica`;
-  - `npm run allega-apk`, che ricompila l'APK firmato e lo verifica;
-  - release non bozza;
-  - controllo di `latest.yml` e di `releases/latest/download/app-android.json`.
+- **Pubblicata da c-55 il 21/10:** `git fetch`, tag, bozza con le note, `npm run pubblica` (exe, blockmap, latest.yml), `npm run allega-apk` (APK firmato e app-android.json), poi `--draft=false --latest`. Controlli in cima al rapporto.
 
 ### 11-15. Controlli automatici (ramo c-52, 21/10)
 
@@ -145,12 +139,15 @@ Vedi la tabella sotto.
 | c-49 | in main | unito; chat chiusa | leggibilità |
 | c-50 | in main (`4c292282`) | unito; chat chiusa | pagina a quattro voci |
 | c-51 | in main | unito; chat chiusa | rapporto e bozza delle novità |
-| c-52 | `ap/ap-f1e631f5/c-52` (questa chat) | **da unire** (supervisore, con chiudiChat) | Rilascio: versioni, novità, correzioni di c-46, unione di c-48, foto, rapporto |
+| c-52 | fino a `67072521` | **unito** in c-55 e quindi in main; chat chiusa dal supervisore | Rilascio: versioni, novità, correzioni di c-46, unione di c-48, «Hai risposto» a mano (`f50a70ce`), foto, rapporto |
+| c-53 | fino a `7ab6837e` | **unito** in c-55 e quindi in main | 0.82.1 portata anche nella 0.83.0 |
+| c-55 | `67072521` | **unito**; la release parte da qui | unione di c-52 e c-53, controlli, pubblicazione |
 | prova-unione-c48 | ramo cancellato | chiuso | era solo la prova dell'unione |
 
 ## Da togliere a mano
 - La cartella `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt\prova-unione-c48` (16 MB, fuori da git). `git worktree remove` si è fermato su percorsi troppo lunghi della build di Gradle, e non si forzano cancellazioni ricorsive.
 - `note/prova-c52/` nella copia c-52 (pagina e programma di passaggio, ignorati da git).
+- `T:\app\out-0.83.0-c52` nella copia di prova: il codice di c-52 usato per provare «Hai risposto» (la copia gira di nuovo con il suo `out` 0.82.0).
 
 ## Foto
 Tutte in `.sierradeck/quaderno/foto-0-83-0/` della cartella principale, copiate lì da c-52 perché restino dopo la chiusura della sua copia. Sono fuori da git per regola (`.gitignore`: le foto delle prove restano sul PC). JPEG larghi 540 px, nomi di PC e indirizzi coperti. **Il foglio da guardare per primo è `foglio-prima-dopo.jpg`**, una riga per schermata, con la 2.82.0 a sinistra e la 2.83.0 a destra.
@@ -167,3 +164,5 @@ Tutte in `.sierradeck/quaderno/foto-0-83-0/` della cartella principale, copiate 
 | Pagina, apertura | `pagina-prima-domande.jpg` | `pagina-dopo-adesso.jpg` |
 | Pagina, Chat / Progetti / Altro | `pagina-prima-chat.jpg`, `-progetti`, `-impostazioni`, `-autopiloti` | `pagina-dopo-chat.jpg`, `-progetti`, `-altro` |
 | Pagina, autopilota | `pagina-prima-autopilota.jpg` | `pagina-dopo-autopilota.jpg` |
+| «Hai risposto» scritto a mano al via | — (compariva come messaggio qualunque) | `dopo-scuro-hai-risposto.jpg`, `pagina-dopo-hai-risposto.jpg` |
+| «Foglio», chiarore al massimo, caratteri 1.3 | — | `chiaro13-adesso.jpg`, `-chat`, `-progetti`, `-altro`, `-altro-aspetto`, `-autopilota` |
