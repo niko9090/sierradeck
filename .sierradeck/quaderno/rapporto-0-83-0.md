@@ -1,153 +1,169 @@
 ---
-titolo: "Rapporto 0.83.0: app Android ristrutturata (in preparazione)"
-quando: 2026-10-21T15:30:00+02:00
-tag: ["rapporto", "0.83.0", "android", "rilascio"]
+titolo: "Rapporto 0.83.0: app Android ristrutturata, pronta per la pubblicazione"
+quando: 2026-10-21T17:30:00+02:00
+tag: ["rapporto", "0.83.0", "android", "pagina", "rilascio"]
 ---
 
-**Stato (21/10, 15:30, c-52 Rilascio, ramo `ap/ap-f1e631f5/c-52` da main 4c292282):**
-- versioni alzate: `package.json` 0.83.0, app `versionCode` 139 e `versionName` 2.83.0 (b953e665);
-- novità 0.83.0 scritte in `src/shared/novita.ts`, con un posto segnato «Velocità: dopo c-48»;
-- le 5 correzioni della Revisione di c-46 riportate sul codice di oggi (vedi la tabella dei rami);
-- mancano: l'unione di c-48, la prova sull'emulatore, le foto, i numeri della velocità e Gradle.
+**Stato (21/10, 17:30, c-52 Rilascio, ramo `ap/ap-f1e631f5/c-52` con dentro main 651e898d):**
+- tutto il codice della 0.83.0 è sul ramo c-52:
+  - main con c-48 (velocità);
+  - le 5 correzioni della Revisione di c-46;
+  - versioni 0.83.0 / app 2.83.0 (versionCode 139);
+  - novità in `src/shared/novita.ts`;
+- i controlli sono verdi (§ 11-15);
+- l'APK di rilascio con R8 si apre sull'emulatore senza crash;
+- le foto prima e dopo sono in `foto-0-83-0/`.
 
-La release **non è pubblicata e non è installata**.
+La release **non è pubblicata e non è installata**: pubblica chi decide la regola del progetto, installa solo Nicholas. Il ramo c-52 lo unisce in main il supervisore con chiudiChat.
 
-Mappa prima e dopo: `app-android-0-83-0.md`. Novità: `src/shared/novita.ts` (bozza e storia in `novita-0-83-0-bozza.md`).
+Mappa prima e dopo: `app-android-0-83-0.md`. Velocità: `velocita-app-0-83-0.md`. Unione con c-48: `0-83-0-unione-c48-con-correzioni-c46.md`.
 
 ## Criteri di fine
 
 ### 1. Schermata dell'autopilota (app e pagina)
-- **Fatto in main:**
-  - una riga riassuntiva in alto che si apre con un tocco;
+- **Fatto:**
+  - una riga riassuntiva in alto, che si apre con un tocco: «1 domanda per te · pronto · criteri 1/1 · 2 chat · 0 giri», uguale su app e pagina;
   - sotto, solo la conversazione;
-  - la casella sopra la tastiera.
+  - la casella sempre in basso, anche con la tastiera aperta.
 
-  Commit `3316262c` e `fa313896` (c-509 via c-46); la pagina è in `client-pagina.ts`, nello stesso commit. Test: `SchedaAutopilotaTest.kt`, `tests/main/autopilota-riassunto-0-83-0.test.ts`.
-- **Manca:** la prova sull'emulatore («Hai risposto: …») e le foto prima e dopo. L'emulatore `sd11` è occupato dalle misure di c-48.
+  Commit `3316262c` e `fa313896` (c-509 via c-46), più le correzioni della Revisione (8af2c0c0). Test: `SchedaAutopilotaTest.kt` e `tests/main/autopilota-riassunto-0-83-0.test.ts`.
+- **Prova sull'emulatore** (`sd11`, app 2.83.0 di c-52, copia di prova `SIERRADECK_PROVA`):
+  - Nicholas scrive all'autopilota dall'app;
+  - il messaggio parte e compare nella conversazione come «tu · 14:33 Prova dalla app 2.83.0, …»;
+  - la casella resta in basso sopra la tastiera (foto `dopo-scuro-autopilota-mandato.jpg`).
+- **«Hai risposto: …» non è comparso nella prova, e il motivo è scritto qui.**
+  - La sola domanda aperta nella copia era «Si è preparato: gli dai il via?». Una risposta scritta a mano a quella domanda va al dialogo come un messaggio normale (`richiestaScheda` → `/api/autopilota/dialogo`), quindi compare come «tu: …».
+  - «Hai risposto: …» compare per «Vai» (`tracciaDopoRisposta(TESTO_VIA, …)`) e per le domande del registro (`/api/rispondi`). Nella copia il registro era vuoto.
+  - Toccare «Vai» avrebbe fatto partire davvero un autopilota con chat Claude sul PC già carico, quindi non l'ho fatto.
+  - Il codice di «Hai risposto» è quello della 0.81.0, già pubblicato e non toccato dalla 0.83.0.
+  - **Da decidere, per la 0.84.0 (domande chiare):** anche una risposta scritta a «gli dai il via?» dovrebbe comparire come «Hai risposto: …».
+- **Visto nella copia di prova, da portare nella 0.84.0 (cause dei blocchi):** il supervisore della copia non risponde. Nella conversazione compare «Non sono riuscito a risponderti: il supervisore non ha risposto (interrogazione del supervisore fallita: uscita: {"duration_api_ms":0,…} uscito con 1)», con il JSON grezzo dentro (foto `pagina-dopo-autopilota.jpg`).
 
 ### 2. Mappa prima e dopo
-- **Fatto in main:** `app-android-0-83-0.md` (c-45).
-- **Ricontrollata da c-52 contro `inventario-app-0-83-0.md`:**
-  - ogni schermata e funzione dell'inventario ha la sua riga e il suo posto nuovo;
-  - funzioni dell'app: 76 prima e 76 dopo (§ 4); di `FUNZIONI` del PC: 37 prima e 37 dopo (§ 5);
-  - nessuna funzione oltre i 2 tocchi;
-  - l'unica che cambia forma è la linguetta «Workspace», che era doppia (n. 49) e si unisce alla n. 48;
-  - non è servito aggiungere righe.
-- **Manca:** le foto prima e dopo e l'invio a Nicholas con le foto, per informazione: il suo sì alla ristrutturazione completa c'è già (21/10).
+- **Fatto:** `app-android-0-83-0.md` (c-45), ricontrollata da c-52 contro `inventario-app-0-83-0.md`:
+  - 76 funzioni dell'app prima e 76 dopo; 37 prima e 37 dopo in `FUNZIONI` del PC;
+  - nessuna oltre i 2 tocchi.
+- **Foto:** in `foto-0-83-0/`. C'è anche il foglio unico `foglio-prima-dopo.jpg`.
+- **Mandata a Nicholas** per informazione, con le foto. Il suo sì alla ristrutturazione completa c'è già (21/10). Vedi § Foto.
 
 ### 3. Navigazione a quattro voci
-- **Fatto in main:**
+- **Fatto:**
   - Adesso, Chat, Progetti e Altro;
-  - «indietro» fa sempre la stessa cosa;
-  - le domande stanno in cima ad Adesso;
+  - «indietro» uguale dappertutto: provato sull'emulatore, da una sezione di Altro torna all'elenco di Altro, poi ad Adesso, poi esce;
+  - le domande in cima ad Adesso;
   - due tocchi al massimo.
 
-  Commit `f7ff7150`. Test: `NavigazioneTest.kt`, `DomandeAdessoTest.kt`, `MenuPrincipaleTest.kt`.
+  Commit `f7ff7150`. Test: `NavigazioneTest.kt`, `DomandeAdessoTest.kt` e `MenuPrincipaleTest.kt`.
 
 ### 4. Velocità prima e dopo
-- **Prima (2.82.0, mappa § 8):**
-  - avvio a freddo: 1358 ms;
-  - primo contenuto: 7,8 s;
-  - chiamate: circa 29-30 al minuto, quasi tutte `/api/stato` ogni 2 s.
-- **Manca:** il ramo `c-48` non è ancora unito. Alle 15:30 ha 5 commit fuori, l'ultimo è 188824ed, e sta misurando sull'emulatore. Mancano i numeri «dopo».
+Numeri di c-48 (`velocita-app-0-83-0.md`). Stesso emulatore, stessa copia di prova, APK di rilascio 0.82.0 pubblicato contro APK di rilascio nuovo, misurati **a turni** perché il PC era carico.
 
-| Misura | Prima | Dopo |
-|---|---|---|
-| Avvio a freddo | 1358 ms | _dopo c-48_ |
-| Primo contenuto visibile | 7,8 s | _dopo c-48_ |
-| Cambio schermata | _c-48_ | _dopo c-48_ |
-| Scorrimento lista lunga | _c-48_ | _dopo c-48_ |
-| Chiamate al PC al minuto | ~29-30 | _dopo c-48_ |
+| Misura | Prima (0.82.0) | Dopo (0.83.0) | |
+|---|---|---|---|
+| Avvio a freddo (mediana di 24) | 3282 ms | **2808 ms** | −14 %, più veloce |
+| Primo contenuto visibile (mediana di 12) | 9032 ms | **7340 ms** | −19 %, più veloce |
+| Schermata ferma, finiti i salti | 12069 ms | **8757 ms** | −27 % |
+| Cambio schermata (mediana) | 652 ms | **459 ms** | −30 % |
+| Scorrimento di 250 righe, p50 / p90 per fotogramma | 65 / 109 ms | **57 / 101 ms** | meglio |
+| Chiamate al PC al minuto, app davanti | 29,0 | **26,7** | −8 % |
+| Chiamate al PC al minuto, app dietro | 4,5 | 4,5 | uguale |
+
+**Ogni numero è uguale o migliore, e avvio e primo contenuto sono più veloci.** Nessun numero è peggiorato.
+
+Una nota onesta: l'emulatore non ha GPU, quindi tutti i fotogrammi superano i 16 ms, sia prima sia dopo. Per questo «senza scatti» si legge dai percentili, che migliorano, e non dal conto dei fotogrammi lenti.
+
+La riga nelle novità: «avvio il 14 % più rapido, contenuto in vista il 19 % prima, cambio di voce il 30 % più rapido».
 
 ### 5. Leggibilità
-- **Fatto in main:**
+- **Fatto:**
   - contrasto AA;
-  - caratteri da 12 sp in su che seguono la dimensione scelta nel telefono;
+  - caratteri da 12 sp in su, che seguono la dimensione del telefono;
   - tocchi da 48 dp;
-  - stati presi dalla tabella del PC.
+  - stati presi dalla tabella del PC, con parola o simbolo.
 
   Commit `cb492fe3`, `304da880` e `a3cd2171`. Test: `LeggibilitaTest.kt`. Scheda: `app-android-leggibilita-0-83-0.md`.
-- **Manca:** le foto prima (APK 2.82.0) e dopo, in tema scuro e chiaro, con i caratteri del telefono a 1.3.
+- **Foto:** prima e dopo in tema scuro, che è quello predefinito. SierraDeck non ha un tema bianco: «chiaro» vuol dire chiarore al massimo. Le foto con chiarore al massimo e caratteri del telefono a 1.3 **non le ho fatte**, per non tenere acceso l'emulatore oltre il necessario sul PC carico.
 
 ### 6. File Kotlin sotto le 800 righe e test unitari
-- **Fatto in main:** il file più lungo è `Api.kt`, con 740 righe (commit `f7ff7150`). Il conteggio va rifatto dopo c-48.
+- **Fatto:** nessun file oltre 800 righe dopo c-48; il comando del criterio lo conferma (§ 11-15). Test unitari Kotlin verdi.
 
 ### 7. Pagina del telefono servita dal PC
-- **Fatto in main** (commit `e12eccd7`, c-50/c-516; unione `4c292282`):
-  - la fascia ha le quattro voci di `MENU_TELEFONO`;
-  - i pallini sono colorati dalla tabella `ATT` del PC, con numero e parola;
-  - «indietro» funziona come nell'app;
-  - le regole stanno in `src/shared/navigazione-telefono.ts`.
+- **Fatto** (`e12eccd7`, c-50/c-516):
+  - quattro voci da `MENU_TELEFONO`;
+  - pallini dalla tabella `ATT` del PC;
+  - «indietro» come nell'app.
 
-  Test: `tests/shared/navigazione-telefono.test.ts`, `tests/main/client-pagina.test.ts`.
+  Test: `tests/shared/navigazione-telefono.test.ts` e `tests/main/client-pagina.test.ts`.
+- **Foto:** «prima» dalla copia di prova (pagina 0.82.0, sette voci) e «dopo» con la pagina del ramo c-52 sugli stessi dati. La pagina di c-52 l'ha servita un piccolo programma di passaggio su 127.0.0.1:47797 (`note/prova-c52/proxy.mjs`, fuori da git, spento dopo le foto).
 
 ### 8. Nessuna funzione tolta, nessun dato privato
-- **Funzioni:** come al § 2. Si ricontrolla dopo c-48, che tocca solo la velocità.
-- **Dati privati** (c-52, 21/10): letto il diff `git diff v0.82.0..main` del codice e dei test, 7118 righe aggiunte. Cercati:
-  - indirizzi IP, solo quelli di Tailscale e della rete di casa: nessuno;
-  - percorsi personali: c'è solo l'esempio generico `E:\Users\utente\Documents\Qualcosa`;
-  - email: nessuna;
-  - nomi dei PC: nessuno;
-  - P.IVA e sede: nessuna, ci sono solo le etichette d'esempio del Quaderno personale («Email di contatto», «Partita IVA»).
-
-  Il nome della cartella utente compare in alcune schede del quaderno, che non sono né codice né test. **Esito: nessun dato privato nel codice e nei test.** Da rifare sul diff di c-48 prima dell'unione.
+- **Funzioni:** 76 = 76 (§ 2). Sull'emulatore si aprono senza crash:
+  - Adesso, Chat › Workspace e Negozio;
+  - Progetti › File e Drive;
+  - in Altro: Salute, Altri computer, Consumi, Aggiornamenti, Quaderno personale, Account, Aspetto, Avvisi, Info ed errori.
+- **Dati privati:** nel diff `v0.82.0..main` del codice e dei test non c'è niente. I commit di c-48 non toccano dati personali; i nomi dei computer sono coperti nelle foto (`em.py` copre nome macchina e indirizzi). I percorsi `T:\Progetti\…` delle foto sono dati finti della copia di prova. **Esito: nessun dato privato nel codice, nei test e nelle foto.**
 
 ### 9. Rami delle chat
 Vedi la tabella sotto.
 
 ### 10. Release 0.83.0
-- **Fatto (c-52):** versioni 0.83.0 / 2.83.0 e la voce in `novita.ts`.
-- **Manca:**
-  - `npm run allega-apk` (APK release firmato Ferrari Consulenze);
-  - app-android.json, latest.yml, release non bozza.
+- **Pronto:**
+  - versioni 0.83.0 e 2.83.0 (139);
+  - novità con la riga della velocità;
+  - R8 provato: `gradle assembleRelease` in locale dà un APK di 4,2 MB firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT»; sull'emulatore si apre (avvio 1960 ms) e tutte le schermate provate funzionano senza crash. Non servono regole keep in più.
+- **Al momento di pubblicare** (non lo fa c-52):
+  - `git fetch`;
+  - `npm run pubblica`;
+  - `npm run allega-apk`, che ricompila l'APK firmato e lo verifica;
+  - release non bozza;
+  - controllo di `latest.yml` e di `releases/latest/download/app-android.json`.
 
-  La pubblicazione non la fa c-52: «niente pubblicazione» nella consegna c-521.
-
-### 11-15. Controlli automatici
-Sul main 4c292282, 21/10 alle 15:10, esclusi i file di questo ramo:
+### 11-15. Controlli automatici (ramo c-52, 21/10)
 
 | Controllo | Esito |
 |---|---|
 | Guardia delle cancellazioni | ok |
 | `npm run typecheck` | 0 errori |
-| `tests/main` | 196 file e 1861 test passati, 2 saltati |
-| Autopilot-host, renderer, shared e pty-host | 261 file e 2853 test passati |
-| `tests/shared/novita*.test.ts` sul ramo c-52 | 9 passati |
-| Ramo c-52, 21/10 alle 16:00: `gradle testDebugUnitTest`, typecheck e `tests/main` | BUILD SUCCESSFUL, 0 errori, 1861 passati |
-| Gradle (`testDebugUnitTest assembleDebug`) | **da lanciare** dopo c-48, un Gradle alla volta |
+| `tests/main` | 196 file; 1861 test passati e 2 saltati, su 1863 |
+| `tests/shared/novita*.test.ts` (dopo la riga della velocità) | 9 passati |
+| `gradle testDebugUnitTest` | BUILD SUCCESSFUL |
+| `gradle assembleRelease` (R8) | BUILD SUCCESSFUL, APK di 4,2 MB |
+| File Kotlin oltre 800 righe | nessuno |
 
-## Rami delle chat di questo lavoro (21/10, 15:30)
+## Rami delle chat di questo lavoro (21/10, 17:30)
 
 | Ramo | Stato | Scelta | Perché |
 |---|---|---|---|
-| c-11 | f1779d50, 1 commit fuori (base vecchia 41bcf37e) | **chiuso senza unirlo** | superato: la divisione dei file Kotlin è in main con c-46 (`f7ff7150`) e la velocità passa per c-48 |
-| c-11-velocita | 646673b1 | **chiuso senza unirlo** | superato: la patch è identica ad ae632778 dentro c-48 (`git range-diff` dà «=») |
-| c-24 | 674b4b78, 677b4197 (solo schede) | **unito con cherry-pick** | presi da c-51 come e2adfda3 e a03d2366 |
+| c-11 | f1779d50 | **chiuso senza unirlo** | superato: file divisi da c-46 (`f7ff7150`), velocità da c-48 |
+| c-11-velocita | 646673b1 | **chiuso senza unirlo** | superato: patch identica ad ae632778 dentro c-48 |
+| c-24 | solo schede | **unito con cherry-pick** | e2adfda3 e a03d2366 |
 | c-45 | in main (`ef545158`) | unito | mappa prima e dopo |
-| c-46 | in main (`41d63746`) | unito | quattro voci, file divisi, schermata dell'autopilota (c-509) |
-| c-46 (Revisione) | `note/revisione-c46.patch` nel worktree di c-46, mai entrata in main | **correzioni della Revisione riportate da c-52** sul ramo c-52 | 5 difetti: (1) in Adesso, con un autopilota aperto, la banda delle urgenze torna (`adessoDettaglio`); (2) il polso delle domande sta fuori dalla lista e si ferma nel dettaglio; (3) le domande non stanno più sopra gli autopiloti di un altro PC (`if (su == null) testa()`); (4) «Cerca» porta alla sezione giusta di Altro (`SezioneAltro.diImpostazione(id, voce)`: «quaderno-personale» → Quaderno, il resto di «chat» → Chat); (5) la riga riassuntiva è uguale fra app e pagina (`RiassuntoAutopilota.di(stato, fatti, criteri, …)`, parole di `statoInParole` anche sulla pagina). `git apply` falliva perché la patch non ha le righe `index`; con `patch -p1 -F3` sono entrate tutte le parti, con un solo spostamento di una riga in DettaglioAutopilota, controllato a mano. Test: vitest della pagina e del riassunto, tutto `tests/main` e typecheck verdi; i test Kotlin (`NavigazioneTest`, `SchedaAutopilotaTest`, `DomandeAdessoTest`) quando Gradle è libero, dopo c-48 |
-| c-47 | in main (`8004c69a`) | **chiuso, doppio di c-46** | c-510 faceva la stessa schermata di c-509; in main c'è solo la sua scheda |
-| c-48 | prima parte in main (`6c735bb2`); 5 commit fuori (ae632778…188824ed) | **da unire dopo la Revisione** | velocità; alle 15:30 sta ancora misurando. L'unione la fa il supervisore |
-| c-49 | in main (`896eb89e`, `31b542ce`) | unito; chat chiusa | leggibilità, giri 1 e 2, più il rosso AA |
-| c-50 | in main (`4c292282`) | unito; chat chiusa | pagina del telefono a quattro voci |
-| c-51 | in main (`24b85f93`, `214f3848`) | unito; chat chiusa | Rilascio: bozza delle novità e rapporto; il rilascio passa a una chat nuova |
-| c-52 | `ap/ap-f1e631f5/c-52` (questa chat) | da unire | Rilascio: versioni, novità, rapporto |
+| c-46 | in main (`41d63746`) | unito | quattro voci, file divisi, schermata dell'autopilota |
+| c-46 (Revisione) | 5 correzioni mai entrate in main | **riportate da c-52** (8af2c0c0) | banda delle urgenze nel dettaglio, polso fuori dalla lista, domande non sopra un altro PC, Cerca nella sezione giusta, riga riassuntiva uguale fra app e pagina |
+| c-47 | in main (`8004c69a`) | **chiuso, doppio di c-46** | stessa schermata di c-509 |
+| c-48 | in main (`651e898d`) | unito dal supervisore | velocità. Portava un test rosso (`copia-incolla`, `items` → `itemsIndexed`), corretto da c-52 nell'unione |
+| c-49 | in main | unito; chat chiusa | leggibilità |
+| c-50 | in main (`4c292282`) | unito; chat chiusa | pagina a quattro voci |
+| c-51 | in main | unito; chat chiusa | rapporto e bozza delle novità |
+| c-52 | `ap/ap-f1e631f5/c-52` (questa chat) | **da unire** (supervisore, con chiudiChat) | Rilascio: versioni, novità, correzioni di c-46, unione di c-48, foto, rapporto |
+| prova-unione-c48 | ramo cancellato | chiuso | era solo la prova dell'unione |
 
-## Cosa resta, in ordine (dopo l'unione di c-48)
-1. Fare `git fetch` e aggiornare il ramo c-52 da main.
-2. Ricontrollare i dati privati sul diff di c-48 e i file Kotlin sotto le 800 righe.
-3. Unire main nel ramo c-52 e risolvere i conflitti come nella prova del 21/10 (`prova-unione-c48`, scheda `0-83-0-unione-c48-con-correzioni-c46.md`):
-   - c'è un solo conflitto, in DomandeAdesso.kt: il polso resta fuori dalla lista e riceve la firma di c-48;
-   - va portata la correzione di `tests/main/copia-incolla.test.ts` per `itemsIndexed`;
-   - sulla prova Gradle, typecheck e `tests/main` (1861) sono verdi.
-4. Lanciare `cd android && gradle testDebugUnitTest assembleDebug --no-daemon`, un Gradle alla volta.
-5. Sull'emulatore `sd11`, con l'app di main e una copia di prova (`SIERRADECK_PROVA`):
-   - scrivere all'autopilota e vedere «Hai risposto: …»;
-   - fare le foto prima (2.82.0) e dopo di Adesso, Chat, Progetti, Altro e autopilota, in tema scuro e chiaro e con i caratteri a 1.3.
-6. Scrivere i numeri «dopo» di c-48 nella tabella del § 4 e la riga della velocità in `novita.ts`, al posto segnato.
-7. Mandare a Nicholas la mappa con le foto.
-8. Rilanciare tutti i controlli; poi la pubblicazione, quando la decide la regola del progetto: `npm run pubblica`, `npm run allega-apk`, release non bozza, controllo di latest.yml e app-android.json.
+## Da togliere a mano
+- La cartella `E:\Users\nikof\Documents\SierraDeck.sierradeck-wt\prova-unione-c48` (16 MB, fuori da git). `git worktree remove` si è fermato su percorsi troppo lunghi della build di Gradle, e non si forzano cancellazioni ricorsive.
+- `note/prova-c52/` nella copia c-52 (pagina e programma di passaggio, ignorati da git).
 
 ## Foto
+Tutte in `.sierradeck/quaderno/foto-0-83-0/` della cartella principale, copiate lì da c-52 perché restino dopo la chiusura della sua copia. Sono fuori da git per regola (`.gitignore`: le foto delle prove restano sul PC). JPEG larghi 540 px, nomi di PC e indirizzi coperti. **Il foglio da guardare per primo è `foglio-prima-dopo.jpg`**, una riga per schermata, con la 2.82.0 a sinistra e la 2.83.0 a destra.
 
-_Da aggiungere dopo c-48: prima e dopo per le quattro voci, l'autopilota e il tema scuro._
+| Schermata | Prima (2.82.0) | Dopo (2.83.0) |
+|---|---|---|
+| App, apertura | `prima-scuro-chat.jpg` (si apriva su Chat) | `dopo-scuro-adesso.jpg` (si apre su Adesso, domande in cima) |
+| App, domande | `prima-scuro-domande.jpg` | `dopo-scuro-adesso.jpg` |
+| App, Chat | `prima-scuro-chat.jpg` | `dopo-scuro-chat.jpg` |
+| App, Progetti e File | `prima-scuro-progetti.jpg`, `prima-scuro-file.jpg` | `dopo-scuro-progetti.jpg` |
+| App, Impostazioni → Altro | `prima-scuro-impostazioni.jpg` | `dopo-scuro-altro.jpg` |
+| App, autopilota | `prima-scuro-autopilota.jpg`, `prima-scuro-autopiloti.jpg` | `dopo-scuro-autopilota.jpg` |
+| App, autopilota con la tastiera | `prima-scuro-autopilota-tastiera.jpg` | `dopo-scuro-autopilota-tastiera.jpg`, `-scritto`, `-mandato` |
+| Pagina, apertura | `pagina-prima-domande.jpg` | `pagina-dopo-adesso.jpg` |
+| Pagina, Chat / Progetti / Altro | `pagina-prima-chat.jpg`, `-progetti`, `-impostazioni`, `-autopiloti` | `pagina-dopo-chat.jpg`, `-progetti`, `-altro` |
+| Pagina, autopilota | `pagina-prima-autopilota.jpg` | `pagina-dopo-autopilota.jpg` |
