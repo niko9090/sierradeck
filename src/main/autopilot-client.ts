@@ -168,6 +168,8 @@ export type ClientAutopilota = {
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
+/** Dopo un avvio che non ha riportato su il servizio, il prossimo aspetta tanto (0.84.0). */
+const MINUTO_FRA_AVVII_MS = 60_000
 
 export function creaClientAutopilota(p: {
   porta: number
@@ -188,9 +190,14 @@ export function creaClientAutopilota(p: {
    * è quello di prima: un servizio vivo va bene com'è.
    */
   versione?: string
+  /** L'orologio, per i test. */
+  adesso?: () => number
 }): ClientAutopilota {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
+  const adesso = p.adesso ?? Date.now
   let inVerifica: Promise<boolean> | undefined
+  /** Quando un avvio non ha riportato su il servizio (0.84.0). */
+  let avvioInutile: number | undefined
   const base = `http://127.0.0.1:${p.porta}`
 
   /**
@@ -397,12 +404,23 @@ export function creaClientAutopilota(p: {
         p.log?.(`[autopilota] il servizio non ha risposto alla salute in ${Math.round(attesaMs / 1000)} s ma è in ascolto: è occupato, non ne avvio un altro`)
         return vivo()
       }
+      // **Un avvio alla volta, al più uno al minuto** (0.84.0). Il 20/10 alle
+      // 14:33 e il 21/10 alle 07:27 il servizio era vivo ma fermo su git: la
+      // porta non accettava in mezzo secondo e ogni chiamata del pannello ne
+      // avviava un altro, che trovava la porta presa e usciva — 62 avvii il
+      // 20/10, a decine nello stesso minuto, su un PC già al limite.
+      if (avvioInutile !== undefined && adesso() - avvioInutile < MINUTO_FRA_AVVII_MS) {
+        p.log?.('[autopilota] il servizio non risponde e l\'ultimo avvio non l\'ha riportato su: aspetto prima di riprovare')
+        return false
+      }
       p.log?.('[autopilota] il servizio non è in ascolto: lo avvio')
       p.avviaServizio()
       // Un solo tentativo di riavvio: se non risale, insistere non cambierebbe
       // niente e il pannello deve poterlo dire subito invece di restare in
       // caricamento.
       await new Promise((r) => setTimeout(r, attesaMs))
-      return vivo()
+      const risalito = await vivo()
+      avvioInutile = risalito ? undefined : adesso()
+      return risalito
   }
 }
