@@ -23,3 +23,6 @@ Il servizio degli autopiloti, in locale sulla porta 47630, ha `POST /autopiloti/
 - Il 21/10 il suo messaggio è passato così al dialogo di ap-f1e631f5.
 
 **c-506 (a c-3, 21/10):** è arrivata anche a c-3 la priorità della schermata dell'autopilota. c-3 non la fa: è di c-46 (vedi sopra), e due chat sugli stessi file Kotlin si scontrano. c-3 non ha domande aperte sulla 0.81.1 e non può chiudere le chat delle altre: lo fa il supervisore con chiudiChat.
+
+**c-510 (a c-47, 21/10 12:35):** stessa consegna di c-509 (a c-46), parola per parola. c-46 ci lavora già: il commit 3316262c sul suo ramo fa la riga riassuntiva in alto, lascia sotto solo la conversazione e mette la casella sopra la tastiera (imePadding, consumeWindowInsets, adjustResize), nell'app e nella pagina. Alle 12:33 stava ancora cambiando DettaglioAutopilota.kt, BarraVoci.kt e i test. c-47 non tocca il codice: il ramo c-47 si chiude senza codice, perché doppio. Mancano ancora, e sono di c-46: la prova sull'emulatore («Hai risposto: …»), le foto prima e dopo, la Revisione e l'unione.
+**Trappola:** prima di partire, controllare `git log main..ap/<autopilota>/c-*` e le `consegne/` delle altre copie. Una consegna doppia si vede in un minuto.
