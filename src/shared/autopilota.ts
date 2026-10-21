@@ -1,4 +1,5 @@
 import { eRuolo, type Ruolo } from './ruoli-agenti'
+import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -227,6 +228,11 @@ export type ChatGovernata = SupervisoreMancato & {
    * servizio quando lo stato cambia (`conStatiDatati`).
    */
   dal?: string
+  /**
+   * L'ultimo segnale della chat all'autopilota (0.84.0): partita, va avanti,
+   * fatto, bloccata con il motivo, aspetta. Vedi `@shared/segnali-flotta`.
+   */
+  segnale?: SegnaleChat
 }
 
 /** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
@@ -621,7 +627,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...parseSupervisoreMancato(o),
     ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
       ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
-      : {})
+      : {}),
+    ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {})
   }
 }
 
