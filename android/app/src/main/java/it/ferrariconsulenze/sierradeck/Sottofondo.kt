@@ -158,8 +158,8 @@ fun DialogoSottofondo(api: Api, s: SessioneRipresa, onChiudi: () -> Unit) {
                 if (a != null) {
                     val riga = if (a.fase == "fatto") (if (a.testo != null) "Messaggio consegnato: la chat gira su $pc in sottofondo." else "Chat pronta su $pc, in sottofondo.") else Sottofondo.testoAvvio(a.fase, pc, a.testo != null)
                     Text(riga, color = if (a.fase == "errore") Banco.ambra else Banco.testo, fontSize = 13.sp)
-                    if (a.messaggio.isNotBlank()) Text(if (a.fase == "errore") "Perché: ${a.messaggio}" else "Da $pc: ${a.messaggio}", color = Banco.testoQuieto, fontSize = 11.sp)
-                    if (a.testo != null && a.fase != "fatto") Text("Il tuo messaggio, in attesa: «${a.testo.take(160)}». Non si perde: Riprova lo rimanda una volta sola.", color = Banco.testoQuieto, fontSize = 11.sp)
+                    if (a.messaggio.isNotBlank()) Text(if (a.fase == "errore") "Perché: ${a.messaggio}" else "Da $pc: ${a.messaggio}", color = Banco.testoQuieto, fontSize = 12.sp)
+                    if (a.testo != null && a.fase != "fatto") Text("Il tuo messaggio, in attesa: «${a.testo.take(160)}». Non si perde: Riprova lo rimanda una volta sola.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(8.dp))
                 }
                 OutlinedTextField(

@@ -185,7 +185,7 @@ private fun SchedaConversazione(api: Api, c: Conversazione, gia: String?, onMand
     Tessera(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(c.vista?.let { coloreVista(it.colore) } ?: if (c.chiede) Banco.ambra else Banco.testoQuieto))
+                Box(Modifier.size(10.dp).clip(CircleShape).background(c.vista?.let { coloreVista(it.colore) } ?: if (c.chiede) ColoreStato.ambra else ColoreStato.quieto))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(titoloConSegno(c), color = if (c.suPc != null) ColoreRemoto else Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)

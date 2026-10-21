@@ -1,6 +1,5 @@
 package it.ferrariconsulenze.sierradeck
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -392,12 +391,12 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                                 }
                                 if (voci.isEmpty()) Text("Nessuna chat su questo PC.", color = Banco.testoQuieto)
                                 for (x in voci) {
-                                    Row(Modifier.fillMaxWidth().clickable { scelte = if (x.sessione in scelte) scelte - x.sessione else scelte + x.sessione }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                                    Row(Modifier.fillMaxWidth().tocco { scelte = if (x.sessione in scelte) scelte - x.sessione else scelte + x.sessione }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                                         Checkbox(checked = x.sessione in scelte, onCheckedChange = { scelte = if (it) scelte + x.sessione else scelte - x.sessione })
                                         Column(Modifier.weight(1f)) {
                                             Text(x.titolo, color = Banco.testo, fontWeight = FontWeight.Medium, maxLines = 2)
-                                            Text(GestioneChatRegole.rigaVoce(x, adesso), color = Banco.testoQuieto, fontSize = 11.sp)
-                                            x.nonEliminabile?.let { Text(it, color = Banco.ambra, fontSize = 11.sp) }
+                                            Text(GestioneChatRegole.rigaVoce(x, adesso), color = Banco.testoQuieto, fontSize = 12.sp)
+                                            x.nonEliminabile?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
                                         }
                                     }
                                     HorizontalDivider(color = Banco.incisione)
@@ -413,7 +412,7 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Column(Modifier.weight(1f)) {
                                             Text(a.titolo ?: a.sessione.take(8), color = Banco.testo, maxLines = 2)
-                                            Text(GestioneChatRegole.rigaArchiviata(a), color = Banco.testoQuieto, fontSize = 11.sp)
+                                            Text(GestioneChatRegole.rigaArchiviata(a), color = Banco.testoQuieto, fontSize = 12.sp)
                                         }
                                         TextButton(enabled = !inCorso, onClick = { esegui("rimettere la chat") { api.azioneChat("ripristina", listOf(a.sessione)).let { it.messaggio to GestioneChatRegole.rifiuti(it) } } }) { Text("Ripristina") }
                                     }
@@ -435,7 +434,7 @@ fun SpazioDelleChat(api: Api, nomePc: String?, onChiudi: () -> Unit) {
                                     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Column(Modifier.weight(1f)) {
                                             Text(c.titolo, color = Banco.testo, maxLines = 2)
-                                            Text(GestioneChatRegole.rigaRecupero(c, adesso), color = Banco.testoQuieto, fontSize = 11.sp)
+                                            Text(GestioneChatRegole.rigaRecupero(c, adesso), color = Banco.testoQuieto, fontSize = 12.sp)
                                         }
                                         TextButton(enabled = !inCorso, onClick = { esegui("rimettere la chat") { api.ripristinaDalRecupero(c.id).messaggio to emptyList() } }) { Text("Ripristina") }
                                     }

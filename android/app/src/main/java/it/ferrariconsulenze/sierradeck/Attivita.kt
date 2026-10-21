@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -64,6 +63,20 @@ object Attivita {
     }
 }
 
+/**
+ * I colori degli stati — al lavoro, aspetta te, ferma, finita — dalla stessa
+ * tabella del PC (0.83.0). Prima ogni schermata se li prendeva dal banco, e
+ * «ferma» era il rosso scuro (#dc5f5f) invece di quello della tabella: sui
+ * fondi alti scendeva sotto AA. Per uno **stato** si usa questo, non `Banco`.
+ */
+object ColoreStato {
+    val verde: Color get() = Attivita.colore("verde")
+    val ambra: Color get() = Attivita.colore("ambra")
+    val rosso: Color get() = Attivita.colore("rosso")
+    val quieto: Color get() = Attivita.colore("quieto")
+    val blu: Color get() = Attivita.colore("blu")
+}
+
 /** Il simbolo di cosa fa una chat, nel suo colore. */
 @Composable
 fun SegnoAttivita(id: String, modifier: Modifier = Modifier) {
@@ -79,7 +92,7 @@ fun SegnoAttivita(id: String, modifier: Modifier = Modifier) {
 fun LegendaAttivita(modifier: Modifier = Modifier) {
     var aperto by remember { mutableStateOf(false) }
     Box(
-        modifier.size(32.dp).clickable { aperto = true }.semantics { contentDescription = "Legenda: ${TabellaAttivita.TITOLO_LEGENDA}" },
+        modifier.size(48.dp).tocco { aperto = true }.semantics { contentDescription = "Legenda: ${TabellaAttivita.TITOLO_LEGENDA}" },
         contentAlignment = Alignment.Center
     ) {
         Box(Modifier.size(20.dp).border(1.dp, Banco.testoQuieto, CircleShape), contentAlignment = Alignment.Center) {

@@ -206,7 +206,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         val uri = LocalUriHandler.current
         Spacer(Modifier.height(8.dp))
         Column(Modifier.fillMaxWidth().border(1.dp, Banco.ambra, MaterialTheme.shapes.small).padding(12.dp)) {
-            Text("L’ULTIMA INSTALLAZIONE NON È RIUSCITA", color = Banco.ambra, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("L’ULTIMA INSTALLAZIONE NON È RIUSCITA", color = Banco.ambra, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text(testoTentativoFallito(fallito), color = Banco.testo, fontSize = 13.sp)
             linkAmmessoApp(fallito.pagina)?.let { link ->
@@ -345,7 +345,7 @@ private fun RiquadroAggiornamento(
             }
             if (poscritto != null) {
                 Spacer(Modifier.height(6.dp))
-                Text(poscritto, color = Banco.testoQuieto, fontSize = 11.sp)
+                Text(poscritto, color = Banco.testoQuieto, fontSize = 12.sp)
             }
         }
     }

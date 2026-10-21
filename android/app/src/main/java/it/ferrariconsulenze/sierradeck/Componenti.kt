@@ -13,6 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.minimumInteractiveComponentSize
 
 /**
  * I due gesti grafici del banco, in un posto solo.
@@ -57,7 +59,7 @@ fun Serigrafia(testo: String, colore: Color = Banco.accento, modifier: Modifier 
     Text(
         text = testo.uppercase(),
         color = colore,
-        fontSize = 11.sp,
+        fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 1.5.sp,
         modifier = modifier
@@ -88,3 +90,12 @@ fun Voce(testo: String, attiva: Boolean, onClick: () -> Unit) {
         )
     }
 }
+
+/**
+ * Un tocco sempre di almeno 48 dp (0.83.0), come i tasti di Material: le righe
+ * e le pastiglie fatte a mano con `clickable` erano alte 28-36 dp, e di sera,
+ * col telefono in una mano, si prendeva la riga accanto. Al posto di
+ * `clickable`, stessa forma.
+ */
+fun Modifier.tocco(enabled: Boolean = true, onClick: () -> Unit): Modifier =
+    this.clickable(enabled = enabled, onClick = onClick).minimumInteractiveComponentSize()

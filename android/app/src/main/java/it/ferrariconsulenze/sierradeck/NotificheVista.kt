@@ -33,7 +33,7 @@ fun InterruttoriNotifiche() {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
                     Column(Modifier.weight(1f)) {
                         Text(t.nome, color = Banco.testo, fontSize = 14.sp)
-                        Text(t.spiega, color = Banco.testoQuieto, fontSize = 11.sp)
+                        Text(t.spiega, color = Banco.testoQuieto, fontSize = 12.sp)
                     }
                     Switch(
                         checked = Notifiche.suona(t, scelte),

@@ -177,7 +177,7 @@ fun VistaTerminale(
                 Text(
                     guasto,
                     color = Banco.ambra,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                 )
             }

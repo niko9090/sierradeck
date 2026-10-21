@@ -113,7 +113,7 @@ function componiPagina(): string {
        il Foglio sul computer non cambiava niente qui. Questi sono i valori del
        telefono - piu' grandi, perche' 10px a braccio teso non si leggono - e
        vestiti() li rimette sopra quelli del computer, sugli stessi nomi. */
-    --t0: 11px; --t1: 13px; --t2: 15px; --t3: 17px; --t4: 22px;
+    --t0: 0.75rem; --t1: 0.8125rem; --t2: 0.9375rem; --t3: 1.0625rem; --t4: 1.375rem;
     --s1: 6px; --s2: 12px; --s3: 18px; --s4: 28px;
     /* Il raggio arriva come arriva: l'identita' non si adatta. I 14px di prima
        erano la ragione singola per cui questa pagina sembrava un modulo web
@@ -123,15 +123,15 @@ function componiPagina(): string {
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0; background: var(--fondo-cupo); color: var(--testo);
-    font: 16px/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font: 100%/1.5 'Segoe UI', system-ui, -apple-system, sans-serif;
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
   header {
     position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
     padding: 14px 16px; background: var(--fondo); border-bottom: 1px solid var(--bordo);
   }
-  header b { font-size: 15px; letter-spacing: .04em; }
-  header span { margin-left: auto; font-size: 12px; color: var(--testo-quieto); }
+  header b { font-size: 0.9375rem; letter-spacing: .04em; }
+  header span { margin-left: auto; font-size: 0.75rem; color: var(--testo-quieto); }
   /* «minmax(0, 1fr)» e non «1fr»: in una griglia la colonna cresce fino al
      contenuto piu' largo, e basta una riga di terminale che non va a capo
      perche' **tutte** le piastrelle diventino piu' larghe dello schermo. Cosi'
@@ -169,8 +169,8 @@ function componiPagina(): string {
   .pan-tel-testa { display: flex; gap: 6px; align-items: baseline; overflow: hidden; white-space: nowrap; }
   .pan-tel-scheda--chiede .pan-tel-pallino { color: var(--ambra); } .pan-tel-scheda--lavora .pan-tel-pallino { color: var(--verde); }
   .segno-attivita { font-weight: 700; flex: none; } /* 0.82.0: il simbolo di cosa fa una chat, nel suo colore fisso */
-  .pan-tel-azione { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 11px; color: var(--testo-quieto); }
+  .pan-tel-azione { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pan-tel-righe { display: flex; flex-direction: column; font-family: var(--mono, monospace); font-size: 0.75rem; color: var(--testo-quieto); }
   .pan-tel-righe span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* Panoramica 2 (0.78.0): situazione, adesso, piano a liste, chat, finite; tocchi da 48 px. */
   .pan-tel2 .serigrafia { margin-top: 12px; }
@@ -179,14 +179,14 @@ function componiPagina(): string {
   .pan-tel-al-lavoro { display: flex; gap: 8px; align-items: flex-start; width: 100%; min-height: 48px; margin-top: 6px; padding: 8px 10px; text-align: left; border: 1px solid var(--incisione); border-left: 3px solid var(--verde); border-radius: 8px; background: none; color: var(--testo); font: inherit; }
   .pan-tel-al-lavoro--chiede { border-left-color: var(--ambra); }
   .pan-tel-al-lavoro__testo { display: flex; flex-direction: column; min-width: 0; }
-  .nota-ap.nota-ap--traguardo { font-size: 13px; color: var(--testo); border-left-color: var(--verde); }
+  .nota-ap.nota-ap--traguardo { font-size: 0.8125rem; color: var(--testo); border-left-color: var(--verde); }
   /* Il campo per scrivere all'autopilota resta in fondo allo schermo, sopra la fascia (0.79.0, con .ancorata). */
   .casella-ap { z-index: 2; }
   /* Compatto (prova dal vero del 18/10): alto 190 px copriva la fine della conversazione. */
   .casella-ap { border-top: 1px solid var(--bordo, #2a2f3a); }
   .casella-ap .riga { margin: 4px 0; }
   .casella-ap textarea { min-height: 52px; max-height: 30vh; }
-  .casella-ap button { min-height: 40px; padding: 4px 12px; }
+  .casella-ap button { min-height: 48px; padding: 4px 12px; }
   .pan-tel-situazione { display: flex; flex-direction: column; gap: 4px; }
   .pan-tel-obiettivo { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-apri { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 4px; padding: 0 8px; text-align: left; background: none; border: 0; border-top: 1px solid var(--bordo, #2a2f3a); color: var(--testo); }
@@ -199,9 +199,9 @@ function componiPagina(): string {
   .pan-tel-compito { display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 48px; margin-top: 6px; padding: 8px 10px; text-align: left; border: 1px solid var(--bordo, #2a2f3a); border-radius: 8px; background: var(--chassis); color: var(--testo); }
   .pan-tel-compito--chiuso { color: var(--testo-quieto); }
   .pan-tel-compito__testo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .pan-tel-eventi .nota-ap { font-size: 12px; }
-  .fascia__nome { font-size: 10px; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
-  .fascia__icona { position: relative; font-size: 18px; line-height: 1; }
+  .pan-tel-eventi .nota-ap { font-size: 0.75rem; }
+  .fascia__nome { font-size: 0.75rem; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
+  .fascia__icona { position: relative; font-size: 1.125rem; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
   .fascia .led { margin-right: 0; }
   /* Una destinazione senza niente da segnalare non porta un puntino grigio:
@@ -214,7 +214,7 @@ function componiPagina(): string {
   .drive-riga .led { margin-top: 4px; flex: 0 0 auto; }
   .drive-riga__testo { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
   .drive-riga summary { color: var(--testo-quieto); cursor: pointer; margin-top: 2px; }
-  .drive-riga__chiudi { flex: 0 0 auto; min-width: 36px; min-height: 36px; background: none; border: 0; color: var(--testo-quieto); font-size: 18px; }
+  .drive-riga__chiudi { flex: 0 0 auto; min-width: 48px; min-height: 48px; background: none; border: 0; color: var(--testo-quieto); font-size: 1.125rem; }
   .piastrella {
     background: var(--chassis); border: 1px solid var(--bordo);
     border-radius: var(--raggio); padding: var(--s3);
@@ -229,7 +229,10 @@ function componiPagina(): string {
     width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; margin-left: 6px;
     border-radius: 50%; font-size: var(--t1); font-weight: 700; line-height: 1;
     color: var(--testo-quieto); background: var(--chassis); border: 1px solid var(--luce-incisione);
+    position: relative;
   }
+  /* Il «?» resta piccolo da vedere ma si tocca su 48px (0.83.0). */
+  .aiuto::after { content: ''; position: absolute; inset: -12px; }
   .aiuto--aperto { color: var(--testo); border-color: var(--testo-quieto); }
   .aiuto-testo {
     display: block; width: 100%; flex-basis: 100%; box-sizing: border-box; margin: 6px 0;
@@ -304,7 +307,7 @@ function componiPagina(): string {
 
   /* Quando il computer non risponde. Non un avviso fra gli altri: cambia il
      significato di tutto quello che sta sotto, quindi sta sopra tutto. */
-  .linea-pagina { margin: 6px 16px 0; font-size: 12px; opacity: .8; cursor: pointer; letter-spacing: .5px; }
+  .linea-pagina { margin: 6px 16px 0; font-size: 0.75rem; opacity: .8; cursor: pointer; letter-spacing: .5px; }
   .linea-pagina--giu { color: #dc5f5f; opacity: 1; }
   .linea-pagina--ambra { color: #e0a33c; }
   .schermata--giu .dentro, .schermata--giu .voce, .schermata--giu .piastrella:not(.linea-fascia) { opacity: .5; filter: grayscale(.6); }
@@ -348,7 +351,7 @@ function componiPagina(): string {
   .testata-dentro { display: flex; align-items: center; gap: var(--s2); }
   .testata-dentro__nome { flex: 1; min-width: 0; font-size: var(--t3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .indietro, .altro {
-    min-width: 44px; min-height: 44px; padding: 0; font-size: var(--t4);
+    min-width: 48px; min-height: 48px; padding: 0; font-size: var(--t4);
     background: none; border: 0; box-shadow: none; color: var(--testo-quieto);
   }
   /* Il percorso e' un dettaglio, non un titolo: tagliato **da sinistra**,
@@ -416,7 +419,7 @@ function componiPagina(): string {
   /* Quando domina una domanda, tutto il resto collassa qui dentro. */
   .riga-altro {
     width: 100%; text-align: left; background: none; border: 0; box-shadow: none;
-    color: var(--testo-quieto); font-size: var(--t2); padding: var(--s2) 0; min-height: 44px;
+    color: var(--testo-quieto); font-size: var(--t2); padding: var(--s2) 0; min-height: 48px;
   }
   /* Bersagli grandi: si usa in piedi, con una mano, e un tasto piccolo su un
      telefono e' un tasto che si sbaglia. */
@@ -451,23 +454,23 @@ function componiPagina(): string {
      diventava larga 537 px su un telefono da 390, e il «?» e i tasti a destra finivano fuori schermo. */
   select { max-width: 100%; min-width: 0; }
   .ws { display: flex; gap: var(--s2); flex-wrap: wrap; }
-  .ws button { padding: 10px 14px; min-height: 44px; }
+  .ws button { padding: 10px 14px; min-height: 48px; }
   .ws button.attivo { border-color: var(--accento); color: var(--testo); }
   /* Il menu dei workspace (0.82.0): la ricerca in cima, i gruppi, «⋯» per riga.
      L'elenco ha un'altezza massima e scorre dentro: con 30 workspace la pagina non diventa lunghissima. */
   .ws-cerca { width: 100%; box-sizing: border-box; margin-top: var(--s2); }
   .ws-elenco { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; margin-top: var(--s2); }
   .ws-gruppo + .ws-gruppo { margin-top: var(--s2); }
-  .ws-titolo { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
+  .ws-titolo { font-size: 0.75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
   .ws-riga { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--incisione); }
   .ws-riga.attivo { background: var(--chassis-premuto); border-radius: var(--raggio); }
   .ws-riga.attivo .ws-segno { color: var(--accento); }
   .ws-riga .ws-va, .ws-riga .ws-altro { border: 0; background: transparent; box-shadow: none; }
-  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 44px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 48px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
   .ws-riga .ws-segno { width: 14px; flex: none; }
   .ws-riga .ws-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ws-riga .ws-conta { margin-left: auto; font-size: 12px; color: var(--testo-quieto); white-space: nowrap; }
-  .ws-riga .ws-altro { min-width: 44px; min-height: 44px; padding: 0; font-size: 18px; color: var(--testo-quieto); }
+  .ws-riga .ws-conta { margin-left: auto; font-size: 0.75rem; color: var(--testo-quieto); white-space: nowrap; }
+  .ws-riga .ws-altro { min-width: 48px; min-height: 48px; padding: 0; font-size: 1.125rem; color: var(--testo-quieto); }
   .ws-riga .ws-altro[aria-expanded="true"] { color: var(--accento); }
   .ws-azioni { flex-wrap: wrap; margin: 0 0 var(--s2) 0; padding-left: 26px; }
   /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
@@ -475,7 +478,7 @@ function componiPagina(): string {
   .vuoto { color: var(--testo-quieto); text-align: center; padding: var(--s4) var(--s2); font-size: var(--t2); }
   .nota-chiusa { margin: var(--s2); padding: var(--s2); border-radius: 8px; background: var(--fondo-alto, rgba(127,127,127,.12)); font-size: var(--t2); }
   .ingresso { max-width: 380px; margin: 40px auto; padding: 0 18px; text-align: center; }
-  .ingresso input { width: 100%; text-align: center; font-size: 26px; letter-spacing: .3em; margin: 16px 0; }
+  .ingresso input { width: 100%; text-align: center; font-size: 1.625rem; letter-spacing: .3em; margin: 16px 0; }
   .errore { color: var(--ambra); font-size: var(--t1); margin-top: var(--s2); }
   /* Il negozio (0.53.0): una voce per riga, lo stato col colore che decide il computer. */
   .neg-voce { border-top: 1px solid var(--bordo); padding: 8px 0; }
@@ -555,7 +558,7 @@ function componiPagina(): string {
   .passi { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .passo {
     display: inline-flex; align-items: center; gap: 6px;
-    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    font-size: 0.75rem; letter-spacing: .09em; text-transform: uppercase;
     color: var(--testo-quieto);
   }
   .passo-led {
@@ -588,27 +591,27 @@ function componiPagina(): string {
   /* La percentuale, con il colore di cio' che misura: i giri della
      preparazione non sono i criteri del lavoro. */
   .misura { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
-  .misura b { font-size: 26px; font-variant-numeric: tabular-nums; }
+  .misura b { font-size: 1.625rem; font-variant-numeric: tabular-nums; }
   .misura--preparazione b { color: var(--accento) }
   .misura--lavoro b { color: var(--verde) }
   .misura--attesa b { color: var(--ambra) }
   .misura--fermo b { color: var(--rosso) }
 
-  .criteri { list-style: none; margin: 12px 0 0; padding: 0; font-size: 13px; color: var(--testo-quieto); }
+  .criteri { list-style: none; margin: 12px 0 0; padding: 0; font-size: 0.8125rem; color: var(--testo-quieto); }
   .criteri li { padding: 3px 0; }
   .criteri li.fatto { color: var(--verde); }
 
-  .serigrafia { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
+  .serigrafia { font-size: 0.75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--testo-quieto); }
   /* Una riga fitta dentro un dettaglio (le decisioni). Prima si chiamava
      «.voce» come le righe degli elenchi, e scritta dopo le sovrascriveva: chat
      e autopiloti in elenco perdevano il margine e diventavano grigio chiaro. */
-  .voce--riga { font-size: 12px; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; min-height: 0; background: none; border: 0; }
+  .voce--riga { font-size: 0.75rem; color: var(--testo-quieto); padding: 4px 0; display: flex; gap: 8px; min-height: 0; background: none; border: 0; }
   /* Il dialogo con l'autopilota: le tue battute a destra, le sue a sinistra,
      come in ogni conversazione. */
-  .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 13px; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .battuta { display: flex; flex-direction: column; gap: 2px; max-width: 92%; margin: 6px 0; padding: 6px 10px; border-radius: 10px; font-size: 0.8125rem; color: var(--testo); white-space: pre-wrap; overflow-wrap: anywhere; }
   .battuta--tu { margin-left: auto; background: color-mix(in srgb, var(--accento) 12%, transparent); }
   .battuta--lui { margin-right: auto; background: color-mix(in srgb, var(--verde) 10%, transparent); }
-  .battuta__chi, .battuta__esito { font-size: 11px; color: var(--testo-quieto); }
+  .battuta__chi, .battuta__esito { font-size: 0.75rem; color: var(--testo-quieto); }
   .adesso-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); }
   .adesso-ap__riga { font-size: var(--t1); line-height: 1.35; overflow-wrap: anywhere; }
   .adesso-ap__compito { color: var(--testo-quieto); }
@@ -617,7 +620,7 @@ function componiPagina(): string {
      sue decisioni sono note quiete con il filo colorato a sinistra. */
   .flusso-ap { max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-right: 2px; }
   .battuta--domanda, .battuta--pronto { border: 1px solid var(--ambra); background: color-mix(in srgb, var(--ambra) 10%, transparent); }
-  .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
+  .nota-ap { display: flex; gap: 8px; margin: 2px 0; padding-left: 8px; border-left: 2px solid var(--bordo); font-size: 0.75rem; color: var(--testo-quieto); }
   /* La linguetta «File» e il diff (0.38.0). */
   .file-ap { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
   .file-ap--scelto { border-color: var(--ambra); }
@@ -629,16 +632,16 @@ function componiPagina(): string {
   /* La linguetta «Istruzioni» (0.41.0). */
   .istr-ap { border: 1px solid var(--bordo); border-radius: 8px; padding: 6px 8px; margin-top: 8px; }
   .istr-ap summary { cursor: pointer; }
-  .istr-ap__testo { margin-top: 6px; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; }
-  .istr-ap__esito { font-size: 11px; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
+  .istr-ap__testo { margin-top: 6px; user-select: text; -webkit-user-select: text; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.45; }
+  .istr-ap__esito { font-size: 0.75rem; padding: 0 6px; border-radius: 999px; border: 1px solid currentColor; }
   .istr-ap__esito--partita, .istr-ap__esito--consegnata { color: var(--verde); }
   .istr-ap__esito--in-coda { color: #e0a33c; }
   .istr-ap__esito--non-partita, .istr-ap__esito--persa { color: #dc5f5f; }
   .md-titolo { font-weight: 700; margin-top: 6px; }
   .md-voce { padding-left: 8px; }
   .md-vuota { height: 6px; }
-  .md-blocco { background: rgba(127,127,127,.12); padding: 6px; overflow: auto; font-size: 12px; }
-  .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .md-blocco { background: rgba(127,127,127,.12); padding: 6px; overflow: auto; font-size: 0.75rem; }
+  .diff-ap { margin: 6px 0 0; max-height: 60vh; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 0.75rem; }
   .diff-ap__riga { white-space: pre; padding: 0 4px; }
   .diff-ap__riga--piu { background: rgba(84, 192, 122, .18); }
   .diff-ap__riga--meno { background: rgba(220, 95, 95, .18); }
@@ -657,17 +660,17 @@ function componiPagina(): string {
   .info-ap { margin-left: auto; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--bordo); border-radius: 50%; }
   /* Le linguette sotto la chat: una cosa per volta. */
   .linguette { display: flex; gap: 4px; margin-top: 12px; border-bottom: 1px solid var(--bordo); overflow-x: auto; }
-  .linguetta { flex: 0 0 auto; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 10px; font-size: 12px; color: var(--testo-quieto); min-height: 0; }
+  .linguetta { flex: 0 0 auto; background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 10px; font-size: 0.75rem; color: var(--testo-quieto); min-height: 0; }
   .linguetta--attiva { color: var(--testo); border-bottom-color: var(--verde); }
-  .linguetta small { color: var(--testo-quieto); font-size: 10px; }
+  .linguetta small { color: var(--testo-quieto); font-size: 0.75rem; }
   .tab-ap { padding-top: 10px; }
-  .compiti-ap { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--testo); }
+  .compiti-ap { margin: 4px 0 0; padding-left: 18px; font-size: 0.8125rem; color: var(--testo); }
   .voce .quando { font-family: ui-monospace, Consolas, monospace; color: var(--spento); }
 
   /* Il tasto che sta per disfare qualcosa lo dice, per un attimo: il secondo
      tocco e' la conferma, e il colore e' quello di uno stato, non un ornamento. */
   button.pericolo { border-color: var(--rosso); color: var(--rosso); }
-  .spunta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--testo-quieto); }
+  .spunta { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: var(--testo-quieto); }
   .spunta input { width: 20px; height: 20px; }
 
   /* La gestione delle chat (0.79.0). */
@@ -680,9 +683,9 @@ function componiPagina(): string {
   .gc-rifiuti { margin: 6px 0 0; padding-left: 18px; font-size: var(--t1); color: var(--ambra); }
   .numeri { display: flex; gap: 6px; }
   .numero { flex: 1; text-align: center; }
-  .numero b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; }
+  .numero b { display: block; font-size: 1.625rem; font-variant-numeric: tabular-nums; }
   .numero b.v { color: var(--verde) } .numero b.a { color: var(--ambra) }
-  .numero span { font-size: 11px; color: var(--testo-quieto); }
+  .numero span { font-size: 0.75rem; color: var(--testo-quieto); }
 </style>
 </head>
 <body>
@@ -1329,8 +1332,8 @@ function vistaConversazioni() {
   var nAspettano = tutte.filter(function (c) { return c.vista ? (c.vista.id !== 'finito' && c.vista.id !== 'risposta') : c.chiede }).length
   var elenco = filtro === 'aspettano' ? tutte.filter(aspettaTeConv) : tutte
   var filtri = tutte.length === 0 ? '' : '<div class="riga" style="gap:6px;flex-wrap:wrap">' +
-    '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +
-    '<button' + (filtro === 'tutte' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'tutte\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px">Tutte ' + tutte.length + '</button></div>'
+    '<button' + (filtro === 'aspettano' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'aspettano\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px">Aspettano te ' + nAspettano + '</button>' +
+    '<button' + (filtro === 'tutte' ? ' class="primario"' : '') + ' onclick="filtroDomande(\\'tutte\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px">Tutte ' + tutte.length + '</button></div>'
   if (elenco.length === 0 && tutte.length > 0) {
     return filtri + '<div class="piastrella"><div class="sotto">Niente ti aspetta. Le chat che hanno finito il turno sono in «Tutte».</div></div>'
   }
@@ -1536,10 +1539,10 @@ function ingresso(messaggio) {
   app.innerHTML = \`
     <div class="ingresso">
       ${LOGO}
-      <div style="font-size:19px;margin-bottom:6px">SierraDeck</div>
+      <div style="font-size:1.1875rem;margin-bottom:6px">SierraDeck</div>
       <div class="sotto">Sul computer apri <b>Impostazioni → Client</b> e leggi il codice.</div>
       <input id="codice" inputmode="numeric" maxlength="6" placeholder="······" aria-label="codice">
-      <input id="nome" placeholder="nome di questo dispositivo" style="font-size:15px;letter-spacing:normal">
+      <input id="nome" placeholder="nome di questo dispositivo" style="font-size:0.9375rem;letter-spacing:normal">
       <button class="primario" id="entra" style="margin-top:12px">Collega</button>
       <div class="errore" id="errore">\${esc(messaggio || '')}</div>
     </div>\`
@@ -2142,7 +2145,7 @@ function pannello(s) {
       </div>\` : ''}
     \${pinDentro ? \`
     <div class="piastrella" style="text-align:center">
-      <div style="font-size:38px">🔒</div>
+      <div style="font-size:2.375rem">🔒</div>
       <div><b>Questa chat è protetta dal PIN</b>\${aiuto('pin', 'Continua a lavorare sul computer: qui non si vede e non si scrive finché non metti il PIN. Lo controlla il computer, e la chat si richiude da sola dopo il tempo di inattività scelto là.')}</div>
       <div class="riga">
         <input id="pin-dentro" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off">
@@ -2172,7 +2175,7 @@ function pannello(s) {
       <button onclick="scrivi('\${escJs(aperta.id)}')">Invia</button>
     </div>\`}\`
     : '<div class="sotto" style="padding:6px 16px 0">' + esc(riassuntoChat(s.chat || [])) + '</div>' + gruppiChat(s).map((g) =>
-      '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:11px">' +
+      '<div class="sotto" style="padding:10px 16px 2px;letter-spacing:.08em;text-transform:uppercase;font-size:0.75rem">' +
         esc(g.workspace) + (g.attivo ? ' · davanti' : '') + ' · ' + g.voci.length + '</div>' +
       (g.voci.length === 0
         ? '<div class="sotto" style="padding:2px 24px 8px">nessuna chat</div>'
@@ -2369,7 +2372,7 @@ function pannello(s) {
     const gruppo = saluteGruppo || (conti.sistemare > 0 ? 'sistemare' : 'computer')
     let corpo = '<div class="sotto" style="margin-top:6px;color:' + colore(saluteVista.tono) + '"><b>' + esc(saluteVista.riassunto) + '</b></div>' +
       '<div class="riga" style="gap:6px;flex-wrap:wrap">' + [['sistemare', 'Da sistemare'], ['computer', 'Computer'], ['drive', 'Drive'], ['errori', 'Errori'], ['tutto', 'Tutto']].map((g) =>
-        '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
+        '<button' + (gruppo === g[0] ? ' class="primario"' : '') + ' onclick="gruppoSalute(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px' + (g[0] === 'sistemare' && conti.sistemare > 0 ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>'
     const voci = tutte.filter((v) => gruppo === 'tutto' || gruppiDi(v).indexOf(gruppo) >= 0)
     // 0.81.0: le azioni che si fanno solo dal computer, dette una volta qui in cima, non riga per riga.
     const soloPc = azioniSoloDalComputer(voci)
@@ -4782,7 +4785,7 @@ function alberoHtml(a) {
       var led = f.stato === 'lavoro' ? 'lavoro' : f.stato === 'bloccata' ? 'attesa' : 'spenta'
       return '<div class="sotto" style="margin-left:6px;padding-left:12px;border-left:1px solid var(--bordo)">' +
         '<span class="led ' + led + '"></span>' +
-        (f.ruolo ? '<span class="ruolo-chat" style="color:' + coloreRuolo(f.ruolo.colore) + ';border:1px solid ' + coloreRuolo(f.ruolo.colore) + ';border-radius:999px;padding:0 6px;margin-right:4px;font-size:11px">' + esc(f.ruolo.parola) + '</span>' : '') +
+        (f.ruolo ? '<span class="ruolo-chat" style="color:' + coloreRuolo(f.ruolo.colore) + ';border:1px solid ' + coloreRuolo(f.ruolo.colore) + ';border-radius:999px;padding:0 6px;margin-right:4px;font-size:0.75rem">' + esc(f.ruolo.parola) + '</span>' : '') +
         esc(f.titolo) + ' · ' + esc(f.parola) + (f.approvata ? ' · approvato e unito' : '') + ' · ' + f.cicli + (f.cicli === 1 ? ' giro' : ' giri') +
         (f.ramo ? ' · <span class="percorso" style="display:inline">' + esc(f.ramo) + '</span>' : '') + '</div>'
     }).join('')
@@ -4884,7 +4887,7 @@ function bloccoNoteHtml(b) {
   if (!b) return ''
   if (b.tipo === 'titolo') return '<div style="margin-top:8px"><b>' + pezzi(b.pezzi) + '</b></div>'
   if (b.tipo === 'paragrafo') return '<div class="sotto" style="margin-top:6px">' + pezzi(b.pezzi) + '</div>'
-  if (b.tipo === 'codice') return '<pre style="white-space:pre-wrap;font-size:12px">' + esc(b.testo) + '</pre>'
+  if (b.tipo === 'codice') return '<pre style="white-space:pre-wrap;font-size:0.75rem">' + esc(b.testo) + '</pre>'
   if (b.tipo === 'elenco') return '<ul style="margin:6px 0 0 0;padding-left:18px">' + (b.voci || []).map(function (v) { return '<li class="sotto" style="margin-top:6px">' + pezzi(v) + '</li>' }).join('') + '</ul>'
   return ''
 }
@@ -4983,8 +4986,8 @@ function quadernoHtml(schede, aperta, tag, cartella, ora) {
   h += '<div class="riga" style="gap:6px"><input placeholder="Cerca fra le schede" value="' + esc(quadernoQ) + '" oninput="quadernoCerca(this.value)" style="flex:1;min-width:0"></div>'
   if (tags.length) {
     h += '<div class="riga" style="gap:4px;flex-wrap:wrap">' +
-      '<button' + (tag ? '' : ' class="primario"') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'\\')">Tutte ' + tutte.length + '</button>' +
-      tags.map((t) => '<button' + (tag === t ? ' class="primario"' : '') + ' style="flex:none;width:auto;min-height:0;padding:6px 12px" onclick="quadernoSceltaTag(\\'' + escJs(t) + '\\')">' + esc(t) + ' ' + conti[t] + '</button>').join('') + '</div>'
+      '<button' + (tag ? '' : ' class="primario"') + ' style="flex:none;width:auto;min-height:48px;padding:6px 12px" onclick="quadernoSceltaTag(\\'\\')">Tutte ' + tutte.length + '</button>' +
+      tags.map((t) => '<button' + (tag === t ? ' class="primario"' : '') + ' style="flex:none;width:auto;min-height:48px;padding:6px 12px" onclick="quadernoSceltaTag(\\'' + escJs(t) + '\\')">' + esc(t) + ' ' + conti[t] + '</button>').join('') + '</div>'
   }
   const viste = tutte.filter((x) => !tag || (x.tag || []).indexOf(tag) >= 0).slice().sort((a, b) => (b.quando > a.quando ? 1 : b.quando < a.quando ? -1 : 0))
   h += viste.map((x) => {
@@ -5370,7 +5373,7 @@ function pdElencoHtml() {
   for (const x of righe) for (const g of x.v.gruppi) conti[g] = (conti[g] || 0) + 1
   if (pdGruppo === 'da-sistemare' && conti['da-sistemare'] === 0) pdGruppo = 'tutti'
   let h = '<div class="riga" style="flex-wrap:wrap;gap:6px;margin-top:6px">' +
-    PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:0;padding:6px 12px;font-size:15px' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
+    PD_GRUPPI.filter((g) => g[0] !== 'da-sistemare' || conti['da-sistemare'] > 0).map((g) => '<button' + (pdGruppo === g[0] ? ' class="primario"' : '') + ' onclick="pdGruppoScegli(\\'' + g[0] + '\\')" style="flex:none;width:auto;min-height:48px;padding:6px 12px;font-size:0.9375rem' + (g[0] === 'da-sistemare' ? ';color:var(--ambra,#e0a33c)' : '') + '">' + g[1] + ' ' + conti[g[0]] + '</button>').join('') + '</div>' +
     '<div class="riga" style="gap:6px"><input placeholder="Cerca progetto o PC" title="Cerca per progetto, PC o cartella" value="' + esc(pdQ) + '" oninput="pdCerca(this.value)" style="flex:1;min-width:0">' +
     '<select onchange="pdOrdina(this.value)" title="Ordina">' + PD_ORDINI.map((o) => '<option value="' + o[0] + '"' + (pdOrdine === o[0] ? ' selected' : '') + '>⇅ ' + o[1] + '</option>').join('') + '</select></div></div>'
   const scelte = pdOrdinate(righe.filter((x) => pdGruppo === 'tutti' || x.v.gruppi.indexOf(pdGruppo) >= 0).map((x) => x.r))
@@ -5422,7 +5425,7 @@ function pdDettaglioHtml(r) {
   const ids = r.ids || [r.id]
   let h = '<div class="riga" style="margin-top:6px"><button onclick="pdIndietro()">‹ Progetti</button></div>' +
     '<div class="titolo" style="margin-top:8px">' + esc(r.nome) + '</div>' +
-    '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:13px">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
+    '<div style="margin:4px 0 6px"><span style="border:1px solid ' + PD_COLORE[v.stato.colore] + ';color:' + PD_COLORE[v.stato.colore] + ';border-radius:999px;padding:1px 8px;font-size:0.8125rem">' + esc(v.stato.parola) + (v.stato.ragione ? ' · ' + esc(v.stato.ragione) : '') + '</span></div>'
   h += pdSpostaHtml(r, v)
   // Le azioni in vista, prima di tutto: la principale piena, «Togli da questo PC» in rosso, ognuna con il «?».
   const pericolo = r.azioni.find((a) => a.id === 'solo-cloud-qui')
@@ -5815,13 +5818,13 @@ async function accoppiaDalQr() {
  */
 const MISURE = {
   banco: {
-    '--t0': '11px', '--t1': '13px', '--t2': '15px', '--t3': '17px', '--t4': '22px',
+    '--t0': '0.75rem', '--t1': '0.8125rem', '--t2': '0.9375rem', '--t3': '1.0625rem', '--t4': '1.375rem',
     '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
   },
   // Il Foglio sale con lo stesso rapporto: la sua gerarchia e' il testo, non
   // avendo ne' rilievi ne' solchi, e comprimerla lo renderebbe illeggibile.
   foglio: {
-    '--t0': '12px', '--t1': '14px', '--t2': '16px', '--t3': '19px', '--t4': '26px',
+    '--t0': '0.75rem', '--t1': '0.875rem', '--t2': '1rem', '--t3': '1.1875rem', '--t4': '1.625rem',
     '--s1': '6px', '--s2': '12px', '--s3': '18px', '--s4': '28px'
   }
 }
@@ -6349,7 +6352,7 @@ window.addEventListener('error', (ev) => {
   // Anche nello storico degli errori del PC (0.81.0).
   annotaErrore((ev && ev.message ? ev.message : 'errore') + (ev && ev.error && ev.error.stack ? String.fromCharCode(10) + ev.error.stack : ''))
   if (!app.innerHTML.trim()) {
-    app.innerHTML = '<div class="ingresso"><div style="font-size:19px">SierraDeck</div>' +
+    app.innerHTML = '<div class="ingresso"><div style="font-size:1.1875rem">SierraDeck</div>' +
       '<div class="errore">' + esc(ev.message) + '</div></div>'
   }
 })

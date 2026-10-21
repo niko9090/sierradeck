@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.clickable
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -132,14 +131,14 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
     l?.forEachIndexed { k, i ->
         val apri = aperta == i.id || (aperta == null && k == 0)
         Spacer(Modifier.height(8.dp))
-        Column(Modifier.fillMaxWidth().clickable { aperta = if (apri) "" else i.id }) {
+        Column(Modifier.fillMaxWidth().tocco { aperta = if (apri) "" else i.id }) {
             Row {
-                Text(quandoBreve(i.quando), color = Banco.testoQuieto, fontSize = 11.sp)
+                Text(quandoBreve(i.quando), color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.width(6.dp))
                 Text("→ ${i.chatTitolo.ifBlank { i.chatId }}", color = Banco.testo, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    esitoIstruzione(i.esito), fontSize = 11.sp,
+                    esitoIstruzione(i.esito), fontSize = 12.sp,
                     color = when (i.esito) { "partita", "consegnata" -> Banco.verde; "non-partita", "persa" -> Banco.rosso; else -> Banco.ambra }
                 )
             }
@@ -154,7 +153,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
                     for (r in righeMarkdown(i.testo)) when (r.tipo) {
                         "titolo" -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         "voce" -> Text(buildAnnotatedString { append("• "); append(inRigaMd(r.testo)) }, color = Banco.testo, fontSize = 13.sp)
-                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 11.sp, fontFamily = FontTerminale)
+                        "codice" -> Text(r.testo, color = Banco.testo, fontSize = 12.sp, fontFamily = FontTerminale)
                         "vuota" -> Spacer(Modifier.height(4.dp))
                         else -> Text(inRigaMd(r.testo), color = Banco.testo, fontSize = 13.sp)
                     }

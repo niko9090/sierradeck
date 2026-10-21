@@ -391,7 +391,7 @@ fun Negozio(api: Api) {
                 item("piede") {
                     Text(
                         "Le skill cambiano subito, anche nelle chat già aperte; plugin e MCP valgono per le chat che apri dopo la modifica.",
-                        color = Banco.testoQuieto, fontSize = 11.sp,
+                        color = Banco.testoQuieto, fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                     )
                 }
@@ -416,10 +416,10 @@ private enum class Famiglia(val etichetta: String) {
 }
 
 private fun coloreTono(tono: String): Color = when (tono) {
-    "ok" -> Banco.verde
-    "attesa" -> Banco.ambra
-    "errore" -> Banco.rosso
-    "spento" -> Banco.testoQuieto
+    "ok" -> ColoreStato.verde
+    "attesa" -> ColoreStato.ambra
+    "errore" -> ColoreStato.rosso
+    "spento" -> ColoreStato.quieto
     else -> Banco.testo
 }
 
@@ -448,11 +448,11 @@ private fun Scheda(
                     // PC 0.70: la parola e il colore del PC; da un PC di prima l'etichetta e il tono.
                     val c = stato.colore?.let { coloreVista(it) } ?: coloreTono(stato.tono)
                     Surface(color = Color.Transparent, contentColor = c, shape = MaterialTheme.shapes.small, border = BorderStroke(1.dp, c)) {
-                        Text(stato.parola ?: stato.etichetta, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                        Text(stato.parola ?: stato.etichetta, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                     }
                 }
             }
-            if (sotto.isNotBlank()) Text(sotto, color = Banco.testoQuieto, fontSize = 11.sp)
+            if (sotto.isNotBlank()) Text(sotto, color = Banco.testoQuieto, fontSize = 12.sp)
             if (descrizione.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
                 Text(
@@ -460,10 +460,10 @@ private fun Scheda(
                     fontFamily = if (mono) FontFamily.Monospace else null
                 )
             }
-            extra?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp) }
+            extra?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
             if (stato != null && stato.spiegazione.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
-                Text(stato.spiegazione, color = Banco.testoQuieto, fontSize = 11.sp, lineHeight = 15.sp)
+                Text(stato.spiegazione, color = Banco.testoQuieto, fontSize = 12.sp, lineHeight = 15.sp)
             }
             when {
                 lavoro != null -> {

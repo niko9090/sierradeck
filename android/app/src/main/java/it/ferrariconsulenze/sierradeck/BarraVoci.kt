@@ -109,7 +109,8 @@ internal fun BarraVoci(attuale: VoceBarra, stato: Stato?, onScegli: (VoceBarra) 
                 icon = {
                     if (pallino != null) {
                         BadgedBox(badge = {
-                            Badge(containerColor = if (pallino.rosso) Banco.rosso else Banco.ambra) { if (pallino.numero > 0) Text("${pallino.numero}", fontSize = 11.sp) }
+                            val fondoPallino = if (pallino.rosso) ColoreStato.rosso else ColoreStato.ambra
+                            Badge(containerColor = fondoPallino, contentColor = sopra(fondoPallino)) { if (pallino.numero > 0) Text("${pallino.numero}", fontSize = 12.sp) }
                         }) { Icon(icona, contentDescription = v.nome + (pallino.descrizione?.let { ", $it" } ?: "")) }
                     } else {
                         Icon(icona, contentDescription = v.nome)

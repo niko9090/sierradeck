@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,11 +75,11 @@ import androidx.compose.ui.text.style.TextAlign
 
 /** Il colore che riassume lo stato di un autopilota (un punto, non una teoria). */
 fun coloreStato(stato: String): Color = when (stato) {
-    "lavoro" -> Banco.verde
-    "pronto", "attesa" -> Banco.ambra
-    "sospeso", "fallito" -> Banco.rosso
-    "finito" -> Banco.testoQuieto
-    else -> Banco.testoQuieto
+    "lavoro" -> ColoreStato.verde
+    "pronto", "attesa" -> ColoreStato.ambra
+    "sospeso", "fallito" -> ColoreStato.rosso
+    "finito" -> ColoreStato.quieto
+    else -> ColoreStato.quieto
 }
 
 /**
@@ -90,10 +89,10 @@ fun coloreStato(stato: String): Color = when (stato) {
  * spengono. Con un computer vecchio (`led` vuoto) si ripiega sullo stato.
  */
 fun coloreLed(led: String, stato: String): Color = when (led) {
-    "led--lavoro" -> Banco.verde
-    "led--attesa" -> Banco.ambra
-    "led--fermo" -> Banco.rosso
-    "led--finito" -> Banco.testoQuieto
+    "led--lavoro" -> ColoreStato.verde
+    "led--attesa" -> ColoreStato.ambra
+    "led--fermo" -> ColoreStato.rosso
+    "led--finito" -> ColoreStato.quieto
     else -> coloreStato(stato)
 }
 
@@ -214,7 +213,7 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.altriPc(altri: List<
     if (altri == null || altri.isEmpty()) return
     item {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold); Aiuto("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", di = "SU ALTRI PC") }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold); Aiuto("Gli autopiloti che girano sugli altri PC della tua stessa chiave di casa: lavorano là, con i file di là. Da qui li guardi e li governi; ogni azione va al PC dove girano.", di = "SU ALTRI PC") }
             // Una riga sola per chi non risponde (2.73.0, come PC e pagina): il perché dietro il «?».
             for (g in AutopilotiAltri.guasti(altri)) Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                 Text("● ${g.nome} · non risponde", color = Banco.ambra, fontSize = 12.sp)
@@ -225,7 +224,7 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.altriPc(altri: List<
     items(AutopilotiAltri.righe(altri), key = { "${it.first.pcId}-${it.second.id}" }) { (p, ap) ->
         Column {
             VoceAutopilota(ap) { onApri(p.pcId, ap.id) }
-            Text(AutopilotiAltri.giraSu(p.nome), color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.padding(start = 40.dp, bottom = 4.dp))
+            Text(AutopilotiAltri.giraSu(p.nome), color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(start = 40.dp, bottom = 4.dp))
         }
     }
 }
@@ -370,7 +369,7 @@ private fun VoceAutopilota(ap: AutopilotaBreve, onApri: () -> Unit) {
                             Text(
                                 "${ap.fatti} criteri su ${ap.criteri} · ${interventiInParole(ap.cicli)}",
                                 color = Banco.testoQuieto,
-                                fontSize = 11.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -443,7 +442,7 @@ fun AdessoVista(a: Adesso) {
                 modifier = Modifier.padding(top = 3.dp)
             )
         }
-        righeFinite(a.finite)?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp)) }
+        righeFinite(a.finite)?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp)) }
     }
 }
 
