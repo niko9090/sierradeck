@@ -133,14 +133,15 @@ fun Lavori(
     }
     val stato = if (su != null) statoSu else statoAccoppiato
     var aperto by remember { mutableStateOf<String?>(null) }
-    // Gli autopiloti degli altri PC (PC 0.59.0): dal PC accoppiato, ogni 15 secondi.
+    // Gli autopiloti degli altri PC (PC 0.59.0): dal PC accoppiato, una volta al minuto
+    // (0.83.0; prima ogni 15 s: su Adesso, la schermata d'apertura, 4 chiamate al minuto in più).
     var altri by remember { mutableStateOf<List<AutopilotiDiPc>?>(null) }
     var apertoAltro by remember { mutableStateOf<Pair<String, String>?>(null) }
     LaunchedEffect(su?.pcId) {
         if (su != null) return@LaunchedEffect
         while (isActive) {
             altri = try { apiAccoppiato.autopilotiAltri() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { altri ?: emptyList() }
-            Davanti.pausa(15_000)
+            Davanti.pausa(60_000)
         }
     }
     // Dalla scheda Domande: «apri la sua linguetta Domande» (0.38.0).

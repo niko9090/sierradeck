@@ -345,9 +345,9 @@ fun SezionePannelloDrive(api: Api) {
     LaunchedEffect(spenta) { if (!spenta) leggi() }
     // Analisi, unione e traslochi lavorano sul PC: finché lavorano, il pannello si rilegge.
     val lavora = p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } == true
-    LaunchedEffect(lavora) { while (lavora) { kotlinx.coroutines.delay(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
+    LaunchedEffect(lavora) { while (lavora) { Davanti.pausa(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
     val senzaSpazio = p != null && p?.spazio == null
-    LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { kotlinx.coroutines.delay(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
+    LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { Davanti.pausa(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
 
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.PANNELLO_DRIVE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }

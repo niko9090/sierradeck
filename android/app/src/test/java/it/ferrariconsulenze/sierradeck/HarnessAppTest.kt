@@ -67,7 +67,7 @@ class HarnessAppTest {
         // si seleziona. La prova guarda il sorgente: la vista dipende da Compose.
         val sorgenti = File("src/main/java/it/ferrariconsulenze/sierradeck")
         val lavori = File(sorgenti, "DettaglioAutopilota.kt").readText()
-        val pezzo = lavori.substring(lavori.indexOf("items(messaggi) { b ->")).take(700)
+        val pezzo = lavori.substring(lavori.indexOf("itemsIndexed(messaggi, key = { i, _ -> chiavi[i] }) { _, b ->")).take(700)
         assertTrue(pezzo.contains("SelectionContainer"))
         assertTrue(File(sorgenti, "Conversazioni.kt").readText().contains("SelectionContainer { Text(m.testo"))
     }

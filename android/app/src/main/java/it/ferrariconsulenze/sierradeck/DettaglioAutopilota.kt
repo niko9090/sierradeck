@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -371,7 +371,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
             if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
-            items(messaggi) { b ->
+            val chiavi = ChiaviElenco.di(messaggi, ChiaviElenco::battuta)
+            itemsIndexed(messaggi, key = { i, _ -> chiavi[i] }) { _, b ->
                 // Il testo della chat con lui si seleziona e si copia (tocco
                 // lungo): senza SelectionContainer un Text di Compose non e'
                 // selezionabile, e Nicholas non riusciva a copiarne niente.

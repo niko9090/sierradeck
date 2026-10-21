@@ -48,7 +48,7 @@ class DomandeAdessoTest {
     @Test
     fun `Adesso mette le domande in cima agli autopiloti`() {
         val adesso = File("src/main/java/it/ferrariconsulenze/sierradeck/Adesso.kt").readText()
-        assertTrue(adesso.contains("domandeInCima(api, domande)"))
+        assertTrue(adesso.contains("domandeInCima(api, domande, DomandeAdesso.firma(stato))"))
         val lavori = File("src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt").readText()
         // La testa viene prima di tutto il resto della lista.
         assertTrue(lavori.indexOf("testa()") in 0 until lavori.indexOf("key = \"su-pc\""))
