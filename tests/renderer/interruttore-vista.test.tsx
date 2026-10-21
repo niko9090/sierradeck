@@ -10,13 +10,13 @@ import { BarraAffiancate, InterruttoreVista } from '../../src/renderer/component
  * corto per voce, nei due sensi con un clic.
  */
 describe('l’interruttore delle due viste', () => {
-  it('due voci con le parole di tutti i giorni, la attiva evidente, un «?» per voce', () => {
+  it('due voci con le parole di tutti i giorni, la attiva evidente, un «?» solo per tutte e due (0.82.0)', () => {
     const html = renderToStaticMarkup(<InterruttoreVista vista="panoramica" onPanoramica={() => undefined} onAffiancate={() => undefined} />)
     expect(html).toContain('>Panoramica</button>')
     expect(html).toContain('>Tutte le chat affiancate</button>')
     expect(html).toMatch(/vista-interruttore__voce--attiva" aria-pressed="true">Panoramica/)
     expect(html).toMatch(/aria-pressed="false">Tutte le chat affiancate/)
-    expect(html.match(/>\?</g)?.length ?? 0).toBeGreaterThanOrEqual(2)
+    expect(html.match(/>\?</g)?.length ?? 0).toBe(1)
     expect(html.toLowerCase()).not.toContain('mosaico')
   })
   it('nella vista con le chat affiancate la stessa barra c’è, con l’altra voce attiva: si torna con un clic', () => {

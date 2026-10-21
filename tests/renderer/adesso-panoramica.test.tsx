@@ -38,7 +38,7 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
 
   it('la Panoramica le usa al posto di «Nessuna chat al lavoro», e la conversazione non le ripete', () => {
     const pan = readFileSync('src/renderer/components/WorkspacePanoramica.tsx', 'utf8')
-    expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro />')
+    expect(pan).toContain('<AdessoAutopilota autopilota={autopilota!} dentro />')
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro soloFerme />')
     const chatAp = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
     expect(chatAp).toContain('{soloConversazione ? null : <AdessoAutopilota autopilota={autopilota} />}')
