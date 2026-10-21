@@ -1,4 +1,5 @@
 import { preamboloRuolo } from '@shared/ruoli-agenti'
+import { REGOLA_SEGNALE } from '@shared/segnali-flotta'
 import { titoloChatSpecialista } from '@shared/specialisti'
 import { randomUUID } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
@@ -35,7 +36,7 @@ export function esecutoreNelMosaico(p: {
   avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
   ferma: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
   /** Chiude una chat finita, ferma al prompt (0.82.0): il riquadro si chiude, la conversazione resta. */
-  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string }) => void
+  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
@@ -142,7 +143,8 @@ export function esecutoreNelMosaico(p: {
         titolo: '',
         cosa: 'chiudi',
         testo: '',
-        ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {})
+        ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {}),
+        ...(chi.alRecupero === true ? { alRecupero: true } : {})
       })
     },
 
@@ -209,6 +211,9 @@ export function regoleDiConsegna(a: Autopilota, chat?: ChatGovernata): string[] 
       'ramo, non lavorare nella cartella principale e non fare push: lo fa l’autopilota dopo l’unione.'
     )
   }
+  // 0.84.0: il segnale di fine turno all'autopilota. Non alla Revisione, che
+  // chiude con la riga del verdetto.
+  if (chat !== undefined && chat.ruolo !== 'revisione') righe.push('', ...REGOLA_SEGNALE)
   const cloud = a.vaSulCloud === true || a.cloud?.attivo === true
   righe.push(
     '',

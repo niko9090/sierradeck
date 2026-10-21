@@ -87,6 +87,7 @@ import androidx.compose.ui.text.style.TextAlign
 internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }) {
     var d by remember(breve.id) { mutableStateOf<AutopilotaDettaglio?>(null) }
     var quadernoAperto by remember { mutableStateOf(false) }
+    var storicoAperto by remember { mutableStateOf<String?>(null) }
     var eliminando by remember { mutableStateOf(false) }
     // La casella: cosa stai scrivendo, se lo stai mandando, e cosa e' andato
     // storto l'ultima volta (un 409 e' un computer da aggiornare).
@@ -203,7 +204,11 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                         }
                     Spacer(Modifier.height(8.dp))
                     AzioniAutopilota(api, breve.id, s, det?.workspace)
-                    TextButton(onClick = { quadernoAperto = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno del progetto") }
+                    Row {
+                        TextButton(onClick = { quadernoAperto = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno del progetto") }
+                        // PC 0.84.0: chat aperte, consegne, unioni, chiusure, release e decisioni di Nicholas.
+                        det?.storico?.let { TextButton(onClick = { storicoAperto = it }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Storico") } }
+                    }
                 }
             }
             if (det != null && det.passaggi.isNotEmpty()) item(key = "fasi") {
@@ -464,6 +469,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
     }
 
     if (quadernoAperto) Quaderno(api, breve.cwd, onChiudi = { quadernoAperto = false })
+    storicoAperto?.let { f -> Quaderno(api, breve.cwd, onChiudi = { storicoAperto = null }, apriFile = f) }
     if (eliminando) {
         // Cosa succede e cosa no, per esteso (app 2.55.0): prima «Sparisce con il suo lavoro».
         DialogoConferma(AzioniTelefono.confermaEliminaAutopilota(breve.nome.ifBlank { breve.id }), pericolo = true, onSi = {

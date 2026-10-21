@@ -441,7 +441,8 @@ export type AutopilotaPerChat = {
   sessioneSupervisore?: string
   /** La chat della preparazione: un `claude -p` del servizio, senza riquadro (collaudo c-75). */
   sessioneIntervista?: string
-  chats: { sessionId?: string; sessioneSupervisore?: string }[]
+  /** `nelRecupero` (0.84.0): l'agente ha finito e l'autopilota l'ha lasciata andare nel recupero. */
+  chats: { sessionId?: string; sessioneSupervisore?: string; nelRecupero?: string }[]
 }
 
 /** L'autopilota che governa quella conversazione (la sua chat, la sua preparazione, una della flotta, o un suo supervisore). */
@@ -450,7 +451,7 @@ export function governataDa(autopiloti: readonly AutopilotaPerChat[], sessione: 
   const uguale = (x: string | undefined): boolean => x !== undefined && x.toLowerCase() === s
   let trovato: { autopilota: string; attivo: boolean } | undefined
   for (const a of autopiloti) {
-    const sua = uguale(a.sessionId) || uguale(a.sessioneSupervisore) || uguale(a.sessioneIntervista) || a.chats.some((c) => uguale(c.sessionId) || uguale(c.sessioneSupervisore))
+    const sua = uguale(a.sessionId) || uguale(a.sessioneSupervisore) || uguale(a.sessioneIntervista) || a.chats.some((c) => (c.nelRecupero === undefined && uguale(c.sessionId)) || uguale(c.sessioneSupervisore))
     if (!sua) continue
     const attivo = a.archiviato !== true && !AUTOPILOTA_FERMO.has(a.stato)
     // Se più autopiloti la conoscono, conta quello attivo.

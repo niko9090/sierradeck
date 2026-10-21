@@ -55,3 +55,20 @@ c-14 «non è ancora partita», dopo 15 min c-3 «nessun segno da 15 min».
   (radice vuota). Rimetterla su con `ShowWindow`, o riavviare la copia.
 - Divisione del lavoro 20/10: c-13 nessuna domanda ripetuta e solo italiano,
   c-10 righe brevi sugli eventi e avviso entro 5 min per chat mai partita.
+
+# 0.83.0: anche le risposte scritte a mano (c-52, 21/10)
+Prima «Hai risposto» compariva solo per «Vai» e per le domande del registro
+(`/api/rispondi`). Scritto nella casella, anche a «gli dai il via?», era un
+messaggio qualunque e la domanda spariva. Ora `/autopiloti/:id/dialogo`:
+- **domanda del registro aperta** (la piu' vecchia, non in intervista): il testo
+  e' la sua risposta, con `rispondiAllaDomanda` (la stessa funzione di
+  `/domande/:id/risposta`); niente supervisore;
+- **sua ultima battuta con «?», o stato `pronto`**: la battuta `tu` porta
+  `risponde` con la domanda intera (`domandaInSospeso`), **senza** `traccia`,
+  cosi' il supervisore la elabora e «sta pensando» resta vero;
+- `conversazione()` mette la domanda sopra (se non e' gia' la battuta prima) e
+  «Hai risposto: …» sotto. PC, pagina e app ricevono la stessa conversazione.
+Test: `tests/autopilot-host/hai-risposto-a-mano-0-83-0.test.ts`.
+Trappole: `ScambioDialogo` passa da `parseScambio` (un campo nuovo va letto
+anche li', o sparisce alla prima rilettura); il file su disco ha `versione`, per
+provare la rilettura usare l'archivio vero, non `parseAutopilota` sull'oggetto.
