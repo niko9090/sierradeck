@@ -5244,7 +5244,7 @@ if (!app.requestSingleInstanceLock()) {
             governata: c.governata === true,
             // 0.82.0: per chiudere da sole le chat finite, solo se ferme al prompt.
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
-            ferma: c.viva !== false && c.aspetta === true
+            ferma: c.viva !== false && c.aspetta === true && c.sceltaAperta !== true
           })),
           ...(limiti !== undefined ? { limiti } : {}),
           domandeAperte: domande.length + chatAperte.filter((c) => c.aspetta === true && c.governata !== true).length,

@@ -57,7 +57,7 @@ import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
-import { chatAlLavoroSulPc, daChiudereDaSole, tettoNeiPosti } from './posti'
+import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS, tettoNeiPosti } from './posti'
 import {
   daMettereInPausa, daRiprendere as chatInPausaDaRiprendere, driveDelProgetto, leggiStatoProgramma, riassuntoProgramma, STATO_PROGRAMMA_VALIDO_MS,
   type StatoProgramma
@@ -605,7 +605,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let regolazioneUsata: RegolazionePosti = 0
   /** Gli autopiloti con compiti in fila già detti nella conversazione: la riga una volta per fila. */
   const filaDetta = new Set<string>()
-  const regolazioneAdesso = (): RegolazionePosti => statoProgramma?.regolazionePosti ?? 0
+  // Senza stato del programma (spento, o in avvio) vale l'ultima scelta: niente salti.
+  const regolazioneAdesso = (): RegolazionePosti => statoProgramma?.regolazionePosti ?? regolazioneUsata
   const aggiornaPosti = (): void => {
     if (deps.misuraPc === undefined) return
     ultimaMisura = deps.misuraPc()
@@ -644,18 +645,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * chiudono da sole: il loro claude.exe si spegne e il posto si libera. Mai
    * una chat al lavoro, mai una adottata, mai chi aspetta una risposta.
    */
-  const chiuseDaSole = new Set<string>()
+  const chiuseDaSole = new Map<string, number>()
   const chiudiFiniteDaSole = (): void => {
     if (deps.chiudiChat === undefined || statoProgramma === undefined) return
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora) || ora - statoProgramma.letto > STATO_PROGRAMMA_VALIDO_MS) return
     const accese = statoProgramma.chat.flatMap((c) => (c.sessione !== undefined ? [{ sessione: c.sessione, ferma: c.ferma === true }] : []))
-    // Chi è già stata chiusa non si richiude: il programma la toglie dall'elenco al giro dopo.
-    for (const k of [...chiuseDaSole]) if (!accese.some((c) => c.sessione === k)) chiuseDaSole.delete(k)
+    // Chi è già stata chiusa non si richiude: il programma la toglie dall'elenco
+    // al giro dopo. Se dopo RICHIUDI_DOPO_MS è ancora accesa (consegna persa,
+    // o riaperta), si riprova.
+    for (const [k, il] of [...chiuseDaSole]) {
+      if (!accese.some((c) => c.sessione === k) || ora - il > RICHIUDI_DOPO_MS) chiuseDaSole.delete(k)
+    }
     const fuori = daChiudereDaSole({ autopiloti: deps.archivio.elenca(), accese, ora, domandeAperte: (id) => deps.domande.aperte(id).length })
       .filter((f) => !chiuseDaSole.has(f.sessionId))
     for (const f of fuori) {
-      chiuseDaSole.add(f.sessionId)
+      chiuseDaSole.set(f.sessionId, ora)
       const a = deps.archivio.leggi(f.autopilotaId)
       if (a === undefined) continue
       deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })

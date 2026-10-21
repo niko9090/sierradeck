@@ -7,7 +7,7 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { caricoFra, creaMisuratore, tempiDa } from '../../src/autopilot-host/misura-pc'
-import { chatAlLavoroSulPc, daChiudereDaSole, FERMO_SI_CHIUDE_MS, FINITA_SI_CHIUDE_MS, tettoNeiPosti } from '../../src/autopilot-host/posti'
+import { chatAlLavoroSulPc, daChiudereDaSole, FERMO_SI_CHIUDE_MS, FINITA_SI_CHIUDE_MS, RICHIUDI_DOPO_MS, tettoNeiPosti } from '../../src/autopilot-host/posti'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import type { MisuraPc } from '@shared/posti-chat'
 
@@ -143,6 +143,7 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
   let avviate: string[]
   let chiuse: Array<{ id: string; chat?: string; sessione: string }>
   let misura: MisuraPc
+  let ora = ORA
 
   afterEach(() => { server?.close(); server = undefined })
 
@@ -150,6 +151,7 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-posti-')))
     avviate = []
     chiuse = []
+    ora = ORA
     return creaServer({
       archivio,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
@@ -160,7 +162,7 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
       domande: creaRegistroDomande({ adesso: () => ORA }),
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
-      adesso: () => iso(ORA),
+      adesso: () => iso(ora),
       misuraPc: () => misura,
       chiudiChat: (id, chatId, chi) => { chiuse.push({ id, ...(chatId !== undefined ? { chat: chatId } : {}), sessione: chi.sessionId }) }
     })
@@ -255,6 +257,21 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa.includes('chiudo la chat c-1 da sola'))).toBe(true)
     server.controllaChatFerme()
     expect(chiuse).toHaveLength(1)
+    // Ancora accesa dopo dieci minuti (consegna persa): si riprova.
+    ora = ORA + RICHIUDI_DOPO_MS + 60_000
+    await chiama('POST', '/stato-programma', { ...stato, letto: ora })
+    server.controllaChatFerme()
+    expect(chiuse).toHaveLength(2)
+  })
+
+  it('una chat con una scelta aperta non è «ferma»: non si chiude', async () => {
+    misura = { processori: 8, memoriaLiberaMb: 9_000, memoriaTotaleMb: 16_384, caricoPercento: 10 }
+    server = ambiente()
+    await avvia(server)
+    archivio.scrivi(autopilota({ id: 'ap-a', chats: [chat('c-1', 'finita', { dal: iso(ORA - 10 * 60_000) })] }))
+    await chiama('POST', '/stato-programma', { letto: ORA, limiti: { cinqueOre: { percento: 5, lettoIl: ORA } }, chat: [{ titolo: 'c-1', cwd: 'x', stato: 'lavoro', governata: true, sessione: 's-c-1', ferma: false }], domandeAperte: 0, progetti: [], altriPc: [] })
+    server.controllaChatFerme()
+    expect(chiuse).toEqual([])
   })
 
   it('«più chat» dalle Impostazioni vale subito', async () => {
@@ -283,6 +300,13 @@ describe('la consegna «chiudi» (0.82.0)', () => {
     const fuori = consegne.ritira().filter((c) => c.cosa === 'chiudi')
     expect(fuori).toHaveLength(1)
     expect(fuori[0]).toMatchObject({ autopilotaId: 'ap-1', chatId: 'c-1', sessionId: 's-c-1', testo: '', workspace: 'Lavoro' })
+  })
+
+  it('non conta fra le consegne in attesa: non si apre una finestra solo per chiudere', async () => {
+    const { creaConsegne } = await import('../../src/autopilot-host/consegne')
+    const consegne = creaConsegne()
+    consegne.metti({ autopilotaId: 'ap-1', chatId: 'c-1', sessionId: 's-c-1', cwd: '', titolo: '', cosa: 'chiudi', testo: '' })
+    expect(consegne.inAttesa()).toBe(0)
   })
 
   it('il programma la legge (senza testo non è scartata) e la linguetta Istruzioni la ricorda', async () => {

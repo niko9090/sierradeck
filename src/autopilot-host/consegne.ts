@@ -235,7 +235,9 @@ export function creaConsegne(
       return tutte
     },
 
-    inAttesa: () => coda.length,
+    // «chiudi» non conta: senza finestre aperte non c'è niente da chiudere, e
+    // non si apre una finestra solo per chiuderne una chat (0.82.0).
+    inAttesa: () => coda.filter((x) => x.consegna.cosa !== 'chiudi').length,
 
     dimentica(autopilotaId, chatId) {
       for (let i = coda.length - 1; i >= 0; i -= 1) {

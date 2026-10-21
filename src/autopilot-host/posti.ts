@@ -43,6 +43,9 @@ export const FINITA_SI_CHIUDE_MS = 5 * 60_000
  */
 export const FERMO_SI_CHIUDE_MS = 30 * 60_000
 
+/** Una chat chiusa da sola e ancora accesa dopo questo (consegna persa, riaperta) si richiude. */
+export const RICHIUDI_DOPO_MS = 10 * 60_000
+
 export type DaChiudere = { autopilotaId: string; chatId?: string; sessionId: string; motivo: string }
 
 /**
