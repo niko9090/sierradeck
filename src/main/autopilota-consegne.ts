@@ -20,7 +20,7 @@ export type Consegna = {
   cwd: string
   sessionId: string
   titolo: string
-  cosa: 'scrivi' | 'interrompi'
+  cosa: 'scrivi' | 'interrompi' | 'chiudi'
   testo: string
   /** Messaggi in coda da più di due minuti (0.69.0): si scrivono anche se la chat lavora. */
   ancheAlLavoro?: boolean
@@ -155,7 +155,7 @@ export function leggiConsegne(raw: unknown): Consegna[] {
     if (typeof grezza !== 'object' || grezza === null) continue
     const c = grezza as Record<string, unknown>
     const testo = (nome: string): string => (typeof c[nome] === 'string' ? (c[nome] as string) : '')
-    const cosa = c.cosa === 'interrompi' ? 'interrompi' : 'scrivi'
+    const cosa = c.cosa === 'interrompi' || c.cosa === 'chiudi' ? c.cosa : 'scrivi'
     const id = testo('id')
     const chatId = testo('chatId')
     const sessionId = testo('sessionId')

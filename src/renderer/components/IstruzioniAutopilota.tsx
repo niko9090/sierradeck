@@ -47,13 +47,15 @@ function Voce({ i, autopilota, aperta, onCorretto }: { i: Istruzione; autopilota
         <span className="misura istruzione__quando">{quando(i.quando)}</span>
         <span className="istruzione__chat" title="La chat a cui è stata scritta">→ {chat}</span>
         <span className={`istruzione__esito istruzione__esito--${e.tono}`} title={e.titolo}>{e.breve}</span>
-        {i.cosa === 'interrompi' ? <span className="istruzione__prima">ha interrotto la chat</span> : <span className="istruzione__prima">{prima}</span>}
+        {i.cosa === 'interrompi' ? <span className="istruzione__prima">ha interrotto la chat</span> : i.cosa === 'chiudi' ? <span className="istruzione__prima">ha chiuso la chat finita</span> : <span className="istruzione__prima">{prima}</span>}
       </summary>
       {i.perche !== undefined ? (
         <div className="istruzione__perche"><span className="serigrafia">perché</span> {i.perche}</div>
       ) : null}
       {i.cosa === 'interrompi' ? (
         <p className="diario__vuoto">Nessun testo: ha fermato la chat (Esc), per esempio perché l’hai fermato tu o ha cambiato strada.</p>
+      ) : i.cosa === 'chiudi' ? (
+        <p className="diario__vuoto">Nessun testo: la chat aveva finito ed era ferma, si è chiusa da sola per liberare il posto. La conversazione resta in «Riprendi una conversazione».</p>
       ) : (
         <div className="istruzione__corpo">
           <ResaMarkdown testo={i.testo} />

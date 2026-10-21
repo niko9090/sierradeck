@@ -148,6 +148,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
         if (apri) {
             i.perche?.let { Text("Perché: $it", color = Banco.testo, fontSize = 12.sp) }
             if (i.cosa == "interrompi") Text("Ha interrotto la chat (nessun testo).", color = Banco.testoQuieto, fontSize = 12.sp)
+            else if (i.cosa == "chiudi") Text("Ha chiuso la chat finita, per liberare il posto (la conversazione resta).", color = Banco.testoQuieto, fontSize = 12.sp)
             else SelectionContainer {
                 Column(Modifier.padding(top = 4.dp)) {
                     for (r in righeMarkdown(i.testo)) when (r.tipo) {

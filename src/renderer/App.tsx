@@ -577,11 +577,11 @@ export function App(): React.JSX.Element {
   // Chiudere una chat dal telefono: il riquadro sparisce, la conversazione
   // resta su disco e si riprende quando si vuole. E' la ragione per cui questo
   // comando puo' stare su un telefono senza essere pericoloso.
-  useEffect(() => window.gestore.client.suChiusura((idChat) => {
+  useEffect(() => window.gestore.client.suChiusura((idChat, da) => {
     const stato = useLayoutStore.getState()
     const p = stato.panes[idChat]
     if (p?.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
-    if (p !== undefined && p.remoto === undefined) void window.gestore.remoto.segnaChiusa(p.sessionUuid, p.title, 'dal telefono').catch(() => undefined)
+    if (p !== undefined && p.remoto === undefined) void window.gestore.remoto.segnaChiusa(p.sessionUuid, p.title, da ?? 'dal telefono').catch(() => undefined)
     stato.closePane(idChat)
   }), [])
 

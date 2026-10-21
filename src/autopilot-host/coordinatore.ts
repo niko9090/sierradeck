@@ -1,5 +1,6 @@
 import type { ChatGovernata } from '@shared/autopilota'
 import type { Freno, LimitiPiano } from '@shared/harness'
+import { leggiRegolazione, type RegolazionePosti } from '@shared/posti-chat'
 import { dentro } from './divieti'
 
 /**
@@ -18,8 +19,12 @@ import { dentro } from './divieti'
 export type StatoProgramma = {
   /** Quando il Gestore l'ha composto (ms). */
   letto: number
-  /** Tutte le chat aperte, anche quelle di Nicholas. */
-  chat: { titolo: string; cwd: string; stato: string; governata: boolean }[]
+  /**
+   * Tutte le chat aperte, anche quelle di Nicholas. `sessione` e `ferma`
+   * (0.82.0): la conversazione e se è ferma al prompt; servono a chiudere da
+   * sole le chat finite, mai una che lavora.
+   */
+  chat: { titolo: string; cwd: string; stato: string; governata: boolean; sessione?: string; ferma?: boolean }[]
   /** I limiti del piano dall'ultima riga di stato (`/api/polso`). */
   limiti?: LimitiPiano
   /** Quante cose aspettano gia' Nicholas nella scheda Domande. */
@@ -39,6 +44,8 @@ export type StatoProgramma = {
   altriPc: { nome: string; vivo: boolean }[]
   /** Il workspace davanti. */
   workspace?: string
+  /** «Più chat / meno chat» dalle Impostazioni (0.82.0). */
+  regolazionePosti?: RegolazionePosti
 }
 
 export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramma | undefined {
@@ -67,7 +74,11 @@ export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramm
   const sett = finestra(lim.settimana)
   return {
     letto: typeof o.letto === 'number' ? o.letto : adesso,
-    chat: lista(o.chat, (c) => ({ titolo: s(c.titolo), cwd: s(c.cwd), stato: s(c.stato), governata: c.governata === true })).slice(0, 40),
+    chat: lista(o.chat, (c) => ({
+      titolo: s(c.titolo), cwd: s(c.cwd), stato: s(c.stato), governata: c.governata === true,
+      ...(typeof c.sessione === 'string' && c.sessione !== '' ? { sessione: c.sessione } : {}),
+      ...(typeof c.ferma === 'boolean' ? { ferma: c.ferma } : {})
+    })).slice(0, 80),
     ...(cinque !== undefined || sett !== undefined
       ? { limiti: { ...(cinque !== undefined ? { cinqueOre: cinque } : {}), ...(sett !== undefined ? { settimana: sett } : {}) } }
       : {}),
@@ -79,7 +90,8 @@ export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramm
     })).slice(0, 30),
     ...(typeof o.driveAttivo === 'boolean' ? { driveAttivo: o.driveAttivo } : {}),
     altriPc: lista(o.altriPc, (p) => ({ nome: s(p.nome), vivo: p.vivo === true })).slice(0, 10),
-    ...(typeof o.workspace === 'string' ? { workspace: o.workspace } : {})
+    ...(typeof o.workspace === 'string' ? { workspace: o.workspace } : {}),
+    ...(o.regolazionePosti !== undefined ? { regolazionePosti: leggiRegolazione(o.regolazionePosti) } : {})
   }
 }
 

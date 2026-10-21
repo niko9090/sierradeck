@@ -21,7 +21,7 @@ export type Consegna = {
   cwd: string
   sessionId: string
   titolo: string
-  cosa: 'scrivi' | 'interrompi'
+  cosa: 'scrivi' | 'interrompi' | 'chiudi'
   testo: string
   /**
    * Il workspace in cui questo lavoro deve stare, quando l'autopilota lo ha
@@ -280,6 +280,9 @@ export function eseguiConsegna(
     if (gia?.ptyId !== undefined) ponte.scrivi(gia.ptyId, String.fromCharCode(3))
     return
   }
+  // «chiudi» (0.82.0) lo fa il Core, che vede tutte le finestre e il
+  // sottofondo: qui non arriva, e se arrivasse non va scritto niente.
+  if (c.cosa === 'chiudi') return
 
   // **Anche un riquadro gia' vivo aspetta che la chat sia pronta** (0.38.2).
   // Prima qui si scriveva subito: dopo l'aggiornamento alla 0.38.1 il riquadro

@@ -1,5 +1,6 @@
 import type { DomandaRisolta } from '@shared/domande-telefono'
 import { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
+import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 
@@ -118,6 +119,8 @@ export type ClientAutopilota = {
   istruzioni: (id: string) => Promise<Istruzione[]>
   /** I tempi dei suoi giri (0.71.0), in una riga: «giro 12 s (criteri 2 s, supervisore 9 s) · 8 giri». */
   tempi: (id: string) => Promise<string | undefined>
+  /** «N di M chat» su questo PC (0.82.0). Un servizio vecchio non lo sa: `undefined`. */
+  postiChat: () => Promise<PostiChat | undefined>
   /** Com'è andata una consegna dentro la chat (dai passi del PC). */
   esitoConsegna: (consegna: string, esito: 'partita' | 'non-partita') => Promise<void>
   rispondi: (idDomanda: string, risposta: string) => Promise<void>
@@ -315,6 +318,7 @@ export function creaClientAutopilota(p: {
       const r = (await chiama(`/tempi?ap=${encodeURIComponent(id)}`, 'GET')) as { riassunto?: RiassuntoTempi } | undefined
       return r?.riassunto !== undefined && r.riassunto.giri > 0 ? testoTempi(r.riassunto) : undefined
     },
+    postiChat: async () => leggiPostiChat(await chiama('/posti-chat', 'GET').catch(() => undefined)),
     esitoConsegna: async (consegna, esito) => { await chiama('/consegne/esito', 'POST', { id: consegna, esito }) },
     rispondi: async (idDomanda, risposta) => {
       // `da: 'modale'` dice al servizio da dove è arrivata: serve al registro

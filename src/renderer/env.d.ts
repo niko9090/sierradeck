@@ -84,7 +84,7 @@ declare global {
         suSalvataggio: (cb: (nome: string) => void) => () => void
         suConsegna: (cb: (c: unknown) => void) => () => void
         suChatArrivata: (cb: (m: { workspace: string; pane: PaneSalvato }) => void) => () => void
-        suChiusura: (cb: (idChat: string) => void) => () => void
+        suChiusura: (cb: (idChat: string, da?: string) => void) => () => void
         suRinomina: (cb: (m: { chat: string; nome: string }) => void) => () => void
         suRichiestaRighe: (
           cb: (m: { id: string; chat: string; da: number; quante: number; schermo?: boolean }) => void
@@ -485,6 +485,7 @@ declare global {
         istruzioni: (id: string) => Promise<import('@shared/istruzioni-autopilota').Istruzione[]>
         /** I tempi dei suoi giri in una riga (0.71.0). */
         tempi: (id: string) => Promise<string | undefined>
+        postiChat: () => Promise<import('@shared/posti-chat').PostiChat | undefined>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }

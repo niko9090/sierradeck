@@ -36,8 +36,8 @@ export type Istruzione = {
   esito: EsitoIstruzione
   /** Quando è cambiato l'esito, ISO. */
   esitoIl?: string
-  /** `interrompi` è una consegna senza testo: si mostra lo stesso, è una mossa. */
-  cosa: 'scrivi' | 'interrompi'
+  /** `interrompi` e `chiudi` (0.82.0) sono consegne senza testo: si mostrano lo stesso, sono mosse. */
+  cosa: 'scrivi' | 'interrompi' | 'chiudi'
 }
 
 /** Quante istruzioni si tengono per autopilota: le più vecchie escono. */
@@ -51,7 +51,7 @@ export function nuovaIstruzione(c: {
   chatId: string
   titolo: string
   testo: string
-  cosa: 'scrivi' | 'interrompi'
+  cosa: 'scrivi' | 'interrompi' | 'chiudi'
   perche?: string
 }, adesso: string): Istruzione {
   return {
@@ -149,7 +149,7 @@ export function leggiIstruzioni(x: unknown): Istruzione[] {
       chatId: String(o.chatId ?? ''), chatTitolo: String(o.chatTitolo ?? ''), testo: o.testo,
       ...(typeof o.perche === 'string' ? { perche: o.perche } : {}),
       esito, ...(typeof o.esitoIl === 'string' ? { esitoIl: o.esitoIl } : {}),
-      cosa: o.cosa === 'interrompi' ? 'interrompi' : 'scrivi'
+      cosa: o.cosa === 'interrompi' || o.cosa === 'chiudi' ? o.cosa : 'scrivi'
     })
   }
   return fuori

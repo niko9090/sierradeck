@@ -1573,6 +1573,7 @@ export function registerAutopilotaIpc(
   ipcMain.handle('autopilota:domande', () => client.domande())
   ipcMain.handle('autopilota:istruzioni', async (_e, id: unknown) => filtroIstruzioniPin.filtra(await client.istruzioni(validaIdAutopilota(id))))
   ipcMain.handle('autopilota:tempi', async (_e, id: unknown) => client.tempi(validaIdAutopilota(id)).catch(() => undefined))
+  ipcMain.handle('autopilota:postiChat', async () => client.postiChat().catch(() => undefined))
 
   // L'avvio al login vive nel Core e non nel servizio: è il Core a sapere dove
   // sono l'eseguibile e lo script compilato, e il servizio non deve poter
