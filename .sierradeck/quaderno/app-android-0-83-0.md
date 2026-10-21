@@ -156,6 +156,8 @@ Colonne: **oggi** = tocchi oggi (dall'avvio, che è su Chat: lì le funzioni di 
 
 ## 5. Pagina servita dal PC: la stessa mappa
 
+> Fatto sul ramo c-50 (c-516, 21/10): come è costruita e le trappole in `pagina-telefono-quattro-voci-0-83-0.md`. Unica differenza dall'app: in Altro «Chat» e «Quaderno personale» sono una sezione sola, come nelle Impostazioni del PC.
+
 Oggi la fascia ha le sette voci di `MENU_PRINCIPALE` (client-pagina.ts:1883), si apre su **Domande** (client-pagina.ts:1419), indietro come sopra (client-pagina.ts:5718). Dopo: le stesse quattro voci dell'app dallo stesso `MENU_TELEFONO`, apertura su Adesso, indietro come § 3, pallini e colori come § 7.
 
 | Voce del PC (`MENU_PRINCIPALE`) | Funzioni di `FUNZIONI` | Voce sul telefono (app e pagina) |

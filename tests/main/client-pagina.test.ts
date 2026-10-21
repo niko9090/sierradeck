@@ -290,16 +290,17 @@ describe('la pagina si puo leggere, e non mente', () => {
 })
 
 describe('la fascia in basso', () => {
-  it('ha le sette voci del menu principale (0.61.0), nell’ordine del PC, ed e fissa', () => {
+  it('ha le quattro voci dell’app (0.83.0): Adesso, Chat, Progetti, Altro, ed e fissa', () => {
     // «La barra in basso non e' il problema: *quella* barra lo era.» Era un
-    // riquadro di bottoni alla fine di uno scorrimento infinito, che apriva i
-    // suoi pannelli ancora piu' sotto — con sei chat aperte «Consumi» era a
-    // dodici schermate dal pollice. Dalla 0.61.0 le voci vengono dal menu
-    // condiviso con il PC e l'app.
-    expect(script).toContain('var MENU = ')
-    const menu = JSON.parse(script.slice(script.indexOf('var MENU = ') + 11, script.indexOf('\n', script.indexOf('var MENU = ')))) as { id: string }[]
-    expect(menu.map((v) => v.id)).toEqual(['progetti', 'autopiloti', 'domande', 'chat', 'file', 'salute', 'impostazioni'])
-    expect(script).toContain('MENU.map((v) =>')
+    // riquadro di bottoni alla fine di uno scorrimento infinito. Dalla 0.61.0
+    // le voci vengono dal menu condiviso; dalla 0.83.0 sono le quattro
+    // dell'app (MENU_TELEFONO), non più le sette del PC in 360 punti.
+    expect(script).toContain('var VOCI = ')
+    const riga = script.slice(script.indexOf('var VOCI = ') + 11, script.indexOf('\n', script.indexOf('var VOCI = ')))
+    const voci = JSON.parse(riga) as { id: string; nome: string; linguette: string[] }[]
+    expect(voci.map((v) => v.nome)).toEqual(['Adesso', 'Chat', 'Progetti', 'Altro'])
+    expect(voci.map((v) => v.linguette)).toEqual([[], ['Chat', 'Workspace', 'Negozio'], ['Progetti', 'File', 'Drive'], []])
+    expect(script).toContain('VOCI.map((v) =>')
     const stile = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
     expect(stile).toMatch(/\.fascia\s*\{[^}]*position:\s*fixed/)
     // E lascia spazio a se stessa: senza, l'ultima piastrella finisce sotto i
@@ -315,53 +316,62 @@ describe('la fascia in basso', () => {
     expect(script).not.toContain('<header><b>SIERRADECK</b>')
   })
 
-  it('la fascia e anche la fila dei LED', () => {
+  it('la fascia e anche la fila dei LED: il pallino con il numero, dai colori della tabella', () => {
     // L'idea che tiene insieme la pagina: la navigazione **e'** il display di
-    // stato. Sei dentro una chat e vedi lampeggiare in fondo che qualcuno ti
-    // aspetta.
+    // stato. Sei dentro una chat e vedi in fondo che qualcuno ti aspetta.
     expect(script).toContain('function ledDestinazione(')
-    const f = script.slice(script.indexOf('function fascia('), script.indexOf('function fascia(') + 700)
+    const f = script.slice(script.indexOf('function fascia('), script.indexOf('function fascia(') + 1200)
     expect(f).toContain('ledDestinazione(')
-    expect(f).toContain('class="led ')
+    expect(f).toContain('pallinoVoce(')
+    expect(f).toContain('coloreNome(p.colore)')
+    // Chi non vede il colore lo sente detto.
+    expect(f).toContain('aria-label=')
   })
 
-  it('le impostazioni accendono il loro LED solo per un aggiornamento pronto, la salute per il silenzio', () => {
+  it('Altro accende il LED per un aggiornamento pronto o per il silenzio; Adesso per il più urgente', () => {
     const led = script.slice(script.indexOf('function ledDestinazione('))
-    const corpo = led.slice(0, led.indexOf('function fascia('))
-    // Aggiornamento pronto, o silenzio: non gli autopiloti.
+    const corpo = led.slice(0, led.indexOf('function domandeInAttesa('))
     expect(corpo).toContain('aggiornamentoVisto')
     expect(corpo).toContain("nome === 'impostazioni'")
-    expect(corpo).toContain("nome === 'salute' ? 'rosso'")
+    expect(corpo).toContain("nome === 'salute' || nome === 'altro' ? 'rosso'")
+    expect(corpo).toContain("nome === 'adesso'")
   })
 
-  it('cambiare destinazione lascia una traccia, cosi indietro non esce dall app', () => {
+  it('cambiare posto lascia una traccia, cosi indietro non esce dall app', () => {
     // Da una WebView il tasto indietro di Android usciva dall'app: brutale per
     // un gesto che tutti fanno per «torna su».
     expect(script).toContain('history.pushState')
     expect(script).toContain("addEventListener('popstate'")
-    // E prima di cambiare schermata chiude quello che si sta guardando.
+    // E prima di cambiare schermata chiude quello che si sta guardando (passi 1-2).
     const pop = script.slice(script.indexOf("addEventListener('popstate'"))
-    expect(pop.slice(0, 500)).toContain('dentro = null')
+    expect(pop.slice(0, 500)).toContain('daChiudere()')
+    expect(pop.slice(0, 500)).toContain('indietroTelefono(posto)')
   })
 
-  it('ogni destinazione ha il suo contenuto, e quello che non c entra non compare', () => {
+  it('ogni voce ha il suo contenuto, e quello che non c entra non compare', () => {
     const sch = script.slice(script.indexOf('const schermate = {'))
     const corpo = sch.slice(0, sch.indexOf('app.innerHTML'))
     const parte = (da: string, a: string): string => corpo.slice(corpo.indexOf(da), corpo.indexOf(a))
-    // 0.61.0: il quaderno, le code e il Drive stanno in Progetti.
-    expect(parte('progetti:', 'autopiloti:')).toContain('vistaQuaderno')
-    expect(parte('progetti:', 'autopiloti:')).toContain('vistaDrive')
-    expect(parte('progetti:', 'autopiloti:')).toContain('elencoCode')
-    // I consumi e gli altri computer in Salute.
-    expect(parte('salute:', 'impostazioni:')).toContain('vistaConsumi')
-    expect(parte('salute:', 'impostazioni:')).toContain('elencoPc')
+    // Adesso: le domande in cima, poi gli autopiloti con «Affida», poi in moto.
+    const adesso = parte('adesso:', 'chat:')
+    expect(adesso.indexOf('vistaDomande(s)')).toBeLessThan(adesso.indexOf('autopiloti ||'))
+    expect(adesso).toContain('delega')
+    expect(adesso).toContain('inMotoAdesso')
+    // Chat: workspace e Negozio nelle loro linguette.
+    expect(parte('chat:', 'progetti:')).toContain('paneWorkspace')
+    expect(parte('chat:', 'progetti:')).toContain('negozioHtml()')
+    expect(parte('chat:', 'progetti:')).toContain("apriPannello(\\'sessioni\\')")
+    expect(parte('chat:', 'progetti:')).toContain("apriPannello(\\'chatgestione\\')")
+    // Progetti: il quaderno, i file, le code e il Drive.
+    expect(parte('progetti:', 'altro:')).toContain('vistaQuaderno')
+    expect(parte('progetti:', 'altro:')).toContain('fileHtml()')
+    expect(parte('progetti:', 'altro:')).toContain('vistaDrive')
+    expect(parte('progetti:', 'altro:')).toContain('elencoCode')
+    // Altro: Salute, altri computer, consumi, impostazioni.
+    const altro = corpo.slice(corpo.indexOf('altro:'))
+    for (const t of ['elencoAltroHtml()', 'vistaSalute', 'elencoPc', 'vistaConsumi', 'sezioneImpostazioni(']) expect(altro, t).toContain(t)
     // I salvataggi con nome non esistono piu' (0.34.0).
     expect(corpo).not.toContain('elencoSalvataggi')
-    // «Affida un lavoro» sta in Autopiloti, non in mezzo alle chat.
-    expect(parte('autopiloti:', 'domande:')).toContain('delega')
-    // I workspace e il Negozio con le chat.
-    expect(parte('chat:', 'file:')).toContain('paneWorkspace')
-    expect(parte('chat:', 'file:')).toContain('negozioHtml()')
     // Il Drive non ha più un tasto suo in un menu «Computer».
     expect(corpo).not.toContain('computer:')
   })
@@ -776,9 +786,11 @@ describe('analisi del telefono, 30/09', () => {
     expect(pure.quandoLetti(0, adesso)).toBe('')
   })
 
-  it('sette voci in fascia, sette colonne (0.61.0): i nomi lunghi vanno a capo al trattino morbido', () => {
-    expect(stile).toMatch(/\.fascia\s*\{[^}]*repeat\(7, minmax\(0, 1fr\)\)/)
-    expect(stile).toContain('hyphens: manual')
+  it('quattro voci in fascia, quattro colonne (0.83.0): il nome su una riga, in rem', () => {
+    expect(stile).toMatch(/\.fascia\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)/)
+    expect(stile).toMatch(/\.fascia__nome\s*\{[^}]*font-size:\s*0\.8125rem[^}]*white-space:\s*nowrap/)
+    // Le linguette di Chat e Progetti sono tasti da 48 px.
+    expect(stile).toMatch(/\.linguetta\s*\{[^}]*min-height:\s*48px/)
   })
 
   it('le righe delle decisioni non sovrascrivono piu le righe degli elenchi', () => {
@@ -1073,8 +1085,10 @@ describe('il negozio nella pagina (0.53.0)', () => {
     expect(alLavoro).not.toContain('negozioInstalla(')
   })
 
-  it('si apre dalla schermata Computer', () => {
-    expect(script).toContain("apriPannello(\\'negozio\\')")
+  it('è la terza linguetta di Chat (0.83.0), e si legge entrando', () => {
+    // pannelliDelPosto arriva dal modulo condiviso (tests/shared/navigazione-telefono.test.ts).
+    expect(script).toContain('function pannelliDelPosto(')
+    expect(script).toContain("entra(() => { negozioNota = ''; leggiNegozio()")
     expect(script).toContain("if (pannelloAperto === 'negozio') { negozioNota = ''; await leggiNegozio()")
   })
 })
