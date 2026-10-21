@@ -4,23 +4,38 @@ quando: 2026-10-21T02:30:00+02:00
 tag: ["release", "0.82.0", "rapporto"]
 ---
 
-## Stato (21/10 03:20) — NON ancora pubblicata
+## Stato (21/10 03:55) — NON ancora pubblicata
 
 | Pezzo | Ramo | In main | Commit fuori da main |
 |---|---|---|---|
-| 1) chat insieme decise dal PC | c-33 | sì (b9dab2d0) | **2** (aspetto) |
+| 1) chat insieme decise dal PC | c-33 | sì | 0 |
 | 2) colore fisso per attività | c-35 | sì | 0 |
 | 3) chi sta lavorando | c-35 | sì | 0 |
 | 4) domande contro lo stato vero | c-34 | sì | 0 |
-| 5) menu dei workspace rifatto | c-36 | **no** | **9** (aspetto) |
+| 5) menu dei workspace rifatto | c-36 | sì (8185286c) | 0 |
 | 6) «Apri cartella» | c-37 | sì | 0 |
 | 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
-| collaudo della grafica | c-41 | — | **1** (aspetto) |
-| rilascio (questa chat) | c-39 | sì (8b4f630b) | — |
+| collaudo della grafica | c-41 | no (lo rivede c-42) | **1** (aspetto) |
+| cinque difetti grafici | c-43 | no | **2** (aspetto) |
+| rilascio (questa chat) | c-39 | sì | — |
 
-Novità, versione e pubblicazione restano ferme finché c-33, c-36 e c-41 non
-hanno 0 commit fuori da main e le suite sono verdi. La bozza delle novità è
-pronta (7 righe).
+Novità, versione e pubblicazione restano ferme finché c-41 e c-43 non hanno 0
+commit fuori da main e i 5 criteri con comando sono verdi sul main finale. La
+bozza delle novità è pronta (7 righe).
+
+## Criterio «test del programma principale» rosso alle 01:36 UTC (21/10)
+- **Test caduto: non ricostruibile.** L'uscita salvata nel file dell'autopilota
+  è tagliata all'inizio: c'è solo lo stderr normale di `cassaforte-sincronia`,
+  nessuna riga con × o FAIL.
+- Alle 01:36 main era fra l'unione di c-33 e quella di c-36.
+- **Su main 8185286c**, con c-33 e c-36 dentro, `tests/main` da solo con
+  `--reporter=dot` (03:45–03:53 ora locale): 194 file, **1843 passati**, 2 saltati,
+  nessun caduto. Non c'è un file caduto da rilanciare 3 volte.
+- **Il criterio dell'autopilota** è tornato verde da solo alle 01:49:58 UTC
+  (codice 0).
+- **Conclusione:** caduta di tempo a PC carico (in quella mezz'ora giravano anche
+  le suite delle altre chat), non un difetto di c-33 o c-36. Se ricapita, serve
+  l'uscita intera: la riga «×» non sta nei primi caratteri salvati.
 
 ## Controlli su main 599852f9 (21/10 02:07–02:24)
 - Test del programma principale: 191 file, **1824 passati**, 2 saltati, 7 min 25 s.
