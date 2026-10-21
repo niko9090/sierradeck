@@ -130,4 +130,21 @@ describe('il menu dei workspace sulla pagina (0.82.0)', () => {
   it('«Apri cartella» dal telefono arriva davvero al PC: la rotta ha la sua ricerca (prima rispondeva sempre «aggiornalo alla 0.82.0»)', () => {
     expect(readFileSync('src/main/index.ts', 'utf8')).toMatch(/\n\s+cartellaDaAprire: \(q[^)]*\) => \(cartellaDaAprireGlobale/)
   })
+
+  it('dopo Invio la casella della rinomina se ne va: toglie il fuoco, se no la pagina non si ridisegna', async () => {
+    const fatti: string[] = []
+    const campo = { value: 'Nuovo nome', blur: () => { fatti.push('blur') } }
+    const rinomina = new Function('document', 'chiedi', 'pannello', 'aggiorna',
+      'var wsRinomina = "Prova 07"; var notaGlobale = ""; var ultimoStato = {}; var window = {};\n' +
+      pezzo('window.rinominaWorkspace =', '\n}\n') + '\n}\n;return window.rinominaWorkspace'
+    )(
+      { getElementById: () => campo, activeElement: campo },
+      (percorso: string, corpo: unknown) => { fatti.push(`${percorso} ${JSON.stringify(corpo)}`); return Promise.resolve({ fatto: true }) },
+      () => { fatti.push('pannello') },
+      () => { fatti.push('aggiorna') }
+    ) as (vecchio: string) => Promise<void>
+    await rinomina('Prova 07')
+    expect(fatti).toEqual(['blur', '/api/workspace/rinomina {"nome":"Prova 07","nuovo":"Nuovo nome"}', 'aggiorna'])
+  })
 })
+

@@ -654,6 +654,76 @@
           "spiega": "Porta qui «C» con le sue chat (le copia dal Drive). Su Portatile non cambia niente."
         }
       ]
+    },
+    {
+      "nome": "con Sposta",
+      "voce": {
+        "nome": "B",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 3,
+        "sposta": true
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Passa a «B». Le chat che lasci continuano a lavorare."
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "cartella",
+          "etichetta": "Apri cartella",
+          "spiega": "Apre la cartella del progetto di questo workspace."
+        },
+        {
+          "azione": "sposta",
+          "etichetta": "Sposta su un altro PC…",
+          "spiega": "Sposta il progetto di questo workspace su un altro PC, con il trasloco: confronta, unisce, e la copia di qui va nel recupero per 30 giorni."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina»."
+        }
+      ]
+    },
+    {
+      "nome": "PC senza Apri cartella",
+      "voce": {
+        "nome": "B",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 3,
+        "cartella": false
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Passa a «B». Le chat che lasci continuano a lavorare."
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina»."
+        }
+      ]
     }
   ]
 }

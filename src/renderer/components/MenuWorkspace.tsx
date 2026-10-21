@@ -70,6 +70,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const tasto = useRef<HTMLButtonElement>(null)
   const cerca = useRef<HTMLInputElement>(null)
   const lista = useRef<HTMLDivElement>(null)
+  const menuAzioni = useRef<HTMLDivElement>(null)
   const azioni = useRef<ReturnType<typeof azioniDiFinestra> | undefined>(undefined)
   /** Il motivo di un'eliminazione rifiutata: il menu si riapre e lo mostra. */
   const erroreDaMostrare = useRef<string | undefined>(undefined)
@@ -105,7 +106,8 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     setFiltro('')
     setErrore(erroreDaMostrare.current)
     erroreDaMostrare.current = undefined
-    setEvidenziato(0)
+    // Invio subito dopo l'apertura resta dove sei, come prima.
+    setEvidenziato(Math.max(0, vociInFila(gruppiMenuWorkspace({ nomi, attivo, recenti, filtro: '', nomePc, altrove })).findIndex((v) => v.qui && v.nome === attivo)))
     void window.gestore.workspace.dove().then((d) => setConti(contaChatPerWorkspace(d))).catch(() => undefined)
     void window.gestore.workspace.remote().then(setRemote).catch(() => undefined)
     void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
@@ -124,6 +126,16 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     const voce = lista.current?.querySelectorAll<HTMLElement>('.ws-menu__voce')[evidenziato]
     voce?.scrollIntoView?.({ block: 'nearest' })
   }, [aperto, evidenziato])
+
+  // Il workspace che si rinominava è sparito (rinominato o eliminato altrove): la casella non vale più.
+  useEffect(() => {
+    if (rinomina !== undefined && !nomi.includes(rinomina.vecchio)) setRinomina(undefined)
+  }, [nomi, rinomina])
+
+  // Il «⋯» aperto ha il fuoco sulla prima voce attiva: la tastiera arriva lì.
+  useEffect(() => {
+    if (azioniDi !== undefined) menuAzioni.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [azioniDi])
 
   const apriAzioni = (v: VoceMenuWs, el: HTMLElement): void => {
     const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).length
@@ -146,10 +158,11 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const confermaRinomina = (): void => {
     if (rinomina === undefined) return
     const { vecchio, testo } = rinomina
-    if (testo.trim() === vecchio) { setRinomina(undefined); return }
+    if (testo.trim() === vecchio) { setRinomina(undefined); cerca.current?.focus(); return }
     const c = controllaNomeWorkspace(testo, nomi.filter((n) => n !== vecchio))
     if (!c.ok) { setErrore(c.errore); return }
     setRinomina(undefined)
+    cerca.current?.focus()
     void window.gestore.workspace.rinomina(vecchio, c.nome)
       .then((s) => { setErrore(undefined); onStato?.(s) })
       .catch((err: unknown) => setErrore(senzaPrefisso(err)))
@@ -159,6 +172,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     if (a.spenta !== undefined) return
     setAzioniDi(undefined)
     setErrore(undefined)
+    cerca.current?.focus()
     switch (a.azione) {
       case 'apri': scegli(v); return
       case 'rinomina': setRinomina({ vecchio: v.nome, testo: v.nome }); return
@@ -172,11 +186,26 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
       case 'elimina': chiudi(); setDaEliminare(v.nome); return
       case 'portaQui':
         setPorto(v.nome)
-        void window.gestore.sync.portaQuiWorkspace(v.nome).finally(() => {
-          setPorto(undefined)
-          void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
-        })
+        void window.gestore.sync.portaQuiWorkspace(v.nome)
+          .then((r) => { if (!r.ok) setErrore(r.messaggio) })
+          .catch((err: unknown) => setErrore(senzaPrefisso(err)))
+          .finally(() => {
+            setPorto(undefined)
+            void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
+          })
     }
+  }
+
+  // Nel «⋯»: frecce fra le voci, Esc torna all'elenco, Invio lo fa il pulsante.
+  const suTastoAzioni = (e: React.KeyboardEvent): void => {
+    e.stopPropagation()
+    if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); setAzioniDi(undefined); cerca.current?.focus(); return }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const voci = [...(menuAzioni.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
+    if (voci.length === 0) return
+    const qui = voci.indexOf(document.activeElement as HTMLButtonElement)
+    voci[(qui + (e.key === 'ArrowDown' ? 1 : voci.length - 1)) % voci.length]?.focus()
   }
 
   const suTasto = (e: React.KeyboardEvent): void => {
@@ -185,6 +214,8 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
     if (e.key === 'ArrowDown') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i + 1) % fila.length)); return }
     if (e.key === 'ArrowUp') { e.preventDefault(); setAzioniDi(undefined); setEvidenziato((i) => (fila.length === 0 ? 0 : (i - 1 + fila.length) % fila.length)); return }
     if (e.key === 'Enter') {
+      // Invio su un pulsante lo preme lui; dalla ricerca sceglie la riga evidenziata.
+      if (e.target !== cerca.current) return
       e.preventDefault()
       const v = fila[evidenziato] ?? fila[0]
       if (v !== undefined) scegli(v)
@@ -312,8 +343,9 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           className="ws-menu__azioni"
           role="menu"
           aria-label={`Azioni per «${azioniDi.voce.nome}»`}
+          ref={menuAzioni}
           style={{ top: azioniDi.posto.top, left: azioniDi.posto.left, width: azioniDi.posto.larghezza, maxHeight: azioniDi.posto.altezzaMax }}
-          onKeyDown={suTasto}
+          onKeyDown={suTastoAzioni}
         >
           {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).map((a) => (
             <button

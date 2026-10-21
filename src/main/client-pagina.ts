@@ -4204,6 +4204,8 @@ window.rinominaWorkspace = async (vecchio) => {
   const nuovo = campo && campo.value.trim()
   if (!nuovo || !vecchio) return
   wsRinomina = ''
+  // La casella ha il fuoco e con il fuoco in una casella la pagina non si ridisegna: va tolto.
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur()
   if (nuovo === vecchio) { pannello(ultimoStato); return }
   try {
     // Il 409 è una risposta con il motivo («esiste già»): si dice.

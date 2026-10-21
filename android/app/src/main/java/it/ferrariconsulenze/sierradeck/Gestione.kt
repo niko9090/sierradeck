@@ -93,6 +93,8 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
     // I workspace eliminati negli ultimi 30 giorni (PC 0.81.0): si rileggono quando cambia l'elenco.
     // Un PC più vecchio non li tiene: allora la sezione non c'è.
     var eliminati by remember { mutableStateOf<List<VoceRecuperoWs>>(emptyList()) }
+    // L'elenco cambiato (rinomina, elimina, dal PC): il «⋯» aperto non vale più.
+    LaunchedEffect(workspace.nomi, workspace.altrove) { menuDi = null }
     LaunchedEffect(workspace.nomi) {
         eliminati = try { api.recuperoWorkspace().voci } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { emptyList() }
     }
@@ -122,7 +124,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                 )
                 val cartella = FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false
                 val gruppi = MenuWorkspace.gruppi(workspace.nomi, workspace.attivo, workspace.recenti, filtro, nomePc, workspace.altrove)
-                if (gruppi.isEmpty()) Text("Nessun workspace con «${filtro.trim()}».", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+                if (gruppi.isEmpty()) Text(if (filtro.isBlank()) "Nessun workspace." else "Nessun workspace con «${filtro.trim()}».", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
                 for (g in gruppi) {
                     Spacer(Modifier.height(10.dp))
                     Text(g.titolo.uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -147,7 +149,13 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                     // L'app non apre dal vivo un workspace di un altro PC (lo fa il PC): lì resta «Porta qui».
                                     for (a in MenuWorkspace.azioni(v, workspace.attivo, workspace.nomi.size, cartella = cartella).filter { v.qui || it.azione != "apri" }) {
                                         DropdownMenuItem(
-                                            text = { Text(a.etichetta, color = if (a.spenta != null) Banco.testoQuieto else if (a.pericolo) Banco.rosso else Banco.testo) },
+                                            text = {
+                                                Column {
+                                                    Text(a.etichetta, color = if (a.spenta != null) Banco.testoQuieto else if (a.pericolo) Banco.rosso else Banco.testo)
+                                                    // Una voce spenta dice perché («Sei qui» lo dice già da sé).
+                                                    if (a.spenta != null && a.azione != "apri") Text(a.spenta, color = Banco.testoQuieto, fontSize = 11.sp)
+                                                }
+                                            },
                                             enabled = a.spenta == null && !inCorso,
                                             onClick = {
                                                 menuDi = null

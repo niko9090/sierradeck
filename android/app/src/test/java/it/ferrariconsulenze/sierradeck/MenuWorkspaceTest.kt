@@ -57,7 +57,8 @@ class MenuWorkspaceTest {
             val p = c["ingresso"]!!.jsonObject
             val fatte = MenuWorkspace.azioni(
                 MenuWorkspace.Voce(testo(v, "nome")!!, v["qui"]!!.jsonPrimitive.boolean, pc?.let { testo(it, "id") }, pc?.let { testo(it, "nome") }),
-                attivo = testo(p, "attivo")!!, quanti = p["quanti"]!!.jsonPrimitive.int
+                attivo = testo(p, "attivo")!!, quanti = p["quanti"]!!.jsonPrimitive.int,
+                sposta = p["sposta"]?.jsonPrimitive?.boolean ?: false, cartella = p["cartella"]?.jsonPrimitive?.boolean ?: true
             )
             val attese = c["azioni"]!!.jsonArray.map { a ->
                 val o = a.jsonObject

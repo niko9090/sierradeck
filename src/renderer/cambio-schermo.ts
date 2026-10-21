@@ -19,6 +19,6 @@ export async function cambiaSchermo(
   if (!d.cambia) return false
   await azioni.cambia(nome, `${causa}${dettaglio !== undefined && dettaglio !== '' ? `: ${dettaglio}` : ''}`)
   // «Recenti» del menu (0.82.0): solo dove è andato Nicholas, non dove l'ha portato una consegna.
-  if (causa === 'nicholas' || causa === 'telefono') void window.gestore.workspace.recente?.(nome)?.catch(() => undefined)
+  if (causa === 'nicholas' || causa === 'telefono') void window.gestore.workspace?.recente?.(nome)?.catch(() => undefined)
   return true
 }
