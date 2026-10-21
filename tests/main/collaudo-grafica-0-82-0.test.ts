@@ -90,6 +90,17 @@ describe('difetto 3: sotto il nome di una chat, niente righe vuote di interfacci
     expect(stato).toBe('Opus 5.5 · 0.00 $')
     expect(ultimaRigaDalloSchermo(['Faro', stato])).toBe('Faro')
   })
+  it('dal flusso: la cornice con il titolo, la riga di stato e i permessi non sono la riga (c-43, visto nella copia)', () => {
+    const cornice = '─'.repeat(180) + ' Somma: cosa fa ─'
+    const flusso = ['1 more notice hidden', cornice, '❯', '─'.repeat(206), 'Opus 5.5 · 5 ore 6% (azzera 07:00) · settimana 28% · 0.00 $', '⏵⏵ bypass permissions on (shift+tab to cycle)', ''].join(String.fromCharCode(10))
+    expect(ultimaRigaUtile(flusso)).toBe('1 more notice hidden')
+    expect(ultimaRigaUtile(['Faro', '◐ medium · /effort'].join(String.fromCharCode(10)))).toBe('Faro')
+    expect(ultimaRigaDalloSchermo(['Faro', '◐ medium · /effort'])).toBe('Faro')
+    expect(ultimaRigaDalloSchermo(['Faro', '❯ Try "create a util logging.py that..."'])).toBe('Faro')
+    expect(ultimaRigaUtile(['Faro', cornice].join(String.fromCharCode(10)))).toBe('Faro')
+    // Nel flusso la cornice arriva attaccata al resto della casella (il cursore si sposta, non va a capo).
+    expect(ultimaRigaUtile(['Faro', cornice + '❯ Try "create a util"' + '─'.repeat(206) + 'Opus 5.5 · 0.00 $'].join(String.fromCharCode(10)))).toBe('Faro')
+  })
   it('dal flusso (quando lo schermo non c è): il solo «›» non è la riga', () => {
     expect(ultimaRigaUtile('Faro, Vetrina, Nodo\n›\n')).toBe('Faro, Vetrina, Nodo')
   })
