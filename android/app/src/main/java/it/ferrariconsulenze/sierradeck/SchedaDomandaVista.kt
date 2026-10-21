@@ -72,7 +72,7 @@ fun MessaggiCompattiVista(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
                 if (s.consegnato) "✓" else "⋯",
                 color = if (s.consegnato) Banco.verde else Banco.testoQuieto,
                 fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).tocco { letto = if (letto == s.titolo) null else s.titolo }.padding(horizontal = 2.dp)
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).toccoInLinea { letto = if (letto == s.titolo) null else s.titolo }.padding(horizontal = 2.dp)
             )
         }
     }

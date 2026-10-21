@@ -45,6 +45,18 @@ class LeggibilitaTest {
     }
 
     @Test
+    fun colChiaroreAlMassimoQuietoERossoRestanoAA() {
+        // Chiarore 100 del PC: fondo #1e1e1e, pannello alto #353535, quieto #9a9a9a (4,36:1), rosso #dc5f5f (3,41:1).
+        val alto = 0xFF353535L
+        val quieto = Contrasto.almenoAA(0xFF9A9A9AL, alto, 0xFFDFDFDFL)
+        val rosso = Contrasto.almenoAA(0xFFDC5F5FL, alto, 0xFFDFDFDFL)
+        assertTrue(Contrasto.rapporto(quieto, alto) >= 4.5)
+        assertTrue(Contrasto.rapporto(rosso, alto) >= 4.5)
+        // Un colore già leggibile non si tocca.
+        assertEquals(0xFF9AA1A9L, Contrasto.almenoAA(0xFF9AA1A9L, chassis, testo))
+    }
+
+    @Test
     fun nessunCarattereSotto12sp() {
         // Il terminale ha la sua dimensione (A− A+): qui solo i numeri scritti.
         val piccoli = kt().flatMap { f ->

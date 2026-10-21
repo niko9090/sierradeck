@@ -99,3 +99,10 @@ fun Voce(testo: String, attiva: Boolean, onClick: () -> Unit) {
  */
 fun Modifier.tocco(enabled: Boolean = true, onClick: () -> Unit): Modifier =
     this.clickable(enabled = enabled, onClick = onClick).minimumInteractiveComponentSize()
+
+/**
+ * Un segno piccolo dentro una riga di testo (✓ ⋯ di un messaggio): non si
+ * allarga a 48 dp, o la riga andrebbe a capo a ogni segno. L'area del tocco
+ * la allarga Compose da solo fino a 48 dp, senza spostare il disegno.
+ */
+fun Modifier.toccoInLinea(onClick: () -> Unit): Modifier = this.clickable(onClick = onClick)
