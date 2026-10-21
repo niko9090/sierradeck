@@ -173,6 +173,17 @@ export type ChatPerDomande = {
 /** Una domanda di una chat a cui l'autopilota ha risposto da solo (0.71.1). */
 export type DomandaRisolta = { autopilotaId: string; chatId?: string; chatTitolo?: string; domanda: string; risposta: string; quando: string }
 
+/**
+ * L'inizio della «risposta» di una domanda chiusa perché superata (0.84.0):
+ * nessuno ha risposto, e così va mostrata (collaudo 0.84.1).
+ */
+export const SUPERATA = 'Superata, non serve più: '
+
+/** Una domanda chiusa perché superata, non una risposta dell'autopilota. */
+export function eSuperata(r: Pick<DomandaRisolta, 'risposta'>): boolean {
+  return r.risposta.startsWith(SUPERATA)
+}
+
 /** Quanto resta visibile una domanda a cui ha risposto l'autopilota. */
 export const RISOLTE_PER_ORE = 12
 

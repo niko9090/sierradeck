@@ -1,6 +1,6 @@
 import type { Autopilota } from './autopilota'
 import { conversazione } from './chat-autopilota'
-import type { OpzioneScelta, VoceDomanda } from './domande-telefono'
+import { SUPERATA, eSuperata, type OpzioneScelta, type VoceDomanda } from './domande-telefono'
 import { chiDi, fraseDomanda, schedaDaParti, schedaDaTesto, scelteDiChat, type SchedaDomanda } from './scheda-domanda'
 
 /**
@@ -283,9 +283,14 @@ export function conversazioniDomande(p: {
   for (const v of p.voci) {
     if (v.tipo !== 'risolta') continue
     const chiave = `ap:${v.autopilotaId}`
+    // Una domanda superata (0.84.0) non ha avuto risposta: si dice che è
+    // stata chiusa e perché (collaudo 0.84.1).
+    const superata = eSuperata(v)
     const coppia: MessaggioConversazione[] = [
       { da: 'lui', testo: `${v.chatTitolo !== undefined ? `La chat «${v.chatTitolo}» ha chiesto` : 'La chat ha chiesto'}: ${v.domanda}`, quando: v.quando },
-      { da: 'nota', testo: `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
+      superata
+        ? { da: 'nota', testo: `chiusa senza risposta, non serve più: ${v.risposta.slice(SUPERATA.length)}`, quando: v.quando, tono: 'risolta' }
+        : { da: 'nota', testo: `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
     ]
     let sua = fuori.find((c) => c.chiave === chiave)
     if (sua === undefined) {
@@ -294,7 +299,7 @@ export function conversazioniDomande(p: {
         tipo: 'autopilota',
         autopilota: v.autopilotaId,
         titolo: v.autopilota,
-        sotto: 'ha risposto da solo a una domanda della sua chat',
+        sotto: superata ? 'una domanda della sua chat non serve più' : 'ha risposto da solo a una domanda della sua chat',
         chiede: false,
         scheda: {
           chi: chiDi('autopilota', v.autopilota),

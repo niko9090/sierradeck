@@ -18,11 +18,19 @@ import type { PartiDomanda } from './domanda-strutturata'
 /**
  * Una sigla di chat («c-12») o il ramo che la contiene («ap/ap-f1e631f5/c-12»).
  * Non dentro una parola («abc-12»), un percorso o un nome di file («c-310.log»).
+ * Dopo una barra conta solo se prima c'è un'altra sigla: «c-7/c-4» (collaudo 0.84.1).
  */
-export const SIGLA_CHAT = /(?<![\p{L}\d_/.-])(?:ap\/ap-[0-9a-f]+\/)?(c-\d+)(?![\d\p{L}]|\.\p{L})/giu
+export const SIGLA_CHAT = /(?<![\p{L}\d_.-])(?<!(?<!c-\d+)\/)(?:ap\/ap-[0-9a-f]+\/)?(c-\d+)(?![\d\p{L}]|\.\p{L})/giu
 
-/** Riferimenti che chi legge da lontano non può risolvere (0.84.0). */
-export const RIFERIMENTI_VAGHI = /(?<![\p{L}])(l['’]altra chat|l['’]altro autopilota|quell['’]altra|quell['’]autopilota|quel pezzo|questo pezzo|quel lavoro|quella chat|quella parte|come detto|di cui sopra|vedi sopra)(?![\p{L}])/iu
+/** L'id di un autopilota («ap-f1e631f5»): per chi legge è una sigla come «c-12» (collaudo 0.84.1). */
+export const SIGLA_AUTOPILOTA = /(?<![\p{L}\d_.\/-])ap-[0-9a-f]{6,}(?:-[0-9a-f]+)*(?![\p{L}\d])/giu
+
+/**
+ * Riferimenti che chi legge da lontano non può risolvere (0.84.0). «questo
+ * lavoro» e «questo autopilota» sono due domande vere del 21/10; seguiti dal
+ * nome fra «» dicono quale, e allora vanno bene (collaudo 0.84.1).
+ */
+export const RIFERIMENTI_VAGHI = /(?<![\p{L}])(l['’]altra chat|l['’]altro autopilota|quell['’]altra|quell['’]autopilota|quel pezzo|questo pezzo|quel lavoro|questo lavoro|questo autopilota|quella chat|quella parte|quella cosa|questa cosa|come detto|di cui sopra|vedi sopra)(?![\p{L}])(?!\s*«)/iu
 
 /** La riga che Claude Code mette nella notifica di attesa: non è una domanda e non è italiano. */
 const NOTIFICA_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude (?:is waiting for your input|needs your attention)\s*/i
@@ -32,6 +40,11 @@ const PERMESSO_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude needs your permission to use
 /** Le sigle che compaiono in un testo, senza doppioni, in minuscolo. */
 export function sigleIn(testo: string): string[] {
   return [...new Set([...testo.matchAll(SIGLA_CHAT)].map((m) => (m[1] ?? '').toLowerCase()))]
+}
+
+/** Gli id di autopilota che compaiono in un testo, senza doppioni. */
+export function sigleAutopilotaIn(testo: string): string[] {
+  return [...new Set([...testo.matchAll(SIGLA_AUTOPILOTA)].map((m) => m[0].toLowerCase()))]
 }
 
 /** Il primo riferimento vago, o `undefined`. */
@@ -47,7 +60,7 @@ export function testiDi(p: PartiDomanda): string[] {
 /** Le note di chiarezza su una domanda: vuoto se va bene. */
 export function noteDiChiarezza(p: PartiDomanda): string[] {
   const note: string[] = []
-  const sigle = [...new Set(testiDi(p).flatMap(sigleIn))]
+  const sigle = [...new Set(testiDi(p).flatMap((t) => [...sigleIn(t), ...sigleAutopilotaIn(t)]))]
   if (sigle.length > 0) note.push(`niente sigle di chat (${sigle.map((s) => `«${s}»`).join(', ')}): chi legge non sa cosa sono, di' a parole di quale lavoro si tratta`)
   const vago = riferimentoVago([p.domanda, ...p.scelte.map((s) => s.scelta)].join('\n'))
   if (vago !== undefined) note.push(`«${vago}» non si capisce da lontano: di' esattamente di quale lavoro o di quale chat parli, con il suo compito`)
@@ -81,13 +94,16 @@ export function nomeCompito(compito: string, max = 50): string {
 /**
  * Le sigle sostituite con il compito della chat: «chiudo le chat c-7 e c-4?»
  * diventa «chiudo le chat «Collaudo della gestione…» e «Interfaccia…»?». Una
- * sigla che il programma non conosce diventa «una chat precedente».
+ * sigla che il programma non conosce **resta** (collaudo 0.84.1): prima
+ * diventava «una chat precedente» e la domanda («chiudo le chat una chat
+ * precedente e una chat precedente?») passava il controllo senza dire quale
+ * lavoro. Così il controllo la vede e la fa riscrivere a parole.
  */
 export function senzaSigle(testo: string, chat: ChatConCompito[]): string {
-  return testo.replace(SIGLA_CHAT, (_tutto, id: string) => {
+  return testo.replace(SIGLA_CHAT, (tutto, id: string) => {
     const c = chat.find((x) => x.id.toLowerCase() === id.toLowerCase())
     const nome = c !== undefined ? nomeCompito(c.compito) : ''
-    return nome !== '' ? `«${nome}»` : 'una chat precedente'
+    return nome !== '' ? `«${nome}»` : tutto
   })
 }
 

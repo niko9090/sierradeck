@@ -12,7 +12,7 @@ import { sigleIn } from '@shared/domanda-chiara'
 /**
  * Collaudo nel servizio vero (0.84.0): dove compare una risposta deve vedersi
  * la domanda intera, **chiara**, senza le sigle che la domanda aperta non ha
- * più. I casi «DIFETTO» sono `it.fails`: vedi collaudo-domande-chiare.test.ts.
+ * più. I casi «DIFETTO» sono corretti nella 0.84.1.
  */
 
 let server: ServerAutopiloti | undefined
@@ -73,7 +73,7 @@ describe('le risposte dell’autopilota, con la domanda accanto', () => {
     expect(r?.risposta).toBe('Sì: chiudile, i rami sono già in main.')
   })
 
-  it.fails('DIFETTO 7: la domanda della chat fra le risolte tiene le sigle («chiudo la c-7?») (server.ts:3611)', async () => {
+  it('DIFETTO 7: la domanda della chat fra le risolte tiene le sigle («chiudo la c-7?») (server.ts:3611)', async () => {
     await avvia({
       interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'rispondo', risposta: 'Sì, chiudila.' }) }),
       chats: [chat('c-65', 'Collaudo delle domande chiare'), chat('c-7', 'Collaudo della gestione delle chat', 'finita')],
@@ -85,7 +85,7 @@ describe('le risposte dell’autopilota, con la domanda accanto', () => {
     expect(sigleIn(r!.domanda)).toEqual([])
   })
 
-  it.fails('DIFETTO 8: il nome della chat accanto alla risposta è il compito grezzo, con le sigle della Revisione (server.ts:293)', async () => {
+  it('DIFETTO 8: il nome della chat accanto alla risposta è il compito grezzo, con le sigle della Revisione (server.ts:293)', async () => {
     await avvia({
       interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'rispondo', risposta: 'Sì, prosegui.' }) }),
       chats: [chat('c-66', REVISIONE)],
