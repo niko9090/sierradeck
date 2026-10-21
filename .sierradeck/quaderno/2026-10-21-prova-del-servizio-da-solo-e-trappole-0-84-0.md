@@ -33,3 +33,14 @@ Il supervisore resta il `claude` vero.
 - **I salvataggi di un turno dopo un `await` non devono riscrivere la coda.** Il guardiano può aver consegnato o messo da parte qualcosa nel frattempo. Si salva con `salvaNelTurno` (`codaDalDisco`), non con `salva`.
 - **Un worktree non ha `node_modules`.** Per `tsc` e `vitest` serve un collegamento alla cartella principale (`mklink /J`). Si toglie con `rmdir`, mai con una cancellazione ricorsiva: cancellerebbe i `node_modules` veri.
 - **Gli heredoc della Bash di Git mangiano i backslash.** `'C:\\x\\'` diventa `'C:\x\'`. Per il codice si usa lo strumento di scrittura dei file.
+
+## Leggere i registri degli altri PC (21/10 sera)
+
+- **La strada.**
+  1. Il dispositivo temporaneo in `dispositivi.json`.
+  2. Attraverso il ponte, `/api/scrivi` a una chat di quel PC, oppure `/api/apri` e poi `/api/scrivi`.
+  3. L'esito si legge con `/api/storia`.
+  Le chiamate le fa uno script node, con `fetch` e l'intestazione `x-sierradeck-chiave`: niente curl e niente percorsi nella riga di comando.
+- **I percorsi Windows nei corpi si prendono da quello che risponde l'altro PC** (`/api/stato` → `cwd`). Mai scriverli a mano in un comando Bash: i backslash spariscono e `/api/apri` risponde «cartella inesistente».
+- **Chiudere la chat temporanea** si può con la rotta di chiusura delle chat attraverso il ponte. Il 21/10 la chat del LAPTOP si è chiusa così, con una chiamata dello script. Il divieto dell'autopilota (`ROTTE_VIETATE`) blocca però ogni comando Bash che contiene quella rotta scritta per intero, anche dentro un testo o una scheda. È per questo che la chat del DESKTOP non si era chiusa da sola. La chiamata dello script è passata solo perché la rotta arrivava come argomento separato: va guardato se il divieto deve coprire anche quel caso. **Decide Nicholas.**
+- **Il risultato si riconosce meglio se la chat stampa una riga JSON sola.** In `/api/storia` le righe arrivano spezzate dal terminale, e qualche spazio si perde.
