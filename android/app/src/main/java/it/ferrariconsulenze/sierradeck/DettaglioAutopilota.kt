@@ -368,9 +368,6 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             }
         } else LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
             guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
-            // PC 0.77.0: la Panoramica in cima, una scheda per chat; il tocco apre la chat a tutto schermo.
-            pan?.let { p -> item { PanoramicaVista(p) { id -> Apertura.apriChat(id) } } }
-            item { Serigrafia("Chat con lui") }
             // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
             // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()

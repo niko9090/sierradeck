@@ -157,3 +157,22 @@ data class Pallini(val adesso: Pallino?, val chat: Pallino?) {
         }
     }
 }
+
+/**
+ * La tastiera è aperta? (2.83.0, c-509) Con la tastiera la barra delle voci
+ * sparisce: sopra la tastiera devono restare la conversazione e la casella.
+ * Letto dagli inset della finestra, che ci sono anche senza edge-to-edge.
+ */
+@Composable
+fun tastieraAperta(): Boolean {
+    val vista = androidx.compose.ui.platform.LocalView.current
+    var aperta by remember { mutableStateOf(false) }
+    DisposableEffect(vista) {
+        val ascolta = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            aperta = androidx.core.view.ViewCompat.getRootWindowInsets(vista)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        vista.viewTreeObserver.addOnGlobalLayoutListener(ascolta)
+        onDispose { vista.viewTreeObserver.removeOnGlobalLayoutListener(ascolta) }
+    }
+    return aperta
+}

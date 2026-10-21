@@ -104,6 +104,6 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     const tutte = MENU_TELEFONO.flatMap((v) => v.contiene)
     expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.map((v) => v.id).sort())
     // Le domande per Nicholas stanno nella prima voce, quella su cui si apre l'app.
-    expect(MENU_TELEFONO[0].contiene[0]).toBe('domande')
+    expect(MENU_TELEFONO[0]?.contiene[0]).toBe('domande')
   })
 })

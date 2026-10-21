@@ -549,7 +549,8 @@ fun Principale(
 
     Scaffold(
         containerColor = Banco.fondo,
-        bottomBar = { BarraVoci(posto.voce, stato) { posto = Navigazione.tocca(posto, it) } }
+        // Con la tastiera aperta la barra sparisce (c-509): resta posto alla conversazione.
+        bottomBar = { if (!tastieraAperta()) BarraVoci(posto.voce, stato) { posto = Navigazione.tocca(posto, it) } }
     ) { pad ->
         // consumeWindowInsets: dentro, imePadding conta solo la tastiera oltre la
         // barra in basso (2.83.0, c-509: la casella dell'autopilota resta in vista).

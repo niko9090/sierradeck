@@ -67,6 +67,9 @@ class SchedaAutopilotaTest {
         // Le parti stanno nella riga aperta, non più in una seconda lista sotto la chat.
         assertFalse(k.contains("Modifier.weight(0.8f)"))
         assertTrue(k.indexOf("if (riassuntoAperto) LazyColumn") < k.indexOf("} else LazyColumn"))
+        // La Panoramica sta solo nella riga aperta (prima era anche sopra la conversazione).
+        val conversazione = k.substring(k.indexOf("} else LazyColumn"), k.indexOf("la casella: sempre in basso"))
+        assertFalse(conversazione.contains("PanoramicaVista"))
         val app = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
         assertTrue(app.contains(".consumeWindowInsets(pad)"))
         assertTrue(java.io.File("src/main/AndroidManifest.xml").readText().contains("adjustResize"))
