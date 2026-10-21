@@ -64,3 +64,5 @@ nuovo tentativo, per la consegna «chiudi» persa.
 ## Stato (21/10 sera)
 
 Ramo c-66 verde (servizio, renderer, condivisi, pty: 2978 test; `tsc` pulito), ultimo commit di codice `9f48c392`, aspetta la Revisione; c-68 ha le stesse correzioni: se ne unisce uno solo. Resta per la 0.84.1 il punto 2 della riga 5 (segnale in vista su pagina e app), non cominciato qui per non mescolarlo a un ramo in Revisione.
+
+22/10, dopo l'installazione della 0.84.0: suite rilanciata sul ramo, ancora verde (272 file, 2978 test; `tsc` pulito). Il ramo torna alla Revisione.
