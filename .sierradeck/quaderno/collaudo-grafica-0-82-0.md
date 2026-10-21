@@ -1,10 +1,12 @@
 ---
-titolo: "Collaudo grafica 0.82.0: i cinque difetti di c-32 sono ancora aperti (c-41)"
+titolo: "Collaudo grafica 0.82.0: i cinque difetti di c-32 (trovati da c-41, corretti da c-43)"
 quando: 2026-10-21T02:50:00+02:00
 tag: ["0.82.0", "grafica", "collaudo", "difetti", "PC", "pagina", "app"]
 ---
 
 Collaudo (c-41, consegna c-370) su main `3bd27ad4`, dopo l'unione di c-38 («meno cose in vista»).
+
+**Aggiornamento 21/10 (c-43): tutti e cinque corretti.** Nessun `.fails` resta nel test. Come, e cosa è emerso, nella sezione «Correzione (c-43)» in fondo. Sotto, lo stato trovato da c-41.
 
 **In breve:** c-38 non ha corretto i cinque difetti trovati da c-32 (l'analisi di c-32 sta solo sul ramo `ap/ap-f1e631f5/c-32`, commit `eb9635fb`, **non in main**). Sono ancora tutti aperti. Il 3 è aperto solo in parte. Serve una chat di sviluppo che li corregga, prima della release.
 
@@ -37,3 +39,12 @@ Collaudo (c-41, consegna c-370) su main `3bd27ad4`, dopo l'unione di c-38 («men
 ## Trappole
 - **Il worktree nuovo non ha `node_modules`:** vitest dice «failed to load config». Va creata una giunzione verso quella della cartella principale (`New-Item -ItemType Junction`), come negli altri worktree.
 - **Gradle con altre chat accese:** il demone può sparire («Gradle build daemon disappeared unexpectedly»). Rilanciando è passato.
+
+## Correzione (c-43)
+- **1, chat del workspace dietro.** La memoria dei workspace (`memoria-workspace.ts`) ha `vivi()`, e `chatDietro()` ne tira fuori i riquadri con un terminale acceso (non ibernati, non remoti). `App.tsx` li annuncia con il loro workspace e `dietro: true`; senza terminale morto (`attivitaDi(...).morto`). Nel main stanno in `chatDietroPerFinestra`, **fuori da `chatPerFinestra`**: quella decide le consegne (`inFinestra`, «chiudi», ripresa dopo l'aggiornamento), e una chat dietro deve restare «accesa nascosta» come prima. Telefono → scrittura, tasti e righe passano da `riquadroDelTelefono` (riquadri a schermo, poi memoria). Pagina (`gruppiChat`) e app (`raggruppaChat`) usano prima il `workspace` dichiarato dalla chat.
+- **2.** `chatInMoto` = né `chiede` né `aspetta`, e viva. Le altre vanno sotto «ALTRE CHAT».
+- **3.** `RUMORE_DI_INTERFACCIA` vale anche per `ultimaRigaUtile`. Ci sono in più la riga di stato con solo modello e costo, lo sforzo «· /effort», «❯ Try "…"» e «N more notice hidden».
+- **4.** «Fatta: Panoramica nuova in N workspace, parte quando le scrivi.»
+- **5.** In `componiNuovaChat` il nome vuoto vale `nomeCartellaDaNome('')` = «Nuova chat».
+
+**Trappola vista nella copia:** nel flusso di un terminale, Claude Code sposta il cursore invece di andare a capo. La cornice con il titolo arriva quindi attaccata al resto della casella, in una riga sola che comincia con ≥160 trattini. Tagliata a 160 caratteri, sotto il nome restavano solo trattini. La lettura di riserva ora salta le righe che cominciano con `─━═` ripetuti. Nella copia la finestra usava il flusso anche per le chat davanti (lo schermo disegnato non rispondeva): da guardare a parte.
