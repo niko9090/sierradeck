@@ -37,6 +37,22 @@ Dalla 0.82.0 il numero di chat degli autopiloti **al lavoro insieme** non è pi�
 ## Trappole
 - **Su Windows `os.loadavg()` è sempre `[0,0,0]`.** Il carico si calcola dai
   tempi di `os.cpus()` fra due letture.
+- **La prima misura non sapeva il carico** (21/10, trovato misurando): il
+  servizio misurava per la prima volta alla ripresa delle flotte, subito dopo
+  aver creato il misuratore → carico 0 → su un PC pieno apriva 6 chat invece di
+  3. Ora la prima lettura si fa alla creazione e la primissima misura aspetta
+  (con `Atomics.wait`, senza CPU) il secondo che manca. Letture a meno di 1 s
+  l'una dall'altra non si confrontano: sono rumore.
+- **«Ferma» non vuol dire «aspetta»**: `aspetta` è vero anche con una scelta o
+  un permesso aperto. Una chat così non si chiude (`ferma` esclude `sceltaAperta`).
+- Una `chiudi` persa (5 tentativi, nessuna finestra) non blocca il posto per
+  sempre: dopo `RICHIUDI_DOPO_MS` (10 min) la chat ancora accesa si richiude.
+  E `chiudi` non conta fra le consegne in attesa: non apre finestre da sola.
+- Le chat finite **senza `dal`** (nate prima della 0.81.0) usano
+  `ultimoEvento` dell'autopilota, che ogni `salva` sposta: le loro chiusure da
+  sole possono slittare. Non è grave (si chiudono più tardi, mai prima).
+- Lo stato del programma porta al massimo 80 chat: oltre, le altre non si
+  chiudono da sole.
 - **Un autopilota con compiti ma ancora senza chat non occupa un posto.** La chat
   singola conta solo se ha la sua `sessionId`; prima della correzione la flotta
   nuova si contava come «una al lavoro» e apriva una chat in meno.
