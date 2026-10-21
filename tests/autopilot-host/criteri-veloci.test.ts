@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, VALIDITA_MS, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
+import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
 import { gitReale } from '../../src/autopilot-host/worktree'
 
 /**
@@ -64,13 +64,41 @@ describe('criteri veloci', () => {
     expect(a.eseguiti).toContain('npm test')
   })
 
-  it('la cache scade, e senza impronta (non git) non vale', async () => {
+  it('0.82.1: l’esito vale per commit e comando, senza scadenza; senza impronta (non git) non vale', async () => {
     const a = ambiente()
     const memoria: MemoriaCriteri = new Map()
-    await misuraCriteri(criteri.slice(0, 1), 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'x', tutti: true })
-    a.avanti(VALIDITA_MS + 1)
-    expect((await misuraCriteri(criteri.slice(0, 1), 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'x', tutti: true })).daCache).toEqual([])
+    await misuraCriteri(criteri.slice(0, 1), 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'abc1234', tutti: true })
+    // Ore dopo, stesso commit: niente da rimisurare (fino alla 0.82.0 la cache scadeva in 10 minuti).
+    a.avanti(6 * 3600_000)
+    expect((await misuraCriteri(criteri.slice(0, 1), 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'abc1234', tutti: true })).daCache).toEqual(['tipi'])
+    // Lo stesso comando sullo stesso commit in un'altra cartella (la copia della Revisione): vale lo stesso esito.
+    expect((await misuraCriteri(criteri.slice(0, 1), 'C:/altra', a.esegui, { memoria, adesso: a.adesso, impronta: 'abc1234', tutti: true })).daCache).toEqual(['tipi'])
+    expect(a.eseguiti).toHaveLength(1)
     expect((await misuraCriteri(criteri.slice(0, 1), 'C:/p', a.esegui, { memoria, adesso: a.adesso, tutti: true })).daCache).toEqual([])
+  })
+
+  it('0.82.1: «non misurato» e «scaduto per tempo» non si ricordano per il commit', async () => {
+    const memoria: MemoriaCriteri = new Map()
+    let volte = 0
+    const scade = async (): Promise<{ codice: number; uscita: string }> => { volte += 1; return { codice: 1, uscita: 'lento\n[comando interrotto dopo 1200s]' } }
+    const uno = [{ descrizione: 'test', comando: 'npm test', soddisfatto: false }]
+    await misuraCriteri(uno, 'C:/p', scade, { memoria, adesso: () => 1, impronta: 'abc1234', tutti: true })
+    const prima = volte
+    await misuraCriteri(uno, 'C:/p', scade, { memoria, adesso: () => 2, impronta: 'abc1234', tutti: true })
+    expect(volte).toBeGreaterThan(prima)
+  })
+
+  it('0.82.1: due chat sullo stesso commit insieme: il comando gira una volta sola', async () => {
+    const a = ambiente()
+    const memoria: MemoriaCriteri = new Map()
+    const uno = criteri.slice(1, 2)
+    const [m1, m2] = await Promise.all([
+      misuraCriteri(uno, 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'def5678', tutti: true }),
+      misuraCriteri(uno, 'C:/p', a.esegui, { memoria, adesso: a.adesso, impronta: 'def5678', tutti: true })
+    ])
+    expect(a.eseguiti).toEqual(['npm test'])
+    expect(m1.esiti[0]?.passato).toBe(true)
+    expect(m2.esiti[0]?.passato).toBe(true)
   })
 
   it('due comandi insieme al massimo', async () => {
@@ -84,18 +112,31 @@ describe('criteri veloci', () => {
     expect([1, 2, 3, 4, 5, 6].map(turnoCompleto)).toEqual([true, false, true, false, false, true])
   })
 
-  it('l’impronta cambia con un file cambiato, anche non tracciato', () => {
+  it('0.82.1: l’impronta è il commit: cambia con un commit, non con un file non salvato', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-impronta-'))
     gitReale(['init', '-q'], dir)
-    gitReale(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '--allow-empty', '-m', 'primo'], dir)
+    const committa = (m: string): void => { gitReale(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '--allow-empty', '-m', m], dir) }
+    committa('primo')
     const i1 = improntaCodice(gitReale, dir)
-    expect(i1).toBeTruthy()
-    expect(improntaCodice(gitReale, dir)).toBe(i1)
+    expect(i1).toMatch(/^[0-9a-f]{40}$/)
+    // Le consegne e i file del programma nella cartella principale non sono un commit nuovo.
     writeFileSync(join(dir, 'nuovo.txt'), 'a')
+    expect(improntaCodice(gitReale, dir)).toBe(i1)
+    committa('secondo')
     const i2 = improntaCodice(gitReale, dir)
     expect(i2).not.toBe(i1)
-    writeFileSync(join(dir, 'nuovo.txt'), 'abc')
-    expect(improntaCodice(gitReale, dir)).not.toBe(i2)
+    // Un file tracciato cambiato e non salvato conta (chi lavora senza commit);
+    // uno tracciato sotto .sierradeck (quaderno scritto dal programma) no.
+    mkdirSync(join(dir, '.sierradeck'))
+    writeFileSync(join(dir, 'codice.ts'), 'a')
+    writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'a')
+    gitReale(['add', '.'], dir)
+    committa('terzo')
+    const i3 = improntaCodice(gitReale, dir)
+    writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'b')
+    expect(improntaCodice(gitReale, dir)).toBe(i3)
+    writeFileSync(join(dir, 'codice.ts'), 'b')
+    expect(improntaCodice(gitReale, dir)).not.toBe(i3)
     // Una cartella fuori da git: si crea dentro Temp e git non risale oltre Temp (con TEMP dentro un
     // repository, come nei criteri lanciati con TEMP nel progetto, tmpdir() stessa era git: 18/10).
     const fuori = mkdtempSync(join(tmpdir(), 'sd-nogit-'))
@@ -108,4 +149,18 @@ describe('criteri veloci', () => {
       else process.env.GIT_CEILING_DIRECTORIES = prima
     }
   }, 60_000) // quattro giri di git: a suite intera, con le altre chat al lavoro, passavano i 20 s
+})
+
+describe('memoria dei criteri (Revisione 0.82.1)', () => {
+  it('tiene al più ESITI_RICORDATI voci: le più vecchie escono', async () => {
+    const memoria: MemoriaCriteri = new Map()
+    const esegui = async (): Promise<{ codice: number; uscita: string }> => ({ codice: 0, uscita: 'ok' })
+    const uno = [{ descrizione: 'tipi', comando: 'npm run typecheck', soddisfatto: false }]
+    for (let i = 0; i < ESITI_RICORDATI; i++) {
+      await misuraCriteri(uno, 'C:/p', esegui, { memoria, adesso: () => i, impronta: `c${String(i).padStart(7, '0')}`, tutti: true })
+    }
+    expect(memoria.size).toBeLessThanOrEqual(ESITI_RICORDATI)
+    expect([...memoria.keys()].some((k) => k.includes('c0000000'))).toBe(false)
+    expect([...memoria.keys()].some((k) => k.includes(`c${String(ESITI_RICORDATI - 1).padStart(7, '0')}`))).toBe(true)
+  })
 })

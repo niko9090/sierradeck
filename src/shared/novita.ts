@@ -53,6 +53,15 @@ export const NOVITA: Novita[] = [
     ]
   },
   {
+    versione: '0.82.1',
+    righe: [
+      '**Le chat non si bloccano più per il PC pieno:** un criterio si rimisura solo quando cambia il codice salvato, e le suite lunghe (test, Android) girano una alla volta, mai mentre si unisce un ramo.',
+      '**Se il supervisore non risponde in tempo la chat continua** con l’ultima istruzione valida, e lui riprova al giro dopo. Dopo tre volte di fila ti arriva una riga; niente si ferma.',
+      '**Git sempre a disposizione delle chat:** il programma lo trova da solo, o dalle preferenze, e lo passa a ogni chat. Gli strumenti non vengono più rifiutati.',
+      '**Una chat che aspetta un’altra non resta ferma:** dopo due giri l’autopilota la sblocca o le fa fare il resto; al terzo la chiude e il suo compito riparte quando l’altra ha finito.'
+    ]
+  },
+  {
     versione: '0.82.0',
     righe: [
       '**Quante chat lavorano insieme lo decide il PC:** processori, memoria libera e carico del momento, da 2 a 8. Sotto sforzo scende, poi risale. Le chat in più aspettano in fila, quelle finite o senza lavoro da un po’ si chiudono da sole. In vista c’è «N di M chat», con il motivo dietro «?», e nelle Impostazioni scegli fra «Meno chat», «Come dice il PC» e «Più chat».',
