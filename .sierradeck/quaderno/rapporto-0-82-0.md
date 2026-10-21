@@ -4,20 +4,23 @@ quando: 2026-10-21T02:30:00+02:00
 tag: ["release", "0.82.0", "rapporto"]
 ---
 
-## Stato (21/10 02:30) — NON ancora pubblicata
+## Stato (21/10 03:20) — NON ancora pubblicata
 
-| Pezzo | Ramo | In main |
-|---|---|---|
-| 1) chat insieme decise dal PC | c-33 | **no** (aspetto) |
-| 2) colore fisso per attività | c-35 | sì |
-| 3) chi sta lavorando | c-35 | sì |
-| 4) domande contro lo stato vero | c-34 | sì |
-| 5) menu dei workspace rifatto | c-36 | **no** (aspetto) |
-| 6) «Apri cartella» | c-37 | sì |
-| 7) grafica meno caotica | c-38 | sì (599852f9) |
+| Pezzo | Ramo | In main | Commit fuori da main |
+|---|---|---|---|
+| 1) chat insieme decise dal PC | c-33 | sì (b9dab2d0) | **2** (aspetto) |
+| 2) colore fisso per attività | c-35 | sì | 0 |
+| 3) chi sta lavorando | c-35 | sì | 0 |
+| 4) domande contro lo stato vero | c-34 | sì | 0 |
+| 5) menu dei workspace rifatto | c-36 | **no** | **9** (aspetto) |
+| 6) «Apri cartella» | c-37 | sì | 0 |
+| 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
+| collaudo della grafica | c-41 | — | **1** (aspetto) |
+| rilascio (questa chat) | c-39 | sì (8b4f630b) | — |
 
-Novità, versione e pubblicazione restano ferme finché c-33 e c-36 non sono in
-main e le suite sono verdi. La bozza delle novità (7 righe) è pronta.
+Novità, versione e pubblicazione restano ferme finché c-33, c-36 e c-41 non
+hanno 0 commit fuori da main e le suite sono verdi. La bozza delle novità è
+pronta (7 righe).
 
 ## Controlli su main 599852f9 (21/10 02:07–02:24)
 - Test del programma principale: 191 file, **1824 passati**, 2 saltati, 7 min 25 s.
