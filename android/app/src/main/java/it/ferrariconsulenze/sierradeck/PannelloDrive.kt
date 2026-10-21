@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedButton
@@ -356,6 +357,8 @@ fun SezionePannelloDrive(api: Api) {
 
     // Il dettaglio a tutto schermo: «‹ Progetti» torna all'elenco.
     val sel = scelto?.let { id -> d.progetti.firstOrNull { it.id == id } }
+    // «Indietro» (2.83.0): chiude il dettaglio o lo strumento aperto, invece di uscire dall'app.
+    androidx.activity.compose.BackHandler(enabled = sel != null || strumento != null) { if (sel != null) scelto = null else strumento = null }
     if (sel != null) {
         DettaglioProgetto(d, sel, onIndietro = { scelto = null }, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
     } else {
@@ -436,7 +439,15 @@ fun SezionePannelloDrive(api: Api) {
 private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro: () -> Unit, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
     val v = ProgettiVista.vistaDi(r)
     val ids = r.ids.ifEmpty { listOf(r.id) }
-    TextButton(onClick = onIndietro) { Text("‹ Progetti") }
+    var quaderno by remember(r.id) { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onIndietro, modifier = Modifier.heightIn(min = 48.dp)) { Text("‹ Progetti") }
+        Spacer(Modifier.weight(1f))
+        // Il quaderno del progetto (2.83.0): prima solo dal dettaglio di un suo autopilota.
+        val cartella = r.cartelle.firstOrNull { it.pc == d.io.id }?.percorso ?: r.cartellaTrovata
+        if (cartella != null) TextButton(onClick = { quaderno = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno") }
+        if (quaderno && cartella != null) Quaderno(api, cartella, onChiudi = { quaderno = false })
+    }
     Text(r.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     Text(v.stato.parola + (v.stato.ragione?.let { " · $it" } ?: ""), color = coloreVista(v.stato.colore), fontSize = 13.sp,
         modifier = Modifier.padding(vertical = 4.dp).border(1.dp, coloreVista(v.stato.colore), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp))

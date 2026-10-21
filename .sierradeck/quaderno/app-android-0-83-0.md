@@ -14,6 +14,8 @@ Progetti · Autopiloti · Domande · Chat · File · Salute · Impostazioni (`en
 
 ## 2. Dopo: quattro voci fisse
 
+> Fatto sul ramo c-46 (21/10): come è stato costruito e le trappole in `app-android-navigazione-0-83-0.md`.
+
 | Voce | Cosa c'è | Linguette in cima | Voci del PC che contiene |
 |---|---|---|---|
 | **Adesso** (si apre qui) | **in cima le domande per Nicholas**, ognuna con le scelte come tasti grandi (un tocco risponde) e il campo per scrivere; sotto gli autopiloti (questo PC e altri PC), «+ Affida», le chat al lavoro insieme | nessuna: una sola pagina che scorre | Domande, Autopiloti |

@@ -113,7 +113,7 @@ object Viaggi {
             "nessun indirizzo tailscale" in m ->
                 "Fuori casa serve Tailscale: installalo sul computer e sul telefono con lo stesso account, poi aggiungi il computer con il suo indirizzo 100.x dal codice QR."
             "ponte" in m || "altri computer" in m ->
-                "Dal telefono il collegamento via Internet passa dal computer accoppiato: apri questo PC dalla scheda Computer, «Altri computer»."
+                "Dal telefono il collegamento via Internet passa dal computer accoppiato: apri questo PC da Altro › Altri computer."
             "non ha risposto" in m || "timeout" in m || "timed out" in m ->
                 if (strada == "tailscale") "Controlla che Tailscale sia acceso sul telefono e sul computer, con lo stesso account, e che il computer sia acceso con SierraDeck aperto."
                 else "Controlla che telefono e computer siano sullo stesso wifi, che il computer sia acceso (non in sospensione) con SierraDeck aperto, e che il firewall di Windows lasci passare SierraDeck."

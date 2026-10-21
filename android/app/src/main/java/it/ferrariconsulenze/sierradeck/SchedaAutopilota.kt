@@ -33,6 +33,14 @@ fun etichettaOrigine(d: DomandaScheda): String = when (d.origine) {
 fun linguetteAutopilota(domande: Int): List<String> =
     (if (domande > 0) listOf("domande") else emptyList()) + listOf("istruzioni", "file", "obiettivo", "criteri", "compiti", "deciso", "altro")
 
+/**
+ * Le parti nel dettaglio in una pagina che scorre (2.83.0): prima le domande,
+ * poi quello che si legge; Istruzioni e File in fondo, perché si leggono dal PC
+ * solo quando ci si arriva scorrendo (prima solo a linguetta aperta).
+ */
+fun sezioniAutopilota(domande: Int): List<String> =
+    (if (domande > 0) listOf("domande") else emptyList()) + listOf("obiettivo", "criteri", "compiti", "deciso", "istruzioni", "file", "altro")
+
 /** Una domanda nuova (che prima non c'era) fa avanti la linguetta. */
 fun domandaArrivata(prima: List<String>?, adesso: List<DomandaScheda>): Boolean =
     if (prima == null) adesso.isNotEmpty() else adesso.any { it.chiave !in prima }
@@ -60,3 +68,19 @@ fun rigaFile(f: FileCambiato): String =
  * questa altezza scorre.
  */
 fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande" || chiave == "istruzioni") 420 else 260
+
+/**
+ * La riga riassuntiva in cima all'autopilota (2.83.0, c-509): stato, criteri,
+ * chat e giri in una riga; prima le domande, se ce ne sono. Il tocco la apre.
+ */
+object RiassuntoAutopilota {
+    fun di(stato: String, criteri: List<Criterio>, chat: Int, giri: Int, domande: Int): String {
+        val pezzi = mutableListOf<String>()
+        if (domande > 0) pezzi += if (domande == 1) "1 domanda per te" else "$domande domande per te"
+        pezzi += statoInParole(stato)
+        if (criteri.isNotEmpty()) pezzi += "criteri ${criteri.count { it.soddisfatto }}/${criteri.size}"
+        if (chat > 0) pezzi += "$chat chat"
+        pezzi += if (giri == 1) "1 giro" else "$giri giri"
+        return pezzi.joinToString(" · ")
+    }
+}
