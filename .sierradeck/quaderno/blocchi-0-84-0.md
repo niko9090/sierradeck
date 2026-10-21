@@ -129,6 +129,18 @@ Nicholas ha premuto **Riprendi 31 volte** su ap-f1e631f5. Undici di queste, senz
 
 **Test:** `tests/main/autopilot-client.test.ts`, «un avvio che non riporta su il servizio».
 
+### 4. Gli hook ECC accesi nelle copie delle chat: Read e PowerShell rifiutati
+
+**Prova.**
+- Il 21/10 sera, su questo PC, solo **7 copie su 27** (`SierraDeck.sierradeck-wt/*`) avevano lo spegnimento degli hook; nel pomeriggio erano 7 su 25 (c-48) e 7 su 56 contando le cartelle (c-52).
+- Effetti visti: le consegne c-459 e c-502 non si potevano leggere (Read e PowerShell rifiutati dall'hook che cerca Git Bash); in c-48 la GateGuard ha bloccato cinque volte la prima scrittura di un file.
+
+**Causa.** Gli hook si spengono con `env.ECC_HOOKS_ENABLED=false` (e `ECC_GATEGUARD=off`) in `.claude/settings.local.json` della cartella principale. Quel file è escluso da git per tutto il PC (`**/.claude/settings.local.json` nell'esclusione globale), quindi `git worktree add` crea la copia senza, e `creaWorktree` non lo riportava.
+
+**Correzione** (ramo c-556): `src/autopilot-host/hook-ecc.ts`. Quando il programma crea o ritrova la copia di una chat, e all'avvio del servizio per tutte le copie già aperte, porta nella copia **solo** le chiavi `ECC_HOOKS_ENABLED`, `ECC_GATEGUARD`, `ECC_DISABLED_HOOKS` che la principale ha, con gli stessi valori. Gli altri permessi e le altre variabili della copia restano com'erano. Non scrive se il file della copia è illeggibile, né se git nella copia non lo ignora: finirebbe nel commit della chat e da lì in main. Le 20 copie già aperte di questo PC le ho sistemate a mano il 21/10 con la stessa regola: ora 27 su 27. Le chat già avviate lo leggono alla prossima ripresa.
+
+**Test:** `tests/autopilot-host/hook-ecc.test.ts` (10 test) e in `tests/autopilot-host/worktree.test.ts` «la copia nuova e quella ritrovata hanno gli hook ECC spenti come la principale», con git vero.
+
 ## Già corrette prima della 0.84.0 (per completezza)
 
 - **Supervisore scaduto dopo 5 minuti: 65 volte.** Prima la chat si fermava: corretta in 0.82.1.

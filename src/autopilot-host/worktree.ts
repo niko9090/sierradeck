@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
+import { allineaHookEcc, type FuoriDaGit } from './hook-ecc'
 
 /**
  * Una cartella per chat: i **git worktree** dell'autopilota (T3, 0.36.0).
@@ -182,6 +183,11 @@ export function cartellaWorktreeDi(radice: string): string {
   return `${radice}.sierradeck-wt`
 }
 
+/** Git ignora `.claude/settings.local.json` nella copia: solo allora ci si scrive lo spegnimento degli hook. */
+export function fuoriDaGit(git: Git): FuoriDaGit {
+  return (copia) => git(['check-ignore', '-q', '.claude/settings.local.json'], copia).codice === 0
+}
+
 /**
  * Crea (o ritrova) il worktree di una chat. Torna la cartella in cui la chat
  * deve partire, o il motivo per cui non si e' potuto.
@@ -192,13 +198,18 @@ export function creaWorktree(git: Git, p: { cwd: string; autopilota: string; cha
   if (radice === undefined) return { ok: false, motivo: 'la cartella non è un repository git' }
   const sotto = relative(radice, p.cwd)
   const piano = pianoWorktree({ radice, sotto, autopilota: p.autopilota, chat: p.chat })
-  if (existsSync(piano.cartellaRadice)) return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
+  if (existsSync(piano.cartellaRadice)) {
+    allineaHookEcc(radice, piano.cartellaRadice, fuoriDaGit(git))
+    return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
+  }
   // Il ramo puo' esistere gia' (un worktree tolto a mano): si riusa invece di fallire.
   const esiste = git(['rev-parse', '--verify', '--quiet', `refs/heads/${piano.ramo}`], radice).codice === 0
   const r = esiste
     ? git(['worktree', 'add', piano.cartellaRadice, piano.ramo], radice)
     : git(['worktree', 'add', '-b', piano.ramo, piano.cartellaRadice, p.base], radice)
   if (r.codice !== 0) return { ok: false, motivo: `git worktree add non riuscito: ${r.uscita.slice(0, 300)}` }
+  // settings.local.json è fuori da git: senza questo la copia nasce con gli hook ECC accesi (0.84.0).
+  allineaHookEcc(radice, piano.cartellaRadice, fuoriDaGit(git))
   return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
 }
 

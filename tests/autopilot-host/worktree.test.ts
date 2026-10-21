@@ -85,6 +85,24 @@ describe('una cartella per chat: git worktree (T3)', { timeout: 60_000 }, () => 
     expect(git(['rev-parse', '--verify', '--quiet', 'refs/heads/ap/ap1/c-1'], progetto).codice).not.toBe(0)
   })
 
+  it('la copia nuova e quella ritrovata hanno gli hook ECC spenti come la principale, senza perdere i loro permessi', () => {
+    // settings.local.json resta fuori da git anche dove non c'è l'esclusione globale del PC.
+    writeFileSync(join(progetto, '.git', 'info', 'exclude'), '.claude/settings.local.json\n')
+    mkdirSync(join(progetto, '.claude'))
+    writeFileSync(join(progetto, '.claude', 'settings.local.json'), JSON.stringify({ permissions: { allow: ['Bash(x)'] }, env: { ECC_HOOKS_ENABLED: 'false' } }))
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-9', base: 'main' })
+    expect(wt.ok).toBe(true)
+    if (!wt.ok) return
+    const file = join(wt.cartella, '.claude', 'settings.local.json')
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ env: { ECC_HOOKS_ENABLED: 'false' } })
+    // Una copia già aperta con i suoi permessi: alla ripresa riceve solo lo spegnimento.
+    writeFileSync(file, JSON.stringify({ permissions: { allow: ['Read'] } }))
+    creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-9', base: 'main' })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ permissions: { allow: ['Read'] }, env: { ECC_HOOKS_ENABLED: 'false' } })
+    // E non finisce nel commit della chat.
+    expect(salvaLavoro(git, wt.cartella, 'niente')).toBe(false)
+  })
+
   it('due chat che toccano la stessa riga: il conflitto si annulla e si dice su quali file', () => {
     const w1 = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
     const w2 = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-2', base: 'main' })

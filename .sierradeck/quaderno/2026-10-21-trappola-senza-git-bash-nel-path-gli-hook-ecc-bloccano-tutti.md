@@ -19,3 +19,7 @@ Nicholas ha chiesto di verificare che nel progetto gli hook ECC siano spenti dav
 1. SierraDeck copia `.claude/settings.local.json` della cartella principale in ogni copia che crea (un cambio di codice);
 2. un `.claude/settings.json` salvato in git con lo stesso `env` (vale anche nelle copie, ma lo vede chiunque cloni il progetto);
 3. le due chiavi nelle variabili d'ambiente con cui SierraDeck avvia le chat dei suoi autopiloti.
+
+## Corretto nel codice (21/10 sera, c-556, per la 0.84.0)
+
+Scelta la strada 1, come chiesto dal supervisore: SierraDeck riporta nella copia **solo** le chiavi dello spegnimento degli hook (`ECC_HOOKS_ENABLED`, `ECC_GATEGUARD`, `ECC_DISABLED_HOOKS`) dalla cartella principale, unendole al file della copia senza toccare gli altri permessi. Succede quando crea o ritrova una copia e all'avvio del servizio per tutte quelle aperte (`src/autopilot-host/hook-ecc.ts`). Per riaccendere gli hook nelle copie basta cambiarli nella cartella principale: le copie seguono il suo valore. Dettagli e prova in `blocchi-0-84-0.md`, punto 4.
