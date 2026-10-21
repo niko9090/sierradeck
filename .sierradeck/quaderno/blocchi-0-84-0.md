@@ -110,6 +110,35 @@ Nicholas ha premuto **Riprendi 31 volte** su ap-f1e631f5. Undici di queste, senz
 - **«comando bloccato»: 43 volte.** È la guardia delle cancellazioni che fa il suo lavoro. I casi: variabili `$j/$d/$P` nei percorsi di `rm`, percorsi fuori dalle cartelle, la Revisione.
 - **c-34 risulta «lavoro» dopo la chiusura del 20/10 alle 23:33.** Non ha fermato niente. Va guardato con il punto «agente finito» della 0.84.0.
 
-## Prova nella copia di prova
+## Prova nella copia di prova (21/10, 17:07–17:39 UTC, 32 minuti)
 
-La sezione arriva quando la prova è fatta: un autopilota con 4 chat per 30 minuti, in `SIERRADECK_PROVA`.
+**Com'era fatta.**
+- Il servizio era quello di questo ramo (`out/main/autopilot-host.js`), con l'isolamento che `SIERRADECK_PROVA` dà al servizio: `APPDATA` in `note/prova-084c/AppData` e porta 47651. Il servizio vero sulla 47630 non è stato toccato.
+- Un autopilota aveva 4 chat su worktree git veri. Le chat e il Gestore erano simulati da `scripts/prova-durata-autopilota.cjs`: hook PreToolUse ogni 5 s, Stop a fine turno, consegne, battiti e limiti del piano.
+- Il supervisore era il `claude` vero, e i criteri giravano davvero, uno dei quali da 25 s.
+- Intanto girava anche la suite `tests/main`: il PC era carico.
+
+**Esito** (dall'`esito.json` e dal `driver.log` della prova):
+
+| Misura | Valore |
+|---|---|
+| Fermate non volute | **0** |
+| Stato dell'autopilota | «lavoro» dall'inizio alla fine, nessuna sospensione e nessuna domanda |
+| Chat | 4, ancora «lavoro» alla fine; nessuna messa da parte (`daParte` vuoto) e nessuna bloccata |
+| Turni chiusi | 9 per ciascuna (c-1, c-2, c-3, c-4), 36 in tutto, tutti con «prosegui» del supervisore |
+| Unioni in main | 36 (73 commit in main, 360 righe nei registri) |
+| Righe del diario | 108: 36 «unito il ramo», 36 «supervisore → prosegui», 36 «proseguito» |
+| Hook PreToolUse | 1065, nessuno fallito, il più lento in 0,7 s |
+| Salute | nessuna mancata, la più lenta in 0,5 s |
+| Fine turno più lunga | 119 s (criteri e supervisore) |
+
+Nel registro della prova (`note/prova-084c/AppData/SierraDeck/log/sierradeck-2026-10-21.log`) non c'è nessuna riga `[ERRORE]`, nessun avviso e nessun «scaduto». Le cartelle della prova sono state tolte dopo aver copiato qui i numeri. Lo script resta in `scripts/` per rifarla:
+`npx electron-vite build && node scripts/prova-durata-autopilota.cjs . 30 prova-x`
+
+Come si fa e le sue trappole: `2026-10-21-prova-del-servizio-da-solo-e-trappole-0-84-0.md`.
+
+**Due tentativi prima di questa, tutti e due sbagliati dalla parte della prova:**
+- l'archivio scritto senza `"versione": 1` è stato messo da parte;
+- senza i limiti del piano, due chat sono andate «in pausa: limiti del piano non ancora letti», che è il comportamento previsto.
+
+Nessuno dei due era un difetto del programma.
