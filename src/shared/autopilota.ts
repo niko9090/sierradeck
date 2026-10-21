@@ -114,6 +114,12 @@ export type ScambioDialogo = {
    * restano nella chat come traccia, ma non sono battute da elaborare.
    */
   traccia?: true
+  /**
+   * 0.83.0: la sua domanda, intera, a cui rispondi scrivendo a mano (per
+   * esempio «Mi dai il via?»). Nella conversazione diventa «Hai risposto: …»
+   * sotto la domanda; il supervisore la legge come un messaggio normale.
+   */
+  risponde?: string
 }
 
 /** Quanti messaggi consegnati si ricordano per autopilota (0.69.0). */
@@ -750,7 +756,13 @@ function parseScambio(raw: unknown): ScambioDialogo | undefined {
   if (quando === undefined || testo === undefined) return undefined
   if (o.da !== 'tu' && o.da !== 'lui') return undefined
   const esito = stringaNonVuota(o.esito)
-  return { quando, da: o.da, testo, ...(esito !== undefined ? { esito } : {}), ...(o.traccia === true ? { traccia: true as const } : {}) }
+  const risponde = o.da === 'tu' ? stringaNonVuota(o.risponde) : undefined
+  return {
+    quando, da: o.da, testo,
+    ...(esito !== undefined ? { esito } : {}),
+    ...(o.traccia === true ? { traccia: true as const } : {}),
+    ...(risponde !== undefined ? { risponde } : {})
+  }
 }
 
 function parseMessaggioPerLaChat(raw: unknown): MessaggioPerLaChat | undefined {
