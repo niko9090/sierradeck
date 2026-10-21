@@ -23,6 +23,29 @@ Novità, versione e pubblicazione restano ferme finché c-41 e c-43 non hanno 0
 commit fuori da main e i 5 criteri con comando sono verdi sul main finale. La
 bozza delle novità è pronta (7 righe).
 
+## Numeri e foto: cosa c'è e cosa manca (controllo del 21/10, 04:10)
+- **CPU e memoria prima e dopo (c-33): ci sono**, sezione «Limiti delle chat in
+  base al PC». Misurati però con il PC già al 100% di processore: il caso «PC a
+  riposo» **manca** e va rifatto.
+- **Foto del menu dei workspace (c-36): ci sono**, 6 «prima» e 14 «dopo».
+  - Copiate in `note/foto-0-82-0/c-36/prima` e `/dopo` della cartella principale,
+    fuori da git (`note/` è ignorata). Mostrano il nome del PC, quindi non vanno
+    pubblicate.
+  - L'originale sta nella copia di lavoro di c-36 (`note/prova-c36/foto`) e
+    sparisce con lei.
+  - Ho guardato le due foto a 480×300: prima la tendina esce dalla finestra,
+    dopo ha ricerca, Recenti, gruppo «Questo PC» e «⋯», e finisce dentro.
+- **Foto della grafica (c-38): mancano.** Il suo `grafica-0-82-0.md` cita
+  `foto-0-82-0/prima` e `/dopo`, ma non le ho trovate né in `note/`, né nella
+  copia di c-38, né fra i file temporanei. Restano le misure scritte in quella
+  scheda (es. bande da 51 a 30 px).
+- **Foto del collaudo (c-41): mancano, per scelta di c-41.** Non le ha fatte
+  perché i cinque difetti erano ancora aperti, e vanno scattate dopo la
+  correzione di c-43. c-41 ha lasciato i test `it.fails` in
+  `tests/main/collaudo-grafica-0-82-0.test.ts`: chi corregge toglie `.fails`.
+- **App:** nessuna foto da nessuna chat, perché non ci sono né emulatore né
+  telefono. Le controllano i test JUnit.
+
 ## Criterio «test del programma principale» rosso alle 01:36 UTC (21/10)
 - **Test caduto: non ricostruibile.** L'uscita salvata nel file dell'autopilota
   è tagliata all'inizio: c'è solo lo stderr normale di `cassaforte-sincronia`,
