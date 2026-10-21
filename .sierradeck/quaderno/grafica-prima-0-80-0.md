@@ -183,3 +183,10 @@ Nessuna funzione tolta o spostata. Foto in `foto-0-80-0/dopo/*-081.png`, fuori d
 - nella colonna Domande stretta, la scheda «Revisione di Sviluppo» va su tre righe;
 - barra in basso della pagina: aspetta la scelta di Nicholas (sopra);
 - nell'app, diversi «?» senza `di` lontani da «Manda» (`Salute.kt`, `PannelloDrive.kt`, `Lavori.kt`…), dalla Revisione Kotlin: il lettore dello schermo dice solo «Spiegazione».
+
+## Trappole viste rifacendo le foto (21/10, c-39, 0.82.0)
+- **Lettere di `subst`, porte e DevTools si condividono fra le chat.** Le copie di altre chat erano già su `P:`/`Q:`, 47720/47721 e 9393/9394. Prima di accendere: `subst` e `Get-NetTCPConnection -State Listen` sulle porte scelte.
+- **Autopilota finto senza `iniziatoIl`/`ultimoEvento`:** riceve il 1970, risulta «fermo da 29875820 minuti», e la chiusura da sola della 0.82.0 gli chiude le chat al primo giro. Metterli sempre in `prepara.mjs`.
+- **Un fumetto «?» dentro una barra `.console` non si vedeva** (la barra ha `overflow-x: auto`, che taglia anche in basso). Dalla 0.82.0 lì si apre `fixed` (`posizioneFissa`). Nelle foto, un fumetto ridotto a una striscia grigia è questo.
+- **Esc mandato con `dispatchEvent` sul documento non chiude il menu dei workspace:** chiuderlo cliccando di nuovo il suo pulsante, se no copre le foto seguenti.
+- **Le foto vanno nella cartella principale** (`note/foto-0-82-0/…`), non nel worktree: alla chiusura della chat il worktree si cancella con tutto `note/`.
