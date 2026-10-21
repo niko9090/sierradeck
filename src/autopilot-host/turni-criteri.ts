@@ -31,7 +31,7 @@ const normale = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/,
 
 export function creaTurni(): TurniCriteri {
   let inCorso: string | undefined
-  const fila: number[] = []
+  const fila: { n: number; dove: string }[] = []
   let numero = 0
   const unioni = new Map<string, number>()
   const attese = new Set<() => void>()
@@ -49,9 +49,12 @@ export function creaTurni(): TurniCriteri {
     async pesante(cwd, fai) {
       const dove = normale(cwd)
       const mio = ++numero
-      fila.push(mio)
-      await aspetta(() => inCorso === undefined && fila[0] === mio && (unioni.get(dove) ?? 0) === 0)
-      fila.shift()
+      fila.push({ n: mio, dove })
+      // Tocca al primo della fila che può partire: chi aspetta un'unione nella
+      // sua cartella non ferma quelli dietro di lui, che lavorano altrove.
+      const tocca = (): boolean => inCorso === undefined && fila.find((f) => (unioni.get(f.dove) ?? 0) === 0)?.n === mio
+      await aspetta(tocca)
+      fila.splice(fila.findIndex((f) => f.n === mio), 1)
       inCorso = dove
       try {
         return await fai()

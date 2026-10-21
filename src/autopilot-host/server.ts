@@ -2790,9 +2790,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // compito che riparte lo riprende da lì, dopo quello della chat attesa.
           if (deps.git !== undefined && inAttesa.cartella !== undefined) salvaLavoro(deps.git, inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
           const ripreso = compitoRipreso(inAttesa.compito, iv.compitoDopo) + (inAttesa.ramo !== undefined ? `\nIl lavoro già fatto sta nel ramo ${inAttesa.ramo}: unisci anche quello (git merge ${inAttesa.ramo}).` : '')
-          aggiornato.chats = aggiornato.chats.map((c) => (c.id === inAttesa.id ? { ...c, stato: 'finita' as const } : c))
+          // Il compito della chat chiusa non è fatto: cambia nome, così non conta
+          // in `compitiFatti`, e chi lo aspettava aspetta adesso quello ripreso.
+          aggiornato.chats = aggiornato.chats.map((c) => (c.id === inAttesa.id ? { ...c, stato: 'finita' as const, compito: `${c.compito} (rimandato: riparte dopo «${iv.compitoDopo.slice(0, 60)}»)` } : c))
           aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, ripreso]
-          aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), [ripreso]: { ruolo: inAttesa.ruolo ?? 'sviluppo', dopo: [iv.compitoDopo] } }
+          const ruoli = Object.fromEntries(Object.entries(aggiornato.ruoliCompiti ?? {}).map(([t, r]) => [t, { ...r, dopo: r.dopo.map((d) => (d === inAttesa.compito ? ripreso : d)) }]))
+          aggiornato.ruoliCompiti = { ...ruoli, [ripreso]: { ruolo: inAttesa.ruolo ?? 'sviluppo', dopo: [iv.compitoDopo] } }
           chiusaQuesta = true
           apriDopo = aggiornato.ramoBase !== undefined
         } else if (decisione.tipo === 'prosegui') {

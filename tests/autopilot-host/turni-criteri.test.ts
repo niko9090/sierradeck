@@ -76,3 +76,19 @@ describe('turni dei criteri (0.82.1)', () => {
     expect(turni.stato()).toEqual({ inCorso: undefined, inFila: 0, unioni: 0 })
   })
 })
+
+describe('turni dei criteri: chi aspetta un’unione non ferma la fila (Revisione 0.82.1)', () => {
+  it('il primo della fila bloccato da un’unione lascia passare chi lavora in un’altra cartella', async () => {
+    const turni = creaTurni()
+    const ordine: string[] = []
+    let finisciUnione: () => void = () => {}
+    const unione = turni.unione('C:/principale', () => new Promise<void>((r) => { finisciUnione = () => { ordine.push('unione finita'); r() } }))
+    const bloccato = turni.pesante('C:/principale', async () => { ordine.push('principale'); return 1 })
+    const libero = turni.pesante('C:/copia', async () => { ordine.push('copia'); return 2 })
+    await libero
+    expect(ordine).toEqual(['copia'])
+    finisciUnione()
+    await Promise.all([unione, bloccato])
+    expect(ordine).toEqual(['copia', 'unione finita', 'principale'])
+  })
+})
