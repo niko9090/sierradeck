@@ -16,7 +16,7 @@ tag: ["release", "0.82.0", "rapporto"]
 | 6) «Apri cartella» | c-37 | sì | 0 |
 | 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
 | collaudo della grafica | c-41 | — | **1** (aspetto) |
-| correzione dei 5 difetti grafici | c-43 (con c-41 dentro) | — | 4 (finita, da unire) |
+| correzione dei 5 difetti grafici | c-43 (con c-41 dentro) | — | finita, da unire |
 | rilascio (questa chat) | c-39 | sì (8b4f630b) | — |
 
 Novità, versione e pubblicazione restano ferme finché c-33, c-36 e c-41 non
