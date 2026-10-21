@@ -119,7 +119,7 @@ fun Chat(api: Api, stato: Stato?, deposito: Collegamento) {
     } else {
         Column(Modifier.fillMaxSize()) {
             AvvisoChiusa(avvisoChiusa) { avvisoChiusa = null }
-            ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { avvisoChiusa = null; aperta = it.id }, nomePc = PcCorrente.nome)
+            ElencoChat(api, chat, stato?.workspace ?: Workspace(), onApri = { avvisoChiusa = null; aperta = it.id }, nomePc = PcCorrente.nome, caricato = stato != null)
         }
     }
 }
@@ -219,7 +219,11 @@ private fun AvvisoChiusa(testo: String?, onVia: () -> Unit) {
 }
 
 @Composable
-private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit, nomePc: String? = null, versionePc: String? = PcCorrente.versione) {
+private fun ElencoChat(
+    api: Api, chat: List<Chat>, workspace: Workspace, onApri: (Chat) -> Unit, nomePc: String? = null, versionePc: String? = PcCorrente.versione,
+    /** Lo stato del computer è già arrivato: prima no, e l'elenco vuoto non vuol dire «nessuna chat». */
+    caricato: Boolean = true
+) {
     var mostraNuova by remember { mutableStateOf(false) }
     var mostraWorkspace by remember { mutableStateOf(false) }
     var mostraRiprendi by remember { mutableStateOf(false) }
@@ -259,7 +263,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
         }
         if (gruppi.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Nessuna chat sul computer.", color = Banco.testoQuieto)
+                Text(ElencoVuoto.testo(caricato), color = Banco.testoQuieto)
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {

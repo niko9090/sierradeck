@@ -117,17 +117,24 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         }))
 
     // ─── stato e stile ───
-    suspend fun stato(): Stato = json.decodeFromString(corpoTesto("/api/stato", null))
+    suspend fun stato(): Stato = statoConTesto().first
 
     /** Gli autopiloti degli altri PC (PC 0.59.0): li raccoglie il PC accoppiato, con la firma di casa. */
     suspend fun autopilotiAltri(): List<AutopilotiDiPc> =
         json.decodeFromString(RispostaAutopilotiAltri.serializer(), corpoTesto("/api/autopiloti/altri", null)).pc
     /** Tutto quello che aspetta una risposta da te (dalla 0.30 del computer: prima 404). */
-    suspend fun domande(): Domande = json.decodeFromString(corpoTesto("/api/domande", null))
+    suspend fun domande(): Domande {
+        val testo = corpoTesto("/api/domande", null)
+        return withContext(Dispatchers.Default) { json.decodeFromString<Domande>(testo) }
+    }
+    /** Lo stato com'è arrivato, da decodificare solo se è cambiato (0.83.0, `StatoSoloSeCambia`). */
+    suspend fun statoGrezzo(): String = corpoTesto("/api/stato", null)
     /** Lo stato letto, insieme al testo grezzo: la guardia degli avvisi lo legge come JSON generico. */
     suspend fun statoConTesto(): Pair<Stato, String> {
         val testo = corpoTesto("/api/stato", null)
-        return json.decodeFromString<Stato>(testo) to testo
+        // Lo stato sono 14 KB ogni due secondi: decodificarli sul thread dello
+        // schermo rubava fotogrammi a chi scorre (0.83.0). Si legge a parte.
+        return withContext(Dispatchers.Default) { json.decodeFromString<Stato>(testo) } to testo
     }
     /** Qual e' l'ultima app pubblicata, per quanto ne sa il computer. Senza chiave. */
     suspend fun app(): AppScaricabile = json.decodeFromString(corpoTesto("/api/app", null))

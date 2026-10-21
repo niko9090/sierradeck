@@ -51,6 +51,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -231,6 +234,17 @@ fun Principale(
     BackHandler(enabled = Navigazione.indietro(posto) != null) { Navigazione.indietro(posto)?.let { posto = it } }
     var stato by remember { mutableStateOf<Stato?>(null) }
     /**
+     * La copia dell'ultimo stato (0.83.0, `CopiaStato`): all'apertura si vede
+     * subito quello che c'era, e il primo stato vero lo sostituisce. Finché
+     * `daCopia`, lo stato non viene dal computer di adesso.
+     */
+    var daCopia by remember { mutableStateOf(false) }
+    val soloSeCambia = remember { StatoSoloSeCambia { Api.json.decodeFromString<Stato>(it) } }
+    LaunchedEffect(indirizzo) {
+        val copia = withContext(Dispatchers.IO) { CopiaStato.leggi(contesto.filesDir, indirizzo) }
+        if (stato == null && copia != null) { stato = copia; daCopia = true; soloSeCambia.parteDa(copia) }
+    }
+    /**
      * Il collegamento con questo computer (app 2.56.0): **uno solo**, quello di
      * `Collegamenti`, fatto avanzare da ogni risposta dell'`Api` — lo stato, la
      * storia della chat, lo scrivere. Prima qui c'erano due controlli in più
@@ -261,7 +275,10 @@ fun Principale(
     var schermataViaggio by remember(indirizzo) { mutableStateOf(gen > 0) }
     var versioneScelto by remember(indirizzo) { mutableStateOf<String?>(null) }
     LaunchedEffect(indirizzo, giroTent, gen) {
-        schedaTent = true
+        // «Mi collego a…» solo se il collegamento tarda (0.83.0, `AvvioCollegamento`): con il
+        // PC che risponde subito non compare, e l'elenco non salta quando si chiude.
+        schedaTent = schermataViaggio
+        val mostraScheda = launch { delay(AvvioCollegamento.MOSTRA_DOPO_MS); schedaTent = true }
         val ev = mutableListOf<EventoTentativo>()
         val dettagli = mutableMapOf<String, DettaglioStrada>()
         viaggio = Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())
@@ -297,7 +314,10 @@ fun Principale(
                     val k0 = System.currentTimeMillis()
                     viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0))
                     val chiaveOk = try {
-                        kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
+                        // adesso, non al primo giro del polso (0.83.0).
+                        if (stato == null || daCopia) { stato = letto; daCopia = false }
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
@@ -309,13 +329,17 @@ fun Principale(
                     } catch (x: Exception) {
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
                     }
+                    mostraScheda.cancel()
                     onEsito(gen, chiaveOk)
                     if (chiaveOk) {
-                        delay(1200)
-                        schermataViaggio = false
-                        delay(1300)
+                        val attesa = AvvioCollegamento.attesaPrimaDiChiudere(schedaTent || schermataViaggio)
+                        if (attesa > 0) {
+                            delay(1200)
+                            schermataViaggio = false
+                            delay(attesa - 1200)
+                        }
                         schedaTent = false
-                    }
+                    } else schedaTent = true
                     return@LaunchedEffect
                 }
                 dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis(), ultimo)
@@ -325,6 +349,8 @@ fun Principale(
         e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre da Altro › Altri computer"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
+        mostraScheda.cancel()
+        schedaTent = true
         // Resta su questo computer, con «Riprova»: mai un ritorno da solo su quello di prima.
         onEsito(gen, false)
     }
@@ -429,6 +455,9 @@ fun Principale(
     LaunchedEffect(api) {
         val strada = Linea.stradaDiIndirizzo(indirizzo)
         var ultimaIl = 0L
+        var copiaIl = 0L
+        var copiato: String? = null
+        var uguali = 0
         while (isActive) {
             // Con la linea su si legge ogni due secondi; caduta, si riprova con
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
@@ -436,15 +465,22 @@ fun Principale(
             if (!Linea.eOra(Collegamenti.di(Collegamenti.ACCOPPIATO), ultimaIl, System.currentTimeMillis())) { delay(250); continue }
             // Con l'app dietro, ogni 15 secondi invece di 2 (app 2.69.0): il PC rispondeva lo stesso a ogni giro.
             if (!PolsoApp.tocca(cicloVita.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED), ultimaIl, System.currentTimeMillis())) { delay(1000); continue }
+            // Calmo (0.83.0): lo stato non cambia da qualche giro, il prossimo fra 3 s invece di 2.
+            if (System.currentTimeMillis() - ultimaIl < PolsoApp.davantiOgni(uguali)) { delay(250); continue }
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
             try {
-                val (letto, grezzo) = api.statoConTesto()
+                // Solo se è cambiato (0.83.0, `StatoSoloSeCambia`): uguale, niente decodifica e niente ridisegno.
+                val grezzo = api.statoGrezzo()
+                val (letto, cambiato) = withContext(Dispatchers.Default) { soloSeCambia.leggi(grezzo) }
                 letto.computer?.versione?.takeIf { it.isNotBlank() }?.let { if (PcCorrente.versione != it) PcCorrente.versione = it }
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
                 // prossima sveglia.
-                try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                // Fuori dal thread dello schermo (0.83.0): rilegge il JSON e scrive le preferenze, ogni due secondi.
+                withContext(Dispatchers.Default) {
+                    try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                }
                 // L'ultima parola prima del silenzio. Va colta **mentre** il
                 // computer la dice: fra un istante non risponde piu'.
                 // L'aggiornamento puo' partire anche dallo schermo del
@@ -471,7 +507,13 @@ fun Principale(
                 // quando risponde la versione nuova.
                 val ferma = letto.aggiornamento?.fase == "pronto" && letto.aggiornamento?.errore != null
                 if (ferma && Installazione.da != null) Installazione.finita(contesto)
-                stato = letto; giriFalliti = 0; rifiuti = 0
+                if (cambiato || daCopia) { stato = letto; daCopia = false }
+                uguali = if (cambiato) 0 else uguali + 1
+                giriFalliti = 0; rifiuti = 0
+                if (grezzo != copiato && System.currentTimeMillis() - copiaIl >= CopiaStato.OGNI_MS) {
+                    copiaIl = System.currentTimeMillis(); copiato = grezzo
+                    launch(Dispatchers.IO) { CopiaStato.salva(contesto.filesDir, indirizzo, grezzo) }
+                }
                 // Ogni giro riuscito aggiorna la postazione: quando si e' usata
                 // l'ultima volta, e come si chiama davvero — il nome della
                 // macchina lo sa solo lei, e un elenco di indirizzi IP non si
@@ -711,4 +753,12 @@ private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
 object PolsoApp {
     const val DIETRO_OGNI_MS = 15_000L
     fun tocca(davanti: Boolean, ultimaIl: Long, ora: Long): Boolean = davanti || ora - ultimaIl >= DIETRO_OGNI_MS
+
+    /** Dopo quanti giri uguali di fila lo stato si chiede più di rado (0.83.0). */
+    const val CALMO_DOPO = 5
+    /** Più di rado, ma sotto `Linea.LENTA_DOPO_MS`: la linea non sembra lenta. */
+    const val CALMO_OGNI_MS = 3000L
+
+    /** Ogni quanto si chiede lo stato con l'app davanti: 2 s, 3 s se non cambia da `CALMO_DOPO` giri. */
+    fun davantiOgni(uguali: Int): Long = if (uguali >= CALMO_DOPO) CALMO_OGNI_MS else Linea.KEEPALIVE_OGNI_MS
 }

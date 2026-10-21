@@ -47,7 +47,7 @@ fun Adesso(api: Api, stato: Stato?, apriAutopilota: String?, onAperto: () -> Uni
     }
     var dettaglio by remember { mutableStateOf(false) }
     LaunchedEffect(dettaglio) { onDettaglio(dettaglio) }
-    if (!dettaglio) PolsoDomande(api, domande)
+    if (!dettaglio) PolsoDomande(api, domande, DomandeAdesso.firma(stato))
     Lavori(
         api, stato, apri = apri,
         onAperto = { autopilota = null; onAperto() },

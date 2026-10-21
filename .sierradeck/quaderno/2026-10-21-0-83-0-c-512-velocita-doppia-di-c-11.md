@@ -1,8 +1,10 @@
 ---
-titolo: "0.83.0: c-512 (velocità) è un doppione del lavoro di c-11, che è in corso (21/10)"
+titolo: "0.83.0: c-512 (velocità) sembrava un doppione di c-11, superata: l'ha finita c-48 (21/10)"
 quando: 2026-10-21T12:55:00+02:00
 tag: ["0.83.0", "android", "velocità", "coordinamento", "doppione"]
 ---
+
+> **Superata (21/10 pomeriggio).** c-11 era chiusa dalle 10:40 UTC e il supervisore ha passato il lavoro a c-48. c-48 ha portato dentro il commit di c-11 e ha fatto i cinque punti elencati qui sotto. Com'è andata e i numeri sono in `velocita-app-0-83-0.md`. Trappola: da un contatore che scrive ancora non si capisce se una chat è viva; prima di dichiarare un doppione va chiesto al supervisore.
 
 La consegna c-512 data a c-48 («Velocità 0.83.0: cache dell'ultimo stato, aggiornamenti solo di quello che cambia, liste pigre con chiavi, niente lavoro pesante sul thread principale, meno chiamate al PC, numeri prima e dopo») è **lo stesso compito di c-11**. Alle 12:51 c-11 ci stava ancora lavorando:
 - ramo `ap/ap-f1e631f5/c-11-velocita`, commit 646673b1 delle 12:39, che nasce da c-46 (quattro voci) e da c-509 (schermata dell'autopilota);

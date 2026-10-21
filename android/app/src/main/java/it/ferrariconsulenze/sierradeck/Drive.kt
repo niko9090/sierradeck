@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -78,7 +77,7 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
         if (!leggo) return@LaunchedEffect
         while (isActive && leggo) {
             try { api.driveCatalogoStato().inCorso?.let { progresso = it } } catch (_: Exception) {}
-            delay(500)
+            Davanti.pausa(500)
         }
     }
 
@@ -96,7 +95,7 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                 if (eraInCorso && !adesso) { inCorso = null; leggi() }
                 eraInCorso = adesso
             } catch (_: Exception) {}
-            delay(2000)
+            Davanti.pausa(2000)
         }
     }
 

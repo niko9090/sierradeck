@@ -55,7 +55,7 @@ class DomandeAdessoTest {
         // Le domande sono del PC accoppiato: non sopra gli autopiloti di un altro PC (Revisione c-46).
         assertTrue(lavori.contains("if (su == null) testa()"))
         // Si leggono fuori dalla lista (scorrendo non si fermano), e non dentro un autopilota.
-        assertTrue(adesso.contains("if (!dettaglio) PolsoDomande(api, domande)"))
+        assertTrue(adesso.contains("if (!dettaglio) PolsoDomande(api, domande, DomandeAdesso.firma(stato))"))
         val cima = File("src/main/java/it/ferrariconsulenze/sierradeck/DomandeAdesso.kt").readText()
         assertTrue(!cima.contains("item(key = \"domande-polso\")"))
         // Dentro un autopilota la banda delle urgenze torna anche in Adesso.

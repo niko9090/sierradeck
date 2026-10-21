@@ -54,10 +54,16 @@ class DomandeLette {
  * dentro un autopilota le letture si fermano, e le urgenze le dice la banda
  * in cima (prima `/api/domande` andava ogni 2 secondi anche lì). Sta fuori
  * dalla lista: scorrendo in giù non si ferma.
+ *
+ * Con `firma` (0.83.0, Adesso) non si rilegge a tempo: si rilegge
+ * quando lo stato, che arriva comunque ogni 2 secondi, dice che le domande
+ * sono cambiate (`DomandeAdesso.firma`), e dopo ogni risposta (`giro`). Erano
+ * 30 chiamate al minuto in più sulla schermata d'apertura. Senza firma (una
+ * conversazione aperta, dove si aspetta la risposta) ogni 2 secondi come prima.
  */
 @Composable
-internal fun PolsoDomande(api: Api, d: DomandeLette) {
-    LaunchedEffect(api, d.giro) {
+internal fun PolsoDomande(api: Api, d: DomandeLette, firma: Int? = null) {
+    LaunchedEffect(api, d.giro, firma) {
         while (isActive) {
             try {
                 val r = api.domande()
@@ -67,6 +73,7 @@ internal fun PolsoDomande(api: Api, d: DomandeLette) {
             } catch (e: Exception) {
                 d.guasto = FunzioniPc.spiega(e, FunzionePc.DOMANDE)
             }
+            if (firma != null && d.guasto == null) break
             Davanti.pausa(2000)
         }
     }
@@ -79,6 +86,17 @@ internal fun PolsoDomande(api: Api, d: DomandeLette) {
 
 /** Le regole di Adesso, pure: si provano senza Compose (`DomandeAdessoTest`). */
 object DomandeAdesso {
+    /**
+     * Cosa dello stato dice che le domande sono cambiate: quante sono, quali,
+     * gli autopiloti che cambiano fase e le chat che si fermano su una scelta.
+     * Non le righe delle chat al lavoro: cambiano sempre e non sono domande.
+     */
+    fun firma(s: Stato?): Int = if (s == null) 0 else listOf(
+        s.domandeInAttesa, s.domande,
+        s.autopiloti.map { listOf(it.id, it.stato, it.led, it.cicli) },
+        s.chat.filter { it.chiede }.map { it.id }
+    ).hashCode()
+
     /** La chiave di una domanda: la conversazione e la domanda di adesso (una nuova riaccende i tasti). */
     fun chiave(c: Conversazione): String = c.chiave + "|" + (c.scheda?.domanda ?: c.messaggi.lastOrNull()?.testo ?: "")
 
