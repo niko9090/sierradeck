@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  compitoInBreve, nomeCompito, noteDiChiarezza, partiDaChatFerma, partiSenzaSigle, riferimentoVago, senzaNotificaClaude, senzaSigle, sigleIn
+  compitoInBreve, nomeCompito, noteDiChiarezza, partiDaChatFerma, partiSenzaSigle, riferimentoVago, senzaNotificaClaude, senzaSigle, senzaSigleMai, sigleIn
 } from '@shared/domanda-chiara'
 import { domandaControllata, leggiParti, partiDaRisposta, validaDomanda, type PartiDomanda } from '@shared/domanda-strutturata'
 import { domandaInFondo } from '@shared/domande-telefono'
@@ -95,8 +95,9 @@ describe('i casi veri: cosa passa', () => {
     expect(sigleIn('unisco ap/ap-f1e631f5/c-61 in main?')).toEqual(['c-61'])
     expect(senzaSigle('unisco ap/ap-f1e631f5/c-12 in main?', CHAT)).toBe('unisco «Rilascio 0.80.0 quando tutto è verde» in main?')
   })
-  it('una sigla che il programma non conosce diventa «una chat precedente»', () => {
-    expect(senzaSigle('le correzioni di c-310', CHAT)).toBe('le correzioni di una chat precedente')
+  it('una sigla che il programma non conosce resta, così il controllo la fa riscrivere (collaudo 0.84.0)', () => {
+    expect(senzaSigle('le correzioni di c-310', CHAT)).toBe('le correzioni di c-310')
+    expect(senzaSigleMai('le correzioni di c-310 e di ap-0123abcd', CHAT)).toBe('le correzioni di una chat che non c’è più e di un altro autopilota')
   })
   it('il compito in breve: la prima frase, tagliata a una parola intera', () => {
     expect(compitoInBreve('Rivedi il ramo ap/ap-f1e631f5/c-1 della chat c-1 («Verifica e motore della gestione»). Poi…', 40)).toBe('Rivedi il ramo ap/ap-f1e631f5/c-1…')

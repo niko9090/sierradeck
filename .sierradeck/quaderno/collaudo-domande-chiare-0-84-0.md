@@ -1,7 +1,7 @@
 ---
 titolo: "Collaudo delle domande chiare 0.84.0: 8 difetti da correggere (c-65)"
-quando: 2026-10-21T20:45:00+02:00
-tag: ["0.84.0", "domande", "collaudo", "c-65"]
+quando: 2026-10-21T22:30:00+02:00
+tag: ["0.84.0", "0.84.1", "domande", "collaudo", "c-65", "c-70"]
 ---
 
 Collaudo del lavoro di c-61 (già in main, scheda `domande-chiare-0-84-0.md`), con le domande vere del 20-21/10 lette dalla memoria del servizio (`%APPDATA%/SierraDeck/autopiloti/servizio/memoria.json`, sola lettura).
@@ -25,3 +25,17 @@ Collaudo del lavoro di c-61 (già in main, scheda `domande-chiare-0-84-0.md`), c
 # Visto nel codice, senza test
 - `server.ts:2373`: nella domanda «Come vado avanti con «…»?» dopo due respinte, il «perché» è `v.note` della Revisione, che può contenere sigle e rami; questa domanda non passa da `domandaControllata` né da `senzaSigle`.
 - `server.ts:1639` (`riapriDomandaIntervista`): dopo un riavvio la domanda della preparazione torna senza parti né controllo.
+
+# Corretti (c-70, 21/10) — escono con la 0.84.1
+Tutti gli 8 `it.fails` sono diventati `it` e passano.
+1. `SIGLA_CHAT` riconosce la sigla dopo la barra solo se prima c'è un'altra sigla («c-7/c-4»); i percorsi («consegne/c-440.md») restano fuori.
+2. `senzaSigle` lascia la sigla che non conosce: il controllo la fa riscrivere o la passa con l'avvertenza. Per le domande già chiuse, che non si possono far riscrivere, c'è `senzaSigleMai` («una chat che non c'è più», «un altro autopilota»).
+3-4. «questo lavoro», «questo autopilota», «quella cosa», «questa cosa» in `RIFERIMENTI_VAGHI` (guardati in domanda e scelte); in più `validaDomanda` guarda `PAROLE_VAGHE` anche nelle scelte.
+5. L'id dell'autopilota (`ap-` + 8 cifre esadecimali) è una sigla. Nel servizio si traduce col nome dell'autopilota (`conosciute(a)` = chat + autopilota, passato a `domandaControllata`).
+6. `PREFISSO_SUPERATA` (in `domande-conversazioni.ts`, usato anche dal registro): la superata si legge «chiusa: superata — motivo», sotto «ha chiuso una domanda superata»; pagina, app (`SchedaDomandaVista.kt`) e `domande-vista.ts` non ci mettono davanti «risposta dall'autopilota».
+7. Tutte e sei le `deps.domande.risolta` del servizio passano da `risoltaChiara` (domanda e risposta con `senzaSigleMai`).
+8. `chatDellaDomanda` usa `nomeCompito`.
+- Revisione dopo le respinte: il «perché» passa da `senzaSigleMai` e la domanda da `domandaControllataSubito` (controllo senza riscrittura, sincrono).
+- Riavvio: `riapriDomandaIntervista` rilegge le parti dal testo con `partiDaTesto` (l'inverso di `testoDomanda`) e le controlla; un testo vecchio, non a parti, resta com'era.
+
+Trappola: la regex con lookbehind variabile `(?<=…c-\d+\/)` funziona in Node; non spostarla nella pagina servita senza provarla nei browser vecchi del telefono.

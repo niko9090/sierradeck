@@ -59,11 +59,11 @@ describe('casi veri del 20-21/10 che il controllo già tratta bene', () => {
 })
 
 describe('difetti trovati dal collaudo', () => {
-  it.fails('DIFETTO 1: «c-7/c-4» — la seconda sigla dopo la barra non si vede (domanda-chiara.ts:22)', () => {
+  it('DIFETTO 1: «c-7/c-4» — la seconda sigla dopo la barra non si vede (domanda-chiara.ts:22)', () => {
     expect(sigleIn('Chiudo le chat c-7/c-4?')).toEqual(['c-7', 'c-4'])
   })
 
-  it.fails('DIFETTO 2: una sigla sconosciuta diventa «una chat precedente» e la domanda non dice più quale lavoro (domanda-chiara.ts:96)', async () => {
+  it('DIFETTO 2: una sigla sconosciuta diventa «una chat precedente» e la domanda non dice più quale lavoro (domanda-chiara.ts:96)', async () => {
     // Le chat c-310 e c-311 non sono più fra quelle dell'autopilota.
     const testo = senzaSigle('Chiudo le chat c-310 e c-311?', [])
     expect(testo).not.toBe('Chiudo le chat una chat precedente e una chat precedente?')
@@ -72,12 +72,12 @@ describe('difetti trovati dal collaudo', () => {
     expect(r.avvertenza).toBeDefined()
   })
 
-  it.fails('DIFETTO 3: 21/10, «Chiudo adesso questo lavoro…» e «…questo autopilota…» non dicono quale (domanda-chiara.ts:26)', () => {
+  it('DIFETTO 3: 21/10, «Chiudo adesso questo lavoro…» e «…questo autopilota…» non dicono quale (domanda-chiara.ts:26)', () => {
     expect(riferimentoVago('Chiudo adesso questo lavoro e tolgo i due workspace sbagliati dopo che installi la 0.81.1, o lo lascio aperto ad aspettare?')).toBeDefined()
     expect(riferimentoVago('Chiudo adesso questo autopilota e ti lascio scritti i due passi da fare dopo l’installazione della 0.81.1, oppure lo tengo acceso finché non installi?')).toBeDefined()
   })
 
-  it.fails('DIFETTO 4: «quella cosa» in una scelta passa il controllo; nella domanda no (domanda-strutturata.ts:123, domanda-chiara.ts:56)', () => {
+  it('DIFETTO 4: «quella cosa» in una scelta passa il controllo; nella domanda no (domanda-strutturata.ts:123, domanda-chiara.ts:56)', () => {
     const p = intorno('Pubblico la 0.84.0 adesso?', {
       scelte: [
         { scelta: 'fai quella cosa', conseguenza: 'faccio subito quello che serve', consigliata: true },
@@ -87,11 +87,11 @@ describe('difetti trovati dal collaudo', () => {
     expect(validaDomanda(p).completa).toBe(false)
   })
 
-  it.fails('DIFETTO 5: l’id dell’autopilota («ap-f1e631f5») è una sigla come «c-12» e passa (domanda-chiara.ts:22)', () => {
+  it('DIFETTO 5: l’id dell’autopilota («ap-f1e631f5») è una sigla come «c-12» e passa (domanda-chiara.ts:22)', () => {
     expect(validaDomanda(intorno('Chiudo l’autopilota ap-f1e631f5 adesso?')).completa).toBe(false)
   })
 
-  it.fails('DIFETTO 6: una domanda superata si legge come «risposta dall’autopilota» e «ha risposto da solo» (domande-conversazioni.ts:288, :297)', () => {
+  it('DIFETTO 6: una domanda superata si legge come «risposta dall’autopilota» e «ha risposto da solo» (domande-conversazioni.ts:288, :297)', () => {
     const [c] = conversazioniDomande({
       voci: [{
         tipo: 'risolta', autopilotaId: 'ap-1', autopilota: 'App Android', chatTitolo: 'Ristrutturazione dell’app Android',

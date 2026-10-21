@@ -17,6 +17,8 @@ const ORDINE: Record<TipoDomanda, number> = { permesso: 0, scelta: 1, domanda: 2
 
 export function tipoDomanda(c: Pick<Conversazione, 'tipo' | 'chiede' | 'scelte' | 'messaggi'>): StatoVista & { id: TipoDomanda } {
   // Una domanda della sua chat a cui ha risposto lui (0.71.1): si vede, non aspetta te.
+  // Chiusa perché superata (collaudo 0.84.0): nessuno ha risposto.
+  if (c.tipo === 'autopilota' && !c.chiede && c.messaggi.at(-1)?.testo.startsWith('chiusa: superata') === true) return { ...stato('risposta', 'chiusa: superata', 'quieto'), id: 'risposta' }
   if (c.tipo === 'autopilota' && !c.chiede) return { ...stato('risposta', 'risposta dall’autopilota', 'blu'), id: 'risposta' }
   if (c.tipo === 'autopilota') return { ...stato('autopilota', 'autopilota', 'blu'), id: 'autopilota' }
   if (c.scelte !== undefined) {
