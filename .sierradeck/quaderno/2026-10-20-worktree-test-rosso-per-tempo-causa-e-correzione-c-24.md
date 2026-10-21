@@ -55,3 +55,8 @@ finisce rosso per tempo.
 
 **Regola:** nei test con git vero, preparare il repository una volta sola e
 copiarlo. Ogni processo in meno conta molto di più a PC carico.
+
+**Stato del ramo `ap/ap-f1e631f5/c-24` (21/10):** il codice è tutto in main.
+Fuori da main resta solo il commit di questa scheda (`674b4b78` e quello che
+segue). Si unisce dopo la Revisione: è solo il quaderno, nessun conflitto
+atteso. Non resta altro lavoro e non nasce nessun compito nuovo.
