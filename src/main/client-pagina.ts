@@ -2187,6 +2187,7 @@ function pannello(s) {
                 : '<button data-ap="' + esc(apAperto.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>'}
         \${apAperto.stato === 'sospeso' || apAperto.stato === 'fallito' ? '<button data-ap="' + esc(apAperto.id) + '" onclick="archiviaAp(this.dataset.ap)" title="Esce dall’elenco dei lavori; non si cancella niente">Archivia</button>' : ''}
         <button onclick="apriPannello('quaderno')">Quaderno</button>
+        \${!apPc && apDettaglio && apDettaglio.storico ? '<button data-cwd="' + esc(apAperto.cwd || apDettaglio.cwd || '') + '" data-file="' + esc(apDettaglio.storico) + '" onclick="apriStorico(this.dataset.cwd, this.dataset.file)" title="Chat aperte, consegne, unioni, chiusure, release e tue decisioni">Storico</button>' : ''}
       </div>
       \${!apPc && ((s.workspace && s.workspace.nomi) || []).some((n) => n !== apAperto.workspace) ? \`
       <div class="riga">
@@ -2746,7 +2747,8 @@ function pannello(s) {
     // in moto. Con un autopilota aperto c'è solo lui: la casella in fondo e,
     // sopra, la sua conversazione.
     adesso: apAperto
-      ? autopiloti
+      // Il Quaderno e lo Storico (0.84.0) aperti dalla scheda dell'autopilota: qui, non in Progetti.
+      ? autopiloti + vistaQuaderno
       : (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
         '<div class="solco"></div><div class="titolo">Autopiloti</div>' + postiChatHtml(s) +
         (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega +
@@ -5200,6 +5202,14 @@ window.apriScheda = async (cartella, file) => {
   pannello(ultimoStato)
 }
 window.chiudiScheda = () => { schedaAperta = null; pannello(ultimoStato) }
+// Lo storico del lavoro (0.84.0): la sua scheda del quaderno, aperta con un tocco.
+window.apriStorico = async (cartella, file) => {
+  pannelloAperto = 'quaderno'
+  quadernoTag = ''
+  quadernoQ = ''
+  await leggiQuaderno(cartella)
+  await apriScheda(cartella, file)
+}
 
 window.leggiPreferenze = async () => {
   try { prefViste = (await chiedi('/api/preferenze')).preferenze } catch (e) { prefViste = null }

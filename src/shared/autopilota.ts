@@ -328,6 +328,12 @@ export type Autopilota = SupervisoreMancato & {
   ultimoEvento: string
   decisioni: Decisione[]
   /**
+   * Il file dello storico di questo lavoro nel quaderno della sua cartella
+   * (0.84.0), per esempio `storico-sierradeck-f1e631f5.md`: la pagina e l'app
+   * lo aprono con un tocco. Assente finché non c'è niente da raccontare.
+   */
+  storico?: string
+  /**
    * La strada che sta tentando per uscire da un cerchio, quando ci si trova
    * dentro. Assente e' il caso normale: sta semplicemente lavorando.
    */
@@ -949,6 +955,7 @@ export function parseAutopilota(raw: unknown): {
       iniziatoIl,
       ultimoEvento,
       decisioni,
+      ...(typeof o.storico === 'string' && /^storico-[A-Za-z0-9._-]+\.md$/.test(o.storico) ? { storico: o.storico } : {}),
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
       ...(o.sottofondo === true ? { sottofondo: true } : {}),

@@ -72,12 +72,16 @@ export function improntaCodice(git: Git, cwd: string): string | undefined {
  * solo all'antiloop, che deve vedere anche il lavoro non ancora salvato di una
  * chat che lavora nella cartella principale.
  */
+const STORICO_FUORI = ':(exclude,glob).sierradeck/quaderno/storico-*.md'
+
 export function improntaLavoro(git: Git, cwd: string): string | undefined {
   const head = git(['rev-parse', 'HEAD'], cwd)
   if (head.codice !== 0) return undefined
-  const stato = git(['status', '--porcelain', '-uall'], cwd)
+  // Lo storico nel quaderno (0.84.0) lo scrive l'autopilota, non la chat: una
+  // sua riga nuova non è lavoro fatto e non deve sembrarlo all'antiloop.
+  const stato = git(['status', '--porcelain', '-uall', '--', '.', STORICO_FUORI], cwd)
   if (stato.codice !== 0) return undefined
-  const diff = git(['diff', 'HEAD'], cwd)
+  const diff = git(['diff', 'HEAD', '--', '.', STORICO_FUORI], cwd)
   const h = createHash('sha256').update(head.uscita).update('\0').update(stato.uscita).update('\0').update(diff.uscita)
   for (const riga of stato.uscita.split(/\r?\n/)) {
     if (!riga.startsWith('?? ')) continue
