@@ -629,7 +629,8 @@ describe('quando il computer tace, nessun LED resta verde', () => {
     // lo stesso quando il computer tace.
     const ledChat = script.slice(script.indexOf('const ledChat ='))
     expect(ledChat.slice(0, 120)).toContain("giriFalliti >= 2 ? 'fermo'")
-    const polso = script.slice(script.indexOf('const polso ='))
+    // 0.82.0: la riga di una chat nel polso è `rigaChatPolso`, per quelle in moto e per le altre.
+    const polso = script.slice(script.indexOf('const rigaChatPolso ='))
     expect(polso.slice(0, 1400)).toContain('ledChat(c)')
     const voci = script.slice(script.indexOf('class="voce" onclick="guarda('))
     expect(voci.slice(0, 400)).toContain('ledChat(v.viva)')

@@ -172,7 +172,7 @@ describe('0.74.1: pagina, «Torna come prima» della trasformazione dei workspac
     expect(f(null)).toBe('')
     const fatta = f({ stato: 'fatta', dormienti: [{}, {}, {}] })
     // 0.80.0: il numero dice gli autopiloti nuovi, non i workspace; la spiegazione nel «?».
-    expect(fatta).toContain('Fatta: 3 autopiloti nuovi')
+    expect(fatta).toContain('Fatta: Panoramica nuova in 3 workspace')
     expect(fatta).toContain('data-aiuto="migrazione"')
     expect(f({ stato: 'fatta', dormienti: [] })).toContain('Fatta: ogni workspace aveva già il suo autopilota.')
     expect(fatta).toContain(`onclick="cambiaMigrazione('torna')"`)

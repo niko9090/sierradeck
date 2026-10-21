@@ -54,7 +54,10 @@ const RUMORE_DI_INTERFACCIA =
   // 0.81.0: anche la riga di stato (modello, contesto, limiti del piano), come in `panoramica.ts`:
   // dalla prova nella copia, l'avviso «aspetta te» diceva «Opus · contesto 5% · 5 ore 8%…».
   // 0.82.0: anche il campo vuoto «❯»: sulla pagina ogni chat ferma aveva sotto il nome una riga con il solo «❯».
-  /^(\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
+  // 0.82.0: anche la riga di stato con solo modello e costo («Opus 5.5 · 0.00 $»), di una chat appena aperta,
+  // quella dello sforzo («◐ medium · /effort») e il suggerimento del campo vuoto («❯ Try "…"») e «1 more notice hidden», lette nella
+  // copia di prova sotto ogni chat appena aperta.
+  /^(\d+ more notices? hidden|.*· \/effort|[›>❯]\s*Try ".*|(.+ · )?\d+\.\d{2} \$|\? for shortcuts|[›>❯]\s*|.*bypass permissions.*|.*shift\+tab.*|.*to cycle.*|.*accept edits.*|.*plan mode.*|.*auto-accept.*|[·\s]*enter to (confirm|select).*|[·\s]*esc to cancel.*|.*\b(contesto|context) \d+%.*|.*\b5 ore \d+%.*|.*\bsettimana \d+%.*)$/i
 
 /** Una cornice: solo caratteri di riquadro e spazi. */
 const SOLO_CORNICE = /^[\u2500-\u257f\s]+$/
@@ -102,7 +105,14 @@ export function ultimaRigaUtile(testo: string): string {
     const riga = (righe[i] ?? '').trim()
     // Le cornici disegnate con i caratteri di riquadro non dicono niente: sono
     // decorazione, e da lontano contano meno di una riga di testo vero.
-    if (riga === '' || /^[─-╿\s]+$/.test(riga)) continue
+    // 0.82.0: anche qui le righe fisse dell'interfaccia (il campo vuoto «›»,
+    // la riga di stato): quando lo schermo manca, si leggevano sotto il nome.
+    // E la cornice con il titolo della chat: tagliata a 160 caratteri, dalla
+    // copia di prova sulla pagina ogni chat aveva sotto il nome solo trattini.
+    // Nel flusso Claude Code sposta il cursore invece di andare a capo, e la
+    // cornice arriva attaccata al resto della casella: una riga che comincia
+    // con una cornice orizzontale non è testo della chat.
+    if (riga === '' || /^[─-╿\s]+$/.test(riga) || /^[─━═]{3,}/.test(riga) || CORNICE_CON_TITOLO.test(riga) || RUMORE_DI_INTERFACCIA.test(riga)) continue
     return riga.slice(0, RIGA_MAX)
   }
   return ''

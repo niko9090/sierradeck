@@ -15,7 +15,7 @@ import { aspettaDalloSchermo, chatAspetta, consegnaPartita, contaMandati, creaUl
 import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
 import { comePortare, rigaInAttesa } from './consegna-visibile'
-import { memoriaWorkspace } from './memoria-workspace'
+import { memoriaWorkspace, chatDietro, terminaliDi } from './memoria-workspace'
 import { spostaInWorkspace } from './spostamento'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
@@ -111,6 +111,17 @@ const PAUSA_PRIMA_DELL_INVIO_MS = 150
  * per poter guardare da lontano senza aprire niente.
  */
 const RICARICA_AUTOPILOTI_MS = 5000
+
+/**
+ * Il riquadro a cui il telefono scrive o di cui chiede le righe (0.82.0): a
+ * schermo, oppure in un workspace tenuto vivo dietro. Da quando la finestra
+ * annuncia anche quelle chat, il telefono le vede e ci scrive: cercando solo
+ * fra i riquadri a schermo, il testo finiva nel vuoto.
+ */
+function riquadroDelTelefono(chat: string): { ptyId?: string } | undefined {
+  return useLayoutStore.getState().panes[chat] ??
+    chatDietro(memoriaWorkspace().vivi(), workspaceCorrente()).find((d) => d.pane.id === chat)?.pane
+}
 
 /**
  * Collega la persistenza del layout — la cui logica sta in `persistenza-layout`,
@@ -388,11 +399,13 @@ export function App(): React.JSX.Element {
   // resume — se ne va. Gira quando i riquadri cambiano: e' esattamente il momento
   // in cui un id smette di servire (una chiusura, o un rilancio che lo sostituisce).
   useEffect(() => {
-    const vivi = new Set(
-      Object.values(riquadriAperti)
+    // 0.82.0: anche quelli dei workspace tenuti vivi, che si annunciano ancora.
+    const vivi = new Set([
+      ...Object.values(riquadriAperti)
         .map((p) => p.ptyId)
-        .filter((x): x is string => x !== undefined)
-    )
+        .filter((x): x is string => x !== undefined),
+      ...memoriaWorkspace().vivi().flatMap((w) => terminaliDi(w.layout))
+    ])
     righe.current.pota(vivi)
   }, [riquadriAperti])
 
@@ -402,15 +415,24 @@ export function App(): React.JSX.Element {
         // Un riquadro remoto guarda una chat di un altro PC: non e' una chat
         // di qui, e annunciarla farebbe credere al telefono e al battito che
         // questo PC ce l'abbia aperta.
-        Object.values(riquadriAperti).filter((p) => p.remoto === undefined).map((p) => ({
+        // 0.82.0: anche le chat vive dei workspace tenuti in memoria, con il loro
+        // workspace: girano, e pagina e app le davano per «chiusa».
+        [
+          ...Object.values(riquadriAperti).filter((p) => p.remoto === undefined).map((p) => ({ p, workspace: workspaceCorrente() })),
+          // Un terminale finito mentre il suo workspace stava dietro non è più una chat accesa.
+          ...chatDietro(memoriaWorkspace().vivi(), workspaceCorrente())
+            .filter((d) => righe.current.attivitaDi(d.pane.ptyId)?.morto !== true)
+            .map((d) => ({ p: d.pane, workspace: d.workspace, dietro: true }))
+        ].map(({ p, workspace, ...resto }) => ({
           id: p.id,
+          ...('dietro' in resto ? { dietro: true } : {}),
           titolo: p.title !== undefined && p.title !== '' ? p.title : p.cwd,
           cwd: p.cwd,
           // Quale conversazione: il Core la usa per sapere a chi consegnare le
           // istruzioni di un autopilota, e il telefono per guardarci dentro.
           sessione: p.sessionUuid,
-          // Il workspace della finestra (0.49.0): per il PIN dei workspace.
-          workspace: workspaceCorrente(),
+          // Il workspace della chat (0.49.0): per il PIN dei workspace.
+          workspace,
           // Se ha finito di scrivere e sta aspettando te. È lo stesso
           // giudizio che usa l’autopilota per sapere quando può parlare —
           // il prompt visto, e poi un po’ di silenzio — e da un telefono è
@@ -729,7 +751,7 @@ export function App(): React.JSX.Element {
   // che parla. Senza questo, dal telefono si vedevano le ultime righe e basta,
   // mentre la conversazione intera era qui, dentro l’xterm del riquadro.
   useEffect(() => window.gestore.client.suRichiestaRighe(({ id, chat, da, quante, schermo }) => {
-    const riquadro = useLayoutStore.getState().panes[chat]
+    const riquadro = riquadroDelTelefono(chat)
     if (riquadro?.ptyId === undefined) return
     // `schermo`: quello disegnato adesso, non un pezzo di cronologia. Serve a
     // controllare una scelta prima di premere: la foto che il Core tiene ha
@@ -760,7 +782,7 @@ export function App(): React.JSX.Element {
     // dentro direttamente non faceva niente, in silenzio, ed è il motivo per
     // cui dal telefono si scriveva nel vuoto. Il terminale sta nel riquadro, e
     // solo questa finestra sa quale.
-    const riquadro = useLayoutStore.getState().panes[chat]
+    const riquadro = riquadroDelTelefono(chat)
     if (riquadro?.ptyId === undefined) return
     // Il testo e l'invio **separati**, con una pausa in mezzo.
     //
@@ -783,7 +805,7 @@ export function App(): React.JSX.Element {
   // con la stessa pausa del testo e dell'invio. Le frecce insieme vanno bene;
   // il testo di una risposta libera e l'invio devono arrivare dopo.
   useEffect(() => window.gestore.client.suTasti(({ chat, pezzi }) => {
-    const riquadro = useLayoutStore.getState().panes[chat]
+    const riquadro = riquadroDelTelefono(chat)
     if (riquadro?.ptyId === undefined || !Array.isArray(pezzi)) return
     const idPty = riquadro.ptyId
     pezzi.forEach((p, i) => {

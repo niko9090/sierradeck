@@ -16,7 +16,7 @@ class MigrazioneTest {
         val s = r.stato!!
         assertEquals(2, s.dormienti.size)
         assertNull(s.dormienti[1].cwd)
-        assertEquals("Fatta: 2 autopiloti nuovi, fermi finché non gli scrivi.", testoMigrazione(s))
+        assertEquals("Fatta: Panoramica nuova in 2 workspace, parte quando le scrivi.", testoMigrazione(s))
         // 0.80.0: con zero nuovi non dice più «(0)».
         assertEquals("Fatta: ogni workspace aveva già il suo autopilota.", testoMigrazione(StatoMigrazioneApp("fatta")))
         assertEquals("La trasformazione non è riuscita, tutto è com’era: disco pieno", testoMigrazione(StatoMigrazioneApp("fallita", "disco pieno")))

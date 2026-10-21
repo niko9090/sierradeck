@@ -51,6 +51,19 @@ class RaggruppoTest {
     }
 
     @Test
+    fun `una chat viva di un workspace che il PC tiene dietro sta li, accesa, e non fra le chiuse (PC 0_82_0)`() {
+        val vive = listOf(
+            Chat(id = "p-1", titolo = "una (viva)", cwd = "C:/l", sessione = "u1", workspace = "lavoro"),
+            Chat(id = "p-8", titolo = "nuova di lavoro", cwd = "C:/l", sessione = "u8", workspace = "lavoro"),
+        )
+        val lavoro = raggruppaChat(vive, ws).first { it.workspace == "lavoro" }
+        assertEquals(listOf("p-1", "p-8"), lavoro.voci.mapNotNull { it.viva?.id })
+        assertEquals(listOf("u2"), lavoro.voci.mapNotNull { it.salvata?.sessione })
+        val json = Json { ignoreUnknownKeys = true }
+        assertEquals("lavoro", json.decodeFromString(Chat.serializer(), "{\"id\":\"p\",\"workspace\":\"lavoro\",\"dietro\":true}").workspace)
+    }
+
+    @Test
     fun `un computer vecchio senza workspace mostra le sole chat vive come prima`() {
         val vive = listOf(Chat(id = "p-1", titolo = "sola"))
         val gruppi = raggruppaChat(vive, Workspace())

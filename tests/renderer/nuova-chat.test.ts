@@ -116,9 +116,10 @@ describe('il nome fa la cartella (0.19.0)', () => {
     expect(e.ok && e.cartella).toBe('C:\\Users\\nik\\Documents\\Progetti SierraDeck\\Sito web')
   })
 
-  it('senza nome, in Documenti o fra i progetti, non si parte: e lui a fare la cartella', () => {
+  it('senza nome, in Documenti o fra i progetti, vale «Nuova chat» come promette la riga sotto il campo (0.82.0)', () => {
     const e = componiNuovaChat({ nome: '  ', posto: 'documenti', altrove: '', basi })
-    expect(e.ok).toBe(false)
+    expect(e).toMatchObject({ ok: true, nome: 'Nuova chat', daCreare: true })
+    expect(e.ok && e.cartella.endsWith('Nuova chat')).toBe(true)
   })
 
   it('altrove vale la regola di prima: la cartella scelta, il nome se manca dalla cartella', () => {

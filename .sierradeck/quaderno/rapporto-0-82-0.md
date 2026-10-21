@@ -16,7 +16,7 @@ tag: ["release", "0.82.0", "rapporto"]
 | 6) «Apri cartella» | c-37 | sì | 0 |
 | 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
 | collaudo della grafica | c-41 | no (lo rivede c-42) | **1** (aspetto) |
-| cinque difetti grafici | c-43 | no | **2** (aspetto) |
+| cinque difetti grafici | c-43 (con c-41 dentro) | no | finita, da unire |
 | rilascio (questa chat) | c-39 | sì | — |
 
 Novità, versione e pubblicazione restano ferme finché c-41 e c-43 non hanno 0
@@ -294,3 +294,41 @@ dell'ultima riga si apre sopra. Pagina: il riquadro Workspace da 982 a 698 px.
 qui» muto, casella della rinomina che restava sulla pagina, nell'app voce
 spenta senza il perché e «⋯» che restava aperto con l'elenco cambiato, casi
 di test Kotlin mancanti per Sposta e PC senza «Apri cartella»).
+
+## Correzione grafica: i cinque difetti di c-32 (c-43, 21/10)
+
+Ramo `ap/ap-f1e631f5/c-43`, partito da main `973aab3c` con c-41 unito (il suo
+test e la sua scheda servivano qui). Tutti e cinque corretti su PC, pagina e
+app. Nel test di c-41 non resta nessun `.fails`, e il `todo` del difetto 1 ora
+è un test vero. Nessuna funzione tolta o spostata.
+
+| # | Difetto | Correzione |
+|---|---|---|
+| 1 | Pagina e app: le chat del workspace che non è davanti risultano «chiusa», anche se girano | La finestra annuncia anche le chat vive dei workspace che tiene in memoria (`chatDietro` in `memoria-workspace.ts`), con il loro workspace e `dietro: true`. Pagina e app le mettono nel gruppo giusto, accese. Dal telefono ci si scrive e se ne leggono le righe (`riquadroDelTelefono`). Per le consegne non contano «in finestra» (`chatDietroPerFinestra` in `index.ts`): lì resta tutto com'era |
+| 2 | «IN MOTO 4» con quattro chat ferme | Il numero conta solo chi lavora davvero. Le altre restano in vista, sotto «ALTRE CHAT n» |
+| 3 | Righe inutili sotto il nome di una chat | Tolte «Opus 5.5 · 0.00 $» e «›», anche nella lettura di riserva dal flusso. Nella copia è uscito altro, tolto pure quello: la cornice con il titolo (solo trattini), «◐ medium · /effort», il suggerimento «❯ Try "…"», «1 more notice hidden» |
+| 4 | «Fatta: 2 autopiloti nuovi» con Autopiloti vuoto | «Fatta: Panoramica nuova in N workspace, parte quando le scrivi.» Il «?» dice che fino al primo messaggio non compaiono fra gli Autopiloti. Uguale sui tre lati |
+| 5 | Nuova chat promette «Nuova chat» e poi rifiuta il nome vuoto | Il nome vuoto vale «Nuova chat», come promette la riga. «Apri la chat» è attivo |
+
+**Prova dal vero del difetto 1** (copia `SIERRADECK_PROVA`, porte 47720/47721,
+due workspace Prova-082-a con 3 chat e Prova-082-b con 1):
+- con A davanti, prima di aprire B: «Seconda prova» di B fra le chiuse (giusto, non era mai partita);
+- aperto B e tornati ad A: «Seconda prova» accesa sotto PROVA-082-B, `dietro`, nessuna chiusa;
+- `/api/storia` della chat dietro: 8 righe, risponde la finestra;
+- stesso esito dopo un riavvio della copia. Copia spenta, nessun processo rimasto, cartella tolta.
+
+**Foto «dopo»** in `note/foto-0-82-0/c-43/` della cartella principale, fuori da git:
+`pag-1-domande-in-moto` (IN MOTO 0, ALTRE CHAT 3), `pag-2-chat-due-workspace`
+(B accesa con A davanti), `pc-1-nuova-chat-nome-vuoto`,
+`pc-2-impostazioni-trasformazione`.
+
+**Controlli (c-43), sul ramo con main `8308b002` unito (c-36 compreso):**
+typecheck pulito, guardia delle cancellazioni pulita. `tests/main`: 195 file,
+**1857 passati**, 2 saltati. Servizio, renderer, condivisi, pty: 259 file,
+**2834 passati**. Android `gradle testDebugUnitTest assembleDebug`: verde, 394
+test, 0 falliti (`RaggruppoTest` +1, `MigrazioneTest` aggiornato).
+
+**Da sapere:** nella copia la finestra legge le chat dal flusso, non dallo
+schermo disegnato, anche per le chat davanti (sotto il nome compariva la cornice
+del flusso). Le righe vengono pulite lo stesso. Perché `righeDiPty` non risponda
+non l'ho cercato: è fuori da questo compito, va guardato a parte.
