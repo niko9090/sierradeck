@@ -45,9 +45,9 @@ import kotlinx.coroutines.launch
  * subito con «Riavvia ora».
  */
 @Composable
-fun SezioneDrive(api: Api) {
+fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
     val scope = rememberCoroutineScope()
-    var aperto by remember { mutableStateOf(false) }
+    var aperto by remember { mutableStateOf(apertoDaSubito) }
     var catalogo by remember { mutableStateOf<Catalogo?>(null) }
     var messaggio by remember { mutableStateOf<String?>(null) }
     var leggo by remember { mutableStateOf(false) }

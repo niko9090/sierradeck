@@ -119,7 +119,7 @@ fun LinguettaIstruzioni(api: Api, autopilota: String) {
             try { lista = api.istruzioniAutopilota(autopilota).istruzioni; guasto = null } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.ISTRUZIONI)
             }
-            delay(4000)
+            Davanti.pausa(4000)
         }
     }
     RigaConAiuto("Le istruzioni scritte alle sue chat, per intero.", "Quello che l'autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso vedi solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Tocca un'istruzione per aprirla; tieni premuto sul testo per copiarlo. «Correggi» gli scrive una nota legata a quell'istruzione.")

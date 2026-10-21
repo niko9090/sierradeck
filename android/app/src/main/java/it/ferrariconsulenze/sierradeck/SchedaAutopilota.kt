@@ -33,6 +33,14 @@ fun etichettaOrigine(d: DomandaScheda): String = when (d.origine) {
 fun linguetteAutopilota(domande: Int): List<String> =
     (if (domande > 0) listOf("domande") else emptyList()) + listOf("istruzioni", "file", "obiettivo", "criteri", "compiti", "deciso", "altro")
 
+/**
+ * Le parti nel dettaglio in una pagina che scorre (2.83.0): prima le domande,
+ * poi quello che si legge; Istruzioni e File in fondo, perché si leggono dal PC
+ * solo quando ci si arriva scorrendo (prima solo a linguetta aperta).
+ */
+fun sezioniAutopilota(domande: Int): List<String> =
+    (if (domande > 0) listOf("domande") else emptyList()) + listOf("obiettivo", "criteri", "compiti", "deciso", "istruzioni", "file", "altro")
+
 /** Una domanda nuova (che prima non c'era) fa avanti la linguetta. */
 fun domandaArrivata(prima: List<String>?, adesso: List<DomandaScheda>): Boolean =
     if (prima == null) adesso.isNotEmpty() else adesso.any { it.chiave !in prima }

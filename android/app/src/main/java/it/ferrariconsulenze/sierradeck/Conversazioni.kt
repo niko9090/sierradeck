@@ -76,10 +76,10 @@ fun domandeInAttesa(s: Stato): Int = s.domandeInAttesa ?: (s.domande.size + s.ch
  * mostrano la stessa cosa.
  */
 @Composable
-fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}) {
-    var apertaChiave by remember { mutableStateOf<String?>(null) }
+fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Unit, onApriAutopilota: (String) -> Unit = {}, iniziale: String? = null) {
+    var apertaChiave by remember { mutableStateOf(iniziale) }
     // PC 0.70: di partenza solo quello che aspetta davvero te; le chat che hanno finito il turno in «Tutte».
-    var soloAspettano by remember { mutableStateOf(true) }
+    var soloAspettano by remember { mutableStateOf(tutte.firstOrNull { it.chiave == iniziale }?.let { aspettaTe(it) } ?: true) }
     val nAspettano = contaAspettanoTe(tutte)
     val elenco = if (soloAspettano && tutte.any { aspettaTe(it) }) tutte.filter { aspettaTe(it) } else tutte
     val aperta = elenco.firstOrNull { it.chiave == apertaChiave } ?: elenco.first()

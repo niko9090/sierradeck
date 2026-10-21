@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { FUNZIONI, MENU_PRINCIPALE, voceMenu } from '../../src/shared/menu-principale'
+import { FUNZIONI, MENU_PRINCIPALE, MENU_TELEFONO, voceMenu } from '../../src/shared/menu-principale'
 import { paginaClient } from '../../src/main/client-pagina'
 
 /**
@@ -81,8 +81,11 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     for (const v of MENU_PRINCIPALE) expect(corpo, v.id).toContain(`${v.id}:`)
     for (const t of ["apriPannello(\\'code\\')", "apriPannello(\\'drive\\')", "apriPannello(\\'quaderno\\')", "apriPannello(\\'pc\\')", "apriPannello(\\'consumi\\')", "apriPannello(\\'negozio\\')", "apriPannello(\\'sessioni\\')"]) expect(corpo, t).toContain(t)
   })
-  it('l’app ha le stesse voci (assets/menu.json) e prende ogni parte della vecchia scheda «Computer»', () => {
-    const fatto = { voci: MENU_PRINCIPALE.map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega })) }
+  it('l’app ha le stesse voci (assets/menu.json): le sette del PC raccolte in quattro (0.83.0)', () => {
+    const fatto = {
+      voci: MENU_PRINCIPALE.map((v) => ({ id: v.id, nome: v.nome, breve: v.breve, icona: v.icona, spiega: v.spiega })),
+      telefono: MENU_TELEFONO.map((v) => ({ id: v.id, nome: v.nome, contiene: [...v.contiene], linguette: [...v.linguette] }))
+    }
     const file = join('android', 'app', 'src', 'main', 'assets', 'menu.json')
     if (process.env.AGGIORNA === '1') {
       mkdirSync(join(file, '..'), { recursive: true })
@@ -90,7 +93,17 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(fatto)
     const a = kt('App.kt')
-    for (const t of ['ParteComputer.PROGETTI', 'ParteComputer.SALUTE', 'ParteComputer.IMPOSTAZIONI', 'ParteComputer.CHAT', 'ParteChat.NEGOZIO -> Negozio(api)', 'Scheda.AUTOPILOTI -> Lavori(']) expect(a, t).toContain(t)
+    for (const t of ['VoceBarra.ADESSO -> Adesso(', 'VoceBarra.CHAT -> ConLinguette', 'VoceBarra.PROGETTI -> ConLinguette', 'VoceBarra.ALTRO -> Altro(', 'else -> Negozio(api)', 'BarraVoci(posto.voce']) expect(a, t).toContain(t)
     expect(a).not.toContain('Scheda.COMPUTER')
+    expect(a).not.toContain('ParteComputer')
+    // In Adesso: le domande in cima, poi gli autopiloti (Lavori).
+    expect(kt('Adesso.kt')).toContain('domandeInCima(api, domande)')
+  })
+  it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
+    expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Adesso', 'Chat', 'Progetti', 'Altro'])
+    const tutte = MENU_TELEFONO.flatMap((v) => v.contiene)
+    expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.map((v) => v.id).sort())
+    // Le domande per Nicholas stanno nella prima voce, quella su cui si apre l'app.
+    expect(MENU_TELEFONO[0].contiene[0]).toBe('domande')
   })
 })

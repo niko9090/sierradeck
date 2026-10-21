@@ -221,7 +221,7 @@ fun SchermoInstallazione(
 
             Spacer(Modifier.height(26.dp))
             if (pronto) {
-                Button(shape = MaterialTheme.shapes.small, onClick = onEsci) { Text("Torna alle chat") }
+                Button(shape = MaterialTheme.shapes.small, onClick = onEsci) { Text("Torna all'app") }
             } else {
                 // Una schermata a tutto schermo deve sempre avere una porta:
                 // se l'aggiornamento e' partito dal computer e tu volevi solo

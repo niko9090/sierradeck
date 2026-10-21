@@ -72,7 +72,7 @@ class SceltaVistaTest {
 
     @Test
     fun `nelle tre schermate le opzioni passano da qui, e «Type something» non si tocca`() {
-        for (f in listOf("Chat.kt", "Conversazioni.kt", "Domande.kt")) {
+        for (f in listOf("DettaglioChat.kt", "Conversazioni.kt", "Domande.kt")) {
             val t = File("src/main/java/it/ferrariconsulenze/sierradeck/$f").readText()
             assertTrue(f, t.contains("TestoOpzione(o)"))
             assertTrue(f, t.contains("SceltaVista.SCRIVI"))

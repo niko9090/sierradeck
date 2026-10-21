@@ -114,6 +114,6 @@ describe('app: le stesse regole', () => {
   it('Kotlin: «Adesso» vuoto e la riga dal vivo senza stato', () => {
     const k = leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Panoramica.kt')
     expect(k).toContain('RegolePanoramica.mostraAdesso(sz.adesso.size, p.alLavoro != null)')
-    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt')).toContain('DalVivo(it, senzaStato = it.etichetta == statoInParole(s))')
+    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt')).toContain('DalVivo(it, senzaStato = it.etichetta == statoInParole(s))')
   })
 })

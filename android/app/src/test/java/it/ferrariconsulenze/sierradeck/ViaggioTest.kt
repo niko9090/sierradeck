@@ -48,7 +48,7 @@ class ViaggioTest {
             eventi = listOf(
                 EventoTentativo.Provo("lan", 1_000_000L), EventoTentativo.Fallita("lan", 1_005_000L, "non ha risposto in 5 secondi"),
                 EventoTentativo.Salta("tailscale", "nessun indirizzo Tailscale salvato per questo computer"),
-                EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre dalla scheda Computer, «Altri computer»"),
+                EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre da Altro › Altri computer"),
                 EventoTentativo.Fallito(1_005_000L, "nessuna strada ha risposto")
             ),
             dettagli = mapOf("lan" to DettaglioStrada(b, 1_000_000L, 1_005_000L, "non ha risposto in 5 secondi"))
