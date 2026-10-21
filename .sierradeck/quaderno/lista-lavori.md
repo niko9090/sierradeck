@@ -1,6 +1,6 @@
 ---
 titolo: "Lista dei lavori: le richieste di Nicholas in ordine di priorità"
-quando: 2026-10-21T18:10:00+02:00
+quando: 2026-10-21T17:45:00+02:00
 tag: ["lista-lavori", "priorità", "release", "nicholas"]
 ---
 
@@ -21,8 +21,8 @@ Prima versione: c-52, 21/10, sul suo ramo e mai unita. Questa la sostituisce (c-
 | 1c | Git nel PATH di ogni chat aperta dal programma, trovato dal sistema o dalle preferenze, mai scritto nel codice. Così gli hook ECC non rifiutano più gli strumenti (`2026-10-21-trappola-senza-git-bash-nel-path-gli-hook-ecc-bloccano-tutti.md`) | 21/10 | fatto in 0.82.1 (`main/git-nel-path.ts`, anche per il supervisore). Da verificare dopo l'installazione |
 | 1d | Se una chat aspetta un'altra chat per più di un giro, interviene l'autopilota: sblocca, sposta il lavoro o chiude | 21/10 | fatto in 0.82.1 (`attese-chat.ts`) |
 | 1e | Release 0.82.1: ramo nato da v0.82.0, APK 2.82.0 riallegato, `latest.yml` e `app-android.json`, non bozza. Rapporto in `rapporto-0-82-1.md` con le cause e i numeri | 21/10 | fatto in 0.82.1: ramo `rilascio/0.82.1` nato da v0.82.0, tag sul commit `730f3b0b`, 5 allegati, Latest, non bozza. La copia `rilascio-0-82-1` è ancora sul disco: la sua `node_modules` è una junction, va tolta con `rmdir` prima della cartella |
-| 2 | **0.83.0 (minor): l'app Android e la pagina del telefono rifatte.** Quattro voci fisse (Adesso, Chat, Progetti, Altro); la casella per scrivere all'autopilota sempre visibile; velocità; leggibilità; nessun file Kotlin oltre le 800 righe; nessuna funzione tolta. Il sì di Nicholas alla ristrutturazione completa è del 21/10 | 21/10 | **in corso: pronta; pubblicazione a c-55.** Sul ramo c-52: versioni 0.83.0 / 2.83.0, novità con la velocità, le 5 correzioni della Revisione di c-46, R8 provato (APK 4,2 MB, si apre), foto prima e dopo in tema scuro, numeri di velocità nel rapporto (`rapporto-0-83-0.md`). Fatti il 21/10 sera: «Hai risposto: …» anche per le risposte scritte a mano (c-52, `f50a70ce`), foto con «Foglio», chiarore massimo e caratteri 1.3. Il foglio delle foto e la mappa sono nella coda del PC verso il telefono e aspettano la conferma di Nicholas. La release la fa c-55 |
-| 3 | **0.84.0 (minor)**, divisa nei sei punti qui sotto | 21/10 | da fare, dopo la 0.83.0 |
+| 2 | **0.83.0 (minor): l'app Android e la pagina del telefono rifatte.** Quattro voci fisse (Adesso, Chat, Progetti, Altro); la casella per scrivere all'autopilota sempre visibile; velocità; leggibilità; nessun file Kotlin oltre le 800 righe; nessuna funzione tolta. Il sì di Nicholas alla ristrutturazione completa è del 21/10 | 21/10 | **fatto in 0.83.0**: pubblicata il 21/10 alle 17:45 da c-55 (tag su `67072521`, APK 2.83.0 firmato, latest.yml e app-android.json controllati), non installata. «Hai risposto: …» anche a mano (`f50a70ce`). Il foglio delle foto e la mappa aspettano la conferma di Nicholas nella coda verso il telefono. Rapporto: `rapporto-0-83-0.md` |
+| 3 | **0.84.0 (minor)**, divisa nei sei punti qui sotto | 21/10 | da fare: è la prossima |
 | 3.1 | Blocchi: in `blocchi-0-84-0.md` le cause vere delle fermate dal 15/10, prese dai registri di tutti i PC accesi, ognuna con una correzione e un test. Prova: 4 chat per 30 minuti in copia di prova | 21/10 | da fare |
 | 3.2 | Controllo e coordinazione: ogni chat riferisce all'autopilota quando parte, finisce, si blocca o aspetta. Lui vede tutto in un punto solo e decide. Nessun lavoro dato due volte | 21/10 | da fare |
 | 3.3 | Storico: l'autopilota scrive nel quaderno le sue azioni, un file per lavoro, senza doppioni. Si legge anche da pagina e app | 21/10 | da fare |
