@@ -449,12 +449,15 @@ function componiPagina(): string {
   .ws-elenco { max-height: 60vh; overflow-y: auto; overscroll-behavior: contain; margin-top: var(--s2); }
   .ws-gruppo + .ws-gruppo { margin-top: var(--s2); }
   .ws-titolo { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--testo-quieto); padding: 4px 2px; }
-  .ws-riga { display: flex; align-items: center; gap: 4px; border: 1px solid transparent; border-radius: 8px; }
-  .ws-riga.attivo { border-color: var(--accento); }
-  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; border: 0; background: transparent; min-height: 44px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .ws-riga { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--incisione); }
+  .ws-riga.attivo { background: var(--chassis-premuto); border-radius: var(--raggio); }
+  .ws-riga.attivo .ws-segno { color: var(--accento); }
+  .ws-riga .ws-va, .ws-riga .ws-altro { border: 0; background: transparent; box-shadow: none; }
+  .ws-riga .ws-va { flex: 1; min-width: 0; text-align: left; min-height: 44px; padding: 8px 10px; display: flex; gap: 8px; align-items: center; }
+  .ws-riga .ws-segno { width: 14px; flex: none; }
   .ws-riga .ws-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ws-riga .ws-conta { margin-left: auto; font-size: 12px; color: var(--testo-quieto); white-space: nowrap; }
-  .ws-riga .ws-altro { min-width: 44px; min-height: 44px; border: 0; background: transparent; font-size: 18px; }
+  .ws-riga .ws-altro { min-width: 44px; min-height: 44px; padding: 0; font-size: 18px; color: var(--testo-quieto); }
   .ws-riga .ws-altro[aria-expanded="true"] { color: var(--accento); }
   .ws-azioni { flex-wrap: wrap; margin: 0 0 var(--s2) 0; padding-left: 26px; }
   /* La cartella scelta per un lavoro: prima la classe c'era e la regola no. */
@@ -1745,6 +1748,8 @@ function impronta(s) {
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
     scelteDentro ? scelteDentro.corrente + ':' + scelteDentro.opzioni.map((o) => o.testo).join('/') : '',
     notaScelta || '', notaCartella,
+    // Il menu dei workspace (0.82.0): il «⋯» aperto, la rinomina, la ricerca.
+    wsAperto + '|' + wsRinomina + '|' + wsFiltro,
     // I «?» aperti (0.71.0): senza, il tocco cambiava aiutiAperti e la pagina non si ridisegnava.
     JSON.stringify(aiutiAperti),
     // **Anche cio' che si e' letto apposta.** Il dettaglio di un autopilota,
@@ -4146,7 +4151,7 @@ function wsListaHtml(s) {
     const quante = conti[v.nome] || 0
     let h = '<div class="ws-riga' + (davanti ? ' attivo' : '') + '">' +
       '<button class="ws-va"' + dati + ' onclick="wsTocca(this.dataset.k)"' + (davanti ? ' aria-current="true"' : '') + '>' +
-        '<span aria-hidden="true">' + (davanti ? '✓' : '') + '</span><span class="ws-nome">' + esc(v.nome) + '</span>' +
+        '<span class="ws-segno" aria-hidden="true">' + (davanti ? '✓' : '') + '</span><span class="ws-nome">' + esc(v.nome) + '</span>' +
         '<span class="ws-conta">' + (v.qui ? (quante === 1 ? '1 chat' : quante + ' chat') : esc(v.pc ? v.pc.nome : '')) + '</span></button>' +
       '<button class="ws-altro"' + dati + ' aria-label="Altre azioni per «' + esc(v.nome) + '»" aria-expanded="' + (wsAperto === k) + '" onclick="wsApriAzioni(this.dataset.k)">⋯</button></div>'
     if (v.qui && wsRinomina === v.nome) {

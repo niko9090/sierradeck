@@ -1,4 +1,4 @@
-import { annotaEliminato } from './workspace-ritrova'
+import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
@@ -1309,6 +1309,7 @@ export function registerLayoutIpc(
       // e svuotava quello nuovo (vedi `RegistroConsegne.rinomina`).
       consegne.rinomina(vecchio, nuovo)
       rinominaRecenteWorkspace(dirname(store.percorso), vecchio, nuovo)
+      annotaRinominato(dirname(store.percorso), vecchio)
       dopoNome(vecchio, nuovo)
       registro.inviaATutte('workspace:rinominato', { vecchio, nuovo, attivo: a.attivo })
     }

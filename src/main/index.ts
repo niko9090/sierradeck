@@ -5280,6 +5280,8 @@ if (!app.requestSingleInstanceLock()) {
           ],
           home: homedir()
         }),
+        // «Apri cartella» dalla pagina e dall'app (0.82.0): la stessa ricerca del tasto sul PC.
+        cartellaDaAprire: (q: { workspace?: string; chat?: string }) => (cartellaDaAprireGlobale ?? (async () => ({ tipo: 'niente' as const, perche: 'non pronto' })))(q),
         alTelefono: coda,
         quadernoPersonale,
         pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),

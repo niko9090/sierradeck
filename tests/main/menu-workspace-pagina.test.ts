@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { paginaClient } from '../../src/main/client-pagina'
 
 /**
@@ -55,6 +56,11 @@ function menu(): Menu {
 describe('il menu dei workspace sulla pagina (0.82.0)', () => {
   it('lo script resta valido', () => {
     expect(() => new Function(script)).not.toThrow()
+  })
+
+  it('aprire «⋯» o rinominare ridisegna la pagina: entrano nell’impronta', () => {
+    const i = script.indexOf('function impronta(s)')
+    expect(script.slice(i, script.indexOf('\n}\n', i))).toContain("wsAperto + '|' + wsRinomina + '|' + wsFiltro")
   })
 
   it('c’è la ricerca in cima e l’elenco in un riquadro che scorre', () => {
@@ -119,5 +125,9 @@ describe('il menu dei workspace sulla pagina (0.82.0)', () => {
     expect(m.lista()).toMatch(/data-a="apri" disabled/)
     m.fai({ dataset: { n: 'Prova 07', a: 'rinomina' } })
     expect(m.lista()).toContain('id="ws-rinomina" value="Prova 07"')
+  })
+
+  it('«Apri cartella» dal telefono arriva davvero al PC: la rotta ha la sua ricerca (prima rispondeva sempre «aggiornalo alla 0.82.0»)', () => {
+    expect(readFileSync('src/main/index.ts', 'utf8')).toMatch(/\n\s+cartellaDaAprire: \(q[^)]*\) => \(cartellaDaAprireGlobale/)
   })
 })
