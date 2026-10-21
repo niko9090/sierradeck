@@ -74,12 +74,24 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
 })
 
 describe('nella pagina e nell’app: la stessa struttura', () => {
-  it('la pagina ha le sette destinazioni con il loro contenuto', () => {
+  it('la pagina ha le quattro voci del telefono (0.83.0) con il contenuto delle sette', () => {
     const html = paginaClient()
     const sch = html.slice(html.indexOf('const schermate = {'))
     const corpo = sch.slice(0, sch.indexOf('app.innerHTML'))
-    for (const v of MENU_PRINCIPALE) expect(corpo, v.id).toContain(`${v.id}:`)
-    for (const t of ["apriPannello(\\'code\\')", "apriPannello(\\'drive\\')", "apriPannello(\\'quaderno\\')", "apriPannello(\\'pc\\')", "apriPannello(\\'consumi\\')", "apriPannello(\\'negozio\\')", "apriPannello(\\'sessioni\\')"]) expect(corpo, t).toContain(t)
+    for (const v of MENU_TELEFONO) expect(corpo, v.id).toContain(`${v.id}:`)
+    // Il contenuto di ognuna delle sette voci del PC c'è ancora, nella voce che lo contiene.
+    const contenuto: Record<string, string[]> = {
+      domande: ['vistaDomande(s)', 'vistaConversazioni()'], autopiloti: ['autopiloti ||', 'delega', 'postiChatHtml(s)'],
+      chat: ['paneWorkspace', 'negozioHtml()', "apriPannello(\\'sessioni\\')", "apriPannello(\\'chatgestione\\')"],
+      progetti: ['pannelloDriveHtml()', 'vistaDrive', 'elencoCode', "apriPannello(\\'quaderno\\')"], file: ['fileHtml()'],
+      salute: ['vistaSalute', 'elencoPc', 'vistaConsumi'], impostazioni: ['sezioneImpostazioni(']
+    }
+    for (const v of MENU_TELEFONO) {
+      const da = corpo.indexOf(`${v.id}:`)
+      const dopo = MENU_TELEFONO[MENU_TELEFONO.indexOf(v) + 1]
+      const parte = corpo.slice(da, dopo ? corpo.indexOf(`${dopo.id}:`, da) : undefined)
+      for (const id of v.contiene) for (const t of contenuto[id] ?? []) expect(parte, `${v.id} › ${id}: ${t}`).toContain(t)
+    }
   })
   it('l’app ha le stesse voci (assets/menu.json): le sette del PC raccolte in quattro (0.83.0)', () => {
     const fatto = {

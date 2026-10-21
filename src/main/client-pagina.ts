@@ -26,12 +26,16 @@ import {
 } from '@shared/azioni-telefono'
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
-import { MENU_PRINCIPALE } from '@shared/menu-principale'
+import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
+import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
+
+/** I segni delle quattro voci nella fascia (0.83.0): si leggono anche in piccolo, mai emoji. */
+const ICONE_TELEFONO: Record<IdTelefono, string> = { adesso: '◉', chat: '▭', progetti: '▦', altro: '☰' }
 
 /** Il cristallo, per la scheda del browser e per la schermata Home. */
 export const ICONA_SVG =
@@ -146,9 +150,9 @@ function componiPagina(): string {
      chat e vedi lampeggiare in fondo che qualcuno ti aspetta. */
   .fascia {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    /* Le sette voci del menu principale (0.61.0), sette colonne: i nomi
-       lunghi vanno a capo al trattino morbido invece di uscire. */
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    /* Le quattro voci dell'app (0.83.0), quattro colonne: il nome sta su una
+       riga, grande quanto il testo che il telefono ha scelto. */
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
     background: var(--fondo); border-top: 1px solid var(--bordo);
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -157,6 +161,21 @@ function componiPagina(): string {
     min-height: 56px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto);
   }
   .fascia__voce--qui { color: var(--testo); background: var(--chassis); }
+  .fascia__voce--qui .fascia__icona { color: var(--accento); }
+  /* Il pallino di una voce (0.83.0), come il Badge dell'app: il colore dalla
+     tabella del PC (ambra aspetta te, rosso fermo), il numero in nero sopra. */
+  .fascia__pallino {
+    position: absolute; top: -6px; left: calc(100% + 2px); min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 9px; color: #000; font-size: 0.75rem; font-weight: 700; line-height: 18px; text-align: center;
+  }
+  .fascia__pallino:empty { min-width: 10px; width: 10px; height: 10px; padding: 0; top: -2px; }
+  /* Le linguette in cima a Chat e Progetti (0.83.0): tasti alti 48 px. */
+  .linguette { display: flex; gap: 4px; border-bottom: 1px solid var(--bordo); }
+  .linguetta { flex: 1 1 0; min-height: 48px; border: 0; border-radius: 0; background: none; color: var(--testo-quieto); font-size: var(--t2); }
+  .linguetta--qui { color: var(--testo); font-weight: 700; box-shadow: inset 0 -3px 0 var(--accento); }
+  /* L'elenco di Altro (0.83.0): una voce per riga, alta almeno 48 px. */
+  .cartella.voce-altro { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; width: 100%; min-height: 56px; text-align: left; }
+  .voce-altro .sotto { margin: 0; }
   /* La Panoramica sul telefono (0.77.0): schede alte 96 px, 2 righe dal vivo. */
   .pan-tel { margin: 8px 0; }
   .pan-tel-riga { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
@@ -200,7 +219,7 @@ function componiPagina(): string {
   .pan-tel-compito--chiuso { color: var(--testo-quieto); }
   .pan-tel-compito__testo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pan-tel-eventi .nota-ap { font-size: 0.75rem; }
-  .fascia__nome { font-size: 0.75rem; line-height: 1.15; letter-spacing: .02em; text-align: center; hyphens: manual; overflow-wrap: normal; padding: 0 1px; }
+  .fascia__nome { font-size: 0.8125rem; line-height: 1.15; letter-spacing: .02em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 2px; }
   .fascia__icona { position: relative; font-size: 1.125rem; line-height: 1; }
   .fascia__icona .led { position: absolute; top: -3px; right: -9px; width: 7px; height: 7px; }
   .fascia .led { margin-right: 0; }
@@ -750,6 +769,19 @@ function legendaAttivita(id) {
 }
 // Il menu principale (0.61.0), lo stesso del PC e dell'app: src/shared/menu-principale.ts.
 var MENU = ${JSON.stringify(MENU_PRINCIPALE.map((v) => ({ id: v.id, breve: v.breve, icona: v.icona, spiega: v.spiega })))}
+// Le quattro voci del telefono (0.83.0), le stesse dell'app: MENU_TELEFONO in
+// src/shared/menu-principale.ts; le regole di dove si va (e di «indietro»)
+// sono quelle di src/shared/navigazione-telefono.ts, uguali a Navigazione.kt.
+var VOCI = ${JSON.stringify(MENU_TELEFONO.map((v) => ({ id: v.id, nome: v.nome, linguette: v.linguette, icona: ICONE_TELEFONO[v.id], spiega: v.contiene.map((id) => MENU_PRINCIPALE.find((m) => m.id === id)?.nome ?? id).join(', ') })))}
+var SEZIONI_ALTRO = ${JSON.stringify(SEZIONI_ALTRO)}
+${postoIniziale.toString()}
+${toccaVoce.toString()}
+${scegliLinguetta.toString()}
+${linguettaDi.toString()}
+${apriSezioneAltro.toString()}
+${indietroTelefono.toString()}
+${versoDestinazione.toString()}
+${pannelliDelPosto.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -758,7 +790,9 @@ function filtraImpostazioni(q) {
   for (const el of document.querySelectorAll('[data-sezione]')) {
     const id = el.getAttribute('data-sezione')
     const g = IMPOSTAZIONI_PAGINA.find((x) => x.sezione.id === id)
-    const chiavi = g ? g.voci.map((v) => v.chiave) : ['aspetto stile colore chiarore banco foglio tema']
+    // Le voci di Altro (0.83.0) portano anche il loro titolo, senza accenti come le parole cercate.
+    const proprie = (el.getAttribute('data-chiavi') || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+    const chiavi = (g ? g.voci.map((v) => v.chiave) : id === 'aspetto' ? ['aspetto stile colore chiarore banco foglio tema'] : []).concat(proprie ? [proprie] : [])
     const vede = parole.length === 0 || chiavi.some((c) => parole.every((p) => c.indexOf(p) >= 0))
     el.style.display = vede ? '' : 'none'
   }
@@ -827,7 +861,7 @@ window.detta = function (id) {
 var erroriDaMandare = []
 function annotaErrore(testo) {
   if (!testo || testo.indexOf('(401)') >= 0) return
-  var cosa = 'scheda ' + scheda + (dentro ? ', dentro una chat' : '')
+  var cosa = 'voce ' + posto.voce + (posto.sezione ? ' › ' + posto.sezione : '') + (dentro ? ', dentro una chat' : '')
   if (erroriDaMandare.length < 20) erroriDaMandare.push({ testo: String(testo).slice(0, 2600), cosa: cosa })
 }
 setInterval(function () {
@@ -1427,8 +1461,21 @@ var ultimaImpronta = ''
  * ancora piu' sotto. In basso e' il posto giusto, e' dove arriva il pollice.
  * La cura e' una fascia fissa, non una fascia in meno.
  */
-// Si parte dalle Domande (0.61.0): sono quelle che aspettano te, con sotto quello che è in moto.
-var scheda = 'domande'
+// Dove si è (0.83.0): la voce, la linguetta di ogni voce, la sezione di Altro.
+// Si parte da Adesso: in cima le domande che aspettano te, sotto gli autopiloti.
+var posto = postoIniziale()
+/** Si vede adesso quello che prima era la destinazione «nome» delle sette voci? */
+function inVista(nome) {
+  if (nome === 'domande' || nome === 'autopiloti') return posto.voce === 'adesso'
+  if (nome === 'chat') return posto.voce === 'chat'
+  if (nome === 'progetti') return posto.voce === 'progetti' && linguettaDi(posto) === 0
+  if (nome === 'file') return posto.voce === 'progetti' && linguettaDi(posto) === 1
+  if (nome === 'salute') return posto.voce === 'altro' && posto.sezione === 'salute'
+  if (nome === 'impostazioni') return posto.voce === 'altro' && SEZIONI_ALTRO.some((x) => x.impostazioni && x.id === posto.sezione)
+  return false
+}
+/** Un pannello è aperto: a mano, o perché la linguetta (o la sezione) in cui sei lo mostra. */
+function aperto(nome) { return pannelloAperto === nome || pannelliDelPosto(posto).indexOf(nome) >= 0 }
 /**
  * La chat di cui e' aperto il menu «altro».
  *
@@ -1766,7 +1813,7 @@ function impronta(s) {
   // stato del computer, ma cambia la pagina.
   const qui = [
     dentro, dentroAp, pannelloAperto, schedaAperta && schedaAperta.file,
-    scheda, altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
+    JSON.stringify(posto), altroAperto, delegando, delegaCartella, confermando, righeDentro.length,
     righeDentro[righeDentro.length - 1] || '', giriFalliti >= 2,
     // Le scelte fanno comparire e sparire dei pulsanti: se non entrano
     // nell'impronta, il riquadro di scelta arriva e la pagina non si ridisegna.
@@ -1814,10 +1861,10 @@ function impronta(s) {
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
     domandeViste ? JSON.stringify(domandeViste) : '', domandeGuasto || '', Object.keys(domandeMandate).join(','),
     // Il negozio: cosa si e' letto, cosa sta lavorando (coi secondi), i guasti e le conferme.
-    pannelloAperto === 'negozio' ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
+    aperto('negozio') ? JSON.stringify([negozioVisto, negozioErrore, negozioErroreMcp, negozioFamiglia, negozioTrovati, negozioParola, negozioNota, negozioProvoMcp, negozioGuasti, negozioConferme, Object.keys(negozioLavoro).map(function (k) { return k + Math.round((Date.now() - negozioLavoro[k].da) / 1000) })]) : '',
     domandeConversazioni ? JSON.stringify(domandeConversazioni) : '', domandaAperta || '', domandeFiltro,
     // La sezione File (0.54.0): dove si è, cosa si guarda, l'avanzamento.
-    (pannelloAperto === 'file' || scheda === 'file') ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
+    (pannelloAperto === 'file' || inVista('file')) ? JSON.stringify([fileProgetti ? fileProgetti.length : -1, fileDove, fileElenco ? fileElenco.voci.length + fileElenco.percorso : '', fileVista ? fileVista.nome + fileVista.tipo : '', fileNota, fileErrore, filePin]) : '',
     (function () { try { return localStorage.getItem('sierradeck.nienteapp') || '' } catch (e) { return '' } })(),
     schedeViste ? schedeViste.length + quadernoTag : '',
     sessioniViste ? sessioniViste.length : '',
@@ -1850,7 +1897,13 @@ function rimettiScorrimento(dove) {
  * chat e vedi lampeggiare in fondo che qualcuno ti aspetta.
  */
 function ledDestinazione(nome, s) {
-  if (giriFalliti >= 2) return nome === 'salute' ? 'rosso' : 'fermo'
+  if (giriFalliti >= 2) return nome === 'salute' || nome === 'altro' ? 'rosso' : 'fermo'
+  // Le quattro voci del telefono (0.83.0): il LED più urgente delle voci del PC che contengono.
+  if (nome === 'adesso') {
+    const l = [ledDestinazione('autopiloti', s), ledDestinazione('domande', s)]
+    return l.indexOf('rosso') >= 0 ? 'rosso' : l.indexOf('attesa') >= 0 ? 'attesa' : l.indexOf('lavoro') >= 0 ? 'lavoro' : ''
+  }
+  if (nome === 'altro') return ledDestinazione('impostazioni', s)
   const aps = s.autopiloti || []
   // Dal LED deciso dal computer, come ogni altro LED della pagina: chi si
   // prepara e fa una domanda chiede, chi si prepara in silenzio e' in moto.
@@ -1891,19 +1944,78 @@ function postiChatHtml(s) {
     aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>'), 'Chat al lavoro insieme') + '</div>'
 }
 
-/** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento. */
-function fascia(s) {
+/**
+ * Il pallino di una voce della fascia (0.83.0), come nell'app: rosso se un
+ * autopilota \u00e8 fermo, ambra se qualcosa aspetta te, con il numero; i colori
+ * dalla tabella del PC (ATT), e sempre una parola per chi non vede il colore.
+ */
+function pallinoVoce(id, s) {
   const chiedono = domandeInAttesa(s)
-  // Il menu principale (0.61.0): le sette voci del PC, nello stesso ordine.
-  return '<nav class="fascia" aria-label="Menu principale">' + MENU.map((v) => {
+  if (id === 'adesso') {
+    const fermi = (s.autopiloti || []).some((a) => ledAutopilota(a, false) === 'rosso')
+    if (fermi) return { colore: 'rosso', numero: chiedono, dice: 'un autopilota \u00e8 fermo' }
+    if (chiedono > 0) return { colore: 'ambra', numero: chiedono, dice: chiedono === 1 ? 'una domanda per te' : chiedono + ' domande per te' }
+    if ((s.autopiloti || []).some((a) => ledAutopilota(a, false) === 'attesa')) return { colore: 'ambra', numero: 0, dice: 'un autopilota aspetta il via' }
+    return null
+  }
+  if (id === 'chat') {
+    const n = (s.chat || []).filter((c) => statoChat(c).tono === 'attesa').length
+    return n > 0 ? { colore: 'ambra', numero: n, dice: n === 1 ? 'una chat aspetta una scelta' : n + ' chat aspettano una scelta' } : null
+  }
+  if (id === 'altro' && giriFalliti >= 2) return { colore: 'rosso', numero: 0, dice: 'il computer non risponde' }
+  if (id === 'altro' && aggiornamentoVisto && aggiornamentoVisto.fase === 'pronto') return { colore: 'ambra', numero: 0, dice: 'un aggiornamento \u00e8 pronto' }
+  return null
+}
+
+/** La fascia fissa, sempre visibile, mai nascosta dallo scorrimento: le quattro voci dell'app (0.83.0). */
+function fascia(s) {
+  return '<nav class="fascia" aria-label="Menu principale">' + VOCI.map((v) => {
     const l = ledDestinazione(v.id, s)
-    const numero = v.id === 'domande' && chiedono > 0 ? ' \u00b7 ' + chiedono : ''
-    return '<button class="fascia__voce' + (scheda === v.id ? ' fascia__voce--qui' : '') + '"' +
-      (scheda === v.id ? ' aria-current="page"' : '') + ' title="' + esc(v.spiega) + '"' +
-      ' onclick="vaiScheda(\\'' + v.id + '\\')">' +
-      '<span class="fascia__icona" aria-hidden="true">' + v.icona + '<span class="led ' + (l || 'nessuno') + '"></span></span>' +
-      '<span class="fascia__nome">' + v.breve + numero + '</span></button>'
+    const p = pallinoVoce(v.id, s)
+    const qui = posto.voce === v.id
+    const fondo = p ? coloreNome(p.colore) : ''
+    return '<button class="fascia__voce' + (qui ? ' fascia__voce--qui' : '') + '"' +
+      (qui ? ' aria-current="page"' : '') + ' title="' + esc(v.spiega) + '"' +
+      ' aria-label="' + esc(v.nome + (p ? ', ' + p.dice : '')) + '"' +
+      ' onclick="vaiVoce(\\'' + v.id + '\\')">' +
+      '<span class="fascia__icona" aria-hidden="true">' + v.icona +
+      (p ? '<span class="fascia__pallino" style="background:' + fondo + '">' + (p.numero > 0 ? p.numero : '') + '</span>' : '<span class="led ' + (l === 'lavoro' ? 'lavoro' : 'nessuno') + '"></span>') +
+      '</span>' +
+      '<span class="fascia__nome">' + esc(v.nome) + '</span></button>'
   }).join('') + '</nav>'
+}
+
+/** Le linguette in cima a Chat e Progetti (0.83.0): tasti alti 48 px, la scelta in accento. */
+function linguetteHtml() {
+  const v = VOCI.find((x) => x.id === posto.voce)
+  if (!v || v.linguette.length === 0) return ''
+  const scelta = linguettaDi(posto)
+  return '<div class="linguette" role="tablist">' + v.linguette.map((nome, i) =>
+    '<button role="tab" class="linguetta' + (i === scelta ? ' linguetta--qui' : '') + '" aria-selected="' + (i === scelta) + '" onclick="vaiLinguetta(' + i + ')">' + esc(nome) + '</button>'
+  ).join('') + '</div>'
+}
+
+/**
+ * Di tutte le piastrelle delle impostazioni, quella della sezione «id» (0.83.0):
+ * ognuna comincia con il suo data-sezione, e stanno una dopo l'altra.
+ */
+function sezioneImpostazioni(tutte, id) {
+  const inizio = '<div class="piastrella" data-sezione="'
+  const pezzo = tutte.split(inizio).find((p) => p.indexOf(id + '"') === 0)
+  return pezzo ? inizio + pezzo : ''
+}
+
+/**
+ * Altro (0.83.0): un elenco, una sezione per tocco, con \u00abCerca\u00bb in cima. Prima
+ * erano Salute e Impostazioni, una pagina lunga ciascuna.
+ */
+function elencoAltroHtml() {
+  return '<div class="piastrella"><div class="titolo">Altro' + aiuto('altro', 'La salute del sistema, gli altri computer, i consumi e le impostazioni. Tocca una voce per aprirla; \u00abindietro\u00bb torna qui. \u00abCerca\u00bb trova anche le singole impostazioni.') + '</div>' +
+    '<div class="riga"><input id="cerca-impostazioni" type="search" placeholder="Cerca: aggiornamento, colore…" aria-label="Cerca nelle impostazioni" oninput="filtraImpostazioni(this.value)"></div>' +
+    SEZIONI_ALTRO.map((x) =>
+      '<button class="cartella voce-altro" data-sezione="' + esc(x.id) + '" data-chiavi="' + esc((x.titolo + ' ' + x.sotto).toLowerCase()) + '" onclick="apriSezione(this.dataset.sezione)">' +
+      '<b>' + esc(x.titolo) + '</b><span class="sotto">' + esc(x.sotto) + '</span></button>'
+    ).join('') + '</div>'
 }
 
 function pannello(s) {
@@ -2018,7 +2130,7 @@ function pannello(s) {
     chatAttesa.map((c) =>
       '<div class="polso"><span class="polso__nome">' + esc(c.nome || c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
     ).join('') +
-    (chatAttesa.length ? '<div class="riga"><button onclick="vaiScheda(\\'domande\\')">Rispondi dalla scheda Domande</button></div>' : '') +
+    (chatAttesa.length ? '<div class="riga"><button onclick="window.scrollTo(0, 0)">Rispondi qui in cima</button></div>' : '') +
     '</div>'
 
   const panoramica = (s.domande || []).length > 0 || fermi.length > 0 || inMoto.length > 0 || (s.chat || []).length > 0 || pronti.length > 0
@@ -2223,7 +2335,7 @@ function pannello(s) {
   const delega = !delegando
     ? '<div class="piastrella"><div class="riga"><button onclick="apriDelega()">Affida un lavoro</button></div></div>'
     : \`<div class="piastrella chiede">
-         <div class="titolo">Cosa vuoi che faccia?\${aiuto('delega', 'Descrivilo con parole tue. Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi nella scheda Domande) e aspetta il tuo «Vai».')}</div>
+         <div class="titolo">Cosa vuoi che faccia?\${aiuto('delega', 'Descrivilo con parole tue. Arriva a lui parola per parola, come mandato. Poi legge il progetto, ti fa al massimo un paio di domande (le trovi in cima ad Adesso) e aspetta il tuo «Vai».')}</div>
          <div class="riga">
            <textarea id="delega-obiettivo" rows="8" placeholder="Tutto quello che serve: l’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito. Nessun limite: puoi incollare un documento."></textarea>
          </div>
@@ -2274,7 +2386,7 @@ function pannello(s) {
 
   // Gli altri computer, e le azioni da eseguire solo la'. Stessa forma della
   // coda: elenco, poi la cassetta di uno.
-  const elencoPc = pannelloAperto !== 'pc' ? '' : (() => {
+  const elencoPc = !aperto('pc') ? '' : (() => {
     const pc = pcVisti || []
     if (pcAperto === null) {
       return '<div class="piastrella"><div class="titolo">Altri computer' + aiuto('altri-pc', 'I PC che usano questo stesso Drive, con le chat che hanno aperte (dal loro battito, ogni pochi minuti): pallino ambra = aspetta te. Per comandarli dal vivo apri la loro pagina (stesso indirizzo, sul loro IP). Toccandone uno lasci un’azione nella sua cassetta: si esegue solo là, in una sua chat, quando è acceso — è la strada per una cartella che sta su quel PC (un disco di rete, un progetto che non viaggia).') + '</div>' +
@@ -2318,7 +2430,7 @@ function pannello(s) {
       '<button class="primario" onclick="mandaPosta()">Manda a ' + esc(b.nome) + '</button></div></div>'
   })()
 
-  const elencoCode = pannelloAperto !== 'code' ? '' : (() => {
+  const elencoCode = !aperto('code') ? '' : (() => {
     const progetti = (s.progetti || [])
     if (codaProgetto === null) {
       return '<div class="piastrella"><div class="titolo">Code dei progetti' + aiuto('code', 'Una fila di istruzioni per progetto, sul Drive: le consegna il PC che ha il progetto in mano, una per volta, alla prima chat del progetto che ha finito il turno. Serve a lasciare il lavoro dopo quello di adesso senza stare a guardare.') + '</div>' +
@@ -2353,7 +2465,7 @@ function pannello(s) {
   })()
 
   // «Salute del sistema» (0.44.0): le stesse voci del PC, con spiegazione e cosa fare.
-  const vistaSalute = scheda !== 'salute' ? '' : (() => {
+  const vistaSalute = !inVista('salute') ? '' : (() => {
     const testa = '<div class="piastrella"><div class="titolo">Salute del sistema' + aiuto('salute', 'Com’è messo il computer: il Drive, gli altri PC (ultimo segno, strada, versione), un aggiornamento non riuscito, gli errori delle ultime ore, le istruzioni degli autopiloti non partite. Ogni voce dice cosa vuol dire e cosa fare.') + '</div>'
     if (saluteErrore) return testa + '<div class="errore">' + esc(saluteErrore) + '</div></div>'
     if (!saluteVista) return testa + '<div class="sotto">Guardo…</div></div>'
@@ -2392,7 +2504,7 @@ function pannello(s) {
     return testa + corpo + '<div class="riga"><button onclick="rileggiSalute()">Aggiorna</button></div></div>'
   })()
 
-  const vistaDrive = pannelloAperto !== 'drive' ? '' : (() => {
+  const vistaDrive = !aperto('drive') ? '' : (() => {
     const c = driveCatalogo
     const l = driveLavoro || {}
     const inc = l.inCorso
@@ -2472,7 +2584,7 @@ function pannello(s) {
     return testa + corpo + '<div class="riga"><button onclick="apriPannello(\\'drive\\')">Chiudi</button></div></div>'
   })()
 
-  const vistaConsumi = pannelloAperto !== 'consumi' ? '' : \`
+  const vistaConsumi = !aperto('consumi') ? '' : \`
     <div class="piastrella">
       <div class="titolo">Consumi</div>
       \${consumiVisti === null
@@ -2502,11 +2614,9 @@ function pannello(s) {
     return '<div class="titolo">' + esc(g.sezione.titolo) + (testo ? aiuto('imp:' + id, testo) : '') + '</div>'
   }
   const vociImp = () => ''
-  const vistaImpostazioni = scheda !== 'impostazioni' ? '' : \`
-    <div class="piastrella">
-      <div class="titolo">Impostazioni</div>
-      <div class="riga"><input id="cerca-impostazioni" placeholder="Cerca (per esempio: aggiornamento, colore, notifiche)" oninput="filtraImpostazioni(this.value)"></div>
-    </div>
+  // 0.83.0: ogni sezione è una voce di Altro, e se ne mostra una sola: la
+  // piastrella con il suo data-sezione (la ricerca sta nell'elenco di Altro).
+  const tutteImpostazioni = !inVista('impostazioni') ? '' : \`
     <div class="piastrella" data-sezione="aggiornamenti">
       \${intestaImp('aggiornamenti')}
       <div class="sotto" style="margin-top:10px">Versione del computer: \${esc((s.computer && s.computer.versione) || 'non ancora letta')}\${aiuto('imp-versioni', 'Questa pagina la serve quel computer: è sempre della sua stessa versione.')}</div>
@@ -2624,42 +2734,57 @@ function pannello(s) {
   const inMotoAdesso = driveScollegatoHtml(s) + fermo + invito + bloccati + aspettanoTe + panoramica +
     (inMoto.length + (s.chat || []).length > 0 ? polso : '')
   const inCoda = (s.progetti || []).reduce((n, p) => n + (p.inCoda || 0), 0)
-  // Le sette destinazioni del menu principale (0.61.0), nello stesso ordine del PC.
+  // Le quattro voci del telefono (0.83.0), come nell'app: ogni voce del PC
+  // finisce in una sola (MENU_TELEFONO), con le sue linguette o il suo elenco.
+  const lingua = linguettaDi(posto)
+  // Le note che una chat o «Apri cartella» lasciano: in cima a Chat, in ogni linguetta.
+  const noteChat = driveScollegatoHtml(s) +
+    (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
+    (notaCartella ? '<div class="nota-chiusa" role="status">' + esc(notaCartella) + ' <button class="riga-altro" onclick="notaCartella=\\'\\';pannello(ultimoStato)">ok</button></div>' : '')
   const schermate = {
-    // «Progetti»: il pannello delle chat e dei progetti, con quello che era del Drive e delle code.
-    progetti: pannelloDriveHtml() +
-      '<div class="riga"><button onclick="apriPannello(\\'code\\')">Code dei progetti' + (inCoda > 0 ? ' \u00b7 ' + inCoda : '') + '</button>' +
-      '<button onclick="apriPannello(\\'drive\\')">Il contenuto del Drive</button>' +
-      '<button onclick="apriPannello(\\'quaderno\\')">Quaderno</button></div>' +
-      elencoCode + vistaDrive + vistaQuaderno,
-    autopiloti: postiChatHtml(s) +
-      (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega,
-    // Uno solo domina alla volta: una domanda, poi un lavoro fermo, poi il
-    // polso, poi la calma. Sotto, quello che è in moto adesso.
-    domande: (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
-      (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
-    chat: driveScollegatoHtml(s) +
-      (notaChiusa ? '<div class="nota-chiusa" role="status">' + esc(notaChiusa) + ' <button class="riga-altro" onclick="notaChiusa=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
-      (notaCartella ? '<div class="nota-chiusa" role="status">' + esc(notaCartella) + ' <button class="riga-altro" onclick="notaCartella=\\'\\';pannello(ultimoStato)">ok</button></div>' : '') +
-      (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
-      (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
-      '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
-      '<button onclick="apriPannello(\\'chatgestione\\')">Spazio delle chat</button>' +
-      '<button onclick="apriPannello(\\'negozio\\')">Negozio</button></div>' +
-      elencoSessioni + (pannelloAperto === 'chatgestione' ? gestioneChatHtml() : '') + (pannelloAperto === 'negozio' ? negozioHtml() : '') + paneWorkspace,
-    file: fileHtml(),
-    salute:
-      '<div class="riga"><button onclick="apriPannello(\\'pc\\')">Gli altri computer</button>' +
-      '<button onclick="apriPannello(\\'consumi\\')">Consumi</button></div>' +
-      elencoPc + vistaConsumi + vistaSalute,
-    impostazioni: vistaImpostazioni
+    // «Adesso»: in cima le domande per te, sotto gli autopiloti e quello che è
+    // in moto. Con un autopilota aperto c'è solo lui: la casella in fondo e,
+    // sopra, la sua conversazione.
+    adesso: apAperto
+      ? autopiloti
+      : (domandeConversazioni ? vistaConversazioni() : vistaDomande(s)) +
+        '<div class="solco"></div><div class="titolo">Autopiloti</div>' + postiChatHtml(s) +
+        (autopiloti || '<div class="vuoto">Nessun autopilota su questo computer.</div>') + delega +
+        (inMotoAdesso ? '<div class="solco"></div><div class="titolo">In moto adesso</div>' + inMotoAdesso : ''),
+    // «Chat»: Chat · Workspace · Negozio.
+    chat: noteChat + (lingua === 1
+      ? (paneWorkspace || '<div class="vuoto">Nessun workspace sul computer.</div>')
+      : lingua === 2
+        ? negozioHtml()
+        : (pannelloAperto !== 'chatgestione' ? gcNotaHtml() + gcConfermaHtml() : '') +
+          (chat || '<div class="vuoto">Nessuna chat aperta sul computer.</div>') + nuova +
+          '<div class="riga"><button onclick="apriPannello(\\'sessioni\\')">Riprendi una conversazione</button>' +
+          '<button onclick="apriPannello(\\'chatgestione\\')">Spazio delle chat</button></div>' +
+          elencoSessioni + (pannelloAperto === 'chatgestione' ? gestioneChatHtml() : '')),
+    // «Progetti»: Progetti · File · Drive (con le code dei progetti).
+    progetti: lingua === 1
+      ? fileHtml()
+      : lingua === 2
+        ? vistaDrive + elencoCode
+        : pannelloDriveHtml() +
+          '<div class="riga"><button onclick="apriPannello(\\'quaderno\\')">Quaderno</button>' +
+          '<button onclick="vaiLinguetta(2)">Code dei progetti' + (inCoda > 0 ? ' \u00b7 ' + inCoda : '') + '</button></div>' +
+          vistaQuaderno,
+    // «Altro»: l'elenco, o la sezione aperta.
+    altro: posto.sezione === null
+      ? elencoAltroHtml()
+      : posto.sezione === 'salute' ? vistaSalute
+      : posto.sezione === 'pc' ? elencoPc
+      : posto.sezione === 'consumi' ? vistaConsumi
+      : sezioneImpostazioni(tutteImpostazioni, posto.sezione)
   }
 
   app.innerHTML = \`
     <main class="schermata\${linea.fase === 'ricollego' ? ' schermata--giu' : ''}">
       \${lineaHtml()}
       \${notaGlobale ? '<div class="piastrella"><div class="errore">' + esc(notaGlobale) + '</div><div class="riga"><button onclick="chiudiNota()">Ok</button></div></div>' : ''}
-      \${schermate[scheda] || schermate.domande}
+      \${linguetteHtml()}
+      \${schermate[posto.voce] || schermate.adesso}
     </main>
     \${fascia(s)}\`
 
@@ -2667,7 +2792,10 @@ function pannello(s) {
     const campo = document.getElementById(id)
     if (campo) campo.value = scritti[id]
   }
+  // La ricerca di Altro resta applicata anche dopo un ridisegno (0.83.0).
+  if (scritti['cerca-impostazioni']) filtraImpostazioni(scritti['cerca-impostazioni'])
   rimettiScorrimento(dove)
+  armaIndietro()
 }
 
 /**
@@ -3757,7 +3885,7 @@ window.apriCartella = async (q) => {
   // Il 409 non solleva: torna con il motivo (la cartella è su un altro PC, non c'è).
   if (!r || r.errore || !r.progetto) { notaCartella = (r && r.errore) || 'Il computer non ha detto dove sta la cartella.'; pannello(ultimoStato); return }
   await leggiFileProgetti()
-  if (scheda !== 'file') vaiScheda('file')
+  if (!inVista('file')) vaiScheda('file')
   fileNota = ''
   await fileVai(r.progetto, r.percorso || '')
 }
@@ -3892,6 +4020,13 @@ function fileHtml() {
 }
 
 window.apriPannello = async (quale) => {
+  // Il pannello che la linguetta o la sezione mostra già aperto (0.83.0): il
+  // suo «Chiudi» torna indietro, alla prima linguetta o all'elenco di Altro.
+  if (pannelloAperto !== quale && pannelliDelPosto(posto).indexOf(quale) >= 0) {
+    const dove = indietroTelefono(posto)
+    if (dove) vaiAlPosto(dove)
+    return
+  }
   pannelloAperto = pannelloAperto === quale ? null : quale
   // A ogni apertura, non solo la prima: letto una volta, l'elenco restava
   // quello di quando la pagina era stata aperta.
@@ -4068,14 +4203,14 @@ window.pulisciPosta = async () => {
 // I consumi si rileggono mentre il pannello e' aperto: i limiti del piano
 // salgono mentre guardi, ed e' proprio quello che si vuole vedere.
 setInterval(async () => {
-  if (pannelloAperto !== 'consumi' || !chiave || document.hidden) return
+  if (!aperto('consumi') || !chiave || document.hidden) return
   await leggiConsumi()
   pannello(ultimoStato)
 }, 30000)
 
 // La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'pc' || !chiave || document.hidden) return
+  if (!aperto('pc') || !chiave || document.hidden) return
   try { if (pcAperto !== null) await leggiPosta(); else await leggiPc() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
@@ -4167,7 +4302,7 @@ window.driveRiavvia = async () => {
 // Il lavoro sul computer, ogni due secondi finche' il pannello Drive e' aperto;
 // quando finisce, il catalogo e' cambiato e si rilegge.
 setInterval(async () => {
-  if (pannelloAperto !== 'drive' || !chiave || document.hidden) return
+  if (!aperto('drive') || !chiave || document.hidden) return
   try { driveLavoro = await chiedi('/api/drive/lavoro') } catch (e) { return }
   const adesso = !!(driveLavoro && driveLavoro.inCorso)
   if (driveEraInCorso && !adesso) { driveInCorso = null; await leggiDrive() }
@@ -4178,7 +4313,7 @@ setInterval(async () => {
 // La coda condivisa cambia dal computer (una voce consegnata): si rilegge
 // ogni dieci secondi finche' e' aperta, come fa l'app.
 setInterval(async () => {
-  if (pannelloAperto !== 'code' || codaProgetto === null || !chiave || document.hidden) return
+  if (!aperto('code') || codaProgetto === null || !chiave || document.hidden) return
   try { await leggiCoda() } catch (e) { return }
   pannello(ultimoStato)
 }, 10000)
@@ -5726,38 +5861,122 @@ window.scegli = async (testo) => {
  */
 window.apriAltro = (id) => { altroAperto = altroAperto === id ? null : id; pannello(ultimoStato) }
 
-window.vaiScheda = (nome) => {
-  if (scheda === nome) return
-  scheda = nome
-  if (nome === 'domande') { domandeViste = null; leggiDomande() }
-  if (nome === 'progetti') { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
-  // Salute, File e Impostazioni (0.61.0) sono destinazioni: si leggono entrando.
-  if (nome === 'salute') leggiSalute().then(() => pannello(ultimoStato))
-  if (nome === 'impostazioni') Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(() => pannello(ultimoStato))
-  if (nome === 'file') { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(() => pannello(ultimoStato)) }
+/**
+ * Va in un posto nuovo (0.83.0): chiude quello che era aperto nella schermata
+ * di prima e legge dal computer quello che la nuova mostra.
+ */
+function vaiAlPosto(nuovo) {
+  const prima = posto
+  posto = nuovo
   // Un pannello aperto appartiene alla schermata in cui e' stato aperto: se lo
   // si lascia aperto cambiando destinazione, ricompare dove non c'entra.
   pannelloAperto = null
   dentro = null
-  dentroAp = null
+  dentroAp = null; apPc = null; apPcNome = ''; apDettaglio = null; apRiassunto = false
   // Anche il menu «altro» di una chat, la scheda del quaderno, la coda e il
   // PC aperti: restavano aperti e ricomparivano tornando, fuori contesto.
   altroAperto = null; schedaAperta = null; codaProgetto = null; pcAperto = null
-  try { history.pushState({ scheda: nome }, '') } catch (e) { /* niente cronologia, pazienza */ }
+  pdScelto = ''; pdStrumento = ''
+  const entra = (cosa, quando) => { if (quando && JSON.stringify(prima) !== JSON.stringify(nuovo)) cosa() }
+  const ridisegna = () => pannello(ultimoStato)
+  // Si legge entrando, come prima con le sette destinazioni.
+  entra(() => { domandeViste = null; leggiDomande() }, nuovo.voce === 'adesso' && prima.voce !== 'adesso')
+  entra(() => { pdDati = null; pdErrore = ''; pdDaConfermare = ''; leggiPannelloDrive().then(ridisegna) }, inVista('progetti'))
+  entra(() => { fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(ridisegna) }, inVista('file'))
+  entra(() => { driveRiavviato = false; leggiDrive().then(ridisegna) }, aperto('drive'))
+  entra(() => { negozioNota = ''; leggiNegozio().then(() => { if (negozioFamiglia === 'mcp') negozioProvaMcp(); ridisegna() }) }, aperto('negozio'))
+  entra(() => { leggiSalute().then(ridisegna) }, inVista('salute'))
+  entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
+  entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
+  entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
   pannello(ultimoStato)
+  window.scrollTo(0, 0)
 }
 
-window.addEventListener('popstate', (ev) => {
-  // Indietro: prima si chiude quello che si sta guardando, poi si torna alla
-  // destinazione precedente. Uscire dall'app resta l'ultima delle possibilita'.
-  if (dentro || dentroAp || schedaAperta || pannelloAperto) {
-    dentro = null; dentroAp = null; schedaAperta = null; pannelloAperto = null; altroAperto = null
-    pannello(ultimoStato)
-    return
+/** Il tocco su una voce della fascia: sulla voce in cui sei già, torna al suo inizio. */
+window.vaiVoce = (id) => vaiAlPosto(toccaVoce(posto, id))
+window.vaiLinguetta = (i) => { if (i !== linguettaDi(posto)) vaiAlPosto(scegliLinguetta(posto, i)) }
+window.apriSezione = (id) => vaiAlPosto(apriSezioneAltro(posto, id))
+/** Le destinazioni di prima (domande, autopiloti, chat, file…): i salti da dentro la pagina. */
+window.vaiScheda = (nome) => {
+  const nuovo = versoDestinazione(posto, nome)
+  if (JSON.stringify(nuovo) !== JSON.stringify(posto)) vaiAlPosto(nuovo)
+}
+
+/**
+ * C'è qualcosa da chiudere con «indietro» prima di cambiare posto? I passi 1
+ * e 2 della regola: il dialogo o il menu aperto, poi il dettaglio aperto.
+ * Restituisce la funzione che lo chiude, o null.
+ */
+function daChiudere() {
+  // 1. Il menu «⋯» di una chat o di un workspace, una conferma in corso.
+  if (altroAperto) return () => { altroAperto = null }
+  if (wsAperto) return () => { wsAperto = '' }
+  if (confermando) return () => { confermando = null }
+  // 2. Il dettaglio: la chat, l'autopilota, la scheda del quaderno, il file
+  // guardato, la cartella (si risale di una), il progetto, la coda, il PC.
+  if (dentro) return () => { window.chiudiDentro() }
+  if (dentroAp) return () => { window.chiudiAp() }
+  if (schedaAperta) return () => { schedaAperta = null }
+  if (fileVista) return () => { window.fileChiudiVista() }
+  if (filePin) return () => { window.fileProgettiTutti() }
+  if (fileDove && inVista('file')) {
+    const pezzi = (fileDove.percorso || '').split('/').filter((x) => x !== '')
+    return pezzi.length > 0 ? () => { fileVai(fileDove.progetto, pezzi.slice(0, -1).join('/')) } : () => { window.fileProgettiTutti() }
   }
-  const dove = (ev.state && ev.state.scheda) || 'domande'
-  scheda = dove
-  pannello(ultimoStato)
+  if (pdScelto || pdStrumento) return () => { window.pdIndietro() }
+  if (codaProgetto) return () => { window.chiudiCoda() }
+  if (pcAperto) return () => { window.chiudiPc() }
+  // Un pannello aperto a mano (Riprendi, Spazio delle chat, Quaderno…), non quello della linguetta.
+  if (pannelloAperto && pannelliDelPosto(posto).indexOf(pannelloAperto) < 0) return () => { pannelloAperto = null }
+  return null
+}
+
+/**
+ * «Indietro» (0.83.0), uguale all'app in tutte e quattro le voci: 1. chiude il
+ * dialogo o il menu, 2. il dettaglio, 3. torna all'elenco di Altro o alla
+ * prima linguetta, 4. torna ad Adesso, 5. da Adesso esce.
+ *
+ * Il tasto indietro del telefono (e del browser) consuma una voce della
+ * cronologia: davanti ce ne teniamo tante quanti sono i passi indietro
+ * possibili, spinte **al tocco**. Chrome salta, con il tasto indietro, le
+ * voci aggiunte senza un tocco: rimetterle dentro popstate farebbe uscire
+ * dalla pagina al secondo indietro. Lì se ne rimette una solo se sono finite.
+ * Da Adesso, con niente di aperto, non ne resta nessuna e indietro esce.
+ */
+var entrateIndietro = 0
+var ignoraPopstate = false
+/** Quanti indietro servono per uscire: le cose aperte, i livelli di cartella, i passi fino ad Adesso. */
+function passiIndietro() {
+  let n = [altroAperto || wsAperto || confermando, dentro, dentroAp, schedaAperta, fileVista, filePin, pdScelto || pdStrumento, codaProgetto, pcAperto,
+    pannelloAperto && pannelliDelPosto(posto).indexOf(pannelloAperto) < 0].filter(Boolean).length
+  if (fileDove && inVista('file')) n += (fileDove.percorso || '').split('/').filter((x) => x !== '').length + 1
+  for (let p = indietroTelefono(posto); p; p = indietroTelefono(p)) n += 1
+  return n
+}
+function armaIndietro() {
+  const servono = passiIndietro()
+  try {
+    while (entrateIndietro < servono) { history.pushState({ sierradeck: 'indietro' }, ''); entrateIndietro += 1 }
+    // Tornati ad Adesso con i tasti: le voci in più si tolgono, così indietro esce subito.
+    if (servono === 0 && entrateIndietro > 0) { ignoraPopstate = true; history.go(-entrateIndietro); entrateIndietro = 0 }
+  } catch (e) { /* niente cronologia, pazienza */ }
+}
+window.addEventListener('popstate', () => {
+  if (ignoraPopstate) { ignoraPopstate = false; return }
+  entrateIndietro = Math.max(0, entrateIndietro - 1)
+  const chiudi = daChiudere()
+  if (chiudi) {
+    chiudi()
+    pannello(ultimoStato)
+  } else {
+    const dove = indietroTelefono(posto)
+    if (dove) vaiAlPosto(dove)
+  }
+  // Solo se le voci sono finite prima dei passi (una cartella aperta senza tocchi).
+  if (entrateIndietro === 0 && passiIndietro() > 0) {
+    try { history.pushState({ sierradeck: 'indietro' }, ''); entrateIndietro = 1 } catch (e) { /* pazienza */ }
+  }
 })
 
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
@@ -5911,7 +6130,7 @@ function avvisaSeServe(stato) {
       if (r.visto === undefined) delete avvisati['k-' + c.id]
       else avvisati['k-' + c.id] = r.visto
       // Una per chat (0.74.0): la stessa etichetta della sua attesa, così si sostituiscono.
-      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi dalla scheda Domande.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
+      if (r.annuncia && nuovo) nuovi.push({ tipo: 'scelta', titolo: (c.titolo || 'Una chat') + ' aspetta che tu scelga', corpo: 'Sullo schermo c’è un elenco di scelte: rispondi da Adesso.', tag: 'chat-' + c.id, causa: 'la chat ' + c.id + ' è ferma su una scelta' + (c.governata === true ? ' (governata da un autopilota)' : '') })
     }
     // Il servizio degli autopiloti non ha risposto: l'elenco vuoto non vuol
     // dire «nessuno», e non si deve ne' dimenticare ne' riannunciare niente.
@@ -6375,7 +6594,7 @@ setInterval(() => {
   if (!chiave || document.hidden) return
   // 0.76.0: anche dentro una chat che chiede qualcosa, per la domanda breve a lato.
   const ferma = dentro !== null && (ultimoStato.chat || []).some((c) => c.id === dentro && (c.chiede || c.aspetta))
-  if (scheda === 'domande' || ferma) leggiDomande()
+  if (inVista('domande') || ferma) leggiDomande()
 }, 2000)
 </script>
 </body>
