@@ -19,6 +19,7 @@ import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
+import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
@@ -2765,6 +2766,40 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // ── T4: le mosse chieste dal supervisore, passate dai divieti ──
     let apriDopo = false
     let chiusaQuesta = false
+
+    // ── 0.82.1: una chat che aspetta un'altra chat per più di un giro ──
+    // L'autopilota la sblocca, le sposta il lavoro o la chiude (`attese-chat`).
+    const inAttesa = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
+    if (inAttesa !== undefined && decisione.tipo === 'prosegui') {
+      const attesa = prossimaAttesa(inAttesa.aspetta, chatAttesa(ultimoMessaggio, aggiornato.chats.map((c) => c.id), inAttesa.id))
+      aggiornato.chats = aggiornato.chats.map((c) => {
+        if (c.id !== inAttesa.id) return c
+        const n = { ...c }
+        if (attesa !== undefined) n.aspetta = attesa
+        else delete n.aspetta
+        return n
+      })
+      const iv = attesa !== undefined
+        ? interventoAttesa({ chat: inAttesa, attesa, aspettata: aggiornato.chats.find((c) => c.id === attesa.di), ramoBase: aggiornato.ramoBase })
+        : undefined
+      if (iv !== undefined) {
+        console.info(`[autopilota] ${id} — ${iv.nota}`)
+        annota(aggiornato, iv.nota)
+        if (iv.tipo === 'chiudi') {
+          // Il lavoro fatto resta sul suo ramo (non si unisce e non si toglie): il
+          // compito che riparte lo riprende da lì, dopo quello della chat attesa.
+          if (deps.git !== undefined && inAttesa.cartella !== undefined) salvaLavoro(deps.git, inAttesa.cartella, `autopilota ${aggiornato.nome}: ${inAttesa.compito.slice(0, 60)} (in attesa, chiusa)`)
+          const ripreso = compitoRipreso(inAttesa.compito, iv.compitoDopo) + (inAttesa.ramo !== undefined ? `\nIl lavoro già fatto sta nel ramo ${inAttesa.ramo}: unisci anche quello (git merge ${inAttesa.ramo}).` : '')
+          aggiornato.chats = aggiornato.chats.map((c) => (c.id === inAttesa.id ? { ...c, stato: 'finita' as const } : c))
+          aggiornato.compitiDaFare = [...aggiornato.compitiDaFare, ripreso]
+          aggiornato.ruoliCompiti = { ...(aggiornato.ruoliCompiti ?? {}), [ripreso]: { ruolo: inAttesa.ruolo ?? 'sviluppo', dopo: [iv.compitoDopo] } }
+          chiusaQuesta = true
+          apriDopo = aggiornato.ramoBase !== undefined
+        } else if (decisione.tipo === 'prosegui') {
+          decisione = { ...decisione, istruzioni: `${iv.istruzioni}\n\n${decisione.istruzioni}` }
+        }
+      }
+    }
     for (const m of leggiMosse(mosseChieste)) {
       const g = giudicaMossa(m, aggiornato.chats.map((c) => c.id))
       if (!g.ok) {

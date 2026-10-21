@@ -233,6 +233,8 @@ export type SupervisoreMancato = {
   ultimeIstruzioni?: string
   /** Quante volte di fila non ha risposto; torna a zero alla prima risposta. */
   supervisoreMancato?: number
+  /** La chat sorella che dice di aspettare, e da quanti giri di fila (0.82.1, solo sulle chat). */
+  aspetta?: { di: string; giri: number }
 }
 
 export type RuoloCompito = { ruolo: Ruolo; dopo: string[] }
@@ -604,7 +606,10 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(typeof o.rifacimenti === 'number' && o.rifacimenti > 0 ? { rifacimenti: Math.floor(o.rifacimenti) } : {}),
     ...(typeof o.ultimaAzione === 'string' && o.ultimaAzione !== '' ? { ultimaAzione: o.ultimaAzione } : {}),
     ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {}),
-    ...parseSupervisoreMancato(o)
+    ...parseSupervisoreMancato(o),
+    ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
+      ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
+      : {})
   }
 }
 
