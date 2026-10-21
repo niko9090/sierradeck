@@ -58,10 +58,10 @@ describe('copia e incolla nella chat con l autopilota', () => {
 
   it('l app Android rende selezionabile la chat con lui', () => {
     const lavori = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt', 'utf8')
-    // items(messaggi) o, con le chiavi stabili della 0.83.0, itemsIndexed(messaggi, …).
-    const da = lavori.search(/items(Indexed)?\(messaggi[,)]/)
-    expect(da).toBeGreaterThan(-1)
-    const pezzo = lavori.slice(da, da + 700)
+    // Dalla 0.83.0 le righe hanno una chiave stabile: itemsIndexed(messaggi, key = …).
+    const inizio = lavori.indexOf('itemsIndexed(messaggi,')
+    expect(inizio).toBeGreaterThan(-1)
+    const pezzo = lavori.slice(inizio, inizio + 700)
     expect(pezzo).toContain('SelectionContainer')
   })
 })

@@ -109,7 +109,8 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     expect(a).not.toContain('Scheda.COMPUTER')
     expect(a).not.toContain('ParteComputer')
     // In Adesso: le domande in cima, poi gli autopiloti (Lavori).
-    expect(kt('Adesso.kt')).toContain('domandeInCima(api, domande)')
+    // (dalla 0.83.0 c'è anche la firma dello stato, per rileggerle solo quando cambiano)
+    expect(kt('Adesso.kt')).toContain('domandeInCima(api, domande')
   })
   it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
     expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Adesso', 'Chat', 'Progetti', 'Altro'])
