@@ -247,24 +247,71 @@ describe('hook Stop', () => {
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('lavoro')
     expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
-    // Il supervisore è stato riprovato una volta prima delle regole.
-    expect(domande).toBe(2)
+    // 0.82.1: niente seconda interrogazione subito, la chat non resta ferma altri 5 minuti.
+    expect(domande).toBe(1)
     expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
   })
 
-  it('0.80.1: un supervisore che non risponde la prima volta si riprova subito', async () => {
+  it('0.82.1: supervisore scaduto: la chat prosegue con l’ultima istruzione valida, lui riprova al giro dopo', async () => {
     let domande = 0
+    let risponde = true
     server = ambiente({
       interroga: () => {
         domande++
-        return domande === 1 ? Promise.reject(new Error('tempo scaduto')) : Promise.resolve({ testo: '{"azione": "finito"}' })
+        return risponde
+          ? Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Aggiungi il test della coda e fai commit."}' })
+          : Promise.reject(new Error('interrogazione del supervisore fallita: scaduto dopo 5 minuti'))
       }
     })
     await avvia(server)
     const id = await creaAp()
-    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
-    expect(domande).toBe(2)
-    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
+    const primo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto metà.' }))
+    expect(primo.dati.reason).toContain('Aggiungi il test della coda')
+
+    risponde = false
+    domande = 0
+    const secondo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Ancora un pezzo.' }))
+    expect(secondo.dati.decision).toBe('block')
+    expect(secondo.dati.reason).toContain('ultima istruzione valida')
+    expect(secondo.dati.reason).toContain('Aggiungi il test della coda')
+    expect(domande).toBe(1)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
+    expect(avvisi.some((v) => v.tipo === 'avviso')).toBe(false)
+  })
+
+  it('0.82.1: al tetto di risposte mancate arriva una riga a Nicholas, niente si sospende, e il supervisore si riprova a giri', async () => {
+    let domande = 0
+    server = ambiente({ interroga: () => { domande++; return Promise.reject(new Error('scaduto dopo 5 minuti')) } })
+    await avvia(server)
+    const id = await creaAp()
+    const giro = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Lavoro.' }))).dati
+    for (let i = 0; i < 3; i++) expect((await giro()).decision).toBe("block")
+    expect(domande).toBe(3)
+    const avvisiMancati = avvisi.filter((v) => v.tipo === 'avviso')
+    expect(avvisiMancati).toHaveLength(1)
+    expect(avvisiMancati[0]?.domanda).toContain('non risponde da 3 giri')
+    expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
+    // Dopo il tetto: interrogato al giro 4 (multiplo del tetto), saltato al 5 e al 6.
+    await giro(); await giro(); await giro()
+    expect(domande).toBe(4)
+    expect(avvisi.filter((v) => v.tipo === 'avviso')).toHaveLength(1)
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.stato).toBe('lavoro')
+    expect(stato.supervisoreMancato).toBe(6)
+  })
+
+  it('0.82.1: quando il supervisore torna a rispondere il conto riparte da zero', async () => {
+    let scaduto = true
+    server = ambiente({ interroga: () => (scaduto ? Promise.reject(new Error('scaduto')) : Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "Avanti col pezzo due."}' })) })
+    await avvia(server)
+    const id = await creaAp()
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Uno.' }))
+    expect((await chiama('GET', '/autopiloti')).dati[0].supervisoreMancato).toBe(1)
+    scaduto = false
+    await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Due.' }))
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.supervisoreMancato).toBeUndefined()
+    expect(stato.ultimeIstruzioni).toContain('Avanti col pezzo due.')
   })
 
   it('una domanda della chat mette l autopilota in attesa e ne conserva il testo', async () => {
