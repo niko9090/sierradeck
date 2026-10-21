@@ -4,14 +4,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Folder
@@ -19,7 +15,6 @@ import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Badge
-import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -42,7 +37,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,21 +45,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * **Il menu principale** (app 2.61.0, PC 0.61.0): le sette voci del PC, nello
@@ -264,7 +254,10 @@ fun Principale(
     var schermataViaggio by remember(indirizzo) { mutableStateOf(gen > 0) }
     var versioneScelto by remember(indirizzo) { mutableStateOf<String?>(null) }
     LaunchedEffect(indirizzo, giroTent, gen) {
-        schedaTent = true
+        // «Mi collego a…» solo se il collegamento tarda (0.83.0, `AvvioCollegamento`): con il
+        // PC che risponde subito non compare, e l'elenco non salta quando si chiude.
+        schedaTent = schermataViaggio
+        val mostraScheda = launch { delay(AvvioCollegamento.MOSTRA_DOPO_MS); schedaTent = true }
         val ev = mutableListOf<EventoTentativo>()
         val dettagli = mutableMapOf<String, DettaglioStrada>()
         viaggio = Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())
@@ -300,7 +293,10 @@ fun Principale(
                     val k0 = System.currentTimeMillis()
                     viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0))
                     val chiaveOk = try {
-                        kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
+                        // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
+                        // adesso, non al primo giro del polso (0.83.0).
+                        if (stato == null) stato = letto
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
@@ -312,13 +308,17 @@ fun Principale(
                     } catch (x: Exception) {
                         viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
                     }
+                    mostraScheda.cancel()
                     onEsito(gen, chiaveOk)
                     if (chiaveOk) {
-                        delay(1200)
-                        schermataViaggio = false
-                        delay(1300)
+                        val attesa = AvvioCollegamento.attesaPrimaDiChiudere(schedaTent || schermataViaggio)
+                        if (attesa > 0) {
+                            delay(1200)
+                            schermataViaggio = false
+                            delay(attesa - 1200)
+                        }
                         schedaTent = false
-                    }
+                    } else schedaTent = true
                     return@LaunchedEffect
                 }
                 dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis(), ultimo)
@@ -328,6 +328,8 @@ fun Principale(
         e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre dalla scheda Computer, «Altri computer»"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
+        mostraScheda.cancel()
+        schedaTent = true
         // Resta su questo computer, con «Riprova»: mai un ritorno da solo su quello di prima.
         onEsito(gen, false)
     }
@@ -447,7 +449,10 @@ fun Principale(
                 // Lo stesso polso passa dalla guardia: una chat che finisce
                 // mentre guardi un'altra scheda si annuncia adesso, non alla
                 // prossima sveglia.
-                try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                // Fuori dal thread dello schermo (0.83.0): rilegge il JSON e scrive le preferenze, ogni due secondi.
+                withContext(Dispatchers.Default) {
+                    try { Ronda.consuma(contesto, org.json.JSONObject(grezzo)) } catch (e: Exception) { /* un avviso in meno, non una schermata in meno */ }
+                }
                 // L'ultima parola prima del silenzio. Va colta **mentre** il
                 // computer la dice: fra un istante non risponde piu'.
                 // L'aggiornamento puo' partire anche dallo schermo del
@@ -747,151 +752,4 @@ private fun androidx.compose.foundation.layout.RowScope.voce(
             unselectedTextColor = Banco.testoQuieto
         )
     )
-}
-
-/**
- * La nota d'errore di tutta l'app: una sola, in cima, qualunque schermata.
- *
- * Decine di tasti facevano `catch (_: Exception) {}`: un «Chiudi la chat» che
- * non arrivava, un «Vai» rifiutato, un workspace non cambiato — e a schermo
- * niente, come se fosse andata. La pagina servita dal computer lo dice in
- * cima («Non sono riuscito: …»); qui lo stesso. È un oggetto e non uno stato
- * passato di mano in mano perché chi fallisce sta in fondo a una tessera in
- * fondo a una scheda, e la nota deve comparire dove si sta guardando.
- *
- * Si chiude col tasto, o da sola dopo qualche secondo: è una notizia, non un
- * muro. `giro` cresce a ogni nota, così un secondo errore uguale al primo fa
- * ripartire il tempo invece di sparire a metà lettura.
- */
-object Nota {
-    var testo by mutableStateOf<String?>(null)
-        private set
-    var giro by mutableIntStateOf(0)
-        private set
-
-    fun mostra(t: String) { testo = t; giro += 1 }
-    fun chiudi() { testo = null }
-
-    /**
-     * Cosa dire di una risposta del computer che non e' andata.
-     *
-     * Il computer spiega i suoi rifiuti in JSON, campo `errore` («cartella
-     * non conosciuta», «questa chat lavora su …»): e' quella la frase utile.
-     * Se il corpo non e' JSON si mostra com'e'; se e' vuoto, almeno il codice.
-     */
-    fun spiega(e: Api.Errore, cosa: String): String {
-        if (e.daRiaccoppiare) return "Non sono riuscito a $cosa: il computer non riconosce più questo telefono."
-        val dalJson = try {
-            Api.json.parseToJsonElement(e.corpo).jsonObject["errore"]?.jsonPrimitive?.contentOrNull
-        } catch (_: Exception) { null }
-        val motivo = dalJson?.takeIf { it.isNotBlank() }
-            ?: e.corpo.trim().takeIf { it.isNotBlank() }?.take(300)
-            ?: "il computer ha risposto ${e.codice}"
-        return "Non sono riuscito a $cosa: $motivo"
-    }
-}
-
-/** Dopo quanto la nota se ne va da sola. Abbastanza per leggerla due volte. */
-private const val NOTA_DURA_MS = 8_000L
-
-/**
- * Prova a fare una cosa; se non va, lo dice nella [Nota] e torna `null`.
- *
- * `cosa` e' la descrizione all'infinito di quello che si stava facendo
- * («cambiare workspace», «chiudere la chat»): finisce nella frase «Non sono
- * riuscito a …». L'annullamento della coroutine non e' un errore da mostrare
- * e passa oltre com'e'.
- */
-suspend fun <T> tenta(cosa: String, azione: suspend () -> T): T? =
-    try {
-        azione()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Api.Errore) {
-        Nota.mostra(Nota.spiega(e, cosa)); null
-    } catch (e: Exception) {
-        Nota.mostra("Non sono riuscito a $cosa: ${e.message ?: "il computer non risponde"}"); null
-    }
-
-/** La nota in cima: rossa, con «Ok» per chiuderla; sparisce da sola. */
-@Composable
-fun NotaGlobale() {
-    val testo = Nota.testo
-    LaunchedEffect(testo, Nota.giro) {
-        if (testo != null) { delay(NOTA_DURA_MS); Nota.chiudi() }
-    }
-    AnimatedVisibility(
-        visible = testo != null,
-        enter = expandVertically(),
-        exit = shrinkVertically()
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Banco.rosso.copy(alpha = 0.14f))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.width(3.dp).height(38.dp).background(Banco.rosso)) {}
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Non è andata", color = Banco.rosso, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(testo ?: "", color = Banco.testo, fontSize = 12.sp, maxLines = 4)
-            }
-            Spacer(Modifier.width(10.dp))
-            TextButton(onClick = { Nota.chiudi() }) { Text("Ok") }
-        }
-    }
-}
-
-/**
- * Quanti rifiuti di fila prima di dire che c'è un problema.
- *
- * Il giro è di due secondi: cinque sono dieci secondi di «non ti riconosco»
- * ininterrotti, che nessun inciampo momentaneo del computer produce. Una revoca
- * vera, invece, dura per sempre e li raggiunge in dieci secondi.
- */
-private const val RIFIUTI_PER_ARRENDERSI = 5
-
-/**
- * «Il computer non ti riconosce più.»
- *
- * Al posto di quello che c'era prima, cioè niente: l'app cancellava chiave e
- * indirizzo e si ritrovava alla schermata del codice QR, senza dire perché.
- * Chi guardava vedeva un'app che si era dimenticata di tutto da sola.
- *
- * Qui si dice cosa è successo e si lasciano due strade, senza prenderne
- * nessuna al posto di chi legge: riprovare — perché il computer potrebbe essere
- * appena tornato — o rifare l'accoppiamento, che è l'unica cosa che serve se il
- * telefono è stato tolto davvero dall'elenco.
- */
-@Composable
-private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Il computer non ti riconosce",
-                color = Banco.testo,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "Da qualche secondo risponde che questo telefono non è fra i suoi. " +
-                    "Può essere passeggero: riprova. Se è stato tolto dall'elenco dei " +
-                    "dispositivi, serve rifare l'accoppiamento con il codice QR.",
-                color = Banco.testoQuieto,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(20.dp))
-            Button(onClick = onRiprova) { Text("Riprova") }
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onRiaccoppia) { Text("Rifai l'accoppiamento") }
-        }
-    }
-}
-
-/** Ogni quanto l'app chiede lo stato al PC quando non è davanti (app 2.69.0). */
-object PolsoApp {
-    const val DIETRO_OGNI_MS = 15_000L
-    fun tocca(davanti: Boolean, ultimaIl: Long, ora: Long): Boolean = davanti || ora - ultimaIl >= DIETRO_OGNI_MS
 }

@@ -4,6 +4,7 @@ import { paginaClient } from '../../src/main/client-pagina'
 import { ultimaRigaDalloSchermo } from '../../src/renderer/ultime-righe'
 import { divisioneLinguette, LINGUETTE_RARE } from '../../src/renderer/linguette-diario'
 import { SEZIONI, sezioneInVista } from '@shared/impostazioni-struttura'
+import { sorgentiApp } from '../android/sorgenti-app'
 
 /**
  * Grafica meno caotica (0.82.0, `rapporto-0-82-0.md`): meno cose in vista,
@@ -114,6 +115,6 @@ describe('app: le stesse regole', () => {
   it('Kotlin: «Adesso» vuoto e la riga dal vivo senza stato', () => {
     const k = leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Panoramica.kt')
     expect(k).toContain('RegolePanoramica.mostraAdesso(sz.adesso.size, p.alLavoro != null)')
-    expect(leggi('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt')).toContain('DalVivo(it, senzaStato = it.etichetta == statoInParole(s))')
+    expect(sorgentiApp()).toContain('DalVivo(it, senzaStato = it.etichetta == statoInParole(s))')
   })
 })
