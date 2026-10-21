@@ -39,7 +39,8 @@ object Banco {
     var accento by mutableStateOf(Color(0xFF4AA3FF))
     var ambra by mutableStateOf(Color(0xFFE0A33C))
     var verde by mutableStateOf(Color(0xFF54C07A))
-    var rosso by mutableStateOf(Color(0xFFDC5F5F))
+    /** Già schiarito per AA sul pannello alto (#dc5f5f era 4,0:1): vale prima che arrivi lo stile. */
+    var rosso by mutableStateOf(Color(0xFFDC7273))
     /** Il raggio degli angoli, dal token `--raggio` del computer. */
     var raggio by mutableStateOf(3.dp)
 

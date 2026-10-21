@@ -52,6 +52,9 @@ class LeggibilitaTest {
         val rosso = Contrasto.almenoAA(0xFFDC5F5FL, alto, 0xFFDFDFDFL)
         assertTrue(Contrasto.rapporto(quieto, alto) >= 4.5)
         assertTrue(Contrasto.rapporto(rosso, alto) >= 4.5)
+        // Il rosso di partenza del banco, prima di /api/stile, è già AA sul pannello alto.
+        assertTrue(File(sorgenti, "Tema.kt").readText().contains("var rosso by mutableStateOf(Color(0xFFDC7273))"))
+        assertTrue(Contrasto.rapporto(0xFFDC7273L, chassisAlto) >= 4.5)
         // Un colore già leggibile non si tocca.
         assertEquals(0xFF9AA1A9L, Contrasto.almenoAA(0xFF9AA1A9L, chassis, testo))
     }
