@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -116,12 +117,15 @@ fun SezioneQuadernoPersonale(api: Api) {
 
     if (st.voci.isEmpty()) {
         Spacer(Modifier.height(6.dp))
-        Text("Il quaderno è vuoto. Aggiungi la prima voce qui sotto: il nome è quello che la chat chiederà («Email di contatto», «Sede legale», «Partita IVA»).", color = Banco.testo, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Il quaderno è vuoto.", color = Banco.testo, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Aiuto("Aggiungi la prima voce qui sotto: il nome è quello che la chat chiederà («Email di contatto», «Sede legale», «Partita IVA»).", di = "Quaderno personale")
+        }
     }
     for (v in st.voci) {
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text(v.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            v.nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp) }
+            v.nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
             if (v.id in visti) SelectionContainer { Text(v.valore, color = Banco.testo, fontFamily = FontFamily.Monospace, fontSize = 13.sp) }
             else Text(QuadernoPersonaleTesti.nascosto(v.valore), color = Banco.testoQuieto, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
             Row {
@@ -140,7 +144,7 @@ fun SezioneQuadernoPersonale(api: Api) {
     }
 
     Spacer(Modifier.height(8.dp))
-    Text(if (idBozza == null) "NUOVA VOCE" else "MODIFICA «${st.voci.find { it.id == idBozza }?.nome ?: ""}»", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Text(if (idBozza == null) "NUOVA VOCE" else "MODIFICA «${st.voci.find { it.id == idBozza }?.nome ?: ""}»", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     OutlinedTextField(value = nome, onValueChange = { nome = it.take(80) }, label = { Text("Nome, es. Email di contatto") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = valore, onValueChange = { valore = it.take(2000) }, label = { Text("Valore") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(value = nota, onValueChange = { nota = it.take(300) }, label = { Text("Nota facoltativa: a cosa serve") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -156,7 +160,7 @@ fun SezioneQuadernoPersonale(api: Api) {
     }
 
     Spacer(Modifier.height(10.dp))
-    Text("CONSENSI «SEMPRE PER QUESTA CHAT»", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Text("CONSENSI «SEMPRE PER QUESTA CHAT»", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     if (st.consensi.isEmpty()) Text("Nessuno: ogni richiesta passa dalle Domande.", color = Banco.testoQuieto, fontSize = 12.sp)
     for (k in st.consensi) {
         Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
@@ -171,7 +175,7 @@ fun SezioneQuadernoPersonale(api: Api) {
     }
 
     Spacer(Modifier.height(10.dp))
-    Text("CHI LI HA CHIESTI", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Text("CHI LI HA CHIESTI", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     if (st.usi.isEmpty()) Text("Ancora nessuna richiesta.", color = Banco.testoQuieto, fontSize = 12.sp)
     for (u in if (tutti) st.usi else st.usi.take(15)) {
         Text("${QuadernoPersonaleTesti.quando(u.quando)} · «${u.chat}» ha chiesto ${u.voce} — ${QuadernoPersonaleTesti.esito(u.esito)}. Motivo: «${u.motivo}»", color = Banco.testo, fontSize = 12.sp, modifier = Modifier.padding(vertical = 2.dp))

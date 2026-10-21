@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -266,7 +265,7 @@ internal fun CriterioVista(c: Criterio) {
             val ora = oraLocale(c.raggiuntoIl)
             Text(
                 if (ora.isNotBlank()) "raggiunto alle $ora" else "raggiunto ${c.raggiuntoIl}",
-                color = Banco.verde, fontSize = 11.sp, modifier = Modifier.padding(start = 18.dp)
+                color = Banco.verde, fontSize = 12.sp, modifier = Modifier.padding(start = 18.dp)
             )
         }
     }
@@ -301,12 +300,12 @@ internal fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
             Box(Modifier.width(2.dp).height(16.dp).background(filo))
             Spacer(Modifier.width(6.dp))
-            Text(ora, color = Banco.testoQuieto, fontSize = 11.sp, fontFamily = FontTerminale)
+            Text(ora, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale)
             Spacer(Modifier.width(6.dp))
             Text(
                 b.testo + (b.volte?.let { " ×$it" } ?: "") + (b.dettaglio?.let { " — $it" } ?: ""),
                 color = if (forte) Banco.testo else Banco.testoQuieto,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -334,11 +333,11 @@ internal fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
             Text(
                 (if (lui) nomeSuo.ifBlank { "lui" } else "tu") + " · " + ora,
                 color = Banco.testoQuieto,
-                fontSize = 11.sp
+                fontSize = 12.sp
             )
             Text(b.testo, color = Banco.testo, fontSize = 13.sp)
             val dettaglio = b.dettaglio
-            if (!dettaglio.isNullOrBlank()) Text(dettaglio, color = Banco.testoQuieto, fontSize = 11.sp)
+            if (!dettaglio.isNullOrBlank()) Text(dettaglio, color = Banco.testoQuieto, fontSize = 12.sp)
             if (b.tono == "pronto") {
                 Spacer(Modifier.height(4.dp))
                 Button(onClick = onVai, shape = forma) { Text("Vai") }
@@ -358,11 +357,11 @@ internal fun RigaAlbero(f: NodoAlbero) {
         Spacer(Modifier.width(8.dp))
         Column {
             // PC 0.71: il ruolo, con la parola e il colore decisi dal PC.
-            f.ruolo?.let { r -> Text(r.parola, color = coloreVista(r.colore), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            f.ruolo?.let { r -> Text(r.parola, color = coloreVista(r.colore), fontSize = 12.sp, fontWeight = FontWeight.Bold) }
             Text(f.titolo, color = Banco.testo, fontSize = 13.sp)
             Text(
                 f.parola + (if (f.approvata) " · approvato e unito" else "") + " · ${f.cicli} " + (if (f.cicli == 1) "giro" else "giri") + (f.ramo?.let { " · $it" } ?: ""),
-                color = Banco.testoQuieto, fontSize = 11.sp
+                color = Banco.testoQuieto, fontSize = 12.sp
             )
         }
     }
@@ -433,7 +432,7 @@ internal fun LinguettaDomande(api: Api, autopilota: String, schede: List<Domanda
     Text(
         if (d.tipo == "via") "«Vai» lo fa partire; se scrivi altro gli arriva come messaggio."
         else "La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.",
-        color = Banco.testoQuieto, fontSize = 11.sp
+        color = Banco.testoQuieto, fontSize = 12.sp
     )
 }
 
@@ -470,13 +469,13 @@ internal fun LinguettaFile(api: Api, autopilota: String) {
     f?.gruppi?.forEach { g ->
         Spacer(Modifier.height(8.dp))
         Etichetta(g.nome.uppercase() + (g.ramo?.let { " · $it" } ?: ""))
-        Text("Confronto ${g.base}", color = Banco.testoQuieto, fontSize = 11.sp)
+        Text("Confronto ${g.base}", color = Banco.testoQuieto, fontSize = 12.sp)
         g.errore?.let { Text("⚠ $it", color = Banco.ambra, fontSize = 12.sp) }
         if (g.errore == null && g.file.isEmpty()) Text("Nessun file cambiato.", color = Banco.testoQuieto, fontSize = 12.sp)
         for (x in g.file) {
-            Column(Modifier.fillMaxWidth().clickable { scelto = if (scelto == g.chiave to x.percorso) null else g.chiave to x.percorso }.padding(vertical = 4.dp)) {
+            Column(Modifier.fillMaxWidth().tocco { scelto = if (scelto == g.chiave to x.percorso) null else g.chiave to x.percorso }.padding(vertical = 4.dp)) {
                 Text(x.percorso, color = Banco.testo, fontSize = 13.sp)
-                Text(rigaFile(x), color = if (x.salvato) Banco.testoQuieto else Banco.ambra, fontSize = 11.sp)
+                Text(rigaFile(x), color = if (x.salvato) Banco.testoQuieto else Banco.ambra, fontSize = 12.sp)
             }
         }
     }
@@ -489,7 +488,7 @@ internal fun LinguettaFile(api: Api, autopilota: String) {
         else for (r in righeDiff(t)) Text(
             r.testo,
             color = when (r.tipo) { "piu" -> Banco.verde; "meno" -> Banco.rosso; "testa", "blocco" -> Banco.testoQuieto; else -> Banco.testo },
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontFamily = FontTerminale
         )
     }

@@ -14,6 +14,8 @@ Progetti · Autopiloti · Domande · Chat · File · Salute · Impostazioni (`en
 
 ## 2. Dopo: quattro voci fisse
 
+> Fatto sul ramo c-46 (21/10): come è stato costruito e le trappole in `app-android-navigazione-0-83-0.md`.
+
 | Voce | Cosa c'è | Linguette in cima | Voci del PC che contiene |
 |---|---|---|---|
 | **Adesso** (si apre qui) | **in cima le domande per Nicholas**, ognuna con le scelte come tasti grandi (un tocco risponde) e il campo per scrivere; sotto gli autopiloti (questo PC e altri PC), «+ Affida», le chat al lavoro insieme | nessuna: una sola pagina che scorre | Domande, Autopiloti |
@@ -153,6 +155,8 @@ Colonne: **oggi** = tocchi oggi (dall'avvio, che è su Chat: lì le funzioni di 
 **Funzioni prima 76 = funzioni dopo 76, nessuna persa.** Una sola cambia forma: la linguetta «Workspace» doppia (49) si unisce a 48. Nessuna oltre i 2 tocchi; oggi ce ne sono 18 a 3-4 (24, 30-42, 53, 60, 61, 64). Il quaderno del progetto (59) oggi si apre solo dall'autopilota.
 
 ## 5. Pagina servita dal PC: la stessa mappa
+
+> Fatto sul ramo c-50 (c-516, 21/10): come è costruita e le trappole in `pagina-telefono-quattro-voci-0-83-0.md`. Unica differenza dall'app: in Altro «Chat» e «Quaderno personale» sono una sezione sola, come nelle Impostazioni del PC.
 
 Oggi la fascia ha le sette voci di `MENU_PRINCIPALE` (client-pagina.ts:1883), si apre su **Domande** (client-pagina.ts:1419), indietro come sopra (client-pagina.ts:5718). Dopo: le stesse quattro voci dell'app dallo stesso `MENU_TELEFONO`, apertura su Adesso, indietro come § 3, pallini e colori come § 7.
 

@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -207,7 +206,7 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
         // Il titolo su due piani: il nome della chat, e sotto la cartella in cui
         // lavora. Da lontano sapere *dove* sta lavorando conta quanto il nome.
         FasciaChat {
-            IconButton(onClick = onIndietro, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onIndietro) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
             }
             Spacer(Modifier.width(4.dp))
@@ -224,7 +223,7 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
                     Spacer(Modifier.width(6.dp))
                     Text(
                         lettura.parola + (if (chat.cwd.isNotBlank()) " · " + chat.cwd.substringAfterLast(Char(92)).substringAfterLast('/') else ""),
-                        color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1
+                        color = coloreTono(lettura.tono), fontSize = 12.sp, maxLines = 1
                     )
                 }
             }
@@ -247,7 +246,7 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
             Spacer(Modifier.width(8.dp))
             Text(
                 if (modo == ModoTerminale.ADATTA) "testo a capo" else "schermo esatto",
-                color = Banco.testoQuieto, fontSize = 11.sp
+                color = Banco.testoQuieto, fontSize = 12.sp
             )
             Spacer(Modifier.weight(1f))
             TastoMisura("A", 13.sp, dimensione > Collegamento.DIMENSIONE_MIN) {
@@ -306,7 +305,7 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
             ) {
                 Text(
                     "STA ASPETTANDO CHE TU SCELGA",
-                    color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp
+                    color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp
                 )
                 Spacer(Modifier.height(6.dp))
                 for (o in scelte.opzioni) {
@@ -321,9 +320,9 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
                                 color = if (o.scelta) Banco.ambra else Banco.incisione,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .clickable {
+                            .tocco {
                                 // «Type something.» (2.52.5): si scrive nel campo qui sotto.
-                                if (o.libera) { notaScelta = SceltaVista.SCRIVI; return@clickable }
+                                if (o.libera) { notaScelta = SceltaVista.SCRIVI; return@tocco }
                                 val quale = o.testo
                                 // Sparisce subito: un pulsante che resta invita a
                                 // premerlo due volte, e il secondo tocco finirebbe
@@ -374,7 +373,7 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable { sceglieFile.launch("*/*") },
+                Modifier.size(48.dp).clip(CircleShape).tocco { sceglieFile.launch("*/*") },
                 contentAlignment = Alignment.Center
             ) { Text("📎", fontSize = 20.sp) }
             Spacer(Modifier.width(6.dp))
@@ -398,10 +397,10 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
             val puoInviare = testo.isNotBlank()
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
                     .background(if (puoInviare) Banco.accento else Banco.incisione)
-                    .clickable(enabled = puoInviare) {
+                    .tocco(enabled = puoInviare) {
                         // In coda con il suo id (0.51.0): parte subito, o al ritorno della linea.
                         coda = Linea.accoda(coda, Linea.nuovoId(), testo, System.currentTimeMillis())
                         testo = ""

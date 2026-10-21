@@ -114,7 +114,7 @@ fun BandaAggiornamentoApp(nome: String, onAggiorna: () -> Unit, onChiudi: () -> 
         }
         Spacer(Modifier.width(6.dp))
         TextButton(onClick = onAggiorna) { Text("Aggiorna") }
-        IconButton(onClick = onChiudi, modifier = Modifier.size(36.dp)) {
+        IconButton(onClick = onChiudi) {
             Icon(Icons.Filled.Close, contentDescription = "Chiudi l’avviso", tint = Banco.testoQuieto)
         }
     }

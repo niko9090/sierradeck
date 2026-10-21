@@ -116,7 +116,7 @@ fun SezioneWorkspaceChat(api: Api, stato: Stato?) {
                 if (altrove.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 11.sp)
+                        Text("SU ALTRI PC", color = Banco.testoQuieto, fontSize = 12.sp)
                         Aiuto("Workspace che vivono su altri PC e qui non ci sono. La lista di questo PC resta sua: qui si vedono a parte.", di = "SU ALTRI PC")
                     }
                     for (p in altrove) Text("${p.nome}: ${p.workspace.joinToString(", ")}", color = Banco.testo, fontSize = 13.sp)

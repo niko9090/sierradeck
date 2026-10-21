@@ -48,7 +48,7 @@ fun Adesso(api: Api, stato: Stato?, apriAutopilota: String?, onAperto: () -> Uni
         api, stato, apri = apri,
         onAperto = { autopilota = null; onAperto() },
         testa = {
-            domandeInCima(api, domande) { c ->
+            domandeInCima(api, domande, DomandeAdesso.firma(stato)) { c ->
                 val ap = c.autopilota
                 if (c.tipo == "autopilota" && ap != null) autopilota = ap else conversazione = c.chiave
             }

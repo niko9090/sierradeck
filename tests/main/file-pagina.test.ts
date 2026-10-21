@@ -117,9 +117,9 @@ describe('la sezione File della pagina', () => {
     expect(pag.html()).toContain('id="file-pin"')
     expect(pag.html()).toContain('Progetto protetto')
   })
-  it('File è una voce del menu principale (0.61.0), e lo script si legge', () => {
-    expect(script).toContain('file: fileHtml()')
-    expect(script).toContain("if (nome === 'file') {")
+  it('File è la seconda linguetta di Progetti (0.83.0), e lo script si legge', () => {
+    expect(script).toContain('? fileHtml()')
+    expect(script).toContain("fileDove = null; fileElenco = null; fileVista = null; fileNota = ''; filePin = null; leggiFileProgetti().then(ridisegna) }, inVista('file'))")
     expect(() => new Function(script)).not.toThrow()
   })
 })

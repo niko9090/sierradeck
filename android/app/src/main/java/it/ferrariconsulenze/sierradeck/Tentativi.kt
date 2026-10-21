@@ -160,7 +160,7 @@ fun SchedaCollegamento(v: VistaCollegamento, ultimoSegno: String?, onRiprova: ()
                 Text(segno, color = c, fontSize = 13.sp, modifier = Modifier.width(18.dp).alpha(if (p.stato == "provo") luce else 1f))
                 Text("${p.icona} ${p.nome}", color = if (p.stato == "salta" || p.stato == "inutile") Banco.testoQuieto else Banco.testo, fontSize = 12.sp)
                 val dopo = p.ms?.let { " · $it ms" } ?: p.motivo?.let { " · $it" } ?: if (p.stato == "provo") " · provo…" else ""
-                Text(dopo, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                Text(dopo, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
             }
         }
         if (v.fase == "fallito") {

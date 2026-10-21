@@ -32,7 +32,7 @@ class AvvioVelocitaTest {
 
     @Test
     fun `lo stato della prova della chiave si usa subito`() {
-        assertTrue(app.contains("if (stato == null) stato = letto"))
+        assertTrue(app.contains("if (stato == null || daCopia) { stato = letto; daCopia = false }"))
     }
 
     @Test

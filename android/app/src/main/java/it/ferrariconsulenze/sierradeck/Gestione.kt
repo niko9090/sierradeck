@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -127,12 +126,12 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                 if (gruppi.isEmpty()) Text(if (filtro.isBlank()) "Nessun workspace." else "Nessun workspace con «${filtro.trim()}».", color = Banco.testoQuieto, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
                 for (g in gruppi) {
                     Spacer(Modifier.height(10.dp))
-                    Text(g.titolo.uppercase(), color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(g.titolo.uppercase(), color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     for (v in g.voci) {
                         val chiave = (if (v.qui) "q:" else "a:${v.pcId}:") + v.nome
                         val davanti = v.qui && v.nome == workspace.attivo
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f).clickable(enabled = !inCorso) {
+                            Column(Modifier.weight(1f).tocco(enabled = !inCorso) {
                                 // Toccare una riga di qui ci va; una di un altro PC apre il suo «⋯».
                                 if (!v.qui) menuDi = chiave else if (!davanti) fai("passare a «${v.nome}»") { api.cambiaWorkspace(v.nome) }
                             }.padding(vertical = 8.dp)) {
@@ -140,7 +139,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                 val quante = workspace.chat.count { it.workspace == v.nome }
                                 Text(
                                     if (!v.qui) "su ${v.pcNome ?: "un altro PC"}" else (if (davanti) "davanti sul computer · " else "") + if (quante == 1) "1 chat" else "$quante chat",
-                                    color = Banco.testoQuieto, fontSize = 11.sp
+                                    color = Banco.testoQuieto, fontSize = 12.sp
                                 )
                             }
                             Box {
@@ -153,7 +152,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                                 Column {
                                                     Text(a.etichetta, color = if (a.spenta != null) Banco.testoQuieto else if (a.pericolo) Banco.rosso else Banco.testo)
                                                     // Una voce spenta dice perché («Sei qui» lo dice già da sé).
-                                                    if (a.spenta != null && a.azione != "apri") Text(a.spenta, color = Banco.testoQuieto, fontSize = 11.sp)
+                                                    if (a.spenta != null && a.azione != "apri") Text(a.spenta, color = Banco.testoQuieto, fontSize = 12.sp)
                                                 }
                                             },
                                             enabled = a.spenta == null && !inCorso,
@@ -188,7 +187,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(v.nome, color = Banco.testo)
-                                Text(AzioniTelefono.rigaEliminato(v.chat, v.scadeIl), color = Banco.testoQuieto, fontSize = 11.sp)
+                                Text(AzioniTelefono.rigaEliminato(v.chat, v.scadeIl), color = Banco.testoQuieto, fontSize = 12.sp)
                             }
                             TextButton(enabled = !inCorso, onClick = {
                                 fai("ripristinare «${v.nome}»") {
@@ -209,7 +208,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                         if (e != null) errore = e else { val n = nuovo.trim(); nuovo = ""; fai("creare il workspace «$n»") { api.creaWorkspace(n) } }
                     }) { Text("Crea") }
                 }
-                Text("Crearlo lo mette anche davanti sul computer, vuoto: le chat nuove che apri da qui ci finiscono dentro.", color = Banco.testoQuieto, fontSize = 11.sp)
+                Text("Crearlo lo mette anche davanti sul computer, vuoto: le chat nuove che apri da qui ci finiscono dentro.", color = Banco.testoQuieto, fontSize = 12.sp)
             }
         },
         confirmButton = { TextButton(onClick = onChiudi) { Text("Chiudi") } }
@@ -256,7 +255,7 @@ fun SceltaWorkspace(titolo: String, nomi: List<String>, tranne: String?, onScegl
                 val altri = nomi.filter { it != tranne }
                 if (altri.isEmpty()) Text("Non ci sono altri workspace su questo computer: creane uno da «Workspace» nell’elenco delle chat.", color = Banco.testoQuieto, fontSize = 13.sp)
                 for (n in altri) {
-                    Text(n, color = Banco.testo, modifier = Modifier.fillMaxWidth().clickable { onScegli(n) }.padding(vertical = 10.dp))
+                    Text(n, color = Banco.testo, modifier = Modifier.fillMaxWidth().tocco { onScegli(n) }.padding(vertical = 10.dp))
                     HorizontalDivider(color = Banco.incisione)
                 }
             }
@@ -333,7 +332,7 @@ fun BandaPcIndietro(apiAccoppiato: Api, pcId: String, nome: String, versione: St
                     } catch (e: Exception) { "Non sono riuscito a chiederlo: ${e.message ?: "il computer non risponde"}" }
                 }
             }) { Text("Installa là") }
-            nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp, modifier = Modifier.weight(1f)) }
+            nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f)) }
         }
     }
 }

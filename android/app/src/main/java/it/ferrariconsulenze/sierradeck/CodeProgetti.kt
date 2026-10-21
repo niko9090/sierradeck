@@ -117,7 +117,7 @@ fun CodeProgetti(api: Api, stato: Stato?) {
                             Row(Modifier.padding(vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.Top) {
                                 Column(Modifier.weight(1f)) {
                                     Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
-                                    Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 11.sp)
+                                    Text("da ${v.daNome}" + (if (v.sessione != null) " · per una chat precisa" else " · alla prima chat libera"), color = Banco.testoQuieto, fontSize = 12.sp)
                                 }
                                 TextButton(onClick = { scope.launch { tenta("togliere la voce dalla coda") { api.codaTogli(p.id, v.id).voci }?.let { codaVoci = it } } }) { Text("Togli") }
                             }

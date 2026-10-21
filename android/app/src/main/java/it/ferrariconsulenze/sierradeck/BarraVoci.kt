@@ -109,7 +109,8 @@ internal fun BarraVoci(attuale: VoceBarra, stato: Stato?, onScegli: (VoceBarra) 
                 icon = {
                     if (pallino != null) {
                         BadgedBox(badge = {
-                            Badge(containerColor = if (pallino.rosso) Banco.rosso else Banco.ambra) { if (pallino.numero > 0) Text("${pallino.numero}", fontSize = 11.sp) }
+                            val fondoPallino = if (pallino.rosso) ColoreStato.rosso else ColoreStato.ambra
+                            Badge(containerColor = fondoPallino, contentColor = sopra(fondoPallino)) { if (pallino.numero > 0) Text("${pallino.numero}", fontSize = 12.sp) }
                         }) { Icon(icona, contentDescription = v.nome + (pallino.descrizione?.let { ", $it" } ?: "")) }
                     } else {
                         Icon(icona, contentDescription = v.nome)
@@ -156,4 +157,23 @@ data class Pallini(val adesso: Pallino?, val chat: Pallino?) {
             return Pallini(adesso, chat)
         }
     }
+}
+
+/**
+ * La tastiera è aperta? (2.83.0, c-509) Con la tastiera la barra delle voci
+ * sparisce: sopra la tastiera devono restare la conversazione e la casella.
+ * Letto dagli inset della finestra, che ci sono anche senza edge-to-edge.
+ */
+@Composable
+fun tastieraAperta(): Boolean {
+    val vista = androidx.compose.ui.platform.LocalView.current
+    var aperta by remember { mutableStateOf(false) }
+    DisposableEffect(vista) {
+        val ascolta = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            aperta = androidx.core.view.ViewCompat.getRootWindowInsets(vista)?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        vista.viewTreeObserver.addOnGlobalLayoutListener(ascolta)
+        onDispose { vista.viewTreeObserver.removeOnGlobalLayoutListener(ascolta) }
+    }
+    return aperta
 }

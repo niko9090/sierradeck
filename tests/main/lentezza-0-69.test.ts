@@ -134,8 +134,9 @@ describe('il manifesto locale non si riscrive uguale', () => {
 describe('la pagina del telefono, nascosta, non chiede', () => {
   it('PC, lavoro del Drive e coda si fermano quando la pagina non si vede', () => {
     const html = paginaClient()
-    expect(html).toContain("if (pannelloAperto !== 'pc' || !chiave || document.hidden) return")
-    expect(html).toContain("if (pannelloAperto !== 'drive' || !chiave || document.hidden) return")
-    expect(html).toContain("if (pannelloAperto !== 'code' || codaProgetto === null || !chiave || document.hidden) return")
+    // 0.83.0: «aperto» vale anche per la linguetta o la sezione che li mostra.
+    expect(html).toContain("if (!aperto('pc') || !chiave || document.hidden) return")
+    expect(html).toContain("if (!aperto('drive') || !chiave || document.hidden) return")
+    expect(html).toContain("if (!aperto('code') || codaProgetto === null || !chiave || document.hidden) return")
   })
 })

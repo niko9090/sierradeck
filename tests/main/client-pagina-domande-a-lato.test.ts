@@ -34,7 +34,7 @@ describe('pagina: le domande brevi a lato', () => {
   })
   it('dentro la chat la domanda breve sta in cima; la pagina legge le domande anche quando la chat aperta chiede', () => {
     expect(script).toContain('${domandaALatoHtml(aperta.id)}')
-    expect(script).toContain("if (scheda === 'domande' || ferma) leggiDomande()")
+    expect(script).toContain("if (inVista('domande') || ferma) leggiDomande()")
     expect(funzione('domandaALatoHtml')).toContain("'chat:' + idChat")
   })
 })

@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -292,7 +291,7 @@ fun oraLocale(iso: String?): String = try {
     }
 } catch (_: Exception) { "" }
 
-private fun coloreParola(c: String): Color = when (c) { "verde" -> Banco.verde; "ambra" -> Banco.ambra; "rosso" -> Banco.rosso; else -> Banco.testoQuieto }
+private fun coloreParola(c: String): Color = when (c) { "verde" -> ColoreStato.verde; "ambra" -> ColoreStato.ambra; "rosso" -> ColoreStato.rosso; else -> ColoreStato.quieto }
 
 /** Una riga che si apre e si chiude, alta 48 dp (revisione UI/UX). */
 @Composable
@@ -300,7 +299,7 @@ private fun RigaApri(testo: String, aperta: Boolean, onClick: () -> Unit) {
     Text(
         (if (aperta) "▾ " else "▸ ") + testo,
         color = Banco.testo,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onClick() }.padding(horizontal = 8.dp, vertical = 14.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).tocco { onClick() }.padding(horizontal = 8.dp, vertical = 14.dp)
     )
 }
 
@@ -314,7 +313,7 @@ private fun SchedaTel(s: SchedaPanoramica, quante: Int, onApri: (String) -> Unit
             .padding(top = 8.dp)
             .heightIn(min = 48.dp)
             .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
-            .let { if (apribile) it.clickable { onApri(s.id) } else it }
+            .let { if (apribile) it.tocco { onApri(s.id) } else it }
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Text(
@@ -323,8 +322,8 @@ private fun SchedaTel(s: SchedaPanoramica, quante: Int, onApri: (String) -> Unit
         )
         if (quante > 0) {
             val righe = RegolePanoramica.righeDalVivo(s.righe, quante)
-            if (righe.isEmpty()) Text("in attesa di output…", color = Banco.testoQuieto, fontSize = 11.sp)
-            for (riga in righe) Text(riga, color = Banco.testoQuieto, maxLines = 1, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+            if (righe.isEmpty()) Text("in attesa di output…", color = Banco.testoQuieto, fontSize = 12.sp)
+            for (riga in righe) Text(riga, color = Banco.testoQuieto, maxLines = 1, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
         }
         val azione = s.domanda?.scheda?.domanda?.let { "Ti chiede: $it" } ?: s.ultimaAzione
         if (azione.isNotBlank()) Text(azione, color = Banco.testo, maxLines = 1, fontSize = 13.sp)
@@ -363,7 +362,7 @@ fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
                 val colore = when (c.esito) { "si" -> Banco.verde; "no" -> Banco.ambra; else -> Banco.testoQuieto }
                 Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                     Text("$segno ${c.descrizione}", color = colore, fontSize = 13.sp)
-                    Text((if (c.quando != null) "controllato alle ${oraLocale(c.quando)}" else "mai controllato") + (c.prova?.let { " · $it" } ?: ""), color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                    Text((if (c.quando != null) "controllato alle ${oraLocale(c.quando)}" else "mai controllato") + (c.prova?.let { " · $it" } ?: ""), color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                 }
             }
         }
@@ -386,15 +385,15 @@ fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
                     Column(
                         Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp)
                             .border(BorderStroke(1.dp, Banco.incisione), RoundedCornerShape(8.dp))
-                            .let { m -> x.chat?.let { id -> m.clickable { onApri(id) } } ?: m }
+                            .let { m -> x.chat?.let { id -> m.tocco { onApri(id) } } ?: m }
                             .padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
                         Text(
                             chi + (x.autore?.let { " · di ${RegolePanoramica.NOME_RUOLO[it] ?: it}" } ?: "") + (x.giri?.let { " · ↺ $it" } ?: ""),
-                            color = Banco.testoQuieto, fontSize = 11.sp
+                            color = Banco.testoQuieto, fontSize = 12.sp
                         )
                         Text(x.testo, color = if (x.chat != null) Banco.testo else Banco.testoQuieto, maxLines = 2, fontSize = 13.sp)
-                        x.nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp) }
+                        x.nota?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
                     }
                 }
             }
@@ -450,7 +449,7 @@ fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 48.dp)
                     .border(BorderStroke(1.dp, if (r.aspettaTe) Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
-                    .clickable { onApri(r.id) }
+                    .tocco { onApri(r.id) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -459,7 +458,7 @@ fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text("${r.chi}  ${r.cosa}", color = Banco.testo, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Text(RegolePanoramica.sottoAlLavoro(r), color = if (r.aspettaTe) Banco.ambra else Banco.testoQuieto, fontSize = 11.sp)
+                    Text(RegolePanoramica.sottoAlLavoro(r), color = if (r.aspettaTe) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp)
                 }
             }
         }

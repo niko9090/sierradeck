@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,7 +145,7 @@ internal fun SchedaAutopilota(api: Api, v: VoceDomanda, gia: String?, onMandata:
                     Text(
                         if (v.origine == "intervista") "Sta leggendo il progetto: senza questa risposta non comincia."
                         else "Si è fermato su questo punto: riparte quando rispondi.",
-                        color = Banco.testoQuieto, fontSize = 11.sp
+                        color = Banco.testoQuieto, fontSize = 12.sp
                     )
                 }
             }
@@ -169,7 +168,7 @@ internal fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (St
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("«${v.titolo.ifBlank { v.cwd }}» aspetta che tu scelga", color = Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(v.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                    Text(v.cwd, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                 }
                 ApriLaChat(v.chat)
             }
@@ -191,10 +190,10 @@ internal fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (St
                                 color = if (o.scelta) Banco.ambra else Banco.incisione,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .clickable {
+                            .tocco {
                                 errore = null
                                 // «Type something.» (2.52.5): si scrive nel campo qui sotto.
-                                if (o.libera) { errore = SceltaVista.SCRIVI; return@clickable }
+                                if (o.libera) { errore = SceltaVista.SCRIVI; return@tocco }
                                 scope.launch {
                                     try {
                                         api.scegli(v.chat, o.testo)
@@ -217,7 +216,7 @@ internal fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (St
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = Banco.incisione)
                 Spacer(Modifier.height(8.dp))
-                Text("Oppure scrivile qualcosa:", color = Banco.testoQuieto, fontSize = 11.sp)
+                Text("Oppure scrivile qualcosa:", color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
                 CampoRisposta("Scrivi alla chat…", "Manda", null, { api.scrivi(v.chat, it) }, onMandata)
             }
@@ -232,7 +231,7 @@ internal fun SchedaChatFerma(api: Api, v: VoceDomanda, gia: String?, onMandata: 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("«${v.titolo.ifBlank { v.cwd }}» ha finito", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(v.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                    Text(v.cwd, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                 }
                 ApriLaChat(v.chat)
             }

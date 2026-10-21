@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -137,7 +136,7 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
                     Text(
                         g.percorso,
                         color = Banco.testoQuieto,
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         maxLines = 2
                     )
                 }
@@ -151,7 +150,7 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
                         placeholder = { Text("Nome (facoltativo): se vuoto, quello della cartella", fontSize = 12.sp) }, modifier = Modifier.fillMaxWidth())
                     if (modelli.isNotEmpty()) {
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            for (m in modelli) androidx.compose.material3.FilterChip(selected = modello == m.valore, onClick = { modello = m.valore }, label = { Text(m.etichetta, fontSize = 11.sp) })
+                            for (m in modelli) androidx.compose.material3.FilterChip(selected = modello == m.valore, onClick = { modello = m.valore }, label = { Text(m.etichetta, fontSize = 12.sp) })
                         }
                     }
                 }
@@ -194,7 +193,7 @@ internal fun SceltaCartella(api: Api, workspace: Workspace = Workspace(), onApri
                             ) {
                                 Text(v.nome, color = Banco.testo, maxLines = 1)
                                 if (g.radici) {
-                                    Text(v.percorso, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                    Text(v.percorso, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                 }
                             }
                             HorizontalDivider(color = Banco.incisione)
@@ -265,11 +264,11 @@ internal fun SceltaSessione(api: Api, nomePc: String?, conGestione: Boolean, onS
                                     Text(
                                         "· " + etichettaAltrove(s.altrove, s.altroveAcceso),
                                         color = if (s.altroveAcceso == true) Banco.verde else Banco.testoQuieto,
-                                        fontSize = 11.sp, maxLines = 1
+                                        fontSize = 12.sp, maxLines = 1
                                     )
                                 }
                             }
-                            if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                            if (s.cwd.isNotBlank()) Text(s.cwd, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                         }
                         if (conGestione && s.altrove.isNullOrBlank()) TextButton(onClick = { azioniPer = s }) { Text("⋯ Chiudi, archivia, elimina", fontSize = 12.sp) }
                         HorizontalDivider(color = Banco.incisione)
@@ -285,7 +284,7 @@ internal fun SceltaSessione(api: Api, nomePc: String?, conGestione: Boolean, onS
 
 /** Un click semplice su una riga di elenco. */
 private fun Modifier.clickableCartella(onClick: () -> Unit): Modifier =
-    this.clickable(onClick = onClick)
+    this.tocco(onClick = onClick)
 /** Nome e modello scelti nella finestra della chat nuova, per chi la apre (la finestra si chiude nello stesso tocco). */
 internal object NuovaChat { var nome: String = ""; var modello: String = "default" }
 

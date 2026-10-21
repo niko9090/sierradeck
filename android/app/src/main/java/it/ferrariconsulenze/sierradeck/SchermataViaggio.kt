@@ -119,7 +119,7 @@ fun SchermataViaggio(
                 }
                 Text(
                     "«Annulla» chiude questa schermata e resta su ${v.nomePc}: l'indicatore in alto continua a riprovare da solo. «Torna al PC di prima» è una scelta come le altre: riparte da capo verso quello.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
+                    color = Banco.testoQuieto, fontSize = 12.sp
                 )
             }
         }

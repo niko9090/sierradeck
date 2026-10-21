@@ -114,7 +114,7 @@ internal fun AccountVista(account: Account?, api: Api, onCambiato: () -> Unit) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                     for (t in catena.tessere) {
                         Column(Modifier.weight(1f)) {
-                            Text(t.titolo, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                            Text(t.titolo, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                             Text(t.vista?.parola ?: "", color = coloreVista(t.vista?.colore ?: "quieto"), fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
                         }
                     }
