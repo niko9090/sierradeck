@@ -52,7 +52,7 @@ import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, 
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
-import { OPZIONE_VIA, TESTO_VIA, tracciaDopoRisposta } from '@shared/domande-autopilota'
+import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo } from '@shared/domande-telefono'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
@@ -4069,6 +4069,69 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // La risposta a una domanda del registro (0.38.0, 0.71.0, 0.81.0): la
+        // usano «/domande/:id/risposta» e, dalla 0.83.0, il dialogo quando
+        // Nicholas scrive a mano mentre la domanda è aperta. Falso se la domanda
+        // non c'è più.
+        const rispondiAllaDomanda = (idDomanda: string, testo: string, da: 'telegram' | 'modale'): boolean => {
+          // La domanda, letta prima che la risposta la tolga dal registro.
+          const chiesta = deps.domande.aperte().find((d) => d.id === idDomanda)
+          // La memoria (0.71.0): la risposta non si richiede, e diventa una decisione del progetto.
+          if (chiesta !== undefined) {
+            const apChiesto = deps.archivio.leggi(chiesta.autopilotaId)
+            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
+            memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
+            if (apChiesto !== undefined) memoria.ricordaDecisione(apChiesto.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
+          }
+          // Le chat agganciate a questa domanda (0.81.0): si leggono prima che
+          // la risposta tolga il contesto.
+          const agganciate = (idD: string): { domanda: string; chat: string[] } | undefined => {
+            const c = contesto.get(idD) ?? deps.domande.aperte().find((d) => d.id === idD)?.contesto
+            return c?.ancheChat !== undefined && c.ancheChat.length > 0 ? { domanda: c.testo, chat: c.ancheChat } : undefined
+          }
+          const riprendiAgganciate = (autopilotaId: string, x: { domanda: string; chat: string[] } | undefined): void => {
+            for (const c of x?.chat ?? []) riprendiChatBloccata(autopilotaId, c, x?.domanda ?? '', testo, 'stessa domanda di un’altra chat, stessa risposta')
+          }
+          const agganciatePrincipale = agganciate(idDomanda)
+          if (!deps.domande.rispondi(idDomanda, testo, da)) return false
+          if (chiesta !== undefined) riprendiAgganciate(chiesta.autopilotaId, agganciatePrincipale)
+          // **Una risposta vale per tutte le domande uguali ancora aperte**
+          // (0.81.0): il 20/10 «Installi la 0.80.0?» era aperta due volte, da
+          // due chat e in due lingue, e Nicholas ha dovuto rispondere due volte.
+          // Ognuna riprende la sua chat con la stessa risposta.
+          if (chiesta !== undefined && deps.archivio.leggi(chiesta.autopilotaId)?.stato !== 'intervista') {
+            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
+            const uguali = aperteSulloStesso(
+              deps.domande.aperte(chiesta.autopilotaId).map((d) => ({ ...d, testo: d.parti?.domanda ?? contesto.get(d.id)?.grezza ?? d.testo })),
+              chiesta.autopilotaId,
+              laDomanda
+            )
+            for (const d of uguali) {
+              const suoi = agganciate(d.id)
+              const suaChat = d.contesto?.chatId ?? contesto.get(d.id)?.chatId
+              if (!deps.domande.rispondi(d.id, testo, da)) continue
+              memoria.ricordaRisposta(chiesta.autopilotaId, d.testo, testo, deps.adesso(), suaChat)
+              riprendiAgganciate(chiesta.autopilotaId, suoi)
+              console.log(`[domande] ${chiesta.autopilotaId} — la tua risposta a «${laDomanda.slice(0, 80)}» vale anche per «${d.testo.slice(0, 80)}»: chiusa`)
+              const ap = deps.archivio.leggi(chiesta.autopilotaId)
+              if (ap !== undefined) {
+                annota(ap, `la tua risposta («${testo.slice(0, 80)}») vale anche per una domanda uguale ancora aperta: non te la rifaccio`)
+                salva(ap)
+              }
+            }
+          }
+          // La traccia nella chat con l'autopilota (0.38.0): la domanda e la
+          // risposta, una sotto l'altra. Le domande della preparazione hanno
+          // gia' la loro traccia nell'intervista.
+          if (chiesta !== undefined) {
+            const a = deps.archivio.leggi(chiesta.autopilotaId)
+            if (a !== undefined && a.stato !== 'intervista') {
+              salva({ ...a, dialogo: [...a.dialogo, ...tracciaDopoRisposta(chiesta.testo, testo, deps.adesso())].slice(-DIALOGO_RICORDATO) })
+            }
+          }
+          return true
+        }
+
         // **Il dialogo.** Gli scrivi dalla scheda (PC o telefono), lui risponde
         // con parole sue e, se era un'istruzione, la applica: un cambio, un
         // compito in piu', «fermati», «riprendi», una risposta alla sua domanda,
@@ -4094,10 +4157,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 400, { errore: 'non hai scritto niente' })
             return
           }
+          // 0.83.0 (Nicholas, dal 20/10): scritto a mano mentre una sua domanda
+          // del registro è aperta, è la risposta a quella domanda, con la sua
+          // traccia «Hai risposto: …». La più vecchia, come la mostra «/domande».
+          const aperta = a.stato === 'intervista' ? undefined : [...deps.domande.aperte(id)].sort((x, y) => x.apertaIl - y.apertaIl)[0]
+          if (aperta !== undefined && rispondiAllaDomanda(aperta.id, testo, 'modale')) {
+            console.log(`[domande] ${id} — scritto a mano mentre «${aperta.testo.slice(0, 80)}» era aperta: è la risposta`)
+            rispondi(res, 202, { ricevuto: true, risposta: true, autopilota: deps.archivio.leggi(id) })
+            return
+          }
           const quando = deps.adesso()
+          // Una sua domanda nel dialogo («…?») o il via: la battuta la ricorda.
+          const risponde = domandaInSospeso(a)
           const conTua: Autopilota = {
             ...a,
-            dialogo: [...a.dialogo, { quando, da: 'tu' as const, testo }].slice(-DIALOGO_RICORDATO)
+            dialogo: [...a.dialogo, { quando, da: 'tu' as const, testo, ...(risponde !== undefined ? { risponde } : {}) }].slice(-DIALOGO_RICORDATO)
           }
           salva(conTua)
           rispondi(res, 202, { ricevuto: true, autopilota: conTua })
@@ -4210,63 +4284,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
           const da = corpo?.da === 'telegram' ? 'telegram' : 'modale'
           const idDomanda = decodeURIComponent(risposta[1]!)
-          // La domanda, letta prima che la risposta la tolga dal registro.
-          const chiesta = deps.domande.aperte().find((d) => d.id === idDomanda)
-          // La memoria (0.71.0): la risposta non si richiede, e diventa una decisione del progetto.
-          if (chiesta !== undefined) {
-            const apChiesto = deps.archivio.leggi(chiesta.autopilotaId)
-            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
-            memoria.ricordaRisposta(chiesta.autopilotaId, laDomanda, testo, deps.adesso(), chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId)
-            if (apChiesto !== undefined) memoria.ricordaDecisione(apChiesto.cwd, `«${laDomanda.slice(0, 200)}» → ${testo}`, deps.adesso())
-          }
-          // Le chat agganciate a questa domanda (0.81.0): si leggono prima che
-          // la risposta tolga il contesto.
-          const agganciate = (idD: string): { domanda: string; chat: string[] } | undefined => {
-            const c = contesto.get(idD) ?? deps.domande.aperte().find((d) => d.id === idD)?.contesto
-            return c?.ancheChat !== undefined && c.ancheChat.length > 0 ? { domanda: c.testo, chat: c.ancheChat } : undefined
-          }
-          const riprendiAgganciate = (autopilotaId: string, x: { domanda: string; chat: string[] } | undefined): void => {
-            for (const c of x?.chat ?? []) riprendiChatBloccata(autopilotaId, c, x?.domanda ?? '', testo, 'stessa domanda di un’altra chat, stessa risposta')
-          }
-          const agganciatePrincipale = agganciate(idDomanda)
-          if (!deps.domande.rispondi(idDomanda, testo, da)) {
+          if (!rispondiAllaDomanda(idDomanda, testo, da)) {
             rispondi(res, 404, { errore: 'domanda inesistente o gia risposta' })
             return
-          }
-          if (chiesta !== undefined) riprendiAgganciate(chiesta.autopilotaId, agganciatePrincipale)
-          // **Una risposta vale per tutte le domande uguali ancora aperte**
-          // (0.81.0): il 20/10 «Installi la 0.80.0?» era aperta due volte, da
-          // due chat e in due lingue, e Nicholas ha dovuto rispondere due volte.
-          // Ognuna riprende la sua chat con la stessa risposta.
-          if (chiesta !== undefined && deps.archivio.leggi(chiesta.autopilotaId)?.stato !== 'intervista') {
-            const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
-            const uguali = aperteSulloStesso(
-              deps.domande.aperte(chiesta.autopilotaId).map((d) => ({ ...d, testo: d.parti?.domanda ?? contesto.get(d.id)?.grezza ?? d.testo })),
-              chiesta.autopilotaId,
-              laDomanda
-            )
-            for (const d of uguali) {
-              const suoi = agganciate(d.id)
-              const suaChat = d.contesto?.chatId ?? contesto.get(d.id)?.chatId
-              if (!deps.domande.rispondi(d.id, testo, da)) continue
-              memoria.ricordaRisposta(chiesta.autopilotaId, d.testo, testo, deps.adesso(), suaChat)
-              riprendiAgganciate(chiesta.autopilotaId, suoi)
-              console.log(`[domande] ${chiesta.autopilotaId} — la tua risposta a «${laDomanda.slice(0, 80)}» vale anche per «${d.testo.slice(0, 80)}»: chiusa`)
-              const ap = deps.archivio.leggi(chiesta.autopilotaId)
-              if (ap !== undefined) {
-                annota(ap, `la tua risposta («${testo.slice(0, 80)}») vale anche per una domanda uguale ancora aperta: non te la rifaccio`)
-                salva(ap)
-              }
-            }
-          }
-          // La traccia nella chat con l'autopilota (0.38.0): la domanda e la
-          // risposta, una sotto l'altra. Le domande della preparazione hanno
-          // gia' la loro traccia nell'intervista.
-          if (chiesta !== undefined) {
-            const a = deps.archivio.leggi(chiesta.autopilotaId)
-            if (a !== undefined && a.stato !== 'intervista') {
-              salva({ ...a, dialogo: [...a.dialogo, ...tracciaDopoRisposta(chiesta.testo, testo, deps.adesso())].slice(-DIALOGO_RICORDATO) })
-            }
           }
           rispondi(res, 200, { accettata: true })
           return
