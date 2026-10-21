@@ -186,6 +186,25 @@ Dalla tabella unica `src/shared/colori-attivita.ts` (app: `ColoriAttivita.kt`, g
 
 Nella mappa nuova le righe di chat e autopiloti in Adesso e in Chat usano simbolo e colore della tabella; il pallino di Adesso è ambra (domande) o rosso (fermo), quello di Chat ambra. Da portare sulla tabella le mappe locali che oggi la duplicano: `coloreStato`/`coloreLed` (Lavori.kt:78/92), `coloreTono` (Chat.kt:1160), `coloreVista` (PannelloDrive.kt:303), Panoramica.kt:295, Drive.kt:297/311, Negozio.kt:418, Salute.kt:87, `coloreAdesso`/`tonoDalVivo` (Modelli.kt:485/519), i viola scritti a mano (Ponte.kt:96, DriveScollegato.kt:64).
 
+## 8 bis. Prima e dopo misurati (aggiunto da c-52, 21/10)
+
+I numeri sotto, nel § 8, sono i primi di c-45/c-11. Quelli che contano sono di c-48 (`velocita-app-0-83-0.md`): 0.82.0 contro 0.83.0, tutti e due APK di rilascio, misurati a turni sullo stesso emulatore.
+
+| Misura | Prima | Dopo | |
+|---|---|---|---|
+| Avvio a freddo | 3282 ms | 2808 ms | −14 % |
+| Primo contenuto | 9032 ms | 7340 ms | −19 % |
+| Schermata ferma | 12069 ms | 8757 ms | −27 % |
+| Cambio schermata | 652 ms | 459 ms | −30 % |
+| Scorrimento p50/p90 | 65/109 ms | 57/101 ms | meglio |
+| Chiamate/min davanti / dietro | 29,0 / 4,5 | 26,7 / 4,5 | −8 % / uguale |
+
+Nessun numero peggiora. Con R8 l'APK passa da 16,8 a 4,2 MB.
+
+## 9 bis. Foto prima e dopo (c-52)
+
+In `.sierradeck/quaderno/foto-0-83-0/` della cartella principale (fuori da git per regola del `.gitignore`: le foto restano sul PC; JPEG da 540 px, nomi di PC coperti, dati finti della copia di prova). Da guardare per primo: `foto-0-83-0/foglio-prima-dopo.jpg`, una riga per schermata, 2.82.0 a sinistra e 2.83.0 a destra, app e pagina del telefono. L'elenco completo è nel § Foto di `rapporto-0-83-0.md`.
+
 ## 8. Misure «prima» (2.82.0)
 
 Le fa **c-11** (sua scheda «0.83.0: velocità dell'app e file Kotlin…»), con lo stesso emulatore e la stessa copia di prova per prima e dopo; questa chat non le ripete per non caricare il PC con un secondo emulatore mentre misura. Emulatore `sd11` (Android 11, 1080×2400, 420 dpi), app 2.82.0 accoppiata a una **copia di prova** (`SIERRADECK_PROVA`, porte 47760/47761) attraverso un contatore delle chiamate su 47770. Script: `note/prova-083/misura.py` nella copia di c-11.

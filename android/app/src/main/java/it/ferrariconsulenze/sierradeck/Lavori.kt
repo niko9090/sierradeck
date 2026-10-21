@@ -117,7 +117,8 @@ fun Lavori(
     apri: String? = null,
     onAperto: () -> Unit = {},
     /** Le prime righe della pagina (2.83.0): in Adesso, le domande per te. */
-    testa: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {}
+    testa: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {},
+    onDettaglio: (Boolean) -> Unit = {}
 ) {
     // Gli autopiloti del PC che stai guardando (app 2.55.0): con «Chat di X
     // dal vivo» quelli di X, attraverso il ponte, con la fascia viola in cima.
@@ -155,6 +156,8 @@ fun Lavori(
 
     val breve = lista.firstOrNull { it.id == aperto }
     val altro = apertoAltro?.let { (pc, id) -> altri?.firstOrNull { it.pcId == pc }?.let { p -> p.autopiloti.firstOrNull { it.id == id }?.let { p to it } } }
+    val inDettaglio = altro != null || breve != null
+    LaunchedEffect(inDettaglio) { onDettaglio(inDettaglio) }
     if (altro != null) {
         // La scheda di sempre, con le chiamate al PC dove gira (attraverso il ponte).
         BackHandler { apertoAltro = null }
@@ -175,7 +178,7 @@ fun Lavori(
         // Una pagina sola che scorre (2.83.0): in cima `testa` (in Adesso le
         // domande per te), poi la fascia con «+ Affida», poi gli autopiloti.
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 12.dp)) {
-            testa()
+            if (su == null) testa()
             if (su != null) item(key = "su-pc") { Column { FasciaSuPc(su, null) { SuPc.corrente = null }; BandaPcIndietro(apiAccoppiato, su.pcId, su.nome, statoSu?.computer?.versione) } }
             item(key = "fascia-lavori") { Column { FasciaLavori(lista) { delega = true }; RigaPostiChat(stato?.postiChat) } }
             if (lista.isEmpty() && AutopilotiAltri.righe(altri ?: emptyList()).isNotEmpty()) {

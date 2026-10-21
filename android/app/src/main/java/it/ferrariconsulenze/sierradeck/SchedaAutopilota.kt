@@ -74,11 +74,11 @@ fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande" || chiave =
  * chat e giri in una riga; prima le domande, se ce ne sono. Il tocco la apre.
  */
 object RiassuntoAutopilota {
-    fun di(stato: String, criteri: List<Criterio>, chat: Int, giri: Int, domande: Int): String {
+    fun di(stato: String, fatti: Int, criteri: Int, chat: Int, giri: Int, domande: Int): String {
         val pezzi = mutableListOf<String>()
         if (domande > 0) pezzi += if (domande == 1) "1 domanda per te" else "$domande domande per te"
         pezzi += statoInParole(stato)
-        if (criteri.isNotEmpty()) pezzi += "criteri ${criteri.count { it.soddisfatto }}/${criteri.size}"
+        if (criteri > 0) pezzi += "criteri $fatti/$criteri"
         if (chat > 0) pezzi += "$chat chat"
         pezzi += if (giri == 1) "1 giro" else "$giri giri"
         return pezzi.joinToString(" · ")

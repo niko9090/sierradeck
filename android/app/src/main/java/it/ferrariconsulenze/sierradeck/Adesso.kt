@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +26,7 @@ import androidx.compose.ui.unit.sp
  * domande in cima), una chat apre la conversazione intera. «Indietro» torna qui.
  */
 @Composable
-fun Adesso(api: Api, stato: Stato?, apriAutopilota: String?, onAperto: () -> Unit) {
+fun Adesso(api: Api, stato: Stato?, apriAutopilota: String?, onAperto: () -> Unit, onDettaglio: (Boolean) -> Unit = {}) {
     val domande = remember(api) { DomandeLette() }
     var conversazione by remember { mutableStateOf<String?>(null) }
     var autopilota by remember { mutableStateOf<String?>(null) }
@@ -44,11 +45,15 @@ fun Adesso(api: Api, stato: Stato?, apriAutopilota: String?, onAperto: () -> Uni
         }
         return
     }
+    var dettaglio by remember { mutableStateOf(false) }
+    LaunchedEffect(dettaglio) { onDettaglio(dettaglio) }
+    if (!dettaglio) PolsoDomande(api, domande, DomandeAdesso.firma(stato))
     Lavori(
         api, stato, apri = apri,
         onAperto = { autopilota = null; onAperto() },
+        onDettaglio = { dettaglio = it },
         testa = {
-            domandeInCima(api, domande, DomandeAdesso.firma(stato)) { c ->
+            domandeInCima(api, domande) { c ->
                 val ap = c.autopilota
                 if (c.tipo == "autopilota" && ap != null) autopilota = ap else conversazione = c.chiave
             }

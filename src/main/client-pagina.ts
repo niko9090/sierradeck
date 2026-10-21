@@ -3205,7 +3205,9 @@ function riassuntoApTesto(ap, d) {
   const pezzi = []
   const dom = d && d.domandeScheda ? d.domandeScheda.length : 0
   if (dom > 0) pezzi.push(dom === 1 ? '1 domanda per te' : dom + ' domande per te')
-  pezzi.push(ap.vista ? ap.vista.stato.parola : ap.stato)
+  // Senza la vista del PC, le stesse parole dell'app (statoInParole).
+  const parole = { lavoro: 'al lavoro', intervista: 'si prepara', attesa: 'aspetta te', pronto: 'pronto', sospeso: 'fermo', fallito: 'guasto', finito: 'finito' }
+  pezzi.push(ap.vista ? ap.vista.stato.parola : (parole[ap.stato] || ap.stato))
   if (ap.criteri) pezzi.push('criteri ' + ap.fatti + '/' + ap.criteri)
   const chat = d && d.chats ? d.chats.length : 0
   if (chat > 0) pezzi.push(chat + ' chat')

@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.83.0',
+    righe: [
+      '**App a quattro voci fisse in basso:** Adesso, Chat, Progetti e Altro. «Indietro» fa sempre la stessa cosa e ogni funzione si raggiunge in due tocchi al massimo. Nessuna funzione tolta.',
+      '**Adesso:** in cima ci sono le domande per te, e rispondi con un tocco.',
+      '**Autopilota più semplice:** la casella per scrivere resta in basso, anche con la tastiera aperta, e sopra c’è solo la conversazione. Stato, criteri, chat e giri stanno in una riga in alto che si apre con un tocco. Così anche sulla pagina del telefono.',
+      '**Più leggibile:** i caratteri seguono la dimensione scelta nel telefono, il contrasto è buono anche nel tema scuro, i tasti sono più grandi e i colori delle attività sono quelli del PC, con la loro parola e il loro simbolo.',
+      '**La pagina del telefono servita dal PC** ha le stesse quattro voci e gli stessi colori dell’app, e «indietro» si comporta allo stesso modo.',
+      '**L’app è più veloce:** all’apertura mostra subito l’ultimo stato salvato e chiede meno cose al PC. Misurata sullo stesso telefono di prova: avvio il 14 % più rapido, contenuto in vista il 19 % prima, cambio di voce il 30 % più rapido.'
+    ]
+  },
+  {
     versione: '0.82.1',
     righe: [
       '**Le chat non si bloccano più per il PC pieno:** un criterio si rimisura solo quando cambia il codice salvato, e le suite lunghe (test, Android) girano una alla volta, mai mentre si unisce un ramo.',

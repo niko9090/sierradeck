@@ -48,10 +48,10 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
 
     companion object {
         /** Dove porta una voce trovata con «Cerca» (l'id della sezione delle impostazioni del PC). */
-        fun diImpostazione(id: String): SezioneAltro = when (id) {
+        fun diImpostazione(id: String, voce: String? = null): SezioneAltro = when (id) {
             "aggiornamenti" -> AGGIORNAMENTI
             "computer" -> ALTRI_PC
-            "chat" -> QUADERNO
+            "chat" -> if (voce == "quaderno-personale") QUADERNO else CHAT
             "drive" -> ACCOUNT
             "aspetto" -> ASPETTO
             "notifiche" -> AVVISI

@@ -222,6 +222,8 @@ fun Principale(
     var posto by remember { mutableStateOf(Navigazione.INIZIO) }
     /** L'autopilota da aprire in Adesso (da una notifica). */
     var apriAutopilota by remember { mutableStateOf<String?>(null) }
+    /** In Adesso è aperto un autopilota: la banda delle urgenze torna (le domande in cima non si vedono). */
+    var adessoDettaglio by remember { mutableStateOf(false) }
     // Una notifica toccata porta dove serve, una volta.
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { posto = Navigazione.verso(posto, it); Apertura.schedaRichiesta = null }
@@ -661,8 +663,8 @@ fun Principale(
             BandaDriveScollegato(stato?.driveScollegato)
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
-            // In Adesso non serve (2.83.0): le domande ci sono già, in cima.
-            if (posto.voce != VoceBarra.ADESSO) BandaUrgenze(api, stato, connesso, onApriDomande = { posto = Navigazione.verso(posto, Scheda.DOMANDE) })
+            // In Adesso non serve (2.83.0): le domande ci sono già, in cima; dentro un autopilota sì.
+            if (posto.voce != VoceBarra.ADESSO || adessoDettaglio) BandaUrgenze(api, stato, connesso, onApriDomande = { posto = Navigazione.verso(posto, Scheda.DOMANDE) })
             appNuova?.let { (nome, _) ->
                 BandaAggiornamentoApp(
                     nome = nome,
@@ -672,7 +674,7 @@ fun Principale(
             }
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (posto.voce) {
-                    VoceBarra.ADESSO -> Adesso(api, stato, apriAutopilota, onAperto = { apriAutopilota = null })
+                    VoceBarra.ADESSO -> Adesso(api, stato, apriAutopilota, onAperto = { apriAutopilota = null }, onDettaglio = { adessoDettaglio = it })
                     VoceBarra.CHAT -> ConLinguette(posto, { posto = Navigazione.linguetta(posto, it) }) { i ->
                         when (i) {
                             0 -> Chat(api, stato, deposito)

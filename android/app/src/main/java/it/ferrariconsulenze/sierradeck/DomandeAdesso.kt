@@ -50,11 +50,12 @@ class DomandeLette {
 }
 
 /**
- * Legge le domande finché la testa di Adesso è composta: con un autopilota o
- * una conversazione aperti la lista non c'è, e le letture si fermano (prima
- * `/api/domande` andava ogni 2 secondi anche dentro un autopilota).
+ * Legge le domande finché la lista di Adesso (o una conversazione) è davanti:
+ * dentro un autopilota le letture si fermano, e le urgenze le dice la banda
+ * in cima (prima `/api/domande` andava ogni 2 secondi anche lì). Sta fuori
+ * dalla lista: scorrendo in giù non si ferma.
  *
- * Con `firma` (0.83.0, la testa di Adesso) non si rilegge a tempo: si rilegge
+ * Con `firma` (0.83.0, Adesso) non si rilegge a tempo: si rilegge
  * quando lo stato, che arriva comunque ogni 2 secondi, dice che le domande
  * sono cambiate (`DomandeAdesso.firma`), e dopo ogni risposta (`giro`). Erano
  * 30 chiamate al minuto in più sulla schermata d'apertura. Senza firma (una
@@ -125,8 +126,7 @@ object DomandeAdesso {
  * tocco risponde) e il campo per scrivere. «Apri» porta alla conversazione
  * intera; con un PC più vecchio della 0.36 le schede di prima.
  */
-fun LazyListScope.domandeInCima(api: Api, d: DomandeLette, firma: Int, onApri: (Conversazione) -> Unit) {
-    item(key = "domande-polso") { PolsoDomande(api, d, firma) }
+fun LazyListScope.domandeInCima(api: Api, d: DomandeLette, onApri: (Conversazione) -> Unit) {
     val conv = d.conversazioni
     val elenco = d.voci
     d.guasto?.let { g -> item(key = "domande-guasto") { Text(g, color = Banco.ambra, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) } }

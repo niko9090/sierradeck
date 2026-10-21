@@ -53,9 +53,8 @@ class SchedaAutopilotaTest {
 
     @Test
     fun `la riga riassuntiva dice stato, criteri, chat e giri, prima le domande`() {
-        val criteri = listOf(Criterio(soddisfatto = true), Criterio(), Criterio())
-        assertEquals("al lavoro · criteri 1/3 · 2 chat · 5 giri", RiassuntoAutopilota.di("lavoro", criteri, 2, 5, 0))
-        assertEquals("1 domanda per te · fermo · 1 giro", RiassuntoAutopilota.di("sospeso", emptyList(), 0, 1, 1))
+        assertEquals("al lavoro · criteri 1/3 · 2 chat · 5 giri", RiassuntoAutopilota.di("lavoro", 1, 3, 2, 5, 0))
+        assertEquals("1 domanda per te · fermo · 1 giro", RiassuntoAutopilota.di("sospeso", 0, 0, 0, 1, 1))
     }
 
     @Test

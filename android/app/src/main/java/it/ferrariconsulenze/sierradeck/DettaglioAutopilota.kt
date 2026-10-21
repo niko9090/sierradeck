@@ -160,7 +160,9 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             Spacer(Modifier.width(12.dp))
         }
         val s = det?.stato ?: breve.stato
-        val riga = RiassuntoAutopilota.di(s, det?.criteri ?: emptyList(), det?.chats?.size ?: 0, det?.cicli ?: breve.cicli, schede.size)
+        val riga = RiassuntoAutopilota.di(
+            s, det?.criteri?.count { it.soddisfatto } ?: breve.fatti, det?.criteri?.size ?: breve.criteri,
+            det?.chats?.size ?: 0, det?.cicli ?: breve.cicli, schede.size)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp).background(Banco.chassis)
                 .tocco { riassuntoAperto = !riassuntoAperto }.padding(horizontal = 16.dp, vertical = 6.dp),
