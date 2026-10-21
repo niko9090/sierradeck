@@ -60,3 +60,7 @@ nuovo tentativo, per la consegna «chiudi» persa.
 - c-62 è «lavoro» con 0 giri dal 21/10 16:55: probabile avvio mai partito
   rimasto appeso; da guardare con il punto blocchi.
 - Pagina e app non mostrano ancora il segnale (già scritto da c-57).
+
+## Stato (21/10 sera)
+
+Ramo c-66 verde (servizio, renderer, condivisi, pty: 2978 test; `tsc` pulito), ultimo commit di codice `9f48c392`, aspetta la Revisione; c-68 ha le stesse correzioni: se ne unisce uno solo. Resta per la 0.84.1 il punto 2 della riga 5 (segnale in vista su pagina e app), non cominciato qui per non mescolarlo a un ramo in Revisione.
