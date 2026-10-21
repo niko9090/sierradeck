@@ -73,3 +73,15 @@ esteso.
 # Dal portatile (18/09/2026)
 
 Si puo': vedi `build-sul-portatile.md`. Due differenze: Smart App Control blocca `npm run pacchetto` → usare `node scripts/pacchetto-senza-eseguire.cjs` (dopo `npm run build` e `dist` svuotata); la chiave dell'APK sta solo sul fisso → o la si copia in `C:/Users/asus/`, o si riallega l'ultimo APK firmato con `app-android.json` scritto a mano. Installer non firmato (nessun certificato sul portatile).
+
+## Rilascio dalla copia di lavoro di una chat (21/10, 0.82.0, c-39)
+- **`google-oauth.json` sta solo nella cartella principale** (git lo ignora). `npm run pubblica` da un worktree si ferma subito con «mancano le credenziali OAuth di Google Drive»: è la guardia giusta, non un errore. Copiarlo nel worktree per la build e cancellarlo subito dopo.
+- **Manca anche `node_modules`:** una junction verso quella della cartella principale basta per build, electron-builder, gradle e vitest (vedi `test-lenti-a-pc-carico-0-81-0.md`).
+- **Ordine provato, liscio in 10 minuti:**
+  1. `git tag vX <commit>`, poi push del **solo tag** con `-c credential.helper='!gh auth git-credential'`;
+  2. `gh release create vX --draft --title "SierraDeck X" --notes-file note.md` (note da `noteDi(sorgente, versione)` di `scripts/note-novita.mjs`, scritte in UTF-8);
+  3. `GH_TOKEN=$(gh auth token) npm run pubblica`, che porta exe, blockmap e latest.yml sulla bozza;
+  4. `npm run allega-apk`, che porta l'APK firmato e app-android.json;
+  5. `gh release edit vX --draft=false --latest`.
+- **Verifica:** `gh release view vX --json isDraft,assets` (5 allegati «uploaded») e un curl su `releases/latest/download/latest.yml` e su `app-android.json`.
+- **La guardia delle cancellazioni** rifiuta percorsi su unità `subst` (`R:`) e con variabili (`$P/...`): scrivere il percorso vero per intero.
