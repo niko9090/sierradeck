@@ -974,8 +974,15 @@ function adessoHtml(x) {
     }).join('') +
     (x.finite ? '<div class="sotto">' + (x.finite === 1 ? '1 chat finita' : x.finite + ' chat finite') + '</div>' : '') + '</div>'
 }
-function dalVivoHtml(v) {
+function dalVivoHtml(v, senzaStato) {
   if (!v || typeof v !== 'object') return ''
+  // 0.82.0, come sul PC: sotto la situazione della Panoramica la parola dello stato c'è già,
+  // qui resta una riga sola con l'ultima azione, da quanto e l'avviso ⚠.
+  if (senzaStato) {
+    if (!v.ultimaAzione && !v.senzaSegni) return ''
+    return '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione || '') + (v.da ? ' · da ' + esc(v.da) : '') +
+      (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>'
+  }
   // I colori di COLORE_DAL_VIVO (0.80.0): «fermo» rosso come sul PC e nell'app.
   var colore = v.etichetta === 'al lavoro' ? 'var(--verde)' : v.etichetta === 'aspetta te' ? 'var(--ambra,#e0a33c)' : v.etichetta === 'fermo' ? 'var(--rosso,#dc5f5f)' : 'var(--testo-quieto,#8b949e)'
   return '<span class="voce__sotto"><b style="color:' + colore + '">' + esc(v.etichetta || '') + '</b>' + (v.da ? ' · da ' + esc(v.da) : '') +
@@ -2005,7 +2012,7 @@ function pannello(s) {
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
-      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
@@ -2996,7 +3003,8 @@ function panoramicaRestoHtml(p) {
   const ferme = p.schede.filter((s) => s.stato !== 'chiede' && s.stato !== 'lavora')
   const chat = ferme.filter((s) => !s.specialista)
   const finite = ferme.filter((s) => s.specialista)
-  const sezAdesso = '<div class="serigrafia">Adesso · ' + adesso.length + '</div>' + (adesso.length ? adesso.map((s) => schedaTelHtml(s, 3)).join('') : '<div class="sotto">Nessuna chat al lavoro.</div>')
+  // 0.82.0: vuoto, «Adesso» ripeteva «Nessuna chat al lavoro» di «Al lavoro» più sopra.
+  const sezAdesso = adesso.length === 0 && Array.isArray(p.alLavoro) ? '' : '<div class="serigrafia">Adesso · ' + adesso.length + '</div>' + (adesso.length ? adesso.map((s) => schedaTelHtml(s, 3)).join('') : '<div class="sotto">Nessuna chat al lavoro.</div>')
   const piano = (p.piano || []).filter((c) => c.compiti.length > 0)
   const sezPiano = piano.length ? '<div class="serigrafia">Piano</div>' + piano.map((c) =>
     rigaApri(c.fase, esc(c.nome) + ' · ' + c.compiti.length) + (panAperte[c.fase] ? c.compiti.map((x) => {
@@ -3074,7 +3082,8 @@ function vistaAutopilota(a) {
   // qualche minuto.
   // Il campo resta in fondo allo schermo mentre si scorre (0.79.0: «sempre pronto»).
   const casella = '<div class="casella-ap ancorata"><div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
-      'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»… (le sue domande sono nella linguetta Domande)' + '"></textarea></div>' +
+      // 0.82.0, come sul PC dalla 0.81.0: corto, la parte fra parentesi veniva tagliata; dove stanno le domande lo dice il «?».
+      'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…' + '"></textarea></div>' +
     '<div class="riga">' +
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
       // linguetta «Domande», una per volta.

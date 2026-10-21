@@ -148,11 +148,11 @@ export function InterruttoreVista({ vista, onPanoramica, onAffiancate }: {
       <button className={`vista-interruttore__voce${vista === 'panoramica' ? ' vista-interruttore__voce--attiva' : ''}`} aria-pressed={vista === 'panoramica'} onClick={onPanoramica}>
         Panoramica
       </button>
-      <Aiuto di="Panoramica">Tutto il workspace in una vista: la situazione, le chat al lavoro, il piano e le altre chat. Tocca una scheda per aprire la sua chat.</Aiuto>
       <button className={`vista-interruttore__voce${vista === 'affiancate' ? ' vista-interruttore__voce--attiva' : ''}`} aria-pressed={vista === 'affiancate'} onClick={onAffiancate}>
         Tutte le chat affiancate
       </button>
-      <Aiuto di="Tutte le chat affiancate">Tutte le chat del workspace una accanto all’altra. Sono le stesse chat: per tornare tocca «Panoramica».</Aiuto>
+      {/* 0.82.0: un «?» solo per le due viste, non uno per voce. */}
+      <Aiuto di="le due viste del workspace">«Panoramica»: tutto il workspace in una vista, con la situazione, le chat al lavoro, il piano e le altre chat; tocca una scheda per aprire la sua chat. «Tutte le chat affiancate»: le chat del workspace una accanto all’altra. Sono le stesse chat: cambiando vista nessuna si chiude o si riavvia.</Aiuto>
     </span>
   )
 }
@@ -219,15 +219,15 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
         <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))} schede={schede} onApri={onApri} />
+        {/* 0.82.0: vuoto, «Adesso» ripeteva «Nessuna chat al lavoro» della riga sopra: non si mostra. */}
+        {adesso.length === 0 && (autopilota === undefined || righeAp.length === 0) ? null : (
         <div className="pan2-sezione">
           <div className="serigrafia con-aiuto" aria-live="polite">
             Adesso · {adesso.length > 0 ? adesso.length : righeAp.length}
             {righeAp.length > 0 ? <Aiuto di="il riquadro Adesso">{AIUTO_ADESSO}</Aiuto> : null}
           </div>
           {adesso.length === 0 ? (
-            autopilota !== undefined && righeAp.length > 0
-              ? <AdessoAutopilota autopilota={autopilota} dentro />
-              : <p className="pan2-vuoto">Nessuna chat al lavoro.</p>
+            <AdessoAutopilota autopilota={autopilota!} dentro />
           ) : (
             <>
               <div className="pan2-adesso">
@@ -237,6 +237,7 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
             </>
           )}
         </div>
+        )}
         {autopilota !== undefined && compiti > 0 ? (
           <div className="pan2-sezione">
             <div className="serigrafia">Piano · {compiti} compiti</div>

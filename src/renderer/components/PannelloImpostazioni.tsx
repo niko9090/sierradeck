@@ -1,5 +1,5 @@
 import { TendinaMenu } from './TendinaMenu'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RigaMigrazione } from './RigaMigrazione'
 import {
   coloreValido, portaValida, PREFERENZE_PREDEFINITE, type Preferenze
@@ -15,7 +15,7 @@ import { SezioneAggiornamenti } from './SezioneAggiornamenti'
 import { SezioneErrori } from './SezioneErrori'
 import { Aiuto } from './Aiuto'
 import { NomeQuestoPc } from './PannelloAccount'
-import { cercaImpostazioni, SEZIONI, type IdSezione } from '@shared/impostazioni-struttura'
+import { cercaImpostazioni, SEZIONI, sezioneInVista, type IdSezione } from '@shared/impostazioni-struttura'
 import { statoCassaforte, statoDrive, statoTelefoni, statoVersione } from '@shared/stato-sistema'
 import type { Colore, StatoVista } from '@shared/stato-vista'
 
@@ -464,7 +464,7 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
             />
           </label>
             </> : null}
-            <div className="impostazioni__nota con-aiuto">«Riparti al login» degli autopiloti: Autopiloti → Strumenti ▾.<Aiuto>«Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.</Aiuto></div>
+            {/* 0.82.0: il rimando a «Riparti al login» sta nel «?» del titolo della sezione. */}
           </section>
         ) : null}
         {vede('pin') ? <SezionePin /> : null}
@@ -601,6 +601,25 @@ export function PannelloImpostazioni(
     void window.gestore.sync.stato().then((c) => setStati((x) => ({ ...x, cassaforte: statoCassaforte(c) }))).catch(() => undefined)
     void window.gestore.client.stato().then((c) => setStati((x) => ({ ...x, telefoni: statoTelefoni(c.dispositivi.length) }))).catch(() => undefined)
   }, [])
+  // 0.82.0: a sinistra si accende la sezione che si sta leggendo (prima non si accendeva niente).
+  const corpo = useRef<HTMLDivElement | null>(null)
+  const [qui, setQui] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const el = corpo.current
+    if (el === null || tab !== 'generali') { setQui(undefined); return }
+    const leggi = (): void => {
+      const cima = el.getBoundingClientRect().top + 24
+      const inFondo = el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+      setQui(sezioneInVista(SEZIONI.map((s) => ({ id: s.id, cima: document.getElementById(`imp-${s.id}`)?.getBoundingClientRect().top })), cima, inFondo))
+    }
+    leggi()
+    el.addEventListener('scroll', leggi, { passive: true })
+    // Anche quando le sezioni cambiano senza scorrere: la ricerca, una sezione che finisce di caricare.
+    const ro = new ResizeObserver(leggi)
+    ro.observe(el)
+    if (el.firstElementChild !== null) ro.observe(el.firstElementChild)
+    return () => { el.removeEventListener('scroll', leggi); ro.disconnect() }
+  }, [tab])
   const vai = (id: string): void => {
     if (tab !== 'generali') setTab('generali')
     setTimeout(() => document.getElementById(`imp-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
@@ -639,7 +658,7 @@ export function PannelloImpostazioni(
       <div className="impostazioni-vista__corpo">
         <nav className="impostazioni-vista__nav" aria-label="Sezioni">
           {SEZIONI.map((x) => (
-            <button key={x.id} className="progetti__voce" onClick={() => vai(x.id)} title={x.spiega}>
+            <button key={x.id} className={`progetti__voce${qui === x.id ? ' impostazioni-vista__voce--accesa' : ''}`} aria-current={qui === x.id ? 'true' : undefined} onClick={() => vai(x.id)} title={x.spiega}>
               {x.titolo}
               {x.id === 'aggiornamenti' && stati.versione !== undefined ? <span style={{ float: 'right', color: COLORE_IMP[stati.versione.colore] }}>●</span> : null}
               {x.id === 'drive' && stati.drive !== undefined ? <span style={{ float: 'right', color: COLORE_IMP[stati.drive.colore] }}>●</span> : null}
@@ -657,7 +676,7 @@ export function PannelloImpostazioni(
             {tessera('Cassaforte', stati.cassaforte, () => setTab('account'))}
             {tessera('Telefoni', stati.telefoni, () => vai('computer'))}
           </div>
-          <div className="impostazioni__corpo">
+          <div className="impostazioni__corpo" ref={corpo}>
             {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
             {tab === 'ai' ? <PannelloProvider incorporato /> : null}
             {tab === 'account' ? <PannelloAccount incorporato /> : null}
