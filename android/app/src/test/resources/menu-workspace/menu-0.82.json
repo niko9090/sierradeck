@@ -1,0 +1,729 @@
+{
+  "gruppi": [
+    {
+      "nome": "trenta con recenti",
+      "ingresso": {
+        "nomi": [
+          "Prova 01",
+          "Prova 02",
+          "Prova 03",
+          "Prova 04",
+          "Prova 05",
+          "Prova 06",
+          "Prova 07",
+          "Prova 08",
+          "Prova 09",
+          "Prova 10",
+          "Prova 11",
+          "Prova 12",
+          "Prova 13",
+          "Prova 14",
+          "Prova 15",
+          "Prova 16",
+          "Prova 17",
+          "Prova 18",
+          "Prova 19",
+          "Prova 20",
+          "Prova 21",
+          "Prova 22",
+          "Prova 23",
+          "Prova 24",
+          "Prova 25",
+          "Prova 26",
+          "Prova 27",
+          "Prova 28",
+          "Prova 29",
+          "Prova 30"
+        ],
+        "attivo": "Prova 07",
+        "recenti": [
+          "Prova 03",
+          "Sparito",
+          "Prova 07",
+          "Prova 20",
+          "Prova 21",
+          "Prova 22",
+          "Prova 23"
+        ],
+        "altrove": [
+          {
+            "pc": "p2",
+            "nome": "Portatile",
+            "workspace": [
+              "Prova 01",
+              "Solo di là",
+              "Dèsk di là"
+            ]
+          },
+          {
+            "pc": "p3",
+            "nome": "Fisso",
+            "workspace": []
+          }
+        ]
+      },
+      "gruppi": [
+        {
+          "chiave": "recenti",
+          "titolo": "Recenti",
+          "voci": [
+            {
+              "nome": "Prova 07",
+              "qui": true
+            },
+            {
+              "nome": "Prova 03",
+              "qui": true
+            },
+            {
+              "nome": "Prova 20",
+              "qui": true
+            },
+            {
+              "nome": "Prova 21",
+              "qui": true
+            },
+            {
+              "nome": "Prova 22",
+              "qui": true
+            }
+          ]
+        },
+        {
+          "chiave": "qui",
+          "titolo": "Questo PC",
+          "voci": [
+            {
+              "nome": "Prova 01",
+              "qui": true
+            },
+            {
+              "nome": "Prova 02",
+              "qui": true
+            },
+            {
+              "nome": "Prova 04",
+              "qui": true
+            },
+            {
+              "nome": "Prova 05",
+              "qui": true
+            },
+            {
+              "nome": "Prova 06",
+              "qui": true
+            },
+            {
+              "nome": "Prova 08",
+              "qui": true
+            },
+            {
+              "nome": "Prova 09",
+              "qui": true
+            },
+            {
+              "nome": "Prova 10",
+              "qui": true
+            },
+            {
+              "nome": "Prova 11",
+              "qui": true
+            },
+            {
+              "nome": "Prova 12",
+              "qui": true
+            },
+            {
+              "nome": "Prova 13",
+              "qui": true
+            },
+            {
+              "nome": "Prova 14",
+              "qui": true
+            },
+            {
+              "nome": "Prova 15",
+              "qui": true
+            },
+            {
+              "nome": "Prova 16",
+              "qui": true
+            },
+            {
+              "nome": "Prova 17",
+              "qui": true
+            },
+            {
+              "nome": "Prova 18",
+              "qui": true
+            },
+            {
+              "nome": "Prova 19",
+              "qui": true
+            },
+            {
+              "nome": "Prova 23",
+              "qui": true
+            },
+            {
+              "nome": "Prova 24",
+              "qui": true
+            },
+            {
+              "nome": "Prova 25",
+              "qui": true
+            },
+            {
+              "nome": "Prova 26",
+              "qui": true
+            },
+            {
+              "nome": "Prova 27",
+              "qui": true
+            },
+            {
+              "nome": "Prova 28",
+              "qui": true
+            },
+            {
+              "nome": "Prova 29",
+              "qui": true
+            },
+            {
+              "nome": "Prova 30",
+              "qui": true
+            }
+          ]
+        },
+        {
+          "chiave": "pc:p2",
+          "titolo": "Portatile",
+          "voci": [
+            {
+              "nome": "Solo di là",
+              "qui": false,
+              "pc": {
+                "id": "p2",
+                "nome": "Portatile"
+              }
+            },
+            {
+              "nome": "Dèsk di là",
+              "qui": false,
+              "pc": {
+                "id": "p2",
+                "nome": "Portatile"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "pochi",
+      "ingresso": {
+        "nomi": [
+          "A",
+          "B",
+          "C"
+        ],
+        "attivo": "B",
+        "recenti": [
+          "C"
+        ],
+        "altrove": []
+      },
+      "gruppi": [
+        {
+          "chiave": "qui",
+          "titolo": "Questo PC",
+          "voci": [
+            {
+              "nome": "A",
+              "qui": true
+            },
+            {
+              "nome": "B",
+              "qui": true
+            },
+            {
+              "nome": "C",
+              "qui": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "ricerca",
+      "ingresso": {
+        "nomi": [
+          "Prova 01",
+          "Prova 02",
+          "Prova 03",
+          "Prova 04",
+          "Prova 05",
+          "Prova 06",
+          "Prova 07",
+          "Prova 08",
+          "Prova 09",
+          "Prova 10",
+          "Prova 11",
+          "Prova 12",
+          "Prova 13",
+          "Prova 14",
+          "Prova 15",
+          "Prova 16",
+          "Prova 17",
+          "Prova 18",
+          "Prova 19",
+          "Prova 20",
+          "Prova 21",
+          "Prova 22",
+          "Prova 23",
+          "Prova 24",
+          "Prova 25",
+          "Prova 26",
+          "Prova 27",
+          "Prova 28",
+          "Prova 29",
+          "Prova 30",
+          "Dèsk"
+        ],
+        "attivo": "Prova 01",
+        "recenti": [
+          "Prova 02"
+        ],
+        "filtro": " DESK ",
+        "altrove": [
+          {
+            "pc": "p2",
+            "nome": "Portatile",
+            "workspace": [
+              "Prova 01",
+              "Solo di là",
+              "Dèsk di là"
+            ]
+          },
+          {
+            "pc": "p3",
+            "nome": "Fisso",
+            "workspace": []
+          }
+        ]
+      },
+      "gruppi": [
+        {
+          "chiave": "qui",
+          "titolo": "Questo PC",
+          "voci": [
+            {
+              "nome": "Dèsk",
+              "qui": true
+            }
+          ]
+        },
+        {
+          "chiave": "pc:p2",
+          "titolo": "Portatile",
+          "voci": [
+            {
+              "nome": "Dèsk di là",
+              "qui": false,
+              "pc": {
+                "id": "p2",
+                "nome": "Portatile"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nome": "ricerca vuota",
+      "ingresso": {
+        "nomi": [
+          "Prova 01",
+          "Prova 02",
+          "Prova 03",
+          "Prova 04",
+          "Prova 05",
+          "Prova 06",
+          "Prova 07",
+          "Prova 08",
+          "Prova 09",
+          "Prova 10",
+          "Prova 11",
+          "Prova 12",
+          "Prova 13",
+          "Prova 14",
+          "Prova 15",
+          "Prova 16",
+          "Prova 17",
+          "Prova 18",
+          "Prova 19",
+          "Prova 20",
+          "Prova 21",
+          "Prova 22",
+          "Prova 23",
+          "Prova 24",
+          "Prova 25",
+          "Prova 26",
+          "Prova 27",
+          "Prova 28",
+          "Prova 29",
+          "Prova 30"
+        ],
+        "attivo": "Prova 01",
+        "recenti": [],
+        "filtro": "zzz",
+        "altrove": []
+      },
+      "gruppi": []
+    },
+    {
+      "nome": "con nome del PC",
+      "ingresso": {
+        "nomi": [
+          "Prova 01",
+          "Prova 02",
+          "Prova 03",
+          "Prova 04",
+          "Prova 05",
+          "Prova 06",
+          "Prova 07",
+          "Prova 08",
+          "Prova 09",
+          "Prova 10",
+          "Prova 11",
+          "Prova 12",
+          "Prova 13",
+          "Prova 14",
+          "Prova 15",
+          "Prova 16",
+          "Prova 17",
+          "Prova 18",
+          "Prova 19",
+          "Prova 20",
+          "Prova 21",
+          "Prova 22",
+          "Prova 23",
+          "Prova 24",
+          "Prova 25",
+          "Prova 26",
+          "Prova 27",
+          "Prova 28",
+          "Prova 29",
+          "Prova 30"
+        ],
+        "attivo": "Prova 30",
+        "recenti": [],
+        "nomePc": "PC prova",
+        "altrove": []
+      },
+      "gruppi": [
+        {
+          "chiave": "recenti",
+          "titolo": "Recenti",
+          "voci": [
+            {
+              "nome": "Prova 30",
+              "qui": true
+            }
+          ]
+        },
+        {
+          "chiave": "qui",
+          "titolo": "Questo PC · PC prova",
+          "voci": [
+            {
+              "nome": "Prova 01",
+              "qui": true
+            },
+            {
+              "nome": "Prova 02",
+              "qui": true
+            },
+            {
+              "nome": "Prova 03",
+              "qui": true
+            },
+            {
+              "nome": "Prova 04",
+              "qui": true
+            },
+            {
+              "nome": "Prova 05",
+              "qui": true
+            },
+            {
+              "nome": "Prova 06",
+              "qui": true
+            },
+            {
+              "nome": "Prova 07",
+              "qui": true
+            },
+            {
+              "nome": "Prova 08",
+              "qui": true
+            },
+            {
+              "nome": "Prova 09",
+              "qui": true
+            },
+            {
+              "nome": "Prova 10",
+              "qui": true
+            },
+            {
+              "nome": "Prova 11",
+              "qui": true
+            },
+            {
+              "nome": "Prova 12",
+              "qui": true
+            },
+            {
+              "nome": "Prova 13",
+              "qui": true
+            },
+            {
+              "nome": "Prova 14",
+              "qui": true
+            },
+            {
+              "nome": "Prova 15",
+              "qui": true
+            },
+            {
+              "nome": "Prova 16",
+              "qui": true
+            },
+            {
+              "nome": "Prova 17",
+              "qui": true
+            },
+            {
+              "nome": "Prova 18",
+              "qui": true
+            },
+            {
+              "nome": "Prova 19",
+              "qui": true
+            },
+            {
+              "nome": "Prova 20",
+              "qui": true
+            },
+            {
+              "nome": "Prova 21",
+              "qui": true
+            },
+            {
+              "nome": "Prova 22",
+              "qui": true
+            },
+            {
+              "nome": "Prova 23",
+              "qui": true
+            },
+            {
+              "nome": "Prova 24",
+              "qui": true
+            },
+            {
+              "nome": "Prova 25",
+              "qui": true
+            },
+            {
+              "nome": "Prova 26",
+              "qui": true
+            },
+            {
+              "nome": "Prova 27",
+              "qui": true
+            },
+            {
+              "nome": "Prova 28",
+              "qui": true
+            },
+            {
+              "nome": "Prova 29",
+              "qui": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "azioni": [
+    {
+      "nome": "di qui",
+      "voce": {
+        "nome": "B",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 3
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Passa a «B». Le chat che lasci continuano a lavorare."
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "cartella",
+          "etichetta": "Apri cartella",
+          "spiega": "Apre la cartella del progetto di questo workspace."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina»."
+        }
+      ]
+    },
+    {
+      "nome": "davanti, ultimo",
+      "voce": {
+        "nome": "A",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 1
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Sei qui",
+          "spiega": "«A» è già davanti.",
+          "spenta": "«A» è già davanti"
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "cartella",
+          "etichetta": "Apri cartella",
+          "spiega": "Apre la cartella del progetto di questo workspace."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina».",
+          "spenta": "L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout."
+        }
+      ]
+    },
+    {
+      "nome": "di un altro PC",
+      "voce": {
+        "nome": "C",
+        "qui": false,
+        "pc": {
+          "id": "p2",
+          "nome": "Portatile"
+        }
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 2
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Apre qui «C»: le sue chat dal vivo su Portatile, dove continuano a girare. Su Portatile non cambia niente."
+        },
+        {
+          "azione": "portaQui",
+          "etichetta": "Porta qui",
+          "spiega": "Porta qui «C» con le sue chat (le copia dal Drive). Su Portatile non cambia niente."
+        }
+      ]
+    },
+    {
+      "nome": "con Sposta",
+      "voce": {
+        "nome": "B",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 3,
+        "sposta": true
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Passa a «B». Le chat che lasci continuano a lavorare."
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "cartella",
+          "etichetta": "Apri cartella",
+          "spiega": "Apre la cartella del progetto di questo workspace."
+        },
+        {
+          "azione": "sposta",
+          "etichetta": "Sposta su un altro PC…",
+          "spiega": "Sposta il progetto di questo workspace su un altro PC, con il trasloco: confronta, unisce, e la copia di qui va nel recupero per 30 giorni."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina»."
+        }
+      ]
+    },
+    {
+      "nome": "PC senza Apri cartella",
+      "voce": {
+        "nome": "B",
+        "qui": true
+      },
+      "ingresso": {
+        "attivo": "A",
+        "quanti": 3,
+        "cartella": false
+      },
+      "azioni": [
+        {
+          "azione": "apri",
+          "etichetta": "Apri",
+          "spiega": "Passa a «B». Le chat che lasci continuano a lavorare."
+        },
+        {
+          "azione": "rinomina",
+          "etichetta": "Rinomina…",
+          "spiega": "Cambia solo il nome: le chat restano dove sono."
+        },
+        {
+          "azione": "elimina",
+          "etichetta": "Elimina…",
+          "pericolo": true,
+          "spiega": "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina»."
+        }
+      ]
+    }
+  ]
+}

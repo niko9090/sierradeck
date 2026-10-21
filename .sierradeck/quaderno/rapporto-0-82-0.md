@@ -4,24 +4,61 @@ quando: 2026-10-21T02:30:00+02:00
 tag: ["release", "0.82.0", "rapporto"]
 ---
 
-## Stato (21/10 03:20) — NON ancora pubblicata
+## Stato (21/10 03:55) — NON ancora pubblicata
 
 | Pezzo | Ramo | In main | Commit fuori da main |
 |---|---|---|---|
-| 1) chat insieme decise dal PC | c-33 | sì (b9dab2d0) | **2** (aspetto) |
+| 1) chat insieme decise dal PC | c-33 | sì | 0 |
 | 2) colore fisso per attività | c-35 | sì | 0 |
 | 3) chi sta lavorando | c-35 | sì | 0 |
 | 4) domande contro lo stato vero | c-34 | sì | 0 |
-| 5) menu dei workspace rifatto | c-36 | **no** | **9** (aspetto) |
+| 5) menu dei workspace rifatto | c-36 | sì (8185286c) | 0 |
 | 6) «Apri cartella» | c-37 | sì | 0 |
 | 7) grafica meno caotica | c-38 | sì (599852f9) | 0 |
-| collaudo della grafica | c-41 | — | **1** (aspetto) |
-| correzione dei 5 difetti grafici | c-43 (con c-41 dentro) | — | finita, da unire |
-| rilascio (questa chat) | c-39 | sì (8b4f630b) | — |
+| collaudo della grafica | c-41 | no (lo rivede c-42) | **1** (aspetto) |
+| cinque difetti grafici | c-43 (con c-41 dentro) | no | finita, da unire |
+| rilascio (questa chat) | c-39 | sì | — |
 
-Novità, versione e pubblicazione restano ferme finché c-33, c-36 e c-41 non
-hanno 0 commit fuori da main e le suite sono verdi. La bozza delle novità è
-pronta (7 righe).
+Novità, versione e pubblicazione restano ferme finché c-41 e c-43 non hanno 0
+commit fuori da main e i 5 criteri con comando sono verdi sul main finale. La
+bozza delle novità è pronta (7 righe).
+
+## Numeri e foto: cosa c'è e cosa manca (controllo del 21/10, 04:10)
+- **CPU e memoria prima e dopo (c-33): ci sono**, sezione «Limiti delle chat in
+  base al PC». Misurati però con il PC già al 100% di processore: il caso «PC a
+  riposo» **manca** e va rifatto.
+- **Foto del menu dei workspace (c-36): ci sono**, 6 «prima» e 14 «dopo».
+  - Copiate in `note/foto-0-82-0/c-36/prima` e `/dopo` della cartella principale,
+    fuori da git (`note/` è ignorata). Mostrano il nome del PC, quindi non vanno
+    pubblicate.
+  - L'originale sta nella copia di lavoro di c-36 (`note/prova-c36/foto`) e
+    sparisce con lei.
+  - Ho guardato le due foto a 480×300: prima la tendina esce dalla finestra,
+    dopo ha ricerca, Recenti, gruppo «Questo PC» e «⋯», e finisce dentro.
+- **Foto della grafica (c-38): mancano.** Il suo `grafica-0-82-0.md` cita
+  `foto-0-82-0/prima` e `/dopo`, ma non le ho trovate né in `note/`, né nella
+  copia di c-38, né fra i file temporanei. Restano le misure scritte in quella
+  scheda (es. bande da 51 a 30 px).
+- **Foto del collaudo (c-41): mancano, per scelta di c-41.** Non le ha fatte
+  perché i cinque difetti erano ancora aperti, e vanno scattate dopo la
+  correzione di c-43. c-41 ha lasciato i test `it.fails` in
+  `tests/main/collaudo-grafica-0-82-0.test.ts`: chi corregge toglie `.fails`.
+- **App:** nessuna foto da nessuna chat, perché non ci sono né emulatore né
+  telefono. Le controllano i test JUnit.
+
+## Criterio «test del programma principale» rosso alle 01:36 UTC (21/10)
+- **Test caduto: non ricostruibile.** L'uscita salvata nel file dell'autopilota
+  è tagliata all'inizio: c'è solo lo stderr normale di `cassaforte-sincronia`,
+  nessuna riga con × o FAIL.
+- Alle 01:36 main era fra l'unione di c-33 e quella di c-36.
+- **Su main 8185286c**, con c-33 e c-36 dentro, `tests/main` da solo con
+  `--reporter=dot` (03:45–03:53 ora locale): 194 file, **1843 passati**, 2 saltati,
+  nessun caduto. Non c'è un file caduto da rilanciare 3 volte.
+- **Il criterio dell'autopilota** è tornato verde da solo alle 01:49:58 UTC
+  (codice 0).
+- **Conclusione:** caduta di tempo a PC carico (in quella mezz'ora giravano anche
+  le suite delle altre chat), non un difetto di c-33 o c-36. Se ricapita, serve
+  l'uscita intera: la riga «×» non sta nei primi caratteri salvati.
 
 ## Controlli su main 599852f9 (21/10 02:07–02:24)
 - Test del programma principale: 191 file, **1824 passati**, 2 saltati, 7 min 25 s.
@@ -138,12 +175,52 @@ Restano due limiti, scritti nella scheda:
   Asserzioni e tempi finti sono gli stessi di prima. Sotto carico (suite main
   in parallelo, più Gradle) passa **10 volte su 10**, con tutti i 16 test del
   file.
+- Test del programma principale, dopo le unioni di c-33 e c-36 (main
+  8185286c, 21/10): la misura delle 01:34 UTC era rossa, ma il test caduto
+  non si è ritrovato. Rilanciata due volte, `tests/main` è **verde**:
+  194 file, **1843 passati su 1845** (2 saltati), 0 falliti. Una volta a PC
+  tranquillo e una con i test del servizio e del renderer in parallelo.
+  Se ricade, va preso il nome esatto del test dall'esito di quella misura.
 - Android, sul codice unito (main b9dab2d0): `gradle testDebugUnitTest
   assembleDebug`, **BUILD SUCCESSFUL**, 390 test, 0 falliti, 1 saltato. L'APK
   debug si compila. Nel progetto non c'è `gradlew`: si usa `gradle`.
   Una prima build ha dato «Unresolved reference» in `Gestione.kt`
   (`TitoloDialogo`, `apriCartellaDa`, `Aiuto`). Era la cache incrementale di
   Kotlin rimasta da prima dell'unione: rilanciata sullo stesso albero, è verde.
+
+## 5) Menu dei workspace rifatto — c-36 (21/10, 03:30)
+
+**Cosa c'è.** Su PC, pagina e app: in cima la ricerca per nome; gruppi
+«Recenti» (dove sei + gli ultimi dove sei andato, max 5, solo con più di 5
+workspace), «Questo PC», un gruppo per ogni altro PC; azioni di ogni workspace
+dietro «⋯» (apri, rinomina, Apri cartella, Sposta su un altro PC — solo sul PC,
+è il trasloco —, Elimina con recupero 30 gg; altri PC: Apri, Porta qui). Il piede
+«Crea, rinomina o elimina…» resta. Dettagli e trappole: `menu-workspace.md`.
+
+**Funzioni spostate (non tolte), da far vedere a Nicholas:** rinomina, elimina e
+«Apri cartella» erano righe/tasti per il solo workspace davanti (pagina:
+riquadro Workspace; PC: piede «📁 Apri cartella» messo da c-37; app: icona
+cartella). Ora sono nel «⋯» di **ogni** riga, come chiedeva la consegna.
+
+**Dentro lo schermo — foto dalla copia di prova** (30 workspace finti,
+`note/prova-c36/foto/prima` e `/dopo`, fuori da git): prima a 560×380 la tendina
+finiva a 384 px (fuori dalla finestra) e a 480×300 tagliata; dopo, a 800×500,
+560×380 e 480×300 finisce 8 px sopra il bordo e l'elenco scorre dentro; il «⋯»
+dell'ultima riga si apre sopra. Pagina: il riquadro Workspace da 982 a 698 px.
+
+**Guasti trovati e corretti strada facendo.**
+- Un workspace rinominato tornava col nome vecchio al riavvio (ripescato dalle
+  copie «migrazione-elenco-…»): ora la rinomina lo annota come eliminato.
+- «Apri cartella» da pagina e app rispondeva sempre «aggiornalo alla 0.82.0»
+  (la rotta di c-37 non era collegata in `index.ts`): collegata e provata.
+- `CompatibilitaVecchiTest` (Android) cadeva per la `FunzionePc.CARTELLA` nuova:
+  sistemato (main aveva la stessa correzione, tenuta la sua).
+
+**Revisione** (TypeScript e Kotlin, a parte): niente di grave; corretti 9 punti
+(tastiera nel «⋯», fuoco perso dopo rinomina e «Porta qui», errore di «Porta
+qui» muto, casella della rinomina che restava sulla pagina, nell'app voce
+spenta senza il perché e «⋯» che restava aperto con l'elenco cambiato, casi
+di test Kotlin mancanti per Sposta e PC senza «Apri cartella»).
 
 ## Correzione grafica: i cinque difetti di c-32 (c-43, 21/10)
 

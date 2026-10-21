@@ -409,6 +409,7 @@ export function Console({
               onAperto={setMenuWsAperto}
               onCambia={cambiaWorkspace}
               onGestisci={() => commuta('workspace')}
+              onStato={(s) => onStatoWorkspace?.(s)}
               onApriCartella={apriCartellaWs}
             />
           ) : nomiWs.map((n) => (

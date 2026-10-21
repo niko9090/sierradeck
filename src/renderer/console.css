@@ -3999,10 +3999,13 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .ws-menu__velo { position: fixed; inset: 0; z-index: 28; }
 .ws-menu__tendina {
   /* Fissa e attaccata al body (portale): la fascia scorre in orizzontale e
-     taglierebbe tutto quello che le esce dal rettangolo. */
+     taglierebbe tutto quello che le esce dal rettangolo. Posizione, larghezza
+     e altezza massima le calcola `postoTendina` (0.82.0): sta sempre dentro la
+     finestra, e dentro scorre solo l'elenco. */
   position: fixed;
   z-index: 29;
-  width: min(480px, calc(100vw - 32px));
+  box-sizing: border-box;
+  min-height: 0;
   outline: none;
   background: var(--chassis);
   border: 1px solid var(--incisione);
@@ -4012,41 +4015,107 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   display: flex;
   flex-direction: column;
   gap: var(--s2);
+  overflow: hidden;
   animation: fumetto-entra 140ms ease-out;
 }
-.ws-menu__cerca { font-size: var(--t1); color: var(--testo-quieto); padding: 0 var(--s2); }
+.ws-menu__ricerca { width: 100%; box-sizing: border-box; flex: none; }
 .ws-menu__aiuto { font-size: var(--t0); color: var(--testo-quieto); margin-right: auto; align-self: center; }
 .ws-menu__lista {
-  max-height: min(60vh, 520px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
+  gap: var(--s2);
+}
+.ws-menu__gruppo { display: flex; flex-direction: column; }
+.ws-menu__titolo {
+  font-size: var(--t0);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--testo-quieto);
+  padding: 2px var(--s2) 4px;
 }
 .ws-menu__voce {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+}
+.ws-menu__voce-va {
   font: inherit;
   font-size: var(--t2);
   display: grid;
-  grid-template-columns: 16px 1fr auto auto;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--s2);
+  min-width: 0;
   padding: 6px var(--s2);
-  border: 1px solid transparent;
-  border-radius: var(--raggio);
+  border: 0;
   background: transparent;
   color: var(--testo);
   text-align: left;
   cursor: pointer;
 }
+.ws-menu__altro {
+  font: inherit;
+  font-size: var(--t2);
+  line-height: 1;
+  padding: 4px 8px;
+  margin-right: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+  background: transparent;
+  color: var(--testo-quieto);
+  cursor: pointer;
+  opacity: .55;
+}
+.ws-menu__voce:hover .ws-menu__altro, .ws-menu__voce--evidenziata .ws-menu__altro, .ws-menu__altro[aria-expanded="true"] { opacity: 1; }
+.ws-menu__altro:hover, .ws-menu__altro[aria-expanded="true"] { border-color: var(--luce-incisione); color: var(--testo); background: var(--chassis-premuto); }
 .ws-menu__voce:hover { background: var(--luce-tenue); border-color: var(--luce-incisione); }
 .ws-menu__voce--attiva { background: var(--chassis-premuto); border-color: var(--incisione); }
 .ws-menu__voce--evidenziata { background: var(--luce-tenue); border-color: var(--luce-incisione); }
 .ws-menu__voce--chiama .ws-menu__voce-nome { color: var(--ambra); }
+.ws-menu__voce--altrove .ws-menu__voce-nome { color: var(--testo-quieto); }
+.ws-menu__voce--su-altri { grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--s2); padding: 4px var(--s2); }
+.ws-menu__voce--su-altri .ws-menu__voce-nome { color: var(--testo); }
+.ws-menu__voce--rinomina { grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--s1); padding: 3px var(--s1); }
 .ws-menu__spunta { color: var(--accento); font-size: var(--t1); }
 .ws-menu__voce-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ws-menu__voce--altrove { grid-template-columns: 1fr auto auto auto; opacity: .9; }
 .ws-menu__conta { font-size: var(--t0); color: var(--testo-quieto); white-space: nowrap; }
 .ws-menu__vuoto { padding: var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
-.ws-menu__piede { display: flex; justify-content: flex-end; gap: var(--s2); padding-top: var(--s1); border-top: 1px solid var(--incisione); }
+/* Il «⋯» di una riga: sopra la tendina, dentro la finestra come lei. */
+.ws-menu__azioni {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--chassis);
+  border: 1px solid var(--incisione);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px var(--ombra-media), 0 2px 6px var(--ombra-corta);
+}
+.ws-menu__azione {
+  font: inherit;
+  font-size: var(--t2);
+  text-align: left;
+  padding: 6px var(--s2);
+  min-height: 30px;
+  border: 0;
+  border-radius: var(--raggio);
+  background: transparent;
+  color: var(--testo);
+  cursor: pointer;
+}
+.ws-menu__azione:hover:not(:disabled) { background: var(--luce-tenue); }
+.ws-menu__azione:disabled { color: var(--testo-quieto); cursor: default; }
+.ws-menu__azione--pericolo:not(:disabled) { color: var(--rosso, #d9534f); }
+.ws-menu__piede { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s2); padding-top: var(--s1); border-top: 1px solid var(--incisione); }
 
 /* Le scorciatoie da tastiera nelle Impostazioni: una riga per azione, i
    tasti come un tasto vero, ambra se due azioni hanno gli stessi. */

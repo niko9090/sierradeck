@@ -107,6 +107,7 @@ import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, rior
 import { leggiEliminati } from './workspace-ritrova'
 import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio } from './workspace-ritrova'
 import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
+import { leggiRecentiWorkspace } from './workspace-recenti-file'
 import { cartellaVuotaDaRecuperare, motivoPerNonEliminare } from '@shared/workspace-recupero'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { fermoChiaro, type Trasloco } from '@shared/trasloco'
@@ -5285,6 +5286,8 @@ if (!app.requestSingleInstanceLock()) {
           ],
           home: homedir()
         }),
+        // «Apri cartella» dalla pagina e dall'app (0.82.0): la stessa ricerca del tasto sul PC.
+        cartellaDaAprire: (q: { workspace?: string; chat?: string }) => (cartellaDaAprireGlobale ?? (async () => ({ tipo: 'niente' as const, perche: 'non pronto' })))(q),
         alTelefono: coda,
         quadernoPersonale,
         pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),
@@ -5627,7 +5630,9 @@ if (!app.requestSingleInstanceLock()) {
             // vedere tutto quello che c'e' sul computer, raggruppato per workspace.
             chat: a === undefined ? [] : chatSalvate(a).map(conAltrove),
             // «Su altri PC» (0.65.1): i workspace degli altri PC che qui non ci sono, a parte.
-            altrove: suAltriPc((a?.workspace ?? []).map((w) => w.nome), postino.altrui().map((b) => ({ pc: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) })))
+            altrove: suAltriPc((a?.workspace ?? []).map((w) => w.nome), postino.altrui().map((b) => ({ pc: b.pcId, nome: nomeDaMostrare(b), ...(b.workspace !== undefined ? { workspace: b.workspace } : {}) }))),
+            // «Recenti» del menu dei workspace (0.82.0), come sul PC.
+            recenti: workspaceStore === undefined ? [] : leggiRecentiWorkspace(dirname(workspaceStore.percorso))
           }
         },
         cambiaWorkspace: async (nome: string) => {
