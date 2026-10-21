@@ -85,7 +85,7 @@ fun SezioneConsumi(api: Api) {
             QuotaRiga("Totale", c.totale)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Text("LIMITI DEL PIANO", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
                 Aiuto(
                     "La finestra di 5 ore: al 100% le chat si fermano fino all’azzeramento. La settimana: il tetto settimanale su tutti i modelli. " +
                         "I numeri sono gli stessi di /usage in Claude Code e arrivano dalla riga di stato di Claude Code dopo la prima risposta di una chat aperta dal computer (solo con abbonamento Pro o Max). " +
@@ -99,14 +99,14 @@ fun SezioneConsumi(api: Api) {
             Text(
                 if (l == null) "Non ancora letti."
                 else "Letti " + quandoLetti(l.letti, System.currentTimeMillis()) + ".",
-                color = Banco.testoQuieto, fontSize = 11.sp
+                color = Banco.testoQuieto, fontSize = 12.sp
             )
             // Il contesto di ogni chat aperta, con la frase del computer
             // (0.37): uguale alla console e alla pagina.
             if (c.chatAperte.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                    Text("CONTESTO DELLE CHAT APERTE", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
                     Aiuto("Il contesto è la memoria di lavoro della chat: si conta come Claude Code, solo con i token in ingresso. Al 90% conviene farle riassumere dove è arrivata, prima che lo compatti da sola.", di = "Contesto")
                 }
                 for (ch in c.chatAperte) {
@@ -116,14 +116,14 @@ fun SezioneConsumi(api: Api) {
             }
             c.freno?.let { fr ->
                 Spacer(Modifier.height(8.dp))
-                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 10.sp, letterSpacing = 1.sp)
+                Text("FRENO DEGLI AUTOPILOTI", color = Banco.testoQuieto, fontSize = 12.sp, letterSpacing = 1.sp)
                 Text("${fr.titolo}: ${fr.spiegazione.ifEmpty { fr.motivo }}", color = Banco.testoQuieto, fontSize = 12.sp)
             }
             c.costo?.let { k ->
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Spesa stimata: oggi ${"%.2f".format(k.oggi)} $, 7 giorni ${"%.2f".format(k.settimana)} $.",
-                    color = Banco.testoQuieto, fontSize = 11.sp
+                    color = Banco.testoQuieto, fontSize = 12.sp
                 )
             }
         }

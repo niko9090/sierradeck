@@ -78,7 +78,7 @@ fun TastoMicrofono(testo: String, onTesto: (String) -> Unit) {
 
     if (!disponibile) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("🎤 dettatura non disponibile su questo telefono", color = Banco.testoQuieto, fontSize = 11.sp)
+            Text("🎤 dettatura non disponibile su questo telefono", color = Banco.testoQuieto, fontSize = 12.sp)
             Aiuto("Il telefono non ha un servizio di riconoscimento vocale (di solito è «Google» o «Riconoscimento vocale di Android»). Si attiva dalle impostazioni di Android, alla voce Lingue e input → Riconoscimento vocale. " + RegolaDettatura.SPIEGA, di = "dettatura non disponibile")
         }
         return
@@ -98,10 +98,10 @@ fun TastoMicrofono(testo: String, onTesto: (String) -> Unit) {
             Aiuto(RegolaDettatura.SPIEGA, di = "la dettatura con il microfono")
         }
         when (val s = stato) {
-            is StatoDettatura.ChiedoPermesso -> Text(RegolaDettatura.MOTIVO_PERMESSO, color = Banco.testoQuieto, fontSize = 11.sp)
-            is StatoDettatura.Ascolto -> Text("Ascolto… parla in italiano", color = Banco.verde, fontSize = 11.sp)
-            is StatoDettatura.Errore -> Text(s.messaggio, color = Banco.ambra, fontSize = 11.sp)
-            StatoDettatura.PermessoNegato -> Text("Senza il permesso del microfono non posso dettare: lo dai dalle impostazioni di Android → App → SierraDeck → Autorizzazioni.", color = Banco.ambra, fontSize = 11.sp)
+            is StatoDettatura.ChiedoPermesso -> Text(RegolaDettatura.MOTIVO_PERMESSO, color = Banco.testoQuieto, fontSize = 12.sp)
+            is StatoDettatura.Ascolto -> Text("Ascolto… parla in italiano", color = Banco.verde, fontSize = 12.sp)
+            is StatoDettatura.Errore -> Text(s.messaggio, color = Banco.ambra, fontSize = 12.sp)
+            StatoDettatura.PermessoNegato -> Text("Senza il permesso del microfono non posso dettare: lo dai dalle impostazioni di Android → App → SierraDeck → Autorizzazioni.", color = Banco.ambra, fontSize = 12.sp)
             StatoDettatura.Fermo -> {}
         }
     }

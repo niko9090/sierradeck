@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -77,15 +78,54 @@ private fun coloreDaToken(valore: String, ripiego: Color): Color {
 private fun dpDaToken(valore: String): Dp? =
     valore.trim().removeSuffix("px").trim().toFloatOrNull()?.dp
 
+/**
+ * Il contrasto WCAG (0.83.0): sui tasti pieni il bianco fisso era sotto AA
+ * (2,6:1 sull'accento, 2,2:1 sull'ambra). Il testo sopra un colore pieno è
+ * quello, fra fondo e testo del banco, che si legge meglio: con la veste
+ * chiara del PC si gira da solo.
+ */
+object Contrasto {
+    private fun canale(c: Int): Double {
+        val s = c / 255.0
+        return if (s <= 0.03928) s / 12.92 else Math.pow((s + 0.055) / 1.055, 2.4)
+    }
+
+    /** La luminanza relativa di un colore `0xAARRGGBB`. */
+    fun luminanza(argb: Long): Double {
+        val r = canale(((argb shr 16) and 0xFF).toInt())
+        val g = canale(((argb shr 8) and 0xFF).toInt())
+        val b = canale((argb and 0xFF).toInt())
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    /** Il rapporto di contrasto, da 1 a 21. */
+    fun rapporto(a: Long, b: Long): Double {
+        val x = luminanza(a)
+        val y = luminanza(b)
+        return (maxOf(x, y) + 0.05) / (minOf(x, y) + 0.05)
+    }
+
+    /** Fra i candidati, quello che sul fondo si legge meglio. */
+    fun migliore(fondo: Long, vararg candidati: Long): Long = candidati.maxBy { rapporto(it, fondo) }
+}
+
+private fun Color.argb(): Long = toArgb().toLong() and 0xFFFFFFFFL
+
+/** Il testo sopra un colore pieno: fondo o testo del banco, quello col contrasto più alto. */
+fun sopra(pieno: Color): Color =
+    Color(Contrasto.migliore(pieno.argb(), Banco.fondo.argb(), Banco.testo.argb()))
+
 @Composable
 fun TemaSierraDeck(content: @Composable () -> Unit) {
     // Legge lo stato del Banco: quando cambia (stile dal computer), lo schema e le
     // forme si ricalcolano e tutta l'app si riveste.
     val schema = darkColorScheme(
         primary = Banco.accento,
-        onPrimary = Color.White,
+        onPrimary = sopra(Banco.accento),
         secondary = Banco.ambra,
+        onSecondary = sopra(Banco.ambra),
         tertiary = Banco.verde,
+        onTertiary = sopra(Banco.verde),
         background = Banco.fondo,
         onBackground = Banco.testo,
         surface = Banco.chassis,
@@ -94,7 +134,7 @@ fun TemaSierraDeck(content: @Composable () -> Unit) {
         onSurfaceVariant = Banco.testoQuieto,
         outline = Banco.incisione,
         error = Banco.rosso,
-        onError = Color.White
+        onError = sopra(Banco.rosso)
     )
     // Un raggio solo, quello della console: tessere, tasti, chip, campi e finestre
     // hanno tutti lo stesso angolo — è ciò che li fa sembrare lo stesso strumento.

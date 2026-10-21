@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -164,7 +163,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
         val riga = RiassuntoAutopilota.di(s, det?.criteri ?: emptyList(), det?.chats?.size ?: 0, det?.cicli ?: breve.cicli, schede.size)
         Row(
             Modifier.fillMaxWidth().heightIn(min = 48.dp).background(Banco.chassis)
-                .clickable { riassuntoAperto = !riassuntoAperto }.padding(horizontal = 16.dp, vertical = 6.dp),
+                .tocco { riassuntoAperto = !riassuntoAperto }.padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -354,12 +353,12 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Lavora in sottofondo", color = Banco.testo, modifier = Modifier.weight(1f))
+                        Aiuto("Spento: la sua chat sta in un riquadro del suo workspace sul computer, che ci va quando l’autopilota le scrive (mai mentre scrivi lì). Acceso: lavora senza riquadro, e la vedi con «in sottofondo» e Guarda.", di = "Lavora in sottofondo")
                         Switch(
                             checked = det?.sottofondo == true,
                             onCheckedChange = { v -> scope.launch { tenta("cambiare «lavora in sottofondo»") { api.sottofondoAutopilota(breve.id, v) } } }
                         )
                     }
-                    Text("Spento: la sua chat sta in un riquadro del suo workspace sul computer, che ci va quando l’autopilota le scrive (mai mentre scrivi lì). Acceso: lavora senza riquadro, e la vedi con «in sottofondo» e Guarda.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(12.dp))
                     TextButton(onClick = { eliminando = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Elimina", color = Banco.rosso) }
                 }

@@ -109,7 +109,7 @@ fun FasciaSuPc(pc: PcPonte, viaNome: String?, linea: StatoLinea? = null, onTorna
             Text("SU ${pc.nome.uppercase()}", color = VIOLA_ALTRO_PC, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
             Text(
                 "Stai comandando ${pc.nome}" + (if (!viaNome.isNullOrBlank()) " attraverso $viaNome" else " attraverso il PC accoppiato") + ": quello che scrivi arriva là.",
-                color = Banco.testo, fontSize = 11.sp, maxLines = 2
+                color = Banco.testo, fontSize = 12.sp, maxLines = 2
             )
         }
         // La strada, la qualità e il ritardo (0.51.0); toccando, la storia.

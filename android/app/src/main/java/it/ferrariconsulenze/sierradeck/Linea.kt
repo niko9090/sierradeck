@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -297,7 +296,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
     val rov = Tentativi.rovescia(linea, adesso)
     val colore = when { giu -> if (rov?.second == "ambra") Banco.ambra else Banco.rosso; lenta -> Banco.ambra; tacche >= 3 -> Banco.verde; tacche == 2 -> Banco.ambra; else -> Banco.rosso }
     Row(
-        Modifier.background(Banco.fondo.copy(alpha = 0.6f)).clickable { storia = true }.padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.background(Banco.fondo.copy(alpha = 0.6f)).tocco { storia = true }.padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         Text(Linea.icona(linea.strada), fontSize = 13.sp)
@@ -306,7 +305,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height((4 + i * 3).dp).background(if (i < tacche) colore else Banco.incisione))
         }
         Spacer(Modifier.width(4.dp))
-        Text(if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 11.sp)
+        Text(if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 12.sp)
     }
     if (storia) {
         AlertDialog(
@@ -355,7 +354,7 @@ fun FasciaLinea(linea: StatoLinea, nomePc: String, onRiprova: () -> Unit) {
             Text(giu, color = Banco.rosso, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Text(
                 (linea.messaggio?.let { "${it.trimEnd('.')}. " } ?: "") + "Lo schermo resta, attenuato: al ritorno si aggiorna da solo. Quello che scrivi intanto resta in coda e parte al ritorno, una volta sola.",
-                color = Banco.testo, fontSize = 11.sp, maxLines = 4
+                color = Banco.testo, fontSize = 12.sp, maxLines = 4
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -371,7 +370,7 @@ fun CodaLinea(coda: List<VoceCodaLinea>, onTogli: (String) -> Unit) {
         for (v in coda) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text((if (v.stato == "invio") "↗ sto mandando: «" else "⏳ in attesa di invio: «") + v.testo.take(100) + "»", color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 2)
-                if (v.stato == "attesa") TextButton(onClick = { onTogli(v.id) }) { Text("Togli", fontSize = 11.sp) }
+                if (v.stato == "attesa") TextButton(onClick = { onTogli(v.id) }) { Text("Togli", fontSize = 12.sp) }
             }
         }
     }
@@ -381,7 +380,7 @@ fun CodaLinea(coda: List<VoceCodaLinea>, onTogli: (String) -> Unit) {
 @Composable
 fun MappaPcVista(m: MappaPc) {
     val centro = m.nodi.firstOrNull() ?: return
-    Text("MAPPA DEI PC", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+    Text("MAPPA DEI PC", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     Box(Modifier.fillMaxWidth().aspectRatio(1.4f)) {
         Canvas(Modifier.matchParentSize()) {
             val sx = size.width / 100f
@@ -394,7 +393,7 @@ fun MappaPcVista(m: MappaPc) {
                 )
             }
             for (n in m.nodi) {
-                drawCircle(if (n.io) VIOLA_ALTRO_PC else when (n.stato) { "acceso" -> Color(0xFF3FB950); "incerto" -> Color(0xFF6F767E); else -> Color(0xFFF85149) }, radius = if (n.io) 22f else 16f, center = Offset(n.x.toFloat() * sx, n.y.toFloat() * sy))
+                drawCircle(if (n.io) VIOLA_ALTRO_PC else when (n.stato) { "acceso" -> ColoreStato.verde; "incerto" -> ColoreStato.quieto; else -> ColoreStato.rosso }, radius = if (n.io) 22f else 16f, center = Offset(n.x.toFloat() * sx, n.y.toFloat() * sy))
             }
         }
     }
@@ -402,7 +401,7 @@ fun MappaPcVista(m: MappaPc) {
         val l = m.linee.firstOrNull { it.a == n.id }
         Text(if (n.io) "● ${n.nome} (questo PC, al centro)" else "● ${l?.testo ?: n.nome}", color = if (n.io) VIOLA_ALTRO_PC else l?.let { coloreDa(it.colore) } ?: Banco.testo, fontSize = 12.sp)
         // L'hostname piccolo sotto il nome scelto (2.52.4).
-        if (!n.host.isNullOrBlank()) Text("   ${n.host}", color = Banco.testoQuieto, fontSize = 10.sp)
+        if (!n.host.isNullOrBlank()) Text("   ${n.host}", color = Banco.testoQuieto, fontSize = 12.sp)
     }
     RigaConAiuto("Come leggere le linee", "Linea piena: si raggiunge direttamente. Tratteggiata ambra: solo via Drive, lento. Tratteggiata rossa: adesso non risponde.")
 }

@@ -85,9 +85,9 @@ fun azioneDalTelefono(a: AzioneSalute): String? = when (a.id) {
 }
 
 fun coloreTonoSalute(tono: String): Color = when (tono) {
-    "ok" -> Banco.verde
-    "attenzione" -> Banco.ambra
-    else -> Banco.rosso
+    "ok" -> ColoreStato.verde
+    "attenzione" -> ColoreStato.ambra
+    else -> ColoreStato.rosso
 }
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

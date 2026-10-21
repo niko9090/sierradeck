@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -215,7 +214,7 @@ private fun AvvisoChiusa(testo: String?, onVia: () -> Unit) {
         testo,
         color = Banco.testoQuieto,
         fontSize = 13.sp,
-        modifier = Modifier.fillMaxWidth().clickable { onVia() }.padding(horizontal = 12.dp, vertical = 8.dp)
+        modifier = Modifier.fillMaxWidth().tocco { onVia() }.padding(horizontal = 12.dp, vertical = 8.dp)
     )
 }
 
@@ -246,7 +245,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                 Text(
                     riassuntoChat(chat),
                     color = if (chatCheTiAspettano(chat) > 0) Banco.ambra else Banco.testoQuieto,
-                    fontSize = 11.sp, maxLines = 2
+                    fontSize = 12.sp, maxLines = 2
                 )
             }
             // Anche su un altro PC, attraverso il ponte (0.55.0): prima qui
@@ -273,7 +272,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                             Serigrafia(g.workspace, colore = if (g.attivo) Banco.accento else Banco.testoQuieto)
                             if (g.attivo) {
                                 Spacer(Modifier.width(8.dp))
-                                Text("davanti", color = Banco.testoQuieto, fontSize = 11.sp)
+                                Text("davanti", color = Banco.testoQuieto, fontSize = 12.sp)
                             }
                             Spacer(Modifier.weight(1f))
                             Text("${g.voci.size}", color = Banco.testoQuieto, fontSize = 12.sp)
@@ -311,19 +310,19 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                             if (viva.pin == "chiusa") Text("🔒 ", fontSize = 12.sp)
                                             Text(nomeChat(viva), color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                             Spacer(Modifier.width(8.dp))
-                                            Text(parola, color = coloreTono(lettura.tono), fontSize = 11.sp, maxLines = 1, softWrap = false)
+                                            Text(parola, color = coloreTono(lettura.tono), fontSize = 12.sp, maxLines = 1, softWrap = false)
                                             // Il «⋯» della chat anche qui (2.83.0): Rinomina, Sposta, Chiudi… a due tocchi.
                                             MenuChat(api, viva, workspace, nomePc, versionePc, onLasciata = {})
                                         }
                                     }
                                     // Il progetto e' in mano a un altro PC: una parola quieta, non un avviso.
                                     if (!viva.altrove.isNullOrBlank()) {
-                                        Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                        Text("il progetto è in mano a ${viva.altrove}", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                     }
                                     // Al lavoro in sottofondo (PC 0.69.0): si vede sempre; toccandola la guardi dal vivo,
                                     // e sul PC non cambia niente.
                                     viva.sottofondo?.let { sf ->
-                                        Text("in sottofondo sul PC${if (sf.nome.isNotBlank()) " · ${sf.nome}" else ""} · tocca per guardarla", color = Banco.ambra, fontSize = 11.sp, maxLines = 1)
+                                        Text("in sottofondo sul PC${if (sf.nome.isNotBlank()) " · ${sf.nome}" else ""} · tocca per guardarla", color = Banco.ambra, fontSize = 12.sp, maxLines = 1)
                                     }
                                     if (!viva.ultimaRiga.isNullOrBlank()) {
                                         Spacer(Modifier.height(4.dp))
@@ -356,7 +355,7 @@ private fun ElencoChat(api: Api, chat: List<Chat>, workspace: Workspace, onApri:
                                         Text(salvata.titolo.ifBlank { salvata.cwd }, color = Banco.testoQuieto, fontWeight = FontWeight.Bold, maxLines = 1)
                                     }
                                     if (!salvata.altrove.isNullOrBlank()) {
-                                        Text("il progetto è in mano a ${salvata.altrove}: riaprila da là, o scrivile da Computer → Altri computer", color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
+                                        Text("il progetto è in mano a ${salvata.altrove}: riaprila da là, o scrivile da Computer → Altri computer", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
@@ -478,10 +477,10 @@ internal fun TastoMisura(
 
 /** Il colore di ogni stato: ambra per ciò che aspetta te, verde per chi lavora, accento per chi è guidato. */
 fun coloreTono(t: TonoChat?): androidx.compose.ui.graphics.Color = when (t) {
-    TonoChat.SCEGLIE -> Banco.ambra
-    TonoChat.LAVORA -> Banco.verde
+    TonoChat.SCEGLIE -> ColoreStato.ambra
+    TonoChat.LAVORA -> ColoreStato.verde
     TonoChat.GUIDATA -> Banco.accento
-    TonoChat.FERMA, TonoChat.SPENTA, null -> Banco.testoQuieto
+    TonoChat.FERMA, TonoChat.SPENTA, null -> ColoreStato.quieto
 }
 
 /** Il LED di una chat: pieno se ha un terminale acceso, solo contorno se è spenta o chiusa (`null`). */

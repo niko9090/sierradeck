@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -131,7 +130,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                         androidx.compose.material3.FilterChip(selected = pcScelto?.pcId == p.pcId, onClick = { pcScelto = PcPonte(p.pcId, p.mostra) }, label = { Text(p.mostra, fontSize = 12.sp, color = VIOLA_ALTRO_PC) })
                     }
                 }
-                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 11.sp)
+                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── l'obiettivo ───
@@ -142,7 +141,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     placeholder = { Text("L’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito, dove guardare.", fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth().height(170.dp)
                 )
-                Text("Tutto quello che scrivi arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.", color = Banco.testoQuieto, fontSize = 11.sp)
+                Text("Tutto quello che scrivi arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.", color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── la cartella ───
@@ -152,11 +151,11 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 val recenti = (cartelle ?: emptyList()).filter { it !in aperte }
                 if (cartelle == null) Text("Carico le cartelle di $nomeDest…", color = Banco.testoQuieto, fontSize = 12.sp)
                 if (aperte.isNotEmpty()) {
-                    Text("Chat aperte adesso", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Chat aperte adesso", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     for (c in aperte) RigaCartella(c, c == bozza.cwd) { bozza = bozza.copy(cwd = c) }
                 }
                 if (recenti.isNotEmpty()) {
-                    Text("Progetti recenti", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Progetti recenti", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     for (c in recenti.take(30)) RigaCartella(c, c == bozza.cwd) { bozza = bozza.copy(cwd = c) }
                 }
                 TextButton(onClick = { sfoglia = true }) { Text("Altra cartella: sfoglia $nomeDest…") }
@@ -166,7 +165,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 val nomiWs = statoDest?.workspace?.nomi ?: emptyList()
                 if (nomiWs.isNotEmpty()) {
                     SceltaWorkspaceRiga(nomiWs, bozza.workspace) { bozza = bozza.copy(workspace = it) }
-                    Text("Le chat che apre nascono in questo workspace, anche se sul computer stai guardando altro.", color = Banco.testoQuieto, fontSize = 11.sp)
+                    Text("Le chat che apre nascono in questo workspace, anche se sul computer stai guardando altro.", color = Banco.testoQuieto, fontSize = 12.sp)
                     Spacer(Modifier.height(10.dp))
                 }
 
@@ -245,9 +244,9 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
 private fun RigaCartella(c: String, scelta: Boolean, onClick: () -> Unit) {
     // Il nome, e sotto il percorso: due progetti con lo stesso nome in dischi
     // diversi erano indistinguibili.
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 5.dp)) {
+    Column(Modifier.fillMaxWidth().tocco(onClick = onClick).padding(vertical = 5.dp)) {
         Text(c.substringAfterLast('\\').substringAfterLast('/'), color = if (scelta) Banco.accento else Banco.testo, fontWeight = if (scelta) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp)
-        Text(c, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+        Text(c, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
     }
 }
 
@@ -278,12 +277,15 @@ internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
             Column(Modifier.fillMaxWidth().height(380.dp).verticalScroll(rememberScrollState())) {
                 val ap = aperta
                 if (ap != null) {
-                    Text(QuadernoVista.quandoBreve(ap.quando, java.time.Instant.now()), color = Banco.testoQuieto, fontSize = 11.sp)
+                    Text(QuadernoVista.quandoBreve(ap.quando, java.time.Instant.now()), color = Banco.testoQuieto, fontSize = 12.sp)
                     Text(ap.corpo, color = Banco.testo, fontSize = 13.sp)
                 } else when {
                     guasto != null -> Text(guasto!!, color = Banco.ambra, fontSize = 13.sp)
                     schede == null -> Text("Carico…", color = Banco.testoQuieto)
-                    schede!!.isEmpty() -> Text("Nessuna scheda in questa cartella: il quaderno (.sierradeck/quaderno) si riempie quando le chat annotano decisioni, vincoli ed errori risolti.", color = Banco.testoQuieto)
+                    schede!!.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Nessuna scheda in questa cartella.", color = Banco.testoQuieto, modifier = Modifier.weight(1f))
+                        Aiuto("Il quaderno (.sierradeck/quaderno) si riempie quando le chat annotano decisioni, vincoli ed errori risolti.", di = "Quaderno")
+                    }
                     else -> {
                         val tutte = schede!!
                         OutlinedTextField(value = domanda, onValueChange = { domanda = it }, singleLine = true,
@@ -301,12 +303,12 @@ internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
                         val viste = QuadernoVista.filtra(tutte, domanda, tagScelto)
                         if (viste.isEmpty()) Text("Nessuna scheda per questa ricerca.", color = Banco.testoQuieto, fontSize = 13.sp)
                         for (s in viste) {
-                            Column(Modifier.fillMaxWidth().clickable {
+                            Column(Modifier.fillMaxWidth().tocco {
                                 scope.launch { aperta = tenta("aprire la scheda del quaderno") { api.scheda(cwd, s.file) } }
                             }.padding(vertical = 8.dp)) {
                                 Text(s.titolo.ifBlank { s.file }, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 if (s.assaggio.isNotBlank()) Text(s.assaggio, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
-                                Text((listOf(QuadernoVista.quandoBreve(s.quando, ora)) + s.tag).joinToString(" · "), color = Banco.testoQuieto, fontSize = 11.sp)
+                                Text((listOf(QuadernoVista.quandoBreve(s.quando, ora)) + s.tag).joinToString(" · "), color = Banco.testoQuieto, fontSize = 12.sp)
                             }
                             HorizontalDivider(color = Banco.incisione)
                         }

@@ -47,7 +47,7 @@ fun DialogoGuasto(nota: String, onChiudi: () -> Unit) {
                     text = nota,
                     color = Banco.testo,
                     fontFamily = FontTerminale,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     softWrap = false,
                     modifier = Modifier
                         .heightIn(max = 260.dp)

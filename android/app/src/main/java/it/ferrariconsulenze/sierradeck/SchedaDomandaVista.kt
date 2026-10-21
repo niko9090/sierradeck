@@ -2,7 +2,6 @@ package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -67,17 +66,17 @@ fun MessaggiCompattiVista(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
     var letto by remember { mutableStateOf<String?>(null) }
     Spacer(Modifier.height(8.dp))
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.Center) {
-        Text("Messaggi per la chat", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 4.dp))
+        Text("Messaggi per la chat", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 4.dp))
         for (s in c.segni) {
             Text(
                 if (s.consegnato) "✓" else "⋯",
                 color = if (s.consegnato) Banco.verde else Banco.testoQuieto,
                 fontSize = 13.sp,
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable { letto = if (letto == s.titolo) null else s.titolo }.padding(horizontal = 2.dp)
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).tocco { letto = if (letto == s.titolo) null else s.titolo }.padding(horizontal = 2.dp)
             )
         }
     }
-    letto?.let { Text(it, color = Banco.testoQuieto, fontSize = 11.sp) }
+    letto?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp) }
     c.fermo?.let { f ->
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
             Text(f.dettaglio + if (f.quanti > 1) " · ${f.quanti} messaggi" else "", color = Banco.ambra, fontSize = 12.sp)
@@ -122,7 +121,7 @@ fun SchedaDomandaVista(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .border(1.dp, Banco.incisione, RoundedCornerShape(50))
-                        .clickable { aperti = !aperti }
+                        .tocco { aperti = !aperti }
                         .padding(horizontal = 10.dp, vertical = 2.dp)
                 )
             }
@@ -135,7 +134,7 @@ fun SchedaDomandaVista(
                 Modifier.fillMaxWidth().padding(top = 6.dp).background(Banco.chassis, RoundedCornerShape(6.dp)).padding(8.dp)
             ) {
                 for (d in s.dettagli) {
-                    Text(d.etichetta.uppercase(), color = Banco.testoQuieto, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(d.etichetta.uppercase(), color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     SelectionContainer { Text(d.testo, color = Banco.testo, fontSize = 13.sp) }
                     Spacer(Modifier.height(6.dp))
                 }
@@ -154,7 +153,7 @@ fun SchedaDomandaVista(
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (c.consigliata) Banco.accento.copy(alpha = 0.18f) else Banco.fondo)
                             .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(8.dp))
-                            .clickable(enabled = !inCorso) { onScelta(c) }
+                            .tocco(enabled = !inCorso) { onScelta(c) }
                             .padding(horizontal = 14.dp, vertical = 10.dp)
                     )
                 }
@@ -198,7 +197,7 @@ fun SchedaDomandaVista(
 @Composable
 fun SpecialistiVista(s: Specialisti, onGuarda: (String) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (s.elenco.size > 1) "SPECIALISTI (${s.elenco.size})" else "LA SUA CHAT", color = Banco.testoQuieto, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(if (s.elenco.size > 1) "SPECIALISTI (${s.elenco.size})" else "LA SUA CHAT", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         LegendaAttivita()
     }
     if (s.riga.isNotBlank()) Text(s.riga, color = Banco.testoQuieto, fontSize = 12.sp)
@@ -212,12 +211,12 @@ fun SpecialistiVista(s: Specialisti, onGuarda: (String) -> Unit) {
                 Text(x.ruolo, color = Attivita.coloreDi(att), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(" · " + RegoleAgenti.statoEQuanto(x), color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 // PC 0.74.0: chi ha finito ha chiuso la sua chat da solo.
-                if (x.chiusa) Text("chat chiusa", color = Banco.testoQuieto, fontSize = 11.sp)
+                if (x.chiusa) Text("chat chiusa", color = Banco.testoQuieto, fontSize = 12.sp)
                 else x.sessionId?.let { sid -> TextButton(onClick = { onGuarda(sid) }) { Text("Guarda", fontSize = 12.sp) } }
             }
             val cosa = x.cosa.ifBlank { x.compito }
             if (cosa.isNotBlank()) Text(cosa, color = Banco.testo, fontSize = 12.sp, maxLines = 2)
-            if (x.ultimaAzione.isNotBlank()) Text(x.ultimaAzione, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 2)
+            if (x.ultimaAzione.isNotBlank()) Text(x.ultimaAzione, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 2)
         }
     }
 }

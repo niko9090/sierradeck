@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -93,7 +94,10 @@ fun AltriComputer(api: Api) {
         when {
             !pcDisponibile -> Text("Questo computer non sa ancora mandare azioni a un altro PC: aggiornalo.", color = Banco.testoQuieto)
             pcs == null -> Text("Leggo il Drive…", color = Banco.testoQuieto)
-            pcs.isEmpty() -> Text("Nessun altro PC ha ancora lasciato un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.", color = Banco.testoQuieto)
+            pcs.isEmpty() -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Nessun altro PC sul Drive.", color = Banco.testoQuieto, modifier = Modifier.weight(1f))
+                Aiuto("Un altro PC compare qui quando lascia un segno sul Drive: serve SierraDeck 0.27.0 o più nuovo su quel PC, con la cassaforte sbloccata e il Drive collegato.", di = "Altri computer")
+            }
             else -> for (p in pcs) {
                 val aperto = pcAperto == p.pcId
                 Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -101,7 +105,7 @@ fun AltriComputer(api: Api) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(p.mostra, color = Banco.testo, maxLines = 1)
-                                p.sotto?.let { Text(it, color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1) }
+                                p.sotto?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1) }
                                 Text(
                                     (if (p.vivo) "acceso" else "spento, ultimo segno ${p.battito.take(16).replace('T', ' ')}") +
                                         " · ${p.chat.size} chat aperte · ${p.cartelle.size} cartelle",
@@ -121,7 +125,7 @@ fun AltriComputer(api: Api) {
                         val ponte = FunzioniPc.disponibile(FunzionePc.PONTE, PcCorrente.versione)
                         Spacer(Modifier.height(6.dp))
                         if (ponte == false) {
-                            Text(FunzioniPc.testoMancante(FunzionePc.PONTE) + " Si aggiorna il PC accoppiato, non quello da guardare.", color = Banco.testoQuieto, fontSize = 11.sp)
+                            Text(FunzioniPc.testoMancante(FunzionePc.PONTE) + " Si aggiorna il PC accoppiato, non quello da guardare.", color = Banco.testoQuieto, fontSize = 12.sp)
                         } else {
                             OutlinedButton(onClick = {
                                 SuPc.corrente = PcPonte(p.pcId, p.mostra)
@@ -142,11 +146,11 @@ fun AltriComputer(api: Api) {
                                     Text(
                                         // 0.80.0: «ferma» e grigio come il LED accanto (prima «aspetta te» in ambra).
                                         if (!p.vivo) "ultimo stato noto" else if (ch.aspetta) "ferma" else "al lavoro",
-                                        color = Banco.testoQuieto, fontSize = 11.sp
+                                        color = Banco.testoQuieto, fontSize = 12.sp
                                     )
                                 }
                             }
-                            if (p.chat.size > 8) Text("e altre ${p.chat.size - 8}", color = Banco.testoQuieto, fontSize = 11.sp)
+                            if (p.chat.size > 8) Text("e altre ${p.chat.size - 8}", color = Banco.testoQuieto, fontSize = 12.sp)
                         }
                         if (aperto) {
                             Spacer(Modifier.height(8.dp))
@@ -159,14 +163,14 @@ fun AltriComputer(api: Api) {
                                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text("${i + 1}. ${v.testo}", color = Banco.testo, fontSize = 13.sp)
-                                        Text("in ${v.cwd} · da ${v.daNome}" + (if (v.apertaIl != null) " · chat aperta, aspetto che sia pronta" else ""), color = Banco.testoQuieto, fontSize = 11.sp)
+                                        Text("in ${v.cwd} · da ${v.daNome}" + (if (v.apertaIl != null) " · chat aperta, aspetto che sia pronta" else ""), color = Banco.testoQuieto, fontSize = 12.sp)
                                     }
                                     TextButton(onClick = { scope.launch { try { postaVoci = api.postaTogli(p.pcId, v.id).voci } catch (e: Exception) { postaNota = "Non sono riuscito a togliere la voce." } } }) { Text("Togli") }
                                 }
                             }
                             if (chiuse.isNotEmpty()) {
                                 for (v in chiuse.takeLast(5)) {
-                                    Text((if (v.stato == "fallita") "✗ " else "✓ ") + v.testo.take(60) + " — " + (v.esito ?: v.stato), color = if (v.stato == "fallita") Banco.ambra else Banco.testoQuieto, fontSize = 11.sp)
+                                    Text((if (v.stato == "fallita") "✗ " else "✓ ") + v.testo.take(60) + " — " + (v.esito ?: v.stato), color = if (v.stato == "fallita") Banco.ambra else Banco.testoQuieto, fontSize = 12.sp)
                                 }
                                 TextButton(onClick = { scope.launch { try { postaVoci = api.postaPulisci(p.pcId).voci } catch (e: Exception) { postaNota = "Non sono riuscito a pulire." } } }) { Text("Pulisci le chiuse") }
                             }

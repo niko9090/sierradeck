@@ -391,8 +391,26 @@ describe('i materiali del banco, sul telefono', () => {
     // 10px di serigrafia a braccio teso non si leggono, e senza puntatore
     // serve piu' aria fra le cose.
     const misure = script.slice(script.indexOf('const MISURE = {'))
-    expect(misure.slice(0, 400)).toContain("'--t0': '11px'")
-    expect(misure.slice(0, 400)).toContain("'--t4': '22px'")
+    // 0.83.0: in rem, così seguono la dimensione dei caratteri scelta nel
+    // telefono; il più piccolo è 12px (0.75rem), mai meno.
+    expect(misure.slice(0, 400)).toContain("'--t0': '0.75rem'")
+    expect(misure.slice(0, 400)).toContain("'--t4': '1.375rem'")
+  })
+
+  it('leggibilità 0.83.0: caratteri in rem da 12px in su, tocchi da 48px', () => {
+    expect(stile).toContain('font: 100%/1.5')
+    // Nessuna dimensione dei caratteri in pixel: con i pixel la scelta del telefono non vale.
+    expect(html).not.toMatch(/font-size: ?\d+(\.\d+)?px/)
+    for (const m of html.matchAll(/font-size: ?(\d+(?:\.\d+)?)rem/g)) {
+      expect(Number(m[1]) * 16, m[0]).toBeGreaterThanOrEqual(12)
+    }
+    // Nessun tasto più basso di 48px: 0 vuol dire «non è un tasto», 24px è il disegno del «?».
+    for (const m of html.matchAll(/min-height: ?(\d+)px/g)) {
+      const n = Number(m[1])
+      if (n === 0 || n === 24) continue
+      expect(n, m[0]).toBeGreaterThanOrEqual(48)
+    }
+    expect(stile).toContain(".aiuto::after { content: ''; position: absolute; inset: -12px; }")
   })
 
   it('i tasti hanno rilievo e si premono', () => {

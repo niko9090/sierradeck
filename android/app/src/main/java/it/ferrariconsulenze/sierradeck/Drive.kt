@@ -130,7 +130,7 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                         (if (inc.annullamento) " · mi fermo…" else ""),
                     color = Banco.ambra, fontSize = 13.sp, fontWeight = FontWeight.Bold
                 )
-                if (inc.dettaglio != null) Text((if (inc.verso == "giu") "↓ " else "↑ ") + inc.dettaglio, color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                if (inc.dettaglio != null) Text((if (inc.verso == "giu") "↓ " else "↑ ") + inc.dettaglio, color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
                     progress = { perc / 100f },
@@ -154,7 +154,10 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                 )
                 if (u.riavvioConsigliato == true && !riavviato) {
                     Spacer(Modifier.height(6.dp))
-                    Text("Sono arrivate chat o cartelle: SierraDeck sul computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.", color = Banco.testoQuieto, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Sono arrivate chat o cartelle.", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        Aiuto("SierraDeck sul computer si riavvia da solo fra pochi secondi per mostrarle. Se non lo fa, chiediglielo da qui.", di = "Riavvia SierraDeck")
+                    }
                     Spacer(Modifier.height(4.dp))
                     Button(shape = MaterialTheme.shapes.small, onClick = {
                         scope.launch {
@@ -193,9 +196,9 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                                     Text(
                                         "${g.chat.size} chat" + (if (g.cartellaSulDrive) " · cartella sul Drive" else "") +
                                             " · " + when (g.origine) { "qui" -> "di questo PC"; "altrove" -> "nata su un altro PC"; else -> "di più PC" },
-                                        color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1
+                                        color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1
                                     )
-                                    Text(statoProgetto(g), color = coloreStatoProgetto(g.stato), fontSize = 11.sp, maxLines = 1)
+                                    Text(statoProgetto(g), color = coloreStatoProgetto(g.stato), fontSize = 12.sp, maxLines = 1)
                                 }
                                 if (daPortare > 0) {
                                     Button(
@@ -220,7 +223,7 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                                 Row(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(ch.titolo, color = Banco.testo, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     Spacer(Modifier.width(6.dp))
-                                    Text(statoChat(ch), color = coloreStatoChat(ch.stato), fontSize = 10.sp, maxLines = 1)
+                                    Text(statoChat(ch), color = coloreStatoChat(ch.stato), fontSize = 12.sp, maxLines = 1)
                                 }
                             }
                         }
@@ -234,10 +237,10 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(w.nome, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1)
-                                    Text("${w.chat.size} chat in ${w.progetti.size} " + (if (w.progetti.size == 1) "progetto" else "progetti") + (if (w.quiEsiste) " · esiste già sul computer" else " · non esiste ancora sul computer"), color = Banco.testoQuieto, fontSize = 11.sp, maxLines = 1)
+                                    Text("${w.chat.size} chat in ${w.progetti.size} " + (if (w.progetti.size == 1) "progetto" else "progetti") + (if (w.quiEsiste) " · esiste già sul computer" else " · non esiste ancora sul computer"), color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                     Text(
                                         if (w.daPortare > 0) "${w.daPortare} chat da portare sul computer" else if (w.quiEsiste) "allineato" else "chat già sul computer: manca solo il workspace",
-                                        color = if (w.daPortare > 0 || !w.quiEsiste) Banco.ambra else Banco.verde, fontSize = 11.sp
+                                        color = if (w.daPortare > 0 || !w.quiEsiste) Banco.ambra else Banco.verde, fontSize = 12.sp
                                     )
                                 }
                                 if (w.daPortare > 0 || !w.quiEsiste) {
@@ -263,10 +266,10 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                                 Row(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(ch.titolo, color = Banco.testo, fontSize = 12.sp, maxLines = 1)
-                                        Text(ch.progetto ?: "", color = Banco.testoQuieto, fontSize = 10.sp, maxLines = 1)
+                                        Text(ch.progetto ?: "", color = Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
                                     }
                                     Spacer(Modifier.width(6.dp))
-                                    Text(statoChat(ch), color = coloreStatoChat(ch.stato), fontSize = 10.sp, maxLines = 1)
+                                    Text(statoChat(ch), color = coloreStatoChat(ch.stato), fontSize = 12.sp, maxLines = 1)
                                 }
                             }
                         }
@@ -295,8 +298,8 @@ private fun statoProgetto(g: ProgettoCatalogo): String = when (g.stato) {
 }
 
 private fun coloreStatoProgetto(stato: String): Color = when (stato) {
-    "allineato", "soloQui" -> Banco.verde
-    else -> Banco.ambra
+    "allineato", "soloQui" -> ColoreStato.verde
+    else -> ColoreStato.ambra
 }
 
 private fun statoChat(c: ChatCatalogo): String = when {
@@ -309,8 +312,8 @@ private fun statoChat(c: ChatCatalogo): String = when {
 }
 
 private fun coloreStatoChat(stato: String): Color = when (stato) {
-    "indietro", "soloDrive" -> Banco.ambra
-    else -> Banco.verde
+    "indietro", "soloDrive" -> ColoreStato.ambra
+    else -> ColoreStato.verde
 }
 
 /** Una fase della lettura del Drive: le stesse sei del PC, con la quota della barra. */
@@ -360,9 +363,9 @@ private fun AttesaDrive(p: ProgressoCatalogo?) {
         Spacer(Modifier.height(6.dp))
         Text(
             FASI_CATALOGO.mapIndexed { k, g -> (if (k < i) "✓ " else if (k == i) "▶ " else "○ ") + g.nome }.joinToString(" · "),
-            color = Banco.testoQuieto, fontSize = 11.sp
+            color = Banco.testoQuieto, fontSize = 12.sp
         )
         Spacer(Modifier.height(6.dp))
-        Text("Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.", color = Banco.testoQuieto, fontSize = 11.sp)
+        Text("Leggere il Drive non tocca niente: il computer legge e basta. Quando ha finito compare il catalogo.", color = Banco.testoQuieto, fontSize = 12.sp)
     }
 }

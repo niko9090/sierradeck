@@ -256,7 +256,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
                                 val recente = recentiOra.containsKey(x.chiave)
                                 Tessera(Modifier.fillMaxWidth().padding(vertical = 3.dp), onClick = { if (!mandando && !file.all { it.ok }) manda(x) }) {
                                     Column(Modifier.padding(10.dp)) {
-                                        if (x.pcId != null) Text("SU ${(x.pcNome ?: x.pcId).uppercase()}", color = VIOLA_ALTRO_PC, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        if (x.pcId != null) Text("SU ${(x.pcNome ?: x.pcId).uppercase()}", color = VIOLA_ALTRO_PC, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         Text(
                                             (if (x.tipo == "autopilota") "🤖 " else "") + x.titolo + (if (x.protetta) " 🔒" else ""),
                                             color = if (scelta == x) Banco.accento else Banco.testo, fontSize = 14.sp, maxLines = 1
@@ -267,7 +267,7 @@ fun SchermoMandaA(api: Api, stato: Stato?, uris: List<Uri>, fissa: DestinazioneF
                                                 if (x.tipo == "autopilota") "autopilota: lo trova nel dialogo" else if (x.pcId != null) "chat di un altro PC, attraverso il PC accoppiato" else "chat di questo PC",
                                                 if (x.aspetta) "ferma" else null
                                             ).joinToString(" · "),
-                                            color = Banco.testoQuieto, fontSize = 11.sp
+                                            color = Banco.testoQuieto, fontSize = 12.sp
                                         )
                                     }
                                 }
