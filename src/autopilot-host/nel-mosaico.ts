@@ -1,4 +1,5 @@
 import { preamboloRuolo } from '@shared/ruoli-agenti'
+import { REGOLA_SEGNALE } from '@shared/segnali-flotta'
 import { titoloChatSpecialista } from '@shared/specialisti'
 import { randomUUID } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
@@ -210,6 +211,9 @@ export function regoleDiConsegna(a: Autopilota, chat?: ChatGovernata): string[] 
       'ramo, non lavorare nella cartella principale e non fare push: lo fa l’autopilota dopo l’unione.'
     )
   }
+  // 0.84.0: il segnale di fine turno all'autopilota. Non alla Revisione, che
+  // chiude con la riga del verdetto.
+  if (chat !== undefined && chat.ruolo !== 'revisione') righe.push('', ...REGOLA_SEGNALE)
   const cloud = a.vaSulCloud === true || a.cloud?.attivo === true
   righe.push(
     '',

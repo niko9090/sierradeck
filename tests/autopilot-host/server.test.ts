@@ -2067,6 +2067,100 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     expect(diario).toContain('mossa rifiutata dal programma (chiudiChat)')
   })
 
+  // 0.84.0: controllo e coordinazione. Ogni chat dice come sta, l'autopilota
+  // vede tutto in un punto e nessun compito va a due chat.
+  it('i segnali delle chat: partita al primo hook, bloccata con il motivo a fine turno, tutto nel quadro del supervisore (0.84.0)', async () => {
+    const visti: string[] = []
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' })
+        visti.push(prompt)
+        return Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti"}' })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    // Il primo hook della c-2 (un comando) è la prova che è partita.
+    await chiama('POST', `/hook/pretool?ap=${id}&chat=c-2`, { tool_name: 'Bash', tool_input: { command: 'git status' }, cwd: process.cwd() })
+    let stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.find((c: any) => c.id === 'c-2').segnale).toMatchObject({ tipo: 'parto' })
+    // La c-1 chiude il turno bloccata, con il motivo.
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ last_assistant_message: 'Ho provato a far partire i test.\n\nSEGNALE: bloccata — manca la chiave del servizio di prova' }))
+    stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.find((c: any) => c.id === 'c-1').segnale).toMatchObject({ tipo: 'bloccata', motivo: 'manca la chiave del servizio di prova', dichiarato: true })
+    expect(stato.decisioni.map((d: any) => d.cosa)).toContain('segnale da c-1: bloccata: manca la chiave del servizio di prova')
+    // Il supervisore vede tutte le chat, con i loro segnali, in un punto solo.
+    const quadro = visti[visti.length - 1] ?? ''
+    expect(quadro).toContain('Le tue chat, in un punto solo')
+    expect(quadro).toContain('c-1 (questa)')
+    expect(quadro).toContain('bloccata: manca la chiave del servizio di prova')
+    expect(quadro).toMatch(/c-2[^\n]*partita/)
+    // Lo stesso segnale al giro dopo non si riscrive nelle decisioni.
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ last_assistant_message: 'SEGNALE: bloccata — manca la chiave del servizio di prova' }))
+    stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.decisioni.filter((d: any) => String(d.cosa).startsWith('segnale da c-1')).length).toBe(1)
+  })
+
+  it('lo stesso compito non va mai a due chat: apriChat su un compito già dato si rifiuta (0.84.0)', async () => {
+    let giro = 0
+    server = ambiente({
+      git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' })
+        giro += 1
+        return Promise.resolve({
+          testo: giro === 1
+            ? '{"azione": "prosegui", "istruzioni": "avanti", "mosse": [{"tipo": "apriChat", "compito": "Scrivi i test."}, {"tipo": "apriChat", "compito": "le API"}, {"tipo": "apriChat", "compito": "le API"}]}'
+            : '{"azione": "prosegui", "istruzioni": "avanti"}'
+        })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop())
+    await attendi(() => chatAvviate.length >= 3)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(chatAvviate.map((c) => c.compito).sort()).toEqual(['aggiorna i documenti', 'le API', 'scrivi i test'])
+    const diario = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: any) => d.cosa).join(' | ')
+    expect(diario).toContain('ce l\'ha già la chat c-1')
+    expect(diario).toContain('è già in coda')
+  })
+
+  it('prima di aprire una chat si controlla: un compito già dato esce dalla coda (0.84.0)', async () => {
+    let giro = 0
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => {
+        if (prompt.includes('va diviso fra')) return Promise.resolve({ testo: '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' })
+        giro += 1
+        return Promise.resolve({ testo: giro === 1 ? '{"azione": "prosegui", "istruzioni": "avanti", "mosse": [{"tipo": "apriChat", "compito": "il manuale"}]}' : '{"azione": "prosegui", "istruzioni": "avanti"}' })
+      },
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp()
+    await attendi(() => chatAvviate.length >= 2)
+    // Il compito della c-1 rimesso in coda da fuori (come una consegna doppia).
+    const a = archivio.leggi(id)
+    if (a === undefined) throw new Error('autopilota mancante')
+    archivio.scrivi({ ...a, compitiDaFare: ['scrivi i test'] })
+    await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due' }))
+    await attendi(() => chatAvviate.length >= 3)
+    await new Promise((r) => setTimeout(r, 100))
+    expect(chatAvviate.filter((c) => c.compito === 'scrivi i test')).toHaveLength(1)
+    expect(chatAvviate.map((c) => c.compito)).toContain('il manuale')
+    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
+    // E la chat aperta resta nell'elenco: il salvataggio del turno non la cancella.
+    expect(dopo.chats.map((c: any) => c.compito)).toContain('il manuale')
+    expect(dopo.compitiDaFare).not.toContain('il manuale')
+    expect(dopo.compitiDaFare).not.toContain('scrivi i test')
+    expect(dopo.decisioni.map((d: any) => d.cosa).join(' | ')).toContain('ce l\'ha già la chat c-1')
+  })
+
   it('agente finito (0.84.0): chiudiChat su una chat sorella col ramo già tolto la segna conclusa', async () => {
     let giro = 0
     // Il ramo principale c'è, quello della chat no: unito e tolto.
