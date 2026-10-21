@@ -15,6 +15,7 @@ import { applicaRete, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervi
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
+import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
@@ -156,7 +157,7 @@ export type Dipendenze = {
    */
   quaderno?: (
     cwd: string,
-    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string }
+    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string; file?: string }
   ) => void
   /**
    * Git, per i worktree delle chat, l'unione dei loro rami, il push e il
@@ -584,10 +585,34 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (riparteDaSolo(a)) { console.info(`[notifica] nessun avviso per ${a.id}: si è fermato ma riparte da solo (${a.motivoSospensione ?? 'pausa'})`); return }
     void deps.avvisa('sospeso', a)
   }
+  /**
+   * Lo storico nel quaderno (0.84.0): si riscrive solo quando c'è una voce
+   * nuova, non a ogni salvataggio. In memoria l'ultima voce scritta per lavoro:
+   * dopo un riavvio del servizio la scheda si riscrive una volta, identica.
+   */
+  const storicoScritto = new Map<string, string>()
+  const aggiornaStorico = (a: Autopilota): Autopilota => {
+    if (deps.quaderno === undefined || a.cwd === '') return a
+    const voci = vociStorico(a)
+    if (voci.length === 0) return a
+    const ultima = voci[voci.length - 1]!
+    const impronta = `${voci.length}|${ultima.quando}|${ultima.testo}`
+    if (storicoScritto.get(a.id) === impronta) return a
+    const file = fileStorico(a)
+    try {
+      deps.quaderno(a.cwd, { titolo: titoloStorico(a), corpo: corpoStorico(a, voci), tag: ['storico', 'autopilota'], file })
+      storicoScritto.set(a.id, impronta)
+      return a.storico === file ? a : { ...a, storico: file }
+    } catch (err) {
+      // Uno storico che non si scrive non ferma il lavoro: si riprova alla voce dopo.
+      console.error(`[autopilota] storico di ${a.id} non scritto:`, err)
+      return a
+    }
+  }
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
-    const datato = a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a
+    const datato = aggiornaStorico(a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a)
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }

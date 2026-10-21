@@ -253,7 +253,7 @@ private fun RigaCartella(c: String, scelta: Boolean, onClick: () -> Unit) {
 /** Il quaderno di una cartella: le schede lasciate dalle chat e dagli autopiloti. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
+internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit, apriFile: String? = null) {
     var schede by remember { mutableStateOf<List<SchedaBreve>?>(null) }
     var aperta by remember { mutableStateOf<SchedaPiena?>(null) }
     // PC 0.70: la ricerca e il tag scelto, come sul PC.
@@ -268,6 +268,8 @@ internal fun Quaderno(api: Api, cwd: String, onChiudi: () -> Unit) {
             guasto = if (e is Api.Errore) Nota.spiega(e, "leggere il quaderno") else "Non sono riuscito a leggere il quaderno: ${e.message ?: "il computer non risponde"}"
             emptyList()
         }
+        // PC 0.84.0: lo Storico del lavoro si apre già sulla sua scheda.
+        if (apriFile != null) aperta = try { api.scheda(cwd, apriFile) } catch (_: Exception) { null }
     }
 
     AlertDialog(
