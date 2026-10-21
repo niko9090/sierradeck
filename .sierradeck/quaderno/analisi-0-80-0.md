@@ -18,7 +18,7 @@ Le correzioni vengono dopo, su un ramo, ciascuna con il suo test e la Revisione.
 | Elenco per importanza | §3 (come scritto il 19/10); §«Elenco aggiornato al 20/10: cosa resta, in ordine» (c-18) e §«Elenco aggiornato al 20/10, voce per voce» (in fondo: FATTO / IN PARTE / APERTO per ogni voce, controllato nel codice) |
 | Notifiche | §«Notifiche 0.81.0, la prova nella copia (20/10, c-17)» e la riga di c-241 nella tabella di c-11 |
 | Workspace sbagliati | §«Da togliere con «Elimina workspace»: i due workspace sbagliati del 19/10» |
-| Foto della grafica | §«Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)», in fondo. **Prima:** 23 foto del 19/10 in `note/foto-0-80-0/` della cartella principale. **Dopo:** 24 foto della 0.81.1 in `note/foto-0-81-0/dopo/` del ramo c-32, con gli stessi nomi. Tutte fuori da git. Le cartelle `prima/` e `dopo/` di c-12 non ci sono più: le sostituiscono queste due |
+| Foto della grafica | §«Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)», in fondo. **Prima:** 23 foto del 19/10 in `note/foto-0-80-0/` della cartella principale. **Dopo:** 24 foto della 0.81.1 in `note/foto-0-81-0/dopo/` della cartella principale, con gli stessi nomi. Tutte fuori da git. Le cartelle `prima/` e `dopo/` di c-12 non ci sono più: le sostituiscono queste due |
 
 **Non misurato il 20/10:** CPU con le chat al lavoro, il PC era al 100%; da rifare con misura-080.mjs dopo il rilascio.
 
@@ -1128,8 +1128,8 @@ La tabella ramo per ramo è in `chiusura-rami-0-81-0.md` (c-25). Dopo di quella:
 Fatta il 20/10 sera su main `fb12ad3d` (0.81.1), senza cambiare codice e senza installare niente.
 
 - **Prima:** le 23 foto del 19/10 in `note/foto-0-80-0/` della cartella principale (v0.79.0, copia di c-10).
-- **Dopo:** 24 foto in `note/foto-0-81-0/dopo/` del ramo c-32, con gli stessi nomi più `34b`. Tutte e due le cartelle sono fuori da git.
-- **Gli script** per rifarle sono in `note/foto-0-81-0/script/`: `prepara.mjs`, `cdp.mjs`, `clic.mjs`, `scatta.mjs`, più `copri.txt`, il pezzo di JavaScript che copre il percorso di Documenti.
+- **Dopo:** 24 foto in `note/foto-0-81-0/dopo/` della cartella principale, con gli stessi nomi più `34b`. Tutte e due le cartelle sono fuori da git.
+- **Gli script** per rifarle sono in `note/foto-0-81-0/script/` della cartella principale: `prepara.mjs`, `cdp.mjs`, `clic.mjs`, `scatta.mjs`, più `copri.txt`, il pezzo di JavaScript che copre il percorso di Documenti.
 
 **La copia di prova:**
 - `SIERRADECK_PROVA=E:\prova-081\dati` e `CLAUDE_CONFIG_DIR` di prova;

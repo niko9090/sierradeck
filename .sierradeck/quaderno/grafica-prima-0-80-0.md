@@ -83,7 +83,8 @@ Materiale grezzo per l'elenco di c-10: **niente è stato corretto**. Copia di pr
 - **Trappola:** alla prima accensione la finestra della copia si è bloccata. `Runtime.evaluate` e perfino `Debugger.enable` non rispondevano, mentre la foto funzionava e la CPU del renderer era ferma. Il ricaricamento non è bastato; riavviando la copia non è più successo. Da tenere d'occhio: potrebbe essere un blocco vero all'avvio.
 - **Esc** non chiude la colonna Domande né il pannello «Chat e workspace»: si richiudono con un secondo clic sul loro tasto.
 
-**Aggiunte del 20/10 (c-32, foto della 0.81.1):** le cartelle `note/prova-080/` e `foto-0-80-0/prima|dopo/` di c-12 non ci sono più. Gli script nuovi stanno in `note/foto-0-81-0/script/` del ramo c-32.
+**Aggiunte del 20/10 (c-32, foto della 0.81.1):** le cartelle `note/prova-080/` e `foto-0-80-0/prima|dopo/` di c-12 non ci sono più. Gli script nuovi stanno in `note/foto-0-81-0/script/` della cartella principale.
+- **Trappola: niente di utile fuori da git dentro il worktree di una chat.** Alla chiusura `git worktree remove --force` (`src/autopilot-host/worktree.ts`) cancella tutto, compresi i file ignorati come `note/`. Foto, script e prove da tenere vanno copiati nella cartella principale (`note/…`) prima di dire «finito».
 - **La cartella della copia non va fuori dalle cartelle dell'autopilota.** `E:\prova-081` evitava il nome utente nelle foto, ma la guardia delle cancellazioni non lascia toglierla a una chat: è rimasta a Nicholas.
   - Meglio una cartella dentro la copia di lavoro (`note/…`), portata sotto una lettera neutra con `subst P: <cartella>`. Così il percorso nel terminale di Claude Code è `P:\…`.
 - **`<CLAUDE_CONFIG_DIR>\projects` deve esistere prima di accendere la copia.** Altrimenti l'indice scrive «radice progetti non leggibile» e Progetti e Riprendi restano vuoti finché non si riavvia. Le sessioni di prova si creano prima (`claude -p "…" --model haiku` nella cartella di prova).
