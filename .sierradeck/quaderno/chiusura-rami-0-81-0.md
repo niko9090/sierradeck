@@ -1,7 +1,7 @@
 ---
 titolo: "Chiusura dei rami della 0.81.0 (c-25): cosa è unito e cosa è scartato"
-quando: 2026-10-20T22:30:00+02:00
-tag: ["autopilota", "rami", "0.81.0", "rapporto"]
+quando: 2026-10-21T22:55:00+02:00
+tag: ["autopilota", "rami", "0.81.0", "rapporto", "trappola", "worktree"]
 ---
 
 Consegna c-291 a c-25 (20/10 sera). Sono stati guardati i 14 rami `ap/ap-f1e631f5/*`
@@ -56,3 +56,9 @@ typecheck` risponde «"tsc" non è riconosciuto». Per rimediare si crea una jun
 verso quella della cartella principale:
 `New-Item -ItemType Junction -Path node_modules -Target <principale>\node_modules`.
 `node_modules` è già escluso da git.
+
+**Lasciare la junction finché il ramo non è unito** (c-66, 21/10). La Revisione
+misura i criteri *nella cartella del ramo*: se la junction è già stata tolta,
+`npx vitest` e `npm run typecheck` falliscono lì e il programma respinge il
+ramo con «rompe quello che sul ramo principale passava», anche con il codice
+verde. Si toglie (`cmd /c rmdir node_modules`) solo prima di togliere la copia.
