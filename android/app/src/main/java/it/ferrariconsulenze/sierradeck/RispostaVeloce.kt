@@ -61,8 +61,13 @@ class RispostaVeloce : BroadcastReceiver() {
                 )
                 else -> false
             }
-            if (riuscito) annulla(contesto, idNotifica)
-            else aggiorna(contesto, idNotifica, "Non sono riuscito a mandarlo. Apri l'app e riprova.")
+            // 0.84.0: la notifica non sparisce, mostra la domanda intera con la
+            // tua risposta sotto, come la conversazione su PC, pagina e app.
+            if (riuscito) {
+                val chiesta = intent.getStringExtra(EXTRA_TESTO_DOMANDA)
+                if (domanda != null && !chiesta.isNullOrBlank()) risposto(contesto, idNotifica, testoDopoRisposta(chiesta, testo))
+                else annulla(contesto, idNotifica)
+            } else aggiorna(contesto, idNotifica, "Non sono riuscito a mandarlo. Apri l'app e riprova.")
         }
     }
 
@@ -109,6 +114,28 @@ class RispostaVeloce : BroadcastReceiver() {
         }
     }
 
+    /** La domanda con la risposta sotto: si toglie da sola dopo qualche minuto. */
+    private fun risposto(contesto: Context, id: Int, testo: String) {
+        if (id == 0) return
+        try {
+            val notifica = NotificationCompat.Builder(contesto, CANALE_RISPOSTE)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Hai risposto")
+                .setContentText(testo.substringAfterLast("Hai risposto: "))
+                .setStyle(NotificationCompat.BigTextStyle().bigText(testo))
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOnlyAlertOnce(true)
+                .setSilent(true)
+                .setAutoCancel(true)
+                .setTimeoutAfter(RISPOSTO_PER_MS)
+                .build()
+            gestore(contesto).notify(id, notifica)
+        } catch (e: Exception) {
+            Log.e("SierraDeck", "notifica della risposta non mostrata", e)
+            annulla(contesto, id)
+        }
+    }
+
     private fun annulla(contesto: Context, id: Int) {
         if (id == 0) return
         try {
@@ -127,6 +154,14 @@ class RispostaVeloce : BroadcastReceiver() {
         const val EXTRA_CHAT = "chat"
         const val EXTRA_NOTIFICA = "notifica"
         const val CANALE_RISPOSTE = "domande"
+        /** Il testo intero della domanda (0.84.0): resta nella notifica sopra la risposta. */
+        const val EXTRA_TESTO_DOMANDA = "testoDomanda"
+        /** Quanto resta la notifica «Hai risposto». */
+        const val RISPOSTO_PER_MS = 10 * 60_000L
+
+        /** La domanda intera e, sotto, «Hai risposto: …» (0.84.0). */
+        fun testoDopoRisposta(domanda: String, risposta: String): String =
+            "${domanda.trim()}\n\nHai risposto: ${risposta.trim()}"
 
         /**
          * Il testo dentro le virgolette di JSON.
