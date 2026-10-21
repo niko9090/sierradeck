@@ -814,6 +814,54 @@ describe('flotta di chat', () => {
     expect(viste).toEqual([c1.sessioneSupervisore])
   })
 
+  it('0.82.1: una chat che aspetta un’altra per più di un giro fa intervenire l’autopilota: sposta il lavoro, poi la chiude e il compito riparte dopo', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('va diviso fra') ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' : '{"azione": "prosegui", "istruzioni": "Continua il tuo compito."}' }),
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+    const fermata = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due', last_assistant_message: 'Resto in attesa di c-1: mi serve il suo lavoro.' }))).dati
+    const chat2 = async (): Promise<any> => (await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-2')
+
+    // Un giro solo di attesa: niente ancora.
+    const primo = await fermata()
+    expect(primo.reason).not.toContain('Non aspettare')
+    expect((await chat2()).aspetta).toEqual({ di: 'c-1', giri: 1 })
+    // Il secondo: l'autopilota le dice di fare intanto il resto.
+    const secondo = await fermata()
+    expect(secondo.decision).toBe('block')
+    expect(secondo.reason).toContain('Non aspettare la chat c-1')
+    // Il terzo: la chiude, e il suo compito torna in coda dopo quello di c-1.
+    const terzo = await fermata()
+    expect(terzo).toEqual({})
+    const stato = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(stato.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
+    const ripreso = stato.compitiDaFare.find((t: string) => t.includes('Ripreso dopo'))
+    expect(ripreso).toContain('aggiorna i documenti')
+    expect(stato.ruoliCompiti?.[ripreso]?.dopo).toEqual(['scrivi i test'])
+    expect(stato.decisioni.some((d: any) => d.cosa.includes('c-2 aspetta c-1 da 3 giri: la chiudo'))).toBe(true)
+  })
+
+  it('0.82.1: se la chat attesa ha già finito, l’autopilota sblocca chi aspetta', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
+      interroga: (prompt) => Promise.resolve({ testo: prompt.includes('va diviso fra') ? '{"compiti": ["scrivi i test", "aggiorna i documenti"]}' : '{"azione": "prosegui", "istruzioni": "Continua il tuo compito."}' }),
+      esegui: () => Promise.resolve({ codice: 1, uscita: 'ancora rosso' })
+    })
+    await avvia(server)
+    const id = await creaAp({ tettoChat: 2 })
+    await attendi(() => chatAvviate.length >= 2)
+    const a = archivio.leggi(id)
+    if (a === undefined) throw new Error('autopilota mancante')
+    archivio.scrivi({ ...a, chats: a.chats.map((c) => (c.id === "c-1" ? { ...c, stato: "finita" as const } : c)) })
+    const fermata = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}&chat=c-2`, eventoStop({ session_id: 's-due', last_assistant_message: 'Aspetto che c-1 abbia finito.' }))).dati
+    await fermata()
+    const secondo = await fermata()
+    expect(secondo.reason).toContain('Non c’è più niente da aspettare')
+    expect(secondo.reason).toContain('git merge main')
+  })
+
   it('a lavoro finito ferma tutte le chat della flotta; con i ruoli, finisce solo dopo l’ok della Revisione su ogni ramo (0.71.0)', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SCOMPONE })
     await avvia(server)
