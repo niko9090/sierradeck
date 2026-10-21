@@ -40,5 +40,18 @@ Primo esito, 14:30, PC carico: girano solo i file toccati dalle due correzioni
 (`worktree.test.ts`, `worktree-corto.test.ts`, `verifiche.test.ts`,
 `hook-autopilota.test.ts`). 4 file e 38 test verdi, 0 rossi, in 140 s.
 
+**Esito finale (21/10, 08:20):** `a850b524` e `459d0bae` sono in main.
+La suite intera in `.git/esito-test.json` non l'ho mai fatta girare. Il 20/10
+il controllo ha aspettato 3 ore, ma la macchina era sempre occupata da suite
+`vitest run --maxWorkers=2` di altre chat, che ripartivano di continuo. Nel
+frattempo il criterio è cambiato. Dalla 0.83.0 i test si misurano con due
+comandi diretti, `tests/main` e `tests/autopilot-host tests/renderer tests/shared tests/pty-host`,
+e non serve più il file d'esito. Alle 08:20 del 21/10 giravano proprio quei
+controlli, quindi non ho lanciato un'altra suite.
+
+**Trappola:** non lanciare una suite «per sicurezza» mentre girano i controlli
+dei criteri. Con la CPU al 100% le suite si rallentano a vicenda e un test
+finisce rosso per tempo.
+
 **Regola:** nei test con git vero, preparare il repository una volta sola e
 copiarlo. Ogni processo in meno conta molto di più a PC carico.
