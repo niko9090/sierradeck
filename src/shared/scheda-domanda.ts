@@ -42,16 +42,6 @@ export type SchedaDomanda = {
   risposta?: string
   /** Quante altre domande aspettano dopo questa. */
   poi?: number
-  /**
-   * Le righe che la chat aveva scritto prima della domanda (0.84.1): si
-   * mostrano sotto la domanda, a vista, non nel «?».
-   */
-  contesto?: string
-  /**
-   * Una chat di un altro PC di cui non è arrivata la domanda (0.84.1): al
-   * posto delle scelte, il tasto «Apri la chat su …».
-   */
-  apri?: { pcId: string; pcNome: string; sessione: string; cwd: string; etichetta: string }
 }
 
 /** Oltre questa lunghezza una frase si taglia: il resto è nei dettagli. */

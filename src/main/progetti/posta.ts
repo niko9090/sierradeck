@@ -199,10 +199,7 @@ export function creaPostino(deps: {
         titolo: c.titolo, cwd: c.cwd, aspetta: c.aspetta,
         // Le opzioni di una domanda ferma (0.52.6): i pulsanti nelle Domande degli altri PC.
         ...(c.scelte !== undefined && c.scelte.length > 0 ? { scelte: c.scelte.slice(0, 12) } : {}),
-        ...(c.domanda !== undefined && c.domanda !== '' ? { domanda: c.domanda.slice(0, 1200) } : {}),
-        // La domanda della scelta e il contesto (0.84.1): senza, l'altro PC vedeva solo le opzioni.
-        ...(c.scelte !== undefined && c.scelte.length > 0 && c.sceltaDomanda !== undefined && c.sceltaDomanda !== '' ? { sceltaDomanda: c.sceltaDomanda.slice(0, 1200) } : {}),
-        ...(c.scelte !== undefined && c.scelte.length > 0 && c.sceltaContesto !== undefined && c.sceltaContesto.length > 0 ? { sceltaContesto: c.sceltaContesto.slice(-5).map((r) => r.slice(0, 300)) } : {})
+        ...(c.domanda !== undefined && c.domanda !== '' ? { domanda: c.domanda.slice(0, 1200) } : {})
       })),
       // Dove bussare: e' cio' che permette a un altro PC di aprire una mia
       // chat dal vivo invece di aspettare la copia dal Drive.

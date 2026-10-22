@@ -121,19 +121,6 @@ const RIGHE_FRA_OPZIONI = 8
 const SCRIVI_QUALCOSA = /^type something\.?$/i
 const PARLANE = /^chat about this$/i
 
-/**
- * Come si legge un'opzione sul tasto (0.84.1), uguale su PC, pagina e app:
- * le voci inglesi di Claude Code diventano italiane. Solo a schermo: il testo
- * vero resta nell'opzione, perché è con quello che il PC ricontrolla la
- * domanda prima di premere.
- */
-export function etichettaScelta(o: { testo: string; libera?: boolean; invio?: boolean; descrizione?: string }): { testo: string; sotto?: string } {
-  if (o.invio === true) return { testo: 'Manda le scelte spuntate' }
-  if (o.libera === true) return { testo: 'Scrivo io la risposta', sotto: 'scrivila nel campo qui sotto: arriva a Claude come risposta libera' }
-  if (PARLANE.test(o.testo.trim())) return { testo: 'Ne parlo nella chat', sotto: o.descrizione ?? 'Claude ne parla con te nella chat, senza scegliere' }
-  return { testo: o.testo, ...(o.descrizione !== undefined && o.descrizione !== '' ? { sotto: o.descrizione } : {}) }
-}
-
 type Riga = { nuda: string; rientro: number; cursore: boolean }
 
 /**
