@@ -305,6 +305,8 @@ data class SchedaDomanda(
     val segnaposto: String = "Scrivi tu",
     /** L'autopilota ha già risposto da solo. */
     val risposta: String? = null,
+    /** Chiusa senza risposta perché non serve più (PC 0.84.1): il motivo. */
+    val superata: String? = null,
     /** Quante altre domande aspettano dopo questa. */
     val poi: Int? = null
 )

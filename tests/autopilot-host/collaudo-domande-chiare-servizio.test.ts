@@ -12,7 +12,7 @@ import { sigleIn } from '@shared/domanda-chiara'
 /**
  * Collaudo nel servizio vero (0.84.0): dove compare una risposta deve vedersi
  * la domanda intera, **chiara**, senza le sigle che la domanda aperta non ha
- * più. I casi «DIFETTO» sono `it.fails`: vedi collaudo-domande-chiare.test.ts.
+ * più. I casi «DIFETTO» sono corretti nella 0.84.1.
  */
 
 let server: ServerAutopiloti | undefined

@@ -1,6 +1,6 @@
 import type { Autopilota } from './autopilota'
 import { conversazione } from './chat-autopilota'
-import type { OpzioneScelta, VoceDomanda } from './domande-telefono'
+import { SUPERATA, eSuperata, type OpzioneScelta, type VoceDomanda } from './domande-telefono'
 import { chiDi, fraseDomanda, schedaDaParti, schedaDaTesto, scelteDiChat, type SchedaDomanda } from './scheda-domanda'
 
 /**
@@ -74,9 +74,6 @@ export type Conversazione = {
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
 export const MESSAGGI_AUTOPILOTA = 30
-
-/** La risposta di una domanda chiusa da `superata` nel registro (0.84.0): non è una risposta. */
-export const PREFISSO_SUPERATA = 'Superata, non serve più: '
 
 /** Quello che hai mandato di recente a una chat, per tenerlo nel filo. */
 export type Inviato = { quando: string; testo: string }
@@ -286,15 +283,16 @@ export function conversazioniDomande(p: {
   for (const v of p.voci) {
     if (v.tipo !== 'risolta') continue
     const chiave = `ap:${v.autopilotaId}`
-    // Chiusa perché superata (collaudo 0.84.0): nessuno ha risposto, e non va
-    // letta come «risposta dall'autopilota».
-    const motivoSuperata = v.risposta.startsWith(PREFISSO_SUPERATA) ? v.risposta.slice(PREFISSO_SUPERATA.length) : undefined
-    const esito = motivoSuperata !== undefined ? `chiusa: superata — ${motivoSuperata}` : v.risposta
+    // Una domanda superata (0.84.0) non ha avuto risposta: si dice che è
+    // stata chiusa e perché (collaudo 0.84.1).
+    const superata = eSuperata(v)
     const coppia: MessaggioConversazione[] = [
       { da: 'lui', testo: `${v.chatTitolo !== undefined ? `La chat «${v.chatTitolo}» ha chiesto` : 'La chat ha chiesto'}: ${v.domanda}`, quando: v.quando },
-      { da: 'nota', testo: motivoSuperata !== undefined ? esito : `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
+      superata
+        ? { da: 'nota', testo: `chiusa senza risposta, non serve più: ${v.risposta.slice(SUPERATA.length)}`, quando: v.quando, tono: 'risolta' }
+        : { da: 'nota', testo: `risposta dall’autopilota: ${v.risposta}`, quando: v.quando, tono: 'risolta' }
     ]
-    const sotto = motivoSuperata !== undefined ? 'ha chiuso una domanda superata della sua chat' : 'ha risposto da solo a una domanda della sua chat'
+    const sotto = superata ? 'una domanda della sua chat non serve più' : 'ha risposto da solo a una domanda della sua chat'
     let sua = fuori.find((c) => c.chiave === chiave)
     if (sua === undefined) {
       sua = {
@@ -309,7 +307,8 @@ export function conversazioniDomande(p: {
           domanda: fraseDomanda(v.domanda) || v.domanda,
           scelte: [],
           dettagli: [{ etichetta: v.chatTitolo !== undefined ? `La domanda della chat «${v.chatTitolo}»` : 'La domanda della sua chat', testo: v.domanda }],
-          risposta: esito,
+          // Una superata non ha risposta (collaudo 0.84.1): solo il motivo.
+          ...(superata ? { superata: v.risposta.slice(SUPERATA.length) } : { risposta: v.risposta }),
           segnaposto: 'Scrivigli se la risposta non va bene'
         },
         messaggi: [],
@@ -317,7 +316,7 @@ export function conversazioniDomande(p: {
         segnaposto: 'Scrivigli se la risposta non va bene'
       }
       fuori.push(sua)
-    } else if (motivoSuperata === undefined && sua.sotto === 'ha chiuso una domanda superata della sua chat') sua.sotto = sotto
+    } else if (!superata && sua.sotto === 'una domanda della sua chat non serve più') sua.sotto = sotto
     // Prima della domanda aperta, se c'è: quella resta in fondo.
     const dove = sua.chiede ? Math.max(0, sua.messaggi.length - 1) : sua.messaggi.length
     sua.messaggi.splice(dove, 0, ...coppia)

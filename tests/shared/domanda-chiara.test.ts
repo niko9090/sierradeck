@@ -75,17 +75,17 @@ describe('i casi veri: cosa il controllo non lascia passare', () => {
 })
 
 describe('i casi veri: cosa passa', () => {
-  it('21/10, la domanda sulla chiave SSH di nexora-nas era già chiara e passa così com’è', () => {
+  it('21/10, la domanda sulla chiave SSH di nas-prova era già chiara e passa così com’è', () => {
     const vera: PartiDomanda = {
-      staFacendo: 'Provo a entrare in nexora-nas sulla porta 30 come nicholas per copiare VisitaFacile. Il NAS rifiuta tutte e tre le chiavi di PC-Fisso.',
-      domanda: 'Nel pannello di nexora-nas, in Utenti → nicholas → Chiavi SSH, c’è la chiave che finisce con «nexus-backup@PC-Fisso»?',
-      perche: 'Mi hai scritto che ho già la chiave, ma il NAS la rifiuta: devo sapere se è salvata proprio per nicholas.',
+      staFacendo: 'Provo a entrare in nas-prova sulla porta 30 come mario per copiare il progetto di prova. Il NAS rifiuta tutte e tre le chiavi di pc-prova.',
+      domanda: 'Nel pannello di nas-prova, in Utenti → mario → Chiavi SSH, c’è la chiave che finisce con «backup@pc-prova»?',
+      perche: 'Mi hai scritto che ho già la chiave, ma il NAS la rifiuta: devo sapere se è salvata proprio per mario.',
       scelte: [
         { scelta: 'Non c’era, l’ho incollata e salvata ora', conseguenza: 'Faccio un solo tentativo sulla porta 30, poi cerco e copio il progetto in sola lettura', consigliata: true },
-        { scelta: 'C’è già, salvata per nicholas', conseguenza: 'Il problema è nel servizio SSH del NAS: lo scrivo nel resoconto e mi fermo' },
+        { scelta: 'C’è già, salvata per mario', conseguenza: 'Il problema è nel servizio SSH del NAS: lo scrivo nel resoconto e mi fermo' },
         { scelta: 'È salvata per un altro utente', conseguenza: 'Scrivimi il nome di quell’utente e faccio un solo tentativo con quello' }
       ],
-      seNonRispondi: 'Aspetto senza altri tentativi, per non far bloccare l’IP di PC-Fisso.'
+      seNonRispondi: 'Aspetto senza altri tentativi, per non far bloccare l’IP di pc-prova.'
     }
     expect(validaDomanda(vera)).toEqual({ completa: true, mancano: [], note: [] })
   })

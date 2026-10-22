@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { noteDiChiarezza, riferimentoVago, senzaSigle, sigleIn } from '@shared/domanda-chiara'
 import { domandaControllata, leggiParti, partiDaRisposta, validaDomanda, type PartiDomanda } from '@shared/domanda-strutturata'
 import { conversazioniDomande } from '@shared/domande-conversazioni'
+import { tipoDomanda } from '@shared/domande-vista'
 import { risoltaDalloStato } from '../../src/autopilot-host/domande-doppie'
 import { nuovoAutopilota } from '@shared/autopilota'
 
@@ -9,9 +10,8 @@ import { nuovoAutopilota } from '@shared/autopilota'
  * Collaudo delle domande chiare (0.84.0), sopra il lavoro di c-61, con le
  * domande vere arrivate a Nicholas il 20 e il 21/10 (memoria del servizio).
  *
- * I casi segnati «DIFETTO» sono `it.fails`: descrivono come dovrebbe essere e
- * oggi non è. Quando il prodotto viene corretto il test diventa rosso: allora
- * va cambiato in `it` (vedi la scheda collaudo-domande-chiare-0-84-0.md).
+ * I casi «DIFETTO» sono gli 8 difetti trovati dal collaudo, corretti nella
+ * 0.84.1 (scheda collaudo-domande-chiare-0-84-0.md).
  */
 
 const intorno = (domanda: string, extra: Partial<PartiDomanda> = {}): PartiDomanda => ({
@@ -45,11 +45,11 @@ describe('casi veri del 20-21/10 che il controllo già tratta bene', () => {
     expect(risoltaDalloStato('Quando la 0.81.1 sarà pubblicata, la installi tu su questo PC?', stato)).toBeDefined()
   })
 
-  it('20-21/10, le domande su nexora-nas dicono già di cosa parlano e passano il controllo di chiarezza', () => {
+  it('20-21/10, le domande sul NAS (nomi inventati) dicono già di cosa parlano e passano il controllo di chiarezza', () => {
     for (const d of [
-      'Puoi accendere SSH su nexora-nas e scrivermi porta e utente per entrare?',
-      'Nel pannello di nexora-nas, il servizio SSH risulta attivo e salvato, e con quale numero di porta?',
-      'Puoi aggiungere sul NAS, per nicholas, la chiave pubblica nexus-backup@PC-Fisso, oppure entro con la password che mi scrivi?'
+      'Puoi accendere SSH su nas-prova e scrivermi porta e utente per entrare?',
+      'Nel pannello di nas-prova, il servizio SSH risulta attivo e salvato, e con quale numero di porta?',
+      'Puoi aggiungere sul NAS, per l’utente mario, la chiave pubblica backup@pc-prova, oppure entro con la password che mi scrivi?'
     ]) expect(noteDiChiarezza(intorno(d)), d).toEqual([])
   })
 
@@ -66,7 +66,7 @@ describe('difetti trovati dal collaudo', () => {
   it('DIFETTO 2: una sigla sconosciuta diventa «una chat precedente» e la domanda non dice più quale lavoro (domanda-chiara.ts:96)', async () => {
     // Le chat c-310 e c-311 non sono più fra quelle dell'autopilota.
     const testo = senzaSigle('Chiudo le chat c-310 e c-311?', [])
-    expect(testo).not.toBe('Chiudo le chat una chat precedente e una chat precedente?')
+    expect(testo).toBe('Chiudo le chat c-310 e c-311?')
     // E soprattutto non passa il controllo come se fosse chiara: senza riscrittura e senza avvertenza.
     const r = await domandaControllata('App Android', intorno('Chiudo le chat c-310 e c-311?'), async () => '', partiDaRisposta, [{ id: 'c-1', compito: 'Altro' }])
     expect(r.avvertenza).toBeDefined()
@@ -103,5 +103,19 @@ describe('difetti trovati dal collaudo', () => {
     const testi = JSON.stringify(c)
     expect(testi).not.toContain('risposta dall’autopilota: Superata')
     expect(testi).not.toContain('ha risposto da solo')
+    // La scheda (PC, pagina, app) non ha una «risposta»: ha il motivo (0.84.1).
+    expect(c!.scheda?.risposta).toBeUndefined()
+    expect(c!.scheda?.superata).toBe('la 0.81.1 è già pubblicata')
+    expect(tipoDomanda(c!).parola).toBe('non serve più')
+  })
+
+  it('una risposta vera dell’autopilota resta «risposta dall’autopilota»', () => {
+    const [c] = conversazioniDomande({
+      voci: [{ tipo: 'risolta', autopilotaId: 'ap-1', autopilota: 'App Android', domanda: 'Uso la porta 8080?', risposta: 'Sì, usa la 8080.', quando: '2026-10-21T13:45:32.663Z' }],
+      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', criteri: [], iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
+    })
+    expect(c!.scheda?.risposta).toBe('Sì, usa la 8080.')
+    expect(c!.scheda?.superata).toBeUndefined()
+    expect(tipoDomanda(c!).parola).toBe('risposta dall’autopilota')
   })
 })
