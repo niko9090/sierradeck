@@ -306,7 +306,8 @@ export function conversazioniDomande(p: {
           domanda: fraseDomanda(v.domanda) || v.domanda,
           scelte: [],
           dettagli: [{ etichetta: v.chatTitolo !== undefined ? `La domanda della chat «${v.chatTitolo}»` : 'La domanda della sua chat', testo: v.domanda }],
-          risposta: v.risposta,
+          // Una superata non ha risposta (collaudo 0.84.1): solo il motivo.
+          ...(superata ? { superata: v.risposta.slice(SUPERATA.length) } : { risposta: v.risposta }),
           segnaposto: 'Scrivigli se la risposta non va bene'
         },
         messaggi: [],

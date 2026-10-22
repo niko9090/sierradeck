@@ -40,6 +40,11 @@ export type SchedaDomanda = {
   segnaposto: string
   /** L'autopilota ha già risposto da solo (la domanda era della sua chat). */
   risposta?: string
+  /**
+   * La domanda è stata chiusa senza risposta perché non serve più (0.84.1):
+   * il motivo. Al posto di `risposta`, che diceva «risposta dall'autopilota».
+   */
+  superata?: string
   /** Quante altre domande aspettano dopo questa. */
   poi?: number
 }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { noteDiChiarezza, riferimentoVago, senzaSigle, sigleIn } from '@shared/domanda-chiara'
 import { domandaControllata, leggiParti, partiDaRisposta, validaDomanda, type PartiDomanda } from '@shared/domanda-strutturata'
 import { conversazioniDomande } from '@shared/domande-conversazioni'
+import { tipoDomanda } from '@shared/domande-vista'
 import { risoltaDalloStato } from '../../src/autopilot-host/domande-doppie'
 import { nuovoAutopilota } from '@shared/autopilota'
 
@@ -102,5 +103,19 @@ describe('difetti trovati dal collaudo', () => {
     const testi = JSON.stringify(c)
     expect(testi).not.toContain('risposta dall’autopilota: Superata')
     expect(testi).not.toContain('ha risposto da solo')
+    // La scheda (PC, pagina, app) non ha una «risposta»: ha il motivo (0.84.1).
+    expect(c!.scheda?.risposta).toBeUndefined()
+    expect(c!.scheda?.superata).toBe('la 0.81.1 è già pubblicata')
+    expect(tipoDomanda(c!).parola).toBe('non serve più')
+  })
+
+  it('una risposta vera dell’autopilota resta «risposta dall’autopilota»', () => {
+    const [c] = conversazioniDomande({
+      voci: [{ tipo: 'risolta', autopilotaId: 'ap-1', autopilota: 'App Android', domanda: 'Uso la porta 8080?', risposta: 'Sì, usa la 8080.', quando: '2026-10-21T13:45:32.663Z' }],
+      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', criteri: [], iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
+    })
+    expect(c!.scheda?.risposta).toBe('Sì, usa la 8080.')
+    expect(c!.scheda?.superata).toBeUndefined()
+    expect(tipoDomanda(c!).parola).toBe('risposta dall’autopilota')
   })
 })

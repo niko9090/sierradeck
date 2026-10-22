@@ -14,6 +14,7 @@ Collaudo del lavoro di c-61 (già in main, scheda `domande-chiare-0-84-0.md`), c
 - 3 e 4: «questo lavoro», «questo autopilota», «quella cosa» e «questa cosa» sono in `RIFERIMENTI_VAGHI`, che vale anche per le scelte. Seguiti da un nome fra «» vanno bene.
 - 5: `SIGLA_AUTOPILOTA` («ap-» più almeno 6 cifre esadecimali) entra nelle note di chiarezza.
 - 6: `SUPERATA`/`eSuperata` in `domande-telefono.ts`. La conversazione dice «chiusa senza risposta, non serve più: …».
+  **Il 22/10 si è visto che non bastava:** la scheda della domanda (`SchedaDomanda.risposta`) la disegnano tre posti con la scritta fissa «risposta dall’autopilota: …»: `SchedaDomandaVista.tsx`, `client-pagina.ts` (`schedaDomandaHtml`) e `SchedaDomandaVista.kt`. Per una superata adesso c’è `scheda.superata` (il motivo) al posto di `risposta`, e tutti e tre scrivono «chiusa senza risposta, non serve più: …». Anche l’etichetta in elenco (`tipoDomanda`) dice «non serve più». Un’app vecchia non conosce il campo e non scrive niente sotto la domanda. Test Kotlin: `DomandaSuperataTest`. **Tocca `android/`.**
 - 7 e 8: in `server.ts`, `risoltaChiara` toglie le sigle da domanda e risposta in tutte e sei le chiamate a `risolta`. `chatDellaDomanda` usa `nomeCompito`.
 - Nei test i nomi del NAS, dell'utente e della chiave sono inventati (`nas-prova`, `mario`, `backup@pc-prova`), anche nel test di c-61.
 
