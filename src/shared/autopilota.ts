@@ -162,8 +162,8 @@ export type MessaggioPerLaChat = {
  * `gia-fatto` — una domanda che non arriva a Nicholas perché è già successo.
  */
 export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string; nota?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto' | 'nel-recupero'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto', 'nel-recupero']
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto' | 'nel-recupero' | 'bloccata' | 'ferma'
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto', 'nel-recupero', 'bloccata', 'ferma']
 /** Quanto è lunga al più la nota di un traguardo. */
 export const NOTA_TRAGUARDO_MAX = 200
 
@@ -172,6 +172,13 @@ export const NOTA_TRAGUARDO_MAX = 200
  * partecipe»): una riga sola, con cosa si fa. Messa da parte resta a un'ora.
  */
 export const SILENZIO_DA_DIRE_MS = 5 * 60_000
+
+/**
+ * Dopo quanto silenzio una chat è **ferma** (0.84.3, il Punto): una riga nella
+ * conversazione con l'azione presa, e il giro da solo la rimette al lavoro
+ * anche se le sorelle lavorano.
+ */
+export const FERMA_DA_DIRE_MS = 15 * 60_000
 
 /** L'ultimo traguardo di una chat, per non ripetere la stessa riga (0.81.0). */
 export function ultimoTraguardoDi(a: Pick<Autopilota, 'decisioni'>, chat: string): Traguardo | undefined {

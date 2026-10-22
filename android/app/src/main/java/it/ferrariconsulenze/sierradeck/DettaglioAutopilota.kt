@@ -374,6 +374,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             }
         } else LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
             guastoDettaglio?.let { g -> item { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
+            // PC 0.84.3: il Punto in cima alla conversazione, con il segnale di ogni chat nei colori del PC.
+            det?.punto?.let { p -> item(key = "punto") { PuntoAutopilotaVista(p) } }
             // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
             // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()

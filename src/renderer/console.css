@@ -5252,3 +5252,15 @@ label.gc-voce { cursor: pointer; }
 .adesso-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adesso-ap__riga--ferma .adesso-ap__testo { white-space: normal; }
 .adesso-ap__finite { font-size: var(--t1); color: var(--testo-quieto); }
+/* Il Punto (0.84.3) in cima alla conversazione dell'autopilota. */
+.punto-ap { padding: 6px 10px; border-bottom: 1px solid var(--bordo); display: grid; gap: 2px; font-size: var(--t1); }
+.punto-ap__testa { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.punto-ap__passo { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.punto-ap__chat { display: flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; min-width: 0; }
+.punto-ap__chat b { flex: none; }
+.punto-ap__compito { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
+.punto-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.punto-ap__chat--ferma .punto-ap__testo { white-space: normal; }
+.punto-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+.punto-ap__riga { overflow-wrap: anywhere; }
+.punto-ap__limiti { color: var(--testo-quieto); }

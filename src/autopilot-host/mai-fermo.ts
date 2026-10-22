@@ -1,4 +1,4 @@
-import type { Autopilota, ChatGovernata } from '@shared/autopilota'
+import { FERMA_DA_DIRE_MS, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { chiaveTurno } from './guardiano'
 
 /**
@@ -131,6 +131,16 @@ function rigaMossa(m: MossaMaiFermo, nome: string): string {
 }
 
 /**
+ * La nota della riga «ferma» nella conversazione (0.84.3): da quanto e cosa fa
+ * l'autopilota, in parole semplici. Completa la frase «Sviluppo («…») …».
+ */
+export function notaFerma(m: MossaMaiFermo): string | undefined {
+  if (m.tipo === 'riprendi') return `è ferma da ${minuti(m.muta)} minuti senza segnali: ${m.interrompi ? 'la interrompo e ' : ''}le riscrivo l’ultima istruzione`
+  if (m.tipo === 'sostituisci') return `non risponde nemmeno dopo la ripresa (${minuti(m.muta)} minuti): il suo compito passa a una chat nuova sullo stesso ramo, lei va nel recupero per 30 giorni`
+  return undefined
+}
+
+/**
  * Il giro da fare adesso, o `undefined` se non serve.
  *
  * Due casi. **Nessuno al lavoro**: l'autopilota è in `lavoro` e da
@@ -175,8 +185,11 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   const tuttoFermo = mute.length === alLavoro.length && v.ora - quieteDa >= NESSUNO_AL_LAVORO_MS
 
   // Le mute da toccare: tutte se nessuno lavora, altrimenti quelle messe da
-  // parte e quelle già riprese che non hanno risposto.
-  const daToccare = tuttoFermo ? mute : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined)
+  // parte, quelle già riprese che non hanno risposto e (0.84.3, il Punto)
+  // quelle ferme da più di 15 minuti mentre le sorelle lavorano.
+  const daToccare = tuttoFermo
+    ? mute
+    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS)
   const mosse: MossaMaiFermo[] = []
   const righe: string[] = []
   const avvisaNicholas: string[] = []

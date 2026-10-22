@@ -7,7 +7,7 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { giroMaiFermo, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
+import { giroMaiFermo, notaFerma, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 // 0.84.1, PRIMA DI TUTTO. La notte fra il 21 e il 22/10 l'autopilota era «al
@@ -58,10 +58,18 @@ describe('giroMaiFermo: la regola', () => {
     expect(g?.righe).toHaveLength(3)
   })
 
-  it('una chat che parla da meno di 10 minuti: niente giro (le altre non sono ancora messe da parte)', () => {
+  it('una chat che parla da meno di 10 minuti e la sorella zitta da meno di 15: niente giro', () => {
     const a = ap([chat('c-65'), chat('c-66')])
-    const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 3 * MIN : undefined) }))
+    const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 3 * MIN : k === 'ap-1::c-65' ? ora - 14 * MIN : undefined) }))
     expect(g).toBeUndefined()
+  })
+
+  it('0.84.3 (il Punto): una chat zitta da più di 15 minuti mentre la sorella lavora si riprende, senza aspettare l’ora della messa da parte', () => {
+    const a = ap([chat('c-65'), chat('c-66')])
+    const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 3 * MIN : k === 'ap-1::c-65' ? ora - 16 * MIN : undefined) }))
+    expect(g?.perche).toBe('messe-da-parte')
+    expect(g?.mosse).toEqual([{ tipo: 'riprendi', chatId: 'c-65', interrompi: true, muta: 16 * MIN }])
+    expect(notaFerma(g!.mosse[0]!)).toBe('è ferma da 16 minuti senza segnali: la interrompo e le riscrivo l’ultima istruzione')
   })
 
   it('una sola chat messa da parte mentre le altre lavorano: si riprende lei, non le altre', () => {

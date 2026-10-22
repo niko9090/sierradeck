@@ -1,0 +1,160 @@
+import type { Autopilota } from './autopilota'
+import { adessoDi, COLORE_ADESSO, type RigaAdesso, type SegniDalVivo } from './adesso'
+import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
+import { pianoAutopilota } from './panoramica'
+import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
+
+export { senzaSigle }
+
+/**
+ * **Il Punto** (0.84.3) in cima alla conversazione dell'autopilota.
+ *
+ * Nicholas (22/10 sera): l'autopilota è l'unico interlocutore. In cima alla
+ * sua conversazione, su PC, pagina e app, un punto sempre aggiornato: il passo
+ * in corso, ogni chat al lavoro con il compito in parole semplici (senza
+ * sigle), cosa è finito, cosa viene dopo, cosa serve da lui, e la percentuale
+ * dei limiti del piano solo come informazione (il freno è spento dalla 0.84.2:
+ * ai consumi pensa lui).
+ *
+ * Pura: la calcola il PC, la pagina e l'app mostrano le righe come sono.
+ */
+
+/** Il colore del segnale di una chat: gli stessi nomi di `COLORE_ADESSO`, uguali su PC, pagina e app. */
+export const COLORE_SEGNALE: Record<TipoSegnale, 'rosso' | 'ambra' | 'quieto' | 'verde' | 'blu'> = {
+  parto: 'blu',
+  avanti: 'verde',
+  fatto: 'verde',
+  bloccata: 'rosso',
+  aspetto: 'ambra'
+}
+
+/** Il simbolo del segnale, per chi non distingue i colori. */
+export const SIMBOLO_SEGNALE: Record<TipoSegnale, string> = { parto: '▶', avanti: '●', fatto: '✓', bloccata: '■', aspetto: '◆' }
+
+export type ChatNelPunto = RigaAdesso & {
+  /** L'ultimo segnale della chat all'autopilota, in parole e con il suo colore. */
+  segnale?: { tipo: TipoSegnale; parola: string; colore: string; simbolo: string }
+  /** Il colore della riga (`COLORE_ADESSO`), già deciso: la pagina e l'app non rifanno la tabella. */
+  colore: string
+}
+
+export type Punto = {
+  /** «Lavora: 3 di 7 criteri soddisfatti». */
+  passo: string
+  /** Una riga per chat aperta, prima le ferme. */
+  chat: ChatNelPunto[]
+  /** Quante chat sono finite (non hanno una riga). */
+  finite: number
+  /** Gli ultimi compiti finiti, dal più recente. */
+  fatto: string[]
+  /** Quanti compiti finiti in tutto (per «e altri N»). */
+  fattoTotale: number
+  /** Cosa viene dopo: in revisione, poi in coda. */
+  dopo: string[]
+  dopoTotale: number
+  /** Cosa serve da Nicholas; vuoto: niente, va avanti da solo. */
+  daTe: string[]
+  /** I limiti del piano, solo informazione. Assente se non ancora letti. */
+  limiti?: string
+}
+
+/** Quante righe al più in «Finito» e «Dopo»: il Punto sta in cima, non è un elenco. */
+export const RIGHE_PUNTO_MAX = 4
+
+/** Il passo in corso, in una riga. */
+function passoDi(a: Autopilota): string {
+  const fatti = a.criteri.filter((c) => c.soddisfatto).length
+  const criteri = a.criteri.length === 0 ? '' : `${fatti} di ${a.criteri.length} criteri soddisfatti`
+  const motivo = a.motivoSospensione !== undefined && a.motivoSospensione.trim() !== '' ? senzaSigle(a.motivoSospensione) : undefined
+  switch (a.stato) {
+    case 'intervista': return motivo !== undefined ? `Prepara: ${motivo}` : 'Prepara: guarda il progetto e si dà i criteri di fine'
+    case 'pronto': return 'Pronto: aspetta il tuo via'
+    case 'lavoro': return `Lavora${criteri !== '' ? `: ${criteri}` : ''}${a.strategia !== undefined ? ` · prova un’altra strada: ${senzaSigle(a.strategia)}` : ''}`
+    case 'attesa': return `Lavora${criteri !== '' ? `: ${criteri}` : ''} · aspetta una tua risposta`
+    case 'finito': return `Finito${criteri !== '' ? `: ${criteri}` : ''}`
+    default: return `Fermo${motivo !== undefined ? `: ${motivo}` : ''}${criteri !== '' ? ` · ${criteri}` : ''}`
+  }
+}
+
+/** Il segnale di una chat in parole semplici: la sorella che aspetta si dice col suo ruolo e il suo compito. */
+function parolaDelSegnale(a: Autopilota, s: NonNullable<Autopilota['chats'][number]['segnale']>): string {
+  if (s.tipo === 'aspetto' && s.di !== undefined) {
+    const sorella = a.chats.find((c) => c.id === s.di)
+    return sorella !== undefined ? `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»)` : 'aspetta un’altra chat'
+  }
+  return senzaSigle(parolaSegnale(s))
+}
+
+function percento(x: number | undefined): number | undefined {
+  return typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(100, Math.round(x))) : undefined
+}
+
+/** La riga dei limiti: solo informazione, il freno non c'è più. */
+export function rigaLimiti(l: { cinqueOre?: number; settimana?: number } | undefined): string | undefined {
+  const cinque = percento(l?.cinqueOre)
+  const sett = percento(l?.settimana)
+  if (cinque === undefined && sett === undefined) return undefined
+  const parti = [cinque !== undefined ? `5 ore ${cinque}%` : '', sett !== undefined ? `settimana ${sett}%` : ''].filter((x) => x !== '')
+  return `Limiti del piano: ${parti.join(', ')}. Solo per informazione: le chat non si fermano per questo.`
+}
+
+/**
+ * Il Punto dell'autopilota. `domandeAperte`: le sue domande che aspettano
+ * Nicholas (le sa il PC, non l'autopilota). `limiti`: le percentuali lette.
+ */
+export function puntoDi(
+  a: Autopilota & SegniDalVivo,
+  ora: number,
+  p: { domandeAperte?: number; limiti?: { cinqueOre?: number; settimana?: number } } = {}
+): Punto {
+  const adesso = adessoDi(a, ora)
+  const chat: ChatNelPunto[] = adesso.righe.map((r) => {
+    const c = a.chats.find((x) => x.id === r.id)
+    const s = c?.segnale
+    return {
+      ...r,
+      // La chat senza ruolo si chiamava col suo numero («c-14»): qui «Una chat».
+      chi: c !== undefined ? nomeChi(c) : r.chi,
+      compito: senzaSigle(r.compito),
+      testo: senzaSigle(r.testo),
+      colore: COLORE_ADESSO[r.tono],
+      ...(s !== undefined ? { segnale: { tipo: s.tipo, parola: parolaDelSegnale(a, s), colore: COLORE_SEGNALE[s.tipo], simbolo: SIMBOLO_SEGNALE[s.tipo] } } : {})
+    }
+  })
+
+  const piano = pianoAutopilota(a)
+  const breve = (t: string): string => senzaSigle(compitoBreve(t))
+  const finiti = piano.filter((x) => x.fase === 'fatto').reverse()
+  const inRevisione = piano.filter((x) => x.fase === 'in-revisione').map((x) => `${breve(x.testo)}: lo rilegge la Revisione`)
+  const inCoda = piano.filter((x) => x.fase === 'da-fare').map((x) => breve(x.testo))
+  const dopo = [...inRevisione, ...inCoda]
+
+  const daTe: string[] = []
+  const domande = p.domandeAperte ?? 0
+  if (a.stato === 'pronto') daTe.push('Il tuo via, per cominciare.')
+  if (domande > 0) daTe.push(domande === 1 ? 'Una risposta: la domanda è nella linguetta «Domande».' : `${domande} risposte: le domande sono nella linguetta «Domande».`)
+  else if (a.stato === 'attesa' || (a.stato === 'intervista' && a.motivoSospensione !== undefined)) daTe.push('Una risposta: la domanda è nella linguetta «Domande».')
+  if ((a.stato === 'sospeso' || a.stato === 'fallito') && daTe.length === 0) daTe.push('Si è fermato: dimmi se riprendere, scrivendogli qui sotto.')
+
+  const limiti = rigaLimiti(p.limiti)
+  return {
+    passo: passoDi(a),
+    chat,
+    finite: adesso.finite,
+    fatto: finiti.slice(0, RIGHE_PUNTO_MAX).map((x) => breve(x.testo)),
+    fattoTotale: finiti.length,
+    dopo: dopo.slice(0, RIGHE_PUNTO_MAX),
+    dopoTotale: dopo.length,
+    daTe,
+    ...(limiti !== undefined ? { limiti } : {})
+  }
+}
+
+/** «e altri 3», o niente. */
+export function altri(totale: number, mostrati: number): string {
+  const n = totale - mostrati
+  return n <= 0 ? '' : n === 1 ? 'e un altro' : `e altri ${n}`
+}
+
+/** Il «?» del Punto, uguale dappertutto. */
+export const AIUTO_PUNTO = 'Il punto della situazione, sempre aggiornato: a che passo è l’autopilota, cosa fa ogni sua chat (con il segnale che gli ha mandato l’ultima volta), cosa è finito, cosa viene dopo e cosa serve da te. I limiti del piano sono solo un’informazione: le chat non si fermano per quelli. Sotto, la conversazione ha una riga quando una chat parte, finisce, si blocca, viene unita o resta ferma più di 15 minuti, con quello che l’autopilota ha fatto.'

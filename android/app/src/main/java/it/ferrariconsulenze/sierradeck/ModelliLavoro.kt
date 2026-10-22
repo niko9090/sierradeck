@@ -94,6 +94,8 @@ data class AutopilotaDettaglio(
     val messaggi: List<StatoMessaggio> = emptyList(),
     /** PC 0.81.0: il riquadro «Adesso», una riga per chat. Assente con un PC più vecchio. */
     val adesso: Adesso? = null,
+    /** PC 0.84.3: il Punto in cima alla conversazione. Assente con un PC più vecchio. */
+    val punto: PuntoAutopilota? = null,
     val id: String = "",
     val nome: String = "",
     /** L'obiettivo come l'ha capito lui (riscritto dalla preparazione). */
