@@ -27,6 +27,12 @@ Non toccati: account, preferenze di SierraDeck, file dei progetti. Rimasto sull'
 
 **Aperto:** la chat temporanea «Installa plugin ECC (temporanea)» sul DESKTOP è ancora aperta, ferma a lavoro finito: il divieto dell'autopilota blocca `/api/chat/chiudi` dalla chat. Quella sul LAPTOP si è chiusa. Va chiusa dal programma (gestione delle chat), non chiesto a Nicholas.
 
+## NB-PROBOOK: controlli e cosa serve quando si accende (c-80, consegna c-652)
+- **22/10 10:52:** ancora spento. Ultimo battito in `pc-altrui.json` il 20/10 alle 13:50 (11:50 UTC), versione 0.79.0. Se è acceso si vede subito in `%APPDATA%\SierraDeck\pc-altrui.json`: battito di pochi minuti prima.
+- Il 21/10 alle 23:55 il ponte verso NB-PROBOOK ha risposto «non riconosce la chiave», con due cause possibili. Prima: la cassaforte di là è chiusa o diversa. Seconda: su 192.168.56.1 (scheda di rete virtuale) risponde un altro SierraDeck. Prima di installare bisogna quindi controllare che `/api/pc` attraverso il ponte risponda davvero. Se la cassaforte è chiusa, la apre solo Nicholas: si ferma tutto e glielo si dice.
+- NB-PROBOOK è alla 0.79.0, quindi non ha Git nel PATH delle chat (arriva con la 0.82.1). Gli hook vanno spenti a livello utente come su DESKTOP e LAPTOP, sennò la chat temporanea stessa può restare bloccata dalla GateGuard. L'aggiornamento di SierraDeck là lo installa solo Nicholas.
+- Poi stessa procedura qui sopra (passi 1-4), poi una riga in tabella e la chat temporanea chiusa dalla gestione delle chat.
+
 ## Hook spenti in modo diverso: perché
 - Sugli altri PC lo spegnimento è a livello utente (vale in ogni progetto e in ogni copia delle chat). Così il blocco «Git Bash non trovato» (`2026-10-21-trappola-senza-git-bash-nel-path-gli-hook-ecc-bloccano-tutti.md`) non può fermare nessuna chat, nemmeno gli autopiloti di altri progetti (sul DESKTOP gira quello di Fionda).
 - Qui no: la scelta A/B/C per le copie di SierraDeck aspetta Nicholas (`lista-lavori.md`). Questa è una quarta strada, «D: `env` in `~/.claude/settings.json`», la più semplice; la decide lui. Oggi la GateGuard ha bloccato anche questa chat (c-60) nella sua copia.
