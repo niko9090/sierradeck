@@ -265,7 +265,10 @@ describe('le domande delle chat di un altro PC hanno i pulsanti (0.52.6)', () =>
   })
   it('il battito porta le opzioni solo se la chat è ferma su una domanda, e mai per una chat con il PIN', () => {
     const indice = readFileSync(join(__dirname, '../../src/main/index.ts'), 'utf8')
-    expect(indice).toContain("guardianoPin?.protetta(c) === true ? undefined : scelteDiTerminale(")
+    expect(indice).toContain('const protetta = guardianoPin?.protetta(c) === true')
+    expect(indice).toContain('protetta ? undefined : scelteDiTerminale(')
+    // 0.84.1: anche la domanda e il contesto, mai per una chat con il PIN.
+    expect(indice).toContain('protetta ? {} : domandaPerBattito(c, s)')
     const postino = readFileSync(join(__dirname, '../../src/main/progetti/posta.ts'), 'utf8')
     expect(postino).toContain('scelte: c.scelte.slice(0, 12)')
   })

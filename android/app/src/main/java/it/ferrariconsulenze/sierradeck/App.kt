@@ -102,6 +102,14 @@ object Apertura {
 
     /** Porta alla scheda Chat, dentro quella chat. */
     fun apriChat(id: String) { chatRichiesta = id; schedaRichiesta = Scheda.CHAT }
+    /** La conversazione da aprire fra le chat di un altro PC (PC 0.84.1), per sessione. */
+    var sessioneRichiesta by mutableStateOf<String?>(null)
+    /** «Apri la chat su <PC>» (PC 0.84.1): le chat di quel PC dal ponte, dentro quella conversazione. */
+    fun apriChatSu(a: ApriChatAltrove) {
+        SuPc.corrente = PcPonte(a.pcId, a.pc)
+        sessioneRichiesta = a.sessione.takeIf { it.isNotBlank() }
+        schedaRichiesta = Scheda.CHAT
+    }
     /** «Apri cartella» (PC 0.82.0): la cartella da aprire nella sezione File. */
     var cartellaRichiesta by mutableStateOf<CartellaRichiesta?>(null)
     fun apriCartella(r: CartellaRichiesta) { cartellaRichiesta = r; schedaRichiesta = Scheda.FILE }

@@ -70,7 +70,9 @@ data class Opzione(
     /** Scelta multipla: la casella è spuntata (null = non è una casella). */
     val spuntata: Boolean? = null,
     /** Scelta multipla: la riga «Submit», che manda le spunte. */
-    val invio: Boolean = false
+    val invio: Boolean = false,
+    /** PC 0.84.1: l'opzione fissa di Claude Code detta in italiano; al tocco si manda `testo`. */
+    val etichetta: String? = null
 )
 
 /** Quello che il computer ha in dotazione. */

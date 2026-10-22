@@ -89,7 +89,7 @@ fun MessaggiCompattiVista(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
 
 /** Il testo di un tasto: le caselle di una scelta multipla, la ★ della consigliata. */
 fun etichettaScelta(s: SceltaScheda): String =
-    (when (s.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }) + (if (s.consigliata) "★ " else "") + s.testo
+    (when (s.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }) + (if (s.consigliata) "★ " else "") + (s.etichetta?.takeIf { it.isNotBlank() } ?: s.testo)
 
 /**
  * Una domanda essenziale (PC 0.72.1): chi chiede in piccolo, la domanda in una
@@ -159,6 +159,11 @@ fun SchedaDomandaVista(
                     )
                 }
             }
+        }
+        // PC 0.84.1: la domanda di un altro PC arrivata senza testo; si va a leggerla nella chat.
+        s.apri?.let { a ->
+            Spacer(Modifier.height(8.dp))
+            Button(shape = MaterialTheme.shapes.small, onClick = { Apertura.apriChatSu(a) }) { Text("Apri la chat su ${a.pc}") }
         }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

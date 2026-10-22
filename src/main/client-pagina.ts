@@ -996,7 +996,8 @@ function firmaScelte(s) { return s ? s.opzioni.map((o) => (o.spuntata ? '[x] ' :
 function etichettaOpzione(o) {
   var num = o.invio ? '↵' : String(o.numero)
   var casella = o.spuntata === true ? '☑ ' : o.spuntata === false ? '☐ ' : ''
-  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Rispondi con parole tue: scrivile nel campo qui sotto e mandale' : o.testo
+  // etichetta (0.84.1): l'opzione fissa di Claude Code detta in italiano dal PC.
+  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Scrivo io la risposta: scrivila nel campo qui sotto e mandala' : (o.etichetta || o.testo)
   var sotto = o.libera ? 'arriva a Claude come risposta libera («' + o.testo + '»)' : (o.descrizione || '')
   return '<span class="scelta__n">' + esc(num) + '</span>' + esc(casella + testo) + (sotto ? '<small class="scelta__descr">' + esc(sotto) + '</small>' : '')
 }
@@ -1311,6 +1312,7 @@ function schedaDomandaHtml(s, k, tasto, campo) {
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
     (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
     ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
+    apriAltroveHtml(s) +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
     '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'
 }
@@ -1343,7 +1345,13 @@ function domandaALatoHtml(idChat) {
     '</div>'
 }
 function etichettaScelta(c) {
-  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
+  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.etichetta || c.testo)
+}
+/** «Apri la chat su PC» (0.84.1): il testo della domanda non è arrivato; il computer la apre dal vivo. */
+function apriAltroveHtml(s) {
+  if (!s || !s.apri) return ''
+  var a = s.apri
+  return '<div class="scelte"><button class="primario" data-s="' + esc(a.sessione) + '" data-c="' + esc(a.cwd) + '" data-p="' + esc(a.pcId) + '" data-t="' + esc(a.titolo) + '" onclick="pdApriChat(this.dataset.s, this.dataset.c, this.dataset.p, this.dataset.t)">Apri la chat su ' + esc(a.pc) + '</button></div>'
 }
 
 /**

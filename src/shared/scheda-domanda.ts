@@ -28,7 +28,20 @@ export type SceltaScheda = {
   libera?: true
   spuntata?: boolean
   invio?: true
+  /**
+   * Il testo da mostrare, in italiano (0.84.1), quando è diverso da `testo`:
+   * «Type something.» → «Scrivo io la risposta». Al tocco si manda sempre
+   * `testo`, che è quello sullo schermo della chat.
+   */
+  etichetta?: string
 }
+
+/**
+ * Una domanda di una chat di un altro PC arrivata senza il testo (0.84.1):
+ * un PC più vecchio non lo mette nel battito. Il tasto «Apri la chat su <PC>»
+ * porta alla chat dal vivo, dove la domanda si legge.
+ */
+export type ApriChatAltrove = { pcId: string; pc: string; sessione: string; cwd: string; titolo: string }
 
 export type DettaglioScheda = { etichetta: string; testo: string }
 
@@ -47,6 +60,8 @@ export type SchedaDomanda = {
   superata?: string
   /** Quante altre domande aspettano dopo questa. */
   poi?: number
+  /** Il testo non è arrivato (0.84.1): il tasto «Apri la chat su <PC>». */
+  apri?: ApriChatAltrove
 }
 
 /** Oltre questa lunghezza una frase si taglia: il resto è nei dettagli. */
@@ -140,11 +155,40 @@ export function schedaDaTesto(chi: string, testo: string, scelte: SceltaScheda[]
 /** La consigliata di Claude Code («(Recommended)») si segna come le nostre. */
 const RACCOMANDATA = /\((recommended|consigliat[ao])\)/i
 
+/**
+ * Le opzioni fisse di Claude Code dette in italiano (0.84.1). Nicholas
+ * (22/10): «Scrivo io la risposta», «Ne parlo nella chat». Solo da mostrare:
+ * al tocco si manda il testo inglese, che è quello sullo schermo. Le opzioni
+ * scritte da Claude per la domanda restano come sono.
+ */
+const IN_ITALIANO: [RegExp, string | ((m: RegExpExecArray) => string)][] = [
+  [/^chat about this\.?$/i, 'Ne parlo nella chat'],
+  [/^submit( answers)?\.?$/i, 'Manda le scelte spuntate'],
+  [/^yes\.?$/i, 'Sì'],
+  [/^no\.?$/i, 'No'],
+  [/^yes, and don[’']t ask again(?: for (.+?))?\.?$/i, (m) => (m[1] !== undefined ? `Sì, e non chiedere più per ${m[1]}` : 'Sì, e non chiedere più')],
+  [/^yes, allow all edits during this session\b.*$/i, 'Sì, e permetti tutte le modifiche per questa sessione'],
+  [/^no, and tell claude what to do differently\b.*$/i, 'No, e dico a Claude cosa fare invece']
+]
+
+/** Il testo di un'opzione di una chat in italiano, se è una di quelle fisse di Claude Code; se no `undefined`. */
+export function opzioneInItaliano(o: Pick<OpzioneScelta, 'testo' | 'libera' | 'invio'>): string | undefined {
+  if (o.libera === true) return 'Scrivo io la risposta'
+  const t = o.testo.trim()
+  for (const [re, it] of IN_ITALIANO) {
+    const m = re.exec(t)
+    if (m !== null) return typeof it === 'string' ? it : it(m)
+  }
+  if (o.invio === true) return 'Manda le scelte spuntate'
+  return undefined
+}
+
 /** Le opzioni dell'elenco di una chat come tasti; le spiegazioni vanno nei dettagli. */
 export function scelteDiChat(opzioni: OpzioneScelta[]): { scelte: SceltaScheda[]; spiegazioni?: DettaglioScheda } {
   const scelte = opzioni.map((o) => ({
     testo: o.testo,
     numero: o.numero,
+    ...(opzioneInItaliano(o) !== undefined && opzioneInItaliano(o) !== o.testo ? { etichetta: opzioneInItaliano(o) as string } : {}),
     ...(RACCOMANDATA.test(o.testo) || RACCOMANDATA.test(o.descrizione ?? '') ? { consigliata: true as const } : {}),
     ...(o.libera === true ? { libera: true as const } : {}),
     ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}),
@@ -154,7 +198,7 @@ export function scelteDiChat(opzioni: OpzioneScelta[]): { scelte: SceltaScheda[]
   return {
     scelte,
     ...(conSpiegazione.length > 0
-      ? { spiegazioni: { etichetta: 'Le scelte, spiegate', testo: conSpiegazione.map((o) => `${o.testo} — ${(o.descrizione ?? '').trim()}`).join('\n') } }
+      ? { spiegazioni: { etichetta: 'Le scelte, spiegate', testo: conSpiegazione.map((o) => `${opzioneInItaliano(o) ?? o.testo} —${(o.descrizione ?? '').trim()}`).join('\n') } }
       : {})
   }
 }

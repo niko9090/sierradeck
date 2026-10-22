@@ -21,7 +21,7 @@ import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
-import { domandaInFondo } from '@shared/domande-telefono'
+import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
@@ -428,10 +428,14 @@ function conSegnali(chat: Chat[]): Chat[] {
     }
     const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: c.sceltaAperta === true }, adesso: Date.now() })
     // Il turno è finito con una domanda scritta (0.71.1): va nelle Domande, non fra le «ha finito».
-    const domanda = v.aspetta && !v.chiede && s.fase === 'aspetta' ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
+    const inFondo = v.aspetta && !v.chiede && s.fase === 'aspetta'
+    const domanda = inFondo ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
+    // Qualche riga prima della domanda (0.84.1), per le Domande degli altri PC.
+    const contesto = inFondo && domanda !== undefined ? contestoSopraDomanda(s.ultimoMessaggio) : []
     return {
       ...c, aspetta: v.aspetta, chiedeSegnale: v.chiede, fonteStato: 'segnali' as const,
       ...(domanda !== undefined ? { domanda } : {}),
+      ...(contesto.length > 0 ? { contesto } : {}),
       ...(v.errore !== undefined ? { errore: v.errore } : {}),
       ...(s.fase === 'chiusa' ? { viva: false } : {})
     }
@@ -1907,12 +1911,15 @@ if (!app.requestSingleInstanceLock()) {
         chat: () => chatAperte.map((c) => {
           // Le opzioni di una domanda ferma (0.52.6), per le Domande degli altri
           // PC. Mai per una chat con il PIN: il battito lo leggono tutti i PC.
-          const s = guardianoPin?.protetta(c) === true ? undefined : scelteDiTerminale((c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
+          const protetta = guardianoPin?.protetta(c) === true
+          const s = protetta ? undefined : scelteDiTerminale((c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
+          // La domanda intera e qualche riga prima (0.84.1): anche quella di un elenco di scelte.
+          const d = protetta ? {} : domandaPerBattito(c, s)
           return {
             id: c.id,
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
             titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
-            ...(c.domanda !== undefined && guardianoPin?.protetta(c) !== true ? { domanda: c.domanda } : {}),
+            ...d,
             ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {})
           }
         }),
