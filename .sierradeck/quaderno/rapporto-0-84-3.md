@@ -6,7 +6,7 @@ tag: ["0.84.3", "rapporto", "release", "c-93"]
 
 # Rapporto 0.84.3
 
-**Stato (23/10, c-93):** NON ancora pubblicata. Mancano le due voci di c-95 (riga
+**Stato (23/10, c-93):** NON ancora pubblicata. Versione già preparata sul ramo c-93: `package.json` 0.84.3, app 2.84.3 (versionCode 142), novità in `src/shared/novita.ts`. Mancano le due voci di c-95 (riga
 «Domande scritte dal programma» e «ultima strada»), il collaudo c-94 e la
 Revisione dei rami c-90 e c-91. Mai installata da noi: l'installazione la avvia
 solo Nicholas.
@@ -35,9 +35,22 @@ Creare il tag `v0.84.3` sul commit della versione e pusharlo **prima** di
 `npm run pubblica`: il `main` remoto è fermo a `a22c1dff` (0.80.0) e GitHub, senza
 tag, lo crea lì (successo alla v0.84.2, tag ancora sbagliato).
 
-## Rami
+## Rami di questo lavoro (c-87…c-96)
 
-Da completare alla release (vedi anche `rami-0-84-3.md`).
+Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
+
+| Ramo | Cosa | Scelta |
+|---|---|---|
+| c-87 | mai fermo D1 e D2, il giro dice cosa apre davvero | unito dopo la Revisione (c-92), 93573507 |
+| c-88 | domande fra PC D1-D4 (tocca `android/`) | unito dopo la Revisione (c-92), 83f59d7d |
+| c-89 | mai gesti a mano, «lo giudico io», chiusura da sola | unito dopo la Revisione (c-92), 73ed147d |
+| c-90 | il «Punto» (tocca `android/`) | unito (4fc3e88e); Revisione di c-93 il 23/10, un test aggiunto, nessun difetto |
+| c-91 | aggiornamento senza tempi morti (tocca `android/`) | unito (cb35b61c); Revisione di c-93 il 23/10, nessun difetto |
+| c-92 | Revisione e unione dei rami; con la scheda di c-24 | unito (82d0c2a2); il ramo non c'è più |
+| c-93 | questa release: revisione di c-90/c-91, prova di 2 ore, versione 0.84.3 | unito a ogni turno |
+| c-94 | ricollaudo delle domande fra PC: verde; caso limite lieve (emoji tagliata al 200° carattere dall'app, 409) | da unire (solo quaderno, 9e0d0a25); il caso limite non è corretto |
+| c-95 | domande scritte dal programma e ultima strada prima di «sono bloccato» | in corso, nessun commit ancora |
+| c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | da unire (5f92b4d3); difetti da correggere prima della release |
 
 ## Prova di 2 ore senza fermate
 

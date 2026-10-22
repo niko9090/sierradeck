@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.84.3',
+    righe: [
+      '**L’autopilota ti racconta tutto in un punto:** in cima alla sua conversazione, sul PC, sulla pagina e nell’app, il «Punto» dice a che passo è, cosa fa ogni sua chat (in parole semplici, con il colore del suo segnale), cosa è finito, cosa viene dopo e cosa serve da te. Una riga quando una chat parte, finisce, si blocca, viene unita o resta ferma più di 15 minuti, con quello che l’autopilota ha fatto.',
+      '**Mai più fermo con il lavoro da finire:** una chat zitta da 15 minuti viene rimessa al lavoro anche quando le altre lavorano, e una consegna del programma non conta più come sua risposta. Il giro da solo scrive il motivo vero e dice cosa apre davvero.',
+      '**Aggiornamento senza tempi morti:** dopo «Installa» le chat hanno al massimo 5 minuti per salvare il lavoro (un commit sul loro ramo), poi l’installazione parte lo stesso. Vedi le fasi con il tempo (scarico, salvo le chat, installo, riparto) e al ritorno una riga di riepilogo nella conversazione dell’autopilota. «Aggiorna adesso» anche nell’app. L’installazione parte sempre e solo da un tuo tasto.',
+      '**Domande più chiare:** quelle scritte dal programma dicono di quale lavoro si tratta e cosa non va, e sotto ogni scelta si vede cosa succede. Niente più domande che ti chiedono di chiudere, spostare o correggere a mano, né sigle interne: il programma fa da solo. Prima di dirti «sono bloccato» l’autopilota prova un’ultima strada, e mentre aspetta la tua risposta continua con il resto.',
+      '**Domande dagli altri PC:** anche le scelte molto lunghe si premono da un altro PC, la verifica della risposta finisce in pochi secondi, l’app mostra «Presa» e le spiegazioni delle scelte sono le stesse su PC, pagina e app.',
+    ]
+  },
+  {
     versione: '0.84.2',
     righe: [
       '**Gli autopiloti non si fermano più per i limiti del piano Claude:** prima, sopra il 60% della settimana, non aprivano chat nuove e il lavoro restava fermo per ore. Adesso aprono tutte le chat utili; la percentuale resta visibile e decidi tu se rallentare. Restano solo i limiti del PC (processori e memoria).',
