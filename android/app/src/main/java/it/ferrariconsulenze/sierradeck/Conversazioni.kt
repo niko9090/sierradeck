@@ -86,6 +86,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
     val mandati = remember { mutableStateMapOf<String, List<String>>() }
     var testo by remember(aperta.chiave) { mutableStateOf("") }
     var nota by remember(aperta.chiave) { mutableStateOf<String?>(null) }
+    // La frase del PC dopo la risposta (0.84.3): «Presa: …» come su PC e pagina.
+    var esito by remember(aperta.chiave) { mutableStateOf<String?>(null) }
     var inCorso by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val lista = rememberLazyListState()
@@ -95,12 +97,13 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
     val quanti = aperta.messaggi.size + inAttesa.size
     LaunchedEffect(aperta.chiave, quanti) { if (quanti > 0) lista.animateScrollToItem(quanti - 1) }
 
-    fun manda(azione: suspend () -> Unit, ricordo: String) {
+    fun manda(azione: suspend () -> Fatto, ricordo: String) {
         inCorso = true
         nota = null
+        esito = null
         scope.launch {
             try {
-                azione()
+                esito = azione().frase?.takeIf { it.isNotBlank() }
                 mandati[aperta.chiave] = (mandati[aperta.chiave] ?: emptyList()) + ricordo
                 testo = ""
                 onRiletto()
@@ -172,6 +175,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                     onScrivi = { t -> manda({ api.rispondiConversazione(aperta.risposta, t) }, t) }
                 )
                 inAttesa.lastOrNull()?.let { Text("mandato: «$it», aspetto il computer", color = Banco.testoQuieto, fontSize = 12.sp) }
+                esito?.let { Text(it, color = Banco.verde, fontSize = 12.sp) }
                 nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
             }
             return@Column
@@ -195,6 +199,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
             itemsIndexed(inAttesa, key = { i, _ -> inAttesaChiavi[i] }) { _, t -> Messaggio(MessaggioConversazione(da = "tu", testo = t), aperta, true, "tu · mandato, aspetto il computer") {} }
         }
         Column(Modifier.fillMaxWidth().background(Banco.chassis).padding(10.dp)) {
+            esito?.let { Text(it, color = Banco.verde, fontSize = 12.sp) }
             nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(

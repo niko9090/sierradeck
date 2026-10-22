@@ -16,8 +16,8 @@ import type { BattitoPc } from '@shared/posta'
  * risposte dal riquadro verificate (c-75), provate insieme fra due PC finti
  * con le rotte vere e gli schermi veri di Claude Code 2.1.294.
  *
- * I test `.fails` sono i difetti trovati: passano finché il difetto c'è.
- * Quando qualcuno lo corregge, si toglie `.fails`. Dettagli e righe:
+ * I test «D1»…«D4» erano i difetti trovati (`.fails`): corretti in 0.84.3
+ * (c-88), adesso sono test normali. Dettagli e righe:
  * `.sierradeck/quaderno/collaudo-domande-risposte-0-84-1.md`.
  */
 const DIR = join(__dirname, '../fixtures/claude-2.1.294-domande')
@@ -82,8 +82,8 @@ function battitoDi(righe: string[]): BattitoPc {
     chat: [{
       sessione: 's-prova', titolo: 'Prova', cwd: 'C:\\Progetti\\Esempio', aspetta: false,
       ...domandaPerBattito({ coda: pulite(righe) }, s),
-      // Come index.ts: il testo di ogni opzione tagliato a 200 caratteri.
-      ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}) })) } : {})
+      // Come index.ts: il testo di ogni opzione tagliato a 200 caratteri, con la spiegazione (0.84.3).
+      ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.descrizione !== undefined && o.descrizione.trim() !== '' ? { descrizione: o.descrizione.trim().slice(0, 300) } : {}) })) } : {})
     }]
   } as BattitoPc
 }
@@ -156,7 +156,7 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
    * … in <cartella>») in una finestra larga non si può mai premere da un
    * altro PC: ogni tocco torna «la scelta e cambiata», per sempre.
    */
-  it.fails('D1: un’opzione più lunga di 200 caratteri si può premere da un altro PC', async () => {
+  it('D1: un’opzione più lunga di 200 caratteri si può premere da un altro PC', async () => {
     const lunga = `Yes, and don't ask again for node -e commands in ${'C:\\Progetti\\Esempio\\una\\cartella\\molto\\profonda'.repeat(5)}`
     expect(lunga.length).toBeGreaterThan(200)
     // Il riquadro con tre opzioni: Yes, la lunga, No (come lo disegna Claude Code).
@@ -185,14 +185,16 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
    * smette di aspettare dopo 14 s (`pc-remoto.ts:174`) e l'app dopo 15 s:
    * Nicholas legge «non so se è arrivato» mentre B sta ancora premendo.
    */
-  it.fails('D2: la verifica finisce entro l’attesa del ponte (14 s) anche se ogni lettura dello schermo è lenta', async () => {
+  it('D2: la verifica finisce entro l’attesa del ponte (14 s) anche se ogni lettura dello schermo è lenta', async () => {
     expect(ROTTE_CON_VERIFICA).toContain('/api/scegli')
     const s = scelteDiTerminale(schermo('singola').join('\n')) as Scelta
     let orologio = 0
     const e = await premiEVerifica(s, {
       leggi: async () => { orologio += 3000; return s },
       tasti: (x) => tastiPerRisposta(x, { tipo: 'opzione', testo: 'Blu' }),
-      manda: () => {}, pausa: async (ms) => { orologio += ms }, log: () => {}, cosa: '«Blu»'
+      manda: () => {}, pausa: async (ms) => { orologio += ms }, log: () => {}, cosa: '«Blu»',
+      // L'orologio della prova: le letture lente lo fanno avanzare.
+      ora: () => orologio
     })
     expect(e.esito).toBe('non-presa')
     expect(orologio).toBeLessThanOrEqual(14_000)
@@ -206,7 +208,7 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
    * la «non presa» (come errore, dal 409); una presa e una mandata senza
    * verifica sono uguali.
    */
-  it.fails('D3: l’app legge la frase dell’esito dopo un tocco', () => {
+  it('D3: l’app legge la frase dell’esito dopo un tocco', () => {
     const modelli = sorgente('android/app/src/main/java/it/ferrariconsulenze/sierradeck/ModelliLavoro.kt')
     const da = modelli.indexOf('data class Fatto(')
     expect(modelli.slice(da, modelli.indexOf(')', da) + 1)).toContain('frase')
@@ -219,7 +221,7 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
    * («Rosso — Il colore della passione…»); per la stessa domanda da un altro
    * PC no. Spesso sono proprio le conseguenze della scelta.
    */
-  it.fails('D4: la scheda di una domanda di un altro PC ha «Le scelte, spiegate» come quella di questo PC', async () => {
+  it('D4: la scheda di una domanda di un altro PC ha «Le scelte, spiegate» come quella di questo PC', async () => {
     const b = pcB(() => schermo('singola'), () => true)
     const a = pcA(b, battitoDi(schermo('singola')))
     const c = await schedaSuA(a)

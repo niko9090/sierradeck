@@ -1,6 +1,6 @@
 ---
 titolo: "Collaudo 0.84.1 — domande dagli altri PC e risposte verificate: funziona fra due PC, 4 difetti"
-quando: 2026-10-22T11:45:00+02:00
+quando: 2026-10-23T00:30:00+02:00
 tag: ["0.84.1", "collaudo", "domande", "altri-pc", "risposte", "c-82"]
 ---
 
@@ -23,7 +23,30 @@ di Claude Code 2.1.294 e un ponte finto che gira le chiamate come `index.ts`.
   `[risposta]` nel registro di B). Poi A riceve 409 con la frase di B.
 - Una risposta scritta da A arriva come risposta libera su B ed è verificata.
 
-## Difetti (test `.fails`, si toglie `.fails` quando sono corretti)
+## Corretti in 0.84.3 (c-88, 23/10)
+
+Tutti e quattro: i test non hanno più `.fails`.
+
+- **D1** — `dovEOpzione` (`client-rotte.ts`): B accetta il testo uguale
+  oppure un testo lungo quanto il taglio (`TAGLIO_OPZIONE_BATTITO` = 200,
+  `shared/posta.ts`) che è l'inizio di **una sola** opzione; se è l'inizio di
+  due non preme. Poi preme con il testo intero dello schermo. Il taglio nel
+  battito resta (il battito va sul Drive e lo leggono tutti i PC).
+- **D2** — `premiEVerifica` misura il tempo con l'orologio (`ora`), letture
+  comprese, con un limite totale `LIMITE_VERIFICA_MS` = 9 s; una lettura che
+  non arriva in tempo vale «schermo uguale»; il secondo tentativo parte solo
+  se resta almeno 1 s. Trappola: con le pause finte dei test l'orologio vero
+  è fermo, perciò ogni pausa conta **almeno** i ms chiesti (se no il ciclo
+  gira a vuoto). La frase della «non presa» dice «una volta» o «due volte».
+- **D3** — `Fatto` nell'app ha `esito`, `tentativi`, `frase`;
+  `EsitoRisposta.riga` (`ModelliLavoro.kt`); Adesso e Conversazioni mostrano
+  la frase in verde. Un PC vecchio senza frase: «Mandata …» come prima.
+- **D4** — il battito porta `descrizione` di ogni opzione (fino a 300
+  caratteri, `index.ts`) e `domande-telefono.ts` la passa alla scheda: «Le
+  scelte, spiegate» c'è anche da un altro PC, su PC, pagina e app (la scheda
+  è la stessa per tutti).
+
+## Difetti trovati il 22/10 (com'erano)
 
 - **D1. Un'opzione lunga più di 200 caratteri non si può premere da un altro
   PC.** Il battito taglia il testo a 200 caratteri

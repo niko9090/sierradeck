@@ -338,5 +338,22 @@ data class SessioneRipresa(
 )
 
 // ─── risposta generica delle azioni ───
+/**
+ * `esito`, `tentativi` e `frase` (PC 0.84.1, app dalla 0.84.3): dopo una
+ * risposta a una domanda il PC dice se la chat l'ha presa davvero. La frase
+ * è la stessa che leggono PC e pagina («Presa: «Blu», la chat è andata avanti.»).
+ */
 @Serializable
-data class Fatto(val fatto: Boolean = false, val autopilota: String? = null)
+data class Fatto(
+    val fatto: Boolean = false,
+    val autopilota: String? = null,
+    val esito: String? = null,
+    val tentativi: Int? = null,
+    val frase: String? = null
+)
+
+/** La riga dopo una risposta: quella del PC se la dice, se no «Mandata» come prima. */
+object EsitoRisposta {
+    fun riga(f: Fatto, testo: String): String =
+        f.frase?.takeIf { it.isNotBlank() } ?: "Mandata: «${testo.take(80)}». Sparisce appena il computer la riceve."
+}

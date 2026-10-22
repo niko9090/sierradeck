@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { rotteClient, type DipendenzeRotte, type Chat } from '../../src/main/client-rotte'
+import { dovEOpzione, rotteClient, type DipendenzeRotte, type Chat } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { andataAvanti, fraseEsito, leggiEsitoAltroPc, premiEVerifica, TENTATIVI_MAX } from '../../src/main/risposta-verificata'
 import { GIU, INVIO, scelteDiTerminale, tastiPerRisposta, type Scelta } from '@shared/scelte-terminale'
@@ -183,5 +183,47 @@ describe('le rotte: una risposta conta solo se presa', () => {
     expect((await post(no, '/api/scegli', { chat: 'pc:pc-2:s-la', opzione: 'Blu' })).stato).toBe(409)
     const noScrivi = banco('singola', () => true, { scriviAltroPc: async () => ({ ok: false, messaggio: 'Non presa: …', stato: 409 }) })
     expect((await post(noScrivi, '/api/scrivi', { chat: 'pc:pc-2:s-la', testo: 'Blu' })).stato).toBe(409)
+  })
+})
+
+describe('0.84.3 — tempo vero della verifica e opzioni tagliate (collaudo c-82, D1 e D2)', () => {
+  it('una lettura lenta che si mangia il tempo: un solo tentativo, e la frase dice «una volta»', async () => {
+    const s = scelta('singola')
+    let orologio = 0
+    const mandati: string[][] = []
+    const log: string[] = []
+    const e = await premiEVerifica(s, {
+      leggi: async () => { orologio += 8500; return s },
+      tasti: (x) => tastiPerRisposta(x, { tipo: 'opzione', testo: 'Blu' }),
+      manda: (p) => mandati.push(p), pausa: async (ms) => { orologio += ms }, log: (r) => log.push(r), cosa: '«Blu»',
+      ora: () => orologio
+    })
+    expect(e).toEqual({ esito: 'non-presa', tentativi: 1 })
+    expect(mandati).toHaveLength(1)
+    expect(log.some((r) => r.includes('tempo della verifica finito'))).toBe(true)
+    expect(fraseEsito(e, 'Blu')).toContain('una volta')
+  })
+
+  it('con le pause finte (orologio fermo) le letture restano quelle di prima: niente giri a vuoto', async () => {
+    const s = scelta('singola')
+    let letture = 0
+    await premiEVerifica(s, {
+      leggi: async () => { letture += 1; return s },
+      tasti: (x) => tastiPerRisposta(x, { tipo: 'opzione', testo: 'Blu' }),
+      manda: () => {}, pausa: subito, log: () => {}, cosa: '«Blu»'
+    })
+    expect(letture).toBeLessThanOrEqual(2 * 20)
+  })
+
+  it('dovEOpzione: uguale, oppure l’inizio tagliato di una sola opzione; mai se l’inizio è di due', () => {
+    const lunga = (fine: string): string => `${'x'.repeat(220)}${fine}`
+    const base = scelta('singola')
+    const due: Scelta = { ...base, opzioni: [{ ...base.opzioni[0]!, testo: lunga('A') }, { ...base.opzioni[1]!, testo: lunga('B') }] }
+    const una: Scelta = { ...base, opzioni: [{ ...base.opzioni[0]!, testo: 'Sì' }, { ...base.opzioni[1]!, testo: lunga('B') }] }
+    expect(dovEOpzione(una, 'Sì')).toBe(0)
+    expect(dovEOpzione(una, lunga('B').slice(0, 200))).toBe(1)
+    expect(dovEOpzione(due, lunga('A').slice(0, 200))).toBe(-1)
+    // Un testo corto non vale come inizio: «S» non è «Sì».
+    expect(dovEOpzione(una, 'S')).toBe(-1)
   })
 })
