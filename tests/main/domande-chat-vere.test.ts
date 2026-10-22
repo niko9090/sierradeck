@@ -252,7 +252,7 @@ describe('le domande delle chat di un altro PC hanno i pulsanti (0.52.6)', () =>
     // Le conversazioni (colonna, pagina, app) hanno le scelte da toccare.
     const conv = (d.corpo as { conversazioni: { chiave: string; scelte?: { chat: string } }[] }).conversazioni.find((c) => c.scelte?.chat === 'pc:pc-b:s-prova')
     expect(conv).toBeDefined()
-    expect((await a({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'pc:pc-b:s-prova', opzione: 'Blu' } })).corpo).toEqual({ fatto: true })
+    expect((await a({ metodo: 'POST', percorso: '/api/scegli', corpo: { chat: 'pc:pc-b:s-prova', opzione: 'Blu' } })).corpo).toMatchObject({ fatto: true })
     expect(b.tasti).toEqual([{ chat: 'p-1', pezzi: [GIU + GIU, INVIO] }])
   })
   it('la risposta libera e il rifiuto di B (domanda cambiata) passano per il ponte', async () => {

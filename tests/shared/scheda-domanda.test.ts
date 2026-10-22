@@ -112,7 +112,7 @@ describe('la scheda di una domanda', () => {
     expect(scelte).toEqual([
       { testo: 'Usa npm (Recommended)', numero: 1, consigliata: true },
       { testo: 'Usa pnpm', numero: 2 },
-      { testo: 'Type something.', numero: 3, libera: true }
+      { testo: 'Type something.', numero: 3, etichetta: 'Scrivo io la risposta', libera: true }
     ])
     expect(spiegazioni?.testo).toBe('Usa npm (Recommended) — c è già package-lock.json')
   })

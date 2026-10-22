@@ -198,7 +198,7 @@ export function scelteDiChat(opzioni: OpzioneScelta[]): { scelte: SceltaScheda[]
   return {
     scelte,
     ...(conSpiegazione.length > 0
-      ? { spiegazioni: { etichetta: 'Le scelte, spiegate', testo: conSpiegazione.map((o) => `${opzioneInItaliano(o) ?? o.testo} —${(o.descrizione ?? '').trim()}`).join('\n') } }
+      ? { spiegazioni: { etichetta: 'Le scelte, spiegate', testo: conSpiegazione.map((o) => `${opzioneInItaliano(o) ?? o.testo} — ${(o.descrizione ?? '').trim()}`).join('\n') } }
       : {})
   }
 }
