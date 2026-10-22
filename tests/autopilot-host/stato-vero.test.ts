@@ -208,7 +208,7 @@ describe('nel servizio', () => {
   })
 
   it('una release non ancora uscita arriva a Nicholas', async () => {
-    await avvia(JSON.stringify({ azione: 'chiedi', domanda: parti('Pubblico adesso la 0.82.0 con le correzioni di c-310?') }), DOPO)
+    await avvia(JSON.stringify({ azione: 'chiedi', domanda: parti('Pubblico adesso la 0.82.0 con le correzioni delle chat chiuse?') }), DOPO)
     await notifica()
     expect(await aperte()).toHaveLength(1)
   })

@@ -46,11 +46,55 @@ export function testiDi(p: PartiDomanda): string[] {
   return [p.staFacendo, p.domanda, p.perche, p.seNonRispondi, ...p.scelte.flatMap((s) => [s.scelta, s.conseguenza])]
 }
 
+/**
+ * **Mai un gesto a mano** (0.84.3). Il 22/10 Nicholas si è visto chiedere
+ * «Chiudi tu a mano l'autopilota del gestionale, visto che il programma non mi
+ * lascia né chiuderlo né correggere il controllo del gruppo 3?», con le scelte
+ * «Sì, lo chiudo io» e «Correggo io il comando». Chiudere, spostare,
+ * cancellare, correggere, lanciare: lo fa il programma, non lui. Installare
+ * no: quello resta suo per regola.
+ */
+const VERBI_GESTO = 'chiud|spost|cancell|elimin|corregg|lanc|incoll|modific|togli|sistem'
+export const GESTO_A_MANO = new RegExp(
+  [
+    // «modificare a mano nella scheda», «incollo il comando a mano»
+    String.raw`(?<![\p{L}])(?:${VERBI_GESTO})\p{L}*(?:\s+\S+){0,3}?\s+a mano(?![\p{L}])`,
+    // «chiudi tu», «correggilo tu», «sposta tu»
+    String.raw`(?<![\p{L}])(?:${VERBI_GESTO})\p{L}*\s+tu(?![\p{L}])`,
+    // dal lato di Nicholas: «lo chiudo io», «correggo io il comando»
+    String.raw`(?<![\p{L}])(?:${VERBI_GESTO})\p{L}*o\s+io(?![\p{L}])`,
+    // «puoi chiudere», «devi correggere tu»
+    String.raw`(?<![\p{L}])(?:puoi|potresti|devi|dovresti)\s+(?:tu\s+)?(?:${VERBI_GESTO})\p{L}*(?:are|ere|ire)(?![\p{L}])`
+  ].join('|'),
+  'iu'
+)
+
+/** Nomi che esistono solo dentro il lavoro: «gruppo 3», «lotto 2», i difetti «D1» (0.84.3). */
+export const NOME_INTERNO = /(?<![\p{L}\d])(?:(?:gruppo|lotto|blocco|ondata)\s+(?:n\.?\s*)?\d+|D\d{1,2})(?![\p{L}\d])/u
+
+/** Il gesto a mano chiesto a Nicholas nella domanda o nelle scelte, o `undefined`. */
+export function gestoAMano(p: Pick<PartiDomanda, 'domanda' | 'scelte'>): string | undefined {
+  for (const t of [p.domanda, ...p.scelte.map((s) => s.scelta)]) {
+    const m = GESTO_A_MANO.exec(t)
+    if (m !== null) return m[0]
+  }
+  return undefined
+}
+
+/** Il primo nome interno in un testo, o `undefined`. */
+export function nomeInterno(testo: string): string | undefined {
+  return NOME_INTERNO.exec(testo)?.[0]
+}
+
 /** Le note di chiarezza su una domanda: vuoto se va bene. */
 export function noteDiChiarezza(p: PartiDomanda): string[] {
   const note: string[] = []
   const sigle = [...new Set(testiDi(p).flatMap(sigleIn))]
   if (sigle.length > 0) note.push(`niente sigle di chat (${sigle.map((s) => `«${s}»`).join(', ')}): chi legge non sa cosa sono, di' a parole di quale lavoro si tratta`)
+  const gesto = gestoAMano(p)
+  if (gesto !== undefined) note.push(`«${gesto}»: mai chiedere a Nicholas un gesto a mano (chiudere, spostare, cancellare, correggere, lanciare). Lo fa il programma o lo fai tu: chiedigli solo una decisione`)
+  const interno = nomeInterno([p.domanda, ...p.scelte.map((s) => s.scelta)].join('\n'))
+  if (interno !== undefined) note.push(`«${interno}» è un nome che esiste solo dentro il lavoro: di' a parole di cosa si tratta`)
   const vago = riferimentoVago([p.domanda, ...p.scelte.map((s) => s.scelta)].join('\n'))
   if (vago !== undefined) note.push(`«${vago}» non si capisce da lontano: di' esattamente di quale lavoro o di quale chat parli, con il suo compito`)
   return note
