@@ -3,7 +3,7 @@ import { useNomePc } from '../state/nomi-pc'
 import { ansiInHtml } from '@shared/ansi-html'
 import { pcVivo } from '@shared/posta'
 import {
-  trovaChatRemota, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
+  trovaChatRemota, storiaRemotaSicura, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
   type ChatRemota, type ChatSuPc, type PcRemoto, type StoriaRemota
 } from '@shared/pc-remoto'
 import { etichettaStrada, type InfoStrada } from '@shared/strada-pc'
@@ -269,7 +269,8 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         setChiusaPin(false)
         const el = schermo.current
         const inFondo = el === null || el.scrollTop + el.clientHeight >= el.scrollHeight - 12
-        setStoria(r.dati)
+        // Mai «reading 'join'» (21/10): lo schermo entra sempre messo in forma.
+        setStoria(storiaRemotaSicura(r.dati, f.chat.id))
         if (inFondo) requestAnimationFrame(() => { const e = schermo.current; if (e !== null) e.scrollTop = e.scrollHeight })
       } finally {
         inGiro.current = false

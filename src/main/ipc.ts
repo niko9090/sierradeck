@@ -19,6 +19,7 @@ import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
 import { messaggioChatAltrove } from '@shared/posta'
+import { messaggioChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
 import { fermaSeCasaAltrove } from '@shared/ospite-chat'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
@@ -183,6 +184,16 @@ export function impostaGuardiaCasa(f: (sessionUuid: string, autopilota?: { id: s
   casaAltroveDi = f
 }
 
+/**
+ * Una chat chiusa (o nel recupero) con la cartella sparita non si riavvia
+ * (0.84.1): lo imposta il Core dalle chiuse e dal recupero. Senza, non ce
+ * n'e' nessuna (i test, e il primo istante dopo l'avvio).
+ */
+let chiusaSenzaCartella: (sessionUuid: string, cwd: string) => Promise<string | undefined> = () => Promise.resolve(undefined)
+export function impostaChiusaSenzaCartella(f: (sessionUuid: string, cwd: string) => Promise<string | undefined>): void {
+  chiusaSenzaCartella = f
+}
+
 /** Chi vuole sapere di ogni chat che sta per aprirsi, con la sua cartella. */
 export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
   primaDiAprire = f
@@ -321,7 +332,21 @@ export function registerPtyIpc(
 
   // Il renderer dice quale sessione e dove; *cosa* eseguire lo decide qui il
   // Core. Un rigetto viaggia sulla promise di invoke e il riquadro lo mostra.
-  ipcMain.handle('pty:spawn', (event, raw: unknown): string => {
+  ipcMain.handle('pty:spawn', (event, raw: unknown): string | Promise<string> => {
+    // Prima della convalida, che rifiuterebbe la cartella sparita con una riga
+    // rossa: una chat chiusa o finita senza cartella non si avvia, il riquadro
+    // si toglie (0.84.1). Si chiede solo quando la cartella manca davvero.
+    const grezza = (typeof raw === 'object' && raw !== null ? raw : {}) as { sessionUuid?: unknown; cwd?: unknown }
+    const { sessionUuid, cwd } = grezza
+    if (typeof sessionUuid === 'string' && typeof cwd === 'string' && cwd !== '' && !existsSync(cwd)) {
+      return chiusaSenzaCartella(sessionUuid, cwd).catch(() => undefined).then((perche) => {
+        if (perche !== undefined) throw new Error(messaggioChiusaSenzaCartella({ sessionUuid, cwd, perche }))
+        return spawnConvalidato(event, raw)
+      })
+    }
+    return spawnConvalidato(event, raw)
+  })
+  const spawnConvalidato = (event: Electron.IpcMainInvokeEvent, raw: unknown): string => {
     const req = validateSpawnRequest(raw)
     const win = BrowserWindow.fromWebContents(event.sender)
     if (win === null) throw new Error('richiesta di spawn da una finestra sconosciuta')
@@ -334,7 +359,7 @@ export function registerPtyIpc(
       return adottato
     }
     return avvia(req, win)
-  })
+  }
   const avvia = (req: ReturnType<typeof validateSpawnRequest>, win: BrowserWindow | undefined): string => {
     // Prima di tutto la casa (0.52.0): con la casa altrove qui non parte niente.
     // Una chat governata porta il suo autopilota: vive sul suo PC (0.52.5).
