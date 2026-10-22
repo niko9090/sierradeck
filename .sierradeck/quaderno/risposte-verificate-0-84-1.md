@@ -46,3 +46,10 @@ Una risposta data dal riquadro delle domande conta solo se il PC della chat l'ha
 
 - In un test, `array.shift() ?? x` trasforma una lettura `undefined` («domanda sparita») nel ripiego: per le sequenze di letture usare un contatore.
 - Una chat in sottofondo non ha finestra: `schermoDi` torna `undefined` e si rilegge la foto `codaGrezza`, che si aggiorna ogni circa 2 s. La finestra di 3,5 s basta, ma è il caso più lento.
+
+**Trappola per i test (c-72, 22/10).** `/api/scegli` e `/api/scrivi` aspettano
+almeno 14 s sul ponte (`ROTTE_CON_VERIFICA`): un test che vuole vederle scadere
+deve passare `attesaVerificaMs` a `creaClientPcRemoto`, altrimenti con un
+ritardo finto di 200 ms la risposta arriva e l'errore «non so se il testo è
+arrivato» non c'è. E dal ponte la risposta porta `esito` e `frase` oltre a
+`fatto: true` (`senza-verifica` se il PC della chat non verifica).

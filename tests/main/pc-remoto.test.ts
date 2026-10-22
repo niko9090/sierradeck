@@ -59,7 +59,7 @@ function fintoFetch(risposte: Record<string, { stato?: number; corpo?: unknown; 
   return { fetch: f, chiamate }
 }
 
-function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string | undefined; attesaMs?: number; attesaLentaMs?: number; log?: string[] } = {}): ReturnType<typeof creaClientPcRemoto> {
+function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string | undefined; attesaMs?: number; attesaLentaMs?: number; attesaVerificaMs?: number; log?: string[] } = {}): ReturnType<typeof creaClientPcRemoto> {
   return creaClientPcRemoto({
     battiti: () => battiti,
     chiavePer: () => ('chiave' in opts ? opts.chiave : 'chiave-di-casa-B'),
@@ -68,6 +68,7 @@ function client(battiti: BattitoPc[], f: typeof fetch, opts: { chiave?: string |
     adesso: () => ORA,
     attesaMs: opts.attesaMs ?? 50,
     ...(opts.attesaLentaMs !== undefined ? { attesaLentaMs: opts.attesaLentaMs } : {}),
+    ...(opts.attesaVerificaMs !== undefined ? { attesaVerificaMs: opts.attesaVerificaMs } : {}),
     log: (m) => { opts.log?.push(m) }
   })
 }
@@ -227,7 +228,9 @@ describe('le richieste lente (0.60.2, collaudo fra i due PC)', () => {
 
   it('una richiesta normale troppo lenta dice che quel PC risponde ma non ha finito, non «ha cambiato indirizzo»', async () => {
     const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 200 } })
-    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000 })
+    // 0.84.1: le risposte (`/api/scegli`, `/api/scrivi`) aspettano di più, perché
+    // quel PC le preme e le verifica; anche loro, scadute, restano incerte.
+    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000, attesaVerificaMs: 60 })
     const lettura = await c.chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect(lettura).toBeInstanceOf(ErroreRemoto)
     expect((lettura as ErroreRemoto).message).toContain('Portatile risponde, ma non ha finito entro')
@@ -239,5 +242,13 @@ describe('le richieste lente (0.60.2, collaudo fra i due PC)', () => {
     const azione = await c.chiama('B', '/api/chat/nome', { chat: 'p1', nome: 'prova' }).catch((e: unknown) => e as ErroreRemoto)
     expect((azione as ErroreRemoto).message).toContain('non so se la richiesta è arrivata')
     expect((azione as ErroreRemoto).message).not.toContain('testo')
+  })
+
+  it('0.84.1: una risposta da verificare aspetta più di una richiesta normale, e arriva', async () => {
+    const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 120, corpo: { fatto: true, esito: 'presa', tentativi: 1 } } })
+    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000, attesaVerificaMs: 1000 })
+    expect(await c.chiama('B', '/api/scegli', { chat: 'p1', opzione: 'Sì' })).toEqual({ fatto: true, esito: 'presa', tentativi: 1 })
+    const lenta = await c.chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
+    expect(lenta).toBeInstanceOf(ErroreRemoto)
   })
 })
