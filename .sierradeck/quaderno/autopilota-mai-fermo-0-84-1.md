@@ -69,6 +69,23 @@ con il caso della notte (giro entro 15 minuti, anche dopo un riavvio),
 sostituzione senza doppioni, chat che risponde e non viene sostituita, chat
 nuova quando non c'è nessuno, «finito» con una chat ancora aperta.
 
-## Prova di 2 ore
+## Prova di 2 ore (22/10, 09:36 → 11:36)
 
-In corso.
+Il servizio vero (`creaServer`) gira con dati isolati nella cartella temporanea
+della chat. Il Gestore e le chat sono simulati da uno script con un seme fisso:
+chat che lavorano, che si zittiscono, che restano ferme al prompt. A metà c'è
+un riavvio del servizio. Il freno, senza limiti del piano, ha tenuto 2 chat
+attive su 4, come fa il programma vero quando non li conosce.
+
+Il tratto più lungo senza nessuna chat al lavoro è stato di **12 minuti**, con
+0 tratti oltre i 15. Ci sono stati 4 giri partiti da soli e 7 riprese, 0
+sostituzioni, 0 messe da parte (il giro arriva sempre prima dell'ora), 0
+doppioni. Numeri e limiti della prova nel `rapporto-0-84-1.md`, sezione 3.
+
+**Per rifare una prova così:** il bundle si fa con esbuild
+(`--alias:@src=<copia>/src --alias:@shared=<copia>/src/shared --platform=node`).
+Il server si crea con `creaServer` e le dipendenze finte (avviaLavoro,
+fermaLavoro, chiudiChat), su una porta diversa da 47630, e si chiama
+`controllaChatFerme` ogni minuto come fa `index.ts`. Attenzione ai criteri che
+cambiano senza commit: la memoria li ricorda per commit e la prova non vede il
+cambio.
