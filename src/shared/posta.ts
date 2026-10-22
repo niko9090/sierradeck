@@ -11,7 +11,19 @@ import type { RisorsePc } from './risorse'
  * nel battito, così le Domande degli altri PC hanno i pulsanti. La scelta poi
  * passa dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
  */
-export type OpzioneBattito = { numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }
+export type OpzioneBattito = {
+  numero: number
+  /** Tagliato a `TAGLIO_OPZIONE_BATTITO` caratteri: quel PC lo riconosce anche tagliato (0.84.3). */
+  testo: string
+  libera?: boolean
+  spuntata?: boolean
+  invio?: boolean
+  /** La spiegazione sotto l'opzione (0.84.3): la scheda la mostra come sullo stesso PC. */
+  descrizione?: string
+}
+
+/** Quanto testo di un'opzione viaggia nel battito. */
+export const TAGLIO_OPZIONE_BATTITO = 200
 
 export type ChatDiPc = {
   /** L'id del riquadro su quel PC: serve per scriverci. Non viaggia sul Drive. */

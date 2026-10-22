@@ -21,6 +21,15 @@ export const ATTESA_PRESA_MS = 3500
 export const PAUSA_FRA_PEZZI_MS = 150
 /** Un solo nuovo tentativo: due pressioni in tutto, mai di più. */
 export const TENTATIVI_MAX = 2
+/**
+ * Il tempo massimo di tutta la verifica, letture comprese (0.84.3). Chi ha
+ * toccato aspetta 15 s sull'app e 14 s sul ponte, e prima l'altro PC chiede
+ * lo stato (fino a 4 s): oltre i 9 s Nicholas leggeva «non so se è arrivato»
+ * mentre questo PC stava ancora premendo.
+ */
+export const LIMITE_VERIFICA_MS = 9000
+/** Il secondo tentativo parte solo se resta almeno questo tempo per vederlo. */
+const MARGINE_TENTATIVO_MS = 1000
 
 export type EsitoPressione =
   | { esito: 'presa'; tentativi: number }
@@ -40,6 +49,9 @@ export type DipendenzePressione = {
   cosa: string
   attesaMs?: number
   rileggiMs?: number
+  /** L'orologio (ms): il tempo si misura qui, letture lente comprese. */
+  ora?: () => number
+  limiteMs?: number
 }
 
 /** Quanto ci mettono i pezzi a partire tutti. */
@@ -61,29 +73,54 @@ export function andataAvanti(prima: Scelta, adesso: Scelta | undefined): boolean
 export async function premiEVerifica(scelte: Scelta, d: DipendenzePressione): Promise<EsitoPressione> {
   const attesa = d.attesaMs ?? ATTESA_PRESA_MS
   const ogni = Math.max(1, d.rileggiMs ?? RILETTURA_MS)
+  const ora = d.ora ?? ((): number => Date.now())
+  // Prima il tempo si contava sommando le pause: una lettura da 3 s (nessuna
+  // finestra disegna la chat) non contava, e la verifica durava 2 minuti.
+  // Adesso conta tutto: ogni pausa (almeno quanto chiesto) e ogni lettura.
+  const limite = d.limiteMs ?? LIMITE_VERIFICA_MS
+  let speso = 0
+  const misura = async <T>(fai: () => Promise<T>, almeno = 0): Promise<T> => {
+    const da = ora()
+    try { return await fai() } finally { speso += Math.max(almeno, ora() - da) }
+  }
   let schermo = scelte
+  let premute = 0
   for (let n = 1; n <= TENTATIVI_MAX; n += 1) {
+    if (n > 1 && limite - speso < MARGINE_TENTATIVO_MS) {
+      d.log(`[risposta] ${d.cosa}: tempo della verifica finito, non riprovo`)
+      break
+    }
     const k = d.tasti(schermo)
     if ('errore' in k) {
       d.log(`[risposta] ${d.cosa}: tentativo ${n} non premuto, ${k.errore}`)
       return { esito: 'cambiata', tentativi: n - 1, errore: k.errore }
     }
     d.manda(k.pezzi)
+    premute = n
     d.log(`[risposta] ${d.cosa}: tentativo ${n} di ${TENTATIVI_MAX}, premo ${k.pezzi.length === 1 ? '1 tasto' : `${k.pezzi.length} pezzi`}`)
-    const fine = durataTasti(k.pezzi) + attesa
-    for (let passato = 0; passato < fine; passato += ogni) {
-      await d.pausa(ogni)
-      const ora = await d.leggi().catch(() => schermo)
-      if (andataAvanti(scelte, ora)) {
+    const inizio = speso
+    const fine = Math.min(inizio + durataTasti(k.pezzi) + attesa, limite)
+    while (speso + ogni <= fine) {
+      await misura(() => d.pausa(ogni), ogni)
+      const letta = await misura(() => entro(d.leggi(), Math.max(0, limite - speso)).catch(() => schermo))
+      if (andataAvanti(scelte, letta)) {
         d.log(`[risposta] ${d.cosa}: presa al tentativo ${n}, la chat è andata avanti`)
         return { esito: 'presa', tentativi: n }
       }
-      if (ora !== undefined) schermo = ora
+      if (letta !== undefined) schermo = letta
     }
-    if (n < TENTATIVI_MAX) d.log(`[risposta] ${d.cosa}: dopo ${(fine / 1000).toFixed(1)} s la domanda è ancora lì, riprovo`)
+    if (n < TENTATIVI_MAX) d.log(`[risposta] ${d.cosa}: dopo ${((speso - inizio) / 1000).toFixed(1)} s la domanda è ancora lì, riprovo`)
   }
-  d.log(`[risposta] ${d.cosa}: NON presa dopo ${TENTATIVI_MAX} tentativi, la domanda è ancora lì`)
-  return { esito: 'non-presa', tentativi: TENTATIVI_MAX }
+  d.log(`[risposta] ${d.cosa}: NON presa dopo ${premute === 1 ? '1 tentativo' : `${premute} tentativi`}, la domanda è ancora lì`)
+  return { esito: 'non-presa', tentativi: premute }
+}
+
+/** Una lettura che non arriva entro `ms` vale come «schermo uguale» (rifiuta). */
+function entro<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((ok, no) => {
+    const t = setTimeout(() => no(new Error('lettura lenta')), ms)
+    p.then((v) => { clearTimeout(t); ok(v) }, (e: unknown) => { clearTimeout(t); no(e) })
+  })
 }
 
 /**
@@ -107,5 +144,5 @@ export function leggiEsitoAltroPc(corpo: unknown): EsitoAltroPc {
 export function fraseEsito(e: EsitoPressione, risposta: string): string {
   if (e.esito === 'presa') return e.tentativi === 1 ? `Presa: «${risposta}», la chat è andata avanti.` : `Presa al secondo tentativo: «${risposta}», la chat è andata avanti.`
   if (e.esito === 'cambiata') return `Non premuta: ${e.errore}`
-  return `Non presa: il PC della chat ha premuto «${risposta}» due volte ma la domanda è ancora lì. Guarda la chat e rispondi di nuovo.`
+  return `Non presa: il PC della chat ha premuto «${risposta}» ${e.tentativi === 1 ? 'una volta' : 'due volte'} ma la domanda è ancora lì. Guarda la chat e rispondi di nuovo.`
 }

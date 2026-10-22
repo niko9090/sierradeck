@@ -316,7 +316,7 @@ export type AltroPcPerDomande = {
   pcId: string
   nome: string
   vivo: boolean
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; contesto?: string[]; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; contesto?: string[]; scelte?: { numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean; descrizione?: string }[] }[]
   /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
   strada?: string
 }
@@ -414,7 +414,7 @@ export function raccogliDomande(p: {
           ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
           ...(contesto.length > 0 ? { contesto } : {}),
           righe: typeof c.domanda === 'string' && c.domanda.trim() !== '' ? c.domanda.trim().split('\n') : [],
-          opzioni: c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })),
+          opzioni: c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}), ...(typeof o.descrizione === 'string' && o.descrizione.trim() !== '' ? { descrizione: o.descrizione.trim().slice(0, 300) } : {}) })),
           corrente: 0
         })
         continue

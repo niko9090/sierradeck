@@ -29,7 +29,7 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Risposta, type Scelta } from '@shared/scelte-terminale'
 import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
-import type { OpzioneBattito } from '@shared/posta'
+import { TAGLIO_OPZIONE_BATTITO, type OpzioneBattito } from '@shared/posta'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -802,6 +802,20 @@ function mandaTasti(deps: DipendenzeRotte, chat: string, pezzi: string[]): void 
   if (deps.tastiAChat !== undefined) { deps.tastiAChat(chat, pezzi); return }
   const finale = pezzi[pezzi.length - 1] === String.fromCharCode(13)
   deps.scriviAChat(chat, (finale ? pezzi.slice(0, -1) : pezzi).join(''))
+}
+
+/**
+ * Dov'è l'opzione toccata sullo schermo di adesso. Il testo uguale; oppure
+ * (0.84.3) un testo lungo quanto il taglio del battito che è l'inizio di
+ * **una sola** opzione: da un altro PC le opzioni oltre i 200 caratteri
+ * arrivano tagliate, e prima ogni tocco tornava «la scelta e cambiata».
+ * Se l'inizio è di due opzioni non si tira a indovinare.
+ */
+export function dovEOpzione(s: Scelta, voluta: string): number {
+  const uguale = s.opzioni.findIndex((o) => o.testo === voluta)
+  if (uguale >= 0 || voluta.length < TAGLIO_OPZIONE_BATTITO) return uguale
+  const inizia = s.opzioni.flatMap((o, n) => (o.testo.startsWith(voluta) ? [n] : []))
+  return inizia.length === 1 ? (inizia[0] ?? -1) : -1
 }
 
 export function rotteClient(depsPieni: DipendenzeRotte) {
@@ -1674,7 +1688,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // ha fino a due secondi, e in due secondi la domanda puo' essere gia'
       // stata risposta — da qui, un attimo fa.
       const scelte = await scelteAdesso(trovata)
-      const dove = scelte?.opzioni.findIndex((o) => o.testo === voluta) ?? -1
+      const dove = scelte === undefined ? -1 : dovEOpzione(scelte, voluta)
       if (scelte === undefined || dove < 0) {
         return { stato: 409, corpo: { errore: 'la scelta e cambiata: guarda di nuovo' } }
       }
@@ -1685,7 +1699,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       // «Type something.» con il testo (0.52.5): la risposta libera.
       const libera = stringa(r.corpo, 'testo')
-      const risposta: Risposta = scelte.opzioni[dove]?.libera === true && libera.trim() !== '' ? { tipo: 'libera', testo: libera } : { tipo: 'opzione', testo: voluta }
+      // Il testo intero dello schermo: da un altro PC può arrivare tagliato (0.84.3).
+      const risposta: Risposta = scelte.opzioni[dove]?.libera === true && libera.trim() !== '' ? { tipo: 'libera', testo: libera } : { tipo: 'opzione', testo: scelte.opzioni[dove]?.testo ?? voluta }
       const k = tastiPerRisposta(scelte, risposta)
       if ('errore' in k) return { stato: 409, corpo: { errore: k.errore } }
       // Intanto la stessa domanda non si rimostra e un secondo tocco non passa.

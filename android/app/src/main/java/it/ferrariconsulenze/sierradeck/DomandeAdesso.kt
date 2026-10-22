@@ -186,12 +186,14 @@ fun LazyListScope.domandeInCima(api: Api, d: DomandeLette, onApri: (Conversazion
 private fun SchedaConversazione(api: Api, c: Conversazione, gia: String?, onMandata: (String) -> Unit, onApri: () -> Unit) {
     var inCorso by remember(c.chiave) { mutableStateOf(false) }
     var nota by remember(c.chiave) { mutableStateOf<String?>(null) }
+    // La frase del PC dopo la risposta (0.84.3): «Presa: …» come su PC e pagina.
+    var esito by remember(c.chiave) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    fun manda(ricordo: String, azione: suspend () -> Unit) {
+    fun manda(ricordo: String, azione: suspend () -> Fatto) {
         inCorso = true; nota = null
         scope.launch {
             try {
-                azione(); onMandata(ricordo)
+                esito = EsitoRisposta.riga(azione(), ricordo); onMandata(ricordo)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -213,7 +215,7 @@ private fun SchedaConversazione(api: Api, c: Conversazione, gia: String?, onMand
             }
             val scheda = c.scheda
             when {
-                gia != null -> Text("Mandata: «${gia.take(80)}». Sparisce appena il computer la riceve.", color = Banco.verde, fontSize = 13.sp)
+                gia != null -> Text(esito ?: "Mandata: «${gia.take(80)}». Sparisce appena il computer la riceve.", color = Banco.verde, fontSize = 13.sp)
                 scheda != null -> SchedaDomandaVista(
                     scheda, inCorso, if (c.risposta.via == "rispondi") "Rispondi" else "Manda",
                     onScelta = { o ->
