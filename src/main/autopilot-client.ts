@@ -150,6 +150,8 @@ export type ClientAutopilota = {
    * Torna quanti ne ha toccati.
    */
   pausaAggiornamento: (attiva: boolean) => Promise<number>
+  /** «Aggiorna adesso» (0.84.1): un commit sul ramo di ogni chat prima di installare. */
+  salvaPerAggiornamento: () => Promise<{ salvate: number; provate: number }>
   /**
    * Il battito delle chat governate che stanno lavorando adesso.
    *
@@ -337,6 +339,15 @@ export function creaClientAutopilota(p: {
       const esito = (await chiama('/pausa-aggiornamento', 'POST', { attiva })) as
         { toccati?: unknown } | undefined
       return typeof esito?.toccati === 'number' ? esito.toccati : 0
+    },
+
+    async salvaPerAggiornamento() {
+      const esito = (await chiama('/salva-per-aggiornamento', 'POST', {}, 60_000)) as
+        { salvate?: unknown; provate?: unknown } | undefined
+      return {
+        salvate: typeof esito?.salvate === 'number' ? esito.salvate : 0,
+        provate: typeof esito?.provate === 'number' ? esito.provate : 0
+      }
     },
 
     async battiti(segni, ferme = []) {
