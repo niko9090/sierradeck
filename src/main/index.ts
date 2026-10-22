@@ -145,6 +145,7 @@ import { comeSpostare, destinazioniSposta, riassuntoSposta } from '@shared/spost
 import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
+import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
@@ -5376,6 +5377,8 @@ if (!app.requestSingleInstanceLock()) {
             { grezze?: unknown } | undefined
           return Array.isArray(r?.grezze) ? (r.grezze as string[]) : undefined
         },
+        // Le risposte dal riquadro delle domande (0.84.1): premute, riguardate, ritentate una volta.
+        verificaRisposte: {},
 
         // La linguetta «File» dal telefono (0.38.0): le stesse funzioni del PC.
         fileAutopilota: async (id: string) => {
@@ -5407,26 +5410,30 @@ if (!app.requestSingleInstanceLock()) {
           const s = remoto.stradaDi(pcId)
           return s === undefined ? undefined : stradaBreve(s.strada)
         },
-        scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<{ ok: true } | { ok: false; messaggio: string }> => {
+        scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number }> => {
           try {
             const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
             const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
             if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC' }
-            await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t })
-            return { ok: true }
+            // Se là la chat è ferma su una scelta, quel PC dice se l'ha presa (0.84.1).
+            return leggiEsitoAltroPc(await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t }))
           } catch (e) {
-            return { ok: false, messaggio: e instanceof Error ? e.message : String(e), ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {}) }
+            return {
+              ok: false, messaggio: e instanceof Error ? e.message : String(e),
+              ...(e instanceof ErroreRemoto && e.stato !== undefined ? { stato: e.stato } : {}),
+              ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {})
+            }
           }
         },
         // Una scelta per la chat di un altro PC, dalle Domande (0.52.6): passa
         // dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
-        scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string): Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number; pin?: boolean }> => {
+        scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string): Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number; pin?: boolean }> => {
           try {
             const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
             const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
             if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC', stato: 404 }
-            await remoto.chiama(pcId, '/api/scegli', { chat: String(c.id), opzione, ...(libera !== undefined ? { testo: libera } : {}) })
-            return { ok: true }
+            // Quel PC preme, riguarda il suo schermo e dice se l'ha presa (0.84.1).
+            return leggiEsitoAltroPc(await remoto.chiama(pcId, '/api/scegli', { chat: String(c.id), opzione, ...(libera !== undefined ? { testo: libera } : {}) }))
           } catch (e) {
             return {
               ok: false, messaggio: e instanceof Error ? e.message : String(e),

@@ -5780,7 +5780,11 @@ window.scegliIn = async (chat, testo) => {
   try {
     var esito = await chiedi('/api/scegli', { chat: chat, opzione: testo })
     if (esito && esito.errore) notaGlobale = String(esito.errore).indexOf('mandata') >= 0 ? 'Gi\u00e0 mandata: aspetta che lo schermo cambi.' : String(esito.errore).indexOf('cambiata') >= 0 ? 'La scelta \u00e8 cambiata mentre toccavi: fra un attimo si aggiorna.' : String(esito.errore)
-    else if (voce) domandeMandate[chiaveVoce(voce)] = testo
+    else {
+      if (voce) domandeMandate[chiaveVoce(voce)] = testo
+      // L'esito dal PC della chat (0.84.1): presa davvero, o mandata senza verifica.
+      if (esito && esito.frase) notaGlobale = String(esito.frase)
+    }
   } catch (e) {
     notaGlobale = 'Non sono riuscito a mandare la scelta: ' + (e && e.message ? e.message : 'il computer non risponde')
   }
@@ -5795,6 +5799,7 @@ window.scriviIn = async (chat) => {
     // Una chat ferma su una scelta (0.52.5): il testo diventa la scelta, o il computer dice perché no.
     if (esito && esito.errore) { notaGlobale = String(esito.errore); pannello(ultimoStato); return }
     if (voce) domandeMandate[chiaveVoce(voce)] = esito && esito.comeScelta ? 'scelto: ' + esito.comeScelta : campo.value.slice(0, 80)
+    if (esito && esito.frase) notaGlobale = String(esito.frase)
     campo.value = ''
   } catch (e) {
     notaGlobale = 'Non sono riuscito a mandarlo: ' + (e && e.message ? e.message : 'il computer non risponde')
@@ -5858,7 +5863,7 @@ window.scegli = async (testo) => {
         : String(esito.errore)
       // «Type something.»: la scelta resta, si scrive nel campo qui sotto.
       sceltaRisposta = null
-    }
+    } else if (esito && esito.frase) notaScelta = String(esito.frase)
   } catch (e) {
     notaScelta = 'Non sono riuscito a mandarla: il computer non risponde.'
   }
