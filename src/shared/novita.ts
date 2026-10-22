@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.84.2',
+    righe: [
+      '**Gli autopiloti non si fermano più per i limiti del piano Claude:** prima, sopra il 60% della settimana, non aprivano chat nuove e il lavoro restava fermo per ore. Adesso aprono tutte le chat utili; la percentuale resta visibile e decidi tu se rallentare. Restano solo i limiti del PC (processori e memoria).',
+    ]
+  },
+  {
     versione: '0.84.1',
     righe: [
       '**L’autopilota non resta più fermo con il lavoro da finire:** se da 10 minuti nessuna sua chat lavora, fa un giro da solo. Una chat zitta viene interrotta e riceve di nuovo l’ultima istruzione; se resta muta, il suo compito passa a una chat nuova sullo stesso ramo e la vecchia va nel recupero di 30 giorni. «Finito» arriva solo quando non c’è più nessuna chat aperta. Vale anche dopo un riavvio.',
