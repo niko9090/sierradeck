@@ -205,7 +205,7 @@ Oltre alla tabella della sezione 2:
 | c-77 | **unito** (`59ecf247`) | «Aggiorna adesso» e nessuna consegna dopo «Installa» |
 | c-70 | **superato**, niente da unire | sopra main ha solo un commit e il suo revert: la differenza è vuota |
 | c-78, c-80 | **uniti** | solo quaderno (lista dei lavori, scheda ECC) |
-| c-81, c-82 | **aperti** | collaudi della 0.84.1 arrivati dopo il tag: vanno nella 0.84.2 |
+| c-81, c-82 | **uniti** come collaudi (nel ramo c-79, `3bd03c9c` e `cfada715`, poi in main) | solo test, schede `collaudo-*-0-84-1.md` e lista dei lavori; arrivati dopo il tag, quindi non sono nella release. I due test passano: 13 casi verdi, e i 2+4 difetti sono segnati `it.fails` (6 «expected fail»), da correggere nella 0.84.2 |
 
 ## 5. Cosa resta (0.84.2)
 
