@@ -1,5 +1,6 @@
 import type { Autopilota } from '@shared/autopilota'
-import { partiBloccato, partiNonMisurati } from '@shared/domanda-strutturata'
+import { partiBloccato } from '@shared/domanda-strutturata'
+import { esitiCheDecidono, senzaMisura } from './criteri-giudicati'
 import type { Decisione, EsitoVerifica } from './decisione'
 import { riassuntoFallimenti } from './decisione'
 import type { DecisioneSupervisore } from './decisione-supervisore'
@@ -56,10 +57,13 @@ export function nonMisurati(esiti: EsitoVerifica[]): EsitoVerifica[] {
  * decisioni che vengono sistematicamente riscritte.
  */
 export function applicaRete(
-  ctx: Contesto,
+  dato: Contesto,
   decisione: DecisioneSupervisore | undefined
-): { mossa: Decisione; nota?: string } {
-  const { a, esiti, inCerchioDa } = ctx
+): { mossa: Decisione; nota?: string; rifiuto?: { descrizione: string; motivo: string } } {
+  // I criteri che l'autopilota giudica da sé (0.84.3) non decidono più niente.
+  const { a, inCerchioDa } = dato
+  const esiti = esitiCheDecidono(dato.esiti, a.criteri)
+  const ctx: Contesto = { ...dato, esiti }
   const bocciati = fallitiDavvero(esiti)
 
   // Senza decisione si torna alle regole: è il caso del supervisore che non
@@ -69,37 +73,24 @@ export function applicaRete(
   }
 
   if (decisione.azione === 'finito') {
-    // Un criterio che nessuno ha potuto misurare non e' un criterio verde.
-    // `bocciati` da solo lo lasciava passare — un comando rotto non boccia
-    // niente — e il lavoro si chiudeva con una parte mai controllata.
+    // Un criterio che nessuno ha potuto misurare non e' un criterio verde:
+    // `bocciati` da solo lo lasciava passare in silenzio. Adesso si chiude
+    // dicendolo (0.84.3), mai in silenzio e mai con una domanda.
     const ignoti = nonMisurati(esiti)
     if (bocciati.length === 0 && ignoti.length > 0) {
-      // Non si chiude e non si insiste: **si chiede**. Le altre due strade sono
-      // tutte e due sbagliate. Chiudere vuol dire dichiarare finito un lavoro
-      // di cui una parte non e' mai stata controllata — il fallimento
-      // silenzioso peggiore che questo sistema possa produrre. Rimandare la
-      // chat a lavorare vuol dire girare finche' non scade un tetto, perche' il
-      // comando rotto resta rotto: la riparazione automatica ha gia' provato,
-      // in questo stesso giro, e non ce l'ha fatta.
-      //
-      // Chi puo' deciderlo e' l'utente, ed e' una domanda breve: «questo
-      // comando non parte, chiudo lo stesso o lo sistemi?». L'autopilota resta
-      // vivo ad aspettarla.
-      const elenco = ignoti.map((e) => `- ${e.descrizione}: \`${e.comando}\``).join('\n')
+      // **Si chiude da solo** (0.84.3, Nicholas il 22/10: «togli i vincoli»).
+      // Fino alla 0.84.2 qui si chiedeva «chiudo lo stesso o correggi il
+      // comando?»: una domanda che chiede a Nicholas di sistemare a mano un
+      // comando di verifica. La riparazione automatica ha già provato in questo
+      // giro; il resto è verde e il supervisore dice «finito». Il lavoro si
+      // chiude, le chat vanno nel recupero di 30 giorni, e una riga dice quale
+      // criterio non si è potuto misurare e perché.
+      const quali = senzaMisura(ignoti)
       return {
-        mossa: {
-          tipo: 'chiediUtente',
-          parti: partiNonMisurati(ignoti.map((e) => ({ descrizione: e.descrizione, comando: e.comando ?? '' }))),
-          dalProgramma: true,
-          domanda:
-            `Il lavoro sembra concluso, ma ${ignoti.length === 1 ? 'un criterio non e stato misurato' : `${ignoti.length} criteri non sono stati misurati`}: ` +
-            `il comando di verifica non e' nemmeno partito.\n\n${elenco}\n\n` +
-            'Non chiudo da solo su una cosa che non ho controllato. ' +
-            'Vuoi che chiuda lo stesso, o preferisci correggere il comando?'
-        },
+        mossa: { tipo: 'finito', senzaMisura: quali },
         nota:
-          `«finito» sospeso: ${ignoti.length} criteri non misurati ` +
-          `(${ignoti.map((e) => e.descrizione).join(', ')}) — chiedo all'utente`
+          `«finito» con ${ignoti.length} criteri non misurati ` +
+          `(${ignoti.map((e) => e.descrizione).join(', ')}): chiudo lo stesso e lo scrivo, senza chiedere`
       }
     }
     if (bocciati.length > 0) {
@@ -128,12 +119,16 @@ export function applicaRete(
     // Un criterio che il comando misura e boccia non si «corregge»: sarebbe il
     // modo più elegante di far sparire un problema invece di risolverlo.
     const misuratoEBocciato = bocciati.some((e) => e.descrizione === criterio?.descrizione)
-    if (criterio === undefined || misuratoEBocciato) {
+    if (criterio === undefined) {
+      return { mossa: dalleRegole(ctx), nota: '«correggiCriterio» senza comando: decidono le regole' }
+    }
+    if (misuratoEBocciato) {
+      // Il rifiuto si conta (0.84.3): al secondo il criterio lo giudica
+      // l'autopilota (`criteri-giudicati.ts`), senza domanda a Nicholas.
       return {
         mossa: dalleRegole(ctx),
-        nota: criterio === undefined
-          ? '«correggiCriterio» senza comando: decidono le regole'
-          : `correzione rifiutata per «${criterio.descrizione}»: quel comando misura, e boccia`
+        nota: `correzione rifiutata per «${criterio.descrizione}»: quel comando misura, e boccia`,
+        rifiuto: { descrizione: criterio.descrizione, motivo: 'quel comando misura il lavoro e lo boccia: un comando che boccia non si cambia per farlo passare' }
       }
     }
     return {

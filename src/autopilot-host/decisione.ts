@@ -49,7 +49,11 @@ export type Decisione =
    * — per distinguere «sta lavorando» da «sta cercando un'altra strada».
    */
   | { tipo: 'prosegui'; istruzioni: string; strategia?: string }
-  | { tipo: 'finito' }
+  /**
+   * `senzaMisura` (0.84.3): i criteri che a fine lavoro non si sono potuti
+   * misurare. Il lavoro si chiude lo stesso, e una riga dice quali e perché.
+   */
+  | { tipo: 'finito'; senzaMisura?: { descrizione: string; perche: string }[] }
   | { tipo: 'sospendi'; motivo: string }
   /** Il comando di un criterio va sostituito: misurava la cosa sbagliata. */
   | { tipo: 'correggiCriterio'; descrizione: string; comando: string }

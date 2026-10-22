@@ -8,10 +8,12 @@ import {
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
 import {
-  decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type EsitoVerifica
+  decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type Decisione as Mossa, type EsitoVerifica
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
-import { applicaRete, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
+import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
+import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
+import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
@@ -380,6 +382,8 @@ export function conservaCambiUtente(
     if (v.ultimaVerifica !== undefined) con.ultimaVerifica = v.ultimaVerifica
     if (v.raggiuntoIl !== undefined) con.raggiuntoIl = v.raggiuntoIl
     else delete con.raggiuntoIl
+    // «Lo giudico io» deciso in questo turno (0.84.3): non si perde nel salvataggio.
+    if (v.giudicato !== undefined) con.giudicato = v.giudicato
     return con
   })
   // La chat di questo turno com'è dopo il calcolo di suStop (cicli, sessione).
@@ -838,6 +842,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   /**
+   * Una correzione di criterio rifiutata (0.84.3): la prima volta il motivo
+   * torna a chi ha corretto, con un altro tentativo; la seconda il criterio lo
+   * giudica l'autopilota e Nicholas lo legge in una riga, senza domanda.
+   * Cambia `a` (criteri e storia) e torna la mossa del giro.
+   */
+  const contaRifiuto = (a: Autopilota, descrizione: string, motivo: string, perche: string | undefined, mossa: Mossa | undefined): Mossa => {
+    const dopo = dopoRifiuto({ criteri: a.criteri, descrizione, motivo, rifiutiPrima: rifiutiDi(a, descrizione), ...(perche !== undefined ? { perche } : {}), adesso: deps.adesso() })
+    a.criteri = dopo.criteri
+    annota(a, dopo.riga)
+    console.info(`[autopilota] ${a.id} — ${dopo.riga}`)
+    if (dopo.giudicato) {
+      void deps.avvisa('avviso', a, dopo.riga)
+      return { tipo: 'prosegui', istruzioni: `${dopo.istruzioni}\n\nObiettivo: ${a.obiettivo}` }
+    }
+    if (mossa === undefined || mossa.tipo !== 'prosegui') return mossa ?? { tipo: 'prosegui', istruzioni: dopo.istruzioni }
+    return { ...mossa, istruzioni: `${dopo.istruzioni}\n\n${mossa.istruzioni}` }
+  }
+
+  /**
    * L'ultima volta che ognuno ha chiuso un turno.
    *
    * Non basta `ultimoEvento`: quello si aggiorna a ogni salvataggio, anche
@@ -1110,6 +1133,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       presi.presi
     ).catch((err: unknown) => {
       console.error(`[autopilota] ripresa della chat ${chatId} di ${autopilotaId} fallita:`, err)
+    })
+  }
+
+  /**
+   * Una domanda chiusa perché superata, con la strada al posto della risposta
+   * (0.84.3): la riga nella storia e le chat che la aspettavano di nuovo al
+   * lavoro. Con una chat sola si riprende l'autopilota in attesa.
+   */
+  const riprendiDopoSuperata = (autopilotaId: string, chatIds: string[], domanda: string, strada: string, riga: string): void => {
+    const ora = deps.archivio.leggi(autopilotaId)
+    if (ora === undefined) return
+    annota(ora, riga)
+    if (chatIds.length > 0 || ora.stato !== 'attesa') {
+      salva(ora)
+      for (const cid of chatIds) riprendiChatBloccata(autopilotaId, cid, domanda, strada, 'domanda superata')
+      return
+    }
+    const presi = prendiMessaggiPer({ ...ora, stato: 'lavoro' }, ora.id)
+    salva({ ...presi.autopilota, motivoSospensione: undefined })
+    void avviaLavoro(presi.autopilota, conPreambolo(presi.testi, componiRisposta(domanda, strada)), undefined, presi.presi).catch((err: unknown) => {
+      console.error(`[autopilota] ripresa di ${autopilotaId} dopo una domanda superata fallita:`, err)
     })
   }
 
@@ -3050,8 +3094,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
 
       decisione = mossa
-      const nota = senza?.nota ?? regole.nota
-      const perche = nota ?? suggerita?.perche
+      // 0.84.3: la correzione rifiutata si conta; alla seconda il criterio lo giudica l'autopilota.
+      if (regole.rifiuto !== undefined) decisione = contaRifiuto(aggiornato, regole.rifiuto.descrizione, regole.rifiuto.motivo, suggerita?.perche, decisione)
+      const nota = regole.rifiuto !== undefined ? undefined : (senza?.nota ?? regole.nota)
+      const perche = nota ?? (regole.rifiuto !== undefined ? undefined : suggerita?.perche)
       if (perche !== undefined) {
         console.log(`[autopilota] ${id} — ${mossa.tipo}: ${perche}`)
         aggiornato.decisioni = [
@@ -3075,7 +3121,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(improntaOra !== undefined ? { impronta: improntaOra } : {})
       })
       misura.crono.segna('criteri prima del finito')
-      const rossi = tuttiOra.esiti.filter((e) => !e.passato)
+      // Solo quelli misurati e bocciati, senza i giudicati (0.84.3): un comando che non parte non riapre il lavoro.
+      const rossi = fallitiDavvero(esitiCheDecidono(tuttiOra.esiti, aggiornato.criteri))
       if (rossi.length > 0) {
         decisione = {
           tipo: 'prosegui',
@@ -3344,9 +3391,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const esame = esaminaComando(comando, esisteIn(aggiornato.cwd))
       if (!esame.ok) {
         const msg = messaggioCriterio(descrizione, comando, esame)
-        annota(aggiornato, msg)
+        // 0.84.3: un altro tentativo con il motivo, poi «lo giudico io».
+        const dopo = contaRifiuto(aggiornato, descrizione, msg, undefined, undefined)
         salvaNelTurno(aggiornato)
-        return { decision: 'block', reason: `${msg}\n\nIl criterio resta com'era. Prosegui verso l'obiettivo: ${aggiornato.obiettivo}` }
+        return { decision: 'block', reason: `${dopo.tipo === 'prosegui' ? dopo.istruzioni : msg}\n\nIl criterio resta com'era. Prosegui verso l'obiettivo: ${aggiornato.obiettivo}` }
       }
       const presi = tuoi(aggiornato)
       const conNuovoCriterio: Autopilota = {
@@ -3435,6 +3483,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         conosciute(aggiornato)
       )
       if (pronta.riscritta) annota(aggiornato, 'la domanda era incompleta: il supervisore l’ha riscritta')
+      // 0.84.3: anche riscritta chiede un gesto a mano o parla con sigle: non va a Nicholas, il programma fa da solo.
+      const nonVa = scartaSeNonVa(pronta.parti)
+      if (nonVa !== undefined) {
+        const presi = tuoi(aggiornato)
+        annota(presi.autopilota, nonVa.riga)
+        salvaNelTurno(presi.autopilota)
+        misura.esito = 'domanda non chiesta'
+        console.log(`[domande] ${id} — scartata: ${nonVa.riga}`)
+        deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(aggiornato, chatId, pronta.parti.domanda, nonVa.risposta) })
+        return { decision: 'block', reason: conPreambolo(presi.testi, nonVa.perLaChat) }
+      }
       if (pronta.avvertenza !== undefined) annota(aggiornato, `domanda passata incompleta: ${pronta.avvertenza}`)
       const testoDomanda = pronta.testo
       // T5: una chat sorella ha gia' chiesto la stessa cosa? Allora questa si
@@ -3724,6 +3783,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // I messaggi che aspettavano questa chat non hanno piu' dove andare: si
     // tolgono e lo si scrive nel diario, cosi' non sembra che siano spariti.
     const nonConsegnati = aggiornato.daConsegnare.filter((m) => m.chats.includes(chiaveChat))
+    // 0.84.3: chiuso con criteri che non si sono potuti misurare. Una riga dice quali e perché.
+    if (decisione.tipo === 'finito' && decisione.senzaMisura !== undefined && decisione.senzaMisura.length > 0) {
+      const riga = rigaChiusoSenzaMisura(decisione.senzaMisura)
+      annota(aggiornato, riga)
+      void deps.avvisa('avviso', aggiornato, riga)
+    }
     const finito: Autopilota = {
       ...aggiornato,
       stato: 'finito',
@@ -3904,6 +3969,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(fresco, chatId, laDomanda, scarto.risposta) })
       void avviaLavoro(fresco, scarto.perLaChat, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta già data non consegnata a ${id}:`, err)
+      })
+      return {}
+    }
+    // 0.84.3: un gesto a mano o le sigle anche dopo il controllo: non va a Nicholas.
+    const nonVa = scartaSeNonVa(pronta.parti)
+    if (nonVa !== undefined) {
+      const fresco = deps.archivio.leggi(id) ?? ora
+      annota(fresco, nonVa.riga)
+      salva(fresco)
+      console.log(`[domande] ${id} — scartata: ${nonVa.riga}`)
+      deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(fresco, chatId, pronta.parti.domanda, nonVa.risposta) })
+      void avviaLavoro(fresco, nonVa.perLaChat, chat).catch((err: unknown) => {
+        console.error(`[autopilota] domanda non chiesta, risposta non consegnata a ${id}:`, err)
       })
       return {}
     }
@@ -5024,18 +5102,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const laDomanda = c?.grezza ?? (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo)
       let motivo: string | undefined
       let daRiprendere = false
+      /** Con un gesto a mano (0.84.3) la chat riparte con la strada, non con il motivo. */
+      let strada: string | undefined
       if (a === undefined) motivo = 'l’autopilota che la faceva non c’è più'
       else if (a.stato === 'finito') motivo = 'il lavoro è già finito'
-      else if (a.stato === 'intervista' || chatIds.length === 0) continue
+      else if (a.stato === 'intervista') continue
       else {
         const perche = chatIds.map((cid) => {
           const ch = a.chats.find((x) => x.id === cid)
           return ch === undefined ? 'non c’è più' : chatSenzaLavoro(ch)
         })
-        if (perche.every((x) => x !== undefined)) {
+        const gesto = c?.pubblica === true ? undefined : domandaDaNonFare(d.parti ?? partiDaTesto(d.testo))
+        if (chatIds.length > 0 && perche.every((x) => x !== undefined)) {
           const prima = a.chats.find((x) => x.id === chatIds[0])
           motivo = prima !== undefined ? `la chat che lavorava a «${nomeCompito(prima.compito, 60)}» ${perche[0]}` : 'la chat che l’aveva chiesta non c’è più'
-        } else {
+        } else if (gesto !== undefined) {
+          // 0.84.3: chiedeva a Nicholas un gesto a mano, o «chiudo lo stesso o
+          // correggi il comando?»: superata, ci pensa il programma.
+          motivo = gesto.motivo
+          strada = gesto.strada
+          daRiprendere = true
+        } else if (chatIds.length === 0) continue
+        else {
           const dalloStato = risoltaDalloStato(laDomanda, await statoVeroDi(a))
           if (dalloStato !== undefined) { motivo = dalloStato; daRiprendere = true }
         }
@@ -5047,6 +5135,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const breve = (d.parti?.domanda ?? laDomanda).replace(/\s+/g, ' ').slice(0, 120)
       console.log(`[domande] ${d.autopilotaId} — superata, chiusa: «${breve}» (${motivo})`)
       if (a === undefined) continue
+      if (strada !== undefined) {
+        riprendiDopoSuperata(a.id, chatIds, laDomanda, strada, `domanda chiusa perché superata: «${breve}» — ${motivo}`)
+        continue
+      }
       const fresco = deps.archivio.leggi(a.id)
       if (fresco !== undefined) {
         annota(fresco, `domanda chiusa perché superata: «${breve}» — ${motivo}`)

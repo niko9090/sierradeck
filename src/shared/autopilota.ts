@@ -59,6 +59,12 @@ export type Criterio = {
    * dall'esterno restava una spunta senza storia.
    */
   ultimaVerifica?: Verifica
+  /**
+   * **Lo giudica l'autopilota** (0.84.3): il comando è stato rifiutato due
+   * volte e il criterio non blocca più la chiusura. Quando e perché, per la
+   * riga che lo dice a Nicholas. Un comando nuovo dato da lui lo toglie.
+   */
+  giudicato?: { il: string; perche: string }
 }
 
 /** Obiettivo, criteri e compiti com'erano prima di una modifica. */
@@ -759,8 +765,17 @@ function parseCriterio(raw: unknown, scartati: string[]): Criterio | undefined {
     // all'autopilota un pezzo della sua fine.
     ...(parseVerifica(o.ultimaVerifica) !== undefined
       ? { ultimaVerifica: parseVerifica(o.ultimaVerifica) as Verifica }
-      : {})
+      : {}),
+    ...(parseGiudicato(o.giudicato) !== undefined ? { giudicato: parseGiudicato(o.giudicato) as NonNullable<Criterio['giudicato']> } : {})
   }
+}
+
+function parseGiudicato(raw: unknown): Criterio['giudicato'] {
+  if (typeof raw !== 'object' || raw === null) return undefined
+  const o = raw as Record<string, unknown>
+  const il = stringaNonVuota(o.il)
+  const perche = stringaNonVuota(o.perche)
+  return il !== undefined && perche !== undefined ? { il, perche } : undefined
 }
 
 function parseVerifica(raw: unknown): Verifica | undefined {

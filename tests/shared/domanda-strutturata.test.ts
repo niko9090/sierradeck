@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  domandaControllata, leggiParti, partiBloccato, partiDaRisposta, partiNonMisurati, partiPubblica, richiestaRiscrittura,
+  domandaControllata, leggiParti, partiBloccato, partiDaRisposta, partiPubblica, richiestaRiscrittura,
   sezioniDomanda, testoDomanda, validaDomanda, type PartiDomanda
 } from '@shared/domanda-strutturata'
 
@@ -104,9 +104,8 @@ describe('il testo e le sezioni, in ordine', () => {
 })
 
 describe('le domande scritte dal programma sono complete', () => {
-  it('«sono bloccato», i criteri non misurati, «Pubblico adesso?»', () => {
+  it('«sono bloccato», «Pubblico adesso?»', () => {
     expect(validaDomanda(partiBloccato('Fai passare i test', 6, ['dividi', 'ricomincia'], 'npm test: 3 falliti')).completa).toBe(true)
-    expect(validaDomanda(partiNonMisurati([{ descrizione: 'i test passano', comando: 'npm tst' }])).completa).toBe(true)
     const pub = partiPubblica('SierraDeck', true)
     expect(validaDomanda(pub).completa).toBe(true)
     // Le scelte restano quelle di prima: «sì, pubblica» è ancora un sì.

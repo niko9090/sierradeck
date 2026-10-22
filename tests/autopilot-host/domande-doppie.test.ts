@@ -252,7 +252,8 @@ describe('nel servizio', () => {
   it('la stessa domanda da un altra chat non si apre una seconda volta, e una risposta le riprende tutte e due', async () => {
     await avvia('0.79.0')
     archivio.scrivi(flotta())
-    giudizi['c-10'] = JSON.stringify({ azione: 'chiedi', domanda: parti(IT) })
+    // Senza sigle sconosciute (0.84.3): quelle, anche riscritte, non arrivano più a Nicholas.
+    giudizi['c-10'] = JSON.stringify({ azione: 'chiedi', domanda: parti('Installi tu la 0.80.0 su questo PC, così chiudo le chat finite?') })
     giudizi['c-12'] = JSON.stringify({ azione: 'chiedi', domanda: parti('Installi la 0.80.0 adesso, così le chat finite si chiudono da sole?') })
     await notifica('c-10')
     await notifica('c-12')

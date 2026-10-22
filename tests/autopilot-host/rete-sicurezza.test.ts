@@ -50,19 +50,15 @@ describe('applicaRete', () => {
     expect(applicaRete(CTX([PASSATO]), { azione: 'finito' }).mossa.tipo).toBe('finito')
   })
 
-  it('un criterio non misurabile non fa chiudere: fa chiedere', () => {
-    // **Regola cambiata di proposito.** Prima si lasciava chiudere: un criterio
-    // non misurato non e' un fallimento, e' un dato mancante, e si dava la
-    // decisione al supervisore «che il quadro ce l'ha». Ma il supervisore il
-    // quadro lo legge dalla chat, non dal comando che non e' partito: chiudere
-    // li' vuol dire dichiarare finito un lavoro di cui una parte non e' mai
-    // stata controllata.
-    //
-    // Nemmeno si insiste, pero': il comando rotto resta rotto — la riparazione
-    // automatica ha gia' provato in questo stesso giro — e proseguire vorrebbe
-    // dire girare fino a un tetto. Si chiede a chi puo' deciderlo davvero.
-    expect(applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' }).mossa.tipo)
-      .toBe('chiediUtente')
+  it('un criterio non misurabile non ferma la chiusura: si chiude dicendolo (0.84.3)', () => {
+    // **Regola cambiata due volte, di proposito.** Fino alla 0.43 si chiudeva
+    // in silenzio; dalla 0.44 alla 0.84.2 si chiedeva a Nicholas «chiudo lo
+    // stesso o correggi il comando?», cioè gli si chiedeva un gesto a mano.
+    // Il 22/10 Nicholas: «togli i vincoli». Adesso si chiude, e la mossa porta
+    // con sé quale criterio non si è misurato e perché, per la riga a Nicholas.
+    const { mossa } = applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' })
+    expect(mossa.tipo).toBe('finito')
+    if (mossa.tipo === 'finito') expect(mossa.senzaMisura).toEqual([{ descrizione: 'i test passano', perche: 'il comando di verifica non parte («bash: unexpected EOF»)' }])
   })
 
   it('prosegue con le istruzioni del supervisore', () => {
@@ -152,27 +148,33 @@ describe('applicaRete', () => {
 })
 
 describe('chiudere con criteri mai misurati', () => {
-  it('«finito» non passa se un comando non e nemmeno partito', () => {
-    // Il caso che scappava: un criterio non misurato non boccia niente, quindi
-    // `fallitiDavvero` lo ignora e la porta di «finito» restava aperta. Il
-    // lavoro si chiudeva con una parte mai controllata — il fallimento
-    // silenzioso peggiore che questo sistema possa produrre.
+  it('«finito» con un comando che non è nemmeno partito chiude, mai in silenzio (0.84.3)', () => {
+    // Il caso che scappava prima della 0.44: chiudere senza dirlo. Adesso la
+    // nota e la mossa dicono quali criteri non si sono misurati.
     const { mossa, nota } = applicaRete(CTX([NON_MISURABILE]), { azione: 'finito' })
-    expect(mossa.tipo).toBe('chiediUtente')
+    expect(mossa.tipo).toBe('finito')
     expect(nota).toContain('non misurati')
+    expect(nota).toContain('senza chiedere')
   })
 
   it('con tutti i criteri misurati e verdi, «finito» passa come prima', () => {
     expect(applicaRete(CTX([PASSATO]), { azione: 'finito' }).mossa.tipo).toBe('finito')
   })
 
-  it('un criterio verde accanto a uno non misurato non basta', () => {
-    // Il pericolo vero: la maggioranza verde fa sembrare tutto a posto.
+  it('un criterio verde accanto a uno non misurato: si chiude, e si dice solo quello non misurato', () => {
     const altroVerde: EsitoVerifica = {
       descrizione: 'compila', comando: 'npm run build', passato: true, uscita: 'ok'
     }
     const { mossa } = applicaRete(CTX([altroVerde, NON_MISURABILE]), { azione: 'finito' })
-    expect(mossa.tipo).not.toBe('finito')
+    expect(mossa.tipo === 'finito' && mossa.senzaMisura?.map((c) => c.descrizione)).toEqual(['i test passano'])
+  })
+
+  it('un criterio bocciato accanto a uno non misurato: non si chiude', () => {
+    // Il danno peggiore resta escluso: un comando che misura e boccia vince.
+    const altroRosso: EsitoVerifica = {
+      descrizione: 'compila', comando: 'npm run build', passato: false, uscita: 'errore TS'
+    }
+    expect(applicaRete(CTX([altroRosso, NON_MISURABILE]), { azione: 'finito' }).mossa.tipo).not.toBe('finito')
   })
 })
 

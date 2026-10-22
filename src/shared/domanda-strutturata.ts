@@ -188,7 +188,9 @@ export const REGOLE_DOMANDA = [
   '5. `seNonRispondi`: cosa fai se non risponde (aspetti, scegli tu una strada prudente, ti fermi…).',
   'Segna con `"consigliata": true` la scelta che consigli (una sola). Una domanda sola, al massimo 200 caratteri,',
   'in parole semplici e senza parole vaghe («qualcosa», «come prima», «quella cosa», «quel pezzo», «l’altra chat»): di’ esattamente di cosa si tratta.',
-  'Mai sigle di chat («c-12») né nomi di rami: nomina il lavoro con il suo compito, a parole («la chat che rifà la schermata Adesso»).',
+  'Mai sigle di chat («c-12»), nomi di rami o nomi interni («gruppo 3», «D2»): nomina il lavoro con il suo compito, a parole («la chat che rifà la schermata Adesso»).',
+  'Mai chiedere a Nicholas un gesto a mano (chiudere, spostare, cancellare, correggere, lanciare): lo fa il programma o lo fai tu, e una domanda così non gli arriva.',
+  'Un criterio che non si riesce a misurare o il cui comando non si lascia correggere non è una domanda: lo giudica l’autopilota e lo scrive in una riga.',
   'Non chiedere cose già successe (una versione già pubblicata, un ramo già unito, una chat già chiusa): controlla prima.',
   'Sempre in italiano, anche se il lavoro è in inglese.',
   'Le conseguenze in breve. Non chiedere di nuovo una cosa a cui ha già risposto: le sue risposte sono nel quadro.',
@@ -367,19 +369,8 @@ export function partiBloccato(obiettivo: string, tentativi: number, strade: stri
   }
 }
 
-/** I criteri non misurati a fine lavoro: il comando di verifica non parte. */
-export function partiNonMisurati(criteri: { descrizione: string; comando: string }[]): PartiDomanda {
-  return {
-    staFacendo: 'Il lavoro sembra concluso e sto facendo le verifiche finali prima di chiuderlo.',
-    domanda: 'Chiudo lo stesso il lavoro, o correggi prima il comando di verifica che non parte?',
-    perche: `${criteri.length === 1 ? 'Un criterio non è stato misurato' : `${criteri.length} criteri non sono stati misurati`}: il comando non è nemmeno partito (${criteri.map((c) => `${c.descrizione}: ${c.comando}`).join('; ')}). Non chiudo da solo su una cosa che non ho controllato.`,
-    scelte: [
-      { scelta: 'chiudi lo stesso', conseguenza: 'considero finito il lavoro senza quella verifica' },
-      { scelta: 'correggo il comando', conseguenza: 'mi scrivi il comando giusto, lo rimisuro e chiudo solo se passa', consigliata: true }
-    ],
-    seNonRispondi: 'resto fermo: il lavoro non viene chiuso finché non rispondi'
-  }
-}
+/* I criteri non misurati a fine lavoro non sono più una domanda (0.84.3): il
+ * lavoro si chiude da solo con una riga (`criteri-giudicati.ts`). */
 
 /** «Pubblico adesso?» con la regola «stabile». */
 export function partiPubblica(nome: string, giaMandato: boolean): PartiDomanda {
