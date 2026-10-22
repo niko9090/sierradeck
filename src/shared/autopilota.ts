@@ -241,6 +241,28 @@ export type ChatGovernata = SupervisoreMancato & {
    * fatto, bloccata con il motivo, aspetta. Vedi `@shared/segnali-flotta`.
    */
   segnale?: SegnaleChat
+  /**
+   * **Mai fermo** (0.84.1): l'ultima volta che il servizio l'ha rimessa al
+   * lavoro da solo, perché taceva, e quante volte di fila. Si toglie appena la
+   * chat chiude un turno. Su disco, così vale anche dopo un riavvio.
+   */
+  ripresa?: RipresaDaSolo
+  /** La chat nuova che ha preso il suo compito perché lei non rispondeva (0.84.1). */
+  sostituitaDa?: string
+  /** La chat muta di cui ha preso il compito (0.84.1). */
+  sostituisce?: string
+  /** Quante volte questo compito è già passato a una chat nuova (0.84.1): c'è un tetto. */
+  sostituzioni?: number
+}
+
+/** Quando il servizio ha rimesso al lavoro una chat muta, e quante volte di fila (0.84.1). */
+export type RipresaDaSolo = { il: string; volte: number }
+
+export function leggiRipresaDaSolo(x: unknown): RipresaDaSolo | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  if (typeof o.il !== 'string' || Number.isNaN(Date.parse(o.il)) || typeof o.volte !== 'number' || o.volte < 1) return undefined
+  return { il: o.il, volte: Math.floor(o.volte) }
 }
 
 /** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
@@ -483,6 +505,13 @@ export type Autopilota = SupervisoreMancato & {
    * una chat torna nel conto appena chiude di nuovo un turno.
    */
   daParte?: string[]
+  /** La ripresa da solo della chat singola (0.84.1): come `ChatGovernata.ripresa`. */
+  ripresa?: RipresaDaSolo
+  /**
+   * L'ultimo giro fatto partire dal servizio da solo (0.84.1), perché da 10
+   * minuti nessuna chat lavorava. Su disco: dopo un riavvio non si rifà subito.
+   */
+  giroDaSolo?: string
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
   pubblicazioneInAttesa?: boolean
   /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
@@ -638,7 +667,11 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
       ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
       : {}),
-    ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {})
+    ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {}),
+    ...(leggiRipresaDaSolo(o.ripresa) !== undefined ? { ripresa: leggiRipresaDaSolo(o.ripresa) } : {}),
+    ...(stringaNonVuota(o.sostituitaDa) !== undefined ? { sostituitaDa: o.sostituitaDa as string } : {}),
+    ...(stringaNonVuota(o.sostituisce) !== undefined ? { sostituisce: o.sostituisce as string } : {}),
+    ...(typeof o.sostituzioni === 'number' && o.sostituzioni > 0 ? { sostituzioni: Math.floor(o.sostituzioni) } : {})
   }
 }
 
@@ -992,6 +1025,8 @@ export function parseAutopilota(raw: unknown): {
       ...(typeof o.commitBase === 'string' && /^[0-9a-f]{7,64}$/.test(o.commitBase) ? { commitBase: o.commitBase } : {}),
       ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
       ...(Array.isArray(o.daParte) && o.daParte.some((x) => typeof x === 'string' && x !== '') ? { daParte: o.daParte.filter((x): x is string => typeof x === 'string' && x !== '') } : {}),
+      ...(leggiRipresaDaSolo(o.ripresa) !== undefined ? { ripresa: leggiRipresaDaSolo(o.ripresa) } : {}),
+      ...(typeof o.giroDaSolo === 'string' && !Number.isNaN(Date.parse(o.giroDaSolo)) ? { giroDaSolo: o.giroDaSolo } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
       ...(o.pubblicazioneIstruita === true ? { pubblicazioneIstruita: true } : {}),
       chats,

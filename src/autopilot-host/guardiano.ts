@@ -198,10 +198,31 @@ export function messaDaParte(a: Autopilota, mute: ChatMuta[]): Autopilota {
   return { ...a, daParte: [...chiavi] }
 }
 
-/** La chat ha chiuso un turno: è viva, torna nel conto del guardiano. */
+/**
+ * La chat ha chiuso un turno: è viva, torna nel conto del guardiano. E la
+ * ripresa da solo (0.84.1) si dimentica: ha risposto, non va sostituita.
+ */
 export function tornaDaParte(a: Autopilota, chiave: string): Autopilota {
-  if (a.daParte === undefined || !a.daParte.includes(chiave)) return a
-  const resto = a.daParte.filter((k) => k !== chiave)
-  const { daParte: _via, ...senza } = a
+  const senzaRipresa = senzaRipresaDi(a, chiave)
+  if (senzaRipresa.daParte === undefined || !senzaRipresa.daParte.includes(chiave)) return senzaRipresa
+  const resto = senzaRipresa.daParte.filter((k) => k !== chiave)
+  const { daParte: _via, ...senza } = senzaRipresa
   return resto.length > 0 ? { ...senza, daParte: resto } : senza
+}
+
+function senzaRipresaDi(a: Autopilota, chiave: string): Autopilota {
+  if (chiave === a.id) {
+    if (a.ripresa === undefined) return a
+    const { ripresa: _via, ...senza } = a
+    return senza
+  }
+  if (!a.chats.some((c) => c.id === chiave && c.ripresa !== undefined)) return a
+  return {
+    ...a,
+    chats: a.chats.map((c) => {
+      if (c.id !== chiave) return c
+      const { ripresa: _via, ...senza } = c
+      return senza
+    })
+  }
 }
