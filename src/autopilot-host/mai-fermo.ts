@@ -57,12 +57,24 @@ export type VistaMaiFermo = {
   avvioServizio: number
   /** L'ultimo segnale (turno chiuso o battito del Gestore) per la chiave di `chiaveTurno`. */
   ultimoSegnale: (chiave: string) => number | undefined
+  /**
+   * L'ultimo segnale venuto **dalla chat** (hook, battiti), senza le consegne
+   * del servizio: dice se ha risposto dopo la ripresa (0.84.3, D2). Assente:
+   * `ultimoSegnale`.
+   */
+  ultimaRisposta?: (chiave: string) => number | undefined
   /** La chat (o la chat singola, `undefined`) ha una fermata in giudizio: sta lavorando il servizio. */
   inGiudizio: (chatId: string | undefined) => boolean
   /** Il Gestore la vede ferma al prompt: interromperla non serve. */
   fermaAlPrompt: (chiave: string) => boolean
   /** Domande aperte dell'autopilota per Nicholas. */
   domandeAperte: number
+  /**
+   * Quante chat si aprirebbero adesso con questa coda, e se nessuna perché
+   * (0.84.3): la riga del giro dice cosa succede davvero. Assente: la riga
+   * di prima, senza promesse.
+   */
+  apertura?: (compiti: string[]) => { daAprire: number; motivo?: string }
 }
 
 const t = (iso: string | undefined): number => {
@@ -92,9 +104,9 @@ function silenzio(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | u
 const sogliaDi = (u: Unita): number => (u.ripresa !== undefined ? RIPRESA_SENZA_RISPOSTA_MS : NESSUNO_AL_LAVORO_MS)
 
 /** Riprendere o passare a una chat nuova: dipende da come è andata la ripresa di prima. */
-function mossaPer(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | undefined, chatId: string | undefined): MossaMaiFermo {
+function mossaPer(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | undefined, chatId: string | undefined, risposta: (k: string) => number | undefined = segnale): MossaMaiFermo {
   const muta = silenzio(u, v, segnale)
-  const s = segnale(u.chiave)
+  const s = risposta(u.chiave)
   const haRisposto = u.ripresa !== undefined && s !== undefined && s > t(u.ripresa.il)
   if (u.ripresa === undefined || haRisposto || u.sostituzioni >= SOSTITUZIONI_MAX) {
     return { tipo: 'riprendi', ...(chatId !== undefined ? { chatId } : {}), interrompi: !v.fermaAlPrompt(u.chiave), muta }
@@ -103,6 +115,14 @@ function mossaPer(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | u
 }
 
 const minuti = (ms: number): number => Math.max(0, Math.round(ms / 60_000))
+
+/** Cosa fa il giro con i compiti in coda, detto com'è. */
+function rigaApertura(ap: { daAprire: number; motivo?: string } | undefined, inCoda: number): string {
+  if (ap === undefined) return 'provo ad aprire le chat'
+  if (ap.daAprire === 0) return `non apro niente: ${ap.motivo ?? 'il PC non li lascia partire'}`
+  const quante = ap.daAprire === 1 ? 'apro 1 chat' : `apro ${ap.daAprire} chat`
+  return ap.daAprire < inCoda ? `${quante}, ${inCoda - ap.daAprire === 1 ? 'l’altro aspetta' : 'gli altri aspettano'}` : quante
+}
 
 function rigaMossa(m: MossaMaiFermo, nome: string): string {
   if (m.tipo === 'riprendi') return `${nome}: nessun segnale da ${minuti(m.muta)} min → ${m.interrompi ? 'la interrompo e ' : ''}le riscrivo l’ultima istruzione`
@@ -127,12 +147,13 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
     if (v.inGiudizio(undefined) || v.domandeAperte > 0) return undefined
     const u: Unita = { chiave: chiaveTurno(a.id), ...(a.ripresa !== undefined ? { ripresa: a.ripresa } : {}), sostituzioni: SOSTITUZIONI_MAX }
     if (silenzio(u, v, v.ultimoSegnale) < sogliaDi(u)) return undefined
-    const m = mossaPer(u, v, v.ultimoSegnale, undefined)
+    const m = mossaPer(u, v, v.ultimoSegnale, undefined, v.ultimaRisposta ?? v.ultimoSegnale)
     return { perche: 'nessuno-al-lavoro', mosse: [m], righe: [rigaMossa(m, 'la chat')], avvisaNicholas: [] }
   }
 
   // Le chat della flotta: la chiave dei segnali è `autopilota::chat`.
   const segnale = (chatId: string): number | undefined => v.ultimoSegnale(chiaveTurno(a.id, chatId))
+  const risposta = (chatId: string): number | undefined => (v.ultimaRisposta ?? v.ultimoSegnale)(chiaveTurno(a.id, chatId))
   const unita = (c: ChatGovernata): Unita => ({
     chiave: c.id,
     ...(c.ripresa !== undefined ? { ripresa: c.ripresa } : {}),
@@ -160,7 +181,7 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   const righe: string[] = []
   const avvisaNicholas: string[] = []
   for (const c of daToccare) {
-    const m = mossaPer(unita(c), vistaChat, segnale, c.id)
+    const m = mossaPer(unita(c), vistaChat, segnale, c.id, risposta)
     // Al tetto delle chat nuove, una riga a Nicholas alla prima ripresa che non risponde.
     if (m.tipo === 'riprendi' && c.ripresa?.volte === 1 && (c.sostituzioni ?? 0) >= SOSTITUZIONI_MAX) {
       avvisaNicholas.push(`Il compito «${c.compito.slice(0, 80)}» non riparte: ${SOSTITUZIONI_MAX + 1} chat di fila non hanno risposto. Continuo a riprenderlo ogni ${minuti(RIPRESA_SENZA_RISPOSTA_MS)} minuti; se vuoi, guardalo tu.`)
@@ -177,10 +198,13 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
     const aspettaNicholas = a.chats.some((c) => c.stato === 'bloccata') || v.domandeAperte > 0
     if (a.compitiDaFare.length > 0) {
       mosse.push({ tipo: 'apriCompiti' })
-      righe.push(`${a.compitiDaFare.length === 1 ? 'un compito in coda' : `${a.compitiDaFare.length} compiti in coda`}: apro le chat, se il PC ha posto`)
+      const n = a.compitiDaFare.length
+      righe.push(`${n === 1 ? 'un compito in coda' : `${n} compiti in coda`}: ${rigaApertura(v.apertura?.(a.compitiDaFare), n)}`)
     } else if (alLavoro.length === 0 && !aspettaNicholas && !a.chats.some((c) => c.stato === 'pausa')) {
-      mosse.push({ tipo: 'nuovoCompito', compito: compitoDiRipresa(a) })
-      righe.push('nessuna chat e nessun compito in coda, ma il lavoro non è chiuso: apro una chat che riprende l’obiettivo')
+      const compito = compitoDiRipresa(a)
+      mosse.push({ tipo: 'nuovoCompito', compito })
+      const ap = v.apertura?.([compito])
+      righe.push(`nessuna chat e nessun compito in coda, ma il lavoro non è chiuso: ${ap === undefined || ap.daAprire > 0 ? 'apro una chat che riprende l’obiettivo' : `metto in coda un compito che riprende l’obiettivo, ma non apro niente: ${ap.motivo ?? 'il PC non lo lascia partire'}`}`)
     }
   }
 

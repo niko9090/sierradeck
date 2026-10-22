@@ -85,6 +85,15 @@ describe('chi tace', () => {
     expect(chiTace(a, (k) => vecchio.get(k), ORA, LIMITE)).toEqual([])
   })
 
+  it('0.84.3 (D1): una chat con «dal» non eredita i battiti dell’autopilota segnati per la sorella', () => {
+    const dal = new Date(ORA - LIMITE - 5 * 60_000).toISOString()
+    const a = ap({ chats: [chat('ch-viva', { dal }), chat('ch-muta', { dal })] })
+    const battiti = new Map([[chiaveTurno('ap-1', 'ch-viva'), ORA - 60_000], [chiaveTurno('ap-1'), ORA - 60_000]])
+    expect(chiTace(a, (k) => battiti.get(k), ORA, LIMITE).map((m) => m.chatId)).toEqual(['ch-muta'])
+    // Dopo un riavvio si aspetta di nuovo dall'avvio del servizio.
+    expect(chiTace(a, (k) => battiti.get(k), ORA, LIMITE, ORA - 5 * 60_000)).toEqual([])
+  })
+
   it('senza memoria si ricade su ultimoEvento, per eccesso di pazienza', () => {
     // Dopo un riavvio del servizio la mappa e' vuota: si sbaglia al piu' una
     // volta, e nel verso giusto.

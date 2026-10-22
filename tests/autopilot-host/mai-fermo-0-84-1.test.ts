@@ -116,6 +116,33 @@ describe('giroMaiFermo: la regola', () => {
     expect(giroMaiFermo(a, vista(ora))?.mosse).toEqual([{ tipo: 'apriCompiti' }])
   })
 
+  it('0.84.3: la riga dice cosa apre davvero, e se niente perché', () => {
+    const a = ap([chat('c-1', { stato: 'finita' })], { compitiDaFare: ['Rilascio 0.84.1', 'Collaudo'] })
+    const riga = (ap: { daAprire: number; motivo?: string }): string => giroMaiFermo(a, vista(ora, { apertura: () => ap }))!.righe.join('; ')
+    expect(riga({ daAprire: 2 })).toContain('2 compiti in coda: apro 2 chat')
+    expect(riga({ daAprire: 1 })).toContain('apro 1 chat, l’altro aspetta')
+    const niente = riga({ daAprire: 0, motivo: 'il PC non ha posto (6 di 6 chat)' })
+    expect(niente).toContain('non apro niente: il PC non ha posto (6 di 6 chat)')
+    expect(niente).not.toContain('apro le chat')
+  })
+
+  it('0.84.3: senza nessun compito e il PC pieno, non dice «apro una chat»', () => {
+    const a = ap([chat('c-1', { stato: 'finita' })])
+    const g = giroMaiFermo(a, vista(ora, { apertura: () => ({ daAprire: 0, motivo: 'il PC non ha posto (6 di 6 chat)' }) }))
+    expect(g?.mosse[0]?.tipo).toBe('nuovoCompito')
+    expect(g?.righe.join(' ')).toContain('non apro niente: il PC non ha posto')
+    expect(g?.righe.join(' ')).not.toContain('apro una chat')
+  })
+
+  it('0.84.3 (D2): una consegna del servizio dopo la ripresa non vale come risposta della chat', () => {
+    const il = new Date(ora - RIPRESA_SENZA_RISPOSTA_MS - 2 * MIN).toISOString()
+    const a = ap([chat('c-65', { ripresa: { il, volte: 1 } })])
+    const consegna = Date.parse(il) + MIN
+    // Il servizio ha riconsegnato il turno un minuto dopo la ripresa, la chat non ha mai risposto.
+    const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: () => consegna, ultimaRisposta: () => undefined }))
+    expect(g?.mosse).toEqual([{ tipo: 'sostituisci', chatId: 'c-65', muta: expect.any(Number) }])
+  })
+
   it('chi aspetta una risposta di Nicholas non si tocca, e non si apre niente al suo posto', () => {
     const a = ap([chat('c-1', { stato: 'bloccata' })])
     expect(giroMaiFermo(a, vista(ora))).toBeUndefined()
