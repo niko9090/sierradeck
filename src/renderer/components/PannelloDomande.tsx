@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import { useLarghezzaFinestra } from '../larghezza-finestra'
-import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
+import { haLinguetta, quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
@@ -226,6 +226,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         }
         setMandati((m) => ({ ...m, [aperta.chiave]: [...(m[aperta.chiave] ?? []), ricordo] }))
         setTesto('')
+        // L'esito dal PC della chat (0.84.1): presa davvero, o mandata senza verifica.
+        const frase = (r.corpo as { frase?: unknown } | undefined)?.frase
+        if (typeof frase === 'string' && frase !== '') setNota(frase)
         // Risposta data: si passa da sola alla prossima che aspetta te (0.70.0).
         const prossima = prossimaDomanda(tutte, aperta.chiave)
         if (prossima !== undefined && aspettaTe(aperta)) setScelta(prossima)
@@ -303,7 +306,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     setScelta(c.chiave)
                     setNota(undefined)
                     // Un autopilota: la riga porta dritta alla sua linguetta.
-                    if (c.tipo === 'autopilota' && c.autopilota !== undefined && c.chiede) apriDomandeAutopilota(c.autopilota)
+                    if (haLinguetta(c) && c.chiede) apriDomandeAutopilota(c.autopilota)
                   }}
                 >
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />
@@ -320,7 +323,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             ))}
           </ul>
 
-          {aperta !== undefined && aperta.tipo === 'autopilota' && aperta.autopilota !== undefined && aperta.chiede ? (
+          {aperta !== undefined && haLinguetta(aperta) && aperta.chiede ? (
             // Le domande di un autopilota non stanno qui (0.38.0, Nicholas):
             // stanno nella linguetta «Domande» della sua scheda, una per volta.
             <section className="domande-lato__chat domande-lato__rimando" aria-label={`${aperta.titolo} ti aspetta`}>
@@ -331,7 +334,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   con le opzioni da toccare. Dopo la risposta, domanda e risposta restano nella chat con lui.
                 </Aiuto>
               </p>
-              <button className="tasto tasto--primario" onClick={() => apriDomandeAutopilota(aperta.autopilota!)}>
+              <button className="tasto tasto--primario" onClick={() => apriDomandeAutopilota(aperta.autopilota)}>
                 Apri la sua linguetta «Domande» →
               </button>
             </section>
@@ -351,7 +354,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                 onScrivi={(t) => { const r = richiestaRisposta(aperta.risposta, t); manda(r.percorso, r.corpo, t) }}
                 sotto={<>
                   {inAttesa.length > 0 ? <div className="misura">mandato: «{inAttesa.at(-1)}», aspetto che la chat lo riceva</div> : null}
-                  {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                  {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
                   {pinPer !== undefined ? (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
                       <span aria-hidden="true">🔒</span>
@@ -433,7 +436,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <TastoMicrofono campo={campoScrivi} />
                   <Aiuto di="mandare">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
                 </div>
-                {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
                 {pinPer !== undefined ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
                     <span aria-hidden="true">🔒</span>

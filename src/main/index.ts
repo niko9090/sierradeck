@@ -145,6 +145,7 @@ import { comeSpostare, destinazioniSposta, riassuntoSposta } from '@shared/spost
 import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
+import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
 import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
@@ -168,9 +169,11 @@ import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
-import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
+import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
+import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
+import { trovaChatRemota, storiaRemotaSicura, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
-import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
+import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
@@ -1239,6 +1242,14 @@ if (!app.requestSingleInstanceLock()) {
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
       impostaAllaRiapertura((s) => chiuse.togli(s))
+      // 0.84.1: una chat chiusa, nel recupero o finita con la cartella tolta
+      // non riparte a ogni cambio di workspace (c-34, 18 volte il 21-22/10).
+      impostaChiusaSenzaCartella(async (sessione, cwd) => motivoChiusaSenzaCartella({
+        cartellaEsiste: existsSync(cwd),
+        chiusa: chiuse.elenco().some((c) => c.sessione === sessione),
+        nelRecupero: (gestioneChatGlobale?.recupero().chat ?? []).some((c) => c.sessione === sessione),
+        finitaDiAutopilota: eFinitaDiAutopilota(await clientAutopilota.elenca().catch(() => []), sessione)
+      }))
       /** Chiude una chat in sottofondo perché l'hai chiesto tu (0.60.9): è una chiusura voluta. */
       const chiudiSottofondoDaTe = (sessione: string, da: string): boolean => {
         const titolo = sottofondo?.chat().find((c) => c.sessione === sessione)?.titolo
@@ -2213,9 +2224,9 @@ if (!app.requestSingleInstanceLock()) {
           })
         }, pc))
       ipcMain.handle('remoto:storia', (_e, pc: unknown, chat: unknown, da: unknown, quante: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/storia', {
+        esitoRemoto(async () => storiaRemotaSicura(await remoto.chiama(testo(pc), '/api/storia', {
           chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
-        }), pc))
+        }), testo(chat)), pc))
       // L'id del messaggio (0.51.0): rimandato dopo una caduta, quel PC non lo scrive due volte.
       ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown, id: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t), ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}) }), pc))
@@ -4931,6 +4942,9 @@ if (!app.requestSingleInstanceLock()) {
         apriPannello(id, 'domande', { inattiva: automatico })
       }
       ipcMain.handle('pannello:mostraDomande', (e, id: unknown, automatico: unknown) => {
+        // Le domande del programma («sierradeck:al-telefono»…) non hanno una
+        // scheda: stanno nella colonna, qui non c'e' niente da mostrare (0.84.1).
+        if (typeof id === 'string' && eDomandaDelProgramma(id)) return
         const ap = validaIdAutopilota(id)
         const chiedente = BrowserWindow.fromWebContents(e.sender)?.id
         if (automatico !== true) { mostraDomande(ap, false, chiedente); return }
@@ -5383,6 +5397,8 @@ if (!app.requestSingleInstanceLock()) {
             { grezze?: unknown } | undefined
           return Array.isArray(r?.grezze) ? (r.grezze as string[]) : undefined
         },
+        // Le risposte dal riquadro delle domande (0.84.1): premute, riguardate, ritentate una volta.
+        verificaRisposte: {},
 
         // La linguetta «File» dal telefono (0.38.0): le stesse funzioni del PC.
         fileAutopilota: async (id: string) => {
@@ -5414,26 +5430,30 @@ if (!app.requestSingleInstanceLock()) {
           const s = remoto.stradaDi(pcId)
           return s === undefined ? undefined : stradaBreve(s.strada)
         },
-        scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<{ ok: true } | { ok: false; messaggio: string }> => {
+        scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number }> => {
           try {
             const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
             const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
             if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC' }
-            await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t })
-            return { ok: true }
+            // Se là la chat è ferma su una scelta, quel PC dice se l'ha presa (0.84.1).
+            return leggiEsitoAltroPc(await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t }))
           } catch (e) {
-            return { ok: false, messaggio: e instanceof Error ? e.message : String(e), ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {}) }
+            return {
+              ok: false, messaggio: e instanceof Error ? e.message : String(e),
+              ...(e instanceof ErroreRemoto && e.stato !== undefined ? { stato: e.stato } : {}),
+              ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {})
+            }
           }
         },
         // Una scelta per la chat di un altro PC, dalle Domande (0.52.6): passa
         // dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
-        scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string): Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number; pin?: boolean }> => {
+        scegliAltroPc: async (pcId: string, sessione: string, opzione: string, libera?: string): Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number; pin?: boolean }> => {
           try {
             const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
             const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
             if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC', stato: 404 }
-            await remoto.chiama(pcId, '/api/scegli', { chat: String(c.id), opzione, ...(libera !== undefined ? { testo: libera } : {}) })
-            return { ok: true }
+            // Quel PC preme, riguarda il suo schermo e dice se l'ha presa (0.84.1).
+            return leggiEsitoAltroPc(await remoto.chiama(pcId, '/api/scegli', { chat: String(c.id), opzione, ...(libera !== undefined ? { testo: libera } : {}) }))
           } catch (e) {
             return {
               ok: false, messaggio: e instanceof Error ? e.message : String(e),

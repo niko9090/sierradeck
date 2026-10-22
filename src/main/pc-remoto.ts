@@ -162,6 +162,14 @@ export const ROTTE_LENTE: readonly string[] = [
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota'
 ]
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
+/**
+ * Le risposte alle domande (0.84.1): quel PC preme, riguarda il suo schermo e
+ * se serve riprova una volta, fino a circa 9 secondi. Con l'attesa normale di
+ * 4 s una risposta presa tornava «non so se è arrivata». Non sono fra le lente:
+ * un PC che non risponde si sa entro un tempo che l'app aspetta ancora (15 s).
+ */
+export const ROTTE_CON_VERIFICA: readonly string[] = ['/api/scegli', '/api/scrivi']
+const ATTESA_VERIFICA_MS = 14_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
 const BUSSA_PREDEFINITA_MS = 1500
 
@@ -371,7 +379,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const ind = buoni.get(pcId)
       if (ind === undefined) return undefined
       const controllo = new AbortController()
-      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : attesaMs
+      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : ROTTE_CON_VERIFICA.includes(percorso) ? Math.max(attesaMs, ATTESA_VERIFICA_MS) : attesaMs
       const timer = setTimeout(() => controllo.abort(), attesa)
       let risposta: Response
       try {

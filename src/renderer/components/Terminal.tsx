@@ -307,6 +307,13 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           () => { if (!smontato) suAltrove.current(c) }
         )
       },
+      // 0.84.1: una chat chiusa con la cartella cancellata non riparte a ogni
+      // cambio di workspace: il riquadro si toglie, la conversazione resta.
+      suChiusaSenzaCartella: (c) => {
+        finitaAttesa.current(undefined)
+        void window.gestore.log.info(`[chat] «${avvio.current.title ?? ''}» (${c.sessionUuid.slice(0, 8)}) non riparte: ${c.perche}; tolto il suo riquadro, la conversazione resta`).catch(() => undefined)
+        useLayoutStore.getState().closePane(paneId)
+      },
       suEsito: (e) => {
         // Un'uscita dopo il prompt e lontana dall'avvio e' l'utente che ha
         // chiuso la chat (`/exit`): non e' un guasto.

@@ -1465,19 +1465,26 @@ describe('la chat viva che non finisce mai', () => {
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('lavoro')
     expect(stato.motivoSospensione).toBeUndefined()
-    expect(stato.daParte).toEqual([id])
     expect(stato.decisioni.some((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'da-parte')).toBe(true)
     expect(avvisi.some((v) => v.tipo === 'sospeso' && v.id === id)).toBe(false)
+    // 0.84.1: messa da parte non vuol dire abbandonata. Nello stesso giro il
+    // servizio la rimette al lavoro con l'ultima istruzione.
+    expect(stato.daParte).toBeUndefined()
+    expect(stato.ripresa?.volte).toBe(1)
+    expect(stato.decisioni.some((d: { cosa: string }) => d.cosa.startsWith('giro da solo'))).toBe(true)
+    expect(messaggiDiRipresa.some((m) => m.includes('L’autopilota ti rimette al lavoro'))).toBe(true)
 
-    // Il giro dopo non la rimette da parte una seconda volta.
+    // Il giro dopo non la rimette da parte e non la riprende una seconda volta.
     const prima = stato.decisioni.length
     ora += 5 * 60_000
     server.controllaChatFerme()
     expect((await chiama('GET', '/autopiloti')).dati[0].decisioni.length).toBe(prima)
 
-    // Appena chiude un turno torna nel conto.
+    // Appena chiude un turno torna nel conto e la ripresa si dimentica.
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
-    expect((await chiama('GET', '/autopiloti')).dati[0].daParte).toBeUndefined()
+    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopo.daParte).toBeUndefined()
+    expect(dopo.ripresa).toBeUndefined()
   })
 
   it('0.81.0: dopo 5 minuti di silenzio una riga per Nicholas, una volta sola finché non riparla', async () => {
@@ -1561,8 +1568,14 @@ describe('la chat viva che non finisce mai', () => {
       ora += 6 * 60_000
       server.controllaChatFerme()
     }
-    const esiti = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { traguardo?: { esito: string } }) => d.traguardo?.esito)
-    expect(esiti.filter((e: string | undefined) => e === 'muta')).toHaveLength(0)
+    // 0.84.1: a 12 minuti dal riavvio il giro da solo la riprende; da lì in
+    // poi il suo silenzio è vero (le si è appena scritto) e può essere detto.
+    // Prima della ripresa, nessuna riga «muta» dal ripiego del riavvio.
+    const decisioni = (await chiama('GET', '/autopiloti')).dati[0].decisioni as Array<{ cosa: string; traguardo?: { esito: string } }>
+    const giro = decisioni.findIndex((d) => d.cosa.startsWith('giro da solo'))
+    expect(giro).toBeGreaterThanOrEqual(0)
+    expect(decisioni.slice(0, giro).filter((d) => d.traguardo?.esito === 'muta')).toHaveLength(0)
+    expect(decisioni.filter((d) => d.traguardo?.esito === 'muta').length).toBeLessThanOrEqual(1)
   })
 
   it('la Revisione: chi aspetta una risposta di Nicholas non è detto «muto»', async () => {
@@ -1632,13 +1645,15 @@ describe('la chat viva che non finisce mai', () => {
     server.controllaChatFerme()
     // Cinquanta minuti senza hook, ma un battito venticinque minuti fa: vive.
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
-    // Poi il silenzio vero: trentuno minuti dall'ultimo battito. Dalla 0.80.1
-    // la chat va da parte e l'autopilota resta al lavoro.
+    // Ma venticinque minuti senza battito sono silenzio vero: il Gestore lo
+    // manda ogni minuto mentre lavora. Dalla 0.84.1 il giro da solo la
+    // riprende (dopo 10 minuti), invece di aspettare l'ora della messa da parte.
+    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(dopo.daParte).toBeUndefined()
+    expect(dopo.ripresa?.volte).toBe(1)
     ora += 7 * 60_000
     server.controllaChatFerme()
-    const dopo = (await chiama('GET', '/autopiloti')).dati[0]
-    expect(dopo.stato).toBe('lavoro')
-    expect(dopo.daParte).toHaveLength(1)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
   })
 
   it('IL DIFETTO: rispondere di mattina non fa sospendere un istante dopo', async () => {

@@ -52,6 +52,7 @@ import {
   ripartenzaDopoDialogo,
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
+import { chatCheSostituisce, conSostituzione, giroMaiFermo, rigaGiro, testoPassaggio, testoRipresa } from './mai-fermo'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
@@ -703,6 +704,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * (`POST /stato-programma`). Vive in memoria: e' una fotografia di adesso.
    */
   let statoProgramma: StatoProgramma | undefined
+  /** Quando è partito questo servizio (0.84.1): dopo un riavvio i segnali in memoria non ci sono, il silenzio si conta da qui. */
+  const avvioServizio = Date.parse(deps.adesso())
   /** T2: quanto lavoro in parallelo concede il piano, adesso. */
   const frenoAdesso = (): Freno => frenoDaiLimiti(statoProgramma?.limiti, Date.parse(deps.adesso()))
   /**
@@ -1543,6 +1546,82 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       for (const m of mute) annota(daParte, `messa da parte: ${motivoSilenzio([m])}`, { chat: m.chatId ?? a.id, esito: 'da-parte' })
       salva(daParte)
       console.warn(`[autopilota] ${a.id} — ${motivoSilenzio(mute)} Messa da parte, l'autopilota resta al lavoro.`)
+    }
+    // 0.84.1: messa da parte non vuol dire abbandonata, e nessuno al lavoro non vuol dire finito.
+    giriDaSoli()
+  }
+
+  /**
+   * **Mai fermo** (0.84.1): il giro che il servizio fa da solo quando da 10
+   * minuti nessuna chat lavora, o quando una chat messa da parte va ripresa.
+   * La regola sta in `mai-fermo.ts`; qui si eseguono le mosse.
+   */
+  const giriDaSoli = (): void => {
+    const ora = Date.parse(deps.adesso())
+    if (Number.isNaN(ora)) return
+    for (const letto of deps.archivio.elenca()) {
+      if (inLavorazione.has(letto.id) || dialoghiInCorso.has(letto.id)) continue
+      const giro = giroMaiFermo(letto, {
+        ora,
+        avvioServizio,
+        ultimoSegnale,
+        inGiudizio: (chatId) => chatInGiudizio(letto, chatId),
+        fermaAlPrompt: (chiave) => fermaDal.has(chiave),
+        domandeAperte: deps.domande.aperte(letto.id).length
+      })
+      if (giro === undefined) continue
+      let a: Autopilota = { ...letto, giroDaSolo: deps.adesso() }
+      annota(a, rigaGiro(giro))
+      for (const riga of giro.avvisaNicholas) annota(a, riga)
+      console.info(`[autopilota] ${a.id} — ${rigaGiro(giro)}`)
+      const daAvviare: Array<{ chat?: ChatGovernata; messaggio: string }> = []
+      let apri = false
+      for (const m of giro.mosse) {
+        if (m.tipo === 'riprendi') {
+          const chat = m.chatId === undefined ? undefined : a.chats.find((c) => c.id === m.chatId)
+          if (m.chatId !== undefined && chat === undefined) continue
+          const ripresa = { il: deps.adesso(), volte: ((chat ?? a).ripresa?.volte ?? 0) + 1 }
+          if (m.interrompi) deps.fermaLavoro(a.id, m.chatId, (chat?.sessionId ?? a.sessionId) !== undefined ? { sessionId: (chat?.sessionId ?? a.sessionId) as string, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined)
+          const tolta = tornaDaParte(a, m.chatId ?? a.id)
+          a = chat === undefined
+            ? { ...tolta, ripresa }
+            : { ...tolta, chats: tolta.chats.map((c) => (c.id === chat.id ? { ...c, ripresa } : c)) }
+          daAvviare.push({ ...(chat !== undefined ? { chat: { ...chat, ripresa } } : {}), messaggio: testoRipresa(a, chat, m.muta) })
+        } else if (m.tipo === 'sostituisci') {
+          const vecchia = a.chats.find((c) => c.id === m.chatId)
+          if (vecchia === undefined) continue
+          const il = deps.adesso()
+          const nuova = chatCheSostituisce(a, vecchia, randomUUID(), il)
+          const chi = vecchia.sessionId !== undefined ? { sessionId: vecchia.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined
+          deps.fermaLavoro(a.id, vecchia.id, chi)
+          if (chi !== undefined) deps.chiudiChat?.(a.id, vecchia.id, { ...chi, alRecupero: true })
+          a = conSostituzione(a, vecchia.id, nuova, il)
+          annota(a, `${vecchia.id} non risponde nemmeno dopo la ripresa: il suo compito passa a ${nuova.id}${vecchia.ramo !== undefined ? ` sullo stesso ramo ${vecchia.ramo}` : ''}; ${vecchia.id} va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: vecchia.id, esito: 'nel-recupero' })
+          annota(a, `apro la chat ${nuova.id} al posto di ${vecchia.id}: ${nuova.compito.slice(0, 120)}`, { chat: nuova.id, esito: 'aperta' })
+          daAvviare.push({ chat: nuova, messaggio: `${testoPassaggio(vecchia)}\n\n---\n\n${primoCompito(a, nuova)}` })
+        } else if (m.tipo === 'apriCompiti') {
+          apri = true
+        } else if (!a.compitiDaFare.includes(m.compito) && chiHaGia(m.compito, a.chats) === undefined) {
+          a = {
+            ...a,
+            compitiDaFare: [...a.compitiDaFare, m.compito],
+            ...(a.ruoliCompiti !== undefined ? { ruoliCompiti: { ...a.ruoliCompiti, [m.compito]: { ruolo: 'sviluppo' as const, dopo: [] } } } : {})
+          }
+          apri = true
+        }
+      }
+      salva(a)
+      for (const riga of giro.avvisaNicholas) void deps.avvisa('avviso', a, riga)
+      for (const x of daAvviare) {
+        void avviaLavoro(a, x.messaggio, x.chat).catch((err: unknown) => {
+          console.error(`[autopilota] ${a.id} — giro da solo: ${x.chat?.id ?? 'la chat'} non ripartita:`, err)
+        })
+      }
+      if (apri) {
+        void apriChatMancanti(deps.archivio.leggi(a.id) ?? a).catch((err: unknown) => {
+          console.error(`[autopilota] ${a.id} — giro da solo: apertura delle chat fallita:`, err)
+        })
+      }
     }
   }
 
@@ -2591,11 +2670,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // La sessione appartiene alla chat che si e' fermata: con una flotta,
     // scriverla sull'autopilota farebbe riprendere tutte le chat dalla
     // conversazione dell'ultima che ha parlato.
+    // 0.84.1: ha chiuso un turno, quindi ha risposto: la ripresa da solo si dimentica.
     const chats = chatId === undefined
       ? a.chats
       : a.chats.map((c) =>
           c.id === chatId
-            ? { ...c, cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}), ...(segnaleQui !== undefined ? { segnale: segnaleQui } : {}) }
+            ? { ...(tornaDaParte({ ...a, chats: [c] }, c.id).chats[0] ?? c), cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}), ...(segnaleQui !== undefined ? { segnale: segnaleQui } : {}) }
             : c
         )
     const conSessione: Autopilota = {
@@ -3433,6 +3513,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       annota(aggiornato, `l'obiettivo sembra raggiunto, ma ${nonApprovate.map((c) => c.id).join(', ')} aspettano l'ok della Revisione prima di essere uniti: finisco dopo`)
       salvaNelTurno(aggiornato)
       void apriChatMancanti(deps.archivio.leggi(id) ?? aggiornato).catch((err: unknown) => { console.error(`[autopilota] revisioni di ${id} non aperte:`, err) })
+      return {}
+    }
+
+    // 0.84.1: «finito» solo con nessuna chat aperta. Prima qui tutte le chat
+    // diventavano `finita` insieme, anche quelle ancora al lavoro o in attesa
+    // di una risposta di Nicholas. Questa chat ha chiuso la sua parte (il suo
+    // ramo si unisce alla fine con gli altri); l'autopilota finisce quando
+    // l'ultima chiude.
+    const ancoraAperte = aggiornato.chats.filter((c) => c.id !== chatId && (c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa'))
+    if (ancoraAperte.length > 0) {
+      if (chatId !== undefined) aggiornato.chats = aggiornato.chats.map((c) => (c.id === chatId ? { ...c, stato: 'finita' as const } : c))
+      annota(aggiornato, `l'obiettivo sembra raggiunto, ma ${ancoraAperte.map((c) => c.id).join(', ')} ${ancoraAperte.length === 1 ? 'è ancora aperta' : 'sono ancora aperte'}: finisco quando hanno chiuso`)
+      salvaNelTurno(aggiornato)
       return {}
     }
 
