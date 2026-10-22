@@ -9,6 +9,7 @@ import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { giroMaiFermo, notaFerma, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { rigaTraguardo } from '@shared/chat-autopilota'
 
 // 0.84.1, PRIMA DI TUTTO. La notte fra il 21 e il 22/10 l'autopilota era «al
 // lavoro» con tre chat (c-65, c-66, c-70): il guardiano le ha messe da parte
@@ -293,6 +294,27 @@ describe('0.84.1: il caso vero della notte 21-22/10', () => {
     // Lo stato di ogni chat nel diario, in una riga.
     const riga = a.decisioni.find((d) => d.cosa.startsWith('giro da solo'))!.cosa
     for (const c of ['c-65', 'c-66', 'c-70']) expect(riga).toContain(c)
+  })
+
+  it('0.84.3 (il Punto, revisione c-93): ogni chat rimessa al lavoro dal giro ha la sua riga «ferma» nella conversazione, con l’azione presa e senza sigle', async () => {
+    ora = Date.parse('2026-10-21T22:20:00.000Z')
+    server = ambiente()
+    await avvia(server)
+    const id = notte()
+    ora = Date.parse('2026-10-21T22:27:00.000Z')
+    await chiama('POST', '/battiti', { segni: [{ autopilota: id, chat: 'c-65' }, { autopilota: id, chat: 'c-66' }, { autopilota: id, chat: 'c-70' }] })
+    for (let m = 1; m <= 15 && !giroFatto(id); m += 1) {
+      ora += MIN
+      server.controllaChatFerme()
+    }
+    const a = archivio.leggi(id)!
+    const ferme = a.decisioni.filter((d) => d.traguardo?.esito === 'ferma')
+    expect(ferme.map((d) => d.traguardo!.chat).sort()).toEqual(['c-65', 'c-66', 'c-70'])
+    for (const d of ferme) {
+      const riga = rigaTraguardo(a, d.traguardo!)!
+      expect(riga).toMatch(/è ferma da \d+ minuti senza segnali: .*le riscrivo l’ultima istruzione/)
+      expect(riga).not.toMatch(/\bc-\d+/)
+    }
   })
 
   it('dopo un riavvio, con lo stato su disco della notte: giro entro 15 minuti; se restano mute, i compiti passano a chat nuove sugli stessi rami, senza doppioni', async () => {

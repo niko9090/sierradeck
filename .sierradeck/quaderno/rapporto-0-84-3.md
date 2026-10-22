@@ -41,4 +41,20 @@ Da completare alla release (vedi anche `rami-0-84-3.md`).
 
 ## Prova di 2 ore senza fermate
 
-Da fare nella copia di prova prima della release, con i numeri qui.
+**Partita il 22/10 alle 23:47:50 UTC** (c-93), sul codice di main 4d12934f
+(c-87…c-91 dentro). È la prova della 0.84.1 (`creaServer` vero, orologi veri,
+guardiano ogni minuto, riavvio del servizio a metà), con queste differenze:
+porta 47683, dati in una cartella temporanea della chat con `SIERRADECK_PROVA`
+e APPDATA di prova, freno spento come nel servizio vero (`frenoPiano: false`),
+4 chat simulate con seme fisso (62% lavorano 2-11 min, 18% mute, 8% morte,
+12% ferme al prompt). Mai il servizio vero, mai «Installa».
+
+Cosa misura, ogni 15 secondi:
+- minuti con l'autopilota «al lavoro», criteri rossi e nessuna chat che lavora
+  (il tratto più lungo e quanti oltre 15 minuti);
+- per ogni chat muta, quanto resta muta prima di essere ripresa, anche con le
+  sorelle al lavoro (D1: deve stare sotto 15 minuti + un giro);
+- i motivi scritti dai giri da soli, e se un giro dice «apro» senza aprire;
+- riprese, sostituzioni, messe da parte, doppioni, «finito» con chat aperte.
+
+Numeri: in arrivo alla fine della prova (verso le 01:48 UTC del 23/10).
