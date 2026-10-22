@@ -2,6 +2,7 @@ import type { DomandaRisolta } from '@shared/domande-telefono'
 import { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
+import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 
 export type NuovoAutopilota = {
@@ -139,7 +140,7 @@ export type ClientAutopilota = {
    * Torna quanti ne ha ripresi. Zero è la risposta normale quando non c'era
    * niente in corso.
    */
-  gestoreAvviato: () => Promise<number>
+  gestoreAvviato: (aggiornamento?: AggiornamentoInCorso) => Promise<number>
   /**
    * Mette in pausa - o toglie dalla pausa - gli autopiloti per aggiornare.
    *
@@ -358,8 +359,9 @@ export function creaClientAutopilota(p: {
       await chiama('/stato-programma', 'POST', stato)
     },
 
-    async gestoreAvviato() {
-      const esito = (await chiama('/gestore-avviato', 'POST')) as { ripresi?: unknown } | undefined
+    async gestoreAvviato(aggiornamento) {
+      // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.
+      const esito = (await chiama('/gestore-avviato', 'POST', aggiornamento !== undefined ? { aggiornamento } : undefined)) as { ripresi?: unknown } | undefined
       return typeof esito?.ripresi === 'number' ? esito.ripresi : 0
     },
 

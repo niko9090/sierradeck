@@ -78,7 +78,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
     var finestraNote by remember { mutableStateOf(false) }
     var noteLette by remember { mutableStateOf<NoteAggiornamento?>(null) }
 
-    val descrizione = when (a?.fase) {
+    val descrizioneBase = when (a?.fase) {
         "cerco" -> "Sto guardando se c’è qualcosa di nuovo…"
         "disponibile" -> "C'è la ${a.versione ?: "versione nuova"}, da scaricare." + (a.errore?.let { "\n$it" } ?: "")
         "scarico" -> "Sto scaricando la ${a.versione ?: ""}."
@@ -86,6 +86,7 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         // il PC lo manda da sempre in questo campo, e qui nessuno lo leggeva.
         "pronto" -> "La ${a.versione ?: ""} è già scaricata e aspetta solo di essere installata." + (a.errore?.let { "\n$it" } ?: "")
         "attendo" -> when {
+            a.subito == true -> "Salvo il lavoro delle chat e installo subito…"
             a.attesaChat != null && a.attesa == null -> a.attesaChat.replaceFirstChar { it.uppercase() } + "."
             a.attesa != null -> "Aspetto che finisca ${a.attesa}, poi installo."
             (a.chatOccupate ?: 0) == 1 -> "Aspetto che una chat finisca quello che ha in mano, poi installo."
@@ -96,6 +97,8 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
         "errore" -> "Non ci sono riuscito: ${a.errore ?: "errore sconosciuto"}"
         else -> nota ?: "Controlla da sé ogni dieci minuti. Puoi anche chiederglielo adesso."
     }
+    // Le fasi con il tempo (PC 0.84.3), la stessa riga del PC e della pagina.
+    val descrizione = a?.fasiTesto?.takeIf { it.isNotBlank() }?.let { "$descrizioneBase\n$it." } ?: descrizioneBase
     val colore = when (a?.fase) {
         "disponibile", "pronto" -> Banco.accento
         "scarico", "cerco", "installo", "attendo" -> Banco.ambra
@@ -137,9 +140,16 @@ internal fun AggiornamentoPc(api: Api, a: Aggiornamento?, versionePc: String?) {
             ) { Text("Scarica") }
             "scarico" -> Text("${a.percento ?: 0}%", color = Banco.ambra, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             "cerco" -> Text("cerco…", color = Banco.ambra, fontSize = 13.sp)
-            // Nessun tasto: premere di nuovo non anticipa niente, e un tasto
-            // che non fa niente e' peggio di nessun tasto.
-            "attendo" -> Text("aspetto…", color = Banco.ambra, fontSize = 13.sp)
+            // «Aggiorna adesso» (PC 0.84.1): non aspetta la fine dei turni, salva
+            // il lavoro delle chat sul loro ramo e installa. Premuto, sparisce.
+            "attendo" -> if (a.subito == true) {
+                Text("salvo e installo…", color = Banco.ambra, fontSize = 13.sp)
+            } else {
+                Button(
+                    shape = MaterialTheme.shapes.small,
+                    onClick = { scope.launch { tenta("far installare subito il computer") { api.aggiornaAdesso() } } }
+                ) { Text("Aggiorna adesso") }
+            }
             "pronto" -> Button(
                 shape = MaterialTheme.shapes.small,
                 onClick = {

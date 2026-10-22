@@ -5015,8 +5015,14 @@ function fallitoHtml(a) {
     '</div>'
 }
 
-/** A che punto e' l'aggiornamento del computer, detto in italiano. */
+/** A che punto e' l'aggiornamento del computer, detto in italiano, con le fasi e il loro tempo (0.84.3). */
 function descriviAggiornamento() {
+  var base = descriviAggiornamentoSenzaFasi()
+  var a = aggiornamentoVisto
+  return a && typeof a.fasiTesto === 'string' && a.fasiTesto !== '' ? base + ' ' + a.fasiTesto + '.' : base
+}
+
+function descriviAggiornamentoSenzaFasi() {
   const a = aggiornamentoVisto
   if (!a) return 'Non lo so.'
   if (a.fase === 'disponibile') return 'C’è la ' + (a.versione || 'versione nuova') + '.'

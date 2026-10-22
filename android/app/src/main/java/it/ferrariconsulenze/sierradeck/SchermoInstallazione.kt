@@ -83,6 +83,8 @@ fun SchermoInstallazione(
     var sparito by remember { mutableStateOf(false) }
     /** Il computer aspetta che le chat finiscano: quante, e fino a quando lo ha detto. */
     var chatOccupate by remember { mutableIntStateOf(0) }
+    // Le fasi con il tempo (PC 0.84.3), la stessa riga del PC.
+    var fasiTesto by remember { mutableStateOf<String?>(null) }
     var attendoFino by remember { mutableStateOf(0L) }
     var inAttesa by remember { mutableStateOf(false) }
 
@@ -105,6 +107,7 @@ fun SchermoInstallazione(
                 // conto dei dieci minuti riparte da quando smette di aspettare.
                 inAttesa = a.fase == "attendo"
                 if (inAttesa) { chatOccupate = a.chatOccupate ?: 0; attendoFino = System.currentTimeMillis() }
+                a.fasiTesto?.takeIf { it.isNotBlank() }?.let { fasiTesto = it }
             } catch (e: Exception) {
                 // Nessuno risponde: si continua col ripiego.
                 inAttesa = false
@@ -165,7 +168,8 @@ fun SchermoInstallazione(
         pronto -> "Il computer è ripartito con la ${versioneOra ?: ""}."
         inAttesa && !troppo ->
             (if (chatOccupate == 1) "Una chat sta finendo il turno che aveva in mano" else "$chatOccupate chat stanno finendo il turno che avevano in mano") +
-                ": si chiudono da sole, poi il computer si sostituisce. Può volerci qualche minuto."
+                ": al massimo 5 minuti, poi il computer salva il loro lavoro e si sostituisce." +
+                (fasiTesto?.let { "\n$it." } ?: "")
         troppo ->
             "Sono passati più di dieci minuti e il computer non è ancora tornato. " +
                 "Può essere che l'installer stia aspettando qualcosa sullo schermo del computer: vai a vedere."

@@ -38,21 +38,24 @@ function banco(chats: ChatInVolo[], ferme: (ms: number) => ChatInVolo[] | undefi
   return { deps, fatti, testi, pausa: () => salvata, orologio: () => orologio }
 }
 
-describe('dopo «Installa»: si aspetta la quiete fino a due ore', () => {
+describe('dopo «Installa»: si aspetta la quiete al massimo 5 minuti, poi si salva e si installa (0.84.3)', () => {
   it('prima la pausa degli autopiloti (a fine turno), poi l’avviso alle chat al lavoro', async () => {
     const b = banco([chat({ id: 'ap', governata: true }), chat({ id: 'mia', sessione: 's2' })], (t) => t >= 60_000 ? [] : undefined)
-    await attendiQuiete({ ...b.deps, tetto: ATTESA_INSTALLA_MS })
+    await attendiQuiete({ ...b.deps, tetto: ATTESA_INSTALLA_MS, alloScadere: 'installa' })
     expect(b.fatti[0]).toBe('pausa')
     expect(b.fatti).toContain('scrivo:ap')
     expect(b.fatti).toContain('scrivo:mia')
   })
-  it('oltre i vecchi dieci minuti, e installa quando tutte sono ferme', async () => {
-    const libere = ATTESA_QUIETE_MS + 30 * 60_000
-    const b = banco([chat({ id: 'ap', governata: true })], (t) => t >= libere ? [chat({ id: 'ap', governata: true, aspetta: true })] : undefined)
-    await expect(attendiQuiete({ ...b.deps, tetto: ATTESA_INSTALLA_MS })).resolves.toBe(true)
-    expect(b.orologio()).toBeGreaterThanOrEqual(libere)
+  it('installa appena tutte sono ferme, prima dei 5 minuti', async () => {
+    const b = banco([chat({ id: 'ap', governata: true })], (t) => t >= 90_000 ? [chat({ id: 'ap', governata: true, aspetta: true })] : undefined)
+    await expect(attendiQuiete({ ...b.deps, tetto: ATTESA_INSTALLA_MS, alloScadere: 'installa' })).resolves.toBe(true)
+    expect(b.orologio()).toBeGreaterThanOrEqual(90_000)
+    expect(b.orologio()).toBeLessThan(ATTESA_INSTALLA_MS)
   })
-  it('dopo il tetto non installa e toglie la pausa', async () => {
+  it('il tetto è di 5 minuti, non più di due ore', () => {
+    expect(ATTESA_INSTALLA_MS).toBe(5 * 60_000)
+  })
+  it('senza `installa` allo scadere (il riavvio) non installa e toglie la pausa', async () => {
     const b = banco([chat({ id: 'ap', governata: true })])
     await expect(attendiQuiete({ ...b.deps, tetto: ATTESA_INSTALLA_MS })).resolves.toBe(false)
     expect(b.fatti.at(-1)).toBe('disfa')

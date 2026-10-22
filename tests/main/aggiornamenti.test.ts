@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { creaGiroMuto, intestazioniAccesso, indirizzoAlternativo, feedAlternativo } from '../../src/main/aggiornamenti'
+import { creaGiroMuto, intestazioniAccesso, indirizzoAlternativo, feedAlternativo, leggiAggiornamentoAppenaFatto, FILE_AGGIORNAMENTO_IN_CORSO } from '../../src/main/aggiornamenti'
 
 function cartella(contenuto?: unknown): string {
   const d = mkdtempSync(join(tmpdir(), 'aggiorn-'))
@@ -100,5 +100,43 @@ describe('0.73.1: i controlli di routina non riempiono il registro', () => {
     g.cambia('aggiornato', 'cerco', ora); g.cambia('cerco', 'aggiornato', ora)
     expect(g.cambia('aggiornato', 'cerco', ora + 1)).toBe(true)
     expect(g.cambia('cerco', 'errore', ora + 2)).toBe(false)
+  })
+})
+
+describe('al ritorno dopo un aggiornamento: le fasi scritte dalla versione di prima (0.84.3)', () => {
+  const scrivi = (u: unknown): string => {
+    const d = mkdtempSync(join(tmpdir(), 'agg-in-corso-'))
+    writeFileSync(join(d, FILE_AGGIORNAMENTO_IN_CORSO), JSON.stringify(u))
+    return d
+  }
+  const u = {
+    daVersione: '0.84.2',
+    aVersione: '0.84.3',
+    fasi: [
+      { passo: 'salvo', dal: '2026-10-22T15:28:51.000Z', fino: '2026-10-22T15:33:51.000Z' },
+      { passo: 'installo', dal: '2026-10-22T15:33:51.000Z' }
+    ],
+    salvate: 3
+  }
+  const partito = Date.parse('2026-10-22T15:35:00.000Z')
+
+  it('chiude «installo» quando il programma nuovo è partito e apre «riparto»; il file si cancella', () => {
+    const d = scrivi(u)
+    const letto = leggiAggiornamentoAppenaFatto(d, '0.84.3', partito, partito + 5000)
+    expect(letto?.fasi).toEqual([
+      { passo: 'salvo', dal: '2026-10-22T15:28:51.000Z', fino: '2026-10-22T15:33:51.000Z' },
+      { passo: 'installo', dal: '2026-10-22T15:33:51.000Z', fino: '2026-10-22T15:35:00.000Z' },
+      { passo: 'riparto', dal: '2026-10-22T15:35:00.000Z' }
+    ])
+    expect(letto?.salvate).toBe(3)
+    expect(existsSync(join(d, FILE_AGGIORNAMENTO_IN_CORSO))).toBe(false)
+  })
+
+  it('un’installazione non riuscita (versione ancora vecchia) non si racconta', () => {
+    expect(leggiAggiornamentoAppenaFatto(scrivi(u), '0.84.2', partito, partito)).toBeUndefined()
+  })
+
+  it('un file di giorni fa non si racconta', () => {
+    expect(leggiAggiornamentoAppenaFatto(scrivi(u), '0.84.3', partito, partito + 3 * 24 * 60 * 60_000)).toBeUndefined()
   })
 })

@@ -16,6 +16,7 @@ import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from 
 import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
+import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
 import { STRATEGIE } from './strategie'
@@ -4209,12 +4210,31 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // toglieva era la sua ripartenza, che non arrivava — con gli
           // autopiloti fermi e il pannello a dire «al lavoro».
           installaInCorso = false
+          // 0.84.3: le fasi dell'aggiornamento appena fatto, se ce n'è stato uno.
+          const corpoAvvio = await leggiCorpo(req).catch(() => undefined)
+          const aggiornamento = typeof corpoAvvio === 'object' && corpoAvvio !== null
+            ? leggiAggiornamentoInCorso((corpoAvvio as Record<string, unknown>).aggiornamento)
+            : undefined
+          // La riga di riepilogo va a chi si era fermato per l'aggiornamento; se
+          // nessuno lo era (una pausa già tolta), a chi è al lavoro.
+          const fermati = deps.archivio.elenca().filter((a) => a.fermatoPerAggiornamento === true)
+          const aChiDirlo = new Set((fermati.length > 0 ? fermati : deps.archivio.elenca().filter((a) => a.stato === 'lavoro')).map((a) => a.id))
+          const riga = aggiornamento !== undefined && aChiDirlo.size > 0
+            ? rigaRiepilogo({ ...aggiornamento, fasi: chiudiFasi(aggiornamento.fasi, deps.adesso()) }, aChiDirlo.size)
+            : undefined
           let tolti = 0
           for (const a of deps.archivio.elenca()) {
-            if (a.fermatoPerAggiornamento !== true) continue
-            salva({ ...a, fermatoPerAggiornamento: undefined })
+            const conRiga = riga !== undefined && aChiDirlo.has(a.id)
+              ? { dialogo: [...a.dialogo, { quando: deps.adesso(), da: 'lui' as const, testo: riga, traccia: true as const }].slice(-DIALOGO_RICORDATO) }
+              : {}
+            if (a.fermatoPerAggiornamento !== true) {
+              if (conRiga.dialogo !== undefined) salva({ ...a, ...conRiga })
+              continue
+            }
+            salva({ ...a, ...conRiga, fermatoPerAggiornamento: undefined })
             tolti += 1
           }
+          if (riga !== undefined) console.info(`[autopilota] riepilogo dell'aggiornamento a ${aChiDirlo.size} autopiloti: ${riga}`)
           if (tolti > 0) console.info(`[autopilota] ${tolti} tolti da una pausa per aggiornamento rimasta appesa`)
           // Le interviste no: quelle girano dentro questo processo e non sono
           // morte con il Gestore. Riprenderle vorrebbe dire farne partire una

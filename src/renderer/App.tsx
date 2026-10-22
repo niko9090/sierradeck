@@ -1879,7 +1879,8 @@ export function App(): React.JSX.Element {
           {aggiornamento.attesaChat !== undefined && aggiornamento.attesa === undefined ? (
             <span>
               {aggiornamento.attesaChat.charAt(0).toUpperCase() + aggiornamento.attesaChat.slice(1)} — poi installo la {aggiornamento.versione ?? 'versione nuova'}.
-              Gli autopiloti finiscono il turno e si fermano; dopo il riavvio riprendono da soli.
+              Gli autopiloti finiscono il turno e si fermano (al massimo 5 minuti, poi salvo il loro lavoro e
+              installo); dopo il riavvio riprendono da soli.
             </span>
           ) : aggiornamento.attesa !== undefined ? (
             <span>
@@ -1895,10 +1896,14 @@ export function App(): React.JSX.Element {
                 : `${aggiornamento.chatOccupate ?? 0} chat finiscano quello che hanno in mano`}, poi installo
               la {aggiornamento.versione ?? 'versione nuova'}. Una chat «lavora» se il suo terminale è acceso e
               non sta aspettando te. Ho già scritto in ognuna di fermarsi a fine turno e ho messo in pausa gli
-              autopiloti. Al massimo due ore: se non finiscono, non installo, tolgo la pausa e te lo dico
-              qui. Non chiudere le chat a mano: l’installazione parte da sola.
+              autopiloti. Al massimo 5 minuti: poi salvo il loro lavoro con un commit sul loro ramo e
+              installo lo stesso. Non chiudere le chat a mano: l’installazione parte da sola.
             </span>
           )}
+          {/* 0.84.3: le fasi con il tempo, la stessa riga di pagina e app. */}
+          {aggiornamento.fasiTesto !== undefined && aggiornamento.fasiTesto !== '' ? (
+            <span className="avviso__fasi">{aggiornamento.fasiTesto}.</span>
+          ) : null}
           <span style={{ flex: 1 }} />
           {/* 0.84.1: senza aspettare la fine dei turni. Il lavoro delle chat si
               salva con un commit sul loro ramo e al ritorno riprendono da lì. */}

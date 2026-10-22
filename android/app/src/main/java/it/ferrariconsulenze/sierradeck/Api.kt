@@ -598,6 +598,13 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun installaAggiornamento(): Fatto =
         json.decodeFromString(corpoTesto("/api/aggiornamento/installa", oggetto { }))
 
+    /**
+     * «Aggiorna adesso» (PC 0.84.1): non aspetta che le chat finiscano il turno,
+     * salva il loro lavoro sul loro ramo e installa. Solo col tasto di Nicholas.
+     */
+    suspend fun aggiornaAdesso(): Fatto =
+        json.decodeFromString(corpoTesto("/api/aggiornamento/aggiorna-adesso", oggetto { }))
+
     /** Cosa cambia con l'aggiornamento pronto: si mostra prima di «Installa» (0.39.0). */
     suspend fun noteAggiornamento(): NoteAggiornamento =
         json.decodeFromString(corpoTesto("/api/aggiornamento/note", null))

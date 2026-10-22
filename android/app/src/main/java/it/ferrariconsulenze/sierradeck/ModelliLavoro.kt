@@ -282,6 +282,13 @@ data class Aggiornamento(
     val attesa: String? = null,
     /** Le chat che si aspettano, con i nomi (PC 0.67.1). */
     val attesaChat: String? = null,
+    /** «Aggiorna adesso» già premuto (PC 0.84.1): salva il lavoro delle chat e installa. */
+    val subito: Boolean? = null,
+    /**
+     * Le fasi con il tempo (PC 0.84.3): «Scaricato in 40 s · salvo le chat da
+     * 2 min (al massimo 5 min) · poi installo e riparto». La stessa riga del PC.
+     */
+    val fasiTesto: String? = null,
     /**
      * Quello che l'installer sta scrivendo **adesso**, parola per parola.
      *

@@ -30,6 +30,8 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
     : fase === 'installo' ? 'Sto installando: il programma si chiude e si riapre da solo.'
     : fase === 'errore' ? `Qualcosa non è andato: ${s?.errore ?? 'motivo non detto'}.`
     : 'Controlla da sé ogni dieci minuti e scarica la versione nuova; si installa solo con «Installa». «Cerca ora» lo fa subito.'
+  // 0.84.3: le fasi con il tempo (scarico, salvo le chat, installo, riparto), uguali su pagina e app.
+  const conFasi = s?.fasiTesto !== undefined && s.fasiTesto !== '' ? `${testo} ${s.fasiTesto}.` : testo
   return (
     <>
       <div className="impostazioni__riga">
@@ -39,7 +41,7 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
       </div>
       <div className="impostazioni__riga">
         <span>Aggiornamento</span>
-        <span style={{ flex: 1 }}>{testo}</span>
+        <span style={{ flex: 1 }}>{conFasi}</span>
         {fase === 'disponibile' ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.scarica()}>Scarica</button> : null}
         {fase === 'pronto' ? (
           <button className="tasto tasto--primario" onClick={() => window.dispatchEvent(new CustomEvent('sierradeck:apri-installa', { detail: s?.versione ?? '' }))}>
