@@ -68,8 +68,9 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
+  cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
+import { allineaHookEccDiTutte } from './hook-ecc'
 
 export type Dipendenze = {
   archivio: Archivio
@@ -1652,6 +1653,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (radice === undefined) return
     const tolte = togliWorktreeVuoti(radice)
     if (tolte.length > 0) console.info(`[autopilota] tolte ${tolte.length} cartelle vuote rimaste dai worktree in ${cartellaWorktreeDi(radice)}`)
+    // Le copie già aperte nate senza lo spegnimento degli hook ECC (0.84.0).
+    const sistemate = allineaHookEccDiTutte(radice, cartellaWorktreeDi(radice), fuoriDaGit(deps.git))
+    if (sistemate.length > 0) console.info(`[autopilota] hook ECC spenti anche in ${sistemate.length} copie delle chat`)
   }
   const riprendiInterviste = (): void => {
     const tutti = deps.archivio.elenca()
