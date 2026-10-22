@@ -1,12 +1,12 @@
 ---
-titolo: "Rapporto 0.84.1 (bozza): autopilota mai fermo, rami, prova delle 2 ore"
-quando: 2026-10-22T10:05:00+02:00
-tag: ["0.84.1", "rapporto", "autopilota", "mai-fermo", "rami"]
+titolo: "Rapporto 0.84.1: autopilota mai fermo, rami, prova delle 2 ore, release"
+quando: 2026-10-22T12:05:00+02:00
+tag: ["0.84.1", "rapporto", "autopilota", "mai-fermo", "rami", "release"]
 ---
 
-Bozza di c-72, 22/10. La 0.84.1 non è ancora pubblicata: questo rapporto si
-completa con la release. Mai installata da noi: l'installazione la avvia solo
-Nicholas.
+**La 0.84.1 è pubblicata** (22/10, 11:55, c-79) e **non è installata**:
+l'installazione la avvia solo Nicholas. Sezioni 1-3 di c-72, sezioni 4-5 di
+c-79.
 
 ## 1. La causa della fermata della notte 21-22/10
 
@@ -170,13 +170,63 @@ e c-4, che erano in pausa per il freno: `chatDaRiprendere` in `ripresa.ts`
 prende tutte le chat non finite. Dopo un turno il freno le ha rimesse in pausa,
 quindi non è un danno. Però è un turno che il freno non avrebbe permesso.
 
-## 4. Le voci 0.84.1 ancora aperte
+## 4. La release
 
-| Voce | Chat | Stato al 22/10 mattina |
+- **Tag `v0.84.1`** su `e2cf02d0`: main con c-72, c-74, c-75, c-76 e c-77, più
+  il commit di versione `42e0364c` (0.84.1, app 2.84.1, novità).
+- **Prima del tag**, nella copia di c-79:
+  - TypeScript pulito;
+  - test del programma principale: 1910 verdi, 2 saltati;
+  - servizio, renderer, condivisi e pty: 3045 verdi;
+  - Android `testDebugUnitTest assembleDebug` riuscito;
+  - nessun file Kotlin oltre le 800 righe;
+  - guardia delle cancellazioni rispettata;
+  - `npm run build` riuscito.
+- **APK nuovo** perché `android/` è cambiato dalla 0.84.0 (etichette in italiano
+  e tasto «Apri la chat su …» di c-74): `versionCode` 141, 2.84.1, solo con
+  `npm run allega-apk`, firma «O=Ferrari Consulenze» verificata.
+- **Allegati**, tutti «uploaded», una release sola sul tag: installer, blockmap,
+  `latest.yml`, `SierraDeck-2.84.1.apk`, `app-android.json`. Non bozza, non
+  pre-release, «Latest». Con curl: `latest.yml` dice 0.84.1 e la dimensione
+  combacia con l'installer; `app-android.json` dice 2.84.1 e punta al tag.
+- **Novità** in `novita.ts`, le stesse nelle note della release: autopilota mai
+  fermo, domande dagli altri PC, risposte controllate, «Aggiorna adesso», meno
+  intoppi. Solo quello che c'è davvero.
+
+### Rami alla release
+
+Oltre alla tabella della sezione 2:
+
+| Ramo | Scelta | Motivo |
 |---|---|---|
-| Domande dalle chat degli altri PC: testo intero, contesto, progetto e PC, scelte in italiano, tasto «Apri la chat su <PC>» | c-74 | al lavoro sul suo ramo (parte del lavoro era nel ramo `wip/domande-altri-pc-c628`) |
-| Risposte dal riquadro verificate sul PC della chat, un nuovo tentativo, esito visibile, voce nel registro | c-75 | al lavoro; un primo giro è già in main (`214cc0c6`, unito con `d1f9e092`) |
-| Errori dell'interfaccia del 21/10: «grezze», «sierradeck:al-telefono», chat chiuse con la cartella cancellata | c-76 | al lavoro sul suo ramo |
-| «Aggiorna adesso»: mette in pausa le chat in sicurezza e installa subito; dopo «Installa» nessuna consegna nuova; l'installazione la avvia solo Nicholas | — | in coda, nessuna chat ancora |
-| Segnale delle chat (parto, fatto, bloccata, aspetto) in vista su pagina e app | — | in coda, nessuna chat ancora |
-| Release 0.84.1: APK nuovo con `npm run allega-apk` (`android/` è cambiato), `latest.yml`, `app-android.json`, non bozza | — | in coda, dopo tutte le voci sopra |
+| c-74 | **unito** (`7042da9c`) | domande dagli altri PC |
+| c-75 | **unito** (`d1f9e092`) | risposte verificate |
+| c-76 | **unito** (`f8273f6c`) | errori dell'interfaccia del 21/10 |
+| c-77 | **unito** (`59ecf247`) | «Aggiorna adesso» e nessuna consegna dopo «Installa» |
+| c-70 | **superato**, niente da unire | sopra main ha solo un commit e il suo revert: la differenza è vuota |
+| c-78, c-80 | **uniti** | solo quaderno (lista dei lavori, scheda ECC) |
+| c-81, c-82 | **aperti** | collaudi della 0.84.1 arrivati dopo il tag: vanno nella 0.84.2 |
+
+## 5. Cosa resta (0.84.2)
+
+I collaudi c-81 e c-82 sono arrivati mentre la release partiva. Hanno trovato
+difetti veri, ognuno con un test `.fails`:
+- **c-81** (scheda `collaudo-mai-fermo-0-84-1.md`):
+  - D1: una chat muta dall'avvio del servizio resta abbandonata finché una
+    sorella lavora;
+  - D2: una consegna del servizio vale come risposta e ritarda la chat nuova di
+    10 minuti.
+- **c-82** (scheda `collaudo-domande-risposte-0-84-1.md`):
+  - D1: un'opzione oltre i 200 caratteri non si preme da un altro PC;
+  - D2: la verifica della risposta può durare troppo, e il ponte smette di
+    aspettare dopo 14 s;
+  - D3: l'app non mostra «Presa»;
+  - D4: da un altro PC mancano «Le scelte, spiegate».
+
+Restano anche:
+- il segnale delle chat in vista su pagina e app;
+- il tasto «Aggiorna adesso» nell'app Android nativa (sul PC e sulla pagina
+  c'è);
+- la ripresa d'avvio che rimette al lavoro le chat in pausa per il freno.
+
+Tutto nella riga 6 di `lista-lavori.md`.
