@@ -1,5 +1,5 @@
 import type { Autopilota, ChatGovernata, Traguardo } from './autopilota'
-import { SILENZIO_DA_DIRE_MS } from './autopilota'
+import { FERMA_DA_DIRE_MS, SILENZIO_DA_DIRE_MS } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
 import { RUOLI } from './ruoli-agenti'
 
@@ -233,6 +233,27 @@ export function compitoBreve(compito: string, max = 60): string {
   return `${(spazio > max / 2 ? taglio.slice(0, spazio) : taglio).replace(/[\s,:;–-]+$/, '')}…`
 }
 
+/**
+ * Il testo senza le sigle interne: «c-12», «(c-3)», «gruppo 3», i nomi dei
+ * rami e degli autopiloti. Nicholas (22/10): le sigle non dicono niente a chi
+ * legge; il compito si dice con le sue parole.
+ */
+export function senzaSigle(testo: string): string {
+  return testo
+    .replace(/\bap\/[\w./-]+/g, '')
+    .replace(/\bap-[0-9a-f]{6,}\b/gi, '')
+    .replace(/\(\s*(?:chat\s+)?c-\d+[a-z0-9-]*\s*\)/gi, '')
+    .replace(/\b(?:la |della |alla |dalla |nella )?chat c-\d+[a-z0-9-]*\b/gi, (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s*c-\d+[a-z0-9-]*$/i, '') : 'chat'))
+    .replace(/\bc-\d+[a-z0-9-]*\b/gi, '')
+    .replace(/\bgrupp[oi] \d+\b/gi, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([,.;:)])/g, '$1')
+    .replace(/([(])\s+/g, '$1')
+    .replace(/^[\s,;:—–-]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 /** «Sviluppo», «Revisione»… o «Una chat» per una chat senza ruolo. */
 export function nomeChi(c: Pick<ChatGovernata, 'ruolo'> | undefined): string {
   return c?.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Una chat'
@@ -248,17 +269,20 @@ export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): strin
   // 0.80.1: la chat che tace è messa da parte, l'autopilota no. Anche la chat
   // singola, che non sta fra le `chats`.
   // 0.81.0: anche queste valgono per la chat singola, che non sta fra le `chats`.
-  const sola = (): string => `${chi !== undefined ? nomeChi(chi) : 'La chat'}${chi !== undefined ? ` («${compitoBreve(chi.compito)}»)` : ''}`
+  const sola = (): string => `${chi !== undefined ? nomeChi(chi) : 'La chat'}${chi !== undefined ? ` («${senzaSigle(compitoBreve(chi.compito))}»)` : ''}`
   if (t.esito === 'da-parte') return `${sola()} non chiude un turno da troppo: la metto da parte, le altre continuano. Torna da sola appena risponde.`
   if (t.esito === 'mai-partita') return `${sola()} non è partita: nessuna finestra l'ha aperta. Rimetto il compito in coda e riprovo.`
-  if (t.esito === 'muta') return `${sola()} non dà segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: aspetto. Se tace per un'ora la metto da parte e te lo dico.`
+  if (t.esito === 'muta') return `${sola()} non dà segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: aspetto. Se tace ancora a ${Math.round(FERMA_DA_DIRE_MS / 60_000)} minuti la rimetto al lavoro io e te lo dico.`
+  // 0.84.3 (il Punto): una riga quando si blocca e quando resta ferma, con l'azione presa.
+  if (t.esito === 'bloccata') return `${sola()} si è bloccata${t.nota !== undefined ? `: ${senzaSigle(t.nota)}` : ''}. Decido io come sbloccarla; se serve qualcosa che sai solo tu, te lo chiedo.`
+  if (t.esito === 'ferma') return `${sola()} ${t.nota !== undefined ? senzaSigle(t.nota) : `è ferma da più di ${Math.round(FERMA_DA_DIRE_MS / 60_000)} minuti`}.`
   if (t.esito === 'unito' && chi === undefined) return 'Lavoro unito.'
   // 0.82.0: una domanda che non ti arriva perché è già successo.
   if (t.esito === 'gia-fatto') return `Già fatto: ${t.nota ?? 'la domanda era già risolta'}. Non te lo chiedo.`
   const di = t.di !== undefined ? a.chats.find((c) => c.id === t.di) : undefined
   if (chi === undefined) return undefined
   const lavoro = di ?? chi
-  const cosa = `«${compitoBreve(lavoro.compito)}»`
+  const cosa = `«${senzaSigle(compitoBreve(lavoro.compito))}»`
   const diChi = di !== undefined ? ` di ${nomeChi(di)}` : ''
   switch (t.esito) {
     case 'finito': return `${nomeChi(chi)}: ha finito ${cosa}.`

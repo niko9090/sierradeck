@@ -35,7 +35,8 @@ describe('le righe nuove', () => {
     expect(mai).toContain('riprovo')
     const muta = rigaTraguardo(ap(), { chat: 'ap-1', esito: 'muta' }) ?? ''
     expect(muta).toMatch(/^La chat non dà segnali da 5 minuti: aspetto\./)
-    expect(muta).toContain('la metto da parte')
+    // 0.84.3: a 15 minuti la riprende lui (prima: «a un'ora la metto da parte»).
+    expect(muta).toContain('a 15 minuti la rimetto al lavoro io')
   })
 
   it('ogni esito ha la sua riga (nessuno resta muto)', () => {

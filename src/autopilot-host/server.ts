@@ -52,7 +52,7 @@ import {
   ripartenzaDopoDialogo,
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
-import { chatCheSostituisce, conSostituzione, giroMaiFermo, rigaGiro, testoPassaggio, testoRipresa } from './mai-fermo'
+import { chatCheSostituisce, conSostituzione, giroMaiFermo, notaFerma, rigaGiro, testoPassaggio, testoRipresa } from './mai-fermo'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
@@ -1667,6 +1667,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (m.chatId !== undefined && chat === undefined) continue
           const ripresa = { il: deps.adesso(), volte: ((chat ?? a).ripresa?.volte ?? 0) + 1 }
           if (m.interrompi) deps.fermaLavoro(a.id, m.chatId, (chat?.sessionId ?? a.sessionId) !== undefined ? { sessionId: (chat?.sessionId ?? a.sessionId) as string, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined)
+          // 0.84.3 (il Punto): la riga per Nicholas, con l'azione presa.
+          const nota = notaFerma(m)
+          if (nota !== undefined) annota(a, `${m.chatId ?? 'la chat'} ${nota}`, { chat: m.chatId ?? a.id, esito: 'ferma', nota: nota.slice(0, NOTA_TRAGUARDO_MAX) })
           const tolta = tornaDaParte(a, m.chatId ?? a.id)
           a = chat === undefined
             ? { ...tolta, ripresa }
@@ -1681,7 +1684,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           deps.fermaLavoro(a.id, vecchia.id, chi)
           if (chi !== undefined) deps.chiudiChat?.(a.id, vecchia.id, { ...chi, alRecupero: true })
           a = conSostituzione(a, vecchia.id, nuova, il)
-          annota(a, `${vecchia.id} non risponde nemmeno dopo la ripresa: il suo compito passa a ${nuova.id}${vecchia.ramo !== undefined ? ` sullo stesso ramo ${vecchia.ramo}` : ''}; ${vecchia.id} va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: vecchia.id, esito: 'nel-recupero' })
+          annota(a, `${vecchia.id} non risponde nemmeno dopo la ripresa: il suo compito passa a ${nuova.id}${vecchia.ramo !== undefined ? ` sullo stesso ramo ${vecchia.ramo}` : ''}; ${vecchia.id} va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: vecchia.id, esito: 'ferma', nota: (notaFerma(m) ?? '').slice(0, NOTA_TRAGUARDO_MAX) })
           annota(a, `apro la chat ${nuova.id} al posto di ${vecchia.id}: ${nuova.compito.slice(0, 120)}`, { chat: nuova.id, esito: 'aperta' })
           daAvviare.push({ chat: nuova, messaggio: `${testoPassaggio(vecchia)}\n\n---\n\n${primoCompito(a, nuova)}` })
         } else if (m.tipo === 'apriCompiti') {
@@ -2780,7 +2783,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     // Un segnale che chiede una decisione si scrive una volta, quando cambia.
     if (segnaleQui !== undefined && segnaleQui.tipo !== 'avanti' && segnaleNuovo(segnalePrima, segnaleQui)) {
-      annota(conSessione, `segnale da ${chatId ?? id}: ${parolaSegnale(segnaleQui)}`)
+      // 0.84.3 (il Punto): «si blocca» è una riga per Nicholas nella conversazione.
+      const blocco: Traguardo | undefined = segnaleQui.tipo === 'bloccata' ? { chat: chatId ?? id, esito: 'bloccata', ...(segnaleQui.motivo !== undefined ? { nota: segnaleQui.motivo.slice(0, NOTA_TRAGUARDO_MAX) } : {}) } : undefined
+      annota(conSessione, `segnale da ${chatId ?? id}: ${parolaSegnale(segnaleQui)}`, blocco)
     }
 
     // **Il ciclo si scrive adesso, prima dei criteri.** Erano l'unica cosa

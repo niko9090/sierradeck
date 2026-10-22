@@ -634,6 +634,8 @@ function componiPagina(): string {
   .adesso-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); }
   .adesso-ap__riga { font-size: var(--t1); line-height: 1.35; overflow-wrap: anywhere; }
   .adesso-ap__compito { color: var(--testo-quieto); }
+  .punto-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); font-size: var(--t1); line-height: 1.35; }
+  .punto-ap__chat, .punto-ap__riga { overflow-wrap: anywhere; margin-top: 2px; }
   .pensa { color: var(--ambra); }
   /* La chat con lui (0.29.0): in cima, scorre da sola e resta in fondo; le
      sue decisioni sono note quiete con il filo colorato a sinistra. */
@@ -1039,6 +1041,30 @@ function adessoHtml(x) {
         '<span' + (r.tono === 'lavoro' ? '' : ' style="color:' + (tinta[r.tono] || 'inherit') + '"') + '>' + esc(r.testo) + '</span></div>'
     }).join('') +
     (x.finite ? '<div class="sotto">' + (x.finite === 1 ? '1 chat finita' : x.finite + ' chat finite') + '</div>' : '') + '</div>'
+}
+/**
+ * Il Punto (0.84.3, come sul PC) in cima alla conversazione: passo, ogni chat
+ * con il suo segnale nei colori del PC, finito, dopo, cosa serve da te, limiti.
+ * Le righe arrivano calcolate dal computer (puntoDi).
+ */
+function puntoHtml(p) {
+  if (!p || typeof p !== 'object') return ''
+  var tinta = function (c) { return COLORE_VISTA[c] || 'inherit' }
+  var altri = function (tot, n) { var k = (tot || 0) - n; return k <= 0 ? '' : k === 1 ? ' e un altro' : ' e altri ' + k }
+  var chat = (Array.isArray(p.chat) ? p.chat : []).map(function (r) {
+    return '<div class="punto-ap__chat"><b style="color:' + tinta(r.colore) + '">' + esc(r.chi) + '</b> ' +
+      '<span class="adesso-ap__compito">' + esc(r.compito) + '</span> ' +
+      '<span' + (r.tono === 'lavoro' ? '' : ' style="color:' + tinta(r.colore) + '"') + '>' + esc(r.testo) + '</span>' +
+      (r.segnale ? ' <span class="punto-ap__segnale" style="color:' + tinta(r.segnale.colore) + '">' + esc(r.segnale.simbolo + ' ' + r.segnale.parola) + '</span>' : '') + '</div>'
+  }).join('')
+  var lista = function (nome, v, tot) { return Array.isArray(v) && v.length ? '<div class="punto-ap__riga"><b>' + nome + ':</b> ' + v.map(esc).join(' · ') + altri(tot, v.length) + '</div>' : '' }
+  var daTe = Array.isArray(p.daTe) && p.daTe.length ? p.daTe : null
+  return '<div class="punto-ap"><div class="serigrafia">Punto' + aiuto('ap-punto', p.aiuto || '') + '</div>' +
+    '<div class="punto-ap__riga">' + esc(p.passo || '') + '</div>' + chat +
+    (p.finite ? '<div class="sotto">' + (p.finite === 1 ? '1 chat finita' : p.finite + ' chat finite') + '</div>' : '') +
+    lista('Finito', p.fatto, p.fattoTotale) + lista('Dopo', p.dopo, p.dopoTotale) +
+    '<div class="punto-ap__riga"' + (daTe ? ' style="color:' + tinta('ambra') + '"' : '') + '><b>Da te:</b> ' + (daTe ? daTe.map(esc).join(' ') : 'niente, va avanti da solo.') + '</div>' +
+    (p.limiti ? '<div class="punto-ap__riga sotto">' + esc(p.limiti) + '</div>' : '') + '</div>'
 }
 function dalVivoHtml(v, senzaStato) {
   if (!v || typeof v !== 'object') return ''
@@ -1843,7 +1869,7 @@ function impronta(s) {
     JSON.stringify(panAperte),
     // La gestione delle chat (0.79.0): linguette, scelte, conferme, svuota.
     gcImpronta(),
-    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.punto || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
@@ -2179,7 +2205,7 @@ function pannello(s) {
       <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
-      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + adessoHtml(apDettaglio.adesso) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + (apDettaglio.punto ? '' : adessoHtml(apDettaglio.adesso)) + messaggiApHtml(apDettaglio.messaggi) : ''}
       </div>
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="solo-riassunto">
@@ -3393,6 +3419,7 @@ function vistaAutopilota(a) {
   return '<div class="dettaglio">' +
     '<div class="passi solo-riassunto">' + passi + '</div>' +
     '<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>' +
+    puntoHtml(a.punto) +
     '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
     casella +
     '<div class="solo-riassunto">' + barraLinguette +

@@ -1523,7 +1523,8 @@ describe('la chat viva che non finisce mai', () => {
     ora += 5 * 60_000
     server.controllaChatFerme()
     const esiti = (await chiama('GET', '/autopiloti')).dati[0].decisioni.map((d: { traguardo?: { esito: string } }) => d.traguardo?.esito).filter(Boolean)
-    expect(esiti).toEqual(['muta', 'da-parte'])
+    // 0.84.3 (il Punto): nello stesso giro la chat ferma si riprende, con la sua riga.
+    expect(esiti).toEqual(['muta', 'da-parte', 'ferma'])
   })
 
   it('0.81.0: una consegna che nessuna finestra ritira è detta una volta («mai partita»)', async () => {
@@ -2108,6 +2109,8 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats.find((c: any) => c.id === 'c-1').segnale).toMatchObject({ tipo: 'bloccata', motivo: 'manca la chiave del servizio di prova', dichiarato: true })
     expect(stato.decisioni.map((d: any) => d.cosa)).toContain('segnale da c-1: bloccata: manca la chiave del servizio di prova')
+    // 0.84.3 (il Punto): «si blocca» è anche una riga per Nicholas nella conversazione.
+    expect(stato.decisioni.find((d: any) => String(d.cosa).startsWith('segnale da c-1')).traguardo).toEqual({ chat: 'c-1', esito: 'bloccata', nota: 'manca la chiave del servizio di prova' })
     // Il supervisore vede tutte le chat, con i loro segnali, in un punto solo.
     const quadro = visti[visti.length - 1] ?? ''
     expect(quadro).toContain('Le tue chat, in un punto solo')

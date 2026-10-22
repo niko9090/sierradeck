@@ -24,6 +24,7 @@ import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { AIUTO_PUNTO, puntoDi } from '@shared/punto-autopilota'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
@@ -1566,6 +1567,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
         // 0.81.0 (Nicholas, 20/10): una riga per chat, anche le ferme o mai partite.
         adesso: { ...adessoDi(a as Autopilota & SegniDalVivo, adesso()), aiuto: AIUTO_ADESSO },
+        // 0.84.3: il Punto in cima alla conversazione, uguale su PC, pagina e app.
+        punto: { ...puntoDi(a as Autopilota & SegniDalVivo, adesso(), { domandeAperte: tutteLeDomande.filter((d) => d.autopilotaId === id).length, limiti: await limitiInPercento(deps) }), aiuto: AIUTO_PUNTO },
         messaggi: statoMessaggi(a, adesso(), oraBreve),
         // I tempi dei suoi giri (0.71.0): quanto ci mette, e dove.
         ...(await (async () => { const t = await deps.tempiAutopilota?.(id).catch(() => undefined); return t !== undefined ? { tempi: t } : {} })())
@@ -2828,4 +2831,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     return { stato: 404, corpo: { errore: 'non trovato' } }
   }
+}
+
+/** Le percentuali dei limiti del piano per il Punto (0.84.3): solo informazione. */
+async function limitiInPercento(deps: Pick<DipendenzeRotte, 'consumi'>): Promise<{ cinqueOre?: number; settimana?: number } | undefined> {
+  // Un PC senza i consumi (o un banco di prova) manda il Punto senza limiti.
+  if (typeof deps.consumi !== 'function') return undefined
+  const c = (await Promise.resolve().then(() => deps.consumi()).catch(() => ({}))) as { limiti?: { cinqueOre?: { percento?: unknown }; settimana?: { percento?: unknown } } }
+  const n = (x: unknown): number | undefined => (typeof x === 'number' && Number.isFinite(x) ? x : undefined)
+  const cinqueOre = n(c.limiti?.cinqueOre?.percento)
+  const settimana = n(c.limiti?.settimana?.percento)
+  if (cinqueOre === undefined && settimana === undefined) return undefined
+  return { ...(cinqueOre !== undefined ? { cinqueOre } : {}), ...(settimana !== undefined ? { settimana } : {}) }
 }

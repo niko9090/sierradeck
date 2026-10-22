@@ -41,6 +41,8 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota!} dentro />')
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro soloFerme />')
     const chatAp = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
-    expect(chatAp).toContain('{soloConversazione ? null : <AdessoAutopilota autopilota={autopilota} />}')
+    // 0.84.3: le righe delle chat stanno nel Punto in cima; nella Panoramica il Punto le lascia alla sua sezione «Adesso».
+    expect(chatAp).toContain('<PuntoAutopilota autopilota={autopilota} senzaChat={soloConversazione} />')
+    expect(chatAp).not.toContain('<AdessoAutopilota')
   })
 })
