@@ -2008,13 +2008,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     const a = diviso.a
     const eraFinito = a.stato === 'finito'
+    // Collaudo 0.84.0 (D1, il caso c-34): da un autopilota finito si riprendono
+    // solo le chat che non hanno concluso. Ramo unito o tolto, approvato, o
+    // conversazione già nel recupero: resta chiusa.
+    const conclusa = (c: ChatGovernata): boolean => c.conclusa !== undefined || c.approvata === true || c.nelRecupero !== undefined
     let ripreso: Autopilota = {
       ...a,
       stato: 'lavoro',
       motivoSospensione: undefined,
-      chats: a.chats.map((c) => (c.stato !== 'finita' || eraFinito ? { ...c, stato: 'lavoro' as const } : c))
+      chats: a.chats.map((c) => (c.stato !== 'finita' || (eraFinito && !conclusa(c)) ? { ...c, stato: 'lavoro' as const } : c))
     }
     const daAvviare = ripreso.chats.filter((c) => c.stato !== 'finita')
+    if (ripreso.chats.length > 0 && daAvviare.length === 0) {
+      // Tutte concluse: si aprono solo i compiti ancora in coda, e i messaggi
+      // per l'autopilota partono con la sua chat (come senza chat).
+      annota(ripreso, 'ripreso: le chat che hanno concluso restano chiuse')
+      salva(ripreso)
+      ripreso = await apriChatMancanti(ripreso)
+      const presi = prendiMessaggiPer(ripreso, ripreso.id)
+      if (presi.testi.length === 0 || ripreso.chats.some((c) => c.stato === 'lavoro')) return ripreso
+      ripreso = presi.autopilota
+      salva(ripreso)
+      await avviaLavoro(ripreso, conPreambolo(presi.testi, riprende(ripreso, ripreso.sessionId) ? ripartiDaDove(ripreso) : primoCompito(ripreso)), undefined, presi.presi)
+      return ripreso
+    }
     if (ripreso.chats.length === 0) {
       const presi = prendiMessaggiPer(ripreso, ripreso.id)
       ripreso = presi.autopilota
@@ -3434,6 +3451,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const il = deps.adesso()
       aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
       pulisciWorktreeVuoti(aggiornato.cwd)
+    }
+    // Collaudo 0.84.0 (D2): anche chi non ha un ramo (Rilascio, un Collaudo
+    // senza commit) ha concluso, e va nel recupero come le altre.
+    {
+      const il = deps.adesso()
+      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo === undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
     }
 
     // ── La pubblicazione, secondo la regola del progetto ──
