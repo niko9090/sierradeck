@@ -27,7 +27,8 @@ import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
-import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Scelta } from '@shared/scelte-terminale'
+import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Risposta, type Scelta } from '@shared/scelte-terminale'
+import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
 import type { OpzioneBattito } from '@shared/posta'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
@@ -236,9 +237,15 @@ export type DipendenzeRotte = {
    */
   /** Il PIN di una chat di un altro PC (0.49.1, dalle Domande): lo controlla quel PC. */
   pinAltroPc?: (pcId: string, sessione: string, pin: string) => Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number }>
-  scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<{ ok: true } | { ok: false; messaggio: string }>
+  scriviAltroPc?: (pcId: string, sessione: string, testo: string) => Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number }>
   /** Una scelta per la chat di un altro PC (0.52.6), dalle Domande: passa dal ponte. */
-  scegliAltroPc?: (pcId: string, sessione: string, opzione: string, libera?: string) => Promise<{ ok: true } | { ok: false; messaggio: string; stato?: number; pin?: boolean }>
+  scegliAltroPc?: (pcId: string, sessione: string, opzione: string, libera?: string) => Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number; pin?: boolean }>
+  /**
+   * La verifica delle risposte (0.84.1): dopo i tasti il PC riguarda lo
+   * schermo, e se la domanda è ancora lì riprova una volta. Senza (i test
+   * vecchi), i tasti partono e la rotta risponde subito, come prima.
+   */
+  verificaRisposte?: { pausa?: (ms: number) => Promise<void>; attesaMs?: number; rileggiMs?: number }
   /** La strada con cui si arriva a quel PC (0.40.0), in due parole: la pagina e l'app la mostrano accanto a «SU <PC>». */
   stradaPc?: (pcId: string) => string | undefined
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
@@ -846,6 +853,49 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
   const scelteVive = (chat: string, righe: string[]): ReturnType<typeof scelteDiTerminale> => {
     const s = scelteDiTerminale(righe.join(String.fromCharCode(10)))
     return giaRisposta(chat, s) ? undefined : s
+  }
+  /**
+   * Preme una risposta e, se il PC sa verificare, guarda se la chat è andata
+   * avanti (0.84.1): un solo nuovo tentativo, ogni pressione nel registro.
+   * `undefined` = senza verifica (i tasti partono e basta, come prima).
+   */
+  const premiRisposta = async (c: Chat, scelte: Scelta, risposta: Risposta, visore: string): Promise<EsitoPressione | undefined> => {
+    const cosa = `«${risposta.testo.slice(0, 80)}» nella chat «${c.titolo}» (${c.id}), chiesto da ${visore}`
+    const v = deps.verificaRisposte
+    if (v === undefined) {
+      const k = tastiPerRisposta(scelte, risposta)
+      if (!('errore' in k)) mandaTasti(deps, c.id, k.pezzi)
+      deps.log?.(`[risposta] ${cosa}: premuto, senza verifica`)
+      return undefined
+    }
+    return premiEVerifica(scelte, {
+      leggi: async () => {
+        const ora = deps.chat().find((x) => x.id === c.id)
+        return ora === undefined ? undefined : scelteAdesso(ora)
+      },
+      tasti: (s) => tastiPerRisposta(s, risposta),
+      manda: (pezzi) => mandaTasti(deps, c.id, pezzi),
+      pausa: v.pausa ?? ((ms) => new Promise((ok) => setTimeout(ok, ms))),
+      log: (riga) => deps.log?.(riga),
+      cosa,
+      ...(v.attesaMs !== undefined ? { attesaMs: v.attesaMs } : {}),
+      ...(v.rileggiMs !== undefined ? { rileggiMs: v.rileggiMs } : {})
+    })
+  }
+  /** L'esito di una risposta, nella forma che leggono PC, pagina e app. */
+  const corpoEsito = (e: EsitoPressione, testo: string): Record<string, unknown> =>
+    ({ esito: e.esito, tentativi: e.tentativi, frase: fraseEsito(e, testo) })
+  /** Una risposta non presa: la domanda torna visibile e si dice perché (409). */
+  const nonPresa = (chat: string, e: EsitoPressione, testo: string): Esito => {
+    risposte.delete(chat)
+    return { stato: 409, corpo: { errore: fraseEsito(e, testo), ...corpoEsito(e, testo) } }
+  }
+  /** L'esito che arriva dal PC della chat, per chi l'ha chiesto da qui. */
+  const esitoDaAltroPc = (e: EsitoAltroPc, pcId: string, testo: string): Record<string, unknown> => {
+    const presa = e.esito === 'presa'
+    deps.log?.(`[risposta] «${testo.slice(0, 80)}» alla chat su ${pcId}: ${presa ? `presa là al tentativo ${e.tentativi ?? 1}` : 'quel PC non sa verificare (versione vecchia), mandata senza verifica'}`)
+    return presa ? { esito: 'presa', tentativi: e.tentativi ?? 1, frase: e.frase ?? `Presa: «${testo}», la chat è andata avanti.` }
+      : { esito: 'senza-verifica', frase: 'Mandata: il PC della chat ha una versione che non controlla se è stata presa. Guarda la chat.' }
   }
   /** I file nuovi per minuto, per mittente (0.50.0). */
   const limitaAllegati = creaLimitatore()
@@ -1542,10 +1592,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         if (deps.scriviAltroPc === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa scrivere alle chat degli altri PC' } }
         const esito = await deps.scriviAltroPc(altrove.pcId, altrove.sessione, testo.slice(0, TESTO_MAX)).catch((e: unknown) => ({ ok: false as const, messaggio: String(e) }))
         // 423 (0.49.1): la chat là è protetta dal PIN e chiusa per questo PC.
-        if (!esito.ok) return { stato: (esito as { pin?: boolean }).pin === true ? STATO_CHIUSA : 502, corpo: { errore: esito.messaggio, ...((esito as { pin?: boolean }).pin === true ? { pin: 'chiusa' } : {}) } }
+        // 409 (0.84.1): là la risposta non è stata presa, o non era un'opzione.
+        if (!esito.ok) {
+          const pin = (esito as { pin?: boolean }).pin === true
+          const st = (esito as { stato?: number }).stato
+          return { stato: pin ? STATO_CHIUSA : st === 409 ? 409 : 502, corpo: { errore: esito.messaggio, ...(pin ? { pin: 'chiusa' } : {}) } }
+        }
         ricordaInviato(chat, testo)
         if (conId) memoriaInvii.segna(chat, idM, adesso())
-        return OK({ fatto: true })
+        // Una chat ferma su una scelta là: quel PC dice se l'ha presa (0.84.1).
+        return OK({ fatto: true, ...(esito.esito !== undefined ? esitoDaAltroPc(esito, altrove.pcId, testo) : {}) })
       }
       // La chat è ferma su una scelta (0.52.5): il testo non si scrive nel
       // selettore, dove Invio sceglieva la prima opzione. Si legge come
@@ -1558,11 +1614,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           if ('errore' in r) return { stato: 409, corpo: { errore: r.errore, scelte: s } }
           const k = tastiPerRisposta(s, r)
           if ('errore' in k) return { stato: 409, corpo: { errore: k.errore, scelte: s } }
-          mandaTasti(deps, chat, k.pezzi)
+          if (giaRisposta(chat, s)) return { stato: 409, corpo: { errore: 'gia mandata: aspetta che lo schermo cambi' } }
           risposte.set(chat, { firma: firmaScelte(s), quando: adesso() })
+          // Premuta davvero e chat andata avanti, o niente (0.84.1).
+          const e = await premiRisposta(trovata, s, r, visore)
+          if (e !== undefined && e.esito !== 'presa') return nonPresa(chat, e, r.testo)
+          if (e !== undefined) risposte.set(chat, { firma: firmaScelte(s), quando: adesso() })
           ricordaInviato(chat, r.tipo === 'opzione' ? `scelto: ${r.testo}` : testo)
           if (conId) memoriaInvii.segna(chat, idM, adesso())
-          return OK({ fatto: true, comeScelta: r.tipo === 'opzione' ? r.testo : 'risposta libera' })
+          return OK({ fatto: true, comeScelta: r.tipo === 'opzione' ? r.testo : 'risposta libera', ...(e !== undefined ? corpoEsito(e, r.testo) : {}) })
         }
       }
       deps.scriviAChat(chat, testo.slice(0, TESTO_MAX))
@@ -1602,7 +1662,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           return { stato: st === 409 || st === 404 ? st : 502, corpo: { errore: e.messaggio } }
         }
         ricordaInviato(id, `scelto: ${voluta}`)
-        return OK({ fatto: true })
+        return OK({ fatto: true, ...esitoDaAltroPc(e, altrove.pcId, voluta) })
       }
       const trovata = deps.chat().find((c) => c.id === id)
       if (trovata === undefined) return { stato: 404, corpo: { errore: 'chat non trovata' } }
@@ -1621,12 +1681,17 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       // «Type something.» con il testo (0.52.5): la risposta libera.
       const libera = stringa(r.corpo, 'testo')
-      const k = tastiPerRisposta(scelte, scelte.opzioni[dove]?.libera === true && libera.trim() !== '' ? { tipo: 'libera', testo: libera } : { tipo: 'opzione', testo: voluta })
+      const risposta: Risposta = scelte.opzioni[dove]?.libera === true && libera.trim() !== '' ? { tipo: 'libera', testo: libera } : { tipo: 'opzione', testo: voluta }
+      const k = tastiPerRisposta(scelte, risposta)
       if ('errore' in k) return { stato: 409, corpo: { errore: k.errore } }
-      mandaTasti(deps, id, k.pezzi)
+      // Intanto la stessa domanda non si rimostra e un secondo tocco non passa.
       risposte.set(id, { firma: firmaScelte(scelte), quando: adesso() })
+      // Conta solo se il PC l'ha premuta davvero e la chat è andata avanti (0.84.1).
+      const e = await premiRisposta(trovata, scelte, risposta, visore)
+      if (e !== undefined && e.esito !== 'presa') return nonPresa(id, e, risposta.testo)
+      if (e !== undefined) risposte.set(id, { firma: firmaScelte(scelte), quando: adesso() })
       ricordaInviato(id, scelte.opzioni[dove]?.libera === true ? libera : `scelto: ${voluta}`)
-      return OK({ fatto: true })
+      return OK({ fatto: true, ...(e !== undefined ? corpoEsito(e, risposta.testo) : {}) })
     }
 
     // Guardare dentro una chat: le ultime righe del suo terminale. È la

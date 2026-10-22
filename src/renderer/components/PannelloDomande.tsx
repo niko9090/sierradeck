@@ -226,6 +226,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         }
         setMandati((m) => ({ ...m, [aperta.chiave]: [...(m[aperta.chiave] ?? []), ricordo] }))
         setTesto('')
+        // L'esito dal PC della chat (0.84.1): presa davvero, o mandata senza verifica.
+        const frase = (r.corpo as { frase?: unknown } | undefined)?.frase
+        if (typeof frase === 'string' && frase !== '') setNota(frase)
         // Risposta data: si passa da sola alla prossima che aspetta te (0.70.0).
         const prossima = prossimaDomanda(tutte, aperta.chiave)
         if (prossima !== undefined && aspettaTe(aperta)) setScelta(prossima)
@@ -351,7 +354,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                 onScrivi={(t) => { const r = richiestaRisposta(aperta.risposta, t); manda(r.percorso, r.corpo, t) }}
                 sotto={<>
                   {inAttesa.length > 0 ? <div className="misura">mandato: «{inAttesa.at(-1)}», aspetto che la chat lo riceva</div> : null}
-                  {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                  {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
                   {pinPer !== undefined ? (
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
                       <span aria-hidden="true">🔒</span>
@@ -433,7 +436,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   <TastoMicrofono campo={campoScrivi} />
                   <Aiuto di="mandare">Ctrl+Invio manda. Quando il programma riceve la risposta, la domanda sparisce da qui e si passa alla prossima che ti aspetta.</Aiuto>
                 </div>
-                {nota !== undefined ? <div className="avviso">⚠ {nota}</div> : null}
+                {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
                 {pinPer !== undefined ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0' }}>
                     <span aria-hidden="true">🔒</span>
