@@ -124,6 +124,9 @@ export function validaDomanda(p: PartiDomanda): Validazione {
   else if ([p.domanda, p.scelte.map((s) => `${s.scelta} ${s.conseguenza}`).join(' '), testiDi(p).join(' ')].some(sembraNonItaliano)) { mancano.push('domanda'); note.push('la domanda non è in italiano: riscrivila tutta in italiano (domanda, cosa stai facendo, perché, scelte)') }
   // 0.84.0: si capisce da sola, senza sigle di chat né «quel pezzo».
   const chiarezza = noteDiChiarezza(p)
+  // Collaudo 0.84.0: «fai quella cosa» come scelta è vago quanto nella domanda.
+  const sceltaVaga = p.scelte.map((s) => s.scelta).find((t) => PAROLE_VAGHE.test(t))
+  if (sceltaVaga !== undefined && chiarezza.length === 0) chiarezza.push(`la scelta «${sceltaVaga}» è vaga: di' esattamente cosa farai`)
   if (chiarezza.length > 0) {
     if (!mancano.includes('domanda')) mancano.push('domanda')
     note.push(...chiarezza)
@@ -260,6 +263,66 @@ export async function domandaControllata(
     parti: p,
     riscritta,
     ...(avvertenza !== undefined ? { avvertenza } : {})
+  }
+}
+
+/**
+ * Il controllo senza riscrittura, subito (collaudo 0.84.0): per le domande che
+ * scrive il programma con dentro testi di altri (il «perché» della Revisione)
+ * e per quelle che tornano dopo un riavvio. Le sigle conosciute diventano il
+ * compito; il resto, se non va, passa con l'avvertenza.
+ */
+export function domandaControllataSubito(chi: string, prima: PartiDomanda, chat?: ChatConCompito[]): DomandaPronta {
+  const p = chat === undefined ? prima : partiSenzaSigle(prima, chat)
+  const v = validaDomanda(p)
+  const avvertenza = v.completa ? undefined : avvertenzaIncompleta(v)
+  return { testo: testoDomanda(chi, p, avvertenza), opzioni: p.scelte.map((x) => x.scelta), parti: p, ...(avvertenza !== undefined ? { avvertenza } : {}) }
+}
+
+/** Le intestazioni delle parti nel testo di `testoDomanda`. */
+const INTESTAZIONI: Array<[RegExp, 'staFacendo' | 'perche' | 'scelte' | 'seNonRispondi' | 'avvertenza']> = [
+  [/^Cosa sta facendo: /, 'staFacendo'],
+  [/^Perché gli serve: /, 'perche'],
+  [/^Le scelte:$/, 'scelte'],
+  [/^Se non rispondi: /, 'seNonRispondi'],
+  [/^⚠ /, 'avvertenza']
+]
+
+/**
+ * Le parti rilette dal testo scritto da `testoDomanda` (collaudo 0.84.0): la
+ * domanda della preparazione resta nell'autopilota solo come testo, e dopo un
+ * riavvio tornava senza parti e senza controllo. Un testo di altro formato
+ * diventa tutto la domanda.
+ */
+export function partiDaTesto(testo: string): PartiDomanda {
+  const righe = testo.split(/\r?\n/)
+  if (!/^«.*» ti chiede:$/.test(righe[0] ?? '')) return leggiParti(testo)
+  const parti: Record<'domanda' | 'staFacendo' | 'perche' | 'seNonRispondi' | 'avvertenza', string[]> = { domanda: [], staFacendo: [], perche: [], seNonRispondi: [], avvertenza: [] }
+  const scelte: SceltaDomanda[] = []
+  let dove: keyof typeof parti | 'scelte' = 'domanda'
+  for (let i = 2; i < righe.length; i += 1) {
+    const r = righe[i] ?? ''
+    const nuova = (righe[i - 1] ?? '') === '' ? INTESTAZIONI.find(([re]) => re.test(r)) : undefined
+    if (nuova !== undefined) {
+      dove = nuova[1]
+      if (dove !== 'scelte') parti[dove].push(r.replace(nuova[0], ''))
+      continue
+    }
+    if (dove === 'scelte') {
+      const m = /^• (.+?)( \(consigliata\))?(?: → (.*))?$/.exec(r)
+      if (m !== null) scelte.push({ scelta: m[1] ?? '', conseguenza: m[3] ?? '', ...(m[2] !== undefined ? { consigliata: true } : {}) })
+      continue
+    }
+    parti[dove].push(r)
+  }
+  const unisci = (x: string[]): string => x.join('\n').trim()
+  const domanda = unisci(parti.domanda)
+  return {
+    staFacendo: unisci(parti.staFacendo),
+    domanda: domanda === '(la domanda non è stata scritta)' ? '' : domanda,
+    perche: unisci(parti.perche),
+    scelte,
+    seNonRispondi: unisci(parti.seNonRispondi)
   }
 }
 

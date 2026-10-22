@@ -4,6 +4,7 @@ import { dirname } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import type { PartiDomanda } from '@shared/domanda-strutturata'
 import { RISOLTE_PER_ORE, type DomandaRisolta } from '@shared/domande-telefono'
+import { PREFISSO_SUPERATA } from '@shared/domande-conversazioni'
 
 export type Provenienza = 'modale' | 'telegram'
 
@@ -230,7 +231,7 @@ export function creaRegistroDomande(deps: {
         ...(extra?.chatId !== undefined ? { chatId: extra.chatId } : {}),
         ...(extra?.chatTitolo !== undefined ? { chatTitolo: extra.chatTitolo } : {}),
         domanda,
-        risposta: `Superata, non serve più: ${motivo}`,
+        risposta: `${PREFISSO_SUPERATA}${motivo}`,
         quando: new Date(deps.adesso()).toISOString()
       }]
       salva()
