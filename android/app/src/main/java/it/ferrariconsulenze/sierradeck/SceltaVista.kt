@@ -38,8 +38,9 @@ object SceltaVista {
         val casella = when (o.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }
         return when {
             o.invio -> Etichetta("↵", "Manda le scelte spuntate (Submit)", null)
-            o.libera -> Etichetta("${o.numero}", "Rispondi con parole tue: scrivile nel campo qui sotto", "arriva a Claude come risposta libera («${o.testo}»)")
-            else -> Etichetta("${o.numero}", casella + o.testo, o.descrizione.takeIf { it.isNotBlank() })
+            o.libera -> Etichetta("${o.numero}", "Scrivo io la risposta: scrivila nel campo qui sotto", "arriva a Claude come risposta libera («${o.testo}»)")
+            // PC 0.84.1: l'opzione fissa di Claude Code detta in italiano («Ne parlo nella chat»).
+            else -> Etichetta("${o.numero}", casella + (o.etichetta?.takeIf { it.isNotBlank() } ?: o.testo), o.descrizione.takeIf { it.isNotBlank() })
         }
     }
 

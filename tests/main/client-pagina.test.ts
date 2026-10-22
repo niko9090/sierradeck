@@ -926,7 +926,7 @@ describe('la pagina: Domande come conversazioni e albero delle chat', () => {
   it('0.52.5: le opzioni delle domande di Claude Code, con spiegazione, caselle, «Type something.» e «Submit»', () => {
     const f = new Function(`${riga('const esc =')}\n${estrai('etichettaOpzione')}\nreturn etichettaOpzione`)() as (o: unknown) => string
     expect(f({ numero: 2, testo: 'Verde', scelta: false, descrizione: 'Il colore della natura' })).toBe('<span class="scelta__n">2</span>Verde<small class="scelta__descr">Il colore della natura</small>')
-    expect(f({ numero: 4, testo: 'Type something.', scelta: false, libera: true })).toContain('scrivile nel campo qui sotto')
+    expect(f({ numero: 4, testo: 'Type something.', scelta: false, libera: true })).toContain('Scrivo io la risposta: scrivila nel campo qui sotto')
     expect(f({ numero: 1, testo: 'Lunedì', scelta: true, spuntata: true })).toContain('☑ Lunedì')
     expect(f({ numero: 2, testo: 'Martedì', scelta: false, spuntata: false })).toContain('☐ Martedì')
     expect(f({ numero: 0, testo: 'Submit', scelta: false, invio: true })).toContain('Manda le scelte spuntate (Submit)')

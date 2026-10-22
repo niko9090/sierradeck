@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { TastoMicrofono } from './TastoMicrofono'
-import type { SceltaScheda, SchedaDomanda } from '@shared/scheda-domanda'
+import { useLayoutStore } from '../state/layout'
+import type { ApriChatAltrove, SceltaScheda, SchedaDomanda } from '@shared/scheda-domanda'
+
+/**
+ * «Apri la chat su <PC>» (0.84.1): il riquadro dal vivo verso quella chat,
+ * come da «Gli altri computer». Già a schermo non si apre due volte.
+ */
+export function apriChatAltrove(a: ApriChatAltrove): void {
+  const stato = useLayoutStore.getState()
+  const gia = Object.values(stato.panes).find((p) => p.sessionUuid === a.sessione)
+  if (gia !== undefined) { if (gia.ibernata === true) stato.sveglia(gia.id); return }
+  stato.addPane(a.cwd, a.titolo, undefined, { sessionUuid: a.sessione, remoto: { pcId: a.pcId, pcNome: a.pc, cwd: a.cwd, sessione: a.sessione } })
+}
 
 /**
  * Una domanda essenziale (0.72.1): chi chiede in piccolo, la domanda in una
@@ -75,9 +87,14 @@ export function SchedaDomandaVista({
               onClick={() => onScelta(c)}
             >
               {c.spuntata !== undefined ? (c.spuntata ? '☑ ' : '☐ ') : null}
-              {c.consigliata === true ? '★ ' : null}{c.testo}
+              {c.consigliata === true ? '★ ' : null}{c.etichetta ?? c.testo}
             </button>
           ))}
+        </div>
+      ) : null}
+      {s.apri !== undefined ? (
+        <div className="scheda-domanda__scelte">
+          <button className="tasto tasto--primario" type="button" onClick={() => apriChatAltrove(s.apri!)}>Apri la chat su {s.apri.pc}</button>
         </div>
       ) : null}
       <div className="scheda-domanda__scrivi">

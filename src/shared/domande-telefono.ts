@@ -38,6 +38,8 @@ export type OpzioneScelta = {
   spuntata?: boolean
   /** Scelta multipla: «Submit», manda le caselle spuntate. */
   invio?: boolean
+  /** Il testo da mostrare in italiano (0.84.1), se è un'opzione fissa di Claude Code: si manda `testo`. */
+  etichetta?: string
 }
 
 export type VoceDomanda =
@@ -70,6 +72,11 @@ export type VoceDomanda =
       righe: string[]
       opzioni: OpzioneScelta[]
       corrente: number
+      /** La chat è su un altro PC (0.84.1): il suo nome, come per le chat ferme. */
+      pcNome?: string
+      viaPc?: string
+      /** Qualche riga sopra la domanda (0.84.1): cosa stava dicendo la chat. */
+      contesto?: string[]
     }
   | {
       tipo: 'chat'
@@ -88,6 +95,8 @@ export type VoceDomanda =
        * che lo schermo non ha saputo leggere. `righe` è la domanda.
        */
       chiede?: boolean
+      /** Qualche riga prima della domanda (0.84.1), per una chat di un altro PC. */
+      contesto?: string[]
     }
   | {
       /**
@@ -113,7 +122,9 @@ const RIGHE_DI_CONTESTO = 20
 /** Una riga che e' solo cornice (almeno dieci tratti): il bordo di sopra del riquadro della domanda. */
 const BORDO = /^[\s─━═╌╍┄┈╭╮╰╯┌┐└┘┏┓┗┛╔╗╚╝]*[─━═╌╍┄┈]{10,}[\s─━═╌╍┄┈╭╮╰╯┌┐└┘┏┓┗┛╔╗╚╝]*$/
 
-const NUMERATA = /^\s*(\d{1,2})[.)]\s+\S/
+// Il cursore di Claude Code (❯) può stare davanti al numero: «❯ 1. Rosso» (0.84.1).
+// Senza, l'opzione sotto il cursore non si trovava e la domanda erano le ultime 20 righe.
+const NUMERATA = /^\s*(?:[❯›>]\s*)?(\d{1,2})[.)]\s+\S/
 
 /**
  * Le righe che stanno sopra l'elenco delle scelte: e' la domanda.
@@ -127,20 +138,50 @@ const NUMERATA = /^\s*(\d{1,2})[.)]\s+\S/
  * arrivava senza l'inizio (Nicholas, 02/10: «le domande sono tutte tagliate»).
  */
 export function contestoScelta(righePulite: string[], primaOpzione: string): string[] {
+  return pezziScelta(righePulite, primaOpzione).domanda
+}
+
+/** Quante righe di contesto viaggiano con una domanda verso gli altri PC (0.84.1). */
+export const RIGHE_CONTESTO = 6
+/** E quanto è lunga al massimo ognuna. */
+const CONTESTO_RIGA_MAX = 200
+
+/**
+ * Le righe sopra il riquadro della domanda (0.84.1): l'ultima cosa che la chat
+ * ha scritto prima di chiedere. Nicholas (22/10): le domande che arrivano
+ * dagli altri PC devono avere «qualche riga di contesto». Vuoto se il riquadro
+ * non ha un bordo sopra: allora non si sa dove finisce la conversazione.
+ */
+export function contestoSopraScelta(righePulite: string[], primaOpzione: string): string[] {
+  return pezziScelta(righePulite, primaOpzione).sopra
+}
+
+function righeDiContesto(righe: string[]): string[] {
+  return righe
+    .filter((r) => r.trim() !== '' && !BORDO.test(r))
+    .slice(-RIGHE_CONTESTO)
+    .map((r) => (r.length > CONTESTO_RIGA_MAX ? `${r.slice(0, CONTESTO_RIGA_MAX - 1)}…` : r))
+}
+
+function pezziScelta(righePulite: string[], primaOpzione: string): { domanda: string[]; sopra: string[]; trovata: boolean } {
   const nude = righePulite.map(pulisci)
   let taglio = nude.length
   for (let i = nude.length - 1; i >= 0; i -= 1) {
     const r = nude[i] ?? ''
     if (NUMERATA.test(r) && r.replace(NUMERATA, '').trim() !== '' && r.includes(primaOpzione)) { taglio = i; break }
   }
-  if (taglio === nude.length) return ultimeRighe(righePulite)
+  if (taglio === nude.length) return { domanda: ultimeRighe(righePulite), sopra: [], trovata: false }
   // Sopra la «1» possono stare altre righe numerate? No: la 1 e' la prima.
   // Ma sopra puo' esserci la riga vuota che le separa dalla domanda.
   let inizio = 0
   for (let i = taglio - 1; i >= 0; i -= 1) {
     if (BORDO.test(righePulite[i] ?? '')) { inizio = i + 1; break }
   }
-  return nude.slice(inizio, taglio).filter((r) => r !== '')
+  return {
+    domanda: nude.slice(inizio, taglio).filter((r) => r !== ''),
+    sopra: inizio === 0 ? [] : righeDiContesto(righePulite.slice(0, inizio - 1).map(pulisci)),
+    trovata: true
+  }
 }
 
 /** Le ultime righe non vuote di uno schermo, pulite. */
@@ -210,6 +251,57 @@ export function domandaInFondo(testo: string | undefined): string | undefined {
   return undefined
 }
 
+/**
+ * Le righe prima della domanda in fondo a un messaggio (0.84.1): la fine del
+ * paragrafo che la precede, al massimo `RIGHE_CONTESTO` righe. Viaggia nel
+ * battito con la domanda, per le Domande degli altri PC.
+ */
+export function contestoSopraDomanda(testo: string | undefined): string[] {
+  const domanda = domandaInFondo(testo)
+  if (testo === undefined || domanda === undefined) return []
+  const pulito = senzaRigaSegnale(testo).replace(/\r/g, '')
+  const prima = (domanda.split('\n')[0] ?? '').trim()
+  const dove = prima === '' ? -1 : pulito.lastIndexOf(prima)
+  if (dove <= 0) return []
+  return righeDiContesto(pulito.slice(0, dove).split('\n').map((r) => r.trim()))
+}
+
+/** Quanto è lunga al massimo la domanda che viaggia nel battito. */
+export const DOMANDA_BATTITO_MAX = 1200
+
+/**
+ * La domanda e il contesto di una chat come vanno nel battito (0.84.1).
+ *
+ * Fino alla 0.84.0 una chat ferma su un elenco di scelte mandava agli altri
+ * PC solo le opzioni: là la domanda si leggeva «la chat aspetta che tu
+ * scelga», senza sapere cosa. Con le scelte la domanda è il testo sopra
+ * l'elenco (lo schermo vince sul messaggio dei segnali, che è più corto) e il
+ * contesto le righe sopra il riquadro; senza, la domanda scritta in fondo al
+ * turno con il suo paragrafo prima.
+ */
+export function domandaPerBattito(
+  c: { domanda?: string; contesto?: string[]; coda?: string[] },
+  scelte: { opzioni: { testo: string }[] } | undefined
+): { domanda?: string; contesto?: string[] } {
+  const taglia = (t: string): string => (t.length > DOMANDA_BATTITO_MAX ? `…${t.slice(-(DOMANDA_BATTITO_MAX - 1))}` : t)
+  const prima = scelte?.opzioni[0]?.testo
+  if (prima !== undefined && c.coda !== undefined) {
+    const { domanda, sopra, trovata } = pezziScelta(c.coda, prima)
+    const testo = domanda.join('\n').trim()
+    if (trovata && testo !== '') return { domanda: taglia(testo), ...(sopra.length > 0 ? { contesto: sopra } : {}) }
+  }
+  const contesto = righeDiContesto(c.contesto ?? [])
+  return {
+    ...(c.domanda !== undefined && c.domanda.trim() !== '' ? { domanda: taglia(c.domanda.trim()) } : {}),
+    ...(contesto.length > 0 ? { contesto } : {})
+  }
+}
+
+/** Il contesto come arriva da un battito: solo stringhe, al massimo `RIGHE_CONTESTO`. */
+function contestoDalBattito(c: unknown): string[] {
+  return Array.isArray(c) ? righeDiContesto(c.filter((r): r is string => typeof r === 'string')) : []
+}
+
 export type AutopilotaPerDomande = { id: string; nome: string; obiettivo: string; stato: string }
 
 /**
@@ -224,7 +316,7 @@ export type AltroPcPerDomande = {
   pcId: string
   nome: string
   vivo: boolean
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; contesto?: string[]; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
   /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
   strada?: string
 }
@@ -308,13 +400,20 @@ export function raccogliDomande(p: {
       if (c.sessione === undefined || c.sessione === '') continue
       // Ferma su una domanda (0.52.6): le opzioni dal suo battito, da toccare
       // qui. La scelta passa dal ponte e quel PC la ricontrolla prima di premere.
+      // 0.84.1: con la domanda intera e qualche riga di contesto, dal battito.
+      // Da un PC più vecchio non arrivano: `righe` resta vuota e la scheda
+      // offre «Apri la chat su <PC>» (`domande-conversazioni.ts`).
       if (c.scelte !== undefined && c.scelte.length >= 2) {
+        const contesto = contestoDalBattito(c.contesto)
         fuori.push({
           tipo: 'scelta',
           chat: idChatAltroPc(pc.pcId, c.sessione),
           titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
           cwd: c.cwd,
-          righe: [`Su ${pc.nome}: la chat aspetta che tu scelga. Tocca un'opzione: la premo là, dopo aver ricontrollato che la domanda sia ancora quella.`],
+          pcNome: pc.nome,
+          ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
+          ...(contesto.length > 0 ? { contesto } : {}),
+          righe: typeof c.domanda === 'string' && c.domanda.trim() !== '' ? c.domanda.trim().split('\n') : [],
           opzioni: c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })),
           corrente: 0
         })
@@ -331,6 +430,7 @@ export function raccogliDomande(p: {
           ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
           cwd: c.cwd,
           righe: c.domanda.split('\n'),
+          ...(contestoDalBattito(c.contesto).length > 0 ? { contesto: contestoDalBattito(c.contesto) } : {}),
           chiede: true
         })
         continue

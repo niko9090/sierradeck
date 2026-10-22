@@ -98,7 +98,7 @@ import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceEr
 export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   cartelle: string[]
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string; contesto?: string[] }[]
 }
 
 export type VocePostaTelefono = {
@@ -170,6 +170,8 @@ export type Chat = {
   sceltaAperta?: boolean
   /** La domanda in fondo all'ultimo messaggio, quando il turno è finito chiedendo (0.71.1). */
   domanda?: string
+  /** Le righe prima di quella domanda (0.84.1): viaggiano nel battito, per le Domande degli altri PC. */
+  contesto?: string[]
   errore?: string
   fonteStato?: 'segnali' | 'schermo'
   /**
