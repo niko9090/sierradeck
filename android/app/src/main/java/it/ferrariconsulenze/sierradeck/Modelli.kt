@@ -306,7 +306,21 @@ data class SchedaDomanda(
     /** L'autopilota ha già risposto da solo. */
     val risposta: String? = null,
     /** Quante altre domande aspettano dopo questa. */
-    val poi: Int? = null
+    val poi: Int? = null,
+    /** PC 0.84.1: le righe prima della domanda, di cosa si parla. Con questo (o `apri`) prima la domanda, poi `chi`. */
+    val contesto: String? = null,
+    /** PC 0.84.1: la domanda di un altro PC senza testo: al posto delle scelte, «Apri la chat su <PC>». */
+    val apri: ApriChatScheda? = null
+)
+
+@Serializable
+data class ApriChatScheda(
+    val pc: String = "",
+    val pcNome: String = "",
+    val sessione: String = "",
+    val cwd: String = "",
+    val titolo: String = "",
+    val etichetta: String = ""
 )
 
 @Serializable
@@ -316,7 +330,9 @@ data class SceltaScheda(
     val numero: Int? = null,
     val libera: Boolean = false,
     val spuntata: Boolean? = null,
-    val invio: Boolean = false
+    val invio: Boolean = false,
+    /** PC 0.84.1: il testo da mostrare («Scrivo io la risposta»); toccando si manda sempre `testo`. */
+    val etichetta: String? = null
 )
 
 @Serializable

@@ -993,10 +993,20 @@ function firmaScelte(s) { return s ? s.opzioni.map((o) => (o.spuntata ? '[x] ' :
  * ogni opzione. «Type something.» dice di scrivere la risposta nel campo;
  * «Submit» manda le caselle spuntate.
  */
+/**
+ * Le voci fisse delle domande di Claude Code, in italiano (0.84.1), come
+ * \`etichettaOpzione\` in src/shared/scheda-domanda.ts. Solo come si mostrano:
+ * toccando si manda sempre il testo vero.
+ */
+function vocePerClaude(o) {
+  if (o.libera) return 'Scrivo io la risposta'
+  if (/^chat about this\\.?$/i.test(String(o.testo || '').trim())) return 'Ne parlo nella chat'
+  return ''
+}
 function etichettaOpzione(o) {
   var num = o.invio ? '↵' : String(o.numero)
   var casella = o.spuntata === true ? '☑ ' : o.spuntata === false ? '☐ ' : ''
-  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Rispondi con parole tue: scrivile nel campo qui sotto e mandale' : o.testo
+  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : vocePerClaude(o) || o.testo
   var sotto = o.libera ? 'arriva a Claude come risposta libera («' + o.testo + '»)' : (o.descrizione || '')
   return '<span class="scelta__n">' + esc(num) + '</span>' + esc(casella + testo) + (sotto ? '<small class="scelta__descr">' + esc(sotto) + '</small>' : '')
 }
@@ -1305,9 +1315,16 @@ function schedaDomandaHtml(s, k, tasto, campo) {
   var dettagli = (s.dettagli || []).map(function (d) {
     return '<div class="serigrafia" style="margin-top:6px">' + esc(d.etichetta) + '</div><div style="white-space:pre-wrap">' + esc(d.testo) + '</div>'
   }).join('')
-  return '<div class="sotto" style="display:flex;gap:6px;align-items:center">' + esc(s.chi) +
-      (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>' +
+  var chi = '<div class="sotto" style="display:flex;gap:6px;align-items:center">' + esc(s.chi) +
+      (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>'
+  // 0.84.1: con il contesto (o da aprire su un altro PC) prima la domanda e di
+  // cosa si parla, poi progetto e PC; senza il testo, «Apri la chat su <PC>».
+  var prima = !!(s.contesto || s.apri)
+  return (prima ? '' : chi) +
     '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
+    (s.contesto ? '<div class="sotto" style="white-space:pre-wrap">' + esc(s.contesto) + '</div>' : '') +
+    (prima ? chi : '') +
+    (s.apri ? '<div class="scelte"><button class="scelta scelta--ora" data-s="' + esc(s.apri.sessione) + '" data-cwd="' + esc(s.apri.cwd) + '" data-pc="' + esc(s.apri.pc) + '" data-t="' + esc(s.apri.titolo) + '" onclick="pdApriChat(this.dataset.s, this.dataset.cwd, this.dataset.pc, this.dataset.t)">' + esc(s.apri.etichetta) + '</button></div>' : '') +
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
     ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
@@ -1342,7 +1359,7 @@ function domandaALatoHtml(idChat) {
     '</div>'
 }
 function etichettaScelta(c) {
-  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
+  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.etichetta || c.testo)
 }
 
 /**

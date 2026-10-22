@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { TastoMicrofono } from './TastoMicrofono'
 import type { SceltaScheda, SchedaDomanda } from '@shared/scheda-domanda'
+import { apriChatAltroPc } from '../apri-chat-altro-pc'
 
 /**
  * Una domanda essenziale (0.72.1): chi chiede in piccolo, la domanda in una
@@ -36,22 +37,35 @@ export function SchedaDomandaVista({
     onScrivi(t)
     setTesto('')
   }
+  const chi = (
+    <div className="scheda-domanda__chi">
+      <span>{s.chi}</span>
+      {s.poi !== undefined && s.poi > 0 ? <span> · poi {s.poi === 1 ? 'un’altra' : `altre ${s.poi}`}</span> : null}
+      {s.dettagli.length > 0 ? (
+        <button
+          className={`aiuto__tasto scheda-domanda__piu${aperti ? ' aiuto__tasto--aperto' : ''}`}
+          type="button"
+          aria-expanded={aperti}
+          title={aperti ? 'Chiudi i dettagli' : 'Cosa sta facendo, perché lo chiede, cosa succede con ogni scelta'}
+          onClick={() => setAperti(!aperti)}
+        >?</button>
+      ) : null}
+    </div>
+  )
+  // 0.84.1: con il contesto (o senza testo, da aprire su un altro PC) prima la
+  // domanda e di cosa si parla, poi progetto e PC.
+  const primaLaDomanda = s.contesto !== undefined || s.apri !== undefined
   return (
     <section className="scheda-domanda" aria-label={`Domanda: ${s.domanda}`}>
-      <div className="scheda-domanda__chi">
-        <span>{s.chi}</span>
-        {s.poi !== undefined && s.poi > 0 ? <span> · poi {s.poi === 1 ? 'un’altra' : `altre ${s.poi}`}</span> : null}
-        {s.dettagli.length > 0 ? (
-          <button
-            className={`aiuto__tasto scheda-domanda__piu${aperti ? ' aiuto__tasto--aperto' : ''}`}
-            type="button"
-            aria-expanded={aperti}
-            title={aperti ? 'Chiudi i dettagli' : 'Cosa sta facendo, perché lo chiede, cosa succede con ogni scelta'}
-            onClick={() => setAperti(!aperti)}
-          >?</button>
-        ) : null}
-      </div>
+      {primaLaDomanda ? null : chi}
       <div className="scheda-domanda__domanda">{s.domanda}</div>
+      {s.contesto !== undefined ? <div className="scheda-domanda__contesto misura" style={{ whiteSpace: 'pre-wrap' }}>{s.contesto}</div> : null}
+      {primaLaDomanda ? chi : null}
+      {s.apri !== undefined ? (
+        <div className="scheda-domanda__scelte">
+          <button className="tasto tasto--primario" type="button" onClick={() => { if (s.apri !== undefined) apriChatAltroPc(s.apri) }}>{s.apri.etichetta}</button>
+        </div>
+      ) : null}
       {s.risposta !== undefined ? <div className="scheda-domanda__risposta">risposta dall’autopilota: {s.risposta}</div> : null}
       {aperti ? (
         <dl className="scheda-domanda__dettagli">
@@ -74,7 +88,7 @@ export function SchedaDomandaVista({
               onClick={() => onScelta(c)}
             >
               {c.spuntata !== undefined ? (c.spuntata ? '☑ ' : '☐ ') : null}
-              {c.consigliata === true ? '★ ' : null}{c.testo}
+              {c.consigliata === true ? '★ ' : null}{c.etichetta ?? c.testo}
             </button>
           ))}
         </div>

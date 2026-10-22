@@ -89,7 +89,7 @@ fun MessaggiCompattiVista(messaggi: List<StatoMessaggio>, onManda: () -> Unit) {
 
 /** Il testo di un tasto: le caselle di una scelta multipla, la ★ della consigliata. */
 fun etichettaScelta(s: SceltaScheda): String =
-    (when (s.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }) + (if (s.consigliata) "★ " else "") + s.testo
+    (when (s.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }) + (if (s.consigliata) "★ " else "") + (s.etichetta ?: s.testo)
 
 /**
  * Una domanda essenziale (PC 0.72.1): chi chiede in piccolo, la domanda in una
@@ -103,11 +103,20 @@ fun SchedaDomandaVista(
     inCorso: Boolean,
     etichettaManda: String,
     onScelta: (SceltaScheda) -> Unit,
-    onScrivi: (String) -> Unit
+    onScrivi: (String) -> Unit,
+    /** PC 0.84.1: «Apri la chat su <PC>», per una domanda di un altro PC arrivata senza testo. */
+    onApri: (ApriChatScheda) -> Unit = {}
 ) {
     var aperti by remember(s.domanda, s.chi) { mutableStateOf(false) }
     var testo by remember(s.domanda, s.chi) { mutableStateOf("") }
+    // PC 0.84.1: con il contesto (o da aprire su un altro PC) prima la domanda, poi progetto e PC.
+    val primaLaDomanda = s.contesto != null || s.apri != null
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        if (primaLaDomanda) {
+            SelectionContainer { Text(s.domanda, color = Banco.testo, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+            s.contesto?.let { SelectionContainer { Text(it, color = Banco.testoQuieto, fontSize = 13.sp) } }
+            Spacer(Modifier.height(4.dp))
+        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
                 s.chi + (s.poi?.takeIf { it > 0 }?.let { if (it == 1) " · poi un’altra" else " · poi altre $it" } ?: ""),
@@ -126,8 +135,14 @@ fun SchedaDomandaVista(
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
-        SelectionContainer { Text(s.domanda, color = Banco.testo, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+        if (!primaLaDomanda) {
+            Spacer(Modifier.height(4.dp))
+            SelectionContainer { Text(s.domanda, color = Banco.testo, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+        }
+        s.apri?.let { a ->
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { onApri(a) }, shape = MaterialTheme.shapes.small) { Text(a.etichetta) }
+        }
         s.risposta?.let { Text("risposta dall’autopilota: $it", color = Banco.verde, fontSize = 12.sp) }
         if (aperti) {
             Column(

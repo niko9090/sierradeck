@@ -1,5 +1,5 @@
 import type { PartiDomanda } from './domanda-strutturata'
-import type { OpzioneScelta } from './domande-telefono'
+import type { ApriChatAltroPc, OpzioneScelta } from './domande-telefono'
 
 /**
  * Una domanda come la vede chi deve rispondere (0.72.1).
@@ -28,6 +28,12 @@ export type SceltaScheda = {
   libera?: true
   spuntata?: boolean
   invio?: true
+  /**
+   * Il testo da mostrare, se diverso da `testo` (0.84.1): «Scrivo io la
+   * risposta» per «Type something.», «Ne parlo nella chat» per «Chat about
+   * this». Toccando si manda sempre `testo`, che quel PC ricontrolla sullo schermo.
+   */
+  etichetta?: string
 }
 
 export type DettaglioScheda = { etichetta: string; testo: string }
@@ -42,6 +48,13 @@ export type SchedaDomanda = {
   risposta?: string
   /** Quante altre domande aspettano dopo questa. */
   poi?: number
+  /**
+   * Le righe prima della domanda (0.84.1), sotto la frase: di cosa si parla.
+   * Con `contesto` o `apri` la scheda mostra prima domanda e contesto, poi `chi`.
+   */
+  contesto?: string
+  /** Il testo della domanda non è arrivato (0.84.1): al posto delle scelte, «Apri la chat su <PC>». */
+  apri?: ApriChatAltroPc & { etichetta: string }
 }
 
 /** Oltre questa lunghezza una frase si taglia: il resto è nei dettagli. */
@@ -132,6 +145,17 @@ export function schedaDaTesto(chi: string, testo: string, scelte: SceltaScheda[]
   }
 }
 
+/**
+ * Le voci fisse delle domande di Claude Code, in italiano (0.84.1): solo come
+ * si mostrano. «Type something.» (o il testo che ci si è già scritto, `libera`)
+ * e «Chat about this».
+ */
+export function etichettaOpzione(o: { testo: string; libera?: boolean }): string | undefined {
+  if (o.libera === true) return 'Scrivo io la risposta'
+  if (/^chat about this\.?$/i.test(o.testo.trim())) return 'Ne parlo nella chat'
+  return undefined
+}
+
 /** La consigliata di Claude Code («(Recommended)») si segna come le nostre. */
 const RACCOMANDATA = /\((recommended|consigliat[ao])\)/i
 
@@ -143,7 +167,8 @@ export function scelteDiChat(opzioni: OpzioneScelta[]): { scelte: SceltaScheda[]
     ...(RACCOMANDATA.test(o.testo) || RACCOMANDATA.test(o.descrizione ?? '') ? { consigliata: true as const } : {}),
     ...(o.libera === true ? { libera: true as const } : {}),
     ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}),
-    ...(o.invio === true ? { invio: true as const } : {})
+    ...(o.invio === true ? { invio: true as const } : {}),
+    ...((): { etichetta?: string } => { const e = etichettaOpzione(o); return e !== undefined ? { etichetta: e } : {} })()
   }))
   const conSpiegazione = opzioni.filter((o) => (o.descrizione ?? '').trim() !== '')
   return {

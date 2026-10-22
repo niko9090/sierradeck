@@ -223,7 +223,8 @@ private fun SchedaConversazione(api: Api, c: Conversazione, gia: String?, onMand
                             is DomandeAdesso.Tocco.Rispondi -> manda(t.testo) { api.rispondiConversazione(t.via, t.testo) }
                         }
                     },
-                    onScrivi = { t -> manda(t) { api.rispondiConversazione(c.risposta, t) } }
+                    onScrivi = { t -> manda(t) { api.rispondiConversazione(c.risposta, t) } },
+                    onApri = { a -> manda(a.etichetta) { api.apriChatProgetto(a.cwd, a.sessione, a.pc, a.titolo) } }
                 )
                 else -> {
                     c.messaggi.lastOrNull { it.da != "tu" }?.let { Text(it.testo, color = Banco.testo, fontSize = 14.sp, maxLines = 6, modifier = Modifier.padding(vertical = 6.dp)) }

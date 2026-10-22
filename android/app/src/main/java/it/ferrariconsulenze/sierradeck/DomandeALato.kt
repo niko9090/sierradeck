@@ -79,7 +79,8 @@ fun DomandaBreveInCima(api: Api, chat: Chat) {
                 else if (scelte != null) manda { api.scegli(scelte.chat, o.testo) }
                 else manda { api.rispondiConversazione(c.risposta, o.testo) }
             },
-            onScrivi = { t -> manda { api.rispondiConversazione(c.risposta, t) } }
+            onScrivi = { t -> manda { api.rispondiConversazione(c.risposta, t) } },
+            onApri = { a -> manda { api.apriChatProgetto(a.cwd, a.sessione, a.pc, a.titolo) } }
         )
         nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     }

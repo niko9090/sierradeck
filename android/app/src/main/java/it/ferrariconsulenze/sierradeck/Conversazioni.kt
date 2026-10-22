@@ -169,7 +169,8 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
                         else if (scelte != null) manda({ api.scegli(scelte.chat, o.testo) }, o.testo)
                         else manda({ api.rispondiConversazione(aperta.risposta, o.testo) }, o.testo)
                     },
-                    onScrivi = { t -> manda({ api.rispondiConversazione(aperta.risposta, t) }, t) }
+                    onScrivi = { t -> manda({ api.rispondiConversazione(aperta.risposta, t) }, t) },
+                    onApri = { a -> manda({ api.apriChatProgetto(a.cwd, a.sessione, a.pc, a.titolo) }, a.etichetta) }
                 )
                 inAttesa.lastOrNull()?.let { Text("mandato: «$it», aspetto il computer", color = Banco.testoQuieto, fontSize = 12.sp) }
                 nota?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }

@@ -168,9 +168,36 @@ export function conversazioniDomande(p: {
     gia.add(chiave)
     const tuoi = (p.inviati?.[v.chat] ?? []).map((i) => ({ da: 'tu' as const, testo: i.testo, quando: i.quando }))
     const schermo = v.righe.join('\n').trim()
-    const chi = chiDi('chat', v.titolo || v.cwd, v.cwd, v.tipo === 'chat' ? v.pcNome : undefined)
+    const chi = chiDi('chat', v.titolo || v.cwd, v.cwd, v.pcNome)
+    if (v.tipo === 'scelta' && v.apri !== undefined) {
+      // 0.84.1: da un altro PC senza il testo della domanda. Niente opzioni al
+      // buio («Sì», «No»: a cosa?): la chat si apre là, dal vivo.
+      const etichetta = `Apri la chat su ${v.apri.pcNome}`
+      fuori.push({
+        chiave,
+        tipo: 'chat',
+        titolo: v.titolo || v.cwd,
+        sotto: v.cwd,
+        chiede: true,
+        scheda: {
+          chi,
+          domanda: `Su ${v.apri.pcNome} questa chat aspetta che tu scelga: la domanda si legge solo là.`,
+          scelte: [],
+          dettagli: [],
+          segnaposto: 'Oppure scrivile tu',
+          apri: { ...v.apri, etichetta }
+        },
+        messaggi: [...tuoi, { da: 'lui', testo: `Aspetta che tu scelga. La domanda si legge solo su ${v.apri.pcNome}: «${etichetta}».`, tono: 'domanda' }],
+        risposta: { via: 'scrivi', chat: v.chat },
+        suPc: v.apri.pcNome,
+        ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {}),
+        segnaposto: 'Oppure scrivile qualcosa'
+      })
+      continue
+    }
     if (v.tipo === 'scelta') {
       const { scelte, spiegazioni } = scelteDiChat(v.opzioni)
+      const contesto = (v.contesto ?? []).join('\n').trim()
       fuori.push({
         chiave,
         tipo: 'chat',
@@ -181,8 +208,9 @@ export function conversazioniDomande(p: {
           chi,
           domanda: schermo !== '' ? fraseDomanda(schermo) || 'Aspetta che tu scelga.' : 'Aspetta che tu scelga.',
           scelte,
-          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: 'Lo schermo della chat', testo: schermo }] : [])],
-          segnaposto: 'Oppure scrivile tu'
+          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: v.pcNome !== undefined ? 'La domanda intera' : 'Lo schermo della chat', testo: schermo }] : [])],
+          segnaposto: 'Oppure scrivile tu',
+          ...(contesto !== '' ? { contesto } : {})
         },
         messaggi: [
           ...tuoi,
@@ -195,6 +223,8 @@ export function conversazioniDomande(p: {
         ],
         risposta: { via: 'scrivi', chat: v.chat },
         scelte: { chat: v.chat, opzioni: v.opzioni },
+        ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
+        ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {}),
         segnaposto: 'Tocca un’opzione qui sopra, oppure scrivile qualcosa'
       })
     } else if (v.chiede === true) {
