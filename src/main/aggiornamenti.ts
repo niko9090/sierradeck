@@ -8,6 +8,10 @@ import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './upda
 import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
+  chiudiFasi, leggiAggiornamentoInCorso, RIEPILOGO_SCADUTO_MS, segnaPasso, testoFasi,
+  type AggiornamentoInCorso, type FaseAggiornamento
+} from '@shared/fasi-aggiornamento'
+import {
   avvisoTentativoFallito, diagnosiDiario, esitoTentativo, leggiTentativo, paginaRelease,
   type Tentativo, type TentativoFallito
 } from '@shared/tentativo-installazione'
@@ -22,7 +26,9 @@ import {
 export type AvvisoAttesa = { chatOccupate?: number; attesa?: string; attesaChat?: string }
 
 /** Com'e' andata l'attesa: se no, il perche' da mettere davanti a chi ha premuto. */
-export type EsitoQuiete = { ok: true } | { ok: false; perche: string }
+export type EsitoQuiete =
+  | { ok: true; salvate?: number; provate?: number; interrotte?: number }
+  | { ok: false; perche: string }
 
 export type StatoAggiornamento = {
   /**
@@ -63,6 +69,13 @@ export type StatoAggiornamento = {
    * dei turni, si salva il lavoro delle chat e si installa. Il tasto sparisce.
    */
   subito?: boolean
+  /**
+   * Le fasi con il tempo (0.84.3): scarico, salvo le chat, installo, riparto.
+   * `fasiTesto` è la stessa riga per PC, pagina e app («Scaricato in 40 s ·
+   * salvo le chat da 2 min (al massimo 5 min) · poi installo e riparto»).
+   */
+  fasi?: FaseAggiornamento[]
+  fasiTesto?: string
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -85,6 +98,14 @@ export type StatoAggiornamento = {
    */
   tentativoFallito?: TentativoFallito
 }
+
+/**
+ * Le fasi dell'installazione in corso, scritte un attimo prima di lanciare
+ * l'installer (0.84.3): al ritorno la versione nuova le legge, chiude
+ * «installo», apre e chiude «riparto» e scrive la riga di riepilogo nella
+ * conversazione degli autopiloti ripresi.
+ */
+export const FILE_AGGIORNAMENTO_IN_CORSO = 'aggiornamento-in-corso.json'
 
 /** Il segno scritto un attimo prima di lanciare l'installer, accanto a `versione-installata.json`. */
 export const FILE_TENTATIVO = 'tentativo-installazione.json'
@@ -315,6 +336,17 @@ export function creaAggiornamenti(
     }
   }
   const togliSegno = (): void => { try { rmSync(fileTentativo, { force: true }) } catch { /* niente */ } }
+  const fileInCorso = join(dati, FILE_AGGIORNAMENTO_IN_CORSO)
+  const scriviInCorso = (u: AggiornamentoInCorso): void => {
+    try {
+      scriviJsonAtomico(fileInCorso, u, 'aggiornamento-in-corso')
+    } catch (err) {
+      guaio(`fasi dell aggiornamento non scritte: ${String(err)}`)
+    }
+  }
+  const togliInCorso = (): void => { try { rmSync(fileInCorso, { force: true }) } catch { /* niente */ } }
+  /** Quante chat salvate e interrotte, dall'attesa: vanno nella riga di riepilogo. */
+  let conti: Pick<AggiornamentoInCorso, 'salvate' | 'provate' | 'interrotte'> = {}
   // Anche l'installazione **alla chiusura** (quella di electron-updater, senza
   // finestra) lascia il segno: se non riesce, al riavvio lo si dice lo stesso.
   app.on('will-quit', () => {
@@ -342,11 +374,23 @@ export function creaAggiornamenti(
    * se GitHub non risponde quando si apre la finestra di «Installa».
    */
   let noteDellAggiornamento: unknown
+  /**
+   * Le fasi di questo aggiornamento (0.84.3). «scarico» si apre al primo pezzo
+   * scaricato e si chiude a scaricamento finito; «salvo» a «Installa»;
+   * «installo» quando la quiete arriva o scadono i 5 minuti.
+   */
+  let fasi: FaseAggiornamento[] = []
+  const soloScarico = (): FaseAggiornamento[] => fasi.filter((f) => f.passo === 'scarico' && f.fino !== undefined)
   /** Le note gia' raccolte, per versione: la finestra si riapre senza richiedere. */
   let noteRaccolte: { versione: string; quando: number; note: NoteAggiornamento } | undefined
 
   const annuncia = (nuovo: StatoAggiornamento): void => {
     if (daTelefono) nuovo = { ...nuovo, daTelefono: true }
+    // Le fasi con il tempo solo mentre succede qualcosa: scarico, attesa, installazione.
+    const conFasi = fasi.length > 0 && (nuovo.fase === 'scarico' || nuovo.fase === 'attendo' || nuovo.fase === 'installo')
+    nuovo = conFasi
+      ? { ...nuovo, fasi, fasiTesto: testoFasi(fasi, Date.now()) }
+      : { ...nuovo, fasi: undefined, fasiTesto: undefined }
     if (tentativoFallito !== undefined) nuovo = { ...nuovo, tentativoFallito }
     // Ogni cambio di fase nel registro; dello scaricamento solo i quarti, o
     // sarebbero cento righe per un file.
@@ -425,6 +469,7 @@ export function creaAggiornamenti(
     annuncia({ fase: 'aggiornato' })
   })
   autoUpdater.on('download-progress', (p) => {
+    if (!fasi.some((f) => f.passo === 'scarico' && f.fino === undefined)) fasi = segnaPasso([], 'scarico', new Date().toISOString())
     annuncia({ ...stato, fase: 'scarico', percento: Math.round(p.percent) })
   })
   autoUpdater.on('update-downloaded', (info) => {
@@ -437,6 +482,7 @@ export function creaAggiornamenti(
       installerScaricato = scaricato
     }
     versioneScaricata = String(info.version)
+    fasi = chiudiFasi(fasi, new Date().toISOString())
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
@@ -486,6 +532,7 @@ export function creaAggiornamenti(
    */
   const avviaScaricamento = async (dalTelefono = false): Promise<void> => {
     if (dalTelefono) daTelefono = true
+    fasi = segnaPasso([], 'scarico', new Date().toISOString())
     annuncia({ ...stato, fase: 'scarico', percento: 0 })
     try {
       // I percorsi dei file scaricati: servono all'updater, che e' lui a
@@ -541,6 +588,8 @@ export function creaAggiornamenti(
         return
       }
       installazioneAvviata = true
+      // 0.84.3: «salvo le chat» parte adesso e dura al massimo 5 minuti.
+      fasi = segnaPasso(soloScarico(), 'salvo', new Date().toISOString())
       nota(`INSTALLA ${stato.versione ?? '?'} chiesto${daTelefono ? ' dal telefono' : ' dal PC'}: aspetto la quiete`)
       // **Prima la quiete, poi l'installazione.** Da qui in giu' non si torna
       // indietro: si chiudono i processi e si esce. Tutto quello che si puo'
@@ -562,6 +611,7 @@ export function creaAggiornamenti(
           nota(`la quiete non e arrivata: non installo (${esito.perche})`)
           installazioneAvviata = false
           subitoChiesto = false
+          fasi = soloScarico()
           try {
             await disfaPausa?.()
           } catch (err) {
@@ -577,7 +627,9 @@ export function creaAggiornamenti(
           })
           return
         }
+        conti = { ...(esito.salvate !== undefined ? { salvate: esito.salvate } : {}), ...(esito.provate !== undefined ? { provate: esito.provate } : {}), ...(esito.interrotte !== undefined ? { interrotte: esito.interrotte } : {}) }
       }
+      fasi = segnaPasso(fasi, 'installo', new Date().toISOString())
       // L'ultima parola prima del silenzio: da qui a poco il server non
       // risponde piu', e chi sta guardando da un telefono deve sapere che il
       // silenzio che sta per arrivare e' quello giusto.
@@ -591,6 +643,8 @@ export function creaAggiornamenti(
       // cui è successo, ed è anche l'unico in cui si sa in anticipo di stare
       // per riavviare.
       copiaDiSicurezzaLayout(cartellaDati ?? app.getPath('userData'))
+      // Le fasi su disco: la versione nuova le racconta al ritorno.
+      scriviInCorso({ daVersione: app.getVersion(), aVersione: stato.versione ?? versioneScaricata ?? '?', fasi, ...conti })
       // **Un solo installer.** Da qui in poi l'aggiornamento lo fa SierraDeck
       // Update (il nostro updater C#). Ma electron-updater, a ogni scaricamento,
       // registra un gestore su `quit` che — se `autoInstallOnAppQuit` e' vero —
@@ -640,7 +694,9 @@ export function creaAggiornamenti(
                 guaio('l updater non si e fatto vivo: non chiudo niente')
                 installazioneAvviata = false
                 subitoChiesto = false
+                fasi = soloScarico()
                 togliSegno()
+                togliInCorso()
                 // **Si disfa tutto quello che la quiete aveva fatto.** Gli
                 // autopiloti tornano a ricevere il compito seguente, il file
                 // della pausa se ne va, e electron-updater torna a installare
@@ -859,4 +915,31 @@ function copiaDiSicurezzaLayout(dati: string): void {
     console.error('[aggiornamenti] copia di sicurezza dei layout non riuscita:', err)
     try { rmSync(join(dati, 'workspaces.prima-dell-aggiornamento.json.tmp'), { force: true }) } catch { /* niente da togliere */ }
   }
+}
+
+/**
+ * Le fasi dell'aggiornamento appena fatto, per la riga di riepilogo (0.84.3).
+ *
+ * Le ha scritte la versione di prima un attimo prima di lanciare l'installer.
+ * Valgono solo se questa è la versione che si stava installando (un'installazione
+ * non riuscita la racconta già `tentativoFallito`) e se sono fresche. Il file si
+ * cancella sempre: la riga si scrive una volta sola. «installo» finisce quando
+ * questo processo è partito, «riparto» si apre allora e la chiude il servizio.
+ */
+export function leggiAggiornamentoAppenaFatto(cartellaDati: string, versione: string, partitoIl: number, adesso = Date.now()): AggiornamentoInCorso | undefined {
+  const file = join(cartellaDati, FILE_AGGIORNAMENTO_IN_CORSO)
+  let u: AggiornamentoInCorso | undefined
+  try {
+    if (!existsSync(file)) return undefined
+    u = leggiAggiornamentoInCorso(JSON.parse(readFileSync(file, 'utf8')))
+  } catch {
+    u = undefined
+  }
+  try { rmSync(file, { force: true }) } catch { /* al prossimo avvio */ }
+  if (u === undefined || u.aVersione !== versione) return undefined
+  const installo = u.fasi.find((f) => f.passo === 'installo')
+  const dal = installo === undefined ? NaN : Date.parse(installo.dal)
+  if (Number.isNaN(dal) || adesso - dal > RIEPILOGO_SCADUTO_MS) return undefined
+  const partito = new Date(Math.max(partitoIl, dal)).toISOString()
+  return { ...u, fasi: segnaPasso(u.fasi, 'riparto', partito) }
 }

@@ -147,7 +147,7 @@ import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestra
 import type { Chat } from './client-rotte'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
 import { apriProviderStore } from './provider-store'
-import { creaAggiornamenti, type EsitoQuiete } from './aggiornamenti'
+import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
@@ -5005,10 +5005,16 @@ if (!app.requestSingleInstanceLock()) {
         console.error('[aggiornamenti] elenco delle chat da riprendere illeggibile:', err)
       }
 
+      // Le fasi dell'aggiornamento appena fatto (0.84.3), scritte dalla versione
+      // di prima: «installo» finisce quando questo processo è partito, «riparto»
+      // adesso. Il servizio le racconta in una riga nella conversazione degli
+      // autopiloti che riprende. Si legge e si cancella: una riga sola.
+      const appenaAggiornato = leggiAggiornamentoAppenaFatto(dati, app.getVersion(), Date.now() - Math.round(process.uptime() * 1000))
       void (async () => {
         try {
           if (!(await clientAutopilota.assicuraServizio())) return
-          const ripresi = await clientAutopilota.gestoreAvviato()
+          const ripresi = await clientAutopilota.gestoreAvviato(appenaAggiornato)
+          if (appenaAggiornato !== undefined) console.info(`[aggiornamenti] dalla ${appenaAggiornato.daVersione} alla ${appenaAggiornato.aVersione}: ${ripresi} autopiloti ripresi, riga di riepilogo nella loro conversazione`)
           if (ripresi > 0) console.info(`[autopilota] ${ripresi} rimessi al lavoro dopo il riavvio`)
         } catch (err) {
           console.error('[autopilota] ripresa dopo il riavvio non riuscita:', err)
@@ -6651,6 +6657,7 @@ if (!app.requestSingleInstanceLock()) {
           const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
           if (!drive.ok) return drive
           let avvisatoLungo = false
+          let conti: { salvate?: number; provate?: number; interrotte?: number } = {}
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
             pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
@@ -6671,18 +6678,25 @@ if (!app.requestSingleInstanceLock()) {
               }
             },
             // Dopo «Installa» premuto da Nicholas (qui, «Installa là», telefono) si
-            // aspetta fino a due ore: dieci minuti non bastavano mai con gli
-            // autopiloti al lavoro. Mai un'installazione da sola (0.69.0).
+            // aspetta al massimo 5 minuti, poi si salva il lavoro delle chat e si
+            // installa lo stesso (0.84.3): il 22/10 un'attesa di due ore si era
+            // annullata da sola. Mai un'installazione da sola (0.69.0).
             tetto: ATTESA_INSTALLA_MS,
+            alloScadere: 'installa',
+            chiusa: (e) => {
+              conti = { ...conti, interrotte: e.interrotte }
+              registro.info(`[aggiornamenti] attesa chiusa (${e.come}): ${e.interrotte} chat ancora al lavoro, installo`)
+            },
             // «Aggiorna adesso» (0.84.1): niente più attesa; prima un commit sul ramo di ogni chat.
             subito,
             salvaSubito: async () => {
               const r = await clientAutopilota.salvaPerAggiornamento()
-              registro.info(`[aggiornamenti] «Aggiorna adesso»: lavoro salvato con un commit in ${r.salvate} copie delle chat su ${r.provate}`)
+              conti = { ...conti, salvate: r.salvate, provate: r.provate }
+              registro.info(`[aggiornamenti] prima di installare: lavoro salvato con un commit in ${r.salvate} copie delle chat su ${r.provate}`)
             },
             versione: app.getVersion()
           })
-          return pronti ? { ok: true } : { ok: false, perche: 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
+          return pronti ? { ok: true, ...conti } : { ok: false, perche: 'l’attesa delle chat si è fermata prima di salvare il loro lavoro. Riprova.' }
         },
         // Nel registro su file: e' l'unico posto dove, il giorno dopo, si
         // capisce per quale strada e' passato un aggiornamento.

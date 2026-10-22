@@ -22,6 +22,8 @@
  * ha il dovere di rimetterlo in moto, non di chiedere il permesso di farlo.
  */
 
+import { SALVO_LE_CHAT_MS } from '@shared/fasi-aggiornamento'
+
 /** Quel poco che serve sapere di una chat per decidere se aspettarla. */
 export type ChatInVolo = {
   id: string
@@ -69,11 +71,13 @@ export function siPuoInstallare(chats: ChatInVolo[]): boolean {
 export const ATTESA_QUIETE_MS = 10 * 60_000
 
 /**
- * Quanto si aspetta la quiete dopo «Installa» premuto da Nicholas (0.67.1;
- * dalla 0.69.0 l'installazione parte solo da lui): dieci minuti non bastavano
- * mai con gli autopiloti al lavoro.
+ * Quanto si aspetta la quiete dopo «Installa» premuto da Nicholas. Erano due
+ * ore (0.67.1), e il 22/10 dalle 15:28 alle 17:28 UTC l'attesa è finita
+ * annullata da sola con tre chat ancora al lavoro: niente installato e due ore
+ * perse. Dalla 0.84.3 sono 5 minuti, poi il lavoro delle chat si salva con un
+ * commit sul loro ramo e si installa lo stesso (`alloScadere: 'installa'`).
  */
-export const ATTESA_INSTALLA_MS = 2 * 60 * 60_000
+export const ATTESA_INSTALLA_MS = SALVO_LE_CHAT_MS
 
 /** Dopo quanto una chat **non** di un autopilota ancora al lavoro si dice a Nicholas. */
 export const AVVISO_LUNGO_MS = 20 * 60_000
@@ -120,10 +124,12 @@ export const AVVISO_PAUSA = [
   'Non è la fine del lavoro: è solo un riavvio, e fra qualche minuto torni qui',
   'dentro con questa stessa conversazione.',
   '',
-  'Porta a termine l’azione che hai in mano adesso — non lasciarla a metà —',
-  'salva quello che c’è da salvare, e scrivi in due righe a che punto sei',
-  'arrivato e qual è la prossima cosa da fare. Poi fermati e non cominciare',
-  'niente di nuovo: al ritorno riprenderai da lì.'
+  'Hai al massimo 5 minuti. Porta a termine l’azione che hai in mano adesso —',
+  'non lasciarla a metà — salva quello che c’è da salvare (un commit sul tuo',
+  'ramo, se lavori in una copia del progetto), e scrivi in due righe a che punto',
+  'sei arrivato e qual è la prossima cosa da fare. Poi fermati e non cominciare',
+  'niente di nuovo: al ritorno riprenderai da lì. Passati i 5 minuti il programma',
+  'salva da solo quello che resta e installa lo stesso.'
 ].join('\n')
 
 /**
@@ -251,6 +257,16 @@ export async function attendiQuiete(p: {
    */
   subito?: () => boolean
   salvaSubito?: () => Promise<void>
+  /**
+   * Cosa fare allo scadere del `tetto` (0.84.3). `rinuncia` (il default): si
+   * torna indietro e non si installa. `installa`: dopo «Installa» premuto da
+   * Nicholas si salva il lavoro delle chat ancora al lavoro e si installa lo
+   * stesso — il 22/10 un'attesa di due ore si era annullata da sola. Con
+   * `installa` il lavoro si salva (`salvaSubito`) anche quando la quiete arriva.
+   */
+  alloScadere?: 'rinuncia' | 'installa'
+  /** Come si è chiusa l'attesa, e quante chat erano ancora al lavoro. */
+  chiusa?: (e: { come: 'quiete' | 'subito' | 'scadenza'; interrotte: number }) => void
 }): Promise<boolean> {
   const adesso = p.adesso ?? ((): number => Date.now())
   const aspetta = p.aspetta ?? ((ms: number): Promise<void> => new Promise((r) => { setTimeout(r, ms) }))
@@ -290,31 +306,36 @@ export async function attendiQuiete(p: {
 
   const inizio = adesso()
   const scade = inizio + (p.tetto ?? ATTESA_QUIETE_MS)
-  while (adesso() < scade) {
-    const restano = inVolo(p.chat())
-    if (restano.length === 0) {
-      p.annota(pausaDaSalvare(allInizio, p.versione))
-      return true
-    }
-    if (p.subito?.() === true) {
-      // Gli autopiloti sono già in pausa e le chat avvisate: resta da mettere
-      // al sicuro il lavoro non salvato e da ricordare chi riprendere al
-      // ritorno — anche le chat avvisate dopo l'inizio dell'attesa.
+  const installaComunque = p.alloScadere === 'installa'
+  // Si salva il lavoro e si annota chi era a metà: anche le chat avvisate dopo
+  // l'inizio dell'attesa.
+  const chiudi = async (come: 'quiete' | 'subito' | 'scadenza', restano: ChatInVolo[]): Promise<true> => {
+    if (come !== 'quiete' || installaComunque) {
       try {
         await p.salvaSubito?.()
       } catch (err) {
-        console.warn('[aggiornamenti] «Aggiorna adesso»: lavoro delle chat non salvato:', err)
+        console.warn('[aggiornamenti] lavoro delle chat non salvato prima di installare:', err)
       }
-      const sessioni = new Set<string>()
-      const aMeta = [...allInizio, ...restano].filter((c) => {
-        const k = c.sessione ?? c.id
-        if (sessioni.has(k)) return false
-        sessioni.add(k)
-        return true
-      })
-      p.annota(pausaDaSalvare(aMeta, p.versione))
-      console.info(`[aggiornamenti] «Aggiorna adesso»: installo senza aspettare ${restano.length} chat`)
+    }
+    const sessioni = new Set<string>()
+    const aMeta = [...allInizio, ...restano].filter((c) => {
+      const k = c.sessione ?? c.id
+      if (sessioni.has(k)) return false
+      sessioni.add(k)
       return true
+    })
+    p.annota(pausaDaSalvare(aMeta, p.versione))
+    p.chiusa?.({ come, interrotte: restano.length })
+    return true
+  }
+  while (adesso() < scade) {
+    const restano = inVolo(p.chat())
+    if (restano.length === 0) return chiudi('quiete', [])
+    if (p.subito?.() === true) {
+      // Gli autopiloti sono già in pausa e le chat avvisate: resta da mettere
+      // al sicuro il lavoro non salvato e da ricordare chi riprendere al ritorno.
+      console.info(`[aggiornamenti] «Aggiorna adesso»: installo senza aspettare ${restano.length} chat`)
+      return chiudi('subito', restano)
     }
     p.avvisa(restano.length)
     if (p.avvisaTesto !== undefined) {
@@ -323,6 +344,12 @@ export async function attendiQuiete(p: {
     }
     avvisaLeOccupate()
     await aspetta(CONTROLLO_QUIETE_MS)
+  }
+
+  if (installaComunque) {
+    const restano = inVolo(p.chat())
+    console.info(`[aggiornamenti] passati ${Math.round((p.tetto ?? ATTESA_QUIETE_MS) / 60_000)} min: salvo il lavoro di ${restano.length} chat ancora al lavoro e installo`)
+    return chiudi(restano.length === 0 ? 'quiete' : 'scadenza', restano)
   }
 
   console.warn(
