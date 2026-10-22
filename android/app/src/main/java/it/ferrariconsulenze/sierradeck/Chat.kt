@@ -195,6 +195,11 @@ private fun ChatSuAltroPc(api: Api, su: PcPonte, deposito: Collegamento) {
             }
         }
         AvvisoChiusa(avvisoChiusa) { avvisoChiusa = null }
+        // «Apri la chat su <PC>» dalle Domande (PC 0.84.1): appena quel PC elenca la conversazione, si entra.
+        LaunchedEffect(chat, Apertura.sessioneRichiesta) {
+            val voluta = Apertura.sessioneRichiesta ?: return@LaunchedEffect
+            chat.firstOrNull { it.sessione == voluta }?.let { aperta = it.id; Apertura.sessioneRichiesta = null }
+        }
         val corrente = chat.firstOrNull { it.id == aperta }
         when {
             corrente != null -> DettaglioChat(apiPc, corrente, deposito, onIndietro = { aperta = null }, giu = linea.fase == "ricollego", workspace = stato?.workspace ?: Workspace(), nomePc = su.nome, versionePc = stato?.computer?.versione)

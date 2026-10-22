@@ -1,7 +1,7 @@
 import type { Autopilota } from './autopilota'
 import { conversazione } from './chat-autopilota'
-import { SUPERATA, eSuperata, type OpzioneScelta, type VoceDomanda } from './domande-telefono'
-import { chiDi, fraseDomanda, schedaDaParti, schedaDaTesto, scelteDiChat, type SchedaDomanda } from './scheda-domanda'
+import { SUPERATA, eSuperata, leggiIdChatAltroPc, type OpzioneScelta, type VoceDomanda } from './domande-telefono'
+import { chiDi, fraseDomanda, opzioneInItaliano, schedaDaParti, schedaDaTesto, scelteDiChat, type ApriChatAltrove, type DettaglioScheda, type SchedaDomanda } from './scheda-domanda'
 
 /**
  * La scheda «Domande» come conversazioni a messaggi (0.36.0).
@@ -70,6 +70,11 @@ export type Conversazione = {
    * PC più vecchio non c'è e si disegna come prima.
    */
   scheda?: SchedaDomanda
+}
+
+/** Il contesto dopo il testo intero, e il tasto «Apri la chat su <PC>» se il testo manca (0.84.1). */
+function conContesto(s: SchedaDomanda, contesto: DettaglioScheda[], apri: ApriChatAltrove | undefined): SchedaDomanda {
+  return { ...s, dettagli: [...s.dettagli, ...contesto], ...(apri !== undefined ? { apri } : {}) }
 }
 
 /** Quanti messaggi della storia di un autopilota entrano nel filo. */
@@ -168,33 +173,61 @@ export function conversazioniDomande(p: {
     gia.add(chiave)
     const tuoi = (p.inviati?.[v.chat] ?? []).map((i) => ({ da: 'tu' as const, testo: i.testo, quando: i.quando }))
     const schermo = v.righe.join('\n').trim()
-    const chi = chiDi('chat', v.titolo || v.cwd, v.cwd, v.tipo === 'chat' ? v.pcNome : undefined)
+    // Una chat di un altro PC (0.84.1): il titolo porta già «· su <PC>», e il
+    // PC si dice una volta sola, in fondo a `chi`.
+    const titoloNudo = v.pcNome !== undefined && v.titolo.endsWith(` · su ${v.pcNome}`) ? v.titolo.slice(0, -` · su ${v.pcNome}`.length) : v.titolo
+    const chi = chiDi('chat', titoloNudo || v.cwd, v.cwd, v.pcNome)
+    const contesto: DettaglioScheda[] = (v.contesto ?? []).length > 0 ? [{ etichetta: 'Prima della domanda', testo: (v.contesto ?? []).join('\n') }] : []
+    const altrove = leggiIdChatAltroPc(v.chat)
+    // Il testo non è arrivato (un PC più vecchio): si va a leggerlo nella chat.
+    const apri: ApriChatAltrove | undefined = altrove !== undefined && schermo === '' && v.pcNome !== undefined
+      ? { pcId: altrove.pcId, pc: v.pcNome, sessione: altrove.sessione, cwd: v.cwd, titolo: titoloNudo || v.cwd }
+      : undefined
+    const suPc = {
+      ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
+      ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {})
+    }
     if (v.tipo === 'scelta') {
       const { scelte, spiegazioni } = scelteDiChat(v.opzioni)
+      // Le opzioni dei messaggi con lo stesso testo in italiano dei tasti.
+      const opzioni = v.opzioni.map((o) => {
+        const it = opzioneInItaliano(o)
+        return it !== undefined && it !== o.testo ? { ...o, etichetta: it } : o
+      })
+      const senzaTesto = apri !== undefined
+        ? `Ti chiede di scegliere, ma il testo della domanda non è arrivato da ${apri.pc}: apri la chat per leggerlo.`
+        : 'Aspetta che tu scelga.'
       fuori.push({
         chiave,
         tipo: 'chat',
         titolo: v.titolo || v.cwd,
         sotto: v.cwd,
         chiede: true,
+        ...suPc,
         scheda: {
           chi,
-          domanda: schermo !== '' ? fraseDomanda(schermo) || 'Aspetta che tu scelga.' : 'Aspetta che tu scelga.',
+          domanda: schermo !== '' ? fraseDomanda(schermo) || senzaTesto : senzaTesto,
           scelte,
-          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: 'Lo schermo della chat', testo: schermo }] : [])],
-          segnaposto: 'Oppure scrivile tu'
+          dettagli: [
+            ...(schermo !== '' ? [{ etichetta: altrove !== undefined ? 'La domanda intera' : 'Lo schermo della chat', testo: schermo }] : []),
+            ...contesto,
+            ...(spiegazioni !== undefined ? [spiegazioni] : []),
+            ...(altrove !== undefined && v.pcNome !== undefined ? [{ etichetta: 'Dove', testo: `La chat lavora su ${v.pcNome}. Un tocco su un’opzione la preme là, dopo aver ricontrollato che la domanda sia ancora quella.` }] : [])
+          ],
+          segnaposto: 'Oppure scrivile tu',
+          ...(apri !== undefined ? { apri } : {})
         },
         messaggi: [
           ...tuoi,
           {
             da: 'lui',
-            testo: schermo !== '' ? schermo : 'Aspetta che tu scelga una di queste opzioni.',
+            testo: schermo !== '' ? [...(v.contesto ?? []), ...(v.contesto !== undefined && v.contesto.length > 0 ? [''] : []), schermo].join('\n') : (apri !== undefined ? senzaTesto : 'Aspetta che tu scelga una di queste opzioni.'),
             tono: 'domanda',
-            opzioni: v.opzioni
+            opzioni
           }
         ],
         risposta: { via: 'scrivi', chat: v.chat },
-        scelte: { chat: v.chat, opzioni: v.opzioni },
+        scelte: { chat: v.chat, opzioni },
         segnaposto: 'Tocca un’opzione qui sopra, oppure scrivile qualcosa'
       })
     } else if (v.chiede === true) {
@@ -205,7 +238,7 @@ export function conversazioniDomande(p: {
         titolo: v.titolo || v.cwd,
         sotto: v.cwd,
         chiede: true,
-        scheda: schedaDaTesto(chi, schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', [], 'Scrivi tu la risposta', 'Quello che ha scritto'),
+        scheda: conContesto(schedaDaTesto(chi, schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', [], 'Scrivi tu la risposta', 'Quello che ha scritto'), contesto, apri),
         messaggi: [...tuoi, { da: 'lui', testo: schermo !== '' ? schermo : 'Ti ha fatto una domanda: la trovi nella chat.', tono: 'domanda' }],
         risposta: { via: 'scrivi', chat: v.chat },
         ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),

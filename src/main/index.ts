@@ -21,7 +21,7 @@ import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
-import { domandaInFondo } from '@shared/domande-telefono'
+import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
@@ -431,10 +431,14 @@ function conSegnali(chat: Chat[]): Chat[] {
     }
     const v = statoChat({ segnali: s, schermo: { aspetta: c.aspetta === true, chiede: c.sceltaAperta === true }, adesso: Date.now() })
     // Il turno è finito con una domanda scritta (0.71.1): va nelle Domande, non fra le «ha finito».
-    const domanda = v.aspetta && !v.chiede && s.fase === 'aspetta' ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
+    const inFondo = v.aspetta && !v.chiede && s.fase === 'aspetta'
+    const domanda = inFondo ? domandaInFondo(s.ultimoMessaggio) : s.chiede?.messaggio
+    // Qualche riga prima della domanda (0.84.1), per le Domande degli altri PC.
+    const contesto = inFondo && domanda !== undefined ? contestoSopraDomanda(s.ultimoMessaggio) : []
     return {
       ...c, aspetta: v.aspetta, chiedeSegnale: v.chiede, fonteStato: 'segnali' as const,
       ...(domanda !== undefined ? { domanda } : {}),
+      ...(contesto.length > 0 ? { contesto } : {}),
       ...(v.errore !== undefined ? { errore: v.errore } : {}),
       ...(s.fase === 'chiusa' ? { viva: false } : {})
     }
@@ -1918,12 +1922,15 @@ if (!app.requestSingleInstanceLock()) {
         chat: () => chatAperte.map((c) => {
           // Le opzioni di una domanda ferma (0.52.6), per le Domande degli altri
           // PC. Mai per una chat con il PIN: il battito lo leggono tutti i PC.
-          const s = guardianoPin?.protetta(c) === true ? undefined : scelteDiTerminale((c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
+          const protetta = guardianoPin?.protetta(c) === true
+          const s = protetta ? undefined : scelteDiTerminale((c.codaGrezza ?? c.coda ?? []).join(String.fromCharCode(10)))
+          // La domanda intera e qualche riga prima (0.84.1): anche quella di un elenco di scelte.
+          const d = protetta ? {} : domandaPerBattito(c, s)
           return {
             id: c.id,
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
             titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
-            ...(c.domanda !== undefined && guardianoPin?.protetta(c) !== true ? { domanda: c.domanda } : {}),
+            ...d,
             ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {})
           }
         }),
@@ -6036,6 +6043,7 @@ if (!app.requestSingleInstanceLock()) {
         // Installare chiude il programma con le chat aperte dentro: dal telefono
         // la pagina lo chiede due volte, come al computer.
         installaAggiornamento: () => { void aggiornamenti?.installa() },
+        aggiornaAdesso: () => { void aggiornamenti?.aggiornaAdesso(true) },
         // Prima di «Installa» il telefono mostra le stesse note del PC (0.39.0).
         noteAggiornamento: async () => aggiornamenti?.note(),
         caricaIstantanea: async (nome: string) => {
@@ -6637,7 +6645,7 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        async (avvisa): Promise<EsitoQuiete> => {
+        async (avvisa, subito): Promise<EsitoQuiete> => {
           // Prima il Drive, e il suo esito conta: prima veniva buttato via con
           // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
           const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
@@ -6666,6 +6674,12 @@ if (!app.requestSingleInstanceLock()) {
             // aspetta fino a due ore: dieci minuti non bastavano mai con gli
             // autopiloti al lavoro. Mai un'installazione da sola (0.69.0).
             tetto: ATTESA_INSTALLA_MS,
+            // «Aggiorna adesso» (0.84.1): niente più attesa; prima un commit sul ramo di ogni chat.
+            subito,
+            salvaSubito: async () => {
+              const r = await clientAutopilota.salvaPerAggiornamento()
+              registro.info(`[aggiornamenti] «Aggiorna adesso»: lavoro salvato con un commit in ${r.salvate} copie delle chat su ${r.provate}`)
+            },
             versione: app.getVersion()
           })
           return pronti ? { ok: true } : { ok: false, perche: 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
@@ -6700,6 +6714,7 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
       ipcMain.handle('aggiornamenti:installa', () => { void aggiornamenti?.installa() })
+      ipcMain.handle('aggiornamenti:aggiorna-adesso', () => { void aggiornamenti?.aggiornaAdesso() })
       ipcMain.handle('aggiornamenti:note', () => aggiornamenti?.note())
       // Riavviare come per un aggiornamento: si aspetta che le chat finiscano
       // il turno, si avvisa, e si riparte. Dopo «Porta qui» o una fusione le

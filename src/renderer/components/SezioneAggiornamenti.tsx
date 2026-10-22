@@ -24,6 +24,7 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
     : fase === 'disponibile' ? `C’è la ${s?.versione ?? 'versione nuova'}: si può scaricare.`
     : fase === 'scarico' ? `Scarico la ${s?.versione ?? 'versione nuova'}… ${s?.percento ?? 0}%`
     : fase === 'pronto' ? `La ${s?.versione ?? 'versione nuova'} è pronta da installare.`
+    : fase === 'attendo' && s?.subito === true ? 'Salvo il lavoro delle chat e installo subito…'
     : fase === 'attendo' && s?.attesaChat !== undefined && s.attesa === undefined ? `${s.attesaChat.charAt(0).toUpperCase()}${s.attesaChat.slice(1)}.`
     : fase === 'attendo' ? `Installo appena ${s?.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate === 1 ? 'la chat finisce' : `le ${s.chatOccupate} chat finiscono`} il turno` : (s?.attesa ?? 'c’è quiete')}: niente si perde.`
     : fase === 'installo' ? 'Sto installando: il programma si chiude e si riapre da solo.'
@@ -45,7 +46,12 @@ export function SezioneAggiornamenti({ p, cambia, versione }: { p: Preferenze; c
             Cosa cambia e installa
           </button>
         ) : null}
-        {['fermo', 'aggiornato', 'errore', 'disponibile'].includes(fase) ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>Cerca ora</button> : null}
+        {fase === 'attendo' && s?.subito !== true ? (
+          <button className="tasto" title="Non aspetto la fine dei turni: salvo il lavoro delle chat sul loro ramo, le metto in pausa e installo adesso." onClick={() => void window.gestore.aggiornamenti.aggiornaAdesso()}>
+            Aggiorna adesso
+          </button>
+        ) : null}
+                {['fermo', 'aggiornato', 'errore', 'disponibile'].includes(fase) ? <button className="tasto" onClick={() => void window.gestore.aggiornamenti.cerca()}>Cerca ora</button> : null}
       </div>
       {((f) => f !== undefined ? (
         <div className="impostazioni__nota" style={{ color: 'var(--ambra)' }}>

@@ -98,7 +98,7 @@ import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceEr
 export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   cartelle: string[]
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string; contesto?: string[] }[]
 }
 
 export type VocePostaTelefono = {
@@ -170,6 +170,8 @@ export type Chat = {
   sceltaAperta?: boolean
   /** La domanda in fondo all'ultimo messaggio, quando il turno è finito chiedendo (0.71.1). */
   domanda?: string
+  /** Le righe prima di quella domanda (0.84.1): viaggiano nel battito, per le Domande degli altri PC. */
+  contesto?: string[]
   errore?: string
   fonteStato?: 'segnali' | 'schermo'
   /**
@@ -555,6 +557,8 @@ export type DipendenzeRotte = {
   cercaAggiornamento: () => void
   scaricaAggiornamento: () => void
   installaAggiornamento: () => void
+  /** «Aggiorna adesso» (0.84.1): installa senza aspettare la fine dei turni, con il lavoro delle chat salvato. */
+  aggiornaAdesso?: () => void
   /**
    * Cosa cambia con l'aggiornamento pronto: le stesse note della finestra di
    * «Installa» del PC, gia' scomposte in blocchi sicuri (mai HTML). Il telefono
@@ -2121,6 +2125,12 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // si possa chiedere da un telefono, e la pagina la chiede due volte.
     if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/installa') {
       deps.installaAggiornamento()
+      return OK({ fatto: true })
+    }
+
+    if (r.metodo === 'POST' && r.percorso === '/api/aggiornamento/aggiorna-adesso') {
+      if (deps.aggiornaAdesso === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora aggiornare senza aspettare' } }
+      deps.aggiornaAdesso()
       return OK({ fatto: true })
     }
 

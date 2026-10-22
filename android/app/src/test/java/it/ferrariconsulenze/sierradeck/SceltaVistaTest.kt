@@ -40,7 +40,7 @@ class SceltaVistaTest {
         val s = scelte("singola")
         assertEquals(SceltaVista.Etichetta("2", "Verde", "Il colore della natura e della calma"), SceltaVista.etichetta(s.opzioni[1]))
         val libera = SceltaVista.etichetta(s.opzioni[3])
-        assertTrue(libera.testo.contains("parole tue"))
+        assertTrue(libera.testo.contains("Scrivo io la risposta"))
         assertTrue(libera.sotto!!.contains("Type something."))
         assertNull(SceltaVista.etichetta(s.opzioni[4]).sotto)
         val m = scelte("multi-spuntata")

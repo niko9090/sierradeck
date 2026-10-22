@@ -996,7 +996,8 @@ function firmaScelte(s) { return s ? s.opzioni.map((o) => (o.spuntata ? '[x] ' :
 function etichettaOpzione(o) {
   var num = o.invio ? '↵' : String(o.numero)
   var casella = o.spuntata === true ? '☑ ' : o.spuntata === false ? '☐ ' : ''
-  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Rispondi con parole tue: scrivile nel campo qui sotto e mandale' : o.testo
+  // etichetta (0.84.1): l'opzione fissa di Claude Code detta in italiano dal PC.
+  var testo = o.invio ? 'Manda le scelte spuntate (Submit)' : o.libera ? 'Scrivo io la risposta: scrivila nel campo qui sotto e mandala' : (o.etichetta || o.testo)
   var sotto = o.libera ? 'arriva a Claude come risposta libera («' + o.testo + '»)' : (o.descrizione || '')
   return '<span class="scelta__n">' + esc(num) + '</span>' + esc(casella + testo) + (sotto ? '<small class="scelta__descr">' + esc(sotto) + '</small>' : '')
 }
@@ -1311,6 +1312,7 @@ function schedaDomandaHtml(s, k, tasto, campo) {
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
     (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
     ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
+    apriAltroveHtml(s) +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
     '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'
 }
@@ -1343,7 +1345,13 @@ function domandaALatoHtml(idChat) {
     '</div>'
 }
 function etichettaScelta(c) {
-  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.testo)
+  return (c.spuntata === true ? '☑ ' : c.spuntata === false ? '☐ ' : '') + (c.consigliata ? '★ ' : '') + esc(c.etichetta || c.testo)
+}
+/** «Apri la chat su PC» (0.84.1): il testo della domanda non è arrivato; il computer la apre dal vivo. */
+function apriAltroveHtml(s) {
+  if (!s || !s.apri) return ''
+  var a = s.apri
+  return '<div class="scelte"><button class="primario" data-s="' + esc(a.sessione) + '" data-c="' + esc(a.cwd) + '" data-p="' + esc(a.pcId) + '" data-t="' + esc(a.titolo) + '" onclick="pdApriChat(this.dataset.s, this.dataset.c, this.dataset.p, this.dataset.t)">Apri la chat su ' + esc(a.pc) + '</button></div>'
 }
 
 /**
@@ -1854,7 +1862,7 @@ function impronta(s) {
     pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) + JSON.stringify(pdDati.residenza || []) + JSON.stringify((pdDati.rimozione || {}).stati || []) + JSON.stringify(pdDati.traslochi || []) : '',
     pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento, pdSpostaVerso,
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
-    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
+    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.subito ? 's' : '') + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
     consumiVisti ? JSON.stringify(consumiVisti) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
@@ -2632,6 +2640,8 @@ function pannello(s) {
           ? '<button onclick="installaAggiornamento()">Cosa cambia e installa</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
           ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
+        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo' && !aggiornamentoVisto.subito
+          ? '<button onclick="aggiornaAdesso()">Aggiorna adesso</button>' + aiuto('aggiorna-adesso', 'Non aspetto che le chat finiscano il turno: salvo il loro lavoro sul loro ramo, le metto in pausa e installo adesso. Dopo il riavvio riprendono da sole.') : ''}
         \${!aggiornamentoVisto || ['fermo', 'aggiornato', 'errore', 'pronto', 'disponibile'].indexOf(aggiornamentoVisto.fase) >= 0
           ? '<button onclick="cercaAggiornamento()">Cerca ora</button>' : ''}
       </div>
@@ -4994,6 +5004,7 @@ function descriviAggiornamento() {
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
   if (a.fase === 'attendo') {
+    if (a.subito) return 'Salvo il lavoro delle chat e installo subito…'
     if (a.attesaChat && !a.attesa) return a.attesaChat.charAt(0).toUpperCase() + a.attesaChat.slice(1) + '.'
     if (a.attesa) return 'Aspetto che finisca ' + a.attesa + ', poi installo.'
     var quante = a.chatOccupate || 0
@@ -5727,6 +5738,12 @@ window.installaAggiornamento = async () => {
   } catch (e) {
     noteAgg = { note: [], avviso: 'Non sono riuscito a leggere le note dal computer: le trovi scritte per esteso su https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' }
   }
+  pannello(ultimoStato)
+}
+// 0.84.1: «Aggiorna adesso», durante l'attesa delle chat. Lo preme solo Nicholas.
+window.aggiornaAdesso = async () => {
+  try { await chiedi('/api/aggiornamento/aggiorna-adesso', {}) } catch (e) { /* lo stato dice com'è andata */ }
+  await leggiAggiornamento()
   pannello(ultimoStato)
 }
 window.piuTardiAggiornamento = () => { noteAgg = null; pannello(ultimoStato) }

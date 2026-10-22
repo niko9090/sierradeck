@@ -308,7 +308,9 @@ data class SchedaDomanda(
     /** Chiusa senza risposta perché non serve più (PC 0.84.1): il motivo. */
     val superata: String? = null,
     /** Quante altre domande aspettano dopo questa. */
-    val poi: Int? = null
+    val poi: Int? = null,
+    /** PC 0.84.1: il testo di una domanda di un altro PC non è arrivato; il tasto «Apri la chat su <PC>». */
+    val apri: ApriChatAltrove? = null
 )
 
 @Serializable
@@ -318,7 +320,19 @@ data class SceltaScheda(
     val numero: Int? = null,
     val libera: Boolean = false,
     val spuntata: Boolean? = null,
-    val invio: Boolean = false
+    val invio: Boolean = false,
+    /** PC 0.84.1: il testo da mostrare in italiano («Scrivo io la risposta»); al tocco si manda `testo`. */
+    val etichetta: String? = null
+)
+
+/** La chat di un altro PC da aprire (PC 0.84.1): si apre dal ponte, nella scheda Chat. */
+@Serializable
+data class ApriChatAltrove(
+    val pcId: String = "",
+    val pc: String = "",
+    val sessione: String = "",
+    val cwd: String = "",
+    val titolo: String = ""
 )
 
 @Serializable

@@ -864,6 +864,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * un messaggio solo.
    */
   const scrittoNelTurno = new Set<string>()
+  /**
+   * Nicholas ha premuto «Installa» (0.84.1): da `POST /pausa-aggiornamento`
+   * fino alla pausa tolta o al ritorno del Gestore. Vale anche per gli
+   * autopiloti che in quel momento non erano «al lavoro» (in pausa per i
+   * limiti, appena creati): il segno per autopilota non li copriva.
+   */
+  let installaInCorso = false
   /** Le chat già dette mute a Nicholas (0.81.0), «autopilota|chat»: si ridice solo dopo che hanno ripreso. */
   const mutaDetta = new Map<string, number>()
   const ultimoSegnale = (chiave: string): number | undefined => {
@@ -889,6 +896,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * di essere considerato fermo.
    */
   const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<void> => {
+    // 0.84.1: dopo «Installa» nessuna consegna nuova, da nessuna strada (chat
+    // ferme, freno, supervisore, mai-fermo, dialogo). Il 21/10 una chat ferma a
+    // fine turno per l'aggiornamento riceveva i messaggi in coda e ripartiva:
+    // l'attesa della quiete ricominciava da capo. I messaggi tornano in coda e
+    // l'autopilota resta segnato, così al ritorno la ripresa lo rimette in moto.
+    const fresco0 = deps.archivio.leggi(a.id)
+    if (installaInCorso || fresco0?.fermatoPerAggiornamento === true) {
+      console.info(`[consegna] ${a.id}${chat !== undefined ? `::${chat.id}` : ''}: stiamo installando un aggiornamento, nessuna consegna nuova${presi.length > 0 ? ` (${presi.length} messaggi restano in coda)` : ''}`)
+      if (fresco0 !== undefined) {
+        const segnato = fresco0.stato === 'lavoro' ? { ...fresco0, fermatoPerAggiornamento: true } : fresco0
+        if (presi.length > 0) salva(rimettiInCoda(segnato, presi))
+        else if (segnato !== fresco0) salva(segnato)
+      }
+      return Promise.resolve()
+    }
     // c-310 (20/10): mai un compito a una chat finita. Sei consegne (c-233 …
     // c-309) sono arrivate alla c-15 chiusa e l'hanno riaperta per niente. Chi
     // la vuole riprendere davvero la passa già in `lavoro`; i messaggi tolti
@@ -1363,6 +1385,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * tornano al lavoro quando c'e' posto; i compiti in coda aprono le loro chat.
    */
   const rispettaFreno = (): void => {
+    // 0.84.1: mentre si installa non riparte niente e non si apre nessuna chat.
+    if (installaInCorso) return
     const freno = frenoAdesso()
     for (const a of deps.archivio.elenca()) {
       if (a.stato === 'sospeso' && a.pausaLimitiFinoA !== undefined) {
@@ -1383,7 +1407,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           })
         continue
       }
-      if (a.stato !== 'lavoro' || freno.livello === 'fermo' || occupato(a.id)) continue
+      if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true || freno.livello === 'fermo' || occupato(a.id)) continue
       const ids = chatInPausaDaRiprendere(a.chats, tettoNeiPosti(freno.tetto, a.chats.filter((c) => c.stato === 'lavoro').length, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()))
       if (ids.length > 0) {
         const ripreso: Autopilota = {
@@ -1424,9 +1448,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return 0
     let mandate = 0
+    // 0.84.1: dopo «Installa» le chat ferme restano ferme, anche con messaggi in coda.
+    if (installaInCorso) return 0
     for (const elenco of deps.archivio.elenca()) {
       if (opz.autopilota !== undefined && elenco.id !== opz.autopilota) continue
       if (inLavorazione.has(elenco.id)) continue
+      if (elenco.fermatoPerAggiornamento === true) continue
       if (opz.daDialogo !== true && dialoghiInCorso.has(elenco.id)) continue
       // 0.84.0: si salta solo la chat con la fermata in giudizio, non le sorelle.
       const ferme = chatFerme(elenco, (k) => fermaDal.get(k), ora, opz.forza === true || opz.subito === true ? 0 : FERMA_DA_MS)
@@ -1679,6 +1706,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (rimessi.length > 0) {
         console.info(`[autopilota] ${rimessi.length} aspettavano una risposta a una domanda persa col riavvio: tornano al lavoro e la rifaranno`)
       }
+    }
+    // 0.84.1: mentre si installa non si riprende niente, e non conta come
+    // ripresa fatta: quella vera arriva con il ritorno del Gestore, e la
+    // guardia dei «due volte a poca distanza» la salterebbe.
+    if (installaInCorso) {
+      console.info('[autopilota] ripresa chiesta mentre si installa un aggiornamento: la faccio al ritorno del programma')
+      return 0
     }
     // Due chiamate a un istante di distanza sono lo stesso ritorno raccontato
     // due volte: il servizio che parte insieme al Gestore fa la sua ripresa
@@ -2718,8 +2752,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // lavoro finisce, e la chat resta li' con dentro tutto. Prima dei criteri,
     // che durano minuti e che nessuno sta aspettando: chi ha premuto
     // «Installa» sta guardando un'attesa.
-    if (conSessione.fermatoPerAggiornamento === true) {
+    if (conSessione.fermatoPerAggiornamento === true || installaInCorso) {
       console.info(`[autopilota] ${id} si ferma a fine turno: stiamo installando un aggiornamento`)
+      // 0.84.1: segnato anche chi non era «al lavoro» quando è arrivato «Installa», così al ritorno riparte.
+      if (conSessione.fermatoPerAggiornamento !== true && conSessione.stato === 'lavoro') salva({ ...conSessione, fermatoPerAggiornamento: true })
       return {}
     }
 
@@ -3974,6 +4010,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const attiva = typeof corpo === 'object' && corpo !== null
             ? (corpo as Record<string, unknown>).attiva !== false
             : true
+          installaInCorso = attiva
           let toccati = 0
           for (const a of deps.archivio.elenca()) {
             if (attiva) {
@@ -3996,6 +4033,33 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // «Aggiorna adesso» (0.84.1): prima di installare senza aspettare la
+        // fine dei turni, il lavoro di ogni chat si salva con un commit sul suo
+        // ramo `ap/…` (solo nella sua copia: `salvaLavoro` rifiuta il resto).
+        // Al ritorno la chat riprende dal ramo, senza niente perso.
+        if (metodo === 'POST' && percorso === '/salva-per-aggiornamento') {
+          let salvate = 0
+          let provate = 0
+          if (deps.git !== undefined) {
+            const viste = new Set<string>()
+            for (const a of deps.archivio.elenca()) {
+              for (const c of a.chats) {
+                if (c.stato === 'finita' || c.cartella === undefined || viste.has(c.cartella)) continue
+                viste.add(c.cartella)
+                provate += 1
+                try {
+                  if (await salvaLavoroAsincrono(gitA(deps.git), c.cartella, `autopilota ${a.nome}: ${c.compito.slice(0, 60)} (salvato prima dell'aggiornamento)`)) salvate += 1
+                } catch (err) {
+                  console.warn(`[autopilota] ${a.id}::${c.id} lavoro non salvato prima dell'aggiornamento:`, err)
+                }
+              }
+            }
+          }
+          console.info(`[autopilota] «Aggiorna adesso»: ${salvate} copie salvate con un commit su ${provate}`)
+          rispondi(res, 200, { salvate, provate })
+          return
+        }
+
         if (metodo === 'POST' && percorso === '/gestore-avviato') {
           // Il Gestore e' tornato: qualunque pausa per aggiornamento e' finita,
           // che l'aggiornamento sia avvenuto o no. Se l'app e' morta fra la
@@ -4003,6 +4067,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // questo processo sopravvive al Gestore e la sola strada che lo
           // toglieva era la sua ripartenza, che non arrivava — con gli
           // autopiloti fermi e il pannello a dire «al lavoro».
+          installaInCorso = false
           let tolti = 0
           for (const a of deps.archivio.elenca()) {
             if (a.fermatoPerAggiornamento !== true) continue

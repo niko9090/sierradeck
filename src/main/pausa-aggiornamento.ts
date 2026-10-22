@@ -91,7 +91,10 @@ export function testoAttesa(restano: ChatInVolo[], daQuantoMs: number): { testo:
     ? `aggiorno appena finisce: 1 chat al lavoro (${nomi[0]})`
     : `aggiorno appena finiscono: ${n} chat al lavoro (${nomi.slice(0, 3).join(', ')}${n > 3 ? ', …' : ''})`
   const lungo = daQuantoMs >= AVVISO_LUNGO_MS && restano.some((c) => c.governata !== true)
-  return { testo: lungo ? `Aspetto da ${Math.round(daQuantoMs / 60_000)} minuti: ${base}` : base, lungo }
+  // 0.84.1: da quanto si aspetta si vede subito, dal primo minuto, non solo dopo venti.
+  const minuti = Math.round(daQuantoMs / 60_000)
+  if (lungo) return { testo: `Aspetto da ${minuti} minuti: ${base}`, lungo }
+  return { testo: minuti >= 1 ? `${base}, aspetto da ${minuti} min` : base, lungo }
 }
 
 /** Ogni quanto si torna a guardare se sono ferme. */
@@ -241,6 +244,13 @@ export async function attendiQuiete(p: {
   tetto?: number
   /** Il testo dell'attesa (`testoAttesa`), a ogni giro. */
   avvisaTesto?: (testo: string, lungo: boolean) => void
+  /**
+   * «Aggiorna adesso» (0.84.1): vero quando Nicholas non vuole più aspettare la
+   * fine dei turni. Si smette di aspettare, si salva il lavoro (`salvaSubito`,
+   * un commit sul ramo di ogni chat), si annota chi era a metà e si installa.
+   */
+  subito?: () => boolean
+  salvaSubito?: () => Promise<void>
 }): Promise<boolean> {
   const adesso = p.adesso ?? ((): number => Date.now())
   const aspetta = p.aspetta ?? ((ms: number): Promise<void> => new Promise((r) => { setTimeout(r, ms) }))
@@ -284,6 +294,26 @@ export async function attendiQuiete(p: {
     const restano = inVolo(p.chat())
     if (restano.length === 0) {
       p.annota(pausaDaSalvare(allInizio, p.versione))
+      return true
+    }
+    if (p.subito?.() === true) {
+      // Gli autopiloti sono già in pausa e le chat avvisate: resta da mettere
+      // al sicuro il lavoro non salvato e da ricordare chi riprendere al
+      // ritorno — anche le chat avvisate dopo l'inizio dell'attesa.
+      try {
+        await p.salvaSubito?.()
+      } catch (err) {
+        console.warn('[aggiornamenti] «Aggiorna adesso»: lavoro delle chat non salvato:', err)
+      }
+      const sessioni = new Set<string>()
+      const aMeta = [...allInizio, ...restano].filter((c) => {
+        const k = c.sessione ?? c.id
+        if (sessioni.has(k)) return false
+        sessioni.add(k)
+        return true
+      })
+      p.annota(pausaDaSalvare(aMeta, p.versione))
+      console.info(`[aggiornamenti] «Aggiorna adesso»: installo senza aspettare ${restano.length} chat`)
       return true
     }
     p.avvisa(restano.length)
