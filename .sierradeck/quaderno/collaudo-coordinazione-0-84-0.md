@@ -66,3 +66,36 @@ nuovo tentativo, per la consegna «chiudi» persa.
 Ramo c-66 verde (servizio, renderer, condivisi, pty: 2978 test; `tsc` pulito), ultimo commit di codice `9f48c392`, aspetta la Revisione; c-68 ha le stesse correzioni: se ne unisce uno solo. Resta per la 0.84.1 il punto 2 della riga 5 (segnale in vista su pagina e app), non cominciato qui per non mescolarlo a un ramo in Revisione.
 
 22/10, dopo l'installazione della 0.84.0: suite rilanciata sul ramo, ancora verde (272 file, 2978 test; `tsc` pulito). Il ramo torna alla Revisione.
+
+## 22/10 — domande dagli altri PC (c-628): lavoro a metà, messo da parte
+
+La consegna c-634 vuole questa correzione da una chat nuova partita da main,
+non su c-66. Il lavoro fatto qui è nel ramo locale
+`wip/domande-altri-pc-c628` (un commit, padre c-66): **non provato**, `tsc` pulito.
+Tocca solo file che c-66 non tocca e si applica pulito sopra main
+(`git cherry-pick wip/domande-altri-pc-c628`). La cartella di c-66 è tornata
+al commit verde.
+
+Cosa c'è già:
+- il battito porta `sceltaDomanda` e `sceltaContesto` (5 righe al massimo),
+  letti dallo schermo con `domandaDelloSchermo` in `src/shared/domande-telefono.ts`.
+  La domanda è fra la riga di bordo e l'opzione 1; il contesto sono le righe
+  sopra il bordo;
+- la scheda mostra prima la domanda e il contesto, poi progetto e PC. La frase
+  fissa non c'è più;
+- le etichette sono solo da mostrare (`etichetta`): «Scrivo io la risposta» e
+  «Ne parlo nella chat». Il tocco manda sempre il `testo` originale, che il PC
+  remoto ricontrolla sul suo schermo;
+- senza testo, la scheda non si mostra a metà: al suo posto c'è il tasto
+  «Apri la chat su <PC>» (`apri`), su PC (`src/renderer/apri-chat-altro-pc.ts`),
+  pagina (`pdApriChat`) e app (`api.apriChatProgetto`).
+
+Cosa manca:
+- i test con il caso vero, con un nome di PC finto;
+- `gradle testDebugUnitTest assembleDebug`;
+- vitest;
+- il ricontrollo delle domande già nella scheda.
+
+Attenzione all'ordine di unione di c-634: c-68 e c-66 hanno le stesse
+correzioni D1-D4. Se c-68 entra per primo, c-66 va unito risolvendo i conflitti
+a favore di main, oppure chiuso perché doppio.
