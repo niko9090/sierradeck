@@ -378,7 +378,23 @@ export function domandeNuove(conversazioni: Conversazione[], viste: ReadonlySet<
  * dalla 0.39.1 non aprono piu' la colonna.
  */
 function dellaColonna(c: Conversazione): boolean {
-  return c.tipo !== 'autopilota' || c.autopilota === undefined
+  return !haLinguetta(c)
+}
+
+/**
+ * Le domande del programma stesso (0.84.1) hanno un «autopilota» finto,
+ * `sierradeck:<cosa>` («sierradeck:al-telefono», «sierradeck:rimozione»…):
+ * non c'e' una scheda con la sua linguetta «Domande». Il 21/10 finivano lo
+ * stesso fra le linguette, e il PC rifiutava di mostrarle («id di autopilota
+ * deve essere alfanumerico»): stanno nella colonna, come quelle delle chat.
+ */
+export function eDomandaDelProgramma(autopilota: string): boolean {
+  return autopilota.startsWith('sierradeck:')
+}
+
+/** Una conversazione che si risponde nella linguetta «Domande» di un autopilota vero. */
+export function haLinguetta(c: Pick<Conversazione, 'tipo' | 'autopilota'>): c is Pick<Conversazione, 'tipo'> & { autopilota: string } {
+  return c.tipo === 'autopilota' && c.autopilota !== undefined && !eDomandaDelProgramma(c.autopilota)
 }
 
 /**
@@ -428,7 +444,7 @@ export function decidiColonnaDomande(p: {
     ...(p.avvio ? inAttesa : [])
   ]
   for (const c of daMostrare) {
-    if (c === undefined || dellaColonna(c) || c.autopilota === undefined) continue
+    if (c === undefined || !haLinguetta(c)) continue
     if (!linguette.includes(c.autopilota)) linguette.push(c.autopilota)
   }
   return {
@@ -450,7 +466,7 @@ export function azioneTastoDomande(conversazioni: Conversazione[], aperta: boole
   if (aperta) return { tipo: 'colonna' }
   const chiedono = conversazioni.filter((c) => c.chiede)
   const primo = chiedono[0]
-  if (primo !== undefined && primo.autopilota !== undefined && chiedono.every((c) => !dellaColonna(c))) {
+  if (primo !== undefined && haLinguetta(primo) && chiedono.every((c) => !dellaColonna(c))) {
     return { tipo: 'linguetta', autopilota: primo.autopilota }
   }
   return { tipo: 'colonna' }

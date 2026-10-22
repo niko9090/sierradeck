@@ -106,6 +106,29 @@ export type StoriaRemota = {
   scritto?: string
 }
 
+/**
+ * Lo schermo come arriva da quel PC, messo in forma (0.84.1). Il 21/10 un
+ * riquadro remoto si e' rotto due volte («reading 'join'»): la risposta non
+ * aveva `grezze`. Un PC di un'altra versione, o una strada che risponde a
+ * meta', non deve far cadere la finestra: senza `grezze` valgono le righe
+ * pulite, senza nemmeno quelle lo schermo e' vuoto.
+ */
+export function storiaRemotaSicura(x: unknown, chat: string): StoriaRemota {
+  const o = (typeof x === 'object' && x !== null ? x : {}) as Record<string, unknown>
+  const testi = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((r): r is string => typeof r === 'string') : undefined)
+  const righe = testi(o.righe) ?? []
+  const grezze = testi(o.grezze) ?? righe
+  const totale = typeof o.totale === 'number' && Number.isFinite(o.totale) ? o.totale : grezze.length
+  const da = typeof o.da === 'number' && Number.isFinite(o.da) ? o.da : Math.max(0, totale - grezze.length)
+  const scelte = o.scelte as StoriaRemota['scelte'] | null | undefined
+  return {
+    chat: typeof o.chat === 'string' ? o.chat : chat,
+    totale, da, righe, grezze,
+    ...(typeof scelte === 'object' && scelte !== null && Array.isArray(scelte.opzioni) ? { scelte } : {}),
+    ...(typeof o.scritto === 'string' ? { scritto: o.scritto } : {})
+  }
+}
+
 /** Quel PC come lo vede il riquadro: il battito, se e' acceso, l'indirizzo che ha risposto. */
 export type PcRemoto = {
   pcId: string

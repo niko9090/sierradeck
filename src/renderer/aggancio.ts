@@ -1,5 +1,6 @@
 import type { HostToCore } from '@shared/protocol'
 import { leggiChatAltrove, type ChatAltrove } from '@shared/posta'
+import { leggiChiusaSenzaCartella, type ChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
 
 export type AggancioDeps = {
   /** Il pty a cui riagganciarsi. `undefined` significa «rilancia subito». */
@@ -22,6 +23,12 @@ export type AggancioDeps = {
    * terminale in rosso come tutti gli altri.
    */
   suAltrove?: (c: ChatAltrove) => void
+  /**
+   * La chat era chiusa (o nel recupero) e la sua cartella non c'e' piu'
+   * (0.84.1): niente da avviare, il riquadro si toglie. Senza, l'errore va
+   * nel terminale come gli altri.
+   */
+  suChiusaSenzaCartella?: (c: ChiusaSenzaCartella) => void
   /**
    * Com'e' finita: claude.exe uscito, un errore dell'host, lo spawn
    * rifiutato. Il riquadro ne fa la diagnosi (`diagnosi-chat.ts`); senza,
@@ -115,6 +122,8 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
         if (chiuso || ceduto) return
         const altrove = leggiChatAltrove(err)
         if (altrove !== undefined && deps.suAltrove !== undefined) { deps.suAltrove(altrove); return }
+        const chiusa = leggiChiusaSenzaCartella(err)
+        if (chiusa !== undefined && deps.suChiusaSenzaCartella !== undefined) { deps.suChiusaSenzaCartella(chiusa); return }
         // Senza questo ramo un rigetto sarebbe una unhandled rejection visibile
         // solo negli strumenti di sviluppo, mai nel riquadro.
         deps.scrivi(`\r\n\x1b[31m[avvio del terminale fallito: ${String(err)}]\x1b[0m\r\n`)

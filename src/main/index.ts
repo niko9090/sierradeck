@@ -169,9 +169,11 @@ import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
-import { trovaChatRemota, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
+import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
+import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
+import { trovaChatRemota, storiaRemotaSicura, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
-import { impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
+import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
@@ -1236,6 +1238,14 @@ if (!app.requestSingleInstanceLock()) {
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
       impostaAllaRiapertura((s) => chiuse.togli(s))
+      // 0.84.1: una chat chiusa, nel recupero o finita con la cartella tolta
+      // non riparte a ogni cambio di workspace (c-34, 18 volte il 21-22/10).
+      impostaChiusaSenzaCartella(async (sessione, cwd) => motivoChiusaSenzaCartella({
+        cartellaEsiste: existsSync(cwd),
+        chiusa: chiuse.elenco().some((c) => c.sessione === sessione),
+        nelRecupero: (gestioneChatGlobale?.recupero().chat ?? []).some((c) => c.sessione === sessione),
+        finitaDiAutopilota: eFinitaDiAutopilota(await clientAutopilota.elenca().catch(() => []), sessione)
+      }))
       /** Chiude una chat in sottofondo perché l'hai chiesto tu (0.60.9): è una chiusura voluta. */
       const chiudiSottofondoDaTe = (sessione: string, da: string): boolean => {
         const titolo = sottofondo?.chat().find((c) => c.sessione === sessione)?.titolo
@@ -2207,9 +2217,9 @@ if (!app.requestSingleInstanceLock()) {
           })
         }, pc))
       ipcMain.handle('remoto:storia', (_e, pc: unknown, chat: unknown, da: unknown, quante: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/storia', {
+        esitoRemoto(async () => storiaRemotaSicura(await remoto.chiama(testo(pc), '/api/storia', {
           chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
-        }), pc))
+        }), testo(chat)), pc))
       // L'id del messaggio (0.51.0): rimandato dopo una caduta, quel PC non lo scrive due volte.
       ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown, id: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t), ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}) }), pc))
@@ -4925,6 +4935,9 @@ if (!app.requestSingleInstanceLock()) {
         apriPannello(id, 'domande', { inattiva: automatico })
       }
       ipcMain.handle('pannello:mostraDomande', (e, id: unknown, automatico: unknown) => {
+        // Le domande del programma («sierradeck:al-telefono»…) non hanno una
+        // scheda: stanno nella colonna, qui non c'e' niente da mostrare (0.84.1).
+        if (typeof id === 'string' && eDomandaDelProgramma(id)) return
         const ap = validaIdAutopilota(id)
         const chiedente = BrowserWindow.fromWebContents(e.sender)?.id
         if (automatico !== true) { mostraDomande(ap, false, chiedente); return }
