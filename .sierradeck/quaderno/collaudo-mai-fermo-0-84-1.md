@@ -64,3 +64,14 @@ per minuto, su tempi lunghi.
 La prova di 2 ore nella copia di prova la sta facendo c-72 (numeri a metà nel
 commit `c0576f48`, sul suo ramo). Non ne ho fatta una seconda in parallelo: due
 copie di prova insieme si contendono il PC e falserebbero i numeri.
+
+## Trappola: la Revisione e `node_modules`
+
+Il 22/10 la Revisione ha respinto questo ramo («test e TypeScript rotti») senza
+nessun difetto nel codice: a fine lavoro avevo tolto con `rmdir` la giunzione
+`node_modules` dalla copia, e la Revisione misura i criteri **nella copia della
+chat**. Senza la giunzione `vitest` e `tsc` non partono. Con il ramo portato su
+main (`e7a67471`) e la giunzione rimessa: TypeScript pulito, 3051 test verdi più
+i 2 `.fails`. Era già successo a c-70. Finché il ramo aspetta la Revisione, la
+giunzione resta; si toglie (sempre con `rmdir`, mai una cancellazione ricorsiva)
+quando la chat viene chiusa.
