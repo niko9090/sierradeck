@@ -306,6 +306,8 @@ export function avviaServizio(): void {
     fermaLavoro: (id, chatId, chi) => lavori.ferma(id, chatId, chi),
     // 0.82.0: quante chat lavorano insieme lo decide questo PC; le finite si chiudono da sole.
     misuraPc: creaMisuratore(),
+    // 0.84.2: niente freno sui limiti del piano, li guarda Nicholas (22/10).
+    frenoPiano: false,
     chiudiChat: (id, chatId, chi) => { lavori.chiudi(id, chatId, chi) },
     avvisa,
     primaDiSpegnere: () => avvisa.svuotaOra(),

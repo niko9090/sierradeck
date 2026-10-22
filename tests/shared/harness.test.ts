@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import {
+import { frenoPerAutopiloti,
   alberoChat, comeConsegnare, frenoDaiLimiti, pianoPubblicazione, quanteChat, regolaPubblicazione, rilevaCloud, SOGLIE_FRENO
 } from '@shared/harness'
 import { nuovoAutopilota, parseAutopilota, TETTO_CHAT_MAX } from '@shared/autopilota'
+import { tettoDellaFlotta } from '../../src/autopilot-host/flotta'
 
 const ORA = Date.parse('2026-09-30T12:00:00Z')
 
@@ -119,5 +120,24 @@ describe('l albero delle chat (T7)', () => {
     expect(t).toMatchObject({ tipo: 'coordinatore', titolo: 'Sito', parola: 'coordina' })
     expect(t.figli.map((f) => f.parola)).toEqual(['al lavoro', 'in pausa per i limiti del piano'])
     expect(t.figli[0]?.ramo).toBe('ap/a1/c-1')
+  })
+})
+
+// 0.84.2, caso vero del 22/10: settimana al 64%, nessuna chat al lavoro, otto
+// compiti in coda e nessuna chat aperta per ore. Nicholas: «togli i vincoli, a
+// quelli penso io se stiamo consumando troppo».
+describe('frenoPerAutopiloti', () => {
+  const limiti = { cinqueOre: { percento: 9 }, settimana: { percento: 64 } }
+  it('acceso, la settimana al 64% con nessuna chat al lavoro lascia passare solo le revisioni', () => {
+    const f = frenoPerAutopiloti(true, limiti, Date.now())
+    expect(f.apriNuove).toBe(false)
+    expect(tettoDellaFlotta(f, 0, TETTO_CHAT_MAX)).toEqual({ tetto: 1, soloRevisioni: true })
+  })
+  it('spento, la settimana al 64% non toglie chat: si aprono tutte quelle utili', () => {
+    for (const p of [64, 85, 99]) {
+      const f = frenoPerAutopiloti(false, { cinqueOre: { percento: p }, settimana: { percento: p } }, Date.now())
+      expect(f.apriNuove).toBe(true)
+      expect(tettoDellaFlotta(f, 0, TETTO_CHAT_MAX)).toEqual({ tetto: TETTO_CHAT_MAX, soloRevisioni: false })
+    }
   })
 })

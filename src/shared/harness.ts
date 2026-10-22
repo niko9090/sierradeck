@@ -72,6 +72,17 @@ const ora = (ms: number): string => {
 /** Quanti specialisti insieme finché i limiti del piano non si sono letti (0.76.0). */
 export const TETTO_SENZA_LIMITI = 2
 
+/**
+ * Il freno che usano gli autopiloti (0.84.2). Spento, i limiti del piano non
+ * tolgono più chat: li guarda Nicholas («togli i vincoli, a quelli penso io»,
+ * 22/10). Il 22/10, con la settimana al 64% e nessuna chat al lavoro, non
+ * partiva più niente per ore.
+ */
+export function frenoPerAutopiloti(acceso: boolean, limiti: LimitiPiano | undefined, adesso: number): Freno {
+  if (acceso) return frenoDaiLimiti(limiti, adesso)
+  return { livello: 'pieno', tetto: TETTO_CHAT_MAX, apriNuove: true, motivo: 'freno sui limiti del piano spento: i consumi li guarda Nicholas' }
+}
+
 export function frenoDaiLimiti(limiti: LimitiPiano | undefined, adesso: number): Freno {
   const finestre: { nome: string; f: FinestraPiano; nota: string }[] = []
   // La stessa lettura della console (0.37.0): una finestra azzerata non frena

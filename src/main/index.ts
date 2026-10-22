@@ -121,7 +121,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { preparaConsegna } from '@shared/consegna-breve'
 import { nelRecuperoQuandoChiusa } from './agente-finito'
 import { scriviFileConsegna } from './consegne-file'
-import { frenoDaiLimiti, testoFreno } from '@shared/harness'
+import { frenoPerAutopiloti, testoFreno } from '@shared/harness'
 import { aggiungiWorkspace, creaWorkspace, eliminaWorkspace } from './workspace-operazioni'
 import type { SessionSummary } from '@shared/types'
 import { apriImpostazioniStore } from './impostazioni-store'
@@ -521,7 +521,7 @@ function arricchisciConsumi(c: Consumi): Consumi {
       }
     })
   // Il freno degli autopiloti con questi stessi limiti: la funzione del servizio.
-  const f = frenoDaiLimiti(limitiPerFreno(limiti), adesso)
+  const f = frenoPerAutopiloti(false, limitiPerFreno(limiti), adesso) // 0.84.2: freno spento (Nicholas, 22/10)
   const freno = { ...f, ...testoFreno(f) }
   return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno }
 }

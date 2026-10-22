@@ -60,7 +60,7 @@ import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MA
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
-import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
+import { comeConsegnare, frenoPerAutopiloti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS, tettoNeiPosti } from './posti'
@@ -195,6 +195,14 @@ export type Dipendenze = {
    * massimo, come prima.
    */
   misuraPc?: () => MisuraPc
+  /**
+   * Il freno sui limiti del piano (0.81.0). Spento nel servizio vero dal 22/10
+   * (0.84.2): «togli i vincoli, a quelli penso io se stiamo consumando troppo»
+   * (Nicholas). Con il freno, a settimana al 64% e nessuna chat al lavoro,
+   * non partiva più niente per ore. La lettura dei limiti resta visibile.
+   * Assente (test): acceso, come prima.
+   */
+  frenoPiano?: boolean
   /**
    * Chiude una chat finita e ferma al prompt (0.82.0): il suo claude.exe si
    * spegne, il riquadro si chiude, la conversazione resta. Assente: non si
@@ -707,7 +715,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /** Quando è partito questo servizio (0.84.1): dopo un riavvio i segnali in memoria non ci sono, il silenzio si conta da qui. */
   const avvioServizio = Date.parse(deps.adesso())
   /** T2: quanto lavoro in parallelo concede il piano, adesso. */
-  const frenoAdesso = (): Freno => frenoDaiLimiti(statoProgramma?.limiti, Date.parse(deps.adesso()))
+  const frenoAdesso = (): Freno => frenoPerAutopiloti(deps.frenoPiano !== false, statoProgramma?.limiti, Date.parse(deps.adesso()))
   /**
    * 0.82.0: quante chat degli autopiloti lavorano insieme su questo PC. Si
    * ricalcola a ogni giro del guardiano (un minuto) dalla misura del PC; fra un
