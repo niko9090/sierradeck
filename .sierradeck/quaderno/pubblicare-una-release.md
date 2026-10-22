@@ -85,3 +85,6 @@ Si puo': vedi `build-sul-portatile.md`. Due differenze: Smart App Control blocca
   5. `gh release edit vX --draft=false --latest`.
 - **Verifica:** `gh release view vX --json isDraft,assets` (5 allegati «uploaded») e un curl su `releases/latest/download/latest.yml` e su `app-android.json`.
 - **La guardia delle cancellazioni** rifiuta percorsi su unità `subst` (`R:`) e con variabili (`$P/...`): scrivere il percorso vero per intero.
+- **0.84.1 (22/10, c-79): stessa procedura, liscia in 15 minuti** (5 per l'installer, 5 per l'APK). Il tag può stare su un commit che non è in `origin/main`: da settimane il main remoto è fermo alla 0.80.0 e si spinge **solo il tag**. Prima del tag conviene unire main nel ramo della release, perché altre chat continuano a unire quaderno.
+- **Trappola dei testi del quaderno scritti dalla shell:** un `node -e "…"` fra virgolette doppie con dentro dei backtick Markdown (`` `latest.yml` ``) fa eseguire alla shell ogni pezzo fra backtick come comando (il 22/10 ha provato a lanciare `npm run build\` e simili, senza danni). Per i testi con backtick usare lo strumento Edit, mai la shell.
+- **Togliere la junction `node_modules` dalla copia** con `rmdir` (cancella solo il collegamento) appena finito: se la copia viene cancellata con la junction dentro, si rischia di svuotare la `node_modules` della cartella principale.

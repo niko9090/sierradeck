@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.84.1',
+    righe: [
+      '**L’autopilota non resta più fermo con il lavoro da finire:** se da 10 minuti nessuna sua chat lavora, fa un giro da solo. Una chat zitta viene interrotta e riceve di nuovo l’ultima istruzione; se resta muta, il suo compito passa a una chat nuova sullo stesso ramo e la vecchia va nel recupero di 30 giorni. «Finito» arriva solo quando non c’è più nessuna chat aperta. Vale anche dopo un riavvio.',
+      '**Domande dalle chat degli altri PC complete:** la domanda intera, qualche riga di contesto, il progetto e il PC, e le scelte in italiano («Scrivo io la risposta», «Ne parlo nella chat»). Se il testo non arriva c’è il tasto «Apri la chat su …». Uguale sul PC, sulla pagina e nell’app.',
+      '**Le risposte dal riquadro delle Domande sono controllate:** il PC della chat verifica che la scelta sia stata presa davvero e, se no, riprova una volta da solo. Vedi «Presa» oppure «Non presa», e ogni pressione resta nel registro.',
+      '**«Aggiorna adesso»:** mentre l’aggiornamento aspetta che le chat finiscano, il tasto salva il lavoro di ogni chat, le mette in pausa e installa subito (sul PC e sulla pagina del telefono). Dopo «Installa» l’autopilota non dà più consegne nuove, e l’attesa dice da quanti minuti aspetta. L’installazione parte sempre e solo da un tuo tasto.',
+      '**Meno intoppi:** «Riprendi» non riapre più le chat già concluse, una conversazione ripristinata non si richiude da sola, il riquadro di una chat di un altro PC non si rompe più, le domande del programma compaiono nella colonna delle Domande e una chat finita con la cartella tolta non prova più a ripartire.',
+    ]
+  },
+  {
     versione: '0.84.0',
     righe: [
       '**Gli autopiloti non si fermano più da soli:** una chat in attesa di giudizio non blocca più le altre (prima i messaggi potevano arrivare con ore di ritardo), salvare e unire i rami non ferma più il servizio, e un servizio che non riparte non viene riavviato a raffica.',
