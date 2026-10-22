@@ -6036,6 +6036,7 @@ if (!app.requestSingleInstanceLock()) {
         // Installare chiude il programma con le chat aperte dentro: dal telefono
         // la pagina lo chiede due volte, come al computer.
         installaAggiornamento: () => { void aggiornamenti?.installa() },
+        aggiornaAdesso: () => { void aggiornamenti?.aggiornaAdesso(true) },
         // Prima di «Installa» il telefono mostra le stesse note del PC (0.39.0).
         noteAggiornamento: async () => aggiornamenti?.note(),
         caricaIstantanea: async (nome: string) => {
@@ -6637,7 +6638,7 @@ if (!app.requestSingleInstanceLock()) {
         // **Non si installa sopra un lavoro in corso.** Si avvisa, si aspetta
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
-        async (avvisa): Promise<EsitoQuiete> => {
+        async (avvisa, subito): Promise<EsitoQuiete> => {
           // Prima il Drive, e il suo esito conta: prima veniva buttato via con
           // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
           const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
@@ -6666,6 +6667,12 @@ if (!app.requestSingleInstanceLock()) {
             // aspetta fino a due ore: dieci minuti non bastavano mai con gli
             // autopiloti al lavoro. Mai un'installazione da sola (0.69.0).
             tetto: ATTESA_INSTALLA_MS,
+            // «Aggiorna adesso» (0.84.1): niente più attesa; prima un commit sul ramo di ogni chat.
+            subito,
+            salvaSubito: async () => {
+              const r = await clientAutopilota.salvaPerAggiornamento()
+              registro.info(`[aggiornamenti] «Aggiorna adesso»: lavoro salvato con un commit in ${r.salvate} copie delle chat su ${r.provate}`)
+            },
             versione: app.getVersion()
           })
           return pronti ? { ok: true } : { ok: false, perche: 'in due ore le chat non hanno mai smesso di lavorare tutte insieme. Riprova quando hanno finito.' }
@@ -6700,6 +6707,7 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('aggiornamenti:cerca', () => aggiornamenti?.cerca())
       ipcMain.handle('aggiornamenti:scarica', () => aggiornamenti?.scarica())
       ipcMain.handle('aggiornamenti:installa', () => { void aggiornamenti?.installa() })
+      ipcMain.handle('aggiornamenti:aggiorna-adesso', () => { void aggiornamenti?.aggiornaAdesso() })
       ipcMain.handle('aggiornamenti:note', () => aggiornamenti?.note())
       // Riavviare come per un aggiornamento: si aspetta che le chat finiscano
       // il turno, si avvisa, e si riparte. Dopo «Porta qui» o una fusione le

@@ -58,6 +58,11 @@ export type StatoAggiornamento = {
    * 1 chat al lavoro («X»)». Lo stesso testo su PC, pagina e app.
    */
   attesaChat?: string
+  /**
+   * Nicholas ha premuto «Aggiorna adesso» (0.84.1): non si aspetta più la fine
+   * dei turni, si salva il lavoro delle chat e si installa. Il tasto sparisce.
+   */
+  subito?: boolean
   /** La versione che si può installare, quando ce n'è una. */
   versione?: string
   /**
@@ -95,6 +100,15 @@ export type Aggiornamenti = {
    * il tasto sul PC, dalla pagina o dall'app, o «Installa là» (0.69.0).
    */
   installa: () => Promise<void>
+  /**
+   * «Aggiorna adesso» (0.84.1): come «Installa», ma senza aspettare che le chat
+   * finiscano il turno. Durante l'attesa la interrompe; con la versione pronta
+   * fa partire l'installazione già senza attesa. Le chat vengono messe in pausa
+   * in sicurezza: gli autopiloti non danno più consegne, il lavoro di ogni chat
+   * si salva con un commit sul suo ramo e al ritorno tutte riprendono da lì.
+   * Solo per un'azione di Nicholas, mai da solo.
+   */
+  aggiornaAdesso: (dalTelefono?: boolean) => Promise<void>
   /**
    * Cosa cambia con la versione pronta (0.39.0): le note della nuova e delle
    * saltate, per la finestra di «Installa» sul PC e sul telefono.
@@ -216,7 +230,7 @@ export function creaAggiornamenti(
    * Assente - in prova, o senza finestre - vale «si puo'»: e' il
    * comportamento di prima, e senza chat da aspettare e' anche quello giusto.
    */
-  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void) => Promise<EsitoQuiete>,
+  attendiQuiete?: (avvisa: (a: AvvisoAttesa) => void, subito: () => boolean) => Promise<EsitoQuiete>,
   /**
    * Il registro su file. Fino alla 0.25.0 l'updater parlava solo alla
    * console, che in produzione nessuno legge: il 13 settembre un aggiornamento
@@ -321,6 +335,8 @@ export function creaAggiornamenti(
   let versioneScaricata: string | undefined
   /** Un'installazione per sessione: dopo, questo processo sta per morire comunque. */
   let installazioneAvviata = false
+  /** «Aggiorna adesso» premuto in questa installazione: l'attesa smette di aspettare. */
+  let subitoChiesto = false
   /**
    * Le note che l'aggiornamento porta con se' (`info.releaseNotes`): la riserva
    * se GitHub non risponde quando si apre la finestra di «Installa».
@@ -537,14 +553,15 @@ export function creaAggiornamenti(
         let esito: EsitoQuiete
         try {
           esito = await attendiQuiete((a) => {
-            annuncia({ ...stato, fase: 'attendo', ...(a.chatOccupate !== undefined ? { chatOccupate: a.chatOccupate } : {}), ...(a.attesa !== undefined ? { attesa: a.attesa } : {}), ...(a.attesaChat !== undefined ? { attesaChat: a.attesaChat } : {}) })
-          })
+            annuncia({ ...stato, fase: 'attendo', ...(subitoChiesto ? { subito: true } : {}), ...(a.chatOccupate !== undefined ? { chatOccupate: a.chatOccupate } : {}), ...(a.attesa !== undefined ? { attesa: a.attesa } : {}), ...(a.attesaChat !== undefined ? { attesaChat: a.attesaChat } : {}) })
+          }, () => subitoChiesto)
         } catch (err) {
           esito = { ok: false, perche: `l’attesa si è interrotta con un errore (${String(err)}).` }
         }
         if (!esito.ok) {
           nota(`la quiete non e arrivata: non installo (${esito.perche})`)
           installazioneAvviata = false
+          subitoChiesto = false
           try {
             await disfaPausa?.()
           } catch (err) {
@@ -555,6 +572,7 @@ export function creaAggiornamenti(
             fase: 'pronto',
             chatOccupate: undefined,
             attesa: undefined,
+            subito: undefined,
             errore: `Non ho installato: ${esito.perche}`
           })
           return
@@ -621,6 +639,7 @@ export function creaAggiornamenti(
               if (!vivo) {
                 guaio('l updater non si e fatto vivo: non chiudo niente')
                 installazioneAvviata = false
+                subitoChiesto = false
                 togliSegno()
                 // **Si disfa tutto quello che la quiete aveva fatto.** Gli
                 // autopiloti tornano a ricevere il compito seguente, il file
@@ -702,6 +721,27 @@ export function creaAggiornamenti(
       return note
     },
     installa: () => installaInterno(),
+    async aggiornaAdesso(dalTelefono = false) {
+      // Durante l'attesa della quiete: la si interrompe al prossimo controllo.
+      if (installazioneAvviata && stato.fase === 'attendo') {
+        if (subitoChiesto) return
+        subitoChiesto = true
+        nota(`AGGIORNA ADESSO chiesto${dalTelefono ? ' dal telefono' : ' dal PC'}: salvo il lavoro delle chat e installo senza aspettare`)
+        annuncia({ ...stato, subito: true })
+        return
+      }
+      // Con la versione pronta e nessuna attesa in corso: «Installa» senza attesa.
+      if (!installazioneAvviata && stato.fase === 'pronto') {
+        subitoChiesto = true
+        if (dalTelefono) daTelefono = true
+        nota(`AGGIORNA ADESSO chiesto${dalTelefono ? ' dal telefono' : ' dal PC'} con la ${stato.versione ?? '?'} pronta`)
+        await installaInterno()
+        // Non partita (stessa versione, già avviata): il prossimo «Installa» torna ad aspettare.
+        if (!installazioneAvviata) subitoChiesto = false
+        return
+      }
+      nota(`«Aggiorna adesso» ignorato: niente da installare o installazione gia in corso (fase ${stato.fase})`)
+    },
     nonInstallareAllaChiusura() {
       nota('riavvio senza installare: l aggiornamento pronto resta in attesa di «Installa»')
       autoUpdater.autoInstallOnAppQuit = false

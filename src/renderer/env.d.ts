@@ -350,6 +350,7 @@ declare global {
         cerca: () => Promise<void>
         scarica: () => Promise<void>
         installa: () => Promise<void>
+        aggiornaAdesso: () => Promise<void>
         note: () => Promise<NoteAggiornamento | undefined>
         suStato: (cb: (s: StatoAggiornamento) => void) => () => void
       }

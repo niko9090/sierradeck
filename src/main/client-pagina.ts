@@ -1854,7 +1854,7 @@ function impronta(s) {
     pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) + JSON.stringify(pdDati.residenza || []) + JSON.stringify((pdDati.rimozione || {}).stati || []) + JSON.stringify(pdDati.traslochi || []) : '',
     pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento, pdSpostaVerso,
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
-    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
+    aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.subito ? 's' : '') + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
     consumiVisti ? JSON.stringify(consumiVisti) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
@@ -2632,6 +2632,8 @@ function pannello(s) {
           ? '<button onclick="installaAggiornamento()">Cosa cambia e installa</button>' : ''}
         \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo'
           ? '<button disabled>' + (aggiornamentoVisto.attesa ? 'Aspetto il Drive…' : 'Aspetto le chat…') + '</button>' : ''}
+        \${aggiornamentoVisto && aggiornamentoVisto.fase === 'attendo' && !aggiornamentoVisto.subito
+          ? '<button onclick="aggiornaAdesso()">Aggiorna adesso</button>' + aiuto('aggiorna-adesso', 'Non aspetto che le chat finiscano il turno: salvo il loro lavoro sul loro ramo, le metto in pausa e installo adesso. Dopo il riavvio riprendono da sole.') : ''}
         \${!aggiornamentoVisto || ['fermo', 'aggiornato', 'errore', 'pronto', 'disponibile'].indexOf(aggiornamentoVisto.fase) >= 0
           ? '<button onclick="cercaAggiornamento()">Cerca ora</button>' : ''}
       </div>
@@ -4994,6 +4996,7 @@ function descriviAggiornamento() {
   // chat che stanno lavorando devono finire quello che hanno in mano. Senza
   // dirlo, da qui si vede un tasto premuto e nient'altro.
   if (a.fase === 'attendo') {
+    if (a.subito) return 'Salvo il lavoro delle chat e installo subito…'
     if (a.attesaChat && !a.attesa) return a.attesaChat.charAt(0).toUpperCase() + a.attesaChat.slice(1) + '.'
     if (a.attesa) return 'Aspetto che finisca ' + a.attesa + ', poi installo.'
     var quante = a.chatOccupate || 0
@@ -5727,6 +5730,12 @@ window.installaAggiornamento = async () => {
   } catch (e) {
     noteAgg = { note: [], avviso: 'Non sono riuscito a leggere le note dal computer: le trovi scritte per esteso su https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.' }
   }
+  pannello(ultimoStato)
+}
+// 0.84.1: «Aggiorna adesso», durante l'attesa delle chat. Lo preme solo Nicholas.
+window.aggiornaAdesso = async () => {
+  try { await chiedi('/api/aggiornamento/aggiorna-adesso', {}) } catch (e) { /* lo stato dice com'è andata */ }
+  await leggiAggiornamento()
   pannello(ultimoStato)
 }
 window.piuTardiAggiornamento = () => { noteAgg = null; pannello(ultimoStato) }

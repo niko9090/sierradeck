@@ -1899,6 +1899,20 @@ export function App(): React.JSX.Element {
               qui. Non chiudere le chat a mano: l’installazione parte da sola.
             </span>
           )}
+          <span style={{ flex: 1 }} />
+          {/* 0.84.1: senza aspettare la fine dei turni. Il lavoro delle chat si
+              salva con un commit sul loro ramo e al ritorno riprendono da lì. */}
+          {aggiornamento.subito === true ? (
+            <span>Salvo il lavoro delle chat e installo subito…</span>
+          ) : (
+            <button
+              className="tasto"
+              title="Non aspetto che le chat finiscano il turno: salvo il loro lavoro sul loro ramo, le metto in pausa e installo adesso. Dopo il riavvio riprendono da sole."
+              onClick={() => void window.gestore.aggiornamenti.aggiornaAdesso()}
+            >
+              Aggiorna adesso
+            </button>
+          )}
         </div>
       ) : null}
 

@@ -945,6 +945,7 @@ contextBridge.exposeInMainWorld('gestore', {
     cerca: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:cerca'),
     scarica: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:scarica'),
     installa: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:installa'),
+    aggiornaAdesso: (): Promise<void> => ipcRenderer.invoke('aggiornamenti:aggiorna-adesso'),
     /** Cosa cambia con l'aggiornamento pronto: per la finestra di «Installa». */
     note: (): Promise<NoteAggiornamento | undefined> => ipcRenderer.invoke('aggiornamenti:note'),
     suStato: (cb: (s: StatoAggiornamento) => void): (() => void) => {
