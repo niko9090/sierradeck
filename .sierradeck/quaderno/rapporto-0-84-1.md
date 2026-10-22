@@ -114,13 +114,61 @@ giro da solo non le tocca: ripartono quando il freno lo permette. La prova
 quindi misura il «mai fermo» su 2 chat attive, che è anche il caso più difficile:
 con meno chat è più facile che restino tutte zitte.
 
-**Numeri a metà (10:40).**
+**Numeri a metà (10:40, 64 minuti di prova).** Presi dal diario della prova e
+dall'archivio della copia, in sola lettura.
 
-_(da scrivere)_
+| Cosa | Quanto |
+|---|---|
+| Tratto più lungo con l'autopilota «al lavoro» e nessuna chat che lavora | **11 minuti** (10:17 → 10:28) |
+| Tratti oltre i 15 minuti | 0 |
+| Giri partiti da soli | 1 (10:28) |
+| Chat riprese (interrotte e con l'ultima istruzione) | 2 (c-1 e c-2) |
+| Chat sostituite da una chat nuova | 0 (tutte e due hanno ripreso a lavorare) |
+| Chat messe da parte (60 minuti) | 0 |
+| Doppioni | 0 |
+| Riavvio del servizio | 10:36, poi le chat riprese dalla ripresa d'avvio |
 
-**Numeri alla fine (11:40).**
+c-2 era muta dalle 09:39. Mentre c-1 lavorava, c-2 restava ad aspettare: la
+messa da parte scatta a 60 minuti. Alle 10:17 anche c-1 si è zittita, e da quel
+momento nessuna chat lavorava più. Alle 10:28 è partito il giro da solo, 11
+minuti dopo (10 di soglia, più il minuto del guardiano). Le due chat sono state
+interrotte e hanno ricevuto di nuovo l'ultima istruzione. Per c-2 sono 49
+minuti, quindi prima dei 60 della messa da parte. Tutte e due hanno ripreso a
+lavorare al turno dopo.
 
-_(da scrivere)_
+**Numeri alla fine (11:36, 120 minuti di prova).** Presi dalla misura della
+prova stessa, ogni 15 secondi (`esito-prova.json`).
+
+| Cosa | Quanto |
+|---|---|
+| Tratto più lungo con l'autopilota «al lavoro» e nessuna chat che lavora | **12 minuti** |
+| Tratti senza nessuna chat al lavoro | 3, tutti chiusi da un giro da solo |
+| Tratti oltre i 15 minuti | **0** |
+| Giri partiti da soli | 4 (3 «nessuno al lavoro», 1 per una chat già ripresa e ancora zitta) |
+| Riprese (chat rimesse al lavoro con l'ultima istruzione) | 7, di cui 5 con interruzione: le altre erano già ferme al prompt |
+| Chat sostituite da una chat nuova | 0 |
+| Chat messe da parte (60 minuti) | 0: il giro da solo è sempre arrivato prima |
+| Doppioni (lo stesso compito a due chat) | 0 |
+| «Finito» con chat aperte | 0 |
+| Chat simulate | 23 fine turno; 7 volte mute, 3 ferme al prompt, 0 morte |
+
+**Cosa non ha coperto la prova.**
+- **Il passaggio a una chat nuova.** Con il seme della prova nessuna chat è
+  diventata «morta», e ogni chat ripresa ha ripreso a lavorare. Il passaggio
+  lo provano i test (`mai-fermo-0-84-1.test.ts`, anche con lo stato della notte
+  dopo un riavvio).
+- **Il «finito».** I criteri sono diventati verdi a 112 minuti. La memoria dei
+  criteri, però, ricorda l'esito per commit, e nella prova il codice non cambia
+  mai: alla fermata delle 11:35 il criterio risultava ancora rosso. Dopo tanti
+  giri identici le regole hanno chiesto a Nicholas («Sono bloccato…»). Quella
+  chat è passata «bloccata», cioè in attesa di una persona: non è ferma per un
+  difetto. Nel programma vero un criterio cambia solo con un commit.
+
+**Visto nella prova, da guardare (non toccato, è fuori da questo lavoro).** Al
+riavvio del servizio (10:36) la ripresa d'avvio ha rimesso al lavoro anche c-3
+e c-4, che erano in pausa per il freno: `chatDaRiprendere` in `ripresa.ts`
+prende tutte le chat non finite. Dopo un turno il freno le ha rimesse in pausa,
+quindi non è un danno. Però è un turno che il freno non avrebbe permesso.
 
 ## 4. Le voci 0.84.1 ancora aperte
 
