@@ -1309,6 +1309,7 @@ function schedaDomandaHtml(s, k, tasto, campo) {
       (s.poi ? ' · poi ' + (s.poi === 1 ? 'un’altra' : 'altre ' + s.poi) : '') + (dettagli ? aiuto('sd-' + k, dettagli) : '') + '</div>' +
     '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
+    (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
     ((s.scelte || []).length ? '<div class="scelte">' + s.scelte.map(tasto).join('') + '</div>' : '') +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
     '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'

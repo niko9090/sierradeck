@@ -16,13 +16,15 @@ import type { PartiDomanda } from './domanda-strutturata'
  */
 
 /**
- * Una sigla di chat («c-12») o il ramo che la contiene («ap/ap-f1e631f5/c-12»).
- * Non dentro una parola («abc-12»), un percorso o un nome di file («c-310.log»).
+ * Una sigla di chat («c-12»), il ramo che la contiene («ap/ap-f1e631f5/c-12»)
+ * o l'id di un autopilota («ap-f1e631f5»): per Nicholas sono tutte sigle.
+ * Non dentro una parola («abc-12»), un percorso o un nome di file («c-310.log»);
+ * dopo la barra solo se prima c'è un'altra sigla («c-7/c-4», collaudo 0.84.0).
  */
-export const SIGLA_CHAT = /(?<![\p{L}\d_/.-])(?:ap\/ap-[0-9a-f]+\/)?(c-\d+)(?![\d\p{L}]|\.\p{L})/giu
+export const SIGLA_CHAT = /(?:(?<![\p{L}\d_/.-])|(?<=(?<![\p{L}\d_/.-])c-\d+\/))(?:ap\/ap-[0-9a-f]+\/)?(c-\d+|ap-[0-9a-f]{8})(?![\d\p{L}]|\.\p{L})/giu
 
 /** Riferimenti che chi legge da lontano non può risolvere (0.84.0). */
-export const RIFERIMENTI_VAGHI = /(?<![\p{L}])(l['’]altra chat|l['’]altro autopilota|quell['’]altra|quell['’]autopilota|quel pezzo|questo pezzo|quel lavoro|quella chat|quella parte|come detto|di cui sopra|vedi sopra)(?![\p{L}])/iu
+export const RIFERIMENTI_VAGHI = /(?<![\p{L}])(l['’]altra chat|l['’]altro autopilota|quell['’]altra|quell['’]autopilota|quel pezzo|questo pezzo|quel lavoro|questo lavoro|questo autopilota|quella cosa|questa cosa|quella chat|quella parte|come detto|di cui sopra|vedi sopra)(?![\p{L}])/iu
 
 /** La riga che Claude Code mette nella notifica di attesa: non è una domanda e non è italiano. */
 const NOTIFICA_CLAUDE = /^\s*(?:[a-z_]+:\s*)?Claude (?:is waiting for your input|needs your attention)\s*/i
@@ -81,14 +83,25 @@ export function nomeCompito(compito: string, max = 50): string {
 /**
  * Le sigle sostituite con il compito della chat: «chiudo le chat c-7 e c-4?»
  * diventa «chiudo le chat «Collaudo della gestione…» e «Interfaccia…»?». Una
- * sigla che il programma non conosce diventa «una chat precedente».
+ * sigla che il programma non conosce **resta** (collaudo 0.84.0): prima
+ * diventava «una chat precedente», che non dice quale lavoro, e la domanda
+ * passava il controllo; così il controllo la fa riscrivere.
  */
 export function senzaSigle(testo: string, chat: ChatConCompito[]): string {
-  return testo.replace(SIGLA_CHAT, (_tutto, id: string) => {
+  return testo.replace(SIGLA_CHAT, (tutto, id: string) => {
     const c = chat.find((x) => x.id.toLowerCase() === id.toLowerCase())
     const nome = c !== undefined ? nomeCompito(c.compito) : ''
-    return nome !== '' ? `«${nome}»` : 'una chat precedente'
+    return nome !== '' ? `«${nome}»` : tutto
   })
+}
+
+/**
+ * Per una domanda già risolta, che non si può più far riscrivere (collaudo
+ * 0.84.0): le sigle conosciute diventano il compito, quelle che il programma
+ * non conosce più si dicono a parole. Fra le risolte non resta nessuna sigla.
+ */
+export function senzaSigleMai(testo: string, chat: ChatConCompito[]): string {
+  return senzaSigle(senzaNotificaClaude(testo) || testo, chat).replace(SIGLA_CHAT, (_t, id: string) => (id.toLowerCase().startsWith('ap-') ? 'un altro autopilota' : 'una chat che non c’è più'))
 }
 
 /** La stessa domanda con le sigle sostituite in ogni parte. */

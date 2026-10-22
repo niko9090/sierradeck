@@ -129,6 +129,7 @@ fun SchedaDomandaVista(
         Spacer(Modifier.height(4.dp))
         SelectionContainer { Text(s.domanda, color = Banco.testo, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
         s.risposta?.let { Text("risposta dall’autopilota: $it", color = Banco.verde, fontSize = 12.sp) }
+        s.superata?.let { Text("chiusa senza risposta, non serve più: $it", color = Banco.testoQuieto, fontSize = 12.sp) }
         if (aperti) {
             Column(
                 Modifier.fillMaxWidth().padding(top = 6.dp).background(Banco.chassis, RoundedCornerShape(6.dp)).padding(8.dp)
