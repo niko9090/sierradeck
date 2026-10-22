@@ -103,6 +103,8 @@ export type DipendenzeRemoto = {
   attesaMs?: number
   /** Quanto si aspetta una richiesta di `ROTTE_LENTE` (0.60.2). */
   attesaLentaMs?: number
+  /** Quanto si aspetta una risposta di `ROTTE_CON_VERIFICA` (0.84.1): mai meno di `attesaMs`. */
+  attesaVerificaMs?: number
   log?: (m: string) => void
   /**
    * Altri indirizzi oltre al battito (0.39.3): quelli che hanno risposto in
@@ -178,6 +180,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const chiamaHttp = deps.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a))
   const attesaMs = deps.attesaMs ?? ATTESA_PREDEFINITA_MS
   const attesaLentaMs = deps.attesaLentaMs ?? ATTESA_LENTA_PREDEFINITA_MS
+  const attesaVerificaMs = Math.max(attesaMs, deps.attesaVerificaMs ?? ATTESA_VERIFICA_MS)
   const bussaMs = deps.bussaMs ?? BUSSA_PREDEFINITA_MS
   const log = deps.log ?? ((): void => {})
   const buoni = new Map<string, string>()
@@ -379,7 +382,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const ind = buoni.get(pcId)
       if (ind === undefined) return undefined
       const controllo = new AbortController()
-      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : ROTTE_CON_VERIFICA.includes(percorso) ? Math.max(attesaMs, ATTESA_VERIFICA_MS) : attesaMs
+      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : ROTTE_CON_VERIFICA.includes(percorso) ? attesaVerificaMs : attesaMs
       const timer = setTimeout(() => controllo.abort(), attesa)
       let risposta: Response
       try {
