@@ -114,9 +114,27 @@ giro da solo non le tocca: ripartono quando il freno lo permette. La prova
 quindi misura il «mai fermo» su 2 chat attive, che è anche il caso più difficile:
 con meno chat è più facile che restino tutte zitte.
 
-**Numeri a metà (10:40).**
+**Numeri a metà (10:40, 64 minuti di prova).** Presi dal diario della prova e
+dall'archivio della copia, in sola lettura.
 
-_(da scrivere)_
+| Cosa | Quanto |
+|---|---|
+| Tratto più lungo con l'autopilota «al lavoro» e nessuna chat che lavora | **11 minuti** (10:17 → 10:28) |
+| Tratti oltre i 15 minuti | 0 |
+| Giri partiti da soli | 1 (10:28) |
+| Chat riprese (interrotte e con l'ultima istruzione) | 2 (c-1 e c-2) |
+| Chat sostituite da una chat nuova | 0 (tutte e due hanno ripreso a lavorare) |
+| Chat messe da parte (60 minuti) | 0 |
+| Doppioni | 0 |
+| Riavvio del servizio | 10:36, poi le chat riprese dalla ripresa d'avvio |
+
+c-2 era muta dalle 09:39. Mentre c-1 lavorava, c-2 restava ad aspettare: la
+messa da parte scatta a 60 minuti. Alle 10:17 anche c-1 si è zittita, e da quel
+momento nessuna chat lavorava più. Alle 10:28 è partito il giro da solo, 11
+minuti dopo (10 di soglia, più il minuto del guardiano). Le due chat sono state
+interrotte e hanno ricevuto di nuovo l'ultima istruzione. Per c-2 sono 49
+minuti, quindi prima dei 60 della messa da parte. Tutte e due hanno ripreso a
+lavorare al turno dopo.
 
 **Numeri alla fine (11:40).**
 
