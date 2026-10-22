@@ -21,7 +21,7 @@ import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
-import { domandaInFondo } from '@shared/domande-telefono'
+import { domandaDelloSchermo, domandaInFondo } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
 import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
@@ -1913,7 +1913,12 @@ if (!app.requestSingleInstanceLock()) {
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
             titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
             ...(c.domanda !== undefined && guardianoPin?.protetta(c) !== true ? { domanda: c.domanda } : {}),
-            ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {})
+            ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })) } : {}),
+            // La domanda sopra le opzioni e quello che la chat aveva scritto prima (0.84.1).
+            ...(() => {
+              const d = s !== undefined ? domandaDelloSchermo(c.coda ?? [], s.opzioni[0]?.testo ?? '') : undefined
+              return d === undefined ? {} : { sceltaDomanda: d.domanda, ...(d.contesto.length > 0 ? { sceltaContesto: d.contesto } : {}) }
+            })()
           }
         }),
         // Il PIN delle chat (0.49.1): una persona che scrive dalla cassetta a una

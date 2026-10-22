@@ -97,7 +97,7 @@ import { leggiErroriDelTelefono, leggiInvioErrori, type InvioErrori, type VoceEr
 export type BattitoPcTelefono = {
   pcId: string; nome: string; host?: string; nomeScelto?: string; versione: string; battito: string
   cartelle: string[]
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; scelte?: OpzioneBattito[]; domanda?: string; sceltaDomanda?: string; sceltaContesto?: string[] }[]
 }
 
 export type VocePostaTelefono = {

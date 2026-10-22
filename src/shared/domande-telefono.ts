@@ -70,6 +70,17 @@ export type VoceDomanda =
       righe: string[]
       opzioni: OpzioneScelta[]
       corrente: number
+      /** Una chat di un altro PC (0.84.1): il suo nome, e la strada per arrivarci. */
+      pcNome?: string
+      viaPc?: string
+      /** Le righe scritte dalla chat prima del riquadro della domanda (0.84.1). */
+      contesto?: string[]
+      /**
+       * La chat da aprire su quel PC (0.84.1): quando il suo battito non porta
+       * la domanda, la scheda non mostra opzioni da scegliere alla cieca ma
+       * solo «Apri la chat su …».
+       */
+      apri?: { pcId: string; sessione: string }
     }
   | {
       tipo: 'chat'
@@ -143,6 +154,39 @@ export function contestoScelta(righePulite: string[], primaOpzione: string): str
   return nude.slice(inizio, taglio).filter((r) => r !== '')
 }
 
+/** Quante righe di contesto (quello che la chat aveva scritto prima) accompagnano una scelta di un altro PC. */
+export const RIGHE_CONTESTO_SCELTA = 5
+/** Quanto testo di una domanda a scelta viaggia nel battito, al massimo. */
+export const DOMANDA_SCELTA_MAX = 800
+
+/**
+ * La domanda di una scelta e le righe sopra di lei, per il battito (0.84.1).
+ *
+ * Nicholas, 22/10: una scelta da un altro PC mostrava solo «la chat aspetta
+ * che tu scelga» e le opzioni, senza la domanda. Il PC che ha la chat manda
+ * la domanda (l'intestazione e la domanda di un AskUserQuestion, o le righe
+ * sopra le opzioni) e le ultime righe scritte prima del riquadro. Se le
+ * opzioni non si trovano sullo schermo non si manda niente: meglio nessun
+ * testo che quello sbagliato.
+ */
+export function domandaDelloSchermo(righePulite: string[], primaOpzione: string): { domanda: string; contesto: string[] } | undefined {
+  const nude = righePulite.map(pulisci)
+  let taglio = -1
+  for (let i = nude.length - 1; i >= 0; i -= 1) {
+    const r = nude[i] ?? ''
+    if (NUMERATA.test(r) && r.replace(NUMERATA, '').trim() !== '' && r.includes(primaOpzione)) { taglio = i; break }
+  }
+  if (taglio < 0) return undefined
+  let bordo = -1
+  for (let i = taglio - 1; i >= 0; i -= 1) {
+    if (BORDO.test(righePulite[i] ?? '')) { bordo = i; break }
+  }
+  const domanda = nude.slice(bordo + 1, taglio).filter((r) => r !== '').join('\n').slice(0, DOMANDA_SCELTA_MAX).trim()
+  if (domanda === '') return undefined
+  const contesto = bordo < 0 ? [] : nude.slice(0, bordo).filter((r) => r !== '' && !BORDO.test(r)).slice(-RIGHE_CONTESTO_SCELTA).map((r) => r.replace(/^[●⏺•]\s*/, ''))
+  return { domanda, contesto }
+}
+
 /** Le ultime righe non vuote di uno schermo, pulite. */
 export function ultimeRighe(righePulite: string[]): string[] {
   return righePulite.map(pulisci).filter((r) => r !== '').slice(-RIGHE_DI_CONTESTO)
@@ -213,7 +257,7 @@ export type AltroPcPerDomande = {
   pcId: string
   nome: string
   vivo: boolean
-  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[] }[]
+  chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean; domanda?: string; scelte?:{ numero: number; testo: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[]; sceltaDomanda?: string; sceltaContesto?: string[] }[]
   /** La strada con cui questo computer arriva a quel PC (0.40.0), in due parole: la mostrano la pagina e l'app. */
   strada?: string
 }
@@ -298,13 +342,22 @@ export function raccogliDomande(p: {
       // Ferma su una domanda (0.52.6): le opzioni dal suo battito, da toccare
       // qui. La scelta passa dal ponte e quel PC la ricontrolla prima di premere.
       if (c.scelte !== undefined && c.scelte.length >= 2) {
+        // La domanda e il contesto dal suo battito (0.84.1). Senza la domanda
+        // (un PC più vecchio, uno schermo cambiato) niente scheda a metà:
+        // nessuna opzione da toccare alla cieca, solo «Apri la chat su …».
+        const domanda = (c.sceltaDomanda ?? '').trim()
+        const contesto = (c.sceltaContesto ?? []).filter((r) => r.trim() !== '').slice(-RIGHE_CONTESTO_SCELTA)
         fuori.push({
           tipo: 'scelta',
           chat: idChatAltroPc(pc.pcId, c.sessione),
           titolo: `${c.titolo || c.cwd} · su ${pc.nome}`,
           cwd: c.cwd,
-          righe: [`Su ${pc.nome}: la chat aspetta che tu scelga. Tocca un'opzione: la premo là, dopo aver ricontrollato che la domanda sia ancora quella.`],
-          opzioni: c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })),
+          pcNome: pc.nome,
+          ...(pc.strada !== undefined ? { viaPc: pc.strada } : {}),
+          righe: domanda !== '' ? domanda.split('\n') : [],
+          ...(contesto.length > 0 ? { contesto } : {}),
+          ...(domanda === '' ? { apri: { pcId: pc.pcId, sessione: c.sessione } } : {}),
+          opzioni: domanda === '' ? [] : c.scelte.map((o) => ({ numero: o.numero, testo: o.testo, scelta: false, ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}) })),
           corrente: 0
         })
         continue

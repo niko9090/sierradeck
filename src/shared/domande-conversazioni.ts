@@ -171,34 +171,56 @@ export function conversazioniDomande(p: {
     gia.add(chiave)
     const tuoi = (p.inviati?.[v.chat] ?? []).map((i) => ({ da: 'tu' as const, testo: i.testo, quando: i.quando }))
     const schermo = v.righe.join('\n').trim()
-    const chi = chiDi('chat', v.titolo || v.cwd, v.cwd, v.tipo === 'chat' ? v.pcNome : undefined)
+    // Una chat di un altro PC (0.84.1): il PC sta in fondo a «chi», non nel titolo.
+    const titoloChat = v.pcNome !== undefined ? (v.titolo || v.cwd).replace(` · su ${v.pcNome}`, '') : (v.titolo || v.cwd)
+    const chi = chiDi('chat', titoloChat, v.cwd, v.pcNome)
     if (v.tipo === 'scelta') {
       const { scelte, spiegazioni } = scelteDiChat(v.opzioni)
+      const contesto = (v.contesto ?? []).join('\n').trim()
+      const apri = v.apri !== undefined && v.pcNome !== undefined ? { ...v.apri, pcNome: v.pcNome, cwd: v.cwd, etichetta: `Apri la chat su ${v.pcNome}` } : undefined
+      // La domanda per intero sopra le scelte (0.84.1): l'intestazione di un
+      // AskUserQuestion («Punto della situazione») da sola non è una domanda.
+      const domandaNuda = schermo.split('\n').map((r) => r.replace(/^[☐☑☒◻◼✔]\s*/u, '').trim()).filter((r) => r !== '').join('\n')
+      const intestazione = domandaNuda.split('\n')[0] ?? ''
+      const conDomanda = domandaNuda.includes('?') ? fraseDomanda(domandaNuda) : ''
+      const frase = domandaNuda === ''
+        ? ''
+        : v.pcNome === undefined
+          ? fraseDomanda(schermo)
+          : conDomanda === ''
+          ? domandaNuda.replace(/\s*\n\s*/g, ' — ')
+          : !intestazione.includes('?') && intestazione.length <= 60 && !conDomanda.includes(intestazione) ? `${intestazione} — ${conDomanda}` : conDomanda
       fuori.push({
         chiave,
         tipo: 'chat',
-        titolo: v.titolo || v.cwd,
+        titolo: titoloChat,
         sotto: v.cwd,
         chiede: true,
         scheda: {
           chi,
-          domanda: schermo !== '' ? fraseDomanda(schermo) || 'Aspetta che tu scelga.' : 'Aspetta che tu scelga.',
+          domanda: apri !== undefined
+            ? `La chat su ${v.pcNome ?? 'un altro PC'} aspetta che tu scelga, ma la domanda non è arrivata: aprila per leggerla.`
+            : frase !== '' ? frase : 'Aspetta che tu scelga.',
           scelte,
-          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: 'Lo schermo della chat', testo: schermo }] : [])],
-          segnaposto: 'Oppure scrivile tu'
+          dettagli: [...(spiegazioni !== undefined ? [spiegazioni] : []), ...(schermo !== '' ? [{ etichetta: 'La domanda com’è scritta', testo: schermo }] : [])],
+          segnaposto: 'Oppure scrivile tu',
+          ...(contesto !== '' ? { contesto } : {}),
+          ...(apri !== undefined ? { apri } : {})
         },
         messaggi: [
           ...tuoi,
           {
             da: 'lui',
-            testo: schermo !== '' ? schermo : 'Aspetta che tu scelga una di queste opzioni.',
+            testo: [contesto, schermo].filter((x) => x !== '').join('\n\n') || (apri !== undefined ? `La domanda è sullo schermo della chat, su ${v.pcNome ?? 'un altro PC'}.` : 'Aspetta che tu scelga una di queste opzioni.'),
             tono: 'domanda',
-            opzioni: v.opzioni
+            ...(v.opzioni.length > 0 ? { opzioni: v.opzioni } : {})
           }
         ],
         risposta: { via: 'scrivi', chat: v.chat },
-        scelte: { chat: v.chat, opzioni: v.opzioni },
-        segnaposto: 'Tocca un’opzione qui sopra, oppure scrivile qualcosa'
+        ...(v.opzioni.length > 0 ? { scelte: { chat: v.chat, opzioni: v.opzioni } } : {}),
+        ...(v.pcNome !== undefined ? { suPc: v.pcNome } : {}),
+        ...(v.viaPc !== undefined ? { viaPc: v.viaPc } : {}),
+        segnaposto: v.opzioni.length > 0 ? 'Tocca un’opzione qui sopra, oppure scrivile qualcosa' : 'Scrivi alla chat: la risposta arriva nella sua casella'
       })
     } else if (v.chiede === true) {
       // Una domanda scritta (0.71.1): aspetta te, come una scelta.
