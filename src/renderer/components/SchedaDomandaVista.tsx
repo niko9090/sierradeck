@@ -53,6 +53,7 @@ export function SchedaDomandaVista({
       </div>
       <div className="scheda-domanda__domanda">{s.domanda}</div>
       {s.risposta !== undefined ? <div className="scheda-domanda__risposta">risposta dall’autopilota: {s.risposta}</div> : null}
+      {s.superata !== undefined ? <div className="scheda-domanda__risposta">chiusa senza risposta, non serve più: {s.superata}</div> : null}
       {aperti ? (
         <dl className="scheda-domanda__dettagli">
           {s.dettagli.map((d, i) => (

@@ -43,7 +43,7 @@ import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero }
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
-  domandaControllata, domandaPerRegistro, leggiParti, nomeDi, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
+  domandaControllata, domandaControllataSubito, domandaPerRegistro, leggiParti, partiDaTesto, nomeDi, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
 import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
 import {
@@ -58,8 +58,8 @@ import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
-import { domandaInFondo } from '@shared/domande-telefono'
-import { nomeCompito, partiDaChatFerma, senzaNotificaClaude } from '@shared/domanda-chiara'
+import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
+import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
 import { comeConsegnare, frenoDaiLimiti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
 import { IN_FILA, POSTI_MAX, postiDalPc, prossimiPosti, rigaPosti, type MisuraPc, type PostiChat, type RegolazionePosti, type StatoPosti } from '@shared/posti-chat'
@@ -69,8 +69,9 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
+  cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
+import { allineaHookEccDiTutte } from './hook-ecc'
 
 export type Dipendenze = {
   archivio: Archivio
@@ -287,11 +288,31 @@ function componiRisposta(domanda: string, risposta: string): string {
  * di fermarsi tutte perché una sola aspetta. Alla risposta la stessa chat torna
  * `lavoro`. Puro: la decisione su chi si ferma si prova senza avviare processi.
  */
-/** Di quale chat è una domanda, per mostrarla con il suo nome (0.71.1). */
+/**
+ * Di quale chat è una domanda, per mostrarla con il suo nome (0.71.1). Il
+ * nome è il compito senza sigle (collaudo 0.84.0): quello della Revisione
+ * cominciava con «Rivedi il ramo ap/…/c-61 della chat c-61».
+ */
 function chatDellaDomanda(a: Autopilota, chatId: string | undefined): { chatId?: string; chatTitolo?: string } {
   if (chatId === undefined) return {}
   const c = a.chats.find((x) => x.id === chatId)
-  return { chatId, ...(c !== undefined ? { chatTitolo: c.compito.slice(0, 80) } : {}) }
+  return { chatId, ...(c !== undefined ? { chatTitolo: nomeCompito(c.compito, 80) } : {}) }
+}
+
+/** Le chat dell'autopilota e l'autopilota stesso, per dire a parole le loro sigle. */
+function conosciute(a: Autopilota): ChatConCompito[] {
+  return [...a.chats, { id: a.id, compito: nomeDi(a) }]
+}
+
+/**
+ * Una domanda chiusa senza Nicholas (risposta dal supervisore, già risolta,
+ * già risposta), da mettere fra le risolte: la domanda della chat è grezza,
+ * con le sigle che la domanda aperta non ha più (collaudo 0.84.0). Qui non si
+ * può più far riscrivere: le sigle si dicono a parole, sempre.
+ */
+function risoltaChiara(a: Autopilota, chatId: string | undefined, domanda: string, risposta: string): Omit<DomandaRisolta, 'autopilotaId' | 'quando'> {
+  const chat = conosciute(a)
+  return { ...chatDellaDomanda(a, chatId), domanda: senzaSigleMai(domanda, chat), risposta: senzaSigleMai(risposta, chat) }
 }
 
 function conStatoChat(a: Autopilota, chatId: string, stato: ChatGovernata['stato']): Autopilota {
@@ -1715,12 +1736,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const riapriDomandaIntervista = (a: Autopilota): boolean => {
     if (a.stato !== 'intervista' || a.motivoSospensione === undefined) return false
     if (deps.domande.aperte(a.id).length > 0) return false
+    // Con le sue parti e dal controllo (collaudo 0.84.0): prima tornava solo testo.
+    // Un testo di prima del formato a parti resta com'era, con le parti accanto.
+    const pronta = domandaControllataSubito(nomeDi(a), partiDaTesto(a.motivoSospensione), conosciute(a))
+    const testo = /^«.*» ti chiede:\r?\n/.test(a.motivoSospensione) ? pronta.testo : a.motivoSospensione
     const domanda = deps.domande.apri({
       autopilotaId: a.id,
-      testo: a.motivoSospensione,
-      scadenzaMs: deps.scadenzaInterviataMs
+      testo,
+      scadenzaMs: deps.scadenzaInterviataMs,
+      ...domandaPerRegistro(pronta)
     })
-    ricordaContesto(domanda.id, { autopilotaId: a.id, testo: a.motivoSospensione })
+    ricordaContesto(domanda.id, { autopilotaId: a.id, testo })
     return true
   }
 
@@ -1731,6 +1757,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (radice === undefined) return
     const tolte = togliWorktreeVuoti(radice)
     if (tolte.length > 0) console.info(`[autopilota] tolte ${tolte.length} cartelle vuote rimaste dai worktree in ${cartellaWorktreeDi(radice)}`)
+    // Le copie già aperte nate senza lo spegnimento degli hook ECC (0.84.0).
+    const sistemate = allineaHookEccDiTutte(radice, cartellaWorktreeDi(radice), fuoriDaGit(deps.git))
+    if (sistemate.length > 0) console.info(`[autopilota] hook ECC spenti anche in ${sistemate.length} copie delle chat`)
   }
   const riprendiInterviste = (): void => {
     const tutti = deps.archivio.elenca()
@@ -1821,7 +1850,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         nomeDi(corrente),
         esito.parti ?? leggiParti({ domanda: esito.testo, scelte: esito.opzioni ?? [] }),
         async (richiesta) => (await deps.interroga(richiesta, corrente.cwd, sessIntervista, { timeoutMs: TEMPO_PREPARAZIONE_MS })).testo,
-        partiDaRisposta
+        partiDaRisposta,
+        conosciute(corrente)
       )
       const domanda = deps.domande.apri({
         autopilotaId: corrente.id,
@@ -2087,13 +2117,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     const a = diviso.a
     const eraFinito = a.stato === 'finito'
+    // Collaudo 0.84.0 (D1, il caso c-34): da un autopilota finito si riprendono
+    // solo le chat che non hanno concluso. Ramo unito o tolto, approvato, o
+    // conversazione già nel recupero: resta chiusa.
+    const conclusa = (c: ChatGovernata): boolean => c.conclusa !== undefined || c.approvata === true || c.nelRecupero !== undefined
     let ripreso: Autopilota = {
       ...a,
       stato: 'lavoro',
       motivoSospensione: undefined,
-      chats: a.chats.map((c) => (c.stato !== 'finita' || eraFinito ? { ...c, stato: 'lavoro' as const } : c))
+      chats: a.chats.map((c) => (c.stato !== 'finita' || (eraFinito && !conclusa(c)) ? { ...c, stato: 'lavoro' as const } : c))
     }
     const daAvviare = ripreso.chats.filter((c) => c.stato !== 'finita')
+    if (ripreso.chats.length > 0 && daAvviare.length === 0) {
+      // Tutte concluse: si aprono solo i compiti ancora in coda, e i messaggi
+      // per l'autopilota partono con la sua chat (come senza chat).
+      annota(ripreso, 'ripreso: le chat che hanno concluso restano chiuse')
+      salva(ripreso)
+      ripreso = await apriChatMancanti(ripreso)
+      const presi = prendiMessaggiPer(ripreso, ripreso.id)
+      if (presi.testi.length === 0 || ripreso.chats.some((c) => c.stato === 'lavoro')) return ripreso
+      ripreso = presi.autopilota
+      salva(ripreso)
+      await avviaLavoro(ripreso, conPreambolo(presi.testi, riprende(ripreso, ripreso.sessionId) ? ripartiDaDove(ripreso) : primoCompito(ripreso)), undefined, presi.presi)
+      return ripreso
+    }
     if (ripreso.chats.length === 0) {
       const presi = prendiMessaggiPer(ripreso, ripreso.id)
       ripreso = presi.autopilota
@@ -2448,7 +2495,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // La domanda nomina il lavoro, senza la sigla della chat.
         staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat che fa «${nomeCompito(autore.compito, 80)}».`,
         domanda: `Come vado avanti con «${nomeCompito(autore.compito, 80)}», che la Revisione ha già rimandato indietro ${rifacimenti} volte?`,
-        perche: `L’ultima richiesta della Revisione: ${v.note.slice(0, 200)}`,
+        // Le note della Revisione citano rami e chat: a parole (collaudo 0.84.0).
+        perche: `L’ultima richiesta della Revisione: ${senzaSigleMai(v.note, conosciute(fresco)).slice(0, 200)}`,
         scelte: [
           { scelta: 'rifallo ancora', conseguenza: 'La chat corregge di nuovo e la Revisione la rivede.', consigliata: true },
           { scelta: 'uniscilo così', conseguenza: 'Unisco il ramo anche senza l’ok della Revisione.' },
@@ -2456,8 +2504,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ],
         seNonRispondi: 'Il pezzo resta fermo; le altre chat continuano.'
       }
-      const testo = testoDellaDomanda(nomeDi(fresco), parti)
-      const d = deps.domande.apri({ autopilotaId: fresco.id, testo, scadenzaMs: deps.scadenzaDomandaMs, opzioni: parti.scelte.map((x) => x.scelta), parti })
+      // Passa dal controllo come le altre (collaudo 0.84.0).
+      const pronta = domandaControllataSubito(nomeDi(fresco), parti, conosciute(fresco))
+      const testo = pronta.testo
+      const d = deps.domande.apri({ autopilotaId: fresco.id, testo, scadenzaMs: deps.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
       ricordaContesto(d.id, { autopilotaId: fresco.id, testo, chatId: autore.id })
       void deps.avvisa('domanda', fresco, testo)
       return {}
@@ -3255,7 +3305,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(presi.autopilota, scarto.riga, scarto.traguardo)
         salvaNelTurno(presi.autopilota)
         misura.esito = 'domanda già risolta'
-        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: scarto.risposta })
+        deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(aggiornato, chatId, decisione.domanda, scarto.risposta) })
         return { decision: 'block', reason: conPreambolo(presi.testi, scarto.perLaChat) }
       }
       const giaDetta = memoria.rispostaPer(aggiornato.id, decisione.domanda)
@@ -3264,7 +3314,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(presi.autopilota, `la stessa domanda aveva già una tua risposta (${giaDetta.esatta.quando.slice(0, 10)}): «${giaDetta.esatta.risposta.slice(0, 120)}», non la richiedo`)
         salvaNelTurno(presi.autopilota)
         misura.esito = 'risposta già data'
-        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: decisione.domanda, risposta: `${giaDetta.esatta.risposta} (la tua risposta del ${giaDetta.esatta.quando.slice(0, 10)})` })
+        deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(aggiornato, chatId, decisione.domanda, `${giaDetta.esatta.risposta} (la tua risposta del ${giaDetta.esatta.quando.slice(0, 10)})`) })
         return { decision: 'block', reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, giaDetta.esatta.risposta)) }
       }
       let partiPrima = decisione.parti ?? leggiParti(decisione.domanda)
@@ -3279,7 +3329,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         annota(presi.autopilota, `troppe domande nell'ultima ora (${fatteOra.length}): «${partiPrima.domanda.slice(0, 120)}» la decido io con la scelta consigliata («${consigliata.scelta}»)`)
         salvaNelTurno(presi.autopilota)
         misura.esito = 'deciso senza chiedere'
-        deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: partiPrima.domanda, risposta: `${consigliata.scelta}: ${consigliata.conseguenza} (la scelta consigliata: ${fatteOra.length} domande nell'ultima ora)` })
+        deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(aggiornato, chatId, partiPrima.domanda, `${consigliata.scelta}: ${consigliata.conseguenza} (la scelta consigliata: ${fatteOra.length} domande nell'ultima ora)`) })
         return { decision: 'block', reason: conPreambolo(presi.testi, `Hai già chiesto ${fatteOra.length} cose a Nicholas nell'ultima ora: questa la decidi tu con la scelta consigliata.\n«${partiPrima.domanda}» → ${consigliata.scelta}: ${consigliata.conseguenza}`) }
       }
       domandeOra.set(aggiornato.id, [...fatteOra, oraMs])
@@ -3288,7 +3338,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         partiPrima,
         decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
         partiDaRisposta,
-        aggiornato.chats
+        conosciute(aggiornato)
       )
       if (pronta.riscritta) annota(aggiornato, 'la domanda era incompleta: il supervisore l’ha riscritta')
       if (pronta.avvertenza !== undefined) annota(aggiornato, `domanda passata incompleta: ${pronta.avvertenza}`)
@@ -3426,7 +3476,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // La chat aveva finito il turno con una domanda e il supervisore le ha
       // risposto (0.71.1): la domanda resta visibile nelle Domande, con la risposta.
       const chiesto = domandaInFondo(ultimoMessaggio)
-      if (chiesto !== undefined) deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(aggiornato, chatId), domanda: chiesto, risposta: decisione.istruzioni.split('\n\nObiettivo:')[0] ?? decisione.istruzioni })
+      if (chiesto !== undefined) deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(aggiornato, chatId, chiesto, decisione.istruzioni.split('\n\nObiettivo:')[0] ?? decisione.istruzioni) })
       if (decisione.strategia !== undefined) {
         console.warn(`[autopilota] ${id} in difficolta, provo: ${decisione.strategia}`)
         // Nessun avviso (0.81.0): cambia strada da solo e continua, non aspetta
@@ -3527,6 +3577,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const il = deps.adesso()
       aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo !== undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
       pulisciWorktreeVuoti(aggiornato.cwd)
+    }
+    // Collaudo 0.84.0 (D2): anche chi non ha un ramo (Rilascio, un Collaudo
+    // senza commit) ha concluso, e va nel recupero come le altre.
+    {
+      const il = deps.adesso()
+      aggiornato.chats = aggiornato.chats.map((c) => (c.ruolo !== 'revisione' && c.ramo === undefined && c.conclusa === undefined ? { ...c, conclusa: { il, come: 'unito' as const } } : c))
     }
 
     // ── La pubblicazione, secondo la regola del progetto ──
@@ -3701,7 +3757,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       })
       // La domanda intera accanto alla risposta (0.84.0): prima, senza «?» in
       // fondo, restava «Claude is waiting for your input» (21/10, 19 volte).
-      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(ora, chatId), domanda: domandaInFondo(detto) ?? (senzaNotificaClaude(domandaGrezza) || domandaGrezza), risposta: esito.risposta })
+      deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(ora, chatId, domandaInFondo(detto) ?? (senzaNotificaClaude(domandaGrezza) || domandaGrezza), esito.risposta) })
       const aggiornato = deps.archivio.leggi(id) ?? a
       void avviaLavoro(aggiornato, esito.risposta, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta non consegnata a ${id}:`, err)
@@ -3731,7 +3787,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       partiPrima,
       esito?.tipo === 'chiedi' ? async (richiesta) => (await deps.interroga(richiesta, a.cwd, undefined)).testo : undefined,
       partiDaRisposta,
-      a.chats
+      conosciute(a)
     )
     const testo = pronta.testo
     // **Già risolta o già risposta** (0.81.0): alla chat si dice cosa sa già,
@@ -3751,7 +3807,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const fresco = deps.archivio.leggi(id) ?? ora
       annota(fresco, scarto.riga, scarto.traguardo)
       salva(fresco)
-      deps.domande.risolta({ autopilotaId: id, ...chatDellaDomanda(fresco, chatId), domanda: laDomanda, risposta: scarto.risposta })
+      deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(fresco, chatId, laDomanda, scarto.risposta) })
       void avviaLavoro(fresco, scarto.perLaChat, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta già data non consegnata a ${id}:`, err)
       })

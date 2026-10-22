@@ -12,6 +12,7 @@ import type { Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
+import { sigleIn } from '@shared/domanda-chiara'
 import { statoCopia, type Git } from '../../src/autopilot-host/worktree'
 
 /**
@@ -2399,6 +2400,29 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
     expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
   })
 
+  it('collaudo 0.84.0: dopo un riavvio la domanda a parti torna con le sue parti e passa dal controllo', async () => {
+    server = ambiente({ interroga: () => Promise.resolve({ testo: '{"azione": "finito"}' }), scadenzaInterviataMs: 5000 })
+    const testo = [
+      '«Prep» ti chiede:', '', 'Leggo i file nel formato scelto dalla chat c-310?',
+      '', 'Cosa sta facendo: Preparo il lettore dei file di configurazione.',
+      '', 'Perché gli serve: Il lettore deve sapere quale formato aspettarsi.',
+      '', 'Le scelte:', '• YAML (consigliata) → leggo solo file .yaml', '• JSON → leggo solo file .json',
+      '', 'Se non rispondi: aspetto senza scrivere niente'
+    ].join('\n')
+    archivio.scrivi({
+      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
+      motivoSospensione: testo,
+      riprendiAlRiavvio: false
+    })
+    await avvia(server)
+    server.riprendiInterviste()
+    const [d] = (await chiama('GET', '/domande')).dati
+    expect(d.opzioni).toEqual(['YAML', 'JSON'])
+    expect(d.parti).toMatchObject({ staFacendo: 'Preparo il lettore dei file di configurazione.', scelte: [{ scelta: 'YAML', conseguenza: 'leggo solo file .yaml', consigliata: true }, { scelta: 'JSON', conseguenza: 'leggo solo file .json' }] })
+    // La sigla di una chat che non conosce non passa liscia: c'è l'avvertenza.
+    expect(d.avvertenza).toBeDefined()
+  })
+
   it('«Pubblico adesso?» propone le due risposte da toccare', async () => {
     server = ambiente()
     await avvia(server)
@@ -2693,6 +2717,17 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(d).toHaveLength(1)
     expect(d[0].opzioni).toEqual(['rifallo ancora', 'uniscilo così', 'lascialo fuori'])
     expect((await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-1').stato).toBe('bloccata')
+  })
+
+  it('collaudo 0.84.0: il «perché» con le note della Revisione passa dal controllo, senza sigle', async () => {
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
+    const base = flotta()
+    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, rifacimenti: 2 } : c)) })
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: DA RIFARE ap/ap-rev/c-1: manca il caso vuoto in src/a.ts:9, come già detto a c-1 e a c-77' }))
+    const [d] = (await chiama('GET', '/domande')).dati
+    expect(d.parti.perche).toContain('come già detto a «A» e a una chat che non c’è più')
+    expect(sigleIn(d.testo)).toEqual([])
   })
 
   it('la Revisione non scrive file e nessuno lancia l’installatore', async () => {
