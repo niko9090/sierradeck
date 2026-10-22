@@ -881,12 +881,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let installaInCorso = false
   /** Le chat già dette mute a Nicholas (0.81.0), «autopilota|chat»: si ridice solo dopo che hanno ripreso. */
   const mutaDetta = new Map<string, number>()
-  const ultimoSegnale = (chiave: string): number | undefined => {
+  /**
+   * Quando il servizio ha consegnato l'ultimo turno a quella chat (0.84.3,
+   * D2 del collaudo c-81). Fa ripartire l'orologio del silenzio come prima,
+   * ma non è una risposta della chat: prima stava in `ultimoTurno`, e il giro
+   * da solo leggeva la ripresa d'avvio (o i messaggi in coda portati alla chat
+   * ferma) come «ha risposto dopo la ripresa». La chat muta veniva ripresa
+   * un'altra volta e passava a una chat nuova 10 minuti più tardi.
+   */
+  const ultimaConsegna = new Map<string, number>()
+  /** Solo i segnali venuti dalla chat: hook e battiti del Gestore. */
+  const segnaleDellaChat = (chiave: string): number | undefined => {
     const turno = ultimoTurno.get(chiave)
     const segno = ultimoSegno.get(chiave)
     if (turno === undefined) return segno
     if (segno === undefined) return turno
     return Math.max(turno, segno)
+  }
+  const ultimoSegnale = (chiave: string): number | undefined => {
+    const dallaChat = segnaleDellaChat(chiave)
+    const consegna = ultimaConsegna.get(chiave)
+    if (consegna === undefined) return dallaChat
+    if (dallaChat === undefined) return consegna
+    return Math.max(dallaChat, consegna)
   }
 
   /**
@@ -931,7 +948,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       }
       return Promise.resolve()
     }
-    ultimoTurno.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
+    ultimaConsegna.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
     fermaDal.delete(chiaveTurno(a.id, chat?.id))
@@ -1188,16 +1205,51 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * registrata che non gira — la prima resta orfana per sempre, la seconda
    * riparte alla ripresa.
    */
-  const apriChatMancanti = async (a: Autopilota): Promise<Autopilota> => {
-    // T2: il tetto non lo sceglie piu' nessuno a mano (decisione di Nicholas,
-    // 30/09): quante chat lavorano lo decidono i compiti utili, dentro il
-    // freno sui limiti del piano e il tetto tecnico.
-    const freno = frenoAdesso()
+  /**
+   * Il tetto delle chat che l'autopilota può avere al lavoro adesso. T2: il
+   * tetto non lo sceglie piu' nessuno a mano (decisione di Nicholas, 30/09):
+   * quante chat lavorano lo decidono i compiti utili, dentro il freno sui
+   * limiti del piano e il tetto tecnico.
+   */
+  const tettoApertura = (a: Autopilota): { tetto: number; delFreno: ReturnType<typeof tettoDellaFlotta> } => {
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
-    const delFreno = tettoDellaFlotta(freno, attive, TETTO_CHAT_MAX)
-    const soloRevisioni = delFreno.soloRevisioni
+    const delFreno = tettoDellaFlotta(frenoAdesso(), attive, TETTO_CHAT_MAX)
     // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
-    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso())
+    return { tetto: tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()), delFreno }
+  }
+
+  /** I compiti che non aspettano altri compiti ancora da unire (0.71.0), e quelli che il freno lascia partire. */
+  const compitiPronti = (a: Autopilota, compiti: string[], soloRevisioni: boolean): string[] => {
+    const fatti = compitiFatti(a.chats)
+    return compiti
+      .filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
+      .filter((t) => !soloRevisioni || (a.ruoliCompiti?.[t]?.ruolo ?? (chatDaRivedere(t) !== undefined ? 'revisione' : undefined)) === 'revisione')
+  }
+
+  /**
+   * Cosa aprirebbe adesso `apriChatMancanti` con questa coda, e se niente,
+   * perché (0.84.3). Il giro da solo scriveva «apro le chat, se il PC ha
+   * posto» anche quando non apriva niente: il motivo vero è nel diario.
+   */
+  const aperturaPossibile = (a: Autopilota, compiti: string[]): { daAprire: number; motivo?: string } => {
+    const { tetto, delFreno } = tettoApertura(a)
+    const coda = codaSenzaDoppioni(compiti, a.chats).compiti
+    if (coda.length === 0) return { daAprire: 0, motivo: 'i compiti in coda li ha già una chat' }
+    const pronti = compitiPronti(a, coda, delFreno.soloRevisioni)
+    const daAprire = pianificaFlotta({ chats: a.chats, compitiDaFare: pronti, tetto }).daAprire.length
+    if (daAprire > 0) return { daAprire }
+    if (pronti.length === 0) {
+      return delFreno.soloRevisioni
+        ? { daAprire: 0, motivo: 'il freno sui limiti del piano lascia partire solo le Revisioni' }
+        : { daAprire: 0, motivo: 'aspettano altri lavori ancora da unire' }
+    }
+    if (tetto < delFreno.tetto) return { daAprire: 0, motivo: `il PC non ha posto (${rigaPosti(postiChat())})` }
+    return { daAprire: 0, motivo: `ci sono già ${tetto} chat al lavoro, il massimo` }
+  }
+
+  const apriChatMancanti = async (a: Autopilota): Promise<Autopilota> => {
+    const { tetto, delFreno } = tettoApertura(a)
+    const soloRevisioni = delFreno.soloRevisioni
     // 0.84.0: prima di aprire, nessun lavoro dato due volte. Un compito che una
     // chat ha già esce dalla coda, e lo si scrive nelle decisioni.
     const senzaDoppi = codaSenzaDoppioni(a.compitiDaFare, a.chats)
@@ -1209,11 +1261,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(pulito)
       a = pulito
     }
-    // Solo i compiti che non aspettano altri compiti ancora da unire (0.71.0).
-    const fatti = compitiFatti(a.chats)
-    const pronti = a.compitiDaFare
-      .filter((t) => (a.ruoliCompiti?.[t]?.dopo ?? []).every((d) => fatti.has(d)))
-      .filter((t) => !soloRevisioni || (a.ruoliCompiti?.[t]?.ruolo ?? (chatDaRivedere(t) !== undefined ? 'revisione' : undefined)) === 'revisione')
+    const pronti = compitiPronti(a, a.compitiDaFare, soloRevisioni)
     const piano = pianificaFlotta({
       chats: a.chats,
       compitiDaFare: pronti,
@@ -1553,7 +1601,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         (m.chatId !== undefined ? ultimoSegnale(chiaveTurno(a.id, m.chatId)) : undefined) !== undefined || ultimoSegnale(chiaveTurno(a.id)) !== undefined
       const zitte = deps.domande.aperte(a.id).length > 0
         ? []
-        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite)).filter(conSegnale).filter((m) => !chatInGiudizio(a, m.chatId))
+        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite), avvioServizio).filter(conSegnale).filter((m) => !chatInGiudizio(a, m.chatId))
       const chiaveZitta = (m: { chatId?: string }): string => `${a.id}|${m.chatId ?? a.id}`
       const chiaviZitte = new Set(zitte.map(chiaveZitta))
       for (const k of [...mutaDetta.keys()]) if (k.startsWith(`${a.id}|`) && !chiaviZitte.has(k)) mutaDetta.delete(k)
@@ -1572,7 +1620,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         base = detta
         console.info(`[autopilota] ${a.id} — ${nuoveZitte.length} chat senza segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: detto a Nicholas`)
       }
-      const mute = chiTace(a, ultimoSegnale, ora, limite).filter((m) => !chatInGiudizio(a, m.chatId))
+      const mute = chiTace(a, ultimoSegnale, ora, limite, avvioServizio).filter((m) => !chatInGiudizio(a, m.chatId))
       if (mute.length === 0) continue
       // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
       // 19/10). Si mette da parte solo lei, le altre continuano, e nella
@@ -1600,6 +1648,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ora,
         avvioServizio,
         ultimoSegnale,
+        ultimaRisposta: segnaleDellaChat,
+        apertura: (compiti) => aperturaPossibile(letto, compiti),
         inGiudizio: (chatId) => chatInGiudizio(letto, chatId),
         fermaAlPrompt: (chiave) => fermaDal.has(chiave),
         domandeAperte: deps.domande.aperte(letto.id).length

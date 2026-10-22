@@ -159,17 +159,12 @@ describe('collaudo 0.84.1: il giro da solo non tocca chi lavora o aspetta', () =
     expect(dopo.chats.some((c) => c.sostituisce === 'c-1')).toBe(false)
   })
 
-  // DIFETTO D1 del collaudo c-81 (22/10). `.fails`: passa finché il difetto
-  // c'è; quando lo si corregge diventa rosso e il `.fails` va tolto.
-  // Causa: `/battiti` segna anche la chiave dell'autopilota
-  // (src/autopilot-host/server.ts:3985) e `chiTace` la usa come ripiego per la
-  // chat che non ha segnali suoi (src/autopilot-host/guardiano.ts:154-155).
-  // Una chat muta da quando il servizio è partito (dopo ogni riavvio, ferma al
-  // prompt o col terminale chiuso) eredita i battiti della sorella che lavora:
-  // non viene mai messa da parte, e `giroMaiFermo` tocca solo le messe da
-  // parte (src/autopilot-host/mai-fermo.ts, `daToccare`). Resta abbandonata
-  // finché la sorella lavora: è il caso della notte con una chat viva.
-  it.fails('D1: una chat muta dall’avvio del servizio, con la sorella che lavora, non resta abbandonata per 2 ore', async () => {
+  // DIFETTO D1 del collaudo c-81 (22/10), corretto nella 0.84.3. `/battiti`
+  // segna anche la chiave dell'autopilota, e `chiTace` la usava come ripiego
+  // per la chat senza segnali suoi: la chat muta dall'avvio del servizio
+  // ereditava i battiti della sorella che lavora, non veniva mai messa da
+  // parte e restava abbandonata. Adesso ripiega su sé stessa (`dal`, avvio).
+  it('D1: una chat muta dall’avvio del servizio, con la sorella che lavora, non resta abbandonata per 2 ore', async () => {
     ora = Date.parse('2026-10-22T08:00:00.000Z')
     server = ambiente()
     await avvia(server)
@@ -240,10 +235,10 @@ describe('collaudo 0.84.1: riavvio del servizio a metà', () => {
     for (let m = 0; m < 9; m += 1) await minuto(a.id)
     expect(archivio.leggi(a.id)!.chats.some((c) => c.sostituisce !== undefined)).toBe(false)
 
-    // Con la ripresa d'avvio in mezzo il passaggio arriva un giro dopo (D2, sotto).
+    // 0.84.3 (D2 corretto): la ripresa d'avvio non sposta più il passaggio di un giro.
     while (!archivio.leggi(a.id)!.chats.some((c) => c.sostituisce !== undefined)) {
       await minuto(a.id)
-      expect(ora - riavvio).toBeLessThanOrEqual(25 * MIN)
+      expect(ora - riavvio).toBeLessThanOrEqual(15 * MIN)
     }
     const dopo = archivio.leggi(a.id)!
     expect(dopo.chats.filter((c) => c.sostituisce !== undefined).map((c) => c.sostituisce).sort()).toEqual(['c-65', 'c-66', 'c-70'])
@@ -262,15 +257,12 @@ describe('collaudo 0.84.1: riavvio del servizio a metà', () => {
 })
 
 describe('collaudo 0.84.1: difetto D2', () => {
-  // DIFETTO D2 del collaudo c-81 (22/10), lieve. `.fails` come D1.
-  // Causa: `avviaLavoro` fa ripartire l'orologio del silenzio
-  // (src/autopilot-host/server.ts:926) e `mossaPer` legge quell'orologio come
-  // «ha risposto dopo la ripresa» (src/autopilot-host/mai-fermo.ts, `haRisposto`).
-  // Una consegna fatta dal servizio stesso (la ripresa d'avvio dopo un
-  // riavvio, i messaggi in coda portati alla chat ferma) cancella la ripresa:
-  // la chat muta viene interrotta e ripresa un'altra volta, e passa a una chat
-  // nuova 10 minuti più tardi del dovuto.
-  it.fails('D2: dopo un riavvio, una chat già ripresa e ancora muta passa a una chat nuova entro 15 minuti dal riavvio', async () => {
+  // DIFETTO D2 del collaudo c-81 (22/10), lieve, corretto nella 0.84.3.
+  // `avviaLavoro` faceva ripartire l'orologio del silenzio e `mossaPer` lo
+  // leggeva come «ha risposto dopo la ripresa»: la ripresa d'avvio dopo un
+  // riavvio cancellava la ripresa da solo, e la chat muta passava a una chat
+  // nuova 10 minuti più tardi. Adesso conta solo ciò che viene dalla chat.
+  it('D2: dopo un riavvio, una chat già ripresa e ancora muta passa a una chat nuova entro 15 minuti dal riavvio', async () => {
     const cartella = mkdtempSync(join(tmpdir(), 'ap-collaudo-d2-'))
     ora = Date.parse('2026-10-21T23:34:52.000Z')
     server = ambiente(cartella)

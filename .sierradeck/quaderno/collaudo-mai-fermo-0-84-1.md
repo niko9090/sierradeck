@@ -1,7 +1,7 @@
 ---
 titolo: "Collaudo 0.84.1 — autopilota mai fermo: 2 difetti trovati"
 quando: 2026-10-22T11:30:00+02:00
-tag: ["0.84.1", "collaudo", "autopilota", "guardiano", "mai-fermo"]
+tag: ["0.84.1", "0.84.3", "collaudo", "autopilota", "guardiano", "mai-fermo"]
 ---
 
 Collaudo di c-81 (22/10) sulla correzione di c-72 (`src/autopilot-host/mai-fermo.ts`,
@@ -58,6 +58,25 @@ per minuto, su tempi lunghi.
   chat nuova.
 - Correzione possibile: per `haRisposto` contare solo i segnali della chat
   (hook, battiti), non l'orologio rimesso da `avviaLavoro`.
+
+## Corretti nella 0.84.3 (c-87, 23/10)
+
+- **D1**: `chiTace` (`guardiano.ts`) per una chat con `dal` ripiega su
+  `max(dal, avvio del servizio)`, non più sulla chiave dell'autopilota. Il
+  ripiego sull'autopilota resta solo per le chat senza `dal` (flotte vecchie).
+  Il server passa `avvioServizio` a `chiTace`.
+- **D2**: le consegne del servizio stanno in una mappa a parte
+  (`ultimaConsegna` in `server.ts`). `ultimoSegnale` le conta ancora (orologio
+  del silenzio come prima), ma `giroMaiFermo` riceve `ultimaRisposta` =
+  `segnaleDellaChat` (solo hook e battiti) per decidere «ha risposto».
+  Trappola: se si torna a scrivere in `ultimoTurno` da `avviaLavoro`, D2 torna.
+- **Il motivo vero**: il giro non scrive più «apro le chat, se il PC ha posto».
+  `aperturaPossibile` (server) calcola quante chat si aprirebbero e, se
+  nessuna, perché (compiti che aspettano altri lavori, PC senza posto, tetto,
+  freno solo-Revisioni, compito già di una chat); `giroMaiFermo` lo riceve come
+  `vista.apertura` e la riga dice «apro N chat» o «non apro niente: …».
+- I due `it.fails` ora sono `it` verdi; il test del riavvio chiede il passaggio
+  entro 15 minuti (prima 25).
 
 ## Non provato qui
 

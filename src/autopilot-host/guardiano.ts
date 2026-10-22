@@ -114,7 +114,9 @@ export function chiTace(
   a: Autopilota,
   quandoHaParlato: (chiave: string) => number | undefined,
   ora: number,
-  limite: number
+  limite: number,
+  /** Quando è partito il servizio: dopo un riavvio la memoria dei segnali è vuota. */
+  avvioServizio = -Infinity
 ): ChatMuta[] {
   const ripiego = Date.parse(a.ultimoEvento)
   /**
@@ -152,8 +154,16 @@ export function chiTace(
      * misura, che hanno segnato i turni sotto la sola id dell'autopilota:
      * senza, al primo giro dopo l'aggiornamento risulterebbero tutte mute.
      */
+    //
+    // 0.84.3 (D1 del collaudo c-81): una chat **con `dal`** ripiega su sé
+    // stessa — da quando è al lavoro, o dall'avvio del servizio — e non più
+    // sull'autopilota. `/battiti` segna anche la chiave dell'autopilota per la
+    // sorella che lavora: col vecchio ripiego la chat muta dall'avvio ne
+    // ereditava i battiti, non veniva mai messa da parte e restava
+    // abbandonata finché la sorella lavorava.
     const suo = quandoHaParlato(chiaveTurno(a.id, chat.id))
-    const riferimento = suo ?? quando(chiaveTurno(a.id))
+    const dal = chat.dal === undefined ? NaN : Date.parse(chat.dal)
+    const riferimento = suo ?? (Number.isNaN(dal) ? quando(chiaveTurno(a.id)) : Math.max(dal, avvioServizio))
     const da = ora - riferimento
     if (da > limite) mute.push({ chatId: chat.id, compito: chat.compito, da })
   }
