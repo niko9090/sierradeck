@@ -56,3 +56,11 @@ di `claude` sono corte e fisse: `negozio/cli.ts` (nomi di plugin/MCP), `risoluzi
 (percorso del dossier + `ISTRUZIONI_AGENTE`), `claude-versione.ts` (`--version`). Le chat
 ricevono una riga sola (`consegna-breve.ts`). Se si aggiunge una nuova chiamata a `claude` con
 testo che cresce, deve passare da `interrogazioneReale` o dallo stdin.
+
+## Esito del criterio vecchio ripetuto (c-151, 23/10 notte)
+
+L'hook di fine turno ha riportato tre volte lo stesso fallimento di `tests/main`
+(`grafica-0-81-0.test.ts`, «… hanno ognuno il suo nome», sempre 1376 ms): era un esito
+di prima che entrasse c-148 (`90757852`). Rilanciato a mano lo stesso comando su main `3a245a01`:
+rc=0, 1951 test verdi. Se l'esito si ripete identico, tempi compresi, rilanciare il comando
+del criterio a mano e scrivere il commit di main su cui passa: rifare il lavoro non serve.
