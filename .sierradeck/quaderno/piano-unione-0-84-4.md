@@ -74,6 +74,14 @@ Da sistemare all'unione di c-120 (con un test):
   le frasi nuove («Presa: …», «Non presa …», «Ricevuta: la sto portando…»).
   Se `android/` non cambia, va detto nel rapporto perché basta così.
 
+## Esiti
+
+- **c-119 unito nel ramo c-122** (23/10, `326be090`, commit `a214afd0`):
+  diff uguale alla pre-revisione. `unlinkSync` su una junction provato su
+  Windows: toglie solo il collegamento, i file veri restano. Il git sincrono
+  è un solo `rev-parse`, una volta per Revisione: accettato. Dopo l'unione
+  TypeScript pulito, `tests/autopilot-host` 906 verdi, `tests/shared` 1647.
+
 ## Dopo le tre unioni
 
 TypeScript, test di main, servizio, renderer, condivisi e pty, Android; poi la
