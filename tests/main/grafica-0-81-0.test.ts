@@ -33,7 +33,7 @@ describe('1. le linguette delle chat nella Panoramica non si tagliano a metà pa
 
 describe('2. i due «?» accanto a «Manda» dicono di cosa parlano', () => {
   it('PC: il dialogo con l autopilota e la dettatura hanno ognuno il suo nome', () => {
-    // 0.85.1 (c-149): il campo e il suo «?» stanno in CampoChatAutopilota.
+    // 0.85.1: il campo sta nel suo componente, che si ridisegna da solo a ogni lettera.
     expect(readFileSync('src/renderer/components/CampoChatAutopilota.tsx', 'utf8')).toContain('<Aiuto di="come parlare all’autopilota">')
     expect(readFileSync('src/renderer/components/TastoMicrofono.tsx', 'utf8')).toContain('<Aiuto di="la dettatura con il microfono">')
   })
