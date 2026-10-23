@@ -82,6 +82,13 @@ Da sistemare all'unione di c-120 (con un test):
   è un solo `rev-parse`, una volta per Revisione: accettato. Dopo l'unione
   TypeScript pulito, `tests/autopilot-host` 906 verdi, `tests/shared` 1647.
 
+- **c-121 e c-120 uniti in main dall'autopilota** (`4b5edc30`, `c0ce4263`)
+  prima della revisione di c-122. Le correzioni del piano sono arrivate dopo,
+  in `c54fbcd7`, ognuna con il suo test. Il conflitto su `/consegne/esito`
+  non era di testo: git li ha uniti senza dire niente, ma la logica era
+  sbagliata. **Lezione:** due rami che toccano lo stesso gestore vanno
+  provati insieme anche quando git non segnala conflitti.
+
 ## Dopo le tre unioni
 
 TypeScript, test di main, servizio, renderer, condivisi e pty, Android; poi la
