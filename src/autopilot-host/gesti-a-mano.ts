@@ -39,6 +39,17 @@ export function eDomandaNonMisurati(p: Pick<PartiDomanda, 'domanda'>): boolean {
   return /^Chiudo lo stesso il lavoro, o correggi prima il comando di verifica/i.test(p.domanda.trim())
 }
 
+/**
+ * La vecchia «sono bloccato» (fino alla 0.84.2): «Come vuoi che proceda?» con
+ * le scelte «rivedi i criteri / ti dico io la strada / fermati». Non diceva di
+ * quale lavoro né cosa non passava, e «rivedi i criteri» chiedeva a Nicholas
+ * un lavoro a mano. Si chiude come superata: la chat rilegge gli errori da
+ * capo e, se resta bloccata, la domanda torna scritta in parole semplici.
+ */
+export function eVecchiaBloccato(p: Pick<PartiDomanda, 'domanda' | 'scelte'>): boolean {
+  return /^Come vuoi che proceda\?$/i.test(p.domanda.trim()) && p.scelte.some((s) => /^rivedi i criteri$/i.test(s.scelta.trim()))
+}
+
 /** Cosa dire alla chat e cosa scrivere al posto della domanda scartata. */
 export type Scartata = { perLaChat: string; riga: string; risposta: string }
 
@@ -73,6 +84,13 @@ export function domandaDaNonFare(p: PartiDomanda): { motivo: string; strada: str
     return {
       motivo: 'un lavoro con un criterio che non si può misurare adesso si chiude da solo, con una riga',
       strada: 'Non serve più chiederlo: se il resto è fatto, dillo in poche righe e il lavoro si chiude da solo; il criterio che non si misura lo scrive il programma in una riga per Nicholas.'
+    }
+  }
+  if (eVecchiaBloccato(p)) {
+    return {
+      motivo: 'non diceva di quale lavoro né cosa non passava: se serve, la rifaccio in parole semplici',
+      strada: 'Non serve più aspettare questa risposta. Rileggi gli errori da capo, riga per riga, senza dare per buone le idee di prima, e prova una strada diversa. ' +
+        'Se resti bloccata, chiudi il turno dicendo cosa hai scoperto: se serve, la domanda a Nicholas la rifà l’autopilota, in parole semplici.'
     }
   }
   const difetto = difettoCheScarta(p)
