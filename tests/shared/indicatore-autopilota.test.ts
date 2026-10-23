@@ -112,6 +112,14 @@ describe('riga 3: va / lento / fermo dai segnali veri', () => {
     expect(indicatoreDi(a, ORA).andamento).toMatchObject({ livello: 'fermo', testo: 'Fermo: la chat non risponde · l’autopilota: aspetta che tu lo riprenda' })
   })
 
+  it('caso vero del 23/10: il supervisore muto è rosso con il motivo, anche se le chat lavorano (0.85.1)', () => {
+    const a = { ...ap([chat('c-3')], { segniVeri: { 'c-3': { tipo: 'commit', quando: fa(1) } } }), supervisoreMuto: { volte: 124, motivo: 'spawn ENAMETOOLONG', dal: fa(300) } }
+    expect(indicatoreDi(a, ORA).andamento).toMatchObject({ livello: 'fermo', colore: 'rosso' })
+    expect(indicatoreDi(a, ORA).andamento.testo).toMatch(/^Supervisore muto: 124 risposte mancate di fila — spawn ENAMETOOLONG · /)
+    // Lo stesso nel punto, che è quello che arriva alla pagina e all'app.
+    expect(puntoDi(a, ORA).indicatore.andamento.testo).toMatch(/^Supervisore muto/)
+  })
+
   it('dopo un riavvio senza segni non dà rosso subito', () => {
     const a = ap([chat('c-3')], { segniDal: fa(2) })
     expect(indicatoreDi(a, ORA).andamento.livello).toBe('va')

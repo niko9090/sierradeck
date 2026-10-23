@@ -35,7 +35,7 @@ import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type 
 import { fattiVerificati } from './fatti'
 import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
-  chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
+  chiediCambio, chiediGiudizio, componiPromptScomposizione, conAllarme, leggiCompiti, riparaComando, rigaAllarme,
   type Interrogazione
 } from './supervisore'
 import { dopoAvvioFallito, pianificaFlotta, tettoDellaFlotta } from './flotta'
@@ -700,6 +700,22 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
+  // 0.85.1: il supervisore muto si vede. Al terzo fallimento di fila una riga
+  // nel registro del servizio e in quello degli autopiloti della sua cartella,
+  // e finché dura l'indicatore lo dice in rosso, con il motivo.
+  const supervisore = conAllarme(deps.interroga, {
+    adesso: () => deps.adesso(),
+    allarme: (al) => {
+      const riga = rigaAllarme(al)
+      console.error(`[supervisore] ALLARME — ${riga} (cartella ${al.cwd}, dal ${al.dal})`)
+      for (const a of deps.archivio.elenca()) {
+        if (a.cwd !== al.cwd || a.stato === 'finito' || a.stato === 'fallito') continue
+        salva({ ...a, decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: riga }] })
+      }
+    },
+    ripreso: (dopo) => { console.info(`[supervisore] risponde di nuovo, dopo ${dopo} interrogazioni fallite di fila`) }
+  })
+  deps = { ...deps, interroga: supervisore }
   // 0.81.0: da quando il servizio raccoglie i segni di vita. Prima di un
   // riavvio non ne ha nessuno: «nessun segno» si misura da qui, non dall'eterno.
   const segniDal = deps.adesso()
@@ -4989,7 +5005,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               const v = ultimoVero.get(chiaveTurno(a.id, c.id))
               if (v !== undefined) segniVeri[c.id] = v
             }
-            const conVeri = Object.keys(segniVeri).length > 0 ? { segniVeri } : {}
+            // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
+            const muto = supervisore.muto()
+            const conVeri = {
+              ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
+              ...(muto !== undefined && muto.cwd === a.cwd ? { supervisoreMuto: { volte: muto.volte, motivo: muto.motivo, dal: muto.dal } } : {})
+            }
             if (segni.length === 0) return { ...a, segniDal, ...conVeri }
             // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
             const segniChat: Record<string, string> = {}
