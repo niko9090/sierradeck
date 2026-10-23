@@ -14,3 +14,7 @@ tag: ["autopilota", "stop-hook", "trappola", "0.85.0", "c-127"]
 - dopo 2 risposte uguali di fila, il giro non si rifà con le stesse parole.
 
 **Se ti capita in una chat:** non inventarti lavoro fuori dal tuo compito per «chiudere» l'obiettivo. Ricontrolla in main che il tuo pezzo ci sia e che i test passino, rispondi in poche righe e chiudi con `SEGNALE: fatto` o `SEGNALE: aspetto <chi>`.
+
+**Secondo caso, 23/10 su c-134.** La chat aveva ricevuto un compito doppio di quello di c-132 (l'indicatore) ed era aperta nella cartella principale, su `main`. Non aveva quindi niente da unire. Ha chiuso con `SEGNALE: fatto` e l'hook ha rifatto lo stesso giro. Il programma dovrebbe riconoscere anche questo caso: una chat senza ramo, che ha scritto `fatto` e ha dichiarato il doppione, va chiusa.
+
+**Terzo caso, 23/10 su c-136** (consegne c-978 e c-981: ancora l'indicatore, già unito con `a11c1fa7`). Anche questa chat era in cartella principale su `main`, senza ramo, e in parallelo c'era c-980 con lo stesso compito. Le due chat hanno scritto la stessa riga della lista dei lavori: il commit di c-980 si è preso anche la modifica dell'altra chat, perché lavorano sulla stessa cartella. Dopo `SEGNALE: fatto` l'hook ha rifatto il giro almeno 3 volte. Lo stesso compito è stato consegnato a 4 chat (c-132, c-134, c-980, c-136): il supervisore dovrebbe vedere in main che il compito è già fatto **prima** di consegnarlo di nuovo.
