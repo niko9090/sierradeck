@@ -60,7 +60,8 @@ export function leggiMosse(raw: unknown): Mossa[] {
   return mosse
 }
 
-export type Giudizio = { ok: true } | { ok: false; motivo: string }
+/** `pcCarico`: rimandato solo perché il PC è al limite (0.85.1), non un divieto. */
+export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: true }
 
 /**
  * Si puo' fare? `sueChat` sono gli id delle chat di questo autopilota: chiudere

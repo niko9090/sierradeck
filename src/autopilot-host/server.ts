@@ -25,6 +25,7 @@ import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { peggioratiDelRamo, preparaCopia, togliCollegamenti } from './ambiente-copia'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
+import { ATTESA_MASSIMA_MS, giudicaPesanteConPcCarico, type GuardiaPc } from './guardia-pc'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
@@ -214,6 +215,12 @@ export type Dipendenze = {
    * massimo, come prima.
    */
   misuraPc?: () => MisuraPc
+  /**
+   * La guardia del PC (0.85.1): con il processore sopra l'85% da un minuto o
+   * la memoria libera sotto il 15%, niente chat nuove e niente comandi pesanti
+   * delle chat. Assente (test): nessuna guardia, come prima.
+   */
+  guardiaPc?: GuardiaPc
   /**
    * Il freno sui limiti del piano (0.81.0). Spento nel servizio vero dal 22/10
    * (0.84.2): «togli i vincoli, a quelli penso io se stiamo consumando troppo»
@@ -793,6 +800,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   // Senza stato del programma (spento, o in avvio) vale l'ultima scelta: niente salti.
   const regolazioneAdesso = (): RegolazionePosti => statoProgramma?.regolazionePosti ?? regolazioneUsata
   const aggiornaPosti = (): void => {
+    // 0.85.1: la guardia rimisura a ogni giro, così l'indicatore dice subito «PC carico».
+    deps.guardiaPc?.valuta()
     if (deps.misuraPc === undefined) return
     ultimaMisura = deps.misuraPc()
     const regolazione = regolazioneAdesso()
@@ -1557,7 +1566,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
     const delFreno = tettoDellaFlotta(frenoAdesso(), attive, TETTO_CHAT_MAX)
     // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
-    return { tetto: tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()), delFreno }
+    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso())
+    // 0.85.1: con il PC al limite nessuna chat nuova. Mai fermo del tutto: senza
+    // nessuna chat al lavoro, dopo l'attesa massima se ne apre una lo stesso.
+    const carico = deps.guardiaPc?.stato()
+    if (carico !== undefined && tetto > attive && !(attive === 0 && Date.parse(deps.adesso()) - Date.parse(carico.dal) >= ATTESA_MASSIMA_MS)) {
+      return { tetto: attive, delFreno }
+    }
+    return { tetto, delFreno }
   }
 
   /** I compiti che non aspettano altri compiti ancora da unire (0.71.0), e quelli che il freno lascia partire. */
@@ -5060,8 +5076,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const segniVeri = segniVeriDi(a)
             // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
             const muto = supervisore.muto()
+            const pcCarico = a.stato === 'lavoro' ? deps.guardiaPc?.stato() : undefined
             const conVeri = {
               ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
+              ...(pcCarico !== undefined ? { pcCarico } : {}),
               ...(muto !== undefined && muto.cwd === a.cwd ? { supervisoreMuto: { volte: muto.volte, motivo: muto.motivo, dal: muto.dal } } : {})
             }
             if (segni.length === 0) return { ...a, segniDal, ...conVeri }
@@ -5830,8 +5848,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
-          const g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
-          if (!g.ok) {
+          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
+          // 0.85.1: con il PC al limite una chat non lancia compilazioni o test completi.
+          if (g.ok) g = giudicaPesanteConPcCarico(corpo, deps.guardiaPc?.stato())
+          if (!g.ok && g.pcCarico === true) {
+            console.info(`[guardia-pc] ${idAp}::${chatPre ?? '-'} comando pesante rimandato: ${g.motivo}`)
+          } else if (!g.ok) {
             console.warn(`[autopilota] ${idAp}: comando bloccato — ${g.motivo}`)
             const fresco = deps.archivio.leggi(idAp) ?? a
             salva({ ...fresco, decisioni: [...fresco.decisioni, { quando: deps.adesso(), cosa: `comando bloccato dal programma: ${g.motivo}` }] })
