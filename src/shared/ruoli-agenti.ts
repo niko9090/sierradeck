@@ -190,7 +190,7 @@ export function criteriPeggiorati(base: { descrizione: string; passato: boolean 
   return ramo.filter((e) => !e.passato && passaPrima.has(e.descrizione)).map((e) => e.descrizione)
 }
 
-/** Dopo quanti «da rifare» sullo stesso compito si chiede a Nicholas. */
+/** Dopo quanti «da rifare» sullo stesso compito decide il programma (0.84.4: prima si chiedeva a Nicholas). */
 export const RIFACIMENTI_MAX = 2
 
 /** Il compito di Revisione per il ramo di una chat: il testo dice quale chat, il programma lo rilegge. */
