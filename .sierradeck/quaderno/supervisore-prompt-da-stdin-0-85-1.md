@@ -44,3 +44,15 @@ deve decidere la regola: criteri verdi più `SEGNALE: fatto` vuol dire chat fini
 Non va ripetuto il giro. Vedi anche la scheda del giro senza fine della 0.85.0.
 
 Anche c-146 (23/10 sera) l'ha ricevuto 4 volte di fila dopo «SEGNALE: fatto», con criteri verdi e lavoro unito: stessa causa (servizio installato senza la correzione di c-145). Si esce solo con l'install della 0.85.1, che decide Nicholas.
+
+Lo stesso giro anche per c-150 (che ha ripreso c-146 la sera del 23/10): 4 volte di fila dopo «SEGNALE: fatto», con il lavoro già in main. Per una chat che riprende un compito già unito basta controllare (`git merge-base --is-ancestor`), rilanciare i test del pezzo e chiudere: non c'è niente da rifare.
+
+## Controllo delle altre chiamate (c-1108, 23/10 sera)
+
+Tutto ciò che interroga Claude in sottofondo — chiedi all'autopilota, risposte dalla scheda,
+scomposizione, Revisione, riparazione dei criteri, cambio d'obiettivo — passa da `deps.interroga`
+in `server.ts`, cioè da `interrogazioneReale`: prompt sullo stdin per tutti. Le altre `execFile`
+di `claude` sono corte e fisse: `negozio/cli.ts` (nomi di plugin/MCP), `risoluzione.ts`
+(percorso del dossier + `ISTRUZIONI_AGENTE`), `claude-versione.ts` (`--version`). Le chat
+ricevono una riga sola (`consegna-breve.ts`). Se si aggiunge una nuova chiamata a `claude` con
+testo che cresce, deve passare da `interrogazioneReale` o dallo stdin.
