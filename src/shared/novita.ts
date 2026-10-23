@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.84.4',
+    righe: [
+      '**Le tue risposte arrivano davvero:** una risposta conta solo quando la chat che aspettava la riceve. Vedi «Presa» o «Non presa» sul PC, sulla pagina e nell’app, e ogni passaggio resta nel registro. Se la chat non aspetta più, la risposta va all’autopilota come istruzione e non si perde.',
+      '**La Revisione non respinge più lavori giusti per colpa della copia:** se nella copia di una chat mancano i pacchetti del programma, li collega per il tempo della misura e scrive «problema di ambiente», non «il ramo rompe». Niente domande a te per questo.',
+      '**Una chat il cui terminale non parte** viene riaperta da sola o sostituita da una chat nuova sullo stesso compito, senza chiederti niente. La chat nuova non lavora mai nella cartella principale del progetto.',
+      '**Provato per 2 ore senza fermate:** l’autopilota non resta mai fermo con il lavoro da finire, nemmeno dopo un riavvio del servizio.',
+    ]
+  },
+  {
     versione: '0.84.3',
     righe: [
       '**L’autopilota ti racconta tutto in un punto:** in cima alla sua conversazione, sul PC, sulla pagina e nell’app, il «Punto» dice a che passo è, cosa fa ogni sua chat (in parole semplici, con il colore del suo segnale), cosa è finito, cosa viene dopo e cosa serve da te. Una riga quando una chat parte, finisce, si blocca, viene unita o resta ferma più di 15 minuti, con quello che l’autopilota ha fatto.',
