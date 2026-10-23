@@ -233,23 +233,34 @@ export function compitoBreve(compito: string, max = 60): string {
   return `${(spazio > max / 2 ? taglio.slice(0, spazio) : taglio).replace(/[\s,:;–-]+$/, '')}…`
 }
 
+/** Una sigla interna: «c-12», «gruppo 3», «ap-f1e631f5». */
+const SIGLA = String.raw`(?:c-\d+[a-z0-9-]*|grupp[oi] \d+|ap-[0-9a-f]{6,})`
+/** Più sigle di fila: «c-90 e c-91», «c-1, c-2 e c-3». */
+const SIGLE = String.raw`${SIGLA}(?:\s*(?:,|\be\b|\bed\b|\bo\b)\s*${SIGLA})*`
+/** Le preposizioni e gli articoli che reggono una sigla: tolta lei, vanno via anche loro. */
+const REGGE = String.raw`(?:di|del|dello|della|dei|degli|delle|a|al|allo|alla|ai|agli|alle|da|dal|dallo|dalla|dai|dagli|dalle|in|nel|nello|nella|nei|negli|nelle|su|sul|sullo|sulla|sui|sugli|sulle|per|con|fra|tra|il|lo|la|i|gli|le|e|ed|o)`
+
 /**
  * Il testo senza le sigle interne: «c-12», «(c-3)», «gruppo 3», i nomi dei
  * rami e degli autopiloti. Nicholas (22/10): le sigle non dicono niente a chi
  * legge; il compito si dice con le sue parole.
+ *
+ * Collaudo c-96 (D3): con la sigla va via anche la parola che la regge, o la
+ * frase resta rotta: «La Revisione di c-90 e c-91» è «La Revisione», non «La
+ * Revisione di e»; «…del gestionale del gruppo 3» finisce con «gestionale».
  */
 export function senzaSigle(testo: string): string {
   return testo
     .replace(/\bap\/[\w./-]+/g, '')
-    .replace(/\bap-[0-9a-f]{6,}\b/gi, '')
-    .replace(/\(\s*(?:chat\s+)?c-\d+[a-z0-9-]*\s*\)/gi, '')
+    .replace(new RegExp(String.raw`\(\s*(?:chat\s+)?${SIGLE}\s*\)`, 'gi'), '')
     .replace(/\b(?:la |della |alla |dalla |nella )?chat c-\d+[a-z0-9-]*\b/gi, (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s*c-\d+[a-z0-9-]*$/i, '') : 'chat'))
-    .replace(/\bc-\d+[a-z0-9-]*\b/gi, '')
-    .replace(/\bgrupp[oi] \d+\b/gi, '')
+    .replace(new RegExp(String.raw`(^|[\s(])${REGGE}\s+${SIGLE}\b`, 'gi'), '$1')
+    .replace(new RegExp(String.raw`\b${SIGLE}\b`, 'gi'), '')
     .replace(/\(\s*\)/g, '')
     .replace(/\s+([,.;:)])/g, '$1')
     .replace(/([(])\s+/g, '$1')
     .replace(/^[\s,;:—–-]+/, '')
+    .replace(/[\s,;:—–-]+$/, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }

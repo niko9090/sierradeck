@@ -1,5 +1,6 @@
 import { FERMA_DA_DIRE_MS, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { chiaveTurno } from './guardiano'
+import { sorellaAspettata } from '@shared/adesso'
 
 /**
  * **L'autopilota non resta mai fermo con il lavoro da finire** (0.84.1).
@@ -191,9 +192,15 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   // Le mute da toccare: tutte se nessuno lavora, altrimenti quelle messe da
   // parte, quelle già riprese che non hanno risposto e (0.84.3, il Punto)
   // quelle ferme da più di 15 minuti mentre le sorelle lavorano.
+  // Chi ha detto «aspetto» per una sorella che lavora non è ferma (collaudo
+  // c-96, D2): riprenderla ogni 15 minuti la farebbe solo ripartire a vuoto.
+  const aspettaUnaViva = (c: ChatGovernata): boolean => {
+    const sorella = sorellaAspettata(a, c)
+    return sorella !== undefined && viva(sorella)
+  }
   const daToccare = tuttoFermo
     ? mute
-    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS)
+    : mute.filter((c) => !aspettaUnaViva(c) && (daParte.has(c.id) || c.ripresa !== undefined || silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS))
   const mosse: MossaMaiFermo[] = []
   const righe: string[] = []
   const avvisaNicholas: string[] = []
