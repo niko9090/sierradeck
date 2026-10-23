@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
-import { cpSync, mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs'
+import { cpSync, mkdtempSync, writeFileSync, existsSync, readFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -83,6 +83,19 @@ describe('una cartella per chat: git worktree (T3)', { timeout: 60_000 }, () => 
     togliWorktree(git, { cwd: progetto, cartella: wt.cartella, ramo: wt.ramo })
     expect(existsSync(wt.cartella)).toBe(false)
     expect(git(['rev-parse', '--verify', '--quiet', 'refs/heads/ap/ap1/c-1'], progetto).codice).not.toBe(0)
+  })
+
+  it('0.84.4: una copia sparita dal disco ma ancora registrata in git si rimette sullo stesso ramo, col lavoro salvato', () => {
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-98', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
+    salvaLavoro(git, wt.cartella, 'pezzo')
+    // La cartella se ne va (come la copia di c-98 il 23/10), git la ricorda ancora.
+    rmSync(wt.cartella, { recursive: true, force: true })
+    expect(git(['worktree', 'list'], progetto).uscita).toContain('ap1-c-98')
+    const di = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-98', base: 'main' })
+    expect(di).toMatchObject({ ok: true, cartella: wt.cartella, ramo: 'ap/ap1/c-98' })
+    expect(readFileSync(join(wt.cartella, 'b.txt'), 'utf8')).toBe('dalla chat\n')
   })
 
   it('la copia nuova e quella ritrovata hanno gli hook ECC spenti come la principale, senza perdere i loro permessi', () => {

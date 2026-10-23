@@ -203,6 +203,9 @@ export function creaWorktree(git: Git, p: { cwd: string; autopilota: string; cha
     allineaHookEcc(radice, piano.cartellaRadice, fuoriDaGit(git))
     return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
   }
+  // Una copia sparita dal disco resta registrata in git e `worktree add` la
+  // rifiuterebbe (0.84.4, chat che non nasce): prune toglie solo le voci senza cartella.
+  git(['worktree', 'prune'], radice)
   // Il ramo puo' esistere gia' (un worktree tolto a mano): si riusa invece di fallire.
   const esiste = git(['rev-parse', '--verify', '--quiet', `refs/heads/${piano.ramo}`], radice).codice === 0
   const r = esiste

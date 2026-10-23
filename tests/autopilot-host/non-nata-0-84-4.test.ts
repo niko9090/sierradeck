@@ -114,7 +114,7 @@ let radice = ''
 let istruzioni: Istruzione[]
 let domande: ReturnType<typeof creaRegistroDomande>
 
-function ambiente(o: { sparite: string[]; rami: string[] }): ServerAutopiloti {
+function ambiente(o: { sparite: string[]; rami: string[]; addFallisce?: boolean }): ServerAutopiloti {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-non-nata-')))
   avviati = []
   chiuse = []
@@ -127,6 +127,7 @@ function ambiente(o: { sparite: string[]; rami: string[] }): ServerAutopiloti {
     comandiGit.push(args)
     if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') return { codice: 0, uscita: radice }
     if (args[0] === 'rev-parse' && args[1] === '--verify') return { codice: o.rami.some((r) => args.at(-1) === `refs/heads/${r}`) ? 0 : 1, uscita: '' }
+    if (args[0] === 'worktree' && args[1] === 'add' && o.addFallisce === true) return { codice: 128, uscita: 'fatal: disco pieno' }
     if (args[0] === 'worktree' && args[1] === 'add') { o.sparite = o.sparite.filter((c) => !c.endsWith(String(args[2]).split(/[\\/]/).at(-1) ?? '§')); return { codice: 0, uscita: '' } }
     return { codice: 0, uscita: '' }
   }
@@ -231,6 +232,21 @@ describe('0.84.4: nel servizio', () => {
     // Il giro dopo non la ritocca: una chat sola sul compito.
     server.controllaChatFerme()
     expect(archivio.leggi('ap-1')!.chats.filter((c) => c.stato === 'lavoro').map((c) => c.id)).toEqual(['c-2'])
+  })
+
+  it('copia sparita, ramo tolto e copia nuova che non si crea: mai una chat nella cartella principale, una riga e basta', async () => {
+    ora = Date.parse('2026-10-23T09:46:00.000Z')
+    server = ambiente({ sparite: [`${WT}/ap-1-c-7`], rami: [], addFallisce: true })
+    await avvia(server)
+    archivio.scrivi(ap([chat('c-7', { cartella: `${WT}/ap-1-c-7`, ramo: 'ap/ap-1/c-7' })], { cwd: radice }))
+    server.controllaChatFerme()
+    const a = archivio.leggi('ap-1')!
+    expect(a.chats).toHaveLength(1)
+    expect(avviati).toEqual([])
+    expect(avvisi).toHaveLength(1)
+    expect(avvisi[0]).not.toMatch(/\?/)
+    expect(a.decisioni.some((d) => d.cosa.includes('la copia non si è potuta rimettere'))).toBe(true)
+    expect(domande.aperte('ap-1')).toEqual([])
   })
 
   it('al tetto una riga a Nicholas (non una domanda) e nessuna chat in più', async () => {
