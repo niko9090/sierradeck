@@ -77,19 +77,28 @@ export function SchedaDomandaVista({
         </dl>
       ) : null}
       {s.scelte.length > 0 ? (
-        <div className="scheda-domanda__scelte">
-          {s.scelte.map((c, i) => (
-            <button
-              key={`${c.numero ?? i}-${c.testo}`}
-              className={`tasto${c.consigliata === true ? ' tasto--primario scheda-domanda__consigliata' : ''}`}
-              disabled={inCorso}
-              title={c.libera === true ? 'Scrivi la risposta nel campo qui sotto' : c.consigliata === true ? 'La scelta consigliata' : undefined}
-              onClick={() => onScelta(c)}
-            >
-              {c.spuntata !== undefined ? (c.spuntata ? '☑ ' : '☐ ') : null}
-              {c.consigliata === true ? '★ ' : null}{c.etichetta ?? c.testo}
-            </button>
-          ))}
+        // 0.84.3: con le conseguenze, una scelta per riga e sotto cosa succede.
+        <div className={`scheda-domanda__scelte${s.scelte.some((c) => c.conseguenza !== undefined) ? ' scheda-domanda__scelte--spiegate' : ''}`}>
+          {s.scelte.map((c, i) => {
+            const tasto = (
+              <button
+                key={`${c.numero ?? i}-${c.testo}`}
+                className={`tasto${c.consigliata === true ? ' tasto--primario scheda-domanda__consigliata' : ''}`}
+                disabled={inCorso}
+                title={c.libera === true ? 'Scrivi la risposta nel campo qui sotto' : c.consigliata === true ? 'La scelta consigliata' : undefined}
+                onClick={() => onScelta(c)}
+              >
+                {c.spuntata !== undefined ? (c.spuntata ? '☑ ' : '☐ ') : null}
+                {c.consigliata === true ? '★ ' : null}{c.etichetta ?? c.testo}
+              </button>
+            )
+            return c.conseguenza === undefined ? tasto : (
+              <div key={`${c.numero ?? i}-${c.testo}`} className="scheda-domanda__scelta">
+                {tasto}
+                <div className="scheda-domanda__conseguenza">→ {c.conseguenza}</div>
+              </div>
+            )
+          })}
         </div>
       ) : null}
       {s.apri !== undefined ? (

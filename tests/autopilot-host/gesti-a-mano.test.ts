@@ -29,7 +29,7 @@ const VERA: PartiDomanda = {
 /** Domande buone che devono passare: nessun gesto, nessun nome interno. */
 const BUONE: PartiDomanda[] = [
   partiPubblica('SierraDeck', true),
-  partiBloccato('Fai passare i test', 6, ['dividi', 'ricomincia'], 'npm test: 3 falliti'),
+  partiBloccato({ lavoro: 'Fai passare i test', falliti: [{ descrizione: 'I test passano' }], tentativi: 6, strade: ['dividi', 'ricomincia'], errori: 'npm test: 3 falliti', ultimaStrada: true, continua: true }),
   { ...VERA, domanda: 'Installo la 0.80.0 adesso?', scelte: [{ scelta: 'la installo io', conseguenza: 'aspetto che tu la installi', consigliata: true }, { scelta: 'non adesso', conseguenza: 'aspetto' }] },
   { ...VERA, domanda: 'Uso la porta 8080 per l’emulatore?', scelte: [{ scelta: 'sì', conseguenza: 'la uso', consigliata: true }, { scelta: 'ti dico io la porta', conseguenza: 'aspetto il numero' }] },
   { ...VERA, domanda: 'Chiudo lo stesso questo ciclo di NexoraOS o aspetto la tua prova sulla NAS?', scelte: [{ scelta: 'chiudi lo stesso', conseguenza: 'lo chiudo', consigliata: true }, { scelta: 'aspetta', conseguenza: 'aspetto' }] }
