@@ -25,6 +25,7 @@ import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitAsincronoReale, gitReale, statoCopia } from './worktree'
 import { creaMisuratore } from './misura-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
+import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -345,7 +346,9 @@ export function avviaServizio(): void {
       ...(process.env.SIERRADECK_VERSIONE !== undefined ? { versione: process.env.SIERRADECK_VERSIONE } : {}),
       release: releaseConMemoria(ghRelease, 2 * 60_000),
       git: gitReale
-    })
+    }),
+    // Le release con la data, per la velocità nel Punto (0.85.0).
+    releaseUscite: ghReleaseUscite
   })
 
   serverPronto = server
@@ -394,6 +397,13 @@ export function avviaServizio(): void {
     }
     ricontrollaDomande()
     setInterval(ricontrollaDomande, 10 * 60_000).unref()
+    // Le release uscite con la data (0.85.0): all'avvio e ogni 10 minuti, per
+    // la velocità nel Punto. Senza gh o senza rete non succede niente.
+    const aggiornaReleaseUscite = (): void => {
+      void server.aggiornaReleaseUscite().catch((err: unknown) => { console.error('[velocità] release non rilette:', err) })
+    }
+    aggiornaReleaseUscite()
+    setInterval(aggiornaReleaseUscite, RILETTURA_RELEASE_MS).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa

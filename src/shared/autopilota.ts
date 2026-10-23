@@ -549,6 +549,12 @@ export type Autopilota = SupervisoreMancato & {
    * minuti nessuna chat lavorava. Su disco: dopo un riavvio non si rifà subito.
    */
   giroDaSolo?: string
+  /**
+   * Le release uscite del progetto, con la data (0.85.0, velocità misurata):
+   * le rilegge il servizio da GitHub ogni tanto. Servono a dire quando una
+   * richiesta di Nicholas è arrivata in una versione pubblicata.
+   */
+  releaseUscite?: ReleaseUscita[]
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
   pubblicazioneInAttesa?: boolean
   /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
@@ -926,6 +932,22 @@ function parseLimiti(raw: unknown): Limiti {
  * Non solleva mai: restituisce `undefined` e l'elenco degli scarti, che il
  * chiamante porta in un log. Il vincolo globale è «scartato **e registrato**».
  */
+/** Una release uscita: la versione senza «v» e quando è stata pubblicata (ISO). */
+export type ReleaseUscita = { versione: string; quando: string }
+
+/** Quante release uscite si ricordano: per misurare bastano le ultime. */
+export const RELEASE_RICORDATE = 50
+
+export function leggiReleaseUscite(x: unknown[]): ReleaseUscita[] {
+  return x.flatMap((v) => {
+    if (typeof v !== 'object' || v === null) return []
+    const r = v as Record<string, unknown>
+    return typeof r.versione === 'string' && r.versione !== '' && typeof r.quando === 'string' && !Number.isNaN(Date.parse(r.quando))
+      ? [{ versione: r.versione, quando: r.quando }]
+      : []
+  }).slice(-RELEASE_RICORDATE)
+}
+
 export function parseAutopilota(raw: unknown): {
   autopilota: Autopilota | undefined
   scartati: string[]
@@ -1138,6 +1160,7 @@ export function parseAutopilota(raw: unknown): {
             }).slice(-CONSEGNATI_RICORDATI_AUTOPILOTA)
           }
         : {}),
+      ...(Array.isArray(o.releaseUscite) && leggiReleaseUscite(o.releaseUscite).length > 0 ? { releaseUscite: leggiReleaseUscite(o.releaseUscite) } : {}),
       ...(Array.isArray(o.adottate) ? { adottate: leggiAdottate(o.adottate) } : {}),
       ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {})
     },

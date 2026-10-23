@@ -7,7 +7,8 @@ import { Aiuto } from './Aiuto'
 /**
  * **Il Punto** (0.84.3) in cima alla conversazione dell'autopilota: passo in
  * corso, ogni chat con il suo segnale, cosa è finito, cosa viene dopo, cosa
- * serve da te, i limiti del piano come informazione. Le righe le calcola
+ * serve da te, i limiti del piano come informazione, la velocità dalla
+ * richiesta alla versione (0.85.0). Le righe le calcola
  * `puntoDi`, la stessa della pagina e dell'app.
  */
 const TINTA: Record<string, string> = {
@@ -79,6 +80,11 @@ export function PuntoAutopilota({ autopilota: a, senzaChat = false }: {
         <b>Da te:</b> {p.daTe.length > 0 ? p.daTe.join(' ') : 'niente, va avanti da solo.'}
       </div>
       {p.limiti !== undefined ? <div className="punto-ap__riga punto-ap__limiti">{p.limiti}</div> : null}
+      {p.velocita !== undefined ? (
+        <div className="punto-ap__riga punto-ap__velocita con-aiuto">
+          <b>Velocità:</b> {p.velocita.testo}<Aiuto di="la velocità">{p.velocita.aiuto}</Aiuto>
+        </div>
+      ) : null}
     </div>
   )
 }

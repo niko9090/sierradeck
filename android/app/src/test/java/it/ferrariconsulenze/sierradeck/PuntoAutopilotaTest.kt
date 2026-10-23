@@ -43,4 +43,15 @@ class PuntoAutopilotaTest {
         assertEquals("1 chat finita", RighePunto.finite(1))
         assertNull(Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","stato":"lavoro"}""").punto)
     }
+
+    @Test
+    fun `la velocità come la manda il PC 0_85_0, assente con un PC più vecchio`() {
+        val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """
+            {"id":"ap-1","stato":"lavoro","punto":{"passo":"Lavora",
+              "velocita":{"testo":"Dalla richiesta alla versione: 5 h 10 min (mediana di 4). Perso: pubblicazione 2 h.","aiuto":"Quanto ci mette una tua richiesta"}}}
+        """)
+        assertEquals("Dalla richiesta alla versione: 5 h 10 min (mediana di 4). Perso: pubblicazione 2 h.", d.punto?.velocita?.testo)
+        assertEquals("Quanto ci mette una tua richiesta", d.punto?.velocita?.aiuto)
+        assertNull(Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","stato":"lavoro","punto":{"passo":"Lavora"}}""").punto?.velocita)
+    }
 }
