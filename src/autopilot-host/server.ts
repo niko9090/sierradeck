@@ -14,6 +14,7 @@ import { chiediDecisione } from './decisione-supervisore'
 import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
 import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
 import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
+import { chatDellaDomandaRifacimenti, compitoDallaDomanda, eDomandaRifacimenti, noteDallaDomanda, okRespintoDaiCriteri, oltreIlTetto, rigaDaParte, stradaOltre, testoDaCapo } from './oltre-rifacimenti'
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
@@ -25,7 +26,7 @@ import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type Memo
 import { peggioratiDelRamo, preparaCopia, togliCollegamenti } from './ambiente-copia'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
-import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
+import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, parolaSegnale, quadroFlotta, rigaDoppione, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
@@ -76,7 +77,7 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
+  cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 import { allineaHookEccDiTutte } from './hook-ecc'
 
@@ -2911,7 +2912,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * - «OK»: valido solo se i criteri passano **nel ramo rivisto** e c'è almeno
    *   un file citato; allora il ramo si unisce al principale e il compito è fatto.
    * - «DA RIFARE» (o un OK respinto): le note tornano alla chat autrice; dopo
-   *   `RIFACIMENTI_MAX` volte si chiede a Nicholas, invece di girare in tondo.
+   *   `RIFACIMENTI_MAX` volte decide il programma (`oltreRifacimenti`, 0.84.4),
+   *   mai più una domanda a Nicholas.
    */
   const giudicaRevisione = async (a: Autopilota, chatId: string, messaggio: string): Promise<unknown> => {
     const revisore = a.chats.find((c) => c.id === chatId)
@@ -2954,47 +2956,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const unito = ramoTolto ? `il ramo ${autore.ramo ?? ''} non c’è più: niente unito qui` : 'unito nel ramo principale'
       annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), ${unito}. ${v.note}`.slice(0, 400), { chat: chatId, esito: 'approvato', di: autore.id })
       salva(fresco)
-      // Si aprono i compiti che aspettavano questo; se non resta niente, una
-      // chat autrice chiude il giro e il supervisore dichiara finito sui criteri.
-      const dopo = await apriChatMancanti(deps.archivio.leggi(a.id) ?? fresco)
-      const restano = dopo.compitiDaFare.length > 0 || dopo.chats.some((c) => c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa')
-      if (!restano) {
-        const ultimo = { ...autore, stato: 'lavoro' as const, approvata: true }
-        const ripreso: Autopilota = { ...dopo, chats: dopo.chats.map((c) => (c.id === autore.id ? ultimo : c)) }
-        annota(ripreso, 'tutti i compiti sono uniti e approvati: ultimo giro per misurare i criteri sul risultato unito')
-        salva(ripreso)
-        void avviaLavoro(ripreso, 'Il tuo ramo è stato approvato dalla Revisione e unito nel ramo principale, insieme al lavoro delle altre chat. Non c’è altro da fare: rispondi solo «fatto». Il programma misura i criteri sul risultato unito.', ultimo)
-          .catch((err: unknown) => { console.error(`[autopilota] ultimo giro di ${a.id} non partito:`, err) })
-      }
+      await dopoUnione(fresco, autore)
       return {}
     }
     const rifacimenti = (autore.rifacimenti ?? 0) + 1
     fresco = { ...fresco, chats: fresco.chats.map((c) => (c.id === autore.id ? { ...c, rifacimenti } : c)) }
-    if (rifacimenti > RIFACIMENTI_MAX) {
-      // Due giri a vuoto: decide Nicholas, con una domanda scritta dal programma.
-      fresco = conStatoChat(fresco, autore.id, 'bloccata')
-      annota(fresco, `Revisione ${chatId}: ${autore.id} rimandato indietro ${rifacimenti} volte, chiedo a te`, { chat: chatId, esito: 'chiede-te', di: autore.id })
+    if (oltreIlTetto(rifacimenti)) {
+      // 0.84.4: niente più «Come vado avanti con …?». Decide il programma (`oltre-rifacimenti.ts`).
       salva(fresco)
-      const parti = {
-        // 0.84.0: «Come vado avanti con questo pezzo?» → Nicholas: «quale pezzo???».
-        // La domanda nomina il lavoro, senza la sigla della chat.
-        staFacendo: `La Revisione ha rimandato indietro ${rifacimenti} volte il lavoro della chat che fa «${nomeCompito(autore.compito, 80)}».`,
-        domanda: `Come vado avanti con «${nomeCompito(autore.compito, 80)}», che la Revisione ha già rimandato indietro ${rifacimenti} volte?`,
-        // Le note della Revisione citano rami e chat: a parole (collaudo 0.84.0).
-        perche: `L’ultima richiesta della Revisione: ${senzaSigleMai(v.note, conosciute(fresco)).slice(0, 200)}`,
-        scelte: [
-          { scelta: 'rifallo ancora', conseguenza: 'La chat corregge di nuovo e la Revisione la rivede.', consigliata: true },
-          { scelta: 'uniscilo così', conseguenza: 'Unisco il ramo anche senza l’ok della Revisione.' },
-          { scelta: 'lascialo fuori', conseguenza: 'Il pezzo non entra; gli altri continuano.' }
-        ],
-        seNonRispondi: 'Il pezzo resta fermo; le altre chat continuano.'
-      }
-      // Passa dal controllo come le altre (collaudo 0.84.0).
-      const pronta = domandaControllataSubito(nomeDi(fresco), parti, conosciute(fresco))
-      const testo = pronta.testo
-      const d = deps.domande.apri({ autopilotaId: fresco.id, testo, scadenzaMs: deps.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
-      ricordaContesto(d.id, { autopilotaId: fresco.id, testo, chatId: autore.id })
-      void deps.avvisa('domanda', fresco, testo)
+      await oltreRifacimenti(fresco.id, autore.id, { note: v.note, revisioneOk: letto.esito === 'ok', criteriNellaCopia: delRamo.length > 0 && dove !== a.cwd, revisore: chatId, sulPrincipale: sulPrincipale.esiti })
       return {}
     }
     const autoreDiNuovo = { ...autore, stato: 'lavoro' as const, rifacimenti }
@@ -3007,6 +2977,169 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   /**
+   * Dopo un ramo unito: si aprono i compiti che aspettavano questo; se non
+   * resta niente, la chat autrice chiude il giro e il supervisore dichiara
+   * finito sui criteri.
+   */
+  const dopoUnione = async (fresco: Autopilota, autore: ChatGovernata): Promise<void> => {
+    const dopo = await apriChatMancanti(deps.archivio.leggi(fresco.id) ?? fresco)
+    const restano = dopo.compitiDaFare.length > 0 || dopo.chats.some((c) => c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa')
+    if (restano) return
+    const ultimo = { ...autore, stato: 'lavoro' as const, approvata: true }
+    const ripreso: Autopilota = { ...dopo, chats: dopo.chats.map((c) => (c.id === autore.id ? ultimo : c)) }
+    annota(ripreso, 'tutti i compiti sono uniti e approvati: ultimo giro per misurare i criteri sul risultato unito')
+    salva(ripreso)
+    void avviaLavoro(ripreso, 'Il tuo ramo è stato approvato dalla Revisione e unito nel ramo principale, insieme al lavoro delle altre chat. Non c’è altro da fare: rispondi solo «fatto». Il programma misura i criteri sul risultato unito.', ultimo)
+      .catch((err: unknown) => { console.error(`[autopilota] ultimo giro di ${fresco.id} non partito:`, err) })
+  }
+
+  /**
+   * Le unioni di prova in corso (0.84.4), per cartella: finché una non è
+   * confermata o annullata, nessun'altra unione parte lì.
+   */
+  const proveInCorso = new Map<string, Promise<void>>()
+  const chiaveProva = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  const aspettaProve = async (cwd: string): Promise<void> => {
+    for (let p = proveInCorso.get(chiaveProva(cwd)); p !== undefined; p = proveInCorso.get(chiaveProva(cwd))) await p
+  }
+
+  /**
+   * **I criteri rimisurati nella cartella principale** (0.84.4): il ramo unito
+   * lì senza commit, i criteri misurati con i pacchetti veri, poi l'unione
+   * confermata se il ramo non rompe niente di quello che passava, o annullata.
+   * Torna se il ramo è entrato e, se no, perché.
+   */
+  const provaNelPrincipale = async (a: Autopilota, ramo: string, prima: EsitoVerifica[] | undefined): Promise<{ unito: true } | { unito: false; motivo: string }> => {
+    const git = deps.git
+    if (git === undefined || a.ramoBase === undefined) return { unito: false, motivo: 'senza git non si può fare un’unione di prova' }
+    const base = a.ramoBase
+    const turni = deps.turni ?? TURNI_PC
+    const misura = async (): Promise<EsitoVerifica[]> => (await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(improntaCodice(git, a.cwd) !== undefined ? { impronta: improntaCodice(git, a.cwd) as string } : {}) })).esiti
+    await aspettaProve(a.cwd)
+    let fine = (): void => {}
+    proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
+    try {
+      const passavano = prima ?? await misura()
+      const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
+      if (!inizio.ok) return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})` }
+      let peggiorati: string[] = []
+      try {
+        peggiorati = peggioratiDelRamo(passavano, await misura(), true).delRamo
+      } catch (err) {
+        peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
+      }
+      const tenuta = await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
+      if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
+      return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
+    } finally {
+      proveInCorso.delete(chiaveProva(a.cwd))
+      fine()
+    }
+  }
+
+  /**
+   * **Oltre i rifacimenti decide il programma** (0.84.4): al posto della
+   * domanda «Come vado avanti con …, che la Revisione ha già rimandato
+   * indietro N volte?». La regola sta in `oltre-rifacimenti.ts`; qui si
+   * eseguono le mosse. Mai una domanda a Nicholas.
+   */
+  const oltreRifacimenti = async (
+    autopilotaId: string,
+    autoreId: string,
+    p: { note: string; revisioneOk: boolean; criteriNellaCopia: boolean; revisore?: string; sulPrincipale?: EsitoVerifica[] }
+  ): Promise<void> => {
+    let a = deps.archivio.leggi(autopilotaId)
+    const autore = a?.chats.find((c) => c.id === autoreId)
+    if (a === undefined || autore === undefined || autore.conclusa !== undefined || autore.lasciataFuori !== undefined) return
+    const git = deps.git
+    const base = a.ramoBase
+    const il = deps.adesso()
+    const volte = autore.rifacimenti ?? 0
+    const nome = nomeCompito(autore.compito, 80)
+    const chi = autore.sessionId !== undefined ? { sessionId: autore.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined
+    const segna = (x: Autopilota, nota: string): void => annota(x, `${autore.id}: ${nota}`.slice(0, 400), { chat: autore.id, esito: 'ferma', nota: nota.slice(0, NOTA_TRAGUARDO_MAX) })
+    const senzaNovita = git !== undefined && autore.ramo !== undefined && base !== undefined
+      ? await ramoSenzaNovitaAsincrono(gitA(git), { cwd: a.cwd, ramo: autore.ramo, base })
+      : false
+    let strada = stradaOltre({ senzaNovita, revisioneOk: p.revisioneOk, criteriNellaCopia: p.criteriNellaCopia && autore.ramo !== undefined, daCapo: autore.daCapo === true })
+    let perche = p.note
+    if (strada === 'doppione') {
+      a = { ...a, chats: a.chats.map((c) => (c.id === autore.id ? { ...c, stato: 'finita' as const, approvata: true, conclusa: { il, come: 'unito' as const } } : c)) }
+      segna(a, 'il suo ramo non porta niente di nuovo rispetto al ramo principale: lo chiudo come doppione, senza chiederti niente')
+      salva(a)
+      console.info(`[autopilota] ${a.id} — ${autore.id}: rimandato ${volte} volte, ramo senza novità → chiuso come doppione`)
+      await dopoUnione(a, autore)
+      return
+    }
+    if (strada === 'rimisura' && autore.ramo !== undefined) {
+      const prova = await provaNelPrincipale(a, autore.ramo, p.sulPrincipale)
+      a = deps.archivio.leggi(autopilotaId) ?? a
+      if (prova.unito) {
+        if (autore.cartella !== undefined && autore.cartella !== a.cwd) togliCollegamenti(autore.cartella)
+        a = { ...a, chats: a.chats.map((c) => (c.id === autore.id ? { ...c, stato: 'finita' as const, approvata: true } : c)) }
+        annota(a, `${autore.id}: la Revisione l’aveva approvato ma i criteri non passavano nella sua copia; rimisurati nella cartella principale su un’unione di prova, passano: unito nel ramo principale`.slice(0, 400), { chat: p.revisore ?? autore.id, esito: 'approvato', di: autore.id })
+        salva(a)
+        console.info(`[autopilota] ${a.id} — ${autore.id}: criteri rimisurati nella cartella principale, unito`)
+        await dopoUnione(a, autore)
+        return
+      }
+      perche = `${prova.motivo}${p.note.trim() !== '' ? `. Le note della Revisione: ${p.note}` : ''}`
+      strada = stradaOltre({ senzaNovita: false, revisioneOk: true, criteriNellaCopia: true, rimisurata: true, daCapo: autore.daCapo === true })
+    }
+    if (strada === 'da-capo') {
+      const nuovaId = `c-${a.chats.length + 1}`
+      const wt = git !== undefined && base !== undefined ? creaWorktree(git, { cwd: a.cwd, autopilota: a.id, chat: nuovaId, base }) : undefined
+      if (wt === undefined || wt.ok) {
+        deps.fermaLavoro(a.id, autore.id, chi)
+        if (chi !== undefined) deps.chiudiChat?.(a.id, autore.id, { ...chi, alRecupero: true })
+        // La copia vecchia si toglie, con il suo lavoro salvato sul ramo, che resta da leggere.
+        if (git !== undefined && autore.cartella !== undefined && autore.ramo !== undefined && autore.cartella !== a.cwd) {
+          await salvaLavoroAsincrono(gitA(git), autore.cartella, `autopilota ${a.nome}: ${autore.compito.slice(0, 60)} (rifatto da capo)`)
+          await togliAlTurno(git, { cwd: a.cwd, cartella: autore.cartella, ramo: autore.ramo })
+        }
+        const { cartella: _c, ramo: _r, rifacimenti: _f, sostituzioni: _s, ultimaStrada: _u, ...senza } = chatCheSostituisce(a, autore, randomUUID(), il)
+        const nuova: ChatGovernata = {
+          ...senza,
+          ...(wt !== undefined && wt.ok ? { cartella: wt.cartella, ramo: wt.ramo } : {}),
+          ...(autore.sostituzioni !== undefined ? { sostituzioni: autore.sostituzioni } : {}),
+          daCapo: true
+        }
+        a = conNataAlPosto(a, autore.id, nuova, il)
+        segna(a, `rimandato indietro ${volte} volte: lo rifà da capo una chat nuova, dal ramo principale, con tutte le note della Revisione`)
+        annota(a, `apro la chat ${nuova.id} al posto di ${autore.id}, da capo: ${nuova.compito.slice(0, 120)}`, { chat: nuova.id, esito: 'aperta' })
+        salva(a)
+        console.info(`[autopilota] ${a.id} — ${autore.id}: rimandato ${volte} volte → da capo in ${nuova.id}`)
+        const partita = a
+        void avviaLavoro(partita, `${testoDaCapo(autore, volte, perche)}\n\n---\n\n${primoCompito(partita, nuova)}`, nuova)
+          .catch((err: unknown) => { console.error(`[autopilota] ${partita.id} — ${nuova.id} (da capo) non partita:`, err) })
+        return
+      }
+      perche = `${perche}${perche !== '' ? '. ' : ''}La copia nuova per rifarlo non si è potuta creare (${wt.motivo.slice(0, 160)})`
+    }
+    // Messo da parte: le altre chat continuano, a Nicholas una riga sola.
+    deps.fermaLavoro(a.id, autore.id, chi)
+    if (chi !== undefined) deps.chiudiChat?.(a.id, autore.id, { ...chi, alRecupero: true })
+    const daParte = (a.daParte ?? []).filter((k) => k !== autore.id)
+    const { daParte: _via, ...senzaDaParte } = a
+    a = {
+      ...senzaDaParte,
+      ...(daParte.length > 0 ? { daParte } : {}),
+      chats: a.chats.map((c) => {
+        if (c.id !== autore.id) return c
+        const { ripresa: _r, ...resto } = c
+        return { ...resto, stato: 'finita' as const, lasciataFuori: { il, perche: perche.slice(0, 400) }, ...(chi !== undefined ? { nelRecupero: il } : {}), dal: il }
+      })
+    }
+    const riga = rigaDaParte(nome, senzaSigleMai(perche !== '' ? perche : 'la Revisione l’ha rimandato indietro anche dopo averlo rifatto da capo', conosciute(a)))
+    segna(a, riga)
+    salva(a)
+    console.info(`[autopilota] ${a.id} — ${autore.id}: messo da parte (${perche.slice(0, 160)})`)
+    void deps.avvisa('avviso', a, riga)
+    const dopo = a
+    void apriChatMancanti(deps.archivio.leggi(dopo.id) ?? dopo).catch((err: unknown) => { console.error(`[autopilota] ${dopo.id} — apertura delle chat dopo la messa da parte fallita:`, err) })
+  }
+
+  /**
    * I tempi di ogni giro (0.71.0): la fermata si misura fase per fase e si
    * scrive nel registro dei tempi, qualunque strada prenda.
    */
@@ -3014,8 +3147,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const memoriaCriteri: MemoriaCriteri = new Map()
   // Un'unione non cade mai sotto un comando lungo che misura la stessa cartella (0.82.1).
   const gitA = (git: Git): GitAsincrono => deps.gitAsincrono ?? comeAsincrono(git)
-  const unisciAlTurno = (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> =>
-    (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
+  // Né a metà di un'unione di prova (0.84.4): aspetta che sia confermata o annullata.
+  const unisciAlTurno = async (git: Git, p: { cwd: string; ramo: string; base: string }): Promise<ReturnType<typeof unisciRamo>> => {
+    await aspettaProve(p.cwd)
+    return (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
+  }
   // Anche togliere un worktree e guardare se un ramo è già chiuso girano nella
   // cartella di lavoro: mai a metà di un'unione (Revisione 0.84.0).
   const togliAlTurno = (git: Git, p: { cwd: string; cartella: string; ramo: string }): Promise<void> =>
@@ -5579,6 +5715,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return ch === undefined ? 'non c’è più' : chatSenzaLavoro(ch)
         })
         const gesto = c?.pubblica === true ? undefined : domandaDaNonFare(d.parti ?? partiDaTesto(d.testo))
+        const parti = d.parti ?? partiDaTesto(d.testo)
+        if (eDomandaRifacimenti(parti)) {
+          // 0.84.4: «Come vado avanti con …?» non si chiede più, di nessun
+          // autopilota: superata, e la strada la sceglie il programma.
+          const autore = chatDellaDomandaRifacimenti(a, c?.chatId, compitoDallaDomanda(parti))
+          if (!deps.domande.superata(d.id, 'dopo troppi «da rifare» della Revisione ora decide il programma', a !== undefined ? chatDellaDomanda(a, autore?.id ?? c?.chatId) : undefined)) continue
+          contesto.delete(d.id)
+          chiuse += 1
+          console.log(`[domande] ${d.autopilotaId} — superata, chiusa: «${parti.domanda.slice(0, 120)}» (ora decide il programma)`)
+          const fresco = deps.archivio.leggi(a.id) ?? a
+          annota(fresco, `domanda chiusa perché superata: «${parti.domanda.replace(/\s+/g, ' ').slice(0, 120)}» — ora decide il programma, senza chiederti niente`)
+          salva(fresco)
+          if (autore !== undefined && autore.stato !== 'finita') {
+            await oltreRifacimenti(a.id, autore.id, { note: noteDallaDomanda(parti), revisioneOk: okRespintoDaiCriteri(noteDallaDomanda(parti)), criteriNellaCopia: okRespintoDaiCriteri(noteDallaDomanda(parti)) })
+              .catch((err: unknown) => { console.error(`[domande] ${a.id} — decisione dopo la domanda superata non riuscita:`, err) })
+          }
+          continue
+        }
         if (chatIds.length > 0 && perche.every((x) => x !== undefined)) {
           const prima = a.chats.find((x) => x.id === chatIds[0])
           motivo = prima !== undefined ? `la chat che lavorava a «${nomeCompito(prima.compito, 60)}» ${perche[0]}` : 'la chat che l’aveva chiesta non c’è più'
