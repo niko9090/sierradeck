@@ -32,8 +32,8 @@ const grande = (): Autopilota => ({
 } as Autopilota)
 
 /** Tempo medio di un disegno, in millisecondi, dopo un giro a vuoto per scaldare. */
-function tempoMedio(disegna: () => string, volte = 40): number {
-  for (let i = 0; i < 5; i += 1) disegna()
+function tempoMedio(disegna: () => string, volte = 40, scalda = 5): number {
+  for (let i = 0; i < scalda; i += 1) disegna()
   const t0 = performance.now()
   for (let i = 0; i < volte; i += 1) disegna()
   return (performance.now() - t0) / volte
@@ -60,9 +60,10 @@ describe('il campo della scheda dell’autopilota scorre fluido', () => {
 
   it('una lettera costa molto meno della chat intera (numeri nel rapporto 0.85.1)', () => {
     const a = grande()
-    const chatIntera = tempoMedio(() => renderToStaticMarkup(<ChatAutopilota autopilota={a} onCambiato={() => undefined} />))
+    // La chat intera costa centinaia di ms a disegno (500 col PC carico): poche misure bastano, 45 superavano i 20 s del test.
+    const chatIntera = tempoMedio(() => renderToStaticMarkup(<ChatAutopilota autopilota={a} onCambiato={() => undefined} />), 5, 1)
     const dopo = tempoMedio(() => renderToStaticMarkup(<Campo.CampoChatAutopilota autopilotaId={a.id} onCambiato={() => undefined} campoPronto={false} disfaTitolo={undefined} />))
     console.log(`[misura] chat intera ${chatIntera.toFixed(3)} ms, una lettera adesso (solo il campo) ${dopo.toFixed(3)} ms`)
     expect(dopo * 5).toBeLessThan(chatIntera)
-  })
+  }, 60_000)
 })
