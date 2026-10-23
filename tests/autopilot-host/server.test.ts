@@ -12,7 +12,6 @@ import type { Esecutore } from '../../src/autopilot-host/verifiche'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
-import { sigleIn } from '@shared/domanda-chiara'
 import { statoCopia, type Git } from '../../src/autopilot-host/worktree'
 
 /**
@@ -2725,27 +2724,19 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(a.decisioni.map((d: any) => d.cosa).join(' | ')).toContain('problema di ambiente nella copia di c-1')
   })
 
-  it('rimandato indietro troppe volte: la domanda va a Nicholas, con la scelta consigliata', async () => {
-    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
-    const base = flotta()
-    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, rifacimenti: 2 } : c)) })
-    await avvia(server)
-    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: DA RIFARE ap/ap-rev/c-1: manca il caso vuoto in src/a.ts:9' }))
-    const d = (await chiama('GET', '/domande')).dati
-    expect(d).toHaveLength(1)
-    expect(d[0].opzioni).toEqual(['rifallo ancora', 'uniscilo così', 'lascialo fuori'])
-    expect((await chiama('GET', '/autopiloti')).dati[0].chats.find((c: any) => c.id === 'c-1').stato).toBe('bloccata')
-  })
-
-  it('collaudo 0.84.0: il «perché» con le note della Revisione passa dal controllo, senza sigle', async () => {
+  // 0.84.4: niente più «Come vado avanti con …?» (Nicholas, 23/10: «sei tu che devi trovare le soluzioni, non io»).
+  it('rimandato indietro troppe volte: nessuna domanda, il compito riparte da capo in una chat nuova con le note della Revisione', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
     const base = flotta()
     archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, rifacimenti: 2 } : c)) })
     await avvia(server)
     await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: DA RIFARE ap/ap-rev/c-1: manca il caso vuoto in src/a.ts:9, come già detto a c-1 e a c-77' }))
-    const [d] = (await chiama('GET', '/domande')).dati
-    expect(d.parti.perche).toContain('come già detto a «A» e a una chat che non c’è più')
-    expect(sigleIn(d.testo)).toEqual([])
+    for (let i = 0; i < 80 && messaggiDiRipresa.length === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.chats.find((c: any) => c.id === 'c-1').stato).toBe('finita')
+    expect(a.chats.find((c: any) => c.sostituisce === 'c-1')).toMatchObject({ stato: 'lavoro', daCapo: true })
+    expect(messaggiDiRipresa.join(' ')).toContain('manca il caso vuoto in src/a.ts:9')
   })
 
   it('la Revisione non scrive file e nessuno lancia l’installatore', async () => {

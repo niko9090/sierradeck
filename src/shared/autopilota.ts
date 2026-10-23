@@ -277,6 +277,14 @@ export type ChatGovernata = SupervisoreMancato & {
    * terminale (0.84.4): passa con la sostituzione, e ha un tetto.
    */
   nonNate?: number
+  /**
+   * È la chat che rifà il compito da capo, dal ramo principale, dopo troppi
+   * «da rifare» della Revisione (0.84.4): se rimandano indietro anche lei, il
+   * lavoro si mette da parte. Vedi `oltre-rifacimenti.ts`.
+   */
+  daCapo?: true
+  /** Il lavoro messo da parte dopo il giro da capo (0.84.4): quando e perché non è entrato. */
+  lasciataFuori?: { il: string; perche: string }
 }
 
 /** Quando il servizio ha rimesso al lavoro una chat muta, e quante volte di fila (0.84.1). */
@@ -702,7 +710,11 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(stringaNonVuota(o.sostituisce) !== undefined ? { sostituisce: o.sostituisce as string } : {}),
     ...(typeof o.sostituzioni === 'number' && o.sostituzioni > 0 ? { sostituzioni: Math.floor(o.sostituzioni) } : {}),
     ...(o.ultimaStrada === true ? { ultimaStrada: true as const } : {}),
-    ...(typeof o.nonNate === 'number' && o.nonNate > 0 ? { nonNate: Math.floor(o.nonNate) } : {})
+    ...(typeof o.nonNate === 'number' && o.nonNate > 0 ? { nonNate: Math.floor(o.nonNate) } : {}),
+    ...(o.daCapo === true ? { daCapo: true as const } : {}),
+    ...(typeof o.lasciataFuori === 'object' && o.lasciataFuori !== null && typeof (o.lasciataFuori as { il?: unknown }).il === 'string' && typeof (o.lasciataFuori as { perche?: unknown }).perche === 'string'
+      ? { lasciataFuori: { il: (o.lasciataFuori as { il: string }).il, perche: (o.lasciataFuori as { perche: string }).perche } }
+      : {})
   }
 }
 

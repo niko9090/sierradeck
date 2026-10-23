@@ -343,6 +343,71 @@ function* unisciPassi(p: { cwd: string; ramo: string; base: string }): Passi<Esi
   }
 }
 
+/**
+ * **Il ramo non porta niente di nuovo** (0.84.4): non c'è più, è già contenuto
+ * nel principale, o unirlo lascerebbe i file del principale tali e quali (il
+ * suo lavoro è già entrato per un'altra strada). Nel dubbio (git che non
+ * risponde, `merge-tree` che non c'è) `false`: si passa dalla strada normale.
+ */
+export function ramoSenzaNovitaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<boolean> {
+  return aspettando(git, senzaNovitaPassi(p))
+}
+
+function* senzaNovitaPassi(p: { cwd: string; ramo: string; base: string }): Passi<boolean> {
+  const chiuso = yield* giaChiusoPassi(p)
+  if (chiuso !== undefined) return true
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return false
+  const unito = yield* chiedi(['merge-tree', '--write-tree', p.base, p.ramo], radice)
+  if (unito.codice !== 0) return false
+  const albero = yield* chiedi(['rev-parse', `${p.base}^{tree}`], radice)
+  const primo = unito.uscita.split(/\r?\n/)[0]?.trim() ?? ''
+  return albero.codice === 0 && /^[0-9a-f]{7,64}$/i.test(primo) && primo === albero.uscita.trim()
+}
+
+export type EsitoProva = { ok: true } | { ok: false; motivo: string }
+
+/**
+ * **L'unione di prova** (0.84.4): il ramo unito nella cartella di lavoro
+ * **senza commit**, per misurare lì i criteri con i pacchetti veri. Solo sul
+ * ramo principale e con la cartella pulita; un conflitto si annulla subito.
+ * Dopo la misura `chiudiProva` la conferma o la annulla.
+ */
+export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<EsitoProva> {
+  return aspettando(git, iniziaProvaPassi(p))
+}
+
+function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Passi<EsitoProva> {
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
+  const qui = yield* ramoPassi(radice)
+  if (qui !== p.base) return { ok: false, motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
+  // Con file a metà nella cartella di lavoro la prova misurerebbe anche quelli, e l'annullarla li toccherebbe.
+  const sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+  if (sporca.codice !== 0 || sporca.uscita.trim() !== '') return { ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' }
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', p.ramo], radice)
+  if (r.codice === 0) return { ok: true }
+  const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
+  yield* chiedi(['merge', '--abort'], radice)
+  return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
+}
+
+/** Conferma l'unione di prova con il suo commit (`tieni`), o la annulla. */
+export function chiudiProvaAsincrono(git: GitAsincrono, p: { cwd: string; tieni: boolean }): Promise<boolean> {
+  return aspettando(git, chiudiProvaPassi(p))
+}
+
+function* chiudiProvaPassi(p: { cwd: string; tieni: boolean }): Passi<boolean> {
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return false
+  if (p.tieni) {
+    const c = yield* chiedi([...(yield* firma(radice)), 'commit', '--no-edit', '--no-verify'], radice)
+    if (c.codice === 0) return true
+  }
+  yield* chiedi(['merge', '--abort'], radice)
+  return false
+}
+
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */
 export function togliWorktree(git: Git, p: { cwd: string; cartella: string; ramo: string }): void {
   inLinea(git, togliPassi(p))
@@ -360,6 +425,9 @@ function* togliPassi(p: { cwd: string; cartella: string; ramo: string }): Passi<
   while (dirname(radiceWt) !== radiceWt && basename(dirname(radiceWt)) !== basename(cartellaWorktreeDi(radice))) {
     radiceWt = dirname(radiceWt)
   }
+  // Una cartella che non sta fra le copie delle chat (0.84.4): la risalita
+  // arrivava alla radice del disco e chiedeva `worktree remove --force E:\`.
+  if (dirname(radiceWt) === radiceWt || basename(dirname(radiceWt)) !== basename(cartellaWorktreeDi(radice))) return
   // Il collegamento a node_modules della Revisione (0.84.4) prima della copia:
   // git lo lascerebbe lì e la cartella non si potrebbe togliere.
   togliCollegamenti(radiceWt)
