@@ -52,7 +52,10 @@ describe('riga 3: va / lento / fermo dai segnali veri', () => {
     })
     const i = indicatoreDi(a, ORA)
     expect(i.andamento).toMatchObject({ livello: 'va', colore: 'verde', testo: 'Va: Sviluppo, commit 2 min fa' })
-    expect(i.dettaglio).toEqual(['Sviluppo («compito»): commit 2 min fa', 'Revisione («compito»): test 6 min fa'])
+    expect(i.dettaglio).toEqual([
+      'Sviluppo («compito»): commit 2 min fa · ultimo passo: non ha ancora riferito niente',
+      'Revisione («compito»): test 6 min fa · ultimo passo: non ha ancora riferito niente'
+    ])
     expect(JSON.stringify([i.andamento.testo])).not.toMatch(/\bc-\d+/)
   })
 
@@ -66,7 +69,8 @@ describe('riga 3: va / lento / fermo dai segnali veri', () => {
     expect(i.andamento.livello).toBe('fermo')
     expect(i.andamento.colore).toBe('rosso')
     expect(i.andamento.testo).toBe('Fermo: nessun segnale vero da 21 min · l’autopilota: giro mai fermo: riprendo, muta da 17 min (4 min fa)')
-    expect(i.dettaglio).toEqual(['Sviluppo («compito»): file cambiati 21 min fa'])
+    // 0.85.1: con il quadro intero: l'ultimo passo detto («avanti», dedotto o no) accanto al segnale vero.
+    expect(i.dettaglio).toEqual(['Sviluppo («compito»): file cambiati 21 min fa · ultimo passo: passo fatto: scrivo i test (2 min fa), dedotto dal segnale'])
   })
 
   it('la stessa chat muta 21 minuti accanto a una sorella che lavora: giallo, col suo nome', () => {

@@ -48,5 +48,12 @@ export function componiImpostazioni(id: string, porta: number, chatId?: string):
     matcher: 'Bash|PowerShell',
     hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${id}${perChat}`, timeout: 30 }]
   }
-  return JSON.stringify({ hooks: { Stop: [hook('stop')], Notification: [hook('notification')], PreToolUse: [divieti] } })
+  // PostToolUse (0.85.1): il rapporto a ogni passo. Il servizio risponde
+  // subito e legge la riga `RAPPORTO:` dalla trascrizione dopo: la chat non
+  // aspetta niente.
+  const rapporti = {
+    matcher: '',
+    hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/rapporto?ap=${id}${perChat}`, timeout: 10 }]
+  }
+  return JSON.stringify({ hooks: { Stop: [hook('stop')], Notification: [hook('notification')], PreToolUse: [divieti], PostToolUse: [rapporti] } })
 }
