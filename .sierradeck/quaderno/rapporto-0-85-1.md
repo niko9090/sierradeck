@@ -13,7 +13,7 @@ tag: ["0.85.1", "rapporto", "patch", "c-143", "c-145"]
 | # | Richiesta | Dove | Prova |
 |---|---|---|---|
 | 1 | Supervisore: «spawn ENAMETOOLONG» (239 volte il 23/10, 124 di fila). Il prompt va sull'ingresso, non sulla riga di comando. Allarme dopo 3 fallimenti di fila | **c-145**, in `main` (`407cc4da`) | `supervisore.test.ts` (prompt di 48.006 caratteri con un claude finto), `indicatore-autopilota.test.ts`; il controllo `grep` del criterio passa |
-| 2 | Guardia del PC | c-143 `5425393a` | `guardia-pc-0-85-1.test.ts`, 11 test |
+| 2 | Guardia del PC | **c-148**, in `main` (`d254775c`) | `guardia-pc-0-85-1.test.ts` (quello di c-148) |
 | 3 | Testo fluido nella linguetta dell'autopilota | c-143 `1dadc186` | `campo-autopilota-fluido-0-85-1.test.tsx` |
 | 4 | Domande del 23/10 rilette dal registro | c-143 `a7566e00` | `domande-del-23-10-0-85-1.test.ts`, 5 test |
 
@@ -21,21 +21,7 @@ tag: ["0.85.1", "rapporto", "patch", "c-143", "c-145"]
 
 ## 2. Guardia del PC
 
-Prima di aprire una chat e prima dei criteri pesanti a fine turno, il servizio guarda l'ultima misura del PC. Il guardiano la prende ogni minuto, con `creaMisuratore`. Il PC è **carico** in due casi:
-- il processore è sopra l'85% in due misure distanti almeno 60 secondi;
-- la memoria libera è sotto il 15%.
-
-Finché il PC è carico:
-- **nessuna chat nuova**: i posti sono solo quelli già occupati;
-- i **criteri pesanti** tengono l'esito di prima, segnato come «rimandato» nel quadro;
-- le chat già al lavoro **continuano**: non si chiude e non si ferma niente;
-- l'indicatore dice in giallo «PC carico: aspetto · memoria libera al 9% · consuma di più chrome (5,1 GB)». Lo dicono anche `/posti-chat` e il motivo «perché non apro».
-
-Il programma più pesante si legge una volta per episodio, con `Get-Process`, in sola lettura. Nomi uguali si sommano. Per il processore servono due letture a un secondo di distanza. Provato sul PC vero: «claude (5,4 GB)», «claude (18% del processore)».
-
-Codice: `src/shared/guardia-pc.ts` (regole e riga), `src/autopilot-host/processi-pesanti.ts` (la lettura), `server.ts` (`guardaIlPc`, `postiAdesso`, `misuraCriteri` col `tutti` spento).
-
-Non coperto: la verifica finale prima di «finito» rimisura tutto anche col PC carico. È una volta sola e serve fresca.
+**Doppione anche qui.** c-143 (`5425393a`) e c-148 (`d254775c`) l'hanno fatta in parallelo. Quella di c-148 è entrata in `main` per prima. Per questo il ramo di c-143 non si univa più: `index.ts`, `server.ts` e lo stesso file di test andavano in conflitto. Il 23/10 sera c-143 ha unito `main` e ha tenuto **solo la versione di c-148**. Ha tolto `src/shared/guardia-pc.ts`, `processi-pesanti.ts` e la scheda `guardia-del-pc-0-85-1.md`. Come funziona: scheda `guardia-pc-0-85-1.md` (c-148).
 
 ## 3. Testo fluido
 
