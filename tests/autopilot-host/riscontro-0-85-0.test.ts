@@ -58,7 +58,13 @@ function repoDel23(): { cwd: string; commit: string } {
   mkdirSync(join(cwd, '.sierradeck', 'quaderno'), { recursive: true })
   writeFileSync(join(cwd, LISTA_LAVORI), LISTA)
   git(cwd, 'add', '-A')
-  git(cwd, 'commit', '-q', '-m', 'docs(quaderno): lista dei lavori')
+  // La lista c'era da prima del lavoro di c-125, come nel caso vero. Senza una
+  // data sua i due commit nascono nello stesso secondo, e a parità di data
+  // `git log -1 --no-merges` dà il primo genitore dell'unione (questo):
+  // il test passava o falliva a seconda del secondo (c-122, 23/10).
+  const prima = new Date(Date.now() - 60_000).toISOString()
+  const r = spawnSync('git', ['commit', '-q', '-m', 'docs(quaderno): lista dei lavori'], { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: prima, GIT_COMMITTER_DATE: prima } })
+  if (r.status !== 0) throw new Error(`git commit: ${r.stderr}`)
   git(cwd, 'tag', 'v0.84.3')
   git(cwd, 'checkout', '-q', '-b', 'ap/c-125')
   mkdirSync(join(cwd, 'tests', 'autopilot-host'), { recursive: true })

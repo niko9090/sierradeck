@@ -51,3 +51,21 @@ senza `fix(...)` e senza la parentesi finale.
   facile da risolvere tenendo tutte e due le parti.
 - Nei test serve `user.name`/`user.email` nel repository di prova: su
   questo PC non c'è un'identità git globale, e senza il commit fallisce.
+
+**Test che passava o falliva a caso (c-122, 23/10).** Il criterio «servizio,
+renderer, condivisi, pty» è stato rosso per tre giri in
+`riscontro-0-85-0.test.ts`: aspettava il commit di c-125 e ne riceveva un
+altro, «lista dei lavori». La causa: `provaDi` (`riscontro.ts:126`) prende
+`git log -1 --no-merges`, che ordina per **data del commit**. Nel repository
+di prova i due commit nascevano nello stesso secondo e, a parità di data, git
+dà il primo genitore dell'unione. Riprodotto a parte: con date uguali usciva
+«lista» 2 volte su 3, con 5 secondi di distanza sempre il commit giusto. Il
+test adesso dà alla lista una data di un minuto prima; 5 giri su 5 verdi.
+
+**Da guardare nel codice (non corretto):** anche nella cartella vera
+«l'ultimo commit vero» per data può non essere quello del lavoro. Basta un
+commit fatto su main dopo quello della chat, per esempio il commit della
+lista che il riscontro stesso fa, o una scheda del quaderno. Quando il comando
+del criterio nomina un test il problema non c'è (`-- <test>`). Negli altri
+casi sarebbe più sicuro prendere il commit dal ramo unito (il secondo
+genitore dell'ultima unione) invece che dalla data.
