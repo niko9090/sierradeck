@@ -89,3 +89,13 @@ Si puo': vedi `build-sul-portatile.md`. Due differenze: Smart App Control blocca
 - **Trappola dei testi del quaderno scritti dalla shell:** un `node -e "…"` fra virgolette doppie con dentro dei backtick Markdown (`` `latest.yml` ``) fa eseguire alla shell ogni pezzo fra backtick come comando (il 22/10 ha provato a lanciare `npm run build\` e simili, senza danni). Per i testi con backtick usare lo strumento Edit, mai la shell.
 - **Togliere la junction `node_modules` dalla copia** con `rmdir` (cancella solo il collegamento) appena finito: se la copia viene cancellata con la junction dentro, si rischia di svuotare la `node_modules` della cartella principale.
 - **0.84.2 (22/10): tag dimenticato, finito sulla 0.80.0.** `npm run pubblica` è partito senza il tag `v0.84.2` su GitHub: electron-builder ha creato la release con `target_commitish: main` e GitHub ha messo il tag sul `main` remoto, fermo a `a22c1dff` (0.80.0). Gli allegati sono giusti (costruiti dal codice locale, `88e683fe`), sbagliato è solo il tag. Controllo veloce: `git ls-remote --tags origin vX.Y.Z` deve dare il commit della versione. **Sempre: tag creato e pushato PRIMA di `npm run pubblica`.** Sistemare il tag già pubblicato vuol dire riscriverlo su GitHub: farlo solo con il permesso.
+- **0.84.4 (23/10, c-122): release pubblicata con un solo file, il blockmap.** La chat della release ha creato tag e release (non in bozza) e poi si è fermata: per 30 minuti `releases/latest` era la 0.84.4 senza installer né `latest.yml`, quindi nessun aggiornamento. **Prima di chiudere una chat di release: `gh release view vX --json isDraft,assets`, 5 file «uploaded».**
+  - **Come si completa una release già pubblicata:**
+    1. copia pulita staccata sul tag (`git worktree add --detach <wt>/rilascio-X vX`), con la junction e `google-oauth.json`;
+    2. `npm run pacchetto` (non `pubblica`), poi controllo di `latest.yml` contro lo sha512 dell'exe;
+    3. `gh release upload vX <exe> <blockmap> latest.yml --clobber` con i nomi a trattini; il blockmap va sostituito, perché deve corrispondere all'exe;
+    4. `npm run allega-apk`;
+    5. scaricare da `releases/latest` e ricontrollare lo sha512.
+  - **Non usare l'installer in `dist` della cartella principale** senza sapere da che commit viene: il 23/10 era su un commit più vecchio del tag.
+  - **Falso positivo del guardiano «installa solo Nicholas»:** blocca un comando (anche una `cp`, o un testo scritto dalla shell) che contiene `../` seguito dal nome dell'installer. Usare i percorsi assoluti, e per i testi lo strumento Edit (riga 0u della lista dei lavori).
+  - `allega-apk.mjs` **non conosce `--help`**: lo ignora e fa tutto, cioè costruisce e carica. Lanciarlo solo quando si vuole davvero caricare, o con `--solo-verifica`.
