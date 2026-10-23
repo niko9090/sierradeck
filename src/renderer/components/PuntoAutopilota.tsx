@@ -55,8 +55,23 @@ export function PuntoAutopilota({ autopilota: a, senzaChat = false }: {
   }, [a.id])
 
   const p = puntoDi(a as Autopilota & SegniDalVivo, ora, { domandeAperte: domande, ...(limiti !== undefined ? { limiti } : {}) })
+  const ind = p.indicatore
   return (
     <div className="punto-ap" aria-label="Il punto">
+      <div className="punto-ap__indicatore" aria-label="A colpo d’occhio">
+        <div className="punto-ap__riga">{ind.versione}</div>
+        <div className="punto-ap__riga">{ind.fine.testo}</div>
+        <div className="punto-ap__barra" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={ind.fine.percento} aria-label="Criteri soddisfatti">
+          <span style={{ width: `${ind.fine.percento}%` }} />
+        </div>
+        <div className="punto-ap__riga con-aiuto" style={{ color: TINTA[ind.andamento.colore] }}>
+          <b>{ind.andamento.simbolo}</b> {ind.andamento.testo}
+          <Aiuto di="l’indicatore">
+            {ind.aiuto}
+            {ind.dettaglio.length > 0 ? <><br /><br /><b>Chat per chat:</b>{ind.dettaglio.map((r, i) => <span key={i}><br />{r}</span>)}</> : null}
+          </Aiuto>
+        </div>
+      </div>
       <div className="punto-ap__testa">
         <span className="serigrafia con-aiuto">Punto<Aiuto di="il Punto">{AIUTO_PUNTO}</Aiuto></span>
         <span className="punto-ap__passo">{p.passo}</span>

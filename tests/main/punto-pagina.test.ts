@@ -30,6 +30,13 @@ const esc = (s: unknown): string => String(s).replace(/&/g, '&amp;').replace(/</
 const puntoHtml = new Function('esc', 'aiuto', 'COLORE_VISTA', `${funzione('puntoHtml')}; return puntoHtml`)(esc, () => '', COLORE_VISTA) as (p: unknown) => string
 
 const punto: Punto = {
+  indicatore: {
+    versione: 'Prossima versione 0.85.0: 1 di 3 pezzi pronti · manca: Indicatore e altri 1 · circa 2 h',
+    fine: { testo: 'Fine del lavoro: 4 di 6 criteri · 3 compiti in coda · 1 chat al lavoro', percento: 67 },
+    andamento: { livello: 'fermo', colore: 'rosso', simbolo: '■', testo: 'Fermo: nessun segnale vero da 7 h · l’autopilota: riprendo le chat' },
+    dettaglio: ['Sviluppo («Il menu»): commit 7 h fa'],
+    aiuto: 'Tre righe'
+  },
   richieste: [
     { id: 'r-2', giorno: '23/10', titolo: 'Le risposte prese davvero', stato: 'in-corso', parola: 'in corso', colore: 'blu' },
     { id: 'r-1', giorno: '22/10', titolo: 'Togli il freno', stato: 'fatta', parola: 'fatta nella versione 0.84.2', colore: 'verde' }
@@ -50,6 +57,16 @@ const punto: Punto = {
 }
 
 describe('il Punto sulla pagina del telefono', () => {
+  it('0.85.0: l’indicatore in cima, con la barra e il colore del PC', () => {
+    const h = puntoHtml(punto)
+    expect(h.indexOf('Prossima versione 0.85.0')).toBeLessThan(h.indexOf('Punto<'))
+    expect(h).toContain('Fine del lavoro: 4 di 6 criteri · 3 compiti in coda · 1 chat al lavoro')
+    expect(h).toContain('aria-valuenow="67"><span style="width:67%"></span>')
+    expect(h).toContain('style="color:ROSSO"><b>■</b> Fermo: nessun segnale vero da 7 h')
+    // Un PC più vecchio senza indicatore: il Punto si legge lo stesso.
+    const { indicatore: _via, ...vecchio } = punto
+    expect(puntoHtml(vecchio)).not.toContain('punto-ap__indicatore')
+  })
   it('ogni chat con il suo segnale nei colori del PC, finito, dopo, da te e i limiti', () => {
     const h = puntoHtml(punto)
     expect(h).toContain('Punto')

@@ -636,6 +636,9 @@ function componiPagina(): string {
   .adesso-ap__compito { color: var(--testo-quieto); }
   .punto-ap { margin: 6px 0; padding: 6px 0; border-top: 1px solid var(--bordo); border-bottom: 1px solid var(--bordo); font-size: var(--t1); line-height: 1.35; }
   .punto-ap__chat, .punto-ap__riga { overflow-wrap: anywhere; margin-top: 2px; }
+  .punto-ap__indicatore { padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px dashed var(--bordo); }
+  .punto-ap__barra { height: 6px; margin-top: 3px; background: var(--bordo); border-radius: 3px; overflow: hidden; }
+  .punto-ap__barra > span { display: block; height: 100%; background: var(--verde, #3fb950); }
   .pensa { color: var(--ambra); }
   /* La chat con lui (0.29.0): in cima, scorre da sola e resta in fondo; le
      sue decisioni sono note quiete con il filo colorato a sinistra. */
@@ -1064,7 +1067,15 @@ function puntoHtml(p) {
   var richieste = Array.isArray(p.richieste) && p.richieste.length ? '<div class="punto-ap__riga"><b>Le tue richieste:</b></div>' + p.richieste.map(function (r) {
     return '<div class="punto-ap__chat">' + esc(r.giorno || '') + ' · ' + esc(r.titolo) + ' — <span style="color:' + tinta(r.colore) + '">' + esc(r.parola) + '</span></div>'
   }).join('') + (altri(p.richiesteTotale, p.richieste.length) ? '<div class="sotto">' + altri(p.richiesteTotale, p.richieste.length).trim() + '</div>' : '') : ''
-  return '<div class="punto-ap"><div class="serigrafia">Punto' + aiuto('ap-punto', p.aiuto || '') + '</div>' + richieste +
+  // 0.85.0: l'indicatore a colpo d'occhio, sopra tutto (le righe le calcola il PC, come sul PC e nell'app).
+  var ind = p.indicatore && typeof p.indicatore === 'object' ? p.indicatore : null
+  var indicatore = ind ? '<div class="punto-ap__indicatore">' +
+    '<div class="punto-ap__riga">' + esc(ind.versione || '') + '</div>' +
+    '<div class="punto-ap__riga">' + esc((ind.fine && ind.fine.testo) || '') + '</div>' +
+    '<div class="punto-ap__barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Number((ind.fine && ind.fine.percento) || 0) + '"><span style="width:' + Math.max(0, Math.min(100, Number((ind.fine && ind.fine.percento) || 0))) + '%"></span></div>' +
+    '<div class="punto-ap__riga con-aiuto" style="color:' + tinta(ind.andamento && ind.andamento.colore) + '"><b>' + esc((ind.andamento && ind.andamento.simbolo) || '') + '</b> ' + esc((ind.andamento && ind.andamento.testo) || '') +
+    aiuto('ap-indicatore', esc(ind.aiuto || '') + (Array.isArray(ind.dettaglio) && ind.dettaglio.length ? '<br><br><b>Chat per chat:</b><br>' + ind.dettaglio.map(esc).join('<br>') : ''), 'l’indicatore') + '</div></div>' : ''
+  return '<div class="punto-ap">' + indicatore + '<div class="serigrafia">Punto' + aiuto('ap-punto', p.aiuto || '') + '</div>' + richieste +
     '<div class="punto-ap__riga">' + esc(p.passo || '') + '</div>' + chat +
     (p.finite ? '<div class="sotto">' + (p.finite === 1 ? '1 chat finita' : p.finite + ' chat finite') + '</div>' : '') +
     lista('Finito', p.fatto, p.fattoTotale) + lista('Dopo', p.dopo, p.dopoTotale) +
