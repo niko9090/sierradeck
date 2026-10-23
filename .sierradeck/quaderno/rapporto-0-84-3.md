@@ -89,6 +89,15 @@ lavorano»), nessun giro che dice «apro» senza aprire, 2 chat passate a una ch
 nuova. Fermato perché la correzione D2 del collaudo del «Punto» tocca
 `mai-fermo.ts` (chi aspetta una sorella che lavora non è ferma).
 
-**Terzo giro, quello che vale: partito alle 2026-10-23T01:05:56Z** sul codice finale del ramo
-c-93 (`97aa542a`: motivo vero, D1-D4 del «Punto», emoji). Stesso metodo.
+**Terzo giro (01:05 UTC, sul codice `97aa542a`), fermato a 7 minuti** perché
+è arrivato il ramo dell'ultima strada (c-101, che tocca `mai-fermo.ts` e
+`server.ts`). Fino lì pulito: 0 minuti fermi, chat muta più a lungo 4,4 minuti,
+nessun giro.
+
+**Quarto giro, quello che vale: partito alle 2026-10-23T01:13:34Z** sul commit `7588f794` (il
+ramo c-93 con dentro tutte le voci della 0.84.3, c-101 compreso). Stesso metodo.
+Prima del giro: TypeScript pulito, programma principale 1941 test verdi (2
+saltati), servizio, renderer, condivisi e pty 3145 verdi, app Android compila e
+i test unitari passano, Kotlin al massimo 772 righe (`App.kt`), guardia delle
+cancellazioni pulita, nessun `it.fails` rimasto.
 Numeri: in arrivo alla fine (2 ore dopo).
