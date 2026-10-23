@@ -114,12 +114,16 @@ export function testoEsito(e: EsitoIstruzione): { breve: string; titolo: string;
  * partita` e `consegna c-5: non partita (…)`. Solo quelli finali; gli altri
  * passi (ritirata, invio…) non cambiano niente.
  */
-export function esitoDaPasso(passo: string): { consegna: string; esito: 'partita' | 'non-partita' | 'non-consegnata' } | undefined {
+export function esitoDaPasso(passo: string): { consegna: string; esito: 'partita' | 'non-partita' | 'non-consegnata'; nonNata?: true; perche?: string } | undefined {
   const m = /consegna (\S+): (partita|non partita|non consegnata)\b/.exec(passo)
   if (m === null || m[1] === undefined || m[1] === '') return undefined
   // «non consegnata» (0.56.4): la finestra ha smesso di provare; il servizio
   // rimette in coda i messaggi che quella consegna portava.
-  return { consegna: m[1], esito: m[2] === 'partita' ? 'partita' : m[2] === 'non consegnata' ? 'non-consegnata' : 'non-partita' }
+  const esito = m[2] === 'partita' ? 'partita' : m[2] === 'non consegnata' ? 'non-consegnata' : 'non-partita'
+  // «non consegnata (non nata: …)» (0.84.4): il terminale della chat non è
+  // nato. Il servizio passa il compito a una chat nuova, senza domande.
+  const nata = esito === 'non-consegnata' ? /\(non nata: ([^)]*)\)/.exec(passo.slice(m.index)) : null
+  return { consegna: m[1], esito, ...(nata !== null ? { nonNata: true as const, perche: (nata[1] ?? '').trim() } : {}) }
 }
 
 /**

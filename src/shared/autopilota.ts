@@ -271,6 +271,11 @@ export type ChatGovernata = SupervisoreMancato & {
    * si blocca anche lei, l'autopilota chiede a Nicholas.
    */
   ultimaStrada?: true
+  /**
+   * Quante chat di fila, su questo compito, non hanno fatto nascere il loro
+   * terminale (0.84.4): passa con la sostituzione, e ha un tetto.
+   */
+  nonNate?: number
 }
 
 /** Quando il servizio ha rimesso al lavoro una chat muta, e quante volte di fila (0.84.1). */
@@ -690,7 +695,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(stringaNonVuota(o.sostituitaDa) !== undefined ? { sostituitaDa: o.sostituitaDa as string } : {}),
     ...(stringaNonVuota(o.sostituisce) !== undefined ? { sostituisce: o.sostituisce as string } : {}),
     ...(typeof o.sostituzioni === 'number' && o.sostituzioni > 0 ? { sostituzioni: Math.floor(o.sostituzioni) } : {}),
-    ...(o.ultimaStrada === true ? { ultimaStrada: true as const } : {})
+    ...(o.ultimaStrada === true ? { ultimaStrada: true as const } : {}),
+    ...(typeof o.nonNate === 'number' && o.nonNate > 0 ? { nonNate: Math.floor(o.nonNate) } : {})
   }
 }
 

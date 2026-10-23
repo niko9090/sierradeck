@@ -58,6 +58,7 @@ import {
 } from './dialogo'
 import { primoCompito, ripartiDaDove, riprende } from './nel-mosaico'
 import { chatCheSostituisce, conSostituzione, giroMaiFermo, notaFerma, rigaGiro, testoPassaggio, testoRipresa } from './mai-fermo'
+import { alTettoNonNate, chatNataAlPosto, conNataAlPosto, conRevisioneSuperata, postoSparito, rimedioNonNata, testoCopiaRimessa, testoNataAlPosto, type VistaNonNata } from './non-nata'
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
@@ -1020,6 +1021,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     salva({ ...base, inVolo: [...(base.inVolo ?? []).filter((v) => v.consegna !== consegna), { consegna, quando: deps.adesso(), messaggi }] })
   }
 
+  /** Di quale chat era una consegna (0.84.4): dalla linguetta «Istruzioni», la più recente con quell'id. */
+  const chatDellaConsegna = (consegna: string): { autopilotaId: string; chatId: string } | undefined => {
+    let trovata: { autopilotaId: string; chatId: string; quando: string } | undefined
+    for (const a of deps.archivio.elenca()) {
+      for (const i of deps.istruzioni?.elenca(a.id) ?? []) {
+        if (i.consegna === consegna && (trovata === undefined || i.quando > trovata.quando)) trovata = { autopilotaId: a.id, chatId: i.chatId, quando: i.quando }
+      }
+    }
+    return trovata === undefined ? undefined : { autopilotaId: trovata.autopilotaId, chatId: trovata.chatId }
+  }
+
   /** La consegna è partita: i suoi messaggi sono nella chat, si dimenticano. */
   const consegnaPartita = (consegna: string): void => {
     for (const a of deps.archivio.elenca()) {
@@ -1738,6 +1750,95 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     giriDaSoli()
   }
 
+  /** Il disco e git, per decidere cosa fare di una chat che non nasce (0.84.4). */
+  const vistaNonNata = (a: Autopilota): VistaNonNata => ({
+    copia: (cartella) => deps.copia?.(cartella),
+    // Senza git (prove) non si può sapere: si tiene il ramo, mai «superata» al buio.
+    ramoEsiste: (ramo) => deps.git === undefined || deps.git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd).codice === 0
+  })
+  /** Le chat a cui si è già posto rimedio (0.84.4): l'esito del PC e il giro possono arrivare insieme. */
+  const nonNateCurate = new Set<string>()
+
+  /** Al tetto delle chat non nate: una riga nel diario e a Nicholas, nessuna domanda, nessuna chat in più. */
+  const rimediaNonNataAlTetto = (a: Autopilota, vecchia: ChatGovernata, motivo: string): void => {
+    const dopo = { ...a }
+    annota(dopo, `${vecchia.id}: ${motivo}. Non apro altre chat per questo compito; lo riprende il prossimo giro del supervisore.`, { chat: vecchia.id, esito: 'ferma', nota: motivo.slice(0, NOTA_TRAGUARDO_MAX) })
+    salva(dopo)
+    void deps.avvisa('avviso', dopo, `Il compito «${vecchia.compito.slice(0, 80)}» non parte: ${motivo}. Non ti chiedo niente; se vuoi, guardalo tu.`)
+    console.warn(`[autopilota] ${a.id} — ${vecchia.id}: ${motivo}, mi fermo qui`)
+  }
+
+  /**
+   * **Una chat il cui terminale non nasce** (0.84.4): la si sostituisce con una
+   * chat nuova sullo stesso compito, in un posto che c'è (rimettendo la copia
+   * del suo ramo, se serve), o si chiude la Revisione di un ramo che non c'è
+   * più. Mai una domanda a Nicholas. La regola sta in `non-nata.ts`.
+   */
+  const rimediaNonNata = (autopilotaId: string, chatId: string, perche: string): void => {
+    const a = deps.archivio.leggi(autopilotaId)
+    const vecchia = a?.chats.find((c) => c.id === chatId)
+    if (a === undefined || vecchia === undefined || vecchia.stato !== 'lavoro' || vecchia.conclusa !== undefined || a.stato !== 'lavoro') return
+    const chiave = `${a.id}|${vecchia.id}`
+    if (nonNateCurate.has(chiave)) return
+    nonNateCurate.add(chiave)
+    const r = rimedioNonNata(a, vecchia, vistaNonNata(a), perche)
+    const il = deps.adesso()
+    const chi = vecchia.sessionId !== undefined ? { sessionId: vecchia.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined
+    if (r.tipo === 'tetto') { rimediaNonNataAlTetto(a, vecchia, r.motivo); return }
+    if (r.tipo === 'superata') {
+      deps.fermaLavoro(a.id, vecchia.id, chi)
+      if (chi !== undefined) deps.chiudiChat?.(a.id, vecchia.id, { ...chi, alRecupero: true })
+      const dopo = conRevisioneSuperata(a, vecchia.id, il)
+      annota(dopo, `${vecchia.id} non può partire e non serve più: ${r.motivo}. La chiudo (va nel recupero per 30 giorni).`, { chat: vecchia.id, esito: 'ferma', nota: r.motivo.slice(0, NOTA_TRAGUARDO_MAX) })
+      salva(dopo)
+      console.info(`[autopilota] ${a.id} — ${vecchia.id} (Revisione) superata: ${r.motivo}`)
+      return
+    }
+    let posto: { cartella?: string; ramo?: string } = {
+      ...(r.tipo === 'sostituisci' && r.cartella !== undefined ? { cartella: r.cartella } : {}),
+      ...(r.tipo === 'sostituisci' && r.ramo !== undefined ? { ramo: r.ramo } : {})
+    }
+    const note: string[] = []
+    const nuovaId = `c-${a.chats.length + 1}`
+    if (r.tipo === 'ricrea' || r.nuovoPosto === true) {
+      const wt = deps.git !== undefined && a.ramoBase !== undefined
+        ? creaWorktree(deps.git, { cwd: a.cwd, autopilota: a.id, chat: r.tipo === 'ricrea' ? r.chat : nuovaId, base: a.ramoBase })
+        : { ok: false as const, motivo: 'senza git' }
+      // La copia si rimette e la stessa chat riparte lì: la «riaperta da sola».
+      if (wt.ok && r.tipo === 'ricrea') {
+        nonNateCurate.delete(chiave)
+        const dopo = { ...a }
+        annota(dopo, `${vecchia.id}: la sua copia non c’era più (${r.motivo}). Rimessa sul ramo ${r.ramo}: la chat riparte lì, senza domande`, { chat: vecchia.id, esito: 'ferma', nota: `copia rimessa sul ramo ${r.ramo}` })
+        salva(dopo)
+        console.info(`[autopilota] ${a.id} — ${vecchia.id}: copia rimessa in ${wt.cartella} (ramo ${r.ramo}), la chat riparte`)
+        const stessa = dopo.chats.find((c) => c.id === vecchia.id)
+        void avviaLavoro(dopo, testoCopiaRimessa(stessa ?? vecchia, r.ramo), stessa).catch((err: unknown) => {
+          console.error(`[autopilota] ${a.id} — ${vecchia.id} non ripartita dopo la copia rimessa:`, err)
+        })
+        return
+      }
+      if (wt.ok) {
+        posto = { cartella: wt.cartella, ramo: wt.ramo }
+        note.push(`copia nuova sul ramo ${wt.ramo}`)
+      } else {
+        posto = {}
+        note.push(`copia non rimessa (${wt.motivo}): lavora nella cartella principale`)
+      }
+      if (r.tipo === 'ricrea' && alTettoNonNate(vecchia)) { rimediaNonNataAlTetto(a, vecchia, r.motivo); return }
+    }
+    deps.fermaLavoro(a.id, vecchia.id, chi)
+    if (chi !== undefined) deps.chiudiChat?.(a.id, vecchia.id, { ...chi, alRecupero: true })
+    const nuova = chatNataAlPosto(a, vecchia, randomUUID(), il, posto)
+    const dopo = conNataAlPosto(a, vecchia.id, nuova, il)
+    annota(dopo, `${vecchia.id}: il terminale non è partito (${r.motivo}). Il suo compito passa a ${nuova.id}${note.length > 0 ? ` (${note.join('; ')})` : ''}; ${vecchia.id} va nel recupero per 30 giorni`, { chat: vecchia.id, esito: 'ferma', nota: r.motivo.slice(0, NOTA_TRAGUARDO_MAX) })
+    annota(dopo, `apro la chat ${nuova.id} al posto di ${vecchia.id}: ${nuova.compito.slice(0, 120)}`, { chat: nuova.id, esito: 'aperta' })
+    salva(dopo)
+    console.info(`[autopilota] ${a.id} — ${vecchia.id} non nata (${r.motivo}): il compito passa a ${nuova.id}`)
+    void avviaLavoro(dopo, `${testoNataAlPosto(vecchia, r.motivo)}\n\n---\n\n${primoCompito(dopo, nuova)}`, nuova).catch((err: unknown) => {
+      console.error(`[autopilota] ${a.id} — ${nuova.id} (al posto di ${vecchia.id}) non partita:`, err)
+    })
+  }
+
   /**
    * **Mai fermo** (0.84.1): il giro che il servizio fa da solo quando da 10
    * minuti nessuna chat lavora, o quando una chat messa da parte va ripresa.
@@ -1746,8 +1847,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const giriDaSoli = (): void => {
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return
-    for (const letto of deps.archivio.elenca()) {
-      if (inLavorazione.has(letto.id) || dialoghiInCorso.has(letto.id)) continue
+    for (const prima of deps.archivio.elenca()) {
+      if (inLavorazione.has(prima.id) || dialoghiInCorso.has(prima.id)) continue
+      // 0.84.4: una chat la cui cartella non c'è più non nasce mai; non si
+      // aspetta il silenzio per accorgersene (c-115 → c-118, 23/10).
+      if (prima.stato === 'lavoro' && prima.fermatoPerAggiornamento !== true && deps.copia !== undefined) {
+        for (const c of prima.chats) {
+          if (c.stato === 'lavoro' && c.conclusa === undefined && postoSparito(c, vistaNonNata(prima))) rimediaNonNata(prima.id, c.id, 'la sua cartella non c’è più')
+        }
+      }
+      const letto = deps.archivio.leggi(prima.id) ?? prima
       const giro = giroMaiFermo(letto, {
         ora,
         avvioServizio,
@@ -5068,6 +5177,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // «non consegnata» (la finestra ha smesso) li rimette in coda.
             if (esito === 'partita') consegnaPartita(id)
             if (esito === 'non-consegnata') riportaInCoda(id, 'la chat non l ha presa nemmeno insistendo')
+            // 0.84.4: il terminale della chat non è nato. I messaggi tornano in
+            // coda (sopra) e passano alla chat nuova.
+            if (corpo?.nonNata === true) {
+              const dove = chatDellaConsegna(id)
+              if (dove !== undefined) rimediaNonNata(dove.autopilotaId, dove.chatId, typeof corpo.perche === 'string' ? corpo.perche.slice(0, 200) : 'in 90 secondi il terminale della chat non è nato')
+            }
           }
           rispondi(res, 200, { ok: true })
           return
