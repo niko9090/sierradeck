@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.85.0',
+    righe: [
+      '**Ogni tua richiesta diventa un obiettivo da sola:** quando scrivi all’autopilota qualcosa da fare, il programma la registra con la data, le tue parole e un criterio per dire quando è fatta, e la mette in coda. Non serve più che qualcuno se ne ricordi. Una domanda resta una domanda.',
+      '**Le tue richieste in cima al «Punto»:** sul PC, sulla pagina e nell’app vedi le richieste aperte con lo stato: da fare, in corso, fatta nella versione X.',
+      '**Il riscontro con la prova:** quando una richiesta è fatta, l’autopilota scrive una riga con cosa è cambiato, la modifica salvata, la prova che lo dimostra e la versione che la contiene. La stessa riga va nella lista dei lavori.',
+      '**Velocità misurata:** per ogni richiesta il tempo da quando la scrivi a quando esce la versione, e dove si perde (partenza, attese delle chat, Revisione, unione, pubblicazione). Nel «Punto», con il dettaglio dietro «?».',
+    ]
+  },
+  {
     versione: '0.84.4',
     righe: [
       '**Mai più «Come vado avanti con …?»:** quando la Revisione rimanda indietro un lavoro troppe volte decide il programma. Un lavoro già nel ramo principale si chiude come doppione, uno giusto misurato male si rimisura e si unisce, uno sbagliato riparte da capo con una chat nuova. Se fallisce anche quella viene messo da parte, gli altri continuano e ricevi una riga. Le domande di questo tipo già aperte si chiudono da sole.',
