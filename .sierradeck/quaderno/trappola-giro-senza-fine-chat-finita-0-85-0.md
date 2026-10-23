@@ -27,3 +27,5 @@ tag: ["autopilota", "stop-hook", "trappola", "0.85.0", "c-127"]
 Da notare: l'hook di fine turno di questa chat chiamava `/hook/stop?...&chat=c-144`, mentre la cartella e il ramo sono di c-143. Va controllato se l'hook guarda la chat giusta: se guarda c-144, il `SEGNALE: fatto` di c-143 non verrebbe mai visto.
 Su c-143 il giro è ripartito uguale per almeno 5 volte: dopo 4 `SEGNALE: fatto` e anche dopo un `SEGNALE: aspetto`. Cambiare il segnale non lo ferma. Lo ferma solo il supervisore, chiudendo l'obiettivo o la chat.
 Ancora su c-143: anche la consegna c-1062 (stesso «riprendi», con tutti i criteri già verdi) è arrivata dopo i giri descritti sopra. Il programma continua a rilanciare il compito come nuova consegna, non solo come hook.
+
+**Settimo caso (23/10, 22:10).** L'hook di c-143, che il programma chiama `chat=c-144`, ha scritto «la chat c-143 ha finito e il suo lavoro è nel ramo main». Non era vero: `git merge-base --is-ancestor HEAD main` diceva di no. In main erano entrati c-145 e c-146, c-143 no. Prima di credere a «è già in main», controllare con git.
