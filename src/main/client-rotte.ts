@@ -30,7 +30,7 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Risposta, type Scelta } from '@shared/scelte-terminale'
 import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
-import { TAGLIO_OPZIONE_BATTITO, type OpzioneBattito } from '@shared/posta'
+import { TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shared/posta'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -814,8 +814,10 @@ function mandaTasti(deps: DipendenzeRotte, chat: string, pezzi: string[]): void 
  */
 export function dovEOpzione(s: Scelta, voluta: string): number {
   const uguale = s.opzioni.findIndex((o) => o.testo === voluta)
-  if (uguale >= 0 || voluta.length < TAGLIO_OPZIONE_BATTITO) return uguale
-  const inizia = s.opzioni.flatMap((o, n) => (o.testo.startsWith(voluta) ? [n] : []))
+  if (uguale >= 0 || voluta.length < TAGLIO_OPZIONE_BATTITO - 1) return uguale
+  // Il taglio è il testo intero fino a lì (`tagliaIntero`): a 199 solo se l'opzione ha un emoji a cavallo dei 200.
+  const tagliata = (o: { testo: string }): boolean => o.testo.length > voluta.length && tagliaIntero(o.testo, TAGLIO_OPZIONE_BATTITO) === voluta
+  const inizia = s.opzioni.flatMap((o, n) => ((voluta.length >= TAGLIO_OPZIONE_BATTITO ? o.testo.startsWith(voluta) : tagliata(o)) ? [n] : []))
   return inizia.length === 1 ? (inizia[0] ?? -1) : -1
 }
 

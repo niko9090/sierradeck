@@ -172,7 +172,8 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
   })
 
   it('D1: la riga che taglia è ancora in index.ts (se sparisce, rivedere D1)', () => {
-    expect(sorgente('src/main/index.ts')).toContain('testo: o.testo.slice(0, 200)')
+    // 0.84.3 (c-93): il taglio non spezza più un emoji (`opzione-emoji-tagliata.test.ts`).
+    expect(sorgente('src/main/index.ts')).toContain('testo: tagliaIntero(o.testo, TAGLIO_OPZIONE_BATTITO)')
   })
 
   /**

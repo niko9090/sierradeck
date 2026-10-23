@@ -25,6 +25,18 @@ export type OpzioneBattito = {
 /** Quanto testo di un'opzione viaggia nel battito. */
 export const TAGLIO_OPZIONE_BATTITO = 200
 
+/**
+ * Taglia a `max` unità senza spezzare un carattere (0.84.3, ricollaudo c-94):
+ * un emoji sono due unità UTF-16, e tagliarlo a metà lasciava una surrogata
+ * sola che dall'app, passando in UTF-8, diventava «?». Allora il testo non era
+ * più l'inizio dell'opzione e ogni tocco tornava 409. Il taglio cade prima.
+ */
+export function tagliaIntero(testo: string, max: number): string {
+  if (testo.length <= max) return testo
+  const ultimo = testo.charCodeAt(max - 1)
+  return testo.slice(0, ultimo >= 0xd800 && ultimo <= 0xdbff ? max - 1 : max)
+}
+
 export type ChatDiPc = {
   /** L'id del riquadro su quel PC: serve per scriverci. Non viaggia sul Drive. */
   id?: string

@@ -188,7 +188,7 @@ import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
 import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
 import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
-import { pcCheHaLaCartella, staSottoCartella, pcVivo, type BattitoPc } from '@shared/posta'
+import { pcCheHaLaCartella, staSottoCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir as mkdirAsync, rename as renameAsync, stat as statAsync, unlink as unlinkAsync, utimes as utimesAsync } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
@@ -1931,7 +1931,7 @@ if (!app.requestSingleInstanceLock()) {
             ...(c.sessione !== undefined ? { sessione: c.sessione } : {}),
             titolo: c.titolo, cwd: c.cwd, viva: c.viva === true, aspetta: c.aspetta === true,
             ...d,
-            ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: o.testo.slice(0, 200), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}), ...(o.descrizione !== undefined && o.descrizione.trim() !== '' ? { descrizione: o.descrizione.trim().slice(0, 300) } : {}) })) } : {})
+            ...(s !== undefined ? { scelte: s.opzioni.map((o) => ({ numero: o.numero, testo: tagliaIntero(o.testo, TAGLIO_OPZIONE_BATTITO), ...(o.libera === true ? { libera: true } : {}), ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}), ...(o.invio === true ? { invio: true } : {}), ...(o.descrizione !== undefined && o.descrizione.trim() !== '' ? { descrizione: tagliaIntero(o.descrizione.trim(), 300) } : {}) })) } : {})
           }
         }),
         // Il PIN delle chat (0.49.1): una persona che scrive dalla cassetta a una
