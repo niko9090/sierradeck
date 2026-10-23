@@ -90,12 +90,16 @@ Mai il servizio vero, mai «Installa».
 
 | Misura | Valore |
 |---|---|
-| Durata | _in arrivo_ |
-| Minuti con lavoro da finire e nessuna chat al lavoro (tratto più lungo) | _in arrivo_ |
-| Tratti oltre 15 minuti | _in arrivo_ |
-| Chat muta più a lungo | _in arrivo_ |
-| Doppioni | _in arrivo_ |
-| Giri da soli (e quanti dicono «apro» senza aprire) | _in arrivo_ |
-| Chat riprese / sostituite / messe da parte | _in arrivo_ |
-| «Finito» con chat aperte | _in arrivo_ |
+| Durata | **120 minuti** (10:40:24 → 12:40 UTC), riavvio del servizio a 60 minuti; uscita con codice 0 |
+| Minuti con lavoro da finire e nessuna chat al lavoro (tratto più lungo) | **2,9 minuti**; 0 tratti senza nessuno al lavoro |
+| Tratti oltre 15 minuti | **0** |
+| Chat muta più a lungo | **16 minuti**, cioè 15 più il giro del guardiano; 0 misure con una chat muta oltre 17 minuti mentre le sorelle lavorano |
+| Doppioni | **0** |
+| Giri da soli (e quanti dicono «apro» senza aprire) | **11** giri, tutti col motivo vero: 8 «ferme da più di 15 minuti mentre le altre lavorano», 3 «riprese che non hanno risposto». 0 dicono «apro» senza aprire |
+| Chat riprese / sostituite / messe da parte | **9** riprese, **6** sostituite con una chat nuova sullo stesso ramo, **0** messe da parte; 26 righe «ferma» nel diario; 8 chat in tutto, 3 aperte alla fine |
+| «Finito» con chat aperte | **0** |
 | Risposte prese / non prese | **non misurate dalla prova**: le chat simulate non fanno domande e il PC simulato non manda esiti di consegna. Le coprono i test di servizio: `risposte-prese-0-84-4.test.ts` (8 casi, «rifallo ancora» tre volte compreso) e `non-nata-0-84-4.test.ts` (15 casi). Allargare la prova a domande e terminali che non nascono è una cosa da fare dopo, non in questa release |
+
+Risposte prese/non prese e terminale che non nasce sono coperti dai test, 8 + 15, non dalla prova.
+
+Il comportamento delle chat simulate (seme fisso): 37 turni, 9 mute, 2 morte, 6 ferme al prompt, 6 interrotte, 4 chiuse nel recupero. Lo stato finale è «lavoro» e non «finito»: è il limite noto della prova (`prova-due-ore-mai-fermo.md`). La memoria dei criteri vale per commit e nella prova il codice non cambia, quindi i criteri verdi degli ultimi 8 minuti non portano a «finito». **Esito: prova pulita**, sul codice `c54fbcd7`.
