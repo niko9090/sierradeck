@@ -214,8 +214,8 @@ describe('il servizio: il messaggio del 23/10 alle 07:25', () => {
     // In coda, oppure già data a una chat: mai fuori.
     expect(a.compitiDaFare.includes(r.compiti[0]!) || a.chats.some((c) => c.compito === r.compiti[0])).toBe(true)
     expect(a.dialogo.at(-1)!.esito).toContain('richiesta registrata come obiettivo')
-    // Il giorno è quello in cui è stata scritta (oggi): con «23/10» fisso il test cadeva dopo mezzanotte.
-    expect(puntoDi(a, Date.now()).richieste[0]).toMatchObject({ id: r.id, giorno: giornoDi(new Date().toISOString()) })
+    // Il giorno della battuta, con l'ora di Roma: il servizio di prova usa l'orologio vero (dopo mezzanotte non è più il 23/10).
+    expect(puntoDi(a, Date.now()).richieste[0]).toMatchObject({ id: r.id, giorno: giornoDi(r.quando) })
   })
 
   it('anche se il supervisore non risponde affatto (il 22/10 «togli i vincoli» si era perso così)', async () => {
