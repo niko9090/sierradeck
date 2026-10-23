@@ -65,7 +65,7 @@ Creare il tag `v0.84.3` sul commit della versione e pusharlo **prima** di
 `npm run pubblica`: il `main` remoto è fermo a `a22c1dff` (0.80.0) e GitHub, senza
 tag, lo crea lì (successo alla v0.84.2, tag ancora sbagliato).
 
-## Rami di questo lavoro (c-87…c-96)
+## Rami di questo lavoro (c-87…c-109)
 
 Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
 
@@ -83,7 +83,10 @@ Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
 | c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | unito nel ramo c-93 (f8fddde2) e da lì in main; i 4 difetti corretti da c-93 uno per commit (D3 c796c493, D1 72c47068, D2 3654498a con il test «se tace anche la sorella si riprendono tutte e due», D4 97aa542a), nessun `it.fails` rimasto |
 | c-99 | collaudo dell'ultima strada: 9 casi che reggono (una sola chat nuova anche con hook doppi, hook tardivi e riavvio; la chat che chiede continua; a domanda aperta le altre vanno avanti) e 2 difetti con `it.fails` (D1 la sostituta del «mai fermo» rifaceva l'ultima strada, D2 una sorella al lavoro su un altro compito presa per bloccata) | **unito tramite il ramo c-93** (dentro c-101). I 2 test verdi senza `.fails` |
 | c-101 | correzione dei 2 difetti di c-99: la sostituta eredita `ultimaStrada` e chiede; se un'altra chat ha già chiesto sugli stessi controlli, la sorella continua col suo compito (niente ultima strada, niente recupero, niente attesa) | **unito nel ramo c-93** (7588f794, conflitto solo in `lista-lavori.md`, tenute tutte e due le parti), poi in main con il ramo c-93. Rivisto da c-93: niente dati privati, nessuna funzione tolta, test verdi |
-| c-97, c-102, c-104, c-106 | chat di rilascio o di sviluppo aperte due volte sullo stesso lavoro | **chiuse senza unire perché doppie** (il rilascio resta a c-93; c-97 senza commit propri) |
+| c-97 | collaudo dell'aggiornamento senza tempi morti, catena intera col caso vero del 22/10: 3 difetti con `it.fails` (D1 attesa del Drive fino a 10 minuti PRIMA dei 5 minuti, che poteva annullare l'installazione; D2 «Installa là» senza le fasi; D3 il riepilogo contava anche le chat di Nicholas) | **unito tramite c-109** (81e72b1f) |
+| c-109 | correzione di D1, D2, D3 di c-97: il Drive si aspetta dentro gli stessi 5 minuti e allo scadere si annulla (si rifà al giro dopo) invece di annullare l'installazione; «Installa là» mostra le fasi col tempo del PC che installa; nel riepilogo solo le chat degli autopiloti | **unito nel ramo c-93** (ffd1c8cf). Rivisto da c-93: niente dati privati, nessuna funzione tolta (`attendiLavoroDrive` resta per gli altri usi), l'installazione la avvia sempre solo Nicholas; i 3 test del collaudo verdi senza `.fails`. Tocca solo il processo principale e gli aggiornamenti, non `src/autopilot-host`: la prova di 2 ore resta valida |
+| c-108 | chat di Revisione chiusa dal supervisore: il suo lavoro era già in main tramite il ramo c-93 | nessun ramo `ap/ap-f1e631f5/c-108` nel repository (controllato con `git branch -a`, 23/10 02:10 UTC) |
+| c-102, c-104, c-106 | chat di rilascio o di sviluppo aperte due volte sullo stesso lavoro | **chiuse senza unire perché doppie** (il rilascio resta a c-93). c-104 non ha un ramo; c-102 non ha commit fuori dal ramo c-93; c-106 ha un commit (1da05672, 23/10 01:12 UTC) con un'altra correzione dei 4 difetti del Punto, già corretti uno per commit da c-93 e in main: superato, e porta anche un file di prova `tests/_tmp/s.test.ts` da non unire |
 
 ## Prova di 2 ore senza fermate
 
