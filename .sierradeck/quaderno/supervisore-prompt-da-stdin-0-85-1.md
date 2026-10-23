@@ -42,3 +42,5 @@ con tutti i criteri verdi riceve dall'hook di fine turno sempre lo stesso messag
 A c-145 è successo tre volte di fila dopo «SEGNALE: fatto». Con il supervisore muto
 deve decidere la regola: criteri verdi più `SEGNALE: fatto` vuol dire chat finita.
 Non va ripetuto il giro. Vedi anche la scheda del giro senza fine della 0.85.0.
+
+Anche c-146 (23/10 sera) l'ha ricevuto 4 volte di fila dopo «SEGNALE: fatto», con criteri verdi e lavoro unito: stessa causa (servizio installato senza la correzione di c-145). Si esce solo con l'install della 0.85.1, che decide Nicholas.
