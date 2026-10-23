@@ -14,7 +14,7 @@ tag: ["0.85.1", "rapporto", "patch", "c-143", "c-145"]
 |---|---|---|---|
 | 1 | Supervisore: «spawn ENAMETOOLONG» (239 volte il 23/10, 124 di fila). Il prompt va sull'ingresso, non sulla riga di comando. Allarme dopo 3 fallimenti di fila | **c-145**, in `main` (`407cc4da`) | `supervisore.test.ts` (prompt di 48.006 caratteri con un claude finto), `indicatore-autopilota.test.ts`; il controllo `grep` del criterio passa |
 | 2 | Guardia del PC | **c-148**, in `main` (`d254775c`) | `guardia-pc-0-85-1.test.ts` (quello di c-148) |
-| 3 | Testo fluido nella linguetta dell'autopilota | c-143 `1dadc186` | `campo-autopilota-fluido-0-85-1.test.tsx` |
+| 3 | Testo fluido nella linguetta dell'autopilota | **c-149**, in `main` (`362a465c`) | `campo-autopilota-fluido.test.tsx`; prima ≈ 620 ms, dopo ≈ 2–3 ms per lettera |
 | 4 | Domande del 23/10 rilette dal registro | c-143 `a7566e00` | `domande-del-23-10-0-85-1.test.ts`, 5 test |
 
 **Doppione:** c-143 aveva fatto anche la richiesta 1 (`6e8b966a`), in parallelo a c-145. All'unione con `main` (`0509db01`) è rimasta solo la versione di c-145. I file `supervisore-muto.ts` e il suo test sono stati tolti, l'allarme è uno solo.
@@ -25,25 +25,7 @@ tag: ["0.85.1", "rapporto", "patch", "c-143", "c-145"]
 
 ## 3. Testo fluido
 
-**Causa.** Il testo del campo stava nello stato di tutta `ChatAutopilota`. Ogni lettera ridisegnava:
-- la conversazione intera (800 righe in una giornata come il 23/10);
-- il Punto;
-- le righe dal vivo.
-
-In più ogni orario creava un formato nuovo (`toLocaleTimeString`).
-
-**Correzione:**
-- il campo è un componente suo, `CampoAutopilota`, con il suo stato: una lettera ridisegna solo lui;
-- gli orari usano un `Intl.DateTimeFormat` fatto una volta sola.
-
-**Tempo per lettera**, misurato nel test con 800 righe di diario e 6 chat:
-
-| | Prima | Dopo |
-|---|---|---|
-| Una lettera | **643 ms** (tutta la chat) | **circa 2 ms** (solo il campo) |
-| Il ridisegno di tutta la chat (ogni 5 s, quando arriva lo stato) | 643 ms | circa 200 ms (grazie agli orari) |
-
-C'è un cambio di comportamento minimo: «Vai», «Riprendi» e «Disfa» non svuotano più quello che stavi scrivendo. Lo svuota solo «Manda».
+**Altro doppione.** c-143 (`1dadc186`, `CampoAutopilota`) e c-149 (`362a465c`, `CampoChatAutopilota.tsx`) hanno fatto la stessa correzione. Quella di c-149 è entrata in `main` per prima, e c-143 l'ha tenuta unendo `main`. Le misure sono uguali: **prima ≈ 620 ms per lettera** (643 ms misurati da c-143), **dopo ≈ 2–3 ms**. Cause e misure: scheda `testo-fluido-scheda-autopilota-0-85-1.md`.
 
 ## 4. Le domande del 23/10, una per una
 
