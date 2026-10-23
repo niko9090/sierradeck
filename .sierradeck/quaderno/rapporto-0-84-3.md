@@ -152,4 +152,26 @@ Build di prova prima di pubblicare (23/10, senza caricare niente): APK release
 (`allega-apk --solo-verifica`); installer con `npm run pacchetto`:
 `SierraDeck Setup 0.84.3.exe` e `latest.yml`, rc 0.
 
-Numeri: in arrivo alla fine (2 ore dopo).
+**Numeri finali del quarto giro (01:13:34 → 03:13 UTC, 120 minuti, esito `rc=0`, stato finale «al lavoro»): PULITA.**
+
+| Misura | Valore |
+|---|---|
+| Tratti oltre i 15 minuti con l'autopilota «al lavoro» e nessuna chat che lavora | **0** |
+| Tratti senza nessuna chat al lavoro | **1**, il più lungo **2,8 minuti** secondo lo script (58 secondi secondo il diario delle chat): vedi la riga sotto |
+| Chat rimasta muta più a lungo | **16 minuti** (soglia: 15 minuti più un giro del guardiano) |
+| Misure con una chat muta oltre 17 minuti mentre le sorelle lavorano | **0** |
+| Giri da solo | **10**, tutti col motivo vero: 7 «per le chat ferme da più di 15 minuti mentre le altre lavorano», 3 «per le chat riprese che non hanno risposto» |
+| Giri che dicono «apro» senza aprire niente | **0** |
+| Riprese / sostituzioni / messe da parte / doppioni | 8 / 6 / 0 / 0 |
+| Righe «ferma» nella conversazione | 25 |
+| «Finito» con chat aperte | 0 |
+| Chat simulate | 8 in tutto, 3 aperte alla fine; 37 turni, 9 mute, 2 morte, 6 ferme al prompt |
+
+**Il tratto senza nessuna chat al lavoro, in chiaro:** alle 02:12:38 UTC l'ultima
+chat finta al lavoro (c-5) è diventata muta per caso del simulatore, mentre le
+altre erano già mute o ferme al prompt; alle 02:13:36 UTC (58 secondi dopo) è
+arrivato il riavvio programmato del servizio e due chat sono ripartite. La soglia
+del «mai fermo» (10 minuti senza nessuna chat al lavoro, 15 per una chat ferma)
+non è stata superata. Lo script lo misura in 2,8 minuti perché guarda dal
+servizio, che dopo il riavvio vede le chat al lavoro un po' più tardi. Non è un
+difetto: il «mai fermo» non doveva intervenire. Il supervisore ha confermato.
