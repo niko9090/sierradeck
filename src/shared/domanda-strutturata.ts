@@ -24,6 +24,11 @@ export type SceltaDomanda = {
   conseguenza: string
   /** La scelta che consiglia chi chiede (0.71.0): al massimo una, segnata su PC, pagina e app. */
   consigliata?: boolean
+  /**
+   * Una risposta da scrivere (0.84.3, Revisione): il tasto apre il campo di
+   * testo e non manda la frase come risposta. «Ti scrivo io cosa provare».
+   */
+  libera?: true
 }
 
 export type PartiDomanda = {
@@ -423,7 +428,7 @@ export function partiBloccato(p: {
         conseguenza: `${p.falliti.length > 1 ? 'quei controlli li giudico io' : 'quel controllo lo giudico io'}: non conta più per finire il lavoro, lo scrivo in una riga nella conversazione e le chat proseguono con il resto`,
         consigliata: true
       },
-      { scelta: SCELTA_DICO_IO, conseguenza: 'scrivi qui sotto cosa provare: lo passo alla chat così com’è e lei riparte da lì' },
+      { scelta: SCELTA_DICO_IO, conseguenza: 'scrivi qui sotto cosa provare: lo passo alla chat così com’è e lei riparte da lì', libera: true },
       { scelta: SCELTA_SOSPENDI, conseguenza: `fermo tutte le chat di «${lavoro}»; il lavoro fatto resta salvato e lo riprendi con «Riprendi»` }
     ],
     seNonRispondi: p.continua

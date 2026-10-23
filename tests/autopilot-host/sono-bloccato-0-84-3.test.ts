@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -12,7 +12,7 @@ import {
   nomeControllo, partiBloccato, rispostaBloccato, testoDomanda, validaDomanda,
   SCELTA_DICO_IO, SCELTA_LASCIA_STARE, SCELTA_SOSPENDI, type PartiDomanda
 } from '@shared/domanda-strutturata'
-import { schedaDaParti } from '@shared/scheda-domanda'
+import { schedaDaParti, toccoScelta } from '@shared/scheda-domanda'
 import { sigleIn } from '@shared/domanda-chiara'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
@@ -282,5 +282,41 @@ describe('nel servizio', () => {
     expect(archivio.leggi('ap-b')!.chats[0]?.stato).toBe('lavoro')
     await attendi(() => avviati.length > 0)
     expect(avviati[0]?.messaggio).toContain('Rileggi gli errori da capo')
+  })
+})
+
+describe('Revisione: «Ti scrivo io cosa provare» apre il campo, non risponde', () => {
+  it('la scelta è segnata come risposta da scrivere, fino alla scheda di PC, pagina e app', () => {
+    const p = nuove()
+    expect(p.scelte.find((s) => s.scelta === SCELTA_DICO_IO)?.libera).toBe(true)
+    const s = schedaDaParti('autopilota «App Android»', p)
+    expect(s.scelte.map((c) => toccoScelta(c))).toEqual(['rispondi', 'scrivi', 'rispondi'])
+  })
+
+  it('PC, pagina e app: il tocco porta al campo invece di mandare la frase', () => {
+    const pc = readFileSync('src/renderer/components/SchedaDomandaVista.tsx', 'utf8')
+    expect(pc).toContain("if (toccoScelta(c) === 'scrivi') campo.current?.focus(); else onScelta(c)")
+    const pagina = readFileSync('src/main/client-pagina.ts', 'utf8')
+    expect(pagina).toContain('return c.libera ? tastoScrivi(c, campo.id) : tasto(c)')
+    const app = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/SchedaDomandaVista.kt', 'utf8')
+    expect(app).toContain('if (apreIlCampo(c)) campo.requestFocus() else onScelta(c)')
+  })
+
+  it('nel servizio: premendola (anche da un’app vecchia, che manda la frase) la domanda resta aperta', async () => {
+    await avviaServizio([chat('c-2', { ultimaStrada: true })])
+    await stop('c-2')
+    const d = registro.aperte('ap-b')[0]!
+    const r = await fetch(`http://127.0.0.1:${porta}/domande/${d.id}/risposta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ risposta: SCELTA_DICO_IO })
+    })
+    expect(r.status).toBe(409)
+    expect(((await r.json()) as { errore: string }).errore).toContain('la domanda resta aperta')
+    expect(registro.aperte('ap-b').map((x) => x.id)).toEqual([d.id])
+    // Quello che si scrive nel campo, invece, è la risposta.
+    const scritta = await fetch(`http://127.0.0.1:${porta}/domande/${d.id}/risposta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ risposta: 'prova a svuotare la cache di vitest' })
+    })
+    expect(scritta.status).toBe(200)
+    expect(registro.aperte('ap-b')).toEqual([])
   })
 })

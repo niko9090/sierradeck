@@ -35,7 +35,14 @@ lavoro a mano. (I gesti a mano, «lo giudico io» e la chiusura con criteri non 
   `sceltePagina` in `client-pagina.ts`, app `SchedaDomandaVista.kt`. Il «?» resta con «Cosa succede con
   ogni scelta» per le app vecchie.
 
+- **Le risposte da scrivere** (Revisione): «Ti scrivo io cosa provare» ha `libera: true`
+  (`SceltaDomanda` → `SceltaScheda`). Al tocco apre il campo e non risponde: `toccoScelta` sul PC,
+  `tastoScrivi` nella pagina, `apreIlCampo` nell'app. Se un'app vecchia manda la frase come testo,
+  `POST /domande/:id/risposta` risponde 409 e la domanda resta aperta.
+
 **Trappole**
+- Una scelta che chiede a Nicholas di scrivere qualcosa va segnata `libera`, altrimenti il tasto manda
+  la frase stessa come risposta e la domanda si chiude senza contenuto.
 - Il controllo delle domande vale anche per quelle del programma: «Sospendi questo lavoro» è stata
   respinta da `RIFERIMENTI_VAGHI` («questo lavoro»). Prima di cambiare il testo di una scelta, passa il
   test `validaDomanda(...).completa`.

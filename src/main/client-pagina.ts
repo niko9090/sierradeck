@@ -1337,7 +1337,7 @@ function schedaDomandaHtml(s, k, tasto, campo) {
     '<div class="grande domanda-ap" style="font-weight:600">' + esc(s.domanda) + '</div>' +
     (s.risposta ? '<div class="sotto" style="color:var(--verde)">risposta dall’autopilota: ' + esc(s.risposta) + '</div>' : '') +
     (s.superata ? '<div class="sotto">chiusa senza risposta, non serve più: ' + esc(s.superata) + '</div>' : '') +
-    sceltePagina(s.scelte || [], tasto) +
+    sceltePagina(s.scelte || [], function (c) { return c.libera ? tastoScrivi(c, campo.id) : tasto(c) }) +
     apriAltroveHtml(s) +
     '<div class="riga"><textarea id="' + campo.id + '" rows="2" placeholder="' + esc(s.segnaposto || 'Scrivi tu') + '"></textarea></div>' +
     '<div class="riga"><button class="primario" ' + campo.attributi + '>' + esc(campo.etichetta) + '</button>' + micHtml(campo.id) + '</div>'
@@ -1369,6 +1369,10 @@ function domandaALatoHtml(idChat) {
     }, { id: 'conv-testo', attributi: 'data-k="' + esc(conv.chiave) + '" onclick="rispondiConv(this.dataset.k)"', etichetta: conv.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda' }) +
     (mandata ? '<div class="sotto">mandato: «' + esc(mandata) + '», aspetto il computer</div>' : '') +
     '</div>'
+}
+/** Una risposta da scrivere (0.84.3): il tasto porta al campo, la domanda resta aperta. */
+function tastoScrivi(c, idCampo) {
+  return '<button class="scelta" data-campo="' + esc(idCampo) + '" onclick="document.getElementById(this.dataset.campo).focus()">' + etichettaScelta(c) + '</button>'
 }
 /** Le scelte come tasti; con le conseguenze (0.84.3) una per riga, e sotto cosa succede. */
 function sceltePagina(scelte, tasto) {
