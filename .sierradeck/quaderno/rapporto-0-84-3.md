@@ -1,15 +1,23 @@
 ---
-titolo: "Rapporto 0.84.3 (bozza finché non è pubblicata)"
-quando: 2026-10-23T12:00:00+02:00
+titolo: "Rapporto 0.84.3 (pubblicata il 23/10, non installata)"
+quando: 2026-10-23T05:30:00+02:00
 tag: ["0.84.3", "rapporto", "release", "c-93"]
 ---
 
 # Rapporto 0.84.3
 
-**Stato (23/10, c-93):** NON ancora pubblicata. Tutte le voci sono nel ramo c-93 e
-in main: `package.json` 0.84.3, app 2.84.3 (versionCode 142), novità in
-`src/shared/novita.ts`. Si pubblica a prova di 2 ore pulita. Mai installata da
-noi: l'installazione la avvia solo Nicholas.
+**Stato:** **PUBBLICATA il 23/10 alle 03:22 UTC da c-93.** NON installata da noi:
+l'installazione la avvia solo Nicholas.
+
+- Release `v0.84.3`, non in bozza, «Latest», 5 file:
+  - `SierraDeck-Setup-0.84.3.exe` (115387290 byte), blockmap e `latest.yml`, con
+    `version: 0.84.3`, size e sha512 uguali all'exe;
+  - `SierraDeck-2.84.3.apk`, firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze»;
+  - `app-android.json`, con versione 2.84.3.
+- Tag `v0.84.3` su `f61b79e4`, lo stesso commit di `main` su GitHub (controllato
+  con `git ls-remote`), pushato **prima** di `npm run pubblica`.
+- Intoppo: alla prima `npm run pubblica` un 422 `already_exists`, risolto
+  rilanciandola. Una sola release. Come evitarlo: `tag-prima-di-pubblicare.md`.
 
 ## Cosa c'è dentro
 
@@ -152,4 +160,26 @@ Build di prova prima di pubblicare (23/10, senza caricare niente): APK release
 (`allega-apk --solo-verifica`); installer con `npm run pacchetto`:
 `SierraDeck Setup 0.84.3.exe` e `latest.yml`, rc 0.
 
-Numeri: in arrivo alla fine (2 ore dopo).
+**Numeri finali del quarto giro (01:13:34 → 03:13 UTC, 120 minuti, esito `rc=0`, stato finale «al lavoro»): PULITA.**
+
+| Misura | Valore |
+|---|---|
+| Tratti oltre i 15 minuti con l'autopilota «al lavoro» e nessuna chat che lavora | **0** |
+| Tratti senza nessuna chat al lavoro | **1**, il più lungo **2,8 minuti** secondo lo script (58 secondi secondo il diario delle chat): vedi la riga sotto |
+| Chat rimasta muta più a lungo | **16 minuti** (soglia: 15 minuti più un giro del guardiano) |
+| Misure con una chat muta oltre 17 minuti mentre le sorelle lavorano | **0** |
+| Giri da solo | **10**, tutti col motivo vero: 7 «per le chat ferme da più di 15 minuti mentre le altre lavorano», 3 «per le chat riprese che non hanno risposto» |
+| Giri che dicono «apro» senza aprire niente | **0** |
+| Riprese / sostituzioni / messe da parte / doppioni | 8 / 6 / 0 / 0 |
+| Righe «ferma» nella conversazione | 25 |
+| «Finito» con chat aperte | 0 |
+| Chat simulate | 8 in tutto, 3 aperte alla fine; 37 turni, 9 mute, 2 morte, 6 ferme al prompt |
+
+**Il tratto senza nessuna chat al lavoro, in chiaro:** alle 02:12:38 UTC l'ultima
+chat finta al lavoro (c-5) è diventata muta per caso del simulatore, mentre le
+altre erano già mute o ferme al prompt; alle 02:13:36 UTC (58 secondi dopo) è
+arrivato il riavvio programmato del servizio e due chat sono ripartite. La soglia
+del «mai fermo» (10 minuti senza nessuna chat al lavoro, 15 per una chat ferma)
+non è stata superata. Lo script lo misura in 2,8 minuti perché guarda dal
+servizio, che dopo il riavvio vede le chat al lavoro un po' più tardi. Non è un
+difetto: il «mai fermo» non doveva intervenire. Il supervisore ha confermato.
