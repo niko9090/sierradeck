@@ -1,13 +1,14 @@
 ---
-titolo: "Rapporto 0.84.4 (in preparazione)"
-quando: 2026-10-23T13:00:00+02:00
+titolo: "Rapporto 0.84.4"
+quando: 2026-10-23T15:45:00+02:00
 tag: ["0.84.4", "rapporto", "release", "c-123", "c-122"]
 ---
 
 # Rapporto 0.84.4
 
-**Stato:** in preparazione (c-123, 23/10). Non ancora pubblicata. Non verrà mai
-installata da noi: l'installazione la avvia solo Nicholas.
+**Stato:** **pubblicata completa il 23/10 alle 13:37 UTC** (c-122), tag `v0.84.4`
+su `ee1e0d5e`, non in bozza, «Latest». **Non installata**: l'installazione la
+avvia solo Nicholas.
 
 La 0.84.3 è stata pubblicata il 23/10 alle 03:22 UTC e installata da Nicholas
 alle 06:44 UTC. La 0.84.4 è una patch.
@@ -19,7 +20,7 @@ alle 06:44 UTC. La 0.84.4 è una patch.
 | La Revisione non respinge un ramo perché nella copia mancano i pacchetti (`node_modules`): controlla l'ambiente, rimette il collegamento per il tempo della misura e scrive «problema di ambiente». Mai domande a Nicholas. Test coi rami respinti 4-5 volte il 23/10 | c-119 | **unito** (rivisto da c-122) |
 | Le risposte di Nicholas alle domande delle chat di questo PC vengono prese davvero: esito «presa»/«non presa» su PC, pagina e app, una riga nel registro per ogni passaggio. Se la chat non aspetta più, la risposta va al supervisore. Test col caso vero («rifallo ancora» tre volte) | c-120 | **unito**, con la correzione di c-122 sotto |
 | Una chat il cui terminale non parte viene riaperta o sostituita da sola (guasto del 23/10 09:47 UTC) | c-121 | **unito**, con le correzioni di c-122 sotto |
-| Prova di 2 ore del «mai fermo» rivista e unita, con i numeri qui sotto | c-122 | prova in corso (sotto); rami rivisti |
+| Prova di 2 ore del «mai fermo» rivista e unita, con i numeri qui sotto | c-122 | **fatta, pulita** (sotto); rami rivisti |
 
 ## Procedura di pubblicazione (da seguire in quest'ordine)
 
@@ -57,9 +58,32 @@ pagina (`client-rotte.ts:1569`), e il dettaglio della risposta si vede in
   condivisi e pty 3187 verdi; Android `testDebugUnitTest assembleDebug` riuscito; Kotlin sotto 800
   righe; guardia delle cancellazioni pulita.
 
-**Si pubblica solo dopo i numeri finali della prova qui sotto, uniti in main.** Ordine: fetch → unione
-del ramo c-942 → tag → `gh release create` → `npm run pubblica` → `latest.yml` → `npm run allega-apk`
-→ non in bozza. Mai installata da noi.
+**Come è andata davvero.**
+- La release `v0.84.4` è stata creata il 23/10 alle 13:03 UTC (tag annotato su `ee1e0d5e`, `package.json` 0.84.4, app 2.84.4).
+- Alle 13:16 UTC sulla release c'era **un solo file**, il `.blockmap`: niente installer, niente `latest.yml`, niente APK né `app-android.json`. Così l'aggiornamento non arrivava a nessuno.
+- La chat della release era senza segnali e senza copia; il supervisore l'ha chiusa.
+- L'installer costruito in `dist` della cartella principale non si poteva usare: la cartella era su `e01cb2d9`, più vecchia del tag, e lì mancava `latest.yml`.
+
+**Completata da c-122 (23/10, 13:25–13:40 UTC):**
+1. Copia pulita staccata sul tag (`SierraDeck.sierradeck-wt/rilascio-0-84-4`, `ee1e0d5e`), con la junction `node_modules` e `google-oauth.json` messi solo per la build e tolti subito dopo (`rmdir` per la junction).
+2. `npm run pacchetto` (build senza caricare niente).
+   - `latest.yml`: versione 0.84.4, size 115394938, sha512 `f1zbyFsm…ZFPPBA==`, uguale all'exe ricalcolato.
+   - Scelto al posto di `npm run pubblica`, che su una release già pubblicata e non in bozza rischia di rifiutare o sdoppiare.
+3. `gh release upload v0.84.4 … --clobber`: installer `.exe`, `.exe.blockmap` (sostituito, perché deve corrispondere a questo exe) e `latest.yml`.
+4. `npm run allega-apk` dalla stessa copia:
+   - `gradle assembleRelease`;
+   - firma verificata «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT», non debug;
+   - caricati `SierraDeck-2.84.4.apk` e `app-android.json`.
+
+**Controllo finale** (`gh release view v0.84.4 --json isDraft,assets`): `isDraft: false`, 5 file «uploaded»: installer `.exe`, `.exe.blockmap`, `latest.yml`, `SierraDeck-2.84.4.apk`, `app-android.json`.
+
+`releases/latest` è v0.84.4. Scaricati da lì:
+- `latest.yml` dice 0.84.4;
+- l'exe scaricato ha **lo stesso sha512 e la stessa size** di `latest.yml`;
+- `app-android.json` dice versione 2.84.4, programma 0.84.4 e punta all'APK di v0.84.4;
+- l'APK scaricato è identico a quello firmato (sha256 `4d31e5a7…`, 4237803 byte).
+
+**Trappola trovata durante il caricamento.** Il guardiano «installa solo Nicholas» (`src/autopilot-host/divieti.ts:425`) blocca anche una semplice copia, o un testo scritto dalla shell, che contiene un percorso relativo con «../» seguito dal nome dell'installer. Il pezzo della regola che cerca «./» lo trova dentro «../» e prende il percorso per un installer lanciato. Con i percorsi assoluti passa, e non c'è niente da aggirare: non si esegue nessun installer. Da correggere con un test (riga 0u della lista dei lavori).
 
 ## Rami di questo lavoro
 
