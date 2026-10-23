@@ -31,8 +31,10 @@ import { riassuntoVelocita, tempiRichieste } from './velocita-richieste'
 export type TipoSegnaleVero = 'commit' | 'test' | 'file' | 'terminale'
 export type SegnaleVero = { tipo: TipoSegnaleVero; quando: string }
 
-/** Quello che il servizio aggiunge all'elenco: l'ultimo segnale vero per chat (la chat sola con l'id dell'autopilota). */
-export type SegniVeri = { segniVeri?: Record<string, SegnaleVero> }
+/** Il supervisore che non risponde da almeno tre volte di fila (0.85.1), con il motivo. */
+export type SupervisoreMuto = { volte: number; motivo: string; dal: string }
+/** Quello che il servizio aggiunge all'elenco: l'ultimo segnale vero per chat (la chat sola con l'id dell'autopilota), e il supervisore muto. */
+export type SegniVeri = { segniVeri?: Record<string, SegnaleVero>; supervisoreMuto?: SupervisoreMuto }
 
 const PAROLA_SEGNALE: Record<TipoSegnaleVero, string> = { commit: 'commit', test: 'test', file: 'file cambiati', terminale: 'terminale' }
 
@@ -261,6 +263,11 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: num
     default: break
   }
 
+  // 0.85.1: senza supervisore l'autopilota decide solo con le regole: si dice, con il motivo.
+  if (a.supervisoreMuto !== undefined) {
+    const m = a.supervisoreMuto
+    return { andamento: riga('fermo', `Supervisore muto: ${m.volte} risposte mancate di fila — ${compitoBreve(m.motivo, 80)} · ${azione()}`), dettaglio }
+  }
   // L'ultimo segnale vero di tutto il lavoro: delle chat o del programma.
   const programma = ultimoDelProgramma(a)
   let ultimo: { quando: number; testo: string } | undefined = programma
