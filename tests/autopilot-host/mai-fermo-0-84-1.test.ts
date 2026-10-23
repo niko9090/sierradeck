@@ -7,8 +7,9 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { giroMaiFermo, notaFerma, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
+import { giroMaiFermo, notaFerma, rigaGiro, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { rigaTraguardo } from '@shared/chat-autopilota'
 
 // 0.84.1, PRIMA DI TUTTO. La notte fra il 21 e il 22/10 l'autopilota era «al
 // lavoro» con tre chat (c-65, c-66, c-70): il guardiano le ha messe da parte
@@ -67,7 +68,10 @@ describe('giroMaiFermo: la regola', () => {
   it('0.84.3 (il Punto): una chat zitta da più di 15 minuti mentre la sorella lavora si riprende, senza aspettare l’ora della messa da parte', () => {
     const a = ap([chat('c-65'), chat('c-66')])
     const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 3 * MIN : k === 'ap-1::c-65' ? ora - 16 * MIN : undefined) }))
-    expect(g?.perche).toBe('messe-da-parte')
+    // Prova di 2 ore della 0.84.3 (c-93): la riga diceva «per le chat messe da parte», ma nessuna lo era.
+    expect(g?.perche).toBe('ferme')
+    expect(rigaGiro(g!)).toMatch(/^giro da solo per le chat ferme da più di 15 minuti mentre le altre lavorano\./)
+    expect(rigaGiro(g!)).not.toContain('messe da parte')
     expect(g?.mosse).toEqual([{ tipo: 'riprendi', chatId: 'c-65', interrompi: true, muta: 16 * MIN }])
     expect(notaFerma(g!.mosse[0]!)).toBe('è ferma da 16 minuti senza segnali: la interrompo e le riscrivo l’ultima istruzione')
   })
@@ -87,7 +91,8 @@ describe('giroMaiFermo: la regola', () => {
   it('le altre lavorano, ma quella già ripresa non ha risposto in 10 minuti: passa a una chat nuova senza aspettare l’ora della messa da parte', () => {
     const a = ap([chat('c-65', { ripresa: { il: new Date(ora - 11 * MIN).toISOString(), volte: 1 } }), chat('c-66')])
     const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - MIN : undefined) }))
-    expect(g?.perche).toBe('messe-da-parte')
+    expect(g?.perche).toBe('riprese-mute')
+    expect(rigaGiro(g!)).toMatch(/^giro da solo per le chat riprese che non hanno risposto\./)
     expect(g?.mosse).toEqual([{ tipo: 'sostituisci', chatId: 'c-65', muta: expect.any(Number) }])
   })
 
@@ -293,6 +298,27 @@ describe('0.84.1: il caso vero della notte 21-22/10', () => {
     // Lo stato di ogni chat nel diario, in una riga.
     const riga = a.decisioni.find((d) => d.cosa.startsWith('giro da solo'))!.cosa
     for (const c of ['c-65', 'c-66', 'c-70']) expect(riga).toContain(c)
+  })
+
+  it('0.84.3 (il Punto, revisione c-93): ogni chat rimessa al lavoro dal giro ha la sua riga «ferma» nella conversazione, con l’azione presa e senza sigle', async () => {
+    ora = Date.parse('2026-10-21T22:20:00.000Z')
+    server = ambiente()
+    await avvia(server)
+    const id = notte()
+    ora = Date.parse('2026-10-21T22:27:00.000Z')
+    await chiama('POST', '/battiti', { segni: [{ autopilota: id, chat: 'c-65' }, { autopilota: id, chat: 'c-66' }, { autopilota: id, chat: 'c-70' }] })
+    for (let m = 1; m <= 15 && !giroFatto(id); m += 1) {
+      ora += MIN
+      server.controllaChatFerme()
+    }
+    const a = archivio.leggi(id)!
+    const ferme = a.decisioni.filter((d) => d.traguardo?.esito === 'ferma')
+    expect(ferme.map((d) => d.traguardo!.chat).sort()).toEqual(['c-65', 'c-66', 'c-70'])
+    for (const d of ferme) {
+      const riga = rigaTraguardo(a, d.traguardo!)!
+      expect(riga).toMatch(/è ferma da \d+ minuti senza segnali: .*le riscrivo l’ultima istruzione/)
+      expect(riga).not.toMatch(/\bc-\d+/)
+    }
   })
 
   it('dopo un riavvio, con lo stato su disco della notte: giro entro 15 minuti; se restano mute, i compiti passano a chat nuove sugli stessi rami, senza doppioni', async () => {

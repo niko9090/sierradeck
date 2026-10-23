@@ -173,7 +173,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
      */
     suspend fun scegli(chat: String, opzione: String): Fatto =
         json.decodeFromString(corpoTesto("/api/scegli", oggetto {
-            put("chat", chat); put("opzione", opzione)
+            put("chat", chat); put("opzione", senzaMezziCaratteri(opzione))
         }))
 
     /** Il PIN di una chat protetta (PC 0.49.0): lo controlla il computer di casa della chat. */
