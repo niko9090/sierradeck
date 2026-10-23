@@ -36,6 +36,24 @@ class PuntoAutopilotaTest {
     }
 
     @Test
+    fun `le richieste di Nicholas in cima, con lo stato del PC`() {
+        val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """
+            {"id":"ap-1","stato":"lavoro","punto":{"passo":"Lavora",
+              "richieste":[{"id":"r-2","giorno":"23/10","titolo":"Le risposte prese davvero","stato":"in-corso","parola":"in corso","colore":"blu"},
+                           {"id":"r-1","giorno":"22/10","titolo":"Togli il freno","stato":"fatta","parola":"fatta nella versione 0.84.2","colore":"verde"}],
+              "richiesteTotale":3}}
+        """)
+        val p = d.punto!!
+        assertEquals(2, p.richieste.size)
+        assertEquals("blu", p.richieste[0].colore)
+        assertEquals("23/10 · Le risposte prese davvero — in corso", RighePunto.richiesta(p.richieste[0]))
+        assertEquals("22/10 · Togli il freno — fatta nella versione 0.84.2", RighePunto.richiesta(p.richieste[1]))
+        assertEquals(" e un altro", RighePunto.altri(p.richiesteTotale, p.richieste.size))
+        // Un PC di prima della 0.85.0: nessuna richiesta, il Punto si legge lo stesso.
+        assertEquals(0, Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """{"id":"ap-1","stato":"lavoro","punto":{"passo":"Lavora"}}""").punto!!.richieste.size)
+    }
+
+    @Test
     fun `cosa serve da Nicholas, e un PC vecchio senza Punto`() {
         assertEquals("Il tuo via, per cominciare.", RighePunto.daTe(PuntoAutopilota(daTe = listOf("Il tuo via, per cominciare."))))
         assertNull(RighePunto.lista(emptyList(), 0))

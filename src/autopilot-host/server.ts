@@ -48,6 +48,7 @@ import { componiDomanda } from './trascrizione'
 import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero } from './domande-doppie'
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
+import { conVersioni, registraRichieste, rigaRegistrate, sembraRichiesta, tieniRichieste, type RichiestaProposta } from './richieste'
 import {
   cosaFallisce, domandaControllata, domandaControllataSubito, domandaPerRegistro, leggiParti, partiBloccato, partiDaTesto, nomeControllo, nomeDi, partiDaRisposta, partiPubblica, rispostaBloccato, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
@@ -470,6 +471,8 @@ export function conservaCambiUtente(
     // sparirebbe con la fotografia di inizio turno.
     dialogo: fresco.dialogo,
     daConsegnare: fresco.daConsegnare,
+    // Le richieste di Nicholas (0.85.0) le registra il dialogo mentre il turno lavora.
+    ...(fresco.richieste !== undefined ? { richieste: fresco.richieste } : {}),
     // Le chat adottate e i messaggi per loro (0.78.0): li scrivono le rotte
     // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
     // 16/10: la fotografia di inizio turno li cancellava.
@@ -734,6 +737,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
+    // 0.85.0: le richieste aperte non perdono criterio e compiti per strada.
+    a = tieniRichieste(a, ora)
     const datato = aggiornaStorico(a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a)
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
@@ -1835,8 +1840,47 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return mandate
   }
 
+  /** Quando si sono lette le release per le richieste fatte, per autopilota. */
+  const versioniLette = new Map<string, number>()
+  /**
+   * 0.85.0: una richiesta fatta prende la versione che la contiene, la prima
+   * release (tag `v*` del progetto) uscita dopo. Al più ogni 10 minuti per
+   * autopilota, e solo se c'è una richiesta fatta che non ce l'ha ancora.
+   */
+  const versioniDelleRichieste = (): void => {
+    if (deps.git === undefined) return
+    const git = gitA(deps.git)
+    const ora = Date.parse(deps.adesso())
+    for (const a of deps.archivio.elenca()) {
+      if (!(a.richieste ?? []).some((r) => r.fattaIl !== undefined && r.versione === undefined)) continue
+      if (ora - (versioniLette.get(a.id) ?? 0) < 10 * 60_000) continue
+      versioniLette.set(a.id, ora)
+      // Le release che il servizio rilegge da GitHub per la velocità (c-129):
+      // se ci sono bastano quelle, senza chiedere a git.
+      if ((a.releaseUscite ?? []).length > 0) {
+        const con = conVersioni(a, (a.releaseUscite ?? []).map((x) => ({ nome: x.versione, il: x.quando })))
+        if (con !== a) deps.archivio.scrivi(con)
+        continue
+      }
+      void git(['for-each-ref', 'refs/tags/v*', '--format=%(refname:short) %(creatordate:iso-strict)'], a.cwd).then((e) => {
+        if (e.codice !== 0) return
+        const release = e.uscita.split(/\r?\n/).flatMap((r) => { const [nome, il] = r.trim().split(' '); return nome !== undefined && il !== undefined ? [{ nome, il }] : [] })
+        const fresco = deps.archivio.leggi(a.id)
+        if (fresco === undefined) return
+        const con = conVersioni(fresco, release)
+        if (con === fresco) return
+        for (const r of con.richieste ?? []) {
+          if (r.versione !== undefined && fresco.richieste?.find((x) => x.id === r.id)?.versione === undefined) console.log(`[richieste] ${a.id} — ${r.id} fatta nella versione ${r.versione}`)
+        }
+        // Come le release uscite: senza toccare `ultimoEvento`, non sveglia nessuno.
+        deps.archivio.scrivi(con)
+      }).catch((err: unknown) => { console.error(`[richieste] ${a.id} — release non lette:`, err) })
+    }
+  }
+
   const controllaChatFerme = (): void => {
     consegnaAlleChatFerme()
+    versioniDelleRichieste()
     // 0.82.0: prima i posti (la misura del PC) e le chat finite da chiudere,
     // poi il freno, che apre i compiti in fila nei posti liberi.
     aggiornaPosti()
@@ -2728,12 +2772,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(conSua)
     }
 
+    // 0.85.0: una richiesta di Nicholas diventa da sola un obiettivo, anche
+    // quando il supervisore non lo dice o non risponde affatto. Un testo scritto
+    // dal programma (una risposta che non è arrivata alla chat) non ha la sua
+    // battuta: lì decide solo il supervisore.
+    const battuta = fresco.dialogo.find((s) => s.da === 'tu' && s.quando === quando)
+    const registra = (proposte: RichiestaProposta[], compitiNuovi: string[], nonRichiesta: boolean, criteriNuovi: string[] = []): string | undefined => {
+      const r = registraRichieste(fresco!, { testo, quando, proposte, compitiNuovi, criteriNuovi, nonRichiesta: nonRichiesta || battuta === undefined || battuta.traccia === true, esiste: esisteIn(fresco!.cwd) })
+      if (r.nuove.length === 0) return undefined
+      fresco = r.autopilota
+      for (const n of r.nuove) console.log(`[richieste] ${id} — ${n.id} registrata (${n.da}): «${n.titolo.slice(0, 120)}» · criterio «${n.criterio.slice(0, 120)}» · ${n.compiti.length} compiti`)
+      if (r.comandiScartati.length > 0) console.log(`[richieste] ${id} — comandi dei criteri tolti perché non possono funzionare: ${r.comandiScartati.join(' | ').slice(0, 300)}`)
+      return rigaRegistrate(r.nuove)
+    }
+
     if (esito === undefined) {
+      const registrate = registra([], [], false)
+      if (registrate !== undefined) salva(fresco)
       chiudi(
         guasto !== undefined
           ? `Non sono riuscito a risponderti: il supervisore non ha risposto (${guasto.slice(0, 300)}). Riprova fra un momento.`
           : 'Non sono riuscito a leggere la mia stessa risposta. Riprova dicendolo in un altro modo.',
-        'senza risposta'
+        registrate !== undefined ? `senza risposta · ${registrate}` : 'senza risposta'
       )
       return
     }
@@ -2746,6 +2806,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       fatti.push('il resto della risposta non si leggeva: niente cambiato, riscrivilo se serviva')
     }
 
+    const compitiPrima = fresco.compitiDaFare
+    const criteriPrima = fresco.criteri.map((c) => c.descrizione)
     if (esito.cambio !== undefined) {
       const cambiato = applicaCambio(fresco, {
         ...(esito.cambio.obiettivo !== undefined ? { obiettivo: esito.cambio.obiettivo } : {}),
@@ -2766,6 +2828,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         fatti.push('cambio applicato')
         cambioApplicato = true
       }
+    }
+
+    const registrate = registra(
+      esito.richieste ?? [],
+      fresco.compitiDaFare.filter((c) => !compitiPrima.includes(c)),
+      // Il resto non si leggeva: la risposta dice «riscrivilo», niente obiettivo a metà.
+      esito.restoIlleggibile === true || esito.comando === 'ferma' || esito.comando === 'riprendi' || esito.comando === 'rispondi',
+      fresco.criteri.map((c) => c.descrizione).filter((d) => !criteriPrima.includes(d))
+    )
+    if (registrate !== undefined) {
+      fatti.push(registrate)
+      cambioApplicato = true
     }
 
     const aperta = deps.domande.aperte(id)[0]
@@ -2888,6 +2962,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         obiettivo: fresco.obiettivo,
         criteri: fresco.criteri,
         compitiDaFare: fresco.compitiDaFare,
+        ...(fresco.richieste !== undefined ? { richieste: fresco.richieste } : {}),
         modifiche: fresco.modifiche,
         daConsegnare: fresco.daConsegnare,
         stato: fresco.stato,
@@ -5323,6 +5398,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             obiettivo: ultima.prima.obiettivo,
             criteri: ultima.prima.criteri,
             compitiDaFare: ultima.prima.compitiDaFare,
+            // 0.85.0: anche la richiesta registrata da quel messaggio, o il suo
+            // criterio tornerebbe da solo al primo salvataggio.
+            ...(a.richieste !== undefined ? { richieste: a.richieste.filter((r) => r.quando !== ultima.quando) } : {}),
             // La modifica disfatta se ne va: lasciarla lascerebbe un tasto che
             // disfa due volte la stessa cosa.
             modifiche: a.modifiche.slice(0, -1),
@@ -5464,6 +5542,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const aperta = a.stato === 'intervista' ? undefined : [...deps.domande.aperte(id)].sort((x, y) => x.apertaIl - y.apertaIl)[0]
           if (aperta !== undefined && rispondiAllaDomanda(aperta.id, testo, 'modale')) {
             console.log(`[domande] ${id} — scritto a mano mentre «${aperta.testo.slice(0, 80)}» era aperta: è la risposta`)
+            // 0.85.0: se la risposta chiede anche qualcosa («…controlla anche
+            // questo», il 23/10 alle 07:25), quella parte diventa un obiettivo.
+            const dopo = deps.archivio.leggi(id)
+            if (dopo !== undefined && sembraRichiesta(testo)) {
+              const r = registraRichieste(dopo, { testo, quando: deps.adesso(), proposte: [], esiste: esisteIn(dopo.cwd) })
+              if (r.nuove.length > 0) {
+                salva(r.autopilota)
+                console.log(`[richieste] ${id} — ${r.nuove[0]!.id} registrata dalla risposta scritta a mano: «${r.nuove[0]!.titolo.slice(0, 120)}»`)
+              }
+            }
             rispondi(res, 202, { ricevuto: true, risposta: true, autopilota: deps.archivio.leggi(id) })
             return
           }
