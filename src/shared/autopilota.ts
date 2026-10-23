@@ -1,5 +1,6 @@
 import { eRuolo, type Ruolo } from './ruoli-agenti'
 import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
+import { leggiRapportoChat, type RapportoChat } from './rapporti-chat'
 import { leggiRisposteInViaggio, type RispostaInViaggio } from './risposte-in-viaggio'
 import { leggiRichieste, type RichiestaNicholas } from './richieste-nicholas'
 /**
@@ -256,6 +257,12 @@ export type ChatGovernata = SupervisoreMancato & {
    * fatto, bloccata con il motivo, aspetta. Vedi `@shared/segnali-flotta`.
    */
   segnale?: SegnaleChat
+  /**
+   * L'ultimo rapporto della chat all'autopilota (0.85.1): partita, piano, passo
+   * fatto, provo, bloccata, mi serve, finita. Arriva a ogni passo, non solo a
+   * fine turno. Vedi `@shared/rapporti-chat`.
+   */
+  rapporto?: RapportoChat
   /**
    * **Mai fermo** (0.84.1): l'ultima volta che il servizio l'ha rimessa al
    * lavoro da solo, perché taceva, e quante volte di fila. Si toglie appena la
@@ -717,6 +724,7 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
       ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
       : {}),
     ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {}),
+    ...(leggiRapportoChat(o.rapporto) !== undefined ? { rapporto: leggiRapportoChat(o.rapporto) } : {}),
     ...(leggiRipresaDaSolo(o.ripresa) !== undefined ? { ripresa: leggiRipresaDaSolo(o.ripresa) } : {}),
     ...(stringaNonVuota(o.sostituitaDa) !== undefined ? { sostituitaDa: o.sostituitaDa as string } : {}),
     ...(stringaNonVuota(o.sostituisce) !== undefined ? { sostituisce: o.sostituisce as string } : {}),

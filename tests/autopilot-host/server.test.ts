@@ -1471,7 +1471,7 @@ describe('la chat viva che non finisce mai', () => {
     expect(stato.daParte).toBeUndefined()
     expect(stato.ripresa?.volte).toBe(1)
     expect(stato.decisioni.some((d: { cosa: string }) => d.cosa.startsWith('giro da solo'))).toBe(true)
-    expect(messaggiDiRipresa.some((m) => m.includes('L’autopilota ti rimette al lavoro'))).toBe(true)
+    expect(messaggiDiRipresa.some((m) => m.includes('Dimmi il punto'))).toBe(true)
 
     // Il giro dopo non la rimette da parte e non la riprende una seconda volta.
     const prima = stato.decisioni.length
