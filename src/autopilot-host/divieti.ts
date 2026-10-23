@@ -422,7 +422,9 @@ export function giudicaRuolo(r: RichiestaStrumento, ruolo: string | undefined): 
   const comando = (nome === 'Bash' || nome === 'PowerShell') && typeof input.command === 'string' ? input.command : ''
   // Solo quando si **esegue** l'installatore o si chiama la rotta: leggerne il nome
   // (gh release upload, ls dist/, grep nel codice) resta permesso.
-  const esegueInstallatore = /(^|[;&|]\s*|Start-Process\s+(-FilePath\s+)?|cmd(\.exe)?\s+\/c\s+|\.\/)["']?[^\s"';&|]*SierraDeck-Setup[^\s"';&|]*\.exe/i.test(comando)
+  // `./` conta solo a inizio parola: dentro `../` di una copia no (0.85.1). Il
+  // `.exe` deve chiudere il nome: `.exe.blockmap` non si esegue.
+  const esegueInstallatore = /(^|[;&|]\s*|Start-Process\s+(-FilePath\s+)?|cmd(\.exe)?\s+\/c\s+|(?<=^|\s)\.\/)["']?[^\s"';&|]*SierraDeck-Setup[^\s"';&|]*\.exe(?![\w.])/i.test(comando)
   const chiamaInstalla = /(curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch)[^;&|]*\/api\/installa/i.test(comando)
   if (comando !== '' && (esegueInstallatore || chiamaInstalla)) {
     return { ok: false, motivo: 'SierraDeck blocca questo comando: le versioni nuove le installa solo Nicholas.' }
