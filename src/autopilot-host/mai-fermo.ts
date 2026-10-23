@@ -258,8 +258,9 @@ export function testoRipresa(a: Autopilota, c: ChatGovernata | undefined, muta: 
   const ultime = (c !== undefined ? c.ultimeIstruzioni : a.ultimeIstruzioni)?.trim() ?? ''
   const compito = c !== undefined && c.compito !== '' ? c.compito : a.obiettivo
   return [
-    `L’autopilota ti rimette al lavoro: da ${minuti(muta)} minuti non arriva nessun segnale da questa chat e il lavoro non è finito.`,
-    'Se eri fermo su un comando che non finisce, lascialo perdere e prosegui in un altro modo.',
+    `Dimmi il punto: da ${minuti(muta)} minuti non arriva nessun segnale da questa chat e il lavoro non è finito.`,
+    'Scrivi subito una riga RAPPORTO: con l’ultimo passo fatto, oppure «bloccata perché…» o «mi serve…»: fermarsi senza motivo non è ammesso.',
+    'Poi rimettiti al lavoro. Se eri fermo su un comando che non finisce, lascialo perdere e prosegui in un altro modo.',
     '',
     ultime !== '' ? `L’ultima istruzione che avevi ricevuto:\n${ultime}` : `Il tuo compito: ${compito}`,
     '',

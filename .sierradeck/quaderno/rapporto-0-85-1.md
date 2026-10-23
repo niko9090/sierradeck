@@ -90,7 +90,7 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 ## Cosa resta
 
 1. Revisione e unione di c-143 in `main`. Lo fa il programma. Poi si toglie la junction `node_modules` della copia con `rmdir`.
-2. La richiesta 0.85.1e, le promesse non mantenute (consegna c-1086): **da fare**, non toccata da c-143.
+2. La richiesta 0.85.1f, le promesse non mantenute (consegna c-1086): **da fare**, non toccata da c-143.
 3. La release 0.85.1:
    - `git fetch`, poi tag e `gh release create` prima di `npm run pubblica`;
    - controllare `latest.yml`;

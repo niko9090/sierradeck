@@ -1,6 +1,6 @@
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import { homedir, hostname, userInfo } from 'node:os'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync } from 'node:fs'
 import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
@@ -72,6 +72,36 @@ function ultimoDettoDa(cwd: string, sessionId: string): string | undefined {
     const file = join(cartellaClaude(), 'projects', percorsoInSlug(cwd), `${sessionId}.jsonl`)
     if (!existsSync(file)) return undefined
     return ultimoMessaggioAssistente(readFileSync(file, 'utf8').split('\n'))
+  } catch {
+    return undefined
+  }
+}
+
+/** Quanto della fine di una trascrizione si legge per il rapporto (0.85.1). */
+const CODA_TRASCRIZIONE = 256 * 1024
+
+/**
+ * Le ultime righe di una trascrizione, dal percorso che porta l'hook
+ * (0.85.1). Solo dentro le conversazioni di Claude Code e solo `.jsonl`:
+ * il percorso arriva da una richiesta, non si legge un file qualunque. La
+ * prima riga, quasi sempre a metà, si scarta. Non solleva mai.
+ */
+function codaTrascrizioneDa(percorso: string): string[] | undefined {
+  try {
+    const radice = resolve(cartellaClaude(), 'projects') + sep
+    const file = resolve(percorso)
+    if (!file.toLowerCase().startsWith(radice.toLowerCase()) || !file.endsWith('.jsonl') || !existsSync(file)) return undefined
+    const fd = openSync(file, 'r')
+    try {
+      const misura = fstatSync(fd).size
+      const quanto = Math.min(misura, CODA_TRASCRIZIONE)
+      const buf = Buffer.alloc(quanto)
+      readSync(fd, buf, 0, quanto, misura - quanto)
+      const righe = buf.toString('utf8').split('\n')
+      return quanto < misura ? righe.slice(1) : righe
+    } finally {
+      closeSync(fd)
+    }
   } catch {
     return undefined
   }
@@ -318,6 +348,7 @@ export function avviaServizio(): void {
     // Da dove si legge cosa ha chiesto la chat: senza, all'utente si girava una
     // riga di servizio a cui non si puo' rispondere.
     ultimoDetto: ultimoDettoDa,
+    codaTrascrizione: codaTrascrizioneDa,
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
     scadenzaInterviataMs: SCADENZA_INTERVISTA_MS,
     adesso: () => new Date().toISOString(),

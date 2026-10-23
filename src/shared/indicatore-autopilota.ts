@@ -3,6 +3,7 @@ import { durata } from './adesso'
 import { attivitaComando } from './attivita-chat'
 import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
+import { quadroDellaChat } from './rapporti-chat'
 import type { Segnale } from './segnali-chat'
 import { riassuntoVelocita, tempiRichieste } from './velocita-richieste'
 import { rigaPcCarico, type PcCarico } from './guardia-pc'
@@ -246,7 +247,10 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; pcCarico?:
       : v.c?.stato === 'pausa' ? 'in pausa per i limiti del piano'
         : v.vero !== undefined && t !== undefined ? `${PAROLA_SEGNALE[v.vero.tipo]} ${fa(ora - t)}`
           : v.silenzio !== undefined ? `nessun segnale vero da ${durata(v.silenzio)}` : 'nessun segnale vero'
-    return `${v.chi}${compito}: ${cosa}`
+    // 0.85.1: il quadro intero, come nel prompt delle risposte: l'ultimo passo riferito e il motivo se è ferma.
+    if (v.c === undefined) return `${v.chi}${compito}: ${cosa}`
+    const q = quadroDellaChat(v.c, ora, v.vero)
+    return `${v.chi}${compito}: ${cosa} · ultimo passo: ${q.passo}${q.ferma !== undefined ? ` · ferma: ${q.ferma}` : ''}`
   })
 
   const riga = (livello: LivelloIndicatore, testo: string): Indicatore['andamento'] => ({ livello, colore: COLORE[livello], simbolo: SIMBOLO[livello], testo })
@@ -302,7 +306,7 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; pcCarico?:
 }
 
 /** Il «?» dell'indicatore, uguale dappertutto. */
-export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo.'
+export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Sotto, chat per chat: il compito, l’ultimo segnale vero e da quanto, l’ultimo passo che la chat ha riferito e, se è ferma, il motivo. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo.'
 
 /** L'indicatore dell'autopilota. */
 export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string; pcCarico?: PcCarico }, ora: number): Indicatore {

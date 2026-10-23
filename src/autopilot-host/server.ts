@@ -29,6 +29,7 @@ import { TURNI_PC, type TurniCriteri } from './turni-criteri'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
+import { parolaRapporto, rapportoDiFineTurno, rapportoNuovo, righeQuadroChat, type RapportoChat } from '@shared/rapporti-chat'
 import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, parolaSegnale, quadroFlotta, rigaDoppione, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
@@ -45,7 +46,7 @@ import {
 } from './intervista'
 import { chatDaRiprendere, daRiprendere, intervisteDaRiprendere, riportaChiAspettava } from './ripresa'
 import { componiPromptRisposta, domandaChiara, leggiEsitoRisposta } from './risposta-autonoma'
-import { componiDomanda } from './trascrizione'
+import { componiDomanda, ultimoRapportoDa } from './trascrizione'
 import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero } from './domande-doppie'
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
@@ -132,6 +133,12 @@ export type Dipendenze = {
    * Assente in prova, e allora si lavora con la sola notifica.
    */
   ultimoDetto?: (cwd: string, sessionId: string) => string | undefined
+  /**
+   * Le ultime righe della trascrizione dal percorso dell'hook (0.85.1): per
+   * leggere il rapporto a ogni passo. Assente in prova: niente rapporti a metà
+   * turno, restano quelli di fine turno.
+   */
+  codaTrascrizione?: (percorso: string) => string[] | undefined
   domande: RegistroDomande
   /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
   scadenzaDomandaMs: number
@@ -241,6 +248,9 @@ export type Dipendenze = {
    */
   releaseUscite?: LeggiReleaseUscite
 }
+
+/** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
+export const RILETTURA_RAPPORTO_MS = 5_000
 
 /** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
 export const DOMANDE_ORA_MAX = 6
@@ -922,6 +932,48 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ...a,
       chats: a.chats.map((x) => (x.id === chatId ? { ...x, segnale: { tipo: 'parto' as const, quando: deps.adesso(), dichiarato: false } } : x)),
       decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `segnale da ${chatId}: partita` }]
+    })
+  }
+
+  /** I segnali veri di un autopilota, chat per chat (la chat sola con l'id dell'autopilota). */
+  const segniVeriDi = (a: Autopilota): Record<string, SegnaleVero> => {
+    const segniVeri: Record<string, SegnaleVero> = {}
+    if (a.chats.length === 0) {
+      const v = ultimoVero.get(chiaveTurno(a.id))
+      if (v !== undefined) segniVeri[a.id] = v
+    }
+    for (const c of a.chats) {
+      const v = ultimoVero.get(chiaveTurno(a.id, c.id))
+      if (v !== undefined) segniVeri[c.id] = v
+    }
+    return segniVeri
+  }
+  /** L'ultima lettura del rapporto per chat (0.85.1): non si rilegge la trascrizione a ogni strumento. */
+  const rapportoLetto = new Map<string, number>()
+  /**
+   * Il rapporto a ogni passo (0.85.1): l'ultima riga `RAPPORTO:` della chat,
+   * letta dalla fine della sua trascrizione. Se è nuova si salva sulla chat,
+   * si scrive nel diario ed è una prova di vita: una chat richiamata con
+   * «dimmi il punto» che risponde con un rapporto ha risposto.
+   */
+  const leggiRapporto = (id: string, chatId: string, trascrizione: string): void => {
+    const chiave = chiaveTurno(id, chatId)
+    const ora = Date.parse(deps.adesso())
+    if (ora - (rapportoLetto.get(chiave) ?? -Infinity) < RILETTURA_RAPPORTO_MS) return
+    rapportoLetto.set(chiave, ora)
+    const righe = deps.codaTrascrizione?.(trascrizione)
+    const letto = righe !== undefined ? ultimoRapportoDa(righe) : undefined
+    if (letto === undefined) return
+    const a = deps.archivio.leggi(id)
+    const c = a?.chats.find((x) => x.id === chatId)
+    if (a === undefined || c === undefined || c.stato === 'finita') return
+    const rapporto: RapportoChat = { ...letto, quando: deps.adesso() }
+    if (!rapportoNuovo(c.rapporto, rapporto)) return
+    ultimoSegno.set(chiave, ora)
+    salva({
+      ...a,
+      chats: a.chats.map((x) => (x.id === chatId ? { ...x, rapporto } : x)),
+      decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `rapporto da ${chatId}: ${parolaRapporto(rapporto)}` }]
     })
   }
 
@@ -2803,6 +2855,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const aperta = deps.domande.aperte(id)[0]
       const r = await deps.interroga(
         componiPromptDialogo(a, testo, {
+          // 0.85.1: il quadro intero per chat, non solo le ultime mosse.
+          quadro: righeQuadroChat({ ...a, segniVeri: segniVeriDi(a) }, Date.parse(deps.adesso())),
           ...(detto !== undefined ? { ultimoDetto: detto } : {}),
           ...(aperta !== undefined ? { domandaAperta: aperta.testo } : {})
         }),
@@ -3489,6 +3543,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? segnaleDiFineTurno(ultimoMessaggio, { sorelle, me: chatId, quando: deps.adesso(), ...(chatAttesa(ultimoMessaggio, sorelle, chatId) !== undefined ? { aspettaDi: chatAttesa(ultimoMessaggio, sorelle, chatId) } : {}) })
       : undefined
     const segnalePrima = chatId !== undefined ? a.chats.find((c) => c.id === chatId)?.segnale : undefined
+    // 0.85.1: il rapporto di fine turno, la riga `RAPPORTO:` o quello che dice il segnale.
+    const rapportoPrima = chatId !== undefined ? a.chats.find((c) => c.id === chatId)?.rapporto : undefined
+    const rapportoQui = chatId !== undefined ? rapportoDiFineTurno(ultimoMessaggio, segnaleQui, deps.adesso()) : undefined
     // La sessione appartiene alla chat che si e' fermata: con una flotta,
     // scriverla sull'autopilota farebbe riprendere tutte le chat dalla
     // conversazione dell'ultima che ha parlato.
@@ -3497,7 +3554,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? a.chats
       : a.chats.map((c) =>
           c.id === chatId
-            ? { ...(tornaDaParte({ ...a, chats: [c] }, c.id).chats[0] ?? c), cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}), ...(segnaleQui !== undefined ? { segnale: segnaleQui } : {}) }
+            ? { ...(tornaDaParte({ ...a, chats: [c] }, c.id).chats[0] ?? c), cicli: c.cicli + 1, ...(sessionId !== undefined ? { sessionId } : {}), ...(rigaUltimaAzione(ultimoMessaggio) !== '' ? { ultimaAzione: rigaUltimaAzione(ultimoMessaggio) } : {}), ...(segnaleQui !== undefined ? { segnale: segnaleQui } : {}), ...(rapportoQui !== undefined ? { rapporto: rapportoQui } : {}) }
             : c
         )
     const conSessione: Autopilota = {
@@ -3513,6 +3570,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // 0.84.3 (il Punto): «si blocca» è una riga per Nicholas nella conversazione.
       const blocco: Traguardo | undefined = segnaleQui.tipo === 'bloccata' ? { chat: chatId ?? id, esito: 'bloccata', ...(segnaleQui.motivo !== undefined ? { nota: segnaleQui.motivo.slice(0, NOTA_TRAGUARDO_MAX) } : {}) } : undefined
       annota(conSessione, `segnale da ${chatId ?? id}: ${parolaSegnale(segnaleQui)}`, blocco)
+    }
+    // 0.85.1: il rapporto scritto dalla chat a fine turno, se è nuovo.
+    if (rapportoQui !== undefined && rapportoQui.dichiarato && rapportoNuovo(rapportoPrima, rapportoQui)) {
+      annota(conSessione, `rapporto da ${chatId ?? id}: ${parolaRapporto(rapportoQui)}`)
     }
 
     // **Il ciclo si scrive adesso, prima dei criteri.** Erano l'unica cosa
@@ -5038,15 +5099,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
             const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
             // 0.85.0: i segnali veri per l'indicatore, chat per chat (la chat sola con l'id dell'autopilota).
-            const segniVeri: Record<string, SegnaleVero> = {}
-            if (a.chats.length === 0) {
-              const v = ultimoVero.get(chiaveTurno(a.id))
-              if (v !== undefined) segniVeri[a.id] = v
-            }
-            for (const c of a.chats) {
-              const v = ultimoVero.get(chiaveTurno(a.id, c.id))
-              if (v !== undefined) segniVeri[c.id] = v
-            }
+            const segniVeri = segniVeriDi(a)
             // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
             const muto = supervisore.muto()
             const conVeri = {
@@ -5829,6 +5882,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             salva({ ...fresco, decisioni: [...fresco.decisioni, { quando: deps.adesso(), cosa: `comando bloccato dal programma: ${g.motivo}` }] })
           }
           rispondi(res, 200, rispostaPreTool(g))
+          return
+        }
+
+        // 0.85.1: il rapporto a ogni passo (hook PostToolUse). Si risponde
+        // subito, la chat non aspetta; poi si legge la riga `RAPPORTO:` dalla
+        // trascrizione, al più una volta ogni pochi secondi per chat.
+        if (metodo === 'POST' && percorso === '/hook/rapporto') {
+          const idAp = url.searchParams.get('ap') ?? ''
+          const chatR = url.searchParams.get('chat') ?? undefined
+          const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
+          rispondi(res, 200, {})
+          if (!ID_VALIDO.test(idAp) || chatR === undefined || chatR === idAp || !ID_VALIDO.test(chatR)) return
+          const trascrizione = typeof corpo.transcript_path === 'string' ? corpo.transcript_path : ''
+          if (trascrizione !== '') leggiRapporto(idAp, chatR, trascrizione)
           return
         }
 

@@ -1,3 +1,4 @@
+import { righeQuadroChat } from '@shared/rapporti-chat'
 import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/autopilota'
 import type { CambioChiesto } from './supervisore'
 import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
@@ -69,6 +70,12 @@ export function componiPromptDialogo(
     ultimoDetto?: string
     /** Se c'è una domanda aperta a cui la persona non ha ancora risposto. */
     domandaAperta?: string
+    /**
+     * Il quadro per chat (0.85.1, `righeQuadroChat`): compito, ultimo passo,
+     * ultimo segnale vero e motivo se è ferma. Assente: si calcola qui, senza
+     * i segnali veri.
+     */
+    quadro?: string[]
   } = {}
 ): string {
   const criteri = a.criteri.map(
@@ -93,6 +100,7 @@ export function componiPromptDialogo(
     'Finisce quando:',
     ...criteri,
     ...(a.compitiDaFare.length > 0 ? ['Compiti ancora in coda:', ...a.compitiDaFare.map((c) => `- ${c}`)] : []),
+    ...(contesto.quadro ?? righeQuadroChat(a, Date.now())),
     ...(decisioni.length > 0 ? ['', '## Le ultime mosse', ...decisioni] : []),
     ...(contesto.ultimoDetto !== undefined && contesto.ultimoDetto.trim() !== ''
       ? ['', '## L\'ultima cosa che ha scritto la chat che governi', contesto.ultimoDetto.slice(0, DETTO_MAX)]
