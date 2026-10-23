@@ -36,6 +36,14 @@ tag: ["0.85.0", "richieste", "autopilota", "punto", "c-127"]
 
 **Il Punto**: `puntoDi` dà `richieste` e `richiesteTotale`, in cima: prima in corso, poi da fare, poi le fatte non pubblicate o pubblicate da meno di un giorno; al più 5. Stessi testi e colori (`COLORE_RICHIESTA`: ambra, blu, verde) su PC (`PuntoAutopilota.tsx`), pagina (`puntoHtml` in `client-pagina.ts`) e app (`PuntoAutopilota.kt`, `RichiestaNelPunto`).
 
+## Da ricondurre al registro (per la Revisione, c-130)
+
+c-128 e c-129 sono entrati in main **prima** di c-127 (contro l'ordine di `piano-unione-0-85-0.md`) e riconoscono le richieste a modo loro:
+- **velocità** (`src/shared/velocita-richieste.ts`, `richiesteArrivate`): conta come richiesta ogni messaggio di Nicholas nel dialogo tranne le risposte brevi, domande comprese (poi le chiama «domanda» dopo 60 minuti senza chat). Ha anche un suo tipo `StatoRichiesta` con valori diversi (`domanda | da-fare | in-corso | unita | pubblicata`): non confonderlo con quello di `richieste-nicholas.ts`;
+- **riscontro** (`src/autopilot-host/riscontro.ts`): identifica la richiesta col `#` della riga di `lista-lavori.md` («[0t] …» nel criterio).
+
+Il passo che manca: `tempiRichieste` dovrebbe partire da `a.richieste` quando c'è (stesse `quando` e `testo`), e il riscontro scrivere `commit`/`versione` nella voce del registro. Le versioni le prende già dal registro delle release di c-129 (`releaseUscite`, letto da GitHub): `versioniDelleRichieste` usa quelle e chiede a git i tag solo se mancano.
+
 ## Trappole
 
 - Il turno di una chat salva con la fotografia di inizio turno: `richieste` va presa dal disco in `conservaCambiUtente` e nella fusione di fine dialogo (fatto). Un campo nuovo dell'autopilota scritto dal dialogo va aggiunto **in tutti e due** i posti, o sparisce.

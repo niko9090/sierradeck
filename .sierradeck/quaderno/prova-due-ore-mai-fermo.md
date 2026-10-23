@@ -27,3 +27,12 @@ progetto.
   vale va lanciata solo DOPO l'unione dei rami che toccano `src/autopilot-host`
   (`server.ts`, `mai-fermo.ts`, `domande.ts`): ogni loro modifica la invalida,
   come nei tre giri buttati della 0.84.3 (`rapporto-0-84-3.md`).
+- **Come aspettarla senza girare a vuoto** (0.84.4, c-122): un «aspetto» che
+  chiude il turno ne fa aprire subito un altro dal supervisore. Il 23/10 sono
+  stati 44 giri uguali. Lo `sleep` in primo piano è bloccato. Funziona invece
+  un piccolo script node in primo piano (timeout 600 s) che legge il diario
+  ogni 30 secondi ed esce dopo 9 minuti, oppure prima se trova
+  `[prova] finita`, `DOPPIONE` o il diario fermo da oltre 25 minuti. Si
+  rilancia finché non esce per uno di questi tre motivi, tutto nello stesso
+  turno. L'esito vero si scrive solo alla fine (`esito-prova.json`).
+- Esito 0.84.4 (codice `c54fbcd7`): prova pulita; numeri in `rapporto-0-84-4.md`.

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { isAbsolute, join } from 'node:path'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
@@ -33,6 +33,7 @@ import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
 import { fattiVerificati } from './fatti'
+import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
@@ -81,6 +82,7 @@ import {
   cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 import { allineaHookEccDiTutte } from './hook-ecc'
+import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
 
 export type Dipendenze = {
   archivio: Archivio
@@ -225,6 +227,11 @@ export type Dipendenze = {
    * chat dell'autopilota, senza GitHub.
    */
   statoVero?: (a: Autopilota) => Promise<StatoVero>
+  /**
+   * Le release uscite di un progetto con la data (0.85.0): per dire nel Punto
+   * quanto ci mette una richiesta ad arrivare in una versione. Assente: niente.
+   */
+  releaseUscite?: LeggiReleaseUscite
 }
 
 /** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
@@ -641,6 +648,8 @@ export type ServerAutopiloti = Server & {
   ricontrollaCriteri: (id: string) => Promise<boolean>
   /** Chiude le domande aperte ormai superate (0.84.0); torna quante. */
   ricontrollaDomande: () => Promise<number>
+  /** Rilegge le release uscite con la data (0.85.0, velocità misurata). Torna quanti autopiloti ha aggiornato. */
+  aggiornaReleaseUscite: () => Promise<number>
 }
 
 /**
@@ -1846,6 +1855,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (!(a.richieste ?? []).some((r) => r.fattaIl !== undefined && r.versione === undefined)) continue
       if (ora - (versioniLette.get(a.id) ?? 0) < 10 * 60_000) continue
       versioniLette.set(a.id, ora)
+      // Le release che il servizio rilegge da GitHub per la velocità (c-129):
+      // se ci sono bastano quelle, senza chiedere a git.
+      if ((a.releaseUscite ?? []).length > 0) {
+        const con = conVersioni(a, (a.releaseUscite ?? []).map((x) => ({ nome: x.versione, il: x.quando })))
+        if (con !== a) deps.archivio.scrivi(con)
+        continue
+      }
       void git(['for-each-ref', 'refs/tags/v*', '--format=%(refname:short) %(creatordate:iso-strict)'], a.cwd).then((e) => {
         if (e.codice !== 0) return
         const release = e.uscita.split(/\r?\n/).flatMap((r) => { const [nome, il] = r.trim().split(' '); return nome !== undefined && il !== undefined ? [{ nome, il }] : [] })
@@ -1856,7 +1872,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         for (const r of con.richieste ?? []) {
           if (r.versione !== undefined && fresco.richieste?.find((x) => x.id === r.id)?.versione === undefined) console.log(`[richieste] ${a.id} — ${r.id} fatta nella versione ${r.versione}`)
         }
-        salva(con)
+        // Come le release uscite: senza toccare `ultimoEvento`, non sveglia nessuno.
+        deps.archivio.scrivi(con)
       }).catch((err: unknown) => { console.error(`[richieste] ${a.id} — release non lette:`, err) })
     }
   }
@@ -3219,6 +3236,58 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     await aspettaProve(p.cwd)
     return (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
   }
+  /**
+   * **Il riscontro con la prova** (0.85.0): un criterio diventato verde nella
+   * cartella principale chiude una richiesta di Nicholas. Una riga nella
+   * conversazione (cosa, commit, test, versione), una nel registro, e la
+   * stessa nella lista dei lavori. Ai giri dopo, «nella prossima versione»
+   * diventa la versione appena compare il suo tag. Vedi `riscontro.ts`.
+   */
+  const riscontra = (id: string, prima: Criterio[], dopo: Criterio[]): void => {
+    if (deps.git === undefined) return
+    const git = gitA(deps.git)
+    const verdi = diventatiVerdi(prima, dopo)
+    void (async () => {
+      const a = deps.archivio.leggi(id)
+      if (a === undefined) return
+      const percorso = join(a.cwd, LISTA_LAVORI)
+      const leggiLista = (): string | undefined => {
+        try { return existsSync(percorso) ? readFileSync(percorso, 'utf8') : undefined } catch { return undefined }
+      }
+      const detto = a.dialogo.map((s) => s.testo)
+      const nuovi = await riscontriNuovi({ git, cwd: a.cwd, verdi, lista: leggiLista(), giaDetto: [...detto, ...a.decisioni.map((d) => d.cosa)].join('\n') })
+      const lista = leggiLista()
+      const uscite = await versioniUscite(git, a.cwd, [...detto, ...(lista !== undefined ? [lista] : [])])
+      if (nuovi.length === 0 && uscite.size === 0) return
+      const fresco = deps.archivio.leggi(id)
+      if (fresco === undefined) return
+      const quando = deps.adesso()
+      const righe = nuovi.map(rigaRiscontro)
+      const conVersioni = (testo: string): string => [...uscite].reduce((t, [commit, v]) => conVersione(t, commit, v), testo)
+      salva({
+        ...fresco,
+        dialogo: [
+          ...fresco.dialogo.map((s) => s.traccia === true && commitInAttesa(s.testo).length > 0 ? { ...s, testo: conVersioni(s.testo) } : s),
+          ...righe.map((testo) => ({ quando, da: 'lui' as const, testo, traccia: true as const }))
+        ].slice(-DIALOGO_RICORDATO),
+        decisioni: [
+          ...fresco.decisioni,
+          ...righe.map((riga) => ({ quando, cosa: `riscontro: ${riga}` })),
+          ...[...uscite].map(([commit, v]) => ({ quando, cosa: `riscontro: il commit ${commit} è uscito nella ${v}` }))
+        ]
+      })
+      for (const riga of righe) console.info(`[riscontro] ${id} — ${riga}`)
+      const salvata = await (deps.turni ?? TURNI_PC).unione(a.cwd, () => salvaLista({
+        git,
+        cwd: a.cwd,
+        leggi: leggiLista,
+        scrivi: (testo) => writeFileSync(percorso, testo, 'utf8'),
+        cambia: (testo) => conVersioni(nuovi.reduce(conRiscontroInLista, testo)),
+        messaggio: `docs(quaderno): riscontro nella lista dei lavori${nuovi.length > 0 ? ` (${nuovi.map((r) => r.richiesta).join(', ')})` : ''}`
+      }))
+      if (!salvata && nuovi.length > 0) console.info(`[riscontro] ${id} — lista dei lavori non aggiornata (manca, o cambiata e non salvata nella cartella principale)`)
+    })().catch((err) => console.error(`[riscontro] ${id} — non scritto:`, err))
+  }
   // Anche togliere un worktree e guardare se un ramo è già chiuso girano nella
   // cartella di lavoro: mai a metà di un'unione (Revisione 0.84.0).
   const togliAlTurno = (git: Git, p: { cwd: string; cartella: string; ramo: string }): Promise<void> =>
@@ -3553,6 +3622,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return aggiornato
     })
     const aggiornato: Autopilota = { ...conSessione, criteri }
+    riscontra(id, conSessione.criteri, criteri)
 
     let decisione = decidi(aggiornato, {
       sessionId: sessionId ?? '',
@@ -5759,6 +5829,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? `ricontrollo chiesto da te: ${tornatiRossi.map((c) => `«${c.descrizione}»`).join(', ')} ${tornatiRossi.length === 1 ? 'non passa più' : 'non passano più'}`
       : `ricontrollo chiesto da te: ${m.esiti.filter((e) => e.passato).length} criteri su ${m.esiti.length} passano`)
     salva(aggiornato)
+    riscontra(a.id, fresco.criteri, criteri)
     return true
   }
 
@@ -5849,5 +5920,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return chiuse
   }
 
-  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  /**
+   * Le release uscite, rilette una volta per progetto e salvate negli
+   * autopiloti aperti (0.85.0). Si rilegge l'autopilota subito prima di
+   * scriverlo e si scrive solo se le release sono cambiate: non tocca
+   * `ultimoEvento`, quindi non sveglia e non ferma nessuno.
+   */
+  const aggiornaReleaseUscite = async (): Promise<number> => {
+    const leggi = deps.releaseUscite
+    if (leggi === undefined) return 0
+    const aperti = deps.archivio.elenca().filter((a) => a.archiviato !== true)
+    let aggiornati = 0
+    for (const cwd of new Set(aperti.map((a) => a.cwd))) {
+      const uscite = await leggi(cwd).catch(() => undefined)
+      if (uscite === undefined) continue
+      for (const prima of aperti.filter((a) => a.cwd === cwd)) {
+        const fresco = deps.archivio.leggi(prima.id)
+        const dopo = fresco === undefined ? undefined : conReleaseUscite(fresco, uscite)
+        if (dopo === undefined) continue
+        deps.archivio.scrivi(dopo)
+        aggiornati += 1
+      }
+    }
+    return aggiornati
+  }
+
+  return Object.assign(server, { aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

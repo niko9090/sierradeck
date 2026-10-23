@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,13 @@ data class SegnalePunto(
     /** verde | ambra | rosso | blu | quieto, come `COLORE_SEGNALE` sul PC. */
     val colore: String = "quieto",
     val simbolo: String = ""
+)
+
+/** La velocità misurata (PC 0.85.0): dalla richiesta alla versione, con il «?». */
+@Serializable
+data class VelocitaPunto(
+    val testo: String = "",
+    val aiuto: String = ""
 )
 
 @Serializable
@@ -79,7 +87,9 @@ data class PuntoAutopilota(
     val dopoTotale: Int = 0,
     val daTe: List<String> = emptyList(),
     val limiti: String? = null,
-    val aiuto: String = ""
+    val aiuto: String = "",
+    /** Assente con un PC più vecchio della 0.85.0, o finché nessuna richiesta è uscita in una versione. */
+    val velocita: VelocitaPunto? = null
 )
 
 /** Le parole del Punto, uguali alla pagina del telefono: pure, si provano senza schermo. */
@@ -159,6 +169,12 @@ fun PuntoAutopilotaVista(p: PuntoAutopilota) {
         RighePunto.lista(p.dopo, p.dopoTotale)?.let { RigaPunto("Dopo", it) }
         RigaPunto("Da te", RighePunto.daTe(p), if (p.daTe.isEmpty()) null else Banco.ambra)
         p.limiti?.takeIf { it.isNotBlank() }?.let { Text(it, color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp)) }
+        p.velocita?.takeIf { it.testo.isNotBlank() }?.let { v ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { RigaPunto("Velocità", v.testo) }
+                Aiuto(v.aiuto, di = "Velocità")
+            }
+        }
     }
 }
 

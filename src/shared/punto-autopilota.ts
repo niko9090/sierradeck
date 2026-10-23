@@ -4,6 +4,7 @@ import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
 import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
 import { COLORE_RICHIESTA, giornoDi, parolaStato, statoRichiesta, type StatoRichiesta } from './richieste-nicholas'
+import { velocitaDi } from './velocita-richieste'
 
 export { senzaSigle }
 
@@ -64,6 +65,12 @@ export type Punto = {
   daTe: string[]
   /** I limiti del piano, solo informazione. Assente se non ancora letti. */
   limiti?: string
+  /**
+   * La velocità misurata (0.85.0): dalla richiesta alla versione pubblicata e
+   * dove si perde il tempo, con la spiegazione per il «?». Assente finché
+   * nessuna richiesta è uscita in una versione.
+   */
+  velocita?: { testo: string; aiuto: string }
 }
 
 export type RichiestaNelPunto = {
@@ -194,6 +201,7 @@ export function puntoDi(
 
   const limiti = rigaLimiti(p.limiti)
   const richieste = richiesteNelPunto(a, ora)
+  const velocita = velocitaDi(a, ora)
   return {
     richieste: richieste.righe,
     richiesteTotale: richieste.totale,
@@ -205,7 +213,8 @@ export function puntoDi(
     dopo: dopo.slice(0, RIGHE_PUNTO_MAX),
     dopoTotale: dopo.length,
     daTe,
-    ...(limiti !== undefined ? { limiti } : {})
+    ...(limiti !== undefined ? { limiti } : {}),
+    ...(velocita !== undefined ? { velocita } : {})
   }
 }
 
