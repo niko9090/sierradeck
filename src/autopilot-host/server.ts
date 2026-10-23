@@ -22,6 +22,7 @@ import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
+import { peggioratiDelRamo, preparaCopia, togliCollegamenti } from './ambiente-copia'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RIFACIMENTI_MAX, RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
@@ -1557,6 +1558,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ...dove
       }
     })
+    // La Revisione misura nella copia dell'autore: prima ci si rimette quello
+    // che git non porta (0.84.4), così i suoi comandi partono davvero.
+    for (const c of [...nuove, ...riusate.map((r) => r.chat)]) {
+      if (c.ruolo === 'revisione' && c.cartella !== undefined && c.cartella !== a.cwd) preparaCopia(c.cartella, a.cwd)
+    }
     const aperti = new Set(piano.daAprire)
     const aggiornato: Autopilota = {
       ...a,
@@ -2798,11 +2804,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // ramo non deve rompere quello che là passa (vedi `verdettoAccettato`).
     const misura = (cartella: string): ReturnType<typeof misuraCriteri> => misuraCriteri(a.criteri, cartella, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, cartella) !== undefined ? { impronta: improntaCodice(deps.git, cartella) as string } : {}) })
     const dove = autore.cartella ?? a.cwd
+    // 0.84.4: prima l'ambiente della copia (node_modules, local.properties), poi la misura.
+    const preparata = dove === a.cwd ? { messi: [], mancano: [] } : preparaCopia(dove, a.cwd)
     const sulRamo = await misura(dove)
     const sulPrincipale = dove === a.cwd ? sulRamo : await misura(a.cwd)
-    let v = verdettoAccettato(letto, criteriPeggiorati(sulPrincipale.esiti, sulRamo.esiti), messaggio)
+    const { delRamo, ambiente } = peggioratiDelRamo(sulPrincipale.esiti, sulRamo.esiti, dove === a.cwd || (existsSync(dove) && (deps.git === undefined || deps.git(['rev-parse', '--show-toplevel'], dove).codice === 0)))
+    let v = verdettoAccettato(letto, delRamo, messaggio, ambiente)
     let fresco = deps.archivio.leggi(a.id) ?? a
     fresco = conStatoChat(fresco, chatId, 'finita')
+    if (preparata.messi.length > 0 || ambiente.length > 0) {
+      annota(fresco, `Revisione ${chatId}: problema di ambiente nella copia di ${autore.id}, non del ramo${preparata.messi.length > 0 ? ` (rimesso: ${preparata.messi.join(', ')})` : ''}${ambiente.length > 0 ? `: ${ambiente.join('; ')}` : ''}`.slice(0, 400))
+    }
     // Il ramo che non c'è più (0.80.0): niente da unire, e il diario lo dice
     // invece di scrivere «unito» (era già unito e tolto, o non è mai nato).
     let ramoTolto = false
@@ -2812,6 +2824,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       else ramoTolto = u.ramoMancante === true
     }
     if (v.esito === 'ok') {
+      // Unito: il collegamento temporaneo della copia non serve più.
+      if (dove !== a.cwd) togliCollegamenti(dove)
       fresco = { ...fresco, chats: fresco.chats.map((c) => (c.id === autore.id ? { ...c, approvata: true, stato: 'finita' as const } : c)) }
       const unito = ramoTolto ? `il ramo ${autore.ramo ?? ''} non c’è più: niente unito qui` : 'unito nel ramo principale'
       annota(fresco, `Revisione ${chatId}: OK per ${autore.id} (${autore.ramo ?? 'senza ramo'}), ${unito}. ${v.note}`.slice(0, 400), { chat: chatId, esito: 'approvato', di: autore.id })

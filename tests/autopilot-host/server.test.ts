@@ -2710,6 +2710,21 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     expect(autore.approvata).toBe(true)
   })
 
+  it('0.84.4, caso c-106 del 23/10: rosso nella copia solo perché tsc e vitest non partono → unito, nessun rimando, nessuna domanda', async () => {
+    const ramo = join(process.cwd(), 'tests')
+    server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: (_c, cwd) => Promise.resolve(cwd === ramo ? { codice: 1, uscita: "'tsc' non è riconosciuto come comando interno o esterno, un programma eseguibile o un file batch." } : { codice: 0, uscita: 'ok' }) })
+    const base = flotta()
+    // Già rimandato indietro due volte, come c-106: la terza non deve diventare una domanda.
+    archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, cartella: ramo, rifacimenti: 2 } : c)) })
+    await avvia(server)
+    await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: OK ap/ap-rev/c-1 — src/a.ts:3' }))
+    const a = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(a.chats.find((c: any) => c.id === 'c-1').approvata).toBe(true)
+    expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
+    expect(messaggiDiRipresa.join(' ')).not.toContain('il ramo rompe')
+    expect(a.decisioni.map((d: any) => d.cosa).join(' | ')).toContain('problema di ambiente nella copia di c-1')
+  })
+
   it('rimandato indietro troppe volte: la domanda va a Nicholas, con la scelta consigliata', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
     const base = flotta()
