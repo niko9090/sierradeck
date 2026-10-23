@@ -103,7 +103,7 @@ describe('collaudo del Punto: i difetti', () => {
   // c-91» diventa «di e», «del gruppo 3» diventa «del». Sono compiti veri della
   // lista dei lavori (riga 6: «la Revisione di c-90 e c-91»). Il test di c-90
   // stesso accetta «del gestionale del» (punto-autopilota.test.ts:44).
-  it.fails('D3: tolta la sigla, la frase resta italiana (niente «di e», niente «del» in fondo)', () => {
+  it('D3: tolta la sigla, la frase resta italiana (niente «di e», niente «del» in fondo)', () => {
     expect(senzaSigle('La Revisione di c-90 e c-91')).not.toMatch(/\bdi e\b/)
     expect(senzaSigle('Chiudi l’autopilota del gestionale del gruppo 3')).not.toMatch(/\bdel$/)
   })

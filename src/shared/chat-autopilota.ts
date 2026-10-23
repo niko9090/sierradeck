@@ -233,6 +233,12 @@ export function compitoBreve(compito: string, max = 60): string {
   return `${(spazio > max / 2 ? taglio.slice(0, spazio) : taglio).replace(/[\s,:;–-]+$/, '')}…`
 }
 
+/** Una sigla interna («c-12», «gruppo 3») e un elenco di sigle («c-90 e c-91»). */
+const SIGLA = '(?:\\bc-\\d+[a-z0-9-]*\\b|\\bgrupp[oi] \\d+\\b)'
+const LISTA_SIGLE = `${SIGLA}(?:\\s*(?:,|\\be\\b|\\bed\\b|\\bo\\b)\\s*${SIGLA})*`
+/** Le preposizioni che reggono una sigla e che, tolta lei, resterebbero sole. */
+const PREPOSIZIONI = '(?:di|del|dello|della|dei|degli|delle|da|dal|dallo|dalla|dai|a|al|allo|alla|ai|in|nel|nello|nella|nei|su|sul|sulla|sui|per|con|tra|fra)'
+
 /**
  * Il testo senza le sigle interne: «c-12», «(c-3)», «gruppo 3», i nomi dei
  * rami e degli autopiloti. Nicholas (22/10): le sigle non dicono niente a chi
@@ -242,10 +248,12 @@ export function senzaSigle(testo: string): string {
   return testo
     .replace(/\bap\/[\w./-]+/g, '')
     .replace(/\bap-[0-9a-f]{6,}\b/gi, '')
-    .replace(/\(\s*(?:chat\s+)?c-\d+[a-z0-9-]*\s*\)/gi, '')
-    .replace(/\b(?:la |della |alla |dalla |nella )?chat c-\d+[a-z0-9-]*\b/gi, (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s*c-\d+[a-z0-9-]*$/i, '') : 'chat'))
-    .replace(/\bc-\d+[a-z0-9-]*\b/gi, '')
-    .replace(/\bgrupp[oi] \d+\b/gi, '')
+    .replace(new RegExp(`\\(\\s*(?:chat\\s+)?${LISTA_SIGLE}\\s*\\)`, 'gi'), '')
+    .replace(new RegExp(`\\b(?:la |della |alla |dalla |nella )?chat ${LISTA_SIGLE}`, 'gi'), (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s+chat\s.*$/i, ' chat') : 'chat'))
+    // 0.84.3 (collaudo c-96, D3): la sigla se ne va con la preposizione che la
+    // regge e con le sorelle dell'elenco: «di c-90 e c-91» non lascia «di e»,
+    // «del gruppo 3» non lascia «del».
+    .replace(new RegExp(`(?:\\b${PREPOSIZIONI}\\s+)?${LISTA_SIGLE}`, 'gi'), '')
     .replace(/\(\s*\)/g, '')
     .replace(/\s+([,.;:)])/g, '$1')
     .replace(/([(])\s+/g, '$1')

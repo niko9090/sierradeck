@@ -31,7 +31,7 @@ function ap(chats: ChatGovernata[], extra: Partial<Autopilota> & { segniChat?: R
 
 describe('senzaSigle: le sigle interne non arrivano a Nicholas', () => {
   it('toglie c-N, «gruppo N», i rami e gli autopiloti, tenendo la frase leggibile', () => {
-    expect(senzaSigle('Chiudi tu a mano l’autopilota del gestionale (c-12) del gruppo 3')).toBe('Chiudi tu a mano l’autopilota del gestionale del')
+    expect(senzaSigle('Chiudi tu a mano l’autopilota del gestionale (c-12) del gruppo 3')).toBe('Chiudi tu a mano l’autopilota del gestionale')
     expect(senzaSigle('aspetta la chat c-12')).toBe('aspetta la chat')
     expect(senzaSigle('unito il ramo ap/ap-f1e631f5/c-90 in main')).toBe('unito il ramo in main')
     expect(senzaSigle('c-14: il menu nuovo')).toBe('il menu nuovo')
