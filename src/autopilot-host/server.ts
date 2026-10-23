@@ -64,6 +64,7 @@ import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
 import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, FERMA_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
+import { IN_VIAGGIO_MAX, inViaggioPer, istruzioneDallaRisposta, rigaAlSupervisore, rigaNonPresa, rigaPresa, type RispostaInViaggio } from '@shared/risposte-in-viaggio'
 import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
 import { comeConsegnare, frenoPerAutopiloti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
@@ -287,6 +288,18 @@ function leggiCorpo(req: IncomingMessage): Promise<unknown> {
   return leggiCorpoJson(req, TETTO_CORPO)
 }
 
+/**
+ * Com'è andata la messa in coda di un turno (0.84.4): l'id della consegna da
+ * seguire, oppure perché non è partita. Vuoto in prova (nessun id).
+ */
+type EsitoAvvio = { consegna?: string; rifiutata?: string }
+
+/** La risposta in una riga corta, per il registro. */
+function breveRisposta(r: string): string {
+  const una = r.replace(/\s+/g, ' ').trim()
+  return una.length > 80 ? `${una.slice(0, 79)}…` : una
+}
+
 /** Il testo con cui la risposta dell'utente torna alla chat, con la sua domanda accanto. */
 function componiRisposta(domanda: string, risposta: string): string {
   return `Hai chiesto: «${domanda}»\n\nL'utente risponde: ${risposta}\n\nProsegui con questa indicazione.`
@@ -495,6 +508,7 @@ export function codaDalDisco(
     ...senzaDaParte,
     daConsegnare,
     ...(disco.inVolo !== undefined ? { inVolo: disco.inVolo } : {}),
+    ...(disco.risposteInViaggio !== undefined ? { risposteInViaggio: disco.risposteInViaggio } : {}),
     dialogo: disco.dialogo,
     ...(daParte !== undefined ? { daParte } : {}),
     // Si confronta solo con quelle scritte da quando il turno è partito: una
@@ -947,7 +961,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * appena avviato ha comunque tutto il tempo di silenzio davanti a se' prima
    * di essere considerato fermo.
    */
-  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<void> => {
+  const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<EsitoAvvio> => {
     // 0.84.1: dopo «Installa» nessuna consegna nuova, da nessuna strada (chat
     // ferme, freno, supervisore, mai-fermo, dialogo). Il 21/10 una chat ferma a
     // fine turno per l'aggiornamento riceveva i messaggi in coda e ripartiva:
@@ -961,7 +975,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (presi.length > 0) salva(rimettiInCoda(segnato, presi))
         else if (segnato !== fresco0) salva(segnato)
       }
-      return Promise.resolve()
+      return Promise.resolve({ rifiutata: 'stiamo installando un aggiornamento' })
     }
     // c-310 (20/10): mai un compito a una chat finita. Sei consegne (c-233 …
     // c-309) sono arrivate alla c-15 chiusa e l'hanno riaperta per niente. Chi
@@ -973,7 +987,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const fresco = deps.archivio.leggi(a.id)
         if (fresco !== undefined) salva(rimettiInCoda(fresco, presi))
       }
-      return Promise.resolve()
+      return Promise.resolve({ rifiutata: 'la chat ha già finito' })
     }
     ultimaConsegna.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
@@ -990,6 +1004,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // risulta partita (0.56.4). Senza un id di consegna (in prova) si
         // fa come prima.
         if (typeof consegna === 'string' && consegna !== '' && presi.length > 0) segnaInVolo(a.id, consegna, presi)
+        return typeof consegna === 'string' && consegna !== '' ? { consegna } : {}
       })
   }
 
@@ -1050,6 +1065,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   const riportaInCoda = (consegna: string, perche: string, giro = 0): void => {
+    // Una risposta di Nicholas che portava (0.84.4): non presa, la si riconsegna.
+    if (giro === 0) esitoConsegnaRisposta(consegna, false, perche.replace(/ l ha /g, ' l’ha '))
     for (const a of deps.archivio.elenca()) {
       const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
       if (v === undefined) continue
@@ -1124,31 +1141,135 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   for (const d of deps.domande.aperte()) if (d.contesto !== undefined) contesto.set(d.id, { ...d.contesto, trattenuta: false })
 
   /**
-   * Riprende UNA chat della flotta ferma su una domanda, con la risposta. Se
-   * quella chat non è più bloccata (già ripresa, finita, o l'autopilota
-   * fermato) non fa niente: chiamarla due volte non la riavvia due volte.
+   * Riprende UNA chat della flotta ferma su una domanda, con la risposta.
+   * Chiamarla due volte non la riavvia due volte: la seconda trova la chat già
+   * al lavoro. Se la chat non aspetta più (già ripresa, finita, sparita, o
+   * l'autopilota fermo) la risposta di Nicholas va al supervisore come
+   * istruzione (0.84.4): prima qui non si faceva niente, e si perdeva in
+   * silenzio. Una domanda superata non è una sua risposta: lì non si insiste.
    */
   const riprendiChatBloccata = (autopilotaId: string, chatId: string, domanda: string, risposta: string, perche: string, testoPronto?: string): void => {
     const ora = deps.archivio.leggi(autopilotaId)
     if (ora === undefined) return
     const chat = ora.chats.find((c) => c.id === chatId)
-    if (ora.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') return
+    const diNicholas = perche !== 'domanda superata'
+    if (ora.stato !== 'lavoro' || chat === undefined || chat.stato !== 'bloccata') {
+      if (diNicholas) rispostaAlSupervisore(autopilotaId, chatId, domanda, risposta, nonAspettaPiu(ora, chat))
+      return
+    }
     // Con la risposta entrano anche i messaggi che aspettavano questa chat.
     const presi = prendiMessaggiPer(conStatoChat(ora, chatId, 'lavoro'), chatId)
-    const ripresa = presi.autopilota
-    salva({
-      ...ripresa,
+    // La riga entra **prima** della consegna (0.84.4): è il perché della
+    // linguetta «Istruzioni». Il 23/10 la consegna per c-106 portava il perché
+    // della risposta a c-95, la riga precedente.
+    const ripresa: Autopilota = {
+      ...presi.autopilota,
       motivoSospensione: undefined,
       decisioni: [...ora.decisioni, { quando: deps.adesso(), cosa: `${perche} (${chatId}): ${risposta}` }]
+    }
+    salva(ripresa)
+    portaRisposta(ripresa, { ...chat, stato: 'lavoro' }, {
+      domanda, risposta, testo: conPreambolo(presi.testi, testoPronto ?? componiRisposta(domanda, risposta)), presi: presi.presi, segui: diNicholas
     })
-    void avviaLavoro(
-      ripresa,
-      conPreambolo(presi.testi, testoPronto ?? componiRisposta(domanda, risposta)),
-      { ...chat, stato: 'lavoro' },
-      presi.presi
-    ).catch((err: unknown) => {
-      console.error(`[autopilota] ripresa della chat ${chatId} di ${autopilotaId} fallita:`, err)
+  }
+
+  /** Perché la chat non aspetta più la risposta, in parole. */
+  const nonAspettaPiu = (a: Autopilota, chat: ChatGovernata | undefined): string => {
+    if (chat === undefined) return 'la chat non c’è più'
+    if (chat.stato === 'finita') return 'la chat aveva già finito'
+    if (a.stato !== 'lavoro') return `l’autopilota non è al lavoro (${a.stato})`
+    return 'la chat era già ripartita senza aspettarla'
+  }
+
+  /**
+   * Porta la risposta alla chat con un turno, e la segue (0.84.4): è «in
+   * viaggio» finché la consegna non risulta partita. Una riga nel registro a
+   * ogni passaggio. `prima`: le consegne di un invio precedente, per la riconsegna.
+   */
+  const portaRisposta = (
+    a: Autopilota,
+    chat: ChatGovernata | undefined,
+    r: { domanda: string; risposta: string; testo: string; presi?: MessaggioPerLaChat[]; segui: boolean; tentativo?: 1 | 2; prima?: string[] }
+  ): void => {
+    const chi = chat?.id ?? a.id
+    const tentativo = r.tentativo ?? 1
+    void avviaLavoro(a, r.testo, chat, r.presi ?? []).then((esito) => {
+      if (!r.segui) return
+      if (esito.consegna === undefined) {
+        if (esito.rifiutata !== undefined) rispostaAlSupervisore(a.id, chat?.id, r.domanda, r.risposta, `non si poteva scriverla nella chat: ${esito.rifiutata}`)
+        else console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» per ${chi}: scritta, senza una consegna da seguire`)
+        return
+      }
+      const fresco = deps.archivio.leggi(a.id)
+      if (fresco === undefined) return
+      const voce: RispostaInViaggio = {
+        consegne: [...(r.prima ?? []), esito.consegna],
+        ...(chat !== undefined ? { chatId: chat.id } : {}),
+        domanda: r.domanda,
+        risposta: r.risposta,
+        testo: r.testo,
+        tentativo,
+        quando: deps.adesso()
+      }
+      salva({ ...fresco, risposteInViaggio: [...(fresco.risposteInViaggio ?? []), voce].slice(-IN_VIAGGIO_MAX) })
+      console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» per ${chi}: ${tentativo === 2 ? 'riconsegnata' : 'in viaggio'} con la consegna ${esito.consegna}`)
+    }).catch((err: unknown) => {
+      console.error(`[autopilota] ripresa della chat ${chi} di ${a.id} fallita:`, err)
+      if (r.segui) rispostaAlSupervisore(a.id, chat?.id, r.domanda, r.risposta, 'la consegna non è partita')
     })
+  }
+
+  /**
+   * Com'è andata una consegna che portava una risposta (0.84.4). Partita: la
+   * chat l'ha presa. Non partita o persa: si riconsegna una volta; la seconda
+   * volta, o se la chat non c'è più, va al supervisore come istruzione.
+   */
+  const esitoConsegnaRisposta = (consegna: string, partita: boolean, motivo: string): void => {
+    for (const a of deps.archivio.elenca()) {
+      const r = inViaggioPer(a.risposteInViaggio, consegna)
+      if (r === undefined) continue
+      const chi = r.chatId ?? a.id
+      // Una consegna vecchia che fallisce dopo la riconsegna non conta: conta l'ultima.
+      if (!partita && r.consegne[r.consegne.length - 1] !== consegna) return
+      const senza: Autopilota = { ...a, risposteInViaggio: (a.risposteInViaggio ?? []).filter((x) => x !== r) }
+      if (partita) {
+        annota(senza, rigaPresa(chi, r.risposta, `la consegna ${consegna} è partita`))
+        salva(senza)
+        console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» presa da ${chi}: la consegna ${consegna} è partita`)
+        return
+      }
+      const chat = r.chatId !== undefined ? a.chats.find((c) => c.id === r.chatId) : undefined
+      if (r.tentativo === 2 || (r.chatId !== undefined && (chat === undefined || chat.stato === 'finita'))) {
+        salva(senza)
+        rispostaAlSupervisore(a.id, r.chatId, r.domanda, r.risposta, r.tentativo === 2
+          ? `non l’ha presa nemmeno alla riconsegna (consegna ${consegna}: ${motivo})`
+          : `consegna ${consegna}: ${motivo}, e ${nonAspettaPiu(a, chat)}`)
+        return
+      }
+      annota(senza, rigaNonPresa(chi, r.risposta, `consegna ${consegna}: ${motivo}`))
+      salva(senza)
+      console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» non presa da ${chi} (consegna ${consegna}: ${motivo}): la riconsegno una volta`)
+      portaRisposta(senza, chat, { domanda: r.domanda, risposta: r.risposta, testo: r.testo, segui: true, tentativo: 2, prima: r.consegne })
+      return
+    }
+  }
+
+  /**
+   * La risposta di Nicholas che la chat non ha preso va al supervisore come
+   * istruzione (0.84.4): la legge con il quadro intero, come un tuo messaggio
+   * nel dialogo, e la esegue. La sua risposta compare nella conversazione.
+   */
+  const rispostaAlSupervisore = (autopilotaId: string, chatId: string | undefined, domanda: string, risposta: string, motivo: string): void => {
+    const a = deps.archivio.leggi(autopilotaId)
+    if (a === undefined) {
+      console.warn(`[domande] ${autopilotaId} — risposta «${breveRisposta(risposta)}» senza autopilota: non c’è più nessuno a cui darla`)
+      return
+    }
+    const chi = chatId ?? autopilotaId
+    annota(a, rigaAlSupervisore(chi, risposta, motivo))
+    salva(a)
+    console.info(`[domande] ${autopilotaId} — risposta «${breveRisposta(risposta)}» al supervisore come istruzione: ${motivo}`)
+    dialogaDaSolo(autopilotaId, istruzioneDallaRisposta({ chi: chatId !== undefined ? `la chat ${chatId}` : 'la chat', domanda, risposta, motivo }))
   }
 
   /**
@@ -1207,12 +1328,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * la chat va ripresa con `--resume`, pagando l'avvio di `claude.exe`. È il
    * prezzo del ritardo, e il motivo per cui l'attesa dell'hook esiste.
    */
-  deps.domande.suRispostaTardiva((idDomanda, risposta) => {
-    const dati = contesto.get(idDomanda)
+  deps.domande.suRispostaTardiva((idDomanda, risposta, da, chiesta) => {
+    const dati = contesto.get(idDomanda) ?? chiesta?.contesto
     contesto.delete(idDomanda)
-    if (dati === undefined) return
+    console.info(`[domande] ${dati?.autopilotaId ?? chiesta?.autopilotaId ?? '?'} — risposta «${breveRisposta(risposta)}» (${da}) arrivata dopo l’attesa${dati?.chatId !== undefined ? ` di ${dati.chatId}` : ''}: la porto io`)
+    if (dati === undefined) {
+      // Senza il contesto non si sa quale chat la aspettava (0.84.4): prima si
+      // perdeva qui, adesso la riceve il supervisore del suo autopilota.
+      if (chiesta !== undefined) rispostaAlSupervisore(chiesta.autopilotaId, undefined, chiesta.parti?.domanda ?? chiesta.testo, risposta, 'non si sapeva più quale chat l’aveva chiesta')
+      return
+    }
     const a = deps.archivio.leggi(dati.autopilotaId)
-    if (a === undefined) return
+    if (a === undefined) {
+      console.warn(`[domande] ${dati.autopilotaId} — risposta «${breveRisposta(risposta)}»: l’autopilota non c’è più`)
+      return
+    }
 
     // «Pubblico?» a lavoro finito, con la risposta arrivata dopo: un sì riapre
     // il lavoro per pubblicare, un no lo lascia chiuso.
@@ -1266,18 +1396,21 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const chat = dati.chatId !== undefined ? ora?.chats.find((c) => c.id === dati.chatId) : undefined
       if (ora !== undefined && ora.stato === 'lavoro' && (dati.chatId === undefined || chat?.stato === 'lavoro')) {
         salva({ ...ora, daConsegnare: [...ora.daConsegnare, { id: randomUUID(), quando: deps.adesso(), testo, chats: [dati.chatId ?? ora.id] }] })
+        console.info(`[domande] ${dati.autopilotaId} — risposta «${breveRisposta(risposta)}» in coda per ${dati.chatId ?? 'la chat'}: lavora al resto, le arriva a fine turno`)
         return
       }
       if (dati.chatId !== undefined) {
         riprendiChatBloccata(dati.autopilotaId, dati.chatId, dati.testo, risposta, 'risposta tardiva', testo)
         return
       }
-      if (ora === undefined || ora.stato !== 'attesa') return
+      if (ora === undefined || ora.stato !== 'attesa') {
+        if (ora !== undefined) rispostaAlSupervisore(ora.id, undefined, dati.testo, risposta, `l’autopilota non la aspettava più (${ora.stato})`)
+        return
+      }
       const presi = prendiMessaggiPer({ ...ora, stato: 'lavoro' }, ora.id)
-      salva({ ...presi.autopilota, motivoSospensione: undefined })
-      void avviaLavoro(presi.autopilota, conPreambolo(presi.testi, testo), undefined, presi.presi).catch((err: unknown) => {
-        console.error(`[autopilota] ripresa di ${dati.autopilotaId} fallita:`, err)
-      })
+      const ripreso: Autopilota = { ...presi.autopilota, motivoSospensione: undefined, decisioni: [...ora.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva: ${risposta}` }] }
+      salva(ripreso)
+      portaRisposta(ripreso, undefined, { domanda: dati.testo, risposta, testo: conPreambolo(presi.testi, testo), presi: presi.presi, segui: true })
       return
     }
 
@@ -1291,21 +1424,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return
     }
 
-    if (a.stato !== 'attesa') return
+    if (a.stato !== 'attesa') {
+      rispostaAlSupervisore(a.id, undefined, dati.testo, risposta, `l’autopilota non la aspettava più (${a.stato})`)
+      return
+    }
     const presi = prendiMessaggiPer({ ...a, stato: 'lavoro' }, a.id)
-    salva({
+    const ripreso: Autopilota = {
       ...presi.autopilota,
       motivoSospensione: undefined,
       decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: `risposta tardiva: ${risposta}` }]
-    })
-    void avviaLavoro(
-      presi.autopilota,
-      conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)),
-      undefined,
-      presi.presi
-    ).catch((err: unknown) => {
-      console.error(`[autopilota] ripresa di ${dati.autopilotaId} fallita:`, err)
-    })
+    }
+    salva(ripreso)
+    portaRisposta(ripreso, undefined, { domanda: dati.testo, risposta, testo: conPreambolo(presi.testi, componiRisposta(dati.testo, risposta)), presi: presi.presi, segui: true })
   })
 
   /**
@@ -2486,6 +2616,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const giriDaForzare = new Set<string>()
 
   /**
+   * Il dialogo, in fila (0.84.4: anche per le risposte che vanno al
+   * supervisore). Un messaggio alla volta per autopilota: due risposte che si
+   * incrociano si contraddirebbero, e la seconda deve vedere la prima.
+   */
+  const dialogaDaSolo = (id: string, testo: string, quando: string = deps.adesso()): void => {
+    const prima = dialoghiInCorso.get(id) ?? Promise.resolve()
+    const questo = prima
+      .then(() => rispondiAlDialogo(id, testo, quando))
+      .then(() => {
+        // A dialogo finito, con la coda già riscritta: un messaggio per
+        // una chat ferma parte subito, e un «riprendi» la rimette in moto.
+        const forza = giriDaForzare.delete(id)
+        consegnaAlleChatFerme({ autopilota: id, forza, daDialogo: true })
+      })
+      .catch((err: unknown) => {
+        console.error(`[autopilota] ${id} — dialogo non concluso:`, err)
+      })
+    dialoghiInCorso.set(id, questo)
+    void questo.finally(() => {
+      if (dialoghiInCorso.get(id) === questo) dialoghiInCorso.delete(id)
+    })
+  }
+
+  /**
    * Risponde a una tua battuta e applica quello che chiedeva.
    *
    * La battuta e' gia' in archivio (la rotta l'ha scritta prima di rispondere
@@ -3385,6 +3539,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // I messaggi in viaggio (0.56.4) li cambiano gli esiti delle consegne, che
     // arrivano mentre la fermata lavora: vale quello che c'è su disco.
     aggiornato.inVolo = ancora.inVolo
+    aggiornato.risposteInViaggio = ancora.risposteInViaggio
     // **I tuoi messaggi entrano adesso**, davanti alle istruzioni del turno:
     // la chat ha appena chiuso un turno ed e' l'unico momento in cui un
     // messaggio non le arriva in mezzo a un'azione. Si prendono solo nei rami
@@ -3846,6 +4001,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (testoRisposta === undefined) return {}
 
       const dopoRisposta = deps.archivio.leggi(id) ?? aggiornato
+      // La chat la aspettava con il turno aperto: la riceve adesso, con la
+      // risposta all'hook (0.84.4: una riga nel registro anche per questa).
+      console.info(`[domande] ${id} — risposta «${breveRisposta(risposta.risposta)}» (${risposta.da}) presa da ${chatId ?? 'la chat'}: la aspettava, riprende adesso`)
       // Risposta in tempo: riprende **questa** chat. Con una flotta torna
       // `lavoro` solo lei (l'autopilota non era mai uscito da `lavoro`); con una
       // chat sola torna `lavoro` l'autopilota. Con la risposta entrano anche
@@ -5022,6 +5180,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             for (const c of x?.chat ?? []) riprendiChatBloccata(autopilotaId, c, x?.domanda ?? '', testo, 'stessa domanda di un’altra chat, stessa risposta')
           }
           const agganciatePrincipale = agganciate(idDomanda)
+          if (chiesta !== undefined) console.info(`[domande] ${chiesta.autopilotaId} — la tua risposta «${breveRisposta(testo)}» (${da}) alla domanda di ${chiesta.contesto?.chatId ?? contesto.get(chiesta.id)?.chatId ?? 'la chat'}: ricevuta, la porto alla chat`)
           if (!deps.domande.rispondi(idDomanda, testo, da)) return false
           if (chiesta !== undefined) riprendiAgganciate(chiesta.autopilotaId, agganciatePrincipale)
           // **Una risposta vale per tutte le domande uguali ancora aperte**
@@ -5104,24 +5263,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
           salva(conTua)
           rispondi(res, 202, { ricevuto: true, autopilota: conTua })
-          // Un messaggio alla volta per autopilota: due risposte che si
-          // incrociano si contraddirebbero, e la seconda deve vedere la prima.
-          const prima = dialoghiInCorso.get(id) ?? Promise.resolve()
-          const questo = prima
-            .then(() => rispondiAlDialogo(id, testo, quando))
-            .then(() => {
-              // A dialogo finito, con la coda già riscritta: un messaggio per
-              // una chat ferma parte subito, e un «riprendi» la rimette in moto.
-              const forza = giriDaForzare.delete(id)
-              consegnaAlleChatFerme({ autopilota: id, forza, daDialogo: true })
-            })
-            .catch((err: unknown) => {
-              console.error(`[autopilota] ${id} — dialogo non concluso:`, err)
-            })
-          dialoghiInCorso.set(id, questo)
-          void questo.finally(() => {
-            if (dialoghiInCorso.get(id) === questo) dialoghiInCorso.delete(id)
-          })
+          dialogaDaSolo(id, testo, quando)
           return
         }
 
@@ -5176,6 +5318,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // 0.56.4: solo «partita» toglie i messaggi dalla coda per sempre;
             // «non consegnata» (la finestra ha smesso) li rimette in coda.
             if (esito === 'partita') consegnaPartita(id)
+            // Una risposta di Nicholas in viaggio (0.84.4): presa, o da riconsegnare.
+            if (esito === 'partita') esitoConsegnaRisposta(id, true, 'partita')
+            if (esito === 'non-partita') esitoConsegnaRisposta(id, false, 'scritta nella chat, ma la chat non si è messa al lavoro')
             if (esito === 'non-consegnata') riportaInCoda(id, 'la chat non l ha presa nemmeno insistendo')
             // 0.84.4: il terminale della chat non è nato. I messaggi tornano in
             // coda (sopra) e passano alla chat nuova.

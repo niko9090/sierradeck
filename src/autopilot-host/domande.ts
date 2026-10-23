@@ -72,8 +72,12 @@ export type RegistroDomande = {
    * fra le risolte, con la domanda intera e il motivo. `false` se non c'era.
    */
   superata: (id: string, motivo: string, extra?: Pick<DomandaRisolta, 'chatId' | 'chatTitolo'>) => boolean
-  /** Chiamata quando una risposta arriva dopo la scadenza dell'attesa. */
-  suRispostaTardiva: (cb: (id: string, risposta: string, da: Provenienza) => void) => void
+  /**
+   * Chiamata quando una risposta arriva dopo la scadenza dell'attesa, con la
+   * domanda (0.84.4): senza il suo contesto la risposta va lo stesso al
+   * supervisore del suo autopilota, invece di perdersi.
+   */
+  suRispostaTardiva: (cb: (id: string, risposta: string, da: Provenienza, domanda: DomandaAperta) => void) => void
   /** Il contesto per la ripresa (0.71.0), salvato su disco con la domanda. */
   ricorda: (id: string, contesto: ContestoDomanda) => void
   /**
@@ -131,7 +135,7 @@ export function creaRegistroDomande(deps: {
     const limite = deps.adesso() - RISOLTE_PER_ORE * 3_600_000
     return risolte.filter((r) => Date.parse(r.quando) >= limite).slice(-RISOLTE_MAX)
   }
-  let tardiva: ((id: string, risposta: string, da: Provenienza) => void) | undefined
+  let tardiva: ((id: string, risposta: string, da: Provenienza, domanda: DomandaAperta) => void) | undefined
   const salva = (): void => {
     if (deps.file === undefined) return
     try {
@@ -200,7 +204,7 @@ export function creaRegistroDomande(deps: {
         for (const r of voce.attese) r({ risposta, da })
         voce.attese = []
       } else {
-        tardiva?.(id, risposta, da)
+        tardiva?.(id, risposta, da, voce.domanda)
       }
       voci.delete(id)
       salva()

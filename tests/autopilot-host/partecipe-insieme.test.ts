@@ -63,7 +63,7 @@ async function avvia(): Promise<void> {
     interroga: () => Promise.resolve({ testo: giudizio }),
     avviaLavoro: (_a, messaggio, chat) => {
       scritti.push({ ...(chat !== undefined ? { chat: chat.id } : {}), ...(messaggio !== undefined ? { messaggio } : {}) })
-      return Promise.resolve()
+      return Promise.resolve(`c-${scritti.length}`)
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
@@ -112,7 +112,11 @@ describe('Nicholas partecipe, tutto il giro', () => {
     expect(scritti[0]?.messaggio).toContain('quella nuova')
 
     // 3. Nella conversazione: «Hai risposto: …» e sotto chi l'ha ricevuta,
-    // non il «la porto alla chat» di quando ancora niente l'ha usata.
+    // non il «la porto alla chat» di quando ancora niente l'ha usata. Ricevuta
+    // vuol dire che la consegna è partita (0.84.4): lo dice il PC.
+    await attendi(() => (archivio.leggi('ap-insieme')?.risposteInViaggio ?? []).length > 0)
+    await fetch(url('/consegne/esito'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'c-1', esito: 'partita' }) })
+    await attendi(() => (archivio.leggi('ap-insieme')?.risposteInViaggio ?? []).length === 0)
     const ap = archivio.leggi('ap-insieme')!
     const mia = conversazione(ap).filter((b) => b.da === 'tu' && b.testo === 'Hai risposto: quella nuova')
     expect(mia).toHaveLength(1)
