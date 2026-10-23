@@ -59,7 +59,7 @@ import { chatCheSostituisce, conSostituzione, giroMaiFermo, notaFerma, rigaGiro,
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
+import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, FERMA_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
@@ -1659,7 +1659,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const detta: Autopilota = { ...a }
         for (const m of nuoveZitte) {
           mutaDetta.set(chiaveZitta(m), ora - m.da)
-          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(limite / 60_000)} minuti la metto da parte`, { chat: m.chatId ?? a.id, esito: 'muta' })
+          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(FERMA_DA_DIRE_MS / 60_000)} minuti la rimetto al lavoro io`, { chat: m.chatId ?? a.id, esito: 'muta' })
         }
         salva(detta)
         base = detta

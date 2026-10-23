@@ -135,7 +135,7 @@ describe('collaudo del Punto, nel servizio', () => {
   // lavoro: lì Nicholas legge «c-2 è ferma da 15 minuti…» con la sigla, e alla
   // riga dei 5 minuti «a 60 minuti la metto da parte» (server.ts:1662), mentre
   // il traguardo accanto dice «a 15 minuti la rimetto al lavoro io».
-  it.fails('D4: le note che si leggono senza la Panoramica non hanno sigle né i 60 minuti di prima', async () => {
+  it('D4: le note che si leggono senza la Panoramica non hanno sigle né i 60 minuti di prima', async () => {
     ora = Date.parse('2026-10-23T10:00:00.000Z')
     server = ambiente()
     await avvia(server)

@@ -72,7 +72,9 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({
       quando: v.quando,
       da: 'nota',
-      testo: v.titolo,
+      // 0.84.3 (collaudo c-96, D4): la nota si legge anche senza la Panoramica:
+      // le chat per nome, non per sigla.
+      testo: conNomiDelleChat(a, v.titolo),
       ...(v.dettaglio !== undefined ? { dettaglio: v.dettaglio } : {}),
       ...(v.tipo !== undefined ? { tono: v.tipo } : {})
     })
@@ -260,6 +262,21 @@ export function senzaSigle(testo: string): string {
     .replace(/^[\s,;:—–-]+/, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
+}
+
+/**
+ * Le sigle delle chat dette col loro nome (0.84.3, collaudo c-96 D4): «la chat
+ * c-2 non dà segnali» → «Sviluppo non dà segnali», «c-2: nessun segnale» →
+ * «Sviluppo: nessun segnale». I nomi dei rami (`ap/…/c-2`) restano: sono la
+ * riga tecnica di «Cosa è successo», e lì servono per ritrovare il lavoro.
+ */
+export function conNomiDelleChat(a: Pick<Autopilota, 'chats'>, testo: string): string {
+  const ruoli = Object.values(RUOLI).map((r) => r.nome).join('|')
+  return testo.replace(new RegExp(`(?<![/\\w-])(?:(?:la|una) )?(?:chat )?(?:(?:${ruoli}) )?(c-\\d+)\\b`, 'gi'), (intero, id: string) => {
+    const c = a.chats.find((x) => x.id === id.toLowerCase())
+    if (c === undefined) return intero
+    return c.ruolo !== undefined ? nomeChi(c) : `la chat «${compitoBreve(c.compito, 40)}»`
+  })
 }
 
 /** «Sviluppo», «Revisione»… o «Una chat» per una chat senza ruolo. */
