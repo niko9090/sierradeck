@@ -12,6 +12,7 @@ import {
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
 import { conAllarme, rigaAllarme } from './supervisore-muto'
+import { prossimaGuardia, rigaPcCarico, type PcCarico, type StatoGuardia } from '@shared/guardia-pc'
 import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
 import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
 import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
@@ -208,6 +209,12 @@ export type Dipendenze = {
    * massimo, come prima.
    */
   misuraPc?: () => MisuraPc
+  /**
+   * 0.85.1, Guardia del PC: il programma che consuma di più, letto solo quando
+   * il PC è già carico. Solo lettura, non chiude mai niente. Assente: la riga
+   * dice solo la misura.
+   */
+  programmaPiuPesante?: (per: PcCarico['per']) => Promise<string | undefined>
   /**
    * Il freno sui limiti del piano (0.81.0). Spento nel servizio vero dal 22/10
    * (0.84.2): «togli i vincoli, a quelli penso io se stiamo consumando troppo»
@@ -782,6 +789,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const aggiornaPosti = (): void => {
     if (deps.misuraPc === undefined) return
     ultimaMisura = deps.misuraPc()
+    guardaIlPc(ultimaMisura)
     const regolazione = regolazioneAdesso()
     // Cambiata a mano nelle Impostazioni: vale subito, senza la salita lenta.
     if (regolazione !== regolazioneUsata) posti = undefined
@@ -792,9 +800,35 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       console.info(`[posti] ${prima} → ${posti.posti} chat insieme (${posti.perche}; ${ultimaMisura.processori} processori, ${ultimaMisura.memoriaLiberaMb} MB liberi, carico ${ultimaMisura.caricoPercento}%)`)
     }
   }
+  /**
+   * 0.85.1, Guardia del PC: processore sopra l'85% per un minuto, o memoria
+   * libera sotto il 15%. Finché dura, nessuna chat nuova (i posti sono quelli
+   * già occupati) e i criteri pesanti tengono l'esito di prima; l'indicatore lo
+   * dice. Le chat già al lavoro continuano: non si chiude niente.
+   */
+  let guardia: StatoGuardia = {}
+  const guardaIlPc = (m: MisuraPc): void => {
+    const prima = guardia.carico
+    guardia = prossimaGuardia(guardia, m, Date.parse(deps.adesso()))
+    const ora = guardia.carico
+    if (ora === undefined) {
+      if (prima !== undefined) console.info('[guardia del PC] il PC si è liberato: si riparte')
+      return
+    }
+    if (prima !== undefined && prima.per === ora.per) return
+    console.warn(`[guardia del PC] ${rigaPcCarico(ora)}`)
+    void deps.programmaPiuPesante?.(ora.per).then((programma) => {
+      if (programma === undefined || guardia.carico?.dal !== ora.dal) return
+      guardia = { ...guardia, carico: { ...guardia.carico, programma } }
+      console.warn(`[guardia del PC] ${rigaPcCarico(guardia.carico!)}`)
+    }).catch(() => { /* senza nome la riga dice solo la misura */ })
+  }
+  const pcCarico = (): PcCarico | undefined => guardia.carico
   const postiAdesso = (): number => {
     if (posti === undefined) aggiornaPosti()
-    return posti?.posti ?? POSTI_MAX
+    const n = posti?.posti ?? POSTI_MAX
+    // PC carico: i posti sono solo quelli già occupati, nessuna chat nuova.
+    return guardia.carico !== undefined ? Math.min(n, chatAlLavoroSulPc(deps.archivio.elenca())) : n
   }
   /** Quanti compiti aspettano un posto, in tutti gli autopiloti al lavoro. */
   const quantiInFila = (): number =>
@@ -809,7 +843,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       regolazione: regolazioneUsata,
       perche: posti?.perche ?? 'massimo',
       risale: posti?.salitaDal !== undefined,
-      ...(ultimaMisura !== undefined ? { misura: ultimaMisura } : {})
+      ...(ultimaMisura !== undefined ? { misura: ultimaMisura } : {}),
+      ...(guardia.carico !== undefined ? { pcCarico: guardia.carico } : {})
     }
   }
   /**
@@ -1530,6 +1565,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ? { daAprire: 0, motivo: 'il freno sui limiti del piano lascia partire solo le Revisioni' }
         : { daAprire: 0, motivo: 'aspettano altri lavori ancora da unire' }
     }
+    const carico = pcCarico()
+    if (carico !== undefined && tetto < delFreno.tetto) return { daAprire: 0, motivo: rigaPcCarico(carico) }
     if (tetto < delFreno.tetto) return { daAprire: 0, motivo: `il PC non ha posto (${rigaPosti(postiChat())})` }
     return { daAprire: 0, motivo: `ci sono già ${tetto} chat al lavoro, il massimo` }
   }
@@ -3578,8 +3615,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // turni alterni, due in parallelo. Prima del «finito» si rimisura tutto.
     const cicliChat = chatId !== undefined ? (conSessione.chats.find((c) => c.id === chatId)?.cicli ?? conSessione.cicli) : conSessione.cicli
     const improntaOra = deps.git !== undefined ? improntaCodice(deps.git, conSessione.cwd) : undefined
+    // 0.85.1: col PC carico i criteri pesanti tengono l'esito di prima (si dice nel quadro).
     const misurati = await misuraCriteri(conSessione.criteri, conSessione.cwd, deps.esegui, {
-      memoria: memoriaCriteri, adesso: orologio, tutti: turnoCompleto(cicliChat),
+      memoria: memoriaCriteri, adesso: orologio, tutti: turnoCompleto(cicliChat) && pcCarico() === undefined,
       ...(improntaOra !== undefined ? { impronta: improntaOra } : {})
     })
     let esiti: EsitoVerifica[] = misurati.esiti
@@ -5006,6 +5044,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // 0.85.1: il supervisore che non risponde di fila, per l'allarme dell'indicatore.
             const muto = supervisore.stato()
             if (muto !== undefined) Object.assign(conVeri, { supervisoreMuto: muto })
+            // 0.85.1: la Guardia del PC, per la riga «PC carico: aspetto».
+            const carico = pcCarico()
+            if (carico !== undefined) Object.assign(conVeri, { pcCarico: carico })
             if (segni.length === 0) return { ...a, segniDal, ...conVeri }
             // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
             const segniChat: Record<string, string> = {}

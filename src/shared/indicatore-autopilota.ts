@@ -5,6 +5,7 @@ import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
 import type { Segnale } from './segnali-chat'
 import { riassuntoVelocita, tempiRichieste } from './velocita-richieste'
+import { rigaPcCarico, type PcCarico } from './guardia-pc'
 
 /**
  * **L'indicatore a colpo d'occhio** (0.85.0) in cima all'autopilota, sopra il
@@ -238,7 +239,7 @@ type Vista = { c: ChatGovernata | undefined; chi: string; vero: SegnaleVero | un
  * segnale vero; senza, da quando il servizio raccoglie i segni o da quando è
  * al lavoro (se è dopo): dopo un riavvio nessuno ne ha ancora.
  */
-function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto }, ora: number): Pick<Indicatore, 'andamento' | 'dettaglio'> {
+function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto; pcCarico?: PcCarico }, ora: number): Pick<Indicatore, 'andamento' | 'dettaglio'> {
   const dal = istante(a.segniDal)
   const viste: Vista[] = (a.chats.length === 0 ? (a.sessionId !== undefined ? [undefined] : []) : a.chats.filter((c) => c.stato !== 'finita')).map((c) => {
     const vero = a.segniVeri?.[c?.id ?? a.id]
@@ -286,6 +287,10 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisor
     if (v.vero !== undefined && t !== undefined && (ultimo === undefined || t > ultimo.quando)) ultimo = { quando: t, testo: `${v.chi}, ${PAROLA_SEGNALE[v.vero.tipo]}` }
   }
   const lavorano = viste.filter((v) => v.lavora)
+  // 0.85.1: la Guardia del PC rimanda chat nuove e test pesanti, e lo dice.
+  if (a.pcCarico !== undefined && a.stato === 'lavoro') {
+    return { andamento: riga('lento', `${rigaPcCarico(a.pcCarico)} · ${azione()}`), dettaglio }
+  }
   if (lavorano.length === 0) {
     if (a.stato === 'attesa') return { andamento: riga('lento', `Aspetta te: una risposta nella linguetta «Domande» · ${azione()}`), dettaglio }
   }
@@ -310,6 +315,6 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisor
 export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo.'
 
 /** L'indicatore dell'autopilota. */
-export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto }, ora: number): Indicatore {
+export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto; pcCarico?: PcCarico }, ora: number): Indicatore {
   return { versione: rigaVersione(a, ora), fine: rigaFine(a), ...andamentoDi(a, ora), aiuto: AIUTO_INDICATORE }
 }

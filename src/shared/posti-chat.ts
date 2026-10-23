@@ -1,3 +1,4 @@
+import type { PcCarico } from './guardia-pc'
 import { TETTO_CHAT_MAX } from './autopilota'
 
 /**
@@ -122,6 +123,8 @@ export type PostiChat = {
   /** Sta risalendo con calma: il PC ne darebbe di più. */
   risale: boolean
   misura?: MisuraPc
+  /** 0.85.1: la Guardia del PC, se adesso rimanda chat nuove e test pesanti. */
+  pcCarico?: PcCarico
 }
 
 const gb = (mb: number): string => (mb / 1024).toLocaleString('it-IT', { maximumFractionDigits: 1 })

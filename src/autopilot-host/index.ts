@@ -24,6 +24,7 @@ import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitAsincronoReale, gitReale, statoCopia } from './worktree'
 import { creaMisuratore } from './misura-pc'
+import { programmaPiuPesante } from './processi-pesanti'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 
@@ -307,6 +308,7 @@ export function avviaServizio(): void {
     fermaLavoro: (id, chatId, chi) => lavori.ferma(id, chatId, chi),
     // 0.82.0: quante chat lavorano insieme lo decide questo PC; le finite si chiudono da sole.
     misuraPc: creaMisuratore(),
+    programmaPiuPesante,
     // 0.84.2: niente freno sui limiti del piano, li guarda Nicholas (22/10).
     frenoPiano: false,
     chiudiChat: (id, chatId, chi) => { lavori.chiudi(id, chatId, chi) },
