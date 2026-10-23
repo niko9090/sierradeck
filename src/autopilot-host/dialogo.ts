@@ -4,6 +4,7 @@ import type { CambioChiesto } from './supervisore'
 import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
 import { righePromptAdottate } from '@shared/adozione'
 import { leggiRichiesteProposte, type RichiestaProposta } from './richieste'
+import { leggiPromesseProposte, parolaFatto, promesseAperte, REGOLA_PROMESSE, type PromessaProposta } from '@shared/promesse'
 
 /**
  * Il dialogo con l'autopilota, fuori dalla chat.
@@ -43,6 +44,11 @@ export type EsitoDialogo = {
    * diventa un obiettivo con criterio e compiti (`registraRichieste`).
    */
   richieste?: RichiestaProposta[]
+  /**
+   * Le promesse di avvisare scritte nella risposta (0.85.1), ognuna legata a
+   * un fatto che il programma vede (`promesseDallaRisposta`).
+   */
+  promesse?: PromessaProposta[]
 }
 
 /** Quanto del dialogo passato entra nel prompt. */
@@ -101,6 +107,8 @@ export function componiPromptDialogo(
     ...criteri,
     ...(a.compitiDaFare.length > 0 ? ['Compiti ancora in coda:', ...a.compitiDaFare.map((c) => `- ${c}`)] : []),
     ...(contesto.quadro ?? righeQuadroChat(a, Date.now())),
+    // 0.85.1: le promesse già fatte e non ancora mantenute: non si ripetono, si tengono.
+    ...(promesseAperte(a).length > 0 ? ['', '## Le tue promesse ancora aperte (le mantiene il programma)', ...promesseAperte(a).map((p) => `- «${p.frase.slice(0, 200)}» → ${parolaFatto(p.fatto, a)}, entro ${p.scadenza}`)] : []),
     ...(decisioni.length > 0 ? ['', '## Le ultime mosse', ...decisioni] : []),
     ...(contesto.ultimoDetto !== undefined && contesto.ultimoDetto.trim() !== ''
       ? ['', '## L\'ultima cosa che ha scritto la chat che governi', contesto.ultimoDetto.slice(0, DETTO_MAX)]
@@ -124,7 +132,8 @@ export function componiPromptDialogo(
     '  "perLaChat": "un messaggio per la chat che governi, solo se serve che lo sappia",',
     '  "cambio": {"obiettivo": "...", "criteri": [{"descrizione": "...", "comando": "..."}], "compitiDaFare": ["..."]},',
     '  "comando": "ferma|riprendi|rispondi",',
-    '  "richieste": [{"titolo": "...", "criterio": {"descrizione": "...", "comando": "..."}, "compiti": ["..."]}]',
+    '  "richieste": [{"titolo": "...", "criterio": {"descrizione": "...", "comando": "..."}, "compiti": ["..."]}],',
+    '  "promesse": [{"frase": "la frase della risposta che promette", "fatto": "release|unito|richiesta|bloccata|criterio|finito", "di": "...", "entroOre": 3}]',
     '}',
     '',
     'Regole:',
@@ -150,6 +159,7 @@ export function componiPromptDialogo(
     '  Se dice «sì» a una cosa che gli hai proposto tu, la richiesta è quella proposta.',
     '  Una domanda («a che punto siamo?»), un saluto, «fermati» o la risposta a una tua',
     '  domanda non sono richieste: allora `"richieste": []`.',
+    ...REGOLA_PROMESSE,
     '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.',
     '- Dentro i testi, per citare usa «…», non le virgolette dritte; se ti servono, scrivile \\".'
   ].join('\n')
@@ -189,7 +199,8 @@ export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
     ...(perLaChat !== undefined ? { perLaChat } : {}),
     ...(comando !== undefined ? { comando } : {}),
     ...(Array.isArray(grezzo.perLeChat) ? { perLeChat: grezzo.perLeChat } : {}),
-    ...(leggiRichiesteProposte(grezzo.richieste).length > 0 ? { richieste: leggiRichiesteProposte(grezzo.richieste) } : {})
+    ...(leggiRichiesteProposte(grezzo.richieste).length > 0 ? { richieste: leggiRichiesteProposte(grezzo.richieste) } : {}),
+    ...(leggiPromesseProposte(grezzo.promesse).length > 0 ? { promesse: leggiPromesseProposte(grezzo.promesse) } : {})
   }
 }
 
