@@ -103,3 +103,13 @@ Mai il servizio vero, mai «Installa».
 Risposte prese/non prese e terminale che non nasce sono coperti dai test, 8 + 15, non dalla prova.
 
 Il comportamento delle chat simulate (seme fisso): 37 turni, 9 mute, 2 morte, 6 ferme al prompt, 6 interrotte, 4 chiuse nel recupero. Lo stato finale è «lavoro» e non «finito»: è il limite noto della prova (`prova-due-ore-mai-fermo.md`). La memoria dei criteri vale per commit e nella prova il codice non cambia, quindi i criteri verdi degli ultimi 8 minuti non portano a «finito». **Esito: prova pulita**, sul codice `c54fbcd7`.
+
+**Arrivato dopo la prova: c-125** (`21727a1f`, «oltre i rifacimenti decide il
+programma»). Cambia `server.ts` (+236 −41), `worktree.ts` e il nuovo
+`oltre-rifacimenti.ts`. Le parti toccate sono la decisione della Revisione
+dopo troppi «da rifare», l'unione di prova e il ricontrollo delle domande;
+nessuna riga di `mai-fermo.ts`, del guardiano o di `controllaChatFerme`. La
+prova simula chat di sviluppo e nessuna Revisione, quindi non passa da quel
+codice: **la prova resta valida**, come per c-109 alla 0.84.3. Per conferma,
+sul codice unito (`0e59041b`): giro di fumo di 3 minuti pulito (0 minuti
+fermi, 0 doppioni), TypeScript pulito, `tests/autopilot-host` 943 verdi.
