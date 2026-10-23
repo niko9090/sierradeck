@@ -1,4 +1,5 @@
 import { ePesante } from './criteri-veloci'
+import type { GuardiaPc } from './guardia-pc'
 import type { Esecutore } from './verifiche'
 
 /**
@@ -102,14 +103,18 @@ export const TURNI_PC: TurniCriteri = creaTurni()
 /**
  * L'esecutore che rispetta i turni: i pesanti passano da `turni.pesante`, gli
  * altri (typecheck, grep, test -s) partono subito come prima.
+ *
+ * 0.85.1: con la guardia del PC, un pesante a cui tocca aspetta anche che il
+ * PC non sia al limite (tenendo il suo turno: dietro non parte nessuno).
  */
-export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC): Esecutore {
+export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guardia?: GuardiaPc): Esecutore {
   return (comando, cwd, timeoutMs) => {
     const lancia = (): ReturnType<Esecutore> => (timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd))
     if (!ePesante(comando)) return lancia()
     const s = turni.stato()
     const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)
     if (davanti > 0) console.info(`[criterio] aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
-    return turni.pesante(cwd, lancia)
+    if (guardia === undefined) return turni.pesante(cwd, lancia)
+    return turni.pesante(cwd, async () => { await guardia.attendi(`«${comando.slice(0, 80)}»`); return lancia() })
   }
 }

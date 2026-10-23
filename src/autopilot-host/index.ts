@@ -11,7 +11,7 @@ import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
-import { conTurni } from './turni-criteri'
+import { conTurni, TURNI_PC } from './turni-criteri'
 import { interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { apriRegistroTempi } from './tempi'
@@ -24,6 +24,7 @@ import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
 import { gitAsincronoReale, gitReale, statoCopia } from './worktree'
 import { creaMisuratore } from './misura-pc'
+import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 
@@ -325,11 +326,21 @@ export function avviaServizio(): void {
     }
   })
 
+  // 0.85.1: la guardia del PC, una per il servizio: con il PC al limite niente
+  // chat nuove né comandi pesanti, e nell'indicatore chi consuma di più.
+  const misuraGuardia = creaMisuratore()
+  let processoriGuardia = 1
+  const guardiaPc = creaGuardiaPc({
+    misura: () => { const m = misuraGuardia(); processoriGuardia = m.processori; return m },
+    cerca: cercaProgrammaReale(() => processoriGuardia)
+  })
+
   const server = creaServer({
     archivio,
     // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
     // E i comandi lunghi uno alla volta per PC, mai durante un'unione (0.82.1).
-    esegui: conTurni(conDivieti(esecutoreReale())),
+    esegui: conTurni(conDivieti(esecutoreReale()), TURNI_PC, guardiaPc),
+    guardiaPc,
     interroga: interrogazioneReale(claudeCmd()),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
