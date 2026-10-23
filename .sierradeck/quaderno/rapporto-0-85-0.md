@@ -71,4 +71,9 @@ Commit `1e92807e` sul ramo `ap/ap-f1e631f5/c-133`:
 | c-127, c-128, c-129, c-130 | uniti in `main` dopo la Revisione |
 | c-131 | verifica della 0.84.4, nessun commit suo (ramo uguale a `main`) |
 | c-132 | unito in `main` (`a11c1fa7`) |
-| c-133 | questa release |
+| c-133 | questa release, unito in `main` (`1dba2519`, `42130269`) |
+| c-134, c-135, c-136 | **chiuse senza unire: doppie** dell'indicatore, già in `main` con `a11c1fa7`; lavoravano nella cartella principale, nessun ramo loro |
+| c-143 | ripresa del 23/10 sera: nessun codice, solo note nel quaderno (`trappola-giro-senza-fine-chat-finita-0-85-0.md`) e queste righe; si unisce dopo la Revisione |
+| c-11, c-11-velocita | del 21/10 (0.83.0), fuori da questo lavoro: **già in main**, `git diff main...<ramo>` vuoto; restano solo come rami vecchi |
+
+Ricontrollo finale (c-143, 23/10 sera): nessun altro ramo `ap/ap-f1e631f5/*` ha commit fuori da `main` (`git rev-list --count main..<ramo>` = 0).
