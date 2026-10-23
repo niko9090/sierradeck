@@ -29,3 +29,9 @@ Richiesta di Nicholas del 23/10: «continuo a chiederti a che punto siamo cento 
 
 - `senzaSigle` toglie anche «di c-3» dai compiti: nei test usare compiti senza sigle se si vuole vedere il testo intero.
 - Un pensiero lungo della chat senza strumenti non manda hook: oltre 10 minuti l'indicatore dice «lento». È voluto: lento non è fermo.
+
+## Dopo l'unione (23/10 sera)
+
+- Unito in main con `a11c1fa7`. Il supervisore ha poi ridato lo stesso compito a c-977, c-980 e c-981 anche se era già in main: chi lo riceve deve guardare prima `git log` (commit «Indicatore a colpo d'occhio … giro 1»). Basta ricontrollare e chiudere, senza rifarlo.
+- Ricontrollo di c-980: test main 1951 verdi, altri 3257 verdi, typecheck, Android `testDebugUnitTest assembleDebug`, guardia cancellazioni e Kotlin sotto 800 righe tutti a posto.
+- Due chat gemelle nella cartella principale modificano la stessa `lista-lavori.md`: prima di salvarla guardare `git diff`, altrimenti si salvano anche le righe dell'altra.
