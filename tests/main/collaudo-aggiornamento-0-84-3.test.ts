@@ -3,8 +3,7 @@ import { EventEmitter } from 'node:events'
 import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { attendiQuiete, ATTESA_INSTALLA_MS, leggiPausa, type ChatInVolo, type PausaSalvata } from '../../src/main/pausa-aggiornamento'
-import { attesaMassimaMs } from '../../src/main/attesa-drive'
+import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_PAUSA, DRIVE_ANNULLATO_MS, leggiPausa, type ChatInVolo, type PausaSalvata } from '../../src/main/pausa-aggiornamento'
 import { leggiAggiornamentoInCorso, rigaRiepilogo, SALVO_LE_CHAT_MS } from '../../src/shared/fasi-aggiornamento'
 import { passoInstallaLa, type StatoAggiornamentoRemoto } from '../../src/shared/installa-la'
 import type { EsitoQuiete } from '../../src/main/aggiornamenti'
@@ -19,8 +18,7 @@ import type { EsitoQuiete } from '../../src/main/aggiornamenti'
  * al ritorno la riga di riepilogo. L'installer è finto: niente si installa
  * davvero (installa solo Nicholas).
  *
- * I difetti sono `it.fails`: quando uno è corretto il test diventa rosso, e il
- * `.fails` va tolto.
+ * I difetti erano segnati `.fails`; corretti da c-109 (23/10), il segno è tolto.
  */
 const h = vi.hoisted(() => ({
   updater: undefined as unknown as EventEmitter & Record<string, unknown>,
@@ -152,7 +150,8 @@ describe('collaudo 0.84.3: la catena intera col caso vero del 22/10', () => {
     const file = join(dati, FILE_AGGIORNAMENTO_IN_CORSO)
     expect(existsSync(file)).toBe(true)
     const scritto = leggiAggiornamentoInCorso(JSON.parse(readFileSync(file, 'utf8')))
-    expect(scritto).toMatchObject({ daVersione: '0.84.2', aVersione: '0.84.3', salvate: 2, provate: 2, interrotte: 3 })
+    // Interrotte: solo le 2 chat degli autopiloti (D3), non quella di Nicholas.
+    expect(scritto).toMatchObject({ daVersione: '0.84.2', aVersione: '0.84.3', salvate: 2, provate: 2, interrotte: 2 })
     expect(scritto?.fasi.map((f) => f.passo)).toEqual(['scarico', 'salvo', 'installo'])
 
     // La versione nuova parte un minuto dopo l'installer e racconta: il file si legge una volta sola.
@@ -212,24 +211,78 @@ describe('collaudo 0.84.3: la catena intera col caso vero del 22/10', () => {
   })
 })
 
-describe('collaudo 0.84.3: difetti trovati', () => {
-  // D1 (medio). Dopo «Installa» l'attesa del lavoro con il Drive viene PRIMA
-  // dei 5 minuti (`src/main/index.ts:6657`, `attendiLavoroDrive`): per una
-  // fusione o un ripristino fino a 10 minuti (`src/main/attesa-drive.ts:31`),
-  // e in quel tempo gli autopiloti non sono ancora in pausa né le chat
-  // avvisate. Se il lavoro non finisce, l'installazione si annulla da sola
-  // (`index.ts:1737-1739`): la stessa attesa che si annulla del 22/10.
-  it.fails('D1: dopo «Installa» al massimo 5 minuti (più i controlli) anche con un lavoro del Drive voluto in corso', () => {
-    const pausaServizio = 15_000
-    const commitChat = 60_000 // tetto di `salvaPerAggiornamento` (`autopilot-client.ts:346`)
-    const peggiore = attesaMassimaMs('fusione') + pausaServizio + ATTESA_INSTALLA_MS + commitChat
-    expect(peggiore).toBeLessThanOrEqual(SALVO_LE_CHAT_MS + pausaServizio + commitChat)
+describe('collaudo 0.84.3: difetti trovati, corretti (c-109)', () => {
+  // D1 (medio). Dopo «Installa» l'attesa del lavoro con il Drive veniva PRIMA
+  // dei 5 minuti (fino a 10 per una fusione), senza autopiloti in pausa né
+  // chat avvisate, e se non finiva l'installazione si annullava da sola.
+  // Corretto: il Drive si aspetta dentro gli stessi 5 minuti
+  // (`attendiQuiete`, `drive`), e allo scadere si annulla e si installa.
+  it('D1: dopo «Installa» al massimo 5 minuti anche con un lavoro del Drive voluto che non finisce; pausa e avviso subito', async () => {
+    const INIZIO = Date.parse('2026-10-22T15:28:51.000Z')
+    let orologio = INIZIO
+    const fatti: string[] = []
+    const visti: string[] = []
+    let driveVivo = true
+    let annullatoAlle: number | undefined
+    const ok = await attendiQuiete({
+      chat: () => TRE,
+      pausaAutopiloti: async (attiva) => { fatti.push(`${attiva ? 'pausa' : 'disfa'}@${orologio - INIZIO}`); return 2 },
+      scriviInChat: (id, testo) => { if (testo === AVVISO_PAUSA) fatti.push(`avviso:${id}@${orologio - INIZIO}`) },
+      annota: () => {},
+      avvisa: () => {},
+      adesso: () => orologio,
+      // La fusione col Drive si ferma 10 s dopo l'annullamento (fine del file in corso).
+      aspetta: async (ms) => { orologio += ms; if (annullatoAlle !== undefined && orologio - annullatoAlle >= 10_000) driveVivo = false },
+      tetto: ATTESA_INSTALLA_MS,
+      alloScadere: 'installa',
+      salvaSubito: async () => { fatti.push(`salvo@${orologio - INIZIO}`) },
+      drive: {
+        occupato: () => driveVivo,
+        testo: () => (driveVivo ? 'il lavoro con il Drive «Unisci le chat» (312 di 639 file): puoi annullarlo dal fumetto in basso a destra' : undefined),
+        annulla: () => { annullatoAlle ??= orologio; fatti.push(`annullo-drive@${orologio - INIZIO}`) }
+      },
+      avvisaDrive: (t) => { visti.push(t) }
+    })
+    expect(ok).toBe(true)
+    // Pausa e avviso alle chat al secondo zero, non dopo l'attesa del Drive.
+    expect(fatti[0]).toBe('pausa@0')
+    expect(fatti.filter((f) => f.startsWith('avviso:'))).toEqual(['avviso:a1@0', 'avviso:a2@0', 'avviso:dsm@0'])
+    // Il Drive si vede nella riga dell'attesa.
+    expect(visti[0]).toContain('Unisci le chat')
+    // Allo scadere dei 5 minuti il Drive si annulla, non si rinuncia: niente «disfa».
+    expect(fatti).toContain(`annullo-drive@${ATTESA_INSTALLA_MS}`)
+    expect(fatti.some((f) => f.startsWith('disfa'))).toBe(false)
+    const salvo = Number((fatti.find((f) => f.startsWith('salvo@')) ?? 'salvo@-1').split('@')[1])
+    expect(salvo).toBeGreaterThanOrEqual(ATTESA_INSTALLA_MS)
+    expect(salvo).toBeLessThanOrEqual(ATTESA_INSTALLA_MS + DRIVE_ANNULLATO_MS)
+  })
+
+  it('D1: un Drive che finisce prima e chat ferme: si installa subito, senza annullare niente', async () => {
+    let orologio = 0
+    let annullato = false
+    const ok = await attendiQuiete({
+      chat: () => TRE.map((c) => ({ ...c, aspetta: true })),
+      pausaAutopiloti: async () => 2,
+      scriviInChat: () => {},
+      annota: () => {},
+      avvisa: () => {},
+      adesso: () => orologio,
+      aspetta: async (ms) => { orologio += ms },
+      tetto: ATTESA_INSTALLA_MS,
+      alloScadere: 'installa',
+      salvaSubito: async () => {},
+      drive: { occupato: () => orologio < 60_000, testo: () => 'il lavoro con il Drive', annulla: () => { annullato = true } }
+    })
+    expect(ok).toBe(true)
+    expect(orologio).toBeGreaterThanOrEqual(60_000)
+    expect(orologio).toBeLessThan(2 * 60_000)
+    expect(annullato).toBe(false)
   })
 
   // D1, come si vede: «salvo le chat» parte a «Installa»
   // (`src/main/aggiornamenti.ts:592`), prima dell'attesa del Drive. Con una
   // fusione di 8 minuti la riga dice «salvo le chat da 8 min (al massimo 5 min)».
-  it.fails('D1 in vista: durante l’attesa del Drive la riga non dice «salvo le chat da 8 min (al massimo 5 min)»', async () => {
+  it('D1 in vista: durante l’attesa del Drive la riga non dice «salvo le chat da 8 min (al massimo 5 min)»', async () => {
     const quiete: Quiete = async (avvisa) => {
       for (let i = 0; i < 8 * 30; i++) {
         avvisa({ attesa: 'Aspetto che finisca «Unisci le chat», poi installo' })
@@ -255,7 +308,7 @@ describe('collaudo 0.84.3: difetti trovati', () => {
   // (`fasi-aggiornamento.ts:171-173`) scrive «3 chat … ripartono dal loro
   // ultimo salvataggio» quando i commit sono 2: la chat di Nicholas non ha un
   // ramo e non viene salvata (la riprende `AVVISO_RIPRESA`).
-  it.fails('D3: nella riga degli autopiloti «ripartono dal loro ultimo salvataggio» conta solo le chat degli autopiloti', async () => {
+  it('D3: nella riga degli autopiloti «ripartono dal loro ultimo salvataggio» conta solo le chat degli autopiloti', async () => {
     let interrotte = -1
     await attendiQuiete({
       chat: () => TRE,
@@ -278,7 +331,7 @@ describe('collaudo 0.84.3: difetti trovati', () => {
   // fasi (`src/shared/installa-la.ts:16-25`, manca `fasiTesto`) e il messaggio
   // dell'attesa (`installa-la.ts:132-133`) non dice né le fasi né il tempo:
   // sul PC che ha premuto si vede solo «aspetta la quiete prima di chiudersi».
-  it.fails('D2: «Installa là» mostra le fasi col tempo del PC che installa', () => {
+  it('D2: «Installa là» mostra le fasi col tempo del PC che installa', () => {
     const stato = {
       fase: 'attendo',
       versione: '0.84.3',

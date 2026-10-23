@@ -37,7 +37,7 @@ import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { cestinoSicuro } from '@shared/cancella-sicura'
-import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida } from './pausa-aggiornamento'
+import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida, type DriveInCorso } from './pausa-aggiornamento'
 import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
@@ -1715,6 +1715,30 @@ if (!app.requestSingleInstanceLock()) {
        * butta via i file gia' saliti o scesi (il manifesto si scrive alla
        * fine). Al massimo dieci minuti, come la quiete delle chat.
        */
+      /**
+       * Il lavoro con il Drive dentro l'attesa di «Installa» (0.84.3, collaudo
+       * c-97 D1): un lavoro automatico si annulla subito, uno voluto si aspetta
+       * negli stessi 5 minuti delle chat, con gli autopiloti già in pausa, e
+       * allo scadere si annulla (si rifà) invece di rinunciare a installare.
+       */
+      const driveDentroInstalla = (): DriveInCorso => {
+        const primo = lavoro.stato().inCorso
+        if (primo !== undefined && lavoroAutomatico(primo.tipo) && !primo.annullamento) {
+          lavoro.annulla()
+          registro.info(`[sistema] annullo «${primo.tipo}» con il Drive per installare: si rifa' da solo al prossimo giro`)
+        }
+        return {
+          occupato: () => lavoro.occupato(),
+          testo: () => {
+            const l = lavoro.stato().inCorso
+            return l === undefined ? undefined : descriviAttesaDrive(l)
+          },
+          annulla: () => {
+            registro.info("[sistema] passati i 5 minuti di «Installa»: annullo il lavoro con il Drive, si rifa' al prossimo giro")
+            lavoro.annulla()
+          }
+        }
+      }
       const attendiLavoroDrive = async (avvisa?: (attesa: string) => void): Promise<EsitoQuiete> => {
         const primo = lavoro.stato().inCorso
         if (primo === undefined) return { ok: true }
@@ -6652,10 +6676,11 @@ if (!app.requestSingleInstanceLock()) {
         // che ognuno chiuda quello che ha in mano, e solo allora si chiude
         // tutto. Un aggiornamento non e' una chiusura per fine lavori.
         async (avvisa, subito): Promise<EsitoQuiete> => {
-          // Prima il Drive, e il suo esito conta: prima veniva buttato via con
-          // un `.then(() => …)`, e un lavoro che non finiva passava lo stesso.
-          const drive = await attendiLavoroDrive((attesa) => avvisa({ attesa }))
-          if (!drive.ok) return drive
+          // Il Drive dentro gli stessi 5 minuti (0.84.3, collaudo c-97 D1):
+          // prima veniva aspettato fino a dieci minuti PRIMA della pausa degli
+          // autopiloti e dell'avviso alle chat, e se non finiva l'installazione
+          // si annullava da sola.
+          const drive = driveDentroInstalla()
           let avvisatoLungo = false
           let conti: { salvate?: number; provate?: number; interrotte?: number } = {}
           const pronti = await attendiQuiete({
@@ -6684,9 +6709,12 @@ if (!app.requestSingleInstanceLock()) {
             tetto: ATTESA_INSTALLA_MS,
             alloScadere: 'installa',
             chiusa: (e) => {
+              // Nel riepilogo solo le chat degli autopiloti (collaudo c-97 D3).
               conti = { ...conti, interrotte: e.interrotte }
-              registro.info(`[aggiornamenti] attesa chiusa (${e.come}): ${e.interrotte} chat ancora al lavoro, installo`)
+              registro.info(`[aggiornamenti] attesa chiusa (${e.come}): ${e.alLavoro} chat ancora al lavoro (${e.interrotte} degli autopiloti), installo`)
             },
+            drive,
+            avvisaDrive: (attesa) => avvisa({ attesa }),
             // «Aggiorna adesso» (0.84.1): niente più attesa; prima un commit sul ramo di ogni chat.
             subito,
             salvaSubito: async () => {

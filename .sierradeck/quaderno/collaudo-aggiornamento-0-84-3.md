@@ -1,6 +1,6 @@
 ---
-titolo: "Collaudo 0.84.3 — aggiornamento senza tempi morti: regge, 3 difetti"
-quando: 2026-10-23T02:20:00+02:00
+titolo: "Collaudo 0.84.3 — aggiornamento senza tempi morti: regge, 3 difetti (corretti da c-109)"
+quando: 2026-10-23T03:55:00+02:00
 tag: ["0.84.3", "collaudo", "aggiornamenti", "installa", "fasi"]
 ---
 
@@ -49,6 +49,28 @@ conti, e nella conversazione degli autopiloti `rigaRiepilogo`
 (`fasi-aggiornamento.ts:171-173`) scrive «3 chat … ripartono dal loro ultimo
 salvataggio» con 2 commit: la chat fuori dagli autopiloti non ha ramo né
 salvataggio.
+
+## Correzioni (c-109, 23/10)
+
+Tutti e tre corretti, `.fails` tolti, tests/main verdi (1949), TypeScript pulito.
+
+- **D1:** il Drive non si aspetta più prima: `attendiQuiete` ha un parametro
+  `drive` (`DriveInCorso` in `src/main/pausa-aggiornamento.ts`) e lo aspetta
+  **dentro** lo stesso tetto di 5 minuti, dopo aver messo in pausa gli
+  autopiloti e avvisato le chat al secondo zero. Si installa solo quando chat
+  e Drive sono quieti; allo scadere (o con «Aggiorna adesso») il lavoro del
+  Drive si **annulla** (si rifà al giro dopo), si aspetta al massimo
+  `DRIVE_ANNULLATO_MS` (30 s) che si fermi, e si installa lo stesso: niente
+  più «non chiudo». In `index.ts` `driveDentroInstalla()` (accanto ad
+  `attendiLavoroDrive`) annulla subito i lavori automatici e dà il resto
+  all'attesa. `attendiLavoroDrive` resta solo per il riavvio senza installare.
+  In vista, passati i 5 minuti `testoFasi` dice «passati 5 min: salvo il lavoro
+  delle chat», mai «da 8 min (al massimo 5 min)».
+- **D2:** `StatoAggiornamentoRemoto.fasiTesto` (la rotta `/api/aggiornamento`
+  lo dava già) e `passoInstallaLa` lo mette nel messaggio, in «attendo» e in
+  «installo».
+- **D3:** `chiusa` dà `interrotte` = solo le chat governate (vanno nella riga
+  degli autopiloti) e `alLavoro` = tutte (nel registro).
 
 ## Da sapere
 
