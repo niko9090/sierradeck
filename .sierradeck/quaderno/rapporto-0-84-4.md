@@ -54,7 +54,8 @@ Piano e pre-revisione: `piano-unione-0-84-4.md`.
 | c-121 (`9f9af3d9`) | chat il cui terminale non nasce: `non-nata.ts` | **unito in main dall'autopilota** (`4b5edc30`) prima della revisione di c-122. La revisione ha trovato due difetti, corretti da c-122 in `c54fbcd7`. 1) Una copia sparita dal disco ma ancora registrata in git non si rimetteva (`worktree add` rifiuta): adesso `creaWorktree` fa `git worktree prune` prima. Test con git vero, rosso senza la correzione. 2) Se la copia non si rimetteva, la chat nuova lavorava nella cartella principale, contro la regola del 19/10: adesso una riga a Nicholas, nessuna domanda e nessuna chat. Il terzo punto del piano, il nome della copia uguale a quello della chat nuova, era già giusto: tutti e due sono `c-${chats.length+1}` sullo stesso autopilota |
 | c-120 (`1cf9d85a`, unione `a9c82ddc`) | risposte di Nicholas prese davvero: `risposte-in-viaggio.ts` | **unito in main dall'autopilota** (`c0ce4263`). Il conflitto previsto su `/consegne/esito` non era di testo ma di logica: una risposta a una chat non nata si riconsegnava alla chat vecchia, già chiusa. Corretto da c-122 in `c54fbcd7`: prima si sostituisce la chat, poi la risposta va alla chat che ha il suo compito (segue `sostituisce`); se nessuna chat aspetta, va al supervisore. Test: «rifallo ancora» tre volte con una riga per passaggio (3 arrivate, 3 in viaggio, 3 prese), non nata più risposta, nessuna chat che aspetta |
 | c-118 | Revisione del ramo di c-98, che non c'è più; terminale mai partito | **chiusa dal supervisore senza unire**: superata. È proprio il caso che c-121 ora chiude da solo |
-| c-122 | revisione e unione, prova di 2 ore | unito a ogni turno |
+| c-123 | release 0.84.4 | **chiusa prima di pubblicare** (23/10): nessun tag `v0.84.4`, nessuna release su GitHub. La release è da rifare con una chat nuova, dopo la prova |
+| c-122 | revisione e unione, prova di 2 ore | unito a ogni turno (`c54fbcd7` e `cc3d2ca3` in main con `c832824a`) |
 
 Misure sul ramo c-122 dopo le tre unioni e le correzioni (`c54fbcd7`, 23/10):
 - TypeScript: nessun errore;
@@ -78,4 +79,16 @@ Mai il servizio vero, mai «Installa».
 - **Prova vera partita alle 2026-10-23T10:40:24Z** sullo stesso codice, cioè con
   c-119, c-120 e c-121 dentro e le correzioni di c-122.
 
-Numeri: in arrivo.
+### Numeri
+
+| Misura | Valore |
+|---|---|
+| Durata | _in arrivo_ |
+| Minuti con lavoro da finire e nessuna chat al lavoro (tratto più lungo) | _in arrivo_ |
+| Tratti oltre 15 minuti | _in arrivo_ |
+| Chat muta più a lungo | _in arrivo_ |
+| Doppioni | _in arrivo_ |
+| Giri da soli (e quanti dicono «apro» senza aprire) | _in arrivo_ |
+| Chat riprese / sostituite / messe da parte | _in arrivo_ |
+| «Finito» con chat aperte | _in arrivo_ |
+| Risposte prese / non prese | **non misurate dalla prova**: le chat simulate non fanno domande e il PC simulato non manda esiti di consegna. Le coprono i test di servizio: `risposte-prese-0-84-4.test.ts` (8 casi, «rifallo ancora» tre volte compreso) e `non-nata-0-84-4.test.ts` (15 casi). Allargare la prova a domande e terminali che non nascono è una cosa da fare dopo, non in questa release |
