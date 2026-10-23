@@ -29,3 +29,5 @@ Su c-143 il giro è ripartito uguale per almeno 5 volte: dopo 4 `SEGNALE: fatto`
 Ancora su c-143: anche la consegna c-1062 (stesso «riprendi», con tutti i criteri già verdi) è arrivata dopo i giri descritti sopra. Il programma continua a rilanciare il compito come nuova consegna, non solo come hook.
 
 **Settimo caso (23/10, 22:10).** L'hook di c-143, che il programma chiama `chat=c-144`, ha scritto «la chat c-143 ha finito e il suo lavoro è nel ramo main». Non era vero: `git merge-base --is-ancestor HEAD main` diceva di no. In main erano entrati c-145 e c-146, c-143 no. Prima di credere a «è già in main», controllare con git.
+
+**Dopo il settimo caso (23/10, sera).** Con `SEGNALE: aspetto` l'hook ripeteva ogni volta «la chat c-143 ha finito ed è in main», che non era vero. Con `SEGNALE: fatto` quella riga è sparita e restava solo «rifaccio il giro». Quindi una chat che ha finito il suo lavoro e aspetta solo l'unione deve scrivere `fatto`, non `aspetto`. Con `aspetto` il programma la crede in attesa di un'altra chat.
