@@ -60,7 +60,7 @@ import { chatCheSostituisce, conSostituzione, giroMaiFermo, notaFerma, rigaGiro,
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
+import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, FERMA_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
@@ -1712,7 +1712,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const detta: Autopilota = { ...a }
         for (const m of nuoveZitte) {
           mutaDetta.set(chiaveZitta(m), ora - m.da)
-          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(limite / 60_000)} minuti la metto da parte`, { chat: m.chatId ?? a.id, esito: 'muta' })
+          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(FERMA_DA_DIRE_MS / 60_000)} minuti la rimetto al lavoro io`, { chat: m.chatId ?? a.id, esito: 'muta' })
         }
         salva(detta)
         base = detta
@@ -3499,6 +3499,33 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // stessa cartella e stesso ramo, rilegge gli errori da capo. Si chiede a
       // Nicholas solo se si blocca anche lei.
       const bloccato = decisione.bloccato
+      // **La sorella non si ferma sulla domanda di un'altra** (0.84.3, D2 del
+      // collaudo c-99): nelle flotte i criteri sono dell'autopilota e restano
+      // rossi finché tutto non è finito, e i giri in cerchio si contano su
+      // tutta la storia. Se un'altra chat ha già chiesto a Nicholas su questi
+      // controlli, questa non è bloccata: continua con il suo compito, senza
+      // ultima strada, senza recupero e senza aspettare la risposta.
+      const giaChiesta = bloccato !== undefined && chatId !== undefined
+        ? deps.domande.aperte(aggiornato.id).find((d) => {
+            const ctx = contesto.get(d.id)
+            return ctx?.bloccato !== undefined && ctx.chatId !== undefined && ctx.chatId !== chatId &&
+              bloccato.falliti.some((f) => ctx.bloccato?.criteri.includes(f.descrizione) === true)
+          })
+        : undefined
+      if (bloccato !== undefined && giaChiesta !== undefined) {
+        const compito = aggiornato.chats.find((c) => c.id === chatId)?.compito ?? aggiornato.obiettivo
+        const presi = tuoi(aggiornato)
+        salvaNelTurno({ ...presi.autopilota, decisioni: [...aggiornato.decisioni, { quando: deps.adesso(), cosa: traccia(esiti) }] })
+        misura.esito = 'continua: domanda già chiesta da un’altra chat'
+        return {
+          decision: 'block',
+          reason: conPreambolo(
+            presi.testi,
+            `${cosaFallisce(bloccato.falliti)}: su questo ho già chiesto a Nicholas per un'altra chat, e la risposta la aspetta lei. ` +
+            `Non è un blocco tuo: lascialo stare e continua con il tuo compito.\n\nIl tuo compito: ${compito}`
+          )
+        }
+      }
       if (bloccato !== undefined && serveUltimaStrada(aggiornato, chatId)) {
         const vecchia = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
         misura.esito = 'ultima strada'

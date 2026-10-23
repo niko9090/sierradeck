@@ -1,5 +1,5 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
-import { compitoBreve, nomeChi } from './chat-autopilota'
+import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 
 /**
  * Il riquadro «Adesso» (0.81.0): una riga per chat, con cosa fa, da quanto,
@@ -81,13 +81,14 @@ const daQuanto = (dal: string | undefined, ora: number): string => {
 
 /** La riga di una chat della flotta. */
 function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): RigaAdesso {
-  // Senza ruolo «Una chat» non distingue niente: allora il suo nome, «c-14».
-  const base = { id: c.id, chi: c.ruolo !== undefined ? nomeChi(c) : c.id, compito: compitoBreve(c.compito) }
+  // 0.84.3 (collaudo c-96, D1): senza sigle anche qui, come nel Punto. Una chat
+  // senza ruolo è «Una chat», distinta dal suo compito; il compito senza «(c-14)».
+  const base = { id: c.id, chi: nomeChi(c), compito: senzaSigle(compitoBreve(c.compito)) }
   const dal = daQuanto(c.dal, ora)
   // In «attesa» le chat della flotta continuano (come `chatAlLavoro`): solo
   // con l'autopilota fermo sono ferme tutte, con il suo motivo.
   if (a.stato !== 'lavoro' && a.stato !== 'attesa') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${a.motivoSospensione})` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${senzaSigle(a.motivoSospensione)})` : ''
     return { ...base, testo: `ferma: l’autopilota è fermo${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(c.id) === true) {
@@ -107,6 +108,13 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   // Muta da: l'ultimo segno; senza segni, da quando li si raccoglie (o da quando
   // è al lavoro, se è dopo). Senza nessuna delle due date non si giudica.
   const riferimento = segno ?? (raccolti === undefined ? undefined : Math.max(raccolti, aperta ?? raccolti))
+  // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che dà segni non è
+  // ferma: aspetta. Se la sorella tace anche lei, valgono le regole di sotto.
+  const sorella = c.segnale?.tipo === 'aspetto' && c.segnale.di !== undefined ? a.chats.find((x) => x.id === c.segnale?.di && x.stato === 'lavoro') : undefined
+  const segnoSorella = sorella !== undefined ? istante(a.segniChat?.[sorella.id]) : undefined
+  if (sorella !== undefined && segnoSorella !== undefined && ora - segnoSorella < MUTA_DA_MS) {
+    return { ...base, testo: `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»), che lavora${daQuanto(c.segnale?.quando, ora)}`, tono: 'aspetta' }
+  }
   if (riferimento !== undefined && ora - riferimento >= MUTA_DA_MS) {
     const testo = c.cicli === 0 && segno === undefined ? `non è ancora partita: nessun segno da ${durata(ora - riferimento)}` : `nessun segno da ${durata(ora - riferimento)}`
     return { ...base, testo, tono: 'ferma' }
@@ -121,7 +129,7 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   // Niente «da quanto»: `ultimoEvento` cambia a ogni salvataggio, non è l'ora della domanda.
   if (a.stato === 'attesa') return { ...base, testo: 'aspetta la tua risposta', tono: 'aspetta' }
   if (a.stato !== 'lavoro') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${a.motivoSospensione}` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${senzaSigle(a.motivoSospensione)}` : ''
     return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(a.id) === true) {

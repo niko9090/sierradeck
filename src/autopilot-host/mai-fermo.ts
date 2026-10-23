@@ -42,8 +42,12 @@ export type MossaMaiFermo =
   | { tipo: 'nuovoCompito'; compito: string }
 
 export type GiroMaiFermo = {
-  /** Perché il giro: nessuno lavora (tutto l'autopilota), o solo chat messe da parte. */
-  perche: 'nessuno-al-lavoro' | 'messe-da-parte'
+  /**
+   * Perché il giro: nessuno lavora (tutto l'autopilota), chat messe da parte,
+   * chat già riprese che non hanno risposto, o (0.84.3) chat ferme da più di
+   * 15 minuti mentre le sorelle lavorano. La riga del diario dice il motivo vero.
+   */
+  perche: 'nessuno-al-lavoro' | 'messe-da-parte' | 'riprese-mute' | 'ferme'
   mosse: MossaMaiFermo[]
   /** Una riga per chat: com'è messa e cosa se ne fa. Va nel diario. */
   righe: string[]
@@ -187,9 +191,17 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   // Le mute da toccare: tutte se nessuno lavora, altrimenti quelle messe da
   // parte, quelle già riprese che non hanno risposto e (0.84.3, il Punto)
   // quelle ferme da più di 15 minuti mentre le sorelle lavorano.
+  // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che lavora non è
+  // ferma: aspetta come le è stato chiesto. Se anche la sorella tace, sono
+  // ferme tutte e due e si riprendono.
+  const aspettaUnaViva = (c: ChatGovernata): boolean => {
+    if (c.segnale?.tipo !== 'aspetto' || c.segnale.di === undefined) return false
+    const sorella = alLavoro.find((x) => x.id === c.segnale?.di)
+    return sorella !== undefined && !mute.includes(sorella)
+  }
   const daToccare = tuttoFermo
     ? mute
-    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS)
+    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || (silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS && !aspettaUnaViva(c)))
   const mosse: MossaMaiFermo[] = []
   const righe: string[] = []
   const avvisaNicholas: string[] = []
@@ -222,14 +234,22 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   }
 
   if (mosse.length === 0) return undefined
-  return { perche: tuttoFermo ? 'nessuno-al-lavoro' : 'messe-da-parte', mosse, righe, avvisaNicholas }
+  // Il motivo vero (prova di 2 ore della 0.84.3): «messe da parte» solo se ce n'è una.
+  const perche: GiroMaiFermo['perche'] = tuttoFermo
+    ? 'nessuno-al-lavoro'
+    : daToccare.some((c) => daParte.has(c.id)) ? 'messe-da-parte'
+      : daToccare.some((c) => c.ripresa !== undefined) ? 'riprese-mute'
+        : 'ferme'
+  return { perche, mosse, righe, avvisaNicholas }
 }
 
 /** La riga del diario per il giro da solo. */
 export function rigaGiro(g: GiroMaiFermo): string {
   const testa = g.perche === 'nessuno-al-lavoro'
     ? `giro da solo: da ${minuti(NESSUNO_AL_LAVORO_MS)} minuti nessuna chat lavora e il lavoro non è finito`
-    : 'giro da solo per le chat messe da parte'
+    : g.perche === 'messe-da-parte' ? 'giro da solo per le chat messe da parte'
+      : g.perche === 'riprese-mute' ? 'giro da solo per le chat riprese che non hanno risposto'
+        : `giro da solo per le chat ferme da più di ${minuti(FERMA_DA_DIRE_MS)} minuti mentre le altre lavorano`
   return `${testa}. ${g.righe.join('; ')}`
 }
 
@@ -261,6 +281,8 @@ export function chatCheSostituisce(a: Autopilota, vecchia: ChatGovernata, sessio
     ...(vecchia.ramo !== undefined ? { ramo: vecchia.ramo } : {}),
     ...(vecchia.ultimeIstruzioni !== undefined ? { ultimeIstruzioni: vecchia.ultimeIstruzioni } : {}),
     ...(vecchia.rifacimenti !== undefined ? { rifacimenti: vecchia.rifacimenti } : {}),
+    // L'ultima strada è del compito, non della sessione: chi la eredita, se si blocca, chiede (0.84.3).
+    ...(vecchia.ultimaStrada === true ? { ultimaStrada: true } : {}),
     sostituisce: vecchia.id,
     sostituzioni: (vecchia.sostituzioni ?? 0) + 1,
     dal: il
