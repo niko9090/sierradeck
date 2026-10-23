@@ -65,6 +65,13 @@ Misure sul ramo c-122 dopo le tre unioni e le correzioni (`c54fbcd7`, 23/10):
 - Kotlin: nessun file oltre le 800 righe;
 - guardia delle cancellazioni pulita.
 
+## Controlli
+
+Fatti da c-122 il 23/10, in sola lettura, su `git diff df1a2ed2..main -- src tests android scripts` (main `6c0da822`: 23 file, +1554 −95).
+
+- **Dati privati: nessuno.** Ho cercato indirizzi IP, nomi dei PC (`DESKTOP-`, `LAPTOP-`, `NB-PROBOOK`), percorsi personali (`E:\Users`, `C:\Users\…`, il nome utente), email, partita IVA e numeri di 11 cifre. L'unico IP è `127.0.0.1`, cioè il computer stesso, nei test che aprono il servizio su una porta libera. I test usano solo valori finti (`C:/progetto`, `ap-1`, `ap-android`, cartelle temporanee).
+- **Funzioni tolte: nessuna.** Nessuna rotta, tasto o voce di menu è stata tolta. Le due righe `-export` sono firme allargate con lo stesso nome: `esitoDaPasso` ora può dire anche «non nata», `verdettoAccettato` ha in più il parametro `ambiente`. Il dialogo in fila è passato in `dialogaDaSolo`, con lo stesso comportamento. La frase «… l'ha ricevuta e riprende il lavoro.» c'è ancora, adesso con «Presa: …» davanti, e solo quando la chat l'ha presa davvero; i test sono aggiornati. `android/` non è toccato dal 23/10 mattina (`df1a2ed2`).
+
 ## Prova di 2 ore senza fermate
 
 Stesso metodo della 0.84.3 (`prova-due-ore-mai-fermo.md`):
