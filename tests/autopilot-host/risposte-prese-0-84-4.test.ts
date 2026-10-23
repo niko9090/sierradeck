@@ -9,6 +9,7 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { conversazione } from '@shared/chat-autopilota'
 import { nuovoAutopilota, parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota } from '@shared/autopilota'
 import { leggiRigaRisposta } from '@shared/risposte-in-viaggio'
+import type { Istruzione } from '@shared/istruzioni-autopilota'
 
 /**
  * Le risposte di Nicholas prese davvero (0.84.4).
@@ -32,6 +33,8 @@ let registro: string[]
 let scritti: { chat?: string; messaggio?: string; perche?: string }[]
 let prompt: string[]
 let numero: number
+let istruzioni: Istruzione[]
+let registroDomande: RegistroDomande
 
 function flotta(stato95: 'bloccata' | 'lavoro' = 'bloccata'): Autopilota {
   return {
@@ -68,10 +71,12 @@ async function avvia(a: Autopilota, anche106 = false): Promise<{ d95: string; d1
   scritti = []
   prompt = []
   numero = 850
+  istruzioni = []
   for (const livello of ['info', 'log', 'warn'] as const) {
     vi.spyOn(console, livello).mockImplementation((...x: unknown[]) => { registro.push(x.map(String).join(' ')) })
   }
   const domande = creaRegistroDomande({ adesso: () => Date.now() })
+  registroDomande = domande
   const ids = domandeAperte(domande, anche106)
   const s = creaServer({
     archivio,
@@ -85,8 +90,12 @@ async function avvia(a: Autopilota, anche106 = false): Promise<{ d95: string; d1
     avviaLavoro: (_a, messaggio, chat, perche) => {
       scritti.push({ ...(chat !== undefined ? { chat: chat.id } : {}), ...(messaggio !== undefined ? { messaggio } : {}), ...(perche !== undefined ? { perche } : {}) })
       numero += 1
+      // La linguetta «Istruzioni»: di quale chat è ogni consegna (serve a «non nata», 0.84.4).
+      if (chat !== undefined) istruzioni.push({ id: `i-${numero}`, consegna: `c-${numero}`, autopilotaId: 'ap-android', quando: new Date().toISOString(), chatId: chat.id, chatTitolo: 'Sviluppo', testo: messaggio ?? '', esito: 'in-coda' } as Istruzione)
       return Promise.resolve(`c-${numero}`)
     },
+    istruzioni: { esito: () => undefined, elenca: (id) => istruzioni.filter((i) => i.autopilotaId === id) },
+    copia: () => 'ok',
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande,
@@ -105,8 +114,8 @@ const url = (p: string): string => `http://127.0.0.1:${porta}${p}`
 const rispondi = (id: string, risposta: string): Promise<Response> => fetch(url(`/domande/${id}/risposta`), {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ risposta })
 })
-const esito = (id: string, e: 'partita' | 'non-partita' | 'non-consegnata'): Promise<Response> => fetch(url('/consegne/esito'), {
-  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, esito: e })
+const esito = (id: string, e: 'partita' | 'non-partita' | 'non-consegnata', nonNata = false): Promise<Response> => fetch(url('/consegne/esito'), {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, esito: e, ...(nonNata ? { nonNata: true, perche: 'in 90 secondi il terminale della chat non è nato' } : {}) })
 })
 async function attendi(cond: () => boolean): Promise<void> {
   for (let i = 0; i < 200 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
@@ -218,5 +227,74 @@ describe('23/10 dal vero: «rifallo ancora» due volte, dopo l’attesa', () => 
     await attendi(() => (ap().risposteInViaggio ?? []).length === 1)
     const riletto = parseAutopilota(JSON.parse(JSON.stringify({ ...ap(), versione: VERSIONE_AUTOPILOTA })))
     expect(riletto.autopilota?.risposteInViaggio).toEqual(ap().risposteInViaggio)
+  })
+})
+
+describe('23/10 dal vero: «rifallo ancora» tre volte, una riga nel registro per ogni passaggio', () => {
+  it('06:39 c-95, 06:40 c-106, 07:22 di nuovo c-95: ognuna ricevuta, in viaggio e presa', async () => {
+    const { d95, d106 } = await avvia(flotta(), true)
+    await rispondi(d95, 'rifallo ancora')
+    await attendi(() => (ap().risposteInViaggio ?? []).length >= 1)
+    await rispondi(d106!, 'rifallo ancora')
+    await attendi(() => (ap().risposteInViaggio ?? []).length >= 2)
+    await esito('c-851', 'partita')
+    await esito('c-852', 'partita')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 0)
+
+    // 07:22: la Revisione rimanda indietro c-95 un'altra volta, stessa domanda, stessa risposta.
+    archivio.scrivi({ ...ap(), chats: ap().chats.map((c) => (c.id === 'c-95' ? { ...c, stato: 'bloccata' as const } : c)) })
+    const terza = registroDomande.apri({ autopilotaId: 'ap-android', testo: DOMANDA_95, scadenzaMs: 60_000 }).id
+    registroDomande.ricorda(terza, { autopilotaId: 'ap-android', testo: DOMANDA_95, grezza: DOMANDA_95, chatId: 'c-95', trattenuta: false })
+    await rispondi(terza, 'rifallo ancora')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 1)
+    await esito('c-853', 'partita')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 0)
+
+    const conta = (pezzo: string): number => registro.filter((r) => r.includes('«rifallo ancora»') && r.includes(pezzo)).length
+    // c-106 la riceve con la domanda uguale (0.81.0): la sua riga dice «arrivata dopo l’attesa di c-106».
+    expect(conta('arrivata dopo l’attesa di c-')).toBe(3)
+    expect(conta(': in viaggio con la consegna')).toBe(3)
+    expect(conta('presa da c-')).toBe(3)
+    expect(righe().map(leggiRigaRisposta).filter((r) => r?.esito === 'presa').map((r) => r?.chi)).toEqual(['c-95', 'c-106', 'c-95'])
+    expect(prompt).toEqual([])
+  })
+})
+
+describe('0.84.4, c-120 con c-121: la risposta a una chat il cui terminale non nasce', () => {
+  it('prima si sostituisce la chat, poi la risposta si riconsegna alla chat nuova; poi è presa da lei', async () => {
+    const { d95 } = await avvia(flotta())
+    await rispondi(d95, 'rifallo ancora')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 1)
+    expect(scritti.map((s) => s.chat)).toEqual(['c-95'])
+
+    // Il PC: in 90 secondi il terminale di c-95 non è nato.
+    await esito('c-851', 'non-consegnata', true)
+    await attendi(() => ap().risposteInViaggio?.[0]?.chatId === 'c-3' && scritti.length >= 3)
+    const a = ap()
+    expect(a.chats.find((c) => c.id === 'c-95')).toMatchObject({ stato: 'finita', sostituitaDa: 'c-3' })
+    expect(a.chats.find((c) => c.id === 'c-3')).toMatchObject({ stato: 'lavoro', sostituisce: 'c-95', nonNate: 1 })
+    // Il compito alla chat nuova, poi la risposta alla chat nuova (mai alla vecchia chiusa).
+    expect(scritti.slice(1).map((s) => s.chat)).toEqual(['c-3', 'c-3'])
+    expect(scritti[2]?.messaggio).toBe(scritti[0]?.messaggio)
+    expect(a.risposteInViaggio?.[0]).toMatchObject({ chatId: 'c-3', tentativo: 2, consegne: ['c-851', 'c-853'] })
+    expect(righe().some((c) => c.startsWith('risposta non presa (c-95): rifallo ancora') && c.includes('ha il suo compito c-3'))).toBe(true)
+    expect(registro.some((r) => r.includes('non presa da c-95') && r.includes('la riconsegno a lei'))).toBe(true)
+
+    await esito('c-853', 'partita')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 0)
+    expect(righe().map(leggiRigaRisposta).filter((r) => r?.esito === 'presa').map((r) => r?.chi)).toEqual(['c-3'])
+    expect(prompt).toEqual([])
+  })
+
+  it('nessuna chat che aspetta (finita, senza chi la sostituisce): la risposta va al supervisore', async () => {
+    const { d95 } = await avvia(flotta())
+    await rispondi(d95, 'rifallo ancora')
+    await attendi(() => (ap().risposteInViaggio ?? []).length === 1)
+    archivio.scrivi({ ...ap(), chats: ap().chats.map((c) => (c.id === 'c-95' ? { ...c, stato: 'finita' as const } : c)) })
+    await esito('c-851', 'non-consegnata', true)
+    await attendi(() => prompt.length === 1)
+    expect(scritti).toHaveLength(1)
+    expect(prompt[0]).toContain('non va persa')
+    expect(righe().some((c) => c.startsWith('risposta al supervisore (c-95): rifallo ancora'))).toBe(true)
   })
 })

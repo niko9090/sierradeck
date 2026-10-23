@@ -1064,9 +1064,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
   }
 
-  const riportaInCoda = (consegna: string, perche: string, giro = 0): void => {
+  const riportaInCoda = (consegna: string, perche: string, giro = 0, conRisposta = true): void => {
     // Una risposta di Nicholas che portava (0.84.4): non presa, la si riconsegna.
-    if (giro === 0) esitoConsegnaRisposta(consegna, false, perche.replace(/ l ha /g, ' l’ha '))
+    // Con una chat non nata no: la risposta aspetta la chat che la sostituisce.
+    if (giro === 0 && conRisposta) esitoConsegnaRisposta(consegna, false, perche.replace(/ l ha /g, ' l’ha '))
     for (const a of deps.archivio.elenca()) {
       const v = (a.inVolo ?? []).find((x) => x.consegna === consegna)
       if (v === undefined) continue
@@ -1238,7 +1239,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» presa da ${chi}: la consegna ${consegna} è partita`)
         return
       }
-      const chat = r.chatId !== undefined ? a.chats.find((c) => c.id === r.chatId) : undefined
+      // La chat sostituita (0.84.4, terminale non nato): la risposta va a chi
+      // ha preso il suo compito, non alla chat chiusa.
+      let chat = r.chatId !== undefined ? a.chats.find((c) => c.id === r.chatId) : undefined
+      for (let passi = 0; chat !== undefined && chat.stato === 'finita' && passi < a.chats.length; passi += 1) {
+        const dopoDiLei: string = chat.id
+        const erede = a.chats.find((c) => c.sostituisce === dopoDiLei)
+        if (erede === undefined) break
+        chat = erede
+      }
       if (r.tentativo === 2 || (r.chatId !== undefined && (chat === undefined || chat.stato === 'finita'))) {
         salva(senza)
         rispostaAlSupervisore(a.id, r.chatId, r.domanda, r.risposta, r.tentativo === 2
@@ -1246,9 +1255,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           : `consegna ${consegna}: ${motivo}, e ${nonAspettaPiu(a, chat)}`)
         return
       }
-      annota(senza, rigaNonPresa(chi, r.risposta, `consegna ${consegna}: ${motivo}`))
+      const erede = chat !== undefined && r.chatId !== undefined && chat.id !== r.chatId ? `; ha il suo compito ${chat.id}, la riconsegno a lei` : ''
+      annota(senza, rigaNonPresa(chi, r.risposta, `consegna ${consegna}: ${motivo}${erede}`))
       salva(senza)
-      console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» non presa da ${chi} (consegna ${consegna}: ${motivo}): la riconsegno una volta`)
+      console.info(`[domande] ${a.id} — risposta «${breveRisposta(r.risposta)}» non presa da ${chi} (consegna ${consegna}: ${motivo}${erede}): la riconsegno una volta`)
       portaRisposta(senza, chat, { domanda: r.domanda, risposta: r.risposta, testo: r.testo, segui: true, tentativo: 2, prima: r.consegne })
       return
     }
@@ -1950,9 +1960,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (wt.ok) {
         posto = { cartella: wt.cartella, ramo: wt.ramo }
         note.push(`copia nuova sul ramo ${wt.ramo}`)
+      } else if (deps.git !== undefined && a.ramoBase !== undefined) {
+        // Mai una chat che scrive codice nella cartella principale, dove
+        // l'autopilota unisce i rami (regola del 19/10): si smette e lo si dice.
+        rimediaNonNataAlTetto(a, vecchia, `${r.motivo}; la copia non si è potuta rimettere (${wt.motivo.slice(0, 160)})`)
+        return
       } else {
+        // Un autopilota senza copie per chat lavora sempre nella sua cartella.
         posto = {}
-        note.push(`copia non rimessa (${wt.motivo}): lavora nella cartella principale`)
       }
       if (r.tipo === 'ricrea' && alTettoNonNate(vecchia)) { rimediaNonNataAlTetto(a, vecchia, r.motivo); return }
     }
@@ -5321,12 +5336,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // Una risposta di Nicholas in viaggio (0.84.4): presa, o da riconsegnare.
             if (esito === 'partita') esitoConsegnaRisposta(id, true, 'partita')
             if (esito === 'non-partita') esitoConsegnaRisposta(id, false, 'scritta nella chat, ma la chat non si è messa al lavoro')
-            if (esito === 'non-consegnata') riportaInCoda(id, 'la chat non l ha presa nemmeno insistendo')
+            const nonNata = esito === 'non-consegnata' && corpo?.nonNata === true
+            if (esito === 'non-consegnata') riportaInCoda(id, 'la chat non l ha presa nemmeno insistendo', 0, !nonNata)
             // 0.84.4: il terminale della chat non è nato. I messaggi tornano in
-            // coda (sopra) e passano alla chat nuova.
-            if (corpo?.nonNata === true) {
+            // coda (sopra) e passano alla chat nuova; una risposta di Nicholas
+            // che portava si riconsegna **dopo**, alla chat che la sostituisce.
+            if (nonNata) {
               const dove = chatDellaConsegna(id)
-              if (dove !== undefined) rimediaNonNata(dove.autopilotaId, dove.chatId, typeof corpo.perche === 'string' ? corpo.perche.slice(0, 200) : 'in 90 secondi il terminale della chat non è nato')
+              const perche = typeof corpo?.perche === 'string' ? corpo.perche.slice(0, 200) : 'in 90 secondi il terminale della chat non è nato'
+              if (dove !== undefined) rimediaNonNata(dove.autopilotaId, dove.chatId, perche)
+              esitoConsegnaRisposta(id, false, `il terminale della chat non è nato (${perche})`)
             }
           }
           rispondi(res, 200, { ok: true })
