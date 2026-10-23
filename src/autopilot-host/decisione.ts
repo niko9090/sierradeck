@@ -1,5 +1,5 @@
 import type { Autopilota } from '@shared/autopilota'
-import { partiBloccato, type PartiDomanda } from '@shared/domanda-strutturata'
+import { nomeDi, partiBloccato, type FallitoBloccato, type PartiDomanda } from '@shared/domanda-strutturata'
 import { STRATEGIE, strategiaPer, strategieFinite } from './strategie'
 
 export type EsitoVerifica = {
@@ -62,7 +62,36 @@ export type Decisione =
    * `parti` (0.41.0): la domanda con le sue cinque parti. Le domande scritte
    * dal programma le hanno sempre; quelle del supervisore vanno controllate.
    */
-  | { tipo: 'chiediUtente'; domanda: string; parti?: PartiDomanda; dalProgramma?: boolean }
+  | { tipo: 'chiediUtente'; domanda: string; parti?: PartiDomanda; dalProgramma?: boolean; bloccato?: Bloccato }
+
+/**
+ * «Sono bloccato» (0.84.3): i controlli che non passano, quante volte e cosa
+ * dicono. Il server ci rifà la domanda con il compito della chat, prova prima
+ * un'ultima strada con una chat nuova, e alla risposta esegue la scelta.
+ */
+export type Bloccato = { falliti: FallitoBloccato[]; tentativi: number; errori: string }
+
+/** La domanda «sono bloccato», uguale per le regole e per la rete di sicurezza. */
+export function chiediBloccato(a: Autopilota, tentativi: number, esiti: EsitoVerifica[]): Extract<Decisione, { tipo: 'chiediUtente' }> {
+  const falliti = esiti.filter((e) => !e.passato).map((e) => ({ descrizione: e.descrizione, ...(e.misurato === false ? { misurato: false } : {}) }))
+  const errori = riassuntoFallimenti(esiti)
+  const strade = STRATEGIE.map((s) => s.nome)
+  return {
+    tipo: 'chiediUtente',
+    parti: partiBloccato({ lavoro: nomeDi(a), falliti, tentativi, strade, errori, ultimaStrada: false, continua: false }),
+    dalProgramma: true,
+    bloccato: { falliti, tentativi, errori },
+    domanda:
+      `Sono bloccato su «${a.obiettivo}».
+
+${errori}
+
+` +
+      `Ho provato ${tentativi} volte e ho esaurito le strade che conosco: ${strade.join(', ')}. L'esito non cambia.
+` +
+      'Come vado avanti?'
+  }
+}
 
 /** Quanto di un'uscita finisce nel prompt della chat. */
 const USCITA_MAX = 1200
@@ -173,19 +202,7 @@ export function decidi(a: Autopilota, evento: EventoStop, esiti: EsitoVerifica[]
     // momento in cui l'utente vale più di un altro tentativo. Chiedere lo tiene
     // vivo — sospendere lo spegnerebbe, e al risveglio non saprebbe nemmeno che
     // gli era stato chiesto qualcosa.
-    if (strategia === undefined && strategieFinite(ripetute, a.limiti.stalloMax)) {
-      return {
-        tipo: 'chiediUtente',
-        parti: partiBloccato(a.obiettivo, ripetute, STRATEGIE.map((s) => s.nome), riassuntoFallimenti(esiti)),
-        dalProgramma: true,
-        domanda:
-          `Sono bloccato su «${a.obiettivo}».\n\n${riassuntoFallimenti(esiti)}\n\n` +
-          `Ho provato ${ripetute} volte e ho esaurito le strade che conosco: ` +
-          `${STRATEGIE.map((s) => s.nome).join(', ')}. L'esito non cambia di una virgola.\n` +
-          'Come vuoi che proceda? Se il criterio o il comando di verifica sono da ' +
-          'rivedere, dimmelo e li cambio.'
-      }
-    }
+    if (strategia === undefined && strategieFinite(ripetute, a.limiti.stalloMax)) return chiediBloccato(a, ripetute, esiti)
 
     const testa = `Il lavoro non è concluso.\n\n${riassuntoFallimenti(esiti)}\n\n`
     const coda = `Obiettivo: ${a.obiettivo}`

@@ -76,6 +76,18 @@ describe('giroMaiFermo: la regola', () => {
     expect(notaFerma(g!.mosse[0]!)).toBe('è ferma da 16 minuti senza segnali: la interrompo e le riscrivo l’ultima istruzione')
   })
 
+  it('0.84.3 (collaudo c-96 D2): chi aspetta una sorella che lavora non si riprende; se tace anche la sorella, si riprendono tutte e due', () => {
+    const aspetta = { tipo: 'aspetto' as const, di: 'c-65', quando: new Date(ora - 20 * MIN).toISOString(), dichiarato: true }
+    const a = ap([chat('c-65'), chat('c-66', { segnale: aspetta }), chat('c-67')])
+    // La sorella lavora: chi la aspetta resta com'è, anche dopo 20 minuti.
+    const viva = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 20 * MIN : ora - MIN) }))
+    expect(viva).toBeUndefined()
+    // Anche la sorella tace da 16 minuti (la terza lavora): ferme tutte e due, riprese tutte e due.
+    const ferme = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 20 * MIN : k === 'ap-1::c-65' ? ora - 16 * MIN : ora - MIN) }))
+    expect(ferme?.mosse.map((m) => (m.tipo === 'riprendi' ? m.chatId : m.tipo)).sort()).toEqual(['c-65', 'c-66'])
+    expect(ferme?.perche).toBe('ferme')
+  })
+
   it('una sola chat messa da parte mentre le altre lavorano: si riprende lei, non le altre', () => {
     const a = ap([chat('c-65'), chat('c-66')], { daParte: ['c-65'] })
     const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - MIN : undefined) }))

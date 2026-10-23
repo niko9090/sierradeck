@@ -45,6 +45,12 @@ export type ContestoDomanda = {
    * domande del supervisore a fine turno): riparte da lì, non va ripresa a parte.
    */
   trattenuta?: boolean
+  /**
+   * Una domanda «sono bloccato» (0.84.3): i controlli che non passano, per
+   * eseguire la scelta («lascia stare quel controllo»). `continua`: la chat
+   * non è rimasta ferma ad aspettare, lavora al resto.
+   */
+  bloccato?: { criteri: string[]; continua?: boolean }
 }
 
 export type Risposta = { risposta: string; da: Provenienza }

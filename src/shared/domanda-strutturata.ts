@@ -17,7 +17,7 @@
  * un lavoro fermo senza domanda.
  */
 
-import { noteDiChiarezza, partiSenzaSigle, testiDi, type ChatConCompito } from './domanda-chiara'
+import { NOME_INTERNO, nomeCompito, noteDiChiarezza, partiSenzaSigle, testiDi, type ChatConCompito } from './domanda-chiara'
 
 export type SceltaDomanda = {
   scelta: string
@@ -354,19 +354,90 @@ export function partiDaRisposta(t: string): PartiDomanda | undefined {
 
 const breve = (t: string, n: number): string => (t.length > n ? `${t.slice(0, n)}…` : t)
 
-/** «Sono bloccato»: le strade per uscire da un cerchio sono finite. */
-export function partiBloccato(obiettivo: string, tentativi: number, strade: string[], errori: string): PartiDomanda {
+/**
+ * **«Sono bloccato», detto in parole semplici** (0.84.3).
+ *
+ * Il 22/10 Nicholas si è visto chiedere «Come vuoi che proceda?» con le
+ * scelte «rivedi i criteri / ti dico io la strada / fermati»: non diceva di
+ * quale lavoro, né cosa non andava, e «rivedi i criteri» gli chiedeva un
+ * lavoro a mano. Adesso la frase in vista dice il lavoro e il controllo che
+ * non passa; sotto ogni scelta c'è cosa succede, e ogni scelta il programma
+ * la esegue da solo (`server.ts`, `rispostaBloccato`).
+ */
+export const SCELTA_LASCIA_STARE = 'Lascia stare quel controllo e vai avanti'
+export const SCELTA_DICO_IO = 'Ti scrivo io cosa provare'
+export const SCELTA_SOSPENDI = 'Sospendi l’autopilota'
+
+/** Un criterio che non passa, come lo racconta la domanda. */
+export type FallitoBloccato = { descrizione: string; misurato?: boolean }
+
+/** Il nome di un criterio per Nicholas: senza sigle, senza nomi interni («D1», «gruppo 3»), corto. */
+export function nomeControllo(descrizione: string, max = 70): string {
+  // «i difetti D1 e D2 del collaudo» → «i difetti del collaudo»: l'elenco di nomi va via tutto insieme.
+  const nome = NOME_INTERNO.source
+  const senza = descrizione
+    .replace(new RegExp(`${nome}(?:\\s*(?:,|e|ed)\\s*${nome})*`, 'gu'), '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s+([,.;:)])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+  return nomeCompito(senza, max)
+}
+
+/** Cosa non va, in una frase: «il controllo «X» non passa». */
+export function cosaFallisce(falliti: FallitoBloccato[]): string {
+  const primo = falliti[0]
+  if (primo === undefined) return 'i controlli di fine lavoro non passano'
+  const come = (f: FallitoBloccato): string => (f.misurato === false ? 'non riesce nemmeno a partire' : 'non passa')
+  if (falliti.length === 1) return `il controllo «${nomeControllo(primo.descrizione)}» ${come(primo)}`
+  return `${falliti.length} controlli non passano, fra cui «${nomeControllo(primo.descrizione, 60)}»`
+}
+
+export function partiBloccato(p: {
+  /** Il nome del lavoro (l'autopilota), come lo conosce Nicholas. */
+  lavoro: string
+  /** Il compito della chat ferma, se è una flotta. */
+  compito?: string
+  falliti: FallitoBloccato[]
+  tentativi: number
+  strade: string[]
+  errori: string
+  /** Una chat nuova ha già riletto gli errori da capo, senza riuscire. */
+  ultimaStrada: boolean
+  /** Mentre aspetta, la chat continua con il resto (non resta ferma). */
+  continua: boolean
+}): PartiDomanda {
+  const lavoro = nomeControllo(p.lavoro, 50)
+  const cosa = cosaFallisce(p.falliti)
+  const compito = p.compito !== undefined && p.compito.trim() !== '' ? ` La chat lavorava a «${nomeControllo(p.compito, 120)}».` : ''
+  const nomi = p.falliti.map((f) => `«${nomeControllo(f.descrizione, 120)}»`).join(', ')
   return {
-    staFacendo: `Lavoro a «${breve(obiettivo.replace(/\s+/g, ' ').trim(), 160)}», ma le verifiche continuano a fallire nello stesso modo.`,
-    domanda: 'Come vuoi che proceda?',
-    perche: `Ho provato ${tentativi} volte e ho esaurito le strade che conosco (${strade.join(', ')}): l’esito non cambia. Gli errori: ${breve(errori.replace(/\s+/g, ' ').trim(), 400)}`,
+    staFacendo: `Il lavoro «${lavoro}» è fermo perché ${cosa}.${compito}`,
+    domanda: `«${lavoro}»: ${cosa}. Come vado avanti?`,
+    perche: `Ho provato ${p.tentativi} volte, con strade diverse (${p.strade.join(', ')})` +
+      `${p.ultimaStrada ? ', e una chat nuova ha riletto gli errori da capo' : ''}: l’esito non cambia. ` +
+      `${p.falliti.length > 1 ? `I controlli che non passano: ${nomi}. ` : ''}` +
+      `Cosa dice l’errore: ${breve(p.errori.replace(/\s+/g, ' ').trim(), 400)}`,
     scelte: [
-      { scelta: 'rivedi i criteri', conseguenza: 'mi dici quale criterio o comando di verifica è sbagliato e lo cambio, poi riprendo' },
-      { scelta: 'ti dico io la strada', conseguenza: 'scrivi la strada da tentare e la passo alla chat così com’è', consigliata: true },
-      { scelta: 'fermati', conseguenza: 'sospendo il lavoro; lo riprendi quando vuoi da «Riprendi»' }
+      {
+        scelta: SCELTA_LASCIA_STARE,
+        conseguenza: `${p.falliti.length > 1 ? 'quei controlli li giudico io' : 'quel controllo lo giudico io'}: non conta più per finire il lavoro, lo scrivo in una riga nella conversazione e le chat proseguono con il resto`,
+        consigliata: true
+      },
+      { scelta: SCELTA_DICO_IO, conseguenza: 'scrivi qui sotto cosa provare: lo passo alla chat così com’è e lei riparte da lì' },
+      { scelta: SCELTA_SOSPENDI, conseguenza: `fermo tutte le chat di «${lavoro}»; il lavoro fatto resta salvato e lo riprendi con «Riprendi»` }
     ],
-    seNonRispondi: 'resto fermo ad aspettare: non ricomincio a girare a vuoto sugli stessi tentativi'
+    seNonRispondi: p.continua
+      ? 'intanto la chat continua con il resto del lavoro; il controllo resta da fare finché non rispondi'
+      : 'la chat aspetta la tua risposta; le altre chat continuano'
   }
+}
+
+/** La scelta riconosciuta in una risposta a «sono bloccato», o `undefined` (testo libero). */
+export function rispostaBloccato(risposta: string): 'lascia' | 'sospendi' | undefined {
+  const r = risposta.trim().toLowerCase()
+  if (r.startsWith(SCELTA_LASCIA_STARE.toLowerCase())) return 'lascia'
+  if (r.startsWith(SCELTA_SOSPENDI.toLowerCase())) return 'sospendi'
+  return undefined
 }
 
 /* I criteri non misurati a fine lavoro non sono più una domanda (0.84.3): il

@@ -1,15 +1,23 @@
 ---
-titolo: "Rapporto 0.84.3 (bozza finché non è pubblicata)"
-quando: 2026-10-23T12:00:00+02:00
+titolo: "Rapporto 0.84.3 (pubblicata il 23/10, non installata)"
+quando: 2026-10-23T05:30:00+02:00
 tag: ["0.84.3", "rapporto", "release", "c-93"]
 ---
 
 # Rapporto 0.84.3
 
-**Stato (23/10, c-93):** NON ancora pubblicata. Versione già preparata sul ramo c-93: `package.json` 0.84.3, app 2.84.3 (versionCode 142), novità in `src/shared/novita.ts`. Mancano le due voci di c-95 (riga
-«Domande scritte dal programma» e «ultima strada»), il collaudo c-94 e la
-Revisione dei rami c-90 e c-91. Mai installata da noi: l'installazione la avvia
-solo Nicholas.
+**Stato:** **PUBBLICATA il 23/10 alle 03:22 UTC da c-93.** NON installata da noi:
+l'installazione la avvia solo Nicholas.
+
+- Release `v0.84.3`, non in bozza, «Latest», 5 file:
+  - `SierraDeck-Setup-0.84.3.exe` (115387290 byte), blockmap e `latest.yml`, con
+    `version: 0.84.3`, size e sha512 uguali all'exe;
+  - `SierraDeck-2.84.3.apk`, firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze»;
+  - `app-android.json`, con versione 2.84.3.
+- Tag `v0.84.3` su `f61b79e4`, lo stesso commit di `main` su GitHub (controllato
+  con `git ls-remote`), pushato **prima** di `npm run pubblica`.
+- Intoppo: alla prima `npm run pubblica` un 422 `already_exists`, risolto
+  rilanciandola. Una sola release. Come evitarlo: `tag-prima-di-pubblicare.md`.
 
 ## Cosa c'è dentro
 
@@ -18,10 +26,40 @@ solo Nicholas.
 | Mai fermo: D1 (chat muta dall'avvio abbandonata finché una sorella lavora) e D2 (consegna del servizio presa come risposta); il giro da solo dice cosa apre davvero | c-87 | in main (93573507), rivisto da c-92 |
 | Domande fra PC: D1 opzioni oltre 200 caratteri, D2 verifica col tempo vero (entro 9 s), D3 «Presa» nell'app, D4 spiegazioni delle scelte nel battito | c-88 | in main (83f59d7d), rivisto. Tocca `android/` |
 | Mai gesti a mano, «lo giudico io» al secondo rifiuto, chiusura da sola con criterio non misurabile, domande vecchie chiuse come superate | c-89 | in main (73ed147d), rivisto |
-| «Punto» in cima alla conversazione dell'autopilota su PC, pagina e app; righe per chat partita, finita, bloccata, unita, ferma da 15 minuti | c-90 | in main (9af91d61, commit del salvataggio dell'autopilota), Revisione da fare. Tocca `android/` |
-| Aggiornamento senza tempi morti: 5 minuti dopo «Installa», poi commit delle chat e si installa; fasi col tempo; riepilogo alla ripresa; «Aggiorna adesso» nell'app | c-91 | in main (b8fa6802), Revisione da fare. Tocca `android/` |
-| Domande scritte dal programma che si capiscono da sole; ultima strada con una chat nuova prima di «sono bloccato», lavoro che continua mentre si aspetta | c-95 | in corso |
-| Collaudo delle domande fra PC dopo le correzioni | c-94 | in corso |
+| «Punto» in cima alla conversazione dell'autopilota su PC, pagina e app; righe per chat partita, finita, bloccata, unita, ferma da 15 minuti | c-90 | in main (9af91d61), rivisto da c-93; difetti del collaudo c-96 corretti. Tocca `android/` |
+| Aggiornamento senza tempi morti: 5 minuti dopo «Installa», poi commit delle chat e si installa; fasi col tempo; riepilogo alla ripresa; «Aggiorna adesso» nell'app | c-91 | in main (b8fa6802), rivisto da c-93. Tocca `android/` |
+| Domande scritte dal programma che si capiscono da sole; ultima strada con una chat nuova prima di «sono bloccato», lavoro che continua mentre si aspetta | c-95, c-99, c-101 | in main tramite il ramo c-93, rivisto |
+| Collaudo delle domande fra PC dopo le correzioni | c-94 | verde; il caso limite dell'emoji corretto da c-93 (23b0d540) |
+
+## Ogni criterio, il test che lo prova e il commit
+
+Tutti i test sono verdi sul ramo c-93 (dopo l'unione di c-101) e nessuno ha più
+`it.fails`. I test Kotlin girano con `gradle testDebugUnitTest`.
+
+| Criterio della 0.84.3 | Test che lo prova (file › nome) | Commit |
+|---|---|---|
+| Mai fermo, collaudo c-81 D1: la chat muta dall'avvio non resta abbandonata finché una sorella lavora | `tests/autopilot-host/mai-fermo-0-84-1.test.ts` › «0.84.3 (il Punto): una chat zitta da più di 15 minuti mentre la sorella lavora si riprende…» e «le altre lavorano, ma quella già ripresa non ha risposto in 10 minuti…» | 4c96c46c |
+| Mai fermo, collaudo c-81 D2: la consegna del servizio non vale come risposta della chat | `mai-fermo-0-84-1.test.ts` › «0.84.3 (D2): una consegna del servizio dopo la ripresa non vale come risposta della chat» | 4c96c46c |
+| Il giro da solo dice cosa apre davvero, e il motivo vero | `mai-fermo-0-84-1.test.ts` › «0.84.3: la riga dice cosa apre davvero, e se niente perché», «…senza nessun compito e il PC pieno, non dice «apro una chat»»; il motivo «ferme»/«riprese-mute»/«messe da parte» negli stessi test | 4c96c46c, 1169047a |
+| Chi aspetta una sorella che lavora non è ferma; se tace anche la sorella si riprendono tutte e due (c-96 D2) | `tests/shared/collaudo-punto-0-84-3.test.ts` › «D2: chi aspetta una sorella al lavoro non è «ferma»…»; `mai-fermo-0-84-1.test.ts` › «0.84.3 (collaudo c-96 D2): … se tace anche la sorella, si riprendono tutte e due» | 3654498a |
+| Domande fra PC, collaudo c-82 D1: un'opzione oltre 200 caratteri si preme da un altro PC | `tests/main/collaudo-domande-risposte-0-84-1.test.ts` › «D1: un'opzione più lunga di 200 caratteri si può premere da un altro PC»; `tests/main/risposta-verificata.test.ts` › «dovEOpzione: uguale, oppure l'inizio tagliato di una sola opzione…» | a95e8654 |
+| …e anche con un emoji a cavallo del 200° carattere (caso limite di c-94), su PC, pagina e app | `tests/main/opzione-emoji-tagliata.test.ts`; `android/…/CaratteriInteriTest.kt` | 23b0d540 |
+| Domande fra PC D2: la verifica finisce entro l'attesa del ponte | `collaudo-domande-risposte-0-84-1.test.ts` › «D2: la verifica finisce entro l'attesa del ponte (14 s)…»; `risposta-verificata.test.ts` › «una lettura lenta che si mangia il tempo…» | a95e8654 |
+| Domande fra PC D3: «Presa» nell'app | `collaudo-domande-risposte-0-84-1.test.ts` › «D3: l'app legge la frase dell'esito dopo un tocco»; `android/…/EsitoRispostaTest.kt` | a95e8654 |
+| Domande fra PC D4: le spiegazioni delle scelte arrivano anche dagli altri PC | `collaudo-domande-risposte-0-84-1.test.ts` › «D4: la scheda di una domanda di un altro PC ha «Le scelte, spiegate»…» | a95e8654 |
+| Mai gesti a mano nelle domande; le vecchie chiuse come superate | `tests/autopilot-host/gesti-a-mano.test.ts` › «22/10: la domanda con il gesto a mano non si apre; la chat riparte con la strada», «la domanda già aperta del 22/10 si chiude come superata…» | a44735a1 |
+| «Lo giudico io» al secondo rifiuto, chiusura da sola con un criterio che non si misura | `tests/autopilot-host/criteri-giudicati.test.ts` › «due correzioni rifiutate, poi «lo giudico io»: il lavoro si chiude senza domande a Nicholas», «a lavoro finito, un criterio che non parte non diventa una domanda…» | a44735a1 |
+| «Sono bloccato» si capisce da sola: il lavoro, il controllo che non passa, niente sigle; scelte eseguite dal programma | `tests/autopilot-host/sono-bloccato-0-84-3.test.ts` › «la frase in vista dice il lavoro e il controllo che non passa…», «le scelte: ognuna dice cosa succede, nessuna chiede a Nicholas un lavoro a mano», «22/10: la vecchia «Come vuoi che proceda?» aperta si chiude come superata…» | 217767af |
+| La conseguenza disegnata sotto ogni scelta, su PC, pagina e app | `tests/renderer/conseguenza-sotto-le-scelte.test.tsx` › «sul PC: una riga per scelta…», «sulla pagina del telefono: lo stesso, con la funzione vera della pagina» (**nuovo**, era il punto aperto della Revisione di c-95); `android/…/SceltaSpiegataTest.kt` | 217767af (codice), test in questo turno |
+| Ultima strada: una chat nuova prima di chiedere, una sola anche con hook doppi, tardivi e riavvio | `tests/autopilot-host/collaudo-ultima-strada-0-84-3.test.ts` › «la chat bloccata: prima la chat nuova parte…», «due hook Stop insieme…», «un hook tardivo…», «dopo un riavvio del servizio…» | 217767af, a11bdb8b |
+| La domanda non ferma il lavoro; la sostituta eredita l'ultima strada; la sorella su un altro compito continua (c-99 D1, D2) | `collaudo-ultima-strada-0-84-3.test.ts` › «la chat che ha chiesto non resta ferma…», «la chat dell'ultima strada sostituita dal «mai fermo»: la sostituta che si blocca chiede…», «la sorella che lavora a un altro compito chiude il turno: continua…» | a97eb8c7 |
+| L'autopilota unico interlocutore: il «Punto» in cima su PC, pagina e app | `tests/shared/punto-autopilota.test.ts` › «passo in corso, una riga per chat col compito in parole semplici e il segnale coi colori del PC»; `tests/renderer/punto-autopilota.test.tsx`; `tests/main/punto-pagina.test.ts`; `android/…/PuntoAutopilotaTest.kt` | 9af91d61 |
+| Le righe nella conversazione per ogni chat ferma, con l'azione presa | `tests/autopilot-host/collaudo-punto-0-84-3.test.ts` › «la sorella lavora, l'altra tace: a 15-16 minuti una riga «ferma» con l'azione…»; `mai-fermo-0-84-1.test.ts` › «0.84.3 (il Punto, revisione c-93): ogni chat rimessa al lavoro dal giro ha la sua riga «ferma»…» | 9af91d61, 97f3aa43 |
+| Senza sigle e in italiano corretto (c-96 D1, D3, D4) | `collaudo-punto-0-84-3.test.ts` (shared) › «D1…», «D3…»; `tests/renderer/adesso-panoramica.test.tsx` › «0.84.3 (collaudo c-96 D1)…»; `collaudo-punto-0-84-3.test.ts` (servizio) › «D4: le note che si leggono senza la Panoramica non hanno sigle né i 60 minuti di prima»; `tests/shared/nomi-delle-chat.test.ts` | c796c493, 72c47068, 97aa542a |
+| Aggiornamento senza tempi morti: al massimo 5 minuti dopo «Installa», commit delle chat, fasi col tempo | `tests/main/aggiornamento-senza-tempi-morti.test.ts` › «il caso vero del 22/10: tre chat che non finiscono mai il turno non tengono fermo l'aggiornamento due ore», «un salvataggio che non riesce non blocca l'installazione»; `tests/shared/fasi-aggiornamento.test.ts` | b8fa6802 |
+| L'autopilota mai fermo con il lavoro da finire, dal vivo | la prova di 2 ore qui sotto (`scripts/prova-mai-fermo.ts`, quarto giro) | 01fb57d6 |
+| Nessun file Kotlin oltre 800 righe | conto delle righe: `App.kt` 772, `Api.kt` 754 | — |
+| Guardia delle cancellazioni | `git grep` della consegna: vuoto | — |
 
 ## APK
 
@@ -35,7 +73,7 @@ Creare il tag `v0.84.3` sul commit della versione e pusharlo **prima** di
 `npm run pubblica`: il `main` remoto è fermo a `a22c1dff` (0.80.0) e GitHub, senza
 tag, lo crea lì (successo alla v0.84.2, tag ancora sbagliato).
 
-## Rami di questo lavoro (c-87…c-96)
+## Rami di questo lavoro (c-87…c-109)
 
 Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
 
@@ -48,9 +86,21 @@ Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
 | c-91 | aggiornamento senza tempi morti (tocca `android/`) | unito (cb35b61c); Revisione di c-93 il 23/10, nessun difetto |
 | c-92 | Revisione e unione dei rami; con la scheda di c-24 | unito (82d0c2a2); il ramo non c'è più |
 | c-93 | questa release: revisione di c-90/c-91, prova di 2 ore, versione 0.84.3 | unito a ogni turno |
-| c-94 | ricollaudo delle domande fra PC: verde; caso limite lieve (emoji tagliata al 200° carattere dall'app, 409) | da unire (solo quaderno, 9e0d0a25); il caso limite l'ha corretto c-93 sul suo ramo (23b0d540: `tagliaIntero` nel battito, `dovEOpzione` a 199, `senzaMezziCaratteri` nell'app, test TS e Kotlin) |
-| c-95 | «sono bloccato» in parole semplici (lavoro e controllo che non passa), conseguenza sotto ogni scelta su PC, pagina e app (anche da un altro PC), scelte eseguite dal programma, ultima strada con una chat nuova sullo stesso ramo prima di chiedere, domanda che non ferma la chat, vecchie «Come vuoi che proceda?» chiuse come superate. Tocca `android/` | commit 217767af, **da unire dalla Revisione** quando la chat finisce. **Rivisto da c-93 (23/10, sola lettura, in una copia staccata):** TypeScript pulito; 8 file di test, 285 verdi (sono-bloccato, gesti-a-mano, scheda-domanda, domanda-strutturata, server, decisione, rete-sicurezza, domanda-chiara). Caso vero del 22/10 in un test (`eVecchiaBloccato`, chiusa come superata anche nel servizio). Passa dallo stesso controllo (`validaDomanda`, `scartaSeNonVa`, `domandaDaNonFare`). Niente dati privati, nessuna funzione tolta (le tre scelte vecchie sostituite da tre equivalenti eseguite dal programma). Kotlin: `Modelli.kt` 594 righe, `SchedaDomandaVista.kt` 253. **Lieve, da sapere:** la conseguenza sotto i tasti è provata nella scheda comune e nell'app (`SceltaSpiegataTest`), ma non c'è un test che la veda disegnata nel renderer del PC e nella pagina; il codice c'è (`SchedaDomandaVista.tsx`, `client-pagina.ts`). La riga del diario dell'ultima strada porta i numeri delle chat (come le altre righe del diario); nella conversazione passa da `senzaSigle` |
-| c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | da unire (5f92b4d3); difetti da correggere prima della release |
+| c-94 | ricollaudo delle domande fra PC: verde; caso limite lieve (emoji tagliata al 200° carattere dall'app, 409) | unito nel ramo c-93 (solo quaderno, 9e0d0a25); il caso limite l'ha corretto c-93 sul suo ramo (23b0d540: `tagliaIntero` nel battito, `dovEOpzione` a 199, `senzaMezziCaratteri` nell'app, test TS e Kotlin); poi anche 443c92b2 (solo quaderno), già in main tramite il ramo c-93 |
+| c-95 | «sono bloccato» in parole semplici, conseguenza sotto ogni scelta su PC, pagina e app, scelte eseguite dal programma, ultima strada con una chat nuova prima di chiedere, domanda che non ferma la chat, vecchie «Come vuoi che proceda?» chiuse come superate. Tocca `android/` | **unito tramite il ramo c-93** (dentro c-101, unione 7588f794). Rivisto da c-93: TypeScript pulito, test verdi, caso vero del 22/10 in un test, stesso controllo delle altre domande, niente dati privati. Le tre scelte vecchie trasformate senza perdere niente: «rivedi i criteri» → «Lascia stare quel controllo e vai avanti» (lo giudica l'autopilota, nessun lavoro a mano), «ti dico io la strada» → «Ti scrivo io cosa provare», «fermati» → «Sospendi l'autopilota». Kotlin sotto le 800 righe. Il test del disegno su PC e pagina, che mancava, l'ha scritto c-93: `tests/renderer/conseguenza-sotto-le-scelte.test.tsx` |
+| c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | unito nel ramo c-93 (f8fddde2) e da lì in main; i 4 difetti corretti da c-93 uno per commit (D3 c796c493, D1 72c47068, D2 3654498a con il test «se tace anche la sorella si riprendono tutte e due», D4 97aa542a), nessun `it.fails` rimasto |
+| c-99 | collaudo dell'ultima strada: 9 casi che reggono (una sola chat nuova anche con hook doppi, hook tardivi e riavvio; la chat che chiede continua; a domanda aperta le altre vanno avanti) e 2 difetti con `it.fails` (D1 la sostituta del «mai fermo» rifaceva l'ultima strada, D2 una sorella al lavoro su un altro compito presa per bloccata) | **unito tramite il ramo c-93** (dentro c-101). I 2 test verdi senza `.fails` |
+| c-101 | correzione dei 2 difetti di c-99: la sostituta eredita `ultimaStrada` e chiede; se un'altra chat ha già chiesto sugli stessi controlli, la sorella continua col suo compito (niente ultima strada, niente recupero, niente attesa) | **unito nel ramo c-93** (7588f794, conflitto solo in `lista-lavori.md`, tenute tutte e due le parti), poi in main con il ramo c-93. Rivisto da c-93: niente dati privati, nessuna funzione tolta, test verdi |
+| c-97 | collaudo dell'aggiornamento senza tempi morti, catena intera col caso vero del 22/10: 3 difetti con `it.fails` (D1 attesa del Drive fino a 10 minuti PRIMA dei 5 minuti, che poteva annullare l'installazione; D2 «Installa là» senza le fasi; D3 il riepilogo contava anche le chat di Nicholas) | **unito tramite c-109** (81e72b1f) |
+| c-109 | correzione di D1, D2, D3 di c-97: il Drive si aspetta dentro gli stessi 5 minuti e allo scadere si annulla (si rifà al giro dopo) invece di annullare l'installazione; «Installa là» mostra le fasi col tempo del PC che installa; nel riepilogo solo le chat degli autopiloti | **unito nel ramo c-93** (ffd1c8cf). Rivisto da c-93: niente dati privati, nessuna funzione tolta (`attendiLavoroDrive` resta per gli altri usi), l'installazione la avvia sempre solo Nicholas; i 3 test del collaudo verdi senza `.fails`. Tocca solo il processo principale e gli aggiornamenti, non `src/autopilot-host`: la prova di 2 ore resta valida |
+| c-99 (chat) | il collaudo dell'ultima strada | **chiusa**: i suoi difetti D1 e D2 sono corretti in a97eb8c7, entrato con c-101 tramite il ramo c-93; il ramo `ap/ap-f1e631f5/c-99` non c'è più (controllato il 23/10 02:37 UTC) |
+| c-111 | ricontrollo dei 7 difetti dei collaudi c-96 e c-97 | **chiuso: doppio del Punto**, non unito: un solo commit (fa4683d5), solo nel quaderno (`rami-0-84-3.md`), nessun codice (controllato con `git diff HEAD...c-111`). Utile da sapere: c-111 ha lanciato i test dei collaudi sul codice di PRIMA delle correzioni e falliscono (4 rossi sul Punto, 6 sull'aggiornamento), su main passano tutti (19 su 19): i test misurano davvero i difetti |
+| c-112 | revisione in sola lettura di c-101 | già in main tramite il ramo c-93; nessun ramo da unire |
+| c-110 | un altro collaudo dell'ultima strada | **chiusa senza unire**: il collaudo c-99 è già in main tramite c-101 e il ramo c-93 |
+| c-108 | chat di Revisione chiusa dal supervisore: il suo lavoro era già in main tramite il ramo c-93 | nessun ramo `ap/ap-f1e631f5/c-108` nel repository (controllato con `git branch -a`, 23/10 02:10 UTC) |
+| c-102, c-104 | chat di rilascio o di sviluppo aperte due volte sullo stesso lavoro | **chiuse senza unire perché doppie** (il rilascio resta a c-93). c-104 non ha un ramo; c-102 non ha commit fuori dal ramo c-93 |
+| c-106 | un'altra correzione dei 4 difetti del «Punto» (1da05672, 23/10 01:12 UTC, con un file di prova `tests/_tmp/s.test.ts`) | **chiuso senza unirlo, doppio delle correzioni già in main** (c796c493, 72c47068, 3654498a, 97aa542a); unirlo porterebbe doppioni o conflitti in `server.ts` e nel Punto. Controllato prima del tag: 1da05672 non è in main |
+| c-107, c-113 | revisioni in sola lettura | **chiuse: ramo già in main** (o doppio), chiuse dal supervisore; nessun ramo da unire |
 
 ## Prova di 2 ore senza fermate
 
@@ -78,5 +128,58 @@ in `mai-fermo.ts` con un test rosso prima e verde dopo (commit `1169047a`): il
 giro dice «messe da parte», «riprese che non hanno risposto» o «ferme da più di
 15 minuti mentre le altre lavorano».
 
-**Prova rilanciata alle 2026-10-23T00:11:16Z** sul codice corretto, stesso metodo.
-Numeri: in arrivo alla fine (2 ore dopo).
+**Secondo giro (00:11 UTC), fermato a 54 minuti perché il codice è cambiato.**
+Pulito fino lì: 0 minuti fermi con lavoro da finire, nessun tratto oltre 15
+minuti, la chat muta più a lungo 15,0 minuti (sempre ripresa al giro), 4 giri
+da soli tutti col motivo vero («ferme da più di 15 minuti mentre le altre
+lavorano»), nessun giro che dice «apro» senza aprire, 2 chat passate a una chat
+nuova. Fermato perché la correzione D2 del collaudo del «Punto» tocca
+`mai-fermo.ts` (chi aspetta una sorella che lavora non è ferma).
+
+**Terzo giro (01:05 UTC, sul codice `97aa542a`), fermato a 7 minuti** perché
+è arrivato il ramo dell'ultima strada (c-101, che tocca `mai-fermo.ts` e
+`server.ts`). Fino lì pulito: 0 minuti fermi, chat muta più a lungo 4,4 minuti,
+nessun giro.
+
+**Quarto giro, quello che vale: partito alle 2026-10-23T01:13:34Z** sul commit `7588f794` (il
+ramo c-93 con dentro tutte le voci della 0.84.3, c-101 compreso). Stesso metodo.
+Prima del giro: TypeScript pulito, programma principale 1941 test verdi (2
+saltati), servizio, renderer, condivisi e pty 3145 verdi, app Android compila e
+i test unitari passano, Kotlin al massimo 772 righe (`App.kt`), guardia delle
+cancellazioni pulita, nessun `it.fails` rimasto.
+Durante il giro è entrato il ramo c-109 (correzioni dell'aggiornamento,
+ffd1c8cf, unito alle 02:15 UTC): tocca solo `src/main` e `src/shared`, non
+`src/autopilot-host` (`mai-fermo.ts`, `server.ts` invariati), quindi la prova in
+corso resta valida. Dopo l'unione: TypeScript pulito, programma principale 1949
+test verdi (2 saltati), servizio, renderer, condivisi e pty 3149 verdi; nessun
+`it.fails` (in `collaudo-aggiornamento-0-84-3.test.ts` la parola `.fails` resta
+solo in un commento). `android/` non toccato da c-109.
+
+Build di prova prima di pubblicare (23/10, senza caricare niente): APK release
+2.84.3 firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT»
+(`allega-apk --solo-verifica`); installer con `npm run pacchetto`:
+`SierraDeck Setup 0.84.3.exe` e `latest.yml`, rc 0.
+
+**Numeri finali del quarto giro (01:13:34 → 03:13 UTC, 120 minuti, esito `rc=0`, stato finale «al lavoro»): PULITA.**
+
+| Misura | Valore |
+|---|---|
+| Tratti oltre i 15 minuti con l'autopilota «al lavoro» e nessuna chat che lavora | **0** |
+| Tratti senza nessuna chat al lavoro | **1**, il più lungo **2,8 minuti** secondo lo script (58 secondi secondo il diario delle chat): vedi la riga sotto |
+| Chat rimasta muta più a lungo | **16 minuti** (soglia: 15 minuti più un giro del guardiano) |
+| Misure con una chat muta oltre 17 minuti mentre le sorelle lavorano | **0** |
+| Giri da solo | **10**, tutti col motivo vero: 7 «per le chat ferme da più di 15 minuti mentre le altre lavorano», 3 «per le chat riprese che non hanno risposto» |
+| Giri che dicono «apro» senza aprire niente | **0** |
+| Riprese / sostituzioni / messe da parte / doppioni | 8 / 6 / 0 / 0 |
+| Righe «ferma» nella conversazione | 25 |
+| «Finito» con chat aperte | 0 |
+| Chat simulate | 8 in tutto, 3 aperte alla fine; 37 turni, 9 mute, 2 morte, 6 ferme al prompt |
+
+**Il tratto senza nessuna chat al lavoro, in chiaro:** alle 02:12:38 UTC l'ultima
+chat finta al lavoro (c-5) è diventata muta per caso del simulatore, mentre le
+altre erano già mute o ferme al prompt; alle 02:13:36 UTC (58 secondi dopo) è
+arrivato il riavvio programmato del servizio e due chat sono ripartite. La soglia
+del «mai fermo» (10 minuti senza nessuna chat al lavoro, 15 per una chat ferma)
+non è stata superata. Lo script lo misura in 2,8 minuti perché guarda dal
+servizio, che dopo il riavvio vede le chat al lavoro un po' più tardi. Non è un
+difetto: il «mai fermo» non doveva intervenire. Il supervisore ha confermato.

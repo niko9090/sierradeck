@@ -149,7 +149,7 @@ export function MessaggiPronti({ messaggi, onManda, inCorso }: { messaggi: Stato
 
 /**
  * Il riquadro «Adesso» (0.81.0): una riga per chat, cosa fa, da quanto, e se è
- * ferma perché. Le righe le calcola `puntoDi` (con `adessoDi`), la stessa della pagina e dell'app.
+ * ferma perché. Le righe le calcola `adessoDi`, la stessa della pagina e dell'app.
  */
 export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = false }: {
   autopilota: Autopilota
@@ -159,7 +159,8 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
   soloFerme?: boolean
 }): React.JSX.Element | null {
   const ora = useOra()
-  // Le righe del Punto (collaudo c-96, D1): senza sigle e con il segnale, come pagina e app.
+  // Le righe del Punto (0.84.3, collaudo c-96 D1): le stesse di `adessoDi`, senza
+  // sigle e con il segnale di ogni chat, come sulla pagina e nell'app.
   const tutto = puntoDi(a as Autopilota & SegniDalVivo, ora)
   const righe = soloFerme ? tutto.chat.filter((r) => r.tono === 'ferma') : tutto.chat
   const finite = soloFerme ? 0 : tutto.finite
@@ -172,11 +173,7 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
           <b style={{ color: TINTA[COLORE_ADESSO[r.tono]] }}>{r.chi}</b>
           <span className="adesso-ap__compito" title={r.compito}>{r.compito}</span>
           <span className="adesso-ap__testo" style={{ color: r.tono === 'lavoro' ? undefined : TINTA[COLORE_ADESSO[r.tono]] }}>{r.testo}</span>
-          {r.segnale !== undefined ? (
-            <span className="adesso-ap__segnale" style={{ color: TINTA[r.segnale.colore as Colore] }} title="L’ultimo segnale della chat all’autopilota">
-              {r.segnale.simbolo} {r.segnale.parola}
-            </span>
-          ) : null}
+          {r.segnale !== undefined ? <span className="adesso-ap__segnale" style={{ color: TINTA[r.segnale.colore as keyof typeof TINTA] }}>{r.segnale.simbolo} {r.segnale.parola}</span> : null}
         </div>
       ))}
       {finite > 0 ? <div className="adesso-ap__finite">{finite === 1 ? '1 chat finita' : `${finite} chat finite`}</div> : null}

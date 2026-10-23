@@ -5017,6 +5017,10 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .scheda-domanda__dettagli dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--t1); color: var(--testo); }
 .scheda-domanda__scelte { display: flex; flex-wrap: wrap; gap: 6px; }
 .scheda-domanda__scelte .tasto { white-space: normal; text-align: left; }
+/* 0.84.3: sotto ogni scelta cosa succede. */
+.scheda-domanda__scelte--spiegate { flex-direction: column; flex-wrap: nowrap; }
+.scheda-domanda__scelta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.scheda-domanda__conseguenza { font-size: var(--t1); color: var(--testo-quieto); padding-left: 4px; overflow-wrap: anywhere; }
 .scheda-domanda__scrivi { display: flex; gap: 6px; align-items: flex-end; }
 .scheda-domanda__scrivi textarea { flex: 1; min-height: 44px; resize: vertical; }
 
@@ -5257,7 +5261,6 @@ label.gc-voce { cursor: pointer; }
 .adesso-ap__compito { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
 .adesso-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adesso-ap__riga--ferma .adesso-ap__testo { white-space: normal; }
-.adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .adesso-ap__finite { font-size: var(--t1); color: var(--testo-quieto); }
 /* Il Punto (0.84.3) in cima alla conversazione dell'autopilota. */
 .punto-ap { padding: 6px 10px; border-bottom: 1px solid var(--bordo); display: grid; gap: 2px; font-size: var(--t1); }
@@ -5269,5 +5272,6 @@ label.gc-voce { cursor: pointer; }
 .punto-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .punto-ap__chat--ferma .punto-ap__testo { white-space: normal; }
 .punto-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+.adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .punto-ap__riga { overflow-wrap: anywhere; }
 .punto-ap__limiti { color: var(--testo-quieto); }

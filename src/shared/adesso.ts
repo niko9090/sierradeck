@@ -74,18 +74,6 @@ const istante = (s: string | undefined): number | undefined => {
   return Number.isNaN(t) ? undefined : t
 }
 
-/**
- * La sorella al lavoro che questa chat aspetta (collaudo c-96, D2): la chat ha
- * chiuso il turno con «SEGNALE: aspetto c-N» e c-N lavora. Il suo silenzio è
- * un'attesa dichiarata, non una fermata: non è rossa e non si riprende.
- */
-export function sorellaAspettata(a: Pick<Autopilota, 'chats'>, c: ChatGovernata): ChatGovernata | undefined {
-  const s = c.segnale
-  if (s?.tipo !== 'aspetto' || s.di === undefined || s.di === c.id) return undefined
-  const sorella = a.chats.find((x) => x.id === s.di)
-  return sorella !== undefined && sorella.stato === 'lavoro' ? sorella : undefined
-}
-
 const daQuanto = (dal: string | undefined, ora: number): string => {
   const t = istante(dal)
   return t === undefined ? '' : ` da ${durata(ora - t)}`
@@ -93,13 +81,14 @@ const daQuanto = (dal: string | undefined, ora: number): string => {
 
 /** La riga di una chat della flotta. */
 function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): RigaAdesso {
-  // Mai la sigla (collaudo c-96, D1): senza ruolo è «Una chat», e il compito la distingue.
-  const base = { id: c.id, chi: nomeChi(c), compito: compitoBreve(c.compito) }
+  // 0.84.3 (collaudo c-96, D1): senza sigle anche qui, come nel Punto. Una chat
+  // senza ruolo è «Una chat», distinta dal suo compito; il compito senza «(c-14)».
+  const base = { id: c.id, chi: nomeChi(c), compito: senzaSigle(compitoBreve(c.compito)) }
   const dal = daQuanto(c.dal, ora)
   // In «attesa» le chat della flotta continuano (come `chatAlLavoro`): solo
   // con l'autopilota fermo sono ferme tutte, con il suo motivo.
   if (a.stato !== 'lavoro' && a.stato !== 'attesa') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${a.motivoSospensione})` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${senzaSigle(a.motivoSospensione)})` : ''
     return { ...base, testo: `ferma: l’autopilota è fermo${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(c.id) === true) {
@@ -113,17 +102,19 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   // Dopo un riavvio del servizio una chat viva dà un segno entro pochi minuti:
   // prima di allora l'assenza di segni non dice niente.
   const senzaSegni = segno === undefined && (raccolti === undefined || ora - raccolti >= MAI_PARTITA_DA_MS)
-  const sorella = sorellaAspettata(a, c)
-  if (sorella !== undefined) {
-    const da = istante(c.segnale?.quando)
-    return { ...base, testo: `aspetta ${nomeChi(sorella)} («${compitoBreve(sorella.compito, 40)}»)${da !== undefined ? ` da ${durata(ora - da)}` : ''}`, tono: 'aspetta' }
-  }
   if (c.cicli === 0 && senzaSegni && aperta !== undefined && ora - aperta >= MAI_PARTITA_DA_MS) {
     return { ...base, testo: `non è ancora partita: aperta ${durata(ora - aperta)} fa, nessun segno`, tono: 'ferma' }
   }
   // Muta da: l'ultimo segno; senza segni, da quando li si raccoglie (o da quando
   // è al lavoro, se è dopo). Senza nessuna delle due date non si giudica.
   const riferimento = segno ?? (raccolti === undefined ? undefined : Math.max(raccolti, aperta ?? raccolti))
+  // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che dà segni non è
+  // ferma: aspetta. Se la sorella tace anche lei, valgono le regole di sotto.
+  const sorella = c.segnale?.tipo === 'aspetto' && c.segnale.di !== undefined ? a.chats.find((x) => x.id === c.segnale?.di && x.stato === 'lavoro') : undefined
+  const segnoSorella = sorella !== undefined ? istante(a.segniChat?.[sorella.id]) : undefined
+  if (sorella !== undefined && segnoSorella !== undefined && ora - segnoSorella < MUTA_DA_MS) {
+    return { ...base, testo: `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»), che lavora${daQuanto(c.segnale?.quando, ora)}`, tono: 'aspetta' }
+  }
   if (riferimento !== undefined && ora - riferimento >= MUTA_DA_MS) {
     const testo = c.cicli === 0 && segno === undefined ? `non è ancora partita: nessun segno da ${durata(ora - riferimento)}` : `nessun segno da ${durata(ora - riferimento)}`
     return { ...base, testo, tono: 'ferma' }
@@ -138,7 +129,7 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   // Niente «da quanto»: `ultimoEvento` cambia a ogni salvataggio, non è l'ora della domanda.
   if (a.stato === 'attesa') return { ...base, testo: 'aspetta la tua risposta', tono: 'aspetta' }
   if (a.stato !== 'lavoro') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${a.motivoSospensione}` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${senzaSigle(a.motivoSospensione)}` : ''
     return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(a.id) === true) {
@@ -153,9 +144,6 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   return { ...base, testo: `al lavoro${ultima}`, tono: 'lavoro' }
 }
 
-/** Le parole di una riga senza sigle (collaudo c-96, D1): le stesse su PC, pagina e app. */
-const pulita = (r: RigaAdesso): RigaAdesso => ({ ...r, compito: senzaSigle(r.compito), testo: senzaSigle(r.testo) })
-
 /**
  * Le righe di «Adesso». Prima le ferme, poi chi aspetta te, poi le altre: la
  * cosa da sapere sta in cima. Niente righe per un autopilota finito o che non
@@ -163,10 +151,10 @@ const pulita = (r: RigaAdesso): RigaAdesso => ({ ...r, compito: senzaSigle(r.com
  */
 export function adessoDi(a: Autopilota & SegniDalVivo, ora: number): Adesso {
   if (a.stato === 'finito' || a.stato === 'intervista' || a.stato === 'pronto') return { righe: [], finite: 0 }
-  if (a.chats.length === 0) return a.sessionId === undefined ? { righe: [], finite: 0 } : { righe: [pulita(rigaSola(a, ora))], finite: 0 }
+  if (a.chats.length === 0) return a.sessionId === undefined ? { righe: [], finite: 0 } : { righe: [rigaSola(a, ora)], finite: 0 }
   const vive = a.chats.filter((c) => c.stato !== 'finita')
   const peso: Record<RigaAdesso['tono'], number> = { ferma: 0, aspetta: 1, pausa: 2, lavoro: 3 }
-  const righe = vive.map((c) => pulita(rigaChat(a, c, ora))).sort((x, y) => peso[x.tono] - peso[y.tono])
+  const righe = vive.map((c) => rigaChat(a, c, ora)).sort((x, y) => peso[x.tono] - peso[y.tono])
   return { righe, finite: a.chats.length - vive.length }
 }
 

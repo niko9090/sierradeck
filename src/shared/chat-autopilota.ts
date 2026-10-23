@@ -72,7 +72,9 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({
       quando: v.quando,
       da: 'nota',
-      testo: conNomiChat(v.titolo, a.chats),
+      // 0.84.3 (collaudo c-96, D4): la nota si legge anche senza la Panoramica:
+      // le chat per nome, non per sigla.
+      testo: conNomiDelleChat(a, v.titolo),
       ...(v.dettaglio !== undefined ? { dettaglio: v.dettaglio } : {}),
       ...(v.tipo !== undefined ? { tono: v.tipo } : {})
     })
@@ -233,61 +235,48 @@ export function compitoBreve(compito: string, max = 60): string {
   return `${(spazio > max / 2 ? taglio.slice(0, spazio) : taglio).replace(/[\s,:;–-]+$/, '')}…`
 }
 
-/** Una sigla interna: «c-12», «gruppo 3», «ap-f1e631f5». */
-const SIGLA = String.raw`(?:c-\d+[a-z0-9-]*|grupp[oi] \d+|ap-[0-9a-f]{6,})`
-/** Più sigle di fila: «c-90 e c-91», «c-1, c-2 e c-3». */
-const SIGLE = String.raw`${SIGLA}(?:\s*(?:,|\be\b|\bed\b|\bo\b)\s*${SIGLA})*`
-/** Le preposizioni e gli articoli che reggono una sigla: tolta lei, vanno via anche loro. */
-const REGGE = String.raw`(?:di|del|dello|della|dei|degli|delle|a|al|allo|alla|ai|agli|alle|da|dal|dallo|dalla|dai|dagli|dalle|in|nel|nello|nella|nei|negli|nelle|su|sul|sullo|sulla|sui|sugli|sulle|per|con|fra|tra|il|lo|la|i|gli|le|e|ed|o)`
+/** Una sigla interna («c-12», «gruppo 3») e un elenco di sigle («c-90 e c-91»). */
+const SIGLA = '(?:\\bc-\\d+[a-z0-9-]*\\b|\\bgrupp[oi] \\d+\\b)'
+const LISTA_SIGLE = `${SIGLA}(?:\\s*(?:,|\\be\\b|\\bed\\b|\\bo\\b)\\s*${SIGLA})*`
+/** Le preposizioni che reggono una sigla e che, tolta lei, resterebbero sole. */
+const PREPOSIZIONI = '(?:di|del|dello|della|dei|degli|delle|da|dal|dallo|dalla|dai|a|al|allo|alla|ai|in|nel|nello|nella|nei|su|sul|sulla|sui|per|con|tra|fra)'
 
 /**
  * Il testo senza le sigle interne: «c-12», «(c-3)», «gruppo 3», i nomi dei
  * rami e degli autopiloti. Nicholas (22/10): le sigle non dicono niente a chi
  * legge; il compito si dice con le sue parole.
- *
- * Collaudo c-96 (D3): con la sigla va via anche la parola che la regge, o la
- * frase resta rotta: «La Revisione di c-90 e c-91» è «La Revisione», non «La
- * Revisione di e»; «…del gestionale del gruppo 3» finisce con «gestionale».
  */
 export function senzaSigle(testo: string): string {
   return testo
     .replace(/\bap\/[\w./-]+/g, '')
-    .replace(new RegExp(String.raw`\(\s*(?:chat\s+)?${SIGLE}\s*\)`, 'gi'), '')
-    .replace(/\b(?:la |della |alla |dalla |nella )?chat c-\d+[a-z0-9-]*\b/gi, (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s*c-\d+[a-z0-9-]*$/i, '') : 'chat'))
-    .replace(new RegExp(String.raw`(^|[\s(])${REGGE}\s+${SIGLE}\b`, 'gi'), '$1')
-    .replace(new RegExp(String.raw`\b${SIGLE}\b`, 'gi'), '')
+    .replace(/\bap-[0-9a-f]{6,}\b/gi, '')
+    .replace(new RegExp(`\\(\\s*(?:chat\\s+)?${LISTA_SIGLE}\\s*\\)`, 'gi'), '')
+    .replace(new RegExp(`\\b(?:la |della |alla |dalla |nella )?chat ${LISTA_SIGLE}`, 'gi'), (m) => (/^(la|della|alla|dalla|nella) /i.test(m) ? m.replace(/\s+chat\s.*$/i, ' chat') : 'chat'))
+    // 0.84.3 (collaudo c-96, D3): la sigla se ne va con la preposizione che la
+    // regge e con le sorelle dell'elenco: «di c-90 e c-91» non lascia «di e»,
+    // «del gruppo 3» non lascia «del».
+    .replace(new RegExp(`(?:\\b${PREPOSIZIONI}\\s+)?${LISTA_SIGLE}`, 'gi'), '')
     .replace(/\(\s*\)/g, '')
     .replace(/\s+([,.;:)])/g, '$1')
     .replace(/([(])\s+/g, '$1')
     .replace(/^[\s,;:—–-]+/, '')
-    .replace(/[\s,;:—–-]+$/, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }
 
 /**
- * Una nota di lavoro con le chat chiamate per nome (collaudo c-96, D4): senza
- * la Panoramica si leggono le note, e «c-2 è ferma…» diventa «Interfaccia
- * («La pagina del telefono») è ferma…». Una chat che non c'è più è «una chat».
+ * Le sigle delle chat dette col loro nome (0.84.3, collaudo c-96 D4): «la chat
+ * c-2 non dà segnali» → «Sviluppo non dà segnali», «c-2: nessun segnale» →
+ * «Sviluppo: nessun segnale». I nomi dei rami (`ap/…/c-2`) restano: sono la
+ * riga tecnica di «Cosa è successo», e lì servono per ritrovare il lavoro.
  */
-export function conNomiChat(testo: string, chats: Pick<ChatGovernata, 'id' | 'ruolo' | 'compito'>[]): string {
-  const nome = (id: string): string => {
-    const c = chats.find((x) => x.id.toLowerCase() === id.toLowerCase())
-    if (c === undefined) return 'una chat'
-    const compito = senzaSigle(compitoBreve(c.compito, 40))
-    return c.ruolo !== undefined ? `${nomeChi(c)} («${compito}»)` : `la chat «${compito}»`
-  }
-  // I nomi dei rami restano: in «Cosa è successo» la riga è tecnica.
-  const t = testo.split(/(\bap\/[\w./-]+)/).map((parte, i) => (i % 2 === 1
-    ? parte
-    : parte
-      .replace(/\b(?:la )?chat (c-\d+[a-z0-9-]*)\b/gi, (_m, id: string) => nome(id))
-      // «Revisione c-3» non diventa «Revisione Revisione («…»)».
-      .replace(/(?:(\p{L}+) )?\b(c-\d+[a-z0-9-]*)\b/giu, (_m, prima: string | undefined, id: string) => {
-        const n = nome(id)
-        return prima === undefined ? n : n.startsWith(`${prima} `) ? n : `${prima} ${n}`
-      }))).join('')
-  return t !== testo && /^(?:la )?(?:chat )?c-\d/i.test(testo) ? t.charAt(0).toUpperCase() + t.slice(1) : t
+export function conNomiDelleChat(a: Pick<Autopilota, 'chats'>, testo: string): string {
+  const ruoli = Object.values(RUOLI).map((r) => r.nome).join('|')
+  return testo.replace(new RegExp(`(?<![/\\w-])(?:(?:la|una) )?(?:chat )?(?:(?:${ruoli}) )?(c-\\d+)\\b`, 'gi'), (intero, id: string) => {
+    const c = a.chats.find((x) => x.id === id.toLowerCase())
+    if (c === undefined) return intero
+    return c.ruolo !== undefined ? nomeChi(c) : `la chat «${compitoBreve(c.compito, 40)}»`
+  })
 }
 
 /** «Sviluppo», «Revisione»… o «Una chat» per una chat senza ruolo. */
