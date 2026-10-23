@@ -75,6 +75,8 @@ data class RichiestaNelPunto(
  */
 @Serializable
 data class PuntoAutopilota(
+    /** Sopra tutto (PC 0.85.0): le tre righe a colpo d'occhio. Assente con un PC più vecchio. */
+    val indicatore: IndicatoreAutopilota? = null,
     /** In cima (PC 0.85.0): le richieste di Nicholas aperte o fatte da poco. */
     val richieste: List<RichiestaNelPunto> = emptyList(),
     val richiesteTotale: Int = 0,
@@ -122,6 +124,7 @@ object RighePunto {
 fun PuntoAutopilotaVista(p: PuntoAutopilota) {
     Spacer(Modifier.height(6.dp))
     Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(6.dp)).padding(8.dp)) {
+        p.indicatore?.let { IndicatoreAutopilotaVista(it) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Punto", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
             Aiuto(p.aiuto, di = "Punto")

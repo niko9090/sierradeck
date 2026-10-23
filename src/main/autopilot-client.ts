@@ -2,6 +2,7 @@ import type { DomandaRisolta } from '@shared/domande-telefono'
 import { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
+import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 
@@ -162,7 +163,8 @@ export type ClientAutopilota = {
    * «esc to interrupt» — e ogni minuto lo dice al servizio.
    */
   /** `ferme` (0.56.3): le chat governate che lo schermo dice ferme ad aspettare. */
-  battiti: (segni: { autopilota: string; chat: string }[], ferme?: { autopilota: string; chat: string; dal?: string }[]) => Promise<void>
+  /** `veri` (0.85.0): l'ultimo segnale vero di ogni chat governata (commit, test, file, terminale), per l'indicatore. */
+  battiti: (segni: { autopilota: string; chat: string }[], ferme?: { autopilota: string; chat: string; dal?: string }[], veri?: { autopilota: string; chat: string; tipo: TipoSegnaleVero; quando: string }[]) => Promise<void>
   /**
    * Lo stato del programma, in sola lettura, per l'autopilota (T1, 0.36.0):
    * chat aperte, limiti del piano, domande in attesa, progetti, altri PC.
@@ -351,8 +353,8 @@ export function creaClientAutopilota(p: {
       }
     },
 
-    async battiti(segni, ferme = []) {
-      await chiama('/battiti', 'POST', { segni, ferme })
+    async battiti(segni, ferme = [], veri = []) {
+      await chiama('/battiti', 'POST', { segni, ferme, veri })
     },
 
     async statoProgramma(stato) {

@@ -83,6 +83,7 @@ import {
 } from './worktree'
 import { allineaHookEccDiTutte } from './hook-ecc'
 import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
+import { leggiSegnaleVero, type SegnaleVero } from '@shared/indicatore-autopilota'
 
 export type Dipendenze = {
   archivio: Archivio
@@ -912,6 +913,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * piu' di un'ora.
    */
   const ultimoSegno = new Map<string, number>()
+  /**
+   * L'ultimo segnale **vero** di ogni chat (0.85.0, l'indicatore): commit,
+   * test, file cambiati, uscita del terminale, letti dal Gestore negli hook di
+   * Claude Code. Il battito dice solo che lo schermo sembra al lavoro; questo
+   * dice cosa la chat ha fatto davvero, e quando.
+   */
+  const ultimoVero = new Map<string, SegnaleVero>()
   /**
    * Da quando il Gestore vede ferma ad aspettare ogni chat governata (0.56.3):
    * la prima volta che lo dice, finché non la rivede lavorare o non le si
@@ -4837,6 +4845,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             fermaDal.delete(chiaveDi(autopilota, chat))
             contati += 1
           }
+          // 0.85.0: l'ultimo segnale vero di ogni chat, per l'indicatore.
+          const veri = typeof corpo === 'object' && corpo !== null && Array.isArray((corpo as Record<string, unknown>).veri)
+            ? ((corpo as Record<string, unknown>).veri as unknown[])
+            : []
+          for (const s of veri) {
+            if (typeof s !== 'object' || s === null) continue
+            const { autopilota, chat } = s as Record<string, unknown>
+            const vero = leggiSegnaleVero(s)
+            if (typeof autopilota !== 'string' || autopilota === '' || vero === undefined) continue
+            const k = chiaveDi(autopilota, chat)
+            const prima = ultimoVero.get(k)
+            if (prima === undefined || prima.quando < vero.quando) ultimoVero.set(k, vero)
+          }
           // Le chat governate ferme ad aspettare (0.56.3): da quando.
           const ferme = typeof corpo === 'object' && corpo !== null && Array.isArray((corpo as Record<string, unknown>).ferme)
             ? ((corpo as Record<string, unknown>).ferme as unknown[])
@@ -4958,7 +4979,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const testo = JSON.stringify(deps.archivio.elenca().map((a) => {
             const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
             const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
-            if (segni.length === 0) return { ...a, segniDal }
+            // 0.85.0: i segnali veri per l'indicatore, chat per chat (la chat sola con l'id dell'autopilota).
+            const segniVeri: Record<string, SegnaleVero> = {}
+            if (a.chats.length === 0) {
+              const v = ultimoVero.get(chiaveTurno(a.id))
+              if (v !== undefined) segniVeri[a.id] = v
+            }
+            for (const c of a.chats) {
+              const v = ultimoVero.get(chiaveTurno(a.id, c.id))
+              if (v !== undefined) segniVeri[c.id] = v
+            }
+            const conVeri = Object.keys(segniVeri).length > 0 ? { segniVeri } : {}
+            if (segni.length === 0) return { ...a, segniDal, ...conVeri }
             // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
             const segniChat: Record<string, string> = {}
             if (a.chats.length > 0) {
@@ -4967,7 +4999,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
                 if (t !== undefined) segniChat[c.id] = new Date(t).toISOString()
               }
             }
-            return { ...a, segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}) }
+            return { ...a, segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}), ...conVeri }
           }))
           // 0.81.0: «non cambiato» (304) a chi ha già questo elenco. Lo chiedono
           // finestre, pannello e telefono ogni 2-5 s, e un autopilota con

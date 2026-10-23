@@ -5,6 +5,7 @@ import { pianoAutopilota } from './panoramica'
 import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
 import { COLORE_RICHIESTA, giornoDi, parolaStato, statoRichiesta, type StatoRichiesta } from './richieste-nicholas'
 import { velocitaDi } from './velocita-richieste'
+import { indicatoreDi, type Indicatore, type SegniVeri } from './indicatore-autopilota'
 
 export { senzaSigle }
 
@@ -41,6 +42,8 @@ export type ChatNelPunto = RigaAdesso & {
 }
 
 export type Punto = {
+  /** Sopra tutto (0.85.0): le tre righe a colpo d'occhio, dai soli segnali veri. */
+  indicatore: Indicatore
   /**
    * In cima (0.85.0): le richieste di Nicholas ancora aperte, o fatte da poco,
    * con lo stato. Vuoto: nessuna richiesta registrata.
@@ -166,7 +169,7 @@ export function rigaLimiti(l: { cinqueOre?: number; settimana?: number } | undef
  * Nicholas (le sa il PC, non l'autopilota). `limiti`: le percentuali lette.
  */
 export function puntoDi(
-  a: Autopilota & SegniDalVivo,
+  a: Autopilota & SegniDalVivo & SegniVeri,
   ora: number,
   p: { domandeAperte?: number; limiti?: { cinqueOre?: number; settimana?: number } } = {}
 ): Punto {
@@ -203,6 +206,7 @@ export function puntoDi(
   const richieste = richiesteNelPunto(a, ora)
   const velocita = velocitaDi(a, ora)
   return {
+    indicatore: indicatoreDi(a, ora),
     richieste: richieste.righe,
     richiesteTotale: richieste.totale,
     passo: passoDi(a),

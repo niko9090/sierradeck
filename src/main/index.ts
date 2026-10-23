@@ -20,6 +20,7 @@ import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
+import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
@@ -6323,9 +6324,16 @@ if (!app.requestSingleInstanceLock()) {
               const st = c.sessione !== undefined ? statoDaSegnali(segnaliPerSessione.get(c.sessione) ?? []) : undefined
               return { autopilota: c.autopilota!.id, chat: c.autopilota!.chat, ...(st?.fase === 'aspetta' ? { dal: st.dal } : {}) }
             })
-          if (segni.length > 0 || ferme.length > 0) {
+          // 0.85.0: l'ultimo segnale vero di ogni chat governata, dagli hook (mai dallo schermo).
+          const veri = chatAperte
+            .filter((c) => c.autopilota !== undefined && c.sessione !== undefined)
+            .flatMap((c) => {
+              const v = segnaleVeroDa(segnaliPerSessione.get(c.sessione!) ?? [])
+              return v !== undefined ? [{ autopilota: c.autopilota!.id, chat: c.autopilota!.chat, ...v }] : []
+            })
+          if (segni.length > 0 || ferme.length > 0 || veri.length > 0) {
             ultimoBattitoAlServizio = ora
-            void clientAutopilota.battiti(segni, ferme).catch(() => undefined)
+            void clientAutopilota.battiti(segni, ferme, veri).catch(() => undefined)
           }
         }
         // T1: lo stato del programma, in sola lettura, all'autopilota — chi
