@@ -41,7 +41,6 @@ const MESSAGGIO_MAX = 4000
  */
 export function argomentiSupervisore(
   claudeCmd: string,
-  prompt: string,
   cwd: string,
   sessionId: string | undefined,
   avvia: (comando: string, args: string[]) => void,
@@ -55,12 +54,13 @@ export function argomentiSupervisore(
    */
   nuovaSessione?: string
 ): void {
-  void prompt // resta fra i parametri per chi lo chiama: va sull ingresso, non qui
   avvia(claudeCmd, [
-    // **Il prompt non va sulla riga di comando** (0.85.1): su Windows la riga
-    // ha un tetto di 32.767 caratteri, e il 23/10 un prompt più lungo ha fatto
-    // fallire il supervisore 239 volte con «spawn ENAMETOOLONG». `-p` senza
-    // testo legge il prompt dall'ingresso, che `interrogazioneReale` gli scrive.
+    // **Il prompt non è qui: arriva dall'ingresso** (0.85.1). Come argomento
+    // superava il limite della riga di comando di Windows (32.767 caratteri)
+    // appena l'obiettivo e i criteri crescevano, e ogni interrogazione falliva
+    // con «spawn ENAMETOOLONG» prima ancora di partire: 239 volte il 23/10,
+    // 124 di fila, con l'autopilota fermo e domande nate dal supervisore muto.
+    // `-p` senza testo legge il prompt dallo stdin, che non ha limiti.
     '-p',
     '--output-format', 'json',
     // Gli stessi permessi delle chat governate, e per la stessa ragione: il
@@ -99,11 +99,11 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
   return env
 }
 
-export function interrogazioneReale(
-  claudeCmd: string,
-  /** Argomenti prima dei nostri: servono ai test, per far girare un `claude` finto con Node. */
-  primaDegliArgomenti: string[] = []
-): Interrogazione {
+/**
+ * `primaDegliArgomenti`: quello che va prima di `-p` — vuoto per `claude.exe`;
+ * nei test lo script finto da far girare con Node.
+ */
+export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: string[] = []): Interrogazione {
   return (prompt, cwd, sessionId, opzioni) =>
     new Promise((risolvi, rifiuta) => {
       // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
@@ -118,7 +118,7 @@ export function interrogazioneReale(
       }
       let args: string[] = []
       argomentiSupervisore(
-        claudeCmd, prompt, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione
+        claudeCmd, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione
       )
       const figlio = execFile(
         claudeCmd,
@@ -173,11 +173,65 @@ export function interrogazioneReale(
           }
         }
       )
-      // **Il prompt sull'ingresso, e poi lo si chiude** (0.85.1): così non ha
-      // tetti di lunghezza, e Claude Code non resta ad aspettare altro.
-      figlio.stdin?.on('error', () => { /* il figlio è già uscito: il motivo lo dice la sua uscita */ })
+      // **Il prompt sull ingresso, e poi chiuso** (0.85.1). Chiuderlo subito
+      // dopo conta quanto scriverlo: Claude Code legge fino alla fine, e senza
+      // la fine resterebbe ad aspettare. Un ingresso che si rompe (il comando
+      // è già uscito) lo racconta la callback di execFile, non questo errore.
+      figlio.stdin?.on('error', () => { /* lo dice l uscita del comando */ })
       figlio.stdin?.end(prompt, 'utf8')
     })
+}
+
+/** Dopo quanti fallimenti di fila il supervisore si dice muto (0.85.1). */
+export const ALLARME_DOPO = 3
+
+export type AllarmeSupervisore = { volte: number; motivo: string; dal: string; cwd: string }
+
+/**
+ * Conta i fallimenti **di fila** del supervisore (0.85.1).
+ *
+ * Il 23/10 ha fallito 124 volte di seguito con lo stesso «spawn ENAMETOOLONG»
+ * e da fuori non se ne accorgeva nessuno: ogni chiamata ingoia il suo errore
+ * e ricade sulle regole, giustamente, ma così un supervisore muto per ore
+ * sembrava solo un autopilota lento che faceva domande strane. Al terzo di
+ * fila `allarme` lo dice una volta, con il motivo; una risposta riuscita
+ * azzera il conto e lo dice con `ripreso`.
+ */
+export function conAllarme(
+  interroga: Interrogazione,
+  opz: {
+    adesso: () => string
+    allarme: (a: AllarmeSupervisore) => void
+    ripreso?: (dopo: number) => void
+  }
+): Interrogazione & { muto: () => AllarmeSupervisore | undefined } {
+  let volte = 0
+  let dal = ''
+  let ultimo: AllarmeSupervisore | undefined
+  const avvolta = (async (prompt, cwd, sessionId, opzioni) => {
+    try {
+      const r = await interroga(prompt, cwd, sessionId, opzioni)
+      if (volte >= ALLARME_DOPO) opz.ripreso?.(volte)
+      volte = 0
+      ultimo = undefined
+      return r
+    } catch (err) {
+      if (volte === 0) dal = opz.adesso()
+      volte += 1
+      const motivo = (err instanceof Error ? err.message : String(err))
+        .replace(/^interrogazione del supervisore fallita:\s*/, '').split('\n')[0]!.slice(0, 300)
+      ultimo = { volte, motivo, dal, cwd }
+      if (volte === ALLARME_DOPO) opz.allarme(ultimo)
+      throw err
+    }
+  }) as Interrogazione & { muto: () => AllarmeSupervisore | undefined }
+  avvolta.muto = () => (volte >= ALLARME_DOPO ? ultimo : undefined)
+  return avvolta
+}
+
+/** La riga dell'allarme, uguale nel registro del servizio e in quello dell'autopilota. */
+export function rigaAllarme(a: Pick<AllarmeSupervisore, 'volte' | 'motivo'>): string {
+  return `supervisore muto: ${a.volte} interrogazioni fallite di fila — ${a.motivo}`
 }
 
 export function componiPromptGiudizio(a: Autopilota, ultimoMessaggio: string): string {

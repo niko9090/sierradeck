@@ -11,7 +11,6 @@ import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type Decisione as Mossa, type EsitoVerifica
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
-import { conAllarme, rigaAllarme } from './supervisore-muto'
 import { prossimaGuardia, rigaPcCarico, type PcCarico, type StatoGuardia } from '@shared/guardia-pc'
 import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
 import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
@@ -37,7 +36,7 @@ import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type 
 import { fattiVerificati } from './fatti'
 import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
-  chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
+  chiediCambio, chiediGiudizio, componiPromptScomposizione, conAllarme, leggiCompiti, riparaComando, rigaAllarme,
   type Interrogazione
 } from './supervisore'
 import { dopoAvvioFallito, pianificaFlotta, tettoDellaFlotta } from './flotta'
@@ -708,6 +707,22 @@ export const RIPRESA_RAVVICINATA_MS = 30_000
 const USCITA_RICORDATA = 600
 
 export function creaServer(deps: Dipendenze): ServerAutopiloti {
+  // 0.85.1: il supervisore muto si vede. Al terzo fallimento di fila una riga
+  // nel registro del servizio e in quello degli autopiloti della sua cartella,
+  // e finché dura l'indicatore lo dice in rosso, con il motivo.
+  const supervisore = conAllarme(deps.interroga, {
+    adesso: () => deps.adesso(),
+    allarme: (al) => {
+      const riga = rigaAllarme(al)
+      console.error(`[supervisore] ALLARME — ${riga} (cartella ${al.cwd}, dal ${al.dal})`)
+      for (const a of deps.archivio.elenca()) {
+        if (a.cwd !== al.cwd || a.stato === 'finito' || a.stato === 'fallito') continue
+        salva({ ...a, decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: riga }] })
+      }
+    },
+    ripreso: (dopo) => { console.info(`[supervisore] risponde di nuovo, dopo ${dopo} interrogazioni fallite di fila`) }
+  })
+  deps = { ...deps, interroga: supervisore }
   // 0.81.0: da quando il servizio raccoglie i segni di vita. Prima di un
   // riavvio non ne ha nessuno: «nessun segno» si misura da qui, non dall'eterno.
   const segniDal = deps.adesso()
@@ -756,14 +771,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   // 0.85.1: il supervisore che fallisce di fila non resta muto. Al terzo
   // fallimento una riga nel registro di ogni lavoro in corso; finché dura,
   // l'allarme sta nell'elenco e quindi nell'indicatore.
-  const supervisore = conAllarme(deps.interroga, deps.adesso, (s) => {
-    console.warn(`[supervisore] ${rigaAllarme(s)}`)
-    for (const a of deps.archivio.elenca()) {
-      if (a.stato !== 'lavoro' && a.stato !== 'attesa') continue
-      salva({ ...a, decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: rigaAllarme(s) }] })
-    }
-  })
-  deps = { ...deps, interroga: supervisore.interroga }
 
   /**
    * T1: lo stato del programma, in sola lettura, come lo spinge il Gestore
@@ -5040,10 +5047,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               const v = ultimoVero.get(chiaveTurno(a.id, c.id))
               if (v !== undefined) segniVeri[c.id] = v
             }
-            const conVeri = Object.keys(segniVeri).length > 0 ? { segniVeri } : {}
-            // 0.85.1: il supervisore che non risponde di fila, per l'allarme dell'indicatore.
-            const muto = supervisore.stato()
-            if (muto !== undefined) Object.assign(conVeri, { supervisoreMuto: muto })
+            // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
+            const muto = supervisore.muto()
+            const conVeri = {
+              ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
+              ...(muto !== undefined && muto.cwd === a.cwd ? { supervisoreMuto: { volte: muto.volte, motivo: muto.motivo, dal: muto.dal } } : {})
+            }
             // 0.85.1: la Guardia del PC, per la riga «PC carico: aspetto».
             const carico = pcCarico()
             if (carico !== undefined) Object.assign(conVeri, { pcCarico: carico })
