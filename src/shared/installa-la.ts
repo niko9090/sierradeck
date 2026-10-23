@@ -21,6 +21,11 @@ export type StatoAggiornamentoRemoto = {
   chatOccupate?: number
   attesaChat?: string
   attesa?: string
+  /**
+   * Le fasi con il tempo, come le vede quel PC (0.84.3): «Scaricato in 40 s ·
+   * salvo le chat da 2 min (al massimo 5 min) · poi installo e riparto».
+   */
+  fasiTesto?: string
   tentativoFallito?: { titolo: string; motivo: string; strade: string[]; pagina: string; versione?: string }
 }
 
@@ -130,9 +135,15 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
   if (m.installato) {
     if (s?.fase === 'attendo') {
       const perche = s.attesa ?? s.attesaChat ?? (s.chatOccupate !== undefined && s.chatOccupate > 0 ? `${s.chatOccupate} chat stanno finendo il turno` : 'il lavoro in corso')
+      // Le fasi col tempo di quel PC, le stesse che si vedono là (0.84.3).
+      if (s.fasiTesto !== undefined && s.fasiTesto !== '') {
+        return { fase: 'attendo', messaggio: `${nome}: ${s.fasiTesto} (${perche}). Le chat là riprendono da sole dopo l’installazione.` }
+      }
       return { fase: 'attendo', messaggio: `${nome} aspetta la quiete prima di chiudersi: ${perche}. Le chat là riprendono da sole dopo l’installazione.` }
     }
-    if (s?.fase === 'installo') return { fase: 'installo', messaggio: `${nome} si sta chiudendo per installare.` }
+    if (s?.fase === 'installo') {
+      return { fase: 'installo', messaggio: s.fasiTesto !== undefined && s.fasiTesto !== '' ? `${nome}: ${s.fasiTesto}.` : `${nome} si sta chiudendo per installare.` }
+    }
     if (m.mutoDal !== undefined || s?.tentativoFallito !== undefined) {
       // E' tornato, con la versione di prima.
       const t = s?.tentativoFallito

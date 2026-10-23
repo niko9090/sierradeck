@@ -17,7 +17,7 @@ function banco(chats: () => ChatInVolo[]) {
   const fatti: string[] = []
   let orologio = INSTALLA
   let pausa: PausaSalvata | undefined
-  let chiusa: { come: string; interrotte: number } | undefined
+  let chiusa: { come: string; interrotte: number; alLavoro: number } | undefined
   const deps = {
     chat: chats,
     pausaAutopiloti: async (attiva: boolean) => { fatti.push(attiva ? 'pausa' : 'disfa'); return 2 },
@@ -25,7 +25,7 @@ function banco(chats: () => ChatInVolo[]) {
     annota: (p: PausaSalvata) => { pausa = p },
     avvisa: () => {},
     salvaSubito: async () => { fatti.push(`salvo@${new Date(orologio).toISOString()}`) },
-    chiusa: (e: { come: string; interrotte: number }) => { chiusa = e },
+    chiusa: (e: { come: string; interrotte: number; alLavoro: number }) => { chiusa = e },
     adesso: () => orologio,
     aspetta: (ms: number) => { orologio += ms; return Promise.resolve() },
     tetto: ATTESA_INSTALLA_MS,
@@ -51,7 +51,8 @@ describe('dopo «Installa»: chat salvate e ferme entro 5 minuti, poi si install
     expect(b.fatti.filter((f) => f.endsWith(':avviso'))).toHaveLength(3)
     expect(b.fatti.some((f) => f.startsWith('salvo@2026-10-22T15:33:5'))).toBe(true)
     expect(b.fatti).not.toContain('disfa')
-    expect(b.chiusa()).toEqual({ come: 'scadenza', interrotte: 3 })
+    // Nel riepilogo solo le 2 degli autopiloti; al lavoro erano 3.
+    expect(b.chiusa()).toEqual({ come: 'scadenza', interrotte: 2, alLavoro: 3 })
     // La chat di Nicholas si riprende al ritorno (quelle governate le riprende il servizio).
     expect(leggiPausa(b.pausa())?.sessioni).toEqual(['s-dsm'])
   })
@@ -64,7 +65,7 @@ describe('dopo «Installa»: chat salvate e ferme entro 5 minuti, poi si install
     await expect(attendiQuiete(b.deps)).resolves.toBe(true)
     expect(b.ora() - INSTALLA).toBeLessThan(2 * 60_000)
     expect(b.fatti.some((f) => f.startsWith('salvo@'))).toBe(true)
-    expect(b.chiusa()).toEqual({ come: 'quiete', interrotte: 0 })
+    expect(b.chiusa()).toEqual({ come: 'quiete', interrotte: 0, alLavoro: 0 })
   })
 
   it('un salvataggio che non riesce non blocca l’installazione', async () => {

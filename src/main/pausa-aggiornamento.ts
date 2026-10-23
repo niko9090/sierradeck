@@ -237,6 +237,27 @@ export function pausaAncoraValida(p: PausaSalvata, adesso = Date.now()): boolean
 /** Quanto si aspetta il servizio autopiloti per la pausa, prima di andare avanti senza. */
 const PAUSA_AUTOPILOTI_MS = 15_000
 
+/**
+ * Quanto si aspetta un lavoro con il Drive annullato allo scadere, prima di
+ * installare lo stesso: si ferma alla fine del file in corso, e quello che non
+ * ha finito si rifà al giro dopo (il manifesto impara solo alla fine).
+ */
+export const DRIVE_ANNULLATO_MS = 30_000
+
+/**
+ * Il lavoro con il Drive in corso (0.84.3, collaudo c-97 D1): si aspetta
+ * **dentro** gli stessi 5 minuti delle chat, non prima. Prima veniva aspettato
+ * fino a dieci minuti prima ancora di mettere in pausa gli autopiloti, e se non
+ * finiva l'installazione si annullava da sola.
+ */
+export type DriveInCorso = {
+  occupato: () => boolean
+  /** La frase dell'attesa (`descriviAttesaDrive`), finché c'è un lavoro. */
+  testo: () => string | undefined
+  /** Annulla il lavoro: si ferma alla fine del file in corso. */
+  annulla: () => void
+}
+
 export async function attendiQuiete(p: {
   chat: () => ChatInVolo[]
   pausaAutopiloti: (attiva: boolean) => Promise<number>
@@ -265,8 +286,16 @@ export async function attendiQuiete(p: {
    * `installa` il lavoro si salva (`salvaSubito`) anche quando la quiete arriva.
    */
   alloScadere?: 'rinuncia' | 'installa'
-  /** Come si è chiusa l'attesa, e quante chat erano ancora al lavoro. */
-  chiusa?: (e: { come: 'quiete' | 'subito' | 'scadenza'; interrotte: number }) => void
+  /**
+   * Come si è chiusa l'attesa. `interrotte`: le chat **degli autopiloti**
+   * ancora al lavoro, quelle salvate sul loro ramo che il servizio riprende
+   * (vanno nella riga di riepilogo); `alLavoro`: tutte, anche quelle di
+   * Nicholas, che si riprendono con `AVVISO_RIPRESA`.
+   */
+  chiusa?: (e: { come: 'quiete' | 'subito' | 'scadenza'; interrotte: number; alLavoro: number }) => void
+  /** Il lavoro con il Drive, aspettato nello stesso tetto delle chat. */
+  drive?: DriveInCorso
+  avvisaDrive?: (testo: string) => void
 }): Promise<boolean> {
   const adesso = p.adesso ?? ((): number => Date.now())
   const aspetta = p.aspetta ?? ((ms: number): Promise<void> => new Promise((r) => { setTimeout(r, ms) }))
@@ -309,7 +338,15 @@ export async function attendiQuiete(p: {
   const installaComunque = p.alloScadere === 'installa'
   // Si salva il lavoro e si annota chi era a metà: anche le chat avvisate dopo
   // l'inizio dell'attesa.
+  const driveOccupato = (): boolean => p.drive?.occupato() === true
   const chiudi = async (come: 'quiete' | 'subito' | 'scadenza', restano: ChatInVolo[]): Promise<true> => {
+    if (driveOccupato()) {
+      // Si annulla invece di rinunciare: il lavoro si rifà, l'aggiornamento no.
+      console.info('[aggiornamenti] annullo il lavoro con il Drive ancora in corso e installo: si rifà al prossimo giro')
+      p.drive?.annulla()
+      const finoA = adesso() + DRIVE_ANNULLATO_MS
+      while (driveOccupato() && adesso() < finoA) await aspetta(CONTROLLO_QUIETE_MS)
+    }
     if (come !== 'quiete' || installaComunque) {
       try {
         await p.salvaSubito?.()
@@ -325,12 +362,12 @@ export async function attendiQuiete(p: {
       return true
     })
     p.annota(pausaDaSalvare(aMeta, p.versione))
-    p.chiusa?.({ come, interrotte: restano.length })
+    p.chiusa?.({ come, interrotte: restano.filter((c) => c.governata === true).length, alLavoro: restano.length })
     return true
   }
   while (adesso() < scade) {
     const restano = inVolo(p.chat())
-    if (restano.length === 0) return chiudi('quiete', [])
+    if (restano.length === 0 && !driveOccupato()) return chiudi('quiete', [])
     if (p.subito?.() === true) {
       // Gli autopiloti sono già in pausa e le chat avvisate: resta da mettere
       // al sicuro il lavoro non salvato e da ricordare chi riprendere al ritorno.
@@ -338,9 +375,13 @@ export async function attendiQuiete(p: {
       return chiudi('subito', restano)
     }
     p.avvisa(restano.length)
-    if (p.avvisaTesto !== undefined) {
+    if (p.avvisaTesto !== undefined && restano.length > 0) {
       const t = testoAttesa(restano, adesso() - inizio)
       p.avvisaTesto(t.testo, t.lungo)
+    }
+    if (driveOccupato()) {
+      const t = p.drive?.testo()
+      if (t !== undefined) p.avvisaDrive?.(t)
     }
     avvisaLeOccupate()
     await aspetta(CONTROLLO_QUIETE_MS)
