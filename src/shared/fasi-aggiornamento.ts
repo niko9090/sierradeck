@@ -95,6 +95,12 @@ export function testoFasi(fasi: readonly FaseAggiornamento[], adesso: number): s
       continue
     }
     const da = adesso - dal
+    // Passati i 5 minuti non si scrive «da 8 min (al massimo 5 min)»: si
+    // salva il lavoro delle chat e si installa (collaudo c-97 D1).
+    if (f.passo === 'salvo' && da > SALVO_LE_CHAT_MS) {
+      pezzi.push(`passati ${durataLeggibile(SALVO_LE_CHAT_MS)}: salvo il lavoro delle chat`)
+      continue
+    }
     const tetto = f.passo === 'salvo' ? ` (al massimo ${durataLeggibile(SALVO_LE_CHAT_MS)})` : ''
     pezzi.push(da >= 1000 ? `${p.inCorso} da ${durataLeggibile(da)}${tetto}` : `${p.inCorso}${tetto}`)
   }
