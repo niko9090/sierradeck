@@ -2647,6 +2647,16 @@ describe('una fermata, una risposta (0.71.0)', () => {
   })
 })
 
+/**
+ * La copia del ramo rivisto, finta e vuota (0.84.4). Prima era la cartella
+ * `tests` vera: `preparaCopia` di c-119 ci copiava `android/local.properties`
+ * della cartella principale, con il percorso dell'SDK di quel PC, in
+ * `tests/android/` (file fuori da git, a un passo da un commit).
+ */
+function copiaFinta(): string {
+  return mkdtempSync(join(tmpdir(), 'ap-copia-ramo-'))
+}
+
 describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', () => {
   const flotta = (over: Record<string, unknown> = {}) => ({
     ...nuovoAutopilota({ id: 'ap-rev', nome: 'Rev', obiettivo: 'Fai A poi B', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'node controlla.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
@@ -2680,7 +2690,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
 
   it('senza la riga del verdetto si chiede di chiuderla; un OK che rompe un criterio vale «da rifare»', async () => {
     // 0.73.0: rosso sul ramo, verde sul ramo principale: il ramo rompe qualcosa.
-    const ramo = join(process.cwd(), 'tests')
+    const ramo = copiaFinta()
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: (_c, cwd) => Promise.resolve(cwd === ramo ? { codice: 1, uscita: '2 test rossi' } : { codice: 0, uscita: 'ok' }) })
     const base = flotta()
     archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, cartella: ramo } : c)) })
@@ -2699,7 +2709,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
   })
 
   it('0.73.0: un criterio dell insieme rosso anche sul ramo principale non respinge un ramo giusto', async () => {
-    const ramo = join(process.cwd(), 'tests')
+    const ramo = copiaFinta()
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: () => Promise.resolve({ codice: 1, uscita: 'b.js manca' }) })
     const base = flotta()
     archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, cartella: ramo } : c)) })
@@ -2710,7 +2720,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
   })
 
   it('0.84.4, caso c-106 del 23/10: rosso nella copia solo perché tsc e vitest non partono → unito, nessun rimando, nessuna domanda', async () => {
-    const ramo = join(process.cwd(), 'tests')
+    const ramo = copiaFinta()
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, esegui: (_c, cwd) => Promise.resolve(cwd === ramo ? { codice: 1, uscita: "'tsc' non è riconosciuto come comando interno o esterno, un programma eseguibile o un file batch." } : { codice: 0, uscita: 'ok' }) })
     const base = flotta()
     // Già rimandato indietro due volte, come c-106: la terza non deve diventare una domanda.
