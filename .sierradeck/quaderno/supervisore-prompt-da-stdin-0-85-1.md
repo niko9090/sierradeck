@@ -33,3 +33,12 @@ regole, quindi da fuori sembrava un autopilota lento che faceva domande strane.
   consegne per file («Leggi ed esegui … .sierradeck/consegne/c-N.md»).
 - Per provare un `execFile` di claude in un test: `interrogazioneReale(process.execPath, [script])`.
   `primaDegliArgomenti` mette lo script prima di `-p`, così Node non lo prende per il suo `-p` (print).
+
+## Trappola vista il 23/10 sera: il giro senza fine col supervisore muto
+
+Finché gira il servizio installato (senza questa correzione), una chat che ha finito
+con tutti i criteri verdi riceve dall'hook di fine turno sempre lo stesso messaggio:
+«I criteri passano tutti, ma il supervisore non ha detto se il lavoro è concluso: rifaccio il giro».
+A c-145 è successo tre volte di fila dopo «SEGNALE: fatto». Con il supervisore muto
+deve decidere la regola: criteri verdi più `SEGNALE: fatto` vuol dire chat finita.
+Non va ripetuto il giro. Vedi anche la scheda del giro senza fine della 0.85.0.
