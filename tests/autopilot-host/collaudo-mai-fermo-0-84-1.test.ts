@@ -140,8 +140,7 @@ describe('collaudo 0.84.1: la notte intera, dalle 23:34 alle 06:51', () => {
     // Al tetto: una riga a Nicholas per compito, non una ogni 10 minuti per tutta la notte.
     const righe = avvisi.filter((t) => t.includes('non riparte'))
     expect(righe).toHaveLength(3)
-    // Una notte intera di giri: 9 s da solo, oltre 30 s con la suite intera sul PC carico (24/10).
-  }, 90_000)
+  }, 90_000) // sette ore di giri simulati: 12 s da solo, 34 s a suite intera col PC carico
 })
 
 describe('collaudo 0.84.1: il giro da solo non tocca chi lavora o aspetta', () => {
