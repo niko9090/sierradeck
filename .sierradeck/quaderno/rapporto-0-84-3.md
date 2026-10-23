@@ -1,15 +1,23 @@
 ---
-titolo: "Rapporto 0.84.3 (bozza finché non è pubblicata)"
-quando: 2026-10-23T12:00:00+02:00
+titolo: "Rapporto 0.84.3 (pubblicata il 23/10, non installata)"
+quando: 2026-10-23T05:30:00+02:00
 tag: ["0.84.3", "rapporto", "release", "c-93"]
 ---
 
 # Rapporto 0.84.3
 
-**Stato (23/10, c-93):** NON ancora pubblicata. Tutte le voci sono nel ramo c-93 e
-in main: `package.json` 0.84.3, app 2.84.3 (versionCode 142), novità in
-`src/shared/novita.ts`. Si pubblica a prova di 2 ore pulita. Mai installata da
-noi: l'installazione la avvia solo Nicholas.
+**Stato:** **PUBBLICATA il 23/10 alle 03:22 UTC da c-93.** NON installata da noi:
+l'installazione la avvia solo Nicholas.
+
+- Release `v0.84.3`, non in bozza, «Latest», 5 file:
+  - `SierraDeck-Setup-0.84.3.exe` (115387290 byte), blockmap e `latest.yml`, con
+    `version: 0.84.3`, size e sha512 uguali all'exe;
+  - `SierraDeck-2.84.3.apk`, firmato «CN=Nicholas Ferrari, O=Ferrari Consulenze»;
+  - `app-android.json`, con versione 2.84.3.
+- Tag `v0.84.3` su `f61b79e4`, lo stesso commit di `main` su GitHub (controllato
+  con `git ls-remote`), pushato **prima** di `npm run pubblica`.
+- Intoppo: alla prima `npm run pubblica` un 422 `already_exists`, risolto
+  rilanciandola. Una sola release. Come evitarlo: `tag-prima-di-pubblicare.md`.
 
 ## Cosa c'è dentro
 
