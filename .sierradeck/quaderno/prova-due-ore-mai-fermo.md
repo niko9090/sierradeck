@@ -1,6 +1,6 @@
 ---
 titolo: "La prova di 2 ore del «mai fermo»: dov'è lo script e come si lancia"
-quando: 2026-10-23T02:00:00+02:00
+quando: 2026-10-23T12:30:00+02:00
 tag: ["prova", "mai-fermo", "autopilota", "release"]
 ---
 
@@ -21,3 +21,9 @@ progetto.
   dei giri, riprese, sostituzioni, doppioni.
 - Limite noto: la memoria dei criteri vale per commit e nella prova il codice
   non cambia, quindi i criteri «verdi» degli ultimi 8 minuti non portano a «finito».
+- Prima delle 2 ore conviene un giro di fumo con `PROVA_MINUTI=3` (circa 3
+  minuti): dice subito se lo script compila ancora col codice nuovo. Il
+  23/10 (c-122, 0.84.4) su main `df1a2ed2` compila e gira pulito. La prova che
+  vale va lanciata solo DOPO l'unione dei rami che toccano `src/autopilot-host`
+  (`server.ts`, `mai-fermo.ts`, `domande.ts`): ogni loro modifica la invalida,
+  come nei tre giri buttati della 0.84.3 (`rapporto-0-84-3.md`).
