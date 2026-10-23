@@ -35,6 +35,7 @@ import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
 import { fattiVerificati } from './fatti'
+import { conPromesse, giroPromesse, promesseDallaRisposta, type Promessa } from '@shared/promesse'
 import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, conAllarme, leggiCompiti, riparaComando, rigaAllarme,
@@ -491,6 +492,8 @@ export function conservaCambiUtente(
     daConsegnare: fresco.daConsegnare,
     // Le richieste di Nicholas (0.85.0) le registra il dialogo mentre il turno lavora.
     ...(fresco.richieste !== undefined ? { richieste: fresco.richieste } : {}),
+    // Le promesse (0.85.1) le registra il dialogo e le chiude il loro giro mentre il turno lavora.
+    ...(fresco.promesse !== undefined ? { promesse: fresco.promesse } : {}),
     // Le chat adottate e i messaggi per loro (0.78.0): li scrivono le rotte
     // dell'adozione e il dialogo mentre il turno lavora. Visto nella prova del
     // 16/10: la fotografia di inizio turno li cancellava.
@@ -668,6 +671,8 @@ export type ServerAutopiloti = Server & {
   ricontrollaDomande: () => Promise<number>
   /** Rilegge le release uscite con la data (0.85.0, velocità misurata). Torna quanti autopiloti ha aggiornato. */
   aggiornaReleaseUscite: () => Promise<number>
+  /** Mantiene le promesse fatte a Nicholas (0.85.1): torna quanti messaggi ha scritto. */
+  controllaPromesse: () => number
 }
 
 /**
@@ -2936,6 +2941,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       cambioApplicato = true
     }
 
+    // 0.85.1: le promesse di avvisare diventano promesse registrate, legate a
+    // un fatto; quella che non si lega a niente esce dalla risposta.
+    const promesse = promesseDallaRisposta({ risposta: esito.risposta, proposte: esito.promesse ?? [], a: fresco, quando: deps.adesso() })
+    const promesseNuove: Promessa[] = promesse.nuove
+    if (promesseNuove.length > 0) {
+      fresco = conPromesse(fresco, promesseNuove)
+      fatti.push(promesseNuove.length === 1 ? `promessa registrata: ${promesseNuove[0]!.id}` : `${promesseNuove.length} promesse registrate`)
+      for (const n of promesseNuove) console.info(`[promesse] ${id} — ${n.id} registrata (${n.da}): «${n.frase.slice(0, 120)}» → ${JSON.stringify(n.fatto)} entro ${n.scadenza}`)
+    }
+    if (promesse.tolte.length > 0) {
+      fatti.push(promesse.tolte.length === 1 ? 'tolta una promessa non legata a un fatto' : `tolte ${promesse.tolte.length} promesse non legate a un fatto`)
+      for (const t of promesse.tolte) console.info(`[promesse] ${id} — tolta dalla risposta, non si lega a un fatto: «${t.slice(0, 160)}»`)
+    }
+
     const aperta = deps.domande.aperte(id)[0]
     if (esito.perLaChat !== undefined) {
       if (esito.comando === 'rispondi' && aperta !== undefined) {
@@ -3057,6 +3076,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         criteri: fresco.criteri,
         compitiDaFare: fresco.compitiDaFare,
         ...(fresco.richieste !== undefined ? { richieste: fresco.richieste } : {}),
+        // Le promesse di questa risposta sopra quelle su disco (il giro delle promesse può averle toccate).
+        ...(promesseNuove.length > 0 ? { promesse: conPromesse(suDisco, promesseNuove.filter((n) => !(suDisco.promesse ?? []).some((x) => x.id === n.id))).promesse } : {}),
         modifiche: fresco.modifiche,
         daConsegnare: fresco.daConsegnare,
         stato: fresco.stato,
@@ -3069,7 +3090,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           : {})
       }
     }
-    chiudi(esito.risposta, fatti.length === 0 ? 'nessun cambio' : fatti.join(' · '))
+    chiudi(promesse.risposta, fatti.length === 0 ? 'nessun cambio' : fatti.join(' · '))
     if (rispondiDopo !== undefined) deps.domande.rispondi(rispondiDopo, testo, 'modale')
   }
 
@@ -6087,5 +6108,40 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return aggiornati
   }
 
-  return Object.assign(server, { aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  /**
+   * **Le promesse mantenute** (0.85.1): per ogni autopilota aperto, una
+   * promessa il cui fatto è successo diventa un messaggio nella sua
+   * conversazione con la prova, con l'annuncio (la notifica su PC, pagina e
+   * app) e l'avviso su Telegram; una scaduta senza il fatto diventa «non
+   * ancora, perché…». Legge solo lo stato: niente comandi, niente git.
+   * Torna quanti messaggi ha scritto.
+   */
+  const controllaPromesse = (): number => {
+    let scritti = 0
+    for (const prima of deps.archivio.elenca()) {
+      if (prima.archiviato === true || (prima.promesse ?? []).every((p) => p.chiusa !== undefined)) continue
+      const a = deps.archivio.leggi(prima.id)
+      if (a === undefined) continue
+      const quando = deps.adesso()
+      const giro = giroPromesse(a, quando)
+      if (giro === undefined) continue
+      const ultimo = giro.messaggi[giro.messaggi.length - 1]
+      const dopo: Autopilota = {
+        ...a,
+        promesse: giro.promesse,
+        dialogo: [...a.dialogo, ...giro.messaggi.map((m) => ({ quando, da: 'lui' as const, testo: m.testo, traccia: true as const }))].slice(-DIALOGO_RICORDATO),
+        decisioni: [...a.decisioni, ...giro.messaggi.map((m) => ({ quando, cosa: `promessa ${m.promessa}: ${m.testo.slice(0, 300)}` }))],
+        ...(ultimo !== undefined ? { annuncio: { id: randomUUID(), titolo: giro.messaggi.length === 1 ? ultimo.titolo : `${giro.messaggi.length} promesse: ${ultimo.titolo}`.slice(0, 120), quando } } : {})
+      }
+      salva(dopo)
+      for (const m of giro.messaggi) {
+        console.info(`[promesse] ${a.id} — ${m.promessa}: ${m.testo.slice(0, 300)}`)
+        void deps.avvisa('avviso', dopo, m.testo)
+      }
+      scritti += giro.messaggi.length
+    }
+    return scritti
+  }
+
+  return Object.assign(server, { controllaPromesse, aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }
