@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import {
   componiPromptGiudizio, leggiGiudizio, chiediGiudizio, componiPromptScomposizione, leggiCompiti,
   argomentiSupervisore, componiPromptRiparazione, leggiComandoRiparato, ambientePulito,
+  interrogazioneReale, conAllarme, rigaAllarme, ALLARME_DOPO,
   type Interrogazione
 } from '../../src/autopilot-host/supervisore'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -133,14 +137,14 @@ describe('permessi del supervisore', () => {
     // che per un problema vero.
     const visti: string[][] = []
     const finto = (comando: string, args: string[]): void => { visti.push(args) }
-    argomentiSupervisore('claude.exe', 'un prompt', 'C:\p', undefined, finto)
+    argomentiSupervisore('claude.exe', 'C:\p', undefined, finto)
     expect(visti[0]).toContain('--dangerously-skip-permissions')
     expect(visti[0]).not.toContain('--permission-mode')
   })
 
   it('riprende la sessione di giudizio quando ne conosce una', () => {
     const visti: string[][] = []
-    argomentiSupervisore('claude.exe', 'p', 'C:\p', 's-9', (_c, args) => { visti.push(args) })
+    argomentiSupervisore('claude.exe', 'C:\p', 's-9', (_c, args) => { visti.push(args) })
     expect(visti[0]?.[visti[0].indexOf('--resume') + 1]).toBe('s-9')
   })
 
@@ -149,15 +153,87 @@ describe('permessi del supervisore', () => {
     // che dura minuti - il pannello non ha niente da mostrare e dice soltanto
     // «la chat non e' ancora partita».
     const visti: string[][] = []
-    argomentiSupervisore('claude.exe', 'p', 'C:\p', undefined, (_c, args) => { visti.push(args) }, 's-nuova')
+    argomentiSupervisore('claude.exe', 'C:\p', undefined, (_c, args) => { visti.push(args) }, 's-nuova')
     expect(visti[0]?.[visti[0].indexOf('--session-id') + 1]).toBe('s-nuova')
   })
 
   it('non impone un id quando sta riprendendo: sarebbero due sessioni', () => {
     const visti: string[][] = []
-    argomentiSupervisore('claude.exe', 'p', 'C:\p', 's-9', (_c, args) => { visti.push(args) }, 's-nuova')
+    argomentiSupervisore('claude.exe', 'C:\p', 's-9', (_c, args) => { visti.push(args) }, 's-nuova')
     expect(visti[0]).not.toContain('--session-id')
     expect(visti[0]).toContain('--resume')
+  })
+})
+
+describe('il prompt del supervisore passa dall ingresso (0.85.1)', () => {
+  it('non mette il prompt fra gli argomenti: la riga di comando di Windows ha un limite', () => {
+    const visti: string[][] = []
+    argomentiSupervisore('claude.exe', 'C:\p', undefined, (_c, args) => { visti.push(args) })
+    expect(visti[0]![0]).toBe('-p')
+    expect(visti[0]![1]).toBe('--output-format')
+  })
+
+  it('un prompt di oltre 40.000 caratteri ottiene la risposta (il 23/10 era «spawn ENAMETOOLONG»)', async () => {
+    // Un claude finto: legge tutto lo stdin e risponde come `--output-format json`,
+    // con la lunghezza e la coda di quello che ha ricevuto. La cartella è
+    // dentro il Temp finto dei test, che la suite toglie da sé alla fine.
+    const cartella = mkdtempSync(join(tmpdir(), 'sd-supervisore-'))
+    {
+      const finto = join(cartella, 'claude-finto.cjs')
+      writeFileSync(finto, [
+        "let t = ''",
+        "process.stdin.setEncoding('utf8')",
+        "process.stdin.on('data', (d) => { t += d })",
+        "process.stdin.on('end', () => {",
+        "  require('node:fs').writeFileSync(process.argv[2] === '-p' ? 'argomenti.json' : 'x', JSON.stringify(process.argv.slice(2)))",
+        "  process.stdout.write(JSON.stringify({ result: 'letti ' + t.length + ' ' + t.slice(-6), session_id: 's-lunga' }))",
+        "})"
+      ].join('\n'))
+      const prompt = 'àèìòù '.repeat(8000) + 'FINE!!'
+      expect(prompt.length).toBeGreaterThan(40_000)
+      const interroga = interrogazioneReale(process.execPath, [finto])
+      const r = await interroga(prompt, cartella, undefined, { timeoutMs: 30_000 })
+      expect(r).toEqual({ testo: `letti ${prompt.length} FINE!!`, sessionId: 's-lunga' })
+      const argomenti = JSON.parse(readFileSync(join(cartella, 'argomenti.json'), 'utf8')) as string[]
+      expect(argomenti.join(' ').length).toBeLessThan(200)
+    }
+  }, 30_000)
+})
+
+describe('allarme del supervisore muto (0.85.1)', () => {
+  const guasto: Interrogazione = async () => { throw new Error('interrogazione del supervisore fallita: spawn ENAMETOOLONG') }
+
+  it('al terzo fallimento di fila suona una volta sola, con il motivo', async () => {
+    const allarmi: string[] = []
+    const s = conAllarme(guasto, { adesso: () => '2026-10-23T08:00:00.000Z', allarme: (a) => { allarmi.push(rigaAllarme(a)) } })
+    for (let i = 0; i < ALLARME_DOPO - 1; i++) await expect(s('p', 'C:\p', undefined)).rejects.toThrow()
+    expect(allarmi).toEqual([])
+    expect(s.muto()).toBeUndefined()
+    await expect(s('p', 'C:\p', undefined)).rejects.toThrow()
+    await expect(s('p', 'C:\p', undefined)).rejects.toThrow()
+    expect(allarmi).toEqual(['supervisore muto: 3 interrogazioni fallite di fila — spawn ENAMETOOLONG'])
+    expect(s.muto()).toMatchObject({ volte: 4, motivo: 'spawn ENAMETOOLONG', dal: '2026-10-23T08:00:00.000Z', cwd: 'C:\p' })
+  })
+
+  it('una risposta riuscita azzera il conto e lo dice', async () => {
+    let rotto = true
+    const ripresi: number[] = []
+    const s = conAllarme(async () => { if (rotto) throw new Error('x'); return { testo: 'ok' } }, {
+      adesso: () => 'ora', allarme: () => {}, ripreso: (n) => { ripresi.push(n) }
+    })
+    for (let i = 0; i < 3; i++) await expect(s('p', 'C:\p', undefined)).rejects.toThrow()
+    rotto = false
+    expect((await s('p', 'C:\p', undefined)).testo).toBe('ok')
+    expect(ripresi).toEqual([3])
+    expect(s.muto()).toBeUndefined()
+  })
+
+  it('due fallimenti, una riuscita, due fallimenti: nessun allarme (non sono di fila)', async () => {
+    let n = 0
+    const allarmi: unknown[] = []
+    const s = conAllarme(async () => { n += 1; if (n === 3) return { testo: 'ok' }; throw new Error('x') }, { adesso: () => 'ora', allarme: (a) => { allarmi.push(a) } })
+    for (let i = 0; i < 5; i++) await s('p', 'C:\p', undefined).catch(() => undefined)
+    expect(allarmi).toEqual([])
   })
 })
 
