@@ -75,5 +75,8 @@ Commit `1e92807e` sul ramo `ap/ap-f1e631f5/c-133`:
 | c-134, c-135, c-136 | **chiuse senza unire: doppie** dell'indicatore, già in `main` con `a11c1fa7`; lavoravano nella cartella principale, nessun ramo loro |
 | c-143 | ripresa del 23/10 sera: nessun codice, solo note nel quaderno (`trappola-giro-senza-fine-chat-finita-0-85-0.md`) e queste righe; si unisce dopo la Revisione |
 | c-11, c-11-velocita | del 21/10 (0.83.0), fuori da questo lavoro: **già in main**, `git diff main...<ramo>` vuoto; restano solo come rami vecchi |
+| `wip/domande-altri-pc-c628` | **chiuso senza unirlo: superato.** Lavoro a metà del 22/10, «non provato» (`collaudo-coordinazione-0-84-0.md`); le domande dagli altri PC sono arrivate rifatte da c-74 nella 0.84.1 (voce 5d della lista), con D1 e D4 corretti da c-88 nella 0.84.3 |
+| `rilascio/0.82.1` | **chiuso senza unirlo: già in main.** Le stesse correzioni sono entrate con c-53 (`5553df14`, `d1a26901`); il ramo resta solo come fonte del tag `v0.82.1` (già scritto in `rapporto-0-84-0.md`) |
+| c-143 (aggiornamento) | ora contiene anche la correzione 0u (`af387167`, guardiano «installa solo Nicholas»), per la 0.85.1: da unire dopo la Revisione |
 
-Ricontrollo finale (c-143, 23/10 sera): nessun altro ramo `ap/ap-f1e631f5/*` ha commit fuori da `main` (`git rev-list --count main..<ramo>` = 0).
+Ricontrollo finale (c-143, 23/10 sera): nessun altro ramo `ap/ap-f1e631f5/*` ha commit fuori da `main` (`git rev-list --count main..<ramo>` = 0). Fuori da `ap/ap-f1e631f5/*` restano solo i due rami chiusi qui sopra.
