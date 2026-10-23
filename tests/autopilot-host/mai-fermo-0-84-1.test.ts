@@ -7,7 +7,7 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { giroMaiFermo, notaFerma, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
+import { giroMaiFermo, notaFerma, rigaGiro, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { rigaTraguardo } from '@shared/chat-autopilota'
 
@@ -68,7 +68,10 @@ describe('giroMaiFermo: la regola', () => {
   it('0.84.3 (il Punto): una chat zitta da più di 15 minuti mentre la sorella lavora si riprende, senza aspettare l’ora della messa da parte', () => {
     const a = ap([chat('c-65'), chat('c-66')])
     const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - 3 * MIN : k === 'ap-1::c-65' ? ora - 16 * MIN : undefined) }))
-    expect(g?.perche).toBe('messe-da-parte')
+    // Prova di 2 ore della 0.84.3 (c-93): la riga diceva «per le chat messe da parte», ma nessuna lo era.
+    expect(g?.perche).toBe('ferme')
+    expect(rigaGiro(g!)).toMatch(/^giro da solo per le chat ferme da più di 15 minuti mentre le altre lavorano\./)
+    expect(rigaGiro(g!)).not.toContain('messe da parte')
     expect(g?.mosse).toEqual([{ tipo: 'riprendi', chatId: 'c-65', interrompi: true, muta: 16 * MIN }])
     expect(notaFerma(g!.mosse[0]!)).toBe('è ferma da 16 minuti senza segnali: la interrompo e le riscrivo l’ultima istruzione')
   })
@@ -88,7 +91,8 @@ describe('giroMaiFermo: la regola', () => {
   it('le altre lavorano, ma quella già ripresa non ha risposto in 10 minuti: passa a una chat nuova senza aspettare l’ora della messa da parte', () => {
     const a = ap([chat('c-65', { ripresa: { il: new Date(ora - 11 * MIN).toISOString(), volte: 1 } }), chat('c-66')])
     const g = giroMaiFermo(a, vista(ora, { ultimoSegnale: (k) => (k === 'ap-1::c-66' ? ora - MIN : undefined) }))
-    expect(g?.perche).toBe('messe-da-parte')
+    expect(g?.perche).toBe('riprese-mute')
+    expect(rigaGiro(g!)).toMatch(/^giro da solo per le chat riprese che non hanno risposto\./)
     expect(g?.mosse).toEqual([{ tipo: 'sostituisci', chatId: 'c-65', muta: expect.any(Number) }])
   })
 
