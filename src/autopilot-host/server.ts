@@ -11,6 +11,7 @@ import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type Decisione as Mossa, type EsitoVerifica
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
+import { conAllarme, rigaAllarme } from './supervisore-muto'
 import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore } from './rete-sicurezza'
 import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
 import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
@@ -744,6 +745,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }
+
+  // 0.85.1: il supervisore che fallisce di fila non resta muto. Al terzo
+  // fallimento una riga nel registro di ogni lavoro in corso; finché dura,
+  // l'allarme sta nell'elenco e quindi nell'indicatore.
+  const supervisore = conAllarme(deps.interroga, deps.adesso, (s) => {
+    console.warn(`[supervisore] ${rigaAllarme(s)}`)
+    for (const a of deps.archivio.elenca()) {
+      if (a.stato !== 'lavoro' && a.stato !== 'attesa') continue
+      salva({ ...a, decisioni: [...a.decisioni, { quando: deps.adesso(), cosa: rigaAllarme(s) }] })
+    }
+  })
+  deps = { ...deps, interroga: supervisore.interroga }
 
   /**
    * T1: lo stato del programma, in sola lettura, come lo spinge il Gestore
@@ -4990,6 +5003,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               if (v !== undefined) segniVeri[c.id] = v
             }
             const conVeri = Object.keys(segniVeri).length > 0 ? { segniVeri } : {}
+            // 0.85.1: il supervisore che non risponde di fila, per l'allarme dell'indicatore.
+            const muto = supervisore.stato()
+            if (muto !== undefined) Object.assign(conVeri, { supervisoreMuto: muto })
             if (segni.length === 0) return { ...a, segniDal, ...conVeri }
             // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
             const segniChat: Record<string, string> = {}

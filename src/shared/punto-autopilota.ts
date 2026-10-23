@@ -5,7 +5,7 @@ import { pianoAutopilota } from './panoramica'
 import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
 import { COLORE_RICHIESTA, giornoDi, parolaStato, statoRichiesta, type StatoRichiesta } from './richieste-nicholas'
 import { velocitaDi } from './velocita-richieste'
-import { indicatoreDi, type Indicatore, type SegniVeri } from './indicatore-autopilota'
+import { indicatoreDi, type Indicatore, type SegniVeri, type SupervisoreMuto } from './indicatore-autopilota'
 
 export { senzaSigle }
 
@@ -169,7 +169,7 @@ export function rigaLimiti(l: { cinqueOre?: number; settimana?: number } | undef
  * Nicholas (le sa il PC, non l'autopilota). `limiti`: le percentuali lette.
  */
 export function puntoDi(
-  a: Autopilota & SegniDalVivo & SegniVeri,
+  a: Autopilota & SegniDalVivo & SegniVeri & { supervisoreMuto?: SupervisoreMuto },
   ora: number,
   p: { domandeAperte?: number; limiti?: { cinqueOre?: number; settimana?: number } } = {}
 ): Punto {

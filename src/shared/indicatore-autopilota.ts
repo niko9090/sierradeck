@@ -34,6 +34,17 @@ export type SegnaleVero = { tipo: TipoSegnaleVero; quando: string }
 /** Quello che il servizio aggiunge all'elenco: l'ultimo segnale vero per chat (la chat sola con l'id dell'autopilota). */
 export type SegniVeri = { segniVeri?: Record<string, SegnaleVero> }
 
+/**
+ * Il supervisore che fallisce di fila (0.85.1): lo manda il servizio
+ * nell'elenco quando i fallimenti sono almeno 3, con il motivo dell'ultimo.
+ */
+export type SupervisoreMuto = { volte: number; motivo: string; dal: string }
+
+/** La riga dell'allarme, uguale nell'indicatore e nel registro. */
+export function rigaAllarme(s: SupervisoreMuto): string {
+  return `Allarme: il supervisore non risponde (${s.volte} volte di fila): ${s.motivo}`
+}
+
 const PAROLA_SEGNALE: Record<TipoSegnaleVero, string> = { commit: 'commit', test: 'test', file: 'file cambiati', terminale: 'terminale' }
 
 const istante = (s: string | undefined): number | undefined => {
@@ -227,7 +238,7 @@ type Vista = { c: ChatGovernata | undefined; chi: string; vero: SegnaleVero | un
  * segnale vero; senza, da quando il servizio raccoglie i segni o da quando è
  * al lavoro (se è dopo): dopo un riavvio nessuno ne ha ancora.
  */
-function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: number): Pick<Indicatore, 'andamento' | 'dettaglio'> {
+function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto }, ora: number): Pick<Indicatore, 'andamento' | 'dettaglio'> {
   const dal = istante(a.segniDal)
   const viste: Vista[] = (a.chats.length === 0 ? (a.sessionId !== undefined ? [undefined] : []) : a.chats.filter((c) => c.stato !== 'finita')).map((c) => {
     const vero = a.segniVeri?.[c?.id ?? a.id]
@@ -248,6 +259,12 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: num
 
   const riga = (livello: LivelloIndicatore, testo: string): Indicatore['andamento'] => ({ livello, colore: COLORE[livello], simbolo: SIMBOLO[livello], testo })
   const azione = (): string => `l’autopilota: ${azioneAutopilota(a, ora)}`
+
+  // 0.85.1: il supervisore muto prima di tutto il resto, finché il lavoro non è chiuso:
+  // senza di lui i blocchi e le domande sbagliate arrivano lo stesso.
+  if (a.supervisoreMuto !== undefined && a.stato !== 'finito') {
+    return { andamento: riga('fermo', `${rigaAllarme(a.supervisoreMuto)} · ${azione()}`), dettaglio }
+  }
 
   switch (a.stato) {
     case 'finito': return { andamento: riga('va', 'Finito: tutti i criteri soddisfatti'), dettaglio }
@@ -293,6 +310,6 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: num
 export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo.'
 
 /** L'indicatore dell'autopilota. */
-export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: number): Indicatore {
+export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string; supervisoreMuto?: SupervisoreMuto }, ora: number): Indicatore {
   return { versione: rigaVersione(a, ora), fine: rigaFine(a), ...andamentoDi(a, ora), aiuto: AIUTO_INDICATORE }
 }

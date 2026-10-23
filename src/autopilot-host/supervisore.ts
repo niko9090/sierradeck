@@ -55,8 +55,13 @@ export function argomentiSupervisore(
    */
   nuovaSessione?: string
 ): void {
+  void prompt // resta fra i parametri per chi lo chiama: va sull ingresso, non qui
   avvia(claudeCmd, [
-    '-p', prompt,
+    // **Il prompt non va sulla riga di comando** (0.85.1): su Windows la riga
+    // ha un tetto di 32.767 caratteri, e il 23/10 un prompt più lungo ha fatto
+    // fallire il supervisore 239 volte con «spawn ENAMETOOLONG». `-p` senza
+    // testo legge il prompt dall'ingresso, che `interrogazioneReale` gli scrive.
+    '-p',
     '--output-format', 'json',
     // Gli stessi permessi delle chat governate, e per la stessa ragione: il
     // supervisore deve poter leggere i file e rieseguire un comando per
@@ -94,7 +99,11 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
   return env
 }
 
-export function interrogazioneReale(claudeCmd: string): Interrogazione {
+export function interrogazioneReale(
+  claudeCmd: string,
+  /** Argomenti prima dei nostri: servono ai test, per far girare un `claude` finto con Node. */
+  primaDegliArgomenti: string[] = []
+): Interrogazione {
   return (prompt, cwd, sessionId, opzioni) =>
     new Promise((risolvi, rifiuta) => {
       // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
@@ -113,7 +122,7 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
       )
       const figlio = execFile(
         claudeCmd,
-        args,
+        [...primaDegliArgomenti, ...args],
         {
           cwd,
           timeout: opzioni?.timeoutMs ?? TIMEOUT_MS,
@@ -164,12 +173,10 @@ export function interrogazioneReale(claudeCmd: string): Interrogazione {
           }
         }
       )
-      // **Niente da leggere sull ingresso.** Senza questa riga Claude Code
-      // resta tre secondi ad aspettare che qualcuno gli scriva qualcosa, lo
-      // annuncia sul suo stderr - «no stdin data received in 3s» - e quei tre
-      // secondi li paga ogni interrogazione. Nessuno gli scrivera mai niente:
-      // il prompt e gia negli argomenti.
-      figlio.stdin?.end()
+      // **Il prompt sull'ingresso, e poi lo si chiude** (0.85.1): così non ha
+      // tetti di lunghezza, e Claude Code non resta ad aspettare altro.
+      figlio.stdin?.on('error', () => { /* il figlio è già uscito: il motivo lo dice la sua uscita */ })
+      figlio.stdin?.end(prompt, 'utf8')
     })
 }
 
