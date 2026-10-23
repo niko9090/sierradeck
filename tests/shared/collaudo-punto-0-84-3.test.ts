@@ -77,7 +77,7 @@ describe('collaudo del Punto: i difetti', () => {
   // che usa `adessoDi` così com'è: una chat senza ruolo si chiama «c-14»
   // (adesso.ts:85), il compito tiene «(c-14)» e il segnale non c'è. Sulla pagina
   // e nell'app invece il Punto ha le chat col segnale: il PC dice meno del telefono.
-  it.fails('D1: le righe delle chat che il PC mostra nella Panoramica sono senza sigle', () => {
+  it('D1: le righe delle chat che il PC mostra nella Panoramica sono senza sigle', () => {
     const a = ap([chat('c-14', { compito: 'Il riquadro (c-14)', segnale: { tipo: 'bloccata', quando: fa(2), dichiarato: true, motivo: 'manca la chiave' } })])
     const righe = adessoDi(a, ORA).righe
     expect(JSON.stringify(righe.map((r) => [r.chi, r.compito, r.testo]))).not.toMatch(/\bc-\d+/)
@@ -89,7 +89,7 @@ describe('collaudo del Punto: i difetti', () => {
   // la conversazione dice «è ferma da 16 minuti senza segnali». Ogni 15 minuti,
   // finché la sorella lavora. Nel Punto la stessa chat è rossa «nessun segno da
   // 16 min» (adesso.ts:108) con accanto il segnale ambra «aspetta Sviluppo».
-  it.fails('D2: chi aspetta una sorella al lavoro non è «ferma» e non si riprende a 15 minuti', () => {
+  it('D2: chi aspetta una sorella al lavoro non è «ferma» e non si riprende a 15 minuti', () => {
     const a = ap([
       chat('c-1', { ruolo: 'sviluppo', compito: 'Il menu' }),
       chat('c-2', { ruolo: 'collaudo', compito: 'Collaudo del menu', segnale: { tipo: 'aspetto', di: 'c-1', quando: fa(16), dichiarato: true } })
@@ -103,7 +103,7 @@ describe('collaudo del Punto: i difetti', () => {
   // c-91» diventa «di e», «del gruppo 3» diventa «del». Sono compiti veri della
   // lista dei lavori (riga 6: «la Revisione di c-90 e c-91»). Il test di c-90
   // stesso accetta «del gestionale del» (punto-autopilota.test.ts:44).
-  it.fails('D3: tolta la sigla, la frase resta italiana (niente «di e», niente «del» in fondo)', () => {
+  it('D3: tolta la sigla, la frase resta italiana (niente «di e», niente «del» in fondo)', () => {
     expect(senzaSigle('La Revisione di c-90 e c-91')).not.toMatch(/\bdi e\b/)
     expect(senzaSigle('Chiudi l’autopilota del gestionale del gruppo 3')).not.toMatch(/\bdel$/)
   })

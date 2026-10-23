@@ -1,6 +1,6 @@
 ---
 titolo: "Collaudo del Punto dell'autopilota (0.84.3): cosa va e 4 difetti"
-quando: 2026-10-23T02:00:00+02:00
+quando: 2026-10-23T06:50:00+02:00
 tag: ["0.84.3", "punto", "collaudo", "autopilota", "mai-fermo", "sigle"]
 ---
 
@@ -45,3 +45,24 @@ cartella temporanea, nessuna chat vera). I difetti sono `it.fails`: chi li corre
 - Nelle prove nel servizio, contare le righe con `conversazione(a).filter(b => b.tono === 'traguardo')`:
   la stessa ripresa ha anche la nota di lavoro («c-2 è ferma…») e la riga del giro, e senza il filtro
   sembrano doppioni.
+
+## Corretti (c-106, 23/10)
+
+I 4 `it.fails` sono tolti e verdi.
+
+- **D1**: `adessoDi` dà già le righe pulite (`chi` = ruolo o «Una chat», compito e testo passati da
+  `senzaSigle`), quindi PC, pagina e app ricevono le stesse parole. «Adesso» nella Panoramica
+  (`AdessoAutopilota`) ora usa `puntoDi(...).chat` e mostra il segnale col suo colore e simbolo.
+- **D2**: `sorellaAspettata(a, c)` in `adesso.ts`: segnale «aspetto» per una sorella con stato
+  `lavoro`. Una chat così è ambra «aspetta Sviluppo («…») da N min», non rossa; il giro da solo
+  (`mai-fermo.ts`) non la riprende se la sorella è viva; in `server.ts` non riceve la riga dei
+  5 minuti né la messa da parte. Se tutta la flotta tace, il giro la tocca come le altre.
+- **D3**: `senzaSigle` toglie con la sigla anche la preposizione o l'articolo che la regge, e le
+  sigle di fila («c-90 e c-91»). «La Revisione di c-90 e c-91» → «La Revisione».
+- **D4**: `conNomiChat` in `chat-autopilota.ts`, usata da `conversazione()` per le note: «c-2 è
+  ferma…» → «Interfaccia («La pagina») è ferma…». I **nomi dei rami restano** (lo vuole
+  `panoramica-al-lavoro.test.ts`: in «Cosa è successo» la riga è tecnica, e il JSON condiviso con
+  l'app Android non cambia). La riga dei 5 minuti dice «a 15 minuti la rimetto al lavoro io».
+
+Trappola: `conNomiChat` non mette la maiuscola a un testo che non comincia con una sigla,
+altrimenti cambiano le battute del JSON dei casi dell'app (`al-lavoro-0.79.json`).

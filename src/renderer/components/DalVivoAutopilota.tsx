@@ -4,7 +4,8 @@ import { haDomandaAperta } from '@shared/chat-autopilota'
 import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
 import type { Colore } from '@shared/stato-vista'
 import { Aiuto } from './Aiuto'
-import { adessoDi, AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { puntoDi } from '@shared/punto-autopilota'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «io voglio sempre vedere
@@ -148,7 +149,7 @@ export function MessaggiPronti({ messaggi, onManda, inCorso }: { messaggi: Stato
 
 /**
  * Il riquadro «Adesso» (0.81.0): una riga per chat, cosa fa, da quanto, e se è
- * ferma perché. Le righe le calcola `adessoDi`, la stessa della pagina e dell'app.
+ * ferma perché. Le righe le calcola `puntoDi` (con `adessoDi`), la stessa della pagina e dell'app.
  */
 export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = false }: {
   autopilota: Autopilota
@@ -158,8 +159,9 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
   soloFerme?: boolean
 }): React.JSX.Element | null {
   const ora = useOra()
-  const tutto = adessoDi(a as Autopilota & SegniDalVivo, ora)
-  const righe = soloFerme ? tutto.righe.filter((r) => r.tono === 'ferma') : tutto.righe
+  // Le righe del Punto (collaudo c-96, D1): senza sigle e con il segnale, come pagina e app.
+  const tutto = puntoDi(a as Autopilota & SegniDalVivo, ora)
+  const righe = soloFerme ? tutto.chat.filter((r) => r.tono === 'ferma') : tutto.chat
   const finite = soloFerme ? 0 : tutto.finite
   if (righe.length === 0 && finite === 0) return null
   return (
@@ -170,6 +172,11 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
           <b style={{ color: TINTA[COLORE_ADESSO[r.tono]] }}>{r.chi}</b>
           <span className="adesso-ap__compito" title={r.compito}>{r.compito}</span>
           <span className="adesso-ap__testo" style={{ color: r.tono === 'lavoro' ? undefined : TINTA[COLORE_ADESSO[r.tono]] }}>{r.testo}</span>
+          {r.segnale !== undefined ? (
+            <span className="adesso-ap__segnale" style={{ color: TINTA[r.segnale.colore as Colore] }} title="L’ultimo segnale della chat all’autopilota">
+              {r.segnale.simbolo} {r.segnale.parola}
+            </span>
+          ) : null}
         </div>
       ))}
       {finite > 0 ? <div className="adesso-ap__finite">{finite === 1 ? '1 chat finita' : `${finite} chat finite`}</div> : null}

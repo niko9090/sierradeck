@@ -72,7 +72,7 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({
       quando: v.quando,
       da: 'nota',
-      testo: v.titolo,
+      testo: conNomiChat(v.titolo, a.chats),
       ...(v.dettaglio !== undefined ? { dettaglio: v.dettaglio } : {}),
       ...(v.tipo !== undefined ? { tono: v.tipo } : {})
     })
@@ -263,6 +263,31 @@ export function senzaSigle(testo: string): string {
     .replace(/[\s,;:—–-]+$/, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
+}
+
+/**
+ * Una nota di lavoro con le chat chiamate per nome (collaudo c-96, D4): senza
+ * la Panoramica si leggono le note, e «c-2 è ferma…» diventa «Interfaccia
+ * («La pagina del telefono») è ferma…». Una chat che non c'è più è «una chat».
+ */
+export function conNomiChat(testo: string, chats: Pick<ChatGovernata, 'id' | 'ruolo' | 'compito'>[]): string {
+  const nome = (id: string): string => {
+    const c = chats.find((x) => x.id.toLowerCase() === id.toLowerCase())
+    if (c === undefined) return 'una chat'
+    const compito = senzaSigle(compitoBreve(c.compito, 40))
+    return c.ruolo !== undefined ? `${nomeChi(c)} («${compito}»)` : `la chat «${compito}»`
+  }
+  // I nomi dei rami restano: in «Cosa è successo» la riga è tecnica.
+  const t = testo.split(/(\bap\/[\w./-]+)/).map((parte, i) => (i % 2 === 1
+    ? parte
+    : parte
+      .replace(/\b(?:la )?chat (c-\d+[a-z0-9-]*)\b/gi, (_m, id: string) => nome(id))
+      // «Revisione c-3» non diventa «Revisione Revisione («…»)».
+      .replace(/(?:(\p{L}+) )?\b(c-\d+[a-z0-9-]*)\b/giu, (_m, prima: string | undefined, id: string) => {
+        const n = nome(id)
+        return prima === undefined ? n : n.startsWith(`${prima} `) ? n : `${prima} ${n}`
+      }))).join('')
+  return t !== testo && /^(?:la )?(?:chat )?c-\d/i.test(testo) ? t.charAt(0).toUpperCase() + t.slice(1) : t
 }
 
 /** «Sviluppo», «Revisione»… o «Una chat» per una chat senza ruolo. */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { nuovoAutopilota, ESITI_TRAGUARDO, type Autopilota, type ChatGovernata, type Traguardo } from '@shared/autopilota'
-import { rigaTraguardo } from '@shared/chat-autopilota'
+import { conNomiChat, rigaTraguardo } from '@shared/chat-autopilota'
 import { COLORE_SEGNALE, puntoDi, rigaLimiti, senzaSigle } from '@shared/punto-autopilota'
 
 // 0.84.3 (Nicholas, 22/10 sera): l'autopilota è l'unico interlocutore. In
@@ -31,7 +31,7 @@ function ap(chats: ChatGovernata[], extra: Partial<Autopilota> & { segniChat?: R
 
 describe('senzaSigle: le sigle interne non arrivano a Nicholas', () => {
   it('toglie c-N, «gruppo N», i rami e gli autopiloti, tenendo la frase leggibile', () => {
-    expect(senzaSigle('Chiudi tu a mano l’autopilota del gestionale (c-12) del gruppo 3')).toBe('Chiudi tu a mano l’autopilota del gestionale del')
+    expect(senzaSigle('Chiudi tu a mano l’autopilota del gestionale (c-12) del gruppo 3')).toBe('Chiudi tu a mano l’autopilota del gestionale')
     expect(senzaSigle('aspetta la chat c-12')).toBe('aspetta la chat')
     expect(senzaSigle('unito il ramo ap/ap-f1e631f5/c-90 in main')).toBe('unito il ramo in main')
     expect(senzaSigle('c-14: il menu nuovo')).toBe('il menu nuovo')
@@ -123,5 +123,15 @@ describe('le righe della conversazione: parte, finisce, si blocca, viene unita, 
   it('i due esiti nuovi stanno fra quelli letti dal disco', () => {
     expect(ESITI_TRAGUARDO).toContain('bloccata')
     expect(ESITI_TRAGUARDO).toContain('ferma')
+  })
+})
+
+describe('conNomiChat: le note di lavoro con le chat chiamate per nome (collaudo c-96, D4)', () => {
+  const chats = [{ id: 'c-1', ruolo: 'sviluppo' as const, compito: 'Il motore' }, { id: 'c-3', ruolo: 'revisione' as const, compito: 'Rivedi' }, { id: 'c-2', compito: 'La pagina (c-2)' }]
+  it('la sigla diventa ruolo e compito, i rami restano per «Cosa è successo»', () => {
+    expect(conNomiChat('Revisione c-3: OK per c-1 (ap/x/c-1), unito', chats)).toBe('Revisione («Rivedi»): OK per Sviluppo («Il motore») (ap/x/c-1), unito')
+    expect(conNomiChat('c-2 è ferma da 15 minuti', chats)).toBe('La chat «La pagina» è ferma da 15 minuti')
+    expect(conNomiChat('c-9: sparita', chats)).toBe('Una chat: sparita')
+    expect(conNomiChat('tecnica', chats)).toBe('tecnica')
   })
 })

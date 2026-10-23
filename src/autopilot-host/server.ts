@@ -59,7 +59,8 @@ import { chatCheSostituisce, conSostituzione, giroMaiFermo, notaFerma, rigaGiro,
 import { conChatAdottate, conMessaggiAdottate, conSoloMia, messaggiPerAdottate, senzaMessaggiAdottate } from '@shared/adozione'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import type { TipoAvviso } from './telegram'
-import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
+import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, FERMA_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
+import { sorellaAspettata } from '@shared/adesso'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
@@ -1642,11 +1643,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // ripiego è l'ultimo salvataggio, che questa stessa riga sposterebbe, e
       // la riga tornerebbe ogni 5 minuti. Chi aspetta una risposta di Nicholas
       // non è muta: aspetta lui.
+      // Chi ha detto «aspetto» per una sorella al lavoro non tace (collaudo c-96, D2).
+      const aspettaSorella = (m: { chatId?: string }): boolean => {
+        const c = m.chatId !== undefined ? a.chats.find((x) => x.id === m.chatId) : undefined
+        return c !== undefined && sorellaAspettata(a, c) !== undefined
+      }
       const conSegnale = (m: { chatId?: string }): boolean =>
         (m.chatId !== undefined ? ultimoSegnale(chiaveTurno(a.id, m.chatId)) : undefined) !== undefined || ultimoSegnale(chiaveTurno(a.id)) !== undefined
       const zitte = deps.domande.aperte(a.id).length > 0
         ? []
-        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite), avvioServizio).filter(conSegnale).filter((m) => !chatInGiudizio(a, m.chatId))
+        : chiTace(a, ultimoSegnale, ora, Math.min(SILENZIO_DA_DIRE_MS, limite), avvioServizio).filter(conSegnale).filter((m) => !chatInGiudizio(a, m.chatId) && !aspettaSorella(m))
       const chiaveZitta = (m: { chatId?: string }): string => `${a.id}|${m.chatId ?? a.id}`
       const chiaviZitte = new Set(zitte.map(chiaveZitta))
       for (const k of [...mutaDetta.keys()]) if (k.startsWith(`${a.id}|`) && !chiaviZitte.has(k)) mutaDetta.delete(k)
@@ -1659,13 +1665,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         const detta: Autopilota = { ...a }
         for (const m of nuoveZitte) {
           mutaDetta.set(chiaveZitta(m), ora - m.da)
-          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(limite / 60_000)} minuti la metto da parte`, { chat: m.chatId ?? a.id, esito: 'muta' })
+          // Collaudo c-96 (D4): come il traguardo, 15 minuti (lì il giro da solo la riprende).
+          annota(detta, `la chat ${m.chatId ?? a.id} non dà segnali da ${Math.round(m.da / 60_000)} minuti: aspetto, a ${Math.round(FERMA_DA_DIRE_MS / 60_000)} minuti la rimetto al lavoro io`, { chat: m.chatId ?? a.id, esito: 'muta' })
         }
         salva(detta)
         base = detta
         console.info(`[autopilota] ${a.id} — ${nuoveZitte.length} chat senza segnali da ${Math.round(SILENZIO_DA_DIRE_MS / 60_000)} minuti: detto a Nicholas`)
       }
-      const mute = chiTace(a, ultimoSegnale, ora, limite, avvioServizio).filter((m) => !chatInGiudizio(a, m.chatId))
+      const mute = chiTace(a, ultimoSegnale, ora, limite, avvioServizio).filter((m) => !chatInGiudizio(a, m.chatId) && !aspettaSorella(m))
       if (mute.length === 0) continue
       // 0.80.1: una chat che tace non sospende più l'autopilota (6 fermate il
       // 19/10). Si mette da parte solo lei, le altre continuano, e nella

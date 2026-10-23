@@ -5257,6 +5257,7 @@ label.gc-voce { cursor: pointer; }
 .adesso-ap__compito { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
 .adesso-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adesso-ap__riga--ferma .adesso-ap__testo { white-space: normal; }
+.adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .adesso-ap__finite { font-size: var(--t1); color: var(--testo-quieto); }
 /* Il Punto (0.84.3) in cima alla conversazione dell'autopilota. */
 .punto-ap { padding: 6px 10px; border-bottom: 1px solid var(--bordo); display: grid; gap: 2px; font-size: var(--t1); }
