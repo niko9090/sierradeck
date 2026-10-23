@@ -34,6 +34,12 @@ export type SceltaScheda = {
    * `testo`, che è quello sullo schermo della chat.
    */
   etichetta?: string
+  /**
+   * Cosa succede con questa scelta (0.84.3): si vede **sotto il tasto**, su
+   * PC, pagina e app, non solo dietro il «?». Per le chat è la spiegazione
+   * dell'opzione di Claude Code, anche da un altro PC.
+   */
+  conseguenza?: string
 }
 
 /**
@@ -132,7 +138,11 @@ export function schedaDaParti(chi: string, p: PartiDomanda, opzioni: { avvertenz
   return {
     chi,
     domanda: p.domanda !== '' ? taglia(p.domanda) : '(la domanda non è stata scritta: guarda il «?»)',
-    scelte: p.scelte.map((s) => ({ testo: s.scelta, ...(s.consigliata === true ? { consigliata: true as const } : {}) })),
+    scelte: p.scelte.map((s) => ({
+      testo: s.scelta,
+      ...(s.consigliata === true ? { consigliata: true as const } : {}),
+      ...(s.conseguenza.trim() !== '' ? { conseguenza: s.conseguenza.trim() } : {})
+    })),
     dettagli,
     segnaposto: opzioni.segnaposto ?? 'Scrivi tu la risposta'
   }
@@ -192,7 +202,8 @@ export function scelteDiChat(opzioni: OpzioneScelta[]): { scelte: SceltaScheda[]
     ...(RACCOMANDATA.test(o.testo) || RACCOMANDATA.test(o.descrizione ?? '') ? { consigliata: true as const } : {}),
     ...(o.libera === true ? { libera: true as const } : {}),
     ...(o.spuntata !== undefined ? { spuntata: o.spuntata } : {}),
-    ...(o.invio === true ? { invio: true as const } : {})
+    ...(o.invio === true ? { invio: true as const } : {}),
+    ...((o.descrizione ?? '').trim() !== '' ? { conseguenza: (o.descrizione ?? '').trim() } : {})
   }))
   const conSpiegazione = opzioni.filter((o) => (o.descrizione ?? '').trim() !== '')
   return {

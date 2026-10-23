@@ -143,20 +143,33 @@ fun SchedaDomandaVista(
         }
         if (s.scelte.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (c in s.scelte) {
-                    Text(
-                        etichettaScelta(c),
-                        color = Banco.testo,
-                        fontSize = 14.sp,
-                        fontWeight = if (c.consigliata) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (c.consigliata) Banco.accento.copy(alpha = 0.18f) else Banco.fondo)
-                            .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(8.dp))
-                            .tocco(enabled = !inCorso) { onScelta(c) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    )
+            val tasto: @Composable (SceltaScheda) -> Unit = { c ->
+                Text(
+                    etichettaScelta(c),
+                    color = Banco.testo,
+                    fontSize = 14.sp,
+                    fontWeight = if (c.consigliata) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (c.consigliata) Banco.accento.copy(alpha = 0.18f) else Banco.fondo)
+                        .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(8.dp))
+                        .tocco(enabled = !inCorso) { onScelta(c) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
+            if (s.scelte.any { !it.conseguenza.isNullOrBlank() }) {
+                // PC 0.84.3: una scelta per riga, e sotto cosa succede.
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (c in s.scelte) {
+                        tasto(c)
+                        c.conseguenza?.takeIf { it.isNotBlank() }?.let {
+                            Text("→ $it", color = Banco.testoQuieto, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+                        }
+                    }
+                }
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (c in s.scelte) tasto(c)
                 }
             }
         }

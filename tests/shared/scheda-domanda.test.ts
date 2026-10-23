@@ -98,19 +98,23 @@ describe('la scheda di una domanda', () => {
     const s = schedaDaParti(chiDi('autopilota', 'Notte', 'E:\\progetti\\SierraDeck'), PARTI)
     expect(s.chi).toBe('autopilota «Notte» · SierraDeck')
     expect(s.domanda).toBe('Pubblico adesso la 0.72.1?')
-    expect(s.scelte).toEqual([{ testo: 'sì, pubblica', consigliata: true }, { testo: 'no, lascia così' }])
+    // 0.84.3: sotto ogni tasto cosa succede.
+    expect(s.scelte).toEqual([
+      { testo: 'sì, pubblica', consigliata: true, conseguenza: 'tolgo la bozza e controllo gli allegati' },
+      { testo: 'no, lascia così', conseguenza: 'la bozza resta' }
+    ])
     expect(s.dettagli.map((d) => d.etichetta)).toEqual(['Cosa sta facendo', 'Perché te lo chiede', 'Cosa succede con ogni scelta', 'Se non rispondi'])
     expect(s.dettagli[2]!.testo).toContain('sì, pubblica → tolgo la bozza')
   })
 
-  it('le opzioni di Claude Code: «(Recommended)» diventa la consigliata, le spiegazioni vanno nei dettagli', () => {
+  it('le opzioni di Claude Code: «(Recommended)» diventa la consigliata, la spiegazione sotto il tasto (0.84.3) e nei dettagli', () => {
     const { scelte, spiegazioni } = scelteDiChat([
       { numero: 1, testo: 'Usa npm (Recommended)', scelta: true, descrizione: 'c è già package-lock.json' },
       { numero: 2, testo: 'Usa pnpm', scelta: false },
       { numero: 3, testo: 'Type something.', scelta: false, libera: true }
     ])
     expect(scelte).toEqual([
-      { testo: 'Usa npm (Recommended)', numero: 1, consigliata: true },
+      { testo: 'Usa npm (Recommended)', numero: 1, consigliata: true, conseguenza: 'c è già package-lock.json' },
       { testo: 'Usa pnpm', numero: 2 },
       { testo: 'Type something.', numero: 3, etichetta: 'Scrivo io la risposta', libera: true }
     ])
