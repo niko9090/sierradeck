@@ -3,6 +3,7 @@ import { adessoDi, COLORE_ADESSO, type RigaAdesso, type SegniDalVivo } from './a
 import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
 import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
+import { velocitaDi } from './velocita-richieste'
 
 export { senzaSigle }
 
@@ -56,6 +57,12 @@ export type Punto = {
   daTe: string[]
   /** I limiti del piano, solo informazione. Assente se non ancora letti. */
   limiti?: string
+  /**
+   * La velocità misurata (0.85.0): dalla richiesta alla versione pubblicata e
+   * dove si perde il tempo, con la spiegazione per il «?». Assente finché
+   * nessuna richiesta è uscita in una versione.
+   */
+  velocita?: { testo: string; aiuto: string }
 }
 
 /** Quante righe al più in «Finito» e «Dopo»: il Punto sta in cima, non è un elenco. */
@@ -137,6 +144,7 @@ export function puntoDi(
   if ((a.stato === 'sospeso' || a.stato === 'fallito') && daTe.length === 0) daTe.push('Si è fermato: dimmi se riprendere, scrivendogli qui sotto.')
 
   const limiti = rigaLimiti(p.limiti)
+  const velocita = velocitaDi(a, ora)
   return {
     passo: passoDi(a),
     chat,
@@ -146,7 +154,8 @@ export function puntoDi(
     dopo: dopo.slice(0, RIGHE_PUNTO_MAX),
     dopoTotale: dopo.length,
     daTe,
-    ...(limiti !== undefined ? { limiti } : {})
+    ...(limiti !== undefined ? { limiti } : {}),
+    ...(velocita !== undefined ? { velocita } : {})
   }
 }
 

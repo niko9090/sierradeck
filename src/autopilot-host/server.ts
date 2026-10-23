@@ -81,6 +81,7 @@ import {
   cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 import { allineaHookEccDiTutte } from './hook-ecc'
+import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
 
 export type Dipendenze = {
   archivio: Archivio
@@ -225,6 +226,11 @@ export type Dipendenze = {
    * chat dell'autopilota, senza GitHub.
    */
   statoVero?: (a: Autopilota) => Promise<StatoVero>
+  /**
+   * Le release uscite di un progetto con la data (0.85.0): per dire nel Punto
+   * quanto ci mette una richiesta ad arrivare in una versione. Assente: niente.
+   */
+  releaseUscite?: LeggiReleaseUscite
 }
 
 /** Oltre queste domande nuove all'ora, l'autopilota decide con la scelta consigliata (0.71.0). */
@@ -639,6 +645,8 @@ export type ServerAutopiloti = Server & {
   ricontrollaCriteri: (id: string) => Promise<boolean>
   /** Chiude le domande aperte ormai superate (0.84.0); torna quante. */
   ricontrollaDomande: () => Promise<number>
+  /** Rilegge le release uscite con la data (0.85.0, velocità misurata). Torna quanti autopiloti ha aggiornato. */
+  aggiornaReleaseUscite: () => Promise<number>
 }
 
 /**
@@ -5824,5 +5832,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return chiuse
   }
 
-  return Object.assign(server, { riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  /**
+   * Le release uscite, rilette una volta per progetto e salvate negli
+   * autopiloti aperti (0.85.0). Si rilegge l'autopilota subito prima di
+   * scriverlo e si scrive solo se le release sono cambiate: non tocca
+   * `ultimoEvento`, quindi non sveglia e non ferma nessuno.
+   */
+  const aggiornaReleaseUscite = async (): Promise<number> => {
+    const leggi = deps.releaseUscite
+    if (leggi === undefined) return 0
+    const aperti = deps.archivio.elenca().filter((a) => a.archiviato !== true)
+    let aggiornati = 0
+    for (const cwd of new Set(aperti.map((a) => a.cwd))) {
+      const uscite = await leggi(cwd).catch(() => undefined)
+      if (uscite === undefined) continue
+      for (const prima of aperti.filter((a) => a.cwd === cwd)) {
+        const fresco = deps.archivio.leggi(prima.id)
+        const dopo = fresco === undefined ? undefined : conReleaseUscite(fresco, uscite)
+        if (dopo === undefined) continue
+        deps.archivio.scrivi(dopo)
+        aggiornati += 1
+      }
+    }
+    return aggiornati
+  }
+
+  return Object.assign(server, { aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

@@ -1044,7 +1044,8 @@ function adessoHtml(x) {
 }
 /**
  * Il Punto (0.84.3, come sul PC) in cima alla conversazione: passo, ogni chat
- * con il suo segnale nei colori del PC, finito, dopo, cosa serve da te, limiti.
+ * con il suo segnale nei colori del PC, finito, dopo, cosa serve da te, limiti
+ * e (0.85.0) la velocità dalla richiesta alla versione, col suo «?».
  * Le righe arrivano calcolate dal computer (puntoDi).
  */
 function puntoHtml(p) {
@@ -1064,7 +1065,8 @@ function puntoHtml(p) {
     (p.finite ? '<div class="sotto">' + (p.finite === 1 ? '1 chat finita' : p.finite + ' chat finite') + '</div>' : '') +
     lista('Finito', p.fatto, p.fattoTotale) + lista('Dopo', p.dopo, p.dopoTotale) +
     '<div class="punto-ap__riga"' + (daTe ? ' style="color:' + tinta('ambra') + '"' : '') + '><b>Da te:</b> ' + (daTe ? daTe.map(esc).join(' ') : 'niente, va avanti da solo.') + '</div>' +
-    (p.limiti ? '<div class="punto-ap__riga sotto">' + esc(p.limiti) + '</div>' : '') + '</div>'
+    (p.limiti ? '<div class="punto-ap__riga sotto">' + esc(p.limiti) + '</div>' : '') +
+    (p.velocita && p.velocita.testo ? '<div class="punto-ap__riga con-aiuto"><b>Velocità:</b> ' + esc(p.velocita.testo) + aiuto('ap-velocita', p.velocita.aiuto || '', 'Velocità') + '</div>' : '') + '</div>'
 }
 function dalVivoHtml(v, senzaStato) {
   if (!v || typeof v !== 'object') return ''
