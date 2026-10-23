@@ -489,7 +489,9 @@ function attendiEConsegna(
       console.error(`[autopilota] la chat ${c.chatId} non è pronta dopo ${Math.round(passato / 1000)}s: istruzione non consegnata`)
       ponte.registra?.(`consegna ${c.id}: resa dopo ${Math.round(passato / 1000)} s, ${ora === undefined ? 'riquadro mai trovato' : 'terminale mai nato'}`)
       // Il servizio rimette in coda i messaggi che portava (0.56.4).
-      if (c.id !== '') ponte.registra?.(`consegna ${c.id}: non consegnata`)
+      // 0.84.4: con il riquadro trovato ma senza terminale lo si dice («non
+      // nata»): il servizio passa il compito a una chat nuova, senza domande.
+      if (c.id !== '') ponte.registra?.(`consegna ${c.id}: non consegnata${ora !== undefined ? ` (non nata: in ${Math.round(passato / 1000)} secondi il terminale della chat non è nato)` : ''}`)
       ponte.segnala?.({
         ptyId: ora?.ptyId ?? '', chatId: c.chatId, autopilotaId: c.autopilotaId, titolo: c.titolo,
         motivo: `guasto del programma: in ${Math.round(passato / 1000)} secondi ${ora === undefined ? 'la chat non è comparsa in nessuna finestra' : 'il terminale della chat non è nato'}, il compito non è stato scritto`

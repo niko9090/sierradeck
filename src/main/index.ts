@@ -4425,7 +4425,7 @@ if (!app.requestSingleInstanceLock()) {
         registro.info(m)
         // L'esito della consegna (0.41.0): partita o no, per la linguetta «Istruzioni».
         const e = esitoDaPasso(m)
-        if (e !== undefined) void postaAlServizio('/consegne/esito', { id: e.consegna, esito: e.esito }).catch(() => undefined)
+        if (e !== undefined) void postaAlServizio('/consegne/esito', { id: e.consegna, esito: e.esito, ...(e.nonNata === true ? { nonNata: true, perche: e.perche } : {}) }).catch(() => undefined)
       })
 
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
