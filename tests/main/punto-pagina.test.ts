@@ -35,6 +35,7 @@ const punto: Punto = {
     fine: { testo: 'Fine del lavoro: 4 di 6 criteri · 3 compiti in coda · 1 chat al lavoro', percento: 67 },
     andamento: { livello: 'fermo', colore: 'rosso', simbolo: '■', testo: 'Fermo: nessun segnale vero da 7 h · l’autopilota: riprendo le chat' },
     dettaglio: ['Sviluppo («Il menu»): commit 7 h fa'],
+    promesse: ['Ti ho promesso: la 0.85.1 pubblicata · entro il 24/10 03:12'],
     aiuto: 'Tre righe'
   },
   richieste: [
@@ -63,6 +64,8 @@ describe('il Punto sulla pagina del telefono', () => {
     expect(h).toContain('Fine del lavoro: 4 di 6 criteri · 3 compiti in coda · 1 chat al lavoro')
     expect(h).toContain('aria-valuenow="67"><span style="width:67%"></span>')
     expect(h).toContain('style="color:ROSSO"><b>■</b> Fermo: nessun segnale vero da 7 h')
+    // 0.85.1: le promesse aperte sotto le tre righe, come sul PC e nell'app.
+    expect(puntoHtml(punto)).toContain('<div class="punto-ap__riga punto-ap__promessa">Ti ho promesso: la 0.85.1 pubblicata · entro il 24/10 03:12</div>')
     // Un PC più vecchio senza indicatore: il Punto si legge lo stesso.
     const { indicatore: _via, ...vecchio } = punto
     expect(puntoHtml(vecchio)).not.toContain('punto-ap__indicatore')

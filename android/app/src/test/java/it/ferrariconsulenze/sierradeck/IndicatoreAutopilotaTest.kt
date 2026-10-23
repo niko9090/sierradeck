@@ -34,4 +34,17 @@ class IndicatoreAutopilotaTest {
         assertEquals(1f, RigheIndicatore.frazione(IndicatoreAutopilota(fine = FineIndicatore(percento = 140))), 0f)
         assertEquals("Spiegazione", RigheIndicatore.aiuto(IndicatoreAutopilota(aiuto = "Spiegazione")))
     }
+
+    @Test
+    fun `le promesse aperte come le manda il PC 0_85_1, e assenti con un PC più vecchio`() {
+        val d = Api.json.decodeFromString(AutopilotaDettaglio.serializer(), """
+            {"id":"ap-1","stato":"lavoro","punto":{"passo":"Lavora","indicatore":{
+              "versione":"Prossima versione 0.85.1","fine":{"testo":"Fine","percento":10},
+              "andamento":{"livello":"va","colore":"verde","simbolo":"●","testo":"Va"},
+              "promesse":["Ti ho promesso: la 0.85.1 pubblicata · entro il 24/10 03:12", "  "],
+              "aiuto":"Tre righe."}}}
+        """)
+        assertEquals(listOf("Ti ho promesso: la 0.85.1 pubblicata · entro il 24/10 03:12"), RigheIndicatore.promesse(d.punto!!.indicatore!!))
+        assertEquals(emptyList<String>(), RigheIndicatore.promesse(IndicatoreAutopilota()))
+    }
 }

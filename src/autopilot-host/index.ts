@@ -435,6 +435,18 @@ export function avviaServizio(): void {
     }
     aggiornaReleaseUscite()
     setInterval(aggiornaReleaseUscite, RILETTURA_RELEASE_MS).unref()
+    // Le promesse fatte a Nicholas (0.85.1): ogni minuto si guarda se il fatto
+    // è successo o la scadenza è passata. Legge solo lo stato.
+    const controllaPromesse = (): void => {
+      try {
+        const n = server.controllaPromesse()
+        if (n > 0) console.info(`[promesse] ${n} messaggi scritti`)
+      } catch (err) {
+        console.error('[promesse] controllo non riuscito:', err)
+      }
+    }
+    controllaPromesse()
+    setInterval(controllaPromesse, 60_000).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa

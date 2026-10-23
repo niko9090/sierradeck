@@ -3,6 +3,7 @@ import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
 import { leggiRapportoChat, type RapportoChat } from './rapporti-chat'
 import { leggiRisposteInViaggio, type RispostaInViaggio } from './risposte-in-viaggio'
 import { leggiRichieste, type RichiestaNicholas } from './richieste-nicholas'
+import { leggiPromesse, type Promessa } from './promesse'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -519,6 +520,11 @@ export type Autopilota = SupervisoreMancato & {
    * sola un obiettivo, con criterio e compiti. Vedi `richieste-nicholas.ts`.
    */
   richieste?: RichiestaNicholas[]
+  /**
+   * Le promesse di avvisare fatte a Nicholas nelle risposte dalla scheda
+   * (0.85.1), legate a un fatto e a una scadenza. Vedi `promesse.ts`.
+   */
+  promesse?: Promessa[]
   /**
    * Gli ultimi messaggi arrivati nella chat, con quando (0.69.0): la scheda dice
    * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
@@ -1161,6 +1167,7 @@ export function parseAutopilota(raw: unknown): {
           }
         : {}),
       ...(leggiRichieste(o.richieste).length > 0 ? { richieste: leggiRichieste(o.richieste) } : {}),
+      ...(leggiPromesse(o.promesse).length > 0 ? { promesse: leggiPromesse(o.promesse) } : {}),
       ...(Array.isArray(o.risposteInViaggio) && leggiRisposteInViaggio(o.risposteInViaggio).length > 0
         ? { risposteInViaggio: leggiRisposteInViaggio(o.risposteInViaggio) }
         : {}),
