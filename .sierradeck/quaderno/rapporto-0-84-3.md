@@ -50,7 +50,7 @@ Stato al 23/10 00:00 UTC (c-93). Si completa alla release.
 | c-93 | questa release: revisione di c-90/c-91, prova di 2 ore, versione 0.84.3 | unito a ogni turno |
 | c-94 | ricollaudo delle domande fra PC: verde; caso limite lieve (emoji tagliata al 200° carattere dall'app, 409) | da unire (solo quaderno, 9e0d0a25); il caso limite l'ha corretto c-93 sul suo ramo (23b0d540: `tagliaIntero` nel battito, `dovEOpzione` a 199, `senzaMezziCaratteri` nell'app, test TS e Kotlin) |
 | c-95 | «sono bloccato» in parole semplici (lavoro e controllo che non passa), conseguenza sotto ogni scelta su PC, pagina e app (anche da un altro PC), scelte eseguite dal programma, ultima strada con una chat nuova sullo stesso ramo prima di chiedere, domanda che non ferma la chat, vecchie «Come vuoi che proceda?» chiuse come superate. Tocca `android/` | commit 217767af, **da unire dalla Revisione** quando la chat finisce. **Rivisto da c-93 (23/10, sola lettura, in una copia staccata):** TypeScript pulito; 8 file di test, 285 verdi (sono-bloccato, gesti-a-mano, scheda-domanda, domanda-strutturata, server, decisione, rete-sicurezza, domanda-chiara). Caso vero del 22/10 in un test (`eVecchiaBloccato`, chiusa come superata anche nel servizio). Passa dallo stesso controllo (`validaDomanda`, `scartaSeNonVa`, `domandaDaNonFare`). Niente dati privati, nessuna funzione tolta (le tre scelte vecchie sostituite da tre equivalenti eseguite dal programma). Kotlin: `Modelli.kt` 594 righe, `SchedaDomandaVista.kt` 253. **Lieve, da sapere:** la conseguenza sotto i tasti è provata nella scheda comune e nell'app (`SceltaSpiegataTest`), ma non c'è un test che la veda disegnata nel renderer del PC e nella pagina; il codice c'è (`SchedaDomandaVista.tsx`, `client-pagina.ts`). La riga del diario dell'ultima strada porta i numeri delle chat (come le altre righe del diario); nella conversazione passa da `senzaSigle` |
-| c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | da unire (5f92b4d3); difetti da correggere prima della release |
+| c-96 | collaudo del Punto: righe «ferma» provate nel servizio; 4 difetti con `it.fails` (D1 sigle nella Panoramica, D2 chi aspetta una sorella non è «ferma», D3 frasi rotte da `senzaSigle`, D4 note senza Panoramica) | unito nel ramo c-93 (f8fddde2) e da lì in main; i 4 difetti corretti da c-93 uno per commit (D3 c796c493, D1 72c47068, D2 3654498a con il test «se tace anche la sorella si riprendono tutte e due», D4 97aa542a), nessun `it.fails` rimasto |
 
 ## Prova di 2 ore senza fermate
 
@@ -78,5 +78,14 @@ in `mai-fermo.ts` con un test rosso prima e verde dopo (commit `1169047a`): il
 giro dice «messe da parte», «riprese che non hanno risposto» o «ferme da più di
 15 minuti mentre le altre lavorano».
 
-**Prova rilanciata alle 2026-10-23T00:11:16Z** sul codice corretto, stesso metodo.
+**Secondo giro (00:11 UTC), fermato a 54 minuti perché il codice è cambiato.**
+Pulito fino lì: 0 minuti fermi con lavoro da finire, nessun tratto oltre 15
+minuti, la chat muta più a lungo 15,0 minuti (sempre ripresa al giro), 4 giri
+da soli tutti col motivo vero («ferme da più di 15 minuti mentre le altre
+lavorano»), nessun giro che dice «apro» senza aprire, 2 chat passate a una chat
+nuova. Fermato perché la correzione D2 del collaudo del «Punto» tocca
+`mai-fermo.ts` (chi aspetta una sorella che lavora non è ferma).
+
+**Terzo giro, quello che vale: partito alle 2026-10-23T01:05:56Z** sul codice finale del ramo
+c-93 (`97aa542a`: motivo vero, D1-D4 del «Punto», emoji). Stesso metodo.
 Numeri: in arrivo alla fine (2 ore dopo).

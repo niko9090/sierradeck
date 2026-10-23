@@ -45,4 +45,13 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
     expect(chatAp).toContain('<PuntoAutopilota autopilota={autopilota} senzaChat={soloConversazione} />')
     expect(chatAp).not.toContain('<AdessoAutopilota')
   })
+
+  it('0.84.3 (collaudo c-96 D1): nella Panoramica del PC niente sigle, e ogni chat ha il suo segnale come su pagina e app', () => {
+    const conSegnale: Autopilota = { ...ap, chats: [chat('c-14', { compito: 'Il riquadro (c-14)', dal: iso(ORA - 5 * 60_000), segnale: { tipo: 'bloccata', quando: iso(ORA - 2 * 60_000), dichiarato: true, motivo: 'manca la chiave' } })] }
+    const html = renderToStaticMarkup(<AdessoAutopilota autopilota={conSegnale} dentro />)
+    expect(html).not.toMatch(/\bc-\d+/)
+    expect(html).toContain('Una chat')
+    expect(html).toContain('adesso-ap__segnale')
+    expect(html).toContain('■')
+  })
 })

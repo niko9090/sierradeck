@@ -5268,5 +5268,6 @@ label.gc-voce { cursor: pointer; }
 .punto-ap__testo { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .punto-ap__chat--ferma .punto-ap__testo { white-space: normal; }
 .punto-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
+.adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .punto-ap__riga { overflow-wrap: anywhere; }
 .punto-ap__limiti { color: var(--testo-quieto); }
