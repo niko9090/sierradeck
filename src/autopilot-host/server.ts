@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { isAbsolute, join } from 'node:path'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import {
   DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
@@ -33,6 +33,7 @@ import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
 import { fattiVerificati } from './fatti'
+import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
   chiediCambio, chiediGiudizio, componiPromptScomposizione, leggiCompiti, riparaComando,
   type Interrogazione
@@ -3152,6 +3153,58 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     await aspettaProve(p.cwd)
     return (deps.turni ?? TURNI_PC).unione(p.cwd, () => unisciRamoAsincrono(gitA(git), p))
   }
+  /**
+   * **Il riscontro con la prova** (0.85.0): un criterio diventato verde nella
+   * cartella principale chiude una richiesta di Nicholas. Una riga nella
+   * conversazione (cosa, commit, test, versione), una nel registro, e la
+   * stessa nella lista dei lavori. Ai giri dopo, «nella prossima versione»
+   * diventa la versione appena compare il suo tag. Vedi `riscontro.ts`.
+   */
+  const riscontra = (id: string, prima: Criterio[], dopo: Criterio[]): void => {
+    if (deps.git === undefined) return
+    const git = gitA(deps.git)
+    const verdi = diventatiVerdi(prima, dopo)
+    void (async () => {
+      const a = deps.archivio.leggi(id)
+      if (a === undefined) return
+      const percorso = join(a.cwd, LISTA_LAVORI)
+      const leggiLista = (): string | undefined => {
+        try { return existsSync(percorso) ? readFileSync(percorso, 'utf8') : undefined } catch { return undefined }
+      }
+      const detto = a.dialogo.map((s) => s.testo)
+      const nuovi = await riscontriNuovi({ git, cwd: a.cwd, verdi, lista: leggiLista(), giaDetto: [...detto, ...a.decisioni.map((d) => d.cosa)].join('\n') })
+      const lista = leggiLista()
+      const uscite = await versioniUscite(git, a.cwd, [...detto, ...(lista !== undefined ? [lista] : [])])
+      if (nuovi.length === 0 && uscite.size === 0) return
+      const fresco = deps.archivio.leggi(id)
+      if (fresco === undefined) return
+      const quando = deps.adesso()
+      const righe = nuovi.map(rigaRiscontro)
+      const conVersioni = (testo: string): string => [...uscite].reduce((t, [commit, v]) => conVersione(t, commit, v), testo)
+      salva({
+        ...fresco,
+        dialogo: [
+          ...fresco.dialogo.map((s) => s.traccia === true && commitInAttesa(s.testo).length > 0 ? { ...s, testo: conVersioni(s.testo) } : s),
+          ...righe.map((testo) => ({ quando, da: 'lui' as const, testo, traccia: true as const }))
+        ].slice(-DIALOGO_RICORDATO),
+        decisioni: [
+          ...fresco.decisioni,
+          ...righe.map((riga) => ({ quando, cosa: `riscontro: ${riga}` })),
+          ...[...uscite].map(([commit, v]) => ({ quando, cosa: `riscontro: il commit ${commit} è uscito nella ${v}` }))
+        ]
+      })
+      for (const riga of righe) console.info(`[riscontro] ${id} — ${riga}`)
+      const salvata = await (deps.turni ?? TURNI_PC).unione(a.cwd, () => salvaLista({
+        git,
+        cwd: a.cwd,
+        leggi: leggiLista,
+        scrivi: (testo) => writeFileSync(percorso, testo, 'utf8'),
+        cambia: (testo) => conVersioni(nuovi.reduce(conRiscontroInLista, testo)),
+        messaggio: `docs(quaderno): riscontro nella lista dei lavori${nuovi.length > 0 ? ` (${nuovi.map((r) => r.richiesta).join(', ')})` : ''}`
+      }))
+      if (!salvata && nuovi.length > 0) console.info(`[riscontro] ${id} — lista dei lavori non aggiornata (manca, o cambiata e non salvata nella cartella principale)`)
+    })().catch((err) => console.error(`[riscontro] ${id} — non scritto:`, err))
+  }
   // Anche togliere un worktree e guardare se un ramo è già chiuso girano nella
   // cartella di lavoro: mai a metà di un'unione (Revisione 0.84.0).
   const togliAlTurno = (git: Git, p: { cwd: string; cartella: string; ramo: string }): Promise<void> =>
@@ -3486,6 +3539,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return aggiornato
     })
     const aggiornato: Autopilota = { ...conSessione, criteri }
+    riscontra(id, conSessione.criteri, criteri)
 
     let decisione = decidi(aggiornato, {
       sessionId: sessionId ?? '',
@@ -5679,6 +5733,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ? `ricontrollo chiesto da te: ${tornatiRossi.map((c) => `«${c.descrizione}»`).join(', ')} ${tornatiRossi.length === 1 ? 'non passa più' : 'non passano più'}`
       : `ricontrollo chiesto da te: ${m.esiti.filter((e) => e.passato).length} criteri su ${m.esiti.length} passano`)
     salva(aggiornato)
+    riscontra(a.id, fresco.criteri, criteri)
     return true
   }
 
