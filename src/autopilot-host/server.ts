@@ -46,8 +46,9 @@ import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero }
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import {
-  domandaControllata, domandaControllataSubito, domandaPerRegistro, leggiParti, partiDaTesto, nomeDi, partiDaRisposta, partiPubblica, testoDomanda as testoDellaDomanda
+  cosaFallisce, domandaControllata, domandaControllataSubito, domandaPerRegistro, leggiParti, partiBloccato, partiDaTesto, nomeControllo, nomeDi, partiDaRisposta, partiPubblica, rispostaBloccato, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
+import { conUltimaStrada, rigaUltimaStrada, serveUltimaStrada, testoMentreAspetti, testoUltimaStrada } from './ultima-strada'
 import { percheRecente, type EsitoIstruzione, type Istruzione } from '@shared/istruzioni-autopilota'
 import {
   chiaviChatVive, componiPromptDialogo, conMessaggioPerLaChat, conPreambolo, leggiEsitoDialogo,
@@ -1114,7 +1115,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * quella chat non è più bloccata (già ripresa, finita, o l'autopilota
    * fermato) non fa niente: chiamarla due volte non la riavvia due volte.
    */
-  const riprendiChatBloccata = (autopilotaId: string, chatId: string, domanda: string, risposta: string, perche: string): void => {
+  const riprendiChatBloccata = (autopilotaId: string, chatId: string, domanda: string, risposta: string, perche: string, testoPronto?: string): void => {
     const ora = deps.archivio.leggi(autopilotaId)
     if (ora === undefined) return
     const chat = ora.chats.find((c) => c.id === chatId)
@@ -1129,12 +1130,40 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })
     void avviaLavoro(
       ripresa,
-      conPreambolo(presi.testi, componiRisposta(domanda, risposta)),
+      conPreambolo(presi.testi, testoPronto ?? componiRisposta(domanda, risposta)),
       { ...chat, stato: 'lavoro' },
       presi.presi
     ).catch((err: unknown) => {
       console.error(`[autopilota] ripresa della chat ${chatId} di ${autopilotaId} fallita:`, err)
     })
+  }
+
+  /**
+   * La risposta a «sono bloccato» (0.84.3): ogni scelta la esegue il
+   * programma. «Lascia stare quel controllo»: i criteri li giudica
+   * l'autopilota e non bloccano più la chiusura. «Sospendi l’autopilota»:
+   * l'autopilota si ferma (restituisce `undefined`: alla chat non si scrive
+   * niente). Un testo libero arriva alla chat così com'è.
+   */
+  const eseguiRispostaBloccato = (autopilotaId: string, criteri: string[], domanda: string, risposta: string): string | undefined => {
+    const scelta = rispostaBloccato(risposta)
+    const ora = deps.archivio.leggi(autopilotaId)
+    if (scelta === undefined || ora === undefined) return componiRisposta(domanda, risposta)
+    const quali = criteri.map((d) => `«${nomeControllo(d, 90)}»`).join(', ')
+    if (scelta === 'sospendi') {
+      const motivo = `sospeso su tua scelta: ${quali !== '' ? `${quali} non passava` : 'era bloccato'}`
+      salva({ ...ora, stato: 'sospeso', motivoSospensione: motivo, decisioni: [...ora.decisioni, { quando: deps.adesso(), cosa: `risposta dell utente: ${risposta} — fermo tutte le chat, il lavoro fatto resta salvato` }] })
+      deps.fermaLavoro(autopilotaId)
+      return undefined
+    }
+    const il = deps.adesso()
+    salva({
+      ...ora,
+      criteri: ora.criteri.map((c) => (criteri.includes(c.descrizione) && c.giudicato === undefined ? { ...c, giudicato: { il, perche: 'Nicholas ha scelto di lasciarlo stare dopo che la chat si era bloccata' } } : c)),
+      decisioni: [...ora.decisioni, { quando: il, cosa: `risposta dell utente: ${risposta} — ${criteri.length > 1 ? `i controlli ${quali} li giudico io` : `il controllo ${quali} lo giudico io`}: non blocca più la chiusura` }]
+    })
+    return `Hai chiesto come andare avanti. Nicholas ha scelto: lascia stare ${criteri.length > 1 ? `i controlli ${quali}` : `il controllo ${quali}`}.\n\n` +
+      'Da adesso lo giudica l’autopilota e non blocca più la chiusura. Prosegui con il resto del lavoro; quando è tutto fatto, dillo in poche righe.'
   }
 
   /**
@@ -1211,6 +1240,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(ripreso)
       void conduciIntervista(ripreso).catch((err: unknown) => {
         console.error(`[autopilota] ripresa dell intervista di ${dati.autopilotaId} fallita:`, err)
+      })
+      return
+    }
+
+    // «Sono bloccato» (0.84.3): la scelta la esegue il programma; se la chat
+    // intanto ha continuato con il resto, la risposta le arriva in coda.
+    if (dati.bloccato !== undefined) {
+      const testo = eseguiRispostaBloccato(dati.autopilotaId, dati.bloccato.criteri, dati.testo, risposta)
+      if (testo === undefined) return
+      const ora = deps.archivio.leggi(dati.autopilotaId)
+      const chat = dati.chatId !== undefined ? ora?.chats.find((c) => c.id === dati.chatId) : undefined
+      if (ora !== undefined && ora.stato === 'lavoro' && (dati.chatId === undefined || chat?.stato === 'lavoro')) {
+        salva({ ...ora, daConsegnare: [...ora.daConsegnare, { id: randomUUID(), quando: deps.adesso(), testo, chats: [dati.chatId ?? ora.id] }] })
+        return
+      }
+      if (dati.chatId !== undefined) {
+        riprendiChatBloccata(dati.autopilotaId, dati.chatId, dati.testo, risposta, 'risposta tardiva', testo)
+        return
+      }
+      if (ora === undefined || ora.stato !== 'attesa') return
+      const presi = prendiMessaggiPer({ ...ora, stato: 'lavoro' }, ora.id)
+      salva({ ...presi.autopilota, motivoSospensione: undefined })
+      void avviaLavoro(presi.autopilota, conPreambolo(presi.testi, testo), undefined, presi.presi).catch((err: unknown) => {
+        console.error(`[autopilota] ripresa di ${dati.autopilotaId} fallita:`, err)
       })
       return
     }
@@ -3442,6 +3495,71 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // Se mancano, il supervisore la riscrive una volta, nella sua sessione;
       // poi passa comunque, con un'avvertenza. Quelle scritte dal programma
       // sono complete per costruzione.
+      // **Un'ultima strada prima di «sono bloccato»** (0.84.3): una chat nuova,
+      // stessa cartella e stesso ramo, rilegge gli errori da capo. Si chiede a
+      // Nicholas solo se si blocca anche lei.
+      const bloccato = decisione.bloccato
+      // **La sorella non si ferma sulla domanda di un'altra** (0.84.3, D2 del
+      // collaudo c-99): nelle flotte i criteri sono dell'autopilota e restano
+      // rossi finché tutto non è finito, e i giri in cerchio si contano su
+      // tutta la storia. Se un'altra chat ha già chiesto a Nicholas su questi
+      // controlli, questa non è bloccata: continua con il suo compito, senza
+      // ultima strada, senza recupero e senza aspettare la risposta.
+      const giaChiesta = bloccato !== undefined && chatId !== undefined
+        ? deps.domande.aperte(aggiornato.id).find((d) => {
+            const ctx = contesto.get(d.id)
+            return ctx?.bloccato !== undefined && ctx.chatId !== undefined && ctx.chatId !== chatId &&
+              bloccato.falliti.some((f) => ctx.bloccato?.criteri.includes(f.descrizione) === true)
+          })
+        : undefined
+      if (bloccato !== undefined && giaChiesta !== undefined) {
+        const compito = aggiornato.chats.find((c) => c.id === chatId)?.compito ?? aggiornato.obiettivo
+        const presi = tuoi(aggiornato)
+        salvaNelTurno({ ...presi.autopilota, decisioni: [...aggiornato.decisioni, { quando: deps.adesso(), cosa: traccia(esiti) }] })
+        misura.esito = 'continua: domanda già chiesta da un’altra chat'
+        return {
+          decision: 'block',
+          reason: conPreambolo(
+            presi.testi,
+            `${cosaFallisce(bloccato.falliti)}: su questo ho già chiesto a Nicholas per un'altra chat, e la risposta la aspetta lei. ` +
+            `Non è un blocco tuo: lascialo stare e continua con il tuo compito.\n\nIl tuo compito: ${compito}`
+          )
+        }
+      }
+      if (bloccato !== undefined && serveUltimaStrada(aggiornato, chatId)) {
+        const vecchia = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
+        misura.esito = 'ultima strada'
+        if (vecchia === undefined) {
+          annota(aggiornato, rigaUltimaStrada(bloccato, {}))
+          salvaNelTurno(aggiornato)
+          return { decision: 'block', reason: testoUltimaStrada(bloccato, { nuova: false, compito: aggiornato.obiettivo }) }
+        }
+        const il = deps.adesso()
+        const nuova = conUltimaStrada(chatCheSostituisce(aggiornato, vecchia, randomUUID(), il))
+        const chi = vecchia.sessionId !== undefined ? { sessionId: vecchia.sessionId, ...(aggiornato.workspace !== undefined ? { workspace: aggiornato.workspace } : {}) } : undefined
+        const conNuova = conSostituzione(aggiornato, vecchia.id, nuova, il)
+        annota(conNuova, rigaUltimaStrada(bloccato, { vecchia: vecchia.id, nuova: nuova.id }), { chat: vecchia.id, esito: 'bloccata', nota: `${cosaFallisce(bloccato.falliti)}: provo un’ultima strada con una chat nuova`.slice(0, NOTA_TRAGUARDO_MAX) })
+        annota(conNuova, `apro la chat ${nuova.id} al posto di ${vecchia.id}: ${nuova.compito.slice(0, 120)}`, { chat: nuova.id, esito: 'aperta' })
+        salvaNelTurno(conNuova)
+        console.info(`[autopilota] ${id} — ${rigaUltimaStrada(bloccato, { vecchia: vecchia.id, nuova: nuova.id })}`)
+        // La vecchia chiude il turno qui; poi si ferma e va nel recupero, come una chat muta sostituita.
+        deps.fermaLavoro(id, vecchia.id, chi)
+        if (chi !== undefined) deps.chiudiChat?.(id, vecchia.id, { ...chi, alRecupero: true })
+        const daAvviare = deps.archivio.leggi(id) ?? conNuova
+        void avviaLavoro(daAvviare, testoUltimaStrada(bloccato, { nuova: true, compito: nuova.compito, ...(nuova.ramo !== undefined ? { ramo: nuova.ramo } : {}) }), nuova).catch((err: unknown) => {
+          console.error(`[autopilota] ${id} — ultima strada: ${nuova.id} non partita:`, err)
+        })
+        return {}
+      }
+      // La domanda rifatta con il compito della chat: di quale lavoro si tratta e cosa non passa (0.84.3).
+      const continua = bloccato !== undefined && deps.domande.aperte(aggiornato.id).every((d) => contesto.get(d.id)?.bloccato === undefined || contesto.get(d.id)?.chatId !== chatId)
+      if (bloccato !== undefined) {
+        const compito = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.compito : undefined
+        decisione = {
+          ...decisione,
+          parti: partiBloccato({ lavoro: nomeDi(aggiornato), ...(compito !== undefined ? { compito } : {}), falliti: bloccato.falliti, tentativi: bloccato.tentativi, strade: STRATEGIE.map((s) => s.nome), errori: bloccato.errori, ultimaStrada: true, continua })
+        }
+      }
       const sessioneSup = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.sessioneSupervisore : aggiornato.sessioneSupervisore
       // Mentre il supervisore riscrive la domanda la chat è in giudizio: la
       // segna già l'hook (`fermateInCorso`), solo lei (0.84.0).
@@ -3538,8 +3656,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // Di quale chat era la domanda: serve a riprendere **solo lei** se la
         // risposta arriva tardi (vedi suRispostaTardiva). C'è solo per le flotte.
         ...(chatId !== undefined ? { chatId } : {}),
-        trattenuta: true
+        // La domanda che non ferma (0.84.3): il turno non è trattenuto, la chat lavora al resto.
+        trattenuta: !(bloccato !== undefined && continua),
+        ...(bloccato !== undefined ? { bloccato: { criteri: bloccato.falliti.map((f) => f.descrizione), ...(continua ? { continua: true } : {}) } } : {})
       })
+      // **Mentre aspetta, continua con il resto** (0.84.3): la prima volta che
+      // la chat chiede «sono bloccato» non resta ferma qui. La domanda è aperta
+      // e la risposta le arriva in coda; se torna a fermarsi sullo stesso
+      // controllo, la domanda è già aperta e allora aspetta.
+      if (bloccato !== undefined && continua && gemella === undefined) {
+        const presi = tuoi(aggiornato)
+        annota(presi.autopilota, `${chatId !== undefined ? `${chatId}: ` : ''}chiedo a Nicholas come andare avanti (${cosaFallisce(bloccato.falliti)}); intanto la chat continua con il resto`, chatId !== undefined ? { chat: chatId, esito: 'chiede-te', nota: cosaFallisce(bloccato.falliti).slice(0, NOTA_TRAGUARDO_MAX) } : undefined)
+        salvaNelTurno(presi.autopilota)
+        misura.esito = 'domanda senza fermarsi'
+        void deps.avvisa('domanda', aggiornato, decisione.domanda)
+        return { decision: 'block', reason: conPreambolo(presi.testi, testoMentreAspetti(bloccato)) }
+      }
       // Di chi è la domanda a cui ci si aggancia (0.81.0): serve sotto, dopo la risposta.
       const diChi = gemella !== undefined ? contesto.get(gemella) : undefined
       // Con una flotta la domanda ferma **solo** la chat che l'ha posta: si marca
@@ -3582,6 +3714,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         riprendiChatBloccata(id, diChi.chatId, diChi.testo, risposta.risposta, 'stessa domanda di un’altra chat, stessa risposta')
       }
 
+      // «Sono bloccato» (0.84.3): la scelta la esegue il programma; «sospendi» ferma tutto.
+      const daGemella = gemella !== undefined ? contesto.get(gemella)?.bloccato : undefined
+      const criteriBloccati = bloccato !== undefined ? bloccato.falliti.map((f) => f.descrizione) : daGemella?.criteri
+      const testoRisposta = criteriBloccati !== undefined
+        ? eseguiRispostaBloccato(id, criteriBloccati, decisione.domanda, risposta.risposta)
+        : componiRisposta(decisione.domanda, risposta.risposta)
+      if (testoRisposta === undefined) return {}
+
       const dopoRisposta = deps.archivio.leggi(id) ?? aggiornato
       // Risposta in tempo: riprende **questa** chat. Con una flotta torna
       // `lavoro` solo lei (l'autopilota non era mai uscito da `lavoro`); con una
@@ -3600,7 +3740,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       })
       return {
         decision: 'block',
-        reason: conPreambolo(presi.testi, componiRisposta(decisione.domanda, risposta.risposta))
+        reason: conPreambolo(presi.testi, testoRisposta)
       }
     }
 

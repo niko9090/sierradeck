@@ -322,7 +322,9 @@ data class SceltaScheda(
     val spuntata: Boolean? = null,
     val invio: Boolean = false,
     /** PC 0.84.1: il testo da mostrare in italiano («Scrivo io la risposta»); al tocco si manda `testo`. */
-    val etichetta: String? = null
+    val etichetta: String? = null,
+    /** PC 0.84.3: cosa succede con questa scelta, mostrato sotto il tasto. */
+    val conseguenza: String? = null
 )
 
 /** La chat di un altro PC da aprire (PC 0.84.1): si apre dal ponte, nella scheda Chat. */

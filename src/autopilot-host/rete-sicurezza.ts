@@ -1,10 +1,9 @@
 import type { Autopilota } from '@shared/autopilota'
-import { partiBloccato } from '@shared/domanda-strutturata'
 import { esitiCheDecidono, senzaMisura } from './criteri-giudicati'
 import type { Decisione, EsitoVerifica } from './decisione'
-import { riassuntoFallimenti } from './decisione'
+import { chiediBloccato, riassuntoFallimenti } from './decisione'
 import type { DecisioneSupervisore } from './decisione-supervisore'
-import { strategiaPer, strategieFinite, STRATEGIE } from './strategie'
+import { strategiaPer, strategieFinite } from './strategie'
 
 /**
  * Quello che il supervisore non può scavalcare.
@@ -252,17 +251,7 @@ function dalleRegole(ctx: Contesto): Decisione {
     return { tipo: 'prosegui', istruzioni: istruzioniRiprova(a.obiettivo) }
   }
 
-  if (strategieFinite(inCerchioDa, a.limiti.stalloMax)) {
-    return {
-      tipo: 'chiediUtente',
-      parti: partiBloccato(a.obiettivo, inCerchioDa, STRATEGIE.map((s) => s.nome), riassuntoFallimenti(esiti)),
-      dalProgramma: true,
-      domanda:
-        `Sono bloccato su «${a.obiettivo}».\n\n${riassuntoFallimenti(esiti)}\n\n` +
-        `Ho provato ${inCerchioDa} volte e ho esaurito le strade che conosco: ` +
-        `${STRATEGIE.map((s) => s.nome).join(', ')}.\nCome vuoi che proceda?`
-    }
-  }
+  if (strategieFinite(inCerchioDa, a.limiti.stalloMax)) return chiediBloccato(a, inCerchioDa, esiti)
 
   const strategia = strategiaPer(inCerchioDa, a.limiti.stalloMax)
   const testa = `Il lavoro non è concluso.\n\n${riassuntoFallimenti(esiti)}\n\n`

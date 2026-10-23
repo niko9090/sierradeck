@@ -281,6 +281,8 @@ export function chatCheSostituisce(a: Autopilota, vecchia: ChatGovernata, sessio
     ...(vecchia.ramo !== undefined ? { ramo: vecchia.ramo } : {}),
     ...(vecchia.ultimeIstruzioni !== undefined ? { ultimeIstruzioni: vecchia.ultimeIstruzioni } : {}),
     ...(vecchia.rifacimenti !== undefined ? { rifacimenti: vecchia.rifacimenti } : {}),
+    // L'ultima strada è del compito, non della sessione: chi la eredita, se si blocca, chiede (0.84.3).
+    ...(vecchia.ultimaStrada === true ? { ultimaStrada: true } : {}),
     sostituisce: vecchia.id,
     sostituzioni: (vecchia.sostituzioni ?? 0) + 1,
     dal: il

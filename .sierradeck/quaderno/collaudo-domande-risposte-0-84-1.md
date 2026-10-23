@@ -46,6 +46,24 @@ Tutti e quattro: i test non hanno più `.fails`.
   scelte, spiegate» c'è anche da un altro PC, su PC, pagina e app (la scheda
   è la stessa per tutti).
 
+### Ricollaudo c-94 (23/10)
+
+In main (`a95e8654`) senza `.fails`: `collaudo-domande-risposte-0-84-1` e
+`risposta-verificata` sono verdi (27 test), così come `tests/shared` (1637 test),
+`typecheck` ed `EsitoRispostaTest` (gradle, 2 test). «Le scelte, spiegate» sta
+nei `dettagli` della scheda comune (`scelteDiChat`, `shared/scheda-domanda.ts`):
+PC, pagina e app la mostrano tutti e tre allo stesso modo.
+
+**Caso limite trovato nel ricollaudo, corretto da c-93 in `23b0d540`:**
+se il 200° carattere di un'opzione tagliava a metà un emoji, dall'app il
+mezzo carattere arrivava come «?» (kotlinx lo scrive così com'è e OkHttp lo
+passa in UTF-8). Il testo non era più l'inizio dell'opzione e ogni tocco
+dall'app rispondeva 409. Ora il battito taglia con `tagliaIntero`
+(`src/shared/posta.ts`), che non spezza le coppie e si ferma a 199 se serve.
+`dovEOpzione` (`src/main/client-rotte.ts`) accetta anche 199 caratteri. Test:
+`tests/main/opzione-emoji-tagliata.test.ts` e `CaratteriInteriTest.kt`
+(`android/app/src/test/…`).
+
 ## Difetti trovati il 22/10 (com'erano)
 
 - **D1. Un'opzione lunga più di 200 caratteri non si può premere da un altro
