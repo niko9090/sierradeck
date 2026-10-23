@@ -3499,6 +3499,33 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // stessa cartella e stesso ramo, rilegge gli errori da capo. Si chiede a
       // Nicholas solo se si blocca anche lei.
       const bloccato = decisione.bloccato
+      // **La sorella non si ferma sulla domanda di un'altra** (0.84.3, D2 del
+      // collaudo c-99): nelle flotte i criteri sono dell'autopilota e restano
+      // rossi finché tutto non è finito, e i giri in cerchio si contano su
+      // tutta la storia. Se un'altra chat ha già chiesto a Nicholas su questi
+      // controlli, questa non è bloccata: continua con il suo compito, senza
+      // ultima strada, senza recupero e senza aspettare la risposta.
+      const giaChiesta = bloccato !== undefined && chatId !== undefined
+        ? deps.domande.aperte(aggiornato.id).find((d) => {
+            const ctx = contesto.get(d.id)
+            return ctx?.bloccato !== undefined && ctx.chatId !== undefined && ctx.chatId !== chatId &&
+              bloccato.falliti.some((f) => ctx.bloccato?.criteri.includes(f.descrizione) === true)
+          })
+        : undefined
+      if (bloccato !== undefined && giaChiesta !== undefined) {
+        const compito = aggiornato.chats.find((c) => c.id === chatId)?.compito ?? aggiornato.obiettivo
+        const presi = tuoi(aggiornato)
+        salvaNelTurno({ ...presi.autopilota, decisioni: [...aggiornato.decisioni, { quando: deps.adesso(), cosa: traccia(esiti) }] })
+        misura.esito = 'continua: domanda già chiesta da un’altra chat'
+        return {
+          decision: 'block',
+          reason: conPreambolo(
+            presi.testi,
+            `${cosaFallisce(bloccato.falliti)}: su questo ho già chiesto a Nicholas per un'altra chat, e la risposta la aspetta lei. ` +
+            `Non è un blocco tuo: lascialo stare e continua con il tuo compito.\n\nIl tuo compito: ${compito}`
+          )
+        }
+      }
       if (bloccato !== undefined && serveUltimaStrada(aggiornato, chatId)) {
         const vecchia = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId) : undefined
         misura.esito = 'ultima strada'

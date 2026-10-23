@@ -27,3 +27,9 @@ Atteso: la sorella continua col suo compito (risposta `block` con le istruzioni 
 ## Trappola per chi scrive test qui
 
 Un test che controlla solo `stato !== 'bloccata'` della sorella passa anche col difetto D2: la sorella è `finita` (nel recupero). Controllare anche che non ci sia una chat con `sostituisce` uguale al suo id.
+
+## Correzioni (c-101, 23/10)
+
+- **D1:** `chatCheSostituisce` copia `ultimaStrada`: l'ultima strada è del compito, non della sessione.
+- **D2:** in `server.ts`, prima dell'ultima strada: se un'altra chat ha già una domanda «sono bloccato» aperta che tocca gli stessi controlli (`contesto.bloccato.criteri`), questa chat riceve `block` con «non è un blocco tuo, continua con il tuo compito», scrive la traccia e resta `lavoro`.
+- **Resta aperto (non corretto):** il cerchio si conta ancora su tutta la storia dell'autopilota, non per chat (le tracce `proseguito:` non dicono di quale chat sono). Senza una domanda già aperta, la prima sorella che chiude il turno dopo 8 giri rossi fa lei l'ultima strada. Per contarlo per chat serve un campo `chat` nelle decisioni (e in `normalizza`, `shared/autopilota.ts`): da fare se il caso si vede davvero.

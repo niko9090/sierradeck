@@ -186,11 +186,11 @@ describe('collaudo: niente doppioni', () => {
     expect(ultimeStrade()).toBe(0)
   })
 
-  // DIFETTO D1 (c-99): `chatCheSostituisce` (src/autopilot-host/mai-fermo.ts:263)
+  // DIFETTO D1 (c-99), corretto da c-101: `chatCheSostituisce` (src/autopilot-host/mai-fermo.ts:263)
   // non porta `ultimaStrada` alla chat nuova. Se la chat dell'ultima strada
   // resta muta e il «mai fermo» la sostituisce, la sostituta che si blocca
   // apre UN'ALTRA ultima strada invece di chiedere.
-  it.fails('la chat dell’ultima strada sostituita dal «mai fermo»: la sostituta che si blocca chiede, non apre un’altra ultima strada', async () => {
+  it('la chat dell’ultima strada sostituita dal «mai fermo»: la sostituta che si blocca chiede, non apre un’altra ultima strada', async () => {
     await avviaServizio([chat('c-1')])
     await stop('c-1')
     const strada = nuoveChat('c-1')[0]!
@@ -233,7 +233,7 @@ describe('collaudo: a domanda aperta il resto va avanti', () => {
     expect(fermati).not.toContain('c-3')
   })
 
-  // DIFETTO D2 (c-99): a domanda aperta, la sorella che lavora a un ALTRO
+  // DIFETTO D2 (c-99), corretto da c-101: a domanda aperta, la sorella che lavora a un ALTRO
   // compito chiude il turno con lo stesso criterio ancora rosso e viene presa
   // per bloccata: i giri in cerchio si contano su tutta la storia
   // dell'autopilota (`ripetizioniFinali(a.decisioni, …)`,
@@ -242,7 +242,7 @@ describe('collaudo: a domanda aperta il resto va avanti', () => {
   // suo compito passa a una chat nuova, che al turno dopo si aggancia alla
   // domanda già aperta e resta ferma («la sua domanda è uguale a una già
   // aperta, aspetta la stessa risposta»). Il rapporto non va avanti.
-  it.fails('la sorella che lavora a un altro compito chiude il turno: continua, non va nel recupero e non resta ferma sulla domanda', async () => {
+  it('la sorella che lavora a un altro compito chiude il turno: continua, non va nel recupero e non resta ferma sulla domanda', async () => {
     await avviaServizio(flotta())
     await stopEntro(3000, 'c-2')
     const sorella = await stopEntro(3000, 'c-3')
