@@ -17,6 +17,8 @@
  * non si capisce è molto peggio di uno che non sa cosa è stato chiesto.
  */
 
+import { rigaRapporto, type RapportoChat } from '@shared/rapporti-chat'
+
 /** Oltre questo non si legge: una domanda non è mai lunga così. */
 export const DOMANDA_MAX = 2000
 
@@ -32,6 +34,22 @@ export function ultimoMessaggioAssistente(righe: string[]): string | undefined {
   for (let i = righe.length - 1; i >= 0; i -= 1) {
     const testo = testoDiRiga(righe[i] ?? '')
     if (testo !== undefined && testo.trim() !== '') return testo.trim().slice(-DOMANDA_MAX)
+  }
+  return undefined
+}
+
+/**
+ * L'ultimo rapporto scritto dalla chat (0.85.1): la riga `RAPPORTO:` più
+ * recente fra i suoi messaggi, guardando dalla fine. Solo i messaggi
+ * dell'assistente: le istruzioni che la chat riceve contengono gli esempi
+ * della regola, e non sono rapporti.
+ */
+export function ultimoRapportoDa(righe: string[]): Omit<RapportoChat, 'quando'> | undefined {
+  for (let i = righe.length - 1; i >= 0; i -= 1) {
+    const testo = testoDiRiga(righe[i] ?? '')
+    if (testo === undefined || !testo.includes('RAPPORTO')) continue
+    const r = rigaRapporto(testo)
+    if (r !== undefined) return r
   }
   return undefined
 }

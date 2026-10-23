@@ -15,13 +15,20 @@ describe('le impostazioni di una chat governata', () => {
 
   it('dice al servizio quando la chat si ferma e quando chiede', () => {
     const h = leggi(componiImpostazioni('ap-1', 47630))
-    expect(Object.keys(h).sort()).toEqual(['Notification', 'PreToolUse', 'Stop'])
+    expect(Object.keys(h).sort()).toEqual(['Notification', 'PostToolUse', 'PreToolUse', 'Stop'])
   })
 
   it('e fa passare i comandi di shell dai divieti del programma prima che partano (0.36.0)', () => {
     const pre = (JSON.parse(componiImpostazioni('ap-1', 47630, 'c-2')) as { hooks: { PreToolUse: { matcher: string; hooks: { url: string }[] }[] } }).hooks.PreToolUse[0]
     expect(pre?.matcher).toBe('Bash|PowerShell')
     expect(pre?.hooks[0]?.url).toBe('http://127.0.0.1:47630/hook/pretool?ap=ap-1&chat=c-2')
+  })
+
+  it('e manda il rapporto a ogni strumento usato, con un tetto corto (0.85.1)', () => {
+    const post = (JSON.parse(componiImpostazioni('ap-1', 47630, 'c-2')) as { hooks: { PostToolUse: { matcher: string; hooks: { url: string; timeout: number }[] }[] } }).hooks.PostToolUse[0]
+    expect(post?.matcher).toBe('')
+    expect(post?.hooks[0]?.url).toBe('http://127.0.0.1:47630/hook/rapporto?ap=ap-1&chat=c-2')
+    expect(post?.hooks[0]?.timeout).toBeLessThanOrEqual(10)
   })
 
   it('porta l autopilota nell URL, non nel corpo', () => {
