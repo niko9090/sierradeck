@@ -83,6 +83,8 @@ pagina (`client-rotte.ts:1569`), e il dettaglio della risposta si vede in
 - `app-android.json` dice versione 2.84.4, programma 0.84.4 e punta all'APK di v0.84.4;
 - l'APK scaricato è identico a quello firmato (sha256 `4d31e5a7…`, 4237803 byte).
 
+**Ricontrollo indipendente (c-131, 23/10 pomeriggio)**, dopo la fine di `npm run allega-apk`, senza ricaricare niente: release non in bozza, gli stessi 5 file «uploaded» (exe 115394938 byte, blockmap, `latest.yml` con 0.84.4 e la stessa size dell'exe, `SierraDeck-2.84.4.apk` 4237803 byte con sha256 `4d31e5a7…`, `app-android.json` 2.84.4 → APK di v0.84.4). Firma dell'APK scaricato verificata con `apksigner verify --print-certs` (build-tools 35): «CN=Nicholas Ferrari, O=Ferrari Consulenze, C=IT», non debug. Niente da riallegare. Nota: `keytool -printcert -jarfile` dice «non è un file jar firmato» perché l'APK ha solo la firma v2/v3: non è un difetto, per controllare la firma serve `apksigner`.
+
 **Trappola trovata durante il caricamento.** Il guardiano «installa solo Nicholas» (`src/autopilot-host/divieti.ts:425`) blocca anche una semplice copia, o un testo scritto dalla shell, che contiene un percorso relativo con «../» seguito dal nome dell'installer. Il pezzo della regola che cerca «./» lo trova dentro «../» e prende il percorso per un installer lanciato. Con i percorsi assoluti passa, e non c'è niente da aggirare: non si esegue nessun installer. Da correggere con un test (riga 0u della lista dei lavori).
 
 ## Rami di questo lavoro
