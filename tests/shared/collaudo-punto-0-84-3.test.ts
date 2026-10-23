@@ -77,7 +77,7 @@ describe('collaudo del Punto: i difetti', () => {
   // che usa `adessoDi` così com'è: una chat senza ruolo si chiama «c-14»
   // (adesso.ts:85), il compito tiene «(c-14)» e il segnale non c'è. Sulla pagina
   // e nell'app invece il Punto ha le chat col segnale: il PC dice meno del telefono.
-  it.fails('D1: le righe delle chat che il PC mostra nella Panoramica sono senza sigle', () => {
+  it('D1: le righe delle chat che il PC mostra nella Panoramica sono senza sigle', () => {
     const a = ap([chat('c-14', { compito: 'Il riquadro (c-14)', segnale: { tipo: 'bloccata', quando: fa(2), dichiarato: true, motivo: 'manca la chiave' } })])
     const righe = adessoDi(a, ORA).righe
     expect(JSON.stringify(righe.map((r) => [r.chi, r.compito, r.testo]))).not.toMatch(/\bc-\d+/)

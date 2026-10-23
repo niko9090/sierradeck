@@ -4,7 +4,8 @@ import { haDomandaAperta } from '@shared/chat-autopilota'
 import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
 import type { Colore } from '@shared/stato-vista'
 import { Aiuto } from './Aiuto'
-import { adessoDi, AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { puntoDi } from '@shared/punto-autopilota'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «io voglio sempre vedere
@@ -158,8 +159,10 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
   soloFerme?: boolean
 }): React.JSX.Element | null {
   const ora = useOra()
-  const tutto = adessoDi(a as Autopilota & SegniDalVivo, ora)
-  const righe = soloFerme ? tutto.righe.filter((r) => r.tono === 'ferma') : tutto.righe
+  // Le righe del Punto (0.84.3, collaudo c-96 D1): le stesse di `adessoDi`, senza
+  // sigle e con il segnale di ogni chat, come sulla pagina e nell'app.
+  const tutto = puntoDi(a as Autopilota & SegniDalVivo, ora)
+  const righe = soloFerme ? tutto.chat.filter((r) => r.tono === 'ferma') : tutto.chat
   const finite = soloFerme ? 0 : tutto.finite
   if (righe.length === 0 && finite === 0) return null
   return (
@@ -170,6 +173,7 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
           <b style={{ color: TINTA[COLORE_ADESSO[r.tono]] }}>{r.chi}</b>
           <span className="adesso-ap__compito" title={r.compito}>{r.compito}</span>
           <span className="adesso-ap__testo" style={{ color: r.tono === 'lavoro' ? undefined : TINTA[COLORE_ADESSO[r.tono]] }}>{r.testo}</span>
+          {r.segnale !== undefined ? <span className="adesso-ap__segnale" style={{ color: TINTA[r.segnale.colore as keyof typeof TINTA] }}>{r.segnale.simbolo} {r.segnale.parola}</span> : null}
         </div>
       ))}
       {finite > 0 ? <div className="adesso-ap__finite">{finite === 1 ? '1 chat finita' : `${finite} chat finite`}</div> : null}

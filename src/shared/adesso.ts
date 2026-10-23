@@ -1,5 +1,5 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
-import { compitoBreve, nomeChi } from './chat-autopilota'
+import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 
 /**
  * Il riquadro «Adesso» (0.81.0): una riga per chat, con cosa fa, da quanto,
@@ -81,13 +81,14 @@ const daQuanto = (dal: string | undefined, ora: number): string => {
 
 /** La riga di una chat della flotta. */
 function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): RigaAdesso {
-  // Senza ruolo «Una chat» non distingue niente: allora il suo nome, «c-14».
-  const base = { id: c.id, chi: c.ruolo !== undefined ? nomeChi(c) : c.id, compito: compitoBreve(c.compito) }
+  // 0.84.3 (collaudo c-96, D1): senza sigle anche qui, come nel Punto. Una chat
+  // senza ruolo è «Una chat», distinta dal suo compito; il compito senza «(c-14)».
+  const base = { id: c.id, chi: nomeChi(c), compito: senzaSigle(compitoBreve(c.compito)) }
   const dal = daQuanto(c.dal, ora)
   // In «attesa» le chat della flotta continuano (come `chatAlLavoro`): solo
   // con l'autopilota fermo sono ferme tutte, con il suo motivo.
   if (a.stato !== 'lavoro' && a.stato !== 'attesa') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${a.motivoSospensione})` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${senzaSigle(a.motivoSospensione)})` : ''
     return { ...base, testo: `ferma: l’autopilota è fermo${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(c.id) === true) {
@@ -121,7 +122,7 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
   // Niente «da quanto»: `ultimoEvento` cambia a ogni salvataggio, non è l'ora della domanda.
   if (a.stato === 'attesa') return { ...base, testo: 'aspetta la tua risposta', tono: 'aspetta' }
   if (a.stato !== 'lavoro') {
-    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${a.motivoSospensione}` : ''
+    const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${senzaSigle(a.motivoSospensione)}` : ''
     return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
   }
   if (a.daParte?.includes(a.id) === true) {
