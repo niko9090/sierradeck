@@ -9,7 +9,7 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { leggiEsitoDialogo, componiPromptDialogo } from '../../src/autopilot-host/dialogo'
 import { conVersioni, registraRichieste, sembraRichiesta, tieniRichieste } from '../../src/autopilot-host/richieste'
 import { nuovoAutopilota, parseAutopilota, type Autopilota } from '@shared/autopilota'
-import { statoRichiesta } from '@shared/richieste-nicholas'
+import { giornoDi, statoRichiesta } from '@shared/richieste-nicholas'
 import { puntoDi } from '@shared/punto-autopilota'
 
 /**
@@ -214,7 +214,8 @@ describe('il servizio: il messaggio del 23/10 alle 07:25', () => {
     // In coda, oppure già data a una chat: mai fuori.
     expect(a.compitiDaFare.includes(r.compiti[0]!) || a.chats.some((c) => c.compito === r.compiti[0])).toBe(true)
     expect(a.dialogo.at(-1)!.esito).toContain('richiesta registrata come obiettivo')
-    expect(puntoDi(a, Date.now()).richieste[0]).toMatchObject({ id: r.id, giorno: '23/10' })
+    // Il giorno è quello in cui è stata scritta (oggi): con «23/10» fisso il test cadeva dopo mezzanotte.
+    expect(puntoDi(a, Date.now()).richieste[0]).toMatchObject({ id: r.id, giorno: giornoDi(new Date().toISOString()) })
   })
 
   it('anche se il supervisore non risponde affatto (il 22/10 «togli i vincoli» si era perso così)', async () => {
