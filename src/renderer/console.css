@@ -5275,3 +5275,7 @@ label.gc-voce { cursor: pointer; }
 .adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .punto-ap__riga { overflow-wrap: anywhere; }
 .punto-ap__limiti { color: var(--testo-quieto); }
+/* Le richieste di Nicholas in cima al Punto (0.85.0): il titolo intero, lo stato nel suo colore. */
+.punto-ap__richieste { display: grid; gap: 2px; padding-bottom: 4px; border-bottom: 1px dashed var(--bordo); }
+.punto-ap__richieste .punto-ap__compito { max-width: none; white-space: normal; color: var(--testo); }
+.punto-ap__richieste .punto-ap__testo { flex: none; white-space: nowrap; }

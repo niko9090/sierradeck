@@ -1,6 +1,7 @@
 import { eRuolo, type Ruolo } from './ruoli-agenti'
 import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
 import { leggiRisposteInViaggio, type RispostaInViaggio } from './risposte-in-viaggio'
+import { leggiRichieste, type RichiestaNicholas } from './richieste-nicholas'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -506,6 +507,11 @@ export type Autopilota = SupervisoreMancato & {
    * contano solo quando la chat le riceve. Vedi `risposte-in-viaggio.ts`.
    */
   risposteInViaggio?: RispostaInViaggio[]
+  /**
+   * Le richieste di Nicholas scritte dalla scheda (0.85.0): ognuna diventa da
+   * sola un obiettivo, con criterio e compiti. Vedi `richieste-nicholas.ts`.
+   */
+  richieste?: RichiestaNicholas[]
   /**
    * Gli ultimi messaggi arrivati nella chat, con quando (0.69.0): la scheda dice
    * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
@@ -1124,6 +1130,7 @@ export function parseAutopilota(raw: unknown): {
             })
           }
         : {}),
+      ...(leggiRichieste(o.richieste).length > 0 ? { richieste: leggiRichieste(o.richieste) } : {}),
       ...(Array.isArray(o.risposteInViaggio) && leggiRisposteInViaggio(o.risposteInViaggio).length > 0
         ? { risposteInViaggio: leggiRisposteInViaggio(o.risposteInViaggio) }
         : {}),

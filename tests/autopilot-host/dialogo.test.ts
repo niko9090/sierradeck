@@ -345,9 +345,12 @@ describe('il dialogo con l autopilota', () => {
     expect(a.criteri.map((c) => c.descrizione)).toEqual(['i test passano', 'typecheck a zero'])
     expect(a.modifiche.at(-1)).toMatchObject({ testo: 'aggiungi il typecheck', capito: 'Aggiungo il typecheck ai criteri.' })
     await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
-    expect(archivio.leggi(id)?.dialogo[1]?.esito).toBe('cambio applicato')
+    // 0.85.0: è anche una richiesta di Nicholas, legata al criterio che il cambio ha messo.
+    expect(archivio.leggi(id)?.dialogo[1]?.esito).toBe('cambio applicato · richiesta registrata come obiettivo: «aggiungi il typecheck»')
+    expect(archivio.leggi(id)?.richieste?.[0]?.criterio).toBe('typecheck a zero')
     await chiama('POST', `/autopiloti/${id}/disfa`)
     expect(archivio.leggi(id)?.criteri.map((c) => c.descrizione)).toEqual(['i test passano'])
+    expect(archivio.leggi(id)?.richieste ?? []).toEqual([])
   })
 
   it('quando il supervisore non risponde lo dice, senza toccare niente', async () => {

@@ -1059,7 +1059,11 @@ function puntoHtml(p) {
   }).join('')
   var lista = function (nome, v, tot) { return Array.isArray(v) && v.length ? '<div class="punto-ap__riga"><b>' + nome + ':</b> ' + v.map(esc).join(' · ') + altri(tot, v.length) + '</div>' : '' }
   var daTe = Array.isArray(p.daTe) && p.daTe.length ? p.daTe : null
-  return '<div class="punto-ap"><div class="serigrafia">Punto' + aiuto('ap-punto', p.aiuto || '') + '</div>' +
+  // 0.85.0: in cima le richieste di Nicholas con lo stato (da fare, in corso, fatta nella versione X).
+  var richieste = Array.isArray(p.richieste) && p.richieste.length ? '<div class="punto-ap__riga"><b>Le tue richieste:</b></div>' + p.richieste.map(function (r) {
+    return '<div class="punto-ap__chat">' + esc(r.giorno || '') + ' · ' + esc(r.titolo) + ' — <span style="color:' + tinta(r.colore) + '">' + esc(r.parola) + '</span></div>'
+  }).join('') + (altri(p.richiesteTotale, p.richieste.length) ? '<div class="sotto">' + altri(p.richiesteTotale, p.richieste.length).trim() + '</div>' : '') : ''
+  return '<div class="punto-ap"><div class="serigrafia">Punto' + aiuto('ap-punto', p.aiuto || '') + '</div>' + richieste +
     '<div class="punto-ap__riga">' + esc(p.passo || '') + '</div>' + chat +
     (p.finite ? '<div class="sotto">' + (p.finite === 1 ? '1 chat finita' : p.finite + ' chat finite') + '</div>' : '') +
     lista('Finito', p.fatto, p.fattoTotale) + lista('Dopo', p.dopo, p.dopoTotale) +

@@ -30,6 +30,11 @@ const esc = (s: unknown): string => String(s).replace(/&/g, '&amp;').replace(/</
 const puntoHtml = new Function('esc', 'aiuto', 'COLORE_VISTA', `${funzione('puntoHtml')}; return puntoHtml`)(esc, () => '', COLORE_VISTA) as (p: unknown) => string
 
 const punto: Punto = {
+  richieste: [
+    { id: 'r-2', giorno: '23/10', titolo: 'Le risposte prese davvero', stato: 'in-corso', parola: 'in corso', colore: 'blu' },
+    { id: 'r-1', giorno: '22/10', titolo: 'Togli il freno', stato: 'fatta', parola: 'fatta nella versione 0.84.2', colore: 'verde' }
+  ],
+  richiesteTotale: 3,
   passo: 'Lavora: 1 di 3 criteri soddisfatti',
   chat: [
     { id: 'c-2', chi: 'Interfaccia', compito: 'La pagina', testo: 'nessun segno da 20 min', tono: 'ferma', colore: 'rosso', segnale: { tipo: 'bloccata', parola: 'bloccata: manca la chiave', colore: 'rosso', simbolo: '■' } },
@@ -57,6 +62,16 @@ describe('il Punto sulla pagina del telefono', () => {
     expect(h).toContain('<b>Dopo:</b> Le notifiche e altri 2')
     expect(h).toContain('<b>Da te:</b> niente, va avanti da solo.')
     expect(h).toContain('Limiti del piano: 5 ore 42%')
+  })
+  it('in cima le richieste di Nicholas con lo stato nel suo colore (0.85.0)', () => {
+    const h = puntoHtml(punto)
+    expect(h).toContain('<b>Le tue richieste:</b>')
+    expect(h).toContain('23/10 · Le risposte prese davvero — <span style="color:BLU">in corso</span>')
+    expect(h).toContain('22/10 · Togli il freno — <span style="color:VERDE">fatta nella versione 0.84.2</span>')
+    expect(h).toContain('e un altro')
+    expect(h.indexOf('Le tue richieste')).toBeLessThan(h.indexOf('Lavora: 1 di 3'))
+    // Un PC di prima della 0.85.0: niente richieste, il resto uguale.
+    expect(puntoHtml({ ...punto, richieste: undefined })).not.toContain('Le tue richieste')
   })
   it('un PC che non manda il Punto non rompe la pagina', () => {
     expect(puntoHtml(undefined)).toBe('')

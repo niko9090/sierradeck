@@ -44,6 +44,21 @@ data class ChatNelPunto(
     val segnale: SegnalePunto? = null
 )
 
+/** Una richiesta di Nicholas in cima al Punto (PC 0.85.0), con lo stato già in parole. */
+@Serializable
+data class RichiestaNelPunto(
+    val id: String = "",
+    /** «23/10». */
+    val giorno: String = "",
+    val titolo: String = "",
+    /** da-fare | in-corso | fatta */
+    val stato: String = "da-fare",
+    /** «da fare», «in corso», «fatta nella versione 0.85.0». */
+    val parola: String = "",
+    /** ambra | blu | verde, come `COLORE_RICHIESTA` sul PC. */
+    val colore: String = "ambra"
+)
+
 /**
  * **Il Punto** (PC 0.84.3) in cima alla conversazione dell'autopilota: passo
  * in corso, ogni chat con il suo segnale, cosa è finito, cosa viene dopo, cosa
@@ -52,6 +67,9 @@ data class ChatNelPunto(
  */
 @Serializable
 data class PuntoAutopilota(
+    /** In cima (PC 0.85.0): le richieste di Nicholas aperte o fatte da poco. */
+    val richieste: List<RichiestaNelPunto> = emptyList(),
+    val richiesteTotale: Int = 0,
     val passo: String = "",
     val chat: List<ChatNelPunto> = emptyList(),
     val finite: Int = 0,
@@ -79,6 +97,10 @@ object RighePunto {
     fun daTe(p: PuntoAutopilota): String =
         if (p.daTe.isEmpty()) "niente, va avanti da solo." else p.daTe.joinToString(" ")
 
+    /** «23/10 · Il titolo — in corso», come sulla pagina del telefono. */
+    fun richiesta(r: RichiestaNelPunto): String =
+        (if (r.giorno.isBlank()) "" else "${r.giorno} · ") + "${r.titolo} — ${r.parola}"
+
     fun finite(n: Int): String? = when {
         n <= 0 -> null
         n == 1 -> "1 chat finita"
@@ -93,6 +115,25 @@ fun PuntoAutopilotaVista(p: PuntoAutopilota) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Punto", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
             Aiuto(p.aiuto, di = "Punto")
+        }
+        if (p.richieste.isNotEmpty()) {
+            Text("Le tue richieste:", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+            p.richieste.forEach { r ->
+                Text(
+                    buildAnnotatedString {
+                        append(if (r.giorno.isBlank()) "" else "${r.giorno} · ")
+                        append(r.titolo)
+                        append(" — ")
+                        withStyle(SpanStyle(color = coloreVista(r.colore))) { append(r.parola) }
+                    },
+                    color = Banco.testo,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            RighePunto.altri(p.richiesteTotale, p.richieste.size).takeIf { it.isNotBlank() }?.let {
+                Text(it.trim(), color = Banco.testoQuieto, fontSize = 12.sp)
+            }
         }
         if (p.passo.isNotBlank()) Text(p.passo, color = Banco.testo, fontSize = 12.sp)
         p.chat.forEach { r ->

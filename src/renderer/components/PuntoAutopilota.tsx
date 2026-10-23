@@ -60,6 +60,18 @@ export function PuntoAutopilota({ autopilota: a, senzaChat = false }: {
         <span className="serigrafia con-aiuto">Punto<Aiuto di="il Punto">{AIUTO_PUNTO}</Aiuto></span>
         <span className="punto-ap__passo">{p.passo}</span>
       </div>
+      {p.richieste.length > 0 ? (
+        <div className="punto-ap__richieste" aria-label="Le tue richieste">
+          <div className="punto-ap__riga"><b>Le tue richieste:</b></div>
+          {p.richieste.map((r) => (
+            <div key={r.id} className="punto-ap__chat">
+              <span className="punto-ap__compito">{r.giorno} · {r.titolo}</span>
+              <span className="punto-ap__testo" style={{ color: TINTA[r.colore] }}> — {r.parola}</span>
+            </div>
+          ))}
+          {altri(p.richiesteTotale, p.richieste.length) !== '' ? <div className="punto-ap__riga">{altri(p.richiesteTotale, p.richieste.length)}</div> : null}
+        </div>
+      ) : null}
       {!senzaChat && p.chat.map((r) => (
         <div key={r.id} className={`punto-ap__chat punto-ap__chat--${r.tono}`}>
           <b style={{ color: TINTA[r.colore] }}>{r.chi}</b>

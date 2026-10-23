@@ -3,6 +3,7 @@ import { adessoDi, COLORE_ADESSO, type RigaAdesso, type SegniDalVivo } from './a
 import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
 import { parolaSegnale, type TipoSegnale } from './segnali-flotta'
+import { COLORE_RICHIESTA, giornoDi, parolaStato, statoRichiesta, type StatoRichiesta } from './richieste-nicholas'
 
 export { senzaSigle }
 
@@ -39,6 +40,13 @@ export type ChatNelPunto = RigaAdesso & {
 }
 
 export type Punto = {
+  /**
+   * In cima (0.85.0): le richieste di Nicholas ancora aperte, o fatte da poco,
+   * con lo stato. Vuoto: nessuna richiesta registrata.
+   */
+  richieste: RichiestaNelPunto[]
+  /** Quante in tutto (per «e altre N»). */
+  richiesteTotale: number
   /** «Lavora: 3 di 7 criteri soddisfatti». */
   passo: string
   /** Una riga per chat aperta, prima le ferme. */
@@ -56,6 +64,54 @@ export type Punto = {
   daTe: string[]
   /** I limiti del piano, solo informazione. Assente se non ancora letti. */
   limiti?: string
+}
+
+export type RichiestaNelPunto = {
+  id: string
+  /** «23/10». */
+  giorno: string
+  titolo: string
+  stato: StatoRichiesta
+  /** «da fare», «in corso», «fatta nella versione 0.85.0». */
+  parola: string
+  colore: string
+}
+
+/** Quante righe al più in cima al Punto. */
+export const RICHIESTE_NEL_PUNTO = 5
+/** Una richiesta fatta resta in cima finché non è pubblicata, e poi ancora per un giorno. */
+const FATTA_IN_VISTA_MS = 24 * 3_600_000
+
+/**
+ * Le richieste per il Punto: prima quelle in corso, poi da fare, poi le fatte
+ * non ancora pubblicate o pubblicate da meno di un giorno; dentro ogni gruppo
+ * la più recente prima. `totale` per «e altre N».
+ */
+export function richiesteNelPunto(
+  a: Pick<Autopilota, 'criteri' | 'chats' | 'richieste'>,
+  ora: number
+): { righe: RichiestaNelPunto[]; totale: number } {
+  const ordine: Record<StatoRichiesta, number> = { 'in-corso': 0, 'da-fare': 1, fatta: 2 }
+  const tutte = (a.richieste ?? [])
+    .map((r) => ({ r, stato: statoRichiesta(r, a) }))
+    .filter(({ r, stato }) => {
+      if (stato !== 'fatta') return true
+      if (r.versione === undefined) return true
+      const il = Date.parse(r.fattaIl ?? r.quando)
+      return Number.isNaN(il) || ora - il < FATTA_IN_VISTA_MS
+    })
+    .sort((x, y) => ordine[x.stato] - ordine[y.stato] || Date.parse(y.r.quando) - Date.parse(x.r.quando))
+  return {
+    righe: tutte.slice(0, RICHIESTE_NEL_PUNTO).map(({ r, stato }) => ({
+      id: r.id,
+      giorno: giornoDi(r.quando),
+      titolo: senzaSigle(compitoBreve(r.titolo, 80)),
+      stato,
+      parola: parolaStato(stato, r.versione),
+      colore: COLORE_RICHIESTA[stato]
+    })),
+    totale: tutte.length
+  }
 }
 
 /** Quante righe al più in «Finito» e «Dopo»: il Punto sta in cima, non è un elenco. */
@@ -137,7 +193,10 @@ export function puntoDi(
   if ((a.stato === 'sospeso' || a.stato === 'fallito') && daTe.length === 0) daTe.push('Si è fermato: dimmi se riprendere, scrivendogli qui sotto.')
 
   const limiti = rigaLimiti(p.limiti)
+  const richieste = richiesteNelPunto(a, ora)
   return {
+    richieste: richieste.righe,
+    richiesteTotale: richieste.totale,
     passo: passoDi(a),
     chat,
     finite: adesso.finite,
@@ -157,4 +216,4 @@ export function altri(totale: number, mostrati: number): string {
 }
 
 /** Il «?» del Punto, uguale dappertutto. */
-export const AIUTO_PUNTO = 'Il punto della situazione, sempre aggiornato: a che passo è l’autopilota, cosa fa ogni sua chat (con il segnale che gli ha mandato l’ultima volta), cosa è finito, cosa viene dopo e cosa serve da te. I limiti del piano sono solo un’informazione: le chat non si fermano per quelli. Sotto, la conversazione ha una riga quando una chat parte, finisce, si blocca, viene unita o resta ferma più di 15 minuti, con quello che l’autopilota ha fatto.'
+export const AIUTO_PUNTO = 'Il punto della situazione, sempre aggiornato: in cima le tue richieste con lo stato (da fare, in corso, fatta nella versione X), poi a che passo è l’autopilota, cosa fa ogni sua chat (con il segnale che gli ha mandato l’ultima volta), cosa è finito, cosa viene dopo e cosa serve da te. I limiti del piano sono solo un’informazione: le chat non si fermano per quelli. Sotto, la conversazione ha una riga quando una chat parte, finisce, si blocca, viene unita o resta ferma più di 15 minuti, con quello che l’autopilota ha fatto.'

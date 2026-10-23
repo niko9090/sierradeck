@@ -2,6 +2,7 @@ import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/auto
 import type { CambioChiesto } from './supervisore'
 import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
 import { righePromptAdottate } from '@shared/adozione'
+import { leggiRichiesteProposte, type RichiestaProposta } from './richieste'
 
 /**
  * Il dialogo con l'autopilota, fuori dalla chat.
@@ -36,6 +37,11 @@ export type EsitoDialogo = {
   restoIlleggibile?: true
   /** I messaggi per le chat adottate (0.78.0), grezzi: li legge `messaggiPerAdottate`. */
   perLeChat?: unknown
+  /**
+   * Le richieste che il supervisore ha visto nel messaggio (0.85.0): ognuna
+   * diventa un obiettivo con criterio e compiti (`registraRichieste`).
+   */
+  richieste?: RichiestaProposta[]
 }
 
 /** Quanto del dialogo passato entra nel prompt. */
@@ -109,7 +115,8 @@ export function componiPromptDialogo(
     '  "risposta": "cosa rispondi, in italiano, per chi legge dalla scheda o dal telefono",',
     '  "perLaChat": "un messaggio per la chat che governi, solo se serve che lo sappia",',
     '  "cambio": {"obiettivo": "...", "criteri": [{"descrizione": "...", "comando": "..."}], "compitiDaFare": ["..."]},',
-    '  "comando": "ferma|riprendi|rispondi"',
+    '  "comando": "ferma|riprendi|rispondi",',
+    '  "richieste": [{"titolo": "...", "criterio": {"descrizione": "...", "comando": "..."}, "compiti": ["..."]}]',
     '}',
     '',
     'Regole:',
@@ -126,6 +133,15 @@ export function componiPromptDialogo(
     '- `comando`: "ferma" se ti chiede di fermarti, "riprendi" se ti chiede di ripartire,',
     '  "rispondi" se il suo messaggio è la risposta alla domanda aperta (e allora metti la',
     '  risposta in `perLaChat`). Altrimenti ometti il campo.',
+    '- `richieste`: ogni cosa che ti **chiede di fare** (correggere, aggiungere, cambiare,',
+    '  pubblicare, controllare…) è una richiesta, e diventa da sola un obiettivo: il programma',
+    '  la registra con data e testo, aggiunge il criterio ai criteri e i compiti alla coda.',
+    '  Per ognuna: `titolo` in poche parole, `criterio` (mai vuoto: come si vede che è fatta,',
+    '  con un `comando` solo se lo puoi misurare con una riga di bash), `compiti` da mettere',
+    '  in coda (scritti per una chat, interi). Non ripetere quei compiti in `cambio`.',
+    '  Se dice «sì» a una cosa che gli hai proposto tu, la richiesta è quella proposta.',
+    '  Una domanda («a che punto siamo?»), un saluto, «fermati» o la risposta a una tua',
+    '  domanda non sono richieste: allora `"richieste": []`.',
     '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.',
     '- Dentro i testi, per citare usa «…», non le virgolette dritte; se ti servono, scrivile \\".'
   ].join('\n')
@@ -164,7 +180,8 @@ export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
     ...(cambio !== undefined ? { cambio } : {}),
     ...(perLaChat !== undefined ? { perLaChat } : {}),
     ...(comando !== undefined ? { comando } : {}),
-    ...(Array.isArray(grezzo.perLeChat) ? { perLeChat: grezzo.perLeChat } : {})
+    ...(Array.isArray(grezzo.perLeChat) ? { perLeChat: grezzo.perLeChat } : {}),
+    ...(leggiRichiesteProposte(grezzo.richieste).length > 0 ? { richieste: leggiRichiesteProposte(grezzo.richieste) } : {})
   }
 }
 
