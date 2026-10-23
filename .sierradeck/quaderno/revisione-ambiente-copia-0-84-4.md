@@ -19,3 +19,11 @@ Seconda variante: copia sparita / non più repository git (c-82, c-97, c-99, c-1
 - `git worktree remove --force` **non attraversa** la junction (il bersaglio resta intatto, provato), ma la lascia lì e la cartella non si toglie: per questo si toglie prima.
 - `fs.unlinkSync` su una junction toglie solo il collegamento.
 - Non confondere con difetti veri: `error TS2307: Cannot find module './x'` o un import di un file tolto restano colpa del ramo (i test lo controllano).
+
+**Trappola (c-122, 23/10):** nei test non usare mai una cartella vera del
+progetto (per esempio `join(process.cwd(), 'tests')`) come copia del ramo.
+`preparaCopia` la «prepara» davvero: ci copia `android/local.properties` della
+cartella principale, che contiene il percorso dell'SDK del PC. Così è nato
+`tests/android/local.properties`, fuori da git, sia nelle copie sia nella
+cartella principale. Usare sempre una cartella temporanea (`copiaFinta()` in
+`server.test.ts`).

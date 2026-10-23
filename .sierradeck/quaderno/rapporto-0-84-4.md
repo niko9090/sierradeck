@@ -72,6 +72,8 @@ Fatti da c-122 il 23/10, in sola lettura, su `git diff df1a2ed2..main -- src tes
 - **Dati privati: nessuno.** Ho cercato indirizzi IP, nomi dei PC (`DESKTOP-`, `LAPTOP-`, `NB-PROBOOK`), percorsi personali (`E:\Users`, `C:\Users\…`, il nome utente), email, partita IVA e numeri di 11 cifre. L'unico IP è `127.0.0.1`, cioè il computer stesso, nei test che aprono il servizio su una porta libera. I test usano solo valori finti (`C:/progetto`, `ap-1`, `ap-android`, cartelle temporanee).
 - **Funzioni tolte: nessuna.** Nessuna rotta, tasto o voce di menu è stata tolta. Le due righe `-export` sono firme allargate con lo stesso nome: `esitoDaPasso` ora può dire anche «non nata», `verdettoAccettato` ha in più il parametro `ambiente`. Il dialogo in fila è passato in `dialogaDaSolo`, con lo stesso comportamento. La frase «… l'ha ricevuta e riprende il lavoro.» c'è ancora, adesso con «Presa: …» davanti, e solo quando la chat l'ha presa davvero; i test sono aggiornati. `android/` non è toccato dal 23/10 mattina (`df1a2ed2`).
 
+- **Un test lasciava un percorso del PC fuori da git: corretto.** Tre test della Revisione in `server.test.ts` usavano la cartella `tests` vera come «copia del ramo». Con `preparaCopia` di c-119 il servizio ci copiava `android/local.properties`, che contiene `sdk.dir` con il percorso dell'SDK di questo PC, in `tests/android/local.properties`. Il file era fuori da git ma bastava un `git add -A` per metterlo nel repository. Corretto da c-122 (copia finta in una cartella temporanea, `copiaFinta()`): dopo i 943 test del servizio il file non si ricrea più. **Il file è ancora nella cartella principale** (`SierraDeck/tests/android/local.properties`, non tracciato): va tolto prima del tag, e mai messo in un commit.
+
 ## Prova di 2 ore senza fermate
 
 Stesso metodo della 0.84.3 (`prova-due-ore-mai-fermo.md`):
@@ -90,12 +92,26 @@ Mai il servizio vero, mai «Installa».
 
 | Misura | Valore |
 |---|---|
-| Durata | _in arrivo_ |
-| Minuti con lavoro da finire e nessuna chat al lavoro (tratto più lungo) | _in arrivo_ |
-| Tratti oltre 15 minuti | _in arrivo_ |
-| Chat muta più a lungo | _in arrivo_ |
-| Doppioni | _in arrivo_ |
-| Giri da soli (e quanti dicono «apro» senza aprire) | _in arrivo_ |
-| Chat riprese / sostituite / messe da parte | _in arrivo_ |
-| «Finito» con chat aperte | _in arrivo_ |
+| Durata | **120 minuti** (10:40:24 → 12:40 UTC), riavvio del servizio a 60 minuti; uscita con codice 0 |
+| Minuti con lavoro da finire e nessuna chat al lavoro (tratto più lungo) | **2,9 minuti**; 0 tratti senza nessuno al lavoro |
+| Tratti oltre 15 minuti | **0** |
+| Chat muta più a lungo | **16 minuti**, cioè 15 più il giro del guardiano; 0 misure con una chat muta oltre 17 minuti mentre le sorelle lavorano |
+| Doppioni | **0** |
+| Giri da soli (e quanti dicono «apro» senza aprire) | **11** giri, tutti col motivo vero: 8 «ferme da più di 15 minuti mentre le altre lavorano», 3 «riprese che non hanno risposto». 0 dicono «apro» senza aprire |
+| Chat riprese / sostituite / messe da parte | **9** riprese, **6** sostituite con una chat nuova sullo stesso ramo, **0** messe da parte; 26 righe «ferma» nel diario; 8 chat in tutto, 3 aperte alla fine |
+| «Finito» con chat aperte | **0** |
 | Risposte prese / non prese | **non misurate dalla prova**: le chat simulate non fanno domande e il PC simulato non manda esiti di consegna. Le coprono i test di servizio: `risposte-prese-0-84-4.test.ts` (8 casi, «rifallo ancora» tre volte compreso) e `non-nata-0-84-4.test.ts` (15 casi). Allargare la prova a domande e terminali che non nascono è una cosa da fare dopo, non in questa release |
+
+Risposte prese/non prese e terminale che non nasce sono coperti dai test, 8 + 15, non dalla prova.
+
+Il comportamento delle chat simulate (seme fisso): 37 turni, 9 mute, 2 morte, 6 ferme al prompt, 6 interrotte, 4 chiuse nel recupero. Lo stato finale è «lavoro» e non «finito»: è il limite noto della prova (`prova-due-ore-mai-fermo.md`). La memoria dei criteri vale per commit e nella prova il codice non cambia, quindi i criteri verdi degli ultimi 8 minuti non portano a «finito». **Esito: prova pulita**, sul codice `c54fbcd7`.
+
+**Arrivato dopo la prova: c-125** (`21727a1f`, «oltre i rifacimenti decide il
+programma»). Cambia `server.ts` (+236 −41), `worktree.ts` e il nuovo
+`oltre-rifacimenti.ts`. Le parti toccate sono la decisione della Revisione
+dopo troppi «da rifare», l'unione di prova e il ricontrollo delle domande;
+nessuna riga di `mai-fermo.ts`, del guardiano o di `controllaChatFerme`. La
+prova simula chat di sviluppo e nessuna Revisione, quindi non passa da quel
+codice: **la prova resta valida**, come per c-109 alla 0.84.3. Per conferma,
+sul codice unito (`0e59041b`): giro di fumo di 3 minuti pulito (0 minuti
+fermi, 0 doppioni), TypeScript pulito, `tests/autopilot-host` 943 verdi.
