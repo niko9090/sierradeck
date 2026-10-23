@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { TastoMicrofono } from './TastoMicrofono'
 import { useLayoutStore } from '../state/layout'
-import type { ApriChatAltrove, SceltaScheda, SchedaDomanda } from '@shared/scheda-domanda'
+import { toccoScelta, type ApriChatAltrove, type SceltaScheda, type SchedaDomanda } from '@shared/scheda-domanda'
 
 /**
  * «Apri la chat su <PC>» (0.84.1): il riquadro dal vivo verso quella chat,
@@ -86,7 +86,8 @@ export function SchedaDomandaVista({
                 className={`tasto${c.consigliata === true ? ' tasto--primario scheda-domanda__consigliata' : ''}`}
                 disabled={inCorso}
                 title={c.libera === true ? 'Scrivi la risposta nel campo qui sotto' : c.consigliata === true ? 'La scelta consigliata' : undefined}
-                onClick={() => onScelta(c)}
+                // 0.84.3: una risposta da scrivere apre il campo, non risponde.
+                onClick={() => { if (toccoScelta(c) === 'scrivi') campo.current?.focus(); else onScelta(c) }}
               >
                 {c.spuntata !== undefined ? (c.spuntata ? '☑ ' : '☐ ') : null}
                 {c.consigliata === true ? '★ ' : null}{c.etichetta ?? c.testo}
