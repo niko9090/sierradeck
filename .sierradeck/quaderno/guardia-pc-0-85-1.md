@@ -20,3 +20,5 @@ tag: ["0.85.1", "guardia-pc", "autopilota", "indicatore", "prestazioni"]
 **Trappola**: la guardia è una per servizio (creata in `index.ts`), condivisa fra server e turni. Nei test del server si passa una guardia finta (`guardiaPc: { valuta, stato, attendi }`). Senza `guardiaPc` il servizio si comporta come prima.
 
 Test: `tests/autopilot-host/guardia-pc-0-85-1.test.ts`.
+
+**Trappola vista unendo (23/10 notte)**: il lavoro sul testo fluido (0.85.1) ha spostato il campo di scrittura da `ChatAutopilota.tsx` a `CampoChatAutopilota.tsx`. Due test che leggono il sorgente (`copia-incolla.test.ts`, `grafica-0-81-0.test.ts`) cercavano ancora nel file vecchio e facevano fallire `tests/main` in main. Sono stati corretti da c-148. Chi sposta un pezzo di interfaccia deve cercare `readFileSync('src/renderer/components/…` nei test.
