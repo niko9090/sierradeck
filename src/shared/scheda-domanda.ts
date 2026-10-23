@@ -70,6 +70,15 @@ export type SchedaDomanda = {
   apri?: ApriChatAltrove
 }
 
+/**
+ * Cosa fa il tocco di un tasto (0.84.3, Revisione): una scelta `libera` apre
+ * il campo di testo e la domanda resta aperta; le altre rispondono con il
+ * loro testo. La stessa regola su PC, pagina e app.
+ */
+export function toccoScelta(c: Pick<SceltaScheda, 'libera'>): 'scrivi' | 'rispondi' {
+  return c.libera === true ? 'scrivi' : 'rispondi'
+}
+
 /** Oltre questa lunghezza una frase si taglia: il resto è nei dettagli. */
 export const FRASE_MAX = 200
 
@@ -141,6 +150,7 @@ export function schedaDaParti(chi: string, p: PartiDomanda, opzioni: { avvertenz
     scelte: p.scelte.map((s) => ({
       testo: s.scelta,
       ...(s.consigliata === true ? { consigliata: true as const } : {}),
+      ...(s.libera === true ? { libera: true as const } : {}),
       ...(s.conseguenza.trim() !== '' ? { conseguenza: s.conseguenza.trim() } : {})
     })),
     dettagli,

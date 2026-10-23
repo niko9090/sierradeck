@@ -28,6 +28,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,6 +94,13 @@ fun etichettaScelta(s: SceltaScheda): String =
     (when (s.spuntata) { true -> "☑ "; false -> "☐ "; null -> "" }) + (if (s.consigliata) "★ " else "") + (s.etichetta?.takeIf { it.isNotBlank() } ?: s.testo)
 
 /**
+ * PC 0.84.3 (Revisione): una scelta da scrivere («Ti scrivo io cosa provare»,
+ * «Scrivo io la risposta») porta al campo di testo e non risponde: la domanda
+ * resta aperta finché non mandi quello che hai scritto.
+ */
+fun apreIlCampo(s: SceltaScheda): Boolean = s.libera
+
+/**
  * Una domanda essenziale (PC 0.72.1): chi chiede in piccolo, la domanda in una
  * frase, le scelte come tasti (la consigliata segnata), «Scrivi tu», e il resto
  * dietro un «?» chiuso. Nessuna cronologia. Uguale al PC e alla pagina.
@@ -107,6 +116,7 @@ fun SchedaDomandaVista(
 ) {
     var aperti by remember(s.domanda, s.chi) { mutableStateOf(false) }
     var testo by remember(s.domanda, s.chi) { mutableStateOf("") }
+    val campo = remember { FocusRequester() }
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -153,7 +163,7 @@ fun SchedaDomandaVista(
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (c.consigliata) Banco.accento.copy(alpha = 0.18f) else Banco.fondo)
                         .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(8.dp))
-                        .tocco(enabled = !inCorso) { onScelta(c) }
+                        .tocco(enabled = !inCorso) { if (apreIlCampo(c)) campo.requestFocus() else onScelta(c) }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 )
             }
@@ -194,7 +204,7 @@ fun SchedaDomandaVista(
                     focusedTextColor = Banco.testo,
                     unfocusedTextColor = Banco.testo
                 ),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).focusRequester(campo)
             )
             Spacer(Modifier.width(8.dp))
             Button(

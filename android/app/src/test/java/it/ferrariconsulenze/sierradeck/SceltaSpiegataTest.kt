@@ -14,13 +14,15 @@ class SceltaSpiegataTest {
     fun `«sono bloccato» dal PC, ogni scelta porta cosa succede`() {
         val json = """{"chi":"autopilota «App Android» · SierraDeck","domanda":"«App Android»: il controllo «I test passano» non passa. Come vado avanti?","scelte":[
             {"testo":"Lascia stare quel controllo e vai avanti","consigliata":true,"conseguenza":"quel controllo lo giudico io: non conta più per finire il lavoro"},
-            {"testo":"Ti scrivo io cosa provare","conseguenza":"lo passo alla chat così com’è"},
+            {"testo":"Ti scrivo io cosa provare","libera":true,"conseguenza":"lo passo alla chat così com’è"},
             {"testo":"Sospendi l’autopilota","conseguenza":"fermo tutte le chat; lo riprendi con «Riprendi»"}],
             "dettagli":[],"segnaposto":"Scrivi tu la risposta"}"""
         val s = Api.json.decodeFromString(SchedaDomanda.serializer(), json)
         assertEquals(3, s.scelte.size)
         assertEquals("quel controllo lo giudico io: non conta più per finire il lavoro", s.scelte[0].conseguenza)
         assertEquals("★ Lascia stare quel controllo e vai avanti", etichettaScelta(s.scelte[0]))
+        // Revisione: «Ti scrivo io cosa provare» porta al campo, non risponde; le altre rispondono.
+        assertEquals(listOf(false, true, false), s.scelte.map { apreIlCampo(it) })
     }
 
     @Test

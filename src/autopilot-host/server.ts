@@ -5090,6 +5090,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
           const da = corpo?.da === 'telegram' ? 'telegram' : 'modale'
           const idDomanda = decodeURIComponent(risposta[1]!)
+          // 0.84.3 (Revisione): «Ti scrivo io cosa provare» non è una risposta
+          // ma il campo da scrivere; da un'app vecchia arriva come testo, e la
+          // domanda resta aperta.
+          const daScrivere = deps.domande.aperte().find((d) => d.id === idDomanda)?.parti?.scelte.find((s) => s.libera === true && s.scelta.trim().toLowerCase() === testo.toLowerCase())
+          if (daScrivere !== undefined) {
+            rispondi(res, 409, { errore: `«${daScrivere.scelta}»: scrivi nel campo cosa provare e mandalo; la domanda resta aperta` })
+            return
+          }
           if (!rispondiAllaDomanda(idDomanda, testo, da)) {
             rispondi(res, 404, { errore: 'domanda inesistente o gia risposta' })
             return
