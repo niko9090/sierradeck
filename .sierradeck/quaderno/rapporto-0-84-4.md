@@ -44,6 +44,23 @@ campo. Le tre voci della 0.84.4 non toccano `android/`: l'app mostra già
 pagina (`client-rotte.ts:1569`), e il dettaglio della risposta si vede in
 `PartiAutopilota.kt:339`.
 
+## Release (c-942)
+
+**Preparata, non pubblicata** (23/10, 11:15 UTC), sul ramo `ap/ap-f1e631f5/c-942`, commit `44ed0e43`:
+- `git fetch`: main locale avanti a `origin/main` senza divergenze. Nessun altro PC ha fatto il bump.
+- `package.json` 0.84.4. `package-lock.json` è fermo a 0.77.0 da mesi e non si tocca.
+- App 2.84.4, versionCode 143. `npm run allega-apk -- --solo-verifica`: APK release firmato
+  «CN=Nicholas Ferrari, O=Ferrari Consulenze», non debug.
+- Voce 0.84.4 in `src/shared/novita.ts`: sono anche le note della release e di `app-android.json`.
+  La riga «Provato per 2 ore senza fermate» resta solo se la prova finisce con 0 fermate.
+- Misure sul ramo: TypeScript senza errori; principale 1949 verdi (2 saltati); servizio, renderer,
+  condivisi e pty 3187 verdi; Android `testDebugUnitTest assembleDebug` riuscito; Kotlin sotto 800
+  righe; guardia delle cancellazioni pulita.
+
+**Si pubblica solo dopo i numeri finali della prova qui sotto, uniti in main.** Ordine: fetch → unione
+del ramo c-942 → tag → `gh release create` → `npm run pubblica` → `latest.yml` → `npm run allega-apk`
+→ non in bozza. Mai installata da noi.
+
 ## Rami di questo lavoro
 
 Piano e pre-revisione: `piano-unione-0-84-4.md`.
