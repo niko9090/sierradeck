@@ -89,7 +89,7 @@ describe('collaudo del Punto: i difetti', () => {
   // la conversazione dice «è ferma da 16 minuti senza segnali». Ogni 15 minuti,
   // finché la sorella lavora. Nel Punto la stessa chat è rossa «nessun segno da
   // 16 min» (adesso.ts:108) con accanto il segnale ambra «aspetta Sviluppo».
-  it.fails('D2: chi aspetta una sorella al lavoro non è «ferma» e non si riprende a 15 minuti', () => {
+  it('D2: chi aspetta una sorella al lavoro non è «ferma» e non si riprende a 15 minuti', () => {
     const a = ap([
       chat('c-1', { ruolo: 'sviluppo', compito: 'Il menu' }),
       chat('c-2', { ruolo: 'collaudo', compito: 'Collaudo del menu', segnale: { tipo: 'aspetto', di: 'c-1', quando: fa(16), dichiarato: true } })

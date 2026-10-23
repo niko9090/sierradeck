@@ -191,9 +191,17 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   // Le mute da toccare: tutte se nessuno lavora, altrimenti quelle messe da
   // parte, quelle già riprese che non hanno risposto e (0.84.3, il Punto)
   // quelle ferme da più di 15 minuti mentre le sorelle lavorano.
+  // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che lavora non è
+  // ferma: aspetta come le è stato chiesto. Se anche la sorella tace, sono
+  // ferme tutte e due e si riprendono.
+  const aspettaUnaViva = (c: ChatGovernata): boolean => {
+    if (c.segnale?.tipo !== 'aspetto' || c.segnale.di === undefined) return false
+    const sorella = alLavoro.find((x) => x.id === c.segnale?.di)
+    return sorella !== undefined && !mute.includes(sorella)
+  }
   const daToccare = tuttoFermo
     ? mute
-    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS)
+    : mute.filter((c) => daParte.has(c.id) || c.ripresa !== undefined || (silenzio(unita(c), v, segnale) >= FERMA_DA_DIRE_MS && !aspettaUnaViva(c)))
   const mosse: MossaMaiFermo[] = []
   const righe: string[] = []
   const avvisaNicholas: string[] = []

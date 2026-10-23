@@ -108,6 +108,13 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
   // Muta da: l'ultimo segno; senza segni, da quando li si raccoglie (o da quando
   // è al lavoro, se è dopo). Senza nessuna delle due date non si giudica.
   const riferimento = segno ?? (raccolti === undefined ? undefined : Math.max(raccolti, aperta ?? raccolti))
+  // (collaudo c-96, D2) Chi ha detto «aspetto» una sorella che dà segni non è
+  // ferma: aspetta. Se la sorella tace anche lei, valgono le regole di sotto.
+  const sorella = c.segnale?.tipo === 'aspetto' && c.segnale.di !== undefined ? a.chats.find((x) => x.id === c.segnale?.di && x.stato === 'lavoro') : undefined
+  const segnoSorella = sorella !== undefined ? istante(a.segniChat?.[sorella.id]) : undefined
+  if (sorella !== undefined && segnoSorella !== undefined && ora - segnoSorella < MUTA_DA_MS) {
+    return { ...base, testo: `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»), che lavora${daQuanto(c.segnale?.quando, ora)}`, tono: 'aspetta' }
+  }
   if (riferimento !== undefined && ora - riferimento >= MUTA_DA_MS) {
     const testo = c.cicli === 0 && segno === undefined ? `non è ancora partita: nessun segno da ${durata(ora - riferimento)}` : `nessun segno da ${durata(ora - riferimento)}`
     return { ...base, testo, tono: 'ferma' }
