@@ -66,3 +66,5 @@ L'hook di fine turno ha riportato tre volte lo stesso fallimento di `tests/main`
 di prima che entrasse c-148 (`90757852`). Rilanciato a mano lo stesso comando su main `3a245a01`:
 rc=0, 1951 test verdi. Se l'esito si ripete identico, tempi compresi, rilanciare il comando
 del criterio a mano e scrivere il commit di main su cui passa: rifare il lavoro non serve.
+
+c-151 (notte 23→24/10): lo stesso «rifaccio il giro» più di 10 volte di fila dopo «SEGNALE: fatto», con criteri verdi, lavoro in main (`afa8220f`) e suite servizio/renderer/condivisi/pty rilanciata a mano con rc=0. È la conferma più netta: finché non si installa la 0.85.1, una chat finita resta in questo giro.
