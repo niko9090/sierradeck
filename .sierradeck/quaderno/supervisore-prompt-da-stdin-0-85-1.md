@@ -42,3 +42,13 @@ con tutti i criteri verdi riceve dall'hook di fine turno sempre lo stesso messag
 A c-145 è successo tre volte di fila dopo «SEGNALE: fatto». Con il supervisore muto
 deve decidere la regola: criteri verdi più `SEGNALE: fatto` vuol dire chat finita.
 Non va ripetuto il giro. Vedi anche la scheda del giro senza fine della 0.85.0.
+
+## Controllo delle altre chiamate (c-1108, 23/10 sera)
+
+Tutto ciò che interroga Claude in sottofondo — chiedi all'autopilota, risposte dalla scheda,
+scomposizione, Revisione, riparazione dei criteri, cambio d'obiettivo — passa da `deps.interroga`
+in `server.ts`, cioè da `interrogazioneReale`: prompt sullo stdin per tutti. Le altre `execFile`
+di `claude` sono corte e fisse: `negozio/cli.ts` (nomi di plugin/MCP), `risoluzione.ts`
+(percorso del dossier + `ISTRUZIONI_AGENTE`), `claude-versione.ts` (`--version`). Le chat
+ricevono una riga sola (`consegna-breve.ts`). Se si aggiunge una nuova chiamata a `claude` con
+testo che cresce, deve passare da `interrogazioneReale` o dallo stdin.
