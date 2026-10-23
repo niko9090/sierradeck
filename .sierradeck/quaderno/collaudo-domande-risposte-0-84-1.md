@@ -54,17 +54,15 @@ In main (`a95e8654`) senza `.fails`: `collaudo-domande-risposte-0-84-1` e
 nei `dettagli` della scheda comune (`scelteDiChat`, `shared/scheda-domanda.ts`):
 PC, pagina e app la mostrano tutti e tre allo stesso modo.
 
-**Resta un caso limite (lieve, non corretto):** se il 200° carattere di
-un'opzione taglia a metà un emoji (o un altro carattere fuori dal piano base),
-il taglio `o.testo.slice(0, 200)` (`src/main/index.ts:1934`) lascia mezzo
-carattere. Dalla pagina e dal PC il mezzo carattere arriva intatto
-(`JSON.stringify` lo scrive come `\ud83d`). Dall'app invece kotlinx lo scrive
-così com'è e OkHttp, passando in UTF-8, lo cambia in «?». Il testo non è più
-l'inizio dell'opzione, `dovEOpzione` (`src/main/client-rotte.ts:814`) torna -1
-e ogni tocco dall'app risponde 409. Passi: un'opzione con un emoji nelle
-posizioni 199-200 e lunga più di 200 caratteri, su B; toccarla dall'app
-passando da A. Rimedio: tagliare senza spezzare le coppie (199 caratteri se il
-199° è una surrogata alta) e far accettare a `dovEOpzione` anche 199 caratteri.
+**Caso limite trovato nel ricollaudo, corretto da c-93 in `23b0d540`:**
+se il 200° carattere di un'opzione tagliava a metà un emoji, dall'app il
+mezzo carattere arrivava come «?» (kotlinx lo scrive così com'è e OkHttp lo
+passa in UTF-8). Il testo non era più l'inizio dell'opzione e ogni tocco
+dall'app rispondeva 409. Ora il battito taglia con `tagliaIntero`
+(`src/shared/posta.ts`), che non spezza le coppie e si ferma a 199 se serve.
+`dovEOpzione` (`src/main/client-rotte.ts`) accetta anche 199 caratteri. Test:
+`tests/main/opzione-emoji-tagliata.test.ts` e `CaratteriInteriTest.kt`
+(`android/app/src/test/…`).
 
 ## Difetti trovati il 22/10 (com'erano)
 
