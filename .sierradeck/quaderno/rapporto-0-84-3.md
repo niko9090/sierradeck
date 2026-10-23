@@ -70,4 +70,13 @@ Cosa misura, ogni 15 secondi:
 - i motivi scritti dai giri da soli, e se un giro dice «apro» senza aprire;
 - riprese, sostituzioni, messe da parte, doppioni, «finito» con chat aperte.
 
-Numeri: in arrivo alla fine della prova (verso le 01:48 UTC del 23/10).
+**Primo giro, fermato a 18 minuti per un motivo falso.** Fino lì nessun tratto
+fermo; c-2, muta mentre le sorelle lavoravano, è stata ripresa a 15,0 minuti
+(D1 ok, riga «ferma» scritta). Ma il giro scriveva «giro da solo per le chat
+messe da parte», e c-2 non era messa da parte (succede a 60 minuti). Corretto
+in `mai-fermo.ts` con un test rosso prima e verde dopo (commit `1169047a`): il
+giro dice «messe da parte», «riprese che non hanno risposto» o «ferme da più di
+15 minuti mentre le altre lavorano».
+
+**Prova rilanciata alle 2026-10-23T00:11:16Z** sul codice corretto, stesso metodo.
+Numeri: in arrivo alla fine (2 ore dopo).
