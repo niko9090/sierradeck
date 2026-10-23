@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
+import { togliCollegamenti } from './ambiente-copia'
 import { allineaHookEcc, type FuoriDaGit } from './hook-ecc'
 
 /**
@@ -356,6 +357,9 @@ function* togliPassi(p: { cwd: string; cartella: string; ramo: string }): Passi<
   while (dirname(radiceWt) !== radiceWt && basename(dirname(radiceWt)) !== basename(cartellaWorktreeDi(radice))) {
     radiceWt = dirname(radiceWt)
   }
+  // Il collegamento a node_modules della Revisione (0.84.4) prima della copia:
+  // git lo lascerebbe lì e la cartella non si potrebbe togliere.
+  togliCollegamenti(radiceWt)
   yield* chiedi(['worktree', 'remove', '--force', radiceWt], radice)
   yield* chiedi(['branch', '-d', p.ramo], radice)
   yield* chiedi(['worktree', 'prune'], radice)
