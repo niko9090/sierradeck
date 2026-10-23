@@ -170,7 +170,13 @@ describe('«Hai risposto: …» e cosa ne è stato fatto', () => {
     })
     const tua = conversazione(a).find((b) => b.da === 'tu' && b.testo.startsWith('Hai risposto'))
     expect(tua?.testo).toBe('Hai risposto: il fisso')
-    expect(tua?.dettaglio).toBe('Sviluppo («Lo storico degli errori») l’ha ricevuta e riprende il lavoro.')
+    // 0.84.4: partita verso la chat non vuol dire presa.
+    expect(tua?.dettaglio).toBe('Ricevuta: la sto portando a Sviluppo («Lo storico degli errori»), ti dico quando l’ha presa.')
+    // Presa solo quando la consegna risulta partita.
+    a.decisioni.push({ quando: iso(ORA + 20_000), cosa: 'risposta presa (c-3): il fisso — la consegna c-9 è partita' })
+    const presa = conversazione(a).filter((b) => b.da === 'tu' && b.testo.startsWith('Hai risposto'))
+    expect(presa).toHaveLength(1)
+    expect(presa[0]?.dettaglio).toBe('Presa: Sviluppo («Lo storico degli errori») l’ha ricevuta e riprende il lavoro.')
   })
 
   it('«pubblico?»: dice se pubblica o no', () => {
@@ -197,7 +203,7 @@ describe('«Hai risposto: …» e cosa ne è stato fatto', () => {
       { quando: iso(ORA + 10 * MIN), cosa: 'pubblicazione: hai detto sì (sì)' },
       { quando: iso(ORA + 1_000), cosa: 'risposta tardiva (c-3): ok, vai avanti' }
     ] })
-    expect(esitoRisposta(a, iso(ORA), 'ok, vai avanti')).toBe('c-3 («Il compito di c-3») l’ha ricevuta e riprende il lavoro.')
+    expect(esitoRisposta(a, iso(ORA), 'ok, vai avanti')).toBe('Ricevuta: la sto portando a c-3 («Il compito di c-3»), ti dico quando l’ha presa.')
     expect(esitoRisposta(a, iso(ORA + 10 * MIN - 1_000), 'sì')).toBe('Pubblica.')
   })
 
@@ -206,7 +212,7 @@ describe('«Hai risposto: …» e cosa ne è stato fatto', () => {
       { quando: iso(ORA + 1_000), cosa: 'risposta tardiva (c-1): sì' },
       { quando: iso(ORA + 5 * MIN + 1_000), cosa: 'risposta tardiva (c-2): sì' }
     ] })
-    expect(esitoRisposta(a, iso(ORA + 5 * MIN), 'sì')).toMatch(/^c-2 /)
+    expect(esitoRisposta(a, iso(ORA + 5 * MIN), 'sì')).toMatch(/la sto portando a c-2 /)
   })
 
   it('Revisione: una risposta vecchia senza traccia non promette niente', () => {

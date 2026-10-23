@@ -83,6 +83,21 @@ export const MESSAGGI_AUTOPILOTA = 30
 /** Quello che hai mandato di recente a una chat, per tenerlo nel filo. */
 export type Inviato = { quando: string; testo: string }
 
+/**
+ * Una battuta della sua conversazione come messaggio. Sotto «Hai risposto: …»
+ * c'è cosa ne è stato fatto (0.84.4: «Presa», «Non presa: la riconsegno»,
+ * «al supervisore»): si vede anche nelle Domande della pagina e dell'app.
+ */
+function inMessaggi(b: ReturnType<typeof conversazione>[number]): MessaggioConversazione[] {
+  const m: MessaggioConversazione = {
+    da: b.da,
+    testo: b.dettaglio !== undefined && b.da === 'nota' ? `${b.testo} — ${b.dettaglio}` : b.testo,
+    quando: b.quando,
+    ...(b.tono !== undefined ? { tono: b.tono } : {})
+  }
+  return b.da === 'tu' && b.dettaglio !== undefined && b.dettaglio !== '' ? [m, { da: 'nota', testo: b.dettaglio, quando: b.quando, tono: 'esito' }] : [m]
+}
+
 export function conversazioniDomande(p: {
   voci: VoceDomanda[]
   autopiloti: Autopilota[]
@@ -99,12 +114,7 @@ export function conversazioniDomande(p: {
       const chiave = `ap:${v.autopilotaId}`
       const a = perAp.get(v.autopilotaId)
       const storia = a === undefined ? [] : conversazione(a).slice(-MESSAGGI_AUTOPILOTA)
-      const messaggi: MessaggioConversazione[] = storia.map((b) => ({
-        da: b.da,
-        testo: b.dettaglio !== undefined && b.da === 'nota' ? `${b.testo} — ${b.dettaglio}` : b.testo,
-        quando: b.quando,
-        ...(b.tono !== undefined ? { tono: b.tono } : {})
-      }))
+      const messaggi: MessaggioConversazione[] = storia.flatMap(inMessaggi)
       // La domanda aperta sta **sempre** in fondo: con una flotta l'autopilota
       // resta «al lavoro» e la sua storia non la mostra da sola. Con le sue
       // opzioni, se ne propone: toccarne una e' rispondere con quel testo.
@@ -294,12 +304,7 @@ export function conversazioniDomande(p: {
       },
       // Il suo «dammi il via» sta sempre in fondo, qualunque ora abbia.
       messaggi: [
-        ...conversazione(a).filter((b) => b.tono !== 'pronto').slice(-MESSAGGI_AUTOPILOTA).map((b) => ({
-          da: b.da,
-          testo: b.dettaglio !== undefined && b.da === 'nota' ? `${b.testo} — ${b.dettaglio}` : b.testo,
-          quando: b.quando,
-          ...(b.tono !== undefined ? { tono: b.tono } : {})
-        })),
+        ...conversazione(a).filter((b) => b.tono !== 'pronto').slice(-MESSAGGI_AUTOPILOTA).flatMap(inMessaggi),
         {
           da: 'lui' as const,
           testo: 'Mi sono preparato: i criteri e i compiti sono nella mia scheda. Dimmi «vai» per partire, o cosa cambiare prima.',

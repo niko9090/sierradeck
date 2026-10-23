@@ -1,5 +1,6 @@
 import { eRuolo, type Ruolo } from './ruoli-agenti'
 import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
+import { leggiRisposteInViaggio, type RispostaInViaggio } from './risposte-in-viaggio'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -487,6 +488,11 @@ export type Autopilota = SupervisoreMancato & {
    * decisa la consegna: il 09/10 una consegna persa al riavvio li ha buttati.
    */
   inVolo?: Array<{ consegna: string; quando: string; messaggi: MessaggioPerLaChat[] }>
+  /**
+   * Le risposte di Nicholas in viaggio verso la chat che le aspettava (0.84.4):
+   * contano solo quando la chat le riceve. Vedi `risposte-in-viaggio.ts`.
+   */
+  risposteInViaggio?: RispostaInViaggio[]
   /**
    * Gli ultimi messaggi arrivati nella chat, con quando (0.69.0): la scheda dice
    * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
@@ -1099,6 +1105,9 @@ export function parseAutopilota(raw: unknown): {
               return messaggi.length === 0 ? [] : [{ consegna: r.consegna, quando: typeof r.quando === 'string' ? r.quando : '', messaggi }]
             })
           }
+        : {}),
+      ...(Array.isArray(o.risposteInViaggio) && leggiRisposteInViaggio(o.risposteInViaggio).length > 0
+        ? { risposteInViaggio: leggiRisposteInViaggio(o.risposteInViaggio) }
         : {}),
       ...(Array.isArray(o.consegnatiDi)
         ? {

@@ -1,4 +1,5 @@
 import type { Autopilota } from './autopilota'
+import { leggiRigaRisposta } from './risposte-in-viaggio'
 
 /**
  * Il diario dell'autopilota: le sue decisioni lette come azioni, e il dialogo
@@ -112,6 +113,18 @@ export function vociDecisioni(a: Autopilota): VoceDiario[] {
         tipo: 'preparazione' as const,
         titolo: 'Si è configurato',
         dettaglio: accorcia(cosa.slice('configurato da sé:'.length))
+      }
+    }
+    // Il viaggio di una tua risposta (0.84.4): presa, non presa, al supervisore.
+    const viaggio = leggiRigaRisposta(cosa)
+    if (viaggio !== undefined) {
+      return {
+        quando: d.quando,
+        tipo: 'tu' as const,
+        titolo: viaggio.esito === 'presa'
+          ? 'La chat ha preso la tua risposta'
+          : viaggio.esito === 'non-presa' ? 'La chat non ha preso la tua risposta: la riconsegno' : 'La tua risposta è andata al supervisore come istruzione',
+        dettaglio: accorcia(viaggio.resto)
       }
     }
     // «risposta tardiva (c-3): …» è quella di una chat della flotta (0.81.0: prima restava una riga grezza).

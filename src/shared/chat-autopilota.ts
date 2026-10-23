@@ -2,6 +2,7 @@ import type { Autopilota, ChatGovernata, Traguardo } from './autopilota'
 import { FERMA_DA_DIRE_MS, SILENZIO_DA_DIRE_MS } from './autopilota'
 import { vociDecisioni } from './diario-autopilota'
 import { RUOLI } from './ruoli-agenti'
+import { leggiRigaRisposta } from './risposte-in-viaggio'
 
 /**
  * Una riga della chat con l'autopilota.
@@ -167,17 +168,33 @@ export function esitoRisposta(a: Pick<Autopilota, 'decisioni' | 'chats' | 'stato
     .map((d) => ({ d, t: Date.parse(d.quando) }))
     .filter(({ t }) => !Number.isNaN(t) && t >= da - 5_000 && t - da <= RISPOSTA_USATA_ENTRO_MS)
     .sort((x, y) => Math.abs(x.t - da) - Math.abs(y.t - da))
+  // 0.84.4: conta solo quando la chat la riceve. Vale l'ultima riga del
+  // viaggio della risposta: presa, non presa (riconsegna), al supervisore.
+  const chiDi = (id: string): string => {
+    const chat = a.chats.find((c) => c.id === id)
+    return chat !== undefined ? `${chat.ruolo !== undefined ? nomeChi(chat) : chat.id} («${compitoBreve(chat.compito, 40)}»)` : 'La chat'
+  }
+  const viaggio = vicine
+    .map(({ d, t }) => ({ r: leggiRigaRisposta(d.cosa), t }))
+    .filter((x): x is { r: NonNullable<ReturnType<typeof leggiRigaRisposta>>; t: number } => x.r !== undefined && suo(x.r.resto))
+    .sort((x, y) => y.t - x.t)[0]?.r
+  if (viaggio?.esito === 'presa') return `Presa: ${chiDi(viaggio.chi)} l’ha ricevuta e riprende il lavoro.`
+  if (viaggio?.esito === 'non-presa') return `Non presa da ${chiDi(viaggio.chi)} al primo invio: la riconsegno.`
+  if (viaggio?.esito === 'al-supervisore') return `Non presa da ${chiDi(viaggio.chi)}: l’ho data al supervisore come istruzione, non va persa.`
   for (const { d } of vicine) {
     const cosa = d.cosa
     const si = /^pubblicazione: hai detto sì \((.*)\)$/s.exec(cosa)
     if (si !== null && suo(si[1] ?? '')) return 'Pubblica.'
     const no = /^non pubblico: hai risposto «(.*)»$/s.exec(cosa)
     if (no !== null && suo(no[1] ?? '')) return 'Non pubblica, come hai detto.'
-    const ricevuta = /^risposta (?:tardiva|dell utente)(?: \(([^)]+)\))?:\s*(.*)$/s.exec(cosa)
-    if (ricevuta === null || !suo(ricevuta[2] ?? '')) continue
-    const chat = a.chats.find((c) => c.id === ricevuta[1])
-    const chi = chat !== undefined ? `${chat.ruolo !== undefined ? nomeChi(chat) : chat.id} («${compitoBreve(chat.compito, 40)}»)` : 'La chat'
-    return `${chi} l’ha ricevuta e riprende il lavoro.`
+    // L'hook la aspettava: la chat l'ha ricevuta subito.
+    const subito = /^risposta dell utente(?: \(([^)]+)\))?:\s*(.*)$/s.exec(cosa)
+    if (subito !== null && suo(subito[2] ?? '')) return 'Presa: la chat la aspettava e l’ha ricevuta subito.'
+    // Arrivata dopo l'attesa: è partita verso la chat, ma che l'abbia presa
+    // non risulta ancora (0.84.4: prima qui si diceva già «l’ha ricevuta»).
+    const tardiva = /^risposta tardiva(?: \(([^)]+)\))?:\s*(.*)$/s.exec(cosa)
+    if (tardiva === null || !suo(tardiva[2] ?? '')) continue
+    return `Ricevuta: la sto portando a ${tardiva[1] !== undefined ? chiDi(tardiva[1]).replace(/^La chat$/, 'la chat') : 'la chat'}, ti dico quando l’ha presa.`
   }
   // Nessuna traccia, ma il lavoro è andato avanti oltre la finestra: non si
   // promette niente che non risulti.
