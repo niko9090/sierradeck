@@ -5,6 +5,7 @@ import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './decisione'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import type { Git } from './worktree'
+import { problemaDiAmbiente } from './ambiente-copia'
 
 /**
  * I criteri misurati senza rifare il lavoro già fatto (0.71.0, 0.82.1).
@@ -98,7 +99,9 @@ const inVolo = new Map<string, Promise<EsitoVerifica | undefined>>()
 
 /** Un esito che vale per il suo commit: misurato, e non fermato dal tempo. */
 export function daRicordare(e: EsitoVerifica): boolean {
-  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita)
+  // Né un fallimento per l'ambiente della copia (0.84.4): rimesso node_modules,
+  // lo stesso commit va rimisurato, non ricordato rosso.
+  return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && problemaDiAmbiente(e) === undefined
 }
 
 export type Misura = {

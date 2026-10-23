@@ -52,7 +52,7 @@ export const RUOLI: Record<Ruolo, SchedaRuolo> = {
   },
   revisione: {
     nome: 'Revisione', parola: 'revisione', colore: ATTIVITA.revisione.colore, conRevisione: false,
-    istruzioni: 'Sei l’agente di REVISIONE. Leggi il lavoro di un’altra chat (il suo ramo) e decidi se si può unire. NON modifichi file e NON fai commit: il programma te lo impedisce. Guarda il diff, esegui i test, cerca difetti veri (comportamento sbagliato, casi mancanti, dati privati nel codice). Chiudi SEMPRE con una riga sola, l’ultima del messaggio, in una di queste due forme:\nREVISIONE: OK <ramo> — con almeno un file:riga che hai controllato\nREVISIONE: DA RIFARE <ramo>: cosa correggere, con file:riga'
+    istruzioni: 'Sei l’agente di REVISIONE. Leggi il lavoro di un’altra chat (il suo ramo) e decidi se si può unire. NON modifichi file e NON fai commit: il programma te lo impedisce. Guarda il diff, esegui i test, cerca difetti veri (comportamento sbagliato, casi mancanti, dati privati nel codice). Se un comando non parte per l’ambiente della copia (tsc o vitest non trovati, «Cannot find module» dentro node_modules, SDK di Android non trovato) è un problema di ambiente, non un difetto del ramo: non è un motivo per DA RIFARE e non si chiede a Nicholas; scrivilo nelle note e giudica il diff. Chiudi SEMPRE con una riga sola, l’ultima del messaggio, in una di queste due forme:\nREVISIONE: OK <ramo> — con almeno un file:riga che hai controllato\nREVISIONE: DA RIFARE <ramo>: cosa correggere, con file:riga'
   },
   rilascio: {
     nome: 'Rilascio', parola: 'rilascio', colore: ATTIVITA.rilascio.colore, conRevisione: false,
@@ -167,7 +167,10 @@ export function citaUnFile(testo: string): boolean {
  * Il programma non timbra a occhi chiusi: un OK vale solo con i criteri del
  * ramo verdi e almeno un file citato; altrimenti è «da rifare», con il perché.
  */
-export function verdettoAccettato(v: Verdetto, peggiorati: string[], messaggio: string): Verdetto {
+export function verdettoAccettato(v: Verdetto, peggiorati: string[], messaggio: string, ambiente: string[] = []): Verdetto {
+  // 0.84.4: `ambiente` sono i criteri che nella copia non partono
+  // (node_modules mancante, SDK non trovato): non sono colpa del ramo, si
+  // scrivono nelle note e si misurano sul ramo principale dopo l'unione.
   if (v.esito !== 'ok') return v
   // 0.73.0: un ramo fa un pezzo del lavoro, non tutto. I criteri dell'insieme
   // («a.js e b.js esistono») su un ramo che fa solo a.js non passeranno mai:
@@ -177,6 +180,7 @@ export function verdettoAccettato(v: Verdetto, peggiorati: string[], messaggio: 
   // passare anche lì. I criteri dell'insieme si misurano dopo l'unione.
   if (peggiorati.length > 0) return { esito: 'rifare', ...(v.ramo !== undefined ? { ramo: v.ramo } : {}), note: `La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: ${peggiorati.join('; ')}. Prima si sistema questo. ${v.note}`.trim() }
   if (!citaUnFile(`${v.note}\n${messaggio}`)) return { esito: 'rifare', ...(v.ramo !== undefined ? { ramo: v.ramo } : {}), note: 'La revisione diceva OK senza citare nessun file controllato: va rifatta guardando davvero il diff.' }
+  if (ambiente.length > 0) return { ...v, note: `${v.note} Problema di ambiente nella copia, non del ramo: ${ambiente.join('; ')}. Si misura dopo l’unione.`.trim() }
   return v
 }
 
