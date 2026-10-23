@@ -5947,8 +5947,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       /** Con un gesto a mano (0.84.3) la chat riparte con la strada, non con il motivo. */
       let strada: string | undefined
       if (a === undefined) motivo = 'l’autopilota che la faceva non c’è più'
-      else if (a.stato === 'finito') motivo = 'il lavoro è già finito'
-      else if (a.stato === 'intervista') continue
+      else if (a.stato === 'finito') {
+        // 0.85.1: «Pubblico adesso?» si chiede proprio a lavoro finito, e una
+        // risposta tardiva la porta `suRispostaTardiva`. Il 23/10 si chiudeva
+        // da sola 21 secondi dopo il diario «la pubblicazione aspetta il tuo sì
+        // nella scheda Domande»: Nicholas la vedeva sparire, e la pubblicazione
+        // restava appesa per sempre.
+        if (c?.pubblica === true && a.pubblicazioneInAttesa === true) continue
+        motivo = 'il lavoro è già finito'
+      } else if (a.stato === 'intervista') continue
       else {
         const perche = chatIds.map((cid) => {
           const ch = a.chats.find((x) => x.id === cid)
