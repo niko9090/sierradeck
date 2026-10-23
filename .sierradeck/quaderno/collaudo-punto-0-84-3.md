@@ -45,9 +45,3 @@ cartella temporanea, nessuna chat vera). I difetti sono `it.fails`: chi li corre
 - Nelle prove nel servizio, contare le righe con `conversazione(a).filter(b => b.tono === 'traguardo')`:
   la stessa ripresa ha anche la nota di lavoro («c-2 è ferma…») e la riga del giro, e senza il filtro
   sembrano doppioni.
-
-## Corretti
-
-I 4 difetti sono corretti in main da `fa4683d5` (23/10, nella 0.84.3) e i loro `it.fails` sono tolti.
-Il ramo c-106 li aveva corretti in parallelo: è un doppione, unito a main prendendo la versione di
-main (le note per nome si fanno con `conNomiDelleChat`, non c'è nessuna `conNomiChat`).
