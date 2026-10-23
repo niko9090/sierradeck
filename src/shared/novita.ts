@@ -43,6 +43,7 @@ export const NOVITA: Novita[] = [
   {
     versione: '0.85.0',
     righe: [
+      '**A che punto siamo, a colpo d’occhio:** in cima all’autopilota, sul PC, sulla pagina e nell’app, tre righe: quanto manca alla prossima versione e quando arriva, quanto manca alla fine del lavoro con la barra, e se il lavoro va, è lento o è fermo. Il colore viene da quello che le chat fanno davvero (modifiche, prove, file cambiati), mai da quello che dicono. Il dettaglio dietro «?».',
       '**Ogni tua richiesta diventa un obiettivo da sola:** quando scrivi all’autopilota qualcosa da fare, il programma la registra con la data, le tue parole e un criterio per dire quando è fatta, e la mette in coda. Non serve più che qualcuno se ne ricordi. Una domanda resta una domanda.',
       '**Le tue richieste in cima al «Punto»:** sul PC, sulla pagina e nell’app vedi le richieste aperte con lo stato: da fare, in corso, fatta nella versione X.',
       '**Il riscontro con la prova:** quando una richiesta è fatta, l’autopilota scrive una riga con cosa è cambiato, la modifica salvata, la prova che lo dimostra e la versione che la contiene. La stessa riga va nella lista dei lavori.',
