@@ -1,12 +1,12 @@
 ---
 titolo: "Rapporto 0.85.1"
-quando: 2026-10-24T01:45:00+02:00
+quando: 2026-10-24T02:00:00+02:00
 tag: ["0.85.1", "rapporto", "patch", "c-145", "c-146", "c-147", "c-148", "c-149", "c-143"]
 ---
 
 # Rapporto 0.85.1 (patch)
 
-**Stato (24/10, 01:45):** le 6 richieste della 0.85.1 sono fatte e stanno in `main`. L'ultima, le domande del 23/10, ci entra con il ramo c-149, che ha portato da c-143 solo i pezzi che mancavano. **La release non è ancora uscita.** Riscritto da c-149: la versione di c-143 (23/10, 22:00) descriveva come «da unire» pezzi che poi sono entrati in `main` da altre chat.
+**Stato (24/10, 01:52 ora italiana = 23/10 23:52 UTC): v0.85.1 PUBBLICATA** dalla chat c-150, sul ramo c-146, non bozza, **mai installata** (la installa Nicholas). Tag `v0.85.1` su `61f74643`, lo stesso commit di `main` su GitHub. Le 6 richieste stanno tutte nella release.
 
 **APK: ne serve uno nuovo.** c-147 ha cambiato `android/` (`IndicatoreAutopilota.kt`, promesse aperte nell'indicatore). Quindi la 0.85.1 non riallega l'APK 2.85.0: si compila e si allega l'APK nuovo, sempre e solo con `npm run allega-apk`.
 
@@ -62,17 +62,26 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 
 | Ramo | Scelta |
 |---|---|
-| c-145, c-146, c-147 | uniti in `main` |
-| c-148 | unito in `main`; i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
-| c-149 | testo fluido unito; con questo giro porta le domande del 23/10 e la correzione 0u da c-143 |
-| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di quelli in `main` (c-145, c-148, c-149); domande del 23/10, 0u e il rapporto sono entrati con c-149; il resto sono note del quaderno sul giro senza fine e il limite del collaudo (in `main` c'è già quello di 90 s) |
+| c-145 | **unito** in `main` (supervisore dallo stdin, allarme dopo 3 fallimenti) |
+| c-146 | **unito** in `main` (rapporti delle chat; più 3 test che cadevano di notte o col PC carico, scheda `trappola-test-legati-all-ora.md`); il bump e la release partono da qui |
+| c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1) |
+| c-148 | **unito** in `main` (guardia del PC); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
+| c-149 | **unito** in `main` (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
+| c-143 | **chiuso senza unirlo**: doppio. Supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149 |
 
-## La release
+## Release
 
-**0.85.1 pubblicata** il 23/10 alle 23:52 UTC (24/10 01:52 ora italiana) da c-146, non in bozza, con i 5 file controllati: `SierraDeck-Setup-0.85.1.exe`, il suo `.blockmap`, `latest.yml` (version 0.85.1, size uguale all'exe: 115.420.838 byte), `SierraDeck-2.85.1.apk` (APK nuovo, android/ cambiato con c-147) e `app-android.json`. Il tag `v0.85.1` e `main` su GitHub sono lo stesso commit (`61f74643`). **Mai installata da noi**: la installa Nicholas.
+1. `git fetch`: `origin/main` (`121f4e93`, la 0.85.0) era solo indietro rispetto a `main` (83 commit), nessun altro PC aveva pubblicato. Push di `main` su GitHub.
+2. Bump patch `61f74643`: 0.85.1, app 2.85.1 (versionCode 145), 6 righe in `novita.ts`. Prima: typecheck 0, `npm run build` 0, test delle novità 76/76.
+3. Tag `v0.85.1` pushato, `gh release create` con le note da `noteDi`, poi `npm run pubblica`: una release sola, exe + blockmap + `latest.yml`.
+4. `npm run allega-apk`: APK 2.85.1 release firmato Ferrari Consulenze + `app-android.json`.
+5. Controlli (24/10, 02:20): una sola release `v0.85.1`, non bozza né pre-release, Latest; 5 file (`SierraDeck-Setup-0.85.1.exe` 115.420.838 byte, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk` firmato «O=Ferrari Consulenze», `app-android.json`). `releases/latest/download/latest.yml` dice `version: 0.85.1`, con la `size` dell'exe e lo sha512 uguale a quello dell'exe costruito.
 
-La stessa consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il cambio di versione di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
+**Intoppo:** nella copia della chat mancava `google-oauth.json` (non versionato) e `controlla-credenziali` ha fermato `pubblica` prima di caricare qualunque cosa. Copiato dalla cartella principale; idem `android/local.properties` per gradle. La chiave dell'APK sta nella cartella utente, quindi va bene da qualunque copia.
+
+**Due chat sulla stessa release:** la consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il bump di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
 
 ## Cosa resta
 
-Niente per la 0.85.1. Le junction `node_modules` nelle copie delle chat si tolgono con `rmdir` quando i loro rami sono uniti o chiusi.
+- Installarla: solo Nicholas. Con l'install finisce anche il giro senza fine dell'hook di fine turno (il supervisore installato è ancora quello che fallisce).
+- Aperto, decide Nicholas: mostrare solo le ultime 200 righe del diario nella scheda.
