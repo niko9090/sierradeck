@@ -81,8 +81,10 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1). Il commit di sola documentazione `574abf81` è entrato in `main` con l'unione di c-147 (`777f9b52`) |
 | c-148 | **unito** in `main` dopo la Revisione (guardia del PC; il 24/10 anche il ricontrollo dei criteri qui sopra); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | **unito** in `main` dopo la Revisione (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
-| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Le sue note (questo rapporto, `rapporto-0-85-0.md` e due trappole del quaderno) le ha portate in `main` c-148 il 24/10, copiando solo quei 4 file; il ramo resta fuori |
+| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Le sue note (questo rapporto, `rapporto-0-85-0.md` e due trappole del quaderno) le ha portate in `main` c-148 il 24/10, copiando solo quei 4 file; il ramo resta fuori. Il 24/10 i suoi 8 commit fuori da `main` erano solo note del quaderno e unioni (rapporto, lista, giro senza fine, consegna della release): già in `main` o superate |
 | c-11, c-11-velocita | **chiusi senza unirli**: superati da c-48 (velocità misurata, già in `main` dalla 0.85.0) |
+
+Controllo del 24/10, 03:00 (c-150): `git branch --no-merged main` dà solo c-143. c-145 (`4e512cb1`) e c-149 (`7ceebf02`) non hanno più niente fuori da `main`. Tolte con `rmdir` le junction `node_modules` delle copie di c-147, c-148 e c-149, già unite; la copia di c-145 non l'aveva. Restano quella di c-143, ramo non unito, e quella di c-146, ancora al lavoro. `main` pushato su GitHub (`9135e919`); il tag `v0.85.1` resta su `61f74643`. La chiusura delle chat c-143 e c-145…c-149 con `chiudiChat` è un'azione dell'autopilota: le chat non la possono fare da sole.
 
 ## La release
 
