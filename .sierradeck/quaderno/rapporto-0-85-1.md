@@ -75,6 +75,7 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 2. Bump patch `61f74643`: 0.85.1, app 2.85.1 (versionCode 145), 6 righe in `novita.ts`. Prima: typecheck 0, `npm run build` 0, test delle novità 76/76.
 3. Tag `v0.85.1` pushato, `gh release create` con le note da `noteDi`, poi `npm run pubblica`: una release sola, exe + blockmap + `latest.yml`.
 4. `npm run allega-apk`: APK 2.85.1 release firmato Ferrari Consulenze + `app-android.json`.
+5. Controlli (24/10, 02:20): una sola release `v0.85.1`, non bozza né pre-release, Latest; 5 file (`SierraDeck-Setup-0.85.1.exe` 115.420.838 byte, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk` firmato «O=Ferrari Consulenze», `app-android.json`). `releases/latest/download/latest.yml` dice `version: 0.85.1`, con la `size` dell'exe e lo sha512 uguale a quello dell'exe costruito.
 
 **Intoppo:** nella copia della chat mancava `google-oauth.json` (non versionato) e `controlla-credenziali` ha fermato `pubblica` prima di caricare qualunque cosa. Copiato dalla cartella principale; idem `android/local.properties` per gradle. La chiave dell'APK sta nella cartella utente, quindi va bene da qualunque copia.
 
