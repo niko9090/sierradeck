@@ -65,7 +65,7 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 | c-145 | **unito** in `main` (supervisore dallo stdin, allarme dopo 3 fallimenti) |
 | c-146 | **unito** in `main` (rapporti delle chat; più 3 test che cadevano di notte o col PC carico, scheda `trappola-test-legati-all-ora.md`); il bump e la release partono da qui |
 | c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1) |
-| c-148 | **unito** in `main` (guardia del PC) |
+| c-148 | **unito** in `main` (guardia del PC); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | **unito** in `main` (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
 | c-143 | **chiuso senza unirlo**: doppio. Supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149 |
 
@@ -78,6 +78,8 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 5. Controlli (24/10, 02:20): una sola release `v0.85.1`, non bozza né pre-release, Latest; 5 file (`SierraDeck-Setup-0.85.1.exe` 115.420.838 byte, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk` firmato «O=Ferrari Consulenze», `app-android.json`). `releases/latest/download/latest.yml` dice `version: 0.85.1`, con la `size` dell'exe e lo sha512 uguale a quello dell'exe costruito.
 
 **Intoppo:** nella copia della chat mancava `google-oauth.json` (non versionato) e `controlla-credenziali` ha fermato `pubblica` prima di caricare qualunque cosa. Copiato dalla cartella principale; idem `android/local.properties` per gradle. La chiave dell'APK sta nella cartella utente, quindi va bene da qualunque copia.
+
+**Due chat sulla stessa release:** la consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il bump di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
 
 ## Cosa resta
 
