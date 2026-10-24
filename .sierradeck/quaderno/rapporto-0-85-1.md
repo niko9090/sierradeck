@@ -64,7 +64,7 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 |---|---|
 | c-145, c-146, c-147 | uniti in `main` |
 | c-148 | unito in `main`; restano 2 commit del quaderno fuori, da unire o chiudere |
-| c-149 | testo fluido unito; con questo giro porta le domande del 23/10 e la correzione 0u da c-143 |
+| c-149 | **unito tutto in `main`** (24/10, `git branch --merged main` lo elenca): testo fluido (`362a465c`), domande del 23/10 (`a362dedb`) e correzione 0u (`197d26a5`) presi da c-143, rapporto e lista dei lavori. Ramo chiuso: non ha più niente fuori da `main` |
 | c-143 | **da chiudere senza unirlo**: supervisore, guardia e campo sono doppioni di quelli in `main` (c-145, c-148, c-149); domande del 23/10, 0u e il rapporto sono entrati con c-149; il resto sono note del quaderno sul giro senza fine e il limite del collaudo (in `main` c'è già quello di 90 s) |
 
 ## Cosa resta
