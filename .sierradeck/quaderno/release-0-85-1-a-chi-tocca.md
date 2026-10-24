@@ -15,3 +15,6 @@ Per uscirne serve una chat di rilascio con il permesso di pubblicare (come c-133
 oppure un sì esplicito di Nicholas. Prima va salvato (o messo da parte) quello che è sporco nella cartella
 principale. Ordine solito: fetch → bump → tag → `gh release create` → `npm run pubblica` →
 `npm run allega-apk` (android/ cambiato) → 5 file → rapporto `rapporto-0-85-1.md`.
+
+**Esito:** la 0.85.1 è stata pubblicata da un'altra chat il 23/10 alle 23:52 UTC, con i 5 file (consegna c-1146).
+La regola resta: una chat di lavoro con «niente push e niente pubblicazione» non pubblica, nemmeno se la consegna lo chiede.
