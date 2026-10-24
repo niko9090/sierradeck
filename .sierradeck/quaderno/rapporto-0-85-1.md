@@ -63,15 +63,16 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 | Ramo | Scelta |
 |---|---|
 | c-145, c-146, c-147 | uniti in `main` |
-| c-148 | unito in `main`; restano 2 commit del quaderno fuori, da unire o chiudere |
+| c-148 | unito in `main`; i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | testo fluido unito; con questo giro porta le domande del 23/10 e la correzione 0u da c-143 |
-| c-143 | **da chiudere senza unirlo**: supervisore, guardia e campo sono doppioni di quelli in `main` (c-145, c-148, c-149); domande del 23/10, 0u e il rapporto sono entrati con c-149; il resto sono note del quaderno sul giro senza fine e il limite del collaudo (in `main` c'è già quello di 90 s) |
+| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di quelli in `main` (c-145, c-148, c-149); domande del 23/10, 0u e il rapporto sono entrati con c-149; il resto sono note del quaderno sul giro senza fine e il limite del collaudo (in `main` c'è già quello di 90 s) |
+
+## La release
+
+**0.85.1 pubblicata** il 23/10 alle 23:52 UTC (24/10 01:52 ora italiana) da c-146, non in bozza, con i 5 file controllati: `SierraDeck-Setup-0.85.1.exe`, il suo `.blockmap`, `latest.yml` (version 0.85.1, size uguale all'exe: 115.420.838 byte), `SierraDeck-2.85.1.apk` (APK nuovo, android/ cambiato con c-147) e `app-android.json`. Il tag `v0.85.1` e `main` su GitHub sono lo stesso commit (`61f74643`). **Mai installata da noi**: la installa Nicholas.
+
+La stessa consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il cambio di versione di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
 
 ## Cosa resta
 
-1. Revisione e unione di c-149 in `main`. Poi la junction `node_modules` delle copie si toglie con `rmdir`.
-2. La release 0.85.1, quando tutto è in `main`:
-   - `git fetch`, poi tag e `gh release create` prima di `npm run pubblica`;
-   - controllare `latest.yml`;
-   - **APK nuovo** (android/ cambiato con c-147), con `npm run allega-apk`, e `app-android.json`: 5 file;
-   - non in bozza, mai installata.
+Niente per la 0.85.1. Le junction `node_modules` nelle copie delle chat si tolgono con `rmdir` quando i loro rami sono uniti o chiusi.
