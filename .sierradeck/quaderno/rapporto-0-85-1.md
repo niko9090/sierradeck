@@ -63,11 +63,11 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 | Ramo | Scelta |
 |---|---|
 | c-145 | **unito** in `main` dopo la Revisione (supervisore dallo stdin, allarme dopo 3 fallimenti) |
-| c-146 | **unito** in `main` (rapporti delle chat; più 3 test che cadevano di notte o col PC carico, scheda `trappola-test-legati-all-ora.md`); il bump e la release partono da qui. Il commit di sola documentazione `90af6e3b` (c-150, controlli finali) è riportato in `main` da c-143 il 24/10 |
-| c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1). Il commit di sola documentazione `574abf81` è riportato in `main` da c-143 il 24/10 |
+| c-146 | **unito** in `main` (rapporti delle chat; più 3 test che cadevano di notte o col PC carico, scheda `trappola-test-legati-all-ora.md`); il bump e la release partono da qui. Il commit di sola documentazione `90af6e3b` (c-150, controlli finali) è entrato in `main` con l'unione di c-146 (`0f7cca1a`) |
+| c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1). Il commit di sola documentazione `574abf81` è entrato in `main` con l'unione di c-147 (`777f9b52`) |
 | c-148 | **unito** in `main` dopo la Revisione (guardia del PC); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | **unito** in `main` dopo la Revisione (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
-| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Porta in `main` solo questa correzione del rapporto e i due commit di documentazione di c-146/c-147 |
+| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Porta in `main` solo questa correzione del rapporto (stato vero e scelta per ogni ramo) e alcune note del quaderno |
 | c-11, c-11-velocita | **chiusi senza unirli**: superati da c-48 (velocità misurata, già in `main` dalla 0.85.0) |
 
 ## La release
@@ -82,7 +82,7 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 
 **Intoppo:** nella copia della chat mancava `google-oauth.json` (non versionato) e `controlla-credenziali` ha fermato `pubblica` prima di caricare qualunque cosa. Copiato dalla cartella principale; idem `android/local.properties` per gradle. La chiave dell'APK sta nella cartella utente, quindi va bene da qualunque copia.
 
-La stessa consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il cambio di versione di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
+**Due chat sulla stessa release:** la consegna di release è arrivata anche a c-147 (c-1139). c-147 ha visto il bump di c-146 su `origin/main` subito prima del tag e ha tolto il suo, doppio: nessuna seconda release (vedi `pubblicare-una-release.md`).
 
 ## Cosa resta
 
