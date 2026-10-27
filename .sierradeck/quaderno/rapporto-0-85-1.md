@@ -72,6 +72,21 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Testo fluido, tempo per lettera prima e dopo | `362a465c` (c-149) | `campo-autopilota-fluido.test.tsx`; misure nella sezione 5 (≈ 620 ms → ≈ 2–3 ms per lettera) | 3 verdi |
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
 
+## Ricontrollo del 27/10 (c-159, consegna c-6121)
+
+Gli 8 file di test della tabella qui sopra sono stati rilanciati insieme nella cartella principale: **110 verdi**. Ogni criterio della 0.85.1 è **già soddisfatto**:
+
+- Supervisore dallo stdin e allarme: già soddisfatto. Prova: `407cc4da`, `supervisore.test.ts`, `indicatore-autopilota.test.ts`.
+- Rapporti delle chat e quadro intero: già soddisfatto. Prova: `7dcfd4c9`, `rapporti-chat-0-85-1.test.ts`.
+- Promesse mantenute: già soddisfatto. Prova: `8df8f171`, `promesse-0-85-1.test.ts`, `promessa-autopilota.test.ts`.
+- Guardia del PC: già soddisfatto. Prova: `d254775c`, `guardia-pc-0-85-1.test.ts`.
+- Scorrimento fluido, tempo per lettera: già soddisfatto. Prova: `362a465c`, `campo-autopilota-fluido.test.tsx`, misure nella sezione 5.
+- Domande del 23/10: già soddisfatto. Prova: `a362dedb`, `domande-del-23-10-0-85-1.test.ts`, elenco nella sezione 6.
+- Release: già soddisfatto. Prova: release `v0.85.1` non bozza, con i 5 file (exe, blockmap, `latest.yml`, APK 2.85.1, `app-android.json`).
+- Rami: già soddisfatto. Prova: tabella «Rami» qui sotto. c-145…c-149 sono uniti, c-143 è chiuso perché doppio, c-148 è chiuso il 27/10 senza unirlo di nuovo, perché già in main.
+
+Il 27/10 il `main` locale aveva 2 commit di note del quaderno in più di `origin/main`. Il push lo fa l'autopilota: le regole di questa chat dicono «niente push».
+
 ## Rami
 
 | Ramo | Scelta |
