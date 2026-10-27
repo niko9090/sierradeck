@@ -71,6 +71,8 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Guardia del PC (85% per un minuto, memoria sotto il 15%) | `d254775c` (c-148) | `guardia-pc-0-85-1.test.ts`: soglie, attesa massima, turno dei pesanti, «no» alle chat, indicatore, servizio | 16 verdi |
 | Testo fluido, tempo per lettera prima e dopo | `362a465c` (c-149) | `campo-autopilota-fluido.test.tsx`; misure nella sezione 5 (≈ 620 ms → ≈ 2–3 ms per lettera) | 3 verdi |
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
+| Release 0.85.1 (5 file, non bozza, mai installata) | bump `61f74643` = tag `v0.85.1` | controllo dei 5 file su GitHub (`gh release view v0.85.1`, ricontrollato il 27/10 da c-157) | ok |
+| Rami uniti o chiusi con la scelta scritta | `cdddc545` (main = origin/main, push del 27/10 da c-157) | sezione «Rami»: fuori da `main` solo c-11, c-11-velocita, c-143, tutti chiusi col motivo | ok |
 
 ## Rami
 
