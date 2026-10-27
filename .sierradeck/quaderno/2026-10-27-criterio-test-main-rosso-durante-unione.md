@@ -18,3 +18,5 @@ tag: ["autopilota", "criteri", "trappola"]
 1. Prima di toccare codice, leggere nel registro `[criterio] finito con <codice> in <s>` e confrontare l'ora con `git log --format='%h %ci' main`.
 2. Se coincide con un'unione, rilanciare il comando e basta.
 3. Correzione proposta, non ancora fatta: nel verdetto tenere la coda dell'uscita (ultimi ~3000 caratteri) invece della testa, e non far partire i criteri mentre l'autopilota sta unendo. È lo stesso problema della proposta del 18/10 «misurare i criteri su una copia pulita di main».
+
+**Ricontrollo del 27/10 pomeriggio (consegna c-6333, ramo c-143).** Nel registro l'unica misura con codice 1 di `tests/main` resta quella delle 12:03:45Z; dopo non è più stata rimisurata. Rilanciato il comando identico nella cartella principale (main `d40d73c7`): 205 file passati, 1 saltato, 1951 test passati e 0 falliti. Il codice non andava toccato. Il rosso che arriva alla chat è la misura vecchia ripetuta, quindi basta rimisurare.
