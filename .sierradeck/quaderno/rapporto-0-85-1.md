@@ -73,6 +73,11 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
 | Release con i 5 file | tag `v0.85.1` | `gh release view v0.85.1` (ricontrollo del 27/10, c-147): non bozza, `SierraDeck-Setup-0.85.1.exe`, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk`, `app-android.json` | ok |
 | Nessuna funzione tolta | da `v0.85.0` a `v0.85.1` | `git diff --diff-filter=D --name-only v0.85.0 v0.85.1 -- src android/app/src/main` è vuoto: nessun file tolto (ricontrollo del 27/10, c-147) | ok |
+| Lista dei lavori | `lista-lavori.md` | `test -s` verde; le 6 richieste 0.85.1a–f segnate come fatte e pubblicate (27/10, c-147) | ok |
+| Release 0.85.0 e suo rapporto | tag `v0.85.0` | `gh release view v0.85.0`: non bozza, 5 file; `rapporto-0-85-0.md` presente (27/10, c-147) | ok |
+| Guardia delle cancellazioni | `main` | il `git grep` del criterio non trova `rmSync` ricorsivi, `emptyDir` o `rimraf` fuori da `cancella-sicura` (27/10, c-147) | ok |
+| Kotlin sotto le 800 righe | `android/app/src/main` | il file più lungo è `App.kt`, con 772 righe (27/10, c-147) | ok |
+| Test di main e degli altri moduli, typecheck, app Android | `main` | li misura il programma a ogni unione: il 27/10 l'hook di fine turno dice «i criteri passano tutti». Il 27/10 c-147 non li ha rilanciati a mano | ok per il programma |
 
 ## Rami
 
