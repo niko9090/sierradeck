@@ -85,6 +85,7 @@ Gli 8 file di test della tabella qui sopra sono stati rilanciati insieme nella c
 - Guardia del PC: già soddisfatto. Prova: `d254775c`, `guardia-pc-0-85-1.test.ts`.
 - Scorrimento fluido, tempo per lettera: già soddisfatto. Prova: `362a465c`, `campo-autopilota-fluido.test.tsx`, misure nella sezione 5.
 - Domande del 23/10: già soddisfatto. Prova: `a362dedb`, `domande-del-23-10-0-85-1.test.ts`, elenco nella sezione 6.
+- c-149 (27/10, consegna c-6123): niente da aggiungere, le prove di ogni criterio sono già qui sopra e i rami chiusi sono nella tabella dei rami. I 5 file di test dei criteri, rilanciati in main il 27/10, danno 55 verdi su 55.
 - Release: già soddisfatto. Prova: release `v0.85.1` non bozza, con i 5 file (exe, blockmap, `latest.yml`, APK 2.85.1, `app-android.json`).
 - Rami: già soddisfatto. Prova: tabella «Rami» qui sotto. c-145…c-149 sono uniti, c-143 è chiuso perché doppio, c-148 è chiuso il 27/10 senza unirlo di nuovo, perché già in main.
 
