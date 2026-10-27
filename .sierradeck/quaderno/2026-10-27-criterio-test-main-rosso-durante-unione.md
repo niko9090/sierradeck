@@ -19,6 +19,14 @@ tag: ["autopilota", "criteri", "trappola"]
 2. Se coincide con un'unione, rilanciare il comando e basta.
 3. Correzione proposta, non ancora fatta: nel verdetto tenere la coda dell'uscita (ultimi ~3000 caratteri) invece della testa, e non far partire i criteri mentre l'autopilota sta unendo. È lo stesso problema della proposta del 18/10 «misurare i criteri su una copia pulita di main».
 
+**Ricontrollo del 27/10 pomeriggio (consegna c-6333, ramo c-143).** Nel registro l'unica misura con codice 1 di `tests/main` resta quella delle 12:03:45Z; dopo non è più stata rimisurata. Rilanciato il comando identico nella cartella principale (main `d40d73c7`): 205 file passati, 1 saltato, 1951 test passati e 0 falliti. Il codice non andava toccato. Il rosso che arriva alla chat è la misura vecchia ripetuta, quindi basta rimisurare.
+
+**Perché il giro non si chiude mai (27/10, c-164).** Su questo PC è installata la **0.84.4**: lo dice il registro alle 07:07Z, «sessione avviata · SierraDeck v0.84.4». In quella versione il supervisore riceve ancora il prompt sulla riga di comando, e oggi lo stesso registro ha già 1960 righe «spawn ENAMETOOLONG» (fino a 457 di fila). Il supervisore quindi non può mai dire «concluso», e l'hook di fine turno ripete «rifaccio il giro» anche con tutti i criteri verdi. La correzione è già nella 0.85.1, pubblicata e scaricata dall'aggiornatore, ma installare è compito di Nicholas. Finché non la installa, le chat ripetono il giro senza un vero motivo, e non serve cambiare codice.
+
 **Conferma (27/10, 12:28Z, c-163).** Rilanciato di nuovo lo stesso comando nella cartella principale, senza nessuna unione in corso: uscita 0, 205 file e 1951 test passati, 0 falliti, 339 s. Nessun codice toccato. Il rosso delle 12:03Z era quindi solo la misura presa durante l'unione di c-146.
 
 **Da non confondere.** Nello stesso registro, «spawn ENAMETOOLONG» del supervisore (550 di fila) viene dall'app *installata*, che non ha ancora la 0.85.1. Nel codice la correzione c'è già: il prompt passa dallo stdin, `supervisore.ts` vicino alla riga 59. Sparisce solo quando Nicholas installa la 0.85.1.
+
+**Sbloccato (27/10, 13:53Z).** Nicholas ha installato la 0.85.1: nel registro c'è «sessione avviata · SierraDeck v0.85.1» alle 13:53:28Z. L'ultimo «spawn ENAMETOOLONG» è delle 13:51:31Z e dopo l'avvio non ce n'è più nessuno. Il supervisore può tornare a decidere, e questo chiude il giro senza fine.
+
+**Dopo l'installazione (27/10, 14:07Z).** Alle 14:06:56Z l'autopilota ha scritto «finito: Sono 341 giri con lo stesso esito e il lavoro è già tutto fatto e verificato». Nel registro però le chat continuano a dire «il supervisore non ha risposto (N di fila)». Il motivo è che il conto dei giri senza risposta non riparte da zero dopo l'aggiornamento (`senzaSupervisore` in `rete-sicurezza.ts`), quindi il supervisore viene interrogato solo un giro ogni tanto. Da proporre a Nicholas: dopo un riavvio, o dopo una versione nuova, rimettere il conto a 0.
