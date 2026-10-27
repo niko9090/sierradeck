@@ -95,6 +95,22 @@ ${errori}
 
 /** Quanto di un'uscita finisce nel prompt della chat. */
 const USCITA_MAX = 1200
+
+/**
+ * L'inizio e la **fine** di un testo troppo lungo, con un segno in mezzo (27/10).
+ *
+ * Fino alla 0.85.1 si teneva solo l'inizio: per `vitest run` sono la riga `RUN` e
+ * i log voluti dei primi test, mentre l'elenco dei test rossi e il riepilogo
+ * stanno in fondo. La chat riceveva lo stesso pezzo innocuo a ogni giro e non
+ * poteva sapere quale test cadeva. Un quarto va alla testa, il resto alla coda.
+ */
+export function testaECoda(testo: string, max: number): string {
+  if (testo.length <= max) return testo
+  const segno = '\n[…troncato…]\n'
+  const spazio = Math.max(0, max - segno.length)
+  const testa = Math.floor(spazio / 4)
+  return `${testo.slice(0, testa)}${segno}${testo.slice(testo.length - (spazio - testa))}`
+}
 /** Quanto di un'uscita entra nella riga di storia su cui si riconosce lo stallo. */
 const TRACCIA_MAX = 200
 
@@ -102,9 +118,7 @@ export function riassuntoFallimenti(esiti: EsitoVerifica[]): string {
   return esiti
     .filter((e) => !e.passato)
     .map((e) => {
-      const uscita = e.uscita.length > USCITA_MAX
-        ? `${e.uscita.slice(0, USCITA_MAX)}\n[…troncato]`
-        : e.uscita
+      const uscita = testaECoda(e.uscita, USCITA_MAX)
       // Un comando che non parte va raccontato per quello che è, o la chat
       // passa i turni a correggere codice sano.
       const testa = e.misurato === false
