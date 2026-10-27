@@ -73,6 +73,9 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
 | Release con i 5 file | tag `v0.85.1` | `gh release view v0.85.1` (ricontrollo del 27/10, c-147): non bozza, `SierraDeck-Setup-0.85.1.exe`, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk`, `app-android.json` | ok |
 | Nessuna funzione tolta | da `v0.85.0` a `v0.85.1` | `git diff --diff-filter=D --name-only v0.85.0 v0.85.1 -- src android/app/src/main` è vuoto: nessun file tolto (ricontrollo del 27/10, c-147) | ok |
+| Lista dei lavori e rapporto 0.85.0 | `lista-lavori.md`, `rapporto-0-85-0.md` | `test -s` su tutti e due (27/10, c-157) | ok |
+| Guardia delle cancellazioni; file Kotlin sotto le 800 righe; niente dati privati | `main` al 27/10 | i due `grep`/`find` dei criteri rilanciati il 27/10 da c-157: nessun risultato; i commit della 0.85.1 non aggiungono dati privati (solo `<host>`/percorsi finti nei test) | ok |
+| Test del programma, typecheck, app Android | `main` al 27/10 | misurati dall'autopilota a ogni giro («i criteri passano tutti», 27/10); non rilanciati a mano per non caricare il PC | verdi |
 | Rami uniti o chiusi con la scelta scritta | `cdddc545` (main = origin/main, push del 27/10 da c-157) | sezione «Rami»: fuori da `main` solo c-11, c-11-velocita, c-143, tutti chiusi col motivo | ok |
 
 ## Ricontrollo del 27/10 (c-159, consegna c-6121)
