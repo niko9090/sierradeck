@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import { giudicaCancellazioni } from './divieti'
-import type { EsitoVerifica } from './decisione'
+import { testaECoda, type EsitoVerifica } from './decisione'
 
 /** `timeoutMs`, quando c'è, prende il posto del tetto dell'esecutore per quel solo comando. */
 export type Esecutore = (comando: string, cwd: string, timeoutMs?: number) => Promise<{ codice: number; uscita: string }>
@@ -371,12 +371,20 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
         stdio: ['ignore', 'pipe', 'pipe']
       })
 
-      let uscita = ''
+      // Testa e coda (27/10): si tiene l'inizio, poi solo l'ultimo tratto,
+      // perché il riepilogo dei test rossi sta in fondo all'uscita.
+      let testa = ''
+      let coda = ''
+      let saltato = false
       const raccogli = (pezzo: Buffer): void => {
-        // Si smette di accumulare, non di leggere: una pipe che nessuno svuota
-        // blocca chi ci scrive dentro.
-        if (uscita.length < USCITA_MAX * 4) uscita += pezzo.toString()
+        // Si legge sempre tutto (una pipe che nessuno svuota blocca chi ci
+        // scrive dentro), ma in memoria resta solo quanto serve.
+        const t = pezzo.toString()
+        if (testa.length < USCITA_MAX) { testa += t; return }
+        coda += t
+        if (coda.length > USCITA_MAX * 4) { coda = coda.slice(coda.length - USCITA_MAX * 4); saltato = true }
       }
+      const uscitaRaccolta = (): string => `${testa}${saltato ? '\n[…]\n' : ''}${coda}`
       figlio.stdout.on('data', raccogli)
       figlio.stderr.on('data', raccogli)
 
@@ -401,7 +409,7 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
         } else ferma([])
       }, timeoutMs)
 
-      const rispondi = (codice: number, coda = ''): void => {
+      const rispondi = (codice: number, fine = ''): void => {
         if (risposto) return
         risposto = true
         clearTimeout(orologio)
@@ -421,7 +429,7 @@ export function esecutoreReale(predefinitoMs: number = TIMEOUT_PREDEFINITO_MS): 
           // Un file ancora aperto da un processo in background: si riproverà
           // dopo, e nel frattempo una cartella in temp non fa danno.
         }
-        risolvi({ codice, uscita: `${uscita.trim()}${coda}`.trim() })
+        risolvi({ codice, uscita: `${uscitaRaccolta().trim()}${fine}`.trim() })
       }
 
       figlio.on('error', (err) => { rispondi(1, `\n${err.message}`) })
@@ -515,7 +523,7 @@ export async function eseguiCriteri(
         comando,
         ...(codice !== 0 && nonMisurabile(codice, uscita) ? { misurato: false } : {}),
         passato: codice === 0,
-        uscita: uscita.slice(0, USCITA_MAX)
+        uscita: testaECoda(uscita, USCITA_MAX)
       })
     } catch (err) {
       // Un comando che non parte è un'informazione sul lavoro, non un guasto del
