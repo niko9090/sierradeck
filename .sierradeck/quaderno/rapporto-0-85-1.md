@@ -71,6 +71,8 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Guardia del PC (85% per un minuto, memoria sotto il 15%) | `d254775c` (c-148) | `guardia-pc-0-85-1.test.ts`: soglie, attesa massima, turno dei pesanti, «no» alle chat, indicatore, servizio | 16 verdi |
 | Testo fluido, tempo per lettera prima e dopo | `362a465c` (c-149) | `campo-autopilota-fluido.test.tsx`; misure nella sezione 5 (≈ 620 ms → ≈ 2–3 ms per lettera) | 3 verdi |
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
+| Release con i 5 file | tag `v0.85.1` | `gh release view v0.85.1` (ricontrollo del 27/10, c-147): non bozza, `SierraDeck-Setup-0.85.1.exe`, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk`, `app-android.json` | ok |
+| Nessuna funzione tolta | da `v0.85.0` a `v0.85.1` | `git diff --diff-filter=D --name-only v0.85.0 v0.85.1 -- src android/app/src/main` è vuoto: nessun file tolto (ricontrollo del 27/10, c-147) | ok |
 
 ## Rami
 
@@ -85,6 +87,7 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | c-149 (27/10, consegna c-6100) | tutto nel `main` locale; in `origin/main` mancano solo note del quaderno (`2461f946`, `9f9b96df` e unioni di c-148/c-146) perché `main` non è ancora pushato: il push tocca all'autopilota, la chat non lo fa. Niente da rivedere |
 | c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Le sue note (questo rapporto, `rapporto-0-85-0.md` e due trappole del quaderno) le ha portate in `main` c-148 il 24/10, copiando solo quei 4 file; il ramo resta fuori. Il 24/10 i suoi 8 commit fuori da `main` erano solo note del quaderno e unioni (rapporto, lista, giro senza fine, consegna della release): già in `main` o superate |
 | c-11, c-11-velocita | **chiusi senza unirli**: superati da c-48 (velocità misurata, già in `main` dalla 0.85.0) |
+| c-147 (27/10, c-158, consegne c-1185/c-6083/c-6094/c-6099/c-6104/c-6107/c-6115/c-6119) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git branch -a --no-merged main` non lo elenca; le promesse sono in `main` da `8df8f171`, test 21/21 verdi rilanciati il 27/10 |
 | c-148 (27/10, c-159) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git log main..HEAD` è vuoto. I commit che `origin/main` non ha ancora sono note del quaderno (giro senza fine del 27/10) e unioni, già nel `main` locale e in attesa del push dell'autopilota. Nessun codice nuovo; la guardia del PC (`d254775c`) è in main dal 23/10, con 16 test verdi rilanciati il 27/10. Nessun lavoro rimasto |
 | c-146 (27/10, c-156, consegne c-1169/c-6081/c-6089/c-6095) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git log main..HEAD` è vuoto. I commit che `origin/main` non ha ancora sono note del quaderno (nono caso del giro senza fine, `bfc97779`) e unioni, già nel `main` locale e in attesa del push dell'autopilota. I rapporti delle chat (`7dcfd4c9`) sono in main dal 23/10; `rapporti-chat-0-85-1.test.ts` rilanciato il 27/10: 14 verdi. Tolta con `rmdir` la junction `node_modules` della copia. Nessun lavoro rimasto |
 
