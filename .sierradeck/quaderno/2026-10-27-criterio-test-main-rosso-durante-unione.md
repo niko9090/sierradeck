@@ -18,3 +18,7 @@ tag: ["autopilota", "criteri", "trappola"]
 1. Prima di toccare codice, leggere nel registro `[criterio] finito con <codice> in <s>` e confrontare l'ora con `git log --format='%h %ci' main`.
 2. Se coincide con un'unione, rilanciare il comando e basta.
 3. Correzione proposta, non ancora fatta: nel verdetto tenere la coda dell'uscita (ultimi ~3000 caratteri) invece della testa, e non far partire i criteri mentre l'autopilota sta unendo. È lo stesso problema della proposta del 18/10 «misurare i criteri su una copia pulita di main».
+
+**Conferma (27/10, 12:28Z, c-163).** Rilanciato di nuovo lo stesso comando nella cartella principale, senza nessuna unione in corso: uscita 0, 205 file e 1951 test passati, 0 falliti, 339 s. Nessun codice toccato. Il rosso delle 12:03Z era quindi solo la misura presa durante l'unione di c-146.
+
+**Da non confondere.** Nello stesso registro, «spawn ENAMETOOLONG» del supervisore (550 di fila) viene dall'app *installata*, che non ha ancora la 0.85.1. Nel codice la correzione c'è già: il prompt passa dallo stdin, `supervisore.ts` vicino alla riga 59. Sparisce solo quando Nicholas installa la 0.85.1.
