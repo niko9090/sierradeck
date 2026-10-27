@@ -58,6 +58,20 @@ Fonti: il registro del servizio (`log/sierradeck-2026-10-23.log`, righe «domand
 
 Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 23/10 **non sono arrivate**: nessuna nel registro. Le notifiche `idle_prompt` di c-144 sono state 12, fra le 18:27 e le 19:10. Le ha risposte tutte il programma, senza disturbare Nicholas. Sono ripetute perché quella chat girava a vuoto (`trappola-giro-senza-fine-chat-finita-0-85-0.md`).
 
+## Ricontrollo dei criteri, uno per uno (c-148, 24/10, consegna c-1145)
+
+Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main`: tutti sono in `main`. Gli 8 file di test qui sotto sono stati rilanciati insieme sul ramo c-148, che contiene tutto `main` (`777f9b52`): **110 test verdi su 110**.
+
+| Criterio | Commit in `main` | Test che lo prova | Esito |
+|---|---|---|---|
+| Supervisore dallo stdin; allarme dopo 3 fallimenti | `407cc4da` (c-145) | `supervisore.test.ts` (prompt di 48.006 caratteri); `indicatore-autopilota.test.ts` («Supervisore muto»); il `grep` del criterio non trova più `'-p', prompt` | 35 + 16 verdi, grep ok |
+| Rapporti delle chat a ogni passo, chat muta richiamata | `7dcfd4c9` (c-146) | `rapporti-chat-0-85-1.test.ts`: le sette forme della riga `RAPPORTO:`, «dimmi il punto», rapporto da hook e da fine turno | 14 verdi |
+| Quadro intero nel prompt delle risposte e dietro «?» | `7dcfd4c9` (c-146) | `rapporti-chat-0-85-1.test.ts` («nel prompt delle risposte dalla scheda c'è il quadro intero», «lo stesso quadro nel «?» dell'indicatore»); `indicatore-autopilota.test.ts` (righe con «ultimo passo») | verdi |
+| Promesse mantenute | `8df8f171` (c-147) | `promesse-0-85-1.test.ts` (con le risposte vere del 22-23/10), `promessa-autopilota.test.ts` | 17 + 4 verdi |
+| Guardia del PC (85% per un minuto, memoria sotto il 15%) | `d254775c` (c-148) | `guardia-pc-0-85-1.test.ts`: soglie, attesa massima, turno dei pesanti, «no» alle chat, indicatore, servizio | 16 verdi |
+| Testo fluido, tempo per lettera prima e dopo | `362a465c` (c-149) | `campo-autopilota-fluido.test.tsx`; misure nella sezione 5 (≈ 620 ms → ≈ 2–3 ms per lettera) | 3 verdi |
+| Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
+
 ## Rami
 
 | Ramo | Scelta |
@@ -65,10 +79,12 @@ Le domande nate dal supervisore muto («Cosa deve fare adesso la chat…?») il 
 | c-145 | **unito** in `main` dopo la Revisione (supervisore dallo stdin, allarme dopo 3 fallimenti) |
 | c-146 | **unito** in `main` (rapporti delle chat; più 3 test che cadevano di notte o col PC carico, scheda `trappola-test-legati-all-ora.md`); il bump e la release partono da qui. Il commit di sola documentazione `90af6e3b` (c-150, controlli finali) è entrato in `main` con l'unione di c-146 (`0f7cca1a`) |
 | c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1). Il commit di sola documentazione `574abf81` è entrato in `main` con l'unione di c-147 (`777f9b52`) |
-| c-148 | **unito** in `main` dopo la Revisione (guardia del PC); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
+| c-148 | **unito** in `main` dopo la Revisione (guardia del PC; il 24/10 anche il ricontrollo dei criteri qui sopra); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | **unito** in `main` dopo la Revisione (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
-| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Porta in `main` solo questa correzione del rapporto (stato vero e scelta per ogni ramo) e alcune note del quaderno |
+| c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Le sue note (questo rapporto, `rapporto-0-85-0.md` e due trappole del quaderno) le ha portate in `main` c-148 il 24/10, copiando solo quei 4 file; il ramo resta fuori. Il 24/10 i suoi 8 commit fuori da `main` erano solo note del quaderno e unioni (rapporto, lista, giro senza fine, consegna della release): già in `main` o superate |
 | c-11, c-11-velocita | **chiusi senza unirli**: superati da c-48 (velocità misurata, già in `main` dalla 0.85.0) |
+
+Controllo del 24/10, 03:00 (c-150): `git branch --no-merged main` dà solo c-143. c-145 (`4e512cb1`) e c-149 (`7ceebf02`) non hanno più niente fuori da `main`. Tolte con `rmdir` le junction `node_modules` delle copie di c-147, c-148 e c-149, già unite; la copia di c-145 non l'aveva. Restano quella di c-143, ramo non unito, e quella di c-146, ancora al lavoro. `main` pushato su GitHub (`9135e919`); il tag `v0.85.1` resta su `61f74643`. La chiusura delle chat c-143 e c-145…c-149 con `chiudiChat` è un'azione dell'autopilota: le chat non la possono fare da sole.
 
 ## La release
 
