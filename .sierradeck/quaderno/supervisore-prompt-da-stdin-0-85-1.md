@@ -70,3 +70,13 @@ rc=0, 1951 test verdi. Se l'esito si ripete identico, tempi compresi, rilanciare
 del criterio a mano e scrivere il commit di main su cui passa: rifare il lavoro non serve.
 
 c-151 (notte 23→24/10): lo stesso «rifaccio il giro» più di 10 volte di fila dopo «SEGNALE: fatto», con criteri verdi, lavoro in main (`afa8220f`) e suite servizio/renderer/condivisi/pty rilanciata a mano con rc=0. È la conferma più netta: finché non si installa la 0.85.1, una chat finita resta in questo giro.
+
+## 27/10: sul PC gira ancora la 0.84.4, il supervisore è ancora muto
+Il servizio installato è la **0.84.4** (`versione-installata.json`, 23/10), non la
+0.85.1: la correzione c'è nel codice e nella release, ma non sul PC. Il registro del
+27/10 ha 998 «decisione del supervisore non ottenuta: spawn ENAMETOOLONG» (fino a
+461 risposte mancate di fila per un autopilota). Effetto visibile: a fine turno
+l'hook ripete «i criteri passano tutti, ma il supervisore non ha detto se il lavoro
+è concluso» all'infinito, anche con il lavoro finito e il `RAPPORTO: finita`
+scritto. Non è un difetto della chat né del codice in `main`: si risolve solo
+quando Nicholas installa la 0.85.1 (o una successiva). Noi non installiamo.
