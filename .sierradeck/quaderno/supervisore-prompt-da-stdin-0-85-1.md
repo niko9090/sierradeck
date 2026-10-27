@@ -47,6 +47,8 @@ Anche c-146 (23/10 sera) l'ha ricevuto 4 volte di fila dopo «SEGNALE: fatto», 
 
 Lo stesso giro anche per c-150 (che ha ripreso c-146 la sera del 23/10): 4 volte di fila dopo «SEGNALE: fatto», con il lavoro già in main. Per una chat che riprende un compito già unito basta controllare (`git merge-base --is-ancestor`), rilanciare i test del pezzo e chiudere: non c'è niente da rifare.
 
+Anche c-147 (promesse mantenute, notte fra il 23 e il 24/10): dopo il lavoro unito lo stesso messaggio più volte di fila, intervallato da conflitti con main e da un test rosso dopo mezzanotte (data fissa nel test). Stessa causa: il servizio installato non ha ancora la correzione.
+
 Ancora il 27/10 (c-157, che ha ripreso c-151 sul ramo c-145): stesso giro dopo «SEGNALE: fatto», con la 0.85.1 pubblicata e tutto in main. Vuol dire che il servizio in uso non ha ancora la 0.85.1: il giro finisce solo quando Nicholas la installa.
 
 ## Controllo delle altre chiamate (c-1108, 23/10 sera)

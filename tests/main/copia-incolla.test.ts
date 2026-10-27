@@ -39,7 +39,8 @@ describe('copia e incolla nella chat con l autopilota', () => {
     expect(css).toMatch(/\.chatap__flusso\s*\{[^}]*user-select:\s*text/)
     // La casella dove si incolla accetta la selezione.
     expect(css).toMatch(/textarea\.campo,\s*input\.campo\s*\{[^}]*user-select:\s*text/)
-    expect(readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')).toContain('className="campo chatap__campo"')
+    // 0.85.1: il campo sta nel suo componente, che si ridisegna da solo a ogni lettera.
+    expect(readFileSync('src/renderer/components/CampoChatAutopilota.tsx', 'utf8')).toContain('className="campo chatap__campo"')
   })
 
   it('la pagina del telefono non ridisegna mentre si seleziona', () => {

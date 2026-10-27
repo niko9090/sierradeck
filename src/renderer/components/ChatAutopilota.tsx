@@ -1,12 +1,11 @@
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { PuntoAutopilota } from './PuntoAutopilota'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { separaConversazione } from '@shared/panoramica'
 import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
-import { Aiuto } from './Aiuto'
-import { TastoMicrofono } from './TastoMicrofono'
+import { CampoChatAutopilota } from './CampoChatAutopilota'
 
 /**
  * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.
@@ -40,29 +39,27 @@ export function ChatAutopilota({
    */
   campoPronto?: boolean
 }): React.JSX.Element {
-  const [messaggio, setMessaggio] = useState('')
+  // Il testo che scrivi non sta qui (0.85.1): sta in `CampoChatAutopilota`,
+  // così una lettera non ridisegna la conversazione intera.
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const flusso = useRef<HTMLDivElement | null>(null)
-  // Il campo, per il microfono (0.75.0): la dettatura scrive dove c'è il fuoco.
-  const campo = useRef<HTMLTextAreaElement | null>(null)
 
-  const tutte = conversazione(autopilota)
-  const { messaggi, eventi } = separaConversazione(tutte)
-  // Senza la Panoramica si vede il diario intero: le righe corte dei traguardi sarebbero un doppione.
-  const battute = soloConversazione ? messaggi : tutte.filter((b) => b.tono !== 'traguardo')
+  // La conversazione si ricalcola solo quando l'autopilota cambia davvero: con
+  // centinaia di righe nel diario costa decine di millisecondi.
+  const { battute, eventi } = useMemo(() => {
+    const tutte = conversazione(autopilota)
+    const { messaggi, eventi } = separaConversazione(tutte)
+    // Senza la Panoramica si vede il diario intero: le righe corte dei traguardi sarebbero un doppione.
+    const battute = soloConversazione ? messaggi : tutte.filter((b) => b.tono !== 'traguardo')
+    return { battute, eventi }
+  }, [autopilota, soloConversazione])
   const [eventiAperti, setEventiAperti] = useState(false)
   const pensa = staPensando(autopilota)
   // Una sua domanda aperta non si risponde piu' da qui (0.38.0): sta nella
   // linguetta «Domande» qui sotto, una per volta. Qui gli si parla e basta.
   const domanda = haDomandaAperta(autopilota)
   const ultimaModifica = autopilota.modifiche[autopilota.modifiche.length - 1]
-
-  useEffect(() => {
-    if (!campoPronto) return
-    const attivo = document.activeElement
-    if (attivo === null || attivo === document.body) campo.current?.focus()
-  }, [campoPronto])
 
   // In fondo, come ogni chat: l'ultima cosa detta è quella che si vuole vedere.
   // Si scorre quando cambia il numero delle righe, non a ogni rilettura, così
@@ -76,20 +73,9 @@ export function ChatAutopilota({
     setInCorso(true)
     setErrore(undefined)
     che()
-      .then(() => { setMessaggio(''); onCambiato() })
+      .then(() => onCambiato())
       .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
       .finally(() => setInCorso(false))
-  }
-
-  /**
-   * Manda quello che hai scritto: a una domanda aperta si risponde, altrimenti
-   * gli si parla. La risposta a una domanda arriva subito alla chat ferma; la
-   * risposta a una battuta la scrive il supervisore, in qualche minuto.
-   */
-  const manda = (): void => {
-    const testo = messaggio.trim()
-    if (testo === '' || inCorso) return
-    esegui(() => window.gestore.autopilota.dialoga(autopilota.id, testo))
   }
 
   return (
@@ -176,52 +162,26 @@ export function ChatAutopilota({
         ) : null}
       </div>
 
-      <div className="chatap__scrivi">
-        <textarea
-          ref={campo}
-          className="campo chatap__campo"
-          rows={3}
-          style={{ resize: 'vertical' }}
-          value={messaggio}
-          // 0.81.0: corto, perché nella colonna stretta la parte fra parentesi veniva tagliata;
-          // dove stanno le sue domande lo dice il «?» qui sotto.
-          placeholder="scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…"
-          aria-label="scrivi all autopilota"
-          onChange={(e) => setMessaggio(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) manda()
-          }}
-        />
-        <div className="chatap__tasti">
-          <button
-            className="tasto tasto--primario"
-            disabled={inCorso || messaggio.trim() === ''}
-            onClick={manda}
-            title="Ctrl+Invio manda"
-          >
-            {inCorso ? 'Mando…' : 'Manda'}
-          </button>
-          <TastoMicrofono campo={campo} />
-          {ultimaModifica !== undefined ? (
-            <button
-              className="tasto"
-              disabled={inCorso}
-              title={`Rimette com'era prima di: ${ultimaModifica.capito}`}
-              onClick={() => esegui(() => window.gestore.autopilota.disfa(autopilota.id))}
-            >
-              Disfa
-            </button>
-          ) : null}
-          <Aiuto di="come parlare all’autopilota">Qui parli con l’autopilota, non con la chat che esegue. Lui risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che scrivi è un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma («fermati»), riparte («riprendi»). Se serve che la chat lo sappia, glielo consegna alla fine del turno che ha in mano, mai in mezzo a un’azione, oppure appena riparte se è fermo. La risposta arriva di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella linguetta «Domande» qui sotto, una per volta, e dopo la risposta domanda e risposta compaiono in questa chat. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.</Aiuto>
-        </div>
-        {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
-      </div>
+      {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
+      <CampoChatAutopilota
+        autopilotaId={autopilota.id}
+        onCambiato={onCambiato}
+        campoPronto={campoPronto}
+        disfaTitolo={ultimaModifica?.capito}
+      />
     </section>
   )
 }
 
+/**
+ * Il formato dell'ora, fatto una volta sola (0.85.1): `toLocaleTimeString`
+ * ne costruisce uno nuovo a ogni chiamata, e con centinaia di righe era la
+ * parte più lenta di ogni disegno della chat.
+ */
+const FORMATO_ORA = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
+
 /** Solo l'ora: dentro una giornata di lavoro il giorno lo si sa. */
 function orario(iso: string): string {
   const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+  return Number.isNaN(d.getTime()) ? '' : FORMATO_ORA.format(d)
 }

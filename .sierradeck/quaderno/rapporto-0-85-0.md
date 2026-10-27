@@ -71,4 +71,35 @@ Commit `1e92807e` sul ramo `ap/ap-f1e631f5/c-133`:
 | c-127, c-128, c-129, c-130 | uniti in `main` dopo la Revisione |
 | c-131 | verifica della 0.84.4, nessun commit suo (ramo uguale a `main`) |
 | c-132 | unito in `main` (`a11c1fa7`) |
-| c-133 | questa release |
+| c-133 | questa release, unito in `main` (`1dba2519`, `42130269`) |
+| c-134, c-135, c-136 | **chiuse senza unire: doppie** dell'indicatore, già in `main` con `a11c1fa7`; lavoravano nella cartella principale, nessun ramo loro |
+| c-143 | ripresa del 23/10 sera: nessun codice, solo note nel quaderno (`trappola-giro-senza-fine-chat-finita-0-85-0.md`) e queste righe; si unisce dopo la Revisione |
+| c-11, c-11-velocita | **chiusi senza unirli: superati da c-48** (21/10, 0.83.0); il loro contenuto è già in main (`git diff main...<ramo>` vuoto) |
+| `wip/domande-altri-pc-c628` | **chiuso senza unirlo: superato.** Lavoro a metà del 22/10, «non provato» (`collaudo-coordinazione-0-84-0.md`); le domande dagli altri PC sono arrivate rifatte da c-74 nella 0.84.1 (voce 5d della lista), con D1 e D4 corretti da c-88 nella 0.84.3 |
+| `rilascio/0.82.1` | **chiuso senza unirlo: già in main.** Le stesse correzioni sono entrate con c-53 (`5553df14`, `d1a26901`); il ramo resta solo come fonte del tag `v0.82.1` (già scritto in `rapporto-0-84-0.md`) |
+| c-143 (aggiornamento) | ora contiene anche la correzione 0u (`af387167`, guardiano «installa solo Nicholas»), per la 0.85.1. Typecheck pulito, test toccati 199 su 199, servizio 974 su 974: **consegnato alla Revisione per l'unione in main**; la 0.85.1 non si pubblica ora |
+
+Ricontrollo finale (c-143, 23/10 sera): nessun altro ramo `ap/ap-f1e631f5/*` ha commit fuori da `main` (`git rev-list --count main..<ramo>` = 0). Fuori da `ap/ap-f1e631f5/*` restano solo i due rami chiusi qui sopra.
+
+## Criteri di fine: riscontro finale (c-143, 23/10 sera)
+
+Tutti soddisfatti. Una riga per criterio, con la prova:
+
+| Criterio | Esito e prova |
+|---|---|
+| Lista dei lavori | soddisfatto: `lista-lavori.md` aggiornata, voci 0.85.0 «fatto in 0.85.0» con riscontro, riga 4 dei rami chiusa |
+| Release 0.84.3 | soddisfatto: v0.84.3 non bozza, 5 file (APK 2.84.3); `rapporto-0-84-3.md` |
+| 0.84.4, codice | soddisfatto: `21727a1f` (niente domanda sui rifacimenti), `a214afd0` (Revisione e ambiente), `1cf9d85a` + `c54fbcd7` (risposte prese davvero), `9f9af3d9` (terminale che non parte); in `main`, rivisti da c-122 |
+| Prova di 2 ore del «mai fermo» | soddisfatto: 120 min con riavvio a metà, tratto più lungo 2,9 min, 0 tratti oltre 15 min (`rapporto-0-84-4.md`, sezione «Prova di 2 ore senza fermate») |
+| Release 0.84.4 | soddisfatto: v0.84.4 non bozza, 5 file (APK 2.84.4), `latest.yml` 0.84.4 con dimensione uguale all'`.exe` (115394938); `rapporto-0-84-4.md` |
+| 0.85.0, indicatore | soddisfatto: unito `a11c1fa7`, `tests/shared/indicatore-autopilota.test.ts` verde |
+| 0.85.0, richieste che diventano obiettivi | soddisfatto: `e9170ae4`, `richieste-nicholas-0-85-0.test.ts`, `corpo-richiesta.test.ts`, `richiesta-unita.test.ts` verdi |
+| 0.85.0, riscontro con la prova | soddisfatto: `82634eab`, `tests/autopilot-host/riscontro-0-85-0.test.ts` verde (8 test) |
+| 0.85.0, velocità misurata | soddisfatto: `6e4f94e8`, `velocita-richieste.test.ts`, `release-uscite.test.ts` verdi; `velocita-richieste.md` |
+| Release 0.85.0 | soddisfatto: v0.85.0 non bozza, 5 file (APK 2.85.0), `latest.yml` 0.85.0 con dimensione uguale all'`.exe` (115408873); mai installata |
+| Nessuna funzione tolta, niente dati privati | soddisfatto: nessuna rimozione; nei file cambiati da c-143 nessun IP, nome di PC o percorso personale |
+| Rami | soddisfatto: tabella «Rami» qui sopra; resta solo c-143 da unire dopo la Revisione (lo fa il programma); chiudere le chat con `chiudiChat` è una mossa del supervisore |
+| Guardia delle cancellazioni | soddisfatto: il comando del criterio non trova niente |
+| Test, typecheck, Android, Kotlin sotto 800 righe | soddisfatto: test delle funzioni 0.85.0 67/67 in `main`; sul ramo c-143 servizio 974/974 e typecheck pulito; Android e test principali verdi negli ultimi controlli (c-980/c-981), da allora in `main` solo commit del quaderno; nessun `.kt` oltre 800 righe |
+
+**Il lavoro di questo obiettivo è finito.** La correzione 0u (`af387167`, sul ramo c-143) va nella 0.85.1, da pubblicare solo quando la lista dei lavori lo prevede.

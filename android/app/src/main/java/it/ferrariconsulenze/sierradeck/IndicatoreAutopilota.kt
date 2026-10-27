@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.serialization.Serializable
@@ -49,6 +50,8 @@ data class IndicatoreAutopilota(
     val andamento: AndamentoIndicatore = AndamentoIndicatore(),
     /** Una riga per chat, per il «?». */
     val dettaglio: List<String> = emptyList(),
+    /** Le promesse aperte fatte a Nicholas (PC 0.85.1): già in parole. Assenti con un PC più vecchio. */
+    val promesse: List<String> = emptyList(),
     val aiuto: String = ""
 )
 
@@ -59,6 +62,9 @@ object RigheIndicatore {
 
     /** «● Va: Sviluppo, commit 2 min fa». */
     fun andamento(i: IndicatoreAutopilota): String = "${i.andamento.simbolo} ${i.andamento.testo}".trim()
+
+    /** Le promesse aperte, una riga ciascuna, senza quelle vuote. */
+    fun promesse(i: IndicatoreAutopilota): List<String> = i.promesse.map { it.trim() }.filter { it.isNotEmpty() }
 
     /** Il «?»: la spiegazione e, sotto, chat per chat. */
     fun aiuto(i: IndicatoreAutopilota): String =
@@ -77,5 +83,6 @@ fun IndicatoreAutopilotaVista(i: IndicatoreAutopilota) {
             Text(RigheIndicatore.andamento(i), color = coloreVista(i.andamento.colore), fontSize = 12.sp, modifier = Modifier.weight(1f))
             Aiuto(RigheIndicatore.aiuto(i), di = "l’indicatore")
         }
+        for (p in RigheIndicatore.promesse(i)) Text(p, color = Banco.testo, fontSize = 12.sp, fontStyle = FontStyle.Italic, modifier = Modifier.padding(top = 2.dp))
     }
 }

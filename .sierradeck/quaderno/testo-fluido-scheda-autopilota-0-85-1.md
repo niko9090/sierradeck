@@ -4,7 +4,7 @@ quando: 2026-10-23T23:30:00+02:00
 tag: ["0.85.1", "renderer", "prestazioni", "chat-autopilota", "doppione"]
 ---
 
-**Correzione già fatta da c-143** (commit `1dadc186` sul ramo `ap/ap-f1e631f5/c-143`, da unire dopo la Revisione). c-149 l'ha rifatta in parallelo senza saperlo: il suo ramo **non porta codice** (doppione, chiudere senza unire). Prima di rifarla, `git log --all --grep "fluido"`.
+**In main con c-149 (23/10 notte).** c-143 aveva fatto la stessa correzione (`1dadc186`, sul suo ramo, mai unito); mentre c-143 aspettava, c-148 ha portato in main anche la sua guardia del PC. Allora c-149 ha messo la sua versione, che in più ha `memo`: **quando c-143 si unisce, per `ChatAutopilota.tsx` tenere quella di main** e chiudere il suo pezzo come doppione. Prima di rifarla, `git log --all --grep "fluido"`.
 
 ## Le due cause (misurate, stessi numeri di c-143)
 
@@ -17,8 +17,12 @@ Misura (vitest, senza DOM: tempo di disegno del componente che tiene il testo, a
 
 Nei test non c'è jsdom né `@testing-library`: il Profiler di React non si può far girare, si usa `renderToStaticMarkup` cronometrato. I numeri sono in modalità sviluppo di React (più lenti del programma installato), ma il rapporto prima/dopo è quello che conta.
 
-## Cosa manca dopo l'unione di c-143 (piccolo, da fare sopra il suo codice)
+## Com'è fatta adesso (c-149)
 
-- Il suo `CampoAutopilota` **non è in `memo`** e riceve `onManda`/`disfa` come funzioni nuove a ogni disegno: ogni rilettura dal servizio che cambia l'autopilota (ogni 5 s mentre lavora) ridisegna anche il campo. Il compito chiedeva «niente aggiornamenti dal servizio che ridisegnano il campo». Rimedio: `memo` con un confronto che guarda solo id, `campoPronto`, testo del «Disfa», `inCorso`, `errore`, e la funzione presa da un `useRef`.
-- `conversazione(...)` e `separaConversazione(...)` in `useMemo` su `[autopilota, soloConversazione]`.
-- Con un diario di una giornata la chat intera costa ancora ≈ 185 ms (sviluppo) a ogni rilettura. Mostrare solo le ultime 200 righe con un tasto «Mostra le N righe più vecchie» lo abbassa, **ma** `tests/renderer/panoramica-al-lavoro.test.tsx` vuole il diario intero (riga `const battute = …` letterale): cambiarlo è togliere una cosa vista da Nicholas → chiedere a lui prima.
+- `CampoChatAutopilota.tsx`: il testo, «Manda», microfono e «Disfa» con il loro stato; `memo` con `stessoCampo`, che guarda solo id, `campoPronto` e testo del «Disfa». La funzione di chi sta sopra si prende da un `useRef`, quindi una rilettura dal servizio (ogni 5 s mentre lavora) **non ridisegna il campo**.
+- `ChatAutopilota.tsx`: conversazione in `useMemo` su `[autopilota, soloConversazione]`, ora con `FORMATO_ORA` fatto una volta sola.
+- Test: `tests/renderer/campo-autopilota-fluido.test.tsx` (stato fuori dalla chat, confronto di `memo`, misura con la lettera almeno 5 volte meno cara della chat intera).
+
+## Resta aperto (decide Nicholas)
+
+Con un diario di una giornata la chat intera costa ancora ≈ 185–375 ms (React in modalità sviluppo) a ogni rilettura che porta novità. Si potrebbero mostrare solo le ultime 200 righe, con «Mostra le N righe più vecchie», ma `tests/renderer/panoramica-al-lavoro.test.tsx` vuole il diario intero: è una cosa che Nicholas vede, quindi **chiedere a lui prima**.

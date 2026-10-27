@@ -4,6 +4,7 @@ import { attivitaComando } from './attivita-chat'
 import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
 import { pianoAutopilota } from './panoramica'
 import { quadroDellaChat } from './rapporti-chat'
+import { righePromesse } from './promesse'
 import type { Segnale } from './segnali-chat'
 import { riassuntoVelocita, tempiRichieste } from './velocita-richieste'
 
@@ -35,7 +36,14 @@ export type SegnaleVero = { tipo: TipoSegnaleVero; quando: string }
 /** Il supervisore che non risponde da almeno tre volte di fila (0.85.1), con il motivo. */
 export type SupervisoreMuto = { volte: number; motivo: string; dal: string }
 /** Quello che il servizio aggiunge all'elenco: l'ultimo segnale vero per chat (la chat sola con l'id dell'autopilota), e il supervisore muto. */
-export type SegniVeri = { segniVeri?: Record<string, SegnaleVero>; supervisoreMuto?: SupervisoreMuto }
+/** Il PC al limite (0.85.1): l'autopilota rimanda chat nuove e comandi pesanti, e dice chi consuma di più. */
+export type PcCarico = { motivo: string; dal: string; programma?: string }
+export type SegniVeri = { segniVeri?: Record<string, SegnaleVero>; supervisoreMuto?: SupervisoreMuto; pcCarico?: PcCarico }
+
+/** «PC carico: aspetto», uguale nell'indicatore e nel «no» a una chat. */
+export function rigaPcCarico(p: PcCarico): string {
+  return `PC carico: aspetto — ${p.motivo}${p.programma !== undefined ? `; consuma di più ${p.programma}` : ''}`
+}
 
 const PAROLA_SEGNALE: Record<TipoSegnaleVero, string> = { commit: 'commit', test: 'test', file: 'file cambiati', terminale: 'terminale' }
 
@@ -96,6 +104,8 @@ export type Indicatore = {
   andamento: { livello: LivelloIndicatore; colore: 'verde' | 'ambra' | 'rosso'; simbolo: string; testo: string }
   /** Una riga per chat, per il «?»: l'ultimo segnale vero e quanto tempo fa. */
   dettaglio: string[]
+  /** Le promesse aperte fatte a Nicholas (0.85.1): il fatto atteso e la scadenza, o «in ritardo». */
+  promesse: string[]
   aiuto: string
 }
 
@@ -272,6 +282,10 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: num
     const m = a.supervisoreMuto
     return { andamento: riga('fermo', `Supervisore muto: ${m.volte} risposte mancate di fila — ${compitoBreve(m.motivo, 80)} · ${azione()}`), dettaglio }
   }
+  // 0.85.1: il PC al limite rimanda chat nuove e comandi pesanti: si dice, con chi consuma di più.
+  if (a.pcCarico !== undefined) {
+    return { andamento: riga('lento', `${rigaPcCarico(a.pcCarico)} · ${azione()}`), dettaglio }
+  }
   // L'ultimo segnale vero di tutto il lavoro: delle chat o del programma.
   const programma = ultimoDelProgramma(a)
   let ultimo: { quando: number; testo: string } | undefined = programma
@@ -301,9 +315,9 @@ function andamentoDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: num
 }
 
 /** Il «?» dell'indicatore, uguale dappertutto. */
-export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Sotto, chat per chat: il compito, l’ultimo segnale vero e da quanto, l’ultimo passo che la chat ha riferito e, se è ferma, il motivo. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo.'
+export const AIUTO_INDICATORE = 'Tre righe per capire a colpo d’occhio. La prima: la prossima versione, quanti pezzi sono pronti, cosa manca e quanto ci vorrà, stimato dai tempi misurati (il lavoro di una richiesta dalla prima chat al ramo unito, con le chat in parallelo, più la pubblicazione; senza misure, la cadenza delle ultime versioni). La seconda: quanto manca alla fine del lavoro, con i criteri soddisfatti, i compiti in coda e le chat al lavoro. La terza: va, lento o fermo, solo dai segnali veri (commit, test, file cambiati, uscita del terminale, rami uniti), mai da quello che le chat dicono di sé. Sotto, chat per chat: il compito, l’ultimo segnale vero e da quanto, l’ultimo passo che la chat ha riferito e, se è ferma, il motivo. In fondo, le promesse aperte: ogni volta che l’autopilota ti promette di avvisarti, la promessa è legata a un fatto che il programma vede (una versione pubblicata, un lavoro unito, una richiesta fatta, una chat bloccata) e a una scadenza; quando il fatto succede ti scrive da solo con la prova, alla scadenza ti scrive «non ancora» e perché. Verde con l’ultimo segnale; giallo oltre 10 minuti senza segnali, o con una chat muta da 20; rosso oltre 20 minuti, o con l’autopilota fermo, con il motivo e cosa sta facendo. «PC carico: aspetto» vuol dire che il processore è sopra l’85% da un minuto o la memoria libera è sotto il 15%: le chat nuove, le compilazioni e i test completi aspettano, e si dice quale programma consuma di più (nessun programma viene chiuso).'
 
 /** L'indicatore dell'autopilota. */
 export function indicatoreDi(a: Autopilota & SegniVeri & { segniDal?: string }, ora: number): Indicatore {
-  return { versione: rigaVersione(a, ora), fine: rigaFine(a), ...andamentoDi(a, ora), aiuto: AIUTO_INDICATORE }
+  return { versione: rigaVersione(a, ora), fine: rigaFine(a), ...andamentoDi(a, ora), promesse: righePromesse(a, ora), aiuto: AIUTO_INDICATORE }
 }

@@ -71,6 +71,7 @@ export function PuntoAutopilota({ autopilota: a, senzaChat = false }: {
             {ind.dettaglio.length > 0 ? <><br /><br /><b>Chat per chat:</b>{ind.dettaglio.map((r, i) => <span key={i}><br />{r}</span>)}</> : null}
           </Aiuto>
         </div>
+        {(ind.promesse ?? []).map((r, i) => <div key={i} className="punto-ap__riga punto-ap__promessa">{r}</div>)}
       </div>
       <div className="punto-ap__testa">
         <span className="serigrafia con-aiuto">Punto<Aiuto di="il Punto">{AIUTO_PUNTO}</Aiuto></span>

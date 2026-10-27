@@ -5274,6 +5274,8 @@ label.gc-voce { cursor: pointer; }
 .punto-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .adesso-ap__segnale { flex: none; max-width: 100%; overflow-wrap: anywhere; }
 .punto-ap__riga { overflow-wrap: anywhere; }
+/* 0.85.1: le promesse aperte, sotto l'indicatore. */
+.punto-ap__promessa { font-style: italic; }
 /* 0.85.0: l'indicatore a colpo d'occhio, sopra tutto il Punto. */
 .punto-ap__indicatore { display: grid; gap: 2px; padding-bottom: 4px; border-bottom: 1px dashed var(--bordo); }
 .punto-ap__barra { height: 6px; background: var(--chassis-premuto); border-radius: var(--raggio); overflow: hidden; }

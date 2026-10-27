@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.85.1',
+    righe: [
+      '**L’autopilota torna a decidere:** il 23/10 non riusciva più a chiedere al supervisore (il testo era troppo lungo per la riga di comando di Windows) e da lì nascevano blocchi e domande sbagliate. Adesso il testo passa per un’altra strada; se il supervisore non risponde 3 volte di fila lo vedi in rosso nell’indicatore, con il motivo.',
+      '**Le chat raccontano cosa fanno:** ogni chat scrive all’autopilota una riga a ogni passo (partita, piano, fatto, bloccata e perché, finita). Una chat che tace viene richiamata con «dimmi il punto» e, se non risponde, il lavoro passa a una chat nuova. Quando chiedi «a che punto siamo», l’autopilota risponde col quadro di ogni chat; lo stesso quadro è dietro il «?» dell’indicatore.',
+      '**Promesse mantenute:** quando l’autopilota ti scrive «ti avviso quando…», la promessa viene legata a un fatto e a una scadenza. Quando il fatto succede ti scrive da solo, anche sul telefono, con la prova; se la scadenza passa ti dice «non ancora, perché…». Le promesse aperte sono nell’indicatore.',
+      '**PC carico: aspetto.** Se il processore resta sopra l’85% per un minuto o la memoria libera scende sotto il 15%, l’autopilota rimanda nuove chat, compilazioni e test pesanti e lo scrive nell’indicatore, con il programma che consuma di più. Non chiude mai i tuoi programmi.',
+      '**Scrivere nella scheda dell’autopilota è fluido:** prima ogni lettera ridisegnava tutta la conversazione (circa 620 ms), adesso solo il campo (2–3 ms).',
+      '**Domande che non dovevano arrivarti:** quelle del 23/10 sono state rilette una per una. «Pubblico adesso?» a lavoro finito non sparisce più da sola mentre aspetta il tuo sì.',
+    ]
+  },
+  {
     versione: '0.85.0',
     righe: [
       '**A che punto siamo, a colpo d’occhio:** in cima all’autopilota, sul PC, sulla pagina e nell’app, tre righe: quanto manca alla prossima versione e quando arriva, quanto manca alla fine del lavoro con la barra, e se il lavoro va, è lento o è fermo. Il colore viene da quello che le chat fanno davvero (modifiche, prove, file cambiati), mai da quello che dicono. Il dettaglio dietro «?».',
