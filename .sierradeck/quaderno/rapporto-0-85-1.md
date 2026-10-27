@@ -97,6 +97,7 @@ Gli 8 file di test della tabella qui sopra sono stati rilanciati insieme nella c
 Il 27/10 il `main` locale aveva 2 commit di note del quaderno in più di `origin/main`. Il push lo fa l'autopilota: le regole di questa chat dicono «niente push».
 
 - c-163 (27/10, consegna c-6334): prove ricontrollate su `main` = `2192de37`. I 9 file di test dei criteri passano insieme: `supervisore`, `indicatore-autopilota`, `rapporti-chat-0-85-1`, `promesse-0-85-1`, `promessa-autopilota`, `guardia-pc-0-85-1`, `campo-autopilota-fluido`, `domande-del-23-10-0-85-1` e `divieti-installa-0-85-1`. Risultato: **115 verdi su 115**. Tutta la suite `tests/main` nella cartella principale: 1951 verdi, 0 falliti. Il tempo per lettera resta quello della sezione 5: ≈ 620 ms prima, ≈ 2–3 ms dopo. `git branch --no-merged main` elenca solo rami già chiusi e scritti nella tabella «Rami»: c-11, c-11-velocita, c-143. Gli altri due rami di quell'elenco, rilascio/0.82.1 e wip/domande-altri-pc-c628, non sono di questo lavoro. c-149 è tutto in main, `git log main..HEAD` è vuoto.
+- c-170 (27/10, consegna c-6401): ha ripreso il compito «le chat riferiscono sempre all'autopilota» di c-165, che non era partita. Non c'era niente da rifare. `7dcfd4c9` (c-146) è già in `main` (`59fda3ee`), con `src/shared/rapporti-chat.ts` e `rapporti-chat-0-85-1.test.ts`, verde nei controlli di c-156 e c-163 dello stesso giorno. La prova non è stata rilanciata: la guardia del PC l'ha rimandata («PC carico: aspetto», processore al 100% da 13 minuti).
 
 ## Rami
 
