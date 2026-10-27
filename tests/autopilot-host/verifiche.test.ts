@@ -155,6 +155,24 @@ describe('esecutoreReale', () => {
     expect(esito.codice).toBe(3)
   }, 30000)
 
+  it('di un uscita sterminata tiene l inizio e la fine (27/10)', async () => {
+    // 60.000 caratteri e poi il riepilogo: prima arrivava solo l'inizio.
+    const comando = `node -e "console.log('INIZIO'); for (let i = 0; i < 2000; i++) console.log('riga di log numero ' + i + '.......'); console.log('RIEPILOGO 1 failed'); process.exit(1)"`
+    const esito = await esecutoreReale()(comando, process.cwd())
+    expect(esito.codice).toBe(1)
+    expect(esito.uscita).toContain('INIZIO')
+    expect(esito.uscita).toContain('RIEPILOGO 1 failed')
+    expect(esito.uscita.length).toBeLessThan(25_000)
+  }, 30000)
+
+  it('il criterio riporta la fine dell uscita, non solo l inizio', async () => {
+    const lunga = `RUN\n${'log\n'.repeat(5000)}Tests  1 failed | 1950 passed`
+    const finto: Esecutore = () => Promise.resolve({ codice: 1, uscita: lunga })
+    const esiti = await eseguiCriteri([CON_COMANDO], '.', finto)
+    expect(esiti[0]?.uscita).toContain('1 failed | 1950 passed')
+    expect(esiti[0]?.uscita.length).toBeLessThanOrEqual(4000)
+  })
+
   it('interrompe un comando che non finisce', async () => {
     // Senza questo, un test appeso terrebbe l'hook in attesa fino ai suoi 900s,
     // e la chat resterebbe immobile per un quarto d'ora.

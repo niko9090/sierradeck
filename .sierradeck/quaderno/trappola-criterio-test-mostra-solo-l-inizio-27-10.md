@@ -1,6 +1,6 @@
 ---
 titolo: "Trappola: il criterio «I test del programma principale passano» mostra solo l'inizio dell'uscita"
-quando: 2026-10-27T13:40:00+01:00
+quando: 2026-10-27T14:00:00+01:00
 tag: ["criteri", "autopilota", "vitest", "trappola"]
 ---
 
@@ -32,3 +32,17 @@ mai nel messaggio: la chat vede sempre e solo l'inizio, uguale a ogni giro.
   può sapere quale test è caduto.
 - Finché la correzione non c'è, per capire un rosso: rilanciare il comando a mano,
   salvare l'uscita in un file e leggerne la **coda** (`tail -40`) e il codice d'uscita.
+
+## Corretto sul ramo c-147 (27/10, pomeriggio)
+- `testaECoda(testo, max)` in `src/autopilot-host/decisione.ts`: tiene un quarto
+  di inizio e tre quarti di fine, con `[…troncato…]` in mezzo. Lo usano
+  `riassuntoFallimenti` (1.200 caratteri) e `eseguiCriteri` (4.000).
+- `esecutoreReale` (`verifiche.ts`) raccoglie i primi 4.000 caratteri e poi una
+  coda che scorre di 16.000: il riepilogo di vitest arriva sempre.
+- `traccia()` (riconoscimento dello stallo) **resta sull'inizio**, di proposito: la
+  fine di vitest contiene ora e durata, che cambiano a ogni giro, e lo stallo non
+  si riconoscerebbe più.
+- Vale solo dopo che il servizio installato si aggiorna: fino ad allora l'hook
+  continua a mostrare solo l'inizio.
+- Rimisurato a mano alle 13:26 nella cartella principale (main `d40d73c7`):
+  codice 0, 1951 test verdi, 378 s. Il rosso del giro prima non si ripete.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  decidi, decidiConGiudizio, riassuntoFallimenti, ripetizioniFinali,
+  decidi, decidiConGiudizio, riassuntoFallimenti, ripetizioniFinali, testaECoda,
   type EsitoVerifica, type EventoStop
 } from '../../src/autopilot-host/decisione'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
@@ -199,6 +199,32 @@ describe('riassuntoFallimenti', () => {
     // Il testo finisce dentro il prompt della chat: senza un tetto, un log di
     // build da 10 MB si mangerebbe la finestra di contesto.
     expect(riassuntoFallimenti([lungo]).length).toBeLessThan(3000)
+  })
+
+  it('di un uscita lunga tiene anche la fine, dove vitest dice quale test e rosso (27/10)', () => {
+    // Il 27/10 la chat ha ricevuto 10 volte di fila solo la riga RUN e un log
+    // voluto di un test: il FAIL e il riepilogo stavano in fondo, tagliati via.
+    const uscita = ` RUN  v4.1.10\n${'stderr di un test che logga apposta\n'.repeat(300)}` +
+      ' FAIL  tests/main/x.test.ts > un test\n Test Files  1 failed | 204 passed (206)'
+    const testo = riassuntoFallimenti([{ ...FALLITO, uscita }])
+    expect(testo).toContain('RUN')
+    expect(testo).toContain('FAIL  tests/main/x.test.ts')
+    expect(testo).toContain('1 failed | 204 passed')
+    expect(testo.length).toBeLessThan(3000)
+  })
+})
+
+describe('testaECoda', () => {
+  it('lascia com e un testo corto', () => {
+    expect(testaECoda('breve', 100)).toBe('breve')
+  })
+
+  it('non supera il tetto e tiene inizio e fine', () => {
+    const t = testaECoda(`INIZIO${'x'.repeat(5000)}FINE`, 400)
+    expect(t.length).toBeLessThanOrEqual(400)
+    expect(t.startsWith('INIZIO')).toBe(true)
+    expect(t.endsWith('FINE')).toBe(true)
+    expect(t).toContain('troncato')
   })
 })
 
