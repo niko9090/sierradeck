@@ -80,3 +80,8 @@ l'hook ripete «i criteri passano tutti, ma il supervisore non ha detto se il la
 è concluso» all'infinito, anche con il lavoro finito e il `RAPPORTO: finita`
 scritto. Non è un difetto della chat né del codice in `main`: si risolve solo
 quando Nicholas installa la 0.85.1 (o una successiva). Noi non installiamo.
+
+**Aggiornamento 27/10, 13:53 UTC:** Nicholas ha installato la 0.85.1
+(`versione-installata.json`). L'ultimo «spawn ENAMETOOLONG» nel registro è delle
+13:51, prima dell'installazione; dopo non ce ne sono più. Il giro infinito di fine
+turno nasceva da lì.
