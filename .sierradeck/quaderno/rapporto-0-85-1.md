@@ -150,3 +150,7 @@ Controllo del 27/10 (c-157, consegna c-6092): c-145 è **già tutto in `main`** 
 - Per la prossima versione (non è una richiesta di Nicholas): con i criteri verdi e il supervisore senza verdetto, l'hook di fine turno rifà il giro all'infinito (`istruzioniRiprova` in `rete-sicurezza.ts`). Il 27/10 è successo a c-149 e c-148 con decine di giri a vuoto. Correzione proposta: passare il compito della chat e chiuderla al secondo giro senza verdetto. Dettagli in `trappola-giro-senza-fine-chat-finita-0-85-0.md`.
 
 Controllo del 27/10 sera (c-166, consegna c-6378, ripresa del compito di c-157): niente da rifare. In `supervisore.ts` il prompt va sullo stdin (`figlio.stdin.end(prompt)`), il `grep` del criterio passa, la guardia delle cancellazioni passa, la release `v0.85.1` è non bozza con i 5 file. Il ramo c-166 non ha codice: porta solo questa riga.
+
+## Ripresa di c-161 (27/10, c-167, consegna c-6383)
+
+Il terminale di c-161 non era partito. c-167 ha ricontrollato: le promesse mantenute (`8df8f171`) sono in `main` (`59fda3ee`), la release `v0.85.1` ha i 5 file e non è bozza, i criteri del supervisore e della guardia delle cancellazioni passano. Non c'era niente da rifare. Il test delle promesse non l'ho rilanciato: la guardia del PC lo rimandava (processore al 100%). È lo stesso giro di test che c-163 aveva già trovato verde lo stesso giorno (115 verdi). Il ramo c-167 porta solo questa nota.
