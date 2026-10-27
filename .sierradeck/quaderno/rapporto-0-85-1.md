@@ -97,6 +97,7 @@ Gli 8 file di test della tabella qui sopra sono stati rilanciati insieme nella c
 Il 27/10 il `main` locale aveva 2 commit di note del quaderno in più di `origin/main`. Il push lo fa l'autopilota: le regole di questa chat dicono «niente push».
 
 - c-163 (27/10, consegna c-6334): prove ricontrollate su `main` = `2192de37`. I 9 file di test dei criteri passano insieme: `supervisore`, `indicatore-autopilota`, `rapporti-chat-0-85-1`, `promesse-0-85-1`, `promessa-autopilota`, `guardia-pc-0-85-1`, `campo-autopilota-fluido`, `domande-del-23-10-0-85-1` e `divieti-installa-0-85-1`. Risultato: **115 verdi su 115**. Tutta la suite `tests/main` nella cartella principale: 1951 verdi, 0 falliti. Il tempo per lettera resta quello della sezione 5: ≈ 620 ms prima, ≈ 2–3 ms dopo. `git branch --no-merged main` elenca solo rami già chiusi e scritti nella tabella «Rami»: c-11, c-11-velocita, c-143. Gli altri due rami di quell'elenco, rilascio/0.82.1 e wip/domande-altri-pc-c628, non sono di questo lavoro. c-149 è tutto in main, `git log main..HEAD` è vuoto.
+- c-168 (27/10, consegna c-6386, ripresa del compito «testo a scatti» di c-163 che non era partita): niente da rifare. `362a465c` è già in `main` (`59fda3ee`), e lì ci sono anche `CampoChatAutopilota.tsx` e `campo-autopilota-fluido.test.tsx`. I numeri restano quelli della sezione 5. Non ho rilanciato la prova del singolo file: la guardia del PC l'ha rimandata («PC carico: aspetto», processore al 100% da 9 minuti).
 
 ## Rami
 
@@ -147,6 +148,8 @@ Controllo del 27/10 (c-157, consegna c-6092): c-145 è **già tutto in `main`** 
 - Aperto, decide Nicholas: mostrare solo le ultime 200 righe del diario nella scheda.
 - Le junction `node_modules` nelle copie delle chat si tolgono con `rmdir` quando i loro rami sono uniti o chiusi.
 - Per la prossima versione (non è una richiesta di Nicholas): con i criteri verdi e il supervisore senza verdetto, l'hook di fine turno rifà il giro all'infinito (`istruzioniRiprova` in `rete-sicurezza.ts`). Il 27/10 è successo a c-149 e c-148 con decine di giri a vuoto. Correzione proposta: passare il compito della chat e chiuderla al secondo giro senza verdetto. Dettagli in `trappola-giro-senza-fine-chat-finita-0-85-0.md`.
+
+Controllo del 27/10 sera (c-166, consegna c-6378, ripresa del compito di c-157): niente da rifare. In `supervisore.ts` il prompt va sullo stdin (`figlio.stdin.end(prompt)`), il `grep` del criterio passa, la guardia delle cancellazioni passa, la release `v0.85.1` è non bozza con i 5 file. Il ramo c-166 non ha codice: porta solo questa riga.
 
 ## Ripresa di c-161 (27/10, c-167, consegna c-6383)
 
