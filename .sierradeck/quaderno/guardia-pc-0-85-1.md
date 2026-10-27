@@ -21,4 +21,6 @@ tag: ["0.85.1", "guardia-pc", "autopilota", "indicatore", "prestazioni"]
 
 Test: `tests/autopilot-host/guardia-pc-0-85-1.test.ts`.
 
+**Incongruenza vista il 27/10 (c-170), non ancora corretta**: il «no» dell'hook (`guardia-pc.ts:205`) dice alla chat che intanto può lanciare «i test di un solo file». Però `ePesante` (`criteri-veloci.ts:46`) giudica pesante qualunque `vitest run`, anche su un solo file, e quindi rimanda pure quello. Con il PC carico per ore (il 27/10: 100% da 1 h 24 min), una chat non riesce a rilanciare nessuna prova. Si può correggere il testo oppure lasciar passare `vitest run <un file>`. Va deciso, non è ancora fatto.
+
 **Trappola vista unendo (23/10 notte)**: il lavoro sul testo fluido (0.85.1) ha spostato il campo di scrittura da `ChatAutopilota.tsx` a `CampoChatAutopilota.tsx`. Due test che leggono il sorgente (`copia-incolla.test.ts`, `grafica-0-81-0.test.ts`) cercavano ancora nel file vecchio e facevano fallire `tests/main` in main. Sono stati corretti da c-148. Chi sposta un pezzo di interfaccia deve cercare `readFileSync('src/renderer/components/…` nei test.
