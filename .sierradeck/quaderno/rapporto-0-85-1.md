@@ -148,3 +148,5 @@ Controllo del 27/10 (c-157, consegna c-6092): c-145 è **già tutto in `main`** 
 - Aperto, decide Nicholas: mostrare solo le ultime 200 righe del diario nella scheda.
 - Le junction `node_modules` nelle copie delle chat si tolgono con `rmdir` quando i loro rami sono uniti o chiusi.
 - Per la prossima versione (non è una richiesta di Nicholas): con i criteri verdi e il supervisore senza verdetto, l'hook di fine turno rifà il giro all'infinito (`istruzioniRiprova` in `rete-sicurezza.ts`). Il 27/10 è successo a c-149 e c-148 con decine di giri a vuoto. Correzione proposta: passare il compito della chat e chiuderla al secondo giro senza verdetto. Dettagli in `trappola-giro-senza-fine-chat-finita-0-85-0.md`.
+
+Controllo del 27/10 sera (c-166, consegna c-6378, ripresa del compito di c-157): niente da rifare. In `supervisore.ts` il prompt va sullo stdin (`figlio.stdin.end(prompt)`), il `grep` del criterio passa, la guardia delle cancellazioni passa, la release `v0.85.1` è non bozza con i 5 file. Il ramo c-166 non ha codice: porta solo questa riga.
