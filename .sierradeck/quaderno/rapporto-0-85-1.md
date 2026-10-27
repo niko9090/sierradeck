@@ -71,6 +71,9 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Guardia del PC (85% per un minuto, memoria sotto il 15%) | `d254775c` (c-148) | `guardia-pc-0-85-1.test.ts`: soglie, attesa massima, turno dei pesanti, «no» alle chat, indicatore, servizio | 16 verdi |
 | Testo fluido, tempo per lettera prima e dopo | `362a465c` (c-149) | `campo-autopilota-fluido.test.tsx`; misure nella sezione 5 (≈ 620 ms → ≈ 2–3 ms per lettera) | 3 verdi |
 | Domande del 23/10 con causa e test | `a362dedb` (c-149, da c-143 `a7566e00`) | `domande-del-23-10-0-85-1.test.ts`; elenco nella sezione 6 | 5 verdi |
+| Release con i 5 file | tag `v0.85.1` | `gh release view v0.85.1` (ricontrollo del 27/10, c-147): non bozza, `SierraDeck-Setup-0.85.1.exe`, `.blockmap`, `latest.yml`, `SierraDeck-2.85.1.apk`, `app-android.json` | ok |
+| Nessuna funzione tolta | da `v0.85.0` a `v0.85.1` | `git diff --diff-filter=D --name-only v0.85.0 v0.85.1 -- src android/app/src/main` è vuoto: nessun file tolto (ricontrollo del 27/10, c-147) | ok |
+| Rami uniti o chiusi con la scelta scritta | `cdddc545` (main = origin/main, push del 27/10 da c-157) | sezione «Rami»: fuori da `main` solo c-11, c-11-velocita, c-143, tutti chiusi col motivo | ok |
 
 ## Ricontrollo del 27/10 (c-159, consegna c-6121)
 
@@ -82,6 +85,7 @@ Gli 8 file di test della tabella qui sopra sono stati rilanciati insieme nella c
 - Guardia del PC: già soddisfatto. Prova: `d254775c`, `guardia-pc-0-85-1.test.ts`.
 - Scorrimento fluido, tempo per lettera: già soddisfatto. Prova: `362a465c`, `campo-autopilota-fluido.test.tsx`, misure nella sezione 5.
 - Domande del 23/10: già soddisfatto. Prova: `a362dedb`, `domande-del-23-10-0-85-1.test.ts`, elenco nella sezione 6.
+- c-149 (27/10, consegna c-6123): niente da aggiungere, le prove di ogni criterio sono già qui sopra e i rami chiusi sono nella tabella dei rami. I 5 file di test dei criteri, rilanciati in main il 27/10, danno 55 verdi su 55.
 - Release: già soddisfatto. Prova: release `v0.85.1` non bozza, con i 5 file (exe, blockmap, `latest.yml`, APK 2.85.1, `app-android.json`).
 - Rami: già soddisfatto. Prova: tabella «Rami» qui sotto. c-145…c-149 sono uniti, c-143 è chiuso perché doppio, c-148 è chiuso il 27/10 senza unirlo di nuovo, perché già in main.
 
@@ -96,12 +100,19 @@ Il 27/10 il `main` locale aveva 2 commit di note del quaderno in più di `origin
 | c-147 | **unito** in `main` (promesse; cambia `android/`, quindi APK nuovo 2.85.1). Il commit di sola documentazione `574abf81` è entrato in `main` con l'unione di c-147 (`777f9b52`) |
 | c-148 | **unito** in `main` dopo la Revisione (guardia del PC; il 24/10 anche il ricontrollo dei criteri qui sopra); i 2 commit del quaderno rimasti fuori (`370df097`, `971e7aa9`) uniti da c-147 il 24/10 (`3b1d12b1`), dopo aver salvato 3 note sporche nella cartella principale (`46e448cc`) |
 | c-149 | **unito** in `main` dopo la Revisione (testo fluido; ha portato da c-143 le domande del 23/10 e la correzione 0u) |
+| c-149 (27/10, consegna c-6090) | **chiuso senza unirlo di nuovo, perché già in main**: l'unico commit suo fuori da `origin/main` è la nota del quaderno `2461f946` (giro senza fine), già nel `main` locale e in attesa del push dell'autopilota; niente codice, niente Revisione, nessun bump |
+| c-149 (27/10, consegna c-6100) | tutto nel `main` locale; in `origin/main` mancano solo note del quaderno (`2461f946`, `9f9b96df` e unioni di c-148/c-146) perché `main` non è ancora pushato: il push tocca all'autopilota, la chat non lo fa. Niente da rivedere |
+| push del 27/10 (c-149, consegna c-6106) | `git push origin main` **riuscito**: `9135e919..b3f2f155`, 32 commit, controllati con `git diff --name-only`: solo file in `.sierradeck/quaderno/`. Dopo il push `main` = `origin/main`. Niente tag, niente release, niente installazione |
 | c-143 | **chiuso senza unirlo, perché doppio** (deciso il 24/10, consegna c-1139): supervisore, guardia e campo sono doppioni di c-145, c-148 e c-149; i pezzi utili (domande del 23/10, 0u, rapporto) sono entrati con c-149. Le sue note (questo rapporto, `rapporto-0-85-0.md` e due trappole del quaderno) le ha portate in `main` c-148 il 24/10, copiando solo quei 4 file; il ramo resta fuori. Il 24/10 i suoi 8 commit fuori da `main` erano solo note del quaderno e unioni (rapporto, lista, giro senza fine, consegna della release): già in `main` o superate |
 | c-11, c-11-velocita | **chiusi senza unirli**: superati da c-48 (velocità misurata, già in `main` dalla 0.85.0) |
+| c-147 (27/10, c-158, consegne c-1185/c-6083/c-6094/c-6099/c-6104/c-6107/c-6115/c-6119) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git branch -a --no-merged main` non lo elenca; le promesse sono in `main` da `8df8f171`, test 21/21 verdi rilanciati il 27/10 |
 | c-148 (27/10, c-159) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git log main..HEAD` è vuoto. I commit che `origin/main` non ha ancora sono note del quaderno (giro senza fine del 27/10) e unioni, già nel `main` locale e in attesa del push dell'autopilota. Nessun codice nuovo; la guardia del PC (`d254775c`) è in main dal 23/10, con 16 test verdi rilanciati il 27/10. Nessun lavoro rimasto |
+| c-146 (27/10, c-156, consegne c-1169/c-6081/c-6089/c-6095) | **chiuso senza unirlo di nuovo, perché già in `main`**: `git log main..HEAD` è vuoto. I commit che `origin/main` non ha ancora sono note del quaderno (nono caso del giro senza fine, `bfc97779`) e unioni, già nel `main` locale e in attesa del push dell'autopilota. I rapporti delle chat (`7dcfd4c9`) sono in main dal 23/10; `rapporti-chat-0-85-1.test.ts` rilanciato il 27/10: 14 verdi. Tolta con `rmdir` la junction `node_modules` della copia. Nessun lavoro rimasto |
 | Controllo del 27/10 (c-159, consegna c-6134) | `git branch -a --no-merged main` dà solo **c-11, c-11-velocita** (chiusi senza unirli, superati da c-48) e **c-143** (chiuso senza unirlo, doppio). c-145…c-149 sono uniti in `main`. Le chat c-150…c-159 non hanno un ramo loro: hanno lavorato sui rami qui sopra. `chiudiChat` è una mossa del supervisore e una chat non la può chiamare (`server.ts`, mosse del supervisore): la chiusura di c-143 e c-145…c-159 tocca all'autopilota |
 
 Controllo del 24/10, 03:00 (c-150): `git branch --no-merged main` dà solo c-143. c-145 (`4e512cb1`) e c-149 (`7ceebf02`) non hanno più niente fuori da `main`. Tolte con `rmdir` le junction `node_modules` delle copie di c-147, c-148 e c-149, già unite; la copia di c-145 non l'aveva. Restano quella di c-143, ramo non unito, e quella di c-146, ancora al lavoro. `main` pushato su GitHub (`9135e919`); il tag `v0.85.1` resta su `61f74643`. La chiusura delle chat c-143 e c-145…c-149 con `chiudiChat` è un'azione dell'autopilota: le chat non la possono fare da sole.
+
+Controllo del 27/10 (c-157, consegna c-6092): c-145 è **già tutto in `main`** (`git log main..c-145` vuoto, ultimo commit `9cf239a6`, solo note del quaderno sul giro senza fine): niente da unire, ramo chiuso così.
 
 ## La release
 
