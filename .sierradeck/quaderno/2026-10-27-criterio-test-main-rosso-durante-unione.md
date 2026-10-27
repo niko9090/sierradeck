@@ -26,3 +26,5 @@ tag: ["autopilota", "criteri", "trappola"]
 **Conferma (27/10, 12:28Z, c-163).** Rilanciato di nuovo lo stesso comando nella cartella principale, senza nessuna unione in corso: uscita 0, 205 file e 1951 test passati, 0 falliti, 339 s. Nessun codice toccato. Il rosso delle 12:03Z era quindi solo la misura presa durante l'unione di c-146.
 
 **Da non confondere.** Nello stesso registro, «spawn ENAMETOOLONG» del supervisore (550 di fila) viene dall'app *installata*, che non ha ancora la 0.85.1. Nel codice la correzione c'è già: il prompt passa dallo stdin, `supervisore.ts` vicino alla riga 59. Sparisce solo quando Nicholas installa la 0.85.1.
+
+**Sbloccato (27/10, 13:53Z).** Nicholas ha installato la 0.85.1: nel registro c'è «sessione avviata · SierraDeck v0.85.1» alle 13:53:28Z. L'ultimo «spawn ENAMETOOLONG» è delle 13:51:31Z e dopo l'avvio non ce n'è più nessuno. Il supervisore può tornare a decidere, e questo chiude il giro senza fine.
