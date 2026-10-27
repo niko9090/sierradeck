@@ -79,6 +79,7 @@ Ogni commit è stato controllato con `git merge-base --is-ancestor <commit> main
 | Kotlin sotto le 800 righe | `android/app/src/main` | il file più lungo è `App.kt`, con 772 righe (27/10, c-147) | ok |
 | Test di main e degli altri moduli, typecheck, app Android | `main` | li misura il programma a ogni unione: il 27/10 l'hook di fine turno dice «i criteri passano tutti». Il 27/10 c-147 non li ha rilanciati a mano | ok per il programma |
 | Rami uniti o chiusi con la scelta scritta | `cdddc545` (main = origin/main, push del 27/10 da c-157) | sezione «Rami»: fuori da `main` solo c-11, c-11-velocita, c-143, tutti chiusi col motivo | ok |
+| Ricontrollo su `origin/main` (27/10, c-164, consegna c-6352) | `origin/main` dopo `git fetch` | Tutti in `origin/main` (`git merge-base --is-ancestor`): `407cc4da`, `7dcfd4c9`, `8df8f171`, `d254775c`, `362a465c`, `a362dedb`. «PC carico: aspetto» in `src/autopilot-host/guardia-pc.ts:157` e `:181`. Gli 8 file di test della 0.85.1 su `main` `5da071d0` danno 111 verdi su 111 | ok |
 
 ## Ricontrollo del 27/10 (c-159, consegna c-6121)
 
