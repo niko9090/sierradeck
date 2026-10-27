@@ -15,6 +15,8 @@ vitest stampa per primi gli avvisi su stderr che i test producono apposta, per e
 
 **Prova a mano (27/10, cartella principale, main e51e73cd).** Lo stesso comando, lanciato due volte, finisce con `exit=0`: 205 file verdi, 1 saltato, 1951 test verdi. Il rosso delle 12:03 era un test instabile sotto carico (in quel momento giravano anche gradle e l'altra suite) e non un difetto del codice.
 
+**Di nuovo il 27/10 (ramo c-148, main d40d73c7).** Stesso messaggio: la chat ha fatto 10 tentativi su un ramo già tutto in main, senza niente da correggere. Rilanciato a mano: `exit=0`, 205 file e 1951 test verdi. La riga `[sync] maestra ricordata illeggibile` è un avviso voluto di un test che passa, non l'errore.
+
 **Correzione proposta (non fatta: tocca il codice dell'autopilota, decide Nicholas):**
 1. Tenere **la coda** dell'uscita, non la testa: `uscita.slice(-USCITA_MAX)` in `verifiche.ts` e `decisione.ts`. Durante la raccolta, buttare l'inizio invece di smettere di accumulare.
 2. Per vitest, aggiungere `--reporter=dot` (o filtrare le righe `FAIL`/`×`), così le righe utili stanno nei 1200 caratteri.
