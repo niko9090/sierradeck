@@ -147,7 +147,9 @@ export async function indexAll(
 
         if (immutato) riusate += 1
         else {
-          blocco.push(await readSession(file, progetto.slug, progetto.path))
+          // Un file cresciuto si legge dalla coda (`readSession` ricorda dove si
+          // era fermato); «Rileggi» invece riparte da capo davvero.
+          blocco.push(await readSession(file, progetto.slug, progetto.path, { daCapo: opzioni.completa === true }))
           lette += 1
           if (blocco.length >= BLOCCO) svuota()
         }
