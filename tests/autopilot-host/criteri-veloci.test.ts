@@ -151,7 +151,7 @@ describe('criteri veloci', () => {
       if (prima === undefined) delete process.env.GIT_CEILING_DIRECTORIES
       else process.env.GIT_CEILING_DIRECTORIES = prima
     }
-  }, 60_000) // quattro giri di git: a suite intera, con le altre chat al lavoro, passavano i 20 s
+  }) // git vero: i 60 s del progetto «lenti» (vitest.config.ts)
 })
 
 describe('memoria dei criteri (Revisione 0.82.1)', () => {

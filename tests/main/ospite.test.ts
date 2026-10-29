@@ -210,8 +210,8 @@ describe('ogni punto di avvio passa dal cancello', () => {
     // Nel renderer una chat si avvia solo dal Terminal, cioè da pty:spawn.
     const spawnRenderer = tutti.filter((f) => f.replace(/\\/g, '/').includes('/renderer/') && readFileSync(f, 'utf8').includes('gestore.pty.spawn(')).map((f) => f.replace(/\\/g, '/').replace(/^.*\/src\//, ''))
     expect(spawnRenderer).toEqual(['renderer/components/Terminal.tsx'])
-    // Legge tutto src: a suite intera sulla macchina carica superava i 20 s (0.80.0).
-  }, 60_000)
+    // Legge tutto src: a suite intera sulla macchina carica superava i 20 s (0.80.0); è nel progetto «lenti», con 60 s.
+  })
   it('ripristino, «Torna a com’era», «Riprendi», cambio di workspace, autopiloti, consegne e telefono montano un Terminal: tutti allo stesso spawn', () => {
     const t = src('renderer/components/Terminal.tsx')
     // Il riquadro chiede da dove aprirla prima di aprire (ripristino, Riprendi, cambio di workspace)...

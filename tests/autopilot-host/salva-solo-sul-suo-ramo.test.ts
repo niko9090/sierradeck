@@ -53,5 +53,5 @@ describe('salvaLavoro solo sul ramo dell’autopilota', () => {
     writeFileSync(join(repo, 'App', 'nuovo.txt'), 'lavoro della chat')
     expect(salvaLavoro(gitFinto, join(repo, 'App'), 'autopilota: lavoro in app')).toBe(true)
     expect(gitFinto(['log', '--oneline'], repo).uscita.split('\n')).toHaveLength(2)
-  }, 60_000) // sette comandi di git: col PC carico ognuno prende secondi
+  }) // git vero: i 60 s del progetto «lenti» (vitest.config.ts)
 })

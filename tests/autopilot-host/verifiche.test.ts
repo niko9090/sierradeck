@@ -58,7 +58,7 @@ describe('eseguiCriteri', () => {
     const esiti = await eseguiCriteri([{ descrizione: 'lento', comando: 'node -e "setTimeout(()=>{},5000)"', soddisfatto: false }], process.cwd(), contato)
     expect(volte).toBe(2)
     expect(esiti[0]?.passato).toBe(false)
-  }, 20_000)
+  })
 
   it('0.81.0: la suite dei test ha 20 minuti, gli altri criteri il tempo di prima', () => {
     expect(tempoDelCriterio('npx vitest run --maxWorkers=2')).toBe(TIMEOUT_SUITE_TEST_MS)
@@ -148,12 +148,12 @@ describe('esecutoreReale', () => {
     const esito = await esecutoreReale()('node -e "console.log(42)"', process.cwd())
     expect(esito.codice).toBe(0)
     expect(esito.uscita).toContain('42')
-  }, 30000)
+  })
 
   it('riporta il codice di uscita di un comando fallito', async () => {
     const esito = await esecutoreReale()('node -e "process.exit(3)"', process.cwd())
     expect(esito.codice).toBe(3)
-  }, 30000)
+  })
 
   it('di un uscita sterminata tiene l inizio e la fine (27/10)', async () => {
     // 60.000 caratteri e poi il riepilogo: prima arrivava solo l'inizio.
@@ -163,7 +163,7 @@ describe('esecutoreReale', () => {
     expect(esito.uscita).toContain('INIZIO')
     expect(esito.uscita).toContain('RIEPILOGO 1 failed')
     expect(esito.uscita.length).toBeLessThan(25_000)
-  }, 30000)
+  })
 
   it('il criterio riporta la fine dell uscita, non solo l inizio', async () => {
     const lunga = `RUN\n${'log\n'.repeat(5000)}Tests  1 failed | 1950 passed`
@@ -179,5 +179,5 @@ describe('esecutoreReale', () => {
     const esito = await esecutoreReale(1000)('node -e "setTimeout(() => {}, 60000)"', process.cwd())
     expect(esito.codice).not.toBe(0)
     expect(esito.uscita.toLowerCase()).toContain('interrotto')
-  }, 30000)
+  })
 })
