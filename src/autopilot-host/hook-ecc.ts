@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 
@@ -50,6 +50,18 @@ function leggi(file: string): Oggetto | undefined | null {
 }
 
 /**
+ * Una copia vera: la cartella c'è ed è un worktree di git, cioè ha il **file**
+ * `.git` (una cartella `.git` sarebbe un repository a sé, non una copia).
+ */
+export function copiaVera(copia: string): boolean {
+  try {
+    return statSync(copia).isDirectory() && lstatSync(join(copia, '.git')).isFile()
+  } catch {
+    return false
+  }
+}
+
+/**
  * Dice se git, nella copia, ignora `.claude/settings.local.json`. Se non lo
  * ignora (un PC senza l'esclusione globale), il file scritto qui finirebbe nel
  * commit della chat e da lì in main: allora non si scrive.
@@ -62,6 +74,11 @@ export type FuoriDaGit = (copia: string) => boolean
  * illeggibile non si riscrive: potrebbe avere permessi che non conosciamo.
  */
 export function allineaHookEcc(radice: string, copia: string, fuoriDaGit: FuoriDaGit): boolean {
+  // Solo in una copia vera, che c'è già (0.85.2). Prima la cartella si creava
+  // qui se mancava: con il git finto dei test (che «crea» il worktree senza
+  // crearlo) o con un `worktree add` andato storto, accanto al repository
+  // nascevano cartelle con dentro solo questo file — ~8.100 al 30/10.
+  if (!copiaVera(copia)) return false
   const principale = leggi(join(radice, '.claude', 'settings.local.json'))
   if (principale === undefined || principale === null) return false
   const file = join(copia, '.claude', 'settings.local.json')
@@ -70,7 +87,8 @@ export function allineaHookEcc(radice: string, copia: string, fuoriDaGit: FuoriD
   const nuovo = unisciSpegnimentoHook(principale, attuale)
   if (nuovo === undefined || !fuoriDaGit(copia)) return false
   try {
-    mkdirSync(join(copia, '.claude'), { recursive: true })
+    // Non ricorsiva: la copia c'è (controllato sopra), si crea solo `.claude`.
+    if (!existsSync(join(copia, '.claude'))) mkdirSync(join(copia, '.claude'))
   } catch {
     // se non si crea, lo dirà la scrittura qui sotto
   }

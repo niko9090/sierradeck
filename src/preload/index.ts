@@ -1098,6 +1098,8 @@ contextBridge.exposeInMainWorld('gestore', {
     sottofondo: (id: string, si: boolean): Promise<void> => ipcRenderer.invoke('autopilota:sottofondo', id, si),
     /** «Ricontrolla i criteri» (0.72.0): mai da soli, solo su richiesta. */
     ricontrollaCriteri: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ricontrollaCriteri', id),
+    /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio; torna la riga del riepilogo. */
+    pulisci: (): Promise<string> => ipcRenderer.invoke('autopilota:pulisci'),
     /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
     archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
     /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */

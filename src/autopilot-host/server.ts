@@ -86,6 +86,7 @@ import {
   cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, ramoGiaChiusoAsincrono, ramoSenzaNovita, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, soloNoteAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
 } from './worktree'
 import { allineaHookEccDiTutte } from './hook-ecc'
+import { rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
 import { leggiSegnaleVero, type SegnaleVero } from '@shared/indicatore-autopilota'
 
@@ -249,6 +250,11 @@ export type Dipendenze = {
    * quanto ci mette una richiesta ad arrivare in una versione. Assente: niente.
    */
   releaseUscite?: LeggiReleaseUscite
+  /**
+   * L'autopulizia (0.85.2): copie delle chat concluse, rami `ap/*` già uniti,
+   * note troppo grosse. Gira da sola ogni 6 ore; qui la chiede «Pulisci adesso».
+   */
+  autopulizia?: (opz?: { forza?: boolean }) => Promise<EsitoAutopulizia>
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -5454,6 +5460,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
           console.info(`[autopilota] «Aggiorna adesso»: ${salvate} copie salvate con un commit su ${provate}`)
           rispondi(res, 200, { salvate, provate })
+          return
+        }
+
+        // «Pulisci adesso» (0.85.2): lo chiede Nicholas, quindi anche a PC carico.
+        if (metodo === 'POST' && percorso === '/autopulizia') {
+          if (deps.autopulizia === undefined) { rispondi(res, 503, { errore: 'autopulizia non disponibile' }); return }
+          const e = await deps.autopulizia({ forza: true })
+          rispondi(res, 200, { ...e, riga: rigaAutopulizia(e) })
           return
         }
 

@@ -475,6 +475,8 @@ declare global {
         riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
         sottofondo: (id: string, si: boolean) => Promise<void>
         ricontrollaCriteri: (id: string) => Promise<void>
+        /** «Pulisci adesso» (0.85.2): copie e rami delle chat concluse; torna la riga del riepilogo. */
+        pulisci: () => Promise<string>
         archivia: (id: string, archivia: boolean) => Promise<void>
         /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */
         spostaInWorkspace: (id: string, workspace: string) => Promise<void>

@@ -33,7 +33,9 @@ const windows = process.platform === 'win32'
 const norm = (p: string): string => { const r = resolve(p); return windows ? r.toLowerCase() : r }
 const dentroOUguale = (p: string, c: string): boolean => p === c || p.startsWith(c.endsWith('\\') || c.endsWith('/') ? c : c + (windows ? '\\' : '/'))
 
-const PROTETTE = [veri.casa, veri.userprofile, veri.home, veri.appdata, veri.localappdata, veri.temp]
+// Anche le copie delle chat accanto al repository (0.85.2): fino al 30/10 i
+// test ci lasciavano ~8.100 cartelle con dentro solo `.claude/settings.local.json`.
+const PROTETTE = [veri.casa, veri.userprofile, veri.home, veri.appdata, veri.localappdata, veri.temp, `${RADICE_PROGETTO}.sierradeck-wt`]
   .filter((p): p is string => typeof p === 'string' && p !== '')
   .map(norm)
 const PERMESSE = [radiceFinta, RADICE_PROGETTO].map(norm)
