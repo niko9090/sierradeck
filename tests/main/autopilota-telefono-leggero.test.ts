@@ -11,7 +11,7 @@ import { creaServerClient, ROTTE_CON_ETAG } from '../../src/main/client-server'
 import { apriDispositivi } from '../../src/main/dispositivi'
 
 /**
- * La scheda dell'autopilota sul telefono, leggera (0.86.1): la pagina e l'app
+ * La scheda dell'autopilota sul telefono, leggera (0.86.0): la pagina e l'app
  * la rileggevano intera ogni due secondi. Con `?leggero=1` (o `leggero: true`
  * nel corpo, che passa dal ponte) arriva la coda; senza, tutto come prima.
  */
@@ -37,7 +37,7 @@ function deps(a: Autopilota): DipendenzeRotte {
 const chiedi = (a: Autopilota, corpo: Record<string, unknown>, cerca?: string): Promise<{ stato: number; corpo: Record<string, unknown> }> =>
   rotteClient(deps(a))({ metodo: 'POST', percorso: '/api/autopilota', corpo, ...(cerca !== undefined ? { cerca: new URLSearchParams(cerca) } : {}) }) as Promise<{ stato: number; corpo: Record<string, unknown> }>
 
-describe('/api/autopilota leggera (0.86.1)', () => {
+describe('/api/autopilota leggera (0.86.0)', () => {
   it('senza il segno resta intera, come per le app e le pagine di prima', async () => {
     const r = await chiedi(lungo(500), { autopilota: 'ap-1' })
     expect(r.stato).toBe(200)
@@ -78,7 +78,7 @@ describe('/api/autopilota leggera (0.86.1)', () => {
   })
 })
 
-describe('ETag sulle rotte che si rileggono (0.86.1)', () => {
+describe('ETag sulle rotte che si rileggono (0.86.0)', () => {
   let server: Server | undefined
   afterEach(() => { server?.close(); server = undefined })
 

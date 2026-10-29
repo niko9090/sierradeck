@@ -127,6 +127,13 @@ data class AutopilotaDettaglio(
      * schermata mostra solo il dialogo di prima.
      */
     val chat: List<Battuta> = emptyList(),
+    /**
+     * PC 0.86.0, scheda leggera: quante battute ha la conversazione intera,
+     * se `chat` ne porta solo le ultime. Assente = `chat` è tutta.
+     */
+    val chatIntera: Int? = null,
+    /** PC 0.86.0, scheda leggera: quanto erano lunghe decisioni, dialogo e modifiche prima di tagliarle. */
+    val troncati: Troncati? = null,
     /** Ha una domanda aperta: quello che scrivi nella casella è la risposta. */
     val domanda: Boolean = false,
     val domandaId: String? = null,
@@ -147,6 +154,10 @@ data class AutopilotaDettaglio(
     /** Le sue domande per la linguetta «Domande» (0.38.0), una per volta. */
     val domandeScheda: List<DomandaScheda> = emptyList()
 )
+
+/** Le liste tagliate nella scheda leggera (PC 0.86.0): quanto erano lunghe davvero. */
+@Serializable
+data class Troncati(val decisioni: Int = 0, val dialogo: Int = 0, val modifiche: Int = 0)
 
 /**
  * Una riga della chat con lui: `da` è "tu", "lui" o "nota" (la sua voce di

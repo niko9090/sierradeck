@@ -471,9 +471,10 @@ fun Principale(
             // le attese crescenti di `Linea` (0.52.1): è quello che conta il
             // conto alla rovescia accanto all'indicatore.
             if (!Linea.eOra(Collegamenti.di(Collegamenti.ACCOPPIATO), ultimaIl, System.currentTimeMillis())) { delay(250); continue }
-            // Con l'app dietro, ogni 15 secondi invece di 2 (app 2.69.0): il PC rispondeva lo stesso a ogni giro.
-            if (!PolsoApp.tocca(cicloVita.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED), ultimaIl, System.currentTimeMillis())) { delay(1000); continue }
-            // Calmo (0.83.0): lo stato non cambia da qualche giro, il prossimo fra 3 s invece di 2.
+            // Con l'app dietro niente (app 2.86.0; dalla 2.69.0 era ogni 15 s): le
+            // notizie le porta la Sentinella. Si aspetta di tornare davanti.
+            if (!PolsoApp.tocca(cicloVita.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))) { Davanti.pausa(250); continue }
+            // Calmo (0.83.0): lo stato non cambia da qualche giro, il prossimo fra 5 s invece di 2 (2.86.0).
             if (System.currentTimeMillis() - ultimaIl < PolsoApp.davantiOgni(uguali)) { delay(250); continue }
             ultimaIl = System.currentTimeMillis()
             val t0 = System.currentTimeMillis()
@@ -757,16 +758,15 @@ private fun NonRiconosciuto(onRiprova: () -> Unit, onRiaccoppia: () -> Unit) {
     }
 }
 
-/** Ogni quanto l'app chiede lo stato al PC quando non è davanti (app 2.69.0). */
+/** Ogni quanto l'app chiede lo stato al PC. Dietro mai (app 2.86.0; prima ogni 15 s): avvisano la Sentinella e il controllo continuo. */
 object PolsoApp {
-    const val DIETRO_OGNI_MS = 15_000L
-    fun tocca(davanti: Boolean, ultimaIl: Long, ora: Long): Boolean = davanti || ora - ultimaIl >= DIETRO_OGNI_MS
+    fun tocca(davanti: Boolean): Boolean = davanti
 
-    /** Dopo quanti giri uguali di fila lo stato si chiede più di rado (0.83.0). */
-    const val CALMO_DOPO = 5
-    /** Più di rado, ma sotto `Linea.LENTA_DOPO_MS`: la linea non sembra lenta. */
-    const val CALMO_OGNI_MS = 3000L
+    /** Dopo quanti giri uguali di fila lo stato si chiede più di rado (0.83.0; 3 dalla 2.86.0). */
+    const val CALMO_DOPO = 3
+    /** Più di rado (5 s dalla 2.86.0: con l'ETag è un 304 vuoto), sotto `Linea.LENTA_DOPO_MS`: la linea non sembra lenta. */
+    const val CALMO_OGNI_MS = 5000L
 
-    /** Ogni quanto si chiede lo stato con l'app davanti: 2 s, 3 s se non cambia da `CALMO_DOPO` giri. */
+    /** Ogni quanto si chiede lo stato con l'app davanti: 2 s mentre cambia, 5 s se non cambia da `CALMO_DOPO` giri. */
     fun davantiOgni(uguali: Int): Long = if (uguali >= CALMO_DOPO) CALMO_OGNI_MS else Linea.KEEPALIVE_OGNI_MS
 }

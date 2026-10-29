@@ -38,10 +38,11 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     private fun url(percorso: String) = indirizzo.trimEnd('/') + percorso
 
-    private fun richiesta(percorso: String, corpo: RequestBody?): Request {
+    private fun richiesta(percorso: String, corpo: RequestBody?, etag: String? = null): Request {
         val b = Request.Builder().url(url(percorso))
         if (corpo != null) b.post(corpo) else b.get()
         chiave?.takeIf { it.isNotBlank() }?.let { b.header("x-sierradeck-chiave", it) }
+        etag?.let { b.header("If-None-Match", it) }
         return b.build()
     }
 
@@ -99,9 +100,25 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
                 // stava ancora installando (prova dell'08/10).
                 if (lenta) c.newBuilder().readTimeout(LENTE_SECONDI, TimeUnit.SECONDS).build() else c
             }
-            cliente.newCall(richiesta(percorso, corpo)).execute().use { r ->
+            // Con l'ETag (PC 0.86.0, `EtagTenuti`): uguale a prima, 304 e il testo tenuto.
+            val chiaveEtag = if (percorso in EtagTenuti.ROTTE) EtagTenuti.chiave(indirizzo, percorso, corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }) else null
+            val etag = chiaveEtag?.let { EtagTenuti.etag(it) }
+            cliente.newCall(richiesta(percorso, corpo, etag)).execute().use { r ->
+                if (r.code == 304 && chiaveEtag != null) {
+                    EtagTenuti.testo(chiaveEtag)?.let { return@withContext it }
+                }
                 val testo = r.body?.string() ?: ""
+                if (r.code == 304) {
+                    // Il testo tenuto non c'è più (uscito dalle voci): si richiede senza ETag.
+                    return@withContext cliente.newCall(richiesta(percorso, corpo)).execute().use { r2 ->
+                        val t2 = r2.body?.string() ?: ""
+                        if (!r2.isSuccessful) throw Errore(r2.code, t2)
+                        chiaveEtag?.let { EtagTenuti.tieni(it, r2.header("ETag"), t2) }
+                        t2
+                    }
+                }
                 if (!r.isSuccessful) throw Errore(r.code, testo)
+                chiaveEtag?.let { EtagTenuti.tieni(it, r.header("ETag"), testo) }
                 testo
             }
         }
@@ -415,8 +432,16 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/sottofondo/stato", oggetto { put("sessione", sessione) }))
 
     // ─── autopiloti: dettaglio, crea, elimina, riavvio ───
-    suspend fun autopilota(id: String): AutopilotaDettaglio =
-        json.decodeFromString(corpoTesto("/api/autopilota", oggetto { put("autopilota", id) }))
+    /**
+     * La scheda di un autopilota. Leggera (PC 0.86.0): di decisioni, dialogo e
+     * modifiche la coda, della conversazione le ultime battute (`chatIntera`
+     * dice quante erano). `intera` solo quando la chiedi tu, con «Mostra tutta
+     * la conversazione». Un PC più vecchio ignora il segno e la manda intera.
+     */
+    suspend fun autopilota(id: String, intera: Boolean = false): AutopilotaDettaglio {
+        val testo = corpoTesto("/api/autopilota", oggetto { put("autopilota", id); if (!intera) put("leggero", true) })
+        return withContext(Dispatchers.Default) { json.decodeFromString<AutopilotaDettaglio>(testo) }
+    }
 
     /** La Panoramica del workspace (PC 0.77.0): il riassunto dell'autopilota e una scheda per chat, già in ordine. */
     suspend fun panoramica(workspace: String): Panoramica =

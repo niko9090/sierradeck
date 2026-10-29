@@ -31,12 +31,12 @@ export const PORTA_CLIENT = 47640
 
 export type Esito = { stato: number; corpo: unknown; tipo?: string }
 export type Rotta = (
-  /** `cerca`: i parametri dell'indirizzo (0.86.1), per esempio `?leggero=1`. */
+  /** `cerca`: i parametri dell'indirizzo (0.86.0), per esempio `?leggero=1`. */
   richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams }
 ) => Promise<Esito> | Esito
 
 /**
- * Le rotte che la pagina e l'app rileggono di continuo (0.86.1): rispondono
+ * Le rotte che la pagina e l'app rileggono di continuo (0.86.0): rispondono
  * con un ETag (l'impronta del JSON), e a chi rimanda la stessa impronta in
  * `If-None-Match` danno 304 senza corpo. Il PC il JSON lo compone lo stesso,
  * ma non lo comprime né lo spedisce, e il telefono non lo riceve né lo
@@ -216,7 +216,7 @@ function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conE
     'X-Content-Type-Options': 'nosniff'
   }
   const gzip = /\bgzip\b/.test(String(req?.headers['accept-encoding'] ?? '')) && corpo.length >= COMPRIMI_DA_BYTE
-  // L'ETag delle rotte che si rileggono (0.86.1, `ROTTE_CON_ETAG`).
+  // L'ETag delle rotte che si rileggono (0.86.0, `ROTTE_CON_ETAG`).
   if (conEtag && esito.stato === 200 && tipo.startsWith('application/json')) {
     const etag = etagDi(corpo)
     intestazioni.ETag = etag

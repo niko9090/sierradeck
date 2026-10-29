@@ -105,7 +105,7 @@ export function firmaStoria(a: Autopilota): string {
 
 /**
  * Quante battute della conversazione composta (`conversazione`) manda la
- * scheda **leggera** del telefono (0.86.1): la pagina e l'app la rileggono
+ * scheda **leggera** del telefono (0.86.0): la pagina e l'app la rileggono
  * ogni due secondi mentre è aperta, e un autopilota al lavoro da settimane ne
  * ha migliaia. Chi vuole risalire chiede la scheda intera, con un tocco.
  */

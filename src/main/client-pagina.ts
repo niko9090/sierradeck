@@ -1598,7 +1598,7 @@ function motivoNonCollegoJs(chiaveRifiutata, host) {
 }
 
 /**
- * Le risposte tenute con il loro ETag (0.86.1), per le POST che si rileggono
+ * Le risposte tenute con il loro ETag (0.86.0), per le POST che si rileggono
  * ogni due secondi (la scheda dell'autopilota): il browser non le tiene da sé.
  * Con 304 il PC non manda niente e qui si ridà quella di prima. Poche voci:
  * una scheda per volta è aperta.
@@ -3145,11 +3145,11 @@ window.chiudiAp = () => { apRiassunto = false; apIntera = null; apPc = null; apP
 async function leggiAp() {
   if (!dentroAp) return
   try {
-    // Leggera (0.86.1): la coda della storia, con l'ETag; la conversazione
+    // Leggera (0.86.0): la coda della storia, con l'ETag; la conversazione
     // intera solo dopo «Mostra tutta la conversazione» (\`apIntera\`).
     apDettaglio = await chiediAp('/api/autopilota', apIntera === dentroAp ? { autopilota: dentroAp } : { autopilota: dentroAp, leggero: true }, true)
     // La Panoramica del suo workspace (0.77.0); un PC più vecchio non la ha: niente.
-    // Ogni dieci secondi (0.86.1), non a ogni giro: chi lavora non cambia ogni due.
+    // Ogni dieci secondi (0.86.0), non a ogni giro: chi lavora non cambia ogni due.
     if (apDettaglio && apDettaglio.workspace) {
       if (panoramicaAp === null || panoramicaApDi !== dentroAp || Date.now() - panoramicaApIl > 10000) {
         try { panoramicaAp = await chiediAp('/api/panoramica', { workspace: apDettaglio.workspace }, true) } catch (e) { panoramicaAp = null }
@@ -3204,10 +3204,10 @@ function primaRigaUscita(uscita) {
  * Un PC della 0.77.0 non manda situazione e piano: allora la lista di prima.
  */
 var panoramicaAp = null
-/** Quando e di chi si è letta la Panoramica l'ultima volta (0.86.1). */
+/** Quando e di chi si è letta la Panoramica l'ultima volta (0.86.0). */
 var panoramicaApIl = 0
 var panoramicaApDi = null
-/** L'autopilota di cui si è chiesta la conversazione intera (0.86.1); gli altri arrivano leggeri. */
+/** L'autopilota di cui si è chiesta la conversazione intera (0.86.0); gli altri arrivano leggeri. */
 var apIntera = null
 window.apTuttaLaConversazione = async () => { apIntera = dentroAp; await leggiAp(); pannello(ultimoStato) }
 var panAperte = { criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }
@@ -3344,7 +3344,7 @@ function vistaAutopilota(a) {
   const eventi = conPan ? (a.chat || []).filter((b) => !inConversazione(b)).reverse() : []
   const eventiHtml = eventi.length ? rigaApri('eventi', 'Cosa è successo · ' + eventi.length) + (panAperte.eventi ? '<div class="pan-tel-eventi">' + eventi.slice(0, 50).map((b) => '<div class="nota-ap"><span class="quando">' + ora(b.quando) + '</span><span>' + esc(b.testo) + (b.volte ? ' ×' + b.volte : '') + '</span></div>').join('') + '</div>' : '') : ''
   // Senza la Panoramica 2 il diario è intero: le righe corte dei traguardi sarebbero un doppione.
-  // Leggera (0.86.1): le ultime battute; le altre con un tocco.
+  // Leggera (0.86.0): le ultime battute; le altre con un tocco.
   const prima = a.chatIntera && a.chatIntera > (a.chat || []).length
     ? '<div class="riga"><button data-n="' + (a.chatIntera - (a.chat || []).length) + '" onclick="apTuttaLaConversazione()">Mostra tutta la conversazione (' + (a.chatIntera - (a.chat || []).length) + ' righe prima)</button></div>'
     : ''
@@ -6726,7 +6726,7 @@ aggiorna()
 // Il ritmo lo decide il collegamento (0.51.0): ogni due secondi da collegati,
 // con le attese crescenti da caduti; la fascia conta i secondi.
 // Dietro (scheda nascosta, schermo spento) la pagina non chiede niente
-// (0.86.1); al ritorno davanti si rilegge subito, senza aspettare il giro.
+// (0.86.0); al ritorno davanti si rilegge subito, senza aspettare il giro.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !chiave || inVolo) return
   aggiorna()

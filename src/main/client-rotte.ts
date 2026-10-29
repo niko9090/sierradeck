@@ -682,7 +682,7 @@ const TESTO_MAX = 50_000
 /** L'obiettivo di un autopilota dal telefono: un documento intero va bene. */
 const OBIETTIVO_MAX = 200_000
 
-/** `leggero: true` (o 1) nel corpo (0.86.1): passa anche dal ponte, che dell'indirizzo tiene solo il percorso. */
+/** `leggero: true` (o 1) nel corpo (0.86.0): passa anche dal ponte, che dell'indirizzo tiene solo il percorso. */
 function leggeroNelCorpo(corpo: unknown): boolean {
   const v = (corpo as { leggero?: unknown } | undefined)?.leggero
   return v === true || v === 1 || v === '1'
@@ -955,7 +955,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     percorso: string
     corpo: unknown
     dispositivo?: string
-    /** I parametri dell'indirizzo (0.86.1): `?leggero=1`. */
+    /** I parametri dell'indirizzo (0.86.0): `?leggero=1`. */
     cerca?: URLSearchParams
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
@@ -1572,7 +1572,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // dalla stessa casella con cui gli parlano.
       const tutteLeDomande = await deps.domande().catch(() => [])
       const mia = tutteLeDomande.find((d) => d.autopilotaId === id)
-      // Leggera (0.86.1), se la chiede chi la rilegge ogni due secondi: di
+      // Leggera (0.86.0), se la chiede chi la rilegge ogni due secondi: di
       // decisioni, dialogo e modifiche solo la coda (`autopilotaLeggero`, con
       // `troncati`), e della conversazione le ultime battute (`chatIntera` dice
       // quante erano). Tutto il resto si calcola dall'autopilota intero, come

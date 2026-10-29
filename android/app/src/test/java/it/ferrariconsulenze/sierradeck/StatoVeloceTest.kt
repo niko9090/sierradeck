@@ -114,10 +114,10 @@ class StatoVeloceTest {
         assertTrue(sorgente("Lavori.kt").contains("Davanti.pausa(60_000)"))
     }
 
-    @Test fun `b - stato fermo da cinque giri, il prossimo fra 3 s, se cambia di nuovo ogni 2 s`() {
+    @Test fun `b - stato fermo da tre giri, il prossimo fra 5 s, se cambia di nuovo ogni 2 s`() {
         assertEquals(2000L, PolsoApp.davantiOgni(0))
-        assertEquals(2000L, PolsoApp.davantiOgni(4))
-        assertEquals(3000L, PolsoApp.davantiOgni(5))
+        assertEquals(2000L, PolsoApp.davantiOgni(2))
+        assertEquals(5000L, PolsoApp.davantiOgni(3))
         assertTrue("sotto la soglia della linea lenta", PolsoApp.CALMO_OGNI_MS < Linea.LENTA_DOPO_MS)
         val app = sorgente("App.kt")
         assertTrue(app.contains("uguali = if (cambiato) 0 else uguali + 1"))
