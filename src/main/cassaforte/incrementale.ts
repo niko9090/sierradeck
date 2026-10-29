@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { cifra, decifra } from './cifratura'
-import { cancellaVoci, firmaRadici, percorsoSicuro, ripristina, type Radice } from './raccolta'
+import { cancellaVoci, firmaRadici, leggiPerCaricare, percorsoSicuro, ripristina, type FirmaFile, type Radice } from './raccolta'
 import type { Voce } from './pacchetto'
 import type { Archivio } from './archivio'
 import type { Progresso } from './motore'
@@ -184,6 +184,44 @@ export function nomeCopiaConflitto(percorso: string, chi: string, quando: string
 
 const PROGETTI = (prefisso: string): boolean => prefisso.startsWith('progetto-')
 
+/** Quanto deve tacere una chat prima di salire, nel salvataggio automatico. */
+export const QUIETE_CHAT_MS = 10 * 60_000
+/**
+ * Oltre questo ritardo una chat sempre viva sale lo stesso: una sessione che
+ * lavora per ore non deve restare tutto quel tempo senza copia sul Drive.
+ */
+export const RITARDO_MASSIMO_CHAT_MS = 60 * 60_000
+/** Quanti byte (dei file su disco) al massimo per un giro automatico. */
+export const BUDGET_GIRO_BYTE = 256 * 1024 * 1024
+
+/**
+ * Le chat **vive** non salgono a ogni giro (salvataggio automatico).
+ *
+ * Una trascrizione aperta cambia a ogni messaggio, e il formato del Drive e'
+ * un blob intero per file: ogni cinque minuti si rileggevano, comprimevano e
+ * cifravano di nuovo 100-237 MB per chat attiva, per mandarne qualche
+ * kilobyte nuovo. Caricare solo la coda richiederebbe un formato nuovo che i
+ * PC con una versione vecchia non saprebbero leggere (un ripristino da li'
+ * troverebbe una chat a meta'). Quindi si aspetta: una chat scritta negli
+ * ultimi `quieteMs` si rimanda, e sale al primo giro in cui tace. Se pero' la
+ * copia sul Drive e' indietro di piu' di `ritardoMassimoMs` (o la chat e' nata
+ * da piu' di tanto e non e' mai salita) sale lo stesso.
+ */
+export function chatViva(
+  percorso: string,
+  f: FirmaFile,
+  sapevo: VoceManifesto | undefined,
+  regola: { quieteMs: number; ritardoMassimoMs?: number; ora: number }
+): boolean {
+  if (prefissoDi(percorso) !== 'chat') return false
+  if (regola.ora - f.mtime >= regola.quieteMs) return false
+  const max = regola.ritardoMassimoMs
+  if (max === undefined) return true
+  const da = sapevo !== undefined ? sapevo.mtime : f.nato
+  if (da === undefined) return true
+  return f.mtime - da < max
+}
+
 function discoDi(radici: Map<string, Radice>, percorso: string): string | undefined {
   const r = radici.get(prefissoDi(percorso))
   if (r === undefined) return undefined
@@ -276,7 +314,25 @@ export async function salvaIncrementale(deps: {
   proprietario?: string
   /** Quali percorsi caricare compressi (0.69.0): le chat, quando tutti i PC sanno leggerle. */
   comprimi?: (percorso: string) => boolean
-}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean }> {
+  /**
+   * Per quali percorsi il `sostituto` puo' dare qualcosa. Gli altri non lo
+   * interpellano e si leggono **a flusso** (`leggiPerCaricare`) invece che
+   * interi in memoria. Assente = tutti (il comportamento di prima).
+   */
+  sostituisce?: (percorso: string) => boolean
+  /**
+   * Il salvataggio automatico rimanda le chat vive (vedi `chatViva`). Assente
+   * = sale tutto, come con «Salva ora» e con il salvataggio alla chiusura.
+   */
+  rimandaVive?: { quieteMs: number; ritardoMassimoMs?: number; ora?: number }
+  /**
+   * Quanti byte (dimensione su disco) si caricano al massimo in questo giro:
+   * il resto aspetta il prossimo, cosi' un giro solo non macina gigabyte. Il
+   * primo file passa sempre, anche se da solo supera il tetto: o un file piu'
+   * grande del tetto non salirebbe mai.
+   */
+  budgetByte?: number
+}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean; rimandati: number }> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
@@ -313,9 +369,37 @@ export async function salvaIncrementale(deps: {
       cambiati.push(p)
     }
   }
+  // Le chat vive aspettano, e oltre il tetto di byte si aspetta il giro dopo.
+  // Una voce rimandata resta quella del Drive: al prossimo giro la firma e'
+  // ancora diversa, e il file si ripresenta da solo.
+  let rimandati = 0
+  if (deps.rimandaVive !== undefined) {
+    const regola = { ...deps.rimandaVive, ora: deps.rimandaVive.ora ?? Date.now() }
+    for (let i = cambiati.length - 1; i >= 0; i -= 1) {
+      const p = cambiati[i] as string
+      const f = firma.get(p)
+      if (f !== undefined && chatViva(p, f, prec.file[p] ?? base.file[p], regola)) { cambiati.splice(i, 1); rimandati += 1 }
+    }
+  }
+  if (deps.budgetByte !== undefined) {
+    // Prima l'assetto e i progetti (piccoli, e attesi dall'altro PC), poi le
+    // chat dalla piu' vecchia: chi aspetta da piu' tempo passa per primo, e
+    // una chat grande e ferma non resta in fondo per sempre.
+    const ordine = (p: string): number => (prefissoDi(p) === 'chat' ? 1 : 0)
+    cambiati.sort((a, b) => ordine(a) - ordine(b) || (firma.get(a)?.mtime ?? 0) - (firma.get(b)?.mtime ?? 0))
+    let speso = 0
+    const dentro: string[] = []
+    for (const p of cambiati) {
+      const peso = firma.get(p)?.size ?? 0
+      if (dentro.length > 0 && speso + peso > deps.budgetByte) { rimandati += 1; continue }
+      speso += peso
+      dentro.push(p)
+    }
+    cambiati.splice(0, cambiati.length, ...dentro)
+  }
   // Niente da fare? Non si tocca niente: salvataggio a costo zero.
   if (cambiati.length === 0 && forseCancellati.length === 0) {
-    return { manifesto: prec, caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [] }
+    return { manifesto: prec, caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [], rimandati }
   }
   // Con tanti file, un elenco solo insegna all'archivio dove sta ogni nome:
   // una chiamata in meno per ogni caricamento.
@@ -337,17 +421,21 @@ export async function salvaIncrementale(deps: {
     })
   }
   let caricatiDavvero = 0
-  const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
+  /** Carica un corpo gia' pronto (compresso o no) con l'impronta del chiaro. */
+  const caricaCorpo = async (percorso: string, corpo: Buffer, sha: string, f: { size: number; mtime: number }): Promise<void> => {
     const nome = nomeDi(percorso)
-    // Le chat compresse prima di cifrare (0.69.0), solo se tutti i PC sanno leggerle.
-    const z = deps.comprimi?.(percorso) === true
-    await deps.archivio.carica(nome, await cifra(deps.maestra, z ? impacchetta(contenuto) : contenuto))
+    await deps.archivio.carica(nome, await cifra(deps.maestra, corpo))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
     nuovo.file[percorso] = {
-      nome, size: f.size, mtime: f.mtime, sha: impronta(contenuto),
+      nome, size: f.size, mtime: f.mtime, sha,
       ...(deps.proprietario !== undefined && prefissoDi(percorso) === 'chat' ? { pc: deps.proprietario } : {})
     }
     caricatiDavvero += 1
+  }
+  const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
+    // Le chat compresse prima di cifrare (0.69.0), solo se tutti i PC sanno leggerle.
+    const z = deps.comprimi?.(percorso) === true
+    await caricaCorpo(percorso, z ? impacchetta(contenuto) : contenuto, impronta(contenuto), f)
   }
   const scaricaChiaro = async (voce: VoceManifesto): Promise<Buffer | undefined> => {
     const blob = await deps.archivio.scarica(voce.nome)
@@ -358,9 +446,26 @@ export async function salvaIncrementale(deps: {
     if (deps.segnale?.aborted === true) { avanza(percorso); return }
     const f = firma.get(percorso)
     if (f === undefined) { avanza(percorso); return }
+    const voceDrive = base.file[percorso]
+    // **A flusso** dove il contenuto serve solo a salire: niente sostituto per
+    // questo percorso e niente copia di conflitto (le chat, l'assetto). E' la
+    // strada delle trascrizioni grandi, che non passano piu' intere in memoria.
+    const serveIntero = copie(prefissoDi(percorso)) ||
+      (deps.sostituto !== undefined && (deps.sostituisce?.(percorso) ?? true))
+    if (!serveIntero) {
+      const altri = voceDrive !== undefined && !stessaFirma(voceDrive, prec.file[percorso])
+      // Conflitto senza copia: vince il piu' recente, e se e' il Drive qui
+      // non si legge nemmeno.
+      if (altri && f.mtime < voceDrive.mtime) { conflitti.push({ percorso, vinto: 'drive' }); avanza(percorso); return }
+      const pronto = await leggiPerCaricare(f.disco, f.size, deps.comprimi?.(percorso) === true)
+      if (pronto === undefined) { avanza(percorso); return }
+      await caricaCorpo(percorso, pronto.corpo, pronto.sha, f)
+      if (altri) conflitti.push({ percorso, vinto: 'mio' })
+      avanza(percorso)
+      return
+    }
     const contenuto = await readFile(f.disco).catch(() => undefined)
     if (contenuto === undefined) { avanza(percorso); return }
-    const voceDrive = base.file[percorso]
     // **Un sostituto che fallisce e' un rimando, non «nessuna sostituzione».**
     // L'unione dei workspace legge il Drive: un 5xx dopo i ritenti, o un
     // timeout, tornavano `undefined` e si caricava il file locale tale e
@@ -474,7 +579,8 @@ export async function salvaIncrementale(deps: {
     cancellati: annullato ? 0 : cancellati.length,
     cancellatiPercorsi: annullato ? [] : cancellati,
     conflitti,
-    ...(annullato ? { annullato: true } : {})
+    ...(annullato ? { annullato: true } : {}),
+    rimandati
   }
 }
 

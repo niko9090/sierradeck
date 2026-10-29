@@ -11,7 +11,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
  * mai scritto così com'è dentro una chat. Comprimere si accende solo quando
  * tutti i PC visti sanno leggere (vedi `compressioneAccesa`).
  */
-const SEGNO = Buffer.from('SDZ1\0', 'latin1')
+export const SEGNO = Buffer.from('SDZ1\0', 'latin1')
 
 export function impacchetta(contenuto: Buffer): Buffer {
   return Buffer.concat([SEGNO, gzipSync(contenuto, { level: 6 })])
