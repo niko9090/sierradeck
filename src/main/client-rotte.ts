@@ -20,6 +20,7 @@ import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
+import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
 import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -681,6 +682,12 @@ const TESTO_MAX = 50_000
 /** L'obiettivo di un autopilota dal telefono: un documento intero va bene. */
 const OBIETTIVO_MAX = 200_000
 
+/** `leggero: true` (o 1) nel corpo (0.86.1): passa anche dal ponte, che dell'indirizzo tiene solo il percorso. */
+function leggeroNelCorpo(corpo: unknown): boolean {
+  const v = (corpo as { leggero?: unknown } | undefined)?.leggero
+  return v === true || v === 1 || v === '1'
+}
+
 function stringa(corpo: unknown, campo: string): string {
   if (typeof corpo !== 'object' || corpo === null) return ''
   const v = (corpo as Record<string, unknown>)[campo]
@@ -948,6 +955,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     percorso: string
     corpo: unknown
     dispositivo?: string
+    /** I parametri dell'indirizzo (0.86.1): `?leggero=1`. */
+    cerca?: URLSearchParams
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
     if (r.metodo === 'POST') conversazioniLette.clear()
@@ -1563,15 +1572,24 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // dalla stessa casella con cui gli parlano.
       const tutteLeDomande = await deps.domande().catch(() => [])
       const mia = tutteLeDomande.find((d) => d.autopilotaId === id)
+      // Leggera (0.86.1), se la chiede chi la rilegge ogni due secondi: di
+      // decisioni, dialogo e modifiche solo la coda (`autopilotaLeggero`, con
+      // `troncati`), e della conversazione le ultime battute (`chatIntera` dice
+      // quante erano). Tutto il resto si calcola dall'autopilota intero, come
+      // prima. Senza il segno (un'app o una pagina vecchie) la scheda intera.
+      const leggera = r.cerca?.get('leggero') === '1' || leggeroNelCorpo(r.corpo)
+      const tutta = conversazione(a)
+      const coda = leggera ? codaConversazione(tutta) : { chat: tutta }
       return OK({
-        ...a,
+        ...(leggera ? autopilotaLeggero(a) : a),
         // Calcolati qui e non nella pagina: sono le stesse funzioni che
         // disegnano il pannello al computer, e due copie divergerebbero.
         passaggi: passaggi(a),
         misura: misuraPasso(a),
         // La chat con lui (0.29.0): la stessa che sta in cima alla sezione sul
         // PC, composta una volta sola per tutti e tre.
-        chat: conversazione(a),
+        chat: coda.chat,
+        ...(coda.chatIntera !== undefined ? { chatIntera: coda.chatIntera } : {}),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
         // 0.75.4: ha promesso lavoro ed è fermo: «L'autopilota è fermo: Riprendi».

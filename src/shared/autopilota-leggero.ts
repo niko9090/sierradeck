@@ -102,3 +102,17 @@ export function firmaStoria(a: Autopilota): string {
     ultima(a.decisioni), ultima(a.dialogo), ultima(a.modifiche)
   ].join('|')
 }
+
+/**
+ * Quante battute della conversazione composta (`conversazione`) manda la
+ * scheda **leggera** del telefono (0.86.1): la pagina e l'app la rileggono
+ * ogni due secondi mentre è aperta, e un autopilota al lavoro da settimane ne
+ * ha migliaia. Chi vuole risalire chiede la scheda intera, con un tocco.
+ */
+export const CODA_CHAT_LEGGERA = 80
+
+/** La coda della conversazione e, se è stata tagliata, quante battute aveva in tutto. */
+export function codaConversazione<T>(chat: T[]): { chat: T[]; chatIntera?: number } {
+  if (chat.length <= CODA_CHAT_LEGGERA) return { chat }
+  return { chat: chat.slice(-CODA_CHAT_LEGGERA), chatIntera: chat.length }
+}

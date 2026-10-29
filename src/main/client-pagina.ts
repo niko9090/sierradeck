@@ -1021,8 +1021,8 @@ var apPc = null
 var apPcNome = ''
 var altriAp = null
 var altriApLetto = 0
-async function chiediAp(percorso, corpo) {
-  if (!apPc) return chiedi(percorso, corpo)
+async function chiediAp(percorso, corpo, conEtag) {
+  if (!apPc) return chiedi(percorso, corpo, conEtag)
   return chiedi('/api/ponte', { pc: apPc, percorso: percorso, corpo: corpo })
 }
 /**
@@ -1597,13 +1597,28 @@ function motivoNonCollegoJs(chiaveRifiutata, host) {
   }
 }
 
-async function chiedi(percorso, corpo) {
+/**
+ * Le risposte tenute con il loro ETag (0.86.1), per le POST che si rileggono
+ * ogni due secondi (la scheda dell'autopilota): il browser non le tiene da sé.
+ * Con 304 il PC non manda niente e qui si ridà quella di prima. Poche voci:
+ * una scheda per volta è aperta.
+ */
+var tenuteEtag = new Map()
+async function chiedi(percorso, corpo, conEtag) {
   const t0 = Date.now()
+  const chiaveEtag = conEtag ? percorso + ' ' + JSON.stringify(corpo || null) : ''
+  const tenuta = conEtag ? tenuteEtag.get(chiaveEtag) : undefined
+  const intest = chiave ? { 'x-sierradeck-chiave': chiave, 'content-type': 'application/json' } : { 'content-type': 'application/json' }
+  if (tenuta) intest['if-none-match'] = tenuta.etag
   const r = await fetch(percorso, {
     method: corpo ? 'POST' : 'GET',
-    headers: chiave ? { 'x-sierradeck-chiave': chiave, 'content-type': 'application/json' } : { 'content-type': 'application/json' },
+    headers: intest,
     body: corpo ? JSON.stringify(corpo) : undefined
   })
+  if (r.status === 304 && tenuta) {
+    if (typeof linea !== 'undefined' && linea.fase !== 'cerco') linea = passoLinea(linea, { tipo: 'ok', il: Date.now(), ritardoMs: Date.now() - t0 })
+    return tenuta.dati
+  }
   // La chiave rifiutata (0.75.1): 401, o 403 sullo stato. Il filo rosso lo dice.
   if (r.status === 401 || (r.status === 403 && percorso === '/api/stato')) chiaveRifiutataIl = Date.now()
   else if (r.ok && percorso === '/api/stato') chiaveRifiutataIl = 0
@@ -1631,7 +1646,15 @@ async function chiedi(percorso, corpo) {
     err.corpo = corpoErr
     throw err
   }
-  return r.json()
+  if (!conEtag) return r.json()
+  const dati = await r.json()
+  const etag = r.headers.get('etag')
+  if (etag) {
+    tenuteEtag.delete(chiaveEtag)
+    tenuteEtag.set(chiaveEtag, { etag: etag, dati: dati })
+    while (tenuteEtag.size > 6) tenuteEtag.delete(tenuteEtag.keys().next().value)
+  }
+  return dati
 }
 
 // Un tasto che fallisce lo dice in cima alla pagina, invece di tacere.
@@ -1901,7 +1924,7 @@ function impronta(s) {
     JSON.stringify(panAperte),
     // La gestione delle chat (0.79.0): linguette, scelte, conferme, svuota.
     gcImpronta(),
-    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.punto || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.punto || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + JSON.stringify(apDettaglio.troncati || '') + '/' + (apDettaglio.chatIntera || 0) + '/' + JSON.stringify((apDettaglio.chat || []).slice(-1)) + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
@@ -3117,15 +3140,21 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apRiassunto = false; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
   try {
-    apDettaglio = await chiediAp('/api/autopilota', { autopilota: dentroAp })
+    // Leggera (0.86.1): la coda della storia, con l'ETag; la conversazione
+    // intera solo dopo «Mostra tutta la conversazione» (\`apIntera\`).
+    apDettaglio = await chiediAp('/api/autopilota', apIntera === dentroAp ? { autopilota: dentroAp } : { autopilota: dentroAp, leggero: true }, true)
     // La Panoramica del suo workspace (0.77.0); un PC più vecchio non la ha: niente.
+    // Ogni dieci secondi (0.86.1), non a ogni giro: chi lavora non cambia ogni due.
     if (apDettaglio && apDettaglio.workspace) {
-      try { panoramicaAp = await chiediAp('/api/panoramica', { workspace: apDettaglio.workspace }) } catch (e) { panoramicaAp = null }
+      if (panoramicaAp === null || panoramicaApDi !== dentroAp || Date.now() - panoramicaApIl > 10000) {
+        try { panoramicaAp = await chiediAp('/api/panoramica', { workspace: apDettaglio.workspace }, true) } catch (e) { panoramicaAp = null }
+        panoramicaApIl = Date.now(); panoramicaApDi = dentroAp
+      }
     } else panoramicaAp = null
     // Le domande della linguetta (0.38.0): una nuova la fa avanti; finite, si
     // torna alla linguetta di prima.
@@ -3175,6 +3204,12 @@ function primaRigaUscita(uscita) {
  * Un PC della 0.77.0 non manda situazione e piano: allora la lista di prima.
  */
 var panoramicaAp = null
+/** Quando e di chi si è letta la Panoramica l'ultima volta (0.86.1). */
+var panoramicaApIl = 0
+var panoramicaApDi = null
+/** L'autopilota di cui si è chiesta la conversazione intera (0.86.1); gli altri arrivano leggeri. */
+var apIntera = null
+window.apTuttaLaConversazione = async () => { apIntera = dentroAp; await leggiAp(); pannello(ultimoStato) }
 var panAperte = { criteri: false, finite: false, 'da-fare': false, 'in-corso': true, 'in-revisione': true, fatto: false, eventi: false }
 window.panApri = (k) => { panAperte[k] = !panAperte[k]; pannello(ultimoStato) }
 const RUOLO_NOME = { sviluppo: 'Sviluppo', interfaccia: 'Interfaccia', collaudo: 'Collaudo', revisione: 'Revisione', rilascio: 'Rilascio' }
@@ -3309,7 +3344,11 @@ function vistaAutopilota(a) {
   const eventi = conPan ? (a.chat || []).filter((b) => !inConversazione(b)).reverse() : []
   const eventiHtml = eventi.length ? rigaApri('eventi', 'Cosa è successo · ' + eventi.length) + (panAperte.eventi ? '<div class="pan-tel-eventi">' + eventi.slice(0, 50).map((b) => '<div class="nota-ap"><span class="quando">' + ora(b.quando) + '</span><span>' + esc(b.testo) + (b.volte ? ' ×' + b.volte : '') + '</span></div>').join('') + '</div>' : '') : ''
   // Senza la Panoramica 2 il diario è intero: le righe corte dei traguardi sarebbero un doppione.
-  const chat = eventiHtml + (a.chat || []).filter((b) => conPan ? inConversazione(b) : b.tono !== 'traguardo').map((b) => {
+  // Leggera (0.86.1): le ultime battute; le altre con un tocco.
+  const prima = a.chatIntera && a.chatIntera > (a.chat || []).length
+    ? '<div class="riga"><button data-n="' + (a.chatIntera - (a.chat || []).length) + '" onclick="apTuttaLaConversazione()">Mostra tutta la conversazione (' + (a.chatIntera - (a.chat || []).length) + ' righe prima)</button></div>'
+    : ''
+  const chat = eventiHtml + prima + (a.chat || []).filter((b) => conPan ? inConversazione(b) : b.tono !== 'traguardo').map((b) => {
     if (b.da === 'nota') {
       return '<div class="nota-ap' + (b.tono ? ' nota-ap--' + esc(b.tono) : '') + '">' +
         '<span class="quando">' + ora(b.quando) + '</span>' +
@@ -4201,6 +4240,7 @@ async function sfInvia(s) {
   if (sfGiro) clearInterval(sfGiro)
   const inizio = Date.now()
   sfGiro = setInterval(async () => {
+    if (document.hidden) return
     if (!sfStato || sfStato.fase === 'errore' || sfStato.fase === 'fatto') { clearInterval(sfGiro); sfGiro = null; return }
     try {
       const r = await chiedi('/api/ponte', { pc: s.altrovePc, percorso: '/api/sottofondo/stato', corpo: { sessione: s.id } })
@@ -5386,7 +5426,7 @@ window.pdMostraSenzaNome = () => { pdSenzaNome = !pdSenzaNome; pannello(ultimoSt
 var pdGiro = null
 function pdSegui() {
   const lavora = pdDati && (pdDati.residenza || []).some((s) => s.fase === 'analisi' || s.fase === 'unisco')
-  if (lavora && !pdGiro) pdGiro = setInterval(async () => { await leggiPannelloDrive(); pannello(ultimoStato); pdSegui() }, 2500)
+  if (lavora && !pdGiro) pdGiro = setInterval(async () => { if (document.hidden) return; await leggiPannelloDrive(); pannello(ultimoStato); pdSegui() }, 2500)
   if (!lavora && pdGiro) { clearInterval(pdGiro); pdGiro = null }
 }
 window.leggiPannelloDrive = async () => {
@@ -6685,6 +6725,12 @@ aggiorna()
 // la radio del telefono per niente.
 // Il ritmo lo decide il collegamento (0.51.0): ogni due secondi da collegati,
 // con le attese crescenti da caduti; la fascia conta i secondi.
+// Dietro (scheda nascosta, schermo spento) la pagina non chiede niente
+// (0.86.1); al ritorno davanti si rilegge subito, senza aspettare il giro.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !chiave || inVolo) return
+  aggiorna()
+})
 setInterval(() => {
   if (!chiave || document.hidden) return
   if (!inVolo && eOraLinea(linea, ultimaChiesta, Date.now())) { aggiorna(); return }
