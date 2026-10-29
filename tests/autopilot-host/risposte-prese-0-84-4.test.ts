@@ -10,6 +10,12 @@ import { conversazione } from '@shared/chat-autopilota'
 import { nuovoAutopilota, parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota } from '@shared/autopilota'
 import { leggiRigaRisposta } from '@shared/risposte-in-viaggio'
 import type { Istruzione } from '@shared/istruzioni-autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Le risposte di Nicholas prese davvero (0.84.4).
@@ -75,7 +81,7 @@ async function avvia(a: Autopilota, anche106 = false): Promise<{ d95: string; d1
   for (const livello of ['info', 'log', 'warn'] as const) {
     vi.spyOn(console, livello).mockImplementation((...x: unknown[]) => { registro.push(x.map(String).join(' ')) })
   }
-  const domande = creaRegistroDomande({ adesso: () => Date.now() })
+  const domande = creaRegistroDomande({ adesso: orologio.ms })
   registroDomande = domande
   const ids = domandeAperte(domande, anche106)
   const s = creaServer({
@@ -91,7 +97,7 @@ async function avvia(a: Autopilota, anche106 = false): Promise<{ d95: string; d1
       scritti.push({ ...(chat !== undefined ? { chat: chat.id } : {}), ...(messaggio !== undefined ? { messaggio } : {}), ...(perche !== undefined ? { perche } : {}) })
       numero += 1
       // La linguetta «Istruzioni»: di quale chat è ogni consegna (serve a «non nata», 0.84.4).
-      if (chat !== undefined) istruzioni.push({ id: `i-${numero}`, consegna: `c-${numero}`, autopilotaId: 'ap-android', quando: new Date().toISOString(), chatId: chat.id, chatTitolo: 'Sviluppo', testo: messaggio ?? '', esito: 'in-coda' } as Istruzione)
+      if (chat !== undefined) istruzioni.push({ id: `i-${numero}`, consegna: `c-${numero}`, autopilotaId: 'ap-android', quando: orologio.iso(), chatId: chat.id, chatTitolo: 'Sviluppo', testo: messaggio ?? '', esito: 'in-coda' } as Istruzione)
       return Promise.resolve(`c-${numero}`)
     },
     istruzioni: { esito: () => undefined, elenca: (id) => istruzioni.filter((i) => i.autopilotaId === id) },
@@ -101,7 +107,7 @@ async function avvia(a: Autopilota, anche106 = false): Promise<{ d95: string; d1
     domande,
     scadenzaDomandaMs: 60_000,
     scadenzaInterviataMs: 60_000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -117,9 +123,6 @@ const rispondi = (id: string, risposta: string): Promise<Response> => fetch(url(
 const esito = (id: string, e: 'partita' | 'non-partita' | 'non-consegnata', nonNata = false): Promise<Response> => fetch(url('/consegne/esito'), {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, esito: e, ...(nonNata ? { nonNata: true, perche: 'in 90 secondi il terminale della chat non è nato' } : {}) })
 })
-async function attendi(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 200 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 const ap = (): Autopilota => archivio.leggi('ap-android')!
 const righe = (): string[] => ap().decisioni.map((d) => d.cosa)
 const esitoInConversazione = (): string | undefined =>

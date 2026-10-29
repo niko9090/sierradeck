@@ -6,6 +6,11 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Quando la chat fa una domanda.
@@ -37,12 +42,12 @@ function banco(): ServerAutopiloti {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     // Quello che la chat aveva appena detto: è lì che sta la domanda vera.
     ultimoDetto: () => 'Per installare uso npm o pnpm?',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
 }
 

@@ -13,10 +13,12 @@ import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
 import { statoCopia, type Git } from '../../src/autopilot-host/worktree'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
 
 /**
  * Un git finto per la flotta: un repository sul ramo `main`, dove i worktree
- * nascono e ogni ramo risulta gia' unito. Il git vero e' in `worktree.test.ts`.
+ * nascono e ogni ramo risulta gia' unito. Il git vero e' nei `worktree-*.test.ts`.
  */
 const gitFinto: Git = (args, cwd) => {
   const a = args.join(' ')
@@ -27,6 +29,12 @@ const gitFinto: Git = (args, cwd) => {
   if (a === 'config user.name') return { codice: 0, uscita: 'prova' }
   return { codice: 0, uscita: '' }
 }
+/**
+ * L'orologio delle domande: parte dall'istante del servizio di prova
+ * (`adesso` qui sotto) e avanza col tempo vero, così le scadenze di pochi
+ * millisecondi funzionano e il giorno non dipende da quando gira il test.
+ */
+const orologio = orologioDa('2026-08-09T10:05:00.000Z')
 /** I limiti del piano larghi: il freno lascia aprire tutte le chat utili. */
 const LIMITI_LIBERI = { cinqueOre: { percento: 10 }, settimana: { percento: 10 } }
 let limitiDaSpingere: unknown
@@ -86,7 +94,7 @@ function ambiente(
       avvisi.push({ tipo, id: a.id, domanda })
       return Promise.resolve()
     },
-    domande: opts.domande ?? creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: opts.domande ?? creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: opts.scadenzaDomandaMs ?? 5000,
     scadenzaInterviataMs: opts.scadenzaInterviataMs ?? 5000,
     ...(opts.silenzioMassimoMs !== undefined ? { silenzioMassimoMs: opts.silenzioMassimoMs } : {}),
@@ -122,6 +130,18 @@ function avvia(s: Server): Promise<void> {
       void chiama('POST', '/stato-programma', { letto: Date.now(), limiti: limitiDaSpingere }).then(() => ris())
     })
   })
+}
+
+/** La prima domanda aperta, appena compare nel pannello. */
+async function primaDomanda(): Promise<any> {
+  let prima: any
+  await attendi(async () => { prima = (await chiama('GET', '/domande')).dati[0]; return prima !== undefined }, { cosa: 'una domanda aperta' })
+  return prima
+}
+
+/** Aspetta che il primo autopilota dell'elenco arrivi a `stato`. */
+async function statoDiventa(stato: string): Promise<void> {
+  await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0]?.stato === stato, { cosa: `l'autopilota «${stato}»` })
 }
 
 function eventoStop(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -505,17 +525,14 @@ describe('ferma e riprendi', () => {
       obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
     })
 
-    for (let i = 0; i < 80 && domande === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => domande > 0)
     // La domanda scade e l'autopilota resta in intervista: e' li' che l'utente
     // preme «Riprendi». Dalla 0.71 la domanda scaduta resta aperta nelle Domande
     // (si risponde anche tardi), quindi `/domande` non si svuota piu': il ciclo
     // che lo aspettava girava a vuoto 80 volte e a PC carico superava i 20 s
     // (20/10). Il segno della scadenza e' la riga del servizio.
     try {
-      for (let i = 0; i < 400; i += 1) {
-        if (avvisi.mock.calls.some((c) => String(c[0]).includes('attende una risposta per prepararsi'))) break
-        await new Promise((r) => setTimeout(r, 25))
-      }
+      await attendi(() => avvisi.mock.calls.some((c) => String(c[0]).includes('attende una risposta per prepararsi')), { cosa: 'la domanda scaduta' })
     } finally {
       avvisi.mockRestore()
     }
@@ -547,7 +564,7 @@ describe('ferma e riprendi', () => {
     const { dati } = await chiama('POST', '/autopiloti', {
       obiettivo: 'x', cwd: process.cwd(), criteri: []
     })
-    for (let i = 0; i < 80 && preparazioni === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => preparazioni > 0)
     await chiama('POST', `/autopiloti/${dati.id}/ferma`)
 
     expect((await chiama('POST', `/autopiloti/${dati.id}/riprendi`)).stato).toBe(200)
@@ -575,25 +592,22 @@ describe('ferma e riprendi', () => {
       },
       scadenzaInterviataMs: 60
     })
+    const avvisi = vi.spyOn(console, 'warn')
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
       obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
     })
 
-    let domanda
-    for (let i = 0; i < 80; i += 1) {
-      const aperte = (await chiama('GET', '/domande')).dati
-      if (aperte.length > 0) { domanda = aperte[0]; break }
-      await new Promise((r) => setTimeout(r, 25))
+    const domanda = await primaDomanda()
+    // Si aspetta che scada (la riga del servizio, prima 200 ms fissi): da qui in poi nessuno sta piu' ascoltando.
+    try {
+      await attendi(() => avvisi.mock.calls.some((c) => String(c[0]).includes('attende una risposta per prepararsi')), { cosa: 'la domanda scaduta' })
+    } finally {
+      avvisi.mockRestore()
     }
-    // Si aspetta che scada: da qui in poi nessuno sta piu' ascoltando.
-    await new Promise((r) => setTimeout(r, 200))
     await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'YAML' })
 
-    for (let i = 0; i < 80; i += 1) {
-      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
-      await new Promise((r) => setTimeout(r, 25))
-    }
+    await statoDiventa('pronto')
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     // La risposta tardiva fa **finire la preparazione**, non partire il lavoro:
     // quello aspetta il via, come ogni autopilota appena configurato.
@@ -622,15 +636,7 @@ describe('domande all utente', () => {
     const inAttesa = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
 
     // Il pannello vede la domanda e risponde.
-    const attesaVisibile = async (): Promise<any> => {
-      for (let i = 0; i < 50; i += 1) {
-        const d = (await chiama('GET', '/domande')).dati
-        if (d.length > 0) return d[0]
-        await new Promise((r) => setTimeout(r, 50))
-      }
-      throw new Error('la domanda non e mai comparsa')
-    }
-    const domanda = await attesaVisibile()
+    const domanda = await primaDomanda()
     expect(domanda.testo).toContain('chiave API')
 
     expect((await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'usa quella di prova' })).stato).toBe(200)
@@ -682,11 +688,7 @@ describe('domande all utente', () => {
     await avvia(server)
     const id = await creaAp()
     void chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
-    let domanda: any
-    for (let i = 0; i < 50 && domanda === undefined; i += 1) {
-      domanda = (await chiama('GET', '/domande')).dati[0]
-      if (domanda === undefined) await new Promise((r) => setTimeout(r, 50))
-    }
+    const domanda = await primaDomanda()
     expect((await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: '   ' })).stato).toBe(400)
   })
 
@@ -695,9 +697,7 @@ describe('domande all utente', () => {
     await avvia(server)
     const id = await creaAp()
     const inAttesa = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
-    for (let i = 0; i < 50 && (await chiama('GET', '/domande')).dati.length === 0; i += 1) {
-      await new Promise((r) => setTimeout(r, 50))
-    }
+    await primaDomanda()
     await chiama('POST', `/autopiloti/${id}/ferma`)
     // L'hook non deve restare appeso per un autopilota che non lavora piu'.
     expect((await inAttesa).dati).toEqual({})
@@ -754,12 +754,6 @@ describe('flotta di chat', () => {
         ? '{"compiti": ["scrivi i test", "aggiorna i documenti", "sistema il lettore"]}'
         : '{"azione": "finito"}'
     })
-
-  async function attendi(condizione: () => boolean): Promise<void> {
-    for (let i = 0; i < 60 && !condizione(); i += 1) {
-      await new Promise((r) => setTimeout(r, 25))
-    }
-  }
 
   it('senza git non chiede nessuna scomposizione: una chat sola', async () => {
     // Senza cartelle separate piu' chat si pesterebbero i file (0.36.0).
@@ -1080,10 +1074,12 @@ describe('modificare a mano mentre un turno si chiude', () => {
     // «modifica»: se suStop salvasse la sua fotografia vecchia, la modifica
     // sparirebbe in silenzio. Si blocca il supervisore, si modifica, si rilascia.
     let rilascia: () => void = () => {}
+    let nelSupervisore = false
     const bloccato = new Promise<void>((r) => { rilascia = r })
     server = ambiente({
       interroga: async (p) => {
         if (p.includes('va diviso fra')) return { testo: '{"azione": "finito"}' }
+        nelSupervisore = true
         await bloccato
         return { testo: '{"azione": "finito"}' }
       }
@@ -1093,7 +1089,7 @@ describe('modificare a mano mentre un turno si chiude', () => {
 
     // Lo Stop entra in suStop e si ferma dentro il supervisore (interroga bloccato).
     const stop = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
-    await new Promise((r) => setTimeout(r, 80))
+    await attendi(() => nelSupervisore, { cosa: 'lo Stop dentro il supervisore' })
 
     // Nel frattempo l'utente cambia l'obiettivo a mano.
     const m = await chiama('PATCH', `/autopiloti/${id}`, { obiettivo: 'obiettivo nuovo dell utente' })
@@ -1137,9 +1133,7 @@ describe('eliminazione', () => {
     await avvia(server)
     const id = await creaAp()
     const inAttesa = chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
-    for (let i = 0; i < 50 && (await chiama('GET', '/domande')).dati.length === 0; i += 1) {
-      await new Promise((r) => setTimeout(r, 50))
-    }
+    await primaDomanda()
     await chiama('DELETE', `/autopiloti/${id}`)
     expect((await inAttesa).dati).toEqual({})
     expect((await chiama('GET', '/domande')).dati).toEqual([])
@@ -1166,13 +1160,6 @@ describe('intervista di preparazione', () => {
           ? '{"domanda": "Il lettore deve accettare anche YAML?"}'
           : '{"pronto": true, "nome": "Lettore", "criteri": [{"descrizione": "i test passano", "comando": "npm test"}]}'
       })
-    }
-  }
-
-  async function attendi(condizione: () => Promise<boolean>): Promise<void> {
-    for (let i = 0; i < 80; i += 1) {
-      if (await condizione()) return
-      await new Promise((r) => setTimeout(r, 25))
     }
   }
 
@@ -1272,18 +1259,10 @@ describe('intervista di preparazione', () => {
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
 
-    let domanda
-    for (let i = 0; i < 80; i += 1) {
-      const aperte = (await chiama('GET', '/domande')).dati
-      if (aperte.length > 0) { domanda = aperte[0]; break }
-      await new Promise((r) => setTimeout(r, 25))
-    }
+    const domanda = await primaDomanda()
     await chiama('POST', `/domande/${domanda.id}/risposta`, { risposta: 'si, 3 kW' })
 
-    for (let i = 0; i < 120; i += 1) {
-      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
-      await new Promise((r) => setTimeout(r, 25))
-    }
+    await statoDiventa('pronto')
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('pronto')
     expect(stato.id).toBe(dati.id)
@@ -1576,12 +1555,12 @@ describe('la chat viva che non finisce mai', () => {
     }
     // Appena creato l'autopilota è «in lavorazione»: la rimessa in coda aspetta che finisca.
     const arrivate = async (n: number): Promise<any[]> => {
-      for (let i = 0; i < 300; i += 1) {
-        const d = (await chiama('GET', '/autopiloti')).dati[0].decisioni
-        if (d.filter((x: { cosa: string }) => x.cosa.includes('non è arrivata nella chat')).length >= n) return d
-        await new Promise((r) => setTimeout(r, 50))
-      }
-      return (await chiama('GET', '/autopiloti')).dati[0].decisioni
+      let d: any[] = []
+      await attendi(async () => {
+        d = (await chiama('GET', '/autopiloti')).dati[0].decisioni
+        return d.filter((x: { cosa: string }) => x.cosa.includes('non è arrivata nella chat')).length >= n
+      }, { cosa: `${n} consegne non arrivate` })
+      return d
     }
     inVolo('c-91')
     server.riportaInCoda('c-91', 'nessuna finestra l ha ritirata')
@@ -1639,11 +1618,10 @@ describe('la chat viva che non finisce mai', () => {
     archivio.scrivi({ ...a, inVolo: [{ consegna: 'c-93', quando: adesso(), messaggi: [{ id: 'm-93', quando: adesso(), testo: 'fai X', chats: [id] }] }] })
     server.riportaInCoda('c-93', 'sostituita dalla c-94 prima di essere ritirata')
     let decisioni: any[] = []
-    for (let i = 0; i < 300; i += 1) {
+    await attendi(async () => {
       decisioni = (await chiama('GET', '/autopiloti')).dati[0].decisioni
-      if (decisioni.some((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))) break
-      await new Promise((r) => setTimeout(r, 50))
-    }
+      return decisioni.some((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))
+    })
     expect(decisioni.some((d: { cosa: string }) => d.cosa.includes('non è arrivata nella chat'))).toBe(true)
     expect(decisioni.some((d: { traguardo?: { esito: string } }) => d.traguardo?.esito === 'mai-partita')).toBe(false)
   })
@@ -1963,10 +1941,7 @@ describe('cosa ha capito, e cosa ha raggiunto', () => {
       obiettivo: 'fai passare i test', cwd: process.cwd(), criteri: []
     })
 
-    for (let i = 0; i < 120; i += 1) {
-      if ((await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto') break
-      await new Promise((r) => setTimeout(r, 25))
-    }
+    await statoDiventa('pronto')
     const a = (await chiama('GET', '/autopiloti')).dati[0]
     expect(a.obiettivo).toContain('Rendere verde la suite')
     expect(a.obiettivoTuo).toBe('fai passare i test')
@@ -2018,19 +1993,9 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
         : '{"azione": "prosegui", "istruzioni": "avanti", "perche": "manca"}'
     })
 
-  async function attendi(condizione: () => boolean): Promise<void> {
-    for (let i = 0; i < 80 && !condizione(); i += 1) {
-      await new Promise((r) => setTimeout(r, 25))
-    }
-  }
-
   async function domandeAperte(): Promise<any[]> {
-    for (let i = 0; i < 80; i += 1) {
-      const aperte = (await chiama('GET', '/domande')).dati
-      if (aperte.length > 0) return aperte
-      await new Promise((r) => setTimeout(r, 25))
-    }
-    return []
+    await primaDomanda()
+    return (await chiama('GET', '/domande')).dati
   }
 
   it('il freno: con la finestra di 5 ore all 85% una chat della flotta va in pausa a fine turno', async () => {
@@ -2053,7 +2018,7 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } } })
     await avvia(server)
     await creaAp()
-    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
+    await statoDiventa('sospeso')
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('sospeso')
     expect(stato.motivoSospensione).toContain('97%')
@@ -2067,7 +2032,7 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     server = ambiente({ limiti: { cinqueOre: { percento: 97, resettaIl: Date.parse('2026-08-09T12:00:00Z') } }, avvioFallisce: true })
     await avvia(server)
     await creaAp()
-    for (let i = 0; i < 100 && (await chiama('GET', '/autopiloti')).dati[0]?.stato !== 'sospeso'; i += 1) await new Promise((r) => setTimeout(r, 20))
+    await statoDiventa('sospeso')
     expect(avvisi.some((a) => a.tipo === 'sospeso')).toBe(false)
     // Il piano si libera: il freno lo fa ripartire, ma la chat non parte.
     await chiama('POST', '/stato-programma', { letto: Date.now(), limiti: LIMITI_LIBERI })
@@ -2358,9 +2323,7 @@ describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', ()
     server = ambiente({ git: gitConRemoto })
     await avvia(server)
     const id = await creaAp({ pubblicazione: 'beta' })
-    for (let i = 0; i < 40 && (await chiama('GET', '/autopiloti')).dati[0].consegna === undefined; i += 1) {
-      await new Promise((r) => setTimeout(r, 25))
-    }
+    await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].consegna !== undefined)
     const prima = (await chiama('GET', '/autopiloti')).dati[0]
     expect(prima.consegna.remoto).toBe('origin')
     expect(prima.cloud.attivo).toBe(false)
@@ -2382,12 +2345,6 @@ describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', ()
 })
 
 describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
-  async function attendi(condizione: () => Promise<boolean>): Promise<void> {
-    for (let i = 0; i < 80; i += 1) {
-      if (await condizione()) return
-      await new Promise((r) => setTimeout(r, 25))
-    }
-  }
   const pronto = '{"pronto": true, "nome": "Lettore", "criteri": [{"descrizione": "i test passano", "comando": "npm test"}]}'
 
   it('la domanda della preparazione porta le sue opzioni, e una risposta data dalle Domande la fa ripartire', async () => {
@@ -2604,7 +2561,7 @@ describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => 
   it('al riavvio la domanda si ritrova (non si rifà) e la risposta riprende la chat', async () => {
     const cartella = mkdtempSync(join(tmpdir(), 'ap-riavvio-'))
     const file = join(cartella, 'servizio', 'domande-aperte.json')
-    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: () => Date.now(), file }), scadenzaDomandaMs: 100, interroga: () => Promise.resolve({ testo: CHIEDE }) })
+    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: orologio.ms, file }), scadenzaDomandaMs: 100, interroga: () => Promise.resolve({ testo: CHIEDE }) })
     await avvia(server)
     const id = await creaAp()
     // La fermata aspetta la risposta per 100 ms, poi lascia andare la chat.
@@ -2615,7 +2572,7 @@ describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => 
     server.close()
 
     // Il servizio riparte: domande e archivio dal disco.
-    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: () => Date.now(), file }), interroga: () => Promise.resolve({ testo: CHIEDE }) })
+    server = ambiente({ cartellaArchivio: cartella, domande: creaRegistroDomande({ adesso: orologio.ms, file }), interroga: () => Promise.resolve({ testo: CHIEDE }) })
     await avvia(server)
     server.riprendiLavori({ servizioAppenaPartito: true })
     const dopo = (await chiama('GET', '/domande')).dati
@@ -2627,7 +2584,7 @@ describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => 
 
     // La risposta arriva dopo il riavvio: riprende la chat con quella.
     await chiama('POST', `/domande/${prima[0].id}/risposta`, { risposta: 'prova' })
-    for (let i = 0; i < 80 && messaggiDiRipresa.length === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => messaggiDiRipresa.length > 0)
     expect(messaggiDiRipresa.join(' ')).toContain('prova')
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('lavoro')
     expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
@@ -2656,7 +2613,7 @@ describe('tre chat insieme (0.71.0): ognuna il suo ordine, nessuno perso', () =>
     })
     await avvia(server)
     const id = await creaAp({ tettoChat: 3 })
-    for (let i = 0; i < 80 && chatAvviate.length < 3; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => chatAvviate.length >= 3)
     expect(chatAvviate).toHaveLength(3)
     const risposte = await Promise.all(['c-1', 'c-2', 'c-3'].map((c) => chiama('POST', `/hook/stop?ap=${id}&chat=${c}`, eventoStop({ session_id: `s-${c}` }))))
     expect(risposte.map((r) => r.dati.decision)).toEqual(['block', 'block', 'block'])
@@ -2710,7 +2667,6 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     ruoliCompiti: { A: { ruolo: 'sviluppo' as const, dopo: [] }, B: { ruolo: 'sviluppo' as const, dopo: ['A'] } },
     ...over
   })
-  const attendiChe = async (f: () => boolean): Promise<void> => { for (let i = 0; i < 80 && !f(); i += 1) await new Promise((r) => setTimeout(r, 25)) }
 
   it('OK con un file citato e i criteri verdi: il ramo si unisce e si apre il compito che aspettava', async () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
@@ -2718,7 +2674,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     await avvia(server)
     const r = await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: OK ap/ap-rev/c-1 — src/a.ts:3' }))
     expect(r.dati).toEqual({})
-    await attendiChe(() => chatAvviate.some((c) => c.compito === 'B'))
+    await attendi(() => chatAvviate.some((c) => c.compito === 'B'))
     const a = (await chiama('GET', '/autopiloti')).dati[0]
     expect(a.chats.find((c: any) => c.id === 'c-1').approvata).toBe(true)
     expect(a.chats.find((c: any) => c.id === 'c-2').stato).toBe('finita')
@@ -2780,7 +2736,7 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     archivio.scrivi({ ...base, chats: base.chats.map((c) => (c.id === 'c-1' ? { ...c, rifacimenti: 2 } : c)) })
     await avvia(server)
     await chiama('POST', '/hook/stop?ap=ap-rev&chat=c-2', eventoStop({ last_assistant_message: 'REVISIONE: DA RIFARE ap/ap-rev/c-1: manca il caso vuoto in src/a.ts:9, come già detto a c-1 e a c-77' }))
-    for (let i = 0; i < 80 && messaggiDiRipresa.length === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => messaggiDiRipresa.length > 0)
     expect((await chiama('GET', '/domande')).dati).toHaveLength(0)
     const a = (await chiama('GET', '/autopiloti')).dati[0]
     expect(a.chats.find((c: any) => c.id === 'c-1').stato).toBe('finita')
@@ -2867,7 +2823,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     // c-10 ha chiesto da una notifica: nessun turno trattenuto. c-12 chiede la
     // stessa cosa a fine turno e aspetta con l'hook: la risposta arriva a c-12
     // «in tempo», e la via delle risposte tardive (che riprendeva c-10) non scatta.
-    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const domande = creaRegistroDomande({ adesso: orologio.ms })
     const prima = domande.apri({ autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', scadenzaMs: 60_000 })
     domande.ricorda(prima.id, { autopilotaId: 'ap-gem', testo: 'Installi la 0.80.0 su questo PC?', grezza: 'Installi la 0.80.0 su questo PC?', chatId: 'c-10' })
     server = creaServerCon({ domande, versione: '0.79.0', esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 adesso, così chiudo le chat finite?') }) })
@@ -2881,7 +2837,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
       ]
     })
     const fineTurno = chiama('POST', '/hook/stop?ap=ap-gem&chat=c-12', eventoStop({ session_id: 's-12' }))
-    for (let i = 0; i < 80 && archivio.leggi('ap-gem')!.chats.find((c) => c.id === 'c-12')!.stato !== 'bloccata'; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => archivio.leggi('ap-gem')!.chats.find((c) => c.id === 'c-12')!.stato === 'bloccata')
     expect(domande.aperte('ap-gem')).toHaveLength(1)
 
     await chiama('POST', `/domande/${prima.id}/risposta`, { risposta: 'Sì, installo' })
@@ -2918,7 +2874,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
   })
 
   it('una alla volta: due domande dello stesso autopilota, se ne vede una con quante aspettano', async () => {
-    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const domande = creaRegistroDomande({ adesso: orologio.ms })
     server = ambiente({ domande })
     await avvia(server)
     domande.apri({ autopilotaId: 'ap-a', testo: 'prima', scadenzaMs: 60_000 })
@@ -2941,7 +2897,7 @@ describe('mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
       daConsegnare: [{ id: 'm-1', quando: '2026-08-09T10:00:00.000Z', testo: 'primo', chats: ['ap-coda'] }]
     })
     server.controllaChatFerme()
-    await new Promise((r) => setTimeout(r, 20))
+    await attendi(() => avviati.length > 0)
     expect(avviati).toEqual(['ap-coda'])
     expect(messaggiDiRipresa[0]).toContain('primo')
     // Arrivano altri due messaggi mentre la chat lavora ancora: non si scrivono.
@@ -3015,9 +2971,9 @@ describe('due chat che chiudono insieme (0.71.0, visto dal vero)', () => {
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI, interroga: SUP })
     await avvia(server)
     const id = await creaAp()
-    for (let i = 0; i < 80 && chatAvviate.length < 2; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => chatAvviate.length >= 2)
     await Promise.all(['c-1', 'c-2'].map((c) => chiama('POST', `/hook/stop?ap=${id}&chat=${c}`, eventoStop({ session_id: `s-${c}`, last_assistant_message: `fatto ${c}` }))))
-    for (let i = 0; i < 80 && chatAvviate.length < 4; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => chatAvviate.length >= 4)
     const a = (await chiama('GET', '/autopiloti')).dati[0]
     const revisori = a.chats.filter((c: any) => c.compito.startsWith('Rivedi il ramo'))
     expect(revisori).toHaveLength(2)
@@ -3089,9 +3045,6 @@ describe('le domande delle chat a cui risponde l’autopilota restano visibili (
 })
 
 describe('0.76.0: gli specialisti anche per gli autopiloti che ci sono già', () => {
-  async function attendi(condizione: () => boolean): Promise<void> {
-    for (let i = 0; i < 80 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
-  }
   it('nato con una chat sola: alla ripresa con lavoro in parti distinte diventa una squadra, con i ruoli', async () => {
     let fase = 'nascita'
     server = ambiente({
@@ -3139,9 +3092,6 @@ describe('0.76.0: gli specialisti anche per gli autopiloti che ci sono già', ()
 })
 
 describe('chiudiChat su un ramo già unito e tolto (0.80.0, visto dal vero il 19/10)', () => {
-  async function attendi(condizione: () => boolean): Promise<void> {
-    for (let i = 0; i < 120 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
-  }
   it('la chat si chiude subito: niente Revisione, niente unione che fallisce', async () => {
     const chiesti: string[] = []
     // Il ramo principale c'è, il ramo della chat no: com'era per c-4 e c-7.
@@ -3181,9 +3131,6 @@ describe('chiudiChat su un ramo già unito e tolto (0.80.0, visto dal vero il 19
 })
 
 describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 e c-15)', () => {
-  async function attendi(condizione: () => boolean): Promise<void> {
-    for (let i = 0; i < 120 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 25))
-  }
   /** Le copie come sul disco vero: quelle che non esistono mancano. */
   const copiaVera = (c: string): 'ok' | 'mancante' | 'non-git' => statoCopia(gitFinto, c)
   const criterioRosso = [{ descrizione: 'I test passano', comando: 'node t.js', soddisfatto: false }]

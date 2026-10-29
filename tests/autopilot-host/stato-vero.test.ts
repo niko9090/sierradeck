@@ -11,6 +11,12 @@ import { creaStatoVero, releaseConMemoria, statoDellaFlotta, versioniPubblicate 
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { conversazione } from '@shared/chat-autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Le domande controllate contro lo stato vero (0.82.0).
@@ -176,11 +182,11 @@ async function avvia(giudizio: string, stato: StatoVero | undefined): Promise<vo
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => 'ho una domanda',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -208,7 +214,7 @@ describe('nel servizio', () => {
     await avvia(JSON.stringify({ azione: 'chiedi', domanda: parti(VERA) }), DOPO)
     await notifica()
     expect(await aperte()).toEqual([])
-    for (let i = 0; i < 80 && scritti.length === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
+    await attendi(() => scritti.length > 0)
     expect(scritti[0]?.messaggio).toContain('la 0.81.1 è già pubblicata')
     const a = archivio.leggi('ap-rel')!
     expect(a.decisioni.at(-1)?.cosa).toContain('non la chiedo: la 0.81.1 è già pubblicata')

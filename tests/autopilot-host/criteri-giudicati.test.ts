@@ -11,6 +11,11 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande, type RegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type Criterio } from '@shared/autopilota'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «Lo giudico io» (0.84.3), con il caso vero del 22/10: l'autopilota di un
@@ -122,7 +127,7 @@ afterEach(() => { server?.close(); server = undefined })
 
 async function avviaServizio(risposte: string[], criteri: Criterio[] = CRITERI): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-giudicati-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   avvisi = []
   let n = 0
   const s = creaServer({
@@ -140,7 +145,7 @@ async function avviaServizio(risposte: string[], criteri: Criterio[] = CRITERI):
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     ultimoDetto: () => 'Ho finito il resto.',
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })

@@ -9,6 +9,12 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { conversazione } from '@shared/chat-autopilota'
 import { adessoDi } from '@shared/adesso'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «Nicholas partecipe» tutto insieme (0.81.0), passando dalle rotte vere del
@@ -67,11 +73,11 @@ async function avvia(): Promise<void> {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => 'ho una domanda',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -86,9 +92,6 @@ const notifica = (chat: string): Promise<Response> => fetch(url(`/hook/notificat
   body: JSON.stringify({ notification_type: 'attesa', message: 'Claude is waiting for your input' })
 })
 const aperte = async (): Promise<{ id: string; testo: string }[]> => (await (await fetch(url('/domande'))).json()) as { id: string; testo: string }[]
-async function attendi(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 120 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 
 describe('Nicholas partecipe, tutto il giro', () => {
   it('domanda, risposta, «Hai risposto» con chi l’ha ricevuta, la stessa domanda scartata', async () => {
@@ -135,7 +138,7 @@ describe('Nicholas partecipe, tutto il giro', () => {
     expect(conversazione(archivio.leggi('ap-insieme')!).filter((b) => b.testo.startsWith('Hai risposto:'))).toHaveLength(1)
 
     // 5. «Adesso»: una riga per chat, nessuna ferma.
-    const adesso = adessoDi(archivio.leggi('ap-insieme')!, Date.now())
+    const adesso = adessoDi(archivio.leggi('ap-insieme')!, orologio.ms())
     expect(adesso.righe).toHaveLength(2)
     expect(adesso.righe.map((r) => r.tono)).not.toContain('ferma')
   })

@@ -9,6 +9,12 @@ import { apriMemoria, type Memoria } from '../../src/autopilot-host/memoria'
 import { aperteSulloStesso, argomentoDi, risoltaDalloStato, rispostaGiaData, stessoArgomento } from '../../src/autopilot-host/domande-doppie'
 import { REGOLE_DOMANDA, sembraNonItaliano, validaDomanda } from '@shared/domanda-strutturata'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Nessuna domanda ripetuta, sempre in italiano (0.81.0).
@@ -143,7 +149,7 @@ function banco(versione: string, prima?: (r: typeof registro) => void): ServerAu
   promptVisti = []
   giudizi = {}
   riscrittura = ''
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   prima?.(registro)
   return creaServer({
     archivio,
@@ -167,7 +173,7 @@ function banco(versione: string, prima?: (r: typeof registro) => void): ServerAu
     ultimoDetto: (_cwd, sessione) => `ultimo-${sessione}: ho una domanda`,
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
 }
 
@@ -204,7 +210,7 @@ async function rispondiA(id: string, risposta: string): Promise<void> {
 }
 
 async function attendiScritti(n: number): Promise<void> {
-  for (let i = 0; i < 80 && scritti.length < n; i += 1) await new Promise((r) => setTimeout(r, 25))
+  await attendi(() => scritti.length >= n)
 }
 
 async function avvia(versione: string, prima?: (r: typeof registro) => void): Promise<void> {

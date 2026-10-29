@@ -10,6 +10,7 @@ import { caricoFra, creaMisuratore, tempiDa } from '../../src/autopilot-host/mis
 import { chatAlLavoroSulPc, daChiudereDaSole, FERMO_SI_CHIUDE_MS, FINITA_SI_CHIUDE_MS, RICHIUDI_DOPO_MS, tettoNeiPosti } from '../../src/autopilot-host/posti'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import type { MisuraPc } from '@shared/posti-chat'
+import { attendi } from '../setup/attendi'
 
 // 0.82.0: quante chat lavorano insieme lo decide il PC, per tutti gli
 // autopiloti insieme; le altre aspettano in fila; le finite si chiudono da sole.
@@ -192,7 +193,6 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
     await chiama('POST', '/stato-programma', { letto: ORA, chat: [], domandeAperte: 0, progetti: [], altriPc: [], limiti: { cinqueOre: { percento: 5, lettoIl: ORA }, settimana: { percento: 5, lettoIl: ORA } } })
   }
-  const attendi = async (c: () => boolean): Promise<void> => { for (let i = 0; i < 200 && !c(); i += 1) await new Promise((r) => setTimeout(r, 10)) }
   const conCompiti = (id: string, n: number): Autopilota => autopilota({ id, ramoBase: 'main', tettoChat: 8, compitiDaFare: Array.from({ length: n }, (_, i) => `pezzo ${i + 1}`) })
 
   it('PC piccolo: di quattro compiti ne partono due, gli altri in fila e lo dice una volta', async () => {

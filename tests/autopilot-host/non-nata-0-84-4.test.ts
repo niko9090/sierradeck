@@ -10,6 +10,7 @@ import { NON_NATE_MAX, rimedioNonNata, type VistaNonNata } from '../../src/autop
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { esitoDaPasso, type Istruzione } from '@shared/istruzioni-autopilota'
+import { attendi } from '../setup/attendi'
 
 // 0.84.4. Il 23/10, dalle 04:04 alle 09:48 UTC, la Revisione del ramo c-98 non
 // è mai partita: «in 90 secondi il terminale della chat non è nato», ogni 11
@@ -160,10 +161,6 @@ async function chiama(metodo: string, percorso: string, corpo?: unknown): Promis
   const r = await fetch(`http://127.0.0.1:${porta}${percorso}`, { method: metodo, headers: { 'Content-Type': 'application/json' }, ...(corpo !== undefined ? { body: JSON.stringify(corpo) } : {}) })
   await r.text()
   return { stato: r.status }
-}
-
-async function attendi(condizione: () => boolean): Promise<void> {
-  for (let i = 0; i < 300 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 afterEach(() => { server?.close(); server = undefined })

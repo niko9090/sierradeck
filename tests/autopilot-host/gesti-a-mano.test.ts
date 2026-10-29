@@ -10,6 +10,12 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { gestoAMano, nomeInterno, noteDiChiarezza } from '@shared/domanda-chiara'
 import { partiBloccato, partiPubblica, testoDomanda, validaDomanda, type PartiDomanda } from '@shared/domanda-strutturata'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Mai un gesto a mano (0.84.3). Il caso vero del 22/10, dalla scheda Domande
@@ -96,7 +102,7 @@ const chat = (id: string, compito: string, stato: ChatGovernata['stato'] = 'lavo
 
 async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: ChatGovernata[]; stato?: 'lavoro' | 'attesa' }): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-gesti-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   scritti = []
   const s = creaServer({
     archivio,
@@ -113,7 +119,7 @@ async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: Ch
     ultimoDetto: () => 'Ho finito, ma il programma non mi lascia chiudere.',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -125,10 +131,6 @@ async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: Ch
 }
 
 afterEach(() => { server?.close(); server = undefined })
-
-const attendi = async (cond: () => boolean): Promise<void> => {
-  for (let i = 0; i < 80 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 
 describe('nel servizio', () => {
   it('22/10: la domanda con il gesto a mano non si apre; la chat riparte con la strada', async () => {

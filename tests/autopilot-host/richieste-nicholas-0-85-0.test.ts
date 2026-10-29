@@ -11,6 +11,8 @@ import { conVersioni, registraRichieste, sembraRichiesta, tieniRichieste } from 
 import { nuovoAutopilota, parseAutopilota, type Autopilota } from '@shared/autopilota'
 import { giornoDi, statoRichiesta } from '@shared/richieste-nicholas'
 import { puntoDi } from '@shared/punto-autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa, type Orologio } from '../setup/orologio'
 
 /**
  * Le richieste di Nicholas diventano obiettivi da sole (0.85.0).
@@ -166,8 +168,12 @@ describe('il dialogo: prompt e lettura', () => {
 let server: ServerAutopiloti | undefined
 let porta: number
 let archivio: Archivio
+// Il servizio di prova vive il 23/10 alle 07:25 (l'ora del messaggio vero), non nel giorno vero:
+// dopo mezzanotte il giorno della battuta cambiava.
+let orologio: Orologio
 
 async function avvia(risposta: () => string): Promise<void> {
+  orologio = orologioDa('2026-10-23T07:25:00.000Z')
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-ric-')))
   const s = creaServer({
     archivio,
@@ -178,11 +184,11 @@ async function avvia(risposta: () => string): Promise<void> {
     avviaLavoro: () => Promise.resolve(),
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => 'sto lavorando',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -193,9 +199,6 @@ afterEach(() => { server?.close(); server = undefined; vi.restoreAllMocks() })
 const scrivi = (testo: string): Promise<Response> => fetch(`http://127.0.0.1:${porta}/autopiloti/ap-ric/dialogo`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo })
 })
-async function attendi(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 160 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 const sua = (): Autopilota => archivio.leggi('ap-ric')!
 const risposto = (): boolean => sua().dialogo.some((s) => s.da === 'lui')
 
@@ -214,8 +217,9 @@ describe('il servizio: il messaggio del 23/10 alle 07:25', () => {
     // In coda, oppure già data a una chat: mai fuori.
     expect(a.compitiDaFare.includes(r.compiti[0]!) || a.chats.some((c) => c.compito === r.compiti[0])).toBe(true)
     expect(a.dialogo.at(-1)!.esito).toContain('richiesta registrata come obiettivo')
-    // Il giorno della battuta, con l'ora di Roma: il servizio di prova usa l'orologio vero (dopo mezzanotte non è più il 23/10).
-    expect(puntoDi(a, Date.now()).richieste[0]).toMatchObject({ id: r.id, giorno: giornoDi(r.quando) })
+    // Il giorno della battuta, con l'ora di Roma.
+    expect(r.quando.startsWith('2026-10-23')).toBe(true)
+    expect(puntoDi(a, orologio.ms()).richieste[0]).toMatchObject({ id: r.id, giorno: giornoDi(r.quando) })
   })
 
   it('anche se il supervisore non risponde affatto (il 22/10 «togli i vincoli» si era perso così)', async () => {

@@ -8,6 +8,11 @@ import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { indicatoreDi, type SegniVeri } from '@shared/indicatore-autopilota'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 // 0.85.0, l'indicatore: il Gestore manda con i battiti l'ultimo segnale vero di
 // ogni chat (dagli hook), il servizio lo rimette nell'elenco come `segniVeri`.
@@ -27,7 +32,7 @@ function ambiente(): ServerAutopiloti {
     avviaLavoro: () => Promise.resolve(),
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     adesso: () => new Date(ora).toISOString()

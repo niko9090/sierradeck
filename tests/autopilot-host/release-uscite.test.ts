@@ -7,6 +7,11 @@ import { tmpdir } from 'node:os'
 import { creaServer } from '../../src/autopilot-host/server'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 describe('release uscite con la data (0.85.0)', () => {
   it('da gh: senza bozze, senza «v», dalla più vecchia', () => {
@@ -46,7 +51,7 @@ describe('il servizio salva le release uscite negli autopiloti (0.85.0)', () => 
       avviaLavoro: () => Promise.resolve(),
       fermaLavoro: () => undefined,
       avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: () => Date.now() }),
+      domande: creaRegistroDomande({ adesso: orologio.ms }),
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
       adesso: () => '2026-10-23T12:00:00.000Z',

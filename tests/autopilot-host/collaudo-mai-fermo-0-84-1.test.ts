@@ -9,6 +9,7 @@ import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { SOSTITUZIONI_MAX, RADDOPPI_MAX, sogliaDi } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
 
 // Collaudo della 0.84.1 «l'autopilota non resta mai fermo» (c-81, 22/10).
 // I test della correzione (mai-fermo-0-84-1.test.ts) provano la regola e il
@@ -97,9 +98,12 @@ function notte(): Autopilota {
 const giri = (id: string): number[] =>
   archivio.leggi(id)!.decisioni.filter((d) => d.cosa.startsWith('giro da solo')).map((d) => Date.parse(d.quando))
 
-/** Un minuto del guardiano, con i battiti del Gestore per le chat che lavorano davvero. */
-async function minuto(id: string, alLavoro: string[] = []): Promise<void> {
-  ora += MIN
+/**
+ * Un minuto del guardiano (o `passo` millisecondi, un giro solo), con i
+ * battiti del Gestore per le chat che lavorano davvero.
+ */
+async function minuto(id: string, alLavoro: string[] = [], passo = MIN): Promise<void> {
+  ora += passo
   if (alLavoro.length > 0) await chiama('POST', '/battiti', { segni: alLavoro.map((c) => ({ autopilota: id, chat: c })) })
   server!.controllaChatFerme()
 }
@@ -113,8 +117,12 @@ describe('collaudo 0.84.1: la notte intera, dalle 23:34 alle 06:51', () => {
     await avvia(server)
     const a = notte()
     const fine = Date.parse('2026-10-22T06:51:00.000Z')
+    // Un giro ogni 5 minuti invece che ogni minuto: le soglie della regola
+    // (5, 10, 15 e 60 minuti) sono tutte multipli di 5, quindi i giri cadono
+    // negli stessi istanti; un giro più tardi del dovuto allarga i buchi
+    // misurati, e il limite dei 15 minuti resta controllato com'era.
     while (ora < fine) {
-      await minuto(a.id)
+      await minuto(a.id, [], 5 * MIN)
       // In ogni istante, ogni compito è di una chat al lavoro sola: niente doppioni.
       const alLavoro = archivio.leggi(a.id)!.chats.filter((c) => c.stato === 'lavoro').map((c) => c.compito)
       expect(new Set(alLavoro).size).toBe(alLavoro.length)
@@ -144,7 +152,7 @@ describe('collaudo 0.84.1: la notte intera, dalle 23:34 alle 06:51', () => {
     // Al tetto: una riga a Nicholas per compito, non una ogni 10 minuti per tutta la notte.
     const righe = avvisi.filter((t) => t.includes('non riparte'))
     expect(righe).toHaveLength(3)
-  }, 90_000) // sette ore di giri simulati: 12 s da solo, 34 s a suite intera col PC carico
+  })
 })
 
 describe('collaudo 0.84.1: il giro da solo non tocca chi lavora o aspetta', () => {
@@ -252,7 +260,11 @@ describe('collaudo 0.84.1: riavvio del servizio a metà', () => {
     server = ambiente(cartella)
     await avvia(server)
     server.riprendiLavori({ servizioAppenaPartito: true })
-    await new Promise((r) => setTimeout(r, 50))
+    // Si aspetta che la ripresa d'avvio abbia rimesso al lavoro le tre nuove
+    // (prima: 50 ms fissi), poi si guarda che fra le riprese non ci siano le vecchie.
+    const nuove = archivio.leggi(a.id)!.chats.filter((c) => c.sostituisce !== undefined).map((c) => c.id)
+    expect(nuove).toHaveLength(3)
+    await attendi(() => nuove.every((id) => avviati.some((x) => x.chat === id)), { cosa: 'la ripresa delle tre chat nuove' })
     expect(avviati.some((x) => ['c-65', 'c-66', 'c-70'].includes(x.chat ?? ''))).toBe(false)
     const alLavoro = archivio.leggi(a.id)!.chats.filter((c) => c.stato === 'lavoro').map((c) => c.compito)
     expect(new Set(alLavoro).size).toBe(3)

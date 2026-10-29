@@ -9,6 +9,12 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { conversazione } from '@shared/chat-autopilota'
 import { TESTO_VIA, domandaInSospeso } from '@shared/domande-autopilota'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «Hai risposto: …» anche quando Nicholas scrive a mano (0.83.0).
@@ -64,11 +70,11 @@ async function avvia(): Promise<void> {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => 'ho una domanda',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -81,9 +87,6 @@ const scrivi = (testo: string): Promise<Response> => fetch(url('/autopiloti/ap-m
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo })
 })
 const aperte = async (): Promise<{ id: string; testo: string }[]> => (await (await fetch(url('/domande'))).json()) as { id: string; testo: string }[]
-async function attendi(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 120 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 
 describe('scritto a mano a una domanda del registro', () => {
   it('è la risposta: la domanda si chiude, la chat la riceve, «Hai risposto» sotto la domanda intera', async () => {

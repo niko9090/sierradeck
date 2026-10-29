@@ -9,6 +9,12 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { apriQuaderno } from '../../src/main/quaderno-store'
 import { corpoStorico, fileStorico, voceDi, vociStorico } from '../../src/autopilot-host/storico'
 import { nuovoAutopilota, parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota, type Decisione } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Lo storico nel quaderno (0.84.0): dal diario dell'autopilota solo le cose
@@ -123,11 +129,11 @@ async function avvia(quaderno: (cwd: string, s: { titolo: string; corpo: string;
     avviaLavoro: () => Promise.resolve(),
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     ultimoDetto: () => '',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString(),
+    adesso: orologio.iso,
     quaderno
   })
   server = s
@@ -146,7 +152,7 @@ describe('l’autopilota tiene lo storico nel quaderno', () => {
 
     const r = await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-f1e6a2b3/riprendi`, { method: 'POST' })
     expect(r.ok).toBe(true)
-    for (let i = 0; i < 80 && !scritte.some((x) => x.corpo.includes('Riprendi')); i += 1) await new Promise((ok) => setTimeout(ok, 25))
+    await attendi(() => scritte.some((x) => x.corpo.includes('Riprendi')))
 
     const file = 'storico-app-android-analisi-e-correzioni-f1e6a2b3.md'
     expect(scritte.length).toBeGreaterThanOrEqual(1)
