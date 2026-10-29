@@ -408,7 +408,7 @@ Ogni chat aperta tiene acceso un <b>claude.exe</b>. Spento, restano tutte
             {vede('posti-chat') ? (
           <div className="impostazioni__riga">
             <span className="con-aiuto">Chat degli autopiloti al lavoro insieme<NellEtichetta>
-Il numero lo decide questo PC (processori, memoria libera, carico degli ultimi minuti), fra 2 e 8, per tutti gli autopiloti insieme. Le chat in più aspettano in fila e partono quando si libera un posto; quelle finite si chiudono da sole. Qui lo sposti un poco.
+Il numero lo decide questo PC (processori, memoria libera, carico degli ultimi minuti), fra 2 e 4 (fino a 8 con «Più chat»), per tutti gli autopiloti insieme. Le chat in più aspettano in fila e partono quando si libera un posto; quelle finite si chiudono da sole. Qui lo sposti un poco.
 </NellEtichetta></span>
             <span className="scelte-segmentate" role="radiogroup" aria-label="Quante chat insieme">
               {([[-1, 'Meno chat'], [0, 'Come dice il PC'], [1, 'Più chat']] as const).map(([v, nome]) => (
