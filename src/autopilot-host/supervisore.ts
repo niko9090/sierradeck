@@ -182,6 +182,86 @@ export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: stri
     })
 }
 
+/** Quanti supervisori (`claude.exe -p`) girano insieme su questo PC, al più (0.85.2). */
+export const SUPERVISORI_INSIEME = 2
+/** Fra due interrogazioni sulla stessa cartella passa almeno così. */
+export const STESSA_CARTELLA_DOPO_MS = 3_000
+
+/** I supervisori al lavoro adesso, in tutto il servizio: contano come chat nei posti del PC. */
+let supervisoriVivi = 0
+export function supervisoriAlLavoro(): number {
+  return supervisoriVivi
+}
+
+/**
+ * **Pochi supervisori insieme, uno per cartella** (0.85.2).
+ *
+ * Il 27/10 il processore è rimasto fra il 92 e il 100% per 17 minuti: ogni
+ * chat che si fermava faceva partire il suo giudizio, cioè un altro
+ * `claude.exe`, e quattro fermate in pochi secondi erano quattro supervisori
+ * insieme più le chat. Qui:
+ * - al più `massimo` interrogazioni girano insieme (di serie
+ *   `SUPERVISORI_INSIEME`); le altre aspettano in fila, nell'ordine di arrivo;
+ * - sulla stessa cartella (lo stesso autopilota) una alla volta, con almeno
+ *   `distanzaMs` fra la fine di una e l'inizio della dopo: più fermate di
+ *   fila non diventano giudizi in parallelo sullo stesso lavoro.
+ * Il tempo in fila non conta nel timeout della singola interrogazione.
+ */
+export function conLimite(
+  interroga: Interrogazione,
+  opz: { massimo?: number; distanzaMs?: number; dormi?: (ms: number) => Promise<void> } = {}
+): Interrogazione & { alLavoro: () => number; inFila: () => number } {
+  const massimo = Math.max(1, opz.massimo ?? SUPERVISORI_INSIEME)
+  const distanza = Math.max(0, opz.distanzaMs ?? STESSA_CARTELLA_DOPO_MS)
+  const dormi = opz.dormi ?? ((ms: number) => new Promise<void>((r) => { setTimeout(r, ms).unref?.() }))
+  let attivi = 0
+  let inAttesa = 0
+  const fila: Array<() => void> = []
+  const perCartella = new Map<string, Promise<void>>()
+  const prendi = async (): Promise<void> => {
+    if (attivi < massimo) { attivi += 1; return }
+    // Il posto lo passa direttamente chi finisce: `attivi` non scende e risale.
+    await new Promise<void>((r) => { fila.push(r) })
+  }
+  const rendi = (): void => {
+    const prossimo = fila.shift()
+    if (prossimo !== undefined) prossimo()
+    else attivi -= 1
+  }
+  const avvolta = (async (prompt, cwd, sessionId, opzioni) => {
+    const k = cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    const prima = perCartella.get(k) ?? Promise.resolve()
+    let fine = (): void => {}
+    const mia = new Promise<void>((r) => { fine = r })
+    const catena = prima.then(() => mia)
+    perCartella.set(k, catena)
+    inAttesa += 1
+    let contato = true
+    try {
+      await prima
+      await prendi()
+      inAttesa -= 1
+      contato = false
+      supervisoriVivi += 1
+      try {
+        return await interroga(prompt, cwd, sessionId, opzioni)
+      } finally {
+        supervisoriVivi -= 1
+        rendi()
+      }
+    } finally {
+      if (contato) inAttesa -= 1
+      void dormi(distanza).then(() => {
+        fine()
+        if (perCartella.get(k) === catena) perCartella.delete(k)
+      })
+    }
+  }) as Interrogazione & { alLavoro: () => number; inFila: () => number }
+  avvolta.alLavoro = () => attivi
+  avvolta.inFila = () => inAttesa
+  return avvolta
+}
+
 /** Dopo quanti fallimenti di fila il supervisore si dice muto (0.85.1). */
 export const ALLARME_DOPO = 3
 

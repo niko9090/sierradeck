@@ -11,8 +11,8 @@ import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
-import { conTurni, TURNI_PC } from './turni-criteri'
-import { interrogazioneReale } from './supervisore'
+import { conRisorse, conTurni, TURNI_PC } from './turni-criteri'
+import { conLimite, interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
 import { apriRegistroTempi } from './tempi'
 import { apriMemoria } from './memoria'
@@ -334,14 +334,18 @@ export function avviaServizio(): void {
     misura: () => { const m = misuraGuardia(); processoriGuardia = m.processori; return m },
     cerca: cercaProgrammaReale(() => processoriGuardia)
   })
+  // 0.85.2: la guardia misura da sola ogni 5 s, non solo quando qualcuno chiede.
+  guardiaPc.avvia?.()
 
   const server = creaServer({
     archivio,
     // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
     // E i comandi lunghi uno alla volta per PC, mai durante un'unione (0.82.1).
-    esegui: conTurni(conDivieti(esecutoreReale()), TURNI_PC, guardiaPc),
+    // 0.85.2: le suite con due processi di test, gradle senza --no-daemon.
+    esegui: conTurni(conRisorse(conDivieti(esecutoreReale())), TURNI_PC, guardiaPc),
     guardiaPc,
-    interroga: interrogazioneReale(claudeCmd()),
+    // 0.85.2: al più due supervisori insieme sul PC, uno alla volta per cartella.
+    interroga: conLimite(interrogazioneReale(claudeCmd())),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
     avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),

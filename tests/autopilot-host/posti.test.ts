@@ -237,16 +237,17 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     expect(archivio.leggi('ap-b')!.decisioni.some((d) => d.cosa.includes('2 compiti in fila'))).toBe(true)
   })
 
-  it('PC grande: partono tutti, fino al massimo', async () => {
+  // 0.85.2: anche su un PC grande, di serie al più quattro chat insieme.
+  it('PC grande: partono fino al massimo di serie, il resto in fila', async () => {
     misura = { processori: 24, memoriaLiberaMb: 48_000, memoriaTotaleMb: 65_536, caricoPercento: 5 }
     server = ambiente()
     await avvia(server)
-    archivio.scrivi(conCompiti('ap-a', 5))
+    archivio.scrivi(conCompiti('ap-a', 4))
     server.controllaChatFerme()
-    await attendi(() => avviate.length >= 5)
-    expect(avviate).toHaveLength(5)
+    await attendi(() => avviate.length >= 4)
+    expect(avviate).toHaveLength(4)
     expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa.includes('in fila'))).toBe(false)
-    expect((await chiama('GET', '/posti-chat'))).toMatchObject({ attive: 5, posti: 8, inFila: 0 })
+    expect((await chiama('GET', '/posti-chat'))).toMatchObject({ attive: 4, posti: 4, inFila: 0 })
   })
 
   it('sotto carico non parte niente di nuovo, ma chi lavora non si ferma', async () => {
@@ -295,7 +296,8 @@ describe('il servizio: fila, «N di M chat», chiusura da sole (0.82.0)', () => 
     server = ambiente()
     await avvia(server)
     server.controllaChatFerme()
-    expect((await chiama('GET', '/posti-chat')).posti).toBe(6)
+    // 0.85.2: di serie al più quattro.
+    expect((await chiama('GET', '/posti-chat')).posti).toBe(4)
     await chiama('POST', '/stato-programma', { letto: ORA, chat: [], domandeAperte: 0, progetti: [], altriPc: [], regolazionePosti: 1, limiti: { cinqueOre: { percento: 5, lettoIl: ORA } } })
     server.controllaChatFerme()
     expect((await chiama('GET', '/posti-chat'))).toMatchObject({ posti: 8, regolazione: 1 })

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './decisione'
 import { eseguiCriteri, type Esecutore } from './verifiche'
-import type { Git } from './worktree'
+import type { EsitoGit, Git, GitAsincrono } from './worktree'
 import { problemaDiAmbiente } from './ambiente-copia'
 
 /**
@@ -66,6 +66,75 @@ export function improntaCodice(git: Git, cwd: string): string | undefined {
   return `${commit}+${createHash('sha256').update(diff.uscita).digest('hex').slice(0, 16)}`
 }
 
+/** Per quanto il diff di una cartella vale, a parità di HEAD (0.85.2). */
+export const IMPRONTA_VALE_MS = 5_000
+
+/** Il diff ricordato per cartella e HEAD; per ogni git (i test ne hanno uno per prova). */
+const diffRicordati = new WeakMap<GitAsincrono, Map<string, { head: string; quando: number; diff: Promise<EsitoGit> }>>()
+/** Le letture di HEAD in corso, per cartella: chi arriva insieme aspetta la stessa. */
+const headInVolo = new WeakMap<GitAsincrono, Map<string, Promise<EsitoGit>>>()
+
+const perGit = <T>(m: WeakMap<GitAsincrono, Map<string, T>>, git: GitAsincrono): Map<string, T> => {
+  let x = m.get(git)
+  if (x === undefined) { x = new Map(); m.set(git, x) }
+  return x
+}
+
+/**
+ * **`improntaCodice` senza fermare il servizio** (0.85.2). Lo stesso conto,
+ * con git asincrono: `spawnSync` teneva fermo l'intero servizio (hook delle
+ * chat compresi) per ogni `rev-parse` e ogni `diff`, a ogni fermata e più
+ * volte per giro. HEAD si legge sempre (un'unione lo cambia e l'esito di un
+ * criterio non deve finire sotto il commit di prima); il diff, la parte
+ * cara, si ricorda per cartella e HEAD per `IMPRONTA_VALE_MS`.
+ */
+export async function improntaCodiceAsincrona(git: GitAsincrono, cwd: string, adesso: () => number = Date.now): Promise<string | undefined> {
+  const volo = perGit(headInVolo, git)
+  let h = volo.get(cwd)
+  if (h === undefined) {
+    h = git(['rev-parse', 'HEAD'], cwd)
+    volo.set(cwd, h)
+    void h.finally(() => { if (volo.get(cwd) === h) volo.delete(cwd) })
+  }
+  const head = await h
+  if (head.codice !== 0) return undefined
+  const commit = head.uscita.trim()
+  if (!/^[0-9a-f]{7,64}$/i.test(commit)) return undefined
+  const ricordati = perGit(diffRicordati, git)
+  const t = adesso()
+  let r = ricordati.get(cwd)
+  if (r === undefined || r.head !== commit || t - r.quando >= IMPRONTA_VALE_MS) {
+    r = { head: commit, quando: t, diff: git(['diff', 'HEAD', '--', '.', ':(exclude).sierradeck'], cwd) }
+    ricordati.set(cwd, r)
+    // Il servizio gira per giorni: le cartelle scadute escono.
+    for (const [k, v] of ricordati) if (t - v.quando >= IMPRONTA_VALE_MS && k !== cwd) ricordati.delete(k)
+  }
+  const diff = await r.diff
+  if (diff.codice !== 0 || diff.uscita.trim() === '') return commit
+  return `${commit}+${createHash('sha256').update(diff.uscita).digest('hex').slice(0, 16)}`
+}
+
+/** `improntaLavoro` con git asincrono (0.85.2): niente cache, il lavoro non salvato cambia di continuo. */
+export async function improntaLavoroAsincrona(git: GitAsincrono, cwd: string): Promise<string | undefined> {
+  const head = await git(['rev-parse', 'HEAD'], cwd)
+  if (head.codice !== 0) return undefined
+  const [stato, diff] = await Promise.all([
+    git(['status', '--porcelain', '-uall', '--', '.', STORICO_FUORI], cwd),
+    git(['diff', 'HEAD', '--', '.', STORICO_FUORI], cwd)
+  ])
+  if (stato.codice !== 0) return undefined
+  return firmaLavoro(cwd, head, stato, diff)
+}
+
+function firmaLavoro(cwd: string, head: EsitoGit, stato: EsitoGit, diff: EsitoGit): string {
+  const h = createHash('sha256').update(head.uscita).update('\0').update(stato.uscita).update('\0').update(diff.uscita)
+  for (const riga of stato.uscita.split(/\r?\n/)) {
+    if (!riga.startsWith('?? ')) continue
+    try { const s = statSync(join(cwd, riga.slice(3).replace(/^"|"$/g, ''))); h.update(`${riga}:${s.size}:${s.mtimeMs}`) } catch { h.update(riga) }
+  }
+  return h.digest('hex').slice(0, 24)
+}
+
 /**
  * L'impronta del **lavoro** in una cartella git: HEAD, lo stato (anche i file
  * non tracciati) e il diff, più dimensione e data dei file non tracciati (il
@@ -83,12 +152,7 @@ export function improntaLavoro(git: Git, cwd: string): string | undefined {
   const stato = git(['status', '--porcelain', '-uall', '--', '.', STORICO_FUORI], cwd)
   if (stato.codice !== 0) return undefined
   const diff = git(['diff', 'HEAD', '--', '.', STORICO_FUORI], cwd)
-  const h = createHash('sha256').update(head.uscita).update('\0').update(stato.uscita).update('\0').update(diff.uscita)
-  for (const riga of stato.uscita.split(/\r?\n/)) {
-    if (!riga.startsWith('?? ')) continue
-    try { const s = statSync(join(cwd, riga.slice(3).replace(/^"|"$/g, ''))); h.update(`${riga}:${s.size}:${s.mtimeMs}`) } catch { h.update(riga) }
-  }
-  return h.digest('hex').slice(0, 24)
+  return firmaLavoro(cwd, head, stato, diff)
 }
 
 
