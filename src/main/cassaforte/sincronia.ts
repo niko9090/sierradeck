@@ -14,7 +14,7 @@ import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { nomeNormalizzato } from '@shared/progetti-unificati'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
+import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, scriviManifesto, nomeDi, impronta, copiaManifesto } from './incrementale'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
 import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
@@ -150,7 +150,12 @@ export type Sincronia = {
   sbloccaConRecupero: (codice: string) => Promise<EsitoSemplice>
   cambiaPassphrase: (vecchia: string, nuova: string) => Promise<EsitoSemplice>
   blocca: () => void
-  salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
+  /**
+   * `automatico`: il giro dei cinque minuti. Rimanda le chat vive e non
+   * carica piu' di un tetto di byte (vedi `salvaIncrementale`); «Salva ora»
+   * e la chiusura caricano tutto, come sempre.
+   */
+  salva: (forza?: boolean, opzioni?: { automatico?: boolean }) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
   auto: (attivo?: boolean) => boolean
   /**
@@ -555,6 +560,8 @@ export function apriSincronia(deps: {
   /** L'ultimo testo scritto: il manifesto è di qualche MB, e il salvataggio automatico lo riscriveva uguale ogni 5 minuti (0.69.0). */
   let manifestoScritto = ''
   let invariatoDettoIl = 0
+  // Come sopra, per i file che il giro automatico rimanda (chat vive, tetto di byte).
+  let rimandatiDettoIl = 0
   const scriviManifestoLocale = (m: Manifesto): void => {
     const testo = JSON.stringify(soloSuDisco(m))
     if (testo === manifestoScritto && existsSync(fileManifesto)) return
@@ -821,7 +828,7 @@ export function apriSincronia(deps: {
       dimenticaMaestra()
     },
 
-    async salva() {
+    async salva(_forza, opzioni) {
       // «SALVA richiesto» a ogni giro automatico era metà del registro (0.69.0): resta l'esito.
       if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
@@ -845,6 +852,13 @@ export function apriSincronia(deps: {
           onProgresso: progressoVerso(l.presa),
           ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {}),
           sostituto: (percorso, contenuto, base) => unioneWorkspace(m, percorso, contenuto, base),
+          // Solo i workspace si fondono: tutto il resto sale a flusso.
+          sostituisce: (percorso) => percorso === 'sierradeck/workspaces.json',
+          // Il giro automatico non ricarica le chat vive a ogni passaggio, e
+          // non macina gigabyte in un colpo solo: il resto al giro dopo.
+          ...(opzioni?.automatico === true
+            ? { rimandaVive: { quieteMs: QUIETE_CHAT_MS, ritardoMassimoMs: RITARDO_MASSIMO_CHAT_MS }, budgetByte: BUDGET_GIRO_BYTE }
+            : {}),
           // Una chat, una casa (0.42.0): le copie fuori casa non salgono, e
           // ogni chat caricata porta il suo PC.
           // e (0.65.0) quelle tolte dal Drive con una pulizia non risalgono finché sono uguali.
@@ -857,6 +871,10 @@ export function apriSincronia(deps: {
         })
         scriviManifestoLocale(esito.manifesto)
         const totali = Object.keys(esito.manifesto.file).length
+        if (esito.rimandati > 0 && Date.now() - rimandatiDettoIl >= 60 * 60_000) {
+          log(`SALVA: ${esito.rimandati} file rimandati al prossimo giro (chat ancora vive o oltre il tetto del giro; lo ridico fra un’ora)`)
+          rimandatiDettoIl = Date.now()
+        }
         if (esito.annullato === true) {
           log(`SALVA annullato (${esito.caricati} caricati prima di fermarsi)`)
           return { ok: true, voci: esito.caricati, annullato: true, messaggio: `fermato: ${esito.caricati} file saliti, il resto al prossimo salvataggio` }
@@ -1384,7 +1402,9 @@ export function apriSincronia(deps: {
       if (maestra === undefined || !deps.driveConnesso()) return
       const s = leggiStato()
       if (s.auto !== true) return
-      const r = await this.salva()
+      // Alla chiusura (`conArrivo: false`) sale tutto, chat vive comprese: e'
+      // l'ultima occasione prima che l'altro PC le cerchi.
+      const r = await this.salva(false, { automatico: opzioni?.conArrivo !== false })
       if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
       if (opzioni?.conArrivo === false) return
       // Poi si guarda se c'e' qualcosa da portare giu': la sincronizzazione va

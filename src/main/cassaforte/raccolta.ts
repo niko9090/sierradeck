@@ -1,5 +1,10 @@
 import { readdir, readFile, writeFile, mkdir, unlink, utimes, rename } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { createReadStream } from 'node:fs'
+import { Readable, Transform, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { createGzip } from 'node:zlib'
+import { createHash, randomUUID } from 'node:crypto'
+import { SEGNO } from './compressione'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { join, resolve, sep, dirname } from 'node:path'
 import type { Voce } from './pacchetto'
@@ -220,8 +225,8 @@ export async function ripristina(
  */
 export async function firmaRadici(
   radici: Radice[]
-): Promise<Map<string, { size: number; mtime: number; disco: string }>> {
-  const firma = new Map<string, { size: number; mtime: number; disco: string }>()
+): Promise<Map<string, FirmaFile>> {
+  const firma = new Map<string, FirmaFile>()
   for (const r of radici) {
     const rels = await fileDi(r)
     const dischi = rels.map((rel) => join(r.cartella, ...rel.split('/')))
@@ -232,10 +237,59 @@ export async function firmaRadici(
       // Un file sparito fra l'elenco e lo stat si ignora.
       if (s === undefined) return
       // Al millisecondo: e' la precisione con cui `utimes` lo rimette.
-      firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: Math.round(s.mtimeMs), disco: dischi[i] as string })
+      firma.set(`${r.prefisso}/${rel}`, { size: s.size, mtime: Math.round(s.mtimeMs), disco: dischi[i] as string, nato: Math.round(s.birthtimeMs) })
     })
   }
   return firma
+}
+
+/** La firma di un file da sincronizzare (vedi `firmaRadici`). */
+export type FirmaFile = {
+  size: number
+  mtime: number
+  disco: string
+  /** Quando il file e' nato (ms): dice da quanto e' viva una chat nuova. */
+  nato?: number
+}
+
+/**
+ * Un file pronto da cifrare, letto **a flusso** fino a `size` byte: l'impronta
+ * del contenuto in chiaro si calcola mentre passa, e se va compresso si
+ * comprime strada facendo (nel formato di `impacchetta`, segno in testa).
+ *
+ * Prima si leggeva il file intero con `readFile` e lo si comprimeva con
+ * `gzipSync` — sul processo main, per trascrizioni da 100-237 MB: il chiaro e
+ * il compresso in memoria insieme, e la compressione che fermava tutto. Ora in
+ * memoria resta solo cio' che sale, e la compressione gira fuori dal thread.
+ *
+ * Si legge **fino alla dimensione della firma**, non fino alla fine di adesso:
+ * una chat che cresce mentre la si legge sale com'era alla `stat`, e la voce
+ * del manifesto (dimensione, impronta) descrive esattamente quei byte. Se il
+ * file nel frattempo si e' accorciato, `undefined`: si riprova al giro dopo.
+ */
+export async function leggiPerCaricare(
+  disco: string,
+  size: number,
+  comprimi: boolean
+): Promise<{ corpo: Buffer; sha: string } | undefined> {
+  const hash = createHash('sha256')
+  const pezzi: Buffer[] = []
+  let letti = 0
+  const sorgente = size === 0 ? Readable.from([]) : createReadStream(disco, { start: 0, end: size - 1 })
+  const conta = new Transform({
+    transform(pezzo: Buffer, _enc, fatto) { hash.update(pezzo); letti += pezzo.length; fatto(null, pezzo) }
+  })
+  const raccolta = new Writable({
+    write(pezzo: Buffer, _enc, fatto) { pezzi.push(pezzo); fatto() }
+  })
+  try {
+    if (comprimi) await pipeline(sorgente, conta, createGzip({ level: 6 }), raccolta)
+    else await pipeline(sorgente, conta, raccolta)
+  } catch {
+    return undefined
+  }
+  if (letti !== size) return undefined
+  return { corpo: Buffer.concat(comprimi ? [SEGNO, ...pezzi] : pezzi), sha: hash.digest('hex') }
 }
 
 export async function pesaRadici(radici: Radice[]): Promise<{ file: number; byte: number }> {
