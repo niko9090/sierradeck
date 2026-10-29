@@ -86,6 +86,8 @@ import androidx.compose.ui.text.style.TextAlign
 @Composable
 internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }) {
     var d by remember(breve.id) { mutableStateOf<AutopilotaDettaglio?>(null) }
+    // La conversazione intera (PC 0.86.0): solo dopo «Mostra tutta la conversazione».
+    var intera by remember(breve.id) { mutableStateOf(false) }
     var quadernoAperto by remember { mutableStateOf(false) }
     var storicoAperto by remember { mutableStateOf<String?>(null) }
     var eliminando by remember { mutableStateOf(false) }
@@ -112,11 +114,18 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
 
     var pan by remember(breve.id) { mutableStateOf<Panoramica?>(null) }
     LaunchedEffect(breve.id) {
+        var panIl = 0L
         while (isActive) {
             try {
-                d = api.autopilota(breve.id); guastoDettaglio = null
+                // Leggera (PC 0.86.0), con l'ETag: uguale a prima non viaggia niente.
+                d = api.autopilota(breve.id, intera); guastoDettaglio = null
                 // PC 0.77.0: la Panoramica del suo workspace. Un PC più vecchio non la ha: niente.
-                pan = d?.workspace?.let { ws -> try { api.panoramica(ws) } catch (_: Exception) { null } }
+                // Ogni dieci secondi (app 2.86.0), non a ogni giro: chi lavora non cambia ogni due.
+                val ora = System.currentTimeMillis()
+                if (pan == null || ora - panIl >= PANORAMICA_OGNI_MS) {
+                    panIl = ora
+                    pan = d?.workspace?.let { ws -> try { api.panoramica(ws) } catch (_: Exception) { null } }
+                }
             } catch (e: Exception) {
                 guastoDettaglio = if (e is Api.Errore && e.codice == 404) "Il computer non trova più questo autopilota: forse è stato eliminato."
                     else "Non riesco a leggere il dettaglio: ${e.message ?: "il computer non risponde"}. Riprovo da solo ogni due secondi."
@@ -130,7 +139,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
     val chat = det?.chat ?: emptyList()
     val pensa = det?.pensa == true
     val guarda = det != null && det.stato == "intervista" && !det.domanda
-    val righe = chat.size + (if (pensa || guarda) 1 else 0)
+    // Le battute di tutta la conversazione, anche se ne arrivano solo le ultime (PC 0.86.0).
+    val righe = (det?.chatIntera ?: chat.size) + (if (pensa || guarda) 1 else 0)
     // In fondo, come ogni chat: si scorre quando cambia il numero delle righe,
     // non a ogni rilettura, cosi' chi sta rileggendo l'inizio non viene
     // riportato giu' ogni due secondi.
@@ -199,7 +209,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                         det?.adesso?.let { AdessoVista(it) }
                         MessaggiVersoLaChat(det?.messaggi ?: emptyList()) {
                             scopeMessaggi.launch {
-                                try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id) } catch (_: Exception) { }
+                                try { api.mandaAdessoAutopilota(breve.id); d = api.autopilota(breve.id, intera) } catch (_: Exception) { }
                             }
                         }
                     Spacer(Modifier.height(8.dp))
@@ -251,7 +261,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             Text(nomi[chiavi.indexOf(k)], color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Spacer(Modifier.height(4.dp))
             when (k) {
-                "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id) } catch (_: Exception) {} } })
+                "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = { scope.launch { try { d = api.autopilota(breve.id, intera) } catch (_: Exception) {} } })
                 "istruzioni" -> LinguettaIstruzioni(api, breve.id)
                 "file" -> LinguettaFile(api, breve.id)
                 "obiettivo" -> {
@@ -380,6 +390,14 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             // PC 0.79.0: senza la Panoramica 2 il diario è intero, le righe corte dei traguardi sarebbero un doppione.
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
             if (eventi.isNotEmpty()) item { CosaESuccesso(eventi) }
+            // Leggera (PC 0.86.0): le ultime battute; le altre con un tocco.
+            val primaDi = RegoleSchedaLeggera.righePrima(det)
+            if (primaDi > 0 && !intera) item(key = "intera") {
+                TextButton(onClick = {
+                    intera = true
+                    scope.launch { try { d = api.autopilota(breve.id, true) } catch (_: Exception) { } }
+                }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Mostra tutta la conversazione ($primaDi righe prima)") }
+            }
             val chiavi = ChiaviElenco.di(messaggi, ChiaviElenco::battuta)
             itemsIndexed(messaggi, key = { i, _ -> chiavi[i] }) { _, b ->
                 // Il testo della chat con lui si seleziona e si copia (tocco
@@ -449,7 +467,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                                 api.dialogaAutopilota(breve.id, testo)
                                 messaggio = ""
                                 notaDialogo = null
-                                try { d = api.autopilota(breve.id) } catch (_: Exception) {}
+                                try { d = api.autopilota(breve.id, intera) } catch (_: Exception) {}
                             } catch (e: Api.Errore) {
                                 notaDialogo = if (FunzioniPc.mancaSulPc(e)) FunzioniPc.testoMancante(FunzionePc.DIALOGO_AUTOPILOTA)
                                 else "Non sono riuscito a mandarlo (HTTP ${e.codice})."
@@ -484,4 +502,13 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             }
         }, onNo = { eliminando = false })
     }
+}
+
+/** Ogni quanto si rilegge la Panoramica dalla scheda di un autopilota (app 2.86.0). */
+internal const val PANORAMICA_OGNI_MS = 10_000L
+
+/** La scheda leggera (PC 0.86.0), lato app. */
+internal object RegoleSchedaLeggera {
+    /** Quante battute della conversazione non sono arrivate (0 = c'è tutta). */
+    fun righePrima(d: AutopilotaDettaglio?): Int = d?.chatIntera?.let { (it - d.chat.size).coerceAtLeast(0) } ?: 0
 }

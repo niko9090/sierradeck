@@ -31,8 +31,25 @@ export const PORTA_CLIENT = 47640
 
 export type Esito = { stato: number; corpo: unknown; tipo?: string }
 export type Rotta = (
-  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }
+  /** `cerca`: i parametri dell'indirizzo (0.86.0), per esempio `?leggero=1`. */
+  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams }
 ) => Promise<Esito> | Esito
+
+/**
+ * Le rotte che la pagina e l'app rileggono di continuo (0.86.0): rispondono
+ * con un ETag (l'impronta del JSON), e a chi rimanda la stessa impronta in
+ * `If-None-Match` danno 304 senza corpo. Il PC il JSON lo compone lo stesso,
+ * ma non lo comprime né lo spedisce, e il telefono non lo riceve né lo
+ * rilegge. Un'app vecchia non manda `If-None-Match`: riceve tutto, come prima.
+ */
+export const ROTTE_CON_ETAG: ReadonlySet<string> = new Set([
+  '/api/stato', '/api/autopilota', '/api/domande', '/api/panoramica', '/api/autopiloti/altri'
+])
+
+/** L'impronta di un JSON, fra virgolette come vuole HTTP. */
+export function etagDi(corpo: string): string {
+  return `"${createHash('sha1').update(corpo).digest('hex')}"`
+}
 
 export type DipendenzeClient = {
   dispositivi: Dispositivi
@@ -188,7 +205,7 @@ function testoPronto(corpo: string): { gz: Buffer; etag: string } {
  * e riceve il testo di sempre. La pagina (400 KB, ~100 KB compressa) ha anche
  * l'ETag: alla riapertura il browser riceve 304 e niente corpo.
  */
-function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage): void {
+function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conEtag = false): void {
   const tipo = esito.tipo ?? 'application/json; charset=utf-8'
   const corpo = tipo.startsWith('application/json') ? JSON.stringify(esito.corpo) : String(esito.corpo)
   const intestazioni: Record<string, string> = {
@@ -199,6 +216,17 @@ function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage): voi
     'X-Content-Type-Options': 'nosniff'
   }
   const gzip = /\bgzip\b/.test(String(req?.headers['accept-encoding'] ?? '')) && corpo.length >= COMPRIMI_DA_BYTE
+  // L'ETag delle rotte che si rileggono (0.86.0, `ROTTE_CON_ETAG`).
+  if (conEtag && esito.stato === 200 && tipo.startsWith('application/json')) {
+    const etag = etagDi(corpo)
+    intestazioni.ETag = etag
+    intestazioni['Cache-Control'] = 'no-cache'
+    if (req?.headers['if-none-match'] === etag) {
+      res.writeHead(304, intestazioni)
+      res.end()
+      return
+    }
+  }
   if (tipo.startsWith('text/html') && esito.stato === 200) {
     const pronto = testoPronto(corpo)
     intestazioni.ETag = pronto.etag
@@ -247,6 +275,7 @@ async function gestisci(
   }
 
   const percorso = (req.url ?? '/').split('?')[0] ?? '/'
+  const cerca = new URL(req.url ?? '/', 'http://x').searchParams
   const metodo = req.method ?? 'GET'
   const corpo = metodo === 'GET' ? undefined : await leggiCorpoJson(req)
 
@@ -316,7 +345,7 @@ async function gestisci(
   }
 
   if (autorizzata(percorso)) {
-    rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo }), req)
+    rispondi(res, await (deps.rottaLibera ?? deps.rotta)({ metodo, percorso, corpo, cerca }), req)
     return
   }
 
@@ -354,7 +383,7 @@ async function gestisci(
   }
   racconta(`ok:${indirizzo}`, `${dispositivo.nome ?? dispositivo.id} (${indirizzo}) collegato`)
 
-  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id }), req)
+  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id, cerca }), req, ROTTE_CON_ETAG.has(percorso))
 }
 
 /**

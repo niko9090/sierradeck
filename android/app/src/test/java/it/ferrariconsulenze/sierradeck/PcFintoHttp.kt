@@ -14,7 +14,15 @@ import java.net.Socket
  * (Il server HTTP del JDK non c'è nei test di Android: si fa a mano, come in
  * `PonteTest`.)
  */
-class PcFintoHttp(private val risposta: (String, JsonObject) -> Pair<Int, String>) {
+class PcFintoHttp(
+    /** Facoltativo (PC 0.86.0): l'ETag di una risposta 200; con `If-None-Match` uguale si risponde 304. */
+    private val etagDi: ((String, String) -> String?)?,
+    private val risposta: (String, JsonObject) -> Pair<Int, String>
+) {
+    constructor(risposta: (String, JsonObject) -> Pair<Int, String>) : this(null, risposta)
+
+    /** Gli `If-None-Match` arrivati, uno per richiesta (null se mancava). */
+    val seNonCambiato: MutableList<String?> = java.util.Collections.synchronizedList(mutableListOf<String?>())
     private val socket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
     val porta: Int get() = socket.localPort
 
@@ -40,20 +48,30 @@ class PcFintoHttp(private val risposta: (String, JsonObject) -> Pair<Int, String
         }
         val percorso = riga().split(' ').getOrElse(1) { "/" }
         var lunghezza = 0
+        var seNon: String? = null
         while (true) {
             val h = riga()
             if (h.isEmpty()) break
             if (h.lowercase().startsWith("content-length:")) lunghezza = h.substringAfter(':').trim().toInt()
+            if (h.lowercase().startsWith("if-none-match:")) seNon = h.substringAfter(':').trim()
         }
+        seNonCambiato += seNon
         val dati = ByteArray(lunghezza)
         var letti = 0
         while (letti < lunghezza) { val n = inp.read(dati, letti, lunghezza - letti); if (n < 0) break; letti += n }
         val testo = String(dati, Charsets.UTF_8)
         val corpo = if (testo.isBlank()) JsonObject(emptyMap()) else Api.json.parseToJsonElement(testo).jsonObject
         val (stato, uscita) = risposta(percorso, corpo)
-        val b = uscita.toByteArray(Charsets.UTF_8)
+        val etag = if (stato == 200) etagDi?.invoke(percorso, uscita) else null
         val out = conn.getOutputStream()
-        out.write("HTTP/1.1 $stato X\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${b.size}\r\nConnection: close\r\n\r\n".toByteArray())
+        if (etag != null && etag == seNon) {
+            out.write("HTTP/1.1 304 X\r\nETag: $etag\r\nConnection: close\r\n\r\n".toByteArray())
+            out.flush()
+            return
+        }
+        val b = uscita.toByteArray(Charsets.UTF_8)
+        val conEtag = if (etag != null) "ETag: $etag\r\n" else ""
+        out.write("HTTP/1.1 $stato X\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${b.size}\r\n${conEtag}Connection: close\r\n\r\n".toByteArray())
         out.write(b)
         out.flush()
     }

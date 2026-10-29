@@ -454,7 +454,7 @@ internal fun LinguettaFile(api: Api, autopilota: String) {
             try { file = api.fileAutopilota(autopilota); guasto = null } catch (e: Exception) {
                 guasto = FunzioniPc.spiega(e, FunzionePc.FILE_AUTOPILOTA)
             }
-            Davanti.pausa(4000)
+            Davanti.pausa(Davanti.ELENCO_MS)
         }
     }
     LaunchedEffect(scelto) {

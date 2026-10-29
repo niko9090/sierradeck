@@ -129,7 +129,7 @@ fun Lavori(
         if (su == null) return@LaunchedEffect
         while (isActive) {
             statoSu = try { api.stato() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { statoSu }
-            Davanti.pausa(3000)
+            Davanti.pausa(Davanti.ELENCO_MS)
         }
     }
     val stato = if (su != null) statoSu else statoAccoppiato

@@ -20,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -130,7 +129,7 @@ fun DialogoSottofondo(api: Api, s: SessioneRipresa, onChiudi: () -> Unit) {
         if (!inCorso) return@LaunchedEffect
         val inizio = System.currentTimeMillis()
         while (true) {
-            delay(2000)
+            Davanti.pausa(2000)
             val a = avvio ?: break
             if (a.fase == "errore" || a.fase == "fatto") break
             try {

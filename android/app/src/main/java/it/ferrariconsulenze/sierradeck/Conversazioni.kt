@@ -104,7 +104,7 @@ fun VistaConversazioni(api: Api, tutte: List<Conversazione>, onRiletto: () -> Un
         scope.launch {
             try {
                 esito = azione().frase?.takeIf { it.isNotBlank() }
-                mandati[aperta.chiave] = (mandati[aperta.chiave] ?: emptyList()) + ricordo
+                mandati[aperta.chiave] = ((mandati[aperta.chiave] ?: emptyList()) + ricordo).takeLast(MANDATI_TENUTI)
                 testo = ""
                 onRiletto()
             } catch (e: Exception) {
@@ -284,3 +284,6 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
         }
     }
 }
+
+/** Quante delle tue risposte appena mandate si tengono per conversazione, finché il PC non le rimette nel filo (app 2.86.0). */
+internal const val MANDATI_TENUTI = 10
