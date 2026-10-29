@@ -27,6 +27,14 @@ const gitFinto: Git = (args, cwd) => {
   if (a === 'config user.name') return { codice: 0, uscita: 'prova' }
   return { codice: 0, uscita: '' }
 }
+/**
+ * Il progetto degli autopiloti in prova: una cartella temporanea, mai il
+ * repository vero. Con `process.cwd()` il git finto «creava» le copie delle
+ * chat accanto al repository (`SierraDeck.sierradeck-wt/ap-…-c-N`), e lo
+ * spegnimento degli hook ECC ci lasciava dentro `.claude/settings.local.json`:
+ * ~8.100 cartelle fino al 30/10.
+ */
+const PROGETTO = mkdtempSync(join(tmpdir(), 'ap-server-progetto-'))
 /** I limiti del piano larghi: il freno lascia aprire tutte le chat utili. */
 const LIMITI_LIBERI = { cinqueOre: { percento: 10 }, settimana: { percento: 10 } }
 let limitiDaSpingere: unknown
@@ -130,7 +138,7 @@ function eventoStop(over: Record<string, unknown> = {}): Record<string, unknown>
     stop_hook_active: false,
     last_assistant_message: 'Ho finito.',
     hook_event_name: 'Stop',
-    cwd: process.cwd(),
+    cwd: PROGETTO,
     transcript_path: 'x.jsonl',
     ...over
   }
@@ -140,7 +148,7 @@ async function creaAp(over: Record<string, unknown> = {}): Promise<string> {
   const { dati } = await chiama('POST', '/autopiloti', {
     nome: 'Test verdi',
     obiettivo: 'Fai passare la suite',
-    cwd: process.cwd(),
+    cwd: PROGETTO,
     criteri: [{ descrizione: 'i test passano', comando: 'npm test' }],
     ...over
   })
@@ -183,7 +191,7 @@ describe('creazione ed elenco', () => {
 
   it('rifiuta una creazione senza obiettivo', async () => {
     expect((await chiama('POST', '/autopiloti', {
-      cwd: process.cwd(), criteri: [{ descrizione: 'x' }]
+      cwd: PROGETTO, criteri: [{ descrizione: 'x' }]
     })).stato).toBe(400)
   })
 
@@ -191,7 +199,7 @@ describe('creazione ed elenco', () => {
     // I criteri sono la parte che l'utente non dovrebbe scrivere: e' il lavoro
     // che stava delegando. Senza, l'autopilota li ricava lui facendo domande.
     const { stato, dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+      obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: []
     })
     expect(stato).toBe(200)
     expect(dati.stato).toBe('intervista')
@@ -200,7 +208,7 @@ describe('creazione ed elenco', () => {
   it('rifiuta una cartella che non esiste', async () => {
     // Meglio dirlo adesso che scoprirlo quando claude.exe non parte.
     const { stato } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'x', cwd: join(process.cwd(), 'non-esiste-davvero'), criteri: [{ descrizione: 'x' }]
+      obiettivo: 'x', cwd: join(PROGETTO, 'non-esiste-davvero'), criteri: [{ descrizione: 'x' }]
     })
     expect(stato).toBe(400)
   })
@@ -461,7 +469,7 @@ describe('ferma e riprendi', () => {
     const avvisi = vi.spyOn(console, 'warn')
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+      obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: []
     })
 
     for (let i = 0; i < 80 && domande === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
@@ -504,7 +512,7 @@ describe('ferma e riprendi', () => {
     })
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'x', cwd: process.cwd(), criteri: []
+      obiettivo: 'x', cwd: PROGETTO, criteri: []
     })
     for (let i = 0; i < 80 && preparazioni === 0; i += 1) await new Promise((r) => setTimeout(r, 25))
     await chiama('POST', `/autopiloti/${dati.id}/ferma`)
@@ -536,7 +544,7 @@ describe('ferma e riprendi', () => {
     })
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+      obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: []
     })
 
     let domanda
@@ -1140,7 +1148,7 @@ describe('intervista di preparazione', () => {
   it('fa la domanda all utente prima di partire', async () => {
     server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: [] })
 
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
     const domanda = (await chiama('GET', '/domande')).dati[0]
@@ -1153,7 +1161,7 @@ describe('intervista di preparazione', () => {
     server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+      obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: []
     })
 
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
@@ -1177,7 +1185,7 @@ describe('intervista di preparazione', () => {
     server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 5000 })
     await avvia(server)
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: []
+      obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: []
     })
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
     const domanda = (await chiama('GET', '/domande')).dati[0]
@@ -1231,7 +1239,7 @@ describe('intervista di preparazione', () => {
       scadenzaInterviataMs: 5000
     })
     await avvia(server)
-    const { dati } = await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+    const { dati } = await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: PROGETTO, criteri: [] })
 
     let domanda
     for (let i = 0; i < 80; i += 1) {
@@ -1258,7 +1266,7 @@ describe('intervista di preparazione', () => {
       interroga: (p) => Promise.resolve({ testo: p.includes('Stai preparando') ? 'boh' : '{"azione": "finito"}' })
     })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: PROGETTO, criteri: [] })
 
     await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'sospeso')
     expect((await chiama('GET', '/autopiloti')).dati[0].motivoSospensione).toContain('configurazione')
@@ -1284,7 +1292,7 @@ describe('intervista di preparazione', () => {
       scadenzaInterviataMs: 5000
     })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: PROGETTO, criteri: [] })
 
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
     const domanda = (await chiama('GET', '/domande')).dati[0]
@@ -1313,7 +1321,7 @@ describe('intervista di preparazione', () => {
       }
     })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: PROGETTO, criteri: [] })
 
     await attendi(async () => (await chiama('GET', '/autopiloti')).dati[0].stato === 'pronto')
     expect(tempi[0]).toBeGreaterThanOrEqual(15 * 60_000)
@@ -1331,7 +1339,7 @@ describe('intervista di preparazione', () => {
         id: 'ap-interrotto',
         nome: 'x',
         obiettivo: 'Sistema il lettore',
-        cwd: process.cwd(),
+        cwd: PROGETTO,
         criteri: [],
         iniziatoIl: '2026-08-09T10:00:00.000Z'
       }),
@@ -1359,7 +1367,7 @@ describe('intervista di preparazione', () => {
         id: 'ap-guasto',
         nome: 'x',
         obiettivo: 'y',
-        cwd: process.cwd(),
+        cwd: PROGETTO,
         criteri: [],
         iniziatoIl: '2026-08-09T10:00:00.000Z'
       }),
@@ -1378,7 +1386,7 @@ describe('intervista di preparazione', () => {
   it('senza risposta resta in intervista, con la domanda aperta', async () => {
     server = ambiente({ interroga: intervistatore(), scadenzaInterviataMs: 120 })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'x', cwd: PROGETTO, criteri: [] })
 
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
     await new Promise((r) => setTimeout(r, 300))
@@ -1396,7 +1404,7 @@ describe('il workspace di destinazione', () => {
     // non chi lo cerca dentro `workspaces.json` quando la chat non e' ancora
     // nata da nessuna parte.
     const { dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'y' }], workspace: 'lavoro'
+      obiettivo: 'x', cwd: PROGETTO, criteri: [{ descrizione: 'y' }], workspace: 'lavoro'
     })
     expect(dati.workspace).toBe('lavoro')
     expect((await chiama('GET', '/autopiloti')).dati[0].workspace).toBe('lavoro')
@@ -1404,7 +1412,7 @@ describe('il workspace di destinazione', () => {
 
   it('senza workspace resta senza, e non e un errore', async () => {
     const { stato, dati } = await chiama('POST', '/autopiloti', {
-      obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'y' }]
+      obiettivo: 'x', cwd: PROGETTO, criteri: [{ descrizione: 'y' }]
     })
     expect(stato).toBe(200)
     expect(dati.workspace).toBeUndefined()
@@ -1921,7 +1929,7 @@ describe('cosa ha capito, e cosa ha raggiunto', () => {
     })
     await avvia(server)
     await chiama('POST', '/autopiloti', {
-      obiettivo: 'fai passare i test', cwd: process.cwd(), criteri: []
+      obiettivo: 'fai passare i test', cwd: PROGETTO, criteri: []
     })
 
     for (let i = 0; i < 120; i += 1) {
@@ -2041,11 +2049,11 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     server = ambiente()
     await avvia(server)
     const id = await creaAp()
-    const no = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf C:/Windows/Temp/x' }, cwd: process.cwd() })
+    const no = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf C:/Windows/Temp/x' }, cwd: PROGETTO })
     expect(no.dati.hookSpecificOutput.permissionDecision).toBe('deny')
-    const si = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf dist' }, cwd: process.cwd() })
+    const si = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'rm -rf dist' }, cwd: PROGETTO })
     expect(si.dati).toEqual({})
-    const porta = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'curl -X POST http://127.0.0.1:47640/api/drive/porta' }, cwd: process.cwd() })
+    const porta = await chiama('POST', `/hook/pretool?ap=${id}`, { tool_name: 'Bash', tool_input: { command: 'curl -X POST http://127.0.0.1:47640/api/drive/porta' }, cwd: PROGETTO })
     expect(porta.dati.hookSpecificOutput.permissionDecision).toBe('deny')
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.decisioni.map((d: any) => d.cosa).join(' ')).toContain('comando bloccato dal programma')
@@ -2100,7 +2108,7 @@ describe('l harness (0.36.0): freno, divieti, mosse, domande gemelle, pubblicazi
     const id = await creaAp()
     await attendi(() => chatAvviate.length >= 2)
     // Il primo hook della c-2 (un comando) è la prova che è partita.
-    await chiama('POST', `/hook/pretool?ap=${id}&chat=c-2`, { tool_name: 'Bash', tool_input: { command: 'git status' }, cwd: process.cwd() })
+    await chiama('POST', `/hook/pretool?ap=${id}&chat=c-2`, { tool_name: 'Bash', tool_input: { command: 'git status' }, cwd: PROGETTO })
     let stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats.find((c: any) => c.id === 'c-2').segnale).toMatchObject({ tipo: 'parto' })
     // La c-1 chiude il turno bloccata, con il motivo.
@@ -2293,7 +2301,7 @@ describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', ()
     await avvia(server)
     await chiama('POST', '/stato-programma', {
       letto: Date.now(), driveAttivo: true,
-      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: process.cwd() }]
+      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: PROGETTO }]
     })
     const id = await creaAp({ pubblicazione: 'beta' })
     const primo = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())
@@ -2308,7 +2316,7 @@ describe('il cloud e il Drive di SierraDeck (correzione di Nicholas, 30/09)', ()
     await avvia(server)
     await chiama('POST', '/stato-programma', {
       letto: Date.now(), driveAttivo: false,
-      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: process.cwd() }]
+      progetti: [{ nome: 'questo', chi: 'io', inCoda: 0, percorso: PROGETTO }]
     })
     const id = await creaAp({ pubblicazione: 'beta' })
     expect((await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())).dati).toEqual({})
@@ -2362,7 +2370,7 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
       scadenzaInterviataMs: 5000
     })
     await avvia(server)
-    await chiama('POST', '/autopiloti', { obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [] })
+    await chiama('POST', '/autopiloti', { obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: [] })
     await attendi(async () => (await chiama('GET', '/domande')).dati.length > 0)
     const domanda = (await chiama('GET', '/domande')).dati[0]
     expect(domanda.opzioni).toEqual(['YAML', 'JSON'])
@@ -2382,7 +2390,7 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
       scadenzaInterviataMs: 5000
     })
     const a = {
-      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
+      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
       motivoSospensione: 'Che formato deve leggere?',
       riprendiAlRiavvio: false
     }
@@ -2412,7 +2420,7 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
       '', 'Se non rispondi: aspetto senza scrivere niente'
     ].join('\n')
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: process.cwd(), criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
+      ...nuovoAutopilota({ id: 'ap-prep', nome: 'Prep', obiettivo: 'Sistema il lettore', cwd: PROGETTO, criteri: [], iniziatoIl: '2026-08-09T10:00:00.000Z', stato: 'intervista' }),
       motivoSospensione: testo,
       riprendiAlRiavvio: false
     })
@@ -2441,7 +2449,7 @@ describe('le domande iniziali dell autopilota, dalle Domande (0.36.0)', () => {
 describe('«Archivia» e il momento del fermo (0.37.0)', () => {
   const scriviFermo = (id: string, stato: 'sospeso' | 'lavoro' = 'sospeso'): void => {
     archivio.scrivi({
-      ...nuovoAutopilota({ id, nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id, nome: 'x', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato,
       ...(stato === 'sospeso' ? { motivoSospensione: 'fermato dall utente' } : {})
     })
@@ -2470,7 +2478,7 @@ describe('«Archivia» e il momento del fermo (0.37.0)', () => {
     expect(r.stato).toBe(200)
     expect(r.dati.workspace).toBe('Nuovo')
     expect(r.dati.stato).toBe('lavoro')
-    expect(r.dati.cwd).toBe(process.cwd())
+    expect(r.dati.cwd).toBe(PROGETTO)
     expect((await chiama('POST', '/autopiloti/ap-vivo/workspace', { workspace: '' })).stato).toBe(400)
     expect((await chiama('POST', '/autopiloti/ap-nessuno/workspace', { workspace: 'Nuovo' })).stato).toBe(404)
   })
@@ -2497,7 +2505,7 @@ describe('il via dalla linguetta «Domande» resta nella chat (0.38.0)', () => {
     server = ambiente()
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-v', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-v', nome: 'x', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'pronto'
     })
     expect((await chiama('POST', '/autopiloti/ap-v/vai')).stato).toBe(200)
@@ -2511,7 +2519,7 @@ describe('una nota del programma nel diario (0.37.5)', () => {
     server = ambiente()
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-n', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-n', nome: 'x', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro'
     })
     const r = await chiama('POST', '/autopiloti/ap-n/nota', { testo: 'il compito è nella chat «Notte» ma non è partito' })
@@ -2527,7 +2535,7 @@ describe('un annuncio del programma a Nicholas (0.81.0, «Errori arrivati»)', (
     server = ambiente()
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-e', nome: 'Errori arrivati', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-e', nome: 'Errori arrivati', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro'
     })
     expect((await chiama('POST', '/autopiloti/ap-e/annuncio', { titolo: 'Errori arrivati: il riepilogo', testo: '2 errori dalla pagina, causa capita' })).stato).toBe(200)
@@ -2597,7 +2605,7 @@ describe('la domanda aperta sopravvive al riavvio del servizio (0.71.0)', () => 
   it('senza domanda salvata (servizio di prima) si torna al lavoro come prima', async () => {
     const cartella = mkdtempSync(join(tmpdir(), 'ap-riavvio-'))
     server = ambiente({ cartellaArchivio: cartella })
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-x', nome: 'x', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'attesa', motivoSospensione: 'chiave?' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-x', nome: 'x', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'attesa', motivoSospensione: 'chiave?' })
     await avvia(server)
     server.riprendiLavori({ servizioAppenaPartito: true })
     // È la strada di prima: la domanda non c'è più, quindi si torna al lavoro e la si rifà.
@@ -2659,13 +2667,13 @@ function copiaFinta(): string {
 
 describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', () => {
   const flotta = (over: Record<string, unknown> = {}) => ({
-    ...nuovoAutopilota({ id: 'ap-rev', nome: 'Rev', obiettivo: 'Fai A poi B', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'node controlla.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+    ...nuovoAutopilota({ id: 'ap-rev', nome: 'Rev', obiettivo: 'Fai A poi B', cwd: PROGETTO, criteri: [{ descrizione: 'test', comando: 'node controlla.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
     stato: 'lavoro' as const,
     ramoBase: 'main',
     tettoChat: 8,
     chats: [
-      { id: 'c-1', compito: 'A', stato: 'finita' as const, cicli: 2, ruolo: 'sviluppo' as const, ramo: 'ap/ap-rev/c-1', cartella: process.cwd() },
-      { id: 'c-2', compito: 'Rivedi il ramo ap/ap-rev/c-1 della chat c-1 («A»)', stato: 'lavoro' as const, cicli: 0, ruolo: 'revisione' as const, revisioneDi: 'c-1', cartella: process.cwd() }
+      { id: 'c-1', compito: 'A', stato: 'finita' as const, cicli: 2, ruolo: 'sviluppo' as const, ramo: 'ap/ap-rev/c-1', cartella: PROGETTO },
+      { id: 'c-2', compito: 'Rivedi il ramo ap/ap-rev/c-1 della chat c-1 («A»)', stato: 'lavoro' as const, cicli: 0, ruolo: 'revisione' as const, revisioneDi: 'c-1', cartella: PROGETTO }
     ],
     compitiDaFare: ['B'],
     ruoliCompiti: { A: { ruolo: 'sviluppo' as const, dopo: [] }, B: { ruolo: 'sviluppo' as const, dopo: ['A'] } },
@@ -2753,15 +2761,15 @@ describe('la Revisione decide l’unione, il programma la controlla (0.71.0)', (
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI })
     archivio.scrivi(flotta())
     await avvia(server)
-    const scrive = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Edit', tool_input: { file_path: 'x.ts' }, cwd: process.cwd() })
+    const scrive = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Edit', tool_input: { file_path: 'x.ts' }, cwd: PROGETTO })
     expect(scrive.dati.hookSpecificOutput.permissionDecision).toBe('deny')
-    const commit = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git commit -am x' }, cwd: process.cwd() })
+    const commit = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git commit -am x' }, cwd: PROGETTO })
     expect(commit.dati.hookSpecificOutput.permissionDecision).toBe('deny')
-    const legge = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git diff main...ap/ap-rev/c-1' }, cwd: process.cwd() })
+    const legge = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-2', { tool_name: 'Bash', tool_input: { command: 'git diff main...ap/ap-rev/c-1' }, cwd: PROGETTO })
     expect(legge.dati).toEqual({})
-    const installa = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'PowerShell', tool_input: { command: 'Start-Process .\\dist\\SierraDeck-Setup-0.71.0.exe' }, cwd: process.cwd() })
+    const installa = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'PowerShell', tool_input: { command: 'Start-Process .\\dist\\SierraDeck-Setup-0.71.0.exe' }, cwd: PROGETTO })
     expect(installa.dati.hookSpecificOutput.permissionDecision).toBe('deny')
-    const carica = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'gh release upload v0.71.0 dist/SierraDeck-Setup-0.71.0.exe' }, cwd: process.cwd() })
+    const carica = await chiama('POST', '/hook/pretool?ap=ap-rev&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'gh release upload v0.71.0 dist/SierraDeck-Setup-0.71.0.exe' }, cwd: PROGETTO })
     expect(carica.dati).toEqual({})
   })
 })
@@ -2794,7 +2802,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     memoria.ricordaRisposta('ap-mem', 'Uso la chiave di prova o quella vera?', 'di prova', '2026-10-12T10:00:00Z')
     server = creaServerCon({ memoria, interroga: () => Promise.resolve({ testo: chiede('Uso la chiave di prova o quella vera?') }) })
     await avvia(server)
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-mem', nome: 'Mem', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-mem', nome: 'Mem', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
     const r = await chiama('POST', '/hook/stop?ap=ap-mem', eventoStop())
     expect(r.dati.decision).toBe('block')
     expect(r.dati.reason).toContain('di prova')
@@ -2804,7 +2812,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
   it('«installi la 0.80.0?» con la 0.80.1 già installata non si chiede: la chat lo sa dal programma (0.81.0)', async () => {
     server = creaServerCon({ versione: '0.80.1', interroga: () => Promise.resolve({ testo: chiede('Installi tu la 0.80.0 su questo PC?') }) })
     await avvia(server)
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-ver', nome: 'Ver', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-ver', nome: 'Ver', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
     const r = await chiama('POST', '/hook/stop?ap=ap-ver', eventoStop())
     expect(r.dati.decision).toBe('block')
     expect(r.dati.reason).toContain('già installata la 0.80.1')
@@ -2817,7 +2825,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     memoria.ricordaRisposta('ap-en', 'Installi tu la 0.80.0 su questo PC?', 'sì, fatto', '2026-10-20T06:51:20Z', 'c-10')
     server = creaServerCon({ memoria, versione: '0.79.0', adesso: () => '2026-10-20T07:00:00.000Z', interroga: () => Promise.resolve({ testo: chiede('Will you install the 0.80.0 on this PC?') }) })
     await avvia(server)
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-en', nome: 'En', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-10-20T06:00:00.000Z' }), stato: 'lavoro' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-en', nome: 'En', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-10-20T06:00:00.000Z' }), stato: 'lavoro' })
     const r = await chiama('POST', '/hook/stop?ap=ap-en', eventoStop())
     expect(r.dati.decision).toBe('block')
     expect(r.dati.reason).toContain('sì, fatto')
@@ -2834,7 +2842,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     server = creaServerCon({ domande, versione: '0.79.0', esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 adesso, così chiudo le chat finite?') }) })
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-gem', nome: 'Gem', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-gem', nome: 'Gem', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro',
       chats: [
         { id: 'c-10', compito: 'a', stato: 'bloccata', cicli: 1, sessionId: 's-10' },
@@ -2857,7 +2865,7 @@ describe('domande chiare nel servizio (0.71.0)', () => {
     server = creaServerCon({ versione: '0.79.0', scadenzaDomandaMs: 200, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }), interroga: () => Promise.resolve({ testo: chiede('Installi la 0.80.0 su questo PC?') }) })
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-sca', nome: 'Sca', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-sca', nome: 'Sca', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro',
       chats: [
         { id: 'c-10', compito: 'a', stato: 'lavoro', cicli: 1, sessionId: 's-10' },
@@ -2897,7 +2905,7 @@ describe('mai più di un messaggio in coda in Claude Code (0.72.0)', () => {
     server = ambiente({ adesso: () => '2026-08-09T10:05:00.000Z' })
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-coda', nome: 'Coda', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T09:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-coda', nome: 'Coda', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T09:00:00.000Z' }),
       stato: 'lavoro',
       daConsegnare: [{ id: 'm-1', quando: '2026-08-09T10:00:00.000Z', testo: 'primo', chats: ['ap-coda'] }]
     })
@@ -2922,7 +2930,7 @@ describe('in sottofondo solo su richiesta (0.72.0)', () => {
   it('l’interruttore si accende e si spegne, e lo dice nel diario', async () => {
     server = ambiente()
     await avvia(server)
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-sf', nome: 'Sf', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-sf', nome: 'Sf', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito' })
     expect(archivio.leggi('ap-sf')!.sottofondo).toBeUndefined()
     expect((await chiama('POST', '/autopiloti/ap-sf/sottofondo', { si: true })).dati.sottofondo).toBe(true)
     expect((await chiama('POST', '/autopiloti/ap-sf/sottofondo', { si: false })).dati.sottofondo).toBeUndefined()
@@ -2937,7 +2945,7 @@ describe('criteri ricontrollati solo su richiesta (0.72.0)', () => {
     let passa = true
     let eseguiti = 0
     server = ambiente({ esegui: () => { eseguiti += 1; return Promise.resolve(passa ? { codice: 0, uscita: 'ok' } : { codice: 1, uscita: '1 test rosso' }) }, adesso: () => '2026-08-09T12:00:00.000Z' })
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-fin', nome: 'Fin', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'i test', comando: 'node t.js', soddisfatto: true }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito', ultimoEvento: '2026-08-09T11:30:00.000Z' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-fin', nome: 'Fin', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'i test', comando: 'node t.js', soddisfatto: true }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'finito', ultimoEvento: '2026-08-09T11:30:00.000Z' })
     await avvia(server)
     expect((await chiama('POST', '/autopiloti/ap-fin/ricontrolla-criteri')).stato).toBe(200)
     expect((await chiama('GET', '/autopiloti')).dati[0].criteri[0].soddisfatto).toBe(true)
@@ -2958,7 +2966,7 @@ describe('criteri ricontrollati solo su richiesta (0.72.0)', () => {
   it('un autopilota al lavoro non si rimisura da fuori, e uno che non c’è risponde 409', async () => {
     let eseguiti = 0
     server = ambiente({ esegui: () => { eseguiti += 1; return Promise.resolve({ codice: 0, uscita: 'ok' }) } })
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-lav', nome: 'Lav', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-lav', nome: 'Lav', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }), stato: 'lavoro' })
     await avvia(server)
     expect(await server.ricontrollaCriteri('ap-lav')).toBe(false)
     expect((await chiama('POST', '/autopiloti/ap-nessuno/ricontrolla-criteri')).stato).toBe(409)
@@ -2992,7 +3000,7 @@ describe('la notifica non cancella quello che le sorelle hanno scritto (0.71.0, 
     server = ambiente({ interroga: () => new Promise((r) => setTimeout(() => r({ testo: '{"esito": "rispondo", "risposta": "vai avanti", "perche": "lo dice l obiettivo"}' }), 80)) })
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-not', nome: 'Not', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-not', nome: 'Not', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro',
       chats: [
         { id: 'c-1', compito: 'A', stato: 'finita', cicli: 2, ruolo: 'sviluppo' },
@@ -3121,12 +3129,12 @@ describe('chiudiChat su un ramo già unito e tolto (0.80.0, visto dal vero il 19
     })
     await avvia(server)
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-ch', nome: 'Ch', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-ch', nome: 'Ch', obiettivo: 'o', cwd: PROGETTO, criteri: [{ descrizione: 'c', comando: 'node c.js', soddisfatto: false }], iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro',
       ramoBase: 'main',
       chats: [
-        { id: 'c-4', compito: 'Interfaccia', stato: 'lavoro', cicli: 3, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-4', cartella: join(process.cwd(), 'non-esiste-c-4') },
-        { id: 'c-10', compito: 'Analisi', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-10', cartella: join(process.cwd(), 'non-esiste-c-10') }
+        { id: 'c-4', compito: 'Interfaccia', stato: 'lavoro', cicli: 3, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-4', cartella: join(PROGETTO, 'non-esiste-c-4') },
+        { id: 'c-10', compito: 'Analisi', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-ch/c-10', cartella: join(PROGETTO, 'non-esiste-c-10') }
       ]
     })
     await chiama('POST', '/hook/stop?ap=ap-ch&chat=c-10', eventoStop({ session_id: 's-10', last_assistant_message: 'fatto' }))
@@ -3158,7 +3166,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
   }
   function flotta(chats: ChatGovernata[]): void {
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-cc', nome: 'Cc', obiettivo: 'o', cwd: process.cwd(), criteri: criterioRosso, iniziatoIl: '2026-08-09T10:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-cc', nome: 'Cc', obiettivo: 'o', cwd: PROGETTO, criteri: criterioRosso, iniziatoIl: '2026-08-09T10:00:00.000Z' }),
       stato: 'lavoro',
       ramoBase: 'main',
       chats
@@ -3171,8 +3179,8 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => { misure += 1; return Promise.resolve({ codice: 1, uscita: 'rosso' }) } })
     await avvia(server)
     flotta([
-      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
-      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: PROGETTO, sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: PROGETTO }
     ])
     for (let i = 0; i < 3; i += 1) {
       const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-15', eventoStop({ session_id: 's-15', last_assistant_message: 'ok' }))
@@ -3187,7 +3195,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     const sup = supervisoreContato()
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
     await avvia(server)
-    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(process.cwd(), 'non-esiste-c-13') }])
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(PROGETTO, 'non-esiste-c-13') }])
     const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
     expect(r.dati).toEqual({})
     expect(sup.chiamate()).toBe(0)
@@ -3202,7 +3210,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     const gitAltrove: Git = (args, cwd) => (args.join(' ') === 'rev-parse --show-toplevel' ? { codice: 0, uscita: join(cwd, '..') } : gitFinto(args, cwd))
     server = ambiente({ git: gitAltrove, copia: (c) => statoCopia(gitAltrove, c), limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
     await avvia(server)
-    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: process.cwd() }])
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: PROGETTO }])
     await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
     expect(sup.chiamate()).toBe(0)
     expect(archivio.leggi('ap-cc')!.decisioni.map((d) => d.cosa).join(' | ')).toContain('non è più un repository git')
@@ -3213,8 +3221,8 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
     await avvia(server)
     flotta([
-      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
-      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: PROGETTO, sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: PROGETTO }
     ])
     await chiama('POST', '/hook/notification?ap=ap-cc&chat=c-15', {
       session_id: 's-15', hook_event_name: 'Notification', notification_type: 'idle_prompt', message: 'Claude is waiting for your input'
@@ -3229,7 +3237,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     await avvia(server)
     // L'ultimo giro: la chat approvata è rimessa al lavoro, ma il suo ramo è
     // unito e la sua cartella tolta.
-    flotta([{ id: 'c-1', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: join(process.cwd(), 'non-esiste-c-1'), approvata: true }])
+    flotta([{ id: 'c-1', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: join(PROGETTO, 'non-esiste-c-1'), approvata: true }])
     const r = await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-1', eventoStop({ session_id: 's-1', last_assistant_message: 'fatto' }))
     expect(r.dati).toEqual({})
     await attendi(() => archivio.leggi('ap-cc')!.chats.length === 2)
@@ -3246,8 +3254,8 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga, esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }) })
     await avvia(server)
     flotta([
-      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: process.cwd(), sessionId: 's-15' },
-      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: process.cwd() }
+      { id: 'c-15', compito: 'Elimina workspace', stato: 'finita', cicli: 9, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-15', cartella: PROGETTO, sessionId: 's-15' },
+      { id: 'c-16', compito: 'Altro', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-16', cartella: PROGETTO }
     ])
     await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-16', eventoStop({ session_id: 's-16', last_assistant_message: 'avanti' }))
     await attendi(() => fermati.includes('ap-cc::c-15'))
@@ -3259,7 +3267,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     const sup = supervisoreContato()
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
     await avvia(server)
-    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(process.cwd(), 'non-esiste-c-13') }])
+    flotta([{ id: 'c-13', compito: 'Notifiche', stato: 'lavoro', cicli: 4, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-13', cartella: join(PROGETTO, 'non-esiste-c-13') }])
     archivio.scrivi({ ...archivio.leggi('ap-cc')!, compitiDaFare: ['Il pezzo dopo'] })
     await chiama('POST', '/hook/stop?ap=ap-cc&chat=c-13', eventoStop({ session_id: 's-13', last_assistant_message: 'ok' }))
     await attendi(() => archivio.leggi('ap-cc')!.chats.length === 2)
@@ -3272,7 +3280,7 @@ describe('le chat chiuse non ricevono più giri né compiti (c-310, 20/10: c-13 
     const sup = supervisoreContato()
     server = ambiente({ git: gitFinto, copia: copiaVera, limiti: LIMITI_LIBERI, interroga: sup.interroga })
     await avvia(server)
-    const via = join(process.cwd(), 'non-esiste-c-1')
+    const via = join(PROGETTO, 'non-esiste-c-1')
     flotta([
       { id: 'c-1', compito: 'A', stato: 'finita', cicli: 2, ruolo: 'sviluppo', ramo: 'ap/ap-cc/c-1', cartella: via },
       { id: 'c-2', compito: 'Rivedi il ramo ap/ap-cc/c-1 della chat c-1 («A»)', stato: 'lavoro', cicli: 0, ruolo: 'revisione', revisioneDi: 'c-1', cartella: via }
