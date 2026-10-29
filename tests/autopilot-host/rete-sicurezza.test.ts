@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applicaRete, fallitiDavvero, interrogaSupervisore, rigaSupervisoreMancato, senzaSupervisore, TETTO_SUPERVISORE_MANCATO } from '../../src/autopilot-host/rete-sicurezza'
+import { applicaRete, fallitiDavvero, interrogaSupervisore, interrogazioniMancate, istruzioniRiprova, lavoroCompiuto, rigaSupervisoreMancato, senzaSupervisore, SOSPENDI_DOPO_MANCATI, TETTO_SUPERVISORE_MANCATO } from '../../src/autopilot-host/rete-sicurezza'
 import type { EsitoVerifica } from '../../src/autopilot-host/decisione'
 import { STRATEGIE } from '../../src/autopilot-host/strategie'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -127,13 +127,38 @@ describe('applicaRete', () => {
     expect(nota).toContain('non ha risposto')
   })
 
-  it('senza supervisore, tutto verde non basta per chiudere: si rifà il giro (0.80.1)', () => {
+  it('senza supervisore, tutto verde non basta per chiudere: la chat si ferma, non si rifà il giro (29/10)', () => {
     // I comandi dicono che non c'e' niente di rotto, non che il lavoro e'
-    // finito. A dirlo deve essere qualcuno che l'ha guardato. Fino alla 0.80.0
-    // ci si sospendeva; ora si rifà il giro e il supervisore torna a decidere.
+    // finito. Fino alla 0.80.0 ci si sospendeva; dalla 0.80.1 si rifaceva il
+    // giro, ed era il cerchio di c-157 (531 «rifaccio il giro» in un giorno).
+    // Adesso la chat si lascia fermare: l'autopilota resta al lavoro.
     const { mossa } = applicaRete(CTX([PASSATO]), undefined)
+    expect(mossa).toMatchObject({ tipo: 'fermaChat', chiudi: false })
+  })
+
+  it('il supervisore che non decide con tutto verde: si rifà il giro sul compito della chat, mai sull’obiettivo intero (29/10)', () => {
+    const lungo = ap({ obiettivo: `Obiettivo enorme di tutto l’autopilota ${'x'.repeat(2000)}` })
+    const { mossa } = applicaRete({ a: lungo, esiti: [PASSATO], inCerchioDa: 0, compito: 'scrivi i test della coda' }, { azione: 'prosegui' })
     expect(mossa.tipo).toBe('prosegui')
-    if (mossa.tipo === 'prosegui') expect(mossa.istruzioni).toContain('supervisore non ha detto')
+    if (mossa.tipo === 'prosegui') {
+      expect(mossa.istruzioni).toContain('Il tuo compito: scrivi i test della coda')
+      expect(mossa.istruzioni).not.toContain('Obiettivo enorme')
+    }
+    expect(istruzioniRiprova('x'.repeat(5000)).length).toBeLessThan(1000)
+  })
+
+  it('la chat dice «fatto» per la seconda volta senza verdetto: si chiude (29/10)', () => {
+    const { mossa } = applicaRete({ ...CTX([PASSATO]), fattoDiNuovo: true }, { azione: 'prosegui' })
+    expect(mossa).toMatchObject({ tipo: 'fermaChat', chiudi: true })
+    // Anche senza risposta del supervisore.
+    expect(applicaRete({ ...CTX([PASSATO]), fattoDiNuovo: true }, undefined).mossa).toMatchObject({ tipo: 'fermaChat', chiudi: true })
+    // Con un criterio rosso no: il lavoro non è finito.
+    expect(applicaRete({ ...CTX([BOCCIATO]), fattoDiNuovo: true }, undefined).mossa.tipo).toBe('prosegui')
+  })
+
+  it('il lavoro compiuto lo chiudono le regole, anche senza supervisore (29/10)', () => {
+    expect(applicaRete({ ...CTX([PASSATO]), compiuto: true }, undefined).mossa).toEqual({ tipo: 'finito' })
+    expect(applicaRete({ ...CTX([PASSATO]), compiuto: true }, { azione: 'prosegui' }).mossa).toEqual({ tipo: 'finito' })
   })
 
   it('un supervisore che non decide (azione senza istruzioni) non sospende', () => {
@@ -204,7 +229,52 @@ describe('supervisore che non risponde (0.82.1)', () => {
   })
 })
 
+describe('lavoroCompiuto (29/10): tutto verde, tutto unito, versione uscita', () => {
+  const chat = (id: string, over: Record<string, unknown> = {}): Autopilota['chats'][number] =>
+    ({ id, compito: `compito ${id}`, stato: 'lavoro', cicli: 3, segnale: { tipo: 'fatto', quando: '2026-10-27T10:00:00.000Z', dichiarato: true }, ...over })
+  const flotta = (chats: Autopilota['chats'], over: Partial<Autopilota> = {}): Autopilota => ap({ chats, ...over })
+
+  it('il caso del 27/10: tutti verdi, chat che dicono «fatto», rami uniti, la 0.85.1 già pubblicata → finito', () => {
+    const a = flotta([chat('c-157'), chat('c-158', { stato: 'finita', segnale: undefined })])
+    expect(lavoroCompiuto(a, [PASSATO], { ramiAperti: 0, versione: '0.85.1', release: ['0.85.1', '0.85.0'] })).toBe(true)
+    // Con la versione non ancora uscita, no.
+    expect(lavoroCompiuto(a, [PASSATO], { ramiAperti: 0, versione: '0.85.2', release: ['0.85.1'] })).toBe(false)
+    // Un progetto che non pubblica release non aspetta niente.
+    expect(lavoroCompiuto(a, [PASSATO], { ramiAperti: 0, versione: '0.1.0' })).toBe(true)
+  })
+
+  it('basta una cosa aperta: un criterio rosso o non misurato, una chat senza «fatto», un ramo fuori, un compito in coda', () => {
+    const a = flotta([chat('c-1')])
+    const fatti = { ramiAperti: 0 }
+    expect(lavoroCompiuto(a, [BOCCIATO], fatti)).toBe(false)
+    expect(lavoroCompiuto(a, [NON_MISURABILE], fatti)).toBe(false)
+    expect(lavoroCompiuto(a, [], fatti)).toBe(false)
+    expect(lavoroCompiuto(flotta([chat('c-1', { segnale: undefined })]), [PASSATO], fatti)).toBe(false)
+    expect(lavoroCompiuto(a, [PASSATO], { ramiAperti: 1 })).toBe(false)
+    expect(lavoroCompiuto(flotta([chat('c-1')], { compitiDaFare: ['ancora uno'] }), [PASSATO], fatti)).toBe(false)
+    // Un criterio senza comando deve essere già segnato soddisfatto.
+    const conGiudizio = flotta([chat('c-1')], { criteri: [...ap().criteri, { descrizione: 'il codice è chiaro', soddisfatto: false }] })
+    expect(lavoroCompiuto(conGiudizio, [PASSATO], fatti)).toBe(false)
+  })
+
+  it('la chat singola deve averlo detto lei', () => {
+    expect(lavoroCompiuto(ap(), [PASSATO], { ramiAperti: 0 })).toBe(false)
+    expect(lavoroCompiuto(ap(), [PASSATO], { ramiAperti: 0, chatSingolaFatto: true })).toBe(true)
+  })
+})
+
 describe('supervisore che non risponde: dettagli (Revisione 0.82.1)', () => {
+  it('29/10: alla quinta interrogazione andata a vuoto ci si sospende, con un avviso solo (quello del sospeso)', () => {
+    const regole = { tipo: 'prosegui' as const, istruzioni: 'x' }
+    // Interrogato ai giri 0, 1, 2, 3 e 6: il settimo giro senza risposta è la quinta mancata.
+    expect(interrogazioniMancate(5)).toBe(4)
+    expect(interrogazioniMancate(6)).toBe(SOSPENDI_DOPO_MANCATI)
+    expect(senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 5 }).mossa.tipo).toBe('prosegui')
+    const r = senzaSupervisore({ regole, ultimeIstruzioni: 'y', mancati: 6 })
+    expect(r.mossa.tipo).toBe('sospendi')
+    expect(r.avvisaNicholas).toBe(false)
+  })
+
   it('una strategia nuova delle regole vale più dell’istruzione di prima', () => {
     const regole = { tipo: 'prosegui' as const, strategia: 'cambia approccio', istruzioni: 'Prova un’altra strada.' }
     expect(senzaSupervisore({ regole, ultimeIstruzioni: 'Vai avanti.', mancati: 0 }).mossa).toEqual(regole)

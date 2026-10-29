@@ -71,6 +71,27 @@ export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
 }
 
 /**
+ * **Il pezzo di una chat è finito** (29/10): ha detto «fatto», non è una
+ * Revisione, e il suo ramo non porta più niente (non ce l'ha, o è già nel
+ * principale, o non c'è più). Allora la chat si chiude a fine turno, senza
+ * criteri e senza supervisore.
+ *
+ * Il caso vero, 27/10: c-157 aveva il ramo unito e diceva «fatto» a ogni
+ * turno, e a ogni turno riceveva «rifaccio il giro»: 531 volte in un giorno.
+ *
+ * `ramoChiuso` è la risposta di git sul ramo (`ramoGiaChiuso`): `undefined`
+ * vuol dire che c'è ancora lavoro da unire, o che git non ha risposto.
+ * Torna come si conclude la chat, o `undefined` se non è finita.
+ */
+export function pezzoFinito(c: ChatGovernata, ramoChiuso: 'mancante' | 'unito' | undefined): 'unito' | 'tolto' | undefined {
+  if (c.segnale?.tipo !== 'fatto' || c.ruolo === 'revisione') return undefined
+  if (c.ramo === undefined) return 'unito'
+  if (ramoChiuso === 'mancante') return 'tolto'
+  if (ramoChiuso === 'unito') return 'unito'
+  return undefined
+}
+
+/**
  * Le chat da chiudere da sole: **mai una chat al lavoro**, mai una chat
  * adottata (non è nostra), mai chi aspetta una risposta di Nicholas.
  *

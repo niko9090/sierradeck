@@ -238,7 +238,10 @@ describe('hook Stop', () => {
     expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('finito')
   })
 
-  it('non dichiara finito quando il giudizio e illeggibile, e non sospende: rifà il giro (0.80.1)', async () => {
+  // 29/10: prima si «rifaceva il giro» (0.80.1), ed era il cerchio di c-157
+  // (531 giri in un giorno con tutto verde). Adesso la chat si lascia fermare:
+  // l'autopilota resta al lavoro, non finisce e non sospende.
+  it('non dichiara finito quando il giudizio e illeggibile, e non sospende: la chat si ferma (29/10)', async () => {
     let domande = 0
     server = ambiente({ interroga: () => { domande++; return Promise.resolve({ testo: 'boh' }) } })
     await avvia(server)
@@ -246,16 +249,22 @@ describe('hook Stop', () => {
     const r = await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Fatto.' }))
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('lavoro')
-    expect(JSON.stringify(r.dati)).toContain('supervisore non ha detto')
+    expect(r.dati).toEqual({})
+    expect(stato.decisioni.some((d: { cosa: string }) => d.cosa.includes('si ferma: i criteri passano e il supervisore non ha risposto'))).toBe(true)
     // 0.82.1: niente seconda interrogazione subito, la chat non resta ferma altri 5 minuti.
     expect(domande).toBe(1)
     expect(avvisi.some((v) => v.tipo === 'sospeso')).toBe(false)
   })
 
+  // 29/10: con un criterio rosso. Con tutto verde e il supervisore muto la chat
+  // adesso si ferma (vedi sopra): l'ultima istruzione valida serve quando c'è
+  // ancora qualcosa da sistemare. L'uscita cambia a ogni giro: niente cerchio.
   it('0.82.1: supervisore scaduto: la chat prosegue con l’ultima istruzione valida, lui riprova al giro dopo', async () => {
     let domande = 0
     let risponde = true
+    let giri = 0
     server = ambiente({
+      esegui: () => Promise.resolve({ codice: 1, uscita: `rosso ${++giri}` }),
       interroga: () => {
         domande++
         return risponde
@@ -281,7 +290,8 @@ describe('hook Stop', () => {
 
   it('0.82.1: al tetto di risposte mancate arriva una riga a Nicholas, niente si sospende, e il supervisore si riprova a giri', async () => {
     let domande = 0
-    server = ambiente({ interroga: () => { domande++; return Promise.reject(new Error('scaduto dopo 5 minuti')) } })
+    let giri = 0
+    server = ambiente({ esegui: () => Promise.resolve({ codice: 1, uscita: `rosso ${++giri}` }), interroga: () => { domande++; return Promise.reject(new Error('scaduto dopo 5 minuti')) } })
     await avvia(server)
     const id = await creaAp()
     const giro = async (): Promise<any> => (await chiama('POST', `/hook/stop?ap=${id}`, eventoStop({ last_assistant_message: 'Lavoro.' }))).dati
@@ -298,6 +308,12 @@ describe('hook Stop', () => {
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.stato).toBe('lavoro')
     expect(stato.supervisoreMancato).toBe(6)
+    // 29/10: alla quinta interrogazione andata a vuoto non si riprova più
+    // all'infinito: l'autopilota si sospende, con un avviso solo.
+    await giro()
+    expect(domande).toBe(5)
+    expect((await chiama('GET', '/autopiloti')).dati[0].stato).toBe('sospeso')
+    expect(avvisi.filter((v) => v.tipo === 'sospeso')).toHaveLength(1)
   })
 
   it('0.82.1: quando il supervisore torna a rispondere il conto riparte da zero', async () => {
@@ -777,16 +793,18 @@ describe('flotta di chat', () => {
     expect(stato.sessionId).toBeUndefined()
   })
 
-  it('il supervisore e uno per chat: due fermate insieme non si rubano la sessione', async () => {
-    // Prima la sessione del supervisore stava sull'autopilota: due chat della
-    // stessa flotta che si fermavano insieme leggevano `a` all'inizio e
-    // ognuna scriveva la sua, l'ultima vinceva e l'altra restava orfana.
+  // 29/10: le decisioni di routine sono senza sessione (prima ogni chat
+  // riprendeva la sua, fino a 967k token a prompt): nessuna sessione da
+  // rubarsi, nessun --resume, e la richiesta è segnata «routine».
+  it('le decisioni di routine sono senza sessione: due fermate insieme non ne scrivono nessuna', async () => {
     let n = 0
     const viste: (string | undefined)[] = []
+    const routine: (boolean | undefined)[] = []
     server = ambiente({ git: gitFinto, limiti: LIMITI_LIBERI,
-      interroga: (prompt, _cwd, sessione) => {
+      interroga: (prompt, _cwd, sessione, opzioni) => {
         if (prompt.includes('va diviso fra')) return SCOMPONE(prompt, _cwd, sessione)
         viste.push(sessione)
+        routine.push(opzioni?.routine)
         n += 1
         return Promise.resolve({ testo: '{"azione": "prosegui", "perche": "avanti"}', sessionId: sessione ?? `sup-${n}` })
       },
@@ -803,15 +821,11 @@ describe('flotta di chat', () => {
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     const c1 = stato.chats.find((c: any) => c.id === 'c-1')
     const c2 = stato.chats.find((c: any) => c.id === 'c-2')
-    expect(c1.sessioneSupervisore).toBeDefined()
-    expect(c2.sessioneSupervisore).toBeDefined()
-    expect(c1.sessioneSupervisore).not.toBe(c2.sessioneSupervisore)
+    expect(c1.sessioneSupervisore).toBeUndefined()
+    expect(c2.sessioneSupervisore).toBeUndefined()
     expect(stato.sessioneSupervisore).toBeUndefined()
-
-    // Alla fermata dopo, ognuna riprende la **sua** conversazione.
-    viste.length = 0
-    await chiama('POST', `/hook/stop?ap=${id}&chat=c-1`, eventoStop({ session_id: 's-uno' }))
-    expect(viste).toEqual([c1.sessioneSupervisore])
+    expect(viste).toEqual([undefined, undefined])
+    expect(routine).toEqual([true, true])
   })
 
   it('0.82.1: una chat che aspetta un’altra per più di un giro fa intervenire l’autopilota: sposta il lavoro, poi la chiude e il compito riparte dopo', async () => {
@@ -2625,8 +2639,8 @@ describe('tre chat insieme (0.71.0): ognuna il suo ordine, nessuno perso', () =>
     const stato = (await chiama('GET', '/autopiloti')).dati[0]
     expect(stato.chats.map((c: { cicli: number }) => c.cicli)).toEqual([1, 1, 1])
     expect(stato.cicli).toBe(3)
-    // Ogni chat ha il suo supervisore.
-    expect(new Set(stato.chats.map((c: { sessioneSupervisore?: string }) => c.sessioneSupervisore)).size).toBe(3)
+    // 29/10: decisioni di routine senza sessione, nessuna da tenere.
+    expect(stato.chats.every((c: { sessioneSupervisore?: string }) => c.sessioneSupervisore === undefined)).toBe(true)
   })
 })
 
