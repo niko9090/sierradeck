@@ -5383,6 +5383,7 @@ if (!app.requestSingleInstanceLock()) {
         chat: () => chatAperte.map(conAltrove),
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
         autopiloti: () => clientAutopilota.elenca(),
+        autopilota: (id: string) => clientAutopilota.dettaglio(id),
         tempiAutopilota: (id: string) => clientAutopilota.tempi(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {

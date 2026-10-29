@@ -1540,6 +1540,17 @@ export function registerAutopilotaIpc(
     await client.assicuraServizio()
     return client.elenca()
   })
+  // 0.85.2: un autopilota intero, per chi ne mostra la storia. Con la versione
+  // che la finestra ha già, se è la stessa torna solo la versione: un
+  // autopilota di qualche MB non riattraversa l'IPC per niente.
+  ipcMain.handle('autopilota:dettaglio', async (_e, id: unknown, versione: unknown) => {
+    const valido = validaIdAutopilota(id)
+    const a = await client.dettaglio(valido)
+    const v = client.versioneDettaglio(valido)
+    if (a === undefined) return { versione: v }
+    if (v !== undefined && typeof versione === 'string' && versione === v) return { versione: v }
+    return { versione: v, autopilota: a }
+  })
   ipcMain.handle('autopilota:crea', async (_e, raw: unknown) => {
     const richiesta = validaNuovoAutopilota(raw)
     await client.assicuraServizio()
