@@ -1,0 +1,545 @@
+import { existsSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { lstat, readdir, stat } from 'node:fs/promises'
+import { basename, join, resolve, sep } from 'node:path'
+import type { Autopilota, ChatGovernata } from '@shared/autopilota'
+import { cancellaSicura } from '@shared/cancella-sicura'
+import { scriviAtomico } from '@shared/scrittura-atomica'
+import type { Archivio } from './archivio'
+import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
+
+/**
+ * **L'autopulizia** (0.85.2): il sistema resta pulito da solo, senza Nicholas.
+ *
+ * Il 30/10 accanto a SierraDeck c'erano ~8.100 cartelle `ap-<8hex>-c-N` con
+ * dentro solo `.claude/settings.local.json` (le lasciavano i test), più le
+ * copie delle chat finite da settimane e i loro rami `ap/*` già uniti. Nessuno
+ * li toglie a mano: lo fa il servizio, all'avvio e ogni 6 ore, a PC libero.
+ *
+ * Le regole, tutte prudenti — nel dubbio si tiene e lo si scrive:
+ * 1. Copie (`<progetto>.sierradeck-wt/*`): `git worktree prune`; via la
+ *    cartella che non è un worktree registrato e che nessuna chat aperta usa;
+ *    via il worktree registrato di una chat conclusa (o sconosciuta) se è
+ *    pulito (`status --porcelain` vuoto) e il suo HEAD è già in main. Mai una
+ *    copia con modifiche o commit non uniti, mai una appena nata (< 6 ore:
+ *    potrebbe essere la chat che il servizio sta creando adesso).
+ * 2. Prima di togliere una copia si staccano i collegamenti (le giunzioni a
+ *    `node_modules`) **senza seguirli**: su Windows una cancellazione ricorsiva
+ *    che entra in una giunzione svuota la cartella principale.
+ * 3. Rami locali `ap/*` già in main, di chat concluse o sconosciute: mai il
+ *    ramo corrente, mai uno aperto in un worktree, mai un ramo non `ap/`.
+ * 4. Registro e note: il registro oltre un tetto totale perde i giorni più
+ *    vecchi (mai quello di oggi); `<id>.decisioni.jsonl` e `servizio/tempi.jsonl`
+ *    oltre 20 MB tengono le righe più nuove; un autopilota finito da più di
+ *    30 giorni tiene solo gli ultimi 50 scambi e decisioni. Mai si elimina un
+ *    autopilota.
+ * 5. Una riga sola nel registro per giro: «autopulizia: tolte N copie, …».
+ */
+
+/** Ogni quanto gira da sola. */
+export const AUTOPULIZIA_OGNI_MS = 6 * 60 * 60_000
+/** Una copia più giovane di così non si tocca: il servizio potrebbe crearla adesso. */
+export const COPIA_GIOVANE_MS = 6 * 60 * 60_000
+/** Il tetto di un file di note che cresce a righe (`.decisioni.jsonl`, `tempi.jsonl`). */
+export const TETTO_NOTE_BYTE = 20 * 1024 * 1024
+/** Il tetto dell'intera cartella del registro. */
+export const TETTO_REGISTRO_BYTE = 500 * 1024 * 1024
+/** Dopo quanti giorni da fermo un autopilota finito si compatta. */
+export const GIORNI_PRIMA_DI_COMPATTARE = 30
+/** Quanti scambi del dialogo e quante decisioni restano a un autopilota compattato. */
+export const TENUTI_COMPATTANDO = 50
+
+// ---------------------------------------------------------------------------
+// La parte pura: decide, non tocca niente.
+// ---------------------------------------------------------------------------
+
+/** Un worktree come lo dice `git worktree list --porcelain`. */
+export type WorktreeGit = { cartella: string; head?: string; ramo?: string }
+
+/** Legge `git worktree list --porcelain`. Pura. */
+export function leggiWorktreeList(uscita: string): WorktreeGit[] {
+  const out: WorktreeGit[] = []
+  let attuale: WorktreeGit | undefined
+  for (const riga of uscita.split(/\r?\n/)) {
+    if (riga.startsWith('worktree ')) {
+      attuale = { cartella: riga.slice('worktree '.length).trim() }
+      out.push(attuale)
+    } else if (attuale !== undefined && riga.startsWith('HEAD ')) {
+      attuale.head = riga.slice(5).trim()
+    } else if (attuale !== undefined && riga.startsWith('branch ')) {
+      attuale.ramo = riga.slice(7).trim().replace(/^refs\/heads\//, '')
+    }
+  }
+  return out
+}
+
+/** Lo stesso percorso scritto da git (barre in avanti) o da Node; su Windows senza maiuscole. */
+export function chiavePercorso(p: string): string {
+  const r = resolve(p).replace(/[\\/]+$/, '')
+  return process.platform === 'win32' ? r.toLowerCase() : r
+}
+
+function dentroOUguale(p: string, cartella: string): boolean {
+  const a = chiavePercorso(p)
+  const c = chiavePercorso(cartella)
+  return a === c || a.startsWith(c + sep)
+}
+
+/** Una chat dell'archivio, quanto basta per decidere. */
+export type ChatNota = { autopilota: string; chat: string; cartella?: string; ramo?: string; aperta: boolean }
+
+/**
+ * Una chat è «aperta» finché lei e il suo autopilota possono ancora lavorare.
+ * Conclusa: la chat è `finita`, o l'autopilota è finito, fallito o archiviato.
+ */
+export function chatAperta(a: Pick<Autopilota, 'stato' | 'archiviato'>, c: Pick<ChatGovernata, 'stato'>): boolean {
+  if (a.archiviato === true || a.stato === 'finito' || a.stato === 'fallito') return false
+  return c.stato !== 'finita'
+}
+
+export function chatNote(autopiloti: Autopilota[]): ChatNota[] {
+  return autopiloti.flatMap((a) => a.chats.map((c) => ({
+    autopilota: a.id,
+    chat: c.id,
+    ...(c.cartella !== undefined ? { cartella: c.cartella } : {}),
+    ...(c.ramo !== undefined ? { ramo: c.ramo } : {}),
+    aperta: chatAperta(a, c)
+  })))
+}
+
+/** Una cartella dentro `<progetto>.sierradeck-wt`. */
+export type CopiaSuDisco = {
+  cartella: string
+  /** È fra i worktree che git conosce (dopo il prune). */
+  registrata: boolean
+  head?: string
+  ramo?: string
+  /** Nata o toccata da meno di `COPIA_GIOVANE_MS`. */
+  giovane: boolean
+  /** Ha una cartella `.git` (un repository a sé, non una copia): non si tocca. */
+  repositoryASe: boolean
+}
+
+/** Cosa dice git di una copia registrata. */
+export type VerificaCopia = { pulita: boolean; unita: boolean }
+
+export type DecisioneCopia = { cartella: string; togli: boolean; perche: string; registrata: boolean; ramo?: string }
+
+/** Le chat che usano questa copia (la cartella, o una sua sottocartella, o il suo ramo). */
+function chatDellaCopia(copia: CopiaSuDisco, chats: ChatNota[]): ChatNota[] {
+  return chats.filter((c) =>
+    (c.cartella !== undefined && dentroOUguale(c.cartella, copia.cartella)) ||
+    (copia.ramo !== undefined && c.ramo === copia.ramo))
+}
+
+/** Si toglie questa copia? Pura. `verifica` serve solo per una copia registrata. */
+export function decidiCopia(copia: CopiaSuDisco, chats: ChatNota[], verifica?: VerificaCopia): DecisioneCopia {
+  const base = { cartella: copia.cartella, registrata: copia.registrata, ...(copia.ramo !== undefined ? { ramo: copia.ramo } : {}) }
+  const tieni = (perche: string): DecisioneCopia => ({ ...base, togli: false, perche })
+  if (copia.repositoryASe) return tieni('repository a sé')
+  if (copia.giovane) return tieni('appena nata')
+  if (chatDellaCopia(copia, chats).some((c) => c.aperta)) return tieni('chat aperta')
+  if (!copia.registrata) return { ...base, togli: true, perche: 'non è una copia registrata' }
+  if (verifica === undefined) return tieni('stato non letto')
+  if (!verifica.pulita) return tieni('modifiche non salvate')
+  if (!verifica.unita) return tieni('commit non uniti')
+  return { ...base, togli: true, perche: 'chat conclusa, ramo già unito' }
+}
+
+export type DecisioneRamo = { ramo: string; togli: boolean; perche: string }
+
+/** Si toglie questo ramo locale? Pura. */
+export function decidiRamo(ramo: string, p: { corrente?: string; inUso: Set<string>; chats: ChatNota[]; unito: boolean }): DecisioneRamo {
+  const tieni = (perche: string): DecisioneRamo => ({ ramo, togli: false, perche })
+  if (!ramo.startsWith('ap/')) return tieni('non è un ramo dell’autopilota')
+  if (ramo === p.corrente) return tieni('ramo corrente')
+  if (p.inUso.has(ramo)) return tieni('aperto in una copia')
+  if (p.chats.some((c) => c.ramo === ramo && c.aperta)) return tieni('chat aperta')
+  if (!p.unito) return tieni('commit non uniti')
+  return { ramo, togli: true, perche: 'già unito' }
+}
+
+/**
+ * Le righe più nuove di un file a righe, entro `tetto` byte. Pura. Si tagliano
+ * solo righe intere: la prima riga tenuta comincia dopo un a-capo.
+ */
+export function tagliaCoda(testo: string, tetto: number): string {
+  if (Buffer.byteLength(testo, 'utf8') <= tetto) return testo
+  const buf = Buffer.from(testo, 'utf8')
+  const coda = buf.subarray(buf.length - tetto)
+  const primo = coda.indexOf(0x0a)
+  return primo < 0 ? '' : coda.subarray(primo + 1).toString('utf8')
+}
+
+/**
+ * Un autopilota finito da più di 30 giorni, più leggero: dialogo e decisioni
+ * oltre gli ultimi 50 se ne vanno; tutto il resto (obiettivo, criteri, chat,
+ * modifiche) resta. `undefined` se non c'è niente da fare. Pura.
+ */
+export function compatta(a: Autopilota, ora: number, giorni = GIORNI_PRIMA_DI_COMPATTARE, tieni = TENUTI_COMPATTANDO): Autopilota | undefined {
+  const concluso = a.archiviato === true || a.stato === 'finito' || a.stato === 'fallito'
+  if (!concluso) return undefined
+  const quando = Date.parse(a.fermatoIl ?? a.ultimoEvento)
+  if (Number.isNaN(quando) || ora - quando < giorni * 24 * 60 * 60_000) return undefined
+  if (a.dialogo.length <= tieni && a.decisioni.length <= tieni) return undefined
+  return { ...a, dialogo: a.dialogo.slice(-tieni), decisioni: a.decisioni.slice(-tieni) }
+}
+
+export type EsitoAutopulizia = {
+  copieTolte: number
+  ramiTolti: number
+  byteLiberati: number
+  /** Le copie e i rami tenuti, col motivo. */
+  tenute: Array<{ cosa: string; perche: string }>
+  noteTagliate: number
+  autopilotiCompattati: number
+  errori: string[]
+  /** Non ha girato: il motivo. */
+  saltata?: string
+}
+
+export function esitoVuoto(): EsitoAutopulizia {
+  return { copieTolte: 0, ramiTolti: 0, byteLiberati: 0, tenute: [], noteTagliate: 0, autopilotiCompattati: 0, errori: [] }
+}
+
+/** La riga per il registro. Pura. */
+export function rigaRiepilogo(e: EsitoAutopulizia): string {
+  if (e.saltata !== undefined) return `autopulizia: rimandata — ${e.saltata}`
+  const mb = (e.byteLiberati / (1024 * 1024)).toFixed(1)
+  let r = `autopulizia: tolte ${e.copieTolte} copie, ${e.ramiTolti} rami, liberati ${mb} MB`
+  if (e.noteTagliate > 0) r += `, ${e.noteTagliate} file di note accorciati`
+  if (e.autopilotiCompattati > 0) r += `, ${e.autopilotiCompattati} autopiloti compattati`
+  // Gli «appena nati» e le chat aperte sono la norma: si contano, ma il «perché» utile è il resto.
+  const perMotivo = new Map<string, number>()
+  for (const t of e.tenute) perMotivo.set(t.perche, (perMotivo.get(t.perche) ?? 0) + 1)
+  if (e.tenute.length > 0) {
+    r += `; tenute ${e.tenute.length} perché ${[...perMotivo].map(([m, n]) => `${m} (${n})`).join(', ')}`
+  }
+  if (e.errori.length > 0) r += `; ${e.errori.length} errori: ${e.errori.slice(0, 3).join(' | ')}`
+  return r
+}
+
+// ---------------------------------------------------------------------------
+// La parte che tocca il disco: sottile, e mai senza la guardia.
+// ---------------------------------------------------------------------------
+
+/** È un collegamento (simbolico o giunzione)? `lstat` non lo segue. */
+async function eCollegamento(p: string): Promise<boolean> {
+  try { return (await lstat(p)).isSymbolicLink() } catch { return false }
+}
+
+/**
+ * Stacca ogni collegamento (simbolico o giunzione) dentro `cartella` **senza
+ * mai entrarci**: si toglie il collegamento, non quello a cui punta. Torna
+ * quanti ne ha staccati; quello che non si stacca lo dice in `falliti`.
+ */
+export async function staccaCollegamenti(cartella: string): Promise<{ staccati: number; falliti: string[] }> {
+  let staccati = 0
+  const falliti: string[] = []
+  const giro = async (dir: string): Promise<void> => {
+    let nomi: string[]
+    try { nomi = await readdir(dir) } catch { return }
+    for (const n of nomi) {
+      const p = join(dir, n)
+      let st
+      try { st = await lstat(p) } catch { continue }
+      if (st.isSymbolicLink()) {
+        // Una giunzione o un collegamento a una cartella si toglie con rmdir
+        // o unlink a seconda del sistema: tutti e due tolgono solo il collegamento.
+        try { unlinkSync(p); staccati += 1 } catch {
+          try { rmdirSync(p); staccati += 1 } catch (err) { falliti.push(`${p}: ${String(err).slice(0, 80)}`) }
+        }
+      } else if (st.isDirectory()) {
+        await giro(p)
+      }
+    }
+  }
+  if (await eCollegamento(cartella)) return { staccati, falliti: [`${cartella} è essa stessa un collegamento`] }
+  await giro(cartella)
+  return { staccati, falliti }
+}
+
+/** Quanto pesa una cartella, senza seguire i collegamenti. */
+export async function pesoCartella(cartella: string): Promise<number> {
+  let tot = 0
+  const giro = async (dir: string): Promise<void> => {
+    let nomi: string[]
+    try { nomi = await readdir(dir) } catch { return }
+    for (const n of nomi) {
+      const p = join(dir, n)
+      try {
+        const st = await lstat(p)
+        if (st.isSymbolicLink()) continue
+        if (st.isDirectory()) await giro(p)
+        else tot += st.size
+      } catch { /* sparito nel frattempo */ }
+    }
+  }
+  await giro(cartella)
+  return tot
+}
+
+/** Toglie una cartella delle copie: prima i collegamenti, poi la cancellazione dalla guardia, solo dentro `cartellaCopie`. */
+export async function togliCartellaCopia(cartella: string, cartellaCopie: string): Promise<{ ok: boolean; byte: number; motivo?: string }> {
+  if (!dentroOUguale(cartella, cartellaCopie) || chiavePercorso(cartella) === chiavePercorso(cartellaCopie)) {
+    return { ok: false, byte: 0, motivo: 'fuori dalla cartella delle copie' }
+  }
+  const { falliti } = await staccaCollegamenti(cartella)
+  // Un collegamento rimasto vuol dire non cancellare: si entrerebbe nella cartella a cui punta.
+  if (falliti.length > 0) return { ok: false, byte: 0, motivo: `collegamenti non staccati: ${falliti[0]}` }
+  const byte = await pesoCartella(cartella)
+  try {
+    cancellaSicura(cartella, { dentro: [cartellaCopie] })
+    return { ok: true, byte }
+  } catch (err) {
+    return { ok: false, byte: 0, motivo: String(err).slice(0, 160) }
+  }
+}
+
+async function giovane(cartella: string, ora: number): Promise<boolean> {
+  try {
+    const st = await stat(cartella)
+    const nata = Math.max(st.mtimeMs, st.birthtimeMs > 0 ? st.birthtimeMs : 0)
+    // `.git` di un worktree si riscrive quando il worktree si ricollega: conta anche lui.
+    let gitT = 0
+    try { gitT = (await stat(join(cartella, '.git'))).mtimeMs } catch { /* senza .git */ }
+    return ora - Math.max(nata, gitT) < COPIA_GIOVANE_MS
+  } catch {
+    return false
+  }
+}
+
+async function haCartellaGit(cartella: string): Promise<boolean> {
+  try { return (await lstat(join(cartella, '.git'))).isDirectory() } catch { return false }
+}
+
+export type OpzioniAutopulizia = {
+  archivio: Archivio
+  git: GitAsincrono
+  /** La cartella dei dati del programma: lì c'è `log/`. Assente: il registro non si tocca. */
+  cartellaDati?: string
+  ora?: () => number
+}
+
+/** Il ramo principale del progetto: quello degli autopiloti se c'è, altrimenti `main`. */
+function ramoPrincipale(autopiloti: Autopilota[]): string {
+  const conti = new Map<string, number>()
+  for (const a of autopiloti) if (a.ramoBase !== undefined) conti.set(a.ramoBase, (conti.get(a.ramoBase) ?? 0) + 1)
+  let migliore = 'main'
+  let n = 0
+  for (const [r, c] of conti) if (c > n) { migliore = r; n = c }
+  return migliore
+}
+
+/** Un progetto: le copie, poi i rami. */
+async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti: Autopilota[], tutteLeChat: ChatNota[], e: EsitoAutopulizia): Promise<void> {
+  const git = o.git
+  const ora = (o.ora ?? Date.now)()
+  const base = ramoPrincipale(autopiloti)
+  if ((await git(['rev-parse', '--verify', '--quiet', `refs/heads/${base}`], radice)).codice !== 0) {
+    e.errori.push(`${basename(radice)}: ramo ${base} non trovato`)
+    return
+  }
+  await git(['worktree', 'prune'], radice)
+  const elenco = await git(['worktree', 'list', '--porcelain'], radice)
+  if (elenco.codice !== 0) { e.errori.push(`${basename(radice)}: worktree list non riuscito`); return }
+  const registrati = leggiWorktreeList(elenco.uscita)
+  const perCartella = new Map(registrati.map((w) => [chiavePercorso(w.cartella), w]))
+  const cartellaCopie = cartellaWorktreeDi(radice)
+  const unito = async (cosa: string): Promise<boolean> =>
+    (await git(['merge-base', '--is-ancestor', cosa, base], radice)).codice === 0
+
+  // 1. Le copie.
+  let nomi: string[] = []
+  try { nomi = existsSync(cartellaCopie) ? await readdir(cartellaCopie) : [] } catch { nomi = [] }
+  for (const n of nomi) {
+    const cartella = join(cartellaCopie, n)
+    try { if ((await lstat(cartella)).isSymbolicLink() || !statSync(cartella).isDirectory()) continue } catch { continue }
+    const w = perCartella.get(chiavePercorso(cartella))
+    const copia: CopiaSuDisco = {
+      cartella,
+      registrata: w !== undefined,
+      ...(w?.head !== undefined ? { head: w.head } : {}),
+      ...(w?.ramo !== undefined ? { ramo: w.ramo } : {}),
+      giovane: await giovane(cartella, ora),
+      repositoryASe: await haCartellaGit(cartella)
+    }
+    let verifica: VerificaCopia | undefined
+    const prima = decidiCopia(copia, tutteLeChat)
+    // git si interroga solo per chi potrebbe andarsene.
+    if (copia.registrata && prima.perche === 'stato non letto') {
+      const st = await git(['status', '--porcelain'], cartella)
+      if (st.codice === 0) {
+        // Senza HEAD letto non si sa cosa contiene: «non unita», cioè resta.
+        verifica = { pulita: st.uscita.trim() === '', unita: copia.head !== undefined && await unito(copia.head) }
+      }
+    }
+    const d = verifica !== undefined ? decidiCopia(copia, tutteLeChat, verifica) : prima
+    if (!d.togli) {
+      if (d.perche === 'modifiche non salvate' || d.perche === 'commit non uniti') console.info(`[autopulizia] tengo ${cartella}: ${d.perche}`)
+      e.tenute.push({ cosa: n, perche: d.perche })
+      continue
+    }
+    if (d.registrata) {
+      const byte = await pesoCartella(cartella)
+      const { falliti } = await staccaCollegamenti(cartella)
+      if (falliti.length > 0) { e.errori.push(`${n}: ${falliti[0]}`); continue }
+      const r = await git(['worktree', 'remove', '--force', cartella], radice)
+      if (r.codice !== 0 && existsSync(cartella)) { e.errori.push(`${n}: ${r.uscita.slice(0, 120)}`); continue }
+      // Su Windows git può lasciare la cartella (vuota, o con i file ignorati).
+      if (existsSync(cartella)) {
+        const t = await togliCartellaCopia(cartella, cartellaCopie)
+        if (!t.ok) e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`)
+      }
+      e.copieTolte += 1
+      e.byteLiberati += byte
+    } else {
+      const t = await togliCartellaCopia(cartella, cartellaCopie)
+      if (!t.ok) { e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`); continue }
+      e.copieTolte += 1
+      e.byteLiberati += t.byte
+    }
+  }
+  await git(['worktree', 'prune'], radice)
+
+  // 2. I rami `ap/*`.
+  const rami = await git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/ap/'], radice)
+  if (rami.codice !== 0) return
+  const corrente = (await git(['rev-parse', '--abbrev-ref', 'HEAD'], radice)).uscita.split(/\r?\n/)[0]
+  const dopo = await git(['worktree', 'list', '--porcelain'], radice)
+  if (dopo.codice !== 0) return
+  const inUso = new Set(leggiWorktreeList(dopo.uscita).flatMap((w) => (w.ramo !== undefined ? [w.ramo] : [])))
+  for (const ramo of rami.uscita.split(/\r?\n/).map((x) => x.trim()).filter((x) => x !== '')) {
+    const prima = decidiRamo(ramo, { ...(corrente !== undefined ? { corrente } : {}), inUso, chats: tutteLeChat, unito: true })
+    const d = prima.togli ? decidiRamo(ramo, { ...(corrente !== undefined ? { corrente } : {}), inUso, chats: tutteLeChat, unito: await unito(ramo) }) : prima
+    if (!d.togli) {
+      // I rami di chat aperte e quelli nelle copie sono la norma: non si contano fra le «tenute».
+      if (d.perche === 'commit non uniti') e.tenute.push({ cosa: ramo, perche: `ramo con ${d.perche}` })
+      continue
+    }
+    // `-D` dopo il controllo nostro: `-d` guarda il ramo corrente, che può non essere main.
+    const r = await git(['branch', '-D', ramo], radice)
+    if (r.codice === 0) e.ramiTolti += 1
+    else e.errori.push(`${ramo}: ${r.uscita.slice(0, 120)}`)
+  }
+}
+
+/** Accorcia un file a righe oltre il tetto, tenendo le più nuove. Torna se l'ha fatto. */
+export function accorciaNote(file: string, tetto = TETTO_NOTE_BYTE): { fatto: boolean; byte: number } {
+  try {
+    const misura = statSync(file).size
+    if (misura <= tetto) return { fatto: false, byte: 0 }
+    const nuovo = tagliaCoda(readFileSync(file, 'utf8'), tetto)
+    if (!scriviAtomico(file, nuovo, 'autopulizia')) return { fatto: false, byte: 0 }
+    return { fatto: true, byte: misura - Buffer.byteLength(nuovo, 'utf8') }
+  } catch {
+    return { fatto: false, byte: 0 }
+  }
+}
+
+/** Il registro oltre il tetto: via i giorni più vecchi, mai quello di oggi. Torna i byte liberati. */
+export function accorciaRegistro(cartellaLog: string, ora: number, tetto = TETTO_REGISTRO_BYTE): number {
+  const RE = /^sierradeck-(\d{4}-\d{2}-\d{2})\.log$/
+  const oggi = new Date(ora).toISOString().slice(0, 10)
+  const file: Array<{ p: string; giorno: string; byte: number }> = []
+  try {
+    for (const n of readdirSync(cartellaLog)) {
+      const giorno = RE.exec(n)?.[1]
+      if (giorno !== undefined) file.push({ p: join(cartellaLog, n), giorno, byte: statSync(join(cartellaLog, n)).size })
+    }
+  } catch { return 0 }
+  file.sort((a, b) => a.giorno.localeCompare(b.giorno))
+  let tot = file.reduce((s, f) => s + f.byte, 0)
+  let liberati = 0
+  for (const f of file) {
+    if (tot <= tetto) break
+    if (f.giorno >= oggi) continue
+    try { unlinkSync(f.p); tot -= f.byte; liberati += f.byte } catch { /* in uso: alla prossima */ }
+  }
+  return liberati
+}
+
+/** Un giro intero. Non solleva: gli errori finiscono nell'esito. */
+export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopulizia> {
+  const e = esitoVuoto()
+  const ora = (o.ora ?? Date.now)()
+  const autopiloti = o.archivio.elenca()
+  const tutteLeChat = chatNote(autopiloti)
+
+  // Le copie e i rami, progetto per progetto.
+  const perRadice = new Map<string, { radice: string; autopiloti: Autopilota[] }>()
+  for (const a of autopiloti) {
+    if (!existsSync(a.cwd)) continue
+    const r = await o.git(['rev-parse', '--show-toplevel'], a.cwd)
+    const radice = r.codice === 0 ? r.uscita.split(/\r?\n/)[0] : undefined
+    if (radice === undefined || radice === '') continue
+    const k = chiavePercorso(radice)
+    const voce = perRadice.get(k) ?? { radice, autopiloti: [] }
+    voce.autopiloti.push(a)
+    perRadice.set(k, voce)
+  }
+  for (const { radice, autopiloti: suoi } of perRadice.values()) {
+    try {
+      await pulisciProgetto(o, radice, suoi, tutteLeChat, e)
+    } catch (err) {
+      e.errori.push(`${basename(radice)}: ${String(err).slice(0, 120)}`)
+    }
+  }
+
+  // Le note che crescono a righe.
+  try {
+    const cartella = o.archivio.cartella
+    const candidati = [
+      ...readdirSync(cartella).filter((n) => n.endsWith('.decisioni.jsonl')).map((n) => join(cartella, n)),
+      join(cartella, 'servizio', 'tempi.jsonl')
+    ]
+    for (const f of candidati) {
+      if (!existsSync(f)) continue
+      const r = accorciaNote(f)
+      if (r.fatto) { e.noteTagliate += 1; e.byteLiberati += r.byte }
+    }
+  } catch (err) {
+    e.errori.push(`note: ${String(err).slice(0, 120)}`)
+  }
+
+  // Il registro.
+  if (o.cartellaDati !== undefined) e.byteLiberati += accorciaRegistro(join(o.cartellaDati, 'log'), ora)
+
+  // Gli autopiloti finiti da tempo: più leggeri, mai eliminati. Si rilegge
+  // subito prima di scrivere, per non riscrivere sopra un cambiamento.
+  for (const a of autopiloti) {
+    const fresco = o.archivio.leggi(a.id)
+    if (fresco === undefined) continue
+    const c = compatta(fresco, ora)
+    if (c === undefined) continue
+    o.archivio.scrivi(c)
+    e.autopilotiCompattati += 1
+  }
+  return e
+}
+
+/**
+ * Il giro del servizio: uno alla volta, e a PC carico si rimanda (ma non se
+ * l'ha chiesto Nicholas, con «Pulisci adesso»). Scrive la riga nel registro.
+ */
+export function creaAutopulizia(o: OpzioniAutopulizia & { pcCarico?: () => string | undefined }): (opz?: { forza?: boolean }) => Promise<EsitoAutopulizia> {
+  let inCorso: Promise<EsitoAutopulizia> | undefined
+  return (opz = {}) => {
+    if (inCorso !== undefined) return inCorso
+    const carico = opz.forza === true ? undefined : o.pcCarico?.()
+    if (carico !== undefined) {
+      const e = { ...esitoVuoto(), saltata: `PC carico (${carico})` }
+      console.info(`[autopulizia] ${rigaRiepilogo(e)}`)
+      return Promise.resolve(e)
+    }
+    inCorso = autopulizia(o)
+      .then((e) => { console.info(`[autopulizia] ${rigaRiepilogo(e)}`); return e })
+      .catch((err: unknown) => {
+        const e = { ...esitoVuoto(), errori: [String(err).slice(0, 200)] }
+        console.error(`[autopulizia] ${rigaRiepilogo(e)}`)
+        return e
+      })
+      .finally(() => { inCorso = undefined })
+    return inCorso
+  }
+}
+

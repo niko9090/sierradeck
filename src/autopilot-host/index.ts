@@ -27,6 +27,7 @@ import { creaMisuratore } from './misura-pc'
 import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
+import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -335,8 +336,18 @@ export function avviaServizio(): void {
     cerca: cercaProgrammaReale(() => processoriGuardia)
   })
 
+  // L'autopulizia (0.85.2): copie e rami delle chat concluse, note troppo
+  // grosse. Git asincrono, e a PC carico si rimanda al giro dopo.
+  const autopulizia = creaAutopulizia({
+    archivio,
+    git: gitAsincronoReale,
+    cartellaDati: join(cartellaStato(), '..'),
+    pcCarico: () => guardiaPc.valuta()?.motivo
+  })
+
   const server = creaServer({
     archivio,
+    autopulizia,
     // Dalla guardia dei divieti (0.72.0): un criterio che cancella fuori dal progetto non parte.
     // E i comandi lunghi uno alla volta per PC, mai durante un'unione (0.82.1).
     esegui: conTurni(conDivieti(esecutoreReale()), TURNI_PC, guardiaPc),
@@ -458,6 +469,11 @@ export function avviaServizio(): void {
     }
     controllaPromesse()
     setInterval(controllaPromesse, 60_000).unref()
+    // L'autopulizia (0.85.2): due minuti dopo l'avvio (la ripresa delle
+    // chat prima di tutto) e poi ogni 6 ore. La riga del giro la scrive lei.
+    const pulisci = (): void => { void autopulizia().catch((err: unknown) => { console.error('[autopulizia] non riuscita:', err) }) }
+    setTimeout(pulisci, 2 * 60_000).unref()
+    setInterval(pulisci, AUTOPULIZIA_OGNI_MS).unref()
 
     // La ripresa avviene **dopo** che il servizio è in ascolto, non prima: le
     // chat riprese emettono hook verso questa stessa porta, e trovarla chiusa

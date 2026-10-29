@@ -287,6 +287,13 @@ function SchedaGenerali({ onAccount }: { onAccount: () => void }): React.JSX.Ele
   const [versione, setVersione] = useState('')
   useEffect(() => { void window.gestore.sistema.versione().then(setVersione).catch(() => undefined) }, [])
   const [nota, setNota] = useState<string | undefined>(undefined)
+  // «Pulisci adesso» (0.85.2): l'autopulizia del servizio, e la sua riga qui sotto.
+  const pulisciAdesso = (): void => {
+    setNota('Pulizia in corso…')
+    void window.gestore.autopilota.pulisci()
+      .then((riga) => setNota(riga))
+      .catch(() => setNota('Pulizia non riuscita: il servizio degli autopiloti non risponde.'))
+  }
   const copiaDettagli = (): void => {
     const testo = [`SierraDeck ${versione} — dettagli per l’aiuto`, `Sistema: ${navigator.userAgent}`, `Stile: ${p.stile}, porte ${p.portaClient}/${p.portaAutopiloti}, fuori dalla rete: ${p.clientOltreLaRete ? 'sì' : 'no'}`].join(String.fromCharCode(10))
     void navigator.clipboard.writeText(testo).then(() => setNota('Dettagli copiati: incollali dove chiedi aiuto. Non ci sono chiavi né password.')).catch(() => setNota(testo))
@@ -560,6 +567,7 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
             <div className="impostazioni__riga">
               {vede('registro') ? <button className="tasto" onClick={() => void window.gestore.log.apri()}>Apri il registro</button> : null}
               {vede('copia-dettagli') ? <button className="tasto" onClick={copiaDettagli}>Copia i dettagli</button> : null}
+              {vede('registro') ? <button className="tasto" title="Toglie le copie e i rami delle chat concluse e accorcia le note troppo grosse: lo fa già da solo ogni 6 ore" onClick={pulisciAdesso}>Pulisci adesso</button> : null}
             </div>
             {nota !== undefined ? <div className="impostazioni__nota">{nota}</div> : null}
             {vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}

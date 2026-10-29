@@ -1579,6 +1579,7 @@ export function registerAutopilotaIpc(
     client.sottofondo(validaIdAutopilota(id), si === true))
   ipcMain.handle('autopilota:ricontrollaCriteri', (_e, id: unknown) =>
     client.ricontrollaCriteri(validaIdAutopilota(id)))
+  ipcMain.handle('autopilota:pulisci', () => client.pulisci())
   // La linguetta «File» (0.38.0): solo lettura, cartelle e base dal servizio.
   ipcMain.handle('autopilota:file', async (_e, id: unknown) => {
     const valido = validaIdAutopilota(id)

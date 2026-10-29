@@ -103,6 +103,8 @@ export type ClientAutopilota = {
   adottateScritti: (id: string, ids: string[]) => Promise<void>
   /** «Ricontrolla i criteri» (0.72.0): i criteri di un autopilota fermo, misurati adesso. */
   ricontrollaCriteri: (id: string) => Promise<void>
+  /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio subito; torna la riga del riepilogo. */
+  pulisci: () => Promise<string>
   /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
   archivia: (id: string, archivia: boolean) => Promise<void>
   /** «Sposta in un altro workspace» (0.81.0): dove compare il suo lavoro. */
@@ -305,6 +307,11 @@ export function creaClientAutopilota(p: {
     adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }) },
     ricontrollaCriteri: async (id) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/ricontrolla-criteri`, 'POST', {})
+    },
+    // Copie, rami e note: può metterci qualche minuto.
+    pulisci: async () => {
+      const r = (await chiama('/autopulizia', 'POST', {}, 10 * 60_000)) as { riga?: unknown } | undefined
+      return typeof r?.riga === 'string' ? r.riga : 'autopulizia fatta'
     },
     nota: async (id, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })
