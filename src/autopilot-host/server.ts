@@ -23,10 +23,10 @@ import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
-import { improntaCodice, improntaLavoro, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
+import { improntaCodiceAsincrona, improntaLavoroAsincrona, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { peggioratiDelRamo, preparaCopia, togliCollegamenti } from './ambiente-copia'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
-import { ATTESA_MASSIMA_MS, giudicaPesanteConPcCarico, type GuardiaPc } from './guardia-pc'
+import { ATTESA_MASSIMA_MS, giudicaPesanteDellaChat, type GuardiaPc } from './guardia-pc'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
@@ -39,7 +39,7 @@ import { fattiVerificati } from './fatti'
 import { conPromesse, giroPromesse, promesseDallaRisposta, type Promessa } from '@shared/promesse'
 import { commitInAttesa, conRiscontroInLista, conVersione, diventatiVerdi, LISTA_LAVORI, rigaRiscontro, riscontriNuovi, salvaLista, versioniUscite } from './riscontro'
 import {
-  chiediCambio, chiediGiudizio, componiPromptScomposizione, conAllarme, leggiCompiti, riparaComando, rigaAllarme,
+  chiediCambio, chiediGiudizio, componiPromptScomposizione, conAllarme, leggiCompiti, riparaComando, rigaAllarme, supervisoriAlLavoro,
   type Interrogazione
 } from './supervisore'
 import { dopoAvvioFallito, pianificaFlotta, tettoDellaFlotta } from './flotta'
@@ -546,8 +546,9 @@ export function codaDalDisco(
     ...(daParte !== undefined ? { daParte } : {}),
     // Si confronta solo con quelle scritte da quando il turno è partito: una
     // riga uguale di un turno di prima (la traccia dei criteri, che conta i
-    // giri in cerchio) è un'altra riga, non un doppione.
-    decisioni: [...disco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), disco.decisioni.slice(decisioniBase))]
+    // giri in cerchio) è un'altra riga, non un doppione. 0.85.2: se nel
+    // frattempo l'archivio ha accorciato il diario, l'inizio si è spostato.
+    decisioni: [...disco.decisioni, ...soloNuove(calcolato.decisioni.slice(decisioniBase), disco.decisioni.slice(Math.max(0, decisioniBase - Math.max(0, (disco.decisioniArchiviate ?? 0) - (calcolato.decisioniArchiviate ?? 0)))))]
   }
 }
 
@@ -756,9 +757,26 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * dopo un riavvio del servizio la scheda si riscrive una volta, identica.
    */
   const storicoScritto = new Map<string, string>()
+  /**
+   * 0.85.2: le decisioni uscite dal file (nel jsonl) che fanno una voce dello
+   * storico, per quante ne sono uscite: senza, lo storico riscritto perdeva
+   * le voci più vecchie di 500 decisioni. L'archivio rilegge il jsonl solo
+   * quando cambia, e qui si filtra solo quando l'archivio l'ha riletto.
+   */
+  const vecchieDelloStorico = new Map<string, { fonte: Decisione[]; decisioni: Decisione[] }>()
+  const conVecchie = (a: Autopilota): Pick<Autopilota, 'decisioni'> => {
+    if ((a.decisioniArchiviate ?? 0) === 0 || deps.archivio.decisioniVecchie === undefined) return a
+    const fonte = deps.archivio.decisioniVecchie(a.id)
+    let v = vecchieDelloStorico.get(a.id)
+    if (v?.fonte !== fonte) {
+      v = { fonte, decisioni: fonte.filter((d) => vociStorico({ decisioni: [d] }).length > 0) }
+      vecchieDelloStorico.set(a.id, v)
+    }
+    return { decisioni: [...v.decisioni, ...a.decisioni] }
+  }
   const aggiornaStorico = (a: Autopilota): Autopilota => {
     if (deps.quaderno === undefined || a.cwd === '') return a
-    const voci = vociStorico(a)
+    const voci = vociStorico(conVecchie(a))
     if (voci.length === 0) return a
     const ultima = voci[voci.length - 1]!
     const impronta = `${voci.length}|${ultima.quando}|${ultima.testo}`
@@ -1572,7 +1590,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const attive = a.chats.filter((c) => c.stato === 'lavoro').length
     const delFreno = tettoDellaFlotta(frenoAdesso(), attive, TETTO_CHAT_MAX)
     // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
-    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso())
+    // 0.85.2: anche i supervisori al lavoro sono claude.exe: occupano un posto.
+    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()) + supervisoriAlLavoro(), postiAdesso())
     // 0.85.1: con il PC al limite nessuna chat nuova. Mai fermo del tutto: senza
     // nessuna chat al lavoro, dopo l'attesa massima se ne apre una lo stesso.
     const carico = deps.guardiaPc?.stato()
@@ -3128,7 +3147,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     // I criteri misurati nel ramo rivisto e sul ramo principale (0.73.0): il
     // ramo non deve rompere quello che là passa (vedi `verdettoAccettato`).
-    const misura = (cartella: string): ReturnType<typeof misuraCriteri> => misuraCriteri(a.criteri, cartella, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, cartella) !== undefined ? { impronta: improntaCodice(deps.git, cartella) as string } : {}) })
+    const misura = async (cartella: string): ReturnType<typeof misuraCriteri> => { const impronta = deps.git !== undefined ? await improntaCodiceAsincrona(deps.gitAsincrono ?? comeAsincrono(deps.git), cartella) : undefined; return misuraCriteri(a.criteri, cartella, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(impronta !== undefined ? { impronta } : {}) }) }
     const dove = autore.cartella ?? a.cwd
     // 0.84.4: prima l'ambiente della copia (node_modules, local.properties), poi la misura.
     const preparata = dove === a.cwd ? { messi: [], mancano: [] } : preparaCopia(dove, a.cwd)
@@ -3214,7 +3233,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (git === undefined || a.ramoBase === undefined) return { unito: false, motivo: 'senza git non si può fare un’unione di prova' }
     const base = a.ramoBase
     const turni = deps.turni ?? TURNI_PC
-    const misura = async (): Promise<EsitoVerifica[]> => (await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(improntaCodice(git, a.cwd) !== undefined ? { impronta: improntaCodice(git, a.cwd) as string } : {}) })).esiti
+    const misura = async (): Promise<EsitoVerifica[]> => { const impronta = await improntaCodiceAsincrona(deps.gitAsincrono ?? comeAsincrono(git), a.cwd); return (await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })).esiti }
     await aspettaProve(a.cwd)
     let fine = (): void => {}
     proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
@@ -3679,7 +3698,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // **Criteri veloci** (0.71.0): cache sull'impronta del codice, i pesanti a
     // turni alterni, due in parallelo. Prima del «finito» si rimisura tutto.
     const cicliChat = chatId !== undefined ? (conSessione.chats.find((c) => c.id === chatId)?.cicli ?? conSessione.cicli) : conSessione.cicli
-    const improntaOra = deps.git !== undefined ? improntaCodice(deps.git, conSessione.cwd) : undefined
+    const improntaOra = deps.git !== undefined ? await improntaCodiceAsincrona(deps.gitAsincrono ?? comeAsincrono(deps.git), conSessione.cwd) : undefined
     const misurati = await misuraCriteri(conSessione.criteri, conSessione.cwd, deps.esegui, {
       memoria: memoriaCriteri, adesso: orologio, tutti: turnoCompleto(cicliChat),
       ...(improntaOra !== undefined ? { impronta: improntaOra } : {})
@@ -3893,7 +3912,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // quella del lavoro (anche non salvato), non il solo commit della cache.
     if (decisione.tipo === 'prosegui' && decisione.strategia === undefined && esiti.every((e) => e.passato) && !senzaRisposta) {
       const k = chiaveTurno(id, chatId)
-      const lavoro = deps.git !== undefined ? improntaLavoro(deps.git, conSessione.cwd) : undefined
+      const lavoro = deps.git !== undefined ? await improntaLavoroAsincrona(deps.gitAsincrono ?? comeAsincrono(deps.git), conSessione.cwd) : undefined
       const impronta = lavoro ?? `${createHash('sha256').update(ultimoMessaggio).digest('hex').slice(0, 16)}|${traccia(esiti)}`
       const g = registraGiro(storiaGiri.get(k) ?? [], firmaGiro('prosegui', decisione.istruzioni, impronta))
       storiaGiri.set(k, g.storia)
@@ -5928,7 +5947,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
           // 0.85.1: con il PC al limite una chat non lancia compilazioni o test completi.
-          if (g.ok) g = giudicaPesanteConPcCarico(corpo, deps.guardiaPc?.stato())
+          // 0.85.2: e sempre, anche a PC libero, i suoi pesanti passano dai turni del PC.
+          if (g.ok) g = giudicaPesanteDellaChat(corpo, { chi: `${idAp}::${chatPre ?? '-'}`, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) })
           if (!g.ok && g.pcCarico === true) {
             console.info(`[guardia-pc] ${idAp}::${chatPre ?? '-'} comando pesante rimandato: ${g.motivo}`)
           } else if (!g.ok) {
@@ -6032,7 +6052,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const ricontrollaCriteri = async (id: string): Promise<boolean> => {
     const a = ID_VALIDO.test(id) ? deps.archivio.leggi(id) : undefined
     if (a === undefined || a.stato === 'lavoro' || a.criteri.every((c) => c.comando === undefined) || occupato(a.id)) return false
-    const m = await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(deps.git !== undefined && improntaCodice(deps.git, a.cwd) !== undefined ? { impronta: improntaCodice(deps.git, a.cwd) as string } : {}) })
+    const improntaOra = deps.git !== undefined ? await improntaCodiceAsincrona(deps.gitAsincrono ?? comeAsincrono(deps.git), a.cwd) : undefined
+    const m = await misuraCriteri(a.criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(improntaOra !== undefined ? { impronta: improntaOra } : {}) })
     const fresco = deps.archivio.leggi(a.id)
     if (fresco === undefined) return false
     const tornatiRossi = fresco.criteri.filter((c) => c.soddisfatto && m.esiti.some((e) => e.descrizione === c.descrizione && !e.passato))

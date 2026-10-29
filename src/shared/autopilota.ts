@@ -389,7 +389,17 @@ export type Autopilota = SupervisoreMancato & {
   cicli: number
   iniziatoIl: string
   ultimoEvento: string
+  /**
+   * Il diario dell'autopilota: nel file al più le ultime 500–600 voci
+   * (0.85.2); le più vecchie stanno in `<id>.decisioni.jsonl`, accanto.
+   */
   decisioni: Decisione[]
+  /**
+   * Quante decisioni sono passate dal file a `<id>.decisioni.jsonl` (0.85.2).
+   * Lo scrive l'archivio: chi confronta posizioni nel diario (la coda presa
+   * dal disco) sa di quanto si è spostato l'inizio.
+   */
+  decisioniArchiviate?: number
   /**
    * Il file dello storico di questo lavoro nel quaderno della sua cartella
    * (0.84.0), per esempio `storico-sierradeck-f1e631f5.md`: la pagina e l'app
@@ -1082,6 +1092,7 @@ export function parseAutopilota(raw: unknown): {
       iniziatoIl,
       ultimoEvento,
       decisioni,
+      ...(typeof o.decisioniArchiviate === 'number' && Number.isFinite(o.decisioniArchiviate) && o.decisioniArchiviate > 0 ? { decisioniArchiviate: Math.floor(o.decisioniArchiviate) } : {}),
       ...(typeof o.storico === 'string' && /^storico-[A-Za-z0-9._-]+\.md$/.test(o.storico) ? { storico: o.storico } : {}),
       ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
       ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  IN_FILA, leggiPostiChat, leggiRegolazione, POSTI_MAX, POSTI_MIN, postiDalPc, prossimiPosti, rigaPosti, SALITA_MS, spiegaPosti,
+  IN_FILA, leggiPostiChat, leggiRegolazione, POSTI_DI_SERIE, POSTI_MAX, POSTI_MIN, postiDalPc, prossimiPosti, rigaPosti, SALITA_MS, spiegaPosti,
   type MisuraPc, type PostiChat
 } from '@shared/posti-chat'
 
@@ -16,12 +16,15 @@ describe('posti dal PC (0.82.0)', () => {
     expect(postiDalPc(PICCOLO, 0)).toEqual({ posti: POSTI_MIN, perche: 'minimo' })
   })
 
-  it('PC medio: tre chat ogni quattro processori', () => {
-    expect(postiDalPc(MEDIO, 0)).toEqual({ posti: 6, perche: 'processori' })
+  it('PC medio: tre chat ogni quattro processori, dentro il massimo di serie (0.85.2)', () => {
+    expect(postiDalPc({ ...MEDIO, processori: 4 }, 0)).toEqual({ posti: 3, perche: 'processori' })
+    expect(postiDalPc(MEDIO, 0)).toEqual({ posti: POSTI_DI_SERIE, perche: 'massimo' })
   })
 
-  it('PC grande: il massimo, mai oltre', () => {
-    expect(postiDalPc(GRANDE, 0)).toEqual({ posti: POSTI_MAX, perche: 'massimo' })
+  it('PC grande: il massimo di serie è 4; con «più chat» fino a 8, mai oltre', () => {
+    expect(postiDalPc(GRANDE, 0)).toEqual({ posti: POSTI_DI_SERIE, perche: 'massimo' })
+    expect(POSTI_DI_SERIE).toBe(4)
+    expect(postiDalPc(GRANDE, 0, 1)).toEqual({ posti: POSTI_MAX, perche: 'massimo' })
     expect(POSTI_MAX).toBe(8)
   })
 
@@ -34,8 +37,7 @@ describe('posti dal PC (0.82.0)', () => {
     // 4 GB liberi: due posti oltre la riserva, più le tre chat che già lavorano.
     const poca = { ...MEDIO, memoriaLiberaMb: 4_000 }
     expect(postiDalPc(poca, 0)).toEqual({ posti: 2, perche: 'memoria' })
-    expect(postiDalPc(poca, 3)).toEqual({ posti: 5, perche: 'memoria' })
-  })
+    expect(postiDalPc(poca, 1)).toEqual({ posti: 3, perche: 'memoria' })  })
 
   it('«più chat / meno chat» sposta il numero, dentro minimo e massimo', () => {
     expect(postiDalPc(MEDIO, 0, 1).posti).toBe(POSTI_MAX)
@@ -56,7 +58,7 @@ describe('scende sotto sforzo, risale con calma (0.82.0)', () => {
 
   it('scende subito quando il PC si carica', () => {
     const prima = prossimiPosti(undefined, postiDalPc(MEDIO, 0), T)
-    expect(prima.posti).toBe(6)
+    expect(prima.posti).toBe(POSTI_DI_SERIE)
     const dopo = prossimiPosti(prima, postiDalPc(SOTTO_CARICO, 6), T + 60_000)
     expect(dopo.posti).toBe(3)
     expect(dopo.perche).toBe('carico')
@@ -77,7 +79,12 @@ describe('scende sotto sforzo, risale con calma (0.82.0)', () => {
     // Il minuto dopo no: un posto ogni tre minuti.
     s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 2 * 60_000 + SALITA_MS)
     expect(s.posti).toBe(4)
+    // 0.85.2: e mai oltre il massimo di serie.
     s = prossimiPosti(s, postiDalPc(MEDIO, 3), T + 60_000 + 2 * SALITA_MS)
+    expect(s.posti).toBe(POSTI_DI_SERIE)
+    // Con «più chat» si sale ancora, sempre un posto alla volta.
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 3 * SALITA_MS)
+    s = prossimiPosti(s, postiDalPc(MEDIO, 3, 1), T + 60_000 + 4 * SALITA_MS)
     expect(s.posti).toBe(5)
   })
 

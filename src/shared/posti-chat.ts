@@ -23,8 +23,21 @@ import { TETTO_CHAT_MAX } from './autopilota'
 
 /** Mai meno di due: una chat che lavora e la sua Revisione. */
 export const POSTI_MIN = 2
-/** Oltre, le chat sulla stessa cartella si ostacolano invece di aiutarsi. */
+/** Oltre, le chat sulla stessa cartella si ostacolano invece di aiutarsi: il tetto con «più chat». */
 export const POSTI_MAX = TETTO_CHAT_MAX
+/**
+ * Il tetto di serie, senza «più chat» nelle Impostazioni (0.85.2). Il 27/10,
+ * con sei chat e i loro supervisori, il processore è rimasto sopra il 92% per
+ * 17 minuti: ogni chat lancia test e compilazioni, e i giudizi sono altri
+ * `claude.exe`. Quattro lasciano il PC usabile; chi lo vuole più pieno sceglie
+ * «più chat» e torna fino a `POSTI_MAX`.
+ */
+export const POSTI_DI_SERIE = 4
+
+/** Il tetto dei posti per la regolazione scelta. */
+export function postiMassimi(regolazione: RegolazionePosti = 0): number {
+  return regolazione === 1 ? POSTI_MAX : POSTI_DI_SERIE
+}
 /** Quanta memoria si conta per ogni chat in più (claude.exe al lavoro più i suoi test). */
 export const MB_PER_CHAT = 800
 /** La memoria che resta a Windows, al programma e a quello che Nicholas sta facendo. */
@@ -78,8 +91,9 @@ export function postiDalPc(m: MisuraPc, attive: number, regolazione: Regolazione
     base = Math.floor((base * 3) / 4)
     perche = 'carico'
   }
+  const massimo = postiMassimi(regolazione)
   if (base <= POSTI_MIN) return { posti: POSTI_MIN, perche: base < POSTI_MIN ? 'minimo' : perche }
-  if (base >= POSTI_MAX) return { posti: POSTI_MAX, perche: base > POSTI_MAX ? 'massimo' : perche }
+  if (base >= massimo) return { posti: massimo, perche: base > massimo ? 'massimo' : perche }
   return { posti: base, perche }
 }
 
@@ -144,7 +158,9 @@ export function spiegaPosti(p: PostiChat): string {
     memoria: `Adesso lo decide la memoria libera: circa ${gb(MB_PER_CHAT)} GB per chat, tenendone ${gb(MB_DI_RISERVA)} per il resto.`,
     carico: 'Il PC è sotto sforzo: le chat nuove aspettano finché si libera.',
     minimo: `È il minimo: ${POSTI_MIN} chat lavorano sempre, anche su un PC piccolo.`,
-    massimo: `È il massimo: oltre ${POSTI_MAX} chat sulla stessa cartella si ostacolano.`
+    massimo: p.regolazione === 1
+      ? `È il massimo: oltre ${POSTI_MAX} chat sulla stessa cartella si ostacolano.`
+      : `È il massimo di serie: ${POSTI_DI_SERIE} chat insieme lasciano il PC usabile anche mentre fanno girare test e compilazioni. Con «più chat» nelle Impostazioni si arriva a ${POSTI_MAX}.`
   }
   righe.push(motivo[p.perche])
   if (p.risale) righe.push('Il PC ne darebbe di più: il numero risale con calma, un posto ogni 3 minuti.')

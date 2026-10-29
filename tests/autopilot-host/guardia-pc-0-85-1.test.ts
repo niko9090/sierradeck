@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { Server } from 'node:http'
 import {
   ATTESA_MASSIMA_MS, COMANDO_PROCESSI, creaGuardiaPc, giudicaMisura, giudicaPesanteConPcCarico, leggiProcessi, piuPesante,
-  PROCESSORE_PER_MS, type GuardiaPc
+  PROCESSORE_PER_MS, RILASCIO_PER_MS, type GuardiaPc
 } from '../../src/autopilot-host/guardia-pc'
 import { conTurni, creaTurni } from '../../src/autopilot-host/turni-criteri'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
@@ -28,25 +28,26 @@ const iso = (ms: number): string => new Date(ms).toISOString()
 const pc = (caricoPercento: number, memoriaLiberaMb = 9_000, memoriaTotaleMb = 16_384): MisuraPc => ({ processori: 8, memoriaLiberaMb, memoriaTotaleMb, caricoPercento })
 
 describe('quando il PC è carico', () => {
-  it('processore sopra l’85%: carico solo dopo un minuto, non per un picco', () => {
-    const a = giudicaMisura(pc(100), undefined, ORA)
-    expect(a.motivo).toBeUndefined()
+  // 0.85.2: la soglia è scesa al 75% per 20 s (era 85% per un minuto).
+  it('processore sopra il 75%: carico solo dopo 20 secondi, non per un picco', () => {
+    const a = giudicaMisura(pc(100), {}, ORA)
+    expect(a.carico).toBeUndefined()
     expect(a.sopraDal).toBe(ORA)
-    expect(giudicaMisura(pc(97), a.sopraDal, ORA + 30_000).motivo).toBeUndefined()
-    const b = giudicaMisura(pc(97), a.sopraDal, ORA + PROCESSORE_PER_MS)
-    expect(b).toMatchObject({ risorsa: 'processore' })
-    expect(b.motivo).toMatch(/^processore al 97% da 1 min/)
-    // Scende sotto anche per una misura sola: si ricomincia a contare.
-    expect(giudicaMisura(pc(60), a.sopraDal, ORA + 70_000)).toEqual({})
-    // L'85% preciso non è «sopra».
-    expect(giudicaMisura(pc(85), undefined, ORA)).toEqual({})
+    expect(giudicaMisura(pc(97), a, ORA + 10_000).carico).toBeUndefined()
+    const b = giudicaMisura(pc(97), a, ORA + PROCESSORE_PER_MS)
+    expect(b.carico).toMatchObject({ risorsa: 'processore', dal: ORA })
+    expect(b.carico?.motivo).toMatch(/^processore al 97% da meno di un minuto/)
+    // Prima di entrare, una misura sotto soglia fa ricominciare il conto.
+    expect(giudicaMisura(pc(60), a, ORA + 15_000)).toEqual({})
+    // Il 75% preciso non è «sopra».
+    expect(giudicaMisura(pc(75), {}, ORA)).toEqual({})
   })
 
   it('memoria libera sotto il 15%: carico subito', () => {
-    const g = giudicaMisura(pc(20, 2_000, 16_384), undefined, ORA)
-    expect(g).toMatchObject({ risorsa: 'memoria' })
-    expect(g.motivo).toBe('memoria libera al 12% (2000 MB su 16384)')
-    expect(giudicaMisura(pc(20, 2_600, 16_384), undefined, ORA).motivo).toBeUndefined()
+    const g = giudicaMisura(pc(20, 2_000, 16_384), {}, ORA)
+    expect(g.carico).toMatchObject({ risorsa: 'memoria' })
+    expect(g.carico?.motivo).toBe('memoria libera al 12% (2000 MB su 16384)')
+    expect(giudicaMisura(pc(20, 2_600, 16_384), {}, ORA).carico).toBeUndefined()
   })
 })
 
@@ -106,6 +107,9 @@ describe('la guardia', () => {
     expect(f.g.stato()?.programma).toBe('programma-esterno (44% del processore)')
     expect(f.cercate).toEqual(['processore'])
     carico = 30
+    // 0.85.2: una misura bassa non basta, ci vuole un minuto intero sotto il 60%.
+    expect(f.g.valuta()).toBeDefined()
+    f.avanza(RILASCIO_PER_MS)
     expect(f.g.valuta()).toBeUndefined()
     expect(f.g.stato()).toBeUndefined()
   })

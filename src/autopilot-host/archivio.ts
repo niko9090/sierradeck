@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync
+  appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync
 } from 'node:fs'
-import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota } from '@shared/autopilota'
+import { scriviAtomico } from '@shared/scrittura-atomica'
+import { parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota, type Decisione } from '@shared/autopilota'
 
 export type Archivio = {
   cartella: string
@@ -11,7 +11,24 @@ export type Archivio = {
   leggi: (id: string) => Autopilota | undefined
   scrivi: (a: Autopilota) => void
   elimina: (id: string) => void
+  /**
+   * Le decisioni uscite dal file dell'autopilota (0.85.2), dalla più vecchia:
+   * quelle in `<id>.decisioni.jsonl`. Si rileggono solo se il file è cambiato.
+   */
+  decisioniVecchie?: (id: string) => Decisione[]
 }
+
+/**
+ * **Il diario nel file, al più 600 voci** (0.85.2). Il 27/10 un autopilota
+ * aveva 18.635 decisioni, 5 MB di JSON indentato, riletti e riscritti a ogni
+ * hook di ogni chat. Oltre `DECISIONI_SOGLIA` voci il file torna alle ultime
+ * `DECISIONI_TENUTE`; le più vecchie vanno in coda a `<id>.decisioni.jsonl`
+ * (una per riga, solo aggiunte, mai riscritto). Il margine fra le due evita
+ * di scrivere nel jsonl a ogni salvataggio. Un file grande di prima si
+ * accorcia alla prima scrittura.
+ */
+export const DECISIONI_TENUTE = 500
+export const DECISIONI_SOGLIA = 600
 
 /**
  * Un file per autopilota, non un archivio solo.
@@ -64,6 +81,21 @@ export function ultimoNumeroConsegne(cartella: string): number {
     } catch { /* non è un contatore */ }
   }
   return massimo
+}
+
+/** Le decisioni di un `<id>.decisioni.jsonl`; una riga rotta (scrittura interrotta) si salta. */
+function leggiJsonl(percorso: string): Decisione[] {
+  let testo: string
+  try { testo = readFileSync(percorso, 'utf8') } catch { return [] }
+  const fuori: Decisione[] = []
+  for (const riga of testo.split('\n')) {
+    if (riga.trim() === '') continue
+    try {
+      const d = JSON.parse(riga) as Partial<Decisione>
+      if (typeof d.quando === 'string' && typeof d.cosa === 'string') fuori.push(d as Decisione)
+    } catch { /* riga interrotta */ }
+  }
+  return fuori
 }
 
 function mettiDaParte(percorso: string): void {
@@ -138,6 +170,51 @@ export function apriArchivio(cartella: string): Archivio {
     return autopilota
   }
 
+  const percorsoDecisioniDi = (id: string): string => join(cartella, `${validaId(id)}.decisioni.jsonl`)
+
+  /**
+   * Per autopilota: quante decisioni sono nel jsonl e le chiavi delle ultime
+   * `RICORDATE`, per non rimetterci quelle che una fotografia vecchia
+   * (letta prima dell'ultimo accorciamento) porta ancora in testa.
+   */
+  const RICORDATE = 2 * DECISIONI_SOGLIA
+  const archivioDecisioni = new Map<string, { n: number; chiavi: string[]; viste: Set<string> }>()
+  const vecchieLette = new Map<string, { size: number; mtimeMs: number; decisioni: Decisione[] }>()
+  const chiaveDecisione = (d: Decisione): string => `${d.quando}|${d.cosa}`
+
+  const statoArchivio = (id: string): { n: number; chiavi: string[]; viste: Set<string> } => {
+    let s = archivioDecisioni.get(id)
+    if (s === undefined) {
+      // Una volta per autopilota e per vita del servizio: il jsonl si legge solo qui.
+      const tutte = existsSync(percorsoDecisioniDi(id)) ? leggiJsonl(percorsoDecisioniDi(id)) : []
+      const chiavi = tutte.slice(-RICORDATE).map(chiaveDecisione)
+      s = { n: tutte.length, chiavi, viste: new Set(chiavi) }
+      archivioDecisioni.set(id, s)
+    }
+    return s
+  }
+
+  /** Le decisioni da tenere nel file, e quante ne stanno nel jsonl dopo questa scrittura. */
+  const accorcia = (a: Autopilota): { decisioni: Decisione[]; archiviate: number } => {
+    const s = statoArchivio(a.id)
+    if (a.decisioni.length <= DECISIONI_SOGLIA) return { decisioni: a.decisioni, archiviate: s.n }
+    const taglio = a.decisioni.length - DECISIONI_TENUTE
+    const nuove = a.decisioni.slice(0, taglio).filter((d) => !s.viste.has(chiaveDecisione(d)))
+    if (nuove.length > 0) {
+      try {
+        appendFileSync(percorsoDecisioniDi(a.id), nuove.map((d) => `${JSON.stringify(d)}\n`).join(''), 'utf8')
+      } catch (err) {
+        // Meglio un file lungo che un diario perso: si riprova alla prossima scrittura.
+        console.error(`[autopilota] decisioni vecchie di ${a.id} non archiviate:`, err)
+        return { decisioni: a.decisioni, archiviate: s.n }
+      }
+      s.n += nuove.length
+      for (const d of nuove) { const k = chiaveDecisione(d); s.chiavi.push(k); s.viste.add(k) }
+      if (s.chiavi.length > RICORDATE) for (const k of s.chiavi.splice(0, s.chiavi.length - RICORDATE)) s.viste.delete(k)
+    }
+    return { decisioni: a.decisioni.slice(taglio), archiviate: s.n }
+  }
+
   return {
     cartella,
 
@@ -178,25 +255,68 @@ export function apriArchivio(cartella: string): Archivio {
     },
 
     leggi(id) {
+      // 0.85.2: con la stessa cache dell'elenco. Lo chiede ogni hook di ogni
+      // chat (PreToolUse, a ogni strumento): rileggeva e ri-parsava il file
+      // intero ogni volta, anche identico.
       const percorso = percorsoDi(id)
-      if (!existsSync(percorso)) return undefined
-      return leggiFile(percorso)
+      let st
+      try {
+        st = statSync(percorso)
+      } catch {
+        cache.delete(percorso)
+        return undefined
+      }
+      const voce = cache.get(percorso)
+      if (voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size) return voce.auto
+      const a = leggiFile(percorso)
+      if (a !== undefined) cache.set(percorso, { mtimeMs: st.mtimeMs, size: st.size, auto: a })
+      else cache.delete(percorso)
+      return a
     },
 
     scrivi(a) {
       // Lo stato di un autopilota cambia a ogni giro di lavoro e si scrive
       // ogni volta: e' cio' che permette di riprenderlo dopo un riavvio, e una
       // scrittura interrotta non deve lasciare un troncone al posto suo.
-      scriviJsonAtomico(percorsoDi(a.id), { ...a, versione: VERSIONE_AUTOPILOTA }, 'autopilota')
+      const percorso = percorsoDi(a.id)
+      const { decisioni, archiviate } = accorcia(a)
+      // Il conto delle archiviate è dell'archivio: quello che arriva può venire da una fotografia vecchia.
+      const { decisioniArchiviate: _vecchio, ...resto } = a
+      let testo: string
+      try {
+        // Senza rientri (0.85.2): un terzo dei byte, e nessuno lo legge a mano.
+        testo = JSON.stringify({ ...resto, decisioni, ...(archiviate > 0 ? { decisioniArchiviate: archiviate } : {}), versione: VERSIONE_AUTOPILOTA })
+      } catch (err) {
+        console.error(`[autopilota] salvataggio in ${percorso} fallito:`, err)
+        return
+      }
+      // La propria scrittura invalida la cache: la prossima lettura è dal disco.
+      cache.delete(percorso)
+      scriviAtomico(percorso, testo, 'autopilota')
     },
 
     elimina(id) {
       const percorso = percorsoDi(id)
-      try {
-        if (existsSync(percorso)) unlinkSync(percorso)
-      } catch (err) {
-        console.error(`[autopilota] eliminazione di ${percorso} fallita:`, err)
+      cache.delete(percorso)
+      archivioDecisioni.delete(id)
+      for (const p of [percorso, percorsoDecisioniDi(id)]) {
+        try {
+          if (existsSync(p)) unlinkSync(p)
+        } catch (err) {
+          console.error(`[autopilota] eliminazione di ${p} fallita:`, err)
+        }
       }
+    },
+
+    decisioniVecchie(id) {
+      const p = percorsoDecisioniDi(id)
+      let st
+      try { st = statSync(p) } catch { return [] }
+      const voce = vecchieLette.get(id)
+      if (voce !== undefined && voce.size === st.size && voce.mtimeMs === st.mtimeMs) return voce.decisioni
+      const decisioni = leggiJsonl(p)
+      vecchieLette.set(id, { size: st.size, mtimeMs: st.mtimeMs, decisioni })
+      return decisioni
     }
   }
 }
