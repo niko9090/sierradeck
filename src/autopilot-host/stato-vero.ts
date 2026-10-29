@@ -93,7 +93,10 @@ export function creaStatoVero(p: {
 /**
  * Le chat dell'autopilota e i loro rami. Un ramo è unito se la Revisione l'ha
  * approvato (l'unione è avvenuta) o se git dice che è già dentro il ramo
- * principale; un ramo che git non trova più non si sa.
+ * principale. 29/10: un ramo che git non trova più conta come unito: i rami
+ * delle chat si tolgono dopo l'unione (o li toglie Nicholas), e non c'è più
+ * niente da unire. Prima «non si sa» lasciava rami spariti ad aspettare la
+ * Revisione.
  */
 export function statoDellaFlotta(a: Autopilota, git: Git | undefined): StatoVero {
   const approvati = new Set(a.chats.filter((c) => c.approvata === true && c.ramo !== undefined).map((c) => c.ramo!))
@@ -103,7 +106,10 @@ export function statoDellaFlotta(a: Autopilota, git: Git | undefined): StatoVero
       if (approvati.has(ramo)) return true
       if (git === undefined || a.ramoBase === undefined) return undefined
       const r = git(['merge-base', '--is-ancestor', ramo, a.ramoBase], a.cwd)
-      return r.codice === 0 ? true : r.codice === 1 ? false : undefined
+      if (r.codice === 0) return true
+      if (r.codice === 1) return false
+      const presente = git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd)
+      return presente.codice === 1 ? true : undefined
     }
   }
 }

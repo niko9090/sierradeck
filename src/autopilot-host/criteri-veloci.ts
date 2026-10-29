@@ -142,7 +142,7 @@ function firmaLavoro(cwd: string, head: EsitoGit, stato: EsitoGit, diff: EsitoGi
  * solo all'antiloop, che deve vedere anche il lavoro non ancora salvato di una
  * chat che lavora nella cartella principale.
  */
-const STORICO_FUORI = ':(exclude,glob).sierradeck/quaderno/storico-*.md'
+const STORICO_FUORI = ':(exclude).sierradeck' // 29/10: tutte le note (quaderno, consegne, rapporti), non solo lo storico
 
 export function improntaLavoro(git: Git, cwd: string): string | undefined {
   const head = git(['rev-parse', 'HEAD'], cwd)

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import {
   componiPromptGiudizio, leggiGiudizio, chiediGiudizio, componiPromptScomposizione, leggiCompiti,
   argomentiSupervisore, componiPromptRiparazione, leggiComandoRiparato, ambientePulito,
-  interrogazioneReale, conAllarme, rigaAllarme, ALLARME_DOPO,
+  interrogazioneReale, conAllarme, rigaAllarme, ALLARME_DOPO, componiPromptCambio, modelloRoutine, MODELLO_ROUTINE, TURNI_ROUTINE,
   type Interrogazione
 } from '../../src/autopilot-host/supervisore'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -155,6 +155,33 @@ describe('permessi del supervisore', () => {
     const visti: string[][] = []
     argomentiSupervisore('claude.exe', 'C:\p', undefined, (_c, args) => { visti.push(args) }, 's-nuova')
     expect(visti[0]?.[visti[0].indexOf('--session-id') + 1]).toBe('s-nuova')
+  })
+
+  it('29/10: la decisione di routine va su un modello leggero, senza sessione, senza strumenti e senza saltare i permessi', () => {
+    const visti: string[][] = []
+    argomentiSupervisore('claude.exe', 'C:\p', 's-9', (_c, args) => { visti.push(args) }, 's-nuova', { modello: 'sonnet' })
+    const a = visti[0]!
+    expect(a[a.indexOf('--model') + 1]).toBe('sonnet')
+    expect(a[a.indexOf('--max-turns') + 1]).toBe(String(TURNI_ROUTINE))
+    expect(a[a.indexOf('--tools') + 1]).toBe('')
+    expect(a).toContain('--no-session-persistence')
+    expect(a).not.toContain('--resume')
+    expect(a).not.toContain('--session-id')
+    expect(a).not.toContain('--dangerously-skip-permissions')
+    // Il prompt resta sull'ingresso.
+    expect(a[0]).toBe('-p')
+  })
+
+  it('29/10: il modello di routine si sceglie con SIERRADECK_MODELLO_SUPERVISORE, se no è sonnet', () => {
+    expect(MODELLO_ROUTINE).toBe('sonnet')
+    expect(modelloRoutine({})).toBe('sonnet')
+    expect(modelloRoutine({ SIERRADECK_MODELLO_SUPERVISORE: ' haiku ' })).toBe('haiku')
+  })
+
+  it('29/10: il cambio chiesto da Nicholas non diventa un compito che scrive note in un file', () => {
+    const p = componiPromptCambio(nuovoAutopilota({ id: 'a', nome: 'a', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-29T10:00:00.000Z' }), 'aggiungi il test')
+    expect(p).toContain('Niente compiti che chiedono di scrivere note')
+    expect(p).toContain('solo file sotto `.sierradeck/`')
   })
 
   it('non impone un id quando sta riprendendo: sarebbero due sessioni', () => {

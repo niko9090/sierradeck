@@ -1,7 +1,7 @@
 import type { Autopilota } from '@shared/autopilota'
-import { esitiCheDecidono, senzaMisura } from './criteri-giudicati'
+import { esitiCheDecidono, giudicato, senzaMisura } from './criteri-giudicati'
 import type { Decisione, EsitoVerifica } from './decisione'
-import { chiediBloccato, riassuntoFallimenti } from './decisione'
+import { chiediBloccato, riassuntoFallimenti, rigaCompito } from './decisione'
 import type { DecisioneSupervisore } from './decisione-supervisore'
 import { strategiaPer, strategieFinite } from './strategie'
 
@@ -28,6 +28,66 @@ export type Contesto = {
   esiti: EsitoVerifica[]
   /** Da quanti giri l'esito è identico. */
   inCerchioDa: number
+  /**
+   * Il compito della chat che si è fermata (29/10): le istruzioni ricordano
+   * questo, mai l'obiettivo intero. Assente: la chat singola, il cui compito è
+   * l'obiettivo.
+   */
+  compito?: string
+  /** La chat ha detto «fatto» anche al giro prima (29/10): nessuno le ha dato un verdetto. */
+  fattoDiNuovo?: boolean
+  /** Il lavoro è compiuto tutto (`lavoroCompiuto`, 29/10): le regole chiudono da sole. */
+  compiuto?: boolean
+}
+
+/** I fatti che servono a `lavoroCompiuto` e che stanno fuori dall'autopilota (git, gh). */
+export type FattiCompiuto = {
+  /** I rami delle chat non ancora nel ramo principale. */
+  ramiAperti: number
+  /** La versione nel package.json del progetto, se c'è. */
+  versione?: string
+  /** Le release pubblicate (gh); assente o vuota: il progetto non pubblica release. */
+  release?: string[]
+  /** La chat singola (senza flotta) ha chiuso il turno con «SEGNALE: fatto». */
+  chatSingolaFatto?: boolean
+}
+
+/**
+ * **Il lavoro è compiuto** (29/10): lo si può dire senza nessun modello.
+ *
+ * Il 27/10 un autopilota con tutto verde, tutto unito e la versione già
+ * pubblicata ha fatto 3.210 giri a vuoto: le regole «non chiudevano mai da
+ * sole» e il supervisore non diceva «finito». Adesso sì, ma solo se:
+ * - ogni criterio con un comando è misurato adesso e passa (quelli senza
+ *   comando devono essere già segnati soddisfatti; i giudicati non contano);
+ * - nessuna chat aperta senza il segnale «fatto» (la chat singola l'ha
+ *   detto anche lei), niente in coda;
+ * - nessun ramo di chat fuori dal principale;
+ * - se il progetto pubblica release, la versione del package.json è uscita.
+ */
+export function lavoroCompiuto(a: Autopilota, esiti: EsitoVerifica[], fatti: FattiCompiuto): boolean {
+  const contano = a.criteri.filter((c) => !giudicato(c))
+  if (contano.length === 0) return false
+  let misurati = 0
+  for (const c of contano) {
+    if (c.comando === undefined) {
+      if (c.soddisfatto !== true) return false
+      continue
+    }
+    const e = esiti.find((x) => x.descrizione === c.descrizione)
+    if (e === undefined || !e.passato || e.misurato === false) return false
+    misurati += 1
+  }
+  if (misurati === 0) return false
+  if (a.compitiDaFare.length > 0) return false
+  // Senza flotta l'unica chat è l'autopilota: deve averlo detto lei.
+  if (a.chats.length === 0 && fatti.chatSingolaFatto !== true) return false
+  if (a.chats.some((c) => (c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa') && c.segnale?.tipo !== 'fatto')) return false
+  if (fatti.ramiAperti > 0) return false
+  if (fatti.release !== undefined && fatti.release.length > 0) {
+    if (fatti.versione === undefined || !fatti.release.includes(fatti.versione.replace(/^v/, ''))) return false
+  }
+  return true
 }
 
 /** I criteri che un comando ha davvero misurato e bocciato. */
@@ -68,7 +128,7 @@ export function applicaRete(
   // Senza decisione si torna alle regole: è il caso del supervisore che non
   // risponde, e non deve mai bloccare il lavoro.
   if (decisione === undefined) {
-    return { mossa: dalleRegole(ctx), nota: 'il supervisore non ha risposto: decidono le regole' }
+    return { mossa: dalleRegole(ctx, true), nota: 'il supervisore non ha risposto: decidono le regole' }
   }
 
   if (decisione.azione === 'finito') {
@@ -153,7 +213,7 @@ export function applicaRete(
     mossa: {
       tipo: 'prosegui',
       ...(strategia !== undefined ? { strategia: strategia.nome } : {}),
-      istruzioni: `${istruzioni}${coda}\n\nObiettivo: ${a.obiettivo}`
+      istruzioni: `${istruzioni}${coda}\n\n${rigaCompito(dato.compito ?? a.obiettivo)}`
     }
   }
 }
@@ -163,6 +223,19 @@ export function applicaRete(
  * (0.82.1). Da lì in poi lo si interroga un giro ogni `TETTO_SUPERVISORE_MANCATO`.
  */
 export const TETTO_SUPERVISORE_MANCATO = 3
+
+/**
+ * Dopo quante interrogazioni mancate di fila l'autopilota si sospende (29/10),
+ * con un avviso solo, invece di riprovare per sempre.
+ */
+export const SOSPENDI_DOPO_MANCATI = 5
+
+/** Quante volte il supervisore è stato interrogato davvero nei giri `0…mancati`. */
+export function interrogazioniMancate(mancati: number): number {
+  let n = 0
+  for (let k = 0; k <= mancati; k += 1) if (interrogaSupervisore(k)) n += 1
+  return n
+}
 
 /** Se in questo giro si interroga il supervisore, dopo `mancati` risposte mancate di fila. */
 export function interrogaSupervisore(mancati: number): boolean {
@@ -196,6 +269,12 @@ export function senzaSupervisore(p: {
   while (!interrogaSupervisore(mancati + fra - 1)) fra += 1
   const riprova = fra === 1 ? 'lo riprovo al prossimo giro' : `lo riprovo fra ${fra} giri`
   const ultime = p.ultimeIstruzioni?.trim() ?? ''
+  // 29/10: dopo `SOSPENDI_DOPO_MANCATI` interrogazioni andate a vuoto non si
+  // riprova all'infinito: ci si ferma, e l'avviso del sospeso è uno solo.
+  if (interrogazioniMancate(p.mancati) >= SOSPENDI_DOPO_MANCATI && p.regole.tipo !== 'chiediUtente') {
+    const motivo = `il supervisore non ha risposto ${SOSPENDI_DOPO_MANCATI} volte di fila: mi fermo invece di riprovare all’infinito. «Riprendi» quando vuoi.`
+    return { mossa: { tipo: 'sospendi', motivo }, mancati, avvisaNicholas: false, nota: motivo }
+  }
   // Una strategia nuova delle regole (cerchio riconosciuto) vale più dell'istruzione di prima.
   if (p.regole.tipo !== 'prosegui' || p.regole.strategia !== undefined || ultime === '') {
     return { mossa: p.regole, mancati, avvisaNicholas, nota: `il supervisore non ha risposto (${mancati} di fila): decidono le regole, ${riprova}` }
@@ -220,11 +299,15 @@ export function rigaSupervisoreMancato(lavoro: string | undefined): string {
 /**
  * Il giro che si rifà quando i criteri passano ma il supervisore non ha deciso
  * (0.80.1): non si sospende, si chiede alla chat di dire in chiaro se ha finito.
+ *
+ * 29/10: con il **compito della chat**, mai l'obiettivo intero. A c-157 si
+ * rimandava l'obiettivo di tutto l'autopilota, e la chat rifaceva da capo il
+ * lavoro delle sorelle (531 volte in un giorno).
  */
-export function istruzioniRiprova(obiettivo: string): string {
-  return 'I criteri passano tutti, ma il supervisore non ha detto se il lavoro è concluso: rifaccio il giro.\n\n' +
-    'Rileggi l’obiettivo. Se manca qualcosa, fallo. Se è tutto fatto, scrivi in poche righe cosa hai fatto e perché è concluso.\n\n' +
-    `Obiettivo: ${obiettivo}`
+export function istruzioniRiprova(compito: string): string {
+  return 'I criteri passano tutti, ma il supervisore non ha detto se il tuo pezzo è concluso.\n\n' +
+    'Se al tuo compito manca qualcosa, fallo. Se è fatto, scrivi in poche righe cosa hai fatto e chiudi con «SEGNALE: fatto»: non rifare il lavoro di altre chat.\n\n' +
+    rigaCompito(compito)
 }
 
 /**
@@ -233,8 +316,9 @@ export function istruzioniRiprova(obiettivo: string): string {
  * È il motore a regole che ha retto fin qui: nessuno lo butta via, perché è
  * l'unica cosa che continua a funzionare quando il modello non risponde.
  */
-function dalleRegole(ctx: Contesto): Decisione {
+function dalleRegole(ctx: Contesto, senzaRisposta = false): Decisione {
   const { a, esiti, inCerchioDa } = ctx
+  const compito = ctx.compito ?? a.obiettivo
   const bocciati = fallitiDavvero(esiti)
   const nonMisurabili = esiti.filter((e) => e.misurato === false)
 
@@ -248,7 +332,19 @@ function dalleRegole(ctx: Contesto): Decisione {
     // fermo per una risposta mancata. Ora si rifà il giro (0.80.1): la chat
     // rilegge l'obiettivo e chiude il turno, e alla fermata dopo il supervisore
     // viene interrogato di nuovo. Il giro a vuoto lo ferma comunque l'antiloop.
-    return { tipo: 'prosegui', istruzioni: istruzioniRiprova(a.obiettivo) }
+    //
+    // 29/10: il giro rifatto era il cerchio di c-157. Adesso, nell'ordine: il
+    // lavoro compiuto si chiude; la chat che dice «fatto» per la seconda volta
+    // senza verdetto si chiude; senza risposta del supervisore la chat si
+    // lascia fermare (la sveglia «mai fermo» se resta qualcosa da fare).
+    if (ctx.compiuto === true) return { tipo: 'finito' }
+    if (ctx.fattoDiNuovo === true) {
+      return { tipo: 'fermaChat', chiudi: true, motivo: 'ha detto «fatto» due giri di fila, i criteri passano e nessuno le ha dato un verdetto: il suo pezzo è chiuso' }
+    }
+    if (senzaRisposta) {
+      return { tipo: 'fermaChat', chiudi: false, motivo: 'i criteri passano e il supervisore non ha risposto: lascio fermare la chat invece di rifare il giro' }
+    }
+    return { tipo: 'prosegui', istruzioni: istruzioniRiprova(compito) }
   }
 
   if (strategieFinite(inCerchioDa, a.limiti.stalloMax)) return chiediBloccato(a, inCerchioDa, esiti)
@@ -258,7 +354,7 @@ function dalleRegole(ctx: Contesto): Decisione {
   if (strategia === undefined) {
     return {
       tipo: 'prosegui',
-      istruzioni: `${testa}Obiettivo: ${a.obiettivo}\nCorreggi e riprova.`
+      istruzioni: `${testa}${rigaCompito(compito)}\nCorreggi e riprova.`
     }
   }
   return {
@@ -266,6 +362,6 @@ function dalleRegole(ctx: Contesto): Decisione {
     strategia: strategia.nome,
     istruzioni:
       `${testa}Sono ${inCerchioDa} giri che l'esito è identico.\n\n${strategia.istruzioni}\n\n` +
-      `Obiettivo: ${a.obiettivo}`
+      rigaCompito(compito)
   }
 }

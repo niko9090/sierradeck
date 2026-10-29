@@ -7,7 +7,7 @@ import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/serv
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { SOSTITUZIONI_MAX } from '../../src/autopilot-host/mai-fermo'
+import { SOSTITUZIONI_MAX, RADDOPPI_MAX, sogliaDi } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 // Collaudo della 0.84.1 Â«l'autopilota non resta mai fermoÂ» (c-81, 22/10).
@@ -124,7 +124,11 @@ describe('collaudo 0.84.1: la notte intera, dalle 23:34 alle 06:51', () => {
     // Il primo giro entro 15 minuti dall'ultima messa da parte, poi mai un buco piÃ¹ lungo.
     expect(g[0]! - Date.parse('2026-10-21T23:34:52.000Z')).toBeLessThanOrEqual(15 * MIN)
     const buchi = g.slice(1).map((t, i) => t - g[i]!)
-    expect(Math.max(...buchi)).toBeLessThanOrEqual(15 * MIN)
+    // 29/10: al tetto le riprese senza risposta si diradano (attesa che raddoppia,
+    // fino a RADDOPPI_MAX volte): prima «Dimmi il punto» ogni 10 minuti tutta la
+    // notte. Il buco più lungo resta sotto l'attesa massima più un minuto di guardia.
+    expect(Math.max(...buchi)).toBeLessThanOrEqual(sogliaDi({ ripresa: { volte: RADDOPPI_MAX + 1 } }) + 5 * MIN)
+    expect(buchi.filter((b) => b <= 15 * MIN).length).toBeGreaterThan(0)
 
     const dopo = archivio.leggi(a.id)!
     expect(dopo.stato).toBe('lavoro')

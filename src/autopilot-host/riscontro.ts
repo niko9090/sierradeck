@@ -10,8 +10,10 @@ import type { GitAsincrono } from './worktree'
  * soddisfa), l'autopilota scrive nella sua conversazione **una riga**: cosa è
  * cambiato, il commit, il test che lo dimostra, la versione che lo contiene.
  * Se la versione non è ancora uscita scrive «nella prossima versione» e la
- * corregge quando compare il tag. La stessa riga va nella colonna stato della
- * richiesta in `.sierradeck/quaderno/lista-lavori.md`.
+ * corregge quando compare il tag. La lista dei lavori
+ * (`.sierradeck/quaderno/lista-lavori.md`) si legge per trovare la richiesta,
+ * ma dal 29/10 non si scrive più: niente commit automatici di sole note nel
+ * principale (il 27/10 erano 121 degli ultimi 300).
  *
  * **L'identificativo della richiesta** è il `#` della sua riga nella lista
  * dei lavori («0t», «6c»): esiste già, lo usano le chat e Nicholas lo legge.
@@ -204,33 +206,4 @@ export async function versioniUscite(git: GitAsincrono, cwd: string, testi: stri
   return uscite
 }
 
-/**
- * La lista dei lavori aggiornata e salvata con un commit suo nella cartella
- * principale, solo se prima non era già cambiata a mano: il lavoro di altri
- * non si mette mai in un commit del programma. Torna se l'ha salvata.
- */
-export async function salvaLista(p: {
-  git: GitAsincrono
-  cwd: string
-  leggi: () => string | undefined
-  scrivi: (testo: string) => void
-  cambia: (testo: string) => string
-  messaggio: string
-}): Promise<boolean> {
-  const prima = p.leggi()
-  if (prima === undefined) return false
-  const dopo = p.cambia(prima)
-  if (dopo === prima) return false
-  const stato = await p.git(['status', '--porcelain', '--', LISTA_LAVORI], p.cwd)
-  if (stato.codice !== 0 || stato.uscita.trim() !== '') return false
-  p.scrivi(dopo)
-  const add = await p.git(['add', '--', LISTA_LAVORI], p.cwd)
-  const commit = add.codice === 0 ? await p.git(['commit', '-m', p.messaggio, '--only', '--', LISTA_LAVORI], p.cwd) : add
-  if (commit.codice !== 0) {
-    // Niente mezzo lavoro nella cartella principale: si torna a com'era.
-    p.scrivi(prima)
-    await p.git(['reset', '-q', '--', LISTA_LAVORI], p.cwd)
-    return false
-  }
-  return true
-}
+

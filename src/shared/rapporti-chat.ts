@@ -39,7 +39,9 @@ export const RAPPORTO_MAX = 240
 
 /** La regola che la chat riceve nel primo messaggio, prima di quella del segnale. */
 export const REGOLA_RAPPORTO = [
-  'A ogni passo scrivi all’autopilota un rapporto breve, una riga sola che comincia con RAPPORTO: nel tuo testo (non serve chiudere il turno):',
+  // 29/10: una volta per turno e mai in un file. «A ogni passo» diventava un
+  // file di rapporto a ogni turno: 121 commit di sole note su 300 il 27/10.
+  'Una volta per turno, al più, scrivi all’autopilota un rapporto breve: una riga sola che comincia con RAPPORTO: nel tuo testo, mai in un file (niente note, quaderni o rapporti scritti su disco):',
   'RAPPORTO: partita — cosa hai capito del compito',
   'RAPPORTO: piano — i passi che farai, in breve',
   'RAPPORTO: passo fatto — cosa hai appena finito',

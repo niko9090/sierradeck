@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   commitInAttesa, conRiscontroInLista, conVersione, cosaDalTitolo, diventatiVerdi, idRichiestaDi, LISTA_LAVORI,
-  rigaRiscontro, righeRichieste, riscontriNuovi, salvaLista, testDalComando, versioniUscite
+  rigaRiscontro, righeRichieste, riscontriNuovi, testDalComando, versioniUscite
 } from '../../src/autopilot-host/riscontro'
 import { comeAsincrono, gitReale } from '../../src/autopilot-host/worktree'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
@@ -131,32 +131,16 @@ describe('il riscontro con il git vero (caso del 23/10)', () => {
     expect((await riscontriNuovi({ git: g, cwd, verdi: [criterio(true)], lista: LISTA, giaDetto: '' }))[0]?.versione).toBe('0.84.4')
   })
 
-  it('la lista dei lavori: riscontro in coda alla cella dello stato, con un commit suo; il lavoro di altri non entra', { timeout: 60_000 }, async () => {
-    const { cwd, commit } = repoDel23()
-    const g = comeAsincrono(gitReale)
-    writeFileSync(join(cwd, 'altro.txt'), 'lavoro di un altro, non salvato\n')
-    const r = { richiesta: '0t', cosa: 'oltre i rifacimenti decide il programma', commit, test: TEST_VERO }
-    const percorso = join(cwd, LISTA_LAVORI)
-    const salva = (cambia: (t: string) => string): Promise<boolean> => salvaLista({
-      git: g, cwd, leggi: () => readFileSync(percorso, 'utf8'), scrivi: (t) => writeFileSync(percorso, t), cambia, messaggio: 'docs(quaderno): riscontro (0t)'
-    })
-    expect(await salva((t) => conRiscontroInLista(t, r))).toBe(true)
-    const riga0t = readFileSync(percorso, 'utf8').split('\n').find((l) => l.startsWith('| 0t |'))!
+  // 29/10: il commit «docs(quaderno): riscontro…» non si fa più (vedi il
+  // servizio, sotto). Resta la regola pura che scrive il riscontro nella riga.
+  it('la riga della lista con il riscontro (regola pura): in coda alla cella dello stato, poi la versione senza raddoppiare', () => {
+    const r = { richiesta: '0t', cosa: 'oltre i rifacimenti decide il programma', commit: 'abc1234', test: TEST_VERO }
+    const riga0t = conRiscontroInLista(LISTA, r).split('\n').find((l) => l.startsWith('| 0t |'))!
     expect(riga0t).toContain('**fatto sul ramo c-125 (23/10), va nella 0.84.4** · **Riscontro:** Fatto [0t]: oltre i rifacimenti decide il programma')
-    expect(riga0t).toContain(`commit ${commit} · test ${TEST_VERO} · nella prossima versione |`)
-    expect(git(cwd, 'log', '-1', '--format=%s')).toBe('docs(quaderno): riscontro (0t)')
-    expect(git(cwd, 'status', '--porcelain')).toBe('?? altro.txt')
-    // Le altre righe restano com'erano.
-    expect(readFileSync(percorso, 'utf8').split('\n').filter((l) => !l.startsWith('| 0t |'))).toEqual(LISTA.split('\n').filter((l) => !l.startsWith('| 0t |')))
-    // Esce la 0.84.4: il riscontro si corregge, non si raddoppia.
-    expect(await salva((t) => conVersione(conRiscontroInLista(t, { ...r, versione: '0.84.4' }), commit, '0.84.4'))).toBe(true)
-    const dopo = readFileSync(percorso, 'utf8').split('\n').find((l) => l.startsWith('| 0t |'))!
+    expect(riga0t).toContain(`commit abc1234 · test ${TEST_VERO} · nella prossima versione |`)
+    const dopo = conVersione(conRiscontroInLista(conRiscontroInLista(LISTA, r), { ...r, versione: '0.84.4' }), 'abc1234', '0.84.4').split('\n').find((l) => l.startsWith('| 0t |'))!
     expect(dopo.split('**Riscontro:**')).toHaveLength(2)
     expect(dopo).toMatch(/· nella 0\.84\.4 \|$/)
-    // Cambiata a mano e non salvata: il programma non la tocca.
-    writeFileSync(percorso, `${readFileSync(percorso, 'utf8')}\nnota a mano\n`)
-    expect(await salva((t) => conRiscontroInLista(t, { ...r, richiesta: '0r' }))).toBe(false)
-    expect(readFileSync(percorso, 'utf8')).toContain('nota a mano')
   })
 })
 
@@ -164,7 +148,9 @@ describe('nel servizio: la riga nella conversazione quando il criterio diventa v
   let server: ServerAutopiloti | undefined
   afterEach(() => { server?.close() })
 
-  it('ricontrollo dopo l unione: riga nella conversazione, nel registro e nella lista; poi la versione', { timeout: 60_000 }, async () => {
+  // 29/10: la riga resta nella conversazione e nel registro; la lista dei
+  // lavori non si tocca e nel principale non nasce nessun commit di note.
+  it('ricontrollo dopo l unione: riga nella conversazione e nel registro, nessun commit nella lista; poi la versione', { timeout: 60_000 }, async () => {
     const { cwd, commit } = repoDel23()
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'riscontro-ap-')))
     server = creaServer({
@@ -187,21 +173,23 @@ describe('nel servizio: la riga nella conversazione quando il criterio diventa v
     const dettoNelDialogo = (): string => (archivio.leggi('ap-0t')?.dialogo ?? []).map((s) => s.testo).join('\n')
 
     expect(await server.ricontrollaCriteri('ap-0t')).toBe(true)
-    await attendi(() => dettoNelDialogo().includes('Fatto [0t]') && git(cwd, 'log', '-1', '--format=%s').includes('riscontro'))
+    const testaPrima = git(cwd, 'rev-parse', 'HEAD')
+    await attendi(() => dettoNelDialogo().includes('Fatto [0t]'))
     const a = archivio.leggi('ap-0t')!
     const riga = a.dialogo.find((s) => s.testo.startsWith('Fatto [0t]'))!
     expect(riga).toMatchObject({ da: 'lui', traccia: true })
     expect(riga.testo).toBe(`Fatto [0t]: oltre i rifacimenti decide il programma, mai più «Come vado avanti con …?» — commit ${commit} · test ${TEST_VERO} · nella prossima versione`)
     expect(a.decisioni.map((d) => d.cosa)).toContain(`riscontro: ${riga.testo}`)
-    expect(readFileSync(join(cwd, LISTA_LAVORI), 'utf8')).toContain(`**Riscontro:** ${riga.testo} |`)
+    expect(readFileSync(join(cwd, LISTA_LAVORI), 'utf8')).not.toContain('**Riscontro:**')
+    expect(git(cwd, 'rev-parse', 'HEAD')).toBe(testaPrima)
 
     // Esce la 0.84.4; al ricontrollo dopo la riga dice la versione, senza una riga in più.
     git(cwd, 'tag', 'v0.84.4')
     expect(await server.ricontrollaCriteri('ap-0t')).toBe(true)
-    await attendi(() => dettoNelDialogo().includes('nella 0.84.4') && readFileSync(join(cwd, LISTA_LAVORI), 'utf8').includes('nella 0.84.4'))
+    await attendi(() => dettoNelDialogo().includes('nella 0.84.4'))
     const dopo = archivio.leggi('ap-0t')!
     expect(dopo.dialogo.filter((s) => s.testo.startsWith('Fatto [0t]')).map((s) => s.testo)).toEqual([riga.testo.replace('nella prossima versione', 'nella 0.84.4')])
-    expect(readFileSync(join(cwd, LISTA_LAVORI), 'utf8')).toContain(`test ${TEST_VERO} · nella 0.84.4 |`)
+    expect(git(cwd, 'rev-parse', 'HEAD')).toBe(testaPrima)
     expect(git(cwd, 'status', '--porcelain')).toBe('')
   })
 })

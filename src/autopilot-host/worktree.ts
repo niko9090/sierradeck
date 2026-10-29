@@ -353,6 +353,46 @@ export function ramoSenzaNovitaAsincrono(git: GitAsincrono, p: { cwd: string; ra
   return aspettando(git, senzaNovitaPassi(p))
 }
 
+/** Come `ramoSenzaNovitaAsincrono`, per chi non può aspettare (il giro da solo, 29/10). */
+export function ramoSenzaNovita(git: Git, p: { cwd: string; ramo: string; base: string }): boolean {
+  return inLinea(git, senzaNovitaPassi(p))
+}
+
+/** La cartella delle note dell'autopilota e delle chat: quaderno, consegne, rapporti. */
+export const CARTELLA_NOTE = '.sierradeck/'
+
+/** Il percorso (con `/`) sta tutto sotto `.sierradeck/`. */
+export function eUnaNota(percorso: string): boolean {
+  return percorso.replace(/\\/g, '/').replace(/^"|"$/g, '').replace(/^\.\//, '').startsWith(CARTELLA_NOTE)
+}
+
+/**
+ * **Il ramo porta solo note** (29/10): ogni file che cambia rispetto al
+ * principale sta sotto `.sierradeck/`. Il 27/10 121 degli ultimi 300 commit
+ * del principale erano solo documenti: ogni turno di una chat che scriveva il
+ * suo rapporto diventava un'unione. Un ramo così non si unisce a ogni turno:
+ * entra insieme al codice, o a lavoro finito.
+ *
+ * `false` nel dubbio (git che non risponde, ramo che non c'è, nessun file
+ * cambiato): si passa dalla strada normale.
+ */
+export function soloNote(git: Git, p: { cwd: string; ramo: string; base: string }): boolean {
+  return inLinea(git, soloNotePassi(p))
+}
+
+export function soloNoteAsincrono(git: GitAsincrono, p: { cwd: string; ramo: string; base: string }): Promise<boolean> {
+  return aspettando(git, soloNotePassi(p))
+}
+
+function* soloNotePassi(p: { cwd: string; ramo: string; base: string }): Passi<boolean> {
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return false
+  const r = yield* chiedi(['diff', '--name-only', `${p.base}...${p.ramo}`], radice)
+  if (r.codice !== 0) return false
+  const file = soloFile(r.uscita).map((f) => f.trim())
+  return file.length > 0 && file.every(eUnaNota)
+}
+
 function* senzaNovitaPassi(p: { cwd: string; ramo: string; base: string }): Passi<boolean> {
   const chiuso = yield* giaChiusoPassi(p)
   if (chiuso !== undefined) return true

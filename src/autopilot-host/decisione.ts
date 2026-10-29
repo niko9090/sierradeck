@@ -29,6 +29,12 @@ export type EventoStop = {
   ultimoMessaggio: string
   /** Il momento dell'evento, in ISO. Passato invece di letto: la funzione resta pura. */
   adesso: string
+  /**
+   * Il compito della chat che si è fermata (29/10). Le istruzioni di ogni giro
+   * ricordano questo, mai l'obiettivo intero: l'obiettivo la chat l'ha ricevuto
+   * nel primo messaggio, e ripeterlo a ogni giro gonfiava il contesto.
+   */
+  compito?: string
 }
 
 export type Giudizio = {
@@ -63,6 +69,13 @@ export type Decisione =
    * dal programma le hanno sempre; quelle del supervisore vanno controllate.
    */
   | { tipo: 'chiediUtente'; domanda: string; parti?: PartiDomanda; dalProgramma?: boolean; bloccato?: Bloccato }
+  /**
+   * **La chat si ferma, l'autopilota no** (29/10). I criteri sono verdi e
+   * nessuno ha detto «finito»: rifare il giro era il cerchio di c-157 (531
+   * «rifaccio il giro» in un giorno). `chiudi`: la chat ha detto «fatto» due
+   * volte e si chiude (finita, conclusa); senza, la si lascia fermare e basta.
+   */
+  | { tipo: 'fermaChat'; motivo: string; chiudi: boolean }
 
 /**
  * «Sono bloccato» (0.84.3): i controlli che non passano, quante volte e cosa
@@ -91,6 +104,19 @@ ${errori}
 ` +
       'Come vado avanti?'
   }
+}
+
+/** Quanto del compito entra nelle istruzioni di un giro (29/10). */
+export const COMPITO_NEL_GIRO_MAX = 600
+
+/**
+ * La riga con cui finiscono le istruzioni di un giro: il compito della chat,
+ * breve. Mai l'obiettivo intero (fino a 1000 caratteri, ripetuti a ogni giro
+ * per centinaia di giri).
+ */
+export function rigaCompito(compito: string): string {
+  const t = compito.replace(/\s+/g, ' ').trim()
+  return `Il tuo compito: ${t.length <= COMPITO_NEL_GIRO_MAX ? t : `${t.slice(0, COMPITO_NEL_GIRO_MAX - 1)}…`}`
 }
 
 /** Quanto di un'uscita finisce nel prompt della chat. */
@@ -219,7 +245,7 @@ export function decidi(a: Autopilota, evento: EventoStop, esiti: EsitoVerifica[]
     if (strategia === undefined && strategieFinite(ripetute, a.limiti.stalloMax)) return chiediBloccato(a, ripetute, esiti)
 
     const testa = `Il lavoro non è concluso.\n\n${riassuntoFallimenti(esiti)}\n\n`
-    const coda = `Obiettivo: ${a.obiettivo}`
+    const coda = rigaCompito(evento.compito ?? a.obiettivo)
     if (strategia === undefined) {
       return {
         tipo: 'prosegui',
@@ -246,7 +272,7 @@ export function decidi(a: Autopilota, evento: EventoStop, esiti: EsitoVerifica[]
  * rimandare la chat a lavorare senza dirle cosa fare produce un giro identico al
  * precedente, cioè uno stallo travestito da attività.
  */
-export function decidiConGiudizio(a: Autopilota, giudizio: Giudizio): Decisione {
+export function decidiConGiudizio(a: Autopilota, giudizio: Giudizio, compito?: string): Decisione {
   if (giudizio.finito) return { tipo: 'finito' }
 
   // La domanda vince sulle istruzioni: se il supervisore dice sia «fai X» sia
@@ -261,6 +287,6 @@ export function decidiConGiudizio(a: Autopilota, giudizio: Giudizio): Decisione 
   }
   return {
     tipo: 'prosegui',
-    istruzioni: `Il lavoro non è concluso.\n\n${istruzioni}\n\nObiettivo: ${a.obiettivo}`
+    istruzioni: `Il lavoro non è concluso.\n\n${istruzioni}\n\n${rigaCompito(compito ?? a.obiettivo)}`
   }
 }

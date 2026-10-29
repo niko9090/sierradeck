@@ -1,5 +1,6 @@
 import type { Autopilota, Criterio } from '@shared/autopilota'
 import { vagliaCriteri } from '@shared/controllo-comandi'
+import { chiaveCompito } from '@shared/segnali-flotta'
 import { giornoDi, RICHIESTE_MAX, statoRichiesta, TESTO_MAX, type RichiestaNicholas } from '@shared/richieste-nicholas'
 
 /**
@@ -86,8 +87,10 @@ export function richiestaDalleParole(t: string, quando: string): RichiestaPropos
   const giorno = giornoDi(quando)
   return {
     titolo,
-    criterio: { descrizione: `Richiesta di Nicholas del ${giorno}: «${titolo}» — fatta, verificata e scritta nel quaderno` },
-    compiti: [`Richiesta di Nicholas del ${giorno}: «${parole.slice(0, TESTO_MAX)}». Falla, verificala con un test e scrivi nel quaderno cosa è cambiato.`]
+    // 29/10: niente «scrivi nel quaderno»: le note in un file erano 121
+    // commit su 300 il 27/10. Cosa è cambiato lo dice la chat nel testo.
+    criterio: { descrizione: `Richiesta di Nicholas del ${giorno}: «${titolo}» — fatta e verificata` },
+    compiti: [`Richiesta di Nicholas del ${giorno}: «${parole.slice(0, TESTO_MAX)}». Falla e verificala con un test; cosa è cambiato dillo in una riga nel tuo messaggio, non in un file.`]
   }
 }
 
@@ -230,7 +233,10 @@ export function tieniRichieste(a: Autopilota, adesso: string): Autopilota {
       cambiato = true
     }
     for (const k of r.compiti) {
-      if (!compitiDaFare.includes(k) && !a.chats.some((x) => x.compito === k)) {
+      // 29/10: un compito che una chat ha già avuto (in qualunque stato, anche
+      // con le parole un po' diverse) non torna in coda: si rifaceva da capo.
+      const chiave = chiaveCompito(k)
+      if (!compitiDaFare.includes(k) && !a.chats.some((x) => x.compito === k || chiaveCompito(x.compito) === chiave)) {
         compitiDaFare.push(k)
         cambiato = true
       }
