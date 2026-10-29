@@ -3,6 +3,7 @@ import type { Autopilota } from '@shared/autopilota'
 import { domandaArrivata } from '@shared/domande-autopilota'
 import type { LinguettaStaccabile } from '@shared/finestra-pannello'
 import { LinguettaAutopilota, useDomandeAutopilota } from './LinguettaAutopilota'
+import { ogni } from '../state/sondaggio'
 
 const NOMI: Record<LinguettaStaccabile, string> = {
   domande: 'Domande', lavoro: 'Sta facendo', istruzioni: 'Istruzioni', file: 'File', obiettivo: 'Obiettivo', criteri: 'Criteri', compiti: 'Compiti', diario: 'Ha deciso'
@@ -22,19 +23,24 @@ const NOMI: Record<LinguettaStaccabile, string> = {
 export function FinestraPannello({ autopilotaId, linguetta }: { autopilotaId: string; linguetta: LinguettaStaccabile }): React.JSX.Element {
   const [autopilota, setAutopilota] = useState<Autopilota | undefined>(undefined)
   const [manca, setManca] = useState(false)
+  // L'autopilota dall'elenco leggero; la storia intera la chiede la linguetta
+  // (0.85.2). Si ridisegna solo quando cambia davvero: l'elenco torna nuovo a
+  // ogni rilettura anche quando è lo stesso.
+  const firma = useRef('')
   const leggi = useCallback((): void => {
     window.gestore.autopilota.elenca()
       .then((tutti) => {
         const a = tutti.find((x) => x.id === autopilotaId)
-        setAutopilota(a)
+        const f = a === undefined ? '' : JSON.stringify(a)
+        if (f !== firma.current || a === undefined) { firma.current = f; setAutopilota(a) }
         setManca(a === undefined)
       })
       .catch(() => undefined)
   }, [autopilotaId])
   useEffect(() => {
     leggi()
-    const h = setInterval(leggi, 2000)
-    return () => clearInterval(h)
+    // Tre secondi; con la finestra nascosta ogni quindici (0.85.2: erano due, sempre).
+    return ogni(leggi, 3000)
   }, [leggi])
   const { schede, rileggi } = useDomandeAutopilota(autopilota)
 

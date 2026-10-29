@@ -252,6 +252,63 @@ export function registraSchermo(
 
 export function dimenticaSchermo(ptyId: string): void {
   schermi.delete(ptyId)
+  letture.delete(ptyId)
+  ultimiDati.delete(ptyId)
+}
+
+/**
+ * **Lo schermo si rilegge solo se è cambiato** (0.85.2).
+ *
+ * Ogni secondo si guarda lo schermo di ogni riquadro (chi lavora, chi aspetta)
+ * e ogni due lo si manda al Core per il telefono: con dieci chat aperte erano
+ * centinaia di righe di `xterm` rilette e rivestite al secondo, per schermi
+ * fermi da minuti. Uno schermo cambia solo quando dal terminale arriva
+ * qualcosa: chi riceve i dati lo segna qui (`segnaDatiPty`), e
+ * `righeDiPtyRecenti` ridà l'ultima lettura finché non arriva niente di nuovo.
+ */
+const ultimiDati = new Map<string, number>()
+const letture = new Map<string, { il: number; quante: number; chiave: string; schermo: Schermo; righe: ReturnType<typeof righeDaSchermo> }>()
+/**
+ * Quanto dopo l'ultimo dato una lettura vale. `xterm` disegna i dati arrivati
+ * al fotogramma dopo: una lettura fatta subito dopo può non averli ancora, e
+ * allora la si rifà al giro dopo.
+ */
+export const ASSESTAMENTO_MS = 250
+/** Una lettura non vale comunque più di così: un disegno arrivato tardi (un'uscita enorme) si vede al più dopo questo. */
+export const LETTURA_MAX_MS = 5000
+
+/** Dal terminale è arrivato qualcosa: il suo schermo va riletto. */
+export function segnaDatiPty(ptyId: string, quando: number = Date.now()): void {
+  ultimiDati.set(ptyId, quando)
+}
+
+/**
+ * Come `righeDiPty`, ma ridà l'ultima lettura se da allora non è arrivato
+ * niente e il terminale ha la stessa forma. Per chi guarda a tempo; chi deve
+ * essere sicuro dell'istante (una consegna che controlla il campo) usa
+ * `righeDiPty`. Il risultato è condiviso: non si cambia.
+ */
+export function righeDiPtyRecenti(
+  ptyId: string,
+  quante: number,
+  adesso: number = Date.now()
+): { pulite: string[]; grezze: string[]; continua: boolean[]; colonne?: number } | undefined {
+  const voce = schermi.get(ptyId)
+  if (voce === undefined) return undefined
+  try {
+    const schermo = voce.schermo()
+    const altezza = voce.altezza()
+    const colonne = voce.larghezza?.()
+    const chiave = `${schermo.baseY}|${schermo.length}|${altezza}|${colonne ?? ''}`
+    const l = letture.get(ptyId)
+    const dato = ultimiDati.get(ptyId) ?? 0
+    if (l !== undefined && l.quante === quante && l.schermo === schermo && l.chiave === chiave && dato <= l.il - ASSESTAMENTO_MS && adesso - l.il < LETTURA_MAX_MS) return l.righe
+    const righe = righeDaSchermo(schermo, altezza, quante, colonne)
+    letture.set(ptyId, { il: adesso, quante, chiave, schermo, righe })
+    return righe
+  } catch {
+    return undefined
+  }
 }
 
 /**
