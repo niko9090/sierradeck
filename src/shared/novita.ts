@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.86.0',
+    righe: [
+      '**Il PC respira:** al massimo 4 chat degli autopiloti lavorano insieme (fino a 8 con «Più chat»), al massimo 2 supervisori, e un solo comando pesante alla volta per tutto il PC — anche i test e le compilazioni lanciati dalle chat. La guardia del PC misura ogni 5 secondi, si accorge del carico in 20 secondi e lascia ripartire il lavoro solo dopo un minuto tranquillo.',
+      '**Molti meno token:** una chat che ha finito si chiude invece di ricevere all’infinito «rifaccio il giro»; se dall’ultimo giro non è cambiato niente il supervisore non viene chiamato; il supervisore delle decisioni di tutti i giorni è più leggero e riceve solo le chat aperte. Le chat ricevono il loro compito, non l’obiettivo intero a ogni giro.',
+      '**Niente lavoro fatto due volte:** un compito già fatto non si riapre, un compito scritto con altre parole si riconosce come doppione, i rami spariti non aspettano più la Revisione e l’autopilota arriva da solo a «finito» quando i criteri sono verdi e la versione è uscita.',
+      '**Niente note al posto del lavoro:** le chat non scrivono più rapporti e note nel progetto a ogni passo, e i criteri che controllano solo le note non valgono.',
+      '**Si pulisce da solo:** le copie delle chat finite, i rami già uniti e i file vecchi dell’autopilota si tolgono da soli; il lavoro non salvato non si tocca mai.',
+      '**Interfaccia più leggera:** l’elenco degli autopiloti è dieci volte più piccolo, la storia intera si carica solo quando la apri, e con la finestra nascosta il programma quasi non lavora. Anche l’app e la pagina del telefono chiedono solo quello che mostrano.',
+      '**Backup sul Drive più leggero:** le chat attive si salvano quando sono ferme da 10 minuti (al più tardi dopo un’ora), a pezzi e con un tetto per giro, invece di ricaricare file da centinaia di MB ogni 5 minuti.',
+    ]
+  },
+  {
     versione: '0.85.1',
     righe: [
       '**L’autopilota torna a decidere:** il 23/10 non riusciva più a chiedere al supervisore (il testo era troppo lungo per la riga di comando di Windows) e da lì nascevano blocchi e domande sbagliate. Adesso il testo passa per un’altra strada; se il supervisore non risponde 3 volte di fila lo vedi in rosso nell’indicatore, con il motivo.',
