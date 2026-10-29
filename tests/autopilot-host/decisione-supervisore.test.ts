@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  chiediDecisione, componiPromptDecisione, leggiDecisioneSupervisore
+  chiediDecisione, componiPromptDecisione, leggiDecisioneSupervisore, PROMPT_MAX
 } from '../../src/autopilot-host/decisione-supervisore'
 import type { EsitoVerifica } from '../../src/autopilot-host/decisione'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
@@ -104,6 +104,24 @@ describe('chiediDecisione', () => {
     expect(vista).toBe('s-precedente')
     expect(esito.sessionId).toBe('s-1')
     expect(esito.decisione?.azione).toBe('prosegui')
+  })
+
+  it('29/10: senza sessione è una decisione di routine', async () => {
+    let opzioni: Parameters<Interrogazione>[3]
+    const interroga: Interrogazione = (_p, _cwd, _s, o) => { opzioni = o; return Promise.resolve({ testo: '{"azione": "finito"}' }) }
+    await chiediDecisione(ap(), [FALLITO], 'x', 0, interroga, undefined)
+    expect(opzioni).toEqual({ routine: true })
+  })
+
+  it('29/10: il prompt sta sotto PROMPT_MAX anche con obiettivo, messaggio e stato del programma enormi; niente «leggi i file»', () => {
+    const lungo = ap({ obiettivo: 'o'.repeat(5000) })
+    const uscita = { ...FALLITO, uscita: 'e'.repeat(5000) }
+    const p = componiPromptDecisione(lungo, [uscita], 'm'.repeat(20_000), 0, [], `## Stato del programma\n${'s'.repeat(20_000)}`)
+    expect(p.length).toBeLessThanOrEqual(PROMPT_MAX + 100)
+    expect(p).toContain('## Stato del programma')
+    expect(p).toContain('"azione"')
+    expect(p).not.toContain('leggi i file')
+    expect(p).not.toContain('e'.repeat(400))
   })
 
   it('un supervisore che esplode non decide niente, e non solleva', async () => {

@@ -18,8 +18,26 @@ export type Interrogazione = (
      * preparazione — chiede il suo, e lo chiede esplicitamente.
      */
     timeoutMs?: number
+    /**
+     * **Una decisione di routine** (29/10): un turno della chat da giudicare con
+     * i fatti già nel prompt. Modello leggero, senza sessione (niente
+     * `--resume` su una conversazione da 967k token), senza strumenti e al più
+     * `TURNI_ROUTINE` turni. Scomposizione e preparazione restano come prima.
+     */
+    routine?: boolean
   }
 ) => Promise<{ testo: string; sessionId?: string }>
+
+/** Il modello delle decisioni di routine, se nessuno ne sceglie un altro (`SIERRADECK_MODELLO_SUPERVISORE`). */
+export const MODELLO_ROUTINE = 'sonnet'
+/** I turni concessi a una decisione di routine: senza strumenti ne basta uno, tre per sicurezza. */
+export const TURNI_ROUTINE = 3
+
+/** Il modello delle decisioni di routine: quello dell'ambiente, o `MODELLO_ROUTINE`. */
+export function modelloRoutine(env: NodeJS.ProcessEnv = process.env): string {
+  const m = env.SIERRADECK_MODELLO_SUPERVISORE?.trim() ?? ''
+  return m !== '' ? m : MODELLO_ROUTINE
+}
 
 const TIMEOUT_MS = 5 * 60_000
 /** Quanto dell'ultimo messaggio della chat entra nel prompt di giudizio. */
@@ -52,8 +70,26 @@ export function argomentiSupervisore(
    * preparazione — non c'è nessuna trascrizione da mostrare. È la stessa
    * tecnica delle chat governate, che l'id se lo danno da sé alla nascita.
    */
-  nuovaSessione?: string
+  nuovaSessione?: string,
+  /** 29/10: una decisione di routine, con il suo modello (vedi `Interrogazione`). */
+  routine?: { modello: string }
 ): void {
+  if (routine !== undefined) {
+    avvia(claudeCmd, [
+      '-p',
+      '--output-format', 'json',
+      '--model', routine.modello,
+      '--max-turns', String(TURNI_ROUTINE),
+      // Niente sessione da riprendere né da salvare: le ultime mosse sono già
+      // nel prompt, e una conversazione che cresce a ogni giro costava ~820k
+      // token a prompt.
+      '--no-session-persistence',
+      // Nessuno strumento, e quindi nessun permesso da saltare: i fatti li ha
+      // già misurati il programma (`fattiVerificati`).
+      '--tools', ''
+    ])
+    return
+  }
   avvia(claudeCmd, [
     // **Il prompt non è qui: arriva dall'ingresso** (0.85.1). Come argomento
     // superava il limite della riga di comando di Windows (32.767 caratteri)
@@ -103,7 +139,7 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
  * `primaDegliArgomenti`: quello che va prima di `-p` — vuoto per `claude.exe`;
  * nei test lo script finto da far girare con Node.
  */
-export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: string[] = []): Interrogazione {
+export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: string[] = [], modello: string = modelloRoutine()): Interrogazione {
   return (prompt, cwd, sessionId, opzioni) =>
     new Promise((risolvi, rifiuta) => {
       // Una cartella che non c'è fa fallire `execFile` con lo stesso «Command
@@ -118,7 +154,8 @@ export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: stri
       }
       let args: string[] = []
       argomentiSupervisore(
-        claudeCmd, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione
+        claudeCmd, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione,
+        opzioni?.routine === true ? { modello } : undefined
       )
       const figlio = execFile(
         claudeCmd,
@@ -501,6 +538,9 @@ export function componiPromptCambio(a: Autopilota, testo: string): string {
     '  "compitiDaFare": ["..."]',
     '}',
     '',
+    'Niente compiti che chiedono di scrivere note, rapporti o liste in un file (`.sierradeck/`,',
+    '`docs/`): il rapporto di una chat è una riga nel suo testo, una volta per turno.',
+    'Un criterio non può misurare solo file sotto `.sierradeck/`: misura il lavoro, non le note.',
     'Regole: un criterio senza `comando` è legittimo e vuol dire che lo giudichi tu',
     'guardando il lavoro. I comandi girano su Windows dentro `bash` (Git Bash), su una',
     'riga sola, ed escono con 0 quando il criterio è soddisfatto. Non lasciare mai',

@@ -19,9 +19,17 @@ import { FORMA_DOMANDA, REGOLE_DOMANDA, leggiParti, type PartiDomanda } from '@s
  */
 
 /** Quanto dell'ultimo messaggio della chat entra nel quadro. */
-const MESSAGGIO_MAX = 4000
-/** Quanto di ogni uscita: oltre, si ripete senza aggiungere. */
-const USCITA_NEL_QUADRO = 900
+const MESSAGGIO_MAX = 1500
+/** Quanto di ogni uscita (29/10: da 900 a 300): oltre, si ripete senza aggiungere. */
+const USCITA_NEL_QUADRO = 300
+/** Quanto dell'obiettivo: il resto lo dicono i criteri e il compito della chat. */
+const OBIETTIVO_NEL_QUADRO = 1200
+/**
+ * **Il tetto del prompt intero** (29/10). Il supervisore riceveva ~820k token a
+ * prompt fra sessione ripresa e quadro: adesso ogni decisione di routine sta
+ * in circa 8.000 caratteri. Se si sfora, si accorcia lo stato del programma.
+ */
+export const PROMPT_MAX = 8000
 /** Quante mosse passate mostrare: bastano a far vedere un cerchio. */
 const STORIA_NEL_QUADRO = 8
 
@@ -91,7 +99,7 @@ export function componiPromptDecisione(
     'Sei il supervisore di una chat Claude Code che sta lavorando a un compito.',
     'A ogni turno della chat decidi tu cosa succede dopo. Qui sotto hai il quadro intero.',
     '',
-    `## Obiettivo\n${a.obiettivo}`,
+    `## Obiettivo\n${a.obiettivo.length <= OBIETTIVO_NEL_QUADRO ? a.obiettivo : `${a.obiettivo.slice(0, OBIETTIVO_NEL_QUADRO - 1)}…`}`,
     `\n## Cartella di lavoro\n${a.cwd}`,
     `\n## Criteri di fine, con l'esito di adesso\n${statoCriteri}`,
     a.decisioni.length > 0 ? `\n## Le ultime mosse\n${storia}` : '',
@@ -102,7 +110,7 @@ export function componiPromptDecisione(
     messaggiTuoi.length > 0
       ? `\n## Chi ha affidato il lavoro ha scritto (la chat lo riceverà davanti alle tue istruzioni)\n${messaggiTuoi.map((m) => `- ${m.slice(0, 600)}`).join('\n')}\nLe tue istruzioni devono tenerne conto, non contraddirlo.`
       : '',
-    harness !== '' ? `\n${harness}` : '',
+    harness !== '' ? `\n${HARNESS_SEGNO}` : '',
     '',
     '## Cosa puoi decidere',
     '- `prosegui`: la chat continua. Scrivi istruzioni concrete — cosa fare adesso, non un incoraggiamento.',
@@ -119,8 +127,11 @@ export function componiPromptDecisione(
     '',
     ...REGOLE_DOMANDA,
     '',
-    'Prima di decidere puoi guardare: leggi i file, esegui comandi, controlla il diff. Sei nella cartella',
-    'di lavoro e hai gli strumenti. Non fidarti di quello che la chat dice di aver fatto: verificalo.',
+    // 29/10: niente strumenti. I fatti li ha misurati il programma (criteri,
+    // git, `fattiVerificati` nello stato del programma): si decide su quelli.
+    'Decidi sui fatti qui sopra: li ha misurati il programma (criteri, git, stato delle chat). Non fidarti',
+    'di quello che la chat dice di aver fatto se i fatti dicono altro.',
+    'Non chiedere mai alle chat di scrivere note, rapporti o liste in un file: il rapporto è una riga nel testo.',
     '',
     'Quando hai deciso, chiudi con un solo oggetto JSON e nient\'altro dopo:',
     `{"azione": "prosegui|finito|correggiCriterio|chiedi", "istruzioni": "...", "domanda": ${FORMA_DOMANDA},`,
@@ -129,8 +140,16 @@ export function componiPromptDecisione(
         ? ',\n "mosse": [{"tipo": "apriChat", "compito": "..."}, {"tipo": "chiudiChat", "chat": "c-2"}, {"tipo": "quaderno", "titolo": "...", "corpo": "..."}]}'
         : '}')
   ]
-  return righe.filter((r) => r !== '').join('\n')
+  const senza = righe.filter((r) => r !== '').join('\n')
+  if (harness === '') return senza
+  // Lo stato del programma prende lo spazio che resta sotto `PROMPT_MAX`.
+  const spazio = Math.max(600, PROMPT_MAX - (senza.length - HARNESS_SEGNO.length))
+  const quadro = harness.length <= spazio ? harness : `${harness.slice(0, spazio - 20)}\n[…accorciato…]`
+  return senza.replace(HARNESS_SEGNO, () => quadro)
 }
+
+/** Il posto dello stato del programma nel prompt, riempito per ultimo (29/10). */
+const HARNESS_SEGNO = '\u0000QUADRO-DEL-PROGRAMMA\u0000'
 
 /**
  * Legge la decisione dal testo del supervisore.
@@ -223,10 +242,13 @@ export async function chiediDecisione(
   harness = ''
 ): Promise<{ decisione: DecisioneSupervisore | undefined; sessionId?: string }> {
   try {
+    // 29/10: una decisione di routine (modello leggero, niente strumenti, al
+    // più tre turni). Con una sessione data la si riprende come prima.
     const { testo, sessionId } = await interroga(
       componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa, messaggiTuoi, harness),
       a.cwd,
-      sessioneSupervisore
+      sessioneSupervisore,
+      ...(sessioneSupervisore === undefined ? [{ routine: true }] : [])
     )
     return {
       decisione: leggiDecisioneSupervisore(testo),
