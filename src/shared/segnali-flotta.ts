@@ -16,6 +16,8 @@
  * Funzioni pure, uguali per il servizio, la pagina e l'app.
  */
 
+import { chatDaRivedere } from './ruoli-agenti'
+
 export type TipoSegnale = 'parto' | 'avanti' | 'fatto' | 'bloccata' | 'aspetto'
 
 export type SegnaleChat = {
@@ -131,7 +133,7 @@ export function parolaSegnale(s: SegnaleChat | undefined): string {
   }
 }
 
-type ChatNelQuadro = { id: string; compito: string; stato: string; cicli: number; segnale?: SegnaleChat; ruolo?: string }
+type ChatNelQuadro = { id: string; compito: string; stato: string; cicli: number; segnale?: SegnaleChat; ruolo?: string; conclusa?: unknown; approvata?: boolean }
 
 const STATI: Record<string, string> = { lavoro: 'al lavoro', bloccata: 'ferma su una domanda', pausa: 'in pausa per i limiti', finita: 'chiusa' }
 
@@ -181,7 +183,47 @@ export function chiaveCompito(t: string): string {
 export function chiHaGia(compito: string, chats: ChatNelQuadro[]): string | undefined {
   const k = chiaveCompito(compito)
   if (k === '') return undefined
-  return chats.find((c) => chiaveCompito(c.compito) === k && (c.stato !== 'finita' || (c.cicli > 0 && c.ruolo !== 'revisione')))?.id
+  const conta = (c: ChatNelQuadro): boolean => c.stato !== 'finita' || (c.cicli > 0 && c.ruolo !== 'revisione')
+  const stessa = chats.find((c) => chiaveCompito(c.compito) === k && conta(c))?.id
+  if (stessa !== undefined) return stessa
+  // 29/10: lo stesso compito con altre parole (il 27/10 c-160 rifaceva il
+  // lavoro di c-157 con il titolo riscritto). Le Revisioni no: cambiano solo
+  // nel numero della chat, e ognuna rivede un ramo diverso.
+  if (chatDaRivedere(compito) !== undefined) return undefined
+  const parole = paroleCompito(compito)
+  if (parole.size >= PAROLE_MIN) {
+    const simile = chats.find((c) => conta(c) && c.ruolo !== 'revisione' && chatDaRivedere(c.compito) === undefined && somiglianza(parole, paroleCompito(c.compito)) >= SIMILI_DA)
+    if (simile !== undefined) return simile.id
+  }
+  // 29/10: «riprendi il lavoro di c-157» quando c-157 ha già concluso
+  // (unito, tolto o approvato): il lavoro è fatto.
+  for (const m of compito.matchAll(/\bc-\d+\b/g)) {
+    const c = chats.find((x) => x.id === m[0] && x.stato === 'finita' && (x.conclusa !== undefined || x.approvata === true))
+    if (c === undefined) continue
+    if (RIFARE.test(compito) || somiglianza(parole, paroleCompito(c.compito)) >= SIMILI_SE_CITATA) return c.id
+  }
+  return undefined
+}
+
+/** Da quanto si somigliano due compiti con parole diverse per essere lo stesso (Jaccard sulle parole di 4+ lettere). */
+export const SIMILI_DA = 0.6
+/** Con meno parole di così non si confronta: «compito di c-1» somiglia a tutto. */
+const PAROLE_MIN = 3
+/** Se il compito cita una chat conclusa, basta somigliarle meno. */
+const SIMILI_SE_CITATA = 0.3
+const RIFARE = /\b(riprendi|riprendere|rifai|rifare|completa|completare|continua|continuare|finisci|finire|porta a termine)\b/iu
+
+/** Le parole che contano di un compito: lettere sole, almeno 4. */
+export function paroleCompito(t: string): Set<string> {
+  return new Set(chiaveCompito(t).split(' ').filter((p) => /^[a-z]{4,}$/.test(p)))
+}
+
+/** Jaccard: parole in comune su parole in tutto. */
+function somiglianza(a: Set<string>, b: Set<string>): number {
+  if (a.size < PAROLE_MIN || b.size < PAROLE_MIN) return 0
+  let comuni = 0
+  for (const p of a) if (b.has(p)) comuni += 1
+  return comuni / (a.size + b.size - comuni)
 }
 
 export type Doppione = { compito: string; chi: string }
@@ -199,6 +241,11 @@ export function codaSenzaDoppioni(compiti: string[], chats: ChatNelQuadro[]): { 
     const chi = chiHaGia(t, chats)
     if (chi !== undefined) { tolti.push({ compito: t, chi }); continue }
     if (k !== '' && visti.has(k)) { tolti.push({ compito: t, chi: 'coda' }); continue }
+    // 29/10: anche in coda, lo stesso compito scritto con altre parole resta una volta.
+    if (chatDaRivedere(t) === undefined) {
+      const parole = paroleCompito(t)
+      if (tenuti.some((x) => chatDaRivedere(x) === undefined && somiglianza(parole, paroleCompito(x)) >= SIMILI_DA)) { tolti.push({ compito: t, chi: 'coda' }); continue }
+    }
     visti.add(k)
     tenuti.push(t)
   }

@@ -119,3 +119,39 @@ describe('nessun lavoro dato due volte (0.84.0)', () => {
     expect(rigaDoppione(r.tolti[1]!)).toContain('è già in coda')
   })
 })
+
+describe('29/10: lo stesso compito con altre parole, o il lavoro di una chat già conclusa', () => {
+  const finita = { stato: 'finita', cicli: 12 }
+  it('riscritto (Jaccard ≥ 0.6 sulle parole di 4+ lettere): è un doppione', () => {
+    const chats = [{ id: 'c-157', compito: 'Correggere la coda delle consegne quando il servizio riparte', ...finita, conclusa: { come: 'unito' } }]
+    expect(chiHaGia('Correggi la coda delle consegne quando il servizio riparte da capo', chats)).toBe('c-157')
+    // Simile solo in parte: non è lo stesso compito.
+    expect(chiHaGia('Scrivere il manuale delle consegne per Nicholas', chats)).toBeUndefined()
+    // Parole troppo poche per dirlo.
+    expect(chiHaGia('coda servizio', chats)).toBeUndefined()
+  })
+
+  it('cita una chat conclusa per riprenderne il lavoro: è già fatto; se la chat non è conclusa, no', () => {
+    const chats = [
+      { id: 'c-157', compito: 'Correggere la coda delle consegne', ...finita, conclusa: { come: 'unito' } },
+      { id: 'c-158', compito: 'Scrivere il manuale', ...finita }
+    ]
+    expect(chiHaGia('Riprendi il lavoro di c-157 e portalo a termine', chats)).toBe('c-157')
+    expect(chiHaGia('Riprendi il lavoro di c-158', chats)).toBeUndefined()
+    // Cita c-157 per altro (un difetto nuovo): non è un doppione.
+    expect(chiHaGia('Il test della pagina rotto dopo c-157: sistemalo', chats)).toBeUndefined()
+  })
+
+  it('le Revisioni non si confondono fra loro: cambiano solo nel numero della chat', () => {
+    const chats = [{ id: 'c-9', compito: 'Rivedi il ramo ap/x/c-5 della chat c-5 («la coda»)', stato: 'lavoro', cicli: 1, ruolo: 'revisione' }]
+    expect(chiHaGia('Rivedi il ramo ap/x/c-7 della chat c-7 («la coda»)', chats)).toBeUndefined()
+    const r = codaSenzaDoppioni(['Rivedi il ramo ap/x/c-5 della chat c-5 («la coda»)', 'Rivedi il ramo ap/x/c-7 della chat c-7 («la coda»)'], [])
+    expect(r.tolti).toEqual([])
+  })
+
+  it('in coda, lo stesso compito scritto due volte con parole diverse resta una volta', () => {
+    const r = codaSenzaDoppioni(['Aggiungere il controllo dei rami cancellati prima della Revisione', 'Aggiungi il controllo dei rami cancellati prima della Revisione finale'], [])
+    expect(r.compiti).toHaveLength(1)
+    expect(r.tolti[0]?.chi).toBe('coda')
+  })
+})
