@@ -95,7 +95,9 @@ describe('le istruzioni', () => {
   it('ogni chat governata riceve la regola del rapporto prima di quella del segnale; la Revisione no', () => {
     const a = autopilota({ id: 'ap-a' })
     const righe = regoleDiConsegna(a, chat('c-1'))
-    const iR = righe.findIndex((r) => r.startsWith('A ogni passo scrivi all’autopilota un rapporto breve'))
+    // 29/10: la regola è cambiata di proposito: una volta per turno, mai in un file.
+    const iR = righe.findIndex((r) => r.startsWith('Una volta per turno, al più, scrivi all’autopilota un rapporto breve'))
+    expect(righe[iR]).toContain('mai in un file')
     const iS = righe.findIndex((r) => r.startsWith('Chiudi ogni turno'))
     expect(iR).toBeGreaterThan(-1)
     expect(iS).toBeGreaterThan(iR)

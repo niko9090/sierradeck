@@ -159,6 +159,10 @@ export function componiPromptDialogo(
     '  Se dice «sì» a una cosa che gli hai proposto tu, la richiesta è quella proposta.',
     '  Una domanda («a che punto siamo?»), un saluto, «fermati» o la risposta a una tua',
     '  domanda non sono richieste: allora `"richieste": []`.',
+    // 29/10: le note in un file erano 121 commit su 300 il 27/10.
+    '- Niente compiti o criteri che chiedono di scrivere note, rapporti o il quaderno in un',
+    '  file, e niente criteri che controllano solo file sotto `.sierradeck/`: cosa è cambiato',
+    '  lo dice la chat nel suo messaggio, e si misura sul codice.',
     ...REGOLA_PROMESSE,
     '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.',
     '- Dentro i testi, per citare usa «…», non le virgolette dritte; se ti servono, scrivile \\".'

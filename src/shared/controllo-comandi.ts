@@ -27,7 +27,7 @@
  * Puro: `esiste` lo passa chi chiama (relativo alla cartella del progetto).
  */
 
-export type Problema = { gravita: 'errore' | 'avviso'; tipo: 'virgolette' | 'dollaro' | 'node' | 'file'; messaggio: string }
+export type Problema = { gravita: 'errore' | 'avviso'; tipo: 'virgolette' | 'dollaro' | 'node' | 'file' | 'note'; messaggio: string }
 export type Esame = { ok: boolean; problemi: Problema[] }
 
 /** Lo stato delle virgolette alla fine del comando, letto come una shell POSIX. */
@@ -142,9 +142,30 @@ export function fileLetti(cmd: string): string[] {
   return [...fuori]
 }
 
+/** Gli strumenti che misurano il codice: un comando che li lancia non misura solo note. */
+const MISURA_CODICE = /\b(?:npm|npx|pnpm|yarn|vitest|jest|tsc|eslint|electron-builder|cargo|pytest|go\s+test)\b|\bnode\s+--test\b/
+
+/**
+ * Il comando controlla solo file sotto `.sierradeck/` (le note del progetto)?
+ * 29/10: criteri come «il quaderno ha la scheda» si soddisfacevano scrivendo
+ * note, e il 27/10 i commit di sole note erano 121 su 300.
+ */
+export function soloNoteDelProgetto(cmd: string): boolean {
+  const nota = (p: string): boolean => /^(?:\.\/)?\.sierradeck(?:\/|$)/.test(p.replace(/^['"]|['"]$/g, '').replace(/\\/g, '/'))
+  const citate = [...cmd.matchAll(/(?:^|[\s'"=(])((?:\.\/)?\.sierradeck(?:[\\/][^\s'";|&)]*)?)/g)].map((m) => m[1] as string)
+  if (citate.length === 0 || MISURA_CODICE.test(cmd)) return false
+  return fileLetti(cmd).every(nota)
+}
+
 /** L'esame di un comando, con un messaggio per esteso per chi lo ha scritto. */
 export function esaminaComando(cmd: string, esiste?: (percorso: string) => boolean): Esame {
   const problemi: Problema[] = []
+  if (soloNoteDelProgetto(cmd)) {
+    problemi.push({
+      gravita: 'errore', tipo: 'note',
+      messaggio: 'Il comando controlla solo file sotto .sierradeck/ (note, quaderno, consegne): si soddisfa scrivendo una nota, non facendo il lavoro. Misura il codice (un test, la compilazione, un file del progetto), o togli il comando e il criterio lo giudica il supervisore.'
+    })
+  }
   const aperta = virgoletteAperte(cmd)
   if (aperta !== undefined) {
     problemi.push({

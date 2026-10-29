@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dollariNonProtetti, esaminaComando, fileLetti, messaggioCriterio, scriptNode, vagliaCriteri, virgoletteAperte } from '@shared/controllo-comandi'
+import { dollariNonProtetti, esaminaComando, fileLetti, messaggioCriterio, scriptNode, soloNoteDelProgetto, vagliaCriteri, virgoletteAperte } from '@shared/controllo-comandi'
 
 /**
  * 0.44.0: i comandi dei criteri controllati quando si scrivono. I casi veri
@@ -67,7 +67,8 @@ describe('i file', () => {
     expect(fileLetti(BUONO_VERSIONE).sort()).toEqual(['./package.json', 'src/shared/novita.ts'])
   })
   it('un file che non c’è è un avviso, non un errore: può essere il lavoro a crearlo', () => {
-    const e = esaminaComando('test -f .sierradeck/quaderno/nuovo.md', () => false)
+    // 29/10: prima l'esempio era una nota sotto .sierradeck/, che ora è un errore (vedi sotto).
+    const e = esaminaComando('test -f src/nuovo.ts', () => false)
     expect(e.ok).toBe(true)
     expect(e.problemi).toMatchObject([{ gravita: 'avviso', tipo: 'file' }])
     expect(esaminaComando('test -f package.json', (p) => p === 'package.json').problemi).toEqual([])
@@ -80,7 +81,7 @@ describe('il vaglio dei criteri, con il messaggio per chi li scrive', () => {
       { descrizione: 'versione', comando: VERO_0110_VERSIONE },
       { descrizione: 'test', comando: 'npm test' },
       { descrizione: 'lo giudica lui' },
-      { descrizione: 'scheda', comando: 'test -f .sierradeck/quaderno/x.md' }
+      { descrizione: 'scheda', comando: 'test -f src/x.ts' }
     ], () => false)
     expect(v.buoni.map((c) => c.descrizione)).toEqual(['test', 'lo giudica lui', 'scheda'])
     expect(v.scartati[0]?.messaggio).toContain('Il comando del criterio «versione» non va bene e non l\'ho preso')
@@ -91,5 +92,32 @@ describe('il vaglio dei criteri, con il messaggio per chi li scrive', () => {
     expect(m).toContain('«versione»')
     expect(m).toContain(VERO_0110_VERSIONE)
     expect(m).toContain('apici singoli')
+  })
+})
+
+describe('29/10: un criterio che controlla solo le note non si prende', () => {
+  it('test -f, grep e cat su file sotto .sierradeck/: errore, con il motivo', () => {
+    for (const cmd of [
+      'test -f .sierradeck/quaderno/rapporto-c-157.md',
+      'grep -q "0.85.1" .sierradeck/quaderno/lavori.md',
+      'test -f ./.sierradeck/consegne/x.md && grep -q fatto .sierradeck/quaderno/lavori.md'
+    ]) {
+      expect(soloNoteDelProgetto(cmd), cmd).toBe(true)
+      const e = esaminaComando(cmd)
+      expect(e.ok).toBe(false)
+      expect(e.problemi[0]).toMatchObject({ gravita: 'errore', tipo: 'note' })
+      expect(e.problemi[0]?.messaggio).toContain('solo file sotto .sierradeck/')
+    }
+  })
+  it('con il codice o un test di mezzo, va bene', () => {
+    expect(soloNoteDelProgetto('test -f .sierradeck/quaderno/x.md && grep -q foo src/a.ts')).toBe(false)
+    expect(soloNoteDelProgetto('npx vitest run tests/x.test.ts && test -f .sierradeck/quaderno/x.md')).toBe(false)
+    expect(soloNoteDelProgetto('npm test')).toBe(false)
+    expect(soloNoteDelProgetto('test -f src/a.ts')).toBe(false)
+  })
+  it('il vaglio lo scarta e lo dice', () => {
+    const v = vagliaCriteri([{ descrizione: 'il quaderno ha la scheda', comando: 'test -f .sierradeck/quaderno/scheda.md' }])
+    expect(v.buoni).toEqual([])
+    expect(v.scartati[0]?.messaggio).toContain('«il quaderno ha la scheda» non va bene')
   })
 })
