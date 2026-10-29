@@ -48,12 +48,14 @@ let archivio: Archivio
 let porta = 0
 let interrogazioni: string[] = []
 let avvisi: string[] = []
+let orologio = ORA
 afterEach(() => { server?.close(); server = undefined })
 
 function ambiente(p: { git?: Git; verdi?: boolean; risposta?: string; release?: string[] } = {}): ServerAutopiloti {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-giri-vuoto-')))
   interrogazioni = []
   avvisi = []
+  orologio = ORA
   return creaServer({
     archivio,
     esegui: () => Promise.resolve(p.verdi === false ? { codice: 1, uscita: 'rosso' } : { codice: 0, uscita: 'ok' }),
@@ -67,7 +69,7 @@ function ambiente(p: { git?: Git; verdi?: boolean; risposta?: string; release?: 
     domande: creaRegistroDomande({ adesso: () => Date.parse(ORA) }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => ORA,
+    adesso: () => orologio,
     statoVero: () => Promise.resolve({ chat: [], ramoUnito: () => undefined, ...(p.release !== undefined ? { releasePubblicate: p.release } : {}) }),
     ...(p.git !== undefined ? { git: p.git } : {})
   })
@@ -181,6 +183,27 @@ describe('A: il cerchio di c-157', () => {
     expect(interrogazioni[0]).not.toContain('c-30 (finita')
     expect(r.reason).toContain('Il tuo compito: il test della coda')
     expect(r.reason).not.toContain('tutto quanto, tutto quanto')
+  })
+})
+
+describe('B: il giro da solo non riapre il lavoro già fatto', () => {
+  it('c-157 ha detto «fatto», il suo ramo è nel principale e tace da 20 minuti: il giro la chiude, non la riprende', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ap-giro-c157-'))
+    const rami: Rami = new Map([['ap/ap-27/c-157', { unito: true }]])
+    server = ambiente({ git: gitDi(rami, new Map(), []) })
+    await avvia(server)
+    archivio.scrivi(flotta(cwd, [chat('c-157', { ramo: 'ap/ap-27/c-157', segnale: FATTO, dal: ORA })], { ultimoEvento: ORA }))
+    orologio = new Date(Date.parse(ORA) + 20 * 60_000).toISOString()
+    server.controllaChatFerme()
+    const a = archivio.leggi('ap-27')!
+    const c = a.chats.find((x) => x.id === 'c-157')!
+    expect(c.stato).toBe('finita')
+    expect(c.conclusa?.come).toBe('unito')
+    expect(c.ripresa).toBeUndefined()
+    expect(a.decisioni.some((d) => d.cosa.includes('chiudo la chat c-157: il suo lavoro è già nel principale'))).toBe(true)
+    // Nessuna chat nuova per «riprendere l'obiettivo».
+    expect(a.chats).toHaveLength(1)
+    expect(a.compitiDaFare).toEqual([])
   })
 })
 

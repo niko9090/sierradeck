@@ -2140,6 +2140,40 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * minuti nessuna chat lavora, o quando una chat messa da parte va ripresa.
    * La regola sta in `mai-fermo.ts`; qui si eseguono le mosse.
    */
+  /** La testa del principale al giro da solo di prima, per autopilota (29/10): «c'è un commit nuovo?». */
+  const testeAlGiro = new Map<string, string>()
+  /**
+   * C'è ancora qualcosa da fare (29/10): un criterio rosso, un ramo di chat
+   * non ancora nel principale, o un commit nuovo nel principale dall'ultimo
+   * giro da solo. `undefined` senza git: non si sa, si fa come prima.
+   */
+  const qualcosaDaFare = (a: Autopilota): boolean | undefined => {
+    if (a.criteri.some((c) => c.giudicato === undefined && !c.soddisfatto)) return true
+    const git = deps.git
+    if (git === undefined) return undefined
+    if (a.ramoBase !== undefined && a.chats.some((c) => c.ramo !== undefined && c.ruolo !== 'revisione' && c.conclusa === undefined && c.approvata !== true && ramoGiaChiuso(git, { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase as string }) === undefined)) return true
+    const testa = git(['rev-parse', 'HEAD'], a.cwd)
+    if (testa.codice !== 0) return undefined
+    const prima = testeAlGiro.get(a.id)
+    return prima === undefined || prima !== testa.uscita.trim()
+  }
+  /**
+   * Il lavoro di questa chat è già nel principale (29/10). Per chi ha detto
+   * «fatto»: senza ramo, ramo unito, tolto o senza novità. Per le altre solo il
+   * ramo che non c'è più: un ramo appena nato è «già unito» anche senza un
+   * commit, e lì il compito non è fatto.
+   */
+  const giaFattoDaSolo = (a: Autopilota, c: ChatGovernata): boolean => {
+    const git = deps.git
+    const fatto = c.segnale?.tipo === 'fatto'
+    if (c.ramo === undefined) return fatto
+    if (git === undefined || a.ramoBase === undefined) return false
+    const p = { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }
+    const chiuso = ramoGiaChiuso(git, p)
+    if (!fatto) return chiuso === 'mancante'
+    return chiuso !== undefined || ramoSenzaNovita(git, p)
+  }
+
   const giriDaSoli = (): void => {
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return
@@ -2153,6 +2187,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
       }
       const letto = deps.archivio.leggi(prima.id) ?? prima
+      // 29/10: il lavoro compiuto si chiude, non si riapre.
+      const compiuto = letto.stato === 'lavoro' && letto.fermatoPerAggiornamento !== true && letto.archiviato !== true && letto.chats.length > 0 && compiutoAdesso(letto)
+      if (compiuto) {
+        finisciCompiuto(letto, 'i criteri passano, ogni chat ha detto «fatto», tutto è nel principale e la versione è uscita')
+        continue
+      }
+      const daFare = letto.stato === 'lavoro' ? qualcosaDaFare(letto) : undefined
       const giro = giroMaiFermo(letto, {
         ora,
         avvioServizio,
@@ -2161,9 +2202,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         apertura: (compiti) => aperturaPossibile(letto, compiti),
         inGiudizio: (chatId) => chatInGiudizio(letto, chatId),
         fermaAlPrompt: (chiave) => fermaDal.has(chiave),
-        domandeAperte: deps.domande.aperte(letto.id).length
+        domandeAperte: deps.domande.aperte(letto.id).length,
+        ...(daFare !== undefined ? { qualcosaDaFare: daFare } : {}),
+        giaFatto: (c) => giaFattoDaSolo(letto, c)
       })
       if (giro === undefined) continue
+      // Il commit nuovo si misura da un giro all'altro.
+      if (deps.git !== undefined) {
+        const testa = deps.git(['rev-parse', 'HEAD'], letto.cwd)
+        if (testa.codice === 0) testeAlGiro.set(letto.id, testa.uscita.trim())
+      }
       let a: Autopilota = { ...letto, giroDaSolo: deps.adesso() }
       annota(a, rigaGiro(giro))
       for (const riga of giro.avvisaNicholas) annota(a, riga)
@@ -2184,9 +2232,32 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             ? { ...tolta, ripresa }
             : { ...tolta, chats: tolta.chats.map((c) => (c.id === chat.id ? { ...c, ripresa } : c)) }
           daAvviare.push({ ...(chat !== undefined ? { chat: { ...chat, ripresa } } : {}), messaggio: testoRipresa(a, chat, m.muta) })
+        } else if (m.tipo === 'chiudi') {
+          // 29/10: «fatto» e lavoro già nel principale: si chiude, non si riprende.
+          const c = a.chats.find((x) => x.id === m.chatId)
+          if (c === undefined) continue
+          const il = deps.adesso()
+          const tolto = c.ramo !== undefined && deps.git !== undefined && a.ramoBase !== undefined && ramoGiaChiuso(deps.git, { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }) === 'mancante'
+          deps.fermaLavoro(a.id, c.id, c.sessionId !== undefined ? { sessionId: c.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined)
+          const tolta = tornaDaParte(a, c.id)
+          a = { ...tolta, chats: tolta.chats.map((x) => (x.id === c.id ? { ...x, stato: 'finita' as const, conclusa: x.conclusa ?? { il, come: tolto ? 'tolto' as const : 'unito' as const }, dal: il } : x)) }
+          annota(a, `chiudo la chat ${c.id}: il suo lavoro è già nel principale, non la riprendo`, { chat: c.id, esito: 'finito' })
+          apri = apri || a.compitiDaFare.length > 0
         } else if (m.tipo === 'sostituisci') {
           const vecchia = a.chats.find((c) => c.id === m.chatId)
           if (vecchia === undefined) continue
+          // 29/10: anche il passaggio a una chat nuova passa dal controllo dei
+          // doppioni: se un'altra chat ha già (o ha già portato nel principale)
+          // quel compito, la muta si chiude e basta. Le mute già sostituite non
+          // contano: sono la stessa catena.
+          const gia = chiHaGia(vecchia.compito, a.chats.filter((c) => c.id !== vecchia.id && (c.stato !== 'finita' || c.conclusa !== undefined || c.approvata === true)))
+          if (gia !== undefined) {
+            deps.fermaLavoro(a.id, vecchia.id, vecchia.sessionId !== undefined ? { sessionId: vecchia.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined)
+            const il = deps.adesso()
+            a = { ...a, chats: a.chats.map((x) => (x.id === vecchia.id ? { ...x, stato: 'finita' as const, dal: il } : x)) }
+            annota(a, `${vecchia.id} non risponde, ma il suo compito ce l’ha già ${gia}: la chiudo invece di darlo a una chat nuova`, { chat: vecchia.id, esito: 'ferma' })
+            continue
+          }
           const il = deps.adesso()
           const nuova = chatCheSostituisce(a, vecchia, randomUUID(), il)
           const chi = vecchia.sessionId !== undefined ? { sessionId: vecchia.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) } : undefined
@@ -2199,10 +2270,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         } else if (m.tipo === 'apriCompiti') {
           apri = true
         } else if (!a.compitiDaFare.includes(m.compito) && chiHaGia(m.compito, a.chats) === undefined) {
+          // 29/10: sempre con il ruolo «sviluppo»: il suo ramo passa dalla
+          // Revisione invece di unirsi a ogni turno.
           a = {
             ...a,
             compitiDaFare: [...a.compitiDaFare, m.compito],
-            ...(a.ruoliCompiti !== undefined ? { ruoliCompiti: { ...a.ruoliCompiti, [m.compito]: { ruolo: 'sviluppo' as const, dopo: [] } } } : {})
+            ruoliCompiti: { ...(a.ruoliCompiti ?? {}), [m.compito]: { ruolo: 'sviluppo' as const, dopo: [] } }
           }
           apri = true
         }

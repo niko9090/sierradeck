@@ -40,6 +40,11 @@ export type MossaMaiFermo =
   | { tipo: 'apriCompiti' }
   /** Nessuna chat e nessun compito: una chat nuova riprende l'obiettivo. */
   | { tipo: 'nuovoCompito'; compito: string }
+  /**
+   * 29/10: la chat ha detto «fatto» e il suo lavoro è già nel principale: si
+   * chiude invece di riprenderla o di dare il suo compito a una chat nuova.
+   */
+  | { tipo: 'chiudi'; chatId: string }
 
 export type GiroMaiFermo = {
   /**
@@ -79,6 +84,20 @@ export type VistaMaiFermo = {
    * di prima, senza promesse.
    */
   apertura?: (compiti: string[]) => { daAprire: number; motivo?: string }
+  /**
+   * 29/10: il lavoro è compiuto (`lavoroCompiuto`): nessun giro, lo chiude il
+   * servizio. Il 27/10 il giro da solo riapriva lavoro già fatto e pubblicato.
+   */
+  compiuto?: boolean
+  /**
+   * 29/10: c'è ancora qualcosa da fare: un criterio rosso, un commit nuovo nel
+   * principale dall'ultimo giro, un ramo non ancora unito. `false`: niente
+   * chat nuove (né sostituite né per riprendere l'obiettivo). Assente: come
+   * prima.
+   */
+  qualcosaDaFare?: boolean
+  /** 29/10: il lavoro di questa chat è già nel principale (ramo unito, tolto o senza novità). */
+  giaFatto?: (c: ChatGovernata) => boolean
 }
 
 const t = (iso: string | undefined): number => {
@@ -88,9 +107,11 @@ const t = (iso: string | undefined): number => {
 
 /** Il compito che riprende l'obiettivo quando non c'è più nessuno al lavoro. */
 export function compitoDiRipresa(a: Autopilota): string {
+  // 29/10: niente rimandi a file grandi (la lista dei lavori è di 46 KB): git
+  // log e i criteri bastano a vedere cosa manca.
   return 'Riprendi il lavoro dell’autopilota: nessuna chat lavora più e il lavoro non è chiuso. ' +
-    'Guarda com’è messo (git log, la lista dei lavori nel quaderno se c’è, i criteri di fine) e porta a termine quello che manca. ' +
-    `Se è già tutto fatto, verificalo con i criteri e dillo in poche righe. Obiettivo: ${a.obiettivo.slice(0, 400)}`
+    'Guarda com’è messo (git log, i criteri di fine) e porta a termine solo quello che manca: non rifare quello che è già nel principale. ' +
+    `Se è già tutto fatto, verificalo con i criteri e chiudi con «SEGNALE: fatto». Obiettivo: ${a.obiettivo.slice(0, 400)}`
 }
 
 type Unita = { chiave: string; ripresa?: { il: string; volte: number }; sostituzioni: number; dal?: string }
@@ -105,7 +126,18 @@ function silenzio(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | u
   return v.ora - Math.max(segnale(u.chiave) ?? -Infinity, t(u.ripresa?.il), t(u.dal), v.avvioServizio)
 }
 
-const sogliaDi = (u: Unita): number => (u.ripresa !== undefined ? RIPRESA_SENZA_RISPOSTA_MS : NESSUNO_AL_LAVORO_MS)
+/** Oltre quante riprese di fila l'attesa smette di raddoppiare: 10, 20, 40, 80, 160 minuti. */
+export const RADDOPPI_MAX = 4
+
+/**
+ * Quanto si aspetta prima di toccare la chat. 29/10: dopo ogni ripresa senza
+ * risposta l'attesa raddoppia, fino a `RADDOPPI_MAX` volte. Prima una chat
+ * muta riceveva «Dimmi il punto» ogni 10 minuti per tutta la notte.
+ */
+export function sogliaDi(u: { ripresa?: { volte: number } }): number {
+  if (u.ripresa === undefined) return NESSUNO_AL_LAVORO_MS
+  return RIPRESA_SENZA_RISPOSTA_MS * 2 ** Math.min(RADDOPPI_MAX, Math.max(0, u.ripresa.volte - 1))
+}
 
 /** Riprendere o passare a una chat nuova: dipende da come è andata la ripresa di prima. */
 function mossaPer(u: Unita, v: VistaMaiFermo, segnale: (k: string) => number | undefined, chatId: string | undefined, risposta: (k: string) => number | undefined = segnale): MossaMaiFermo {
@@ -154,6 +186,8 @@ export function notaFerma(m: MossaMaiFermo): string | undefined {
  */
 export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | undefined {
   if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true || a.archiviato === true) return undefined
+  // 29/10: lavoro compiuto, niente giro (lo chiude il servizio).
+  if (v.compiuto === true) return undefined
   const daParte = new Set(a.daParte ?? [])
 
   // ── La chat singola: la chiave è quella dell'autopilota ──
@@ -206,10 +240,27 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   const righe: string[] = []
   const avvisaNicholas: string[] = []
   for (const c of daToccare) {
-    const m = mossaPer(unita(c), vistaChat, segnale, c.id, risposta)
+    // 29/10: chi ha detto «fatto» con il lavoro già nel principale si chiude.
+    if (c.segnale?.tipo === 'fatto' && v.giaFatto?.(c) === true) {
+      mosse.push({ tipo: 'chiudi', chatId: c.id })
+      righe.push(`${c.id}: ha detto «fatto» e il suo lavoro è già nel principale → la chiudo`)
+      continue
+    }
+    let m = mossaPer(unita(c), vistaChat, segnale, c.id, risposta)
+    // 29/10: il compito passa a una chat nuova solo se c'è ancora qualcosa da
+    // fare e il suo lavoro non è già nel principale; chi ha detto «fatto» non
+    // si sostituisce mai (si riprende: al turno dopo lo chiude il supervisore).
+    if (m.tipo === 'sostituisci') {
+      if (v.giaFatto?.(c) === true) {
+        mosse.push({ tipo: 'chiudi', chatId: c.id })
+        righe.push(`${c.id}: muta, ma il suo lavoro è già nel principale → la chiudo invece di darlo a una chat nuova`)
+        continue
+      }
+      if (v.qualcosaDaFare === false || c.segnale?.tipo === 'fatto') m = { tipo: 'riprendi', chatId: c.id, interrompi: !vistaChat.fermaAlPrompt(c.id), muta: m.muta }
+    }
     // Al tetto delle chat nuove, una riga a Nicholas alla prima ripresa che non risponde.
     if (m.tipo === 'riprendi' && c.ripresa?.volte === 1 && (c.sostituzioni ?? 0) >= SOSTITUZIONI_MAX) {
-      avvisaNicholas.push(`Il compito «${c.compito.slice(0, 80)}» non riparte: ${SOSTITUZIONI_MAX + 1} chat di fila non hanno risposto. Continuo a riprenderlo ogni ${minuti(RIPRESA_SENZA_RISPOSTA_MS)} minuti; se vuoi, guardalo tu.`)
+      avvisaNicholas.push(`Il compito «${c.compito.slice(0, 80)}» non riparte: ${SOSTITUZIONI_MAX + 1} chat di fila non hanno risposto. Continuo a riprenderlo, sempre più di rado (da ${minuti(RIPRESA_SENZA_RISPOSTA_MS)} fino a ${minuti(sogliaDi({ ripresa: { volte: RADDOPPI_MAX + 1 } }))} minuti); se vuoi, guardalo tu.`)
     }
     mosse.push(m)
     righe.push(rigaMossa(m, c.id))
@@ -225,7 +276,10 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
       mosse.push({ tipo: 'apriCompiti' })
       const n = a.compitiDaFare.length
       righe.push(`${n === 1 ? 'un compito in coda' : `${n} compiti in coda`}: ${rigaApertura(v.apertura?.(a.compitiDaFare), n)}`)
-    } else if (alLavoro.length === 0 && !aspettaNicholas && !a.chats.some((c) => c.stato === 'pausa')) {
+    } else if (alLavoro.length === 0 && !aspettaNicholas && !a.chats.some((c) => c.stato === 'pausa') && v.qualcosaDaFare !== false) {
+      // 29/10: solo se resta qualcosa (un criterio rosso, un commit nuovo, un
+      // ramo da unire). Con tutto verde e niente di nuovo si riapriva il
+      // lavoro già fatto.
       const compito = compitoDiRipresa(a)
       mosse.push({ tipo: 'nuovoCompito', compito })
       const ap = v.apertura?.([compito])
@@ -254,8 +308,12 @@ export function rigaGiro(g: GiroMaiFermo): string {
 }
 
 /** Il messaggio alla chat ripresa: l'ultima istruzione valida, o il suo compito. */
+/** Quanto dell'ultima istruzione torna con «Dimmi il punto» (29/10: prima fino a 8.000 caratteri). */
+export const ULTIME_NELLA_RIPRESA = 1500
+
 export function testoRipresa(a: Autopilota, c: ChatGovernata | undefined, muta: number): string {
-  const ultime = (c !== undefined ? c.ultimeIstruzioni : a.ultimeIstruzioni)?.trim() ?? ''
+  const tutte = (c !== undefined ? c.ultimeIstruzioni : a.ultimeIstruzioni)?.trim() ?? ''
+  const ultime = tutte.length <= ULTIME_NELLA_RIPRESA ? tutte : `${tutte.slice(0, ULTIME_NELLA_RIPRESA - 1)}…`
   const compito = c !== undefined && c.compito !== '' ? c.compito : a.obiettivo
   return [
     `Dimmi il punto: da ${minuti(muta)} minuti non arriva nessun segnale da questa chat e il lavoro non è finito.`,
@@ -313,7 +371,8 @@ export function conSostituzione(a: Autopilota, vecchiaId: string, nuova: ChatGov
 /** Il primo messaggio della chat nuova, prima del compito vero e proprio. */
 export function testoPassaggio(vecchia: ChatGovernata): string {
   const dove = vecchia.ramo !== undefined ? `Sei nella sua cartella, sul suo ramo ${vecchia.ramo}` : 'Sei nella sua cartella'
-  const ultime = vecchia.ultimeIstruzioni?.trim() ?? ''
+  const tutte = vecchia.ultimeIstruzioni?.trim() ?? ''
+  const ultime = tutte.length <= ULTIME_NELLA_RIPRESA ? tutte : `${tutte.slice(0, ULTIME_NELLA_RIPRESA - 1)}…`
   return [
     `Prendi in mano il compito della chat ${vecchia.id}: si è fermata e non ha risposto nemmeno dopo essere stata rimessa al lavoro.`,
     `${dove}: prima guarda cosa ha già fatto (git log, git status, i file cambiati) e riparti da lì, senza rifare quello che c’è già.`,
