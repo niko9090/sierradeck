@@ -7,11 +7,13 @@ import {
   commitInAttesa, conRiscontroInLista, conVersione, cosaDalTitolo, diventatiVerdi, idRichiestaDi, LISTA_LAVORI,
   rigaRiscontro, righeRichieste, riscontriNuovi, salvaLista, testDalComando, versioniUscite
 } from '../../src/autopilot-host/riscontro'
-import { comeAsincrono, gitReale } from '../../src/autopilot-host/worktree'
+import { comeAsincrono } from '../../src/autopilot-host/worktree'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Criterio } from '../../src/shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { gitFinto, OPZIONI_GIT_FINTO, prossimaDataGit, usaGitFinto } from '../setup/git-finto'
 
 /**
  * Il riscontro con la prova (0.85.0, c-128), col caso vero del 23/10: la
@@ -40,8 +42,11 @@ const CRITERIO_0T = '0.84.4 — Mai più la domanda «Come vado avanti con …, 
 const TITOLO_VERO = 'fix(autopilota): oltre i rifacimenti decide il programma, mai più «Come vado avanti con …?» (0.84.4, c-125)'
 const TEST_VERO = 'tests/autopilot-host/oltre-rifacimenti-0-84-4.test.ts'
 
+usaGitFinto()
+
 function git(cwd: string, ...args: string[]): string {
-  const r = spawnSync('git', ['-c', 'user.name=prova', '-c', 'user.email=prova@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' })
+  prossimaDataGit()
+  const r = spawnSync('git', [...OPZIONI_GIT_FINTO, '-c', 'user.name=prova', '-c', 'user.email=prova@example.invalid', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' })
   if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`)
   return r.stdout.trim()
 }
@@ -58,13 +63,12 @@ function repoDel23(): { cwd: string; commit: string } {
   mkdirSync(join(cwd, '.sierradeck', 'quaderno'), { recursive: true })
   writeFileSync(join(cwd, LISTA_LAVORI), LISTA)
   git(cwd, 'add', '-A')
-  // La lista c'era da prima del lavoro di c-125, come nel caso vero. Senza una
-  // data sua i due commit nascono nello stesso secondo, e a parità di data
+  // La lista c'era da prima del lavoro di c-125, come nel caso vero. Con la
+  // stessa data i due commit nascevano nello stesso secondo, e a parità di data
   // `git log -1 --no-merges` dà il primo genitore dell'unione (questo):
-  // il test passava o falliva a seconda del secondo (c-122, 23/10).
-  const prima = new Date(Date.now() - 60_000).toISOString()
-  const r = spawnSync('git', ['commit', '-q', '-m', 'docs(quaderno): lista dei lavori'], { cwd, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_DATE: prima, GIT_COMMITTER_DATE: prima } })
-  if (r.status !== 0) throw new Error(`git commit: ${r.stderr}`)
+  // il test passava o falliva a seconda del secondo (c-122, 23/10). Con
+  // `usaGitFinto` ogni comando git è un secondo dopo il precedente, sempre.
+  git(cwd, 'commit', '-q', '-m', 'docs(quaderno): lista dei lavori')
   git(cwd, 'tag', 'v0.84.3')
   git(cwd, 'checkout', '-q', '-b', 'ap/c-125')
   mkdirSync(join(cwd, 'tests', 'autopilot-host'), { recursive: true })
@@ -110,9 +114,9 @@ describe('la richiesta di un criterio', () => {
 })
 
 describe('il riscontro con il git vero (caso del 23/10)', () => {
-  it('riga con cosa, commit, test e «nella prossima versione»; poi la 0.84.4 quando esce il tag', { timeout: 60_000 }, async () => {
+  it('riga con cosa, commit, test e «nella prossima versione»; poi la 0.84.4 quando esce il tag', async () => {
     const { cwd, commit } = repoDel23()
-    const g = comeAsincrono(gitReale)
+    const g = comeAsincrono(gitFinto)
     const nuovi = await riscontriNuovi({ git: g, cwd, verdi: [criterio(true)], lista: LISTA, giaDetto: '' })
     expect(nuovi).toEqual([{ richiesta: '0t', cosa: 'oltre i rifacimenti decide il programma, mai più «Come vado avanti con …?»', commit, test: TEST_VERO }])
     const riga = rigaRiscontro(nuovi[0]!)
@@ -131,9 +135,9 @@ describe('il riscontro con il git vero (caso del 23/10)', () => {
     expect((await riscontriNuovi({ git: g, cwd, verdi: [criterio(true)], lista: LISTA, giaDetto: '' }))[0]?.versione).toBe('0.84.4')
   })
 
-  it('la lista dei lavori: riscontro in coda alla cella dello stato, con un commit suo; il lavoro di altri non entra', { timeout: 60_000 }, async () => {
+  it('la lista dei lavori: riscontro in coda alla cella dello stato, con un commit suo; il lavoro di altri non entra', async () => {
     const { cwd, commit } = repoDel23()
-    const g = comeAsincrono(gitReale)
+    const g = comeAsincrono(gitFinto)
     writeFileSync(join(cwd, 'altro.txt'), 'lavoro di un altro, non salvato\n')
     const r = { richiesta: '0t', cosa: 'oltre i rifacimenti decide il programma', commit, test: TEST_VERO }
     const percorso = join(cwd, LISTA_LAVORI)
@@ -164,7 +168,7 @@ describe('nel servizio: la riga nella conversazione quando il criterio diventa v
   let server: ServerAutopiloti | undefined
   afterEach(() => { server?.close() })
 
-  it('ricontrollo dopo l unione: riga nella conversazione, nel registro e nella lista; poi la versione', { timeout: 60_000 }, async () => {
+  it('ricontrollo dopo l unione: riga nella conversazione, nel registro e nella lista; poi la versione', async () => {
     const { cwd, commit } = repoDel23()
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'riscontro-ap-')))
     server = creaServer({
@@ -174,16 +178,13 @@ describe('nel servizio: la riga nella conversazione quando il criterio diventa v
       avviaLavoro: () => Promise.resolve(),
       fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: () => Date.now() }),
+      domande: creaRegistroDomande({ adesso: () => Date.parse('2026-10-23T12:00:00.000Z') }),
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
       adesso: () => '2026-10-23T12:00:00.000Z',
-      git: gitReale
+      git: gitFinto
     })
     archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-0t', nome: 'Rifacimenti', obiettivo: 'o', cwd, criteri: [criterio(false, `node -e 0 ${TEST_VERO}`)], iniziatoIl: '2026-10-23T10:00:00.000Z' }), stato: 'finito' })
-    const attendi = async (vero: () => boolean): Promise<void> => {
-      for (let i = 0; i < 200 && !vero(); i += 1) await new Promise((r) => setTimeout(r, 25))
-    }
     const dettoNelDialogo = (): string => (archivio.leggi('ap-0t')?.dialogo ?? []).map((s) => s.testo).join('\n')
 
     expect(await server.ricontrollaCriteri('ap-0t')).toBe(true)

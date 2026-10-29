@@ -3,20 +3,25 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  creaWorktree, gitAsincronoReale, gitReale, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono, unisciRamoAsincrono, type EsitoGit, type Git, type GitAsincrono
+  creaWorktree, gitAsincronoReale, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono, unisciRamoAsincrono, type EsitoGit, type Git, type GitAsincrono
 } from '../../src/autopilot-host/worktree'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { gitAsincronoFinto, gitFinto, usaGitFinto } from '../setup/git-finto'
+import { orologioDa } from '../setup/orologio'
 
 // 0.84.0, blocchi rimasti. Il git dei giri girava con spawnSync: il 20/10 la
 // fase «unione» ha tenuto fermo il servizio 33 minuti in tutto, fino a 95 s di
 // fila (servizio/tempi.jsonl). Intanto né gli hook delle chat né la salute
 // avevano risposta, e l'app avviava doppioni del servizio (62 avvii quel giorno).
 
+usaGitFinto()
+
 const esegui = (args: string[], cwd: string): string => {
-  const r = gitReale(args, cwd)
+  const r = gitFinto(args, cwd)
   if (r.codice !== 0) throw new Error(`git ${args.join(' ')}: ${r.uscita}`)
   return r.uscita
 }
@@ -34,7 +39,7 @@ function repository(): string {
   return progetto
 }
 
-describe('git asincrono: le stesse operazioni, senza fermare il servizio', { timeout: 120_000 }, () => {
+describe('git asincrono: le stesse operazioni, senza fermare il servizio', () => {
   it('gitAsincronoReale lascia girare il resto mentre git lavora', async () => {
     let giro = false
     setImmediate(() => { giro = true })
@@ -52,31 +57,31 @@ describe('git asincrono: le stesse operazioni, senza fermare il servizio', { tim
 
   it('salva, unisce, riconosce il ramo già unito e toglie il worktree come la versione sincrona', async () => {
     const progetto = repository()
-    const wt = creaWorktree(gitReale, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    const wt = creaWorktree(gitFinto, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
     expect(wt.ok).toBe(true)
     if (!wt.ok) return
     writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
-    expect(await salvaLavoroAsincrono(gitAsincronoReale, wt.cartella, 'autopilota: pezzo 1')).toBe(true)
-    expect(await salvaLavoroAsincrono(gitAsincronoReale, wt.cartella, 'autopilota: niente')).toBe(false)
-    expect(await unisciRamoAsincrono(gitAsincronoReale, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true, unito: true })
+    expect(await salvaLavoroAsincrono(gitAsincronoFinto, wt.cartella, 'autopilota: pezzo 1')).toBe(true)
+    expect(await salvaLavoroAsincrono(gitAsincronoFinto, wt.cartella, 'autopilota: niente')).toBe(false)
+    expect(await unisciRamoAsincrono(gitAsincronoFinto, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true, unito: true })
     expect(readFileSync(join(progetto, 'b.txt'), 'utf8')).toBe('dalla chat\n')
-    expect(await ramoGiaChiusoAsincrono(gitAsincronoReale, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('unito')
-    await togliWorktreeAsincrono(gitAsincronoReale, { cwd: progetto, cartella: wt.cartella, ramo: wt.ramo })
+    expect(await ramoGiaChiusoAsincrono(gitAsincronoFinto, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('unito')
+    await togliWorktreeAsincrono(gitAsincronoFinto, { cwd: progetto, cartella: wt.cartella, ramo: wt.ramo })
     expect(existsSync(wt.cartella)).toBe(false)
-    expect(await ramoGiaChiusoAsincrono(gitAsincronoReale, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('mancante')
+    expect(await ramoGiaChiusoAsincrono(gitAsincronoFinto, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toBe('mancante')
   })
 
   it('un conflitto si annulla e dice su quali file, anche da asincrono', async () => {
     const progetto = repository()
-    const w1 = creaWorktree(gitReale, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
-    const w2 = creaWorktree(gitReale, { cwd: progetto, autopilota: 'ap1', chat: 'c-2', base: 'main' })
+    const w1 = creaWorktree(gitFinto, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    const w2 = creaWorktree(gitFinto, { cwd: progetto, autopilota: 'ap1', chat: 'c-2', base: 'main' })
     if (!w1.ok || !w2.ok) throw new Error('worktree non creati')
     writeFileSync(join(w1.cartella, 'a.txt'), 'da c-1\n')
     writeFileSync(join(w2.cartella, 'a.txt'), 'da c-2\n')
-    expect(await salvaLavoroAsincrono(gitAsincronoReale, w1.cartella, 'c-1')).toBe(true)
-    expect(await salvaLavoroAsincrono(gitAsincronoReale, w2.cartella, 'c-2')).toBe(true)
-    expect(await unisciRamoAsincrono(gitAsincronoReale, { cwd: progetto, ramo: w1.ramo, base: 'main' })).toEqual({ ok: true, unito: true })
-    const u = await unisciRamoAsincrono(gitAsincronoReale, { cwd: progetto, ramo: w2.ramo, base: 'main' })
+    expect(await salvaLavoroAsincrono(gitAsincronoFinto, w1.cartella, 'c-1')).toBe(true)
+    expect(await salvaLavoroAsincrono(gitAsincronoFinto, w2.cartella, 'c-2')).toBe(true)
+    expect(await unisciRamoAsincrono(gitAsincronoFinto, { cwd: progetto, ramo: w1.ramo, base: 'main' })).toEqual({ ok: true, unito: true })
+    const u = await unisciRamoAsincrono(gitAsincronoFinto, { cwd: progetto, ramo: w2.ramo, base: 'main' })
     expect(u).toMatchObject({ ok: false, conflitto: true, file: ['a.txt'] })
     // Annullata: nella cartella di lavoro resta il lavoro di c-1, senza segni di conflitto.
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('da c-1\n')
@@ -95,6 +100,8 @@ describe('il servizio risponde mentre unisce il ramo di una chat', () => {
     mkdirSync(progetto)
     mkdirSync(cartella, { recursive: true })
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-gita-arch-')))
+    // Un orologio fisso: niente giorno vero (dopo mezzanotte cambiava).
+    const orologio = orologioDa('2026-10-20T10:00:00.000Z')
     // Il git finto: ogni cartella è la radice di sé stessa; il worktree è sul
     // ramo della chat, il progetto su main; il merge resta a metà finché il test vuole.
     const risposta = (args: string[], cwd: string): EsitoGit => {
@@ -122,16 +129,16 @@ describe('il servizio risponde mentre unisce il ramo di una chat', () => {
       avviaLavoro: () => Promise.resolve(),
       fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: () => Date.now() }),
+      domande: creaRegistroDomande({ adesso: orologio.ms }),
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
       git: sincrono,
       gitAsincrono: asincrono,
-      adesso: () => new Date().toISOString()
+      adesso: orologio.iso
     })
     const porta = await new Promise<number>((ris) => { server!.listen(0, '127.0.0.1', () => { ris((server!.address() as { port: number }).port) }) })
     const a: Autopilota = {
-      ...nuovoAutopilota({ id: 'ap-x', nome: 'Unione', obiettivo: 'o', cwd: progetto, criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: new Date().toISOString() }),
+      ...nuovoAutopilota({ id: 'ap-x', nome: 'Unione', obiettivo: 'o', cwd: progetto, criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: orologio.iso() }),
       stato: 'lavoro',
       ramoBase: 'main',
       chats: [{ id: 'c-1', compito: 'scrivi i test', stato: 'lavoro', cicli: 0, ramo: 'ap/ap-x/c-1', cartella }]
@@ -143,8 +150,7 @@ describe('il servizio risponde mentre unisce il ramo di una chat', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: 's-1', stop_hook_active: false, last_assistant_message: 'Fatto.', hook_event_name: 'Stop', cwd: cartella, transcript_path: 'x.jsonl' })
     })
-    for (let i = 0; i < 500 && !inMerge; i += 1) await new Promise((r) => setTimeout(r, 10))
-    expect(inMerge).toBe(true)
+    await attendi(() => inMerge, { cosa: 'il merge a metà' })
 
     const salute = await fetch(`http://127.0.0.1:${porta}/salute`, { signal: AbortSignal.timeout(2000) })
     expect(salute.status).toBe(200)

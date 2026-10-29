@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { statoCopia, type Git } from '../../src/autopilot-host/worktree'
 
-/** Un git finto che dice dove risale: il git vero è in `worktree.test.ts`. */
+/** Un git finto che dice dove risale: il git vero è nei `worktree-*.test.ts`. */
 const gitCheRisale = (radice: string | undefined): Git => (args) =>
   args.join(' ') === 'rev-parse --show-toplevel'
     ? (radice !== undefined ? { codice: 0, uscita: radice } : { codice: 128, uscita: 'fatal: not a git repository' })

@@ -3,7 +3,10 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
-import { gitReale } from '../../src/autopilot-host/worktree'
+import { gitFinto, usaGitFinto } from '../setup/git-finto'
+
+// git vero, con date e configurazione sempre uguali (vedi `git-finto.ts`).
+usaGitFinto()
 
 /**
  * 0.71.0: i criteri non si rimisurano a vuoto. Sul PC vero un giro dell'hook
@@ -114,36 +117,36 @@ describe('criteri veloci', () => {
 
   it('0.82.1: l’impronta è il commit: cambia con un commit, non con un file non salvato', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-impronta-'))
-    gitReale(['init', '-q'], dir)
-    const committa = (m: string): void => { gitReale(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '--allow-empty', '-m', m], dir) }
+    gitFinto(['init', '-q'], dir)
+    const committa = (m: string): void => { gitFinto(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '--allow-empty', '-m', m], dir) }
     committa('primo')
-    const i1 = improntaCodice(gitReale, dir)
+    const i1 = improntaCodice(gitFinto, dir)
     expect(i1).toMatch(/^[0-9a-f]{40}$/)
     // Le consegne e i file del programma nella cartella principale non sono un commit nuovo.
     writeFileSync(join(dir, 'nuovo.txt'), 'a')
-    expect(improntaCodice(gitReale, dir)).toBe(i1)
+    expect(improntaCodice(gitFinto, dir)).toBe(i1)
     committa('secondo')
-    const i2 = improntaCodice(gitReale, dir)
+    const i2 = improntaCodice(gitFinto, dir)
     expect(i2).not.toBe(i1)
     // Un file tracciato cambiato e non salvato conta (chi lavora senza commit);
     // uno tracciato sotto .sierradeck (quaderno scritto dal programma) no.
     mkdirSync(join(dir, '.sierradeck'))
     writeFileSync(join(dir, 'codice.ts'), 'a')
     writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'a')
-    gitReale(['add', '.'], dir)
+    gitFinto(['add', '.'], dir)
     committa('terzo')
-    const i3 = improntaCodice(gitReale, dir)
+    const i3 = improntaCodice(gitFinto, dir)
     writeFileSync(join(dir, '.sierradeck', 'scheda.md'), 'b')
-    expect(improntaCodice(gitReale, dir)).toBe(i3)
+    expect(improntaCodice(gitFinto, dir)).toBe(i3)
     writeFileSync(join(dir, 'codice.ts'), 'b')
-    expect(improntaCodice(gitReale, dir)).not.toBe(i3)
+    expect(improntaCodice(gitFinto, dir)).not.toBe(i3)
     // Una cartella fuori da git: si crea dentro Temp e git non risale oltre Temp (con TEMP dentro un
     // repository, come nei criteri lanciati con TEMP nel progetto, tmpdir() stessa era git: 18/10).
     const fuori = mkdtempSync(join(tmpdir(), 'sd-nogit-'))
     const prima = process.env.GIT_CEILING_DIRECTORIES
     process.env.GIT_CEILING_DIRECTORIES = tmpdir()
     try {
-      expect(improntaCodice(gitReale, fuori)).toBeUndefined()
+      expect(improntaCodice(gitFinto, fuori)).toBeUndefined()
     } finally {
       if (prima === undefined) delete process.env.GIT_CEILING_DIRECTORIES
       else process.env.GIT_CEILING_DIRECTORIES = prima

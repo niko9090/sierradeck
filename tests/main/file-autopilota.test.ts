@@ -8,6 +8,7 @@ import {
 } from '@shared/file-autopilota'
 import { fileDellAutopilota, diffDellAutopilota } from '../../src/main/file-autopilota'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { ambienteGitFinto, usaGitFinto } from '../setup/git-finto'
 
 /** La linguetta «File» (0.38.0): lettura di git e raggruppamento per chat. */
 describe('lettura di git', () => {
@@ -67,20 +68,21 @@ describe('lettura di git', () => {
   })
 })
 
-// git vero: con la macchina carica da altre chat supera i 20 s di regola.
 /**
  * Ogni avvio di git, col PC carico, costa da 0,5 a 4 s (20/10: il test faceva
  * circa 36 avvii e arrivava a 40-60 s). Per questo autore e configurazione
  * passano dall'ambiente invece che da tre `git config`, e le chiamate al diff,
  * che ricalcolano tutto l'elenco, passano da un git vero che ricorda le
  * risposte: il repository non cambia fra una chiamata e l'altra, quindi la
- * stessa domanda ha la stessa risposta.
+ * stessa domanda ha la stessa risposta. Date e configurazione sempre uguali
+ * (`git-finto.ts`): ogni comando un secondo dopo il precedente.
  */
-const ambienteGit = {
+usaGitFinto()
+const ambienteGit = (): NodeJS.ProcessEnv => ({
   ...process.env,
   GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t',
-  GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.autocrlf', GIT_CONFIG_VALUE_0: 'false'
-}
+  ...ambienteGitFinto([['core.autocrlf', 'false']])
+})
 
 type Risposta = { codice: number; uscita: string }
 function gitCheRicorda(): (args: string[], cwd: string) => Promise<Risposta> {
@@ -90,7 +92,7 @@ function gitCheRicorda(): (args: string[], cwd: string) => Promise<Risposta> {
     let r = viste.get(chiave)
     if (r === undefined) {
       r = new Promise((ok) => {
-        execFile('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8', windowsHide: true, env: ambienteGit }, (err, stdout) => {
+        execFile('git', ['-c', 'core.quotepath=false', ...args], { cwd, encoding: 'utf8', windowsHide: true, env: ambienteGit() }, (err, stdout) => {
           ok({ codice: err === null ? 0 : typeof (err as { code?: unknown }).code === 'number' ? (err as { code: number }).code : 1, uscita: stdout ?? '' })
         })
       })
@@ -100,11 +102,11 @@ function gitCheRicorda(): (args: string[], cwd: string) => Promise<Risposta> {
   }
 }
 
-describe('con un repository git vero', { timeout: 60_000 }, () => {
+describe('con un repository git vero', () => {
   it('file in commit dalla partenza e file da salvare, con il diff', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-file-'))
     try {
-      const g = (...a: string[]): string => execFileSync('git', a, { cwd: dir, encoding: 'utf8', env: ambienteGit })
+      const g = (...a: string[]): string => execFileSync('git', a, { cwd: dir, encoding: 'utf8', env: ambienteGit() })
       g('init', '-q')
       writeFileSync(join(dir, 'a.txt'), 'uno\ndue\n'); g('add', '.'); g('commit', '-qm', 'base')
       const base = g('rev-parse', 'HEAD').trim()
