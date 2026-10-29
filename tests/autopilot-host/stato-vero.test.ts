@@ -119,13 +119,23 @@ describe('dove si legge lo stato vero', () => {
     expect(risoltaDalloStato('Installo la 0.3.0?', await stato(ap('/altro')))).toBeUndefined()
   })
 
-  it('un ramo approvato è unito; gli altri li dice git, e un ramo sparito non si sa', () => {
-    const git: Git = (args) => ({ codice: args[2] === 'ap/ap-sv/c-2' ? 0 : args[2] === 'ap/ap-sv/c-3' ? 128 : 1, uscita: '' })
+  // 29/10: cambiato di proposito. Un ramo sparito prima «non si sa»; ora conta
+  // come unito (i rami si tolgono dopo l'unione): il 27/10 rami cancellati
+  // aspettavano una Revisione che non poteva partire.
+  it('un ramo approvato è unito; gli altri li dice git, e un ramo sparito conta come unito', () => {
+    const esiste = new Set(['ap/ap-sv/c-4'])
+    const git: Git = (args) => {
+      if (args[0] === 'rev-parse') return { codice: esiste.has(args[3]!.replace('refs/heads/', '')) ? 0 : 1, uscita: '' }
+      return { codice: args[2] === 'ap/ap-sv/c-2' ? 0 : args[2] === 'ap/ap-sv/c-3' || args[2] === 'ap/ap-sv/c-4' ? 128 : 1, uscita: '' }
+    }
     const s = statoDellaFlotta(ap('/sd'), git)
     expect(s.chat?.map((c) => [c.id, c.finita])).toEqual([['c-1', true], ['c-2', false], ['c-3', false]])
     expect(s.ramoUnito?.('ap/ap-sv/c-1')).toBe(true)
     expect(s.ramoUnito?.('ap/ap-sv/c-2')).toBe(true)
-    expect(s.ramoUnito?.('ap/ap-sv/c-3')).toBeUndefined()
+    expect(s.ramoUnito?.('ap/ap-sv/c-3')).toBe(true)
+    // Il ramo c'è ma git non risponde: non si sa.
+    expect(s.ramoUnito?.('ap/ap-sv/c-4')).toBeUndefined()
+    expect(s.ramoUnito?.('ap/ap-sv/c-9')).toBe(false)
     expect(statoDellaFlotta(ap('/sd'), undefined).ramoUnito?.('ap/ap-sv/c-2')).toBeUndefined()
   })
 

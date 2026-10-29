@@ -224,6 +224,36 @@ describe('C: un ramo cancellato non aspetta la Revisione', () => {
   })
 })
 
+describe('C: la coda non apre Revisioni di rami spariti', () => {
+  it('una Revisione in coda per un ramo cancellato esce dalla coda e l’autore è concluso e approvato', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'ap-rev-sparita-'))
+    // c-5 non ha più il ramo; c-7 sì, e non è unito: la sua Revisione resta.
+    const rami: Rami = new Map([['ap/ap-27/c-7', { unito: false, file: ['src/b.ts'] }]])
+    server = ambiente({ git: gitDi(rami, new Map(), []), verdi: false })
+    await avvia(server)
+    const c5 = chat('c-5', { ramo: 'ap/ap-27/c-5', ruolo: 'sviluppo', stato: 'finita' })
+    const c7 = chat('c-7', { ramo: 'ap/ap-27/c-7', ruolo: 'sviluppo', stato: 'finita' })
+    const rev5 = testoRevisione(c5)
+    const rev7 = testoRevisione(c7)
+    archivio.scrivi(flotta(cwd, [c5, c7], {
+      compitiDaFare: [rev5, rev7],
+      ruoliCompiti: { [rev5]: { ruolo: 'revisione', dopo: [] }, [rev7]: { ruolo: 'revisione', dopo: [] } },
+      ultimoEvento: ORA,
+      giroDaSolo: ORA
+    }))
+    orologio = new Date(Date.parse(ORA) + 20 * 60_000).toISOString()
+    server.controllaChatFerme()
+    for (let i = 0; i < 200 && !archivio.leggi('ap-27')!.decisioni.some((d) => d.cosa.startsWith('non apro la Revisione')); i += 1) await new Promise((r) => setTimeout(r, 10))
+    const a = archivio.leggi('ap-27')!
+    expect(a.compitiDaFare).not.toContain(rev5)
+    expect(a.chats.find((x) => x.id === 'c-5')).toMatchObject({ approvata: true, conclusa: { come: 'tolto' } })
+    expect(a.decisioni.some((d) => d.cosa.includes('non apro la Revisione di c-5: il ramo ap/ap-27/c-5 non c’è più'))).toBe(true)
+    // La Revisione di c-7 parte davvero (o resta in coda): non è stata tolta.
+    expect(a.compitiDaFare.includes(rev7) || a.chats.some((x) => x.ruolo === 'revisione' && x.revisioneDi === 'c-7')).toBe(true)
+    expect(a.chats.some((x) => x.revisioneDi === 'c-5')).toBe(false)
+  })
+})
+
 describe('E: un ramo di sole note non si unisce a ogni turno', () => {
   it('solo .sierradeck/: niente unione; con il codice sì', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ap-note-'))

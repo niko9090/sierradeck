@@ -1624,6 +1624,33 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva(pulito)
       a = pulito
     }
+    // 29/10: una Revisione di un ramo che non c'è più (o che è già nel
+    // principale) non ha niente da rivedere: esce dalla coda e l'autore è
+    // concluso e approvato. Il 27/10 rami cancellati aspettavano la Revisione.
+    const gitR = deps.git
+    if (gitR !== undefined && a.ramoBase !== undefined) {
+      const base = a.ramoBase
+      const vane = a.compitiDaFare.flatMap((compito) => {
+        if (a.ruoliCompiti?.[compito]?.ruolo !== 'revisione' && chatDaRivedere(compito) === undefined) return []
+        const autore = a.chats.find((c) => c.id === chatDaRivedere(compito))
+        if (autore?.ramo === undefined) return []
+        const chiuso = ramoGiaChiuso(gitR, { cwd: a.cwd, ramo: autore.ramo, base })
+        return chiuso === undefined ? [] : [{ compito, autore, chiuso }]
+      })
+      if (vane.length > 0) {
+        const il = deps.adesso()
+        const pulito: Autopilota = { ...(deps.archivio.leggi(a.id) ?? a) }
+        const via = new Set(vane.map((v) => v.compito))
+        pulito.compitiDaFare = pulito.compitiDaFare.filter((t) => !via.has(t))
+        pulito.chats = pulito.chats.map((c) => {
+          const v = vane.find((x) => x.autore.id === c.id)
+          return v === undefined ? c : { ...c, approvata: true, conclusa: c.conclusa ?? { il, come: v.chiuso === 'mancante' ? 'tolto' as const : 'unito' as const } }
+        })
+        for (const v of vane) annota(pulito, `non apro la Revisione di ${v.autore.id}: ${v.chiuso === 'mancante' ? `il ramo ${v.autore.ramo} non c’è più` : `il ramo ${v.autore.ramo} è già nel principale`}`, { chat: v.autore.id, esito: 'gia-fatto' })
+        salva(pulito)
+        a = pulito
+      }
+    }
     const pronti = compitiPronti(a, a.compitiDaFare, soloRevisioni)
     const piano = pianificaFlotta({
       chats: a.chats,
