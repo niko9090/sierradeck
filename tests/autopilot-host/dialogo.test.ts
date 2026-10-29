@@ -12,6 +12,12 @@ import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
@@ -156,11 +162,11 @@ function ambiente(interroga: Interrogazione): ServerAutopiloti {
     },
     fermaLavoro: (id) => { fermati.push(id) },
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     ultimoDetto: () => 'Sto lanciando la suite.',
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
 }
 
@@ -189,10 +195,6 @@ async function creaAp(): Promise<string> {
     criteri: [{ descrizione: 'i test passano', comando: 'npm test' }]
   })
   return dati.id
-}
-
-async function attendi(condizione: () => boolean): Promise<void> {
-  for (let i = 0; i < 200 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 /** Un supervisore che al dialogo risponde con `esito` e ai turni con `prosegui`. */
@@ -408,10 +410,10 @@ describe('il dialogo con l autopilota', () => {
       avviaLavoro: () => Promise.resolve(),
       fermaLavoro: () => undefined,
       avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: () => Date.now() }),
+      domande: creaRegistroDomande({ adesso: orologio.ms }),
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
-      adesso: () => new Date().toISOString()
+      adesso: orologio.iso
     })
     await avvia(server)
     await chiama('POST', `/hook/stop?ap=${id}`, eventoStop())

@@ -10,6 +10,12 @@ import { rimettiInCoda } from '../../src/autopilot-host/dialogo'
 import { FERMA_DA_MS } from '../../src/autopilot-host/guardiano'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { parseAutopilota, nuovoAutopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 // 0.56.4: il 09/10, dopo l'aggiornamento, una consegna non è mai arrivata nella
 // chat ma i messaggi dell'autopilota erano già stati tolti dalla coda: persi.
@@ -39,7 +45,7 @@ function ambiente(): ServerAutopiloti {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     adesso: () => new Date(ora).toISOString()
@@ -56,9 +62,6 @@ async function chiama(metodo: string, percorso: string, corpo?: unknown): Promis
 }
 function avvia(s: Server): Promise<void> {
   return new Promise((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
-}
-async function attendi(c: () => boolean): Promise<void> {
-  for (let i = 0; i < 300 && !c(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 /** Un autopilota al lavoro con un messaggio in coda, la chat ferma, e la consegna partita: torna id e consegna. */

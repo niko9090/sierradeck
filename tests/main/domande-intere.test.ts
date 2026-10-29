@@ -13,6 +13,11 @@ import { paginaClient } from '../../src/main/client-pagina'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import type { Conversazione } from '@shared/domande-conversazioni'
 import type { DomandaScheda } from '@shared/domande-autopilota'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «Le domande sono tutte tagliate» (Nicholas, 02/10, 0.39.1).
@@ -57,7 +62,7 @@ describe('la domanda arriva intera, con i suoi a capo', () => {
 
   it('dal servizio vero alla colonna, alla linguetta e al telefono: uguale carattere per carattere', async () => {
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-intere-')))
-    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const domande = creaRegistroDomande({ adesso: orologio.ms })
     archivio.scrivi({
       ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: OBIETTIVO, cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-02T09:00:00.000Z' }),
       stato: 'lavoro'
@@ -71,7 +76,7 @@ describe('la domanda arriva intera, con i suoi a capo', () => {
       avvisa: () => Promise.resolve(),
       scadenzaDomandaMs: 60_000,
       scadenzaInterviataMs: 60_000,
-      adesso: () => new Date().toISOString()
+      adesso: orologio.iso
     })
     const porta = await new Promise<number>((ok) => server!.listen(0, '127.0.0.1', () => ok((server!.address() as { port: number }).port)))
     const a = archivio.leggi('ap-1') as Autopilota

@@ -16,6 +16,7 @@ import { indicatoreDi, type PcCarico } from '@shared/indicatore-autopilota'
 import { puntoDi } from '@shared/punto-autopilota'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import type { MisuraPc } from '@shared/posti-chat'
+import { attendi } from '../setup/attendi'
 
 /**
  * 0.85.1 — la guardia del PC. Il 23/10 sera il processore era al 100%, con 15
@@ -139,7 +140,7 @@ describe('compilazioni e test completi dei criteri', () => {
     const partiti: string[] = []
     const inAttesa: Array<() => void> = []
     const libera = async (): Promise<void> => {
-      for (let i = 0; i < 100 && inAttesa.length === 0; i += 1) await new Promise((r) => setTimeout(r, 5))
+      await attendi(() => inAttesa.length > 0)
       inAttesa.shift()?.()
     }
     const guardia: GuardiaPc = {
@@ -242,7 +243,6 @@ describe('il servizio con la guardia', () => {
     stato: 'lavoro', ultimoEvento: iso(ORA), ramoBase: 'main', tettoChat: 8, chats,
     compitiDaFare: Array.from({ length: n }, (_, i) => `pezzo ${i + 1}`)
   })
-  const attendi = async (c: () => boolean): Promise<void> => { for (let i = 0; i < 200 && !c(); i += 1) await new Promise((r) => setTimeout(r, 10)) }
 
   it('PC carico: nessuna chat nuova, chi lavora continua; nell’elenco c’è il motivo', async () => {
     stato = { motivo: 'processore al 100% da 2 min', dal: iso(ORA - 120_000), programma: 'programma-esterno (70% del processore)' }

@@ -13,6 +13,7 @@ import {
   frasiChePromettono, giroPromesse, promesseAperte, promesseDallaRisposta, promette, righePromesse, RINVII_MAX,
   type Promessa
 } from '@shared/promesse'
+import { attendi } from '../setup/attendi'
 
 /**
  * Le promesse mantenute (0.85.1).
@@ -240,7 +241,7 @@ async function avvia(risposta: () => string): Promise<void> {
     avviaLavoro: () => Promise.resolve(),
     fermaLavoro: () => {},
     avvisa: (_t, _a, testo) => { avvisi.push(testo ?? ''); return Promise.resolve() },
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: () => Date.parse(orologio) }),
     ultimoDetto: () => 'sto lavorando',
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
@@ -255,9 +256,6 @@ afterEach(() => { server?.close(); server = undefined; vi.restoreAllMocks() })
 const scrivi = (testo: string): Promise<Response> => fetch(`http://127.0.0.1:${porta}/autopiloti/ap-pro/dialogo`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo })
 })
-async function attendi(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 160 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 const sua = (): Autopilota => archivio.leggi('ap-pro')!
 
 describe('il servizio: la promessa del 23/10 alle 21:10 mantenuta da sola', () => {

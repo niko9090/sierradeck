@@ -8,6 +8,11 @@ import { creaRegistroDomande, type RegistroDomande } from '../../src/autopilot-h
 import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
 import { sigleIn } from '@shared/domanda-chiara'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Collaudo nel servizio vero (0.84.0): dove compare una risposta deve vedersi
@@ -24,7 +29,7 @@ const chat = (id: string, compito: string, stato: ChatGovernata['stato'] = 'lavo
 
 async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: ChatGovernata[]; detto: string }): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-collaudo-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   const s = creaServer({
     archivio,
     memoria: apriMemoria(undefined),
@@ -37,7 +42,7 @@ async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: Ch
     ultimoDetto: () => p.detto,
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })

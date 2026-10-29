@@ -9,6 +9,12 @@ import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { FERMA_DA_MS } from '../../src/autopilot-host/guardiano'
 import { nuovoAutopilota, type Autopilota, type MessaggioPerLaChat } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 // 0.84.0, blocchi rimasti. Dal 19 al 21/10 i messaggi per una chat ferma sono
 // arrivati in ritardo 36 volte, fino a 5,7 ore (c-3: «era ferma da 20503 s»).
@@ -45,7 +51,7 @@ function ambiente(silenzioMassimoMs?: number): ServerAutopiloti {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     ...(silenzioMassimoMs !== undefined ? { silenzioMassimoMs } : {}),
@@ -65,10 +71,6 @@ async function chiama(metodo: string, percorso: string, corpo?: unknown): Promis
 
 function avvia(s: Server): Promise<void> {
   return new Promise((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
-}
-
-async function attendi(condizione: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 /** Una flotta di due chat al lavoro, scritta come la trova il servizio su disco. */

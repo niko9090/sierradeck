@@ -15,6 +15,12 @@ import {
 import { schedaDaParti, toccoScelta } from '@shared/scheda-domanda'
 import { sigleIn } from '@shared/domanda-chiara'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «Sono bloccato» in parole semplici, l'ultima strada con una chat nuova e la
@@ -159,7 +165,7 @@ const giriInCerchio = (): Autopilota['decisioni'] =>
 
 async function avviaServizio(chats: ChatGovernata[]): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-bloccato-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   avviati = []
   fermati = []
   chiuse = []
@@ -179,7 +185,7 @@ async function avviaServizio(chats: ChatGovernata[]): Promise<void> {
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     ultimoDetto: () => 'Non passa ancora.',
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -196,10 +202,6 @@ const stop = (chatId?: string): Promise<Response> => fetch(`http://127.0.0.1:${p
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ session_id: `s-${chatId ?? 'ap'}`, stop_hook_active: false, last_assistant_message: 'Non passa ancora.', hook_event_name: 'Stop', cwd: process.cwd() })
 })
-
-const attendi = async (cond: () => boolean): Promise<void> => {
-  for (let i = 0; i < 120 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
-}
 
 const chat = (id: string, extra: Partial<ChatGovernata> = {}): ChatGovernata => ({ id, compito: 'Correggi i difetti del collaudo delle domande', stato: 'lavoro', cicli: 3, sessionId: `s-${id}`, cartella: process.cwd(), ramo: `ap/ap-b/${id}`, ...extra })
 

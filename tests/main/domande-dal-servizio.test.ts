@@ -11,6 +11,11 @@ import { apriDispositivi } from '../../src/main/dispositivi'
 import { nuovoAutopilota } from '@shared/autopilota'
 import { decidiColonnaDomande, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { domandeScheda, dopoLaRisposta } from '@shared/domande-autopilota'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * «NON VEDO LE DOMANDEEEE!!!!» (Nicholas, 01/10, 13:52 UTC). Dal servizio
@@ -25,7 +30,7 @@ afterEach(() => { server?.close(); server = undefined })
 describe('le domande del servizio arrivano nella colonna e la risposta torna', () => {
   it('domanda del supervisore aperta nel servizio → conversazione nella colonna → risposta al servizio', async () => {
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-dom-')))
-    const domande = creaRegistroDomande({ adesso: () => Date.now() })
+    const domande = creaRegistroDomande({ adesso: orologio.ms })
     archivio.scrivi({
       ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T10:00:00.000Z' }),
       stato: 'lavoro'
@@ -39,7 +44,7 @@ describe('le domande del servizio arrivano nella colonna e la risposta torna', (
       avvisa: () => Promise.resolve(),
       scadenzaDomandaMs: 60_000,
       scadenzaInterviataMs: 60_000,
-      adesso: () => new Date().toISOString()
+      adesso: orologio.iso
     })
     const porta = await new Promise<number>((ok) => server!.listen(0, '127.0.0.1', () => ok((server!.address() as { port: number }).port)))
     // La domanda, come la apre il supervisore con «chiediUtente».

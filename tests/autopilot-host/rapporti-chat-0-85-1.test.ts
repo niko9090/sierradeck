@@ -12,6 +12,7 @@ import { componiPromptDialogo } from '../../src/autopilot-host/dialogo'
 import { leggiRapportoChat, quadroDellaChat, rapportoDiFineTurno, REGOLA_RAPPORTO, righeQuadroChat, rigaRapporto } from '@shared/rapporti-chat'
 import { indicatoreDi } from '@shared/indicatore-autopilota'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
 
 // 0.85.1 — Le chat riferiscono sempre all'autopilota. Nicholas, 23/10 sera:
 // «le chat devono SEMPRE interfacciarsi con te, tu dovresti sempre sapere cosa
@@ -184,11 +185,11 @@ describe('il servizio salva l ultimo rapporto per chat', () => {
     const s = server
     await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
   }
+  // Il servizio risponde e legge il rapporto nello stesso giro, senza attese
+  // in mezzo: quando la risposta arriva, la lettura è già fatta. Per questo i
+  // «non succede niente» qui sotto si controllano subito, senza dormire.
   const passo = (chatId: string, transcript: string): Promise<Response> =>
     fetch(`http://127.0.0.1:${porta}/hook/rapporto?ap=ap-a&chat=${chatId}`, { method: 'POST', body: JSON.stringify({ hook_event_name: 'PostToolUse', transcript_path: transcript }) })
-  const attendi = async (cond: () => boolean): Promise<void> => {
-    for (let i = 0; i < 50 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 10))
-  }
 
   it('a ogni strumento usato: il rapporto nuovo va sulla chat e nel diario, uguale non si riscrive', async () => {
     const t = { '/t/c-1.jsonl': [riga('assistant', 'RAPPORTO: piano — test, correzione, commit')] }
@@ -204,7 +205,6 @@ describe('il servizio salva l ultimo rapporto per chat', () => {
     ora = ORA + RILETTURA_RAPPORTO_MS
     const prima = archivio.leggi('ap-a')!.decisioni.length
     await passo('c-1', '/t/c-1.jsonl')
-    await new Promise((r) => setTimeout(r, 30))
     expect(archivio.leggi('ap-a')!.decisioni.length).toBe(prima)
 
     // Un passo nuovo: si aggiorna.
@@ -224,11 +224,9 @@ describe('il servizio salva l ultimo rapporto per chat', () => {
     await passo('c-1', '/t/x.jsonl')
     await passo('c-1', '/t/x.jsonl')
     await passo('c-1', '/t/x.jsonl')
-    await new Promise((r) => setTimeout(r, 30))
     expect(letture).toBe(1)
     await passo('c-2', '/t/x.jsonl')
     await passo('../x', '/t/x.jsonl')
-    await new Promise((r) => setTimeout(r, 30))
     expect(archivio.leggi('ap-a')?.chats[1]?.rapporto).toBeUndefined()
   })
   it('a fine turno: la riga RAPPORTO del messaggio va sulla chat e nel diario', async () => {

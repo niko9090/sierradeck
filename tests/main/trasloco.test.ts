@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { RIDICI_FERMO_MS, creaTrasloco, type DipendenzeTrasloco } from '../../src/main/trasloco'
 import { avanzamento, prossimoPasso } from '@shared/trasloco'
 import type { StatoResidenza } from '@shared/residenza'
+import { attendi } from '../setup/attendi'
 
 /**
  * Il trasloco (0.65.0) con un PC finto dall'altra parte: il portatile ha la
@@ -199,7 +200,7 @@ describe('un PC spento: «Vai avanti senza» (0.71.1), e la sua copia si sistema
     // Torna: confronto, quello che ha solo lui entra qui nei recuperati, la sua copia nel recupero.
     spento = false
     t.giro()
-    for (let i = 0; i < 50 && t.stato(id)!.altrove[0]!.esito === 'dopo'; i += 1) await new Promise((ok) => setTimeout(ok, 10))
+    await attendi(() => t.stato(id)!.altrove[0]!.esito !== 'dopo')
     expect(t.stato(id)!.altrove[0]).toMatchObject({ pc: 'pc-port', esito: 'nel-recupero' })
     expect(b.righe.join('\n')).toContain('PORTATILE-ESEMPIO è tornato')
   })

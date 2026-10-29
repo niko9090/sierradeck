@@ -9,6 +9,12 @@ import { traccia, type EsitoVerifica } from '../../src/autopilot-host/decisione'
 import { chatCheSostituisce, conSostituzione } from '../../src/autopilot-host/mai-fermo'
 import { RIGA_ULTIMA_STRADA } from '../../src/autopilot-host/ultima-strada'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Collaudo c-99 (0.84.3): **un'ultima strada prima di «sono bloccato»**.
@@ -66,7 +72,7 @@ async function accendi(): Promise<void> {
     scadenzaDomandaMs: 60_000,
     scadenzaInterviataMs: 60_000,
     ultimoDetto: () => 'Non passa ancora.',
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -85,7 +91,7 @@ function scriviAutopilota(id: string, chats: ChatGovernata[], extra: Partial<Aut
 async function avviaServizio(chats: ChatGovernata[], extra: Partial<Autopilota> = {}): Promise<void> {
   cartella = mkdtempSync(join(tmpdir(), 'ap-ultima-strada-'))
   archivio = apriArchivio(cartella)
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   await accendi()
   scriviAutopilota('ap-b', chats, extra)
 }
@@ -100,10 +106,6 @@ const stop = (chatId?: string, ap = 'ap-b'): Promise<Response> => fetch(`http://
 async function stopEntro(ms: number, chatId?: string, ap = 'ap-b'): Promise<{ decision?: string; reason?: string } | undefined> {
   const r = await Promise.race([stop(chatId, ap).then((x) => x.json() as Promise<{ decision?: string; reason?: string }>), new Promise<undefined>((ris) => setTimeout(() => ris(undefined), ms))])
   return r
-}
-
-const attendi = async (cond: () => boolean): Promise<void> => {
-  for (let i = 0; i < 120 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
 }
 
 const ultimeStrade = (id = 'ap-b'): number => archivio.leggi(id)!.decisioni.filter((d) => d.cosa.startsWith(RIGA_ULTIMA_STRADA)).length
@@ -196,7 +198,7 @@ describe('collaudo: niente doppioni', () => {
     const strada = nuoveChat('c-1')[0]!
     // Il «mai fermo»: la chat dell'ultima strada è muta anche dopo la ripresa, il compito passa a una chat nuova.
     const a = archivio.leggi('ap-b')!
-    const il = new Date().toISOString()
+    const il = orologio.iso()
     const sostituta = chatCheSostituisce(a, strada, 's-sostituta', il)
     archivio.scrivi(conSostituzione(a, strada.id, sostituta, il))
     await stopEntro(3000, sostituta.id)

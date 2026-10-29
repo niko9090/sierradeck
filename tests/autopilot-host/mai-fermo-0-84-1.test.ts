@@ -10,6 +10,7 @@ import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { giroMaiFermo, notaFerma, rigaGiro, NESSUNO_AL_LAVORO_MS, RIPRESA_SENZA_RISPOSTA_MS, SOSTITUZIONI_MAX, type VistaMaiFermo } from '../../src/autopilot-host/mai-fermo'
 import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { rigaTraguardo } from '@shared/chat-autopilota'
+import { attendi } from '../setup/attendi'
 
 // 0.84.1, PRIMA DI TUTTO. La notte fra il 21 e il 22/10 l'autopilota era «al
 // lavoro» con tre chat (c-65, c-66, c-70): il guardiano le ha messe da parte
@@ -253,10 +254,6 @@ async function chiama(metodo: string, percorso: string, corpo?: unknown): Promis
   })
   const testo = await r.text()
   return { stato: r.status, dati: testo === '' ? undefined : JSON.parse(testo) }
-}
-
-async function attendi(condizione: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 const fineTurno = (chatId: string, testo: string): Record<string, unknown> => ({

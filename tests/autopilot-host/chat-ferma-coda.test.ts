@@ -9,6 +9,12 @@ import type { Interrogazione } from '../../src/autopilot-host/supervisore'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { chatFerme, FERMA_DA_MS } from '../../src/autopilot-host/guardiano'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 // Il difetto del 09/10 (0.56.3): dopo la 0.56.2 un autopilota è rimasto «al
 // lavoro» con i messaggi in coda e la chat ferma, «ferma, aspetta te». I
@@ -35,7 +41,7 @@ function ambiente(interroga: Interrogazione): ServerAutopiloti {
     },
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
-    domande: creaRegistroDomande({ adesso: () => Date.now() }),
+    domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     adesso: () => new Date(ora).toISOString()
@@ -54,10 +60,6 @@ async function chiama(metodo: string, percorso: string, corpo?: unknown): Promis
 
 function avvia(s: Server): Promise<void> {
   return new Promise((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
-}
-
-async function attendi(condizione: () => boolean): Promise<void> {
-  for (let i = 0; i < 300 && !condizione(); i += 1) await new Promise((r) => setTimeout(r, 10))
 }
 
 function supervisore(esito: unknown): Interrogazione {

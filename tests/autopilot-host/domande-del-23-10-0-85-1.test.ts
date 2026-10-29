@@ -9,6 +9,8 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { eDomandaRifacimenti } from '../../src/autopilot-host/oltre-rifacimenti'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { partiDaTesto } from '@shared/domanda-strutturata'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
 
 /**
  * 0.85.1: le domande arrivate a Nicholas il 23/10, rilette una per una dal
@@ -23,7 +25,9 @@ afterEach(() => { server?.close(); server = undefined })
 
 function avvia(a: Autopilota): void {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-23-10-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  // Il 23/10 alle 19:19, non il giorno vero: dopo mezzanotte cambiava.
+  const orologio = orologioDa('2026-10-23T17:19:00.000Z')
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   scritti = []
   server = creaServer({
     archivio,
@@ -36,7 +40,7 @@ function avvia(a: Autopilota): void {
     domande: registro,
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   archivio.scrivi(a)
 }
@@ -67,7 +71,7 @@ describe('«Pubblico adesso?» a lavoro finito non sparisce da sola (23/10, 19:1
     registro.ricorda(d.id, { autopilotaId: 'ap-doc', testo: d.testo, chatId: 'c-1', pubblica: true })
     await server!.ricontrollaDomande()
     registro.rispondi(d.id, 'sì', 'modale')
-    await new Promise((r) => setTimeout(r, 50))
+    await attendi(() => archivio.leggi('ap-doc')!.stato === 'lavoro', { cosa: 'il lavoro riaperto per pubblicare' })
     const a = archivio.leggi('ap-doc')!
     expect(a.stato).toBe('lavoro')
     expect(a.pubblicazioneIstruita).toBe(true)

@@ -14,6 +14,12 @@ import {
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { partiDaTesto } from '@shared/domanda-strutturata'
 import { sigleIn } from '@shared/domanda-chiara'
+import { attendi } from '../setup/attendi'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * **Oltre i rifacimenti decide il programma** (0.84.4).
@@ -138,7 +144,7 @@ function cartelle(): void {
 async function avvia(a: Autopilota, opz: { git?: Git; esegui?: Esecutore } = {}): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-oltre-')))
   archivio.scrivi(a)
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   avviate = []
   avvisi = []
   chiuse = []
@@ -172,10 +178,6 @@ async function verdetto(testo: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: 's-2', stop_hook_active: false, last_assistant_message: testo, hook_event_name: 'Stop', cwd: progetto, transcript_path: 'x.jsonl' })
   })
-}
-
-const attendi = async (cond: () => boolean): Promise<void> => {
-  for (let i = 0; i < 80 && !cond(); i += 1) await new Promise((r) => setTimeout(r, 25))
 }
 
 describe('nel servizio: mai più «Come vado avanti con …?»', () => {

@@ -9,6 +9,11 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import type { StatoVero } from '../../src/autopilot-host/domande-doppie'
 import { nuovoAutopilota, type ChatGovernata } from '@shared/autopilota'
 import { sigleIn } from '@shared/domanda-chiara'
+import { orologioDa } from '../setup/orologio'
+
+// L'orologio del servizio di prova parte da un istante fisso e avanza col
+// tempo vero: le attese funzionano come prima, il giorno non cambia mai.
+const orologio = orologioDa('2026-10-29T10:00:00.000Z')
 
 /**
  * Domande chiare nel servizio (0.84.0), con i casi veri del 21/10:
@@ -30,7 +35,7 @@ let scritti: { chat?: string; messaggio?: string }[]
 
 async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: ChatGovernata[]; stato?: StatoVero; detto?: string }): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-chiare-')))
-  registro = creaRegistroDomande({ adesso: () => Date.now() })
+  registro = creaRegistroDomande({ adesso: orologio.ms })
   scritti = []
   const s = creaServer({
     archivio,
@@ -48,7 +53,7 @@ async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: Ch
     ultimoDetto: () => p.detto ?? DETTO,
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
-    adesso: () => new Date().toISOString()
+    adesso: orologio.iso
   })
   server = s
   await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
@@ -179,9 +184,9 @@ describe('le correzioni della Revisione (0.84.0)', () => {
 
   it('la domanda generica del programma non riceve da sola un «fermati» di prima', async () => {
     const memoria = apriMemoria(undefined)
-    memoria.ricordaRisposta('ap-and', `Cosa deve fare adesso la chat che lavora a «${COMPITO}»?`, 'fermati', new Date().toISOString(), 'c-23')
+    memoria.ricordaRisposta('ap-and', `Cosa deve fare adesso la chat che lavora a «${COMPITO}»?`, 'fermati', orologio.iso(), 'c-23')
     archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-chiare-')))
-    registro = creaRegistroDomande({ adesso: () => Date.now() })
+    registro = creaRegistroDomande({ adesso: orologio.ms })
     const s = creaServer({
       archivio, memoria,
       esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
@@ -193,7 +198,7 @@ describe('le correzioni della Revisione (0.84.0)', () => {
       ultimoDetto: () => 'Ho finito la parte delle foto e mi fermo.',
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
-      adesso: () => new Date().toISOString()
+      adesso: orologio.iso
     })
     server = s
     await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
