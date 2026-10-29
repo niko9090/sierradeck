@@ -37,7 +37,7 @@ describe('creaClientAutopilota', () => {
       setTimeout(() => { res.writeHead(200, { 'Content-Type': 'application/json', ETag: '"v1"' }); res.end(JSON.stringify([{ id: 'ap-1' }])) }, 30)
     })
     const porta = await new Promise<number>((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
-    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {}, elencoFrescoMs: 0 })
     const [a, b, c] = await Promise.all([client.elenca(), client.elenca(), client.elenca()])
     expect(viste).toEqual([undefined])
     expect(a).toBe(b)
@@ -45,6 +45,50 @@ describe('creaClientAutopilota', () => {
     const d = await client.elenca()
     expect(viste).toEqual([undefined, '"v1"'])
     expect(d.map((x) => x.id)).toEqual(['ap-1'])
+  })
+
+  // 0.85.2: l'elenco leggero, ridato senza richiederlo per un attimo; un cambio lo fa rileggere.
+  it('elenca chiede l’elenco leggero, lo ridà fresco senza richiederlo e lo rilegge dopo un cambio', async () => {
+    const viste: string[] = []
+    let ora = 1000
+    const porta = await servizioFinto((percorso) => { viste.push(percorso); return percorso.startsWith('/autopiloti?') ? [{ id: 'ap-1' }] : { id: 'ap-1' } })
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {}, adesso: () => ora, elencoFrescoMs: 1500 })
+    await client.elenca()
+    ora += 1000
+    await client.elenca()
+    expect(viste).toEqual(['/autopiloti?leggero=1'])
+    ora += 1000
+    await client.elenca()
+    expect(viste).toHaveLength(2)
+    await client.ferma('ap-1')
+    await client.elenca()
+    expect(viste).toEqual(['/autopiloti?leggero=1', '/autopiloti?leggero=1', '/autopiloti/ap-1/ferma', '/autopiloti?leggero=1'])
+  })
+
+  it('dettaglio: un autopilota intero con il suo ETag; inesistente è undefined; con un servizio vecchio dall’elenco intero', async () => {
+    const viste: string[] = []
+    let vecchio = false
+    server = createServer((req, res) => {
+      const url = req.url ?? ''
+      viste.push(url)
+      if (url === '/autopiloti/ap-1' && !vecchio) {
+        if (req.headers['if-none-match'] === '"d1"') { res.writeHead(304, { ETag: '"d1"' }); res.end(); return }
+        res.writeHead(200, { 'Content-Type': 'application/json', ETag: '"d1"' }); res.end(JSON.stringify({ id: 'ap-1', decisioni: [1, 2, 3] })); return
+      }
+      if (url === '/autopiloti') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify([{ id: 'ap-1', decisioni: [1] }])); return }
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ errore: vecchio ? 'rotta sconosciuta' : 'autopilota inesistente' }))
+    })
+    const porta = await new Promise<number>((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    const a = await client.dettaglio('ap-1')
+    expect(a?.decisioni).toHaveLength(3)
+    expect(client.versioneDettaglio('ap-1')).toBe('"d1"')
+    expect(await client.dettaglio('ap-1')).toBe(a)
+    expect(await client.dettaglio('ap-2')).toBeUndefined()
+    vecchio = true
+    expect((await client.dettaglio('ap-1'))?.decisioni).toHaveLength(1)
+    expect(viste).toEqual(['/autopiloti/ap-1', '/autopiloti/ap-1', '/autopiloti/ap-2', '/autopiloti/ap-1', '/autopiloti'])
   })
 
   it('crea passando i campi al servizio', async () => {

@@ -17,6 +17,7 @@ import { Aiuto } from './Aiuto'
 import { useLayoutStore } from '../state/layout'
 import { voceMenu } from '@shared/menu-principale'
 import { destinazioniSposta, riassuntoSposta, type DestinazioneSposta } from '@shared/sposta-su'
+import { ogni } from '../state/sondaggio'
 
 /**
  * «Progetti» a piena pagina (0.69.0). Nicholas, 12/10: «rifai il menu
@@ -70,8 +71,8 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
     rim.stati.some((s) => s.fase === 'analisi' || s.fase === 'recupero')
   useEffect(() => {
     if (!lavora) return
-    const t = setInterval(leggi, 2000)
-    return () => clearInterval(t)
+    // Con la finestra nascosta ogni 15 s (0.85.2).
+    return ogni(leggi, 2000)
   }, [lavora, leggi])
   const senzaSpazio = d !== undefined && d.spazio === undefined
   useEffect(() => {

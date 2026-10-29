@@ -7,6 +7,7 @@ import {
   type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat, type Traguardo
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
+import { autopilotaLeggero } from '@shared/autopilota-leggero'
 import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, traccia, type Decisione as Mossa, type EsitoVerifica
 } from './decisione'
@@ -4882,8 +4883,77 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return {}
   }
 
-  /** L'ultimo elenco mandato con il suo ETag (0.81.0, `GET /autopiloti`). */
-  let ultimoElenco: { testo: string; etag: string } | undefined
+  /**
+   * Il JSON di ogni autopilota dell'archivio, intero e leggero, con la sua
+   * impronta (0.85.2, `GET /autopiloti`). L'archivio ridà lo **stesso** oggetto
+   * finché il file non cambia: un autopilota fermo non si riserializza più a
+   * ogni richiesta, e per l'ETag basta l'impronta già fatta più i segni di vita.
+   * L'oggetto come chiave: un autopilota riscritto è un oggetto nuovo, e il
+   * vecchio se ne va con lui.
+   */
+  const jsonDi = new WeakMap<Autopilota, { intero?: { testo: string; impronta: string }; leggero?: { testo: string; impronta: string } }>()
+  const sha1 = (testo: string): string => createHash('sha1').update(testo).digest('base64url')
+  const jsonAutopilota = (a: Autopilota, leggero: boolean): { testo: string; impronta: string } => {
+    const voce = jsonDi.get(a) ?? {}
+    const gia = leggero ? voce.leggero : voce.intero
+    if (gia !== undefined) return gia
+    const testo = JSON.stringify(leggero ? autopilotaLeggero(a) : a)
+    const fatto = { testo, impronta: sha1(testo) }
+    jsonDi.set(a, leggero ? { ...voce, leggero: fatto } : { ...voce, intero: fatto })
+    return fatto
+  }
+  /**
+   * Cosa si aggiunge all'autopilota salvato quando lo si manda: i segni di vita
+   * delle sue chat (0.69.0, 0.81.0), i segnali veri (0.85.0), il PC carico, il
+   * supervisore muto (0.85.1). Cambiano a ogni hook, l'archivio no.
+   */
+  const segniPerElenco = (a: Autopilota): Record<string, unknown> => {
+    // Con l'ultimo segno di vita delle sue chat (0.69.0), per «nessun
+    // segno da 10 min»: segnali di Claude Code e turni mandati.
+    const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
+    const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
+    // 0.85.0: i segnali veri per l'indicatore, chat per chat (la chat sola con l'id dell'autopilota).
+    const segniVeri = segniVeriDi(a)
+    // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
+    const muto = supervisore.muto()
+    const pcCarico = a.stato === 'lavoro' ? deps.guardiaPc?.stato() : undefined
+    const conVeri = {
+      ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
+      ...(pcCarico !== undefined ? { pcCarico } : {}),
+      ...(muto !== undefined && muto.cwd === a.cwd ? { supervisoreMuto: { volte: muto.volte, motivo: muto.motivo, dal: muto.dal } } : {})
+    }
+    if (segni.length === 0) return { segniDal, ...conVeri }
+    // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
+    const segniChat: Record<string, string> = {}
+    if (a.chats.length > 0) {
+      for (const c of a.chats) {
+        const t = ultimoSegnale(chiaveTurno(a.id, c.id))
+        if (t !== undefined) segniChat[c.id] = new Date(t).toISOString()
+      }
+    }
+    return { segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}), ...conVeri }
+  }
+  /**
+   * L'autopilota da mandare, già in JSON, e il suo pezzo di ETag. Le chiavi
+   * aggiunte vanno in fondo come in `{ ...a, ...segni }`: con una chiave doppia
+   * `JSON.parse` tiene l'ultima, come lo spread.
+   */
+  const daMandare = (a: Autopilota, leggero: boolean): { testo: string; etag: string } => {
+    const base = jsonAutopilota(a, leggero)
+    const segni = JSON.stringify(segniPerElenco(a))
+    const testo = segni === '{}' ? base.testo : `${base.testo.slice(0, -1)},${segni.slice(1)}`
+    return { testo, etag: `${base.impronta}.${sha1(segni)}` }
+  }
+  /** Risponde 304 se chi chiede ha già questa versione, se no il testo con il suo ETag. */
+  const mandaConEtag = (req: IncomingMessage, res: ServerResponse, etag: string, testo: () => string): void => {
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag })
+      res.end()
+      return
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', ETag: etag })
+    res.end(testo())
+  }
 
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -5088,45 +5158,32 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         if (metodo === 'GET' && percorso === '/autopiloti') {
-          // Con l'ultimo segno di vita delle sue chat (0.69.0), per «nessun
-          // segno da 10 min»: segnali di Claude Code e turni mandati.
-          const testo = JSON.stringify(deps.archivio.elenca().map((a) => {
-            const chiavi = a.chats.length === 0 ? [chiaveTurno(a.id)] : a.chats.map((c) => chiaveTurno(a.id, c.id))
-            const segni = chiavi.map((k) => ultimoSegnale(k)).filter((t): t is number => t !== undefined)
-            // 0.85.0: i segnali veri per l'indicatore, chat per chat (la chat sola con l'id dell'autopilota).
-            const segniVeri = segniVeriDi(a)
-            // 0.85.1: il supervisore muto della sua cartella, per l'indicatore.
-            const muto = supervisore.muto()
-            const pcCarico = a.stato === 'lavoro' ? deps.guardiaPc?.stato() : undefined
-            const conVeri = {
-              ...(Object.keys(segniVeri).length > 0 ? { segniVeri } : {}),
-              ...(pcCarico !== undefined ? { pcCarico } : {}),
-              ...(muto !== undefined && muto.cwd === a.cwd ? { supervisoreMuto: { volte: muto.volte, motivo: muto.motivo, dal: muto.dal } } : {})
-            }
-            if (segni.length === 0) return { ...a, segniDal, ...conVeri }
-            // 0.81.0: anche chat per chat, per il riquadro «Adesso» («ultimo segno 3 min fa»).
-            const segniChat: Record<string, string> = {}
-            if (a.chats.length > 0) {
-              for (const c of a.chats) {
-                const t = ultimoSegnale(chiaveTurno(a.id, c.id))
-                if (t !== undefined) segniChat[c.id] = new Date(t).toISOString()
-              }
-            }
-            return { ...a, segniDal, ultimoSegno: new Date(Math.max(...segni)).toISOString(), ...(Object.keys(segniChat).length > 0 ? { segniChat } : {}), ...conVeri }
-          }))
+          // 0.85.2: `?leggero=1` è l'elenco per le viste d'elenco, con la sola
+          // coda di decisioni, dialogo e modifiche (`autopilotaLeggero`): 5 MB
+          // diventavano qualche centinaio di KB. Senza, tutto come prima.
+          const leggero = url.searchParams.get('leggero') === '1'
+          const voci = deps.archivio.elenca().map((a) => daMandare(a, leggero))
           // 0.81.0: «non cambiato» (304) a chi ha già questo elenco. Lo chiedono
-          // finestre, pannello e telefono ogni 2-5 s, e un autopilota con
-          // centinaia di mosse pesa centinaia di KB da rileggere ogni volta.
-          // Lo sha1 di ~700 KB costa 4 ms: se il testo è lo stesso dell'ultima volta, l'ETag anche.
-          if (ultimoElenco?.testo !== testo) ultimoElenco = { testo, etag: `"${createHash('sha1').update(testo).digest('base64url')}"` }
-          const etag = ultimoElenco.etag
-          if (req.headers['if-none-match'] === etag) {
-            res.writeHead(304, { ETag: etag })
-            res.end()
+          // finestre, pannello e telefono ogni 2-5 s. 0.85.2: l'ETag dalle
+          // impronte già fatte di ogni autopilota più i suoi segni, senza
+          // riserializzare né rifare lo sha1 di tutto l'elenco.
+          const etag = `"${leggero ? 'l' : 'i'}${sha1(voci.map((v) => v.etag).join(','))}"`
+          mandaConEtag(req, res, etag, () => `[${voci.map((v) => v.testo).join(',')}]`)
+          return
+        }
+
+        // 0.85.2: un autopilota solo, intero, con i suoi segni: lo chiede chi
+        // mostra la sua storia (la conversazione, il diario, il Punto, la
+        // scheda del telefono). Con il suo ETag: rileggerlo uguale costa un 304.
+        if (metodo === 'GET' && /^\/autopiloti\/[^/]+$/.test(percorso)) {
+          const id = decodeURIComponent(percorso.slice('/autopiloti/'.length))
+          const a = deps.archivio.elenca().find((x) => x.id === id)
+          if (a === undefined) {
+            rispondi(res, 404, { errore: 'autopilota inesistente' })
             return
           }
-          res.writeHead(200, { 'Content-Type': 'application/json', ETag: etag })
-          res.end(testo)
+          const v = daMandare(a, false)
+          mandaConEtag(req, res, `"${v.etag}"`, () => v.testo)
           return
         }
 

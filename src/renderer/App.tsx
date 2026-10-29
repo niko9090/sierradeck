@@ -59,7 +59,8 @@ import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
-import { righeDiPty, finestraDiPty } from './schermo-terminale'
+import { righeDiPty, righeDiPtyRecenti, segnaDatiPty, finestraDiPty } from './schermo-terminale'
+import { ogni } from './state/sondaggio'
 import { ETICHETTA_LAVORO_TIPO, soloTransizioni } from './progresso-sync'
 import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './components/Fumetti'
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
@@ -92,6 +93,15 @@ import type { StatoMigrazione } from '@shared/migrazione-elenco'
 /** Quanto deve durare «aspetta» prima di annunciarlo: un'oscillazione non e' una notizia. */
 const ASPETTA_STABILE_MS = 4000
 const RIGHE_PER_IL_TELEFONO = 24
+/** Ogni quanto si guarda chi sta lavorando (0.85.2: erano 400 ms). */
+const PASSO_PENSANO_MS = 1000
+/**
+ * Le chat al Core (0.85.2): si compongono ogni due secondi ma partono solo se
+ * qualcosa è cambiato, e comunque almeno ogni tanto, perché il Core misura da
+ * questi annunci il battito e lo stato che manda all'autopilota.
+ */
+const ANNUNCIO_PASSO_MS = 2000
+const ANNUNCIO_COMUNQUE_MS = 10_000
 
 /**
  * Quanto si aspetta, fra il testo e l'invio, per un messaggio venuto da fuori.
@@ -339,7 +349,7 @@ export function App(): React.JSX.Element {
       const ora = Date.now()
       const adesso = chatAspetta(
         righe.current.attivitaDi(ptyId),
-        righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite,
+        righeDiPtyRecenti(ptyId, RIGHE_PER_IL_TELEFONO, ora)?.pulite,
         ora
       )
       if (!adesso) { aspettaDa.current.delete(ptyId); return false }
@@ -363,14 +373,18 @@ export function App(): React.JSX.Element {
       const vivi = new Set<string>()
       for (const p of Object.values(useLayoutStore.getState().panes)) {
         if (p.ptyId === undefined) continue
-        const schermo = righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite
+        // 0.85.2: lo schermo si rilegge solo se dal terminale è arrivato qualcosa.
+        const schermo = righeDiPtyRecenti(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite
         const campoPronto = aspettaDalloSchermo(schermo) === true && !lavoraSulloSchermo(schermo)
         const f = faseDiSessione(p.sessionUuid)
         const stato = indicatoreChat({ ...(f !== undefined ? { fase: { fase: f.fase, dal: f.dal } } : {}), campoPronto, attivoDalFlusso: dalFlusso.has(p.ptyId), adesso: ora })
         if (stato === 'lavora') vivi.add(p.ptyId)
       }
       setPensano((prima) => (stessiAttivi(prima, vivi) ? prima : vivi))
-    }, 400)
+      // Ogni secondo (0.85.2: erano 400 ms). Il segno «lavora» viene dagli hook
+      // di Claude Code e dal flusso, che ha già un secondo e mezzo di quiete
+      // prima di dire «fermo»: più spesso non cambia niente di visibile.
+    }, PASSO_PENSANO_MS)
     return () => clearInterval(h)
   }, [])
   useEffect(() => {
@@ -380,6 +394,7 @@ export function App(): React.JSX.Element {
     return window.gestore.pty.onEvent((msg) => {
       if (msg.kind === 'data') {
         righe.current.aggiorna(msg.id, msg.data)
+        segnaDatiPty(msg.id)
         // Lo stesso passaggio dice anche **chi si sta muovendo**: finche' da un
         // terminale arriva qualcosa, quella chat sta lavorando. Prima una chat
         // al lavoro e una ferma sul prompt erano lo stesso riquadro fermo.
@@ -409,9 +424,13 @@ export function App(): React.JSX.Element {
     righe.current.pota(vivi)
   }, [riquadriAperti])
 
+  /** L'ultimo annuncio partito e quando (0.85.2): uno uguale non riparte prima di `ANNUNCIO_COMUNQUE_MS`. */
+  const ultimoAnnuncio = useRef<{ firma: string; il: number }>({ firma: '', il: 0 })
   useEffect(() => {
+    // I riquadri sono cambiati: il prossimo annuncio parte comunque.
+    ultimoAnnuncio.current = { firma: '', il: 0 }
     const manda = (): void => {
-      window.gestore.client.annunciaChat(
+      const chat = (
         // Un riquadro remoto guarda una chat di un altro PC: non e' una chat
         // di qui, e annunciarla farebbe credere al telefono e al battito che
         // questo PC ce l'abbia aperta.
@@ -440,7 +459,7 @@ export function App(): React.JSX.Element {
           aspetta: p.ptyId === undefined ? false : aspettaOra(p.ptyId),
           // 0.76.0: una scelta aperta sullo schermo (domanda, permesso): il main
           // non la scambia per un campo pronto e la chat resta «chiede».
-          ...(p.ptyId !== undefined && sceltaSulloSchermo(righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite) ? { sceltaAperta: true } : {}),
+          ...(p.ptyId !== undefined && sceltaSulloSchermo(righeDiPtyRecenti(p.ptyId, RIGHE_PER_IL_TELEFONO)?.pulite) ? { sceltaAperta: true } : {}),
           // Chi è governata da un autopilota non deve avvisare per conto
           // suo: l’autopilota le parla da sé, e due notifiche per lo stesso
           // fatto sono una di troppo.
@@ -459,7 +478,7 @@ export function App(): React.JSX.Element {
                 // vecchio incollato al nuovo dove c'era un ritorno a capo da solo.
                 // Se il riquadro non c'e' (chat appena ceduta, terminale che sta
                 // nascendo) si torna al modo di prima invece di mostrare il vuoto.
-                const schermo = righeDiPty(p.ptyId, RIGHE_PER_IL_TELEFONO)
+                const schermo = righeDiPtyRecenti(p.ptyId, RIGHE_PER_IL_TELEFONO)
                 // Anche l'ultima riga viene dallo schermo, non dal flusso: il
                 // flusso di un'interfaccia che si ridisegna in posizione finisce
                 // con un frammento — ed era quello che arrivava nelle notifiche
@@ -476,12 +495,19 @@ export function App(): React.JSX.Element {
             : {})
         }))
       )
+      // Solo se è cambiato qualcosa, o è passato un po' (0.85.2): il Core
+      // ricostruisce lo stato di tutte le chat a ogni annuncio.
+      const ora = Date.now()
+      const firma = JSON.stringify(chat)
+      if (firma === ultimoAnnuncio.current.firma && ora - ultimoAnnuncio.current.il < ANNUNCIO_COMUNQUE_MS) return
+      ultimoAnnuncio.current = { firma, il: ora }
+      window.gestore.client.annunciaChat(chat)
     }
     manda()
     // Le righe cambiano di continuo mentre le chat lavorano: si rimandano a
     // intervalli invece che a ogni carattere, che sarebbe un messaggio ogni
     // pochi millisecondi per una cosa che si guarda ogni due secondi.
-    const h = setInterval(manda, 2000)
+    const h = setInterval(manda, ANNUNCIO_PASSO_MS)
     return () => clearInterval(h)
   }, [riquadriAperti])
 
@@ -1379,8 +1405,8 @@ export function App(): React.JSX.Element {
       }).catch(() => undefined)
     }
     leggi()
-    const h = setInterval(leggi, RICARICA_AUTOPILOTI_MS)
-    return () => clearInterval(h)
+    // Con la finestra nascosta ogni 15 s (0.85.2).
+    return ogni(leggi, RICARICA_AUTOPILOTI_MS)
   }, [])
 
   const chiamate = chiChiede(autopiloti, doveSta)
@@ -1388,8 +1414,10 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     ricaricaAutopiloti()
-    const h = setInterval(ricaricaAutopiloti, RICARICA_AUTOPILOTI_MS)
-    return () => clearInterval(h)
+    // Con la finestra nascosta ogni 15 s (0.85.2): l'elenco serve anche a
+    // finestra ridotta (le chat finite si tolgono da sole, il numero
+    // nell'icona), ma non ogni 5 s.
+    return ogni(ricaricaAutopiloti, RICARICA_AUTOPILOTI_MS)
   }, [ricaricaAutopiloti])
 
   // Cosa c'è sul computer, chiesto una volta all'avvio. Chi installa SierraDeck

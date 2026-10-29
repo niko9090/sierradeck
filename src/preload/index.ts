@@ -1073,6 +1073,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   autopilota: {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
+    /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
+    dettaglio: (id: string, versione?: string): Promise<{ versione?: string; autopilota?: Autopilota }> => ipcRenderer.invoke('autopilota:dettaglio', id, versione),
     crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
     /** Il via a chi si è preparato e aspetta di essere letto. */
     vai: (id: string): Promise<Autopilota> => ipcRenderer.invoke('autopilota:vai', id),

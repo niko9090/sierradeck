@@ -455,7 +455,10 @@ declare global {
         daDove: (p: { cwd: string; sessionUuid?: string }) => Promise<import('@shared/apertura-chat').Apertura>
       }
       autopilota: {
+        /** L'elenco leggero (0.85.2): di decisioni, dialogo e modifiche solo la coda. */
         elenca: () => Promise<Autopilota[]>
+        /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
+        dettaglio: (id: string, versione?: string) => Promise<{ versione?: string; autopilota?: Autopilota }>
         crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }) => Promise<Autopilota>
         /** Il via a chi si è preparato e aspetta di essere letto. */
         vai: (id: string) => Promise<Autopilota>

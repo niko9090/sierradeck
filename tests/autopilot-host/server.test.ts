@@ -174,6 +174,31 @@ describe('creazione ed elenco', () => {
     expect((await di()).status).toBe(200)
   })
 
+  // 0.85.2: l'elenco leggero ha solo la coda delle liste lunghe; il dettaglio tutto.
+  it('l’elenco leggero taglia decisioni, dialogo e modifiche; il dettaglio le ha intere, con il suo ETag', async () => {
+    const id = await creaAp()
+    const a = archivio.leggi(id)!
+    const decisioni = Array.from({ length: 100 }, (_, i) => ({ quando: `2026-08-09T09:${String(Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}.000Z`, cosa: `mossa ${i}` }))
+    archivio.scrivi({ ...a, decisioni })
+    const leggero = (await chiama('GET', '/autopiloti?leggero=1')).dati[0]
+    expect(leggero.decisioni).toHaveLength(40)
+    expect(leggero.decisioni.at(-1).cosa).toBe('mossa 99')
+    expect(leggero.troncati.decisioni).toBe(100)
+    expect(leggero.segniDal).toBeDefined()
+    // Senza il parametro, tutto come prima.
+    const intero = (await chiama('GET', '/autopiloti')).dati[0]
+    expect(intero.decisioni).toHaveLength(100)
+    expect(intero.troncati).toBeUndefined()
+    const r = await fetch(`http://127.0.0.1:${porta}/autopiloti/${id}`)
+    expect(r.status).toBe(200)
+    const dettaglio = await r.json() as { decisioni: unknown[]; segniDal?: unknown }
+    expect(dettaglio.decisioni).toHaveLength(100)
+    expect(dettaglio.segniDal).toBeDefined()
+    const ancora = await fetch(`http://127.0.0.1:${porta}/autopiloti/${id}`, { headers: { 'If-None-Match': r.headers.get('etag') as string } })
+    expect(ancora.status).toBe(304)
+    expect((await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-che-non-c-e`)).status).toBe(404)
+  })
+
   // 0.81.0, «Adesso»: senza segni una chat è muta da quando il servizio li raccoglie.
   it('l’elenco dice da quando il servizio raccoglie i segni, anche senza segni', async () => {
     await creaAp()

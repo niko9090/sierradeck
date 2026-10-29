@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { creaSondaggio, ogni } from '../state/sondaggio'
 import type { Anteprima } from '../../main/anteprima'
 import { chatAlLavoro, type Autopilota } from '@shared/autopilota'
 import { diario } from '../diario-autopilota'
@@ -7,6 +8,7 @@ import type { LinguettaStaccabile } from '@shared/finestra-pannello'
 import { DomandeAutopilota } from './DomandeAutopilota'
 import { FileAutopilota } from './FileAutopilota'
 import { IstruzioniAutopilota } from './IstruzioniAutopilota'
+import { useAutopilotaIntero } from '../state/autopilota-intero'
 import {
   CompitiAutopilota, CriteriAutopilota, ObiettivoAutopilota, RagionamentiAutopilota
 } from './SchedaAutopilota'
@@ -23,17 +25,25 @@ function ora(iso: string): string {
   return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * Le domande aperte di tutti gli autopiloti, una lettura sola per finestra
+ * (0.85.2): prima ogni scheda aperta e ogni finestra staccata ne faceva una
+ * sua ogni due secondi. Con la finestra nascosta, ogni 15 secondi.
+ */
+const domandeAperte = creaSondaggio(() => window.gestore.autopilota.domande(), 2000)
+
 /** Le sue domande aperte, rilette ogni due secondi dal servizio. */
 export function useDomandeAutopilota(autopilota: Autopilota | undefined): { schede: DomandaScheda[]; rileggi: () => void } {
-  const [aperte, setAperte] = useState<DomandaApertaServizio[]>([])
-  const rileggi = useCallback((): void => {
-    window.gestore.autopilota.domande().then(setAperte).catch(() => undefined)
-  }, [])
+  const [aperte, setAperte] = useState<DomandaApertaServizio[]>(() => domandeAperte.ultimo() ?? [])
+  // Si ridisegna solo quando le domande cambiano davvero, non a ogni rilettura.
   useEffect(() => {
-    rileggi()
-    const h = setInterval(rileggi, 2000)
-    return () => clearInterval(h)
-  }, [rileggi])
+    let firma = ''
+    return domandeAperte.ascolta((d) => {
+      const f = JSON.stringify(d)
+      if (f !== firma) { firma = f; setAperte(d) }
+    })
+  }, [])
+  const rileggi = useCallback((): void => { domandeAperte.rileggi() }, [])
   return { schede: autopilota === undefined ? [] : domandeScheda(autopilota, aperte), rileggi }
 }
 
@@ -70,9 +80,10 @@ function LavoroAutopilota({ autopilota }: { autopilota: Autopilota }): React.JSX
     // linguetta aperta (la trascrizione e' mezzo megabyte).
     aggiorna()
     // Due secondi: abbastanza spesso da vedere il lavoro procedere, abbastanza
-    // di rado da non rileggere mezzo megabyte per niente.
-    const h = setInterval(aggiorna, 2000)
-    return () => clearInterval(h)
+    // di rado da non rileggere mezzo megabyte per niente. Con la finestra
+    // nascosta non si rilegge affatto (0.85.2): nessuno la sta guardando, e
+    // tornata davanti si rilegge subito.
+    return ogni(aggiorna, 2000, Infinity)
   }, [aggiorna])
 
   return (
@@ -164,7 +175,7 @@ function DecisioniAutopilota({ autopilota }: { autopilota: Autopilota }): React.
 }
 
 export function LinguettaAutopilota({
-  autopilota,
+  autopilota: dellElenco,
   linguetta,
   schede,
   onRisposto,
@@ -176,6 +187,8 @@ export function LinguettaAutopilota({
   onRisposto: () => void
   onCambiato: () => void
 }): React.JSX.Element {
+  // La storia intera (0.85.2): «Ha deciso» e le schede la vogliono tutta, l'elenco ne porta la coda.
+  const autopilota = useAutopilotaIntero(dellElenco)
   switch (linguetta) {
     case 'domande':
       return <DomandeAutopilota autopilota={autopilota} domande={schede} onRisposto={onRisposto} />

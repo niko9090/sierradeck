@@ -6,6 +6,7 @@ import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopi
 import { separaConversazione } from '@shared/panoramica'
 import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { CampoChatAutopilota } from './CampoChatAutopilota'
+import { useAutopilotaIntero } from '../state/autopilota-intero'
 
 /**
  * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.
@@ -19,7 +20,7 @@ import { CampoChatAutopilota } from './CampoChatAutopilota'
  * risposta.
  */
 export function ChatAutopilota({
-  autopilota,
+  autopilota: dellElenco,
   onCambiato,
   soloConversazione = false,
   campoPronto = false
@@ -39,6 +40,8 @@ export function ChatAutopilota({
    */
   campoPronto?: boolean
 }): React.JSX.Element {
+  // La storia intera (0.85.2): l'elenco ne porta solo la coda.
+  const autopilota = useAutopilotaIntero(dellElenco)
   // Il testo che scrivi non sta qui (0.85.1): sta in `CampoChatAutopilota`,
   // così una lettera non ridisegna la conversazione intera.
   const [inCorso, setInCorso] = useState(false)

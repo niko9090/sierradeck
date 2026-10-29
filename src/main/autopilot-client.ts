@@ -70,7 +70,16 @@ export type RicevutaDialogo = {
 }
 
 export type ClientAutopilota = {
+  /**
+   * L'elenco **leggero** (0.85.2): di decisioni, dialogo e modifiche solo la
+   * coda (`autopilotaLeggero`). Basta a tutte le viste d'elenco e a chi cerca
+   * cartelle, chat e stati; la storia intera la dà `dettaglio`.
+   */
   elenca: () => Promise<Autopilota[]>
+  /** Un autopilota intero, con tutta la sua storia (0.85.2). `undefined` se non c'è. */
+  dettaglio: (id: string) => Promise<Autopilota | undefined>
+  /** L'ETag dell'ultimo dettaglio letto di quell'autopilota: due uguali, stesso autopilota. */
+  versioneDettaglio: (id: string) => string | undefined
   crea: (p: NuovoAutopilota) => Promise<Autopilota>
   /** Il via, dopo aver letto cosa ha deciso in preparazione. */
   vai: (id: string) => Promise<Autopilota>
@@ -173,6 +182,8 @@ export type ClientAutopilota = {
 }
 
 const ATTESA_PREDEFINITA_MS = 3000
+/** Per quanto un elenco appena letto si ridà senza richiederlo (0.85.2). */
+const ELENCO_FRESCO_MS = 1500
 /** Dopo un avvio che non ha riportato su il servizio, il prossimo aspetta tanto (0.84.0). */
 const MINUTO_FRA_AVVII_MS = 60_000
 
@@ -197,6 +208,12 @@ export function creaClientAutopilota(p: {
   versione?: string
   /** L'orologio, per i test. */
   adesso?: () => number
+  /**
+   * Per quanto un elenco appena letto vale senza richiederlo (0.85.2). Lo
+   * chiedono una ventina di parti del Gestore e ogni finestra: dentro questo
+   * tempo tutte ricevono lo stesso, con una richiesta sola.
+   */
+  elencoFrescoMs?: number
 }): ClientAutopilota {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
   const adesso = p.adesso ?? Date.now
@@ -220,6 +237,9 @@ export function creaClientAutopilota(p: {
     corpo?: unknown,
     attesa: number = attesaMs
   ): Promise<unknown> => {
+    // Chi cambia qualcosa poi rilegge l'elenco e deve vedere il cambio: niente
+    // elenco «fresco» tenuto da prima (0.85.2).
+    if (metodo !== 'GET') segnaElencoVecchio()
     let risposta: Response
     try {
       risposta = await fetch(`${base}${percorso}`, {
@@ -235,6 +255,7 @@ export function creaClientAutopilota(p: {
     }
 
     const testo = await risposta.text()
+    if (metodo !== 'GET') segnaElencoVecchio()
     const dati: unknown = testo === '' ? undefined : JSON.parse(testo)
     if (!risposta.ok) {
       const motivo = (dati as { errore?: string } | undefined)?.errore ?? `stato ${risposta.status}`
@@ -248,35 +269,76 @@ export function creaClientAutopilota(p: {
    * servizio risponde 304 se non è cambiato; le richieste che arrivano mentre
    * una è in viaggio ne aspettano la risposta. Chi lo riceve non lo cambia.
    */
-  let elencoTenuto: { etag: string; dati: Autopilota[] } | undefined
+  const elencoFrescoMs = p.elencoFrescoMs ?? ELENCO_FRESCO_MS
+  let elencoTenuto: { etag: string | null; dati: Autopilota[]; il: number } | undefined
+  function segnaElencoVecchio(): void { if (elencoTenuto !== undefined) elencoTenuto = { ...elencoTenuto, il: -Infinity } }
   let elencoInViaggio: Promise<Autopilota[]> | undefined
-  const chiediElenco = async (): Promise<Autopilota[]> => {
+  /**
+   * Una GET con l'ETag di quello che si ha già: con 304 torna quello tenuto.
+   * Un servizio vecchio non conosce `?leggero=1` e manda l'elenco intero: va
+   * bene lo stesso, è solo più pesante.
+   */
+  const chiediConEtag = async <T>(percorso: string, tenuto: { etag: string; dati: T } | undefined): Promise<{ dati: T; etag: string | null; stato: number }> => {
     let risposta: Response
     try {
-      risposta = await fetch(`${base}/autopiloti`, {
-        headers: elencoTenuto !== undefined ? { 'If-None-Match': elencoTenuto.etag } : {},
+      risposta = await fetch(`${base}${percorso}`, {
+        headers: tenuto !== undefined ? { 'If-None-Match': tenuto.etag } : {},
         signal: AbortSignal.timeout(attesaMs)
       })
     } catch (err) {
       throw new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`)
     }
-    if (risposta.status === 304 && elencoTenuto !== undefined) return elencoTenuto.dati
+    if (risposta.status === 304 && tenuto !== undefined) return { dati: tenuto.dati, etag: tenuto.etag, stato: 304 }
     const testo = await risposta.text()
     const dati: unknown = testo === '' ? undefined : JSON.parse(testo)
     if (!risposta.ok) {
       const motivo = (dati as { errore?: string } | undefined)?.errore ?? `stato ${risposta.status}`
-      throw new Error(`il servizio autopilota ha rifiutato la richiesta: ${motivo}`)
+      throw Object.assign(new Error(`il servizio autopilota ha rifiutato la richiesta: ${motivo}`), { stato: risposta.status, motivo })
     }
-    const etag = risposta.headers.get('etag')
-    elencoTenuto = etag !== null && Array.isArray(dati) ? { etag, dati: dati as Autopilota[] } : undefined
-    return dati as Autopilota[]
+    return { dati: dati as T, etag: risposta.headers.get('etag'), stato: risposta.status }
+  }
+  const chiediElenco = async (): Promise<Autopilota[]> => {
+    const tenuto = elencoTenuto?.etag != null ? { etag: elencoTenuto.etag, dati: elencoTenuto.dati } : undefined
+    const r = await chiediConEtag<Autopilota[]>('/autopiloti?leggero=1', tenuto)
+    elencoTenuto = Array.isArray(r.dati) ? { etag: r.etag, dati: r.dati, il: adesso() } : undefined
+    return r.dati
+  }
+
+  /** Il dettaglio di ogni autopilota chiesto, con il suo ETag (0.85.2). */
+  const dettagliTenuti = new Map<string, { etag: string; dati: Autopilota }>()
+  const dettagliInViaggio = new Map<string, Promise<Autopilota | undefined>>()
+  const chiediDettaglio = async (id: string): Promise<Autopilota | undefined> => {
+    try {
+      const r = await chiediConEtag<Autopilota>(`/autopiloti/${encodeURIComponent(id)}`, dettagliTenuti.get(id))
+      if (r.etag !== null && r.dati !== undefined) dettagliTenuti.set(id, { etag: r.etag, dati: r.dati })
+      else dettagliTenuti.delete(id)
+      return r.dati
+    } catch (err) {
+      const e = err as { stato?: number; motivo?: string }
+      if (e.stato !== 404) throw err
+      dettagliTenuti.delete(id)
+      if (e.motivo === 'autopilota inesistente') return undefined
+      // Un servizio di prima della 0.85.2 non ha la rotta: l'elenco intero, come allora.
+      const tutti = (await chiama('/autopiloti', 'GET')) as Autopilota[] | undefined
+      return (tutti ?? []).find((a) => a.id === id)
+    }
   }
 
   return {
     elenca: () => {
+      if (elencoTenuto !== undefined && adesso() - elencoTenuto.il < elencoFrescoMs) return Promise.resolve(elencoTenuto.dati)
       elencoInViaggio ??= chiediElenco().finally(() => { elencoInViaggio = undefined })
       return elencoInViaggio
     },
+    dettaglio: (id) => {
+      let inViaggio = dettagliInViaggio.get(id)
+      if (inViaggio === undefined) {
+        inViaggio = chiediDettaglio(id).finally(() => { dettagliInViaggio.delete(id) })
+        dettagliInViaggio.set(id, inViaggio)
+      }
+      return inViaggio
+    },
+    versioneDettaglio: (id) => dettagliTenuti.get(id)?.etag,
     crea: async (nuovo) => (await chiama('/autopiloti', 'POST', nuovo)) as Autopilota,
     vai: async (id) =>
       (await chiama(`/autopiloti/${encodeURIComponent(id)}/vai`, 'POST')) as Autopilota,

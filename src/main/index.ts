@@ -11,7 +11,7 @@ import { creaCassettaDrive } from './rtc/cassetta-drive'
 import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
 import { sceltaCartellaWorkspace } from '@shared/cartella-workspace'
 import { creaOspite, type Ospite } from './ospite'
-import { casaAltrove, casaPerAutopilota } from '@shared/ospite-chat'
+import { casaAltrove, casaPerAutopilota, eScelta } from '@shared/ospite-chat'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
 import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
 import { leggiCase, saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
@@ -557,6 +557,10 @@ let ultimoBattitoAlServizio = 0
 /** T1 (0.36.0): ogni quanto si spinge al servizio lo stato del programma. */
 let ultimoStatoAlServizio = 0
 const STATO_AL_SERVIZIO_MS = 10_000
+/** Il giro delle chat in sottofondo senza testi da consegnare: uno ogni quattro passi da mezzo secondo (0.85.2). */
+const GIRI_SOTTOFONDO_QUIETO = 4
+/** Le cartelle di questo PC per il battito del postino: si rifanno al più così spesso (0.85.2). */
+const CARTELLE_POSTINO_MS = 2 * 60_000
 const BATTITO_AL_SERVIZIO_MS = 60_000
 /** Su quali monitor stavano le finestre: e' cosi che ci ritornano. */
 let finestreStore: FinestreStore | undefined
@@ -1419,9 +1423,25 @@ if (!app.requestSingleInstanceLock()) {
           const n = sf.riprendi((v) => (existsSync(v.cwd) ? nonRipartePerAltri(v) : `la cartella ${v.cwd} qui non c’è più`))
           if (n > 0) registro.info(`[sottofondo] ${n} chat in sottofondo ripartite dopo l’avvio`)
         }, 20_000).unref()
+        // 0.85.2: ogni mezzo secondo solo mentre una chat sta ricevendo un testo
+        // (eco, Invio, controllo: lì i tempi sono stretti); altrimenti ogni due
+        // secondi, e lo stato delle chat si ricostruisce solo se è cambiato. Prima
+        // ogni mezzo secondo si rileggevano tutti gli schermi in sottofondo e si
+        // rifaceva `conSegnali` di tutte le chat, anche con le chat ferme.
+        let giriSaltati = 0
+        let firmaSottofondo = ''
         setInterval(() => {
+          const prima = sf.elenco()
+          if (prima.length === 0) { firmaSottofondo = ''; return }
+          const stretto = prima.some((s) => s.inCoda > 0 || s.fase === 'consegna' || s.fase === 'avvio')
+          if (!stretto && giriSaltati < GIRI_SOTTOFONDO_QUIETO - 1) { giriSaltati += 1; return }
+          giriSaltati = 0
           sf.giro()
-          if (sf.elenco().length > 0) chatAperte = conSegnali(chatDiQui())
+          const dopo = sf.elenco()
+          const firma = JSON.stringify(dopo.map((s) => [s.sessione, s.fase, s.messaggio, s.inCoda, s.ultimoDatoIl, s.workspace]))
+          if (firma === firmaSottofondo) return
+          firmaSottofondo = firma
+          chatAperte = conSegnali(chatDiQui())
         }, 500).unref()
       }
       registerPreparazioneIpc(ptyClient, () => homedir(), {
@@ -1938,6 +1958,7 @@ if (!app.requestSingleInstanceLock()) {
       // progetto che non viaggia. Dagli altri PC e dal telefono si scrive
       // nella sua cassetta sul Drive; il suo postino, ogni mezzo minuto,
       // consegna nella chat giusta (o ne apre una). Vedi `progetti/posta.ts`.
+      let cartelleInMemoria: { il: number; l: string[] } | undefined
       const postino: Postino = creaPostino({
         scatola: () => sincronia.scatola(),
         pcId: () => identitaPc.leggi().id,
@@ -1970,7 +1991,11 @@ if (!app.requestSingleInstanceLock()) {
         // dice agli altri PC «questa cartella ce l'ho io»: cosi' una chat mia
         // arrivata la' dal Drive non viene adottata in una cartella vuota.
         // Le chat aperte le aggiunge il postino da solo.
+        // 0.85.2: rifatte al più ogni due minuti. Il postino le chiede a ogni giro
+        // (mezzo minuto) e ogni volta si guardava sul disco la cartella di ogni
+        // chat dell'indice; una cartella nuova o sparita non ha fretta.
         cartelle: () => {
+          if (cartelleInMemoria !== undefined && Date.now() - cartelleInMemoria.il < CARTELLE_POSTINO_MS) return cartelleInMemoria.l
           const me = identitaPc.leggi().id
           const fuori = new Set<string>()
           for (const p of registroProgetti.leggi().progetti) {
@@ -1987,7 +2012,8 @@ if (!app.requestSingleInstanceLock()) {
               if (c) fuori.add(cwd)
             }
           }
-          return [...fuori]
+          cartelleInMemoria = { il: Date.now(), l: [...fuori] }
+          return cartelleInMemoria.l
         },
         memoria: {
           leggi: () => {
@@ -2887,7 +2913,15 @@ if (!app.requestSingleInstanceLock()) {
       daPrendereDopo.clear()
       // Ogni 30 secondi (0.69.0; erano 10): ogni giro rilegge l'indice delle chat e
       // guarda sul disco ogni trascrizione. Le chat da chiudere aspettano già 30 s.
-      const timerOspite = setInterval(() => { void ospite.giro() }, 30_000)
+      // 0.85.2: solo se c'è almeno una chat con la casa scelta su un altro PC.
+      // Senza, il giro non ha niente da fare (`pianoTrasloco` guarda solo
+      // quelle) ma rileggeva comunque l'indice e guardava sul disco ogni
+      // trascrizione, ogni mezzo minuto.
+      const timerOspite = setInterval(() => {
+        const io = identitaPc.leggi().id
+        if (!Object.values(unaCasa.case().case).some((c) => eScelta(c) && casaAltrove(c, io) !== undefined)) return
+        void ospite.giro()
+      }, 30_000)
       app.on('before-quit', () => { clearInterval(timerOspite) })
       ipcMain.handle('casa:dove', () => ospite.dove())
       // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.
@@ -5383,6 +5417,7 @@ if (!app.requestSingleInstanceLock()) {
         chat: () => chatAperte.map(conAltrove),
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
         autopiloti: () => clientAutopilota.elenca(),
+        autopilota: (id: string) => clientAutopilota.dettaglio(id),
         tempiAutopilota: (id: string) => clientAutopilota.tempi(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { StatoSottofondo } from '@shared/sottofondo'
 import { Aiuto } from './Aiuto'
 import { durata, etichettaSottofondo, SENZA_SEGNI_MS } from '@shared/stato-dal-vivo'
+import { ogni } from '../state/sondaggio'
 
 /**
  * **Chat usate da altri PC** (0.58.4, decisione di Nicholas).
@@ -50,8 +51,9 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
     let vivo = true
     const leggi = (): void => { void window.gestore.sottofondo.schermo(guardo).then((r) => { if (vivo) setSchermo(r ?? ['(la chat non è più in sottofondo)']) }).catch(() => undefined) }
     leggi()
-    const t = setInterval(leggi, 2000)
-    return () => { vivo = false; clearInterval(t) }
+    // Con la finestra nascosta non si rilegge (0.85.2): nessuno sta guardando.
+    const smetti = ogni(leggi, 2000, Infinity)
+    return () => { vivo = false; smetti() }
   }, [guardo])
   useEffect(() => {
     let vivo = true
@@ -59,8 +61,9 @@ export function SottofondoQui({ vuoto }: { vuoto?: React.ReactNode } = {}): Reac
     leggi()
     const via = window.gestore.sottofondo.suCambiato(leggi)
     // Anche a tempo: lo stato (lavora, aspetta) cambia senza che l'elenco cambi.
-    const t = setInterval(leggi, 5000)
-    return () => { vivo = false; via(); clearInterval(t) }
+    // Con la finestra nascosta ogni 15 s (0.85.2).
+    const smetti = ogni(leggi, 5000)
+    return () => { vivo = false; via(); smetti() }
   }, [])
   // Nessuna: niente tasto nella barra; nel pannello «Chat e workspace» (0.61.0) si dice.
   if (elenco.length === 0) return vuoto === undefined ? null : <>{vuoto}</>

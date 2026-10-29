@@ -207,7 +207,10 @@ export type DipendenzeRotte = {
   chat: () => Chat[]
   /** Gli ultimi segnali di Claude Code di una sessione (0.79.0): cosa fa adesso, nel riassunto «Al lavoro». */
   segnali?: (sessione: string) => readonly Segnale[]
+  /** L'elenco degli autopiloti; dalla 0.85.2 leggero (di decisioni, dialogo e modifiche solo la coda). */
   autopiloti: () => Promise<Autopilota[]>
+  /** Un autopilota intero, con tutta la storia (0.85.2), per la sua scheda. Senza, dall'elenco. */
+  autopilota?: (id: string) => Promise<Autopilota | undefined>
   /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
   tempiAutopilota?: (id: string) => Promise<string | undefined>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
@@ -1551,8 +1554,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // questo si chiede quando se ne apre uno.
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota') {
       const id = stringa(r.corpo, 'autopilota')
-      const tutti = await deps.autopiloti().catch(() => [] as Autopilota[])
-      const a = tutti.find((x) => x.id === id)
+      // Intero (0.85.2): la conversazione, il diario e il Punto vogliono tutta la storia.
+      const a = deps.autopilota !== undefined
+        ? await deps.autopilota(id).catch(() => undefined)
+        : (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
       if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
       // La domanda aperta, se c'e': la pagina e l'app rispondono da li',
       // dalla stessa casella con cui gli parlano.
