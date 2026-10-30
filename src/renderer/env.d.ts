@@ -288,8 +288,6 @@ declare global {
       sistema: {
         cartellaUtente: () => Promise<string>
         versione: () => Promise<string>
-        cartellaScambio: () => Promise<string>
-        apriScambio: () => Promise<string>
         apriEsterno: (url: string) => Promise<void>
         autopilotiAlLavoro: (quanti: number) => void
         scegliCartella: () => Promise<string | undefined>

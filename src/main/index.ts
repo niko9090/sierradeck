@@ -5050,13 +5050,6 @@ if (!app.requestSingleInstanceLock()) {
       // fastidiosa»): si leggono dal menu, e quelle di una versione nuova si
       // vedono **prima** di installarla, nella finestra di «Installa».
 
-      // La cartella di scambio: quello che ci metti dal telefono lo trovi qui,
-      // e viceversa. Vive accanto agli altri dati e si apre da un tasto, così
-      // non serve ricordarsene il percorso.
-      const scambio = join(dati, 'scambio')
-      mkdirSync(scambio, { recursive: true })
-      ipcMain.handle('sistema:cartellaScambio', () => scambio)
-      ipcMain.handle('sistema:apriScambio', () => shell.openPath(scambio))
       // Apre un link nel browser di sistema, non dentro l'app. Solo http/https e
       // mailto: `shell.openExternal` con uno schema qualunque potrebbe lanciare
       // programmi (es. un URL di protocollo registrato), e il link arriva da una

@@ -735,8 +735,6 @@ contextBridge.exposeInMainWorld('gestore', {
   sistema: {
     cartellaUtente: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaUtente'),
     versione: (): Promise<string> => ipcRenderer.invoke('sistema:versione'),
-    cartellaScambio: (): Promise<string> => ipcRenderer.invoke('sistema:cartellaScambio'),
-    apriScambio: (): Promise<string> => ipcRenderer.invoke('sistema:apriScambio'),
     /** Apre un link http/https/mailto nel browser di sistema, non dentro l'app. */
     apriEsterno: (url: string): Promise<void> => ipcRenderer.invoke('sistema:apriEsterno', url),
     /**
