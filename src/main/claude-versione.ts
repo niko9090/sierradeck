@@ -28,14 +28,25 @@ export function versioneInstallata(
   }
 }
 
+/**
+ * Il comando da lanciare senza `shell: true`: su Windows uno script batch
+ * (`npm.cmd`) passa da `cmd.exe /d /c`, altrove si lancia com'è.
+ */
+export function comandoSenzaShell(c: string, args: readonly string[], windows = process.platform === 'win32'): [string, string[]] {
+  if (!windows) return [c, [...args]]
+  return [process.env.ComSpec ?? 'cmd.exe', ['/d', '/c', c, ...args]]
+}
+
 export function versioneUltima(
   esegui: (c: string, args: string[]) => string = (c, args) =>
     // `npm.cmd` e' uno script batch: da Node 22 (Electron 43 porta Node 24)
     // avviarlo senza shell solleva `EINVAL` (correzione CVE-2024-27980), e il
     // catch qui sotto lo trasformava in «non lo so»: l'updater non ha mai
     // aggiornato Claude Code e la finestra non diceva niente. Gli argomenti
-    // sono costanti, quindi la shell non espone niente.
-    execFileSync(c, args, { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS, shell: process.platform === 'win32' })
+    // sono costanti, quindi la shell non espone niente. 0.88: non piu'
+    // `shell: true` con gli argomenti a parte (DEP0190 di Node 24): `cmd /d /c`
+    // esplicito, con il comando e gli argomenti come argomenti suoi.
+    execFileSync(...comandoSenzaShell(c, args), { encoding: 'utf8', windowsHide: true, timeout: TIMEOUT_MS })
 ): string | undefined {
   try {
     // Il registro di npm è la fonte: è da lì che Claude Code si installa e si

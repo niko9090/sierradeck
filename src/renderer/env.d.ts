@@ -112,6 +112,13 @@ declare global {
         rifai: () => Promise<{ ok: boolean; messaggio: string }>
         suCambio: (cb: () => void) => () => void
       }
+      riassetto: {
+        stato: () => Promise<import('@shared/riassetto').StatoRiassetto | null>
+        annulla: () => Promise<{ ok: boolean; messaggio: string }>
+        liberaSubito: () => Promise<{ ok: boolean; messaggio: string }>
+        chiudi: () => Promise<void>
+        suProgresso: (cb: (s: import('@shared/riassetto').StatoRiassetto) => void) => () => void
+      }
       adozione: {
         soloMia: (id: string, sessione: string, si: boolean) => Promise<{ ok: boolean }>
         adotta: (id: string) => Promise<string[]>

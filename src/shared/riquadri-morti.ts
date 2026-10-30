@@ -100,3 +100,30 @@ export function togliDalLayout(l: LayoutSalvato, sessioni: ReadonlySet<string>):
   }
   return { root, panes }
 }
+
+/**
+ * La risposta del servizio con pazienza (0.88). Prima si aspettavano due
+ * secondi e poi si rimontava tutto: con il servizio lento (appena sostituito
+ * dopo un aggiornamento) le chat finite partivano lo stesso e il registro si
+ * riempiva di `CHAT_CHIUSA_SENZA_CARTELLA`. Ora, se `serve()` dice che senza
+ * il servizio si sbaglierebbe, si aspetta ancora `poiMs` la stessa risposta
+ * (o una seconda, se la prima è fallita). Senza risposta: `undefined`, e chi
+ * chiama non toglie niente — meglio una diagnosi in più che un riquadro vivo
+ * trattato da morto.
+ */
+export async function rispostaConPazienza<T>(
+  chiedi: () => Promise<T>,
+  p: { primaMs: number; poiMs: number; serve: () => boolean; dormi?: (ms: number) => Promise<void> }
+): Promise<T | undefined> {
+  type Esito = { ok: true; v: T } | { ok: false; fallita: boolean }
+  const dormi = p.dormi ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+  const avvia = (): Promise<Esito> => chiedi().then((v): Esito => ({ ok: true, v }), (): Esito => ({ ok: false, fallita: true }))
+  const entro = (q: Promise<Esito>, ms: number): Promise<Esito> => Promise.race([q, dormi(ms).then((): Esito => ({ ok: false, fallita: false }))])
+  let corrente = avvia()
+  const primo = await entro(corrente, p.primaMs)
+  if (primo.ok) return primo.v
+  if (!p.serve()) return undefined
+  if (primo.fallita) corrente = avvia()
+  const secondo = await entro(corrente, p.poiMs)
+  return secondo.ok ? secondo.v : undefined
+}

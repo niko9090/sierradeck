@@ -8,6 +8,7 @@ import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuadernoLezioni } from '../main/quaderno-lezioni-store'
 import { apriRegistro, type Registro } from '../main/registro'
 import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
+import { impostaStoricoRiassetto } from './riassetto-servizio'
 import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
@@ -247,6 +248,7 @@ function reteDiSicurezza(): void {
     }
   })
   process.on('exit', () => { storico.scriviOra() })
+  impostaStoricoRiassetto(storico)
   const registro = conStorico(apriRegistro(dati, versione, 'servizio'), storico)
   consoleNelRegistro(registro)
   const scrivi = (che: string, motivo: unknown): void => {

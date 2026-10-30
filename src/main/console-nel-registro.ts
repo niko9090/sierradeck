@@ -1,5 +1,6 @@
 import { format } from 'node:util'
 import type { Registro } from './registro'
+import { PREFISSO_CHAT_ALTROVE } from '@shared/posta'
 
 /** Il prefisso con cui `registro.ts` ripete in console le righe che ha gia' scritto. */
 export const PREFISSO_ECO = '[registro] '
@@ -28,7 +29,13 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>, 
     // riga scritta direttamente nel registro ci compariva due volte.
     if (typeof a[0] === 'string' && a[0].startsWith(PREFISSO_ECO)) return
     dentro = true
-    try { registro[livello](format(...a)) } catch { /* il registro non ferma il programma */ } finally { dentro = false }
+    try {
+      const testo = format(...a)
+      // 0.88: il rifiuto atteso di una chat che vive su un altro PC (Electron lo
+      // ripete come «Error occurred in handler for 'pty:spawn'») non è un guasto:
+      // il riquadro lo mostra con il suo PC. Nel registro come informazione.
+      registro[livello === 'errore' && testo.includes(PREFISSO_CHAT_ALTROVE) ? 'info' : livello](testo)
+    } catch { /* il registro non ferma il programma */ } finally { dentro = false }
   }
   c.warn = (...a: unknown[]) => { warn.apply(c, a); scrivi('info', a) }
   c.error = (...a: unknown[]) => { error.apply(c, a); scrivi('errore', a) }
