@@ -22,6 +22,34 @@ export function attesaSpegnimentoMs(base: number, terminali: number): number {
   return Math.min(Math.max(base, ATTESA_SPEGNIMENTO_MAX_MS), base + Math.max(0, terminali) * PER_TERMINALE_MS)
 }
 
+/**
+ * Lo stderr del PTY host che non è un guasto: da raccontare, non da mettere fra
+ * gli errori. Restituisce la riga da raccontare, o `undefined` se è un errore vero.
+ *
+ * - Lo spegnimento voluto (0.88.2): finiva fra gli errori a ogni chiusura.
+ * - «AttachConsole failed» dall'agente di node-pty (conpty_console_list_agent):
+ *   su Windows kill() lo lancia, e fallisce se la shell è già morta. È atteso e
+ *   innocuo; le eccezioni di proc.kill() sono già ignorate dal pty-manager.
+ */
+export function leggiStderrAtteso(chunk: string): { raccontate: string[]; errore: string } {
+  // Un pezzo di stderr arriva a blocchi qualsiasi: la riga dello spegnimento può
+  // stare dopo altre righe o unita a un'altra. Con `^` sul pezzo intero (0.88.2)
+  // le sfuggiva e finiva fra gli errori con il prefisso doppio.
+  const raccontate: string[] = []
+  const restanti: string[] = []
+  for (const riga of chunk.split(/\r?\n/)) {
+    const spegn = /^\s*\[pty-host\] (spegnimento \(.*)$/.exec(riga)
+    if (spegn) raccontate.push(spegn[1].trim())
+    else restanti.push(riga)
+  }
+  let resto = restanti.join('\n')
+  if (/conpty_console_list_agent|AttachConsole failed/.test(resto)) {
+    raccontate.push('console già chiusa (node-pty): ignorato')
+    resto = ''
+  }
+  return { raccontate, errore: resto.trim() === '' ? '' : resto }
+}
+
 export type PtyHostClientOptions = {
   /** Eseguibile Node. In Electron: process.execPath con ELECTRON_RUN_AS_NODE. */
   nodePath: string
@@ -178,10 +206,9 @@ export class PtyHostClient {
 
     child.stderr?.setEncoding('utf8')
     child.stderr?.on('data', (chunk: string) => {
-      // Lo spegnimento voluto non è un guasto (0.88.2): finiva fra gli errori
-      // a ogni chiusura, e da lì nello storico mandato al PC di sviluppo.
-      if (/^\[pty-host\] spegnimento \(/.test(chunk)) { this.racconta(chunk.trim().replace(/^\[pty-host\] /, '')); return }
-      console.error('[pty-host]', chunk)
+      const { raccontate, errore } = leggiStderrAtteso(chunk)
+      for (const riga of raccontate) this.racconta(riga)
+      if (errore !== '') console.error('[pty-host]', errore)
     })
 
     child.on('exit', (code) => {
