@@ -251,6 +251,25 @@ export function allineaConPiano(coda: Coda, piano: Piano, adesso: string): Modif
 export type CaloPercento = { da: number; a: number; perche: string; il: string }
 export type PercentoWs = { valore?: number; il: string; calo?: CaloPercento }
 
+/** Quello che `GET /orchestratore?ws=` manda alla vista (P3). */
+export type VistaOrchestratore = {
+  workspace: string
+  attivo: boolean
+  /** Il workspace ha già autopiloti: l'interruttore si accende con «Attiva». */
+  conAutopiloti: boolean
+  autopilota?: string
+  modello: 'sonnet' | 'opus'
+  tettoSpecialisti: number
+  percento?: number
+  calo?: CaloPercento
+  /** Una chiamata è in volo adesso, o un messaggio la aspetta: la vista dice «sta pensando». */
+  pensa: boolean
+  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string }[]
+  piano: { totale: number; uniti: number }
+  /** Gli autopiloti di prima, in sola lettura. */
+  precedenti: { id: string; nome: string; stato: string; iniziatoIl: string }[]
+}
+
 /** Quanto resta visibile il perché di un calo. */
 export const CALO_VISIBILE_MS = 6 * 3_600_000
 

@@ -1138,6 +1138,11 @@ contextBridge.exposeInMainWorld('gestore', {
     codaSepara: (ws: string, id: string): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaSepara', ws, id),
     /** Unisce a mano: ogni punto delle richieste unite va nominato. */
     codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaUnisci', ws, u),
+    /** P3: l'autopilota unico del workspace (vista, interruttore, impostazioni). */
+    orchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined> => ipcRenderer.invoke('autopilota:orchestratore', ws),
+    attivaOrchestratore: (ws: string, cwd?: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:attivaOrchestratore', ws, cwd),
+    disattivaOrchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:disattivaOrchestratore', ws),
+    impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>

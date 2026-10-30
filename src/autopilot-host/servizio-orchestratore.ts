@@ -9,7 +9,7 @@ import {
 } from '@shared/coda-richieste'
 import {
   allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita,
-  type CompitoPiano, type PercentoWs, type Piano
+  type CompitoPiano, type Piano, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
 import { preamboloRuolo, RUOLI, type Ruolo } from '@shared/ruoli-agenti'
 import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
@@ -98,24 +98,7 @@ export type ContestoUnico = {
   chiamateMax?: number
 }
 
-/** Quello che `GET /orchestratore?ws=` manda alla vista. */
-export type VistaOrchestratore = {
-  workspace: string
-  attivo: boolean
-  /** Il workspace ha già autopiloti: l'interruttore si accende con «Attiva». */
-  conAutopiloti: boolean
-  autopilota?: string
-  modello: 'sonnet' | 'opus'
-  tettoSpecialisti: number
-  percento?: number
-  calo?: PercentoWs['calo']
-  /** Una chiamata è in volo adesso (la vista dice «sta pensando»). */
-  pensa: boolean
-  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string }[]
-  piano: { totale: number; uniti: number }
-  /** Gli autopiloti di prima, in sola lettura. */
-  precedenti: { id: string; nome: string; stato: string; iniziatoIl: string }[]
-}
+export type { VistaOrchestratore }
 
 export type ServizioUnico = {
   attivo: (ws: string) => boolean
@@ -286,6 +269,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const apriOra = async (ws: string, p: { compito: CompitoPiano; ruolo: Ruolo; istruzioni: string }): Promise<EsitoAmbiente> => {
     const a0 = unicoDi(ws)
     if (a0 === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
+    if (a0.stato !== 'lavoro') return { ok: false, motivo: 'Nicholas ha fermato l’autopilota: nessuno specialista nuovo finché non lo riprende' }
     const id = idChatNuova(a0)
     let dove: { cartella?: string; ramo?: string } = {}
     const g = gitA()

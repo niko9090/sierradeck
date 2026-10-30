@@ -1658,6 +1658,20 @@ export function registerAutopilotaIpc(
     if (typeof o.testo !== 'string' || typeof o.perche !== 'string') throw new Error('richiesta IPC non valida')
     return client.unisciCoda(wsCoda(ws), { ids, testo: o.testo, punti, perche: o.perche, ...(typeof o.titolo === 'string' ? { titolo: o.titolo } : {}) })
   })
+  // P3: l'autopilota unico del workspace.
+  ipcMain.handle('autopilota:orchestratore', async (_e, ws: unknown) => client.orchestratore(wsCoda(ws)).catch(() => undefined))
+  ipcMain.handle('autopilota:attivaOrchestratore', async (_e, ws: unknown, cwd: unknown) => {
+    if (cwd !== undefined && (typeof cwd !== 'string' || cwd.length > 1000)) throw new Error('richiesta IPC non valida')
+    return client.attivaOrchestratore(wsCoda(ws), cwd)
+  })
+  ipcMain.handle('autopilota:disattivaOrchestratore', async (_e, ws: unknown) => client.disattivaOrchestratore(wsCoda(ws)))
+  ipcMain.handle('autopilota:impostaOrchestratore', async (_e, ws: unknown, p: unknown) => {
+    const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
+    return client.impostaOrchestratore(wsCoda(ws), {
+      ...(o.modello === 'sonnet' || o.modello === 'opus' ? { modello: o.modello } : {}),
+      ...(typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? { tettoSpecialisti: o.tettoSpecialisti } : {})
+    })
+  })
 
   // L'avvio al login vive nel Core e non nel servizio: è il Core a sapere dove
   // sono l'eseguibile e lo script compilato, e il servizio non deve poter
