@@ -1,4 +1,5 @@
 import { chatAlLavoro, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { haDettoFatto } from '@shared/segnali-flotta'
 
 /**
  * Le regole del servizio sui posti delle chat (0.82.0): quante lavorano su
@@ -84,7 +85,8 @@ export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
  * Torna come si conclude la chat, o `undefined` se non è finita.
  */
 export function pezzoFinito(c: ChatGovernata, ramoChiuso: 'mancante' | 'unito' | undefined): 'unito' | 'tolto' | undefined {
-  if (c.segnale?.tipo !== 'fatto' || c.ruolo === 'revisione') return undefined
+  // 0.86.1: un «fatto» detto prima dell'ultima istruzione non chiude niente.
+  if (!haDettoFatto(c) || c.ruolo === 'revisione') return undefined
   if (c.ramo === undefined) return 'unito'
   if (ramoChiuso === 'mancante') return 'tolto'
   if (ramoChiuso === 'unito') return 'unito'

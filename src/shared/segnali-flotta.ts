@@ -32,6 +32,13 @@ export type SegnaleChat = {
   cosa?: string
   /** La chat l'ha scritto con la riga `SEGNALE:`; falso = dedotto dal programma. */
   dichiarato: boolean
+  /**
+   * Dopo questo segnale le si è mandato altro lavoro (0.86.1): un'istruzione a
+   * fine turno, una consegna, una ripresa con un messaggio (ISO: quando). Un
+   * «fatto» superato non dice più che la chat ha finito (`haDettoFatto`); il
+   * segnale resta, per sapere cosa aveva detto. Il segnale dopo lo sostituisce.
+   */
+  superatoIl?: string
 }
 
 const TIPI: readonly TipoSegnale[] = ['parto', 'avanti', 'fatto', 'bloccata', 'aspetto']
@@ -45,10 +52,28 @@ export function leggiSegnaleChat(x: unknown): SegnaleChat | undefined {
   const motivo = t(o.motivo)
   const di = t(o.di)
   const cosa = t(o.cosa)
+  const superatoIl = typeof o.superatoIl === 'string' && !Number.isNaN(Date.parse(o.superatoIl)) ? o.superatoIl : undefined
   return {
     tipo: o.tipo as TipoSegnale, quando: o.quando, dichiarato: o.dichiarato === true,
-    ...(motivo !== undefined ? { motivo } : {}), ...(di !== undefined ? { di } : {}), ...(cosa !== undefined ? { cosa } : {})
+    ...(motivo !== undefined ? { motivo } : {}), ...(di !== undefined ? { di } : {}), ...(cosa !== undefined ? { cosa } : {}),
+    ...(superatoIl !== undefined ? { superatoIl } : {})
   }
+}
+
+/**
+ * **La chat ha detto «fatto», e vale ancora** (0.86.1). Il segnale resta
+ * sulla chat finché non ne arriva un altro: una chat che aveva detto «fatto»
+ * e poi ha ricevuto altro lavoro risultava finita — l'autopilota chiudeva il
+ * lavoro, o la chat, a metà. Un «fatto» superato (`superatoIl`) non vale.
+ */
+export function haDettoFatto(c: { segnale?: SegnaleChat }): boolean {
+  return c.segnale?.tipo === 'fatto' && c.segnale.superatoIl === undefined
+}
+
+/** Il segnale dopo che alla chat si è mandato altro lavoro: un «fatto» resta scritto, ma superato. */
+export function segnaleSuperato(s: SegnaleChat | undefined, quando: string): SegnaleChat | undefined {
+  if (s === undefined || s.tipo !== 'fatto' || s.superatoIl !== undefined) return s
+  return { ...s, superatoIl: quando }
 }
 
 /** La regola che la chat riceve nel primo messaggio. */

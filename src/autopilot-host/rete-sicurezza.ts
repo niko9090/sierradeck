@@ -1,4 +1,6 @@
 import type { Autopilota } from '@shared/autopilota'
+import { statoRichiesta } from '@shared/richieste-nicholas'
+import { haDettoFatto } from '@shared/segnali-flotta'
 import { esitiCheDecidono, giudicato, senzaMisura } from './criteri-giudicati'
 import type { Decisione, EsitoVerifica } from './decisione'
 import { chiediBloccato, riassuntoFallimenti, rigaCompito } from './decisione'
@@ -50,6 +52,19 @@ export type FattiCompiuto = {
   release?: string[]
   /** La chat singola (senza flotta) ha chiuso il turno con «SEGNALE: fatto». */
   chatSingolaFatto?: boolean
+  /** Le domande ancora aperte di questo autopilota (0.86.1): con una aperta il lavoro non è compiuto. */
+  domandeAperte?: number
+}
+
+/**
+ * I messaggi in coda che aspettano ancora una chat viva (0.86.1): quelli per
+ * l'autopilota stesso (la chat singola) o per una chat non finita. Quelli per
+ * una chat già finita non arriveranno mai a nessuno e non tengono aperto il
+ * lavoro.
+ */
+export function messaggiDaConsegnare(a: Pick<Autopilota, 'id' | 'chats' | 'daConsegnare'>, chat?: string): number {
+  const viva = (k: string): boolean => k === a.id || a.chats.some((c) => c.id === k && c.stato !== 'finita')
+  return a.daConsegnare.filter((m) => (chat === undefined ? m.chats.some(viva) : m.chats.includes(chat))).length
 }
 
 /**
@@ -80,9 +95,16 @@ export function lavoroCompiuto(a: Autopilota, esiti: EsitoVerifica[], fatti: Fat
   }
   if (misurati === 0) return false
   if (a.compitiDaFare.length > 0) return false
+  // 0.86.1: un messaggio di Nicholas ancora da consegnare, una sua richiesta
+  // non fatta, una domanda aperta: il lavoro non è compiuto.
+  if (messaggiDaConsegnare(a) > 0) return false
+  // (Una richiesta il cui criterio non c'è più non si potrà mai fare: non tiene aperto niente.)
+  if ((a.richieste ?? []).some((r) => statoRichiesta(r, a) !== 'fatta' && a.criteri.some((c) => c.descrizione === r.criterio))) return false
+  if ((fatti.domandeAperte ?? 0) > 0) return false
   // Senza flotta l'unica chat è l'autopilota: deve averlo detto lei.
   if (a.chats.length === 0 && fatti.chatSingolaFatto !== true) return false
-  if (a.chats.some((c) => (c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa') && c.segnale?.tipo !== 'fatto')) return false
+  // 0.86.1: «fatto» vale solo se detto dopo l'ultima istruzione (`haDettoFatto`).
+  if (a.chats.some((c) => (c.stato === 'lavoro' || c.stato === 'bloccata' || c.stato === 'pausa') && !haDettoFatto(c))) return false
   if (fatti.ramiAperti > 0) return false
   if (fatti.release !== undefined && fatti.release.length > 0) {
     if (fatti.versione === undefined || !fatti.release.includes(fatti.versione.replace(/^v/, ''))) return false

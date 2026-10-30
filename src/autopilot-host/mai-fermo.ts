@@ -1,4 +1,5 @@
 import { FERMA_DA_DIRE_MS, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { haDettoFatto } from '@shared/segnali-flotta'
 import { chiaveTurno } from './guardiano'
 
 /**
@@ -241,7 +242,7 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
   const avvisaNicholas: string[] = []
   for (const c of daToccare) {
     // 29/10: chi ha detto «fatto» con il lavoro già nel principale si chiude.
-    if (c.segnale?.tipo === 'fatto' && v.giaFatto?.(c) === true) {
+    if (haDettoFatto(c) && v.giaFatto?.(c) === true) {
       mosse.push({ tipo: 'chiudi', chatId: c.id })
       righe.push(`${c.id}: ha detto «fatto» e il suo lavoro è già nel principale → la chiudo`)
       continue
@@ -256,7 +257,7 @@ export function giroMaiFermo(a: Autopilota, v: VistaMaiFermo): GiroMaiFermo | un
         righe.push(`${c.id}: muta, ma il suo lavoro è già nel principale → la chiudo invece di darlo a una chat nuova`)
         continue
       }
-      if (v.qualcosaDaFare === false || c.segnale?.tipo === 'fatto') m = { tipo: 'riprendi', chatId: c.id, interrompi: !vistaChat.fermaAlPrompt(c.id), muta: m.muta }
+      if (v.qualcosaDaFare === false || haDettoFatto(c)) m = { tipo: 'riprendi', chatId: c.id, interrompi: !vistaChat.fermaAlPrompt(c.id), muta: m.muta }
     }
     // Al tetto delle chat nuove, una riga a Nicholas alla prima ripresa che non risponde.
     if (m.tipo === 'riprendi' && c.ripresa?.volte === 1 && (c.sostituzioni ?? 0) >= SOSTITUZIONI_MAX) {

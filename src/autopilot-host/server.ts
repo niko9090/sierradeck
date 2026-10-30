@@ -12,7 +12,7 @@ import {
   decidi, decidiConGiudizio, nonMisurati, ripetizioniFinali, rigaCompito, traccia, type Decisione as Mossa, type EsitoVerifica
 } from './decisione'
 import { chiediDecisione } from './decisione-supervisore'
-import { applicaRete, fallitiDavvero, interrogaSupervisore, lavoroCompiuto, rigaSupervisoreMancato, senzaSupervisore, type FattiCompiuto } from './rete-sicurezza'
+import { applicaRete, fallitiDavvero, interrogaSupervisore, lavoroCompiuto, messaggiDaConsegnare, rigaSupervisoreMancato, senzaSupervisore, type FattiCompiuto } from './rete-sicurezza'
 import { dopoRifiuto, esitiCheDecidono, rifiutiDi, rigaChiusoSenzaMisura } from './criteri-giudicati'
 import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
 import { chatDellaDomandaRifacimenti, compitoDallaDomanda, eDomandaRifacimenti, noteDallaDomanda, okRespintoDaiCriteri, oltreIlTetto, rigaDaParte, stradaOltre, testoDaCapo } from './oltre-rifacimenti'
@@ -31,7 +31,7 @@ import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { parolaRapporto, rapportoDiFineTurno, rapportoNuovo, righeQuadroChat, type RapportoChat } from '@shared/rapporti-chat'
-import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, parolaSegnale, quadroFlotta, rigaDoppione, rigaSegnale, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
+import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, haDettoFatto, parolaSegnale, segnaleSuperato, quadroFlotta, rigaDoppione, rigaSegnale, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, type Memoria } from './memoria'
@@ -1091,6 +1091,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * appena avviato ha comunque tutto il tempo di silenzio davanti a se' prima
    * di essere considerato fermo.
    */
+  /**
+   * **A una chat si è mandato lavoro** (0.86.1): un'istruzione a fine turno,
+   * una consegna, una ripresa con un messaggio. Il suo «fatto» di prima è
+   * superato (`segnaleSuperato`, `haDettoFatto`): non conta più per chiudere
+   * lei, né l'autopilota. Il segnale resta scritto (il «fatto di nuovo» lo
+   * guarda); il prossimo della chat lo sostituisce.
+   */
+  function segnaIstruita(id: string, chatId: string): void {
+    const fresco = deps.archivio.leggi(id)
+    const c = fresco?.chats.find((x) => x.id === chatId)
+    if (fresco === undefined || c === undefined || !haDettoFatto(c)) return
+    const il = deps.adesso()
+    console.info(`[autopilota] ${id} — ${chatId} aveva detto «fatto» e riceve altro lavoro: il suo «fatto» non conta più`)
+    salva({ ...fresco, chats: fresco.chats.map((x) => (x.id === chatId ? { ...x, segnale: segnaleSuperato(x.segnale, il) } : x)) })
+  }
+
   const avviaLavoro = (a: Autopilota, messaggio?: string, chat?: ChatGovernata, presi: MessaggioPerLaChat[] = [], opz?: { ancheAlLavoro?: boolean }): Promise<EsitoAvvio> => {
     // 0.84.1: dopo «Installa» nessuna consegna nuova, da nessuna strada (chat
     // ferme, freno, supervisore, mai-fermo, dialogo). Il 21/10 una chat ferma a
@@ -1120,6 +1136,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return Promise.resolve({ rifiutata: 'la chat ha già finito' })
     }
     ultimaConsegna.set(chiaveTurno(a.id, chat?.id), Date.parse(deps.adesso()))
+    // 0.86.1: le si manda lavoro: un suo «fatto» di prima non vale più.
+    if (messaggio !== undefined && chat !== undefined) segnaIstruita(a.id, chat.id)
     // Le si manda un turno: non è più «ferma ad aspettare» finché il Gestore
     // non lo rivede.
     fermaDal.delete(chiaveTurno(a.id, chat?.id))
@@ -2218,7 +2236,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const giaFattoDaSolo = (a: Autopilota, c: ChatGovernata): boolean => {
     const git = deps.git
-    const fatto = c.segnale?.tipo === 'fatto'
+    const fatto = haDettoFatto(c)
     if (c.ramo === undefined) return fatto
     if (git === undefined || a.ramoBase === undefined) return false
     const p = { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }
@@ -3611,7 +3629,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const versione = versioneDelProgetto(a.cwd)
     const release = (await statoVeroDi(a)).releasePubblicate
     releaseConosciute.set(a.cwd, release ?? [])
-    return { ramiAperti, ...(versione !== undefined ? { versione } : {}), ...(release !== undefined ? { release } : {}) }
+    return { ramiAperti, domandeAperte: deps.domande.aperte(a.id).length, ...(versione !== undefined ? { versione } : {}), ...(release !== undefined ? { release } : {}) }
   }
   /**
    * Lo stesso controllo senza aspettare (il giro da solo, 29/10): i criteri
@@ -3631,7 +3649,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     const versione = versioneDelProgetto(a.cwd)
     const release = releaseConosciute.get(a.cwd) ?? []
-    return lavoroCompiuto(a, esitiSalvati(a), { ramiAperti, ...(versione !== undefined ? { versione } : {}), release })
+    return lavoroCompiuto(a, esitiSalvati(a), { ramiAperti, domandeAperte: deps.domande.aperte(a.id).length, ...(versione !== undefined ? { versione } : {}), release })
   }
   /**
    * **Il lavoro compiuto si chiude** (29/10) anche senza un turno di chat:
@@ -3886,7 +3904,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Ha detto «fatto» e il suo ramo è già nel principale (o non ce l'ha, o non
     // c'è più): niente criteri e niente supervisore. Era c-157, 531 «rifaccio il
     // giro» in un giorno con il ramo già unito.
-    if (mia !== undefined && chatId !== undefined && mia.segnale?.tipo === 'fatto' && mia.ruolo !== 'revisione' && mia.approvata !== true) {
+    // 0.86.1: non con un «fatto» superato da un'istruzione dopo (`haDettoFatto`),
+    // né con un messaggio in coda per lei o una sua domanda aperta: la chat non
+    // si chiude, il giro va avanti e il messaggio le arriva.
+    const conCosePerLei = chatId !== undefined && (
+      messaggiDaConsegnare(deps.archivio.leggi(id) ?? conSessione, chatId) > 0 ||
+      deps.domande.aperte(id).some((d) => (contesto.get(d.id) ?? d.contesto)?.chatId === chatId)
+    )
+    if (mia !== undefined && chatId !== undefined && haDettoFatto(mia) && !conCosePerLei && mia.ruolo !== 'revisione' && mia.approvata !== true) {
       const git = deps.git
       const ramoChiuso = git !== undefined && mia.ramo !== undefined && conSessione.ramoBase !== undefined
         ? await chiusoAlTurno(git, { cwd: conSessione.cwd, ramo: mia.ramo, base: conSessione.ramoBase })
@@ -6364,7 +6389,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           fermateInCorso.set(chiaveFermata, (fermateInCorso.get(chiaveFermata) ?? 0) + 1)
           try {
             // Dentro l'hook l'attesa della guardia ha il tetto corto (0.86.1).
-            rispondi(res, 200, await dentroUnHook(() => stopUnaVolta(id, chatId, corpo)))
+            const risposta = await dentroUnHook(() => stopUnaVolta(id, chatId, corpo))
+            // 0.86.1: la fermata le rimanda lavoro («prosegui», un conflitto,
+            // una risposta): un suo «fatto» di prima non vale più.
+            if (chatId !== undefined && typeof risposta === 'object' && risposta !== null && (risposta as { decision?: unknown }).decision === 'block') segnaIstruita(id, chatId)
+            rispondi(res, 200, risposta)
           } finally {
             const resta = (fermateInCorso.get(chiaveFermata) ?? 1) - 1
             if (resta > 0) fermateInCorso.set(chiaveFermata, resta)
