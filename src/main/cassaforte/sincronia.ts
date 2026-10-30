@@ -1195,13 +1195,17 @@ export function apriSincronia(deps: {
       // Alla chiusura (`conArrivo: false`) sale tutto, chat vive comprese: e'
       // l'ultima occasione prima che l'altro PC le cerchi.
       const r = await this.salva(false, { automatico: opzioni?.conArrivo !== false })
+      // 0.88.5: un lavoro sul Drive ancora in corso (il primo caricamento di un progetto grande dura anche un'ora) non è
+      // un guasto: il giro si salta e basta. Prima diceva «non riuscito» ogni cinque minuti e la Salute lo contava fra gli errori.
+      const giaInCorso = (m: string | undefined): boolean => m?.startsWith('LAVORO_IN_CORSO') === true
+      if (!r.ok && giaInCorso(r.messaggio)) { log('automatico: salto il giro, sul Drive sta ancora girando il lavoro di prima'); return }
       if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
       if (opzioni?.conArrivo === false) return
       // Poi si guarda se c'e' qualcosa da portare giu': la sincronizzazione va
       // nei due versi, e finche' andava in uno solo le chat dell'altro PC non
       // arrivavano mai da sole.
       const a = await this.arrivo()
-      if (!a.ok) log(`automatico: arrivo non riuscito (${a.messaggio ?? '?'})`)
+      if (!a.ok && !giaInCorso(a.messaggio)) log(`automatico: arrivo non riuscito (${a.messaggio ?? '?'})`)
     },
 
     async ripristina() {
