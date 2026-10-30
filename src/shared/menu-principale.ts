@@ -41,7 +41,7 @@ export type VoceMenu = {
 export const MENU_PRINCIPALE: readonly VoceMenu[] = [
   {
     id: 'progetti', nome: 'Progetti', icona: '▦', breve: 'Progetti',
-    spiega: 'Tutti i tuoi progetti e le loro chat, su tutti i PC: dove lavora ognuno (il PC residente), chi ne ha una copia, cosa è assegnato male. Da qui Apri, Porta qui, Rendi residente, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto.'
+    spiega: 'Tutti i tuoi progetti e le loro chat, su tutti i PC: il PC su cui vive ognuno e come sta. Da qui Apri, Apri su un altro PC, Sposta su questo PC, il contenuto del Drive, il salvataggio e l’arrivo dal Drive, e il quaderno del progetto.'
   },
   {
     id: 'autopiloti', nome: 'Autopiloti', icona: '◉', breve: 'Auto\u00adpiloti',
@@ -74,12 +74,11 @@ export type Funzione = { funzione: string; dove: IdMenu; prima: string }
 
 export const FUNZIONI: readonly Funzione[] = [
   // Progetti, con quello che era del vecchio «☁ Drive» e di Account → Drive
-  { funzione: 'Pannello Progetti (residente, copie, Rendi residente, unioni, recupero)', dove: 'progetti', prima: '▦ Progetti (tasto piccolo)' },
+  { funzione: 'Pannello Progetti (dove vive ogni progetto, Apri su un altro PC, recupero)', dove: 'progetti', prima: '▦ Progetti (tasto piccolo)' },
   { funzione: 'Contenuto del Drive per progetto e per workspace', dove: 'progetti', prima: '☁ Drive' },
   { funzione: 'Porta qui', dove: 'progetti', prima: '☁ Drive' },
-  { funzione: 'Sposta progetto', dove: 'progetti', prima: '☁ Drive' },
+  { funzione: 'Sposta su questo PC', dove: 'progetti', prima: '☁ Drive (Sposta progetto)' },
   { funzione: 'Riordina le chat', dove: 'progetti', prima: '☁ Drive' },
-  { funzione: 'Dove vive ogni chat', dove: 'progetti', prima: '☁ Drive, Impostazioni → Chat' },
   { funzione: 'Togli e rimetti un workspace sul Drive', dove: 'progetti', prima: '☁ Drive' },
   { funzione: 'Salva ora e Ripristina', dove: 'progetti', prima: 'Impostazioni → Account' },
   { funzione: 'Salvataggio automatico', dove: 'progetti', prima: 'Impostazioni → Account' },

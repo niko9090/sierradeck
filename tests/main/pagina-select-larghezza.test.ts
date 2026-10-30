@@ -14,8 +14,8 @@ describe('i menu a tendina della pagina stanno nello schermo', () => {
   it('regola generale: select { max-width: 100%; min-width: 0 }', () => {
     expect(pagina).toMatch(/select \{ max-width: 100%; min-width: 0; \}/)
   })
-  it('«Sposta su…» si restringe e la sua riga va a capo', () => {
-    expect(pagina).toContain('<select aria-label="Sposta su" style="flex:1 1 140px;min-width:0;max-width:100%"')
-    expect(pagina).toContain('margin-bottom:6px;flex-wrap:wrap"><span class="sotto" style="flex:none">Dove vive')
+  it('«Sposta su…» non c’è più (0.88.0): «Dove vive» è una riga di testo, senza tendina', () => {
+    expect(pagina).not.toContain('aria-label="Sposta su"')
+    expect(pagina).toContain('<div class="sotto" style="margin-bottom:6px">Dove vive: <b>')
   })
 })

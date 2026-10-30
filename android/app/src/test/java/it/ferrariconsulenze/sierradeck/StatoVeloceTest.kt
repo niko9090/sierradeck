@@ -160,7 +160,7 @@ class StatoVeloceTest {
         assertTrue(drive.contains("Davanti.pausa(500)") && drive.contains("Davanti.pausa(2000)"))
         assertFalse(Regex("""\bdelay\(""").containsMatchIn(drive))
         val pannello = sorgente("PannelloDrive.kt")
-        assertTrue(pannello.contains("Davanti.pausa(2500); leggi()") && pannello.contains("Davanti.pausa(4000); leggi()"))
+        assertTrue(pannello.contains("Davanti.pausa(4000); leggi()"))
         assertFalse(pannello.contains("coroutines.delay("))
     }
 }

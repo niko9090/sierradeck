@@ -25,7 +25,7 @@ export type Sezione = { id: IdSezione; titolo: string; spiega: string }
 export const SEZIONI: readonly Sezione[] = [
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', spiega: 'Le versioni di questo programma e del computer collegato, se ce n’è una nuova, cosa cambia, e com’è andato l’ultimo tentativo.' },
   { id: 'computer', titolo: 'Computer', spiega: 'Come si chiama questo computer, le porte, quali reti accetta e i dispositivi accoppiati. Gli altri PC e le strade per raggiungerli stanno in Salute.' },
-  { id: 'chat', titolo: 'Chat e autopiloti', spiega: 'Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. Dove vive ogni chat sta in Progetti. «Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.' },
+  { id: 'chat', titolo: 'Chat e autopiloti', spiega: 'Il PIN, il quaderno personale, cosa fanno le chat quando cambi workspace e dove si apre la scheda di un autopilota. «Riparti al login» degli autopiloti sta in Autopiloti, nel menu «Strumenti ▾»: vale per tutti insieme.' },
   { id: 'drive', titolo: 'Drive e salvataggi', spiega: 'L’account Google del Drive, gli avvisi del salvataggio e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti.' },
   { id: 'aspetto', titolo: 'Aspetto', spiega: 'Colori, chiarezza e la disposizione dei pannelli.' },
   { id: 'notifiche', titolo: 'Notifiche', spiega: 'Quando e come avvisa che una chat o un autopilota ha bisogno di te.' },

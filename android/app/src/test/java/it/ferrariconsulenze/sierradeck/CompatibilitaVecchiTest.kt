@@ -21,7 +21,7 @@ class CompatibilitaVecchiTest {
     fun `le azioni nuove su un PC vecchio dicono quale versione serve, mai un errore secco`() {
         for (v in listOf("0.50.0", "0.54.0")) {
             for ((rotta, f) in listOf("chat-dormi" to FunzionePc.GESTIONE, "chat-sposta" to FunzionePc.GESTIONE, "workspace-rinomina" to FunzionePc.GESTIONE,
-                "pin-proteggi" to FunzionePc.PARITA, "chat-ospite" to FunzionePc.PARITA, "autopilota-archivia" to FunzionePc.PARITA)) {
+                "pin-proteggi" to FunzionePc.PARITA, "autopilota-archivia" to FunzionePc.PARITA)) {
                 assertEquals("$v $rotta", 404, stato(v, rotta))
                 val t = spiegaGestione(errore(v, rotta), "farlo", "PC-ESEMPIO", f)
                 assertTrue("$v $rotta: $t", t.startsWith(f.nome) && t.contains("alla ${f.minima}") && t.contains("Installa là"))
@@ -55,7 +55,7 @@ class CompatibilitaVecchiTest {
         assertTrue(t, t.startsWith("PC-ESEMPIO ha la versione 0.50.0, il PC a cui è collegato il telefono la 0.56.2."))
         assertTrue(t, t.contains("la sezione File e i file dal PC al telefono"))
         assertTrue(t, t.contains("Installa là"))
-        assertTrue(PcIndietro.testo("PC-ESEMPIO", "0.54.0", "0.56.2")!!.contains("il PIN, l'ospite"))
+        assertTrue(PcIndietro.testo("PC-ESEMPIO", "0.54.0", "0.56.2")!!.contains("il PIN, l'archivio degli autopiloti"))
         assertNull(PcIndietro.testo("PC-ESEMPIO", "0.56.2", "0.56.2"))
         assertNull(PcIndietro.testo("PC-ESEMPIO", null, "0.56.2"))
     }

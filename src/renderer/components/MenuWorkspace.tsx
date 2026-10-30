@@ -175,7 +175,6 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
       case 'apri': scegli(v); return
       case 'rinomina': setRinomina({ vecchio: v.nome, testo: v.nome }); return
       case 'cartella': chiudi(); onApriCartella?.(v.nome); return
-      case 'sposta': return
       case 'elimina': chiudi(); setDaEliminare(v.nome); return
       // «Porta qui» (0.88.0): un progetto cambia PC solo con «Sposta su
       // questo PC», in Progetti, con i suoi controlli. Si apre lì.

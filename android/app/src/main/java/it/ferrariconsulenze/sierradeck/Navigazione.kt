@@ -41,7 +41,7 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
     CHAT("Chat", "Workspace a elenco, Torna come prima", "chat"),
     QUADERNO("Quaderno personale", "Le tue note per tutte le chat"),
-    ACCOUNT("Account", "Esci, entra, passa a un altro", "drive"),
+    DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive"),
     ASPETTO("Aspetto", "Banco o Foglio, chiarore", "aspetto"),
     AVVISI("Avvisi", "Controllo continuo, quali notifiche", "notifiche"),
     INFO("Info ed errori", "Versioni, Copia i dettagli, errori", "info");
@@ -52,7 +52,7 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
             "aggiornamenti" -> AGGIORNAMENTI
             "computer" -> ALTRI_PC
             "chat" -> if (voce == "quaderno-personale") QUADERNO else CHAT
-            "drive" -> ACCOUNT
+            "drive" -> DRIVE
             "aspetto" -> ASPETTO
             "notifiche" -> AVVISI
             else -> INFO

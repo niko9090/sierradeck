@@ -79,7 +79,7 @@ describe('le regole della navigazione', () => {
     // L'app ha Chat e Quaderno personale separati; la pagina li ha insieme, come le Impostazioni del PC.
     const pagina = SEZIONI_ALTRO.map((s) => s.titolo)
     expect(pagina.slice(0, 4)).toEqual(titoliApp.slice(0, 4))
-    for (const t of ['Account', 'Aspetto', 'Avvisi', 'Info ed errori']) {
+    for (const t of ['Drive', 'Aspetto', 'Avvisi', 'Info ed errori']) {
       expect(titoliApp).toContain(t)
       expect(pagina).toContain(t)
     }

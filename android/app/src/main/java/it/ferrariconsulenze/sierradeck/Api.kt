@@ -332,24 +332,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun azioneDrive(azione: String, progetto: String, id: String = ""): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
 
-    /** «Vai avanti senza» un PC spento (PC 0.71.1): il trasloco riparte, la sua copia si sistema quando torna. */
-    suspend fun traslocoSenza(id: String, pc: String): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", "trasloco-senza"); put("id", id); put("pc", pc) }))
-
-    /** «Sposta su ▾» (PC 0.71.0): il progetto va a vivere sul PC scelto, da qualsiasi PC. */
-    suspend fun spostaSu(progetto: String, pc: String): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", "sposta-su"); put("progetto", progetto); put("pc", pc) }))
-
     /** Le azioni dello spazio sul Drive (PC 0.65.0): misura, pulisci, annulla, svuota. */
     suspend fun azioneSpazio(azione: String, tipo: String = "", id: String = ""): EsitoAzioneDrive =
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id) }))
-
-    suspend fun residenteDrive(sessioni: List<String>, pc: PcDrive): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto {
-            put("azione", "residente")
-            put("sessioni", kotlinx.serialization.json.JsonArray(sessioni.map { kotlinx.serialization.json.JsonPrimitive(it) }))
-            put("pc", kotlinx.serialization.json.buildJsonObject { put("id", pc.id); put("nome", pc.nome) })
-        }))
 
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =
@@ -368,10 +353,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     suspend fun proteggiChat(chat: String, si: Boolean): Fatto =
         json.decodeFromString(corpoTesto("/api/pin/proteggi", oggetto { put("chat", chat); put("si", si) }))
-
-    /** `pc = "qui"` = il PC che risponde. */
-    suspend fun ospiteChat(chat: String, pc: String, pcNome: String): EsitoOspite =
-        json.decodeFromString(corpoTesto("/api/chat/ospite", oggetto { put("chat", chat); put("pc", pc); put("pcNome", pcNome) }))
 
     suspend fun modelli(): ElencoModelli = json.decodeFromString(corpoTesto("/api/modelli", null))
 
@@ -449,16 +430,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         }))
 
     /**
-     * Con tutti i campi della finestra del PC (PC 0.55.0), già controllati da
-     * `AzioniTelefono.controlla`. Un PC di prima legge obiettivo, cartella,
-     * regola e cloud, e ignora il resto.
+     * Con i campi della finestra del PC (PC 0.55.0), già controllati da
+     * `AzioniTelefono.controlla`. Criteri e partenza no (PC 0.88.0): l'autopilota
+     * unico se li ricava lui, e il PC li ignorava.
      */
     suspend fun creaAutopilota(r: RichiestaAutopilota): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/crea", oggetto {
             put("obiettivo", r.obiettivo); put("cartella", r.cwd); put("nome", r.nome)
-            put("criteri", r.criteri.joinToString("\n") { it.descrizione })
             put("pubblicazione", r.pubblicazione); put("vaSulCloud", r.vaSulCloud == true)
-            put("partenza", r.partenza)
             r.workspace?.let { put("workspace", it) }
         }))
 
@@ -656,27 +635,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun rifaiMigrazione(): EsitoMigrazioneApp =
         json.decodeFromString(corpoTesto("/api/migrazione/rifai", oggetto { }))
 
-    /** Con quale account sta lavorando il computer. */
+    /**
+     * La catena del Drive del computer. Dal PC 0.88.0 l'account di SierraDeck
+     * non c'è più: risponde `entrato: false`, con la catena se c'è.
+     */
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))
-
-    /**
-     * Entra con un altro account.
-     *
-     * Cambiare account è questo preceduto da [esciAccount]: non c'è un comando
-     * apposta, e uno in meno è uno in meno che può sbagliare.
-     */
-    suspend fun entraAccount(email: String, password: String): EsitoNegozio =
-        json.decodeFromString(
-            corpoTesto("/api/account/entra", oggetto {
-                put("email", email)
-                put("password", password)
-            })
-        )
-
-    /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
-    suspend fun esciAccount(): Fatto =
-        json.decodeFromString(corpoTesto("/api/account/esci", oggetto { }))
 
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
@@ -723,7 +687,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // PC 0.81.0: le stesse lente del ponte del PC (pc-remoto.ts). Con 15 s
             // l'app diceva «scaduto» mentre il PC creava il workspace, e chi
             // riprovava ne faceva due. Un test le tiene allineate.
-            "/api/trasloco/salva", "/api/trasloco/togli", "/api/trasloco/ripristina", "/api/trasloco/avvia", "/api/trasloco/annulla",
             "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco", "/api/file/cartella"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */

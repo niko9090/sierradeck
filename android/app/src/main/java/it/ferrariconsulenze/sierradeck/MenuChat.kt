@@ -65,7 +65,7 @@ import androidx.compose.ui.draw.clip
 
 /**
  * Il «⋯» di una chat (PC 0.55.0, app 2.56.0): Rinomina, Dormi o Svegliala,
- * Sposta, PIN, Ospitata da…, Chiudi, Apri cartella, Archivia o elimina. Dalla
+ * Sposta, PIN, Chiudi, Apri cartella, Archivia o elimina. Dalla
  * 2.83.0 sta anche su ogni riga dell'elenco delle chat: due tocchi invece di tre.
  * `onLasciata` dice che la chat non c'è più (chiusa, spostata, archiviata).
  */
@@ -82,10 +82,9 @@ fun MenuChat(api: Api, chat: Chat, workspace: Workspace, nomePc: String?, versio
     var addormentando by remember { mutableStateOf(false) }
     var spostando by remember { mutableStateOf(false) }
     var spostaIn by remember { mutableStateOf<String?>(null) }
-    // Il PIN e l'ospite (app 2.56.0), come i tasti 🔐 e 🏠 del riquadro sul PC.
+    // Il PIN (app 2.56.0), come il tasto 🔐 del riquadro sul PC. L'ospite non c'è più (PC 0.88.0):
+    // una chat vive con il suo progetto, sul PC del progetto.
     var pinDa by remember { mutableStateOf<Boolean?>(null) }
-    var ospite by remember { mutableStateOf(false) }
-    var ospiteIn by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Anche su un altro PC, attraverso il ponte. Il tasto è di 48 dp (2.83.0).
     Box {
         IconButton(onClick = { menuAperto = true }, modifier = Modifier.size(48.dp)) {
@@ -100,7 +99,6 @@ fun MenuChat(api: Api, chat: Chat, workspace: Workspace, nomePc: String?, versio
             })
             DropdownMenuItem(text = { Text("Sposta in un altro workspace…") }, onClick = { menuAperto = false; spostando = true })
             DropdownMenuItem(text = { Text(if (chat.pin == null) "Proteggi con il PIN…" else "Togli il PIN…") }, onClick = { menuAperto = false; pinDa = chat.pin == null })
-            DropdownMenuItem(text = { Text("Ospitata da… (quale PC la fa girare)") }, onClick = { menuAperto = false; ospite = true })
             DropdownMenuItem(text = { Text("Chiudi la chat…") }, onClick = { menuAperto = false; chiudendo = true })
             // «Apri cartella» (PC 0.82.0): la sezione File sulla cartella della chat.
             if (FunzioniPc.disponibile(FunzionePc.CARTELLA, versionePc) != false) DropdownMenuItem(text = { Text("Apri cartella") }, onClick = {
@@ -155,13 +153,6 @@ fun MenuChat(api: Api, chat: Chat, workspace: Workspace, nomePc: String?, versio
                     Nota.mostra(if (proteggi) "«$titoloChat» è protetta dal PIN." else "«$titoloChat» non ha più il PIN.")
             }
         }, onNo = { pinDa = null })
-    }
-    if (ospite) SceltaOspite(api, onScegli = { id, nome -> ospite = false; ospiteIn = id to nome }, onChiudi = { ospite = false })
-    ospiteIn?.let { (id, nomeOspite) ->
-        DialogoConferma(AzioniTelefono.confermaOspite(titoloChat, nomeOspite, id == "qui"), onSi = {
-            ospiteIn = null
-            scope.launch { tentaGestione("scegliere l’ospite", nomePc, FunzionePc.PARITA) { api.ospiteChat(chat.id, id, nomeOspite) }?.let { Nota.mostra(it.messaggio.ifBlank { "Fatto: «$titoloChat» è ospitata da $nomeOspite." }) } }
-        }, onNo = { ospiteIn = null })
     }
     spostaIn?.let { verso ->
         DialogoConferma(AzioniTelefono.confermaSposta(titoloChat, verso), onSi = {

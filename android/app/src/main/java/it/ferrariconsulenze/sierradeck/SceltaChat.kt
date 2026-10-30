@@ -287,29 +287,3 @@ private fun Modifier.clickableCartella(onClick: () -> Unit): Modifier =
     this.tocco(onClick = onClick)
 /** Nome e modello scelti nella finestra della chat nuova, per chi la apre (la finestra si chiude nello stesso tocco). */
 internal object NuovaChat { var nome: String = ""; var modello: String = "default" }
-
-/** Quale PC ospita la chat: questo, o uno degli altri accesi della stessa cassaforte. */
-@Composable
-internal fun SceltaOspite(api: Api, onScegli: (String, String) -> Unit, onChiudi: () -> Unit) {
-    var pc by remember { mutableStateOf<ElencoPc?>(null) }
-    LaunchedEffect(Unit) { pc = try { api.pc() } catch (_: Exception) { ElencoPc() } }
-    AlertDialog(
-        onDismissRequest = onChiudi,
-        title = { TitoloDialogo("Ospitata da…", "Il PC ospite è quello su cui la chat lavora davvero: il suo claude.exe parte solo lì, e sugli altri si apre dal vivo guardando lui. Cambiarlo non cancella niente e si annulla da «Dove vive ogni chat» sul PC.") },
-        text = {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Spacer(Modifier.height(8.dp))
-                Text("Il computer di questa chat", color = Banco.testo, modifier = Modifier.fillMaxWidth().clickableCartella { onScegli("qui", PcCorrente.nome ?: "questo PC") }.padding(vertical = 10.dp))
-                HorizontalDivider(color = Banco.incisione)
-                val altri = pc?.pc?.filter { it.pcId != pc?.io } ?: emptyList()
-                if (pc == null) Text("Leggo gli altri PC…", color = Banco.testoQuieto, fontSize = 12.sp)
-                for (p in altri) {
-                    Text(p.mostra + if (p.vivo) "" else " (spento)", color = if (p.vivo) Banco.testo else Banco.testoQuieto,
-                        modifier = Modifier.fillMaxWidth().clickableCartella { onScegli(p.pcId, p.mostra) }.padding(vertical = 10.dp))
-                    HorizontalDivider(color = Banco.incisione)
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onChiudi) { Text("Annulla") } }
-    )
-}

@@ -77,8 +77,9 @@ import androidx.compose.ui.text.style.TextAlign
  * Affida un lavoro nuovo (app 2.55.0), alla pari con la finestra «Nuovo
  * autopilota» del PC: su quale PC, in quale cartella (le chat aperte, i
  * progetti recenti o sfogliando), in quale workspace, l'obiettivo, il nome,
- * i criteri, la regola di pubblicazione, il cloud e la partenza. La
- * validazione è quella del PC (`AzioniTelefono.controlla`).
+ * la regola di pubblicazione e il cloud. La validazione è quella del PC
+ * (`AzioniTelefono.controlla`). Criteri e partenza non si chiedono più
+ * (PC 0.88.0): l'autopilota unico se li ricava lui, e il PC li ignorava.
  *
  * Prima si sceglieva solo fra le cartelle già viste da Claude Code sul PC
  * accoppiato: «quando voglio lanciare un autopilota non mi chiede dove
@@ -130,7 +131,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                         androidx.compose.material3.FilterChip(selected = pcScelto?.pcId == p.pcId, onClick = { pcScelto = PcPonte(p.pcId, p.mostra) }, label = { Text(p.mostra, fontSize = 12.sp, color = VIOLA_ALTRO_PC) })
                     }
                 }
-                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome, criteri, workspace e partenza arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 12.sp)
+                if (vecchio) Text("$nomeDest ha la ${versioneDest ?: "versione di prima"}: riceve solo obiettivo, cartella (fra quelle già viste da Claude Code), regola e cloud; nome e workspace arrivano aggiornandolo alla 0.55.0.", color = Banco.ambra, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── l'obiettivo ───
@@ -177,7 +178,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 )
                 Spacer(Modifier.height(10.dp))
 
-                // ─── pubblicazione, cloud, partenza ───
+                // ─── pubblicazione e cloud ───
                 Row(verticalAlignment = Alignment.CenterVertically) { Text("Pubblicazione del progetto", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto(AzioniTelefono.REGOLE.joinToString("\n\n") { "${it.etichetta}: ${it.spiega}" }, di = "Pubblicazione del progetto") }
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     for (r in AzioniTelefono.REGOLE) androidx.compose.material3.FilterChip(selected = bozza.pubblicazione == r.valore, onClick = { bozza = bozza.copy(pubblicazione = r.valore) }, label = { Text(r.etichetta, fontSize = 12.sp) })
@@ -187,20 +188,6 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("va sul cloud: le chat stanno sul Drive", color = Banco.testo, fontSize = 13.sp); Aiuto("Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui sopra. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.", di = "va sul cloud: le chat stanno sul Drive") }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) { Text("Partenza", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto(AzioniTelefono.PARTENZE.joinToString("\n\n") { "${it.etichetta}: ${it.spiega}" }, di = "Partenza") }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (p in AzioniTelefono.PARTENZE) androidx.compose.material3.FilterChip(selected = bozza.partenza == p.valore, onClick = { bozza = bozza.copy(partenza = p.valore) }, label = { Text(p.etichetta, fontSize = 12.sp) })
-                }
-                Spacer(Modifier.height(10.dp))
-
-                // ─── criteri ───
-                OutlinedTextField(
-                    value = bozza.criteri, onValueChange = { bozza = bozza.copy(criteri = it) },
-                    label = { Text("Come si capisce che ha finito (facoltativo, uno per riga)") },
-                    modifier = Modifier.fillMaxWidth().height(110.dp)
-                )
-                RigaConAiuto("Se li lasci vuoti li ricava lui.", "Sono i criteri di fine: li verifica lui, uno per uno, prima di dichiararsi finito. Se li lasci vuoti se li ricava da solo, guardando il progetto.")
                 Spacer(Modifier.height(8.dp))
                 RigaConAiuto("Quante chat apre lo decide lui.", "Quante chat apre lo decide lui, dentro il freno sui limiti del piano. Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle.")
                 (errore ?: (controllo as? EsitoBozza.No)?.takeIf { bozza.obiettivo.isNotBlank() }?.errore)?.let {
@@ -217,7 +204,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     scope.launch {
                         try {
                             apiDest.creaAutopilota(r)
-                            Nota.mostra("Affidato a $nomeDest: legge il progetto e, se ha domande, arrivano in cima ad Adesso." + if (r.partenza == "subito") " Appena è pronto comincia da solo." else " Poi aspetta il tuo «Vai».")
+                            Nota.mostra("Affidato a $nomeDest: legge il progetto e, se ha domande, arrivano in cima ad Adesso.")
                             onChiudi()
                         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Api.Errore) {
                             errore = spiegaGestione(e, "affidarlo a $nomeDest", nomeDest)

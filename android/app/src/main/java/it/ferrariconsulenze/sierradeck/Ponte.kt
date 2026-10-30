@@ -57,7 +57,7 @@ object Ponte {
         "/api/prova/chiudi", "/api/prova/togli-progetto",
         // La Panoramica del workspace (PC 0.77.0).
         "/api/panoramica",
-        "/api/pin/proteggi", "/api/chat/ospite", "/api/modelli",
+        "/api/pin/proteggi", "/api/modelli",
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
         // L'autopilota unico (PC 0.86.x): la scheda, parlargli, il primo messaggio, i file e l'avanzamento.
         "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",

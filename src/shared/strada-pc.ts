@@ -256,19 +256,12 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/rispondi',
   // Lo storico degli errori verso il PC di sviluppo (0.81.0), anche da reti diverse.
   '/api/errori/arrivati',
-  // «Sposta progetto» (0.42.0): anche fra due PC su reti diverse.
-  '/api/sposta/pronto', '/api/sposta/ricevi', '/api/sposta/verifica',
-  // Il trasloco di un progetto (0.65.0): «Sposta progetto» e «Rendi residente», anche fra reti diverse.
-  '/api/trasloco/salva', '/api/trasloco/togli', '/api/trasloco/togli-stato', '/api/trasloco/ripristina',
-  '/api/trasloco/avvia', '/api/trasloco/stato', '/api/trasloco/riprendi', '/api/trasloco/annulla',
-  // La rimozione sicura (0.58.0): il confronto e il recupero che il trasloco usa.
+  // La rimozione sicura (0.58.0): il confronto e il recupero.
   '/api/rimozione/analisi', '/api/rimozione/stato', '/api/rimozione/pezzo',
   // Il PIN delle chat (0.49.0): lo verifica il PC di casa della chat.
   '/api/pin/sblocca',
   // I file dal telefono attraverso il ponte (0.50.0): a pezzi da 96 KB, che stanno in un messaggio.
   '/api/allegati/inizia', '/api/allegati/pezzo', '/api/allegati/stato', '/api/allegati/fine', '/api/allegati/annulla',
-  // Le case delle chat (0.52.0, «Ospitata da»): la scelta arriva subito agli altri PC.
-  '/api/case',
   // La sezione File del telefono attraverso il ponte (0.54.0): pezzi da 96 KB, come gli allegati.
   '/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/file/cartella',
   '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta',
@@ -278,7 +271,7 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   '/api/prova/chiudi', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).
   '/api/panoramica',
-  '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/pin/proteggi', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   // L’autopilota unico (0.86.x): la scheda, parlargli, il primo messaggio, i file e l’avanzamento.
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',

@@ -1,7 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,9 +28,17 @@ class PannelloDriveTest {
     }
 
     @Test
-    fun `il riassunto della rimozione e le cartelle in recupero`() {
-        assertEquals("attesa-conferma", p.rimozione.stati.single().fase)
+    fun `le cartelle in recupero si leggono (gli stati della rimozione non ci sono più, PC 0_88)`() {
         assertEquals("C:\\Progetti\\Vecchio", p.rimozione.inRecupero.single().percorsoOriginale)
+    }
+
+    @Test
+    fun `un PC alla 0_88 - un PC per progetto, Apri su e Sposta su questo PC fra le azioni`() {
+        val n = Api.json.decodeFromString(PannelloDrive.serializer(), javaClass.classLoader!!.getResource("pannello-drive/pannello-0.88.json")!!.readText())
+        val g = n.progetti.first { it.id == "prog-g" }
+        assertEquals(listOf("apri-remoto", "sposta-qui"), g.azioni.map { it.id })
+        assertEquals("Apri su PORTATILE-ESEMPIO", g.azioni.first().titolo)
+        assertEquals(listOf("apri"), n.progetti.first { it.id == "prog-s" }.azioni.map { it.id })
     }
 
     @Test
@@ -42,13 +49,6 @@ class PannelloDriveTest {
         val sbagliate = PannelloDriveRegole.chat(p, "sbagliati")
         assertTrue(sbagliate.all { it.problemi.isNotEmpty() })
         assertTrue(PannelloDriveRegole.chat(p, "tutti").size >= 2)
-    }
-
-    @Test
-    fun `il cambio di residente di un progetto porta anche lo stato voluto`() {
-        val s = PannelloDriveRegole.sessioniProgetto(p, "prog-g")
-        assertTrue(s.contains("progetto:prog-g"))
-        assertFalse(s.isEmpty())
     }
 
     @Test

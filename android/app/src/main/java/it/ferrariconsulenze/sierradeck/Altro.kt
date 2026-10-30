@@ -64,7 +64,7 @@ private fun SezioneDiAltro(api: Api, s: SezioneAltro) {
         SezioneAltro.AGGIORNAMENTI -> SezioneAggiornamenti(api)
         SezioneAltro.CHAT -> { Sezione(s.titolo); SezioneMigrazione(api) }
         SezioneAltro.QUADERNO -> { Sezione(s.titolo); SezioneQuadernoPersonale(api) }
-        SezioneAltro.ACCOUNT -> SezioneAccount(api)
+        SezioneAltro.DRIVE -> SezioneDrive(api)
         SezioneAltro.ASPETTO -> SezioneAspetto(api)
         SezioneAltro.AVVISI -> SezioneAvvisi()
         SezioneAltro.INFO -> SezioneInfo(api)

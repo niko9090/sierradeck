@@ -113,7 +113,7 @@ class AzioniTelefonoTest {
     }
 
     @Test
-    fun `il corpo di crea autopilota porta tutti i campi, e il PC di prima legge ancora i suoi`() = runBlocking {
+    fun `il corpo di crea autopilota porta i campi che il PC legge, senza criteri né partenza (PC 0_88)`() = runBlocking {
         val r = (AzioniTelefono.controlla(BozzaAutopilota(obiettivo = "Porta i test a verde", cwd = "C:\\Progetti\\Esempio", criteri = "a\nb", cloud = true, partenza = "subito", workspace = "Lavoro")) as EsitoBozza.Ok).richiesta
         val visti = mutableListOf<Pair<String, JsonObject>>()
         val pc = PcFintoHttp { percorso: String, corpo: JsonObject -> visti += percorso to corpo; 200 to """{"fatto":true,"autopilota":"ap-1"}""" }
@@ -121,8 +121,8 @@ class AzioniTelefonoTest {
         assertEquals("ap-1", f.autopilota)
         val corpo = visti.single().second
         assertEquals("C:\\Progetti\\Esempio", s(corpo, "cartella"))
-        assertEquals("a\nb", s(corpo, "criteri"))
-        assertEquals("subito", s(corpo, "partenza"))
+        assertNull(corpo["criteri"])
+        assertNull(corpo["partenza"])
         assertEquals("Lavoro", s(corpo, "workspace"))
         assertEquals(true, corpo["vaSulCloud"]!!.jsonPrimitive.boolean)
         pc.chiudi()

@@ -59,18 +59,17 @@ describe('il menu dei workspace (0.82.0): gruppi', () => {
 })
 
 describe('il menu dei workspace (0.82.0): le azioni dietro «⋯»', () => {
-  it('un workspace di qui: apri, rinomina, Apri cartella, Sposta, Elimina — nessuna tolta', () => {
-    const a = azioniMenuWorkspace({ nome: 'B', qui: true }, { attivo: 'A', quanti: 3, sposta: true })
-    expect(a.map((x) => x.azione)).toEqual(['apri', 'rinomina', 'cartella', 'sposta', 'elimina'])
+  it('un workspace di qui: apri, rinomina, Apri cartella, Elimina — nessuna tolta, niente più «Sposta» (0.88.0)', () => {
+    const a = azioniMenuWorkspace({ nome: 'B', qui: true }, { attivo: 'A', quanti: 3 })
+    expect(a.map((x) => x.azione)).toEqual(['apri', 'rinomina', 'cartella', 'elimina'])
     expect(a.every((x) => x.spenta === undefined)).toBe(true)
     expect(a.find((x) => x.azione === 'elimina')?.pericolo).toBe(true)
   })
 
-  it('dove sei non si «apre» di nuovo; l’ultimo workspace non si elimina; Sposta solo dove si può', () => {
+  it('dove sei non si «apre» di nuovo; l’ultimo workspace non si elimina', () => {
     const a = azioniMenuWorkspace({ nome: 'A', qui: true }, { attivo: 'A', quanti: 1 })
     expect(a.find((x) => x.azione === 'apri')?.spenta).toBeDefined()
     expect(a.find((x) => x.azione === 'elimina')?.spenta).toContain('L’ultimo workspace')
-    expect(a.some((x) => x.azione === 'sposta')).toBe(false)
     expect(azioniMenuWorkspace({ nome: 'A', qui: true }, { attivo: 'B', quanti: 2, cartella: false }).some((x) => x.azione === 'cartella')).toBe(false)
   })
 

@@ -129,10 +129,8 @@ const ATTESA_PREDEFINITA_MS = 4000
  */
 export const ROTTE_LENTE: readonly string[] = [
   '/api/drive/pannello', '/api/drive/azione',
-  // Il trasloco e i workspace che diventano progetti (0.66.1): salvare sul Drive,
-  // scrivere la casa e il registro ci mettono più di 4 secondi. Visto dal vero il
-  // 12/10: «salva» del portatile scadeva, il trasloco si fermava e ripartiva dopo.
-  '/api/trasloco/salva', '/api/trasloco/togli', '/api/trasloco/ripristina', '/api/trasloco/avvia', '/api/trasloco/annulla',
+  // I workspace che diventano progetti (0.66.1): salvare sul Drive e scrivere
+  // il registro ci mettono più di 4 secondi.
   '/api/workspace/crea', '/api/workspace/progetto',
   // Il controllo a tappeto del 12/10 (0.68.0): «Riprendi» di un altro PC dal
   // telefono scadeva (504 dopo 4 s: l'elenco delle conversazioni là ci mette

@@ -80,10 +80,10 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false, aiutiAperti = {}
       var pdGruppo = 'tutti'; var pdQ = ''; var pdOrdine = 'stato'
       ${estrai('aiuto')}
-      ${riga('const PD_PASSI =')}; ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdTraslochiHtml')} ${estrai('pdSpazioHtml')}
+      ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdSpazioHtml')}
       ${riga('const PD_GRUPPI =')}; ${riga('const PD_ORDINI =')}; ${riga('const PD_COLORE =')}; ${riga('const PD_RANGO =')}
-      ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} var pdSpostaVerso = ''; ${estrai('pdSpostaHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
-      ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pdScegliPc')} ${estrai('pannelloDriveHtml')}
+      ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
+      ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown, s: string, t: string) => string)(dati, scelto, strumento)
     // 0.69.0: l'elenco con lo stato in una parola (dal PC), i gruppi con i conti, gli strumenti.
     const h = disegna(atteso)
@@ -91,10 +91,12 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
     // Il dettaglio a tutto schermo: le azioni del PC in vista, le chat dove vivono.
     const d = disegna(atteso, 'prog-g')
     for (const t of ['‹ Progetti', 'Apri su PORTATILE-ESEMPIO', 'Sposta su questo PC', 'Fatture', 'Guarda su PORTATILE-ESEMPIO', 'pdApriChat(']) expect(d).toContain(t)
+    // 0.88.0: niente più «Sposta su…», «Rendi residente» e trasloco: un progetto cambia PC solo con «Sposta su questo PC».
+    for (const t of ['Sposta su…', 'Rendi residente', 'Trasloco', 'sposta-su', 'residenza']) { expect(d).not.toContain(t); expect(disegna(atteso, '', 'chat')).not.toContain(t) }
     expect(disegna(atteso, '', 'recupero')).toContain('Ripristina')
     // 0.65.0: lo spazio sul Drive negli strumenti.
-    const conTrasloco = { ...atteso, spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } }
-    const h3 = disegna(conTrasloco, '', 'spazio')
+    const conSpazio = { ...atteso, spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } }
+    const h3 = disegna(conSpazio, '', 'spazio')
     for (const t of ['Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h3).toContain(t)
   })
   it('«Progetti» è una voce propria della pagina (0.58.2; 0.83.0 la prima linguetta)', () => {

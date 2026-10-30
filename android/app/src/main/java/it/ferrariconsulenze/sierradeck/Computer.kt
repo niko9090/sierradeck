@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
  * - Chat › Workspace: `SezioneWorkspaceChat`;
  * - Progetti › Drive: qui sotto, `DriveECode`;
  * - Altro: `AltriComputer`, `SezioneConsumi`, `SezioneSalute`, `SezioneAggiornamenti`,
- *   `SezioneAccount`, `SezioneAspetto`, `SezioneAvvisi`, `SezioneInfo` (vedi `Altro.kt`).
+ *   `SezioneDrive`, `SezioneAspetto`, `SezioneAvvisi`, `SezioneInfo` (vedi `Altro.kt`).
  */
 @Composable
 fun DriveECode(api: Api, stato: Stato?) {

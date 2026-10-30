@@ -52,11 +52,13 @@ import kotlinx.serialization.Serializable
  * sono anche qui. Le regole stanno sul PC (src/shared/pannello-drive.ts):
  * PannelloDriveTest controlla la lettura sulla risposta vera di un PC alla 0.58.
  *
- * App 2.60.0 (PC 0.60.0): stesso nome = stesso progetto (una riga, con gli id
- * del registro, le cartelle e i workspace dello stesso nome); «Rendi residente
- * qui» prima analizza tutte le copie e mostra il riassunto, con «Conferma e
- * unisci» e «Annulla»; le unioni fatte si annullano per 30 giorni; le chat
+ * App 2.60.0 (PC 0.60.0): stesso nome = stesso progetto (una riga); le chat
  * senza nome non sono negli elenchi (una casella le rimette).
+ *
+ * PC 0.88.0: ogni progetto vive su un PC solo (il proprietario) e il Drive.
+ * Gli altri PC e il telefono lo aprono da lontano («Apri su <PC>»); cambia PC
+ * solo con «Sposta su questo PC», un'azione come le altre. «Sposta su ▾»,
+ * «Rendi residente», il trasloco, le unioni e il piano non ci sono più.
  */
 
 @Serializable data class ProblemaDrive(val tipo: String = "", val titolo: String = "", val spiega: String = "", val cosaFare: String = "")
@@ -85,29 +87,8 @@ import kotlinx.serialization.Serializable
     val spazioDrive: SpazioProgettoDrive? = null,
     /** PC 0.69: le chat con nome al lavoro adesso, e la vista (stato in una parola, gruppi, testi). */
     val alLavoro: Int = 0,
-    val vista: VistaProgettoDrive? = null,
-    /** PC 0.71: «Sposta su ▾», i PC di arrivo con la conferma già scritta dal PC. */
-    val spostaSu: List<DestinazioneSpostaDrive> = emptyList()
+    val vista: VistaProgettoDrive? = null
 )
-@Serializable data class RiassuntoSpostaDrive(val titolo: String = "", val righe: List<String> = emptyList(), val conferma: String = "", val avviso: String? = null)
-@Serializable data class DestinazioneSpostaDrive(
-    val pc: String = "", val nome: String = "", val qui: Boolean = false, val acceso: Boolean = false,
-    val attuale: Boolean = false, val testo: String = "", val riassunto: RiassuntoSpostaDrive? = null
-)
-
-/** «Sposta su ▾» (PC 0.71.0): le regole lato app, uguali a quelle della pagina. */
-object SpostaSu {
-    private const val SEPARATORE_RIGHE = "\n"
-    /** Si mostra solo se c'è almeno un PC diverso da quello dove vive. */
-    fun mostra(r: RigaProgettoDrive): Boolean = r.spostaSu.any { !it.attuale }
-    /** Il testo della conferma: le righe del PC, con l'avviso in fondo. */
-    fun testoConferma(x: DestinazioneSpostaDrive): String {
-        val c = x.riassunto ?: return "Sposto il progetto su ${x.nome}. Niente si cancella: «Annulla tutto» per 30 giorni."
-        return (c.righe + listOfNotNull(c.avviso?.let { "⚠ $it" })).joinToString(SEPARATORE_RIGHE)
-    }
-    fun titolo(x: DestinazioneSpostaDrive, nome: String): String = x.riassunto?.titolo ?: "Sposta «$nome» su ${x.nome}?"
-    fun bottone(x: DestinazioneSpostaDrive): String = x.riassunto?.conferma ?: "Conferma: sposta su ${x.nome}"
-}
 @Serializable data class SpazioProgettoDrive(val file: Int = 0, val byte: Double = 0.0, val grandi: List<FileGrandeDrive> = emptyList())
 @Serializable data class FileGrandeDrive(val percorso: String = "", val byte: Double = 0.0)
 @Serializable data class CartellaProgettoDrive(val pc: String = "", val nome: String = "", val percorso: String = "")
@@ -117,28 +98,16 @@ sealed class AperturaChat {
     data class Qui(val cwd: String) : AperturaChat()
     data class Altrove(val pc: String, val nome: String, val cwd: String) : AperturaChat()
 }
-@Serializable data class RiassuntoResidenzaDrive(val destinazione: String = "", val nuova: Boolean = false, val righe: List<String> = emptyList())
-@Serializable data class StatoResidenzaDrive(
-    val progetto: String = "", val nome: String = "", val fase: String = "", val messaggio: String = "",
-    val riassunto: RiassuntoResidenzaDrive? = null, val unione: String? = null
-)
-@Serializable data class UnioneFattaDrive(val id: String = "", val progetto: String = "", val nome: String = "", val quando: String = "", val destinazione: String = "", val scadeIl: String = "")
 @Serializable data class PcDrive(val id: String = "", val nome: String = "")
-@Serializable data class AzionePianoDrive(val tipo: String = "", val progetto: String = "", val nome: String = "", val perche: String = "")
-@Serializable data class PianoDrive(val azioni: List<AzionePianoDrive> = emptyList())
-@Serializable data class StatoRimozioneDrive(val progetto: String = "", val nome: String = "", val residente: String = "", val fase: String = "", val messaggio: String = "")
 @Serializable data class CartellaInRecuperoDrive(val id: String = "", val nome: String = "", val percorsoOriginale: String = "", val quando: String = "", val scadeIl: String = "", val ripristinataIl: String? = null)
-@Serializable data class RimozioneDrive(val stati: List<StatoRimozioneDrive> = emptyList(), val inRecupero: List<CartellaInRecuperoDrive> = emptyList())
+/** Le copie nel recupero dei programmi, da rimettere (gli `stati` della rimozione sicura non ci sono più: PC 0.88.0). */
+@Serializable data class RimozioneDrive(val inRecupero: List<CartellaInRecuperoDrive> = emptyList())
 @Serializable data class PannelloDrive(
     val io: PcDrive = PcDrive(), val pc: List<PcDrive> = emptyList(),
     val chat: List<RigaChatDrive> = emptyList(), val progetti: List<RigaProgettoDrive> = emptyList(),
-    val pcDaAggiornare: List<String> = emptyList(), val piano: PianoDrive? = null, val rimozione: RimozioneDrive = RimozioneDrive(),
-    /** 0.60.0: «Rendi residente» con analisi e unione, e le unioni annullabili. */
-    val residenza: List<StatoResidenzaDrive> = emptyList(), val unioni: List<UnioneFattaDrive> = emptyList(),
+    val pcDaAggiornare: List<String> = emptyList(), val rimozione: RimozioneDrive = RimozioneDrive(),
     /** PC 0.65.0: lo spazio sul Drive e le pulizie. Assente sui PC prima, o mentre la prima misura è in corso. */
-    val spazio: StatoSpazioDrive? = null,
-    /** PC 0.65.0: i traslochi, passo per passo. */
-    val traslochi: List<TraslocoDrive> = emptyList()
+    val spazio: StatoSpazioDrive? = null
 )
 @Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
 
@@ -184,29 +153,8 @@ object PannelloDriveRegole {
     }
     fun stato(s: String): String = when (s) { "residente" -> "● residente"; "conflitto" -> "● in conflitto"; else -> "● solo cloud" }
     fun copie(r: RigaChatDrive): String = if (r.copie.isEmpty()) "nessuna" else r.copie.joinToString(", ") { it.nome + when (it.dove) { "qui" -> " (qui)"; "disco" -> " (sul suo disco)"; else -> " (sul Drive)" } }
-    /** Le sessioni di un progetto per il cambio di residente: le sue chat e lo stato voluto. */
-    fun sessioniProgetto(p: PannelloDrive, progetto: String): List<String> = p.chat.filter { it.progetto == progetto }.map { it.sessione } + "progetto:$progetto"
     /** Le chat senza nome, nascoste dagli elenchi (0.60.0). */
     fun nascoste(p: PannelloDrive): Int = p.chat.count { it.senzaNome }
-    /** Lo stato di «Rendi residente» di un progetto, se c'è (un annullato non si mostra). */
-    fun residenza(p: PannelloDrive, progetto: String): StatoResidenzaDrive? = p.residenza.firstOrNull { it.progetto == progetto && it.fase != "annullata" }
-    fun titoloResidenza(fase: String): String = when (fase) {
-        "analisi" -> "Raccolgo e confronto le copie…"
-        "unisco" -> "Unisco…"
-        "attesa-conferma" -> "Riassunto: cosa unisco, cosa tengo, cosa va in recupero"
-        "fatta" -> "Unito"
-        "in-uso" -> "In attesa"
-        else -> "Non riuscito"
-    }
-    /** Il PC sta ancora lavorando: il pannello si rilegge da solo. */
-    fun lavora(p: PannelloDrive): Boolean = p.residenza.any { it.fase == "analisi" || it.fase == "unisco" }
-    /** «Stesso nome, stesso progetto»: cosa c'è da unire, detto per esteso. */
-    fun doppi(r: RigaProgettoDrive): String? {
-        if (r.ids.size <= 1 && r.workspace.size <= 1) return null
-        val registro = if (r.ids.size > 1) "${r.ids.size} voci nel registro del Drive" else "una voce nel registro"
-        val ws = if (r.workspace.size > 1) ", workspace " + r.workspace.joinToString(", ") { "«$it»" } else ""
-        return "Stesso nome, stesso progetto: $registro$ws. Qui li vedi come uno solo; «Rendi residente qui» li unisce davvero, dopo il riassunto."
-    }
     fun cartellaQui(r: RigaProgettoDrive): String = when {
         !r.cartellaQui -> "no"
         r.cartellaTrovata != null -> "sì, ${r.cartellaTrovata} (trovata per nome)"
@@ -343,9 +291,6 @@ fun SezionePannelloDrive(api: Api) {
         }
     }
     LaunchedEffect(spenta) { if (!spenta) leggi() }
-    // Analisi, unione e traslochi lavorano sul PC: finché lavorano, il pannello si rilegge.
-    val lavora = p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } == true
-    LaunchedEffect(lavora) { while (lavora) { Davanti.pausa(2500); leggi(); if (p?.let { PannelloDriveRegole.lavora(it) || TraslocoRegole.lavora(it.traslochi) } != true) break } }
     val senzaSpazio = p != null && p?.spazio == null
     LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { Davanti.pausa(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
 
@@ -361,7 +306,7 @@ fun SezionePannelloDrive(api: Api) {
     if (sel != null) {
         DettaglioProgetto(d, sel, onIndietro = { scelto = null }, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
     } else {
-        RigaConAiuto("Ogni progetto, dove vive e come sta.", "Ogni progetto vive su un PC (il residente): lì girano le sue chat; gli altri PC le guardano dal vivo. Stato: a posto, al lavoro (una chat sta lavorando), da sistemare (con il motivo), spostamento in corso. Tocca un progetto per il dettaglio e le azioni. Niente si cancella: le copie tolte vanno nel recupero per 30 giorni.")
+        RigaConAiuto("Ogni progetto, dove vive e come sta.", "Ogni progetto vive su un PC: lì girano le sue chat; gli altri PC e il telefono le aprono da lontano, e se quel PC è spento quello che scrivi aspetta nella sua posta. Cambia PC solo con «Sposta su questo PC». Stato: a posto, al lavoro (una chat sta lavorando), da sistemare (con il motivo), spostamento in corso. Tocca un progetto per il dettaglio e le azioni. Niente si cancella: le copie tolte vanno nel recupero per 30 giorni.")
         val conti = ProgettiVista.conti(d.progetti)
         if (gruppo == "da-sistemare" && (conti["da-sistemare"] ?: 0) == 0) gruppo = "tutti"
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -400,22 +345,16 @@ fun SezionePannelloDrive(api: Api) {
         val inRec = d.rimozione.inRecupero.filter { it.ripristinataIl == null }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val voci = listOf("chat" to "Tutte le chat", "spazio" to "Spazio sul Drive") +
-                (if (inRec.isNotEmpty()) listOf("recupero" to "Cartelle in recupero (${inRec.size})") else emptyList()) +
-                (if (d.traslochi.isNotEmpty()) listOf("traslochi" to "Spostamenti") else emptyList()) +
-                (if (d.unioni.isNotEmpty()) listOf("unioni" to "Unioni fatte") else emptyList()) +
-                (if (d.piano?.azioni?.isNotEmpty() == true) listOf("piano" to "Piano di allineamento") else emptyList())
+                (if (inRec.isNotEmpty()) listOf("recupero" to "Cartelle in recupero (${inRec.size})") else emptyList())
             for ((id, nome) in voci) FilterChip(selected = strumento == id, onClick = { strumento = if (strumento == id) null else id }, label = { Text(nome) })
         }
         when (strumento) {
-            "chat" -> TutteLeChatDrive(d, filtro, { filtro = it }, senzaNome, { senzaNome = it }, chiedi = { conferma = it }, api = api)
+            "chat" -> TutteLeChatDrive(d, filtro, { filtro = it }, senzaNome, { senzaNome = it })
             "spazio" -> SpazioDriveSezione(d, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
             "recupero" -> for (c in inRec) {
                 Text("${c.nome} · tolta il ${QuadernoPersonaleTesti.quando(c.quando)} · fino al ${QuadernoPersonaleTesti.quando(c.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
                 TextButton(onClick = { conferma = DaConfermare("Ripristina «${c.nome}»", "La cartella torna in ${c.percorsoOriginale}. Se lì adesso c’è un’altra cartella non la sovrascrivo e te lo dico.", "Ripristina") { api.azioneDrive("ripristina", "", c.id) } }) { Text("Ripristina") }
             }
-            "traslochi" -> for (t in d.traslochi) Trasloco(t, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
-            "unioni" -> for (u in d.unioni) Unione(u, chiedi = { conferma = it }, api = api)
-            "piano" -> d.piano?.azioni?.forEach { a -> Text((if (a.tipo == "porta-qui") "↓ " else "☁ ") + a.perche, color = Banco.testo, fontSize = 12.sp) }
         }
         OutlinedButton(onClick = { scope.launch { leggi() } }) { Text("Aggiorna") }
     }
@@ -424,7 +363,7 @@ fun SezionePannelloDrive(api: Api) {
         AlertDialog(
             onDismissRequest = { conferma = null },
             title = { Text(c.titolo) },
-            // Il riassunto di «Rendi residente» è lungo: si scorre.
+            // Un testo lungo si scorre.
             text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(c.testo) } },
             confirmButton = { TextButton(onClick = { conferma = null; fai(c.fai, c.titolo.lowercase()) }) { Text(c.bottone) } },
             dismissButton = { TextButton(onClick = { conferma = null }) { Text("Annulla") } }
@@ -432,12 +371,11 @@ fun SezionePannelloDrive(api: Api) {
     }
 }
 
-/** Il dettaglio di un progetto: azioni in vista (ognuna con il «?»), conferme, problemi, spostamento, chat, cartelle, spazio, storia. */
+/** Il dettaglio di un progetto: azioni in vista (ognuna con il «?»), conferme, problemi, chat, cartelle, spazio. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro: () -> Unit, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
     val v = ProgettiVista.vistaDi(r)
-    val ids = r.ids.ifEmpty { listOf(r.id) }
     var quaderno by remember(r.id) { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = onIndietro, modifier = Modifier.heightIn(min = 48.dp)) { Text("‹ Progetti") }
@@ -450,26 +388,10 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
     Text(r.nome, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     Text(v.stato.parola + (v.stato.ragione?.let { " · $it" } ?: ""), color = coloreVista(v.stato.colore), fontSize = 13.sp,
         modifier = Modifier.padding(vertical = 4.dp).border(1.dp, coloreVista(v.stato.colore), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp))
-    // «Sposta su ▾» (PC 0.71.0): da qualsiasi PC verso qualsiasi PC, con la conferma del PC.
+    // Dove vive (PC 0.88.0: il proprietario); cambia PC solo con «Sposta su questo PC», fra le azioni qui sotto.
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
         Text("Dove vive: ", color = Banco.testoQuieto, fontSize = 13.sp)
         Text(v.dove, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        if (SpostaSu.mostra(r)) {
-            var aperto by remember { mutableStateOf(false) }
-            Box {
-                OutlinedButton(onClick = { aperto = true }) { Text("Sposta su ▾") }
-                DropdownMenu(expanded = aperto, onDismissRequest = { aperto = false }) {
-                    for (x in r.spostaSu) {
-                        DropdownMenuItem(
-                            text = { Text((if (x.acceso) "● " else "○ ") + x.testo, color = if (x.attuale) Banco.testoQuieto else Banco.testo) },
-                            enabled = !x.attuale,
-                            onClick = { aperto = false; chiedi(DaConfermare(SpostaSu.titolo(x, r.nome), SpostaSu.testoConferma(x), SpostaSu.bottone(x)) { api.spostaSu(r.id, x.pc) }) }
-                        )
-                    }
-                }
-            }
-            Aiuto("Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo: confronta le copie, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Niente si cancella: «Annulla tutto» per 30 giorni.", di = "Sposta su")
-        }
     }
     val azioni = ProgettiVista.azioniInOrdine(r.azioni)
     for ((i, a) in azioni.withIndex()) {
@@ -484,30 +406,12 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
             Aiuto(a.testo, di = a.titolo)
         }
     }
-    PannelloDriveRegole.residenza(d, r.id)?.let { st ->
-        if (st.fase == "attesa-conferma" || st.fase == "in-uso") {
-            val righe = st.riassunto?.righe
-            RigaConAiuto("Aspetta la tua conferma: unione delle copie", (righe ?: listOf(st.messaggio)).joinToString("\n"))
-            FlowRow {
-                OutlinedButton(onClick = { chiedi(DaConfermare("Conferma e unisci «${r.nome}»", (righe ?: listOf(st.messaggio)).joinToString("\n\n"), "Conferma e unisci") { api.azioneDrive("conferma-residenza", r.id) }) }) { Text("Conferma") }
-                TextButton(onClick = { fai({ api.azioneDrive("annulla-residenza", r.id) }, "annullare") }) { Text("Annulla") }
-            }
-        } else Text(st.messaggio, color = Banco.testo, fontSize = 12.sp)
-    }
-    d.rimozione.stati.firstOrNull { it.progetto in ids }?.let { st ->
-        RigaConAiuto("Togliere da questo PC", st.messaggio)
-        if (st.fase == "attesa-conferma" || st.fase == "in-uso") FlowRow {
-            OutlinedButton(onClick = { fai({ api.azioneDrive("conferma", st.progetto) }, "togliere «${st.nome}»") }, border = BorderStroke(1.dp, Banco.rosso)) { Text("Togli da questo PC", color = Banco.rosso) }
-            TextButton(onClick = { fai({ api.azioneDrive("annulla", st.progetto) }, "annullare") }) { Text("Annulla") }
-        }
-    }
     if (r.problemi.isNotEmpty()) {
         Titoletto("Da sistemare")
         for (x in r.problemi) Row(verticalAlignment = Alignment.CenterVertically) { Text(x.titolo, color = Banco.ambra, fontSize = 13.sp); Aiuto("${x.spiega} Cosa fare: ${x.cosaFare}", di = x.titolo) }
     }
-    for (t in d.traslochi.filter { it.progetto in ids }) Trasloco(t, fai = fai, chiedi = chiedi, api = api)
     val chat = PannelloDriveRegole.chatDelProgetto(d, r)
-    Titoletto("Chat (${chat.size})", "Si aprono dove vivono: qui con la loro storia, o dal vivo sul PC residente. Pallino blu: sta lavorando.")
+    Titoletto("Chat (${chat.size})", "Si aprono dove vivono: qui con la loro storia, o dal vivo sul PC del progetto. Pallino blu: sta lavorando.")
     if (chat.isEmpty()) Text("Nessuna chat con nome.", color = Banco.testoQuieto, fontSize = 12.sp)
     for (c in chat.take(30)) {
         val come = PannelloDriveRegole.comeAprire(c, r)
@@ -532,41 +436,6 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
         Text("${SpazioRegole.byte(sd.byte)} in ${sd.file} file", color = Banco.testo, fontSize = 12.sp)
         for (g in sd.grandi.sortedByDescending { it.byte }.take(5)) Text("⚠ ${g.percorso} · ${SpazioRegole.byte(g.byte)}", color = Banco.ambra, fontSize = 12.sp)
     }
-    val unioni = d.unioni.filter { it.progetto in ids }
-    if (unioni.isNotEmpty()) { Titoletto("Storia"); for (u in unioni) Unione(u, chiedi = chiedi, api = api) }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun Trasloco(t: TraslocoDrive, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) { Text("SPOSTAMENTO DI «${t.nome}» SU ${t.verso.nome} · ${TraslocoRegole.stato(t)}", color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold); Aiuto("Raccolgo le copie, le confronto, unisco qui quello che serve e solo alla fine metto le copie vecchie nel recupero dei loro PC. Se un PC non risponde mi fermo e riprendo da dove ero. «Annulla tutto» per 30 giorni.", di = "SPOSTAMENTO") }
-    androidx.compose.material3.LinearProgressIndicator(progress = { TraslocoRegole.percento(t) / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), color = if (t.fermo != null) Banco.ambra else Banco.verde)
-    TraslocoRegole.attuale(t)?.takeIf { t.finitoIl == null }?.let { (id, titolo) -> Text("$titolo: ${TraslocoRegole.passo(t, id).dettaglio ?: "…"}", color = Banco.testo, fontSize = 12.sp) }
-    // Un PC spento (PC 0.71.1): il motivo in chiaro, con il nome scelto, e le due scelte.
-    val chiaro = t.fermoChiaro
-    var aspetto by remember(t.id) { mutableStateOf(false) }
-    if (t.fermo != null && chiaro?.pc != null) {
-        Text("Fermo: ${chiaro.testo}", color = Banco.ambra, fontSize = 12.sp)
-        if (chiaro.scelte) FlowRow {
-            TextButton(onClick = { aspetto = true }) { Text("Aspetta ${chiaro.pc.nome}") }
-            TextButton(onClick = { chiedi(DaConfermare("Vai avanti senza ${chiaro.pc.nome}", "Uso la sua copia che è già sul Drive. La sua copia sul PC resta dov’è: quando torna, quello che ha solo lui entra nei recuperati e la sua copia va nel recupero di quel PC per 30 giorni. Niente si cancella.", "Vai avanti senza") { api.traslocoSenza(t.id, chiaro.pc.pc) }) }) { Text("Vai avanti senza…") }
-        }
-        if (aspetto) Text("Aspetto ${chiaro.pc.nome}: riparto da solo quando si riaccende.", color = Banco.testo, fontSize = 12.sp)
-    } else t.fermo?.let { Text("Fermo: ${chiaro?.testo ?: it.motivo}" + (if (it.riprovaDaSolo) " Riprendo da solo quando passa." else ""), color = Banco.ambra, fontSize = 12.sp) }
-    for (a in t.altrove.filter { it.esito == "dopo" }) Text("${a.nome} era spento: la sua copia la sistemo quando torna.", color = Banco.testo, fontSize = 12.sp)
-    for ((id, titolo) in TraslocoRegole.PASSI) Text(TraslocoRegole.riga(t, id, titolo), color = if (TraslocoRegole.passo(t, id).stato == "da-fare") Banco.testoQuieto else Banco.testo, fontSize = 12.sp)
-    if (t.finitoIl != null) for (x in t.riassunto) Text("• $x", color = Banco.testo, fontSize = 12.sp)
-    if (t.annullatoIl != null) for (x in t.annullamento) Text("• $x", color = Banco.testo, fontSize = 12.sp)
-    FlowRow {
-        if (t.fermo != null) TextButton(onClick = { fai({ api.azioneDrive("trasloco-riprendi", "", t.id) }, "riprendere lo spostamento") }) { Text("Riprendi") }
-        if (TraslocoRegole.annullabile(t, System.currentTimeMillis())) TextButton(onClick = { chiedi(DaConfermare("Annulla tutto: «${t.nome}»", "Le copie vecchie tornano al loro posto sui loro PC, l’unione si annulla, la casa torna a chi c’era prima. Niente si cancella.", "Annulla tutto") { api.azioneDrive("trasloco-annulla", "", t.id) }) }) { Text("Annulla tutto…") }
-    }
-}
-
-@Composable
-private fun Unione(u: UnioneFattaDrive, chiedi: (DaConfermare) -> Unit, api: Api) {
-    Text("${u.nome} · unito il ${QuadernoPersonaleTesti.quando(u.quando)} · annullabile fino al ${QuadernoPersonaleTesti.quando(u.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
-    TextButton(onClick = { chiedi(DaConfermare("Annulla l’unione di «${u.nome}»", "Le cartelle doppie tornano al loro posto dalla cartella di recupero, i file sostituiti tornano com’erano, quelli entrati con l’unione escono e vanno nei recuperati (non si cancellano), le trascrizioni e i workspace tornano com’erano. La casa delle chat resta questo PC.", "Annulla l’unione") { api.azioneDrive("annulla-unione", u.progetto, u.id) }) }) { Text("Annulla l’unione") }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -595,7 +464,7 @@ private fun SpazioDriveSezione(d: PannelloDrive, fai: (suspend () -> EsitoAzione
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TutteLeChatDrive(d: PannelloDrive, filtro: String, setFiltro: (String) -> Unit, senzaNome: Boolean, setSenzaNome: (Boolean) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
+private fun TutteLeChatDrive(d: PannelloDrive, filtro: String, setFiltro: (String) -> Unit, senzaNome: Boolean, setSenzaNome: (Boolean) -> Unit) {
     var quante by remember { mutableStateOf(60) }
     FlowRow {
         for ((id, nome) in listOf("tutti" to "Tutte", "sbagliati" to "Da sistemare", "questo-pc" to "Su questo PC", "solo-cloud" to "Solo cloud")) {
@@ -603,20 +472,12 @@ private fun TutteLeChatDrive(d: PannelloDrive, filtro: String, setFiltro: (Strin
         }
     }
     if (PannelloDriveRegole.nascoste(d) > 0) TextButton(onClick = { setSenzaNome(!senzaNome) }) { Text((if (senzaNome) "☑" else "☐") + " anche le senza nome (${PannelloDriveRegole.nascoste(d)})", fontSize = 12.sp) }
-    val tutti = listOf(d.io) + d.pc
     val righe = PannelloDriveRegole.chat(d, filtro, senzaNome)
     if (righe.isEmpty()) Text("Nessuna chat con questo filtro.", color = Banco.testoQuieto, fontSize = 12.sp)
     for (r in righe.take(quante)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
             Text(r.titolo, color = if (r.problemi.isEmpty()) Banco.testo else Banco.ambra, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("${r.residente?.let { it.nome + (if (it.qui) " (questo PC)" else "") } ?: "senza casa"} · ${r.ultimoUso?.let { QuadernoPersonaleTesti.quando(it) } ?: "mai"}", color = Banco.testoQuieto, fontSize = 12.sp)
-            FlowRow {
-                for (pc in tutti.filter { it.id != r.residente?.pc }) TextButton(onClick = {
-                    chiedi(DaConfermare("Rendi residente ${pc.nome}", "La chat «${r.titolo}» lavorerà su ${pc.nome}: il suo claude.exe parte solo lì, sugli altri PC si apre dal vivo, e le altre copie vanno nella cartella di recupero a fine turno (mai a metà). Non si cancella niente.", "Conferma") {
-                        api.residenteDrive(listOf(r.sessione), pc)
-                    })
-                }) { Text("Residente: ${pc.nome}", fontSize = 12.sp) }
-            }
         }
     }
     if (righe.size > quante) TextButton(onClick = { quante += 60 }) { Text("Altre ${righe.size - quante}") }

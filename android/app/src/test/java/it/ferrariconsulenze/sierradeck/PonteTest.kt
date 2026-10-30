@@ -120,7 +120,7 @@ class PonteTest {
         try {
             val api = Api("http://127.0.0.1:${s.porta}", "k").suPc("lap")
             val azioni = listOf<suspend () -> Unit>(
-                { api.installaAggiornamento() }, { api.esciAccount() }, { api.driveAnnulla() }, { api.cercaAggiornamentoPc() }
+                { api.installaAggiornamento() }, { api.driveAnnulla() }, { api.cercaAggiornamentoPc() }
             )
             for (azione in azioni) {
                 try { azione(); fail("doveva essere rifiutata") } catch (e: Api.Errore) { assertEquals(403, e.codice) }

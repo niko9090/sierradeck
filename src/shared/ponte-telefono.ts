@@ -38,7 +38,7 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/prova/chiudi', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).
   '/api/panoramica',
-  '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/pin/proteggi', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   // L’autopilota unico (0.86.x): la scheda, parlargli, il primo messaggio, i file e l’avanzamento.
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
@@ -101,7 +101,6 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/chat/sveglia': return `sveglio ${la}`
     case '/api/chat/sposta': return `sposto ${la} nel workspace «${s('workspace')}»`
     case '/api/chat/nome': return `rinomino ${la}`
-    case '/api/chat/ospite': return `cambio la casa della ${la.slice(3)}`
     case '/api/workspace': return corpo === undefined || s('nome').trim() === '' ? undefined : `passo al workspace «${s('nome')}» (sullo schermo di quel PC)`
     case '/api/workspace/crea': return `creo il workspace «${s('nome')}»`
     case '/api/workspace/elimina': return `tolgo il workspace «${s('nome')}»`

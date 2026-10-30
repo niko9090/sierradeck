@@ -2,16 +2,15 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * App 2.60.0 sulla risposta di un PC alla 0.60.0 (`pannello-0.60.json`, scritta
  * da `tests/shared/pannello-drive-app.test.ts` con le funzioni vere del PC su
- * dati d'esempio): stesso nome = stesso progetto, «Rendi residente» con il
- * riassunto da confermare, le unioni annullabili, le chat senza nome nascoste.
+ * dati d'esempio): stesso nome = stesso progetto, le chat senza nome nascoste.
+ * «Rendi residente», il suo riassunto e le unioni non ci sono più (PC 0.88.0):
+ * l'app legge ancora la risposta, senza quei campi.
  */
 class ProgettiUnificatiTest {
     private val p: PannelloDrive = Api.json.decodeFromString(
@@ -26,10 +25,6 @@ class ProgettiUnificatiTest {
         assertEquals(listOf("prog-g", "prog-g2"), g.ids)
         assertEquals(listOf("Gestionale", "gestionale (2)"), g.workspace)
         assertTrue(g.problemi.any { it.tipo == "progetto-doppio" })
-        val doppi = PannelloDriveRegole.doppi(g)
-        assertNotNull(doppi)
-        assertTrue(doppi!!.contains("2 voci nel registro del Drive"))
-        assertTrue(doppi.contains("«gestionale (2)»"))
     }
 
     @Test
@@ -41,25 +36,6 @@ class ProgettiUnificatiTest {
         assertTrue(a.testo.contains("solo alla fine metto nel recupero le copie vecchie"))
         assertTrue(a.testo.contains("Niente si cancella"))
         assertTrue(g.azioni.all { it.titolo in setOf("Apri", "Lavora su questo PC", "Togli da questo PC") })
-    }
-
-    @Test
-    fun `il riassunto da confermare si legge e si mostra per esteso`() {
-        val st = PannelloDriveRegole.residenza(p, "prog-g")
-        assertNotNull(st)
-        assertEquals("attesa-conferma", st!!.fase)
-        assertEquals("Riassunto: cosa unisco, cosa tengo, cosa va in recupero", PannelloDriveRegole.titoloResidenza(st.fase))
-        val righe = st.riassunto!!.righe
-        assertTrue(righe.any { it.contains("«gestionale (2)» entra in «Gestionale»") })
-        assertTrue(righe.any { it.contains("nessun file cancellato") })
-        assertFalse(PannelloDriveRegole.lavora(p))
-    }
-
-    @Test
-    fun `le unioni fatte si annullano`() {
-        val u = p.unioni.single()
-        assertEquals("Sito", u.nome)
-        assertEquals("prog-s", u.progetto)
     }
 
     @Test
@@ -78,9 +54,7 @@ class ProgettiUnificatiTest {
     @Test
     fun `un PC alla 0_58 si legge ancora - nessun gruppo, nessun riassunto`() {
         val vecchio = Api.json.decodeFromString(PannelloDrive.serializer(), javaClass.classLoader!!.getResource("pannello-drive/pannello-0.58.json")!!.readText())
-        assertTrue(vecchio.residenza.isEmpty())
         assertTrue(vecchio.progetti.single().ids.isEmpty())
-        assertNull(PannelloDriveRegole.doppi(vecchio.progetti.single()))
     }
 
     @Test

@@ -23,7 +23,7 @@ describe('le regole del ponte', () => {
     for (const p of ROTTE_PONTE) expect(ROTTE_VIA_CANALE).toContain(p)
     // Dalla 0.55.0 passa la gestione di chat, workspace e autopiloti; il Drive, gli aggiornamenti, l'account e il negozio di un altro PC no.
     for (const si of ['/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sposta', '/api/sfoglia', '/api/cartelle', '/api/autopilota/crea', '/api/autopilota/avanzamento']) expect(leggiRichiestaPonte({ pc: 'lap', percorso: si }).ok, si).toBe(true)
-    for (const no of ['/api/rinomina', '/api/chiudi', '/api/aggiornamento/installa', '/api/drive/porta', '/api/account/esci', '/api/negozio/installa', '/api/preferenze', '/api/ponte', '/api/salute', '/api/autopilota/elimina', '/api/autopilota/vai']) {
+    for (const no of ['/api/rinomina', '/api/chiudi', '/api/aggiornamento/installa', '/api/drive/porta', '/api/account/esci', '/api/negozio/installa', '/api/preferenze', '/api/ponte', '/api/salute', '/api/autopilota/elimina', '/api/autopilota/vai', '/api/chat/ospite']) {
       const l = leggiRichiestaPonte({ pc: 'lap', percorso: no })
       expect(l.ok, no).toBe(false)
       if (!l.ok) expect(l.stato).toBe(403)

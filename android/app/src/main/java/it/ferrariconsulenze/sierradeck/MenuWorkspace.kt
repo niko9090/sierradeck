@@ -55,8 +55,8 @@ object MenuWorkspace {
         return gruppi.filter { it.voci.isNotEmpty() }
     }
 
-    /** Cosa c'è dietro «⋯»: di qui apri, rinomina, Apri cartella, (Sposta), Elimina; di un altro PC apri e Porta qui. */
-    fun azioni(v: Voce, attivo: String, quanti: Int, sposta: Boolean = false, cartella: Boolean = true): List<Azione> {
+    /** Cosa c'è dietro «⋯»: di qui apri, rinomina, Apri cartella, Elimina; di un altro PC apri e Porta qui. */
+    fun azioni(v: Voce, attivo: String, quanti: Int, cartella: Boolean = true): List<Azione> {
         if (!v.qui) {
             val pc = v.pcNome ?: "l’altro PC"
             return listOf(
@@ -69,7 +69,6 @@ object MenuWorkspace {
             add(Azione("apri", if (davanti) "Sei qui" else "Apri", if (davanti) "«${v.nome}» è già davanti." else "Passa a «${v.nome}». Le chat che lasci continuano a lavorare.", spenta = if (davanti) "«${v.nome}» è già davanti" else null))
             add(Azione("rinomina", "Rinomina…", "Cambia solo il nome: le chat restano dove sono."))
             if (cartella) add(Azione("cartella", "Apri cartella", "Apre la cartella del progetto di questo workspace."))
-            if (sposta) add(Azione("sposta", "Sposta su un altro PC…", "Sposta il progetto di questo workspace su un altro PC, con il trasloco: confronta, unisce, e la copia di qui va nel recupero per 30 giorni."))
             add(Azione("elimina", "Elimina…", "Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina».", spenta = if (quanti <= 1) AzioniTelefono.ULTIMO_WORKSPACE else null, pericolo = true))
         }
     }

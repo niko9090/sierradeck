@@ -36,7 +36,7 @@ enum class FunzionePc(val minima: String, val nome: String) {
     NEGOZIO("0.53.0", "La ricerca nel catalogo e la prova degli MCP"),
     FILE("0.54.0", "La sezione File e i file dal PC al telefono"),
     GESTIONE("0.55.0", "Mettere a dormire, spostare le chat, rinominare i workspace e gestire gli altri PC dal telefono"),
-    PARITA("0.56.0", "Il PIN, l'ospite, l'archivio degli autopiloti, il nome e il modello della chat nuova dal telefono"),
+    PARITA("0.56.0", "Il PIN, l'archivio degli autopiloti, il nome e il modello della chat nuova dal telefono"),
     INSTALLA_LA("0.56.2", "Aggiornare gli altri PC dal telefono («Installa là»)"),
     QUADERNO_PERSONALE("0.57.0", "Il quaderno personale"),
     PANNELLO_DRIVE("0.58.0", "Il pannello delle chat e dei progetti del Drive"),

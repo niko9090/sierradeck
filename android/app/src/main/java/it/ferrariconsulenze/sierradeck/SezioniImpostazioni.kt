@@ -158,23 +158,14 @@ fun SezioneWorkspaceChat(api: Api, stato: Stato?) {
 }
 
 @Composable
-fun SezioneAccount(api: Api) {
-    val scope = rememberCoroutineScope()
+fun SezioneDrive(api: Api) {
     var account by remember { mutableStateOf<Account?>(null) }
     LaunchedEffect(Unit) { account = try { api.account() } catch (_: Exception) { null } }
-        // ─── Account ───
-        // Era in sola lettura, e il ragionamento era che una password scritta
-        // su un telefono la può leggere chi ti sta accanto. Regge per l'inizio
-        // e non per il seguito: un account da cui **non si può uscire** non è
-        // prudenza, è una trappola, e chi ne ha due non aveva nessun modo di
-        // passare dall'uno all'altro senza andare al computer. La prudenza
-        // vera è chiedere conferma prima di uscire, non togliere il comando.
-        Sezione("Account")
-        AccountVista(
-            account = account,
-            onCambiato = { scope.launch { account = try { api.account() } catch (_: Exception) { account } } },
-            api = api
-        )
+        // ─── Drive ───
+        // L'account di SierraDeck non c'è più (PC 0.88.0): restano il Drive e
+        // la cassaforte, da guardare; si collegano sul computer.
+        Sezione("Drive")
+        CatenaDrive(account)
 }
 
 @Composable

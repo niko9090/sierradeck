@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { paginaClient } from '../../src/main/client-pagina'
-import { AIUTO_ELIMINA_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaWorkspace, confermaSposta, PARTENZE, rigaEliminato } from '../../src/shared/azioni-telefono'
+import { AIUTO_ELIMINA_WORKSPACE, confermaChiudi, confermaDormi, confermaEliminaWorkspace, confermaSposta, rigaEliminato } from '../../src/shared/azioni-telefono'
 
 /**
  * La pagina del telefono (0.55.0), in versione semplice: le stesse azioni
@@ -70,10 +70,11 @@ describe('la pagina: gestire chat e workspace', () => {
     expect(script).toContain("aiuto('elimina-ws', esc(AIUTO_ELIMINA_WS))")
   })
 
-  it('«Affida» manda tutti i campi della finestra del PC', () => {
-    for (const id of ['delega-obiettivo', 'delega-cwd', 'delega-nome', 'delega-criteri', 'delega-pubblicazione', 'delega-partenza', 'delega-workspace', 'delega-cloud']) {
+  it('«Affida» manda i campi che il PC legge, senza criteri né partenza (0.88.0)', () => {
+    for (const id of ['delega-obiettivo', 'delega-cwd', 'delega-nome', 'delega-pubblicazione', 'delega-workspace', 'delega-cloud']) {
       expect(script, id).toContain(id)
     }
-    expect(script).toContain(JSON.stringify(PARTENZE))
+    // L'autopilota unico se li ricava lui: il PC li ignora, la pagina non li chiede più.
+    for (const id of ['delega-criteri', 'delega-partenza', 'PARTENZE']) expect(script, id).not.toContain(id)
   })
 })

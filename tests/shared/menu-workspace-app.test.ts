@@ -22,7 +22,6 @@ const CASI_AZIONI = [
   { nome: 'di qui', v: { nome: 'B', qui: true }, p: { attivo: 'A', quanti: 3 } },
   { nome: 'davanti, ultimo', v: { nome: 'A', qui: true }, p: { attivo: 'A', quanti: 1 } },
   { nome: 'di un altro PC', v: { nome: 'C', qui: false, pc: { id: 'p2', nome: 'Portatile' } }, p: { attivo: 'A', quanti: 2 } },
-  { nome: 'con Sposta', v: { nome: 'B', qui: true }, p: { attivo: 'A', quanti: 3, sposta: true } },
   { nome: 'PC senza Apri cartella', v: { nome: 'B', qui: true }, p: { attivo: 'A', quanti: 3, cartella: false } }
 ]
 

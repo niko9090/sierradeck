@@ -98,15 +98,16 @@ export function vociInFila(gruppi: readonly GruppoMenuWs[]): VoceMenuWs[] {
   return gruppi.flatMap((g) => g.voci)
 }
 
-export type AzioneMenuWs = 'apri' | 'rinomina' | 'cartella' | 'sposta' | 'elimina' | 'portaQui'
+export type AzioneMenuWs = 'apri' | 'rinomina' | 'cartella' | 'elimina' | 'portaQui'
 export type VoceAzioneWs = { azione: AzioneMenuWs; etichetta: string; spiega: string; spenta?: string; pericolo?: boolean }
 
 /**
  * Cosa c'è dietro «⋯» di una riga. Un workspace di questo PC: apri,
- * rinomina, Apri cartella, Sposta (solo dove si può: il PC), Elimina. Uno di
+ * rinomina, Apri cartella, Elimina (un progetto cambia PC solo con «Sposta su
+ * questo PC», dal pannello Progetti: 0.88.0). Uno di
  * un altro PC: apri dal vivo e Porta qui, come prima.
  */
-export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: number; sposta?: boolean; cartella?: boolean }): VoceAzioneWs[] {
+export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: number; cartella?: boolean }): VoceAzioneWs[] {
   if (!v.qui) {
     const pc = v.pc?.nome ?? 'l’altro PC'
     return [
@@ -119,7 +120,6 @@ export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: 
     { azione: 'apri', etichetta: davanti ? 'Sei qui' : 'Apri', spiega: davanti ? `«${v.nome}» è già davanti.` : `Passa a «${v.nome}». Le chat che lasci continuano a lavorare.`, ...(davanti ? { spenta: `«${v.nome}» è già davanti` } : {}) },
     { azione: 'rinomina', etichetta: 'Rinomina…', spiega: 'Cambia solo il nome: le chat restano dove sono.' },
     ...(p.cartella !== false ? [{ azione: 'cartella' as const, etichetta: 'Apri cartella', spiega: 'Apre la cartella del progetto di questo workspace.' }] : []),
-    ...(p.sposta === true ? [{ azione: 'sposta' as const, etichetta: 'Sposta su un altro PC…', spiega: 'Sposta il progetto di questo workspace su un altro PC, con il trasloco: confronta, unisce, e la copia di qui va nel recupero per 30 giorni.' }] : []),
     {
       azione: 'elimina', etichetta: 'Elimina…', pericolo: true,
       spiega: 'Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina».',

@@ -29,7 +29,7 @@ export const SEZIONI_ALTRO: readonly SezioneAltro[] = [
   { id: 'consumi', titolo: 'Consumi', sotto: 'Token, limiti del piano, contesto', impostazioni: false },
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', sotto: 'La versione e l’aggiornamento del computer', impostazioni: true },
   { id: 'chat', titolo: 'Chat e quaderno personale', sotto: 'Workspace a elenco, Torna come prima, le tue note', impostazioni: true },
-  { id: 'drive', titolo: 'Account', sotto: 'Esci, entra, passa a un altro', impostazioni: true },
+  { id: 'drive', titolo: 'Drive', sotto: 'Account Google, cassaforte, salvataggio', impostazioni: true },
   { id: 'aspetto', titolo: 'Aspetto', sotto: 'Banco o Foglio, chiarore', impostazioni: true },
   { id: 'notifiche', titolo: 'Avvisi', sotto: 'Quali notifiche', impostazioni: true },
   { id: 'info', titolo: 'Info ed errori', sotto: 'Versioni, Copia i dettagli, errori', impostazioni: true }
