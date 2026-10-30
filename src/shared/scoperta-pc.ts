@@ -117,11 +117,18 @@ export function indirizziTailscaleDi(status: unknown, nomePc: string, noti: stri
  * Il bussare li prova tutti insieme, quindi l'ordine conta solo per dire
  * quale ha risposto quando ne rispondono due.
  */
-export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; tailscale?: string[]; battito?: string[] }): string[] {
+export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; tailscale?: string[]; battito?: string[]; mie?: string[] }): string[] {
+  // Gli indirizzi di **questo** PC non sono mai quelli dell'altro.
+  // Le schede che un programma crea per sé (VirtualBox 192.168.56.1, la
+  // condivisione di Windows 192.168.137.1, Hyper-V) hanno lo stesso indirizzo
+  // su tanti PC: il 30/10 il PC-Fisso bussava al 192.168.56.1 del battito di
+  // NB-PROBOOK-TEC e gli rispondeva il suo stesso SierraDeck («un ALTRO
+  // SierraDeck»).
+  const mie = new Set((p.mie ?? []).map((x) => x.trim()))
   const fuori: string[] = []
   for (const ind of [p.buono ?? '', ...(p.ricordati ?? []), ...(p.tailscale ?? []), ...(p.battito ?? [])]) {
     const i = ind.trim()
-    if (indirizzoUtile(i) && !fuori.includes(i)) fuori.push(i)
+    if (indirizzoUtile(i) && !mie.has(i) && !fuori.includes(i)) fuori.push(i)
   }
   return fuori
 }

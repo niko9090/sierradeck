@@ -106,7 +106,7 @@ import { apriQuaderno } from './quaderno-store'
 import { anteprimaRiordino, riordinaQuaderno, svuotaRecuperoQuaderno } from './quaderno-lezioni-store'
 import { apriDispositivi } from './dispositivi'
 import {
-  creaServerClient, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale
+  creaServerClient, indirizziDaAnnunciare, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale, mieiIndirizzi
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
@@ -2038,7 +2038,8 @@ if (!app.requestSingleInstanceLock()) {
         // (quello da cui esco per primo, poi le altre schede) e la porta.
         // L'indirizzo principale lo dice Windows, con calma e ogni tanto:
         // il battito lo legge dal ricordo, senza aspettare nessuno.
-        rete: () => ({ indirizzi: indirizziLocali(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
+        // Senza le schede virtuali (30/10): il loro indirizzo c'è uguale su altri PC.
+        rete: () => ({ indirizzi: indirizziDaAnnunciare(undefined, principaleRicordato), porta: impostazioni.preferenze().portaClient }),
         // Le copie sul disco (0.58.0): il pannello degli altri PC le mostra.
         locali: () => localiBattito?.(),
         workspace: () => workspaceStore?.leggi().workspace.map((w) => w.nome),
@@ -2085,6 +2086,9 @@ if (!app.requestSingleInstanceLock()) {
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
+        // Mai bussare a sé stessi (30/10): un battito può portare un indirizzo
+        // virtuale (192.168.56.1) che c'è uguale anche qui.
+        mieiIndirizzi: () => mieiIndirizzi(),
         // Chi guarda (0.49.1): il PIN delle chat di quel PC si apre per questo PC, non per tutti.
         mioId: () => identitaPc.leggi().id,
         log: registro.info,

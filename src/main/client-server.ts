@@ -477,6 +477,71 @@ export function indirizziLocali(
 
 const pesi = new Map<string, number>()
 
+type Interfacce = ReturnType<typeof networkInterfaces>
+
+/**
+ * Le schede che un programma crea per sé, sul computer stesso: VirtualBox,
+ * Hyper-V e WSL, VMware, Docker, la condivisione della connessione di Windows.
+ *
+ * Il nome non basta: su Windows la scheda «solo host» di VirtualBox si chiama
+ * «Ethernet 3» come una vera (il PC-Fisso, 30/10). Quindi tre segni, e ne basta
+ * uno: il nome, il produttore della scheda (le prime tre coppie del MAC) e le
+ * reti che questi programmi usano di loro.
+ */
+const NOMI_VIRTUALI = /virtualbox|vbox|vmware|vmnet|hyper-v|vethernet|wsl|docker|loopback|bluetooth|virbr|^veth|^br-/i
+const MAC_VIRTUALI = [
+  '0a:00:27', // VirtualBox, scheda «solo host» (08:00:27 no: è la scheda di una macchina virtuale, che dentro è vera)
+  '00:15:5d', // Hyper-V, WSL, il «Default Switch»
+  '00:50:56', '00:0c:29', '00:05:69', '00:1c:14', // VMware
+  '02:42' // Docker
+]
+
+/** Una scheda di quel tipo: il suo indirizzo esiste uguale su tanti PC, e nessun altro ci arriva. */
+export function schedaVirtuale(nome: string, scheda: { address: string; mac?: string }): boolean {
+  if (NOMI_VIRTUALI.test(nome)) return true
+  const mac = (scheda.mac ?? '').toLowerCase()
+  if (MAC_VIRTUALI.some((m) => mac.startsWith(m))) return true
+  // VirtualBox «solo host» di serie, e il PC che condivide la connessione (ICS).
+  if (/^192\.168\.56\.\d{1,3}$/.test(scheda.address)) return true
+  return scheda.address === '192.168.137.1'
+}
+
+/**
+ * Gli indirizzi da scrivere nel **battito**, cioè quelli a cui gli altri PC
+ * busseranno: quelli di `indirizziLocali` senza le schede virtuali.
+ *
+ * Qui escludere serve, a differenza della schermata del telefono: il
+ * 192.168.56.1 di VirtualBox c'è identico su mezzo ufficio, e chi ci bussa
+ * trova il **suo** SierraDeck (il 30/10: «risponde un ALTRO SierraDeck»).
+ * Si tiene sempre quello da cui il PC esce davvero (su Hyper-V con lo switch
+ * esterno la rete vera passa da una «vEthernet»), e se togliendo le virtuali non
+ * resta niente si annunciano tutte: meglio un indirizzo forse inutile che
+ * nessuno.
+ */
+export function indirizziDaAnnunciare(interfacce: Interfacce = networkInterfaces(), principale?: string): string[] {
+  const virtuali = new Set<string>()
+  for (const [nome, schede] of Object.entries(interfacce)) {
+    for (const scheda of schede ?? []) {
+      if (schedaVirtuale(nome, scheda)) virtuali.add(scheda.address)
+    }
+  }
+  const tutti = indirizziLocali(interfacce, principale)
+  const buoni = tutti.filter((a) => a === principale || !virtuali.has(a))
+  return buoni.length > 0 ? buoni : tutti
+}
+
+/** Tutti gli indirizzi IPv4 di questo PC, anche quelli virtuali: chi bussa non deve bussare a sé stesso. */
+export function mieiIndirizzi(interfacce: Interfacce = networkInterfaces()): string[] {
+  const fuori: string[] = []
+  for (const schede of Object.values(interfacce)) {
+    for (const scheda of schede ?? []) {
+      const famiglia = scheda.family as string | number
+      if ((famiglia === 'IPv4' || famiglia === 4) && !fuori.includes(scheda.address)) fuori.push(scheda.address)
+    }
+  }
+  return fuori
+}
+
 /**
  * Quanto è probabile che sia l'indirizzo giusto.
  *
