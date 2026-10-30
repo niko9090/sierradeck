@@ -30,7 +30,6 @@ export type ImpostazioniPin = {
 }
 
 export const INATTIVITA_PREDEFINITA_MIN = 15
-export const PIN_PREDEFINITO: ImpostazioniPin = { attivo: false, inattivitaMin: INATTIVITA_PREDEFINITA_MIN, chat: [], workspace: [] }
 
 /** Da 4 a 8 cifre, solo cifre. */
 export function pinValido(pin: string): boolean {

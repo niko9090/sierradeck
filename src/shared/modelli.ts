@@ -26,6 +26,3 @@ export const MODELLI: Modello[] = [
   { valore: 'claude-sonnet-4-5', etichetta: 'Sonnet 4.5' },
   { valore: 'claude-haiku-4-5-20251001', etichetta: 'Haiku 4.5' }
 ]
-
-/** Quelli che si possono passare a `/model` in una chat già aperta. */
-export const MODELLI_IN_CHAT: Modello[] = MODELLI.filter((m) => m.valore !== 'default')

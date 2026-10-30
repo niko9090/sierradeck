@@ -23,10 +23,6 @@ export function impostaScorciatoie(s: Scorciatoie): void {
   vive = { ...s }
 }
 
-export function scorciatoieVive(): Scorciatoie {
-  return vive
-}
-
 export function sospendiScorciatoie(valore: boolean): void {
   sospese = valore
 }

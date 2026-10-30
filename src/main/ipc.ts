@@ -101,7 +101,6 @@ import { riassumiConsumi, type Consumi } from '@shared/consumi'
  */
 export const filtroIstruzioniPin: { filtra: <T>(l: T[]) => T[] } = { filtra: (l) => l }
 
-export type { SpawnRequest } from './validation'
 
 // Gli handler di `ipcMain` sono globali di processo, e le risorse qui sotto — il
 // PTY host, la connessione SQLite — sono una per applicazione, non una per

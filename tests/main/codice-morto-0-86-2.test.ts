@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import * as motore from '../../src/main/cassaforte/motore'
-import * as lavoratore from '../../src/main/cassaforte/lavoratore'
 import type { Progresso } from '../../src/main/cassaforte/motore'
 
 /**
@@ -17,9 +16,8 @@ describe('codice morto tolto', () => {
     expect(p.fase).toBe('carico')
   })
 
-  it('lavoratore.ts non ha più l esecutore su thread; quello in processo resta', () => {
-    expect(Object.keys(lavoratore)).not.toContain('esecutoreSuThread')
-    expect(typeof lavoratore.esecutoreInProcesso.prepara).toBe('function')
+  it('lavoratore.ts non c è più: anche l esecutore in processo non lo usava nessuno', () => {
+    expect(existsSync('src/main/cassaforte/lavoratore.ts')).toBe(false)
   })
 
   it('il worker della sincronizzazione non c è più, né nella build', () => {

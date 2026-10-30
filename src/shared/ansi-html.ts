@@ -13,12 +13,6 @@
  * e quello che va nel telefono è esattamente ciò che i test hanno verificato.
  */
 
-/** I sedici colori del terminale, nella veste scura della console. */
-export const ANSI_COLORI = [
-  '#2b2f33', '#dc5f5f', '#54c07a', '#e0a33c', '#5b9bd5', '#b48ead', '#4db6ac', '#c8ced4',
-  '#5a6169', '#e87d7d', '#7fd3a0', '#f0bc63', '#7fb8e8', '#cba6c3', '#6fd0c6', '#eef2f6'
-] as const
-
 /**
  * Converte in HTML un pezzo di flusso ANSI.
  *

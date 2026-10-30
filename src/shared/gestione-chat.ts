@@ -298,11 +298,6 @@ export function scaduteRecupero(r: RegistroRecuperoChat, adesso: number): ChatIn
   return r.chat.filter((c) => nelRecupero(c) && scadenzaVera(c) <= adesso)
 }
 
-/** Quanti giorni mancano allo svuotamento da solo (almeno 0). */
-export function giorniAllaScadenza(c: ChatInRecupero, adesso: number): number {
-  return Math.max(0, Math.ceil((Date.parse(c.scadeIl) - adesso) / GIORNO_MS))
-}
-
 /**
  * Le voci da tenere nel registro. Le rimesse al loro posto si dimenticano
  * dopo 60 giorni; le svuotate restano (le ultime 2000): dicono all'arrivo dal

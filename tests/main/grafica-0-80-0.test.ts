@@ -107,10 +107,6 @@ describe('6. il prossimo passo anche sul PC', () => {
 })
 
 describe('Revisione delle voci 1-6 (0.80.0)', () => {
-  it('l albero sul PC dà alla chat «ferma» un LED grigio, non il verde di ripiego', () => {
-    const albero = readFileSync('src/renderer/components/AlberoChat.tsx', 'utf8')
-    expect(albero).toMatch(/ferma: 'led--finito'/)
-  })
   it('la pagina: l elenco degli altri PC dice «ferma» come la regola delle chat; il LED è un selettore .led.ferma', () => {
     expect(script).not.toContain("c.aspetta ? 'aspetta te' : 'al lavoro'")
     expect(script).toContain("c.aspetta ? 'ferma' : 'al lavoro'")

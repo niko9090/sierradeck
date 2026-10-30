@@ -5176,7 +5176,6 @@ if (!app.requestSingleInstanceLock()) {
         const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
         return gestioneChat.svuota({ gettone: r.gettone, frase: r.frase, ancheDalDrive: r.ancheDalDrive === true, da: 'PC' })
       })
-      ipcMain.handle('chatGestione:orfane', () => gestioneChat.orfane())
       // Il recupero si svuota da solo dopo 30 giorni: un giro poco dopo l'avvio, poi ogni sei ore.
       const giroChat = (): void => {
         void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch((err: unknown) => registro.info(`[chat] giro del recupero non riuscito: ${err instanceof Error ? err.message : String(err)}`))
@@ -6564,16 +6563,6 @@ if (!app.requestSingleInstanceLock()) {
 
       const chiavi = apriChiavi(dati)
       ipcMain.handle('chiavi:stato', () => chiavi.stato())
-      ipcMain.handle('chiavi:impostaAvvio', (_e, parola: unknown) => {
-        if (typeof parola !== 'string') throw new Error('richiesta IPC non valida: parola non testo')
-        return chiavi.impostaAvvio(parola)
-      })
-      ipcMain.handle('chiavi:impostaWorkspace', (_e, nome: unknown, parola: unknown) => {
-        if (typeof nome !== 'string' || nome.trim() === '' || typeof parola !== 'string') {
-          throw new Error('richiesta IPC non valida: workspace o parola non validi')
-        }
-        return chiavi.impostaWorkspace(nome, parola)
-      })
       ipcMain.handle('chiavi:verifica', (_e, parola: unknown, workspace: unknown) => {
         if (typeof parola !== 'string') return false
         return chiavi.verifica(parola, typeof workspace === 'string' ? workspace : undefined)

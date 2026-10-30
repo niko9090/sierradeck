@@ -281,8 +281,6 @@ declare global {
       negozio: ApiNegozio
       chiavi: {
         stato: () => Promise<{ allAvvio: boolean; workspace: string[] }>
-        impostaAvvio: (parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>
-        impostaWorkspace: (nome: string, parola: string) => Promise<{ allAvvio: boolean; workspace: string[] }>
         verifica: (parola: string, workspace?: string) => Promise<boolean>
       }
       sistema: {

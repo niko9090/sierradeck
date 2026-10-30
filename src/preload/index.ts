@@ -725,10 +725,6 @@ contextBridge.exposeInMainWorld('gestore', {
   chiavi: {
     stato: (): Promise<{ allAvvio: boolean; workspace: string[] }> =>
       ipcRenderer.invoke('chiavi:stato'),
-    impostaAvvio: (parola: string): Promise<{ allAvvio: boolean; workspace: string[] }> =>
-      ipcRenderer.invoke('chiavi:impostaAvvio', parola),
-    impostaWorkspace: (nome: string, parola: string): Promise<{ allAvvio: boolean; workspace: string[] }> =>
-      ipcRenderer.invoke('chiavi:impostaWorkspace', nome, parola),
     verifica: (parola: string, workspace?: string): Promise<boolean> =>
       ipcRenderer.invoke('chiavi:verifica', parola, workspace)
   },

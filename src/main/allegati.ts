@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import {
   appendFileSync, copyFileSync, createReadStream, existsSync, mkdirSync, readdirSync, readFileSync,
   renameSync, rmSync, statSync, writeFileSync
@@ -186,9 +186,4 @@ export function apriAllegati(deps: { cartella: string; adesso?: () => number; se
       return true
     }
   }
-}
-
-/** Un id a caso, per chi manda dal PC stesso (i test, la pagina ne fa uno suo). */
-export function nuovoIdInvio(): string {
-  return randomBytes(12).toString('base64url')
 }

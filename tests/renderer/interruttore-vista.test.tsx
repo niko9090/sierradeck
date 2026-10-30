@@ -45,7 +45,7 @@ function senzaCommenti(t: string): string {
 
 describe('0.78.1: nessun «Mosaico» né «a elenco» nei testi che vede Nicholas', () => {
   const file = [
-    'src/renderer/App.tsx', 'src/renderer/components/WorkspacePanoramica.tsx', 'src/renderer/components/ElencoWorkspace.tsx',
+    'src/renderer/App.tsx', 'src/renderer/components/WorkspacePanoramica.tsx',
     'src/renderer/components/Console.tsx', 'src/renderer/components/PannelloAutopiloti.tsx', 'src/renderer/components/RigaMigrazione.tsx',
     'src/shared/novita.ts', 'src/shared/scorciatoie.ts', 'src/shared/impostazioni-struttura.ts', 'src/main/client-pagina.ts',
     'android/app/src/main/assets/impostazioni.json', 'android/app/src/main/java/it/ferrariconsulenze/sierradeck/Migrazione.kt',

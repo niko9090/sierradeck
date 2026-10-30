@@ -164,10 +164,6 @@ const NOME_MCP = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/
 const NOME_VARIABILE = /^[A-Za-z_][A-Za-z0-9_]*$/
 const NOME_INTESTAZIONE = /^[A-Za-z0-9][A-Za-z0-9-]*$/
 
-export function nomeMcpValido(n: string): boolean {
-  return NOME_MCP.test(n)
-}
-
 export type NuovoMcp = {
   nome: string
   ambito: 'locale' | 'utente' | 'progetto'

@@ -207,13 +207,6 @@ export function mimeDi(nome: string): string {
   return 'application/octet-stream'
 }
 
-/** Un buffer è testo? Niente byte zero nei primi 8 KB: la stessa prova di git. */
-export function sembraTesto(b: Uint8Array): boolean {
-  const n = Math.min(b.length, 8192)
-  for (let i = 0; i < n; i++) if (b[i] === 0) return false
-  return true
-}
-
 /* ------------------------------------------------------------------ */
 /* La coda verso il telefono.                                          */
 /* ------------------------------------------------------------------ */

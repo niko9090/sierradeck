@@ -3939,12 +3939,6 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .domande-pc__opzioni { display: flex; flex-direction: column; gap: var(--s1); margin-top: var(--s1); }
 .domande-pc__vuoto { padding: var(--s3); user-select: text; }
 
-/* ─────────────── l'albero delle chat dell'autopilota (T7, 0.36.0) ─────────────── */
-.albero-ap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; user-select: text; }
-.albero-ap__nodo { display: flex; align-items: center; gap: var(--s2); font-size: var(--t2); }
-.albero-ap__figli { list-style: none; margin: 0 0 0 var(--s3); padding-left: var(--s2); border-left: 1px solid var(--luce-incisione); display: flex; flex-direction: column; gap: 2px; }
-.albero-ap__ramo { font-family: ui-monospace, Consolas, monospace; color: var(--testo-quieto); font-size: var(--t1); }
-
 /* ─────────────── la colonna laterale delle Domande (0.36.0) ─────────────── */
 /* Fissa accanto al mosaico, come nell'app Android: non copre le chat, le
    stringe. La larghezza viene dalle preferenze (larghezzaDomande). */
@@ -4723,9 +4717,6 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .account__anello b { font-size: 16px; }
 .account__sotto { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 196px; }
 .account__etichetta { font-size: 12px; color: var(--testo-quieto); }
-
-/* Il ruolo della chat nell'albero dell'autopilota (0.71.0). */
-.albero-ap__ruolo { flex: none; font-size: 11px; padding: 0 6px; border: 1px solid; border-radius: 999px; text-transform: lowercase; }
 
 /* La scelta consigliata in una domanda dell'autopilota (0.71.0). */
 .domande-ap__consigliata { flex: none; font-size: 11px; color: var(--verde); border: 1px solid var(--verde); border-radius: 999px; padding: 0 6px; }
