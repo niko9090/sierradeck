@@ -4,6 +4,8 @@ import type { CambioChiesto } from './supervisore'
 import { campoTestoTollerante, ultimoOggettoCon } from '@shared/json-tollerante'
 import { righePromptAdottate } from '@shared/adozione'
 import { leggiRichiesteProposte, type RichiestaProposta } from './richieste'
+import { leggiUnioneDalDialogo, type UnioneDalDialogo } from '@shared/coda-richieste'
+import type { CandidataNelPrompt } from './coda-autopiloti'
 import { leggiPromesseProposte, parolaFatto, promesseAperte, REGOLA_PROMESSE, type PromessaProposta } from '@shared/promesse'
 
 /**
@@ -49,6 +51,11 @@ export type EsitoDialogo = {
    * un fatto che il programma vede (`promesseDallaRisposta`).
    */
   promesse?: PromessaProposta[]
+  /**
+   * P1: unire il messaggio a richieste già in coda (`coda-richieste.ts`). Il
+   * programma controlla che nessun punto si perda; senza, restano separate.
+   */
+  unisci?: UnioneDalDialogo
 }
 
 /** Quanto del dialogo passato entra nel prompt. */
@@ -82,8 +89,11 @@ export function componiPromptDialogo(
      * i segnali veri.
      */
     quadro?: string[]
+    /** P1: le richieste in coda che potrebbero parlare della stessa cosa del messaggio. */
+    codaCandidati?: CandidataNelPrompt[]
   } = {}
 ): string {
+  const candidati = contesto.codaCandidati ?? []
   const criteri = a.criteri.map(
     (c) => `- ${c.descrizione}${c.soddisfatto ? ' [soddisfatto]' : ''}${c.comando !== undefined ? ` (si misura con: ${c.comando})` : ' (lo giudichi tu)'}`
   )
@@ -133,7 +143,8 @@ export function componiPromptDialogo(
     '  "cambio": {"obiettivo": "...", "criteri": [{"descrizione": "...", "comando": "..."}], "compitiDaFare": ["..."]},',
     '  "comando": "ferma|riprendi|rispondi",',
     '  "richieste": [{"titolo": "...", "criterio": {"descrizione": "...", "comando": "..."}, "compiti": ["..."]}],',
-    '  "promesse": [{"frase": "la frase della risposta che promette", "fatto": "release|unito|richiesta|bloccata|criterio|finito", "di": "...", "entroOre": 3}]',
+    `  "promesse": [{"frase": "la frase della risposta che promette", "fatto": "release|unito|richiesta|bloccata|criterio|finito", "di": "...", "entroOre": 3}]${candidati.length > 0 ? ',' : ''}`,
+    ...(candidati.length > 0 ? ['  "unisci": {"con": ["r-…"], "titolo": "...", "testo": "la richiesta riformulata, intera", "punti": [{"id": "p-…"}, {"id": "p-…", "testo": "riformulato"}, {"id": "nuovo"}, {"id": "p-…", "superato": "perché il messaggio nuovo lo contraddice", "superatoDa": "nuovo"}], "perche": "..."}'] : []),
     '}',
     '',
     'Regole:',
@@ -164,6 +175,7 @@ export function componiPromptDialogo(
     '  file, e niente criteri che controllano solo file sotto `.sierradeck/`: cosa è cambiato',
     '  lo dice la chat nel suo messaggio, e si misura sul codice.',
     ...REGOLA_PROMESSE,
+    ...righeCandidati(candidati),
     '- Se non hai capito cosa vuole, dillo in `risposta` e non cambiare niente.',
     '- Dentro i testi, per citare usa «…», non le virgolette dritte; se ti servono, scrivile \\".'
   ].join('\n')
@@ -197,6 +209,7 @@ export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
     : undefined
   const perLaChat = testoDi(grezzo.perLaChat)
   const cambio = leggiCambioDialogo(grezzo.cambio, risposta)
+  const unisci = leggiUnioneDalDialogo(grezzo.unisci)
   return {
     risposta,
     ...(cambio !== undefined ? { cambio } : {}),
@@ -204,8 +217,34 @@ export function leggiEsitoDialogo(testo: string): EsitoDialogo | undefined {
     ...(comando !== undefined ? { comando } : {}),
     ...(Array.isArray(grezzo.perLeChat) ? { perLeChat: grezzo.perLeChat } : {}),
     ...(leggiRichiesteProposte(grezzo.richieste).length > 0 ? { richieste: leggiRichiesteProposte(grezzo.richieste) } : {}),
-    ...(leggiPromesseProposte(grezzo.promesse).length > 0 ? { promesse: leggiPromesseProposte(grezzo.promesse) } : {})
+    ...(leggiPromesseProposte(grezzo.promesse).length > 0 ? { promesse: leggiPromesseProposte(grezzo.promesse) } : {}),
+    ...(unisci !== undefined ? { unisci } : {})
   }
+}
+
+/**
+ * P1: le richieste in coda che potrebbero essere la stessa cosa del messaggio,
+ * con la regola per unirle. Il programma rifiuta un'unione che non nomina ogni
+ * punto: un punto contraddetto si segna superato, non si toglie.
+ */
+function righeCandidati(candidati: CandidataNelPrompt[]): string[] {
+  if (candidati.length === 0) return []
+  return [
+    '- `unisci`: queste richieste sono già nella coda del workspace e potrebbero parlare della',
+    '  stessa cosa del messaggio di adesso:',
+    ...candidati.flatMap((c) => [
+      `  - ${c.id} «${c.titolo.slice(0, 200)}»`,
+      ...c.punti.map((p) => `    - ${p.id}${p.stato !== undefined ? ` [${p.stato}]` : ''}: ${p.testo.slice(0, 300)}`)
+    ]),
+    '  Uniscile al messaggio (`"con"`: quali) se hanno lo stesso obiettivo, gli stessi file o lo',
+    '  stesso criterio, o se il messaggio ne raffina o ne corregge una. `testo` è la richiesta',
+    '  riformulata, intera. In `punti` nomina **ogni** punto delle richieste che unisci, più',
+    '  `"nuovo"` per il messaggio di adesso: un punto contraddetto dal messaggio non si toglie, si',
+    '  segna con `superato` e il perché. Se ne manca uno il programma rifiuta l\'unione.',
+    '  Tienile separate (ometti `unisci`) se l\'obiettivo è diverso, se è già fatta, se la',
+    '  priorità è diversa, se ha detto «separata», o se unire farebbe aspettare una richiesta',
+    '  piccola dietro una grande.'
+  ]
 }
 
 function leggiCambioDialogo(raw: unknown, capito: string): CambioChiesto | undefined {

@@ -1,5 +1,7 @@
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { PuntoAutopilota } from './PuntoAutopilota'
+import { CodaWorkspace } from './CodaWorkspace'
+import { chiaveWorkspace } from '@shared/coda-richieste'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
@@ -87,6 +89,8 @@ export function ChatAutopilota({
       {/* 0.84.3: il Punto in cima, con una riga per chat (prima «Adesso», 0.81.0) e il suo segnale. */}
       {/* Nella Panoramica le righe delle chat stanno nella sua sezione «Adesso», non due volte. */}
       <PuntoAutopilota autopilota={autopilota} senzaChat={soloConversazione} />
+      {/* P1: la coda delle richieste del suo workspace, chiusa: si legge solo aperta. */}
+      <CodaWorkspace workspace={chiaveWorkspace(autopilota)} />
       <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
       {soloConversazione && eventi.length > 0 ? (
         <div className="chatap__eventi">

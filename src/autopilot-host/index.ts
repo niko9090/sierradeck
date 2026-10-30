@@ -29,6 +29,7 @@ import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
+import { apriCode } from './coda-store'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -422,7 +423,9 @@ export function avviaServizio(): void {
       gitAsincrono: gitAsincronoReale
     }),
     // Le release con la data, per la velocità nel Punto (0.85.0).
-    releaseUscite: ghReleaseUscite
+    releaseUscite: ghReleaseUscite,
+    // P1: la coda delle richieste di ogni workspace, accanto agli autopiloti.
+    coda: apriCode(join(cartellaStato(), '..', 'orchestratori'))
   })
 
   serverPronto = server

@@ -5285,3 +5285,13 @@ label.gc-voce { cursor: pointer; }
 .punto-ap__richieste { display: grid; gap: 2px; padding-bottom: 4px; border-bottom: 1px dashed var(--bordo); }
 .punto-ap__richieste .punto-ap__compito { max-width: none; white-space: normal; color: var(--testo); }
 .punto-ap__richieste .punto-ap__testo { flex: none; white-space: nowrap; }
+/* P1: la coda delle richieste del workspace, sotto il Punto. */
+.coda-ws { border-bottom: 1px solid var(--bordo); font-size: var(--t1); }
+.coda-ws__corpo { display: grid; gap: 6px; padding: 4px 10px 8px; max-height: 40vh; overflow-y: auto; }
+.coda-ws__richiesta { display: grid; gap: 2px; padding-bottom: 4px; border-bottom: 1px dashed var(--bordo); }
+.coda-ws__testa { display: flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; min-width: 0; }
+.coda-ws__titolo { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.coda-ws__quieto { color: var(--testo-quieto); }
+.coda-ws__badge { background: var(--chassis-premuto); border: 0; border-radius: var(--raggio); color: var(--testo); font-size: var(--t1); padding: 0 6px; cursor: pointer; }
+.coda-ws__originale { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 8px; border-left: 2px solid var(--bordo); }
+.coda-ws__superato { text-decoration: line-through; color: var(--testo-quieto); }

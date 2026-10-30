@@ -54,6 +54,13 @@ import { aperteSulloStesso, rispostaGiaData, risoltaDalloStato, type StatoVero }
 import { statoDellaFlotta } from './stato-vero'
 import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/controllo-comandi'
 import { conVersioni, registraRichieste, rigaRegistrate, sembraRichiesta, tieniRichieste, type RichiestaProposta } from './richieste'
+import type { RichiestaNicholas } from '@shared/richieste-nicholas'
+import type { ArchivioCode } from './coda-store'
+import { aggiungiDalMessaggio, allineaConAutopiloti, autopilotiDel, candidatePerPrompt, migraAutopiloti, misuraDaAutopiloti, type CandidataNelPrompt } from './coda-autopiloti'
+import {
+  avanzamentoCoda, avanzamentoRichiesta, chiaveWorkspace, leggiUnioneDalDialogo, separa as separaCoda, unioneDaDialogo, unisci as unisciCoda,
+  type Coda, type EventoCoda, type PuntoProposto, type UnioneDalDialogo, type VistaCoda
+} from '@shared/coda-richieste'
 import {
   cosaFallisce, domandaControllata, domandaControllataSubito, domandaPerRegistro, leggiParti, partiBloccato, partiDaTesto, nomeControllo, nomeDi, partiDaRisposta, partiPubblica, rispostaBloccato, testoDomanda as testoDellaDomanda
 } from '@shared/domanda-strutturata'
@@ -260,6 +267,12 @@ export type Dipendenze = {
    * note troppo grosse. Gira da sola ogni 6 ore; qui la chiede «Pulisci adesso».
    */
   autopulizia?: (opz?: { forza?: boolean }) => Promise<EsitoAutopulizia>
+  /**
+   * La coda delle richieste di ogni workspace (P1), in
+   * `orchestratori/<workspace>/coda.json`. Assente (test vecchi): le richieste
+   * restano solo negli autopiloti, come prima.
+   */
+  coda?: ArchivioCode
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -814,6 +827,93 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const datato = aggiornaStorico(a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a)
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
+  }
+
+  // ── La coda delle richieste del workspace (P1) ──
+  /**
+   * La coda di un workspace: la prima volta ci entrano le richieste e i
+   * compiti dei suoi autopiloti (una volta sola), e a ogni lettura lo stato
+   * delle richieste segue i fatti. Sul disco solo se qualcosa è cambiato.
+   */
+  const codaDi = (ws: string): Coda | undefined => {
+    const code = deps.coda
+    if (code === undefined) return undefined
+    const loro = autopilotiDel(ws, deps.archivio.elenca())
+    const ora = deps.adesso()
+    code.cambia(ws, (c) => (c.migrata === undefined ? migraAutopiloti(c, loro, ora) : undefined))
+    return code.cambia(ws, (c) => allineaConAutopiloti(c, loro, ora))
+  }
+  // La migrazione, una volta sola, all'avvio: ogni workspace che ha autopiloti ha la sua coda.
+  if (deps.coda !== undefined) {
+    try {
+      for (const ws of new Set(deps.archivio.elenca().map((a) => chiaveWorkspace(a)))) codaDi(ws)
+    } catch (err) {
+      console.error('[coda] migrazione non fatta, si riprova alla prima lettura:', err)
+    }
+  }
+  /** Le richieste in coda che potrebbero essere la stessa cosa del messaggio, per il prompt del dialogo. */
+  const candidatiNelPrompt = (a: Autopilota, testo: string): CandidataNelPrompt[] => {
+    if (deps.coda === undefined || !sembraRichiesta(testo)) return []
+    try {
+      const c = codaDi(chiaveWorkspace(a))
+      return c === undefined ? [] : candidatePerPrompt(c, testo)
+    } catch (err) {
+      console.error(`[coda] ${a.id} — candidate non lette:`, err)
+      return []
+    }
+  }
+  /**
+   * Un messaggio diventato richiesta entra nella coda del workspace, con le
+   * sue parole intere. Se il supervisore ha deciso di unirlo (`unisci`), si
+   * unisce solo se nessun punto si perde; se no resta separato con le sue
+   * candidate in vista. Torna la riga per l'esito della battuta.
+   */
+  const mettiInCoda = (a: Autopilota, testo: string, quando: string, nuove: RichiestaNicholas[], unione?: UnioneDalDialogo): string | undefined => {
+    const code = deps.coda
+    if (code === undefined || nuove.length === 0) return undefined
+    try {
+      const ws = chiaveWorkspace(a)
+      const prima = codaDi(ws)
+      // Già entrata (la migrazione l'ha appena vista nell'autopilota): niente doppione.
+      if (prima !== undefined && nuove.every((n) => prima.richieste.some((r) => (r.collegate ?? []).some((x) => x.autopilota === a.id && x.richiesta === n.id)))) return undefined
+      let riga: string | undefined
+      code.cambia(ws, (c) => {
+        const m = aggiungiDalMessaggio(c, { autopilota: a, testo, quando, nuove })
+        riga = `in coda come ${m.richiesta.id}${m.richiesta.segue !== undefined ? `, segue ${m.richiesta.segue}` : ''}`
+        if (unione === undefined) {
+          if ((m.richiesta.candidati ?? []).length > 0) riga += ` (forse la stessa di ${m.richiesta.candidati!.join(', ')})`
+          return m
+        }
+        const u = unisciCoda(m.coda, unioneDaDialogo(unione, m.richiesta, m.coda, quando))
+        if (!u.ok) {
+          console.log(`[coda] ${ws} — unione di ${m.richiesta.id} con ${unione.con.join(', ')} rifiutata: ${u.errore}`)
+          riga += ` (unione rifiutata: ${u.errore})`
+          const rifiutata: EventoCoda = { tipo: 'unione-rifiutata', quando, fonti: [...unione.con, m.richiesta.id], errore: u.errore }
+          return { coda: m.coda, eventi: [...m.eventi, rifiutata] }
+        }
+        console.log(`[coda] ${ws} — ${m.richiesta.id} unita a ${u.id} (${unione.con.join(', ')}): ${unione.perche.slice(0, 160)}`)
+        riga = `unita alla richiesta ${u.id} in coda`
+        return { coda: u.coda, eventi: [...m.eventi, ...u.eventi] }
+      })
+      return riga
+    } catch (err) {
+      // La coda non ferma il dialogo: la richiesta resta nell'autopilota.
+      console.error(`[coda] ${a.id} — richiesta non messa in coda:`, err)
+      return undefined
+    }
+  }
+  /** Quello che vede la linguetta «Coda»: ogni richiesta con la sua percentuale, e il totale. */
+  const vistaCoda = (ws: string): VistaCoda | undefined => {
+    const c = codaDi(ws)
+    if (c === undefined) return undefined
+    const misura = misuraDaAutopiloti(autopilotiDel(ws, deps.archivio.elenca()))
+    const totale = avanzamentoCoda(c, misura)
+    return {
+      workspace: ws,
+      ...(totale !== undefined ? { totale } : {}),
+      richieste: c.richieste.map((r) => ({ ...r, percento: avanzamentoRichiesta(r, misura) })),
+      compattate: c.compattate
+    }
   }
 
   /**
@@ -3082,7 +3182,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // 0.85.1: il quadro intero per chat, non solo le ultime mosse.
           quadro: righeQuadroChat({ ...a, segniVeri: segniVeriDi(a) }, Date.parse(deps.adesso())),
           ...(detto !== undefined ? { ultimoDetto: detto } : {}),
-          ...(aperta !== undefined ? { domandaAperta: aperta.testo } : {})
+          ...(aperta !== undefined ? { domandaAperta: aperta.testo } : {}),
+          // P1: le richieste in coda che potrebbero essere la stessa: decide lui se unirle.
+          codaCandidati: candidatiNelPrompt(a, testo)
         }),
         a.cwd,
         // 30/10: senza sessione: il quadro, le ultime mosse e il dialogo sono
@@ -3119,13 +3221,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // dal programma (una risposta che non è arrivata alla chat) non ha la sua
     // battuta: lì decide solo il supervisore.
     const battuta = fresco.dialogo.find((s) => s.da === 'tu' && s.quando === quando)
-    const registra = (proposte: RichiestaProposta[], compitiNuovi: string[], nonRichiesta: boolean, criteriNuovi: string[] = []): string | undefined => {
+    const registra = (proposte: RichiestaProposta[], compitiNuovi: string[], nonRichiesta: boolean, criteriNuovi: string[] = [], unione?: UnioneDalDialogo): string | undefined => {
       const r = registraRichieste(fresco!, { testo, quando, proposte, compitiNuovi, criteriNuovi, nonRichiesta: nonRichiesta || battuta === undefined || battuta.traccia === true, esiste: esisteIn(fresco!.cwd) })
       if (r.nuove.length === 0) return undefined
       fresco = r.autopilota
       for (const n of r.nuove) console.log(`[richieste] ${id} — ${n.id} registrata (${n.da}): «${n.titolo.slice(0, 120)}» · criterio «${n.criterio.slice(0, 120)}» · ${n.compiti.length} compiti`)
       if (r.comandiScartati.length > 0) console.log(`[richieste] ${id} — comandi dei criteri tolti perché non possono funzionare: ${r.comandiScartati.join(' | ').slice(0, 300)}`)
-      return rigaRegistrate(r.nuove)
+      // P1: anche nella coda del workspace, con le sue parole intere (non tagliate a 2000 caratteri).
+      const inCoda = mettiInCoda(fresco, testo, quando, r.nuove, unione)
+      const riga = rigaRegistrate(r.nuove)
+      return inCoda !== undefined && riga !== undefined ? `${riga} · ${inCoda}` : riga
     }
 
     if (esito === undefined) {
@@ -3177,7 +3282,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       fresco.compitiDaFare.filter((c) => !compitiPrima.includes(c)),
       // Il resto non si leggeva: la risposta dice «riscrivilo», niente obiettivo a metà.
       esito.restoIlleggibile === true || esito.comando === 'ferma' || esito.comando === 'riprendi' || esito.comando === 'rispondi',
-      fresco.criteri.map((c) => c.descrizione).filter((d) => !criteriPrima.includes(d))
+      fresco.criteri.map((c) => c.descrizione).filter((d) => !criteriPrima.includes(d)),
+      esito.unisci
     )
     if (registrate !== undefined) {
       fatti.push(registrate)
@@ -5673,6 +5779,47 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // P1: la coda delle richieste di un workspace, con le percentuali, e
+        // le due mani di Nicholas: «Separa» e l'unione fatta a mano.
+        if (percorso === '/coda' || percorso === '/coda/separa' || percorso === '/coda/unisci') {
+          if (deps.coda === undefined) { rispondi(res, 503, { errore: 'coda non disponibile' }); return }
+          if (metodo === 'GET' && percorso === '/coda') {
+            const ws = url.searchParams.get('ws')?.trim() ?? ''
+            if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace (?ws=)' }); return }
+            rispondi(res, 200, vistaCoda(ws))
+            return
+          }
+          if (metodo === 'POST') {
+            const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+            const ws = typeof corpo?.ws === 'string' ? corpo.ws.trim() : ''
+            if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace' }); return }
+            codaDi(ws)
+            const quando = deps.adesso()
+            let esito: ReturnType<typeof separaCoda> | undefined
+            if (percorso === '/coda/separa') {
+              const id = typeof corpo?.id === 'string' ? corpo.id.trim() : ''
+              deps.coda.cambia(ws, (c) => { esito = separaCoda(c, id, quando); return esito.ok ? esito : undefined })
+            } else {
+              // L'unione a mano passa dalla stessa invariante del supervisore.
+              const letta = leggiUnioneDalDialogo({ con: corpo?.ids, testo: corpo?.testo, titolo: corpo?.titolo, punti: corpo?.punti, perche: corpo?.perche })
+              const ids = Array.isArray(corpo?.ids) ? corpo.ids.filter((x): x is string => typeof x === 'string') : []
+              if (letta === undefined) { rispondi(res, 400, { errore: 'servono ids, testo, punti e perche' }); return }
+              const punti: PuntoProposto[] = letta.punti
+              deps.coda.cambia(ws, (c) => {
+                esito = unisciCoda(c, { ids, testo: letta.testo, ...(letta.titolo !== undefined ? { titolo: letta.titolo } : {}), punti, perche: letta.perche, quando })
+                return esito.ok ? esito : undefined
+              })
+            }
+            const e = esito as ReturnType<typeof separaCoda> | undefined
+            if (e === undefined || !e.ok) { rispondi(res, 400, { errore: e?.ok === false ? e.errore : 'niente da fare' }); return }
+            console.log(`[coda] ${ws} — ${percorso === '/coda/separa' ? 'separata' : 'unita a mano'} ${e.id}`)
+            rispondi(res, 200, vistaCoda(ws))
+            return
+          }
+          rispondi(res, 405, { errore: 'metodo non permesso' })
+          return
+        }
+
         if (metodo === 'GET' && percorso === '/autopiloti') {
           // 0.85.2: `?leggero=1` è l'elenco per le viste d'elenco, con la sola
           // coda di decisioni, dialogo e modifiche (`autopilotaLeggero`): 5 MB
@@ -6264,8 +6411,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             // questo», il 23/10 alle 07:25), quella parte diventa un obiettivo.
             const dopo = deps.archivio.leggi(id)
             if (dopo !== undefined && sembraRichiesta(testo)) {
-              const r = registraRichieste(dopo, { testo, quando: deps.adesso(), proposte: [], esiste: esisteIn(dopo.cwd) })
+              const quandoRisposta = deps.adesso()
+              const r = registraRichieste(dopo, { testo, quando: quandoRisposta, proposte: [], esiste: esisteIn(dopo.cwd) })
               if (r.nuove.length > 0) {
+                // P1: anche nella coda, separata (nessun supervisore ha deciso), con le candidate in vista.
+                // Prima di salvare: la migrazione della prima volta non deve vederla tagliata.
+                mettiInCoda(r.autopilota, testo, quandoRisposta, r.nuove)
                 salva(r.autopilota)
                 console.log(`[richieste] ${id} — ${r.nuove[0]!.id} registrata dalla risposta scritta a mano: «${r.nuove[0]!.titolo.slice(0, 120)}»`)
               }

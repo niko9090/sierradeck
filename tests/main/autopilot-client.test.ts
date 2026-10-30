@@ -264,3 +264,27 @@ describe('il ritorno del Gestore', () => {
     expect(await client.gestoreAvviato()).toBe(0)
   })
 })
+
+// P1: la coda delle richieste del workspace.
+describe('la coda del workspace', () => {
+  it('chiede /coda col workspace nell’indirizzo, separa e unisce col corpo', async () => {
+    const chiesti: { percorso: string; corpo: unknown }[] = []
+    const porta = await servizioFinto((percorso, corpo) => { chiesti.push({ percorso, corpo }); return { workspace: 'Il mio lavoro', richieste: [], compattate: [] } })
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    expect(await client.coda('Il mio lavoro')).toEqual({ workspace: 'Il mio lavoro', richieste: [], compattate: [] })
+    await client.separaCoda('Il mio lavoro', 'r-2')
+    await client.unisciCoda('Il mio lavoro', { ids: ['r-1', 'r-2'], testo: 't', punti: [{ id: 'p-1' }], perche: 'p' })
+    expect(chiesti).toEqual([
+      { percorso: '/coda?ws=Il%20mio%20lavoro', corpo: undefined },
+      { percorso: '/coda/separa', corpo: { ws: 'Il mio lavoro', id: 'r-2' } },
+      { percorso: '/coda/unisci', corpo: { ws: 'Il mio lavoro', ids: ['r-1', 'r-2'], testo: 't', punti: [{ id: 'p-1' }], perche: 'p' } }
+    ])
+  })
+
+  it('un servizio di prima della coda: niente coda, non un guasto', async () => {
+    server = createServer((_req, res) => { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ errore: 'rotta sconosciuta' })) })
+    const porta = await new Promise<number>((ris) => server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port)))
+    const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
+    expect(await client.coda('W')).toBeUndefined()
+  })
+})
