@@ -224,12 +224,13 @@ function interpreta(json: string): DecisioneSupervisore | undefined {
 }
 
 /**
- * Chiede al supervisore cosa fare, nella **sua** sessione.
+ * Chiede al supervisore cosa fare.
  *
- * La sessione si riusa giro dopo giro: così ricorda cosa aveva già provato e
- * perché, invece di ricostruire il compito da capo a ogni fermata. È la
- * differenza fra qualcuno che segue il lavoro e qualcuno che lo vede per la
- * prima volta ogni volta.
+ * 30/10: **sempre senza sessione**, anche se gliene si dà una. Prima una
+ * sessione data si riprendeva con `--resume`, e la conversazione cresceva a
+ * ogni giro senza fine; le ultime mosse e lo stato sono già nel prompt
+ * (`componiPromptDecisione`). `sessioneSupervisore` resta per chi la passa
+ * ancora, e non si usa.
  */
 export async function chiediDecisione(
   a: Autopilota,
@@ -237,18 +238,18 @@ export async function chiediDecisione(
   ultimoMessaggio: string,
   inCerchioDa: number,
   interroga: Interrogazione,
-  sessioneSupervisore: string | undefined,
+  _sessioneSupervisore: string | undefined,
   messaggiTuoi: string[] = [],
   harness = ''
 ): Promise<{ decisione: DecisioneSupervisore | undefined; sessionId?: string }> {
   try {
     // 29/10: una decisione di routine (modello leggero, niente strumenti, al
-    // più tre turni). Con una sessione data la si riprende come prima.
+    // più tre turni, senza sessione).
     const { testo, sessionId } = await interroga(
       componiPromptDecisione(a, esiti, ultimoMessaggio, inCerchioDa, messaggiTuoi, harness),
       a.cwd,
-      sessioneSupervisore,
-      ...(sessioneSupervisore === undefined ? [{ routine: true }] : [])
+      undefined,
+      { routine: true }
     )
     return {
       decisione: leggiDecisioneSupervisore(testo),

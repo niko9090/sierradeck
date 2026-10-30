@@ -126,15 +126,106 @@ function* sottocartellaDelRamo(radice: string, cartella: string): Passi<boolean>
  * anche per la cartella da cui git risale a un altro repository, come in
  * `salvaLavoro`.
  */
-export function statoCopia(git: Git, cartella: string): 'ok' | 'mancante' | 'non-git' {
+export type StatoCopia = 'ok' | 'mancante' | 'non-git'
+
+export function statoCopia(git: Git, cartella: string): StatoCopia {
+  return inLinea(git, statoCopiaPassi(cartella))
+}
+
+/** `statoCopia` senza fermare il servizio (30/10). */
+export function statoCopiaAsincrono(git: GitAsincrono, cartella: string): Promise<StatoCopia> {
+  return aspettando(git, statoCopiaPassi(cartella))
+}
+
+function* statoCopiaPassi(cartella: string): Passi<StatoCopia> {
   if (!existsSync(cartella)) return 'mancante'
   // Solo un «no» detto da git chiude la chat: un git che non risponde (tempo
   // scaduto, PC carico) non dice niente sulla copia (Revisione c-310).
-  const r = git(['rev-parse', '--show-toplevel'], cartella)
+  const r = yield* chiedi(['rev-parse', '--show-toplevel'], cartella)
   if (r.codice !== 0) return /not a git repository/i.test(r.uscita) ? 'non-git' : 'ok'
   const radice = r.uscita.split(/\r?\n/)[0] ?? ''
-  if (radice === '' || stessaCartella(radice, cartella) || inLinea(git, sottocartellaDelRamo(radice, cartella))) return 'ok'
+  if (radice === '' || stessaCartella(radice, cartella) || (yield* sottocartellaDelRamo(radice, cartella))) return 'ok'
   return 'non-git'
+}
+
+/**
+ * Un git sincrono che risponde con risposte già chieste (30/10): per le
+ * funzioni pure che vogliono un `Git` (`fattiVerificati`) senza che il
+ * servizio si fermi ad aspettarlo. Una domanda non fatta prima risponde «no».
+ */
+export async function gitGiaChiesto(git: GitAsincrono, domande: string[][], cwd: string): Promise<Git> {
+  const risposte = new Map<string, EsitoGit>()
+  for (const args of domande) risposte.set(`${cwd}\0${args.join(' ')}`, await git(args, cwd))
+  return (args, dove) => risposte.get(`${dove}\0${args.join(' ')}`) ?? { codice: 1, uscita: '' }
+}
+
+export type Saputo<T> = { saputo: true; valore: T } | { saputo: false }
+
+/**
+ * **Una risposta di git per chi non può aspettarla** (30/10). Il giro del
+ * guardiano (ogni minuto) chiede a git di ogni ramo aperto, ed è sincrono:
+ * qui risponde l'ultima risposta avuta e, se è più vecchia di `validoMs` (o
+ * non c'è), se ne chiede una nuova in sottofondo con git asincrono. Senza
+ * nessuna risposta ancora: `{ saputo: false }`, e chi chiede fa come se non
+ * sapesse.
+ */
+export function memoriaAsincrona<T>(validoMs: number, ora: () => number = Date.now): {
+  leggi: (chiave: string, chiedi: () => Promise<T>) => Saputo<T>
+  aggiornate: () => Promise<void>
+} {
+  const memo = new Map<string, { valore: T; il: number }>()
+  const inCorso = new Map<string, Promise<void>>()
+  return {
+    leggi(chiave, chiedi) {
+      const m = memo.get(chiave)
+      if ((m === undefined || ora() - m.il >= validoMs) && !inCorso.has(chiave)) {
+        const p = Promise.resolve()
+          .then(chiedi)
+          .then((valore) => { memo.set(chiave, { valore, il: ora() }) })
+          .catch(() => { /* resta la risposta di prima */ })
+          .finally(() => { inCorso.delete(chiave) })
+        inCorso.set(chiave, p)
+      }
+      return m === undefined ? { saputo: false } : { saputo: true, valore: m.valore }
+    },
+    async aggiornate() { await Promise.all([...inCorso.values()]) }
+  }
+}
+
+/** Quanto vale la risposta di git su una copia, in `statoCopiaInMemoria`. */
+export const COPIA_RICORDATA_MS = 30_000
+
+/**
+ * **Lo stato della copia senza git sincrono** (30/10). `chatSenzaLavoro` lo
+ * chiede a ogni fermata e a ogni giro, e con `spawnSync` ogni domanda fermava
+ * il servizio (3.500 «non risponde» dell'app in un giorno). Qui la cartella
+ * che manca si vede subito dal disco; il resto lo dice git in sottofondo, e
+ * fino alla prima risposta vale «ok»: solo un «no» detto da git chiude una
+ * chat, come in `statoCopia`.
+ */
+export function statoCopiaInMemoria(
+  git: GitAsincrono,
+  opz: { validoMs?: number; ora?: () => number } = {}
+): ((cartella: string) => StatoCopia) & { aggiornate: () => Promise<void> } {
+  const validoMs = opz.validoMs ?? COPIA_RICORDATA_MS
+  const ora = opz.ora ?? Date.now
+  const memo = new Map<string, { stato: StatoCopia; il: number }>()
+  const inCorso = new Map<string, Promise<void>>()
+  const leggi = ((cartella: string): StatoCopia => {
+    if (!existsSync(cartella)) { memo.delete(cartella); return 'mancante' }
+    const m = memo.get(cartella)
+    if ((m === undefined || ora() - m.il >= validoMs) && !inCorso.has(cartella)) {
+      const p = statoCopiaAsincrono(git, cartella)
+        .then((stato) => { memo.set(cartella, { stato, il: ora() }) })
+        .catch(() => { /* resta quello di prima */ })
+        .finally(() => { inCorso.delete(cartella) })
+      inCorso.set(cartella, p)
+    }
+    return m?.stato ?? 'ok'
+  }) as ((cartella: string) => StatoCopia) & { aggiornate: () => Promise<void> }
+  /** Per i test: aspetta le domande a git in corso. */
+  leggi.aggiornate = async () => { await Promise.all([...inCorso.values()]) }
+  return leggi
 }
 
 export function ramoCorrente(git: Git, cwd: string): string | undefined {
@@ -214,6 +305,38 @@ export function creaWorktree(git: Git, p: { cwd: string; autopilota: string; cha
   if (r.codice !== 0) return { ok: false, motivo: `git worktree add non riuscito: ${r.uscita.slice(0, 300)}` }
   // settings.local.json è fuori da git: senza questo la copia nasce con gli hook ECC accesi (0.84.0).
   allineaHookEcc(radice, piano.cartellaRadice, fuoriDaGit(git))
+  return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
+}
+
+/**
+ * `creaWorktree` senza fermare il servizio (30/10): `worktree add` su un
+ * progetto grande dura secondi, e con `spawnSync` erano secondi in cui il
+ * servizio non rispondeva a nessuno.
+ */
+export async function creaWorktreeAsincrono(git: GitAsincrono, p: { cwd: string; autopilota: string; chat: string; base: string }):
+  Promise<{ ok: true; cartella: string; ramo: string } | { ok: false; motivo: string }> {
+  const radice = await aspettando(git, radicePassi(p.cwd))
+  if (radice === undefined) return { ok: false, motivo: 'la cartella non è un repository git' }
+  const sotto = relative(radice, p.cwd)
+  const piano = pianoWorktree({ radice, sotto, autopilota: p.autopilota, chat: p.chat })
+  // `allineaHookEcc` è sincrono: la risposta di `check-ignore` la si chiede prima, solo se serve.
+  const allinea = async (): Promise<void> => {
+    if (!existsSync(join(radice, '.claude', 'settings.local.json')) || !existsSync(piano.cartellaRadice)) return
+    const fuori = (await git(['check-ignore', '-q', '.claude/settings.local.json'], piano.cartellaRadice)).codice === 0
+    allineaHookEcc(radice, piano.cartellaRadice, () => fuori)
+  }
+  if (existsSync(piano.cartellaRadice)) {
+    await allinea()
+    return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
+  }
+  // Come in `creaWorktree`: prune per le copie sparite, il ramo che c'è già si riusa.
+  await git(['worktree', 'prune'], radice)
+  const esiste = (await git(['rev-parse', '--verify', '--quiet', `refs/heads/${piano.ramo}`], radice)).codice === 0
+  const r = esiste
+    ? await git(['worktree', 'add', piano.cartellaRadice, piano.ramo], radice)
+    : await git(['worktree', 'add', '-b', piano.ramo, piano.cartellaRadice, p.base], radice)
+  if (r.codice !== 0) return { ok: false, motivo: `git worktree add non riuscito: ${r.uscita.slice(0, 300)}` }
+  await allinea()
   return { ok: true, cartella: piano.cartella, ramo: piano.ramo }
 }
 

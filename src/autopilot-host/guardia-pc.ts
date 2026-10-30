@@ -33,7 +33,7 @@ export { rigaPcCarico }
  * - appena liberato parte **un** comando pesante solo, per `QUIETE_DOPO_MS`:
  *   se il PC torna pieno, gli altri non si accodano sopra;
  * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (mezz'ora;
- *   dentro un hook `ATTESA_IN_UN_HOOK_MS`, un quarto d'ora): il tetto c'è
+ *   dentro un hook `ATTESA_IN_UN_HOOK_MS`, cinque minuti): il tetto c'è
  *   perché un programma esterno sempre acceso non fermi l'autopilota per sempre.
  *
  * 0.86.1: carico per più di `CARICO_MASSIMO_MS` (10 minuti) di fila, il PC si
@@ -67,10 +67,11 @@ export const RIPROVA_MS = 15_000
  */
 export const ATTESA_MASSIMA_MS = 30 * 60_000
 /**
- * Il tetto dell'attesa dentro un hook (0.86.1), ben sotto `TIMEOUT_HOOK_S`
- * (un'ora): dopo l'attesa vengono ancora i criteri e il supervisore.
+ * Il tetto dell'attesa dentro un hook (0.86.1), ben sotto `TIMEOUT_HOOK_S`:
+ * dopo l'attesa vengono ancora i criteri e il supervisore. 30/10: da 15 a 5
+ * minuti, con l'hook sceso da un'ora a 15 minuti.
  */
-export const ATTESA_IN_UN_HOOK_MS = 15 * 60_000
+export const ATTESA_IN_UN_HOOK_MS = 5 * 60_000
 /**
  * Carico da così tanto di fila (0.86.1), il PC si libera già sotto
  * `SOGLIA_PROCESSORE` invece che sotto `SOGLIA_RILASCIO`: un PC che resta fra

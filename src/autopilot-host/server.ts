@@ -18,6 +18,7 @@ import { domandaDaNonFare, scartaSeNonVa } from './gesti-a-mano'
 import { chatDellaDomandaRifacimenti, compitoDallaDomanda, eDomandaRifacimenti, noteDallaDomanda, okRespintoDaiCriteri, oltreIlTetto, rigaDaParte, stradaOltre, testoDaCapo } from './oltre-rifacimenti'
 import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CODA_AL_LAVORO_MS, messaDaParte, motivoSilenzio, tornaDaParte } from './guardiano'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
+import { TETTO_RISPOSTA_STOP_MS } from '@shared/hook-autopilota'
 import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
 import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
 import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
@@ -83,8 +84,10 @@ import {
   type StatoProgramma
 } from './coordinatore'
 import {
-  cartellaWorktreeDi, creaWorktree, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, ramoGiaChiusoAsincrono, ramoSenzaNovita, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, soloNoteAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, type Git, type GitAsincrono
+  cartellaWorktreeDi, creaWorktreeAsincrono, fuoriDaGit, fattiPubblicazione, mandaSu, radiceGit, ramoCorrente, ramoGiaChiuso, ramoGiaChiusoAsincrono, ramoSenzaNovita, ramoSenzaNovitaAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, soloNoteAsincrono, togliCartellaVuota, togliWorktreeAsincrono, togliWorktreeVuoti, unisciRamo, unisciRamoAsincrono, comeAsincrono, gitGiaChiesto, memoriaAsincrona, type EsitoGit, type Git, type GitAsincrono, type Saputo
 } from './worktree'
+import { unisciAlSalvataggio } from './unione-salvataggio'
+import { azzeraContatoriSeNuovaVersione, fileVersioneContatori } from './contatori-versione'
 import { allineaHookEccDiTutte } from './hook-ecc'
 import { rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
@@ -197,6 +200,8 @@ export type Dipendenze = {
    * i worktree a fine turno passano da qui. Senza, si usa `git` così com'è.
    */
   gitAsincrono?: GitAsincrono
+  /** Entro quanto si risponde allo Stop di una chat (30/10); di serie `TETTO_RISPOSTA_STOP_MS`. */
+  tettoRispostaStopMs?: number
   /**
    * Se la copia di una chat c'è ancora ed è il suo worktree (c-310): una chat
    * senza copia non fa più giri. Assente in prova: le cartelle dei worktree
@@ -528,6 +533,9 @@ export function conservaCambiUtente(
  * messaggi in viaggio, il dialogo, le chat messe da parte (tranne questa, che
  * ha appena parlato) e le decisioni degli altri, sotto quelle nuove del turno.
  */
+/** I campi che `codaDalDisco` unisce già al disco: `unisciAlSalvataggio` li prende come sono (30/10). */
+export const CAMPI_DELLA_CODA = ['daConsegnare', 'inVolo', 'risposteInViaggio', 'dialogo', 'daParte', 'decisioni'] as const
+
 export function codaDalDisco(
   calcolato: Autopilota,
   disco: Autopilota,
@@ -1654,7 +1662,23 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return { daAprire: 0, motivo: `ci sono già ${tetto} chat al lavoro, il massimo` }
   }
 
-  const apriChatMancanti = async (a: Autopilota): Promise<Autopilota> => {
+  /**
+   * 30/10: una apertura alla volta per autopilota. Le copie si creano con git
+   * asincrono, e due aperture insieme avrebbero dato lo stesso id (`c-N`) a
+   * due chat diverse. Chi arriva mentre un'altra è in corso la aspetta e
+   * riparte dallo stato su disco.
+   */
+  const apertureInCorso = new Map<string, Promise<unknown>>()
+  const apriChatMancanti = (a: Autopilota): Promise<Autopilota> => {
+    const prima = apertureInCorso.get(a.id)
+    const questa: Promise<Autopilota> = prima === undefined
+      ? apriChatMancantiOra(a)
+      : prima.catch(() => undefined).then(() => apriChatMancantiOra(deps.archivio.leggi(a.id) ?? a))
+    apertureInCorso.set(a.id, questa)
+    void questa.catch(() => undefined).finally(() => { if (apertureInCorso.get(a.id) === questa) apertureInCorso.delete(a.id) })
+    return questa
+  }
+  const apriChatMancantiOra = async (a: Autopilota): Promise<Autopilota> => {
     const { tetto, delFreno } = tettoApertura(a)
     const soloRevisioni = delFreno.soloRevisioni
     // 0.84.0: prima di aprire, nessun lavoro dato due volte. Un compito che una
@@ -1729,10 +1753,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       riusate.push({ chat: { ...vecchia, compito, stato: 'lavoro' }, messaggio: `${compito}\n\nIl ramo è stato corretto dopo la tua revisione di prima: rivedilo di nuovo, solo su quello che avevi chiesto e su quello che è cambiato. Chiudi con la riga REVISIONE: OK o REVISIONE: DA RIFARE.` })
       return false
     })
+    // Un compito di Revisione si riconosce anche dal testo, se il grafo l'ha perso.
+    const ruoloDi = (compito: string): ChatGovernata['ruolo'] => a.ruoliCompiti?.[compito]?.ruolo ?? (chatDaRivedere(compito) !== undefined ? 'revisione' as const : undefined)
+    // 30/10: le copie si creano prima, con git asincrono e una alla volta
+    // (`worktree add` sullo stesso repository non va in parallelo).
+    const primaDelleCopie = a
+    const copie = new Map<number, Awaited<ReturnType<typeof creaWorktreeAsincrono>>>()
+    if (deps.git !== undefined && a.ramoBase !== undefined) {
+      for (const [i, compito] of daAprireNuove.entries()) {
+        const r = ruoloDi(compito)
+        if (r === 'revisione' || r === 'rilascio') continue
+        copie.set(i, await creaWorktreeAsincrono(deps.gitAsincrono ?? comeAsincrono(deps.git), { cwd: a.cwd, autopilota: a.id, chat: `c-${a.chats.length + i + 1}`, base: a.ramoBase }))
+      }
+    }
     const nuove: ChatGovernata[] = daAprireNuove.map((compito, i) => {
       const id = `c-${a.chats.length + i + 1}`
-      // Un compito di Revisione si riconosce anche dal testo, se il grafo l'ha perso.
-      const ruolo = a.ruoliCompiti?.[compito]?.ruolo ?? (chatDaRivedere(compito) !== undefined ? 'revisione' as const : undefined)
+      const ruolo = ruoloDi(compito)
       if (ruolo === 'revisione') {
         // Il revisore lavora nella cartella del ramo che rivede, in sola lettura.
         const autore = a.chats.find((c) => c.id === chatDaRivedere(compito))
@@ -1746,8 +1782,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // non si pesta i file con le sorelle; il suo lavoro si unisce al ramo
       // principale a ogni fine turno.
       let dove: { cartella?: string; ramo?: string } = {}
-      if (deps.git !== undefined && a.ramoBase !== undefined) {
-        const wt = creaWorktree(deps.git, { cwd: a.cwd, autopilota: a.id, chat: id, base: a.ramoBase })
+      const wt = copie.get(i)
+      if (wt !== undefined) {
         if (wt.ok) dove = { cartella: wt.cartella, ramo: wt.ramo }
         else annotazioni.push(`${id}: worktree non creato (${wt.motivo}), lavora nella cartella principale`)
       }
@@ -1769,7 +1805,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (c.ruolo === 'revisione' && c.cartella !== undefined && c.cartella !== a.cwd) preparaCopia(c.cartella, a.cwd)
     }
     const aperti = new Set(piano.daAprire)
-    const aggiornato: Autopilota = {
+    const calcolato: Autopilota = {
       ...a,
       chats: [...a.chats.map((c) => riusate.find((r) => r.chat.id === c.id)?.chat ?? c), ...nuove],
       compitiDaFare: a.compitiDaFare.filter((t) => !aperti.has(t)),
@@ -1780,6 +1816,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ...annotazioni.map((cosa) => ({ quando: deps.adesso(), cosa }))
       ]
     }
+    // Con le copie create si è aspettato git: intanto una chat sorella può aver salvato.
+    const disco = copie.size > 0 ? deps.archivio.leggi(a.id) : undefined
+    const aggiornato = disco !== undefined ? unisciAlSalvataggio(primaDelleCopie, calcolato, disco) : calcolato
     salva(aggiornato)
     for (const r of riusate) {
       void avviaLavoro(aggiornato, r.messaggio, r.chat).catch((err: unknown) => { console.error(`[autopilota] revisione ${r.chat.id} non ripartita:`, err) })
@@ -2113,10 +2152,31 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   /** Il disco e git, per decidere cosa fare di una chat che non nasce (0.84.4). */
+  /**
+   * 30/10: quello che il giro di ogni minuto chiede a git, con git asincrono
+   * quando c'è (nel servizio vero): l'ultima risposta, rinnovata in
+   * sottofondo (`memoriaAsincrona`). Senza (le prove con il git finto) come prima.
+   */
+  const gitDelGiro = memoriaAsincrona<unknown>(45_000, () => (deps.orologio ?? Date.now)())
+  const chiedeGitDelGiro = <T>(chiave: string, asincrono: (g: GitAsincrono) => Promise<T>, sincrono: (g: Git) => T): Saputo<T> | undefined => {
+    if (deps.git === undefined) return undefined
+    if (deps.gitAsincrono === undefined) return { saputo: true, valore: sincrono(deps.git) }
+    const g = deps.gitAsincrono
+    return gitDelGiro.leggi(chiave, () => asincrono(g)) as Saputo<T>
+  }
+  const ramoChiusoDelGiro = (p: { cwd: string; ramo: string; base: string }): Saputo<'mancante' | 'unito' | undefined> | undefined =>
+    chiedeGitDelGiro(`chiuso|${p.cwd}|${p.ramo}|${p.base}`, (g) => ramoGiaChiusoAsincrono(g, p), (g) => ramoGiaChiuso(g, p))
+  const esitoGitDelGiro = (args: string[], cwd: string): Saputo<EsitoGit> | undefined =>
+    chiedeGitDelGiro(`git|${cwd}|${args.join(' ')}`, (g) => g(args, cwd), (g) => g(args, cwd))
+
   const vistaNonNata = (a: Autopilota): VistaNonNata => ({
     copia: (cartella) => deps.copia?.(cartella),
     // Senza git (prove) non si può sapere: si tiene il ramo, mai «superata» al buio.
-    ramoEsiste: (ramo) => deps.git === undefined || deps.git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd).codice === 0
+    // 30/10: e nemmeno finché git non ha risposto.
+    ramoEsiste: (ramo) => {
+      const r = esitoGitDelGiro(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd)
+      return r === undefined || !r.saputo || r.valore.codice === 0
+    }
   })
   /** Le chat a cui si è già posto rimedio (0.84.4): l'esito del PC e il giro possono arrivare insieme. */
   const nonNateCurate = new Set<string>()
@@ -2136,10 +2196,25 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * del suo ramo, se serve), o si chiude la Revisione di un ramo che non c'è
    * più. Mai una domanda a Nicholas. La regola sta in `non-nata.ts`.
    */
-  const rimediaNonNata = (autopilotaId: string, chatId: string, perche: string): void => {
-    const a = deps.archivio.leggi(autopilotaId)
+  /**
+   * 30/10: la copia si rimette con git asincrono, quindi un rimedio alla volta
+   * per autopilota: quello che arriva mentre un altro è in corso lo aspetta,
+   * e riguarda prima se serve ancora (`ancora`): la copia rimessa per una chat
+   * può essere la stessa cartella della sua Revisione.
+   */
+  const rimediInCorso = new Map<string, Promise<void>>()
+  const rimediaNonNata = (autopilotaId: string, chatId: string, perche: string, ancora?: (a: Autopilota, c: ChatGovernata) => boolean): void => {
+    const prima = rimediInCorso.get(autopilotaId)
+    const questo = (prima === undefined ? rimediaNonNataOra(autopilotaId, chatId, perche, ancora) : prima.then(() => rimediaNonNataOra(autopilotaId, chatId, perche, ancora)))
+      .catch((err: unknown) => { console.error(`[autopilota] ${autopilotaId} — rimedio per ${chatId} non riuscito:`, err) })
+    rimediInCorso.set(autopilotaId, questo)
+    void questo.finally(() => { if (rimediInCorso.get(autopilotaId) === questo) rimediInCorso.delete(autopilotaId) })
+  }
+  const rimediaNonNataOra = async (autopilotaId: string, chatId: string, perche: string, ancora?: (a: Autopilota, c: ChatGovernata) => boolean): Promise<void> => {
+    let a = deps.archivio.leggi(autopilotaId)
     const vecchia = a?.chats.find((c) => c.id === chatId)
     if (a === undefined || vecchia === undefined || vecchia.stato !== 'lavoro' || vecchia.conclusa !== undefined || a.stato !== 'lavoro') return
+    if (ancora !== undefined && !ancora(a, vecchia)) return
     const chiave = `${a.id}|${vecchia.id}`
     if (nonNateCurate.has(chiave)) return
     nonNateCurate.add(chiave)
@@ -2164,8 +2239,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const nuovaId = `c-${a.chats.length + 1}`
     if (r.tipo === 'ricrea' || r.nuovoPosto === true) {
       const wt = deps.git !== undefined && a.ramoBase !== undefined
-        ? creaWorktree(deps.git, { cwd: a.cwd, autopilota: a.id, chat: r.tipo === 'ricrea' ? r.chat : nuovaId, base: a.ramoBase })
+        ? await creaWorktreeAsincrono(deps.gitAsincrono ?? comeAsincrono(deps.git), { cwd: a.cwd, autopilota: a.id, chat: r.tipo === 'ricrea' ? r.chat : nuovaId, base: a.ramoBase })
         : { ok: false as const, motivo: 'senza git' }
+      // 30/10: git asincrono, quindi si riparte dal disco: intanto le sorelle possono aver salvato.
+      a = deps.archivio.leggi(a.id) ?? a
+      if (a.stato !== 'lavoro' || a.chats.find((c) => c.id === vecchia.id)?.stato !== 'lavoro') return
       // La copia si rimette e la stessa chat riparte lì: la «riaperta da sola».
       if (wt.ok && r.tipo === 'ricrea') {
         nonNateCurate.delete(chiave)
@@ -2175,7 +2253,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         console.info(`[autopilota] ${a.id} — ${vecchia.id}: copia rimessa in ${wt.cartella} (ramo ${r.ramo}), la chat riparte`)
         const stessa = dopo.chats.find((c) => c.id === vecchia.id)
         void avviaLavoro(dopo, testoCopiaRimessa(stessa ?? vecchia, r.ramo), stessa).catch((err: unknown) => {
-          console.error(`[autopilota] ${a.id} — ${vecchia.id} non ripartita dopo la copia rimessa:`, err)
+          console.error(`[autopilota] ${autopilotaId} — ${vecchia.id} non ripartita dopo la copia rimessa:`, err)
         })
         return
       }
@@ -2202,7 +2280,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     salva(dopo)
     console.info(`[autopilota] ${a.id} — ${vecchia.id} non nata (${r.motivo}): il compito passa a ${nuova.id}`)
     void avviaLavoro(dopo, `${testoNataAlPosto(vecchia, r.motivo)}\n\n---\n\n${primoCompito(dopo, nuova)}`, nuova).catch((err: unknown) => {
-      console.error(`[autopilota] ${a.id} — ${nuova.id} (al posto di ${vecchia.id}) non partita:`, err)
+      console.error(`[autopilota] ${autopilotaId} — ${nuova.id} (al posto di ${vecchia.id}) non partita:`, err)
     })
   }
 
@@ -2220,13 +2298,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    */
   const qualcosaDaFare = (a: Autopilota): boolean | undefined => {
     if (a.criteri.some((c) => c.giudicato === undefined && !c.soddisfatto)) return true
-    const git = deps.git
-    if (git === undefined) return undefined
-    if (a.ramoBase !== undefined && a.chats.some((c) => c.ramo !== undefined && c.ruolo !== 'revisione' && c.conclusa === undefined && c.approvata !== true && ramoGiaChiuso(git, { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase as string }) === undefined)) return true
-    const testa = git(['rev-parse', 'HEAD'], a.cwd)
-    if (testa.codice !== 0) return undefined
+    if (deps.git === undefined) return undefined
+    // 30/10: con git asincrono una risposta che non c'è ancora vale «non si sa».
+    let nonSaputo = false
+    if (a.ramoBase !== undefined) {
+      for (const c of a.chats) {
+        if (c.ramo === undefined || c.ruolo === 'revisione' || c.conclusa !== undefined || c.approvata === true) continue
+        const chiuso = ramoChiusoDelGiro({ cwd: a.cwd, ramo: c.ramo, base: a.ramoBase })
+        if (chiuso === undefined || !chiuso.saputo) { nonSaputo = true; continue }
+        if (chiuso.valore === undefined) return true
+      }
+    }
+    if (nonSaputo) return undefined
+    const testa = esitoGitDelGiro(['rev-parse', 'HEAD'], a.cwd)
+    if (testa === undefined || !testa.saputo || testa.valore.codice !== 0) return undefined
     const prima = testeAlGiro.get(a.id)
-    return prima === undefined || prima !== testa.uscita.trim()
+    return prima === undefined || prima !== testa.valore.uscita.trim()
   }
   /**
    * Il lavoro di questa chat è già nel principale (29/10). Per chi ha detto
@@ -2235,14 +2322,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * commit, e lì il compito non è fatto.
    */
   const giaFattoDaSolo = (a: Autopilota, c: ChatGovernata): boolean => {
-    const git = deps.git
     const fatto = haDettoFatto(c)
     if (c.ramo === undefined) return fatto
-    if (git === undefined || a.ramoBase === undefined) return false
+    if (deps.git === undefined || a.ramoBase === undefined) return false
     const p = { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }
-    const chiuso = ramoGiaChiuso(git, p)
-    if (!fatto) return chiuso === 'mancante'
-    return chiuso !== undefined || ramoSenzaNovita(git, p)
+    // 30/10: con git asincrono, finché non ha risposto non è «già fatto».
+    const chiuso = ramoChiusoDelGiro(p)
+    if (chiuso === undefined || !chiuso.saputo) return false
+    if (!fatto) return chiuso.valore === 'mancante'
+    if (chiuso.valore !== undefined) return true
+    const senza = chiedeGitDelGiro(`senza-novita|${p.cwd}|${p.ramo}|${p.base}`, (g) => ramoSenzaNovitaAsincrono(g, p), (g) => ramoSenzaNovita(g, p))
+    return senza !== undefined && senza.saputo && senza.valore
   }
 
   const giriDaSoli = (): void => {
@@ -2254,7 +2344,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // aspetta il silenzio per accorgersene (c-115 → c-118, 23/10).
       if (prima.stato === 'lavoro' && prima.fermatoPerAggiornamento !== true && deps.copia !== undefined) {
         for (const c of prima.chats) {
-          if (c.stato === 'lavoro' && c.conclusa === undefined && postoSparito(c, vistaNonNata(prima))) rimediaNonNata(prima.id, c.id, 'la sua cartella non c’è più')
+          if (c.stato === 'lavoro' && c.conclusa === undefined && postoSparito(c, vistaNonNata(prima))) rimediaNonNata(prima.id, c.id, 'la sua cartella non c’è più', (a, x) => postoSparito(x, vistaNonNata(a)))
         }
       }
       const letto = deps.archivio.leggi(prima.id) ?? prima
@@ -2280,8 +2370,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       if (giro === undefined) continue
       // Il commit nuovo si misura da un giro all'altro.
       if (deps.git !== undefined) {
-        const testa = deps.git(['rev-parse', 'HEAD'], letto.cwd)
-        if (testa.codice === 0) testeAlGiro.set(letto.id, testa.uscita.trim())
+        // 30/10: senza fermare il servizio; la risposta arriva prima del giro dopo.
+        const testaAdesso = (t: EsitoGit): void => { if (t.codice === 0) testeAlGiro.set(letto.id, t.uscita.trim()) }
+        if (deps.gitAsincrono !== undefined) void deps.gitAsincrono(['rev-parse', 'HEAD'], letto.cwd).then(testaAdesso).catch(() => {})
+        else testaAdesso(deps.git(['rev-parse', 'HEAD'], letto.cwd))
       }
       let a: Autopilota = { ...letto, giroDaSolo: deps.adesso() }
       annota(a, rigaGiro(giro))
@@ -2386,6 +2478,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let ultimaRipresa = 0
   const riprendiLavori = (opzioni: { servizioAppenaPartito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
+    // 30/10: con una versione nuova i conti dei guasti del supervisore ripartono da zero.
+    if (opzioni.servizioAppenaPartito === true) {
+      try {
+        const n = azzeraContatoriSeNuovaVersione({ versione: deps.versione, file: fileVersioneContatori(deps.archivio.cartella), autopiloti: deps.archivio.elenca(), salva })
+        if (n > 0) console.info(`[autopilota] versione ${deps.versione ?? '?'}: azzerati i conti delle risposte mancate del supervisore di ${n} autopiloti`)
+      } catch (err) {
+        console.error('[autopilota] conti del supervisore non azzerati:', err)
+      }
+    }
     // **Le domande aperte vivono in memoria, e questo processo e' appena
     // nato.** Un autopilota in `attesa` sta aspettando una risposta a una
     // domanda che nessuno ha piu': il registro e' vuoto, la risposta — se mai
@@ -2969,7 +3070,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Mentre pensa sta lavorando: il guardiano del silenzio lo salta.
     inLavorazione.add(id)
     let esito
-    let sessioneNuova: string | undefined
     let guasto: string | undefined
     let lunghezzaRisposta = 0
     try {
@@ -2985,13 +3085,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           ...(aperta !== undefined ? { domandaAperta: aperta.testo } : {})
         }),
         a.cwd,
-        a.sessioneSupervisore
+        // 30/10: senza sessione: il quadro, le ultime mosse e il dialogo sono
+        // nel prompt, e la conversazione ripresa a ogni battuta cresceva senza fine.
+        undefined,
+        { senzaSessione: true }
       )
       esito = leggiEsitoDialogo(r.testo)
       lunghezzaRisposta = r.testo.length
       // Se non si legge, l'inizio e la fine vanno nel registro: senza, non si capisce perché.
       if (esito === undefined) console.error(`[autopilota] ${id} — risposta del dialogo illeggibile (${r.testo.length} caratteri): ${r.testo.slice(0, 300)} … ${r.testo.slice(-300)}`)
-      sessioneNuova = r.sessionId
     } catch (err) {
       guasto = err instanceof Error ? err.message : String(err)
       console.error(`[autopilota] ${id} — il dialogo non ha avuto risposta:`, err)
@@ -3003,10 +3105,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // puo' aver chiuso un turno, o tu aver premuto un tasto.
     let fresco = deps.archivio.leggi(id)
     if (fresco === undefined) return
-    if (sessioneNuova !== undefined && fresco.sessioneSupervisore !== sessioneNuova) {
-      fresco = { ...fresco, sessioneSupervisore: sessioneNuova }
-    }
-    const chiudi = (risposta: string, esitoBattuta: string): void => {
+    const chiudi =(risposta: string, esitoBattuta: string): void => {
       const conSua: Autopilota = {
         ...fresco!,
         dialogo: [...fresco!.dialogo, { quando: deps.adesso(), da: 'lui' as const, testo: risposta, esito: esitoBattuta }]
@@ -3431,7 +3530,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     }
     if (strada === 'da-capo') {
       const nuovaId = `c-${a.chats.length + 1}`
-      const wt = git !== undefined && base !== undefined ? creaWorktree(git, { cwd: a.cwd, autopilota: a.id, chat: nuovaId, base }) : undefined
+      const wt = git !== undefined && base !== undefined ? await creaWorktreeAsincrono(gitA(git), { cwd: a.cwd, autopilota: a.id, chat: nuovaId, base }) : undefined
+      // 30/10: git asincrono, quindi si riparte dal disco.
+      if (wt !== undefined) a = deps.archivio.leggi(autopilotaId) ?? a
       if (wt === undefined || wt.ok) {
         deps.fermaLavoro(a.id, autore.id, chi)
         if (chi !== undefined) deps.chiudiChat?.(a.id, autore.id, { ...chi, alRecupero: true })
@@ -3644,8 +3745,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     let ramiAperti = 0
     for (const c of a.chats) {
       if (c.ramo === undefined || c.ruolo === 'revisione' || c.conclusa !== undefined || c.approvata === true) continue
-      const chiuso = deps.git !== undefined && a.ramoBase !== undefined ? ramoGiaChiuso(deps.git, { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }) : undefined
-      if (chiuso === undefined) ramiAperti += 1
+      // 30/10: con git asincrono, un ramo di cui git non ha ancora detto niente è aperto.
+      const chiuso = a.ramoBase !== undefined ? ramoChiusoDelGiro({ cwd: a.cwd, ramo: c.ramo, base: a.ramoBase }) : undefined
+      if (chiuso === undefined || !chiuso.saputo || chiuso.valore === undefined) ramiAperti += 1
     }
     const versione = versioneDelProgetto(a.cwd)
     const release = releaseConosciute.get(a.cwd) ?? []
@@ -3748,10 +3850,22 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // a turno avviato con la coda presa dal disco (`codaDalDisco`): intanto il
     // guardiano serve le chat sorelle.
     const presiNelTurno: MessaggioPerLaChat[] = []
-    const salvaNelTurno = (x: Autopilota): void => {
+    // 30/10: ogni salvataggio del turno si unisce a quello che c'è sul disco
+    // (`unisciAlSalvataggio`): vince solo quello che questo turno ha cambiato
+    // dall'ultima volta che ha salvato, il resto (una chat sorella che si è
+    // fermata intanto) resta com'è sul disco.
+    let baseNelTurno: Autopilota = a
+    const salvaUnito = (x: Autopilota, conCoda: boolean): void => {
       const disco = deps.archivio.leggi(id)
-      salva(disco === undefined ? x : codaDalDisco(x, disco, chiaveChat, presiNelTurno, a.decisioni.length))
+      const pronto = disco === undefined
+        ? x
+        : conCoda
+          ? unisciAlSalvataggio(baseNelTurno, codaDalDisco(x, disco, chiaveChat, presiNelTurno, a.decisioni.length), disco, CAMPI_DELLA_CODA)
+          : unisciAlSalvataggio(baseNelTurno, x, disco)
+      baseNelTurno = x
+      salva(pronto)
     }
+    const salvaNelTurno = (x: Autopilota): void => { salvaUnito(x, true) }
     // 0.84.0: il segnale con cui la chat chiude il turno (fatto, bloccata,
     // aspetto, avanti). L'autopilota lo tiene sulla chat: è il quadro unico.
     const sorelle = a.chats.map((c) => c.id)
@@ -3798,6 +3912,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // nell'API — e chi guardava lo credeva fermo. Il valore è già giusto qui:
     // l'hook è arrivato, il giro è stato fatto.
     salva(conSessione)
+    baseNelTurno = conSessione
     misura.daRegistrare = true
     misura.crono.segna('lettura')
     // La chat ha appena chiuso un turno: è viva, e il guardiano deve saperlo.
@@ -4036,9 +4151,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // stesso segnale, e l'ultima mossa era «prosegui»: interrogare di nuovo il
     // supervisore (820k token a prompt) e rimandare la chat a girare non serve.
     // La chat si ferma; se resta qualcosa da fare la sveglia «mai fermo».
-    const firmaQui = deps.git !== undefined && improntaChat !== undefined
+    // 30/10: la testa del principale con git asincrono, non fermando il servizio a ogni fermata.
+    const testaQui = deps.git !== undefined && improntaChat !== undefined
+      ? (await (deps.gitAsincrono ?? comeAsincrono(deps.git))(['rev-parse', 'HEAD'], conSessione.cwd)).uscita.trim()
+      : undefined
+    const firmaQui = testaQui !== undefined && improntaChat !== undefined
       ? createHash('sha256')
-          .update(deps.git(['rev-parse', 'HEAD'], conSessione.cwd).uscita.trim()).update('\0')
+          .update(testaQui).update('\0')
           .update(improntaChat).update('\0')
           .update(esiti.map((e) => `${e.descrizione}:${e.passato ? 1 : 0}:${e.misurato === false ? 0 : 1}`).join('|')).update('\0')
           .update(`${segnaleQui?.tipo ?? ''}:${segnaleQui?.motivo ?? ''}:${segnaleQui?.di ?? ''}`)
@@ -4089,11 +4208,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const tuoiNelQuadro = (deps.archivio.leggi(id) ?? aggiornato).daConsegnare
         .filter((m) => m.chats.includes(chiaveChat))
         .map((m) => m.testo)
+      // 30/10: `git status` e `git log` dei fatti con git asincrono (uno status su un progetto grande dura secondi).
+      const cartellaFatti = miaChat?.cartella ?? aggiornato.cwd
+      const gitFatti = deps.git !== undefined
+        ? await gitGiaChiesto(deps.gitAsincrono ?? comeAsincrono(deps.git), [['status', '--porcelain'], ['log', '-5', '--oneline']], cartellaFatti)
+        : undefined
       // T1 + T4: lo stato del programma, e le mosse che puo' chiedere. Le
       // vietate le rifiuta il programma, qualunque cosa scriva il modello.
       const harness = [
         // Prima i fatti verificati dal programma e le decisioni di Nicholas (0.71.0).
-        fattiVerificati({ git: deps.git, cartella: miaChat?.cartella ?? aggiornato.cwd, esiti, decisioni: aggiornato.decisioni, adesso: deps.adesso() }),
+        fattiVerificati({ git: gitFatti, cartella: cartellaFatti, esiti, decisioni: aggiornato.decisioni, adesso: deps.adesso() }),
         sezioneDecisioni(memoria.decisioni(aggiornato.cwd)),
         riassuntoProgramma(statoProgramma, freno, Date.parse(deps.adesso())),
         cloudDi(aggiornato).attivo
@@ -4589,7 +4713,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           parti: partiBloccato({ lavoro: nomeDi(aggiornato), ...(compito !== undefined ? { compito } : {}), falliti: bloccato.falliti, tentativi: bloccato.tentativi, strade: STRATEGIE.map((s) => s.nome), errori: bloccato.errori, ultimaStrada: true, continua })
         }
       }
-      const sessioneSup = chatId !== undefined ? aggiornato.chats.find((c) => c.id === chatId)?.sessioneSupervisore : aggiornato.sessioneSupervisore
       // Mentre il supervisore riscrive la domanda la chat è in giudizio: la
       // segna già l'hook (`fermateInCorso`), solo lei (0.84.0).
       // **Le risposte già date non si richiedono** (0.71.0): la stessa domanda
@@ -4631,7 +4754,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const pronta = await domandaControllata(
         nomeDi(aggiornato),
         partiPrima,
-        decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, sessioneSup)).testo,
+        // 30/10: senza sessione: la domanda e i suoi fatti sono nella richiesta.
+        decisione.dalProgramma === true ? undefined : async (richiesta) => (await deps.interroga(richiesta, aggiornato.cwd, undefined, { senzaSessione: true })).testo,
         partiDaRisposta,
         conosciute(aggiornato)
       )
@@ -5014,7 +5138,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             }
           ]
     }
-    salva(finito)
+    salvaUnito(finito, false)
     // La scheda si scrive adesso, che il lavoro e' ancora tutto qui e nessuno
     // l'ha dimenticato: domani la stessa ricostruzione costerebbe una rilettura
     // della chat, cioe' token pagati per sapere una cosa scrivibile in dieci
@@ -5341,24 +5465,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const percorso = url.pathname
     const metodo = req.method ?? 'GET'
 
+    // 30/10: la salute risponde subito, prima di tutto il resto, e solo con
+    // quello che è in memoria (niente disco, niente git): l'app aspetta 3 s e
+    // poi crede il servizio morto.
+    if (metodo === 'GET' && percorso === '/salute') {
+      rispondi(res, 200, {
+        vivo: true,
+        // Quante istruzioni aspettano (in memoria): il Gestore lo chiede prima
+        // di ritirare, perche' senza una finestra non avrebbe dove metterle -
+        // e ritirandole le perderebbe.
+        consegneInAttesa: deps.consegne?.inAttesa() ?? 0,
+        // Con quale versione dell'applicazione è nato: è così che il
+        // Gestore riconosce un servizio rimasto indietro a un
+        // aggiornamento e lo sostituisce, invece di lasciarlo lì perché
+        // «risponde».
+        ...(deps.versione !== undefined ? { versione: deps.versione } : {})
+      })
+      return
+    }
+
     void (async () => {
       try {
-        if (metodo === 'GET' && percorso === '/salute') {
-          // Quante istruzioni aspettano: il Gestore lo chiede prima di
-          // ritirare, perche' senza una finestra non avrebbe dove metterle -
-          // e ritirandole le perderebbe.
-          rispondi(res, 200, {
-            vivo: true,
-            consegneInAttesa: deps.consegne?.inAttesa() ?? 0,
-            // Con quale versione dell'applicazione è nato: è così che il
-            // Gestore riconosce un servizio rimasto indietro a un
-            // aggiornamento e lo sostituisce, invece di lasciarlo lì perché
-            // «risponde».
-            ...(deps.versione !== undefined ? { versione: deps.versione } : {})
-          })
-          return
-        }
-
         // Il congedo. Il servizio deve sopravvivere alla chiusura del Gestore,
         // ma non a un aggiornamento: questa è l'unica porta da cui esce, e la
         // apre soltanto chi gira sulla stessa macchina.
@@ -6398,7 +6525,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           fermateInCorso.set(chiaveFermata, (fermateInCorso.get(chiaveFermata) ?? 0) + 1)
           try {
             // Dentro l'hook l'attesa della guardia ha il tetto corto (0.86.1).
-            const risposta = await dentroUnHook(() => stopUnaVolta(id, chatId, corpo))
+            const lavoro = dentroUnHook(() => stopUnaVolta(id, chatId, corpo))
+            // 30/10: mai oltre il tetto dell'hook. Allo scadere si risponde
+            // «fermati pure» (come un hook scaduto, ma detto); il giudizio
+            // continua e salva quello che trova, la chat riparte dal guardiano.
+            // La fermata resta «in corso» finché non ha finito davvero.
+            const tetto = deps.tettoRispostaStopMs ?? TETTO_RISPOSTA_STOP_MS
+            let sveglia: ReturnType<typeof setTimeout> | undefined
+            const scaduto = Symbol('scaduto')
+            const primo = await Promise.race([lavoro, new Promise<typeof scaduto>((r) => { sveglia = setTimeout(() => { r(scaduto) }, tetto); sveglia.unref?.() })])
+            if (sveglia !== undefined) clearTimeout(sveglia)
+            if (primo === scaduto) {
+              console.warn(`[autopilota] ${id} — la fermata di ${chatId ?? 'la chat'} è ancora in giudizio dopo ${Math.round(tetto / 1000)} s: rispondo «fermati pure» prima che l'hook scada, il giudizio continua`)
+              rispondi(res, 200, {})
+              const tardi = await lavoro.catch((err: unknown) => { console.error(`[autopilota] ${id} — fermata di ${chatId ?? 'la chat'} finita in errore dopo la risposta:`, err); return undefined })
+              if (typeof tardi === 'object' && tardi !== null && (tardi as { decision?: unknown }).decision === 'block') console.warn(`[autopilota] ${id} — il giudizio tardivo di ${chatId ?? 'la chat'} chiedeva di proseguire: la chat riparte dal giro del guardiano`)
+              return
+            }
+            const risposta = primo
             // 0.86.1: la fermata le rimanda lavoro («prosegui», un conflitto,
             // una risposta): un suo «fatto» di prima non vale più.
             if (chatId !== undefined && typeof risposta === 'object' && risposta !== null && (risposta as { decision?: unknown }).decision === 'block') segnaIstruita(id, chatId)

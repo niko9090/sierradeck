@@ -18,8 +18,20 @@
  *
  * 0.81.0: da 900 a 3600. La suite dei test ha 20 minuti (`TIMEOUT_SUITE_TEST_MS`)
  * e, se scade, una rimisura: 40 minuti di soli criteri, più il supervisore.
+ *
+ * 30/10: di nuovo 900. Con il servizio bloccato una chat restava ferma
+ * nell'hook fino a un'ora. Il servizio risponde comunque entro
+ * `TETTO_RISPOSTA_STOP_MS` (un minuto prima): quello che non ha finito
+ * continua dopo la risposta, e la chat riparte dal giro del guardiano.
  */
-export const TIMEOUT_HOOK_S = 3600
+export const TIMEOUT_HOOK_S = 900
+
+/**
+ * Entro quanto il servizio risponde allo Stop di una chat (30/10), un minuto
+ * prima che Claude Code lasci perdere l'hook: meglio una risposta che dice
+ * «fermati pure» che un hook scaduto senza nessuna riga che lo dica.
+ */
+export const TETTO_RISPOSTA_STOP_MS = (TIMEOUT_HOOK_S - 60) * 1000
 
 /**
  * L'id dell'autopilota viaggia **nell'URL**, non nel corpo: al primo `Stop` il
