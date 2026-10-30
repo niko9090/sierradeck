@@ -1,0 +1,914 @@
+---
+titolo: "Storico — App Android: analisi, correzioni e allineamento"
+quando: 2026-10-30T21:16:12.379Z
+tag: ["storico", "autopilota"]
+---
+
+Le cose che contano di questo lavoro, scritte dall'autopilota man mano che succedono: chat aperte, consegne, unioni, chiusure, release e decisioni di Nicholas. Il diario completo resta nella scheda dell'autopilota.
+
+**Obiettivo:** 0.85.1 pubblicata il 24/10 e installata da Nicholas il 27/10: supervisore, rapporti delle chat, promesse, guardia del PC, testo fluido, domande del 23/10. Adesso la 0.85.2 (patch, sì di Nicholas del 27/10): l'autopilota non gira più a vuoto. (1) Un compito con il criterio già verde e il lavoro dentr
+
+## 30/09/2026
+
+- 14:14 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, e sono d'accordo: l'autopilota deve diventare il nostro «harness», cioè l'ambiente in cui l'agente lavora sapendo tutto quello che il programma sa fare e usandolo da solo. Ti dico prima com'è oggi, poi cosa faccio. Og…
+- 15:15 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, parto. Riapro il lavoro (era chiuso) e la chat implementa la proposta harness con le tue decisioni: • **Numero di chat.** Lo decide il modello, secondo quanto serve al lavoro. Il consumo lo tiene a bada il freno sui l…
+- 16:42 · **Decisione di Nicholas** — Ha chiesto: Ho capito male «cloud», scusa. Io l'avevo preso come «il progetto ha un posto dove si pubblica» (remoto git, script, deploy), e la chat l'ha implementato così. Tu intendi il cloud di SierraDeck, cioè il Drive dove si salvano le…
+- 17:06 · **Decisione di Nicholas** — Ha chiesto: Capito, sono due cose: 1. **Sul PC le domande avranno una sezione fissa a lato**, come la scheda Domande dell'app Android. Oggi il nuovo pannello «Domande» si apre sopra come una finestra; diventa una colonna laterale che resta…
+- 17:07 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Ho controllato com'è adesso: - **Già in commit**: tutto il lavoro harness e la correzione «cloud = Drive» (versione 0.36.0, app 2.39.0), in 13 commit sul tuo PC. - **Non ancora uscito**: niente è stato pubblicato. I c…
+
+## 01/10/2026
+
+- 12:28 · **Decisione di Nicholas** — Ha chiesto: Sì, ho capito. Una chat che vive su un altro PC deve aprirsi da sola in remoto, dal vivo, e devi poterci lavorare come se fosse qui. L'errore lo devi vedere solo se quel PC è spento o non risponde, e allora con il motivo e cosa…
+- 13:36 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, sono tre cose e le faccio tutte. 1. **La banda in alto per gli autopiloti fermi.** Ho guardato: oggi quella banda (src/renderer/avvisi.ts) compare finché un autopilota resta fermo o fallito, e ha solo «Vedi». Se l'aut…
+- 14:27 · **Decisione di Nicholas** — Ha risposto: «non vedo tutte le domande. devo aggiornare il programma per rendere applicata la modifica che ti ho chiesto di farmele vedere a fianco della chat e non come finestra??»
+- 17:16 · **Decisione di Nicholas** — Ha chiesto: Prima di risponderti sulle novità: ho letto il tuo «NON VEDO LE DOMANDEEEE!!!!» e va sistemato prima di ogni altra cosa. Sul PC risulta installata la 0.37.2, aperta alle 15:56. Quindi la finestra non c'è più e le domande dovreb…
+- 22:07 · **Decisione di Nicholas** — Ha chiesto: Sì, ho capito. Ti ripeto come lo faccio, così mi correggi se sbaglio. **Nella scheda dell'autopilota**, sotto la chat con lui, ci sono le linguette: Lavoro, Obiettivo, Criteri, Compiti, Diario. Lì aggiungo la linguetta **«Doman…
+- 22:25 · **Decisione di Nicholas** — Ha chiesto: Perfetto, aggiungo le due cose alla stessa versione, la 0.38.0. **1. Linguetta «File».** Sta sotto la chat dell'autopilota, accanto a Domande, Lavoro, Obiettivo e le altre. Ti fa controllare i file che l'autopilota sta cambiand…
+- 22:27 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, finora non si è mosso niente. Ho controllato: l'ultimo commit è ancora la scheda delle novità di Claude Code. Le tue istruzioni sulle linguette erano in coda per la fine di un turno della chat, ma quel turno era gi…
+- 22:30 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, ed è un difetto serio: l'autopilota ha incollato le istruzioni nella chat ma non ha premuto invio. La chat è ancora ferma, con il testo nella casella. Ecco perché finora non mi hai visto lavorare. **Subito:** clicc…
+- 23:38 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: l'autopilota esiste proprio perché tu non debba premere niente. Invio deve partire da solo, sempre. Cosa stai vedendo: nella 0.37.5 avevo fatto aggiungere un paracadute. Se l'autopilota manda il compito e gli sembr…
+
+## 02/10/2026
+
+- 00:45 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e mi scuso. Ho guardato cosa succede davvero. **1. La chat NexoraOS non riceve niente.** Il tuo PC è passato alla 0.38.1 alle 00:28 e da quel momento l'autopilota non scrive più niente nella chat. Il campo è vuoto,…
+- 08:52 · **Decisione di Nicholas** — Ha chiesto: Chiaro, faccio così: 1. **Quando c'è un aggiornamento**, nella striscia in alto non trovi più «Installa e riavvia» ma solo **«Installa»**. Premendolo si apre una finestra che spiega cosa cambia: le note della versione nuova, sc…
+- 11:32 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, sono due difetti e li correggo subito come 0.39.1: 1. **Le domande tagliate.** Ogni domanda deve vedersi per intero, dalla prima all'ultima parola, sia nella linguetta Domande sotto la chat sia nella colonna. Se è lun…
+- 11:58 · **Decisione di Nicholas** — Ha chiesto: Grazie, il registro del portatile è stato decisivo, e mi fa correggere quello che ti avevo detto. Ecco cosa è successo davvero: - **Alle 08:32** il portatile si è aggiornato alla 0.38.2 senza problemi: un minuto dopo ripartiva …
+- 12:15 · **Decisione di Nicholas** — Ha chiesto: Ho trovato il motivo degli errori, ed è più grave di quanto pensassi. **Il Drive di SierraDeck è scollegato dal 23 settembre, sia su questo PC sia sul portatile.** Nel registro c'è «Google Drive non connesso: manca l'autorizzaz…
+- 13:50 · **Decisione di Nicholas** — Ha chiesto: Perfetto, procedo. Ti dico come lo organizzo, così sai cosa aspettarti e in che ordine lo potrai provare. **1. Prima la strada per le chat su reti diverse (0.40.0).** Collegamento diretto fra i PC con la tecnica delle videochia…
+- 13:53 · **Decisione di Nicholas** — Ha chiesto: Hai ragione su tutte e due le cose. Le metto **prima** del lavoro sul multi-PC, perché ti servono ogni giorno. **1. Una linguetta «Istruzioni» sotto la chat dell'autopilota.** Nella chat vedi solo «Leggi ed esegui le istruzioni…
+- 14:03 · **Decisione di Nicholas** — Ha chiesto: Sì, lo aggiungo alla stessa versione delle linguette Istruzioni e delle domande chiare. - **Tutta la parte destra si allarga e si stringe.** Prendi il bordo sinistro e lo trascini: la scheda dell'autopilota, la colonna Domande …
+- 15:25 · **Decisione di Nicholas** — Ha chiesto: Va bene. Intanto ti dico dove siamo: la chat sta pubblicando adesso la **0.42.0**, cioè il riordino delle chat con il Drive come salvataggio. Prima erano uscite la 0.40.0 (collegamento fra PC su reti diverse) e la 0.41.0 (lingu…
+- 17:23 · **Decisione di Nicholas** — Ha chiesto: Bene, allora faccio i punti 3, 4, 5, 6 e 7. Li pubblico uno dopo l'altro, ognuno quando è verde: 1. **Criteri controllati quando vengono scritti** (7) e **pannello «Salute del sistema»** (4). Sono i più veloci e ti proteggono s…
+- 17:24 · **Decisione di Nicholas** — Ha chiesto: Va bene, lo aggiungo come una tappa a sé. Ecco come lo farei: - **Si accende dalle Impostazioni**, nella voce «PIN delle chat»: scegli un PIN (da 4 a 8 cifre). Finché non lo attivi non cambia niente. - **Decidi tu quali chat pr…
+
+## 06/10/2026
+
+- 12:35 · **Decisione di Nicholas** — Ha chiesto: Chiaro: dal telefono mandi un file a **una chat precisa** o a **un autopilota**, e il file finisce nel progetto di quella chat, non in una cartella qualsiasi del PC. Lo faccio così, come **0.50.0** con l'app nuova: - **Da qualu…
+
+## 07/10/2026
+
+- 10:00 · **Decisione di Nicholas** — Ha chiesto: Va bene, è la prossima cosa che faccio, come **0.51.0** con l'app nuova. Ecco cosa cambia: **Collegamento più solido** - **Riconnessione veloce e da sola.** Se la strada cade, riprova subito e poi sempre più distanziato, senza …
+- 15:29 · **Decisione di Nicholas** — Ha chiesto: Sì, ho capito. Sono due cose. **1. Indicatore di qualità in alto, accanto al PC selezionato.** Oggi le tacche si vedono solo dentro il riquadro della chat remota. Le metto anche in alto, dove scegli il PC: icona della strada, t…
+- 15:31 · **Decisione di Nicholas** — Ha chiesto: Hai ragione. Ho controllato: le tacche e la scritta «Passo da X a Y» della 0.51 compaiono solo **dentro il riquadro di una chat remota**, quando cambia la **strada** (per esempio da Tailscale a rete di casa). Quando cambi **PC*…
+- 16:29 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, è un difetto della 0.52.1 sul telefono e lo correggo subito, come **0.52.2**. Da quello che descrivi, quando scegli un altro PC l'app parte con il nome nuovo ma poi continua a usare i dati del PC di prima. Le due caus…
+- 16:33 · **Decisione di Nicholas** — Ha chiesto: Va bene, la metto nella stessa correzione, la **0.52.2**. Quando cambi PC dal telefono, l'animazione occupa **tutto lo schermo** e ti racconta passo per passo cosa succede: - **In alto**, grande: «Mi collego a NOME-PC», con l'o…
+- 18:25 · **Decisione di Nicholas** — Ha chiesto: **Il nome in alto.** Hai ragione, è un difetto. Nell'app, sia in alto sia nella schermata del cambio PC, compare il nome tecnico di Windows (tipo «DESKTOP-…») invece del nome che gli hai dato tu. Lo correggo subito come **0.52.…
+
+## 08/10/2026
+
+- 12:36 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Ho guardato i dati veri di questo PC. Gli autopiloti non hanno domande aperte, quindi le domande a cui non riesci a rispondere sono quasi certamente quelle **delle chat**: Claude Code che ti chiede di scegliere fra pi…
+- 12:39 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, lo aggiungo alla correzione che stiamo facendo (0.52.5). Da quello che descrivi, le cause più probabili sono due: 1. **La larghezza dello schermo del PC.** Il telefono riceve la chat «disegnata» con la larghezza del t…
+- 16:19 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, faccio un controllo completo del **negozio** (plugin, skill e server MCP) su PC, app e pagina, e correggo tutto quello che non va. Lo affronto così: 1. **Prima lo provo davvero, pezzo per pezzo**, con il Claude Code i…
+- 23:28 · **Decisione di Nicholas** — Ha chiesto: Bello, lo faccio come **0.54.0** con l'app nuova. Sono tre cose che lavorano insieme: **1. Una sezione «File» sul telefono, come sul PC.** - Sfogli le cartelle dei progetti di ogni PC: quello collegato e anche gli altri, passan…
+
+## 09/10/2026
+
+- 09:08 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, sono difetti veri dell'app e li sistemo tutti insieme. Ho guardato il registro di questo PC e non c'è traccia di quelle richieste. Vuol dire che probabilmente l'app non arriva nemmeno a chiederle giuste al computer, p…
+- 09:34 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, lo aggiungo alla 0.55.0. Se la chat scorre vuol dire che i dati arrivano, quindi l'indicatore «non connesso» in quel momento sta dicendo una cosa falsa. Le cause più probabili sono queste: - l'indicatore in alto e la …
+- 09:45 · **Decisione di Nicholas** — Ha chiesto: Sì. Lo faccio subito dopo le correzioni che sono già in corso (workspace, chat, autopiloti e collegamento dal telefono, nella 0.55.0), come **0.56.0** con l'app nuova. Così non rallento le correzioni, che ti servono prima. **Im…
+- 11:16 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, mi dispiace. Ho guardato il registro di questo PC dopo l'aggiornamento alla 0.56.0 e ho trovato già tre cose che non vanno: 1. **Gli altri PC sono rimasti indietro.** Il portatile ha ancora la 0.50.0 e l'altro fisso l…
+- 13:35 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: quell'avviso non deve bloccarti. Ti spiego cosa ho trovato nel registro di questo PC. **Perché Google risulta scollegato.** Non hai sbagliato niente tu e non è stato Google a toglierti l'accesso. Dalle 10:20 di ogg…
+- 13:40 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, il segnale è giusto: la chat è davvero ferma, e non devi aggiornare niente. Ho controllato il registro. La chat ha finito il suo turno con la pubblicazione della 0.56.2 e da lì si è messa ad aspettare. I miei due m…
+- 14:56 · **Decisione di Nicholas** — Ha chiesto: Ho guardato il registro dopo l'aggiornamento alla 0.56.3 e ora vedo esattamente cosa è successo. La chat aspetta davvero, e la colpa è del programma, non tua. **Cosa è successo alle 12:17.** Al riavvio il programma ha preparato…
+
+## 10/10/2026
+
+- 16:14 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, andiamo per ordine. **1. Glos tolto ovunque.** Hai ragione, me l'avevi già chiesto e restava un pezzo. Ho controllato: - l'app Android è già a nome Ferrari Consulenze; - resta Glos nell'**identificativo del programma …
+- 16:19 · **Decisione di Nicholas** — Ha chiesto: Grazie, ricevuti. Ecco come li uso e dove li tengo. **Nella pagina pubblica.** Email, sede e partita IVA vanno nell'informativa sulla privacy, nei termini d'uso e nel contatto della console Google, cioè solo dove servono per le…
+- 17:04 · **Decisione di Nicholas** — Ha chiesto: Ho controllato da qui. La rete va bene e il portatile è acceso e raggiungibile: - risponde al ping in 7 millisecondi sulla rete di casa; - SierraDeck sul portatile risponde, ed è già aggiornato alla 0.56.4; - alle 15:02 il port…
+- 17:12 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, ho sbagliato e mi scuso. Il portatile è su Tailscale: io avevo guardato solo l'inizio dell'elenco, che era tagliato. Ho ricontrollato tutto da qui, adesso. **Cosa funziona:** - il portatile risponde sulla rete di c…
+- 18:30 · **Decisione di Nicholas** — Ha chiesto: Hai ragione ad arrabbiarti. In due giorni ti ho fatto installare sette versioni, e ogni volta saltava fuori un altro problema. La colpa è mia: ho lavorato a pezzi e ho dichiarato le cose sistemate guardando i test, senza contro…
+- 18:39 · **Decisione di Nicholas** — Ha chiesto: Ho controllato la chat e anche il portatile, di persona. **Cosa sta facendo la chat adesso.** Lavora sulle consegne perse. Ci sono 9 file modificati e un test nuovo, quindi è sulla strada giusta. Del portatile invece non ha anc…
+- 19:45 · **Decisione di Nicholas** — Ha chiesto: Sì, ho capito. Te lo ripeto con parole mie, così mi correggi se sbaglio qualcosa. **1. Un pannello di controllo delle chat del Drive.** Un elenco unico di tutte le chat e di tutti i progetti salvati sul Drive. Per ognuno vedi: …
+- 19:53 · **Decisione di Nicholas** — Ha chiesto: Perfetto, procedo con il **pannello di controllo delle chat del Drive** come **0.58.0**, con le due sicurezze che ti avevo proposto: - un progetto tolto da un PC finisce nella cartella di recupero e si può annullare; - prima di…
+- 21:30 · **Decisione di Nicholas** — Ha chiesto: Hai ragione su tutte e due le cose. **1. Dove si trova la scheda.** Oggi è nascosta: apri il **pannello Drive** e premi il tasto **«Chat e progetti del Drive…»**, che apre il pannello come finestra. È troppo in profondità per u…
+- 21:53 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, scusami. Ti spiego cosa succede, e ti do il modo per scrivere subito. Ho guardato il registro di questo PC. Dalle 19:51 la parte difficile funziona: - il programma ha capito che MT5 vive sul **portatile** e non sul…
+- 21:56 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, ed è proprio così che deve funzionare. Ora l'ho capito bene: **Una chat che vive sul portatile deve poter lavorare in sottofondo**, senza comparire sullo schermo del portatile e senza disturbare quello che stai fac…
+- 22:44 · **Decisione di Nicholas** — Ha chiesto: Hai ragione su tutte e due, e ti dico come stanno davvero le cose. **1. Funziona solo con la chat aperta: è vero, perché la correzione non è ancora uscita.** Quella che hai installato è la **0.58.3**. Serve solo a scrivere nel …
+- 22:45 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, ed è giusto: una chat (o un autopilota) ha il **suo** workspace e deve tornare sempre lì, non finire in quello che hai aperto in quel momento. Con la 0.58.4 succede questo: - **quando scrivi da qui**, sul portatile la…
+
+## 11/10/2026
+
+- 00:51 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, chiaro. Ripeto le regole come le ho capite, così le diamo alla chat esatte: 1. **Stesso nome = stesso progetto.** I progetti e i workspace doppi sono nati dal Drive, che li ha sdoppiati fra un PC e l'altro. Nel pannel…
+- 00:51 · **Decisione di Nicholas** — Ha risposto: «Risposta e nuove regole di Nicholas. Diventano la 0.60.0 (funzioni nuove, quindi si alza la seconda cifra): 1. **Stesso nome = stesso progetto.** Nel pannello «Progetti» i progetti e i workspace con lo stesso nome vanno unifi…
+- 00:52 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. L'app Android la allineo per intero, non solo le novità di adesso. **Nella 0.60.0, l'app avrà le stesse cose del PC:** - il pannello **«Progetti»** con i progetti unificati (stesso nome, un solo progetto), il PC resid…
+- 10:00 · **Decisione di Nicholas** — Ha chiesto: Ti rispondo sinceramente: **no, non posso ancora dirti che è quella definitiva**, e non te lo dico finché non l'ho visto funzionare fra i tuoi due PC. **Cosa è verificato davvero:** - tutti i 3361 test automatici passano, il pr…
+- 19:48 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: se una chat la chiudi sul PC dove vive, deve chiudersi anche qui. Non deve restare un riquadro che la cerca. Ho guardato il registro di questo PC. Alle 17:47 ha aperto il riquadro della chat DDJ («come dice il tito…
+- 19:49 · **Decisione di Nicholas** — Ha risposto: «ho appena installato la versione 0.60.8 e ho fatto la prova. se te lo dico è perche ho provato»
+- 19:54 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e scusa per prima: se mi dici che l'hai provato, l'hai provato. Non devo rimetterlo in dubbio. **Perché non trovi «Progetti».** Ho guardato il codice. Il tasto «▦ Progetti» c'è, ma l'ho messo in mezzo alla fila di …
+
+## 12/10/2026
+
+- 13:47 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, non è risolto. Ho guardato il registro di questo PC delle 13:43: si vede esattamente cosa succede. Nel workspace MT5 di questo PC ci sono due riquadri che guardano il portatile: - **«Controllo resa + indagine autom…
+- 15:26 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, sono tre cose diverse. Ho controllato il registro e il codice, ti dico come stanno. **1. Workspace assegnati al PC sbagliato.** Hai ragione, è un difetto. Quando un PC non si fa sentire sul Drive per un po', il progra…
+- 15:28 · **Decisione di Nicholas** — Ha chiesto: Ricevuto: «devi gestire tutto» vuol dire proprio tutto, cartelle comprese. Quando rendi residente un progetto su un PC dove non c'è, il programma deve: 1. **creare la cartella da solo** nel posto standard dei progetti di quel P…
+- 15:51 · **Decisione di Nicholas** — Ha chiesto: Ho trovato cosa è successo con «visitafacile», e sono due difetti nostri. 1. **Il workspace punta a sé stesso.** Su questo PC il workspace «visitafacile» ha una chat che, secondo il programma, vive «su un altro PC». Ma l'altro …
+- 15:53 · **Decisione di Nicholas** — Ha chiesto: Mi fermo su questo prima di tutto il resto: perdere i workspace è la cosa peggiore. **Cosa ho controllato su questo PC (il fisso):** qui i workspace ci sono tutti e 16, gli stessi delle copie di sicurezza di stamattina: DDJ, Wd…
+- 16:33 · **Decisione di Nicholas** — Ha chiesto: Ricevuto: è l'altro PC fisso. Su Tailscale si chiama «desk-nik-glos», e si è appena aggiornato alla 0.64.3. Ho guardato cosa vede questo PC: - il fisso risponde, ed è collegato a questo PC; - dal telefono si vedono le chat gius…
+- 16:39 · **Decisione di Nicholas** — Ha chiesto: Ho trovato il motivo, ed è colpa nostra, non del telefono. Ho scaricato l'app dell'ultima versione (2.65.0) e l'ho confrontata con quella di prima (2.62.0): - la **2.62.0** è firmata con la firma vera di SierraDeck, «Nicholas F…
+- 17:17 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ti chiedo scusa: ho controllato adesso e anche l'app della **0.66.1** (la 2.66.0) è uscita con la **firma di prova**, come la 2.65.0. La mia istruzione di correggerla era ancora in coda per la chat, che nel fratt…
+- 18:39 · **Decisione di Nicholas** — Ha chiesto: Sì, sto lavorando. Ho controllato tutti e tre i PC e ti dico com'è: - **questo PC** è alla 0.66.3; - il **portatile** alla 0.66.2; - il **secondo fisso** (desk-nik-glos) alla 0.66.1; - l'ultima pubblicata è la **0.66.4**, compl…
+- 21:10 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e lo prendo come un ordine preciso: **basta correzioni a pezzi**. Adesso si fa un controllo completo, funzione per funzione, e una versione sola che chiude tutto quello che si trova. **Sul difetto che vedi adesso**…
+- 21:10 · **Decisione di Nicholas** — Ha ripreso il lavoro con «Riprendi»
+- 21:13 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, me lo segno come regola fissa: **le nuove versioni le installi solo tu**, a meno che tu non mi dica che posso farlo io. Da adesso né io né la chat premiamo «Installa», usiamo «Installa là» o lanciamo cose che forzano …
+- 21:54 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ti chiedo scusa. Ho appena controllato: alle 21:52 **questo PC ha installato da solo la 0.68.0**, con la funzione «installa da solo quando le chat sono ferme» che abbiamo messo nella 0.67.1. Nessuno ha premuto ni…
+- 21:57 · **Decisione di Nicholas** — Ha chiesto: Hai ragione. Non pubblico nessuna versione intermedia, quindi niente 0.68.1 fatta solo per togliere l'installazione automatica. Ho controllato adesso: dopo la 0.68.0 non è uscito niente e il codice è fermo lì. **Come procedo da…
+- 22:00 · **Decisione di Nicholas** — Ha chiesto: Hai ragione su tutte e due le cose. Le metto nella **stessa versione unica**, senza pubblicare niente prima. **Drive.** Ti do i numeri dell'ultima misura, di oggi. SierraDeck occupa circa **6 GB** dei tuoi 16: - **4,3 GB sono l…
+- 22:13 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ho trovato il perché guardando il registro e i file di questo PC. Sono **due difetti veri**: 1. **I tuoi messaggi aspettano la fine del turno della chat.** Quando scrivi all'autopilota, lui ti risponde subito. Pe…
+- 22:19 · **Decisione di Nicholas** — Ha chiesto: Capito. Allora gli ordini arrivavano, ma la chat lavorava **in sottofondo**, cioè senza una finestra sullo schermo, e tu non avevi modo di vederlo. Hai ragione: se non si vede, non si capisce se lavora o no. **Le regole che met…
+- 22:21 · **Decisione di Nicholas** — Ha chiesto: Ricevuto: il menu **Progetti** si rifà da capo, pensato per capirlo al primo sguardo e su tutta la larghezza dello schermo. Adesso è una lista stretta con le righe da aprire una per una, e non si capisce niente. **Come diventa:…
+
+## 13/10/2026
+
+- 00:39 · **Decisione di Nicholas** — Ha chiesto: Va bene, buonanotte. La 0.69.0 la sta pubblicando adesso la chat: per ora è una bozza e diventa pubblica appena l'APK firmato è caricato. Visto che hai spento «Scarica da solo», non si installa da nessuna parte: la installi tu …
+- 11:30 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Il prossimo lavoro è l'**autopilota**, ed entra in **una sola versione, la 0.71.0**, che pubblico solo a lavoro finito. Come sempre la installi tu. **Cosa cambia:** 1. **Agenti specializzati.** L'autopilota non lavora…
+- 11:33 · **Decisione di Nicholas** — Ha chiesto: Oggi si può fare, ma è scomodo, e hai ragione che deve stare tutto lì. Come funziona adesso, nella scheda **Progetti**: - **Per portarlo sul PC dove sei:** clicca il progetto e, nel dettaglio a destra, premi **«Lavora su questo…
+- 11:35 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, scusa. Ho controllato: su questo PC c'è la **0.70.0**, installata da te alle 11:27, e il menu «Strumenti ▾» dei Progetti è proprio quello nuovo di stanotte. Leggendo il codice non vedo il motivo per cui non si apre…
+- 12:23 · **Decisione di Nicholas** — Ha chiesto: No, e hai fatto bene a chiedere: **la chat è ferma dalle 11:36**. Ho guardato il registro. Alle 11:35 le ho mandato le istruzioni sul tasto Strumenti e su «Sposta su». In quel momento la chat lavorava in sottofondo, e un minuto…
+- 17:10 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, ci sono ancora problemi. Ho guardato il registro di questo PC: hai installato la 0.71.0 alle 17:04, desk-nik-glos ce l'ha anche lui, il portatile è alla 0.69.0 ed è spento. **Lo spostamento fermo.** Alle 17:07 hai …
+
+## 15/10/2026
+
+- 08:42 · **Decisione di Nicholas** — Ha chiesto: Nicholas, hai ragione, e mi dispiace davvero. È un danno grave, e il fatto che il tuo lavoro sia salvo non lo rende meno grave. **Cosa è successo, dai registri.** Ieri, 14/10, fra le **9:02 e le 9:10** del mattino, qualcosa ha …
+- 12:11 · **Decisione di Nicholas** — Ha chiesto: Capito, grazie. Ho controllato da questo PC e la causa più probabile c'è: **il telefono è scollegato da Tailscale da circa un giorno.** Nell'elenco di Tailscale il tuo S25 Ultra risulta «offline», visto l'ultima volta ieri. Dal…
+- 15:39 · **Decisione di Nicholas** — Ha chiesto: Scusa, è un difetto mio: le ultime due risposte non sono partite perché erano troppo lunghe e con caratteri che il programma non riusciva a leggere. Adesso ho capito cosa vuoi e lo faccio. 1. Le righe «consegnato alle...» spari…
+- 15:49 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Ti dico cosa sistemo, tutto nella stessa versione. Siccome ci sono cose nuove diventa la 0.73.0, ed è sempre una versione sola, che installi tu. 1. Chat bloccate «in attesa» anche quando sono ferme. Trovo dal registro…
+- 21:32 · **Decisione di Nicholas** — Ha chiesto: Bene: la 0.73.0 risulta installata su questo PC alle 21:27. La chat fa adesso un controllo completo sulla versione installata, cercando altri difetti. Lo fa in sola lettura sulle tue chat e sui tuoi progetti veri; le prove le f…
+- 21:34 · **Decisione di Nicholas** — Ha chiesto: Va bene, procedo. Prendo il tuo «esatto» così, e se ho capito male me lo dici: - le chat normali restano possibili con «+ Nuova chat», ma il modo normale di lavorare diventa l'autopilota; - il modo nuovo (il workspace è l'ambie…
+- 21:37 · **Decisione di Nicholas** — Ha chiesto: Va bene: trasformo **tutti** i workspace, anche quelli di oggi. Hai ragione a chiedere prudenza, quindi la trasformazione segue queste regole: 1. **Non tocca niente che lavora.** Le chat aperte restano aperte e vive: entrano ne…
+- 23:04 · **Decisione di Nicholas** — Ha chiesto: Bella idea, la aggiungo. Potrai parlarmi a voce **qui nella scheda dell'autopilota**, e anche nel campo «Scrivi tu» delle Domande. **Come funzionerà:** - accanto al campo di scrittura c'è un tasto **microfono**; - lo premi, par…
+- 23:50 · **Decisione di Nicholas** — Ha chiesto: Quasi tutto, ma non tutto. Ti dico onestamente com'è, dopo aver controllato su GitHub e nel codice. **Fatto e pubblicato.** L'ultima versione è la **0.75.0**, con l'app 2.75.0, e contiene tutto quello delle versioni di ieri ser…
+- 23:52 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Ho controllato subito com'è andata la trasformazione su questo PC, dal registro. Hai installato la 0.75.0 alle 23:50, e la trasformazione è partita da sola ed è andata a buon fine: - **20 workspace** passati alla vist…
+
+## 16/10/2026
+
+- 09:27 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, le tolgo. Ho già fatto l'elenco di quello che è rimasto delle mie prove su questo PC: - il workspace **«SierraDeck-prova-collaudo»**; - le cartelle di prova **SierraDeck-prova-c2, -c3 e -collaudo** in «Progetti Sie…
+- 10:14 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ti chiedo scusa: sono gli stessi problemi da troppo tempo. Questa volta ho guardato il registro di stamattina e ho trovato le cause vere, non delle ipotesi. **1. «Ti dico che procedo ma la chat resta ferma».** Le…
+- 10:48 · **Decisione di Nicholas** — Ha chiesto: Grazie, così è più chiaro. Aggiungo tutto allo stesso lavoro, in una sola versione che installi tu. 1. **L'indicatore «ferma» o «al lavoro» che va un po' a caso.** Diventa una regola sola: decidono i segnali che Claude Code man…
+- 10:51 · **Decisione di Nicholas** — Ha chiesto: Bella domanda. Secondo me **sì, le linguette in alto funzionano meglio**, con un accorgimento. **Come lo farei:** - **In alto, una linguetta per ogni chat del workspace:** gli specialisti con il ruolo nel nome (Sviluppo, Collau…
+- 11:10 · **Decisione di Nicholas** — Ha chiesto: Sì, si può fare, ed è un'ottima idea: risolve proprio il problema di avere tutto sotto controllo. Lo farei così. **Linguetta 1, «Panoramica» (la dashboard del progetto)**, dove vedi tutto in un colpo: - **in alto**, una riga co…
+- 16:55 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, l'ho guardata adesso nelle foto della prova e si può fare molto meglio. I difetti che vedo io: - **Le chat finite occupano quasi tutto lo spazio.** Dieci schede grandi di specialisti che hanno già finito, mentre qu…
+- 16:56 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e lo verifico subito sul vero. Ieri sera la trasformazione ha fatto una cosa sola: ha messo i tuoi 20 workspace nella vista a elenco e ha dato a ognuno un autopilota fermo. Le chat che avevi già aperte sono rimaste…
+- 17:09 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: è scritto male e manca la strada per tornare indietro. **Cosa vuol dire «Mosaico».** È la vista di prima: tutte le chat una accanto all'altra, in riquadri. Il tasto «Mosaico» ti porta lì, ma dal mosaico non c'è un …
+
+## 17/10/2026
+
+- 09:52 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: oggi una chat si può chiudere, ma non c'è un modo chiaro per **toglierla davvero dal PC** e liberare spazio. Lo faccio così, con tre azioni distinte e spiegate: 1. **Chiudi:** la chat si ferma e non consuma più nie…
+- 09:53 · **Consegna** — Lavoro diviso in compiti: Sviluppo «Verifica e motore della gestione delle chat (0.79.»; Interfaccia «Interfaccia della gestione delle chat (0.79.0) su »; Collaudo «Collaudo della gestione delle chat (0.79.0). 1) Pr»; Rilascio «Rilascio 0.…
+- 09:53 · **Chat aperta** — Aperta la chat c-1 (Sviluppo): Verifica e motore della gestione delle chat (0.79.0). 1) Verifica cosa esiste oggi per chiudi, archivia, togli e recuper
+- 10:23 · **Consegna** — C-1 ha finito: il ramo ap/ap-f1e631f5/c-1 passa alla Revisione
+- 10:23 · **Consegna** — Nuovo compito: Interfaccia della gestione delle chat (0.79.0), sopra il motore unito da c-1 (window.gestore.chatGestione e /api/chat/ge
+- 10:23 · **Chat aperta** — Aperta la chat c-2 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-1 della chat c-1 («Verifica e motore della gestione delle chat (0.79.0). 1) Verifica cos
+- 10:23 · **Chat aperta** — Aperta la chat c-3 (Rilascio): Interfaccia della gestione delle chat (0.79.0), sopra il motore unito da c-1 (window.gestore.chatGestione e /api/chat/ge
+- 10:32 · **Consegna** — La Revisione rimanda indietro il lavoro di c-1: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. controllati src/main/gestione-ch…
+- 11:06 · **Consegna** — La Revisione rimanda indietro il lavoro di c-1: aggiungere le 6 rotte `/api/chat/gestione/*` di src/shared/ponte-telefono.ts:46-48 a `Ponte.ROTTE` in android/app/src/main/java/it/ferrariconsulenze/sierradeck/Ponte.kt (modifica già nella ca…
+- 22:56 · **Chat aperta** — Riaperta la Revisione c-2 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-1 della chat c-1 («Verifica e motore della gestione delle chat (0.79
+- 23:09 · **Decisione di Nicholas** — Ha chiesto: Va bene, cominciamo qui. Prima però una cosa importante che ho appena visto: **ECC è già attivo su questo PC con tutti i suoi hook**, circa 27, in tutte le chat. Me ne sono accorto perché mi ha bloccato un comando chiedendomi d…
+- 23:32 · **Decisione di Nicholas** — Ha risposto più tardi, a c-1: «devi essere piu specifico, di che lavoro parli?»
+- 23:54 · **Decisione di Nicholas** — Ha risposto più tardi, a c-1: «quale pezzo???»
+
+## 18/10/2026
+
+- 00:13 · **Unione** — La Revisione approva c-1 (ap/ap-f1e631f5/c-1): unito nel ramo principale
+- 00:13 · **Chat aperta** — Aperta la chat c-4 (Interfaccia): Interfaccia della gestione delle chat (0.79.0) su PC, pagina del telefono e app Android nativa, allineate fra loro e bas
+- 00:17 · **Decisione di Nicholas** — Ha chiesto: Va bene, lo metto nella 0.79.0, così resta un solo aggiornamento. Oggi nella Panoramica la conversazione con me sta in una colonna stretta a sinistra, e quello che fanno gli specialisti si vede solo aprendo le loro chat. Cambio…
+- 00:18 · **Chat aperta** — Aperta la chat c-5: Dashboard dell'autopilota (0.79.0), su PC, pagina e app. 1) Nella Panoramica la conversazione con l'autopilota è grande
+- 07:32 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-5 in main
+- 07:43 · **Chiusura** — Chiusa la chat c-5: il suo pezzo è fatto
+- 08:36 · **Chat aperta** — Aperta la chat c-6 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-4 della chat c-4 («Interfaccia della gestione delle chat (0.79.0) su PC, pagina del tele
+- 08:44 · **Consegna** — La Revisione rimanda indietro il lavoro di c-4: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: I test del programma passano. Prima si sistema questo. controllati src/shared/gestione-chat.ts:388, src/main/g…
+- 09:03 · **Consegna** — C-4 ha finito: il ramo ap/ap-f1e631f5/c-4 passa alla Revisione
+- 09:03 · **Chat aperta** — Riaperta la Revisione c-6 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-4 della chat c-4 («Interfaccia della gestione delle chat (0.79.0) su
+- 09:31 · **Consegna** — La Revisione rimanda indietro il lavoro di c-4: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: I test del programma passano. Prima si sistema questo. controllati git show --remerge-diff e8c9932 (solo .sier…
+- 09:43 · **Unione** — La Revisione approva c-4 (ap/ap-f1e631f5/c-4): unito nel ramo principale
+- 09:43 · **Chat aperta** — Aperta la chat c-7 (Collaudo): Collaudo della gestione delle chat (0.79.0). 1) Prova dal vero in una copia di prova (SIERRADECK_PROVA, mai il servizio
+- 09:43 · **Chat aperta** — Aperta la chat c-8 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-7 della chat c-7 («Collaudo della gestione delle chat (0.79.0). 1) Prova dal vero in una
+- 09:52 · **Consegna** — La Revisione rimanda indietro il lavoro di c-7: il ramo non ha commit oltre `main` (stesso commit 36b7810, diff vuoto). Vanno fatti tutti i 5 punti del collaudo: prova in copia SIERRADECK_PROVA con spazio prima/dopo, recupero e «Svuota ade…
+- 10:19 · **Consegna** — C-7 ha finito: il ramo ap/ap-f1e631f5/c-7 passa alla Revisione
+- 10:19 · **Chat aperta** — Riaperta la Revisione c-8 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-7 della chat c-7 («Collaudo della gestione delle chat (0.79.0). 1) P
+- 10:26 · **Unione** — La Revisione approva c-7 (ap/ap-f1e631f5/c-7): unito nel ramo principale
+- 10:26 · **Chat aperta** — Aperta la chat c-9 (Rilascio): Rilascio 0.79.0 (minor: funzione nuova). Prima fai git fetch e guarda i commit (pubblica anche il portatile). Poi: versi
+- 14:30 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. La 0.79.0 è chiusa: l'ho controllata ed è pubblicata, non è una bozza, e ha installer, latest.yml, APK 2.79.0 e app-android.json. Non l'ho installata. Prima di ripartire c'è una cosa che solo tu puoi fare: **la chat c…
+- 14:43 · **Consegna** — La Revisione rimanda indietro il lavoro di c-7: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. già unito in main (76ed7c2); con…
+- 14:46 · **Consegna** — Nuovo compito: 0.80.0, passo 1: analisi completa di SierraDeck su PC, pagina e app Android. Prima fai git fetch e guarda i commit. Poi
+- 14:48 · **Chat aperta** — Aperta la chat c-10: Analisi completa (0.80.0), senza cambiare codice. Misura su questo PC, nella copia di prova (SIERRADECK_PROVA): avvio, m
+- 14:48 · **Chat aperta** — Aperta la chat c-11: Correzioni di velocità e codice (0.80.0) dalle prime voci dell'elenco: ognuna con test, poi i numeri dopo, misurati come
+- 14:48 · **Chat aperta** — Aperta la chat c-12: Rifinitura grafica (0.80.0) dalle prime voci dell'elenco, su PC, pagina e app allineati: spazi, larghezza, testi corti c
+- 15:29 · **Chiusura** — Chiusa la chat c-9: il suo pezzo è fatto
+
+## 19/10/2026
+
+- 11:24 · **Decisione di Nicholas** — Ha risposto: «Le chiudo io»
+- 11:26 · **Decisione di Nicholas** — Ha chiesto: Sì, sistemo tutto, e va nella stessa 0.80.0. Ho guardato il registro e ho capito cos'è successo stamattina: - **Alle 11:18 hai aperto «visitafacile».** Quel progetto vive su DESKTOP, ma il programma ne ha creato qui una cartell…
+- 11:27 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e non tocca a te. Il motivo è un difetto del programma, non una tua mancanza. **Perché succede:** quando chiudo una chat, il programma prima prova a unire il suo lavoro nel ramo principale e solo dopo la chiude. Pe…
+- 12:34 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, va corretto, e lo metto nella 0.80.0. Ho guardato il registro di oggi. C'è un primo problema: **il programma non scrive da nessuna parte né quando cambia workspace né quando manda una notifica.** Per questo da qui …
+- 13:14 · **Chiusura** — Chiusa la chat c-1: il suo pezzo è fatto
+- 13:29 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-12 in main
+- 13:51 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-11 in main
+- 14:34 · **Chiusura** — Chiusa la chat c-4: il suo pezzo è fatto
+- 15:46 · **Decisione di Nicholas** — Ha chiesto: Sì, faccio subito una versione riparatrice. Prima ti dico perché mi fermavo, che è colpa mia. **Perché mi fermo:** quando una delle mie chat non dà segnali per un po', il programma sospende tutto l'autopilota per prudenza. La c…
+- 17:04 · **Decisione di Nicholas** — Ha chiesto: Hai ragione a essere arrabbiato, e ti dico come stanno le cose senza giri di parole. **Perché mi sono fermato:** ho provato a pubblicare io direttamente dalla tua scheda. Una risposta qui però ha un limite di 5 minuti, e i cont…
+- 17:16 · **Decisione di Nicholas** — Ha chiesto: Sì, buona idea: così un errore non si perde e io lo trovo già pronto. Lo metto nella 0.81.0. La 0.80.0 riparatrice non la tocco: non è ancora su GitHub e la sta pubblicando la chat c-12, non la rallento con cose nuove. **Come l…
+- 17:30 · **Decisione di Nicholas** — Ha chiesto: Va bene, lo aggiungo allo storico degli errori. Funzionerà così: 1. **Arriva un errore** nella cartella di questo PC, dal tasto «Manda al PC di sviluppo». 2. **Parto da solo:** il programma avvia un lavoro dell'autopilota «Erro…
+- 17:30 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-10 in main
+- 17:47 · **Chiusura** — Chiusa la chat c-11: il suo pezzo è fatto
+- 17:59 · **Chiusura** — Chiusa la chat c-10: il suo pezzo è fatto
+- 18:13 · **Chiusura** — Chiusa la chat c-12: il suo pezzo è fatto
+
+## 20/10/2026
+
+- 00:42 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ti dico esattamente dove sta il problema, perché l'ho appena verificato. **L'aggiornamento risolutivo è già uscito: è la 0.80.0,** pubblicata ieri alle 18:08 con installer, APK e latest.yml. Su questo PC è **già …
+- 08:40 · **Chat aperta** — Aperta la chat c-13: 0.80.1 SUBITO, prima di tutto il resto, contro le fermate degli autopiloti (Nicholas, 20/10). Nel registro del 19/10 ci
+- 08:40 · **Chat aperta** — Aperta la chat c-14: Storico degli errori e invio al PC di sviluppo (0.81.0), chiesto da Nicholas il 19/10. 1) Ogni errore di main, servizio
+- 08:40 · **Chat aperta** — Aperta la chat c-15: «Elimina workspace» (0.81.0): se è già in main (c-10), completa quello che manca su PC, pagina e app, con «?», recupero
+- 08:56 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e l'ho visto anch'io nei fatti di stamattina: - ti ho chiesto **due volte** di installare la 0.80.0, e una volta **in inglese**, quando avevi già installato la 0.80.1 (alle 8:49, il registro lo conferma); - **due c…
+- 09:35 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-15 in main
+- 09:53 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-13 in main
+- 09:57 · **Chiusura** — Chiusa la chat c-15: il suo pezzo è fatto
+- 09:57 · **Chat aperta** — Aperta la chat c-16: Nicholas partecipe nella conversazione dell'autopilota (0.81.0, PRIMA di tutto il resto; Nicholas, 20/10: «se ti rispond
+- 10:13 · **Chiusura** — Chiusa la chat c-15: il ramo ap/ap-f1e631f5/c-15 era già unito
+- 10:15 · **Chiusura** — Chiusa la chat c-13: il suo pezzo è fatto
+- 10:15 · **Chat aperta** — Aperta la chat c-17: Notifiche (0.81.0): completa quello che manca dopo c-11. Ogni notifica nel registro con la causa (PC, pagina, app); solo
+- 10:33 · **Consegna** — Nuovo compito: Correzione 0.81.0: una chat già chiusa continua a chiamare il supervisore. Il 20/10 c-13 è stata chiusa alle 08:15 UTC (
+- 10:39 · **Consegna** — Nuovo compito: Correzione 0.81.0, da fare subito: una chat già chiusa continua a chiamare il supervisore. Casi veri del 20/10: c-13 chi
+- 10:45 · **Chiusura** — Chiusa la chat c-5: il ramo ap/ap-f1e631f5/c-5 era già unito
+- 10:45 · **Chiusura** — Chiusa la chat c-7: il ramo ap/ap-f1e631f5/c-7 era già unito
+- 10:45 · **Chiusura** — Chiusa la chat c-7: il suo pezzo è fatto
+- 10:55 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-16 in main
+- 10:57 · **Chat aperta** — Aperta la chat c-18: Analisi completa (0.81.0) in .sierradeck/quaderno/analisi-0-80-0.md: completa i numeri misurati nella copia di prova (av
+- 10:57 · **Chat aperta** — Aperta la chat c-19: Rilascio 0.81.0 (minor) quando tutto il resto è verde: git fetch, novità in italiano, controlli finali, allega-apk (rico
+- 11:01 · **Chiusura** — Chiusa la chat c-16: il suo pezzo è fatto
+- 11:01 · **Chat aperta** — Aperta la chat c-18 (Rilascio): Correzione 0.81.0: una chat già chiusa continua a chiamare il supervisore. Il 20/10 c-13 è stata chiusa alle 08:15 UTC (
+- 11:01 · **Chat aperta** — Aperta la chat c-19 (Rilascio): Correzione 0.81.0, da fare subito: una chat già chiusa continua a chiamare il supervisore. Casi veri del 20/10: c-13 chi
+- 11:05 · **Chiusura** — Chiusa la chat c-19: il suo pezzo è fatto
+- 11:11 · **Consegna** — Nuovo compito: Correzione 0.81.0: il criterio «I test del programma passano» diventa rosso per tempo e non perché un test fallisca. La
+- 11:14 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-17 in main
+- 11:17 · **Chat aperta** — Aperta la chat c-20 (Rilascio): Correzione 0.81.0: il criterio «I test del programma passano» diventa rosso per tempo e non perché un test fallisca. La
+- 11:17 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-14 in main
+- 11:26 · **Consegna** — Nuovo compito: Correzione 0.81.0: il criterio «L'app Android compila e i suoi test unitari passano» è rosso dalle 09:20 UTC del 20/10,
+- 11:33 · **Chiusura** — Chiusa la chat c-17: il suo pezzo è fatto
+- 11:33 · **Chat aperta** — Aperta la chat c-21 (Rilascio): Correzione 0.81.0: il criterio «L'app Android compila e i suoi test unitari passano» è rosso dalle 09:20 UTC del 20/10,
+- 11:36 · **Consegna** — Nuovo compito: Collaudo notifiche 0.81.0, da main (contiene già il lavoro di c-17: 14ce35e0, 33a2a3ce). Prima di tutto git fetch. 1) Ne
+- 11:40 · **Chiusura** — Chiusa la chat c-14: il suo pezzo è fatto
+- 11:40 · **Chiusura** — Chiusa la chat c-14: il ramo ap/ap-f1e631f5/c-14 era già unito
+- 12:04 · **Chat aperta** — Aperta la chat c-22 (Rilascio): Collaudo notifiche 0.81.0, da main (contiene già il lavoro di c-17: 14ce35e0, 33a2a3ce). Prima di tutto git fetch. 1) Ne
+- 12:19 · **Chiusura** — Chiusa la chat c-21: il suo pezzo è fatto
+- 12:19 · **Chiusura** — Chiusa la chat c-20: il suo pezzo è fatto
+- 12:29 · **Consegna** — Nuovo compito: Test della 0.81.0 verdi e misurati sul commit di main. Prima di tutto git fetch e git merge main nel tuo ramo. 1) In tes
+- 12:29 · **Consegna** — Nuovo compito: Esito dei test di main per il criterio «I test del programma passano» (0.81.0). Prima fai git fetch. 1) Controlla che il
+- 12:30 · **Chat aperta** — Aperta la chat c-23 (Rilascio): Test della 0.81.0 verdi e misurati sul commit di main. Prima di tutto git fetch e git merge main nel tuo ramo. 1) In tes
+- 13:16 · **Chiusura** — Chiusa la chat c-23: il suo pezzo è fatto
+- 13:16 · **Chat aperta** — Aperta la chat c-24 (Rilascio): Esito dei test di main per il criterio «I test del programma passano» (0.81.0). Prima fai git fetch. 1) Controlla che il
+- 14:22 · **Chiusura** — Chiusa la chat c-18: il suo pezzo è fatto
+- 14:35 · **Chiusura** — Chiusa la chat c-24: il suo pezzo è fatto
+- 15:12 · **Chiusura** — Chiusa la chat c-22: il suo pezzo è fatto
+- 15:25 · **Decisione di Nicholas** — Ha risposto più tardi, a c-17: «rivedi i criteri»
+- 15:28 · **Decisione di Nicholas** — Ha chiesto: Va bene, lo porto a termine. Ecco dove siamo davvero. **Cosa blocca adesso:** i test non sono rotti. Sono tutti insieme 432 file e, con tante chat al lavoro sulla stessa macchina, superano il limite di 10 minuti per pochi secon…
+- 15:28 · **Chat aperta** — Aperta la chat c-25: Chiusura dei rami (0.81.0). Per ogni ramo ap/ap-f1e631f5/* ancora avanti rispetto a main (c-3, c-10, c-12, c-12-0-80-1,
+- 15:29 · **Consegna** — Nuovo compito: Correzione 0.81.0, da fare subito: le chat già chiuse continuano a ricevere giri del supervisore. Il 20/10, dalle 13:04,
+- 15:47 · **Chat aperta** — Aperta la chat c-26: Workspace sbagliati del 19/10: sposta l'autopilota di Nicholas da «dentro al mio server nexora c'è gia un» a NexoraOS, c
+- 15:47 · **Chat aperta** — Aperta la chat c-27: Analisi completa in .sierradeck/quaderno/analisi-0-80-0.md: i numeri prima e dopo, misurati nella copia di prova, e l'el
+- 16:03 · **Chat aperta** — Aperta la chat c-28: Rilascio 0.81.0 (minor) quando tutto il resto è verde: git fetch, novità in italiano solo su quello che c'è davvero (al
+- 16:05 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-27 in main
+- 16:07 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-26 in main
+- 16:15 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-25 in main
+- 16:41 · **Chiusura** — Chiusa la chat c-26: il suo pezzo è fatto
+- 16:41 · **Chat aperta** — Aperta la chat c-29 (Rilascio): Correzione 0.81.0, da fare subito: le chat già chiuse continuano a ricevere giri del supervisore. Il 20/10, dalle 13:04,
+- 16:45 · **Chiusura** — Chiusa la chat c-26: il ramo ap/ap-f1e631f5/c-26 era già unito
+- 16:45 · **Consegna** — Nuovo compito: Comando «Sposta in un altro workspace» per un autopilota (0.81.0, minor), su PC, pagina e app, con «?». Nicholas il 20/1
+- 16:50 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-28 in main
+- 17:44 · **Chiusura** — Chiusa la chat c-25: il suo pezzo è fatto
+- 17:44 · **Chiusura** — Chiusa la chat c-3: il suo pezzo è fatto
+- 17:44 · **Chat aperta** — Aperta la chat c-30 (Rilascio): Comando «Sposta in un altro workspace» per un autopilota (0.81.0, minor), su PC, pagina e app, con «?». Nicholas il 20/1
+- 18:34 · **Chiusura** — Chiusa la chat c-27: il suo pezzo è fatto
+- 18:48 · **Chiusura** — Chiusa la chat c-29: il suo pezzo è fatto
+- 19:15 · **Consegna** — Nuovo compito: Rilascio 0.81.1 (patch, solo correzioni) da main. Il motivo: la v0.81.0, pubblicata alle 17:10 UTC dal commit 53a7d725,
+- 19:17 · **Chat aperta** — Aperta la chat c-31 (Rilascio): Rilascio 0.81.1 (patch, solo correzioni) da main. Il motivo: la v0.81.0, pubblicata alle 17:10 UTC dal commit 53a7d725,
+- 19:30 · **Chiusura** — Chiusa la chat c-31: il suo pezzo è fatto
+- 19:30 · **Chiusura** — Chiusa la chat c-28: il suo pezzo è fatto
+- 19:30 · **Chiusura** — Chiusa la chat c-30: il suo pezzo è fatto
+- 20:34 · **Consegna** — Nuovo compito: Foto «prima e dopo» della grafica per la 0.81.x, nel rapporto. In .sierradeck/quaderno/analisi-0-80-0.md, riga «Foto del
+- 20:36 · **Chat aperta** — Aperta la chat c-32 (Collaudo): Foto «prima e dopo» della grafica per la 0.81.x, nel rapporto. In .sierradeck/quaderno/analisi-0-80-0.md, riga «Foto del
+
+## 21/10/2026
+
+- 00:15 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, tutto. Prima due cose già successe, così non te le chiedo più: - **La 0.81.1 è già uscita** (ieri alle 19:28) ed è quella che hai installato. La domanda «pubblico una 0.81.1?» era vecchia: la chiudo io. È proprio il d…
+- 00:16 · **Chat aperta** — Aperta la chat c-33: Limiti delle chat in base al PC (0.82.0, PRIMO). Calcola il massimo di chat al lavoro insieme da processori (os.cpus), m
+- 00:16 · **Chat aperta** — Aperta la chat c-34: Controllo delle domande (0.82.0). Prima che una domanda arrivi a Nicholas, il programma la confronta con lo stato vero:
+- 00:16 · **Chat aperta** — Aperta la chat c-35: Colori e visuale degli agenti (0.82.0). Un colore fisso per attività: sviluppo, revisione, collaudo, rilascio, interfacc
+- 00:16 · **Chat aperta** — Aperta la chat c-36: Menu dei workspace rifatto (0.82.0), su PC, pagina e app. Sta sempre dentro lo schermo: altezza massima, scorrimento int
+- 00:16 · **Chat aperta** — Aperta la chat c-37: Tasto «Apri cartella» (0.82.0): sul PC apre la cartella del progetto del workspace o della chat in Esplora file (shell.o
+- 00:25 · **Consegna** — C-32 ha finito: il ramo ap/ap-f1e631f5/c-32 passa alla Revisione
+- 00:25 · **Consegna** — Nuovo compito: Grafica meno caotica (0.82.0), su PC, pagina e app. Parti dalla sezione «Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)»
+- 00:25 · **Chat aperta** — Aperta la chat c-38: Grafica meno caotica (0.82.0): passa schermata per schermata Panoramica, chat, scheda dell'autopilota, Progetti, Imposta
+- 00:59 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-34 in main
+- 01:01 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-35 in main
+- 01:05 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-37 in main
+- 01:33 · **Chiusura** — Chiusa la chat c-34: il suo lavoro è già nel ramo principale
+- 01:33 · **Chat aperta** — Aperta la chat c-39: Rilascio 0.82.0 (minor) quando tutto il resto è verde: git fetch, novità in italiano (al massimo 8 righe), controlli fin
+- 02:03 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-38 in main
+- 02:12 · **Chiusura** — Chiusa la chat c-37: il suo lavoro è già nel ramo principale
+- 02:12 · **Chat aperta** — Aperta la chat c-40 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-32 della chat c-32 («Foto «prima e dopo» della grafica per la 0.81.x, nel rapporto. In .
+- 02:15 · **Chiusura** — Chiusa la chat c-38: il suo lavoro è già nel ramo principale
+- 02:15 · **Chat aperta** — Aperta la chat c-41 (Collaudo): Grafica meno caotica (0.82.0), su PC, pagina e app. Parti dalla sezione «Grafica: prima e dopo (0.79.0 → 0.81.1, c-32)»
+- 02:26 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-39 in main
+- 02:51 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-33 in main
+- 02:57 · **Consegna** — La Revisione rimanda indietro il lavoro di c-32: le foto e gli script stanno nel worktree (`note/foto-0-81-0/dopo/` e `script/`, fuori da git) e `git worktree remove --force` in `src/autopilot-host/worktree.ts:260` li cancella alla chiusur…
+- 03:09 · **Chat aperta** — Riaperta la Revisione c-40 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-32 della chat c-32 («Foto «prima e dopo» della grafica per la 0.81.x
+- 03:13 · **Chiusura** — Chiusa la chat c-35: il suo lavoro è già nel ramo principale
+- 03:13 · **Chiusura** — Chiusa la chat c-40: il suo pezzo è fatto
+- 03:23 · **Consegna** — C-41 ha finito: il ramo ap/ap-f1e631f5/c-41 passa alla Revisione
+- 03:23 · **Consegna** — Nuovo compito: Correzione grafica 0.82.0: i cinque difetti trovati da c-32 e confermati dal collaudo c-41, su PC, pagina e app. Prima f
+- 03:24 · **Chat aperta** — Aperta la chat c-42 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-41 della chat c-41 («Grafica meno caotica (0.82.0), su PC, pagina e app. Parti dalla sez
+- 03:24 · **Chat aperta** — Aperta la chat c-43 (Collaudo): Correzione grafica 0.82.0: i cinque difetti trovati da c-32 e confermati dal collaudo c-41, su PC, pagina e app. Prima f
+- 03:30 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-36 in main
+- 03:49 · **Unione** — La Revisione approva c-41 (ap/ap-f1e631f5/c-41): unito nel ramo principale
+- 03:51 · **Chiusura** — Chiusa la chat c-36: il suo lavoro è già nel ramo principale
+- 04:01 · **Chiusura** — Chiusa la chat c-33: il suo lavoro è già nel ramo principale
+- 04:02 · **Chiusura** — Chiusa la chat c-33: il suo ramo è già stato unito e tolto
+- 04:42 · **Consegna** — C-43 ha finito: il ramo ap/ap-f1e631f5/c-43 passa alla Revisione
+- 04:42 · **Chat aperta** — Aperta la chat c-44 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-43 della chat c-43 («Correzione grafica 0.82.0: i cinque difetti trovati da c-32 e confe
+- 04:54 · **Unione** — La Revisione approva c-43 (ap/ap-f1e631f5/c-43): unito nel ramo principale
+- 05:35 · **Unione** — La Revisione approva c-32 (ap/ap-f1e631f5/c-32): unito nel ramo principale
+- 07:57 · **Chiusura** — Chiusa la chat c-10: ha finito da 140 minuti, il suo posto si libera (la conversazione resta)
+- 07:57 · **Chiusura** — Chiusa la chat c-11: ha finito da 140 minuti, il suo posto si libera (la conversazione resta)
+- 07:57 · **Chiusura** — Chiusa la chat c-12: ha finito da 140 minuti, il suo posto si libera (la conversazione resta)
+- 07:57 · **Chiusura** — Chiusa la chat c-13: ha finito da 140 minuti, il suo posto si libera (la conversazione resta)
+- 07:57 · **Chiusura** — Chiusa la chat c-27: ha finito da 140 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-26: ha finito da 141 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-33: ha finito da 237 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-35: ha finito da 285 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-36: ha finito da 246 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-37: ha finito da 346 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-38: ha finito da 343 minuti, il suo posto si libera (la conversazione resta)
+- 07:58 · **Chiusura** — Chiusa la chat c-39: ha finito da 141 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-5: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-14: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-15: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-16: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-17: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-25: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:04 · **Chiusura** — Chiusa la chat c-28: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:08 · **Decisione di Nicholas** — Ha chiesto: Va bene: la prossima versione è la **0.83.0, tutta dedicata all'app Android**. Come sempre una sola release, e non la installo io. Oggi l'app ha più di 60 schermate e pezzi, alcuni molto lunghi (Lavori, Computer, Chat), cresciu…
+- 08:11 · **Chiusura** — Chiusa la chat c-13: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:14 · **Chiusura** — Chiusa la chat c-14: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:15 · **Chiusura** — Chiusa la chat c-27: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:17 · **Chiusura** — Chiusa la chat c-13: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:17 · **Chiusura** — Chiusa la chat c-26: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:17 · **Chiusura** — Chiusa la chat c-28: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:18 · **Chiusura** — Chiusa la chat c-5: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:18 · **Chiusura** — Chiusa la chat c-37: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:19 · **Chiusura** — Chiusa la chat c-15: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:19 · **Chiusura** — Chiusa la chat c-14: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:19 · **Chiusura** — Chiusa la chat c-16: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:19 · **Chiusura** — Chiusa la chat c-36: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:20 · **Chiusura** — Chiusa la chat c-35: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:21 · **Chiusura** — Chiusa la chat c-27: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:21 · **Chiusura** — Chiusa la chat c-39: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:21 · **Chiusura** — Chiusa la chat c-25: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:21 · **Chiusura** — Chiusa la chat c-33: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:22 · **Chiusura** — Chiusa la chat c-17: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:23 · **Chiusura** — Chiusa la chat c-26: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:23 · **Chiusura** — Chiusa la chat c-28: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:23 · **Chiusura** — Chiusa la chat c-38: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:24 · **Chiusura** — Chiusa la chat c-15: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:24 · **Chiusura** — Chiusa la chat c-37: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:25 · **Chiusura** — Chiusa la chat c-35: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:25 · **Chiusura** — Chiusa la chat c-36: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:27 · **Chiusura** — Chiusa la chat c-25: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:27 · **Chiusura** — Chiusa la chat c-33: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:27 · **Chiusura** — Chiusa la chat c-39: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 08:28 · **Chiusura** — Chiusa la chat c-17: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:29 · **Chiusura** — Chiusa la chat c-38: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 08:40 · **Chiusura** — Chiusa la chat c-10: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 08:48 · **Chiusura** — Chiusa la chat c-10: ha finito da 8 minuti, il suo posto si libera (la conversazione resta)
+- 09:43 · **Chiusura** — Chiusa la chat c-7: ha finito da 9 minuti, il suo posto si libera (la conversazione resta)
+- 10:00 · **Chiusura** — Chiusa la chat c-12: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 10:06 · **Chiusura** — Chiusa la chat c-12: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 10:12 · **Consegna** — La Revisione rimanda indietro il lavoro di c-43: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. controllati src/main/index.ts:6…
+- 10:12 · **Consegna** — La Revisione rimanda indietro il lavoro di c-32: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. ramo già in main (`85795bb9`, c…
+- 10:14 · **Consegna** — La Revisione rimanda indietro il lavoro di c-7: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. già unito in main (76ed7c2, cont…
+- 10:15 · **Consegna** — La Revisione rimanda indietro il lavoro di c-41: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: L'app Android compila e i suoi test unitari passano. Prima si sistema questo. già unito in main (4f22ebc4); c…
+- 10:33 · **Chiusura** — Chiusa la chat c-32: il suo ramo è già stato unito e tolto
+- 10:36 · **Chiusura** — Chiusa la chat c-7: il suo ramo è già stato unito e tolto
+- 10:37 · **Chiusura** — Chiusa la chat c-41: il suo ramo è già stato unito e tolto
+- 10:40 · **Chiusura** — Chiusa la chat c-43: il suo ramo è già stato unito e tolto
+- 10:46 · **Chat aperta** — Aperta la chat c-45: Analisi dell'app Android (0.83.0, PRIMO, senza cambiare codice). Elenca ogni schermata e funzione di oggi: file, come ci
+- 11:04 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-45 in main
+- 11:10 · **Chiusura** — Chiusa la chat c-45: il suo lavoro è già nel ramo principale
+- 11:13 · **Chat aperta** — Aperta la chat c-46: Struttura e navigazione nuove (0.83.0): quattro voci fisse in basso con «indietro» coerente; ogni funzione al massimo a
+- 11:15 · **Chiusura** — Chiusa la chat c-45: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 11:47 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, e grazie per averlo scritto qui. È proprio il punto da cui parto. **Primo pezzo della 0.83.0: la schermata dell'autopilota sull'app.** - La casella per scrivermi starà sempre in basso, visibile, anche con la tastiera …
+- 12:30 · **Chiusura** — Chiusa la chat c-11: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 12:31 · **Chat aperta** — Aperta la chat c-47: Schermata dell'autopilota nell'app (0.83.0, PRIMO; Nicholas il 21/10 non riesce a scrivere all'autopilota dal telefono p
+- 12:35 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-47 in main
+- 12:40 · **Chiusura** — Chiusa la chat c-11: ha finito da 10 minuti, il suo posto si libera (la conversazione resta)
+- 12:45 · **Chiusura** — Chiusa la chat c-47: il suo lavoro è già nel ramo principale
+- 12:45 · **Chat aperta** — Aperta la chat c-48: Velocità (0.83.0): dati già pronti all'apertura (cache dell'ultimo stato), aggiornamenti solo di quello che cambia invec
+- 12:50 · **Chiusura** — Chiusa la chat c-47: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 12:52 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-48 in main
+- 12:58 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-46 in main
+- 13:09 · **Chiusura** — Chiusa la chat c-46: il suo lavoro è già nel ramo principale
+- 13:09 · **Consegna** — Nuovo compito: 0.83.0, dopo c-46 (già in main: quattro voci, file sotto 800 righe, schermata autopilota). Parti da main aggiornato. Non
+- 13:09 · **Chat aperta** — Aperta la chat c-49: Leggibilità e grafica (0.83.0): tipografia che segue la dimensione scelta nel telefono, contrasto AA anche nel tema scur
+- 13:23 · **Chiusura** — Chiusa la chat c-46: ha finito da 14 minuti, il suo posto si libera (la conversazione resta)
+- 13:43 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-49 in main
+- 14:02 · **Chat aperta** — Aperta la chat c-50: Pagina del telefono servita dal PC (0.83.0): stesse quattro voci e stessi colori dell'app, nessuna funzione persa; test.
+- 14:05 · **Chat aperta** — Aperta la chat c-51: Rilascio 0.83.0 (minor) quando tutto il resto è verde: git fetch, versione dell'app Android alzata, novità in italiano (
+- 14:08 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-51 in main
+- 14:34 · **Chiusura** — Chiusa la chat c-49: il suo lavoro è già nel ramo principale
+- 14:39 · **Chiusura** — Chiusa la chat c-49: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 14:41 · **Chiusura** — Chiusa la chat c-51: il suo lavoro è già nel ramo principale
+- 14:46 · **Chiusura** — Chiusa la chat c-51: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 15:02 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-50 in main
+- 15:05 · **Chiusura** — Chiusa la chat c-50: il suo lavoro è già nel ramo principale
+- 15:05 · **Chat aperta** — Aperta la chat c-52 (Rilascio): 0.83.0, dopo c-46 (già in main: quattro voci, file sotto 800 righe, schermata autopilota). Parti da main aggiornato. Non
+- 15:18 · **Chiusura** — Chiusa la chat c-50: ha finito da 13 minuti, il suo posto si libera (la conversazione resta)
+- 15:35 · **Decisione di Nicholas** — Ha chiesto: Ricevuto. Lo metto tutto nella **0.84.0**, che parte subito dopo la 0.83.0 dell'app Android. Una sola release, e non la installo io. 1. **Chat e autopiloti che si bloccano da soli.** Cerco le cause vere nei registri, una per un…
+- 15:53 · **Decisione di Nicholas** — Ha chiesto: Ricevuto: prima di tutto le chat che si bloccano. Ho guardato il registro di oggi e le cause sono queste. 1. **Il PC è soffocato dai controlli.** Oggi i test completi sono stati lanciati **448 volte**, anche quando il codice no…
+- 15:59 · **Consegna** — Nuovo compito: Blocchi (0.84.0, SUBITO): gli hook ECC sono spenti solo nella cartella principale (.claude/settings.local.json con ECC_H
+- 15:59 · **Chiusura** — Chiusa la chat c-48: il suo lavoro è già nel ramo principale
+- 16:01 · **Chiusura** — Chiusa la chat c-48: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 16:02 · **Chat aperta** — Aperta la chat c-53: 0.82.1 SUBITO (patch; Nicholas il 21/10: «non sto riuscendo a lavorare»). Crea il ramo da `git fetch` e dal tag v0.82.0,
+- 16:02 · **Consegna** — Nuovo compito: Sviluppo 0.82.1 (patch, SUBITO: Nicholas non riesce a lavorare perché le chat si bloccano). Crea un ramo nuovo dal tag v
+- 16:06 · **Chiusura** — Chiusa la chat c-48: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 16:08 · **Chiusura** — Chiusa la chat c-11: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 16:26 · **Chat aperta** — Aperta la chat c-54: Lista dei lavori: crea e tieni aggiornata .sierradeck/quaderno/lista-lavori.md con tutte le richieste di Nicholas dal 19
+- 16:30 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-54 in main
+- 16:53 · **Chiusura** — Chiusa la chat c-54: il suo lavoro è già nel ramo principale
+- 16:58 · **Chiusura** — Chiusa la chat c-54: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 17:05 · **Chat aperta** — Aperta la chat c-55: Completa la 0.83.0 come previsto: schermata dell'autopilota, unione di c-48 e c-52 con le correzioni della Revisione, ve
+- 17:07 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-53 in main
+- 17:12 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-55 in main
+- 17:13 · **Chiusura** — Chiusa la chat c-53: il suo lavoro è già nel ramo principale
+- 17:18 · **Chiusura** — Chiusa la chat c-53: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 17:33 · **Chiusura** — Chiusa la chat c-52: il suo pezzo è fatto
+- 17:33 · **Chat aperta** — Aperta la chat c-56: 0.84.0 — Blocchi rimasti. Leggi i registri dal 15/10: questo PC e, attraverso il ponte in sola lettura, DESKTOP e LAPTOP
+- 17:53 · **Chiusura** — Chiusa la chat c-55: il suo lavoro è già nel ramo principale
+- 17:53 · **Chiusura** — Chiusa la chat c-34: il suo ramo è già stato unito e tolto
+- 17:53 · **Consegna** — Nuovo compito: 0.84.0 — Domande chiare in modo definitivo. Parti da main, che contiene già la 0.83.0. Ogni domanda deve capirsi da sola
+- 17:53 · **Consegna** — Nuovo compito: 0.84.0 — Controllo e coordinazione dell'autopilota, più l'agente finito. Parti da main. 1) Ogni chat riferisce all'autop
+- 17:53 · **Chat aperta** — Aperta la chat c-57: 0.84.0 — Controllo e coordinazione. Ogni chat manda all'autopilota un segnale breve: parto, fatto, bloccata (con il moti
+- 17:53 · **Chat aperta** — Aperta la chat c-58: 0.84.0 — Storico nel quaderno. L'autopilota scrive in .sierradeck/quaderno/storico-<lavoro>.md, in italiano leggibile e
+- 17:56 · **Chat aperta** — Aperta la chat c-59: 0.84.0 — Agente finito. Quando il compito è fatto e il ramo è unito o scartato, chiudiChat chiude la chat e la toglie da
+- 17:58 · **Chiusura** — Chiusa la chat c-55: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 17:59 · **Chat aperta** — Aperta la chat c-60: 0.84.0 — Plugin ECC sugli altri PC. Installa il plugin con gli agenti specializzati sui PC accesi (DESKTOP, LAPTOP; NB-P
+- 18:02 · **Chat aperta** — Aperta la chat c-61: 0.84.0 — Domande chiare. Un controllo prima di mostrare ogni domanda: deve capirsi da sola. Niente sigle di chat («c-12»
+- 18:28 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-57 in main
+- 18:36 · **Chiusura** — Chiusa la chat c-57: il suo lavoro è già nel ramo principale
+- 18:41 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-58 in main
+- 18:44 · **Chiusura** — Chiusa la chat c-58: il suo lavoro è già nel ramo principale
+- 18:45 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-59 in main
+- 18:51 · **Chiusura** — Chiusa la chat c-59: il suo lavoro è già nel ramo principale
+- 18:55 · **Chat aperta** — Aperta la chat c-62: Rilascio 0.84.0 (minor) quando tutto il resto è verde: git fetch, novità in italiano (al massimo 8 righe), controlli fin
+- 18:56 · **Chiusura** — Chiusa la chat c-57: ha finito da 19 minuti, il suo posto si libera (la conversazione resta)
+- 18:56 · **Chiusura** — Chiusa la chat c-58: ha finito da 12 minuti, il suo posto si libera (la conversazione resta)
+- 18:57 · **Chiusura** — Chiusa la chat c-59: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 18:58 · **Chat aperta** — Aperta la chat c-63 (Rilascio): Blocchi (0.84.0, SUBITO): gli hook ECC sono spenti solo nella cartella principale (.claude/settings.local.json con ECC_H
+- 19:01 · **Chat aperta** — Aperta la chat c-64 (Rilascio): Sviluppo 0.82.1 (patch, SUBITO: Nicholas non riesce a lavorare perché le chat si bloccano). Crea un ramo nuovo dal tag v
+- 19:13 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-56 in main
+- 19:38 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-60 in main
+- 19:44 · **Chiusura** — Chiusa la chat c-60: il suo lavoro è già nel ramo principale
+- 19:52 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-61 in main
+- 19:56 · **Chiusura** — Chiusa la chat c-61: il suo lavoro è già nel ramo principale
+- 19:58 · **Chiusura** — Chiusa la chat c-60: ha finito da 14 minuti, il suo posto si libera (la conversazione resta)
+- 20:00 · **Chiusura** — Chiusa la chat c-56: il suo lavoro è già nel ramo principale
+- 20:02 · **Chiusura** — Chiusa la chat c-61: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 20:04 · **Chiusura** — Chiusa la chat c-64: il suo pezzo è fatto
+- 20:04 · **Chat aperta** — Aperta la chat c-65 (Collaudo): 0.84.0 — Domande chiare in modo definitivo. Parti da main, che contiene già la 0.83.0. Ogni domanda deve capirsi da sola
+- 20:11 · **Chiusura** — Chiusa la chat c-63: il suo pezzo è fatto
+- 20:12 · **Chat aperta** — Aperta la chat c-66 (Collaudo): 0.84.0 — Controllo e coordinazione dell'autopilota, più l'agente finito. Parti da main. 1) Ogni chat riferisce all'autop
+- 20:13 · **Chiusura** — Chiusa la chat c-64: ha finito da 9 minuti, il suo posto si libera (la conversazione resta)
+- 20:17 · **Chiusura** — Chiusa la chat c-63: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 20:31 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-62 in main
+- 20:31 · **Consegna** — C-66 ha finito: il ramo ap/ap-f1e631f5/c-66 passa alla Revisione
+- 20:32 · **Chiusura** — Chiusa la chat c-62: il suo lavoro è già nel ramo principale
+- 20:32 · **Consegna** — Nuovo compito: Sviluppo 0.84.0: correggi i 4 difetti trovati dal collaudo di coordinazione e agente finito. Parti da main, che dopo l'u
+- 20:32 · **Chat aperta** — Aperta la chat c-67 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-66 della chat c-66 («0.84.0 — Controllo e coordinazione dell'autopilota, più l'agente fi
+- 20:32 · **Chat aperta** — Aperta la chat c-68 (Rilascio): Sviluppo 0.84.0: correggi i 4 difetti trovati dal collaudo di coordinazione e agente finito. Parti da main, che dopo l'u
+- 20:32 · **Consegna** — C-65 ha finito: il ramo ap/ap-f1e631f5/c-65 passa alla Revisione
+- 20:32 · **Consegna** — Nuovo compito: 0.84.0 — Correzione delle domande chiare. Parti da main dopo l'unione del ramo del collaudo ap/ap-f1e631f5/c-65 (commit
+- 20:32 · **Chat aperta** — Aperta la chat c-69 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-65 della chat c-65 («0.84.0 — Domande chiare in modo definitivo. Parti da main, che cont
+- 20:37 · **Chiusura** — Chiusa la chat c-62: il suo ramo è già stato unito e tolto
+- 20:40 · **Chat aperta** — Aperta la chat c-70 (Sviluppo): 0.84.0 — Correzione delle domande chiare. Parti da main dopo l'unione del ramo del collaudo ap/ap-f1e631f5/c-65 (commit
+- 20:41 · **Chiusura** — Chiusa la chat c-62: ha finito da 9 minuti, il suo posto si libera (la conversazione resta)
+- 20:41 · **Chiusura** — Chiusa la chat c-65: ha finito da 9 minuti, il suo posto si libera (la conversazione resta)
+- 20:41 · **Chiusura** — Chiusa la chat c-66: ha finito da 9 minuti, il suo posto si libera (la conversazione resta)
+- 21:31 · **Consegna** — La Revisione rimanda indietro il lavoro di c-65: ripartire da `main` (dopo la 0.84.0) e correggere davvero gli 8 difetti per la 0.84.1, a partire da src/shared/domanda-chiara.ts:22 e :26, src/autopilot-host/server.ts:293 e :3611, src/share…
+- 21:31 · **Consegna** — La Revisione rimanda indietro il lavoro di c-66: correggere D1 (alla ripresa di un autopilota finito non riaprire né riavviare le chat concluse, approvate o già nel recupero, `src/autopilot-host/server.ts:2015`/`:2033`), D2 (segnare come c…
+- 21:35 · **Chiusura** — Chiusa la chat c-68: il suo pezzo è fatto
+- 21:35 · **Consegna** — C-70 ha finito: il ramo ap/ap-f1e631f5/c-70 passa alla Revisione
+- 21:35 · **Chat aperta** — Aperta la chat c-71 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-70 della chat c-70 («0.84.0 — Correzione delle domande chiare. Parti da main dopo l'unio
+- 21:37 · **Chiusura** — Chiusa la chat c-67: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 21:37 · **Chiusura** — Chiusa la chat c-69: ha finito da 6 minuti, il suo posto si libera (la conversazione resta)
+- 22:36 · **Chiusura** — Chiusa la chat c-68: ha finito da 61 minuti, il suo posto si libera (la conversazione resta)
+- 22:36 · **Chiusura** — Chiusa la chat c-70: ha finito da 61 minuti, il suo posto si libera (la conversazione resta)
+- 22:48 · **Chat aperta** — Riaperta la Revisione c-67 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-66 della chat c-66 («0.84.0 — Controllo e coordinazione dell'autopil
+- 22:53 · **Chat aperta** — Riaperta la Revisione c-69 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-65 della chat c-65 («0.84.0 — Domande chiare in modo definitivo. Par
+- 23:37 · **Consegna** — La Revisione rimanda indietro il lavoro di c-66: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 23:37 · **Consegna** — La Revisione rimanda indietro il lavoro di c-70: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+
+## 22/10/2026
+
+- 00:03 · **Chiusura** — Chiusa la chat c-1: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-2: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-4: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-6: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-7: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-8: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-32: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-40: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-41: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-42: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-43: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:03 · **Chiusura** — Chiusa la chat c-44: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:33 · **Consegna** — La Revisione rimanda indietro il lavoro di c-65: difetto 6 corretto solo a metà. Una domanda superata mostra ancora «risposta dall'autopilota: Superata, non serve più: …» nella scheda su PC, pagina e app (src/shared/domande-conversazioni.t…
+- 08:56 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, ed è colpa mia: è un difetto del programma, non un caso. Ho trovato la causa nel codice. **Perché stanotte non si è mosso niente:** l'autopilota parte solo quando una delle sue chat finisce un turno. Il guardiano, …
+- 09:04 · **Consegna** — Nuovo compito: 0.84.1 PRIMA DI TUTTO (Nicholas, 22/10): l'autopilota non resta mai fermo con il lavoro da finire. Parti da main, nella
+- 09:04 · **Chat aperta** — Aperta la chat c-72: SUBITO: autopilota mai fermo con il lavoro da finire. Giro da solo dopo 10 minuti senza chat al lavoro; le chat messe da
+- 09:07 · **Chat aperta** — Aperta la chat c-73: Revisione e unione in ordine: c-68 (D1-D4), c-556 (hook spenti nelle copie), c-66, c-70, poi c-65 con il difetto 6 corre
+- 09:30 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-73 in main
+- 09:37 · **Chiusura** — Chiusa la chat c-73: il suo lavoro è già nel ramo principale
+- 09:37 · **Consegna** — Nuovo compito: 0.84.1 — Domande che arrivano dalle chat degli altri PC e risposte dal riquadro delle domande. Parti da main (9e65759b o
+- 09:37 · **Consegna** — Nuovo compito: 0.84.1 — Errori dell'interfaccia del 21/10 e tasto «Aggiorna adesso». Parti da main (9e65759b o dopo). 1) RiquadroRemoto
+- 09:37 · **Chat aperta** — Aperta la chat c-74: Domande remote con testo, contesto e opzioni in italiano; tasto «Apri la chat su <PC>» se il testo manca
+- 09:37 · **Chat aperta** — Aperta la chat c-75: Risposte dal riquadro verificate sul PC della chat, con un nuovo tentativo, esito visibile e voce nel registro
+- 09:37 · **Chat aperta** — Aperta la chat c-76: Errori dell'interfaccia: «grezze», «sierradeck:al-telefono», chat chiuse con la cartella cancellata
+- 09:42 · **Chiusura** — Chiusa la chat c-73: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 09:45 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-72 in main
+- 09:46 · **Consegna** — Nuovo compito: 0.84.1 — Tasto «Aggiorna adesso» (riga 5a di .sierradeck/quaderno/lista-lavori.md). Parti da main. Quando Nicholas preme
+- 09:46 · **Consegna** — Nuovo compito: 0.84.1 — Segnale delle chat in vista su pagina del telefono e app (riga 5, punto 2, di .sierradeck/quaderno/lista-lavori
+- 09:56 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-75 in main
+- 10:06 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-76 in main
+- 10:15 · **Chiusura** — Chiusa la chat c-75: il suo lavoro è già nel ramo principale
+- 10:17 · **Chiusura** — Chiusa la chat c-75: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 10:22 · **Chiusura** — Chiusa la chat c-75: ha finito da 5 minuti, il suo posto si libera (la conversazione resta)
+- 10:23 · **Chiusura** — Chiusa la chat c-76: il suo lavoro è già nel ramo principale
+- 10:23 · **Consegna** — Nuovo compito: 0.84.1 — Tasto «Aggiorna adesso» (voce 5a della lista .sierradeck/quaderno/lista-lavori.md). Parti da main aggiornato. 1
+- 10:23 · **Chat aperta** — Aperta la chat c-77: Tasto «Aggiorna adesso» e nessuna nuova consegna dopo «Installa»
+- 10:28 · **Chiusura** — Chiusa la chat c-76: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 10:34 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-74 in main
+- 10:44 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-77 in main
+- 10:47 · **Chiusura** — Chiusa la chat c-74: il suo lavoro è già nel ramo principale
+- 10:47 · **Consegna** — Nuovo compito: 0.84.1 — Segnale delle chat in vista su pagina e app (lista-lavori riga 5, punto 2). Parti da main aggiornato: dentro ci
+- 10:48 · **Chat aperta** — Aperta la chat c-78: Aggiornare lista-lavori.md con la richiesta di Nicholas del 22/10 (autopilota mai fermo) al primo posto
+- 10:48 · **Chat aperta** — Aperta la chat c-79: Release 0.84.1 mai installata, rapporto in italiano
+- 10:49 · **Chiusura** — Chiusa la chat c-77: il suo lavoro è già nel ramo principale
+- 10:49 · **Chat aperta** — Aperta la chat c-80: ECC su NB-PROBOOK quando si accende
+- 10:50 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-78 in main
+- 10:53 · **Chiusura** — Chiusa la chat c-74: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 10:54 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-80 in main
+- 10:54 · **Chiusura** — Chiusa la chat c-77: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:06 · **Chiusura** — Chiusa la chat c-78: il suo lavoro è già nel ramo principale
+- 11:06 · **Chiusura** — Chiusa la chat c-80: il suo lavoro è già nel ramo principale
+- 11:11 · **Chiusura** — Chiusa la chat c-78: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:11 · **Chiusura** — Chiusa la chat c-80: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:14 · **Unione** — La Revisione approva c-66 (ap/ap-f1e631f5/c-66): unito nel ramo principale
+- 11:14 · **Chat aperta** — Aperta la chat c-81 (Collaudo): 0.84.1 PRIMA DI TUTTO (Nicholas, 22/10): l'autopilota non resta mai fermo con il lavoro da finire. Parti da main, nella
+- 11:14 · **Chiusura** — Chiusa la chat c-66: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:19 · **Chiusura** — Chiusa la chat c-67: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:29 · **Consegna** — C-81 ha finito: il ramo ap/ap-f1e631f5/c-81 passa alla Revisione
+- 11:29 · **Chiusura** — Chiusa la chat c-65: il suo lavoro è già nel ramo principale
+- 11:29 · **Consegna** — Nuovo compito: Sviluppo 0.84.1, SUBITO prima della release: correggi i 2 difetti del «mai fermo» trovati dal collaudo. La scheda è .sie
+- 11:29 · **Chat aperta** — Riaperta la Revisione c-71 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-70 della chat c-70 («0.84.0 — Correzione delle domande chiare. Parti
+- 11:29 · **Chiusura** — Chiusa la chat c-69: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:29 · **Chat aperta** — Aperta la chat c-82 (Collaudo): 0.84.1 — Domande che arrivano dalle chat degli altri PC e risposte dal riquadro delle domande. Parti da main (9e65759b o
+- 11:34 · **Chiusura** — Chiusa la chat c-65: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:40 · **Chiusura** — Chiusa la chat c-72: il suo lavoro è già nel ramo principale
+- 11:45 · **Chiusura** — Chiusa la chat c-72: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:48 · **Consegna** — La Revisione rimanda indietro il lavoro di c-70: il commit automatico b1e2f4e4 porta senza test un lavoro della 0.84.1 che non c'entra con c-70 (già in main fino a 597e58cb). Fa fallire tests/main/domande-chat-vere.test.ts:244, perché src/…
+- 11:49 · **Consegna** — C-82 ha finito: il ramo ap/ap-f1e631f5/c-82 passa alla Revisione
+- 11:49 · **Consegna** — Nuovo compito: 0.84.1 — Correggi i 4 difetti D1–D4 trovati dal collaudo delle domande che arrivano dagli altri PC e delle risposte date
+- 11:59 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-79 in main
+- 12:08 · **Chiusura** — Chiusa la chat c-79: il suo lavoro è già nel ramo principale
+- 12:08 · **Chat aperta** — Aperta la chat c-83 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-81 della chat c-81 («0.84.1 PRIMA DI TUTTO (Nicholas, 22/10): l'autopilota non resta mai
+- 12:13 · **Chiusura** — Chiusa la chat c-79: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:16 · **Consegna** — La Revisione rimanda indietro il lavoro di c-81: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 12:20 · **Chat aperta** — Aperta la chat c-84 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-82 della chat c-82 («0.84.1 — Domande che arrivano dalle chat degli altri PC e risposte
+- 12:27 · **Consegna** — La Revisione rimanda indietro il lavoro di c-82: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 12:34 · **Chiusura** — Chiusa la chat c-82: il suo lavoro è già nel ramo principale
+- 12:34 · **Chiusura** — Chiusa la chat c-84: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:39 · **Unione** — La Revisione approva c-70 (ap/ap-f1e631f5/c-70): unito nel ramo principale
+- 12:39 · **Chiusura** — Chiusa la chat c-70: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:39 · **Chiusura** — Chiusa la chat c-82: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:44 · **Chiusura** — Chiusa la chat c-71: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 13:41 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: così non si capisce niente. Ho guardato da dove arriva. **Cos'è:** quella domanda non la scrive una chat. La scrive il programma da solo, quando l'autopilota di Fionda ha provato più volte senza riuscirci e non sa …
+- 13:46 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e questa è ancora peggio della precedente: ti chiede di chiudere a mano un autopilota. È proprio quello che mi avevi vietato. Ho guardato il codice. **Perché succede:** l'autopilota di Fionda ha un criterio che non…
+- 21:24 · **Chiusura** — Chiusa la chat c-65: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 21:24 · **Chat aperta** — Riaperta la Revisione c-83 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-81 della chat c-81 («0.84.1 PRIMA DI TUTTO (Nicholas, 22/10): l'auto
+- 21:24 · **Decisione di Nicholas** — Ha chiesto: Ti sei spiegato bene: sono io il coordinatore e tutto deve passare da me. Ti dico com'è andata davvero, poi come cambio. **Com'è andata oggi:** • Mattina: ho unito le correzioni pronte e pubblicato la **0.84.1** alle 11:55. Den…
+- 21:34 · **Unione** — La Revisione approva c-81 (ap/ap-f1e631f5/c-81): unito nel ramo principale
+- 21:35 · **Chiusura** — Chiusa la chat c-81: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 21:40 · **Chiusura** — Chiusa la chat c-83: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 23:07 · **Decisione di Nicholas** — Ha chiesto: No, non sto lavorando, e il programma ti dava un'informazione falsa. Ho controllato adesso. **Cosa succede:** ogni 10 minuti mi sveglio da solo (la correzione della 0.84.1 funziona) e scrivo «apro le chat». Poi non ne apro ness…
+- 23:28 · **Decisione di Nicholas** — Ha chiesto: Fatto: ho tolto il freno. Da adesso i limiti del piano non bloccano più le chat. La percentuale resta visibile e decidi tu se rallentare. **Cosa ho fatto:** • Ho cambiato il codice: gli autopiloti aprono tutte le chat utili anc…
+- 23:38 · **Decisione di Nicholas** — Ha chiesto: La pubblicazione è in corso. Il primo tentativo si è fermato a metà, ti dico perché. **Cosa è successo:** • Typecheck e test completi del programma: tutti verdi, con il freno spento dentro. • Poi la pubblicazione su GitHub si è…
+- 23:50 · **Decisione di Nicholas** — Ha chiesto: Adesso sì: l'aggiornamento è visibile. Prima non lo era, e quegli errori venivano da lì. **Cosa non andava:** quando l'ho pubblicata, GitHub ha rifiutato l'ultimo passo. È un intoppo che conosco. Così la release è rimasta con i…
+- 23:58 · **Chat aperta** — Aperta la chat c-85: Controllare la release v0.84.2: non in bozza, con installatore, latest.yml (già caricato a mano dopo il 422 di GitHub),
+- 23:58 · **Chat aperta** — Aperta la chat c-86: Chiudere nel recupero la chat del collaudo delle domande chiare (c-65), bloccata e già superata da main
+- 23:58 · **Chat aperta** — Aperta la chat c-87: 0.84.3 — Difetti D1 e D2 del «mai fermo» (collaudo-mai-fermo-0-84-1.md), con i test senza «it.fails»; il giro da solo sc
+
+## 23/10/2026
+
+- 00:01 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-85 in main
+- 00:08 · **Chiusura** — Chiusa la chat c-86: il suo lavoro è già nel ramo principale
+- 00:08 · **Chat aperta** — Aperta la chat c-88: 0.84.3 — Difetti D1-D4 delle domande e risposte fra PC (collaudo-domande-risposte-0-84-1.md), con i test senza «.fails»
+- 00:09 · **Chiusura** — Chiusa la chat c-85: il suo lavoro è già nel ramo principale
+- 00:09 · **Consegna** — Nuovo compito: 0.84.3 — Domande dalle chat degli altri PC e risposte dal riquadro: correggi i difetti D1-D4 di .sierradeck/quaderno/col
+- 00:09 · **Consegna** — Nuovo compito: 0.84.3 — Domande scritte dal programma che si capiscono da sole e mai gesti a mano. 1) Le domande «sono bloccato», «chiu
+- 00:09 · **Consegna** — Nuovo compito: 0.84.3 — L'autopilota unico interlocutore. In cima alla sua conversazione, su PC, pagina del telefono e app, c'è un «Pun
+- 00:09 · **Consegna** — Nuovo compito: 0.84.3 — Aggiornamento senza tempi morti. L'aggiornamento si scarica in anticipo. Dopo «Installa» le chat salvano il lav
+- 00:09 · **Chat aperta** — Aperta la chat c-89: 0.84.3 — Domande scritte dal programma che si capiscono da sole; mai domande con gesti a mano o sigle; criterio rifiutat
+- 00:09 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-87 in main
+- 00:14 · **Chiusura** — Chiusa la chat c-85: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:14 · **Chiusura** — Chiusa la chat c-86: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:17 · **Chiusura** — Chiusa la chat c-87: il suo lavoro è già nel ramo principale
+- 00:17 · **Consegna** — Nuovo compito: 0.84.3 — Prova di 2 ore del «mai fermo» nella copia di prova (SIERRADECK_PROVA, mai il servizio vero, mai installare). P
+- 00:17 · **Chat aperta** — Aperta la chat c-90: 0.84.3 — «Punto» in cima alla conversazione dell'autopilota e righe per ogni evento delle chat, su PC, pagina e app
+- 00:23 · **Chiusura** — Chiusa la chat c-87: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:27 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-88 in main
+- 00:37 · **Chiusura** — Chiusa la chat c-88: il suo lavoro è già nel ramo principale
+- 00:37 · **Consegna** — Nuovo compito: 0.84.3 — Prima di chiedere «sono bloccato» l'autopilota prova da solo un'ultima strada: apre una chat nuova che rilegge
+- 00:37 · **Chat aperta** — Aperta la chat c-91: 0.84.3 — Aggiornamento senza tempi morti: scaricamento in anticipo, chat salvate e ferme entro 5 minuti, fasi visibili,
+- 00:43 · **Chiusura** — Chiusa la chat c-88: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 00:46 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-89 in main
+- 00:56 · **Chiusura** — Chiusa la chat c-89: il suo lavoro è già nel ramo principale
+- 00:56 · **Chat aperta** — Aperta la chat c-92: Revisione e unione dei rami della 0.84.3
+- 01:02 · **Chiusura** — Chiusa la chat c-89: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 01:03 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-92 in main
+- 01:10 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-90 in main
+- 01:14 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-91 in main
+- 01:28 · **Chiusura** — Chiusa la chat c-90: il suo lavoro è già nel ramo principale
+- 01:28 · **Chiusura** — Chiusa la chat c-91: il suo lavoro è già nel ramo principale
+- 01:28 · **Consegna** — Nuovo compito: 0.84.3 — Domande scritte dal programma e ultima strada prima di «sono bloccato». Parti da main: ci sono già c-87…c-92, c
+- 01:29 · **Chat aperta** — Aperta la chat c-93: Release 0.84.3 mai installata da noi, rapporto in italiano, lista-lavori.md aggiornata
+- 01:29 · **Chat aperta** — Aperta la chat c-94 (Collaudo): 0.84.3 — Domande dalle chat degli altri PC e risposte dal riquadro: correggi i difetti D1-D4 di .sierradeck/quaderno/col
+- 01:29 · **Chiusura** — Chiusa la chat c-90: il suo ramo è già stato unito e tolto
+- 01:29 · **Chiusura** — Chiusa la chat c-92: il suo lavoro è già nel ramo principale
+- 01:29 · **Consegna** — Nuovo compito: 0.84.3 — Ultima strada prima di «sono bloccato». Parti da main (82d0c2a2). Prima di mandare a Nicholas la domanda «sono
+- 01:29 · **Chat aperta** — Aperta la chat c-95 (Sviluppo): 0.84.3 — Domande scritte dal programma che si capiscono da sole e mai gesti a mano. 1) Le domande «sono bloccato», «chiu
+- 01:30 · **Chiusura** — Chiusa la chat c-91: il suo ramo è già stato unito e tolto
+- 01:30 · **Consegna** — Nuovo compito: 0.84.3 — Prova di 2 ore e rilascio. 1) git fetch, poi lavora da main aggiornato. Aspetta che in .sierradeck/quaderno/ram
+- 01:33 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-93 in main
+- 01:34 · **Chiusura** — Chiusa la chat c-90: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 01:34 · **Chiusura** — Chiusa la chat c-91: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 01:35 · **Chiusura** — Chiusa la chat c-92: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 01:43 · **Consegna** — C-94 ha finito: il ramo ap/ap-f1e631f5/c-94 passa alla Revisione
+- 01:43 · **Consegna** — Nuovo compito: 0.84.3 — Correzione piccola: una scelta più lunga di 200 caratteri tagliata a metà di un'emoji non si può più scegliere
+- 01:43 · **Chat aperta** — Aperta la chat c-96 (Collaudo): 0.84.3 — L'autopilota unico interlocutore. In cima alla sua conversazione, su PC, pagina del telefono e app, c'è un «Pun
+- 02:03 · **Consegna** — C-96 ha finito: il ramo ap/ap-f1e631f5/c-96 passa alla Revisione
+- 02:03 · **Consegna** — Nuovo compito: 0.84.3 — Correggi i 4 difetti del collaudo del «Punto» (scheda .sierradeck/quaderno/collaudo-punto-0-84-3.md, test it.fa
+- 02:04 · **Chat aperta** — Aperta la chat c-97 (Collaudo): 0.84.3 — Aggiornamento senza tempi morti. L'aggiornamento si scarica in anticipo. Dopo «Installa» le chat salvano il lav
+- 02:21 · **Consegna** — C-95 ha finito: il ramo ap/ap-f1e631f5/c-95 passa alla Revisione
+- 02:22 · **Chat aperta** — Aperta la chat c-98 (Collaudo): 0.84.3 — Prova di 2 ore del «mai fermo» nella copia di prova (SIERRADECK_PROVA, mai il servizio vero, mai installare). P
+- 02:22 · **Consegna** — C-97 ha finito: il ramo ap/ap-f1e631f5/c-97 passa alla Revisione
+- 02:22 · **Consegna** — Nuovo compito: 0.84.3 — Correggi i 3 difetti del collaudo dell'aggiornamento senza tempi morti (scheda .sierradeck/quaderno/collaudo-ag
+- 02:22 · **Chat aperta** — Aperta la chat c-99 (Collaudo): 0.84.3 — Prima di chiedere «sono bloccato» l'autopilota prova da solo un'ultima strada: apre una chat nuova che rilegge
+- 02:24 · **Chiusura** — Chiusa la chat c-98: il suo lavoro è già nel ramo principale
+- 02:24 · **Chat aperta** — Aperta la chat c-100 (Rilascio): 0.84.3 — Domande scritte dal programma e ultima strada prima di «sono bloccato». Parti da main: ci sono già c-87…c-92, c
+- 02:30 · **Chiusura** — Chiusa la chat c-98: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 02:36 · **Chiusura** — Chiusa la chat c-100: il suo pezzo è fatto
+- 02:36 · **Chat aperta** — Aperta la chat c-101 (Sviluppo): 0.84.3 — Ultima strada prima di «sono bloccato». Parti da main (82d0c2a2). Prima di mandare a Nicholas la domanda «sono
+- 02:38 · **Consegna** — C-99 ha finito: il ramo ap/ap-f1e631f5/c-99 passa alla Revisione
+- 02:38 · **Chat aperta** — Aperta la chat c-102 (Rilascio): 0.84.3 — Prova di 2 ore e rilascio. 1) git fetch, poi lavora da main aggiornato. Aspetta che in .sierradeck/quaderno/ram
+- 02:41 · **Consegna** — Nuovo compito: 0.84.3 — Correggi i difetti trovati dal collaudo del «Punto» dell'autopilota (ramo ap/ap-f1e631f5/c-96, 4 difetti) e dal
+- 02:41 · **Chiusura** — Chiusa la chat c-100: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 02:41 · **Chiusura** — Chiusa la chat c-102: il suo pezzo è fatto
+- 02:41 · **Chat aperta** — Aperta la chat c-103 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-94 della chat c-94 («0.84.3 — Domande dalle chat degli altri PC e risposte dal riquadro:
+- 02:47 · **Chiusura** — Chiusa la chat c-102: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 03:02 · **Consegna** — La Revisione rimanda indietro il lavoro di c-94: .sierradeck/quaderno/collaudo-domande-risposte-0-84-1.md:57 dice «Resta un caso limite… non corretto», ma main l'ha già corretto (23b0d540, tagliaIntero in src/shared/posta.ts e dovEOpzione …
+- 03:03 · **Consegna** — C-101 ha finito: il ramo ap/ap-f1e631f5/c-101 passa alla Revisione
+- 03:03 · **Chat aperta** — Aperta la chat c-104 (Rilascio): 0.84.3 — Correzione piccola: una scelta più lunga di 200 caratteri tagliata a metà di un'emoji non si può più scegliere
+- 03:04 · **Chiusura** — Chiusa la chat c-104: il suo pezzo è fatto
+- 03:04 · **Chat aperta** — Aperta la chat c-105 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-96 della chat c-96 («0.84.3 — L'autopilota unico interlocutore. In cima alla sua convers
+- 03:04 · **Chat aperta** — Aperta la chat c-106 (Sviluppo): 0.84.3 — Correggi i 4 difetti del collaudo del «Punto» (scheda .sierradeck/quaderno/collaudo-punto-0-84-3.md, test it.fa
+- 03:10 · **Chiusura** — Chiusa la chat c-104: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 03:12 · **Consegna** — C-106 ha finito: il ramo ap/ap-f1e631f5/c-106 passa alla Revisione
+- 03:12 · **Chat aperta** — Aperta la chat c-107 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-95 della chat c-95 («0.84.3 — Domande scritte dal programma che si capiscono da sole e m
+- 03:39 · **Unione** — La Revisione approva c-96 (ap/ap-f1e631f5/c-96): unito nel ramo principale
+- 03:39 · **Chat aperta** — Aperta la chat c-108 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-97 della chat c-97 («0.84.3 — Aggiornamento senza tempi morti. L'aggiornamento si scaric
+- 03:39 · **Chat aperta** — Aperta la chat c-109 (Collaudo): 0.84.3 — Correggi i 3 difetti del collaudo dell'aggiornamento senza tempi morti (scheda .sierradeck/quaderno/collaudo-ag
+- 03:39 · **Chiusura** — Chiusa la chat c-96: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 03:44 · **Consegna** — La Revisione rimanda indietro il lavoro di c-95: la scelta «Ti scrivo io cosa provare» (src/shared/domanda-strutturata.ts:426) va segnata come risposta da scrivere: al tocco deve aprire il campo di testo e non mandare la frase come rispost…
+- 03:44 · **Chiusura** — Chiusa la chat c-105: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:07 · **Chiusura** — Chiusa la chat c-108: il suo pezzo è fatto
+- 04:07 · **Chat aperta** — Aperta la chat c-110 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-99 della chat c-99 («0.84.3 — Prima di chiedere «sono bloccato» l'autopilota prova da so
+- 04:19 · **Consegna** — La Revisione rimanda indietro il lavoro di c-97: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 04:22 · **Chiusura** — Chiusa la chat c-109: il suo lavoro è già nel ramo principale
+- 04:27 · **Chiusura** — Chiusa la chat c-97: il suo lavoro è già nel ramo principale
+- 04:27 · **Chat aperta** — Aperta la chat c-111 (Collaudo): 0.84.3 — Correggi i difetti trovati dal collaudo del «Punto» dell'autopilota (ramo ap/ap-f1e631f5/c-96, 4 difetti) e dal
+- 04:27 · **Chiusura** — Chiusa la chat c-108: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:27 · **Chiusura** — Chiusa la chat c-109: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:31 · **Consegna** — La Revisione rimanda indietro il lavoro di c-99: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 04:32 · **Chiusura** — Chiusa la chat c-97: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:34 · **Consegna** — C-111 ha finito: il ramo ap/ap-f1e631f5/c-111 passa alla Revisione
+- 04:34 · **Chat aperta** — Aperta la chat c-112 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-101 della chat c-101 («0.84.3 — Ultima strada prima di «sono bloccato». Parti da main (8
+- 04:36 · **Chiusura** — Chiusa la chat c-99: il suo lavoro è già nel ramo principale
+- 04:36 · **Chat aperta** — Riaperta la Revisione c-103 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-94 della chat c-94 («0.84.3 — Domande dalle chat degli altri PC e ri
+- 04:37 · **Chiusura** — Chiusa la chat c-110: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:42 · **Chiusura** — Chiusa la chat c-99: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:52 · **Consegna** — La Revisione rimanda indietro il lavoro di c-94: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 04:53 · **Chiusura** — Chiusa la chat c-112: il suo pezzo è fatto
+- 04:53 · **Chat aperta** — Aperta la chat c-113 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-106 della chat c-106 («0.84.3 — Correggi i 4 difetti del collaudo del «Punto» (scheda .s
+- 04:53 · **Chat aperta** — Riaperta la Revisione c-107 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-95 della chat c-95 («0.84.3 — Domande scritte dal programma che si c
+- 04:53 · **Unione** — La Revisione approva c-101 (ap/ap-f1e631f5/c-101): unito nel ramo principale
+- 04:53 · **Chiusura** — Chiusa la chat c-101: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:55 · **Chiusura** — Chiusa la chat c-113: il suo pezzo è fatto
+- 04:55 · **Chiusura** — Chiusa la chat c-107: il suo pezzo è fatto
+- 04:55 · **Chiusura** — Chiusa la chat c-94: il suo lavoro è già nel ramo principale
+- 04:55 · **Chat aperta** — Aperta la chat c-114 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-111 della chat c-111 («0.84.3 — Correggi i difetti trovati dal collaudo del «Punto» dell
+- 04:57 · **Chiusura** — Chiusa la chat c-114: il suo pezzo è fatto
+- 04:57 · **Chiusura** — Chiusa la chat c-103: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 04:58 · **Chiusura** — Chiusa la chat c-112: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 05:00 · **Chiusura** — Chiusa la chat c-94: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 05:30 · **Chiusura** — Chiusa la chat c-93: il suo lavoro è già nel ramo principale
+- 05:30 · **Chat aperta** — Riaperta la Revisione c-84 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-82 della chat c-82 («0.84.1 — Domande che arrivano dalle chat degli
+- 05:35 · **Chiusura** — Chiusa la chat c-93: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 05:56 · **Consegna** — La Revisione rimanda indietro il lavoro di c-82: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Lista dei lavori in .sierradeck/quaderno/lista-lavori.md: tutte le richieste di Nicholas dal 19/10 in ordine …
+- 05:57 · **Consegna** — La Revisione rimanda indietro il lavoro di c-95: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compil…
+- 05:57 · **Chat aperta** — Riaperta la Revisione c-108 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-97 della chat c-97 («0.84.3 — Aggiornamento senza tempi morti. L'agg
+- 06:04 · **Chiusura** — Chiusa la chat c-82: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 06:04 · **Chat aperta** — Aperta la chat c-115 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-98 della chat c-98 («0.84.3 — Prova di 2 ore del «mai fermo» nella copia di prova (SIERR
+- 06:08 · **Chat aperta** — Riaperta la Revisione c-110 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-99 della chat c-99 («0.84.3 — Prima di chiedere «sono bloccato» l'au
+- 06:15 · **Consegna** — La Revisione rimanda indietro il lavoro di c-97: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Lista dei lavori in .sierradeck/quaderno/lista-lavori.md: tutte le richieste di Nicholas dal 19/10 in ordine …
+- 06:16 · **Chiusura** — Chiusa la chat c-97: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 06:16 · **Chat aperta** — Riaperta la Revisione c-113 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-106 della chat c-106 («0.84.3 — Correggi i 4 difetti del collaudo de
+- 06:25 · **Consegna** — La Revisione rimanda indietro il lavoro di c-99: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Lista dei lavori in .sierradeck/quaderno/lista-lavori.md: tutte le richieste di Nicholas dal 19/10 in ordine …
+- 06:27 · **Chiusura** — Chiusa la chat c-99: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 06:27 · **Chat aperta** — Aperta la chat c-116 (Revisione): Rivedi il ramo ap/ap-f1e631f5/c-109 della chat c-109 («0.84.3 — Correggi i 3 difetti del collaudo dell'aggiornamento sen
+- 06:35 · **Consegna** — La Revisione rimanda indietro il lavoro di c-106: nessun commit nuovo dopo la prima revisione; togliere i 4 it.fails (tests/shared/collaudo-punto-0-84-3.test.ts:80,92,106 e tests/autopilot-host/collaudo-punto-0-84-3.test.ts:138) e farli di…
+- 06:38 · **Consegna** — La Revisione rimanda indietro il lavoro di c-109: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Lista dei lavori in .sierradeck/quaderno/lista-lavori.md: tutte le richieste di Nicholas dal 19/10 in ordine…
+- 06:38 · **Chiusura** — Chiusa la chat c-109: la sua copia del progetto non è più un repository git, non ha più dove lavorare
+- 06:38 · **Chat aperta** — Riaperta la Revisione c-114 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-111 della chat c-111 («0.84.3 — Correggi i difetti trovati dal colla
+- 06:43 · **Chiusura** — Chiusa la chat c-116: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 06:53 · **Unione** — La Revisione approva c-111 (ap/ap-f1e631f5/c-111): unito nel ramo principale
+- 06:54 · **Chiusura** — Chiusa la chat c-111: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 06:59 · **Chiusura** — Chiusa la chat c-114: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 07:03 · **Chiusura** — Chiusa la chat c-65: il suo ramo è già stato unito e tolto
+- 07:03 · **Chiusura** — Chiusa la chat c-94: il suo ramo è già stato unito e tolto
+- 07:10 · **Consegna** — La Revisione rimanda indietro il lavoro di c-106: La revisione diceva OK, ma il ramo rompe quello che sul ramo principale passava: Gli altri test del programma passano (servizio, renderer, condivisi, pty); Il TypeScript del programma compi…
+- 08:39 · **Decisione di Nicholas** — Ha risposto più tardi, a c-95: «rifallo ancora»
+- 08:40 · **Decisione di Nicholas** — Ha risposto più tardi, a c-106: «rifallo ancora»
+- 09:23 · **Decisione di Nicholas** — Ha risposto più tardi, a c-106: «dobbiamo trovare una soluzione, se è trascurabile saltala oppure devi trovare una soluzione»
+- 09:25 · **Chiusura** — Chiusa la chat c-95: il suo lavoro è già nel ramo principale
+- 09:26 · **Chiusura** — Chiusa la chat c-107: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 09:31 · **Chiusura** — Chiusa la chat c-95: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 09:48 · **Decisione di Nicholas** — Ha risposto più tardi, a c-106: «uniscilo così»
+- 09:50 · **Chiusura** — Chiusa la chat c-106: il suo lavoro è già nel ramo principale
+- 09:50 · **Chiusura** — Chiusa la chat c-113: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 09:55 · **Chiusura** — Chiusa la chat c-106: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 11:49 · **Decisione di Nicholas** — Ha chiesto: Ecco dove siamo (ho controllato adesso): **Installata da te:** la 0.84.3, stamattina alle 08:44. Ci sono dentro il freno spento, il «mai fermo», le domande degli altri PC e le domande del programma più chiare. **Unito in main d…
+- 11:49 · **Chat aperta** — Aperta la chat c-119: 0.84.4 — La Revisione non respinge rami giusti per colpa dell'ambiente. Parti da main (df1a2ed2 o dopo). Prima di misura
+- 11:49 · **Chat aperta** — Aperta la chat c-120: 0.84.4 — Le risposte di Nicholas alle domande delle chat di questo PC devono essere prese davvero. Parti da main. Il 23/
+- 11:49 · **Chat aperta** — Aperta la chat c-121: 0.84.4 — Chat con il terminale che non parte (23/10 09:47 UTC, Revisione della prova di 2 ore: «in 90 secondi il termina
+- 11:49 · **Chat aperta** — Aperta la chat c-122: Revisione e unione dei rami della 0.84.4, compresa la prova di 2 ore del «mai fermo»
+- 11:49 · **Chat aperta** — Aperta la chat c-123: Release 0.84.4: git fetch, tag e gh release create prima di `npm run pubblica`, GH_TOKEN=$(gh auth token), latest.yml co
+- 11:52 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-123 in main
+- 11:55 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-122 in main
+- 12:10 · **Chiusura** — Chiusa la chat c-123: il suo lavoro è già nel ramo principale
+- 12:16 · **Chiusura** — Chiusa la chat c-123: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:18 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-119 in main
+- 12:19 · **Chiusura** — Chiusa la chat c-119: il suo lavoro è già nel ramo principale
+- 12:22 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-121 in main
+- 12:25 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-120 in main
+- 12:25 · **Chiusura** — Chiusa la chat c-121: il suo lavoro è già nel ramo principale
+- 12:25 · **Chiusura** — Chiusa la chat c-119: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:27 · **Chiusura** — Chiusa la chat c-120: il suo lavoro è già nel ramo principale
+- 12:27 · **Chiusura** — Chiusa la chat c-118: il suo pezzo è fatto
+- 12:33 · **Chiusura** — Chiusa la chat c-118: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:33 · **Chiusura** — Chiusa la chat c-120: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:33 · **Chiusura** — Chiusa la chat c-121: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:35 · **Chiusura** — Chiusa la chat c-121: il suo ramo è già stato unito e tolto
+- 12:35 · **Chiusura** — Chiusa la chat c-121: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:35 · **Chiusura** — Chiusa la chat c-120: il suo ramo è già stato unito e tolto
+- 12:36 · **Chiusura** — Chiusa la chat c-120: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 12:56 · **Consegna** — Nuovo compito: Release 0.84.4 (patch) mai installata da noi, in due tempi. ADESSO, mentre gira la prova di 2 ore della chat di Revision
+- 12:56 · **Chat aperta** — Aperta la chat c-124 (Rilascio): Release 0.84.4 (patch) mai installata da noi, in due tempi. ADESSO, mentre gira la prova di 2 ore della chat di Revision
+- 13:43 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e questa la tolgo del tutto. Ho trovato il punto nel codice. **Da dove viene:** quando la Revisione rimanda indietro lo stesso lavoro più di 2 volte, il programma si ferma e chiede a te «come vado avanti?», con tre…
+- 13:43 · **Chat aperta** — Aperta la chat c-125: 0.84.4 PRIMA DI TUTTO — Togli la domanda «Come vado avanti con …, che la Revisione ha già rimandato indietro N volte?» (
+- 13:43 · **Chat aperta** — Aperta la chat c-126: 0.84.4 — La Revisione non respinge rami giusti per colpa dell'ambiente. Parti da main. Prima di misurare in una copia, l
+- 13:46 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-126 in main
+- 13:51 · **Chiusura** — Chiusa la chat c-126: il suo lavoro è già nel ramo principale
+- 13:56 · **Chiusura** — Chiusa la chat c-126: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 14:03 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-125 in main
+- 14:08 · **Chiusura** — Chiusa la chat c-125: il suo lavoro è già nel ramo principale
+- 14:14 · **Chiusura** — Chiusa la chat c-125: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 14:39 · **Decisione di Nicholas** — Ha chiesto: Ricevuto, la faccio: sarà la **0.85.0**. **Ordine:** 1. Prima finisco e pubblico la 0.84.4. Ci stanno lavorando adesso due chat, una per l'ultima revisione e una per il rilascio. 2. Subito dopo parte la 0.85.0, con tre lavori i…
+- 14:39 · **Chat aperta** — Aperta la chat c-127: 0.85.0 — Richieste di Nicholas che diventano obiettivi da sole. Parti da main solo dopo che la 0.84.4 è pubblicata. Quan
+- 14:39 · **Chat aperta** — Aperta la chat c-128: 0.85.0 — Riscontro con la prova per ogni richiesta chiusa. Parti da main solo dopo che la 0.84.4 è pubblicata. Quando un
+- 14:39 · **Chat aperta** — Aperta la chat c-129: 0.85.0 — Velocità misurata. Parti da main solo dopo che la 0.84.4 è pubblicata. Per ogni richiesta registra quando arriv
+- 14:39 · **Chat aperta** — Aperta la chat c-130: Revisione e unione dei rami della 0.85.0
+- 14:42 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-130 in main
+- 14:52 · **Chiusura** — Chiusa la chat c-130: il suo lavoro è già nel ramo principale
+- 14:57 · **Chiusura** — Chiusa la chat c-130: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:10 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-128 in main
+- 15:16 · **Chiusura** — Chiusa la chat c-124: il suo pezzo è fatto
+- 15:20 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: se devi chiedermelo cento volte, l'indicatore che c'è non basta. Lo metto nella 0.85.0, come primo lavoro. **Cosa vedrai in cima all'autopilota, su PC, pagina e app:** 1. **Prossima versione:** per esempio «0.85.0:…
+- 15:22 · **Chiusura** — Chiusa la chat c-124: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:26 · **Chiusura** — Chiusa la chat c-128: il suo lavoro è già nel ramo principale
+- 15:28 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-129 in main
+- 15:31 · **Chiusura** — Chiusa la chat c-128: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:56 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-127 in main
+- 16:21 · **Chiusura** — Chiusa la chat c-129: il suo lavoro è già nel ramo principale
+- 16:21 · **Chiusura** — Chiusa la chat c-122: il suo lavoro è già nel ramo principale
+- 16:21 · **Chiusura** — Chiusa la chat c-122: il suo ramo è già stato unito e tolto
+- 16:21 · **Chiusura** — Chiusa la chat c-127: il suo lavoro è già nel ramo principale
+- 16:21 · **Consegna** — Nuovo compito: 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota, uguale su PC, pagina e app (richiesta di Nicholas del 23/10
+- 16:21 · **Chat aperta** — Aperta la chat c-131: Verifica 0.84.4: `npm run allega-apk` è già in corso (non lanciarne un secondo). Quando ha finito, controlla che sulla r
+- 16:21 · **Chat aperta** — Aperta la chat c-132: 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota (richiesta di Nicholas del 23/10: «continuo a chiederti a ch
+- 16:21 · **Chat aperta** — Aperta la chat c-133: Release 0.85.0 (minor): git fetch, tag e gh release create prima di `npm run pubblica`, GH_TOKEN=$(gh auth token), lates
+- 16:21 · **Chat aperta** — Aperta la chat c-134 (Rilascio): 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota, uguale su PC, pagina e app (richiesta di Nicholas del 23/10
+- 16:21 · **Chiusura** — Chiusa la chat c-129: il suo ramo è già stato unito e tolto
+- 16:21 · **Consegna** — Nuovo compito: 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota (richiesta di Nicholas del 23/10), uguale su PC, pagina serv
+- 16:21 · **Chat aperta** — Aperta la chat c-134 (Rilascio): 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota (richiesta di Nicholas del 23/10), uguale su PC, pagina serv
+- 16:22 · **Chiusura** — Chiusa la chat c-127: il suo ramo è già stato unito e tolto
+- 16:22 · **Consegna** — Nuovo compito: 0.85.0 — At-a-glance indicator at the top of the autopilot, the same on PC, page and app (Nicholas, 23/10). Start from m
+- 16:27 · **Chiusura** — Chiusa la chat c-122: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 16:27 · **Chiusura** — Chiusa la chat c-127: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 16:27 · **Chiusura** — Chiusa la chat c-129: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 16:28 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-131 in main
+- 16:30 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-133 in main
+- 16:40 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-132 in main
+- 16:56 · **Chiusura** — Chiusa la chat c-132: il suo lavoro è già nel ramo principale
+- 16:57 · **Chiusura** — Chiusa la chat c-131: il suo lavoro è già nel ramo principale
+- 16:57 · **Chat aperta** — Aperta la chat c-135 (Rilascio): 0.85.0 — At-a-glance indicator at the top of the autopilot, the same on PC, page and app (Nicholas, 23/10). Start from m
+- 16:57 · **Chat aperta** — Aperta la chat c-136 (Rilascio): 0.85.0 — Indicatore a colpo d'occhio in cima all'autopilota (richiesta di Nicholas del 23/10), uguale su PC, pagina serv
+- 17:56 · **Chiusura** — Chiusa la chat c-133: il suo lavoro è già nel ramo principale
+- 17:56 · **Chiusura** — Chiusa la chat c-135: il suo pezzo è fatto
+- 17:56 · **Chiusura** — Chiusa la chat c-136: il suo pezzo è fatto
+- 17:56 · **Chat aperta** — Riaperta la Revisione c-115 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-98 della chat c-98 («0.84.3 — Prova di 2 ore del «mai fermo» nella c
+- 17:57 · **Chat aperta** — Riaperta la Revisione c-116 per rivedere: Rivedi il ramo ap/ap-f1e631f5/c-109 della chat c-109 («0.84.3 — Correggi i 3 difetti del collaudo de
+- 18:18 · **Chiusura** — Chiusa la chat c-135: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 18:18 · **Chiusura** — Chiusa la chat c-136: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 18:29 · **Unione** — La Revisione approva c-106 (ap/ap-f1e631f5/c-106): il ramo ap/ap-f1e631f5/c-106 non c’è più: niente unito qui
+- 18:31 · **Chiusura** — Chiusa la chat c-106: il suo ramo è già stato unito e tolto
+- 18:51 · **Unione** — La Revisione approva c-65 (ap/ap-f1e631f5/c-65): il ramo ap/ap-f1e631f5/c-65 non c’è più: niente unito qui
+- 18:55 · **Unione** — La Revisione approva c-95 (ap/ap-f1e631f5/c-95): il ramo ap/ap-f1e631f5/c-95 non c’è più: niente unito qui
+- 18:56 · **Unione** — La Revisione approva c-82 (ap/ap-f1e631f5/c-82): il ramo ap/ap-f1e631f5/c-82 non c’è più: niente unito qui
+- 18:56 · **Unione** — La Revisione approva c-94 (ap/ap-f1e631f5/c-94): il ramo ap/ap-f1e631f5/c-94 non c’è più: niente unito qui
+- 19:42 · **Chat aperta** — Aperta la chat c-143 (Sviluppo): Riprendi il lavoro dell’autopilota: nessuna chat lavora più e il lavoro non è chiuso. Guarda com’è messo (git log, la li
+- 21:10 · **Decisione di Nicholas** — Ha chiesto: Hai ragione, e ho trovato la causa del blocco. Il controllo l'ho fatto adesso, sul registro di oggi. **Perché si blocca:** da stamattina il «cervello» che decide i passi dell'autopilota non risponde. Oggi ha fallito 239 volte, …
+- 21:10 · **Chat aperta** — Aperta la chat c-145: 0.85.1 PRIMA DI TUTTO — Il supervisore fallisce da stamattina con «Error: spawn ENAMETOOLONG» (239 volte il 23/10, 124 d
+- 21:12 · **Decisione di Nicholas** — Ha chiesto: Hai ragione. Ho controllato e il motivo è semplice: quando ti scrivo «ti avviso io», **nel programma non c'è niente che lo faccia davvero**. Io rispondo e poi parlo di nuovo solo se mi scrivi tu. La promessa resta nel testo e n…
+- 21:15 · **Decisione di Nicholas** — Ha chiesto: Hai ragione: servo proprio a questo, e oggi lo faccio solo a metà. **Cosa so adesso di ogni chat:** quando la apro, quando dice «partita» o «finito», quando tace da troppo e se il suo lavoro viene unito. **Cosa non so:** a che …
+- 21:19 · **Chat aperta** — Aperta la chat c-146: 0.85.1 — Le chat riferiscono sempre all'autopilota (Nicholas, 23/10 sera: «le chat devono SEMPRE interfacciarsi con te,
+- 21:29 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-145 in main
+- 21:56 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-146 in main
+- 22:25 · **Chat aperta** — Aperta la chat c-147: 0.85.1 — Promesse mantenute (richiesta di Nicholas del 23/10 sera: «dice spesso che mi tiene aggiornato ma questo non su
+- 22:34 · **Chat aperta** — Aperta la chat c-148: 0.85.1 — Guardia del PC. Il 23/10 sera il processore era al 100%, con 15 processi claude e un programma esterno pesante.
+- 22:37 · **Chat aperta** — Aperta la chat c-149: 0.85.1 — Testo a scatti nella scheda dell'autopilota. Nicholas scrive e il testo non scorre fluido. Misura con il profil
+- 22:50 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-149 in main
+- 22:57 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-148 in main
+- 23:15 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-147 in main
+
+## 27/10/2026
+
+- 15:07 · **Chiusura** — Chiusa la chat c-156: il suo lavoro è già nel ramo principale
+- 15:10 · **Chiusura** — Chiusa la chat c-157: il suo lavoro è già nel ramo principale
+- 15:10 · **Chiusura** — Chiusa la chat c-156: il suo ramo è già stato unito e tolto
+- 15:10 · **Chiusura** — Chiusa la chat c-157: il suo ramo è già stato unito e tolto
+- 15:11 · **Chiusura** — Chiusa la chat c-161: il suo lavoro è già nel ramo principale
+- 15:11 · **Chiusura** — Chiusa la chat c-161: il suo ramo è già stato unito e tolto
+- 15:12 · **Chiusura** — Chiusa la chat c-163: il suo lavoro è già nel ramo principale
+- 15:12 · **Consegna** — C-164 ha finito: il ramo ap/ap-f1e631f5/c-143 passa alla Revisione
+- 15:12 · **Chiusura** — Chiusa la chat c-162: il suo lavoro è già nel ramo principale
+- 15:13 · **Chiusura** — Chiusa la chat c-162: il suo ramo è già stato unito e tolto
+- 15:14 · **Chiusura** — Chiusa la chat c-163: il suo ramo è già stato unito e tolto
+- 15:15 · **Chiusura** — Chiusa la chat c-165: il suo lavoro è già nel ramo principale
+- 15:15 · **Chiusura** — Chiusa la chat c-156: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:16 · **Chiusura** — Chiusa la chat c-157: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:17 · **Chiusura** — Chiusa la chat c-161: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:18 · **Chiusura** — Chiusa la chat c-162: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:20 · **Chiusura** — Chiusa la chat c-163: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:22 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-168 in main
+- 15:22 · **Chiusura** — Chiusa la chat c-165: il suo ramo è già stato unito e tolto
+- 15:23 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-166 in main
+- 15:29 · **Chiusura** — Chiusa la chat c-165: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 15:52 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-167 in main
+- 15:52 · **Chiusura** — Chiusa la chat c-166: il suo lavoro è già nel ramo principale
+- 16:28 · **Chiusura** — Chiusa la chat c-167: il suo lavoro è già nel ramo principale
+- 16:58 · **Chiusura** — Chiusa la chat c-168: il suo lavoro è già nel ramo principale
+- 16:58 · **Chat aperta** — Aperta la chat c-169: 0.85.1 — Rileggi dal registro del 23/10 tutte le domande arrivate a Nicholas. Ognuna che non doveva arrivargli (tecnica,
+- 16:58 · **Chat aperta** — Aperta la chat c-170: Chiudi le chat doppie o finite di questo lavoro (indicatore consegnato a più chat, giro senza fine): ramo unito, già in
+- 16:58 · **Chat aperta** — Aperta la chat c-171: Revisione e unione dei rami della 0.85.1
+- 16:58 · **Chiusura** — Chiusa la chat c-165: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 16:58 · **Chiusura** — Chiusa la chat c-166: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 16:58 · **Chiusura** — Chiusa la chat c-167: ha finito e il suo ramo è unito. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 17:32 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-170 in main
+- 17:32 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-171 in main
+- 19:37 · **Chiusura** — Chiusa la chat c-168: il suo ramo è già stato unito e tolto
+- 20:31 · **Chiusura** — Chiusa la chat c-168: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 20:49 · **Chiusura** — Chiusa la chat c-167: il suo ramo è già stato unito e tolto
+- 20:49 · **Chiusura** — Chiusa la chat c-166: il suo ramo è già stato unito e tolto
+- 20:50 · **Chiusura** — Chiusa la chat c-166: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 20:51 · **Chiusura** — Chiusa la chat c-167: ha finito e il suo ramo è chiuso. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)
+- 21:53 · **Unione** — Unito il ramo ap/ap-f1e631f5/c-169 in main
+- 22:54 · **Decisione di Nicholas** — Ha chiesto: **Il lavoro della 0.85.1 è finito.** L'ho controllato adesso su GitHub e sul codice. • **0.85.1 pubblicata** il 24/10 all'01:52, con tutti e 5 i file (installer, aggiornamento, app del telefono). **Tu l'hai installata oggi.** •…
+- 22:57 · **Decisione di Nicholas** — Ha chiesto: Bene, parto con la **0.85.2**. È una correzione, quindi una versione piccola. Fa due cose, così l'autopilota non gira più a vuoto: 1. **Un lavoro già fatto non torna in coda.** Se il suo controllo passa e il lavoro è già uscito…
+
+## 29/10/2026
+
+- 22:52 · **Chat aperta** — Aperta la chat c-172: 0.85.2 — Niente più giri a vuoto (sì di Nicholas del 27/10). Parti da main aggiornato (git fetch). Caso vero del 27/10:
+- 22:52 · **Chat aperta** — Aperta la chat c-173: Revisione e unione del ramo della 0.85.2
+- 22:52 · **Chat aperta** — Aperta la chat c-174: Release 0.85.2 (patch): git fetch, tag e gh release create prima di `npm run pubblica`, GH_TOKEN=$(gh auth token), lates
