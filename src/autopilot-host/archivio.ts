@@ -16,6 +16,19 @@ export type Archivio = {
    * quelle in `<id>.decisioni.jsonl`. Si rileggono solo se il file è cambiato.
    */
   decisioniVecchie?: (id: string) => Decisione[]
+  /**
+   * Il jsonl delle decisioni è stato riscritto da fuori (l'autopulizia lo
+   * accorcia): si dimentica il conto tenuto in memoria e lo si rifà dal file
+   * (0.86.1). Torna quante decisioni ci sono adesso nel jsonl.
+   */
+  riconta?: (id: string) => number
+  /**
+   * Mette in coda al jsonl le decisioni date (le più vecchie per prime),
+   * saltando quelle che ci sono già. Per chi le toglie dal file
+   * dell'autopilota senza passare da `scrivi` (la compattazione). `false` se
+   * non è riuscito: allora non vanno tolte.
+   */
+  archiviaDecisioni?: (id: string, decisioni: Decisione[]) => boolean
 }
 
 /**
@@ -194,25 +207,31 @@ export function apriArchivio(cartella: string): Archivio {
     return s
   }
 
+  /** In coda al jsonl le decisioni non ancora viste. `false` se la scrittura non riesce. */
+  const archivia = (id: string, decisioni: Decisione[]): boolean => {
+    const s = statoArchivio(id)
+    const nuove = decisioni.filter((d) => !s.viste.has(chiaveDecisione(d)))
+    if (nuove.length === 0) return true
+    try {
+      appendFileSync(percorsoDecisioniDi(id), nuove.map((d) => `${JSON.stringify(d)}\n`).join(''), 'utf8')
+    } catch (err) {
+      console.error(`[autopilota] decisioni vecchie di ${id} non archiviate:`, err)
+      return false
+    }
+    s.n += nuove.length
+    for (const d of nuove) { const k = chiaveDecisione(d); s.chiavi.push(k); s.viste.add(k) }
+    if (s.chiavi.length > RICORDATE) for (const k of s.chiavi.splice(0, s.chiavi.length - RICORDATE)) s.viste.delete(k)
+    return true
+  }
+
   /** Le decisioni da tenere nel file, e quante ne stanno nel jsonl dopo questa scrittura. */
   const accorcia = (a: Autopilota): { decisioni: Decisione[]; archiviate: number } => {
     const s = statoArchivio(a.id)
     if (a.decisioni.length <= DECISIONI_SOGLIA) return { decisioni: a.decisioni, archiviate: s.n }
     const taglio = a.decisioni.length - DECISIONI_TENUTE
-    const nuove = a.decisioni.slice(0, taglio).filter((d) => !s.viste.has(chiaveDecisione(d)))
-    if (nuove.length > 0) {
-      try {
-        appendFileSync(percorsoDecisioniDi(a.id), nuove.map((d) => `${JSON.stringify(d)}\n`).join(''), 'utf8')
-      } catch (err) {
-        // Meglio un file lungo che un diario perso: si riprova alla prossima scrittura.
-        console.error(`[autopilota] decisioni vecchie di ${a.id} non archiviate:`, err)
-        return { decisioni: a.decisioni, archiviate: s.n }
-      }
-      s.n += nuove.length
-      for (const d of nuove) { const k = chiaveDecisione(d); s.chiavi.push(k); s.viste.add(k) }
-      if (s.chiavi.length > RICORDATE) for (const k of s.chiavi.splice(0, s.chiavi.length - RICORDATE)) s.viste.delete(k)
-    }
-    return { decisioni: a.decisioni.slice(taglio), archiviate: s.n }
+    // Meglio un file lungo che un diario perso: se non si archivia, si riprova alla prossima scrittura.
+    if (!archivia(a.id, a.decisioni.slice(0, taglio))) return { decisioni: a.decisioni, archiviate: s.n }
+    return { decisioni: a.decisioni.slice(taglio), archiviate: statoArchivio(a.id).n }
   }
 
   return {
@@ -279,20 +298,27 @@ export function apriArchivio(cartella: string): Archivio {
       // ogni volta: e' cio' che permette di riprenderlo dopo un riavvio, e una
       // scrittura interrotta non deve lasciare un troncone al posto suo.
       const percorso = percorsoDi(a.id)
-      const { decisioni, archiviate } = accorcia(a)
-      // Il conto delle archiviate è dell'archivio: quello che arriva può venire da una fotografia vecchia.
-      const { decisioniArchiviate: _vecchio, ...resto } = a
-      let testo: string
       try {
-        // Senza rientri (0.85.2): un terzo dei byte, e nessuno lo legge a mano.
-        testo = JSON.stringify({ ...resto, decisioni, ...(archiviate > 0 ? { decisioniArchiviate: archiviate } : {}), versione: VERSIONE_AUTOPILOTA })
-      } catch (err) {
-        console.error(`[autopilota] salvataggio in ${percorso} fallito:`, err)
-        return
+        const { decisioni, archiviate } = accorcia(a)
+        // Il conto delle archiviate è dell'archivio: quello che arriva può venire da una fotografia vecchia.
+        const { decisioniArchiviate: _vecchio, ...resto } = a
+        let testo: string
+        try {
+          // Senza rientri (0.85.2): un terzo dei byte, e nessuno lo legge a mano.
+          testo = JSON.stringify({ ...resto, decisioni, ...(archiviate > 0 ? { decisioniArchiviate: archiviate } : {}), versione: VERSIONE_AUTOPILOTA })
+        } catch (err) {
+          console.error(`[autopilota] salvataggio in ${percorso} fallito:`, err)
+          return
+        }
+        scriviAtomico(percorso, testo, 'autopilota')
+      } finally {
+        // La propria scrittura invalida la cache, **sempre** (0.86.1): `leggi`
+        // dà l'oggetto della cache e chi salva l'ha spesso già cambiato sul
+        // posto. Se il salvataggio non riesce (un JSON che non si serializza,
+        // un disco pieno), tenerlo in cache darebbe in memoria uno stato che
+        // sul disco non c'è. La prossima lettura è dal disco.
+        cache.delete(percorso)
       }
-      // La propria scrittura invalida la cache: la prossima lettura è dal disco.
-      cache.delete(percorso)
-      scriviAtomico(percorso, testo, 'autopilota')
     },
 
     elimina(id) {
@@ -317,6 +343,16 @@ export function apriArchivio(cartella: string): Archivio {
       const decisioni = leggiJsonl(p)
       vecchieLette.set(id, { size: st.size, mtimeMs: st.mtimeMs, decisioni })
       return decisioni
+    },
+
+    riconta(id) {
+      archivioDecisioni.delete(id)
+      vecchieLette.delete(id)
+      return statoArchivio(id).n
+    },
+
+    archiviaDecisioni(id, decisioni) {
+      return archivia(id, decisioni)
     }
   }
 }

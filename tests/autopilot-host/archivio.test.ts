@@ -122,6 +122,23 @@ describe('apriArchivio', () => {
     expect(() => a.leggi('../fuori')).toThrow(/id/)
   })
 
+  it('0.86.1: un salvataggio che non riesce non lascia in cache l oggetto cambiato sul posto', () => {
+    const a = apriArchivio(dir())
+    a.scrivi(esempio())
+    const letto = a.leggi('ap-1')!
+    // Chi salva cambia l'oggetto della cache sul posto…
+    letto.obiettivo = 'cambiato in memoria'
+    // …e il salvataggio non riesce (un valore che JSON non sa scrivere).
+    const errori = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      a.scrivi({ ...letto, extra: 1n } as unknown as Autopilota)
+    } finally {
+      errori.mockRestore()
+    }
+    expect(a.leggi('ap-1')?.obiettivo).toBe('Fai passare la suite')
+    expect(a.elenca()[0]?.obiettivo).toBe('Fai passare la suite')
+  })
+
   it('crea la cartella se manca', () => {
     const d = join(dir(), 'non', 'esiste')
     apriArchivio(d).scrivi(esempio())
