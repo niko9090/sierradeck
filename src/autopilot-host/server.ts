@@ -72,7 +72,7 @@ import type { TipoAvviso } from './telegram'
 import { type SupervisoreMancato, CONSEGNATI_RICORDATI_AUTOPILOTA, TETTO_CHAT_MAX, conMomentoDelFermo, conStatiDatati, eFermo, riparteDaSolo, SILENZIO_DA_DIRE_MS, FERMA_DA_DIRE_MS, NOTA_TRAGUARDO_MAX, ultimoTraguardoDi } from '@shared/autopilota'
 import { OPZIONE_VIA, TESTO_VIA, domandaInSospeso, tracciaDopoRisposta } from '@shared/domande-autopilota'
 import { IN_VIAGGIO_MAX, inViaggioPer, istruzioneDallaRisposta, rigaAlSupervisore, rigaNonPresa, rigaPresa, type RispostaInViaggio } from '@shared/risposte-in-viaggio'
-import { domandaInFondo, type DomandaRisolta } from '@shared/domande-telefono'
+import { domandaInFondo, notificaSoloStato, type DomandaRisolta } from '@shared/domande-telefono'
 import { nomeCompito, partiDaChatFerma, senzaNotificaClaude, senzaSigleMai, type ChatConCompito } from '@shared/domanda-chiara'
 import { comeConsegnare, frenoPerAutopiloti, pianoPubblicazione, rilevaCloud, type Freno, type PianoPubblicazione } from '@shared/harness'
 import { giudicaMossa, giudicaRuolo, giudicaStrumento, leggiMosse, rispostaPreTool } from './divieti'
@@ -5072,6 +5072,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const sessione = chat?.sessionId ?? a.sessionId
     const detto = sessione !== undefined ? deps.ultimoDetto?.(a.cwd, sessione) : undefined
     const domandaGrezza = componiDomanda(`${tipo}: ${messaggio}`.trim(), detto)
+    // 0.86.2: «idle_prompt» senza una domanda vera in fondo all'ultimo messaggio
+    // è solo lo stato «aspetta»: non una domanda per Nicholas né per il
+    // supervisore. La fine del turno la governa già l'hook di Stop.
+    if (notificaSoloStato(tipo, detto)) {
+      console.info(`[domande] ${id} — notifica «${tipo}» da ${chatId ?? 'la chat'} senza una domanda nel suo ultimo messaggio: è solo uno stato, non la chiedo`)
+      return {}
+    }
 
     /**
      * **Prima si prova a rispondere.**
@@ -5126,7 +5133,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       })
       // La domanda intera accanto alla risposta (0.84.0): prima, senza «?» in
       // fondo, restava «Claude is waiting for your input» (21/10, 19 volte).
-      deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(ora, chatId, domandaInFondo(detto) ?? (senzaNotificaClaude(domandaGrezza) || domandaGrezza), esito.risposta) })
+      // 0.86.2: mai la notifica grezza come domanda: senza testo vero non si registra.
+      const chiesta = domandaInFondo(detto) ?? senzaNotificaClaude(domandaGrezza)
+      if (chiesta !== '') deps.domande.risolta({ autopilotaId: id, ...risoltaChiara(ora, chatId, chiesta, esito.risposta) })
       const aggiornato = deps.archivio.leggi(id) ?? a
       void avviaLavoro(aggiornato, esito.risposta, chat).catch((err: unknown) => {
         console.error(`[autopilota] risposta non consegnata a ${id}:`, err)

@@ -76,17 +76,29 @@ async function notifica(chatId: string): Promise<void> {
 
 afterEach(() => { server?.close(); server = undefined })
 
+/** Un ultimo messaggio che finisce davvero con una domanda: «idle_prompt» allora è una domanda (0.86.2). */
+const DETTO_CHIEDE = `${DETTO}
+
+Per le prove uso la chiave di prova o quella vera?`
+
 describe('la chat ferma quando il supervisore non risponde', () => {
-  it('21/10 dal vero: niente «Claude is waiting», niente avvertenza, la domanda nomina il lavoro', async () => {
-    await avvia({ interroga: () => Promise.reject(new Error('scaduto')), chats: [chat('c-23', COMPITO)] })
+  it('21/10 dal vero: niente «Claude is waiting», niente avvertenza, la domanda è quella della chat', async () => {
+    await avvia({ interroga: () => Promise.reject(new Error('scaduto')), chats: [chat('c-23', COMPITO)], detto: DETTO_CHIEDE })
     await notifica('c-23')
     const [d] = registro.aperte('ap-and')
     expect(d).toBeDefined()
     expect(d!.testo).not.toContain('Claude is waiting')
     expect(d!.testo).not.toContain('idle_prompt')
     expect(d!.avvertenza).toBeUndefined()
-    expect(d!.parti?.domanda).toBe(`Cosa deve fare adesso la chat che lavora a «${COMPITO}»?`)
-    expect(d!.testo).toContain('la chat la chiudi tu')
+    expect(d!.testo).toContain('Per le prove uso la chiave di prova o quella vera?')
+  })
+  it('0.86.2: una chat che ha solo finito («idle_prompt» senza domanda) non diventa una domanda', async () => {
+    let chiamate = 0
+    await avvia({ interroga: () => { chiamate += 1; return Promise.reject(new Error('scaduto')) }, chats: [chat('c-23', COMPITO)] })
+    await notifica('c-23')
+    expect(registro.aperte('ap-and')).toEqual([])
+    expect(registro.risolte('ap-and')).toEqual([])
+    expect(chiamate).toBe(0)
   })
 })
 
@@ -101,7 +113,8 @@ describe('le sigle nelle domande del supervisore', () => {
     }
     await avvia({
       interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'chiedi', domanda }) }),
-      chats: [chat('c-23', COMPITO), chat('c-7', 'Collaudo della gestione delle chat', 'finita'), chat('c-12', 'Rilascio 0.80.0', 'finita')]
+      chats: [chat('c-23', COMPITO), chat('c-7', 'Collaudo della gestione delle chat', 'finita'), chat('c-12', 'Rilascio 0.80.0', 'finita')],
+      detto: DETTO_CHIEDE
     })
     await notifica('c-23')
     const [d] = registro.aperte('ap-and')
@@ -112,12 +125,17 @@ describe('le sigle nelle domande del supervisore', () => {
 })
 
 describe('la risposta dell’autopilota accanto alla domanda intera', () => {
-  it('senza «?» in fondo, la domanda è quello che la chat ha detto, non «Claude is waiting for your input»', async () => {
+  it('senza «?» in fondo non c’è una domanda: niente risolta con «Claude is waiting for your input» (0.86.2)', async () => {
     await avvia({ interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'rispondo', risposta: 'Va bene così: hai finito, fermati.' }) }), chats: [chat('c-23', COMPITO)] })
     await notifica('c-23')
+    expect(registro.risolte('ap-and')).toEqual([])
+  })
+  it('con la domanda in fondo, la risolta porta la domanda vera', async () => {
+    await avvia({ interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'rispondo', risposta: 'Chiudila tu.' }) }), chats: [chat('c-23', COMPITO)], detto: DETTO_CHIEDE })
+    await notifica('c-23')
     const [r] = registro.risolte('ap-and')
-    expect(r?.domanda).toBe(DETTO)
-    expect(r?.risposta).toBe('Va bene così: hai finito, fermati.')
+    expect(r?.domanda).toBe('Per le prove uso la chiave di prova o quella vera?')
+    expect(r?.risposta).toBe('Chiudila tu.')
   })
 })
 
@@ -195,7 +213,9 @@ describe('le correzioni della Revisione (0.84.0)', () => {
       fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
       domande: registro,
-      ultimoDetto: () => 'Ho finito la parte delle foto e mi fermo.',
+      ultimoDetto: () => `Ho finito la parte delle foto e mi fermo.
+
+Passo alla parte dei video?`,
       scadenzaDomandaMs: 5000,
       scadenzaInterviataMs: 5000,
       adesso: orologio.iso
@@ -221,7 +241,8 @@ describe('le correzioni della Revisione (0.84.0)', () => {
     }
     await avvia({
       interroga: () => Promise.resolve({ testo: JSON.stringify({ azione: 'chiedi', domanda }) }),
-      chats: [chat('c-23', COMPITO), chat('c-24', 'Velocità dell’app'), chat('c-7', 'Collaudo della gestione delle chat'), chat('c-12', 'Rilascio 0.80.0')]
+      chats: [chat('c-23', COMPITO), chat('c-24', 'Velocità dell’app'), chat('c-7', 'Collaudo della gestione delle chat'), chat('c-12', 'Rilascio 0.80.0')],
+      detto: DETTO_CHIEDE
     })
     await notifica('c-23')
     await notifica('c-24')

@@ -239,12 +239,23 @@ export function lavoraDaSegnali(f: FaseSessione | undefined, adesso: number): bo
 /**
  * La consegna e' partita? Dai segnali: un turno cominciato (`UserPromptSubmit`)
  * o un permesso chiesto da poco. `undefined` = i segnali non lo dicono.
+ *
+ * `scrittaIl` (0.86.2): quando il testo è stato scritto. Allora conta solo un
+ * turno cominciato **dopo**: prima un turno di 50 s fa valeva come la partenza
+ * del messaggio appena scritto, e uno partito davvero dopo non bastava se lo
+ * schermo diceva altro. Un «lavora» di prima non dice niente: decide lo schermo.
  */
-export function partitaDaSegnali(f: FaseSessione | undefined, adesso: number): boolean | undefined {
+export function partitaDaSegnali(f: FaseSessione | undefined, adesso: number, scrittaIl?: number): boolean | undefined {
   if (f === undefined) return undefined
-  if ((f.fase === 'lavora' || f.fase === 'chiede') && adesso - Date.parse(f.dal) < PARTITA_ENTRO_MS) return true
+  if (f.fase !== 'lavora' && f.fase !== 'chiede') return undefined
+  const dal = Date.parse(f.dal)
+  if (scrittaIl !== undefined) return dal >= scrittaIl - SCARTO_OROLOGI_MS && adesso - dal < PARTITA_ENTRO_MS ? true : undefined
+  if (adesso - dal < PARTITA_ENTRO_MS) return true
   return undefined
 }
+
+/** Il segnale nasce nel main e la scrittura nella finestra: un margine per i due orologi. */
+const SCARTO_OROLOGI_MS = 500
 
 /**
  * L'indicatore «al lavoro / ferma» di una chat (0.76.0). Nicholas, 16/10:

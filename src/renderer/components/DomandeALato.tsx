@@ -10,23 +10,26 @@ import { Aiuto } from './Aiuto'
  * nella sezione Domande. Quali vanno a lato lo decide `domandeALato`, la stessa
  * regola della pagina e dell'app.
  */
-export function DomandeALato({ conversazioni, onRisposto }: { conversazioni: Conversazione[]; onRisposto: () => void }): React.JSX.Element | null {
+export function DomandeALato({ conversazioni, onRisposto }: { conversazioni: Conversazione[]; onRisposto: (chiave: string) => void }): React.JSX.Element | null {
   const [inCorso, setInCorso] = useState<string | undefined>(undefined)
   const [nota, setNota] = useState<Record<string, string>>({})
   if (conversazioni.length === 0) return null
-  const manda = (c: Conversazione, percorso: string, corpo: Record<string, string>): void => {
-    if (inCorso !== undefined) return
+  /** `true` se la risposta è partita: il campo «Scrivi tu» si svuota solo allora (0.86.2). */
+  const manda = (c: Conversazione, percorso: string, corpo: Record<string, string>): Promise<boolean> => {
+    if (inCorso !== undefined) return Promise.resolve(false)
     setInCorso(c.chiave)
     setNota((n) => { const { [c.chiave]: _via, ...resto } = n; return resto })
-    void window.gestore.domande
+    return window.gestore.domande
       .chiama(percorso, corpo)
       .then((r) => {
         const errore = (r.corpo as { errore?: string } | undefined)?.errore
-        if (r.stato === 423) { setNota((n) => ({ ...n, [c.chiave]: 'Chat protetta dal PIN: rispondi dalla sezione Domande.' })); return }
-        if (r.stato >= 400 || errore !== undefined) { setNota((n) => ({ ...n, [c.chiave]: `Non è andata: ${errore ?? `il computer ha risposto ${r.stato}`}` })); return }
-        onRisposto()
+        if (r.stato === 423) { setNota((n) => ({ ...n, [c.chiave]: 'Chat protetta dal PIN: rispondi dalla sezione Domande.' })); return false }
+        if (r.stato >= 400 || errore !== undefined) { setNota((n) => ({ ...n, [c.chiave]: `Non è andata: ${errore ?? `il computer ha risposto ${r.stato}`}` })); return false }
+        // Solo la domanda a cui hai risposto (0.86.2): prima sparivano tutte quelle a lato.
+        onRisposto(c.chiave)
+        return true
       })
-      .catch((e: unknown) => setNota((n) => ({ ...n, [c.chiave]: `Non è andata: ${String(e)}` })))
+      .catch((e: unknown) => { setNota((n) => ({ ...n, [c.chiave]: `Non è andata: ${String(e)}` })); return false })
       .finally(() => setInCorso(undefined))
   }
   return (
@@ -44,10 +47,10 @@ export function DomandeALato({ conversazioni, onRisposto }: { conversazioni: Con
             etichettaManda={c.risposta.via === 'rispondi' ? 'Rispondi' : 'Manda'}
             onScelta={(o) => {
               if (o.libera === true) { setNota((n) => ({ ...n, [c.chiave]: 'Scrivi la risposta nel campo qui sotto e premi «Manda».' })); return }
-              if (c.scelte !== undefined) manda(c, '/api/scegli', { chat: c.scelte.chat, opzione: o.testo })
-              else { const r = richiestaRisposta(c.risposta, o.testo); manda(c, r.percorso, r.corpo) }
+              if (c.scelte !== undefined) void manda(c, '/api/scegli', { chat: c.scelte.chat, opzione: o.testo })
+              else { const r = richiestaRisposta(c.risposta, o.testo); void manda(c, r.percorso, r.corpo) }
             }}
-            onScrivi={(t) => { const r = richiestaRisposta(c.risposta, t); manda(c, r.percorso, r.corpo) }}
+            onScrivi={(t) => { const r = richiestaRisposta(c.risposta, t); return manda(c, r.percorso, r.corpo) }}
             sotto={nota[c.chiave] !== undefined ? <div className="avviso">⚠ {nota[c.chiave]}</div> : undefined}
           />
         </div>

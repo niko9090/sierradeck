@@ -252,6 +252,18 @@ export function domandaInFondo(testo: string | undefined): string | undefined {
 }
 
 /**
+ * Una notifica di Claude Code che dice solo lo stato (0.86.2): «idle_prompt:
+ * Claude is waiting for your input» arriva quando la chat ha finito e aspetta,
+ * domanda o no. Diventava una domanda nelle Domande: le 40 risolte del
+ * registro erano tutte «idle_prompt: Claude is waiting for your input». È una
+ * domanda solo se l'ultimo messaggio della chat ne fa davvero una in fondo.
+ * Le altre notifiche (un permesso, un'attesa di scelta) restano domande.
+ */
+export function notificaSoloStato(tipo: string, detto: string | undefined): boolean {
+  return tipo === 'idle_prompt' && domandaInFondo(detto) === undefined
+}
+
+/**
  * Le righe prima della domanda in fondo a un messaggio (0.84.1): la fine del
  * paragrafo che la precede, al massimo `RIGHE_CONTESTO` righe. Viaggia nel
  * battito con la domanda, per le Domande degli altri PC.

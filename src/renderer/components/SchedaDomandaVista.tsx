@@ -32,7 +32,12 @@ export function SchedaDomandaVista({
   scheda: SchedaDomanda
   inCorso: boolean
   onScelta: (scelta: SceltaScheda) => void
-  onScrivi: (testo: string) => void
+  /**
+   * Il testo scritto. Se torna una promessa (0.86.2), il campo si svuota solo
+   * quando la risposta è partita davvero: prima si svuotava subito, e con un
+   * invio non riuscito la risposta scritta andava persa insieme all'avviso.
+   */
+  onScrivi: (testo: string) => void | Promise<boolean>
   etichettaManda?: string
   /** Una riga sotto il campo: l'avviso di un invio non riuscito, il PIN. */
   sotto?: React.ReactNode
@@ -45,7 +50,12 @@ export function SchedaDomandaVista({
   const manda = (): void => {
     const t = testo.trim()
     if (t === '' || inCorso) return
-    onScrivi(t)
+    const esito = onScrivi(t)
+    if (esito instanceof Promise) {
+      // Si svuota solo se è partita, e solo se nel frattempo non hai scritto altro.
+      void esito.then((ok) => { if (ok) setTesto((ora) => (ora.trim() === t ? '' : ora)) })
+      return
+    }
     setTesto('')
   }
   return (

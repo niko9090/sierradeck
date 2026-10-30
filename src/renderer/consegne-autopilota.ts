@@ -69,7 +69,7 @@ export type Ponte = {
    * ancora nel campo («[Pasted text #N …]»), `undefined` = lo schermo non lo
    * dice. Senza, si guarda solo la prontezza, come prima.
    */
-  partita?: (ptyId: string, scritto?: string, prima?: number) => boolean | undefined
+  partita?: (ptyId: string, scritto?: string, prima?: number, scrittaIl?: number) => boolean | undefined
   /**
    * Quante volte quel testo compare già fra i messaggi mandati sullo schermo
    * (0.56.4). Si conta **prima** di scrivere: dopo un riavvio la conversazione
@@ -529,9 +529,47 @@ function scriviEInvia(
   // marcatori dell'incolla: senza, i suoi a capo lo manderebbero a pezzi.
   // Quante volte il testo è già sullo schermo, prima di scriverlo (0.56.4).
   const prima = ponte.mandati?.(ptyId, c.testo) ?? 0
+  const scrittaIl = Date.now()
   ponte.scrivi(ptyId, /[\r\n]/.test(c.testo) ? `${INIZIO_INCOLLA}${c.testo}${FINE_INCOLLA}` : c.testo)
   ponte.registra?.(`consegna ${c.id}: scritta (${c.testo.length} caratteri)`)
-  premiInvio(ptyId, ponte, dopo, 0, 0, { ...c, prima })
+  premiInvio(ptyId, ponte, dopo, 0, 0, { ...c, prima, scrittaIl })
+}
+
+/**
+ * Un messaggio scritto da una persona da lontano (0.86.2): la risposta dalle
+ * Domande del PC, la colonna «Ti chiede», la pagina e l'app (`/api/scrivi`).
+ *
+ * Il difetto (Nicholas, 30/10: «le risposte non arrivano alla chat quando
+ * sono fatte dal box domande»): questa strada scriveva il testo e premeva
+ * Invio **a tempo**, 150 ms dopo, una volta sola e senza guardare. È proprio
+ * il gesto che le consegne hanno abbandonato nella 0.75.4: se Claude Code
+ * legge in ritardo, testo e Invio gli arrivano insieme, il testo vale come
+ * incollato e l'Invio diventa un a capo. La risposta restava nel campo della
+ * chat, non partiva, e la rotta aveva già detto «fatto». Un testo su più
+ * righe, poi, arrivava senza i marcatori dell'incolla e andava a pezzi.
+ *
+ * Adesso passa dallo stesso gesto delle consegne (`scriviEInvia`): incollato
+ * se ha più righe, l'Invio dopo l'eco nel campo e a terminale quieto, e il
+ * controllo che sia partito, con i nuovi tentativi. Un testo vuoto resta il
+ * solo Invio (una scelta già evidenziata).
+ */
+export function scriviMessaggio(
+  ptyId: string,
+  testo: string,
+  ponte: Ponte,
+  dopo: (ms: number, cosa: () => void) => void = (ms, cosa) => { setTimeout(cosa, ms) },
+  chatId = ''
+): void {
+  if (testo === '') { ponte.scrivi(ptyId, INVIO); return }
+  scriviEInvia(ptyId, {
+    id: `scrivi-${Date.now().toString(36)}`, autopilotaId: '', chatId, cwd: '', sessionId: '', titolo: '', cosa: 'scrivi', testo
+  }, ponte, dopo)
+}
+
+/** La chat è nata da meno di `TRATTIENE_ALL_AVVIO_MS`: il suo campo può ancora trattenere il testo. */
+function appenaNata(ptyId: string, ponte: Ponte): boolean {
+  const da = ponte.natoDa?.(ptyId)
+  return da !== undefined && da < TRATTIENE_ALL_AVVIO_MS
 }
 
 /** Quante volte (da `PAUSA_INVIO_MS`) si aspetta la prontezza prima di premere invio comunque. */
@@ -541,6 +579,17 @@ export const ATTESE_PRONTEZZA = TENTATIVI_INVIO * 10
 export const QUIETE_SCRITTURA_MS = 700
 /** Quanto deve tacere dopo che il testo si vede nel campo, prima dell'Invio (0.75.4). */
 export const QUIETE_INVIO_MS = 300
+
+/**
+ * Per quanto, dall'avvio, Claude Code può trattenere quello che si scrive
+ * (0.86.2). Misurato il 20/10 (quaderno: «Claude Code appena avviato trattiene
+ * quello che si scrive»): 6-10 s per disegnare il campo, poi altri 6-10 s in
+ * cui l'input resta da parte e compare dopo. In questo tempo il campo vuoto
+ * non vuol dire «perso»: riscrivere crea il doppione, e un Invio alla cieca
+ * diventa un a capo dentro il testo trattenuto. Il registro del 30/10: 175
+ * riscritture e 680 «non partita», quasi tutte su chat appena nate.
+ */
+export const TRATTIENE_ALL_AVVIO_MS = 20_000
 
 /** Prima del secondo modo, una pausa: il terminale finisce di disegnarsi. */
 export const QUIETE_SECONDO_MODO_MS = 3000
@@ -559,7 +608,7 @@ export function premiInvio(
   dopo: (ms: number, cosa: () => void) => void,
   tentativi: number,
   attese = 0,
-  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'> & { testo?: string; id?: string; prima?: number },
+  c?: Pick<Consegna, 'chatId' | 'autopilotaId' | 'titolo'> & { testo?: string; id?: string; prima?: number; scrittaIl?: number },
   secondoModo = false,
   insistenza = -1
 ): void {
@@ -577,7 +626,10 @@ export function premiInvio(
     // a capo (provato con Claude Code 2.1.301). Oltre l'attesa si preme lo stesso.
     const eco = c?.testo === undefined || ponte.nelCampo === undefined || ponte.nelCampo(ptyId, c.testo)
     const calmo = ponte.quieto === undefined || ponte.quieto(ptyId, QUIETE_INVIO_MS)
-    if ((!ponte.prontoARicevere(ptyId) || !eco || !calmo) && attese < ATTESE_PRONTEZZA) {
+    // Una chat appena nata trattiene il testo (0.86.2): senza l'eco l'Invio
+    // non parte finché non è passato il tempo in cui Claude Code lo tiene da parte.
+    const trattiene = !eco && appenaNata(ptyId, ponte)
+    if (((!ponte.prontoARicevere(ptyId) || !eco || !calmo) && attese < ATTESE_PRONTEZZA) || trattiene) {
       premiInvio(ptyId, ponte, dopo, tentativi, attese + 1, c, secondoModo, insistenza)
       return
     }
@@ -590,7 +642,9 @@ export function premiInvio(
       // Partita? Solo dal fondo dello schermo (il campo di adesso e la riga
       // d'attivita'), mai dallo scrollback: 0.38.1. Se lo schermo tace vale la
       // prontezza: ricevuto l'invio la chat lavora e smette di ascoltare.
-      const p = ponte.partita?.(ptyId, c?.testo, c?.prima)
+      // Dai segnali, se ci sono (0.86.2): un turno cominciato **dopo** la
+      // scrittura (`UserPromptSubmit`) è la conferma vera; lo schermo è la riserva.
+      const p = ponte.partita?.(ptyId, c?.testo, c?.prima, c?.scrittaIl)
       const ferma = p === false || (p === undefined && ponte.prontoARicevere(ptyId))
       if (!ferma) { ponte.registra?.(`consegna ${c?.id ?? ''}: partita`); return }
       // Il testo si e' perso: lo si riscrive prima del prossimo Invio. Mai
@@ -598,7 +652,8 @@ export function premiInvio(
       // in coda di Claude Code, in alto, e riscriverlo ne aggiungeva un altro.
       // Solo a schermo fermo (0.75.4): il 16/10 il testo era nel campo e lo si è
       // riscritto quattro volte, mentre il riquadro si ridisegnava.
-      if (c?.testo !== undefined && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true &&
+      // Mai nei primi secondi della chat (0.86.2): il testo è trattenuto, non perso.
+      if (c?.testo !== undefined && !appenaNata(ptyId, ponte) && ponte.lavora?.(ptyId) !== true && ponte.perso?.(ptyId, c.testo, c.prima) === true &&
         ponte.nelCampo?.(ptyId, c.testo) !== true && (ponte.quieto?.(ptyId, QUIETE_SCRITTURA_MS) ?? true)) {
         ponte.registra?.(`consegna ${c?.id ?? ''}: il testo non è nel campo né fra i messaggi mandati, lo riscrivo`)
         ponte.scrivi(ptyId, c.testo)

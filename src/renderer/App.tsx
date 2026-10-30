@@ -13,7 +13,7 @@ import { chiChiede, workspaceCheChiamano } from '@shared/dove-chiedono'
 import { attivaChiusuraFuori, attivaTrascinamento } from './trascina-finestre'
 import { aspettaDalloSchermo, chatAspetta, consegnaPartita, contaMandati, creaUltimeRighe, lavoraSulloSchermo, prontoPerInvio, sceltaSulloSchermo, testoNelCampo, testoPerso, ultimaRigaDalloSchermo } from './ultime-righe'
 import { creaBattito, stessiAttivi } from './battito'
-import { eseguiConsegna, ponteReale, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
+import { eseguiConsegna, ponteReale, scriviMessaggio, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
 import { comePortare, rigaInAttesa } from './consegna-visibile'
 import { memoriaWorkspace, chatDietro, terminaliDi } from './memoria-workspace'
 import { spostaInWorkspace } from './spostamento'
@@ -104,12 +104,13 @@ const ANNUNCIO_PASSO_MS = 2000
 const ANNUNCIO_COMUNQUE_MS = 10_000
 
 /**
- * Quanto si aspetta, fra il testo e l'invio, per un messaggio venuto da fuori.
+ * La pausa fra un pezzo e l'altro dei tasti di una scelta (frecce, testo
+ * libero, invio), per una risposta venuta da fuori.
  *
- * Serve a far arrivare le due cose in blocchi distinti: e' la distanza che
+ * Serve a far arrivare i pezzi in blocchi distinti: e' la distanza che
  * distingue «ho incollato del testo che contiene un a capo» da «ho scritto e
- * poi ho premuto invio». Abbondante di proposito — nessuno sta a guardare il
- * decimo di secondo, e un invio perso costa un messaggio che non parte.
+ * poi ho premuto invio». Dalla 0.86.2 i messaggi scritti (`client:scrivi`) non
+ * la usano piu': passano da `scriviMessaggio`, che preme Invio dopo l'eco.
  */
 const PAUSA_PRIMA_DELL_INVIO_MS = 150
 
@@ -307,7 +308,8 @@ export function App(): React.JSX.Element {
   const aggiornaWorkspaceRef = useRef<(s: StatoWorkspace) => void>(() => undefined)
   const extraConsegna = useMemo(() => ({
     // Partita: il segnale «turno cominciato» di Claude Code (0.45.0); lo schermo come riserva.
-    partita: (ptyId: string, scritto?: string, prima?: number) => partitaConSegnali(ptyId, () => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto, prima)),
+    // 0.86.2: con il momento della scrittura conta solo un turno cominciato dopo.
+    partita: (ptyId: string, scritto?: string, prima?: number, scrittaIl?: number) => partitaConSegnali(ptyId, () => consegnaPartita(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto, prima), Date.now(), scrittaIl),
     perso: (ptyId: string, scritto?: string, prima?: number) => testoPerso(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto ?? '', prima),
     // 0.75.4: l'Invio solo dopo l'eco del testo nel campo, a terminale quieto.
     nelCampo: (ptyId: string, scritto: string) => testoNelCampo(righeDiPty(ptyId, RIGHE_PER_IL_TELEFONO)?.pulite, scritto),
@@ -808,23 +810,27 @@ export function App(): React.JSX.Element {
     // dentro direttamente non faceva niente, in silenzio, ed è il motivo per
     // cui dal telefono si scriveva nel vuoto. Il terminale sta nel riquadro, e
     // solo questa finestra sa quale.
-    const riquadro = riquadroDelTelefono(chat)
-    if (riquadro?.ptyId === undefined) return
-    // Il testo e l'invio **separati**, con una pausa in mezzo.
+    const riquadro = riquadroDelTelefono(chat) as { ptyId?: string; sessionUuid?: string; ibernata?: boolean } | undefined
+    if (riquadro === undefined) return
+    const ponte = ponteReale(prontaPerConsegna, extraConsegna)
+    if (riquadro.ptyId === undefined) {
+      // Un riquadro addormentato (0.86.2): prima il testo spariva qui, in
+      // silenzio. Lo si sveglia e il testo parte quando la chat è pronta.
+      if (riquadro.ibernata === true && riquadro.sessionUuid !== undefined && testo !== '') scriviQuandoPronta(riquadro.sessionUuid, testo, ponte)
+      return
+    }
+    // Il testo e l'invio **separati**, e l'invio solo dopo l'eco (0.86.2).
     //
     // Mandandoli insieme, Claude Code li riceve in un solo blocco e li legge per
-    // quello che sembrano: del testo incollato che finisce con un a capo. Un a
-    // capo dentro un incollato non e' un invio — e' una riga nuova — quindi il
-    // messaggio arrivava nel campo, andava a capo, e restava li' senza partire.
-    // E' lo stesso motivo per cui gli appunti passano da `term.paste`.
-    // Separandoli, l'invio e' un tasto premuto dopo, come lo premerebbe una
-    // persona.
-    const idPty = riquadro.ptyId
+    // quello che sembrano: del testo incollato che finisce con un a capo. Fino
+    // alla 0.86.1 qui l'invio partiva a tempo, 150 ms dopo, una volta sola: se
+    // Claude Code leggeva in ritardo la risposta dalle Domande restava nel
+    // campo e non partiva. Adesso è il gesto delle consegne: marcatori
+    // dell'incolla per più righe, Invio quando il testo si vede nel campo e il
+    // terminale tace, e il controllo che sia partito (`scriviMessaggio`).
     // Il testo puo' essere vuoto: succede rispondendo a un elenco di scelte dal
-    // telefono, quando l'opzione voluta e' gia' quella evidenziata e non serve
-    // nessuna freccia. Resta il solo invio.
-    if (testo !== '') window.gestore.pty.write(idPty, testo)
-    setTimeout(() => window.gestore.pty.write(idPty, String.fromCharCode(13)), PAUSA_PRIMA_DELL_INVIO_MS)
+    // telefono, quando l'opzione voluta e' gia' quella evidenziata. Resta il solo invio.
+    scriviMessaggio(riquadro.ptyId, testo, ponte, undefined, chat)
   }), [])
 
   // La risposta a una domanda della chat (0.52.5): i pezzi uno alla volta,
@@ -2278,7 +2284,7 @@ export function App(): React.JSX.Element {
             modale delle domande non cambia (su quella decide Nicholas). */}
         {/* Con la colonna Domande aperta la domanda è già lì, accanto: niente doppione. */}
         {!colonnaDomande.aperta && !(vistaElenco !== undefined && linguetta === PANORAMICA) ? (
-          <DomandeALato conversazioni={domandeQui} onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))} />
+          <DomandeALato conversazioni={domandeQui} onRisposto={(chiave) => setConversazioniLette((c) => c.filter((x) => x.chiave !== chiave))} />
         ) : null}
         {colonnaDomande.aperta ? (
           <PannelloDomande

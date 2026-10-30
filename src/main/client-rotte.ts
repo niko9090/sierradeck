@@ -1653,7 +1653,15 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       // selettore, dove Invio sceglieva la prima opzione. Si legge come
       // un'opzione, la risposta libera o niente (`rispostaDaTesto`).
       const trovata = deps.chat().find((c) => c.id === chat)
-      if (trovata !== undefined) {
+      // Una chat che qui non c'è (chiusa, o un id vecchio dopo un riavvio):
+      // prima si scriveva lo stesso a tutte le finestre, nessuna la trovava, e
+      // la rotta diceva «fatto» (0.86.2). La risposta spariva e le Domande la
+      // davano per mandata. Come `/api/scegli`: si dice che non c'è.
+      if (trovata === undefined) {
+        deps.log?.(`[risposta] testo per la chat ${chat}: non è aperta su questo PC, non lo scrivo`)
+        return { stato: 404, corpo: { errore: 'chat non trovata: si è chiusa o non è più aperta su questo PC' } }
+      }
+      {
         const s = await scelteAdesso(trovata)
         if (s !== undefined) {
           const r = rispostaDaTesto(s, testo)

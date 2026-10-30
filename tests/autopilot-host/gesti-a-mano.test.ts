@@ -116,7 +116,10 @@ async function avvia(p: { interroga: () => Promise<{ testo: string }>; chats: Ch
     fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande: registro,
-    ultimoDetto: () => 'Ho finito, ma il programma non mi lascia chiudere.',
+    // 0.86.2: «idle_prompt» è una domanda solo se l'ultimo messaggio ne fa una.
+    ultimoDetto: () => `Ho finito, ma il programma non mi lascia chiudere.
+
+Come vado avanti?`,
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     adesso: orologio.iso

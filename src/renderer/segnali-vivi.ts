@@ -36,6 +36,6 @@ export function lavoraConSegnali(ptyId: string, dalloSchermo: () => boolean, ade
 }
 
 /** Partita: i segnali la dicono con certezza; altrimenti lo schermo. */
-export function partitaConSegnali(ptyId: string, dalloSchermo: () => boolean | undefined, adesso = Date.now()): boolean | undefined {
-  return partitaDaSegnali(faseDiPty(ptyId), adesso) ?? dalloSchermo()
+export function partitaConSegnali(ptyId: string, dalloSchermo: () => boolean | undefined, adesso = Date.now(), scrittaIl?: number): boolean | undefined {
+  return partitaDaSegnali(faseDiPty(ptyId), adesso, scrittaIl) ?? dalloSchermo()
 }

@@ -205,24 +205,25 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
     onLarghezza(MISURE.domande.predefinita)
   }
 
-  const manda = (percorso: string, corpo: Record<string, string>, ricordo: string): void => {
-    if (aperta === undefined || inCorso) return
+  /** `true` se è partita: il campo della scheda si svuota solo allora (0.86.2). */
+  const manda = (percorso: string, corpo: Record<string, string>, ricordo: string): Promise<boolean> => {
+    if (aperta === undefined || inCorso) return Promise.resolve(false)
     setInCorso(true)
     setNota(undefined)
-    void window.gestore.domande
+    return window.gestore.domande
       .chiama(percorso, corpo)
       .then((r) => {
         const errore = (r.corpo as { errore?: string } | undefined)?.errore
         if (r.stato === 423) {
           setPinPer({ percorso, corpo, ricordo })
           setNota('Chat protetta: inserisci il PIN. Il messaggio non è partito: mettilo qui sotto e lo rimando.')
-          return
+          return false
         }
         if (r.stato >= 400 || errore !== undefined) {
           setNota(errore !== undefined && errore.includes('mandata') ? 'Già mandata: aspetta che lo schermo cambi.'
             : errore !== undefined && errore.includes('cambiata') ? 'La scelta è cambiata mentre toccavi: fra un attimo si aggiorna.'
             : `Non è andata: ${errore ?? `il computer ha risposto ${r.stato}`}`)
-          return
+          return false
         }
         setMandati((m) => ({ ...m, [aperta.chiave]: [...(m[aperta.chiave] ?? []), ricordo] }))
         setTesto('')
@@ -233,8 +234,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         const prossima = prossimaDomanda(tutte, aperta.chiave)
         if (prossima !== undefined && aspettaTe(aperta)) setScelta(prossima)
         leggi()
+        return true
       })
-      .catch((e: unknown) => setNota(`Non sono riuscito a mandarlo: ${String(e)}`))
+      .catch((e: unknown) => { setNota(`Non sono riuscito a mandarlo: ${String(e)}`); return false })
       .finally(() => setInCorso(false))
   }
 
@@ -246,14 +248,14 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
       setPin('')
       if (r.stato >= 400) { setNota(`Non aperta: ${(r.corpo as { errore?: string } | undefined)?.errore ?? `il computer ha risposto ${r.stato}`}`); return }
       setPinPer(undefined)
-      manda(p.percorso, p.corpo, p.ricordo)
+      void manda(p.percorso, p.corpo, p.ricordo)
     })
   }
 
   const scrivi = (): void => {
     if (aperta === undefined || testo.trim() === '') return
     const r = richiestaRisposta(aperta.risposta, testo.trim())
-    manda(r.percorso, r.corpo, testo.trim())
+    void manda(r.percorso, r.corpo, testo.trim())
   }
 
   // I messaggi mandati da qui che il computer non ha ancora rimesso nel filo.
@@ -348,10 +350,10 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                 onScelta={(o) => {
                   // «Type something.» (0.52.5): si risponde scrivendo nel campo.
                   if (o.libera === true) { setNota('Scrivi la risposta nel campo qui sotto e premi «Manda»: arriva a Claude come risposta libera.'); return }
-                  if (aperta.scelte !== undefined) manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
-                  else { const r = richiestaRisposta(aperta.risposta, o.testo); manda(r.percorso, r.corpo, o.testo) }
+                  if (aperta.scelte !== undefined) void manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
+                  else { const r = richiestaRisposta(aperta.risposta, o.testo); void manda(r.percorso, r.corpo, o.testo) }
                 }}
-                onScrivi={(t) => { const r = richiestaRisposta(aperta.risposta, t); manda(r.percorso, r.corpo, t) }}
+                onScrivi={(t) => { const r = richiestaRisposta(aperta.risposta, t); return manda(r.percorso, r.corpo, t) }}
                 sotto={<>
                   {inAttesa.length > 0 ? <div className="misura">mandato: «{inAttesa.at(-1)}», aspetto che la chat lo riceva</div> : null}
                   {nota !== undefined ? <div className="avviso">{nota.startsWith('Presa') ? '✓' : '⚠'} {nota}</div> : null}
@@ -397,8 +399,8 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                                   // Una chat: si sceglie nell'elenco del terminale. Un
                                   // autopilota (domande iniziali, «Pubblico adesso?»):
                                   // toccare un'opzione e' rispondere con quel testo.
-                                  if (aperta.scelte !== undefined) manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
-                                  else { const r = richiestaRisposta(aperta.risposta, o.testo); manda(r.percorso, r.corpo, o.testo) }
+                                  if (aperta.scelte !== undefined) void manda('/api/scegli', { chat: aperta.scelte.chat, opzione: o.testo }, o.testo)
+                                  else { const r = richiestaRisposta(aperta.risposta, o.testo); void manda(r.percorso, r.corpo, o.testo) }
                                 }}
                               >
                                 <EtichettaOpzione o={o} />
