@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.4',
+    righe: [
+      '**Gli errori arrivano da soli e li analizza l’autopilota:** ogni PC manda al PC di sviluppo gli errori nuovi, senza premere niente (anche a PC di sviluppo spento, dal Drive). Lì si raggruppano per causa, senza quelli di versioni vecchie o già affidati, e vanno nella coda dell’autopilota di SierraDeck, che ti dice cosa ha trovato e li corregge.',
+      '**Un progetto di questo PC non viene più toccato dal Drive:** il salvataggio porta la copia di qui sul Drive e basta. Prima, collegando la cartella vera di un progetto, una copia vecchia sul Drive poteva lasciare copie di conflitto nella cartella e togliere file.',
+    ]
+  },
+  {
     versione: '0.88.3',
     righe: [
       '**Niente più errori all’avvio per le chat dell’autopilota di prima:** le sue chat, le cui copie di lavoro non ci sono più, venivano riprese a ogni avvio e davano un errore per riquadro. Ora si chiudono una volta e restano chiuse.',

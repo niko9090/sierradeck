@@ -51,6 +51,28 @@ describe('i conflitti', () => {
     expect(stessaFirma({ size: 2, mtime: T(0) }, { size: 2, mtime: T(0) + 3 })).toBe(false)
   })
 
+  it('un progetto di questo PC (0.88.4): la copia di qui vince sempre, niente copie di conflitto e niente file tolti', async () => {
+    // Il 30/10: la cartella vera collegata per la prima volta, sul Drive una copia vecchia di un altro PC.
+    const { archivio, a, mA } = await dueP()
+    scrivi(a, 'src/vecchio.ts', 'V', T(2))
+    await salvaIncrementale({ radici: [{ prefisso: 'progetto-p', cartella: a }], maestra, archivio, manifestoPrec: mA, adesso: 'x', pcNome: 'Torre' })
+    const qui = cartella()
+    scrivi(qui, 'src/x.ts', 'di-qui', T(0))
+    scrivi(qui, 'src/vecchio.ts', 'mio', T(1))
+    scrivi(qui, 'src/nuovo.ts', 'N', T(1))
+    const esito = await salvaIncrementale({
+      radici: [{ prefisso: 'progetto-p', cartella: qui }], maestra, archivio, manifestoPrec: manifestoVuoto(), adesso: '2026-10-30T21:45:26.000Z', pcNome: 'PC-Fisso', progettiDiQui: true
+    })
+    expect(esito.conflitti.every((c) => c.vinto === 'mio' && c.copia === undefined)).toBe(true)
+    expect(copie(qui)).toEqual([])
+    expect([leggi(qui, 'src/x.ts'), leggi(qui, 'src/vecchio.ts'), leggi(qui, 'src/nuovo.ts')]).toEqual(['di-qui', 'mio', 'N'])
+    expect(esito.toltiQui).toEqual([])
+    // Sul Drive ora c'è la copia di qui.
+    const c = cartella()
+    await ripristinaIncrementale({ radici: [{ prefisso: 'progetto-p', cartella: c }], maestra, archivio })
+    expect([leggi(c, 'src/x.ts'), leggi(c, 'src/vecchio.ts')]).toEqual(['di-qui', 'mio'])
+  })
+
   it('al salvataggio, se ho scritto io per ultimo vinco e la versione del Drive resta accanto', async () => {
     const { archivio, a, b, mA, mB } = await dueP()
     scrivi(a, 'src/x.ts', 'di-A', T(10))

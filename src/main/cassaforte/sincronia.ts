@@ -801,6 +801,8 @@ export function apriSincronia(deps: {
           maestra: m,
           pcNome: deps.pcNome?.() ?? 'questo-pc',
           copieDiConflitto: deps.progetti?.eDiProgetto ?? ((): boolean => false),
+          // Le radici dei progetti sono solo quelli di questo PC: qui vince sempre la copia di qui.
+          progettiDiQui: true,
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
           adesso: adesso(),

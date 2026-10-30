@@ -583,6 +583,17 @@ export async function salvaIncrementale(deps: {
    * grande del tetto non salirebbe mai.
    */
   budgetByte?: number
+  /**
+   * **I progetti di questo PC si salvano e basta** (0.88.4, un progetto un PC).
+   * Le radici dei progetti sono solo quelli di cui questo PC è il proprietario:
+   * la copia di qui è quella vera, il Drive ne è il riflesso. Allora il
+   * salvataggio non scarica mai la versione del Drive sopra la mia, non toglie
+   * file da qui per una lapide e non lascia copie di conflitto nella cartella.
+   * Il 30/10 la prima volta che SierraDeck è stato collegato alla sua cartella
+   * vera, il Drive aveva una copia di settembre: 267 copie di conflitto nel
+   * codice (anche in `.git`) e file tolti da qui.
+   */
+  progettiDiQui?: boolean
 }): Promise<EsitoSalva> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
@@ -645,6 +656,8 @@ export async function salvaIncrementale(deps: {
     })
     for (const p of mancanti) {
       const mia = prec.file[p] as VoceManifesto
+      // Un progetto di qui: la voce che manca sul Drive risale, mai un file tolto da qui.
+      if (deps.progettiDiQui === true) { if (!cambiati.includes(p)) cambiati.push(p); continue }
       if (lapidi !== undefined && lapideVale(lapidi.lapidi[p], mia)) daTogliereQui.push(p)
       else if (me !== undefined && mia.da === me && lapidi !== undefined && lapidi.prefissi?.[prefissoDi(p)] === undefined) {
         if (!cambiati.includes(p)) cambiati.push(p)
@@ -856,9 +869,11 @@ export async function salvaIncrementale(deps: {
       avanza(percorso)
       return
     }
-    // Conflitto: cambiato qui e cambiato la'. Vince il piu' recente.
-    const mioVince = f.mtime >= voceDrive.mtime
-    const conCopia = copie(prefissoDi(percorso)) && !eCopiaDiConflitto(percorso)
+    // Conflitto: cambiato qui e cambiato la'. Vince il piu' recente; in un
+    // progetto di qui vince sempre questo PC, senza copie (vedi `progettiDiQui`).
+    const diQui = deps.progettiDiQui === true && copie(prefissoDi(percorso))
+    const mioVince = diQui || f.mtime >= voceDrive.mtime
+    const conCopia = !diQui && copie(prefissoDi(percorso)) && !eCopiaDiConflitto(percorso)
     if (mioVince) {
       // La versione del Drive si scarica **prima** di caricare la mia: sul
       // Drive un file sta sotto un nome che deriva dal percorso, e caricare la
