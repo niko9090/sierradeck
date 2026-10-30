@@ -210,7 +210,47 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
     const percorso = vince.percorso ?? (altro.proprietario === vince.proprietario ? altro.percorso : undefined)
     perId.set(p.id, percorso !== undefined && vince.percorso === undefined ? { ...vince, percorso } : vince)
   }
-  return { versione: 1, progetti: [...perId.values()], ...(Object.keys(tolti).length > 0 ? { tolti } : {}) }
+  return unisciDoppioni({ versione: 1, progetti: [...perId.values()], ...(Object.keys(tolti).length > 0 ? { tolti } : {}) })
+}
+
+/**
+ * **Lo stesso progetto due volte** (0.88.5): stesso proprietario e stesso nome
+ * (maiuscole e spazi non contano). Il 30/10 il riassetto è girato su due PC e
+ * ognuno, unendo i doppioni, ha tenuto un id diverso: sul Drive restavano
+ * tutti e due, e l'elenco tornava da 22 a 48 voci. Qui ogni PC sceglie **lo
+ * stesso**, con una regola fissa (il più vecchio, poi l'id): l'altro va fra i
+ * tolti, e la cartella nota passa a chi resta. Pura.
+ */
+export function unisciDoppioni(r: RegistroProgetti): RegistroProgetti {
+  const nome = (n: string): string => n.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()
+  const gruppi = new Map<string, ProgettoDrive[]>()
+  const senza: ProgettoDrive[] = []
+  for (const p of r.progetti) {
+    if (p.proprietario === undefined) { senza.push(p); continue }
+    const k = `${p.proprietario}|${nome(p.nome)}`
+    gruppi.set(k, [...(gruppi.get(k) ?? []), p])
+  }
+  const tolti: Record<string, string> = { ...(r.tolti ?? {}) }
+  const quando = (p: ProgettoDrive): string => p.proprietarioDal ?? p.aggiuntoIl ?? ''
+  const progetti: ProgettoDrive[] = [...senza]
+  let uniti = 0
+  for (const gruppo of gruppi.values()) {
+    if (gruppo.length === 1) { progetti.push(gruppo[0] as ProgettoDrive); continue }
+    const ordinati = [...gruppo].sort((a, b) => (a.aggiuntoIl || '9').localeCompare(b.aggiuntoIl || '9') || a.id.localeCompare(b.id))
+    const capo = ordinati[0] as ProgettoDrive
+    // La cartella: quella del capo, o la più recente fra quelle scelte dagli altri.
+    const conCartella = ordinati.filter((x) => x.percorso !== undefined).sort((a, b) => quando(b).localeCompare(quando(a)))
+    const percorso = capo.percorso ?? conCartella[0]?.percorso
+    const { candidati: _c, ...senzaCandidati } = capo
+    progetti.push(percorso !== undefined ? { ...senzaCandidati, percorso } : capo)
+    for (const x of ordinati.slice(1)) tolti[x.id] = quando(x) || new Date(0).toISOString()
+    uniti += gruppo.length - 1
+  }
+  if (uniti === 0) return r
+  // Nell'ordine di prima, per non far sembrare cambiato un registro che non lo è.
+  const ordine = new Map(r.progetti.map((p, i) => [p.id, i]))
+  progetti.sort((a, b) => (ordine.get(a.id) ?? 0) - (ordine.get(b.id) ?? 0))
+  return { versione: 1, progetti, tolti }
 }
 
 export type RegistroProgettiStore = {

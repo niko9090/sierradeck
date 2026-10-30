@@ -507,6 +507,9 @@ export function creaSottofondo(d: DipendenzeSottofondo) {
       for (const voce of lette) {
         const no = ammessa(voce)
         if (no !== undefined) { d.log(`[sottofondo] «${voce.titolo}» (${voce.sessione.slice(0, 8)}) non riparte: ${no}`); continue }
+        // 0.88.5: una chat senza testo in coda non ha niente da fare: ripartiva a ogni avvio solo per dire «ho finito»
+        // (le vecchie «Rilascio · App Android»). La conversazione resta su disco e un messaggio nuovo la riavvia.
+        if (voce.coda.length === 0) { d.log(`[sottofondo] «${voce.titolo}» (${voce.sessione.slice(0, 8)}) non riparte: non ha niente in coda (la conversazione resta su disco)`); continue }
         try { avviaViva(voce); n += 1 } catch (e) { d.log(`[sottofondo] «${voce.titolo}» non riparte: ${String(e)}`) }
       }
       salva()

@@ -227,6 +227,15 @@ describe('le chat in sottofondo sul PC di casa', () => {
     expect(dopo.stato(SESSIONE)?.inCoda).toBe(1)
   })
 
+  it('una chat senza niente in coda non riparte dopo il riavvio e lascia l’elenco (0.88.5)', () => {
+    f.crea().avvia({ sessione: SESSIONE, cwd: 'C:P', titolo: 'P', perChi: PC })
+    const dopo = f.crea()
+    expect(dopo.riprendi(() => undefined)).toBe(0)
+    expect(f.avviati).toHaveLength(1)
+    expect(f.log.some((l) => l.includes('non ha niente in coda'))).toBe(true)
+    expect(leggiElencoSottofondo(JSON.parse(readFileSync(join(f.dati, 'sottofondo.json'), 'utf8')))).toEqual([])
+  })
+
   it('una chat la cui casa non è più qui non riparte, e lo scrive', () => {
     f.crea().avvia({ sessione: SESSIONE, cwd: 'C:\\P', titolo: 'P', perChi: PC })
     const dopo = f.crea()

@@ -36,6 +36,17 @@ describe('elencaFileProgetto', () => {
     return dir
   }
 
+  it('le copie di lavoro degli agenti (.claude/worktrees) restano a casa, il resto di .claude va (0.88.5)', async () => {
+    const dir = progetto()
+    for (const rel of ['.claude/worktrees/agent-1/src/a.ts', '.claude/settings.json']) {
+      mkdirSync(join(dir, ...rel.split('/'), '..'), { recursive: true })
+      writeFileSync(join(dir, ...rel.split('/')), 'x')
+    }
+    const rel = (await elencaFileProgetto(dir, 1000)).file
+    expect(rel).toContain('.claude/settings.json')
+    expect(rel.some((r) => r.startsWith('.claude/worktrees'))).toBe(false)
+  })
+
   it('rispetta i gitignore a ogni livello, porta .git, salta node_modules', async () => {
     const { file, troppoGrandi } = await elencaFileProgetto(progetto(), 1000)
     expect(file.sort()).toEqual([

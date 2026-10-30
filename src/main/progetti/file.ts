@@ -26,9 +26,15 @@ export const ESCLUSI_SEMPRE = new Set([
   'dist', 'out', '.parcel-cache', 'coverage'
 ])
 
-/** I recuperati di SierraDeck (copie di sicurezza locali, non lavoro): mai sul Drive (0.69.0). */
+/**
+ * I recuperati di SierraDeck (copie di sicurezza locali, non lavoro): mai sul
+ * Drive (0.69.0). Nemmeno le copie di lavoro degli agenti di Claude Code
+ * (`.claude/worktrees`, 0.88.5): sono il progetto intero ripetuto, per un
+ * lavoro di qualche minuto, e il loro lavoro arriva comunque nel progetto.
+ */
+const CARTELLE_ESCLUSE = ['.sierradeck/recuperati', '.claude/worktrees']
 export function cartellaEsclusa(rel: string): boolean {
-  return rel === '.sierradeck/recuperati' || rel.endsWith('/.sierradeck/recuperati')
+  return CARTELLE_ESCLUSE.some((c) => rel === c || rel.endsWith(`/${c}`))
 }
 
 /** Oltre questo un file non e' un sorgente: e' un binario che si scarica, non si sincronizza. */

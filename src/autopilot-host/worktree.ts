@@ -540,13 +540,27 @@ export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: 
   return aspettando(git, iniziaProvaPassi(p))
 }
 
+/** Le righe di `git status --porcelain` sono tutte file sotto `.sierradeck/` (e ce n'è almeno una). */
+export function soloNoteDelProgramma(porcelain: string): boolean {
+  const righe = porcelain.split(/\r?\n/).filter((r) => r.trim() !== '')
+  return righe.length > 0 && righe.every((r) => r.replace(/^\s*\S{1,2}\s+/, '').split(' -> ').every((x) => x.replace(/^"|"$/g, '').startsWith('.sierradeck/')))
+}
+
 function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Passi<EsitoProva> {
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
   const qui = yield* ramoPassi(radice)
   if (qui !== p.base) return { ok: false, motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
   // Con file a metà nella cartella di lavoro la prova misurerebbe anche quelli, e l'annullarla li toccherebbe.
-  const sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+  let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+  // Solo le note del programma (`.sierradeck/`: quaderno, consegne)? Si salvano
+  // con un commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
+  // ferma per due note, e né l'autopilota né gli specialisti potevano salvarle.
+  if (sporca.codice === 0 && soloNoteDelProgramma(sporca.uscita)) {
+    yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
+    yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
+    sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+  }
   if (sporca.codice !== 0 || sporca.uscita.trim() !== '') return { ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' }
   const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', p.ramo], radice)
   if (r.codice === 0) return { ok: true }

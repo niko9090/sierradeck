@@ -239,3 +239,24 @@ describe('valutaCartella', () => {
     expect(valutaCartella(vero)).toBe(3)
   })
 })
+
+describe('lo stesso progetto due volte, da due riassetti (0.88.5)', () => {
+  const p = (id: string, aggiuntoIl: string, o: Partial<import('../../src/main/progetti/registro').ProgettoDrive> = {}) => ({ id, nome: 'SierraDeck', aggiuntoIl, proprietario: 'pc-fisso', ...o })
+
+  it('ogni PC tiene lo stesso id (il più vecchio), l’altro va fra i tolti, la cartella passa a chi resta', () => {
+    const qui: RegistroProgetti = { versione: 1, progetti: [p('bbb', '2026-09-13T22:00:00.000Z', { candidati: ['C:\a', 'E:\b'] })] }
+    const dalDrive: RegistroProgetti = { versione: 1, progetti: [p('aaa', '2026-09-14T17:00:00.000Z', { nome: ' sierradeck ', percorso: 'E:\b', proprietarioDal: '2026-10-30T18:38:00.000Z' })] }
+    const uno = fondiRegistri(qui, dalDrive)
+    const due = fondiRegistri(dalDrive, qui)
+    expect(uno.progetti).toEqual([{ id: 'bbb', nome: 'SierraDeck', aggiuntoIl: '2026-09-13T22:00:00.000Z', proprietario: 'pc-fisso', percorso: 'E:\b' }])
+    expect(due.progetti.map((x) => x.id)).toEqual(['bbb'])
+    expect(Object.keys(uno.tolti ?? {})).toEqual(['aaa'])
+    // E al giro dopo il tolto non torna.
+    expect(fondiRegistri(uno, dalDrive).progetti.map((x) => x.id)).toEqual(['bbb'])
+  })
+
+  it('stesso nome ma proprietari diversi: sono due progetti', () => {
+    const r = fondiRegistri({ versione: 1, progetti: [p('a', '1')] }, { versione: 1, progetti: [p('b', '2', { proprietario: 'portatile' })] })
+    expect(r.progetti.map((x) => x.id).sort()).toEqual(['a', 'b'])
+  })
+})

@@ -62,3 +62,33 @@ describe('oltre i rifacimenti: ramo senza novità e unione di prova (0.84.4)', (
     expect(readFileSync(join(fuori, 'x.txt'), 'utf8')).toBe('resta\n')
   })
 })
+
+describe('le note del programma non fermano l’unione (0.88.5)', () => {
+  const ga = comeAsincrono(git)
+
+  it('solo `.sierradeck/` cambiato: si salva con un commit e l’unione di prova parte', async () => {
+    mkdirSync(join(progetto, '.sierradeck', 'quaderno'), { recursive: true })
+    writeFileSync(join(progetto, '.sierradeck', 'quaderno', 'nota.md'), 'prima\n')
+    esegui(['add', '-A'], progetto)
+    esegui(['commit', '-q', '-m', 'nota'], progetto)
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
+    salvaLavoro(git, wt.cartella, 'pezzo')
+    writeFileSync(join(progetto, '.sierradeck', 'quaderno', 'nota.md'), 'scritta dal programma\n')
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: true })
+    expect(esegui(['log', '-1', '--format=%s', 'HEAD'], progetto)).toBe('quaderno: le note del programma, prima di unire')
+    expect(await chiudiProvaAsincrono(ga, { cwd: progetto, tieni: true })).toBe(true)
+    expect(readFileSync(join(progetto, '.sierradeck', 'quaderno', 'nota.md'), 'utf8')).toBe('scritta dal programma\n')
+  })
+
+  it('un file del codice a metà ferma ancora l’unione', async () => {
+    const wt = creaWorktree(git, { cwd: progetto, autopilota: 'ap1', chat: 'c-1', base: 'main' })
+    if (!wt.ok) throw new Error('worktree non creato')
+    writeFileSync(join(wt.cartella, 'b.txt'), 'dalla chat\n')
+    salvaLavoro(git, wt.cartella, 'pezzo')
+    const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/)[0] as string
+    writeFileSync(join(progetto, tracciato), 'a metà\n')
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo: wt.ramo, base: 'main' })).toEqual({ ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' })
+  })
+})
