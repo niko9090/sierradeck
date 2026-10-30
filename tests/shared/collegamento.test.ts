@@ -28,7 +28,7 @@ describe('la qualità', () => {
 })
 
 describe('la macchina degli stati, con cadute, ritorni e cambi di strada', () => {
-  it('collegato su rete di casa → caduta vera → tentativi con attese crescenti → torna via WebRTC → torna la rete di casa', () => {
+  it('collegato su rete di casa → caduta vera → tentativi con attese crescenti → torna via Tailscale → torna la rete di casa', () => {
     let l: Linea = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 30, strada: 'lan' })
     expect(l).toMatchObject({ fase: 'collegato', strada: 'lan', tentativo: 0 })
     expect(eOra(l, 0, KEEPALIVE_OGNI_MS - 1)).toBe(false)
@@ -58,19 +58,19 @@ describe('la macchina degli stati, con cadute, ritorni e cambi di strada', () =>
     l = passo(l, { tipo: 'riprova-adesso', il: t - 20_000 })
     expect(fraSecondi(l, t - 20_000)).toBe(0)
     // Torna, per un'altra strada: la prima risposta fa «lenta», la seconda «collegato» (isteresi).
-    l = passo(l, { tipo: 'ok', il: t, ritardoMs: 180, strada: 'webrtc' })
-    expect(l).toMatchObject({ fase: 'lenta', strada: 'webrtc' })
-    l = passo(l, { tipo: 'ok', il: t + 2000, ritardoMs: 170, strada: 'webrtc' })
-    expect(l).toMatchObject({ fase: 'collegato', strada: 'webrtc', tentativo: 0 })
+    l = passo(l, { tipo: 'ok', il: t, ritardoMs: 180, strada: 'tailscale' })
+    expect(l).toMatchObject({ fase: 'lenta', strada: 'tailscale' })
+    l = passo(l, { tipo: 'ok', il: t + 2000, ritardoMs: 170, strada: 'tailscale' })
+    expect(l).toMatchObject({ fase: 'collegato', strada: 'tailscale', tentativo: 0 })
     expect(l.prossimoIl).toBeUndefined()
     // La rete di casa torna: si ripassa da sola, senza cadute.
     l = passo(l, { tipo: 'ok', il: t + 30_000, ritardoMs: 20, strada: 'lan' })
-    expect(cambioVisibile(l, t + 30_001)).toBe('Passo da WebRTC a rete di casa')
+    expect(cambioVisibile(l, t + 30_001)).toBe('Passo da Tailscale a rete di casa')
     expect(l.storia.map((e) => e.tipo)).toEqual(['collegato', 'caduta', 'tornato', 'cambio'])
     const tornato = l.storia[2]
     expect(tornato).toMatchObject({ tipo: 'tornato', tentativi: 6 })
     expect(rigaStoria(l.storia[1]!)).toContain('caduta (rete di casa): non risponde')
-    expect(rigaStoria(tornato!)).toMatch(/tornato \(WebRTC\) dopo \d+ (s|min) e 6 tentativi/)
+    expect(rigaStoria(tornato!)).toMatch(/tornato \(Tailscale\) dopo \d+ (s|min) e 6 tentativi/)
   })
   it('il caso di Nicholas (09/10): lo schermo arriva mentre il controllo fallisce — mai «non connesso»', () => {
     // Ogni due secondi il controllo dello stato scade (pesante, 6 s); intanto
@@ -108,7 +108,7 @@ describe('la macchina degli stati, con cadute, ritorni e cambi di strada', () =>
   })
   it('la storia si tiene corta, le misure anche', () => {
     let l: Linea = LINEA_NUOVA
-    for (let i = 0; i < 100; i++) l = passo(l, { tipo: 'ok', il: i * 1000, ritardoMs: 10, strada: i % 2 === 0 ? 'lan' : 'webrtc' })
+    for (let i = 0; i < 100; i++) l = passo(l, { tipo: 'ok', il: i * 1000, ritardoMs: 10, strada: i % 2 === 0 ? 'lan' : 'tailscale' })
     expect(l.storia.length).toBe(30)
     expect(l.misure.length).toBe(12)
   })
@@ -126,11 +126,11 @@ describe('quali errori sono della strada', () => {
 })
 
 describe('la strada migliore', () => {
-  it('rete di casa, Tailscale, WebRTC, Drive', () => {
-    expect(stradaMigliore(['drive', 'webrtc', 'tailscale'])).toBe('tailscale')
+  it('rete di casa, Tailscale, Drive', () => {
+    expect(stradaMigliore(['drive', 'tailscale'])).toBe('tailscale')
     expect(stradaMigliore([])).toBeUndefined()
-    expect(meglio('lan', 'webrtc')).toBe(true)
-    expect(meglio('drive', 'webrtc')).toBe(false)
+    expect(meglio('lan', 'tailscale')).toBe(true)
+    expect(meglio('drive', 'tailscale')).toBe(false)
     expect(meglio('drive', undefined)).toBe(true)
     expect(iconaStrada('lan')).toBe('🏠')
   })

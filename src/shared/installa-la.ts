@@ -1,6 +1,6 @@
 /**
  * «Installa là» (0.46.0): aggiornare un altro PC dal pannello «Salute», con
- * le stesse strade delle chat dal vivo (rete di casa, Tailscale, WebRTC) e la
+ * le stesse strade delle chat dal vivo (rete di casa, Tailscale) e la
  * chiave di casa. Su quel PC le rotte ci sono gia' dalla 0.20 circa — sono le
  * stesse del telefono: `/api/aggiornamento` (lo stato), `/cerca`, `/scarica`,
  * `/note`, `/installa` — e l'installazione la' aspetta da sola la quiete

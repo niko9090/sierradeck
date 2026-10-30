@@ -50,7 +50,7 @@ class DriveScollegatoTest {
         val c = Api.json.decodeFromString(Conversazione.serializer(), """{"chiave":"chat:pc:pc-fisso-id:abc","tipo":"chat","titolo":"Trading · su PC-ESEMPIO","suPc":"PC-ESEMPIO"}""")
         assertEquals("SU PC-ESEMPIO · Trading", titoloConSegno(c))
         // La strada (0.40.0), quando il computer la sa.
-        assertEquals("SU PC-ESEMPIO (WebRTC) · Trading", titoloConSegno(c.copy(viaPc = "WebRTC")))
+        assertEquals("SU PC-ESEMPIO (Tailscale) · Trading", titoloConSegno(c.copy(viaPc = "Tailscale")))
         val qui = Conversazione(chiave = "chat:1", titolo = "SierraDeck")
         assertEquals("SierraDeck", titoloConSegno(qui))
     }

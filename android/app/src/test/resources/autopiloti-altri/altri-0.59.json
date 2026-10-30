@@ -23,7 +23,7 @@
       "pcId": "pc-vecchio",
       "nome": "PC-VECCHIO",
       "autopiloti": [],
-      "errore": "PC-VECCHIO non risponde: Non risponde. Strade provate, in quest’ordine: la rete di casa, Tailscale, il collegamento diretto via Internet (WebRTC) e il Drive (lento: solo lettura e messaggi). I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).",
+      "errore": "PC-VECCHIO non risponde: Non risponde. Strade provate, in quest’ordine: la rete di casa e Tailscale. I messaggi per quel PC aspettano nella posta sul Drive. I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).",
       "motivo": "irraggiungibile"
     }
   ]

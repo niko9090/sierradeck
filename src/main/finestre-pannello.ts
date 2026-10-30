@@ -43,7 +43,7 @@ export function ePannello(win: BrowserWindow): boolean {
 }
 
 /**
- * Le finestre di servizio, mai visibili (0.40.0: il ponte WebRTC): non sono
+ * Le finestre di servizio, mai visibili (0.40.0, nate per il ponte WebRTC tolto nella 0.88.0): non sono
  * finestre di chat, e a una finestra nascosta non si manda niente.
  */
 const diServizio = new Set<number>()

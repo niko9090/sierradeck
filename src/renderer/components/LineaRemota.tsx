@@ -56,7 +56,7 @@ export function IndicatoreLinea({ linea, nomePc }: { linea: Linea; nomePc: strin
       </button>
       {aperta ? (
         <span className="linea__storia" role="dialog" aria-label="Storia del collegamento">
-          <span className="linea__storia-titolo con-aiuto">Storia del collegamento con {nomePc}<Aiuto di="storia del collegamento">Le cadute, i ritorni e i cambi di strada di questa finestra, con l’ora e il motivo (gli ultimi trenta). Le strade si provano in quest’ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento: solo leggere e scrivere). Quando ne torna una migliore, ci si passa da soli senza chiudere niente. Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse, e il ritardo che sale (400 ms, 1 s).</Aiuto></span>
+          <span className="linea__storia-titolo con-aiuto">Storia del collegamento con {nomePc}<Aiuto di="storia del collegamento">Le cadute, i ritorni e i cambi di strada di questa finestra, con l’ora e il motivo (gli ultimi trenta). Le strade si provano in quest’ordine: rete di casa 🏠, poi Tailscale 🔐; se nessuna risponde, i messaggi aspettano nella posta sul Drive ☁️. Quando ne torna una migliore, ci si passa da soli senza chiudere niente. Le tacche: 4 = ritardo sotto 150 ms e niente perso; ne tolgono una le chiamate perse, e il ritardo che sale (400 ms, 1 s).</Aiuto></span>
           {linea.storia.length === 0 ? <span className="linea__voce">Ancora niente da raccontare.</span> : null}
           {[...linea.storia].reverse().map((e, i) => (
             <span key={`${e.il}-${i}`} className={`linea__voce linea__voce--${e.tipo}`}>{rigaStoria(e)}</span>

@@ -54,7 +54,7 @@ export type PcPerSalute = {
   battito?: string
   /** Com'è adesso dopo il bussare: `acceso`, `non-so`, … (StatoPc). */
   stato?: string
-  /** La strada con cui si raggiunge, in due parole («rete di casa», «Tailscale», «WebRTC», «Drive, lento»). */
+  /** La strada con cui si raggiunge, in due parole («rete di casa», «Tailscale», «Drive, lento»). */
   strada?: string
   /** Quanto lavora SierraDeck su quel PC, dal suo battito (0.69.0). */
   risorse?: RisorsePc

@@ -84,8 +84,9 @@ describe('quando quel PC non risponde', () => {
   it('il perché, con le strade provate e cosa succede', () => {
     const t = erroreAltroPc('PORTATILE-ESEMPIO', 'Non risponde a nessun indirizzo.', ['192.0.2.10 (rete locale): nessuna risposta', '100.64.0.2 (Tailscale): nessuna risposta'])
     expect(t).toContain('PORTATILE-ESEMPIO non risponde')
-    expect(t).toContain('la rete di casa, Tailscale')
-    expect(t).toContain('WebRTC')
+    expect(t).toContain('la rete di casa e Tailscale')
+    expect(t).not.toContain('WebRTC')
+    expect(t).toContain('posta sul Drive')
     expect(t).toContain('192.0.2.10 (rete locale): nessuna risposta')
     expect(t).toContain('continuano a lavorare là')
   })

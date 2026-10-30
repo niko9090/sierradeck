@@ -190,7 +190,7 @@ export function statoPc(p: {
     return {
       stato: 'irraggiungibile',
       titolo: `${n} è acceso ma non risponde`,
-      cosaFare: `Secondo il Drive è acceso, ma nessuno dei suoi indirizzi risponde sulla porta ${p.porta} (${provati}). O è su un’altra rete (a casa uno e in ufficio l’altro: serve Tailscale acceso su tutti e due), o il firewall di Windows su quel PC blocca la porta ${p.porta}.${prove} Intanto provo il collegamento diretto via Internet (WebRTC) e, se non va, il Drive.`
+      cosaFare: `Secondo il Drive è acceso, ma nessuno dei suoi indirizzi risponde sulla porta ${p.porta} (${provati}). O è su un’altra rete (a casa uno e in ufficio l’altro: serve Tailscale acceso su tutti e due), o il firewall di Windows su quel PC blocca la porta ${p.porta}.${prove} Intanto i messaggi per quel PC aspettano nella posta sul Drive.`
     }
   }
   return {

@@ -7,7 +7,6 @@ import { apriDispositivi } from '../../src/main/dispositivi'
 import { cartellaDiProva } from '@shared/chat-di-prova'
 import { giudicaStrumento } from '../../src/autopilot-host/divieti'
 import { leggiRichiestaPonte, azioneDelPonte } from '@shared/ponte-telefono'
-import { rottaPermessaSulCanale } from '@shared/strada-pc'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
 
 /**
@@ -68,9 +67,8 @@ describe('/api/prova/chiudi', () => {
     expect(chiuse).toEqual([])
   })
 
-  it('passa dal ponte e fra i PC, e il ponte lo scrive', () => {
+  it('passa dal ponte, e il ponte lo scrive', () => {
     expect(leggiRichiestaPonte({ pc: 'lap', percorso: '/api/prova/chiudi', corpo: { chat: 'sf-prova' } }).ok).toBe(true)
-    expect(rottaPermessaSulCanale('/api/prova/chiudi')).toBe(true)
     expect(azioneDelPonte('/api/prova/chiudi', { chat: 'sf-prova' })).toBe('chiudo la chat di prova sf-prova')
   })
 })

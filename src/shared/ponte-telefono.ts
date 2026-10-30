@@ -3,7 +3,7 @@
  * vivo, passando dal PC a cui il telefono è accoppiato.
  *
  * Il telefono è accoppiato a un PC solo. Quel PC sa già raggiungere gli altri
- * (rete di casa, Tailscale, WebRTC, Drive — 0.40.0) con la chiave di casa
+ * (rete di casa, Tailscale) con la chiave di casa
  * firmata (0.47.0): il telefono gli chiede `POST /api/ponte {pc, percorso,
  * corpo}` e lui la gira a quel PC. Il telefono non ha mai la chiave di casa.
  *

@@ -18,8 +18,7 @@
 export const ALLEGATO_MAX_BYTE = 100 * 1024 * 1024
 /**
  * Un pezzo: 96 KB di file, 128 KB in base64. Sta sotto il tetto del corpo
- * JSON (256 KB) anche impacchettato dal ponte, e sotto quello di un
- * messaggio WebRTC cifrato verso un altro PC.
+ * JSON (256 KB) anche impacchettato dal ponte.
  */
 export const PEZZO_BYTE = 96 * 1024
 /** Dove finiscono, relativo alla cartella della chat. Escluso da git con un `.gitignore` suo. */

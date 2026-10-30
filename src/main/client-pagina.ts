@@ -6083,10 +6083,10 @@ function ridisegnaLinea() {
 window.riprovaLinea = () => { linea = passoLinea(linea, { tipo: 'riprova-adesso', il: Date.now() }); ridisegnaLinea() }
 window.apriStoriaLinea = () => { storiaLineaAperta = !storiaLineaAperta; ridisegnaLinea() }
 /* «Mi collego a…» (0.52.1): i passi dei tentativi, copia di passiCollegamento e eventiDaLinea. */
-const STRADE_TENTATIVI = ['lan', 'tailscale', 'webrtc', 'drive']
+const STRADE_TENTATIVI = ['lan', 'tailscale', 'drive']
 var inizioPagina = Date.now()
-function nomeTentativo(s) { return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'webrtc' ? 'WebRTC / ponte' : s === 'drive' ? 'Drive (lento)' : s }
-function iconaTentativo(s) { return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'webrtc' ? '🌐' : s === 'drive' ? '☁️' : '…' }
+function nomeTentativo(s) { return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'drive' ? 'Drive (lento)' : s }
+function iconaTentativo(s) { return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'drive' ? '☁️' : '…' }
 function passiCollegamento(nomePc, eventi) {
   const passi = STRADE_TENTATIVI.map((s) => ({ strada: s, nome: nomeTentativo(s), icona: iconaTentativo(s), stato: 'attesa' }))
   const di = (s) => passi.find((p) => p.strada === s)
@@ -6136,12 +6136,6 @@ function eventiDaLinea(l, inizio) {
   const fuori = [{ tipo: 'provo', strada: 'lan', il: inizio }]
   const primo = l.storia.find((e) => e.tipo === 'collegato' || e.tipo === 'tornato')
   const misura = l.misure.find((m) => m.ok)
-  if (primo === undefined && l.motivo === 'collegando') {
-    fuori.push({ tipo: 'fallita', strada: 'lan', il: l.cadutaIl === undefined ? inizio : l.cadutaIl, motivo: 'non risponde' })
-    fuori.push({ tipo: 'fallita', strada: 'tailscale', il: l.cadutaIl === undefined ? inizio : l.cadutaIl, motivo: 'non risponde' })
-    fuori.push({ tipo: 'provo', strada: 'webrtc', il: l.cadutaIl === undefined ? inizio : l.cadutaIl })
-    return fuori
-  }
   if (primo !== undefined) {
     fuori.push({ tipo: 'riuscita', strada: primo.strada === undefined ? 'lan' : primo.strada, il: primo.il, ritardoMs: misura === undefined || misura.ritardoMs === undefined ? 0 : misura.ritardoMs })
     return fuori

@@ -1,4 +1,3 @@
-import { rottaPermessaSulCanale } from '@shared/strada-pc'
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'

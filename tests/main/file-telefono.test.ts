@@ -23,7 +23,6 @@ import {
 import { raccogliDomande } from '@shared/domande-telefono'
 import { conversazioniDomande } from '@shared/domande-conversazioni'
 import { ROTTE_PONTE } from '@shared/ponte-telefono'
-import { ROTTE_VIA_CANALE } from '@shared/strada-pc'
 import type { BattitoPc } from '@shared/posta'
 
 /**
@@ -94,10 +93,9 @@ describe('le regole pure', () => {
     expect(leggiIdDomandaConferma(idDomandaConferma('abc123def'))).toBe('abc123def')
     expect(leggiIdDomandaConferma('d-autopilota')).toBeUndefined()
   })
-  it('le rotte nuove passano dal ponte e dal canale WebRTC', () => {
+  it('le rotte nuove passano dal ponte', () => {
     for (const r of ['/api/file/progetti', '/api/file/elenco', '/api/file/leggi', '/api/file/cartella', '/api/consegne', '/api/consegne/pezzo', '/api/consegne/ricevuta']) {
       expect(ROTTE_PONTE).toContain(r)
-      expect(ROTTE_VIA_CANALE).toContain(r)
     }
   })
 })

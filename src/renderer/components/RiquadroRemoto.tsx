@@ -98,7 +98,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const [avvio, setAvvio] = useState<{ fase: FaseSottofondo | 'chiedo' | 'errore'; messaggio?: string; testo?: string; id?: string; vecchio?: boolean; dal: number } | undefined>(undefined)
   const avvioRef = useRef(avvio)
   avvioRef.current = avvio
-  /** La strada con cui arriva quel PC (0.40.0): rete di casa, Tailscale, WebRTC o Drive. */
+  /** La strada con cui arriva quel PC (0.40.0): rete di casa o Tailscale. */
   const [strada, setStrada] = useState<InfoStrada | undefined>(undefined)
   /**
    * Quel PC non risponde piu' (0.36.1): da quando, perche', e l'ultimo

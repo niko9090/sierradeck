@@ -4257,7 +4257,7 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .mappa-pc text { font-family: system-ui, sans-serif; font-size: 4px; fill: var(--testo); }
 .mappa-pc__legenda { font-size: var(--t1); color: var(--testo-quieto); text-align: center; }
 
-/* L'ospite delle chat (0.52.0): «Porta qui la chat», «Dove vive ogni chat», la nota dopo una scelta. */
+/* L'ospite delle chat (0.52.0): la nota dopo una scelta. Dalla 0.88.0 ogni progetto vive su un PC solo («su <PC>» in Progetti, «Sposta su questo PC»). */
 .remoto__ospite {
   display: flex;
   align-items: center;
