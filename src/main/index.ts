@@ -182,6 +182,8 @@ import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, i
 import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, avviaPtySenzaFinestra, agganciaPtyAlSottofondo, impostaPrimaDiRiagganciare, ptyDiSessione } from './ipc'
 import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
+import { impostaFiduciaPrimaDelLancio } from './ipc'
+import { cartellaQualificata, cartelleAutopiloti, creaFiduciaNelTerminale, fidatiPrimaDiAvviare, type CartelleNote } from './fiducia-cartella'
 import { creaChiuseStore } from './chiuse-store'
 import { creaRispecchia } from './rispecchia-workspace'
 import { leggiChiuse, rigaChiusaACasa, rigaNonApertaACasa, type ChiusaDaTe } from '@shared/chiuse'
@@ -422,7 +424,32 @@ let chatDallaFinestra: Chat[] = []
 const segnaliPerSessione = new Map<string, Segnale[]>()
 /** Le sessioni per cui il registro ha gia' detto «stato dallo schermo». */
 const riservaRaccontata = new Set<string>()
+/**
+ * Tasti a una chat di questo PC, a pezzi (frecce, testo, invio): al sottofondo
+ * se è sua, altrimenti alle finestre, che la cercano fra i loro riquadri.
+ */
+function tastiAllaChat(idChat: string, pezzi: string[]): void {
+  const sf = sottofondo?.perId(idChat)
+  if (sf !== undefined) { sottofondo?.tasti(sf, pezzi); return }
+  for (const w of finestreDiChat()) {
+    if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
+      w.webContents.send('client:tasti', { chat: idChat, pezzi })
+    }
+  }
+}
+/**
+ * La domanda di fiducia nel terminale (30/10, secondo strato di
+ * `fiducia-cartella.ts`): la imposta il Core quando sa quali cartelle conosce.
+ * Guarda le chat a ogni aggiornamento; quelle a cui ha appena risposto non
+ * finiscono nelle Domande.
+ */
+let fiduciaNelTerminale: ReturnType<typeof creaFiduciaNelTerminale> | undefined
 function conSegnali(chat: Chat[]): Chat[] {
+  let fidate: Set<string> = new Set()
+  try { fidate = fiduciaNelTerminale?.guarda(chat) ?? fidate } catch (err) { console.warn('[fiducia] nel terminale:', err) }
+  return conSegnaliSoli(fidate.size === 0 ? chat : chat.map((c) => (fidate.has(c.id) ? { ...c, sceltaAperta: false, chiedeSegnale: false } : c)))
+}
+function conSegnaliSoli(chat: Chat[]): Chat[] {
   return chat.map((c) => {
     const s = c.sessione === undefined ? undefined : statoDaSegnali(segnaliPerSessione.get(c.sessione) ?? [])
     if (s === undefined) {
@@ -1728,6 +1755,34 @@ if (!app.requestSingleInstanceLock()) {
         })
       }
       const registroProgetti = apriRegistroProgetti(dati)
+      // La fiducia nelle cartelle (30/10): le cartelle che SierraDeck conosce —
+      // i progetti di questo PC, la cartella dei progetti, le chat dei
+      // workspace, gli autopiloti — e i loro worktree. Prima dello spawn si
+      // segnano fidate in `~/.claude.json`; se la domanda compare lo stesso,
+      // la si accetta nel terminale. Vedi `fiducia-cartella.ts`.
+      {
+        const note = (): CartelleNote => {
+          const me = identitaPc.leggi()
+          const progetti = registroProgetti.leggi().progetti.map((p) => p.percorsi[me.id] ?? '').filter((c) => c !== '')
+          if (me.cartellaProgetti !== '') progetti.push(me.cartellaProgetti)
+          const cartelle: string[] = []
+          for (const w of workspaceStore?.leggi().workspace ?? []) {
+            for (const l of Object.values(w.perSlot)) for (const p of l.panes) if (p.remoto === undefined && p.cwd !== '') cartelle.push(p.cwd)
+          }
+          cartelle.push(...cartelleAutopiloti(join(dati, 'autopiloti')))
+          return { casa: homedir(), progetti, cartelle }
+        }
+        const attiva = (): boolean => impostazioni.preferenze().fiduciaCartelleAutomatica
+        impostaFiduciaPrimaDelLancio((cwd) => {
+          fidatiPrimaDiAvviare({ cwd, attiva: attiva(), note, fileClaudeJson: percorsiClaude().fileClaudeJson, log: (m) => registro.info(m) })
+        })
+        fiduciaNelTerminale = creaFiduciaNelTerminale({
+          attiva,
+          qualificata: (cwd) => cartellaQualificata(cwd, note()),
+          tasti: tastiAllaChat,
+          log: (m) => registro.info(m)
+        })
+      }
       let progettiInManoAdAltri = (): Set<string> => new Set()
       // Per il telefono: se il progetto di una chat e' in mano a un altro PC,
       // il suo nome. Poco invasivo apposta — una parola sotto il titolo.
@@ -5637,15 +5692,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         // La risposta a una domanda della chat, a pezzi (0.52.5): frecce, testo, invio.
-        tastiAChat: (idChat: string, pezzi: string[]) => {
-          const sf = sottofondo?.perId(idChat)
-          if (sf !== undefined) { sottofondo?.tasti(sf, pezzi); return }
-          for (const w of finestreDiChat()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-              w.webContents.send('client:tasti', { chat: idChat, pezzi })
-            }
-          }
-        },
+        tastiAChat: (idChat: string, pezzi: string[]) => { tastiAllaChat(idChat, pezzi) },
         // **Una** finestra, non tutte (0.55.0): con due finestre aperte una
         // richiesta dal telefono apriva due chat nella stessa cartella, una
         // per finestra. Va in quella che mostra il workspace scelto, se c'è.

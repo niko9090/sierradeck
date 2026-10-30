@@ -265,6 +265,23 @@
       ]
     },
     {
+      "id": "fiducia-cartelle",
+      "sezione": "chat",
+      "titolo": "Accetta da sola la fiducia nelle cartelle dei progetti",
+      "spiega": "Acceso: la domanda di Claude Code «Do you trust the files in this folder?» si accetta da sola nelle cartelle dei tuoi progetti e workspace e nelle copie (worktree) degli autopiloti, così una chat nuova non resta ferma ad aspettarti. Mai nella cartella di casa, nella radice di un disco o in cartelle che SierraDeck non conosce. Spento: la domanda resta a te.",
+      "parole": [
+        "trust",
+        "fiducia",
+        "cartella",
+        "worktree",
+        "autopilota",
+        "yes i trust this folder"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
       "id": "posto-autopilota",
       "sezione": "chat",
       "titolo": "Dove si apre la scheda di un autopilota",
@@ -489,6 +506,7 @@
         "iberna",
         "posti-chat",
         "attesa-chat",
+        "fiducia-cartelle",
         "posto-autopilota",
         "account-google",
         "torna-indietro",

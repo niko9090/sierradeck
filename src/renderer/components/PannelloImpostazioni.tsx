@@ -394,7 +394,7 @@ Le porte cambiate valgono al prossimo avvio: un servizio in ascolto non
         ) : null}
         {vede('accoppiamento') ? <SezioneClient /> : null}
 
-        {vede('pin', 'iberna', 'posti-chat', 'attesa-chat', 'posto-autopilota') ? (
+        {vede('pin', 'iberna', 'posti-chat', 'attesa-chat', 'fiducia-cartelle', 'posto-autopilota') ? (
           <section className="impostazioni__gruppo">
             <Testa id="chat" />
             {vede('iberna') ? <RigaMigrazione /> : null}
@@ -440,6 +440,20 @@ Il numero lo decide questo PC (processori, memoria libera, carico degli ultimi m
             />
             <span className="con-aiuto">Mostra l’avanzamento mentre una chat lunga si apre<NellEtichetta>
 Mentre una conversazione lunga si riapre il riquadro mostra quanto manca, invece di restare vuoto.
+</NellEtichetta></span>
+          </label>
+            </> : null}
+            {vede('fiducia-cartelle') ? <>
+          <label className="impostazioni__riga impostazioni__riga--spunta">
+            <input
+              type="checkbox"
+              checked={p.fiduciaCartelleAutomatica}
+              onChange={(e) => cambia({ fiduciaCartelleAutomatica: e.target.checked })}
+            />
+            <span className="con-aiuto">Accetta da sola la fiducia nelle cartelle dei progetti<NellEtichetta>
+La domanda di Claude Code «Do you trust the files in this folder?» si accetta da sola nelle cartelle
+            dei tuoi progetti e workspace e nei worktree degli autopiloti. Mai nella cartella di casa, nella
+            radice di un disco o in cartelle che SierraDeck non conosce.
 </NellEtichetta></span>
           </label>
             </> : null}

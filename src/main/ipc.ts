@@ -196,6 +196,19 @@ export function impostaChiusaSenzaCartella(f: (sessionUuid: string, cwd: string)
   chiusaSenzaCartella = f
 }
 
+/**
+ * La fiducia nella cartella (30/10): un attimo prima di lanciare `claude`, la
+ * cartella di un progetto o di un worktree di SierraDeck si segna come fidata
+ * in `~/.claude.json` (vedi `fiducia-cartella.ts`). Lo imposta il Core; senza,
+ * non si tocca niente (i test, e il primo istante dopo l'avvio). Mai un
+ * errore: una scrittura non riuscita lascia solo la domanda a schermo.
+ */
+let fiduciaPrimaDelLancio: (cwd: string) => void = () => {}
+export function impostaFiduciaPrimaDelLancio(f: (cwd: string) => void): void { fiduciaPrimaDelLancio = f }
+const fidatiSenzaErrori = (cwd: string): void => {
+  try { fiduciaPrimaDelLancio(cwd) } catch (err) { console.warn('[fiducia] prima del lancio:', err) }
+}
+
 /** Chi vuole sapere di ogni chat che sta per aprirsi, con la sua cartella. */
 export function impostaPrimaDiAprire(f: (cwd: string) => void): void {
   primaDiAprire = f
@@ -389,6 +402,9 @@ export function registerPtyIpc(
     if (win !== undefined) registro.assegna(id, win.id)
     ptySessione.set(id, req.sessionUuid)
     allaRiapertura(req.sessionUuid)
+    // Subito prima dello spawn: `~/.claude.json` lo riscrivono di continuo i
+    // Claude Code accesi, e più la scrittura è vicina al lancio meno è esposta.
+    fidatiSenzaErrori(cwd)
     client.send({
       id,
       kind: 'spawn',
@@ -994,13 +1010,15 @@ export function registerPreparazioneIpc(
     const file = join(extra?.cartellaTemporanea() ?? casa(), `sierradeck-risoluzione-${id}.md`)
     writeFileSync(file, dossier, 'utf8')
     registro.assegna(id, win.id)
+    const cwdAgente = richiesta.cwd !== '' && existsSync(richiesta.cwd) ? richiesta.cwd : casa()
+    fidatiSenzaErrori(cwdAgente)
     client.send({
       id,
       kind: 'spawn',
       sessionUuid: id,
       // Nella cartella della chat se c'e' ancora (l'agente guarda i suoi file
       // di impostazioni), altrimenti a casa.
-      cwd: richiesta.cwd !== '' && existsSync(richiesta.cwd) ? richiesta.cwd : casa(),
+      cwd: cwdAgente,
       command: claude,
       args: argomentiAgente(file),
       cols: 100,
