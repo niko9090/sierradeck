@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  creaPostino, nomeBattitoPc, nomePosta, pcVivo, scegliDestinataria, chatNellaCartella, prossimaDaConsegnare,
+  creaPostino, nomeBattitoPc, nomePosta, nomeUscita, pcVivo, scegliDestinataria, chatNellaCartella, prossimaDaConsegnare,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX,
   type BattitoPc, type ChatDiPc, type Posta
 } from '../../src/main/progetti/posta'
@@ -90,6 +90,8 @@ describe('il postino', () => {
     const torre = ambiente({ pcId: 'A', nome: 'Torre', scatola, cartelle: [NAS] })
     const portatile = ambiente({ pcId: 'B', nome: 'Portatile', scatola })
     torre.chat([{ id: 'p1', sessione: 's1', titolo: 'gestionale', cwd: NAS, viva: true, aspetta: true }])
+    // Il portatile batte (0.86.2: la torre legge le cassette d'uscita dei PC che conosce dal battito).
+    await portatile.postino.giro()
     await torre.postino.giro()
     // Il portatile vede la torre, con la sua cartella e la sua chat.
     const altri = await portatile.postino.pc()
@@ -101,14 +103,16 @@ describe('il postino', () => {
     const p = await portatile.postino.aggiungi('A', { cwd: NAS, testo: 'aggiorna il changelog' })
     expect(p?.voci).toHaveLength(1)
     expect(p?.voci[0]).toMatchObject({ stato: 'attesa', daNome: 'Portatile', cwd: NAS })
-    expect(scatola.dati.has(nomePosta('A'))).toBe(true)
+    // La torre dice nel battito che legge le cassette d'uscita (0.86.2): il portatile scrive nella sua, non nella cassetta unica.
+    expect(scatola.dati.has(nomeUscita('A', 'B'))).toBe(true)
+    expect(scatola.dati.has(nomePosta('A'))).toBe(false)
     // La torre, al suo giro, consegna alla chat che aspetta.
     await torre.postino.giro()
     expect(torre.scritti).toEqual([{ id: 'p1', testo: 'aggiorna il changelog' }])
     const dopo = (await portatile.postino.posta('A')) as Posta
     expect(dopo.voci[0]).toMatchObject({ stato: 'consegnata', aSessione: 's1', esito: 'consegnato a «gestionale»' })
-    // Il portatile stesso non compare fra «gli altri PC».
-    expect((await torre.postino.pc()).map((b) => b.pcId)).toEqual([])
+    // La torre stessa non compare fra «gli altri PC»: solo il portatile.
+    expect((await torre.postino.pc()).map((b) => b.pcId)).toEqual(['B'])
   })
 
   it('il battito dice dove bussare (indirizzi e porta), e gli altri lo leggono; senza rete non lo dice', async () => {

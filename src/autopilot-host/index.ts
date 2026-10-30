@@ -195,6 +195,24 @@ function percorsiConfigTelegram(): string[] {
   ]
 }
 
+/** La riga che dice che Telegram non c'è. */
+export const RIGA_TELEGRAM_ASSENTE = '[autopilota] nessuna configurazione Telegram trovata: avvisi disattivati'
+let telegramAssenteDetto = false
+/**
+ * Dice una volta per processo che Telegram non è configurato (0.86.2, audit
+ * M7). Il registro ne aveva 72: la riga partiva a ogni avvio del servizio,
+ * anche dei doppioni che escono subito perché la porta è già presa. Adesso la
+ * dice solo il servizio che resta in ascolto, e una volta sola.
+ */
+export function diciTelegramAssente(configurazione: unknown, dici: (riga: string) => void = (r) => { console.warn(r) }): boolean {
+  if (configurazione !== undefined || telegramAssenteDetto) return false
+  telegramAssenteDetto = true
+  dici(RIGA_TELEGRAM_ASSENTE)
+  return true
+}
+/** Solo per le prove: torna come all'avvio del processo. */
+export function dimenticaTelegramAssente(): void { telegramAssenteDetto = false }
+
 /**
  * La rete di sicurezza di **questo** processo.
  *
@@ -272,12 +290,8 @@ export function avviaServizio(): void {
   const domande = creaRegistroDomande({ adesso: () => Date.now(), file: join(archivio.cartella, 'servizio', 'domande-aperte.json') })
 
   const configurazione = leggiConfigurazione(percorsiConfigTelegram())
-  if (configurazione === undefined) {
-    // Non è un errore: senza Telegram l'autopilota lavora comunque, e l'utente
-    // vede tutto dal pannello. Dirlo evita però di cercare a lungo un avviso
-    // che non arriverà mai.
-    console.warn('[autopilota] nessuna configurazione Telegram trovata: avvisi disattivati')
-  }
+  // Senza Telegram l'autopilota lavora comunque: si dice una volta, quando il
+  // servizio è davvero in ascolto (più sotto), non a ogni doppione che esce.
   const avvisa = creaAvvisatore({ configurazione, manda: invioReale })
 
   // Le istruzioni che il Gestore verra a ritirare per scriverle dentro le
@@ -430,6 +444,8 @@ export function avviaServizio(): void {
   // Solo 127.0.0.1: un servizio che avvia processi non va esposto alla rete.
   server.listen(PORTA, '127.0.0.1', () => {
     console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA}`)
+    // Non è un errore: dirlo evita però di cercare a lungo un avviso che non arriverà mai.
+    diciTelegramAssente(configurazione)
 
     // Anche le preparazioni interrotte, e prima del lavoro: chi era fermo su
     // «sta preparando» non ha ancora nulla che giri, e finché nessuno la

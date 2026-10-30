@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { existsSync, readFileSync } from 'node:fs'
-import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
+import { leggiSegreto, scriviSegreto, cifraLeCopie, type Portachiavi } from './segreti-su-file'
+import { CARTELLA_COPIE } from './copie-di-versione'
 import { SUPABASE_URL, SUPABASE_ANON } from '@shared/supabase-config'
 import type { Utente, EsitoAccesso } from '@shared/account'
 
@@ -23,23 +23,38 @@ import type { Utente, EsitoAccesso } from '@shared/account'
 
 export type { Utente, EsitoAccesso }
 
-/** Un archivio chiave-valore su file: è la «memoria» della sessione per Supabase. */
-function archivioSessione(cartella: string): {
+/** Il file della sessione, nella cartella dei dati (le copie di versione non lo copiano più dalla 0.86.2). */
+export const FILE_ACCESSO_SUPABASE = 'accesso-supabase.json'
+
+/**
+ * Un archivio chiave-valore su file: è la «memoria» della sessione per Supabase.
+ * Dalla 0.86.2 (audit I5) cifrato con il portachiavi del sistema, se c'è; il
+ * file in chiaro di prima (e le sue copie di versione) si cifra alla prima lettura.
+ */
+export function archivioSessione(cartella: string, portachiavi?: Portachiavi): {
   getItem: (k: string) => string | null
   setItem: (k: string, v: string) => void
   removeItem: (k: string) => void
 } {
-  const file = join(cartella, 'accesso-supabase.json')
+  const file = join(cartella, FILE_ACCESSO_SUPABASE)
+  let copieCifrate = false
   const leggi = (): Record<string, string> => {
+    if (!copieCifrate) {
+      copieCifrate = true
+      try { cifraLeCopie(cartella, CARTELLA_COPIE, FILE_ACCESSO_SUPABASE, portachiavi, 'accesso') } catch { /* le copie restano come sono */ }
+    }
+    const testo = leggiSegreto(file, portachiavi, 'accesso')
+    if (testo === undefined) return {}
     try {
-      return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>) : {}
+      const o = JSON.parse(testo) as unknown
+      return o !== null && typeof o === 'object' ? (o as Record<string, string>) : {}
     } catch {
       return {}
     }
   }
   const scrivi = (o: Record<string, string>): void => {
     try {
-      scriviAtomico(file, JSON.stringify(o), 'accesso')
+      scriviSegreto(file, JSON.stringify(o), portachiavi, 'accesso')
     } catch (err) {
       console.error('[accesso] sessione non salvata:', err)
     }
@@ -54,10 +69,10 @@ function archivioSessione(cartella: string): {
 let cliente: SupabaseClient | undefined
 
 /** Avvia il client Supabase con la sessione persistita in `cartella` (userData). Una volta all'avvio. */
-export function avviaAccesso(cartella: string): void {
+export function avviaAccesso(cartella: string, portachiavi?: Portachiavi): void {
   cliente = createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
-      storage: archivioSessione(cartella),
+      storage: archivioSessione(cartella, portachiavi),
       persistSession: true,
       autoRefreshToken: true,
       // Nessun browser da cui leggere un token nell'URL: qui è un programma.

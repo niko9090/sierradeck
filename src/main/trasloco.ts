@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import {
-  ANNULLA_TUTTO_GIORNI, PASSI_TRASLOCO, annullabile, copieDopo, dettaglioVecchia, ferma, finito, motivoPassaggero, nuovoTrasloco, prossimoPasso, segna, vaiAvantiSenza,
+  ANNULLA_TUTTO_GIORNI, PASSI_TRASLOCO, annullabile, copieDopo, daTogliere, dettaglioVecchia, ferma, finito, motivoPassaggero, nuovoTrasloco, prossimoPasso, segna, vaiAvantiSenza,
   type CopiaAltrove, type IdPasso, type Trasloco
 } from '@shared/trasloco'
 import type { StatoResidenza } from '@shared/residenza'
@@ -41,6 +41,11 @@ export type DipendenzeTrasloco = {
   adesso?: () => number
   /** Fra un controllo e l'altro dello stato su un altro PC. */
   attesa?: (ms: number) => Promise<void>
+  /**
+   * Quanto si aspetta un altro PC per una chiamata del trasloco (0.86.2, audit
+   * M5): oltre, il passo si ferma con il motivo e riprende da solo al giro dopo.
+   */
+  tempoMassimoMs?: number
 }
 
 export type TraslocoApi = {
@@ -58,6 +63,8 @@ export type TraslocoApi = {
   giro: () => void
   /** Aspetta che il trasloco in corso finisca un giro di passi (per i test). */
   inCorso: (id: string) => Promise<void> | undefined
+  /** Toglie i record finiti o falliti da più di sette giorni (lo fa anche il giro). Quanti ne ha tolti. */
+  pulisci: () => number
 }
 
 /** Lo stato della copia vecchia su un altro PC, come lo dice `/api/trasloco/togli-stato`. */
@@ -65,6 +72,13 @@ type StatoTogli = { fase?: string; messaggio?: string }
 
 /** Ogni quanto si ridice nel registro un trasloco fermo per lo stesso motivo. */
 export const RIDICI_FERMO_MS = 60 * 60_000
+/**
+ * Quanto si aspetta un altro PC in una chiamata del trasloco (0.86.2, audit
+ * M5). Un trasloco era rimasto per sempre su «Raccolgo le copie»: la chiamata
+ * all'altro PC non tornava, e il giro non lo riprendeva perché risultava
+ * ancora al lavoro. Il salvataggio sul Drive di quel PC può durare: dieci minuti.
+ */
+export const TEMPO_MASSIMO_CHIAMATA_MS = 10 * 60_000
 
 export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
   const adesso = d.adesso ?? Date.now
@@ -73,12 +87,42 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
   const cartella = join(d.dati, 'traslochi')
   const memoria = new Map<string, Trasloco>()
   const girano = new Map<string, Promise<void>>()
+  const tempoMassimo = d.tempoMassimoMs ?? TEMPO_MASSIMO_CHIAMATA_MS
+  /** Una chiamata a un altro PC che non torna entro `tempoMassimo` si dà per persa: il passo si ferma e riprende da solo. */
+  const chiama = (pc: string, percorso: string, corpo?: unknown): Promise<unknown> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const scaduta = new Promise<never>((_ok, no) => {
+      timer = setTimeout(() => { no(new Error(`nessuna risposta in ${Math.round(tempoMassimo / 60_000) || 1} minuti`)) }, tempoMassimo)
+      ;(timer as { unref?: () => void }).unref?.()
+    })
+    return Promise.race([d.chiamaPc(pc, percorso, corpo), scaduta]).finally(() => { if (timer !== undefined) clearTimeout(timer) })
+  }
 
   const scrivi = (t: Trasloco): Trasloco => {
     memoria.set(t.id, t)
     try { mkdirSync(cartella, { recursive: true }); scriviJsonAtomico(join(cartella, `${t.id}.json`), t, 'trasloco') } catch (err) { d.log(`[trasloco] stato non salvato su disco: ${String(err)}`) }
     d.avvisa?.()
     return t
+  }
+  /**
+   * Toglie dalla cartella `traslochi` i record finiti o falliti da più di sette
+   * giorni (0.86.2, audit M5), salvo quelli che servono ancora ad «Annulla
+   * tutto» o alle copie da sistemare (`daTogliere`).
+   */
+  const pulisci = (): number => {
+    let tolti = 0
+    for (const t of leggiTutti()) {
+      if (girano.has(t.id) || !daTogliere(t, adesso())) continue
+      try {
+        const f = join(cartella, `${t.id}.json`)
+        if (existsSync(f)) unlinkSync(f)
+        memoria.delete(t.id)
+        fermoDetto.delete(t.id)
+        tolti += 1
+      } catch (err) { d.log(`[trasloco] «${t.nome}»: record vecchio non tolto: ${String(err)}`) }
+    }
+    if (tolti > 0) d.log(`[trasloco] tolti ${tolti} ${tolti === 1 ? 'trasloco finito' : 'traslochi finiti'} da più di sette giorni`)
+    return tolti
   }
   const leggiTutti = (): Trasloco[] => {
     if (existsSync(cartella)) {
@@ -123,14 +167,14 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
   > => {
     const io = d.io()
     try {
-      await d.chiamaPc(a.pc, '/api/trasloco/togli', { ids, residente: { pc: io.id, nome: io.nome } })
+      await chiama(a.pc, '/api/trasloco/togli', { ids, residente: { pc: io.id, nome: io.nome } })
     } catch (err) {
       return { spento: errore(err) }
     }
     // Il confronto e il recupero là possono durare: si guarda lo stato finché finisce.
     let st: StatoTogli = {}
     for (let giri = 0; giri < 400; giri += 1) {
-      try { st = await d.chiamaPc(a.pc, '/api/trasloco/togli-stato', { ids }) as StatoTogli } catch (err) {
+      try { st = await chiama(a.pc, '/api/trasloco/togli-stato', { ids }) as StatoTogli } catch (err) {
         return { spento: errore(err) }
       }
       if (st.fase !== 'analisi' && st.fase !== 'recupero' && st.fase !== 'attesa-conferma') break
@@ -174,7 +218,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
         k += 1
         t = passo(t, p, { dettaglio: `Chiedo a ${a.nome} di salvare sul Drive la sua copia`, fatto: k - 1, totale: t.altrove.length })
         let r: { ok?: unknown; messaggio?: unknown }
-        try { r = await d.chiamaPc(a.pc, '/api/trasloco/salva', { progetto: t.progetto, trasloco: t.id, verso: d.io().id }) as typeof r } catch (err) {
+        try { r = await chiama(a.pc, '/api/trasloco/salva', { progetto: t.progetto, trasloco: t.id, verso: d.io().id }) as typeof r } catch (err) {
           fermaQui(t, p, `${a.nome} non risponde (${errore(err)}): senza la sua copia aggiornata non confronto. Riprendo da qui quando torna.`, true, a.pc)
           return false
         }
@@ -325,7 +369,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
       const righe: string[] = []
       for (const a of t.altrove.filter((x) => x.esito === 'nel-recupero')) {
         try {
-          const r = await d.chiamaPc(a.pc, '/api/trasloco/ripristina', { ids }) as { ok?: unknown; messaggio?: unknown }
+          const r = await chiama(a.pc, '/api/trasloco/ripristina', { ids }) as { ok?: unknown; messaggio?: unknown }
           righe.push(`${a.nome}: ${typeof r.messaggio === 'string' ? r.messaggio : r.ok === true ? 'copia rimessa al suo posto' : 'non rimessa'}`)
         } catch (err) {
           righe.push(`${a.nome} non risponde (${errore(err)}): la sua copia resta nel suo recupero, si rimette da lì con «Ripristina»`)
@@ -349,6 +393,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
     stato: (id) => memoria.get(id) ?? leggiTutti().find((x) => x.id === id),
 
     giro() {
+      pulisci()
       for (const t of leggiTutti()) {
         // Le copie lasciate indietro con «Vai avanti senza»: quando il loro PC torna (0.71.1).
         if (t.finitoIl !== undefined && copieDopo(t).length > 0) { void sistemaDopo(t); continue }
@@ -358,6 +403,7 @@ export function creaTrasloco(d: DipendenzeTrasloco): TraslocoApi {
       }
     },
 
-    inCorso: (id) => girano.get(id)
+    inCorso: (id) => girano.get(id),
+    pulisci
   }
 }

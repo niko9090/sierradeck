@@ -138,19 +138,72 @@ export function pcFermo(t: Trasloco): CopiaAltrove | undefined {
  * scelte sono due: «Aspetta quel PC» (riparte da solo quando torna) o «Vai
  * avanti senza» (la sua copia resta dov'è e si unisce quando torna).
  */
-export function fermoChiaro(t: Trasloco, nomeDi: (pc: string) => string | undefined = () => undefined): FermoChiaro | undefined {
+export function fermoChiaro(t: Trasloco, nomeDi: (pc: string) => string | undefined = () => undefined, io?: string): FermoChiaro | undefined {
   if (t.fermo === undefined) return undefined
   const a = pcFermo(t)
-  if (a === undefined) return { testo: t.fermo.motivo, scelte: false }
+  // Un trasloco che gira su un altro PC (0.86.2, audit M5): il suo errore si
+  // dice con il nome di quel PC. «Collega prima Google Drive» compariva qui
+  // come se fosse di questo PC, ed era dell'altro.
+  const su = suAltroPc(t, nomeDi, io)
+  if (a === undefined) return { testo: su + t.fermo.motivo, scelte: false }
   const nome = nomeDi(a.pc) ?? a.nome
   const perche = t.fermo.passo === 'raccolta'
     ? `Mi serve la sua copia aggiornata del progetto per confrontarla con le altre.`
     : `Devo confrontare la sua copia vecchia con questa prima di metterla nel recupero.`
   return {
-    testo: `«${nome}» è spento o non si raggiunge da qui. ${perche} Puoi aspettarlo (riparto da solo quando si riaccende) o andare avanti senza: la sua copia resta dov’è e, quando torna, quello che ha solo lui entra qui nei recuperati. Niente si perde.`,
+    testo: `${su}«${nome}» è spento o non si raggiunge${su === '' ? ' da qui' : ''}. ${perche} Puoi aspettarlo (riparto da solo quando si riaccende) o andare avanti senza: la sua copia resta dov’è e, quando torna, quello che ha solo lui entra qui nei recuperati. Niente si perde.`,
     pc: { pc: a.pc, nome },
     scelte: a.senza === undefined
   }
+}
+
+/**
+ * Il prefisso per un trasloco che gira su un altro PC: «Su «Torre»: ». Vuoto
+ * se gira qui, o se non si sa chi guarda.
+ */
+export function suAltroPc(t: Trasloco, nomeDi: (pc: string) => string | undefined = () => undefined, io?: string): string {
+  if (io === undefined || t.verso.pc === io) return ''
+  return `Su «${nomeDi(t.verso.pc) ?? t.verso.nome}»: `
+}
+
+/**
+ * Il trasloco come lo vede un PC dove **non** gira (0.86.2, audit M5): il
+ * dettaglio del passo fermo con il nome del PC che lo dice. Il motivo nel
+ * fermo resta com'è (serve a riconoscere il PC spento nei traslochi di prima).
+ */
+export function vistoDa(t: Trasloco, io: string, nomeDi: (pc: string) => string | undefined = () => undefined): Trasloco {
+  const su = suAltroPc(t, nomeDi, io)
+  if (su === '' || t.fermo === undefined) return t
+  const p = t.passi[t.fermo.passo]
+  if (p.dettaglio === undefined || p.dettaglio.startsWith(su)) return t
+  return { ...t, passi: { ...t.passi, [t.fermo.passo]: { ...p, dettaglio: su + p.dettaglio } } }
+}
+
+/** Dopo quanto un trasloco finito o fallito si toglie dalla cartella `traslochi` (0.86.2, audit M5). */
+export const PULISCI_TRASLOCHI_GIORNI = 7
+
+/** L'ultima volta che il trasloco ha fatto qualcosa. */
+export function ultimaAttivita(t: Trasloco): number {
+  const date = [t.avviatoIl, t.finitoIl, t.annullatoIl, t.fermo?.il, ...Object.values(t.passi).map((p) => p.il)]
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => Date.parse(x))
+    .filter((x) => !Number.isNaN(x))
+  return date.length === 0 ? 0 : Math.max(...date)
+}
+
+/**
+ * Il record si può togliere dalla cartella `traslochi` (0.86.2, audit M5):
+ * finito, annullato o fallito (fermo per un motivo che non passa da solo), e
+ * fermo da più di `PULISCI_TRASLOCHI_GIORNI`. Mai se «Annulla tutto» si può
+ * ancora fare (30 giorni dalla fine) o se ci sono copie da sistemare quando il
+ * loro PC torna: il record è quello che serve a farlo.
+ */
+export function daTogliere(t: Trasloco, adesso: number, giorni = PULISCI_TRASLOCHI_GIORNI): boolean {
+  const chiuso = finito(t) || (t.fermo !== undefined && !t.fermo.riprovaDaSolo)
+  if (!chiuso) return false
+  if (adesso - ultimaAttivita(t) < giorni * 86_400_000) return false
+  if (annullabile(t, adesso) || copieDopo(t).length > 0) return false
+  return true
 }
 
 /** «Vai avanti senza» quel PC (0.71.1): il passo fermo riparte, senza aspettarlo. */
