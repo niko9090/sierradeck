@@ -106,6 +106,24 @@ const migra = (): VistaOrchestratore => {
 }
 
 describe('autopilota unico nel servizio', () => {
+  it('alla ripresa, una chat adottata la cui copia di lavoro non c’è più si chiude (0.88.2), le altre riprendono', async () => {
+    zitto()
+    const sparita = join(tmpdir(), 'sierradeck-wt-che-non-c-e', 'ap-1-c-169')
+    await avviaServizio([ap({ chats: [
+      { id: 'c-1', compito: 'la barra', stato: 'lavoro', cicli: 1, sessionId: 's-1', cartella: sparita },
+      { id: 'c-2', compito: 'il menu', stato: 'lavoro', cicli: 1, sessionId: 's-2' }
+    ] })])
+    const { autopilota } = migra()
+    expect(server!.riprendiLavori()).toBe(1)
+    const unico = archivio.leggi(autopilota!)!
+    expect(unico.chats.map((c) => [c.id, c.stato])).toEqual([['c-1', 'finita'], ['c-2', 'lavoro']])
+    expect(unico.decisioni.at(-1)?.cosa).toContain('copia di lavoro non c’è più')
+    // Al riavvio dopo non c'è più niente da chiudere.
+    const decisioni = unico.decisioni.length
+    server!.riprendiLavori()
+    expect(archivio.leggi(autopilota!)!.decisioni.length).toBe(decisioni)
+  })
+
   it('all’avvio la chat viva passa all’autopilota del workspace, il vecchio esce dall’elenco, l’orchestratore riparte dalla coda', async () => {
     zitto()
     await avviaServizio([ap()])

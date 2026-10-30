@@ -77,6 +77,8 @@ export type ContestoUnico = {
   ultimoDetto?: (cwd: string, sessionId: string) => string | undefined
   git?: Git
   gitAsincrono?: GitAsincrono
+  /** La cartella c'è? Nelle prove si finge; di base, il disco. */
+  cartellaEsiste?: (cartella: string) => boolean
   esegui: Esecutore
   scadenzaDomandaMs: number
   salva: (a: Autopilota) => void
@@ -241,6 +243,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     return i.autopilota === undefined ? undefined : x.archivio.leggi(i.autopilota)
   }
   const eUnico = (a: Autopilota): boolean => imp(wsDi(a)).autopilota === a.id
+  const esisteCartella = x.cartellaEsiste ?? ((c: string): boolean => { try { return statSync(c).isDirectory() } catch { return false } })
   const unici = (): Autopilota[] => x.archivio.elenca().filter(eUnico)
   /** Gli autopiloti di prima del workspace non ancora passati al suo unico, con i loro campi di allora. */
   const vecchiDel = (ws: string): Vecchio[] => {
@@ -728,8 +731,25 @@ ${NOTA_SENZA_GIT}`,
     }
   }
 
-  /** Dopo un riavvio del programma: le chat adottate vive riprendono da dove erano. */
-  const riprendi = (a: Autopilota): number => {
+  /**
+   * Dopo un riavvio del programma: le chat adottate vive riprendono da dove erano.
+   * Una chat la cui copia di lavoro non c'è più (0.88.2: le chat degli
+   * autopiloti di prima, worktree tolti) non si può riaprire: si chiude qui,
+   * una volta, invece di riproporla a ogni avvio con un errore per riquadro.
+   */
+  const riprendi = (prima: Autopilota): number => {
+    const sparite = specialistiVivi(prima).filter((c) => c.cartella !== undefined && !esisteCartella(c.cartella))
+    let a = prima
+    if (sparite.length > 0) {
+      const via = new Set(sparite.map((c) => c.id))
+      a = {
+        ...prima,
+        chats: prima.chats.map((c) => (via.has(c.id) ? { ...c, stato: 'finita' as const } : c)),
+        decisioni: [...prima.decisioni, { quando: x.adesso(), cosa: `${sparite.length} chat adottate chiuse: la loro copia di lavoro non c’è più (${sparite.map((c) => c.id).join(', ')})` }]
+      }
+      x.archivio.scrivi(a)
+      console.info(`[orchestratore] ${a.id}: ${sparite.length} chat adottate chiuse, la loro copia di lavoro non c’è più`)
+    }
     let n = 0
     for (const c of specialistiVivi(a)) {
       if (c.stato !== 'lavoro' || c.sessionId === undefined) continue

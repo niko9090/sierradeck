@@ -5636,16 +5636,27 @@ app.on('window-all-closed', () => {
  */
 function guaioChiusura(cosa: string, err?: unknown): void {
   const motivo = err === undefined ? '' : `: ${err instanceof Error ? err.message : String(err)}`
-  console.error(`[chiusura] ${cosa}${motivo}`)
-  registroGlobale?.errore(`[chiusura] ${cosa}${motivo}`)
+  // Una volta sola (0.88.2): la console torna già nel registro.
+  if (registroGlobale !== undefined) registroGlobale.errore(`[chiusura] ${cosa}${motivo}`)
+  else console.error(`[chiusura] ${cosa}${motivo}`)
 }
 
-function conTetto<T>(p: Promise<T>, ms: number, etichetta = 'operazione'): Promise<T | undefined> {
+/**
+ * Il Drive alla chiusura (0.88.2): un salvataggio lungo che non finisce in
+ * tempo non è un guasto. Riprende da solo al prossimo avvio; si dice, senza
+ * finire fra gli errori.
+ */
+function avvisoChiusura(cosa: string): void {
+  if (registroGlobale !== undefined) registroGlobale.info(`[chiusura] ${cosa}`)
+  else console.info(`[chiusura] ${cosa}`)
+}
+
+function conTetto<T>(p: Promise<T>, ms: number, etichetta = 'operazione', scaduto: (cosa: string) => void = guaioChiusura): Promise<T | undefined> {
   return new Promise((risolvi) => {
     const t = setTimeout(() => {
       // Scadere in silenzio era il difetto: 45 secondi passavano e nessuno
       // sapeva che il salvataggio non era arrivato in fondo.
-      guaioChiusura(`${etichetta} interrotta dopo ${Math.round(ms / 1000)} s`)
+      scaduto(`${etichetta} interrotta dopo ${Math.round(ms / 1000)} s`)
       risolvi(undefined)
     }, ms)
     p.then((v) => { clearTimeout(t); risolvi(v) }, () => { clearTimeout(t); risolvi(undefined) })
@@ -5666,7 +5677,7 @@ async function annullaLavoroDrivePerUscire(): Promise<void> {
   l.annulla()
   const scadenza = Date.now() + 10_000
   while (l.occupato() && Date.now() < scadenza) await new Promise((r) => setTimeout(r, 200))
-  if (l.occupato()) guaioChiusura("il lavoro con il Drive non si e' fermato in dieci secondi")
+  if (l.occupato()) avvisoChiusura("il lavoro con il Drive non si e' fermato in dieci secondi: riprende al prossimo avvio")
 }
 
 async function chiudiRisorse(): Promise<void> {
@@ -5724,7 +5735,7 @@ app.on('before-quit', (event) => {
     // L'ultimo salvataggio sul Drive, se l'automatico e' acceso e c'e' qualcosa
     // di cambiato: e' cosi' che l'altro PC trova il lavoro di oggi. Con un
     // tetto, perche' un'uscita non puo' restare appesa a una rete lenta.
-    .then(() => conTetto(sincroniaGlobale?.salvaSeServe({ conArrivo: false }) ?? Promise.resolve(), 45_000, 'salvataggio sul Drive alla chiusura'))
+    .then(() => conTetto(sincroniaGlobale?.salvaSeServe({ conArrivo: false }) ?? Promise.resolve(), 45_000, 'salvataggio sul Drive alla chiusura', (cosa) => avvisoChiusura(`${cosa}: riprende al prossimo avvio`)))
     .catch((err) => guaioChiusura('salvataggio sul Drive fallito', err))
     .finally(() => {
       void chiudiRisorse().finally(() => app.quit())

@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.3',
+    righe: [
+      '**Niente più errori all’avvio per le chat dell’autopilota di prima:** le sue chat, le cui copie di lavoro non ci sono più, venivano riprese a ogni avvio e davano un errore per riquadro. Ora si chiudono una volta e restano chiuse.',
+      '**Chiusura senza falsi allarmi:** un salvataggio sul Drive ancora in corso alla chiusura riprende al prossimo avvio e non finisce più fra gli errori; lo spegnimento normale dei terminali nemmeno.',
+    ]
+  },
+  {
     versione: '0.88.2',
     righe: [
       '**Gli errori arrivano anche a PC di sviluppo spento:** «Manda al PC di sviluppo» li lascia sul Drive e arrivano appena quel PC si accende. Prima l’invio falliva e gli errori restavano dove erano.',

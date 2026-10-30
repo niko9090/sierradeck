@@ -178,6 +178,9 @@ export class PtyHostClient {
 
     child.stderr?.setEncoding('utf8')
     child.stderr?.on('data', (chunk: string) => {
+      // Lo spegnimento voluto non è un guasto (0.88.2): finiva fra gli errori
+      // a ogni chiusura, e da lì nello storico mandato al PC di sviluppo.
+      if (/^\[pty-host\] spegnimento \(/.test(chunk)) { this.racconta(chunk.trim().replace(/^\[pty-host\] /, '')); return }
       console.error('[pty-host]', chunk)
     })
 
