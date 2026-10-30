@@ -4,6 +4,7 @@ import { avanzamentoRichiesta } from '@shared/coda-richieste'
 import type { PercentoWs, Piano } from '@shared/piano-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import type { EventoOrchestratore } from './orchestratore'
+import { durata, type Specialista } from '@shared/flusso-orchestratore'
 
 /**
  * **Lo stato in breve** per l'orchestratore unico (P3): nel prompt di ogni
@@ -24,6 +25,8 @@ export type DatiRiassunto = {
   eventi: EventoOrchestratore[]
   tetti: { ws: number; pc: number; alLavoroPc: number }
   domandeAperte: number
+  /** Gli specialisti nativi (subagenti), dal flusso. */
+  subagenti?: Specialista[]
   adesso: number
 }
 
@@ -67,7 +70,13 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
 
   righe.push('', 'SPECIALISTI:')
   const chats = (d.unico?.chats ?? []).filter((c) => c.fine === undefined)
-  if (chats.length === 0) righe.push('- nessuno')
+  const sub = (d.subagenti ?? []).filter((x) => x.unito !== true).slice(-12)
+  if (chats.length === 0 && sub.length === 0) righe.push('- nessuno')
+  for (const x of sub) {
+    righe.push(`- ${x.id} ${x.ruolo} [${x.stato}, ${durata(x, d.adesso)}]${x.compito !== undefined ? ` compito ${x.compito}` : ''}${x.ramo !== undefined ? ` ramo ${x.ramo}` : ''}: ${corto(x.descrizione, 100)}`)
+    if (x.attivita !== undefined && x.stato === 'lavoro') righe.push(`  ora: ${corto(x.attivita, 160)}`)
+    if (x.riepilogo !== undefined && x.stato !== 'lavoro') righe.push(`  riepilogo: ${corto(x.riepilogo, 400)}`)
+  }
   for (const c of chats) {
     const ruolo = c.ruolo !== undefined ? RUOLI[c.ruolo].nome : 'Chat'
     righe.push(`- ${c.id} ${ruolo} [${c.stato}${c.dal !== undefined ? ` da ${minuti(c.dal, d.adesso)}` : ''}]${c.compitoId !== undefined ? ` compito ${c.compitoId}` : ''}${c.ramo !== undefined ? ` ramo ${c.ramo}` : ''}${c.origine !== undefined ? ` (adottata da ${c.origine.autopilota})` : ''}: ${corto(c.compito, 100)}`)
@@ -77,7 +86,7 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   const adottate = d.unico?.adottate ?? []
   if (adottate.length > 0) righe.push(`Chat adottate di Nicholas: ${adottate.map((x) => `${corto(x.titolo || x.sessionId.slice(0, 8), 40)}${x.soloMia === true ? ' (solo sua: non scriverle)' : ''}`).join('; ')}`)
 
-  righe.push('', `TETTI: specialisti in questo workspace ${chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
+  righe.push('', `TETTI: specialisti al lavoro in questo workspace ${sub.filter((x) => x.stato === 'avviato' || x.stato === 'lavoro').length + chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
 
   if (d.eventi.length > 0) {
     righe.push('', 'EVENTI RECENTI:')

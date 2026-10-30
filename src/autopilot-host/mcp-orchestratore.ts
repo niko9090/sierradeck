@@ -1,9 +1,9 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import { unisci as unisciCoda, type Coda, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
-import { eRuolo, ruoloDaTesto, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
-import { scriviPiano, type CompitoPiano, type Piano } from '@shared/piano-orchestratore'
-import { LEZIONE_MAX, LEZIONI_MAX } from '@shared/lezioni-chat'
+import { scriviPiano, type Piano } from '@shared/piano-orchestratore'
+import type { Specialista } from '@shared/flusso-orchestratore'
+import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
 
 /**
@@ -14,11 +14,13 @@ import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, 
  *
  * - `coda_unisci`: l'invariante della coda, nessun punto perso;
  * - `piano_scrivi`: niente cicli nelle dipendenze, richieste aperte;
- * - `specialista_apri`: il compito pronto, i tetti (3 per workspace, al più 4;
- *   `min(posti, 4)` sul PC);
- * - `specialista_scrivi`: il testo arriva solo a chat ferma;
- * - `specialista_chiudi`: unita solo con il ramo unito; le lezioni al quaderno;
  * - `unisci`: il cancello, che il modello non può scavalcare;
+ * - `permesso`: il `--permission-prompt-tool` della CLI; quello che chiede
+ *   ancora un permesso diventa una domanda nel riquadro, e la risposta torna
+ *   come esito dello strumento.
+ *
+ * Gli specialisti sono subagenti nativi (`--agents`): li apre, li segue e li
+ * chiude la CLI; il tetto è `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`.
  * - `chiedi_utente`: registro delle domande, doppioni, tetto all'ora;
  * - `quaderno_annota`, `stato`.
  */
@@ -29,7 +31,7 @@ export const NOME_SERVER_ORCHESTRATORE = 'sierradeck'
 export const SPECIALISTI_PC_MAX = 4
 /** Domande a Nicholas all'ora, al più. */
 export const DOMANDE_ORA_ORCHESTRATORE = 4
-const TESTO_MAX = 8000
+
 
 // ---------------------------------------------------------------- gettoni
 
@@ -97,17 +99,12 @@ export type AmbienteOrchestratore = {
   scriviPiano: (ws: string, p: Piano) => void
   /** L'autopilota unico del workspace. */
   unico: (ws: string) => Autopilota | undefined
-  /** Il tetto degli specialisti del workspace (impostazione, 1-4). */
-  tettoWs: (ws: string) => number
-  /** I posti del PC per le chat (`posti()`). */
-  posti: () => number
-  /** Le chat al lavoro su tutto il PC, di ogni autopilota. */
-  chatAlLavoroSulPc: () => number
-  apriSpecialista: (ws: string, p: { compito: CompitoPiano; ruolo: Ruolo; istruzioni: string }) => Promise<EsitoAmbiente>
-  scriviSpecialista: (ws: string, chat: string, testo: string) => EsitoAmbiente
-  chiudiSpecialista: (ws: string, chat: string, esito: 'unita' | 'abbandonata', lezioni: string[]) => EsitoAmbiente
+  /** Gli specialisti (subagenti) del workspace, come li legge il flusso. */
+  specialisti: (ws: string) => Specialista[]
   /** Avvia il cancello: l'esito arriva dopo, come evento. */
-  unisci: (ws: string, chat: string) => EsitoAmbiente
+  unisci: (ws: string, p: { compito?: string; specialista?: string; ramo?: string }) => EsitoAmbiente
+  /** Una richiesta di permesso della CLI: si risolve con la risposta di Nicholas (o con un no allo scadere). */
+  permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
   chiedi: (ws: string, domanda: string, scelte: string[]) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
@@ -183,48 +180,17 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
     }
   },
   {
-    name: 'specialista_apri',
-    title: 'Apri uno specialista',
-    description: 'Apre una chat specialista per un compito del piano pronto (da fare, dipendenze unite): la sua copia del progetto (worktree, ramo suo) e le tue istruzioni, nel mosaico di Nicholas. Al più 3 specialisti insieme per workspace e pochi su tutto il PC: se il tetto è pieno il programma rifiuta, aspetta che uno finisca. Ruoli: sviluppo, interfaccia, collaudo, revisione, rilascio.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        compito: { type: 'string', description: 'L’id del compito del piano.' },
-        ruolo: { type: 'string', enum: [...RUOLI_ORDINE] },
-        istruzioni: { type: 'string', description: 'Cosa deve fare, con i file e i vincoli che sai. Il compito e il criterio li aggiunge il programma.' }
-      },
-      required: ['compito', 'istruzioni']
-    }
-  },
-  {
-    name: 'specialista_scrivi',
-    title: 'Scrivi a uno specialista',
-    description: 'Manda un messaggio a una chat specialista. Arriva solo quando la chat è ferma (a fine turno): non la interrompe.',
-    inputSchema: {
-      type: 'object',
-      properties: { chat: { type: 'string', description: 'L’id della chat (c-N).' }, testo: { type: 'string' } },
-      required: ['chat', 'testo']
-    }
-  },
-  {
-    name: 'specialista_chiudi',
-    title: 'Chiudi uno specialista',
-    description: 'Chiude una chat specialista finita: «unita» solo se il suo ramo è già entrato con unisci; «abbandonata» se il compito torna da fare. Le lezioni (al più 3 righe di 200 caratteri) vanno nel quaderno del progetto; poi la chat si elimina da sola.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        chat: { type: 'string' },
-        esito: { type: 'string', enum: ['unita', 'abbandonata'] },
-        lezioni: { type: 'array', items: { type: 'string' } }
-      },
-      required: ['chat', 'esito']
-    }
-  },
-  {
     name: 'unisci',
-    title: 'Unisci il ramo di uno specialista',
-    description: 'Il cancello: il programma prova il ramo della chat nella cartella principale, lo unisce se non rompe i criteri che passavano, poi misura il criterio del compito. I fatti vincono: un criterio rosso non diventa verde a parole. Parte subito; l’esito ti arriva come evento nella chiamata dopo.',
-    inputSchema: { type: 'object', properties: { chat: { type: 'string' } }, required: ['chat'] }
+    title: 'Unisci il lavoro di uno specialista',
+    description: 'Il cancello: il programma trova il ramo dello specialista (dal compito del piano, dall’id dello specialista, o dal ramo che dai tu), lo prova nella cartella principale, lo unisce se non rompe i criteri che passavano, poi misura il criterio del compito. I fatti vincono: un criterio rosso non diventa verde a parole. Parte subito; l’esito ti arriva dopo, come evento.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        compito: { type: 'string', description: 'L’id del compito del piano (k-N).' },
+        specialista: { type: 'string', description: 'Facoltativo: l’id dello specialista (quello dello stato), o di una chat adottata (c-N).' },
+        ramo: { type: 'string', description: 'Facoltativo: il ramo git da unire, se il programma non lo trova da sé.' }
+      }
+    }
   },
   {
     name: 'chiedi_utente',
@@ -237,6 +203,16 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
         scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima.' }
       },
       required: ['domanda']
+    }
+  },
+  {
+    name: 'permesso',
+    title: 'Permesso per uno strumento',
+    description: 'Lo usa la CLI da sola quando uno strumento chiede un permesso: la domanda va a Nicholas nel riquadro. Non chiamarlo tu.',
+    inputSchema: {
+      type: 'object',
+      properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+      required: ['tool_name']
     }
   },
   {
@@ -258,30 +234,6 @@ const str = (x: unknown): string => (typeof x === 'string' ? x.trim() : '')
 /** Le chat specialiste vive (non finite) di un autopilota unico. */
 export function specialistiVivi(a: Pick<Autopilota, 'chats'> | undefined): ChatGovernata[] {
   return (a?.chats ?? []).filter((c) => c.stato !== 'finita' && c.fine === undefined)
-}
-
-/**
- * Si può aprire uno specialista? I due tetti: quello del workspace
- * (impostazione, 1-4) e quello del PC (`min(posti, 4)` chat al lavoro).
- */
-export function puoAprire(p: { vivi: number; tettoWs: number; alLavoroPc: number; posti: number }): { ok: true } | { ok: false; motivo: string } {
-  const tettoWs = Math.min(4, Math.max(1, p.tettoWs))
-  if (p.vivi >= tettoWs) return { ok: false, motivo: `ci sono già ${p.vivi} specialisti in questo workspace (al più ${tettoWs}): aspetta che uno finisca, o chiudine uno` }
-  const tettoPc = Math.min(Math.max(0, p.posti), SPECIALISTI_PC_MAX)
-  if (p.alLavoroPc >= tettoPc) return { ok: false, motivo: `il PC ha già ${p.alLavoroPc} chat al lavoro (al più ${tettoPc} adesso): riprova quando se ne libera una` }
-  return { ok: true }
-}
-
-/** Il compito si può affidare: c'è, è da fare, le dipendenze sono unite, nessuno ci lavora. */
-export function compitoAffidabile(piano: Piano, id: string, vivi: ChatGovernata[]): { ok: true; compito: CompitoPiano } | { ok: false; motivo: string } {
-  const c = piano.compiti.find((x) => x.id === id)
-  if (c === undefined) return { ok: false, motivo: `il compito ${id} non è nel piano (scrivilo prima con piano_scrivi)` }
-  if (c.stato !== 'da-fare') return { ok: false, motivo: `il compito ${id} è già ${c.stato}` }
-  const chi = vivi.find((x) => x.compitoId === id)
-  if (chi !== undefined) return { ok: false, motivo: `il compito ${id} ce l’ha già ${chi.id}` }
-  const mancano = c.dopo.filter((d) => piano.compiti.find((x) => x.id === d)?.stato !== 'unito')
-  if (mancano.length > 0) return { ok: false, motivo: `il compito ${id} viene dopo ${mancano.join(', ')}, non ancora uniti` }
-  return { ok: true, compito: c }
 }
 
 function leggiPuntiProposti(raw: unknown): PuntoProposto[] | undefined {
@@ -338,63 +290,31 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       return si(`Piano registrato: ${e.nuovi.length} nuovi${e.nuovi.length > 0 ? ` (${e.nuovi.join(', ')})` : ''}, ${e.cambiati.length} aggiornati. ${e.piano.compiti.length} compiti in tutto.`)
     }
 
-    case 'specialista_apri': {
-      const id = str(arg.compito)
-      const istruzioni = str(arg.istruzioni)
-      if (istruzioni === '') return no('mancano le istruzioni per lo specialista')
-      if (istruzioni.length > TESTO_MAX) return no(`istruzioni troppo lunghe (al più ${TESTO_MAX} caratteri)`)
-      if (arg.ruolo !== undefined && !eRuolo(arg.ruolo)) return no(`ruolo sconosciuto: ${String(arg.ruolo)} (${RUOLI_ORDINE.join(', ')})`)
-      const a = amb.unico(ws)
-      if (a === undefined) return no('l’autopilota unico di questo workspace non c’è')
-      const vivi = specialistiVivi(a)
-      const affidabile = compitoAffidabile(amb.piano(ws), id, vivi)
-      if (!affidabile.ok) return no(affidabile.motivo)
-      const tetto = puoAprire({ vivi: vivi.length, tettoWs: amb.tettoWs(ws), alLavoroPc: amb.chatAlLavoroSulPc(), posti: amb.posti() })
-      if (!tetto.ok) return no(tetto.motivo)
-      const ruolo: Ruolo = eRuolo(arg.ruolo) ? arg.ruolo : ruoloDaTesto(affidabile.compito.titolo)
-      const e = await amb.apriSpecialista(ws, { compito: affidabile.compito, ruolo, istruzioni })
-      return e.ok ? si(e.testo) : no(e.motivo)
-    }
-
-    case 'specialista_scrivi': {
-      const chat = str(arg.chat)
-      const testo = str(arg.testo)
-      if (testo === '') return no('il messaggio è vuoto')
-      if (testo.length > TESTO_MAX) return no(`messaggio troppo lungo (al più ${TESTO_MAX} caratteri)`)
-      const c = amb.unico(ws)?.chats.find((x) => x.id === chat)
-      if (c === undefined) return no(`la chat ${chat} non è uno specialista di questo workspace`)
-      if (c.stato === 'finita' || c.fine !== undefined) return no(`la chat ${chat} è già chiusa`)
-      const e = amb.scriviSpecialista(ws, chat, testo)
-      return e.ok ? si(e.testo) : no(e.motivo)
-    }
-
-    case 'specialista_chiudi': {
-      const chat = str(arg.chat)
-      const esito = arg.esito === 'unita' || arg.esito === 'abbandonata' ? arg.esito : undefined
-      if (esito === undefined) return no('l’esito è «unita» o «abbandonata»')
-      const lezioni = Array.isArray(arg.lezioni) ? arg.lezioni.filter((x): x is string => typeof x === 'string').map((x) => x.replace(/\s+/gu, ' ').trim()).filter((x) => x !== '') : []
-      if (lezioni.length > LEZIONI_MAX) return no(`al più ${LEZIONI_MAX} lezioni`)
-      const lunga = lezioni.find((x) => x.length > LEZIONE_MAX)
-      if (lunga !== undefined) return no(`una lezione supera ${LEZIONE_MAX} caratteri: «${lunga.slice(0, 60)}…»`)
-      const c = amb.unico(ws)?.chats.find((x) => x.id === chat)
-      if (c === undefined) return no(`la chat ${chat} non è uno specialista di questo workspace`)
-      if (c.fine !== undefined) return no(`la chat ${chat} è già in chiusura`)
-      if (esito === 'unita' && c.ramo !== undefined) {
-        const compito = c.compitoId !== undefined ? amb.piano(ws).compiti.find((x) => x.id === c.compitoId) : undefined
-        if (compito !== undefined && compito.stato !== 'unito' && c.conclusa?.come !== 'unito') return no(`il ramo di ${chat} non è ancora unito: prima unisci(${chat}), o chiudila «abbandonata»`)
-      }
-      const e = amb.chiudiSpecialista(ws, chat, esito, lezioni)
-      return e.ok ? si(e.testo) : no(e.motivo)
-    }
-
     case 'unisci': {
-      const chat = str(arg.chat)
-      const c = amb.unico(ws)?.chats.find((x) => x.id === chat)
-      if (c === undefined) return no(`la chat ${chat} non è uno specialista di questo workspace`)
-      if (c.fine !== undefined) return no(`la chat ${chat} è già in chiusura`)
-      if (c.ramo === undefined) return no(`la chat ${chat} non ha un ramo suo: non c’è niente da unire`)
-      const e = amb.unisci(ws, chat)
+      const compito = str(arg.compito)
+      const specialista = str(arg.specialista)
+      const ramo = str(arg.ramo)
+      if (compito === '' && specialista === '' && ramo === '') return no('dimmi il compito (k-N), o lo specialista, o il ramo')
+      if (ramo !== '' && (!/^[\w./-]{1,200}$/u.test(ramo) || ramo.startsWith('-') || ramo.includes('..'))) return no(`ramo non valido: ${ramo}`)
+      if (compito !== '') {
+        const k = amb.piano(ws).compiti.find((x) => x.id === compito)
+        if (k === undefined) return no(`il compito ${compito} non è nel piano`)
+        if (k.stato === 'unito' && k.criterioVerde === true) return no(`il compito ${compito} è già unito, con il criterio verde`)
+      }
+      if (specialista !== '') {
+        const noto = amb.specialisti(ws).some((x) => x.id === specialista || x.task === specialista || x.agente === specialista) || amb.unico(ws)?.chats.some((c) => c.id === specialista) === true
+        if (!noto) return no(`lo specialista ${specialista} non è di questo workspace`)
+      }
+      const e = amb.unisci(ws, { ...(compito !== '' ? { compito } : {}), ...(specialista !== '' ? { specialista } : {}), ...(ramo !== '' ? { ramo } : {}) })
       return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'permesso': {
+      const strumento = str(arg.tool_name) || 'uno strumento'
+      const input = typeof arg.input === 'object' && arg.input !== null ? arg.input : {}
+      const r = await amb.permesso(ws, strumento, input)
+      // La risposta che la CLI si aspetta: un JSON nel testo.
+      return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'Nicholas non l’ha permesso' }))
     }
 
     case 'chiedi_utente': {

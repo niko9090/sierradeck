@@ -31,7 +31,7 @@ import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
-import { esecutoreClaudeReale } from './orchestratore'
+import { avviaProcessoReale } from './orchestratore'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -435,13 +435,15 @@ export function avviaServizio(): void {
     // P3: l'autopilota unico per workspace, accanto alla sua coda. Parte con i
     // workspace nuovi; quelli di prima lo accendono con «Attiva».
     orchestratori: apriOrchestratori(join(cartellaStato(), '..', 'orchestratori')),
-    esecutoreClaude: esecutoreClaudeReale(claudeCmd()),
+    avviaProcesso: avviaProcessoReale(claudeCmd()),
     porta: PORTA,
     indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd),
     unicoPerNuovi: true
   })
 
   serverPronto = server
+  // P3: i processi `claude` degli orchestratori se ne vanno con il servizio.
+  process.on('exit', () => { server.spegniOrchestratori() })
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       // Istanza unica: qualcun altro è già in ascolto. Uscire è la risposta

@@ -87,6 +87,10 @@ export type ArchivioOrchestratori = {
   aggiungiDialogo: (ws: string, r: RigaDialogo) => void
   /** Le ultime righe del dialogo, dal file. */
   ultimeDialogo: (ws: string, n: number) => RigaDialogo[]
+  /** Scrive un file del workspace (agenti, impostazioni della CLI) e ne torna il percorso. */
+  scriviFile: (ws: string, nome: string, contenuto: string) => string
+  /** Il costo di un turno (dal `result` della CLI), solo aggiunte. */
+  aggiungiCosto: (ws: string, c: Record<string, unknown>) => void
 }
 
 export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
@@ -140,6 +144,20 @@ export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
         appendFileSync(file(ws, 'dialogo.jsonl'), `${JSON.stringify(r)}\n`, 'utf8')
       } catch (err) {
         console.error(`[orchestratore] ${ws}: dialogo non scritto:`, err)
+      }
+    },
+    scriviFile(ws, nome, contenuto) {
+      try { mkdirSync(dir(ws), { recursive: true }) } catch { /* lo dice la scrittura */ }
+      scriviAtomico(file(ws, nome), contenuto, 'orchestratore')
+      return file(ws, nome)
+    },
+    aggiungiCosto(ws, c) {
+      try {
+        mkdirSync(dir(ws), { recursive: true })
+        appendFileSync(file(ws, 'costi.jsonl'), `${JSON.stringify(c)}
+`, 'utf8')
+      } catch (err) {
+        console.error(`[orchestratore] ${ws}: costo non scritto:`, err)
       }
     },
     ultimeDialogo(ws, n) {

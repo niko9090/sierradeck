@@ -57,7 +57,7 @@ import { conVersioni, registraRichieste, rigaRegistrate, sembraRichiesta, tieniR
 import type { RichiestaNicholas } from '@shared/richieste-nicholas'
 import type { ArchivioCode } from './coda-store'
 import type { ArchivioOrchestratori } from './orchestratore-store'
-import type { EsecutoreClaude } from './orchestratore'
+import type { AvviaProcesso } from './orchestratore'
 import { creaServizioUnico, type ServizioUnico } from './servizio-orchestratore'
 import { aggiungiDalMessaggio, allineaConAutopiloti, autopilotiDel, candidatePerPrompt, migraAutopiloti, misuraDaAutopiloti, type CandidataNelPrompt } from './coda-autopiloti'
 import {
@@ -285,11 +285,11 @@ export type Dipendenze = {
   /**
    * P3: l'autopilota unico di ogni workspace, dietro il suo interruttore
    * (`orchestratori/<workspace>/orchestratore.json`). Servono la coda, questo
-   * archivio e chi lancia `claude -p`; assenti (test vecchi), nessun
+   * archivio e chi avvia il processo `claude`; assenti (test vecchi), nessun
    * workspace lo accende e tutto va come prima.
    */
   orchestratori?: ArchivioOrchestratori
-  esecutoreClaude?: EsecutoreClaude
+  avviaProcesso?: AvviaProcesso
   /** La porta del servizio, per l'URL MCP dell'orchestratore. */
   porta?: number
   /** L'indice del quaderno del progetto (P2), nel prompt dell'orchestratore. */
@@ -699,6 +699,8 @@ function applicaCambio(
  * rotte: far ripartire le preparazioni che uno spegnimento ha interrotto.
  */
 export type ServerAutopiloti = Server & {
+  /** P3: spegne i processi `claude` degli orchestratori (uscita del servizio). */
+  spegniOrchestratori: () => void
   riprendiInterviste: () => void
   /** Il giro di guardia sulle chat che non chiudono più un turno. */
   controllaChatFerme: () => void
@@ -7085,12 +7087,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   // P3: l'autopilota unico per workspace, con quello che il servizio gli presta.
-  if (deps.coda !== undefined && deps.orchestratori !== undefined && deps.esecutoreClaude !== undefined) {
+  if (deps.coda !== undefined && deps.orchestratori !== undefined && deps.avviaProcesso !== undefined) {
     servizioUnico = creaServizioUnico({
       archivio: deps.archivio,
       code: deps.coda,
       orchestratori: deps.orchestratori,
-      esecutoreClaude: deps.esecutoreClaude,
+      avviaProcesso: deps.avviaProcesso,
       porta: deps.porta ?? 47630,
       versione: deps.versione ?? '0.0.0',
       adesso: () => deps.adesso(),
@@ -7107,8 +7109,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       salva,
       annota,
       avviaLavoro: (a, messaggio, chat) => avviaLavoro(a, messaggio, chat),
-      fermaLavoro: deps.fermaLavoro,
-      consegnaAlleFerme: (id) => { consegnaAlleChatFerme({ autopilota: id, subito: true }) },
       avanzaFinite: () => { void avanzaFiniteDaSole() },
       posti: postiAdesso,
       chatAlLavoroSulPc: () => chatAlLavoroSulPc(deps.archivio.elenca()),
@@ -7119,5 +7119,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     })
   }
 
-  return Object.assign(server, { controllaPromesse, aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  server.on('close', () => { servizioUnico?.spegni() })
+  return Object.assign(server, { spegniOrchestratori: () => { servizioUnico?.spegni() }, controllaPromesse, aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

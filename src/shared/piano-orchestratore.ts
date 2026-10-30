@@ -264,7 +264,14 @@ export type VistaOrchestratore = {
   calo?: CaloPercento
   /** Una chiamata è in volo adesso, o un messaggio la aspetta: la vista dice «sta pensando». */
   pensa: boolean
-  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string }[]
+  /** Gli specialisti: subagenti (con ruolo, attività, stato e durata) e chat adottate. */
+  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true }[]
+  /** Il processo `claude` del workspace è acceso. */
+  vivo: boolean
+  /** Le ultime righe del registro dal vivo (turni, specialisti, strumenti). */
+  registro: { quando: string; tipo: string; testo: string }[]
+  /** Quanto è costato: oggi e l'ultimo turno (dal `result` della CLI). */
+  costo: { oggiUsd: number; turniOggi: number; ultimoUsd?: number; contesto?: number }
   piano: { totale: number; uniti: number }
   /** Gli autopiloti di prima, in sola lettura. */
   precedenti: { id: string; nome: string; stato: string; iniziatoIl: string }[]

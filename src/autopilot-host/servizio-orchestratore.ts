@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import {
-  DIALOGO_RICORDATO, idChatNuova,
-  type Autopilota, type ChatGovernata, type Traguardo
-} from '@shared/autopilota'
+import { statSync } from 'node:fs'
+import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo } from '@shared/autopilota'
 import {
   aggiungi, avanzamentoCoda, candidatiUnione, chiaveWorkspace, daSeguire,
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
@@ -11,46 +9,47 @@ import {
   allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita,
   type CompitoPiano, type Piano, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
-import { preamboloRuolo, RUOLI, type Ruolo } from '@shared/ruoli-agenti'
-import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
-import { REGOLA_SEGNALE } from '@shared/segnali-flotta'
-import { REGOLA_LEZIONI } from '@shared/lezioni-chat'
+import { durata, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
+import { RUOLI } from '@shared/ruoli-agenti'
+import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { autopilotiDel, migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import { aperteSulloStesso } from './domande-doppie'
-import { conMessaggioPerLaChat } from './dialogo'
 import { fallitiDavvero, nonMisurati } from './rete-sicurezza'
 import { misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import type { Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
-import {
-  comeAsincrono, creaWorktreeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono,
-  type Git, type GitAsincrono
-} from './worktree'
+import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
   type AmbienteOrchestratore, type EsitoAmbiente
 } from './mcp-orchestratore'
 import {
   creaOrchestratore, SILENZIO_SPECIALISTA_MS,
-  type EsecutoreClaude, type EventoOrchestratore, type Orchestratore
+  type AvviaProcesso, type ContestoTurno, type EventoOrchestratore, type Orchestratore
 } from './orchestratore'
 import type { ArchivioOrchestratori, ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
 import { TETTO_SPECIALISTI_MAX } from './orchestratore-store'
 import { fermataSpecialista } from './stop-specialista'
 import { hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
+import { fileAgenti, fileImpostazioniCli } from './agenti-orchestratore'
 
 /**
- * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore
- * (`orchestratore.ts`), i suoi strumenti (`mcp-orchestratore.ts`), lo Stop
- * veloce, la migrazione e la percentuale al servizio degli autopiloti
- * (`server.ts`), che gli presta quello che ha già: salvare, annotare,
- * consegnare nel mosaico, l'unione di prova nel principale, i posti del PC.
+ * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore (un
+ * processo `claude` lungo per workspace, `orchestratore.ts`), i suoi
+ * strumenti (`mcp-orchestratore.ts`), il flusso dei subagenti
+ * (`@shared/flusso-orchestratore`), il cancello di unione, la migrazione e la
+ * percentuale al servizio degli autopiloti (`server.ts`), che gli presta
+ * quello che ha già: salvare, annotare, l'unione di prova nel principale.
+ *
+ * Gli specialisti sono subagenti nativi: niente chat del mosaico. Restano
+ * chat del mosaico solo quelle **adottate** dagli autopiloti di prima, che
+ * finiscono il loro lavoro dove sono (il loro Stop diventa un evento).
  *
  * Tutto dietro l'interruttore del workspace (`orchestratore.json`): spento,
  * il workspace va con gli autopiloti di prima, come sempre.
@@ -63,7 +62,7 @@ export type ContestoUnico = {
   archivio: { leggi: (id: string) => Autopilota | undefined; elenca: () => Autopilota[]; scrivi: (a: Autopilota) => void }
   code: ArchivioCode
   orchestratori: ArchivioOrchestratori
-  esecutoreClaude: EsecutoreClaude
+  avviaProcesso: AvviaProcesso
   porta: number
   versione: string
   adesso: () => string
@@ -79,23 +78,23 @@ export type ContestoUnico = {
   scadenzaDomandaMs: number
   salva: (a: Autopilota) => void
   annota: (a: Autopilota, cosa: string, traguardo?: Traguardo) => void
+  /** Per le chat adottate: riprenderle dopo un riavvio. */
   avviaLavoro: (a: Autopilota, messaggio: string | undefined, chat: ChatGovernata) => Promise<EsitoAvvioUnico>
-  fermaLavoro: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
-  /** Porta i messaggi in coda alle chat ferme (lo Stop li porta a fine turno). */
-  consegnaAlleFerme: (autopilotaId: string) => void
-  /** Fa avanzare la fine delle chat chiuse (P2). */
+  /** Fa avanzare la fine delle chat adottate chiuse (P2). */
   avanzaFinite: () => void
   posti: () => number
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<{ unito: true } | { unito: false; motivo: string }>
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
-  /** L'ultimo segno di vita di una chat (hook, battiti), in ms. */
+  /** L'ultimo segno di vita di una chat adottata (hook, battiti), in ms. */
   ultimoSegnale: (autopilotaId: string, chatId: string) => number | undefined
-  /** Per i test: la raccolta degli eventi. */
+  /** Per i test. */
   raccoltaEventiMs?: number
-  /** Per i test: le chiamate su tutto il PC. */
   chiamateMax?: number
+  inattivoMs?: number
+  /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
+  attesaPermessoMs?: number
 }
 
 export type { VistaOrchestratore }
@@ -115,6 +114,7 @@ export type ServizioUnico = {
   /** Un workspace nuovo (nessun autopilota, mai visto) parte con l'autopilota unico. */
   nuovoWorkspace: (ws: string) => boolean
   messaggio: (a: Autopilota, testo: string, quando?: string) => Autopilota
+  /** Lo Stop di una chat **adottata**: registra e fa un evento, senza modello. */
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
   notifica: (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>) => void
   /** Una risposta di Nicholas a una domanda dell'unico: torna `true` se l'ha presa. */
@@ -123,11 +123,58 @@ export type ServizioUnico = {
   riprendi: (a: Autopilota) => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
+  /** Il servizio si spegne: i processi `claude` con lui. */
+  spegni: () => void
   orchestratore: Orchestratore
   ambiente: AmbienteOrchestratore
 }
 
 const EVENTI_RICORDATI = 30
+const ATTESA_PERMESSO_MS = 10 * 60_000
+
+/** Una voce di `git worktree list --porcelain`. */
+export type VoceWorktree = { cartella: string; ramo?: string }
+
+export function leggiWorktree(porcelain: string): VoceWorktree[] {
+  const fuori: VoceWorktree[] = []
+  for (const blocco of porcelain.split(/\r?\n\r?\n/u)) {
+    const righe = blocco.split(/\r?\n/u)
+    const w = righe.find((r) => r.startsWith('worktree '))
+    if (w === undefined) continue
+    const b = righe.find((r) => r.startsWith('branch '))
+    fuori.push({ cartella: w.slice('worktree '.length).trim(), ...(b !== undefined ? { ramo: b.slice('branch '.length).trim().replace(/^refs\/heads\//u, '') } : {}) })
+  }
+  return fuori
+}
+
+const normale = (p: string): string => p.replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+
+/**
+ * Il ramo del worktree di uno specialista. In ordine: quello che dicono gli
+ * eventi; il worktree con la sua cartella; quello con l'id dell'agente nel
+ * percorso o nel ramo; altrimenti l'unico worktree di subagente
+ * (`.claude/worktrees/agent-…`) nato dopo la sua partenza e non già preso.
+ */
+export function ramoDelloSpecialista(
+  sp: Pick<Specialista, 'ramo' | 'cartella' | 'agente' | 'inizio'>,
+  voci: VoceWorktree[],
+  p: { presi: Set<string>; nato: (cartella: string) => number | undefined }
+): { ok: true; ramo: string; cartella?: string } | { ok: false; motivo: string } {
+  if (sp.ramo !== undefined) return { ok: true, ramo: sp.ramo, ...(sp.cartella !== undefined ? { cartella: sp.cartella } : {}) }
+  if (sp.cartella !== undefined) {
+    const v = voci.find((x) => normale(x.cartella) === normale(sp.cartella!))
+    if (v?.ramo !== undefined) return { ok: true, ramo: v.ramo, cartella: v.cartella }
+  }
+  if (sp.agente !== undefined) {
+    const v = voci.find((x) => x.ramo !== undefined && (normale(x.cartella).includes(sp.agente!.toLowerCase()) || x.ramo.toLowerCase().includes(sp.agente!.toLowerCase())))
+    if (v?.ramo !== undefined) return { ok: true, ramo: v.ramo, cartella: v.cartella }
+  }
+  const dal = Date.parse(sp.inizio) - 5_000
+  const candidati = voci.filter((x) => x.ramo !== undefined && /\/\.claude\/worktrees\/agent-/u.test(normale(x.cartella)) && !p.presi.has(x.ramo) && (p.nato(x.cartella) ?? 0) >= dal)
+  if (candidati.length === 1) return { ok: true, ramo: candidati[0]!.ramo!, cartella: candidati[0]!.cartella }
+  if (candidati.length === 0) return { ok: false, motivo: 'non trovo il worktree dello specialista (forse non ha cambiato niente, e la CLI l’ha già tolto): se ha fatto commit, dimmi il ramo con «ramo»' }
+  return { ok: false, motivo: `ci sono più worktree possibili (${candidati.map((c) => c.ramo).join(', ')}): dimmi quale con «ramo»` }
+}
 
 export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const gettoni = creaGettoniOrchestratore()
@@ -135,8 +182,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const silenzioDetto = new Map<string, number>()
   const notificheDette = new Map<string, number>()
   const cancelliInCorso = new Set<string>()
-  const apertureInCorso = new Map<string, Promise<unknown>>()
   const memoriaCriteri: MemoriaCriteri = new Map()
+  /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
+  const uniti = new Map<string, Set<string>>()
   const gitA = (): GitAsincrono | undefined => x.gitAsincrono ?? (x.git !== undefined ? comeAsincrono(x.git) : undefined)
 
   const imp = (ws: string): ImpostazioniOrchestratore => x.orchestratori.impostazioni(ws)
@@ -148,18 +196,25 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     return a?.unico === true ? a : undefined
   }
   const wsDi = (a: Autopilota): string => chiaveWorkspace(a)
+  const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
 
   const misura = (ws: string): MisuraCompito | undefined => {
     if (!attivo(ws)) return undefined
     const u = unicoDi(ws)
-    return misuraUnita(misuraDalPiano(x.orchestratori.piano(ws), u?.chats ?? []), misuraDaAutopiloti(autopilotiDel(ws, x.archivio.elenca())))
+    const chats = [...(u?.chats ?? []), ...subagenti(ws).map((s) => ({ id: s.id, ...(s.attivita !== undefined ? { ultimaAzione: s.attivita } : {}) }))]
+    return misuraUnita(misuraDalPiano(x.orchestratori.piano(ws), chats), misuraDaAutopiloti(autopilotiDel(ws, x.archivio.elenca())))
   }
   const coda = (ws: string): Coda => x.code.leggi(ws)
   const allineaOra = (ws: string): Coda => x.code.cambia(ws, (c) => allineaConPiano(c, x.orchestratori.piano(ws), x.adesso()))
+  const cambiaCompito = (ws: string, id: string | undefined, f: (c: CompitoPiano) => CompitoPiano): void => {
+    if (id === undefined || !x.orchestratori.piano(ws).compiti.some((c) => c.id === id)) return
+    x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), id, f))
+  }
 
   const ricordaEvento = (ws: string, e: EventoOrchestratore): void => {
     recenti.set(ws, [...(recenti.get(ws) ?? []), e].slice(-EVENTI_RICORDATI))
   }
+  /** Un evento esterno (unione, chat adottata, adozione): nel riassunto e, raccolto, all'orchestratore. */
   const evento = (ws: string, e: EventoOrchestratore): void => {
     ricordaEvento(ws, e)
     orchestratore.evento(ws, e)
@@ -193,14 +248,6 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo }].slice(-DIALOGO_RICORDATO) })
   }
 
-  const contestoChiamata = (ws: string): { cwd: string; riassunto: string; indice: string } | undefined => {
-    const u = unicoDi(ws)
-    if (u === undefined) return undefined
-    let indice = ''
-    try { indice = x.indiceQuaderno?.(u.cwd) ?? '' } catch { indice = '' }
-    return { cwd: u.cwd, riassunto: riassunto(ws), indice }
-  }
-
   const riassunto = (ws: string): string => {
     const u = unicoDi(ws)
     const m = misura(ws) ?? misuraDaAutopiloti(autopilotiDel(ws, x.archivio.elenca()))
@@ -211,111 +258,150 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       eventi: recenti.get(ws) ?? [],
       tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), SPECIALISTI_PC_MAX), alLavoroPc: x.chatAlLavoroSulPc() },
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
+      subagenti: subagenti(ws),
       adesso: Date.parse(x.adesso())
     })
   }
 
+  const contestoTurno = (ws: string): ContestoTurno | undefined => {
+    const u = unicoDi(ws)
+    if (u === undefined) return undefined
+    let indice = ''
+    try { indice = x.indiceQuaderno?.(u.cwd) ?? '' } catch { indice = '' }
+    const i = imp(ws)
+    return {
+      cwd: u.cwd,
+      riassunto: riassunto(ws),
+      indice,
+      agenti: x.orchestratori.scriviFile(ws, 'agenti.json', fileAgenti()),
+      impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
+      mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
+      // Il tetto del workspace, dentro i posti del PC.
+      tetto: Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti())))
+    }
+  }
+
+  /** Gli specialisti nativi: il piano li segue, le lezioni vanno al quaderno, il diario li racconta. */
+  const suFlusso = (ws: string, effetti: EffettoFlusso[], _stato: StatoFlusso): void => {
+    for (const e of effetti) {
+      if (e.tipo === 'costo') {
+        x.orchestratori.aggiungiCosto(ws, { ...e.costo })
+        continue
+      }
+      if (e.tipo !== 'specialista-partito' && e.tipo !== 'specialista-finito') continue
+      const s = e.specialista
+      const u = unicoDi(ws)
+      if (e.tipo === 'specialista-partito') {
+        const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
+        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'in-corso', chat: s.id }))
+        if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`); x.salva(dopo) }
+        ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
+        continue
+      }
+      // Finito: le righe LEZIONI: al quaderno, il compito in revisione (o di nuovo da fare).
+      if (u !== undefined && s.riepilogo !== undefined && x.lezioni !== undefined) {
+        const voci = righeLezioni(s.riepilogo, s.ruolo)
+        if (voci.length > 0) {
+          try { x.lezioni(u.cwd, voci, x.adesso()) } catch (err) { console.error(`[orchestratore] lezioni di ${s.id} non scritte:`, err) }
+        }
+      }
+      const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
+      if (k !== undefined && k.stato !== 'unito') {
+        cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
+          ? { ...c, stato: 'in-revisione', esito: `${s.ruolo} ha finito: da unire con unisci` }
+          : { ...c, stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
+      }
+      if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `${s.ruolo} ${s.stato === 'finito' ? 'ha finito' : s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${durata(s, Date.parse(x.adesso()))}: ${s.descrizione.slice(0, 120)}`); x.salva(dopo) }
+      ricalcola(ws, `${s.compito ?? s.ruolo} ${s.stato}`)
+    }
+  }
+
   const orchestratore = creaOrchestratore({
-    esegui: x.esecutoreClaude,
+    avvia: x.avviaProcesso,
     impostazioni: imp,
     cambiaImpostazioni: (ws, f) => { x.orchestratori.cambiaImpostazioni(ws, f) },
-    contesto: contestoChiamata,
+    contesto: contestoTurno,
     ultime: (ws, n) => x.orchestratori.ultimeDialogo(ws, n).filter((r) => r.da !== 'evento'),
-    mcpConfig: (ws) => configMcpOrchestratore(x.porta, ws, gettoni.di(ws)),
     risposta: (ws, testo) => {
       console.info(`[orchestratore] ${ws} — risponde: ${testo.replace(/\s+/gu, ' ').slice(0, 200)}`)
       nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo })
     },
     errore: (ws, motivo) => {
-      console.error(`[orchestratore] ${ws} — chiamata non riuscita: ${motivo}`)
+      console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
       const u = unicoDi(ws)
       if (u === undefined) return
-      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `chiamata non riuscita: ${motivo}` })
+      x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `turno non riuscito: ${motivo}` })
       const dopo = { ...u }
-      x.annota(dopo, `l’autopilota non ha potuto rispondere (${motivo.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con la prossima chiamata`)
+      x.annota(dopo, `l’autopilota non ha potuto rispondere (${motivo.slice(0, 200)}): i tuoi messaggi restano in attesa e partono con il prossimo turno`)
       x.salva(dopo)
     },
+    flusso: suFlusso,
+    adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
-    ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {})
+    ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
+    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {})
   })
 
-  // ---------------------------------------------------------------- gli specialisti
+  // ---------------------------------------------------------------- il cancello
 
-  const primoMessaggio = (a: Autopilota, chat: ChatGovernata, compito: CompitoPiano, istruzioni: string): string => {
-    const r = coda(wsDi(a)).richieste.find((y) => y.id === compito.richiesta)
-    const indice = (() => { try { return x.indiceQuaderno?.(a.cwd) ?? '' } catch { return '' } })()
-    return [
-      ...preamboloRuolo(chat.ruolo),
-      `Il tuo compito (${compito.id}${r !== undefined ? `, per la richiesta ${r.id} «${r.titolo}»` : ''}): ${compito.titolo}`,
-      `Si dice fatto quando: ${compito.criterio}`,
-      '',
-      'Le istruzioni dell’autopilota del workspace:',
-      istruzioni,
-      ...(chat.cartella !== undefined && chat.ramo !== undefined
-        ? ['', `Lavori nella tua copia del progetto (${chat.cartella}), sul ramo ${chat.ramo}: altre chat lavorano in parallelo, ognuna nella sua copia. Fai commit quando un pezzo è compiuto. Non cambiare ramo, non lavorare nella cartella principale e non fare push: quando dici di aver finito l’autopilota prova il tuo ramo nel principale, lo unisce e misura il criterio.`]
-        : []),
-      '',
-      ...REGOLA_RAPPORTO,
-      '',
-      ...REGOLA_SEGNALE,
-      '',
-      ...REGOLA_LEZIONI,
-      '',
-      'Se ti serve una decisione che non puoi prendere tu, chiudi il turno con SEGNALE: bloccata e il motivo: l’autopilota ti risponde, o lo chiede a Nicholas.',
-      ...(indice !== '' ? ['', indice] : [])
-    ].join('\n')
-  }
-
-  const apriOra = async (ws: string, p: { compito: CompitoPiano; ruolo: Ruolo; istruzioni: string }): Promise<EsitoAmbiente> => {
-    const a0 = unicoDi(ws)
-    if (a0 === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
-    if (a0.stato !== 'lavoro') return { ok: false, motivo: 'Nicholas ha fermato l’autopilota: nessuno specialista nuovo finché non lo riprende' }
-    const id = idChatNuova(a0)
-    let dove: { cartella?: string; ramo?: string } = {}
-    const g = gitA()
-    if (g !== undefined && a0.ramoBase !== undefined && p.ruolo !== 'revisione' && p.ruolo !== 'rilascio') {
-      const wt = await creaWorktreeAsincrono(g, { cwd: a0.cwd, autopilota: a0.id, chat: id, base: a0.ramoBase })
-      // Mai uno specialista che scrive codice nella cartella principale, dove si uniscono i rami.
-      if (!wt.ok) return { ok: false, motivo: `la copia del progetto per ${id} non si è potuta creare: ${wt.motivo}` }
-      dove = { cartella: wt.cartella, ramo: wt.ramo }
+  /** Lo specialista da unire: un subagente (per id, task, agente o compito) o una chat adottata. */
+  const daUnire = (ws: string, p: { compito?: string; specialista?: string }): { sub?: Specialista; chat?: ChatGovernata } => {
+    const subs = subagenti(ws)
+    if (p.specialista !== undefined) {
+      const sub = subs.find((s) => s.id === p.specialista || s.task === p.specialista || s.agente === p.specialista)
+      if (sub !== undefined) return { sub }
+      const chat = unicoDi(ws)?.chats.find((c) => c.id === p.specialista)
+      if (chat !== undefined) return { chat }
     }
-    const a = unicoDi(ws) ?? a0
-    if (a.chats.some((c) => c.id === id)) return { ok: false, motivo: `l’id ${id} è già preso: riprova` }
-    const chat: ChatGovernata = { id, compito: p.compito.titolo, stato: 'lavoro', cicli: 0, sessionId: randomUUID(), ruolo: p.ruolo, compitoId: p.compito.id, ...dove }
-    x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), p.compito.id, (c) => ({ ...c, stato: 'in-corso', chat: id })))
-    const dopo: Autopilota = { ...a, chats: [...a.chats, chat] }
-    x.annota(dopo, `apro ${id} (${RUOLI[p.ruolo].nome})${dove.ramo !== undefined ? ` sul ramo ${dove.ramo}` : ''}: ${p.compito.titolo.slice(0, 120)}`, { chat: id, esito: 'aperta' })
-    x.salva(dopo)
-    ricalcola(ws, `${p.compito.id} parte`)
-    const e = await x.avviaLavoro(dopo, primoMessaggio(dopo, chat, p.compito, p.istruzioni), chat)
-    if (e.rifiutata !== undefined) return { ok: false, motivo: `la chat ${id} non è partita: ${e.rifiutata}` }
-    return { ok: true, testo: `Aperta ${id} (${RUOLI[p.ruolo].nome})${dove.ramo !== undefined ? ` sul ramo ${dove.ramo}` : ', nella cartella principale'}, sul compito ${p.compito.id}. Ti arriva un evento quando finisce o si blocca.` }
+    if (p.compito !== undefined) {
+      const k = x.orchestratori.piano(ws).compiti.find((c) => c.id === p.compito)
+      const sub = [...subs].reverse().find((s) => s.id === k?.chat) ?? [...subs].reverse().find((s) => s.compito === p.compito && s.unito !== true)
+      if (sub !== undefined) return { sub }
+      const chat = unicoDi(ws)?.chats.find((c) => c.id === k?.chat || c.compitoId === p.compito)
+      if (chat !== undefined) return { chat }
+    }
+    return {}
   }
 
-  /** Il cancello: prova, unione, criterio. Gira in sottofondo; l'esito è un evento. */
-  const cancello = async (ws: string, chatId: string): Promise<void> => {
-    const testo = await cancelloOra(ws, chatId).catch((err: unknown) => `${chatId}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`)
-    evento(ws, { tipo: 'unione', quando: x.adesso(), chat: chatId, testo })
+  const cancello = async (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): Promise<void> => {
+    const chi = p.specialista ?? p.compito ?? p.ramo ?? '?'
+    const testo = await cancelloOra(ws, p).catch((err: unknown) => `${chi}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`)
+    evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo })
   }
-  const cancelloOra = async (ws: string, chatId: string): Promise<string> => {
+  const cancelloOra = async (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): Promise<string> => {
     const a = unicoDi(ws)
-    const c = a?.chats.find((y) => y.id === chatId)
-    if (a === undefined || c === undefined || c.ramo === undefined) return `${chatId}: non c’è più niente da unire`
-    const compito = c.compitoId !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === c.compitoId) : undefined
+    if (a === undefined) return 'l’autopilota unico non c’è più'
     const g = gitA()
-    if (g === undefined || a.ramoBase === undefined) return `${chatId}: senza git (o senza ramo principale) non si può unire`
-    if (c.cartella !== undefined) await salvaLavoroAsincrono(g, c.cartella, `specialista ${c.id}: ${(compito?.titolo ?? c.compito).slice(0, 60)}`)
-    const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo: c.ramo, base: a.ramoBase })
+    if (g === undefined || a.ramoBase === undefined) return 'senza git (o senza ramo principale) non si può unire'
+    const { sub, chat } = daUnire(ws, p)
+    const compitoId = p.compito ?? sub?.compito ?? chat?.compitoId
+    const compito = compitoId !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === compitoId) : undefined
+    const nome = sub?.id ?? chat?.id ?? compitoId ?? p.ramo ?? '?'
+    // Il ramo: dato, della chat adottata, o del worktree del subagente.
+    let ramo = p.ramo ?? chat?.ramo
+    let cartella = chat?.cartella
+    if (ramo === undefined && sub !== undefined) {
+      const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
+      const presi = new Set(subagenti(ws).filter((s) => s.unito === true && s.ramo !== undefined).map((s) => s.ramo!))
+      const r = ramoDelloSpecialista(sub, lista.codice === 0 ? leggiWorktree(lista.uscita) : [], { presi, nato: (c) => { try { return statSync(c).birthtimeMs } catch { return undefined } } })
+      if (!r.ok) return `${nome}: ${r.motivo}`
+      ramo = r.ramo
+      cartella = r.cartella
+    }
+    if (ramo === undefined) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
+    if (ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
+    if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
+    const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
     let motivo: string | undefined
-    if (chiuso === 'mancante') motivo = `il ramo ${c.ramo} non c’è più`
+    if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
     else if (chiuso === undefined) {
-      const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, c.ramo)
+      const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
       if (!r.unito) motivo = r.motivo
     }
     const il = x.adesso()
     if (motivo !== undefined) {
-      if (compito !== undefined) x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` })))
-      return `${chatId}: unione NON fatta — ${motivo}. Il ramo resta com’è: scrivi allo specialista cosa sistemare (specialista_scrivi).`
+      if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
+      return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.`
     }
     // I fatti vincono: il criterio del compito si misura sul principale, dopo l'unione.
     const comando = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
@@ -335,20 +421,48 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
         dettaglio = verde ? `\`${comando}\` passa` : ignoti.length > 0 ? `\`${comando}\` non si è potuto misurare: ${uscita}` : `\`${comando}\` non passa: ${uscita}`
       }
     }
-    if (compito !== undefined) {
-      x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio })))
+    if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
+    if (sub !== undefined) {
+      const s = uniti.get(ws) ?? new Set<string>()
+      s.add(sub.id)
+      uniti.set(ws, s)
+      // Il worktree del subagente non serve più: via (il ramo unito resta nella storia).
+      if (cartella !== undefined) {
+        void g(['worktree', 'remove', '--force', cartella], a.cwd)
+          .then(() => g(['branch', '-d', ramo!], a.cwd))
+          .catch(() => { /* la pulizia lo ritrova */ })
+      }
     }
     const fresco = unicoDi(ws)
     if (fresco !== undefined) {
-      const dopo: Autopilota = { ...fresco, chats: fresco.chats.map((y) => (y.id === chatId ? { ...y, approvata: true, conclusa: { il, come: 'unito' as const } } : y)) }
-      x.annota(dopo, `${chatId}: ramo ${c.ramo} unito nel principale; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, { chat: chatId, esito: 'unito' })
+      const dopo: Autopilota = chat === undefined ? { ...fresco } : {
+        ...fresco,
+        chats: fresco.chats.map((y) => (y.id === chat.id ? { ...y, stato: 'finita' as const, approvata: true, conclusa: { il, come: 'unito' as const }, fine: { esito: 'unita' as const, il, passo: 'chiudi' as const } } : y))
+      }
+      x.annota(dopo, `${nome}: ramo ${ramo} unito nel principale; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, { chat: chat?.id ?? nome, esito: 'unito' })
       x.salva(dopo)
+      if (chat !== undefined) x.avanzaFinite()
     }
-    ricalcola(ws, `${compito?.id ?? chatId} unito${verde ? '' : ' con il criterio rosso'}`)
-    return `${chatId}: ramo unito nel principale. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? ' Puoi chiudere la chat con specialista_chiudi «unita».' : ' Il compito resta in revisione: scrivi allo specialista cosa correggere.'}`
+    ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
+    return `${nome}: ramo ${ramo} unito nel principale. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta in revisione: affida la correzione a uno specialista.'}`
   }
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti
+
+  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string): ReturnType<RegistroDomande['apri']> => {
+    const pronta = domandaControllataSubito(a.nome, {
+      staFacendo: 'coordino gli specialisti del workspace',
+      domanda,
+      perche,
+      scelte: scelte.map((s, i) => ({ scelta: s, conseguenza: '', ...(i === 0 ? { consigliata: true } : {}) })),
+      seNonRispondi: 'aspetto la tua risposta e intanto porto avanti il resto'
+    })
+    const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda })
+    x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
+    void x.avvisa('domanda', a, domanda)
+    return d
+  }
 
   const ambiente: AmbienteOrchestratore = {
     adesso: x.adesso,
@@ -357,68 +471,27 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     piano: (ws) => x.orchestratori.piano(ws),
     scriviPiano: (ws, p: Piano) => { x.orchestratori.scriviPiano(ws, p) },
     unico: unicoDi,
-    tettoWs: (ws) => imp(ws).tettoSpecialisti,
-    posti: x.posti,
-    chatAlLavoroSulPc: x.chatAlLavoroSulPc,
-    apriSpecialista: (ws, p) => {
-      // Una apertura alla volta per workspace: due worktree nello stesso istante si pestano.
-      const prima = apertureInCorso.get(ws) ?? Promise.resolve()
-      const questa = prima.catch(() => undefined).then(() => apriOra(ws, p))
-      apertureInCorso.set(ws, questa)
-      return questa
-    },
-    scriviSpecialista(ws, chat, testo) {
-      const a = unicoDi(ws)
-      if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
-      const dopo = conMessaggioPerLaChat(a, testo, x.adesso(), [chat], `o-${randomUUID()}`)
-      x.annota(dopo, `messaggio per ${chat}, parte quando è ferma: ${testo.replace(/\s+/gu, ' ').slice(0, 160)}`)
-      x.salva(dopo)
-      // Se è già ferma parte adesso; se lavora, con la fine del suo turno.
-      x.consegnaAlleFerme(a.id)
-      return { ok: true, testo: `Messaggio per ${chat} in coda: arriva appena la chat è ferma, senza interromperla.` }
-    },
-    chiudiSpecialista(ws, chatId, esito, lezioni) {
-      const a = unicoDi(ws)
-      const c = a?.chats.find((y) => y.id === chatId)
-      if (a === undefined || c === undefined) return { ok: false, motivo: `la chat ${chatId} non c’è` }
-      const il = x.adesso()
-      let scritte = { nuove: 0, confermate: 0 }
-      if (lezioni.length > 0 && x.lezioni !== undefined) {
-        try { scritte = x.lezioni(a.cwd, lezioni.map((t) => ({ tag: c.ruolo ?? 'specialista', testo: t })), il) } catch (err) { console.error(`[orchestratore] lezioni di ${chatId} non scritte:`, err) }
-      }
-      const chiusa: ChatGovernata = {
-        ...c,
-        stato: 'finita',
-        ...(esito === 'unita'
-          ? { approvata: true, conclusa: c.conclusa ?? { il, come: 'unito' as const } }
-          : { lasciataFuori: { il, perche: 'chiusa dall’autopilota senza unire il ramo' } }),
-        fine: { esito, il, passo: 'chiudi' }
-      }
-      const dopo: Autopilota = {
-        ...a,
-        chats: a.chats.map((y) => (y.id === chatId ? chiusa : y)),
-        daConsegnare: a.daConsegnare.flatMap((m) => { const chats = m.chats.filter((k) => k !== chatId); return chats.length > 0 ? [{ ...m, chats }] : [] })
-      }
-      x.annota(dopo, `chiudo ${chatId} (${esito}): si elimina da sola${lezioni.length > 0 ? `; ${scritte.nuove} lezioni nuove nel quaderno, ${scritte.confermate} confermate` : ''}`, { chat: chatId, esito: esito === 'unita' ? 'unito' : 'nel-recupero' })
-      x.salva(dopo)
-      // Abbandonata: il compito torna da fare, per un altro specialista.
-      if (esito === 'abbandonata' && c.compitoId !== undefined) {
-        x.orchestratori.scriviPiano(ws, conCompito(x.orchestratori.piano(ws), c.compitoId, (k) => {
-          if (k.stato === 'unito') return k
-          const { chat: _c, ...resto } = k
-          return { ...resto, stato: 'da-fare', esito: `${chatId} chiusa senza unire` }
-        }))
-        ricalcola(ws, `${c.compitoId} torna da fare`)
-      }
-      x.avanzaFinite()
-      return { ok: true, testo: `${chatId} chiusa (${esito}). ${lezioni.length > 0 ? `Lezioni: ${scritte.nuove} nuove, ${scritte.confermate} già note. ` : ''}La chat si elimina da sola (riquadro, copia, ramo, trascrizione).` }
-    },
-    unisci(ws, chatId) {
-      const k = `${ws}|${chatId}`
-      if (cancelliInCorso.has(k)) return { ok: false, motivo: `l’unione di ${chatId} è già in corso: l’esito arriva come evento` }
+    specialisti: subagenti,
+    unisci(ws, p) {
+      const k = `${ws}|${p.compito ?? ''}|${p.specialista ?? ''}|${p.ramo ?? ''}`
+      if (cancelliInCorso.has(k)) return { ok: false, motivo: 'questa unione è già in corso: l’esito arriva come evento' }
       cancelliInCorso.add(k)
-      void cancello(ws, chatId).finally(() => { cancelliInCorso.delete(k) })
-      return { ok: true, testo: `Unione di ${chatId} avviata: prova nel principale, unione, criterio. L’esito ti arriva come evento.` }
+      void cancello(ws, p).finally(() => { cancelliInCorso.delete(k) })
+      return { ok: true, testo: 'Unione avviata: ramo, prova nel principale, unione, criterio. L’esito ti arriva come evento.' }
+    },
+    async permesso(ws, strumento, input) {
+      const a = unicoDi(ws)
+      if (a === undefined) return { consenti: false, motivo: 'l’autopilota unico non c’è' }
+      const cosa = JSON.stringify(input).slice(0, 600)
+      const d = apriDomanda(a, ws, `Uno specialista chiede il permesso per ${strumento}: ${cosa}. Lo permetto?`, ['Nega', 'Consenti'], 'il programma non lo permette da solo')
+      const attesa = x.attesaPermessoMs ?? ATTESA_PERMESSO_MS
+      const r = await Promise.race([x.domande.attendi(d.id), new Promise<undefined>((ris) => { const t = setTimeout(() => ris(undefined), attesa); t.unref?.() })])
+      if (r === undefined) {
+        x.domande.superata(d.id, 'nessuna risposta in tempo: negato, l’autopilota cerca un’altra strada')
+        return { consenti: false, motivo: 'Nicholas non ha risposto in tempo: trova un’altra strada, o chiedi con chiedi_utente' }
+      }
+      const si = /^\s*(consenti|s[iì]|ok|va bene|vai|certo|yes|permetti)/iu.test(r.risposta)
+      return si ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
     },
     chiedi(ws, domanda, scelte) {
       const a = unicoDi(ws)
@@ -429,24 +502,14 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const pronta = domandaControllataSubito(a.nome, {
-        staFacendo: 'coordino gli specialisti del workspace',
-        domanda,
-        perche: 'è una decisione tua',
-        scelte: scelte.map((s, i) => ({ scelta: s, conseguenza: '', ...(i === 0 ? { consigliata: true } : {}) })),
-        seNonRispondi: 'aspetto la tua risposta e intanto porto avanti il resto'
-      })
-      const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
-      x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda })
-      x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
-      void x.avvisa('domanda', a, domanda)
+      const d = apriDomanda(a, ws, domanda, scelte, 'è una decisione tua')
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
     },
     domandeUltimaOra(ws) {
       const ora = Date.parse(x.adesso())
       return (imp(ws).domande ?? []).filter((q) => ora - Date.parse(q) < 3_600_000).length
     },
-    annota(ws, testo, tag) {
+    annota(ws, testo, tag): EsitoAmbiente {
       const a = unicoDi(ws)
       if (a === undefined || x.lezioni === undefined) return { ok: false, motivo: 'il quaderno non è disponibile' }
       const r = x.lezioni(a.cwd, [{ tag, testo }], x.adesso())
@@ -479,13 +542,12 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       for (const d of sue) x.domande.superata(d.id, 'il workspace è passato all’autopilota unico: se serve ancora, te la rifà lui')
       if (sue.length > 0) {
         const testo = sue.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)}»`).join('; ')
-        ricordaEvento(ws, { tipo: 'adozione', quando, testo: `domande aperte di «${prima.nome}» chiuse nel passaggio: ${testo}. Rifalle con chiedi_utente solo se servono ancora.` })
-        orchestratore.evento(ws, { tipo: 'adozione', quando, testo: `domande aperte di «${prima.nome}» chiuse nel passaggio: ${testo}. Rifalle con chiedi_utente solo se servono ancora.` })
+        evento(ws, { tipo: 'adozione', quando, testo: `domande aperte di «${prima.nome}» chiuse nel passaggio: ${testo}. Rifalle con chiedi_utente solo se servono ancora.` })
       }
       x.archivio.scrivi(prima)
     }
     if (passo.adottate.length > 0) {
-      evento(ws, { tipo: 'adozione', quando, testo: `adottate come specialisti: ${passo.adottate.map((y) => `${y.chat} di ${y.da} → ${y.nuova}`).join(', ')}. Lavorano su compiti di prima (testo, non id del piano): uniscile con unisci quando finiscono.` })
+      evento(ws, { tipo: 'adozione', quando, testo: `chat adottate (restano chat del mosaico e finiscono il loro lavoro): ${passo.adottate.map((y) => `${y.chat} di ${y.da} → ${y.nuova}`).join(', ')}. Quando finiscono uniscile con unisci(specialista: c-N).` })
     }
     x.archivio.scrivi(unico)
     x.salva(unico)
@@ -556,7 +618,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     return true
   }
 
-  /** Ogni minuto: gli specialisti zitti da 20 minuti diventano un evento (una volta per silenzio). */
+  /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
     for (const a of x.archivio.elenca()) {
@@ -573,7 +635,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     }
   }
 
-  /** Dopo un riavvio del programma: le specialiste vive riprendono da dove erano. */
+  /** Dopo un riavvio del programma: le chat adottate vive riprendono da dove erano. */
   const riprendi = (a: Autopilota): number => {
     let n = 0
     for (const c of specialistiVivi(a)) {
@@ -601,6 +663,11 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       const piano = x.orchestratori.piano(ws)
       const m = misura(ws)
       const valore = m !== undefined ? avanzamentoCoda(coda(ws), m) : undefined
+      const flusso = orchestratore.stato(ws)
+      const ora = Date.parse(x.adesso())
+      const oggi = x.adesso().slice(0, 10)
+      const diOggi = flusso.costi.filter((c) => c.quando.slice(0, 10) === oggi)
+      const ultimo = flusso.costi[flusso.costi.length - 1]
       return {
         workspace: ws,
         attivo: i.attivo,
@@ -611,7 +678,21 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
         ...(valore !== undefined ? { percento: valore } : {}),
         ...(i.percento?.calo !== undefined ? { calo: i.percento.calo } : {}),
         pensa: orchestratore.inVolo(ws) || orchestratore.inAttesa(ws).messaggi > 0,
-        specialisti: specialistiVivi(u).map((c) => ({ id: c.id, ...(c.ruolo !== undefined ? { ruolo: RUOLI[c.ruolo].nome } : {}), compito: c.compito, stato: c.stato, ...(c.compitoId !== undefined ? { compitoId: c.compitoId } : {}) })),
+        vivo: orchestratore.vivo(ws),
+        specialisti: [
+          ...subagenti(ws).filter((s) => s.unito !== true && (s.stato === 'avviato' || s.stato === 'lavoro' || ora - Date.parse(s.fine ?? s.inizio) < 3_600_000)).map((s) => ({
+            id: s.id, ruolo: s.ruolo, compito: s.descrizione, stato: s.stato, durata: durata(s, ora),
+            ...(s.compito !== undefined ? { compitoId: s.compito } : {}),
+            ...(s.attivita !== undefined ? { attivita: s.attivita } : {})
+          })),
+          ...specialistiVivi(u).map((c) => ({ id: c.id, ...(c.ruolo !== undefined ? { ruolo: RUOLI[c.ruolo].nome } : {}), compito: c.compito, stato: c.stato, adottata: true as const, ...(c.compitoId !== undefined ? { compitoId: c.compitoId } : {}) }))
+        ],
+        registro: flusso.registro.slice(-15).map((r) => ({ quando: r.quando, tipo: r.tipo, testo: r.testo })),
+        costo: {
+          oggiUsd: Math.round(diOggi.reduce((t, c) => t + c.usd, 0) * 10_000) / 10_000,
+          turniOggi: diOggi.length,
+          ...(ultimo !== undefined ? { ultimoUsd: ultimo.usd, contesto: ultimo.contesto } : {})
+        },
         piano: { totale: piano.compiti.length, uniti: piano.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde === true).length },
         precedenti: loro.filter((a) => a.unico !== true && (a.passatoA !== undefined || a.archiviato === true || a.stato === 'finito')).map((a) => ({ id: a.id, nome: a.nome, stato: a.stato, iniziatoIl: a.iniziatoIl }))
       }
@@ -621,7 +702,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       if (!attivo(ws)) return false
       x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, attivo: false }))
       orchestratore.dimentica(ws)
-      console.info(`[orchestratore] ${ws} — autopilota unico spento: le sue chat restano dove sono`)
+      console.info(`[orchestratore] ${ws} — autopilota unico spento: le chat adottate restano dove sono`)
       return true
     },
     imposta(ws, p) {
@@ -644,6 +725,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       return hookAdottato(prima, x.archivio.leggi(prima.passatoA), chatId)
     },
     mcp: (p) => rispondiMcpOrchestratore(ambiente, gettoni, x.versione, p),
+    spegni: () => { orchestratore.spegni() },
     orchestratore,
     ambiente
   }
