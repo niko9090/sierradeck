@@ -53,10 +53,32 @@ export function unisciChat(base: ChatGovernata[], nostre: ChatGovernata[], disco
     const prima = diBase.get(d.id)
     // Tolta da noi (c'era nella base, nella nostra non più): via anche dal disco.
     if (mia === undefined) { if (prima === undefined) fuori.push(d); continue }
-    fuori.push(uguale(mia, prima) ? d : mia)
+    if (uguale(mia, prima)) { fuori.push(d); continue }
+    if (prima === undefined || uguale(d, prima)) { fuori.push(mia); continue }
+    // Cambiata da tutti e due: campo per campo (e dentro `fine` e `segnale`,
+    // sotto-campo per sotto-campo), così non si perde il segnale o la fine
+    // scritti dall'altro mentre noi cambiavamo altro.
+    fuori.push(unisciCampi(prima as unknown as Record<string, unknown>, mia as unknown as Record<string, unknown>, d as unknown as Record<string, unknown>, 1) as unknown as ChatGovernata)
   }
   const sulDisco = new Set(disco.map((c) => c.id))
   for (const c of nostre) if (!sulDisco.has(c.id) && !diBase.has(c.id)) fuori.push(c)
+  return fuori
+}
+
+const oggetto = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+
+/** A tre vie, campo per campo: il nostro dove l'abbiamo cambiato, se no quello del disco; gli oggetti (fino a `prof`) dentro. */
+function unisciCampi(base: Record<string, unknown>, nostro: Record<string, unknown>, disco: Record<string, unknown>, prof: number): Record<string, unknown> {
+  const fuori: Record<string, unknown> = { ...disco }
+  for (const k of new Set([...Object.keys(base), ...Object.keys(nostro)])) {
+    if (uguale(base[k], nostro[k])) continue
+    if (prof > 0 && oggetto(base[k]) && oggetto(nostro[k]) && oggetto(disco[k]) && !uguale(base[k], disco[k])) {
+      fuori[k] = unisciCampi(base[k], nostro[k], disco[k], prof - 1)
+      continue
+    }
+    if (nostro[k] === undefined) delete fuori[k]
+    else fuori[k] = nostro[k]
+  }
   return fuori
 }
 

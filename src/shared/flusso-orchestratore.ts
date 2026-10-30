@@ -68,6 +68,13 @@ export type StatoFlusso = {
   specialisti: Specialista[]
   registro: RigaRegistro[]
   costi: CostoTurno[]
+  /**
+   * Il contesto dell'ultima chiamata dell'orchestratore (dall'`usage` del suo
+   * ultimo messaggio `assistant`). Il `usage` del `result` **somma** tutte le
+   * chiamate del turno (provato il 30/10: 173k «di contesto» per un turno di
+   * 38k), e non vale per la rotazione.
+   */
+  ultimoContesto?: number
 }
 
 export type EffettoFlusso =
@@ -174,27 +181,47 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
       const id = s(ev.session_id)
       if (id !== undefined && id !== st.sessione) { st.sessione = id; effetti.push({ tipo: 'sessione', id }) }
     } else if (sotto.startsWith('task_')) {
+      // Dal vivo (CLI 2.1.314): task_started {task_id, tool_use_id, description,
+      // subagent_type, task_type: "local_agent"}; task_progress {task_id,
+      // tool_use_id, description: «Running …»/«Writing …», last_tool_name,
+      // usage}; task_updated {task_id, patch: {status, end_time}};
+      // task_notification {task_id, tool_use_id, status, summary, output_file}.
+      // Il task_id di un local_agent è l'id dell'agente: il suo worktree è
+      // `.claude/worktrees/agent-<id>`, il ramo `worktree-agent-<id>`.
       const ref = s(ev.tool_use_id) ?? s(ev.parent_tool_use_id) ?? s(o(ev.task).tool_use_id)
       const task = s(ev.task_id) ?? s(o(ev.task).id) ?? s(ev.id)
       const id = (ref !== undefined && st.specialisti.some((x) => x.id === ref) ? ref : undefined)
         ?? (task !== undefined && st.specialisti.some((x) => x.task === task) ? task : undefined)
-        // Un task senza riferimento: il più recente specialista senza task.
-        ?? [...st.specialisti].reverse().find((x) => x.task === undefined && !terminale(x.stato))?.id
+        // Un task di agente senza riferimento: il più recente specialista senza
+        // task. Un task con un riferimento a un altro strumento (un Bash in
+        // sottofondo) non è uno specialista.
+        ?? (ref === undefined && (s(ev.task_type) ?? 'local_agent') === 'local_agent' ? [...st.specialisti].reverse().find((x) => x.task === undefined && !terminale(x.stato))?.id : undefined)
       if (id !== undefined) {
         const d = dettagliDelTask(ev)
-        const stato = statoDa(s(ev.status) ?? s(o(ev.task).status) ?? (sotto === 'task_started' ? 'started' : undefined))
-        const attivita = s(ev.last_tool_name) ?? s(ev.activity) ?? s(ev.summary) ?? s(ev.message) ?? s(ev.description)
+        const stato = statoDa(s(ev.status) ?? s(o(ev.patch).status) ?? s(o(ev.task).status) ?? (sotto === 'task_started' ? 'started' : undefined))
+        // task_started porta la descrizione del compito, non un'attività.
+        const attivita = sotto === 'task_progress'
+          ? s(ev.description) ?? s(ev.last_tool_name) ?? s(ev.activity)
+          : sotto === 'task_started' || sotto === 'task_notification' ? undefined : s(ev.activity) ?? s(ev.last_tool_name)
+        const agente = d.agente ?? ((s(ev.task_type) ?? 'local_agent') === 'local_agent' ? task : undefined)
         const x = cambia(id, (y) => ({
           ...y,
           ...(task !== undefined && y.task === undefined ? { task } : {}),
           ...(d.cartella !== undefined ? { cartella: d.cartella } : {}),
           ...(d.ramo !== undefined ? { ramo: d.ramo } : {}),
-          ...(d.agente !== undefined ? { agente: d.agente } : {}),
-          ...(attivita !== undefined && sotto !== 'task_notification' ? { attivita: corto(attivita, 140) } : {}),
+          ...(agente !== undefined && y.agente === undefined ? { agente } : {}),
+          ...(attivita !== undefined ? { attivita: corto(attivita, 140) } : {}),
           ...(stato === 'lavoro' && !terminale(y.stato) ? { stato: 'lavoro' as const } : {})
         }))
-        if (x !== undefined && stato !== undefined && terminale(stato)) {
+        if (x !== undefined && stato !== undefined && terminale(stato) && sotto === 'task_updated') {
+          // Arriva subito prima della notifica, senza il riepilogo: la fine la
+          // dice la notifica. Il turno di risveglio è già in arrivo.
+          st.inTurno = true
+        } else if (x !== undefined && stato !== undefined && terminale(stato)) {
           finisci(x.id, stato, s(ev.result) ?? s(ev.summary) ?? s(ev.output) ?? (sotto === 'task_notification' ? s(ev.message) : undefined))
+          // La notifica sveglia l'orchestratore: la CLI gli fa fare un turno da
+          // sé. Fino al suo `result` il processo non va a riposo né ruota.
+          if (sotto === 'task_notification') st.inTurno = true
         }
       }
     }
@@ -214,6 +241,9 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
     }
     // L'orchestratore parla: se non era in turno, si è svegliato da solo (uno specialista ha finito).
     st.inTurno = true
+    const uso = o(o(ev.message).usage)
+    const ctx = n(uso.input_tokens) + n(uso.cache_read_input_tokens) + n(uso.cache_creation_input_tokens)
+    if (ctx > 0) st.ultimoContesto = ctx
     for (const b of blocchi.map(o)) {
       if (b.type !== 'tool_use') continue
       const nome = s(b.name) ?? ''
@@ -245,7 +275,9 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
       if (x === undefined) continue
       const testo = testoDi(b.content)
       const d = dettagliDelTask(o(ev.tool_use_result))
-      cambia(x.id, (y) => ({ ...y, ...(d.cartella !== undefined ? { cartella: d.cartella } : {}), ...(d.ramo !== undefined ? { ramo: d.ramo } : {}), ...(d.agente !== undefined ? { agente: d.agente } : {}) }))
+      // «Async agent launched successfully. … agentId: a59… (internal ID …)»
+      const agente = d.agente ?? /\bagentId:\s*([\w-]+)/u.exec(testo)?.[1]
+      cambia(x.id, (y) => ({ ...y, ...(d.cartella !== undefined ? { cartella: d.cartella } : {}), ...(d.ramo !== undefined ? { ramo: d.ramo } : {}), ...(agente !== undefined && y.agente === undefined ? { agente } : {}) }))
       const inSottofondo = x.task !== undefined || /background|sottofondo|async/iu.test(testo.slice(0, 300))
       if (!inSottofondo) finisci(x.id, b.is_error === true ? 'fallito' : 'finito', testo !== '' ? testo : undefined)
       else if (testo !== '' && /RAPPORTO:|LEZIONI:/u.test(testo)) finisci(x.id, 'finito', testo)
@@ -255,6 +287,12 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
 
   if (tipo === 'result') {
     const u = o(ev.usage)
+    // Il contesto vero: l'ultima chiamata (l'ultimo messaggio dell'orchestratore,
+    // o l'ultima voce di `usage.iterations`); il `usage` del result è la somma del turno.
+    const iterazioni = Array.isArray(u.iterations) ? u.iterations.map(o) : []
+    const ultima = iterazioni[iterazioni.length - 1]
+    const daIterazione = ultima === undefined ? 0 : n(ultima.input_tokens) + n(ultima.cache_read_input_tokens) + n(ultima.cache_creation_input_tokens)
+    const contesto = st.ultimoContesto ?? (daIterazione > 0 ? daIterazione : n(u.input_tokens) + n(u.cache_read_input_tokens) + n(u.cache_creation_input_tokens))
     const costo: CostoTurno = {
       quando,
       usd: n(ev.total_cost_usd),
@@ -262,7 +300,7 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
       output: n(u.output_tokens),
       cacheLettura: n(u.cache_read_input_tokens),
       cacheScrittura: n(u.cache_creation_input_tokens),
-      contesto: n(u.input_tokens) + n(u.cache_read_input_tokens) + n(u.cache_creation_input_tokens),
+      contesto,
       ...(s(ev.session_id) !== undefined ? { sessione: s(ev.session_id)! } : {}),
       ...(typeof ev.duration_ms === 'number' ? { durataMs: ev.duration_ms } : {})
     }
