@@ -638,6 +638,14 @@ export function App(): React.JSX.Element {
     stato.closePane(idChat)
   }), [])
 
+  // «Torna a com'era» chiesto dal telefono: la stessa strada di Impostazioni.
+  // Prima nessuno ascoltava, e dal telefono non succedeva niente.
+  useEffect(() => window.gestore.client.suSalvataggio((nome) => {
+    window.gestore.istantanee.carica(nome)
+      .then((layout) => { useLayoutStore.getState().cambiaVista(layout) })
+      .catch((e: unknown) => { console.warn(`[istantanee] «${nome}» dal telefono non rimessa: ${e instanceof Error ? e.message : String(e)}`) })
+  }), [])
+
   // Il nome che dai a una chat dal telefono: lo stesso che daresti qui.
   /**
    * L'ospite di una chat aperta qui è diventato un altro PC (0.52.0), e la
