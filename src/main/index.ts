@@ -192,6 +192,7 @@ import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
 import { creaRiassettoDelProgramma } from './riassetto/programma'
+import { passiDeiProgetti } from './riassetto/passi-progetti'
 import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, rimuoviSessioni as rimuoviSessioniDalLayout, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
@@ -1335,7 +1336,14 @@ if (!app.requestSingleInstanceLock()) {
       const riassetto = creaRiassettoDelProgramma({
         dati, versione: app.getVersion(), copia, porta: () => portaAutopiloti, storicoApp: storicoErrori,
         log: (m) => registro.info(m), errore: (m) => registro.errore(m),
-        indice: () => db, cartellaProgetti: () => identitaPcGlobale?.leggi().cartellaProgetti
+        indice: () => db, cartellaProgetti: () => identitaPcGlobale?.leggi().cartellaProgetti,
+        // Il codice di «una casa» per le chat non c'è più (0.88): il suo segno si può spostare.
+        marcatoriSenzaCodice: ['migrazione-una-casa.json'],
+        passiAggiunti: passiDeiProgetti({
+          // In fase A l'identità del PC non è ancora aperta: la si legge dal suo file.
+          io: () => (identitaPcGlobale ?? apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })).leggi(),
+          pulisci: () => pulisciCopiaGlobale
+        })
       })
       try { riassetto.faseA() } catch (err) { registro.errore(`[riassetto] fase A non riuscita: ${String(err)}`) }
       // Le preferenze si aprono qui e non piu' avanti: la porta degli

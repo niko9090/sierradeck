@@ -75,8 +75,12 @@ export type DipendenzePassi = {
  * giorni e «Annulla», come tutto il resto.
  */
 export const CARTELLE_DISMESSE: readonly string[] = ['unioni', 'traslochi', 'riordini', 'modifiche', 'scambio']
-/** I file di stato delle funzioni tolte nella 0.88: il fornitore dell'API, le destinazioni SFTP. */
-export const FILE_DISMESSI: readonly string[] = ['provider.json', 'destinazioni.json']
+/**
+ * I file di stato delle funzioni tolte nella 0.88: il fornitore dell'API, le
+ * destinazioni SFTP, le case delle chat (ora una chat è del PC del suo
+ * progetto), l'accesso Supabase.
+ */
+export const FILE_DISMESSI: readonly string[] = ['provider.json', 'destinazioni.json', 'case-chat.json', 'accesso-supabase.json']
 /** Cartelle che si spostano solo vuote: lì dentro possono esserci file dell'utente. */
 export const CARTELLE_SE_VUOTE: readonly string[] = ['allegati-in-arrivo']
 /** Note del quaderno oltre le quali il riordino P2 gira da solo (quaderni fuori da git). */
