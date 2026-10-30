@@ -185,9 +185,10 @@ import {
 import { apriRegistro, FILE_DEL_REGISTRO, type Registro } from './registro'
 import { consoleNelRegistro } from './console-nel-registro'
 import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } from './storico-errori-file'
-import { testoDaCopiare, type InvioErrori } from '@shared/storico-errori'
+import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
+import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, type StatoInvio } from './errori-invio-automatico'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -2432,13 +2433,15 @@ if (!app.requestSingleInstanceLock()) {
         return e.ok ? e : { ok: false, stato: 500, errore: e.errore }
       }
       riceviErroriGlobale = async (invio, chi) => salvaQui(invio, chi)
-      const mandaOra = async (): Promise<{ ok: boolean; messaggio: string }> => {
+      // Il PC di sviluppo: quello scelto, o il proprietario di SierraDeck (0.88.4).
+      const pcSviluppo = (): string | undefined => pcSviluppoDi(impostazioni.preferenze().pcSviluppo, registroProgetti.leggi().progetti)
+      const mandaOra = async (solo?: StoricoErrori): Promise<{ ok: boolean; messaggio: string }> => {
         const io = identitaPc.leggi()
         return await mandaErrori({
-          pcSviluppo: impostazioni.preferenze().pcSviluppo,
+          pcSviluppo: pcSviluppo(),
           io: { id: io.id, nome: nomeDaMostrare(io) },
           versione: app.getVersion(),
-          storico: leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
+          storico: solo ?? leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
           nomeDi: (pc) => { const b = postino.altrui().find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined },
           chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
           salvaQui: (invio) => salvaQui(invio, 'questo PC'),
@@ -2450,9 +2453,37 @@ if (!app.requestSingleInstanceLock()) {
           log: (riga) => registro.info(riga)
         })
       }
-      mandaErroriGlobale = mandaOra
+      mandaErroriGlobale = () => mandaOra()
+      // L'invio automatico (0.88.4): gli errori nuovi, da soli, al PC di sviluppo.
+      {
+        const fileInvio = join(dati, 'errori-invio-automatico.json')
+        let inCorso = false
+        const giro = async (): Promise<void> => {
+          if (inCorso) return
+          inCorso = true
+          try {
+            await giroInvioErrori({
+              storico: () => leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
+              stato: {
+                leggi: () => { try { return JSON.parse(readFileSync(fileInvio, 'utf8')) as StatoInvio } catch { return undefined } },
+                scrivi: (s) => { scriviJsonAtomico(fileInvio, s, 'errori-invio') }
+              },
+              pcSviluppo,
+              adesso: () => Date.now(),
+              manda: (s) => mandaOra(s),
+              log: (riga) => registro.info(riga)
+            })
+          } catch (err) {
+            registro.info(`[errori] invio automatico: giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          } finally {
+            inCorso = false
+          }
+        }
+        setInterval(() => { void giro() }, GIRO_INVIO_MS)
+        setTimeout(() => { void giro() }, 60_000)
+      }
       nomePcSviluppoGlobale = () => {
-        const pc = impostazioni.preferenze().pcSviluppo
+        const pc = pcSviluppo()
         if (pc === undefined) return undefined
         if (pc === identitaPc.leggi().id) return nomeDaMostrare(identitaPc.leggi())
         const b = postino.altrui().find((x) => x.pcId === pc)
@@ -3699,10 +3730,10 @@ if (!app.requestSingleInstanceLock()) {
         assicura: () => clientAutopilota.assicuraServizio(),
         cwdAutopiloti: async () => [...new Set((await clientAutopilota.elenca()).map((a) => a.cwd))]
       })
-      // «Errori arrivati» (0.81.0): sul PC dove arrivano gli errori, un lavoro
-      // dell'autopilota nel workspace di SierraDeck, partito da solo. Le regole
-      // (quiete, limiti, un lavoro alla volta, riepilogo, recupero) stanno in
-      // errori-arrivati-lavoro.ts.
+      // «Errori arrivati» (0.81.0, 0.88.4): sul PC dove arrivano gli errori,
+      // raggruppati in un lotto e affidati all'autopilota del workspace di
+      // SierraDeck, da soli. Le regole (quiete, limiti, gruppi, recupero) stanno
+      // in errori-arrivati-lavoro.ts.
       {
         let inCorso = false
         const giro = async (): Promise<void> => {
@@ -3712,9 +3743,9 @@ if (!app.requestSingleInstanceLock()) {
             rigaArriviGlobale = await giroErroriArrivati({
               radice: () => radiceSierraDeckGlobale?.(),
               adesso: () => Date.now(),
-              autopiloti: async () => (await clientAutopilota.elenca()).map((a) => ({ id: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), stato: a.stato, cwd: a.cwd, ...(a.archiviato === true ? { archiviato: true } : {}) })),
+              versione: () => app.getVersion(),
               settimanaPercento: () => limitiAggiornati([...polsi.values()], Date.now())?.settimana?.percento,
-              crea: async (p) => {
+              affida: async (p) => {
                 await clientAutopilota.assicuraServizio()
                 // Nel workspace del progetto SierraDeck, aggiunto se manca, senza cambiare lo schermo.
                 const ws = workspaceDellAutopilota('', p.cwd)
@@ -3726,14 +3757,8 @@ if (!app.requestSingleInstanceLock()) {
                     for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
                   }
                 }
-                const a = await clientAutopilota.crea({ obiettivo: p.obiettivo, cwd: p.cwd, workspace: ws })
-                return { id: a.id }
-              },
-              annuncia: async (id, titolo, testo) => {
-                await clientAutopilota.annuncia(id, titolo, testo)
-                // La notifica del PC; pagina e app la mandano dall'id di `annuncio`.
-                try { new Notification({ title: titolo, body: testo.slice(0, 240) }).show() } catch { /* senza notifiche */ }
-                registro.info(`[avviso] PC: annuncio «${titolo}», causa: un riepilogo dell'autopilota ${id} che aspetta te`)
+                // Un messaggio all'autopilota del workspace: va nella sua coda.
+                await clientAutopilota.crea({ obiettivo: p.testo, cwd: p.cwd, workspace: ws })
               },
               log: (riga) => registro.info(riga)
             })

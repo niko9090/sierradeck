@@ -1,60 +1,62 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, renameSync } from 'node:fs'
-import { basename, join, relative, resolve } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { cancellaSicura } from '@shared/cancella-sicura'
+import type { VoceErrore } from '@shared/storico-errori'
 import { CARTELLA_ARRIVI } from './errori-arrivati'
 
 /**
- * «Errori arrivati» (0.81.0): sul PC di sviluppo, gli errori che arrivano
- * diventano da soli un lavoro dell'autopilota nel progetto SierraDeck.
+ * «Errori arrivati» (0.81.0, rifatto nella 0.88.4 per l'autopilota unico):
+ * sul PC di sviluppo, gli errori che arrivano dagli altri PC diventano da soli
+ * una richiesta nella coda dell'autopilota del workspace SierraDeck, che li
+ * analizza, trova i difetti veri e li corregge.
+ *
+ * Nicholas (30/10): «voglio che gli errori arrivino in automatico e
+ * l'autopilota li analizza per trovare bug e fix da applicare».
  *
  * Il giro:
  * 1. un arrivo nuovo aspetta `QUIETE_MS` senza altri arrivi: quelli vicini
- *    finiscono in **un solo** lavoro, e quindi in una sola release;
- * 2. non parte se la settimana del piano è oltre l'80% o se un altro autopilota
- *    lavora già su SierraDeck: lo dice una volta («li correggo appena finisce
- *    X») e riprova da solo al giro dopo;
- * 3. il primo passo della chat è il riepilogo per Nicholas, scritto in
- *    `riepilogo-<lavoro>.md`: il PC lo mette nella conversazione
- *    dell'autopilota con **una** notifica, prima di qualunque modifica;
- * 4. a lavoro finito i file di quel lavoro vanno nel recupero
- *    (`.recupero/`, 30 giorni) con `cancellaSicura`, mai cancellati subito.
+ *    finiscono in **un solo** lotto;
+ * 2. con la settimana del piano oltre l'80% non si parte: lo dice una volta;
+ * 3. gli errori di tutti gli arrivi si **raggruppano per causa** (stesso posto,
+ *    stesso messaggio a meno di numeri e id): cento righe dello stesso difetto
+ *    sono un gruppo con il conteggio, i PC e le versioni;
+ * 4. fuori dal lotto: gli errori visti solo su versioni più vecchie di questa
+ *    (le parti di prima, spesso già tolte o corrette) e i gruppi già affidati
+ *    negli ultimi giorni, **tranne** quelli che si ripresentano su una versione
+ *    nuova: la correzione non è bastata, e si dice;
+ * 5. il lotto si scrive in `lotto-<id>.md` e va all'autopilota come una
+ *    richiesta: la coda la unisce a quelle simili, l'autopilota ne parla con
+ *    Nicholas e affida il lavoro agli specialisti;
+ * 6. i file degli arrivi vanno subito nel recupero (`.recupero/`, 30 giorni):
+ *    il lotto ha tutto. I lotti vecchi ci vanno dopo 30 giorni.
  *
  * Lo stato sta in `.lavori.json` nella cartella degli arrivi, che è fuori da
- * git: scriverlo non sporca la cartella principale dove si uniscono i rami.
+ * git: scriverlo non sporca la cartella principale.
  */
 
 /** Quanto deve stare zitta la cartella prima di partire: gli arrivi vicini vanno insieme. */
 export const QUIETE_MS = 5 * 60_000
 /** Oltre questa percentuale della settimana non si parte. */
 export const TETTO_SETTIMANA = 80
-/** Quanto restano i file nel recupero. */
+/** Quanto restano i file nel recupero, e i lotti nella cartella. */
 export const GIORNI_RECUPERO = 30
+/** Un gruppo già affidato non si riaffida per tanto, se non si ripresenta su una versione nuova. */
+export const GIORNI_GIA_AFFIDATO = 7
 export const NOME_LAVORO = 'Errori arrivati'
 export const CARTELLA_RECUPERO_ARRIVI = '.recupero'
 const FILE_STATO = '.lavori.json'
 
-export type LavoroErrori = {
-  /** Il nostro id (`ea-…`): dà il nome al file del riepilogo. */
-  id: string
-  autopilota: string
-  /** I file degli arrivi, relativi alla cartella degli arrivi, con `/`. */
-  file: string[]
-  creatoIl: string
-  riepilogoMandato?: string
-  /** Quando si è chiuso, e come. */
-  chiuso?: { il: string; come: 'finito' | 'fallito' | 'sparito' }
-}
-
 export type StatoErroriArrivati = {
-  versione: 1
-  lavori: LavoroErrori[]
+  versione: 2
+  /** I gruppi affidati: chiave → quando e su che versione l'ultima volta. */
+  affidati: Record<string, { il: string; versione?: string }>
+  /** I lotti mandati, i più recenti in fondo (gli ultimi 50). */
+  lotti: Array<{ id: string; il: string; gruppi: number; file: number }>
   /** L'ultima attesa detta, per non ripeterla a ogni giro. */
   attesa?: { testo: string; dal: string }
 }
 
 export type ArrivoInAttesa = { file: string; il: number }
-
-export type AutopilotaVisto = { id: string; nome: string; stato: string; cwd: string; archiviato?: boolean }
 
 export type Decisione =
   | { azione: 'niente' }
@@ -62,93 +64,172 @@ export type Decisione =
   | { azione: 'avvia'; file: string[] }
 
 /**
- * Anche `sospeso`: un lavoro fermo ad aspettare Nicholas è ancora un lavoro su
- * SierraDeck, e ripartirebbe sopra quello nuovo (Revisione del 20/10).
- * L'archiviato no: Nicholas lo ha messo da parte.
- */
-const STATI_AL_LAVORO = new Set(['intervista', 'pronto', 'lavoro', 'attesa', 'sospeso'])
-/** Dopo quanti lavori falliti un arrivo non riparte più da solo: lo guarda Nicholas. */
-export const TENTATIVI_MAX = 2
-
-function norma(p: string): string {
-  return resolve(p).replace(/[\\/]+$/, '').toLowerCase()
-}
-
-/** Lavora su SierraDeck: nella sua cartella, o in una copia `<cartella>.sierradeck-wt/…`. */
-export function suSierraDeck(cwd: string, radice: string): boolean {
-  if (cwd === '') return false
-  const c = norma(cwd)
-  const r = norma(radice)
-  return c === r || c.startsWith(r + '\\') || c.startsWith(r + '/') || c.startsWith(r + '.sierradeck-wt')
-}
-
-/**
- * Cosa fare adesso. Pura: la usa il giro e la provano i test.
- * Una settimana non letta non ferma niente: non si sa, e lo si scrive nel registro.
+ * Cosa fare adesso. Pura: la usa il giro e la provano i test. Una settimana
+ * non letta non ferma niente: non si sa, e lo si scrive nel registro.
  */
 export function decidiErroriArrivati(p: {
   inAttesa: readonly ArrivoInAttesa[]
   adesso: number
-  autopiloti: readonly AutopilotaVisto[]
-  radice: string
   settimanaPercento?: number
   quieteMs?: number
-  /** Un nostro lavoro ancora aperto: mai un secondo sopra, anche se il servizio non lo vede. */
-  lavoroAperto?: boolean
 }): Decisione {
   if (p.inAttesa.length === 0) return { azione: 'niente' }
   const ultimo = Math.max(...p.inAttesa.map((a) => a.il))
   if (p.adesso - ultimo < (p.quieteMs ?? QUIETE_MS)) return { azione: 'niente' }
-  const quanti = `${p.inAttesa.length} ${p.inAttesa.length === 1 ? 'arrivo' : 'arrivi'}`
   if (p.settimanaPercento !== undefined && p.settimanaPercento > TETTO_SETTIMANA) {
-    return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li correggo quando la settimana del piano scende sotto l’${TETTO_SETTIMANA}% (adesso ${Math.round(p.settimanaPercento)}%).` }
+    const quanti = `${p.inAttesa.length} ${p.inAttesa.length === 1 ? 'arrivo' : 'arrivi'}`
+    return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li passo all’autopilota quando la settimana del piano scende sotto l’${TETTO_SETTIMANA}% (adesso ${Math.round(p.settimanaPercento)}%).` }
   }
-  const occupato = p.autopiloti.find((a) => a.archiviato !== true && STATI_AL_LAVORO.has(a.stato) && suSierraDeck(a.cwd, p.radice))
-  if (occupato !== undefined) return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li correggo appena finisce «${occupato.nome}».` }
-  if (p.lavoroAperto === true) return { azione: 'aspetta', testo: `Errori arrivati (${quanti}): li correggo appena finisce «${NOME_LAVORO}».` }
   return { azione: 'avvia', file: [...p.inAttesa].sort((a, b) => a.il - b.il).map((a) => a.file) }
 }
 
-/** I lavori aperti che si chiudono adesso: il loro autopilota è finito, fallito o sparito. */
-export function lavoriDaChiudere(lavori: readonly LavoroErrori[], autopiloti: readonly AutopilotaVisto[]): Array<{ lavoro: LavoroErrori; come: 'finito' | 'fallito' | 'sparito' }> {
-  const fuori: Array<{ lavoro: LavoroErrori; come: 'finito' | 'fallito' | 'sparito' }> = []
-  for (const l of lavori) {
-    if (l.chiuso !== undefined) continue
-    const a = autopiloti.find((x) => x.id === l.autopilota)
-    if (a === undefined) fuori.push({ lavoro: l, come: 'sparito' })
-    else if (a.stato === 'finito') fuori.push({ lavoro: l, come: 'finito' })
-    else if (a.stato === 'fallito') fuori.push({ lavoro: l, come: 'fallito' })
+// ─── I gruppi ─────────────────────────────────────────────────────────────
+
+export type GruppoErrori = {
+  chiave: string
+  dove: VoceErrore['dove']
+  messaggio: string
+  punto?: string
+  cosa?: string
+  dettagli?: string
+  volte: number
+  prima: string
+  ultima: string
+  da: string[]
+  versioni: string[]
+  /** Già affidato, e si ripresenta su una versione più nuova di allora. */
+  ritorna?: { il: string; versione?: string }
+}
+
+/** Il messaggio senza quello che cambia ogni volta: numeri, id, percorsi dopo `‹tolto›`. */
+export function normaMessaggio(m: string): string {
+  return m
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '‹id›')
+    .replace(/\b(?=[0-9a-f]*\d)[0-9a-f]{8,}\b/gi, '‹id›')
+    .replace(/\d+/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200)
+}
+
+export function chiaveErrore(v: Pick<VoceErrore, 'dove' | 'messaggio' | 'punto'>): string {
+  return `${v.dove}|${v.punto ?? ''}|${normaMessaggio(v.messaggio)}`
+}
+
+/** `0.88.3` → `[0, 88]`; l'app del telefono ha la sua numerazione, e non si confronta. */
+function minore(v: string | undefined): [number, number] | undefined {
+  const m = /^(\d+)\.(\d+)\./.exec(v ?? '')
+  return m === null ? undefined : [Number(m[1]), Number(m[2])]
+}
+const piuVecchia = (a: [number, number], b: [number, number]): boolean => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1])
+/** `a` più nuova di `b` (patch compresa). */
+function piuNuova(a: string | undefined, b: string | undefined): boolean {
+  const x = (a ?? '').split('.').map(Number)
+  const y = (b ?? '').split('.').map(Number)
+  for (let i = 0; i < 3; i += 1) {
+    const p = x[i] ?? 0
+    const q = y[i] ?? 0
+    if (Number.isNaN(p) || Number.isNaN(q)) return false
+    if (p !== q) return p > q
   }
-  return fuori
+  return false
 }
 
-/** L'obiettivo del lavoro: i passi nell'ordine voluto da Nicholas (19/10). */
-export function obiettivoErroriArrivati(p: { arrivi: string; file: readonly string[]; riepilogo: string }): string {
-  const elenco = p.file.map((f) => `- ${join(p.arrivi, ...f.split('/'))}`).join('\n')
-  return [
-    'Correggi gli errori arrivati a SierraDeck dagli altri PC e dal telefono.',
-    '',
-    `I file (JSON, già senza segreti):\n${elenco}`,
-    '',
-    'I passi, in quest’ordine:',
-    `1. PRIMA di qualunque modifica al codice, scrivi in ${p.riepilogo} un riepilogo per Nicholas, in italiano e corto: gli errori, da dove vengono (PC, servizio, pagina, app), se la causa è capita o no, cosa correggerai, quanto pesa il lavoro. Il programma lo mette nella conversazione e manda una notifica sola: non mandarne altre.`,
-    '2. Correggi, con un test per ogni errore corretto, e passa dalla Revisione.',
-    '3. Pubblica una sola release per tutti questi errori: prima bozza, poi --draft=false, con APK, latest.yml e app-android.json come sempre. Non installarla mai.',
-    '4. Nel rapporto .sierradeck/quaderno/errori-arrivati.md scrivi per ognuno «errore X corretto nella versione Y» (X = il messaggio corto, Y = la versione pubblicata). Per un errore che non correggi scrivi perché.',
-    '',
-    'Non cancellare i file degli arrivi: a lavoro finito li mette il programma nel recupero di 30 giorni.'
-  ].join('\n')
+export type ArrivoLetto = { file: string; da: string; versione?: string; voci: VoceErrore[] }
+
+/**
+ * I gruppi del lotto. Fuori: gli errori del PC su versioni più vecchie di
+ * `versioneQui` (stessa 0.88 sì, 0.85 no), e i gruppi affidati da meno di
+ * `GIORNI_GIA_AFFIDATO` giorni che non si sono visti su una versione più nuova.
+ */
+export function raggruppa(p: {
+  arrivi: readonly ArrivoLetto[]
+  versioneQui: string
+  affidati: StatoErroriArrivati['affidati']
+  adesso: number
+}): { gruppi: GruppoErrori[]; vecchie: number; giaAffidati: number } {
+  const qui = minore(p.versioneQui)
+  const perChiave = new Map<string, GruppoErrori>()
+  let vecchie = 0
+  for (const a of p.arrivi) {
+    for (const v of a.voci) {
+      if (typeof v?.messaggio !== 'string') continue
+      const ver = v.versione ?? a.versione
+      const m = minore(ver)
+      if (v.dove !== 'app' && qui !== undefined && m !== undefined && piuVecchia(m, qui)) { vecchie += 1; continue }
+      const chiave = chiaveErrore(v)
+      const g = perChiave.get(chiave)
+      if (g === undefined) {
+        perChiave.set(chiave, {
+          chiave, dove: v.dove, messaggio: v.messaggio, volte: v.volte ?? 1, prima: v.quando, ultima: v.ultima ?? v.quando,
+          da: [a.da], versioni: ver !== undefined ? [ver] : [],
+          ...(v.punto !== undefined ? { punto: v.punto } : {}),
+          ...(v.cosa !== undefined ? { cosa: v.cosa } : {}),
+          ...(v.dettagli !== undefined ? { dettagli: v.dettagli } : {})
+        })
+        continue
+      }
+      g.volte += v.volte ?? 1
+      if (v.quando < g.prima) g.prima = v.quando
+      if ((v.ultima ?? v.quando) > g.ultima) { g.ultima = v.ultima ?? v.quando; if (v.cosa !== undefined) g.cosa = v.cosa }
+      if (!g.da.includes(a.da)) g.da.push(a.da)
+      if (ver !== undefined && !g.versioni.includes(ver)) g.versioni.push(ver)
+      if (g.dettagli === undefined && v.dettagli !== undefined) g.dettagli = v.dettagli
+    }
+  }
+  let giaAffidati = 0
+  const gruppi: GruppoErrori[] = []
+  for (const g of perChiave.values()) {
+    const prima = p.affidati[g.chiave]
+    if (prima !== undefined) {
+      const recente = p.adesso - Date.parse(prima.il) < GIORNI_GIA_AFFIDATO * 86_400_000
+      const dopo = g.versioni.some((v) => piuNuova(v, prima.versione))
+      if (!dopo) {
+        if (recente) { giaAffidati += 1; continue }
+      } else {
+        g.ritorna = prima
+      }
+    }
+    gruppi.push(g)
+  }
+  // Prima i più frequenti: sono quelli che pesano.
+  gruppi.sort((a, b) => b.volte - a.volte || b.ultima.localeCompare(a.ultima))
+  return { gruppi, vecchie, giaAffidati }
 }
 
-export function criteriErroriArrivati(riepilogo: string): { descrizione: string; comando?: string }[] {
-  const r = riepilogo.replace(/\\/g, '/')
-  return [
-    { descrizione: 'Il riepilogo per Nicholas è scritto prima di toccare il codice', comando: `node -e "process.exit(require('fs').existsSync('${r}')?0:1)"` },
-    // La guardia delle cancellazioni è un test della suite: qui sotto c'è già.
-    { descrizione: 'I test del programma passano', comando: 'npx vitest run --maxWorkers=2' },
-    { descrizione: 'Il TypeScript del programma compila senza errori', comando: 'npm run typecheck' },
-    { descrizione: 'Nel rapporto .sierradeck/quaderno/errori-arrivati.md c’è «corretto nella versione» per gli errori di questo lavoro, e la release è pubblicata (non bozza, mai installata)' }
+/** Il lotto per l'autopilota, in markdown: un gruppo per sezione. */
+export function testoLotto(p: { id: string; gruppi: readonly GruppoErrori[]; versioneQui: string; vecchie: number; giaAffidati: number }): string {
+  const righe = [
+    `# ${NOME_LAVORO} — lotto ${p.id}`,
+    '',
+    `${p.gruppi.length} ${p.gruppi.length === 1 ? 'gruppo' : 'gruppi'} di errori (gli stessi errori ripetuti sono un gruppo solo, con il conteggio). Il PC di sviluppo è alla ${p.versioneQui}.`,
+    ...(p.vecchie > 0 ? [`Lasciati fuori: ${p.vecchie} errori visti solo su versioni più vecchie.`] : []),
+    ...(p.giaAffidati > 0 ? [`Lasciati fuori: ${p.giaAffidati} gruppi già affidati negli ultimi ${GIORNI_GIA_AFFIDATO} giorni e non più visti su una versione nuova.`] : []),
+    ''
   ]
+  p.gruppi.forEach((g, i) => {
+    righe.push(`## ${i + 1}. ${g.messaggio.slice(0, 160)}`)
+    righe.push('')
+    righe.push(`- dove: ${g.dove}${g.punto !== undefined ? ` · punto: \`${g.punto}\`` : ''}`)
+    righe.push(`- volte: ${g.volte} · dal ${g.prima} al ${g.ultima}`)
+    righe.push(`- da: ${g.da.join(', ')} · versioni: ${g.versioni.length > 0 ? g.versioni.join(', ') : 'non dette'}`)
+    if (g.ritorna !== undefined) righe.push(`- **si ripresenta**: affidato il ${g.ritorna.il.slice(0, 10)}${g.ritorna.versione !== undefined ? ` (alla ${g.ritorna.versione})` : ''}, ma c’è ancora su una versione più nuova: la correzione non è bastata`)
+    if (g.cosa !== undefined) righe.push(`- cosa si stava facendo: ${g.cosa}`)
+    if (g.messaggio.length > 160) righe.push('', '```', g.messaggio, '```')
+    if (g.dettagli !== undefined) righe.push('', '```', g.dettagli, '```')
+    righe.push('')
+  })
+  return righe.join('\n')
+}
+
+/** La richiesta per l'autopilota: corta, il resto è nel lotto. */
+export function richiestaLotto(p: { lotto: string; gruppi: number; ritornano: number }): string {
+  return [
+    `${NOME_LAVORO}: ${p.gruppi} ${p.gruppi === 1 ? 'gruppo' : 'gruppi'} di errori dagli altri PC${p.ritornano > 0 ? ` (${p.ritornano} si ripresentano dopo una correzione)` : ''}, raggruppati in ${p.lotto}.`,
+    'Analizzali: per ogni gruppo trova la causa nel codice e separa i difetti veri da quello che non lo è (avvisi, casi attesi, parti già tolte o già corrette).',
+    'Prima di correggere, dimmi in breve cosa hai trovato e cosa correggerai. Poi correggi i difetti veri, ognuno con un test.',
+    'Alla fine scrivi in .sierradeck/quaderno/errori-arrivati.md, per ogni gruppo, «corretto nella versione X» o perché no. La release segue il quaderno (pubblicare-una-release.md): una sola, mai installata.'
+  ].join('\n')
 }
 
 // ─── Su disco ─────────────────────────────────────────────────────────────
@@ -160,9 +241,12 @@ export function cartellaArrivi(radice: string): string {
 export function leggiStatoArrivi(arrivi: string): StatoErroriArrivati {
   try {
     const o = JSON.parse(readFileSync(join(arrivi, FILE_STATO), 'utf8')) as Partial<StatoErroriArrivati>
-    if (o.versione === 1 && Array.isArray(o.lavori)) return { versione: 1, lavori: o.lavori, ...(o.attesa !== undefined ? { attesa: o.attesa } : {}) }
+    if (o.versione === 2 && typeof o.affidati === 'object' && o.affidati !== null) {
+      return { versione: 2, affidati: o.affidati, lotti: Array.isArray(o.lotti) ? o.lotti : [], ...(o.attesa !== undefined ? { attesa: o.attesa } : {}) }
+    }
   } catch { /* non c'è ancora */ }
-  return { versione: 1, lavori: [] }
+  // Anche la versione 1 (i lavori dell'autopilota di prima): si riparte da capo.
+  return { versione: 2, affidati: {}, lotti: [] }
 }
 
 export function scriviStatoArrivi(arrivi: string, s: StatoErroriArrivati): void {
@@ -171,47 +255,41 @@ export function scriviStatoArrivi(arrivi: string, s: StatoErroriArrivati): void 
   renameSync(`${file}.tmp`, file)
 }
 
-/**
- * I file che non ripartono: quelli di un lavoro aperto o finito, e quelli già
- * falliti `TENTATIVI_MAX` volte. Un lavoro fallito o sparito rimette i suoi
- * in coda, così un errore non resta senza lavoro per sempre.
- */
-export function arriviPresi(stato: StatoErroriArrivati): { presi: Set<string>; abbandonati: string[] } {
-  const presi = new Set<string>()
-  const falliti = new Map<string, number>()
-  for (const l of stato.lavori) {
-    for (const f of l.file) {
-      if (l.chiuso === undefined || l.chiuso.come === 'finito') presi.add(f)
-      else falliti.set(f, (falliti.get(f) ?? 0) + 1)
-    }
-  }
-  const abbandonati = [...falliti].filter(([f, n]) => n >= TENTATIVI_MAX && !presi.has(f)).map(([f]) => f)
-  for (const f of abbandonati) presi.add(f)
-  return { presi, abbandonati }
-}
-
-/** Gli arrivi che nessun lavoro ha ancora preso: `<mittente>/<ora>.json`. */
-export function arriviInAttesa(arrivi: string, stato: StatoErroriArrivati): ArrivoInAttesa[] {
+/** Gli arrivi nella cartella: `<mittente>/<ora>.json`. Quelli affidati sono già nel recupero. */
+export function arriviInAttesa(arrivi: string): ArrivoInAttesa[] {
   if (!existsSync(arrivi)) return []
-  const { presi } = arriviPresi(stato)
   const fuori: ArrivoInAttesa[] = []
   for (const mittente of readdirSync(arrivi, { withFileTypes: true })) {
     if (!mittente.isDirectory() || mittente.name.startsWith('.')) continue
     for (const f of readdirSync(join(arrivi, mittente.name), { withFileTypes: true })) {
       if (!f.isFile() || !f.name.endsWith('.json')) continue
-      const rel = `${mittente.name}/${f.name}`
-      if (presi.has(rel)) continue
-      try { fuori.push({ file: rel, il: statSync(join(arrivi, mittente.name, f.name)).mtimeMs }) } catch { /* sparito nel frattempo */ }
+      try { fuori.push({ file: `${mittente.name}/${f.name}`, il: statSync(join(arrivi, mittente.name, f.name)).mtimeMs }) } catch { /* sparito nel frattempo */ }
     }
   }
   return fuori
 }
 
-export function fileRiepilogo(arrivi: string, lavoro: string): string {
-  return join(arrivi, `riepilogo-${lavoro}.md`)
+/** Un arrivo letto; illeggibile → `undefined` (va nel recupero lo stesso, e lo si dice). */
+export function leggiArrivo(arrivi: string, file: string): ArrivoLetto | undefined {
+  try {
+    const o = JSON.parse(readFileSync(join(arrivi, ...file.split('/')), 'utf8')) as { da?: unknown; versione?: unknown; voci?: unknown }
+    if (!Array.isArray(o.voci)) return undefined
+    return {
+      file,
+      da: typeof o.da === 'string' ? o.da : (file.split('/')[0] ?? 'sconosciuto'),
+      ...(typeof o.versione === 'string' ? { versione: o.versione } : {}),
+      voci: o.voci as VoceErrore[]
+    }
+  } catch {
+    return undefined
+  }
 }
 
-/** I file di un lavoro finito nel recupero: `.recupero/<mittente>/<file>.<ora>`. */
+export function fileLotto(arrivi: string, id: string): string {
+  return join(arrivi, `lotto-${id}.md`)
+}
+
+/** I file nel recupero: `.recupero/<mittente>/<file>.<ora>`. */
 export function arriviNelRecupero(arrivi: string, file: readonly string[]): { spostati: string[]; nonSpostati: string[] } {
   const spostati: string[] = []
   const nonSpostati: string[] = []
@@ -227,6 +305,14 @@ export function arriviNelRecupero(arrivi: string, file: readonly string[]): { sp
   return { spostati, nonSpostati }
 }
 
+/** I lotti più vecchi di 30 giorni nel recupero: l'autopilota li ha avuti da un pezzo. */
+export function lottiScaduti(arrivi: string, adesso: number, giorni = GIORNI_RECUPERO): string[] {
+  if (!existsSync(arrivi)) return []
+  return readdirSync(arrivi).filter((n) => /^lotto-.+\.md$/.test(n)).filter((n) => {
+    try { return adesso - statSync(join(arrivi, n)).mtimeMs > giorni * 86_400_000 } catch { return false }
+  })
+}
+
 /**
  * Toglie dal recupero quello che ci sta da più di 30 giorni. L'età è quella
  * dello spostamento, scritta nel nome da `cancellaSicura` (`<file>.<ISO con ->`):
@@ -236,7 +322,7 @@ export function svuotaRecuperoScaduto(arrivi: string, adesso: number, giorni = G
   const recupero = join(arrivi, CARTELLA_RECUPERO_ARRIVI)
   if (!existsSync(recupero)) return []
   const tolti: string[] = []
-  // I file del recupero: dentro `.recupero/<mittente>/`, o in cima (i riepiloghi).
+  // I file del recupero: dentro `.recupero/<mittente>/`, o in cima (i lotti).
   const voci = readdirSync(recupero, { withFileTypes: true }).flatMap((x) => (x.isDirectory() ? readdirSync(join(recupero, x.name)).map((n) => join(recupero, x.name, n)) : [join(recupero, x.name)]))
   for (const p of voci) {
     try {
@@ -262,19 +348,19 @@ export type DepsGiroErrori = {
   /** La cartella di SierraDeck su questo PC, se c'è. */
   radice: () => string | undefined
   adesso: () => number
-  autopiloti: () => Promise<AutopilotaVisto[]>
+  /** La versione di questo programma: gli errori di versioni più vecchie restano fuori. */
+  versione: () => string
   settimanaPercento: () => number | undefined
-  crea: (p: { nome: string; obiettivo: string; cwd: string; criteri: { descrizione: string; comando?: string }[] }) => Promise<{ id: string }>
-  /** Il riepilogo nella conversazione dell'autopilota, con una notifica sola. */
-  annuncia: (autopilota: string, titolo: string, testo: string) => Promise<void>
+  /** La richiesta nella coda dell'autopilota del workspace di SierraDeck. */
+  affida: (p: { testo: string; cwd: string }) => Promise<void>
   log: (riga: string) => void
   nuovoId?: () => string
 }
 
 /**
- * Un giro: chiude i lavori finiti, manda i riepiloghi pronti, decide se
- * partire. Torna la riga per le Impostazioni, o niente. Non solleva mai: un
- * errore qui finirebbe nello storico che sta cercando di correggere.
+ * Un giro: decide se partire, fa il lotto, lo affida. Torna la riga per le
+ * Impostazioni, o niente. Non solleva mai: un errore qui finirebbe nello
+ * storico che sta cercando di correggere.
  */
 export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | undefined> {
   const radice = d.radice()
@@ -284,40 +370,12 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
   const stato = leggiStatoArrivi(arrivi)
   const adesso = d.adesso()
   const ora = new Date(adesso).toISOString()
-  const arriviDi = (n: number): string => `${n} ${n === 1 ? 'arrivo' : 'arrivi'}`
   let cambiato = false
   let riga: string | undefined
   try {
-    const autopiloti = await d.autopiloti()
-    // 1. I lavori chiusi: i file nel recupero solo se il lavoro è finito davvero.
-    for (const { lavoro, come } of lavoriDaChiudere(stato.lavori, autopiloti)) {
-      lavoro.chiuso = { il: ora, come }
-      cambiato = true
-      if (come === 'finito') {
-        const riepilogo = `riepilogo-${lavoro.id}.md`
-        const r = arriviNelRecupero(arrivi, existsSync(join(arrivi, riepilogo)) ? [...lavoro.file, riepilogo] : lavoro.file)
-        d.log(`[errori arrivati] ${lavoro.id} finito: ${r.spostati.length} file nel recupero di ${GIORNI_RECUPERO} giorni${r.nonSpostati.length > 0 ? `, non spostati: ${r.nonSpostati.join('; ')}` : ''}`)
-      } else {
-        d.log(`[errori arrivati] ${lavoro.id} ${come === 'fallito' ? 'fallito' : 'non c’è più'}: i ${lavoro.file.length} file restano dove sono e ripartono in un lavoro nuovo (al massimo ${TENTATIVI_MAX} volte)`)
-      }
-    }
-    // 2. I riepiloghi pronti: nella conversazione, una volta.
-    for (const l of stato.lavori) {
-      if (l.chiuso !== undefined || l.riepilogoMandato !== undefined) continue
-      const f = fileRiepilogo(arrivi, l.id)
-      if (!existsSync(f)) continue
-      const testo = readFileSync(f, 'utf8').trim()
-      if (testo === '') continue
-      await d.annuncia(l.autopilota, `${NOME_LAVORO}: il riepilogo`, testo.slice(0, 4000))
-      l.riepilogoMandato = ora
-      cambiato = true
-      d.log(`[errori arrivati] riepilogo di ${l.id} mandato a Nicholas (una notifica)`)
-    }
-    // 3. Gli arrivi nuovi.
-    const inAttesa = arriviInAttesa(arrivi, stato)
+    const inAttesa = arriviInAttesa(arrivi)
     const settimana = d.settimanaPercento()
-    const lavoroAperto = stato.lavori.some((l) => l.chiuso === undefined)
-    const dec = decidiErroriArrivati({ inAttesa, adesso, autopiloti, radice, lavoroAperto, ...(settimana !== undefined ? { settimanaPercento: settimana } : {}) })
+    const dec = decidiErroriArrivati({ inAttesa, adesso, ...(settimana !== undefined ? { settimanaPercento: settimana } : {}) })
     if (dec.azione === 'aspetta') {
       if (stato.attesa?.testo !== dec.testo) {
         stato.attesa = { testo: dec.testo, dal: ora }
@@ -326,27 +384,43 @@ export async function giroErroriArrivati(d: DepsGiroErrori): Promise<string | un
       }
       riga = dec.testo
     } else if (dec.azione === 'avvia') {
-      const id = d.nuovoId?.() ?? `ea-${ora.replace(/[-:.TZ]/g, '').slice(0, 14)}`
-      const riepilogo = fileRiepilogo(arrivi, id)
       if (settimana === undefined) d.log('[errori arrivati] limiti della settimana non letti: parto lo stesso')
-      const a = await d.crea({ nome: NOME_LAVORO, obiettivo: obiettivoErroriArrivati({ arrivi, file: dec.file, riepilogo }), cwd: radice, criteri: criteriErroriArrivati(riepilogo) })
-      stato.lavori.push({ id, autopilota: a.id, file: dec.file, creatoIl: ora })
+      const letti = dec.file.map((f) => leggiArrivo(arrivi, f))
+      const illeggibili = dec.file.filter((_f, i) => letti[i] === undefined)
+      if (illeggibili.length > 0) d.log(`[errori arrivati] illeggibili, vanno nel recupero: ${illeggibili.join(', ')}`)
+      const versioneQui = d.versione()
+      const { gruppi, vecchie, giaAffidati } = raggruppa({ arrivi: letti.filter((x): x is ArrivoLetto => x !== undefined), versioneQui, affidati: stato.affidati, adesso })
+      if (gruppi.length > 0) {
+        const id = d.nuovoId?.() ?? ora.replace(/[-:.TZ]/g, '').slice(0, 14)
+        const lotto = fileLotto(arrivi, id)
+        writeFileSync(lotto, testoLotto({ id, gruppi, versioneQui, vecchie, giaAffidati }), 'utf8')
+        const ritornano = gruppi.filter((g) => g.ritorna !== undefined).length
+        // Prima la richiesta, poi lo stato: se l'autopilota non la prende, al giro dopo si riprova.
+        await d.affida({ testo: richiestaLotto({ lotto, gruppi: gruppi.length, ritornano }), cwd: radice })
+        for (const g of gruppi) {
+          const ultima = [...g.versioni].sort((a, b) => (piuNuova(a, b) ? -1 : piuNuova(b, a) ? 1 : 0))[0]
+          stato.affidati[g.chiave] = { il: ora, ...(ultima !== undefined ? { versione: ultima } : {}) }
+        }
+        stato.lotti = [...stato.lotti, { id, il: ora, gruppi: gruppi.length, file: dec.file.length }].slice(-50)
+        d.log(`[errori arrivati] lotto ${id}: ${gruppi.length} gruppi da ${dec.file.length} arrivi affidati all'autopilota${vecchie > 0 ? `, ${vecchie} errori di versioni vecchie lasciati fuori` : ''}${giaAffidati > 0 ? `, ${giaAffidati} gruppi già affidati` : ''}`)
+        riga = `${NOME_LAVORO}: ${gruppi.length} ${gruppi.length === 1 ? 'gruppo affidato' : 'gruppi affidati'} all’autopilota (${ora.slice(0, 16).replace('T', ' ')}).`
+      } else {
+        d.log(`[errori arrivati] ${dec.file.length} arrivi senza niente di nuovo (${vecchie} errori di versioni vecchie, ${giaAffidati} gruppi già affidati): nel recupero`)
+        riga = `${NOME_LAVORO}: niente di nuovo negli ultimi arrivi.`
+      }
       delete stato.attesa
-      // Subito, non a fine giro: se l'autopilota c'è e lo stato no, al giro dopo
-      // gli stessi file partirebbero in un secondo lavoro.
-      scriviStatoArrivi(arrivi, stato)
       cambiato = true
-      d.log(`[errori arrivati] avviato «${NOME_LAVORO}» (${a.id}) con ${arriviDi(dec.file.length)}`)
-      riga = `${NOME_LAVORO}: al lavoro su ${arriviDi(dec.file.length)}.`
+      // Il lotto ha tutto: gli arrivi vanno nel recupero, e non ripartono.
+      const r = arriviNelRecupero(arrivi, dec.file)
+      if (r.nonSpostati.length > 0) d.log(`[errori arrivati] non spostati nel recupero: ${r.nonSpostati.join('; ')}`)
     } else {
       if (stato.attesa !== undefined) { delete stato.attesa; cambiato = true }
-      const aperto = stato.lavori.find((l) => l.chiuso === undefined)
-      if (aperto !== undefined) riga = `${NOME_LAVORO}: al lavoro su ${arriviDi(aperto.file.length)}${aperto.riepilogoMandato !== undefined ? '' : ', il riepilogo arriva prima delle correzioni'}.`
-      else if (inAttesa.length > 0) riga = `${NOME_LAVORO}: ${arriviDi(inAttesa.length)}, parto fra qualche minuto.`
+      const l = stato.lotti[stato.lotti.length - 1]
+      if (inAttesa.length > 0) riga = `${NOME_LAVORO}: ${inAttesa.length} ${inAttesa.length === 1 ? 'arrivo' : 'arrivi'}, li passo all’autopilota fra qualche minuto.`
+      else if (l !== undefined) riga = `${NOME_LAVORO}: l’ultimo lotto (${l.gruppi} ${l.gruppi === 1 ? 'gruppo' : 'gruppi'}) affidato il ${l.il.slice(0, 16).replace('T', ' ')}.`
     }
-    // Quelli falliti troppe volte non ripartono: lo si dice, invece di tacere.
-    const { abbandonati } = arriviPresi(stato)
-    if (abbandonati.length > 0 && riga === undefined) riga = `${NOME_LAVORO}: ${arriviDi(abbandonati.length)} non corretti dopo ${TENTATIVI_MAX} tentativi: guardali tu in .sierradeck/errori-arrivati.`
+    const vecchiLotti = lottiScaduti(arrivi, adesso)
+    if (vecchiLotti.length > 0) arriviNelRecupero(arrivi, vecchiLotti)
     const tolti = svuotaRecuperoScaduto(arrivi, adesso)
     if (tolti.length > 0) d.log(`[errori arrivati] tolti dal recupero dopo ${GIORNI_RECUPERO} giorni: ${tolti.length} file`)
   } catch (err) {
