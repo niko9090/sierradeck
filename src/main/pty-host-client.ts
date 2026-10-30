@@ -22,6 +22,21 @@ export function attesaSpegnimentoMs(base: number, terminali: number): number {
   return Math.min(Math.max(base, ATTESA_SPEGNIMENTO_MAX_MS), base + Math.max(0, terminali) * PER_TERMINALE_MS)
 }
 
+/**
+ * Lo stderr del PTY host che non è un guasto: da raccontare, non da mettere fra
+ * gli errori. Restituisce la riga da raccontare, o `undefined` se è un errore vero.
+ *
+ * - Lo spegnimento voluto (0.88.2): finiva fra gli errori a ogni chiusura.
+ * - «AttachConsole failed» dall'agente di node-pty (conpty_console_list_agent):
+ *   su Windows kill() lo lancia, e fallisce se la shell è già morta. È atteso e
+ *   innocuo; le eccezioni di proc.kill() sono già ignorate dal pty-manager.
+ */
+export function leggiStderrAtteso(chunk: string): string | undefined {
+  if (/^\[pty-host\] spegnimento \(/.test(chunk)) return chunk.trim().replace(/^\[pty-host\] /, '')
+  if (/conpty_console_list_agent|AttachConsole failed/.test(chunk)) return 'console già chiusa (node-pty): ignorato'
+  return undefined
+}
+
 export type PtyHostClientOptions = {
   /** Eseguibile Node. In Electron: process.execPath con ELECTRON_RUN_AS_NODE. */
   nodePath: string
@@ -178,9 +193,8 @@ export class PtyHostClient {
 
     child.stderr?.setEncoding('utf8')
     child.stderr?.on('data', (chunk: string) => {
-      // Lo spegnimento voluto non è un guasto (0.88.2): finiva fra gli errori
-      // a ogni chiusura, e da lì nello storico mandato al PC di sviluppo.
-      if (/^\[pty-host\] spegnimento \(/.test(chunk)) { this.racconta(chunk.trim().replace(/^\[pty-host\] /, '')); return }
+      const atteso = leggiStderrAtteso(chunk)
+      if (atteso !== undefined) { this.racconta(atteso); return }
       console.error('[pty-host]', chunk)
     })
 

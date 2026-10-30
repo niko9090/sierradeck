@@ -210,6 +210,51 @@ describe('PtyHostClient', () => {
     expect(diagnostica.join('\n')).toContain('scrittura verso il PTY host fallita')
   })
 
+  describe('stderr dell host', () => {
+    const STACK_ATTACHCONSOLE = [
+      'C:\\app\\node_modules\\node-pty\\lib\\conpty_console_list_agent.js:13',
+      '  var consoleProcessList = getConsoleProcessList(shellPid);',
+      '                           ^',
+      'Error: AttachConsole failed',
+      '    at Object.<anonymous> (C:\\app\\node_modules\\node-pty\\lib\\conpty_console_list_agent.js:13:30)',
+      ''
+    ].join('\n')
+
+    function conStderr(): { emetti: (testo: string) => void; registro: string[] } {
+      const registro: string[] = []
+      client = new PtyHostClient({
+        nodePath: process.execPath,
+        hostScript: hostSordo,
+        shutdownTimeoutMs: 50,
+        log: (m) => registro.push(m)
+      })
+      client.start()
+      const interno = client as unknown as { child: { stderr: NodeJS.EventEmitter } }
+      return { emetti: (t) => interno.child.stderr.emit('data', t), registro }
+    }
+
+    it('lo stack di AttachConsole failed è raccontato, non è un errore', () => {
+      const { emetti, registro } = conStderr()
+      emetti(STACK_ATTACHCONSOLE)
+      expect(diagnostica).toEqual([])
+      expect(registro).toEqual(['[pty-host] console già chiusa (node-pty): ignorato'])
+    })
+
+    it('la riga dello spegnimento voluto è raccontata, non è un errore', () => {
+      const { emetti, registro } = conStderr()
+      emetti('[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti\n')
+      expect(diagnostica).toEqual([])
+      expect(registro).toEqual(['[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti'])
+    })
+
+    it('un altro stderr resta un errore', () => {
+      const { emetti, registro } = conStderr()
+      emetti('TypeError: qualcosa di rotto\n')
+      expect(registro).toEqual([])
+      expect(diagnostica.join(' ')).toContain('TypeError: qualcosa di rotto')
+    })
+  })
+
   describe('spegnimento ordinato', () => {
     it('chiede all host di chiudere i terminali invece di terminarlo', async () => {
       rmSync(marcaSpegnimento, { force: true })
