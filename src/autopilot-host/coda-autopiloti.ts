@@ -145,8 +145,9 @@ function statoDaiCompiti(r: Richiesta, misura: MisuraCompito): StatoCoda {
  * - altrimenti dai compiti: in corso, in verifica, pianificata.
  * Una fatta non torna indietro. Torna la stessa coda se non cambia niente.
  */
-export function allineaConAutopiloti(coda: Coda, autopiloti: Autopilota[], adesso: string): Modifica {
-  const misura = misuraDaAutopiloti(autopiloti)
+export function allineaConAutopiloti(coda: Coda, autopiloti: Autopilota[], adesso: string, misuraData?: MisuraCompito): Modifica {
+  // P3: con l'autopilota unico la misura viene prima dal piano (`misuraDalPiano`), poi dagli autopiloti.
+  const misura = misuraData ?? misuraDaAutopiloti(autopiloti)
   const perId = new Map(autopiloti.map((a) => [a.id, a]))
   const eventi: EventoCoda[] = []
   let cambiata = false
