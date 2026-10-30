@@ -125,6 +125,19 @@ export function PannelloConsumi({ onChiudi, incorporato = false }: { onChiudi?: 
         ))}
       </div>
 
+      {consumi?.orchestratori !== undefined && consumi.orchestratori.length > 0 ? (
+        <div style={{ marginBottom: 14 }}>
+          <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Orchestratori, per workspace<Aiuto di="costo degli orchestratori">Quanto vale il lavoro dell’orchestratore di ogni workspace: il costo di listino che Claude Code calcola per ogni suo turno, letto dal suo registro dei costi. È sull’abbonamento, quindi non è una spesa in più: serve a vedere quale workspace pesa di più. Oggi · ultimi 7 giorni · da sempre.</Aiuto></div>
+          {consumi.orchestratori.map((o) => (
+            <div key={o.workspace} className="riga" style={{ gap: 12 }}>
+              <span className="riga__nome" style={{ minWidth: 140 }}>{o.workspace}</span>
+              <span className="misura" style={{ flex: 1 }}>{o.turni} {o.turni === 1 ? 'turno' : 'turni'}{o.ultimo !== undefined ? ` · l’ultimo ${oraDi(o.ultimo, adesso)}` : ''}</span>
+              <span className="misura" title="Oggi · ultimi 7 giorni · da sempre">{dollari(o.oggi)} · {dollari(o.settimana)} · {dollari(o.totale)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {consumi !== undefined && consumi.chatAperte !== undefined && consumi.chatAperte.length > 0 ? (
         <div style={{ marginBottom: 14 }}>
           <div className="serigrafia con-aiuto" style={{ marginBottom: 6 }}>Le chat aperte adesso<Aiuto di="contesto">Il contesto è la memoria di lavoro della chat: al 90% conviene farle riassumere dove è arrivata, perché quando Claude Code lo compatta può perdere dettagli.</Aiuto></div>

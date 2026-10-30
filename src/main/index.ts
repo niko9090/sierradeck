@@ -84,6 +84,7 @@ import { listSessions, rimuoviSessioni } from './db'
 import { creaGestioneChat, type GestioneChat } from './gestione-chat'
 import { statoPerAzione, nascondiArchiviate, AZIONI_CHAT, type AzioneChat, type AutopilotaPerChat } from '@shared/gestione-chat'
 import { riassumiConsumi, type Consumi } from '@shared/consumi'
+import { creaLettoreCosti } from './costi-orchestratore'
 import { costoPerPeriodo, leggiPolso, limitiAggiornati, rigaDiStato, type Polso } from '@shared/polso-chat'
 import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-piano'
 import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
@@ -501,6 +502,8 @@ function ricordaSegnale(corpo: unknown): void {
  * (`polso-chat.json`), perche' la spesa di ieri serve anche dopo un riavvio.
  */
 const polsi = new Map<string, Polso>()
+/** I costi dell'orchestratore di ogni workspace, dai suoi `costi.jsonl` (solo lettura). */
+let costiOrchestratori: ReturnType<typeof creaLettoreCosti> | undefined
 let salvaPolsiTimer: NodeJS.Timeout | undefined
 let filePolsi = ''
 function ricordaPolso(p: Polso): void {
@@ -550,7 +553,8 @@ function arricchisciConsumi(c: Consumi): Consumi {
   // Il freno degli autopiloti con questi stessi limiti: la funzione del servizio.
   const f = frenoPerAutopiloti(false, limitiPerFreno(limiti), adesso) // 0.84.2: freno spento (Nicholas, 22/10)
   const freno = { ...f, ...testoFreno(f) }
-  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno }
+  const orchestratori = costiOrchestratori?.((workspaceStore?.leggi().workspace ?? []).map((w) => w.nome), adesso) ?? []
+  return { ...c, ...(limiti !== undefined ? { limiti } : {}), costo: costoPerPeriodo(tutti, adesso), chatAperte: chatConPolso, freno, ...(orchestratori.length > 0 ? { orchestratori } : {}) }
 }
 /**
  * La riga di stato di Claude Code per le chat di SierraDeck: un `curl` che
@@ -1539,6 +1543,7 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       caricaPolsi(join(dati, 'polso-chat.json'))
+      costiOrchestratori = creaLettoreCosti(join(dati, 'orchestratori'))
       db = registerSessionIpc(dati, arricchisciConsumi)
       workspaceStore = apriWorkspaceStore(dati)
       // La lista dei workspace di questo PC (0.65.1), prima che nasca una finestra:

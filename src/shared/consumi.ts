@@ -42,6 +42,24 @@ export type Consumi = {
    * la stessa `frenoDaiLimiti` del servizio, sullo stesso quadro.
    */
   freno?: { livello: string; tetto: number; apriNuove: boolean; motivo: string; riparteIl?: number; titolo: string; spiegazione: string }
+  /**
+   * Quanto vale il lavoro dell'orchestratore di ogni workspace (0.87.x), dai
+   * suoi `costi.jsonl`: dollari di listino che la CLI calcola per ogni turno.
+   * Con l'abbonamento è un'indicazione, non una spesa.
+   */
+  orchestratori?: CostoOrchestratore[]
+}
+
+/** Il costo dell'orchestratore di un workspace, sommato per periodo (dollari di listino). */
+export type CostoOrchestratore = {
+  workspace: string
+  oggi: number
+  settimana: number
+  totale: number
+  /** Quanti turni ha fatto. */
+  turni: number
+  /** L'ultimo turno (ms). */
+  ultimo?: number
 }
 
 const GIORNO_MS = 24 * 60 * 60 * 1000

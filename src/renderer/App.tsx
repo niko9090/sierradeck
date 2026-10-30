@@ -50,8 +50,6 @@ import { noteDaNovita, type NotaResa, type NoteAggiornamento } from '@shared/not
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
 import { componiAvvisi, ricordaChiusi } from './avvisi'
-import { ColonnaConsumi } from './components/ColonnaConsumi'
-import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
 import { azioneTastoDomande, decidiColonnaDomande, domandeALato, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
@@ -964,51 +962,28 @@ export function App(): React.JSX.Element {
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
   const preferenzeLette = useRef(false)
-  // La colonna «Consumi e limiti» (0.37.0): stessa meccanica, stesse preferenze.
-  const [colonnaConsumi, setColonnaConsumi] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 380 })
   useEffect(() => {
-    const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number; consumiLaterali: boolean; larghezzaConsumi: number }): void => {
+    const applica = (p: { domandeLaterali: boolean; larghezzaDomande: number }): void => {
       setColonnaDomande({ aperta: p.domandeLaterali, larghezza: p.larghezzaDomande })
       preferenzeLette.current = true
-      setColonnaConsumi({ aperta: p.consumiLaterali, larghezza: p.larghezzaConsumi })
     }
     window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
     return window.gestore.preferenze.suCambio(applica)
   }, [])
-  /**
-   * Apre o chiude una delle due colonne. Aprendone una, l'altra resta aperta se
-   * c'e' posto per tutte e due e per le chat; altrimenti si chiude.
-   */
-  const commutaColonna = useCallback((quale: 'domande' | 'consumi'): void => {
-    const apre = quale === 'domande' ? !colonnaDomande.aperta : !colonnaConsumi.aperta
-    const insieme = restaApertaLAltra({
-      larghezzaFinestra: window.innerWidth,
-      larghezzaDomande: colonnaDomande.larghezza,
-      larghezzaConsumi: colonnaConsumi.larghezza
-    })
-    const domande = quale === 'domande' ? apre : apre && !insieme ? false : colonnaDomande.aperta
-    const consumi = quale === 'consumi' ? apre : apre && !insieme ? false : colonnaConsumi.aperta
+  /** Apre o chiude la colonna Domande, e lo ricorda nelle preferenze. */
+  const commutaColonna = useCallback((_quale: 'domande'): void => {
+    const domande = !colonnaDomande.aperta
     setColonnaDomande((c) => ({ ...c, aperta: domande }))
-    setColonnaConsumi((c) => ({ ...c, aperta: consumi }))
     window.gestore.preferenze
       .leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, domandeLaterali: domande, consumiLaterali: consumi }))
+      .then((p) => window.gestore.preferenze.imposta({ ...p, domandeLaterali: domande }))
       .catch(() => undefined)
-  }, [colonnaDomande, colonnaConsumi])
-  // Apre la colonna Domande per una domanda nuova (mai la chiude): con la
-  // stessa regola del tasto, se non c'e' posto per tutte e due si chiude
-  // quella dei Consumi.
+  }, [colonnaDomande])
+  // Apre la colonna Domande per una domanda nuova (mai la chiude).
   const apriColonnaDomandeRef = useRef<() => void>(() => undefined)
   apriColonnaDomandeRef.current = (): void => {
     if (!colonnaDomande.aperta) commutaColonna('domande')
   }
-  const salvaLarghezzaConsumi = useCallback((px: number): void => {
-    setColonnaConsumi((c) => ({ ...c, larghezza: px }))
-    window.gestore.preferenze
-      .leggi()
-      .then((p) => window.gestore.preferenze.imposta({ ...p, larghezzaConsumi: px }))
-      .catch(() => undefined)
-  }, [])
   // Gli avvisi chiusi con «Chiudi» (0.37.0): nelle preferenze, cosi' un fermo
   // chiuso resta chiuso anche dopo un riavvio.
   const [avvisiChiusi, setAvvisiChiusi] = useState<string[]>([])
@@ -1293,6 +1268,9 @@ export function App(): React.JSX.Element {
   // la chiave dell'avviso cambia con l'azzeramento, e quelle gia' mostrate
   // restano nel browser.
   const [avvisoConsumi, setAvvisoConsumi] = useState<AvvisoConsumi | undefined>(undefined)
+  /** Dall'avviso dei limiti la Salute si apre già sui consumi. */
+  const [saluteSuConsumi, setSaluteSuConsumi] = useState(false)
+  useEffect(() => { if (aperto !== 'salute') setSaluteSuConsumi(false) }, [aperto])
   useEffect(() => {
     let vivo = true
     let gia = new Set<string>()
@@ -2160,8 +2138,7 @@ export function App(): React.JSX.Element {
             onApriDrive={() => { setSchedaImpostazioni('account'); setAperto('impostazioni') }}
             onInstalla={() => apriInstalla(aggiornamento.versione ?? '')}
             onApriAutopiloti={() => setAperto('autopiloti')}
-            onConsumi={() => commutaColonna('consumi')}
-            consumiAperti={colonnaConsumi.aperta}
+            suiConsumi={saluteSuConsumi}
           />
         ) : null}
         {aperto === 'negozio' ? (
@@ -2289,20 +2266,10 @@ export function App(): React.JSX.Element {
         {colonnaDomande.aperta ? (
           <PannelloDomande
             larghezza={colonnaDomande.larghezza}
-            altreColonne={colonnaConsumi.aperta ? colonnaConsumi.larghezza : 0}
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}
             onConteggio={setDomandeInAttesa}
             {...(evidenzaDomanda !== undefined ? { evidenza: evidenzaDomanda } : {})}
-          />
-        ) : null}
-        {colonnaConsumi.aperta ? (
-          <ColonnaConsumi
-            larghezza={colonnaConsumi.larghezza}
-            altreColonne={colonnaDomande.aperta ? colonnaDomande.larghezza : 0}
-            onLarghezza={salvaLarghezzaConsumi}
-            onChiudi={() => commutaColonna('consumi')}
-            autopilotiAlLavoro={autopiloti.filter((a) => a.stato === 'lavoro').length}
           />
         ) : null}
       </div>
@@ -2356,7 +2323,7 @@ export function App(): React.JSX.Element {
             <span className={`led ${avvisoConsumi.tono === 'errore' ? 'led--fermo' : 'led--attesa'}`} />
             <span className="fumetto__testo">
               {avvisoConsumi.testo}{' '}
-              <button className="collegamento" onClick={() => { setAvvisoConsumi(undefined); if (!colonnaConsumi.aperta) commutaColonna('consumi') }} title="La colonna «Consumi e limiti», accanto alle chat (anche da ♥ Salute)">Consumi</button>
+              <button className="collegamento" onClick={() => { setAvvisoConsumi(undefined); setSaluteSuConsumi(true); setAperto('salute') }} title="Consumi e limiti, in ♥ Salute">Consumi</button>
             </span>
             <button className="tasto tasto--mini" onClick={() => setAvvisoConsumi(undefined)} title="Chiudi">×</button>
           </Fumetto>

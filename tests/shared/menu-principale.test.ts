@@ -65,7 +65,7 @@ describe('sul PC: ogni voce dell’inventario si raggiunge', () => {
     for (const t of ['+ Nuova chat', 'Riprendi una conversazione', 'Crea, rinomina, elimina…', 'Nuova finestra', 'Negozio…', '<SottofondoQui vuoto=', 'Usate da altri PC (nessuna)']) expect(c, t).toContain(t)
     expect(app).toContain("aperto === 'chat' ? (")
     const s = leggi('src/renderer/components/PannelloSalute.tsx')
-    for (const t of ['<AltriComputer />', 'onConsumi?.()', '<PannelloConsumi incorporato />']) expect(s, t).toContain(t)
+    for (const t of ['<AltriComputer />', "suiConsumi ? 'consumi'", '<PannelloConsumi incorporato />']) expect(s, t).toContain(t)
     const imp = leggi('src/renderer/components/PannelloImpostazioni.tsx')
     expect(imp).not.toContain("bottone('consumi'")
     expect(imp).not.toContain("detail: 'salute'")

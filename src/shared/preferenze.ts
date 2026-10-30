@@ -98,14 +98,6 @@ export type Preferenze = {
   /** Quanto e' larga la colonna delle Domande, in pixel. */
   larghezzaDomande: number
   /**
-   * La colonna «Consumi e limiti» sul PC e' aperta accanto alle chat (0.37.0),
-   * con la stessa meccanica delle Domande: tasto nella console, si ritrova
-   * aperta e larga com'era. Le due colonne possono stare aperte insieme.
-   */
-  consumiLaterali: boolean
-  /** Quanto e' larga la colonna «Consumi e limiti», in pixel. */
-  larghezzaConsumi: number
-  /**
    * Nella scheda dell'autopilota, quanta parte prende la chat con lui (in
    * percentuale; il resto va alle linguette). La barra fra le due si
    * trascina (0.41.0).
@@ -196,8 +188,6 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   // Chiusa: chi non la apre non deve trovarsi il mosaico piu' stretto.
   domandeLaterali: false,
   larghezzaDomande: 400,
-  consumiLaterali: false,
-  larghezzaConsumi: 380,
   divisioneAutopilota: 55,
   avvisiChiusi: [],
   workspaceElenco: [],
@@ -219,8 +209,6 @@ export const LARGHEZZA_DIARIO = { min: 15, max: 70 } as const
 
 /** La colonna delle Domande: sotto non si legge un messaggio, sopra non resta mosaico. */
 export const LARGHEZZA_DOMANDE = { min: 300, max: 760 } as const
-/** I limiti della colonna «Consumi e limiti», come quella delle Domande. */
-export const LARGHEZZA_CONSUMI = { min: 300, max: 760 } as const
 
 /** Dove sta il diario dell'autopilota dentro il riquadro della sua chat. */
 export type PostoDiario = 'destra' | 'sinistra' | 'sopra' | 'sotto'
@@ -297,11 +285,6 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       typeof o.larghezzaDomande === 'number' && Number.isFinite(o.larghezzaDomande)
         ? Math.round(Math.min(LARGHEZZA_DOMANDE.max, Math.max(LARGHEZZA_DOMANDE.min, o.larghezzaDomande)))
         : PREFERENZE_PREDEFINITE.larghezzaDomande,
-    consumiLaterali: o.consumiLaterali === true,
-    larghezzaConsumi:
-      typeof o.larghezzaConsumi === 'number' && Number.isFinite(o.larghezzaConsumi)
-        ? Math.round(Math.min(LARGHEZZA_CONSUMI.max, Math.max(LARGHEZZA_CONSUMI.min, o.larghezzaConsumi)))
-        : PREFERENZE_PREDEFINITE.larghezzaConsumi,
     divisioneAutopilota:
       typeof o.divisioneAutopilota === 'number' && Number.isFinite(o.divisioneAutopilota)
         ? Math.round(Math.min(80, Math.max(20, o.divisioneAutopilota)))

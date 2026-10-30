@@ -30,15 +30,14 @@ type Props = {
   onApriDrive: () => void
   onInstalla: () => void
   onApriAutopiloti: () => void
-  /** Apre o chiude la colonna «Consumi e limiti» accanto alle chat (0.61.0: il suo tasto è qui). */
-  onConsumi?: () => void
-  consumiAperti?: boolean
+  /** Si apre già sui consumi (dall'avviso dei limiti). */
+  suiConsumi?: boolean
 }
 
 
-export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopiloti, onConsumi, consumiAperti = false }: Props): React.JSX.Element {
+export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopiloti, suiConsumi = false }: Props): React.JSX.Element {
   /** Le parti in fondo (0.61.0): gli altri computer e i consumi, aperte a richiesta. */
-  const [parte, setParte] = useState<'altri-pc' | 'consumi' | undefined>(undefined)
+  const [parte, setParte] = useState<'altri-pc' | 'consumi' | undefined>(suiConsumi ? 'consumi' : undefined)
   const [mappa, setMappa] = useState(false)
   const [salute, setSalute] = useState<Salute | undefined>(undefined)
   const [leggo, setLeggo] = useState(false)
@@ -136,7 +135,6 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
               <button className="progetti__voce" title="I PC che usano lo stesso Drive: acceso o spento, versione, le chat che hanno aperte (da guardare dal vivo) e la cassetta" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('altri-pc') }}>Gli altri computer</button>
               <button className="progetti__voce" title="La mappa dei PC, con la strada di ognuno" onClick={() => { setMenu(false); setScelta(undefined); setParte(undefined); setMappa(true) }}>Mappa dei PC</button>
               <button className="progetti__voce" title="I token per giorno e per chat, i limiti del piano e le regole del freno" onClick={() => { setMenu(false); setScelta(undefined); setMappa(false); setParte('consumi') }}>Consumi per esteso</button>
-              <button className="progetti__voce" title="La colonna «Consumi e limiti» accanto alle chat, che resta aperta mentre lavori" onClick={() => { setMenu(false); onConsumi?.(); if (consumiAperti !== true) onChiudi() }}>{consumiAperti ? 'Chiudi la colonna dei consumi' : 'Consumi e limiti (colonna)'}</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); void window.gestore.log.apri() }}>Apri la cartella del registro</button>
             </TendinaMenu>
           ) : null}

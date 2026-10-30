@@ -14,10 +14,10 @@ describe('i limiti', () => {
     expect(limita('domande', 100)).toBe(MISURE.domande.min)
     expect(limita('domande', 5000)).toBe(MISURE.domande.max)
     expect(limita('divisione', 99)).toBe(80)
-    expect(limita('consumi', Number.NaN)).toBe(MISURE.consumi.predefinita)
+    expect(limita('domande', Number.NaN)).toBe(MISURE.domande.predefinita)
   })
   it('le chat a sinistra non scendono mai sotto la larghezza minima', () => {
-    // Finestra di 1400: con i Consumi aperti a 380, le Domande arrivano al massimo a 500.
+    // Finestra di 1400: con un'altra colonna aperta a 380, le Domande arrivano al massimo a 500.
     expect(massimoColonna('domande', 1400, 380)).toBe(1400 - 380 - MOSAICO_MINIMO_PX)
     // Finestra larga: vale il massimo della colonna.
     expect(massimoColonna('domande', 3000, 0)).toBe(MISURE.domande.max)
@@ -30,7 +30,7 @@ describe('il trascinamento', () => {
   it('il bordo sinistro di una colonna: verso sinistra allarga, dentro i limiti e lo spazio', () => {
     expect(larghezzaTrascinata({ sezione: 'domande', iniziale: 400, partenzaX: 1000, x: 900, finestra: 2000, altreColonne: 0 })).toBe(500)
     expect(larghezzaTrascinata({ sezione: 'domande', iniziale: 400, partenzaX: 1000, x: 1200, finestra: 2000, altreColonne: 0 })).toBe(300)
-    expect(larghezzaTrascinata({ sezione: 'consumi', iniziale: 400, partenzaX: 1000, x: 200, finestra: 1300, altreColonne: 400 })).toBe(380)
+    expect(larghezzaTrascinata({ sezione: 'domande', iniziale: 400, partenzaX: 1000, x: 200, finestra: 1300, altreColonne: 400 })).toBe(380)
   })
   it('la barra fra la chat e le linguette: la percentuale della scheda che prende la chat', () => {
     expect(divisioneTrascinata({ inizio: 100, lunghezza: 600, posizione: 400 })).toBe(50)
@@ -71,7 +71,6 @@ describe('le misure restano nelle preferenze', () => {
   })
   it('le misure iniziali delle colonne sono quelle delle preferenze', () => {
     expect(PREFERENZE_PREDEFINITE.larghezzaDomande).toBe(MISURE.domande.predefinita)
-    expect(PREFERENZE_PREDEFINITE.larghezzaConsumi).toBe(MISURE.consumi.predefinita)
     expect(PREFERENZE_PREDEFINITE.larghezzaAutopilota).toBe(MISURE.autopilota.predefinita)
   })
 })
