@@ -266,3 +266,129 @@ describe('autopilota unico nel servizio', () => {
     expect(processi[0]!.scritte.some((r) => testoScritto(r).includes('NON è un repository git'))).toBe(true)
   })
 })
+
+/**
+ * Il caso del 30/10 (23:16, workspace SierraDeck): lo specialista di k-1 finisce
+ * sul ramo `worktree-agent-aa217af67431f584c`, la prima unione fallisce, e
+ * l'orchestratore manda un secondo specialista «k-1: sistemare main sporco»
+ * che non cambia niente (la CLI gli toglie il worktree). Il secondo
+ * `unisci(compito: k-1)` si agganciava a lui, l'ultimo legato al compito.
+ */
+describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', () => {
+  const LAVORO = 'worktree-agent-aa217af67431f584c'
+  const ALTRO = 'worktree-agent-a222b7243bca02737'
+  const radice = process.cwd()
+
+  /** Un git finto: `rami` dice quanti commit ha ogni ramo fuori da main; `dentro` quali rami ne contengono altri. */
+  function gitFinto(rami: Record<string, number>, dentro: [string, string][] = []): { git: Git; chiamate: string[][] } {
+    const chiamate: string[][] = []
+    const git: Git = (args) => {
+      chiamate.push(args)
+      const a = args.join(' ')
+      if (a === 'rev-parse --is-inside-work-tree') return { codice: 0, uscita: 'true' }
+      if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: radice.replace(/\\/gu, '/') }
+      if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
+      if (a === 'config user.name') return { codice: 0, uscita: 'Nicholas' }
+      if (a.startsWith('status --porcelain')) return { codice: 0, uscita: '' }
+      if (a === 'worktree list --porcelain') {
+        return { codice: 0, uscita: [`worktree ${radice}`, 'HEAD aaa', 'branch refs/heads/main', '', ...Object.keys(rami).flatMap((r) => [`worktree ${join(radice, '.claude', 'worktrees', r.replace(/^worktree-/u, ''))}`, 'HEAD bbb', `branch refs/heads/${r}`, ''])].join('\n') }
+      }
+      const conta = /^rev-list --count main\.\.(.+)$/u.exec(a)
+      if (conta !== null) return rami[conta[1]!] !== undefined ? { codice: 0, uscita: String(rami[conta[1]!]) } : { codice: 128, uscita: 'fatal: bad revision' }
+      const verifica = /^rev-parse --verify --quiet refs\/heads\/(.+)$/u.exec(a)
+      if (verifica !== null) return { codice: verifica[1] === 'main' || rami[verifica[1]!] !== undefined ? 0 : 1, uscita: '' }
+      if (args[0] === 'merge-base') {
+        const [x, y] = args.slice(-2).map((r) => r.replace(/^refs\/heads\//u, ''))
+        return { codice: dentro.some(([d, c]) => d === x && c === y) ? 0 : 1, uscita: '' }
+      }
+      if (args.includes('merge') && args.includes('--no-commit')) return { codice: 0, uscita: '' }
+      if (args.includes('commit')) return { codice: 0, uscita: '' }
+      return { codice: 1, uscita: '' }
+    }
+    return { git, chiamate }
+  }
+
+  async function strumento(nome: string, argomenti: Record<string, unknown>): Promise<string> {
+    const cfg = JSON.parse(readFileSync(processi[0]!.args[processi[0]!.args.indexOf('--mcp-config') + 1]!, 'utf8')) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
+    const r = await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.mcpServers.sierradeck.headers.Authorization },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: nome, arguments: argomenti } })
+    })
+    return ((await r.json()) as { result: { content: { text: string }[] } }).result.content[0]!.text
+  }
+
+  /** Lo specialista nativo: parte con «k-1: …», gira in sottofondo come task, finisce. */
+  function specialista(id: string, task: string, descrizione: string): void {
+    const p = processi[0]!
+    p.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: 'sviluppatore', description: descrizione } }] } })
+    p.emetti({ type: 'system', subtype: 'task_started', task_id: task, tool_use_id: id, task_type: 'local_agent', description: descrizione })
+    p.emetti({ type: 'system', subtype: 'task_notification', task_id: task, tool_use_id: id, status: 'completed', summary: descrizione })
+  }
+
+  async function preparaK1(git: Git): Promise<string> {
+    await avviaServizio([ap()], { git })
+    const id = migra().autopilota!
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    orch.scriviPiano('Lavoro', { versione: 1, compiti: [{ id: 'k-1', richiesta: 'r-1', titolo: 'il rumore di node-pty non è più un errore', criterio: 'il rumore non finisce fra gli errori', dopo: [], peso: 2, stato: 'da-fare', creato: '2026-10-30T08:00:00.000Z' }] })
+    specialista('toolu_lavoro', 'aa217af67431f584c', 'k-1: errori arrivati, rumore node-pty')
+    specialista('toolu_controllo', 'a222b7243bca02737', 'k-1: sistemare main sporco per l’unione')
+    // La condizione del campo: il compito è legato all'ultimo partito, quello del controllo.
+    expect(orch.piano('Lavoro').compiti[0]!.chat).toBe('toolu_controllo')
+    return id
+  }
+
+  it('il secondo unisci(compito) unisce il ramo con il lavoro, non quello dello specialista che non ha cambiato niente', async () => {
+    zitto()
+    const { git, chiamate } = gitFinto({ [LAVORO]: 1 })
+    const id = await preparaK1(git)
+    expect(await strumento('unisci', { compito: 'k-1' })).toContain('Unione avviata')
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(chiamate.some((c) => c.includes('merge') && c.includes(LAVORO))).toBe(true)
+    expect(archivio.leggi(id)!.decisioni.map((d) => d.cosa)).toContainEqual(expect.stringContaining(`toolu_lavoro: ramo ${LAVORO} unito`))
+    // Unito è lui, non quello del controllo.
+    expect((await vista()).specialisti.map((s) => s.id)).not.toContain('toolu_lavoro')
+  })
+
+  it('due rami con lavoro, nessuno dentro l’altro: errore con i rami possibili, niente unione', async () => {
+    zitto()
+    const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 2 })
+    await preparaK1(git)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione non fatta') === true, { cosa: 'l’esito dell’unione' })
+    const k = orch.piano('Lavoro').compiti[0]!
+    expect(k.stato).not.toBe('unito')
+    expect(k.esito).toContain(`${LAVORO} (toolu_lavoro, 1 commit)`)
+    expect(k.esito).toContain(`${ALTRO} (toolu_controllo, 2 commit)`)
+    expect(chiamate.some((c) => c.includes('merge') && c.includes('--no-commit'))).toBe(false)
+  })
+
+  it('due rami con lavoro, uno partito dall’altro: vale quello che li contiene', async () => {
+    zitto()
+    const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 2 }, [[LAVORO, ALTRO]])
+    await preparaK1(git)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(chiamate.some((c) => c.includes('merge') && c.includes('--no-commit') && c.includes(ALTRO))).toBe(true)
+  })
+
+  it('nessun ramo con lavoro: errore che dice perché, specialista per specialista', async () => {
+    zitto()
+    const { git } = gitFinto({ [LAVORO]: 0 })
+    await preparaK1(git)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione non fatta') === true, { cosa: 'l’esito dell’unione' })
+    const esito = orch.piano('Lavoro').compiti[0]!.esito!
+    expect(esito).toContain('nessuno specialista di k-1 ha lavoro da unire')
+    expect(esito).toContain('toolu_controllo non ha un worktree')
+    expect(esito).toContain(`toolu_lavoro: il ramo ${LAVORO} non ha commit fuori da main`)
+  })
+
+  it('con il ramo detto, lo specialista è quello del ramo (non l’ultimo del compito)', async () => {
+    zitto()
+    const { git } = gitFinto({ [LAVORO]: 1 })
+    const id = await preparaK1(git)
+    await strumento('unisci', { compito: 'k-1', ramo: LAVORO })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(archivio.leggi(id)!.decisioni.map((d) => d.cosa)).toContainEqual(expect.stringContaining(`toolu_lavoro: ramo ${LAVORO} unito`))
+  })
+})

@@ -200,10 +200,97 @@ export function ramoDelloSpecialista(
     if (v?.ramo !== undefined) return { ok: true, ramo: v.ramo, cartella: v.cartella }
   }
   const dal = Date.parse(sp.inizio) - 5_000
-  const candidati = voci.filter((x) => x.ramo !== undefined && /\/\.claude\/worktrees\/agent-/u.test(normale(x.cartella)) && !p.presi.has(x.ramo) && (p.nato(x.cartella) ?? 0) >= dal)
+  // La prima voce di `git worktree list` è sempre la cartella principale: mai
+  // un candidato, anche se sta essa stessa sotto `.claude/worktrees/agent-…`.
+  const candidati = voci.slice(1).filter((x) => x.ramo !== undefined && /\/\.claude\/worktrees\/agent-/u.test(normale(x.cartella)) && !p.presi.has(x.ramo) && (p.nato(x.cartella) ?? 0) >= dal)
   if (candidati.length === 1) return { ok: true, ramo: candidati[0]!.ramo!, cartella: candidati[0]!.cartella }
   if (candidati.length === 0) return { ok: false, motivo: 'non trovo il worktree dello specialista (forse non ha cambiato niente, e la CLI l’ha già tolto): se ha fatto commit, dimmi il ramo con «ramo»' }
   return { ok: false, motivo: `ci sono più worktree possibili (${candidati.map((c) => c.ramo).join(', ')}): dimmi quale con «ramo»` }
+}
+
+/**
+ * I rami che non possono essere di `sp`: quelli già uniti e quelli che sono
+ * di un altro specialista (il suo ramo, o il worktree con il suo id
+ * d'agente). Servono all'ultima risorsa di {@link ramoDelloSpecialista}, «l'unico
+ * worktree nato dopo la partenza»: senza, uno specialista che non ha cambiato
+ * niente (la CLI gli ha già tolto il worktree) prendeva quello di un altro.
+ */
+export function ramiPresi(sp: Pick<Specialista, 'id'>, tutti: Specialista[], voci: VoceWorktree[]): Set<string> {
+  const presi = new Set<string>()
+  for (const o of tutti) {
+    if (o.unito === true && o.ramo !== undefined) presi.add(o.ramo)
+    if (o.id === sp.id) continue
+    if (o.ramo !== undefined) presi.add(o.ramo)
+    const ag = o.agente?.toLowerCase()
+    if (ag === undefined || ag === '') continue
+    for (const v of voci) if (v.ramo !== undefined && (normale(v.cartella).includes(ag) || v.ramo.toLowerCase().includes(ag))) presi.add(v.ramo)
+  }
+  return presi
+}
+
+export type SceltaDelCompito =
+  | { ok: true; sub: Specialista; ramo: string; cartella?: string; avanti: number }
+  | { ok: false; motivo: string }
+
+/**
+ * **Lo specialista che porta il lavoro di un compito** (30/10, k-1). Con
+ * `unisci(compito)` il cancello prendeva lo specialista legato al compito per
+ * ultimo (`compito.chat`), e lo legava chiunque partisse con «k-1: …» nella
+ * descrizione: al secondo tentativo era quello del controllo di main, che non
+ * aveva cambiato niente e il cui worktree non c'era più, e l'unione falliva
+ * mentre il ramo con la correzione aspettava.
+ *
+ * Qui si guardano tutti gli specialisti del compito, finiti e non ancora
+ * uniti, e vale solo chi ha un ramo con commit che il principale non ha. Uno
+ * solo: è lui. Più d'uno: quello il cui ramo contiene già tutti gli altri
+ * (una correzione partita dal ramo della prima); altrimenti un errore con i
+ * rami possibili, mai una scelta a caso. Nessuno: un errore che dice perché,
+ * specialista per specialista.
+ */
+export async function ramoDelCompito(
+  g: GitAsincrono,
+  p: {
+    cwd: string
+    base: string
+    compito: string
+    /** Gli specialisti del compito, nell'ordine in cui sono partiti. */
+    specialisti: Specialista[]
+    /** Tutti gli specialisti del workspace (per sapere di chi sono gli altri worktree). */
+    tutti: Specialista[]
+    voci: VoceWorktree[]
+    nato: (cartella: string) => number | undefined
+  }
+): Promise<SceltaDelCompito> {
+  const note: string[] = []
+  const conLavoro: { sub: Specialista; ramo: string; cartella?: string; avanti: number }[] = []
+  for (const s of [...p.specialisti].reverse()) {
+    if (s.stato === 'avviato' || s.stato === 'lavoro') { note.push(`${s.id} sta ancora lavorando`); continue }
+    const r = ramoDelloSpecialista(s, p.voci, { presi: ramiPresi(s, p.tutti, p.voci), nato: p.nato })
+    if (!r.ok) { note.push(`${s.id} non ha un worktree (forse non ha cambiato niente)`); continue }
+    if (r.ramo === p.base) { note.push(`${s.id} è sul ramo principale`); continue }
+    const conta = await g(['rev-list', '--count', `${p.base}..${r.ramo}`], p.cwd)
+    const avanti = conta.codice === 0 ? Number.parseInt(conta.uscita.trim(), 10) : NaN
+    if (!Number.isFinite(avanti)) { note.push(`${s.id}: il ramo ${r.ramo} non c’è`); continue }
+    if (avanti <= 0) { note.push(`${s.id}: il ramo ${r.ramo} non ha commit fuori da ${p.base}`); continue }
+    conLavoro.push({ sub: s, ramo: r.ramo, ...(r.cartella !== undefined ? { cartella: r.cartella } : {}), avanti })
+  }
+  if (conLavoro.length === 1) return { ok: true, ...conLavoro[0]! }
+  if (conLavoro.length === 0) {
+    return { ok: false, motivo: `nessuno specialista di ${p.compito} ha lavoro da unire (${note.length > 0 ? note.join('; ') : 'nessuno specialista del compito'}). Se il lavoro è su un ramo, dimmelo con «ramo»` }
+  }
+  // Più rami con lavoro: vale quello che contiene già tutti gli altri.
+  for (const c of conLavoro) {
+    let tutti = true
+    for (const altro of conLavoro) {
+      if (altro === c || altro.ramo === c.ramo) continue
+      if ((await g(['merge-base', '--is-ancestor', altro.ramo, c.ramo], p.cwd)).codice !== 0) { tutti = false; break }
+    }
+    if (tutti) return { ok: true, ...c }
+  }
+  return {
+    ok: false,
+    motivo: `più rami con lavoro per ${p.compito}, e nessuno contiene gli altri: ${conLavoro.map((c) => `${c.ramo} (${c.sub.id}, ${c.avanti} commit)`).join(', ')}. Dimmi quale con «ramo» o «specialista»`
+  }
 }
 
 export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
@@ -430,10 +517,12 @@ ${NOTA_SENZA_GIT}`,
     const a = unicoDi(ws)
     if (a === undefined) return 'l’autopilota unico non c’è più'
     const g = gitA()
-    const { sub, chat } = daUnire(ws, p)
+    const scelto = daUnire(ws, p)
+    let sub = scelto.sub
+    const chat = scelto.chat
     const compitoId = p.compito ?? sub?.compito ?? chat?.compitoId
     const compito = compitoId !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === compitoId) : undefined
-    const nome = sub?.id ?? chat?.id ?? compitoId ?? p.ramo ?? '?'
+    let nome = sub?.id ?? chat?.id ?? compitoId ?? p.ramo ?? '?'
     // Senza git il lavoro è già nella cartella del progetto: niente rami da
     // unire, il cancello è solo il criterio, misurato lì.
     const senzaGit = !conGit(a.cwd)
@@ -443,10 +532,34 @@ ${NOTA_SENZA_GIT}`,
     let cartella = chat?.cartella
     if (!senzaGit && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
-      if (ramo === undefined && sub !== undefined) {
+      const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
+      const tutti = subagenti(ws)
+      // Per compito (senza specialista): non l'ultimo legato al compito, ma
+      // quello il cui ramo porta il lavoro (vedi ramoDelCompito).
+      const delCompito = p.specialista === undefined && p.compito !== undefined
+        ? tutti.filter((s) => s.unito !== true && (s.compito === p.compito || (compito?.chat !== undefined && s.id === compito.chat)))
+        : []
+      if (delCompito.length > 0 && ramo !== undefined) {
+        // Il ramo detto: lo specialista è quello di quel ramo, se c'è (mai un altro del compito).
+        const r = ramo
+        sub = [...delCompito].reverse().find((s) => s.ramo === r || (s.agente !== undefined && s.agente !== '' && r.toLowerCase().includes(s.agente.toLowerCase())))
+        nome = sub?.id ?? chat?.id ?? compitoId ?? r
+      } else if (delCompito.length > 0 && chat === undefined) {
         const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
-        const presi = new Set(subagenti(ws).filter((s) => s.unito === true && s.ramo !== undefined).map((s) => s.ramo!))
-        const r = ramoDelloSpecialista(sub, lista.codice === 0 ? leggiWorktree(lista.uscita) : [], { presi, nato: (c) => { try { return statSync(c).birthtimeMs } catch { return undefined } } })
+        const voci = lista.codice === 0 ? leggiWorktree(lista.uscita) : []
+        const s = await ramoDelCompito(g, { cwd: a.cwd, base: a.ramoBase, compito: p.compito!, specialisti: delCompito, tutti, voci, nato })
+        if (!s.ok) {
+          if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${s.motivo}` }))
+          return `${p.compito}: unione NON fatta — ${s.motivo}.`
+        }
+        sub = s.sub
+        nome = s.sub.id
+        ramo = s.ramo
+        cartella = s.cartella
+      } else if (ramo === undefined && sub !== undefined) {
+        const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
+        const voci = lista.codice === 0 ? leggiWorktree(lista.uscita) : []
+        const r = ramoDelloSpecialista(sub, voci, { presi: ramiPresi(sub, tutti, voci), nato })
         if (!r.ok) return `${nome}: ${r.motivo}`
         ramo = r.ramo
         cartella = r.cartella

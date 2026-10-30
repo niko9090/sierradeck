@@ -6,7 +6,7 @@ import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { aggiungi, codaVuota } from '@shared/coda-richieste'
 import { archiviaVecchiAutopiloti, campiVecchi, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type Vecchio } from '../../src/autopilot-host/migra-orchestratore'
 import { fermataSpecialista } from '../../src/autopilot-host/stop-specialista'
-import { leggiWorktree, ramoDelloSpecialista } from '../../src/autopilot-host/servizio-orchestratore'
+import { leggiWorktree, ramiPresi, ramoDelloSpecialista } from '../../src/autopilot-host/servizio-orchestratore'
 
 /**
  * P3/P4: il passaggio all'autopilota del workspace (le chat vive adottate con
@@ -134,6 +134,23 @@ describe('il ramo del subagente per il cancello', () => {
     expect(ramoDelloSpecialista({ inizio: ADESSO }, voci, { presi: new Set(), nato })).toMatchObject({ ok: true, ramo: 'worktree-agent-c3d4' })
     expect(ramoDelloSpecialista({ inizio: ADESSO }, voci, { presi: new Set(['worktree-agent-c3d4']), nato }).ok).toBe(false)
     expect(ramoDelloSpecialista({ inizio: '2026-10-30T07:00:00.000Z' }, voci, { presi: new Set(), nato }).ok).toBe(false)
+  })
+
+  it('uno specialista senza worktree non prende quello di un altro, né la cartella principale (30/10, k-1)', () => {
+    const tutti = [
+      { id: 'tu-lavoro', ruolo: 'sviluppatore', descrizione: 'k-1: la correzione', stato: 'finito' as const, inizio: ADESSO, agente: 'c3d4', compito: 'k-1' },
+      { id: 'tu-controllo', ruolo: 'sviluppatore', descrizione: 'k-1: il controllo di main', stato: 'finito' as const, inizio: ADESSO, agente: 'e5f6', compito: 'k-1' }
+    ]
+    // Senza sapere di chi è, agent-c3d4 (nato dopo) sembrava suo.
+    expect(ramoDelloSpecialista(tutti[1]!, voci, { presi: new Set(), nato })).toMatchObject({ ok: true, ramo: 'worktree-agent-c3d4' })
+    const presi = ramiPresi(tutti[1]!, tutti, voci)
+    expect([...presi]).toEqual(['worktree-agent-c3d4'])
+    expect(ramoDelloSpecialista(tutti[1]!, voci, { presi, nato }).ok).toBe(false)
+    // Il suo, invece, resta suo.
+    expect(ramoDelloSpecialista(tutti[0]!, voci, { presi: ramiPresi(tutti[0]!, tutti, voci), nato })).toMatchObject({ ok: true, ramo: 'worktree-agent-c3d4' })
+    // La cartella principale (la prima voce) non è mai un candidato, anche sotto .claude/worktrees/agent-….
+    const dentro = leggiWorktree(['worktree E:/x/.claude/worktrees/agent-ff00', 'HEAD a', 'branch refs/heads/main', ''].join('\n'))
+    expect(ramoDelloSpecialista({ inizio: ADESSO }, dentro, { presi: new Set(), nato: () => Date.parse('2026-10-30T10:00:00.000Z') }).ok).toBe(false)
   })
 })
 
