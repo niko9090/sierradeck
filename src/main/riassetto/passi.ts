@@ -155,12 +155,13 @@ function passoFileDiStato(d: DipendenzePassi): Passo {
         }
         c.sposta(p, { motivo: marcatori.has(n) ? 'segno di una migrazione il cui codice non c’è più' : 'copia di scorta di un file di stato', etaMinimaMs: ETA_MINIMA_STATO_MS })
       }
-      // I file e le cartelle delle funzioni tolte.
+      // I file e le cartelle delle funzioni tolte: il loro codice non c'è più e nessuno li
+      // scrive, quindi anche se toccati da poco (nel recupero, come tutto il resto).
       for (const n of d.fileDismessi ?? FILE_DISMESSI) {
-        c.sposta(join(c.dati, n), { motivo: 'file di una funzione che non c’è più', etaMinimaMs: ETA_MINIMA_STATO_MS })
+        c.sposta(join(c.dati, n), { motivo: 'file di una funzione che non c’è più', etaMinimaMs: 0 })
       }
       for (const n of d.cartelleDismesse ?? CARTELLE_DISMESSE) {
-        c.sposta(join(c.dati, n), { motivo: 'cartella di una funzione che non c’è più', etaMinimaMs: ETA_MINIMA_STATO_MS })
+        c.sposta(join(c.dati, n), { motivo: 'cartella di una funzione che non c’è più', etaMinimaMs: 0 })
       }
       for (const n of CARTELLE_SE_VUOTE) {
         const p = join(c.dati, n)
