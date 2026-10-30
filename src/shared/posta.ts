@@ -93,6 +93,12 @@ export type BattitoPc = {
   client?: { inAscolto: boolean; errore?: string }
   /** Quanto lavora SierraDeck su quel PC (0.69.0). Non conta per decidere se riscrivere il battito. */
   risorse?: RisorsePc
+  /**
+   * Il formato della posta che quel PC legge (dalla 0.86.2): `POSTA_PER_MITTENTE`
+   * se legge le cassette d'uscita di ogni mittente. Manca nei battiti di prima:
+   * a quei PC si scrive ancora nella cassetta unica (`nomePosta`).
+   */
+  posta?: number
 }
 
 /** Le copie locali di un PC: chat (sessione, cartella, ultimo messaggio) e progetti (id, cartella). */
@@ -138,8 +144,35 @@ export const ESITO_PROTETTA = 'Chat protetta: inserisci il PIN. Su quel PC quest
 
 export type Posta = { voci: VocePosta[] }
 
+/**
+ * La cassetta d'uscita di un mittente verso un PC (0.86.2, audit I1): la scrive
+ * **solo** il mittente. Prima tutti riscrivevano la stessa cassetta
+ * (`nomePosta`) senza lucchetto, e due PC che scrivevano insieme si
+ * cancellavano i messaggi a vicenda. `tolte`: voci di altri mittenti che questo
+ * mittente ha tolto o pulito dalla vista (non puo' toccare la loro cassetta).
+ */
+export type UscitaPosta = { voci: VocePosta[]; tolte?: string[] }
+
+/** Come e' andata una voce, scritto **solo** dal PC destinatario (0.86.2). */
+export type EsitoVoce = {
+  stato: VocePosta['stato']
+  consegnataIl?: string
+  aSessione?: string
+  esito?: string
+  apertaIl?: string
+  /** Quando il destinatario l'ha scritto: per far scadere gli esiti vecchi. */
+  il: string
+}
+export type EsitiPosta = { esiti: Record<string, EsitoVoce> }
+
+/** Il formato della posta per mittente: lo dice il battito (`BattitoPc.posta`). */
+export const POSTA_PER_MITTENTE = 2
+
 export function nomeBattitoPc(id: string): string { return `pc-${id}` }
+/** La cassetta unica di prima della 0.86.2: si legge ancora, e ci si scrive per i PC vecchi. */
 export function nomePosta(id: string): string { return `posta-${id}` }
+export function nomeUscita(destinatario: string, mittente: string): string { return `posta-${destinatario}-da-${mittente}` }
+export function nomeEsiti(destinatario: string): string { return `posta-${destinatario}-esiti` }
 
 /** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete. */
 export const PC_SPENTO_DOPO_MS = 5 * 60_000

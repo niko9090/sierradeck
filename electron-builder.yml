@@ -103,4 +103,9 @@ publish:
   - provider: github
     owner: niko9090
     repo: sierradeck
-    releaseType: release
+    # Bozza (0.86.2, audit I7): con `release` il rilascio diventava pubblico
+    # prima che `latest.yml` e l'installer fossero caricati, e i PC che
+    # guardavano in quel momento prendevano 404 («Cannot find latest.yml»).
+    # Si rende pubblico a mano, a caricamento finito:
+    #   gh release edit v<versione> --draft=false
+    releaseType: draft

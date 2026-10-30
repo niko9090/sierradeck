@@ -7,6 +7,11 @@ import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { leggiScollegamento, type Scollegamento } from '@shared/scoperta-pc'
+import { leggiSegreto, scriviSegreto, cifraLeCopie, type Portachiavi } from '../segreti-su-file'
+import { CARTELLA_COPIE } from '../copie-di-versione'
+
+/** Il file dei token, nella cartella dei dati e nelle copie di versione (che non lo copiano più dalla 0.86.2). */
+export const FILE_TOKEN_DRIVE = 'google-drive-token.json'
 
 /** Quando e perche' il Drive si e' scollegato, accanto al token. */
 export const FILE_SCOLLEGATO = 'drive-scollegato.json'
@@ -77,17 +82,27 @@ export type ContoDrive = {
   archivio: () => Archivio
 }
 
-export function apriContoDrive(dati: string): ContoDrive {
-  const fileToken = join(dati, 'google-drive-token.json')
+/**
+ * `portachiavi` (0.86.2, audit I5): i token si scrivono cifrati con
+ * `safeStorage`; i file in chiaro di prima si cifrano alla prima lettura,
+ * anche le copie di versione. Senza, come prima: in chiaro.
+ */
+export function apriContoDrive(dati: string, portachiavi?: Portachiavi): ContoDrive {
+  const fileToken = join(dati, FILE_TOKEN_DRIVE)
+  let copieCifrate = false
 
+  const leggiGettoni = (f: string): Gettoni | undefined => {
+    const testo = leggiSegreto(f, portachiavi, 'drive')
+    if (testo === undefined) return undefined
+    try { return JSON.parse(testo) as Gettoni } catch { return undefined }
+  }
   const leggi = (): Gettoni | undefined => {
-    if (!existsSync(fileToken)) return undefined
-    try {
-      const g = JSON.parse(readFileSync(fileToken, 'utf8')) as Gettoni
-      return typeof g.accessToken === 'string' ? g : undefined
-    } catch {
-      return undefined
+    if (!copieCifrate) {
+      copieCifrate = true
+      try { cifraLeCopie(dati, CARTELLA_COPIE, FILE_TOKEN_DRIVE, portachiavi, 'drive') } catch { /* le copie restano come sono */ }
     }
+    const g = leggiGettoni(fileToken)
+    return g !== undefined && typeof g.accessToken === 'string' ? g : undefined
   }
   const scarta = (): void => {
     try {
@@ -127,16 +142,14 @@ export function apriContoDrive(dati: string): ContoDrive {
    */
   const tokenDaProvare = (prima: number): Gettoni | undefined => {
     const leggiDa = (f: string): Gettoni | undefined => {
-      try {
-        const g = JSON.parse(readFileSync(f, 'utf8')) as Gettoni
-        return typeof g.refreshToken === 'string' && g.refreshToken !== '' ? g : undefined
-      } catch { return undefined }
+      const g = leggiGettoni(f)
+      return g !== undefined && typeof g.refreshToken === 'string' && g.refreshToken !== '' ? g : undefined
     }
     if (existsSync(fileMessoDaParte)) return leggiDa(fileMessoDaParte)
     const copie = join(dati, 'copie-di-versione')
     try {
       const candidati = readdirSync(copie)
-        .map((d) => join(copie, d, 'google-drive-token.json'))
+        .map((d) => join(copie, d, FILE_TOKEN_DRIVE))
         .filter((f) => existsSync(f))
         .map((f) => ({ f, quando: statSync(f).mtimeMs }))
         .filter((x) => x.quando < prima)
@@ -150,7 +163,7 @@ export function apriContoDrive(dati: string): ContoDrive {
   }
   const scrivi = (g: Gettoni): void => {
     try {
-      scriviAtomico(fileToken, JSON.stringify(g), 'drive')
+      scriviSegreto(fileToken, JSON.stringify(g), portachiavi, 'drive')
     } catch (err) {
       console.error('[drive] token non salvato:', err)
     }

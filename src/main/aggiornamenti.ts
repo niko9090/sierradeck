@@ -203,6 +203,28 @@ export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: 
   }
 }
 
+/**
+ * Un errore di electron-updater, letto (0.86.2, audit I7).
+ *
+ * - `manca`: il 404 su `latest.yml` (o il file del canale). Succede quando un
+ *   rilascio è pubblico ma i file non sono ancora tutti caricati: non è un
+ *   guasto, è «nessun aggiornamento, per ora». Il registro del 29/10 ne aveva 49.
+ * - `breve`: la prima riga, senza pila e senza le intestazioni HTTP che
+ *   electron-updater attacca a ogni errore (`Headers: {…}`), al massimo 300 caratteri.
+ */
+export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string } {
+  const codice = typeof err === 'object' && err !== null ? String((err as { code?: unknown }).code ?? '') : ''
+  const testo = err instanceof Error ? err.message : String(err)
+  const senzaIntestazioni = testo.split(/\n\s*Headers:/)[0] ?? testo
+  const riga = (senzaIntestazioni.split('\n').map((r) => r.trim()).find((r) => r !== '') ?? '')
+    .replace(/:\s*HttpError:\s*/, ': ')
+    .replace(/^Error:\s*/, '')
+  const breve = riga.length > 300 ? `${riga.slice(0, 299)}…` : riga
+  const file = /latest[\w-]*\.yml|ERR_UPDATER_CHANNEL_FILE_NOT_FOUND/.test(`${codice} ${testo}`)
+  const quattrocentoquattro = /\b404\b/.test(testo)
+  return { manca: file && quattrocentoquattro, breve }
+}
+
 export function creaAggiornamenti(
   finestre: () => BrowserWindow[],
   /** La cartella dei dati: da lì arrivano le credenziali, se il server le chiede. */
@@ -284,7 +306,14 @@ export function creaAggiornamenti(
     autoUpdater.logger = {
       info: (m: unknown) => { if (!giroMuto.rigaMuta(String(m))) registro.info(`[electron-updater] ${String(m)}`) },
       warn: (m: unknown) => registro.info(`[electron-updater] avviso: ${String(m)}`),
-      error: (m: unknown) => registro.errore(`[electron-updater] ${String(m)}`),
+      // «Error: …» è l'eco che electron-updater fa di ogni evento `error`, con
+      // la pila e le intestazioni HTTP: lo dice già, una volta e in breve, il
+      // gestore qui sotto (0.86.2, audit I7). Gli altri errori in una riga.
+      error: (m: unknown) => {
+        const riga = String(m)
+        if (/^Error:/.test(riga)) return
+        registro.errore(`[electron-updater] ${leggiErroreAggiornamento(riga).breve}`)
+      },
       debug: () => {}
     }
   }
@@ -398,7 +427,7 @@ export function creaAggiornamenti(
     const quarto = nuovo.fase === 'scarico' && nuovo.percento !== undefined && nuovo.percento % 25 === 0 && nuovo.percento !== stato.percento
     const muto = giroMuto.cambia(stato.fase, nuovo.fase, Date.now())
     if ((cambioFase || quarto) && !muto) {
-      nota(`fase: ${nuovo.fase}${nuovo.versione !== undefined ? ` (${nuovo.versione})` : ''}${nuovo.percento !== undefined ? ` ${nuovo.percento}%` : ''}${nuovo.chatOccupate !== undefined ? ` · ${nuovo.chatOccupate} chat al lavoro` : ''}${nuovo.daTelefono === true ? ' · dal telefono' : ''}${nuovo.errore !== undefined ? ` · ${nuovo.errore}` : ''}`)
+      ;(nuovo.fase === 'errore' ? guaio : nota)(`fase: ${nuovo.fase}${nuovo.versione !== undefined ? ` (${nuovo.versione})` : ''}${nuovo.percento !== undefined ? ` ${nuovo.percento}%` : ''}${nuovo.chatOccupate !== undefined ? ` · ${nuovo.chatOccupate} chat al lavoro` : ''}${nuovo.daTelefono === true ? ' · dal telefono' : ''}${nuovo.errore !== undefined ? ` · ${nuovo.errore}` : ''}`)
     }
     stato = nuovo
     for (const w of finestre()) {
@@ -453,10 +482,13 @@ export function creaAggiornamenti(
   }
 
   autoUpdater.on('update-available', (info) => {
+    mancaDetto = false
     noteDellAggiornamento = info.releaseNotes ?? undefined
     annuncia({ fase: 'disponibile', versione: String(info.version) })
   })
-  autoUpdater.on('update-not-available', () => {
+  /** Il 404 su latest.yml già detto in questa sessione: si dice una volta sola (0.86.2). */
+  let mancaDetto = false
+  const nienteDiNuovo = (): void => {
     // Una ricerca che non trova niente **non cancella** una versione gia
     // scaricata e in attesa: dicendo «sei aggiornato» sparirebbe il tasto
     // «Installa» di qualcosa che sta li', pronta, sul disco. Chi cerca di
@@ -467,6 +499,10 @@ export function creaAggiornamenti(
       return
     }
     annuncia({ fase: 'aggiornato' })
+  }
+  autoUpdater.on('update-not-available', () => {
+    mancaDetto = false
+    nienteDiNuovo()
   })
   autoUpdater.on('download-progress', (p) => {
     if (!fasi.some((f) => f.passo === 'scarico' && f.fino === undefined)) fasi = segnaPasso([], 'scarico', new Date().toISOString())
@@ -486,11 +522,28 @@ export function creaAggiornamenti(
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
   })
+  /**
+   * Un errore dell'updater, da qualunque parte arrivi (l'evento `error` e il
+   * `catch` di chi ha chiamato): una riga sola nel registro, senza intestazioni
+   * HTTP (0.86.2, audit I7). Prima la stessa riga arrivava due volte, intera.
+   */
+  const erroreUpdater = (err: unknown): void => {
+    const { manca, breve } = leggiErroreAggiornamento(err)
+    if (manca) {
+      // Un rilascio pubblicato a metà: per chi usa il programma non c'è niente da fare né da vedere.
+      if (!mancaDetto) { mancaDetto = true; nota(`nessun aggiornamento per ora: latest.yml non c'è ancora (${breve})`) }
+      nienteDiNuovo()
+      return
+    }
+    // Lo stesso errore due volte di fila (evento e `catch`) si scrive una volta.
+    if (stato.fase === 'errore' && stato.errore === breve) return
+    // La riga nel registro la scrive `annuncia`, una, al livello degli errori.
+    annuncia({ fase: 'errore', errore: breve })
+  }
   autoUpdater.on('error', (err) => {
     // Un aggiornamento che non si trova non è un guasto del programma: si dice
     // e si continua a lavorare.
-    guaio(String(err))
-    annuncia({ fase: 'errore', errore: String(err) })
+    erroreUpdater(err)
   })
 
   /**
@@ -512,7 +565,7 @@ export function creaAggiornamenti(
     try {
       await autoUpdater.checkForUpdates()
     } catch (err) {
-      annuncia({ fase: 'errore', errore: String(err) })
+      erroreUpdater(err)
     }
   }
 
@@ -549,7 +602,7 @@ export function creaAggiornamenti(
       // senza che nulla lo dicesse.
       if (trovato !== undefined) installerScaricato = trovato
     } catch (err) {
-      annuncia({ fase: 'errore', errore: String(err) })
+      erroreUpdater(err)
     }
   }
 

@@ -36,16 +36,19 @@ import { staDentro } from './registro'
  * senza Drive.
  */
 
-export type { ChatDiPc, BattitoPc, VocePosta, Posta } from '@shared/posta'
+export type { ChatDiPc, BattitoPc, VocePosta, Posta, UscitaPosta, EsitoVoce, EsitiPosta } from '@shared/posta'
 export {
-  nomeBattitoPc, nomePosta, pcVivo, pcCheHaLaCartella, staSottoCartella,
+  nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, POSTA_PER_MITTENTE, pcVivo, pcCheHaLaCartella, staSottoCartella,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { RisorsePc } from '@shared/risorse'
-import { ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta } from '@shared/posta'
+import {
+  ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta,
+  type UscitaPosta, type EsitoVoce, type EsitiPosta
+} from '@shared/posta'
 import { nomeRichiestaSchermo, nomeSchermo, richiestaSchermoViva, schermoDaScrivere, type ChatNelloSchermo } from '@shared/strada-pc'
 import {
-  nomeBattitoPc, nomePosta, pcVivo,
+  nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, pcVivo, POSTA_PER_MITTENTE,
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 
@@ -101,6 +104,41 @@ export type Postino = {
 
 /** Quanto valgono i battiti già letti per chi li chiede (0.68.0). */
 export const MEMORIA_BATTITI_MS = 60_000
+/** Quante voci tolte ricorda una cassetta d'uscita (0.86.2). */
+export const TOLTE_MAX = 200
+/** Quanti id consegnati ricorda questo PC, per non riscrivere mai due volte lo stesso comando (0.86.2). */
+export const CONSEGNATE_MAX = 500
+/** Un esito di una voce che non c'e' piu' in nessuna cassetta si dimentica dopo tanto (0.86.2). */
+export const ESITI_SCADONO_MS = 30 * 24 * 60 * 60_000
+
+/** Solo le voci con la forma giusta: la cassetta viene dal Drive. */
+function vociValide(x: unknown): VocePosta[] {
+  if (!Array.isArray(x)) return []
+  return x.filter((v): v is VocePosta => typeof v === 'object' && v !== null &&
+    typeof (v as VocePosta).id === 'string' && typeof (v as VocePosta).testo === 'string' && typeof (v as VocePosta).cwd === 'string')
+}
+
+/**
+ * La cassetta di un PC come la vede chiunque (0.86.2): la cassetta unica di
+ * prima, piu' le cassette d'uscita dei mittenti, con gli esiti scritti dal
+ * destinatario sopra, senza le voci tolte; in ordine di creazione.
+ */
+export function unisciCassetta(p: { vecchia: Posta; uscite: UscitaPosta[]; esiti: Record<string, EsitoVoce> }): Posta {
+  const tolte = new Set(p.uscite.flatMap((u) => u.tolte ?? []))
+  const perId = new Map<string, VocePosta>()
+  for (const v of p.vecchia.voci) perId.set(v.id, v)
+  for (const u of p.uscite) for (const v of u.voci) if (!perId.has(v.id)) perId.set(v.id, v)
+  const voci = [...perId.values()]
+    .filter((v) => !tolte.has(v.id))
+    .map((v) => {
+      const e = p.esiti[v.id]
+      if (e === undefined) return v
+      const { il: _il, ...resto } = e
+      return { ...v, ...resto }
+    })
+    .sort((a, b) => (a.creataIl ?? '').localeCompare(b.creataIl ?? ''))
+  return { voci }
+}
 
 export function creaPostino(deps: {
   scatola: () => Scatola | undefined
@@ -142,6 +180,11 @@ export function creaPostino(deps: {
   adesso?: () => number
   nuovoId?: () => string
   log?: (m: string) => void
+  /**
+   * Dove ricordare gli id delle voci gia' scritte nelle chat (0.86.2): la
+   * chiave contro i doppioni, anche dopo un riavvio.
+   */
+  consegnate?: { leggi: () => string[]; scrivi: (ids: string[]) => void }
   /** Dove ricordare i battiti degli altri PC fra un avvio e l'altro. */
   memoria?: { leggi: () => BattitoPc[]; scrivi: (b: BattitoPc[]) => void }
   /**
@@ -163,20 +206,82 @@ export function creaPostino(deps: {
   let ultimoBattitoIl = 0
   let inErrore = false
 
-  const leggiPosta = async (s: Scatola, pcId: string): Promise<Posta> => {
+  /*
+   * La posta fra i PC (0.86.2, audit I1). Prima c'era una cassetta sola per PC,
+   * letta, cambiata e riscritta da chiunque senza lucchetto: due PC che
+   * scrivevano insieme si cancellavano i messaggi. Adesso ogni file ha **un
+   * solo scrittore**:
+   * - `posta-<dest>-da-<mitt>`: le voci che `mitt` manda a `dest`, scritte solo da `mitt`;
+   * - `posta-<dest>-esiti`: come sono andate, scritto solo da `dest`.
+   * La cassetta unica di prima (`posta-<dest>`) si legge ancora: un PC fermo a
+   * una versione vecchia ci scrive. E a un PC che non dice `posta` nel battito
+   * si scrive ancora li', perche' non sa leggere altro.
+   */
+  const leggiVecchia = async (s: Scatola, pcId: string): Promise<Posta> => {
     const p = await s.leggi<Posta>(nomePosta(pcId))
-    return p !== undefined && Array.isArray(p.voci) ? { voci: p.voci } : { voci: [] }
+    return p !== undefined && p !== null ? { voci: vociValide(p.voci) } : { voci: [] }
   }
-  const scriviPosta = async (s: Scatola, pcId: string, p: Posta): Promise<void> => {
+  const scriviVecchia = async (s: Scatola, pcId: string, p: Posta): Promise<void> => {
     if (p.voci.length === 0) await s.cancella(nomePosta(pcId))
     else await s.scrivi(nomePosta(pcId), { voci: p.voci.slice(-VOCI_MAX) })
   }
-  const conPosta = async (pcId: string, cambia: (p: Posta) => Posta): Promise<Posta | undefined> => {
-    const s = deps.scatola()
-    if (s === undefined) return undefined
-    const dopo = cambia(await leggiPosta(s, pcId))
-    await scriviPosta(s, pcId, dopo)
-    return dopo
+  /** La cassetta unica, per i PC vecchi: si rilegge subito prima di riscriverla, per stringere la finestra. */
+  const conVecchia = async (s: Scatola, pcId: string, cambia: (p: Posta) => Posta): Promise<void> => {
+    await scriviVecchia(s, pcId, cambia(await leggiVecchia(s, pcId)))
+  }
+  const leggiUscita = async (s: Scatola, dest: string, mitt: string): Promise<UscitaPosta> => {
+    const u = await s.leggi<UscitaPosta>(nomeUscita(dest, mitt))
+    if (u === undefined || u === null) return { voci: [] }
+    const tolte = Array.isArray(u.tolte) ? u.tolte.filter((t): t is string => typeof t === 'string') : []
+    return { voci: vociValide(u.voci), ...(tolte.length > 0 ? { tolte } : {}) }
+  }
+  const scriviUscita = async (s: Scatola, dest: string, u: UscitaPosta): Promise<void> => {
+    const tolte = (u.tolte ?? []).slice(-TOLTE_MAX)
+    if (u.voci.length === 0 && tolte.length === 0) await s.cancella(nomeUscita(dest, deps.pcId()))
+    else await s.scrivi(nomeUscita(dest, deps.pcId()), { voci: u.voci.slice(-VOCI_MAX), ...(tolte.length > 0 ? { tolte } : {}) })
+  }
+  const leggiEsiti = async (s: Scatola, dest: string): Promise<Record<string, EsitoVoce>> => {
+    const e = await s.leggi<EsitiPosta>(nomeEsiti(dest))
+    return e !== undefined && e !== null && typeof e.esiti === 'object' && e.esiti !== null ? e.esiti : {}
+  }
+  /** Legge il formato nuovo quel PC? Io si'; gli altri lo dicono nel battito. */
+  const leggeLeUscite = (pcId: string): boolean =>
+    pcId === deps.pcId() || (altrui.find((b) => b.pcId === pcId)?.posta ?? 0) >= POSTA_PER_MITTENTE
+  /** Chi puo' avermi scritto: io, il destinatario, e gli altri PC che conosco. */
+  const mittenti = (dest: string): string[] => [...new Set([deps.pcId(), dest, ...altrui.map((b) => b.pcId)])]
+
+  type Cassetta = { vista: Posta; vecchia: Posta; uscite: Map<string, UscitaPosta>; esiti: Record<string, EsitoVoce> }
+  const leggiCassetta = async (s: Scatola, dest: string): Promise<Cassetta> => {
+    const chi = leggeLeUscite(dest) ? mittenti(dest) : []
+    const [vecchia, esiti, lette] = await Promise.all([
+      leggiVecchia(s, dest),
+      chi.length > 0 ? leggiEsiti(s, dest) : Promise.resolve({}),
+      Promise.all(chi.map((m) => leggiUscita(s, dest, m)))
+    ])
+    const uscite = new Map<string, UscitaPosta>(chi.map((m, i) => [m, lette[i] ?? { voci: [] }]))
+    return { vista: unisciCassetta({ vecchia, uscite: [...uscite.values()], esiti }), vecchia, uscite, esiti }
+  }
+
+  /** Le scritture di questo PC sulla posta, una alla volta: due invii insieme non si pestano la cassetta d'uscita. */
+  let fila: Promise<unknown> = Promise.resolve()
+  const inFila = <T,>(lavoro: () => Promise<T>): Promise<T> => {
+    const giro = fila.then(lavoro, lavoro)
+    fila = giro.catch(() => undefined)
+    return giro
+  }
+
+  /**
+   * Gli id gia' consegnati qui (0.86.2): la chiave che impedisce di scrivere
+   * due volte lo stesso comando nella chat, anche se il Drive rilegge una
+   * cassetta vecchia. Ricordati anche fra un avvio e l'altro, se c'e' dove.
+   */
+  const consegnateQui: string[] = (() => { try { return [...(deps.consegnate?.leggi() ?? [])] } catch { return [] } })()
+  const giaConsegnata = (id: string): boolean => consegnateQui.includes(id)
+  const ricordaConsegnata = (id: string): void => {
+    if (giaConsegnata(id)) return
+    consegnateQui.push(id)
+    if (consegnateQui.length > CONSEGNATE_MAX) consegnateQui.splice(0, consegnateQui.length - CONSEGNATE_MAX)
+    try { deps.consegnate?.scrivi([...consegnateQui]) } catch { /* la memoria in sessione basta */ }
   }
 
   const mioBattito = (): BattitoPc => {
@@ -192,6 +297,8 @@ export function creaPostino(deps: {
         return i === undefined ? {} : { host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
       })(),
       versione: deps.versione(),
+      // So leggere le cassette d'uscita (0.86.2): chi lo vede mi scrive li'.
+      posta: POSTA_PER_MITTENTE,
       battito: iso(),
       cartelle: [...cartelle],
       chat: chat.filter((c) => c.viva).map((c) => ({
@@ -232,11 +339,36 @@ export function creaPostino(deps: {
   /** La prima voce in attesa della mia cassetta: consegnata, aperta, o fallita. */
   const consegna = async (s: Scatola): Promise<void> => {
     const me = deps.pcId()
-    const posta = await leggiPosta(s, me)
-    const voce = prossimaDaConsegnare(posta)
+    const cassetta = await leggiCassetta(s, me)
+    // Una voce gia' scritta qui non si riscrive, anche se il Drive la mostra ancora in attesa.
+    const voce = cassetta.vista.voci.find((v) => v.stato === 'attesa' && !giaConsegnata(v.id))
     if (voce === undefined) return
+    /**
+     * L'esito va nel file degli esiti, che scrivo solo io. Se la voce viene
+     * dalla cassetta unica di un PC vecchio, la si aggiorna anche li' (per chi
+     * la guarda da quel PC): riletta subito prima, cambiando solo questa voce.
+     */
     const aggiorna = async (nuova: VocePosta): Promise<void> => {
-      await scriviPosta(s, me, { voci: posta.voci.map((v) => (v.id === voce.id ? nuova : v)) })
+      const esito: EsitoVoce = {
+        stato: nuova.stato, il: iso(),
+        ...(nuova.consegnataIl !== undefined ? { consegnataIl: nuova.consegnataIl } : {}),
+        ...(nuova.aSessione !== undefined ? { aSessione: nuova.aSessione } : {}),
+        ...(nuova.esito !== undefined ? { esito: nuova.esito } : {}),
+        ...(nuova.apertaIl !== undefined ? { apertaIl: nuova.apertaIl } : {})
+      }
+      const viste = new Set(cassetta.vista.voci.map((v) => v.id))
+      const limite = adesso() - ESITI_SCADONO_MS
+      const tenuti = Object.entries(cassetta.esiti).filter(([id, e]) => id !== voce.id && (viste.has(id) || Date.parse(e.il) > limite))
+      const esiti: Record<string, EsitoVoce> = Object.fromEntries([...tenuti, [voce.id, esito]])
+      await s.scrivi(nomeEsiti(me), { esiti })
+      cassetta.esiti = esiti
+      if (cassetta.vecchia.voci.some((v) => v.id === voce.id)) {
+        try {
+          await conVecchia(s, me, (p) => ({ voci: p.voci.map((v) => (v.id === voce.id ? { ...v, ...nuova } : v)) }))
+        } catch (err) {
+          log(`[posta] esito di «${voce.testo.slice(0, 60)}» non riportato nella cassetta vecchia (resta nel file degli esiti): ${String(err)}`)
+        }
+      }
     }
     if (!deps.cartellaEsiste(voce.cwd)) {
       log(`[posta] «${voce.testo.slice(0, 60)}» da ${voce.daNome}: la cartella ${voce.cwd} non esiste qui, fallita`)
@@ -252,13 +384,23 @@ export function creaPostino(deps: {
         await aggiorna({ ...voce, stato: 'fallita', consegnataIl: iso(), esito: ESITO_PROTETTA })
         return
       }
-      deps.scrivi(pronta.id, voce.testo)
-      log(`[posta] consegnato a «${pronta.titolo}» (${voce.cwd}) il comando di ${voce.daNome}: ${voce.testo.slice(0, 60)}`)
+      // Prima si segna consegnata, poi si scrive nella chat (0.86.2, audit I1):
+      // se il Drive non prende l'esito non si scrive niente e si riprova al
+      // giro dopo; se lo prende, il comando non si riscrive mai piu'.
       await aggiorna({
         ...voce, stato: 'consegnata', consegnataIl: iso(),
         ...(pronta.sessione !== undefined ? { aSessione: pronta.sessione } : {}),
         esito: `consegnato a «${pronta.titolo}»`
       })
+      ricordaConsegnata(voce.id)
+      try {
+        deps.scrivi(pronta.id, voce.testo)
+      } catch (err) {
+        log(`[posta] «${voce.testo.slice(0, 60)}» da ${voce.daNome}: non scritto in «${pronta.titolo}»: ${String(err)}`)
+        await aggiorna({ ...voce, stato: 'fallita', consegnataIl: iso(), esito: `non scritto nella chat «${pronta.titolo}»: ${String(err)}` })
+        return
+      }
+      log(`[posta] consegnato a «${pronta.titolo}» (${voce.cwd}) il comando di ${voce.daNome}: ${voce.testo.slice(0, 60)}`)
       return
     }
     // Nessuna chat pronta. Se nella cartella (o con quella sessione) c'e' una
@@ -268,10 +410,11 @@ export function creaPostino(deps: {
     if (presenti.length > 0) return
     const apertaDa = voce.apertaIl !== undefined ? adesso() - Date.parse(voce.apertaIl) : Number.POSITIVE_INFINITY
     if (apertaDa < RIAPRI_DOPO_MS) return
+    // Anche qui prima l'esito: se il Drive non lo prende, non si apre una chat che verrebbe riaperta al giro dopo.
+    await aggiorna({ ...voce, apertaIl: iso() })
     if (voce.sessione !== undefined && voce.sessione !== '') deps.riprendiChat(voce.cwd, voce.sessione)
     else deps.apriChat(voce.cwd)
     log(`[posta] apro una chat in ${voce.cwd} per il comando di ${voce.daNome}`)
-    await aggiorna({ ...voce, apertaIl: iso() })
   }
 
   /** Qualcuno mi guarda via Drive: fino a quando (ms), dall'ultima richiesta letta. */
@@ -383,26 +526,66 @@ export function creaPostino(deps: {
     altrui: () => altrui,
     async posta(pcId) {
       const s = deps.scatola()
-      return s === undefined ? undefined : leggiPosta(s, pcId)
+      return s === undefined ? undefined : (await leggiCassetta(s, pcId)).vista
     },
-    aggiungi(pcId, voce) {
+    aggiungi: (pcId, voce) => inFila(async () => {
       const testo = voce.testo.trim().slice(0, TESTO_POSTA_MAX)
       const cwd = voce.cwd.trim()
-      if (testo === '' || cwd === '') return Promise.resolve(undefined)
-      return conPosta(pcId, (p) => ({
-        voci: [...p.voci, {
-          id: nuovoId(), testo, cwd, creataIl: iso(), daPc: deps.pcId(), daNome: deps.pcNome(), stato: 'attesa',
-          ...(voce.sessione !== undefined && voce.sessione !== '' ? { sessione: voce.sessione } : {}),
-          origine: voce.origine ?? 'umano',
-          daVisore: voce.daVisore ?? deps.pcId()
-        }]
-      }))
-    },
-    togli(pcId, voceId) {
-      return conPosta(pcId, (p) => ({ voci: p.voci.filter((v) => v.id !== voceId) }))
-    },
-    pulisci(pcId) {
-      return conPosta(pcId, (p) => ({ voci: p.voci.filter((v) => v.stato === 'attesa') }))
-    }
+      if (testo === '' || cwd === '') return undefined
+      const s = deps.scatola()
+      if (s === undefined) return undefined
+      const nuova: VocePosta = {
+        id: nuovoId(), testo, cwd, creataIl: iso(), daPc: deps.pcId(), daNome: deps.pcNome(), stato: 'attesa',
+        ...(voce.sessione !== undefined && voce.sessione !== '' ? { sessione: voce.sessione } : {}),
+        origine: voce.origine ?? 'umano',
+        daVisore: voce.daVisore ?? deps.pcId()
+      }
+      if (leggeLeUscite(pcId)) {
+        // La mia cassetta d'uscita verso quel PC: la scrivo solo io, nessuno me la cancella.
+        const u = await leggiUscita(s, pcId, deps.pcId())
+        await scriviUscita(s, pcId, { ...u, voci: [...u.voci, nuova] })
+      } else {
+        // Un PC che non legge le cassette d'uscita (prima della 0.86.2): la cassetta unica.
+        await conVecchia(s, pcId, (p) => ({ voci: [...p.voci, nuova] }))
+      }
+      return (await leggiCassetta(s, pcId)).vista
+    }),
+    togli: (pcId, voceId) => inFila(async () => {
+      const s = deps.scatola()
+      if (s === undefined) return undefined
+      const c = await leggiCassetta(s, pcId)
+      const mia = c.uscite.get(deps.pcId())
+      if (mia !== undefined && mia.voci.some((v) => v.id === voceId)) {
+        await scriviUscita(s, pcId, { ...mia, voci: mia.voci.filter((v) => v.id !== voceId) })
+      } else if (c.vecchia.voci.some((v) => v.id === voceId)) {
+        await conVecchia(s, pcId, (p) => ({ voci: p.voci.filter((v) => v.id !== voceId) }))
+      } else if (c.vista.voci.some((v) => v.id === voceId)) {
+        // Una voce di un altro mittente: la sua cassetta non la tocco, la segno tolta nella mia.
+        const u = mia ?? { voci: [] }
+        await scriviUscita(s, pcId, { ...u, tolte: [...(u.tolte ?? []), voceId] })
+      }
+      return (await leggiCassetta(s, pcId)).vista
+    }),
+    pulisci: (pcId) => inFila(async () => {
+      const s = deps.scatola()
+      if (s === undefined) return undefined
+      const c = await leggiCassetta(s, pcId)
+      const finite = new Set(c.vista.voci.filter((v) => v.stato !== 'attesa').map((v) => v.id))
+      if (finite.size === 0) return c.vista
+      const mia = c.uscite.get(deps.pcId()) ?? { voci: [] }
+      const mie = new Set(mia.voci.map((v) => v.id))
+      const vecchie = new Set(c.vecchia.voci.map((v) => v.id))
+      const diAltri = [...finite].filter((id) => !mie.has(id) && !vecchie.has(id))
+      if (mia.voci.some((v) => finite.has(v.id)) || diAltri.length > 0) {
+        await scriviUscita(s, pcId, {
+          voci: mia.voci.filter((v) => !finite.has(v.id)),
+          tolte: [...(mia.tolte ?? []), ...diAltri]
+        })
+      }
+      if (c.vecchia.voci.some((v) => finite.has(v.id))) {
+        await conVecchia(s, pcId, (p) => ({ voci: p.voci.filter((v) => !finite.has(v.id) && v.stato === 'attesa') }))
+      }
+      return (await leggiCassetta(s, pcId)).vista
+    })
   }
 }

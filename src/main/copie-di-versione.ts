@@ -31,6 +31,17 @@ export const NOME_STAMPO = 'versione-installata.json'
 export const CARTELLA_COPIE = 'copie-di-versione'
 /** Quante copie si tengono: le più recenti. */
 export const COPIE_DA_TENERE = 3
+/**
+ * I file con dentro un token (0.86.2, audit I5): non si copiano. Ogni copia
+ * era un token in più sul disco, e in chiaro; tornare indietro di una versione
+ * non ha bisogno del token di prima (al peggio si ricollega). Le copie già
+ * fatte restano dove sono: si cifrano alla prima lettura.
+ */
+export const ESCLUSI_DALLE_COPIE: ReadonlySet<string> = new Set([
+  'google-drive-token.json',
+  'google-drive-token.rifiutato.json',
+  'accesso-supabase.json'
+])
 
 export type Stampo = {
   versione: string
@@ -61,7 +72,8 @@ export type EsitoCopia = {
  *
  * Tutti i `.json` in cima alla cartella dei dati più la cartella degli
  * autopiloti; fuori `index.db` (rigenerabile dalle trascrizioni), i log, le
- * copie stesse e tutto quello che Chromium tiene nella cartella.
+ * copie stesse, i token (`ESCLUSI_DALLE_COPIE`) e tutto quello che Chromium
+ * tiene nella cartella.
  */
 export function daCopiare(dati: string): string[] {
   const scelti: string[] = []
@@ -72,7 +84,7 @@ export function daCopiare(dati: string): string[] {
     return scelti
   }
   for (const nome of voci) {
-    if (nome === NOME_STAMPO || nome === CARTELLA_COPIE) continue
+    if (nome === NOME_STAMPO || nome === CARTELLA_COPIE || ESCLUSI_DALLE_COPIE.has(nome)) continue
     const intero = join(dati, nome)
     let st: ReturnType<typeof statSync>
     try {

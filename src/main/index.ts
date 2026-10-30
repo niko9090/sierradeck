@@ -112,7 +112,7 @@ import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recu
 import { leggiRecentiWorkspace } from './workspace-recenti-file'
 import { cartellaVuotaDaRecuperare, motivoPerNonEliminare } from '@shared/workspace-recupero'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
-import { fermoChiaro, type Trasloco } from '@shared/trasloco'
+import { daTogliere, fermoChiaro, vistoDa, type Trasloco } from '@shared/trasloco'
 import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
@@ -156,6 +156,7 @@ import { risorseValide, type RisorsePc } from '@shared/risorse'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
+import type { Portachiavi } from './segreti-su-file'
 import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
 import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
 import { nomeDaMostrare, sottotitoloPc } from '@shared/nome-pc'
@@ -1545,7 +1546,15 @@ if (!app.requestSingleInstanceLock()) {
       // (`connect-src 'self'`) e non può chiamare la rete esterna — la sessione e
       // le chiamate le fa qui. Prefisso `account:` per non confondersi con
       // `accesso:` (il login di Claude Code, tutt'altra cosa).
-      avviaAccesso(dati)
+      // I token su disco (la sessione di Supabase, il Drive) cifrati con il
+      // portachiavi di Windows (0.86.2, audit I5), come le password SFTP.
+      // Senza portachiavi, come prima: in chiaro.
+      const portachiaviToken: Portachiavi = {
+        disponibile: () => safeStorage.isEncryptionAvailable(),
+        cifra: (chiaro) => safeStorage.encryptString(chiaro).toString('base64'),
+        decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
+      }
+      avviaAccesso(dati, portachiaviToken)
       const rispostaErrore = { stato: 'errore' as const, messaggio: 'richiesta non valida' }
       ipcMain.handle('account:registra', (_e, email: unknown, password: unknown) =>
         typeof email === 'string' && typeof password === 'string'
@@ -1580,7 +1589,7 @@ if (!app.requestSingleInstanceLock()) {
       // Il Drive dell'utente (BYOS): connessione e stato. Il consenso apre il
       // browser di sistema — è il main a poterlo fare (shell.openExternal) e a
       // custodire i token, come per l'account e la cassaforte.
-      const contoDrive = apriContoDrive(dati)
+      const contoDrive = apriContoDrive(dati, portachiaviToken)
       ipcMain.handle('drive:stato', () => contoDrive.stato())
       ipcMain.handle('drive:connetti', async () => {
         registro.info('Drive: connessione richiesta')
@@ -2024,6 +2033,16 @@ if (!app.requestSingleInstanceLock()) {
             } catch { return [] }
           },
           scrivi: (b) => scriviJsonAtomico(join(dati, 'pc-altrui.json'), b, 'pc-altrui')
+        },
+        // Gli id dei comandi gia' scritti nelle chat (0.86.2): mai due volte lo stesso, anche dopo un riavvio.
+        consegnate: {
+          leggi: () => {
+            try {
+              const raw = JSON.parse(readFileSync(join(dati, 'posta-consegnate.json'), 'utf8')) as unknown
+              return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []
+            } catch { return [] }
+          },
+          scrivi: (ids) => scriviJsonAtomico(join(dati, 'posta-consegnate.json'), ids, 'posta-consegnate')
         },
         // Lo schermo delle mie chat per chi mi guarda via Drive (0.40.0): le
         // stesse rotte che chiamerebbe da vicino.
@@ -3266,8 +3285,12 @@ if (!app.requestSingleInstanceLock()) {
         ].map((t) => {
           // Il fermo detto in chiaro, con il nome scelto del PC e le due scelte (0.71.1): uguale su PC, pagina e app.
           const battiti = postinoGlobale?.altrui() ?? []
-          const chiaro = fermoChiaro(t, (pc) => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined })
-          return chiaro !== undefined ? { ...t, fermoChiaro: chiaro } : t
+          const nomeDi = (pc: string): string | undefined => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined }
+          // Un trasloco che gira su un altro PC (0.86.2, audit M5): il suo errore con il nome di quel PC.
+          const io = identitaPc.leggi().id
+          const chiaro = fermoChiaro(t, nomeDi, io)
+          const visto = vistoDa(t, io, nomeDi)
+          return chiaro !== undefined ? { ...visto, fermoChiaro: chiaro } : visto
         }),
         rimozione: { stati: rimozioneGlobale?.stati() ?? [], inRecupero: rimozioneGlobale?.inRecupero() ?? [] }
       })
@@ -3408,6 +3431,10 @@ if (!app.requestSingleInstanceLock()) {
         try { scriviJsonAtomico(fileSeguiti, [...traslochiSeguiti.entries()].map(([id, x]) => ({ id, pc: x.pc, ...(x.ultimo !== undefined ? { ultimo: x.ultimo } : {}) })), 'trasloco') } catch { /* solo un aiuto */ }
       }
       const timerSeguiti = setInterval(() => {
+        // I traslochi seguiti finiti da più di sette giorni (0.86.2, audit M5): non si seguono più.
+        let tolti = false
+        for (const [id, x] of traslochiSeguiti) if (x.ultimo !== undefined && daTogliere(x.ultimo, Date.now())) { traslochiSeguiti.delete(id); tolti = true }
+        if (tolti) salvaSeguiti()
         for (const [id, x] of traslochiSeguiti) {
           const fermo = x.ultimo?.fermo !== undefined
           const finitoIl = x.ultimo?.finitoIl ?? x.ultimo?.annullatoIl
