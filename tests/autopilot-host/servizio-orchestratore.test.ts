@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -9,6 +9,7 @@ import { apriMemoria } from '../../src/autopilot-host/memoria'
 import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store'
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
+import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { VistaCoda } from '@shared/coda-richieste'
@@ -57,7 +58,7 @@ function ap(p: Partial<Autopilota> = {}): Autopilota {
   }
 }
 
-async function avviaServizio(prima: Autopilota[] = []): Promise<void> {
+async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git } = {}): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-unico-')))
   for (const a of prima) archivio.scrivi(a)
@@ -80,7 +81,8 @@ async function avviaServizio(prima: Autopilota[] = []): Promise<void> {
     coda: code,
     orchestratori: orch,
     avviaProcesso: avvia,
-    porta: 47999
+    porta: 47999,
+    ...(extra.git !== undefined ? { git: extra.git } : {})
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -220,5 +222,29 @@ describe('autopilota unico nel servizio', () => {
     expect(ok).toEqual({})
     const merge = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, cwd: copia, agent_id: 'a1', tool_name: 'Bash', tool_input: { command: `git -C "${radice}" merge worktree-agent-a1` } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
     expect(merge.hookSpecificOutput?.permissionDecision).toBe('deny')
+  })
+  it('senza git (31/10, GLOS): gli specialisti lavorano nella cartella, uno alla volta, e l’orchestratore lo sa', async () => {
+    zitto()
+    // Un progetto che non è un repository: ogni git risponde «not a git repository».
+    const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })
+    await avviaServizio([ap()], { git: senzaGit })
+    const v = migra()
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    const radice = process.cwd()
+    const base = { session_id: 's', cwd: radice, hook_event_name: 'PreToolUse', tool_use_id: 'toolu_x' }
+    // Lo specialista scrive nella cartella del progetto: non c'è una copia.
+    const ok = await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, agent_id: 'a1', agent_type: 'sviluppatore', tool_name: 'Write', tool_input: { file_path: join(radice, 'nota.md'), content: 'x' } })).json()
+    expect(ok).toEqual({})
+    // Uno al lavoro: il secondo Agent dell'orchestratore aspetta.
+    processi[0]!.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'k-1: il reset' } }] } })
+    processi[0]!.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
+    const secondo = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_use_id: 'tu-2', tool_name: 'Agent', tool_input: { subagent_type: 'verificatore' } })).json()) as { hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }
+    expect(secondo.hookSpecificOutput?.permissionDecision).toBe('deny')
+    expect(secondo.hookSpecificOutput?.permissionDecisionReason).toContain('uno specialista alla volta')
+    // L'orchestratore è partito con gli agenti senza worktree e con la nota nel suo stato.
+    const args = processi[0]!.args
+    const agenti = JSON.parse(readFileSync(args[args.indexOf('--agents') + 1]!, 'utf8')) as Record<string, { isolation?: string; prompt: string }>
+    expect(Object.values(agenti).every((a) => a.isolation === undefined && a.prompt.includes('non è un repository git'))).toBe(true)
+    expect(processi[0]!.scritte.some((r) => testoScritto(r).includes('NON è un repository git'))).toBe(true)
   })
 })

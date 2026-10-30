@@ -20,7 +20,7 @@ export type DefinizioneAgente = {
   prompt: string
   tools: string[]
   model: 'haiku' | 'sonnet' | 'opus'
-  isolation: 'worktree'
+  isolation?: 'worktree'
 }
 
 const LETTURA = ['Read', 'Grep', 'Glob']
@@ -84,9 +84,26 @@ export const AGENTI_ORCHESTRATORE: Record<string, DefinizioneAgente> = {
 
 export const RUOLI_AGENTI = Object.keys(AGENTI_ORCHESTRATORE)
 
+/** Al posto della riga sulla copia, quando il progetto non è un repository git. */
+const SENZA_GIT_RIGA = 'Il progetto non è un repository git: lavori direttamente nella cartella del progetto, e sei l’unico specialista al lavoro. Niente git (niente commit, niente init): tocca solo i file del tuo compito, e nel riepilogo elenca ogni file cambiato.'
+const RIGA_COPIA = COMUNE.split('\n')[1] as string
+
+/**
+ * Gli specialisti per un progetto **senza git** (31/10/2026, GLOS: una
+ * cartella di Obsidian): la CLI non può aprire un worktree, e ogni Agent
+ * falliva. Senza `isolation` lavorano nella cartella del progetto, uno alla
+ * volta (il tetto lo mette il servizio, la guardia lo fa rispettare).
+ */
+export function agentiSenzaGit(): Record<string, DefinizioneAgente> {
+  return Object.fromEntries(Object.entries(AGENTI_ORCHESTRATORE).map(([k, a]) => {
+    const { isolation: _i, ...resto } = a
+    return [k, { ...resto, prompt: a.prompt.replace(RIGA_COPIA, SENZA_GIT_RIGA) }]
+  }))
+}
+
 /** Il contenuto di `agenti.json` per `--agents`. */
-export function fileAgenti(): string {
-  return JSON.stringify(AGENTI_ORCHESTRATORE, null, 2)
+export function fileAgenti(conGit = true): string {
+  return JSON.stringify(conGit ? AGENTI_ORCHESTRATORE : agentiSenzaGit(), null, 2)
 }
 
 /** Il contenuto di `impostazioni-cli.json` per `--settings`: i divieti sui comandi, dal servizio. */

@@ -39,6 +39,13 @@ export type ContestoGuardia = {
   specialistiSulPc: number
   /** Il tetto del PC: `min(posti, 4)`. */
   tettoPc: number
+  /**
+   * Il progetto non è un repository git: gli specialisti lavorano nella
+   * cartella principale (non c'è una copia), uno alla volta.
+   */
+  senzaGit?: boolean
+  /** Gli specialisti al lavoro in questo workspace (serve senza git). */
+  specialistiDelWorkspace?: number
 }
 
 const o = (x: unknown): Record<string, unknown> => (typeof x === 'object' && x !== null && !Array.isArray(x) ? x as Record<string, unknown> : {})
@@ -99,8 +106,19 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
     if ((STRUMENTI_SCRITTURA as readonly string[]).includes(nome) || (STRUMENTI_SHELL as readonly string[]).includes(nome)) {
       return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci.' }
     }
+    if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.senzaGit === true && (c.specialistiDelWorkspace ?? 0) >= 1) {
+      return { ok: false, motivo: 'aspetta: il progetto non è un repository git, quindi lavora uno specialista alla volta nella cartella del progetto. Rilancia quando quello al lavoro ha finito.' }
+    }
     if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.specialistiSulPc >= c.tettoPc) {
       return { ok: false, motivo: `aspetta: troppi specialisti attivi sul PC (${c.specialistiSulPc} su ${c.tettoPc}). Riprova quando uno ha finito; intanto non rilanciare.` }
+    }
+    return { ok: true }
+  }
+
+  // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.
+  if (c.senzaGit === true) {
+    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && comandiGit(s(input.command) ?? '').some((g) => g.verbo === 'push')) {
+      return { ok: false, motivo: 'Niente push.' }
     }
     return { ok: true }
   }

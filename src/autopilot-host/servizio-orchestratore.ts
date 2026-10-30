@@ -216,6 +216,23 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
   const gitA = (): GitAsincrono | undefined => x.gitAsincrono ?? (x.git !== undefined ? comeAsincrono(x.git) : undefined)
+  /**
+   * La cartella del progetto è un repository git? Senza (31/10, GLOS: una
+   * cartella di Obsidian) gli specialisti lavorano nella cartella, uno alla
+   * volta, e `unisci` misura il criterio senza unire rami. Si riguarda ogni minuto.
+   */
+  const NOTA_SENZA_GIT = 'Il progetto NON è un repository git: gli specialisti lavorano direttamente nella cartella del progetto, uno alla volta (lanciane uno e aspetta che finisca). Quando ha finito, unisci non unisce rami: misura il criterio del compito nella cartella e lo chiude. Non chiedere a Nicholas di creare un repository per questo.'
+  const gitVisto = new Map<string, { si: boolean; il: number }>()
+  const conGit = (cwd: string): boolean => {
+    if (x.git === undefined) return true
+    const v = gitVisto.get(cwd)
+    if (v !== undefined && Date.now() - v.il < 60_000) return v.si
+    let si = true
+    try { si = x.git(['rev-parse', '--is-inside-work-tree'], cwd).codice === 0 } catch { si = true }
+    gitVisto.set(cwd, { si, il: Date.now() })
+    return si
+  }
+  const alLavoroNel = (ws: string): number => subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').length
 
   const imp = (ws: string): ImpostazioniOrchestratore => x.orchestratori.impostazioni(ws)
   const wsDi = (a: Pick<Autopilota, 'cwd' | 'workspace'>): string => chiaveWorkspace(a)
@@ -304,15 +321,17 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     let indice = ''
     try { indice = x.indiceQuaderno?.(u.cwd) ?? '' } catch { indice = '' }
     const i = imp(ws)
+    const git = conGit(u.cwd)
     return {
       cwd: u.cwd,
-      riassunto: riassunto(ws),
+      riassunto: git ? riassunto(ws) : `${riassunto(ws)}
+${NOTA_SENZA_GIT}`,
       indice,
-      agenti: x.orchestratori.scriviFile(ws, 'agenti.json', fileAgenti()),
+      agenti: x.orchestratori.scriviFile(ws, 'agenti.json', fileAgenti(git)),
       impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
-      // Il tetto del workspace, dentro i posti del PC.
-      tetto: Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti())))
+      // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).
+      tetto: git ? Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti()))) : 1
     }
   }
 
@@ -408,37 +427,43 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const a = unicoDi(ws)
     if (a === undefined) return 'l’autopilota unico non c’è più'
     const g = gitA()
-    if (g === undefined || a.ramoBase === undefined) return 'senza git (o senza ramo principale) non si può unire'
     const { sub, chat } = daUnire(ws, p)
     const compitoId = p.compito ?? sub?.compito ?? chat?.compitoId
     const compito = compitoId !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === compitoId) : undefined
     const nome = sub?.id ?? chat?.id ?? compitoId ?? p.ramo ?? '?'
-    // Il ramo: dato, della chat adottata, o del worktree del subagente.
+    // Senza git il lavoro è già nella cartella del progetto: niente rami da
+    // unire, il cancello è solo il criterio, misurato lì.
+    const senzaGit = !conGit(a.cwd)
+    if (!senzaGit && (g === undefined || a.ramoBase === undefined)) return 'senza ramo principale non si può unire'
+    if (senzaGit && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
     let ramo = p.ramo ?? chat?.ramo
     let cartella = chat?.cartella
-    if (ramo === undefined && sub !== undefined) {
-      const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
-      const presi = new Set(subagenti(ws).filter((s) => s.unito === true && s.ramo !== undefined).map((s) => s.ramo!))
-      const r = ramoDelloSpecialista(sub, lista.codice === 0 ? leggiWorktree(lista.uscita) : [], { presi, nato: (c) => { try { return statSync(c).birthtimeMs } catch { return undefined } } })
-      if (!r.ok) return `${nome}: ${r.motivo}`
-      ramo = r.ramo
-      cartella = r.cartella
-    }
-    if (ramo === undefined) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
-    if (ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
-    if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
-    const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
-    let motivo: string | undefined
-    if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
-    else if (chiuso === undefined) {
-      const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
-      if (!r.unito) motivo = r.motivo
+    if (!senzaGit && g !== undefined && a.ramoBase !== undefined) {
+      // Il ramo: dato, della chat adottata, o del worktree del subagente.
+      if (ramo === undefined && sub !== undefined) {
+        const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
+        const presi = new Set(subagenti(ws).filter((s) => s.unito === true && s.ramo !== undefined).map((s) => s.ramo!))
+        const r = ramoDelloSpecialista(sub, lista.codice === 0 ? leggiWorktree(lista.uscita) : [], { presi, nato: (c) => { try { return statSync(c).birthtimeMs } catch { return undefined } } })
+        if (!r.ok) return `${nome}: ${r.motivo}`
+        ramo = r.ramo
+        cartella = r.cartella
+      }
+      if (ramo === undefined) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
+      if (ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
+      if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
+      const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
+      let motivo: string | undefined
+      if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
+      else if (chiuso === undefined) {
+        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
+        if (!r.unito) motivo = r.motivo
+      }
+      if (motivo !== undefined) {
+        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
+        return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.`
+      }
     }
     const il = x.adesso()
-    if (motivo !== undefined) {
-      if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
-      return `${nome}: unione NON fatta — ${motivo}. Il ramo ${ramo} resta com’è: affida la correzione a uno specialista.`
-    }
     // I fatti vincono: il criterio del compito si misura sul principale, dopo l'unione.
     const comando = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
     let verde = true
@@ -463,7 +488,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       s.add(sub.id)
       uniti.set(ws, s)
       // Il worktree del subagente non serve più: via (il ramo unito resta nella storia).
-      if (cartella !== undefined) {
+      if (cartella !== undefined && g !== undefined) {
         void g(['worktree', 'remove', '--force', cartella], a.cwd)
           .then(() => g(['branch', '-d', ramo!], a.cwd))
           .catch(() => { /* la pulizia lo ritrova */ })
@@ -783,6 +808,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     mcp: (p) => rispondiMcpOrchestratore(ambiente, gettoni, x.versione, p),
     preTool: (a, corpo) => giudicaGuardiaOrchestratore(corpo, {
       radice: a.cwd,
+      ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a)) }),
       specialistiSulPc: orchestratore.specialistiSulPc(typeof corpo.tool_use_id === 'string' ? corpo.tool_use_id : undefined),
       tettoPc: Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
     }),

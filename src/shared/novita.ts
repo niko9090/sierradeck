@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.1',
+    righe: [
+      '**L’autopilota lavora anche nei progetti senza git:** prima, in una cartella che non è un repository (per esempio una cartella di Obsidian), nessuno specialista poteva partire e il lavoro restava a 0%. Ora gli specialisti lavorano direttamente nella cartella, uno alla volta, e il compito si chiude quando il suo criterio è verificato.',
+    ]
+  },
+  {
     versione: '0.88.0',
     righe: [
       '**Riassetto alla prima apertura:** una volta sola, con la percentuale a schermo, il programma fa ordine. Libera circa 1 GB (vecchi riordini, conversazioni di autopiloti finiti, copie di scorta, test), mette in ordine il quaderno e toglie gli errori già risolti. Niente si cancella subito: tutto va nel recupero per 30 giorni, con «Annulla» e «Libera subito». Se chiudi a metà, riprende da dove era.',
