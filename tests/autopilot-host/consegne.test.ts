@@ -176,6 +176,28 @@ describe('la conferma di consegna', () => {
   })
 })
 
+describe('la cartella sparita mentre la consegna è in coda (0.88.5)', () => {
+  it('non si riconsegna più: si lascia andare una volta sola, senza riaprire il riquadro', () => {
+    let esiste = true
+    const perse: string[] = []
+    const c = creaConsegne({ persa: (id) => perse.push(id) }, {}, { cartellaEsiste: () => esiste })
+    c.metti(base({ cwd: 'C:\\progetto.sierradeck-wt\\ap-1-c-9' }))
+    expect(c.ritira(0)).toHaveLength(1)
+    // L'agente finisce, la sua copia di lavoro viene tolta.
+    esiste = false
+    expect(c.ritira(RICONSEGNA_MS + 1)).toEqual([])
+    expect(c.inAttesa()).toBe(0)
+    expect(perse).toEqual(['c-1'])
+    expect(c.ritira(2 * RICONSEGNA_MS + 2)).toEqual([])
+  })
+
+  it('«chiudi» non apre riquadri: non conta', () => {
+    const c = creaConsegne({}, {}, { cartellaEsiste: () => false })
+    c.metti(base({ cosa: 'chiudi' }))
+    expect(c.ritira(0)).toHaveLength(1)
+  })
+})
+
 describe('la coda ritrovata dopo il riavvio (0.88.2)', () => {
   it('lascia andare le consegne per chat la cui cartella non c’è più, e il numero non torna indietro', () => {
     const scritte: Consegna[][] = []

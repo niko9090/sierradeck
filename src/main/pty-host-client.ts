@@ -31,10 +31,23 @@ export function attesaSpegnimentoMs(base: number, terminali: number): number {
  *   su Windows kill() lo lancia, e fallisce se la shell è già morta. È atteso e
  *   innocuo; le eccezioni di proc.kill() sono già ignorate dal pty-manager.
  */
-export function leggiStderrAtteso(chunk: string): string | undefined {
-  if (/^\[pty-host\] spegnimento \(/.test(chunk)) return chunk.trim().replace(/^\[pty-host\] /, '')
-  if (/conpty_console_list_agent|AttachConsole failed/.test(chunk)) return 'console già chiusa (node-pty): ignorato'
-  return undefined
+export function leggiStderrAtteso(chunk: string): { raccontate: string[]; errore: string } {
+  // Un pezzo di stderr arriva a blocchi qualsiasi: la riga dello spegnimento può
+  // stare dopo altre righe o unita a un'altra. Con `^` sul pezzo intero (0.88.2)
+  // le sfuggiva e finiva fra gli errori con il prefisso doppio.
+  const raccontate: string[] = []
+  const restanti: string[] = []
+  for (const riga of chunk.split(/\r?\n/)) {
+    const spegn = /^\s*\[pty-host\] (spegnimento \(.*)$/.exec(riga)
+    if (spegn) raccontate.push(spegn[1].trim())
+    else restanti.push(riga)
+  }
+  let resto = restanti.join('\n')
+  if (/conpty_console_list_agent|AttachConsole failed/.test(resto)) {
+    raccontate.push('console già chiusa (node-pty): ignorato')
+    resto = ''
+  }
+  return { raccontate, errore: resto.trim() === '' ? '' : resto }
 }
 
 export type PtyHostClientOptions = {
@@ -193,9 +206,9 @@ export class PtyHostClient {
 
     child.stderr?.setEncoding('utf8')
     child.stderr?.on('data', (chunk: string) => {
-      const atteso = leggiStderrAtteso(chunk)
-      if (atteso !== undefined) { this.racconta(atteso); return }
-      console.error('[pty-host]', chunk)
+      const { raccontate, errore } = leggiStderrAtteso(chunk)
+      for (const riga of raccontate) this.racconta(riga)
+      if (errore !== '') console.error('[pty-host]', errore)
     })
 
     child.on('exit', (code) => {

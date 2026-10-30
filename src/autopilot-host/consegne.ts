@@ -216,6 +216,20 @@ export function creaConsegne(
         // Consegnata da poco e non ancora confermata: si aspetta. Chi l'ha
         // presa sta probabilmente ancora scrivendola dentro la chat.
         if (riga.consegnataIl !== undefined && adesso - riga.consegnataIl < RICONSEGNA_MS) continue
+        // La cartella della chat è sparita nel frattempo (0.88.5): la copia di
+        // lavoro di un autopilota finito, tolta dopo l'unione. Ogni ritiro
+        // riapriva il riquadro e `pty:spawn` rispondeva ENOENT, a ogni
+        // tentativo (24+12+12 righe il 30/10). È un esito atteso: la consegna
+        // si lascia andare una volta, come una persa, senza altri tentativi.
+        // «chiudi» non apre niente, non conta.
+        const cwd = riga.consegna.cwd
+        if (riga.consegna.cosa !== 'chiudi' && cwd !== '' && disco.cartellaEsiste?.(cwd) === false) {
+          console.info(`[consegne] ${riga.consegna.id} lasciata andare: la cartella della chat non c'è più`)
+          coda.splice(i, 1)
+          salva()
+          avvisa(osserva.persa === undefined ? undefined : () => osserva.persa?.(riga.consegna.id))
+          continue
+        }
         if (riga.tentativi >= TENTATIVI_MAX) {
           console.warn(
             `[consegne] ${riga.consegna.id} lasciata andare dopo ${riga.tentativi} tentativi: ` +

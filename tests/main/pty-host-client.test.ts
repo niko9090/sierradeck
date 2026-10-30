@@ -247,6 +247,24 @@ describe('PtyHostClient', () => {
       expect(registro).toEqual(['[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti'])
     })
 
+    it('lo spegnimento unito ad altre righe o con spazi davanti non è un errore', () => {
+      const { emetti, registro } = conStderr()
+      emetti('[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti\r\n[pty-host] spegnimento (end): chiudo i terminali aperti\n')
+      emetti('\n  [pty-host] spegnimento (close): chiudo i terminali aperti\n')
+      expect(diagnostica).toEqual([])
+      expect(registro).toHaveLength(3)
+      expect(registro.every((r) => r.startsWith('[pty-host] spegnimento ('))).toBe(true)
+    })
+
+    it('lo spegnimento accanto a un errore vero: solo l\'errore resta errore', () => {
+      const { emetti, registro } = conStderr()
+      emetti('TypeError: rotto\n[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti\n')
+      expect(registro).toEqual(['[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti'])
+      const d = diagnostica.join(' ')
+      expect(d).toContain('TypeError: rotto')
+      expect(d).not.toContain('spegnimento')
+    })
+
     it('un altro stderr resta un errore', () => {
       const { emetti, registro } = conStderr()
       emetti('TypeError: qualcosa di rotto\n')
