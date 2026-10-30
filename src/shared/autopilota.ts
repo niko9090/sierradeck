@@ -1123,7 +1123,9 @@ export function parseAutopilota(raw: unknown): {
   // «pronto» è fra questi: è lo stato di chi sta per partire, e partire senza
   // una fine da raggiungere è precisamente ciò da cui questo controllo difende.
   const STATI_CHE_LAVORANO: StatoAutopilota[] = ['pronto', 'lavoro', 'attesa']
-  const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato)
+  // P3: l'autopilota unico non ha una fine sua: i criteri stanno nei compiti
+  // del piano, e il cancello misura quelli.
+  const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato) && o.unico !== true
   if (senzaFine) {
     // Fermato, non buttato. Rifiutare il file lo faceva mettere da parte come
     // illeggibile, e per l'utente l'autopilota **spariva** — senza traccia e

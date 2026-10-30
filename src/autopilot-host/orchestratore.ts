@@ -256,7 +256,10 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
+  /** Guasti di fila: dopo il secondo non si riprova da soli. */
   tentativi: number
+  /** La sessione persa si è già rifatta una volta. */
+  persa: boolean
 }
 
 export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
@@ -273,7 +276,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
 
   const di = (ws: string): StatoWs => {
     let s = stati.get(ws)
-    if (s === undefined) { s = { flusso: flussoVuoto(), messaggi: [], eventi: [], eventiPronti: false, ruota: false, tentativi: 0 }; stati.set(ws, s) }
+    if (s === undefined) { s = { flusso: flussoVuoto(), messaggi: [], eventi: [], eventiPronti: false, ruota: false, tentativi: 0, persa: false }; stati.set(ws, s) }
     return s
   }
   const inTurno = (s: StatoWs): boolean => s.proc !== undefined && s.flusso.inTurno
@@ -332,6 +335,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       } else if (e.tipo === 'risposta') {
         s.inviati = undefined
         s.tentativi = 0
+        s.persa = false
         if (e.errore !== undefined) d.errore(ws, e.errore)
         else if (e.testo !== '') d.risposta(ws, e.testo)
       }
@@ -376,9 +380,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         // Quello che il turno portava non si perde: torna in attesa.
         if (persi !== undefined) { s.messaggi = [...persi.messaggi, ...s.messaggi]; s.eventi = [...persi.eventi, ...s.eventi]; if (s.eventi.length > 0) s.eventiPronti = true }
         const motivo = stderr.trim().slice(-400) || `uscito con ${String(codice)}`
-        if (!nuovaSess && sessionePersa(motivo) && s.tentativi === 0) {
+        if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
           d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
-          s.tentativi += 1
+          s.persa = true
           metti(ws)
           return
         }

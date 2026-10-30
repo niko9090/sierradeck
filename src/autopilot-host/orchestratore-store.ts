@@ -125,7 +125,9 @@ export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
       scrivi(ws, 'orchestratore.json', dopo)
       return dopo
     },
-    conosciuto: (ws) => impostazioni.has(ws) || existsSync(file(ws, 'orchestratore.json')),
+    // Solo chi ha già scritto le sue impostazioni: una lettura (che le mette
+    // in memoria) non fa di un workspace nuovo uno conosciuto.
+    conosciuto: (ws) => existsSync(file(ws, 'orchestratore.json')),
     piano(ws) {
       const gia = piani.get(ws)
       if (gia !== undefined) return gia

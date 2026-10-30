@@ -90,8 +90,8 @@ const corto = (t: string, m: number): string => { const x = t.replace(/\s+/gu, '
 
 /** Il compito del piano in testa alla descrizione: «k-3: …», «[k-3] …». */
 export function compitoDallaDescrizione(d: string): string | undefined {
-  const m = /^\s*\[?([A-Za-z][\w.-]{0,30})\]?\s*[:—–-]\s/u.exec(d)
-  return m?.[1]
+  const m = /^\s*(?:\[([A-Za-z][\w.-]{0,30})\]\s*[:—–-]?\s|([A-Za-z][\w.-]{0,30})\s*[:—–-]\s)/u.exec(d)
+  return m?.[1] ?? m?.[2]
 }
 
 /** Il testo di un contenuto (stringa, o blocchi `text`). */
