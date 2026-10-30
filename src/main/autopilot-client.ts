@@ -5,6 +5,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
+import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
 
 export type NuovoAutopilota = {
   nome: string
@@ -181,7 +182,19 @@ export type ClientAutopilota = {
    * chat aperte, limiti del piano, domande in attesa, progetti, altri PC.
    */
   statoProgramma: (stato: unknown) => Promise<void>
+  /**
+   * P1: la coda delle richieste di un workspace, con la percentuale di ogni
+   * richiesta e del workspace. Un servizio vecchio non ce l'ha: `undefined`.
+   */
+  coda: (ws: string) => Promise<VistaCoda | undefined>
+  /** «Separa»: disfa l'ultima unione di una richiesta. Torna la coda di adesso. */
+  separaCoda: (ws: string, id: string) => Promise<VistaCoda>
+  /** Unisce a mano, con la stessa regola del supervisore: nessun punto si perde. */
+  unisciCoda: (ws: string, u: UnioneAMano) => Promise<VistaCoda>
 }
+
+/** Un'unione fatta a mano: ogni punto delle richieste unite va nominato. */
+export type UnioneAMano = { ids: string[]; testo: string; titolo?: string; punti: PuntoProposto[]; perche: string }
 
 const ATTESA_PREDEFINITA_MS = 3000
 /** Per quanto un elenco appena letto si ridà senza richiederlo (0.85.2). */
@@ -429,6 +442,19 @@ export function creaClientAutopilota(p: {
     async statoProgramma(stato) {
       await chiama('/stato-programma', 'POST', stato)
     },
+
+    async coda(ws) {
+      try {
+        const r = (await chiama(`/coda?ws=${encodeURIComponent(ws)}`, 'GET')) as VistaCoda | undefined
+        return r !== undefined && Array.isArray(r.richieste) ? r : undefined
+      } catch (err) {
+        // Un servizio di prima della coda la rifiuta (404): niente coda, non è un guasto.
+        if (err instanceof Error && err.message.includes('ha rifiutato la richiesta')) return undefined
+        throw err
+      }
+    },
+    separaCoda: async (ws, id) => (await chiama('/coda/separa', 'POST', { ws, id })) as VistaCoda,
+    unisciCoda: async (ws, u) => (await chiama('/coda/unisci', 'POST', { ws, ...u })) as VistaCoda,
 
     async gestoreAvviato(aggiornamento) {
       // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.

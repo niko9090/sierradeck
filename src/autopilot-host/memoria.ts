@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { paroleSignificative, somiglianza } from '@shared/somiglianza-parole'
 
 /**
  * La memoria dell'autopilota (0.71.0): le risposte già date e le decisioni di
@@ -25,17 +26,11 @@ const DECISIONI_MAX = 30
 /** Somiglianza (Jaccard sulle parole) oltre la quale due domande sono «simili». */
 export const SIMILE_DA = 0.8
 
-const parole = (t: string): string[] => t.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter((p) => p.length > 2)
+const parole = paroleSignificative
 export const normalizzaDomanda = (t: string): string => parole(t).join(' ')
 
-export function somiglianza(a: string, b: string): number {
-  const x = new Set(parole(a))
-  const y = new Set(parole(b))
-  if (x.size === 0 || y.size === 0) return 0
-  let comuni = 0
-  for (const p of x) if (y.has(p)) comuni += 1
-  return comuni / (x.size + y.size - comuni)
-}
+// P1: la somiglianza sta in `@shared/somiglianza-parole`, la usa anche la coda delle richieste.
+export { somiglianza }
 
 /** Una frase del dialogo che decide qualcosa per il futuro. */
 export function eUnaDecisione(testo: string): boolean {

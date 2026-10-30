@@ -1126,6 +1126,12 @@ contextBridge.exposeInMainWorld('gestore', {
     tempi: (id: string): Promise<string | undefined> => ipcRenderer.invoke('autopilota:tempi', id),
     /** «N di M chat» su questo PC (0.82.0). */
     postiChat: (): Promise<import('@shared/posti-chat').PostiChat | undefined> => ipcRenderer.invoke('autopilota:postiChat'),
+    /** P1: la coda delle richieste del workspace, con le percentuali. */
+    coda: (ws: string): Promise<import('@shared/coda-richieste').VistaCoda | undefined> => ipcRenderer.invoke('autopilota:coda', ws),
+    /** «Separa»: disfa l'ultima unione di una richiesta. */
+    codaSepara: (ws: string, id: string): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaSepara', ws, id),
+    /** Unisce a mano: ogni punto delle richieste unite va nominato. */
+    codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaUnisci', ws, u),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
     avvioAlLogin: (attivare?: boolean): Promise<{ installato: boolean; percorso: string }> =>

@@ -1,5 +1,6 @@
 import { somiglianza as somiglianzaRisposte, type RispostaRicordata } from './memoria'
 import { somiglianza as somiglianzaAperte } from './coordinatore'
+import { argomentoDi, stessoArgomento, type Argomento } from '@shared/argomento-testo'
 
 /**
  * Le domande che **non** devono arrivare a Nicholas (0.81.0).
@@ -16,39 +17,13 @@ import { somiglianza as somiglianzaAperte } from './coordinatore'
  * certezza: scartare una domanda vera è peggio che farla due volte.
  */
 
-/**
- * Una versione del programma: «la 0.80.0», «versione 0.80.0», «v0.80.0»,
- * «SierraDeck 0.80.0», «the 0.80.0». Un numero qualunque no: «installo vitest
- * 0.34.6?» parla di un pacchetto, e non va confusa (Revisione 0.81.0).
- * Dal 0.82.0 anche «una 0.81.1» e «pubblico (adesso) la 0.81.1».
- */
-const VERSIONE = /(?:(?<![\p{L}])(?:la|alla|della|una|versione|release|sierradeck|the|pubblic[\p{L}]*|publish[\p{L}]*|rilasci[\p{L}]*)\s+(?:(?:adesso|ora|subito|now)\s+)?(?:(?:una|la|the|a)\s+)?v?|(?<![\p{L}\d.])v)(\d+\.\d+\.\d+)(?![\d.])/giu
-/** Installare (non disinstallare): «installi», «installo», «install», «installa». */
-const INSTALLA = /(?<![\p{L}])install/iu
-/** Pubblicare (0.82.0): «pubblico», «pubblicata», «publish», «rilascio», «release». */
-const PUBBLICA = /(?<![\p{L}])(?:pubblic|publish|rilasc|release)/iu
+// P1: l'argomento (versioni da installare o pubblicare) sta in `@shared/argomento-testo`,
+// lo usa anche la coda delle richieste per trovare quelle da unire.
+export { argomentoDi, stessoArgomento, type Argomento }
 /** Unire un ramo (0.82.0): «unisco», «unire», «merge». */
 const UNISCI = /(?<![\p{L}])(?:unisc|unir|merg)/iu
 /** Chiudere una chat (0.82.0): «chiudo», «chiudere», «close». */
 const CHIUDI = /(?<![\p{L}])(?:chiud|close)/iu
-
-export type Argomento = { installa: boolean; pubblica: boolean; versioni: string[] }
-
-export function argomentoDi(testo: string): Argomento {
-  const versioni = [...new Set([...testo.matchAll(VERSIONE)].map((m) => m[1]!))]
-  return { installa: INSTALLA.test(testo), pubblica: PUBBLICA.test(testo), versioni }
-}
-
-/**
- * Due domande sullo stesso argomento riconosciuto: installare **le stesse**
- * versioni. «La 0.80.0 o la 0.80.1?» non è «la 0.80.1?».
- */
-export function stessoArgomento(a: string, b: string): boolean {
-  const x = argomentoDi(a)
-  const y = argomentoDi(b)
-  return x.installa && y.installa && x.versioni.length > 0 &&
-    x.versioni.length === y.versioni.length && x.versioni.every((v) => y.versioni.includes(v))
-}
 
 /** -1, 0, 1 come un comparatore; le parti mancanti valgono 0. */
 export function confrontaVersioni(a: string, b: string): number {

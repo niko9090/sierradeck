@@ -494,6 +494,12 @@ declare global {
         /** I tempi dei suoi giri in una riga (0.71.0). */
         tempi: (id: string) => Promise<string | undefined>
         postiChat: () => Promise<import('@shared/posti-chat').PostiChat | undefined>
+        /** P1: la coda delle richieste del workspace, con le percentuali. Un servizio vecchio: `undefined`. */
+        coda: (ws: string) => Promise<import('@shared/coda-richieste').VistaCoda | undefined>
+        /** «Separa»: disfa l'ultima unione di una richiesta. */
+        codaSepara: (ws: string, id: string) => Promise<import('@shared/coda-richieste').VistaCoda>
+        /** Unisce a mano: ogni punto delle richieste unite va nominato. */
+        codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }) => Promise<import('@shared/coda-richieste').VistaCoda>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }
