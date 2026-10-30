@@ -24,10 +24,11 @@ describe('Account e Drive nella pagina', () => {
     expect(catenaAccountHtml({ entrato: true, email: 'p@esempio.it' })).toBe('')
   })
 
-  it('mostra le quattro tessere con la parola e il prossimo passo', () => {
-    const catena = vistaAccount({ utente: { email: 'p@esempio.it' }, drive: { configurato: true, connesso: false }, sync: { haCassaforte: true, sbloccato: false }, ora: ORA })
-    const h = catenaAccountHtml(JSON.parse(JSON.stringify({ entrato: true, catena })))
-    for (const t of ['Account', 'Drive', 'Cassaforte', 'Salvataggio', 'entrato', 'scollegato', 'chiusa']) expect(h).toContain(t)
+  it('mostra le tre tessere (0.88.0: niente account) con la parola e il prossimo passo', () => {
+    const catena = vistaAccount({ drive: { configurato: true, connesso: false }, sync: { haCassaforte: true, sbloccato: false }, ora: ORA })
+    const h = catenaAccountHtml(JSON.parse(JSON.stringify({ entrato: false, catena })))
+    for (const t of ['Drive', 'Cassaforte', 'Salvataggio', 'scollegato', 'chiusa']) expect(h).toContain(t)
+    expect(h).not.toContain('entrato')
     expect(h).toContain('Prossimo passo, sul computer: <b>Collega il Drive</b>')
   })
 

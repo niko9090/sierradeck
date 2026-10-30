@@ -18,7 +18,6 @@ import { ModalePosta } from './ModalePosta'
 import { CoperturaPin } from './ChatConPin'
 import { useLayoutStore } from '../state/layout'
 import { avanzaLineaPc, lineaPc, pubblicaLinea, useLineaPc } from '../linee-remote'
-import { ConfermaPortaQui, useCasa } from './OspiteChat'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { testoAvvio, testoConsegnato, type FaseSottofondo } from '@shared/sottofondo'
 import { workspaceCorrente } from '../workspace-corrente'
@@ -73,6 +72,21 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   const [testo, setTesto] = useState('')
   const [invio, setInvio] = useState(false)
   const [avviso, setAvviso] = useState<string | undefined>(undefined)
+  /**
+   * Il messaggio lasciato nella posta di quel PC (0.88.0): in attesa finché
+   * lui non torna, poi consegnato o fallito. Si guarda ogni quindici secondi.
+   */
+  const [inPosta, setInPosta] = useState<{ voce: string; stato: 'attesa' | 'consegnato' | 'fallito'; esito?: string } | undefined>(undefined)
+  useEffect(() => {
+    if (inPosta === undefined || inPosta.stato !== 'attesa') return
+    const t = setInterval(() => {
+      void window.gestore.remoto.inviati(remoto.pcId).then((vv) => {
+        const v = vv.find((x) => x.id === inPosta.voce)
+        if (v !== undefined && v.stato !== 'attesa') setInPosta({ voce: v.id, stato: v.stato, ...(v.esito !== undefined ? { esito: v.esito } : {}) })
+      }).catch(() => undefined)
+    }, 15_000)
+    return () => clearInterval(t)
+  }, [inPosta, remoto.pcId])
   /** La chat là è protetta dal PIN e non è aperta per questo PC (0.49.0). */
   const [chiusaPin, setChiusaPin] = useState(false)
   const [postaAperta, setPostaAperta] = useState(false)
@@ -121,13 +135,6 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
   useEffect(() => { pubblicaLinea(paneId, linea) }, [paneId, linea])
   useEffect(() => () => pubblicaLinea(paneId, undefined), [paneId])
   /**
-   * L'ospite non risponde (0.52.0): la chat ha casa là, e qui non parte da
-   * sola. «Porta qui la chat» cambia la casa, con la conferma, e il riquadro
-   * torna una chat di qui.
-   */
-  const casa = useCasa(remoto.sessione)
-  const nomeCasa = useNomePc(casa?.pc, casa?.pcNome ?? '').nome
-  /**
    * «Mi collego a NOME-PC…» (0.52.1): al cambio di PC (un riquadro che
    * diventa remoto, un workspace con chat di altri PC) i tentativi si vedono
    * finché il primo collegamento non riesce, e per due secondi e mezzo dopo.
@@ -143,7 +150,6 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     const t = setTimeout(() => setTentVisibili(false), 2500)
     return () => clearTimeout(t)
   }, [vistaTent.fase])
-  const [portaQui, setPortaQui] = useState(false)
   const adesso = useAdesso(linea.fase === 'ricollego' || (linea.cambio !== undefined && Date.now() - linea.cambio.il < CAMBIO_VISIBILE_MS + 1000))
   /** Una chiamata a quel PC, misurata: fa avanzare il collegamento. */
   const chiedi = async <T,>(f: () => Promise<EsitoRemoto<T>>): Promise<EsitoRemoto<T>> => {
@@ -217,7 +223,6 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           const trovata = trovaChatRemota(s.dati.chat, { ...remoto, ...(title !== '' ? { titolo: title } : {}) })
           // Là con un id nuovo (0.68.0): il riquadro, e con lui il workspace, passa a quello.
           if (trovata?.sessione !== undefined && remoto.sessione !== undefined && trovata.sessione !== remoto.sessione) {
-            void window.gestore.casa.idNuovo(remoto.sessione, trovata.sessione).catch(() => undefined)
             rendiRemoto(paneId, { ...remoto, sessione: trovata.sessione })
           }
           // Chiusa da te sul PC di casa dopo che questo riquadro è stato aperto
@@ -226,10 +231,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
           const chiusa = trovata === undefined && avvioRef.current === undefined ? chiusaDopo(s.dati.chiuse, remoto.sessione, remoto.dal) : undefined
           // Il workspace rispecchia il PC di casa (0.64.2): una chat che là non
           // è aperta da nessuna parte si toglie anche senza chiusura registrata.
-          // Si toglie solo se il PC guardato è certamente la casa della chat (0.67.0).
-          const casaLa = remoto.sessione !== undefined && trovata === undefined ? await window.gestore.casa.casaDi(remoto.sessione).catch(() => undefined) : undefined
+          // Si toglie solo se il PC guardato è certamente la casa della chat (0.67.0):
+          // con un proprietario per progetto (0.88.0) non c'è più una casa per chat
+          // da chiedere, e senza certezza non si toglie niente da solo.
           const giudizio = giudicaRiquadroRemoto({
-            casaCerta: casaLa !== undefined && casaLa === remoto.pcId,
+            casaCerta: false,
             trovata: trovata !== undefined,
             sessione: remoto.sessione,
             chiusaRegistrata: chiusa !== undefined,
@@ -309,12 +315,13 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     const v = prossimoDaMandare(coda)
     if (v === undefined) return
     setCoda((c) => inInvio(c, v.id))
-    void chiedi(() => window.gestore.remoto.scrivi(remoto.pcId, chatId, v.testo, v.id)).then((r) => {
+    const dove = { ...(remoto.sessione !== undefined ? { sessione: remoto.sessione } : {}), cwd: remoto.cwd }
+    void chiedi(() => window.gestore.remoto.scrivi(remoto.pcId, chatId, v.testo, v.id, dove)).then((r) => {
       if (r.ok) {
         setCoda((c) => consegnato(c, v.id))
-        setAvviso((r.dati as { viaDrive?: boolean } | undefined)?.viaDrive === true
-          ? `Messaggio lasciato nella cassetta di ${nomePc} sul Drive: lo consegna lui a questa chat al suo prossimo giro (dieci-trenta secondi), appena la chat aspetta. Lo vedi comparire qui sopra con lo schermo successivo.`
-          : undefined)
+        const d = r.dati as { posta?: boolean; voce?: string } | undefined
+        if (d?.posta === true && d.voce !== undefined) setInPosta({ voce: d.voce, stato: 'attesa' })
+        setAvviso(undefined)
       } else if (erroreDiStrada(r.motivo)) {
         setCoda((c) => nonPartito(c, v.id))
       } else {
@@ -445,24 +452,6 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         />
       ) : null}
       <FasciaLinea linea={linea} nomePc={nomePc} adesso={adesso} onRiprova={riprova} />
-      {linea.fase === 'ricollego' && remoto.sessione !== undefined && casa !== undefined && !casa.qui ? (
-        <div className="remoto__ospite" role="status">
-          <span>
-            Questa chat è <b>ospitata da {nomeCasa}</b>: qui non parte da sola, si guarda dal vivo. Adesso {nomePc} non
-            risponde: non so se è acceso. Puoi aspettare (riprovo da solo) o portarla qui.
-          </span>
-          <button type="button" className="tasto tasto--mini" onClick={() => setPortaQui(true)} title="Cambia la casa della chat: diventa questo PC, dopo la conferma">Porta qui la chat</button>
-        </div>
-      ) : null}
-      {portaQui && remoto.sessione !== undefined ? (
-        <ConfermaPortaQui
-          titolo={title}
-          pcNome={nomePc}
-          sessione={remoto.sessione}
-          onAnnulla={() => setPortaQui(false)}
-          onFatto={() => { setPortaQui(false); useLayoutStore.getState().rendiLocale(paneId) }}
-        />
-      ) : null}
       {lento ? (
         <div className="remoto__lento" role="status">
           <strong>Collegamento lento via Drive.</strong> {via?.testo}
@@ -537,7 +526,7 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
             <button className="tasto" onClick={riprova}>Riprova adesso</button>
           </div>
           <div className="remoto__nota">
-            Il riquadro riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30: non si arrende mai), in quest’ordine: la rete di casa, Tailscale (anche gli indirizzi che dà adesso), un collegamento diretto via Internet (WebRTC, aperto con uno scambio cifrato sul Drive) e infine il Drive, lento, solo per leggere e mandare un messaggio.
+            Il riquadro riprova da solo, con attese che crescono (1, 2, 5, 10, 30 secondi, poi ogni 30: non si arrende mai), in quest’ordine: la rete di casa e Tailscale (anche gli indirizzi che dà adesso). Se nessuna risponde, quello che scrivi va nella sua posta sul Drive e lo consegna lui quando torna acceso.
             {driveCollegato
               ? ' La conversazione la trovi anche nella copia sul Drive (▦ Progetti → «Il contenuto del Drive»), in sola lettura, aggiornata all’ultimo salvataggio di quel PC.'
               : ' Il Drive di questo PC è scollegato: niente copia da leggere e niente cassetta finché non lo ricolleghi (Account → Drive → Collega).'}
@@ -546,6 +535,14 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       ) : null}
 
       {avviso !== undefined ? <div className="remoto__esito">{avviso}</div> : null}
+      {inPosta !== undefined ? (
+        <div className="remoto__esito" role="status">
+          {inPosta.stato === 'attesa' ? `In attesa: ${nomePc} non risponde, il messaggio è nella sua posta sul Drive e lo consegna appena torna acceso.`
+            : inPosta.stato === 'consegnato' ? `Consegnato: ${nomePc} l’ha scritto nella chat.`
+              : `Non consegnato: ${inPosta.esito ?? 'quel PC non è riuscito a scriverlo'}.`}
+          {inPosta.stato !== 'attesa' ? <button type="button" className="tasto tasto--mini" onClick={() => setInPosta(undefined)}>OK</button> : null}
+        </div>
+      ) : null}
 
       {!chiusaPin && scelte !== undefined && chatId !== undefined ? (
         <div className="remoto__scelte">

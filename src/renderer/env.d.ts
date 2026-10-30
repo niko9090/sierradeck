@@ -20,7 +20,7 @@ import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpaz
 
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
-  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  progetti: { id: string; nome: string; locale?: string; altrove: number; su?: string }[]
   /** Un esito da mostrare, quando un'azione ha qualcosa da dire. */
   messaggio?: string
 }
@@ -125,15 +125,6 @@ declare global {
         anteprimaRiordino: (cwd: string) => Promise<import('@shared/quaderno-riordino').AnteprimaRiordinoVista>
         riordina: (cwd: string, file?: string[]) => Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista>
       }
-      account: {
-        registra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>
-        entra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>
-        esci: () => Promise<void>
-        utente: () => Promise<import('@shared/account').Utente | undefined>
-        verifica: (email: string, codice: string) => Promise<import('@shared/account').EsitoAccesso>
-        reinvia: (email: string) => Promise<{ ok: boolean; messaggio?: string }>
-        onCambiato: (cb: (utente: import('@shared/account').Utente | null) => void) => () => void
-      }
       drive: {
         avvisoScollegato: () => Promise<import('../shared/scoperta-pc').AvvisoDrive | undefined>
         stato: () => Promise<{ configurato: boolean; connesso: boolean; email?: string }>
@@ -151,19 +142,9 @@ declare global {
         elenca: () => Promise<ElencoProgetti>
         aggiungi: () => Promise<ElencoProgetti>
         aggiungiPercorso: (percorso: string) => Promise<ElencoProgetti>
-        collega: (id: string) => Promise<ElencoProgetti>
         rimuovi: (id: string) => Promise<ElencoProgetti>
         cartella: () => Promise<ElencoProgetti>
-        stati: () => Promise<StatoProgetto[]>
-        prendiTestimone: (id: string, forza?: boolean) => Promise<EsitoTestimone>
-        suAvviso: (cb: (a: AvvisoProgettoDalCore) => void) => () => void
         chatDi: (id: string) => Promise<ChatDiProgetto[]>
-        coda: (id: string) => Promise<Coda | undefined>
-        codaAggiungi: (id: string, testo: string, sessione?: string) => Promise<Coda | undefined>
-        codaModifica: (id: string, voceId: string, testo: string, sessione?: string) => Promise<Coda | undefined>
-        codaTogli: (id: string, voceId: string) => Promise<Coda | undefined>
-        codaPulisci: (id: string) => Promise<Coda | undefined>
-        suIberna: (cb: (m: { sessioni: string[] }) => void) => () => void
       }
       segnali: {
         suStato: (cb: (f: import('@shared/segnali-chat').FaseSessione) => void) => () => void
@@ -192,44 +173,24 @@ declare global {
         suInstallaLa: (cb: (a: import('@shared/installa-la').AvanzamentoInstallaLa) => void) => () => void
       }
       casa: {
-        proposte: () => Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }>
-        riordina: (sessioni: string[]) => Promise<import('@shared/una-casa').RegistroRiordino>
-        riordini: () => Promise<import('@shared/una-casa').RegistroRiordino[]>
-        annulla: (id: string) => Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }>
-        stato: () => Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }>
-        dove: () => Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }>
-        casaDi: (sessione: string) => Promise<string | undefined>
-        idNuovo: (vecchia: string, nuova: string) => Promise<void>
-        scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }) => Promise<{ ok: boolean; messaggio: string }>
         pannello: () => Promise<import('../shared/pannello-drive').Pannello>
         azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }) => Promise<{ ok: boolean; messaggio: string }>
         rimozione: {
-          avvia: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
-          conferma: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
-          annulla: (id: string) => Promise<import('../shared/rimozione-sicura').StatoRimozione>
           stati: () => Promise<{ stati: import('../shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('../shared/rimozione-sicura').CartellaInRecupero[] }>
           ripristina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
-          cestina: (id: string) => Promise<{ ok: boolean; messaggio: string }>
         }
-        di: (sessione: string) => Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined>
-        suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void) => () => void
         suCambiate: (cb: () => void) => () => void
       }
+      /** «Sposta su questo PC» (0.88.0). */
       sposta: {
-        progetti: () => Promise<{ cwd: string; nome: string; sessioni: string[]; titoli: string[] }[]>
-        pc: () => Promise<{ pcId: string; nome: string; versione: string; battito: string }[]>
-        controlli: (cwd: string, dest: string) => Promise<import('@shared/una-casa').Controllo[]>
-        trasferisci: (cwd: string, dest: string, mettiSulDrive: boolean) => Promise<{ ok: boolean; messaggio: string; serveDrive?: boolean }>
-        verifica: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; diverse?: string[] }>
-        casa: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string }>
-        archivia: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }>
-        trasloco: (cwd: string, dest: string) => Promise<{ ok: boolean; messaggio: string }>
+        avvia: (progetto: string) => Promise<import('../shared/sposta').VistaSposta | undefined>
+        stato: () => Promise<import('../shared/sposta').VistaSposta | undefined>
+        chiudi: () => Promise<boolean>
       }
       sync: {
         stato: () => Promise<{
           driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
           versione?: string; ultimoSalvataggio?: string
-          ultimaFusione?: import('../main/cassaforte/sincronia').UltimaFusione
         }>
         info: () => Promise<{ file: number; byte: number }>
         creaPassphrase: (passphrase: string) => Promise<{ ok: boolean; chiaveRecupero?: string; messaggio?: string }>
@@ -246,20 +207,10 @@ declare global {
         adottaCassaforteDelDrive: () => Promise<{ ok: boolean; messaggio?: string }>
         cambiatoDrive: () => Promise<void>
         provaPassphraseSulDrive: (passphrase: string) => Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }>
-        anteprimaFusione: (passphraseDrive?: string) => Promise<
-          | { ok: true; piano: import('../main/cassaforte/fusione').PianoFusione }
-          | { ok: false; messaggio: string; servePassphrase?: boolean }
-        >
         riprendiChat: (cwd: string, sessione: string) => Promise<boolean>
         catalogo: () => Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
-        portaQui: (chiave: string) => Promise<{ ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione } | { ok: false; messaggio: string }>
-        portaQuiWorkspace: (nome: string) => Promise<{ ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione } | { ok: false; messaggio: string }>
         togliWorkspace: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
         rimettiWorkspace: (nome: string) => Promise<{ ok: boolean; messaggio?: string }>
-        eseguiFusione: (scelte: import('../main/cassaforte/fusione').ScelteFusione, passphraseDrive?: string) => Promise<
-          | { ok: true; esito: import('../main/cassaforte/fusione').EsitoFusione }
-          | { ok: false; messaggio: string }
-        >
         salva: (forza?: boolean) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
         auto: (attivo?: boolean) => Promise<boolean>
         ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
@@ -447,7 +398,10 @@ declare global {
         nonApertaACasa: (p: { sessione: string; titolo?: string; pcNome: string; workspace?: string }) => Promise<void>
         segnaChiusa: (sessione: string, titolo?: string, da?: string) => Promise<void>
         storia: (pc: string, chat: string, da: number, quante: number) => Promise<import('../shared/pc-remoto').EsitoRemoto<import('../shared/pc-remoto').StoriaRemota>>
-        scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
+        /** 0.88.0: acceso, dritto; spento o lontano, nella sua posta sul Drive (`posta: true`). */
+        scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string, dove?: { sessione?: string; cwd?: string }) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto?: boolean; posta?: boolean; voce?: string; messaggio?: string }>>
+        /** I messaggi lasciati nella posta di quel PC: in attesa, consegnati, falliti (0.88.0). */
+        inviati: (pc: string) => Promise<import('../main/progetti/manda-a-chat').StatoInvio[]>
         scegli: (pc: string, chat: string, opzione: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         pin: (pc: string, chat: string, pin: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>
         riprendi: (pc: string, cartella: string, sessione: string, workspace?: string) => Promise<import('../shared/pc-remoto').EsitoRemoto<{ fatto: boolean }>>

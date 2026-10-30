@@ -1,0 +1,250 @@
+{
+  "io": {
+    "id": "pc-qui",
+    "nome": "PC-ESEMPIO",
+    "battito": "2026-10-10T18:00:00.000Z"
+  },
+  "pc": [
+    {
+      "id": "pc-port",
+      "nome": "PORTATILE-ESEMPIO",
+      "battito": "2026-10-10T17:59:00.000Z",
+      "diceLocali": true
+    },
+    {
+      "id": "pc-vecchio",
+      "nome": "PC-VECCHIO",
+      "battito": "2026-10-10T17:58:00.000Z",
+      "diceLocali": false
+    }
+  ],
+  "chat": [
+    {
+      "sessione": "s-uno",
+      "titolo": "Fatture",
+      "cwd": "D:\\Lavoro\\Gestionale",
+      "progetto": "prog-g",
+      "residente": {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO",
+        "qui": false
+      },
+      "copie": [
+        {
+          "pc": "pc-port",
+          "nome": "PORTATILE-ESEMPIO",
+          "dove": "disco",
+          "quando": "2026-10-10T17:00:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T17:00:00.000Z",
+      "stato": "residente",
+      "copiaQui": false,
+      "problemi": []
+    },
+    {
+      "sessione": "s-due",
+      "titolo": "Note di prova",
+      "cwd": "C:\\Progetti\\Sito",
+      "progetto": "prog-s",
+      "residente": {
+        "pc": "pc-qui",
+        "nome": "PC-ESEMPIO",
+        "qui": true
+      },
+      "copie": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "dove": "qui",
+          "quando": "2026-10-10T16:00:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T16:00:00.000Z",
+      "stato": "residente",
+      "copiaQui": true,
+      "alLavoroSu": [
+        "PC-ESEMPIO"
+      ],
+      "problemi": []
+    },
+    {
+      "sessione": "s-tre",
+      "titolo": "chat s-tre",
+      "cwd": "C:\\Progetti\\Sito\\sotto",
+      "progetto": "prog-s",
+      "residente": {
+        "pc": "pc-qui",
+        "nome": "PC-ESEMPIO",
+        "qui": true
+      },
+      "copie": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "dove": "qui",
+          "quando": "2026-10-10T15:30:00.000Z"
+        }
+      ],
+      "ultimoUso": "2026-10-10T15:30:00.000Z",
+      "stato": "residente",
+      "copiaQui": true,
+      "senzaNome": true,
+      "problemi": []
+    }
+  ],
+  "progetti": [
+    {
+      "id": "prog-g",
+      "ids": [
+        "prog-g"
+      ],
+      "nome": "Gestionale",
+      "residente": {
+        "pc": "pc-port",
+        "nome": "PORTATILE-ESEMPIO",
+        "qui": false
+      },
+      "voluto": true,
+      "cartelle": [
+        {
+          "pc": "pc-port",
+          "nome": "PORTATILE-ESEMPIO",
+          "percorso": "D:\\Lavoro\\Gestionale"
+        }
+      ],
+      "cartellaQui": false,
+      "workspace": [],
+      "daUnire": 0,
+      "proprietarioAcceso": true,
+      "chat": 1,
+      "chatSenzaNome": 0,
+      "alLavoro": 0,
+      "ultimoUso": "2026-10-10T17:00:00.000Z",
+      "stato": "residente",
+      "problemi": [],
+      "azioni": [
+        {
+          "id": "apri-remoto",
+          "titolo": "Apri su PORTATILE-ESEMPIO",
+          "testo": "Il progetto vive su PORTATILE-ESEMPIO: una chat nella sua cartella là, che guardi e usi da qui dal vivo. Se PORTATILE-ESEMPIO è spento, quello che scrivi aspetta nella sua posta."
+        },
+        {
+          "id": "sposta-qui",
+          "titolo": "Sposta su questo PC",
+          "testo": "«Gestionale» diventa di PC-ESEMPIO. PORTATILE-ESEMPIO ferma le chat del progetto e carica tutto sul Drive; questo PC scarica file e chat, controlla le impronte, e solo allora il progetto cambia PC. La copia di PORTATILE-ESEMPIO va nel recupero per 30 giorni.",
+          "conferma": "Sposta su PC-ESEMPIO"
+        }
+      ],
+      "vista": {
+        "stato": {
+          "id": "a-posto",
+          "parola": "a posto",
+          "colore": "verde"
+        },
+        "gruppi": [
+          "altri-pc"
+        ],
+        "dove": "PORTATILE-ESEMPIO",
+        "doveQui": false,
+        "copie": {
+          "testo": "nessuna",
+          "nomi": []
+        },
+        "chat": {
+          "testo": "1",
+          "totali": 1,
+          "alLavoro": 0
+        },
+        "spazio": {
+          "testo": "—",
+          "avviso": false
+        }
+      }
+    },
+    {
+      "id": "prog-s",
+      "ids": [
+        "prog-s"
+      ],
+      "nome": "Sito",
+      "residente": {
+        "pc": "pc-qui",
+        "nome": "PC-ESEMPIO",
+        "qui": true
+      },
+      "voluto": true,
+      "cartelle": [
+        {
+          "pc": "pc-qui",
+          "nome": "PC-ESEMPIO",
+          "percorso": "C:\\Progetti\\Sito"
+        }
+      ],
+      "cartellaQui": true,
+      "workspace": [
+        "Sito"
+      ],
+      "daUnire": 0,
+      "proprietarioAcceso": true,
+      "chat": 2,
+      "chatSenzaNome": 1,
+      "alLavoro": 1,
+      "ultimoUso": "2026-10-10T16:00:00.000Z",
+      "stato": "residente",
+      "problemi": [],
+      "azioni": [
+        {
+          "id": "apri",
+          "titolo": "Apri",
+          "testo": "Una chat nuova nella cartella del progetto su questo PC (C:\\Progetti\\Sito)."
+        }
+      ],
+      "vista": {
+        "stato": {
+          "id": "al-lavoro",
+          "parola": "al lavoro",
+          "colore": "blu",
+          "ragione": "1 chat"
+        },
+        "gruppi": [
+          "questo-pc"
+        ],
+        "dove": "Questo PC",
+        "doveQui": true,
+        "copie": {
+          "testo": "nessuna",
+          "nomi": []
+        },
+        "chat": {
+          "testo": "1 · 1 al lavoro",
+          "totali": 1,
+          "alLavoro": 1
+        },
+        "spazio": {
+          "testo": "—",
+          "avviso": false
+        }
+      }
+    }
+  ],
+  "letto": "2026-10-10T18:00:00.000Z",
+  "pcDaAggiornare": [
+    "PC-VECCHIO"
+  ],
+  "rimozione": {
+    "stati": [],
+    "inRecupero": [
+      {
+        "id": "Vecchio-2026",
+        "progetto": "prog-v",
+        "nome": "Vecchio",
+        "percorsoOriginale": "C:\\Progetti\\Vecchio",
+        "dove": "C:\\Dati\\recupero-progetti\\Vecchio-2026",
+        "quando": "2026-10-01T10:00:00.000Z",
+        "motivo": "spostato su PORTATILE-ESEMPIO",
+        "scadeIl": "2026-10-31T10:00:00.000Z"
+      }
+    ]
+  }
+}

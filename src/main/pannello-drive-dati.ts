@@ -1,14 +1,18 @@
-import { sessioneDiPercorso, type CaseChat } from '@shared/una-casa'
-import { costruisciPannello, type ChatIngresso, type Pannello, type PcNoto, type ProgettoIngresso } from '@shared/pannello-drive'
-import type { PianoAllineamento } from '@shared/allineamento'
+import { costruisciPannello, progettoDellaChat, type ChatIngresso, type Pannello, type PcNoto, type ProgettoIngresso } from '@shared/pannello-drive'
+import type { VistaSposta } from '@shared/sposta'
 import { cartellaDaSlug } from './cassaforte/catalogo'
-import { gruppoDiCartella, raggruppaProgetti, type GruppoProgetti, eNomeDiSistema } from '@shared/progetti-unificati'
 import type { Manifesto } from './cassaforte/incrementale'
+
+/** La conversazione di un percorso del Drive (`chat/<slug>/<uuid>.jsonl`). */
+export function sessioneDiPercorso(p: string): string {
+  const nome = p.slice(p.lastIndexOf('/') + 1)
+  return nome.endsWith('.jsonl') ? nome.slice(0, -'.jsonl'.length) : nome
+}
 
 /**
  * Le fonti del pannello delle chat del Drive (0.58.0), messe insieme. Niente
  * regole qui: quelle sono in `@shared/pannello-drive`. Si leggono le stesse
- * fonti che usano «una chat, una casa», il catalogo e i battiti:
+ * fonti del catalogo e dei battiti:
  * - le copie di questo PC dall'indice delle chat (`chatLocaliDaIndice`);
  * - le copie degli altri dal manifesto del Drive (`chat/<slug>/<uuid>.jsonl`,
  *   con il PC che l'ha caricata);
@@ -18,7 +22,6 @@ import type { Manifesto } from './cassaforte/incrementale'
 export function datiPannello(p: {
   io: PcNoto
   pc: (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown })[]
-  case: CaseChat
   locali: { sessione: string; titolo: string; cwd?: string; mtime?: number }[]
   manifesto: Manifesto | undefined
   aperteQui: string[]
@@ -27,11 +30,10 @@ export function datiPannello(p: {
   titoliNoti: { sessione: string; titolo: string; cwd?: string }[]
   progetti: ProgettoIngresso[]
   adesso: number
-  piano?: PianoAllineamento
   /** I nomi dei workspace di questo PC (0.60.0). */
   workspaceQui?: string[]
-  /** Se una cartella esiste qui: per le cartelle trovate per nome (0.60.0). */
-  esiste?: (percorso: string) => boolean
+  /** «Sposta su questo PC» in corso (0.88.0). */
+  sposta?: VistaSposta
 }): Pannello {
   const chat = new Map<string, ChatIngresso>()
   const prendi = (s: string): ChatIngresso => {
@@ -94,28 +96,18 @@ export function datiPannello(p: {
     const c = prendi(s)
     c.alLavoro = [...new Set([...(c.alLavoro ?? []), p.io.id])]
   }
-  const gruppi = raggruppaProgetti(p.progetti.filter((x) => !eNomeDiSistema(x.nome)), p.case)
   for (const c of chat.values()) {
     if (c.titolo === '') c.titolo = `chat ${c.sessione.slice(0, 8)}`
-    // Il progetto (0.60.0): la cartella della chat dentro una cartella del
-    // progetto, su qualunque PC; o una cartella con il suo nome. Così anche
-    // le chat senza nome restano attaccate al loro progetto.
-    if (c.cwd !== undefined) {
-      const g = gruppoDiCartella(c.cwd, gruppi)
-      if (g !== undefined) c.progetto = g.gruppo.id
-    }
+    // Il progetto: la cartella della chat dentro la cartella del progetto sul suo proprietario.
+    const g = progettoDellaChat(c.cwd, p.progetti)
+    if (g !== undefined) c.progetto = g.id
   }
-  const cartelleTrovate = primaTrovata(cartelleTrovateQui(gruppi, p.io.id, p.locali, p.esiste))
-  const altreQui = Object.fromEntries(Object.entries(cartelleTrovateQui(gruppi, p.io.id, p.locali, p.esiste, true)).map(([id, v]) => [id, v.length]))
-  const pannello = costruisciPannello({
+  return costruisciPannello({
     io: p.io, pc: p.pc.map(({ chat: _c, locali, ...x }) => ({ ...x, diceLocali: localiDi(locali) !== undefined })),
-    // Un progetto con il nome di una cartella di sistema non si mostra (0.67.4).
-    case: p.case, chat: [...chat.values()], progetti: p.progetti.filter((x) => !eNomeDiSistema(x.nome)), adesso: p.adesso,
+    chat: [...chat.values()], progetti: p.progetti, adesso: p.adesso,
     ...(p.workspaceQui !== undefined ? { workspaceQui: p.workspaceQui } : {}),
-    cartelleTrovate,
-    altreCartelleQui: altreQui
+    ...(p.sposta !== undefined ? { sposta: p.sposta } : {})
   })
-  return p.piano === undefined ? pannello : { ...pannello, piano: p.piano }
 }
 
 /**
@@ -128,44 +120,6 @@ export function pcPerPannello<B extends { pcId: string; battito: string; chat?: 
   battiti: B[], nomeDi: (b: B) => string
 ): (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown })[] {
   return battiti.map((b) => ({ id: b.pcId, nome: nomeDi(b), battito: b.battito, ...(b.chat !== undefined ? { chat: b.chat } : {}), ...(b.locali !== undefined ? { locali: b.locali } : {}) }))
-}
-
-/**
- * Le cartelle di questo PC con il nome di un progetto, non registrate
- * (0.60.0): dove lavorano le chat di qui. Per ogni gruppo, dalla chat più
- * recente. Senza `anche`, solo per i gruppi che qui non hanno nessuna
- * cartella registrata (il pannello dice «qui sul disco: sì», il piano non
- * riporta giù accanto); con `anche`, pure quelle accanto a una registrata:
- * «Rendi residente qui» le unisce tutte.
- */
-export function cartelleTrovateQui(
-  gruppi: GruppoProgetti[],
-  io: string,
-  locali: { cwd?: string; mtime?: number }[],
-  esiste?: (percorso: string) => boolean,
-  anche = false
-): Record<string, string[]> {
-  const trovate = new Map<string, Map<string, { radice: string; mtime: number }>>()
-  for (const l of locali) {
-    if (l.cwd === undefined) continue
-    const g = gruppoDiCartella(l.cwd, gruppi)
-    if (g === undefined || !g.perNome) continue
-    const registrate = g.gruppo.percorsi.filter((x) => x.pc === io)
-    if (!anche && registrate.length > 0) continue
-    const k = g.radice.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
-    if (registrate.some((x) => x.percorso.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase() === k)) continue
-    if (esiste !== undefined && !esiste(g.radice)) continue
-    const m = trovate.get(g.gruppo.id) ?? new Map<string, { radice: string; mtime: number }>()
-    const prima = m.get(k)
-    if (prima === undefined || (l.mtime ?? 0) > prima.mtime) m.set(k, { radice: g.radice, mtime: l.mtime ?? 0 })
-    trovate.set(g.gruppo.id, m)
-  }
-  return Object.fromEntries([...trovate].map(([id, m]) => [id, [...m.values()].sort((a, b) => b.mtime - a.mtime).map((x) => x.radice)]))
-}
-
-/** La prima (la più usata di recente) per ogni gruppo. */
-export function primaTrovata(t: Record<string, string[]>): Record<string, string> {
-  return Object.fromEntries(Object.entries(t).flatMap(([id, v]) => (v[0] === undefined ? [] : [[id, v[0]]])))
 }
 
 /** Il campo `locali` di un battito, letto con prudenza: arriva da un altro PC. */

@@ -20,7 +20,6 @@ import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
 import { messaggioChatAltrove } from '@shared/posta'
 import { messaggioChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
-import { fermaSeCasaAltrove } from '@shared/ospite-chat'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
 import { chiaveMonitor } from '@shared/display-key'
@@ -177,12 +176,13 @@ export function impostaRisolviCartella(f: (cwd: string, sessionUuid: string, for
 }
 
 /**
- * La casa di ogni chat (0.52.0): se è un altro PC, qui il suo `claude.exe` non
- * parte. Lo imposta il Core dalle case memorizzate; senza, nessuna chat ha
- * casa altrove (i test, e il primo istante dopo l'avvio).
+ * Un progetto, un PC (0.88.0): una chat di un progetto che vive su un altro
+ * PC qui non parte; si apre dal vivo su quel PC. Lo imposta il Core dal
+ * registro dei progetti; senza, nessuna chat e' altrove (i test, e il primo
+ * istante dopo l'avvio).
  */
-let casaAltroveDi: (sessionUuid: string, autopilota?: { id: string; chat: string }) => { id: string; nome: string; motivo: string } | undefined = () => undefined
-export function impostaGuardiaCasa(f: (sessionUuid: string, autopilota?: { id: string; chat: string }) => { id: string; nome: string; motivo: string } | undefined): void {
+let casaAltroveDi: (sessionUuid: string, cwd: string) => { id: string; nome: string; motivo: string } | undefined = () => undefined
+export function impostaGuardiaCasa(f: (sessionUuid: string, cwd: string) => { id: string; nome: string; motivo: string } | undefined): void {
   casaAltroveDi = f
 }
 
@@ -381,9 +381,14 @@ export function registerPtyIpc(
     return avvia(req, win)
   }
   const avvia = (req: ReturnType<typeof validateSpawnRequest>, win: BrowserWindow | undefined): string => {
-    // Prima di tutto la casa (0.52.0): con la casa altrove qui non parte niente.
-    // Una chat governata porta il suo autopilota: vive sul suo PC (0.52.5).
-    fermaSeCasaAltrove(req, casaAltroveDi)
+    // Prima di tutto il proprietario (0.88.0): un progetto di un altro PC qui non parte.
+    const fuori = casaAltroveDi(req.sessionUuid, req.cwd)
+    if (fuori !== undefined) {
+      throw new Error(messaggioChatAltrove({
+        cwd: req.cwd, pc: { id: fuori.id, nome: fuori.nome }, sessionUuid: req.sessionUuid, casa: true,
+        perche: `il progetto vive su ${fuori.nome}${fuori.motivo !== '' ? ` (${fuori.motivo})` : ''}`
+      }))
+    }
     // Una chat nata su un altro PC porta la cartella di la': qui si apre in
     // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.
     const risolta = risolviCartella(req.cwd, req.sessionUuid, req.forzaQui === true)

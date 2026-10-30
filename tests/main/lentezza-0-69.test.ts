@@ -3,9 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, statSync, utimesSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apriContoDrive } from '../../src/main/cassaforte/conto-drive'
-import { creaRonda, RONDA_SENZA_CHAT_MS } from '../../src/main/progetti/presenza'
 import { creaPostino } from '../../src/main/progetti/posta'
-import type { Scatola } from '../../src/main/progetti/presenza'
+import type { Scatola } from '../../src/main/progetti/posta'
 import { aggiungiProgetto, registroVuoto } from '../../src/main/progetti/registro'
 import { apriSincronia } from '../../src/main/cassaforte/sincronia'
 import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/magazzino'
@@ -46,47 +45,6 @@ describe('il Drive: un archivio solo per collegamento', () => {
     await conto.archivio().scarica('battito-x')
     await conto.archivio().scarica('battito-x')
     expect(ricerche.length).toBe(1)
-  })
-})
-
-describe('la ronda dei progetti', () => {
-  const reg = aggiungiProgetto(registroVuoto(), { pcId: 'A', percorso: 'E:\\SD', adesso: 'ieri', id: 'p1' }).registro
-  function ronda(vive: () => string[], ora: { t: number }, s: Scatola) {
-    return creaRonda({
-      scatola: () => s, registro: { leggi: () => reg, scrivi: () => {} },
-      pcId: () => 'A', pcNome: () => 'PC', vive: () => vive(), progettoDi: () => undefined,
-      salva: () => Promise.resolve({ ok: true }), ripristinaProgetto: () => Promise.resolve({ ok: true }),
-      iberna: () => {}, avvisa: () => {}, adesso: () => ora.t
-    })
-  }
-  it('senza chat vive qui un progetto si legge ogni 5 minuti, non ogni mezzo minuto', async () => {
-    const s = scatolaContata()
-    const ora = { t: Date.parse('2026-10-12T21:00:00Z') }
-    const r = ronda(() => [], ora, s)
-    await r.giro()
-    const prima = s.letture.length
-    expect(prima).toBeGreaterThan(0)
-    for (let i = 0; i < 9; i += 1) { ora.t += 30_000; await r.giro() }
-    expect(s.letture.length).toBe(prima)
-    ora.t += RONDA_SENZA_CHAT_MS
-    await r.giro()
-    expect(s.letture.length).toBeGreaterThan(prima)
-  })
-  it('con una chat viva si guarda a ogni giro, come prima', async () => {
-    const s = scatolaContata()
-    const ora = { t: Date.parse('2026-10-12T21:00:00Z') }
-    const r = ronda(() => ['s1'], ora, s)
-    await r.giro()
-    const prima = s.letture.length
-    ora.t += 30_000
-    await r.giro()
-    expect(s.letture.length).toBeGreaterThan(prima)
-  })
-  it('il testimone si legge solo quando la presenza è mia', async () => {
-    const s = scatolaContata()
-    const ora = { t: Date.parse('2026-10-12T21:00:00Z') }
-    await ronda(() => [], ora, s).giro()
-    expect(s.letture.some((n) => n.includes('staffetta'))).toBe(false)
   })
 })
 

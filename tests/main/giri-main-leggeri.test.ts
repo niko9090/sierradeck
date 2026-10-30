@@ -12,9 +12,6 @@ describe('i giri del Gestore', () => {
     expect(main).toContain('const GIRI_SOTTOFONDO_QUIETO = 4')
     expect(main).toContain('if (firma === firmaSottofondo) return')
   })
-  it('l’ospite gira solo se una chat ha la casa su un altro PC', () => {
-    expect(main).toContain('if (!Object.values(unaCasa.case().case).some((c) => eScelta(c) && casaAltrove(c, io) !== undefined)) return')
-  })
   it('le cartelle del postino si rifanno al più ogni due minuti', () => {
     expect(main).toContain('const CARTELLE_POSTINO_MS = 2 * 60_000')
     expect(main).toContain('Date.now() - cartelleInMemoria.il < CARTELLE_POSTINO_MS')

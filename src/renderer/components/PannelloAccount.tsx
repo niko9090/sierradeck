@@ -6,17 +6,12 @@ import { Aiuto } from './Aiuto'
 import { NomePc } from './NomePc'
 import { useNomiPc } from '../state/nomi-pc'
 import { NOME_PC_MAX, nomeDaMostrare, nomeSceltoValido } from '@shared/nome-pc'
-import {
-  registra, entra, esci, utenteCorrente, suCambioAccesso, verificaCodice, reinviaCodice, type Utente
-} from '../accesso-supabase'
 import { valutaPassword, REGOLE_PASSWORD } from '@shared/password'
 
 type Props = { onChiudi?: () => void; incorporato?: boolean }
 
 import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
-import { ModaleFusione } from './ModaleFusione'
-import { ModaleCoda } from './ModaleCoda'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc } from '@shared/posta'
 import { useLayoutStore } from '../state/layout'
@@ -26,7 +21,7 @@ const COLORE_ACCOUNT: Record<Colore, string> = { verde: 'var(--verde)', ambra: '
 type StatoDrive = { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string; portachiaviNonPronto?: true }
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
-  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  progetti: { id: string; nome: string; locale?: string; altrove: number; su?: string }[]
   messaggio?: string
 }
 
@@ -37,51 +32,20 @@ type ElencoProgetti = {
  * una cartella che non c'e'. Da qui si dice quali cartelle viaggiano con le
  * chat, e dove questo PC riceve quelle che arrivano dagli altri.
  */
-type StatoProgettoVista = { id: string; chi: 'io' | 'altro' | 'libero'; pcNome?: string; da?: string; staffettaDa?: string; inCoda?: number }
-
-function oraBreve(iso: string | undefined): string {
-  if (iso === undefined) return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-}
-
 function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: () => void }): React.JSX.Element | null {
   const [elenco, setElenco] = useState<ElencoProgetti | undefined>(undefined)
-  const [stati, setStati] = useState<StatoProgettoVista[]>([])
   const [occupato, setOccupato] = useState(false)
   const [esito, setEsito] = useState<string | undefined>(undefined)
   const [daTogliere, setDaTogliere] = useState<{ id: string; nome: string } | undefined>(undefined)
-  const [codaAperta, setCodaAperta] = useState<{ id: string; nome: string } | undefined>(undefined)
   const ricarica = (): void => {
     void window.gestore.progetti.elenca().then(setElenco).catch(() => {})
-    void window.gestore.progetti.stati().then(setStati).catch(() => {})
   }
-  useEffect(() => {
-    ricarica()
-    const t = setInterval(() => { void window.gestore.progetti.stati().then(setStati).catch(() => {}) }, 15_000)
-    return () => clearInterval(t)
-  }, [])
+  useEffect(() => { ricarica() }, [])
   const con = (p: Promise<ElencoProgetti>): void => {
     setOccupato(true)
     void p.then((e) => { setElenco(e); if (e.messaggio !== undefined) setEsito(e.messaggio); onCambio() })
       .catch((err: unknown) => setEsito(String(err)))
       .finally(() => { setOccupato(false); ricarica() })
-  }
-  const prendi = (id: string, forza = false): void => {
-    setOccupato(true); setEsito(undefined)
-    void window.gestore.progetti.prendiTestimone(id, forza).then((r) => {
-      if (r.ok) setEsito(`Testimone preso: il progetto adesso è qui, con l’ultimo stato salvato.${r.conflitti !== undefined ? ` ${r.conflitti} file in conflitto: vince il più recente, l'altro è accanto come copia «.conflitto-…».` : ''}`)
-      else if ('nonRisponde' in r) setEsito(`Il PC ${r.pcNome} non risponde. Puoi forzare: prendi quello che c’è sul Drive.`)
-      else setEsito('messaggio' in r ? r.messaggio : 'non riuscito')
-    }).catch((e: unknown) => setEsito(String(e))).finally(() => { setOccupato(false); ricarica() })
-  }
-  const statoDi = (id: string): StatoProgettoVista | undefined => stati.find((s) => s.id === id)
-  const descriviStato = (s: StatoProgettoVista | undefined): string => {
-    if (s === undefined) return ''
-    const coda = (s.inCoda ?? 0) > 0 ? ` · ${s.inCoda} in coda` : ''
-    if (s.chi === 'io') return ` · in lavoro qui${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${coda}`
-    if (s.chi === 'altro') return ` · in lavoro su ${s.pcNome ?? '?'}${s.da !== undefined ? ` dalle ${oraBreve(s.da)}` : ''}${s.staffettaDa !== undefined ? ` (${s.staffettaDa} ha chiesto il testimone)` : ''}${coda}`
-    return ` · libero${coda}`
   }
   if (elenco === undefined) return null
   const fermo = inCorso || occupato
@@ -103,21 +67,10 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
                   {p.locale !== undefined
                     ? p.locale
                     : `non ancora su questo PC: arriva con «Ripristina» in ${elenco.pc.cartellaProgetti}\\${p.nome}`}
-                  {p.altrove > 0 ? ` · su altri ${p.altrove} PC` : ''}
-                  {descriviStato(statoDi(p.id))}
+                  {p.su !== undefined ? ` · vive su ${p.su}: si apre dal vivo là; per averlo qui, Progetti → «Sposta su questo PC»` : ''}
                 </span>
               </div>
               <div className="account__scheda-tasti">
-                <button className="tasto tasto--mini" disabled={fermo} onClick={() => setCodaAperta({ id: p.id, nome: p.nome })} title="Comandi in fila per questo progetto, da qualunque PC">Coda…</button>
-                {statoDi(p.id)?.chi === 'altro' ? (
-                  <>
-                    <button className="tasto tasto--primario tasto--mini" disabled={fermo} onClick={() => prendi(p.id)}>Prendi il testimone</button>
-                    <button className="tasto tasto--mini" disabled={fermo} onClick={() => prendi(p.id, true)} title="Senza aspettare l’altro PC: prende quello che c’è sul Drive">Forza</button>
-                  </>
-                ) : null}
-                {p.locale === undefined ? (
-                  <button className="tasto tasto--mini" disabled={fermo} onClick={() => con(window.gestore.progetti.collega(p.id))}>Sta già qui…</button>
-                ) : null}
                 <button className="tasto tasto--mini" disabled={fermo} onClick={() => setDaTogliere({ id: p.id, nome: p.nome })}>Togli</button>
               </div>
             </li>
@@ -125,9 +78,6 @@ function SezioneProgetti({ inCorso, onCambio }: { inCorso: boolean; onCambio: ()
         </ul>
       )}
       {esito !== undefined ? <div className="riga__stato">{esito}</div> : null}
-      {codaAperta !== undefined ? (
-        <ModaleCoda progetto={codaAperta} onChiudi={() => { setCodaAperta(undefined); ricarica() }} />
-      ) : null}
       {daTogliere !== undefined ? (
         <ModaleConferma
           titolo={`Togliere «${daTogliere.nome}» dal Drive?`}
@@ -158,7 +108,6 @@ type Riconoscimento = {
 type StatoSync = {
   driveConnesso: boolean; haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean
   versione?: string; ultimoSalvataggio?: string
-  ultimaFusione?: { quando: string; esito: 'ok' | 'interrotta' | 'fallita'; fatti?: number; totale?: number; messaggio?: string }
 }
 
 /**
@@ -174,7 +123,7 @@ type StatoSync = {
  * - `salvataggio` (Progetti → «Salvataggio e arrivo»): Salva ora, Ripristina,
  *   il salvataggio automatico, «Fondi con il Drive» e i progetti sul Drive.
  */
-function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggio'; utente?: { email: string }; onEsci?: () => void }): React.JSX.Element | null {
+function SezioneSync({ parte }: { parte: 'account' | 'salvataggio' }): React.JSX.Element | null {
   const [menu, setMenu] = useState(false)
   const [drive, setDrive] = useState<StatoDrive | undefined>(undefined)
   const [sync, setSync] = useState<StatoSync | undefined>(undefined)
@@ -195,7 +144,6 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
   const [progresso, setProgresso] = useState<ProgressoSync | undefined>(undefined)
   // Cosa c'e' nel Drive appena collegato: e' cosi' che si riconosce l'account giusto.
   const [riconoscimento, setRiconoscimento] = useState<Riconoscimento | undefined>(undefined)
-  const [fusioneAperta, setFusioneAperta] = useState(false)
 
   const aggiorna = (): void => {
     void window.gestore.drive.stato().then(setDrive).catch(() => {})
@@ -356,7 +304,7 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
       {parte === 'account' ? ((): React.JSX.Element => {
         // 0.70.0: la catena Account → Drive → Cassaforte → Salvataggio, ognuna con la sua parola;
         // sotto un solo prossimo passo; le azioni rare nel menu «Account ▾».
-        const v = vistaAccount({ ...(utente !== undefined ? { utente } : {}), drive, sync, ora: Date.now() })
+        const v = vistaAccount({ drive, sync, ora: Date.now() })
         const passo = v.prossimo
         const fai = (): void => {
           if (passo?.id === 'connetti') connetti()
@@ -377,7 +325,6 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
                     <button className="progetti__voce" disabled={!pronto} onClick={() => { setMenu(false); setCambiaAperto(true); setMsg(undefined) }}>Cambia passphrase…</button>
                     <button className="progetti__voce" disabled={!sync.sbloccato || inCorso} onClick={() => { setMenu(false); blocca() }}>Blocca la cassaforte</button>
                     <button className="progetti__voce" disabled={!drive.connesso || inCorso} title="Toglie il collegamento a questo Drive: per collegarne un altro o per ricollegare questo" onClick={() => { setMenu(false); scollega() }}>Scollega il Drive</button>
-                    {onEsci !== undefined ? <button className="progetti__voce" onClick={() => { setMenu(false); onEsci() }}>Esci dall’account</button> : null}
                   </TendinaMenu>
                 ) : null}
               </span>
@@ -414,13 +361,6 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
           </div>
         )
       })() : null}
-
-      {fusioneAperta ? (
-        <ModaleFusione
-          cassaforteDiversa={sync.cassaforteDiversa === true}
-          onChiudi={(fatto) => { setFusioneAperta(false); if (fatto) { setMsg('Fusione fatta ✓ Riavvia per vedere tutto.'); aggiorna() } }}
-        />
-      ) : null}
 
       {parte === 'account' && riconoscimento !== undefined && drive.connesso ? (
         <div className="account__scheda account__scheda--largo">
@@ -475,7 +415,7 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
             <button className="tasto tasto--primario" onClick={provaPassphrase} disabled={inCorso || pwProva === ''}>{inCorso ? 'un attimo…' : 'Prova la passphrase su questo Drive'}</button>
           </div>
           <p className="account__nota">
-            Se invece vuoi lavorare su questo Drive tenendo anche quello che c’è qui, <button className="account__link" onClick={() => setFusioneAperta(true)} disabled={inCorso}>fondi questo PC con il Drive ▸</button>: vedi cosa c’è di qua e di là e scegli cosa portare. Oppure <button className="account__link" onClick={adottaCassaforte} disabled={inCorso}>prendi solo la cassaforte del Drive ▸</button> (quella di questo PC viene messa da parte, non cancellata).
+            Se invece vuoi lavorare su questo Drive, <button className="account__link" onClick={adottaCassaforte} disabled={inCorso}>prendi la cassaforte del Drive ▸</button> (quella di questo PC viene messa da parte, non cancellata).
           </p>
         </div>
       ) : drive.connesso && !sync.haCassaforte ? (
@@ -558,24 +498,6 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
                 </button>
               </div>
             )}
-          </div>
-
-          <div className="account__scheda account__scheda--largo">
-            <div className="account__scheda-tit con-aiuto">🧩 Fondi con il Drive<Aiuto di="Fondi con il Drive">
-              Questo PC ha delle conversazioni, il Drive ne ha altre: qui vedi cosa c’è solo di qua, solo di là e in comune, e scegli voce per voce cosa portare su, cosa giù e cosa lasciare. Non si perde niente.
-            </Aiuto></div>
-            {sync.ultimaFusione?.esito === 'interrotta' ? (
-              <p className="account__nota" style={{ color: 'var(--ambra)' }}>
-                ⚠ L’ultima fusione ({new Date(sync.ultimaFusione.quando).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}) è stata interrotta{sync.ultimaFusione.fatti !== undefined && sync.ultimaFusione.totale !== undefined ? ` a ${sync.ultimaFusione.fatti} voci su ${sync.ultimaFusione.totale}` : ''}. Quello fatto è a posto; riaprila per finire, con le scelte di allora già rimesse.
-              </p>
-            ) : sync.ultimaFusione?.esito === 'fallita' ? (
-              <p className="account__nota" style={{ color: 'var(--ambra)' }}>
-                ⚠ L’ultima fusione non è riuscita{sync.ultimaFusione.messaggio !== undefined ? `: ${sync.ultimaFusione.messaggio}` : ''}. Riaprila per riprovare.
-              </p>
-            ) : null}
-            <div className="account__tasti">
-              <button className="tasto tasto--primario" onClick={() => setFusioneAperta(true)} disabled={inCorso}>Fondi con il Drive…</button>
-            </div>
           </div>
 
           <div className="account__opzioni">
@@ -746,187 +668,10 @@ export function NomeQuestoPc(): React.JSX.Element {
  * sincronizzazione cifrata dei propri dati — che si aggancia qui man mano.
  */
 export function PannelloAccount({ onChiudi, incorporato = false }: Props): React.JSX.Element {
-  const [utente, setUtente] = useState<Utente | undefined>(undefined)
-  const [modo, setModo] = useState<'entra' | 'registra'>('entra')
-  const [fase, setFase] = useState<'form' | 'codice'>('form')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [password2, setPassword2] = useState('')
-  const [codice, setCodice] = useState('')
-  const [messaggio, setMessaggio] = useState<string | undefined>(undefined)
-  const [inCorso, setInCorso] = useState(false)
-
-  useEffect(() => {
-    utenteCorrente().then(setUtente).catch(() => setUtente(undefined))
-    return suCambioAccesso(setUtente)
-  }, [])
-
-  const regole = valutaPassword(password)
-  const coincidono = password2 === password
-  const puoInviare =
-    email.trim() !== '' && password !== '' && (modo === 'entra' || (regole.ok && coincidono))
-
-  const invia = (): void => {
-    if (inCorso || !puoInviare) return
-    setInCorso(true)
-    setMessaggio(undefined)
-    const azione = modo === 'registra' ? registra : entra
-    void azione(email.trim(), password)
-      .then((esito) => {
-        if (esito.stato === 'entrato') { setUtente(esito.utente); setPassword('') }
-        else if (esito.stato === 'confermaEmail') { setCodice(''); setFase('codice') }
-        else setMessaggio(esito.messaggio)
-      })
-      .catch((e: unknown) => setMessaggio(String(e)))
-      .finally(() => setInCorso(false))
-  }
-
-  const verifica = (): void => {
-    if (inCorso || codice.trim() === '') return
-    setInCorso(true)
-    setMessaggio(undefined)
-    void verificaCodice(email.trim(), codice)
-      .then((esito) => {
-        if (esito.stato === 'entrato') { setUtente(esito.utente); setFase('form'); setPassword(''); setCodice('') }
-        else setMessaggio(esito.stato === 'errore' ? esito.messaggio : 'codice non valido')
-      })
-      .catch((e: unknown) => setMessaggio(String(e)))
-      .finally(() => setInCorso(false))
-  }
-
-  const reinvia = (): void => {
-    void reinviaCodice(email.trim())
-      .then((r) => setMessaggio(r.ok ? 'Ti abbiamo rimandato il codice.' : (r.messaggio ?? 'invio non riuscito')))
-      .catch((e: unknown) => setMessaggio(String(e)))
-  }
-
   const corpo = (
-    utente !== undefined ? (
-        <div className="account">
-          <SezioneSync parte="account" utente={utente} onEsci={() => void esci()} />
-        </div>
-      ) : (
-        <div className="account">
-          {fase === 'codice' ? (
-            <>
-              <p className="account__chi">
-                Ti abbiamo mandato un <strong>codice</strong> a <strong>{email.trim()}</strong>. Scrivilo per confermare.
-              </p>
-              <input
-                className="account__campo"
-                value={codice}
-                onChange={(e) => setCodice(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') verifica() }}
-                placeholder="codice"
-                aria-label="codice di conferma"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                autoFocus
-              />
-              {messaggio !== undefined ? <div className="riga__stato">{messaggio}</div> : null}
-              <div className="account__tasti">
-                <button className="tasto" onClick={reinvia}>Rimanda</button>
-                <button
-                  className="tasto tasto--primario"
-                  onClick={verifica}
-                  disabled={inCorso || codice.trim() === ''}
-                >
-                  {inCorso ? 'un attimo…' : 'Conferma'}
-                </button>
-              </div>
-            </>
-          ) : (
-          <>
-          <div className="account__scelta">
-            <button
-              className={modo === 'entra' ? 'tasto tasto--primario' : 'tasto'}
-              onClick={() => { setModo('entra'); setMessaggio(undefined); setPassword2('') }}
-            >
-              Entra
-            </button>
-            <button
-              className={modo === 'registra' ? 'tasto tasto--primario' : 'tasto'}
-              onClick={() => { setModo('registra'); setMessaggio(undefined); setPassword2('') }}
-            >
-              Registrati
-            </button>
-          </div>
-
-          <input
-            className="account__campo"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="email"
-            aria-label="email"
-            autoComplete="email"
-          />
-          <input
-            className="account__campo"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') invia() }}
-            placeholder="password"
-            aria-label="password"
-            autoComplete={modo === 'registra' ? 'new-password' : 'current-password'}
-          />
-
-          {modo === 'registra' ? (
-            <>
-              <input
-                className="account__campo"
-                type="password"
-                value={password2}
-                onChange={(e) => setPassword2(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') invia() }}
-                placeholder="ripeti la password"
-                aria-label="ripeti la password"
-                autoComplete="new-password"
-              />
-              <ul className="accesso-regole" aria-label="requisiti della password">
-                {REGOLE_PASSWORD.map((r) => (
-                  <li
-                    key={r.chiave}
-                    className={regole[r.chiave] ? 'accesso-regola accesso-regola--ok' : 'accesso-regola'}
-                  >
-                    <span className="accesso-regola__segno">{regole[r.chiave] ? '✓' : '○'}</span>
-                    {r.testo}
-                  </li>
-                ))}
-                <li
-                  className={
-                    password2 === ''
-                      ? 'accesso-regola'
-                      : coincidono
-                        ? 'accesso-regola accesso-regola--ok'
-                        : 'accesso-regola accesso-regola--no'
-                  }
-                >
-                  <span className="accesso-regola__segno">
-                    {password2 === '' ? '○' : coincidono ? '✓' : '✗'}
-                  </span>
-                  le due password coincidono
-                </li>
-              </ul>
-            </>
-          ) : null}
-
-          {messaggio !== undefined ? <div className="riga__stato">{messaggio}</div> : null}
-
-          <div className="account__tasti">
-            <button
-              className="tasto tasto--primario"
-              onClick={invia}
-              disabled={inCorso || !puoInviare}
-            >
-              {inCorso ? 'un attimo…' : modo === 'registra' ? 'Crea l’account' : 'Entra'}
-            </button>
-          </div>
-          </>
-          )}
-        </div>
-      )
+    <div className="account">
+      <SezioneSync parte="account" />
+    </div>
   )
 
   if (incorporato) return <div className="impostazioni-scheda">{corpo}</div>
@@ -944,7 +689,7 @@ export function PannelloAccount({ onChiudi, incorporato = false }: Props): React
 
 /**
  * **Salvataggio e arrivo** (0.61.0), una sezione di Progetti: Salva ora,
- * Ripristina, il salvataggio automatico, «Fondi con il Drive» e i progetti sul
+ * Ripristina, il salvataggio automatico e i progetti sul
  * Drive. Erano in Impostazioni → Account, dove Nicholas non li cercava.
  */
 export function SalvataggioDrive(): React.JSX.Element | null {

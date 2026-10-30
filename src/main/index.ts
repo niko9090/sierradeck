@@ -4,17 +4,8 @@ import {
   apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
   rimettiPannello, segnaFinestraDiServizio
 } from './finestre-pannello'
-import { creaPonteRtc } from './rtc/ponte-rtc'
 import { APP_ID, portePerLaProva } from './identita-app'
-import { creaRtc } from './rtc/collegamento-rtc'
-import { creaCassettaDrive } from './rtc/cassetta-drive'
-import { creaUnaCasa, type ChatLocale, type UnaCasa } from './una-casa'
-import { sceltaCartellaWorkspace } from '@shared/cartella-workspace'
-import { creaOspite, type Ospite } from './ospite'
-import { casaAltrove, casaPerAutopilota, eScelta } from '@shared/ospite-chat'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
-import { creaSpostaProgetto, impronteSessioni } from './sposta-progetto'
-import { leggiCase, saleDaQui, scendeQui, sessioneDiPercorso, type CasaChat } from '@shared/una-casa'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
@@ -28,7 +19,7 @@ import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pann
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
 import { createHash, randomUUID } from 'node:crypto'
@@ -68,16 +59,6 @@ import { preparaAmbiente } from './preparazione'
 import { gitPerLeChat } from './git-nel-path'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde, validaIdAutopilota } from './validation'
-import {
-  avviaAccesso,
-  registra as registraAccount,
-  entra as entraAccount,
-  esci as esciAccount,
-  utenteCorrente as utenteAccount,
-  suCambioAccesso as suCambioAccount,
-  verificaCodice as verificaCodiceAccount,
-  reinviaCodice as reinviaCodiceAccount
-} from './accesso-supabase'
 import { creaClientAutopilota } from './autopilot-client'
 import { apriIstantaneeStore } from './istantanee-store'
 import { listSessions, rimuoviSessioni } from './db'
@@ -89,21 +70,17 @@ import { etichettaContesto, limitiPerFreno, unisciPolso } from '@shared/limiti-p
 import { diffDellAutopilota, fileDellAutopilota, fileVeroDellAutopilota } from './file-autopilota'
 import { apriAlTelefono, type AlTelefono } from './al-telefono'
 import { apriQuadernoPersonale } from './quaderno-personale'
-import { cartelleTrovateQui, datiPannello, pcPerPannello, primaTrovata } from './pannello-drive-dati'
-import { idsDaConfrontareSulDrive } from '@shared/residenza'
-import { creaResidenza, type Residenza } from './residenza'
-import { armonizzaCase, casaDelGruppo, dentroCartella, eSenzaNome, gruppoDiCartella, gruppoDiId, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
-import { decidiAperturaRemota, type CopiaNota } from '@shared/apertura-remota'
+import { datiPannello, pcPerPannello } from './pannello-drive-dati'
+import { dentroCartella, eNomeDiSistema, eSenzaNome, nomeNormalizzato, raggruppaProgetti } from '@shared/progetti-unificati'
 import { conSpazioDrive, type Pannello } from '@shared/pannello-drive'
 import { conVista } from '@shared/progetti-vista'
 import { conVistaSalute } from '@shared/salute-vista'
 import { memoriaBreve } from '@shared/memoria-breve'
 import { statInParallelo } from './stat-in-parallelo'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { creaLatoResidente, creaRimozione, progettiInRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero, type LatoResidente, type Rimozione } from './rimozione-sicura'
+import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
-import { creaTrasloco, type TraslocoApi } from './trasloco'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
@@ -111,9 +88,7 @@ import { annotaEliminato, copieDellaLista, riparaListaAllAvvio, type EsitoAvvio 
 import { cartellaVuota, elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace } from './workspace-recenti-file'
 import { cartellaVuotaDaRecuperare, motivoPerNonEliminare } from '@shared/workspace-recupero'
-import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
-import { daTogliere, fermoChiaro, vistoDa, type Trasloco } from '@shared/trasloco'
-import { cartellaDiProgettoValida, daRiprovare, pianoAllineamento, rigaPiano, type PianoAllineamento } from '@shared/allineamento'
+import { cartellaDiProva } from '@shared/chat-di-prova'
 import { LOCALI_MAX_CHAT, type LocaliBattito } from '@shared/posta'
 import { apriFileProgetti } from './file-progetti'
 import { apriGettoni, configMcp, rispondiMcp, type Gettoni } from './mcp-telefono'
@@ -143,7 +118,6 @@ import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
 import { scanProjects } from './indexer/project-scanner'
 import { get as httpGet, request as httpRequest } from 'node:http'
-import { comeSpostare, destinazioniSposta, riassuntoSposta } from '@shared/sposta-su'
 import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
@@ -162,14 +136,15 @@ import { apriSincronia, type Sincronia } from './cassaforte/sincronia'
 import { apriIdentitaPc, type IdentitaPcStore } from './progetti/pc'
 import { nomeDaMostrare, sottotitoloPc } from '@shared/nome-pc'
 import {
-  aggiungiProgetto, apriRegistroProgetti, collegaProgetto, rimuoviProgetto, rimappaCwd, rimappaWorkspace,
-  parseRegistro, prefissoProgetto, type ProgettoDrive, type RegistroProgetti
+  aggiungiProgetto, apriRegistroProgetti, fondiRegistri, rimuoviProgetto, progettoDiCartella,
+  parseRegistro, type ProgettoDrive, type RegistroProgetti
 } from './progetti/registro'
-import { registroConIlDrive } from './cassaforte/fusione'
 import type { Manifesto } from './cassaforte/incrementale'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
-import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
+import { creaMandaAChat, type MandaAChat } from './progetti/manda-a-chat'
+import { pcNotiDaDisco } from './progetti/migra-proprietari'
+import { creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
@@ -185,7 +160,6 @@ import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { impostaFiduciaPrimaDelLancio } from './ipc'
 import { cartellaQualificata, cartelleAutopiloti, creaFiduciaNelTerminale, fidatiPrimaDiAvviare, type CartelleNote } from './fiducia-cartella'
 import { creaChiuseStore } from './chiuse-store'
-import { creaRispecchia } from './rispecchia-workspace'
 import { leggiChiuse, rigaChiusaACasa, rigaNonApertaACasa, type ChiusaDaTe } from '@shared/chiuse'
 import { creaSottofondo, cancelliSottofondo, type Sottofondo, type TerminaleMuto } from './sottofondo'
 import { Terminal as TerminaleSenzaFinestra } from '@xterm/headless'
@@ -193,13 +167,7 @@ import { testoConsegnato, type StatoSottofondo } from '@shared/sottofondo'
 import { azioneDelPonte } from '@shared/ponte-telefono'
 import { workspaceDiApertura } from '@shared/workspace-apertura'
 import { autopilotiDaStato, erroreAltroPc, rottaAutopilotaAltroPc, unBattitoPerNome, type AutopilotiDiPc } from '@shared/autopiloti-altri'
-import { risolviCartellaDiChat, type CartellaDiChat } from './progetti/cartella-di-chat'
-import { pianificaRimappatura, pianificaRitorno, riscriviCwdRiga, type Spostamento } from './progetti/rimappa-di-massa'
-import { pcCheHaLaCartella, staSottoCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
-import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir as mkdirAsync, rename as renameAsync, stat as statAsync, unlink as unlinkAsync, utimes as utimesAsync } from 'node:fs/promises'
-import { createInterface } from 'node:readline'
-import { once } from 'node:events'
+import { pcCheHaLaCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type BattitoPc } from '@shared/posta'
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import { scriviAtomico } from '@shared/scrittura-atomica'
@@ -614,15 +582,9 @@ function risorseQui(): RisorsePc | undefined {
     return { ...cpuRamDa(app.getAppMetrics(), cpus().length), ...contatoreDrive.riassunto(), misuratoIl: new Date().toISOString() }
   } catch { return undefined }
 }
-/** La rimozione sicura (0.58.0, tappa 3): il lato di chi toglie e quello del residente. */
-let rimozioneGlobale: Rimozione | undefined
 /** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
 let pannelloDriveGlobale: (() => Promise<unknown>) | undefined
 let azioneDriveGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>) | undefined
-let residenteRimozioneGlobale: LatoResidente | undefined
-let pianoCorrente: (() => PianoAllineamento | undefined) | undefined
-/** «Rendi residente» con analisi e unione (0.60.0). */
-let residenzaGlobale: Residenza | undefined
 let spazioGlobale: SpazioDrive | undefined
 /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
 let gestioneChatGlobale: GestioneChat | undefined
@@ -634,14 +596,8 @@ let progettoPerWorkspaceGlobale: ((nome: string, opz?: { crea?: boolean }) => Pr
 let progettoDelWorkspaceGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>) | undefined
 /** «Apri cartella» (0.82.0): dove sta la cartella del progetto di un workspace o di una chat. */
 let cartellaDaAprireGlobale: ((q: { workspace?: string; chat?: string }) => Promise<DoveCartella>) | undefined
-let traslocoGlobale: TraslocoApi | undefined
 /** «Elimina workspace» (0.81.0): perché no, e la cartella vuota che va nel recupero con lui. */
 let primaDiEliminareGlobale: PrimaDiEliminare | undefined
-/** I traslochi chiesti da qui con «Sposta progetto», che girano su un altro PC (0.65.0): l'ultimo stato letto da lui. */
-const traslochiSeguiti = new Map<string, { pc: string; ultimo?: Trasloco; letto: number }>()
-/** Il lato di questo PC quando un altro gli trasloca un progetto (0.65.0): le rotte `/api/trasloco/*`. */
-let latoTraslocoGlobale: Record<string, (corpo: unknown) => Promise<unknown>> | undefined
-let provaTraslocoGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>) | undefined
 let provaTogliProgettoGlobale: ((nome: string) => Promise<{ ok: boolean; messaggio: string; stato?: number }>) | undefined
 // Il registro della sessione, visibile anche ai gestori globali qui sotto: loro
 // nascono al caricamento del modulo, prima che la sessione sia aperta, quindi
@@ -649,24 +605,17 @@ let provaTogliProgettoGlobale: ((nome: string) => Promise<{ ok: boolean; messagg
 let registroGlobale: Registro | undefined
 /** Il postino di questo PC: le rotte del telefono lo raggiungono da qui. */
 let postinoGlobale: Postino | undefined
-/**
- * Le rotte del Client, per le richieste che arrivano da un altro PC per le
- * strade nuove (0.40.0): il canale WebRTC e lo schermo per la cassetta sul
- * Drive. Nasce con il server del Client, piu' avanti dell'avvio del postino.
- */
-/**
- * «Una chat, una casa» (0.42.0): nasce dopo la sincronia, che la consulta per
- * sapere quali chat salgono e quali scendono. Finché non c'e', tutto come prima.
- */
-let unaCasaGlobale: UnaCasa | undefined
+/** Scrivere a una chat di un altro PC, dritto o per posta (0.88.0): il riquadro e il telefono. */
+let mandaAChatGlobale: MandaAChat | undefined
+/** «Sposta su questo PC» (0.88.0): chi lo chiede (qui) e il lato del proprietario (le rotte e la posta). */
+let spostaGlobale: Sposta | undefined
+let latoProprietarioGlobale: ReturnType<typeof creaLatoProprietario> | undefined
+/** Le copie dei progetti di altri PC (0.88.0): nel recupero solo se identiche al Drive. Per il riassetto. */
+let pulisciCopiaGlobale: ((p: { progetto: { id: string; nome: string }; percorso: string }) => ReturnType<typeof pulisciCopia>) | undefined
 /** «Installa là» per il telefono (0.56.2): nasce con la Salute. */
 let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: () => AvanzamentoInstallaLa[]; conosce: (pcId: string) => boolean } | undefined
 /** «Parte da solo» (0.55.0): gli autopiloti a cui il PC darà il via quando sono pronti. */
 let partenzeSubitoGlobale: import('./partenze-subito').PartenzeSubito | undefined
-/** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
-let ospiteGlobale: Ospite | undefined
-/** Le chat di un autopilota partite prima che l'ospite fosse pronto: la loro casa si prende appena lo è (0.52.5). */
-const daPrendereDopo = new Map<string, string>()
 /** «Salute del sistema» (0.44.0): nasce con le strade fra PC, la leggono il PC e il telefono. */
 /** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
 let guardianoPin: GuardianoPin | undefined
@@ -682,9 +631,6 @@ let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => co
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
 const ORE_ERRORI_SALUTE = 6
-/** Il servizio della procedura «Sposta progetto», per le rotte del Client. */
-let spostaGlobale: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> } | undefined
-let rottaPerAltriPc: ((r: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string }) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
@@ -1624,11 +1570,7 @@ if (!app.requestSingleInstanceLock()) {
       })
       registerFinestreIpc(apriNuovaFinestra)
 
-      // L'account (Supabase) vive nel MAIN: il renderer ha la CSP severa
-      // (`connect-src 'self'`) e non può chiamare la rete esterna — la sessione e
-      // le chiamate le fa qui. Prefisso `account:` per non confondersi con
-      // `accesso:` (il login di Claude Code, tutt'altra cosa).
-      // I token su disco (la sessione di Supabase, il Drive) cifrati con il
+      // I token su disco (il Drive) cifrati con il
       // portachiavi di Windows (0.86.2, audit I5), come le password SFTP.
       // Senza portachiavi, come prima: in chiaro.
       const portachiaviToken: Portachiavi = {
@@ -1636,38 +1578,6 @@ if (!app.requestSingleInstanceLock()) {
         cifra: (chiaro) => safeStorage.encryptString(chiaro).toString('base64'),
         decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
       }
-      avviaAccesso(dati, portachiaviToken)
-      const rispostaErrore = { stato: 'errore' as const, messaggio: 'richiesta non valida' }
-      ipcMain.handle('account:registra', (_e, email: unknown, password: unknown) =>
-        typeof email === 'string' && typeof password === 'string'
-          ? registraAccount(email, password)
-          : Promise.resolve(rispostaErrore))
-      ipcMain.handle('account:entra', (_e, email: unknown, password: unknown) =>
-        typeof email === 'string' && typeof password === 'string'
-          ? entraAccount(email, password)
-          : Promise.resolve(rispostaErrore))
-      ipcMain.handle('account:esci', () => esciAccount())
-      // Nella copia di prova (`SIERRADECK_PROVA`) si entra con un utente
-      // d'esempio: l'account vero non si usa fuori dal programma di tutti i
-      // giorni, e senza la finestra resterebbe ferma alla schermata d'accesso.
-      ipcMain.handle('account:utente', () => cartellaProva !== undefined && cartellaProva !== ''
-        ? Promise.resolve({ id: 'prova', email: 'prova@esempio.it' })
-        : utenteAccount())
-      ipcMain.handle('account:verifica', (_e, email: unknown, codice: unknown) =>
-        typeof email === 'string' && typeof codice === 'string'
-          ? verificaCodiceAccount(email, codice)
-          : Promise.resolve(rispostaErrore))
-      ipcMain.handle('account:reinvia', (_e, email: unknown) =>
-        typeof email === 'string'
-          ? reinviaCodiceAccount(email)
-          : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
-      suCambioAccount((utente) => {
-        for (const w of finestreDiChat()) {
-          if (!w.isDestroyed() && !w.webContents.isDestroyed()) {
-            w.webContents.send('account:cambiato', utente ?? null)
-          }
-        }
-      })
       // Il Drive dell'utente (BYOS): connessione e stato. Il consenso apre il
       // browser di sistema — è il main a poterlo fare (shell.openExternal) e a
       // custodire i token, come per l'account e la cassaforte.
@@ -1729,32 +1639,33 @@ if (!app.requestSingleInstanceLock()) {
       // registro condiviso di quali cartelle viaggiano con le chat.
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents'), ...(cartellaProva !== undefined && cartellaProva !== '' ? { prova: cartellaProva } : {}) })
       identitaPcGlobale = identitaPc
-      // La regola dura dell'ospite (0.52.0), da subito: finché il servizio
-      // delle case non è pronto, le case si leggono dal file di qui. Così
-      // nemmeno il ripristino dei primi secondi avvia una chat che ha casa
-      // altrove.
-      {
-        let daDisco: { letto: number; case: ReturnType<typeof leggiCase> } | undefined
-        impostaGuardiaCasa((s, autopilota) => {
-          // Una chat governata da un autopilota di qui (0.52.5): vive qui,
-          // salvo una scelta di Nicholas (`casaPerAutopilota`).
-          if (ospiteGlobale !== undefined) return autopilota !== undefined ? ospiteGlobale.casaAltrovePerAutopilota(s, autopilota.id) : ospiteGlobale.casaAltroveDi(s)
-          if (daDisco === undefined || Date.now() - daDisco.letto > 5000) {
-            let c = leggiCase(undefined)
-            try { c = leggiCase(JSON.parse(readFileSync(join(dati, 'case-chat.json'), 'utf8'))) } catch { /* nessuna casa ancora */ }
-            daDisco = { letto: Date.now(), case: c }
-          }
-          const io = identitaPc.leggi()
-          if (autopilota !== undefined) {
-            const d = casaPerAutopilota({ casa: daDisco.case.case[s], io: { id: io.id, nome: io.nome }, autopilota: autopilota.id, quando: new Date().toISOString() })
-            // Il servizio delle case non è ancora pronto: la casa si prende appena lo è.
-            if (d.tipo === 'prendi') { daPrendereDopo.set(s, autopilota.id); return undefined }
-            if (d.tipo === 'qui') return undefined
-          }
-          return casaAltrove(daDisco.case.case[s], io.id)
-        })
-      }
       const registroProgetti = apriRegistroProgetti(dati)
+      /** Il nome di un PC dal suo id (pc.json e pc-altrui.json), letto al massimo ogni 5 secondi. */
+      let nomiPc: { letto: number; nomi: Map<string, string> } | undefined
+      const nomePcDi = (id: string): string => {
+        if (nomiPc === undefined || Date.now() - nomiPc.letto > 5000) {
+          nomiPc = { letto: Date.now(), nomi: new Map(pcNotiDaDisco(dati).map((p) => [p.id, p.nomeScelto ?? p.nome])) }
+        }
+        return nomiPc.nomi.get(id) ?? 'un altro PC'
+      }
+      /**
+       * Un progetto, un PC (0.88.0): il PC che tiene il progetto di questa
+       * cartella, se non e' questo. Prima i progetti di qui (stessa cartella
+       * su due PC: vince quello di qui), poi quelli degli altri.
+       */
+      const proprietarioAltrove = (cwd: string): { id: string; nome: string; progetto: string } | undefined => {
+        if (cwd === '') return undefined
+        const reg = registroProgetti.leggi()
+        const io = identitaPc.leggi().id
+        if (progettoDiCwd(reg, cwd, io) !== undefined) return undefined
+        const p = progettoDiCartella(reg, cwd)
+        if (p === undefined || p.proprietario === undefined || p.proprietario === io) return undefined
+        return { id: p.proprietario, nome: nomePcDi(p.proprietario), progetto: p.nome }
+      }
+      impostaGuardiaCasa((_s, cwd) => {
+        const a = proprietarioAltrove(cwd)
+        return a === undefined ? undefined : { id: a.id, nome: a.nome, motivo: `«${a.progetto}» vive là` }
+      })
       // La fiducia nelle cartelle (30/10): le cartelle che SierraDeck conosce —
       // i progetti di questo PC, la cartella dei progetti, le chat dei
       // workspace, gli autopiloti — e i loro worktree. Prima dello spawn si
@@ -1763,7 +1674,7 @@ if (!app.requestSingleInstanceLock()) {
       {
         const note = (): CartelleNote => {
           const me = identitaPc.leggi()
-          const progetti = registroProgetti.leggi().progetti.map((p) => p.percorsi[me.id] ?? '').filter((c) => c !== '')
+          const progetti = registroProgetti.leggi().progetti.map((p) => (p.proprietario === me.id ? p.percorso ?? '' : '')).filter((c) => c !== '')
           if (me.cartellaProgetti !== '') progetti.push(me.cartellaProgetti)
           const cartelle: string[] = []
           for (const w of workspaceStore?.leggi().workspace ?? []) {
@@ -1783,59 +1694,23 @@ if (!app.requestSingleInstanceLock()) {
           log: (m) => registro.info(m)
         })
       }
-      let progettiInManoAdAltri = (): Set<string> => new Set()
-      // Per il telefono: se il progetto di una chat e' in mano a un altro PC,
-      // il suo nome. Poco invasivo apposta — una parola sotto il titolo.
-      let presenzaAltrove: (cwd: string) => string | undefined = () => undefined
+      // Per il telefono: se il progetto di una chat vive su un altro PC, il
+      // suo nome. Poco invasivo apposta — una parola sotto il titolo.
       const conAltrove = <T extends { cwd: string }>(c: T): T & { altrove?: string } => {
-        const pc = presenzaAltrove(c.cwd)
+        const pc = proprietarioAltrove(c.cwd)?.nome
         return pc === undefined ? c : { ...c, altrove: pc }
       }
       const progettiSync = creaProgettiSync({
         registro: registroProgetti,
         pcId: () => identitaPc.leggi().id,
         cartellaProgetti: () => identitaPc.leggi().cartellaProgetti,
-        log: registro.info,
-        esclusi: () => progettiInManoAdAltri()
+        log: registro.info
       })
-      /**
-       * Le chat nate su un altro PC, portate nelle cartelle di qui.
-       *
-       * Una `cwd` che non esiste e sta dentro il progetto di un altro PC
-       * diventa la stessa sottocartella nel progetto di questo. E la
-       * trascrizione si copia sotto il nuovo slug: Claude Code la cerca nella
-       * cartella che deriva dal percorso, e con un percorso diverso non la
-       * troverebbe — `--resume` a vuoto, cioe' una chat che riparte da zero.
-       */
-      let altroveRiquadro: (cwd: string) => { id: string; nome: string } | undefined = () => undefined
-      const rimappaChat = (): void => {
-        if (workspaceStore === undefined) return
-        const pc = identitaPc.leggi()
-        const reg = registroProgetti.leggi()
-        if (reg.progetti.length === 0) return
-        const esito = rimappaWorkspace(workspaceStore.leggi(), (cwd) =>
-          // Un riquadro con la cartella di un altro PC resta cosi': all'apertura
-          // dira' di chi e', invece di finire in una cartella vuota di qui.
-          (!existsSync(cwd) && altroveRiquadro(cwd) !== undefined) ? cwd : rimappaCwd(cwd, reg, pc.id, pc.cartellaProgetti, existsSync).cwd)
-        if (esito.cambi.length === 0) return
-        for (const c of esito.cambi) {
-          const da = join(radiceClaude, 'projects', pathToSlug(c.da), `${c.sessione}.jsonl`)
-          const a = join(radiceClaude, 'projects', pathToSlug(c.a), `${c.sessione}.jsonl`)
-          try {
-            if (existsSync(da) && !existsSync(a)) {
-              mkdirSync(dirname(a), { recursive: true })
-              copyFileSync(da, a)
-            }
-          } catch (err) {
-            registro.errore(`[progetti] trascrizione ${c.sessione} non copiata sotto il nuovo percorso: ${String(err)}`)
-          }
-          registro.info(`[progetti] chat ${c.sessione}: «${c.da}» → «${c.a}»`)
-        }
-        if (!workspaceStore.scrivi(esito.archivio)) {
-          registro.errore('[progetti] archivio dei workspace non riscritto dopo la rimappatura')
-        }
+      /** Un riquadro con la cartella di un progetto di un altro PC: di chi e'. */
+      let altroveRiquadro = (cwd: string): { id: string; nome: string } | undefined => {
+        const a = proprietarioAltrove(cwd)
+        return a === undefined ? undefined : { id: a.id, nome: a.nome }
       }
-      rimappaChat()
 
       // Il lavoro con il Drive: uno alla volta, visto da ogni finestra, annullabile.
 
@@ -1911,10 +1786,7 @@ if (!app.requestSingleInstanceLock()) {
       let ultimoArrivoGestito: string | undefined
       const dopoArrivo = async (ultimo: EsitoLavoro): Promise<void> => {
         await reindicizzaSessioni().catch(() => undefined)
-        const rimappate = await rimappaChatSulDisco()
-        rimappaChat()
-        if (rimappate > 0) await reindicizzaSessioni().catch(() => undefined)
-        const avviso = { quante: ultimo.scaricati ?? 0, tipo: ultimo.tipo, quando: ultimo.quando, rimappate }
+        const avviso = { quante: ultimo.scaricati ?? 0, tipo: ultimo.tipo, quando: ultimo.quando, rimappate: 0 }
         for (const w of finestreDiChat()) {
           if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('chat:arrivate', avviso)
         }
@@ -1925,23 +1797,11 @@ if (!app.requestSingleInstanceLock()) {
         ultimoArrivoGestito = u.quando
         dopoArrivo(u).catch((err: unknown) => registro.errore(`[progetti] dopo l'arrivo dal Drive: ${String(err)}`))
       })
-      // All'avvio, finita la prima lettura dell'indice: le chat gia' sul disco
-      // con la cartella di un altro PC (scaricate prima di questa versione)
-      // vanno al loro posto una volta per tutte.
-      void primoIndice().then(async () => {
-        const n = await rimappaChatSulDisco()
-        if (n > 0) { rimappaChat(); await reindicizzaSessioni() }
-      }).catch((err: unknown) => registro.errore(`[progetti] rimappatura all'avvio: ${String(err)}`))
-
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
-        // Una chat, una casa (0.42.0): salgono solo le chat di casa qui;
-        // scendono da sole solo quelle di casa qui.
-        unaCasa: {
-          saleDaQui: (p) => unaCasaGlobale === undefined || saleDaQui(p, unaCasaGlobale.case(), identitaPc.leggi().id),
-          scendeQui: (p) => unaCasaGlobale === undefined || scendeQui(p, unaCasaGlobale.case(), identitaPc.leggi().id)
-        },
+        // Un progetto, un PC (0.88.0): le chat dei progetti degli altri PC non salgono da qui.
+        saleDaQui: (p) => saleDaQuestoPc(registroProgetti.leggi().progetti, identitaPc.leggi().id, p),
         // Le pulizie del Drive (0.65.0): una voce tolta non risale finché è uguale.
         fuoriDalDrive: (p, size) => spazioGlobale?.fuoriDalDrive(p, size) ?? false,
         // Le chat eliminate dal PC (0.79.0) non scendono di nuovo da sole.
@@ -2044,46 +1904,6 @@ if (!app.requestSingleInstanceLock()) {
       }
       ipcMain.handle('drive:avvisoScollegato', () => avvisoDrive())
 
-      // La ronda dei progetti: chi lavora a cosa, e il passaggio di testimone.
-      const mandaATutte = (canale: string, dato: unknown): void => {
-        for (const w of finestreDiChat()) {
-          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
-        }
-      }
-      const ronda = creaRonda({
-        scatola: () => sincronia.scatola(),
-        registro: registroProgetti,
-        pcId: () => identitaPc.leggi().id,
-        pcNome: () => identitaPc.leggi().nome,
-        vive: (p) => {
-          const mio = p.percorsi[identitaPc.leggi().id]
-          if (mio === undefined) return []
-          return chatAperte
-            .filter((c) => c.viva === true && c.sessione !== undefined && staDentro(c.cwd, mio))
-            .map((c) => c.sessione as string)
-        },
-        progettoDi: (cwd) => progettoDiCwd(registroProgetti.leggi(), cwd, identitaPc.leggi().id),
-        salva: () => sincronia.salva(),
-        ripristinaProgetto: (id) => sincronia.ripristinaProgetto(id),
-        iberna: (sessioni) => mandaATutte('progetti:iberna-chat', { sessioni }),
-        avvisa: (a) => mandaATutte('progetti:avviso', a),
-        // La consegna di un comando dalla coda: alla chat indicata, o alla
-        // prima del progetto che ha finito e aspetta. Stesso canale con cui
-        // scrive il telefono.
-        consegna: (p, voce) => {
-          const mio = p.percorsi[identitaPc.leggi().id]
-          if (mio === undefined) return Promise.resolve(undefined)
-          const pronta = chatAperte.find((c) =>
-            c.viva === true && c.aspetta === true && staDentro(c.cwd, mio) &&
-            (voce.sessione === undefined || c.sessione === voce.sessione))
-          if (pronta === undefined) return Promise.resolve(undefined)
-          scriviNelRiquadro(pronta.id, voce.testo)
-          return Promise.resolve(pronta.sessione !== undefined ? { sessione: pronta.sessione } : {})
-        },
-        log: registro.info
-      })
-      progettiInManoAdAltri = () => ronda.inManoAdAltri()
-
       // **La posta per un PC.** Un'azione che si esegue solo su quel computer,
       // quando c'e': una cartella su un disco di rete montato solo la', un
       // progetto che non viaggia. Dagli altri PC e dal telefono si scrive
@@ -2130,8 +1950,7 @@ if (!app.requestSingleInstanceLock()) {
           const me = identitaPc.leggi().id
           const fuori = new Set<string>()
           for (const p of registroProgetti.leggi().progetti) {
-            const mio = p.percorsi[me]
-            if (mio !== undefined && existsSync(mio)) fuori.add(mio)
+            if (p.proprietario === me && p.percorso !== undefined && existsSync(p.percorso)) fuori.add(p.percorso)
           }
           if (db !== undefined) {
             const viste = new Map<string, boolean>()
@@ -2166,31 +1985,18 @@ if (!app.requestSingleInstanceLock()) {
           },
           scrivi: (ids) => scriviJsonAtomico(join(dati, 'posta-consegnate.json'), ids, 'posta-consegnate')
         },
-        // Lo schermo delle mie chat per chi mi guarda via Drive (0.40.0): le
-        // stesse rotte che chiamerebbe da vicino.
-        fotografa: async (): Promise<ChatNelloSchermo[]> => {
-          const r = rottaPerAltriPc
-          if (r === undefined) return []
-          // Come un visore a sé (0.49.0): le chat protette dal PIN non finiscono sul Drive, nemmeno se un altro PC le ha aperte.
-          const st = await r({ metodo: 'GET', percorso: '/api/stato', corpo: undefined, dispositivo: 'drive' })
-          const elenco = Array.isArray((st.corpo as { chat?: unknown } | undefined)?.chat) ? (st.corpo as { chat: ChatSuPc[] }).chat : []
-          const fuori: ChatNelloSchermo[] = []
-          for (const c of elenco.filter((x) => x.viva !== false).slice(0, 8)) {
-            const h = await r({ metodo: 'POST', percorso: '/api/storia', corpo: { chat: String(c.id), da: -1, quante: 80 }, dispositivo: 'drive' }).catch(() => undefined)
-            const d = (h?.corpo ?? {}) as { righe?: unknown; grezze?: unknown; totale?: unknown }
-            const righe = Array.isArray(d.righe) ? d.righe.filter((x): x is string => typeof x === 'string') : []
-            fuori.push({
-              id: String(c.id), cwd: String(c.cwd), titolo: String(c.titolo),
-              ...(typeof c.sessione === 'string' ? { sessione: c.sessione } : {}),
-              ...(typeof c.aspetta === 'boolean' ? { aspetta: c.aspetta } : {}),
-              ...(typeof c.viva === 'boolean' ? { viva: c.viva } : {}),
-              righe, grezze: Array.isArray(d.grezze) ? d.grezze.filter((x): x is string => typeof x === 'string') : righe,
-              totale: typeof d.totale === 'number' ? d.totale : righe.length
-            })
-          }
-          return fuori
-        },
         cartellaEsiste: (cwd) => { try { return statSync(cwd).isDirectory() } catch { return false } },
+        // «Sposta su questo PC» chiesto per posta mentre questo PC era spento
+        // (0.88.0): solo il PC che chiede per se', mai per un terzo.
+        comando: async (c, voce) => {
+          if (c.verso !== voce.daPc) return { ok: false, esito: JSON.stringify({ ok: false, messaggio: 'un PC può chiedere un progetto solo per sé' }) }
+          const lato = latoProprietarioGlobale
+          if (lato === undefined) return { ok: false, esito: JSON.stringify({ ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' }) }
+          const r = c.tipo === 'sposta-prepara'
+            ? await lato.prepara({ progetto: c.progetto, verso: c.verso, versoNome: c.versoNome })
+            : await lato.concludi({ progetto: c.progetto, verso: c.verso, percorso: c.percorso, proprietarioDal: c.proprietarioDal })
+          return { ok: true, esito: JSON.stringify(r) }
+        },
         apriChat: (cwd) => { finestraPerAprire(undefined)?.webContents.send('client:apri', { cartella: cwd }) },
         riprendiChat: (cwd, sessione) => {
           const dove = workspaceStore === undefined ? undefined : workspaceDellaSessione(workspaceStore.leggi(), sessione)
@@ -2250,47 +2056,7 @@ if (!app.requestSingleInstanceLock()) {
         const nome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId
         registro.info(`[remoto] ${nome} si è collegato a questo PC da ${ind}: lo ricordo, è un indirizzo a cui bussare anche da qui`)
       }
-      // **Le strade nuove (0.40.0)**: WebRTC diretto via Internet, con lo
-      // scambio iniziale cifrato sul Drive, e la cassetta lenta sul Drive.
-      // Vedi `rtc/collegamento-rtc.ts` e `rtc/cassetta-drive.ts`.
-      const ponteRtc = creaPonteRtc({ preload: join(__dirname, '../preload/ponte-rtc.js'), escludi: segnaFinestraDiServizio, log: registro.info })
-      const stradeLentePossibili = (): boolean => sincronia.scatola() !== undefined
-      const rtc = creaRtc({
-        ponte: ponteRtc.ponte,
-        scatola: () => sincronia.scatola(),
-        io: () => identitaPc.leggi().id,
-        mioNome: () => identitaPc.leggi().nome,
-        chiaveDiCasa: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
-        // Solo i PC accesi (0.69.0): un PC spento non offre niente, e ogni
-        // ricerca della sua offerta era una richiesta al Drive ogni 10 secondi.
-        altriPc: () => postino.altrui().filter((b) => pcVivo(b, Date.now())).map((b) => b.pcId),
-        rotta: async (percorso, corpo, visore) => {
-          if (rottaPerAltriPc === undefined) return { stato: 503, corpo: { errore: 'il Client di questo PC non è ancora pronto' } }
-          return rottaPerAltriPc({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: `pc:${visore}` })
-        },
-        log: registro.info
-      })
-      const cassettaDrive = creaCassettaDrive({
-        scatola: () => sincronia.scatola(),
-        io: () => identitaPc.leggi().id,
-        mioNome: () => identitaPc.leggi().nome,
-        nomeDi: (pcId) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? 'quel PC',
-        aggiungiPosta: (pcId, voce) => postino.aggiungi(pcId, voce)
-      })
-      const timerRtc = setInterval(() => { void rtc.cercaOfferte().catch(() => undefined) }, CERCA_OFFERTE_OGNI_MS)
-      // Chi mi guarda via Drive: lo schermo e la posta ogni dieci secondi, non ogni mezzo minuto.
-      const timerSchermo = setInterval(() => { void postino.giroVeloce() }, 10_000)
-      app.on('before-quit', () => { clearInterval(timerRtc); clearInterval(timerSchermo); rtc.chiudiTutto(); ponteRtc.distruggi() })
       const remoto = creaClientPcRemoto({
-        rtc: {
-          possibile: stradeLentePossibili,
-          stato: (pcId) => rtc.stato(pcId),
-          fallitoIl: (pcId) => rtc.fallitoIl(pcId),
-          fallimenti: (pcId) => rtc.fallimenti(pcId),
-          avvia: (pcId) => rtc.avvia(pcId),
-          chiama: (pcId, percorso, corpo, visore) => rtc.chiama(pcId, percorso, corpo, visore)
-        },
-        cassetta: { possibile: stradeLentePossibili, chiama: (pcId, percorso, corpo, visore) => cassettaDrive.chiama(pcId, percorso, corpo, visore) },
         battiti: () => postino.altrui(),
         chiavePer: (pcId) => sincronia.chiaveDiCasa(`client-pc:${pcId}`),
         mioNome: () => identitaPc.leggi().nome,
@@ -2372,41 +2138,6 @@ if (!app.requestSingleInstanceLock()) {
           const salvate = Array.isArray(ws.chat) ? ws.chat.map((c) => (typeof c === 'object' && c !== null ? (c as { sessione?: unknown }).sessione : undefined)).filter((x): x is string => typeof x === 'string') : undefined
           return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(salvate !== undefined ? { salvate } : {}), ...(typeof r.computer === 'object' && r.computer !== null ? { computer: r.computer as { nome: string } } : {}) }
         }, pc))
-      // Il workspace rispecchia il PC di casa (0.64.2) anche nei workspace che
-      // nessuna finestra mostra: i loro riquadri remoti di chat che là non sono
-      // aperte da nessuna parte si tolgono dall'archivio. Mai una scrittura al
-      // PC di casa: solo /api/stato.
-      const rispecchia = creaRispecchia({
-        leggi: () => workspaceStore?.leggi(),
-        scrivi: (a) => { workspaceStore?.scrivi(a) },
-        mostrati: () => {
-          const s = new Set<string>()
-          for (const w of finestreDiChat()) { const n = !w.isDestroyed() ? workspaceDellaFinestra(w.id) : undefined; if (n !== undefined) s.add(n) }
-          const attivo = workspaceStore?.leggi().attivo
-          if (attivo !== undefined && attivo !== '') s.add(attivo)
-          return s
-        },
-        statoDi: async (pcId) => {
-          const r = await remoto.chiama(pcId, '/api/stato') as { chat?: unknown; chiuse?: unknown; workspace?: unknown }
-          const chat = Array.isArray(r.chat) ? (r.chat as { sessione?: unknown }[]).map((c) => (typeof c.sessione === 'string' ? { sessione: c.sessione } : {})) : []
-          const ws = (typeof r.workspace === 'object' && r.workspace !== null ? r.workspace : {}) as { chat?: unknown }
-          const salvate = Array.isArray(ws.chat) ? ws.chat.map((c) => (typeof c === 'object' && c !== null ? (c as { sessione?: unknown }).sessione : undefined)).filter((x): x is string => typeof x === 'string') : undefined
-          const chiuseLa = leggiChiuse(r.chiuse)
-          return { chat, ...(chiuseLa.length > 0 ? { chiuse: chiuseLa } : {}), ...(salvate !== undefined ? { salvate } : {}) }
-        },
-        nomePc: (pcId, salvato) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? salvato,
-        io: () => identitaPc.leggi().id,
-        casaDi: (s) => unaCasaGlobale?.casaDi(s)?.pc,
-        log: (m) => registro.info(m),
-        cambiato: (a) => {
-          for (const w of finestreDiChat()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(a), precedente: a.attivo })
-          }
-        }
-      })
-      const giroRispecchia = (): void => { void rispecchia.giro().catch((e: unknown) => registro.info(`[apertura] controllo dei workspace nascosti non riuscito: ${String(e)}`)) }
-      setTimeout(giroRispecchia, 45_000).unref?.()
-      setInterval(giroRispecchia, 2 * 60_000).unref?.()
       ipcMain.handle('remoto:trova', (_e, pc: unknown, r: unknown) =>
         esitoRemoto<ChatSuPc | undefined>(async () => {
           const rr = r as { cwd?: unknown; sessione?: unknown; pcId?: unknown; pcNome?: unknown; titolo?: unknown }
@@ -2419,9 +2150,36 @@ if (!app.requestSingleInstanceLock()) {
         esitoRemoto(async () => storiaRemotaSicura(await remoto.chiama(testo(pc), '/api/storia', {
           chat: testo(chat), da: typeof da === 'number' ? da : -1, quante: typeof quante === 'number' ? quante : 200
         }), testo(chat)), pc))
+      // **Scrivere a una chat di un altro PC** (0.88.0): acceso, dritto
+      // (rete di casa, poi Tailscale); spento o irraggiungibile, nella sua
+      // posta sul Drive, consegnata quando torna. Vedi `progetti/manda-a-chat.ts`.
+      const mandaAChat = creaMandaAChat({
+        chiama: (pcId, percorso, corpo, visore) => remoto.chiama(pcId, percorso, corpo, visore),
+        accoda: (pcId, voce) => postino.aggiungi(pcId, voce),
+        posta: (pcId) => postino.posta(pcId),
+        cwdDi: (pcId, sessione) => postino.altrui().find((b) => b.pcId === pcId)?.chat.find((c) => c.sessione === sessione)?.cwd,
+        nomeDi: (pcId) => postino.altrui().find((b) => b.pcId === pcId)?.nome ?? nomePcDi(pcId),
+        io: () => identitaPc.leggi().id,
+        log: registro.info
+      })
+      mandaAChatGlobale = mandaAChat
       // L'id del messaggio (0.51.0): rimandato dopo una caduta, quel PC non lo scrive due volte.
-      ipcMain.handle('remoto:scrivi', (_e, pc: unknown, chat: unknown, t: unknown, id: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/scrivi', { chat: testo(chat), testo: testo(t), ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}) }), pc))
+      ipcMain.handle('remoto:scrivi', async (_e, pc: unknown, chat: unknown, t: unknown, id: unknown, dove: unknown) => {
+        const d = (typeof dove === 'object' && dove !== null ? dove : {}) as { sessione?: unknown; cwd?: unknown }
+        const r = await mandaAChat.manda({
+          pcId: testo(pc), testo: testo(t),
+          ...(testo(chat) !== '' ? { chat: testo(chat) } : {}),
+          ...(typeof id === 'string' && id !== '' ? { idMessaggio: id } : {}),
+          ...(typeof d.sessione === 'string' && d.sessione !== '' ? { sessione: d.sessione } : {}),
+          ...(typeof d.cwd === 'string' && d.cwd !== '' ? { cwd: d.cwd } : {})
+        })
+        const strada = remoto.stradaDi(testo(pc))
+        if (r.ok && r.via === 'diretta') return { ok: true, dati: r.dati, ...(strada !== undefined ? { strada } : {}) }
+        if (r.ok) return { ok: true, dati: { posta: true, voce: r.voce, messaggio: r.messaggio } }
+        return { ok: false, motivo: r.motivo ?? 'http', messaggio: r.messaggio, ...(r.stato !== undefined ? { stato: r.stato } : {}) }
+      })
+      // In attesa / consegnato / fallito (0.88.0): i messaggi lasciati nella posta di quel PC.
+      ipcMain.handle('remoto:inviati', (_e, pc: unknown) => mandaAChat.stati(testo(pc)).catch(() => []))
       ipcMain.handle('remoto:scegli', (_e, pc: unknown, chat: unknown, opzione: unknown) =>
         esitoRemoto(() => remoto.chiama(testo(pc), '/api/scegli', { chat: testo(chat), opzione: testo(opzione) }), pc))
       // «Riapri là» (0.58.3): la richiesta, il suo esito e la chat che compare là
@@ -2634,7 +2392,7 @@ if (!app.requestSingleInstanceLock()) {
       // La cartella si cerca fra i progetti di questo PC: quella con il package.json di SierraDeck.
       const radiceSierraDeck = (): string | undefined => {
         const me = identitaPc.leggi().id
-        return cartellaDiSierraDeck(registroProgetti.leggi().progetti.map((p) => p.percorsi[me] ?? '').filter((c) => c !== '' && existsSync(c)))
+        return cartellaDiSierraDeck(registroProgetti.leggi().progetti.map((p) => (p.proprietario === me ? p.percorso ?? '' : '')).filter((c) => c !== '' && existsSync(c)))
       }
       radiceSierraDeckGlobale = radiceSierraDeck
       const salvaQui = (invio: InvioErrori, chi: string): { ok: true; file: string } | { ok: false; stato: number; errore: string } => {
@@ -2885,10 +2643,8 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
 
-      // ── «Una chat, una casa» (0.42.0) ──
-      // Il progetto: .sierradeck/quaderno/2026-10-02-una-chat-una-casa-progetto.md
-      const radiceProgetti = join(radiceClaude, 'projects')
-      const chatLocaliDaIndice = (): ChatLocale[] => (db === undefined ? [] : listSessions(db)).map((s) => ({
+      // Le chat di questo PC dall'indice, con la trascrizione sul disco.
+      const chatLocaliDaIndice = (): { sessione: string; slug: string; titolo: string; cwd?: string; jsonl: string; ultimoMessaggio?: string }[] => (db === undefined ? [] : listSessions(db)).map((s) => ({
         sessione: s.uuid, slug: s.projectSlug, titolo: s.aiTitle ?? s.primoPrompt ?? s.uuid,
         ...(s.cwd !== undefined ? { cwd: s.cwd } : {}), jsonl: s.jsonlPath,
         ...(s.lastTimestamp !== undefined ? { ultimoMessaggio: s.lastTimestamp } : {})
@@ -2912,39 +2668,11 @@ if (!app.requestSingleInstanceLock()) {
           .slice(0, LOCALI_MAX_CHAT)
           .map((c) => (c.mtime === 0 || Number.isNaN(c.mtime) ? { sessione: c.sessione, ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), ...(c.size !== undefined ? { size: c.size } : {}) } : c))
         const progetti = registroProgetti.leggi().progetti
-          .filter((g) => g.percorsi[me] !== undefined && existsSync(g.percorsi[me] as string))
-          .map((g) => ({ id: g.id, percorso: g.percorsi[me] as string }))
+          .filter((g) => g.proprietario === me && g.percorso !== undefined && existsSync(g.percorso))
+          .map((g) => ({ id: g.id, percorso: g.percorso as string }))
         localiInMemoria = { il: Date.now(), l: { chat, progetti } }
         return localiInMemoria.l
       }
-      // Le chat sul Drive per sessione, dall'ultimo manifesto letto: dimensione e PC.
-      let indiceDrive = new Map<string, { size: number; pc?: string }>()
-      let indiceDriveIl = 0
-      const rileggiDrive = async (): Promise<void> => {
-        indiceDriveIl = Date.now()
-        const m = await sincronia.manifestoDrive().catch(() => undefined)
-        if (m === undefined) return
-        const n = new Map<string, { size: number; pc?: string }>()
-        for (const [p, v] of Object.entries(m.file)) {
-          if (!p.startsWith('chat/') || !p.endsWith('.jsonl') || p.split('/').length !== 3) continue
-          const s = sessioneDiPercorso(p)
-          const prima = n.get(s)
-          if (prima === undefined || v.size > prima.size) n.set(s, { size: v.size, ...(v.pc !== undefined ? { pc: v.pc } : {}) })
-        }
-        indiceDrive = n
-      }
-      const unaCasa = creaUnaCasa({
-        dati,
-        radiceProgetti,
-        io: () => identitaPc.leggi(),
-        scatola: () => sincronia.scatola(),
-        battiti: () => postino.altrui(),
-        chatLocali: chatLocaliDaIndice,
-        aperte: () => chatAperte.map((c) => ({ cwd: c.cwd, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })),
-        sulDrive: (s) => indiceDrive.get(s),
-        log: registro.info
-      })
-      unaCasaGlobale = unaCasa
       /**
        * **Creare un workspace crea il progetto** (0.65.1). Il caso «visitafacile»:
        * un workspace nato con la chat nella cartella Documenti non era un
@@ -2957,29 +2685,20 @@ if (!app.requestSingleInstanceLock()) {
       progettoPerWorkspaceGlobale = async (nome: string, opz?: { crea?: boolean }): Promise<string | undefined> => {
         const io = identitaPc.leggi()
         const cartella = join(io.cartellaProgetti, cartellaDaNomeWorkspace(nome))
-        const ws = workspaceStore?.leggi().workspace.find((w) => w.nome === nome)
-        const scelta = sceltaCartellaWorkspace({
-          nome,
-          io,
-          gruppi: raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case()),
-          casaDi: (chiave) => unaCasa.case().case[chiave],
-          remoti: ws === undefined ? [] : Object.values(ws.perSlot).flatMap((l) => l.panes).flatMap((p) => (p.remoto !== undefined ? [{ pcId: p.remoto.pcId, pcNome: p.remoto.pcNome }] : [])),
-          battiti: postino.altrui(),
-          esiste: existsSync,
-          cartellaNuova: cartella,
-          valida: cartellaDiProgettoValida(cartella, homedir())
-        })
-        if (scelta.tipo === 'qui') return scelta.cartella
-        if (scelta.tipo === 'altrove') { registro.info(`[workspace] «${nome}» vive su ${scelta.pcNome} (${scelta.perche}): qui non creo cartelle`); return undefined }
-        if (scelta.tipo === 'niente') { if (scelta.perche.startsWith('la cartella')) registro.info(`[workspace] «${nome}»: ${scelta.perche}, non la creo`); return undefined }
+        // Un progetto, un PC (0.88.0): con lo stesso nome e' lo stesso progetto.
+        const gia = registroProgetti.leggi().progetti.find((p) => nomeNormalizzato(p.nome) === nomeNormalizzato(cartellaDaNomeWorkspace(nome)) || nomeNormalizzato(p.nome) === nomeNormalizzato(nome))
+        if (gia !== undefined && gia.proprietario !== undefined && gia.proprietario !== io.id) {
+          registro.info(`[workspace] «${nome}» vive su ${nomePcDi(gia.proprietario)}: qui non creo cartelle`)
+          return undefined
+        }
+        if (gia !== undefined && gia.percorso !== undefined && existsSync(gia.percorso)) return gia.percorso
+        if (eNomeDiSistema(nome) || cartellaDaNomeWorkspace(nome) === '') return undefined
         // Leggere non crea (0.80.0): la finestra della chat nuova chiede solo dove sta il progetto.
         if (opz?.crea === false) return undefined
         try { mkdirSync(cartella, { recursive: true }) } catch (err) { registro.info(`[workspace] «${nome}»: cartella del progetto non creata (${String(err)})`); return undefined }
         const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: io.id, percorso: cartella, adesso: new Date().toISOString() })
         registroProgetti.scrivi(reg)
-        const quando = new Date().toISOString()
-        await unaCasa.memorizza({ [`progetto:${progetto.id}`]: { pc: io.id, pcNome: io.nome, decisaIl: quando, da: 'nicholas', sceltaDa: io.id, motivo: `workspace «${nome}» creato su ${io.nome}: il progetto nasce qui` } })
-        registro.info(`[workspace] «${nome}»: progetto creato in ${cartella}, residente ${io.nome}`)
+        registro.info(`[workspace] «${nome}»: progetto ${progetto.id} creato in ${cartella}, di ${io.nome}`)
         return cartella
       }
       /**
@@ -3001,7 +2720,7 @@ if (!app.requestSingleInstanceLock()) {
         const vietate = { casa: homedir(), documenti: app.getPath('documents') }
         const conTrascrizione = new Set([...chatLocaliDaIndice().map((c) => c.sessione), ...postino.altrui().flatMap((b) => (b.locali?.chat ?? []).map((c) => c.sessione))])
         // Le cartelle dei progetti di questo PC: una chat che lavora dentro una di queste è già al suo posto.
-        const cartelleProgetti = raggruppaProgetti(registroProgetti.leggi().progetti, unaCasa.case()).flatMap((g) => g.percorsi.filter((x) => x.pc === io.id).map((x) => x.percorso))
+        const cartelleProgetti = raggruppaProgetti(registroProgetti.leggi().progetti).flatMap((g) => g.percorsi.filter((x) => x.pc === io.id).map((x) => x.percorso))
         const inUnProgetto = (c: string): boolean => cartelleProgetti.some((r) => dentroCartella(c, r))
         const daSpostare = (p: PaneSalvato): boolean =>
           (p.remoto === undefined || p.remoto.pcId === io.id) &&
@@ -3032,49 +2751,9 @@ if (!app.requestSingleInstanceLock()) {
         registro.info(`[workspace] «${nome}»: ${panes.length} chat mai usate (senza trascrizione) passano nel progetto ${cartella}${aSchermo ? ', dalla finestra che lo mostra' : ''}`)
         return { ok: true, cartella, messaggio: `«${nome}» è un progetto in ${cartella}, residente ${io.nome}; ${panes.length} chat vuote ora partono lì.` }
       }
-      // L'ospite di ogni chat (0.52.0): «Ospitata da», propagata e fatta rispettare.
       const mandaAlleFinestre = (canale: string, dato?: unknown): void => {
         for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send(canale, dato)
       }
-      const ospite = creaOspite({
-        unaCasa,
-        io: () => identitaPc.leggi(),
-        altriPc: () => postino.altrui().map((b) => ({ id: b.pcId, nome: b.nome })),
-        chiamaPc: (pcId, percorso, corpo) => remoto.chiama(pcId, percorso, corpo),
-        chatLocali: chatLocaliDaIndice,
-        aperte: () => chatAperte.filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, alLavoro: c.viva === true && c.aspetta !== true })),
-        chatDeiWorkspace: () => (workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).map((c) => ({ workspace: c.workspace, sessione: c.sessione, titolo: c.titolo, cwd: c.cwd }))),
-        salva: () => sincronia.salva(),
-        chiudiQui: (chat) => mandaAlleFinestre('casa:chiudiQui', chat),
-        avvisa: () => mandaAlleFinestre('casa:cambiate'),
-        log: registro.info
-      })
-      ospiteGlobale = ospite
-      for (const [s, ap] of daPrendereDopo) ospite.casaAltrovePerAutopilota(s, ap)
-      daPrendereDopo.clear()
-      // Ogni 30 secondi (0.69.0; erano 10): ogni giro rilegge l'indice delle chat e
-      // guarda sul disco ogni trascrizione. Le chat da chiudere aspettano già 30 s.
-      // 0.85.2: solo se c'è almeno una chat con la casa scelta su un altro PC.
-      // Senza, il giro non ha niente da fare (`pianoTrasloco` guarda solo
-      // quelle) ma rileggeva comunque l'indice e guardava sul disco ogni
-      // trascrizione, ogni mezzo minuto.
-      const timerOspite = setInterval(() => {
-        const io = identitaPc.leggi().id
-        if (!Object.values(unaCasa.case().case).some((c) => eScelta(c) && casaAltrove(c, io) !== undefined)) return
-        void ospite.giro()
-      }, 30_000)
-      app.on('before-quit', () => { clearInterval(timerOspite) })
-      ipcMain.handle('casa:dove', () => ospite.dove())
-      // La casa memorizzata di una chat (0.67.0): il riquadro remoto si toglie da solo solo se è il PC che guarda.
-      ipcMain.handle('casa:pcDi', (_e, s: unknown) => (typeof s === 'string' ? unaCasa.casaDi(s)?.pc : undefined))
-      // La stessa chat ripresa con un id nuovo (0.68.0): l'id nuovo prende la casa del vecchio, se non ne ha una.
-      ipcMain.handle('casa:idNuovo', async (_e, vecchia: unknown, nuova: unknown) => {
-        if (typeof vecchia !== 'string' || typeof nuova !== 'string' || vecchia === nuova) return
-        const c = unaCasa.casaDi(vecchia)
-        if (c === undefined || unaCasa.casaDi(nuova) !== undefined) return
-        await unaCasa.memorizza({ [nuova]: c })
-        registro.info(`[casa] ${vecchia.slice(0, 8)} → ${nuova.slice(0, 8)}: stessa chat ripresa con un id nuovo, stessa casa (${c.pcNome})`)
-      })
       // «Su altri PC» → «Apri» (0.67.0): il workspace di quel PC, qui con un riquadro
       // dal vivo per ogni sua chat. Le chat restano là; la finestra che chiede ci va.
       ipcMain.handle('workspace:apriDaAltroPc', async (e, pcId: unknown, nome: unknown) => {
@@ -3160,12 +2839,9 @@ if (!app.requestSingleInstanceLock()) {
       ))
       /**
        * **L'apertura di una chat di un altro PC** (0.58.2), passo per passo nel
-       * registro. Il caso «MT5» del 10/10: il riquadro remoto salvato puntava al
-       * PC della casa decisa dalla regola, che la chat non ce l'aveva; nessuno
-       * lo ricontrollava, e il registro taceva. Qui: la casa, le copie (battiti
-       * 0.58 e questo PC), se il PC di casa la ha (le sue copie o almeno la sua
-       * cartella), la decisione (correggere una casa della regola, mai una
-       * scelta di Nicholas), e se là la chat è aperta.
+       * registro. Un progetto, un PC (0.88.0): la chat si guarda sul PC che
+       * tiene il suo progetto; se il progetto e' di questo PC il riquadro torna
+       * locale. Senza progetto noto, resta il PC del riquadro.
        */
       ipcMain.handle('remoto:apertura', async (_e, p: unknown) => {
         const q = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
@@ -3179,47 +2855,14 @@ if (!app.requestSingleInstanceLock()) {
         const passo = (m: string): void => { registro.info(`[apertura] «${titolo}» (${s.slice(0, 8)}): ${m}`) }
         if (s === '') { passo('niente sessione: resta com’è'); return { pc: daPc, nome: nomeDi(daPc), qui: false, messaggio: '' } }
         passo(`il riquadro guarda ${nomeDi(daPc)} (${cwd})`)
-        const casa = unaCasa.casaDi(s)
-        const quiLaHo = chatLocaliDaIndice().some((c) => c.sessione === s)
-        const copie: CopiaNota[] = [
-          ...(quiLaHo ? [{ pc: io.id, nome: io.nome }] : []),
-          ...battiti.flatMap((b) => {
-            const l = (b.locali?.chat ?? []).find((c) => c.sessione === s)
-            return l === undefined ? [] : [{ pc: b.pcId, nome: b.nome, ...(l.mtime !== undefined ? { mtime: l.mtime } : {}) }]
-          })
-        ]
-        let casaLaHa: boolean | undefined
-        let comeLoSo = ''
-        // Il battito di un PC spento o scollegato dal Drive è vecchio: non prova niente (0.65.0).
-        const casaPresente = casa === undefined || casa.pc === io.id || pcVivo(battiti.find((b) => b.pcId === casa.pc), Date.now())
-        if (casa !== undefined) {
-          const bc = battiti.find((b) => b.pcId === casa.pc)
-          if (casa.pc === io.id) { casaLaHa = quiLaHo; comeLoSo = 'questo PC' }
-          else if (bc?.locali !== undefined) { casaLaHa = bc.locali.chat.some((c) => c.sessione === s); comeLoSo = 'il suo battito (copie sul disco)' }
-          else if (bc !== undefined && bc.cartelle.length > 0 && cwd !== '') {
-            casaLaHa = bc.cartelle.some((c) => staDentro(cwd, c) || staDentro(c, cwd)) ? undefined : false
-            comeLoSo = casaLaHa === false ? `il suo battito: la cartella ${cwd} non è fra le sue` : 'il suo battito ha la cartella, ma non dice le chat'
-          }
-        }
-        passo(`casa ${casa === undefined ? 'nessuna' : `${casa.pcNome} (${casa.da}${casaPresente ? '' : ', battito vecchio: assente'})`}; copie sul disco: ${copie.length === 0 ? 'nessuna nota' : copie.map((c) => c.nome).join(', ')}; il PC di casa ${casaLaHa === true ? 'la ha' : casaLaHa === false ? 'NON la ha' : 'non si sa se la ha'}${comeLoSo !== '' ? ` (${comeLoSo})` : ''}`)
-        const d = decidiAperturaRemota({ sessione: s, casa, copie, casaLaHa, casaPresente })
-        let verso = d.pc
-        let messaggio = ''
-        // L'apertura non scrive mai una casa (0.65.0): la cambia solo Nicholas, o «Sposta / Rendi residente» confermato.
-        if (d.tipo === 'guarda-altrove') {
-          passo(`guardo ${d.nome}, la casa non cambia — ${d.perche}`)
-          messaggio = d.casa === ''
-            ? `Questa chat non ha una casa: la guardo su ${d.nome === io.nome ? 'questo PC' : d.nome}, dove c’è. Per sceglierla: 🏠 sulla testata.`
-            : `La casa di questa chat è ${d.casaNome}, ma lì la chat non c’è: la guardo su ${d.nome === io.nome ? 'questo PC' : d.nome}. La casa resta ${d.casaNome}; per cambiarla: 🏠 sulla testata.`
-        } else if (d.tipo === 'assente') {
-          passo(d.perche)
-          messaggio = `${d.nome} non risponde: la casa di questa chat resta lì.`
-        } else if (d.tipo === 'scelta-senza-copia') {
-          passo(`attenzione: ${d.perche}; la scelta di Nicholas resta`)
-          messaggio = `La casa scelta per questa chat è ${d.nome}, ma lì la chat non c’è: c’è su ${d.altrove.map((c) => c.nome).join(', ')}. La scelta è tua e non la cambio: se vuoi aprirla da lì, scegli lì la casa (🏠 sulla testata, o il pannello «Progetti»).`
-        } else {
-          passo(d.perche)
-        }
+        const reg = registroProgetti.leggi()
+        const mio = cwd !== '' ? progettoDiCwd(reg, cwd, io.id) : undefined
+        const suo = mio === undefined && cwd !== '' ? progettoDiCartella(reg, cwd) : undefined
+        let verso = mio !== undefined ? io.id : suo?.proprietario ?? daPc
+        const messaggio = ''
+        passo(mio !== undefined ? `il progetto «${mio.nome}» è di questo PC`
+          : suo?.proprietario !== undefined ? `il progetto «${suo.nome}» vive su ${nomeDi(suo.proprietario)}`
+            : 'nessun progetto noto per questa cartella: resta il PC del riquadro')
         if (verso === '') verso = daPc
         if (verso === io.id) { passo('la chat è di questo PC: il riquadro torna locale'); return { pc: io.id, nome: io.nome, qui: true, messaggio } }
         // Là, la chat è aperta? Una chiamata sola, con il suo esito nel registro.
@@ -3234,66 +2877,18 @@ if (!app.requestSingleInstanceLock()) {
         }
         return { pc: verso, nome: nomeDi(verso), qui: false, messaggio }
       })
-      // **La rimozione sicura** (0.58.0, tappa 3). Il lato del residente: confronta
-      // e riceve i recuperati, nella cartella dei recuperati del progetto.
-      // Stesso nome = stesso progetto (0.60.0): i gruppi del registro, e le
-      // cartelle di qui con il nome di un progetto che qui non è registrato.
-      // Lo stesso registro del pannello, quando c'è: il locale insieme a quello
-      // del Drive (0.68.0). Prima «Togli da questo PC» cercava solo nel locale:
-      // il pannello offriva l'azione e la rimozione rispondeva «il progetto non
-      // ha una cartella» (portatile, 12/10).
+      // Le cartelle nel recupero dei programmi (0.88.0: la copia di prima dopo
+      // «Sposta su questo PC»): si vedono e si rimettono. Mai cancellate da qui.
       let ultimoRegistroPannello: RegistroProgetti | undefined
       const registroCompleto = (): RegistroProgetti => ultimoRegistroPannello ?? registroProgetti.leggi()
-      const gruppiProgetti = (): ReturnType<typeof raggruppaProgetti> => raggruppaProgetti(registroCompleto().progetti, unaCasa.case())
-      const localiConOra = (): { cwd?: string; mtime?: number }[] => chatLocaliDaIndice().map((c) => ({ ...(c.cwd !== undefined ? { cwd: c.cwd } : {}), mtime: c.ultimoMessaggio !== undefined ? Date.parse(c.ultimoMessaggio) || 0 : 0 }))
-      const trovateQui = (): Record<string, string> => primaTrovata(cartelleTrovateQui(gruppiProgetti(), identitaPc.leggi().id, localiConOra(), existsSync))
-      /** La cartella di qui di un progetto (qualunque suo id): registrata e valida, o trovata per nome. */
+      const gruppiProgetti = (): ReturnType<typeof raggruppaProgetti> => raggruppaProgetti(registroCompleto().progetti)
+      /** La cartella di qui di un progetto: solo se e' di questo PC. */
       const cartellaQui = (progetto: string): string | undefined => {
-        const io = identitaPc.leggi().id
-        const g = gruppoDiId(gruppiProgetti(), progetto)
-        const mie = (g?.percorsi ?? []).filter((x) => x.pc === io && cartellaDiProgettoValida(x.percorso, homedir()))
-        const registrata = (mie.find((x) => existsSync(x.percorso)) ?? mie[0])?.percorso
-        if (registrata !== undefined) return registrata
-        if (g === undefined) return undefined
-        const t = trovateQui()[g.id]
-        return t !== undefined && cartellaDiProgettoValida(t, homedir()) ? t : undefined
+        const p = registroCompleto().progetti.find((x) => x.id === progetto)
+        return p !== undefined && p.proprietario === identitaPc.leggi().id ? p.percorso : undefined
       }
-      residenteRimozioneGlobale = creaLatoResidente({
-        io: () => identitaPc.leggi(),
-        cartellaDi: cartellaQui,
-        chatQui: (s) => chatLocaliDaIndice().find((c) => c.sessione === s)?.jsonl,
-        cartellaChat: (progetto) => { const p = cartellaQui(progetto); return p === undefined ? undefined : join(radiceProgetti, pathToSlug(p)) },
-        log: registro.info
-      })
-      // Il lato di chi toglie: confronto chiesto al residente, recupero, riassunto, spostamento.
-      rimozioneGlobale = creaRimozione({
-        dati,
-        io: () => identitaPc.leggi(),
-        progetto: (id) => {
-          const g = registroCompleto().progetti.find((x) => x.id === id)
-          if (g === undefined) return undefined
-          const voluto = casaDelGruppo(unaCasa.case(), gruppoDiId(gruppiProgetti(), id)?.ids ?? [id])
-          const cartella = cartellaQui(id)
-          return { id, nome: g.nome, ...(cartella !== undefined ? { cartella } : {}), ...(voluto !== undefined ? { residente: { pc: voluto.pc, nome: voluto.pcNome } } : {}) }
-        },
-        chatDi: (cartella) => chatLocaliDaIndice().filter((c) => c.cwd !== undefined && staDentro(c.cwd, cartella)).map((c) => ({ sessione: c.sessione, jsonl: c.jsonl })),
-        inUso: (cartella) => {
-          const aperta = chatAperte.find((c) => c.viva === true && staDentro(c.cwd, cartella))
-          return aperta === undefined ? undefined : `la chat «${aperta.titolo}» è aperta su questa cartella${aperta.aspetta === true ? '' : ' e sta lavorando'}`
-        },
-        chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
-        // La cartella di un progetto va nel Cestino solo se non è (né contiene) una cartella protetta (0.72.0).
-        cestino: (p) => cestinoSicuro(p, { dentro: [dirname(p)] }, (q) => shell.trashItem(q)),
-        log: registro.info,
-        avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
-      })
-      const rim = rimozioneGlobale
-      ipcMain.handle('rimozione:avvia', (_e, id: unknown) => (typeof id === 'string' ? rim.avvia(id) : undefined))
-      ipcMain.handle('rimozione:conferma', (_e, id: unknown) => (typeof id === 'string' ? rim.conferma(id) : undefined))
-      ipcMain.handle('rimozione:annulla', (_e, id: unknown) => (typeof id === 'string' ? rim.annulla(id) : undefined))
-      ipcMain.handle('rimozione:stati', () => ({ stati: rim.stati(), inRecupero: rim.inRecupero() }))
-      ipcMain.handle('rimozione:ripristina', (_e, id: unknown) => (typeof id === 'string' ? rim.ripristina(id) : { ok: false, messaggio: 'id non valido' }))
-      ipcMain.handle('rimozione:cestina', (_e, id: unknown) => (typeof id === 'string' ? rim.cestina(id) : { ok: false, messaggio: 'id non valido' }))
+      ipcMain.handle('rimozione:stati', () => ({ stati: [], inRecupero: leggiElencoRecupero(dati) }))
+      ipcMain.handle('rimozione:ripristina', (_e, id: unknown) => (typeof id === 'string' ? ripristinaDaRecupero(dati, id, new Date().toISOString()) : { ok: false, messaggio: 'id non valido' }))
       // Il pannello delle chat e dei progetti del Drive (0.58.0): stesse fonti, regole in @shared/pannello-drive.
       // Il manifesto del Drive per il pannello (0.60.2): scaricarlo e decifrarlo
       // a ogni lettura costava secondi (12 mila voci), e il pannello, riletto
@@ -3310,13 +2905,12 @@ if (!app.requestSingleInstanceLock()) {
         return { manifesto, ...(registro !== undefined ? { registro } : {}) }
       }, 60_000, () => Date.now(), 10 * 60_000)
       /**
-       * Il registro di qui più i progetti che sul Drive hanno file (solo per guardare e per «Porta qui»).
-       * `ancheVecchio` (0.80.0) solo per la vista: le azioni vogliono il Drive di adesso.
+       * Il registro di qui fuso con quello sul Drive (0.88.0): tutti i progetti,
+       * ognuno con il suo PC. `ancheVecchio` (0.80.0) solo per la vista.
        */
       const registroDelPannello = async (ancheVecchio = false): Promise<RegistroProgetti> => {
         const q = await quadroPannello(ancheVecchio)
-        const prefissi = new Set(Object.keys(q?.manifesto.file ?? {}).map((k) => k.split('/')[0] ?? ''))
-        ultimoRegistroPannello = registroConIlDrive(registroProgetti.leggi(), q?.registro, (id) => prefissi.has(prefissoProgetto(id)))
+        ultimoRegistroPannello = q?.registro === undefined ? registroProgetti.leggi() : fondiRegistri(registroProgetti.leggi(), q.registro)
         return ultimoRegistroPannello
       }
       const leggiPannello = async (ancheVecchio = false): Promise<Pannello> => {
@@ -3337,17 +2931,15 @@ if (!app.requestSingleInstanceLock()) {
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
           pc: pcPerPannello(postino.altrui(), nomeDaMostrare),
-          case: unaCasa.case(),
           locali,
           manifesto,
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
           alLavoroQui: chatAperte.filter((c) => c.viva === true && c.aspetta !== true).map((c) => c.sessione).filter((s): s is string => s !== undefined),
           titoliNoti: workspaceStore === undefined ? [] : chatSalvate(workspaceStore.leggi()).filter((c) => c.sessione !== undefined).map((c) => ({ sessione: c.sessione as string, titolo: c.titolo, cwd: c.cwd })),
-          progetti: registroVisto.progetti.map((g) => ({ id: g.id, nome: g.nome, percorsi: g.percorsi, ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}), ...(g.unitoIn !== undefined ? { unitoIn: g.unitoIn } : {}) })),
+          progetti: registroVisto.progetti.map((g) => ({ id: g.id, nome: g.nome, ...(g.proprietario !== undefined ? { proprietario: g.proprietario } : {}), ...(g.percorso !== undefined ? { percorso: g.percorso } : {}), ...(g.aggiuntoIl !== '' ? { aggiuntoIl: g.aggiuntoIl } : {}) })),
           adesso: Date.now(),
-          ...(pianoCorrente?.() !== undefined ? { piano: pianoCorrente?.() as PianoAllineamento } : {}),
           workspaceQui: workspaceStore === undefined ? [] : workspaceStore.leggi().workspace.map((w) => w.nome),
-          esiste: existsSync
+          ...(spostaGlobale !== undefined && vistaSposta(spostaGlobale.stato()) !== undefined ? { sposta: vistaSposta(spostaGlobale.stato()) } : {})
         })
         // Quanto ci mette, quando è lento: il ponte aspetta al massimo 45 secondi.
         const ms = Date.now() - inizio
@@ -3383,14 +2975,11 @@ if (!app.requestSingleInstanceLock()) {
       app.on('before-quit', () => { clearInterval(timerSpazio); clearTimeout(primoSpazio) })
       ipcMain.handle('spazio:stato', (_e, forza: unknown) => spazio.stato(forza === true))
       // La vista di ogni progetto (0.69.0): stato in una parola, gruppi, testi delle colonne.
-      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => {
+      const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: never[]; inRecupero: CartellaInRecupero[] }; spazio?: StatoSpazio }> => {
         const p = await pannelloSenzaVista()
-        const v = conVista(p, { ...(p.traslochi !== undefined ? { traslochi: p.traslochi } : {}), ...(p.residenza !== undefined ? { residenza: p.residenza } : {}), ...(p.piano !== undefined ? { piano: p.piano } : {}), rimozione: p.rimozione.stati })
-        // «Sposta su ▾» (0.71.0): i PC di arrivo di ogni progetto, decisi qui per PC, pagina e app.
-        const ora = Date.now()
-        return { ...v, progetti: v.progetti.map((r) => ({ ...r, spostaSu: destinazioniSposta(r, v.io, v.pc, ora).map((x) => ({ ...x, riassunto: riassuntoSposta(r, x) })) })) }
+        return conVista(p, { ...(p.sposta !== undefined ? { sposta: p.sposta } : {}) })
       }
-      const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }; unioni: ReturnType<Residenza['unioni']>; spazio?: StatoSpazio }> => ({
+      const pannelloSenzaVista = async (): Promise<Pannello & { rimozione: { stati: never[]; inRecupero: CartellaInRecupero[] }; spazio?: StatoSpazio }> => ({
         ...(await (async () => {
           // Solo per guardare (finestra, pagina, app): va bene il Drive di qualche minuto fa, riletto intanto.
           const p = await leggiPannello(true)
@@ -3398,225 +2987,95 @@ if (!app.requestSingleInstanceLock()) {
           return { ...p, progetti: conSpazioDrive(p.progetti, spazio.subito()?.misura?.perProgetto) }
         })()),
         ...(spazio.subito() !== undefined ? { spazio: spazio.subito() as StatoSpazio } : {}),
-        residenza: residenzaGlobale?.stati() ?? [],
-        unioni: residenzaGlobale?.unioni() ?? [],
-        // I traslochi (0.65.0): quelli che girano qui e quelli chiesti da qui a un altro PC.
-        traslochi: [
-          ...(traslocoGlobale?.elenco() ?? []),
-          ...[...traslochiSeguiti.values()].flatMap((x) => (x.ultimo === undefined || (traslocoGlobale?.stato(x.ultimo.id) !== undefined) ? [] : [x.ultimo]))
-        ].map((t) => {
-          // Il fermo detto in chiaro, con il nome scelto del PC e le due scelte (0.71.1): uguale su PC, pagina e app.
-          const battiti = postinoGlobale?.altrui() ?? []
-          const nomeDi = (pc: string): string | undefined => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined }
-          // Un trasloco che gira su un altro PC (0.86.2, audit M5): il suo errore con il nome di quel PC.
-          const io = identitaPc.leggi().id
-          const chiaro = fermoChiaro(t, nomeDi, io)
-          const visto = vistoDa(t, io, nomeDi)
-          return chiaro !== undefined ? { ...visto, fermoChiaro: chiaro } : visto
-        }),
-        rimozione: { stati: rimozioneGlobale?.stati() ?? [], inRecupero: rimozioneGlobale?.inRecupero() ?? [] }
+        // Le copie nel recupero dei programmi: si rimettono dal pannello.
+        rimozione: { stati: [], inRecupero: leggiElencoRecupero(dati) }
       })
-      // «Rendi residente» con analisi e unione (0.60.0).
-      residenzaGlobale = creaResidenza({
-        dati,
-        io: () => identitaPc.leggi(),
-        gruppo: (id) => {
-          const io = identitaPc.leggi()
-          const g = gruppoDiId(gruppiProgetti(), id)
-          if (g === undefined) return undefined
-          const valida = (p: string): boolean => cartellaDiProgettoValida(p, homedir())
-          const registrate = g.percorsi.filter((x) => x.pc === io.id && valida(x.percorso))
-          // Tutte le cartelle di qui con il nome del progetto, anche accanto a una registrata.
-          const trovate = cartelleTrovateQui(gruppiProgetti(), io.id, localiConOra(), existsSync, true)[g.id] ?? []
-          const candidati = [
-            ...registrate.map((x) => ({ percorso: x.percorso, registrata: true })),
-            ...trovate.filter(valida).map((percorso) => ({ percorso, registrata: false }))
-          ].filter((c, i, tutti) => tutti.findIndex((y) => y.percorso.toLowerCase() === c.percorso.toLowerCase()) === i)
-          const battiti = postino.altrui()
-          const nomeDi = (pc: string): string => (pc === io.id ? io.nome : battiti.find((b) => b.pcId === pc)?.nome ?? pc.slice(0, 8))
-          // I file sul Drive di un id con una cartella di qui sono il salvataggio di quella cartella: non contano due volte.
-          // Solo le cartelle che ci sono davvero (0.66.1): una registrata ma sparita
-          // (nel recupero) non è il salvataggio di niente, e la copia sul Drive va
-          // confrontata. Visto dal vero il 12/10: il trasloco del progetto di prova
-          // creava la cartella vuota e i file finivano solo nei recuperati.
-          // Chi altro ha una cartella dello stesso id: il registro di qui (che si unisce solo con «Fondi») e i battiti degli altri PC (0.66.3).
-          const altroveConCartella = [
-            ...g.percorsi.filter((p) => p.pc !== io.id).map((p) => ({ id: p.id })),
-            ...battiti.flatMap((b) => (b.locali?.progetti ?? []).filter((p) => g.ids.includes(p.id)).map((p) => ({ id: p.id })))
-          ]
-          const drive = idsDaConfrontareSulDrive(g.ids, registrate, existsSync, altroveConCartella).map((x) => {
-            const altri = g.percorsi.filter((p) => p.id === x && p.pc !== io.id).map((p) => nomeDi(p.pc))
-            return { id: x, etichetta: `sul Drive, salvata da ${altri.length > 0 ? [...new Set(altri)].join(' e ') : 'un altro PC'} (${x.slice(0, 6)})` }
-          })
-          return { id: g.id, nome: g.nome, chiave: g.chiave, ids: g.ids, candidati, nuova: join(io.cartellaProgetti, g.nome), drive }
-        },
-        manifesto: () => sincronia.manifestoDrive(),
-        leggiFileDrive: (percorso, m) => sincronia.leggiFileDrive(percorso, m),
-        chatDi: (cartella) => chatLocaliDaIndice().filter((c) => c.cwd !== undefined && dentroCartella(c.cwd, cartella)).map((c) => ({
-          sessione: c.sessione, jsonl: c.jsonl, cwd: c.cwd as string, ...(c.ultimoMessaggio !== undefined ? { mtime: Date.parse(c.ultimoMessaggio) || 0 } : {})
-        })),
-        chatDelProgetto: (id) => {
-          // Le chat del pannello attaccate al progetto: qui, sugli altri PC, sul Drive.
-          const io = identitaPc.leggi().id
-          const g = gruppoDiId(gruppiProgetti(), id)
-          const ids = new Set(g?.ids ?? [id])
-          const tutte = (ultimoPannello?.chat ?? []).filter((c) => c.progetto !== undefined && ids.has(c.progetto))
-          return { tutte: tutte.map((c) => c.sessione), altrove: tutte.filter((c) => !c.copie.some((x) => x.pc === io && x.dove === 'qui')).length }
-        },
-        cartellaTrascrizioni: (cwd) => join(radiceProgetti, pathToSlug(cwd)),
-        workspace: {
-          leggi: () => workspaceStore?.leggi() ?? { versione: 1, attivo: '', workspace: [] },
-          scrivi: (a) => workspaceStore?.scrivi(a) ?? false,
-          aperti: () => finestreDiChat().filter((w) => !w.isDestroyed()).map((w) => workspaceDellaFinestra(w.id)).filter((x): x is string => x !== undefined)
-        },
-        inUso: (cartella) => {
-          const aperta = chatAperte.find((c) => c.viva === true && dentroCartella(c.cwd, cartella))
-          return aperta === undefined ? undefined : `la chat «${aperta.titolo}» è aperta su questa cartella${aperta.aspetta === true ? '' : ' e sta lavorando'}`
-        },
-        scegliCasa: (sessioni) => { const io = identitaPc.leggi(); return ospite.scegli({ sessioni, pc: { id: io.id, nome: io.nome } }) },
-        registro: registroProgetti,
-        togliWorkspaceDalDrive: (nome) => sincronia.togliWorkspaceDalDrive(nome),
-        log: registro.info,
-        avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
-      })
-      const residenza = residenzaGlobale
-      /** L'ultimo pannello letto: le chat di ogni progetto per «Rendi residente». */
-      let ultimoPannello: Pannello | undefined
       pannelloDriveGlobale = pannelloCompleto
       ipcMain.handle('casa:pannello', () => pannelloCompleto())
-      // **Il trasloco** (0.65.0): «Sposta progetto» e «Rendi residente» in un
-      // passaggio solo, sul PC che diventa residente. Le copie vecchie vanno nel
-      // recupero solo alla fine, dopo il confronto; si ferma e riprende.
-      /** Il gruppo di un progetto: dal registro di qui, o da quello sul Drive (lo aggiunge qui). */
-      const gruppoPerTrasloco = async (id: string): Promise<ReturnType<typeof gruppoDiId>> => {
-        const g = gruppoDiId(gruppiProgetti(), id)
-        if (g !== undefined) return g
-        const dalDrive = (await registroDelPannello()).progetti.find((x) => x.id === id)
-        if (dalDrive === undefined) return undefined
-        const reg = registroProgetti.leggi()
-        if (!reg.progetti.some((x) => x.id === id)) {
-          registroProgetti.scrivi({ ...reg, progetti: [...reg.progetti, dalDrive] })
-          registro.info(`[trasloco] «${dalDrive.nome}» aggiunto al registro di questo PC dal registro sul Drive`)
-        }
-        return gruppoDiId(gruppiProgetti(), id)
+      // **«Sposta su questo PC»** (0.88.0): l'unico modo in cui un progetto
+      // cambia PC. Il proprietario ferma le chat del progetto e carica tutto;
+      // qui si scarica e si controlla file per file; solo dopo cambia il
+      // proprietario nel registro, e la copia di prima va nel recupero.
+      // Un giornale su disco: dopo un riavvio si riprende dal passo dov'era.
+      const chatApertePer = (percorso: string): { sessione?: string; alLavoro: boolean }[] =>
+        chatAperte.filter((c) => c.viva === true && staDentro(c.cwd, percorso))
+          .map((c) => ({ ...(c.sessione !== undefined ? { sessione: c.sessione } : {}), alLavoro: c.aspetta !== true }))
+      const nelRecuperoDeiProgrammi = (cartella: string, motivo: string, progetto: { id: string; nome: string }): { ok: boolean; messaggio?: string } => {
+        const e = spostaCartellaInRecupero(dati, cartella, { progetto: progetto.id, nome: progetto.nome, motivo, quando: new Date().toISOString() })
+        return e.ok ? { ok: true } : { ok: false, messaggio: e.messaggio }
       }
-      const trasloco = creaTrasloco({
-        dati,
+      const pulisciCopiaQui = (p: { progetto: { id: string; nome: string }; percorso: string }): ReturnType<typeof pulisciCopia> => pulisciCopia({
+        progetto: p.progetto,
+        percorso: p.percorso,
+        cartellaProgetti: identitaPc.leggi().cartellaProgetti,
+        chatAperte: (percorso) => chatApertePer(percorso).length,
+        gitDaSalvare,
+        manifestoDrive: () => sincronia.manifestoDrive(),
+        inRecupero: (cartella, motivo) => nelRecuperoDeiProgrammi(cartella, motivo, p.progetto)
+      })
+      pulisciCopiaGlobale = pulisciCopiaQui
+      const latoProprietario = creaLatoProprietario({
         io: () => identitaPc.leggi(),
-        progetto: async (id) => {
-          const g = await gruppoPerTrasloco(id)
-          if (g === undefined) return undefined
-          const io = identitaPc.leggi()
-          const battiti = postino.altrui()
-          // Il nome scelto del PC (0.71.1): è quello che compare nel motivo di un fermo.
-          const nomeDi = (pc: string): string => { const b = battiti.find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : pc.slice(0, 8) }
-          const ids = new Set(g.ids)
-          const conCopia = new Set([
-            ...g.percorsi.filter((x) => x.pc !== io.id).map((x) => x.pc),
-            ...battiti.filter((b) => (b.locali?.progetti ?? []).some((x) => ids.has(x.id))).map((b) => b.pcId)
-          ])
-          const voluto = casaDelGruppo(unaCasa.case(), g.ids)
-          // Le chat del progetto per l'unione e la casa: il pannello riletto adesso.
-          ultimoPannello = await leggiPannello()
-          return {
-            id: g.id, nome: g.nome, ids: g.ids,
-            altrove: [...conCopia].map((pc) => ({ pc, nome: nomeDi(pc) })),
-            ...(voluto !== undefined ? { residente: { pc: voluto.pc, nome: voluto.pcNome } } : {})
+        registro: registroProgetti,
+        chatAperte: chatApertePer,
+        fermaChat: async (percorso) => {
+          const daFermare = chatAperte.filter((c) => c.viva === true && staDentro(c.cwd, percorso))
+          for (const c of daFermare) await azioneAlleFinestre({ tipo: 'chat', azione: 'chiudi', chat: c.id }).catch(() => undefined)
+          return daFermare.length
+        },
+        salva: () => sincronia.salva(true),
+        manifestoDrive: () => sincronia.manifestoDrive(),
+        pulisci: (p) => pulisciCopiaQui({ progetto: { id: p.progetto.id, nome: p.progetto.nome }, percorso: p.percorso }),
+        log: registro.info
+      })
+      latoProprietarioGlobale = latoProprietario
+      const sposta = creaSposta({
+        io: () => identitaPc.leggi(),
+        registro: registroProgetti,
+        giornale: giornaleSuDisco(dati),
+        driveNonPronto: () => !contoDrive.stato().connesso ? 'il Drive non è collegato'
+          : sincronia.chiaveDiCasa('prova') === undefined ? 'la cassaforte è chiusa' : undefined,
+        chiamaPc: (pcId, percorso, corpo) => remoto.chiama(pcId, percorso, corpo),
+        posta: {
+          chiedi: async (pcId, comando, cwd, testoVoce) => {
+            const id = `sp-${randomUUID()}`
+            const p = await postino.aggiungi(pcId, { id, comando, cwd, testo: testoVoce })
+            return p === undefined ? undefined : id
+          },
+          esito: async (pcId, voce) => {
+            const p = await postino.posta(pcId)
+            const v = p?.voci.find((x) => x.id === voce)
+            if (v === undefined) return undefined
+            const stato = v.stato === 'consegnata' ? 'consegnata' : v.stato === 'fallita' ? 'fallita' : 'attesa'
+            return { stato, ...(v.esito !== undefined ? { esito: v.esito } : {}) }
           }
         },
-        residenza: {
-          avvia: (p, avanza) => residenza.avvia(p, avanza),
-          conferma: (p) => residenza.conferma(p),
-          stati: () => residenza.stati(),
-          annullaUnione: (id) => residenza.annullaUnione(id)
-        },
-        chiamaPc: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
-        casaA: async (progetto, pc) => {
-          const g = gruppoDiId(gruppiProgetti(), progetto)
-          const ids = new Set(g?.ids ?? [progetto])
-          const chat = (ultimoPannello?.chat ?? []).filter((c) => c.progetto !== undefined && ids.has(c.progetto)).map((c) => c.sessione)
-          return ospite.scegli({ sessioni: [...chat, ...[...ids].map((x) => `progetto:${x}`)], pc })
-        },
-        log: registro.info,
-        avvisa: () => { for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
+        manifestoDrive: () => sincronia.manifestoDrive(),
+        leggiFileDrive: (percorso, m) => sincronia.leggiFileDrive(percorso, m as Manifesto),
+        radiceChat: () => join(radiceClaude, 'projects'),
+        imparaVoci: (voci) => sincronia.imparaVoci(Object.fromEntries(voci) as Manifesto['file']),
+        salvaRegistro: async () => { await sincronia.salva(true) },
+        inRecupero: (cartella, motivo) => nelRecuperoDeiProgrammi(cartella, motivo, { id: 'sposta', nome: basename(cartella) }),
+        nomeDi: nomePcDi,
+        avanzamento: () => { mandaAlleFinestre('casa:cambiate') },
+        log: registro.info
       })
-      traslocoGlobale = trasloco
-      const timerTrasloco = setInterval(() => { trasloco.giro() }, 2 * 60_000)
-      const primoTrasloco = setTimeout(() => { trasloco.giro() }, 60_000)
-      // I traslochi chiesti da qui a un altro PC: si legge il suo stato finché lavora.
-      const fileSeguiti = join(dati, 'traslochi-seguiti.json')
-      try {
-        const g = JSON.parse(readFileSync(fileSeguiti, 'utf8')) as { id: string; pc: string; ultimo?: Trasloco }[]
-        for (const x of g) traslochiSeguiti.set(x.id, { pc: x.pc, ...(x.ultimo !== undefined ? { ultimo: x.ultimo } : {}), letto: 0 })
-      } catch { /* nessuno */ }
-      const salvaSeguiti = (): void => {
-        try { scriviJsonAtomico(fileSeguiti, [...traslochiSeguiti.entries()].map(([id, x]) => ({ id, pc: x.pc, ...(x.ultimo !== undefined ? { ultimo: x.ultimo } : {}) })), 'trasloco') } catch { /* solo un aiuto */ }
+      spostaGlobale = sposta
+      const riprendiSposta = (): void => {
+        void sposta.riprendi().then((g) => { if (g !== undefined && (g.fase === 'fatta' || g.fase === 'cambio')) void reindicizzaSessioni().catch(() => undefined) })
+          .catch((err: unknown) => registro.info(`[sposta] ripresa non riuscita: ${String(err)}`))
       }
-      const timerSeguiti = setInterval(() => {
-        // I traslochi seguiti finiti da più di sette giorni (0.86.2, audit M5): non si seguono più.
-        let tolti = false
-        for (const [id, x] of traslochiSeguiti) if (x.ultimo !== undefined && daTogliere(x.ultimo, Date.now())) { traslochiSeguiti.delete(id); tolti = true }
-        if (tolti) salvaSeguiti()
-        for (const [id, x] of traslochiSeguiti) {
-          const fermo = x.ultimo?.fermo !== undefined
-          const finitoIl = x.ultimo?.finitoIl ?? x.ultimo?.annullatoIl
-          if (finitoIl !== undefined && Date.now() - x.letto < 10 * 60_000) continue
-          if (fermo && Date.now() - x.letto < 60_000) continue
-          x.letto = Date.now()
-          void remoto.chiama(x.pc, '/api/trasloco/stato', { id }).then((t) => {
-            const nuovo = t as Trasloco | undefined
-            if (nuovo === undefined || typeof nuovo !== 'object' || nuovo.id !== id) return
-            const cambiato = JSON.stringify(nuovo) !== JSON.stringify(x.ultimo)
-            x.ultimo = nuovo
-            if (cambiato) { salvaSeguiti(); for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('casa:cambiate') }
-          }).catch(() => undefined)
-        }
-      }, 3000)
-      app.on('before-quit', () => { clearInterval(timerTrasloco); clearTimeout(primoTrasloco); clearInterval(timerSeguiti) })
-      /** «Sposta progetto» da qui verso un altro PC: il progetto sul Drive, poi lui fa il trasloco. */
-      const spostaVerso = async (progetto: string, pcId: string): Promise<{ ok: boolean; messaggio: string }> => {
-        const io = identitaPc.leggi()
-        if (pcId === io.id) return { ok: false, messaggio: 'È già questo PC.' }
-        const nome = postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId.slice(0, 8)
-        registro.info(`[trasloco] «Sposta progetto» ${progetto} verso ${nome}: prima salvo qui sul Drive`)
-        const s = await sincronia.salva()
-        if (!s.ok) return { ok: false, messaggio: `Il salvataggio sul Drive non è riuscito (${s.messaggio ?? '?'}): non chiedo niente a ${nome}. Qui non è cambiato niente.` }
-        try {
-          const r = await remoto.chiama(pcId, '/api/trasloco/avvia', { progetto, da: io.id }) as { ok?: unknown; messaggio?: unknown; trasloco?: Trasloco }
-          if (r.ok !== true || r.trasloco === undefined) return { ok: false, messaggio: `${nome} non ha avviato il trasloco: ${typeof r.messaggio === 'string' ? r.messaggio : 'nessun motivo'}. Qui non è cambiato niente.` }
-          traslochiSeguiti.set(r.trasloco.id, { pc: pcId, ultimo: r.trasloco, letto: Date.now() })
-          salvaSeguiti()
-          return { ok: true, messaggio: `${nome} ha avviato il trasloco: lo vedi qui passo per passo.` }
-        } catch (err) {
-          return { ok: false, messaggio: `${nome} non risponde (${err instanceof Error ? err.message : String(err)}): qui non è cambiato niente.` }
-        }
-      }
-      // «Sposta progetto…» dalla finestra (0.65.0): una cartella di qui (sul Drive se non c'è ancora) e il PC dove va.
-      ipcMain.handle('trasloco:sposta', async (_e, cwd: unknown, dest: unknown) => {
-        if (typeof cwd !== 'string' || typeof dest !== 'string' || cwd === '' || dest === '') return { ok: false, messaggio: 'Scegli il progetto e il PC.' }
-        const me = identitaPc.leggi().id
-        let id = progettoDiCwd(registroProgetti.leggi(), cwd, me)?.id
-        if (id === undefined) {
-          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: me, percorso: cwd, adesso: new Date().toISOString() })
-          registroProgetti.scrivi(reg)
-          registro.info(`[trasloco] «${progetto.nome}» messo sul Drive da ${cwd}, per spostarlo`)
-          id = progetto.id
-        }
-        return spostaVerso(id, dest)
+      const primaSposta = setTimeout(riprendiSposta, 40_000)
+      const timerSposta = setInterval(riprendiSposta, 60_000)
+      app.on('before-quit', () => { clearTimeout(primaSposta); clearInterval(timerSposta) })
+      ipcMain.handle('sposta:avvia', async (_e, id: unknown) => {
+        if (typeof id !== 'string' || id === '') return vistaSposta(sposta.stato())
+        const g = await sposta.avvia(id)
+        void reindicizzaSessioni().catch(() => undefined)
+        return vistaSposta(g)
       })
-      /** Riprendi, «Vai avanti senza» un PC spento (0.71.1) e Annulla tutto: qui, o sul PC dove gira. */
-      const sulTrasloco = async (azione: 'riprendi' | 'annulla' | 'senza', id: string, pc = ''): Promise<{ ok: boolean; messaggio: string }> => {
-        if (trasloco.stato(id) !== undefined) return azione === 'riprendi' ? trasloco.riprendi(id) : azione === 'senza' ? trasloco.senza(id, pc) : trasloco.annullaTutto(id)
-        const x = traslochiSeguiti.get(id)
-        if (x === undefined) return { ok: false, messaggio: 'Trasloco non trovato.' }
-        try {
-          const r = await remoto.chiama(x.pc, `/api/trasloco/${azione}`, { id, ...(azione === 'senza' ? { pc } : {}) }) as { ok?: unknown; messaggio?: unknown }
-          x.letto = 0
-          return { ok: r.ok === true, messaggio: typeof r.messaggio === 'string' ? r.messaggio : 'Fatto.' }
-        } catch (err) {
-          return { ok: false, messaggio: `Il PC dove gira il trasloco non risponde: ${err instanceof Error ? err.message : String(err)}` }
-        }
-      }
+      ipcMain.handle('sposta:stato', () => vistaSposta(sposta.stato()))
+      ipcMain.handle('sposta:chiudi', () => sposta.chiudi())
       // Il trasloco di un progetto di prova (0.65.0): anche chi collauda, solo «SierraDeck-prova-…».
       // Un progetto di prova di chi collauda, tolto da questo PC (0.69.0): la
       // cartella nel recupero (30 giorni) e la voce di questo PC fuori dal
@@ -3635,87 +3094,11 @@ if (!app.requestSingleInstanceLock()) {
         // Anche le sue conversazioni (0.75.2): restavano in ~/.claude/projects e sul Drive.
         const storie = storieDiProvaInRecupero(dati, join(homedir(), '.claude', 'projects'), cartella, { progetto: g.id, nome, quando })
         if (storie.spostate.length > 0 || storie.nonSpostate.length > 0) registro.info(`[prova] storie delle chat di «${nome}»: ${storie.spostate.length} nel recupero${storie.nonSpostate.length > 0 ? `, non spostate: ${storie.nonSpostate.join('; ')}` : ''}`)
-        const reg = registroProgetti.leggi()
-        registroProgetti.scrivi({ ...reg, progetti: reg.progetti
-          .map((p) => (g.ids.includes(p.id) ? { ...p, percorsi: Object.fromEntries(Object.entries(p.percorsi).filter(([pc]) => pc !== io.id)) } : p))
-          .filter((p) => !(g.ids.includes(p.id) && Object.keys(p.percorsi).length === 0)) })
+        let reg = registroProgetti.leggi()
+        for (const id of g.ids) reg = rimuoviProgetto(reg, id, quando)
+        registroProgetti.scrivi(reg)
         registro.info(`[prova] progetto di prova «${nome}» tolto da ${io.nome}: cartella nel recupero (${e.dove}), chiesto da chi collauda`)
         return { ok: true, messaggio: `«${nome}»: cartella${storie.spostate.length > 0 ? ` e ${storie.spostate.length} ${storie.spostate.length === 1 ? 'cartella' : 'cartelle'} di conversazioni` : ''} nel recupero per 30 giorni.` }
-      }
-      provaTraslocoGlobale = async (corpo) => {
-        const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>
-        const azione = typeof c.azione === 'string' ? c.azione : ''
-        const id = typeof c.id === 'string' ? c.id : ''
-        const progetto = typeof c.progetto === 'string' ? c.progetto : (trasloco.stato(id)?.progetto ?? traslochiSeguiti.get(id)?.ultimo?.progetto ?? '')
-        const nome = (await gruppoPerTrasloco(progetto))?.nome ?? trasloco.stato(id)?.nome ?? traslochiSeguiti.get(id)?.ultimo?.nome ?? ''
-        if (!cartellaDiProva(nome)) return { ok: false, stato: 403, messaggio: `«${nome || progetto}» non è un progetto di prova: così si traslocano solo i progetti «${PREFISSO_CARTELLA_PROVA}…». Gli altri li sposti tu.` }
-        registro.info(`[prova] trasloco del progetto di prova «${nome}» (${azione}): chiesto da chi collauda`)
-        if (azione === 'residente') { const e = await trasloco.avvia(progetto, { da: identitaPc.leggi().id, come: 'residente' }); return { ok: e.ok, messaggio: e.messaggio, ...(e.trasloco !== undefined ? { id: e.trasloco.id } : {}) } }
-        if (azione === 'sposta') return spostaVerso(progetto, typeof c.pc === 'string' ? c.pc : '')
-        if (azione === 'riprendi' || azione === 'annulla') return sulTrasloco(azione, id)
-        if (azione === 'stato') { const t = trasloco.stato(id) ?? traslochiSeguiti.get(id)?.ultimo; return { ok: t !== undefined, messaggio: t === undefined ? 'non trovato' : JSON.stringify(t) } }
-        return { ok: false, stato: 400, messaggio: 'azione sconosciuta: residente, sposta, riprendi, annulla, stato' }
-      }
-      // Il lato di questo PC quando un altro gli trasloca (o gli toglie) un progetto.
-      const idQui = (corpo: unknown): string | undefined => {
-        const ids = Array.isArray((corpo as { ids?: unknown } | undefined)?.ids) ? ((corpo as { ids: unknown[] }).ids).filter((x): x is string => typeof x === 'string') : []
-        return ids.find((x) => cartellaQui(x) !== undefined) ?? ids.find((x) => registroProgetti.leggi().progetti.some((p) => p.id === x)) ?? ids[0]
-      }
-      const togliSenzaCartella = new Map<string, { fase: string; messaggio: string }>()
-      latoTraslocoGlobale = {
-        salva: async (corpo) => {
-          // Anche questo PC segue il trasloco (0.71.0): l'avanzamento si vede su tutti i PC con una copia.
-          const c = (corpo ?? {}) as { trasloco?: unknown; verso?: unknown }
-          if (typeof c.trasloco === 'string' && typeof c.verso === 'string' && trasloco.stato(c.trasloco) === undefined && !traslochiSeguiti.has(c.trasloco)) {
-            traslochiSeguiti.set(c.trasloco, { pc: c.verso, letto: 0 })
-            salvaSeguiti()
-          }
-          const r = await sincronia.salva(); return { ok: r.ok, messaggio: r.messaggio ?? (r.ok ? 'salvato' : 'non salvato') }
-        },
-        togli: async (corpo) => {
-          const id = idQui(corpo)
-          if (id === undefined) return { ok: false, messaggio: 'manca il progetto' }
-          if (cartellaQui(id) === undefined) {
-            togliSenzaCartella.set(id, { fase: 'errore', messaggio: 'Su questo PC il progetto non ha una cartella: niente da togliere.' })
-            return { ok: true }
-          }
-          // Il residente nuovo, se la sua scelta non è ancora arrivata qui: è il trasloco confermato da Nicholas.
-          const res = (corpo as { residente?: { pc?: unknown; nome?: unknown } } | undefined)?.residente
-          const g = gruppoDiId(gruppiProgetti(), id)
-          if (typeof res?.pc === 'string' && typeof res.nome === 'string' && casaDelGruppo(unaCasa.case(), g?.ids ?? [id])?.pc !== res.pc) {
-            await unaCasa.memorizza({ [`progetto:${g?.id ?? id}`]: { pc: res.pc, pcNome: res.nome, decisaIl: new Date().toISOString(), da: 'nicholas', motivo: `trasloco confermato da Nicholas: residente ${res.nome}` } })
-          }
-          registro.info(`[trasloco] ${typeof res?.nome === 'string' ? res.nome : 'un altro PC'} è il residente nuovo di ${id}: confronto la copia di qui con la sua, copio là quello che c’è solo qui, poi la metto nel recupero`)
-          void (async () => {
-            const st = await rim.avvia(id)
-            if (st.fase === 'attesa-conferma') rim.conferma(id)
-          })().catch((err: unknown) => registro.info(`[trasloco] togli ${id}: ${String(err)}`))
-          return { ok: true }
-        },
-        'togli-stato': async (corpo) => {
-          const id = idQui(corpo)
-          if (id === undefined) return { fase: 'errore', messaggio: 'manca il progetto' }
-          const g = gruppoDiId(gruppiProgetti(), id)
-          const st = rim.stati().find((x) => x.progetto === id || (g?.ids ?? []).includes(x.progetto))
-          return st !== undefined ? { fase: st.fase, messaggio: st.messaggio } : (togliSenzaCartella.get(id) ?? { fase: 'analisi', messaggio: 'Comincio…' })
-        },
-        ripristina: async (corpo) => {
-          const id = idQui(corpo)
-          const ids = new Set(Array.isArray((corpo as { ids?: unknown } | undefined)?.ids) ? (corpo as { ids: string[] }).ids : [id ?? ''])
-          const c = rim.inRecupero().find((x) => ids.has(x.progetto) && x.ripristinataIl === undefined)
-          if (c === undefined) return { ok: false, messaggio: 'qui non c’è una copia nel recupero' }
-          return rim.ripristina(c.id)
-        },
-        avvia: async (corpo) => {
-          const c = (corpo ?? {}) as { progetto?: unknown; da?: unknown }
-          if (typeof c.progetto !== 'string' || c.progetto === '') return { ok: false, messaggio: 'manca il progetto' }
-          return trasloco.avvia(c.progetto, { da: typeof c.da === 'string' ? c.da : '', come: 'sposta' })
-        },
-        stato: async (corpo) => trasloco.stato(typeof (corpo as { id?: unknown } | undefined)?.id === 'string' ? (corpo as { id: string }).id : '') ?? {},
-        riprendi: async (corpo) => trasloco.riprendi(String((corpo as { id?: unknown } | undefined)?.id ?? '')),
-        // «Vai avanti senza» un PC spento (0.71.1), chiesto dal PC che segue il trasloco.
-        senza: async (corpo) => trasloco.senza(String((corpo as { id?: unknown } | undefined)?.id ?? ''), String((corpo as { pc?: unknown } | undefined)?.pc ?? '')),
-        annulla: async (corpo) => trasloco.annullaTutto(String((corpo as { id?: unknown } | undefined)?.id ?? ''))
       }
       /**
        * Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4), una
@@ -3730,7 +3113,6 @@ if (!app.requestSingleInstanceLock()) {
         const progetto = testoDi(c.progetto)
         const g = registroProgetti.leggi().progetti.find((x) => x.id === progetto)
         const io = identitaPc.leggi()
-        const fine = (s: StatoRimozione | undefined): { ok: boolean; messaggio: string } => ({ ok: s !== undefined && s.fase !== 'errore', messaggio: s?.messaggio ?? 'Niente da fare.' })
         // Lo spazio sul Drive (0.65.0): ogni pulizia è confermata da Nicholas, va nel recupero ed è annullabile.
         if (azione === 'spazio-misura') { await spazio.stato(true); return { ok: true, messaggio: 'Misurato adesso.' } }
         if (azione === 'spazio-pulisci') {
@@ -3752,134 +3134,28 @@ if (!app.requestSingleInstanceLock()) {
           finestraPerAprire(undefined)?.webContents.send('client:apri', { cartella })
           return { ok: true, messaggio: `Apro una chat nuova in ${cartella}.` }
         }
-        if (azione === 'porta-qui') {
-          // Anche un progetto che questo PC conosce solo dal registro sul
-          // Drive (0.60.2): «Porta qui» lo trova dal catalogo, e la fusione
-          // lo aggiunge al registro di qui.
-          const daPortare = g ?? (await registroDelPannello()).progetti.find((x) => x.id === progetto)
-          if (daPortare === undefined) return { ok: false, messaggio: 'Progetto sconosciuto: non è né nel registro di questo PC né in quello sul Drive.' }
-          registro.info(`[allinea] porta qui «${daPortare.nome}» chiesto dal pannello${g === undefined ? ' (noto solo dal registro sul Drive)' : ''}`)
-          const e = await sincronia.portaQui(progetto)
-          registro.info(`[allinea] porta qui «${daPortare.nome}»: ${e.ok ? 'fatto' : `non riuscito — ${e.messaggio}`}`)
-          return e.ok ? { ok: true, messaggio: `«${daPortare.nome}» portato qui dal Drive.` } : { ok: false, messaggio: e.messaggio }
-        }
-        // «Rendi residente qui» (0.60.0): prima l'analisi di tutte le copie e il
-        // riassunto; l'unione e il cambio di residente solo con la conferma.
-        // Analisi e unione possono durare minuti (impronte di tutti i file,
-        // scaricamenti dal Drive): partono in sottofondo, e lo stato con il
-        // riassunto compare nel pannello del PC, della pagina e dell'app.
-        // Dalla 0.65.0 «Rendi residente qui» è il trasloco: un passaggio solo, automatico,
-        // con le copie vecchie nel recupero solo alla fine e «Annulla tutto» per 30 giorni.
-        if (azione === 'residente-qui') {
-          const e = await trasloco.avvia(progetto, { da: io.id, come: 'residente' })
-          return { ok: e.ok, messaggio: e.messaggio }
-        }
-        if (azione === 'trasloco-sposta') return spostaVerso(progetto, testoDi(c.pc))
-        // «Sposta su ▾» (0.71.0): da qualsiasi PC verso qualsiasi PC. Il trasloco gira
-        // sul PC di arrivo: qui se è questo, se no per il ponte (e da qui lo si segue).
-        if (azione === 'sposta-su') {
-          const verso = testoDi(c.pc)
-          if (verso === '') return { ok: false, messaggio: 'Scegli il PC.' }
-          registro.info(`[trasloco] «Sposta su» ${g?.nome ?? progetto} verso ${verso === io.id ? 'questo PC' : (postino.altrui().find((b) => b.pcId === verso)?.nome ?? verso.slice(0, 8))}: ${comeSpostare(verso, io) === 'qui' ? 'parte qui' : 'la chiedo al PC di arrivo per il ponte'}`)
-          if (comeSpostare(verso, io) === 'qui') {
-            const e = await trasloco.avvia(progetto, { da: io.id, come: 'sposta' })
-            return { ok: e.ok, messaggio: e.messaggio }
+        // «Apri su <PC>» (0.88.0), dalla pagina e dall'app: una chat nuova nella cartella là.
+        if (azione === 'apri-remoto') {
+          if (g?.proprietario === undefined || g.proprietario === io.id || g.percorso === undefined) return { ok: false, messaggio: 'Il progetto non vive su un altro PC.' }
+          const la = nomePcDi(g.proprietario)
+          try {
+            await remoto.chiama(g.proprietario, '/api/apri', { cartella: g.percorso })
+            return { ok: true, messaggio: `Aperta una chat nuova su ${la}, in ${g.percorso}.` }
+          } catch (err) {
+            return { ok: false, messaggio: `${la} non risponde: ${err instanceof Error ? err.message : String(err)}` }
           }
-          return spostaVerso(progetto, verso)
         }
-        if (azione === 'trasloco-riprendi' || azione === 'trasloco-annulla') return sulTrasloco(azione === 'trasloco-riprendi' ? 'riprendi' : 'annulla', testoDi(c.id))
-        // «Vai avanti senza» quel PC spento (0.71.1): «Aspetta quel PC» è non fare niente, riparte da solo.
-        if (azione === 'trasloco-senza') return sulTrasloco('senza', testoDi(c.id), testoDi(c.pc))
-        if (azione === 'conferma-residenza') {
-          ultimoPannello = await leggiPannello()
-          void residenza.conferma(progetto)
-          return { ok: true, messaggio: 'Unisco: l’esito compare nel pannello quando ho finito. Niente si cancella; «Annulla l’unione» rimette tutto com’era per 30 giorni.' }
+        // «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia PC.
+        if (azione === 'sposta-qui') {
+          if (g !== undefined && g.proprietario === io.id) return { ok: false, messaggio: `«${g.nome}» è già di questo PC.` }
+          const s = await sposta.avvia(progetto)
+          return { ok: s.fase !== 'fallita', messaggio: s.messaggio }
         }
-        if (azione === 'annulla-residenza') { const st = residenza.annulla(progetto); return { ok: true, messaggio: st.messaggio } }
-        if (azione === 'annulla-unione') return residenza.annullaUnione(testoDi(c.id))
-        if (azione === 'residente') {
-          const q = (typeof c.pc === 'object' && c.pc !== null ? c.pc : {}) as Record<string, unknown>
-          // Il nome lo sa questo PC (0.61.0): quello mandato da chi chiede poteva essere
-          // «questo PC» detto da un altro, e finiva salvato come nome del residente.
-          const noto = testoDi(q.id) === io.id ? io.nome : postino.altrui().find((b) => b.pcId === testoDi(q.id))?.nome
-          const pc = { id: testoDi(q.id), nome: noto ?? testoDi(q.nome) }
-          if (pc.id === '') return { ok: false, messaggio: 'PC non valido.' }
-          const sessioni = Array.isArray(c.sessioni) ? c.sessioni.filter((x): x is string => typeof x === 'string').slice(0, 2000) : []
-          if (sessioni.length === 0) return { ok: false, messaggio: 'Niente da cambiare.' }
-          const e = await ospite.scegli({ sessioni, pc: { id: pc.id, nome: pc.nome || pc.id } })
-          // Per un progetto il messaggio parla del progetto, non di «la chat».
-          const conProgetto = sessioni.some((x) => x.startsWith('progetto:'))
-          const nomeProgetto = conProgetto ? (g?.nome ?? 'il progetto') : undefined
-          if (!e.ok || nomeProgetto === undefined) return e
-          const quante = sessioni.filter((x) => !x.startsWith('progetto:')).length
-          return { ok: true, messaggio: `«${nomeProgetto}»: residente ${pc.id === io.id ? `questo PC (${io.nome})` : pc.nome}${quante > 0 ? `, con le sue ${quante} chat` : ''}. Sugli altri PC diventa «solo cloud»: lì si toglie solo dopo il confronto con il residente e la tua conferma.` }
-        }
-        if (azione === 'solo-cloud-qui') return fine(await rimozioneGlobale?.avvia(progetto))
-        if (azione === 'conferma') return fine(rimozioneGlobale?.conferma(progetto))
-        if (azione === 'annulla') return fine(rimozioneGlobale?.annulla(progetto))
-        if (azione === 'ripristina') return rimozioneGlobale?.ripristina(testoDi(c.id)) ?? { ok: false, messaggio: 'non pronto' }
+        if (azione === 'sposta-chiudi') return { ok: sposta.chiudi(), messaggio: 'Fatto.' }
+        if (azione === 'ripristina') return ripristinaDaRecupero(dati, testoDi(c.id), new Date().toISOString())
         return { ok: false, messaggio: `Azione sconosciuta: ${azione}` }
       }
       ipcMain.handle('casa:azione', (_e, corpo: unknown) => azioneDriveGlobale?.(corpo))
-      ipcMain.handle('casa:scegli', (_e, p: unknown) => {
-        const q = (p ?? {}) as { sessioni?: unknown; pc?: unknown; workspace?: unknown }
-        const pc = (q.pc ?? {}) as { id?: unknown; nome?: unknown }
-        if (typeof pc.id !== 'string' || pc.id === '') return { ok: false, messaggio: 'PC non valido.' }
-        const sessioni = Array.isArray(q.sessioni) ? q.sessioni.filter((s): s is string => typeof s === 'string') : []
-        // `qui` = questo PC («Porta qui la chat»): il renderer non sa il suo id.
-        const scelto = pc.id === 'qui' ? identitaPc.leggi() : { id: pc.id, nome: typeof pc.nome === 'string' ? pc.nome : pc.id }
-        return ospite.scegli({ sessioni, pc: { id: scelto.id, nome: scelto.nome }, ...(typeof q.workspace === 'string' ? { workspace: q.workspace } : {}) })
-      })
-      ipcMain.handle('casa:di', (_e, s: unknown) => {
-        if (typeof s !== 'string') return undefined
-        const c = unaCasa.casaDi(s)
-        return c === undefined ? undefined : { pc: c.pc, pcNome: c.pcNome, da: c.da, motivo: c.motivo, qui: c.pc === identitaPc.leggi().id }
-      })
-      const fileMigrazione = join(dati, 'migrazione-una-casa.json')
-      let inGiroCasa = false
-      /**
-       * Il piano di allineamento di questo PC (0.58.0, tappa 2): a ogni giro lo
-       * stato voluto dei progetti contro il disco. Si mostra nel pannello e va
-       * nel registro quando cambia. L'unica cosa che parte da sola è «porta
-       * qui» quando la cartella non esiste affatto (non sovrascrive niente), una
-       * volta per progetto: niente si toglie, quella è la tappa 3.
-       */
-      const allineaQui = async (): Promise<void> => {
-        const io = identitaPc.leggi().id
-        const piano = pianoAllineamento({
-          io, case: unaCasa.case(), progetti: registroProgetti.leggi().progetti,
-          esiste: (p) => existsSync(p), home: homedir(), trovate: trovateQui(),
-          // Una cartella di qui messa nel recupero (0.60.7) vuol dire «qui no» finché non si ripristina.
-          inRecupero: progettiInRecupero(dati)
-        })
-        ultimoPiano = piano
-        const riga = rigaPiano(piano)
-        if (riga !== ultimaRigaPiano) { ultimaRigaPiano = riga; if (riga !== '') registro.info(`[allinea] ${riga}`) }
-        // Stesso nome = stesso progetto, una casa sola (0.60.0): le chat di un
-        // progetto con il residente scelto da Nicholas prendono quella casa.
-        const gruppi = gruppiProgetti()
-        const locali = chatLocaliDaIndice()
-        const altrui = postino.altrui().flatMap((b) => b.locali?.chat ?? [])
-        const armonizzate = armonizzaCase(unaCasa.case(), gruppi, (g) => [
-          ...locali.filter((c) => c.cwd !== undefined && gruppoDiCartellaQui(c.cwd, gruppi) === g.id).map((c) => c.sessione),
-          ...altrui.filter((c) => c.cwd !== undefined && gruppoDiCartellaQui(c.cwd, gruppi) === g.id).map((c) => c.sessione)
-        ])
-        if (Object.keys(armonizzate).length > 0) {
-          await unaCasa.memorizza(armonizzate)
-          registro.info(`[allinea] ${Object.keys(armonizzate).length} chat prendono la casa del loro progetto (stesso nome, stesso progetto: la scelta di Nicholas vale per tutte)`)
-        }
-        for (const a of piano.azioni) {
-          if (a.tipo !== 'porta-qui' || !a.automatica || portatiQui.has(a.progetto)) continue
-          portatiQui.add(a.progetto)
-          const e = await sincronia.portaQui(a.progetto).catch((err: unknown) => ({ ok: false, messaggio: String(err) }))
-          const perche = (e as { messaggio?: string }).messaggio ?? '?'
-          // Un lavoro sul Drive in corso passa da solo: si riprova al giro dopo (il 10/10 restava fermo per sempre).
-          const riprovo = !e.ok && daRiprovare(perche)
-          if (riprovo) portatiQui.delete(a.progetto)
-          registro.info(`[allinea] porta qui «${a.nome}» (questo PC è il residente, la cartella non c'era): ${e.ok ? 'fatto' : `non riuscito — ${perche}${riprovo ? ' (riprovo al prossimo giro)' : ''}`}`)
-          break
-        }
-      }
       /**
        * **Ogni progetto ha il suo workspace** (0.67.0, «workspace = progetto»).
        * Sul PC residente, un progetto senza un workspace con il suo nome lo
@@ -3948,121 +3224,11 @@ if (!app.requestSingleInstanceLock()) {
         return nuovi.map((n) => n.nome)
       }
       ipcMain.handle('workspace:perIProgetti', () => workspacePerIProgetti())
-      /** L'id del gruppo di una cartella: registrata o per nome. */
-      const gruppoDiCartellaQui = (cwd: string, gruppi: ReturnType<typeof raggruppaProgetti>): string | undefined => gruppoDiCartella(cwd, gruppi)?.gruppo.id
-      let ultimoPiano: PianoAllineamento | undefined
-      let ultimaRigaPiano = ''
-      const portatiQui = new Set<string>()
-      pianoCorrente = () => ultimoPiano
-      const giroCasa = async (): Promise<void> => {
-        if (inGiroCasa || sincronia.scatola() === undefined) return
-        inGiroCasa = true
-        try {
-          await unaCasa.sincronizza()
-          // Il manifesto intero si rilegge al massimo ogni quarto d'ora: e' grande, e
-          // le nascite possono aspettare. «Riordina» lo rilegge al momento.
-          if (Date.now() - indiceDriveIl > 15 * 60_000 || !existsSync(fileMigrazione)) await rileggiDrive()
-          if (!existsSync(fileMigrazione)) {
-            if (chatLocaliDaIndice().length === 0) return
-            // La migrazione, una volta per PC: le case con la regola, poi il
-            // proprietario nel manifesto (copia di sicurezza prima, verifica dopo).
-            const decise = await unaCasa.decidiTutte()
-            await unaCasa.memorizza(decise)
-            const m = await sincronia.migraUnaCasa(unaCasa.case())
-            if (m.ok) {
-              scriviJsonAtomico(fileMigrazione, { fatta: new Date().toISOString(), case: Object.keys(decise).length, proprietari: m.proprietari ?? 0, ...(m.copia !== undefined ? { copia: m.copia } : {}) }, 'migrazione')
-              registro.info(`[casa] migrazione «una chat, una casa» fatta: ${Object.keys(decise).length} case decise, ${m.proprietari ?? 0} chat con il loro PC nel manifesto${m.copia !== undefined ? `, copia di sicurezza ${m.copia}` : ''}`)
-            } else registro.info(`[casa] migrazione non fatta (riprovo al prossimo giro): ${m.messaggio ?? '?'}`)
-            return
-          }
-          await unaCasa.nascite((s) => indiceDrive.has(s))
-          // Le case arrivate dal Drive si fanno rispettare subito (0.52.0).
-          await ospite.giro()
-          // L'allineamento ai residenti dei progetti (0.58.0, tappa 2).
-          await allineaQui()
-          // Ogni progetto ha il suo workspace (0.67.0), ogni dieci minuti.
-          if (Date.now() - ultimoGiroWorkspaceProgetti > 10 * 60_000) { ultimoGiroWorkspaceProgetti = Date.now(); await workspacePerIProgetti() }
-        } catch (err) {
-          registro.info(`[casa] giro non riuscito: ${String(err)}`)
-        } finally {
-          inGiroCasa = false
-        }
-      }
-      let ultimoGiroWorkspaceProgetti = 0
-      const timerCasa = setInterval(() => { void giroCasa() }, 2 * 60_000)
-      const primoCasa = setTimeout(() => { void giroCasa() }, 45_000)
-      app.on('before-quit', () => { clearInterval(timerCasa); clearTimeout(primoCasa) })
-
-      ipcMain.handle('casa:proposte', async () => { await rileggiDrive().catch(() => undefined); return unaCasa.proposte() })
-      ipcMain.handle('casa:riordina', (_e, sessioni: unknown) =>
-        unaCasa.riordina(Array.isArray(sessioni) ? sessioni.filter((s): s is string => typeof s === 'string') : []))
-      ipcMain.handle('casa:riordini', () => unaCasa.riordini())
-      ipcMain.handle('casa:annulla', (_e, id: unknown) => unaCasa.annulla(typeof id === 'string' ? id : ''))
-      ipcMain.handle('casa:stato', () => {
-        let migrazione: unknown = undefined
-        try { migrazione = JSON.parse(readFileSync(fileMigrazione, 'utf8')) } catch { migrazione = undefined }
-        const c = unaCasa.case().case
-        const io = identitaPc.leggi().id
-        return { migrazione, case: Object.keys(c).length, qui: Object.values(c).filter((x) => x.pc === io).length }
-      })
-
-      // «Sposta progetto» (0.42.0): la procedura a passi, dal PC dove sta il progetto.
-      const sposta = creaSpostaProgetto({
-        io: () => identitaPc.leggi(),
-        unaCasa,
-        chatLocali: chatLocaliDaIndice,
-        aperte: () => chatAperte.map((c) => ({ cwd: c.cwd, alLavoro: c.viva === true && c.aspetta !== true, ...(c.sessione !== undefined ? { sessione: c.sessione } : {}) })),
-        autopilotiAlLavoro: async (cwd) => {
-          const tutti = await clientAutopilota.elenca().catch(() => [])
-          return tutti.filter((a) => (a.stato === 'lavoro' || a.stato === 'intervista' || a.stato === 'attesa') && staDentro(a.cwd, cwd)).length
-        },
-        driveCollegato: () => contoDrive.stato().connesso,
-        cassaforteAperta: () => sincronia.chiaveDiCasa('prova') !== undefined,
-        altriPc: () => postino.altrui().map((b) => ({ pcId: b.pcId, nome: b.nome })),
-        chiamaPc: (pcId, percorso, corpo) => remoto.chiama(pcId, percorso, corpo),
-        stradaDi: (pcId) => { const s = remoto.stradaDi(pcId); return s === undefined ? undefined : stradaBreve(s.strada) },
-        progettoSulDrive: (cwd, metti) => {
-          const me = identitaPc.leggi().id
-          const gia = progettoDiCwd(registroProgetti.leggi(), cwd, me)
-          if (gia !== undefined) return { id: gia.id }
-          if (!metti) return {}
-          const { registro: reg, progetto } = aggiungiProgetto(registroProgetti.leggi(), { pcId: me, percorso: cwd, adesso: new Date().toISOString() })
-          registroProgetti.scrivi(reg)
-          registro.info(`[sposta] «${progetto.nome}» messo sul Drive da ${cwd}, per spostarlo`)
-          return { id: progetto.id, appenaMesso: true }
-        },
-        salva: () => sincronia.salva(),
-        log: registro.info
-      })
-      ipcMain.handle('sposta:progetti', () => sposta.progetti())
-      ipcMain.handle('sposta:pc', () => postino.altrui().map((b) => ({ pcId: b.pcId, nome: b.nome, versione: b.versione, battito: b.battito })))
-      ipcMain.handle('sposta:controlli', (_e, cwd: unknown, dest: unknown) => sposta.controlli(testo(cwd), testo(dest)))
-      ipcMain.handle('sposta:trasferisci', (_e, cwd: unknown, dest: unknown, metti: unknown) => sposta.trasferisci(testo(cwd), testo(dest), metti === true))
-      ipcMain.handle('sposta:verifica', (_e, cwd: unknown, dest: unknown) => sposta.verifica(testo(cwd), testo(dest)))
-      ipcMain.handle('sposta:casa', (_e, cwd: unknown, dest: unknown) => sposta.cambiaCasa(testo(cwd), testo(dest)))
-      ipcMain.handle('sposta:archivia', (_e, cwd: unknown, dest: unknown) => sposta.archivia(testo(cwd), testo(dest)))
-      // Dal lato di chi riceve: le rotte del Client per gli altri PC.
-      spostaGlobale = {
-        pronto: () => ({ versione: app.getVersion(), nome: identitaPc.leggi().nome }),
-        async ricevi(corpo) {
-          const c = (corpo ?? {}) as { progetto?: unknown; sessioni?: unknown; daNome?: unknown }
-          const progetto = typeof c.progetto === 'string' ? c.progetto : ''
-          const sessioni = Array.isArray(c.sessioni) ? c.sessioni.filter((s): s is string => typeof s === 'string') : []
-          if (progetto === '') return { ok: false, messaggio: 'manca il progetto' }
-          registro.info(`[sposta] ${typeof c.daNome === 'string' ? c.daNome : 'un altro PC'} mi sposta il progetto ${progetto} (${sessioni.length} chat): lo porto qui`)
-          const r = await sincronia.portaQui(progetto)
-          if (!r.ok) return { ok: false, messaggio: r.messaggio ?? 'Porta qui non riuscito' }
-          rimappaChat()
-          const io = identitaPc.leggi()
-          const nuove: Record<string, CasaChat> = {}
-          for (const s of sessioni) nuove[s] = { pc: io.id, pcNome: io.nome, decisaIl: new Date().toISOString(), da: 'sposta', motivo: `spostata su ${io.nome} con «Sposta progetto»` }
-          await unaCasa.memorizza(nuove)
-          const p = registroProgetti.leggi().progetti.find((x) => x.id === progetto)
-          return { ok: true, ...(p?.percorsi[io.id] !== undefined ? { cartella: p.percorsi[io.id] } : {}) }
-        },
-        verifica: async (sessioni) => ({ file: await impronteSessioni(radiceProgetti, sessioni) })
-      }
-      // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
+      // Ogni progetto di questo PC ha il suo workspace (0.67.0): ogni dieci minuti.
+      const primoWorkspaceProgetti = setTimeout(() => { void workspacePerIProgetti().catch(() => undefined) }, 60_000)
+      const timerWorkspaceProgetti = setInterval(() => { void workspacePerIProgetti().catch(() => undefined) }, 10 * 60_000)
+      app.on('before-quit', () => { clearTimeout(primoWorkspaceProgetti); clearInterval(timerWorkspaceProgetti) })
+      // Due giri sul Drive nello      // Sfalsato rispetto alla ronda dei progetti: due giri sul Drive nello
       // stesso istante non servono a nessuno.
       const timerPosta = setInterval(() => { void postino.giro() }, 30_000)
       const primaPosta = setTimeout(() => { void postino.giro() }, 25_000)
@@ -4083,17 +3249,6 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('posta:togli', (_e, pc: unknown, voce: unknown) =>
         typeof pc === 'string' && typeof voce === 'string' ? postino.togli(pc, voce) : Promise.resolve(undefined))
       ipcMain.handle('posta:pulisci', (_e, pc: unknown) => (typeof pc === 'string' ? postino.pulisci(pc) : Promise.resolve(undefined)))
-      presenzaAltrove = (cwd) => {
-        const s = ronda.statoDiCwd(cwd)
-        return s?.chi === 'altro' ? (s.pcNome ?? 'un altro PC') : undefined
-      }
-      impostaPrimaDiAprire((cwd) => ronda.primaDiAprire(cwd))
-      // La cartella di una chat che qui non c'e' (nata su un altro PC e
-      // arrivata dal Drive): si decide adesso dove lavora, si crea la
-      // cartella, si ricorda l'origine e si copia la trascrizione sotto il
-      // nuovo slug, o `--resume` ripartirebbe da zero. Qualunque intoppo
-      // lascia la cartella chiesta: meglio l'errore di prima che una chat
-      // che non si apre per un motivo nuovo.
       /**
        * La cartella e' **di un altro PC**? Tre fonti, in ordine di
        * precisione: il battito di quel PC sul Drive (le sue cartelle, le sue
@@ -4105,6 +3260,9 @@ if (!app.requestSingleInstanceLock()) {
        */
       const GIORNI_VIVA = 7
       const altrove = (cwd: string): { id: string; nome: string } | undefined => {
+        // Un progetto, un PC (0.88.0): il registro dice di chi e' il progetto.
+        const prop = proprietarioAltrove(cwd)
+        if (prop !== undefined) return { id: prop.id, nome: prop.nome }
         // **Una cartella che esiste su questo PC e' di questo PC.** Il registro
         // dei progetti puo' dire che «un altro PC» usa lo stesso percorso (i
         // due PC hanno lo stesso utente, o l'altro id e' un vecchio id di
@@ -4116,14 +3274,6 @@ if (!app.requestSingleInstanceLock()) {
         const me = identitaPc.leggi().id
         const b = pcCheHaLaCartella(cwd, postino.altrui(), me)
         if (b !== undefined) return { id: b.pcId, nome: b.nome }
-        for (const p of registroProgetti.leggi().progetti) {
-          for (const [pc, percorso] of Object.entries(p.percorsi)) {
-            if (pc !== me && staSottoCartella(cwd, percorso)) {
-              const noto = postino.altrui().find((x) => x.pcId === pc)
-              return { id: pc, nome: noto?.nome ?? 'un altro PC' }
-            }
-          }
-        }
         if (sincronia.slugRecenti(GIORNI_VIVA * 86_400_000).has(pathToSlug(cwd))) return { id: '', nome: 'un altro PC' }
         return undefined
       }
@@ -4142,9 +3292,10 @@ if (!app.requestSingleInstanceLock()) {
           const trascrizioneQui =
             sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
           const di = cartellaQui ? undefined : altrove(cwd)
-          // La casa memorizzata prima di tutto (0.52.0).
-          const casa = sessione !== undefined ? ospiteGlobale?.casaAltroveDi(sessione) : undefined
-          const casaQui = sessione !== undefined && ospiteGlobale?.casaQui(sessione) === true
+          // Il PC del progetto prima di tutto (0.88.0): un progetto, un PC.
+          const prop = proprietarioAltrove(cwd)
+          const casa = prop !== undefined ? { id: prop.id, nome: prop.nome, motivo: `«${prop.progetto}» vive là` } : undefined
+          const casaQui = progettoDiCwd(registroProgetti.leggi(), cwd, io) !== undefined
           const dati = {
             ...(sessione !== undefined ? { sessione } : {}),
             ...(casa !== undefined ? { casa } : {}),
@@ -4184,227 +3335,48 @@ if (!app.requestSingleInstanceLock()) {
         }
         return fuori
       })
-      /** Dove lavora qui una chat con quella cartella: decide, crea la cartella, scrive il registro. */
-      /**
-       * «Documenti» spostata (Proprieta' → Percorso → Sposta): Windows cambia
-       * la cartella di sistema, ma le chat tengono dentro il percorso di
-       * prima. Se differiscono, la radice vecchia (quella predefinita sotto
-       * il profilo) si traduce nella nuova quando la sottocartella esiste li'.
-       */
-      const radiciSpostate = (): { da: string; a: string }[] => {
-        const vecchia = join(homedir(), 'Documents')
-        const nuova = app.getPath('documents')
-        return resolve(vecchia).toLowerCase() === resolve(nuova).toLowerCase() ? [] : [{ da: vecchia, a: nuova }]
-      }
-      const risolviSuDisco = (cwd: string, forza = false): CartellaDiChat | undefined => {
-        try {
-          if (existsSync(cwd)) return { cwd, motivo: 'esiste' }
-          const pc = identitaPc.leggi()
-          const r = risolviCartellaDiChat({
-            cwd, registro: registroProgetti.leggi(), pcId: pc.id, cartellaProgetti: pc.cartellaProgetti,
-            esiste: existsSync, adesso: new Date().toISOString(), altrove, forza, radiciSpostate: radiciSpostate()
-          })
-          if (r.motivo === 'altrove' || r.motivo === 'spostata') return r
-          // Prima la cartella, poi il registro: se la cartella non si crea
-          // (disco scollegato) la riga nel registro farebbe adottare la stessa
-          // origine di nuovo a ogni tentativo.
-          mkdirSync(r.cwd, { recursive: true })
-          if (r.registro !== undefined) registroProgetti.scrivi(r.registro)
-          return r
-        } catch (err) {
-          registro.errore(`[progetti] cartella di ${cwd} non risolta: ${String(err)}`)
-          return undefined
-        }
-      }
-      impostaRisolviCartella((cwdChiesta, sessione, forza) => {
+      /** Dove lavora una chat: qui se la cartella c'e', altrove se il progetto e' di un altro PC. */
+      impostaRisolviCartella((cwdChiesta, sessione) => {
         // La cartella vera della chat e' dove sta la sua trascrizione: se il
-        // riquadro chiede una cartella che esiste ma non ha questa
-        // conversazione (una chat tornata al suo posto, un riquadro con la
-        // cartella vecchia), si parte da quella dell'indice. Senza, Claude
-        // Code partirebbe con `--session-id` nuovo: una chat vuota al posto
-        // della sua.
+        // riquadro chiede una cartella che non ha questa conversazione, si
+        // parte da quella dell'indice. Senza, Claude Code partirebbe con
+        // `--session-id` nuovo: una chat vuota al posto della sua.
         let cwd = cwdChiesta
         if (db !== undefined && !existsSync(join(radiceClaude, 'projects', pathToSlug(cwdChiesta), `${sessione}.jsonl`))) {
           const nota = listSessions(db).find((s) => s.uuid === sessione)
           if (nota?.cwd !== undefined && nota.cwd !== '' && nota.cwd !== cwdChiesta) cwd = nota.cwd
         }
-        const r = risolviSuDisco(cwd, forza)
-        if (r === undefined || r.motivo === 'esiste') return cwd
-        if (r.motivo === 'altrove') {
-          registro.info(`[progetti] la chat ${sessione} lavora in ${cwd}, che e' di ${r.pc?.nome ?? 'un altro PC'}: non la apro qui`)
-          return { altrove: true, cwd, pc: r.pc ?? { id: '', nome: 'un altro PC' } }
+        const di = altrove(cwd)
+        if (di !== undefined && di.id !== '') {
+          registro.info(`[progetti] la chat ${sessione} lavora in ${cwd}, che e' di ${di.nome}: non la apro qui`)
+          return { altrove: true, cwd, pc: di }
         }
-        try {
-          const da = join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)
-          const a = join(radiceClaude, 'projects', pathToSlug(r.cwd), `${sessione}.jsonl`)
-          if (existsSync(da) && !existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); copyFileSync(da, a) }
-          spostaSidecar(pathToSlug(cwd), pathToSlug(r.cwd), sessione)
-        } catch (err) {
-          registro.errore(`[progetti] trascrizione ${sessione} non copiata sotto ${r.cwd}: ${String(err)}`)
-        }
-        registro.info(`[progetti] la cartella ${cwd} qui non c'e': la chat ${sessione} lavora in ${r.cwd} (${r.motivo === 'adottata' ? `progetto «${r.nome ?? ''}» adottato, origine ricordata` : r.motivo === 'spostata' ? 'la cartella Documenti si e spostata' : `progetto «${r.nome ?? ''}» gia' noto`})`)
-        return r.cwd
+        return cwd
       })
 
-      /**
-       * Accanto a `<uuid>.jsonl` Claude Code tiene una cartella `<uuid>/`
-       * (i subagenti, i risultati grossi): va con la chat, o resta orfana
-       * sotto lo slug vecchio e i subagenti di una chat spostata spariscono.
-       * Se la destinazione c'e' gia', si portano solo i file che le mancano.
-       */
-      const spostaSidecar = (slugDa: string, slugA: string, uuid: string): void => {
-        const da = join(radiceClaude, 'projects', slugDa, uuid)
-        const a = join(radiceClaude, 'projects', slugA, uuid)
-        if (!existsSync(da) || slugDa === slugA) return
-        try {
-          if (!existsSync(a)) { mkdirSync(dirname(a), { recursive: true }); renameSync(da, a); return }
-          const porta = (sotto: string): void => {
-            const s = join(da, sotto)
-            if (!existsSync(s)) return
-            const d = join(a, sotto)
-            mkdirSync(d, { recursive: true })
-            for (const nome of readdirSync(s)) {
-              if (!existsSync(join(d, nome))) renameSync(join(s, nome), join(d, nome))
-            }
-            try { rmdirSync(s) } catch { /* non vuota: resta */ }
-          }
-          for (const nome of readdirSync(da)) porta(nome)
-          try { rmdirSync(da) } catch { /* non vuota: resta */ }
-        } catch (err) {
-          registro.errore(`[progetti] cartella dei subagenti di ${uuid} non spostata sotto ${slugA}: ${String(err)}`)
-        }
-      }
-
-      /**
-       * Una trascrizione copiata riga per riga con il `cwd` portato nella
-       * cartella di qui. A flusso, con la contropressione: una chat puo'
-       * pesare decine di MB.
-       */
-      const riscriviTrascrizione = async (da: string, a: string, cwdDa: string, cwdA: string): Promise<void> => {
-        const out = createWriteStream(a)
-        const rl = createInterface({ input: createReadStream(da, { encoding: 'utf8' }), crlfDelay: Infinity })
-        try {
-          for await (const riga of rl) {
-            if (!out.write(riscriviCwdRiga(riga, cwdDa, cwdA) + '\n')) await once(out, 'drain')
-          }
-        } finally {
-          out.end()
-        }
-        await once(out, 'finish')
-      }
-
-      /**
-       * Tutte le chat sul disco con la cartella di un altro PC, portate nelle
-       * cartelle di qui: all'avvio e dopo ogni lavoro con il Drive che ha
-       * scaricato qualcosa. La trascrizione si sposta sotto lo slug di qui
-       * (col `cwd` riscritto) e quella sotto lo slug dell'altro PC si toglie;
-       * se qui ce n'e' gia' una piu' lunga, resta quella. Torna quante ne ha
-       * spostate.
-       */
-      let rimappaturaInCorso: Promise<number> | undefined
-      const rimappaChatSulDisco = (): Promise<number> => {
-        // In fila: all'avvio e un minuto dopo (il primo arrivo) partivano
-        // insieme, con lo stesso nome di temporaneo, e si pestavano i piedi.
-        const dopo = (rimappaturaInCorso ?? Promise.resolve(0)).then(() => rimappaDavvero(), () => rimappaDavvero())
-        rimappaturaInCorso = dopo
-        return dopo
-      }
-      const rimappaDavvero = async (): Promise<number> => {
-        if (db === undefined) return 0
-        const chat = listSessions(db).map((s) => ({ uuid: s.uuid, cwd: s.cwd, jsonlPath: s.jsonlPath }))
-        const radiceProjects = join(radiceClaude, 'projects')
-        // Le chat con la cartella di un altro PC restano sue: `risolvi` non
-        // da' una destinazione, e il piano le salta.
-        const piano = pianificaRimappatura({
-          chat, radiceProjects, esiste: existsSync,
-          risolvi: (cwd) => { const r = risolviSuDisco(cwd); return r === undefined || r.motivo === 'altrove' ? undefined : r.cwd }
-        })
-        // E le chat rapite prima di questa regola tornano al loro posto.
-        const ritorno = pianificaRitorno({
-          chat, radiceProjects, registro: registroProgetti.leggi(), pcId: identitaPc.leggi().id, altrove, esiste: existsSync
-        })
-        const tornate = await spostaTutte(ritorno)
-        if (tornate > 0) registro.info(`[progetti] ${tornate} chat tornate nella cartella del loro PC (erano state adottate qui in una cartella vuota: ${[...new Set(ritorno.map((m) => m.a))].slice(0, 5).join(', ')})`)
-        const fatte = await spostaTutte(piano)
-        if (fatte > 0) registro.info(`[progetti] ${fatte} chat rimappate nelle cartelle di qui (${new Set(piano.map((m) => m.a)).size} cartelle: ${[...new Set(piano.map((m) => m.a))].slice(0, 5).join(', ')})`)
-        return fatte + tornate
-      }
-      const spostaTutte = async (piano: Spostamento[]): Promise<number> => {
-        let fatte = 0
-        for (const m of piano) {
-          try {
-            const sDa = await statAsync(m.jsonlDa).catch(() => undefined)
-            if (sDa === undefined) continue
-            await mkdirAsync(dirname(m.jsonlA), { recursive: true })
-            const sA = await statAsync(m.jsonlA).catch(() => undefined)
-            if (sA === undefined || sA.size < sDa.size) {
-              const temp = `${m.jsonlA}.rimappa-${process.pid}-${m.uuid.slice(0, 8)}`
-              try {
-                await riscriviTrascrizione(m.jsonlDa, temp, m.da, m.a)
-                await renameAsync(temp, m.jsonlA)
-              } catch (err) {
-                // Il temporaneo non deve restare in ~/.claude/projects.
-                await unlinkAsync(temp).catch(() => undefined)
-                throw err
-              }
-              await utimesAsync(m.jsonlA, sDa.atime, sDa.mtime).catch(() => undefined)
-            }
-            await unlinkAsync(m.jsonlDa)
-            spostaSidecar(pathToSlug(m.da), pathToSlug(m.a), m.uuid)
-            fatte += 1
-          } catch (err) {
-            registro.errore(`[progetti] chat ${m.uuid} non rimappata da ${m.da} a ${m.a}: ${String(err)}`)
-          }
-        }
-        return fatte
-      }
-      const timerRonda = setInterval(() => { void ronda.giro() }, 30_000)
-      timerRonda.unref?.()
-      const primaRonda = setTimeout(() => { void ronda.giro() }, 15_000)
-      primaRonda.unref?.()
-      ipcMain.handle('progetti:stati', () => ronda.stati())
+      ipcMain.handle('progetti:stati', () => [])
       // Le chat di un progetto, per scegliere a chi va un comando della coda.
       ipcMain.handle('progetti:chatDi', (_e, rawId: unknown) => {
         if (typeof rawId !== 'string' || workspaceStore === undefined) return []
         const p = registroProgetti.leggi().progetti.find((x) => x.id === rawId)
-        const mio = p?.percorsi[identitaPc.leggi().id]
+        const mio = p?.proprietario === identitaPc.leggi().id ? p.percorso : undefined
         if (p === undefined || mio === undefined) return []
         return chatSalvate(workspaceStore.leggi())
           .filter((c) => staDentro(c.cwd, mio))
           .map((c) => ({ sessione: c.sessione, titolo: c.titolo, workspace: c.workspace }))
       })
-      ipcMain.handle('progetti:coda', (_e, rawId: unknown) =>
-        typeof rawId === 'string' ? ronda.coda(rawId) : Promise.resolve(undefined))
-      ipcMain.handle('progetti:codaAggiungi', (_e, rawId: unknown, testo: unknown, sessione: unknown) =>
-        typeof rawId === 'string' && typeof testo === 'string'
-          ? ronda.aggiungiInCoda(rawId, testo, typeof sessione === 'string' ? sessione : undefined)
-          : Promise.resolve(undefined))
-      ipcMain.handle('progetti:codaModifica', (_e, rawId: unknown, voceId: unknown, testo: unknown, sessione: unknown) =>
-        typeof rawId === 'string' && typeof voceId === 'string' && typeof testo === 'string'
-          ? ronda.modificaInCoda(rawId, voceId, testo, typeof sessione === 'string' ? sessione : undefined)
-          : Promise.resolve(undefined))
-      ipcMain.handle('progetti:codaTogli', (_e, rawId: unknown, voceId: unknown) =>
-        typeof rawId === 'string' && typeof voceId === 'string' ? ronda.togliDallaCoda(rawId, voceId) : Promise.resolve(undefined))
-      ipcMain.handle('progetti:codaPulisci', (_e, rawId: unknown) =>
-        typeof rawId === 'string' ? ronda.pulisciCoda(rawId) : Promise.resolve(undefined))
-      ipcMain.handle('progetti:prendiTestimone', async (_e, rawId: unknown, forza: unknown) => {
-        if (typeof rawId !== 'string' || rawId === '') return { ok: false, messaggio: 'richiesta non valida' }
-        const esito = await ronda.prendiTestimone(rawId, forza === true)
-        if (esito.ok) rimappaChat()
-        return esito
-      })
-
       // I progetti sul Drive, per il pannello Account.
       const elencoProgetti = (): {
         pc: { id: string; nome: string; cartellaProgetti: string }
-        progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+        progetti: { id: string; nome: string; locale?: string; altrove: number; su?: string }[]
       } => {
         const pc = identitaPc.leggi()
         const progetti = registroProgetti.leggi().progetti.map((p: ProgettoDrive) => ({
           id: p.id,
           nome: p.nome,
-          ...(p.percorsi[pc.id] !== undefined ? { locale: p.percorsi[pc.id] as string } : {}),
-          altrove: Object.keys(p.percorsi).filter((k) => k !== pc.id).length
+          ...(p.proprietario === pc.id && p.percorso !== undefined ? { locale: p.percorso } : {}),
+          altrove: p.proprietario !== undefined && p.proprietario !== pc.id ? 1 : 0,
+          ...(p.proprietario !== undefined && p.proprietario !== pc.id ? { su: nomePcDi(p.proprietario) } : {})
         }))
         return { pc, progetti }
       }
@@ -4456,16 +3428,6 @@ if (!app.requestSingleInstanceLock()) {
           return false
         }
       })
-      ipcMain.handle('progetti:collega', async (event, rawId: unknown) => {
-        if (typeof rawId === 'string' && rawId !== '') {
-          const percorso = await scegliCartellaDa(event, 'Dove sta questo progetto su questo PC')
-          if (percorso !== undefined) {
-            registroProgetti.scrivi(collegaProgetto(registroProgetti.leggi(), rawId, identitaPc.leggi().id, percorso))
-            rimappaChat()
-          }
-        }
-        return elencoProgetti()
-      })
       ipcMain.handle('progetti:rimuovi', async (_e, rawId: unknown) => {
         if (typeof rawId !== 'string' || rawId === '') return elencoProgetti()
         const nome = registroProgetti.leggi().progetti.find((p) => p.id === rawId)?.nome ?? rawId
@@ -4503,24 +3465,6 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('sync:annullaLavoro', () => lavoro.annulla())
       ipcMain.handle('sync:adottaCassaforteDelDrive', () => sincronia.adottaCassaforteDelDrive())
       ipcMain.handle('sync:cambiatoDrive', () => { sincronia.cambiatoDrive() })
-      ipcMain.handle('sync:anteprimaFusione', (_e, pw: unknown) =>
-        sincronia.anteprimaFusione(typeof pw === 'string' && pw !== '' ? pw : undefined))
-      ipcMain.handle('sync:eseguiFusione', async (_e, rawScelte: unknown, pw: unknown) => {
-        if (typeof rawScelte !== 'object' || rawScelte === null) return { ok: false, messaggio: 'richiesta non valida' }
-        const s = rawScelte as { voci?: unknown; workspace?: unknown }
-        const voci: Record<string, 'carica' | 'scarica' | 'copia' | 'salta'> = {}
-        if (typeof s.voci === 'object' && s.voci !== null) {
-          for (const [k, v] of Object.entries(s.voci as Record<string, unknown>)) {
-            if (v === 'carica' || v === 'scarica' || v === 'copia' || v === 'salta') voci[k] = v
-          }
-        }
-        const w = (typeof s.workspace === 'object' && s.workspace !== null ? s.workspace : {}) as { modo?: unknown; escludi?: unknown }
-        const modo = w.modo === 'pc' || w.modo === 'drive' ? w.modo : 'unione'
-        const escludi = Array.isArray(w.escludi) ? w.escludi.filter((x): x is string => typeof x === 'string') : []
-        const esito = await sincronia.eseguiFusione({ voci, workspace: { modo, escludi } }, typeof pw === 'string' && pw !== '' ? pw : undefined)
-        if (esito.ok) rimappaChat()
-        return esito
-      })
       // La lettura del Drive racconta le sue fasi alla finestra che l'ha chiesta:
       // e' lei che tiene aperta la finestra di attesa con la barra.
       ipcMain.handle('sync:catalogo', (e) => sincronia.catalogo((p) => {
@@ -4551,26 +3495,12 @@ if (!app.requestSingleInstanceLock()) {
         if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
         return sincronia.rimettiWorkspaceSulDrive(nome)
       })
-      ipcMain.handle('sync:portaQuiWorkspace', async (_e, nome: unknown) => {
-        if (typeof nome !== 'string' || nome === '') return { ok: false, messaggio: 'richiesta non valida' }
-        const esito = await sincronia.portaQuiWorkspace(nome)
-        if (esito.ok) rimappaChat()
-        return esito
-      })
-      ipcMain.handle('sync:portaQui', async (_e, chiave: unknown) => {
-        if (typeof chiave !== 'string' || chiave === '') return { ok: false, messaggio: 'richiesta non valida' }
-        const esito = await sincronia.portaQui(chiave)
-        if (esito.ok) rimappaChat()
-        return esito
-      })
       ipcMain.handle('sync:provaPassphraseSulDrive', (_e, pw: unknown) =>
         typeof pw === 'string' ? sincronia.provaPassphraseSulDrive(pw) : Promise.resolve({ ok: false, messaggio: 'richiesta non valida' }))
       ipcMain.handle('sync:salva', (_e, forza: unknown) => sincronia.salva(forza === true))
       ipcMain.handle('sync:ripristina', async () => {
-        const esito = await sincronia.ripristina()
-        // Le chat appena arrivate, nelle cartelle di qui.
-        if (esito.ok) rimappaChat()
-        return esito
+        // Solo i progetti di questo PC (0.88.0): quelli degli altri non scendono qui.
+        return sincronia.ripristina()
       })
       ipcMain.handle('sync:auto', (_e, attivo: unknown) =>
         sincronia.auto(typeof attivo === 'boolean' ? attivo : undefined))
@@ -5327,12 +4257,10 @@ if (!app.requestSingleInstanceLock()) {
           }
           const autopiloti = autopilotiPerChat.elenco
           const aperte = [...chatAperte, ...(sottofondo?.chat() ?? []).filter((c) => !chatAperte.some((x) => x.sessione === c.sessione))]
-          const casa = unaCasaGlobale?.casaDi(sessione)
-          const progettoAltrove = cwd !== undefined && !existsSync(cwd) ? altroveRiquadro(cwd)?.nome : undefined
+          const progettoAltrove = cwd !== undefined ? altroveRiquadro(cwd)?.nome : undefined
           const pinChiusa = visore !== undefined && guardianoPin !== undefined && guardianoPin.protetta({ sessione }) && guardianoPin.chiusa(visore, { sessione })
           const st = statoPerAzione({
             sessione, aperte, autopiloti: autopiloti ?? [], io: identitaPcGlobale?.leggi().id ?? '',
-            ...(casa !== undefined ? { casa: { pc: casa.pc, pcNome: casa.pcNome } } : {}),
             ...(progettoAltrove !== undefined ? { progettoAltrove } : {}),
             pinChiusa,
             ...(workspaceStore !== undefined ? { workspace: { salvataIn: chatSalvateTutte(workspaceStore.leggi(), sessione), mostrati: workspaceMostrati() } } : {})
@@ -5500,7 +4428,8 @@ if (!app.requestSingleInstanceLock()) {
           // Con la cartella su questo PC: e' cosi' che il servizio sa se le
           // chat di un autopilota stanno sul Drive (il suo «cloud»).
           progetti: rotte.progetti().map((p) => {
-            const percorso = registroProgetti.leggi().progetti.find((x) => x.id === p.id)?.percorsi[identitaPc.leggi().id]
+            const r = registroProgetti.leggi().progetti.find((x) => x.id === p.id)
+            const percorso = r?.proprietario === identitaPc.leggi().id ? r.percorso : undefined
             return { nome: p.nome, chi: p.chi, inCoda: p.inCoda, ...(p.pcNome !== undefined ? { pcNome: p.pcNome } : {}), ...(percorso !== undefined ? { percorso } : {}) }
           }),
           driveAttivo: await driveAttivoAdesso(),
@@ -5537,7 +4466,6 @@ if (!app.requestSingleInstanceLock()) {
         alTelefono: coda,
         quadernoPersonale,
         pannelloDrive: () => pannelloDriveGlobale?.() ?? Promise.resolve({ errore: 'non pronto' }),
-        trasloco: () => latoTraslocoGlobale,
         cartellaPerChatNuova: async (cartella: string, ws: string | undefined) => {
           if (!cartellaVietataPerChat(cartella, { casa: homedir(), documenti: app.getPath('documents') })) return { ok: true as const, cartella }
           const delWs = ws !== undefined ? await progettoPerWorkspaceGlobale?.(ws).catch(() => undefined) : undefined
@@ -5558,14 +4486,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         provaTogliProgetto: (nome: string) => provaTogliProgettoGlobale?.(nome) ?? Promise.resolve({ ok: false, messaggio: 'Il registro dei progetti non è ancora pronto.' }),
-        provaTrasloco: (corpo: unknown) => provaTraslocoGlobale?.(corpo) ?? Promise.resolve({ ok: false, messaggio: 'Il trasloco non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
         azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
-        // Letto a ogni richiesta: nasce con «una chat, una casa».
-        rimozione: {
-          analizza: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'Questo PC non è ancora pronto (cassaforte o Drive non aperti).' } : residenteRimozioneGlobale.analizza(c),
-          stato: (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.stato(c),
-          pezzo: async (c: unknown) => residenteRimozioneGlobale === undefined ? { ok: false as const, errore: 'non pronto' } : residenteRimozioneGlobale.pezzo(c)
-        },
         ...(gestioneChatGlobale !== undefined ? { gestioneChat: gestioneChatGlobale } : {}),
         chat: () => chatAperte.map(conAltrove),
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
@@ -5577,8 +4498,6 @@ if (!app.requestSingleInstanceLock()) {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
           // Il consenso a un dato del quaderno personale (0.57.0).
           if (quadernoPersonale.rispondi(idDomanda, risposta)) return
-          // Togliere un progetto da questo PC (0.58.0): conferma o annulla.
-          if (rimozioneGlobale?.rispondi(idDomanda, risposta) === true) return
           const conferma = leggiIdDomandaConferma(idDomanda)
           if (conferma !== undefined) {
             const e = await coda.conferma(conferma, confermaDaRisposta(risposta))
@@ -5595,8 +4514,7 @@ if (!app.requestSingleInstanceLock()) {
             apertaIl: Date.parse(c.creata), opzioni: [...OPZIONI_CONFERMA],
             da: `Manda al telefono · ${c.daChat ?? 'una chat'}`, sotto: `${c.origine} → ${c.aNome}`
           })),
-          ...quadernoPersonale.domande(),
-          ...(rimozioneGlobale?.domande() ?? [])
+          ...quadernoPersonale.domande()
         ],
         risolte: () => clientAutopilota.risolte(),
         /**
@@ -5626,17 +4544,10 @@ if (!app.requestSingleInstanceLock()) {
           return fileDellAutopilota(a)
         },
         istruzioniAutopilota: (id: string) => clientAutopilota.istruzioni(id),
-        // «Sposta progetto» dal lato di chi riceve (0.42.0).
-        // Pigro: il servizio nasce con la sincronia, che puo' arrivare dopo.
-        // Le case delle chat da un altro PC (0.52.0). Pigro come «Sposta».
-        caseChat: {
-          leggi: () => ospiteGlobale?.leggi() ?? { versione: 1, case: {} },
-          ricevi: async (corpo: unknown) => ospiteGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : ospiteGlobale.ricevi(corpo)
-        },
+        // «Sposta su questo PC» (0.88.0), dal lato del proprietario. Pigro: nasce con la sincronia.
         sposta: {
-          pronto: () => spostaGlobale?.pronto() ?? { errore: 'non pronto' },
-          ricevi: async (corpo: unknown) => spostaGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : spostaGlobale.ricevi(corpo),
-          verifica: async (sessioni: string[]) => spostaGlobale === undefined ? { file: {} } : spostaGlobale.verifica(sessioni)
+          prepara: async (r: { progetto: string; verso: string; versoNome: string }) => latoProprietarioGlobale === undefined ? { ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' } : latoProprietarioGlobale.prepara(r),
+          concludi: async (r: { progetto: string; verso: string; percorso: string; proprietarioDal: string }) => latoProprietarioGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : latoProprietarioGlobale.concludi(r)
         },
         diffAutopilota: async (id: string, chiave: string, percorso: string) => {
           const a = (await clientAutopilota.elenca()).find((x) => x.id === id)
@@ -5649,20 +4560,14 @@ if (!app.requestSingleInstanceLock()) {
           const s = remoto.stradaDi(pcId)
           return s === undefined ? undefined : stradaBreve(s.strada)
         },
+        // 0.88.0: acceso, dritto; spento o lontano, nella sua posta sul Drive (manda-a-chat).
         scriviAltroPc: async (pcId: string, sessione: string, t: string): Promise<EsitoAltroPc | { ok: false; messaggio: string; stato?: number }> => {
-          try {
-            const s = await remoto.chiama(pcId, '/api/stato') as { chat?: ChatSuPc[] }
-            const c = (Array.isArray(s.chat) ? s.chat : []).find((x) => x.sessione === sessione)
-            if (c === undefined) return { ok: false, messaggio: 'quella chat non è più aperta su quel PC' }
-            // Se là la chat è ferma su una scelta, quel PC dice se l'ha presa (0.84.1).
-            return leggiEsitoAltroPc(await remoto.chiama(pcId, '/api/scrivi', { chat: String(c.id), testo: t }))
-          } catch (e) {
-            return {
-              ok: false, messaggio: e instanceof Error ? e.message : String(e),
-              ...(e instanceof ErroreRemoto && e.stato !== undefined ? { stato: e.stato } : {}),
-              ...(e instanceof ErroreRemoto && e.motivo === 'pin' ? { pin: true } : {})
-            }
-          }
+          if (mandaAChatGlobale === undefined) return { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' }
+          const r = await mandaAChatGlobale.manda({ pcId, sessione, testo: t })
+          // Se là la chat è ferma su una scelta, quel PC dice se l'ha presa (0.84.1).
+          if (r.ok && r.via === 'diretta') return leggiEsitoAltroPc(r.dati)
+          if (r.ok) return { ok: true, posta: true, frase: r.messaggio }
+          return { ok: false, messaggio: r.messaggio, ...(r.stato !== undefined ? { stato: r.stato } : {}), ...(r.pin === true ? { pin: true } : {}) }
         },
         // Una scelta per la chat di un altro PC, dalle Domande (0.52.6): passa
         // dal ponte, e quel PC la ricontrolla sul suo schermo prima di premere.
@@ -5738,7 +4643,7 @@ if (!app.requestSingleInstanceLock()) {
           // PC («cartella non conosciuta», trovato dal collaudo fra i due PC).
           const io = identitaPc.leggi().id
           for (const p of registroProgetti.leggi().progetti) {
-            const c = p.percorsi[io]
+            const c = p.proprietario === io ? p.percorso : undefined
             if (c !== undefined && c !== '' && existsSync(c)) viste.add(c)
           }
           return [...viste]
@@ -5810,31 +4715,20 @@ if (!app.requestSingleInstanceLock()) {
         },
         // Le chat chiuse da te qui (0.60.9): chi le guarda da lontano chiude il suo riquadro.
         chiuse: () => chiuse.elenco(),
-        // I progetti sul Drive per il telefono: dal registro, con lo stato
-        // dell'ultima ronda quando c'e'.
-        progetti: () => registroProgetti.leggi().progetti.map((p) => {
-          const s = ronda.statoDi(p.id)
-          return {
-            id: p.id, nome: p.nome, chi: s?.chi ?? 'libero',
-            ...(s?.pcNome !== undefined ? { pcNome: s.pcNome } : {}),
-            inCoda: s?.inCoda ?? 0
-          }
-        }),
-        coda: (id: string) => ronda.coda(id),
+        // I progetti per il telefono (0.88.0): dal registro, ognuno con il suo PC.
+        progetti: () => {
+          const io = identitaPc.leggi().id
+          return registroProgetti.leggi().progetti.map((p) => ({
+            id: p.id, nome: p.nome,
+            chi: p.proprietario === io ? 'io' as const : p.proprietario !== undefined ? 'altro' as const : 'libero' as const,
+            ...(p.proprietario !== undefined && p.proprietario !== io ? { pcNome: nomePcDi(p.proprietario) } : {}),
+            inCoda: 0
+          }))
+        },
         // Il Drive dal telefono: le stesse cose della scheda «Drive», con la
         // rimappatura delle chat dopo un «Porta qui», come dall'IPC.
         driveCatalogo: () => sincronia.catalogo(),
         driveCatalogoStato: () => sincronia.statoCatalogo(),
-        drivePortaQui: async (chiave: string) => {
-          const esito = await sincronia.portaQui(chiave)
-          if (esito.ok) rimappaChat()
-          return esito
-        },
-        drivePortaQuiWorkspace: async (nome: string) => {
-          const esito = await sincronia.portaQuiWorkspace(nome)
-          if (esito.ok) rimappaChat()
-          return esito
-        },
         driveLavoro: () => lavoro.stato(),
         driveAnnulla: () => lavoro.annulla(),
         driveRiavvia: async () => {
@@ -5856,9 +4750,6 @@ if (!app.requestSingleInstanceLock()) {
           app.quit()
           return { ok: true }
         },
-        codaAggiungi: (id: string, testo: string, sessione?: string) => ronda.aggiungiInCoda(id, testo, sessione),
-        codaTogli: (id: string, voce: string) => ronda.togliDallaCoda(id, voce),
-        codaPulisci: (id: string) => ronda.pulisciCoda(id),
         // La posta per un PC, dal telefono: gli altri computer e le loro cassette.
         pcIo: () => identitaPc.leggi().id,
         // Subito (0.68.0): rileggere dal Drive a ogni domanda del telefono costava 20 s.
@@ -5968,11 +4859,6 @@ if (!app.requestSingleInstanceLock()) {
           guardianoPin?.proteggiChat(sessione, si)
           for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pin:cambiato')
         },
-        scegliOspite: async (sessioni: string[], pc: { id: string; nome: string }) => {
-          if (ospiteGlobale === undefined || identitaPcGlobale === undefined) return { ok: false, messaggio: 'La sincronia di questo PC non è ancora pronta: riprova fra qualche secondo.' }
-          const scelto = pc.id === 'qui' ? identitaPcGlobale.leggi() : pc
-          return ospiteGlobale.scegli({ sessioni, pc: { id: scelto.id, nome: scelto.nome } })
-        },
         cartellaUtente: () => homedir(),
         versione: app.getVersion(),
         apk: () => apkDisponibile(),
@@ -6017,7 +4903,10 @@ if (!app.requestSingleInstanceLock()) {
             sottofondo: () => sottofondo,
             io: () => { const i = identitaPc.leggi(); return { id: i.id, nome: i.nome } },
             nomePc: (id) => postino.altrui().find((b) => b.pcId === id)?.nome,
-            casaAltrove: (s) => ospiteGlobale?.casaAltroveDi(s),
+            casaAltrove: (s) => {
+              const cwd = db === undefined ? undefined : listSessions(db).find((x) => x.uuid === s)?.cwd
+              return cwd === undefined ? undefined : proprietarioAltrove(cwd)
+            },
             esiste: (cwd) => existsSync(cwd),
             inRiquadro: (s) => chatDallaFinestra.find((c) => c.sessione === s),
             scriviInRiquadro: (idChat, testo) => {
@@ -6192,25 +5081,11 @@ if (!app.requestSingleInstanceLock()) {
           if (cwd === undefined) return { ok: false, messaggio: 'Nessuna chat aperta sul computer: non so in quale progetto.' }
           return approvaMcp(cwd, nome, si)
         },
-        account: async () => {
-          const utente = await utenteAccount().catch(() => undefined)
-          const email = (utente as { email?: string } | undefined)?.email
-          return email === undefined ? { entrato: false } : { entrato: true, email }
-        },
         // 0.70.0: la catena Account → Drive → Cassaforte → Salvataggio anche sul telefono.
         sicurezza: async () => {
           const sync = await sincroniaGlobale?.stato().catch(() => undefined)
           return { drive: contoDrive.stato(), ...(sync !== undefined ? { sync } : {}) }
         },
-        entraAccount: async (email: string, password: string) => {
-          const esito = await entraAccount(email, password)
-          // Le finestre lo sanno per il canale `account:cambiato`, che scatta da
-          // sé: qui basta dire com'è andata a chi l'ha chiesto.
-          return esito.stato === 'entrato'
-            ? { ok: true }
-            : { ok: false, messaggio: esito.stato === 'errore' ? esito.messaggio : 'da confermare per email' }
-        },
-        esciAccount: async () => { await esciAccount() },
         consumi: async () => (db === undefined ? {} : arricchisciConsumi(riassumiConsumi(listSessions(db), Date.now()))),
         // Il quaderno di una cartella: le schede che l'autopilota lascia
         // accanto al codice che descrivono.
@@ -6278,7 +5153,6 @@ if (!app.requestSingleInstanceLock()) {
       // stessi messaggi mandati (0.36.0).
       const rottaTelefono = rotteClient(rotte)
       // Le stesse rotte per le strade nuove da un altro PC (0.40.0).
-      rottaPerAltriPc = async (r) => { const e = await rottaTelefono(r); return { stato: e.stato, corpo: e.corpo } }
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
       // `/api/autopilota/vai`: il via dalla linguetta «Domande» (0.38.0).
       // `/api/pin/sblocca` (0.49.1): il PIN di una chat protetta, chiesto lì dove le si scrive.

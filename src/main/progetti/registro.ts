@@ -1,51 +1,46 @@
-import { basename, join, sep } from 'node:path'
+import { basename, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { memoriaDiFile } from '../memoria-di-file'
-import type { LayoutSalvato, WorkspaceSalvato } from '@shared/workspace'
 
 /**
- * I progetti «sul Drive»: quali cartelle viaggiano con le chat, e dove stanno
- * su ogni PC.
+ * I progetti, condivisi fra i PC (`sierradeck/progetti-drive.json` sul Drive).
  *
- * Fino alla 0.12.55 la cassaforte portava sull'altro PC le conversazioni e
- * l'assetto, ma non il codice: una chat senza la sua cartella si riapre in una
- * cartella che non c'e', e non si lavora. Da qui in poi un progetto si puo'
- * mettere sul Drive, e da quel momento la sua cartella si sincronizza come il
- * resto, cifrata.
+ * **Il modello semplice (0.88.0, scelto da Nicholas il 30/10).** Ogni progetto
+ * vive su **un solo PC**, il suo proprietario, più la copia di sicurezza sul
+ * Drive. Nessun altro PC ne tiene una copia di lavoro: dagli altri PC e dal
+ * telefono lo si apre dal vivo (o gli si scrive con la posta, se è spento). Il
+ * proprietario cambia solo con «Sposta su questo PC» (vedi `sposta.ts`).
  *
- * Il registro e' **condiviso** (viaggia in `sierradeck/progetti-drive.json`),
- * i percorsi no: ogni PC ha il suo, sotto il proprio id. E' cio' che permette
- * di rimappare la `cwd` di una chat nata altrove sulla cartella di qui.
+ * Prima ogni PC aveva il suo percorso (`percorsi`), con origini, unioni e case
+ * delle chat: la migrazione (`migra-proprietari.ts`) li legge una volta e li
+ * toglie. Fino ad allora restano in `vecchio`, così nessuna scrittura del
+ * registro li perde prima che la migrazione li abbia letti.
  */
 export type ProgettoDrive = {
   id: string
   nome: string
-  /** Dove sta il progetto su ogni PC: id del PC → percorso assoluto. */
-  percorsi: Record<string, string>
   aggiuntoIl: string
-  /**
-   * Cartelle d'origine di PC che non sappiamo chi sono.
-   *
-   * Le chat sul Drive dicono in quale cartella lavoravano, non su quale PC:
-   * «Porta qui» un progetto nato altrove e mai messo sul Drive con la sua
-   * cartella crea la cartella qui e ricorda quella d'origine, cosi' le chat
-   * che la citano vengono rimappate su quella di qui (`rimappaCwd`).
-   */
-  origini?: string[]
-  /**
-   * Unito in un altro progetto (0.60.0, «Rendi residente» confermato da
-   * Nicholas): l'id del principale. Resta nel registro perché i suoi file sul
-   * Drive stanno sotto il suo prefisso, ma non sale più da nessun PC e si
-   * mostra dentro il principale. Stringa vuota = separato di nuovo («Annulla
-   * l'unione»). Unendo i registri dei PC vince la scelta con `unitoIl` più recente.
-   */
-  unitoIn?: string
-  /** Quando è stato unito (o separato). */
-  unitoIl?: string
+  /** L'id del PC proprietario: l'unico che ha la cartella. Assente solo prima della migrazione. */
+  proprietario?: string
+  /** Dove sta la cartella sul proprietario. */
+  percorso?: string
+  /** Quando è cambiato il proprietario: fra due copie del registro vince il più recente. */
+  proprietarioDal?: string
+  /** I campi del modello di prima, finché la migrazione non li ha letti. */
+  vecchio?: { percorsi: Record<string, string>; origini?: string[]; unitoIn?: string }
 }
 
-export type RegistroProgetti = { versione: 1; progetti: ProgettoDrive[] }
+export type RegistroProgetti = {
+  versione: 1
+  progetti: ProgettoDrive[]
+  /**
+   * Gli id tolti di proposito (la migrazione: doppioni uniti, cartelle che non
+   * erano progetti), con quando. L'unione con il registro di un altro PC non
+   * li fa tornare.
+   */
+  tolti?: Record<string, string>
+}
 
 export const FILE_REGISTRO_PROGETTI = 'progetti-drive.json'
 
@@ -53,35 +48,51 @@ export function registroVuoto(): RegistroProgetti {
   return { versione: 1, progetti: [] }
 }
 
+const stringa = (x: unknown): string | undefined => (typeof x === 'string' && x !== '' ? x : undefined)
+
 /** Legge senza mai sollevare: un file di un'altra versione non deve fermare l'avvio. */
 export function parseRegistro(raw: unknown): RegistroProgetti {
   if (typeof raw !== 'object' || raw === null) return registroVuoto()
   const o = raw as { progetti?: unknown }
   if (!Array.isArray(o.progetti)) return registroVuoto()
+  const tolti: Record<string, string> = {}
+  const t = (raw as { tolti?: unknown }).tolti
+  if (typeof t === 'object' && t !== null && !Array.isArray(t)) {
+    for (const [id, quando] of Object.entries(t as Record<string, unknown>)) if (typeof quando === 'string') tolti[id] = quando
+  }
   const progetti: ProgettoDrive[] = []
   const visti = new Set<string>()
   for (const p of o.progetti) {
     if (typeof p !== 'object' || p === null) continue
     const q = p as Record<string, unknown>
-    if (typeof q.id !== 'string' || q.id === '' || typeof q.nome !== 'string' || q.nome === '') continue
-    if (visti.has(q.id)) continue
-    visti.add(q.id)
+    const id = stringa(q.id)
+    const nome = stringa(q.nome)
+    if (id === undefined || nome === undefined || visti.has(id) || tolti[id] !== undefined) continue
+    visti.add(id)
+    // Il modello di prima: `percorsi` (e origini, unioni) sul progetto, oppure già in `vecchio`.
+    const v = (typeof q.vecchio === 'object' && q.vecchio !== null ? q.vecchio : q) as Record<string, unknown>
     const percorsi: Record<string, string> = {}
-    if (typeof q.percorsi === 'object' && q.percorsi !== null) {
-      for (const [pc, percorso] of Object.entries(q.percorsi as Record<string, unknown>)) {
+    if (typeof v.percorsi === 'object' && v.percorsi !== null) {
+      for (const [pc, percorso] of Object.entries(v.percorsi as Record<string, unknown>)) {
         if (typeof percorso === 'string' && percorso !== '') percorsi[pc] = percorso
       }
     }
-    const origini = Array.isArray(q.origini) ? q.origini.filter((x): x is string => typeof x === 'string' && x !== '') : []
+    const origini = Array.isArray(v.origini) ? v.origini.filter((x): x is string => typeof x === 'string' && x !== '') : []
+    const unitoIn = stringa(v.unitoIn)
+    const haVecchio = Object.keys(percorsi).length > 0 || origini.length > 0 || unitoIn !== undefined
+    const proprietario = stringa(q.proprietario)
+    const percorso = stringa(q.percorso)
+    const proprietarioDal = stringa(q.proprietarioDal)
     progetti.push({
-      id: q.id, nome: q.nome, percorsi,
+      id, nome,
       aggiuntoIl: typeof q.aggiuntoIl === 'string' ? q.aggiuntoIl : '',
-      ...(origini.length > 0 ? { origini } : {}),
-      ...(typeof q.unitoIn === 'string' && q.unitoIn !== q.id && (q.unitoIn !== '' || typeof q.unitoIl === 'string') ? { unitoIn: q.unitoIn } : {}),
-      ...(typeof q.unitoIl === 'string' ? { unitoIl: q.unitoIl } : {})
+      ...(proprietario !== undefined ? { proprietario } : {}),
+      ...(percorso !== undefined ? { percorso } : {}),
+      ...(proprietarioDal !== undefined ? { proprietarioDal } : {}),
+      ...(haVecchio ? { vecchio: { percorsi, ...(origini.length > 0 ? { origini } : {}), ...(unitoIn !== undefined ? { unitoIn } : {}) } } : {})
     })
   }
-  return { versione: 1, progetti }
+  return { versione: 1, progetti, ...(Object.keys(tolti).length > 0 ? { tolti } : {}) }
 }
 
 export function nuovoId(): string {
@@ -111,184 +122,90 @@ export function normalizzaPercorso(p: string): string {
 
 /** Se `cwd` e' la radice o una sua sottocartella. */
 export function staDentro(cwd: string, radice: string): boolean {
-  return sottoCartella(cwd, radice) !== undefined
-}
-
-function sottoCartella(cwd: string, radice: string): string | undefined {
   const c = normalizzaPercorso(cwd)
   const r = normalizzaPercorso(radice)
-  if (c === r) return ''
-  if (c.startsWith(`${r}\\`)) return cwd.replace(/\//g, '\\').slice(r.length + 1)
-  return undefined
+  return c === r || c.startsWith(`${r}\\`)
+}
+
+/** I progetti di cui questo PC è il proprietario. */
+export function progettiDi(reg: RegistroProgetti, pcId: string): ProgettoDrive[] {
+  return reg.progetti.filter((p) => p.proprietario === pcId && p.percorso !== undefined)
+}
+
+/** Il progetto **di questo PC** in cui sta una cartella, se ce n'è uno. */
+export function progettoDiCwd(reg: RegistroProgetti, cwd: string, pcId: string): ProgettoDrive | undefined {
+  return progettiDi(reg, pcId).find((p) => staDentro(cwd, p.percorso as string))
 }
 
 /**
- * Mette una cartella sul Drive per questo PC.
- *
- * Se quella cartella e' gia' un progetto di qui, non cambia niente. Se esiste
- * un progetto con lo stesso nome che su questo PC non ha ancora una cartella —
- * e' arrivato da un altro PC — la cartella scelta diventa la sua: e' il modo
- * di dire «il mio SierraDeck sta qui».
+ * Il progetto, di **qualunque** proprietario, la cui cartella contiene `cwd`.
+ * Serve a dire «questa chat è di un progetto che vive su un altro PC».
+ */
+export function progettoDiCartella(reg: RegistroProgetti, cwd: string): ProgettoDrive | undefined {
+  return reg.progetti.find((p) => p.percorso !== undefined && staDentro(cwd, p.percorso))
+}
+
+/**
+ * Mette una cartella di questo PC fra i progetti, con questo PC proprietario.
+ * Se è già un progetto (stessa cartella, stesso proprietario) non cambia niente.
  */
 export function aggiungiProgetto(
   reg: RegistroProgetti,
   p: { pcId: string; percorso: string; nome?: string; adesso: string; id?: string }
 ): { registro: RegistroProgetti; progetto: ProgettoDrive } {
-  const gia = reg.progetti.find((x) => {
-    const mio = x.percorsi[p.pcId]
-    return mio !== undefined && normalizzaPercorso(mio) === normalizzaPercorso(p.percorso)
-  })
+  const gia = reg.progetti.find((x) => x.proprietario === p.pcId && x.percorso !== undefined && normalizzaPercorso(x.percorso) === normalizzaPercorso(p.percorso))
   if (gia !== undefined) return { registro: reg, progetto: gia }
-  const nome = p.nome ?? nomeDaCartella(p.percorso)
-  const orfano = reg.progetti.find((x) => x.percorsi[p.pcId] === undefined && x.nome === nome)
-  if (orfano !== undefined) {
-    const collegato = { ...orfano, percorsi: { ...orfano.percorsi, [p.pcId]: p.percorso } }
-    return {
-      registro: { ...reg, progetti: reg.progetti.map((x) => (x.id === orfano.id ? collegato : x)) },
-      progetto: collegato
-    }
+  const nuovo: ProgettoDrive = {
+    id: p.id ?? nuovoId(), nome: p.nome ?? nomeDaCartella(p.percorso), aggiuntoIl: p.adesso,
+    proprietario: p.pcId, percorso: p.percorso, proprietarioDal: p.adesso
   }
-  const nuovo: ProgettoDrive = { id: p.id ?? nuovoId(), nome, percorsi: { [p.pcId]: p.percorso }, aggiuntoIl: p.adesso }
   return { registro: { ...reg, progetti: [...reg.progetti, nuovo] }, progetto: nuovo }
 }
 
-/** Da' a un progetto arrivato da un altro PC la sua cartella su questo. */
-export function collegaProgetto(reg: RegistroProgetti, id: string, pcId: string, percorso: string): RegistroProgetti {
+/** Il proprietario nuovo, dopo «Sposta su questo PC» verificato. */
+export function cambiaProprietario(reg: RegistroProgetti, id: string, pcId: string, percorso: string, quando: string): RegistroProgetti {
   return {
     ...reg,
-    progetti: reg.progetti.map((x) => (x.id === id ? { ...x, percorsi: { ...x.percorsi, [pcId]: percorso } } : x))
+    progetti: reg.progetti.map((x) => (x.id === id ? { ...x, proprietario: pcId, percorso, proprietarioDal: quando } : x))
   }
 }
 
-/** L'unione più recente fra due copie dello stesso progetto (0.60.0). */
-export function unionePiuRecente(a: ProgettoDrive, b: ProgettoDrive): { unitoIn?: string; unitoIl?: string } {
-  const sa = a.unitoIl ?? (a.unitoIn !== undefined ? '0' : '')
-  const sb = b.unitoIl ?? (b.unitoIn !== undefined ? '0' : '')
-  const v = sb > sa ? b : a
-  return { ...(v.unitoIn !== undefined ? { unitoIn: v.unitoIn } : {}), ...(v.unitoIl !== undefined ? { unitoIl: v.unitoIl } : {}) }
-}
-
-/** Unito in un altro progetto, adesso (la stringa vuota è «separato di nuovo»). */
-export function eUnito(p: { unitoIn?: string }): boolean {
-  return p.unitoIn !== undefined && p.unitoIn !== ''
-}
-
-export function rimuoviProgetto(reg: RegistroProgetti, id: string): RegistroProgetti {
-  return { ...reg, progetti: reg.progetti.filter((x) => x.id !== id) }
-}
-
-/**
- * Dove sta un progetto su questo PC: il percorso registrato, oppure — se non
- * e' mai arrivato qui — la cartella dei progetti piu' il suo nome.
- */
-export function percorsoLocale(p: ProgettoDrive, pcId: string, cartellaProgetti: string): { percorso: string; nuovo: boolean } {
-  const mio = p.percorsi[pcId]
-  if (mio !== undefined) return { percorso: mio, nuovo: false }
-  return { percorso: join(cartellaProgetti, p.nome), nuovo: true }
-}
-
-/** Il progetto in cui sta una cartella di questo PC, se ce n'e' uno. */
-export function progettoDiCwd(reg: RegistroProgetti, cwd: string, pcId: string): ProgettoDrive | undefined {
-  return reg.progetti.find((p) => {
-    const mio = p.percorsi[pcId]
-    return mio !== undefined && sottoCartella(cwd, mio) !== undefined
-  })
-}
-
-export type Rimappatura = { cwd: string; progetto?: ProgettoDrive; nuovo?: boolean }
-
-/**
- * La `cwd` di una chat, portata su questo PC.
- *
- * Se la cartella c'e', resta com'e'. Se non c'e' ed e' dentro un progetto sul
- * Drive **secondo il percorso di un altro PC**, diventa la stessa sottocartella
- * dentro il progetto di qui. Altrimenti resta com'e' — una chat di una cartella
- * che non conosciamo non si tocca.
- */
-export function rimappaCwd(
-  cwd: string,
-  reg: RegistroProgetti,
-  pcId: string,
-  cartellaProgetti: string,
-  esiste: (percorso: string) => boolean
-): Rimappatura {
-  if (esiste(cwd)) return { cwd }
-  for (const p of reg.progetti) {
-    const radici = [
-      ...Object.entries(p.percorsi).filter(([pc]) => pc !== pcId).map(([, percorso]) => percorso),
-      ...(p.origini ?? [])
-    ]
-    for (const percorso of radici) {
-      const resto = sottoCartella(cwd, percorso)
-      if (resto === undefined) continue
-      const locale = percorsoLocale(p, pcId, cartellaProgetti)
-      const nuovo = resto === '' ? locale.percorso : join(locale.percorso, ...resto.split(sep))
-      return { cwd: nuovo, progetto: p, nuovo: locale.nuovo }
-    }
+/** Toglie un progetto dal registro (mai i suoi file). Con `quando`, resta tolto anche nell'unione con gli altri PC. */
+export function rimuoviProgetto(reg: RegistroProgetti, id: string, quando?: string): RegistroProgetti {
+  return {
+    ...reg,
+    progetti: reg.progetti.filter((x) => x.id !== id),
+    ...(quando !== undefined ? { tolti: { ...(reg.tolti ?? {}), [id]: quando } } : {})
   }
-  return { cwd }
+}
+
+/** Dove andrebbe un progetto su questo PC se ci arrivasse: la cartella dei progetti più il suo nome. */
+export function percorsoNuovo(p: Pick<ProgettoDrive, 'nome'>, cartellaProgetti: string): string {
+  return join(cartellaProgetti, p.nome)
 }
 
 /**
- * Un progetto nato su un PC che non conosciamo, portato qui.
- *
- * Se una cartella qui o un'origine gia' registrata contiene `cwdOrigine`, e'
- * quel progetto: si aggiunge solo il percorso di qui se manca. Altrimenti
- * nasce un progetto nuovo con la cartella di qui e l'origine ricordata.
+ * L'unione di due copie del registro (questo PC e il Drive). Per id: chi c'è
+ * in una sola entra com'è; chi c'è in tutte e due prende il proprietario
+ * cambiato più di recente (`proprietarioDal`). A parità vince `a`.
  */
-export function adottaOrigine(
-  reg: RegistroProgetti,
-  p: { cwdOrigine: string; nome: string; pcId: string; percorsoQui: string; adesso: string }
-): { registro: RegistroProgetti; progetto: ProgettoDrive } {
-  const gia = reg.progetti.find((x) =>
-    (x.origini ?? []).some((o) => sottoCartella(p.cwdOrigine, o) !== undefined) ||
-    Object.entries(x.percorsi).some(([pc, r]) => pc !== p.pcId && sottoCartella(p.cwdOrigine, r) !== undefined))
-  if (gia !== undefined) {
-    if (gia.percorsi[p.pcId] !== undefined) return { registro: reg, progetto: gia }
-    const collegato = { ...gia, percorsi: { ...gia.percorsi, [p.pcId]: p.percorsoQui } }
-    return { registro: { ...reg, progetti: reg.progetti.map((x) => (x.id === gia.id ? collegato : x)) }, progetto: collegato }
+export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): RegistroProgetti {
+  const tolti: Record<string, string> = { ...(b.tolti ?? {}), ...(a.tolti ?? {}) }
+  const perId = new Map<string, ProgettoDrive>()
+  for (const p of a.progetti) if (tolti[p.id] === undefined) perId.set(p.id, p)
+  for (const p of b.progetti) {
+    if (tolti[p.id] !== undefined) continue
+    const qui = perId.get(p.id)
+    if (qui === undefined) { perId.set(p.id, p); continue }
+    const dalB = p.proprietarioDal ?? ''
+    const dalA = qui.proprietarioDal ?? ''
+    const vince = qui.proprietario === undefined && p.proprietario !== undefined ? p : dalB > dalA ? p : qui
+    const altro = vince === p ? qui : p
+    // Lo stesso proprietario, ma uno dei due non sa dove sta la cartella: si tiene quella nota.
+    const percorso = vince.percorso ?? (altro.proprietario === vince.proprietario ? altro.percorso : undefined)
+    perId.set(p.id, percorso !== undefined && vince.percorso === undefined ? { ...vince, percorso } : vince)
   }
-  const progetto: ProgettoDrive = {
-    id: nuovoId(), nome: p.nome, percorsi: { [p.pcId]: p.percorsoQui }, aggiuntoIl: p.adesso, origini: [p.cwdOrigine]
-  }
-  return { registro: { ...reg, progetti: [...reg.progetti, progetto] }, progetto }
-}
-
-export type CambioCwd = { sessione: string; da: string; a: string }
-
-function rimappaLayout(
-  l: LayoutSalvato,
-  rimappa: (cwd: string) => string,
-  cambi: CambioCwd[]
-): LayoutSalvato {
-  let toccato = false
-  const panes = l.panes.map((p) => {
-    const a = rimappa(p.cwd)
-    if (a === p.cwd) return p
-    toccato = true
-    cambi.push({ sessione: p.sessionUuid, da: p.cwd, a })
-    return { ...p, cwd: a }
-  })
-  return toccato ? { ...l, panes } : l
-}
-
-/**
- * L'archivio dei workspace con le `cwd` portate su questo PC.
- *
- * Puro: chi lo chiama scrive l'archivio solo se `cambi` non e' vuoto, e con
- * l'elenco dei cambi copia anche le trascrizioni sotto il nuovo slug.
- */
-export function rimappaWorkspace<T extends { workspace: WorkspaceSalvato[] }>(
-  archivio: T,
-  rimappa: (cwd: string) => string
-): { archivio: T; cambi: CambioCwd[] } {
-  const cambi: CambioCwd[] = []
-  const workspace = archivio.workspace.map((w) => {
-    const perSlot: Record<string, LayoutSalvato> = {}
-    for (const [slot, l] of Object.entries(w.perSlot)) perSlot[slot] = rimappaLayout(l, rimappa, cambi)
-    return { ...w, perSlot }
-  })
-  return cambi.length === 0 ? { archivio, cambi } : { archivio: { ...archivio, workspace }, cambi }
+  return { versione: 1, progetti: [...perId.values()], ...(Object.keys(tolti).length > 0 ? { tolti } : {}) }
 }
 
 export type RegistroProgettiStore = {
@@ -300,8 +217,7 @@ export function apriRegistroProgetti(dati: string): RegistroProgettiStore {
   const percorso = join(dati, FILE_REGISTRO_PROGETTI)
   // Letto per ogni chat a ogni /api/stato (0.80.0): si tiene finché il file non
   // cambia. Il riferimento è condiviso, come in `workspace-store`: nessuno cambia
-  // il registro letto (le operazioni ne creano uno nuovo e lo scrivono). Una
-  // copia per lettura costava 0,3 ms, quanto mezza rilettura.
+  // il registro letto (le operazioni ne creano uno nuovo e lo scrivono).
   const memoria = memoriaDiFile(percorso, (t) => parseRegistro(JSON.parse(t)))
   return {
     leggi() {

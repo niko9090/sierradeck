@@ -177,15 +177,3 @@ describe('il giro intero, su cartelle temporanee', () => {
     expect(scadute(s.rimozione.inRecupero(), Date.now() + 31 * 86_400_000)).toHaveLength(1)
   })
 })
-
-describe('le rotte del residente: solo fra PC della stessa cassaforte', () => {
-  it('un altro PC firmato sì; un telefono, il ponte e questo schermo no', async () => {
-    const s = scena()
-    const rotte = rotteClient({ rimozione: s.residente, chat: () => [] } as unknown as Parameters<typeof rotteClient>[0])
-    const chiama = (dispositivo: string) => rotte({ metodo: 'POST', percorso: '/api/rimozione/stato', corpo: { progetto: 'prog-1', cartella: '.sierradeck/recuperati/X', relativo: 'a.txt' }, dispositivo })
-    expect((await chiama('pc:pc-b')).stato).toBe(200)
-    expect((await chiama('tel-esempio')).stato).toBe(403)
-    expect((await chiama('pc:tel:tel-esempio@PC-ESEMPIO')).stato).toBe(403)
-    expect((await chiama('locale')).stato).toBe(403)
-  }, 60_000) // client-rotte è grande: a suite intera il solo import passava i 20 s
-})

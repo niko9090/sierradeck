@@ -20,7 +20,6 @@ import { diagnostica, tettoAttesaMs, passoAttesaPrompt, senzaSequenze, USCITA_PR
 import { turniAvvio } from '../turni-avvio'
 import { SEGNI_DI_PROMPT } from '../ultime-righe'
 import { FinestraTemporanea } from './FinestraTemporanea'
-import { ConfermaPortaQui } from './OspiteChat'
 
 type Props = {
   paneId: string
@@ -113,15 +112,6 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
    */
   const guardaDalVivo = (c: ChatAltrove): void => {
     useLayoutStore.getState().rendiRemoto(paneId, { pcId: c.pc.id, pcNome: c.pc.nome, cwd: c.cwd, sessione: c.sessionUuid })
-  }
-  /** «Porta qui la chat» (0.52.0): la conferma, poi la casa diventa questo PC e si riapre qui. */
-  const [portaQui, setPortaQui] = useState<{ sessione: string; pcNome: string } | undefined>(undefined)
-  const dopoPortaQui = (): void => {
-    setPortaQui(undefined)
-    setAltrove(undefined)
-    setInAttesaDi(undefined)
-    riarma()
-    ricontrollaRef.current?.()
   }
   const apriQuiLoStesso = (): void => {
     forzaQui.current = true
@@ -641,11 +631,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
                 Scrivile là, nella cassetta
               </button>
             ) : null}
-            {inAttesaDi.perCasa === true ? (
-              <button className="tasto" onClick={() => setPortaQui({ sessione: inAttesaDi.sessione ?? sessionUuid, pcNome: inAttesaDi.pc.nome })} title="La casa della chat diventa questo PC, dopo la conferma: poi parte qui">
-                Porta qui la chat
-              </button>
-            ) : (
+            {inAttesaDi.perCasa === true ? null : (
             <button className="tasto" onClick={apriQuiLoStesso} title="Riprende la conversazione su questo PC: diventa una copia a sé">
               Apri qui lo stesso
             </button>
@@ -660,7 +646,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             <div className="chat-altrove__testo">
               <strong>È ospitata da {nomeAltrove}</strong>{altrove.perche !== undefined ? ` (${altrove.perche})` : ''}: su questo PC
               il suo claude.exe non parte mai, così non lavora su due PC alla volta. Si guarda e si comanda dal vivo là. Se
-              vuoi che lavori qui, «Porta qui la chat» ne cambia la casa, dopo averti chiesto conferma.
+              vuoi che lavori qui, sposta il progetto da Progetti → «Sposta su questo PC».
             </div>
           ) : (
           <div className="chat-altrove__testo">
@@ -680,11 +666,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             <button className={altrove.pc.id !== '' ? 'tasto' : 'tasto tasto--primario'} onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
               Scrivile là, su {nomeAltrove}
             </button>
-            {altrove.casa === true ? (
-              <button className="tasto" onClick={() => setPortaQui({ sessione: altrove.sessionUuid, pcNome: altrove.pc.nome })} title="La casa della chat diventa questo PC, dopo la conferma: poi parte qui">
-                Porta qui la chat
-              </button>
-            ) : (
+            {altrove.casa === true ? null : (
             <button className="tasto" onClick={apriQuiLoStesso} title="Apre la chat qui, in una cartella vuota con lo stesso nome: i file del progetto non ci sono">
               Aprila qui lo stesso
             </button>
@@ -728,9 +710,6 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
           {...(miniFinestra.nota !== undefined ? { nota: miniFinestra.nota } : {})}
           onChiudi={() => setMiniFinestra(undefined)}
         />
-      ) : null}
-      {portaQui !== undefined ? (
-        <ConfermaPortaQui titolo={title ?? cwd} pcNome={portaQui.pcNome} sessione={portaQui.sessione} onAnnulla={() => setPortaQui(undefined)} onFatto={dopoPortaQui} />
       ) : null}
       {postaPer !== undefined && (altrove !== undefined || inAttesaDi !== undefined) ? (
         <ModalePosta

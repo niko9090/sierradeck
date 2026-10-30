@@ -105,7 +105,6 @@ describe('sul PC si mostra ovunque il nome di adesso', () => {
     expect(leggi('src/renderer/components/ModaleSessioni.tsx')).toContain('SU <NomePc id={altrove.id}')
     expect(leggi('src/renderer/components/RiquadroRemoto.tsx')).not.toMatch(/\{remoto\.pcNome\}/)
     expect(leggi('src/renderer/components/Terminal.tsx')).not.toMatch(/\{(inAttesaDi|altrove)\.pc\.nome\}/)
-    expect(leggi('src/renderer/components/OspiteChat.tsx')).toContain('useNomePc(casa?.pc')
     expect(leggi('src/renderer/components/MappaPc.tsx')).toContain('n.host')
     const account = leggi('src/renderer/components/PannelloAccount.tsx')
     // Il nome di questo PC sta in Impostazioni → Computer dalla 0.56.0; il componente resta in PannelloAccount.

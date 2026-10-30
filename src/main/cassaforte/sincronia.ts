@@ -1,34 +1,25 @@
 import { compressioneAccesa, daComprimere, spacchetta } from './compressione'
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
-import { manifestoConProprietari, verificaMigrazione, type CaseChat } from '@shared/una-casa'
 import { existsSync, readFileSync, rmSync, renameSync, copyFileSync, statSync } from 'node:fs'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { join } from 'node:path'
-import { slugChatInRecupero } from '../rimozione-sicura'
 import { createHmac } from 'node:crypto'
 import { creaCassaforte, sblocca as sbloccaCassaforte, sbloccaConRecupero as sbloccaConRecuperoCassaforte, cambiaPassphrase as cambiaPassphraseCassaforte, type Cassaforte, cifra, decifra } from './cifratura'
 import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
-import { giorniDiRitenzione, fuoriRitenzione } from './ritenzione-claude'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { nomeNormalizzato } from '@shared/progetti-unificati'
-import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, stessaFirma, giaArrivata, aggiornaManifesto, stessaVoce, nomeDi, impronta, copiaManifesto } from './incrementale'
+import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, aggiornaManifesto, stessaVoce, nomeDi, impronta } from './incrementale'
 import { conSegnaleDrive } from '../risorse'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
-import { costruisciCatalogo, scelteDiPortaQui, type Catalogo } from './catalogo'
-import { adottaOrigine } from '../progetti/registro'
-import { mkdirSync } from 'node:fs'
-import type { Scatola } from '../progetti/presenza'
-import { parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
+import { costruisciCatalogo, type Catalogo } from './catalogo'
+import type { Scatola } from '../progetti/posta'
+import { fondiRegistri, parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
 import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
 import { firmaRadici } from './raccolta'
-import {
-  pianifica, eseguiFusione, fondiArchivi, fondiRegistri, leggiJsonDalDrive,
-  type PianoFusione, type ScelteFusione, type EsitoFusione
-} from './fusione'
+import { fondiArchivi, leggiJsonDalDrive } from './unioni'
 
 /**
  * La **politica** della sincronizzazione: mette insieme cassaforte (cifratura),
@@ -66,25 +57,6 @@ export type StatoSync = {
   cassaforteDiversa?: boolean
   versione?: string
   ultimoSalvataggio?: string
-  /** Com'e' andata l'ultima fusione: se interrotta, si riapre e si rifa' il resto. */
-  ultimaFusione?: UltimaFusione
-}
-
-/**
- * L'ultima fusione con il Drive, per riprenderla.
- *
- * Interrotta a meta' (annullata, o chiusa con il programma), il piano
- * successivo trova gia' uguali le voci fatte e ripropone le scelte di allora
- * per quelle rimaste: si preme di nuovo e si finisce.
- */
-export type UltimaFusione = {
-  quando: string
-  esito: 'ok' | 'interrotta' | 'fallita'
-  fatti?: number
-  totale?: number
-  messaggio?: string
-  /** Le scelte di allora, da riproporre. Solo se non e' finita. */
-  scelte?: ScelteFusione
 }
 
 export type EsitoSemplice = { ok: boolean; messaggio?: string }
@@ -167,13 +139,15 @@ export type Sincronia = {
    */
   salvaSeServe: (opzioni?: { conArrivo?: boolean }) => Promise<void>
   /**
-   * L'arrivo: le chat che stanno solo sul Drive, o ci sono piu' avanti,
-   * scendono qui. Mai i file dei progetti, mai una cancellazione, mai una
-   * chat di qui accorciata (vince la piu' lunga). Se non c'e' niente da
-   * scaricare non prende il lavoro e non dice niente. Lo chiama
-   * l'automatico dopo ogni salvataggio; si puo' chiamare a mano.
+   * L'arrivo (0.88.0, un progetto un PC): dal Drive scende solo il **registro**
+   * dei progetti, fuso con quello di qui, cosi' si sa di chi e' ogni progetto.
+   * Le chat e i file degli altri PC non scendono piu': si guardano dal vivo,
+   * o si prendono con «Sposta su questo PC». `scritti` = 1 se il registro di
+   * qui e' cambiato.
    */
   arrivo: () => Promise<{ ok: boolean; scritti?: number; messaggio?: string; annullato?: boolean }>
+  /** Il manifesto di qui impara voci scese fuori dal ripristino (Sposta): non risalgono come nuove. */
+  imparaVoci: (voci: Record<string, VoceManifesto>) => void
   ripristina: () => Promise<{ ok: boolean; scritti?: number; niente?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /**
    * Un solo progetto, dal Drive alla sua cartella di qui: quello che serve al
@@ -200,24 +174,6 @@ export type Sincronia = {
    */
   leggiFileDrive: (percorso: string, manifesto: Manifesto) => Promise<Buffer | undefined>
   /**
-   * La migrazione «una chat, una casa» (0.42.0): il proprietario su ogni chat
-   * di cui si sa la casa. Copia di sicurezza prima, verifica dopo; nessun file
-   * cancellato o rinominato.
-   */
-  migraUnaCasa: (c: CaseChat) => Promise<{ ok: boolean; messaggio?: string; proprietari?: number; copia?: string }>
-  /**
-   * Il piano di fusione fra questo PC e il Drive collegato: cosa c'e' di qua,
-   * di la', in comune, e cosa si farebbe. Se la cassaforte del Drive e' un'altra
-   * serve la sua passphrase, per leggerlo. Non tocca niente.
-   */
-  anteprimaFusione: (passphraseDrive?: string) => Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }>
-  /**
-   * Esegue le scelte. Se la cassaforte del Drive e' un'altra la adotta (con
-   * la passphrase data): da qui in poi questo PC usa quella, e la propria resta
-   * messa da parte. Poi carica, scarica, fonde i workspace e il registro.
-   */
-  eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
-  /**
    * Il catalogo del Drive: cosa c'e' lassu', per progetto, e come sta
    * rispetto a questo PC. Non tocca niente. Se la cassaforte del Drive e'
    * un'altra lo dice (`cassaforteDiversa`): si passa da «Fondi con il Drive».
@@ -225,19 +181,6 @@ export type Sincronia = {
   catalogo: (onProgresso?: (p: ProgressoCatalogo) => void) => Promise<{ ok: true; catalogo: Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }>
   /** La lettura del catalogo in corso, se c'e': per il telefono, che non riceve eventi e chiede. */
   statoCatalogo: () => { inCorso?: ProgressoCatalogo }
-  /**
-   * Porta qui un progetto del catalogo: la sua cartella se viaggia con le
-   * chat, le chat che qui mancano o sono indietro, nel loro workspace. Se
-   * il progetto e' nato altrove e non ha una cartella qui, la crea nella
-   * cartella dei progetti e ricorda l'origine, cosi' le chat si rimappano.
-   */
-  portaQui: (chiave: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
-  /**
-   * Porta qui un workspace del Drive: le sue chat che qui mancano (con le
-   * cartelle che servono, come «Porta qui» per ogni progetto toccato) e il
-   * workspace stesso, ricreato qui con dentro le chat.
-   */
-  portaQuiWorkspace: (nome: string) => Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }>
   /**
    * Mette da parte la cassaforte di questo PC e prende quella del Drive: da
    * qui in poi serve la passphrase di quel Drive. La vecchia resta accanto,
@@ -329,11 +272,10 @@ export function apriSincronia(deps: {
   /** Dove questo PC riceve i progetti che arrivano dal Drive (per «Porta qui»). */
   cartellaProgetti?: () => string
   /**
-   * «Una chat, una casa» (0.42.0): quali chat salgono da qui (solo quelle di
-   * cui questo PC e' la casa) e quali scendono da sole (solo quelle di casa
-   * qui). Senza, tutto come prima.
+   * Un progetto, un PC (0.88.0): quali voci salgono da qui. Le chat e i file
+   * dei progetti di un altro PC non salgono da questo. Senza, tutto sale.
    */
-  unaCasa?: { saleDaQui: (percorso: string) => boolean; scendeQui: (percorso: string) => boolean }
+  saleDaQui?: (percorso: string) => boolean
   /** Tolto dal Drive con una pulizia e uguale a com'era (0.65.0): non risale. */
   fuoriDalDrive?: (percorso: string, size?: number) => boolean
   /**
@@ -343,9 +285,6 @@ export function apriSincronia(deps: {
   chatTolteDaQui?: (percorso: string) => boolean
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
-  /** Quante chat l'ultimo arrivo ha lasciato sul Drive perche' fuori ritenzione: si scrive nel registro solo quando cambia. */
-  let vecchieLasciate = -1
-  let recuperoLasciate = -1
   // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
   const prendiLavoro = (tipo: TipoLavoro): { presa?: Presa; errore?: string } => {
     if (deps.lavoro === undefined) return {}
@@ -411,25 +350,6 @@ export function apriSincronia(deps: {
       }
     }
   }
-  /**
-   * Un progetto nato altrove, senza cartella qui: la si crea nella cartella
-   * dei progetti e si ricorda l'origine, cosi' le chat che la citano vengono
-   * rimappate su quella di qui (e le trascrizioni copiate sotto il nuovo
-   * slug) al giro di `rimappaChat` che segue. Restituisce il registro
-   * aggiornato, gia' scritto.
-   */
-  const preparaCartella = (g: { id?: string; quiEsiste: boolean; nome: string; cartellaOrigine: string }, registroPc: RegistroProgetti):
-    { ok: true; registro: RegistroProgetti } | { ok: false; messaggio: string } => {
-    if (g.id !== undefined || g.quiEsiste || deps.registroProgetti === undefined || deps.cartellaProgetti === undefined) return { ok: true, registro: registroPc }
-    const percorsoQui = join(deps.cartellaProgetti(), g.nome)
-    try { mkdirSync(percorsoQui, { recursive: true }) } catch (err) { return { ok: false, messaggio: `Non riesco a creare la cartella ${percorsoQui}: ${messaggioDi(err)}` } }
-    const { registro: reg } = adottaOrigine(registroPc, {
-      cwdOrigine: g.cartellaOrigine, nome: g.nome, pcId: deps.pcId?.() ?? '', percorsoQui, adesso: adesso()
-    })
-    deps.registroProgetti.scrivi(reg)
-    log(`PORTA QUI «${g.nome}»: cartella creata in ${percorsoQui}, origine ${g.cartellaOrigine}`)
-    return { ok: true, registro: reg }
-  }
   let catalogoInCorso: ProgressoCatalogo | undefined
   let lettureCatalogo = 0
   /**
@@ -446,9 +366,6 @@ export function apriSincronia(deps: {
    * workspace di questo PC li decide questo PC); sul Drive vive l'unione, che
    * e' la memoria lunga da cui ogni PC prende cio' che vuole.
    */
-  /** I workspace del Drive da lasciare fuori dalla lista di questo PC: tutti tranne quelli scelti. */
-  const tranneQuesti = (a: ArchivioWorkspace | undefined, tieni: (nome: string) => boolean): string[] =>
-    (a?.workspace ?? []).map((w) => w.nome).filter((n) => !tieni(n))
   const unioneWorkspace = async (m: Buffer, percorso: string, contenuto: Buffer, base: Manifesto): Promise<Buffer | undefined> => {
     if (percorso !== 'sierradeck/workspaces.json') return undefined
     const raw = await leggiJsonDalDrive(deps.archivio(), m, base, percorso)
@@ -678,7 +595,6 @@ export function apriSincronia(deps: {
     firma?: { file: number; byte: number }
     /** L'utente ha acceso il salvataggio automatico? */
     auto?: boolean
-    ultimaFusione?: UltimaFusione
   }
   const leggiStato = (): StatoFile => {
     if (!existsSync(fileStato)) return {}
@@ -786,8 +702,7 @@ export function apriSincronia(deps: {
         sbloccato: maestra !== undefined,
         ...(diversa ? { cassaforteDiversa: true } : {}),
         ...(s.versione !== undefined ? { versione: s.versione } : {}),
-        ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {}),
-        ...(s.ultimaFusione !== undefined ? { ultimaFusione: s.ultimaFusione } : {})
+        ...(s.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: s.ultimoSalvataggio } : {})
       }
     },
 
@@ -899,11 +814,10 @@ export function apriSincronia(deps: {
           ...(opzioni?.automatico === true
             ? { rimandaVive: { quieteMs: QUIETE_CHAT_MS, ritardoMassimoMs: RITARDO_MASSIMO_CHAT_MS }, budgetByte: BUDGET_GIRO_BYTE }
             : {}),
-          // Una chat, una casa (0.42.0): le copie fuori casa non salgono, e
-          // ogni chat caricata porta il suo PC.
+          // Un progetto, un PC (0.88.0): da qui salgono solo le cose di qui;
           // e (0.65.0) quelle tolte dal Drive con una pulizia non risalgono finché sono uguali.
           escludi: (p: string, f?: { size: number }) =>
-            (deps.unaCasa !== undefined && !(deps.unaCasa as { saleDaQui: (p: string) => boolean }).saleDaQui(p)) ||
+            (deps.saleDaQui !== undefined && !deps.saleDaQui(p)) ||
             (deps.fuoriDalDrive?.(p, f?.size) ?? false),
           ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {}),
           // Le chat compresse (0.69.0), solo quando tutti i PC visti sanno leggerle.
@@ -1084,150 +998,6 @@ export function apriSincronia(deps: {
       return { ok: true, stessa: true }
     },
 
-    async anteprimaFusione(passphraseDrive) {
-      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const remota = await scaricaChiavi().catch(() => undefined)
-      const locale = leggiLocale()
-      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte: non c’è niente da fondere. Usa «Salva ora».' }
-      const diversa = locale !== undefined && !stessaCassaforte(locale, remota)
-      let mDrive: Buffer | undefined
-      if (!diversa) {
-        if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
-        mDrive = maestra
-      } else {
-        if (passphraseDrive === undefined || passphraseDrive === '') return { ok: false, messaggio: 'La cassaforte di questo Drive è un’altra: serve la sua passphrase.', servePassphrase: true }
-        mDrive = sbloccaCassaforte(remota, passphraseDrive)
-        if (mDrive === undefined) return { ok: false, messaggio: 'Questa passphrase non apre la cassaforte del Drive.', servePassphrase: true }
-      }
-      try {
-        const esito = await leggiManifesto(deps.archivio(), mDrive)
-        if (esito.stato === 'illeggibile') return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave.' }
-        const manifestoDrive = esito.stato === 'ok' ? esito.manifesto : manifestoVuoto()
-        const rawArchivio = await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/workspaces.json')
-        const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
-        const registroDrive = parseRegistro(await leggiJsonDalDrive(deps.archivio(), mDrive, manifestoDrive, 'sierradeck/progetti-drive.json'))
-        const firma = await firmaRadici(radici())
-        const firmaPc = new Map<string, { size: number; mtime: number }>()
-        for (const [k, v] of firma) firmaPc.set(k, { size: v.size, mtime: v.mtime })
-        const archivioPc = deps.workspaceLocale?.leggi()
-        const titoliIndice = deps.titoliChat?.()
-        const piano = pianifica({
-          firmaPc, manifestoDrive,
-          ...(archivioPc !== undefined ? { archivioPc } : {}),
-          ...(archivioDrive !== undefined ? { archivioDrive } : {}),
-          ...(titoliIndice !== undefined ? { titoliIndice } : {}),
-          registroPc: deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] },
-          registroDrive,
-          pcId: deps.pcId?.() ?? '',
-          cassaforteDiversa: diversa
-        })
-        log(`FUSIONE anteprima: ${piano.totali.soloPc} solo PC, ${piano.totali.soloDrive} solo Drive, ${piano.totali.diverse} diverse, ${piano.totali.uguali} uguali`)
-        return { ok: true, piano }
-      } catch (e) {
-        log(`FUSIONE anteprima fallita: ${messaggioDi(e)}`)
-        return { ok: false, messaggio: messaggioDi(e) }
-      }
-    },
-
-    async eseguiFusione(scelte, passphraseDrive) {
-      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const remota = await scaricaChiavi().catch(() => undefined)
-      if (remota === undefined) return { ok: false, messaggio: 'Su questo Drive non c’è una cassaforte.' }
-      const locale = leggiLocale()
-      if (locale !== undefined && !stessaCassaforte(locale, remota)) {
-        const mR = passphraseDrive === undefined ? undefined : sbloccaCassaforte(remota, passphraseDrive)
-        if (mR === undefined) return { ok: false, messaggio: 'Serve la passphrase della cassaforte del Drive.' }
-        const adottata = await this.adottaCassaforteDelDrive()
-        if (!adottata.ok) return { ok: false, messaggio: adottata.messaggio ?? 'cassaforte non adottata' }
-        adotta(mR)
-      } else if (maestra === undefined) {
-        const m = passphraseDrive === undefined ? undefined : sbloccaCassaforte(remota, passphraseDrive)
-        if (m === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
-        adotta(m)
-      }
-      const m = maestra as Buffer
-      const l = prendiLavoro('fusione')
-      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
-      const r = await conSegnaleDrive(l.presa?.segnale, async (): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> => {
-      try {
-        log('FUSIONE richiesta')
-        const esitoM = await leggiManifesto(deps.archivio(), m)
-        // Un manifesto, o un workspaces.json/progetti-drive.json, che il Drive
-        // ha ma che non si legge NON vale «assente» (analisi 0.81.0): la
-        // fusione li ricaricava con la sola lista di qui, e i workspace e i
-        // progetti degli altri PC sparivano dal Drive. Ci si ferma e lo si dice.
-        if (esitoM.stato === 'illeggibile') return { ok: false, messaggio: 'Il manifesto sul Drive non si apre con questa chiave: non fondo niente.' }
-        const manifestoDrive = esitoM.stato === 'ok' ? esitoM.manifesto : manifestoVuoto()
-        // I workspace e il registro si fondono prima, sul disco: poi salgono
-        // come file qualunque, insieme alle scelte.
-        const rawArchivio = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/workspaces.json')
-        const rawRegistro = await leggiJsonDalDrive(deps.archivio(), m, manifestoDrive, 'sierradeck/progetti-drive.json')
-        const illeggibili = ([['sierradeck/workspaces.json', rawArchivio], ['sierradeck/progetti-drive.json', rawRegistro]] as const)
-          .filter(([p, raw]) => raw === undefined && manifestoDrive.file[p] !== undefined).map(([p]) => p.slice('sierradeck/'.length))
-        if (illeggibili.length > 0) {
-          log(`FUSIONE fermata: ${illeggibili.join(' e ')} sul Drive non si legge`)
-          return { ok: false, messaggio: `${illeggibili.join(' e ')} sul Drive non si legge: non fondo, per non cancellare quello degli altri PC. Riprova fra poco.` }
-        }
-        const archivioDrive = rawArchivio === undefined ? undefined : parseArchivio(rawArchivio).archivio
-        const archivioFuso = fondiArchivi(deps.workspaceLocale?.leggi(), archivioDrive, scelte.workspace.modo, scelte.workspace.escludi, { ...(deps.pcId !== undefined ? { io: deps.pcId() } : {}) })
-        if (archivioFuso !== undefined) deps.workspaceLocale?.scrivi(archivioFuso)
-        const registroDrive = parseRegistro(rawRegistro)
-        const registroFuso = fondiRegistri(deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }, registroDrive)
-        deps.registroProgetti?.scrivi(registroFuso)
-        const voci: Record<string, 'carica' | 'scarica' | 'copia' | 'salta'> = {
-          ...scelte.voci,
-          'sierradeck/workspaces.json': 'carica',
-          'sierradeck/progetti-drive.json': 'carica'
-        }
-        // Le cartelle dei progetti che ricevono qualcosa, create se mancano.
-        const idDaRicevere = new Set<string>()
-        for (const [percorso, azione] of Object.entries(voci)) {
-          if ((azione === 'scarica' || azione === 'copia') && percorso.startsWith('progetto-')) {
-            idDaRicevere.add(prefissoDi(percorso).slice('progetto-'.length))
-          }
-        }
-        const radiciProgetti = deps.progetti === undefined ? [] : deps.progetti.preparaRipristino(idDaRicevere)
-        const tutteLeRadici = radiciDaSincronizzare(deps.dati, deps.radiceClaude, [
-          ...radiciProgetti,
-          ...(deps.progetti?.radiciLocali() ?? []).filter((r) => !radiciProgetti.some((x) => x.prefisso === r.prefisso))
-        ])
-        const esito = await eseguiFusione({
-          maestra: m, archivio: deps.archivio(), radici: tutteLeRadici, scelte: { ...scelte, voci },
-          pcNome: deps.pcNome?.() ?? 'questo-pc', adesso: adesso(),
-          onProgresso: (f, t, percorso, extra) => progressoVerso(l.presa)({
-            fase: 'carico', fatto: f, totale: t, unita: 'file',
-            ...(percorso !== undefined ? { dettaglio: percorso.split('/').slice(-2).join('/') } : {}),
-            ...(extra !== undefined ? { verso: extra.azione === 'scarica' ? 'giu' : 'su', caricati: extra.caricati, scaricati: extra.scaricati, saltati: extra.saltati } : {})
-          }),
-          ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
-        })
-        scriviManifestoLocale(await manifestoDiQui(esito.manifesto, tutteLeRadici))
-        const ultimaFusione: UltimaFusione = esito.annullato === true
-          ? { quando: adesso(), esito: 'interrotta', fatti: esito.fatti, totale: esito.totale, scelte }
-          : { quando: adesso(), esito: 'ok', fatti: esito.fatti, totale: esito.totale }
-        scriviStato({ ...leggiStato(), ultimoSalvataggio: adesso(), ultimaFusione })
-        log(`FUSIONE ${esito.annullato === true ? `ANNULLATA a ${esito.fatti}/${esito.totale}` : 'ok'}: ${esito.caricati} caricati, ${esito.scaricati} scaricati, ${esito.copie} copie, ${esito.saltati} saltati${esito.saltati > 0 && esito.perche !== undefined ? ` (sul Drive manca il file: ${esito.perche.blobMancante}, qui manca il file: ${esito.perche.localeMancante}, non scrivibile: ${esito.perche.nonScritto})` : ''}`)
-        return { ok: true, esito }
-      } catch (e) {
-        log(`FUSIONE fallita: ${messaggioDi(e)}`)
-        scriviStato({ ...leggiStato(), ultimaFusione: { quando: adesso(), esito: 'fallita', messaggio: messaggioDi(e), scelte } })
-        return { ok: false, messaggio: messaggioDi(e) }
-      }
-      })
-      chiudiLavoro(
-        l.presa,
-        r.ok ? { ok: true, ...(r.esito.annullato === true ? { annullato: true } : {}) } : r,
-        r.ok
-          ? (r.esito.annullato === true
-              ? `fermata a ${r.esito.fatti} su ${r.esito.totale}: riapri «Fondi con il Drive» per finire`
-              : `${r.esito.caricati} sul Drive, ${r.esito.scaricati} qui${r.esito.copie > 0 ? `, ${r.esito.copie} in due versioni` : ''}. Riavvia per vedere tutto.`)
-          : '',
-        r.ok && r.esito.annullato !== true && r.esito.scaricati > 0,
-        r.ok ? r.esito.scaricati : undefined
-      )
-      return r
-    },
-
     async catalogo(onProgresso) {
       if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
       // Ogni fase si annuncia: alla finestra che ha chiesto (evento) e a chi
@@ -1282,25 +1052,6 @@ export function apriSincronia(deps: {
 
     statoCatalogo() {
       return catalogoInCorso === undefined ? {} : { inCorso: catalogoInCorso }
-    },
-
-    async portaQui(chiave) {
-      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
-      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const q = await leggiQuadro(maestra).catch(() => undefined)
-      if (q === undefined || 'illeggibile' in q) return { ok: false, messaggio: 'Non riesco a leggere il Drive.' }
-      const registroPc = deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }
-      const catalogo = costruisciCatalogo({ ...q, registroPc, pcId: deps.pcId?.() ?? '', cartellaEsiste: (p) => existsSync(p), adesso: adesso() })
-      const g = catalogo.progetti.find((x) => x.chiave === chiave)
-      if (g === undefined) return { ok: false, messaggio: 'Questo progetto non è più nel catalogo: premi «Aggiorna».' }
-      const pronta = preparaCartella(g, registroPc)
-      if (!pronta.ok) return pronta
-      const voci = scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc)
-      log(`PORTA QUI «${g.nome}»: ${Object.keys(voci).length} voci da scaricare`)
-      // Solo il workspace del progetto (stesso nome) entra nella lista di questo
-      // PC (0.65.1): prima entravano TUTTI i workspace del Drive, e le liste dei
-      // PC diventavano tutte uguali.
-      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: tranneQuesti(q.archivioDrive, (n) => nomeNormalizzato(n) === nomeNormalizzato(g.nome)) } })
     },
 
     async togliWorkspaceDalDrive(nome) {
@@ -1372,33 +1123,6 @@ export function apriSincronia(deps: {
       })
       chiudiLavoro(l.presa, r, verso === 'togli' ? `«${nome}» tolto dal Drive` : `«${nome}» rimesso sul Drive`)
       return r
-    },
-
-    async portaQuiWorkspace(nome) {
-      if (maestra === undefined) return { ok: false, messaggio: 'Sblocca prima con la passphrase.' }
-      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Collega prima Google Drive.' }
-      const q = await leggiQuadro(maestra).catch(() => undefined)
-      if (q === undefined || 'illeggibile' in q) return { ok: false, messaggio: 'Non riesco a leggere il Drive.' }
-      let registroPc = deps.registroProgetti?.leggi() ?? { versione: 1, progetti: [] }
-      const catalogo = costruisciCatalogo({ ...q, registroPc, pcId: deps.pcId?.() ?? '', cartellaEsiste: (p) => existsSync(p), adesso: adesso() })
-      const w = catalogo.workspace.find((x) => x.nome === nome)
-      if (w === undefined) return { ok: false, messaggio: 'Questo workspace non è più sul Drive: premi «Aggiorna».' }
-      // Le cartelle di tutti i progetti toccati, poi le chat di questo
-      // workspace che qui mancano, con i file delle cartelle che viaggiano.
-      const sue = new Set(w.chat.map((c) => c.sessione))
-      const voci: Record<string, 'scarica'> = {}
-      for (const chiave of w.progetti) {
-        const g = catalogo.progetti.find((x) => x.chiave === chiave)
-        if (g === undefined) continue
-        const pronta = preparaCartella(g, registroPc)
-        if (!pronta.ok) return pronta
-        registroPc = pronta.registro
-        Object.assign(voci, scelteDiPortaQui(g, q.manifestoDrive, q.firmaPc, sue))
-      }
-      log(`PORTA QUI workspace «${nome}»: ${Object.keys(voci).length} voci da scaricare, ${w.progetti.length} progetti`)
-      // Il workspace del Drive entra qui con le sue chat, accanto a quelle che
-      // ci sono gia'; gli altri workspace del Drive no (0.65.1).
-      return this.eseguiFusione({ voci, workspace: { modo: 'unione', escludi: tranneQuesti(q.archivioDrive, (n) => n === nome) } })
     },
 
     async adottaCassaforteDelDrive() {
@@ -1658,137 +1382,27 @@ export function apriSincronia(deps: {
       if (blob === undefined) return undefined
       return spacchetta(await decifra(maestra, blob))
     },
-    async migraUnaCasa(caseChat) {
-      if (maestra === undefined) return { ok: false, messaggio: 'cassaforte chiusa' }
-      if (!deps.driveConnesso()) return { ok: false, messaggio: 'Drive non collegato' }
-      const a = deps.archivio()
-      const esito = await leggiManifesto(a, maestra)
-      if (esito.stato === 'assente') return { ok: true, proprietari: 0 }
-      if (esito.stato !== 'ok') return { ok: false, messaggio: 'il manifesto del Drive non si apre con questa chiave: non tocco niente' }
-      const prima = esito.manifesto
-      const dopo = manifestoConProprietari(prima, caseChat) as Manifesto
-      const perse = verificaMigrazione(prima, dopo)
-      if (perse.length > 0) {
-        log(`MIGRAZIONE una-casa fermata: perderebbe ${perse.length} voci (${perse.slice(0, 5).join(', ')}): non scrivo niente`)
-        return { ok: false, messaggio: `la migrazione perderebbe ${perse.length} voci: non ho scritto niente` }
-      }
-      const proprietari = Object.entries(dopo.file).filter(([p, v]) => v.pc !== undefined && prima.file[p]?.pc === undefined).length
-      if (proprietari === 0) return { ok: true, proprietari: 0 }
-      const copia = `sierradeck.manifesto.prima-0.42-${deps.pcId?.() ?? 'pc'}-${adesso().slice(0, 10)}`
-      await copiaManifesto(a, copia)
-      // Sul manifesto riletto (0.86.2): le voci arrivate nel frattempo restano.
-      await aggiornaManifesto(a, maestra, (attuale) => ({ ...(manifestoConProprietari(attuale, caseChat) as Manifesto), creatoIl: adesso() }))
-      // Riletto: ogni voce di prima deve esserci ancora, uguale.
-      const riletto = await leggiManifesto(a, maestra)
-      const ancora = riletto.stato === 'ok' ? verificaMigrazione(prima, riletto.manifesto) : Object.keys(prima.file)
-      if (ancora.length > 0) {
-        log(`MIGRAZIONE una-casa: dopo la scrittura mancano ${ancora.length} voci, rimetto la copia di sicurezza ${copia}`)
-        const blob = await a.scarica(copia)
-        if (blob !== undefined) await a.carica('sierradeck.manifesto', blob)
-        return { ok: false, messaggio: 'verifica dopo la scrittura non riuscita: rimesso il manifesto di prima' }
-      }
-      log(`MIGRAZIONE una-casa ok: ${proprietari} chat con il loro PC di casa nel manifesto; copia di sicurezza ${copia}`)
-      return { ok: true, proprietari, copia }
+    imparaVoci(voci) {
+      const prec = leggiManifestoLocale()
+      scriviManifestoLocale({ ...prec, file: { ...prec.file, ...voci } })
     },
     async arrivo() {
-      if (maestra === undefined || !deps.driveConnesso()) return { ok: true, scritti: 0 }
-      const m = maestra
-      // Prima si guarda: senza niente da scaricare non si prende il lavoro,
-      // non si accende la striscia e non si scrive niente. Tutto dentro un
-      // `try`: `deps.archivio()` e `quadroLocale()` possono rifiutare, e da
-      // qui si arriva da un timer senza nessuno che raccolga.
-      let guardata: { esitoM: Awaited<ReturnType<typeof leggiManifesto>>; firma: Map<string, { size: number; mtime: number; disco: string }>; altroveQui: (p: string, sizeDrive?: number) => boolean } | undefined
+      if (maestra === undefined || !deps.driveConnesso() || deps.registroProgetti === undefined) return { ok: true, scritti: 0 }
       try {
-        const esitoM = await leggiManifesto(deps.archivio(), m)
+        const esitoM = await leggiManifesto(deps.archivio(), maestra)
         if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
-        const q = await quadroLocale()
-        guardata = { esitoM, ...q }
+        const raw = await leggiJsonDalDrive(deps.archivio(), maestra, esitoM.manifesto, FILE_REGISTRO_DRIVE)
+        if (raw === undefined) return { ok: true, scritti: 0 }
+        const mio = deps.registroProgetti.leggi()
+        const fuso = fondiRegistri(mio, parseRegistro(raw))
+        if (JSON.stringify(fuso) === JSON.stringify(mio)) return { ok: true, scritti: 0 }
+        deps.registroProgetti.scrivi(fuso)
+        log(`ARRIVO: registro dei progetti allineato al Drive (${fuso.progetti.length} progetti)`)
+        return { ok: true, scritti: 1 }
       } catch (e) {
-        log(`ARRIVO: non ho potuto guardare il Drive (${messaggioDi(e)})`)
+        log(`ARRIVO: non ho potuto leggere il registro sul Drive (${messaggioDi(e)})`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
-      const { esitoM, firma, altroveQui } = guardata
-      if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }
-      const prec = leggiManifestoLocale()
-      // Claude Code toglie da solo le trascrizioni ferme da piu' di
-      // `cleanupPeriodDays`: una chat cosi' vecchia scesa oggi sparirebbe al
-      // prossimo giro e domani scenderebbe di nuovo. Resta sul Drive.
-      const giorni = giorniDiRitenzione(deps.radiceClaude)
-      const adessoMs = Date.parse(adesso())
-      let vecchie = 0
-      // 0.76.0: le chat la cui cartella è nel recupero di questo PC restano sul Drive.
-      const inRecupero = slugChatInRecupero(deps.dati, join(deps.radiceClaude, 'projects'))
-      let nelRecupero = 0
-      const candidati = Object.entries(esitoM.manifesto.file).filter(([p, v]) => {
-        if (prefissoDi(p) !== 'chat' || altroveQui(p, v.size)) return false
-        if (inRecupero.has(p.split('/')[1] ?? '')) { nelRecupero += 1; return false }
-        if (deps.chatTolteDaQui?.(p) === true) { nelRecupero += 1; return false }
-        // Una chat, una casa (0.42.0): non scendono piu' da sole le chat degli
-        // altri PC. Si guardano dal vivo, o si spostano con «Sposta progetto».
-        if (deps.unaCasa !== undefined && !deps.unaCasa.scendeQui(p)) return false
-        const locale = firma.get(p)
-        // Non sul disco a quel percorso: e' nuova, oppure e' gia' arrivata e la
-        // rimappatura l'ha spostata sotto lo slug di qui. Nel secondo caso il
-        // manifesto locale la conosce, e non si riscarica.
-        if (locale === undefined) {
-          if (giaArrivata(prec.file[p], v)) return false
-          if (fuoriRitenzione(v.mtime, giorni, adessoMs)) { vecchie += 1; return false }
-          return true
-        }
-        if (stessaFirma(locale, v)) return false
-        // Piu' avanti sul Drive = piu' lungo: una chat cresce e basta. Se e'
-        // solo la data a differire, e' lo stesso file salito da un altro PC.
-        return v.size > locale.size
-      })
-      if (nelRecupero !== recuperoLasciate) {
-        recuperoLasciate = nelRecupero
-        if (nelRecupero > 0) log(`ARRIVO: ${nelRecupero} chat lasciate sul Drive perché tolte da questo PC (la loro cartella nel recupero, o eliminate dal PC): tornano solo se le rimetti dal recupero`)
-      }
-      if (vecchie !== vecchieLasciate) {
-        vecchieLasciate = vecchie
-        if (vecchie > 0) log(`ARRIVO: ${vecchie} chat lasciate sul Drive perche' ferme da piu' di ${giorni} giorni: Claude Code le toglierebbe da qui al prossimo giro di pulizia (cleanupPeriodDays) e domani scenderebbero di nuovo. Si vedono nel catalogo del Drive e si prendono con «Porta qui».`)
-      }
-      if (candidati.length === 0) return { ok: true, scritti: 0 }
-      const l = prendiLavoro('arrivo')
-      if (l.errore !== undefined) return { ok: false, messaggio: l.errore }
-      log(`ARRIVO: ${candidati.length} chat da portare qui (solo sul Drive o piu' avanti)`)
-      const soli = new Set(candidati.map(([p]) => p))
-      const r = await conSegnaleDrive(l.presa?.segnale, async (): Promise<{ ok: boolean; scritti?: number; messaggio?: string; annullato?: boolean }> => {
-        try {
-          if (candidati.length > 10) await deps.archivio().elenca().catch(() => undefined)
-          const esito = await ripristinaIncrementale({
-            radici: radici().filter((x) => x.prefisso === 'chat'),
-            maestra: m, archivio: deps.archivio(),
-            soloPrefissi: (p) => p === 'chat',
-            escludi: (p) => !soli.has(p),
-            manifestoPrec: prec,
-            pcNome: deps.pcNome?.() ?? 'questo-pc',
-            copieDiConflitto: (): boolean => false,
-            adesso: adesso(),
-            onProgresso: progressoVerso(l.presa),
-            ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {})
-          })
-          if (!esito.trovato) return { ok: true, scritti: 0 }
-          // Il manifesto locale impara le voci arrivate (e solo quelle sul disco).
-          if (esito.manifesto !== undefined) {
-            const nuovo: Manifesto = { ...prec, file: { ...prec.file } }
-            for (const p of soli) { const v = esito.manifesto.file[p]; if (v !== undefined) nuovo.file[p] = v }
-            scriviManifestoLocale(nuovo)
-          }
-          for (const c of esito.conflitti) log(`ARRIVO: ${c.percorso} e' cambiata anche qui: resta la piu' lunga (${c.vinto === 'mio' ? 'questa' : 'quella del Drive'})`)
-          if (esito.annullato === true) {
-            log(`ARRIVO annullato (${esito.scritti} chat arrivate prima di fermarsi)`)
-            return { ok: true, scritti: esito.scritti, annullato: true, messaggio: `fermato: ${esito.scritti} chat arrivate, il resto al prossimo giro` }
-          }
-          log(`ARRIVO ok: ${esito.scritti} chat scritte, ${esito.tenuti} tenute (piu' lunghe qui), ${esito.invariati} invariate`)
-          return { ok: true, scritti: esito.scritti }
-        } catch (e) {
-          log(`ARRIVO fallito: ${messaggioDi(e)}`)
-          return { ok: false, messaggio: messaggioDi(e) }
-        }
-      })
-      chiudiLavoro(l.presa, r, `${r.scritti ?? 0} chat arrivate dal Drive`, false, r.scritti)
-      return r
     }
   }
 }

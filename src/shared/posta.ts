@@ -137,7 +137,18 @@ export type VocePosta = {
   origine?: 'umano' | 'autopilota'
   /** Chi guarda, per il PIN (0.49.1): l'id del PC che scrive, o `tel:<telefono>@<PC>`. */
   daVisore?: string
+  /**
+   * Un comando per il programma di quel PC, non per una chat (0.88.0): «Sposta
+   * su questo PC» chiesto mentre il proprietario era spento. Il suo postino lo
+   * esegue e scrive l'esito (JSON) in `esito`.
+   */
+  comando?: ComandoPosta
 }
+
+/** I comandi che viaggiano nella posta (0.88.0). */
+export type ComandoPosta =
+  | { tipo: 'sposta-prepara'; progetto: string; verso: string; versoNome: string; sposta: string }
+  | { tipo: 'sposta-concludi'; progetto: string; verso: string; percorso: string; proprietarioDal: string; sposta: string }
 
 /** Il motivo, per esteso, di una voce rifiutata da una chat protetta (0.49.1). */
 export const ESITO_PROTETTA = 'Chat protetta: inserisci il PIN. Su quel PC questa chat è protetta dal PIN e non è aperta per chi ha scritto: aprila dal vivo (il riquadro della chat o «Chat … dal vivo» sul telefono), metti il PIN lì e rimanda il messaggio.'

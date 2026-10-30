@@ -56,7 +56,7 @@ function apri(p: ReturnType<typeof pc>, drive: ReturnType<typeof driveCondiviso>
 }
 
 describe('l’arrivo dal Drive e le chat eliminate dal PC', () => {
-  it('quella eliminata qui resta sul Drive; le altre scendono', async () => {
+  it('quella eliminata qui resta sul Drive; le altre scendono con «Ripristina»', async () => {
     const drive = driveCondiviso()
     const altro = pc('altro'); const qui = pc('qui')
     writeFileSync(join(altro.claude, 'projects', SLUG, `${U1}.jsonl`), '{"riga":1}\n', 'utf8')
@@ -67,13 +67,12 @@ describe('l’arrivo dal Drive e le chat eliminate dal PC', () => {
 
     const syncQ = apri(qui, drive, 'QUI', (p) => p.includes(U1))
     expect((await syncQ.sblocca('passphrase-robusta-1')).ok).toBe(true)
-    const r = await syncQ.arrivo()
-    expect(r.ok).toBe(true)
+    // L'arrivo (0.88.0) allinea solo il registro: non scarica chat.
+    expect((await syncQ.arrivo()).ok).toBe(true)
+    expect(existsSync(join(qui.claude, 'projects', SLUG, `${U2}.jsonl`))).toBe(false)
+    // «Ripristina» porta le altre, mai quella eliminata qui.
+    expect((await syncQ.ripristina()).ok).toBe(true)
     expect(existsSync(join(qui.claude, 'projects', SLUG, `${U1}.jsonl`))).toBe(false)
     expect(existsSync(join(qui.claude, 'projects', SLUG, `${U2}.jsonl`))).toBe(true)
-
-    // Neanche «Ripristina» la riporta.
-    await syncQ.ripristina()
-    expect(existsSync(join(qui.claude, 'projects', SLUG, `${U1}.jsonl`))).toBe(false)
   })
 })

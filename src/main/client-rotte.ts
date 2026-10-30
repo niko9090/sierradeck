@@ -57,7 +57,6 @@ import {
 import type { FileProgetti } from './file-progetti'
 import type { AlTelefono } from './al-telefono'
 import type { QuadernoPersonale } from './quaderno-personale'
-import type { LatoResidente } from './rimozione-sicura'
 import type { GestioneChat } from './gestione-chat'
 import { AZIONI_CHAT, totaleSelezione as totaleSelezioneChat, type AzioneChat } from '@shared/gestione-chat'
 import { chiaveCartella, eTelefono, idConsegnaValido, nomiDistinti, radiceAmmessa, rifiutoProgettoChiuso } from '@shared/file-telefono'
@@ -77,7 +76,7 @@ export function daAltroPc(dispositivo: string | undefined): boolean {
 }
 
 /** Le rotte che mostrano o scrivono dentro una chat: passano dal PIN (0.49.0). */
-const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/ospite'])
+const ROTTE_DENTRO_CHAT = new Set(['/api/storia', '/api/dentro', '/api/scrivi', '/api/scegli', '/api/chat/chiudi', '/api/prova/chiudi', '/api/chat/nome', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta'])
 import type { TentativoFallito } from '@shared/tentativo-installazione'
 import type { AvvisoDrive } from '@shared/scoperta-pc'
 import type { EsitoNegozio, McpVoce, PluginVoce, SkillVoce } from '@shared/negozio'
@@ -258,21 +257,16 @@ export type DipendenzeRotte = {
   /** La linguetta «File» dal telefono (0.38.0): solo lettura. */
   fileAutopilota?: (id: string) => Promise<unknown>
   /**
-   * «Sposta progetto» (0.42.0), dal lato di chi riceve: solo per gli altri PC
-   * con la chiave di casa (dispositivo `pc`), mai per un telefono.
+   * «Sposta su questo PC» (0.88.0), dal lato del proprietario: un altro PC
+   * chiede il progetto (`prepara`: ferma le chat, carica, conferma
+   * l'impronta) e poi dice che e' suo (`concludi`). Solo per gli altri PC con
+   * la chiave di casa (dispositivo `pc:<id>`), mai per un telefono, e solo
+   * per il PC che lo chiede per se'.
    */
-  sposta?: { pronto: () => unknown; ricevi: (corpo: unknown) => Promise<unknown>; verifica: (sessioni: string[]) => Promise<unknown> }
-  /**
-   * Il trasloco di un progetto (0.65.0), fra PC della stessa cassaforte:
-   * `salva`, `togli`, `togli-stato`, `ripristina` (questo PC ha una copia
-   * vecchia), `avvia`, `stato`, `riprendi`, `annulla` (il trasloco gira qui).
-   */
-  trasloco?: () => Record<string, (corpo: unknown) => Promise<unknown>> | undefined
-  /**
-   * Il trasloco di un progetto di prova (0.65.0): lo chiede anche chi
-   * collauda, solo per i progetti «SierraDeck-prova-…» (lo controlla questo PC).
-   */
-  provaTrasloco?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
+  sposta?: {
+    prepara: (r: { progetto: string; verso: string; versoNome: string }) => Promise<unknown>
+    concludi: (r: { progetto: string; verso: string; percorso: string; proprietarioDal: string }) => Promise<unknown>
+  }
   /** Toglie da questo PC un progetto di prova «SierraDeck-prova-…»: la cartella nel recupero (0.69.0). */
   provaTogliProgetto?: (nome: string) => Promise<{ ok: boolean; messaggio: string; stato?: number }>
   /** Una chat nuova (0.65.1): mai nella cartella utente, in Documenti o nella radice di un disco. */
@@ -281,8 +275,6 @@ export type DipendenzeRotte = {
   progettoDelWorkspace?: (nome: string) => Promise<{ ok: boolean; messaggio: string; cartella?: string }>
   /** La storia della lista dei workspace (0.65.1), in sola lettura. */
   storiaWorkspace?: () => unknown
-  /** Le case delle chat (0.52.0, «Ospitata da»): solo fra PC della stessa cassaforte. */
-  caseChat?: { leggi: () => unknown; ricevi: (corpo: unknown) => Promise<unknown> }
   /** «Salute del sistema» (0.44.0): il Drive, gli altri PC, gli errori, con spiegazioni e azioni. */
   salute?: () => Promise<unknown>
   /**
@@ -319,12 +311,6 @@ export type DipendenzeRotte = {
    * telefono che passa dal ponte: i dati stanno solo qui.
    */
   quadernoPersonale?: QuadernoPersonale
-  /**
-   * Il lato del residente nella rimozione sicura (0.58.0, tappa 3): confronto e
-   * recupero. Solo da un altro PC della stessa chiave di casa (richiesta
-   * firmata), mai da un telefono.
-   */
-  rimozione?: LatoResidente
   /**
    * Gli errori mandati da un altro PC o dal telefono (0.81.0): questo PC li
    * scrive nella cartella di SierraDeck, se è il PC di sviluppo.
@@ -414,8 +400,6 @@ export type DipendenzeRotte = {
   mandaAdessoAutopilota?: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
   proteggiChat?: (sessione: string, si: boolean) => void
-  /** «Ospitata da» (0.56.0): `casa:scegli` del PC. `pc.id = 'qui'` = questo PC. */
-  scegliOspite?: (sessioni: string[], pc: { id: string; nome: string }) => Promise<{ ok: boolean; messaggio: string }>
   /**
    * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
    *
@@ -618,24 +602,8 @@ export type DipendenzeRotte = {
   commutaSkill?: (nome: string, attivo: boolean) => EsitoNegozio
   commutaMcp?: (nome: string, attivo: boolean) => EsitoNegozio
   approvaMcp?: (nome: string, si: boolean) => EsitoNegozio
-  /**
-   * Chi è entrato.
-   *
-   * Era in sola lettura, e il ragionamento era che entrare da un telefono
-   * vuol dire scrivere una password su una tastiera che qualcuno guarda.
-   * Regge per l'inizio, non per il seguito: un account in cui **non si può
-   * uscire** non è prudenza, è una trappola — e chi ne ha due non ha nessun
-   * modo di passare dall'uno all'altro se non alzarsi e andare al computer.
-   * La prudenza vera è chiedere conferma prima di uscire, non togliere il
-   * comando.
-   */
-  account?: () => Promise<{ email?: string; entrato: boolean }>
   /** Il Drive e la cassaforte del computer (0.70.0), per la catena di Account e Drive sul telefono. */
   sicurezza?: () => Promise<{ drive: { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string }; sync?: { haCassaforte: boolean; sbloccato: boolean; cassaforteDiversa?: boolean; ultimoSalvataggio?: string } }>
-  /** Entra con questo account: la stessa chiamata del pannello sul computer. */
-  entraAccount?: (email: string, password: string) => Promise<{ ok: boolean; messaggio?: string }>
-  /** Esce. Vale per il computer, non solo per il telefono che l'ha chiesto. */
-  esciAccount?: () => Promise<void>
   versione: string
   /** Il nome della macchina: serve al telefono per distinguere piu' computer. Dalla 0.52.4 è quello scelto (ripiego: l'hostname). */
   nomeComputer?: () => string
@@ -1201,17 +1169,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return e.ok ? OK({ arrivati: l.invio.voci.length }) : { stato: e.stato, corpo: { errore: e.errore } }
     }
 
-    if (r.metodo === 'POST' && r.percorso.startsWith('/api/rimozione/')) {
-      const lato = depsPieni.rimozione
-      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo PC non sa ancora confrontare un progetto da togliere: va aggiornato alla 0.58.0.' } }
-      if (!visore.startsWith('pc:') || visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'Il confronto e il recupero si fanno solo fra PC della stessa cassaforte.' } }
-      // Sempre 200 con `ok`: un rifiuto del residente è una risposta, non «non raggiungibile».
-      if (r.percorso === '/api/rimozione/analisi') return OK(await lato.analizza(r.corpo))
-      if (r.percorso === '/api/rimozione/stato') return OK(lato.stato(r.corpo))
-      if (r.percorso === '/api/rimozione/pezzo') return OK(await lato.pezzo(r.corpo))
-      return { stato: 404, corpo: { errore: 'non trovato' } }
-    }
-
     // ── Il Quaderno personale (0.57.0): solo questo schermo e i telefoni accoppiati qui ──
     if (r.metodo === 'POST' && (r.percorso === '/api/quaderno-personale' || r.percorso.startsWith('/api/quaderno-personale/'))) {
       const q = depsPieni.quadernoPersonale
@@ -1646,6 +1603,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         }
         ricordaInviato(chat, testo)
         if (conId) memoriaInvii.segna(chat, idM, adesso())
+        // 0.88.0: quel PC spento o lontano: il testo aspetta nella sua posta, e lo si dice.
+        if (esito.posta === true) return OK({ fatto: true, posta: true, messaggio: esito.frase ?? 'nella posta di quel PC: arriva quando si accende' })
         // Una chat ferma su una scelta là: quel PC dice se l'ha presa (0.84.1).
         return OK({ fatto: true, ...(esito.esito !== undefined ? esitoDaAltroPc(esito, altrove.pcId, testo) : {}) })
       }
@@ -2048,40 +2007,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     if (r.percorso === '/api/account') {
-      const chi = (await deps.account?.().catch(() => undefined)) ?? { entrato: false }
+      // L'account del programma non c'è più (0.88.0): restano Drive e cassaforte.
+      const chi = { entrato: false }
       // 0.70.0: con la catena delle quattro tessere, decisa qui come sul PC.
       const sic = await deps.sicurezza?.().catch(() => undefined)
       const catena = sic === undefined ? undefined : vistaAccount({
-        ...(chi.entrato && chi.email !== undefined ? { utente: { email: chi.email } } : {}),
         drive: sic.drive, ...(sic.sync !== undefined ? { sync: sic.sync } : {}), ora: Date.now()
       })
       return OK({ ...chi, ...(catena !== undefined ? { catena } : {}) })
     }
 
-    // Entrare da lontano. Cambiare account è questo più «esci» prima: non
-    // serve un comando a parte, e uno in meno è uno in meno che può sbagliare.
-    if (r.metodo === 'POST' && r.percorso === '/api/account/entra') {
-      if (deps.entraAccount === undefined) {
-        return { stato: 501, corpo: { errore: 'questo computer non sa ancora entrare da fuori' } }
-      }
-      const email = stringa(r.corpo, 'email')
-      const password = stringa(r.corpo, 'password')
-      if (email === '' || password === '') {
-        return { stato: 400, corpo: { errore: 'servono email e password' } }
-      }
-      const esito = await deps.entraAccount(email, password).catch((err: unknown) => ({
-        ok: false,
-        messaggio: String(err)
-      }))
-      return OK(esito)
-    }
-
-    if (r.metodo === 'POST' && r.percorso === '/api/account/esci') {
-      if (deps.esciAccount === undefined) {
-        return { stato: 501, corpo: { errore: 'questo computer non sa ancora uscire da fuori' } }
-      }
-      await deps.esciAccount().catch(() => undefined)
-      return OK({ fatto: true })
+    if (r.metodo === 'POST' && (r.percorso === '/api/account/entra' || r.percorso === '/api/account/esci')) {
+      return { stato: 410, corpo: { errore: 'L’account di SierraDeck non c’è più: bastano il Drive e la cassaforte.' } }
     }
 
     if (r.percorso === '/api/consumi') {
@@ -2239,7 +2176,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // controlla, verifica e archivia. Portarlo qui di nascosto ne farebbe due
     // case.
     if (r.metodo === 'POST' && (r.percorso === '/api/drive/porta' || r.percorso === '/api/drive/portaWorkspace')) {
-      return OK({ ok: false, messaggio: 'Dalla 0.42.0 un progetto non si porta più qui dal catalogo: ogni chat ha una casa sola. Per spostarlo usa «Sposta progetto…» in Progetti, sul PC dove sta adesso; da qui intanto le sue chat si guardano dal vivo.' })
+      return OK({ ok: false, messaggio: 'Un progetto vive su un PC solo: non si porta qui dal catalogo. Per averlo qui usa «Sposta su questo PC» in Progetti, sul PC dove lo vuoi; intanto le sue chat si guardano dal vivo.' })
     }
     // Il nome scelto di questo PC (0.52.4), cambiato dal telefono: lo stesso
     // campo di «Altri computer» sul PC. Da un altro PC no: ognuno si chiama
@@ -2250,24 +2187,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const nome = stringa(r.corpo, 'nome') ?? ''
       return OK({ ok: true, ...deps.impostaNomeComputer(nome) })
     }
-    // Le case delle chat (0.52.0): un altro PC di casa manda la sua scelta
-    // («Ospitata da»), o chiede le nostre. Mai dal telefono né da fuori: la
-    // casa decide dove parte un claude.exe.
-    if (r.percorso === '/api/case') {
-      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
-      if (deps.caseChat === undefined) return { stato: 404, corpo: { errore: 'questo computer non conosce ancora le case delle chat' } }
-      if (r.metodo === 'POST') return OK((await deps.caseChat.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)
-      return OK(deps.caseChat.leggi() as object)
-    }
-    // Il trasloco (0.65.0): solo da un altro PC di casa.
-    if (r.metodo === 'POST' && r.percorso.startsWith('/api/trasloco/')) {
-      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
-      const lato = deps.trasloco?.()
-      if (lato === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora traslocare un progetto: aggiornalo alla 0.65.0.' } }
-      const fai = lato[r.percorso.slice('/api/trasloco/'.length)]
-      if (fai === undefined) return { stato: 404, corpo: { errore: 'non trovato' } }
-      return OK(((await fai(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e) }))) ?? {}) as object)
-    }
     // I progetti di prova di chi collauda (0.69.0): la cartella va nel recupero
     // (30 giorni, ripristinabile), solo se si chiama «SierraDeck-prova-…».
     if (r.metodo === 'POST' && r.percorso === '/api/prova/togli-progetto') {
@@ -2277,21 +2196,20 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const e = await deps.provaTogliProgetto(nome)
       return e.ok ? OK(e) : { stato: e.stato ?? 409, corpo: { errore: e.messaggio } }
     }
-    if (r.metodo === 'POST' && r.percorso === '/api/prova/trasloco') {
-      if (deps.provaTrasloco === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora traslocare un progetto: aggiornalo alla 0.65.0.' } }
-      const e = await deps.provaTrasloco(r.corpo)
-      return e.ok ? OK(e) : { stato: e.stato ?? 409, corpo: { errore: e.messaggio } }
-    }
-    // «Sposta progetto» (0.42.0): chi riceve. Solo da un altro PC di casa.
-    if (r.percorso.startsWith('/api/sposta/')) {
-      if (!daAltroPc(r.dispositivo)) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
-      if (deps.sposta === undefined) return { stato: 404, corpo: { errore: 'questo computer non sa ancora ricevere un progetto' } }
-      if (r.percorso === '/api/sposta/pronto') return OK(deps.sposta.pronto() as object)
-      if (r.metodo === 'POST' && r.percorso === '/api/sposta/ricevi') return OK((await deps.sposta.ricevi(r.corpo).catch((e: unknown) => ({ ok: false, messaggio: String(e) }))) as object)
-      if (r.metodo === 'POST' && r.percorso === '/api/sposta/verifica') {
-        const s = (r.corpo as { sessioni?: unknown } | undefined)?.sessioni
-        return OK((await deps.sposta.verifica(Array.isArray(s) ? s.filter((x): x is string => typeof x === 'string') : [])) as object)
+    // «Sposta su questo PC» (0.88.0): il proprietario, chiesto da un altro PC di casa per se'.
+    if (r.metodo === 'POST' && (r.percorso === '/api/sposta/prepara' || r.percorso === '/api/sposta/concludi')) {
+      if (!daAltroPc(r.dispositivo) || !visore.startsWith('pc:') || visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'solo un altro PC con la stessa cassaforte' } }
+      if (deps.sposta === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora spostare un progetto: va aggiornato alla 0.88.0' } }
+      const progetto = stringa(r.corpo, 'progetto')
+      const verso = stringa(r.corpo, 'verso')
+      if (progetto === '' || verso === '') return { stato: 400, corpo: { errore: 'servono il progetto e il PC' } }
+      // Un PC chiede solo per se': mai «sposta su un terzo».
+      if (visore !== `pc:${verso}`) return { stato: 403, corpo: { errore: 'un PC può chiedere un progetto solo per sé' } }
+      const fallito = (e: unknown): { ok: false; messaggio: string; riprova: true } => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e), riprova: true })
+      if (r.percorso === '/api/sposta/prepara') {
+        return OK((await deps.sposta.prepara({ progetto, verso, versoNome: stringa(r.corpo, 'versoNome') || verso }).catch(fallito)) as object)
       }
+      return OK((await deps.sposta.concludi({ progetto, verso, percorso: stringa(r.corpo, 'percorso'), proprietarioDal: stringa(r.corpo, 'proprietarioDal') }).catch(fallito)) as object)
     }
     if (r.percorso === '/api/drive/lavoro') {
       return OK((deps.driveLavoro?.() as object | undefined) ?? {})
@@ -2744,17 +2662,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (!si && g.protetta(c) && g.chiusa(visore, c)) return { stato: STATO_CHIUSA, corpo: { ...rifiutoChiusa(c.titolo), chat: c.id } }
       deps.proteggiChat(c.sessione, si)
       return OK({ fatto: true })
-    }
-
-    // «Ospitata da» (0.56.0): quale PC fa girare questa chat, con la conferma lunga del PC.
-    if (r.metodo === 'POST' && r.percorso === '/api/chat/ospite') {
-      if (deps.scegliOspite === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora scegliere l’ospite da qui: aggiornalo alla 0.56.0.' } }
-      const c = depsPieni.chat().find((x) => x.id === stringa(r.corpo, 'chat'))
-      if (c === undefined || c.sessione === undefined || c.sessione === '') return { stato: 404, corpo: { errore: 'Questa chat non è aperta sul computer, o non ha ancora una conversazione.' } }
-      const pc = stringa(r.corpo, 'pc')
-      if (pc === '') return { stato: 400, corpo: { errore: 'Scegli il PC che la ospita.' } }
-      const e = await deps.scegliOspite([c.sessione], { id: pc, nome: stringa(r.corpo, 'pcNome') || pc })
-      return e.ok ? OK({ fatto: true, messaggio: e.messaggio }) : { stato: 409, corpo: { errore: e.messaggio } }
     }
 
     // Mettere a dormire, svegliare, spostare in un altro workspace (0.55.0):

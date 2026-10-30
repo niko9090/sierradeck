@@ -46,14 +46,13 @@ export type IngressoAccount = {
 
 /** Le quattro tessere e il prossimo passo: una sola azione, quella che sblocca la tessera dopo. */
 export function vistaAccount(a: IngressoAccount): { tessere: TesseraAccount[]; prossimo?: PassoAccount } {
-  const { utente, drive, sync, ora } = a
+  const { drive, sync, ora } = a
   const rischio = drive?.connesso === true ? rischioSetteGiorni(drive.collegatoIl, ora) : undefined
   let vDrive = statoDrive(drive)
   if (rischio?.scade === true) {
     vDrive = stato('scade', 'scade', 'ambra', `collegato ${rischio.giorni} giorni fa: se l’app OAuth di Google è ancora «in prova», al settimo giorno perde il permesso. Ricollegalo (Account ▾ → Scollega, poi Connetti)`)
   }
   const tessere: TesseraAccount[] = [
-    { id: 'account', titolo: 'Account', vista: utente !== undefined ? stato('entrato', 'entrato', 'verde') : stato('fuori', 'fuori', 'ambra'), ...(utente !== undefined ? { sotto: utente.email } : {}) },
     {
       id: 'drive', titolo: 'Drive', vista: vDrive,
       ...(drive?.email !== undefined ? { sotto: drive.email } : rischio !== undefined ? { sotto: rischio.giorni === 0 ? 'collegato oggi' : `collegato ${rischio.giorni} giorni fa` } : {})
@@ -62,8 +61,7 @@ export function vistaAccount(a: IngressoAccount): { tessere: TesseraAccount[]; p
     { id: 'salvataggio', titolo: 'Salvataggio', vista: drive?.connesso === true && sync?.sbloccato === true ? statoSalvataggio(sync.ultimoSalvataggio, ora) : stato('attende', '—', 'quieto', 'prima la cassaforte') }
   ]
   const prossimo: PassoAccount | undefined =
-    utente === undefined ? { id: 'entra', testo: 'Entra' }
-      : drive === undefined || sync === undefined ? undefined
+    drive === undefined || sync === undefined ? undefined
         : !drive.connesso ? (drive.configurato ? { id: 'connetti', testo: 'Collega il Drive' } : undefined)
           : sync.cassaforteDiversa === true ? { id: 'prova', testo: 'Prova la passphrase su questo Drive' }
             : !sync.haCassaforte ? { id: 'crea', testo: 'Crea la passphrase' }
