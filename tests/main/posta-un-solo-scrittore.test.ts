@@ -34,7 +34,7 @@ function scatolaLenta(): ScatolaProva {
 const NAS = 'Z:\\progetti\\prova'
 const ORA = Date.parse('2026-10-30T08:00:00.000Z')
 
-function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: string[]; consegnate?: { ids: string[] }; scriviRompe?: boolean }) {
+function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: string[]; consegnate?: { ids: string[] }; scriviRompe?: boolean; comando?: Parameters<typeof creaPostino>[0]['comando'] }) {
   let chat: ChatDiPc[] = []
   const scritti: string[] = []
   const registro: string[] = []
@@ -53,6 +53,7 @@ function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: strin
     adesso: () => ORA,
     nuovoId: () => `${opts.id}-${++n}`,
     log: (m) => { registro.push(m) },
+    ...(opts.comando !== undefined ? { comando: opts.comando } : {}),
     ...(opts.consegnate !== undefined ? { consegnate: { leggi: () => opts.consegnate?.ids ?? [], scrivi: (ids: string[]) => { if (opts.consegnate) opts.consegnate.ids = ids } } } : {})
   })
   return { postino, scritti, registro, chat: (c: ChatDiPc[]) => { chat = c } }
@@ -211,5 +212,27 @@ describe('unisciCassetta', () => {
     })
     expect(p.voci.map((x) => `${x.id}:${x.stato}`)).toEqual(['b:consegnata', 'a:attesa'])
     expect(p.voci[0]).not.toHaveProperty('il')
+  })
+})
+
+describe('posta: un comando che questo PC non può ancora eseguire (0.88.2)', () => {
+  it('resta in attesa e si esegue al giro dopo, una volta sola', async () => {
+    const scatola = scatolaLenta()
+    let pronto = false
+    const eseguiti: string[] = []
+    const a = pc({ id: 'A', nome: 'Torre', scatola, comando: async (c) => {
+      if (!pronto) return { ok: false, riprova: true, esito: 'non ancora pronto' }
+      eseguiti.push(c.tipo)
+      return { ok: true, esito: 'salvati' }
+    } })
+    const b = pc({ id: 'B', nome: 'Portatile', scatola })
+    await b.postino.giro(); await a.postino.giro(); await b.postino.pc()
+    await b.postino.aggiungi('A', { cwd: '', testo: '1 errori da Portatile', comando: { tipo: 'errori', invio: { da: 'Portatile', voci: [] } } })
+    await a.postino.giro()
+    expect(((await b.postino.posta('A')) as Posta).voci[0]?.stato).toBe('attesa')
+    pronto = true
+    await a.postino.giro(); await a.postino.giro()
+    expect(eseguiti).toEqual(['errori'])
+    expect(((await b.postino.posta('A')) as Posta).voci[0]).toMatchObject({ stato: 'consegnata', esito: 'salvati' })
   })
 })

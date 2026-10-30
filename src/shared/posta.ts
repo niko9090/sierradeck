@@ -1,4 +1,5 @@
 import type { RisorsePc } from './risorse'
+import type { InvioErrori } from './storico-errori'
 /**
  * La posta per un PC: i tipi e le due cose pure che servono anche al
  * pannello del PC (`PannelloAccount`, `ModalePosta`) e alla pagina del
@@ -145,10 +146,14 @@ export type VocePosta = {
   comando?: ComandoPosta
 }
 
-/** I comandi che viaggiano nella posta (0.88.0). */
+/**
+ * I comandi che viaggiano nella posta (0.88.0). `errori` (0.88.2): lo storico
+ * per il PC di sviluppo, quando era spento e non si poteva mandare dritto.
+ */
 export type ComandoPosta =
   | { tipo: 'sposta-prepara'; progetto: string; verso: string; versoNome: string; sposta: string }
   | { tipo: 'sposta-concludi'; progetto: string; verso: string; percorso: string; proprietarioDal: string; sposta: string }
+  | { tipo: 'errori'; invio: InvioErrori }
 
 /** Il motivo, per esteso, di una voce rifiutata da una chat protetta (0.49.1). */
 export const ESITO_PROTETTA = 'Chat protetta: inserisci il PIN. Su quel PC questa chat è protetta dal PIN e non è aperta per chi ha scritto: aprila dal vivo (il riquadro della chat o «Chat … dal vivo» sul telefono), metti il PIN lì e rimanda il messaggio.'

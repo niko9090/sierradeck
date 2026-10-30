@@ -308,7 +308,8 @@ export function avviaServizio(): void {
   }, { primo: primoNumero, ricorda: (n) => { scriviJsonAtomico(fileNumeri, { ultimo: n }, 'consegne') } }, {
     // La coda su disco (0.71.0): un'istruzione non ancora ritirata sopravvive al riavvio.
     leggi: () => { try { return (JSON.parse(readFileSync(fileCoda, 'utf8')) as { coda?: unknown }).coda } catch { return [] } },
-    scrivi: (coda) => { mkdirSync(dirname(fileCoda), { recursive: true }); scriviJsonAtomico(fileCoda, { versione: 1, coda }, 'consegne') }
+    scrivi: (coda) => { mkdirSync(dirname(fileCoda), { recursive: true }); scriviJsonAtomico(fileCoda, { versione: 1, coda }, 'consegne') },
+    cartellaEsiste: (cwd) => existsSync(cwd)
   })
   let serverPronto: { riportaInCoda: (consegna: string, perche: string) => void } | undefined
 

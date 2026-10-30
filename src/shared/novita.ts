@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.2',
+    righe: [
+      '**Gli errori arrivano anche a PC di sviluppo spento:** «Manda al PC di sviluppo» li lascia sul Drive e arrivano appena quel PC si accende. Prima l’invio falliva e gli errori restavano dove erano.',
+      '**Avvio pulito dopo l’aggiornamento:** i messaggi rimasti per chat dell’autopilota di prima, le cui cartelle non ci sono più, non si riprovano più a ogni avvio (prima davano errori all’apertura).',
+    ]
+  },
+  {
     versione: '0.88.1',
     righe: [
       '**L’autopilota lavora anche nei progetti senza git:** prima, in una cartella che non è un repository (per esempio una cartella di Obsidian), nessuno specialista poteva partire e il lavoro restava a 0%. Ora gli specialisti lavorano direttamente nella cartella, uno alla volta, e il compito si chiude quando il suo criterio è verificato.',

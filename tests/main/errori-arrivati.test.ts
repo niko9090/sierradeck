@@ -129,6 +129,19 @@ describe('chi manda: «Manda al PC di sviluppo»', () => {
     const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(), chiama: async () => { throw new Error('Portatile non raggiungibile') }, salvaQui: () => ({ ok: false, errore: 'no' }) })
     expect(e).toEqual({ ok: false, messaggio: 'Non mandati a Portatile: Portatile non raggiungibile' })
   })
+
+  it('se l’altro PC non risponde, li lascia sul Drive nella sua posta (0.88.2)', async () => {
+    const posta: Array<{ pc: string; invio: InvioErrori }> = []
+    const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(3), chiama: async () => { throw new Error('Portatile non raggiungibile') }, salvaQui: () => ({ ok: false, errore: 'no' }), perPosta: async (pc, invio) => { posta.push({ pc, invio }); return true } })
+    expect(e).toEqual({ ok: true, messaggio: 'Portatile adesso non risponde: 3 errori lasciati sul Drive, arrivano appena si accende.' })
+    expect(posta[0]).toMatchObject({ pc: 'pc-la', invio: { da: 'Fisso', versione: '0.81.0' } })
+    expect(posta[0]?.invio.voci).toHaveLength(3)
+  })
+
+  it('se nemmeno il Drive prende la voce, dice perché come prima', async () => {
+    const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(), chiama: async () => { throw new Error('Portatile non raggiungibile') }, salvaQui: () => ({ ok: false, errore: 'no' }), perPosta: async () => { throw new Error('Drive spento') } })
+    expect(e).toEqual({ ok: false, messaggio: 'Non mandati a Portatile: Portatile non raggiungibile' })
+  })
 })
 
 describe('lo storico del PC per la pagina e l’app: /api/errori, /api/errori/aggiungi, /api/errori/manda', () => {

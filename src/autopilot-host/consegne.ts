@@ -146,7 +146,16 @@ export function creaConsegne(
    * consegne ripartono da capo (come mai ritirate): il Gestore scarta quelle
    * già scritte per chiave, quindi riconsegnare non le fa eseguire due volte.
    */
-  disco: { leggi?: () => unknown; scrivi?: (coda: Consegna[]) => void } = {}
+  disco: {
+    leggi?: () => unknown
+    scrivi?: (coda: Consegna[]) => void
+    /**
+     * La cartella della chat c'è ancora? (0.88.2) Una consegna ritrovata per
+     * una chat la cui cartella è sparita (la copia di lavoro di un autopilota
+     * di prima) non si apre più: riproporla dava solo errori all'avvio.
+     */
+    cartellaEsiste?: (cwd: string) => boolean
+  } = {}
 ): Consegne {
   const avvisa = (f: (() => void) | undefined): void => { try { f?.() } catch (err) { console.error('[consegne] osservatore:', err) } }
   const coda: InCoda[] = []
@@ -154,16 +163,22 @@ export function creaConsegne(
   const salva = (): void => { try { disco.scrivi?.(coda.map((x) => x.consegna)) } catch (err) { console.error('[consegne] coda non salvata:', err) } }
   try {
     const lette = disco.leggi?.()
+    let senzaCartella = 0
     for (const c of Array.isArray(lette) ? lette : []) {
       if (typeof c !== 'object' || c === null) continue
       const x = c as Partial<Consegna>
       if (typeof x.id !== 'string' || typeof x.autopilotaId !== 'string' || typeof x.sessionId !== 'string' || typeof x.cwd !== 'string' || (x.cosa !== 'scrivi' && x.cosa !== 'interrompi' && x.cosa !== 'chiudi')) continue
-      coda.push({ consegna: { chatId: '', titolo: '', testo: '', ...x } as Consegna, tentativi: 0 })
-      // Il numero non torna indietro: c-N dopo il riavvio è sempre nuovo.
       const n = /^c-(\d+)$/.exec(x.id)?.[1]
       if (n !== undefined) prossimo = Math.max(prossimo, Number(n))
+      if (x.cwd !== '' && disco.cartellaEsiste?.(x.cwd) === false) { senzaCartella += 1; continue }
+      coda.push({ consegna: { chatId: '', titolo: '', testo: '', ...x } as Consegna, tentativi: 0 })
     }
+    // Il numero non torna indietro (sopra): c-N dopo il riavvio è sempre nuovo.
     if (coda.length > 0) console.info(`[consegna] ${coda.length} consegne ritrovate dopo il riavvio: ripartono`)
+    if (senzaCartella > 0) {
+      console.info(`[consegna] ${senzaCartella} consegne ritrovate per chat la cui cartella non c'è più: lasciate andare`)
+      salva()
+    }
   } catch (err) { console.error('[consegne] coda illeggibile, riparto senza:', err) }
 
   return {

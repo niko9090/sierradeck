@@ -2007,6 +2007,12 @@ if (!app.requestSingleInstanceLock()) {
         // «Sposta su questo PC» chiesto per posta mentre questo PC era spento
         // (0.88.0): solo il PC che chiede per se', mai per un terzo.
         comando: async (c, voce) => {
+          // Gli errori lasciati sul Drive mentre questo era spento (0.88.2).
+          if (c.tipo === 'errori') {
+            const r = riceviErroriGlobale === undefined ? undefined : await riceviErroriGlobale(c.invio, `per posta da ${voce.daNome}`)
+            if (r === undefined) return { ok: false, riprova: true, esito: 'questo PC non è ancora pronto a ricevere gli errori' }
+            return r.ok ? { ok: true, esito: `salvati in ${r.file}` } : { ok: false, esito: r.errore }
+          }
           if (c.verso !== voce.daPc) return { ok: false, esito: JSON.stringify({ ok: false, messaggio: 'un PC può chiedere un progetto solo per sé' }) }
           const lato = latoProprietarioGlobale
           if (lato === undefined) return { ok: false, esito: JSON.stringify({ ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' }) }
@@ -2436,6 +2442,11 @@ if (!app.requestSingleInstanceLock()) {
           nomeDi: (pc) => { const b = postino.altrui().find((x) => x.pcId === pc); return b !== undefined ? nomeDaMostrare(b) : undefined },
           chiama: (pc, percorso, corpo) => remoto.chiama(pc, percorso, corpo),
           salvaQui: (invio) => salvaQui(invio, 'questo PC'),
+          // Ha risposto e ha detto di no: niente posta. Non ha risposto: sul Drive.
+          perPosta: async (pc, invio, err) => {
+            if (err instanceof ErroreRemoto && err.stato !== undefined) return false
+            return await postino.aggiungi(pc, { comando: { tipo: 'errori', invio }, cwd: '', testo: `${invio.voci.length} errori da ${invio.da}` }) !== undefined
+          },
           log: (riga) => registro.info(riga)
         })
       }

@@ -175,3 +175,20 @@ describe('la conferma di consegna', () => {
     expect(c.inAttesa()).toBe(0)
   })
 })
+
+describe('la coda ritrovata dopo il riavvio (0.88.2)', () => {
+  it('lascia andare le consegne per chat la cui cartella non c’è più, e il numero non torna indietro', () => {
+    const scritte: Consegna[][] = []
+    const c = creaConsegne({}, {}, {
+      leggi: () => [
+        { ...base({ cwd: 'C:\progetto' }), id: 'c-7' },
+        { ...base({ cwd: 'C:\progetto.sierradeck-wt\ap-1-c-9' }), id: 'c-9' }
+      ],
+      scrivi: (coda) => { scritte.push(coda) },
+      cartellaEsiste: (cwd) => cwd === 'C:\progetto'
+    })
+    expect(c.inAttesa()).toBe(1)
+    expect(scritte.at(-1)?.map((x) => x.id)).toEqual(['c-7'])
+    expect(c.metti(base()).id).toBe('c-10')
+  })
+})

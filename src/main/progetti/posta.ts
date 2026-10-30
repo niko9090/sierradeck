@@ -173,7 +173,7 @@ export function creaPostino(deps: {
    * Esegue un comando arrivato per posta (0.88.0, «Sposta su questo PC»):
    * l'esito, già in testo, va negli esiti. Senza, un comando fallisce e lo dice.
    */
-  comando?: (c: NonNullable<VocePosta['comando']>, voce: VocePosta) => Promise<{ ok: boolean; esito: string }>
+  comando?: (c: NonNullable<VocePosta['comando']>, voce: VocePosta) => Promise<{ ok: boolean; esito: string; riprova?: boolean }>
   /** Apre una chat nuova in quella cartella (in una finestra). */
   apriChat: (cwd: string) => void
   /** Riapre una conversazione precisa, nel suo workspace. */
@@ -376,7 +376,7 @@ export function creaPostino(deps: {
     if (voce.comando !== undefined) {
       // Un comando per il programma, non per una chat. I comandi si possono
       // rifare senza danni: se l'esito non si scrive, si rifà al giro dopo.
-      let r: { ok: boolean; esito: string }
+      let r: { ok: boolean; esito: string; riprova?: boolean }
       try {
         r = deps.comando === undefined
           ? { ok: false, esito: 'questo PC non sa eseguire comandi dalla posta' }
@@ -384,6 +384,8 @@ export function creaPostino(deps: {
       } catch (err) {
         r = { ok: false, esito: String(err) }
       }
+      // Questo PC non è ancora pronto a eseguirlo (0.88.2): resta in attesa per il giro dopo.
+      if (r.riprova === true) { log(`[posta] comando «${voce.comando.tipo}» da ${voce.daNome}: lo rifaccio al giro dopo (${r.esito})`); return }
       await aggiorna({ ...voce, stato: r.ok ? 'consegnata' : 'fallita', consegnataIl: iso(), esito: r.esito })
       ricordaConsegnata(voce.id)
       log(`[posta] comando «${voce.comando.tipo}» da ${voce.daNome}: ${r.ok ? 'fatto' : 'non riuscito'}`)
@@ -518,7 +520,8 @@ export function creaPostino(deps: {
     aggiungi: (pcId, voce) => inFila(async () => {
       const testo = voce.testo.trim().slice(0, TESTO_POSTA_MAX)
       const cwd = voce.cwd.trim()
-      if (testo === '' || cwd === '') return undefined
+      // Un comando per il programma non va in una cartella (0.88.2: gli errori).
+      if (testo === '' || (cwd === '' && voce.comando === undefined)) return undefined
       const s = deps.scatola()
       if (s === undefined) return undefined
       const nuova: VocePosta = {

@@ -60,6 +60,9 @@ export function salvaErroriArrivati(radice: string, invio: InvioErrori, quando: 
   return { ok: false, errore: 'Troppi arrivi nello stesso secondo: riprova.' }
 }
 
+/** Quanto storico va nella posta del Drive, al più (0.88.2). */
+export const BYTE_POSTA = 48 * 1024
+
 /**
  * «Manda al PC di sviluppo» (0.81.0), dal lato di chi manda: lo storico,
  * stretto per stare nel tetto del server, al PC scelto. Se il PC scelto è
@@ -74,6 +77,12 @@ export async function mandaErrori(p: {
   nomeDi: (pcId: string) => string | undefined
   chiama: (pcId: string, percorso: string, corpo: InvioErrori) => Promise<unknown>
   salvaQui: (invio: InvioErrori) => { ok: true; file: string } | { ok: false; errore: string }
+  /**
+   * Il PC di sviluppo non risponde (0.88.2): gli errori restano sul Drive, nella
+   * sua posta, e arrivano appena si accende. `false` se l'errore non è di rete
+   * (lì ha risposto, e ha detto di no) o se il Drive non prende la voce.
+   */
+  perPosta?: (pcId: string, invio: InvioErrori, err: unknown) => Promise<boolean>
   log: (riga: string) => void
 }): Promise<{ ok: boolean; messaggio: string }> {
   if (p.pcSviluppo === undefined) return { ok: false, messaggio: 'Prima scegli il PC di sviluppo.' }
@@ -92,6 +101,12 @@ export async function mandaErrori(p: {
     return { ok: true, messaggio: `Mandati a ${chiamato}: ${quanti}.` }
   } catch (err) {
     const perche = err instanceof Error ? err.message : String(err)
+    // Nella posta va meno: la cassetta sul Drive è di tutti i mittenti.
+    const piccolo: InvioErrori = { ...invio, voci: storicoPerLInvio(p.storico, BYTE_POSTA).voci }
+    if (p.perPosta !== undefined && await p.perPosta(p.pcSviluppo, piccolo, err).catch(() => false)) {
+      p.log(`[errori] ${chiamato} non risponde (${perche}): ${quanti} lasciati sul Drive`)
+      return { ok: true, messaggio: `${chiamato} adesso non risponde: ${quanti} lasciati sul Drive, arrivano appena si accende.` }
+    }
     p.log(`[errori] NON mandati a ${chiamato}: ${perche}`)
     return { ok: false, messaggio: `Non mandati a ${chiamato}: ${perche}` }
   }
