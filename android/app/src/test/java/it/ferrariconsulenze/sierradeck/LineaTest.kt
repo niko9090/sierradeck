@@ -38,7 +38,7 @@ class LineaTest {
     }
 
     @Test
-    fun `caduta, tentativi con attese crescenti, ritorno via WebRTC, poi di nuovo la rete di casa`() {
+    fun `caduta, tentativi con attese crescenti, ritorno via Tailscale, poi di nuovo la rete di casa`() {
         var l = Linea.passo(Linea.NUOVA, EventoLinea.Ok(0, 30, "lan"))
         assertEquals("collegato", l.fase)
         assertFalse(Linea.eOra(l, 0, Linea.KEEPALIVE_OGNI_MS - 1))
@@ -64,16 +64,16 @@ class LineaTest {
         l = Linea.passo(l, EventoLinea.RiprovaAdesso(t - 20_000))
         assertEquals(0L, Linea.fraSecondi(l, t - 20_000))
         // Isteresi: la prima risposta fa «lenta», la seconda «collegato».
-        l = Linea.passo(l, EventoLinea.Ok(t, 180, "webrtc"))
-        assertEquals("lenta", l.fase); assertEquals("webrtc", l.strada)
-        l = Linea.passo(l, EventoLinea.Ok(t + 2000, 170, "webrtc"))
-        assertEquals("collegato", l.fase); assertEquals("webrtc", l.strada); assertNull(l.prossimoIl)
+        l = Linea.passo(l, EventoLinea.Ok(t, 180, "tailscale"))
+        assertEquals("lenta", l.fase); assertEquals("tailscale", l.strada)
+        l = Linea.passo(l, EventoLinea.Ok(t + 2000, 170, "tailscale"))
+        assertEquals("collegato", l.fase); assertEquals("tailscale", l.strada); assertNull(l.prossimoIl)
         l = Linea.passo(l, EventoLinea.Ok(t + 30_000, 20, "lan"))
-        assertEquals("Passo da WebRTC a rete di casa", Linea.cambioVisibile(l, t + 30_001))
+        assertEquals("Passo da Tailscale a rete di casa", Linea.cambioVisibile(l, t + 30_001))
         assertEquals(listOf("collegato", "caduta", "tornato", "cambio"), l.storia.map { it.tipo })
         assertEquals(6, l.storia[2].tentativi)
         assertTrue(Linea.rigaStoria(l.storia[1]).contains("caduta (rete di casa): non risponde"))
-        assertTrue(Regex("tornato \\(WebRTC\\) dopo \\d+ (s|min) e 6 tentativi").containsMatchIn(Linea.rigaStoria(l.storia[2])))
+        assertTrue(Regex("tornato \\(Tailscale\\) dopo \\d+ (s|min) e 6 tentativi").containsMatchIn(Linea.rigaStoria(l.storia[2])))
     }
 
     @Test
@@ -132,7 +132,7 @@ class LineaTest {
     @Test
     fun `storia e misure si tengono corte, riprova adesso a linea su non cambia niente`() {
         var l = Linea.NUOVA
-        for (i in 0 until 100) l = Linea.passo(l, EventoLinea.Ok(i * 1000L, 10, if (i % 2 == 0) "lan" else "webrtc"))
+        for (i in 0 until 100) l = Linea.passo(l, EventoLinea.Ok(i * 1000L, 10, if (i % 2 == 0) "lan" else "tailscale"))
         assertEquals(30, l.storia.size); assertEquals(12, l.misure.size)
         val su = Linea.passo(Linea.NUOVA, EventoLinea.Ok(0, 5))
         assertTrue(su === Linea.passo(su, EventoLinea.RiprovaAdesso(5)))
@@ -142,8 +142,8 @@ class LineaTest {
     fun `errori della strada e strada migliore`() {
         assertTrue(listOf("irraggiungibile", "collegando", "spento").all { Linea.erroreDiStrada(it) })
         assertFalse(listOf("chat", "pin", "lento").any { Linea.erroreDiStrada(it) })
-        assertEquals("tailscale", Linea.stradaMigliore(listOf("drive", "webrtc", "tailscale")))
-        assertTrue(Linea.meglio("lan", "webrtc")); assertFalse(Linea.meglio("drive", "webrtc"))
+        assertEquals("tailscale", Linea.stradaMigliore(listOf("drive", "tailscale")))
+        assertTrue(Linea.meglio("lan", "tailscale")); assertFalse(Linea.meglio("drive", "tailscale"))
     }
 
     @Test
@@ -176,7 +176,7 @@ class LineaTest {
         val s = Api.json.decodeFromString<Stato>("""{"chat":[],"ponte":{"strada":"tailscale","ritardoMs":84}}""")
         assertEquals("tailscale", s.ponte?.strada); assertEquals(84L, s.ponte?.ritardoMs)
         assertNull(Api.json.decodeFromString<Stato>("""{"chat":[]}""").ponte)
-        val sal = Api.json.decodeFromString<Salute>("""{"tono":"ok","voci":[],"mappa":{"nodi":[{"id":"fisso","nome":"FISSO","x":50,"y":50,"io":true,"stato":"acceso"},{"id":"lap","nome":"LAPTOP","x":50,"y":12,"stato":"acceso"}],"linee":[{"a":"lap","strada":"WebRTC","stato":"ok","colore":"#3fb950","testo":"LAPTOP: WebRTC"}]}}""")
+        val sal = Api.json.decodeFromString<Salute>("""{"tono":"ok","voci":[],"mappa":{"nodi":[{"id":"fisso","nome":"FISSO","x":50,"y":50,"io":true,"stato":"acceso"},{"id":"lap","nome":"LAPTOP","x":50,"y":12,"stato":"acceso"}],"linee":[{"a":"lap","strada":"Tailscale","stato":"ok","colore":"#3fb950","testo":"LAPTOP: Tailscale"}]}}""")
         assertEquals(2, sal.mappa?.nodi?.size)
         assertEquals("ok", sal.mappa?.linee?.first()?.stato)
     }

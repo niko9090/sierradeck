@@ -87,7 +87,7 @@ export type VoceDomanda =
       righe: string[]
       /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
       pcNome?: string
-      /** E la strada per arrivarci (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
+      /** E la strada per arrivarci (0.40.0): «rete di casa», «Tailscale», «Drive, lento». */
       viaPc?: string
       /**
        * Ferma su una **domanda** (0.71.1), non solo a fine turno: una domanda

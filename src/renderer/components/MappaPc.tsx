@@ -34,7 +34,7 @@ export function MappaPc({ mappa }: { mappa: Mappa }): React.JSX.Element {
       </svg>
       <div className="mappa-pc__legenda con-aiuto">
         Verde: diretto · ambra: solo via Drive · rossa: non risponde
-        <Aiuto di="mappa dei PC">Questo PC al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (rete di casa, Tailscale o WebRTC, scritto sopra). Ambra tratteggiata: solo via Drive, lento. Rossa a puntini: adesso non risponde. Passa sopra una linea per i dettagli; la voce del PC qui sotto dice cosa fare.</Aiuto>
+        <Aiuto di="mappa dei PC">Questo PC al centro, gli altri intorno. Linea verde piena: si raggiunge direttamente (rete di casa o Tailscale, scritto sopra). Ambra tratteggiata: solo via Drive, lento (i messaggi aspettano nella posta). Rossa a puntini: adesso non risponde. Passa sopra una linea per i dettagli; la voce del PC qui sotto dice cosa fare.</Aiuto>
       </div>
     </section>
   )

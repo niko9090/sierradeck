@@ -141,7 +141,7 @@ export type PcRemoto = {
   buono?: string
   /** Com'e' dopo il bussare diretto (0.39.3), quando lo si e' chiesto. */
   stato?: StatoPc
-  /** La strada usata l'ultima volta (0.40.0): rete di casa, Tailscale, WebRTC, Drive. */
+  /** La strada usata l'ultima volta (0.40.0): rete di casa o Tailscale. */
   strada?: InfoStrada
   chat: { sessione?: string; titolo: string; cwd: string; aspetta: boolean }[]
   cartelle: string[]
@@ -173,7 +173,7 @@ export function descriviSilenzio(motivo: string, pcNome: string, daMs: number): 
   const breve = daMs < SILENZIO_BREVE_MS
   if (motivo === 'cassaforte') return { titolo: 'La cassaforte di qui è chiusa: riprovo appena la apri', breve: false }
   // Le strade nuove (0.40.0): non e' un guasto, si sta aprendo un'altra strada.
-  if (motivo === 'collegando') return { titolo: `Cerco un’altra strada per ${pcNome} (diretto via Internet, poi Drive) · da ${quanto}`, breve: false }
+  if (motivo === 'collegando') return { titolo: `Cerco un’altra strada per ${pcNome} (rete di casa o Tailscale) · da ${quanto}`, breve: false }
   if (motivo === 'lento') return { titolo: 'Con il collegamento lento via Drive questo non si può fare', breve: false }
   // Mai «spento» (0.39.3): con dati vecchi non lo si sa.
   if (motivo === 'spento' || motivo === 'non-so') return { titolo: `Non so se ${pcNome} è acceso · non risponde da ${quanto} · riprovo da solo`, breve }

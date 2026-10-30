@@ -18,7 +18,7 @@ class TentativiTest {
         assertEquals("provo", v.fase)
         assertEquals("Mi collego a PC-ESEMPIO…", v.titolo)
         assertEquals("provo rete di casa", v.sotto)
-        assertEquals(listOf("lan:provo", "tailscale:attesa", "webrtc:attesa", "drive:attesa"), stati(v))
+        assertEquals(listOf("lan:provo", "tailscale:attesa", "drive:attesa"), stati(v))
         e = e + EventoTentativo.Fallita("lan", 5000, "non ha risposto in 5 secondi") + EventoTentativo.Provo("tailscale", 5000)
         v = Tentativi.passi("PC-ESEMPIO", e)
         assertEquals("provo Tailscale", v.sotto)
@@ -27,7 +27,7 @@ class TentativiTest {
         assertEquals("collegato", v.fase)
         assertEquals("Collegato a PC-ESEMPIO", v.titolo)
         assertEquals("Tailscale · 84 ms", v.sotto)
-        assertEquals(listOf("lan:fallita", "tailscale:ok", "webrtc:inutile", "drive:inutile"), stati(v))
+        assertEquals(listOf("lan:fallita", "tailscale:ok", "drive:inutile"), stati(v))
         assertEquals("non ha risposto in 5 secondi", v.passi[0].motivo)
     }
 
@@ -35,26 +35,24 @@ class TentativiTest {
     fun `se fallisce - il motivo, mai una schermata vuota`() {
         val v = Tentativi.passi("PC-ESEMPIO", listOf(
             EventoTentativo.Provo("lan", 0), EventoTentativo.Fallita("lan", 1, "rifiutato"),
-            EventoTentativo.Salta("tailscale", "nessun indirizzo Tailscale"), EventoTentativo.Salta("webrtc", "dal telefono no"),
+            EventoTentativo.Salta("tailscale", "nessun indirizzo Tailscale"),
             EventoTentativo.Fallito(2, "nessuna strada ha risposto")
         ))
         assertEquals("fallito", v.fase)
         assertEquals("Non riesco a collegarmi a PC-ESEMPIO", v.titolo)
         assertEquals("nessuna strada ha risposto", v.sotto)
-        assertEquals(listOf("lan:fallita", "tailscale:salta", "webrtc:salta", "drive:salta"), stati(v))
+        assertEquals(listOf("lan:fallita", "tailscale:salta", "drive:salta"), stati(v))
     }
 
     @Test
     fun `dal ponte - ricavati dalla macchina della linea`() {
-        val su = Linea.passo(Linea.NUOVA, EventoLinea.Ok(1000, 120, "webrtc"))
+        val su = Linea.passo(Linea.NUOVA, EventoLinea.Ok(1000, 120, "tailscale"))
         val v = Tentativi.passi("PC-ESEMPIO", Tentativi.daLinea(su, 0))
-        assertEquals(listOf("lan:fallita", "tailscale:salta", "webrtc:ok", "drive:inutile"), stati(v))
+        assertEquals(listOf("lan:fallita", "tailscale:ok", "drive:inutile"), stati(v))
         assertEquals(120L, v.ritardoMs)
         val giu = Linea.passo(Linea.NUOVA, EventoLinea.Errore(1000, "irraggiungibile", "non risponde"))
         assertEquals("fallito", Tentativi.passi("PC-ESEMPIO", Tentativi.daLinea(giu, 0)).fase)
-        val apre = Linea.passo(Linea.NUOVA, EventoLinea.Errore(1000, "collegando", "apro WebRTC"))
-        assertEquals(listOf("lan:fallita", "tailscale:fallita", "webrtc:provo", "drive:attesa"), stati(Tentativi.passi("PC-ESEMPIO", Tentativi.daLinea(apre, 0))))
-        assertEquals(listOf("lan:provo", "tailscale:attesa", "webrtc:attesa", "drive:attesa"), stati(Tentativi.passi("PC-ESEMPIO", Tentativi.daLinea(Linea.NUOVA, 0))))
+        assertEquals(listOf("lan:provo", "tailscale:attesa", "drive:attesa"), stati(Tentativi.passi("PC-ESEMPIO", Tentativi.daLinea(Linea.NUOVA, 0))))
     }
 
     @Test

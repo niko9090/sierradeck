@@ -51,9 +51,9 @@ describe('il ponte dice la strada e il ritardo', () => {
 describe('la mappa nella Salute', () => {
   it('c’è con almeno un altro PC, e non c’è da soli', () => {
     const base = { adesso: Date.now(), versione: '0.51.0', drive: { configurato: true, connesso: true }, errori: [], consegne: [], oreErrori: 6 }
-    const s = componiSalute({ ...base, io: { id: 'fisso', nome: 'FISSO' }, pc: [{ pcId: 'lap', nome: 'LAPTOP', versione: '0.51.0', stato: 'acceso', strada: 'WebRTC' }] })
+    const s = componiSalute({ ...base, io: { id: 'fisso', nome: 'FISSO' }, pc: [{ pcId: 'lap', nome: 'LAPTOP', versione: '0.51.0', stato: 'acceso', strada: 'Tailscale' }] })
     expect(s.mappa?.nodi.map((n) => n.nome)).toEqual(['FISSO', 'LAPTOP'])
-    expect(s.mappa?.linee[0]).toMatchObject({ stato: 'ok', strada: 'WebRTC' })
+    expect(s.mappa?.linee[0]).toMatchObject({ stato: 'ok', strada: 'Tailscale' })
     expect(componiSalute({ ...base, io: { id: 'fisso', nome: 'FISSO' }, pc: [] }).mappa).toBeUndefined()
   })
 })

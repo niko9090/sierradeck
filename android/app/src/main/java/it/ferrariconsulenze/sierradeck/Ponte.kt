@@ -28,9 +28,9 @@ import kotlinx.serialization.json.put
  * vivo, passando dal PC a cui il telefono è accoppiato.
  *
  * Il telefono chiede al suo PC `POST /api/ponte {pc, percorso, corpo}` e quel
- * PC la gira all'altro con le sue strade (rete di casa, Tailscale, WebRTC,
- * Drive) e la chiave di casa, che il telefono non ha mai. La risposta è
- * quella dell'altro PC, intera: le schermate delle chat sono le stesse.
+ * PC la gira all'altro con le sue strade (rete di casa, Tailscale) e la
+ * chiave di casa, che il telefono non ha mai. La risposta è quella
+ * dell'altro PC, intera: le schermate delle chat sono le stesse.
  *
  * **Gli stessi permessi del PC**: quello che il PC fa dal suo riquadro remoto
  * e, dalla 0.55.0, la gestione di chat, workspace e autopiloti di quel PC

@@ -28,8 +28,7 @@ import androidx.compose.ui.unit.sp
  *
  * Nicholas (07/10): «Ho cambiato pc e non si vede nessuna animazione e lo
  * stato della connessione». Al cambio di computer dal selettore in alto si
- * vedono i tentativi in ordine (rete di casa, Tailscale, WebRTC / ponte,
- * Drive), poi la strada buona con il ritardo; se nessuna risponde, il motivo,
+ * vedono i tentativi in ordine (rete di casa, Tailscale, Drive), poi la strada buona con il ritardo; se nessuna risponde, il motivo,
  * l'ultimo segno e «Riprova». I passi si ricavano **solo** dagli eventi
  * osservati (`passi`), la stessa funzione di `src/shared/collegamento.ts`.
  */
@@ -54,10 +53,10 @@ data class VistaCollegamento(
 )
 
 object Tentativi {
-    val STRADE = listOf("lan", "tailscale", "webrtc", "drive")
+    val STRADE = listOf("lan", "tailscale", "drive")
 
-    fun nome(s: String): String = when (s) { "lan" -> "rete di casa"; "tailscale" -> "Tailscale"; "webrtc" -> "WebRTC / ponte"; "drive" -> "Drive (lento)"; else -> s }
-    private fun icona(s: String): String = when (s) { "lan" -> "🏠"; "tailscale" -> "🔐"; "webrtc" -> "🌐"; "drive" -> "☁️"; else -> "…" }
+    fun nome(s: String): String = when (s) { "lan" -> "rete di casa"; "tailscale" -> "Tailscale"; "drive" -> "Drive (lento)"; else -> s }
+    private fun icona(s: String): String = when (s) { "lan" -> "🏠"; "tailscale" -> "🔐"; "drive" -> "☁️"; else -> "…" }
 
     fun passi(nomePc: String, eventi: List<EventoTentativo>): VistaCollegamento {
         val passi = STRADE.map { PassoCollegamento(it, nome(it), icona(it), "attesa") }.toMutableList()
@@ -117,12 +116,6 @@ object Tentativi {
         val fuori = mutableListOf<EventoTentativo>(EventoTentativo.Provo("lan", inizio))
         val primo = l.storia.firstOrNull { it.tipo == "collegato" || it.tipo == "tornato" }
         val misura = l.misure.firstOrNull { it.ok }
-        if (primo == null && l.motivo == "collegando") {
-            fuori += EventoTentativo.Fallita("lan", l.cadutaIl ?: inizio, "non risponde")
-            fuori += EventoTentativo.Fallita("tailscale", l.cadutaIl ?: inizio, "non risponde")
-            fuori += EventoTentativo.Provo("webrtc", l.cadutaIl ?: inizio)
-            return fuori
-        }
         if (primo != null) {
             fuori += EventoTentativo.Riuscita(primo.strada ?: "lan", primo.il, misura?.ritardoMs ?: 0)
             return fuori

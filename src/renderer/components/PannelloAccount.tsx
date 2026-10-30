@@ -635,7 +635,7 @@ export function NomeQuestoPc(): React.JSX.Element {
     <div style={{ marginBottom: 12 }}>
       <h4 className="con-aiuto" style={{ margin: '0 0 4px' }}>Questo PC<Aiuto di="Questo PC">
         Il nome con cui questo computer compare dappertutto: in alto nell’app del telefono, nel cambio di computer, nei
-        riquadri «SU …» degli altri PC, in «Riprendi», in Salute e nella mappa, in «Dove vive ogni chat» e nella pagina
+        riquadri «SU …» degli altri PC, in «Riprendi», in Salute e nella mappa, nel «su …» di Progetti e nella pagina
         del telefono. Il nome tecnico della macchina{io !== undefined ? <> (<code>{io.host}</code>)</> : null} resta
         scritto piccolo accanto, per riconoscerla. Lasciato vuoto, si usa il nome tecnico. Al massimo {NOME_PC_MAX} caratteri.
       </Aiuto></h4>

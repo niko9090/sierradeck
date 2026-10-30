@@ -10,11 +10,11 @@ describe('la strada nelle Domande', () => {
   it('una chat di un altro PC porta il suo PC e la strada fino alla conversazione', () => {
     const voci = raccogliDomande({
       domande: [], autopiloti: [], chat: [], scelteDi: () => undefined,
-      altriPc: [{ pcId: 'lap', nome: 'LAPTOP', vivo: true, strada: 'WebRTC', chat: [{ sessione: 's1', titolo: 'Trading', cwd: 'C:\\Trading', aspetta: true }] }]
+      altriPc: [{ pcId: 'lap', nome: 'LAPTOP', vivo: true, strada: 'Tailscale', chat: [{ sessione: 's1', titolo: 'Trading', cwd: 'C:\\Trading', aspetta: true }] }]
     })
-    expect(voci[0]).toMatchObject({ tipo: 'chat', pcNome: 'LAPTOP', viaPc: 'WebRTC' })
+    expect(voci[0]).toMatchObject({ tipo: 'chat', pcNome: 'LAPTOP', viaPc: 'Tailscale' })
     const conv = conversazioniDomande({ voci, autopiloti: [], inviati: {} })
-    expect(conv[0]).toMatchObject({ suPc: 'LAPTOP', viaPc: 'WebRTC' })
+    expect(conv[0]).toMatchObject({ suPc: 'LAPTOP', viaPc: 'Tailscale' })
   })
   it('senza strada nota, solo «SU <PC>» come prima', () => {
     const voci = raccogliDomande({

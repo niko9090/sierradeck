@@ -7,7 +7,6 @@ import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { aggiungiErrore, voceDaTesto, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { ROTTE_PONTE } from '@shared/ponte-telefono'
-import { ROTTE_VIA_CANALE } from '@shared/strada-pc'
 
 // Nella Temp finta della suite: la toglie la guardia alla fine (tests/setup).
 const cartella = (): string => mkdtempSync(join(tmpdir(), 'sierradeck-test-arrivi-'))
@@ -89,8 +88,7 @@ describe('chi riceve: la rotta /api/errori/arrivati', () => {
     expect(e.stato).toBe(409)
   })
 
-  it('passa sul canale WebRTC; il telefono non lo chiede attraverso il ponte (lo manda il suo PC)', () => {
-    expect(ROTTE_VIA_CANALE).toContain('/api/errori/arrivati')
+  it('il telefono non lo chiede attraverso il ponte (lo manda il suo PC)', () => {
     expect(ROTTE_PONTE).not.toContain('/api/errori/arrivati')
   })
 })

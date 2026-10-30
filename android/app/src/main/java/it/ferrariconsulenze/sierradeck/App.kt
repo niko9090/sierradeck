@@ -354,7 +354,6 @@ fun Principale(
                 e(EventoTentativo.Fallita(s, System.currentTimeMillis(), ultimo))
             }
         }
-        e(EventoTentativo.Salta("webrtc", "dal telefono il ponte verso gli altri PC si apre da Altro › Altri computer"))
         e(EventoTentativo.Salta("drive", "il telefono non legge il Drive"))
         e(EventoTentativo.Fallito(System.currentTimeMillis(), "nessuna strada ha risposto (ultimo motivo: $ultimo)"))
         mostraScheda.cancel()

@@ -69,7 +69,7 @@ object Linea {
     const val GIU_DOPO_MS = 20_000L
     const val GIU_DOPO_FALLITI = 3
     const val TORNA_DOPO_OK = 2
-    val ORDINE_STRADE = listOf("lan", "tailscale", "webrtc", "drive")
+    val ORDINE_STRADE = listOf("lan", "tailscale", "drive")
     val NUOVA = StatoLinea()
 
     fun attesaPrima(tentativo: Int): Long = ATTESE_MS[(tentativo - 1).coerceIn(0, ATTESE_MS.size - 1)]
@@ -146,8 +146,8 @@ object Linea {
     /** La chat chiusa là, il PIN, «via Drive non si fa»: la linea è su, è la richiesta a non andare. */
     fun erroreDiStrada(motivo: String): Boolean = motivo !in setOf("chat", "pin", "lento")
 
-    fun stradaBreve(s: String?): String = when (s) { "lan" -> "rete di casa"; "tailscale" -> "Tailscale"; "webrtc" -> "WebRTC"; "drive" -> "Drive, lento"; else -> "strada non ancora nota" }
-    fun icona(s: String?): String = when (s) { "lan" -> "🏠"; "tailscale" -> "🔐"; "webrtc" -> "🌐"; "drive" -> "☁️"; else -> "…" }
+    fun stradaBreve(s: String?): String = when (s) { "lan" -> "rete di casa"; "tailscale" -> "Tailscale"; "drive" -> "Drive, lento"; else -> "strada non ancora nota" }
+    fun icona(s: String?): String = when (s) { "lan" -> "🏠"; "tailscale" -> "🔐"; "drive" -> "☁️"; else -> "…" }
 
     /**
      * La strada fra il telefono e il PC accoppiato, dall'indirizzo (0.52.0):
@@ -319,7 +319,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        spiega ?: "Le cadute, i ritorni e i cambi di strada di questa schermata, con l'ora e il motivo (gli ultimi trenta). Le strade si provano in quest'ordine: rete di casa 🏠, Tailscale 🔐, collegamento diretto via Internet (WebRTC) 🌐, Drive ☁️ (lento). Quando ne torna una migliore il PC ci passa da solo, senza chiudere niente. Il ritardo è il giro completo: dal telefono al PC accoppiato, a $nomePc e ritorno. Le tacche: 4 = sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).",
+                        spiega ?: "Le cadute, i ritorni e i cambi di strada di questa schermata, con l'ora e il motivo (gli ultimi trenta). Le strade si provano in quest'ordine: rete di casa 🏠, poi Tailscale 🔐; se nessuna risponde, i messaggi aspettano nella posta sul Drive ☁️. Quando ne torna una migliore il PC ci passa da solo, senza chiudere niente. Il ritardo è il giro completo: dal telefono al PC accoppiato, a $nomePc e ritorno. Le tacche: 4 = sotto 150 ms e niente perso; ne tolgono una le chiamate perse e il ritardo che sale (400 ms, 1 s).",
                         color = Banco.testoQuieto, fontSize = 12.sp
                     )
                     Spacer(Modifier.height(8.dp))

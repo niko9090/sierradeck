@@ -412,7 +412,7 @@ data class Conversazione(
     val autopilota: String? = null,
     /** La chat e' su un altro PC (0.39.3): il suo nome, per il segno «SU <PC>». */
     val suPc: String? = null,
-    /** La strada con cui il computer arriva a quel PC (0.40.0): «rete di casa», «Tailscale», «WebRTC», «Drive, lento». */
+    /** La strada con cui il computer arriva a quel PC (0.40.0): «rete di casa», «Tailscale», «Drive, lento». */
     val viaPc: String? = null,
     /** PC 0.70: il tipo in una parola (permesso, scelta, domanda, autopilota, ha finito). */
     val vista: StatoVistaDrive? = null,

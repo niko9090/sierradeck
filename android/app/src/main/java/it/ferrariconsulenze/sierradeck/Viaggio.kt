@@ -44,8 +44,8 @@ data class Viaggio(
 )
 
 object Viaggi {
-    private val STRADE = listOf("lan" to "Rete di casa", "tailscale" to "Tailscale", "webrtc" to "Ponte o Internet (WebRTC)")
-    private val ICONE = mapOf("stacco" to "⏏", "indirizzi" to "📇", "lan" to "🏠", "tailscale" to "🔐", "webrtc" to "🌐", "chiave" to "🔑", "collegato" to "✅")
+    private val STRADE = listOf("lan" to "Rete di casa", "tailscale" to "Tailscale")
+    private val ICONE = mapOf("stacco" to "⏏", "indirizzi" to "📇", "lan" to "🏠", "tailscale" to "🔐", "chiave" to "🔑", "collegato" to "✅")
 
     fun passi(v: Viaggio, adesso: Long): List<PassoViaggio> {
         val vista = Tentativi.passi(v.nomePc, v.eventi)
@@ -112,8 +112,6 @@ object Viaggi {
                 "Questo computer è salvato solo con un indirizzo Tailscale: va bene anche a casa, se Tailscale è acceso. Per la rete di casa aggiungi il computer anche dal suo codice QR mentre sei sul suo wifi."
             "nessun indirizzo tailscale" in m ->
                 "Fuori casa serve Tailscale: installalo sul computer e sul telefono con lo stesso account, poi aggiungi il computer con il suo indirizzo 100.x dal codice QR."
-            "ponte" in m || "altri computer" in m ->
-                "Dal telefono il collegamento via Internet passa dal computer accoppiato: apri questo PC da Altro › Altri computer."
             "non ha risposto" in m || "timeout" in m || "timed out" in m ->
                 if (strada == "tailscale") "Controlla che Tailscale sia acceso sul telefono e sul computer, con lo stesso account, e che il computer sia acceso con SierraDeck aperto."
                 else "Controlla che telefono e computer siano sullo stesso wifi, che il computer sia acceso (non in sospensione) con SierraDeck aperto, e che il firewall di Windows lasci passare SierraDeck."

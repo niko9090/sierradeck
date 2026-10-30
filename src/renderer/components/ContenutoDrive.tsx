@@ -18,8 +18,8 @@ type Props = {
  * incomprensibile accanto a «Progetti», che mostra le stesse cose meglio.
  * Restano qui le cose che solo lui sa fare — il catalogo del Drive per
  * progetto e per workspace, «Togli dal Drive», «Rimetti» — in fondo a
- * Progetti, perché si usano di rado. Sposta, Riordina e «Dove vive ogni chat»
- * sono tasti in cima a Progetti.
+ * Progetti, perché si usano di rado. Ogni progetto vive su un PC solo: la
+ * tabella di Progetti lo dice («su <PC>») e ha «Sposta su questo PC».
  *
  * Il Drive come magazzino da sfogliare.
  *
@@ -130,8 +130,8 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
       <div className="pannello__testa">
         <Aiuto di="Il contenuto del Drive">
         Qui vedi tutto quello che sta sul Drive, raggruppato per progetto, cioè per la cartella in cui le chat lavorano: da dove viene, quante chat ha, quando è stato toccato l’ultima volta, e per ogni chat il nome e lo stato rispetto a questo PC.
-        Dalla 0.42.0 vale <strong>«una chat, una casa»</strong>: ogni chat vive su un PC solo, quello dove gira e dove sta la sua cartella. Il Drive è il <strong>salvataggio</strong> di ogni PC: ognuno ci carica solo le sue chat, e le chat degli altri PC non scendono più da sole qui. Le guardi e ci scrivi dal vivo, dal loro riquadro (rete di casa, Tailscale, collegamento diretto o, lento, il Drive).
-        «Sposta progetto…», «Riordina le chat…» e «Dove vive ogni chat…» sono in cima a Progetti; il salvataggio e l’arrivo dal Drive poco sopra, in «Salvataggio e arrivo».
+        Dalla 0.42.0 vale <strong>«una chat, una casa»</strong>: ogni chat vive su un PC solo, quello dove gira e dove sta la sua cartella. Il Drive è il <strong>salvataggio</strong> di ogni PC: ognuno ci carica solo le sue chat, e le chat degli altri PC non scendono più da sole qui. Le guardi e ci scrivi dal vivo, dal loro riquadro (rete di casa o Tailscale); se quel PC non risponde, quello che scrivi aspetta nella sua posta sul Drive.
+        In Progetti ogni progetto dice su quale PC vive («su …») e ha «Sposta su questo PC»; il salvataggio e l’arrivo dal Drive poco sopra, in «Salvataggio e arrivo».
         <strong> «Togli la cartella dal Drive»</strong> vale per i progetti che viaggiano con la cartella: i file della cartella salvati sul Drive vengono tolti e la cartella smette di viaggiare; le chat e le cartelle sui PC restano come sono. Per il resto dal Drive niente viene mai cancellato.
         </Aiuto>
         <span style={{ flex: 1 }} />
@@ -169,7 +169,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
               <Aiuto di={vista === 'progetti' ? 'Per progetto' : 'Per workspace'}>
                 {vista === 'progetti'
                   ? 'Un progetto è la cartella in cui le chat lavorano. «Porta qui» prende cartella e chat.'
-                  : 'Un workspace è una disposizione di chat, anche di progetti diversi. Le chat di un altro PC non si copiano qui: si guardano dal vivo, o il loro progetto si sposta con «Sposta progetto…».'}
+                  : 'Un workspace è una disposizione di chat, anche di progetti diversi. Le chat di un altro PC non si copiano qui: si guardano dal vivo, o il loro progetto si porta qui con «Sposta su questo PC».'}
               </Aiuto>
             </span>
           </div>
@@ -221,7 +221,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
                         {w.daPortare > 0 ? `${w.daPortare} chat da portare qui` : w.quiEsiste ? 'allineato' : 'chat già qui: manca solo il workspace'}
                       </span>
                       {w.daPortare > 0 ? (
-                        <span className="drive__sotto" title="Una chat, una casa: le chat di un altro PC non si copiano qui; si guardano dal vivo, o il loro progetto si sposta con «Sposta progetto…».">le sue chat di altri PC si guardano dal vivo</span>
+                        <span className="drive__sotto" title="Una chat, una casa: le chat di un altro PC non si copiano qui; si guardano dal vivo, o il loro progetto si porta qui con «Sposta su questo PC».">le sue chat di altri PC si guardano dal vivo</span>
                       ) : null}
                       <button
                         className="tasto tasto--mini"
@@ -277,8 +277,8 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
                     </button>
                     <span className={`drive__stato ${s.classe}`}>{s.testo}</span>
                     {nPorta > 0 ? (
-                      // Dalla 0.42.0 «Porta qui» sta solo dentro «Sposta progetto», dal PC dove il progetto vive.
-                      <span className="drive__sotto" title="Una chat, una casa: un progetto si sposta dal PC dove sta, con «Sposta progetto…», che controlla, verifica e archivia. Da qui intanto le sue chat si guardano dal vivo.">
+                      // Dalla 0.42.0 «Porta qui» non c’è più: un progetto si porta qui con «Sposta su questo PC», in Progetti.
+                      <span className="drive__sotto" title="Una chat, una casa: un progetto vive su un PC solo; per portarlo qui c’è «Sposta su questo PC», che controlla file per file. Da qui intanto le sue chat si guardano dal vivo.">
                         {g.origine === 'qui' ? 'di questo PC' : 'per portarlo qui: Progetti → «Sposta su questo PC»'}
                       </span>
                     ) : null}

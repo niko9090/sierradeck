@@ -33,7 +33,7 @@ export type MotivoRemoto =
   | 'rifiutato'     // 403: quel PC rifiuta l'indirizzo da cui arriviamo
   | 'chat'          // 404: la chat non e' (piu') aperta la'
   | 'http'          // un altro errore di quel PC
-  | 'collegando'    // 0.40.0: il WebRTC si sta aprendo, o lo schermo via Drive non e' ancora arrivato
+  | 'collegando'    // 0.40.0, non piu' usato dalla 0.88.0 (WebRTC e schermo via Drive tolti)
   | 'lento'         // 0.40.0: via Drive questa cosa non si puo' fare
   | 'pin'           // 0.49.0: la chat la' e' protetta dal PIN (423)
 
@@ -78,7 +78,7 @@ export type ClientPcRemoto = {
   bussa: (pcId: string, nome?: string) => Promise<PingPc>
   /** Com'e' quel PC dopo l'ultimo bussare (per il riquadro e il riquadro d'attesa). */
   statoDi: (pcId: string, nome?: string) => Promise<StatoPc>
-  /** La strada usata l'ultima volta che quel PC ha risposto (0.40.0): rete di casa, Tailscale, WebRTC, Drive. */
+  /** La strada usata l'ultima volta che quel PC ha risposto (0.40.0): rete di casa o Tailscale. */
   stradaDi: (pcId: string) => InfoStrada | undefined
   /** Da quanti ms quel PC ha risposto l'ultima volta a qualcosa (0.56.0); `undefined` = mai. */
   vivoDa: (pcId: string) => number | undefined
@@ -172,7 +172,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const prima = strade.get(pcId)
     if (prima?.strada === strada && prima.indirizzo === indirizzo) return
     strade.set(pcId, { strada, ...(indirizzo !== undefined ? { indirizzo } : {}), dal: new Date(adesso()).toISOString() })
-    log(`[remoto] ${nome || pcId}: strada ${strada === 'lan' ? 'rete di casa' : strada === 'tailscale' ? 'Tailscale' : strada === 'webrtc' ? 'WebRTC (diretto via Internet)' : 'Drive (lenta)'}${indirizzo !== undefined ? ` · ${indirizzo}` : ''}`)
+    log(`[remoto] ${nome || pcId}: strada ${strada === 'lan' ? 'rete di casa' : strada === 'tailscale' ? 'Tailscale' : 'Drive (lenta)'}${indirizzo !== undefined ? ` · ${indirizzo}` : ''}`)
   }
   /** L'ultimo bussare per PC: lo stato da mostrare, senza ribussare a ogni giro. */
   const ultimiPing = new Map<string, PingPc>()
@@ -432,9 +432,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     if (chiave === undefined) throw new ErroreRemoto('cassaforte', messaggioErroreRemoto('cassaforte', b.nome))
     // 1-2. La strada diretta: rete di casa, poi Tailscale. Niente piu' «e'
     // spento» guardando solo il battito (0.39.3): senza un indirizzo buono si
-    // bussa a tutti. Usando WebRTC o il Drive si ribussa ogni mezzo minuto,
-    // non a ogni giro del riquadro: se quel PC torna raggiungibile, si torna
-    // alla strada veloce.
+    // bussa a tutti.
     let ping = ultimiPing.get(pcId)
     if (buoni.get(pcId) === undefined) {
       ping = await bussa(pcId)

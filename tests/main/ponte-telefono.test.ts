@@ -9,7 +9,6 @@ import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { leggiRichiestaPonte, ROTTE_PONTE } from '@shared/ponte-telefono'
-import { ROTTE_VIA_CANALE } from '@shared/strada-pc'
 import type { BattitoPc } from '@shared/posta'
 
 /**
@@ -20,7 +19,6 @@ import type { BattitoPc } from '@shared/posta'
 
 describe('le regole del ponte', () => {
   it('passano solo le rotte che il PC usa dal suo riquadro remoto', () => {
-    for (const p of ROTTE_PONTE) expect(ROTTE_VIA_CANALE).toContain(p)
     // Dalla 0.55.0 passa la gestione di chat, workspace e autopiloti; il Drive, gli aggiornamenti, l'account e il negozio di un altro PC no.
     for (const si of ['/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sposta', '/api/sfoglia', '/api/cartelle', '/api/autopilota/crea', '/api/autopilota/avanzamento']) expect(leggiRichiestaPonte({ pc: 'lap', percorso: si }).ok, si).toBe(true)
     for (const no of ['/api/rinomina', '/api/chiudi', '/api/aggiornamento/installa', '/api/drive/porta', '/api/account/esci', '/api/negozio/installa', '/api/preferenze', '/api/ponte', '/api/salute', '/api/autopilota/elimina', '/api/autopilota/vai', '/api/chat/ospite']) {

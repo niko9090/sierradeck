@@ -17,37 +17,35 @@ describe('i passi dell’animazione, dagli eventi', () => {
     let e: EventoTentativo[] = [{ tipo: 'provo', strada: 'lan', il: 0 }]
     let v = passiCollegamento('PC-ESEMPIO', e)
     expect(v).toMatchObject({ fase: 'provo', titolo: 'Mi collego a PC-ESEMPIO…', sotto: 'provo rete di casa' })
-    expect(stati(v)).toEqual(['lan:provo', 'tailscale:attesa', 'webrtc:attesa', 'drive:attesa'])
+    expect(stati(v)).toEqual(['lan:provo', 'tailscale:attesa', 'drive:attesa'])
     e = [...e, { tipo: 'fallita', strada: 'lan', il: 5000, motivo: 'non ha risposto in 5 secondi' }, { tipo: 'provo', strada: 'tailscale', il: 5000 }]
     expect(passiCollegamento('PC-ESEMPIO', e).sotto).toBe('provo Tailscale')
     e = [...e, { tipo: 'riuscita', strada: 'tailscale', il: 5100, ritardoMs: 84 }]
     v = passiCollegamento('PC-ESEMPIO', e)
     expect(v).toMatchObject({ fase: 'collegato', titolo: 'Collegato a PC-ESEMPIO', sotto: 'Tailscale · 84 ms', strada: 'tailscale', ritardoMs: 84 })
-    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:ok', 'webrtc:inutile', 'drive:inutile'])
+    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:ok', 'drive:inutile'])
     expect(v.passi[0]?.motivo).toBe('non ha risposto in 5 secondi')
   })
   it('se fallisce: il motivo, mai una schermata vuota', () => {
     const v = passiCollegamento('PC-ESEMPIO', [
       { tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'fallita', strada: 'lan', il: 1, motivo: 'rifiutato' },
-      { tipo: 'salta', strada: 'tailscale', motivo: 'nessun indirizzo Tailscale' }, { tipo: 'salta', strada: 'webrtc', motivo: 'dal telefono no' },
+      { tipo: 'salta', strada: 'tailscale', motivo: 'nessun indirizzo Tailscale' },
       { tipo: 'fallito', il: 2, motivo: 'nessuna strada ha risposto' }
     ])
     expect(v).toMatchObject({ fase: 'fallito', titolo: 'Non riesco a collegarmi a PC-ESEMPIO', sotto: 'nessuna strada ha risposto' })
-    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:salta', 'webrtc:salta', 'drive:salta'])
+    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:salta', 'drive:salta'])
   })
 })
 
 describe('dalla macchina della linea (riquadro remoto, ponte, pagina)', () => {
-  it('collegato al primo colpo, via WebRTC dopo «collegando», fallito', () => {
-    const su = passo(LINEA_NUOVA, { tipo: 'ok', il: 1000, ritardoMs: 120, strada: 'webrtc' })
+  it('collegato al primo colpo, fallito', () => {
+    const su = passo(LINEA_NUOVA, { tipo: 'ok', il: 1000, ritardoMs: 120, strada: 'tailscale' })
     const v = passiCollegamento('PC-ESEMPIO', eventiDaLinea(su, 0))
-    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:salta', 'webrtc:ok', 'drive:inutile'])
+    expect(stati(v)).toEqual(['lan:fallita', 'tailscale:ok', 'drive:inutile'])
     expect(v.ritardoMs).toBe(120)
-    const apre = passo(LINEA_NUOVA, { tipo: 'errore', il: 1000, motivo: 'collegando', messaggio: 'apro WebRTC' })
-    expect(stati(passiCollegamento('PC-ESEMPIO', eventiDaLinea(apre, 0)))).toEqual(['lan:fallita', 'tailscale:fallita', 'webrtc:provo', 'drive:attesa'])
     const giu = passo(LINEA_NUOVA, { tipo: 'errore', il: 1000, motivo: 'irraggiungibile', messaggio: 'non risponde' })
     expect(passiCollegamento('PC-ESEMPIO', eventiDaLinea(giu, 0))).toMatchObject({ fase: 'fallito', sotto: 'non risponde' })
-    expect(stati(passiCollegamento('PC-ESEMPIO', eventiDaLinea(LINEA_NUOVA, 0)))).toEqual(['lan:provo', 'tailscale:attesa', 'webrtc:attesa', 'drive:attesa'])
+    expect(stati(passiCollegamento('PC-ESEMPIO', eventiDaLinea(LINEA_NUOVA, 0)))).toEqual(['lan:provo', 'tailscale:attesa', 'drive:attesa'])
   })
   it('a linea caduta: conto alla rovescia, ambra i primi tentativi e poi rosso', () => {
     const su = passo(LINEA_NUOVA, { tipo: 'ok', il: 0, ritardoMs: 30, strada: 'lan' })
@@ -84,7 +82,7 @@ describe('la pagina del telefono usa la stessa funzione', () => {
     throw new Error('non si chiude')
   }
   const pagina = new Function(`
-    const STRADE_TENTATIVI = ['lan', 'tailscale', 'webrtc', 'drive']
+    const STRADE_TENTATIVI = ['lan', 'tailscale', 'drive']
     function fraSecondiLinea(l, adesso) { return l.prossimoIl === undefined ? 0 : Math.max(0, Math.ceil((l.prossimoIl - adesso) / 1000)) }
     ${estrai('function nomeTentativo(')}
     ${estrai('function iconaTentativo(')}
@@ -101,7 +99,7 @@ describe('la pagina del telefono usa la stessa funzione', () => {
       [{ tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'riuscita', strada: 'lan', il: 40, ritardoMs: 40 }],
       [{ tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'provo', strada: 'tailscale', il: 5 }, { tipo: 'riuscita', strada: 'tailscale', il: 9, ritardoMs: 90 }],
       [{ tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'salta', strada: 'tailscale', motivo: 'x' }, { tipo: 'fallito', il: 9, motivo: 'giù' }],
-      [{ tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'fallita', strada: 'lan', il: 1, motivo: 'a' }, { tipo: 'fallita', strada: 'tailscale', il: 1, motivo: 'b' }, { tipo: 'provo', strada: 'webrtc', il: 2 }, { tipo: 'riuscita', strada: 'drive', il: 3, ritardoMs: 9000 }]
+      [{ tipo: 'provo', strada: 'lan', il: 0 }, { tipo: 'fallita', strada: 'lan', il: 1, motivo: 'a' }, { tipo: 'fallita', strada: 'tailscale', il: 1, motivo: 'b' }, { tipo: 'provo', strada: 'drive', il: 2 }, { tipo: 'riuscita', strada: 'drive', il: 3, ritardoMs: 9000 }]
     ]
     for (const e of scenari) expect(pagina.passiCollegamento('PC-ESEMPIO', e)).toEqual(passiCollegamento('PC-ESEMPIO', e))
     const linee: Linea[] = [

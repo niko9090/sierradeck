@@ -26,7 +26,7 @@ export type AutopilotiDiPc = {
   pcId: string
   nome: string
   autopiloti: AutopilotaRiga[]
-  /** La strada con cui ha risposto (rete di casa, Tailscale, WebRTC, Drive). */
+  /** La strada con cui ha risposto (rete di casa o Tailscale). */
   strada?: string
   /** Non ha risposto: il perché, per esteso, con le strade provate. */
   errore?: string
@@ -52,7 +52,7 @@ export function giraSu(nomePc: string): string {
  * chi guarda deve sapere cosa è stato tentato e cosa può fare.
  */
 export function erroreAltroPc(nome: string, messaggio: string, prove: string[]): string {
-  const strade = 'Strade provate, in quest’ordine: la rete di casa, Tailscale, il collegamento diretto via Internet (WebRTC) e il Drive (lento: solo lettura e messaggi).'
+  const strade = 'Strade provate, in quest’ordine: la rete di casa e Tailscale. I messaggi per quel PC aspettano nella posta sul Drive.'
   const dettaglio = prove.length > 0 ? ` Ultimo tentativo, indirizzo per indirizzo: ${prove.join('; ')}.` : ''
   return `${nome} non risponde: ${messaggio.replace(/\.\s*$/, '')}. ${strade}${dettaglio} I suoi autopiloti continuano a lavorare là: qui li rivedi appena risponde (il controllo si ripete da solo).`
 }

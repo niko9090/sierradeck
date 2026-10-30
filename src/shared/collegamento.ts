@@ -21,7 +21,7 @@
  * - **la coda dell'input**: quello che scrivi a linea giù aspetta, segnato
  *   «in attesa di invio», e parte al ritorno con il suo id; il PC di là
  *   ricorda gli id già consegnati e non scrive mai due volte la stessa cosa;
- * - **la strada migliore**: rete di casa, Tailscale, WebRTC, Drive.
+ * - **la strada migliore**: rete di casa, Tailscale, Drive.
  */
 
 import { ORDINE_STRADE, stradaBreve, type Strada } from './strada-pc'
@@ -255,7 +255,7 @@ export function cambioVisibile(l: Linea, adesso: number): string | undefined {
 
 /** L'icona di ogni strada, uguale ovunque. */
 export function iconaStrada(s: Strada | undefined): string {
-  return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'webrtc' ? '🌐' : s === 'drive' ? '☁️' : '…'
+  return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'drive' ? '☁️' : '…'
 }
 
 /** Le tacche come testo (▂▄▆█), per dove non si disegna. */
@@ -295,7 +295,7 @@ export function testoRiconnessione(l: Linea, nomePc: string, adesso: number): st
 /* La strada migliore.                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Fra le strade che rispondono, la migliore: rete di casa, Tailscale, WebRTC, Drive. */
+/** Fra le strade che rispondono, la migliore: rete di casa, Tailscale, Drive. */
 export function stradaMigliore(rispondono: readonly Strada[]): Strada | undefined {
   return ORDINE_STRADE.find((s) => rispondono.includes(s))
 }
@@ -415,7 +415,7 @@ export function mappaPc(io: { id: string; nome: string; host?: string }, altri: 
 /**
  * Nicholas (07/10): «Ho cambiato pc e non si vede nessuna animazione e lo
  * stato della connessione». Al cambio di PC si vedono i tentativi in ordine
- * (rete di casa, Tailscale, WebRTC/ponte, Drive), poi la strada buona con il
+ * (rete di casa, Tailscale, Drive), poi la strada buona con il
  * ritardo; se nessuna risponde, il motivo e «Riprova». Questi passi si
  * ricavano **solo** dagli eventi osservati: chi guarda non inventa tentativi.
  * La stessa funzione è in `Linea.kt` (app) e nella pagina servita.
@@ -439,14 +439,14 @@ export type VistaCollegamento = {
   motivo?: string
 }
 
-export const STRADE_TENTATIVI = ['lan', 'tailscale', 'webrtc', 'drive'] as const
+export const STRADE_TENTATIVI = ['lan', 'tailscale', 'drive'] as const
 
 export function nomeTentativo(s: string): string {
-  return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'webrtc' ? 'WebRTC / ponte' : s === 'drive' ? 'Drive (lento)' : s
+  return s === 'lan' ? 'rete di casa' : s === 'tailscale' ? 'Tailscale' : s === 'drive' ? 'Drive (lento)' : s
 }
 
 function iconaTentativo(s: string): string {
-  return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'webrtc' ? '🌐' : s === 'drive' ? '☁️' : '…'
+  return s === 'lan' ? '🏠' : s === 'tailscale' ? '🔐' : s === 'drive' ? '☁️' : '…'
 }
 
 export function passiCollegamento(nomePc: string, eventi: readonly EventoTentativo[]): VistaCollegamento {
@@ -516,21 +516,14 @@ export function rovescia(l: Linea, adesso: number): { testo: string; colore: 'am
 /**
  * Gli eventi dei tentativi ricavati dalla macchina della linea, per chi non
  * vede le singole strade (il riquadro remoto del PC, il ponte del telefono):
- * il primo tentativo parte dalla rete di casa; `collegando` vuol dire che
- * rete di casa e Tailscale non rispondono e si apre WebRTC; il primo
- * collegamento riuscito dice la strada buona; una caduta prima di averla è il
+ * il primo tentativo parte dalla rete di casa; il primo collegamento
+ * riuscito dice la strada buona; una caduta prima di averla è il
  * fallimento, con il suo motivo.
  */
 export function eventiDaLinea(l: Linea, inizio: number): EventoTentativo[] {
   const fuori: EventoTentativo[] = [{ tipo: 'provo', strada: 'lan', il: inizio }]
   const primo = l.storia.find((e) => e.tipo === 'collegato' || e.tipo === 'tornato')
   const misura = l.misure.find((m) => m.ok)
-  if (primo === undefined && l.motivo === 'collegando') {
-    fuori.push({ tipo: 'fallita', strada: 'lan', il: l.cadutaIl ?? inizio, motivo: 'non risponde' })
-    fuori.push({ tipo: 'fallita', strada: 'tailscale', il: l.cadutaIl ?? inizio, motivo: 'non risponde' })
-    fuori.push({ tipo: 'provo', strada: 'webrtc', il: l.cadutaIl ?? inizio })
-    return fuori
-  }
   if (primo !== undefined) {
     fuori.push({ tipo: 'riuscita', strada: primo.strada ?? 'lan', il: primo.il, ritardoMs: misura?.ritardoMs ?? 0 })
     return fuori
@@ -573,7 +566,6 @@ export function cosaFarePc(motivo: string, strada: string, nomePc: string): stri
   if (m.includes('battito') || m.includes('sconosciuto')) return `${nomePc} non ha ancora lasciato il suo segno sul Drive: aprilo con il Drive collegato e aspetta il primo salvataggio automatico.`
   if (strada === 'lan') return `Controlla che ${nomePc} sia acceso (non in sospensione) con SierraDeck aperto, sulla stessa rete di questo PC, e che il firewall di Windows lasci passare SierraDeck.`
   if (strada === 'tailscale') return 'Controlla che Tailscale sia acceso su tutti e due i PC, con lo stesso account.'
-  if (strada === 'webrtc') return 'Il collegamento diretto via Internet passa dal Drive per lo scambio iniziale: controlla che il Drive sia collegato su tutti e due, e aspetta fino a un minuto e mezzo.'
   if (strada === 'drive') return 'Controlla che il Drive sia collegato su tutti e due i PC (Account → Drive).'
   return `Riprova; se non cambia, guarda il pannello Salute: dice com'è messo ${nomePc} visto da qui.`
 }
@@ -585,7 +577,7 @@ export function passiDettagliati(p: { nomePc: string; linea: Linea; inizio: numb
   const noti = p.indirizzi ?? []
   fuori.push(noti.length > 0
     ? { id: 'indirizzi', titolo: `Indirizzi di ${nomePc}`, icona: '📇', stato: 'ok', indirizzo: noti.join(', '), il: inizio, motivo: 'quelli che ha lasciato nel suo battito: provo solo questo PC' }
-    : { id: 'indirizzi', titolo: `Indirizzi di ${nomePc}`, icona: '📇', stato: 'salta', il: inizio, motivo: 'nessun indirizzo diretto conosciuto: restano le strade via Internet' })
+    : { id: 'indirizzi', titolo: `Indirizzi di ${nomePc}`, icona: '📇', stato: 'salta', il: inizio, motivo: 'nessun indirizzo diretto conosciuto: i messaggi aspettano nella posta sul Drive' })
   const chiaveGiu = vista.fase !== 'collegato' && linea.fase === 'ricollego' && MOTIVI_CHIAVE.includes(linea.motivo ?? '')
   for (const s of vista.passi) {
     const stato: PassoDettagliato['stato'] = s.stato === 'inutile' ? 'salta' : s.stato
@@ -596,7 +588,7 @@ export function passiDettagliati(p: { nomePc: string; linea: Linea; inizio: numb
     const motivo = s.stato === 'fallita' && vista.fase === 'fallito' && linea.messaggio !== undefined && !chiaveGiu ? linea.messaggio : s.motivo
     fuori.push({
       id: s.strada,
-      titolo: s.strada === 'webrtc' ? 'Ponte o Internet (WebRTC)' : nomeTentativo(s.strada).replace(/^./, (c) => c.toUpperCase()),
+      titolo: nomeTentativo(s.strada).replace(/^./, (c) => c.toUpperCase()),
       icona: s.icona,
       stato,
       ...(indirizzo !== undefined ? { indirizzo } : {}),

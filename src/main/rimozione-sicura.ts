@@ -301,7 +301,7 @@ export function creaRimozione(deps: {
   chatDi: (cartella: string) => { sessione: string; jsonl: string }[]
   /** Una chat è aperta (riquadro vivo) su quella cartella, o ci lavora un autopilota. */
   inUso: (cartella: string) => string | undefined
-  /** Una chiamata al residente, firmata e sulle strade che ci sono (rete di casa, Tailscale, WebRTC). */
+  /** Una chiamata al residente, firmata e sulle strade che ci sono (rete di casa, Tailscale). */
   chiama: (pc: string, percorso: string, corpo: unknown) => Promise<unknown>
   cestino?: (percorso: string) => Promise<void>
   log?: (m: string) => void
