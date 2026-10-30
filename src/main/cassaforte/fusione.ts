@@ -5,7 +5,7 @@ import type { Archivio as ArchivioDrive } from './archivio'
 import { cifra, decifra } from './cifratura'
 import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { percorsoSicuro, ripristina, type Radice } from './raccolta'
-import { leggiManifesto, scriviManifesto, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, conLimite, PARALLELI, impronta } from './incrementale'
+import { leggiManifesto, aggiornaManifesto, stessaVoce, nomeDi, prefissoDi, stessaFirma, nomeCopiaConflitto, manifestoVuoto, type Manifesto, type VoceManifesto, conLimite, PARALLELI, impronta } from './incrementale'
 import { aggiungiPaneA, unaChatUnWorkspace, type Archivio as ArchivioWorkspace, type LayoutSalvato } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
 import { unionePiuRecente } from '../progetti/registro'
@@ -469,7 +469,9 @@ export async function eseguiFusione(deps: {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
   if (esito.stato === 'illeggibile') throw new Error('Il manifesto sul Drive non si apre con questa chiave.')
   const base = esito.stato === 'ok' ? esito.manifesto : manifestoVuoto()
-  const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...base.file } }
+  // Solo i cambi di questa fusione (0.86.2): alla fine si applicano sul
+  // manifesto riletto, non su quello letto all'inizio (vedi `aggiornaManifesto`).
+  const messi = new Map<string, VoceManifesto>()
   const perPrefisso = new Map(deps.radici.map((r) => [r.prefisso, r]))
   const voci = Object.entries(deps.scelte.voci).filter(([, a]) => a !== 'salta')
   let caricati = 0
@@ -481,7 +483,7 @@ export async function eseguiFusione(deps: {
   const carica = async (percorso: string, contenuto: Buffer, firma: Firma): Promise<void> => {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, contenuto))
-    nuovo.file[percorso] = { nome, size: firma.size, mtime: firma.mtime, sha: impronta(contenuto) }
+    messi.set(percorso, { nome, size: firma.size, mtime: firma.mtime, sha: impronta(contenuto) })
   }
   const leggiLocale = async (percorso: string): Promise<{ contenuto: Buffer; firma: Firma } | undefined> => {
     const disco = discoDi(perPrefisso, percorso)
@@ -508,6 +510,7 @@ export async function eseguiFusione(deps: {
   await deps.archivio.elenca().catch(() => undefined)
   // Piu' voci alla volta, come il salvataggio: una alla volta, 750 voci
   // erano mezz'ora — abbastanza perche' intanto succedesse dell'altro.
+  const fermata = (): boolean => deps.segnale?.aborted === true
   await conLimite(voci, PARALLELI, async ([percorso, azione]) => {
     // Annullato: le voci non ancora cominciate non cominciano; quelle in
     // corso finiscono. Il manifesto si scrive lo stesso, con quello che e'
@@ -540,6 +543,11 @@ export async function eseguiFusione(deps: {
         await carica(percorso, mio.contenuto, mio.firma)
         caricati += 1
       }
+    } catch (err) {
+      // «Annulla» ferma anche la richiesta in corso (0.86.2): quella voce non
+      // e' fatta, e il manifesto si scrive con quelle finite.
+      if (!fermata()) throw err
+      saltati += 1
     } finally {
       fatto += 1
       deps.onProgresso?.(fatto, voci.length, percorso, { azione, caricati, scaricati, saltati })
@@ -548,7 +556,10 @@ export async function eseguiFusione(deps: {
 
   const annullato = deps.segnale?.aborted === true && fatto < voci.length
   if (!annullato) deps.onProgresso?.(fatto, voci.length)
-  await scriviManifesto(deps.archivio, deps.maestra, nuovo)
+  const scritto = await aggiornaManifesto(deps.archivio, deps.maestra, (attuale) => (
+    { versione: 1, creatoIl: deps.adesso, file: { ...attuale.file, ...Object.fromEntries(messi) } }
+  ), { presente: (m) => [...messi].every(([p, v]) => stessaVoce(m.file[p], v)) })
+  const nuovo = scritto ?? { versione: 1 as const, creatoIl: deps.adesso, file: { ...base.file, ...Object.fromEntries(messi) } }
   return { caricati, scaricati, copie, saltati, manifesto: nuovo, fatti: fatto, totale: voci.length, perche, ...(annullato ? { annullato: true } : {}) }
 }
 

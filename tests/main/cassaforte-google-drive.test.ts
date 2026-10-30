@@ -131,12 +131,16 @@ function driveArchivioFinto() {
       const f = [...files.values()].find((x) => x.id === id)!
       return new Response(new Uint8Array(f.content), { status: 200 })
     }
-    // Creo (solo metadati).
-    if (metodo === 'POST' && u.includes('/drive/v3/files?')) {
-      const body = JSON.parse(String(init!.body)) as { name: string }
+    // Creo in una chiamata sola (0.86.2): metadati e contenuto, multipart.
+    if (metodo === 'POST' && u.includes('uploadType=multipart')) {
+      const confine = /boundary=([^;]+)/.exec(String((init!.headers as Record<string, string>)['Content-Type']))![1]!
+      const corpo = Buffer.from(init!.body as unknown as Uint8Array)
+      const parti = corpo.toString('latin1').split(`--${confine}`)
+      const meta = JSON.parse(parti[1]!.split('\r\n\r\n')[1]!.trim()) as { name: string }
+      const dati = parti[2]!.slice(parti[2]!.indexOf('\r\n\r\n') + 4, -2)
       seq += 1; const id = `id-${seq}`
-      files.set(body.name, { id, name: body.name, version: 0, content: Buffer.alloc(0) })
-      return new Response(JSON.stringify({ id }), { status: 200 })
+      files.set(meta.name, { id, name: meta.name, version: 1, content: Buffer.from(dati, 'latin1') })
+      return new Response(JSON.stringify({ id, version: 1 }), { status: 200 })
     }
     // Scrivo media (upload semplice).
     if (metodo === 'PATCH' && u.includes('/upload/drive/v3/files/')) {

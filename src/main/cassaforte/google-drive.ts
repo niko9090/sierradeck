@@ -1,6 +1,7 @@
+import { randomUUID } from 'node:crypto'
 import { ConflittoMagazzino, type Contenuto, type Magazzino, type SegnaProgresso } from './magazzino'
-import type { Archivio, VoceArchivio } from './archivio'
-import { conConteggio } from '../risorse'
+import { ConflittoArchivio, type Archivio, type InfoFile, type VoceArchivio } from './archivio'
+import { conConteggio, segnaleDrive } from '../risorse'
 
 /**
  * Il magazzino su Google Drive dell'utente (bring-your-own-storage).
@@ -20,7 +21,13 @@ import { conConteggio } from '../risorse'
  * controlla che combaci con quello che c'è prima di riscrivere; se un altro PC ha
  * scritto nel frattempo, si rifiuta. Resta una finestra minima fra il controllo e
  * la scrittura — Drive non ha una scrittura condizionale — accettabile per l'uso
- * «un PC poi l'altro»; il caso simultaneo si raffina dopo.
+ * «un PC poi l'altro». Per l'archivio (piu' sotto) il caso simultaneo lo copre
+ * `aggiornaManifesto` (0.86.2): rilegge, fonde, scrive con `caricaSe` e
+ * ricontrolla dopo la finestra.
+ *
+ * Ogni richiesta passa da `conConteggio`, che dalla 0.86.2 le da' anche un
+ * tetto di attesa (60 s senza risposta, o senza un byte nuovo) e il segnale
+ * di «Annulla» del lavoro in corso.
  */
 
 const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
@@ -48,9 +55,41 @@ export type DriveDeps = {
   nomeFile?: string
   /** Iniettabile per i test; di default il `fetch` dell'ambiente. */
   fetch?: Fetch
+  /** Quanto aspettare prima di rileggere il manifesto appena scritto (vedi `Archivio.finestraConflittoMs`). */
+  finestraConflittoMs?: number
 }
 
 type FileDrive = { id: string; version: string }
+
+/** Un file come lo descrive l'elenco di Drive, coi campi che ci servono (tutti facoltativi). */
+type FileElenco = { id?: string; name?: string; version?: string | number; size?: string; modifiedTime?: string; md5Checksum?: string }
+
+/**
+ * Fra più file con lo stesso nome, quale vale (0.86.2): sempre lo stesso,
+ * il **più recente non vuoto**. Due PC che creano lo stesso file nello stesso
+ * momento lasciano due copie (Drive non ha nomi unici), e prima si prendeva
+ * la prima che l'elenco dava, cioè una a caso. Un file vuoto è quasi sempre
+ * una creazione interrotta a metà (i client vecchi creano e poi scrivono in
+ * due chiamate): vale solo se non c'è altro. A parità, l'id più piccolo.
+ */
+export function sceltaFraDoppioni<T extends FileElenco>(files: T[]): T | undefined {
+  const conId = files.filter((x) => x.id !== undefined)
+  const pieni = conId.filter((x) => x.size === undefined || Number(x.size) > 0)
+  const fra = pieni.length > 0 ? pieni : conId
+  return [...fra].sort((a, b) =>
+    (b.modifiedTime ?? '').localeCompare(a.modifiedTime ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))[0]
+}
+
+/** I campi che descrivono un file per la scrittura condizionale del manifesto. */
+const CAMPI_INFO = 'id,version,md5Checksum,modifiedTime'
+function infoDa(j: FileElenco, id?: string): InfoFile {
+  return {
+    id: j.id ?? id ?? '',
+    versione: String(j.version ?? ''),
+    ...(j.md5Checksum !== undefined ? { md5: j.md5Checksum } : {}),
+    ...(j.modifiedTime !== undefined ? { modificato: j.modifiedTime } : {})
+  }
+}
 
 /**
  * Un 401 di Google con un token che per il nostro orologio è ancora valido
@@ -110,11 +149,11 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
 
   const trovaFile = async (tk: string): Promise<FileDrive | undefined> => {
     const q = encodeURIComponent(`name='${nomeFile}'`)
-    const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id,version)')}&q=${q}`
+    const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id,version,size,modifiedTime)')}&q=${q}`
     const r = await f(url, { headers: intestazioni(tk) })
     if (!r.ok) throw await errore(r, 'elenco')
-    const j = (await r.json()) as { files?: Array<{ id?: string; version?: string | number }> }
-    const primo = j.files?.[0]
+    const j = (await r.json()) as { files?: FileElenco[] }
+    const primo = sceltaFraDoppioni(j.files ?? [])
     if (primo?.id === undefined) return undefined
     return { id: primo.id, version: String(primo.version ?? '') }
   }
@@ -224,8 +263,9 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
  * L'**archivio** su Drive: molti file dentro appDataFolder, indirizzati per nome.
  * È ciò che serve alla sincronizzazione incrementale — un file cifrato per
  * trascrizione, più il manifesto — dove `creaMagazzinoDrive` (un blocco solo) non
- * basta. Upload semplice (`uploadType=media`) col Buffer come corpo: la lunghezza
- * la mette fetch, e i singoli file sono piccoli (una trascrizione, non i GB
+ * basta. Riscrittura con l'upload semplice (`uploadType=media`), creazione con
+ * metadati e contenuto insieme (`uploadType=multipart`, 0.86.2), col Buffer
+ * come corpo: la lunghezza la mette fetch, e i singoli file sono piccoli (una trascrizione, non i GB
  * interi), quindi niente flusso ripristinabile qui.
  */
 export function creaArchivioDrive(deps: DriveDeps): Archivio {
@@ -271,7 +311,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       try {
         r = await fai()
       } catch (e) {
-        if (i >= RITENTI || (e as { definitivo?: boolean }).definitivo === true) throw e
+        // Annullato dal lavoro (0.86.2): non si ritenta, ci si ferma.
+        if (i >= RITENTI || (e as { definitivo?: boolean }).definitivo === true || segnaleDrive()?.aborted === true) throw e
         await pausa(attesa); attesa *= 2; continue
       }
       if (!r.ok && (transitorio(r.status) || await limiteDiVelocita(r)) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }
@@ -299,42 +340,84 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
     if (noto !== undefined) return { id: noto }
     const visto = assenti.get(nome)
     if (!fresco && visto !== undefined && Date.now() - visto < ASSENTE_PER_MS) return undefined
+    const scelto = await cercaPerNome(tk, nome, 'id,size,modifiedTime')
+    return scelto?.id === undefined ? undefined : { id: scelto.id }
+  }
+  /**
+   * La ricerca vera per nome, con i campi chiesti: fra i doppioni vale il
+   * più recente non vuoto (`sceltaFraDoppioni`), lo stesso per chi legge e
+   * per chi scrive. Impara l'id, o ricorda che non c'è.
+   */
+  const cercaPerNome = async (tk: string, nome: string, campi: string): Promise<FileElenco | undefined> => {
     const q = encodeURIComponent(`name='${nome}'`)
-    const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent('files(id)')}&q=${q}`
+    const url = `${API}/files?spaces=appDataFolder&fields=${encodeURIComponent(`files(${campi})`)}&q=${q}`
     const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'ricerca')
-    const j = (await r.json()) as { files?: Array<{ id?: string }> }
-    const id = j.files?.[0]?.id
-    if (id !== undefined) { idPerNome.set(nome, id); assenti.delete(nome) } else assenti.set(nome, Date.now())
-    return id === undefined ? undefined : { id }
+    const j = (await r.json()) as { files?: FileElenco[] }
+    const scelto = sceltaFraDoppioni(j.files ?? [])
+    if (scelto?.id !== undefined) { idPerNome.set(nome, scelto.id); assenti.delete(nome) } else assenti.set(nome, Date.now())
+    return scelto
   }
 
-  const scriviMediaSu = async (tk: string, id: string, blocco: Buffer): Promise<void> => {
-    await conRitenta(() => f(`${UPLOAD}/files/${id}?uploadType=media`, {
+  const scriviMediaSu = async (tk: string, id: string, blocco: Buffer): Promise<FileElenco> => {
+    const r = await conRitenta(() => f(`${UPLOAD}/files/${id}?uploadType=media&fields=${encodeURIComponent(CAMPI_INFO)}`, {
       method: 'PATCH',
       headers: { ...intestazioni(tk), 'Content-Type': 'application/octet-stream' },
       body: blocco as unknown as BodyInit
     }), 'scrittura')
+    return (await r.json().catch(() => ({}))) as FileElenco
+  }
+
+  /**
+   * La creazione in **una** chiamata (0.86.2): metadati e contenuto insieme,
+   * `uploadType=multipart`. Prima erano due (crea il file vuoto, poi scrivilo):
+   * un'interruzione fra le due lasciava sul Drive un file vuoto con quel nome,
+   * accanto o al posto di quello buono.
+   */
+  const creaMultipart = async (tk: string, nome: string, blocco: Buffer): Promise<FileElenco> => {
+    const confine = `sierradeck-${randomUUID()}`
+    const metadati = JSON.stringify({ name: nome, parents: ['appDataFolder'] })
+    const corpo = Buffer.concat([
+      Buffer.from(`--${confine}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadati}\r\n--${confine}\r\nContent-Type: application/octet-stream\r\n\r\n`, 'utf8'),
+      blocco,
+      Buffer.from(`\r\n--${confine}--\r\n`, 'utf8')
+    ])
+    const r = await f(`${UPLOAD}/files?uploadType=multipart&fields=${encodeURIComponent(CAMPI_INFO)}`, {
+      method: 'POST',
+      headers: { ...intestazioni(tk), 'Content-Type': `multipart/related; boundary=${confine}` },
+      body: corpo as unknown as BodyInit
+    })
+    if (!r.ok) throw await errore(r, 'creazione')
+    const j = (await r.json()) as FileElenco
+    if (j.id === undefined) throw new Error('Drive: creazione senza id')
+    idPerNome.set(nome, j.id)
+    assenti.delete(nome)
+    return j
   }
 
   return {
     async elenca() {
       const tk = await deps.token()
-      const mappa = new Map<string, VoceArchivio>()
+      const perNome = new Map<string, FileElenco[]>()
       let pageToken: string | undefined
       do {
-        const campi = encodeURIComponent('nextPageToken,files(id,name,version)')
+        const campi = encodeURIComponent('nextPageToken,files(id,name,version,size,modifiedTime)')
         const url = `${API}/files?spaces=appDataFolder&pageSize=1000&fields=${campi}${pageToken !== undefined ? `&pageToken=${pageToken}` : ''}`
         const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'elenco')
-        const j = (await r.json()) as { nextPageToken?: string; files?: Array<{ id?: string; name?: string; version?: string | number }> }
+        const j = (await r.json()) as { nextPageToken?: string; files?: FileElenco[] }
         for (const file of j.files ?? []) {
-          if (file.id !== undefined && file.name !== undefined) {
-            mappa.set(file.name, { id: file.id, versione: String(file.version ?? '') })
-            idPerNome.set(file.name, file.id)
-            assenti.delete(file.name)
-          }
+          if (file.id !== undefined && file.name !== undefined) perNome.set(file.name, [...(perNome.get(file.name) ?? []), file])
         }
         pageToken = j.nextPageToken
       } while (pageToken !== undefined)
+      // Un nome, un file: fra i doppioni lo stesso che sceglie la ricerca.
+      const mappa = new Map<string, VoceArchivio>()
+      for (const [nome, files] of perNome) {
+        const file = sceltaFraDoppioni(files)
+        if (file?.id === undefined) continue
+        mappa.set(nome, { id: file.id, versione: String(file.version ?? '') })
+        idPerNome.set(nome, file.id)
+        assenti.delete(nome)
+      }
       return mappa
     },
 
@@ -371,17 +454,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           if (file !== undefined) {
             await scriviMediaSu(tk, file.id, blocco)
           } else {
-            const r = await f(`${API}/files?fields=id`, {
-              method: 'POST',
-              headers: { ...intestazioni(tk), 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: nome, parents: ['appDataFolder'] })
-            })
-            if (!r.ok) throw await errore(r, 'creazione')
-            const { id } = (await r.json()) as { id?: string }
-            if (id === undefined) throw new Error('Drive: creazione senza id')
-            idPerNome.set(nome, id)
-            assenti.delete(nome)
-            await scriviMediaSu(tk, id, blocco)
+            await creaMultipart(tk, nome, blocco)
           }
           onProgresso?.(blocco.length, blocco.length)
           return
@@ -392,6 +465,52 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           if (i >= RITENTI || stato === undefined || !(transitorio(stato) || (stato === 403 && /rate ?limit exceeded|quota exceeded for quota metric/i.test(String((e as Error).message))))) throw e
           await pausa(attesa); attesa *= 2
         }
+      }
+    },
+
+    // Fra il controllo della versione e la scrittura passa una richiesta: chi
+    // scrive il manifesto rilegge dopo un attimo per vedere se qualcuno e'
+    // entrato in quella finestra (vedi `aggiornaManifesto`).
+    finestraConflittoMs: deps.finestraConflittoMs ?? 1500,
+
+    async cancellaId(id) {
+      const tk = await deps.token()
+      try {
+        await conRitenta(() => f(`${API}/files/${id}`, { method: 'DELETE', headers: intestazioni(tk) }), 'cancellazione')
+      } catch (e) {
+        if ((e as { stato?: number }).stato !== 404) throw e
+      }
+      for (const [nome, x] of idPerNome) if (x === id) idPerNome.delete(nome)
+    },
+
+    async info(nome) {
+      const tk = await deps.token()
+      const scelto = await cercaPerNome(tk, nome, `${CAMPI_INFO},size`)
+      return scelto?.id === undefined ? undefined : infoDa(scelto)
+    },
+
+    /**
+     * La scrittura **condizionale** (0.86.2): solo se il file e' ancora alla
+     * versione vista. Drive v3 non ha un «If-Match» per i file: si guarda la
+     * versione con una ricerca fresca e si scrive subito dopo. La finestra fra
+     * le due e' di una richiesta; chi la usa (il manifesto) rilegge dopo la
+     * scrittura per coprirla.
+     */
+    async caricaSe(nome, blocco, attesa) {
+      const tk = await deps.token()
+      const ora = await cercaPerNome(tk, nome, `${CAMPI_INFO},size`)
+      const versione = ora?.id === undefined ? null : String(ora.version ?? '')
+      if (versione !== attesa) throw new ConflittoArchivio(versione ?? undefined)
+      if (ora?.id !== undefined) return infoDa(await scriviMediaSu(tk, ora.id, blocco), ora.id)
+      try {
+        return infoDa(await creaMultipart(tk, nome, blocco))
+      } catch (e) {
+        // Una creazione andata male a meta' puo' aver creato il file lo stesso:
+        // chi scrive rilegge e riprova sopra quello che trova, invece di
+        // crearne un doppione.
+        const stato = (e as { stato?: number }).stato
+        if (stato === undefined || transitorio(stato)) throw new ConflittoArchivio(undefined)
+        throw e
       }
     },
 
@@ -406,7 +525,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
         const j = (await r.json()) as { nextPageToken?: string; files?: Array<{ id?: string; name?: string; size?: string; modifiedTime?: string }> }
         for (const file of j.files ?? []) {
           if (file.name === undefined) continue
-          if (file.id !== undefined) idPerNome.set(file.name, file.id)
+          // Gli id per nome li impara `elenca`, che sa scegliere fra i doppioni:
+          // qui ogni copia conta per lo spazio, ma nessuna diventa «quella».
           fuori.push({ nome: file.name, byte: Number.parseInt(file.size ?? '0', 10) || 0, ...(file.modifiedTime !== undefined ? { modificato: file.modifiedTime } : {}) })
         }
         pageToken = j.nextPageToken
