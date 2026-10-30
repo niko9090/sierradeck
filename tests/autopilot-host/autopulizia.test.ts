@@ -130,11 +130,22 @@ describe('su disco, con un git finto', () => {
   })
 
   /** Il git finto: la radice, `main` c'è, e i worktree registrati sono quelli dati. */
-  const gitFinto = (p: { registrati?: Array<{ cartella: string; ramo: string }>; sporche?: string[]; nonUniti?: string[]; rami?: string[] } = {}): { git: Git; chiamate: string[] } => {
+  const gitFinto = (p: {
+    registrati?: Array<{ cartella: string; ramo: string }>; sporche?: string[]; nonUniti?: string[]; rami?: string[]
+    /** L'HEAD che `rev-parse HEAD` dà in una cartella (le copie che git non conosce). */
+    headDi?: Record<string, string>
+    /** Chiamato a ogni `git status` (per cambiare l'archivio durante il giro). */
+    suStatus?: (cwd: string) => void
+  } = {}): { git: Git; chiamate: string[] } => {
     const chiamate: string[] = []
     const git: Git = (args, cwd) => {
       const a = args.join(' ')
       chiamate.push(a)
+      if (a === 'status --porcelain') p.suStatus?.(cwd)
+      if (a === 'rev-parse --verify --quiet HEAD') {
+        const h = p.headDi?.[cwd]
+        return h !== undefined ? { codice: 0, uscita: h } : { codice: 1, uscita: '' }
+      }
       if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: progetto }
       if (a === 'rev-parse --verify --quiet refs/heads/main') return { codice: 0, uscita: 'x' }
       if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
@@ -192,6 +203,97 @@ describe('su disco, con un git finto', () => {
     expect(e.tenute.map((t) => t.perche).sort()).toEqual(['commit non uniti', 'modifiche non salvate'])
   })
 
+  describe('0.86.1: una cartella che git non riconosce ma ha un .git è un worktree', () => {
+    const conGit = (n: string): string => { const d = join(copie, n); mkdirSync(d); writeFileSync(join(d, '.git'), 'gitdir: x\n'); return d }
+
+    it('con modifiche: resta, e niente si cancella', async () => {
+      const d = conGit('ap-1-c-1')
+      writeFileSync(join(d, 'lavoro.txt'), 'non salvato')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ sporche: [d], headDi: { [d]: 'h1' } })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(join(d, 'lavoro.txt'))).toBe(true)
+      expect(e.copieTolte).toBe(0)
+      expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'modifiche non salvate' }])
+    })
+
+    it('pulita ma con commit non uniti: resta; senza HEAD leggibile: resta', async () => {
+      const avanti = conGit('ap-1-c-1')
+      const cieca = conGit('ap-1-c-2')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [avanti]: 'h-avanti' }, nonUniti: ['h-avanti'] })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(avanti)).toBe(true)
+      expect(existsSync(cieca)).toBe(true)
+      expect(e.tenute.map((t) => t.perche).sort()).toEqual(['commit non uniti', 'commit non uniti'])
+    })
+
+    it('pulita e già unita: via (senza `worktree remove`: git non la conosce)', async () => {
+      const d = conGit('ap-1-c-1')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git, chiamate } = gitFinto({ headDi: { [d]: 'h1' } })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(d)).toBe(false)
+      expect(e.copieTolte).toBe(1)
+      expect(chiamate.filter((c) => c.startsWith('worktree remove'))).toEqual([])
+    })
+  })
+
+  describe('0.86.1: i percorsi si confrontano veri (giunzioni, subst, 8.3)', () => {
+    it('la cartella di una chat aperta scritta attraverso una giunzione è la stessa copia', async () => {
+      const d = join(copie, 'ap-1-c-1')
+      mkdirSync(d)
+      const alias = join(base, 'alias')
+      symlinkSync(copie, alias, 'junction')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'lavoro', { cartella: join(alias, 'ap-1-c-1') })] }))
+      const e = await autopulizia({ archivio, git: comeAsincrono(gitFinto().git), ora: DOPO })
+      expect(existsSync(d)).toBe(true)
+      expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'chat aperta' }])
+    })
+
+    it('un worktree che git scrive attraverso una giunzione è registrato: con modifiche resta', async () => {
+      const d = join(copie, 'ap-1-c-1')
+      mkdirSync(d)
+      writeFileSync(join(d, '.git'), 'gitdir: x\n')
+      const alias = join(base, 'alias')
+      symlinkSync(copie, alias, 'junction')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' })] }))
+      const { git, chiamate } = gitFinto({ registrati: [{ cartella: join(alias, 'ap-1-c-1'), ramo: 'ap/ap-1/c-1' }], sporche: [d] })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(d)).toBe(true)
+      expect(chiamate.filter((c) => c.startsWith('worktree remove'))).toEqual([])
+      expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'modifiche non salvate' }])
+    })
+  })
+
+  it('0.86.1: una chat aperta durante il giro salva la sua copia (si rilegge prima di `worktree remove`)', async () => {
+    const d = join(copie, 'ap-1-c-1')
+    mkdirSync(d)
+    writeFileSync(join(d, '.git'), 'gitdir: x\n')
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' })] }))
+    const { git, chiamate } = gitFinto({
+      registrati: [{ cartella: d, ramo: 'ap/ap-1/c-1' }],
+      // Mentre si guarda la copia, un altro autopilota apre una chat proprio lì.
+      suStatus: () => { archivio.scrivi(autopilota({ id: 'ap-2', cwd: progetto, chats: [chat('c-1', 'lavoro', { cartella: d })] })) }
+    })
+    const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+    expect(existsSync(d)).toBe(true)
+    expect(chiamate.filter((c) => c.startsWith('worktree remove'))).toEqual([])
+    expect(e.tenute).toEqual([{ cosa: 'ap-1-c-1', perche: 'chat aperta' }])
+  })
+
+  it('0.86.1: un ramo di una chat aperta durante il giro non si toglie', async () => {
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' })] }))
+    const { git, chiamate } = gitFinto({ rami: ['ap/ap-1/c-1'] })
+    const gitCheRiapre: Git = (args, cwd) => {
+      if (args[0] === 'merge-base') archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'lavoro', { ramo: 'ap/ap-1/c-1' })] }))
+      return git(args, cwd)
+    }
+    const e = await autopulizia({ archivio, git: comeAsincrono(gitCheRiapre), ora: DOPO })
+    expect(chiamate.filter((c) => c.startsWith('branch -D'))).toEqual([])
+    expect(e.ramiTolti).toBe(0)
+  })
+
   it('rami: via gli ap/* uniti di chat concluse o sconosciute; restano gli altri', async () => {
     archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto, chats: [chat('c-1', 'finita', { ramo: 'ap/ap-1/c-1' }), chat('c-2', 'lavoro', { ramo: 'ap/ap-1/c-2' })] }))
     const { git, chiamate } = gitFinto({
@@ -217,6 +319,32 @@ describe('su disco, con un git finto', () => {
     expect(archivio.leggi('ap-1')?.dialogo).toHaveLength(50)
     expect(archivio.elenca().map((a) => a.id)).toEqual(['ap-1'])
     expect(e.autopilotiCompattati).toBe(1)
+  })
+
+  it('0.86.1: accorciato il jsonl delle decisioni, l archivio rifà il conto (decisioniArchiviate non resta gonfio)', async () => {
+    const note = join(archivio.cartella, 'ap-1.decisioni.jsonl')
+    const riga = `${JSON.stringify({ quando: '2026-01-01T00:00:00.000Z', cosa: 'x'.repeat(1000) })}\n`
+    writeFileSync(note, riga.repeat(25 * 1024))
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: join(base, 'non-c-e') }))
+    // Prima: l'archivio conta tutte le righe del file.
+    expect(archivio.leggi('ap-1')?.decisioniArchiviate).toBe(25 * 1024)
+    const e = await autopulizia({ archivio, git: comeAsincrono(gitFinto().git) })
+    expect(e.noteTagliate).toBe(1)
+    const righe = readFileSync(note, 'utf8').split('\n').filter((r) => r !== '').length
+    expect(righe).toBeLessThan(25 * 1024)
+    expect(archivio.leggi('ap-1')?.decisioniArchiviate).toBe(righe)
+    expect(archivio.decisioniVecchie?.('ap-1')).toHaveLength(righe)
+  })
+
+  it('0.86.1: compattando, le decisioni tolte vanno prima in coda al jsonl', async () => {
+    const decisioni = Array.from({ length: 70 }, (_, i) => ({ quando: `2026-01-01T00:00:${String(i).padStart(2, '0')}.000Z`, cosa: `c${i}` }))
+    archivio.scrivi(autopilota({ id: 'ap-1', cwd: join(base, 'non-c-e'), stato: 'finito', ultimoEvento: '2026-01-01T00:00:00.000Z', decisioni }))
+    const e = await autopulizia({ archivio, git: comeAsincrono(gitFinto().git) })
+    expect(e.autopilotiCompattati).toBe(1)
+    const a = archivio.leggi('ap-1')
+    expect(a?.decisioni.map((d) => d.cosa)).toEqual(decisioni.slice(20).map((d) => d.cosa))
+    expect(a?.decisioniArchiviate).toBe(20)
+    expect(archivio.decisioniVecchie?.('ap-1').map((d) => d.cosa)).toEqual(decisioni.slice(0, 20).map((d) => d.cosa))
   })
 
   it('il registro oltre il tetto perde i giorni più vecchi, mai quello di oggi', () => {

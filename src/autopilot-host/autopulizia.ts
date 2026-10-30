@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
 import { lstat, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
@@ -17,7 +17,10 @@ import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
  *
  * Le regole, tutte prudenti — nel dubbio si tiene e lo si scrive:
  * 1. Copie (`<progetto>.sierradeck-wt/*`): `git worktree prune`; via la
- *    cartella che non è un worktree registrato e che nessuna chat aperta usa;
+ *    cartella che non è un worktree registrato, che nessuna chat aperta usa e
+ *    che non ha `.git` (0.86.1: con un `.git` vale la regola dei worktree,
+ *    pulita e unita; i percorsi si confrontano veri, `realpath`, perché
+ *    giunzioni, `subst` e nomi 8.3 non facciano sembrare estranea una copia viva);
  *    via il worktree registrato di una chat conclusa (o sconosciuta) se è
  *    pulito (`status --porcelain` vuoto) e il suo HEAD è già in main. Mai una
  *    copia con modifiche o commit non uniti, mai una appena nata (< 6 ore:
@@ -78,6 +81,17 @@ export function chiavePercorso(p: string): string {
   return process.platform === 'win32' ? r.toLowerCase() : r
 }
 
+/**
+ * Il percorso vero, come lo vede il disco (0.86.1): giunzioni, collegamenti,
+ * unità `subst`, nomi corti 8.3 e cartelle reindirizzate portano tutti allo
+ * stesso posto. Due scritture diverse della stessa cartella devono sembrare la
+ * stessa, o una copia viva pare «non registrata» e se ne va col lavoro dentro.
+ * Un percorso che non c'è (o che non si legge) resta com'è, risolto.
+ */
+export function percorsoVero(p: string): string {
+  try { return realpathSync.native(p) } catch { return resolve(p) }
+}
+
 function dentroOUguale(p: string, cartella: string): boolean {
   const a = chiavePercorso(p)
   const c = chiavePercorso(cartella)
@@ -85,7 +99,11 @@ function dentroOUguale(p: string, cartella: string): boolean {
 }
 
 /** Una chat dell'archivio, quanto basta per decidere. */
-export type ChatNota = { autopilota: string; chat: string; cartella?: string; ramo?: string; aperta: boolean }
+export type ChatNota = {
+  autopilota: string; chat: string; cartella?: string; ramo?: string; aperta: boolean
+  /** `cartella` passata per `percorsoVero`: la mette chi tocca il disco. */
+  cartellaVera?: string
+}
 
 /**
  * Una chat è «aperta» finché lei e il suo autopilota possono ancora lavorare.
@@ -117,6 +135,14 @@ export type CopiaSuDisco = {
   giovane: boolean
   /** Ha una cartella `.git` (un repository a sé, non una copia): non si tocca. */
   repositoryASe: boolean
+  /**
+   * Ha un file `.git` (0.86.1): è un worktree anche se git, per come scrive il
+   * percorso, non lo riconosce fra i suoi. Si tratta come tale: via solo se
+   * pulito e già unito.
+   */
+  conGit?: boolean
+  /** `cartella` passata per `percorsoVero`. */
+  cartellaVera?: string
 }
 
 /** Cosa dice git di una copia registrata. */
@@ -126,22 +152,31 @@ export type DecisioneCopia = { cartella: string; togli: boolean; perche: string;
 
 /** Le chat che usano questa copia (la cartella, o una sua sottocartella, o il suo ramo). */
 function chatDellaCopia(copia: CopiaSuDisco, chats: ChatNota[]): ChatNota[] {
-  return chats.filter((c) =>
-    (c.cartella !== undefined && dentroOUguale(c.cartella, copia.cartella)) ||
-    (copia.ramo !== undefined && c.ramo === copia.ramo))
+  const cartelleCopia = [copia.cartella, ...(copia.cartellaVera !== undefined ? [copia.cartellaVera] : [])]
+  return chats.filter((c) => {
+    if (copia.ramo !== undefined && c.ramo === copia.ramo) return true
+    // Ogni scrittura della chat contro ogni scrittura della copia: basta che una combaci.
+    const cartelleChat = [c.cartella, c.cartellaVera].filter((x): x is string => x !== undefined)
+    return cartelleChat.some((cc) => cartelleCopia.some((cp) => dentroOUguale(cc, cp)))
+  })
 }
 
-/** Si toglie questa copia? Pura. `verifica` serve solo per una copia registrata. */
+/**
+ * Si toglie questa copia? Pura. `verifica` serve per una copia registrata, e
+ * per una non registrata che ha un file `.git`.
+ */
 export function decidiCopia(copia: CopiaSuDisco, chats: ChatNota[], verifica?: VerificaCopia): DecisioneCopia {
   const base = { cartella: copia.cartella, registrata: copia.registrata, ...(copia.ramo !== undefined ? { ramo: copia.ramo } : {}) }
   const tieni = (perche: string): DecisioneCopia => ({ ...base, togli: false, perche })
   if (copia.repositoryASe) return tieni('repository a sé')
   if (copia.giovane) return tieni('appena nata')
   if (chatDellaCopia(copia, chats).some((c) => c.aperta)) return tieni('chat aperta')
-  if (!copia.registrata) return { ...base, togli: true, perche: 'non è una copia registrata' }
+  // Senza `.git` non c'è lavoro di git dentro: è roba rimasta (dei test).
+  if (!copia.registrata && copia.conGit !== true) return { ...base, togli: true, perche: 'non è una copia registrata' }
   if (verifica === undefined) return tieni('stato non letto')
   if (!verifica.pulita) return tieni('modifiche non salvate')
   if (!verifica.unita) return tieni('commit non uniti')
+  if (!copia.registrata) return { ...base, togli: true, perche: 'copia non registrata, pulita e già unita' }
   return { ...base, togli: true, perche: 'chat conclusa, ramo già unito' }
 }
 
@@ -308,8 +343,14 @@ async function giovane(cartella: string, ora: number): Promise<boolean> {
   }
 }
 
-async function haCartellaGit(cartella: string): Promise<boolean> {
-  try { return (await lstat(join(cartella, '.git'))).isDirectory() } catch { return false }
+/** Cosa c'è al posto di `.git`: una cartella (repository a sé), altro (il file di un worktree), niente. */
+async function voceGit(cartella: string): Promise<'cartella' | 'file' | undefined> {
+  try { return (await lstat(join(cartella, '.git'))).isDirectory() ? 'cartella' : 'file' } catch { return undefined }
+}
+
+/** Le chat con la loro cartella vera accanto, per confrontarle con le copie. */
+function conCartellaVera(chats: ChatNota[]): ChatNota[] {
+  return chats.map((c) => (c.cartella !== undefined ? { ...c, cartellaVera: percorsoVero(c.cartella) } : c))
 }
 
 export type OpzioniAutopulizia = {
@@ -343,10 +384,22 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
   const elenco = await git(['worktree', 'list', '--porcelain'], radice)
   if (elenco.codice !== 0) { e.errori.push(`${basename(radice)}: worktree list non riuscito`); return }
   const registrati = leggiWorktreeList(elenco.uscita)
-  const perCartella = new Map(registrati.map((w) => [chiavePercorso(w.cartella), w]))
+  // Ogni worktree sotto due chiavi: come lo scrive git e com'è sul disco.
+  const perCartella = new Map<string, WorktreeGit>()
+  for (const w of registrati) {
+    perCartella.set(chiavePercorso(w.cartella), w)
+    perCartella.set(chiavePercorso(percorsoVero(w.cartella)), w)
+  }
   const cartellaCopie = cartellaWorktreeDi(radice)
   const unito = async (cosa: string): Promise<boolean> =>
     (await git(['merge-base', '--is-ancestor', cosa, base], radice)).codice === 0
+  const chatVere = conCartellaVera(tutteLeChat)
+  /**
+   * Le chat come sono **adesso** (0.86.1): l'elenco di partenza è una
+   * fotografia, e una chat aperta durante il giro non c'è. Si rilegge subito
+   * prima di ogni `worktree remove` e di ogni `branch -D`.
+   */
+  const chatAdesso = (): ChatNota[] => conCartellaVera(chatNote(o.archivio.elenca()))
 
   // 1. Le copie.
   let nomi: string[] = []
@@ -354,28 +407,43 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
   for (const n of nomi) {
     const cartella = join(cartellaCopie, n)
     try { if ((await lstat(cartella)).isSymbolicLink() || !statSync(cartella).isDirectory()) continue } catch { continue }
-    const w = perCartella.get(chiavePercorso(cartella))
+    const cartellaVera = percorsoVero(cartella)
+    const w = perCartella.get(chiavePercorso(cartella)) ?? perCartella.get(chiavePercorso(cartellaVera))
+    const dotGit = await voceGit(cartella)
     const copia: CopiaSuDisco = {
       cartella,
+      cartellaVera,
       registrata: w !== undefined,
       ...(w?.head !== undefined ? { head: w.head } : {}),
       ...(w?.ramo !== undefined ? { ramo: w.ramo } : {}),
       giovane: await giovane(cartella, ora),
-      repositoryASe: await haCartellaGit(cartella)
+      repositoryASe: dotGit === 'cartella',
+      conGit: dotGit !== undefined
     }
     let verifica: VerificaCopia | undefined
-    const prima = decidiCopia(copia, tutteLeChat)
+    const prima = decidiCopia(copia, chatVere)
     // git si interroga solo per chi potrebbe andarsene.
-    if (copia.registrata && prima.perche === 'stato non letto') {
+    if (prima.perche === 'stato non letto') {
       const st = await git(['status', '--porcelain'], cartella)
+      // Una copia che git non conosce: il suo HEAD lo si chiede a lei.
+      let head = copia.head
+      if (head === undefined && st.codice === 0) {
+        const h = await git(['rev-parse', '--verify', '--quiet', 'HEAD'], cartella)
+        const letto = h.codice === 0 ? h.uscita.split(/\r?\n/)[0]?.trim() : undefined
+        if (letto !== undefined && letto !== '') head = letto
+      }
       if (st.codice === 0) {
         // Senza HEAD letto non si sa cosa contiene: «non unita», cioè resta.
-        verifica = { pulita: st.uscita.trim() === '', unita: copia.head !== undefined && await unito(copia.head) }
+        verifica = { pulita: st.uscita.trim() === '', unita: head !== undefined && await unito(head) }
       }
     }
-    const d = verifica !== undefined ? decidiCopia(copia, tutteLeChat, verifica) : prima
+    let d = verifica !== undefined ? decidiCopia(copia, chatVere, verifica) : prima
+    // Una copia con git dentro: prima di toglierla, le chat di adesso.
+    if (d.togli && (copia.conGit === true || copia.registrata)) d =decidiCopia(copia, chatAdesso(), verifica)
     if (!d.togli) {
-      if (d.perche === 'modifiche non salvate' || d.perche === 'commit non uniti') console.info(`[autopulizia] tengo ${cartella}: ${d.perche}`)
+      if (d.perche === 'modifiche non salvate' || d.perche === 'commit non uniti' || (d.perche === 'stato non letto' && !copia.registrata)) {
+        console.info(`[autopulizia] tengo ${cartella}${copia.registrata ? '' : ' (non registrata, con .git)'}: ${d.perche}`)
+      }
       e.tenute.push({ cosa: n, perche: d.perche })
       continue
     }
@@ -410,7 +478,12 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
   const inUso = new Set(leggiWorktreeList(dopo.uscita).flatMap((w) => (w.ramo !== undefined ? [w.ramo] : [])))
   for (const ramo of rami.uscita.split(/\r?\n/).map((x) => x.trim()).filter((x) => x !== '')) {
     const prima = decidiRamo(ramo, { ...(corrente !== undefined ? { corrente } : {}), inUso, chats: tutteLeChat, unito: true })
-    const d = prima.togli ? decidiRamo(ramo, { ...(corrente !== undefined ? { corrente } : {}), inUso, chats: tutteLeChat, unito: await unito(ramo) }) : prima
+    // Il secondo controllo, subito prima di `branch -D`, con le chat di adesso.
+    let d = prima
+    if (prima.togli) {
+      const giaUnito = await unito(ramo)
+      d = decidiRamo(ramo, { ...(corrente !== undefined ? { corrente } : {}), inUso, chats: chatNote(o.archivio.elenca()), unito: giaUnito })
+    }
     if (!d.togli) {
       // I rami di chat aperte e quelli nelle copie sono la norma: non si contano fra le «tenute».
       if (d.perche === 'commit non uniti') e.tenute.push({ cosa: ramo, perche: `ramo con ${d.perche}` })
@@ -434,6 +507,20 @@ export function accorciaNote(file: string, tetto = TETTO_NOTE_BYTE): { fatto: bo
   } catch {
     return { fatto: false, byte: 0 }
   }
+}
+
+/**
+ * Dopo aver accorciato `<id>.decisioni.jsonl`: l'archivio rifà il conto dal
+ * file e, se il numero scritto nell'autopilota non torna più, lo si riscrive
+ * (rilette subito prima, per non scrivere sopra un cambiamento).
+ */
+function ricontaDecisioni(archivio: Archivio, id: string): void {
+  if (archivio.riconta === undefined) return
+  let n: number
+  try { n = archivio.riconta(id) } catch { return }
+  const fresco = archivio.leggi(id)
+  if (fresco === undefined) return
+  if ((fresco.decisioniArchiviate ?? 0) !== n) archivio.scrivi(fresco)
 }
 
 /** Il registro oltre il tetto: via i giorni più vecchi, mai quello di oggi. Torna i byte liberati. */
@@ -495,7 +582,14 @@ export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopuliz
     for (const f of candidati) {
       if (!existsSync(f)) continue
       const r = accorciaNote(f)
-      if (r.fatto) { e.noteTagliate += 1; e.byteLiberati += r.byte }
+      if (!r.fatto) continue
+      e.noteTagliate += 1
+      e.byteLiberati += r.byte
+      // 0.86.1: l'archivio crede il jsonl «solo aggiunte» e ne tiene il conto
+      // in memoria; accorciato da qui, il conto va rifatto, o
+      // `decisioniArchiviate` resterebbe gonfio per sempre.
+      const id = basename(f).replace(/\.decisioni\.jsonl$/, '')
+      if (id !== basename(f)) ricontaDecisioni(o.archivio, id)
     }
   } catch (err) {
     e.errori.push(`note: ${String(err).slice(0, 120)}`)
@@ -511,6 +605,16 @@ export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopuliz
     if (fresco === undefined) continue
     const c = compatta(fresco, ora)
     if (c === undefined) continue
+    // 0.86.1: le decisioni che escono dal file vanno prima in coda al jsonl,
+    // come fa l'archivio quando accorcia: compattare non vuol dire perderle.
+    const tolte = fresco.decisioni.slice(0, fresco.decisioni.length - c.decisioni.length)
+    if (tolte.length > 0 && o.archivio.archiviaDecisioni?.(a.id, tolte) !== true) {
+      // Non archiviate: le decisioni restano tutte; il dialogo si accorcia lo stesso.
+      if (c.dialogo.length === fresco.dialogo.length) continue
+      o.archivio.scrivi({ ...c, decisioni: fresco.decisioni })
+      e.autopilotiCompattati += 1
+      continue
+    }
     o.archivio.scrivi(c)
     e.autopilotiCompattati += 1
   }
