@@ -45,6 +45,12 @@ export function cartellaDelWorkspace(autopiloti: Autopilota[]): string | undefin
   return (ordinati.find((a) => a.archiviato !== true) ?? ordinati[0])?.cwd
 }
 
+/** La stessa cartella di progetto: senza badare a barre, maiuscole e barra finale. */
+export function stessaCartella(a: string, b: string): boolean {
+  const n = (x: string): string => x.replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+  return n(a) === n(b)
+}
+
 export function nomeUnico(ws: string): string {
   const nome = ws.startsWith('cartella:') ? ws.slice('cartella:'.length).split(/[\\/]/u).filter((x) => x !== '').pop() ?? 'workspace' : ws
   return `Autopilota · ${nome}`.slice(0, 60)
@@ -97,8 +103,12 @@ function criteriComuni(autopiloti: Autopilota[], cwd: string): Criterio[] {
  * le adottate di tutti gli altri autopiloti del workspace.
  */
 export function passaAllUnico(p: { ws: string; autopiloti: Autopilota[]; id: string; adesso: string; unico?: Autopilota }): EsitoPassaggio {
-  const altri = p.autopiloti.filter((a) => a.unico !== true && a.id !== p.unico?.id)
-  const cwd = p.unico?.cwd ?? cartellaDelWorkspace(altri) ?? ''
+  const delWs = p.autopiloti.filter((a) => a.unico !== true && a.id !== p.unico?.id)
+  const cwd = p.unico?.cwd ?? cartellaDelWorkspace(delWs) ?? ''
+  // Un unico per cartella: gli autopiloti di un altro progetto dello stesso
+  // workspace restano come sono, con le loro chat (il cancello dell'unico
+  // unirebbe i loro rami nel repository sbagliato).
+  const altri = delWs.filter((a) => stessaCartella(a.cwd, cwd))
   const conBase = [...altri].sort((a, b) => b.iniziatoIl.localeCompare(a.iniziatoIl)).find((a) => a.cwd === cwd && a.ramoBase !== undefined)
   let unico: Autopilota = p.unico ?? nuovoUnico({
     id: p.id, ws: p.ws, cwd, adesso: p.adesso,

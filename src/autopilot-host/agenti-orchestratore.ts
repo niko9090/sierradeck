@@ -1,5 +1,6 @@
 import { REGOLA_LEZIONI } from '@shared/lezioni-chat'
 import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
+import { MATCHER_GUARDIA } from './guardia-orchestratore'
 
 /**
  * **Gli specialisti come subagenti nativi** (P3, 30/10/2026): il file per
@@ -28,7 +29,7 @@ const SCRITTURA = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'TodoWrite']
 
 const COMUNE = [
   'Lavori per l’autopilota di SierraDeck, che coordina il workspace e parla con Nicholas: il compito, il criterio e i vincoli sono nel messaggio che ricevi.',
-  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale, non fare push e non installare niente: il ramo lo prova e lo unisce l’autopilota, che misura il criterio.',
+  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale, non fare push e non installare niente: il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
   'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
   '',
   'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai fatto, i file toccati, come l’hai verificato, cosa resta. In fondo le righe:',
@@ -93,7 +94,8 @@ export function fileImpostazioniCli(porta: number, autopilotaId: string): string
   return JSON.stringify({
     hooks: {
       PreToolUse: [{
-        matcher: 'Bash|PowerShell',
+        // Anche le scritture e gli Agent: la guardia dell'unico (`guardia-orchestratore.ts`).
+        matcher: MATCHER_GUARDIA,
         hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${encodeURIComponent(autopilotaId)}`, timeout: 30 }]
       }]
     }

@@ -44,7 +44,8 @@ describe('flusso dell’orchestratore', () => {
     expect(effetti.map((e) => e.tipo)).toEqual(['sessione', 'specialista-partito', 'costo', 'risposta', 'specialista-finito'])
     const costo = effetti.find((e) => e.tipo === 'costo')
     expect(costo?.tipo === 'costo' && costo.costo).toMatchObject({ usd: 0.0045, contesto: 2400, output: 50 })
-    expect(stato.inTurno).toBe(false)
+    // La notifica sveglia l’orchestratore (provato dal vivo): turno aperto fino al suo result.
+    expect(stato.inTurno).toBe(true)
   })
 
   it('l’attività dello specialista viene dai suoi messaggi (parent_tool_use_id) e dai task_progress', () => {
@@ -70,7 +71,8 @@ describe('flusso dell’orchestratore', () => {
     const { stato } = leggi([
       agente('tu-3', 'sviluppatore', 'k1: x'),
       { type: 'system', subtype: 'task_updated', task_id: 't-3', tool_use_id: 'tu-3', status: 'running', task: { agent_id: 'a1b2', worktree_path: 'E:/p/.claude/worktrees/agent-a1b2', worktree_branch: 'worktree-agent-a1b2' } },
-      { type: 'system', subtype: 'task_updated', task_id: 't-3', status: 'failed' }
+      { type: 'system', subtype: 'task_updated', task_id: 't-3', patch: { status: 'failed' } },
+      { type: 'system', subtype: 'task_notification', task_id: 't-3', tool_use_id: 'tu-3', status: 'failed', summary: 'non riesco' }
     ])
     expect(stato.specialisti[0]).toMatchObject({ agente: 'a1b2', cartella: 'E:/p/.claude/worktrees/agent-a1b2', ramo: 'worktree-agent-a1b2', stato: 'fallito' })
   })

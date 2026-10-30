@@ -25,7 +25,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
-  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
+  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
   type AmbienteOrchestratore, type EsitoAmbiente
 } from './mcp-orchestratore'
 import {
@@ -38,6 +38,8 @@ import { fermataSpecialista } from './stop-specialista'
 import { hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
 import { fileAgenti, fileImpostazioniCli } from './agenti-orchestratore'
+import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
+import type { Giudizio } from './divieti'
 
 /**
  * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore (un
@@ -123,14 +125,33 @@ export type ServizioUnico = {
   riprendi: (a: Autopilota) => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
+  /** Il PreToolUse dell'orchestratore e dei suoi subagenti (`guardia-orchestratore.ts`). */
+  preTool: (a: Autopilota, corpo: Record<string, unknown>) => Giudizio
+  /** Gli specialisti (subagenti) al lavoro su tutto il PC: contano nei posti. */
+  specialistiSulPc: () => number
   /** Il servizio si spegne: i processi `claude` con lui. */
   spegni: () => void
   orchestratore: Orchestratore
   ambiente: AmbienteOrchestratore
 }
 
+/**
+ * La risposta di Nicholas a un permesso è un «sì»? Le scelte sono «Consenti»
+ * e «Nega», e valgono esatte. Un testo libero vale sì solo se comincia con
+ * una parola di consenso intera e non contiene nessun no: «sicuramente no»,
+ * «okay, no», «non consentire» restano no. Nel dubbio, no.
+ */
+export function permessoConcesso(risposta: string): boolean {
+  const t = risposta.trim().toLowerCase().replace(/\s+/gu, ' ')
+  if (t === 'consenti') return true
+  if (t === 'nega' || t === '') return false
+  const fine = '(?=$|[\\s,.;:!?])'
+  if (new RegExp(`(^|[\\s,.;:!?'’"«(])(no|non|nega|negato|neghi|niente|mai|nope|deny|don'?t|not)${fine}`, 'u').test(t)) return false
+  return new RegExp(`^(consenti|permetti|s[iì]|ok|okay|va bene|vai|certo|yes|allow)${fine}`, 'u').test(t)
+}
+
 const EVENTI_RICORDATI = 30
-const ATTESA_PERMESSO_MS = 10 * 60_000
+
 
 /** Una voce di `git worktree list --porcelain`. */
 export type VoceWorktree = { cartella: string; ramo?: string }
@@ -182,6 +203,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const silenzioDetto = new Map<string, number>()
   const notificheDette = new Map<string, number>()
   const cancelliInCorso = new Set<string>()
+  /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
+  const permessiInAttesa = new Map<string, number>()
   const memoriaCriteri: MemoriaCriteri = new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
@@ -339,7 +362,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
-    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {})
+    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
+    attendeNicholas: (ws) => (permessiInAttesa.get(ws) ?? 0) > 0
   })
 
   // ---------------------------------------------------------------- il cancello
@@ -485,13 +509,14 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       const cosa = JSON.stringify(input).slice(0, 600)
       const d = apriDomanda(a, ws, `Uno specialista chiede il permesso per ${strumento}: ${cosa}. Lo permetto?`, ['Nega', 'Consenti'], 'il programma non lo permette da solo')
       const attesa = x.attesaPermessoMs ?? ATTESA_PERMESSO_MS
+      permessiInAttesa.set(ws, (permessiInAttesa.get(ws) ?? 0) + 1)
       const r = await Promise.race([x.domande.attendi(d.id), new Promise<undefined>((ris) => { const t = setTimeout(() => ris(undefined), attesa); t.unref?.() })])
+        .finally(() => { permessiInAttesa.set(ws, Math.max(0, (permessiInAttesa.get(ws) ?? 1) - 1)) })
       if (r === undefined) {
         x.domande.superata(d.id, 'nessuna risposta in tempo: negato, l’autopilota cerca un’altra strada')
         return { consenti: false, motivo: 'Nicholas non ha risposto in tempo: trova un’altra strada, o chiedi con chiedi_utente' }
       }
-      const si = /^\s*(consenti|s[iì]|ok|va bene|vai|certo|yes|permetti)/iu.test(r.risposta)
-      return si ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
+      return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
     },
     chiedi(ws, domanda, scelte) {
       const a = unicoDi(ws)
@@ -725,6 +750,12 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       return hookAdottato(prima, x.archivio.leggi(prima.passatoA), chatId)
     },
     mcp: (p) => rispondiMcpOrchestratore(ambiente, gettoni, x.versione, p),
+    preTool: (a, corpo) => giudicaGuardiaOrchestratore(corpo, {
+      radice: a.cwd,
+      specialistiSulPc: orchestratore.specialistiSulPc(typeof corpo.tool_use_id === 'string' ? corpo.tool_use_id : undefined),
+      tettoPc: Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+    }),
+    specialistiSulPc: () => orchestratore.specialistiSulPc(),
     spegni: () => { orchestratore.spegni() },
     orchestratore,
     ambiente

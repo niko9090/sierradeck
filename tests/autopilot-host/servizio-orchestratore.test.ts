@@ -197,4 +197,19 @@ describe('autopilota unico nel servizio', () => {
     const r = (await (await chiamata).json()) as { result: { content: { text: string }[] } }
     expect(JSON.parse(r.result.content[0]!.text)).toEqual({ behavior: 'allow', updatedInput: { url: 'https://example.com' } })
   })
+
+  it('il PreToolUse dell’unico: l’orchestratore non scrive nel principale, lo specialista sì nella sua copia', async () => {
+    zitto()
+    await avviaServizio([ap()])
+    const v = (await (await posta('/orchestratore/attiva', { ws: 'Lavoro' })).json()) as VistaOrchestratore
+    const radice = process.cwd()
+    const base = { session_id: 's', cwd: radice, hook_event_name: 'PreToolUse', tool_use_id: 'toolu_x' }
+    const negato = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_name: 'Write', tool_input: { file_path: join(radice, 'PROVA.md'), content: 'x' } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
+    expect(negato.hookSpecificOutput?.permissionDecision).toBe('deny')
+    const copia = join(radice, '.claude', 'worktrees', 'agent-a1')
+    const ok = await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, cwd: copia, agent_id: 'a1', agent_type: 'sviluppatore', tool_name: 'Write', tool_input: { file_path: join(copia, 'somma.js'), content: 'x' } })).json()
+    expect(ok).toEqual({})
+    const merge = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, cwd: copia, agent_id: 'a1', tool_name: 'Bash', tool_input: { command: `git -C "${radice}" merge worktree-agent-a1` } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
+    expect(merge.hookSpecificOutput?.permissionDecision).toBe('deny')
+  })
 })

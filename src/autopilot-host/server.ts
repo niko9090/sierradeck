@@ -298,6 +298,8 @@ export type Dipendenze = {
   unicoPerNuovi?: boolean
   /** Per i test: la raccolta degli eventi per l'orchestratore. */
   raccoltaEventiMs?: number
+  /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
+  inattivoOrchestratoreMs?: number
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -821,6 +823,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   // ── La coda delle richieste del workspace (P1) ──
   /** P3: l'autopilota unico; nasce in fondo, quando c'è tutto quello che gli si presta. */
   let servizioUnico: ServizioUnico | undefined
+  /** Le chat al lavoro sul PC, più gli specialisti (subagenti) degli autopiloti unici: occupano posti anche loro. */
+  const alLavoroSulPc = (): number => chatAlLavoroSulPc(deps.archivio.elenca()) + (servizioUnico?.specialistiSulPc() ?? 0)
   /**
    * La coda di un workspace: la prima volta ci entrano le richieste e i
    * compiti dei suoi autopiloti (una volta sola), e a ogni lettura lo stato
@@ -943,7 +947,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (regolazione !== regolazioneUsata) posti = undefined
     regolazioneUsata = regolazione
     const prima = posti?.posti
-    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, chatAlLavoroSulPc(deps.archivio.elenca()), regolazione), Date.parse(deps.adesso()))
+    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, alLavoroSulPc(), regolazione), Date.parse(deps.adesso()))
     if (prima !== undefined && prima !== posti.posti) {
       console.info(`[posti] ${prima} → ${posti.posti} chat insieme (${posti.perche}; ${ultimaMisura.processori} processori, ${ultimaMisura.memoriaLiberaMb} MB liberi, carico ${ultimaMisura.caricoPercento}%)`)
     }
@@ -957,7 +961,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     deps.archivio.elenca().filter((a) => a.stato === 'lavoro' && a.archiviato !== true).reduce((n, a) => n + a.compitiDaFare.length, 0)
   const postiChat = (): PostiChat => {
     const n = postiAdesso()
-    const attive = chatAlLavoroSulPc(deps.archivio.elenca())
+    const attive = alLavoroSulPc()
     return {
       attive,
       posti: n,
@@ -1788,7 +1792,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const delFreno = tettoDellaFlotta(frenoAdesso(), attive, TETTO_CHAT_MAX)
     // 0.82.0: dentro i posti del PC, contati su tutti gli autopiloti insieme.
     // 0.85.2: anche i supervisori al lavoro sono claude.exe: occupano un posto.
-    const tetto = tettoNeiPosti(delFreno.tetto, attive, chatAlLavoroSulPc(deps.archivio.elenca()) + supervisoriAlLavoro(), postiAdesso())
+    const tetto = tettoNeiPosti(delFreno.tetto, attive, alLavoroSulPc() + supervisoriAlLavoro(), postiAdesso())
     // 0.85.1: con il PC al limite nessuna chat nuova. Mai fermo del tutto: senza
     // nessuna chat al lavoro, dopo l'attesa massima se ne apre una lo stesso.
     const carico = deps.guardiaPc?.stato()
@@ -2109,7 +2113,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         continue
       }
       if (a.stato !== 'lavoro' || a.fermatoPerAggiornamento === true || freno.livello === 'fermo' || occupato(a.id)) continue
-      const ids = chatInPausaDaRiprendere(a.chats, tettoNeiPosti(freno.tetto, a.chats.filter((c) => c.stato === 'lavoro').length, chatAlLavoroSulPc(deps.archivio.elenca()), postiAdesso()))
+      const ids = chatInPausaDaRiprendere(a.chats, tettoNeiPosti(freno.tetto, a.chats.filter((c) => c.stato === 'lavoro').length, alLavoroSulPc(), postiAdesso()))
       if (ids.length > 0) {
         const ripreso: Autopilota = {
           ...a,
@@ -6751,6 +6755,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
+          // P3: l'autopilota unico e i suoi subagenti (orchestratore che non scrive, principale intoccabile, tetto del PC).
+          if (g.ok && a.unico === true && servizioUnico !== undefined) g = servizioUnico.preTool(a, corpo)
           // 0.85.1: con il PC al limite una chat non lancia compilazioni o test completi.
           // 0.85.2: e sempre, anche a PC libero, i suoi pesanti passano dai turni del PC.
           if (g.ok) g = giudicaPesanteDellaChat(corpo, { chi: `${idAp}::${chatPre ?? '-'}`, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) })
@@ -7111,11 +7117,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       avviaLavoro: (a, messaggio, chat) => avviaLavoro(a, messaggio, chat),
       avanzaFinite: () => { void avanzaFiniteDaSole() },
       posti: postiAdesso,
-      chatAlLavoroSulPc: () => chatAlLavoroSulPc(deps.archivio.elenca()),
+      chatAlLavoroSulPc: () => alLavoroSulPc(),
       provaNelPrincipale: (a, ramo) => provaNelPrincipale(a, ramo, undefined),
       ricordaContesto,
       ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
-      ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {})
+      ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
+      ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {})
     })
   }
 

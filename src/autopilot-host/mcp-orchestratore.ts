@@ -73,6 +73,17 @@ export function creaGettoniOrchestratore(): GettoniOrchestratore {
   }
 }
 
+/** Quanto aspetta, al più, una risposta di Nicholas a un permesso (lo strumento `permesso`). */
+export const ATTESA_PERMESSO_MS = 10 * 60_000
+/**
+ * Il tetto di una chiamata a uno strumento del nostro server, per la CLI.
+ * Senza, la CLI 2.1.314 chiude la richiesta HTTP dopo **60 s** (provato il
+ * 30/10: «timeoutMs: 60000» nel debug, e un permesso risposto dopo 90 s
+ * andava perso); con `timeout` nella voce del server aspetta. Un minuto più
+ * dell'attesa del permesso, così risponde sempre prima il programma.
+ */
+export const TETTO_CHIAMATA_MCP_MS = ATTESA_PERMESSO_MS + 60_000
+
 /** Il `--mcp-config` di una chiamata: il server di SierraDeck su questo PC, con il gettone del workspace. */
 export function configMcpOrchestratore(porta: number, ws: string, gettone: string): string {
   return JSON.stringify({
@@ -80,7 +91,8 @@ export function configMcpOrchestratore(porta: number, ws: string, gettone: strin
       [NOME_SERVER_ORCHESTRATORE]: {
         type: 'http',
         url: `http://127.0.0.1:${porta}/mcp/orchestratore?ws=${encodeURIComponent(ws)}`,
-        headers: { Authorization: `Bearer ${gettone}` }
+        headers: { Authorization: `Bearer ${gettone}` },
+        timeout: TETTO_CHIAMATA_MCP_MS
       }
     }
   })

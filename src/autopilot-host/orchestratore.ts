@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { gitPerLeChat } from '../main/git-nel-path'
+import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { ambientePulito } from './supervisore'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
@@ -60,6 +61,8 @@ export const ROTAZIONE_TOKEN = 80_000
 export const BATTUTE_SEMINA = 10
 export const INATTIVO_MS = 10 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
+/** Un turno senza nessuna riga in uscita per tanto (fuori da un permesso in attesa) è appeso: si uccide e si riprova. */
+export const TURNO_MUTO_MS = 20 * 60_000
 /** Lo strumento MCP che risponde alle richieste di permesso. */
 export const STRUMENTO_PERMESSO = 'mcp__sierradeck__permesso'
 
@@ -224,6 +227,10 @@ export type DipendenzeOrchestratore = {
   globaliMax?: number
   sogliaRotazione?: number
   inattivoMs?: number
+  /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
+  mutoMs?: number
+  /** Nicholas sta decidendo un permesso per questo workspace: il silenzio è giusto, il cane aspetta. */
+  attendeNicholas?: (ws: string) => boolean
 }
 
 export type Orchestratore = {
@@ -237,6 +244,8 @@ export type Orchestratore = {
   inAttesa: (ws: string) => { messaggi: number; eventi: number }
   vivo: (ws: string) => boolean
   stato: (ws: string) => StatoFlusso
+  /** Gli specialisti (subagenti) al lavoro su tutto il PC, in ogni workspace; `escludi`: quello che sta partendo (il suo Agent è già nel flusso quando arriva il PreToolUse). */
+  specialistiSulPc: (escludi?: string) => number
   /** Per i test e lo spegnimento: si risolve quando nessun turno è in corso né pronto. */
   quiete: () => Promise<void>
   /** Interruttore spento: spegne il processo e dimentica quello che aspettava. */
@@ -260,6 +269,8 @@ type StatoWs = {
   tentativi: number
   /** La sessione persa si è già rifatta una volta. */
   persa: boolean
+  /** Il cane da guardia del turno: riparte a ogni riga. */
+  cane?: ReturnType<typeof setTimeout>
 }
 
 export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
@@ -269,6 +280,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const globali = d.globaliMax ?? CHIAMATE_PC_MAX
   const soglia = d.sogliaRotazione ?? ROTAZIONE_TOKEN
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
+  const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
   const nuova = d.nuovaSessione ?? ((): string => randomUUID())
   const adesso = d.adesso ?? ((): string => new Date().toISOString())
   const ambiente = d.ambiente ?? ((t: number) => ambienteOrchestratore(process.env, t))
@@ -309,7 +321,36 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const p = s.proc
     s.proc = undefined
     s.flusso = { ...s.flusso, inTurno: false }
+    if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
     try { p.uccidi() } catch { /* già uscito */ }
+  }
+
+  /**
+   * Il cane da guardia del turno: una CLI appesa (nessuna riga da 20 minuti,
+   * e nessun permesso che aspetta Nicholas) terrebbe per sempre uno dei due
+   * turni del PC. Si spegne, quello che il turno portava torna in attesa e si
+   * riprova una volta con `--resume`.
+   */
+  const armaCane = (ws: string, s: StatoWs): void => {
+    if (s.cane !== undefined) clearTimeout(s.cane)
+    s.cane = undefined
+    if (s.proc === undefined) return
+    s.cane = setTimeout(() => {
+      s.cane = undefined
+      if (s.proc === undefined || !inTurno(s)) return
+      if (d.attendeNicholas?.(ws) === true) { armaCane(ws, s); return }
+      const persi = s.inviati
+      s.inviati = undefined
+      if (persi !== undefined) { s.messaggi = [...persi.messaggi, ...s.messaggi]; s.eventi = [...persi.eventi, ...s.eventi]; if (s.eventi.length > 0) s.eventiPronti = true }
+      const minuti = Math.round(mutoMs / 60_000)
+      console.error(`[orchestratore] ${ws} — turno appeso: nessuna riga da ${minuti} minuti`)
+      spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
+      s.tentativi += 1
+      d.errore(ws, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato${s.tentativi < 2 ? ' e riparto' : ''}`)
+      if (s.tentativi < 2) metti(ws)
+      else avanza()
+    }, mutoMs)
+    s.cane.unref?.()
   }
 
   /** A riposo (nessun turno, nessuno specialista): ruota subito se serve, se no si spegne dopo 10 minuti. */
@@ -365,12 +406,15 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.proc !== p) return
       const r = applicaRiga(s.flusso, riga, adesso())
       s.flusso = r.stato
+      if (s.flusso.inTurno) armaCane(ws, s)
+      else if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       if (r.effetti.length > 0) suEffetti(ws, s, r.effetti)
       else try { d.flusso?.(ws, [], s.flusso) } catch { /* solo la vista */ }
     })
     p.suUscita((codice, stderr) => {
       if (s.proc !== p) return
       s.proc = undefined
+      if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       const eraInTurno = s.flusso.inTurno
       s.flusso = { ...s.flusso, inTurno: false, specialisti: s.flusso.specialisti.map((x) => (specialistiAlLavoro({ ...s.flusso, specialisti: [x] }).length > 0 ? { ...x, stato: 'fermato' as const, fine: adesso() } : x)) }
       if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
@@ -413,6 +457,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const testo = componiPrompt({ riassunto: ctx.riassunto, indice: ctx.indice, ...(semina !== undefined ? { semina } : {}), messaggi, eventi })
     s.inviati = { messaggi, eventi }
     s.flusso = { ...s.flusso, inTurno: true }
+    armaCane(ws, s)
     try {
       s.proc!.scrivi(`${rigaUtente(testo)}\n`)
     } catch (err) {
@@ -444,6 +489,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     inAttesa: (ws) => ({ messaggi: stati.get(ws)?.messaggi.length ?? 0, eventi: stati.get(ws)?.eventi.length ?? 0 }),
     vivo: (ws) => stati.get(ws)?.proc !== undefined,
     stato: (ws) => stati.get(ws)?.flusso ?? flussoVuoto(),
+    specialistiSulPc: (escludi) => [...stati.values()].reduce((n, s) => n + (s.proc !== undefined ? specialistiAlLavoro(s.flusso).filter((x) => x.id !== escludi).length : 0), 0),
     quiete: () => new Promise<void>((r) => { attese.push(r); forseQuiete() }),
     dimentica(ws) {
       const s = stati.get(ws)
@@ -475,7 +521,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
  * `claude` davvero, lungo: righe JSON in entrata e in uscita. Non solleva:
  * una cartella che non c'è o un avvio fallito tornano come uscita.
  */
-export function avviaProcessoReale(claudeCmd: string): AvviaProcesso {
+export function avviaProcessoReale(claudeCmd: string, uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p)): AvviaProcesso {
   return ({ args, cwd, env }) => {
     const righe: ((r: string) => void)[] = []
     const uscite: ((c: number | null, e: string) => void)[] = []
@@ -498,7 +544,12 @@ export function avviaProcessoReale(claudeCmd: string): AvviaProcesso {
     figlio.stdin.on('error', () => { /* lo dice l'uscita */ })
     return {
       scrivi: (r) => { figlio.stdin.write(r, 'utf8') },
-      uccidi: () => { try { figlio.stdin.end() } catch { /* già chiuso */ } figlio.kill() },
+      // Tutto l'albero: su Windows `kill()` lascia vivi i figli (npm, i test, i subagenti).
+      uccidi: () => {
+        try { figlio.stdin.end() } catch { /* già chiuso */ }
+        if (figlio.pid !== undefined && uscito === undefined) void uccidi([figlio.pid])
+        else figlio.kill()
+      },
       suRiga: (f) => { righe.push(f) },
       suUscita: (f) => { if (uscito !== undefined) f(uscito.codice, uscito.e); else uscite.push(f) }
     }
