@@ -172,6 +172,8 @@ import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
+import { riquadriDaTogliere, type RiquadroDaTogliere } from '@shared/riquadri-morti'
+import { misuraAvvio } from './misura-avvio'
 import { trovaChatRemota, storiaRemotaSicura, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
 import { impostaChiusaSenzaCartella, impostaGuardiaCasa, impostaPrimaDiAprire, impostaRisolviCartella, primoIndice, reindicizzaSessioni } from './ipc'
@@ -958,6 +960,8 @@ export function apriNuovaFinestra(): void {
   })
   riservaSlot(win)
   fotografaFinestre()
+  // Il tempo d'avvio (0.86.2): conta solo la prima finestra della sessione.
+  win.once('ready-to-show', () => misuraAvvio.finestraMostrata())
   // Quante finestre ci sono: si scrive adesso, che e' l'unico momento in cui il
   // numero cambia senza che nessuno salvi un layout. L'altro e' la chiusura.
   if (workspaceStore !== undefined) annotaQuanteFinestre(workspaceStore)
@@ -1243,6 +1247,7 @@ if (!app.requestSingleInstanceLock()) {
       const storicoErrori = storicoErroriGlobale
       app.on('will-quit', () => { storicoErrori.scriviOra() })
       const registro = conStorico(apriRegistro(dati, app.getVersion()), storicoErrori)
+      misuraAvvio.impostaRegistro((riga) => registro.info(riga))
       // Le chat chiuse da te (0.60.9): «chiusa» con l'ora, per i PC che la
       // guardano da lontano (`chiuse` in /api/stato). Riaccenderla la toglie.
       const chiuse = creaChiuseStore({ dati, log: (m) => registro.info(m) })
@@ -1255,6 +1260,55 @@ if (!app.requestSingleInstanceLock()) {
         nelRecupero: (gestioneChatGlobale?.recupero().chat ?? []).some((c) => c.sessione === sessione),
         finitaDiAutopilota: eFinitaDiAutopilota(await clientAutopilota.elenca().catch(() => []), sessione)
       }))
+      // 0.86.2: all'avvio i riquadri delle chat chiuse (o finite) con la
+      // cartella sparita non si rimontano: 15 CHAT_CHIUSA_SENZA_CARTELLA e 27
+      // ENOENT a ogni apertura. Il servizio si chiede una volta sola, e non si
+      // aspetta piu' di due secondi: l'avvio non deve fermarsi per lui.
+      ipcMain.handle('layout:riquadriMorti', async (_e, raw: unknown): Promise<RiquadroDaTogliere[]> => {
+        const panes = (Array.isArray(raw) ? raw : []).flatMap((x: unknown) => {
+          if (typeof x !== 'object' || x === null) return []
+          const p = x as { sessionUuid?: unknown; cwd?: unknown; autopilota?: unknown; remoto?: unknown }
+          if (typeof p.sessionUuid !== 'string' || typeof p.cwd !== 'string') return []
+          return [{
+            sessionUuid: p.sessionUuid,
+            cwd: p.cwd,
+            ...(typeof p.autopilota === 'object' && p.autopilota !== null ? { autopilota: p.autopilota as { id: string; chat: string } } : {}),
+            ...(typeof p.remoto === 'object' && p.remoto !== null ? { remoto: p.remoto as { pcId: string; pcNome: string; cwd: string } } : {})
+          }]
+        })
+        if (panes.length === 0) return []
+        const esiste = new Map<string, boolean>()
+        const cartellaEsiste = (c: string): boolean => {
+          const noto = esiste.get(c)
+          if (noto !== undefined) return noto
+          const si = existsSync(c)
+          esiste.set(c, si)
+          return si
+        }
+        const serveIlServizio = panes.some((p) => p.remoto === undefined && (p.autopilota !== undefined || !cartellaEsiste(p.cwd)))
+        const autopiloti = serveIlServizio
+          ? await Promise.race([
+            clientAutopilota.elenca().catch(() => []),
+            new Promise<[]>((r) => setTimeout(() => r([]), 2000))
+          ])
+          : []
+        const chiuseOra = new Set(chiuse.elenco().map((c) => c.sessione))
+        const nelRecupero = new Set((gestioneChatGlobale?.recupero().chat ?? []).map((c) => c.sessione))
+        const via = riquadriDaTogliere(panes, {
+          cartellaEsiste,
+          motivoChiusa: (sessione) => motivoChiusaSenzaCartella({
+            cartellaEsiste: false,
+            chiusa: chiuseOra.has(sessione),
+            nelRecupero: nelRecupero.has(sessione),
+            finitaDiAutopilota: eFinitaDiAutopilota(autopiloti, sessione)
+          }),
+          finitaDiAutopilota: (sessione) => eFinitaDiAutopilota(autopiloti, sessione)
+        })
+        if (via.length > 0) {
+          registro.info(`[avvio] ${via.length} riquadri non rimontati: ${via.map((v) => `${v.sessionUuid.slice(0, 8)} (${v.perche})`).join(', ')}`)
+        }
+        return via
+      })
       /** Chiude una chat in sottofondo perché l'hai chiesto tu (0.60.9): è una chiusura voluta. */
       const chiudiSottofondoDaTe = (sessione: string, da: string): boolean => {
         const titolo = sottofondo?.chat().find((c) => c.sessione === sessione)?.titolo
@@ -5625,7 +5679,9 @@ if (!app.requestSingleInstanceLock()) {
                 // Un disco che non c'e' non e' un errore: sono ventisei tentativi.
               }
             }
-            for (const p of progetti.map((x) => x.path)) {
+            // Senza doppioni: le copie di lavoro degli autopiloti portano il
+            // percorso del loro progetto (0.86.2).
+            for (const p of new Set(progetti.map((x) => x.path))) {
               voci.push({ nome: basename(p) || p, percorso: p })
             }
             return { percorso: '', voci, radici: true }

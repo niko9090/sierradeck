@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ascoltaSegnali, faseDiSessione, lavoraConSegnali, partitaConSegnali, prontaConSegnali } from './segnali-vivi'
 import { indicatoreChat } from '@shared/segnali-chat'
+import { caricaSenzaRiquadriMorti } from '@shared/riquadri-morti'
 import { useLayoutStore } from './state/layout'
 import { useSessionStore } from './state/sessions'
 import { creaPersistenza, trascinamentoDivisori } from './persistenza-layout'
@@ -140,7 +141,13 @@ function riquadroDelTelefono(chat: string): { ptyId?: string } | undefined {
 function usaPersistenzaLayout(): void {
   useEffect(() => {
     const persistenza = creaPersistenza({
-      carica: () => window.gestore.layout.carica(),
+      // Senza i riquadri morti (0.86.2): le chat che l'autopilota ha gia'
+      // chiuso, con la copia di lavoro tolta, non si rimontano a ogni avvio.
+      carica: () => caricaSenzaRiquadriMorti({
+        carica: () => window.gestore.layout.carica(),
+        daTogliere: (panes) => window.gestore.layout.riquadriMorti(panes),
+        congeda: (sessioni) => useLayoutStore.getState().congeda(sessioni)
+      }),
       // Il nome del workspace **non viaggia più**: lo sa il Core, che si ricorda
       // quale layout ha consegnato a questa finestra e per quale workspace. Era
       // l'ultima cosa che il renderer dichiarava e che poteva essere sbagliata —

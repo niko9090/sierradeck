@@ -1,13 +1,26 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { decodeMessages, encodeMessage } from '@shared/protocol'
 import type { CoreToHost, CoreToHostPty, HostToCore } from '@shared/protocol'
+import { processoVivo, uccidiAlberi } from '@shared/uccidi-alberi'
 
 /** Attese crescenti fra i riavvii automatici, in millisecondi. */
 const RITARDI_RIAVVIO_MS = [500, 1000, 2000, 4000, 8000]
 /** Oltre questa durata di vita l'host è considerato sano e il contatore riparte. */
 const VITA_SANA_MS = 30_000
-/** Quanto si attende che l'host esca da solo dopo lo spegnimento ordinato. */
-const ATTESA_SPEGNIMENTO_MS = 800
+/**
+ * Quanto si attende che l'host esca da solo dopo lo spegnimento ordinato,
+ * senza terminali. Con i terminali si aggiunge `PER_TERMINALE_MS` ciascuno,
+ * fino a `ATTESA_SPEGNIMENTO_MAX_MS` (0.86.2: gli 800 ms fissi di prima non
+ * bastavano mai — «non uscito entro 800 ms» a 7 chiusure su 7).
+ */
+const ATTESA_SPEGNIMENTO_MS = 1000
+export const PER_TERMINALE_MS = 250
+export const ATTESA_SPEGNIMENTO_MAX_MS = 6000
+
+/** L'attesa per uno spegnimento con `terminali` aperti: cresce con loro, ma ha un tetto. */
+export function attesaSpegnimentoMs(base: number, terminali: number): number {
+  return Math.min(Math.max(base, ATTESA_SPEGNIMENTO_MAX_MS), base + Math.max(0, terminali) * PER_TERMINALE_MS)
+}
 
 export type PtyHostClientOptions = {
   /** Eseguibile Node. In Electron: process.execPath con ELECTRON_RUN_AS_NODE. */
@@ -28,6 +41,10 @@ export type PtyHostClientOptions = {
    * uno spegnimento che non finisce erano righe che nessuno vedeva.
    */
   log?: (messaggio: string) => void
+  /** Chiude a forza gli alberi dei processi rimasti (di serie `taskkill /T /F`). Per i test. */
+  uccidiAlberi?: (pids: number[]) => Promise<void>
+  /** Il processo e' ancora vivo? Per i test. */
+  processoVivo?: (pid: number) => boolean
 }
 
 /**
@@ -47,6 +64,12 @@ export class PtyHostClient {
   private listener: (msg: HostToCore) => void = () => {}
   /** Id dei pty che il Core crede vivi, per poterli avvisare se l'host muore. */
   private readonly live = new Set<string>()
+  /**
+   * I pid dei terminali che l'host ha avviato (dal suo `spawned`), finche' non
+   * escono: allo spegnimento sono cio' che resta da chiudere se l'host non ce
+   * la fa da solo (0.86.2).
+   */
+  private readonly pids = new Map<string, number>()
 
   private tentativiRiavvio = 0
   private timerRiavvio: ReturnType<typeof setTimeout> | undefined
@@ -83,6 +106,9 @@ export class PtyHostClient {
   private failAllLive(message: string): void {
     for (const id of this.live) this.listener({ id, kind: 'error', message })
     this.live.clear()
+    // I pid di un host morto non si conservano: dopo ore potrebbero essere di
+    // un altro processo, e allo spegnimento lo si chiuderebbe a forza.
+    this.pids.clear()
   }
 
   start(): void {
@@ -142,7 +168,10 @@ export class PtyHostClient {
         // Core non deve continuare a crederlo vivo. Senza questa riga resterebbe
         // in `live` per sempre e alla morte dell'host produrrebbe un errore
         // verso un riquadro che nel frattempo ha rilanciato per conto suo.
-        if (msg.kind === 'exit' || msg.kind === 'assente') this.live.delete(msg.id)
+        if (msg.kind === 'exit' || msg.kind === 'assente') {
+          this.live.delete(msg.id)
+          this.pids.delete(msg.id)
+        } else if (msg.kind === 'spawned') this.pids.set(msg.id, msg.pid)
         this.listener(msg)
       }
     })
@@ -199,12 +228,20 @@ export class PtyHostClient {
     this.tentativiRiavvio = 0
     // Arresto voluto: le sessioni non vanno segnalate come errore.
     this.live.clear()
+    // I terminali ancora aperti, prima di tutto il resto: decidono quanto
+    // aspettare e, se l'host non ce la fa, chi chiudere a mano.
+    const pids = [...this.pids.values()]
+    this.pids.clear()
 
     const child = this.child
     // Da qui in poi questa chiusura non è più il figlio corrente: la sua
     // uscita non verrà letta come una morte da riparare.
     this.child = undefined
-    if (child === undefined || child.exitCode !== null) return
+    if (child === undefined || child.exitCode !== null) {
+      await this.chiudiRimasti(pids)
+      return
+    }
+    const attesa = attesaSpegnimentoMs(this.attesaSpegnimento, pids.length)
 
     const uscito = new Promise<'uscito'>((resolve) => {
       child.once('exit', () => resolve('uscito'))
@@ -220,27 +257,54 @@ export class PtyHostClient {
 
     let timer: ReturnType<typeof setTimeout> | undefined
     const scadenza = new Promise<'scaduto'>((resolve) => {
-      timer = setTimeout(() => resolve('scaduto'), this.attesaSpegnimento)
+      timer = setTimeout(() => resolve('scaduto'), attesa)
     })
     const esito = await Promise.race([uscito, scadenza])
     if (timer !== undefined) clearTimeout(timer)
 
     if (esito === 'scaduto') {
       this.racconta(
-        `non uscito entro ${this.attesaSpegnimento} ms dallo spegnimento ordinato: ` +
-          'lo termino, i terminali aperti potrebbero sopravvivere'
+        `non uscito entro ${attesa} ms dallo spegnimento ordinato (${pids.length} terminali): ` +
+          'lo termino e chiudo a forza i terminali rimasti'
       )
       child.kill()
     }
+    await this.chiudiRimasti(pids)
   }
 
-  /** In console e, quando c'e', nel registro su file. */
-  private racconta(messaggio: string): void {
-    console.error(`[pty-host] ${messaggio}`)
+  /**
+   * I terminali sopravvissuti allo spegnimento, chiusi a forza con tutto il
+   * loro albero (0.86.2). Solo quelli ancora vivi: un pid gia' uscito potrebbe
+   * essere stato riusato da un altro processo.
+   */
+  private async chiudiRimasti(pids: number[]): Promise<void> {
+    if (pids.length === 0) return
+    const vivo = this.opts.processoVivo ?? processoVivo
+    const rimasti = pids.filter((p) => { try { return vivo(p) } catch { return false } })
+    if (rimasti.length === 0) return
     try {
-      this.opts.log?.(`[pty-host] ${messaggio}`)
+      await (this.opts.uccidiAlberi ?? ((p: number[]) => uccidiAlberi(p)))(rimasti)
+      this.racconta(`${rimasti.length} terminali ancora aperti dopo lo spegnimento: chiusi a forza (pid ${rimasti.join(', ')})`)
+    } catch (err) {
+      this.racconta(`chiusura a forza dei terminali rimasti fallita: ${String(err)}`)
+    }
+  }
+
+  /**
+   * Nel registro su file quando c'e', altrimenti in console. Non tutte e due:
+   * il registro ripete gia' ogni sua riga in console, e la console torna nel
+   * registro — la stessa riga ci finiva tre volte (0.86.2).
+   */
+  private racconta(messaggio: string): void {
+    if (this.opts.log === undefined) {
+      console.error(`[pty-host] ${messaggio}`)
+      return
+    }
+    try {
+      this.opts.log(`[pty-host] ${messaggio}`)
     } catch {
       // Un registro che non scrive non deve fermare il riavvio dell'host.
+      console.error(`[pty-host] ${messaggio}`)
     }
   }
 

@@ -103,6 +103,17 @@ export function creaAggancio(deps: AggancioDeps): Aggancio {
     const { cols, rows } = deps.dimensioni()
     deps.spawn(cols, rows).then(
       (nuovo) => {
+        // 0.86.2: una chat chiusa senza cartella non e' piu' un rigetto
+        // dell'invoke (Electron lo scriveva in console come «Error occurred
+        // in handler for 'pty:spawn'», 15 righe a ogni avvio): torna come
+        // risultato normale, con il prefisso, e nessun pty e' nato.
+        const chiusaQui = leggiChiusaSenzaCartella(nuovo)
+        if (chiusaQui !== undefined) {
+          if (chiuso || ceduto) return
+          if (deps.suChiusaSenzaCartella !== undefined) deps.suChiusaSenzaCartella(chiusaQui)
+          else deps.scrivi(`\r\n\x1b[33m[la chat non riparte: ${chiusaQui.perche}]\x1b[0m\r\n`)
+          return
+        }
         // `ceduto` conta quanto `chiuso`: un riquadro spostato mentre aspettava
         // il proprio spawn cede un ptyId che non esiste ancora, quindi la
         // finestra di destinazione non conosce l'id che arriva qui e nessuno

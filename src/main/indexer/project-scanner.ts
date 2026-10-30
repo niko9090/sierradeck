@@ -34,6 +34,21 @@ export function pathToSlug(percorso: string): string {
   return percorso.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
+/**
+ * Lo slug del progetto a cui appartiene una cartella di trascrizioni (0.86.2).
+ *
+ * Le chat degli autopiloti lavorano in copie `<progetto>.sierradeck-wt/<chat>`,
+ * e Claude Code ne archivia ognuna sotto uno slug suo
+ * (`…-SierraDeck-sierradeck-wt-ap1-c2`): sul PC di Nicholas 90 cartelle su
+ * 127, ognuna un «progetto» a se'. Il loro progetto e' quello da cui sono
+ * copiate: lo slug fino a `-sierradeck-wt-`. Lo slug vero resta quello del
+ * file (serve al Drive e al resume); cambia solo il progetto in cui si vedono.
+ */
+export function slugDelProgetto(slug: string): string {
+  const i = slug.toLowerCase().indexOf('-sierradeck-wt')
+  return i > 0 ? slug.slice(0, i) : slug
+}
+
 export async function scanProjects(claudeRoot: string): Promise<ProjectScan[]> {
   const projectsDir = join(claudeRoot, 'projects')
 
@@ -65,7 +80,7 @@ export async function scanProjects(claudeRoot: string): Promise<ProjectScan[]> {
       .filter((f) => f.isFile() && f.name.endsWith('.jsonl'))
       .map((f) => join(dir, f.name))
     if (jsonlFiles.length === 0) continue
-    risultati.push({ slug: entry.name, path: slugToPath(entry.name), jsonlFiles })
+    risultati.push({ slug: entry.name, path: slugToPath(slugDelProgetto(entry.name)), jsonlFiles })
   }
   return risultati
 }

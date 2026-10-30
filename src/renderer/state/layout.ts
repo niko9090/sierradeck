@@ -175,6 +175,13 @@ type State = {
    * di sparire in silenzio.
    */
   congediDaMandare: () => string[]
+  /**
+   * Congeda delle conversazioni senza che siano passate dallo schermo (0.86.2):
+   * i riquadri tolti all'avvio perche' la loro chat e' chiusa e la cartella non
+   * c'e' piu'. Senza, il primo salvataggio le vedrebbe sparire senza congedo e
+   * il Core lo rifiuterebbe.
+   */
+  congeda: (sessioni: string[]) => void
 }
 
 /**
@@ -511,6 +518,11 @@ export const useLayoutStore = create<State>((set, get) => ({
     const { panes, congedate } = get()
     const aSchermo = new Set(Object.values(panes).map((p) => p.sessionUuid))
     return [...congedate].filter((u) => !aSchermo.has(u))
+  },
+
+  congeda: (sessioni) => {
+    if (sessioni.length === 0) return
+    set((s) => ({ congedate: new Set([...s.congedate, ...sessioni]) }))
   },
 
   staccaPane: (paneId) => {

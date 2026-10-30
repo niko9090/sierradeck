@@ -15,8 +15,14 @@ export type SegnaleGuasto =
   | { tipo: 'errore'; messaggio: string }
   /** claude.exe e' uscito: con che codice, e dopo quanto dall'avvio. */
   | { tipo: 'uscita'; codice: number; trascorsoMs: number }
-  /** Niente prompt entro il tempo previsto. */
-  | { tipo: 'lenta'; trascorsoMs: number; previstoMs: number }
+  /**
+   * Niente prompt entro il tetto. `previstoMs` e' la stima per quella
+   * conversazione (dal suo peso), `tettoMs` la soglia oltre cui si mostra
+   * l'avviso: fino alla 0.86.1 il messaggio stampava il tetto come «previsto»
+   * («nessun prompt dopo 22 s (previsto 20 s)»), e una stima di 2 s sembrava
+   * una di 20.
+   */
+  | { tipo: 'lenta'; trascorsoMs: number; previstoMs: number; tettoMs?: number }
 
 export type CasoGuasto =
   | 'cartella-sparita'
@@ -61,8 +67,8 @@ export function diagnostica(s: SegnaleGuasto, ultimeRighe: string[]): Diagnosi {
     return {
       caso: 'lenta',
       titolo: 'La chat non è ancora arrivata al prompt',
-      spiegazione: `Sono passati ${secondi(s.trascorsoMs)}, il previsto era ${secondi(s.previstoMs)}. Con una conversazione molto lunga claude.exe sta ancora rileggendo la trascrizione; se invece il riquadro è fermo su un errore, lo vedi sotto. Puoi aspettare ancora, oppure riprovare: il rilancio riprende la stessa conversazione, non ne perde niente.`,
-      dettaglio: `nessun prompt dopo ${secondi(s.trascorsoMs)} (previsto ${secondi(s.previstoMs)})${parole !== '' ? `\n${parole}` : ''}`,
+      spiegazione: `Sono passati ${secondi(s.trascorsoMs)}, il previsto era circa ${secondi(s.previstoMs)}. Con molte chat che ripartono insieme, o una conversazione molto lunga, claude.exe sta ancora partendo o rileggendo la trascrizione; se invece il riquadro è fermo su un errore, lo vedi sotto. Puoi aspettare ancora, oppure riprovare: il rilancio riprende la stessa conversazione, non ne perde niente. L’avviso sparisce da solo quando la chat arriva al prompt.`,
+      dettaglio: `nessun prompt dopo ${secondi(s.trascorsoMs)} (previsto circa ${secondi(s.previstoMs)}${s.tettoMs !== undefined ? `, avviso dopo ${secondi(s.tettoMs)}` : ''})${parole !== '' ? `\n${parole}` : ''}`,
       azioni: ['aspetta', 'riprova', 'avanzata']
     }
   }
@@ -141,9 +147,56 @@ export function diagnostica(s: SegnaleGuasto, ultimeRighe: string[]): Diagnosi {
   }
 }
 
-/** Quanto aspettare il prompt prima di dire che la chat e' lenta: il doppio del previsto, mai meno di 20 s. */
-export function tettoAttesaMs(previstoMs: number): number {
-  return Math.max(20_000, previstoMs * 2)
+/**
+ * Oltre questo, senza prompt, la chat lenta finisce nel registro come errore.
+ *
+ * 0.86.2: all'avvio ripartono insieme una quindicina di chat su un processore
+ * al 100%, e il tetto fisso di 20 s ne segnava come «non si apre» a decine
+ * (~150 righe rosse in un registro) che poco dopo erano al prompt. Prima di
+ * 90 s l'avviso nel riquadro si mostra, ma non e' un guasto.
+ */
+export const SOGLIA_ERRORE_LENTA_MS = 90_000
+
+/** Quanto in piu' concedere per ogni altra chat che sta partendo nello stesso momento. */
+export const PER_CHAT_IN_AVVIO_MS = 10_000
+
+/**
+ * Quanto aspettare il prompt prima di mostrare che la chat e' lenta: il doppio
+ * del previsto, mai meno di 20 s, piu' `PER_CHAT_IN_AVVIO_MS` per ogni altra
+ * chat che sta partendo (o aspetta di partire) insieme a questa. Il carico
+ * allunga il tetto fino alla soglia dell'errore, non oltre.
+ */
+export function tettoAttesaMs(previstoMs: number, altreInAvvio = 0): number {
+  const proprio = Math.max(20_000, previstoMs * 2)
+  const conCarico = proprio + Math.max(0, altreInAvvio) * PER_CHAT_IN_AVVIO_MS
+  return Math.max(proprio, Math.min(SOGLIA_ERRORE_LENTA_MS, conCarico))
+}
+
+/**
+ * Cosa fare a ogni giro dell'orologio dell'attesa (0.86.2). Puro: il riquadro
+ * lo chiede ogni due secondi e quando vede il prompt.
+ *
+ * - `togli-lenta`: il prompt e' arrivato e l'avviso «lenta» e' ancora su: si
+ *   toglie (prima restava per sempre, anche sopra una chat ormai pronta);
+ * - `mostra-lenta`: passato il tetto, l'avviso nel riquadro, senza riga rossa;
+ * - `scrivi-errore`: passata la soglia dell'errore, una riga sola nel registro.
+ */
+export type PassoAttesa = 'niente' | 'togli-lenta' | 'mostra-lenta' | 'scrivi-errore'
+
+export function passoAttesaPrompt(s: {
+  trascorsoMs: number
+  tettoMs: number
+  promptVisto: boolean
+  /** Il caso del guasto mostrato adesso, se ce n'e' uno. */
+  guasto: CasoGuasto | undefined
+  /** La riga d'errore di questa attesa e' gia' stata scritta. */
+  erroreScritto: boolean
+  sogliaErroreMs?: number
+}): PassoAttesa {
+  if (s.promptVisto) return s.guasto === 'lenta' ? 'togli-lenta' : 'niente'
+  if (s.guasto === undefined) return s.trascorsoMs >= s.tettoMs ? 'mostra-lenta' : 'niente'
+  if (s.guasto === 'lenta' && !s.erroreScritto && s.trascorsoMs >= (s.sogliaErroreMs ?? SOGLIA_ERRORE_LENTA_MS)) return 'scrivi-errore'
+  return 'niente'
 }
 
 /** Un'uscita entro questo tempo dall'avvio e' «morta subito», non un `/exit` dell'utente. */

@@ -17,4 +17,4 @@ startHost({
 // tutte da startHost. Questo gestore copre solo ciò che le aggira — un'uscita
 // per eccezione non gestita — e non copre la terminazione dall'esterno, dove su
 // Windows nessun gestore viene eseguito.
-process.on('exit', () => manager.killAll())
+process.on('exit', () => { void manager.killAll() })

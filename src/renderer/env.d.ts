@@ -383,6 +383,8 @@ declare global {
       }
       layout: {
         carica: () => Promise<LayoutSalvato>
+        /** 0.86.2: i riquadri da non rimontare all'avvio (`riquadri-morti.ts`). */
+        riquadriMorti: (panes: { sessionUuid: string; cwd: string; autopilota?: { id: string; chat: string }; remoto?: { pcId: string; pcNome: string; cwd: string; sessione?: string; dal?: string } }[]) => Promise<{ sessionUuid: string; perche: string }[]>
         salva: (l: LayoutSalvato, congedate?: string[]) => void
         suRichiesta: (dai: () => LayoutSalvato) => () => void
         suSalvaSubito: (salva: () => void) => () => void

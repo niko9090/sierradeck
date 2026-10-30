@@ -1,6 +1,7 @@
 import * as pty from 'node-pty'
 import type { SpawnOptions } from '@shared/protocol'
 import { creaTampone, type Tampone } from './scrollback-buffer'
+import { uccidiAlberi } from '@shared/uccidi-alberi'
 
 type DataListener = (id: string, data: string) => void
 type ExitListener = (id: string, code: number) => void
@@ -215,7 +216,27 @@ export class PtyManager {
     this.scrollback.delete(id)
   }
 
-  killAll(): void {
+  /** I pid dei terminali vivi, per id. */
+  pids(): Map<string, number> {
+    return new Map([...this.processes].map(([id, p]) => [id, p.pid]))
+  }
+
+  /**
+   * Chiude tutti i terminali, **insieme** (0.86.2).
+   *
+   * Prima uno per volta, e ognuno su Windows passava per `ClosePseudoConsole`
+   * con claude.exe ancora vivo: con quindici chat lo spegnimento superava il
+   * tempo concesso dal Core, l'host veniva terminato a meta', e i claude.exe
+   * che non aveva ancora toccato sopravvivevano all'app. In piu' la parte di
+   * node-pty che uccide i figli e' asincrona, e l'`exit` subito dopo la
+   * troncava. Ora gli alberi dei processi si chiudono tutti insieme
+   * (`taskkill /T /F`, in parallelo), poi si rilasciano le console; la
+   * promessa risolve quando i `taskkill` hanno finito.
+   */
+  killAll(uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p)): Promise<void> {
+    const pids = [...this.processes.values()].map((p) => p.pid)
+    const alberi = pids.length > 0 ? uccidi(pids).catch(() => undefined) : Promise.resolve()
     for (const id of [...this.processes.keys()]) this.kill(id)
+    return alberi
   }
 }
