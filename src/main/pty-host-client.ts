@@ -39,7 +39,7 @@ export function leggiStderrAtteso(chunk: string): { raccontate: string[]; errore
   const restanti: string[] = []
   for (const riga of chunk.split(/\r?\n/)) {
     const spegn = /^\s*\[pty-host\] (spegnimento \(.*)$/.exec(riga)
-    if (spegn) raccontate.push(spegn[1].trim())
+    if (spegn) raccontate.push((spegn[1] ?? '').trim())
     else restanti.push(riga)
   }
   let resto = restanti.join('\n')
