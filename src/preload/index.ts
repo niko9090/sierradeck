@@ -1001,6 +1001,12 @@ contextBridge.exposeInMainWorld('gestore', {
   layout: {
     carica: async (): Promise<LayoutSalvato> => ricevi(await ipcRenderer.invoke('layout:carica')),
     /**
+     * Quali riquadri non far ripartire all'avvio (0.86.2): chat chiuse o finite
+     * con la cartella sparita, copie di lavoro tolte. Vedi `riquadri-morti.ts`.
+     */
+    riquadriMorti: (panes: Pick<PaneSalvato, 'sessionUuid' | 'cwd' | 'autopilota' | 'remoto'>[]): Promise<{ sessionUuid: string; perche: string }[]> =>
+      ipcRenderer.invoke('layout:riquadriMorti', panes),
+    /**
      * `congedate` sono le conversazioni che qualcuno ha chiuso o mandato
      * altrove. Senza, il Core non può distinguere una chat che se ne va perché
      * l'hai chiusa da una che sparisce da sola — e le tratta uguali, cioè le

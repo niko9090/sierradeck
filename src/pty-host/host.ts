@@ -13,9 +13,16 @@ export type ManagerLike = {
   write(id: string, data: string): void
   resize(id: string, cols: number, rows: number): void
   kill(id: string): void
-  killAll(): void
+  /**
+   * Se restituisce una promessa l'host aspetta che gli alberi dei processi
+   * siano chiusi; qualunque altra cosa vale «fatto».
+   */
+  killAll(): unknown
   scrollbackDi(id: string): string | undefined
 }
+
+/** Oltre questo l'host esce comunque: il Core ripassa con i pid che conosce. */
+export const ATTESA_KILLALL_MS = 4000
 
 export type HostDeps = {
   manager: ManagerLike
@@ -60,8 +67,25 @@ export function startHost(deps: HostDeps): void {
     // asincrono, e la durata di killAll() gli lascia il tempo di svuotarsi
     // prima che exit() tronchi tutto.
     deps.log(`[pty-host] spegnimento (${motivo}): chiudo i terminali aperti`)
-    manager.killAll()
-    deps.exit(0)
+    // 0.86.2: `killAll` chiude gli alberi dei processi in parallelo e lo dice
+    // con una promessa; uscire subito troncava quel lavoro a meta'. Si aspetta,
+    // ma non oltre `ATTESA_KILLALL_MS`.
+    let esito: unknown
+    try {
+      esito = manager.killAll()
+    } catch (err) {
+      deps.log(`[pty-host] chiusura dei terminali fallita: ${String(err)}`)
+    }
+    if (!(esito instanceof Promise)) {
+      deps.exit(0)
+      return
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tetto = new Promise<void>((r) => { timer = setTimeout(r, ATTESA_KILLALL_MS) })
+    void Promise.race([esito.catch(() => undefined), tetto]).then(() => {
+      if (timer !== undefined) clearTimeout(timer)
+      deps.exit(0)
+    })
   }
 
   manager.onData((id, data) => send({ id, kind: 'data', data }))

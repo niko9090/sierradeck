@@ -1,6 +1,9 @@
 import { format } from 'node:util'
 import type { Registro } from './registro'
 
+/** Il prefisso con cui `registro.ts` ripete in console le righe che ha gia' scritto. */
+export const PREFISSO_ECO = '[registro] '
+
 /**
  * Gli errori del processo principale anche nel registro (0.80.0).
  *
@@ -20,6 +23,10 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>, 
   let dentro = false
   const scrivi = (livello: 'info' | 'errore', a: unknown[]): void => {
     if (dentro) return
+    // L'eco del registro stesso (0.86.2): `registro.ts` ripete in console ogni
+    // riga che scrive, con «[registro] » davanti, e qui tornava nel file — ogni
+    // riga scritta direttamente nel registro ci compariva due volte.
+    if (typeof a[0] === 'string' && a[0].startsWith(PREFISSO_ECO)) return
     dentro = true
     try { registro[livello](format(...a)) } catch { /* il registro non ferma il programma */ } finally { dentro = false }
   }

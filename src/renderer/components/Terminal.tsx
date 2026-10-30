@@ -16,7 +16,8 @@ import { mostraAttesa } from '../preferenze-vive'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
 import { daQuandoTace, type Apertura } from '@shared/apertura-chat'
-import { diagnostica, tettoAttesaMs, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
+import { diagnostica, tettoAttesaMs, passoAttesaPrompt, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
+import { turniAvvio } from '../turni-avvio'
 import { SEGNI_DI_PROMPT } from '../ultime-righe'
 import { FinestraTemporanea } from './FinestraTemporanea'
 import { ConfermaPortaQui } from './OspiteChat'
@@ -164,37 +165,81 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
   const ultimeRighe = useRef<string[]>([])
   const ultimoPtyId = useRef<string | undefined>(undefined)
   const [miniFinestra, setMiniFinestra] = useState<{ titolo: string; sotto?: string; ptyId?: string; nota?: string } | undefined>(undefined)
+  /**
+   * Il turno di avvio (0.86.2, `turni-avvio.ts`): le chat ripartono poche alla
+   * volta. `inCoda` ferma l'orologio della «lenta» finche' il turno non arriva:
+   * aspettare in fila non e' una chat che non si apre.
+   */
+  const inCoda = useRef(false)
+  const rendiTurno = useRef<(() => void) | undefined>(undefined)
+  const lasciaTurno = (): void => {
+    const r = rendiTurno.current
+    rendiTurno.current = undefined
+    r?.()
+  }
+  /** La riga rossa della «lenta» e' gia' nel registro: una sola per attesa. */
+  const erroreLentaScritto = useRef(false)
   const riarma = (): void => {
     avviatoA.current = Date.now()
     promptVisto.current = false
+    erroreLentaScritto.current = false
     ultimeRighe.current = []
     setGuasto(undefined)
     if (mostraAttesa()) setAttesaDa(Date.now())
   }
-  const annotaGuasto = (d: Diagnosi): void => {
+  const scriviGuasto = (d: Diagnosi): void => {
+    void window.gestore.log.errore(`[chat] «${avvio.current.title ?? ''}» (${avvio.current.sessionUuid}, ${avvio.current.cwd}) non si apre — ${d.caso}: ${d.titolo}. ${d.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}`).catch(() => undefined)
+  }
+  /** `scrivi` falso: l'avviso si mostra, ma nel registro non va (la «lenta» prima dei 90 s). */
+  const annotaGuasto = (d: Diagnosi, scrivi = true): void => {
     setGuasto(d)
     finitaAttesa.current(undefined)
-    void window.gestore.log.errore(`[chat] «${avvio.current.title ?? ''}» (${avvio.current.sessionUuid}, ${avvio.current.cwd}) non si apre — ${d.caso}: ${d.titolo}. ${d.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}`).catch(() => undefined)
+    // Una chat lenta sta ancora partendo: il turno lo tiene finche' non arriva.
+    if (d.caso !== 'lenta') lasciaTurno()
+    if (scrivi) scriviGuasto(d)
   }
   const ricordaRighe = (testo: string): void => {
     const pulito = senzaSequenze(testo)
-    if (SEGNI_DI_PROMPT.test(pulito)) promptVisto.current = true
+    if (!promptVisto.current && SEGNI_DI_PROMPT.test(pulito)) {
+      promptVisto.current = true
+      // Arrivata: il turno passa alla prossima, e l'avviso «lenta» se ne va.
+      lasciaTurno()
+      if (guastoRef.current?.caso === 'lenta') setGuasto(undefined)
+      if (erroreLentaScritto.current) {
+        void window.gestore.log.info(`[chat] «${avvio.current.title ?? ''}» (${avvio.current.sessionUuid.slice(0, 8)}) arrivata al prompt dopo ${Math.round((Date.now() - avviatoA.current) / 1000)} s`).catch(() => undefined)
+      }
+    }
     if (pulito.trim() === '') return
     const righe = [...ultimeRighe.current, ...pulito.split('\n')].filter((r) => r.trim() !== '')
     ultimeRighe.current = righe.slice(-60)
   }
-  // Il tetto: senza prompt entro il doppio del previsto, la chat e' «lenta».
+  // Il tetto: senza prompt entro il doppio del previsto (piu' quanto concede il
+  // carico), l'avviso «lenta»; oltre i 90 s, anche la riga nel registro. Il
+  // prompt che arriva dopo toglie l'avviso (0.86.2).
   useEffect(() => {
-    if (guasto !== undefined) return
-    const tetto = tettoAttesaMs(attesaPrevistaMs(peso))
+    const previsto = attesaPrevistaMs(peso)
     const t = setInterval(() => {
-      if (promptVisto.current || guastoRef.current !== undefined || altrove !== undefined) return
+      if (altrove !== undefined || inCoda.current) return
       const trascorso = Date.now() - avviatoA.current
-      if (trascorso < tetto) return
-      annotaGuasto(diagnostica({ tipo: 'lenta', trascorsoMs: trascorso, previstoMs: tetto }, ultimeRighe.current))
+      const altre = Math.max(0, turniAvvio.inAvvio() + turniAvvio.inCoda() - 1)
+      const tetto = tettoAttesaMs(previsto, altre)
+      const passo = passoAttesaPrompt({
+        trascorsoMs: trascorso,
+        tettoMs: tetto,
+        promptVisto: promptVisto.current,
+        guasto: guastoRef.current?.caso,
+        erroreScritto: erroreLentaScritto.current
+      })
+      if (passo === 'niente') return
+      if (passo === 'togli-lenta') { setGuasto(undefined); return }
+      const d = diagnostica({ tipo: 'lenta', trascorsoMs: trascorso, previstoMs: previsto, tettoMs: tetto }, ultimeRighe.current)
+      if (passo === 'mostra-lenta') { annotaGuasto(d, false); return }
+      erroreLentaScritto.current = true
+      setGuasto(d)
+      scriviGuasto(d)
     }, 2000)
     return () => clearInterval(t)
-  }, [guasto, peso, altrove])
+  }, [peso, altrove])
   const riprova = (): void => { riarma(); aggancioRef.current?.rilancia() }
   const aspettaAncora = (): void => { avviatoA.current = Date.now(); setGuasto(undefined) }
   const scegliCartella = (): void => {
@@ -275,25 +320,38 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       ptyIdIniziale: iniziale.ptyId,
       dimensioni: () => ({ cols: term.cols, rows: term.rows }),
       spawn: (cols, rows) => {
-        // Da `avvio.current`, non da `iniziale`: dopo «Scegli la cartella» la
-        // chat riparte nella cartella nuova, e un rilancio deve leggerla.
-        const ora = avvio.current
-        avviatoA.current = Date.now()
-        promptVisto.current = false
-        return window.gestore.pty.spawn({
+        // Prima il turno (0.86.2): all'avvio le chat partono poche alla volta.
+        inCoda.current = true
+        return turniAvvio.prendi().then((rendi) => {
+          inCoda.current = false
+          if (smontato) {
+            rendi()
+            throw new Error('riquadro chiuso prima del suo turno di avvio')
+          }
+          lasciaTurno()
+          rendiTurno.current = rendi
+          // Da `avvio.current`, non da `iniziale`: dopo «Scegli la cartella» la
+          // chat riparte nella cartella nuova, e un rilancio deve leggerla.
+          const ora = avvio.current
+          avviatoA.current = Date.now()
+          promptVisto.current = false
+          return window.gestore.pty.spawn({
           sessionUuid: ora.sessionUuid,
           cwd: ora.cwd,
           title: ora.title,
-          cols,
-          rows,
+          // La misura di adesso: in fila il riquadro puo' aver cambiato forma.
+          cols: term.cols > 0 ? term.cols : cols,
+          rows: term.rows > 0 ? term.rows : rows,
           ...(ora.model !== undefined ? { model: ora.model } : {}),
           ...(forzaQui.current ? { forzaQui: true } : {}),
           // Chi governa questa chat: il Core ne ricava gli hook con cui
           // l'autopilota saprà che ha finito di rispondere.
           ...(ora.autopilota !== undefined ? { autopilota: ora.autopilota } : {})
+          }).catch((err: unknown) => { lasciaTurno(); throw err })
         })
       },
       suAltrove: (c) => {
+        lasciaTurno()
         finitaAttesa.current(undefined)
         // Lo spawn ha scoperto che la cartella e' di un altro PC: se quel PC
         // risponde il riquadro diventa remoto da solo, se tace aspetta. La
@@ -310,6 +368,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // 0.84.1: una chat chiusa con la cartella cancellata non riparte a ogni
       // cambio di workspace: il riquadro si toglie, la conversazione resta.
       suChiusaSenzaCartella: (c) => {
+        lasciaTurno()
         finitaAttesa.current(undefined)
         void window.gestore.log.info(`[chat] «${avvio.current.title ?? ''}» (${c.sessionUuid.slice(0, 8)}) non riparte: ${c.perche}; tolto il suo riquadro, la conversazione resta`).catch(() => undefined)
         useLayoutStore.getState().closePane(paneId)
@@ -318,6 +377,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // Un'uscita dopo il prompt e lontana dall'avvio e' l'utente che ha
         // chiuso la chat (`/exit`): non e' un guasto.
         const trascorso = Date.now() - avviatoA.current
+        lasciaTurno()
         if (e.tipo === 'uscita' && promptVisto.current && trascorso > USCITA_PRECOCE_MS) return
         if (e.tipo === 'uscita' && e.codice === 0 && promptVisto.current) return
         annotaGuasto(diagnostica(e.tipo === 'uscita' ? { tipo: 'uscita', codice: e.codice, trascorsoMs: trascorso } : e, ultimeRighe.current))
@@ -477,6 +537,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // chiusa restava offerta per tutta la vita della finestra, con il suo
       // xterm smontato dentro.
       smontato = true
+      lasciaTurno()
       if (riprova !== undefined) window.clearTimeout(riprova)
       ricontrollaRef.current = undefined
       const idVivo = aggancio.idCorrente() ?? ultimoPtyId.current

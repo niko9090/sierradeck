@@ -154,8 +154,16 @@ export async function indexAll(
           if (blocco.length >= BLOCCO) svuota()
         }
       } catch (err) {
-        failed += 1
-        console.error(`[indexer] fallita indicizzazione di ${file}:`, err)
+        if ((err as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
+          // Sparito fra la scansione e la lettura (0.86.2): una chat tolta, una
+          // copia di lavoro di un autopilota pulita. Non e' un guasto: non conta
+          // fra i falliti, non va nel registro, e la potatura qui sotto la toglie
+          // dall'indice se c'era.
+          vive.delete(uuid)
+        } else {
+          failed += 1
+          console.error(`[indexer] fallita indicizzazione di ${file}:`, err)
+        }
       }
       done += 1
       onProgress?.({ fase: 'lettura', done, total: totale, progetto: progetto.path, riusate })

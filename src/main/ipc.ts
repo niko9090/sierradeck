@@ -39,9 +39,11 @@ import { creaFreno, creaRegistroConsegne, primoSlotLibero } from './consegne-lay
 import type { IstantaneeStore } from './istantanee-store'
 import {
   nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDopoRipristino, finestreDaRiaprire,
+  workspaceDopoRipristino, finestreDaRiaprire, NOMI_CHIUSURE,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
+import { ATTESA_SERVIZIO_IN_CHIUSURA_MS, entroOppure, fotografaFinestra } from './salva-alla-chiusura'
+import { misuraAvvio } from './misura-avvio'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
 import { componiImpostazioni } from '@shared/hook-autopilota'
 import { PORTA_AUTOPILOTA } from '@shared/autopilota'
@@ -286,6 +288,8 @@ export function registerPtyIpc(
 
   client.on((msg: HostToCore) => {
     if (msg.kind === 'exit' || msg.kind === 'assente') ptySessione.delete(msg.id)
+    // Il tempo d'avvio (0.86.2): la prima chat che arriva al prompt.
+    else if (msg.kind === 'data') misuraAvvio.datiDaTerminale(msg.data)
     // L'ordine fra instradamento e rilascio, e il perche' del ritorno booleano,
     // sono spiegati e verificati accanto a `instradaEventoHost`, in
     // window-manager.ts: qui e' provabile, dentro questa chiusura non lo sarebbe.
@@ -340,7 +344,10 @@ export function registerPtyIpc(
     const { sessionUuid, cwd } = grezza
     if (typeof sessionUuid === 'string' && typeof cwd === 'string' && cwd !== '' && !existsSync(cwd)) {
       return chiusaSenzaCartella(sessionUuid, cwd).catch(() => undefined).then((perche) => {
-        if (perche !== undefined) throw new Error(messaggioChiusaSenzaCartella({ sessionUuid, cwd, perche }))
+        // Un risultato normale, non un rigetto (0.86.2): e' un esito previsto,
+        // e da rigetto Electron lo scriveva in console come errore del canale.
+        // Il riquadro lo riconosce dal prefisso (`aggancio.ts`).
+        if (perche !== undefined) return messaggioChiusaSenzaCartella({ sessionUuid, cwd, perche })
         return spawnConvalidato(event, raw)
       })
     }
@@ -1728,6 +1735,15 @@ export function registerIstantaneeIpc(
       if (win === null) throw new Error('salvataggio da una finestra sconosciuta')
       const { layout, scartati } = validateLayoutSalvato(rawLayout)
       for (const motivo of scartati) console.warn(`[istantanee] scartato: ${motivo}`)
+      // Della finestra che salva si legge tutto **adesso**, prima di qualunque
+      // attesa (0.86.2): alla chiusura il salvataggio arriva dal suo
+      // `beforeunload`, e dopo il primo `await` la finestra puo' essere gia'
+      // distrutta — «Object has been destroyed», e «Ultima chiusura» persa.
+      const questa = fotografaFinestra(win, monitorDellaFinestra, slotDellaFinestra)
+      // Il salvataggio automatico di chiusura non aspetta il servizio: si
+      // prende quello che risponde subito, il resto si perde senza fermare
+      // l'uscita.
+      const inChiusura = (NOMI_CHIUSURE as readonly string[]).includes(nome)
 
       // Gli autopiloti si salvano come **richiesta** — obiettivo, cartella,
       // criteri — non come stato: al ricarico ripartono da capo, perche' le
@@ -1739,7 +1755,10 @@ export function registerIstantaneeIpc(
           // Quelli che hanno finito non si salvano: rimetterli in moto al
           // prossimo ricarico vuol dire una chat nuova che gira per scoprire
           // che non c'e' niente da fare.
-          autopiloti = daSalvare(await client.elenca()).map((a) => ({
+          const elenco = inChiusura
+            ? await entroOppure(client.elenca(), ATTESA_SERVIZIO_IN_CHIUSURA_MS, [])
+            : await client.elenca()
+          autopiloti = daSalvare(elenco).map((a) => ({
             nome: a.nome,
             obiettivo: a.obiettivo,
             cwd: a.cwd,
@@ -1760,7 +1779,7 @@ export function registerIstantaneeIpc(
       // una sola era il motivo per cui chi aveva sei chat in due finestre se ne
       // ritrovava quattro. Quella che salva porta il proprio layout con se',
       // gia' aggiornato all'istante del clic; le altre lo consegnano adesso.
-      const altre = (await raccogliLayout()).filter((r) => r.winId !== win.id)
+      const altre = (await raccogliLayout()).filter((r) => r.winId !== questa?.id)
       // Anche la finestra che salva passa dalla stessa regola delle altre: una
       // senza riquadri non si riapre. Prima entrava sempre, e bastava salvare da
       // una finestra vuota — o con un layout che la riconciliazione svuota —
@@ -1769,8 +1788,11 @@ export function registerIstantaneeIpc(
       if (layout.panes.length === 0) {
         console.warn(`[istantanee] «${nome}»: la finestra che salva non ha riquadri, non la salvo`)
       }
+      if (questa === undefined) {
+        console.warn(`[istantanee] «${nome}»: la finestra che salva era gia' chiusa, salvo le altre`)
+      }
       const finestre: FinestraSalvata[] = [
-        ...(layout.panes.length > 0 ? [{ monitor: monitorDellaFinestra(win), slot: slotDellaFinestra(win), layout }] : []),
+        ...(layout.panes.length > 0 && questa !== undefined ? [{ monitor: questa.monitor, slot: questa.slot, layout }] : []),
         ...altre.flatMap((r) => {
           const w = finestreDiChat().find((x) => x.id === r.winId)
           if (w === undefined || w.isDestroyed()) return []
