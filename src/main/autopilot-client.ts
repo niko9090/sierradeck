@@ -6,6 +6,7 @@ import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
+import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 
 export type NuovoAutopilota = {
   nome: string
@@ -191,6 +192,12 @@ export type ClientAutopilota = {
   separaCoda: (ws: string, id: string) => Promise<VistaCoda>
   /** Unisce a mano, con la stessa regola del supervisore: nessun punto si perde. */
   unisciCoda: (ws: string, u: UnioneAMano) => Promise<VistaCoda>
+  /** P3: l'autopilota unico di un workspace. Un servizio vecchio non ce l'ha: `undefined`. */
+  orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
+  /** Accende l'autopilota unico: le richieste e le chat vive degli autopiloti di prima passano a lui. */
+  attivaOrchestratore: (ws: string, cwd?: string) => Promise<VistaOrchestratore>
+  disattivaOrchestratore: (ws: string) => Promise<VistaOrchestratore>
+  impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
 }
 
 /** Un'unione fatta a mano: ogni punto delle richieste unite va nominato. */
@@ -455,6 +462,19 @@ export function creaClientAutopilota(p: {
     },
     separaCoda: async (ws, id) => (await chiama('/coda/separa', 'POST', { ws, id })) as VistaCoda,
     unisciCoda: async (ws, u) => (await chiama('/coda/unisci', 'POST', { ws, ...u })) as VistaCoda,
+    async orchestratore(ws) {
+      try {
+        const r = (await chiama(`/orchestratore?ws=${encodeURIComponent(ws)}`, 'GET')) as VistaOrchestratore | undefined
+        return r !== undefined && typeof r.attivo === 'boolean' ? r : undefined
+      } catch (err) {
+        // Un servizio di prima della P3 non conosce la rotta.
+        if (err instanceof Error && err.message.includes('ha rifiutato la richiesta')) return undefined
+        throw err
+      }
+    },
+    attivaOrchestratore: async (ws, cwd) => (await chiama('/orchestratore/attiva', 'POST', { ws, ...(cwd !== undefined ? { cwd } : {}) })) as VistaOrchestratore,
+    disattivaOrchestratore: async (ws) => (await chiama('/orchestratore/disattiva', 'POST', { ws })) as VistaOrchestratore,
+    impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p })) as VistaOrchestratore,
 
     async gestoreAvviato(aggiornamento) {
       // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.

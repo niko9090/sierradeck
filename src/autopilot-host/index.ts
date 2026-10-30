@@ -30,6 +30,8 @@ import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
 import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
+import { apriOrchestratori } from './orchestratore-store'
+import { avviaProcessoReale } from './orchestratore'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -429,10 +431,19 @@ export function avviaServizio(): void {
     // Le release con la data, per la velocità nel Punto (0.85.0).
     releaseUscite: ghReleaseUscite,
     // P1: la coda delle richieste di ogni workspace, accanto agli autopiloti.
-    coda: apriCode(join(cartellaStato(), '..', 'orchestratori'))
+    coda: apriCode(join(cartellaStato(), '..', 'orchestratori')),
+    // P3: l'autopilota unico per workspace, accanto alla sua coda. Parte con i
+    // workspace nuovi; quelli di prima lo accendono con «Attiva».
+    orchestratori: apriOrchestratori(join(cartellaStato(), '..', 'orchestratori')),
+    avviaProcesso: avviaProcessoReale(claudeCmd()),
+    porta: PORTA,
+    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd),
+    unicoPerNuovi: true
   })
 
   serverPronto = server
+  // P3: i processi `claude` degli orchestratori se ne vanno con il servizio.
+  process.on('exit', () => { server.spegniOrchestratori() })
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       // Istanza unica: qualcun altro è già in ascolto. Uscire è la risposta

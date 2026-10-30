@@ -80,6 +80,8 @@ function CodaAperta({ workspace }: { workspace: string }): React.JSX.Element {
           <span style={{ width: `${vista.totale}%` }} />
         </div>
       ) : null}
+      {/* P3: quando la percentuale scende (punti o richieste nuove), il perché. */}
+      {vista.calo !== undefined ? <div className="coda-ws__quieto">scesa da {vista.calo.da}% a {vista.calo.a}%: {vista.calo.perche}</div> : null}
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       {aperte.length === 0 ? <div className="coda-ws__quieto">Niente in coda.</div> : null}
       {aperte.map((r) => <RigaCoda key={r.id} r={r} onSepara={separa} />)}

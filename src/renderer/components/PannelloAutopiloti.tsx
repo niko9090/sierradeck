@@ -19,6 +19,8 @@ import { Aiuto } from './Aiuto'
 import { azioniDiFinestra } from '../azioni-finestra'
 import { nomeWorkspacePerAutopilota } from '@shared/vista-elenco'
 import { EVENTO_NUOVO_AUTOPILOTA, prendiRichiestaNuovoAutopilota } from '../nuovo-autopilota'
+import { sondaggioOrchestratore } from './TestaOrchestratore'
+import { useSondaggio } from '../state/sondaggio'
 
 // La bozza è la stessa del telefono (0.55.0): `@shared/azioni-telefono`.
 // La regola di partenza e' «stabile»: chiede prima di pubblicare. E' la scelta
@@ -173,15 +175,20 @@ export function PannelloAutopiloti({
     const segno = Date.parse((a as unknown as { ultimoSegno?: string }).ultimoSegno ?? '')
     return vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, ora, Number.isNaN(segno) ? undefined : segno)
   }
-  const righe = ordinaAutopiloti(cercaAutopiloti(elenco, q).map((a) => ({ ...a, vista: vistaDi(a) })))
-  const conti = contaGruppiAp(elenco.map(vistaDi))
+  // P3: chi è passato all'autopilota unico sta fra i «Precedenti», in sola lettura.
+  const correnti = elenco.filter((a) => a.passatoA === undefined)
+  const precedenti = elenco.filter((a) => a.passatoA !== undefined)
+  const [precedentiAperti, setPrecedentiAperti] = useState(false)
+  const righe = ordinaAutopiloti(cercaAutopiloti(correnti, q).map((a) => ({ ...a, vista: vistaDi(a) })))
+  const conti = contaGruppiAp(correnti.map(vistaDi))
   const visibili = righe.filter((r) => nelGruppoAp(r.vista, gruppo))
   const sel = righe.find((r) => r.id === scelto)
   const verbo = (r: (typeof righe)[number]): React.JSX.Element | null => {
     const v = r.vista.azione
     if (v === 'ferma') return <button className="tasto tasto--mini" disabled={inCorso} onClick={(e) => { e.stopPropagation(); esegui(() => window.gestore.autopilota.ferma(r.id)) }}>Ferma</button>
     if (v === 'rispondi') return <button className="tasto tasto--mini tasto--acceso" onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('sierradeck:apri-pannello', { detail: 'domande' })) }} title="Apre le Domande: la sua domanda è lì">Rispondi</button>
-    return <button className="tasto tasto--mini" disabled={inCorso} onClick={(e) => { e.stopPropagation(); esegui(() => window.gestore.autopilota.riprendi(r.id)) }} title={r.criteri.length === 0 ? 'Riprende la preparazione: è da lì che escono i criteri di fine' : 'Rimette al lavoro le sue chat'}>{r.criteri.length === 0 ? 'Riprendi le domande' : 'Riprendi'}</button>
+    const preparazione = r.criteri.length === 0 && r.unico !== true
+    return <button className="tasto tasto--mini" disabled={inCorso} onClick={(e) => { e.stopPropagation(); esegui(() => window.gestore.autopilota.riprendi(r.id)) }} title={preparazione ? 'Riprende la preparazione: è da lì che escono i criteri di fine' : 'Rimette al lavoro le sue chat'}>{preparazione ? 'Riprendi le domande' : 'Riprendi'}</button>
   }
 
   return createPortal(
@@ -246,6 +253,7 @@ export function PannelloAutopiloti({
         <button className="tasto tasto--mini" onClick={onChiudi} aria-label="Chiudi">×</button>
       </div>
       {errore !== undefined ? <div className="progetti__striscia">⚠ {errore}</div> : null}
+      <InterruttoreUnico workspace={workspaceAttivo} inCorso={inCorso} esegui={esegui} />
 
       <div className={`progetti__corpo${sel !== undefined || bozza !== undefined ? ' progetti__corpo--destra' : ''}`}>
         <div className="progetti__tabella" role="grid">
@@ -276,6 +284,18 @@ export function PannelloAutopiloti({
               </div>
             )
           })}
+          {precedenti.length > 0 ? (
+            <div style={{ padding: '8px 16px' }}>
+              <button className="pan2-riga-apri" aria-expanded={precedentiAperti} onClick={() => setPrecedentiAperti((v) => !v)}>
+                {precedentiAperti ? '▾' : '▸'} Precedenti · {precedenti.length}
+              </button>
+              {precedentiAperti ? precedenti.map((a) => (
+                <div key={a.id} className="progetti__voceelenco progetti__quieto" title={a.obiettivo}>
+                  {a.nome !== '' ? a.nome : a.obiettivo.slice(0, 60)} · {a.stato} · dal {a.iniziatoIl.slice(0, 10)} · passato all’autopilota unico: le sue richieste sono nella coda, le chat vive lavorano per lui
+                </div>
+              )) : null}
+            </div>
+          ) : null}
           {/* Gli autopiloti degli altri PC (0.59.0): stessa chiave di casa, «gira su <PC>». */}
           <div style={{ padding: '12px 16px' }}><AutopilotiAltriPc /></div>
         </div>
@@ -534,5 +554,22 @@ export function PannelloAutopiloti({
       </div>
     </div>,
     document.body
+  )
+}
+
+/**
+ * P3: l'interruttore «Autopilota unico» del workspace davanti. Acceso, il
+ * workspace ha un solo autopilota che parla con te e coordina gli
+ * specialisti; spento (i workspace di prima), qui c'è «Attiva» con il perché.
+ */
+function InterruttoreUnico({ workspace, inCorso, esegui }: { workspace: string; inCorso: boolean; esegui: (op: () => Promise<unknown>) => void }): React.JSX.Element | null {
+  const s = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
+  const v = useSondaggio(s)
+  if (workspace.trim() === '' || v === undefined || v.attivo || !v.conAutopiloti) return null
+  return (
+    <div className="progetti__striscia" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <span>Autopilota unico: uno solo per «{workspace}», che parla con te, mette tutto in coda e coordina gli specialisti; le chat al lavoro passano a lui, gli autopiloti di ora vanno fra i Precedenti.</span>
+      <button className="tasto tasto--mini tasto--primario" disabled={inCorso} onClick={() => esegui(() => window.gestore.autopilota.attivaOrchestratore(workspace).then(() => s.rileggi()))}>Attiva</button>
+    </div>
   )
 }

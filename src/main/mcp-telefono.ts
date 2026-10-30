@@ -7,6 +7,7 @@ import { esitoPerLaChat, inCorso, nomeCartella, telefonoPredefinito, type Conseg
 import type { AlTelefono } from './al-telefono'
 import type { QuadernoPersonale } from './quaderno-personale'
 import { dentroOUguale } from './file-progetti'
+import { gettoneBearer, rispondiRpc, type ServerMcpMinimo } from '@shared/mcp-minimo'
 
 /**
  * Lo strumento `manda_al_telefono` delle chat (0.54.0).
@@ -26,8 +27,8 @@ import { dentroOUguale } from './file-progetti'
  * `stato_invio_al_telefono` può chiedere com'è andata dopo.
  *
  * Il protocollo è quello «Streamable HTTP» di MCP ridotto all'osso: un POST
- * con JSON-RPC, una risposta JSON. Niente flussi SSE (un GET risponde 405,
- * come la specifica permette).
+ * con JSON-RPC, una risposta JSON. Sta in `@shared/mcp-minimo` (P3), che usa
+ * anche l'orchestratore unico.
  */
 
 export type ChatDelGettone = { sessione: string; cwd: string; pty: string }
@@ -170,51 +171,31 @@ export async function mandaDaChat(
   return { testo: esitoPerLaChat(c), errore: c.stato === 'rifiutata' || c.stato === 'annullata' || c.stato === 'scaduta' }
 }
 
-type Rpc = { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown }
-
-/** Una richiesta JSON-RPC sola: la risposta, o niente per una notifica. */
-async function una(deps: DipendenzeMcp, chat: ChatDelGettone, r: Rpc): Promise<Record<string, unknown> | undefined> {
-  const id = r.id
-  const notifica = id === undefined || id === null
-  const risposta = (result: unknown): Record<string, unknown> => ({ jsonrpc: '2.0', id, result })
-  const errore = (code: number, message: string): Record<string, unknown> => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
-  const metodo = typeof r.method === 'string' ? r.method : ''
-  const p = (typeof r.params === 'object' && r.params !== null ? r.params : {}) as Record<string, unknown>
-  if (metodo === 'initialize') {
-    const versione = typeof p.protocolVersion === 'string' ? p.protocolVersion : '2025-06-18'
-    return risposta({
-      protocolVersion: versione,
-      capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: NOME_SERVER_MCP, title: 'SierraDeck', version: deps.versione },
-      instructions: 'SierraDeck: per mandare un file al telefono di Nicholas usa manda_al_telefono. Per un suo dato riservato (email, sede, partita IVA…) usa chiedi_dato_personale: non cercarlo nei file e non inventarlo.'
-    })
+/** Il server MCP delle chat: il protocollo sta in `@shared/mcp-minimo`, qui gli strumenti. */
+function serverDelleChat(deps: DipendenzeMcp): ServerMcpMinimo<ChatDelGettone> {
+  return {
+    nome: NOME_SERVER_MCP,
+    titolo: 'SierraDeck',
+    versione: deps.versione,
+    istruzioni: 'SierraDeck: per mandare un file al telefono di Nicholas usa manda_al_telefono. Per un suo dato riservato (email, sede, partita IVA…) usa chiedi_dato_personale: non cercarlo nei file e non inventarlo.',
+    strumenti: STRUMENTI_MCP,
+    async chiama(chat, nome, arg) {
+      if (nome === 'manda_al_telefono') return mandaDaChat(deps, chat, arg.percorso, arg.nota)
+      if (nome === 'stato_invio_al_telefono') {
+        const c = typeof arg.id === 'string' ? deps.alTelefono.leggi(arg.id) : undefined
+        // Una chat vede solo i suoi invii: quelli partiti da un'altra chat, per lei, non esistono.
+        const sua = c !== undefined && c.daSessione === chat.sessione ? c : undefined
+        return { testo: sua === undefined ? 'Nessun invio con questo id.' : esitoPerLaChat(sua), errore: sua === undefined }
+      }
+      if (nome === 'chiedi_dato_personale') {
+        const q = deps.quadernoPersonale
+        return q === undefined
+          ? { testo: 'Rifiutato: il quaderno personale non è disponibile su questo PC.', errore: true }
+          : await q.chiedi({ sessione: chat.sessione, titolo: deps.titoloChat(chat.sessione) ?? nomeCartella(chat.cwd) }, arg.voce, arg.motivo)
+      }
+      return undefined
+    }
   }
-  if (notifica) return undefined
-  if (metodo === 'ping') return risposta({})
-  if (metodo === 'tools/list') return risposta({ tools: STRUMENTI_MCP })
-  if (metodo === 'tools/call') {
-    const nome = p.name
-    const arg = (typeof p.arguments === 'object' && p.arguments !== null ? p.arguments : {}) as Record<string, unknown>
-    if (nome === 'manda_al_telefono') {
-      const e = await mandaDaChat(deps, chat, arg.percorso, arg.nota)
-      return risposta({ content: [{ type: 'text', text: e.testo }], isError: e.errore })
-    }
-    if (nome === 'stato_invio_al_telefono') {
-      const c = typeof arg.id === 'string' ? deps.alTelefono.leggi(arg.id) : undefined
-      // Una chat vede solo i suoi invii: quelli partiti da un'altra chat, per lei, non esistono.
-      const sua = c !== undefined && c.daSessione === chat.sessione ? c : undefined
-      return risposta({ content: [{ type: 'text', text: sua === undefined ? 'Nessun invio con questo id.' : esitoPerLaChat(sua) }], isError: sua === undefined })
-    }
-    if (nome === 'chiedi_dato_personale') {
-      const q = deps.quadernoPersonale
-      const e = q === undefined
-        ? { testo: 'Rifiutato: il quaderno personale non è disponibile su questo PC.', errore: true }
-        : await q.chiedi({ sessione: chat.sessione, titolo: deps.titoloChat(chat.sessione) ?? nomeCartella(chat.cwd) }, arg.voce, arg.motivo)
-      return risposta({ content: [{ type: 'text', text: e.testo }], isError: e.errore })
-    }
-    return errore(-32602, `Strumento sconosciuto: ${String(nome)}`)
-  }
-  return errore(-32601, `Metodo non supportato: ${metodo}`)
 }
 
 /**
@@ -224,15 +205,7 @@ async function una(deps: DipendenzeMcp, chat: ChatDelGettone, r: Rpc): Promise<R
 export async function rispondiMcp(
   deps: DipendenzeMcp, metodo: string, autorizzazione: string | undefined, corpo: unknown
 ): Promise<{ stato: number; corpo?: unknown }> {
-  const gettone = /^Bearer\s+(\S+)$/i.exec(autorizzazione ?? '')?.[1]
+  const gettone = gettoneBearer(autorizzazione)
   const chat = gettone === undefined ? undefined : deps.gettoni.chi(gettone)
-  if (chat === undefined) return { stato: 401, corpo: { errore: 'gettone mancante o non valido' } }
-  if (metodo !== 'POST') return { stato: 405 }
-  if (Array.isArray(corpo)) {
-    const fuori = (await Promise.all(corpo.map((x) => una(deps, chat, (x ?? {}) as Rpc)))).filter((x) => x !== undefined)
-    return fuori.length === 0 ? { stato: 202 } : { stato: 200, corpo: fuori }
-  }
-  if (typeof corpo !== 'object' || corpo === null) return { stato: 400, corpo: { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'JSON non valido' } } }
-  const r = await una(deps, chat, corpo as Rpc)
-  return r === undefined ? { stato: 202 } : { stato: 200, corpo: r }
+  return rispondiRpc(serverDelleChat(deps), chat, metodo, corpo)
 }

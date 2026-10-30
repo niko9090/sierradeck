@@ -773,6 +773,10 @@ export const PAROLA_STATO_CODA: Record<StatoCoda, string> = {
 export type VistaCoda = {
   workspace: string
   totale?: number
+  /** P3: la percentuale è scesa (punti o compiti nuovi), e perché. */
+  calo?: { da: number; a: number; perche: string; il: string }
+  /** P3: il workspace ha l'autopilota unico. */
+  unico?: boolean
   richieste: Array<Richiesta & { percento: number }>
   compattate: RichiestaCompattata[]
 }

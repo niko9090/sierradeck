@@ -56,6 +56,9 @@ import { esaminaComando, messaggioCriterio, vagliaCriteri } from '@shared/contro
 import { conVersioni, registraRichieste, rigaRegistrate, sembraRichiesta, tieniRichieste, type RichiestaProposta } from './richieste'
 import type { RichiestaNicholas } from '@shared/richieste-nicholas'
 import type { ArchivioCode } from './coda-store'
+import type { ArchivioOrchestratori } from './orchestratore-store'
+import type { AvviaProcesso } from './orchestratore'
+import { creaServizioUnico, type ServizioUnico } from './servizio-orchestratore'
 import { aggiungiDalMessaggio, allineaConAutopiloti, autopilotiDel, candidatePerPrompt, migraAutopiloti, misuraDaAutopiloti, type CandidataNelPrompt } from './coda-autopiloti'
 import {
   avanzamentoCoda, avanzamentoRichiesta, chiaveWorkspace, leggiUnioneDalDialogo, separa as separaCoda, unioneDaDialogo, unisci as unisciCoda,
@@ -279,6 +282,22 @@ export type Dipendenze = {
    * restano solo negli autopiloti, come prima.
    */
   coda?: ArchivioCode
+  /**
+   * P3: l'autopilota unico di ogni workspace, dietro il suo interruttore
+   * (`orchestratori/<workspace>/orchestratore.json`). Servono la coda, questo
+   * archivio e chi avvia il processo `claude`; assenti (test vecchi), nessun
+   * workspace lo accende e tutto va come prima.
+   */
+  orchestratori?: ArchivioOrchestratori
+  avviaProcesso?: AvviaProcesso
+  /** La porta del servizio, per l'URL MCP dell'orchestratore. */
+  porta?: number
+  /** L'indice del quaderno del progetto (P2), nel prompt dell'orchestratore. */
+  indiceQuaderno?: (cwd: string) => string
+  /** Un workspace nuovo parte con l'autopilota unico (acceso nel programma vero). */
+  unicoPerNuovi?: boolean
+  /** Per i test: la raccolta degli eventi per l'orchestratore. */
+  raccoltaEventiMs?: number
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -680,6 +699,8 @@ function applicaCambio(
  * rotte: far ripartire le preparazioni che uno spegnimento ha interrotto.
  */
 export type ServerAutopiloti = Server & {
+  /** P3: spegne i processi `claude` degli orchestratori (uscita del servizio). */
+  spegniOrchestratori: () => void
   riprendiInterviste: () => void
   /** Il giro di guardia sulle chat che non chiudono più un turno. */
   controllaChatFerme: () => void
@@ -798,6 +819,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   // ── La coda delle richieste del workspace (P1) ──
+  /** P3: l'autopilota unico; nasce in fondo, quando c'è tutto quello che gli si presta. */
+  let servizioUnico: ServizioUnico | undefined
   /**
    * La coda di un workspace: la prima volta ci entrano le richieste e i
    * compiti dei suoi autopiloti (una volta sola), e a ogni lettura lo stato
@@ -809,7 +832,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const loro = autopilotiDel(ws, deps.archivio.elenca())
     const ora = deps.adesso()
     code.cambia(ws, (c) => (c.migrata === undefined ? migraAutopiloti(c, loro, ora) : undefined))
-    return code.cambia(ws, (c) => allineaConAutopiloti(c, loro, ora))
+    const u = servizioUnico
+    if (u === undefined || !u.attivo(ws)) return code.cambia(ws, (c) => allineaConAutopiloti(c, loro, ora))
+    // P3: con l'autopilota unico lo stato delle richieste lo dice anche il piano.
+    code.cambia(ws, (c) => allineaConAutopiloti(c, loro, ora, u.misura(ws)))
+    return code.cambia(ws, (c) => u.allinea(ws, c, ora))
   }
   // La migrazione, una volta sola, all'avvio: ogni workspace che ha autopiloti ha la sua coda.
   if (deps.coda !== undefined) {
@@ -874,14 +901,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   const vistaCoda = (ws: string): VistaCoda | undefined => {
     const c = codaDi(ws)
     if (c === undefined) return undefined
-    const misura = misuraDaAutopiloti(autopilotiDel(ws, deps.archivio.elenca()))
+    const misura = servizioUnico?.misura(ws) ?? misuraDaAutopiloti(autopilotiDel(ws, deps.archivio.elenca()))
     const totale = avanzamentoCoda(c, misura)
-    return {
+    const v: VistaCoda = {
       workspace: ws,
       ...(totale !== undefined ? { totale } : {}),
       richieste: c.richieste.map((r) => ({ ...r, percento: avanzamentoRichiesta(r, misura) })),
       compattate: c.compattate
     }
+    return servizioUnico?.vistaCoda(ws, v) ?? v
   }
 
   /**
@@ -1631,6 +1659,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   deps.domande.suRispostaTardiva((idDomanda, risposta, da, chiesta) => {
     const dati = contesto.get(idDomanda) ?? chiesta?.contesto
     contesto.delete(idDomanda)
+    // P3: la risposta a una domanda dell'autopilota unico va al suo orchestratore.
+    const chiPerUnico = dati?.autopilotaId ?? chiesta?.autopilotaId
+    if (chiPerUnico !== undefined && servizioUnico?.risposta(chiPerUnico, dati?.grezza ?? chiesta?.parti?.domanda ?? chiesta?.testo ?? '', risposta) === true) return
     console.info(`[domande] ${dati?.autopilotaId ?? chiesta?.autopilotaId ?? '?'} — risposta «${breveRisposta(risposta)}» (${da}) arrivata dopo l’attesa${dati?.chatId !== undefined ? ` di ${dati.chatId}` : ''}: la porto io`)
     if (dati === undefined) {
       // Senza il contesto non si sa quale chat la aspettava (0.84.4): prima si
@@ -2057,6 +2088,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (installaInCorso) return
     const freno = frenoAdesso()
     for (const a of deps.archivio.elenca()) {
+      // P3: l'autopilota unico apre e riprende i suoi specialisti da sé.
+      if (a.unico === true) continue
       if (a.stato === 'sospeso' && a.pausaLimitiFinoA !== undefined) {
         if (freno.livello === 'fermo') continue
         const ripreso: Autopilota = { ...a, pausaLimitiFinoA: undefined }
@@ -2152,6 +2185,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       // (0.69.0): glielo si porta adesso, durante il turno. Claude Code lo legge
       // appena può, senza interrompere quello che sta facendo.
       if (opz.forza === true) continue
+      // P3: agli specialisti dell'unico si scrive solo da fermi (o con lo Stop).
+      if (a.unico === true) continue
       const giaFerme = new Set(ferme.map((f) => f.chatId ?? a.id))
       // «Manda adesso» (0.69.0): senza aspettare i due minuti.
       for (const v of chatConCodaVecchia(a, ora, opz.subito === true ? 0 : IN_CODA_AL_LAVORO_MS, giaFerme)) {
@@ -2229,10 +2264,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // P2: le chat finite si eliminano, un passo alla volta (in sottofondo: git può durare).
     void avanzaFiniteDaSole()
     rispettaFreno()
+    // P3: gli specialisti zitti da 20 minuti diventano un evento per l'orchestratore.
+    try { servizioUnico?.guardia() } catch (err) { console.error('[orchestratore] guardia non riuscita:', err) }
     const limite = deps.silenzioMassimoMs ?? SILENZIO_MASSIMO_MS
     const ora = Date.parse(deps.adesso())
     if (Number.isNaN(ora)) return
     for (const a of deps.archivio.elenca()) {
+      if (a.unico === true) continue
       // 0.84.0: una fermata in giudizio toglie dal conto solo la sua chat (sotto).
       if (a.stato !== 'lavoro' || inLavorazione.has(a.id) || (a.chats.length === 0 && fermataInCorso(a.id))) continue
       // Chi e' in pausa per aggiornamento tace **perche' gliel'abbiamo chiesto
@@ -2476,6 +2514,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (Number.isNaN(ora)) return
     for (const prima of deps.archivio.elenca()) {
       if (inLavorazione.has(prima.id) || dialoghiInCorso.has(prima.id)) continue
+      // P3: l'autopilota unico non fa giri da solo: decide l'orchestratore, sugli eventi.
+      if (prima.unico === true) continue
       // 0.84.4: una chat la cui cartella non c'è più non nasce mai; non si
       // aspetta il silenzio per accorgersene (c-115 → c-118, 23/10).
       if (prima.stato === 'lavoro' && prima.fermatoPerAggiornamento !== true && deps.copia !== undefined) {
@@ -5833,6 +5873,45 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           return
         }
 
+        // P3: l'autopilota unico del workspace: la vista, l'interruttore, le impostazioni.
+        if (percorso === '/orchestratore' || percorso.startsWith('/orchestratore/')) {
+          if (servizioUnico === undefined) { rispondi(res, 503, { errore: 'autopilota unico non disponibile' }); return }
+          if (metodo === 'GET' && percorso === '/orchestratore') {
+            const ws = url.searchParams.get('ws')?.trim() ?? ''
+            if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace (?ws=)' }); return }
+            rispondi(res, 200, servizioUnico.vista(ws))
+            return
+          }
+          if (metodo === 'POST' && ['/orchestratore/attiva', '/orchestratore/disattiva', '/orchestratore/impostazioni'].includes(percorso)) {
+            const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+            const ws = typeof corpo?.ws === 'string' ? corpo.ws.trim() : ''
+            if (ws === '') { rispondi(res, 400, { errore: 'manca il workspace' }); return }
+            if (percorso === '/orchestratore/attiva') {
+              const cwd = typeof corpo?.cwd === 'string' && corpo.cwd !== '' && existsSync(corpo.cwd) ? corpo.cwd : undefined
+              const e = servizioUnico.attiva(ws, cwd !== undefined ? { cwd } : {})
+              if (!e.ok) { rispondi(res, 400, { errore: e.motivo }); return }
+            } else if (percorso === '/orchestratore/disattiva') {
+              servizioUnico.disattiva(ws)
+            } else {
+              servizioUnico.imposta(ws, { modello: corpo?.modello, tettoSpecialisti: corpo?.tettoSpecialisti })
+            }
+            rispondi(res, 200, servizioUnico.vista(ws))
+            return
+          }
+          rispondi(res, 405, { errore: 'metodo non permesso' })
+          return
+        }
+        // P3: gli strumenti dell'orchestratore (MCP), solo con il gettone del suo workspace.
+        if (percorso === '/mcp/orchestratore') {
+          if (servizioUnico === undefined) { rispondi(res, 404, { errore: 'rotta sconosciuta' }); return }
+          const corpo = metodo === 'POST' ? await leggiCorpo(req) : undefined
+          const auth = req.headers.authorization
+          const r = await servizioUnico.mcp({ metodo, ws: url.searchParams.get('ws') ?? '', autorizzazione: typeof auth === 'string' ? auth : undefined, corpo })
+          if (r.corpo === undefined) { res.writeHead(r.stato); res.end(); return }
+          rispondi(res, r.stato, r.corpo)
+          return
+        }
+
         // P1: la coda delle richieste di un workspace, con le percentuali, e
         // le due mani di Nicholas: «Separa» e l'unione fatta a mano.
         if (percorso === '/coda' || percorso === '/coda/separa' || percorso === '/coda/unisci') {
@@ -5917,6 +5996,18 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // una cartella che non esiste.
           if (cwd === '' || !existsSync(cwd) || !statSync(cwd).isDirectory()) {
             rispondi(res, 400, { errore: `cartella non utilizzabile: ${cwd}` })
+            return
+          }
+          // P3: nel workspace con l'autopilota unico (o nuovo, se si parte così)
+          // l'obiettivo è un messaggio per lui: niente autopilota in più.
+          const wsNuovo = chiaveWorkspace({ cwd, ...(typeof corpo?.workspace === 'string' ? { workspace: corpo.workspace } : {}) })
+          if (servizioUnico !== undefined && (servizioUnico.attivo(wsNuovo) || (deps.unicoPerNuovi === true && servizioUnico.nuovoWorkspace(wsNuovo)))) {
+            const gia = servizioUnico.unicoDi(wsNuovo)
+            const e = gia !== undefined
+              ? { ok: true as const, unico: servizioUnico.messaggio(gia, obiettivo) }
+              : servizioUnico.attiva(wsNuovo, { cwd, obiettivo })
+            if (!e.ok) { rispondi(res, 400, { errore: e.motivo }); return }
+            rispondi(res, 200, e.unico)
             return
           }
           const a = nuovoAutopilota({
@@ -6342,6 +6433,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           }
           if (comando[2] === 'ferma') {
             fermaAutopilota(a, 'fermato dall utente')
+          } else if (a.unico === true && servizioUnico !== undefined) {
+            // P3: l'autopilota unico non si prepara: riprendono i suoi specialisti vivi.
+            const ripreso: Autopilota = { ...conRipresaNelDiario(a), stato: 'lavoro', motivoSospensione: undefined, chats: a.chats.map((c) => (c.stato !== 'finita' && c.fine === undefined ? { ...c, stato: 'lavoro' as const } : c)) }
+            salva(ripreso)
+            servizioUnico.riprendi(deps.archivio.leggi(id) ?? ripreso)
           } else if (a.criteri.length === 0) {
             // Un autopilota senza criteri non ha finito di prepararsi: sono i
             // criteri a dirgli quando ha finito, e li produce l'intervista.
@@ -6453,6 +6549,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const testo = typeof corpo?.testo === 'string' ? corpo.testo.trim() : ''
           if (testo === '') {
             rispondi(res, 400, { errore: 'non hai scritto niente' })
+            return
+          }
+          // P3: all'autopilota unico ogni messaggio va in coda e all'orchestratore,
+          // che lo legge sapendo quali domande ha aperto.
+          if (a.unico === true && servizioUnico !== undefined) {
+            const dopo = servizioUnico.messaggio(a, testo)
+            rispondi(res, 202, { ricevuto: true, autopilota: dopo })
             return
           }
           // 0.83.0 (Nicholas, dal 20/10): scritto a mano mentre una sua domanda
@@ -6666,8 +6769,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // subito, la chat non aspetta; poi si legge la riga `RAPPORTO:` dalla
         // trascrizione, al più una volta ogni pochi secondi per chat.
         if (metodo === 'POST' && percorso === '/hook/rapporto') {
-          const idAp = url.searchParams.get('ap') ?? ''
-          const chatR = url.searchParams.get('chat') ?? undefined
+          let idAp = url.searchParams.get('ap') ?? ''
+          let chatR = url.searchParams.get('chat') ?? undefined
+          // P3: una chat adottata dall'autopilota unico parla con i suoi id di prima.
+          const viaR = ID_VALIDO.test(idAp) ? servizioUnico?.reindirizza(idAp, chatR) : undefined
+          if (viaR !== undefined) { idAp = viaR.id; chatR = viaR.chat }
           const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
           rispondi(res, 200, {})
           // 0.86.1: finito il comando pesante, il turno del PC torna libero
@@ -6681,7 +6787,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         const hook = /^\/hook\/(stop|notification)$/.exec(percorso)
         if (metodo === 'POST' && hook !== null) {
-          const id = url.searchParams.get('ap') ?? ''
+          let id = url.searchParams.get('ap') ?? ''
           const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
           // L'id sta nell'URL che abbiamo scritto noi nelle impostazioni della
           // chat: una forma diversa non deve arrivare all'archivio, che
@@ -6690,7 +6796,10 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, {})
             return
           }
-          const chatGrezza = url.searchParams.get('chat') ?? undefined
+          let chatGrezza = url.searchParams.get('chat') ?? undefined
+          // P3: una chat adottata dall'autopilota unico parla con i suoi id di prima.
+          const via = servizioUnico?.reindirizza(id, chatGrezza)
+          if (via !== undefined) { id = via.id; chatGrezza = via.chat }
           // **Il proprio id non è l'id di una chat.** Un autopilota senza
           // flotta manda sé stesso come `chat`: è la convenzione con cui il
           // servizio lo ricorda — `ricorda` fa lo stesso confronto. Preso per
@@ -6709,6 +6818,24 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // Segnarlo qui, all'arrivo, e non dentro `suStop`: quello lavora per
           // minuti prima di scriverlo, e in quei minuti il guardiano gira.
           ultimoTurno.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
+          // P3: lo Stop veloce degli specialisti dell'unico. Niente modello e
+          // niente criteri qui: si registra, si consegna, si fa un evento.
+          const delUnico = deps.archivio.leggi(id)
+          if (delUnico?.unico === true && servizioUnico !== undefined && chatId !== undefined) {
+            if (hook[1] !== 'stop') {
+              segnaPartenza(id, chatId)
+              servizioUnico.notifica(delUnico, chatId, corpo)
+              rispondi(res, 200, {})
+              return
+            }
+            ;(deps.turni ?? TURNI_PC).rilascia(`${id}::${chatGrezza ?? '-'}`)
+            scriviLezioni(delUnico, chatId, corpo)
+            const risposta = servizioUnico.fermata(deps.archivio.leggi(id) ?? delUnico, chatId, corpo)
+            if (risposta.decision === 'block') segnaIstruita(id, chatId)
+            else fermaDal.set(chiaveTurno(id, chatId), Date.parse(deps.adesso()))
+            rispondi(res, 200, risposta)
+            return
+          }
           if (hook[1] !== 'stop') {
             segnaPartenza(id, chatId)
             rispondi(res, 200, await suNotification(id, chatId, corpo))
@@ -6959,5 +7086,39 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     return scritti
   }
 
-  return Object.assign(server, { controllaPromesse, aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
+  // P3: l'autopilota unico per workspace, con quello che il servizio gli presta.
+  if (deps.coda !== undefined && deps.orchestratori !== undefined && deps.avviaProcesso !== undefined) {
+    servizioUnico = creaServizioUnico({
+      archivio: deps.archivio,
+      code: deps.coda,
+      orchestratori: deps.orchestratori,
+      avviaProcesso: deps.avviaProcesso,
+      porta: deps.porta ?? 47630,
+      versione: deps.versione ?? '0.0.0',
+      adesso: () => deps.adesso(),
+      domande: deps.domande,
+      ...(deps.memoria !== undefined ? { memoria: deps.memoria } : {}),
+      avvisa: (tipo, a, testo) => deps.avvisa(tipo, a, testo),
+      ...(deps.lezioni !== undefined ? { lezioni: deps.lezioni } : {}),
+      ...(deps.indiceQuaderno !== undefined ? { indiceQuaderno: deps.indiceQuaderno } : {}),
+      ...(deps.ultimoDetto !== undefined ? { ultimoDetto: deps.ultimoDetto } : {}),
+      ...(deps.git !== undefined ? { git: deps.git } : {}),
+      ...(deps.gitAsincrono !== undefined ? { gitAsincrono: deps.gitAsincrono } : {}),
+      esegui: deps.esegui,
+      scadenzaDomandaMs: deps.scadenzaDomandaMs,
+      salva,
+      annota,
+      avviaLavoro: (a, messaggio, chat) => avviaLavoro(a, messaggio, chat),
+      avanzaFinite: () => { void avanzaFiniteDaSole() },
+      posti: postiAdesso,
+      chatAlLavoroSulPc: () => chatAlLavoroSulPc(deps.archivio.elenca()),
+      provaNelPrincipale: (a, ramo) => provaNelPrincipale(a, ramo, undefined),
+      ricordaContesto,
+      ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
+      ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {})
+    })
+  }
+
+  server.on('close', () => { servizioUnico?.spegni() })
+  return Object.assign(server, { spegniOrchestratori: () => { servizioUnico?.spegni() }, controllaPromesse, aggiornaReleaseUscite, riprendiInterviste, controllaChatFerme, riprendiLavori, ricontrollaCriteri, ricontrollaDomande, riportaInCoda: (c: string, p: string) => { riportaInCoda(c, p) } })
 }

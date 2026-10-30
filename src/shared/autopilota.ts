@@ -302,6 +302,18 @@ export type ChatGovernata = SupervisoreMancato & {
    * `autopilot-host/fine-chat.ts`.
    */
   fine?: FineChat
+  /**
+   * P3 (30/10): il compito del piano dell'orchestratore che porta avanti
+   * (`k-N`, vedi `@shared/piano-orchestratore`). Solo per gli specialisti
+   * dell'autopilota unico.
+   */
+  compitoId?: string
+  /**
+   * P3: la chat di un autopilota di prima, adottata come specialista
+   * dall'autopilota unico. Gli hook che la chat manda ancora con l'id di
+   * prima (`?ap=…&chat=…`) arrivano qui.
+   */
+  origine?: { autopilota: string; chat: string }
 }
 
 export type PassoFine = 'chiudi' | 'worktree' | 'ramo' | 'trascrizione' | 'voci'
@@ -659,6 +671,18 @@ export type Autopilota = SupervisoreMancato & {
    * mai (né il suo worktree `ap-…-c-N`, né il suo ramo). Vedi `idChatNuova`.
    */
   chatTolte?: number
+  /**
+   * P3 (30/10): **l'autopilota unico** del workspace, l'orchestratore. Parla
+   * con Nicholas e guida gli specialisti attraverso gli strumenti MCP di
+   * SierraDeck; il vecchio giro (supervisore, guardiano, mai-fermo) non lo
+   * tocca. Vedi `autopilot-host/orchestratore.ts`.
+   */
+  unico?: true
+  /**
+   * P3: questo autopilota è passato all'autopilota unico del suo workspace
+   * (l'id): resta in sola lettura fra i «Precedenti».
+   */
+  passatoA?: string
 }
 
 /** Una chat esistente adottata dall'autopilota del suo workspace (0.78.0). */
@@ -812,7 +836,11 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(typeof o.lasciataFuori === 'object' && o.lasciataFuori !== null && typeof (o.lasciataFuori as { il?: unknown }).il === 'string' && typeof (o.lasciataFuori as { perche?: unknown }).perche === 'string'
       ? { lasciataFuori: { il: (o.lasciataFuori as { il: string }).il, perche: (o.lasciataFuori as { perche: string }).perche } }
       : {}),
-    ...(leggiFineChat(o.fine) !== undefined ? { fine: leggiFineChat(o.fine) } : {})
+    ...(leggiFineChat(o.fine) !== undefined ? { fine: leggiFineChat(o.fine) } : {}),
+    ...(stringaNonVuota(o.compitoId) !== undefined ? { compitoId: o.compitoId as string } : {}),
+    ...(typeof o.origine === 'object' && o.origine !== null && stringaNonVuota((o.origine as { autopilota?: unknown }).autopilota) !== undefined && stringaNonVuota((o.origine as { chat?: unknown }).chat) !== undefined
+      ? { origine: { autopilota: (o.origine as { autopilota: string }).autopilota, chat: (o.origine as { chat: string }).chat } }
+      : {})
   }
 }
 
@@ -1095,7 +1123,9 @@ export function parseAutopilota(raw: unknown): {
   // «pronto» è fra questi: è lo stato di chi sta per partire, e partire senza
   // una fine da raggiungere è precisamente ciò da cui questo controllo difende.
   const STATI_CHE_LAVORANO: StatoAutopilota[] = ['pronto', 'lavoro', 'attesa']
-  const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato)
+  // P3: l'autopilota unico non ha una fine sua: i criteri stanno nei compiti
+  // del piano, e il cancello misura quelli.
+  const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato) && o.unico !== true
   if (senzaFine) {
     // Fermato, non buttato. Rifiutare il file lo faceva mettere da parte come
     // illeggibile, e per l'utente l'autopilota **spariva** — senza traccia e
@@ -1258,7 +1288,9 @@ export function parseAutopilota(raw: unknown): {
       ...(Array.isArray(o.releaseUscite) && leggiReleaseUscite(o.releaseUscite).length > 0 ? { releaseUscite: leggiReleaseUscite(o.releaseUscite) } : {}),
       ...(Array.isArray(o.adottate) ? { adottate: leggiAdottate(o.adottate) } : {}),
       ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {}),
-      ...(typeof o.chatTolte === 'number' && o.chatTolte > 0 ? { chatTolte: Math.floor(o.chatTolte) } : {})
+      ...(typeof o.chatTolte === 'number' && o.chatTolte > 0 ? { chatTolte: Math.floor(o.chatTolte) } : {}),
+      ...(o.unico === true ? { unico: true as const } : {}),
+      ...(stringaNonVuota(o.passatoA) !== undefined ? { passatoA: o.passatoA as string } : {})
     },
     scartati
   }
