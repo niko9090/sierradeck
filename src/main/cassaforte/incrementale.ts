@@ -6,9 +6,10 @@ import { createHash, randomUUID } from 'node:crypto'
 import { cifra, decifra } from './cifratura'
 import { cancellaVoci, firmaRadici, leggiPerCaricare, percorsoSicuro, ripristina, type FirmaFile, type Radice } from './raccolta'
 import type { Voce } from './pacchetto'
-import type { Archivio } from './archivio'
+import { ConflittoArchivio, type Archivio, type InfoFile } from './archivio'
 import type { Progresso } from './motore'
 import { inParallelo } from '../stat-in-parallelo'
+import { senzaSegnaleDrive } from '../risorse'
 
 /**
  * La sincronizzazione **incrementale**: manda solo ciò che è cambiato.
@@ -21,9 +22,11 @@ import { inParallelo } from '../stat-in-parallelo'
  * cancellano quelli spariti, si riscrive il manifesto. Per un utente con
  * migliaia di chat e un paio di GB, un salvataggio passa da minuti a secondi.
  *
- * Niente conflitto a versione unica (non c'è più un blocco solo): l'ultimo che
- * scrive vince, che per l'uso «i miei PC, uno alla volta» è quello che serve. La
- * cifratura resta end-to-end: il nome dei file è un hash del percorso, e il
+ * Il manifesto e' uno per tutti i PC (anche i client vecchi lo leggono): dalla
+ * 0.86.2 non si riscrive piu' intero da cio' che si era letto all'inizio, ma si
+ * rilegge e si fonde subito prima di scrivere, con il controllo di versione
+ * (`aggiornaManifesto`). Le cancellazioni nei progetti viaggiano con una
+ * lapide (`sierradeck.lapidi`). La cifratura resta end-to-end: il nome dei file è un hash del percorso, e il
  * contenuto — manifesto compreso — non si legge senza la chiave.
  */
 
@@ -42,6 +45,12 @@ export type VoceManifesto = {
    * casa»): lo «spazio» di ogni PC sul Drive. Solo sulle chat.
    */
   pc?: string
+  /**
+   * Il PC che ha caricato questa versione (0.86.2), su ogni voce. Se la voce
+   * sparisce dal manifesto senza lapide, e' lui a rimetterla. I client
+   * vecchi lo ignorano.
+   */
+  da?: string
 }
 export type Manifesto = {
   versione: 1
@@ -96,28 +105,244 @@ export async function copiaManifesto(archivio: Archivio, nome: string): Promise<
   return true
 }
 
+/**
+ * Scrive il manifesto **com'e'**, senza guardare chi c'e' sul Drive. Resta per
+ * i casi che lo vogliono davvero (rimettere una copia di sicurezza); chi
+ * cambia il manifesto passa da `aggiornaManifesto`, che non perde il lavoro
+ * degli altri PC.
+ */
 export async function scriviManifesto(archivio: Archivio, maestra: Buffer, manifesto: Manifesto): Promise<void> {
   const blob = await cifra(maestra, Buffer.from(JSON.stringify(manifesto), 'utf8'))
   await archivio.carica(NOME_MANIFESTO, blob)
+  memoManifesto.delete(archivio)
 }
 
 export type EsitoManifesto =
   | { stato: 'assente' }
   | { stato: 'illeggibile' }
-  | { stato: 'ok'; manifesto: Manifesto }
+  | { stato: 'ok'; manifesto: Manifesto; versione?: string; id?: string }
 
-export async function leggiManifesto(archivio: Archivio, maestra: Buffer): Promise<EsitoManifesto> {
-  const blob = await archivio.scarica(NOME_MANIFESTO)
-  if (blob === undefined) return { stato: 'assente' }
-  const chiaro = await decifra(maestra, blob)
-  if (chiaro === undefined) return { stato: 'illeggibile' }
+/**
+ * L'ultimo manifesto letto, per archivio (0.86.2). Il manifesto e' di mezzo
+ * MB cifrato: salvataggio, arrivo e pannello lo scaricavano e decifravano
+ * ognuno per conto suo, ~2,7 s ogni volta, anche quando non era cambiato.
+ * Ora si chiede prima a Drive chi e' (id, versione, md5: una chiamata
+ * piccola) e, se e' lo stesso, si riusa la copia gia' aperta.
+ */
+type MemoManifesto = { chiave: string; maestra: string; manifesto: Manifesto; versione: string }
+const memoManifesto = new WeakMap<Archivio, MemoManifesto>()
+const impMaestra = (m: Buffer): string => createHash('sha256').update('sierradeck-memo-manifesto').update(m).digest('hex')
+const chiaveInfo = (i: InfoFile): string => `${i.id}|${i.versione}|${i.md5 ?? ''}|${i.modificato ?? ''}`
+
+function interpreta(chiaro: Buffer | undefined): Manifesto | undefined {
+  if (chiaro === undefined) return undefined
   try {
     const m = JSON.parse(chiaro.toString('utf8')) as Manifesto
-    if (m.versione !== 1 || typeof m.file !== 'object') return { stato: 'illeggibile' }
-    return { stato: 'ok', manifesto: m }
+    if (m.versione !== 1 || typeof m.file !== 'object' || m.file === null) return undefined
+    return m
   } catch {
-    return { stato: 'illeggibile' }
+    return undefined
   }
+}
+
+export async function leggiManifesto(archivio: Archivio, maestra: Buffer): Promise<EsitoManifesto> {
+  if (archivio.info === undefined) {
+    const blob = await archivio.scarica(NOME_MANIFESTO)
+    if (blob === undefined) return { stato: 'assente' }
+    const m = interpreta(await decifra(maestra, blob))
+    return m === undefined ? { stato: 'illeggibile' } : { stato: 'ok', manifesto: m }
+  }
+  // Prima chi e', poi il contenuto: cosi' il contenuto e' almeno nuovo
+  // quanto la versione che ci si ricorda (al peggio piu' nuovo, e la
+  // scrittura condizionale se ne accorge e rilegge: mai il contrario).
+  const info = await archivio.info(NOME_MANIFESTO)
+  if (info === undefined) { memoManifesto.delete(archivio); return { stato: 'assente' } }
+  const chiave = chiaveInfo(info)
+  const maestraImp = impMaestra(maestra)
+  const memo = memoManifesto.get(archivio)
+  if (memo !== undefined && memo.chiave === chiave && memo.maestra === maestraImp) {
+    return { stato: 'ok', manifesto: structuredClone(memo.manifesto), versione: memo.versione, id: info.id }
+  }
+  const blob = await archivio.scarica(NOME_MANIFESTO)
+  if (blob === undefined) return { stato: 'assente' }
+  const m = interpreta(await decifra(maestra, blob))
+  if (m === undefined) return { stato: 'illeggibile' }
+  memoManifesto.set(archivio, { chiave, maestra: maestraImp, manifesto: structuredClone(m), versione: info.versione })
+  return { stato: 'ok', manifesto: m, versione: info.versione, id: info.id }
+}
+
+/** Due voci dello stesso file uguali: stesso blob, stesso contenuto (impronta, o firma). */
+export function stessaVoce(a: VoceManifesto | undefined, b: VoceManifesto | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b
+  if (a.nome !== b.nome) return false
+  if (a.sha !== undefined && b.sha !== undefined) return a.sha === b.sha
+  return stessaFirma(a, b)
+}
+
+const pausaCasuale = (i: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 350) * (i + 1)))
+
+/**
+ * Cambia il manifesto del Drive **senza perdere il lavoro degli altri PC**
+ * (0.86.2, difetto C1 dell'analisi).
+ *
+ * Prima ognuno leggeva il manifesto all'inizio del salvataggio e lo
+ * riscriveva intero alla fine: un PC partito prima rimetteva le voci vecchie
+ * sopra quelle appena scritte da un altro (ultimo che scrive vince). Qui il
+ * manifesto si rilegge **subito prima** di scrivere, `cambia` ci applica
+ * sopra solo i cambi di questo giro, e la scrittura parte solo se la versione
+ * sul Drive e' ancora quella letta; se no si rilegge e si riapplica.
+ *
+ * Drive non ha una scrittura condizionale vera (c'e' una richiesta fra il
+ * controllo e la scrittura): per un archivio che lo dice
+ * (`finestraConflittoMs`), dopo la scrittura si aspetta quella finestra e si
+ * rilegge; se `presente` dice che i propri cambi non ci sono piu', si
+ * riapplicano. Quello che resta scoperto lo ripara il giro dopo, perche' una
+ * voce sparita non fa piu' cancellare niente (vedi le lapidi).
+ *
+ * `cambia` restituisce `undefined` per non scrivere niente. Il manifesto
+ * scritto torna indietro; `undefined` se non si e' scritto.
+ */
+export async function aggiornaManifesto(
+  archivio: Archivio,
+  maestra: Buffer,
+  cambia: (attuale: Manifesto, cera: boolean) => Manifesto | undefined | Promise<Manifesto | undefined>,
+  opzioni: { tentativi?: number; presente?: (m: Manifesto) => boolean; aspetta?: (ms: number) => Promise<void> } = {}
+): Promise<Manifesto | undefined> {
+  const tentativi = opzioni.tentativi ?? 6
+  const aspetta = opzioni.aspetta ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)))
+  // La scrittura del manifesto non si annulla a meta': «Annulla» vuol dire
+  // «scrivi quello che e' salito e fermati», e senza manifesto i blob saliti
+  // non li vedrebbe nessuno.
+  return senzaSegnaleDrive(async () => {
+    /** I manifesti creati da qui: se due PC lo creano insieme, ne nascono due. */
+    const creati = new Set<string>()
+    for (let i = 0; ; i += 1) {
+      const e = await leggiManifesto(archivio, maestra)
+      if (e.stato === 'illeggibile') throw new Error('Il manifesto sul Drive non si apre con questa chiave: non salvo sopra.')
+      const attuale = e.stato === 'ok' ? e.manifesto : manifestoVuoto()
+      const nuovo = await cambia(attuale, e.stato === 'ok')
+      if (nuovo === undefined) return undefined
+      const blob = await cifra(maestra, Buffer.from(JSON.stringify(nuovo), 'utf8'))
+      if (archivio.info === undefined || archivio.caricaSe === undefined) {
+        await archivio.carica(NOME_MANIFESTO, blob)
+        return nuovo
+      }
+      try {
+        const info = await archivio.caricaSe(NOME_MANIFESTO, blob, e.stato === 'ok' ? (e.versione ?? null) : null)
+        if (e.stato !== 'ok') creati.add(info.id)
+        memoManifesto.set(archivio, { chiave: chiaveInfo(info), maestra: impMaestra(maestra), manifesto: structuredClone(nuovo), versione: info.versione })
+      } catch (err) {
+        if (!(err instanceof ConflittoArchivio) || i >= tentativi - 1) throw err
+        memoManifesto.delete(archivio)
+        await pausaCasuale(i)
+        continue
+      }
+      const finestra = archivio.finestraConflittoMs
+      if (finestra === undefined) return nuovo
+      await aspetta(finestra)
+      const dopo = await leggiManifesto(archivio, maestra)
+      if (dopo.stato === 'ok' && (opzioni.presente?.(dopo.manifesto) ?? true)) {
+        // Un manifesto creato da qui che non e' quello che vale: due PC lo
+        // hanno creato insieme. I miei cambi sono gia' riportati in quello
+        // buono (`presente`): il doppione si toglie, perche' un client
+        // vecchio potrebbe leggere quello (prende il primo che trova).
+        for (const id of creati) {
+          if (id !== dopo.id && archivio.cancellaId !== undefined) {
+            await archivio.cancellaId(id).catch((err: unknown) => {
+              console.warn(`[sync] doppione del manifesto non tolto (${err instanceof Error ? err.message : String(err)})`)
+            })
+          }
+        }
+        return dopo.manifesto
+      }
+      if (i >= tentativi - 1) {
+        throw new Error('Il manifesto sul Drive e\' stato riscritto da un altro PC mentre salvavo: riprovo al prossimo giro.')
+      }
+    }
+  })
+}
+
+/**
+ * Le **lapidi** (0.86.2): chi ha tolto quale file dei progetti, e quale
+ * versione. Vivono in un file a parte (`sierradeck.lapidi`), che i client
+ * vecchi non conoscono e quindi non riscrivono.
+ *
+ * Prima un file dei progetti che mancava dal manifesto del Drive, e qui era
+ * com'era, si **cancellava dal disco**: «l'altro PC l'ha tolto». Ma una voce
+ * manca anche quando un PC ha riscritto il manifesto con una copia vecchia
+ * (C1), e allora si buttava un file vero. Da qui una cancellazione arriva
+ * solo con la sua lapide; una voce che manca e basta non toglie niente.
+ */
+export type Lapide = { voce: VoceManifesto; quando: string; pc?: string }
+/**
+ * `prefissi`: i progetti tolti per intero dal Drive («Togli»). Non cancellano
+ * niente sui PC (le cartelle restano), dicono solo di non rimetterne i file
+ * sul Drive come voci sparite.
+ */
+export type Lapidi = { versione: 1; lapidi: Record<string, Lapide>; prefissi?: Record<string, { quando: string; pc?: string }> }
+
+export const NOME_LAPIDI = 'sierradeck.lapidi'
+/** Quanto resta una lapide: chi resta spento piu' a lungo tiene il file (e non perde niente). */
+export const LAPIDE_PER_MS = 180 * 24 * 60 * 60_000
+
+export async function leggiLapidi(archivio: Archivio, maestra: Buffer): Promise<Lapidi> {
+  const blob = await archivio.scarica(NOME_LAPIDI)
+  if (blob === undefined) return { versione: 1, lapidi: {} }
+  const chiaro = await decifra(maestra, blob)
+  if (chiaro === undefined) throw new Error('Le lapidi sul Drive non si aprono con questa chiave.')
+  try {
+    const j = JSON.parse(chiaro.toString('utf8')) as Partial<Lapidi>
+    return {
+      versione: 1,
+      lapidi: typeof j.lapidi === 'object' && j.lapidi !== null ? j.lapidi : {},
+      ...(typeof j.prefissi === 'object' && j.prefissi !== null ? { prefissi: j.prefissi } : {})
+    }
+  } catch {
+    throw new Error('Le lapidi sul Drive non si leggono.')
+  }
+}
+
+/**
+ * Aggiunge lapidi, unendole a quelle che ci sono (rilette, mai sovrascritte):
+ * con la scrittura condizionale dove l'archivio la sa fare.
+ */
+export async function aggiungiLapidi(
+  archivio: Archivio, maestra: Buffer, nuove: Record<string, Lapide>, adessoMs: number = Date.now(),
+  prefissi: NonNullable<Lapidi['prefissi']> = {}
+): Promise<void> {
+  if (Object.keys(nuove).length === 0 && Object.keys(prefissi).length === 0) return
+  const fresca = (quando: string): boolean => { const t = Date.parse(quando); return Number.isNaN(t) || adessoMs - t < LAPIDE_PER_MS }
+  await senzaSegnaleDrive(async () => {
+    for (let i = 0; ; i += 1) {
+      const info = archivio.info === undefined ? undefined : await archivio.info(NOME_LAPIDI)
+      const attuali = await leggiLapidi(archivio, maestra)
+      const unite: Record<string, Lapide> = {}
+      for (const [p, l] of Object.entries({ ...attuali.lapidi, ...nuove })) if (fresca(l.quando)) unite[p] = l
+      const pref: NonNullable<Lapidi['prefissi']> = {}
+      for (const [p, l] of Object.entries({ ...(attuali.prefissi ?? {}), ...prefissi })) if (fresca(l.quando)) pref[p] = l
+      const tutto: Lapidi = { versione: 1, lapidi: unite, ...(Object.keys(pref).length > 0 ? { prefissi: pref } : {}) }
+      const blob = await cifra(maestra, Buffer.from(JSON.stringify(tutto), 'utf8'))
+      if (archivio.caricaSe === undefined || archivio.info === undefined) { await archivio.carica(NOME_LAPIDI, blob); return }
+      try {
+        await archivio.caricaSe(NOME_LAPIDI, blob, info?.versione ?? null)
+        return
+      } catch (err) {
+        if (!(err instanceof ConflittoArchivio) || i >= 5) throw err
+        await pausaCasuale(i)
+      }
+    }
+  })
+}
+
+/**
+ * La lapide dice che il file **come lo conosco io** e' stato tolto: la
+ * stessa versione, o una almeno altrettanto recente. Una lapide piu' vecchia
+ * della mia versione (il file e' stato tolto e poi rifatto) non vale.
+ */
+export function lapideVale(l: Lapide | undefined, mia: VoceManifesto | undefined): boolean {
+  if (l === undefined || mia === undefined) return false
+  return stessaVoce(l.voce, mia) || l.voce.mtime >= mia.mtime
 }
 
 /**
@@ -258,6 +483,32 @@ async function scriviSuDisco(disco: string, contenuto: Buffer, mtime: number): P
   try { await utimes(disco, mtime / 1000, mtime / 1000) } catch { /* si rimandera' una volta */ }
 }
 
+export type EsitoSalva = {
+  /** Il manifesto del Drive dopo il salvataggio (com'e' stato scritto, o com'era se non serviva scrivere). */
+  manifesto: Manifesto
+  /**
+   * Quello che questo PC deve ricordare (0.86.2): il manifesto del Drive,
+   * tranne le voci che restano com'erano qui — un conflitto vinto dal Drive
+   * su una chat, una voce sparita dal Drive senza lapide — e senza i file
+   * tolti da qui con la lapide.
+   */
+  manifestoLocale: Manifesto
+  /** I file saliti davvero (0.86.2, M1: prima contava anche i saltati e i rimandati). */
+  caricati: number
+  cancellati: number
+  cancellatiPercorsi: string[]
+  conflitti: Conflitto[]
+  annullato?: boolean
+  /** Rimandati al prossimo giro: chat vive, oltre il tetto, unione non riuscita. */
+  rimandati: number
+  /** Cambiati qui ma non saliti: il Drive vince, il file non si legge, «Annulla». */
+  saltati: number
+  /** Voci sparite dal Drive senza lapide: il file resta qui e aspetta. */
+  sospesi: number
+  /** File tolti da qui perche' un altro PC li ha tolti (con la lapide). */
+  toltiQui: string[]
+}
+
 /**
  * Salva sul Drive cio' che e' cambiato su questo PC.
  *
@@ -332,7 +583,7 @@ export async function salvaIncrementale(deps: {
    * grande del tetto non salirebbe mai.
    */
   budgetByte?: number
-}): Promise<{ manifesto: Manifesto; caricati: number; cancellati: number; cancellatiPercorsi: string[]; conflitti: Conflitto[]; annullato?: boolean; rimandati: number }> {
+}): Promise<EsitoSalva> {
   const copie = deps.copieDiConflitto ?? PROGETTI
   const pcNome = deps.pcNome ?? 'questo-pc'
   const firma = await firmaRadici(deps.radici)
@@ -363,10 +614,41 @@ export async function salvaIncrementale(deps: {
   // Cio' che ho, che credevo sul Drive, e che il Drive non ha piu': risale.
   // E' successo davvero — un altro PC, con il manifesto locale gonfio di voci
   // che non aveva su disco, ha «tolto» dal Drive 385 chat che erano di qui.
-  // Nei progetti no: li' togliere e' una scelta, e si propaga (piu' sotto).
+  // Nei progetti vedi sotto: li' decide la lapide.
   for (const [p] of firma) {
     if (base.file[p] === undefined && prec.file[p] !== undefined && !copie(prefissoDi(p)) && !cambiati.includes(p)) {
       cambiati.push(p)
+    }
+  }
+  // **Nei progetti, una voce che manca non e' una cancellazione** (0.86.2).
+  // Prima un file conosciuto, sparito dal manifesto del Drive e qui com'era,
+  // si cancellava dal disco. Ma una voce manca anche quando un altro PC ha
+  // riscritto il manifesto con una copia vecchia: e allora si buttava un
+  // file vero. Ora si toglie solo con una lapide (un altro PC l'ha tolto
+  // davvero); se la voce l'avevo caricata io, la rimetto; altrimenti il file
+  // resta qui e aspetta, e il manifesto di qui lo ricorda com'era.
+  const me = deps.proprietario
+  const mancanti = Object.keys(prec.file).filter((p) => {
+    if (base.file[p] !== undefined || !copie(prefissoDi(p)) || !prefissiNostri.has(prefissoDi(p))) return false
+    const f = firma.get(p)
+    return f !== undefined && stessaFirma(prec.file[p], f)
+  })
+  const daTogliereQui: string[] = []
+  /** Voci che il manifesto di qui tiene com'erano (o senza voce, `null`), anche se il Drive dice altro. */
+  const tieniQui = new Map<string, VoceManifesto | null>()
+  let sospesi = 0
+  if (mancanti.length > 0) {
+    // Lapidi illeggibili = nessuna lapide: si tiene il file, non si perde niente.
+    const lapidi = await leggiLapidi(deps.archivio, deps.maestra).catch((err: unknown) => {
+      console.warn(`[sync] lapidi non lette, nessun file tolto da qui in questo giro (${err instanceof Error ? err.message : String(err)})`)
+      return undefined
+    })
+    for (const p of mancanti) {
+      const mia = prec.file[p] as VoceManifesto
+      if (lapidi !== undefined && lapideVale(lapidi.lapidi[p], mia)) daTogliereQui.push(p)
+      else if (me !== undefined && mia.da === me && lapidi !== undefined && lapidi.prefissi?.[prefissoDi(p)] === undefined) {
+        if (!cambiati.includes(p)) cambiati.push(p)
+      } else { tieniQui.set(p, mia); sospesi += 1 }
     }
   }
   // Le chat vive aspettano, e oltre il tetto di byte si aspetta il giro dopo.
@@ -397,20 +679,41 @@ export async function salvaIncrementale(deps: {
     }
     cambiati.splice(0, cambiati.length, ...dentro)
   }
+  /** Toglie da qui i file che un altro PC ha tolto davvero (con la lapide). */
+  const togliQui = async (): Promise<void> => {
+    for (const p of daTogliereQui) {
+      const f = firma.get(p)
+      if (f !== undefined) await unlink(f.disco).catch(() => undefined)
+    }
+  }
+  const conTenuti = (m: Manifesto): Manifesto => {
+    const file = { ...m.file }
+    for (const [p, v] of tieniQui) { if (v === null) delete file[p]; else file[p] = v }
+    for (const p of daTogliereQui) delete file[p]
+    return { ...m, file }
+  }
   // Niente da fare? Non si tocca niente: salvataggio a costo zero.
   if (cambiati.length === 0 && forseCancellati.length === 0) {
-    return { manifesto: prec, caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [], rimandati }
+    if (deps.segnale?.aborted !== true) await togliQui()
+    return {
+      manifesto: prec, manifestoLocale: conTenuti(prec), caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [],
+      rimandati, saltati: 0, sospesi, toltiQui: deps.segnale?.aborted === true ? [] : daTogliereQui
+    }
   }
   // Con tanti file, un elenco solo insegna all'archivio dove sta ogni nome:
   // una chiamata in meno per ogni caricamento.
   if (cambiati.length > 10) await deps.archivio.elenca().catch(() => undefined)
-  const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...base.file } }
+  /**
+   * I cambi di questo giro, e solo quelli (0.86.2): si applicano sul
+   * manifesto **riletto** alla fine, non su quello letto all'inizio.
+   */
+  const messi = new Map<string, VoceManifesto>()
   const conflitti: Conflitto[] = []
 
   // Si cancella dal Drive solo cio' che **questa** macchina ha smesso di avere,
   // sotto un prefisso che qui esiste — e che nessun altro ha toccato nel
   // frattempo: una modifica altrui vince su una cancellazione di qui.
-  const cancellati = forseCancellati.filter((p) => stessaFirma(base.file[p], prec.file[p]))
+  const cancellati = forseCancellati.filter((p) => base.file[p] !== undefined && stessaFirma(base.file[p], prec.file[p]))
 
   let fatto = 0
   const avanza = (percorso?: string): void => {
@@ -421,15 +724,18 @@ export async function salvaIncrementale(deps: {
     })
   }
   let caricatiDavvero = 0
+  let saltati = 0
   /** Carica un corpo gia' pronto (compresso o no) con l'impronta del chiaro. */
   const caricaCorpo = async (percorso: string, corpo: Buffer, sha: string, f: { size: number; mtime: number }): Promise<void> => {
     const nome = nomeDi(percorso)
     await deps.archivio.carica(nome, await cifra(deps.maestra, corpo))
     // Mutazione fra due `await`: JS e' a thread singolo, non c'e' corsa vera.
-    nuovo.file[percorso] = {
+    messi.set(percorso, {
       nome, size: f.size, mtime: f.mtime, sha,
-      ...(deps.proprietario !== undefined && prefissoDi(percorso) === 'chat' ? { pc: deps.proprietario } : {})
-    }
+      ...(deps.proprietario !== undefined && prefissoDi(percorso) === 'chat' ? { pc: deps.proprietario } : {}),
+      // Chi l'ha caricata (0.86.2): se la voce sparisce, la rimette lui.
+      ...(deps.proprietario !== undefined ? { da: deps.proprietario } : {})
+    })
     caricatiDavvero += 1
   }
   const carica = async (percorso: string, contenuto: Buffer, f: { size: number; mtime: number }): Promise<void> => {
@@ -442,10 +748,23 @@ export async function salvaIncrementale(deps: {
     return blob === undefined ? undefined : spacchetta(await decifra(deps.maestra, blob))
   }
 
+  const fermato = (): boolean => deps.segnale?.aborted === true
   await conLimite(cambiati, PARALLELI, async (percorso) => {
-    if (deps.segnale?.aborted === true) { avanza(percorso); return }
+    if (fermato()) { saltati += 1; avanza(percorso); return }
+    try {
+      await unFile(percorso)
+    } catch (err) {
+      // «Annulla» interrompe anche la richiesta in corso: quel file non e'
+      // salito, e il manifesto si scrive con quelli che ce l'hanno fatta.
+      if (!fermato()) throw err
+      saltati += 1
+      avanza(percorso)
+    }
+  })
+
+  async function unFile(percorso: string): Promise<void> {
     const f = firma.get(percorso)
-    if (f === undefined) { avanza(percorso); return }
+    if (f === undefined) { saltati += 1; avanza(percorso); return }
     const voceDrive = base.file[percorso]
     // **A flusso** dove il contenuto serve solo a salire: niente sostituto per
     // questo percorso e niente copia di conflitto (le chat, l'assetto). E' la
@@ -454,18 +773,35 @@ export async function salvaIncrementale(deps: {
       (deps.sostituto !== undefined && (deps.sostituisce?.(percorso) ?? true))
     if (!serveIntero) {
       const altri = voceDrive !== undefined && !stessaFirma(voceDrive, prec.file[percorso])
-      // Conflitto senza copia: vince il piu' recente, e se e' il Drive qui
-      // non si legge nemmeno.
-      if (altri && f.mtime < voceDrive.mtime) { conflitti.push({ percorso, vinto: 'drive' }); avanza(percorso); return }
+      // Conflitto senza copia: se vince il Drive qui non si legge nemmeno.
+      // Per le chat vince la **piu' lunga**, come all'arrivo e al ripristino
+      // (una trascrizione cresce e basta); per il resto la piu' recente.
+      if (altri) {
+        const eChat = prefissoDi(percorso) === 'chat'
+        const vinceDrive = eChat ? voceDrive.size > f.size : f.mtime < voceDrive.mtime
+        if (vinceDrive) {
+          conflitti.push({ percorso, vinto: 'drive' })
+          // **La decisione resta** (0.86.2, M2). Prima il manifesto di qui
+          // prendeva la voce del Drive, e al giro dopo la copia di qui
+          // risultava «cambiata solo qui» e saliva sopra quella che aveva
+          // appena perso. Ora qui resta la voce di prima: il conflitto si
+          // rivede (e si ridecide uguale) finche' l'arrivo non porta giu' la
+          // copia del Drive, o la chat di qui la supera.
+          if (eChat) tieniQui.set(percorso, prec.file[percorso] ?? null)
+          saltati += 1
+          avanza(percorso)
+          return
+        }
+      }
       const pronto = await leggiPerCaricare(f.disco, f.size, deps.comprimi?.(percorso) === true)
-      if (pronto === undefined) { avanza(percorso); return }
+      if (pronto === undefined) { saltati += 1; avanza(percorso); return }
       await caricaCorpo(percorso, pronto.corpo, pronto.sha, f)
       if (altri) conflitti.push({ percorso, vinto: 'mio' })
       avanza(percorso)
       return
     }
     const contenuto = await readFile(f.disco).catch(() => undefined)
-    if (contenuto === undefined) { avanza(percorso); return }
+    if (contenuto === undefined) { saltati += 1; avanza(percorso); return }
     // **Un sostituto che fallisce e' un rimando, non «nessuna sostituzione».**
     // L'unione dei workspace legge il Drive: un 5xx dopo i ritenti, o un
     // timeout, tornavano `undefined` e si caricava il file locale tale e
@@ -478,15 +814,14 @@ export async function salvaIncrementale(deps: {
         fuso = await deps.sostituto(percorso, contenuto, base)
       } catch (err) {
         console.warn(`[sync] ${percorso}: il Drive non si e' letto per l'unione, lo rimando al prossimo giro (${err instanceof Error ? err.message : String(err)})`)
-        if (voceDrive !== undefined) nuovo.file[percorso] = voceDrive
-        else delete nuovo.file[percorso]
+        rimandati += 1
         avanza(percorso)
         return
       }
     }
     if (fuso !== undefined) {
       // Gia' cosi' sul Drive: la voce resta quella di la', e non sale niente.
-      if (voceDrive?.sha !== undefined && voceDrive.sha === impronta(fuso)) { nuovo.file[percorso] = voceDrive; avanza(percorso); return }
+      if (voceDrive?.sha !== undefined && voceDrive.sha === impronta(fuso)) { avanza(percorso); return }
       // La voce porta la firma del file di QUI (dimensione e data), non del
       // fuso: cosi' il prossimo salvataggio, se qui non e' cambiato niente, non
       // lo rivede come «cambiato» e non rilegge il Drive per niente.
@@ -533,6 +868,7 @@ export async function salvaIncrementale(deps: {
         const loro = await scaricaChiaro(voceDrive)
         if (loro === undefined) {
           console.warn(`[sync] ${percorso}: il file del Drive non si scarica, tengo il mio e riprovo al prossimo giro`)
+          saltati += 1
           avanza(percorso)
           return
         }
@@ -546,41 +882,93 @@ export async function salvaIncrementale(deps: {
         conflitti.push({ percorso, vinto: 'drive', ...(discoCopia !== undefined ? { copia } : {}) })
       } else {
         conflitti.push({ percorso, vinto: 'drive' })
+        saltati += 1
       }
     }
     avanza(percorso)
-  })
+  }
 
   // Annullato: niente cancellazioni, ne' sul Drive ne' qui. Si scrive solo il
   // manifesto di quello che e' salito.
   const annullato = deps.segnale?.aborted === true
-  if (!annullato) {
-    await conLimite(cancellati, PARALLELI, async (percorso) => {
-      const voce = base.file[percorso]
-      if (voce !== undefined) await deps.archivio.cancella(voce.nome)
-      delete nuovo.file[percorso]
+  const daCancellare = annullato ? [] : cancellati
+  // Prima la lapide, poi la cancellazione: un altro PC toglie il file da se'
+  // solo se la trova. Senza lapide scritta non si cancella niente.
+  if (daCancellare.length > 0) {
+    const nuove: Record<string, Lapide> = {}
+    for (const p of daCancellare) {
+      nuove[p] = { voce: base.file[p] as VoceManifesto, quando: deps.adesso, ...(me !== undefined ? { pc: me } : {}) }
+    }
+    await aggiungiLapidi(deps.archivio, deps.maestra, nuove)
+  }
+
+  /** I miei cambi che un altro PC ha superato mentre salivo: restano suoi sul Drive. */
+  const superati = new Set<string>()
+  const improntaDelBlob = async (nome: string): Promise<string | undefined> => {
+    const blob = await deps.archivio.scarica(nome).catch(() => undefined)
+    if (blob === undefined) return undefined
+    const chiaro = spacchetta(await decifra(deps.maestra, blob))
+    return chiaro === undefined ? undefined : impronta(chiaro)
+  }
+  const scritto = await aggiornaManifesto(deps.archivio, deps.maestra, async (attuale) => {
+    superati.clear()
+    if (messi.size === 0 && daCancellare.length === 0) return undefined
+    const file = { ...attuale.file }
+    for (const [p, v] of messi) {
+      const ora = attuale.file[p]
+      if (ora !== undefined && !stessaVoce(ora, base.file[p]) && !stessaVoce(ora, v)) {
+        // Un altro PC ha scritto lo stesso file durante questo giro: il blob
+        // sul Drive e' uno solo (il nome viene dal percorso), e la voce deve
+        // dire quello che c'e' davvero. Se non e' il mio, resta la sua, e
+        // qui il file risulta ancora da salvare: il giro dopo lo tratta come
+        // un conflitto vero, con la copia.
+        if ((await improntaDelBlob(v.nome)) !== v.sha) { superati.add(p); continue }
+      }
+      file[p] = v
+    }
+    for (const p of daCancellare) {
+      const ora = attuale.file[p]
+      // Cambiato da un altro PC nel frattempo: la modifica vince sulla cancellazione.
+      if (ora !== undefined && !stessaVoce(ora, base.file[p])) { superati.add(p); continue }
+      delete file[p]
+    }
+    return { versione: 1, creatoIl: deps.adesso, file }
+  }, {
+    presente: (m) =>
+      [...messi].every(([p, v]) => superati.has(p) || stessaVoce(m.file[p], v)) &&
+      daCancellare.every((p) => superati.has(p) || m.file[p] === undefined || !stessaVoce(m.file[p], base.file[p]))
+  })
+  const finale = scritto ?? base
+  const cancellatiDavvero = daCancellare.filter((p) => !superati.has(p))
+  // I blob si tolgono dopo il manifesto: un manifesto che promette un blob
+  // gia' cancellato non deve mai esistere. Un blob rimasto orfano costa
+  // spazio, non dati.
+  await conLimite(cancellatiDavvero, PARALLELI, async (percorso) => {
+    const voce = base.file[percorso]
+    if (voce === undefined || finale.file[percorso] !== undefined) return
+    await deps.archivio.cancella(voce.nome).catch((err: unknown) => {
+      console.warn(`[sync] ${percorso}: il blob non si toglie dal Drive (${err instanceof Error ? err.message : String(err)}), resta orfano`)
     })
-  }
+  })
 
-  // Quello che un altro PC ha tolto dal Drive, e qui e' rimasto com'era: nei
-  // progetti si toglie anche qui, o al prossimo giro risalirebbe come nuovo.
-  for (const p of annullato ? [] : Object.keys(prec.file)) {
-    if (base.file[p] !== undefined || !copie(prefissoDi(p))) continue
-    const f = firma.get(p)
-    if (f === undefined || !stessaFirma(prec.file[p], f)) continue
-    await unlink(f.disco).catch(() => undefined)
-    delete nuovo.file[p]
-  }
+  // Quello che un altro PC ha tolto davvero (con la lapide), e qui e' rimasto
+  // com'era: si toglie anche qui, o al prossimo giro risalirebbe come nuovo.
+  if (!annullato) await togliQui()
 
-  await scriviManifesto(deps.archivio, deps.maestra, nuovo)
+  for (const p of superati) if (messi.has(p)) tieniQui.set(p, prec.file[p] ?? null)
+  const caricatiFinali = caricatiDavvero - [...superati].filter((p) => messi.has(p)).length
   return {
-    manifesto: nuovo,
-    caricati: annullato ? caricatiDavvero : cambiati.length,
-    cancellati: annullato ? 0 : cancellati.length,
-    cancellatiPercorsi: annullato ? [] : cancellati,
+    manifesto: finale,
+    manifestoLocale: conTenuti(finale),
+    caricati: caricatiFinali,
+    cancellati: cancellatiDavvero.length,
+    cancellatiPercorsi: cancellatiDavvero,
     conflitti,
     ...(annullato ? { annullato: true } : {}),
-    rimandati
+    rimandati,
+    saltati,
+    sospesi,
+    toltiQui: annullato ? [] : daTogliereQui
   }
 }
 
@@ -602,17 +990,24 @@ export async function togliPrefisso(deps: {
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
   if (esito.stato === 'assente') return { tolti: 0 }
   if (esito.stato === 'illeggibile') throw new Error('Il manifesto sul Drive non si apre con questa chiave: non tocco niente.')
-  const manifesto = esito.manifesto
-  const daTogliere = Object.keys(manifesto.file).filter((p) => prefissoDi(p) === deps.prefisso)
-  if (daTogliere.length === 0) return { tolti: 0, manifesto }
-  const nuovo: Manifesto = { versione: 1, creatoIl: deps.adesso, file: { ...manifesto.file } }
-  await conLimite(daTogliere, PARALLELI, async (percorso) => {
-    const voce = manifesto.file[percorso]
-    if (voce !== undefined) await deps.archivio.cancella(voce.nome).catch(() => undefined)
-    delete nuovo.file[percorso]
+  if (!Object.keys(esito.manifesto.file).some((p) => prefissoDi(p) === deps.prefisso)) return { tolti: 0, manifesto: esito.manifesto }
+  // Il segno sul prefisso (0.86.2): chi aveva caricato quei file non li
+  // rimette sul Drive come «voci sparite». Le cartelle sui PC restano.
+  await aggiungiLapidi(deps.archivio, deps.maestra, {}, Date.now(), { [deps.prefisso]: { quando: deps.adesso } })
+  // Prima il manifesto (riletto e fuso, come al salvataggio), poi i blob:
+  // un manifesto che promette un blob gia' cancellato non deve esistere.
+  const tolte = new Map<string, VoceManifesto>()
+  const nuovo = await aggiornaManifesto(deps.archivio, deps.maestra, (attuale) => {
+    tolte.clear()
+    const file = { ...attuale.file }
+    for (const [p, v] of Object.entries(attuale.file)) if (prefissoDi(p) === deps.prefisso) { tolte.set(p, v); delete file[p] }
+    return tolte.size === 0 ? undefined : { versione: 1, creatoIl: deps.adesso, file }
+  }, { presente: (m) => !Object.keys(m.file).some((p) => prefissoDi(p) === deps.prefisso) })
+  if (nuovo === undefined) return { tolti: 0 }
+  await conLimite([...tolte.values()], PARALLELI, async (voce) => {
+    await deps.archivio.cancella(voce.nome).catch(() => undefined)
   })
-  await scriviManifesto(deps.archivio, deps.maestra, nuovo)
-  return { tolti: daTogliere.length, manifesto: nuovo }
+  return { tolti: tolte.size, manifesto: nuovo }
 }
 
 export async function ripristinaIncrementale(deps: {
@@ -660,6 +1055,11 @@ export async function ripristinaIncrementale(deps: {
 }): Promise<{
   trovato: boolean; scritti: number; saltati: string[]; manifesto?: Manifesto; illeggibile?: boolean
   invariati: number; eliminati: number; conflitti: Conflitto[]; tenuti: number; annullato?: boolean
+  /**
+   * Con `elimina` (0.86.2): i file che il Drive non ha piu' ma senza lapide.
+   * Restano sul disco; il chiamante li tiene nel manifesto di qui com'erano.
+   */
+  inSospeso?: Record<string, VoceManifesto>
 }> {
   const vuoto = { scritti: 0, saltati: [], invariati: 0, eliminati: 0, conflitti: [], tenuti: 0 }
   const esito = await leggiManifesto(deps.archivio, deps.maestra)
@@ -721,7 +1121,11 @@ export async function ripristinaIncrementale(deps: {
     if (deps.segnale?.aborted === true) return
     const voce = manifesto.file[percorso]
     if (voce === undefined) return
-    const blob = await deps.archivio.scarica(voce.nome)
+    // «Annulla» ferma anche lo scaricamento in corso (0.86.2): quel file non arriva, gli altri si scrivono.
+    const blob = await deps.archivio.scarica(voce.nome).catch((err: unknown) => {
+      if (deps.segnale?.aborted === true) return undefined
+      throw err
+    })
     fatto += 1
     deps.onProgresso?.({ fase: 'scarico', fatto, totale: daScaricare.length, unita: 'file', verso: 'giu', dettaglio: percorso.split('/').slice(-2).join('/') })
     if (blob === undefined) return
@@ -780,6 +1184,23 @@ export async function ripristinaIncrementale(deps: {
             conflitti.push({ percorso, vinto: 'drive' })
           }
         } else {
+          // Una chat di qui che il Drive supera (0.86.2): se la sua coda non
+          // e' dentro quella del Drive (le due copie hanno preso strade
+          // diverse), resta una copia accanto, fuori dalla sincronizzazione
+          // (non finisce in `.jsonl`): mai buttare righe scritte solo qui.
+          if (prefissoDi(percorso) === 'chat') {
+            const mio = await readFile(disco).catch(() => undefined)
+            if (mio !== undefined && !chiaro.subarray(0, mio.length).equals(mio)) {
+              const stampo = adesso.replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
+              const accanto = `${disco}.prima-del-drive-${stampo}`
+              const salvata = await scriviSuDisco(accanto, mio, locale.mtime).then(() => true, () => false)
+              if (!salvata) {
+                console.warn(`[sync] ${percorso}: la copia di qui non si mette da parte, tengo la mia`)
+                conflitti.push({ percorso, vinto: 'mio' })
+                return
+              }
+            }
+          }
           conflitti.push({ percorso, vinto: 'drive' })
         }
       }
@@ -793,6 +1214,7 @@ export async function ripristinaIncrementale(deps: {
   )
   const annullato = deps.segnale?.aborted === true
   let eliminati = 0
+  const inSospeso: Record<string, VoceManifesto> = {}
   if (deps.elimina === true && prec !== undefined && !annullato) {
     const spariti: string[] = []
     for (const p of Object.keys(prec.file)) {
@@ -802,9 +1224,20 @@ export async function ripristinaIncrementale(deps: {
       const disco = discoDi(perPrefisso, p)
       const locale = disco === undefined ? undefined : await firmaSuDisco(disco)
       if (locale !== undefined && !stessaFirma(locale, prec.file[p])) { tenuti += 1; continue }
+      if (locale === undefined) continue
       spariti.push(p)
     }
-    eliminati = await cancellaVoci(spariti, deps.radici)
+    // **Solo con la lapide** (0.86.2): una voce che manca dal manifesto del
+    // Drive puo' essere stata persa da un altro PC che l'ha riscritto con una
+    // copia vecchia. Si toglie da qui solo cio' che un PC ha tolto davvero;
+    // il resto resta, e il manifesto di qui lo ricorda (`inSospeso`).
+    const lapidi = spariti.length === 0 ? undefined : await leggiLapidi(deps.archivio, deps.maestra).catch(() => undefined)
+    const confermati = spariti.filter((p) => lapidi !== undefined && lapideVale(lapidi.lapidi[p], prec.file[p]))
+    for (const p of spariti) if (!confermati.includes(p)) inSospeso[p] = prec.file[p] as VoceManifesto
+    eliminati = await cancellaVoci(confermati, deps.radici)
   }
-  return { trovato: true, scritti, saltati, ...(annullato ? { annullato: true } : { manifesto }), invariati, eliminati, conflitti, tenuti }
+  return {
+    trovato: true, scritti, saltati, ...(annullato ? { annullato: true } : { manifesto }), invariati, eliminati, conflitti, tenuti,
+    inSospeso
+  }
 }

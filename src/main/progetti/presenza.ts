@@ -20,7 +20,22 @@ import type { ProgettoDrive, RegistroProgettiStore } from './registro'
  * Drive, accanto ai dati: `presenza-<id>` e `staffetta-<id>`.
  */
 export type Presenza = { pcId: string; pcNome: string; da: string; battito: string }
-export type Staffetta = { daPc: string; daNome: string; quando: string }
+export type Staffetta = {
+  daPc: string; daNome: string; quando: string
+  /**
+   * La risposta di chi ha il testimone (0.86.2): `riprova` = non e' riuscito
+   * a salvare, quindi non cede adesso. I client vecchi non la scrivono e non
+   * la leggono: chi chiede aspetta come prima.
+   */
+  risposta?: 'riprova'
+  motivo?: string
+  rispostaIl?: string
+}
+
+/** Il messaggio per chi ha chiesto il testimone e si sente dire «riprova». */
+export function messaggioRiprova(pcNome: string, motivo?: string): string {
+  return `${pcNome} non è riuscito a salvare il progetto${motivo !== undefined && motivo !== '' ? ` (${motivo})` : ''}: non lo cede per non farti lavorare su uno stato vecchio. Riprova fra poco.`
+}
 
 /** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete: la presenza non vale piu'. */
 export const PRESENZA_SCADUTA_MS = 10 * 60_000
@@ -128,7 +143,7 @@ export function creaRonda(deps: {
   /** Le sessioni delle chat vive di questo PC dentro quel progetto. */
   vive: (p: ProgettoDrive) => string[]
   progettoDi: (cwd: string) => ProgettoDrive | undefined
-  salva: () => Promise<{ ok: boolean; messaggio?: string }>
+  salva: () => Promise<{ ok: boolean; messaggio?: string; annullato?: boolean }>
   ripristinaProgetto: (id: string) => Promise<{ ok: boolean; messaggio?: string; conflitti?: number }>
   iberna: (sessioni: string[]) => void
   avvisa: (a: AvvisoProgetto) => void
@@ -213,8 +228,18 @@ export function creaRonda(deps: {
         // o l'altro scaricherebbe uno stato vecchio.
         log(`[progetti] «${p.nome}»: ${staffetta.daNome} chiede il testimone, salvo e cedo`)
         const esito = await deps.salva()
-        if (!esito.ok) {
-          log(`[progetti] «${p.nome}»: salvataggio prima di cedere non riuscito (${esito.messaggio ?? '?'}), cedo lo stesso`)
+        if (!esito.ok || esito.annullato === true) {
+          // **Si cede solo dopo un salvataggio riuscito** (0.86.2). Prima si
+          // cedeva lo stesso: l'altro PC scaricava uno stato vecchio e il
+          // lavoro non salvato di qui restava indietro, pronto a finire in
+          // conflitto. Ora si risponde «riprova fra poco» dentro la staffetta
+          // (un campo in piu': chi non lo conosce aspetta come prima), si
+          // tiene il testimone, e al giro dopo si riprova a salvare.
+          const motivo = esito.annullato === true ? 'salvataggio annullato' : (esito.messaggio ?? '?')
+          log(`[progetti] «${p.nome}»: salvataggio prima di cedere non riuscito (${motivo}): non cedo, dico a ${staffetta.daNome} di riprovare fra poco`)
+          await s.scrivi(nomeStaffetta(p.id), { ...staffetta, risposta: 'riprova', motivo, rispostaIl: iso() } satisfies Staffetta)
+          stati.set(p.id, { id: p.id, nome: p.nome, chi: 'io', da: presenza.da, staffettaDa: staffetta.daNome })
+          return
         }
         deps.iberna(vive)
         await s.cancella(nomePresenza(p.id))
@@ -332,6 +357,14 @@ export function creaRonda(deps: {
           await aspetta(CONTROLLO_TESTIMONE_MS)
           presenza = await s.leggi<Presenza>(nomePresenza(id))
           if (!presenzaViva(presenza, adesso()) || presenza.pcId === me) break
+          // Chi ha il testimone non e' riuscito a salvare (0.86.2): non cede, e
+          // lo dice. Si ritira la richiesta e si riprova fra poco.
+          const risposta = await s.leggi<Staffetta>(nomeStaffetta(id))
+          if (risposta?.daPc === me && risposta.risposta === 'riprova') {
+            log(`[progetti] «${p.nome}»: ${presenza.pcNome} non e' riuscito a salvare (${risposta.motivo ?? '?'}), riprovo fra poco`)
+            await s.cancella(nomeStaffetta(id)).catch(() => undefined)
+            return { ok: false, messaggio: messaggioRiprova(presenza.pcNome, risposta.motivo) }
+          }
         }
         if (presenzaViva(presenza, adesso()) && presenza.pcId !== me) {
           log(`[progetti] «${p.nome}»: ${presenza.pcNome} non risponde`)
