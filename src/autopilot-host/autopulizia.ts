@@ -227,6 +227,8 @@ export type EsitoAutopulizia = {
   tenute: Array<{ cosa: string; perche: string }>
   noteTagliate: number
   autopilotiCompattati: number
+  /** Le copie di scorta `*.prima-*` tolte (30/10). */
+  copiePrimaTolte?: number
   errori: string[]
   /** Non ha girato: il motivo. */
   saltata?: string
@@ -243,6 +245,7 @@ export function rigaRiepilogo(e: EsitoAutopulizia): string {
   let r = `autopulizia: tolte ${e.copieTolte} copie, ${e.ramiTolti} rami, liberati ${mb} MB`
   if (e.noteTagliate > 0) r += `, ${e.noteTagliate} file di note accorciati`
   if (e.autopilotiCompattati > 0) r += `, ${e.autopilotiCompattati} autopiloti compattati`
+  if ((e.copiePrimaTolte ?? 0) > 0) r += `, ${e.copiePrimaTolte} copie di scorta «.prima-» tolte`
   // Gli «appena nati» e le chat aperte sono la norma: si contano, ma il «perché» utile è il resto.
   const perMotivo = new Map<string, number>()
   for (const t of e.tenute) perMotivo.set(t.perche, (perMotivo.get(t.perche) ?? 0) + 1)
@@ -545,6 +548,36 @@ export function accorciaRegistro(cartellaLog: string, ora: number, tetto = TETTO
   return liberati
 }
 
+/** Dopo quanti giorni una copia di scorta `*.prima-*` accanto agli autopiloti si toglie (30/10). */
+export const GIORNI_COPIE_PRIMA = 7
+
+/**
+ * Le copie di scorta fatte a mano prima di una correzione
+ * (`ap-….json.prima-correzione-criterio`, 30/10): restavano per sempre nella
+ * cartella degli autopiloti. Si tolgono quelle più vecchie di
+ * `GIORNI_COPIE_PRIMA` giorni; solo file, solo con `.prima-` nel nome, mai un
+ * autopilota (`.json`) né un `.illeggibile`. Torna quante e quanti byte.
+ */
+export function togliCopiePrima(cartella: string, ora: number, giorni = GIORNI_COPIE_PRIMA): { tolte: number; byte: number; errori: string[] } {
+  const esito = { tolte: 0, byte: 0, errori: [] as string[] }
+  let nomi: string[]
+  try { nomi = readdirSync(cartella) } catch { return esito }
+  for (const nome of nomi) {
+    if (!/\.prima-[^\\/]*$/.test(nome) || nome.endsWith('.json')) continue
+    const p = join(cartella, nome)
+    try {
+      const st = statSync(p)
+      if (!st.isFile() || ora - st.mtimeMs < giorni * 24 * 60 * 60_000) continue
+      unlinkSync(p)
+      esito.tolte += 1
+      esito.byte += st.size
+    } catch (err) {
+      esito.errori.push(`${nome}: ${String(err).slice(0, 120)}`)
+    }
+  }
+  return esito
+}
+
 /** Un giro intero. Non solleva: gli errori finiscono nell'esito. */
 export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopulizia> {
   const e = esitoVuoto()
@@ -597,6 +630,12 @@ export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopuliz
 
   // Il registro.
   if (o.cartellaDati !== undefined) e.byteLiberati += accorciaRegistro(join(o.cartellaDati, 'log'), ora)
+
+  // 30/10: le copie di scorta `*.prima-*` vecchie, accanto agli autopiloti.
+  const prima = togliCopiePrima(o.archivio.cartella, ora)
+  if (prima.tolte > 0) e.copiePrimaTolte = prima.tolte
+  e.byteLiberati += prima.byte
+  e.errori.push(...prima.errori)
 
   // Gli autopiloti finiti da tempo: più leggeri, mai eliminati. Si rilegge
   // subito prima di scrivere, per non riscrivere sopra un cambiamento.

@@ -6,7 +6,7 @@ import {
   componiPromptGiudizio, leggiGiudizio, chiediGiudizio, componiPromptScomposizione, leggiCompiti,
   argomentiSupervisore, componiPromptRiparazione, leggiComandoRiparato, ambientePulito,
   interrogazioneReale, conAllarme, rigaAllarme, ALLARME_DOPO, componiPromptCambio, modelloRoutine, MODELLO_ROUTINE, TURNI_ROUTINE,
-  type Interrogazione
+  chiediCambio, STRUMENTI_SUPERVISORE, type Interrogazione
 } from '../../src/autopilot-host/supervisore'
 import { nuovoAutopilota } from '@shared/autopilota'
 
@@ -131,15 +131,40 @@ describe('scomposizione in compiti', () => {
 })
 
 describe('permessi del supervisore', () => {
-  it('lancia il giudizio senza richieste di permesso', () => {
-    // Con un permesso da concedere il supervisore resterebbe fermo fino al
-    // timeout, e l'autopilota si sospenderebbe per un giudizio mancato invece
-    // che per un problema vero.
+  it('30/10: fuori dalla routine niente --dangerously-skip-permissions: solo strumenti che leggono, già concessi', () => {
+    // Girava nella cartella principale, senza l'hook dei divieti: poteva
+    // scrivere nel repository. Con soli Read, Grep e Glob concessi non c'è
+    // nessun permesso da chiedere, quindi nessuna attesa fino al timeout.
     const visti: string[][] = []
     const finto = (comando: string, args: string[]): void => { visti.push(args) }
     argomentiSupervisore('claude.exe', 'C:\p', undefined, finto)
-    expect(visti[0]).toContain('--dangerously-skip-permissions')
-    expect(visti[0]).not.toContain('--permission-mode')
+    argomentiSupervisore('claude.exe', 'C:\p', 's-9', finto)
+    argomentiSupervisore('claude.exe', 'C:\p', undefined, finto, 's-nuova')
+    for (const a of visti) {
+      expect(a).not.toContain('--dangerously-skip-permissions')
+      expect(a).not.toContain('--permission-mode')
+      expect(a[a.indexOf('--tools') + 1]).toBe(STRUMENTI_SUPERVISORE)
+      expect(a[a.indexOf('--allowedTools') + 1]).toBe(STRUMENTI_SUPERVISORE)
+    }
+    expect(STRUMENTI_SUPERVISORE.split(',').sort()).toEqual(['Glob', 'Grep', 'Read'])
+  })
+
+  it('30/10: senza sessione non riprende e non salva niente, anche con una sessione data', () => {
+    const visti: string[][] = []
+    argomentiSupervisore('claude.exe', 'C:\p', 's-9', (_c, args) => { visti.push(args) }, 's-nuova', undefined, true)
+    const a = visti[0]!
+    expect(a).toContain('--no-session-persistence')
+    expect(a).not.toContain('--resume')
+    expect(a).not.toContain('--session-id')
+    expect(a).not.toContain('--dangerously-skip-permissions')
+  })
+
+  it('30/10: il cambio chiesto a parole va senza sessione', async () => {
+    let vista: { sessionId: string | undefined; opzioni: Parameters<Interrogazione>[3] } | undefined
+    const interroga: Interrogazione = (_p, _cwd, sessionId, opzioni) => { vista = { sessionId, opzioni }; return Promise.resolve({ testo: '{"capito": "ok"}' }) }
+    const a = { ...nuovoAutopilota({ id: 'a', nome: 'a', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-29T10:00:00.000Z' }), sessioneSupervisore: 's-vecchia' }
+    await chiediCambio(a, 'aggiungi il test', interroga)
+    expect(vista).toEqual({ sessionId: undefined, opzioni: { senzaSessione: true } })
   })
 
   it('riprende la sessione di giudizio quando ne conosce una', () => {

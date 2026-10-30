@@ -92,17 +92,18 @@ describe('componiPromptDecisione', () => {
 })
 
 describe('chiediDecisione', () => {
-  it('riusa la sessione del supervisore', async () => {
-    // Senza, ricostruirebbe il compito da capo a ogni fermata: la differenza
-    // fra chi segue il lavoro e chi lo vede per la prima volta.
+  it('30/10: anche con una sessione data non la riprende: sempre di routine, senza sessione', async () => {
+    // Con --resume la conversazione del supervisore cresceva a ogni giro senza fine.
     let vista: string | undefined = 'non chiamato'
-    const interroga: Interrogazione = (_p, _cwd, sessionId) => {
+    let opzioni: Parameters<Interrogazione>[3]
+    const interroga: Interrogazione = (_p, _cwd, sessionId, o) => {
       vista = sessionId
+      opzioni = o
       return Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "vai"}', sessionId: 's-1' })
     }
     const esito = await chiediDecisione(ap(), [FALLITO], 'x', 0, interroga, 's-precedente')
-    expect(vista).toBe('s-precedente')
-    expect(esito.sessionId).toBe('s-1')
+    expect(vista).toBeUndefined()
+    expect(opzioni).toEqual({ routine: true })
     expect(esito.decisione?.azione).toBe('prosegui')
   })
 

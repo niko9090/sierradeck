@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Autopilota } from '@shared/autopilota'
 import type { StatoVero } from './domande-doppie'
-import type { Git } from './worktree'
+import type { Git, GitAsincrono } from './worktree'
 
 /**
  * Lo stato vero contro cui si controlla una domanda prima che arrivi a
@@ -76,11 +76,13 @@ export function creaStatoVero(p: {
   versione?: string
   release?: LeggiRelease
   git?: Git
+  /** 30/10: con questo git i rami si guardano senza fermare il servizio (vince su `git`). */
+  gitAsincrono?: GitAsincrono
   nome?: (cwd: string) => string | undefined
 }): (a: Autopilota) => Promise<StatoVero> {
   const nome = p.nome ?? nomePacchetto
   return async (a) => {
-    const stato = statoDellaFlotta(a, p.git)
+    const stato = p.gitAsincrono !== undefined ? await statoDellaFlottaAsincrono(a, p.gitAsincrono) : statoDellaFlotta(a, p.git)
     if (p.versione !== undefined && p.versione !== '' && nome(a.cwd) === 'sierradeck') stato.versioneInstallata = p.versione
     if (p.release !== undefined) {
       const fuori = await p.release(a.cwd).catch(() => undefined)
@@ -111,5 +113,30 @@ export function statoDellaFlotta(a: Autopilota, git: Git | undefined): StatoVero
       const presente = git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd)
       return presente.codice === 1 ? true : undefined
     }
+  }
+}
+
+/**
+ * `statoDellaFlotta` con git asincrono (30/10). `ramoUnito` resta sincrono per
+ * chi lo legge (`domande-doppie`), quindi i rami delle chat — gli unici che si
+ * chiedono — si guardano tutti prima; un ramo che non è di una chat vale
+ * «non si sa».
+ */
+export async function statoDellaFlottaAsincrono(a: Autopilota, git: GitAsincrono): Promise<StatoVero> {
+  const approvati = new Set(a.chats.filter((c) => c.approvata === true && c.ramo !== undefined).map((c) => c.ramo!))
+  const visti = new Map<string, boolean | undefined>()
+  if (a.ramoBase !== undefined) {
+    const base = a.ramoBase
+    const rami = [...new Set(a.chats.flatMap((c) => (c.ramo !== undefined && !approvati.has(c.ramo) ? [c.ramo] : [])))]
+    for (const ramo of rami) {
+      const r = await git(['merge-base', '--is-ancestor', ramo, base], a.cwd)
+      if (r.codice === 0 || r.codice === 1) { visti.set(ramo, r.codice === 0); continue }
+      const presente = await git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], a.cwd)
+      visti.set(ramo, presente.codice === 1 ? true : undefined)
+    }
+  }
+  return {
+    chat: a.chats.map((c) => ({ id: c.id, ...(c.ramo !== undefined ? { ramo: c.ramo } : {}), finita: c.stato === 'finita' })),
+    ramoUnito: (ramo) => (approvati.has(ramo) ? true : visti.get(ramo))
   }
 }

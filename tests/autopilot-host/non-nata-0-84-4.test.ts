@@ -237,6 +237,8 @@ describe('0.84.4: nel servizio', () => {
     await avvia(server)
     archivio.scrivi(ap([chat('c-7', { cartella: `${WT}/ap-1-c-7`, ramo: 'ap/ap-1/c-7' })], { cwd: radice }))
     server.controllaChatFerme()
+    // 30/10: la copia si prova a rimettere con git asincrono.
+    await attendi(() => avvisi.length > 0)
     const a = archivio.leggi('ap-1')!
     expect(a.chats).toHaveLength(1)
     expect(avviati).toEqual([])

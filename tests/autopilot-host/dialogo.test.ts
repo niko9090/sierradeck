@@ -228,9 +228,21 @@ describe('il dialogo con l autopilota', () => {
     await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
     const dopo = archivio.leggi(id)!
     expect(dopo.dialogo[1]).toMatchObject({ da: 'lui', testo: 'Sono al primo criterio: la suite ha un test rosso.', esito: 'nessun cambio' })
-    // Il supervisore e' il suo: la sessione si ricorda per il giro dopo.
-    expect(dopo.sessioneSupervisore).toBe('sup-1')
+    // 30/10: il dialogo è senza sessione (lo stato è nel prompt): non se ne ricorda nessuna.
+    expect(dopo.sessioneSupervisore).toBeUndefined()
     expect(avviati.map((x) => x.messaggio)).toEqual([undefined])
+  })
+
+  it('30/10: anche con una sessione del supervisore scritta, il dialogo non la riprende (niente --resume)', async () => {
+    const chiamate: { sessionId: string | undefined; opzioni: Parameters<Interrogazione>[3] }[] = []
+    const base = supervisore({ risposta: 'Tutto a posto.' })
+    server = ambiente((p, cwd, sessionId, opzioni) => { if (p.includes('Ti scrive adesso')) chiamate.push({ sessionId, opzioni }); return base(p, cwd, sessionId, opzioni) })
+    await avvia(server)
+    const id = await creaAp()
+    archivio.scrivi({ ...archivio.leggi(id)!, sessioneSupervisore: 'sup-vecchia-967k' })
+    await chiama('POST', `/autopiloti/${id}/dialogo`, { testo: 'come va?' })
+    await attendi(() => (archivio.leggi(id)?.dialogo.length ?? 0) === 2)
+    expect(chiamate).toEqual([{ sessionId: undefined, opzioni: { senzaSessione: true } }])
   })
 
   it('0.72.1: con virgolette non protette la risposta arriva; se il resto non si legge arriva lo stesso, senza cambiare niente', async () => {

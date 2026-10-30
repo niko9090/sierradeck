@@ -25,6 +25,13 @@ export type Interrogazione = (
      * `TURNI_ROUTINE` turni. Scomposizione e preparazione restano come prima.
      */
     routine?: boolean
+    /**
+     * **Senza sessione** (30/10): né `--resume` né una sessione salvata. Il
+     * dialogo e i controlli delle domande riprendevano ogni volta la stessa
+     * conversazione, che cresceva senza fine; lo stato che serve è già nel
+     * prompt, riassunto.
+     */
+    senzaSessione?: boolean
   }
 ) => Promise<{ testo: string; sessionId?: string }>
 
@@ -72,7 +79,9 @@ export function argomentiSupervisore(
    */
   nuovaSessione?: string,
   /** 29/10: una decisione di routine, con il suo modello (vedi `Interrogazione`). */
-  routine?: { modello: string }
+  routine?: { modello: string },
+  /** 30/10: niente sessione da riprendere né da salvare (vedi `Interrogazione`). */
+  senzaSessione?: boolean
 ): void {
   if (routine !== undefined) {
     avvia(claudeCmd, [
@@ -99,20 +108,30 @@ export function argomentiSupervisore(
     // `-p` senza testo legge il prompt dallo stdin, che non ha limiti.
     '-p',
     '--output-format', 'json',
-    // Gli stessi permessi delle chat governate, e per la stessa ragione: il
-    // supervisore deve poter leggere i file e rieseguire un comando per
-    // giudicare. Con `acceptEdits` un comando shell aprirebbe una richiesta di
-    // permesso che nessuno è lì a concedere, e il giudizio arriverebbe solo
-    // allo scadere del timeout — cioè mai, e l'autopilota si sospenderebbe per
-    // un giudizio mancato invece che per un problema vero.
-    '--dangerously-skip-permissions',
-    // O si riprende quella che c'è, o se ne apre una con l'id che abbiamo
-    // scelto: tutte e due insieme sarebbero due sessioni per un discorso solo.
-    ...(sessionId !== undefined
-      ? ['--resume', sessionId]
-      : nuovaSessione !== undefined ? ['--session-id', nuovaSessione] : [])
+    // **Solo strumenti che leggono** (30/10). Prima girava con
+    // `--dangerously-skip-permissions` nella cartella principale del progetto,
+    // senza l'hook dei divieti: poteva scrivere e lanciare qualunque comando
+    // proprio dove l'autopilota unisce i rami. Il supervisore legge e decide;
+    // i comandi li misura il programma (`fattiVerificati`). Con soli strumenti
+    // di lettura, già concessi, non c'è nessun permesso da chiedere e quindi
+    // nessuna attesa fino al timeout.
+    '--tools', STRUMENTI_SUPERVISORE,
+    '--allowedTools', STRUMENTI_SUPERVISORE,
+    // 30/10: senza sessione (il dialogo, i controlli delle domande, i cambi):
+    // lo stato gli arriva riassunto nel prompt, e una conversazione ripresa a
+    // ogni giro cresceva senza fine.
+    ...(senzaSessione === true
+      ? ['--no-session-persistence']
+      // O si riprende quella che c'è, o se ne apre una con l'id che abbiamo
+      // scelto: tutte e due insieme sarebbero due sessioni per un discorso solo.
+      : sessionId !== undefined
+        ? ['--resume', sessionId]
+        : nuovaSessione !== undefined ? ['--session-id', nuovaSessione] : [])
   ])
 }
+
+/** Gli strumenti del supervisore fuori dalla routine (30/10): solo lettura, niente shell né scrittura. */
+export const STRUMENTI_SUPERVISORE = 'Read,Grep,Glob'
 
 /**
  * L ambiente con cui parte il supervisore.
@@ -155,7 +174,8 @@ export function interrogazioneReale(claudeCmd: string, primaDegliArgomenti: stri
       let args: string[] = []
       argomentiSupervisore(
         claudeCmd, cwd, sessionId, (_c, a) => { args = a }, opzioni?.nuovaSessione,
-        opzioni?.routine === true ? { modello } : undefined
+        opzioni?.routine === true ? { modello } : undefined,
+        opzioni?.senzaSessione
       )
       const figlio = execFile(
         claudeCmd,
@@ -695,10 +715,12 @@ export async function chiediCambio(
   interroga: Interrogazione
 ): Promise<CambioChiesto | undefined> {
   try {
+    // 30/10: senza sessione: obiettivo, criteri e coda sono già nel prompt.
     const risposta = await interroga(
       componiPromptCambio(a, testo),
       a.cwd,
-      a.sessioneSupervisore
+      undefined,
+      { senzaSessione: true }
     )
     return leggiCambio(risposta.testo)
   } catch (err) {

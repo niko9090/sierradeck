@@ -22,7 +22,8 @@ import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
-import { gitAsincronoReale, gitReale, statoCopia } from './worktree'
+import { gitAsincronoReale, gitReale, statoCopiaInMemoria } from './worktree'
+import { avviaSpiaRitardo } from './ritardo-ciclo'
 import { creaMisuratore } from './misura-pc'
 import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
 import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
@@ -392,7 +393,8 @@ export function avviaServizio(): void {
     git: gitReale,
     // Salvare, unire e togliere i worktree senza fermare il servizio (0.84.0).
     gitAsincrono: gitAsincronoReale,
-    copia: (cartella) => statoCopia(gitReale, cartella),
+    // 30/10: chiesto a ogni fermata, mai più con git sincrono (vedi `statoCopiaInMemoria`).
+    copia: statoCopiaInMemoria(gitAsincronoReale),
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
     tempi: apriRegistroTempi(archivio.cartella),
     // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.
@@ -402,7 +404,8 @@ export function avviaServizio(): void {
     statoVero: creaStatoVero({
       ...(process.env.SIERRADECK_VERSIONE !== undefined ? { versione: process.env.SIERRADECK_VERSIONE } : {}),
       release: releaseConMemoria(ghRelease, 2 * 60_000),
-      git: gitReale
+      // 30/10: i rami con git asincrono, il servizio non si ferma.
+      gitAsincrono: gitAsincronoReale
     }),
     // Le release con la data, per la velocità nel Punto (0.85.0).
     releaseUscite: ghReleaseUscite
@@ -430,6 +433,8 @@ export function avviaServizio(): void {
   // Solo 127.0.0.1: un servizio che avvia processi non va esposto alla rete.
   server.listen(PORTA, '127.0.0.1', () => {
     console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA}`)
+    // 30/10: una riga al minuto, al più, quando il servizio resta fermo oltre 1 s.
+    avviaSpiaRitardo()
 
     // Anche le preparazioni interrotte, e prima del lavoro: chi era fermo su
     // «sta preparando» non ha ancora nulla che giri, e finché nessuno la

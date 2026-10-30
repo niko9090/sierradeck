@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import {
   appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync
@@ -126,6 +127,9 @@ function mettiDaParte(percorso: string): void {
   console.error(`[autopilota] troppi file .illeggibile accanto a ${percorso}: non ne creo altri`)
 }
 
+/** Una voce della cache: l'oggetto letto, o (dopo una scrittura) il testo scritto, da leggere alla prima richiesta. */
+type VoceCache = { mtimeMs: number; size: number; auto?: Autopilota; testo?: string }
+
 export function apriArchivio(cartella: string): Archivio {
   mkdirSync(cartella, { recursive: true })
 
@@ -145,7 +149,46 @@ export function apriArchivio(cartella: string): Archivio {
    * cache si invalida da sola: nessun rischio di stato stantìo, e regge anche una
    * modifica esterna al file. È lo stesso schema dell'indexer.
    */
-  const cache = new Map<string, { mtimeMs: number; size: number; auto: Autopilota }>()
+  const cache = new Map<string, VoceCache>()
+  /** 30/10: l'impronta dell'ultimo testo scritto da qui, con mtime e size del file appena scritto. */
+  const scritti = new Map<string, { impronta: string; mtimeMs: number; size: number }>()
+  /** I file la cui cache è appena stata riempita da `scrivi` (e non va svuotata). */
+  const caldi = new Set<string>()
+  const statoFile = (percorso: string): { mtimeMs: number; size: number } | undefined => {
+    try { const s = statSync(percorso); return { mtimeMs: s.mtimeMs, size: s.size } } catch { return undefined }
+  }
+  /**
+   * La cache dopo una scrittura: il testo scritto, da cui l'oggetto si ricava
+   * alla prima lettura. Un oggetto nuovo, non quello di chi ha salvato: lui
+   * lo cambia spesso sul posto dopo averlo salvato (0.86.1).
+   */
+  const scaldaCache = (percorso: string, st: { mtimeMs: number; size: number }, testo: string): void => {
+    cache.set(percorso, { mtimeMs: st.mtimeMs, size: st.size, testo })
+    caldi.add(percorso)
+  }
+  /** L'autopilota di una voce della cache; `undefined` se il testo tenuto non si legge (allora si rilegge il file). */
+  const daVoce = (percorso: string, voce: VoceCache): Autopilota | undefined => {
+    if (voce.auto !== undefined) return voce.auto
+    if (voce.testo === undefined) return undefined
+    let a: Autopilota | undefined
+    try {
+      const { autopilota, scartati } = parseAutopilota(JSON.parse(voce.testo))
+      avvisaScartati(percorso, scartati)
+      a = autopilota
+    } catch { a = undefined }
+    voce.testo = undefined
+    if (a !== undefined) voce.auto = a
+    return a
+  }
+  /** Gli avvisi del parser, una volta per file e motivo (vedi `leggiFile`). */
+  const avvisaScartati = (percorso: string, scartati: string[]): void => {
+    for (const motivo of scartati) {
+      const chiave = `${percorso}|${motivo}`
+      if (gia.has(chiave)) continue
+      gia.add(chiave)
+      console.warn(`[autopilota] ${percorso}: ${motivo}`)
+    }
+  }
 
   const leggiFile = (percorso: string): Autopilota | undefined => {
     let testo: string
@@ -171,12 +214,7 @@ export function apriArchivio(cartella: string): Archivio {
     // log che ripete non è più il posto dove si guarda quando qualcosa non va.
     // Solo lo stesso avviso sullo stesso file tace: se il file cambia e il
     // motivo con lui, torna a parlare.
-    for (const motivo of scartati) {
-      const chiave = `${percorso}|${motivo}`
-      if (gia.has(chiave)) continue
-      gia.add(chiave)
-      console.warn(`[autopilota] ${percorso}: ${motivo}`)
-    }
+    avvisaScartati(percorso, scartati)
     // Uno stato che il parser rifiuta e' indistinguibile, per l'utente, da un
     // file corrotto: in entrambi i casi il suo autopilota non c'e' piu'.
     if (autopilota === undefined) mettiDaParte(percorso)
@@ -254,8 +292,9 @@ export function apriArchivio(cartella: string): Archivio {
           continue
         }
         const voce = cache.get(percorso)
-        if (voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size) {
-          trovati.push(voce.auto)
+        const dallaCache = voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size ? daVoce(percorso, voce) : undefined
+        if (dallaCache !== undefined) {
+          trovati.push(dallaCache)
           continue
         }
         const a = leggiFile(percorso)
@@ -286,7 +325,8 @@ export function apriArchivio(cartella: string): Archivio {
         return undefined
       }
       const voce = cache.get(percorso)
-      if (voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size) return voce.auto
+      const dallaCache = voce !== undefined && voce.mtimeMs === st.mtimeMs && voce.size === st.size ? daVoce(percorso, voce) : undefined
+      if (dallaCache !== undefined) return dallaCache
       const a = leggiFile(percorso)
       if (a !== undefined) cache.set(percorso, { mtimeMs: st.mtimeMs, size: st.size, auto: a })
       else cache.delete(percorso)
@@ -310,20 +350,34 @@ export function apriArchivio(cartella: string): Archivio {
           console.error(`[autopilota] salvataggio in ${percorso} fallito:`, err)
           return
         }
-        scriviAtomico(percorso, testo, 'autopilota')
+        // 30/10: lo stesso contenuto di prima, ancora intatto sul disco, non
+        // si riscrive (ogni hook salvava: 5 MB riscritti a vuoto). E la cache
+        // resta calda con quello che si è scritto, da rileggere senza disco.
+        const impronta = createHash('sha1').update(testo).digest('hex')
+        const prima = scritti.get(percorso)
+        const st = prima?.impronta === impronta ? statoFile(percorso) : undefined
+        if (prima !== undefined && st !== undefined && st.mtimeMs === prima.mtimeMs && st.size === prima.size) {
+          scaldaCache(percorso, st, testo)
+          return
+        }
+        if (!scriviAtomico(percorso, testo, 'autopilota')) return
+        const dopo = statoFile(percorso)
+        if (dopo === undefined) return
+        scritti.set(percorso, { impronta, mtimeMs: dopo.mtimeMs, size: dopo.size })
+        scaldaCache(percorso, dopo, testo)
       } finally {
-        // La propria scrittura invalida la cache, **sempre** (0.86.1): `leggi`
-        // dà l'oggetto della cache e chi salva l'ha spesso già cambiato sul
-        // posto. Se il salvataggio non riesce (un JSON che non si serializza,
-        // un disco pieno), tenerlo in cache darebbe in memoria uno stato che
-        // sul disco non c'è. La prossima lettura è dal disco.
-        cache.delete(percorso)
+        // Senza una scrittura riuscita (o saltata perché uguale) la cache si
+        // svuota, **sempre** (0.86.1): tenerci l'oggetto che non si è
+        // salvato darebbe in memoria uno stato che sul disco non c'è.
+        if (!caldi.has(percorso)) { cache.delete(percorso); scritti.delete(percorso) }
+        caldi.delete(percorso)
       }
     },
 
     elimina(id) {
       const percorso = percorsoDi(id)
       cache.delete(percorso)
+      scritti.delete(percorso)
       archivioDecisioni.delete(id)
       for (const p of [percorso, percorsoDecisioniDi(id)]) {
         try {

@@ -151,7 +151,7 @@ describe('la guardia: niente «carico» per sempre, niente attese oltre l\'hook'
     expect(g.valuta()).toBeUndefined()
   })
 
-  it('dentro un hook un passo aspetta al più un quarto d\'ora, ben sotto il tetto dell\'hook; fuori al più mezz\'ora', async () => {
+  it('dentro un hook un passo aspetta al più cinque minuti (30/10), ben sotto il tetto dell\'hook; fuori al più mezz\'ora', async () => {
     expect(ATTESA_IN_UN_HOOK_MS).toBeLessThan(TIMEOUT_HOOK_S * 1000 / 2)
     expect(ATTESA_MASSIMA_MS).toBeLessThanOrEqual(30 * 60_000)
     let t = ORA
