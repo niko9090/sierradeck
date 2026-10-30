@@ -132,6 +132,7 @@ import { creaGuardianoPin, type GuardianoPin } from './pin-guardiano'
 import { apriFilePin } from './pin-file'
 import { ANTEPRIMA_NASCOSTA } from '@shared/pin-chat'
 import { apriQuaderno } from './quaderno-store'
+import { anteprimaRiordino, riordinaQuaderno, svuotaRecuperoQuaderno } from './quaderno-lezioni-store'
 import { apriDispositivi } from './dispositivi'
 import {
   creaServerClient, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale
@@ -5338,7 +5339,11 @@ if (!app.requestSingleInstanceLock()) {
       })
       ipcMain.handle('chatGestione:orfane', () => gestioneChat.orfane())
       // Il recupero si svuota da solo dopo 30 giorni: un giro poco dopo l'avvio, poi ogni sei ore.
-      const giroChat = (): void => { void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch((err: unknown) => registro.info(`[chat] giro del recupero non riuscito: ${err instanceof Error ? err.message : String(err)}`)) }
+      const giroChat = (): void => {
+        void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch((err: unknown) => registro.info(`[chat] giro del recupero non riuscito: ${err instanceof Error ? err.message : String(err)}`))
+        // P2: le note del quaderno riordinate escono dal recupero dopo 30 giorni.
+        try { const n = svuotaRecuperoQuaderno(dati); if (n > 0) registro.info(`[quaderno] recupero: ${n} riordini oltre i 30 giorni svuotati`) } catch (err) { registro.info(`[quaderno] recupero non svuotato: ${String(err)}`) }
+      }
       const primoGiroChat = setTimeout(giroChat, 90_000)
       const timerGiroChat = setInterval(giroChat, 6 * 60 * 60_000)
       app.on('before-quit', () => { clearTimeout(primoGiroChat); clearInterval(timerGiroChat) })
@@ -6500,8 +6505,10 @@ if (!app.requestSingleInstanceLock()) {
        * nel suo workspace salvato, così aprendolo il riquadro la adotta.
        */
       /**
-       * Agente finito (0.84.0): dopo la chiusura, la conversazione esce
-       * dall'elenco e va nel recupero di 30 giorni. Una volta per sessione.
+       * Agente finito (0.84.0; P2, 30/10): dopo la chiusura la conversazione
+       * esce dall'elenco: unita → cancellata; abbandonata → nel recupero per
+       * 72 ore. Poi le sue voci rimaste (`chiuse.json`; il riquadro nei
+       * workspace lo toglie già «Elimina»). Una volta per sessione.
        */
       const versoIlRecupero = new Set<string>()
       const agenteNelRecupero = (c: Consegna): void => {
@@ -6511,8 +6518,11 @@ if (!app.requestSingleInstanceLock()) {
         void nelRecuperoQuandoChiusa(c.sessionId, {
           azione: (r) => gc.azione(r),
           attendi: (ms) => new Promise((ok) => { setTimeout(ok, ms) }),
-          log: (riga) => { registro.info(riga) }
-        }).finally(() => { versoIlRecupero.delete(c.sessionId) })
+          log: (riga) => { registro.info(riga) },
+          svuotaScadute: () => gc.giro()
+        }, { ...(c.fine !== undefined ? { fine: c.fine } : {}) })
+          .then((r) => { if (r.ok) chiuse.togli(c.sessionId) })
+          .finally(() => { versoIlRecupero.delete(c.sessionId) })
       }
       const consegnaInSottofondo = (sf: Sottofondo, c: Consegna, ptyGia: string | undefined): boolean => {
         const passo = (m: string): void => { registro.info(`[consegna] consegna ${c.id} per «${c.titolo}»: ${m}`) }
@@ -6705,6 +6715,17 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('quaderno:elimina', (_e, cwd: unknown, file: unknown) => {
         if (typeof cwd !== 'string' || cwd.trim() === '' || typeof file !== 'string') return false
         return quaderno.elimina(cwd, file)
+      })
+      // P2 (30/10): «Riordina il quaderno», solo quando lo preme Nicholas.
+      ipcMain.handle('quaderno:anteprimaRiordino', (_e, cwd: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '') throw new Error('richiesta IPC non valida: cartella mancante')
+        return anteprimaRiordino(cwd)
+      })
+      ipcMain.handle('quaderno:riordina', (_e, cwd: unknown) => {
+        if (typeof cwd !== 'string' || cwd.trim() === '') throw new Error('richiesta IPC non valida: cartella mancante')
+        const e = riordinaQuaderno(cwd, dati)
+        registro.info(`[quaderno] riordino di ${cwd}: ${e.messaggio}`)
+        return { ok: e.ok, note: e.note, voci: e.voci, regole: e.regole, frase: e.frase, messaggio: e.messaggio }
       })
 
       const chiavi = apriChiavi(dati)

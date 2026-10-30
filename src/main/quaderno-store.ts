@@ -72,14 +72,15 @@ export function apriQuaderno(adesso: () => string = () => new Date().toISOString
       const dentro = cartella(cwd)
       mkdirSync(dentro, { recursive: true })
       const quando = adesso()
-      // Senza `file` si sta **creando**: un nome gia' preso (stesso titolo,
-      // stesso giorno — «+ Scheda» premuto due volte, o un autopilota che gira
-      // due volte in un giorno) non deve sovrascrivere la scheda di prima in
-      // silenzio. Si aggiunge un numero.
-      let file = s.file ?? nomeFile(s.titolo, quando)
-      if (s.file === undefined) {
-        const base = file
-        for (let n = 2; existsSync(join(dentro, file)) && n < 1000; n += 1) file = base.replace(/\.md$/, `-${n}.md`)
+      // Senza `file` si sta creando, ma un nome già preso (stesso titolo, stesso
+      // giorno) è la stessa scheda: si **aggiorna** quella (P2, 30/10). Prima
+      // si aggiungeva «-2…-999» e nascevano i doppioni: 38 copie di
+      // `app-android-analisi-*` nel quaderno di SierraDeck.
+      const file = s.file ?? nomeFile(s.titolo, quando)
+      // Una scheda nuova e vuota («+ Scheda» premuto due volte) non cancella
+      // quella che c'è: si riapre quella.
+      if (s.file === undefined && s.corpo.trim() === '' && existsSync(join(dentro, file))) {
+        return leggiScheda(file, readFileSync(join(dentro, file), 'utf8'))
       }
       const scheda: Scheda = {
         file,

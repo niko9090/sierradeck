@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { parole, somiglianza } from '@shared/somiglianza'
 
 /**
  * La memoria dell'autopilota (0.71.0): le risposte già date e le decisioni di
@@ -25,17 +26,8 @@ const DECISIONI_MAX = 30
 /** Somiglianza (Jaccard sulle parole) oltre la quale due domande sono «simili». */
 export const SIMILE_DA = 0.8
 
-const parole = (t: string): string[] => t.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(' ').filter((p) => p.length > 2)
 export const normalizzaDomanda = (t: string): string => parole(t).join(' ')
-
-export function somiglianza(a: string, b: string): number {
-  const x = new Set(parole(a))
-  const y = new Set(parole(b))
-  if (x.size === 0 || y.size === 0) return 0
-  let comuni = 0
-  for (const p of x) if (y.has(p)) comuni += 1
-  return comuni / (x.size + y.size - comuni)
-}
+export { somiglianza }
 
 /** Una frase del dialogo che decide qualcosa per il futuro. */
 export function eUnaDecisione(testo: string): boolean {
@@ -73,7 +65,32 @@ export type Memoria = {
   decisioni: (cwd: string) => DecisioneRicordata[]
 }
 
-export function apriMemoria(cartella: string | undefined): Memoria {
+/** Le risposte già date: restano in `memoria.json`, per autopilota. */
+function memoriaRisposte(m: FileMemoria, salva: () => void): Pick<Memoria, 'ricordaRisposta' | 'risposte' | 'rispostaPer'> {
+  return {
+    ricordaRisposta(autopilota, domanda, risposta, quando, chat) {
+      if (domanda.trim() === '' || risposta.trim() === '') return
+      const elenco = (m.risposte[autopilota] ?? []).filter((r) => normalizzaDomanda(r.domanda) !== normalizzaDomanda(domanda))
+      m.risposte[autopilota] = [...elenco, { domanda: domanda.slice(0, 600), risposta: risposta.slice(0, 600), quando, ...(chat !== undefined ? { chat } : {}) }].slice(-RISPOSTE_MAX)
+      salva()
+    },
+    risposte: (autopilota) => m.risposte[autopilota] ?? [],
+    rispostaPer: (autopilota, domanda) => trovaRisposta(m.risposte[autopilota] ?? [], domanda)
+  }
+}
+
+/**
+ * Dove stanno le decisioni di Nicholas (P2, 30/10): `decisioni.md` nel
+ * quaderno del progetto, senza tetto di 30 e senza legarle a un autopilota.
+ */
+export type DecisioniNelQuaderno = {
+  ricorda: (cwd: string, testo: string, quando: string) => void
+  elenca: (cwd: string) => DecisioneRicordata[]
+  /** La cartella c'è ancora: le decisioni di un progetto sparito restano in `memoria.json`. */
+  esiste?: (cwd: string) => boolean
+}
+
+export function apriMemoria(cartella: string | undefined, quaderno?: DecisioniNelQuaderno): Memoria {
   const file = cartella === undefined ? undefined : join(cartella, 'servizio', 'memoria.json')
   let m: FileMemoria = { versione: 1, risposte: {}, decisioni: {} }
   if (file !== undefined && existsSync(file)) {
@@ -87,15 +104,40 @@ export function apriMemoria(cartella: string | undefined): Memoria {
     try { mkdirSync(join(file, '..'), { recursive: true }); scriviJsonAtomico(file, m, 'memoria') } catch (err) { console.error('[autopilota] memoria non salvata:', err) }
   }
   const chiaveCwd = (cwd: string): string => cwd.replace(/[\\/]+$/, '').toLowerCase()
-  return {
-    ricordaRisposta(autopilota, domanda, risposta, quando, chat) {
-      if (domanda.trim() === '' || risposta.trim() === '') return
-      const elenco = (m.risposte[autopilota] ?? []).filter((r) => normalizzaDomanda(r.domanda) !== normalizzaDomanda(domanda))
-      m.risposte[autopilota] = [...elenco, { domanda: domanda.slice(0, 600), risposta: risposta.slice(0, 600), quando, ...(chat !== undefined ? { chat } : {}) }].slice(-RISPOSTE_MAX)
+  if (quaderno !== undefined) {
+    // **Una volta sola** (P2): le decisioni di `memoria.json` passano nel
+    // quaderno del loro progetto e da qui escono. Quelle di una cartella che
+    // non c'è più, o che non si riesce a scrivere, restano dove sono.
+    const esiste = quaderno.esiste ?? existsSync
+    let migrate = 0
+    for (const [k, elenco] of Object.entries(m.decisioni)) {
+      if (!esiste(k)) continue
+      try {
+        for (const d of elenco) quaderno.ricorda(k, d.testo, d.quando)
+        delete m.decisioni[k]
+        migrate += elenco.length
+      } catch (err) {
+        console.error(`[autopilota] decisioni di ${k} non passate nel quaderno:`, err)
+      }
+    }
+    if (migrate > 0) {
       salva()
-    },
-    risposte: (autopilota) => m.risposte[autopilota] ?? [],
-    rispostaPer: (autopilota, domanda) => trovaRisposta(m.risposte[autopilota] ?? [], domanda),
+      console.info(`[autopilota] ${migrate} decisioni di Nicholas passate da memoria.json a decisioni.md`)
+    }
+    return {
+      ...memoriaRisposte(m, salva),
+      ricordaDecisione(cwd, testo, quando) {
+        const t = testo.replace(/\s+/g, ' ').trim()
+        if (t === '') return
+        try { quaderno.ricorda(cwd, t, quando) } catch (err) { console.error('[autopilota] decisione non scritta nel quaderno:', err) }
+      },
+      decisioni: (cwd) => {
+        try { return quaderno.elenca(cwd) } catch { return [] }
+      }
+    }
+  }
+  return {
+    ...memoriaRisposte(m, salva),
     ricordaDecisione(cwd, testo, quando) {
       const t = testo.replace(/\s+/g, ' ').trim()
       if (t === '') return

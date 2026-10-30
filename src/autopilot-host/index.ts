@@ -5,7 +5,7 @@ import { get } from 'node:http'
 import { portaAutopilotiDa } from '@shared/autopilota'
 import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio, ultimoNumeroConsegne } from './archivio'
-import { apriQuaderno } from '../main/quaderno-store'
+import { apriQuadernoLezioni } from '../main/quaderno-lezioni-store'
 import { apriRegistro, type Registro } from '../main/registro'
 import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { format } from 'node:util'
@@ -327,7 +327,10 @@ export function avviaServizio(): void {
   })
   let serverPronto: { riportaInCoda: (consegna: string, perche: string) => void } | undefined
 
+  // P2 (30/10): lezioni e decisioni nel quaderno del progetto.
+  const quadernoLezioni = apriQuadernoLezioni()
   const lavori = esecutoreNelMosaico({
+    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd),
     consegne,
     // Il servizio da gia una sessione a ogni chat quando la crea: questo e il
     // ripiego per il caso in cui non ci sia ancora arrivato.
@@ -359,6 +362,8 @@ export function avviaServizio(): void {
     archivio,
     git: gitAsincronoReale,
     cartellaDati: join(cartellaStato(), '..'),
+    // P2: le cartelle delle trascrizioni delle copie finite, in ~/.claude/projects.
+    radiceClaude: cartellaClaude(),
     pcCarico: () => guardiaPc.valuta()?.motivo
   })
 
@@ -397,12 +402,10 @@ export function avviaServizio(): void {
     ...(process.env.SIERRADECK_VERSIONE !== undefined
       ? { versione: process.env.SIERRADECK_VERSIONE }
       : {}),
-    // Il resoconto del lavoro finisce nella cartella del progetto, accanto al
-    // codice che descrive: e' li' che serve, ed e' li' che resta anche senza
-    // questo programma.
-    quaderno: (cwd, scheda) => { apriQuaderno().scrivi(cwd, scheda) },
     consegne,
     istruzioni,
+    // P2: per togliere la cartella delle trascrizioni di una chat eliminata.
+    radiceClaude: cartellaClaude(),
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale,
     // Salvare, unire e togliere i worktree senza fermare il servizio (0.84.0).
@@ -412,7 +415,8 @@ export function avviaServizio(): void {
     // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
     tempi: apriRegistroTempi(archivio.cartella),
     // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.
-    memoria: apriMemoria(archivio.cartella),
+    memoria: apriMemoria(archivio.cartella, { ricorda: (cwd, testo, quando) => { quadernoLezioni.decidi(cwd, testo, quando) }, elenca: (cwd) => quadernoLezioni.decisioni(cwd) }),
+    lezioni: (cwd, voci, quando) => quadernoLezioni.annota(cwd, voci, quando),
     // Prima di chiedere a Nicholas (0.82.0): release pubblicate (gh, rilette
     // al più ogni 2 minuti), versione in uso, rami uniti, chat chiuse.
     statoVero: creaStatoVero({

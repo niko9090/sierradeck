@@ -77,6 +77,8 @@ export type RichiestaAzione = {
   sessioni: string[]
   ancheDalDrive?: boolean
   nome?: string
+  /** P2 (30/10), per «elimina»: quante ore resta nel recupero (0 = esce al prossimo giro). Assente: 30 giorni. */
+  scadenzaOre?: number
   /** Chi lo chiede, per il registro: «PC», «telefono», il nome di un altro PC. */
   da?: string
   visore?: string
@@ -92,7 +94,7 @@ export type GestioneChat = {
   ripristinaDalRecupero: (id: string, da?: string) => Promise<{ ok: boolean; messaggio: string }>
   chiediSvuota: (ancheDalDrive: boolean) => { ok: boolean; messaggio: string; gettone?: string; scadeIl?: string; chat?: number; byte?: number; frase?: string }
   svuota: (p: { gettone: unknown; frase: unknown; ancheDalDrive: boolean; da?: string }) => Promise<{ ok: boolean; messaggio: string; byte?: number }>
-  /** Svuota da solo le chat rimaste nel recupero oltre i 30 giorni. */
+  /** Svuota da solo le chat rimaste nel recupero oltre la scadenza (30 giorni; 72 ore per quelle dell'autopilota). */
   giro: () => Promise<void>
   /** Le voci che non hanno più una chat: nomi e archiviate di sessioni sparite. */
   orfane: () => { etichette: string[]; archiviate: string[] }
@@ -356,7 +358,7 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
       const scadute = scaduteRecupero(leggiRecupero(), adesso())
       if (scadute.length === 0) return
       // Il Drive svuota da sé le sue pulizie scadute: qui solo il PC.
-      await svuotaVoci(scadute, false, 'automatico', 'dopo 30 giorni')
+      await svuotaVoci(scadute, false, 'automatico', 'alla scadenza')
     }),
 
     orfane() {
@@ -460,7 +462,8 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
           const etichetta = deps.etichette.leggi()[sessione]
           const arch = archiviate().find((a) => a.sessione === sessione)
           const voce: ChatInRecupero = {
-            id, sessione, titolo, slug: info.slug, quando, scadeIl: scadenzaRecupero(quando), byte: m.byte, file, da,
+            id, sessione, titolo, slug: info.slug, quando, byte: m.byte, file, da,
+            scadeIl: r.scadenzaOre !== undefined && r.scadenzaOre >= 0 ? new Date(Date.parse(quando) + r.scadenzaOre * 3_600_000).toISOString() : scadenzaRecupero(quando),
             ...(info.cwd !== undefined ? { cwd: info.cwd } : {}),
             ...(etichetta !== undefined ? { etichetta } : {}),
             ...(arch !== undefined ? { archiviata: arch } : {})

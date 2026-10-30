@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  DIALOGO_RICORDATO, MODIFICHE_RICORDATE, nuovoAutopilota,
+  DIALOGO_RICORDATO, MODIFICHE_RICORDATE, idChatNuova, nuovoAutopilota,
   type Autopilota, type ChatGovernata, type Criterio, type Decisione, type Istantanea, type MessaggioPerLaChat, type Traguardo
 } from '@shared/autopilota'
 import type { Archivio } from './archivio'
@@ -20,8 +20,6 @@ import { chatConCodaVecchia, chatFerme, chiaveTurno, chiTace, FERMA_DA_MS, IN_CO
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { TETTO_RISPOSTA_STOP_MS } from '@shared/hook-autopilota'
 import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
-import { corpoScheda, tagScheda, titoloScheda } from './scheda-lavoro'
-import { corpoStorico, fileStorico, titoloStorico, vociStorico } from './storico'
 import { STRATEGIE } from './strategie'
 import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodiceAsincrona, improntaLavoroAsincrona, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
@@ -32,6 +30,8 @@ import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
 import { parolaRapporto, rapportoDiFineTurno, rapportoNuovo, righeQuadroChat, type RapportoChat } from '@shared/rapporti-chat'
+import { righeLezioni } from '@shared/lezioni-chat'
+import { avanzaFine, inizioFine } from './fine-chat'
 import { attesaDalSegnale, codaSenzaDoppioni, chiHaGia, haDettoFatto, parolaSegnale, segnaleSuperato, quadroFlotta, rigaDoppione, rigaSegnale, segnaleDiFineTurno, segnaleNuovo } from '@shared/segnali-flotta'
 import { cronometro, riassuntoTempi, type GiroMisurato } from './tempi'
 import { firmaGiro, registraGiro, spiegaCerchio } from './antiloop'
@@ -89,7 +89,7 @@ import {
 import { unisciAlSalvataggio } from './unione-salvataggio'
 import { azzeraContatoriSeNuovaVersione, fileVersioneContatori } from './contatori-versione'
 import { allineaHookEccDiTutte } from './hook-ecc'
-import { rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
+import { chatNote, rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
 import { leggiSegnaleVero, type SegnaleVero } from '@shared/indicatore-autopilota'
 
@@ -121,7 +121,14 @@ export type Dipendenze = {
   istruzioni?: {
     esito: (consegna: string, esito: EsitoIstruzione) => void
     elenca: (autopilotaId: string) => Istruzione[]
+    /** P2: via le istruzioni di una chat eliminata. */
+    togliChat?: (autopilotaId: string, chatId: string) => void
   }
+  /**
+   * P2 (30/10): la radice di Claude Code (`~/.claude`), per togliere la
+   * cartella delle trascrizioni di una chat eliminata. Assente: non si toglie.
+   */
+  radiceClaude?: string
   consegne?: {
     ritira: (adesso?: number) => unknown[]
     conferma: (ids: string[]) => number
@@ -182,13 +189,11 @@ export type Dipendenze = {
    */
   versione?: string
   /**
-   * Scrive una scheda nel quaderno della cartella di lavoro. Facoltativa: senza,
-   * l'autopilota lavora identico e non lascia il suo resoconto.
+   * P2 (30/10): annota lezioni in `lezioni.md` del quaderno, senza doppioni
+   * (le righe `LEZIONI:` delle chat a fine turno, la mossa «quaderno» del
+   * supervisore). Al posto delle schede, degli storici e delle note di giro.
    */
-  quaderno?: (
-    cwd: string,
-    scheda: { titolo: string; corpo: string; tag?: string[]; sessione?: string; file?: string }
-  ) => void
+  lezioni?: (cwd: string, voci: { tag?: string; testo: string }[], quando: string) => { nuove: number; confermate: number }
   /**
    * Git, per i worktree delle chat, l'unione dei loro rami, il push e il
    * riconoscimento del cloud (0.36.0). Assente in prova e nei test che non lo
@@ -240,10 +245,11 @@ export type Dipendenze = {
   /**
    * Chiude una chat finita e ferma al prompt (0.82.0): il suo claude.exe si
    * spegne, il riquadro si chiude, la conversazione resta. Assente: non si
-   * chiude niente da solo. Con `alRecupero` (0.84.0, agente finito) la
-   * conversazione esce dall'elenco e va nel recupero di 30 giorni.
+   * chiude niente da solo. Con `alRecupero` la conversazione esce
+   * dall'elenco: P2 (30/10), con `fine: 'unita'` si cancella, altrimenti
+   * (abbandonata) va nel recupero per 72 ore.
    */
-  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
+  chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   /**
    * Lo stato vero contro cui si controlla una domanda (0.82.0): release
    * pubblicate, versione installata, rami e chat. Assente: la `versione` e le
@@ -765,53 +771,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     if (riparteDaSolo(a)) { console.info(`[notifica] nessun avviso per ${a.id}: si è fermato ma riparte da solo (${a.motivoSospensione ?? 'pausa'})`); return }
     void deps.avvisa('sospeso', a)
   }
-  /**
-   * Lo storico nel quaderno (0.84.0): si riscrive solo quando c'è una voce
-   * nuova, non a ogni salvataggio. In memoria l'ultima voce scritta per lavoro:
-   * dopo un riavvio del servizio la scheda si riscrive una volta, identica.
-   */
-  const storicoScritto = new Map<string, string>()
-  /**
-   * 0.85.2: le decisioni uscite dal file (nel jsonl) che fanno una voce dello
-   * storico, per quante ne sono uscite: senza, lo storico riscritto perdeva
-   * le voci più vecchie di 500 decisioni. L'archivio rilegge il jsonl solo
-   * quando cambia, e qui si filtra solo quando l'archivio l'ha riletto.
-   */
-  const vecchieDelloStorico = new Map<string, { fonte: Decisione[]; decisioni: Decisione[] }>()
-  const conVecchie = (a: Autopilota): Pick<Autopilota, 'decisioni'> => {
-    if ((a.decisioniArchiviate ?? 0) === 0 || deps.archivio.decisioniVecchie === undefined) return a
-    const fonte = deps.archivio.decisioniVecchie(a.id)
-    let v = vecchieDelloStorico.get(a.id)
-    if (v?.fonte !== fonte) {
-      v = { fonte, decisioni: fonte.filter((d) => vociStorico({ decisioni: [d] }).length > 0) }
-      vecchieDelloStorico.set(a.id, v)
-    }
-    return { decisioni: [...v.decisioni, ...a.decisioni] }
-  }
-  const aggiornaStorico = (a: Autopilota): Autopilota => {
-    if (deps.quaderno === undefined || a.cwd === '') return a
-    const voci = vociStorico(conVecchie(a))
-    if (voci.length === 0) return a
-    const ultima = voci[voci.length - 1]!
-    const impronta = `${voci.length}|${ultima.quando}|${ultima.testo}`
-    if (storicoScritto.get(a.id) === impronta) return a
-    const file = fileStorico(a)
-    try {
-      deps.quaderno(a.cwd, { titolo: titoloStorico(a), corpo: corpoStorico(a, voci), tag: ['storico', 'autopilota'], file })
-      storicoScritto.set(a.id, impronta)
-      return a.storico === file ? a : { ...a, storico: file }
-    } catch (err) {
-      // Uno storico che non si scrive non ferma il lavoro: si riprova alla voce dopo.
-      console.error(`[autopilota] storico di ${a.id} non scritto:`, err)
-      return a
-    }
-  }
+  // P2 (30/10): niente più storico `storico-*.md` nel quaderno né schede di
+  // fine lavoro: resta solo quello che va ricordato, in `lezioni.md` e
+  // `decisioni.md`. Il diario dell'autopilota resta nel suo file.
   const salva = (a: Autopilota): void => {
     const ora = deps.adesso()
     // 0.81.0: da quando ogni chat è nel suo stato, per il riquadro «Adesso».
     // 0.85.0: le richieste aperte non perdono criterio e compiti per strada.
     a = tieniRichieste(a, ora)
-    const datato = aggiornaStorico(a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a)
+    const datato = a.chats.length > 0 ? conStatiDatati(a, salvati.get(a.id) ?? deps.archivio.leggi(a.id), ora) : a
     salvati.set(a.id, datato)
     deps.archivio.scrivi(conMomentoDelFermo({ ...datato, ultimoEvento: ora }, ora))
   }
@@ -895,14 +863,80 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       chiuseDaSole.set(f.sessionId, ora)
       const a = deps.archivio.leggi(f.autopilotaId)
       if (a === undefined) continue
-      deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}), ...(f.alRecupero === true ? { alRecupero: true } : {}) })
       if (f.alRecupero === true) {
-        // Una volta sola: se Nicholas la rimette con «Ripristina», resta dov'è.
-        a.chats = a.chats.map((c) => (c.id === f.chatId ? { ...c, nelRecupero: deps.adesso() } : c))
-        annota(a, `chiudo la chat ${f.chatId ?? a.id}: ${f.motivo}. Esce dall'elenco e la conversazione va nel recupero per 30 giorni (si rimette con «Ripristina»)`, { chat: f.chatId ?? a.id, esito: 'nel-recupero' })
-      } else annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
+        // P2 (30/10): l'agente finito non va più nel recupero di 30 giorni: la
+        // chat si elimina, un passo alla volta (`fine-chat.ts`). Il primo
+        // passo, la chiusura del riquadro, lo fa `avanzaFiniteDaSole`.
+        const c = a.chats.find((x) => x.id === f.chatId)
+        if (c === undefined || c.fine !== undefined) continue
+        const fine = inizioFine(a, c, deps.adesso())
+        a.chats = a.chats.map((x) => (x.id === c.id ? { ...x, fine } : x))
+        annota(a, `la chat ${c.id} ${f.motivo}: si elimina (${fine.esito === 'unita' ? 'unita' : 'abbandonata, la conversazione resta 72 ore nel recupero'}); resta quello che ha scritto nel quaderno`, { chat: c.id, esito: 'nel-recupero' })
+      } else {
+        deps.chiudiChat(f.autopilotaId, f.chatId, { sessionId: f.sessionId, ...(a.workspace !== undefined ? { workspace: a.workspace } : {}) })
+        annota(a, `chiudo la chat ${f.chatId ?? a.id} da sola: ${f.motivo}, il suo posto si libera (la conversazione resta)`)
+      }
       salva(a)
       console.info(`[posti] ${f.autopilotaId}::${f.chatId ?? '-'} chiusa da sola: ${f.motivo}`)
+    }
+  }
+  /**
+   * **La fine delle chat** (P2, 30/10): ogni chat con `fine` avanza di un passo
+   * (chiudi → worktree → ramo → trascrizione → voci), con i controlli di
+   * `fine-chat.ts`. Le chat mandate nel recupero prima della P2
+   * (`nelRecupero`) entrano qui dal passo del worktree. Uno alla volta: un
+   * giro che dura (git) non si sovrappone al successivo.
+   */
+  let fineInCorso = false
+  const avanzaFiniteDaSole = async (): Promise<void> => {
+    if (fineInCorso) return
+    fineInCorso = true
+    try {
+      // Senza git (un servizio di prova) il riquadro si chiude lo stesso; il disco resta com'è.
+      const git: GitAsincrono = deps.git !== undefined ? gitA(deps.git) : () => Promise.resolve({ codice: 1, uscita: 'git non disponibile' })
+      const ora = Date.parse(deps.adesso())
+      if (Number.isNaN(ora)) return
+      const programma = statoProgramma
+      const valido = programma !== undefined && ora - programma.letto <= STATO_PROGRAMMA_VALIDO_MS
+      const accese = new Set(valido ? programma.chat.flatMap((c) => (c.sessione !== undefined ? [c.sessione] : [])) : [])
+      for (const a0 of deps.archivio.elenca()) {
+        for (const c0 of a0.chats) {
+          if (c0.fine === undefined && c0.nelRecupero === undefined) continue
+          const a = deps.archivio.leggi(a0.id)
+          const c = a?.chats.find((x) => x.id === c0.id)
+          if (a === undefined || c === undefined) continue
+          const conFine: ChatGovernata = c.fine !== undefined ? c : { ...c, fine: inizioFine(a, c, deps.adesso()) }
+          const passo = await avanzaFine(a, conFine, {
+            git,
+            togliWorktree: (p) => (deps.git !== undefined ? togliAlTurno(deps.git, p) : Promise.resolve()),
+            radiceClaude: deps.radiceClaude ?? '',
+            chatAdesso: () => chatNote(deps.archivio.elenca()),
+            chiudi: (aa, cc, esito) => {
+              if (cc.sessionId === undefined) return
+              deps.chiudiChat?.(aa.id, cc.id, { sessionId: cc.sessionId, ...(aa.workspace !== undefined ? { workspace: aa.workspace } : {}), alRecupero: true, fine: esito })
+            },
+            accesa: (s) => (valido ? accese.has(s) : undefined),
+            ...(deps.istruzioni?.togliChat !== undefined ? { togliIstruzioni: deps.istruzioni.togliChat } : {}),
+            ora
+          })
+          // Si rilegge subito prima di scrivere: intanto un turno può aver salvato.
+          const fresco = deps.archivio.leggi(a.id)
+          if (fresco === undefined || !fresco.chats.some((x) => x.id === c.id)) continue
+          const dopo: Autopilota = passo.togli === true
+            ? { ...fresco, chats: fresco.chats.filter((x) => x.id !== c.id), chatTolte: (fresco.chatTolte ?? 0) + 1 }
+            : { ...fresco, chats: fresco.chats.map((x) => (x.id === c.id ? { ...x, fine: passo.chat.fine } : x)) }
+          if (passo.togli !== true && JSON.stringify(fresco.chats.find((x) => x.id === c.id)?.fine) === JSON.stringify(passo.chat.fine) && passo.righe.length === 0) continue
+          for (const r of passo.righe) annota(dopo, r)
+          // Senza toccare `ultimoEvento`: la pulizia non sveglia nessuno.
+          deps.archivio.scrivi(dopo)
+          salvati.set(dopo.id, dopo)
+          for (const r of passo.righe) console.info(`[fine] ${a.id} — ${r}`)
+        }
+      }
+    } catch (err) {
+      console.error('[fine] giro non riuscito:', err)
+    } finally {
+      fineInCorso = false
     }
   }
   /** Le cartelle di un autopilota: la sua e i worktree delle sue chat. Per i divieti. */
@@ -1763,11 +1797,11 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       for (const [i, compito] of daAprireNuove.entries()) {
         const r = ruoloDi(compito)
         if (r === 'revisione' || r === 'rilascio') continue
-        copie.set(i, await creaWorktreeAsincrono(deps.gitAsincrono ?? comeAsincrono(deps.git), { cwd: a.cwd, autopilota: a.id, chat: `c-${a.chats.length + i + 1}`, base: a.ramoBase }))
+        copie.set(i, await creaWorktreeAsincrono(deps.gitAsincrono ?? comeAsincrono(deps.git), { cwd: a.cwd, autopilota: a.id, chat: idChatNuova(a, i), base: a.ramoBase }))
       }
     }
     const nuove: ChatGovernata[] = daAprireNuove.map((compito, i) => {
-      const id = `c-${a.chats.length + i + 1}`
+      const id = idChatNuova(a, i)
       const ruolo = ruoloDi(compito)
       if (ruolo === 'revisione') {
         // Il revisore lavora nella cartella del ramo che rivede, in sola lettura.
@@ -2092,6 +2126,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // poi il freno, che apre i compiti in fila nei posti liberi.
     aggiornaPosti()
     chiudiFiniteDaSole()
+    // P2: le chat finite si eliminano, un passo alla volta (in sottofondo: git può durare).
+    void avanzaFiniteDaSole()
     rispettaFreno()
     const limite = deps.silenzioMassimoMs ?? SILENZIO_MASSIMO_MS
     const ora = Date.parse(deps.adesso())
@@ -2236,7 +2272,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       ...(r.tipo === 'sostituisci' && r.ramo !== undefined ? { ramo: r.ramo } : {})
     }
     const note: string[] = []
-    const nuovaId = `c-${a.chats.length + 1}`
+    const nuovaId = idChatNuova(a)
     if (r.tipo === 'ricrea' || r.nuovoPosto === true) {
       const wt = deps.git !== undefined && a.ramoBase !== undefined
         ? await creaWorktreeAsincrono(deps.gitAsincrono ?? comeAsincrono(deps.git), { cwd: a.cwd, autopilota: a.id, chat: r.tipo === 'ricrea' ? r.chat : nuovaId, base: a.ramoBase })
@@ -3529,7 +3565,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       strada = stradaOltre({ senzaNovita: false, revisioneOk: true, criteriNellaCopia: true, rimisurata: true, daCapo: autore.daCapo === true })
     }
     if (strada === 'da-capo') {
-      const nuovaId = `c-${a.chats.length + 1}`
+      const nuovaId = idChatNuova(a)
       const wt = git !== undefined && base !== undefined ? await creaWorktreeAsincrono(gitA(git), { cwd: a.cwd, autopilota: a.id, chat: nuovaId, base }) : undefined
       // 30/10: git asincrono, quindi si riparte dal disco.
       if (wt !== undefined) a = deps.archivio.leggi(autopilotaId) ?? a
@@ -3769,11 +3805,6 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     annota(finito, `il lavoro è compiuto: ${perche}`)
     salva(finito)
     console.info(`[autopilota] ${a.id} — finito da solo: ${perche}`)
-    try {
-      deps.quaderno?.(finito.cwd, { titolo: titoloScheda(finito), corpo: corpoScheda(finito), tag: tagScheda(finito), ...(finito.sessionId !== undefined ? { sessione: finito.sessionId } : {}) })
-    } catch (err) {
-      console.error(`[autopilota] scheda di ${a.id} non scritta:`, err)
-    }
     if (a.chats.length > 0) deps.fermaLavoro(a.id)
     void deps.avvisa('finito', finito)
   }
@@ -3814,8 +3845,39 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     turniInCorso.set(chiave, promessa)
     return promessa
   }
+  /**
+   * P2 (30/10): le righe `LEZIONI:` dell'ultimo messaggio (al più 3, al più
+   * 200 caratteri) nel quaderno del progetto, senza doppioni. Niente modello e
+   * niente criteri: si legge e si scrive. Un quaderno che non si scrive non
+   * ferma niente. Torna quante nuove e quante confermate, se ce n'erano.
+   */
+  const lezioniLette = new Map<string, string>()
+  const scriviLezioni = (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>): { nuove: number; confermate: number } | undefined => {
+    if (deps.lezioni === undefined || a.cwd === '') return undefined
+    const messaggio = typeof corpo.last_assistant_message === 'string' ? corpo.last_assistant_message : ''
+    const ruolo = chatId !== undefined ? a.chats.find((c) => c.id === chatId)?.ruolo : undefined
+    const lezioni = righeLezioni(messaggio, ruolo)
+    if (lezioni.length === 0) return undefined
+    // La stessa fermata arrivata due volte non conferma due volte le stesse lezioni.
+    const impronta = lezioni.map((l) => l.testo).join('\n')
+    const chiave = chiaveTurno(a.id, chatId)
+    if (lezioniLette.get(chiave) === impronta) return undefined
+    lezioniLette.set(chiave, impronta)
+    try {
+      const r = deps.lezioni(a.cwd, lezioni, deps.adesso())
+      console.info(`[autopilota] ${a.id}::${chatId ?? '-'} — lezioni nel quaderno: ${r.nuove} nuove, ${r.confermate} confermate`)
+      return r
+    } catch (err) {
+      console.error(`[autopilota] lezioni di ${chatId ?? a.id} non scritte:`, err)
+      return undefined
+    }
+  }
   const suStopMisurato = async (id: string, chatId: string | undefined, corpo: Record<string, unknown>, misura: MisuraGiro): Promise<unknown> => {
     const a = deps.archivio.leggi(id)
+    // P2 (30/10): le righe `LEZIONI:` si annotano per prime, anche se la chat
+    // è già finita o il suo autopilota è fermo: è proprio l'ultimo turno di
+    // una chat finita a portarle, e dopo la chat si elimina.
+    const lezioniScritte = a !== undefined ? scriviLezioni(a, chatId, corpo) : undefined
     // Una chat sopravvissuta al proprio autopilota — eliminato, fermato, finito —
     // deve potersi fermare, non restare appesa a un padrone che non comanda più.
     if (a === undefined || a.stato !== 'lavoro') return {}
@@ -3904,6 +3966,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // 0.85.1: il rapporto scritto dalla chat a fine turno, se è nuovo.
     if (rapportoQui !== undefined && rapportoQui.dichiarato && rapportoNuovo(rapportoPrima, rapportoQui)) {
       annota(conSessione, `rapporto da ${chatId ?? id}: ${parolaRapporto(rapportoQui)}`)
+    }
+    if (lezioniScritte !== undefined) {
+      annota(conSessione, `lezioni da ${chatId ?? id}: ${lezioniScritte.nuove} nuove${lezioniScritte.confermate > 0 ? `, ${lezioniScritte.confermate} già note (confermate)` : ''}`)
     }
 
     // **Il ciclo si scrive adesso, prima dei criteri.** Erano l'unica cosa
@@ -4236,7 +4301,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         ...(aggiornato.chats.some((c) => c.ruolo !== undefined)
           ? [`- **Agenti specializzati**: ${aggiornato.chats.filter((c) => c.ruolo !== undefined).map((c) => `${c.id} è ${RUOLI[c.ruolo ?? 'sviluppo'].nome}`).join(', ')}. Quando il compito di una chat è fatto usa \`chiudiChat\` su di lei: il suo ramo passa dalla Revisione prima di essere unito. «finito» solo quando tutto l’obiettivo è fatto.`]
           : []),
-        '- `quaderno` {"titolo", "corpo"}: una scheda nel quaderno del progetto (una decisione, una trappola, un errore risolto).',
+        '- `quaderno` {"titolo", "corpo"}: una lezione di una riga nel quaderno del progetto (una trappola, un vincolo, un errore risolto e il perché), senza doppioni.',
         'Il programma rifiuta: chat e autopiloti non tuoi, «Porta qui», l’account, le preferenze, i file fuori dalle tue cartelle.'
       ].join('\n')
       // 0.82.1: niente più seconda interrogazione subito (altri 5 minuti con la
@@ -4552,8 +4617,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         apriDopo = apriDopo || aggiornato.compitiDaFare.length > 0
       } else if (m.tipo === 'quaderno') {
         try {
-          deps.quaderno?.(aggiornato.cwd, { titolo: m.titolo, corpo: m.corpo, tag: ['autopilota'] })
-          annota(aggiornato, `scheda nel quaderno: ${m.titolo}`)
+          // P2: una lezione di una riga, senza doppioni, non una scheda nuova.
+          deps.lezioni?.(aggiornato.cwd, [{ tag: 'autopilota', testo: `${m.titolo}: ${m.corpo}` }], deps.adesso())
+          annota(aggiornato, `lezione nel quaderno: ${m.titolo}`)
         } catch (err) {
           console.error(`[autopilota] scheda del quaderno di ${id} non scritta:`, err)
         }
@@ -5139,20 +5205,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           ]
     }
     salvaUnito(finito, false)
-    // La scheda si scrive adesso, che il lavoro e' ancora tutto qui e nessuno
-    // l'ha dimenticato: domani la stessa ricostruzione costerebbe una rilettura
-    // della chat, cioe' token pagati per sapere una cosa scrivibile in dieci
-    // righe. Un quaderno che non si riesce a scrivere non ferma niente.
-    try {
-      deps.quaderno?.(finito.cwd, {
-        titolo: titoloScheda(finito),
-        corpo: corpoScheda(finito),
-        tag: tagScheda(finito),
-        ...(finito.sessionId !== undefined ? { sessione: finito.sessionId } : {})
-      })
-    } catch (err) {
-      console.error(`[autopilota] scheda di ${id} non scritta:`, err)
-    }
+    // P2 (30/10): niente scheda di fine lavoro nel quaderno. Quello che va
+    // ricordato l'hanno già scritto le chat nelle righe `LEZIONI:`.
     // Le altre chat della flotta stanno ancora lavorando a pezzi di un obiettivo
     // gia' raggiunto: lasciarle andare consumerebbe per niente.
     if (aggiornato.chats.length > 0) deps.fermaLavoro(id)

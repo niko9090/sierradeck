@@ -47,7 +47,7 @@ export const FERMO_SI_CHIUDE_MS = 30 * 60_000
 /** Una chat chiusa da sola e ancora accesa dopo questo (consegna persa, riaperta) si richiude. */
 export const RICHIUDI_DOPO_MS = 10 * 60_000
 
-/** `alRecupero` (0.84.0): l'agente ha finito e il suo ramo è chiuso; la conversazione va nel recupero di 30 giorni. */
+/** `alRecupero` (0.84.0): l'agente ha finito e il suo ramo è chiuso. P2 (30/10): la chat si elimina (`fine-chat.ts`). */
 export type DaChiudere = { autopilotaId: string; chatId?: string; sessionId: string; motivo: string; alRecupero?: true }
 
 /**
@@ -57,7 +57,7 @@ export type DaChiudere = { autopilotaId: string; chatId?: string; sessionId: str
  * la sua conversazione e non si tocca.
  */
 export function agenteFinito(a: Autopilota, c: ChatGovernata): boolean {
-  if (c.sessionId === undefined || c.nelRecupero !== undefined) return false
+  if (c.sessionId === undefined || c.nelRecupero !== undefined || c.fine !== undefined) return false
   // A lavoro finito tutto (T6) l'ultima chat resta «lavoro» nell'archivio: conta il ramo unito.
   if (c.stato !== 'finita' && !(a.stato === 'finito' && c.stato === 'lavoro' && c.conclusa !== undefined)) return false
   if (c.sessionId === a.sessionId) return false
@@ -136,7 +136,7 @@ export function daChiudereDaSole(p: {
       if (c.sessionId === undefined || adottate.has(c.sessionId)) continue
       // Collaudo 0.84.0 (D4): già mandata nel recupero. Se è accesa, l'ha
       // rimessa Nicholas con «Ripristina»: resta dov'è.
-      if (c.nelRecupero !== undefined) continue
+      if (c.nelRecupero !== undefined || c.fine !== undefined) continue
       // L'agente finito (0.84.0): chiusa e nel recupero, anche se è già spenta
       // (resterebbe nell'elenco per sempre). Mai mentre lavora.
       if (agenteFinito(a, c) && !alLavoro.has(c.sessionId) && da(c.dal ?? a.ultimoEvento) >= FINITA_SI_CHIUDE_MS) {

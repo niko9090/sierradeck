@@ -1,45 +1,30 @@
 import { CARTELLA_QUADERNO, SOTTOCARTELLA } from './quaderno'
+import { FILE_DECISIONI, FILE_LEZIONI } from './quaderno-lezioni'
 
 /**
- * La regola che rende il quaderno un **obbligo** della chat, non un optional.
+ * La regola del quaderno, iniettata nel prompt di sistema di **ogni** chat
+ * aperta dal Gestore (`--append-system-prompt`), senza toccare nessun file
+ * dell'utente né `~/.claude`.
  *
- * Il quaderno serve a poco se le chat non ci scrivono ciò che imparano: le
- * decisioni prese, i vincoli scoperti, come funziona una cosa, un errore risolto
- * e il perché. Senza, ogni conversazione riparte da zero e si ripaga in token un
- * contesto che si poteva leggere in dieci righe. Per questo la regola non vive in
- * un CLAUDE.md che l'utente potrebbe non avere, ma viene iniettata nel prompt di
- * sistema di **ogni** chat aperta dal Gestore (`--append-system-prompt`), senza
- * toccare nessun file dell'utente né `~/.claude`.
- *
- * È scritta perché la chat la applichi da sé: annota man mano, e — questo è il
- * «promemoria a fine turno» chiesto — ricontrolla di averlo fatto **prima** di
- * restituire il controllo. Preferito a un hook che blocca la chiusura perché un
- * hook che si inceppa lascia la chat ferma, che è esattamente il guasto che
- * questo prodotto esiste per evitare.
+ * P2 (30/10): «il quaderno annota ciò che va ricordato, così le chat finite si
+ * eliminano e non resta niente che non serve». Prima la regola chiedeva una
+ * scheda per argomento, e il quaderno di SierraDeck era arrivato a 533 note
+ * (6 MB), molte quasi uguali. Adesso il quaderno sono due file soli:
+ * `lezioni.md` (una riga per lezione, una sezione per tag) e `decisioni.md`
+ * (le decisioni e le regole di Nicholas). Una lezione si aggiunge come una
+ * riga, mai come un file nuovo; le chat dell'autopilota la scrivono nelle righe
+ * `LEZIONI:` e la annota il programma. Breve di proposito: viaggia in ogni chat.
  */
 export const DIRETTIVA_QUADERNO = [
-  'Stai lavorando dentro SierraDeck. Questo progetto ha un QUADERNO condiviso:',
-  `la cartella \`${CARTELLA_QUADERNO}/${SOTTOCARTELLA}/\` dentro la cartella di lavoro,`,
-  'fatta di schede Markdown (una per argomento).',
+  'Stai lavorando dentro SierraDeck. Questo progetto ha un QUADERNO condiviso in',
+  `\`${CARTELLA_QUADERNO}/${SOTTOCARTELLA}/\`: \`${FILE_LEZIONI}\` (una riga per lezione, una sezione \`## tag\` per argomento)`,
+  `e \`${FILE_DECISIONI}\` (le decisioni e le Regole di Nicholas, che valgono sempre).`,
+  'Leggili quando il compito tocca qualcosa che potrebbero già dire.',
   '',
-  'OBBLIGO: quando in questa conversazione emerge qualcosa di utile e duraturo sul',
-  'progetto — una decisione presa e il perché, un vincolo scoperto, come funziona',
-  'una parte del sistema, un errore risolto e la sua causa, una trappola da',
-  'ricordare — DEVI registrarlo nel quaderno di tua iniziativa, senza che nessuno',
-  'te lo chieda. Non è un extra: è parte del lavoro.',
-  '',
-  'Come scrivere una scheda:',
-  `- crea o aggiorna un file \`.md\` in \`${CARTELLA_QUADERNO}/${SOTTOCARTELLA}/\`;`,
-  '- in cima un\'intestazione YAML fra due righe di `---` con:',
-  '  `titolo: "..."`, `quando: <data-ora ISO>`, e se aiutano `tag: ["...", "..."]`;',
-  '- sotto, il contenuto in Markdown: conciso, un argomento per scheda, scritto',
-  '  per essere riletto da una persona fra un mese.',
-  '- se una scheda sull\'argomento esiste già, AGGIORNALA invece di duplicarla.',
-  '',
-  'Cosa NON mettere: chiacchiere, passaggi banali, o cose già ovvie dal codice.',
-  'Solo ciò che a una persona (o alla prossima chat) farebbe risparmiare tempo.',
-  '',
-  'PRIMA di considerare finito un compito o di restituire il controllo all\'utente,',
-  'fermati un istante e controlla: è emerso qualcosa che merita una scheda? Se sì,',
-  'scrivila o aggiornala adesso. È l\'ultima cosa da fare, non la prima da saltare.'
+  'Quando emerge una cosa duratura da ricordare (una trappola, un vincolo scoperto, una',
+  'decisione e il perché, la causa di un errore) DEVI annotarla, in una riga sola:',
+  `- in una chat dell'autopilota: nelle righe LEZIONI: alla fine del compito, come dice il primo messaggio;`,
+  `- altrimenti: una riga \`- testo\` sotto la sezione giusta di \`${FILE_LEZIONI}\`, se non c'è già.`,
+  'MAI file nuovi nel quaderno, mai resoconti, storici o note di giro: le chat finite si',
+  'eliminano, e resta solo quello che serve.'
 ].join('\n')
