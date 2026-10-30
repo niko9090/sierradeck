@@ -36,6 +36,10 @@ describe('lo stato di un autopilota, dal vivo', () => {
   it('le durate si leggono', () => {
     expect(durata(30_000)).toBe('meno di un minuto')
     expect(durata(135 * 60_000)).toBe('2 h 15 min')
+    // Le stesse parole di «Adesso», anche oltre il giorno; un tempo che non torna non si scrive.
+    expect(durata(26 * 60 * 60_000)).toBe('1 g 2 h')
+    expect(durata(-5)).toBe('')
+    expect(durata(Number.NaN)).toBe('')
   })
 })
 

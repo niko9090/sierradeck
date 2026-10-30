@@ -1,6 +1,7 @@
 import { basename, join, sep } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { scriviAtomico } from '@shared/scrittura-atomica'
+import { normalizzaPercorso, staDentro } from '@shared/percorsi'
 import { memoriaDiFile } from '../memoria-di-file'
 import type { LayoutSalvato, WorkspaceSalvato } from '@shared/workspace'
 
@@ -104,15 +105,8 @@ export function idDaPrefisso(prefisso: string): string | undefined {
   return prefisso.startsWith(PREFISSO_PROGETTI) ? prefisso.slice(PREFISSO_PROGETTI.length) : undefined
 }
 
-/** Per confrontare percorsi di Windows: maiuscole e barre non contano. */
-export function normalizzaPercorso(p: string): string {
-  return p.replace(/\//g, '\\').replace(/[\\]+$/, '').toLowerCase()
-}
-
-/** Se `cwd` e' la radice o una sua sottocartella. */
-export function staDentro(cwd: string, radice: string): boolean {
-  return sottoCartella(cwd, radice) !== undefined
-}
+// La regola dei percorsi sta in `@shared/percorsi`; si riesporta per chi la prende da qui.
+export { normalizzaPercorso, staDentro }
 
 function sottoCartella(cwd: string, radice: string): string | undefined {
   const c = normalizzaPercorso(cwd)

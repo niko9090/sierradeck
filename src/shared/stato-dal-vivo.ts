@@ -1,5 +1,6 @@
 import type { Autopilota } from './autopilota'
 import type { Colore } from './stato-vista'
+import { durata as durataAdesso } from './adesso'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «in realtà stava
@@ -43,13 +44,13 @@ export const SENZA_SEGNI_MS = 10 * 60_000
  */
 export const SENZA_SEGNI_AUTOPILOTA_MS = 5 * 60_000
 
+/**
+ * Le parole della durata sono quelle di «Adesso» (`durata` di `@shared/adesso`):
+ * qui in più un tempo che non torna (negativo, non numerico) non si scrive.
+ * Oltre il giorno si dicono anche le ore («1 g 2 h»), come lì.
+ */
 export function durata(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return ''
-  const min = Math.floor(ms / 60_000)
-  if (min < 1) return 'meno di un minuto'
-  if (min < 60) return `${min} min`
-  const ore = Math.floor(min / 60)
-  return ore < 24 ? `${ore} h${min % 60 > 0 ? ` ${min % 60} min` : ''}` : `${Math.floor(ore / 24)} g`
+  return !Number.isFinite(ms) || ms < 0 ? '' : durataAdesso(ms)
 }
 
 const UNA_RIGA = (t: string): string => t.replace(/\s+/g, ' ').trim().slice(0, 140)

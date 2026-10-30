@@ -3,7 +3,8 @@ import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { prefissoDi } from './incrementale'
 import type { Archivio as ArchivioWorkspace } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
-import { normalizzaPercorso, unionePiuRecente } from '../progetti/registro'
+import { unionePiuRecente } from '../progetti/registro'
+import { normalizzaPercorso, staDentro } from '@shared/percorsi'
 
 /**
  * Il catalogo del Drive: cosa c'e' lassu', raggruppato per progetto, e come
@@ -170,12 +171,6 @@ function cwdDeiWorkspace(archivio: ArchivioWorkspace | undefined): Map<string, s
     }
   }
   return fuori
-}
-
-function staDentro(cwd: string, radice: string): boolean {
-  const c = normalizzaPercorso(cwd)
-  const r = normalizzaPercorso(radice)
-  return c === r || c.startsWith(`${r}\\`)
 }
 
 /** Il progetto del registro in cui sta una cartella, guardando i percorsi di tutti i PC e le origini. */
