@@ -7,7 +7,7 @@ import {
   annotaVoci, componiFileQuaderno, FILE_DECISIONI, FILE_LEZIONI, fileVuoto, indiceQuaderno, leggiFileQuaderno, TAG_DECISIONI,
   type FileQuaderno
 } from '@shared/quaderno-lezioni'
-import { distilla, fraseRiordino, type EsitoDistilla } from '@shared/quaderno-riordino'
+import { distilla, fraseRiordino, RESTANO, type EsitoDistilla } from '@shared/quaderno-riordino'
 import { scriviAtomico, scriviJsonAtomico } from '@shared/scrittura-atomica'
 
 /**
@@ -110,13 +110,32 @@ function schedeDi(cwd: string): Scheda[] {
   return fuori
 }
 
-export type AnteprimaRiordino = Pick<EsitoDistilla, 'note' | 'voci' | 'regole'> & { frase: string }
+export type AnteprimaRiordino = Pick<EsitoDistilla, 'note' | 'voci' | 'regole' | 'tolte'> & { frase: string; file: string[] }
 
-/** Cosa farebbe «Riordina il quaderno», senza toccare niente. */
+/**
+ * Le note da distillare: tutte, o solo quelle viste nell'anteprima (D4).
+ * Una nota arrivata dopo (dal Drive, da un altro PC) non si sposta senza che
+ * Nicholas l'abbia vista: spostarla qui la toglierebbe anche dagli altri PC.
+ */
+function schedeScelte(cwd: string, soloFile?: readonly string[]): Scheda[] {
+  const tutte = schedeDi(cwd)
+  if (soloFile === undefined) return tutte
+  const scelte = new Set(soloFile)
+  return tutte.filter((s) => RESTANO.has(s.file) || scelte.has(s.file))
+}
+
+/** Cosa farebbe «Riordina il quaderno», senza toccare niente: anche le voci che il tetto lascerebbe fuori. */
 export function anteprimaRiordino(cwd: string, oggi: string = new Date().toISOString()): AnteprimaRiordino {
   const q = apriQuadernoLezioni().leggi(cwd)
   const e = distilla(schedeDi(cwd), q, oggi)
-  return { note: e.note, voci: e.voci, regole: e.regole, frase: fraseRiordino(e) }
+  return { note: e.note, voci: e.voci, regole: e.regole, tolte: e.tolte, file: e.daSpostare, frase: fraseRiordino(e) }
+}
+
+/** Le voci uscite per il tetto, leggibili: si salvano nel recupero accanto agli originali. */
+function testoVociTolte(tolte: EsitoDistilla['tolte'], quando: string): string {
+  const righe = [`# Voci rimaste fuori dal riordino del ${quando.slice(0, 10)}`, '', 'Il tetto di lezioni.md e decisioni.md (200 voci o 32 KB per file) le ha lasciate fuori. Le note originali sono qui accanto.', '']
+  for (const t of tolte) righe.push(`- [${t.file} · ${t.tag}] ${t.testo} _(${t.volte > 1 ? `confermata ${t.volte}×, ` : ''}${t.ultima})_`)
+  return `${righe.join('\n')}\n`
 }
 
 /** Sposta un file: rinomina, o copia e poi toglie l'originale (disco diverso). */
@@ -137,20 +156,36 @@ export type EsitoRiordino = AnteprimaRiordino & { ok: boolean; spostate: number;
  * scrittura non riesce non si sposta niente. Gira solo quando Nicholas preme il
  * tasto.
  */
-export function riordinaQuaderno(cwd: string, dati: string, adesso: () => string = () => new Date().toISOString()): EsitoRiordino {
+export function riordinaQuaderno(
+  cwd: string,
+  dati: string,
+  adesso: () => string = () => new Date().toISOString(),
+  /** Le note viste nell'anteprima: si spostano solo queste. Assente = tutte (com'era). */
+  soloFile?: readonly string[]
+): EsitoRiordino {
   const quando = adesso()
   const lez = apriQuadernoLezioni(adesso)
   const dir = cartellaDi(cwd)
-  const e = distilla(schedeDi(cwd), lez.leggi(cwd), quando)
-  const base = { note: e.note, voci: e.voci, regole: e.regole, frase: fraseRiordino(e) }
+  const e = distilla(schedeScelte(cwd, soloFile), lez.leggi(cwd), quando)
+  const base = { note: e.note, voci: e.voci, regole: e.regole, tolte: e.tolte, file: e.daSpostare, frase: fraseRiordino({ ...e, tolte: [] }) }
   if (e.note === 0) return { ...base, ok: true, spostate: 0, nonSpostate: [], messaggio: base.frase }
+  const id = `${quando.slice(0, 10)}-${randomBytes(4).toString('hex')}`
+  const recupero = join(dati, CARTELLA_RECUPERO, id)
+  // **Prima nel recupero quello che si riscrive** (D4): le voci di lezioni.md
+  // e decisioni.md che il tetto lascia fuori non stanno in nessuna nota, e
+  // riscrivendo i due file sparirebbero. Le copie di prima e l'elenco delle
+  // voci rimaste fuori restano nel recupero 30 giorni, con le note.
+  try {
+    mkdirSync(join(recupero, 'prima'), { recursive: true })
+    for (const f of [FILE_LEZIONI, FILE_DECISIONI]) if (existsSync(join(dir, f))) copyFileSync(join(dir, f), join(recupero, 'prima', f))
+    if (e.tolte.length > 0 && !scriviAtomico(join(recupero, 'prima', 'voci-rimaste-fuori.md'), testoVociTolte(e.tolte, quando), 'quaderno')) throw new Error('voci-rimaste-fuori.md non salvato')
+  } catch (err) {
+    return { ...base, ok: false, spostate: 0, nonSpostate: e.daSpostare, messaggio: `Non sono riuscito a mettere nel recupero lezioni.md e decisioni.md di prima (${String(err).slice(0, 120)}): non ho toccato niente.` }
+  }
   mkdirSync(dir, { recursive: true })
   const lezioniOk = scriviAtomico(join(dir, FILE_LEZIONI), componiFileQuaderno('lezioni', e.lezioni), 'quaderno')
   const decisioniOk = lezioniOk && scriviAtomico(join(dir, FILE_DECISIONI), componiFileQuaderno('decisioni', e.decisioni), 'quaderno')
   if (!lezioniOk || !decisioniOk) return { ...base, ok: false, spostate: 0, nonSpostate: e.daSpostare, messaggio: 'Non sono riuscito a scrivere lezioni.md e decisioni.md: non ho spostato niente.' }
-  const id = `${quando.slice(0, 10)}-${randomBytes(4).toString('hex')}`
-  const recupero = join(dati, CARTELLA_RECUPERO, id)
-  mkdirSync(recupero, { recursive: true })
   const spostate: string[] = []
   const nonSpostate: string[] = []
   for (const nome of e.daSpostare) {
@@ -160,7 +195,8 @@ export function riordinaQuaderno(cwd: string, dati: string, adesso: () => string
   scriviJsonAtomico(join(dati, FILE_REGISTRO), { versione: 1, voci: [...leggiRegistro(dati), { id, cwd, quando, scadeIl: scade, file: spostate }] }, 'recupero-quaderno')
   return {
     ...base, ok: nonSpostate.length === 0, spostate: spostate.length, nonSpostate, recupero,
-    messaggio: `${base.frase} Le ${spostate.length} note originali sono nel recupero fino al ${scade.slice(0, 10)}${nonSpostate.length > 0 ? `; ${nonSpostate.length} non si sono spostate e restano dove sono` : ''}.`
+    messaggio: `${base.frase} Le ${spostate.length} note originali sono nel recupero fino al ${scade.slice(0, 10)}${nonSpostate.length > 0 ? `; ${nonSpostate.length} non si sono spostate e restano dove sono` : ''}.` +
+      (e.tolte.length > 0 ? ` ${e.tolte.length === 1 ? 'La voce rimasta fuori per il tetto è' : `Le ${e.tolte.length} voci rimaste fuori per il tetto sono`} in prima/voci-rimaste-fuori.md, nello stesso recupero, con lezioni.md e decisioni.md di prima.` : '')
   }
 }
 

@@ -679,11 +679,32 @@ export async function salvaIncrementale(deps: {
     }
     cambiati.splice(0, cambiati.length, ...dentro)
   }
-  /** Toglie da qui i file che un altro PC ha tolto davvero (con la lapide). */
+  /**
+   * Toglie da qui i file che un altro PC ha tolto davvero (con la lapide).
+   *
+   * **Si riguarda il file subito prima** (D1): la decisione viene dal disco
+   * letto all'inizio del giro, e fra quel momento e qui passano tutti i
+   * caricamenti. Se nel frattempo l'hai toccato (dimensione, data, o il
+   * contenuto quando la voce ha l'impronta), il file resta: una modifica vince
+   * sempre sulla lapide, e al giro dopo risale come nuovo. Ogni salto si scrive.
+   */
   const togliQui = async (): Promise<void> => {
-    for (const p of daTogliereQui) {
+    for (const p of [...daTogliereQui]) {
       const f = firma.get(p)
-      if (f !== undefined) await unlink(f.disco).catch(() => undefined)
+      if (f === undefined) continue
+      const salta = (motivo: string): void => {
+        console.warn(`[sync] ${p}: non lo tolgo da qui nonostante la lapide, ${motivo}`)
+        daTogliereQui.splice(daTogliereQui.indexOf(p), 1)
+      }
+      const ora = await firmaSuDisco(f.disco)
+      if (ora === undefined) continue // gia' sparito: niente da togliere
+      if (!stessaFirma(ora, f)) { salta('e\' cambiato sul disco durante il salvataggio'); continue }
+      const sha = prec.file[p]?.sha
+      if (sha !== undefined && ora.size <= TETTO_IMPRONTA_PRIMA_DI_TOGLIERE) {
+        const adesso = await improntaDi(f.disco)
+        if (adesso !== undefined && adesso !== sha) { salta('il contenuto non e\' piu\' quello registrato'); continue }
+      }
+      await unlink(f.disco).catch(() => undefined)
     }
   }
   const conTenuti = (m: Manifesto): Manifesto => {
@@ -902,6 +923,17 @@ export async function salvaIncrementale(deps: {
     await aggiungiLapidi(deps.archivio, deps.maestra, nuove)
   }
 
+  // Chi e' ogni blob da togliere, visto **prima** di scrivere il manifesto (D5).
+  const primaDelManifesto = new Map<string, InfoFile | null>()
+  const infoArchivio = deps.archivio.info
+  if (infoArchivio !== undefined) {
+    await conLimite(daCancellare, PARALLELI, async (p) => {
+      const voce = base.file[p]
+      if (voce === undefined) return
+      primaDelManifesto.set(p, (await infoArchivio(voce.nome).catch(() => null)) ?? null)
+    })
+  }
+
   /** I miei cambi che un altro PC ha superato mentre salivo: restano suoi sul Drive. */
   const superati = new Set<string>()
   const improntaDelBlob = async (nome: string): Promise<string | undefined> => {
@@ -943,12 +975,15 @@ export async function salvaIncrementale(deps: {
   // I blob si tolgono dopo il manifesto: un manifesto che promette un blob
   // gia' cancellato non deve mai esistere. Un blob rimasto orfano costa
   // spazio, non dati.
+  //
+  // **Per id e per versione, non per nome** (D5): il nome viene dal percorso,
+  // e un altro PC puo' ricaricare lo stesso percorso fra la scrittura del
+  // manifesto e questa cancellazione. Si toglie solo il file visto prima del
+  // manifesto, e solo se e' ancora a quella versione.
   await conLimite(cancellatiDavvero, PARALLELI, async (percorso) => {
     const voce = base.file[percorso]
     if (voce === undefined || finale.file[percorso] !== undefined) return
-    await deps.archivio.cancella(voce.nome).catch((err: unknown) => {
-      console.warn(`[sync] ${percorso}: il blob non si toglie dal Drive (${err instanceof Error ? err.message : String(err)}), resta orfano`)
-    })
+    await togliBlob(deps.archivio, voce.nome, primaDelManifesto.get(percorso), percorso)
   })
 
   // Quello che un altro PC ha tolto davvero (con la lapide), e qui e' rimasto
@@ -969,6 +1004,35 @@ export async function salvaIncrementale(deps: {
     saltati,
     sospesi,
     toltiQui: annullato ? [] : daTogliereQui
+  }
+}
+
+/** Oltre questa dimensione, prima di togliere un file per una lapide basta la firma (D1). */
+const TETTO_IMPRONTA_PRIMA_DI_TOGLIERE = 64 * 1024 * 1024
+
+/**
+ * Toglie un blob dal Drive solo se e' ancora quello visto prima del manifesto
+ * (D5). `vista` = `undefined` quando l'archivio non sa dire chi e' un file
+ * (allora si toglie per nome, come prima); `null` quando non si e' letto: si
+ * lascia, un orfano costa spazio e non dati.
+ */
+export async function togliBlob(archivio: Archivio, nome: string, vista: InfoFile | null | undefined, percorso: string): Promise<boolean> {
+  const avvisa = (motivo: string): void => { console.warn(`[sync] ${percorso}: il blob non si toglie dal Drive (${motivo}), resta orfano`) }
+  try {
+    if (vista === undefined || archivio.info === undefined) { await archivio.cancella(nome); return true }
+    if (vista === null) { avvisa('non si e\' potuto vedere chi era prima del manifesto'); return false }
+    const ora = await archivio.info(nome)
+    if (ora === undefined) return false // gia' sparito
+    if (ora.id !== vista.id || ora.versione !== vista.versione) {
+      avvisa(`un altro PC l'ha ricaricato (versione ${vista.versione} -> ${ora.versione})`)
+      return false
+    }
+    if (archivio.cancellaId !== undefined) await archivio.cancellaId(vista.id)
+    else await archivio.cancella(nome)
+    return true
+  } catch (err) {
+    avvisa(err instanceof Error ? err.message : String(err))
+    return false
   }
 }
 

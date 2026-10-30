@@ -330,6 +330,8 @@ export type FineChat = {
   ramoFinoA?: string
   /** Perché è ferma a questo passo (worktree con modifiche, chat aperta che usa la copia…). */
   tenuta?: string
+  /** Perché il ramo resta per sempre (una chat «unita» il cui ramo non è nel principale): mai tolto da solo. */
+  ramoTenuto?: string
   /** Quando si è guardato l'ultima volta un passo tenuto: si riprova più tardi. */
   guardataIl?: string
 }
@@ -344,7 +346,8 @@ function leggiFineChat(x: unknown): FineChat | undefined {
     ...(data('chiusaIl') !== undefined ? { chiusaIl: data('chiusaIl') as string } : {}),
     ...(data('ramoFinoA') !== undefined ? { ramoFinoA: data('ramoFinoA') as string } : {}),
     ...(data('guardataIl') !== undefined ? { guardataIl: data('guardataIl') as string } : {}),
-    ...(typeof o.tenuta === 'string' && o.tenuta !== '' ? { tenuta: o.tenuta.slice(0, 200) } : {})
+    ...(typeof o.tenuta === 'string' && o.tenuta !== '' ? { tenuta: o.tenuta.slice(0, 200) } : {}),
+    ...(typeof o.ramoTenuto === 'string' && o.ramoTenuto !== '' ? { ramoTenuto: o.ramoTenuto.slice(0, 200) } : {})
   }
 }
 

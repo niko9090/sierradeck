@@ -3,7 +3,7 @@ import { normalizzaTag, LEZIONE_MAX } from './lezioni-chat'
 import { somiglianza } from './somiglianza-parole'
 import {
   annotaVoci, FILE_DECISIONI, FILE_LEZIONI, TAG_DECISIONI,
-  type FileQuaderno, type RegolaDiNicholas
+  type FileQuaderno, type RegolaDiNicholas, type Voce
 } from './quaderno-lezioni'
 
 /**
@@ -56,7 +56,12 @@ export type EsitoDistilla = {
   /** Quante voci e regole risultano, per «N note diventano M voci». */
   voci: number
   regole: number
+  /** Le voci che il tetto lascia fuori (D4): restano nelle note originali, nel recupero per 30 giorni. */
+  tolte: VoceTolta[]
 }
+
+/** Una voce che il tetto di `lezioni.md` o `decisioni.md` lascia fuori. */
+export type VoceTolta = { file: typeof FILE_LEZIONI | typeof FILE_DECISIONI; tag: string; testo: string; volte: number; ultima: string }
 
 /**
  * Una nota «di giro»: un resoconto di un lavoro, di una chat o di un giorno,
@@ -201,10 +206,12 @@ export function distilla(schede: readonly Scheda[], gia: { lezioni: FileQuaderno
     if (DECISIONE.test(s.titolo) || s.tag.some((t) => DECISIONE.test(t))) decisioniNuove.push({ tag: TAG_DECISIONI, testo, quando })
     else lezioniNuove.push({ tag: tagDaScheda(s), testo, quando })
   }
+  const usciteL: Voce[] = []
+  const usciteD: Voce[] = []
   let lezioni: FileQuaderno = gia.lezioni
-  for (const l of lezioniNuove) lezioni = annotaVoci(lezioni, [l], l.quando).file
+  for (const l of lezioniNuove) { const r = annotaVoci(lezioni, [l], l.quando); lezioni = r.file; usciteL.push(...r.tolte) }
   let decisioni: FileQuaderno = { ...gia.decisioni, regole: [] }
-  for (const d of decisioniNuove) decisioni = annotaVoci(decisioni, [d], d.quando).file
+  for (const d of decisioniNuove) { const r = annotaVoci(decisioni, [d], d.quando); decisioni = r.file; usciteD.push(...r.tolte) }
   decisioni = { ...decisioni, regole: regoleSenzaDoppie(regole) }
   return {
     note: note.length,
@@ -212,20 +219,50 @@ export function distilla(schede: readonly Scheda[], gia: { lezioni: FileQuaderno
     decisioni,
     daSpostare: note.map((s) => s.file),
     voci: lezioni.voci.length + decisioni.voci.length,
-    regole: decisioni.regole.length + lezioni.regole.length
+    regole: decisioni.regole.length + lezioni.regole.length,
+    tolte: [...vociTolte(FILE_LEZIONI, usciteL, lezioni.voci), ...vociTolte(FILE_DECISIONI, usciteD, decisioni.voci)]
   }
 }
 
+/**
+ * Le voci uscite per il tetto e non rientrate dopo (D4): una volta sola per
+ * testo, con il conto più alto. Una voce uscita e poi riscritta da una nota
+ * più recente non è persa.
+ */
+function vociTolte(file: VoceTolta['file'], uscite: readonly Voce[], restano: readonly Voce[]): VoceTolta[] {
+  const dentro = new Set(restano.map((v) => v.testo))
+  const per = new Map<string, VoceTolta>()
+  for (const v of uscite) {
+    if (dentro.has(v.testo)) continue
+    const gia = per.get(v.testo)
+    if (gia === undefined || v.volte > gia.volte) per.set(v.testo, { file, tag: v.tag, testo: v.testo, volte: v.volte, ultima: v.ultima })
+  }
+  return [...per.values()]
+}
+
 /** Quello che vede il pannello prima di riordinare. */
-export type AnteprimaRiordinoVista = { note: number; voci: number; regole: number; frase: string }
+export type AnteprimaRiordinoVista = {
+  note: number
+  voci: number
+  regole: number
+  frase: string
+  /** Le voci che il tetto (200 voci o 32 KB per file) lascerebbe fuori (D4): si vedono prima di confermare. */
+  tolte: VoceTolta[]
+  /** Le note che si sposterebbero: alla conferma si spostano solo queste, non una arrivata dopo. */
+  file: string[]
+}
 /** Quello che vede il pannello dopo. */
 export type EsitoRiordinoVista = AnteprimaRiordinoVista & { ok: boolean; messaggio: string }
 
-/** «533 note diventano 180 voci e 12 regole di Nicholas». */
-export function fraseRiordino(e: Pick<EsitoDistilla, 'note' | 'voci' | 'regole'>): string {
+/** «533 note diventano 180 voci e 12 regole di Nicholas». E quante restano fuori dal tetto, se ce ne sono. */
+export function fraseRiordino(e: Pick<EsitoDistilla, 'note' | 'voci' | 'regole'> & { tolte?: readonly unknown[] }): string {
   if (e.note === 0) return 'Non ci sono note da riordinare.'
   const note = e.note === 1 ? '1 nota diventa' : `${e.note} note diventano`
   const voci = e.voci === 1 ? '1 voce' : `${e.voci} voci`
   const regole = e.regole === 0 ? '' : e.regole === 1 ? ' e 1 regola di Nicholas (parola per parola)' : ` e ${e.regole} regole di Nicholas (parola per parola)`
-  return `${note} ${voci}${regole}.`
+  const n = e.tolte?.length ?? 0
+  const fuori = n === 0 ? '' : n === 1
+    ? ' 1 voce resta fuori per il tetto (la vedi qui sotto).'
+    : ` ${n} voci restano fuori per il tetto (le vedi qui sotto).`
+  return `${note} ${voci}${regole}.${fuori}`
 }

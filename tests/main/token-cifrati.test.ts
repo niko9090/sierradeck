@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { leggiSegreto, scriviSegreto, cifraLeCopie, eCifrato, SEGNO_CIFRATO, type Portachiavi } from '../../src/main/segreti-su-file'
+import { leggiSegreto, leggiSegretoConStato, scriviSegreto, eCifrato, SEGNO_CIFRATO, type Portachiavi } from '../../src/main/segreti-su-file'
 import { apriContoDrive, FILE_TOKEN_DRIVE } from '../../src/main/cassaforte/conto-drive'
 import { archivioSessione, FILE_ACCESSO_SUPABASE } from '../../src/main/accesso-supabase'
 import { daCopiare, mettiAlSicuroLoStato, CARTELLA_COPIE } from '../../src/main/copie-di-versione'
@@ -72,24 +72,59 @@ describe('segreti su file', () => {
     expect(leggiSegreto(f, portachiaviFinto(), 'prova')).toBe('{"x":1}')
   })
 
-  it('le copie di versione si cifrano sul posto, senza cancellarle', () => {
+  it('S3: le copie di versione restano come sono (una versione di prima deve poterle leggere)', () => {
     const d = cartella()
-    for (const v of ['0.84.0-a', '0.85.0-b', '0.86.0-c']) {
+    writeFileSync(join(d, FILE_TOKEN_DRIVE), JSON.stringify(TOKEN))
+    writeFileSync(join(d, FILE_ACCESSO_SUPABASE), JSON.stringify({ sessione: 'in-chiaro' }))
+    for (const v of ['0.84.0-a', '0.85.0-b', '0.86.1-c']) {
       mkdirSync(join(d, CARTELLA_COPIE, v), { recursive: true })
       writeFileSync(join(d, CARTELLA_COPIE, v, FILE_TOKEN_DRIVE), JSON.stringify(TOKEN))
+      writeFileSync(join(d, CARTELLA_COPIE, v, FILE_ACCESSO_SUPABASE), JSON.stringify({ sessione: 'in-chiaro' }))
     }
-    expect(cifraLeCopie(d, CARTELLA_COPIE, FILE_TOKEN_DRIVE, portachiaviFinto(), 'prova')).toBe(3)
-    for (const v of ['0.84.0-a', '0.85.0-b', '0.86.0-c']) {
-      const f = join(d, CARTELLA_COPIE, v, FILE_TOKEN_DRIVE)
-      expect(existsSync(f)).toBe(true)
-      expect(readFileSync(f, 'utf8')).not.toContain('rinnovo-di-prova')
+    expect(apriContoDrive(d, portachiaviFinto()).stato().connesso).toBe(true)
+    expect(archivioSessione(d, portachiaviFinto()).getItem('sessione')).toBe('in-chiaro')
+    for (const v of ['0.84.0-a', '0.85.0-b', '0.86.1-c']) {
+      expect(JSON.parse(readFileSync(join(d, CARTELLA_COPIE, v, FILE_TOKEN_DRIVE), 'utf8'))).toEqual(TOKEN)
+      expect(eCifrato(join(d, CARTELLA_COPIE, v, FILE_ACCESSO_SUPABASE))).toBe(false)
     }
-    expect(cifraLeCopie(d, CARTELLA_COPIE, FILE_TOKEN_DRIVE, undefined, 'prova')).toBe(0)
+  })
+
+  it('S3: un file cifrato col portachiavi non pronto non si legge, non vale «scollegato» e non si riscrive', () => {
+    const d = cartella()
+    const f = join(d, FILE_TOKEN_DRIVE)
+    scriviSegreto(f, JSON.stringify(TOKEN), portachiaviFinto(), 'prova')
+    const cifrato = readFileSync(f, 'utf8')
+    const spento = portachiaviFinto(false)
+    expect(leggiSegretoConStato(f, spento, 'prova')).toEqual({ stato: 'portachiavi-non-pronto' })
+    expect(leggiSegretoConStato(join(d, 'non-c-e.json'), spento, 'prova')).toEqual({ stato: 'assente' })
+    // Chi scrive (un rinnovo, Supabase che si crede uscito) non lo sostituisce.
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(scriviSegreto(f, '{}', spento, 'prova')).toBe(false)
+    expect(scriviSegreto(f, '{}', undefined, 'prova')).toBe(false)
+    avviso.mockRestore()
+    expect(readFileSync(f, 'utf8')).toBe(cifrato)
+    // Il conto lo dice a parte, e non e' uno scollegamento.
+    const conto = apriContoDrive(d, spento)
+    expect(conto.stato()).toMatchObject({ connesso: false, portachiaviNonPronto: true })
+    expect(conto.scollegamento()).toBeUndefined()
+    // La sessione di Supabase: vuota adesso, ma il file resta.
+    scriviSegreto(join(d, FILE_ACCESSO_SUPABASE), JSON.stringify({ k: 'v' }), portachiaviFinto(), 'prova')
+    const sessione = readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const s = archivioSessione(d, spento)
+    expect(s.getItem('k')).toBeNull()
+    s.removeItem('k')
+    expect(readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')).toBe(sessione)
+    vi.restoreAllMocks()
+    // Il portachiavi torna: tutto come prima, senza ricollegare.
+    expect(apriContoDrive(d, portachiaviFinto()).stato()).toMatchObject({ connesso: true })
+    expect(apriContoDrive(d, portachiaviFinto()).stato().portachiaviNonPronto).toBeUndefined()
+    expect(archivioSessione(d, portachiaviFinto()).getItem('k')).toBe('v')
   })
 })
 
 describe('il token del Drive', () => {
-  it('quello in chiaro di prima si legge, e alla prima lettura diventa cifrato (con le copie)', () => {
+  it('quello in chiaro di prima si legge, e alla prima lettura diventa cifrato (le copie no, S3)', () => {
     const d = cartella()
     writeFileSync(join(d, FILE_TOKEN_DRIVE), JSON.stringify(TOKEN))
     mkdirSync(join(d, CARTELLA_COPIE, '0.85.0-x'), { recursive: true })
@@ -97,7 +132,7 @@ describe('il token del Drive', () => {
     const conto = apriContoDrive(d, portachiaviFinto())
     expect(conto.stato().connesso).toBe(true)
     expect(readFileSync(join(d, FILE_TOKEN_DRIVE), 'utf8')).not.toContain('rinnovo-di-prova')
-    expect(readFileSync(join(d, CARTELLA_COPIE, '0.85.0-x', FILE_TOKEN_DRIVE), 'utf8')).not.toContain('rinnovo-di-prova')
+    expect(readFileSync(join(d, CARTELLA_COPIE, '0.85.0-x', FILE_TOKEN_DRIVE), 'utf8')).toContain('rinnovo-di-prova')
     // Un altro avvio, stesso portachiavi: ancora collegato.
     expect(apriContoDrive(d, portachiaviFinto()).stato().connesso).toBe(true)
   })

@@ -368,8 +368,8 @@ contextBridge.exposeInMainWorld('gestore', {
     anteprimaRiordino: (cwd: string): Promise<import('@shared/quaderno-riordino').AnteprimaRiordinoVista> =>
       ipcRenderer.invoke('quaderno:anteprimaRiordino', cwd),
     /** P2: «Riordina il quaderno»: distilla le note in lezioni.md e decisioni.md, gli originali nel recupero 30 giorni. */
-    riordina: (cwd: string): Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista> =>
-      ipcRenderer.invoke('quaderno:riordina', cwd)
+    riordina: (cwd: string, file?: string[]): Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista> =>
+      ipcRenderer.invoke('quaderno:riordina', cwd, file)
   },
   /** L'account: registrazione e accesso, che vivono nel main (la rete la fa lui). */
   account: {

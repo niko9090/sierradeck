@@ -7,8 +7,7 @@ import { creaMagazzinoDrive, creaArchivioDrive } from './google-drive'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
 import { leggiScollegamento, type Scollegamento } from '@shared/scoperta-pc'
-import { leggiSegreto, scriviSegreto, cifraLeCopie, type Portachiavi } from '../segreti-su-file'
-import { CARTELLA_COPIE } from '../copie-di-versione'
+import { leggiSegreto, leggiSegretoConStato, scriviSegreto, type Portachiavi } from '../segreti-su-file'
 
 /** Il file dei token, nella cartella dei dati e nelle copie di versione (che non lo copiano più dalla 0.86.2). */
 export const FILE_TOKEN_DRIVE = 'google-drive-token.json'
@@ -37,6 +36,12 @@ export type StatoDrive = {
   email?: string
   /** Quando è stato collegato (ISO), se lo si sa: dopo sette giorni un'app OAuth «in prova» perde il permesso. */
   collegatoIl?: string
+  /**
+   * Il token c'è, cifrato, ma il portachiavi del sistema non risponde ancora
+   * (S3). `connesso` è `false` solo perché il token non si legge adesso: non
+   * è uno scollegamento, non si chiede di ricollegare e si riprova.
+   */
+  portachiaviNonPronto?: true
 }
 
 /**
@@ -89,21 +94,19 @@ export type ContoDrive = {
  */
 export function apriContoDrive(dati: string, portachiavi?: Portachiavi): ContoDrive {
   const fileToken = join(dati, FILE_TOKEN_DRIVE)
-  let copieCifrate = false
 
   const leggiGettoni = (f: string): Gettoni | undefined => {
     const testo = leggiSegreto(f, portachiavi, 'drive')
     if (testo === undefined) return undefined
     try { return JSON.parse(testo) as Gettoni } catch { return undefined }
   }
+  // Le copie di versione non si cifrano (S3): con loro una versione di prima riparte collegata.
   const leggi = (): Gettoni | undefined => {
-    if (!copieCifrate) {
-      copieCifrate = true
-      try { cifraLeCopie(dati, CARTELLA_COPIE, FILE_TOKEN_DRIVE, portachiavi, 'drive') } catch { /* le copie restano come sono */ }
-    }
     const g = leggiGettoni(fileToken)
     return g !== undefined && typeof g.accessToken === 'string' ? g : undefined
   }
+  /** Il token c'è, cifrato, ma il portachiavi non risponde ancora (S3): né collegato né scollegato. */
+  const portachiaviNonPronto = (): boolean => leggiSegretoConStato(fileToken, portachiavi, 'drive', { migra: false }).stato === 'portachiavi-non-pronto'
   const scarta = (): void => {
     try {
       if (existsSync(fileToken)) rmSync(fileToken)
@@ -189,7 +192,9 @@ export function apriContoDrive(dati: string, portachiavi?: Portachiavi): ContoDr
         connesso: g?.refreshToken !== undefined,
         ...(g?.email !== undefined ? { email: g.email } : {}),
         // 0.70.0: quando è stato collegato, per avvisare prima dei sette giorni di Google.
-        ...(g?.refreshToken !== undefined && g.collegatoIl !== undefined ? { collegatoIl: new Date(g.collegatoIl).toISOString() } : {})
+        ...(g?.refreshToken !== undefined && g.collegatoIl !== undefined ? { collegatoIl: new Date(g.collegatoIl).toISOString() } : {}),
+        // S3: il token c'è ma il portachiavi non risponde ancora. Non è uno scollegamento.
+        ...(g === undefined && portachiaviNonPronto() ? { portachiaviNonPronto: true as const } : {})
       }
     },
 

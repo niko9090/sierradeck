@@ -21,7 +21,9 @@ import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
  *    e le sue voci in `workspaces.json` e `chiuse.json`);
  * 2. **worktree**: via con `togliWorktreeAsincrono`, staccati prima i
  *    collegamenti senza seguirli;
- * 3. **ramo** `ap/*`: via se è unito; se non lo è si tiene 7 giorni, poi via;
+ * 3. **ramo** `ap/*`: via se è unito nel principale; se non lo è, per una
+ *    chat abbandonata si tiene 7 giorni, poi via con l'etichetta
+ *    `archivio/<ramo>`; per una chat unita resta, e si dice perché;
  * 4. **trascrizione**: la cartella di `~/.claude/projects` del worktree;
  * 5. **voci**: le istruzioni e la chat in `chats`.
  *
@@ -190,7 +192,8 @@ export async function avanzaFine(a: Autopilota, c0: ChatGovernata, d: Dipendenze
         if (st.codice !== 0) return tieni('git non legge lo stato della copia')
         const h = await d.git(['rev-parse', '--verify', '--quiet', 'HEAD'], radiceWt)
         const head = h.codice === 0 ? h.uscita.split(/\r?\n/)[0]?.trim() : undefined
-        const base = a.ramoBase ?? 'main'
+        const base = await ramoBaseDi(a, d.git, radice)
+        if (base === undefined) return tieni('non trovo il ramo principale del progetto')
         const dentro = async (cosa: string, in_: string): Promise<boolean> => (await d.git(['merge-base', '--is-ancestor', cosa, in_], radice)).codice === 0
         const nelPrincipale = head !== undefined && head !== '' && await dentro(head, base)
         // I commit non uniti restano sul ramo, che si tiene 7 giorni: solo se il ramo li contiene davvero.
@@ -225,7 +228,10 @@ export async function avanzaFine(a: Autopilota, c0: ChatGovernata, d: Dipendenze
         const r = await ramoDaTogliere(a, c, d, f().ramoFinoA)
         if (r.esito === 'tenuto') return tieni(r.perche)
         if (r.esito === 'tolto') righe.push(`tolto il ramo ${c.ramo ?? ''} di ${c.id}${r.perche !== '' ? ` (${r.perche})` : ''}`)
-        if (r.esito === 'fra-7-giorni') {
+        if (r.esito === 'conservato') {
+          if (f().ramoTenuto !== r.perche) righe.push(`il ramo ${c.ramo ?? ''} di ${c.id} resta: ${r.perche}`)
+          metti({ ramoTenuto: r.perche, ramoFinoA: undefined })
+        } else if (r.esito === 'fra-7-giorni') {
           const fino = f().ramoFinoA ?? new Date(d.ora + RAMO_TENUTO_MS).toISOString()
           if (f().ramoFinoA === undefined) righe.push(`il ramo ${c.ramo ?? ''} di ${c.id} ha commit non uniti: lo tengo fino al ${fino.slice(0, 10)}, poi va via`)
           metti({ ramoFinoA: fino })
@@ -252,7 +258,11 @@ export async function avanzaFine(a: Autopilota, c0: ChatGovernata, d: Dipendenze
         if (d.ora < ms(f().ramoFinoA)) return aspetta()
         const r = await ramoDaTogliere(a, c, d, f().ramoFinoA)
         if (r.esito === 'tenuto') return tieni(r.perche)
-        if (r.esito === 'tolto') righe.push(`tolto il ramo ${c.ramo ?? ''} di ${c.id} dopo 7 giorni`)
+        if (r.esito === 'tolto') righe.push(`tolto il ramo ${c.ramo ?? ''} di ${c.id} dopo 7 giorni (${r.perche})`)
+        if (r.esito === 'conservato') {
+          righe.push(`il ramo ${c.ramo ?? ''} di ${c.id} resta: ${r.perche}`)
+          metti({ ramoTenuto: r.perche })
+        }
         metti({ ramoFinoA: undefined })
       }
       const revisione = a.chats.find((x) => x.revisioneDi === c.id && x.id !== c.id)
@@ -267,29 +277,101 @@ export async function avanzaFine(a: Autopilota, c0: ChatGovernata, d: Dipendenze
   }
 }
 
-type RamoDecisione = { esito: 'tolto' | 'mancante' | 'tenuto' | 'fra-7-giorni'; perche: string }
+type RamoDecisione = { esito: 'tolto' | 'mancante' | 'tenuto' | 'fra-7-giorni' | 'conservato'; perche: string }
 
-/** Il ramo `ap/*` di una chat: via se unito, o se i 7 giorni sono passati; mai il corrente, uno in uso, o di una chat aperta. */
+const primaRiga = (s: string): string | undefined => {
+  const r = s.split(/\r?\n/)[0]?.trim()
+  return r === undefined || r === '' ? undefined : r
+}
+
+/**
+ * Il ramo principale del progetto (D2), mai un `'main'` scritto a mano (sui
+ * progetti con `master` ogni ramo risultava «non unito»): quello
+ * dell'autopilota; poi quello che il remoto dice principale
+ * (`refs/remotes/origin/HEAD`, preferendo la sua copia locale, dove
+ * l'autopilota unisce); poi il ramo della cartella principale del progetto.
+ * `undefined` se non si sa: allora non si toglie niente.
+ */
+export async function ramoBaseDi(a: Pick<Autopilota, 'ramoBase'>, git: GitAsincrono, radice: string): Promise<string | undefined> {
+  const proprio = a.ramoBase?.trim()
+  if (proprio !== undefined && proprio !== '') return proprio
+  const esiste = async (ref: string): Promise<boolean> => (await git(['rev-parse', '--verify', '--quiet', ref], radice)).codice === 0
+  const remoto = await git(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], radice)
+  const delRemoto = remoto.codice === 0 ? primaRiga(remoto.uscita) : undefined
+  if (delRemoto !== undefined) {
+    const locale = delRemoto.replace(/^origin\//, '')
+    if (locale !== delRemoto && await esiste(`refs/heads/${locale}`)) return locale
+    return delRemoto
+  }
+  // La cartella principale è la prima che `worktree list` elenca (anche se `a.cwd` fosse una copia).
+  const elenco = await git(['worktree', 'list', '--porcelain'], radice)
+  const principale = elenco.codice === 0 ? leggiWorktreeList(elenco.uscita)[0]?.ramo : undefined
+  if (principale !== undefined && principale !== '' && !principale.startsWith('ap/')) return principale
+  return undefined
+}
+
+/**
+ * Un'etichetta `archivio/<ramo>` sulla punta del ramo, prima di toglierlo
+ * (D2): costa niente, e i commit di una chat abbandonata restano
+ * raggiungibili. Se c'è già un'etichetta con quel nome su un altro commit si
+ * prova `-2`, `-3`… Il nome dell'etichetta, o `undefined` se non si è messa.
+ */
+async function etichettaArchivio(git: GitAsincrono, radice: string, ramo: string): Promise<string | undefined> {
+  const punta = primaRiga((await git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}^{commit}`], radice)).uscita)
+  if (punta === undefined) return undefined
+  for (let n = 1; n <= 20; n += 1) {
+    const nome = n === 1 ? `archivio/${ramo}` : `archivio/${ramo}-${n}`
+    const gia = await git(['rev-parse', '--verify', '--quiet', `refs/tags/${nome}^{commit}`], radice)
+    if (gia.codice === 0) {
+      if (primaRiga(gia.uscita) === punta) return nome
+      continue
+    }
+    if ((await git(['tag', nome, punta], radice)).codice === 0) return nome
+    return undefined
+  }
+  return undefined
+}
+
+/**
+ * Il ramo `ap/*` di una chat: via se unito nel principale; mai il corrente,
+ * uno in uso, o di una chat aperta. Non unito (D2):
+ * - chat **abbandonata**: si tiene 7 giorni, poi via, lasciando l'etichetta
+ *   `archivio/<ramo>` sui suoi commit;
+ * - chat **unita**: il ramo resta, senza scadenza, e si dice perché. Una chat
+ *   «unita» con commit fuori dal principale non si butta mai da sola.
+ */
 async function ramoDaTogliere(a: Autopilota, c: ChatGovernata, d: DipendenzeFine, finoA: string | undefined): Promise<RamoDecisione> {
   if (c.ramo === undefined) return { esito: 'mancante', perche: '' }
   const radice = await radiceDi(d, a.cwd)
   if (radice === undefined) return { esito: 'tenuto', perche: 'il progetto non risponde a git' }
   if ((await d.git(['rev-parse', '--verify', '--quiet', `refs/heads/${c.ramo}`], radice)).codice !== 0) return { esito: 'mancante', perche: '' }
+  const base = await ramoBaseDi(a, d.git, radice)
+  if (base === undefined) return { esito: 'tenuto', perche: 'non trovo il ramo principale del progetto' }
   const corrente = (await d.git(['rev-parse', '--abbrev-ref', 'HEAD'], radice)).uscita.split(/\r?\n/)[0]?.trim()
   const elenco = await d.git(['worktree', 'list', '--porcelain'], radice)
   if (elenco.codice !== 0) return { esito: 'tenuto', perche: 'git non elenca le copie' }
   const inUso = new Set(leggiWorktreeList(elenco.uscita).flatMap((w) => (w.ramo !== undefined ? [w.ramo] : [])))
-  const unito = (await d.git(['merge-base', '--is-ancestor', c.ramo, a.ramoBase ?? 'main'], radice)).codice === 0
-  const scaduto = finoA !== undefined && d.ora >= ms(finoA)
+  const unito = (await d.git(['merge-base', '--is-ancestor', c.ramo, base], radice)).codice === 0
+  const abbandonata = c.fine?.esito === 'abbandonata'
+  // Solo una chat abbandonata perde il ramo allo scadere: mai una unita.
+  const scaduto = abbandonata && finoA !== undefined && d.ora >= ms(finoA)
   const dr = decidiRamo(c.ramo, { ...(corrente !== undefined && corrente !== '' ? { corrente } : {}), inUso, chats: altre(d, a, c), unito: unito || scaduto })
   if (!dr.togli) {
-    if (dr.perche === 'commit non uniti') return { esito: 'fra-7-giorni', perche: dr.perche }
+    if (dr.perche === 'commit non uniti') {
+      if (abbandonata) return { esito: 'fra-7-giorni', perche: dr.perche }
+      return { esito: 'conservato', perche: `la chat risulta unita ma il ramo ha commit che non sono in ${base}: lo tengo` }
+    }
     return { esito: 'tenuto', perche: `ramo ${dr.perche}` }
+  }
+  let etichetta: string | undefined
+  if (!unito) {
+    etichetta = await etichettaArchivio(d.git, radice, c.ramo)
+    if (etichetta === undefined) return { esito: 'tenuto', perche: 'l’etichetta archivio/ non si mette: il ramo resta' }
   }
   // `-D` dopo il controllo nostro: `-d` guarda il ramo corrente, che può non essere il principale.
   const r = await d.git(['branch', '-D', c.ramo], radice)
   if (r.codice !== 0) return { esito: 'tenuto', perche: `ramo non tolto: ${r.uscita.slice(0, 100)}` }
-  return { esito: 'tolto', perche: unito ? 'già unito' : 'non unito, dopo 7 giorni' }
+  return { esito: 'tolto', perche: unito ? 'già unito' : `non unito, dopo 7 giorni; i commit restano in ${etichetta ?? ''}` }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync } from 'node:fs'
 import { join, posix, win32 } from 'node:path'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 import { scelteDiTerminale, tastiPerRisposta } from '@shared/scelte-terminale'
@@ -24,8 +24,9 @@ import { scelteDiTerminale, tastiPerRisposta } from '@shared/scelte-terminale'
  * di un repository così. Mai la cartella di casa, la radice di un disco, una
  * cartella che contiene la casa, o una qualunque altra.
  *
- * `~/.claude.json` lo riscrivono di continuo i Claude Code accesi: si legge,
- * si cambia quella chiave sola, si scrive atomico (temporaneo + rinomina, con
+ * `~/.claude.json` lo riscrivono di continuo i Claude Code accesi: si prende il
+ * loro lucchetto (`~/.claude.json.lock`), si legge, si cambia quella chiave
+ * sola, si riguarda il file e si scrive atomico (temporaneo + rinomina, con
  * le riprove di Windows). Un file che non si legge si lascia stare; un file che
  * non c'è non si crea.
  */
@@ -145,7 +146,47 @@ const PROGETTO_NUOVO = {
   hasClaudeMdExternalIncludesWarningShown: false
 }
 
-export type EsitoFiducia = 'scritta' | 'gia' | 'senza-file' | 'illeggibile' | 'non-scritta'
+export type EsitoFiducia = 'scritta' | 'gia' | 'senza-file' | 'illeggibile' | 'non-scritta' | 'occupato'
+
+/**
+ * Il lucchetto di Claude Code su `~/.claude.json` (D3). Claude Code 2.1.314
+ * scrive la configurazione sotto `proper-lockfile` con
+ * `lockfilePath: '<file>.lock'`: il lucchetto è una **cartella** creata con
+ * `mkdir` (atomico), e chi la tiene ne rinfresca la data ogni 5 s; una
+ * cartella più vecchia di 10 s è di un processo morto e si può togliere.
+ * Qui si fa lo stesso, sincrono: chi la crea la tiene, per pochi millisecondi.
+ */
+export const LUCCHETTO_VECCHIO_MS = 10_000
+const ATTESE_LUCCHETTO_MS = [5, 10, 20, 40, 60, 80, 100, 100, 100] as const
+
+const dormi = (ms: number): void => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) }
+
+/** Prende `<file>.lock` come lo prende Claude Code. La funzione per lasciarlo, o `undefined` se resta di un altro. */
+export function prendiLucchetto(file: string, opz: { attese?: readonly number[]; adesso?: () => number } = {}): (() => void) | undefined {
+  const lucchetto = `${file}.lock`
+  const attese = opz.attese ?? ATTESE_LUCCHETTO_MS
+  const adesso = opz.adesso ?? Date.now
+  for (let i = 0; ; i += 1) {
+    try {
+      mkdirSync(lucchetto)
+      return () => { try { rmdirSync(lucchetto) } catch { /* già tolto: niente da fare */ } }
+    } catch (err) {
+      if ((err as { code?: string }).code !== 'EEXIST') return undefined
+    }
+    // Un lucchetto abbandonato (il rinfresco si è fermato da più di 10 s): via, come fa proper-lockfile.
+    let tolto = false
+    try {
+      if (adesso() - statSync(lucchetto).mtimeMs > LUCCHETTO_VECCHIO_MS) { rmdirSync(lucchetto); tolto = true }
+    } catch { /* sparito fra le due chiamate, o non si toglie: si riprova dopo l'attesa */ }
+    const attesa = attese[i]
+    if (tolto && attesa !== undefined) continue
+    if (attesa === undefined) return undefined
+    dormi(attesa)
+  }
+}
+
+/** Quante volte si rilegge e si riprova se il file cambia fra la lettura e la rinomina. */
+export const TENTATIVI_FIDUCIA = 3
 
 /**
  * Segna la cartella come fidata in `~/.claude.json`. Non solleva mai.
@@ -154,21 +195,59 @@ export type EsitoFiducia = 'scritta' | 'gia' | 'senza-file' | 'illeggibile' | 'n
  * torna com'era stato letto. Se c'è già una chiave per la stessa cartella con
  * maiuscole diverse (Windows), si usa quella. Se è già fidata non si scrive
  * niente: ogni scrittura è una corsa con i Claude Code accesi.
+ *
+ * **Niente aggiornamenti persi** (D3): Claude Code riscrive lo stesso file di
+ * continuo. Si prende il suo lucchetto (`<file>.lock`), e dentro, in un tratto
+ * solo sincrono, si legge, si cambia e si scrive; subito prima della
+ * rinomina si riguardano data e dimensione, e se il file è cambiato (uno
+ * scrittore senza lucchetto) si ricomincia, fino a tre volte. Se nel
+ * frattempo la cartella è diventata fidata non si scrive. Lucchetto tenuto da
+ * un altro troppo a lungo: non si scrive (`occupato`), ci pensa lo strato del
+ * terminale.
  */
 export function segnaFidata(
   fileClaudeJson: string,
   cwd: string,
-  opz: { piattaforma?: NodeJS.Platform; scrivi?: (percorso: string, contenuto: string) => boolean } = {}
+  opz: {
+    piattaforma?: NodeJS.Platform
+    scrivi?: (percorso: string, contenuto: string) => boolean
+    /** Per le prove: le attese fra un tentativo e l'altro di prendere il lucchetto. */
+    atteseLucchetto?: readonly number[]
+    /** Per le prove: chiamata fra la lettura e la rinomina (uno scrittore che entra in mezzo). */
+    dopoLettura?: (tentativo: number) => void
+  } = {}
 ): EsitoFiducia {
-  const piattaforma = opz.piattaforma ?? process.platform
   if (!existsSync(fileClaudeJson)) return 'senza-file'
+  const lascia = prendiLucchetto(fileClaudeJson, opz.atteseLucchetto !== undefined ? { attese: opz.atteseLucchetto } : {})
+  if (lascia === undefined) return 'occupato'
+  try {
+    for (let tentativo = 0; tentativo < TENTATIVI_FIDUCIA; tentativo += 1) {
+      const esito = unTentativo(fileClaudeJson, cwd, opz, tentativo)
+      if (esito !== 'cambiato') return esito
+    }
+    return 'non-scritta'
+  } finally {
+    lascia()
+  }
+}
+
+/** Una lettura, un cambio, una scrittura: senza `await` in mezzo. `cambiato` = il file si è mosso prima della rinomina. */
+function unTentativo(
+  fileClaudeJson: string,
+  cwd: string,
+  opz: Parameters<typeof segnaFidata>[2] & object,
+  tentativo: number
+): EsitoFiducia | 'cambiato' {
+  const piattaforma = opz.piattaforma ?? process.platform
   let testo: string
   let dati: unknown
+  let prima: { mtimeMs: number; size: number }
   try {
+    prima = statSync(fileClaudeJson)
     testo = readFileSync(fileClaudeJson, 'utf8')
     dati = JSON.parse(testo)
-  } catch {
-    return 'illeggibile'
+  } catch (err) {
+    return (err as { code?: string }).code === 'ENOENT' ? 'senza-file' : 'illeggibile'
   }
   if (typeof dati !== 'object' || dati === null || Array.isArray(dati)) return 'illeggibile'
   const radice = dati as Record<string, unknown>
@@ -193,6 +272,14 @@ export function segnaFidata(
   if (progetti === undefined) radice.projects = elenco
   const finale = /\r?\n$/.exec(testo)?.[0] ?? ''
   const contenuto = JSON.stringify(radice, null, 2) + finale
+  opz.dopoLettura?.(tentativo)
+  // Subito prima della rinomina: se il file non è più quello letto, si ricomincia.
+  try {
+    const ora = statSync(fileClaudeJson)
+    if (ora.mtimeMs !== prima.mtimeMs || ora.size !== prima.size) return 'cambiato'
+  } catch {
+    return 'cambiato'
+  }
   const scrivi = opz.scrivi ?? ((p: string, c: string) => scriviAtomico(p, c, 'fiducia-cartella'))
   return scrivi(fileClaudeJson, contenuto) ? 'scritta' : 'non-scritta'
 }
@@ -218,6 +305,7 @@ export function fidatiPrimaDiAvviare(p: {
   if (esito === 'scritta') p.log?.(`[fiducia] ${chiaveProgetto(p.cwd, piattaforma)}: segnata come fidata in .claude.json prima di avviare la chat`)
   else if (esito === 'illeggibile') p.log?.(`[fiducia] ${p.fileClaudeJson} non si legge come JSON: lasciato com'è, la chat potrebbe chiedere la fiducia`)
   else if (esito === 'non-scritta') p.log?.(`[fiducia] ${p.fileClaudeJson} non scritto: la chat potrebbe chiedere la fiducia`)
+  else if (esito === 'occupato') p.log?.(`[fiducia] ${p.fileClaudeJson} lo sta scrivendo Claude Code (lucchetto preso): non scritto, la chat potrebbe chiedere la fiducia`)
   return esito
 }
 

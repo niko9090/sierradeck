@@ -162,7 +162,8 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
   const riordina = (): void => {
     setRiordinando(true)
     window.gestore.quaderno
-      .riordina(quale)
+      // Solo le note viste nell'anteprima: una arrivata nel frattempo resta dov'è.
+      .riordina(quale, riordino?.file)
       .then((e) => { setRiordino(undefined); setNota(e.messaggio); setAperta(undefined); ricarica() })
       .catch((e: unknown) => setErrore(String(e)))
       .finally(() => setRiordinando(false))
@@ -297,6 +298,20 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
           <span>
             Riordina il quaderno: {riordino.frase}
             {riordino.note > 0 ? ' Le note diventano righe in lezioni.md e decisioni.md; le Regole di Nicholas restano parola per parola. Gli originali vanno nel recupero per 30 giorni.' : ''}
+            {riordino.note > 0 && riordino.tolte.length > 0 ? (
+              <details>
+                <summary style={{ cursor: 'pointer' }}>
+                  {riordino.tolte.length === 1 ? '1 voce resta fuori' : `${riordino.tolte.length} voci restano fuori`} per il tetto di 200 voci o 32 KB: guardale prima di confermare (restano anche nel recupero 30 giorni)
+                </summary>
+                <ul style={{ maxHeight: 200, overflowY: 'auto', margin: '4px 0' }}>
+                  {riordino.tolte.map((t) => (
+                    <li key={`${t.file}|${t.testo}`} className="account__nota">
+                      [{t.file === 'decisioni.md' ? 'decisioni' : 'lezioni'} · {t.tag}] {t.testo}{t.volte > 1 ? ` (confermata ${t.volte}×)` : ''}{t.ultima !== '' ? ` · ${t.ultima}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </span>
           {riordino.note > 0 ? <button className="tasto tasto--mini tasto--primario" disabled={riordinando} onClick={riordina}>{riordinando ? 'Riordino…' : 'Riordina'}</button> : null}
           <button className="tasto tasto--mini" disabled={riordinando} onClick={() => setRiordino(undefined)}>{riordino.note > 0 ? 'Annulla' : 'OK'}</button>

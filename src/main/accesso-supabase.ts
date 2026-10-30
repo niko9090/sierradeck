@@ -1,7 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { join } from 'node:path'
-import { leggiSegreto, scriviSegreto, cifraLeCopie, type Portachiavi } from './segreti-su-file'
-import { CARTELLA_COPIE } from './copie-di-versione'
+import { leggiSegreto, leggiSegretoConStato, scriviSegreto, type Portachiavi } from './segreti-su-file'
 import { SUPABASE_URL, SUPABASE_ANON } from '@shared/supabase-config'
 import type { Utente, EsitoAccesso } from '@shared/account'
 
@@ -37,12 +36,9 @@ export function archivioSessione(cartella: string, portachiavi?: Portachiavi): {
   removeItem: (k: string) => void
 } {
   const file = join(cartella, FILE_ACCESSO_SUPABASE)
-  let copieCifrate = false
+  // Le copie di versione non si cifrano (S3): con loro una versione di prima riparte con l'accesso.
+  // Un file cifrato con il portachiavi non pronto non si riscrive (`scriviSegreto`), anche se qui sembra vuoto.
   const leggi = (): Record<string, string> => {
-    if (!copieCifrate) {
-      copieCifrate = true
-      try { cifraLeCopie(cartella, CARTELLA_COPIE, FILE_ACCESSO_SUPABASE, portachiavi, 'accesso') } catch { /* le copie restano come sono */ }
-    }
     const testo = leggiSegreto(file, portachiavi, 'accesso')
     if (testo === undefined) return {}
     try {
@@ -70,7 +66,7 @@ let cliente: SupabaseClient | undefined
 
 /** Avvia il client Supabase con la sessione persistita in `cartella` (userData). Una volta all'avvio. */
 export function avviaAccesso(cartella: string, portachiavi?: Portachiavi): void {
-  cliente = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  const crea = (): SupabaseClient => createClient(SUPABASE_URL, SUPABASE_ANON, {
     auth: {
       storage: archivioSessione(cartella, portachiavi),
       persistSession: true,
@@ -79,6 +75,32 @@ export function avviaAccesso(cartella: string, portachiavi?: Portachiavi): void 
       detectSessionInUrl: false
     }
   })
+  cliente = crea()
+  // S3: la sessione è cifrata ma il portachiavi non risponde ancora. Non è
+  // un'uscita: il file resta intatto (`scriviSegreto` non lo tocca) e, appena
+  // il portachiavi è pronto, il client riparte e la ritrova.
+  if (portachiaviNonProntoPer(cartella, portachiavi)) {
+    console.warn('[accesso] portachiavi non pronto: la sessione resta dov\'è, riprovo fra poco')
+    let giri = 0
+    const timer = setInterval(() => {
+      giri += 1
+      if (!portachiaviNonProntoPer(cartella, portachiavi)) {
+        clearInterval(timer)
+        cliente = crea()
+        console.warn('[accesso] portachiavi pronto: sessione riletta')
+      } else if (giri >= RIPROVE_PORTACHIAVI) clearInterval(timer)
+    }, ATTESA_PORTACHIAVI_MS)
+    timer.unref?.()
+  }
+}
+
+const ATTESA_PORTACHIAVI_MS = 5_000
+/** Dieci minuti: poi resta per il prossimo avvio, sempre senza toccare il file. */
+const RIPROVE_PORTACHIAVI = 120
+
+/** La sessione su disco è cifrata e il portachiavi non risponde (S3). */
+export function portachiaviNonProntoPer(cartella: string, portachiavi?: Portachiavi): boolean {
+  return leggiSegretoConStato(join(cartella, FILE_ACCESSO_SUPABASE), portachiavi, 'accesso', { migra: false }).stato === 'portachiavi-non-pronto'
 }
 
 function c(): SupabaseClient {

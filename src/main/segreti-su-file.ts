@@ -1,5 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, utimesSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, statSync, utimesSync } from 'node:fs'
 import { scriviAtomico } from '@shared/scrittura-atomica'
 
 /**
@@ -13,8 +12,9 @@ import { scriviAtomico } from '@shared/scrittura-atomica'
  * - Un file in chiaro (scritto da una versione di prima) si legge lo stesso e,
  *   se il portachiavi c'è, si riscrive cifrato alla prima lettura.
  * - Senza portachiavi (non disponibile, o non passato: le prove) si fa come
- *   prima: in chiaro. Un file cifrato senza portachiavi non si legge: vale
- *   come «non collegato», non come un errore.
+ *   prima: in chiaro. Un file cifrato senza portachiavi non si legge e **non
+ *   si riscrive** (S3): è «portachiavi non pronto», non «non collegato», e si
+ *   riprova più tardi.
  *
  * Il modulo non conosce Electron: il portachiavi arriva da fuori, come la
  * `Cassetta` delle destinazioni.
@@ -58,10 +58,31 @@ function contenutoPer(chiaro: string, p: Portachiavi | undefined): string {
   }
 }
 
-/** Scrive un segreto: cifrato se si può, in chiaro se no. Restituisce se ha scritto. */
+/**
+ * Scrive un segreto: cifrato se si può, in chiaro se no. Restituisce se ha scritto.
+ *
+ * **Mai sopra un file cifrato quando il portachiavi non è pronto** (S3): il
+ * segreto che c'è dentro non si leggerebbe più, e chi scrive (un rinnovo, la
+ * sessione di Supabase che si crede scollegata) lo sostituirebbe con niente.
+ */
 export function scriviSegreto(file: string, chiaro: string, p: Portachiavi | undefined, etichetta: string): boolean {
+  if (!usabile(p) && eCifrato(file)) {
+    console.warn(`[${etichetta}] ${file}: è cifrato e il portachiavi non è pronto, non lo riscrivo`)
+    return false
+  }
   return scriviAtomico(file, contenutoPer(chiaro, p), etichetta)
 }
+
+/**
+ * Com'è andata la lettura di un segreto (S3). `portachiavi-non-pronto`: il
+ * file è cifrato e il portachiavi non risponde ancora (succede appena
+ * avviato): **non** vuol dire scollegato, si riprova più tardi.
+ */
+export type LetturaSegreto =
+  | { stato: 'ok'; testo: string }
+  | { stato: 'assente' }
+  | { stato: 'portachiavi-non-pronto' }
+  | { stato: 'non-si-decifra' }
 
 /**
  * Cifra sul posto un file in chiaro, tenendo la data di modifica: chi sceglie
@@ -83,41 +104,31 @@ function cifraSulPosto(file: string, chiaro: string, p: Portachiavi, etichetta: 
  * o è cifrato e il portachiavi non c'è.
  */
 export function leggiSegreto(file: string, p: Portachiavi | undefined, etichetta: string, opzioni: { migra?: boolean } = {}): string | undefined {
+  const l = leggiSegretoConStato(file, p, etichetta, opzioni)
+  return l.stato === 'ok' ? l.testo : undefined
+}
+
+/** Come `leggiSegreto`, ma dice perché non c'è (S3): il portachiavi non pronto non è un «scollegato». */
+export function leggiSegretoConStato(file: string, p: Portachiavi | undefined, etichetta: string, opzioni: { migra?: boolean } = {}): LetturaSegreto {
   let testo: string
   try {
-    if (!existsSync(file)) return undefined
+    if (!existsSync(file)) return { stato: 'assente' }
     testo = readFileSync(file, 'utf8')
-  } catch { return undefined }
+  } catch { return { stato: 'assente' } }
   const busta = bustaDi(testo)
   if (busta !== undefined) {
-    if (!usabile(p)) return undefined
-    try { return p.decifra(busta.dati) } catch (err) {
+    if (!usabile(p)) return { stato: 'portachiavi-non-pronto' }
+    try { return { stato: 'ok', testo: p.decifra(busta.dati) } } catch (err) {
       console.error(`[${etichetta}] ${file}: non si decifra (un altro utente Windows, o un altro PC):`, err)
-      return undefined
+      return { stato: 'non-si-decifra' }
     }
   }
   if (opzioni.migra !== false && usabile(p)) cifraSulPosto(file, testo, p, etichetta)
-  return testo
+  return { stato: 'ok', testo }
 }
 
-/**
- * Cifra sul posto le copie in chiaro di un file nelle copie di versione
- * (`copie-di-versione/<versione>/<nome>`), senza cancellarle: sono dell'utente.
- * Restituisce quante ne ha cifrate.
- */
-export function cifraLeCopie(dati: string, cartellaCopie: string, nome: string, p: Portachiavi | undefined, etichetta: string): number {
-  if (!usabile(p)) return 0
-  const radice = join(dati, cartellaCopie)
-  let n = 0
-  let cartelle: string[]
-  try { cartelle = readdirSync(radice) } catch { return 0 }
-  for (const c of cartelle) {
-    const f = join(radice, c, nome)
-    try {
-      if (!existsSync(f) || eCifrato(f)) continue
-      cifraSulPosto(f, readFileSync(f, 'utf8'), p, etichetta)
-      if (eCifrato(f)) n += 1
-    } catch { /* una copia che non si tocca non ferma le altre */ }
-  }
-  return n
-}
+// Le copie di versione (`copie-di-versione/<versione>/<nome>`) **non si
+// cifrano** (S3): sono le copie con cui una versione di prima riparte dopo un
+// ritorno indietro, e la 0.86.1 non sa leggere la busta: si ritrovava il Drive
+// scollegato senza rimedio. Restano come sono; le copie nuove non hanno più i
+// token (vedi `copie-di-versione`).

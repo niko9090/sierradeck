@@ -221,8 +221,12 @@ export function potaVoci(voci: readonly Voce[], max = VOCI_MAX, byteMax = BYTE_M
   return voci.filter((_, i) => !via.has(i))
 }
 
-/** Aggiunge e pota in un colpo: quello che fa il servizio a ogni lezione. */
-export function annotaVoci(f: FileQuaderno, nuove: readonly { tag?: string; testo: string }[], quando: string): { file: FileQuaderno; nuove: number; confermate: number } {
+/**
+ * Aggiunge e pota in un colpo: quello che fa il servizio a ogni lezione.
+ * `tolte` sono le voci uscite per il tetto (D4): chi riordina le mostra
+ * prima di confermare, invece di perderle in silenzio.
+ */
+export function annotaVoci(f: FileQuaderno, nuove: readonly { tag?: string; testo: string }[], quando: string): { file: FileQuaderno; nuove: number; confermate: number; tolte: Voce[] } {
   let voci = f.voci
   let n = 0
   let c = 0
@@ -232,7 +236,9 @@ export function annotaVoci(f: FileQuaderno, nuove: readonly { tag?: string; test
     if (r.nuova) n += 1
     else if (unaRiga(x.testo) !== '') c += 1
   }
-  return { file: { ...f, voci: potaVoci(voci) }, nuove: n, confermate: c }
+  const potate = potaVoci(voci)
+  const restano = new Set(potate)
+  return { file: { ...f, voci: potate }, nuove: n, confermate: c, tolte: voci.filter((v) => !restano.has(v)) }
 }
 
 /** Le voci più utili prima: più confermate, poi più recenti. */

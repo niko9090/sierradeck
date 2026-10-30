@@ -1988,14 +1988,25 @@ if (!app.requestSingleInstanceLock()) {
         }
       })
       sincroniaGlobale = sincronia
-      registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}`)
+      registro.info(`Drive configurato: ${contoDrive.stato().configurato}, connesso: ${contoDrive.stato().connesso}${contoDrive.stato().portachiaviNonPronto === true ? ' (portachiavi non pronto: il token cifrato c è, riprovo)' : ''}`)
       // La cassaforte chiusa con la chiave ricordata (0.65.0): se all'avvio il
       // portachiavi non era pronto, si riprova ogni minuto, da soli.
       const timerPortachiavi = setInterval(() => { try { sincronia.riapriDalPortachiavi() } catch { /* al prossimo giro */ } }, 60_000)
       app.on('before-quit', () => { clearInterval(timerPortachiavi) })
+      // S3: il token del Drive cifrato con il portachiavi non pronto non è uno
+      // scollegamento. Si riguarda ogni 5 s e si scrive quando torna.
+      if (contoDrive.stato().portachiaviNonPronto === true) {
+        const timerToken = setInterval(() => {
+          if (contoDrive.stato().portachiaviNonPronto !== true) {
+            clearInterval(timerToken)
+            registro.info(`[drive] portachiavi pronto: token del Drive riletto, connesso: ${contoDrive.stato().connesso}`)
+          }
+        }, 5_000)
+        app.on('before-quit', () => { clearInterval(timerToken) })
+      }
       // Da quando e' scollegato (0.39.3). I PC scollegati prima della 0.39.3 non
       // l'hanno scritto: lo si ricava dal registro, la prima riga che lo dice.
-      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento() === undefined) {
+      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.stato().portachiaviNonPronto !== true && contoDrive.scollegamento() === undefined) {
         try {
           const cartellaLog = join(dati, 'log')
           const file = readdirSync(cartellaLog).filter((f) => FILE_DEL_REGISTRO.test(f)).sort()
@@ -2009,7 +2020,7 @@ if (!app.requestSingleInstanceLock()) {
       // Prima di chiedere di ricollegare, un rinnovo di prova (0.56.4): se il
       // rifiuto era un falso, il Drive torna da solo. Intanto l'avviso tace.
       let verificaDrive = false
-      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.scollegamento()?.motivo === 'revocata' && contoDrive.scollegamento()?.verificata !== true) {
+      if (contoDrive.stato().configurato && !contoDrive.stato().connesso && contoDrive.stato().portachiaviNonPronto !== true && contoDrive.scollegamento()?.motivo === 'revocata' && contoDrive.scollegamento()?.verificata !== true) {
         verificaDrive = true
         void contoDrive.riprovaRevocata()
           .then((e) => {
@@ -2027,6 +2038,7 @@ if (!app.requestSingleInstanceLock()) {
       avvisoDrive = (): AvvisoDrive | undefined => {
         if (verificaDrive) return undefined
         const st = contoDrive.stato()
+        if (st.portachiaviNonPronto === true) return undefined
         const dal = contoDrive.scollegamento()
         return avvisoDriveScollegato({ configurato: st.configurato, connesso: st.connesso, ...(dal !== undefined ? { dal } : {}), adesso: Date.now() })
       }
@@ -6768,11 +6780,14 @@ if (!app.requestSingleInstanceLock()) {
         if (typeof cwd !== 'string' || cwd.trim() === '') throw new Error('richiesta IPC non valida: cartella mancante')
         return anteprimaRiordino(cwd)
       })
-      ipcMain.handle('quaderno:riordina', (_e, cwd: unknown) => {
+      ipcMain.handle('quaderno:riordina', (_e, cwd: unknown, file: unknown) => {
         if (typeof cwd !== 'string' || cwd.trim() === '') throw new Error('richiesta IPC non valida: cartella mancante')
-        const e = riordinaQuaderno(cwd, dati)
+        if (file !== undefined && (!Array.isArray(file) || !file.every((f) => typeof f === 'string'))) throw new Error('richiesta IPC non valida: elenco delle note')
+        // Solo le note viste nell'anteprima (D4): una arrivata dopo resta dov'è.
+        const e = riordinaQuaderno(cwd, dati, undefined, file as string[] | undefined)
         registro.info(`[quaderno] riordino di ${cwd}: ${e.messaggio}`)
-        return { ok: e.ok, note: e.note, voci: e.voci, regole: e.regole, frase: e.frase, messaggio: e.messaggio }
+        if (e.tolte.length > 0) registro.info(`[quaderno] riordino di ${cwd}: ${e.tolte.length} voci fuori per il tetto, salvate in ${e.recupero ?? '?'}`)
+        return { ok: e.ok, note: e.note, voci: e.voci, regole: e.regole, frase: e.frase, messaggio: e.messaggio, tolte: e.tolte, file: e.file }
       })
 
       const chiavi = apriChiavi(dati)

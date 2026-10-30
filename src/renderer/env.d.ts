@@ -123,7 +123,7 @@ declare global {
         apri: (cwd: string) => Promise<void>
         elimina: (cwd: string, file: string) => Promise<boolean>
         anteprimaRiordino: (cwd: string) => Promise<import('@shared/quaderno-riordino').AnteprimaRiordinoVista>
-        riordina: (cwd: string) => Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista>
+        riordina: (cwd: string, file?: string[]) => Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista>
       }
       account: {
         registra: (email: string, password: string) => Promise<import('@shared/account').EsitoAccesso>

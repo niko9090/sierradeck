@@ -23,7 +23,7 @@ import { useLayoutStore } from '../state/layout'
 
 const COLORE_ACCOUNT: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
 
-type StatoDrive = { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string }
+type StatoDrive = { configurato: boolean; connesso: boolean; email?: string; collegatoIl?: string; portachiaviNonPronto?: true }
 type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
   progetti: { id: string; nome: string; locale?: string; altrove: number }[]
@@ -205,6 +205,12 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
   }
   const commutaAuto = (): void => { void window.gestore.sync.auto(!auto).then(setAuto).catch(() => {}) }
   useEffect(aggiorna, [])
+  // S3: il portachiavi non pronto non è uno scollegamento: si riguarda ogni 5 s finché risponde.
+  useEffect(() => {
+    if (drive?.portachiaviNonPronto !== true) return undefined
+    const t = setInterval(() => { void window.gestore.drive.stato().then(setDrive).catch(() => {}) }, 5_000)
+    return () => clearInterval(t)
+  }, [drive?.portachiaviNonPronto])
   useEffect(() => window.gestore.sync.onProgresso(setProgresso), [])
 
   const conInCorso = (p: Promise<unknown>): void => {
@@ -336,7 +342,9 @@ function SezioneSync({ parte, utente, onEsci }: { parte: 'account' | 'salvataggi
       {parte === 'salvataggio' && !pronto ? (
         <div className="account__scheda account__scheda--largo">
           <p className="account__nota">
-            {!drive.connesso
+            {drive.portachiaviNonPronto === true
+              ? 'Il portachiavi di Windows non è ancora pronto: il collegamento al Drive c’è, ma non si legge adesso. Riprovo da solo fra pochi secondi; non serve ricollegare.'
+              : !drive.connesso
               ? 'Il Drive non è collegato: le chat non si salvano e gli altri PC non si vedono. Si collega da Impostazioni → Account, con il tuo account Google.'
               : 'La cassaforte è chiusa: senza la passphrase non si salva e non si legge niente dal Drive. Si apre da Impostazioni → Account.'}
           </p>

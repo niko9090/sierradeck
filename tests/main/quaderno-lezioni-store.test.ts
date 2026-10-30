@@ -65,7 +65,7 @@ describe('«Riordina il quaderno»', () => {
     expect(decisioni).toContain(regola)
     // Gli originali, interi, nel recupero.
     expect(e.recupero).toBeDefined()
-    expect(readdirSync(e.recupero as string)).toHaveLength(3)
+    expect(readdirSync(e.recupero as string).filter((n) => n.endsWith('.md'))).toHaveLength(3)
     const registro = JSON.parse(readFileSync(join(dati, 'recupero-quaderno.json'), 'utf8')) as { voci: { scadeIl: string; file: string[] }[] }
     expect(registro.voci[0]?.scadeIl.slice(0, 10)).toBe('2026-11-29')
     expect(e.messaggio).toMatch(/recupero fino al 2026-11-29/)
