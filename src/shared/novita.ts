@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.87.0',
+    righe: [
+      '**Un solo autopilota per workspace (da provare):** lo accendi con «Attiva» nel workspace. Ti parla nella chat dell’autopilota, mette in coda ogni tua richiesta e manda avanti agenti specializzati (sviluppo, verifica, revisione, interfaccia, Android), ognuno nella sua copia del progetto. Unisce il lavoro solo dopo che le prove passano. Gli autopiloti di prima restano visibili sotto «Precedenti».',
+      '**Coda delle richieste con percentuale:** niente va perso. Una richiesta che riguarda una già in coda viene unita e riformulata senza togliere nessun punto, e «Separa» la divide di nuovo. Vedi l’avanzamento per richiesta e in totale.',
+      '**Le risposte dal box domande arrivano alla chat:** il testo viene incollato e inviato una sola volta, con conferma. Se la chat è chiusa o addormentata non si perde: il campo resta pieno e la chat viene svegliata.',
+      '**Le cartelle nuove non chiedono più «ti fidi?»:** cartelle dei progetti e copie delle chat sono accettate da sole (si spegne nelle impostazioni). Mai la cartella utente o la radice di un disco.',
+      '**Chat finite eliminate, lezioni nel quaderno:** prima di chiudere, ogni chat lascia al massimo tre lezioni nel quaderno, senza doppioni. «Riordina il quaderno» mostra prima cosa cambia e tiene una copia per 30 giorni.',
+      '**Drive più sicuro:** un file cancellato su un altro PC si toglie qui solo se non l’hai cambiato; i messaggi fra PC non si perdono né si ripetono; Drive non resta appeso; i collegamenti sono salvati cifrati.',
+      '**PC più leggero e chiusura pulita:** il servizio non si blocca più sui comandi git, le chat partono tre alla volta, alla chiusura nessun Claude resta acceso e la disposizione dei riquadri viene salvata.',
+    ]
+  },
+  {
     versione: '0.86.1',
     righe: [
       '**Pulizia ancora più prudente:** una copia di una chat si toglie solo se git conferma che è pulita e già unita, anche quando la cartella è raggiunta per un percorso diverso (collegamenti, cartelle spostate). Una chat aperta mentre la pulizia lavora non viene mai toccata.',
