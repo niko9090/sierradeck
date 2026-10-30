@@ -138,7 +138,7 @@ import type { Manifesto } from './cassaforte/incrementale'
 import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaMandaAChat, type MandaAChat } from './progetti/manda-a-chat'
-import { pcNotiDaDisco } from './progetti/migra-proprietari'
+import { pcNotiDaDisco, risolviPercorsiMiei } from './progetti/migra-proprietari'
 import { creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
@@ -1341,7 +1341,7 @@ if (!app.requestSingleInstanceLock()) {
         marcatoriSenzaCodice: ['migrazione-una-casa.json'],
         passiAggiunti: passiDeiProgetti({
           // In fase A l'identità del PC non è ancora aperta: la si legge dal suo file.
-          io: () => (identitaPcGlobale ?? apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })).leggi(),
+          io: () => ({ ...(identitaPcGlobale ?? apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents') })).leggi(), radici: [app.getPath('documents')] }),
           pulisci: () => pulisciCopiaGlobale
         })
       })
@@ -1646,6 +1646,17 @@ if (!app.requestSingleInstanceLock()) {
       const identitaPc = apriIdentitaPc(dati, { nome: () => hostname(), casa: () => homedir(), documenti: () => app.getPath('documents'), ...(cartellaProva !== undefined && cartellaProva !== '' ? { prova: cartellaProva } : {}) })
       identitaPcGlobale = identitaPc
       const registroProgetti = apriRegistroProgetti(dati)
+      // I progetti di questo PC migrati da un altro PC hanno solo dei candidati:
+      // qui si guarda quale cartella c'è davvero (all'avvio e dopo ogni arrivo).
+      const risolviCartelleMie = (): void => {
+        try {
+          const r = risolviPercorsiMiei(registroProgetti.leggi(), { ...identitaPc.leggi(), radici: [app.getPath('documents')] })
+          if (r.cambiati.length === 0) return
+          registroProgetti.scrivi(r.registro)
+          registro.info(`[progetti] cartella scelta su questo PC per: ${r.cambiati.join(', ')}`)
+        } catch (err) { registro.errore(`[progetti] scelta delle cartelle non riuscita: ${String(err)}`) }
+      }
+      risolviCartelleMie()
       /** Il nome di un PC dal suo id (pc.json e pc-altrui.json), letto al massimo ogni 5 secondi. */
       let nomiPc: { letto: number; nomi: Map<string, string> } | undefined
       const nomePcDi = (id: string): string => {
@@ -1791,6 +1802,7 @@ if (!app.requestSingleInstanceLock()) {
       // di prima fino al riavvio.
       let ultimoArrivoGestito: string | undefined
       const dopoArrivo = async (ultimo: EsitoLavoro): Promise<void> => {
+        risolviCartelleMie()
         await reindicizzaSessioni().catch(() => undefined)
         const avviso = { quante: ultimo.scaricati ?? 0, tipo: ultimo.tipo, quando: ultimo.quando, rimappate: 0 }
         for (const w of finestreDiChat()) {

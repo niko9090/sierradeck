@@ -21,16 +21,17 @@ import { RimandaPasso, passoDaFunzione, type Passo } from './motore'
 
 export const FILE_PERCORSI_DI_PRIMA = 'progetti-percorsi-di-prima.json'
 
-type Io = { id: string; cartellaProgetti: string }
+type Io = { id: string; cartellaProgetti: string; radici?: string[] }
 type Pulisci = (p: { progetto: { id: string; nome: string }; percorso: string }) => Promise<EsitoPulizia>
 
 export function passiDeiProgetti(d: {
   io: () => Io | undefined
   pulisci: () => Pulisci | undefined
 }): Passo[] {
-  const proprietari = passoDaFunzione({
+  // Sincrono: la fase A non aspetta (`passoDaFunzione` è asincrono).
+  const proprietari: Passo = {
     id: 'proprietari', titolo: 'Un PC per ogni progetto', fase: 'A', peso: 2,
-    fai: (c) => {
+    esegui: (c) => {
       const io = d.io()
       const e = migraRegistroSuDisco({ dati: c.dati, ...(io !== undefined ? { io } : {}) })
       const file = join(c.dati, FILE_PERCORSI_DI_PRIMA)
@@ -40,9 +41,9 @@ export function passiDeiProgetti(d: {
       const r = e.rapporto
       for (const s of r.senzaPc) c.proponi(`«${s.nome}» va a ${s.pcNome}, che questo PC non ha ancora visto: resta senza proprietario finché non lo scegli con «Sposta su questo PC».`)
       for (const s of r.senzaCartella) c.proponi(`«${s.nome}» è di ${s.pcNome}, ma non si sa in che cartella: aprilo da lì una volta.`)
-      return `${r.proprietari.length} progetti con il loro PC, ${r.tolti.length} voci che non erano progetti tolte dall'elenco, ${r.uniti.length} doppioni uniti`
+      c.log(`[riassetto] Un PC per ogni progetto: ${r.proprietari.length} progetti con il loro PC, ${r.tolti.length} voci che non erano progetti tolte dall'elenco, ${r.uniti.length} doppioni uniti`)
     }
-  })
+  }
 
   const copie = passoDaFunzione({
     id: 'copie-altri-pc', titolo: 'Copie dei progetti di altri PC', fase: 'B', peso: 3,

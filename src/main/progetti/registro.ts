@@ -28,6 +28,12 @@ export type ProgettoDrive = {
   percorso?: string
   /** Quando è cambiato il proprietario: fra due copie del registro vince il più recente. */
   proprietarioDal?: string
+  /**
+   * Le cartelle dove il progetto potrebbe stare sul proprietario, finché lui
+   * non ha guardato (la migrazione fatta da un altro PC non può saperlo): il
+   * proprietario sceglie quella vera (`risolviPercorsiMiei`) e le toglie.
+   */
+  candidati?: string[]
   /** I campi del modello di prima, finché la migrazione non li ha letti. */
   vecchio?: { percorsi: Record<string, string>; origini?: string[]; unitoIn?: string }
 }
@@ -84,12 +90,14 @@ export function parseRegistro(raw: unknown): RegistroProgetti {
     const proprietario = stringa(q.proprietario)
     const percorso = stringa(q.percorso)
     const proprietarioDal = stringa(q.proprietarioDal)
+    const candidati = Array.isArray(q.candidati) ? q.candidati.filter((x): x is string => typeof x === 'string' && x !== '') : []
     progetti.push({
       id, nome,
       aggiuntoIl: typeof q.aggiuntoIl === 'string' ? q.aggiuntoIl : '',
       ...(proprietario !== undefined ? { proprietario } : {}),
       ...(percorso !== undefined ? { percorso } : {}),
       ...(proprietarioDal !== undefined ? { proprietarioDal } : {}),
+      ...(candidati.length > 0 ? { candidati } : {}),
       ...(haVecchio ? { vecchio: { percorsi, ...(origini.length > 0 ? { origini } : {}), ...(unitoIn !== undefined ? { unitoIn } : {}) } } : {})
     })
   }
@@ -191,7 +199,12 @@ export function fondiRegistri(a: RegistroProgetti, b: RegistroProgetti): Registr
     if (qui === undefined) { perId.set(p.id, p); continue }
     const dalB = p.proprietarioDal ?? ''
     const dalA = qui.proprietarioDal ?? ''
-    const vince = qui.proprietario === undefined && p.proprietario !== undefined ? p : dalB > dalA ? p : qui
+    const stesso = qui.proprietario !== undefined && qui.proprietario === p.proprietario
+    // Lo stesso proprietario: vince la copia in cui lui ha già scelto la cartella (senza candidati).
+    const vince = qui.proprietario === undefined && p.proprietario !== undefined ? p
+      : stesso && qui.candidati === undefined && p.candidati !== undefined ? qui
+      : stesso && p.candidati === undefined && qui.candidati !== undefined ? p
+      : dalB > dalA ? p : qui
     const altro = vince === p ? qui : p
     // Lo stesso proprietario, ma uno dei due non sa dove sta la cartella: si tiene quella nota.
     const percorso = vince.percorso ?? (altro.proprietario === vince.proprietario ? altro.percorso : undefined)

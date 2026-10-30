@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, readFileSync } from 'node:fs'
+import { copyFileSync, existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   FILE_REGISTRO_PROGETTI, apriRegistroProgetti, normalizzaPercorso, parseRegistro,
@@ -156,11 +156,20 @@ function percorsoSu(gruppo: ProgettoDrive[], pcId: string): string | undefined {
  * altri dai battiti). `opzioni.io`: questo PC, per dare la cartella a un
  * progetto suo che il registro non sapeva dove fosse.
  */
+/**
+ * Questo PC, per la migrazione: la sua cartella dei progetti e le altre radici
+ * dove di solito stanno i progetti (i Documenti), per trovare la cartella vera.
+ */
+export type IoMigrazione = { id: string; cartellaProgetti: string; radici?: string[] }
+
+/** Dove potrebbe stare un progetto su questo PC, oltre alle cartelle note: `<radice>/<nome>`. */
+const sottoLeRadici = (io: IoMigrazione, nome: string): string[] => [io.cartellaProgetti, ...(io.radici ?? [])].filter((r) => r !== '').map((r) => join(r, nome))
+
 export function migraAProprietari(
   registro: RegistroProgetti,
   pcNoti: PcNoto[],
   tabella: TabellaProprietari = TABELLA_PROPRIETARI,
-  opzioni: { adesso?: string; io?: { id: string; cartellaProgetti: string }; esiste?: (percorso: string) => boolean } = {}
+  opzioni: { adesso?: string; io?: IoMigrazione; esiste?: (percorso: string) => boolean; valuta?: (percorso: string) => number } = {}
 ): EsitoMigrazione {
   const adesso = opzioni.adesso ?? new Date().toISOString()
   const rapporto: RapportoMigrazione = { proprietari: [], tolti: [], uniti: [], senzaPc: [], senzaCartella: [] }
@@ -231,14 +240,22 @@ export function migraAProprietari(
       }
       proprietario = pc.id
     }
+    // Dove sta la cartella. Il registro di prima non è affidabile: spesso il
+    // percorso «suo» era una cartella vuota in «Progetti SierraDeck», e quella
+    // vera stava fra le origini. Sul proprietario si guarda (`sceltaCartella`);
+    // per gli altri PC si tengono i candidati, e sceglie lui quando li vede.
     let percorso = percorsoSu(ordinati, proprietario)
-    if (percorso === undefined && opzioni.io !== undefined && opzioni.io.id === proprietario) {
-      const candidato = join(opzioni.io.cartellaProgetti, capo.nome)
-      if (opzioni.esiste?.(candidato) === true) percorso = candidato
+    let candidati: string[] | undefined = capo.proprietario === undefined ? candidatiDi(ordinati, percorso) : undefined
+    if (opzioni.io !== undefined && opzioni.io.id === proprietario) {
+      const tutti = [...(percorso !== undefined ? [percorso] : []), ...(candidati ?? []), ...sottoLeRadici(opzioni.io, capo.nome)]
+      const scelta = sceltaCartella(tutti, opzioni.valuta ?? (opzioni.esiste !== undefined ? ((x) => opzioni.esiste?.(x) === true ? 1 : 0) : valutaCartella))
+      if (scelta !== undefined) percorso = scelta
+      candidati = undefined
     }
     const nuovo: ProgettoDrive = {
       ...pulito, proprietario,
       ...(percorso !== undefined ? { percorso } : {}),
+      ...(candidati !== undefined && candidati.length > 0 ? { candidati } : {}),
       proprietarioDal: capo.proprietarioDal ?? adesso
     }
     if (percorso === undefined) rapporto.senzaCartella.push({ id: capo.id, nome: capo.nome, pcNome })
@@ -248,6 +265,70 @@ export function migraAProprietari(
 
   const fuori: RegistroProgetti = { versione: 1, progetti, ...(Object.keys(tolti).length > 0 ? { tolti } : {}) }
   return { registro: fuori, rimappa, rapporto, percorsiDiPrima, cambiato: JSON.stringify(fuori) !== JSON.stringify(registro) }
+}
+
+/** Tutte le cartelle note di un gruppo, tranne quella già scelta: percorsi di ogni PC e origini. */
+function candidatiDi(gruppo: ProgettoDrive[], scelto: string | undefined): string[] {
+  const visti = new Set<string>(scelto !== undefined ? [normalizzaPercorso(scelto)] : [])
+  const fuori: string[] = []
+  for (const p of gruppo) {
+    for (const c of [...Object.values(p.vecchio?.percorsi ?? {}), ...(p.vecchio?.origini ?? [])]) {
+      const k = normalizzaPercorso(c)
+      if (!visti.has(k)) { visti.add(k); fuori.push(c) }
+    }
+  }
+  return fuori
+}
+
+/** File che ci sono anche in una cartella appena creata, senza il progetto dentro. */
+const SOLO_GUSCIO = new Set(['.git', '.gitignore', '.gitattributes', 'readme.md', 'desktop.ini', '.sierradeck', '.claude', 'thumbs.db'])
+
+/**
+ * Quanto è credibile una cartella come quella del progetto: 0 non c'è, 1 c'è
+ * ma è un guscio (vuota, o solo `.git` e README: il 30/10 Game_ascensore aveva
+ * così la copia in «Progetti SierraDeck», e la vera in Documenti), 2 ha dei
+ * file, 3 ha dei file ed è un repository git con dei commit.
+ */
+export function valutaCartella(percorso: string): number {
+  let voci: string[]
+  try { voci = readdirSync(percorso) } catch { return 0 }
+  if (!voci.some((v) => !SOLO_GUSCIO.has(v.toLowerCase()))) return 1
+  if (!voci.includes('.git')) return 2
+  let git: string[] = []
+  try { git = readdirSync(join(percorso, '.git')) } catch { /* `.git` file di un worktree: conta come git */ return 3 }
+  return git.includes('HEAD') && (git.includes('packed-refs') || git.includes('refs')) ? 3 : 2
+}
+
+/** La cartella migliore fra le candidate (a parità vince la prima); nessuna se non ce n'è una che esiste. */
+export function sceltaCartella(candidate: string[], valuta: (percorso: string) => number): string | undefined {
+  let meglio: string | undefined
+  let punti = 0
+  for (const c of candidate) {
+    const v = valuta(c)
+    if (v > punti) { meglio = c; punti = v }
+  }
+  return meglio
+}
+
+/**
+ * Sul proprietario: per i progetti suoi che hanno ancora dei candidati (la
+ * migrazione l'ha fatta un altro PC), sceglie la cartella vera e toglie i
+ * candidati. Si può chiamare a ogni avvio: senza candidati non cambia niente.
+ */
+export function risolviPercorsiMiei(
+  reg: RegistroProgetti,
+  io: IoMigrazione,
+  valuta: (percorso: string) => number = valutaCartella
+): { registro: RegistroProgetti; cambiati: string[] } {
+  const cambiati: string[] = []
+  const progetti = reg.progetti.map((p) => {
+    if (p.proprietario !== io.id || p.candidati === undefined) return p
+    const { candidati, ...senza } = p
+    const scelta = sceltaCartella([...(p.percorso !== undefined ? [p.percorso] : []), ...candidati, ...sottoLeRadici(io, p.nome)], valuta)
+    cambiati.push(p.nome)
+    return scelta !== undefined ? { ...senza, percorso: scelta } : senza
+  })
+  return { registro: cambiati.length > 0 ? { ...reg, progetti } : reg, cambiati }
 }
 
 /** I campi di prima di più voci, insieme: per non perdere un percorso di una voce unita finché non c'è un proprietario. */
@@ -296,18 +377,23 @@ export function migraRegistroSuDisco(p: {
   pcNoti?: PcNoto[]
   tabella?: TabellaProprietari
   adesso?: string
-  io?: { id: string; cartellaProgetti: string }
+  io?: IoMigrazione
   esiste?: (percorso: string) => boolean
+  valuta?: (percorso: string) => number
 }): EsitoMigrazione {
   const file = join(p.dati, FILE_REGISTRO_PROGETTI)
   const store = apriRegistroProgetti(p.dati)
   let registro: RegistroProgetti
   try { registro = parseRegistro(JSON.parse(readFileSync(file, 'utf8'))) } catch { registro = store.leggi() }
-  const esito = migraAProprietari(registro, p.pcNoti ?? pcNotiDaDisco(p.dati), p.tabella ?? TABELLA_PROPRIETARI, {
+  const migrato = migraAProprietari(registro, p.pcNoti ?? pcNotiDaDisco(p.dati), p.tabella ?? TABELLA_PROPRIETARI, {
     ...(p.adesso !== undefined ? { adesso: p.adesso } : {}),
     ...(p.io !== undefined ? { io: p.io } : {}),
-    esiste: p.esiste ?? existsSync
+    ...(p.esiste !== undefined ? { esiste: p.esiste } : {}),
+    ...(p.valuta !== undefined ? { valuta: p.valuta } : {})
   })
+  // I progetti di questo PC migrati da un altro: qui si sceglie la cartella vera.
+  const risolto = p.io !== undefined ? risolviPercorsiMiei(migrato.registro, p.io, p.valuta ?? valutaCartella) : { registro: migrato.registro, cambiati: [] }
+  const esito: EsitoMigrazione = { ...migrato, registro: risolto.registro, cambiato: migrato.cambiato || risolto.cambiati.length > 0 }
   if (esito.cambiato) {
     const copia = join(p.dati, 'progetti-drive.prima-dei-proprietari.json')
     if (existsSync(file) && !existsSync(copia)) copyFileSync(file, copia)

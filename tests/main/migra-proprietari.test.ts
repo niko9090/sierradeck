@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  migraAProprietari, migraRegistroSuDisco, nonProgetto, pcDellaTabella, pcPerNome, idDopoMigrazione,
+  migraAProprietari, migraRegistroSuDisco, nonProgetto, pcDellaTabella, pcPerNome, idDopoMigrazione, risolviPercorsiMiei, sceltaCartella,
   TABELLA_PROPRIETARI, type PcNoto
 } from '../../src/main/progetti/migra-proprietari'
 import { fondiRegistri, parseRegistro, type RegistroProgetti } from '../../src/main/progetti/registro'
@@ -177,5 +177,65 @@ describe('migraRegistroSuDisco', () => {
     expect(scritto.progetti).toEqual([{ id: 'a', nome: 'Trading', aggiuntoIl: '', proprietario: 'pc-l', percorso: 'C:\\Trading', proprietarioDal: ADESSO }])
     expect(Object.keys(scritto.tolti ?? {})).toEqual(['b'])
     expect(migraRegistroSuDisco({ dati, adesso: ADESSO }).cambiato).toBe(false)
+  })
+})
+
+describe('la cartella vera del progetto (prova sui dati veri del 30/10)', () => {
+  // Il registro di prima dava a Wdeck una cartella vuota in «Progetti SierraDeck»;
+  // quella vera, un repository, stava fra le origini.
+  const punti: Record<string, number> = { 'E:\Progetti\Wdeck': 1, 'D:\Documenti\Wdeck': 3 }
+  const valuta = (x: string): number => punti[x] ?? 0
+  const pcNoti = [{ id: 'pc-f', nome: 'PC-Fisso' }, { id: 'pc-l', nome: 'LAPTOP-E60QM2D1' }]
+  const registro = (): RegistroProgetti => ({ versione: 1, progetti: [
+    { id: 'w', nome: 'Wdeck', aggiuntoIl: '', vecchio: { percorsi: { 'pc-f': 'E:\Progetti\Wdeck' }, origini: ['D:\Documenti\Wdeck'] } }
+  ] })
+
+  it('sul proprietario sceglie la cartella che c’è e ha dentro il progetto, non quella vuota', () => {
+    const e = migraAProprietari(registro(), pcNoti, undefined, { adesso: ADESSO, io: { id: 'pc-f', cartellaProgetti: 'E:\Progetti' }, valuta })
+    expect(e.registro.progetti[0]).toMatchObject({ proprietario: 'pc-f', percorso: 'D:\Documenti\Wdeck' })
+    expect(e.registro.progetti[0]?.candidati).toBeUndefined()
+  })
+
+  it('su un altro PC tiene i candidati, e il proprietario sceglie quando li vede', () => {
+    const e = migraAProprietari(registro(), pcNoti, undefined, { adesso: ADESSO, io: { id: 'pc-l', cartellaProgetti: 'C:\Progetti' }, valuta: () => 0 })
+    expect(e.registro.progetti[0]).toMatchObject({ proprietario: 'pc-f', percorso: 'E:\Progetti\Wdeck', candidati: ['D:\Documenti\Wdeck'] })
+    const r = risolviPercorsiMiei(e.registro, { id: 'pc-f', cartellaProgetti: 'E:\Progetti' }, valuta)
+    expect(r.cambiati).toEqual(['Wdeck'])
+    expect(r.registro.progetti[0]).toMatchObject({ percorso: 'D:\Documenti\Wdeck' })
+    expect(r.registro.progetti[0]?.candidati).toBeUndefined()
+    expect(risolviPercorsiMiei(r.registro, { id: 'pc-f', cartellaProgetti: 'E:\Progetti' }, valuta).cambiati).toEqual([])
+  })
+
+  it('fra due copie del registro vince quella in cui il proprietario ha già scelto, anche se più vecchia', () => {
+    const scelto = { id: 'w', nome: 'Wdeck', aggiuntoIl: '', proprietario: 'pc-f', percorso: 'D:\Documenti\Wdeck', proprietarioDal: '2026-10-30T10:00:00Z' }
+    const daAltri = { id: 'w', nome: 'Wdeck', aggiuntoIl: '', proprietario: 'pc-f', percorso: 'E:\Progetti\Wdeck', candidati: ['D:\Documenti\Wdeck'], proprietarioDal: '2026-10-31T10:00:00Z' }
+    expect(fondiRegistri({ versione: 1, progetti: [scelto] }, { versione: 1, progetti: [daAltri] }).progetti[0]).toEqual(scelto)
+    expect(fondiRegistri({ versione: 1, progetti: [daAltri] }, { versione: 1, progetti: [scelto] }).progetti[0]).toEqual(scelto)
+  })
+
+  it('sceltaCartella: nessuna se non ne esiste una', () => {
+    expect(sceltaCartella(['X:\a', 'Y:\b'], () => 0)).toBeUndefined()
+  })
+})
+
+describe('valutaCartella', () => {
+  it('un guscio (solo .git vuoto e README) vale meno di una cartella con il progetto', async () => {
+    const { mkdirSync } = await import('node:fs')
+    const { valutaCartella } = await import('../../src/main/progetti/migra-proprietari')
+    const base = mkdtempSync(join(tmpdir(), 'sd-valuta-'))
+    const guscio = join(base, 'guscio')
+    mkdirSync(join(guscio, '.git'), { recursive: true })
+    writeFileSync(join(guscio, 'README.md'), 'x')
+    const vero = join(base, 'vero')
+    mkdirSync(join(vero, '.git', 'refs'), { recursive: true })
+    writeFileSync(join(vero, '.git', 'HEAD'), 'ref: refs/heads/main')
+    writeFileSync(join(vero, 'index.html'), 'x')
+    const senzaGit = join(base, 'senza-git')
+    mkdirSync(senzaGit)
+    writeFileSync(join(senzaGit, 'STATO.md'), 'x')
+    expect(valutaCartella(join(base, 'non-c-e'))).toBe(0)
+    expect(valutaCartella(guscio)).toBe(1)
+    expect(valutaCartella(senzaGit)).toBe(2)
+    expect(valutaCartella(vero)).toBe(3)
   })
 })
