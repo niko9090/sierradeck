@@ -349,6 +349,8 @@ export function costruisciPassi(d: DipendenzePassi): Passo[] {
     passoErroriApp(d),
     ...aggiunti.filter((p) => p.fase === 'A'),
     passoServizio(d, 'consegne', 'Contatore delle consegne', 1, 'consegne'),
+    // Prima delle trascrizioni: le chat degli autopiloti di prima non le tengono più.
+    passoServizio(d, 'autopiloti', 'Autopiloti di prima', 1, 'autopiloti'),
     passoServizio(d, 'worktree', 'Copie delle chat e rami', 3, 'worktree'),
     passoServizio(d, 'trascrizioni', 'Trascrizioni delle copie finite', 6, 'trascrizioni'),
     passoServizio(d, 'errori-servizio', 'Storico degli errori del servizio', 1, 'errori'),

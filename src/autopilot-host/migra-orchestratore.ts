@@ -296,7 +296,13 @@ function legamiOrchestratori(cartellaOrchestratori: string): { unici: Set<string
  * assorbe il servizio al suo prossimo avvio. `cartellaOrchestratori` di serie
  * è `<cartellaAutopiloti>/../orchestratori`.
  */
-export function archiviaVecchiAutopiloti(cartellaAutopiloti: string, recupero: string, cartellaOrchestratori: string = join(cartellaAutopiloti, '..', 'orchestratori')): RapportoArchiviazione {
+export function archiviaVecchiAutopiloti(
+  cartellaAutopiloti: string,
+  recupero: string,
+  cartellaOrchestratori: string = join(cartellaAutopiloti, '..', 'orchestratori'),
+  // Il riassetto passa il suo: con il manifesto, così «Annulla» li rimette a posto.
+  spostaFuori?: (da: string, rel: string) => boolean
+): RapportoArchiviazione {
   const r: RapportoArchiviazione = { recupero, autopiloti: [], altri: [], tenuti: [], errori: [] }
   if (!existsSync(cartellaAutopiloti)) return r
   const { unici, assorbiti } = legamiOrchestratori(cartellaOrchestratori)
@@ -304,6 +310,7 @@ export function archiviaVecchiAutopiloti(cartellaAutopiloti: string, recupero: s
   try { nomi = readdirSync(cartellaAutopiloti) } catch (err) { r.errori.push(String(err)); return r }
   const sposta = (rel: string): boolean => {
     const da = join(cartellaAutopiloti, rel)
+    if (spostaFuori !== undefined) return spostaFuori(da, rel)
     const a = join(recupero, rel)
     try {
       mkdirSync(join(a, '..'), { recursive: true })

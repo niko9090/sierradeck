@@ -411,7 +411,7 @@ describe('riassetto: i passi del programma su una cartella dei dati finta', () =
     expect(readdirSync(join(dati, 'copie-di-versione'))).toHaveLength(3)
     expect(r.stato()?.progresso.finito).toBe(false)
     await r.faseB()
-    expect(chiamate).toEqual(['consegne', 'worktree', 'trascrizioni', 'errori'])
+    expect(chiamate).toEqual(['consegne', 'autopiloti', 'worktree', 'trascrizioni', 'errori'])
     expect(tolte).toEqual(['s1'])
     const s = r.stato()
     expect(s?.progresso.percentuale).toBe(100)
@@ -479,8 +479,8 @@ describe('riassetto: i passi del programma su una cartella dei dati finta', () =
     })
     r.faseA()
     await r.faseB()
-    // Quattro passi del servizio, tre tentativi.
-    expect(volte).toBe(12)
+    // Cinque passi del servizio, tre tentativi.
+    expect(volte).toBe(15)
     expect(r.stato()?.progresso.finito).toBe(false)
     expect(caricaGiornale(dati)?.passi.find((p) => p.id === 'worktree')?.rimandatoPerche).toBe('PC carico')
   })

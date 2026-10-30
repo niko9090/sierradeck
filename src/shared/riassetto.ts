@@ -273,7 +273,7 @@ export function compattaErrori<T extends { versione?: string; ultima: string }>(
 }
 
 /** I passi che il servizio degli autopiloti fa per il riassetto (`POST /riassetto/passo`). */
-export const PASSI_DEL_SERVIZIO = ['consegne', 'worktree', 'trascrizioni', 'errori'] as const
+export const PASSI_DEL_SERVIZIO = ['consegne', 'autopiloti', 'worktree', 'trascrizioni', 'errori'] as const
 export type PassoDelServizio = typeof PASSI_DEL_SERVIZIO[number]
 
 /** Cosa risponde il servizio a un passo. */

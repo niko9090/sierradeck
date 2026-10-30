@@ -11,6 +11,7 @@ import { apriRecuperoPasso, misuraAlbero, type RecuperoPasso } from '../main/ria
 import { ultimoNumeroConsegne } from './archivio'
 import { chatAperta, decidiTrascrizione, trascrizioneDiCopia, type EsitoAutopulizia } from './autopulizia'
 import { cartellaWorktreeDi, comeAsincrono, type Git, type GitAsincrono } from './worktree'
+import { archiviaVecchiAutopiloti } from './migra-orchestratore'
 
 /**
  * Il riassetto, dalla parte del servizio (`POST /riassetto/passo`): quello che
@@ -219,6 +220,23 @@ async function trascrizioni(c: Ctx): Promise<void> {
   }
 }
 
+/**
+ * Gli autopiloti di prima (P4), già passati all'autopilota unico del loro
+ * workspace: i loro file vanno nel recupero del riassetto. Quelli non ancora
+ * assorbiti restano, e si dice.
+ */
+function autopiloti(c: Ctx): void {
+  const r = archiviaVecchiAutopiloti(c.d.archivio.cartella, c.rec.assicura(), join(c.dati, 'orchestratori'), (da) => {
+    const x = c.rec.sposta(da, { motivo: 'file dell’autopilota di prima', etaMinimaMs: 0 })
+    if (x.esito === 'saltato') { c.e.saltati.push({ cosa: da, perche: x.perche }); return false }
+    c.e.fatti.push(da)
+    if (x.esito === 'spostato') c.e.byteInRecupero += x.byte
+    return x.esito === 'spostato'
+  })
+  for (const id of r.tenuti) c.e.saltati.push({ cosa: id, perche: 'autopilota di prima non ancora passato a quello del workspace' })
+  c.e.errori.push(...r.errori)
+}
+
 /** Lo storico degli errori del servizio: via gli errori di versioni passate non più visti da 72 ore. */
 function errori(c: Ctx): void {
   const s = storicoServizio
@@ -259,6 +277,7 @@ export async function passoRiassettoServizio(corpo: unknown, d: DipendenzeRiasse
   try {
     const p = passo as PassoDelServizio
     if (p === 'consegne') consegne(c)
+    else if (p === 'autopiloti') autopiloti(c)
     else if (p === 'worktree') await worktree(c)
     else if (p === 'trascrizioni') await trascrizioni(c)
     else errori(c)

@@ -86,6 +86,29 @@ describe('il riassetto dalla parte del servizio', () => {
     expect((di_nuovo.corpo as { fatti: string[] }).fatti).toEqual([])
   })
 
+  it('autopiloti: quelli di prima già assorbiti vanno nel recupero con il manifesto, gli altri restano; «Annulla» li rimette', async () => {
+    const { dati, d } = mondo()
+    const cartella = join(dati, 'autopiloti')
+    file(join(cartella, 'ap-11111111.json'), '{}')
+    file(join(cartella, 'ap-11111111.decisioni.jsonl'), '')
+    file(join(cartella, 'ap-22222222.json'), '{}')
+    file(join(cartella, 'ap-33333333.json'), '{}')
+    file(join(cartella, 'istruzioni', 'ap-11111111.json'), '{}')
+    file(join(dati, 'orchestratori', 'ws-1', 'orchestratore.json'), JSON.stringify({ autopilota: 'ap-33333333', assorbiti: ['ap-11111111'] }))
+    const r = await passoRiassettoServizio({ passo: 'autopiloti' }, d)
+    const e = r.corpo as { fatti: string[]; saltati: Array<{ cosa: string }>; errori: string[] }
+    expect(e.errori).toEqual([])
+    expect(existsSync(join(cartella, 'ap-11111111.json'))).toBe(false)
+    expect(existsSync(join(cartella, 'ap-11111111.decisioni.jsonl'))).toBe(false)
+    expect(existsSync(join(cartella, 'istruzioni'))).toBe(false)
+    expect(existsSync(join(cartella, 'ap-22222222.json'))).toBe(true)
+    expect(existsSync(join(cartella, 'ap-33333333.json'))).toBe(true)
+    expect(e.saltati.map((x) => x.cosa)).toContain('ap-22222222')
+    expect(manifesti(dati, '0.88.0')[0]?.manifesto.voci).toHaveLength(3)
+    expect(ripristinaRiassetto(dati, '0.88.0').ripristinati).toBe(3)
+    expect(existsSync(join(cartella, 'ap-11111111.json'))).toBe(true)
+  })
+
   it('worktree: prune, vecchie cartelle vuote delle copie nel recupero (solo vuote), poi l’autopulizia', async () => {
     const { dati, progetti, d } = mondo()
     mkdirSync(join(progetti, 'ap-aaaaaaaa-c-1', 'vuota-dentro'), { recursive: true })
