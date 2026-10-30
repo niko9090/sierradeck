@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.5',
+    righe: [
+      '**Progetti non più doppi:** lo stesso progetto registrato due volte (capitava dopo il riordino fatto su due PC) ora si unisce da solo, sempre nello stesso modo su ogni PC: l’elenco torna corto e resta così.',
+      '**Il Drive porta solo quello che serve:** le copie di lavoro degli agenti (.claude/worktrees) restano sul PC; un salvataggio lungo ancora in corso non risulta più come errore ogni cinque minuti.',
+      '**L’autopilota unisce il lavoro giusto:** riprovando un’unione prende lo specialista che ha davvero il lavoro, e le note del quaderno non bloccano più l’unione con «modifiche non salvate».',
+      '**Meno avvii inutili:** le chat in sottofondo senza niente da fare non ripartono a ogni avvio (le vecchie «Rilascio · App Android»); un messaggio nuovo le riapre.',
+      '**Collegamento fra i PC più sicuro:** gli indirizzi delle schede virtuali (VirtualBox, Hyper-V, WSL) non si annunciano più e nessun PC bussa a sé stesso; se un PC risponde male mentre si riavvia, si riprova una volta.',
+      '**Correzioni trovate dall’autopilota negli errori arrivati:** lo spegnimento dei terminali e le consegne a chat senza cartella non risultano più come errori.',
+    ]
+  },
+  {
     versione: '0.88.4',
     righe: [
       '**Gli errori arrivano da soli e li analizza l’autopilota:** ogni PC manda al PC di sviluppo gli errori nuovi, senza premere niente (anche a PC di sviluppo spento, dal Drive). Lì si raggruppano per causa, senza quelli di versioni vecchie o già affidati, e vanno nella coda dell’autopilota di SierraDeck, che ti dice cosa ha trovato e li corregge.',
