@@ -41,6 +41,17 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.0',
+    righe: [
+      '**Riassetto alla prima apertura:** una volta sola, con la percentuale a schermo, il programma fa ordine. Libera circa 1 GB (vecchi riordini, conversazioni di autopiloti finiti, copie di scorta, test), mette in ordine il quaderno e toglie gli errori già risolti. Niente si cancella subito: tutto va nel recupero per 30 giorni, con «Annulla» e «Libera subito». Se chiudi a metà, riprende da dove era.',
+      '**Un progetto, un PC:** ogni progetto sta su un solo PC più il Drive. Sugli altri PC lo vedi con «su <PC>» e lo apri da lì. Le voci che non erano progetti escono dall’elenco e i doppioni diventano uno. Le copie su un PC che non è il suo vanno nel recupero solo se sono identiche al Drive.',
+      '**«Sposta su questo PC» sicuro:** il PC di prima ferma le chat e carica tutto, questo scarica e controlla file per file, e solo allora il progetto cambia PC. Non parte con chat aperte o modifiche non salvate, e dopo un riavvio riprende dal passo dov’era.',
+      '**Scrivere a una chat di un altro PC:** se è acceso arriva subito, altrimenti aspetta sul Drive e arriva appena si riaccende. Nella chat vedi «In attesa», «Consegnato» o «Non consegnato».',
+      '**Un solo autopilota, sempre acceso:** ogni workspace ha il suo, senza interruttore; quello vecchio e le sue schede non ci sono più. Le domande stanno in un posto solo (la colonna), più telefono e Telegram. Nei consumi vedi anche quanto costa l’autopilota.',
+      '**Più leggero:** tolti il login Supabase, i traslochi e le «case» delle chat, il trasferimento file SFTP, i fornitori API alternativi e il codice morto: circa 50.000 righe in meno. «Torna a com’era» dal telefono ora funziona.',
+    ]
+  },
+  {
     versione: '0.87.0',
     righe: [
       '**Un solo autopilota per workspace (da provare):** lo accendi con «Attiva» nel workspace. Ti parla nella chat dell’autopilota, mette in coda ogni tua richiesta e manda avanti agenti specializzati (sviluppo, verifica, revisione, interfaccia, Android), ognuno nella sua copia del progetto. Unisce il lavoro solo dopo che le prove passano. Gli autopiloti di prima restano visibili sotto «Precedenti».',
