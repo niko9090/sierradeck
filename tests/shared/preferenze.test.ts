@@ -21,11 +21,13 @@ describe('normalizzaPreferenze', () => {
   it('tiene i valori buoni cosi come sono', () => {
     const p = normalizzaPreferenze({
       accento: '#FF8800', chiarore: 40, portaClient: 51000,
-      portaAutopiloti: 51001, salvaAllaChiusura: false, mostraAttesaChat: false
+      portaAutopiloti: 51001, mostraAttesaChat: false
     })
     expect(p.accento).toBe('#ff8800')
     expect(p.chiarore).toBe(40)
-    expect(p.salvaAllaChiusura).toBe(false)
+    expect(p.mostraAttesaChat).toBe(false)
+    // salvaAllaChiusura non c è più: App salva sempre alla chiusura, e una vecchia voce si lascia cadere.
+    expect(normalizzaPreferenze({ salvaAllaChiusura: false })).not.toHaveProperty('salvaAllaChiusura')
   })
 
   it('i fumetti della sincronia automatica: spenti se non detto, accesi solo con true', () => {

@@ -22,8 +22,6 @@ export type Preferenze = {
   portaClient: number
   /** La porta del servizio autopiloti. */
   portaAutopiloti: number
-  /** Salvare da soli alla chiusura, saltando i doppioni. */
-  salvaAllaChiusura: boolean
   /** Mostrare la barra mentre una chat con molto storico si apre. */
   mostraAttesaChat: boolean
   /**
@@ -174,7 +172,6 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   chiarore: 20,
   portaClient: 47640,
   portaAutopiloti: 47630,
-  salvaAllaChiusura: true,
   mostraAttesaChat: true,
   fiduciaCartelleAutomatica: true,
   fumettiSincroniaAutomatica: false,
@@ -246,9 +243,6 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     portaAutopiloti: portaValida(o.portaAutopiloti)
       ? (o.portaAutopiloti as number)
       : PREFERENZE_PREDEFINITE.portaAutopiloti,
-    salvaAllaChiusura: typeof o.salvaAllaChiusura === 'boolean'
-      ? o.salvaAllaChiusura
-      : PREFERENZE_PREDEFINITE.salvaAllaChiusura,
     mostraAttesaChat: typeof o.mostraAttesaChat === 'boolean'
       ? o.mostraAttesaChat
       : PREFERENZE_PREDEFINITE.mostraAttesaChat,
