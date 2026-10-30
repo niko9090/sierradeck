@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { execFile } from 'node:child_process'
 import { durata } from '@shared/adesso'
 import type { MisuraPc } from '@shared/posti-chat'
@@ -31,9 +32,14 @@ export { rigaPcCarico }
  *   una misura bassa da sola non libera niente, una alta rimette il conto a zero;
  * - appena liberato parte **un** comando pesante solo, per `QUIETE_DOPO_MS`:
  *   se il PC torna pieno, gli altri non si accodano sopra;
- * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (un'ora):
- *   il tetto c'è perché un programma esterno sempre acceso non fermi
- *   l'autopilota per sempre.
+ * - un passo che aspetta parte comunque dopo `ATTESA_MASSIMA_MS` (mezz'ora;
+ *   dentro un hook `ATTESA_IN_UN_HOOK_MS`, un quarto d'ora): il tetto c'è
+ *   perché un programma esterno sempre acceso non fermi l'autopilota per sempre.
+ *
+ * 0.86.1: carico per più di `CARICO_MASSIMO_MS` (10 minuti) di fila, il PC si
+ * libera già sotto il 75% (un minuto intero): fra il 60 e il 75% la guardia
+ * restava «carico» per sempre. E un criterio aspetta la guardia **prima** di
+ * prendere il turno dei pesanti, non tenendolo.
  * Il motivo va nell'indicatore, «PC carico: aspetto», con il programma che
  * consuma di più.
  *
@@ -55,11 +61,31 @@ export const CAMPIONE_MS = 5_000
 export const RIPROVA_MS = 15_000
 /**
  * Il tetto documentato dell'attesa: oltre così un passo che aspetta parte lo
- * stesso, detto nel registro. Era 15 minuti, e su un PC pieno lasciava partire
- * tutto quello che aspettava; un'ora tiene fermo il lavoro pesante finché il
- * PC è davvero occupato, e l'autopilota non resta mai fermo per sempre.
+ * stesso, detto nel registro. Era 15 minuti, poi un'ora (0.85.2); 0.86.1:
+ * mezz'ora. Un'ora era il tetto dell'hook (`TIMEOUT_HOOK_S`): un criterio che
+ * aspettava tanto faceva scadere la fermata della chat.
  */
-export const ATTESA_MASSIMA_MS = 60 * 60_000
+export const ATTESA_MASSIMA_MS = 30 * 60_000
+/**
+ * Il tetto dell'attesa dentro un hook (0.86.1), ben sotto `TIMEOUT_HOOK_S`
+ * (un'ora): dopo l'attesa vengono ancora i criteri e il supervisore.
+ */
+export const ATTESA_IN_UN_HOOK_MS = 15 * 60_000
+/**
+ * Carico da così tanto di fila (0.86.1), il PC si libera già sotto
+ * `SOGLIA_PROCESSORE` invece che sotto `SOGLIA_RILASCIO`: un PC che resta fra
+ * il 60 e il 75% non è al limite, e l'isteresi lo teneva «carico» per sempre.
+ */
+export const CARICO_MASSIMO_MS = 10 * 60_000
+
+/**
+ * Le richieste che girano dentro un hook di una chat (0.86.1): lì un'attesa
+ * della guardia ha il tetto più corto, `ATTESA_IN_UN_HOOK_MS`. Lo segna chi
+ * risponde all'hook (`dentroUnHook`), lo legge `attendi`.
+ */
+const inUnHook = new AsyncLocalStorage<true>()
+export function dentroUnHook<T>(fai: () => T): T { return inUnHook.run(true, fai) }
+export function eDentroUnHook(): boolean { return inUnHook.getStore() === true }
 /** Appena liberato il PC, per così tanto parte un solo comando pesante. */
 export const QUIETE_DOPO_MS = 60_000
 /** Il programma più pesante si rilegge al più così spesso. */
@@ -96,7 +122,9 @@ export function giudicaMisura(m: MisuraPc, prec: StatoGuardia, ora: number): Sta
   }
   const c = prec.carico
   if (memoriaBassa(m)) return { carico: { motivo: motivoMemoria(m), risorsa: 'memoria', dal: c.dal } }
-  if (m.caricoPercento >= SOGLIA_RILASCIO) {
+  // Carico da troppo (0.86.1): per liberarsi basta stare sotto la soglia d'entrata.
+  const soglia = ora - c.dal >= CARICO_MASSIMO_MS ? SOGLIA_PROCESSORE : SOGLIA_RILASCIO
+  if (m.caricoPercento >= soglia) {
     // Ancora pieno: il conto per liberarsi riparte da zero.
     return { carico: { motivo: `processore al ${m.caricoPercento}% da ${durata(ora - c.dal)}`, risorsa: 'processore', dal: c.dal } }
   }
@@ -163,7 +191,10 @@ export type GuardiaPc = {
   valuta: () => PcCarico | undefined
   /** L'ultimo giudizio, senza misurare. */
   stato: () => PcCarico | undefined
-  /** Aspetta che il PC si liberi (al più `ATTESA_MASSIMA_MS`) prima di `cosa`. */
+  /**
+   * Aspetta che il PC si liberi prima di `cosa`: al più `ATTESA_MASSIMA_MS`,
+   * dentro un hook (`dentroUnHook`) al più `ATTESA_IN_UN_HOOK_MS`.
+   */
   attendi: (cosa: string) => Promise<void>
   /**
    * Appena liberato il PC parte un pesante solo (`QUIETE_DOPO_MS`): `true` se
@@ -262,13 +293,15 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
     async attendi(cosa) {
       const inizio = ora()
       let detto = false
+      // 0.86.1: dentro un hook il tetto è più corto, o la fermata della chat scade.
+      const massimo = Math.min(o.attesaMassimaMs ?? ATTESA_MASSIMA_MS, eDentroUnHook() ? ATTESA_IN_UN_HOOK_MS : Infinity)
       for (;;) {
         const s = valuta()
         if (s === undefined && passoLibero(true)) {
           if (detto) console.info(`[guardia-pc] parte ${cosa}: il PC si è liberato dopo ${durata(ora() - inizio)}`)
           return
         }
-        if (ora() - inizio >= (o.attesaMassimaMs ?? ATTESA_MASSIMA_MS)) {
+        if (ora() - inizio >= massimo) {
           console.warn(`[guardia-pc] parte ${cosa} anche se il PC è carico (${s?.motivo ?? 'appena liberato'}): aspettava da ${durata(ora() - inizio)}, il tetto dell'attesa`)
           return
         }
@@ -400,4 +433,23 @@ export function giudicaPesanteDellaChat(
   }
   if (!giaMio) o.guardia?.passoLibero?.(true)
   return { ok: true }
+}
+
+/**
+ * **Il turno si rende quando il comando finisce** (0.86.1). Prima si rendeva
+ * solo allo strumento dopo della stessa chat (e non prima di 15 s), o allo
+ * scadere: una chat che finiva la suite e poi pensava, o si fermava, teneva il
+ * turno fino a 10 minuti, e i criteri della sua stessa fermata aspettavano
+ * dietro di lei. Qui, all'hook PostToolUse: un comando di shell pesante, non
+ * in sottofondo, della chat che tiene il turno → il turno torna libero.
+ * Torna se l'ha reso.
+ */
+export function rendiTurnoDopoComando(r: RichiestaStrumento, o: { chi: string; turni?: TurniCriteri }): boolean {
+  const turni = o.turni ?? TURNI_PC
+  const tenuto = turni.prenotato()
+  if (tenuto === undefined || tenuto.chi !== o.chi || tenuto.inSottofondo) return false
+  const { comando, input } = comandoDi(r)
+  if (comando === '' || input.run_in_background === true || !ePesantePerLaChat(comando)) return false
+  turni.rilascia(o.chi)
+  return true
 }

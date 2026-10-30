@@ -26,7 +26,7 @@ import { eseguiCriteri, type Esecutore } from './verifiche'
 import { improntaCodiceAsincrona, improntaLavoroAsincrona, misuraCriteri, turnoCompleto, type MemoriaCriteri } from './criteri-veloci'
 import { peggioratiDelRamo, preparaCopia, togliCollegamenti } from './ambiente-copia'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
-import { ATTESA_MASSIMA_MS, giudicaPesanteDellaChat, type GuardiaPc } from './guardia-pc'
+import { ATTESA_MASSIMA_MS, dentroUnHook, giudicaPesanteDellaChat, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { chatAttesa, compitoRipreso, interventoAttesa, prossimaAttesa } from './attese-chat'
 import { RUOLI, ruoloDaTesto, grafoSenzaCicli, leggiScomposizione, leggiVerdetto, verdettoAccettato, criteriPeggiorati, compitiFatti, testoRevisione, chatDaRivedere } from '@shared/ruoli-agenti'
 import { rigaChatSola, rigaFlotta, rigaUltimaAzione } from '@shared/specialisti'
@@ -6304,6 +6304,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const chatR = url.searchParams.get('chat') ?? undefined
           const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
           rispondi(res, 200, {})
+          // 0.86.1: finito il comando pesante, il turno del PC torna libero
+          // subito (lo stesso `chi` del PreToolUse).
+          if (ID_VALIDO.test(idAp)) rendiTurnoDopoComando(corpo, { chi: `${idAp}::${chatR ?? '-'}`, turni: deps.turni ?? TURNI_PC })
           if (!ID_VALIDO.test(idAp) || chatR === undefined || chatR === idAp || !ID_VALIDO.test(chatR)) return
           const trascrizione = typeof corpo.transcript_path === 'string' ? corpo.transcript_path : ''
           if (trascrizione !== '') leggiRapporto(idAp, chatR, trascrizione)
@@ -6353,10 +6356,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           //
           // 0.84.0: lo si segna per **questa chat**, non per tutto l'autopilota:
           // il guardiano salta lei e continua a servire le sorelle.
+          // 0.86.1: una chat che si ferma non ha più comandi in corso: il suo
+          // turno dei pesanti torna libero, **prima** dei criteri della sua
+          // fermata, che altrimenti aspetterebbero dietro di lei.
+          ;(deps.turni ?? TURNI_PC).rilascia(`${id}::${chatGrezza ?? '-'}`)
           const chiaveFermata = chiaveTurno(id, chatId)
           fermateInCorso.set(chiaveFermata, (fermateInCorso.get(chiaveFermata) ?? 0) + 1)
           try {
-            rispondi(res, 200, await stopUnaVolta(id, chatId, corpo))
+            // Dentro l'hook l'attesa della guardia ha il tetto corto (0.86.1).
+            rispondi(res, 200, await dentroUnHook(() => stopUnaVolta(id, chatId, corpo)))
           } finally {
             const resta = (fermateInCorso.get(chiaveFermata) ?? 1) - 1
             if (resta > 0) fermateInCorso.set(chiaveFermata, resta)

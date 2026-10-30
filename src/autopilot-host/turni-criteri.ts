@@ -120,8 +120,11 @@ export function creaTurni(opz: { ora?: () => number } = {}): TurniCriteri {
       const dove = normale(cwd)
       const t = ora()
       if (prenotazione !== undefined && prenotazione.fino <= t) libera(prenotazione.chi)
-      // Chi lo tiene già (la stessa chat, il comando dopo) lo rinnova.
-      if (prenotazione?.chi === chi || (inCorso === undefined && fila.length === 0 && (unioni.get(dove) ?? 0) === 0)) {
+      // Chi lo tiene già (la stessa chat, il comando dopo) lo rinnova, ma non
+      // con dei criteri in fila (0.86.1): rinnovo dopo rinnovo, una chat che
+      // lancia una suite dopo l'altra li lasciava aspettare per sempre.
+      const mio = prenotazione?.chi === chi
+      if ((mio && fila.length === 0) || (inCorso === undefined && fila.length === 0 && (unioni.get(dove) ?? 0) === 0)) {
         if (prenotazione?.timer !== undefined) clearTimeout(prenotazione.timer)
         inCorso = dove
         const p: NonNullable<typeof prenotazione> = { chi, dal: t, fino: t + durataMs, inSottofondo }
@@ -138,7 +141,9 @@ export function creaTurni(opz: { ora?: () => number } = {}): TurniCriteri {
       return {
         ok: false,
         attesaMs: resto + fila.length * STIMA_PESANTE_MS,
-        occupato: prenotazione !== undefined
+        occupato: mio
+          ? 'i criteri dell\'autopilota in fila dopo il tuo comando di prima'
+          : prenotazione !== undefined
           ? 'un comando pesante di un\'altra chat'
           : inCorso !== undefined ? 'un criterio dell\'autopilota (test o compilazione)' : 'un\'unione di rami in questa cartella'
       }
@@ -211,17 +216,20 @@ export const TURNI_PC: TurniCriteri = creaTurni()
  * L'esecutore che rispetta i turni: i pesanti passano da `turni.pesante`, gli
  * altri (typecheck, grep, test -s) partono subito come prima.
  *
- * 0.85.1: con la guardia del PC, un pesante a cui tocca aspetta anche che il
- * PC non sia al limite (tenendo il suo turno: dietro non parte nessuno).
+ * 0.85.1: con la guardia del PC, un pesante aspetta anche che il PC non sia
+ * al limite. 0.86.1: la guardia si aspetta **prima** di mettersi in fila, non
+ * tenendo il turno: un criterio fermo dalla guardia (fino a mezz'ora) teneva
+ * fermi anche i comandi delle chat e gli altri criteri, e dentro la fermata di
+ * una chat la faceva scadere.
  */
 export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guardia?: GuardiaPc): Esecutore {
-  return (comando, cwd, timeoutMs) => {
+  return async (comando, cwd, timeoutMs) => {
     const lancia = (): ReturnType<Esecutore> => (timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd))
     if (!ePesante(comando)) return lancia()
+    if (guardia !== undefined) await guardia.attendi(`«${comando.slice(0, 80)}»`)
     const s = turni.stato()
     const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)
     if (davanti > 0) console.info(`[criterio] aspetta il suo turno dietro ${davanti} comandi lunghi: ${comando.slice(0, 120)}`)
-    if (guardia === undefined) return turni.pesante(cwd, lancia)
-    return turni.pesante(cwd, async () => { await guardia.attendi(`«${comando.slice(0, 80)}»`); return lancia() })
+    return turni.pesante(cwd, lancia)
   }
 }

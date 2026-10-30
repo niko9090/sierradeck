@@ -140,7 +140,7 @@ describe('compilazioni e test completi dei criteri', () => {
     expect(ePesante('npx electron-builder --win')).toBe(true)
   })
 
-  it('un pesante aspetta la guardia tenendo il suo turno; i comandi leggeri no', async () => {
+  it('0.86.1: un pesante aspetta la guardia prima di prendere il turno (non tenendolo); i comandi leggeri no', async () => {
     const partiti: string[] = []
     const inAttesa: Array<() => void> = []
     const libera = async (): Promise<void> => {
@@ -152,14 +152,19 @@ describe('compilazioni e test completi dei criteri', () => {
       stato: () => undefined,
       attendi: () => new Promise<void>((r) => { inAttesa.push(r) })
     }
-    const esegui = conTurni(async (c) => { partiti.push(c); return { codice: 0, uscita: '' } }, creaTurni(), guardia)
+    const turni = creaTurni()
+    const esegui = conTurni(async (c) => { partiti.push(c); return { codice: 0, uscita: '' } }, turni, guardia)
     const suite = esegui('npx vitest run', 'C:/p')
     const gradle = esegui('cd android && gradle test', 'C:/q')
     await esegui("bash -c 'test -s x'", 'C:/p')
     await new Promise((r) => setTimeout(r, 10))
     expect(partiti).toEqual(["bash -c 'test -s x'"])
-    // Il gradle aspetta dietro: il turno è della suite, che aspetta la guardia.
-    expect(inAttesa).toHaveLength(1)
+    // Tutti e due aspettano la guardia, e nessuno tiene il turno intanto:
+    // una chat può ancora prenderlo.
+    expect(inAttesa).toHaveLength(2)
+    expect(turni.stato()).toMatchObject({ inCorso: undefined, inFila: 0 })
+    expect(turni.prenota('ap::c-1', 'C:/r', 60_000).ok).toBe(true)
+    turni.rilascia('ap::c-1')
     await libera()
     await suite
     expect(partiti).toEqual(["bash -c 'test -s x'", 'npx vitest run'])

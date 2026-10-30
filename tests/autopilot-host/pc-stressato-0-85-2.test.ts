@@ -235,11 +235,11 @@ describe('3. la guardia con l’isteresi', () => {
     expect(f.ora() - prima).toBeGreaterThanOrEqual(QUIETE_DOPO_MS - 5_000)
   })
 
-  it('mai fermo per sempre: il tetto documentato dell’attesa è un’ora', async () => {
+  it('mai fermo per sempre: il tetto documentato dell’attesa è mezz’ora (0.86.1, era un’ora: il tetto dell’hook)', async () => {
     const f = guardia(() => pc(10, 1_000, 16_384))
     const inizio = f.ora()
     await f.g.attendi('la suite')
-    expect(ATTESA_MASSIMA_MS).toBe(60 * 60_000)
+    expect(ATTESA_MASSIMA_MS).toBe(30 * 60_000)
     expect(f.ora() - inizio).toBe(ATTESA_MASSIMA_MS)
   })
 
