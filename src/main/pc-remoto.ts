@@ -117,6 +117,17 @@ export type DipendenzeRemoto = {
   driveCollegato?: () => boolean
   /** Quanto si aspetta il bussare breve. */
   bussaMs?: number
+  /**
+   * Gli indirizzi di questo PC (30/10): non si bussa mai a sé stessi. Un
+   * battito può portare un indirizzo virtuale (VirtualBox 192.168.56.1) che
+   * c'è identico anche qui, e lì risponde il SierraDeck di questo PC.
+   */
+  mieiIndirizzi?: () => string[]
+  /**
+   * La pausa prima di riprovare la prova di casa a un indirizzo che ha
+   * risposto senza saperla fare in modo chiaro (30/10). Predefinita 400 ms.
+   */
+  riprovaCasaMs?: number
 
 }
 
@@ -153,6 +164,7 @@ export const ROTTE_CON_VERIFICA: readonly string[] = ['/api/scegli', '/api/scriv
 const ATTESA_VERIFICA_MS = 14_000
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
 const BUSSA_PREDEFINITA_MS = 1500
+const RIPROVA_CASA_PREDEFINITA_MS = 400
 
 export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const adesso = deps.adesso ?? ((): number => Date.now())
@@ -161,6 +173,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const attesaLentaMs = deps.attesaLentaMs ?? ATTESA_LENTA_PREDEFINITA_MS
   const attesaVerificaMs = Math.max(attesaMs, deps.attesaVerificaMs ?? ATTESA_VERIFICA_MS)
   const bussaMs = deps.bussaMs ?? BUSSA_PREDEFINITA_MS
+  const riprovaCasaMs = deps.riprovaCasaMs ?? RIPROVA_CASA_PREDEFINITA_MS
   const log = deps.log ?? ((): void => {})
   const buoni = new Map<string, string>()
   /** Come si entra all'indirizzo buono: firmando (0.47+) o con la chiave in chiaro (PC vecchio, indirizzo del battito). */
@@ -220,7 +233,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       ...(buoni.get(pcId) !== undefined ? { buono: buoni.get(pcId) } : {}),
       ...(altri.ricordati !== undefined ? { ricordati: altri.ricordati } : {}),
       ...(altri.tailscale !== undefined ? { tailscale: altri.tailscale } : {}),
-      battito: b?.indirizzi ?? []
+      battito: b?.indirizzi ?? [],
+      ...(deps.mieiIndirizzi !== undefined ? { mie: deps.mieiIndirizzi() } : {})
     })
     if (indirizzi.length === 0) {
       const p: PingPc = { esito: 'senza-indirizzi' }
@@ -234,33 +248,59 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // solo chi risponde con l'HMAC della chiave di quel PC e' proprio lui. La
     // chiave non parte verso nessuno. Un PC prima della 0.47 non conosce
     // `/api/casa`: per lui il vecchio modo, solo agli indirizzi del suo battito.
-    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true; chi?: 'altro-sierradeck' | 'stessa-identita' }
+    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true; chi?: 'altro-sierradeck' | 'stessa-identita'; dettaglio?: string }
     const conAttesa = async <T>(f: (s: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       const controllo = new AbortController()
       const timer = setTimeout(() => controllo.abort(), bussaMs)
       try { return await f(controllo.signal) } catch { return undefined } finally { clearTimeout(timer) }
     }
     const risposte: Risposta[] = await Promise.all(indirizzi.map(async (ind): Promise<Risposta> => {
-      const sfida = nuovaSfida()
-      const casa = await conAttesa(async (signal) => {
-        const r = await chiamaHttp(`http://${ind}:${porta}/api/casa?sfida=${sfida}`, {
-          method: 'GET', headers: { 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) }, signal
+      const chiediCasa = async (): Promise<{ sfida: string; stato: number; prova?: unknown; impronta?: string; illeggibile?: true } | undefined> => {
+        const sfida = nuovaSfida()
+        const esito = await conAttesa(async (signal) => {
+          const r = await chiamaHttp(`http://${ind}:${porta}/api/casa?sfida=${sfida}`, {
+            method: 'GET', headers: { 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) }, signal
+          })
+          let corpo: unknown
+          let illeggibile = false
+          try { corpo = await r.json() } catch { corpo = undefined; illeggibile = true }
+          const c = corpo as { prova?: unknown; impronta?: unknown } | undefined
+          return { stato: r.status, prova: c?.prova, ...(typeof c?.impronta === 'string' ? { impronta: c.impronta } : {}), ...(illeggibile ? { illeggibile: true as const } : {}) }
         })
-        let corpo: unknown
-        try { corpo = await r.json() } catch { corpo = undefined }
-        const c = corpo as { prova?: unknown; impronta?: unknown } | undefined
-        return { stato: r.status, prova: c?.prova, ...(typeof c?.impronta === 'string' ? { impronta: c.impronta } : {}) }
-      })
+        return esito === undefined ? undefined : { sfida, ...esito }
+      }
+      /**
+       * Una risposta che non dice chi è (30/10): un 200 senza prova giusta e
+       * senza impronta — un SierraDeck dalla 0.58.1 l'impronta la dice sempre,
+       * quindi è un corpo arrivato a metà — o un errore del server. Il PC-Fisso
+       * la riceveva da DESKTOP-G24D499 su Tailscale nei secondi in cui uno dei
+       * due si riavviava, e dieci minuti dopo lo stesso indirizzo andava. Non
+       * basta a dire «estraneo»: si riprova una volta, con una sfida nuova.
+       */
+      const ambigua = (c: { sfida: string; stato: number; prova?: unknown; impronta?: string }): boolean =>
+        (c.stato === 200 && !(chiave !== undefined && provaValida(chiave, c.sfida, c.prova)) && c.impronta === undefined) ||
+        (c.stato >= 500 && c.stato !== 503)
+      let casa = await chiediCasa()
       if (casa === undefined) return { ind, stato: 0 }
+      let riprovato = false
+      if (ambigua(casa)) {
+        riprovato = true
+        await new Promise((fatto) => setTimeout(fatto, riprovaCasaMs))
+        const ancora = await chiediCasa()
+        if (ancora !== undefined) casa = ancora
+      }
+      const comeRisponde = casa.illeggibile === true ? 'illeggibile' : casa.stato === 200 && casa.impronta === undefined ? 'senza impronta' : ''
+      const dettaglio = `risposta ${casa.stato}${comeRisponde !== '' ? ` ${comeRisponde}` : ''}${riprovato ? ', anche riprovando' : ''}`
+      const sfida = casa.sfida
       if (casa.stato === 200) {
         if (chiave !== undefined && provaValida(chiave, sfida, casa.prova)) return { ind, stato: 200, modo: 'firma' }
         // Chi è, se lo dice (0.58.1): un altro SierraDeck sulla stessa porta, o lo stesso PC con un'altra cassaforte.
-        const chi = 'impronta' in casa && typeof casa.impronta === 'string' ? (casa.impronta === improntaPc(pcId) ? 'stessa-identita' as const : 'altro-sierradeck' as const) : undefined
-        return { ind, stato: 401, estraneo: true, ...(chi !== undefined ? { chi } : {}) }
+        const chi = typeof casa.impronta === 'string' ? (casa.impronta === improntaPc(pcId) ? 'stessa-identita' as const : 'altro-sierradeck' as const) : undefined
+        return { ind, stato: 401, estraneo: true, ...(chi !== undefined ? { chi } : { dettaglio }) }
       }
       // Cassaforte chiusa la': non e' un estraneo, ma non entra nessuno.
       if (casa.stato === 503) return { ind, stato: 401 }
-      if (chiave === undefined || !vecchioModoAmmesso(pcId, b, ind)) return { ind, stato: casa.stato === 401 || casa.stato === 404 ? 401 : casa.stato, estraneo: true }
+      if (chiave === undefined || !vecchioModoAmmesso(pcId, b, ind)) return { ind, stato: casa.stato === 401 || casa.stato === 404 ? 401 : casa.stato, estraneo: true, dettaglio }
       const vecchio = await conAttesa(async (signal) => (await chiamaHttp(`http://${ind}:${porta}/api/pc`, {
         method: 'GET',
         headers: { 'x-sierradeck-chiave': chiave, 'x-sierradeck-pc': encodeURIComponent(deps.mioNome()) },
@@ -274,7 +314,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     for (const x of risposte) {
       if (x.estraneo === true && !estraneiDetti.has(`${pcId}|${x.ind}`)) {
         estraneiDetti.add(`${pcId}|${x.ind}`)
-        log(`[remoto] ${descriviIndirizzo(x.ind)} risponde ma non prova la chiave di casa di ${nome || pcId}: non gli mando niente (non è quel PC, è di un'altra cassaforte, o è un ${nome || 'PC'} prima della 0.47 a un indirizzo che non è nel suo battito)`)
+        log(`[remoto] ${descriviIndirizzo(x.ind)} risponde ma non prova la chiave di casa di ${nome || pcId}${x.dettaglio !== undefined ? ` (${x.dettaglio})` : ''}: non gli mando niente (non è quel PC, è di un'altra cassaforte, o è un ${nome || 'PC'} prima della 0.47 a un indirizzo che non è nel suo battito)`)
       }
     }
     // Prima la rete di casa, poi Tailscale (0.40.0): rispondono insieme, e
