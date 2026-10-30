@@ -41,7 +41,7 @@ import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
  * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
  * workspace» del menu principale.
  */
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'file' | 'salute' | 'chat' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -187,7 +187,7 @@ export function Console({
       // Il vecchio «drive» (0.61.0) è Progetti; «domande» è la colonna.
       if (quale === 'drive' || quale === 'progetti') { if (!progettiAperti) onProgetti?.() }
       else if (quale === 'domande') { if (!domandeAperte) onDomande?.() }
-      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'file' || quale === 'impostazioni') onApri(quale)
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
@@ -261,7 +261,7 @@ export function Console({
   const premi = (id: IdMenu): void => {
     if (id === 'progetti') onProgetti?.()
     else if (id === 'domande') onDomande?.()
-    else commuta(id)
+    else if (id !== 'file') commuta(id)
   }
 
 
@@ -284,11 +284,11 @@ export function Console({
         />
       ) : null}
 
-    {/* **Il menu principale** (0.61.0): sette voci, in ordine d'importanza,
+    {/* **Il menu principale** (0.61.0): le voci in ordine d'importanza (File solo sul telefono),
         sempre in vista, uguali sul telefono e nella pagina. Ognuna apre il
         suo pannello; il tasto del pannello aperto resta acceso. */}
     <nav className="console console--principale" aria-label="Menu principale">
-      {MENU_PRINCIPALE.map((v) => {
+      {MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) => {
         const acceso = statoVoce(v.id)
         const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : 0
         const chiama = (v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte) || (v.id === 'autopiloti' && inAttesa && aperto !== 'autopiloti')

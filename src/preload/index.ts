@@ -1,4 +1,4 @@
-import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import type { HostToCore } from '@shared/protocol'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import type { LayoutSalvato, PaneSalvato } from '@shared/workspace'
@@ -24,77 +24,6 @@ import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import type { SpawnRequest } from '../main/validation'
-
-/** Una destinazione come la vede l'interfaccia: senza segreti, mai. */
-export type DestinazioneVista = {
-  id: string
-  nome: string
-  cwd: string
-  host: string
-  porta: number
-  utente: string
-  metodo: 'password' | 'chiave' | 'agente'
-  chiaveFile?: string
-  cartellaRemota?: string
-  cartellaLocale?: string
-  improntaServer?: string
-}
-
-/** Un file o una cartella, di qua o di la'. */
-export type VoceVista = {
-  nome: string
-  percorso: string
-  cartella: boolean
-  dimensione: number
-  quando: number
-  permessi?: string
-}
-
-export type ElencoVista = { percorso: string; su?: string; voci: VoceVista[] }
-
-/**
- * Un file del server aperto in modifica, e quanto e' risalito.
- *
- * Il conto delle risalite non e' cosmetico: e' la prova che il collegamento sta
- * funzionando. Salvare e non vedere niente cambiare lascia il dubbio - e il
- * dubbio si toglie ricaricando a mano, che e' esattamente quello che questa
- * funzione doveva evitare.
- */
-export type FileInModificaVista = {
-  destinazione: string
-  remoto: string
-  locale: string
-  nome: string
-  risalite: number
-  ultimaRisalita?: number
-  errore?: string
-}
-
-/** Una riga della coda dei trasferimenti. */
-export type LavoroVista = {
-  id: string
-  destinazione: string
-  verso: 'giu' | 'su'
-  remoto: string
-  locale: string
-  nome: string
-  dimensione: number
-  stato: 'attesa' | 'corso' | 'fatto' | 'errore' | 'annullato'
-  fatti: number
-  errore?: string
-}
-
-export type CodaVista = { lavori: LavoroVista[]; contando: number }
-
-/** Cosa si chiede di trasferire: un file, o una cartella intera. */
-export type RichiestaVista = {
-  destinazione: string
-  verso: 'giu' | 'su'
-  origine: string
-  arrivo: string
-  cartella: boolean
-}
-
 
 // `env` non e' piu' esposto: GESTORE_CLAUDE_PATH serviva al renderer solo per
 // scegliere l'eseguibile da lanciare, decisione che ora vive nel Core. Il ponte
@@ -734,114 +663,6 @@ contextBridge.exposeInMainWorld('gestore', {
     /** Manda lo storico al PC di sviluppo scelto nelle Impostazioni. */
     manda: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('errori:manda')
   },
-  /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
-  /**
-   * I trasferimenti: le destinazioni di un progetto e le sessioni SFTP.
-   *
-   * Tutto passa dal processo principale, e non e' un dettaglio di architettura:
-   * una chiave privata e una password non attraversano una pagina web, nemmeno
-   * la nostra.
-   */
-  trasferimenti: {
-    destinazioni: (cwd: string): Promise<DestinazioneVista[]> =>
-      ipcRenderer.invoke('trasferimenti:destinazioni', cwd),
-    salva: (d: Partial<DestinazioneVista>, segreto?: { password?: string; passphrase?: string }):
-      Promise<DestinazioneVista> => ipcRenderer.invoke('trasferimenti:salva', d, segreto),
-    elimina: (id: string): Promise<void> => ipcRenderer.invoke('trasferimenti:elimina', id),
-    collega: (id: string): Promise<{ ok: boolean; impronta?: string; cambiata?: boolean; errore?: string }> =>
-      ipcRenderer.invoke('trasferimenti:collega', id),
-    fidati: (id: string, impronta: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:fidati', id, impronta),
-    remoto: (id: string, percorso: string): Promise<ElencoVista> =>
-      ipcRenderer.invoke('trasferimenti:remoto', id, percorso),
-    locale: (percorso: string): Promise<ElencoVista> =>
-      ipcRenderer.invoke('trasferimenti:locale', percorso),
-    scarica: (id: string, remoto: string, cartellaLocale: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:scarica', id, remoto, cartellaLocale),
-    carica: (id: string, locale: string, cartellaRemota: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:carica', id, locale, cartellaRemota),
-    creaCartella: (id: string, percorso: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:creaCartella', id, percorso),
-    eliminaRemoto: (id: string, percorso: string, cartella: boolean): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:eliminaRemoto', id, percorso, cartella),
-    rinominaRemoto: (id: string, da: string, a: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:rinominaRemoto', id, da, a),
-    permessiRemoti: (id: string, percorso: string, modo: number): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:permessiRemoti', id, percorso, modo),
-    creaCartellaLocale: (percorso: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:creaCartellaLocale', percorso),
-    eliminaLocale: (percorso: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:eliminaLocale', percorso),
-    rinominaLocale: (da: string, a: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:rinominaLocale', da, a),
-    mostraNelSistema: (percorso: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:mostraNelSistema', percorso),
-    apriInModifica: (id: string, remoto: string, nome: string): Promise<FileInModificaVista> =>
-      ipcRenderer.invoke('trasferimenti:apriInModifica', id, remoto, nome),
-    chiudiModifica: (id: string, remoto: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:chiudiModifica', id, remoto),
-    modificheAperte: (): Promise<FileInModificaVista[]> =>
-      ipcRenderer.invoke('trasferimenti:modificheAperte'),
-    suModifiche: (h: (aperti: FileInModificaVista[]) => void): (() => void) => {
-      const f = (_e: unknown, aperti: FileInModificaVista[]): void => h(aperti)
-      ipcRenderer.on('trasferimenti:modifiche', f)
-      return () => { ipcRenderer.off('trasferimenti:modifiche', f) }
-    },
-    /**
-     * La coda: piu' file insieme, cartelle intere.
-     *
-     * Il singolo `scarica`/`carica` qui sopra resta per il doppio clic su un
-     * file; tutto il resto passa di qua, perche' e' l'unico modo di sapere
-     * quanto manca.
-     */
-    accoda: (richieste: RichiestaVista[]): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:accoda', richieste),
-    coda: (): Promise<CodaVista> => ipcRenderer.invoke('trasferimenti:coda'),
-    /** Il terminale sul server: la stessa connessione, un canale in piu'. */
-    apriGuscio: (id: string, colonne: number, righe: number): Promise<string> =>
-      ipcRenderer.invoke('trasferimenti:apriGuscio', id, colonne, righe),
-    scriviGuscio: (guscio: string, testo: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:scriviGuscio', guscio, testo),
-    ridimensionaGuscio: (guscio: string, colonne: number, righe: number): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:ridimensionaGuscio', guscio, colonne, righe),
-    chiudiGuscio: (guscio: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:chiudiGuscio', guscio),
-    suGuscio: (h: (e: { guscio: string; dati?: string; finito?: boolean }) => void): (() => void) => {
-      const ascolta = (_e: unknown, dato: unknown): void =>
-        h(dato as { guscio: string; dati?: string; finito?: boolean })
-      ipcRenderer.on('trasferimenti:guscio', ascolta)
-      return () => ipcRenderer.off('trasferimenti:guscio', ascolta)
-    },
-    /**
-     * Il percorso di un file trascinato dentro da fuori.
-     *
-     * Da Electron 32 `File.path` non esiste piu': una pagina non deve poter
-     * leggere dove sta un file solo perche' ci e' passata sopra. Il percorso lo
-     * da' il ponte, e solo per i file che l'utente ha davvero lasciato cadere.
-     */
-    percorsoDelFile: (file: File): string => webUtils.getPathForFile(file),
-    annullaLavoro: (id: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:annullaLavoro', id),
-    annullaCoda: (): Promise<void> => ipcRenderer.invoke('trasferimenti:annullaCoda'),
-    pulisciCoda: (ancheErrori: boolean): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:pulisciCoda', ancheErrori),
-    riprovaLavoro: (id: string): Promise<void> =>
-      ipcRenderer.invoke('trasferimenti:riprovaLavoro', id),
-    suCoda: (h: (stato: CodaVista) => void): (() => void) => {
-      const ascolta = (_e: unknown, dato: unknown): void => h(dato as CodaVista)
-      ipcRenderer.on('trasferimenti:coda', ascolta)
-      return () => ipcRenderer.off('trasferimenti:coda', ascolta)
-    },
-    scollega: (id: string): Promise<void> => ipcRenderer.invoke('trasferimenti:scollega', id),
-    suAvanzamento: (
-      h: (e: { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string }) => void
-    ): (() => void) => {
-      const ascolta = (_e: unknown, dato: unknown): void =>
-        h(dato as { id: string; cosa: string; fatti: number; totale: number; finito?: boolean; errore?: string })
-      ipcRenderer.on('trasferimenti:avanza', ascolta)
-      return () => ipcRenderer.off('trasferimenti:avanza', ascolta)
-    }
-  },
 
   /** Il Quaderno personale (0.57.0): i dati riservati, i consensi «sempre» e l'elenco degli usi. */
   quadernoPersonale: {
@@ -872,6 +693,7 @@ contextBridge.exposeInMainWorld('gestore', {
     }
   },
 
+  /** Il negozio: plugin, skill e MCP di Claude Code, gestiti a clic. */
   negozio: {
     plugin: (fresco) => ipcRenderer.invoke('negozio:plugin', fresco === true),
     installaPlugin: (id, accetta) => ipcRenderer.invoke('negozio:installaPlugin', id, accetta),

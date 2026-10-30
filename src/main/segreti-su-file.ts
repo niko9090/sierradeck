@@ -7,7 +7,7 @@ import { scriviAtomico } from '@shared/scrittura-atomica'
  * `google-drive-token.json` e `accesso-supabase.json` erano JSON in chiaro, e
  * altre tre copie di ciascuno stavano in `copie-di-versione\`. Adesso si
  * scrivono cifrati con `safeStorage` di Electron (DPAPI su Windows, legata a
- * questo utente), come le password SFTP in `trasferimenti/destinazioni.ts`.
+ * questo utente).
  *
  * - Un file in chiaro (scritto da una versione di prima) si legge lo stesso e,
  *   se il portachiavi c'è, si riscrive cifrato alla prima lettura.

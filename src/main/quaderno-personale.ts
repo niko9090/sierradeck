@@ -16,7 +16,7 @@ import type { DomandaPerDomande } from '@shared/domande-telefono'
  * cartella dei dati del programma (mai in un progetto, quindi mai in git):
  * AES-256-GCM con una chiave casuale. La chiave sta in
  * `quaderno-personale.chiave.json`, avvolta dal portachiavi di Windows
- * (DPAPI, legato a questo utente su questo PC), come le password SFTP. Il
+ * (DPAPI, legato a questo utente su questo PC). Il
  * file copiato su un altro computer non si apre. Non va sul Drive.
  *
  * **Le richieste delle chat** vivono in memoria: un riavvio del programma le

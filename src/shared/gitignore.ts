@@ -9,8 +9,8 @@
  * che combacia, come in git.
  *
  * Perche' scriverlo invece di prendere una libreria: le dipendenze di
- * produzione sono sei e ognuna e' un impegno (vedi `ssh2` e i suoi pezzi
- * nell'asar); per trenta righe provate non vale la pena aggiungerne una.
+ * produzione sono poche e ognuna e' un impegno (i moduli nativi vanno anche
+ * tenuti fuori dall'asar); per trenta righe provate non vale la pena aggiungerne una.
  */
 export type Regola = {
   /** Riammette invece di escludere (`!pattern`). */

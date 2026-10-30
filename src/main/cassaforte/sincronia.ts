@@ -104,7 +104,7 @@ export type EsitoSemplice = { ok: boolean; messaggio?: string }
  * entra in questo profilo Windows apre la cassaforte senza passphrase. Su un
  * altro PC il file non vale niente, e la passphrase resta necessaria.
  *
- * Iniettabile, come per le destinazioni SFTP: cosi' il modulo non dipende da
+ * Iniettabile: cosi' il modulo non dipende da
  * Electron e la regola si prova.
  */
 export type Portachiavi = {

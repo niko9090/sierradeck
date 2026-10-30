@@ -30,6 +30,12 @@ export type VoceMenu = {
   breve: string
   /** Cosa guarda e cosa fa: il testo del tasto, quando ci passi sopra. */
   spiega: string
+  /**
+   * Solo nella pagina e nell'app, non nella fascia del PC. È la sezione File
+   * del telefono (sfogliare i progetti del PC e ritirare i file mandati): sul
+   * PC il pannello dei file con i server (il «FileZilla») è stato tolto.
+   */
+  soloTelefono?: true
 }
 
 export const MENU_PRINCIPALE: readonly VoceMenu[] = [
@@ -50,8 +56,8 @@ export const MENU_PRINCIPALE: readonly VoceMenu[] = [
     spiega: 'Le chat e i workspace: nuova chat, riprendi una conversazione, crea, rinomina ed elimina i workspace, le chat usate da altri PC, una nuova finestra, e il Negozio con gli strumenti delle chat (plugin, skill, MCP).'
   },
   {
-    id: 'file', nome: 'File', icona: '⇅', breve: 'File',
-    spiega: 'I file del progetto della chat che hai davanti, qui e sul suo server, e quelli da mandare al telefono: sfoglia, scarica, carica.'
+    id: 'file', nome: 'File', icona: '⇅', breve: 'File', soloTelefono: true,
+    spiega: 'I file dei progetti dei tuoi PC, da sfogliare e leggere dal telefono, e quelli che un PC ti ha mandato: si guardano e si scaricano.'
   },
   {
     id: 'salute', nome: 'Salute', icona: '♥', breve: 'Salute',
@@ -96,8 +102,8 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Nuova finestra', dove: 'chat', prima: '⧉ Finestra' },
   { funzione: 'Negozio (plugin, skill, MCP)', dove: 'chat', prima: '▣ Negozio, pagina Computer, app Negozio' },
   // File
-  { funzione: 'File del progetto e del suo server', dove: 'file', prima: '⇅ File' },
-  { funzione: 'File da mandare al telefono', dove: 'file', prima: '⇅ File' },
+  { funzione: 'File dei progetti, dal telefono', dove: 'file', prima: '⇅ File' },
+  { funzione: 'File mandati al telefono', dove: 'file', prima: '⇅ File' },
   // Salute
   { funzione: 'Salute del sistema', dove: 'salute', prima: '♥ Salute, Impostazioni → Info' },
   { funzione: 'Altri computer: chat aperte, guarda dal vivo, cassetta', dove: 'salute', prima: 'Impostazioni → Account, pagina e app: Computer' },

@@ -15,7 +15,6 @@ import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
-import type { CodaVista, DestinazioneVista, ElencoVista, RichiestaVista } from '../preload'
 import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 
 type ElencoProgetti = {
@@ -278,53 +277,6 @@ declare global {
       errori: {
         storico: () => Promise<{ voci: import('@shared/storico-errori').VoceErrore[]; testo: string; arrivi?: string }>
         manda: () => Promise<{ ok: boolean; messaggio: string }>
-      }
-      /** I file del progetto, di qua e sul suo server. */
-      trasferimenti: {
-        destinazioni: (cwd: string) => Promise<DestinazioneVista[]>
-        salva: (
-          d: Partial<DestinazioneVista>,
-          segreto?: { password?: string; passphrase?: string }
-        ) => Promise<DestinazioneVista>
-        elimina: (id: string) => Promise<void>
-        collega: (id: string) => Promise<{ ok: boolean; impronta?: string; cambiata?: boolean; errore?: string }>
-        fidati: (id: string, impronta: string) => Promise<void>
-        remoto: (id: string, percorso: string) => Promise<ElencoVista>
-        locale: (percorso: string) => Promise<ElencoVista>
-        scarica: (id: string, remoto: string, cartellaLocale: string) => Promise<void>
-        carica: (id: string, locale: string, cartellaRemota: string) => Promise<void>
-        creaCartella: (id: string, percorso: string) => Promise<void>
-        eliminaRemoto: (id: string, percorso: string, cartella: boolean) => Promise<void>
-        rinominaRemoto: (id: string, da: string, a: string) => Promise<void>
-        permessiRemoti: (id: string, percorso: string, modo: number) => Promise<void>
-        creaCartellaLocale: (percorso: string) => Promise<void>
-        eliminaLocale: (percorso: string) => Promise<void>
-        rinominaLocale: (da: string, a: string) => Promise<void>
-        mostraNelSistema: (percorso: string) => Promise<void>
-        apriInModifica: (id: string, remoto: string, nome: string) => Promise<FileInModificaVista>
-        chiudiModifica: (id: string, remoto: string) => Promise<void>
-        modificheAperte: () => Promise<FileInModificaVista[]>
-        suModifiche: (h: (aperti: FileInModificaVista[]) => void) => () => void
-        accoda: (richieste: RichiestaVista[]) => Promise<void>
-        coda: () => Promise<CodaVista>
-        apriGuscio: (id: string, colonne: number, righe: number) => Promise<string>
-        scriviGuscio: (guscio: string, testo: string) => Promise<void>
-        ridimensionaGuscio: (guscio: string, colonne: number, righe: number) => Promise<void>
-        chiudiGuscio: (guscio: string) => Promise<void>
-        suGuscio: (h: (e: { guscio: string; dati?: string; finito?: boolean }) => void) => () => void
-        percorsoDelFile: (file: File) => string
-        annullaLavoro: (id: string) => Promise<void>
-        annullaCoda: () => Promise<void>
-        pulisciCoda: (ancheErrori: boolean) => Promise<void>
-        riprovaLavoro: (id: string) => Promise<void>
-        suCoda: (h: (stato: CodaVista) => void) => () => void
-        scollega: (id: string) => Promise<void>
-        suAvanzamento: (
-          h: (e: {
-            id: string; cosa: string; fatti: number; totale: number
-            finito?: boolean; errore?: string
-          }) => void
-        ) => () => void
       }
       negozio: ApiNegozio
       chiavi: {

@@ -28,10 +28,10 @@ import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pann
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, watch, copyFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, copyFileSync, writeFileSync } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { APP_NAME, APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { cartellaDati } from './migra-dati'
@@ -232,9 +232,6 @@ import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
 import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, rimuoviSessioni as rimuoviSessioniDalLayout, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
-import { apriDestinazioni } from './trasferimenti/destinazioni'
-import { creaTrasferimenti, type Trasferimenti } from './trasferimenti/servizio'
-import type { Richiesta } from './trasferimenti/coda'
 import { rinominaInElenco } from '@shared/vista-elenco'
 import { creaMigrazione, type Migrazione } from './migrazione-elenco'
 import { adottabili, avviaGiroAdozione, creaMigrazioneAdozione, type MigrazioneAdozione } from './adozione-chat'
@@ -689,8 +686,6 @@ let rottaPerAltriPc: ((r: { metodo: string; percorso: string; corpo: unknown; di
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
 let pausaLetta: ReturnType<typeof leggiPausa> | undefined
-/** Le sessioni SFTP aperte: si chiudono quando il programma esce. */
-let trasferimenti: Trasferimenti | undefined
 /** La sincronizzazione cifrata: alla chiusura si prova a salvare, se serve. */
 let sincroniaGlobale: Sincronia | undefined
 
@@ -4615,220 +4610,6 @@ if (!app.requestSingleInstanceLock()) {
       // Il negozio: plugin (via il CLI di Claude Code, fonte di verità), skill e
       // MCP (letti dai file, spenti/accesi con un tocco chirurgico). Fare a clic
       // ciò che si farebbe da terminale, senza uscire dal gestore.
-      /**
-       * Il «FileZilla» del progetto: le destinazioni e le sessioni SFTP.
-       *
-       * I segreti vanno a `safeStorage`, cioe' al portachiavi del sistema
-       * (DPAPI su Windows, legato a **questo** account): una password copiata
-       * su un altro computer non vale niente, ed e' esattamente quello che si
-       * vuole da una password salvata.
-       */
-      const destinazioni = apriDestinazioni(dati, {
-        disponibile: () => safeStorage.isEncryptionAvailable(),
-        cifra: (chiaro) => safeStorage.encryptString(chiaro).toString('base64'),
-        decifra: (cifrato) => safeStorage.decryptString(Buffer.from(cifrato, 'base64'))
-      })
-      const aTutteLeFinestre = (canale: string, dato: unknown): void => {
-        for (const w of finestreDiChat()) {
-          if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(canale, dato)
-        }
-      }
-      trasferimenti = creaTrasferimenti(
-        destinazioni,
-        (evento) => aTutteLeFinestre('trasferimenti:avanza', evento),
-        (stato) => aTutteLeFinestre('trasferimenti:coda', stato),
-        (evento) => aTutteLeFinestre('trasferimenti:guscio', evento),
-        {
-          apriFuori: async (locale) => {
-            // `openPath` non solleva: torna una stringa vuota se e' andata, e il
-            // motivo se non e' andata. Ignorarla lascerebbe un doppio clic che
-            // non apre niente e non dice niente.
-            const guaio = await shell.openPath(locale)
-            if (guaio !== '') throw new Error(guaio)
-          },
-          /**
-           * Dove finisce la copia di lavoro.
-           *
-           * Una cartella per destinazione e per percorso remoto, con il nome
-           * vero in fondo: il nome conta, perche' e' quello che l'editor mostra
-           * nel titolo e da cui capisce che linguaggio e'. Il percorso remoto
-           * diventa il nome della cartella, ridotto a caratteri innocui - due
-           * file che si chiamano `config.json` in due posti diversi del server
-           * non devono finire uno sopra l'altro.
-           */
-          cartellaDiLavoro: (destinazione, remoto) => {
-            const nome = basename(remoto) === '' ? 'file' : basename(remoto)
-            const ramo = createHash('sha1')
-              .update(`${destinazione}:${dirname(remoto)}`)
-              .digest('hex')
-              .slice(0, 12)
-            const cartella = join(dati, 'modifiche', ramo)
-            mkdirSync(cartella, { recursive: true })
-            return join(cartella, nome)
-          },
-          /**
-           * Si guarda **la cartella**, non il file.
-           *
-           * Quasi nessun editor riscrive il file che hai aperto: ne scrive uno
-           * accanto e lo rinomina sopra. Sorvegliando il file per nome si perde
-           * di vista al primo salvataggio, in silenzio - il file che si stava
-           * guardando esiste ancora, e' solo diventato un altro.
-           */
-          sorveglia: (cartella, nome, quando) => {
-            try {
-              const occhio = watch(cartella, (_tipo, chi) => {
-                if (chi === null || chi === nome) quando()
-              })
-              // Un guasto del sorvegliante non deve buttare giu' il Gestore: il
-              // file resta aperto, semplicemente non risale da solo.
-              occhio.on('error', (err) => {
-                console.error('[modifiche] sorveglianza interrotta:', err)
-              })
-              return () => { try { occhio.close() } catch { /* gia' chiuso */ } }
-            } catch (err) {
-              console.error('[modifiche] non riesco a sorvegliare', cartella, err)
-              return () => {}
-            }
-          },
-          impronta: (locale) => {
-            try {
-              const st = statSync(locale)
-              return { dimensione: st.size, quando: Math.round(st.mtimeMs) }
-            } catch {
-              // Sparito fra un evento e l'altro: succede davvero, in mezzo a un
-              // salvataggio fatto con scrittura e rinomina.
-              return undefined
-            }
-          },
-          cambiato: (aperti) => aTutteLeFinestre('trasferimenti:modifiche', aperti)
-        }
-      )
-      ipcMain.handle('trasferimenti:apriInModifica', (_e, id: unknown, remoto: unknown, nome: unknown) =>
-        trasferimenti?.apriInModifica(String(id), String(remoto), String(nome)))
-      ipcMain.handle('trasferimenti:chiudiModifica', (_e, id: unknown, remoto: unknown) => {
-        trasferimenti?.chiudiModifica(String(id), String(remoto))
-      })
-      ipcMain.handle('trasferimenti:modificheAperte', () => trasferimenti?.modificheAperte() ?? [])
-      ipcMain.handle('trasferimenti:destinazioni', (_e, cwd: unknown) =>
-        typeof cwd === 'string' ? destinazioni.perProgetto(cwd) : [])
-      ipcMain.handle('trasferimenti:salva', (_e, d: unknown, segreto: unknown) => {
-        if (typeof d !== 'object' || d === null) throw new Error('destinazione non valida')
-        const o = d as Record<string, unknown>
-        const testo = (campo: string): string => (typeof o[campo] === 'string' ? o[campo] : '')
-        if (testo('host') === '') throw new Error('serve l host')
-        const seg = typeof segreto === 'object' && segreto !== null
-          ? segreto as { password?: string; passphrase?: string }
-          : undefined
-        return destinazioni.salva({
-          ...(testo('id') !== '' ? { id: testo('id') } : {}),
-          nome: testo('nome'),
-          cwd: testo('cwd'),
-          host: testo('host'),
-          porta: typeof o.porta === 'number' ? o.porta : 22,
-          utente: testo('utente'),
-          metodo: o.metodo === 'chiave' || o.metodo === 'agente' ? o.metodo : 'password',
-          ...(testo('chiaveFile') !== '' ? { chiaveFile: testo('chiaveFile') } : {}),
-          ...(testo('cartellaRemota') !== '' ? { cartellaRemota: testo('cartellaRemota') } : {}),
-          ...(testo('cartellaLocale') !== '' ? { cartellaLocale: testo('cartellaLocale') } : {})
-        }, seg)
-      })
-      ipcMain.handle('trasferimenti:elimina', (_e, id: unknown) => {
-        if (typeof id === 'string') destinazioni.elimina(id)
-      })
-      ipcMain.handle('trasferimenti:collega', (_e, id: unknown) =>
-        typeof id === 'string' ? trasferimenti?.collega(id) : { ok: false, errore: 'id non valido' })
-      ipcMain.handle('trasferimenti:fidati', (_e, id: unknown, impronta: unknown) => {
-        if (typeof id === 'string' && typeof impronta === 'string') destinazioni.fidatiDi(id, impronta)
-      })
-      ipcMain.handle('trasferimenti:remoto', (_e, id: unknown, percorso: unknown) =>
-        trasferimenti?.elencaRemoto(String(id), typeof percorso === 'string' ? percorso : ''))
-      ipcMain.handle('trasferimenti:locale', (_e, percorso: unknown) =>
-        trasferimenti?.elencaLocale(String(percorso)))
-      ipcMain.handle('trasferimenti:scarica', (_e, id: unknown, remoto: unknown, locale: unknown) =>
-        trasferimenti?.scarica(String(id), String(remoto), String(locale)))
-      ipcMain.handle('trasferimenti:carica', (_e, id: unknown, locale: unknown, remoto: unknown) =>
-        trasferimenti?.carica(String(id), String(locale), String(remoto)))
-      ipcMain.handle('trasferimenti:creaCartella', (_e, id: unknown, percorso: unknown) =>
-        trasferimenti?.creaCartellaRemota(String(id), String(percorso)))
-      ipcMain.handle('trasferimenti:eliminaRemoto', (_e, id: unknown, percorso: unknown, cartella: unknown) =>
-        trasferimenti?.eliminaRemoto(String(id), String(percorso), cartella === true))
-      ipcMain.handle('trasferimenti:rinominaRemoto', (_e, id: unknown, da: unknown, a: unknown) =>
-        trasferimenti?.rinominaRemoto(String(id), String(da), String(a)))
-      ipcMain.handle('trasferimenti:permessiRemoti', (_e, id: unknown, percorso: unknown, modo: unknown) => {
-        // Un modo fuori scala non arriva al server: `chmod` con un numero
-        // assurdo su alcuni server passa e lascia il file inaccessibile.
-        const n = typeof modo === 'number' && Number.isInteger(modo) && modo >= 0 && modo <= 0o7777
-          ? modo
-          : undefined
-        if (n === undefined) throw new Error('permessi non validi')
-        return trasferimenti?.permessiRemoti(String(id), String(percorso), n)
-      })
-      // Le stesse tre di qua. Il lato locale deve poter fare quello che fa
-      // quello remoto: una colonna che sa rinominare e l'altra no costringe ad
-      // aprire Esplora risorse per meta' dei gesti.
-      ipcMain.handle('trasferimenti:creaCartellaLocale', (_e, percorso: unknown) =>
-        trasferimenti?.creaCartellaLocale(String(percorso)))
-      // Nel Cestino e dalla guardia (0.72.0): mai una cartella protetta né una che la contiene.
-      ipcMain.handle('trasferimenti:eliminaLocale', (_e, percorso: unknown) =>
-        cestinoSicuro(String(percorso), { dentro: [dirname(String(percorso))] }, (p) => shell.trashItem(p)))
-      ipcMain.handle('trasferimenti:rinominaLocale', (_e, da: unknown, a: unknown) =>
-        trasferimenti?.rinominaLocale(String(da), String(a)))
-      // Mostrare un file nel gestore di sistema: e' il gesto per cui altrimenti
-      // si copierebbe il percorso a mano.
-      ipcMain.handle('trasferimenti:mostraNelSistema', (_e, percorso: unknown) => {
-        shell.showItemInFolder(String(percorso))
-      })
-      ipcMain.handle('trasferimenti:accoda', (_e, richieste: unknown) => {
-        if (!Array.isArray(richieste)) return
-        return trasferimenti?.accoda(
-          richieste.flatMap((x): Richiesta[] => {
-            if (typeof x !== 'object' || x === null) return []
-            const o = x as Record<string, unknown>
-            const testo = (campo: string): string => (typeof o[campo] === 'string' ? o[campo] : '')
-            if (testo('destinazione') === '' || testo('origine') === '') return []
-            return [{
-              destinazione: testo('destinazione'),
-              verso: o.verso === 'su' ? 'su' : 'giu',
-              origine: testo('origine'),
-              arrivo: testo('arrivo'),
-              cartella: o.cartella === true
-            }]
-          })
-        )
-      })
-      ipcMain.handle('trasferimenti:apriGuscio', (_e, id: unknown, colonne: unknown, righe: unknown) =>
-        trasferimenti?.apriGuscio(
-          String(id),
-          typeof colonne === 'number' ? colonne : 80,
-          typeof righe === 'number' ? righe : 24
-        ))
-      ipcMain.handle('trasferimenti:scriviGuscio', (_e, guscio: unknown, testo: unknown) => {
-        if (typeof guscio === 'string' && typeof testo === 'string') {
-          trasferimenti?.scriviGuscio(guscio, testo)
-        }
-      })
-      ipcMain.handle('trasferimenti:ridimensionaGuscio', (_e, guscio: unknown, c: unknown, r: unknown) => {
-        if (typeof guscio === 'string' && typeof c === 'number' && typeof r === 'number') {
-          trasferimenti?.ridimensionaGuscio(guscio, c, r)
-        }
-      })
-      ipcMain.handle('trasferimenti:chiudiGuscio', (_e, guscio: unknown) => {
-        if (typeof guscio === 'string') trasferimenti?.chiudiGuscio(guscio)
-      })
-      ipcMain.handle('trasferimenti:coda', () => trasferimenti?.statoCoda() ?? { lavori: [], contando: 0 })
-      ipcMain.handle('trasferimenti:annullaLavoro', (_e, id: unknown) => {
-        if (typeof id === 'string') trasferimenti?.annullaLavoro(id)
-      })
-      ipcMain.handle('trasferimenti:annullaCoda', () => trasferimenti?.annullaCoda())
-      ipcMain.handle('trasferimenti:pulisciCoda', (_e, ancheErrori: unknown) =>
-        trasferimenti?.pulisciCoda(ancheErrori === true))
-      ipcMain.handle('trasferimenti:riprovaLavoro', (_e, id: unknown) => {
-        if (typeof id === 'string') trasferimenti?.riprovaLavoro(id)
-      })
-      ipcMain.handle('trasferimenti:scollega', (_e, id: unknown) => {
-        if (typeof id === 'string') trasferimenti?.scollega(id)
-      })
-
       const { fileClaudeJson } = percorsiClaude()
       const soloStringa = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() !== '' ? x : undefined)
       const nonValida = { ok: false, messaggio: 'richiesta non valida' }
@@ -7127,14 +6908,6 @@ async function chiudiRisorse(): Promise<void> {
   // consegnarla a nessuno. L'autopilota la riproporrà quando torniamo.
   fermaRitiroConsegne?.()
   fermaRitiroConsegne = undefined
-  // Le sessioni SFTP: canali TCP aperti verso l'esterno, che tengono vivo il
-  // processo. Chiuderli e' anche una cortesia verso il server, che altrimenti
-  // si ritrova connessioni mezze morte da spazzare per conto suo.
-  try {
-    trasferimenti?.chiudiTutto()
-  } catch (err) {
-    guaioChiusura('sessioni SFTP non chiuse', err)
-  }
   try {
     await ptyClient?.stop()
   } catch (err) {
