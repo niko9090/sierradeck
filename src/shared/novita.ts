@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.86.1',
+    righe: [
+      '**Pulizia ancora più prudente:** una copia di una chat si toglie solo se git conferma che è pulita e già unita, anche quando la cartella è raggiunta per un percorso diverso (collegamenti, cartelle spostate). Una chat aperta mentre la pulizia lavora non viene mai toccata.',
+      '**I comandi pesanti non tengono il posto a vuoto:** il turno si libera appena il test o la compilazione della chat finisce, non minuti dopo; e una chat non può più tenersi il turno mentre altri aspettano.',
+      '**La guardia del PC non resta bloccata:** con il PC un po’ occupato ma non al limite il lavoro riparte dopo al massimo 10 minuti, e una chat non resta mai ferma a fine turno oltre 15 minuti per aspettarla.',
+      '**«Fatto» vale solo per il lavoro fatto:** una chat che aveva detto «fatto» e poi ha ricevuto altro lavoro non viene chiusa, e l’autopilota non si dichiara finito finché ci sono messaggi, domande o tue richieste aperte.',
+    ]
+  },
+  {
     versione: '0.86.0',
     righe: [
       '**Il PC respira:** al massimo 4 chat degli autopiloti lavorano insieme (fino a 8 con «Più chat»), al massimo 2 supervisori, e un solo comando pesante alla volta per tutto il PC — anche i test e le compilazioni lanciati dalle chat. La guardia del PC misura ogni 5 secondi, si accorge del carico in 20 secondi e lascia ripartire il lavoro solo dopo un minuto tranquillo.',
