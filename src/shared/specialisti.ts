@@ -98,9 +98,7 @@ export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
   const nome = a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40)
   if (a.chats.length > 0) {
     return {
-      // La riga salvata con la divisione, se non è del formato vecchio con il numero (0.73.1):
-      // «3 specialisti» sopra un elenco di 4, visto il 15/10. Allora si rifà dai ruoli delle chat.
-      riga: a.organizzazione !== undefined && !/^\d+ specialisti/.test(a.organizzazione) ? a.organizzazione : rigaFlotta(ruoliDi(a)),
+      riga: rigaFlotta(ruoliDi(a)),
       // Lo stesso ordine in ogni workspace (0.76.0, Nicholas: «ordine e coerenza»):
       // per ruolo (Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio), poi come sono nati.
       elenco: [...a.chats].sort((x, y) => postoRuolo(x.ruolo) - postoRuolo(y.ruolo) || numeroChat(x.id) - numeroChat(y.id)).map((c) => ({
@@ -124,7 +122,7 @@ export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
     return { riga: 'Non è ancora partito: quando parte sceglie se dividere il lavoro fra specialisti.', elenco: [] }
   }
   return {
-    riga: a.organizzazione ?? rigaChatSola('piccolo'),
+    riga: rigaChatSola('piccolo'),
     elenco: [{
       id: a.id,
       ruolo: 'Chat unica',
@@ -132,7 +130,7 @@ export function specialistiDi(a: Autopilota, ora?: number): Specialisti {
       compito: nome,
       stato: a.stato === 'lavoro' ? 'al lavoro' : a.stato === 'attesa' ? 'aspetta te' : a.stato === 'finito' ? 'finita' : 'ferma',
       attivo: a.stato === 'lavoro',
-      ultimaAzione: a.ultimaAzioneChat ?? '',
+      ultimaAzione: '',
       attivita: attivitaDi(undefined, a.stato),
       cosa: a.stato === 'finito' ? 'ha finito l’obiettivo' : 'lavora all’obiettivo',
       quanto: '',

@@ -74,11 +74,10 @@ describe('un salvataggio riletto è quello che si era scritto', () => {
         nome: 'notte',
         obiettivo: 'far passare i test',
         cwd: 'C:\\p',
-        criteri: [{ descrizione: 'verdi', comando: 'npm test', soddisfatto: true }],
+        
         iniziatoIl: '2026-08-13T10:00:00.000Z'
       }),
       sessionId: 'sess-1',
-      riprendiAlRiavvio: false,
       cicli: 7
     }
     // La versione la aggiunge l archivio al momento di scrivere, come in

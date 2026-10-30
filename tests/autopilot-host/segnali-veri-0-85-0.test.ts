@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Server } from 'node:http'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
-import { indicatoreDi, type SegniVeri } from '@shared/indicatore-autopilota'
+import type { SegniVeri } from '@shared/indicatore-autopilota'
 import { orologioDa } from '../setup/orologio'
 
 // L'orologio del servizio di prova parte da un istante fisso e avanza col
@@ -26,15 +27,13 @@ const fa = (min: number): string => new Date(ora - min * 60_000).toISOString()
 function ambiente(): ServerAutopiloti {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-segnali-veri-')))
   return creaServer({
+    ...unicoFinto(archivio),
     archivio,
     esegui: () => Promise.resolve({ codice: 1, uscita: '' }),
-    interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "manca"}', sessionId: 'sup-1' }),
     avviaLavoro: () => Promise.resolve(),
-    fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     adesso: () => new Date(ora).toISOString()
   })
 }
@@ -60,7 +59,7 @@ describe('0.85.0: i segnali veri arrivano dal Gestore e tornano nell’elenco', 
     server = ambiente()
     await avvia(server)
     const a: Autopilota = {
-      ...nuovoAutopilota({ id: 'ap-ver1', nome: 'Flotta', obiettivo: 'x', cwd: process.cwd(), criteri: [{ descrizione: 'i test passano', soddisfatto: false }], iniziatoIl: fa(60) }),
+      ...nuovoAutopilota({ id: 'ap-ver1', nome: 'Flotta', obiettivo: 'x', cwd: process.cwd(), iniziatoIl: fa(60) }),
       stato: 'lavoro',
       chats: [
         { id: 'c-1', compito: 'scrivi i test', stato: 'lavoro', cicli: 1, ruolo: 'sviluppo' },
@@ -80,6 +79,5 @@ describe('0.85.0: i segnali veri arrivano dal Gestore e tornano nell’elenco', 
     const elenco = (await chiama('GET', '/autopiloti')).dati as Array<Autopilota & SegniVeri>
     const letto = elenco.find((x) => x.id === 'ap-ver1')!
     expect(letto.segniVeri).toEqual({ 'c-1': { tipo: 'commit', quando: fa(2) } })
-    expect(indicatoreDi(letto, ora).andamento.testo).toBe('Va: Sviluppo, commit 2 min fa')
   })
 })

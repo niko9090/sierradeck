@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, lstatSync, symlinkSync, unlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { EsitoVerifica } from './decisione'
+import type { EsitoVerifica } from './verifiche'
 
 /**
  * L'ambiente della copia di una chat (0.84.4).

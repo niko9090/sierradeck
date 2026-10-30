@@ -16,11 +16,12 @@ import { attendi } from '../setup/attendi'
 import { orologioDa } from '../setup/orologio'
 
 /**
- * P3 nel servizio, con il processo `claude` finto: l'interruttore acceso su
- * un workspace che ha già un autopilota (la sua chat viva adottata, lui fra
- * i precedenti), un messaggio che va in coda e all'orchestratore, la risposta
- * nel dialogo, gli specialisti dal vivo nella vista, gli hook con gli id di
- * prima, e un workspace nuovo che parte con l'unico.
+ * P3/P4 nel servizio, con il processo `claude` finto: all'avvio un workspace
+ * con un autopilota di prima passa al suo autopilota (la chat viva adottata,
+ * il vecchio non più in elenco), un messaggio che va in coda e
+ * all'orchestratore, la risposta nel dialogo, gli specialisti dal vivo nella
+ * vista, gli hook con gli id di prima, e un workspace nuovo che nasce dal
+ * primo messaggio. Nessun interruttore: è sempre acceso.
  */
 
 type Finto = ProcessoClaude & { args: string[]; scritte: string[]; emetti: (o: unknown) => void }
@@ -49,7 +50,7 @@ const avvia: AvviaProcesso = ({ args }) => {
 
 function ap(p: Partial<Autopilota> = {}): Autopilota {
   return {
-    ...nuovoAutopilota({ id: 'ap-vecchio', nome: 'Prima', obiettivo: 'la barra', cwd: process.cwd(), criteri: [{ descrizione: 'test', comando: 'npm test', soddisfatto: false }], iniziatoIl: '2026-10-29T06:00:00.000Z', workspace: 'Lavoro' }),
+    ...nuovoAutopilota({ id: 'ap-vecchio', nome: 'Prima', obiettivo: 'la barra', cwd: process.cwd(), iniziatoIl: '2026-10-29T06:00:00.000Z', workspace: 'Lavoro' }),
     stato: 'lavoro',
     chats: [{ id: 'c-1', compito: 'la barra delle chat', stato: 'lavoro', cicli: 1, sessionId: 's-1' }],
     ...p
@@ -70,20 +71,16 @@ async function avviaServizio(prima: Autopilota[] = []): Promise<void> {
     memoria: apriMemoria(mkdtempSync(join(tmpdir(), 'ap-unico-mem-'))),
     versione: '0.86.3',
     esegui: () => Promise.resolve({ codice: 1, uscita: 'non ancora' }),
-    interroga: () => Promise.resolve({ testo: '{}' }),
     avviaLavoro: () => Promise.resolve(),
-    fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande,
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     adesso: orologio.iso,
     coda: code,
     orchestratori: orch,
     avviaProcesso: avvia,
-    porta: 47999,
-    unicoPerNuovi: true
+    porta: 47999
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -100,21 +97,30 @@ const url = (p: string): string => `http://127.0.0.1:${porta}${p}`
 const posta = (p: string, corpo: unknown): Promise<Response> => fetch(url(p), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
 const vista = async (ws = 'Lavoro'): Promise<VistaOrchestratore> => (await (await fetch(url(`/orchestratore?ws=${ws}`))).json()) as VistaOrchestratore
 const testoScritto = (r: string): string => (JSON.parse(r) as { message: { content: string } }).message.content
+/** All'avvio, come fa `index.ts`: gli autopiloti di prima passano all'autopilota del workspace. */
+const migra = (): VistaOrchestratore => {
+  expect(server!.migraVecchi()).toBe(1)
+  return { autopilota: orch.impostazioni('Lavoro').autopilota } as VistaOrchestratore
+}
 
 describe('autopilota unico nel servizio', () => {
-  it('«Attiva»: la chat viva passa all’unico, il vecchio va fra i precedenti, l’orchestratore riparte dalla coda', async () => {
+  it('all’avvio la chat viva passa all’autopilota del workspace, il vecchio esce dall’elenco, l’orchestratore riparte dalla coda', async () => {
     zitto()
     await avviaServizio([ap()])
-    expect((await vista()).attivo).toBe(false)
-    expect((await vista()).conAutopiloti).toBe(true)
-    const v = (await (await posta('/orchestratore/attiva', { ws: 'Lavoro' })).json()) as VistaOrchestratore
-    expect(v.attivo).toBe(true)
+    expect((await vista()).autopilota).toBeUndefined()
+    migra()
+    const v = await vista()
     const unico = archivio.leggi(v.autopilota!)!
-    expect(unico.unico).toBe(true)
     expect(unico.chats.map((c) => c.origine)).toEqual([{ autopilota: 'ap-vecchio', chat: 'c-1' }])
-    expect(archivio.leggi('ap-vecchio')).toMatchObject({ archiviato: true, passatoA: unico.id })
-    expect(v.precedenti.map((p) => p.id)).toEqual(['ap-vecchio'])
+    expect(orch.impostazioni('Lavoro').assorbiti).toEqual(['ap-vecchio'])
+    // Il file di prima resta com'era (lo sposta il riassetto), ma non si mostra più.
+    expect(archivio.leggi('ap-vecchio')?.stato).toBe('lavoro')
+    const elenco = (await (await fetch(url('/autopiloti'))).json()) as Autopilota[]
+    expect(elenco.map((a) => a.id)).toEqual([unico.id])
+    expect((await fetch(url('/autopiloti/ap-vecchio'))).status).toBe(404)
     expect(v.specialisti).toEqual([expect.objectContaining({ id: 'c-1', adottata: true })])
+    // Una seconda volta non cambia niente.
+    expect(server!.migraVecchi()).toBe(0)
     // L'orchestratore riceve subito un turno: guarda la coda e dice da dove riparte.
     expect(processi).toHaveLength(1)
     const args = processi[0]!.args
@@ -127,12 +133,10 @@ describe('autopilota unico nel servizio', () => {
   it('un messaggio va in coda con le parole intere e all’orchestratore; la risposta torna nel dialogo; la vista mostra gli specialisti', async () => {
     zitto()
     await avviaServizio([ap()])
-    const v = (await (await posta('/orchestratore/attiva', { ws: 'Lavoro' })).json()) as VistaOrchestratore
-    const id = v.autopilota!
+    const id = migra().autopilota!
     processi[0]!.emetti({ type: 'result', result: 'Riparto dalla barra.', total_cost_usd: 0.002, session_id: 'sess-1', usage: { input_tokens: 500 } })
     expect((await posta(`/autopiloti/${id}/dialogo`, { testo: 'la pagina del telefono deve mostrare il numero delle chat' })).status).toBe(202)
     const coda = (await (await fetch(url('/coda?ws=Lavoro'))).json()) as VistaCoda
-    expect(coda.unico).toBe(true)
     expect(coda.richieste.some((r) => r.testo === 'la pagina del telefono deve mostrare il numero delle chat')).toBe(true)
     await attendi(() => processi[0]!.scritte.length === 2)
     expect(testoScritto(processi[0]!.scritte[1]!)).toContain('la pagina del telefono')
@@ -152,7 +156,7 @@ describe('autopilota unico nel servizio', () => {
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {
     zitto()
     await avviaServizio([ap()])
-    const v = (await (await posta('/orchestratore/attiva', { ws: 'Lavoro' })).json()) as VistaOrchestratore
+    const v = migra()
     const r = await posta('/hook/stop?ap=ap-vecchio&chat=c-1', { last_assistant_message: 'Fatto.\nRAPPORTO: finita — la barra va\nSEGNALE: fatto', session_id: 's-1' })
     expect(await r.json()).toEqual({})
     const c = archivio.leggi(v.autopilota!)!.chats[0]!
@@ -160,19 +164,24 @@ describe('autopilota unico nel servizio', () => {
     expect(c.segnale?.tipo).toBe('fatto')
   })
 
-  it('un workspace nuovo parte con l’autopilota unico: l’obiettivo è il primo messaggio', async () => {
+  it('un workspace nuovo nasce dal primo messaggio, ed è un autopilota solo', async () => {
     zitto()
     await avviaServizio()
-    const r = await posta('/autopiloti', { obiettivo: 'fai la coda delle richieste', cwd: process.cwd(), workspace: 'Nuovo' })
+    expect(server!.migraVecchi()).toBe(0)
+    const r = await posta('/orchestratore/messaggio', { testo: 'fai la coda delle richieste', cwd: process.cwd(), workspace: 'Nuovo' })
+    expect(r.status).toBe(200)
     const a = (await r.json()) as Autopilota
-    expect(a.unico).toBe(true)
-    expect(orch.impostazioni('Nuovo').attivo).toBe(true)
+    expect(orch.impostazioni('Nuovo').autopilota).toBe(a.id)
     expect(code.leggi('Nuovo').richieste.map((x) => x.testo)).toEqual(['fai la coda delle richieste'])
     expect(processi).toHaveLength(1)
     expect(testoScritto(processi[0]!.scritte[0]!)).toContain('fai la coda delle richieste')
-    // Un secondo «nuovo autopilota» nello stesso workspace è un messaggio per lui, non un autopilota in più.
+    // Un secondo messaggio (anche dalla rotta di prima, «crea») è per lui, non un autopilota in più.
     await posta('/autopiloti', { obiettivo: 'e anche il telefono', cwd: process.cwd(), workspace: 'Nuovo' })
     expect(archivio.elenca().filter((x) => x.workspace === 'Nuovo')).toHaveLength(1)
+    expect(code.leggi('Nuovo').richieste.map((x) => x.testo)).toEqual(['fai la coda delle richieste', 'e anche il telefono'])
+    // Senza testo o senza cartella: rifiutato.
+    expect((await posta('/orchestratore/messaggio', { testo: '', workspace: 'Altro', cwd: process.cwd() })).status).toBe(400)
+    expect((await posta('/orchestratore/messaggio', { testo: 'ciao', workspace: 'Altro', cwd: join(process.cwd(), 'non-c-e') })).status).toBe(400)
     // Senza criteri suoi non si sospende alla rilettura: i criteri stanno nel piano.
     expect(archivio.leggi(a.id)!.stato).toBe('lavoro')
   })
@@ -180,7 +189,7 @@ describe('autopilota unico nel servizio', () => {
   it('il permesso chiesto dalla CLI diventa una domanda; la risposta torna allo strumento', async () => {
     zitto()
     await avviaServizio([ap()])
-    await posta('/orchestratore/attiva', { ws: 'Lavoro' })
+    migra()
     const amb = (server as unknown as { spegniOrchestratori: () => void })
     expect(typeof amb.spegniOrchestratori).toBe('function')
     // Lo strumento si chiama dal server MCP con il gettone del workspace (scritto nel file mcp.json).
@@ -201,7 +210,7 @@ describe('autopilota unico nel servizio', () => {
   it('il PreToolUse dell’unico: l’orchestratore non scrive nel principale, lo specialista sì nella sua copia', async () => {
     zitto()
     await avviaServizio([ap()])
-    const v = (await (await posta('/orchestratore/attiva', { ws: 'Lavoro' })).json()) as VistaOrchestratore
+    const v = migra()
     const radice = process.cwd()
     const base = { session_id: 's', cwd: radice, hook_event_name: 'PreToolUse', tool_use_id: 'toolu_x' }
     const negato = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_name: 'Write', tool_input: { file_path: join(radice, 'PROVA.md'), content: 'x' } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }

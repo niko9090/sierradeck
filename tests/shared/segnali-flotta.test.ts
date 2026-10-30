@@ -49,7 +49,7 @@ describe('i segnali delle chat (0.84.0)', () => {
   })
 
   it('il segnale si conserva su disco, una forma sbagliata no', () => {
-    const base = nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: quando })
+    const base = nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:\\p', iniziatoIl: quando })
     const { autopilota } = parseAutopilota(JSON.parse(JSON.stringify({
       ...base,
       versione: 1,

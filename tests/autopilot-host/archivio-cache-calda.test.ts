@@ -24,7 +24,7 @@ vi.mock('node:fs', async (originale) => {
 })
 
 const ap = (obiettivo: string) => ({
-  ...nuovoAutopilota({ id: 'ap-30', nome: 'Cache', obiettivo, cwd: 'C:/p', criteri: [], iniziatoIl: '2026-10-30T08:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-30', nome: 'Cache', obiettivo, cwd: 'C:/p', iniziatoIl: '2026-10-30T08:00:00.000Z' }),
   stato: 'lavoro' as const
 })
 

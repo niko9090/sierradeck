@@ -136,13 +136,11 @@ describe('la riga corta, con il ponte finto', () => {
 })
 
 describe('nessuna richiesta «Premi Invio» per Nicholas (0.38.1)', () => {
-  it('la banda non c è più; il guasto va nel diario; il tasto resta solo, facoltativo, nella scheda', async () => {
+  it('la banda non c è più; il guasto va nel diario dell autopilota', async () => {
     const { readFileSync } = await import('node:fs')
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
     expect(app).not.toContain('inviiMancati')
     expect(app).not.toContain('Premi Invio')
     expect(app).toContain('guasto del programma')
-    const scheda = readFileSync('src/renderer/components/DiarioAutopilota.tsx', 'utf8')
-    expect(scheda).toContain("'sierradeck:invio-mancato'")
   })
 })

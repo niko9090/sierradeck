@@ -171,7 +171,6 @@ export function quadroDellaChat(c: ChatGovernata, ora: number, vero?: SegnoVero)
     if (c.segnale?.tipo === 'bloccata') return `bloccata: ${c.segnale.motivo ?? 'non ha detto il motivo'}`
     if (c.segnale?.tipo === 'aspetto') return c.segnale.di !== undefined ? `aspetta la chat ${c.segnale.di}` : `aspetta: ${c.segnale.cosa ?? 'non ha detto cosa'}`
     if (c.segnale?.tipo === 'fatto' || r?.tipo === 'finita') return 'dice di aver finito: da controllare e chiudere'
-    if (c.ripresa !== undefined) return `muta: richiamata con «dimmi il punto» ${fa(c.ripresa.il, ora) ?? ''}`.trim()
     return undefined
   }
   const ferma = fermaDa()

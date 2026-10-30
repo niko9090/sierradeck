@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { paginaClient } from '../../src/main/client-pagina'
-import { messaggiCompatti, type StatoMessaggio } from '../../src/shared/stato-dal-vivo'
 
 /**
  * 0.72.1 sulla pagina del telefono: le spunte al posto delle righe «consegnato
@@ -19,29 +18,6 @@ function funzione(nome: string): string {
   }
   throw new Error(`${nome} non trovata`)
 }
-
-describe('pagina: messaggi con la spunta', () => {
-  const js = new Function(`${funzione('messaggiCompattiJs')}; return messaggiCompattiJs`)() as (m: StatoMessaggio[]) => unknown
-
-  it('dà lo stesso risultato della funzione del PC', () => {
-    const m: StatoMessaggio[] = [
-      { id: 'a', testo: 'scrivimi', stato: 'in attesa', dettaglio: 'in attesa da 8 min', mandaAdesso: true },
-      { id: 'b', testo: 'e il rapporto', stato: 'in attesa', dettaglio: 'in attesa da 5 min', mandaAdesso: true },
-      { id: 'v', testo: 'in volo', stato: 'in consegna', dettaglio: 'in consegna alla chat' },
-      { id: 'c1', testo: 'due', stato: 'consegnato', dettaglio: 'consegnato alle 10:01' },
-      { id: 'c0', testo: 'uno', stato: 'consegnato', dettaglio: 'consegnato alle 10:00' }
-    ]
-    const pc = messaggiCompatti(m)
-    expect(js(m)).toEqual({ segni: pc.segni, fermo: pc.fermo })
-    expect(js(m.slice(3))).toEqual({ segni: messaggiCompatti(m.slice(3)).segni, fermo: null })
-  })
-
-  it('non c è più una riga «consegnato alle» per messaggio', () => {
-    const corpo = funzione('messaggiApHtml')
-    expect(corpo).toContain('messaggiCompattiJs(m)')
-    expect(corpo).not.toContain('x.dettaglio')
-  })
-})
 
 describe('pagina: la domanda essenziale', () => {
   it('le Domande e la linguetta dell autopilota disegnano la scheda del PC', () => {

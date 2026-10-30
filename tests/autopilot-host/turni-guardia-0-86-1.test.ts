@@ -7,9 +7,10 @@ import {
   ATTESA_IN_UN_HOOK_MS, ATTESA_MASSIMA_MS, CARICO_MASSIMO_MS, creaGuardiaPc, dentroUnHook, giudicaMisura,
   giudicaPesanteDellaChat, PROCESSORE_PER_MS, RILASCIO_PER_MS, rendiTurnoDopoComando
 } from '../../src/autopilot-host/guardia-pc'
-import { conTurni, creaTurni } from '../../src/autopilot-host/turni-criteri'
+import { creaTurni } from '../../src/autopilot-host/turni-criteri'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota } from '@shared/autopilota'
 import type { MisuraPc } from '@shared/posti-chat'
@@ -74,15 +75,13 @@ describe('il servizio: PostToolUse e Stop rendono il turno della chat', () => {
   const avvia = async (opz: { esegui?: (c: string, cwd: string) => Promise<{ codice: number; uscita: string }>; turni: ReturnType<typeof creaTurni> }): Promise<{ porta: number; archivio: ReturnType<typeof apriArchivio> }> => {
     const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-turni-0861-')))
     server = creaServer({
+      ...unicoFinto(archivio),
       archivio,
       esegui: opz.esegui ?? (() => Promise.resolve({ codice: 0, uscita: '' })),
-      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "continua"}' }),
       avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
       domande: creaRegistroDomande({ adesso: () => ORA }),
       scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
       adesso: () => new Date().toISOString(),
       turni: opz.turni
     })
@@ -95,7 +94,7 @@ describe('il servizio: PostToolUse e Stop rendono il turno della chat', () => {
     const turni = creaTurni()
     const { porta, archivio } = await avvia({ turni })
     const chats = ['c-1', 'c-2'].map((id) => ({ id, compito: id, stato: 'lavoro' as const, cicli: 1 }))
-    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-a', nome: 'a', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [], iniziatoIl: new Date(ORA).toISOString() }), stato: 'lavoro', chats })
+    archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-a', nome: 'a', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: new Date(ORA).toISOString() }), stato: 'lavoro', chats })
     const pre = async (chat: string, command: string): Promise<any> => (await fetch(`http://127.0.0.1:${porta}/hook/pretool?ap=ap-a&chat=${chat}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bash(command)) })).json()
     expect(await pre('c-1', 'npx vitest run')).toEqual({})
     expect((await pre('c-2', 'npx tsc --noEmit')).hookSpecificOutput).toMatchObject({ permissionDecision: 'deny' })
@@ -105,13 +104,11 @@ describe('il servizio: PostToolUse e Stop rendono il turno della chat', () => {
     turni.rilascia('ap-a::c-2')
   })
 
-  it('/hook/stop: il turno della chat si rende prima dei criteri della sua fermata, che non le aspettano dietro', async () => {
+  it('/hook/stop: il turno della chat si rende alla sua fermata', async () => {
     const turni = creaTurni()
-    const lanciati: string[] = []
-    const esegui = conTurni(async (c) => { lanciati.push(c); return { codice: 0, uscita: 'ok' } }, turni)
-    const { porta, archivio } = await avvia({ turni, esegui })
+    const { porta, archivio } = await avvia({ turni })
     archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-b', nome: 'b', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [{ descrizione: 'i test passano', comando: 'npx vitest run', soddisfatto: false }], iniziatoIl: new Date(ORA).toISOString() }),
+      ...nuovoAutopilota({ id: 'ap-b', nome: 'b', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: new Date(ORA).toISOString() }),
       stato: 'lavoro',
       chats: [{ id: 'c-1', compito: 'c', stato: 'lavoro' as const, cicli: 1 }]
     })
@@ -119,7 +116,6 @@ describe('il servizio: PostToolUse e Stop rendono il turno della chat', () => {
     expect(turni.prenota('ap-b::c-1', 'C:\\Progetti\\Esempio', 10 * 60_000, true).ok).toBe(true)
     const r = await fetch(`http://127.0.0.1:${porta}/hook/stop?ap=ap-b&chat=c-1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: 's', last_assistant_message: 'lavoro in corso', stop_hook_active: false }), signal: AbortSignal.timeout(10_000) })
     expect(r.status).toBe(200)
-    expect(lanciati).toContain('npx vitest run')
     expect(turni.prenotato()).toBeUndefined()
   }, 20_000)
 })

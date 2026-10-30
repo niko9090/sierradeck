@@ -1101,42 +1101,6 @@ function dalVivoHtml(v, senzaStato) {
     (v.senzaSegni ? ' · <span style="color:var(--ambra,#e0a33c)">⚠ ' + esc(v.senzaSegni) + '</span>' : '') + '</span>' +
     (v.ultimaAzione ? '<span class="voce__sotto" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(v.ultimaAzione) + '</span>' : '')
 }
-/**
- * I messaggi verso la chat (0.72.1, come \`messaggiCompatti\` sul PC): una
- * spunta ✓ per ogni messaggio arrivato (l'ora e il testo toccandola), un
- * puntino per quello in consegna, e una riga sola, solo se qualcosa è fermo:
- * «in attesa da N min» con «Manda adesso».
- */
-function messaggiCompattiJs(m) {
-  var segni = []
-  var inAttesa = m.filter(function (x) { return x.stato === 'in attesa' })
-  m.slice().reverse().forEach(function (x) {
-    if (x.stato === 'consegnato' || x.stato === 'in consegna') segni.push({ id: x.id, tipo: x.stato, titolo: (x.dettaglio || '') + ': ' + (x.testo || '') })
-  })
-  var primo = inAttesa[0]
-  return { segni: segni, fermo: primo ? { dettaglio: primo.dettaglio || '', quanti: inAttesa.length, testo: primo.testo || '', mandaAdesso: inAttesa.some(function (x) { return x.mandaAdesso }) } : null }
-}
-function messaggiApHtml(m) {
-  if (!Array.isArray(m) || m.length === 0) return ''
-  var c = messaggiCompattiJs(m)
-  return '<div class="titolo-sezione" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">Messaggi per la chat' + aiuto('ap-messaggi', 'Ogni ✓ è un messaggio tuo o dell’autopilota arrivato alla chat: toccalo per l’ora e il testo. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti. Se uno è fermo compare la sua riga con «Manda adesso».') +
-    c.segni.map(function (s) {
-      return '<span class="segno-msg" title="' + esc(s.titolo) + '" onclick="notaGlobale=this.title;aggiorna()" style="cursor:pointer;color:' + (s.tipo === 'consegnato' ? 'var(--verde)' : 'var(--testo-quieto,#8b949e)') + '">' + (s.tipo === 'consegnato' ? '✓' : '⋯') + '</span>'
-    }).join('') + '</div>' +
-    (c.fermo ? '<div class="sotto" style="display:flex;gap:8px;align-items:baseline"><span style="color:var(--ambra,#e0a33c);white-space:nowrap">' + esc(c.fermo.dettaglio) + (c.fermo.quanti > 1 ? ' · ' + c.fermo.quanti + ' messaggi' : '') + '</span>' +
-      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.fermo.testo) + '</span>' +
-      (c.fermo.mandaAdesso ? '<button onclick="mandaAdessoAp()">Manda adesso</button>' : '') + '</div>' : '')
-}
-window.mandaAdessoAp = async () => {
-  if (!dentroAp) return
-  try {
-    const r = await chiediAp('/api/autopilota/manda-adesso', { autopilota: dentroAp })
-    // Già un messaggio in questo turno (PC 0.72.0): il PC dice perché non manda.
-    if (r && r.mandate === 0 && r.messaggio) notaGlobale = r.messaggio
-  } catch (e) { /* lo dice lo stato al giro dopo */ }
-  await leggiAp()
-}
-
 function altriApHtml() {
   if (altriAp === null) return '<div class="sotto" style="margin-top:8px">Chiedo agli altri PC i loro autopiloti…</div>'
   if (altriAp.length === 0) return ''
@@ -1155,9 +1119,9 @@ function altriApHtml() {
 }
 var apDettaglio = null
 /** Quale linguetta e' aperta sotto la chat con l'autopilota. */
-var apTab = 'obiettivo'
+var apTab = 'avanzamento'
 /** Dove si era prima che una domanda portasse alla linguetta «Domande» (0.38.0). */
-var apTabPrima = 'obiettivo'
+var apTabPrima = 'avanzamento'
 /** La riga riassuntiva dell'autopilota (0.83.0): chiusa, sotto solo la conversazione. */
 var apRiassunto = false
 /** Quale domanda si guarda (una per volta) e quali si sono gia' viste. */
@@ -1165,10 +1129,12 @@ var apDomandaI = 0
 var apDomandeViste = null
 /** La linguetta «File» (0.38.0): l'elenco, il file scelto e il suo diff. */
 var apFile = null
-/** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, intere; quale si corregge. */
-var apIstr = null
-var apIstrCorreggi = null
-var notaIstrAp = ''
+/**
+ * L'avanzamento dell'autopilota unico (0.86.x): la percentuale del workspace,
+ * la coda delle richieste con stato e percentuale, gli specialisti. Arriva da
+ * /api/autopilota/avanzamento; null finché non si è letto.
+ */
+var apAvanzamento = null
 var apFileScelto = null
 var apDiff = null
 var notaDomandaAp = ''
@@ -1924,7 +1890,7 @@ function impronta(s) {
     JSON.stringify(panAperte),
     // La gestione delle chat (0.79.0): linguette, scelte, conferme, svuota.
     gcImpronta(),
-    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apDettaglio.punto || '') + JSON.stringify(apDettaglio.messaggi || []) + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + JSON.stringify(apDettaglio.troncati || '') + '/' + (apDettaglio.chatIntera || 0) + '/' + JSON.stringify((apDettaglio.chat || []).slice(-1)) + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa + '/' + apDettaglio.riprendiAlRiavvio : '',
+    apDettaglio ? JSON.stringify(apDettaglio.dalVivo || '') + JSON.stringify(apDettaglio.adesso || '') + JSON.stringify(apAvanzamento || '') + apDettaglio.ultimoEvento + '/' + apDettaglio.stato + '/' + (apDettaglio.decisioni || []).length + '/' + (apDettaglio.chat || []).length + '/' + JSON.stringify(apDettaglio.troncati || '') + '/' + (apDettaglio.chatIntera || 0) + '/' + JSON.stringify((apDettaglio.chat || []).slice(-1)) + '/' + apDettaglio.domanda + '/' + apDettaglio.pensa : '',
     apTab,
     // Salute e Impostazioni sono destinazioni (0.61.0): quello che leggono entrando ridisegna la pagina.
     saluteVista ? saluteVista.riassunto + '/' + (saluteVista.voci || []).length : '', saluteErrore || '', saluteGruppo, saluteMappa,
@@ -2203,9 +2169,7 @@ function pannello(s) {
     '<div class="serigrafia"><span class="led rosso"></span>SI È FERMATO</div>' +
     '<div class="grande">' + esc(a.nome) + '</div>' +
     '<div class="sotto">' + esc(a.strategia ? 'bloccato, provo: ' + a.strategia : (a.motivo || 'fermo')) + '</div>' +
-    '<div class="misura-riga">' + a.fatti + ' criteri su ' + a.criteri + ' · ' + a.cicli + ' interventi</div>' +
     '<div class="riga">' +
-    '<button data-ap="' + esc(a.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>' +
     '<button onclick="vaiScheda(\\'autopiloti\\')">Guarda</button></div></div>'
   ).join('')
 
@@ -2214,8 +2178,7 @@ function pannello(s) {
     '<div class="piastrella chiede"><div class="serigrafia"><span class="led attesa"></span>ASPETTANO TE</div>' +
     pronti.map((a) =>
       '<div class="polso"><span class="polso__nome">' + esc(a.nome) + '</span><span class="voce__stato voce__stato--attesa">' +
-      (a.stato === 'pronto' ? 'pronto: aspetta il via' : 'ti ha fatto una domanda') + '</span></div>' +
-      (a.stato === 'pronto' ? '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button></div>' : '')
+      'ti ha fatto una domanda' + '</span></div>'
     ).join('') +
     chatAttesa.map((c) =>
       '<div class="polso"><span class="polso__nome">' + esc(c.nome || c.titolo || c.cwd) + '</span><span class="voce__stato voce__stato--attesa">' + esc(statoChat(c).parola) + '</span></div>'
@@ -2256,40 +2219,17 @@ function pannello(s) {
       <div class="solo-riassunto">
       <div style="\${panoramicaAp && panoramicaAp.situazione ? 'display:none' : ''}">
       <div class="sotto">\${apAperto.vista ? '<b style="color:' + COLORE_VISTA[apAperto.vista.stato.colore] + '">' + esc(apAperto.vista.stato.parola) + '</b>' + (apAperto.vista.da ? ' · da ' + esc(apAperto.vista.da) : '') + (apAperto.vista.stato.ragione ? ' · ' + esc(apAperto.vista.stato.ragione) : '') : esc(apAperto.strategia ? 'bloccato, provo: ' + apAperto.strategia : (apAperto.motivo || apAperto.stato))}</div>
-      <div class="misura-riga">criteri \${apAperto.fatti}/\${apAperto.criteri}</div>
-      <div class="barra"><i style="width:\${apAperto.criteri ? Math.round(apAperto.fatti / apAperto.criteri * 100) : 0}%"></i></div>
+      \${percentoAvanzamento(apAvanzamento) !== undefined ? '<div class="misura-riga">' + Math.round(percentoAvanzamento(apAvanzamento)) + '%</div><div class="barra"><i style="width:' + Math.max(0, Math.min(100, Math.round(percentoAvanzamento(apAvanzamento)))) + '%"></i></div>' : ''}
       </div>
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'testa') : ''}
-      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + (apDettaglio.punto ? '' : adessoHtml(apDettaglio.adesso)) + messaggiApHtml(apDettaglio.messaggi) : ''}
+      \${apDettaglio ? dalVivoHtml(apDettaglio.dalVivo, !!(panoramicaAp && panoramicaAp.situazione)) + (apDettaglio.punto ? '' : adessoHtml(apDettaglio.adesso)) : ''}
       </div>
       \${apDettaglio ? vistaAutopilota(apDettaglio) : ''}
       <div class="solo-riassunto">
       \${apDettaglio ? panoramicaHtml(panoramicaAp, 'resto') : ''}
       <div class="riga">
-        \${apAperto.stato === 'pronto'
-          ? '<button class="primario" data-ap="' + esc(apAperto.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button>'
-          : apAperto.stato === 'lavoro' || apAperto.stato === 'attesa'
-            ? '<button data-ap="' + esc(apAperto.id) + '" onclick="fermaAp(this.dataset.ap)">Ferma</button>'
-            : apAperto.stato === 'intervista'
-              ? '<span class="sotto">si sta preparando: legge il progetto e, se serve, ti fa una domanda</span>'
-              : apAperto.stato === 'finito'
-                ? '<span class="sotto">ha finito: non c’è altro da fare</span>'
-                : '<button data-ap="' + esc(apAperto.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button>'}
-        \${apAperto.stato === 'sospeso' || apAperto.stato === 'fallito' ? '<button data-ap="' + esc(apAperto.id) + '" onclick="archiviaAp(this.dataset.ap)" title="Esce dall’elenco dei lavori; non si cancella niente">Archivia</button>' : ''}
         <button onclick="apriPannello('quaderno')">Quaderno</button>
         \${!apPc && apDettaglio && apDettaglio.storico ? '<button data-cwd="' + esc(apAperto.cwd || apDettaglio.cwd || '') + '" data-file="' + esc(apDettaglio.storico) + '" onclick="apriStorico(this.dataset.cwd, this.dataset.file)" title="Chat aperte, consegne, unioni, chiusure, release e tue decisioni">Storico</button>' : ''}
-      </div>
-      \${!apPc && ((s.workspace && s.workspace.nomi) || []).some((n) => n !== apAperto.workspace) ? \`
-      <div class="riga">
-        <select id="ap-sposta" style="flex:1" aria-label="Sposta in un altro workspace">
-          \${(s.workspace.nomi || []).filter((n) => n !== apAperto.workspace).map((n) => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('')}
-        </select>
-        <button data-ap="\${esc(apAperto.id)}" onclick="spostaAp(this.dataset.ap)">Sposta lì</button>\${aiuto('ap-sposta', 'Cambia il workspace dove compare il suo lavoro' + (apAperto.workspace ? ' (adesso «' + esc(apAperto.workspace) + '»)' : '') + '. La cartella e le chat già aperte restano dove sono. Dopo, il workspace di prima si può eliminare.')}
-      </div>\` : ''}
-      <div class="riga">
-        <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.riprendiAlRiavvio === false ? '' : 'checked'} data-ap="\${esc(apAperto.id)}" onchange="riavvioAp(this.dataset.ap, this.checked)"> Riparte da solo al riavvio del computer</label>
-        <label class="spunta"><input type="checkbox" \${apDettaglio && apDettaglio.sottofondo === true ? 'checked' : ''} data-ap="\${esc(apAperto.id)}" onchange="sottofondoAp(this.dataset.ap, this.checked)"> Lavora in sottofondo\${aiuto('ap-sottofondo', 'Di serie la sua chat sta in un riquadro del suo workspace sul computer, e quando l’autopilota le scrive il computer va in quel workspace (mai mentre stai scrivendo lì). Accesa, la chat lavora senza riquadro: la vedi in «in sottofondo» con Guarda.')}</label>
-        <button class="\${confermando === 'ap-' + apAperto.id ? 'pericolo' : ''}" data-ap="\${esc(apAperto.id)}" onclick="eliminaAp(this.dataset.ap)">\${confermando === 'ap-' + apAperto.id ? 'Sicuro? Elimina' : 'Elimina'}</button>
       </div>
       </div>
     </div>\`
@@ -3140,7 +3080,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apRiassunto = false; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apIstr = null; apIstrCorreggi = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -3167,9 +3107,8 @@ async function leggiAp() {
     if (apTab === 'file') {
       try { apFile = await chiediAp('/api/autopilota/file', { autopilota: dentroAp }) } catch (e) { apFile = { errore: String(e && e.message ? e.message : e) } }
     }
-    if (apTab === 'istruzioni') {
-      try { apIstr = await chiediAp('/api/autopilota/istruzioni', { autopilota: dentroAp }) } catch (e) { apIstr = { errore: String(e && e.message ? e.message : e) } }
-    }
+    // L'avanzamento dell'autopilota unico (0.86.x): percentuale, richieste, specialisti.
+    try { apAvanzamento = await chiediAp('/api/autopilota/avanzamento', apDettaglio.workspace ? { workspace: apDettaglio.workspace } : { autopilota: dentroAp }) } catch (e) { apAvanzamento = { errore: String(e && e.message ? e.message : e) } }
   } catch (e) {
     // Un autopilota di un altro PC (0.59.0): quel PC non risponde. Lo si dice,
     // con il perché e le strade provate, e la scheda resta: riprova da sola.
@@ -3324,12 +3263,6 @@ function riassuntoApTesto(ap, d) {
 window.giraRiassuntoAp = () => { apRiassunto = !apRiassunto; pannello(ultimoStato) }
 
 function vistaAutopilota(a) {
-  const passi = (a.passaggi || []).map((p) => {
-    const cl = 'passo passo--' + p.stato
-    return '<span class="' + cl + '"><i class="passo-led"></i>' + esc(p.nome) + '</span>'
-  }).join('<span class="passo-filo"></span>')
-  const qui = (a.passaggi || []).find((p) => p.stato !== 'fatto' && p.stato !== 'davanti')
-  const m = a.misura || { percento: 0, dettaglio: '', di: '', tono: 'lavoro' }
   const ora = (iso) => oraDi(iso)
 
   // ── La chat con lui, in cima (0.29.0) ──
@@ -3359,24 +3292,18 @@ function vistaAutopilota(a) {
       '<span class="battuta__chi">' + (b.da === 'lui' ? esc(a.nome || 'lui') : 'tu') + ' · ' + ora(b.quando) + '</span>' +
       '<span>' + esc(b.testo) + '</span>' +
       (b.dettaglio ? '<span class="battuta__esito">' + esc(b.dettaglio) + '</span>' : '') +
-      (b.tono === 'pronto' ? '<div class="riga"><button class="primario" data-ap="' + esc(a.id) + '" onclick="vaiAp(this.dataset.ap)">Vai</button></div>' : '') +
       '</div>'
   }).join('')
   const pensa = a.pensa
     ? '<div class="sotto pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</div>'
-    : a.stato === 'intervista' && !a.domanda
-      ? '<div class="sotto pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</div>'
-      : a.fermoConPromessa
-        // 0.75.4: ha promesso lavoro ed è fermo.
-        ? '<div class="sotto pensa fermo-promessa">● L’autopilota è fermo (' + esc(a.stato) + '). <button class="primario" data-ap="' + esc(a.id) + '" onclick="riprendiAp(this.dataset.ap)">Riprendi</button></div>'
-        : ''
+    : ''
   // La casella: con una domanda aperta e' la risposta (arriva subito alla
   // chat ferma); altrimenti si parla con lui, il supervisore, che risponde in
   // qualche minuto.
   // Il campo resta in fondo allo schermo mentre si scorre (0.79.0: «sempre pronto»).
   const casella = '<div class="casella-ap ancorata"><div class="riga"><textarea id="dialogo-' + esc(a.id) + '" rows="2" placeholder="' +
       // 0.82.0, come sul PC dalla 0.81.0: corto, la parte fra parentesi veniva tagliata; dove stanno le domande lo dice il «?».
-      'scrivigli: una domanda, un vincolo, un compito in più, «fermati», «riprendi»…' + '"></textarea></div>' +
+      'scrivigli: una richiesta, una domanda, un vincolo…' + '"></textarea></div>' +
     '<div class="riga">' +
       // Le sue domande non si rispondono da qui (0.38.0): stanno nella
       // linguetta «Domande», una per volta.
@@ -3392,10 +3319,10 @@ function vistaAutopilota(a) {
 
   // ── Le linguette, sotto ──
   const schede = a.domandeScheda || []
-  const linguette = (schede.length > 0 ? [['domande', 'Domande']] : []).concat([['istruzioni', 'Istruzioni'], ['file', 'File'], ['obiettivo', 'Obiettivo'], ['criteri', 'Criteri'], ['compiti', 'Compiti'], ['deciso', 'Ha deciso']])
-  const conto = (id) => id === 'domande' ? ' <small class="conto-domande">' + schede.length + '</small>' : id === 'criteri' && (a.criteri || []).length
-    ? ' <small>' + (a.criteri || []).filter((c) => c.soddisfatto).length + '/' + a.criteri.length + '</small>'
-    : id === 'compiti' && (a.compitiDaFare || []).length ? ' <small>' + a.compitiDaFare.length + '</small>' : ''
+  // L'autopilota unico (0.86.x): le domande, l'avanzamento, i file.
+  const linguette = (schede.length > 0 ? [['domande', 'Domande']] : []).concat([['avanzamento', 'Avanzamento'], ['file', 'File']])
+  const pcAv = percentoAvanzamento(apAvanzamento)
+  const conto = (id) => id === 'domande' ? ' <small class="conto-domande">' + schede.length + '</small>' : id === 'avanzamento' && pcAv !== undefined ? ' <small>' + Math.round(pcAv) + '%</small>' : ''
   const barraLinguette = '<div class="linguette">' + linguette.map(([id, nome]) =>
     '<button class="linguetta' + (apTab === id ? ' linguetta--attiva' : '') + '" data-tab="' + id + '" onclick="apriTabAp(this.dataset.tab)">' + nome + conto(id) + '</button>'
   ).join('') + '</div>'
@@ -3427,68 +3354,11 @@ function vistaAutopilota(a) {
       '<div class="sotto">' + (d.tipo === 'via' ? '«Vai» lo fa partire; se scrivi altro gli arriva come messaggio.' : 'La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.') + '</div>'
   } else if (apTab === 'file') {
     dentro = vistaFileAp(apFile, apFileScelto, apDiff)
-  } else if (apTab === 'istruzioni') {
-    dentro = vistaIstruzioniAp(apIstr)
-  } else if (apTab === 'obiettivo') {
-    // Cosa gli hai chiesto, e cosa ne ha capito. La preparazione riscrive
-    // l'obiettivo con parole sue: senza le tue accanto non c'e' modo di
-    // accorgersi che sta andando a fare un'altra cosa.
-    const tue = a.obiettivoTuo || a.obiettivo || ''
-    dentro = '<div class="serigrafia">Gli hai chiesto</div>' +
-      '<div class="sotto tue-parole">' + esc(tue) + '</div>' +
-      (a.obiettivo && a.obiettivo !== tue
-        ? '<div class="serigrafia" style="margin-top:8px">Ha capito così</div>' +
-          '<div class="sotto sue-parole">' + esc(a.obiettivo) + '</div>'
-        : '') +
-      '<div class="serigrafia" style="margin-top:10px">A che punto è</div>' +
-      '<div class="misura misura--' + esc(m.tono) + '" style="margin-top:4px"><b>' + m.percento + '%</b>' +
-        '<span class="sotto">' + esc(m.dettaglio) + ' · ' + esc(m.di) + '</span></div>' +
-      (qui && qui.nota ? '<div class="sotto nota">' + esc(qui.nota) + '</div>' : '') +
-      '<div class="sotto">' + (a.cicli || 0) + ' interventi del supervisore' +
-        (a.strategia ? ' · sta provando un’altra strada: ' + esc(a.strategia) : '') + '</div>' +
-      (a.tempi ? '<div class="sotto">Tempi: ' + esc(a.tempi) + '</div>' : '') +
-      (a.specialisti ? specialistiHtml(a.specialisti) : '<div class="serigrafia" style="margin-top:10px">Il coordinatore e le sue chat</div>' + alberoHtml(a))
-  } else if (apTab === 'criteri') {
-    // I criteri, con **quando** li ha raggiunti: una spunta senza ora non dice
-    // se e' successo adesso o tre ore fa. Si riscrivono dal PC.
-    const criteri = (a.criteri || []).map((c) =>
-      '<li class="' + (c.soddisfatto ? 'fatto' : '') + '">' + (c.soddisfatto ? '✓ ' : '· ') + esc(c.descrizione) +
-      (c.soddisfatto && c.raggiuntoIl
-        ? '<span class="quando-criterio"> raggiunto alle ' + ora(c.raggiuntoIl) + '</span>'
-        : '') +
-      '<div class="prova-criterio">' + (c.comando ? esc(c.comando) : 'lo giudica lui, guardando il lavoro') +
-        (c.ultimaVerifica ? ' · ' + (c.ultimaVerifica.codice === 0 ? 'passato' : esc(primaRigaUscita(c.ultimaVerifica.uscita)) || 'non passato') : ' · mai misurato') +
-      '</div></li>'
-    ).join('')
-    dentro = '<div class="serigrafia">Finisce quando' + aiuto('ap-criteri', 'Il comando sotto ogni criterio è quello che lo misura a ogni fermata. Per riscriverli usa il PC, o diglielo nella chat qui sopra.') + '</div>' +
-      (criteri ? '<ul class="criteri">' + criteri + '</ul>' : '<div class="sotto">Ancora nessun criterio: li scrive lui alla fine della preparazione.</div>') +
-      ''
-  } else if (apTab === 'compiti') {
-    const compiti = (a.compitiDaFare || []).map((c) => '<li>' + esc(c) + '</li>').join('')
-    dentro = '<div class="serigrafia">Prima fa</div>' +
-      (compiti ? '<ol class="compiti-ap">' + compiti + '</ol>' : '<div class="sotto">Niente in coda: lavora sull’obiettivo. Per aggiungere un compito diglielo nella chat qui sopra.</div>')
   } else {
-    // «supervisore →» e' come il servizio marca le proprie decisioni per
-    // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore. Qui
-    // resta la sola cosa che conta — cosa ha deciso, e perche'.
-    const senzaSigla = (cosa) => {
-      // Senza espressioni regolari: dentro questo template le barre si perdono, e
-      // una regex mangiata a meta' non fallisce — smette semplicemente di
-      // trovare, in silenzio. Successo, e si vedeva in fotografia.
-      const t = String(cosa || '')
-      const freccia = t.indexOf(String.fromCharCode(8594))
-      return freccia === -1 || freccia > 20 ? t : t.slice(freccia + 1).trim()
-    }
-    const decisioni = (a.decisioni || []).slice(-30).reverse().map((d) =>
-      '<div class="voce--riga"><span class="quando">' + ora(d.quando) + '</span>' +
-      esc(senzaSigla(d.cosa)) + '</div>'
-    ).join('')
-    dentro = '<div class="serigrafia">Sta ragionando così</div>' +
-      (decisioni || '<div class="sotto">' + (a.stato === 'intervista' ? 'Sta guardando il progetto per capire cosa serve.' : 'Ancora niente: il primo intervento arriva quando la chat si ferma.') + '</div>')
+    dentro = avanzamentoApHtml(apAvanzamento)
   }
 
   return '<div class="dettaglio">' +
-    '<div class="passi solo-riassunto">' + passi + '</div>' +
     '<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>' +
     puntoHtml(a.punto) +
     '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
@@ -3508,13 +3378,12 @@ window.apriTabAp = async (t) => {
   if (t === 'domande' && apTab !== 'domande') apTabPrima = apTab
   apTab = t
   pannello(ultimoStato)
-  if (t === 'file' || t === 'istruzioni') { await leggiAp(); pannello(ultimoStato) }
+  if (t === 'file' || t === 'avanzamento') { await leggiAp(); pannello(ultimoStato) }
 }
 
 /** Come si risponde a una domanda della linguetta: la stessa regola del PC (richiestaScheda). */
 function richiestaSchedaAp(d, autopilota, testo) {
   if (d.tipo === 'domanda') return { percorso: '/api/rispondi', corpo: { domanda: d.idDomanda || '', risposta: testo } }
-  if (testo.trim().toLowerCase() === 'vai') return { percorso: '/api/autopilota/vai', corpo: { autopilota: autopilota } }
   return { percorso: '/api/autopilota/dialogo', corpo: { autopilota: autopilota, testo: testo } }
 }
 window.spostaDomandaAp = (d) => { apDomandaI = Math.max(0, apDomandaI + d); pannello(ultimoStato) }
@@ -3540,67 +3409,39 @@ window.rispondiSchedaAp = async (opzione) => {
 }
 
 /**
- * Il Markdown di un'istruzione, **senza HTML che arrivi dal testo** (0.41.0):
- * ogni riga passa prima da esc(), poi si aggiungono solo tag nostri — titoli,
- * elenchi, grassetto, codice. Senza espressioni regolari: in questo template
- * le barre si perdono.
+ * La linguetta «Avanzamento» dell'autopilota unico (0.86.x): la percentuale
+ * del workspace (e perché è scesa, se è scesa), le richieste in coda con lo
+ * stato e la percentuale di ognuna, gli specialisti al lavoro.
  */
-function mdSicuro(testo) {
-  const ACAPO = String.fromCharCode(10)
-  const APICE = String.fromCharCode(96)
-  const inRiga = (r) => {
-    // Codice in riga fra apici inversi, poi il grassetto fra doppi asterischi.
-    const pezzi = esc(r).split(APICE)
-    return pezzi.map((p, i) => i % 2 === 1 && i < pezzi.length - 1 ? '<code>' + p + '</code>' : p.split('**').map((q, j, tutti) => j % 2 === 1 && j < tutti.length - 1 ? '<b>' + q + '</b>' : q).join('')).join('')
-  }
-  let fuori = ''
-  let blocco = false
-  for (const r of String(testo || '').split(ACAPO)) {
-    const t = r.trim()
-    if (t.startsWith(APICE + APICE + APICE)) { blocco = !blocco; fuori += blocco ? '<pre class="md-blocco">' : '</pre>'; continue }
-    if (blocco) { fuori += esc(r) + ACAPO; continue }
-    if (t === '') { fuori += '<div class="md-vuota"></div>'; continue }
-    if (t.startsWith('#')) { let n = 0; while (t[n] === '#') n += 1; fuori += '<div class="md-titolo">' + inRiga(t.slice(n).trim()) + '</div>'; continue }
-    if (t.startsWith('- ') || t.startsWith('* ')) { fuori += '<div class="md-voce">• ' + inRiga(t.slice(2)) + '</div>'; continue }
-    fuori += '<div>' + inRiga(r) + '</div>'
-  }
-  if (blocco) fuori += '</pre>'
-  return fuori
+function percentoAvanzamento(v) {
+  if (!v || v.errore) return undefined
+  if (v.orchestratore && typeof v.orchestratore.percento === 'number') return v.orchestratore.percento
+  if (v.coda && typeof v.coda.totale === 'number') return v.coda.totale
+  return undefined
 }
-
-/** La linguetta «Istruzioni» (0.41.0): cosa ha scritto alle sue chat, intero, dalla più recente. */
-function vistaIstruzioniAp(x) {
-  const intro = '<div class="sotto">Le istruzioni date alle sue chat' + aiuto('ap-istruzioni', 'Quello che l’autopilota ha scritto alle sue chat, per intero e dalla più recente. Nella chat spesso si vede solo «Leggi ed esegui le istruzioni in …»: il testo vero è questo. Per ognuna: l’ora, la chat, il perché della mossa e com’è andata. Se qualcosa è sbagliato, «Correggi» gli scrive una nota legata a quell’istruzione. Il testo si seleziona e si copia.') + '</div>'
-  if (!x) return intro + '<div class="sotto">Leggo le istruzioni…</div>'
-  if (x.errore) return intro + '<div class="errore">' + esc(x.errore) + '</div>'
-  const lista = x.istruzioni || []
-  if (lista.length === 0) return intro + '<div class="sotto">Ancora nessuna istruzione salvata: si salvano dalla 0.41.0 in poi, quando l’autopilota le decide.</div>'
-  const esiti = { 'in-coda': 'in coda', consegnata: 'consegnata', partita: 'partita', 'non-partita': 'non partita', persa: 'mai arrivata' }
-  return intro + (notaIstrAp ? '<div class="sotto nota">' + esc(notaIstrAp) + '</div>' : '') + lista.map((i, k) =>
-    '<details class="istr-ap"' + (k === 0 ? ' open' : '') + '><summary>' +
-      '<span class="sotto">' + esc(new Date(i.quando).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })) + '</span> ' +
-      '<b>→ ' + esc(i.chatTitolo || i.chatId) + '</b> ' +
-      '<span class="istr-ap__esito istr-ap__esito--' + esc(i.esito) + '">' + esc(esiti[i.esito] || i.esito) + '</span></summary>' +
-      (i.perche ? '<div class="sotto"><b>Perché:</b> ' + esc(i.perche) + '</div>' : '') +
-      (i.cosa === 'interrompi' ? '<div class="sotto">Ha interrotto la chat (nessun testo).</div>' : i.cosa === 'chiudi' ? '<div class="sotto">Ha chiuso la chat finita, per liberare il posto (la conversazione resta).</div>' : '<div class="istr-ap__testo">' + mdSicuro(i.testo) + '</div>') +
-      (apIstrCorreggi === i.id
-        ? '<div class="riga"><textarea id="correggi-istr-ap" rows="3" placeholder="Cosa c’è di sbagliato, o cosa doveva scrivere invece"></textarea></div>' +
-          '<div class="riga"><button class="primario" data-i="' + esc(i.id) + '" onclick="mandaCorrezioneAp(this.dataset.i)">Manda la correzione</button><button onclick="correggiIstrAp(null)">Annulla</button></div>'
-        : '<div class="riga"><button data-i="' + esc(i.id) + '" onclick="correggiIstrAp(this.dataset.i)">Correggi</button></div>') +
-    '</details>'
-  ).join('')
-}
-window.correggiIstrAp = (id) => { apIstrCorreggi = id; notaIstrAp = ''; pannello(ultimoStato) }
-window.mandaCorrezioneAp = async (id) => {
-  const campo = document.getElementById('correggi-istr-ap')
-  const nota = campo ? campo.value.trim() : ''
-  if (!nota) return
-  try {
-    await chiediAp('/api/autopilota/correggi', { autopilota: dentroAp, istruzione: id, nota: nota })
-    apIstrCorreggi = null
-    notaIstrAp = 'Correzione mandata: la trovi nella chat con lui, qui sopra, con la sua risposta.'
-  } catch (e) { notaIstrAp = 'Non mandata: ' + (e && e.message ? e.message : e) }
-  pannello(ultimoStato)
+function avanzamentoApHtml(v) {
+  if (!v) return '<div class="sotto">Leggo l’avanzamento…</div>'
+  if (v.errore) return '<div class="errore">' + esc(v.errore) + '</div>'
+  const o = v.orchestratore || null
+  const c = v.coda || null
+  const pc = percentoAvanzamento(v)
+  const parole = { 'in-coda': 'in coda', pianificata: 'pianificata', 'in-corso': 'in corso', 'in-verifica': 'in verifica', fatta: 'fatta' }
+  const percento = pc === undefined
+    ? '<div class="sotto">Ancora nessuna percentuale: arriva quando ha un piano.</div>'
+    : '<div class="misura-riga"><b>' + Math.round(pc) + '%</b>' + (o && o.piano && o.piano.totale ? ' · ' + o.piano.uniti + ' di ' + o.piano.totale + ' compiti uniti' : '') + (o && o.pensa ? ' · sta pensando' : '') + '</div>' +
+      '<div class="barra"><i style="width:' + Math.max(0, Math.min(100, Math.round(pc))) + '%"></i></div>'
+  const calo = (o && o.calo) || (c && c.calo)
+  const richieste = c && Array.isArray(c.richieste) ? c.richieste : []
+  const coda = '<div class="serigrafia" style="margin-top:10px">Richieste · ' + richieste.length + '</div>' +
+    (richieste.length
+      ? richieste.map((r) => '<div class="voce--riga avanzamento-richiesta"><span class="quando">' + esc(r.id) + '</span><b>' + esc(r.titolo || r.testo || '') + '</b> <span class="sotto">' + esc(parole[r.stato] || r.stato || '') + (typeof r.percento === 'number' ? ' · ' + Math.round(r.percento) + '%' : '') + '</span></div>').join('')
+      : '<div class="sotto">Nessuna richiesta in coda: scrivigli cosa vuoi nella casella qui sopra.</div>')
+  const sp = o && Array.isArray(o.specialisti) ? o.specialisti : []
+  const specialisti = '<div class="serigrafia" style="margin-top:10px">Specialisti · ' + sp.length + '</div>' +
+    (sp.length
+      ? sp.map((x) => '<div class="voce--riga avanzamento-specialista"><b>' + esc(x.ruolo || 'specialista') + '</b> <span>' + esc(x.compito || '') + '</span> <span class="sotto">' + esc(x.stato || '') + (x.durata ? ' · ' + esc(x.durata) : '') + '</span></div>').join('')
+      : '<div class="sotto">Nessuno specialista al lavoro adesso.</div>')
+  return percento + (calo ? '<div class="sotto">scesa da ' + calo.da + '% a ' + calo.a + '%: ' + esc(calo.perche || '') + '</div>' : '') + coda + specialisti
 }
 
 /** La linguetta «File» (0.38.0): l'elenco per chat e il diff del file scelto, in sola lettura. */
@@ -3699,43 +3540,6 @@ window.chiedeConferma = (chiave) => {
   // Chi ci ripensa non deve restare con un tasto rosso addosso: dopo qualche
   // secondo la domanda decade da sola.
   setTimeout(() => { if (confermando === chiave) { confermando = null; pannello(ultimoStato) } }, 6000)
-}
-
-window.eliminaAp = async (id) => {
-  if (confermando !== 'ap-' + id) { chiedeConferma('ap-' + id); return }
-  confermando = null
-  if (dentroAp === id) { dentroAp = null; apDettaglio = null }
-  await chiediAp('/api/autopilota/elimina', { autopilota: id })
-  aggiorna()
-}
-
-// Archiviare un autopilota fermo (0.56.0), come dal pannello del PC: esce dall'elenco, non si cancella niente.
-window.archiviaAp = async (id) => {
-  try { await chiediAp('/api/autopilota/archivia', { autopilota: id, archivia: true }); if (dentroAp === id) { dentroAp = null; apDettaglio = null } }
-  catch (e) { notaGlobale = 'Non l’ho archiviato: ' + ((e && e.message) || 'il computer non risponde') }
-  aggiorna()
-}
-
-// «Sposta in un altro workspace» (0.81.0), come dal pannello del PC.
-window.spostaAp = async (id) => {
-  const scelta = document.getElementById('ap-sposta')
-  if (!scelta || !scelta.value) return
-  try { await chiediAp('/api/autopilota/sposta', { autopilota: id, workspace: scelta.value }); notaGlobale = 'Spostato in «' + scelta.value + '».' }
-  catch (e) { notaGlobale = 'Non l’ho spostato: ' + ((e && e.message) || 'il computer non risponde') }
-  aggiorna()
-}
-
-window.sottofondoAp = async (id, si) => {
-  try { await chiediAp('/api/autopilota/sottofondo', { autopilota: id, si: si }) }
-  catch (e) { notaGlobale = 'Non l’ho cambiato: ' + ((e && e.message) || 'il computer non risponde') }
-  if (dentroAp === id) await leggiAp()
-  aggiorna()
-}
-
-window.riavvioAp = async (id, riprendi) => {
-  await chiediAp('/api/autopilota/riavvio', { autopilota: id, riprendi: riprendi })
-  if (dentroAp === id) await leggiAp()
-  aggiorna()
 }
 
 window.chiudiChat = async (id) => {
@@ -6120,11 +5924,6 @@ window.addEventListener('popstate', () => {
 })
 
 window.vaiA = async (nome) => { await chiedi('/api/workspace', { nome }); aggiorna() }
-window.fermaAp = async (id) => { await chiediAp('/api/autopilota/ferma', { autopilota: id }); aggiorna() }
-window.riprendiAp = async (id) => { await chiediAp('/api/autopilota/riprendi', { autopilota: id }); aggiorna() }
-// Il via a chi si e' preparato: dal telefono come dal computer, perche' e' li'
-// che si scopre di averlo pronto mentre si e' altrove.
-window.vaiAp = async (id) => { await chiediAp('/api/autopilota/vai', { autopilota: id }); aggiorna() }
 
 /**
  * Il codice arrivato inquadrando il QR.

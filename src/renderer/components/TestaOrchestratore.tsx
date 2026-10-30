@@ -4,7 +4,7 @@ import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
 
 /**
- * **L'autopilota unico, in testa alla sua chat** (P3): la percentuale del
+ * **L'autopilota del workspace, in testa alla sua chat** (P3; dal 30/10 l'unico, sempre acceso): la percentuale del
  * workspace (calcolata dal programma sul piano), il perché quando scende, gli
  * specialisti al lavoro e le due impostazioni (modello, quanti specialisti
  * insieme). Una lettura condivisa per workspace, ogni 10 s a finestra davanti.
@@ -31,7 +31,7 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
   const [impostazioni, setImpostazioni] = useState(false)
   const [registro, setRegistro] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
-  if (v === undefined || !v.attivo) return null
+  if (v === undefined) return null
   const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato').length
   const cambia = (p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): void => {
     setErrore(undefined)
@@ -48,7 +48,7 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
           {` · ${alLavoro === 1 ? '1 specialista' : `${alLavoro} specialisti`} al lavoro`}
           {v.pensa ? ' · sta pensando…' : ''}
         </span>
-        <Aiuto di="l’autopilota unico">{AIUTO_UNICO}</Aiuto>
+        <Aiuto di="l’autopilota del workspace">{AIUTO_UNICO}</Aiuto>
         <button className="tasto tasto--mini" aria-expanded={impostazioni} onClick={() => setImpostazioni((x) => !x)}>Impostazioni</button>
       </div>
       {v.percento !== undefined ? (
@@ -85,17 +85,7 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
             <select value={v.tettoSpecialisti} onChange={(e) => cambia({ tettoSpecialisti: Number(e.target.value) })}>
               {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-          </label>{' '}
-          <button
-            className="tasto tasto--mini"
-            title="Il workspace torna agli autopiloti di prima; le chat restano dove sono"
-            onClick={() => {
-              setErrore(undefined)
-              window.gestore.autopilota.disattivaOrchestratore(workspace).then(() => s.rileggi()).catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
-            }}
-          >
-            Spegni l’autopilota unico
-          </button>
+          </label>
         </div>
       ) : null}
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}

@@ -13,7 +13,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     chat: () => [{ id: 'p-1', titolo: 'Gestore', cwd: 'C:\p' }],
     autopiloti: () => Promise.resolve([
       { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\p',
-        criteri: [{ descrizione: 'x', soddisfatto: true }, { descrizione: 'y', soddisfatto: false }],
+        
         iniziatoIl: '2026-08-12T10:00:00.000Z' }) }
     ]),
     rispondi: () => Promise.resolve(),
@@ -23,12 +23,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     cartelle: () => Promise.resolve(['C:\\lavoro', 'C:\\casa']),
     workspace: () => Promise.resolve({ nomi: ['lavoro', 'casa'], attivo: 'lavoro' }),
     cambiaWorkspace: () => Promise.resolve(),
-    fermaAutopilota: () => Promise.resolve(),
-    riprendiAutopilota: () => Promise.resolve(),
-    vaiAutopilota: () => Promise.resolve(),
     creaAutopilota: () => Promise.resolve({ id: 'ap-9' }),
-    eliminaAutopilota: () => Promise.resolve(),
-    riprendiAlRiavvio: () => Promise.resolve(),
     chiudiChat: () => undefined,
     rinominaChat: () => undefined,
     sessioni: () => Promise.resolve([
@@ -128,7 +123,7 @@ describe('lo stato', () => {
     // un libro per leggerne il titolo.
     const r = await rotteClient(deps())({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
     const c = r.corpo as { autopiloti: Record<string, unknown>[] }
-    expect(c.autopiloti[0]).toMatchObject({ nome: 'Notte', fatti: 1, criteri: 2 })
+    expect(c.autopiloti[0]).toMatchObject({ nome: 'Notte', fatti: 0, criteri: 0 })
     expect(c.autopiloti[0]).not.toHaveProperty('decisioni')
     expect(c.autopiloti[0]).not.toHaveProperty('sessioneSupervisore')
   })
@@ -170,14 +165,31 @@ describe('quello che il Client puo fare', () => {
     expect(dove).toBe('p-1')
   })
 
-  it('ferma e riprende un autopilota, che sono gesti reversibili', async () => {
-    // Un tocco sbagliato costa un secondo tocco, non il lavoro della notte:
-    // per questo ci sono, mentre chiudere ed eliminare no.
-    let fermato = ''
-    await rotteClient(deps({ fermaAutopilota: (id) => { fermato = id; return Promise.resolve() } }))(
-      { metodo: 'POST', percorso: '/api/autopilota/ferma', corpo: { autopilota: 'ap-1' } }
-    )
-    expect(fermato).toBe('ap-1')
+  it('le rotte dell’autopilota di prima non ci sono più (autopilota unico)', async () => {
+    for (const p of ['vai', 'correggi', 'istruzioni', 'manda-adesso', 'archivia', 'sposta', 'riavvio', 'sottofondo', 'ferma', 'riprendi', 'elimina']) {
+      const r = await rotteClient(deps())({ metodo: 'POST', percorso: `/api/autopilota/${p}`, corpo: { autopilota: 'ap-1' } })
+      expect(r.stato, p).toBe(404)
+    }
+  })
+
+  it('l’avanzamento dell’autopilota unico: orchestratore e coda del workspace', async () => {
+    const chiesti: string[] = []
+    const orchestratore = { workspace: 'lavoro', attivo: true, percento: 40, specialisti: [{ id: 's1', ruolo: 'sviluppatore', compito: 'il lettore', stato: 'lavora' }] }
+    const coda = { workspace: 'lavoro', totale: 40, richieste: [{ id: 'r-1', titolo: 'Il lettore', stato: 'in-corso', percento: 40 }], compattate: [] }
+    const su = deps({ avanzamentoAutopilota: (ws) => { chiesti.push(ws); return Promise.resolve({ orchestratore, coda } as never) } })
+    const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { workspace: 'lavoro' } })
+    expect(r.stato).toBe(200)
+    expect(r.corpo).toEqual({ orchestratore, coda })
+    // Dall'autopilota: la chiave è la sua cartella, se non ha un workspace.
+    const r2 = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { autopilota: 'ap-1' } })
+    expect(r2.stato).toBe(200)
+    expect(chiesti).toEqual(['lavoro', 'cartella:c:\p'])
+    expect((await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: {} })).stato).toBe(400)
+    expect((await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { autopilota: 'ap-9' } })).stato).toBe(404)
+    // Un PC senza: null, non un errore.
+    expect((await rotteClient(deps())({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { workspace: 'lavoro' } })).corpo).toEqual({ orchestratore: null, coda: null })
+    const guasto = deps({ avanzamentoAutopilota: () => Promise.reject(new Error('giù')) })
+    expect((await rotteClient(guasto)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { workspace: 'lavoro' } })).stato).toBe(502)
   })
 
   it('non lascia cambiare dalla rete le preferenze di rete', async () => {
@@ -458,15 +470,12 @@ describe('vedere le stesse cose, con gli stessi colori', () => {
     })
     const a = r.corpo as Record<string, unknown>
     expect(r.stato).toBe(200)
-    expect(a.criteri).toBeInstanceOf(Array)
-    expect(a.decisioni).toBeInstanceOf(Array)
-    expect(a.passaggi).toBeInstanceOf(Array)
-    expect(a.misura).toMatchObject({ percento: expect.any(Number) })
-    // La chat con lui (0.29.0), composta qui una volta per pagina e app: la
-    // prima battuta e' quello che gli hai chiesto. E la domanda aperta, con il
-    // suo id, cosi' si risponde dalla stessa casella.
+    // L'autopilota unico (0.86.x): fasi, misura, albero, Punto e messaggi in
+    // coda erano del sistema di prima; l'avanzamento ha la sua rotta.
+    for (const via of ['passaggi', 'misura', 'albero', 'punto', 'messaggi', 'fermoConPromessa', 'tempi']) expect(a[via], via).toBeUndefined()
+    // La chat con lui (0.29.0), composta qui una volta per pagina e app. E la
+    // domanda aperta, con il suo id, cosi' si risponde dalla stessa casella.
     expect(a.chat).toBeInstanceOf(Array)
-    expect((a.chat as { da: string }[])[0]).toMatchObject({ da: 'tu' })
     expect(a.domandaId).toBe('d-1')
     expect(typeof a.domanda).toBe('boolean')
     expect(typeof a.pensa).toBe('boolean')
@@ -481,33 +490,6 @@ describe('vedere le stesse cose, con gli stessi colori', () => {
 })
 
 describe('fare tutto, anche le cose che si disfano', () => {
-  it('elimina un autopilota', async () => {
-    // Prima non si poteva: «un tocco sbagliato in tram non deve buttare via il
-    // lavoro della notte». Adesso si puo', ma la pagina lo chiede due volte —
-    // il muro sta nel gesto, non nell'assenza del comando.
-    const eliminati: string[] = []
-    const r = await rotteClient(deps({ eliminaAutopilota: (id) => { eliminati.push(id); return Promise.resolve() } }))(
-      { metodo: 'POST', percorso: '/api/autopilota/elimina', corpo: { autopilota: 'ap-1' } }
-    )
-    expect(r.stato).toBe(200)
-    expect(eliminati).toEqual(['ap-1'])
-  })
-
-  it('decide se un autopilota riparte da solo dopo un riavvio', async () => {
-    const scelte: { id: string; riprendi: boolean }[] = []
-    const su = deps({ riprendiAlRiavvio: (id, riprendi) => { scelte.push({ id, riprendi }); return Promise.resolve() } })
-    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/riavvio', corpo: { autopilota: 'ap-1', riprendi: false } })
-    expect(scelte).toEqual([{ id: 'ap-1', riprendi: false }])
-  })
-
-  it('«Lavora in sottofondo» dalla pagina e dall’app, solo su richiesta (0.72.0)', async () => {
-    const scelte: { id: string; si: boolean }[] = []
-    const su = deps({ sottofondoAutopilota: (id, si) => { scelte.push({ id, si }); return Promise.resolve() } })
-    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/sottofondo', corpo: { autopilota: 'ap-1', si: true } })
-    await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/sottofondo', corpo: { autopilota: 'ap-1' } })
-    expect(scelte).toEqual([{ id: 'ap-1', si: true }, { id: 'ap-1', si: false }])
-  })
-
   it('chiude una chat', async () => {
     const chiuse: string[] = []
     const su = deps({ chiudiChat: (id) => { chiuse.push(id) } })
@@ -525,7 +507,6 @@ describe('fare tutto, anche le cose che si disfano', () => {
 
   it('senza il pezzo che serve, rifiuta invece di fare danni', async () => {
     for (const [percorso, corpo] of [
-      ['/api/autopilota/elimina', {}],
       ['/api/chat/chiudi', {}],
       ['/api/chat/nome', { chat: 'p-1' }]
     ] as [string, unknown][]) {
@@ -734,29 +715,6 @@ describe('i consumi, il quaderno, le preferenze e l aggiornamento', () => {
     expect(vecchio.stato).toBe(409)
   })
 })
-
-describe('il via dal telefono', () => {
-  it('da il via a un autopilota pronto', async () => {
-    // L'avviso «pronto, aspetto il tuo via» arriva mentre si e' fuori: senza
-    // questo tasto il lavoro resterebbe fermo fino al ritorno alla scrivania.
-    let partito: string | undefined
-    const r = await rotteClient(deps({ vaiAutopilota: (id) => { partito = id; return Promise.resolve() } }))(
-      { metodo: 'POST', percorso: '/api/autopilota/vai', corpo: { autopilota: 'ap-1' } } as never
-    )
-    expect(r?.stato).toBe(200)
-    expect(partito).toBe('ap-1')
-  })
-
-  it('senza autopilota non fa niente', async () => {
-    let chiamato = false
-    const r = await rotteClient(deps({ vaiAutopilota: () => { chiamato = true; return Promise.resolve() } }))(
-      { metodo: 'POST', percorso: '/api/autopilota/vai', corpo: {} } as never
-    )
-    expect(r?.stato).toBe(400)
-    expect(chiamato).toBe(false)
-  })
-})
-
 
 describe('la posta per un PC, dal telefono', () => {
   it('gli altri PC con «vivo» deciso dal computer, e la cassetta che si legge, si scrive, si toglie', async () => {
@@ -1350,13 +1308,6 @@ describe('le Domande come conversazioni, dal computer (0.36.0)', () => {
     expect((r.corpo as { voci: unknown[] }).voci).toHaveLength(1)
   })
 
-  it('il dettaglio di un autopilota porta l albero delle sue chat', async () => {
-    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', criteri: [], iniziatoIl: '' }), chats: [{ id: 'c-1', compito: 'le API', stato: 'lavoro' as const, cicli: 1, ramo: 'ap/ap-1/c-1' }] }
-    const rotte = rotteClient(deps({ autopiloti: () => Promise.resolve([a]) }))
-    const r = await rotte({ metodo: 'POST', percorso: '/api/autopilota', corpo: { autopilota: 'ap-1' } })
-    const albero = (r.corpo as { albero: { figli: { ramo?: string; parola: string }[] } }).albero
-    expect(albero.figli[0]).toMatchObject({ ramo: 'ap/ap-1/c-1', parola: 'al lavoro' })
-  })
 })
 
 describe('tutte le domande e un conteggio solo (0.37.2)', () => {
@@ -1364,8 +1315,8 @@ describe('tutte le domande e un conteggio solo (0.37.2)', () => {
   const conPronto = (): DipendenzeRotte => deps({
     adesso: () => ora,
     autopiloti: () => Promise.resolve([
-      { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p', criteri: [{ descrizione: 'x', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }) },
-      { ...nuovoAutopilota({ id: 'ap-2', nome: 'Pronto', obiettivo: 'Sito', cwd: 'C:\\s', criteri: [{ descrizione: 'x', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'pronto' as const }
+      { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p', iniziatoIl: '2026-08-12T10:00:00.000Z' }) },
+      { ...nuovoAutopilota({ id: 'ap-2', nome: 'Pronto', obiettivo: 'Sito', cwd: 'C:\\s', iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'pronto' as const }
     ]),
     domande: () => Promise.resolve([
       { id: 'd-1', autopilotaId: 'ap-1', testo: 'Quale chiave?' },
@@ -1523,7 +1474,7 @@ describe('0.74.1: la trasformazione dei workspace dalla pagina e dall’app', ()
 
 describe('0.77.0: la Panoramica del workspace per la pagina e l’app', () => {
   it('il riassunto dell’autopilota e una scheda per chat del workspace, in ordine: aspettano te, al lavoro, ferme', async () => {
-    const ap = { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Fai passare la suite', cwd: 'C:\p', criteri: [{ descrizione: 'x', soddisfatto: true }, { descrizione: 'y', soddisfatto: false }], iniziatoIl: '2026-08-12T10:00:00.000Z' }), workspace: 'lavoro', stato: 'lavoro' as const }
+    const ap = { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Fai passare la suite', cwd: 'C:\p', iniziatoIl: '2026-08-12T10:00:00.000Z' }), workspace: 'lavoro', stato: 'lavoro' as const }
     const r = await rotteClient(deps({
       autopiloti: () => Promise.resolve([ap]),
       chat: () => [
@@ -1536,7 +1487,7 @@ describe('0.77.0: la Panoramica del workspace per la pagina e l’app', () => {
     const c = r.corpo as { autopilota: string; riassunto: { obiettivo: string; criteri: { testo: string } }; schede: { id: string; stato: string; ruolo?: string; righe: string[] }[] }
     expect(c.autopilota).toBe('ap-1')
     expect(c.riassunto.obiettivo).toBe('Fai passare la suite')
-    expect(c.riassunto.criteri.testo).toBe('1/2')
+    expect(c.riassunto.criteri.testo).toBe('—')
     expect(c.schede.map((s) => [s.id, s.stato])).toEqual([['p-3', 'chiede'], ['p-2', 'lavora'], ['p-1', 'ferma']])
     expect(c.schede[1]).toMatchObject({ ruolo: 'sviluppo', righe: ['● Scrivo il test'] })
   })

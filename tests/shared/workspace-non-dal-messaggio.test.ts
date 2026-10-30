@@ -40,17 +40,10 @@ describe('il nome del workspace di un autopilota', () => {
 })
 
 describe('sul PC: il pannello Autopiloti', () => {
-  const src = readFileSync('src/renderer/components/PannelloAutopiloti.tsx', 'utf8')
-
-  it('il nome del suo workspace non viene dalle parole del messaggio', () => {
-    expect(src).toContain('nomeWorkspacePerAutopilota(nomeScritto(r.nome, r.obiettivo) || nomeDaCartella(r.cwd), esistenti)')
+  it('non crea più autopiloti né workspace dal messaggio (30/10: uno per workspace)', () => {
+    const src = readFileSync('src/renderer/components/PannelloAutopiloti.tsx', 'utf8')
+    expect(src).not.toContain('nomeWorkspacePerAutopilota')
     expect(src).not.toContain("r.obiettivo.split(/\\s+/).slice(0, 4)")
-  })
-
-  it('crea il workspace dicendo la cartella in cui lavora: nessun progetto nuovo', () => {
-    expect(src).toContain('await azioniDiFinestra().crea(nome, r.cwd)')
-    const main = readFileSync('src/main/index.ts', 'utf8')
-    expect(main).toContain('progettoPerWorkspaceGlobale?.(nome, cartella !== undefined ? { crea: false } : undefined)')
   })
 
   it('da lontano (pagina e app) il PC passa l’obiettivo, così il nome ricavato non vale', () => {

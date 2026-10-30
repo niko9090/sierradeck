@@ -22,7 +22,7 @@ const ID = 'ap-0123abcd-0000-0000-0000-000000000000'
 
 function autopilota(over: Partial<Autopilota> & { cwd: string }): Autopilota {
   return {
-    ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: over.cwd, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T00:00:00.000Z' }),
+    ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: over.cwd, iniziatoIl: '2026-10-01T00:00:00.000Z' }),
     ramoBase: 'main',
     ...over
   }

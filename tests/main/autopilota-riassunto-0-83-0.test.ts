@@ -33,7 +33,8 @@ describe('la riga riassuntiva dell’autopilota', () => {
   })
   it('è la stessa riga dell’app', () => {
     const kt = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/SchedaAutopilota.kt', 'utf8')
-    for (const t of ['"1 domanda per te"', '"criteri $fatti/$criteri"', '"$chat chat"', '"1 giro"', '"$giri giri"', 'joinToString(" · ")']) expect(kt, t).toContain(t)
+    // 0.86.x: l'app dice la percentuale, le richieste aperte e gli specialisti.
+    for (const t of ['"1 domanda per te"', 'RegoleAvanzamento.percento(percento)', '"1 richiesta aperta"', '"1 specialista"', 'joinToString(" · ")']) expect(kt, t).toContain(t)
     // Le parole dello stato: quelle di statoInParole dell'app.
     const lavori = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt', 'utf8')
     for (const [id, parola] of [['lavoro', 'al lavoro'], ['intervista', 'si prepara'], ['sospeso', 'fermo'], ['fallito', 'guasto']]) {
@@ -46,7 +47,7 @@ describe('la riga riassuntiva dell’autopilota', () => {
     expect(script).toContain('var apRiassunto = false')
     expect(script).toContain("apRiassunto ? 'riassunto-aperto' : 'riassunto-chiuso'")
     const vista = script.slice(script.indexOf('function vistaAutopilota('), script.indexOf('function scorriChatAp('))
-    expect(vista).toContain(`'<div class="passi solo-riassunto">'`)
+    expect(vista).toContain(`'<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>'`)
     expect(vista).toContain(`'<div class="solo-riassunto">' + barraLinguette`)
     // La conversazione e la casella non sono mai nascoste.
     expect(vista).toContain(`'<div class="flusso-ap" id="flusso-ap">'`)

@@ -13,7 +13,7 @@ import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
 import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 import type {
-  NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
+  NuovoAutopilota, DomandaAperta, RicevutaDialogo
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
@@ -903,37 +903,12 @@ contextBridge.exposeInMainWorld('gestore', {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
     /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
     dettaglio: (id: string, versione?: string): Promise<{ versione?: string; autopilota?: Autopilota }> => ipcRenderer.invoke('autopilota:dettaglio', id, versione),
-    crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
-    /** Il via a chi si è preparato e aspetta di essere letto. */
-    vai: (id: string): Promise<Autopilota> => ipcRenderer.invoke('autopilota:vai', id),
-    /** Cambia obiettivo, criteri o compiti. Quello che non nomini resta com'era. */
-    modifica: (id: string, cambio: CambioAutopilota): Promise<Autopilota> =>
-      ipcRenderer.invoke('autopilota:modifica', id, cambio),
-    /** Glielo dici a parole: traduce lui in criteri e compiti, e lo applica. */
-    parla: (id: string, testo: string): Promise<RispostaParlata> =>
-      ipcRenderer.invoke('autopilota:parla', id, testo),
+    crea: (p: NuovoAutopilota): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),
     /** Gli scrivi: torna subito la ricevuta, la risposta compare nel suo `dialogo`. */
     dialoga: (id: string, testo: string): Promise<RicevutaDialogo> =>
       ipcRenderer.invoke('autopilota:dialoga', id, testo),
-    /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
-    disfa: (id: string): Promise<Autopilota> => ipcRenderer.invoke('autopilota:disfa', id),
-    ferma: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ferma', id),
-    riprendi: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:riprendi', id),
-    /** Se questo autopilota debba ripartire da solo dopo un riavvio del PC. */
-    riprendiAlRiavvio: (id: string, riprendi: boolean): Promise<void> =>
-      ipcRenderer.invoke('autopilota:riprendiAlRiavvio', id, riprendi),
-    /** «Lavora in sottofondo» (0.72.0): senza riquadro, solo se lo chiedi tu. */
-    sottofondo: (id: string, si: boolean): Promise<void> => ipcRenderer.invoke('autopilota:sottofondo', id, si),
-    /** «Ricontrolla i criteri» (0.72.0): mai da soli, solo su richiesta. */
-    ricontrollaCriteri: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:ricontrollaCriteri', id),
     /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio; torna la riga del riepilogo. */
     pulisci: (): Promise<string> => ipcRenderer.invoke('autopilota:pulisci'),
-    /** «Archivia»: un autopilota fermo messo da parte (false lo toglie dall'archivio). */
-    archivia: (id: string, archivia: boolean): Promise<void> => ipcRenderer.invoke('autopilota:archivia', id, archivia),
-    /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */
-    spostaInWorkspace: (id: string, workspace: string): Promise<void> => ipcRenderer.invoke('autopilota:spostaInWorkspace', id, workspace),
-    /** «Manda adesso» (0.69.0): i messaggi in coda escono subito, anche durante il turno. */
-    mandaAdesso: (id: string): Promise<{ mandate: number; messaggio?: string }> => ipcRenderer.invoke('autopilota:mandaAdesso', id),
     /** Una riga nel diario dell'autopilota, scritta dal programma. */
     nota: (id: string, testo: string): Promise<void> => ipcRenderer.invoke('autopilota:nota', id, testo),
     /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
@@ -941,11 +916,7 @@ contextBridge.exposeInMainWorld('gestore', {
     /** La linguetta «File»: i file cambiati per chat, e il diff di uno (solo lettura). */
     file: (id: string): Promise<import('@shared/file-autopilota').GruppoChat[]> => ipcRenderer.invoke('autopilota:file', id),
     diff: (id: string, chiave: string, percorso: string): Promise<string> => ipcRenderer.invoke('autopilota:diff', id, chiave, percorso),
-    elimina: (id: string): Promise<void> => ipcRenderer.invoke('autopilota:elimina', id),
     domande: (): Promise<DomandaAperta[]> => ipcRenderer.invoke('autopilota:domande'),
-    /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, testo intero, perché ed esito. */
-    istruzioni: (id: string): Promise<import('@shared/istruzioni-autopilota').Istruzione[]> => ipcRenderer.invoke('autopilota:istruzioni', id),
-    tempi: (id: string): Promise<string | undefined> => ipcRenderer.invoke('autopilota:tempi', id),
     /** «N di M chat» su questo PC (0.82.0). */
     postiChat: (): Promise<import('@shared/posti-chat').PostiChat | undefined> => ipcRenderer.invoke('autopilota:postiChat'),
     /** P1: la coda delle richieste del workspace, con le percentuali. */
@@ -954,10 +925,8 @@ contextBridge.exposeInMainWorld('gestore', {
     codaSepara: (ws: string, id: string): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaSepara', ws, id),
     /** Unisce a mano: ogni punto delle richieste unite va nominato. */
     codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaUnisci', ws, u),
-    /** P3: l'autopilota unico del workspace (vista, interruttore, impostazioni). */
+    /** P3: l'autopilota del workspace (vista e impostazioni). */
     orchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined> => ipcRenderer.invoke('autopilota:orchestratore', ws),
-    attivaOrchestratore: (ws: string, cwd?: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:attivaOrchestratore', ws, cwd),
-    disattivaOrchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:disattivaOrchestratore', ws),
     impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),
@@ -1037,35 +1006,5 @@ contextBridge.exposeInMainWorld('gestore', {
   domande: {
     chiama: (percorso: string, corpo?: unknown): Promise<{ stato: number; corpo: unknown }> =>
       ipcRenderer.invoke('domande:chiama', percorso, corpo)
-  },
-  /**
-   * Le finestre pannello (0.38.0): una linguetta della scheda dell'autopilota
-   * staccata in una finestra vera, anche su un altro schermo.
-   */
-  pannello: {
-    stacca: (autopilota: string, linguetta: string): Promise<void> => ipcRenderer.invoke('pannello:stacca', autopilota, linguetta),
-    rimetti: (autopilota: string, linguetta: string): Promise<void> => ipcRenderer.invoke('pannello:rimetti', autopilota, linguetta),
-    aperti: (): Promise<{ autopilota: string; linguetta: string }[]> => ipcRenderer.invoke('pannello:aperti'),
-    /** La finestra pannello chiede attenzione (una domanda nuova): lampeggia nella barra. */
-    richiama: (): Promise<void> => ipcRenderer.invoke('pannello:richiama'),
-    /** Quali schede di autopilota mostra questa finestra (0.39.1): il main sa dove mostrare le loro domande. */
-    inVista: (autopiloti: string[]): void => ipcRenderer.send('pannello:inVista', autopiloti),
-    /**
-     * Mette in vista la linguetta «Domande» di un autopilota: nella finestra che
-     * ha la sua scheda, o la sua finestra pannello. `automatico`: l'ha chiesto il
-     * programma per una domanda nuova, non chi usa — niente fuoco rubato.
-     */
-    mostraDomande: (autopilota: string, automatico: boolean): Promise<void> =>
-      ipcRenderer.invoke('pannello:mostraDomande', autopilota, automatico),
-    suMostraDomande: (cb: (autopilota: string) => void): (() => void) => {
-      const h = (_e: unknown, id: string): void => cb(id)
-      ipcRenderer.on('domande:mostra', h)
-      return () => { ipcRenderer.removeListener('domande:mostra', h) }
-    },
-    suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void): (() => void) => {
-      const h = (_e: unknown, a: { autopilota: string; linguetta: string }[]): void => cb(a)
-      ipcRenderer.on('pannelli:cambiati', h)
-      return () => { ipcRenderer.removeListener('pannelli:cambiati', h) }
-    }
   }
 })

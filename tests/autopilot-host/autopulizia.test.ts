@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+﻿import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -10,6 +10,7 @@ import {
 } from '../../src/autopilot-host/autopulizia'
 import { comeAsincrono, creaWorktree, gitReale, type Git } from '../../src/autopilot-host/worktree'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 
 const ORA = Date.parse('2026-10-30T12:00:00.000Z')
@@ -18,7 +19,7 @@ const DOPO = (): number => Date.now() + 7 * 60 * 60_000
 
 function autopilota(over: Partial<Autopilota> & { id: string; cwd: string }): Autopilota {
   return {
-    ...nuovoAutopilota({ id: over.id, nome: 'x', obiettivo: 'o', cwd: over.cwd, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T00:00:00.000Z' }),
+    ...nuovoAutopilota({ id: over.id, nome: 'x', obiettivo: 'o', cwd: over.cwd, iniziatoIl: '2026-10-01T00:00:00.000Z' }),
     ramoBase: 'main',
     ...over
   }
@@ -500,15 +501,13 @@ describe('«Pulisci adesso»: POST /autopulizia', () => {
   it('chiama l autopulizia forzata e risponde con la riga del riepilogo', async () => {
     const chieste: Array<{ forza?: boolean } | undefined> = []
     server = creaServer({
+    ...unicoFinto(),
       archivio: apriArchivio(mkdtempSync(join(tmpdir(), 'sd-autopulizia-srv-'))),
       esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "finito"}' }),
       avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
       domande: creaRegistroDomande({ adesso: () => Date.now() }),
       scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
       adesso: () => new Date().toISOString(),
       autopulizia: (opz) => { chieste.push(opz); return Promise.resolve({ ...esitoVuoto(), copieTolte: 4 }) }
     })

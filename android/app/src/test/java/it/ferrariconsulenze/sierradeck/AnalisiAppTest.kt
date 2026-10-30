@@ -86,13 +86,11 @@ class AnalisiAppTest {
     }
 
     @Test
-    fun `l ordine resta scollegato, domande, fermi, pronti`() {
+    fun `l ordine resta scollegato, domande; l autopilota unico non ha fermi né pronti`() {
         val fermo = AutopilotaBreve("x", nome = "Notte", stato = "sospeso", motivo = "test rossi")
         val pronto = AutopilotaBreve("y", nome = "Alba", stato = "pronto")
         assertEquals(TipoUrgenza.SCOLLEGATO, urgenzaDi(Stato(chat = listOf(chat("a", chiede = true))), connesso = false)?.tipo)
-        assertEquals(TipoUrgenza.FERMI, urgenzaDi(Stato(autopiloti = listOf(pronto, fermo)), true)?.tipo)
-        assertEquals("test rossi", urgenzaDi(Stato(autopiloti = listOf(fermo)), true)?.sotto)
-        assertEquals(TipoUrgenza.PRONTI, urgenzaDi(Stato(autopiloti = listOf(pronto)), true)?.tipo)
+        assertNull(urgenzaDi(Stato(autopiloti = listOf(pronto, fermo)), true))
         assertNull(urgenzaDi(Stato(chat = listOf(chat("a", aspetta = true))), true))
         assertNull(urgenzaDi(null, connesso = false))
     }

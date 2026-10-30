@@ -1,5 +1,6 @@
 import type { Autopilota, ChatGovernata } from './autopilota'
 import { compitoBreve, nomeChi, senzaSigle } from './chat-autopilota'
+import type { TipoSegnale } from './segnali-flotta'
 
 /**
  * Il riquadro «Adesso» (0.81.0): una riga per chat, con cosa fa, da quanto,
@@ -91,9 +92,6 @@ function rigaChat(a: Autopilota & SegniDalVivo, c: ChatGovernata, ora: number): 
     const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? ` (${senzaSigle(a.motivoSospensione)})` : ''
     return { ...base, testo: `ferma: l’autopilota è fermo${perche}`, tono: 'ferma' }
   }
-  if (a.daParte?.includes(c.id) === true) {
-    return { ...base, testo: `ferma${dal}: non chiude un turno, messa da parte. Torna da sola appena risponde`, tono: 'ferma' }
-  }
   if (c.stato === 'bloccata') return { ...base, testo: `aspetta la tua risposta${dal}`, tono: 'aspetta' }
   if (c.stato === 'pausa') return { ...base, testo: `in pausa per i limiti del piano${dal}`, tono: 'pausa' }
   const segno = istante(a.segniChat?.[c.id])
@@ -132,16 +130,12 @@ function rigaSola(a: Autopilota & SegniDalVivo, ora: number): RigaAdesso {
     const perche = a.motivoSospensione !== undefined && a.motivoSospensione !== '' ? `: ${senzaSigle(a.motivoSospensione)}` : ''
     return { ...base, testo: `ferma${daQuanto(a.fermatoIl, ora)}${perche}`, tono: 'ferma' }
   }
-  if (a.daParte?.includes(a.id) === true) {
-    return { ...base, testo: 'ferma: non chiude un turno, messa da parte. Torna da sola appena risponde', tono: 'ferma' }
-  }
   const raccolti = istante(a.segniDal)
   const segno = istante(a.ultimoSegno) ?? raccolti
   if (segno !== undefined && ora - segno >= MUTA_DA_MS) {
     return { ...base, testo: `nessun segno da ${durata(ora - segno)}`, tono: 'ferma' }
   }
-  const ultima = a.ultimaAzioneChat !== undefined && a.ultimaAzioneChat !== '' ? ` · ${a.ultimaAzioneChat}` : ''
-  return { ...base, testo: `al lavoro${ultima}`, tono: 'lavoro' }
+  return { ...base, testo: 'al lavoro', tono: 'lavoro' }
 }
 
 /**
@@ -168,3 +162,23 @@ export const COLORE_ADESSO: Record<RigaAdesso['tono'], 'rosso' | 'ambra' | 'quie
 
 /** Il «?» del riquadro, uguale dappertutto. */
 export const AIUTO_ADESSO = 'Una riga per ogni chat dell’autopilota: cosa fa e da quanto. Una chat ferma sta in cima, in rosso, con il perché: non chiude un turno, non dà segni da cinque minuti, o non è mai partita. Le chat finite sono contate in fondo.'
+
+/** Il colore del segnale di una chat: gli stessi nomi di `COLORE_ADESSO`, uguali su PC, pagina e app. */
+export const COLORE_SEGNALE: Record<TipoSegnale, 'rosso' | 'ambra' | 'quieto' | 'verde' | 'blu'> = {
+  parto: 'blu',
+  avanti: 'verde',
+  fatto: 'verde',
+  bloccata: 'rosso',
+  aspetto: 'ambra'
+}
+
+/** Il simbolo del segnale, per chi non distingue i colori. */
+export const SIMBOLO_SEGNALE: Record<TipoSegnale, string> = { parto: '▶', avanti: '●', fatto: '✓', bloccata: '■', aspetto: '◆' }
+
+/** Una riga di «Adesso» con il segnale della chat, già in parole e colori. */
+export type ChatNelPunto = RigaAdesso & {
+  /** L'ultimo segnale della chat all'autopilota, in parole e con il suo colore. */
+  segnale?: { tipo: TipoSegnale; parola: string; colore: string; simbolo: string }
+  /** Il colore della riga (`COLORE_ADESSO`), già deciso: la pagina e l'app non rifanno la tabella. */
+  colore: string
+}

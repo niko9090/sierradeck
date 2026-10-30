@@ -11,7 +11,7 @@ import { conversazione, staPensando } from '@shared/chat-autopilota'
  * domande, in che ordine, come si risponde, cosa entra nella chat dopo.
  */
 const ap = (over: Partial<Autopilota> = {}): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T08:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', iniziatoIl: '2026-10-01T08:00:00.000Z' }),
   ...over
 })
 const aperte = [
@@ -31,18 +31,18 @@ describe('le domande della linguetta', () => {
   })
 
   it('in preparazione sono domande iniziali; pronto aggiunge il via, per ultimo', () => {
-    expect(domandeScheda(ap({ stato: 'intervista', criteri: [] }), [aperte[1]!])[0]?.origine).toBe('preparazione')
+    expect(domandeScheda(ap({ stato: 'intervista'}), [aperte[1]!])[0]?.origine).toBe('preparazione')
     const pronto = domandeScheda(ap({ stato: 'pronto' }), [])
     expect(pronto).toEqual([expect.objectContaining({ chiave: 'via:ap-1', tipo: 'via', testo: TESTO_VIA, opzioni: [OPZIONE_VIA], origine: 'via' })])
     // 0.72.1: e la scheda essenziale, con «Vai» consigliato.
     expect(pronto[0]?.scheda?.scelte).toEqual([{ testo: OPZIONE_VIA, consigliata: true }])
   })
 
-  it('si risponde alla domanda; il via con «Vai», altrimenti è un messaggio per lui', () => {
+  it('si risponde alla domanda; il resto, «Vai» compreso, è un messaggio per lui (P4)', () => {
     const [d] = domandeScheda(ap({ stato: 'lavoro' }), aperte)
     expect(richiestaScheda(d!, 'ap-1', 'nel file .env')).toEqual({ percorso: '/api/rispondi', corpo: { domanda: 'd-1', risposta: 'nel file .env' } })
     const [via] = domandeScheda(ap({ stato: 'pronto' }), [])
-    expect(richiestaScheda(via!, 'ap-1', 'Vai').percorso).toBe('/api/autopilota/vai')
+    expect(richiestaScheda(via!, 'ap-1', 'Vai')).toEqual({ percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1', testo: 'Vai' } })
     expect(richiestaScheda(via!, 'ap-1', 'prima togli il criterio 2')).toEqual({ percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1', testo: 'prima togli il criterio 2' } })
   })
 

@@ -1,32 +1,23 @@
 import type { DomandaRisolta } from '@shared/domande-telefono'
-import { testoTempi, type RiassuntoTempi } from '@shared/tempi-giro'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
-import { leggiIstruzioni, type Istruzione } from '@shared/istruzioni-autopilota'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
 import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 
+/**
+ * Il primo messaggio a un workspace (P4): l'autopilota del workspace nasce se
+ * non c'è ancora, e il messaggio va in coda e a lui. Un solo autopilota per
+ * workspace: un secondo «crea» nello stesso workspace è un messaggio in più.
+ */
 export type NuovoAutopilota = {
-  nome: string
   obiettivo: string
   cwd: string
-  criteri: { descrizione: string; comando?: string }[]
-  /** Quante chat può aprire insieme. Uno è il caso normale. */
-  tettoChat?: number
-  /** La regola di pubblicazione del progetto (0.36.0): beta, stabile, versione unica. */
-  pubblicazione?: 'beta' | 'stabile' | 'unica'
-  /** Dichiarato alla creazione: il progetto va sul cloud. */
-  vaSulCloud?: boolean
-  /**
-   * Il workspace da cui viene avviato: è lì che le sue chat devono nascere.
-   *
-   * Lo dice chi lo avvia, perché è l'unico che lo sa nel momento in cui conta.
-   * Cercarlo dopo, quando la consegna arriva, vuol dire cercare una chat che
-   * non esiste ancora — e farla nascere nel workspace sbagliato.
-   */
+  /** Il workspace da cui arriva: è lì che le sue chat devono nascere. */
   workspace?: string
+  /** Dalle versioni di prima: si ignora (il nome lo decide il workspace). */
+  nome?: string
 }
 
 export type DomandaAperta = {
@@ -37,26 +28,6 @@ export type DomandaAperta = {
   scadeIl: number
   /** Le risposte da toccare, quando chi chiede le propone (domande iniziali, «Pubblico adesso?»). */
   opzioni?: string[]
-}
-
-/**
- * Un cambio a un autopilota. Ciò che non è nominato resta com'era.
- *
- * Vale per tutt'e due le strade — le mani sulla scheda e le parole scritte nel
- * campo — perché è lo stesso cambio: cambia solo chi lo ha composto.
- */
-export type CambioAutopilota = {
-  obiettivo?: string
-  criteri?: { descrizione: string; comando?: string }[]
-  compitiDaFare?: string[]
-}
-
-/** Cosa risponde quando gli parli: cosa ha capito, e se l'ha applicato. */
-export type RispostaParlata = {
-  applicato: boolean
-  capito: string
-  errore?: string
-  autopilota?: Autopilota
 }
 
 /**
@@ -82,13 +53,8 @@ export type ClientAutopilota = {
   dettaglio: (id: string) => Promise<Autopilota | undefined>
   /** L'ETag dell'ultimo dettaglio letto di quell'autopilota: due uguali, stesso autopilota. */
   versioneDettaglio: (id: string) => string | undefined
+  /** Il primo messaggio a un workspace: torna il suo autopilota (nuovo, o quello che c'è). */
   crea: (p: NuovoAutopilota) => Promise<Autopilota>
-  /** Il via, dopo aver letto cosa ha deciso in preparazione. */
-  vai: (id: string) => Promise<Autopilota>
-  /** Cambia obiettivo, criteri o compiti mettendoci le mani. */
-  modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
-  /** Glielo dici a parole: è lui a tradurlo in criteri e compiti. */
-  parla: (id: string, testo: string) => Promise<RispostaParlata>
   /**
    * Gli scrivi, e lui risponde con parole sue — nel suo archivio, dopo.
    *
@@ -96,14 +62,6 @@ export type ClientAutopilota = {
    * `elenca` quando compare in `dialogo` con `da: 'lui'`.
    */
   dialoga: (id: string, testo: string) => Promise<RicevutaDialogo>
-  /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
-  disfa: (id: string) => Promise<Autopilota>
-  ferma: (id: string) => Promise<void>
-  riprendi: (id: string) => Promise<void>
-  /** Se questo autopilota debba ripartire da solo dopo un riavvio. */
-  riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
-  /** «Lavora in sottofondo» (0.72.0): solo su richiesta di Nicholas. */
-  sottofondo: (id: string, si: boolean) => Promise<void>
   /** Le chat già avviate adottate (0.78.0): torna le sessioni adottate adesso. */
   adotta: (id: string, chat: { sessionId: string; titolo: string }[], soloMie?: string[]) => Promise<string[]>
   /** Toglie chat adottate («Torna come prima» dell'adozione). */
@@ -112,28 +70,15 @@ export type ClientAutopilota = {
   soloMia: (id: string, sessione: string, si: boolean) => Promise<void>
   /** I messaggi per le chat adottate scritti dal Gestore. */
   adottateScritti: (id: string, ids: string[]) => Promise<void>
-  /** «Ricontrolla i criteri» (0.72.0): i criteri di un autopilota fermo, misurati adesso. */
-  ricontrollaCriteri: (id: string) => Promise<void>
   /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio subito; torna la riga del riepilogo. */
   pulisci: () => Promise<string>
-  /** Mette da parte un autopilota fermo che non deve ripartire (o lo toglie dall'archivio). */
-  archivia: (id: string, archivia: boolean) => Promise<void>
-  /** «Sposta in un altro workspace» (0.81.0): dove compare il suo lavoro. */
-  spostaInWorkspace: (id: string, workspace: string) => Promise<void>
-  /** «Manda adesso» (0.69.0): i messaggi in coda escono subito. */
-  mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
   nota: (id: string, testo: string) => Promise<void>
   /** Un annuncio a Nicholas nella conversazione dell'autopilota, con una notifica sola (0.81.0). */
   annuncia: (id: string, titolo: string, testo: string) => Promise<void>
-  elimina: (id: string) => Promise<void>
   domande: () => Promise<DomandaAperta[]>
   /** Le domande delle chat a cui l'autopilota ha risposto da solo (0.71.1). Un servizio vecchio non le ha: vuoto. */
   risolte: () => Promise<DomandaRisolta[]>
-  /** La linguetta «Istruzioni» (0.41.0): cosa ha consegnato alle sue chat, intero, dalla più recente. */
-  istruzioni: (id: string) => Promise<Istruzione[]>
-  /** I tempi dei suoi giri (0.71.0), in una riga: «giro 12 s (criteri 2 s, supervisore 9 s) · 8 giri». */
-  tempi: (id: string) => Promise<string | undefined>
   /** «N di M chat» su questo PC (0.82.0). Un servizio vecchio non lo sa: `undefined`. */
   postiChat: () => Promise<PostiChat | undefined>
   /** Com'è andata una consegna dentro la chat (dai passi del PC). */
@@ -194,9 +139,6 @@ export type ClientAutopilota = {
   unisciCoda: (ws: string, u: UnioneAMano) => Promise<VistaCoda>
   /** P3: l'autopilota unico di un workspace. Un servizio vecchio non ce l'ha: `undefined`. */
   orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
-  /** Accende l'autopilota unico: le richieste e le chat vive degli autopiloti di prima passano a lui. */
-  attivaOrchestratore: (ws: string, cwd?: string) => Promise<VistaOrchestratore>
-  disattivaOrchestratore: (ws: string) => Promise<VistaOrchestratore>
   impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
 }
 
@@ -243,15 +185,6 @@ export function creaClientAutopilota(p: {
   /** Quando un avvio non ha riportato su il servizio (0.84.0). */
   let avvioInutile: number | undefined
   const base = `http://127.0.0.1:${p.porta}`
-
-  /**
-   * Quanto si aspetta una chiamata che fa **pensare** il supervisore.
-   *
-   * `parla` interroga `claude.exe` e ci mette minuti: con i tre secondi di
-   * tutte le altre chiamate falliva sempre con «il servizio non risponde»,
-   * mentre il servizio applicava comunque il cambio dietro le quinte.
-   */
-  const ATTESA_PENSIERO_MS = 6 * 60_000
 
   const chiama = async (
     percorso: string,
@@ -361,25 +294,9 @@ export function creaClientAutopilota(p: {
       return inViaggio
     },
     versioneDettaglio: (id) => dettagliTenuti.get(id)?.etag,
-    crea: async (nuovo) => (await chiama('/autopiloti', 'POST', nuovo)) as Autopilota,
-    vai: async (id) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}/vai`, 'POST')) as Autopilota,
-    modifica: async (id, cambio) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'PATCH', cambio)) as Autopilota,
-    parla: async (id, testo) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}/parla`, 'POST', { testo }, ATTESA_PENSIERO_MS)) as RispostaParlata,
+    crea: async (nuovo) => (await chiama('/orchestratore/messaggio', 'POST', { testo: nuovo.obiettivo, cwd: nuovo.cwd, ...(nuovo.workspace !== undefined ? { workspace: nuovo.workspace } : {}) })) as Autopilota,
     dialoga: async (id, testo) =>
       (await chiama(`/autopiloti/${encodeURIComponent(id)}/dialogo`, 'POST', { testo })) as RicevutaDialogo,
-    disfa: async (id) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}/disfa`, 'POST')) as Autopilota,
-    ferma: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/ferma`, 'POST') },
-    riprendi: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/riprendi`, 'POST') },
-    riprendiAlRiavvio: async (id, riprendi) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/riavvio`, 'POST', { riprendi })
-    },
-    sottofondo: async (id, si) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/sottofondo`, 'POST', { si })
-    },
     adotta: async (id, chat, soloMie = []) => {
       const r = (await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta`, 'POST', { chat, soloMie })) as { nuove?: unknown } | undefined
       return Array.isArray(r?.nuove) ? r.nuove.filter((x): x is string => typeof x === 'string') : []
@@ -387,9 +304,6 @@ export function creaClientAutopilota(p: {
     togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }) },
     soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }) },
     adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }) },
-    ricontrollaCriteri: async (id) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/ricontrolla-criteri`, 'POST', {})
-    },
     // Copie, rami e note: può metterci qualche minuto.
     pulisci: async () => {
       const r = (await chiama('/autopulizia', 'POST', {}, 10 * 60_000)) as { riga?: unknown } | undefined
@@ -401,23 +315,10 @@ export function creaClientAutopilota(p: {
     annuncia: async (id, titolo, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/annuncio`, 'POST', { titolo, testo })
     },
-    mandaAdesso: async (id) => (await chiama(`/autopiloti/${encodeURIComponent(id)}/manda-adesso`, 'POST', {})) as { mandate: number; messaggio?: string },
-    archivia: async (id, archivia) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/archivia`, 'POST', { archivia })
-    },
-    spostaInWorkspace: async (id, workspace) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/workspace`, 'POST', { workspace })
-    },
-    elimina: async (id) => { await chiama(`/autopiloti/${encodeURIComponent(id)}`, 'DELETE') },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],
     risolte: async () => {
       const r = await chiama('/domande/risolte', 'GET').catch(() => [])
       return Array.isArray(r) ? (r as DomandaRisolta[]) : []
-    },
-    istruzioni: async (id) => leggiIstruzioni(await chiama(`/istruzioni?ap=${encodeURIComponent(id)}`, 'GET')),
-    tempi: async (id) => {
-      const r = (await chiama(`/tempi?ap=${encodeURIComponent(id)}`, 'GET')) as { riassunto?: RiassuntoTempi } | undefined
-      return r?.riassunto !== undefined && r.riassunto.giri > 0 ? testoTempi(r.riassunto) : undefined
     },
     postiChat: async () => leggiPostiChat(await chiama('/posti-chat', 'GET').catch(() => undefined)),
     esitoConsegna: async (consegna, esito) => { await chiama('/consegne/esito', 'POST', { id: consegna, esito }) },
@@ -465,15 +366,13 @@ export function creaClientAutopilota(p: {
     async orchestratore(ws) {
       try {
         const r = (await chiama(`/orchestratore?ws=${encodeURIComponent(ws)}`, 'GET')) as VistaOrchestratore | undefined
-        return r !== undefined && typeof r.attivo === 'boolean' ? r : undefined
+        return r !== undefined && typeof r.workspace === 'string' ? r : undefined
       } catch (err) {
         // Un servizio di prima della P3 non conosce la rotta.
         if (err instanceof Error && err.message.includes('ha rifiutato la richiesta')) return undefined
         throw err
       }
     },
-    attivaOrchestratore: async (ws, cwd) => (await chiama('/orchestratore/attiva', 'POST', { ws, ...(cwd !== undefined ? { cwd } : {}) })) as VistaOrchestratore,
-    disattivaOrchestratore: async (ws) => (await chiama('/orchestratore/disattiva', 'POST', { ws })) as VistaOrchestratore,
     impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p })) as VistaOrchestratore,
 
     async gestoreAvviato(aggiornamento) {

@@ -82,7 +82,7 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
       righe.push(
         `${testa} — sono bloccato, provo un'altra strada ⚠️`,
         obiettivo,
-        a.strategia !== undefined ? `Ora provo a: ${esc(a.strategia)}` : 'Cerco un altro approccio.'
+        'Cerco un altro approccio.'
       )
       break
     case 'sospeso':
@@ -94,9 +94,7 @@ export function componiAvviso(tipo: TipoAvviso, a: Autopilota, domanda?: string)
       // che nessuno sappia che bastava un clic.
       righe.push(
         `${testa} — pronto, aspetto il tuo via 🚦`,
-        obiettivo,
-        'Finisce quando:',
-        ...a.criteri.slice(0, 8).map((c) => `• ${esc(tronca(c.descrizione, 120))}`)
+        obiettivo
       )
       break
     case 'avviso':

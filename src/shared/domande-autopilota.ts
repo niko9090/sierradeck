@@ -72,9 +72,7 @@ export function domandeScheda(a: Autopilota, aperte: DomandaApertaServizio[]): D
         domanda: 'Si è preparato: gli dai il via?',
         scelte: [{ testo: OPZIONE_VIA, consigliata: true }],
         dettagli: [
-          { etichetta: 'Obiettivo', testo: a.obiettivo },
-          ...(a.criteri.length > 0 ? [{ etichetta: 'Finisce quando', testo: a.criteri.map((c) => `• ${c.descrizione}`).join('\n') }] : []),
-          ...(a.compitiDaFare.length > 0 ? [{ etichetta: 'I compiti', testo: a.compitiDaFare.map((c) => `• ${c}`).join('\n') }] : [])
+          { etichetta: 'Obiettivo', testo: a.obiettivo }
         ],
         segnaposto: 'Oppure scrivigli cosa cambiare prima di partire'
       }
@@ -100,12 +98,11 @@ export function etichettaOrigine(d: DomandaScheda): string {
 
 /**
  * Come si risponde (il percorso del Client, uguale su PC, pagina e app):
- * una domanda va a `/api/rispondi`; il via a `/api/autopilota/vai` se scegli
- * «Vai», altrimenti quello che scrivi va al dialogo («prima cambia questo»).
+ * una domanda va a `/api/rispondi`; tutto il resto, «Vai» compreso, va al
+ * dialogo con l'autopilota del workspace (P4: il via a parte non c'è più).
  */
 export function richiestaScheda(d: DomandaScheda, autopilotaId: string, testo: string): { percorso: string; corpo: Record<string, string> } {
   if (d.tipo === 'domanda') return { percorso: '/api/rispondi', corpo: { domanda: d.idDomanda ?? '', risposta: testo } }
-  if (testo.trim().toLowerCase() === OPZIONE_VIA.toLowerCase()) return { percorso: '/api/autopilota/vai', corpo: { autopilota: autopilotaId } }
   return { percorso: '/api/autopilota/dialogo', corpo: { autopilota: autopilotaId, testo } }
 }
 

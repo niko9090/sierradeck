@@ -60,9 +60,9 @@ describe('creaClientAutopilota', () => {
     ora += 1000
     await client.elenca()
     expect(viste).toHaveLength(2)
-    await client.ferma('ap-1')
+    await client.nota('ap-1', 'una nota')
     await client.elenca()
-    expect(viste).toEqual(['/autopiloti?leggero=1', '/autopiloti?leggero=1', '/autopiloti/ap-1/ferma', '/autopiloti?leggero=1'])
+    expect(viste).toEqual(['/autopiloti?leggero=1', '/autopiloti?leggero=1', '/autopiloti/ap-1/nota', '/autopiloti?leggero=1'])
   })
 
   it('dettaglio: un autopilota intero con il suo ETag; inesistente è undefined; con un servizio vecchio dall’elenco intero', async () => {
@@ -91,15 +91,15 @@ describe('creaClientAutopilota', () => {
     expect(viste).toEqual(['/autopiloti/ap-1', '/autopiloti/ap-1', '/autopiloti/ap-2', '/autopiloti/ap-1', '/autopiloti'])
   })
 
-  it('crea passando i campi al servizio', async () => {
+  it('crea: il primo messaggio all’autopilota del workspace (P4)', async () => {
     const visti: unknown[] = []
-    const porta = await servizioFinto((_p, corpo) => { visti.push(corpo); return { id: 'ap-9' } })
+    const rotte: string[] = []
+    const porta = await servizioFinto((p, corpo) => { rotte.push(p); visti.push(corpo); return { id: 'ap-9' } })
     const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
-    const a = await client.crea({
-      nome: 'N', obiettivo: 'O', cwd: 'C:\\p', criteri: [{ descrizione: 'd', comando: 'c' }]
-    })
+    const a = await client.crea({ obiettivo: 'O', cwd: 'C:\\p', workspace: 'W' })
     expect(a.id).toBe('ap-9')
-    expect(visti[0]).toMatchObject({ obiettivo: 'O', cwd: 'C:\\p' })
+    expect(rotte[0]).toBe('/orchestratore/messaggio')
+    expect(visti[0]).toEqual({ testo: 'O', cwd: 'C:\\p', workspace: 'W' })
   })
 
   it('un servizio spento produce un errore leggibile, non un blocco', async () => {
@@ -170,7 +170,7 @@ describe('creaClientAutopilota', () => {
       server!.listen(0, '127.0.0.1', () => ris((server!.address() as { port: number }).port))
     })
     const client = creaClientAutopilota({ porta, avviaServizio: () => {} })
-    await expect(client.crea({ nome: '', obiettivo: '', cwd: '', criteri: [] }))
+    await expect(client.crea({ obiettivo: '', cwd: '' }))
       .rejects.toThrow(/almeno un criterio/)
   })
 })

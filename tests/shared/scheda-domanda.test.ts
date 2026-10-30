@@ -26,7 +26,7 @@ const PARTI: PartiDomanda = {
 
 function ap(p: Partial<Autopilota> = {}): Autopilota {
   return {
-    ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Fai la 0.72.1', cwd: 'E:\\progetti\\SierraDeck', criteri: [{ descrizione: 'i test passano', soddisfatto: false }], iniziatoIl: '2026-10-15T10:00:00.000Z' }),
+    ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Fai la 0.72.1', cwd: 'E:\\progetti\\SierraDeck', iniziatoIl: '2026-10-15T10:00:00.000Z' }),
     ...p
   }
 }
@@ -141,10 +141,10 @@ describe('la scheda di una domanda', () => {
     expect(per['chat:c-3']!.domanda).toBe('Ha finito il turno: cosa le scrivi?')
   })
 
-  it('il via: una frase, «Vai» consigliato, obiettivo e criteri nei dettagli', () => {
+  it('il via: una frase, «Vai» consigliato, l’obiettivo nei dettagli', () => {
     const c = conversazioniDomande({ voci: [], autopiloti: [ap({ stato: 'pronto' })] })
     expect(c[0]!.scheda).toMatchObject({ domanda: 'Si è preparato: gli dai il via?', scelte: [{ testo: 'Vai', consigliata: true }] })
-    expect(c[0]!.scheda!.dettagli.map((d) => d.etichetta)).toEqual(['Obiettivo', 'Finisce quando'])
+    expect(c[0]!.scheda!.dettagli.map((d) => d.etichetta)).toEqual(['Obiettivo'])
   })
 
   it('la linguetta «Domande» dell autopilota ha la stessa scheda', () => {

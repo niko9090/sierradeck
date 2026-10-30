@@ -275,14 +275,14 @@ export const ROTTE_VIA_CANALE: readonly string[] = [
   // Gestire quel PC dal telefono attraverso il ponte (0.55.0): le stesse di ROTTE_PONTE.
   '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto', '/api/workspace/recupero', '/api/workspace/ripristina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
-  '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
+  '/api/prova/chiudi', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).
   '/api/panoramica',
-  '/api/autopilota/archivia', '/api/autopilota/sposta', '/api/autopilota/manda-adesso', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
-  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
-  '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
-  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
+  // L’autopilota unico (0.86.x): la scheda, parlargli, il primo messaggio, i file e l’avanzamento.
+  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
+  '/api/autopilota/avanzamento', '/api/quaderno', '/api/quaderno/scheda',
   '/api/drive/pannello', '/api/drive/azione',
   // La gestione delle chat di quel PC (0.79.0), anche via Internet.
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',

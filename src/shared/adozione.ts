@@ -49,11 +49,11 @@ export function ruoloDaContenuto(titolo: string): Ruolo | undefined {
   return PAROLE_RUOLO.find(([, re]) => re.test(titolo))?.[0]
 }
 
-/** Le sessioni che sono già dell'autopilota (la sua chat, i suoi specialisti, i supervisori): non si adottano. */
+/** Le sessioni che sono già dell'autopilota (la sua chat, i suoi specialisti): non si adottano. */
 export function sessioniProprie(a: Autopilota): Set<string> {
   const s = new Set<string>()
-  for (const x of [a.sessionId, a.sessioneIntervista, a.sessioneSupervisore]) if (x !== undefined) s.add(x)
-  for (const c of a.chats) for (const x of [c.sessionId, c.sessioneSupervisore]) if (x !== undefined) s.add(x)
+  if (a.sessionId !== undefined) s.add(a.sessionId)
+  for (const c of a.chats) if (c.sessionId !== undefined) s.add(c.sessionId)
   return s
 }
 

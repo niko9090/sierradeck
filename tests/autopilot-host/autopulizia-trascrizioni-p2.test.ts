@@ -91,7 +91,7 @@ describe('con un git vero', { timeout: 120_000 }, () => {
     const archivio = apriArchivio(join(base, 'autopiloti'))
     const chat = (id: string, extra: Partial<ChatGovernata> = {}): ChatGovernata => ({ id, compito: 'c', stato: 'finita', cicli: 1, ...extra })
     const a: Autopilota = {
-      ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: progetto, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T00:00:00.000Z' }),
+      ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: progetto, iniziatoIl: '2026-10-01T00:00:00.000Z' }),
       ramoBase: 'main',
       chats: [chat('c-3', { stato: 'lavoro', cartella: join(copie, 'ap-0123abcd-c-3') })]
     }

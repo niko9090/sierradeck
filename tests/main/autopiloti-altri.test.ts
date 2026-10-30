@@ -18,7 +18,7 @@ import { nuovoAutopilota } from '@shared/autopilota'
  * con la firma di casa, un estraneo rifiutato. Nessun dato vero.
  */
 const K = 'chiave-di-casa-di-esempio'
-const AP = { ...nuovoAutopilota({ id: 'ap-prova', nome: 'Autopilota di prova', obiettivo: 'una prova', cwd: 'C:\\Prove\\ap', criteri: [{ descrizione: 'i test passano', soddisfatto: false }], iniziatoIl: '2026-10-10T20:00:00.000Z' }), stato: 'lavoro' as const }
+const AP = { ...nuovoAutopilota({ id: 'ap-prova', nome: 'Autopilota di prova', obiettivo: 'una prova', cwd: 'C:\\Prove\\ap', iniziatoIl: '2026-10-10T20:00:00.000Z' }), stato: 'lavoro' as const }
 
 const server: Server[] = []
 afterEach(() => { for (const s of server.splice(0)) s.close() })
@@ -34,8 +34,6 @@ async function portatile() {
     workspace: async () => ({ nomi: [], attivo: '' }),
     rispondi: async (id: string, r: string) => { fatti.push(`rispondi:${id}:${r}`) },
     dialogaAutopilota: async (id: string, t: string) => { fatti.push(`dialogo:${id}:${t}`); return { ricevuto: true } },
-    fermaAutopilota: async (id: string) => { fatti.push(`ferma:${id}`) },
-    riprendiAutopilota: async (id: string) => { fatti.push(`riprendi:${id}`) },
     aggiornamento: () => ({ fase: 'fermo' })
   } as unknown as DipendenzeRotte)
   const s = creaServerClient({ dispositivi, chiaveDiCasa: () => K, rotta: (r) => rotte(r) })
@@ -59,23 +57,21 @@ describe('un autopilota che gira sul portatile, governato da questo PC', () => {
     expect(Array.isArray(scheda.chat)).toBe(true)
     expect(Array.isArray(scheda.domandeScheda)).toBe(true)
   })
-  it('scrivergli, rispondere, fermarlo e farlo riprendere arrivano al portatile', async () => {
+  it('scrivergli e rispondere arrivano al portatile', async () => {
     const p = await portatile()
     const pc = questoPc(p.porta, K)
     for (const [percorso, corpo] of [
       ['/api/autopilota/dialogo', { autopilota: 'ap-prova', testo: 'com’è messo?' }],
-      ['/api/rispondi', { domanda: 'd-1', risposta: 'sì' }],
-      ['/api/autopilota/ferma', { autopilota: 'ap-prova' }],
-      ['/api/autopilota/riprendi', { autopilota: 'ap-prova' }]
+      ['/api/rispondi', { domanda: 'd-1', risposta: 'sì' }]
     ] as const) {
       expect(rottaAutopilotaAltroPc(percorso)).toBe(true)
       await pc.chiama('lap', percorso, corpo)
     }
-    expect(p.fatti).toEqual(['dialogo:ap-prova:com’è messo?', 'rispondi:d-1:sì', 'ferma:ap-prova', 'riprendi:ap-prova'])
+    expect(p.fatti).toEqual(['dialogo:ap-prova:com’è messo?', 'rispondi:d-1:sì'])
   })
   it('un PC con un’altra chiave di casa non legge e non comanda niente', async () => {
     const p = await portatile()
-    const e = await questoPc(p.porta, 'un-altra-casa').chiama('lap', '/api/autopilota/ferma', { autopilota: 'ap-prova' }).catch((x: unknown) => x)
+    const e = await questoPc(p.porta, 'un-altra-casa').chiama('lap', '/api/autopilota/dialogo', { autopilota: 'ap-prova', testo: 'ciao' }).catch((x: unknown) => x)
     expect(e).toBeInstanceOf(ErroreRemoto)
     expect(p.fatti).toEqual([])
   })

@@ -11,9 +11,6 @@ import { RiquadroRemoto } from './RiquadroRemoto'
 import { ChatConPin, TastoPin } from './ChatConPin'
 import { TastoOspite } from './OspiteChat'
 import { IndicatoreDiRiquadro } from './LineaRemota'
-import { DiarioAutopilota } from './DiarioAutopilota'
-import { diarioDelRiquadro } from '../diario-autopilota'
-import type { Autopilota } from '@shared/autopilota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
 import { AzioniChat } from './AzioniChat'
@@ -234,10 +231,7 @@ function Divider({ box, containerRef }: {
 
 export function Mosaic({
   node,
-  autopiloti,
-  onRicaricaAutopiloti,
   pensano,
-  senzaDiario,
   chiedono = new Set(),
   solo
 }: {
@@ -249,16 +243,6 @@ export function Mosaic({
    * claude.exe si chiude, e portarne uno davanti è immediato.
    */
   solo?: string
-  /** Servono al riquadro per sapere se qualcuno sta governando la sua chat. */
-  autopiloti: Autopilota[]
-  /**
-   * Rilegge gli autopiloti adesso, senza aspettare il giro.
-   *
-   * Dalla scheda si cambiano criteri e compiti: aspettare il prossimo giro
-   * significherebbe premere «Salva» e vedere per qualche secondo quello che
-   * c'era prima — cioè dubitare di aver premuto.
-   */
-  onRicaricaAutopiloti: () => void
   /**
    * I terminali da cui sta arrivando qualcosa adesso.
    *
@@ -267,11 +251,6 @@ export function Mosaic({
    * aperte stesse facendo qualcosa.
    */
   pensano: ReadonlySet<string>
-  /**
-   * Nella vista a elenco (0.76.0) il pannello dell'autopilota sta fisso a
-   * sinistra: nei riquadri non si disegna.
-   */
-  senzaDiario?: boolean
   /** I riquadri fermi su una domanda (0.70.0): «aspetta te» sulla testata. */
   chiedono?: ReadonlySet<string>
 }): React.JSX.Element {
@@ -286,10 +265,6 @@ export function Mosaic({
   // Quale riquadro si sta rinominando, e con che testo: il nome si cambia dove
   // lo si legge, con due clic sulla sua testata.
   const [rinominando, setRinominando] = useState<string | undefined>(undefined)
-  // Quali riquadri stanno mostrando la conversazione dell'autopilota a tutta
-  // larghezza: lì il terminale si fa da parte, perché i passaggi si leggono
-  // come in una chat e su duecento pixel non ci stanno.
-  const [diarioLargo, setDiarioLargo] = useState<ReadonlySet<string>>(new Set())
   const [bozzaNome, setBozzaNome] = useState('')
   const trascinato = useLayoutStore((s) => s.trascinato)
   const iniziaTrascinamento = useLayoutStore((s) => s.iniziaTrascinamento)
@@ -478,7 +453,7 @@ export function Mosaic({
                   // impedirebbe al terminale di restringersi.
                   minWidth: 0,
                   minHeight: 0,
-                  display: diarioLargo.has(paneId) ? 'none' : 'block'
+                  display: 'block'
                 }}
               >
                 {data.remoto !== undefined ? (
@@ -515,39 +490,6 @@ export function Mosaic({
                 </ChatConPin>
                 )}
               </div>
-              {(() => {
-                // Un diario solo per autopilota: una flotta apre piu' chat
-                // nella stessa cartella, e il pannello le racconta gia' tutte.
-                const suo = diarioDelRiquadro(
-                  autopiloti,
-                  Object.values(panes).map((p) => ({
-                    id: p.id,
-                    cwd: p.cwd,
-                    ...(p.autopilota !== undefined ? { autopilota: p.autopilota } : {})
-                  })),
-                  {
-                    id: data.id,
-                    cwd: data.cwd,
-                    ...(data.autopilota !== undefined ? { autopilota: data.autopilota } : {})
-                  }
-                )
-                if (suo === undefined || senzaDiario === true) return null
-                return (
-                  <DiarioAutopilota
-                    autopilota={suo}
-                    largo={diarioLargo.has(paneId)}
-                    onLargo={(v) =>
-                      setDiarioLargo((prima) => {
-                        const dopo = new Set(prima)
-                        if (v) dopo.add(paneId)
-                        else dopo.delete(paneId)
-                        return dopo
-                      })
-                    }
-                    onCambiato={onRicaricaAutopiloti}
-                  />
-                )
-              })()}
             </div>
             {trascinato !== undefined && trascinato !== paneId ? (
               <DropOverlay onRilascio={(p) => move(trascinato, paneId, p)} />

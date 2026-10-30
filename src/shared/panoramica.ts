@@ -261,15 +261,9 @@ export function statoCoerente(a: Autopilota, ora: number): StatoSituazione {
 /** Un criterio per l'elenco che si apre dalla barra: ✓ soddisfatto, ✗ no, ○ mai controllato. */
 export type CriterioVista = { descrizione: string; esito: 'si' | 'no' | 'mai'; quando?: string; prova?: string }
 
-export function criteriVista(a: Autopilota): CriterioVista[] {
-  return a.criteri.map((c) => {
-    const v = c.ultimaVerifica
-    const esito: CriterioVista['esito'] = c.soddisfatto ? 'si' : v !== undefined ? 'no' : 'mai'
-    const quando = c.raggiuntoIl ?? v?.quando
-    const riga = (v?.uscita ?? '').split(/\r?\n/).map((r) => r.replace(ANSI, '').trim()).filter((r) => r !== '').pop()
-    const prova = c.comando !== undefined ? `${c.comando}${riga !== undefined ? `: ${riga}` : ''}` : riga
-    return { descrizione: c.descrizione, esito, ...(quando !== undefined ? { quando } : {}), ...(prova !== undefined && prova !== '' ? { prova } : {}) }
-  })
+/** P4: i criteri stanno nei compiti del piano dell'orchestratore, non sull'autopilota: l'elenco è vuoto. */
+export function criteriVista(_a: Autopilota): CriterioVista[] {
+  return []
 }
 
 /** La situazione in alto: l'obiettivo intero (lo taglia a 2 righe chi disegna), lo stato coerente, i criteri. */
@@ -316,7 +310,7 @@ const numeroDi = (id: string): number => { const n = Number(/(\d+)$/.exec(id)?.[
 
 /**
  * I compiti dell'autopilota in fasi, dal suo stato (niente testo da
- * interpretare): i compiti non ancora affidati sono «da fare»; una chat che
+ * interpretare): una chat che
  * lavora (o aspetta, o è in pausa) è «in corso»; una chat finita che deve
  * passare dalla Revisione e non è ancora unita è «in revisione»; approvata, o
  * senza revisione, o con l'autopilota finito, è «fatto». Le chat di Revisione
@@ -363,12 +357,6 @@ export function pianoAutopilota(a: Autopilota): CompitoPiano[] {
       fuori.push({ ...base, fase: 'in-revisione', ruolo: 'revisione', ...(c.ruolo !== undefined ? { autore: c.ruolo } : {}), ...(sessione !== undefined ? { sessione } : {}) })
     }
   }
-  const presi = new Set(fuori.map((c) => c.testo))
-  a.compitiDaFare.forEach((t, i) => {
-    if (presi.has(t)) return
-    const r = a.ruoliCompiti?.[t]?.ruolo
-    fuori.push({ id: `da-fare-${i}`, testo: t, fase: 'da-fare', ...(r !== undefined ? { ruolo: r } : {}) })
-  })
   return fuori
 }
 

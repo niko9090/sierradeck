@@ -84,14 +84,6 @@ describe('Domande del programma («sierradeck:al-telefono»)', () => {
     expect(d.linguette).toEqual(['ap-f1e631f5'])
     expect(azioneTastoDomande([autopilotaVero], false)).toEqual({ tipo: 'linguetta', autopilota: 'ap-f1e631f5' })
   })
-
-  it('il PC non rifiuta più l\'id del programma', () => {
-    const main = readFileSync(join(radice, 'src/main/index.ts'), 'utf8')
-    const i = main.indexOf("ipcMain.handle('pannello:mostraDomande'")
-    const corpo = main.slice(i, i + 600)
-    expect(corpo.indexOf('eDomandaDelProgramma(id)')).toBeGreaterThan(0)
-    expect(corpo.indexOf('eDomandaDelProgramma(id)')).toBeLessThan(corpo.indexOf('validaIdAutopilota(id)'))
-  })
 })
 
 describe('Chat chiusa con la cartella cancellata', () => {

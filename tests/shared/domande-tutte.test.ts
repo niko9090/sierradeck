@@ -9,7 +9,7 @@ import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
  * conversazioni della colonna Domande (che sono le stesse di pagina e app).
  */
 const base = (id: string, nome: string, stato: Autopilota['stato']): Autopilota => ({
-  ...nuovoAutopilota({ id, nome, obiettivo: 'o', cwd: `C:/${id}`, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T08:00:00Z' }),
+  ...nuovoAutopilota({ id, nome, obiettivo: 'o', cwd: `C:/${id}`, iniziatoIl: '2026-10-01T08:00:00Z' }),
   stato
 })
 const autopiloti: Autopilota[] = [

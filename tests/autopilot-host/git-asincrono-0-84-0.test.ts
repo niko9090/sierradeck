@@ -1,17 +1,11 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  creaWorktree, gitAsincronoReale, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono, unisciRamoAsincrono, type EsitoGit, type Git, type GitAsincrono
+  creaWorktree, gitAsincronoReale, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono, unisciRamoAsincrono
 } from '../../src/autopilot-host/worktree'
-import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
-import { apriArchivio } from '../../src/autopilot-host/archivio'
-import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
-import { attendi } from '../setup/attendi'
 import { gitAsincronoFinto, gitFinto, usaGitFinto } from '../setup/git-finto'
-import { orologioDa } from '../setup/orologio'
 
 // 0.84.0, blocchi rimasti. Il git dei giri girava con spawnSync: il 20/10 la
 // fase «unione» ha tenuto fermo il servizio 33 minuti in tutto, fino a 95 s di
@@ -86,78 +80,6 @@ describe('git asincrono: le stesse operazioni, senza fermare il servizio', () =>
     // Annullata: nella cartella di lavoro resta il lavoro di c-1, senza segni di conflitto.
     expect(readFileSync(join(progetto, 'a.txt'), 'utf8')).toBe('da c-1\n')
     expect(esegui(['status', '--porcelain'], progetto)).toBe('')
-  })
-})
-
-describe('il servizio risponde mentre unisce il ramo di una chat', () => {
-  let server: ServerAutopiloti | undefined
-  afterEach(() => { server?.close(); server = undefined })
-
-  it("la salute risponde anche con l'unione a metà", async () => {
-    const radice = mkdtempSync(join(tmpdir(), 'sd-gita-srv-'))
-    const progetto = join(radice, 'progetto')
-    const cartella = join(radice, 'progetto.sierradeck-wt', 'ap-x-c-1')
-    mkdirSync(progetto)
-    mkdirSync(cartella, { recursive: true })
-    const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-gita-arch-')))
-    // Un orologio fisso: niente giorno vero (dopo mezzanotte cambiava).
-    const orologio = orologioDa('2026-10-20T10:00:00.000Z')
-    // Il git finto: ogni cartella è la radice di sé stessa; il worktree è sul
-    // ramo della chat, il progetto su main; il merge resta a metà finché il test vuole.
-    const risposta = (args: string[], cwd: string): EsitoGit => {
-      if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') return { codice: 0, uscita: cwd }
-      if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') return { codice: 0, uscita: cwd === cartella ? 'ap/ap-x/c-1' : 'main' }
-      if (args[0] === 'diff' && args[1] === '--cached') return { codice: 0, uscita: '' }
-      if (args[0] === 'merge-base') return { codice: 1, uscita: '' }
-      return { codice: 0, uscita: '' }
-    }
-    const sincrono: Git = (args, cwd) => {
-      if (args.includes('merge')) throw new Error('il merge non deve passare dal git sincrono')
-      return risposta(args, cwd)
-    }
-    let lascia: (() => void) | undefined
-    let inMerge = false
-    const asincrono: GitAsincrono = (args, cwd) => {
-      if (!args.includes('merge') || args[0] === 'merge-base') return Promise.resolve(risposta(args, cwd))
-      inMerge = true
-      return new Promise((ris) => { lascia = () => { ris({ codice: 0, uscita: '' }) } })
-    }
-    server = creaServer({
-      archivio,
-      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "avanti", "perche": "manca"}', sessionId: 's' }),
-      avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => {},
-      avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: orologio.ms }),
-      scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
-      git: sincrono,
-      gitAsincrono: asincrono,
-      adesso: orologio.iso
-    })
-    const porta = await new Promise<number>((ris) => { server!.listen(0, '127.0.0.1', () => { ris((server!.address() as { port: number }).port) }) })
-    const a: Autopilota = {
-      ...nuovoAutopilota({ id: 'ap-x', nome: 'Unione', obiettivo: 'o', cwd: progetto, criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: orologio.iso() }),
-      stato: 'lavoro',
-      ramoBase: 'main',
-      chats: [{ id: 'c-1', compito: 'scrivi i test', stato: 'lavoro', cicli: 0, ramo: 'ap/ap-x/c-1', cartella }]
-    }
-    archivio.scrivi(a)
-
-    const fermata = fetch(`http://127.0.0.1:${porta}/hook/stop?ap=ap-x&chat=c-1`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: 's-1', stop_hook_active: false, last_assistant_message: 'Fatto.', hook_event_name: 'Stop', cwd: cartella, transcript_path: 'x.jsonl' })
-    })
-    await attendi(() => inMerge, { cosa: 'il merge a metà' })
-
-    const salute = await fetch(`http://127.0.0.1:${porta}/salute`, { signal: AbortSignal.timeout(2000) })
-    expect(salute.status).toBe(200)
-
-    lascia?.()
-    expect((await fermata).status).toBe(200)
-    expect(archivio.leggi('ap-x')!.decisioni.some((d) => d.cosa === 'unito il ramo ap/ap-x/c-1 in main')).toBe(true)
   })
 })
 

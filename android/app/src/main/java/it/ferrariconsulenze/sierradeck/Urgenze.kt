@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,7 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 
 /**
  * Quello che non può aspettare, dove stai già guardando.
@@ -51,7 +49,11 @@ import kotlinx.coroutines.launch
  * che non si portava a chi guarda. Adesso le scelte delle chat contano come
  * le domande.
  */
-enum class TipoUrgenza { SCOLLEGATO, DOMANDE, FERMI, PRONTI }
+/**
+ * L'autopilota unico (PC 0.86.x) è sempre acceso: non c'è più un autopilota
+ * «fermo» da riprendere né uno «pronto» che aspetta il via.
+ */
+enum class TipoUrgenza { SCOLLEGATO, DOMANDE }
 
 data class Urgenza(
     val tipo: TipoUrgenza,
@@ -87,52 +89,20 @@ fun urgenzaDi(stato: Stato?, connesso: Boolean): Urgenza? {
             ?: "Sullo schermo c'è un elenco di scelte (un permesso, «vuoi procedere?»): la chat è ferma finché non tocchi un'opzione."
         return Urgenza(TipoUrgenza.DOMANDE, titolo, sotto, "Vedi")
     }
-    val fermi = s.autopiloti.filter { it.stato == "sospeso" || it.stato == "fallito" }
-    if (fermi.isNotEmpty()) {
-        return Urgenza(
-            TipoUrgenza.FERMI,
-            if (fermi.size == 1) "«${fermi.first().nome}» si è fermato" else "${fermi.size} autopiloti fermi",
-            fermi.first().motivo.ifBlank { "Aspetta che tu lo rimetta in moto." },
-            "Riprendi"
-        )
-    }
-    val pronti = s.autopiloti.filter { it.stato == "pronto" }
-    if (pronti.isNotEmpty()) {
-        return Urgenza(
-            TipoUrgenza.PRONTI,
-            if (pronti.size == 1) "«${pronti.first().nome}» si è preparato e aspetta il tuo via"
-            else "${pronti.size} autopiloti si sono preparati e aspettano il tuo via",
-            "Ha letto il progetto e ha capito l'obiettivo. Non comincia finché non glielo dici: «Vai» lo fa partire.",
-            "Vai"
-        )
-    }
     return null
 }
 
 @Composable
 fun BandaUrgenze(api: Api, stato: Stato?, connesso: Boolean, onApriDomande: () -> Unit = {}) {
-    val scope = rememberCoroutineScope()
     val urgenza = urgenzaDi(stato, connesso)
     val colore: Color = when (urgenza?.tipo) {
-        TipoUrgenza.SCOLLEGATO, TipoUrgenza.FERMI -> Banco.rosso
+        TipoUrgenza.SCOLLEGATO -> Banco.rosso
         else -> Banco.ambra
     }
     val onAzione: () -> Unit = when (urgenza?.tipo) {
         // Niente piu' finestra che blocca: la domanda si legge e si risponde
         // nella scheda «Domande», insieme a tutte le altre.
         TipoUrgenza.DOMANDE -> onApriDomande
-        TipoUrgenza.FERMI -> {
-            {
-                val fermi = stato?.autopiloti?.filter { it.stato == "sospeso" || it.stato == "fallito" } ?: emptyList()
-                scope.launch { for (ap in fermi) tenta("riprendere «${ap.nome}»") { api.riprendiAutopilota(ap.id) } }
-            }
-        }
-        TipoUrgenza.PRONTI -> {
-            {
-                val pronti = stato?.autopiloti?.filter { it.stato == "pronto" } ?: emptyList()
-                scope.launch { for (ap in pronti) tenta("far partire «${ap.nome}»") { api.vaiAutopilota(ap.id) } }
-            }
-        }
         else -> { {} }
     }
 

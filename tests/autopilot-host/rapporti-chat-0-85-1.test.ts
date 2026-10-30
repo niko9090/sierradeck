@@ -3,14 +3,12 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creaServer, RILETTURA_RAPPORTO_MS, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { ultimoRapportoDa } from '../../src/autopilot-host/trascrizione'
 import { regoleDiConsegna } from '../../src/autopilot-host/nel-mosaico'
-import { testoRipresa } from '../../src/autopilot-host/mai-fermo'
-import { componiPromptDialogo } from '../../src/autopilot-host/dialogo'
 import { leggiRapportoChat, quadroDellaChat, rapportoDiFineTurno, REGOLA_RAPPORTO, righeQuadroChat, rigaRapporto } from '@shared/rapporti-chat'
-import { indicatoreDi } from '@shared/indicatore-autopilota'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { attendi } from '../setup/attendi'
 
@@ -25,7 +23,7 @@ const iso = (ms: number): string => new Date(ms).toISOString()
 
 function autopilota(over: Partial<Autopilota> & { id: string }): Autopilota {
   return {
-    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'la 0.85.1', cwd: 'C:\\Progetti\\Esempio', criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: iso(ORA - 3_600_000) }),
+    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'la 0.85.1', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: iso(ORA - 3_600_000) }),
     stato: 'lavoro',
     ultimoEvento: iso(ORA),
     ...over
@@ -106,13 +104,6 @@ describe('le istruzioni', () => {
     expect(regoleDiConsegna(a, chat('c-2', { ruolo: 'revisione' })).join('\n')).not.toContain('RAPPORTO:')
   })
 
-  it('la chat muta si richiama con «dimmi il punto» e un RAPPORTO', () => {
-    const a = autopilota({ id: 'ap-a' })
-    const t = testoRipresa(a, chat('c-1', { ultimeIstruzioni: 'fai X' }), 21 * 60_000)
-    expect(t.startsWith('Dimmi il punto: da 21 minuti')).toBe(true)
-    expect(t).toContain('RAPPORTO:')
-    expect(t).toContain('fai X')
-  })
 })
 
 describe('il quadro per chat', () => {
@@ -125,12 +116,11 @@ describe('il quadro per chat', () => {
     expect(bloccata.ferma).toBe('bloccata: gradle non parte')
     expect(bloccata.vero).toBe('nessuno ancora')
     expect(quadroDellaChat(chat('c-3', { stato: 'bloccata' }), ORA).ferma).toBe('aspetta una risposta di Nicholas')
-    expect(quadroDellaChat(chat('c-4', { ripresa: { il: iso(ORA - 5 * 60_000), volte: 1 } }), ORA).ferma).toContain('dimmi il punto')
     expect(quadroDellaChat(chat('c-5', { ultimaAzione: 'ho unito il ramo' }), ORA).passo).toBe('a fine turno: ho unito il ramo')
     expect(quadroDellaChat(chat('c-6'), ORA).passo).toBe('non ha ancora riferito niente')
   })
 
-  it('nel prompt delle risposte dalla scheda c è il quadro intero, non solo le ultime mosse', () => {
+  it('il quadro intero, non solo le ultime mosse', () => {
     const a = autopilota({
       id: 'ap-a',
       chats: [
@@ -144,21 +134,8 @@ describe('il quadro per chat', () => {
     expect(righe.find((r) => r.startsWith('- c-1'))).toBe('- c-1 — compito: il compito di c-1 · ultimo passo: prova: vitest tests/main (adesso) · ultimo segnale vero: commit 3 min fa')
     expect(righe.find((r) => r.startsWith('- c-2'))).toContain('ferma: in pausa per i limiti del piano')
     expect(righe).toContain('- Chiuse: 1.')
-    const prompt = componiPromptDialogo(a, 'a che punto siamo?', { quadro: righe })
-    expect(prompt).toContain('ultimo passo: prova: vitest tests/main')
-    expect(prompt.indexOf('il quadro intero')).toBeLessThan(prompt.indexOf('## Ti scrive adesso'))
-    // Senza il quadro dal servizio lo calcola lui, senza i segnali veri.
-    expect(componiPromptDialogo(a, 'dove sei?')).toContain('## Le tue chat, una per una')
   })
 
-  it('lo stesso quadro nel «?» dell indicatore (PC, pagina e app mostrano queste righe)', () => {
-    const a = autopilota({ id: 'ap-a', chats: [chat('c-1', { ruolo: 'sviluppo', rapporto: { tipo: 'serve', testo: 'il sì di Nicholas', quando: iso(ORA - 60_000), dichiarato: true } })] })
-    const ind = indicatoreDi({ ...a, segniVeri: { 'c-1': { tipo: 'test', quando: iso(ORA - 60_000) } } }, ORA)
-    expect(ind.dettaglio[0]).toContain('test 1 min fa')
-    expect(ind.dettaglio[0]).toContain('ultimo passo: le serve: il sì di Nicholas (1 min fa)')
-    expect(ind.dettaglio[0]).toContain('ferma: le serve: il sì di Nicholas')
-    expect(ind.aiuto).toContain('l’ultimo passo che la chat ha riferito')
-  })
 })
 
 describe('il servizio salva l ultimo rapporto per chat', () => {
@@ -172,15 +149,13 @@ describe('il servizio salva l ultimo rapporto per chat', () => {
     archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-rapporti-')))
     ora = ORA
     server = creaServer({
+      ...unicoFinto(archivio),
       archivio,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "vai"}', sessionId: 'sup' }),
       avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
       domande: creaRegistroDomande({ adesso: () => ora }),
       scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
       adesso: () => iso(ora),
       codaTrascrizione: (p) => trascrizioni[p]
     })
@@ -241,6 +216,6 @@ describe('il servizio salva l ultimo rapporto per chat', () => {
     expect(r.status).toBe(200)
     const c = archivio.leggi('ap-a')!.chats.find((x) => x.id === 'c-1')!
     expect(c.rapporto).toMatchObject({ tipo: 'finita', testo: 'commit 1a2b3c4, test verdi', dichiarato: true })
-    expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa === 'rapporto da c-1: finita: commit 1a2b3c4, test verdi')).toBe(true)
+    expect(archivio.leggi('ap-a')!.decisioni.some((d) => d.cosa === 'c-1 chiude il turno: fatto — commit 1a2b3c4, test verdi')).toBe(true)
   })
 })

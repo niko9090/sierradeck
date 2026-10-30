@@ -113,7 +113,7 @@ describe('con un repository git vero', () => {
       writeFileSync(join(dir, 'b.txt'), 'nuovo\n'); g('add', '.'); g('commit', '-qm', 'lavoro')
       writeFileSync(join(dir, 'a.txt'), 'uno\nDUE\n')
       mkdirSync(join(dir, 'sub')); writeFileSync(join(dir, 'sub', 'c.txt'), 'x\ny\n')
-      const a: Autopilota = { ...nuovoAutopilota({ id: 'ap-1', nome: 'x', obiettivo: 'o', cwd: dir, criteri: [], iniziatoIl: '2026-10-01T10:00:00.000Z' }), commitBase: base }
+      const a: Autopilota = { ...nuovoAutopilota({ id: 'ap-1', nome: 'x', obiettivo: 'o', cwd: dir, iniziatoIl: '2026-10-01T10:00:00.000Z' }), commitBase: base }
       const [gr] = await fileDellAutopilota(a)
       expect(gr?.file).toEqual([
         { percorso: 'a.txt', stato: 'modificato', piu: 1, meno: 1, salvato: false },

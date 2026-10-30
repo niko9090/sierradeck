@@ -3,7 +3,6 @@ import { frenoPerAutopiloti,
   alberoChat, comeConsegnare, frenoDaiLimiti, pianoPubblicazione, quanteChat, regolaPubblicazione, rilevaCloud, SOGLIE_FRENO
 } from '@shared/harness'
 import { nuovoAutopilota, parseAutopilota, TETTO_CHAT_MAX } from '@shared/autopilota'
-import { tettoDellaFlotta } from '../../src/autopilot-host/flotta'
 
 const ORA = Date.parse('2026-09-30T12:00:00Z')
 
@@ -100,7 +99,7 @@ describe('la pubblicazione per progetto e il cloud (= le chat sul Drive di Sierr
   })
 
   it('le scelte arrivano nell archivio e sopravvivono a una rilettura', () => {
-    const a = nuovoAutopilota({ id: 'a1', nome: 'x', obiettivo: 'o', cwd: 'C:/p', criteri: [], iniziatoIl: '2026-09-30T00:00:00Z', pubblicazione: 'beta', vaSulCloud: true })
+    const a = nuovoAutopilota({ id: 'a1', nome: 'x', obiettivo: 'o', cwd: 'C:/p', iniziatoIl: '2026-09-30T00:00:00Z', pubblicazione: 'beta', vaSulCloud: true })
     const letto = parseAutopilota(JSON.parse(JSON.stringify({ ...a, versione: 1, cloud: { attivo: true, segni: ['sincronizzazione Drive del progetto accesa'] }, consegna: { remoto: 'origin', segni: ['remoto git origin'] }, chats: [{ id: 'c-1', compito: 'x', stato: 'pausa', cicli: 1, cartella: 'C:/p.sierradeck-wt/a1-c-1', ramo: 'ap/a1/c-1' }] })))
     expect(letto.autopilota?.pubblicazione).toBe('beta')
     expect(letto.autopilota?.vaSulCloud).toBe(true)
@@ -112,7 +111,7 @@ describe('la pubblicazione per progetto e il cloud (= le chat sul Drive di Sierr
 
 describe('l albero delle chat (T7)', () => {
   it('il coordinatore con le sue sotto-chat, ramo e parola dello stato', () => {
-    const a = { ...nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/p', criteri: [], iniziatoIl: '' }), chats: [
+    const a = { ...nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/p', iniziatoIl: '' }), chats: [
       { id: 'c-1', compito: 'pagina', stato: 'lavoro' as const, cicli: 2, ramo: 'ap/a1/c-1' },
       { id: 'c-2', compito: 'api', stato: 'pausa' as const, cicli: 1 }
     ] }
@@ -128,16 +127,14 @@ describe('l albero delle chat (T7)', () => {
 // quelli penso io se stiamo consumando troppo».
 describe('frenoPerAutopiloti', () => {
   const limiti = { cinqueOre: { percento: 9 }, settimana: { percento: 64 } }
-  it('acceso, la settimana al 64% con nessuna chat al lavoro lascia passare solo le revisioni', () => {
+  it('acceso, la settimana al 64% non apre chat nuove', () => {
     const f = frenoPerAutopiloti(true, limiti, Date.now())
     expect(f.apriNuove).toBe(false)
-    expect(tettoDellaFlotta(f, 0, TETTO_CHAT_MAX)).toEqual({ tetto: 1, soloRevisioni: true })
   })
-  it('spento, la settimana al 64% non toglie chat: si aprono tutte quelle utili', () => {
+  it('spento, la settimana al 64% non toglie chat', () => {
     for (const p of [64, 85, 99]) {
       const f = frenoPerAutopiloti(false, { cinqueOre: { percento: p }, settimana: { percento: p } }, Date.now())
       expect(f.apriNuove).toBe(true)
-      expect(tettoDellaFlotta(f, 0, TETTO_CHAT_MAX)).toEqual({ tetto: TETTO_CHAT_MAX, soloRevisioni: false })
     }
   })
 })

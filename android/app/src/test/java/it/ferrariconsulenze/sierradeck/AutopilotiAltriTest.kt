@@ -33,6 +33,6 @@ class AutopilotiAltriTest {
 
     @Test
     fun `le azioni passano dal ponte, rispondere compreso`() {
-        for (r in listOf("/api/autopilota", "/api/autopilota/dialogo", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/rispondi")) assertTrue(r, r in Ponte.ROTTE)
+        for (r in listOf("/api/autopilota", "/api/autopilota/dialogo", "/api/autopilota/avanzamento", "/api/rispondi")) assertTrue(r, r in Ponte.ROTTE)
     }
 }

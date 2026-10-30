@@ -4,7 +4,7 @@ import type { VoceDomanda } from '@shared/domande-telefono'
 import { nuovoAutopilota } from '@shared/autopilota'
 
 const ap = {
-  ...nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'Rifai la home', cwd: 'C:/sito', criteri: [], iniziatoIl: '2026-09-30T08:00:00Z' }),
+  ...nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'Rifai la home', cwd: 'C:/sito', iniziatoIl: '2026-09-30T08:00:00Z' }),
   dialogo: [{ quando: '2026-09-30T08:10:00Z', da: 'tu' as const, testo: 'usa il blu' }, { quando: '2026-09-30T08:11:00Z', da: 'lui' as const, testo: 'va bene' }]
 }
 
@@ -14,7 +14,6 @@ describe('le Domande come conversazioni a messaggi', () => {
     const [c] = conversazioniDomande({ voci, autopiloti: [ap] })
     expect(c).toMatchObject({ chiave: 'ap:a1', tipo: 'autopilota', chiede: true, risposta: { via: 'rispondi', domanda: 'd1' } })
     const testi = c!.messaggi.map((m) => `${m.da}:${m.testo}`)
-    expect(testi[0]).toBe('tu:Rifai la home')
     expect(testi).toContain('tu:usa il blu')
     expect(testi).toContain('lui:va bene')
     expect(c!.messaggi[c!.messaggi.length - 1]).toMatchObject({ da: 'lui', testo: 'Che font uso?', tono: 'domanda' })

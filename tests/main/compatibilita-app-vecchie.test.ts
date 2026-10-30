@@ -67,7 +67,7 @@ function deps(over: Partial<DipendenzeRotte> = {}): DipendenzeRotte {
     ],
     autopiloti: () => Promise.resolve([
       { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p',
-        criteri: [{ descrizione: 'x', soddisfatto: true }, { descrizione: 'y', soddisfatto: false }],
+        
         iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'attesa' as const, motivoSospensione: 'chiave?' }
     ]),
     rispondi: () => Promise.resolve(),

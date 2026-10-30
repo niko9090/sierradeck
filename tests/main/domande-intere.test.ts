@@ -4,8 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
-import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { domandaChiara } from '../../src/autopilot-host/risposta-autonoma'
+import { creaRegistroDomande, type RegistroDomande } from '../../src/autopilot-host/domande'
+import { apriCode } from '../../src/autopilot-host/coda-store'
+import { apriOrchestratori } from '../../src/autopilot-host/orchestratore-store'
+import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import { creaClientAutopilota } from '../../src/main/autopilot-client'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
@@ -18,6 +20,27 @@ import { orologioDa } from '../setup/orologio'
 // L'orologio del servizio di prova parte da un istante fisso e avanza col
 // tempo vero: le attese funzionano come prima, il giorno non cambia mai.
 const orologio = orologioDa('2026-10-29T10:00:00.000Z')
+
+/** P4: il servizio vero con l'autopilota del workspace «Lavoro» già scritto. */
+function servizioCon(a: Autopilota, domande: RegistroDomande): ServerAutopiloti {
+  const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-dom-')))
+  archivio.scrivi(a)
+  const cartella = mkdtempSync(join(tmpdir(), 'sd-dom-orch-'))
+  const orchestratori = apriOrchestratori(cartella)
+  orchestratori.cambiaImpostazioni('Lavoro', (i) => ({ ...i, autopilota: a.id }))
+  const avviaProcesso: AvviaProcesso = () => ({ scrivi: () => {}, uccidi: () => {}, suRiga: () => {}, suUscita: () => {} }) as unknown as ProcessoClaude
+  return creaServer({
+    archivio, domande,
+    esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
+    avviaLavoro: () => Promise.resolve(),
+    avvisa: () => Promise.resolve(),
+    scadenzaDomandaMs: 60_000,
+    adesso: orologio.iso,
+    coda: apriCode(cartella),
+    orchestratori,
+    avviaProcesso
+  })
+}
 
 /**
  * «Le domande sono tutte tagliate» (Nicholas, 02/10, 0.39.1).
@@ -43,44 +66,21 @@ describe('la domanda arriva intera, con i suoi a capo', () => {
     expect(OBIETTIVO.length).toBeGreaterThan(800)
   })
 
-  it('domandaChiara la tiene intera e la mette prima dell obiettivo', () => {
-    const a = nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: OBIETTIVO, cwd: '.', criteri: [], iniziatoIl: '2026-10-02T09:00:00.000Z' })
-    const t = domandaChiara(a, LUNGA)
-    expect(t).toContain(LUNGA)
-    expect(t.indexOf(LUNGA)).toBeLessThan(t.indexOf(OBIETTIVO))
-    // Il vecchio taglio a 500 caratteri la perdeva del tutto.
-    expect(t.slice(0, 500)).not.toContain(LUNGA)
-  })
-
   it('il servizio non accorcia piu le domande', () => {
     const server = readFileSync(join(__dirname, '../../src/autopilot-host/server.ts'), 'utf8')
-    expect(server).not.toMatch(/domandaChiara\([^)]*\)\s*\.slice\(/)
-    expect(server).not.toMatch(/domandaChiara\(\s*a,[\s\S]{0,120}?\)\.slice\(/)
     expect(server).not.toContain('motivoSospensione: decisione.domanda.slice(')
     expect(server).not.toContain('motivoSospensione: esito.testo.slice(')
   })
 
   it('dal servizio vero alla colonna, alla linguetta e al telefono: uguale carattere per carattere', async () => {
-    const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-intere-')))
     const domande = creaRegistroDomande({ adesso: orologio.ms })
-    archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: OBIETTIVO, cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-02T09:00:00.000Z' }),
+    server = servizioCon({
+      ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: OBIETTIVO, cwd: process.cwd(), iniziatoIl: '2026-10-02T09:00:00.000Z', workspace: 'Lavoro' }),
       stato: 'lavoro'
-    })
-    server = creaServer({
-      archivio, domande,
-      esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "finito"}' }),
-      avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => undefined,
-      avvisa: () => Promise.resolve(),
-      scadenzaDomandaMs: 60_000,
-      scadenzaInterviataMs: 60_000,
-      adesso: orologio.iso
-    })
+    }, domande)
     const porta = await new Promise<number>((ok) => server!.listen(0, '127.0.0.1', () => ok((server!.address() as { port: number }).port)))
-    const a = archivio.leggi('ap-1') as Autopilota
-    const testo = domandaChiara(a, LUNGA)
+    // P4: la domanda è quella che l'autopilota scrive con «chiedi_utente», intera.
+    const testo = LUNGA
     domande.apri({ autopilotaId: 'ap-1', testo, scadenzaMs: 60_000 })
 
     const client = creaClientAutopilota({ porta, avviaServizio: () => undefined })

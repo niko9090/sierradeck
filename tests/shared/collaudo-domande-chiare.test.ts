@@ -98,7 +98,7 @@ describe('difetti trovati dal collaudo', () => {
         domanda: 'Pubblico adesso una 0.81.1 con la correzione delle chat chiuse?',
         risposta: 'Superata, non serve più: la 0.81.1 è già pubblicata', quando: '2026-10-21T13:45:32.663Z'
       }],
-      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', criteri: [], iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
+      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
     })
     const testi = JSON.stringify(c)
     expect(testi).not.toContain('risposta dall’autopilota: Superata')
@@ -112,7 +112,7 @@ describe('difetti trovati dal collaudo', () => {
   it('una risposta vera dell’autopilota resta «risposta dall’autopilota»', () => {
     const [c] = conversazioniDomande({
       voci: [{ tipo: 'risolta', autopilotaId: 'ap-1', autopilota: 'App Android', domanda: 'Uso la porta 8080?', risposta: 'Sì, usa la 8080.', quando: '2026-10-21T13:45:32.663Z' }],
-      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', criteri: [], iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
+      autopiloti: [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'x', cwd: '.', iniziatoIl: '2026-10-21T06:00:00.000Z' }), stato: 'lavoro' }]
     })
     expect(c!.scheda?.risposta).toBe('Sì, usa la 8080.')
     expect(c!.scheda?.superata).toBeUndefined()

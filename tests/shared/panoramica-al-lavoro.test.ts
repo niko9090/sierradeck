@@ -18,7 +18,7 @@ import { nuovoAutopilota, parseAutopilota, type Autopilota, type ChatGovernata }
 const ORA = Date.parse('2026-10-18T10:30:00.000Z')
 const MIN = 60_000
 const ap = (x: Partial<Autopilota> = {}): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Gestione delle chat', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-18T09:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Gestione delle chat', cwd: 'C:\\p', iniziatoIl: '2026-10-18T09:00:00.000Z' }),
   ...x
 })
 const chat = (id: string, compito: string, stato: ChatGovernata['stato'], x: Partial<ChatGovernata> = {}): ChatGovernata => ({ id, compito, stato, cicli: 1, sessionId: `s-${id}`, ...x })

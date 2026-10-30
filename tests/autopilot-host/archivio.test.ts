@@ -12,7 +12,6 @@ function dir(): string {
 function esempio(id = 'ap-1'): Autopilota {
   return nuovoAutopilota({
     id, nome: 'Test verdi', obiettivo: 'Fai passare la suite', cwd: 'C:\\p',
-    criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }],
     iniziatoIl: '2026-08-09T10:00:00.000Z'
   })
 }
@@ -62,12 +61,12 @@ describe('apriArchivio', () => {
 
   it('non ripete lo stesso avviso a ogni lettura', () => {
     // L'elenco viene riletto ogni cinque secondi finche' il pannello e' aperto:
-    // un file che il parser corregge — per esempio uno rimasto senza criteri —
+    // un file che il parser corregge — per esempio una chat rimasta senza id —
     // scriverebbe la stessa riga diciassettemila volte al giorno, e il log
     // smetterebbe di essere il posto dove si guarda quando qualcosa non va.
     const d = dir()
     const a = apriArchivio(d)
-    a.scrivi({ ...esempio('ap-1'), stato: 'lavoro', criteri: [] })
+    a.scrivi({ ...esempio('ap-1'), stato: 'lavoro', chats: [{ compito: 'senza id' } as never] })
     const avvisi = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       a.elenca()
@@ -85,12 +84,12 @@ describe('apriArchivio', () => {
     // Silenziare per sempre nasconderebbe un problema nuovo dietro uno vecchio.
     const d = dir()
     const a = apriArchivio(d)
-    a.scrivi({ ...esempio('ap-1'), stato: 'lavoro', criteri: [] })
+    a.scrivi({ ...esempio('ap-1'), stato: 'lavoro' })
     const avvisi = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       a.elenca()
       const primi = avvisi.mock.calls.length
-      writeFileSync(join(d, 'ap-1.json'), JSON.stringify({ versione: 1, id: 'ap-1', obiettivo: 'o', cwd: 'C:\p', stato: 'attesa', criteri: [{ descrizione: '' }] }), 'utf8')
+      writeFileSync(join(d, 'ap-1.json'), JSON.stringify({ versione: 1, id: 'ap-1', obiettivo: 'o', cwd: 'C:\p', stato: 'boh' }), 'utf8')
       a.elenca()
       expect(avvisi.mock.calls.length).toBeGreaterThan(primi)
     } finally {

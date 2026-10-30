@@ -15,7 +15,7 @@ const iso = (ms: number): string => new Date(ms).toISOString()
 const chat = (id: string, x: Partial<ChatGovernata> = {}): ChatGovernata =>
   ({ id, compito: `Il compito di ${id}.`, stato: 'lavoro', cicli: 2, sessionId: `s-${id}`, ...x })
 const ap: Autopilota = {
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'x', cwd: 'C:\\p', criteri: [], iniziatoIl: iso(ORA - 900 * 60_000) }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'x', cwd: 'C:\\p', iniziatoIl: iso(ORA - 900 * 60_000) }),
   stato: 'lavoro',
   chats: [chat('c-14', { cicli: 0, dal: iso(ORA - 844 * 60_000) }), chat('c-3', { ruolo: 'sviluppo', dal: iso(ORA - 5 * 60_000) }), chat('c-5', { stato: 'finita' })]
 }
@@ -41,8 +41,8 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota!} dentro />')
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro soloFerme />')
     const chatAp = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
-    // 0.84.3: le righe delle chat stanno nel Punto in cima; nella Panoramica il Punto le lascia alla sua sezione «Adesso».
-    expect(chatAp).toContain('<PuntoAutopilota autopilota={autopilota} senzaChat={soloConversazione} />')
+    // 30/10: il Punto non c'è più; in testa c'è l'avanzamento del workspace.
+    expect(chatAp).toContain('<TestaOrchestratore workspace={chiaveWorkspace(autopilota)} />')
     expect(chatAp).not.toContain('<AdessoAutopilota')
   })
 

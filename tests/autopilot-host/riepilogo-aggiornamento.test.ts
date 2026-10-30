@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import type { Git } from '../../src/autopilot-host/worktree'
@@ -16,8 +17,8 @@ import { conversazione } from '@shared/chat-autopilota'
  *
  * (Banco preso da nessuna-consegna-dopo-installa.test.ts.) Dopo «Installa» l'autopilota non dà nuove consegne (0.84.1). Prima la pausa
  * valeva solo per gli autopiloti «al lavoro» in quel momento e solo alla fine
- * del turno: un autopilota in pausa per i limiti ripartiva col freno, uno
- * appena ripreso riceveva il suo giro, e l'attesa della quiete ricominciava.
+ * del turno: uno appena ripreso riceveva il suo giro, e l'attesa della quiete
+ * ricominciava.
  * E «Aggiorna adesso» salva il lavoro di ogni chat con un commit sul suo ramo.
  */
 let server: ServerAutopiloti
@@ -45,12 +46,12 @@ function autopilota(over: Partial<Autopilota> = {}): Autopilota {
       nome: 'Prova',
       obiettivo: 'Fai passare i test',
       cwd: process.cwd(),
-      criteri: [{ descrizione: 'test verdi', comando: 'npm test', soddisfatto: false }],
       iniziatoIl: '2026-10-22T01:00:00.000Z'
     }),
     stato: 'lavoro',
     cicli: 3,
     sessionId: 's-1',
+    chats: [{ id: 'c-1', compito: 'i test', stato: 'lavoro', cicli: 1, sessionId: 's-c-1' }],
     ...over
   }
 }
@@ -71,15 +72,13 @@ beforeEach(async () => {
   commit = []
   orologio = Date.parse('2026-10-22T09:00:00.000Z')
   server = creaServer({
+    ...unicoFinto(archivio),
     archivio,
     esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-    interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzione": "vai avanti"}' }),
     avviaLavoro: (a) => { ripartite.push(a.id); return Promise.resolve() },
-    fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande: creaRegistroDomande({ adesso: () => Date.now() }),
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     git,
     adesso: ora
   })

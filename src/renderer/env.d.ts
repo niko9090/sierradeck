@@ -7,7 +7,7 @@ import type { StatoWorkspace } from '../main/ipc'
 import type { ApiNegozio } from '@shared/negozio'
 import type { Istantanea } from '@shared/istantanea'
 import type {
-  NuovoAutopilota, DomandaAperta, CambioAutopilota, RicevutaDialogo, RispostaParlata
+  NuovoAutopilota, DomandaAperta, RicevutaDialogo
 } from '../main/autopilot-client'
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
@@ -408,38 +408,17 @@ declare global {
         elenca: () => Promise<Autopilota[]>
         /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
         dettaglio: (id: string, versione?: string) => Promise<{ versione?: string; autopilota?: Autopilota }>
-        crea: (p: NuovoAutopilota & { partenza?: 'via' | 'subito' }) => Promise<Autopilota>
-        /** Il via a chi si è preparato e aspetta di essere letto. */
-        vai: (id: string) => Promise<Autopilota>
-        /** Cambia obiettivo, criteri o compiti. Quello che non nomini resta com'era. */
-        modifica: (id: string, cambio: CambioAutopilota) => Promise<Autopilota>
-        /** Glielo dici a parole: traduce lui in criteri e compiti, e lo applica. */
-        parla: (id: string, testo: string) => Promise<RispostaParlata>
+        crea: (p: NuovoAutopilota) => Promise<Autopilota>
         /** Gli scrivi: torna subito la ricevuta, la risposta compare nel suo `dialogo`. */
         dialoga: (id: string, testo: string) => Promise<RicevutaDialogo>
-        /** Rimette com'era prima dell'ultima cosa che gli hai detto. */
-        disfa: (id: string) => Promise<Autopilota>
-        ferma: (id: string) => Promise<void>
-        riprendi: (id: string) => Promise<void>
-        riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
-        sottofondo: (id: string, si: boolean) => Promise<void>
-        ricontrollaCriteri: (id: string) => Promise<void>
         /** «Pulisci adesso» (0.85.2): copie e rami delle chat concluse; torna la riga del riepilogo. */
         pulisci: () => Promise<string>
-        archivia: (id: string, archivia: boolean) => Promise<void>
-        /** «Sposta in un altro workspace» (0.81.0): cambia solo dove compare il suo lavoro. */
-        spostaInWorkspace: (id: string, workspace: string) => Promise<void>
-        mandaAdesso: (id: string) => Promise<{ mandate: number; messaggio?: string }>
         nota: (id: string, testo: string) => Promise<void>
         /** Una consegna il cui workspace non è sullo schermo (0.60.8): la porta il Core in sottofondo. */
         inSottofondo: (c: unknown) => Promise<boolean>
         file: (id: string) => Promise<import('@shared/file-autopilota').GruppoChat[]>
         diff: (id: string, chiave: string, percorso: string) => Promise<string>
-        elimina: (id: string) => Promise<void>
         domande: () => Promise<DomandaAperta[]>
-        istruzioni: (id: string) => Promise<import('@shared/istruzioni-autopilota').Istruzione[]>
-        /** I tempi dei suoi giri in una riga (0.71.0). */
-        tempi: (id: string) => Promise<string | undefined>
         postiChat: () => Promise<import('@shared/posti-chat').PostiChat | undefined>
         /** P1: la coda delle richieste del workspace, con le percentuali. Un servizio vecchio: `undefined`. */
         coda: (ws: string) => Promise<import('@shared/coda-richieste').VistaCoda | undefined>
@@ -447,10 +426,8 @@ declare global {
         codaSepara: (ws: string, id: string) => Promise<import('@shared/coda-richieste').VistaCoda>
         /** Unisce a mano: ogni punto delle richieste unite va nominato. */
         codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }) => Promise<import('@shared/coda-richieste').VistaCoda>
-        /** P3: l'autopilota unico del workspace (vista, interruttore, impostazioni). */
+        /** P3: l'autopilota del workspace (vista e impostazioni). */
         orchestratore: (ws: string) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined>
-        attivaOrchestratore: (ws: string, cwd?: string) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
-        disattivaOrchestratore: (ws: string) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
@@ -501,16 +478,6 @@ declare global {
       /** La scheda Domande del PC: le rotte del telefono per rispondere (0.36.0). */
       domande: {
         chiama: (percorso: string, corpo?: unknown) => Promise<{ stato: number; corpo: unknown }>
-      },
-      pannello: {
-        stacca: (autopilota: string, linguetta: string) => Promise<void>
-        rimetti: (autopilota: string, linguetta: string) => Promise<void>
-        aperti: () => Promise<{ autopilota: string; linguetta: string }[]>
-        richiama: () => Promise<void>
-        inVista: (autopiloti: string[]) => void
-        mostraDomande: (autopilota: string, automatico: boolean) => Promise<void>
-        suMostraDomande: (cb: (autopilota: string) => void) => () => void
-        suCambio: (cb: (aperti: { autopilota: string; linguetta: string }[]) => void) => () => void
       }
     }
   }

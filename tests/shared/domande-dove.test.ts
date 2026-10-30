@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { azioneTastoDomande, decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { doveMostrareDomande } from '@shared/finestra-pannello'
 
@@ -73,25 +71,5 @@ describe('dove si apre la linguetta «Domande» di un autopilota', () => {
   })
   it('nessuna scheda in vista: la linguetta in una finestra pannello, mai la colonna', () => {
     expect(doveMostrareDomande({ staccata: false, finestreConScheda: [] })).toEqual({ tipo: 'apri-pannello' })
-  })
-})
-
-describe('come e collegato', () => {
-  const leggi = (p: string): string => readFileSync(join(__dirname, '../../src', p), 'utf8')
-  it('App: le linguette vanno al main, il tasto passa da azioneTastoDomande', () => {
-    const app = leggi('renderer/App.tsx')
-    expect(app).toContain('for (const id of d.linguette) void window.gestore.pannello.mostraDomande(id, true)')
-    expect(app).toContain('azioneTastoDomande(ultimeConversazioni.current, colonnaDomande.aperta)')
-  })
-  it('la scheda si segna in vista e, con una domanda nuova, si apre anche se era chiusa', () => {
-    const diario = leggi('renderer/components/DiarioAutopilota.tsx')
-    expect(diario).toContain('segnaSchedaInVista(autopilota.id)')
-    expect(diario).toMatch(/domandaArrivata\(viste\.current, schede\)[\s\S]{0,200}setAperto\(true\)/)
-  })
-  it('il main sceglie con doveMostrareDomande e non ruba la tastiera quando e automatico', () => {
-    const main = leggi('main/index.ts')
-    expect(main).toContain("ipcMain.handle('pannello:mostraDomande'")
-    expect(main).toContain('doveMostrareDomande(')
-    expect(main).toContain("apriPannello(id, 'domande', { inattiva: automatico })")
   })
 })

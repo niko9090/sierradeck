@@ -18,7 +18,7 @@ import { apriDispositivi } from '../../src/main/dispositivi'
 
 /** Un autopilota al lavoro da tanto: `n` decisioni, una al secondo. */
 function lungo(n: number): Autopilota {
-  const base = nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-01T00:00:00.000Z' })
+  const base = nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:\\p', iniziatoIl: '2026-10-01T00:00:00.000Z' })
   const decisioni = Array.from({ length: n }, (_, i) => ({ quando: new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString(), cosa: `supervisore → continua: passo numero ${i}` }))
   return { ...base, decisioni }
 }
@@ -52,7 +52,7 @@ describe('/api/autopilota leggera (0.86.0)', () => {
     const r = await chiedi(lungo(500), { autopilota: 'ap-1' }, 'leggero=1')
     expect(r.stato).toBe(200)
     expect(r.corpo.decisioni).toHaveLength(CODA_LEGGERA.decisioni)
-    expect(r.corpo.troncati).toEqual({ decisioni: 500, dialogo: 0, modifiche: 0 })
+    expect(r.corpo.troncati).toEqual({ decisioni: 500, dialogo: 0 })
     const chat = r.corpo.chat as { testo: string }[]
     const tutta = intera.corpo.chat as { testo: string }[]
     expect(chat).toHaveLength(CODA_CHAT_LEGGERA)

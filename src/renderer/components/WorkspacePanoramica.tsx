@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
-import type { Conversazione } from '@shared/domande-conversazioni'
 import type { Dormiente } from '@shared/migrazione-elenco'
 import {
-  adessoEFinite, colonnePiano, daQuanto, linguetteVisibili, nomeLinguetta, pianoAutopilota, riassuntoAlLavoro, SIMBOLO_STATO, situazioneAutopilota, sottoAlLavoro, titoloAlLavoro,
-  type CompitoPiano, type RigaAlLavoro, type SchedaChat, type StatoScheda
+  adessoEFinite, daQuanto, linguetteVisibili, nomeLinguetta, riassuntoAlLavoro, SIMBOLO_STATO, sottoAlLavoro, titoloAlLavoro,
+  type RigaAlLavoro, type SchedaChat, type StatoScheda
 } from '@shared/panoramica'
 import { CHAT_GENERICA } from '@shared/adozione'
 import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
@@ -13,11 +12,9 @@ import type { Segnale } from '@shared/segnali-chat'
 import { ChatAutopilota } from './ChatAutopilota'
 import { AdessoAutopilota } from './DalVivoAutopilota'
 import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
-import { DomandeALato } from './DomandeALato'
 import { Aiuto } from './Aiuto'
 import { LegendaAttivita, SegnoAttivita } from './SegnoAttivita'
 import { coloreDi } from '@shared/colori-attivita'
-import { chiediNuovoAutopilota, SPIEGA_CREA_AUTOPILOTA } from '../nuovo-autopilota'
 import { AzioniChat } from './AzioniChat'
 import { TastoMicrofono } from './TastoMicrofono'
 
@@ -42,7 +39,7 @@ export type SchedaVista = SchedaChat & {
   ultimaAzione: string
   righe: string[]
   dal?: number
-  /** Ha una domanda breve nella colonna di destra. */
+  /** Ha una domanda che aspetta te, nella colonna Domande. */
   domanda?: boolean
   /** Guarda una chat di un altro PC. */
   suPc?: string
@@ -158,10 +155,21 @@ export function InterruttoreVista({ vista, onPanoramica, onAffiancate }: {
 }
 
 /** La barra della vista con tutte le chat affiancate: solo l'interruttore, nello stesso posto (0.78.1). */
-export function BarraAffiancate({ onPanoramica }: { onPanoramica: () => void }): React.JSX.Element {
+export function BarraAffiancate({ onPanoramica, colonna = false, onColonna, conAutopilota = false }: {
+  onPanoramica: () => void
+  /** La colonna dell'autopilota del workspace (30/10): anche fra le chat affiancate. */
+  colonna?: boolean
+  onColonna?: (v: boolean) => void
+  conAutopilota?: boolean
+}): React.JSX.Element {
   return (
     <div className="pan-barra" aria-label="Vista del workspace">
       <span style={{ flex: 1 }} />
+      {conAutopilota && onColonna !== undefined ? (
+        <button className="tasto tasto--mini" aria-pressed={colonna} onClick={() => onColonna(!colonna)} title="Apre o chiude la colonna dell'autopilota">
+          {colonna ? '⟨ Autopilota' : 'Autopilota ⟩'}
+        </button>
+      ) : null}
       <InterruttoreVista vista="affiancate" onPanoramica={onPanoramica} onAffiancate={() => undefined} />
     </div>
   )
@@ -170,26 +178,23 @@ export function BarraAffiancate({ onPanoramica }: { onPanoramica: () => void }):
 /**
  * Il corpo della Panoramica 2 (0.78.0). Nicholas sulla 0.77.0: «puoi fare
  * meglio». Rivista da un agente UI/UX prima del codice:
- * - in alto la situazione: obiettivo su 2 righe («Mostra tutto»), stato
- *   coerente con i criteri, barra a segmenti dei criteri con l'elenco al clic;
- * - a sinistra solo la conversazione con l'autopilota; gli eventi tecnici in
- *   «Cosa è successo ▸», chiuso;
- * - al centro «Adesso» (solo chi lavora o aspetta te), il «Piano» a colonne,
- *   le altre chat del workspace («Chat», anche quelle adottate), «Finite: N ▸»;
- * - a destra le domande, solo se ci sono.
+ * - in alto il workspace e quante chat ha;
+ * - a sinistra l'autopilota del workspace: avanzamento, coda delle richieste e
+ *   conversazione; gli eventi tecnici in «Cosa è successo ▸», chiuso;
+ * - al centro «Adesso» (solo chi lavora o aspetta te), le altre chat del
+ *   workspace («Chat», anche quelle adottate), «Finite: N ▸».
+ * Le domande stanno solo nella colonna Domande (30/10: un posto solo).
  * In ogni workspace, anche senza autopilota (c-30): le chat esistenti sono schede.
  */
-export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, domande, paneDiSessione, onApri, onRicarica, onRisposto, onSoloMia }: {
+export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede, onApri, onRicarica, onSoloMia }: {
   workspace: string
   autopilota?: Autopilota
   dormiente?: Dormiente
+  /** La cartella di una chat del workspace: dove nasce il suo autopilota, se non c'è ancora. */
+  cwd?: string
   schede: SchedaVista[]
-  domande: Conversazione[]
-  /** Il riquadro aperto di una conversazione: per aprire la chat di un compito. */
-  paneDiSessione: (sessione: string) => string | undefined
   onApri: (paneId: string) => void
   onRicarica: () => void
-  onRisposto: () => void
   onSoloMia: (s: SchedaVista, si: boolean) => void
 }): React.JSX.Element {
   const ora = Date.now()
@@ -204,17 +209,20 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
   // quelle dell'autopilota (specialisti, la sua chat) in «Finite: N ▸».
   const chat = finite.filter((s) => s.specialista !== true)
   const finiteAp = finite.filter((s) => s.specialista === true)
-  const piano = autopilota !== undefined ? colonnePiano(pianoAutopilota(autopilota)) : []
-  const compiti = piano.reduce((n, c) => n + c.compiti.length, 0)
-  const conDomande = domande.length > 0
+  const cartella = dormiente?.cwd ?? cwd
   return (
-    <div className={`pan-corpo pan2${conDomande ? ' pan2--domande' : ''}`} aria-label={`Panoramica di ${workspace}`}>
-      <Situazione workspace={workspace} {...(autopilota !== undefined ? { autopilota } : {})} chat={schede.length} ora={ora} />
+    <div className="pan-corpo pan2" aria-label={`Panoramica di ${workspace}`}>
+      <header className="pan2-situazione">
+        <div className="pan2-obiettivo">
+          Workspace «{workspace}»: {schede.length === 1 ? 'una chat' : `${schede.length} chat`}.{autopilota === undefined ? ' Il suo autopilota aspetta il tuo primo messaggio, a sinistra.' : ''}
+          <Aiuto di="la Panoramica">A sinistra l’autopilota del workspace: l’avanzamento, la coda delle richieste e la conversazione con lui; quello che ha fatto da solo è in «Cosa è successo». Al centro: «Adesso» le chat al lavoro o che aspettano te, le altre chat del workspace, le finite. Tocca una scheda per aprire la sua chat. «Solo mia» su una chat: l’autopilota non la tocca e non le scrive. Le domande stanno nella colonna Domande.</Aiuto>
+        </div>
+      </header>
       <section className="pan2-dialogo" aria-label="Conversazione con l’autopilota">
         {autopilota !== undefined ? (
           <ChatAutopilota autopilota={autopilota} onCambiato={onRicarica} soloConversazione campoPronto />
         ) : (
-          <PrimoMessaggio workspace={workspace} dormiente={dormiente} onRicarica={onRicarica} />
+          <PrimoMessaggio workspace={workspace} {...(cartella !== undefined ? { cwd: cartella } : {})} onRicarica={onRicarica} />
         )}
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
@@ -238,21 +246,6 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
           )}
         </div>
         )}
-        {autopilota !== undefined && compiti > 0 ? (
-          <div className="pan2-sezione">
-            <div className="serigrafia">Piano · {compiti} compiti</div>
-            <div className="pan2-piano" role="list">
-              {piano.map((c) => (
-                <div key={c.fase} className={`pan2-colonna pan2-colonna--${c.fase}`} role="listitem" aria-label={`${c.nome}: ${c.compiti.length}`}>
-                  <div className="pan2-colonna__testa">{c.nome} <span>{c.compiti.length}</span></div>
-                  <div className="pan2-colonna__corpo">
-                    {c.compiti.map((x) => <CompitoVista key={x.id} c={x} pane={x.sessione !== undefined ? paneDiSessione(x.sessione) : undefined} onApri={onApri} />)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
         {chat.length > 0 ? (
           <div className="pan2-sezione">
             <div className="serigrafia">Chat · {chat.length}</div>
@@ -262,15 +255,10 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, schede, doma
           </div>
         ) : null}
         {finiteAp.length > 0 ? <Finite schede={finiteAp} ora={ora} onApri={onApri} /> : null}
-        {schede.length === 0 && compiti === 0 ? (
+        {schede.length === 0 ? (
           <p className="pan2-vuoto">Nessuna chat. L’autopilota le apre quando serve; puoi anche aprirne una con «+ Nuova chat».</p>
         ) : null}
       </section>
-      {conDomande ? (
-        <section className="pan2-domande" aria-label="Domande">
-          <DomandeALato conversazioni={domande} onRisposto={onRisposto} />
-        </section>
-      ) : null}
     </div>
   )
 }
@@ -319,78 +307,6 @@ function PillolaRuolo({ ruolo, nome }: { ruolo?: Ruolo; nome?: string }): React.
     <span className="pan2-ruolo" style={{ color: r !== undefined ? coloreDi(r.colore) : 'var(--testo-quieto)', borderColor: r !== undefined ? coloreDi(r.colore) : 'var(--bordo)' }}>
       <b aria-hidden>{ruolo !== undefined ? LETTERA_RUOLO[ruolo] : '·'}</b>{testo}
     </span>
-  )
-}
-
-/** In alto: obiettivo su 2 righe, stato coerente, barra dei criteri con l'elenco al clic. */
-function Situazione({ workspace, autopilota, chat, ora }: { workspace: string; autopilota?: Autopilota; chat: number; ora: number }): React.JSX.Element {
-  const [tutto, setTutto] = useState(false)
-  const [criteriAperti, setCriteriAperti] = useState(false)
-  // L'elenco dei criteri si chiude con un clic fuori o con Esc (prova del 16/10: restava aperto sopra la conversazione).
-  const zonaCriteri = useRef<HTMLSpanElement | null>(null)
-  useEffect(() => {
-    if (!criteriAperti) return
-    const fuori = (e: MouseEvent): void => { if (zonaCriteri.current !== null && !zonaCriteri.current.contains(e.target as Node)) setCriteriAperti(false) }
-    const esc = (e: KeyboardEvent): void => { if (e.key === 'Escape') setCriteriAperti(false) }
-    document.addEventListener('mousedown', fuori)
-    document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', fuori); document.removeEventListener('keydown', esc) }
-  }, [criteriAperti])
-  // «Mostra tutto» solo se l'obiettivo non sta nelle 2 righe (prova del 16/10: compariva anche quando ci stava).
-  const testo = useRef<HTMLDivElement | null>(null)
-  const [tagliato, setTagliato] = useState(false)
-  useEffect(() => {
-    const el = testo.current
-    if (el === null) return
-    const misura = (): void => setTagliato(el.scrollHeight > el.clientHeight + 2)
-    misura()
-    const ro = new ResizeObserver(misura)
-    ro.observe(el)
-    return () => ro.disconnect()
-  })
-  if (autopilota === undefined) {
-    return (
-      <header className="pan2-situazione">
-        <div className="pan2-obiettivo">Workspace «{workspace}»: {chat === 1 ? 'una chat' : `${chat} chat`}. Il suo autopilota aspetta il tuo primo messaggio, a sinistra.</div>
-      </header>
-    )
-  }
-  const s = situazioneAutopilota(autopilota, ora)
-  return (
-    <header className="pan2-situazione">
-      <div ref={testo} className={`pan2-obiettivo${tutto ? ' pan2-obiettivo--tutto' : ''}`} title={s.obiettivo}>{s.obiettivo}</div>
-      {tagliato || tutto ? <button className="collegamento pan2-tutto" onClick={() => setTutto((v) => !v)}>{tutto ? 'Meno' : 'Mostra tutto'}</button> : null}
-      <div className="pan2-stato">
-        <span className="pan2-stato__parola" style={{ color: coloreDi(s.stato.colore) }} title={s.stato.ragione}>
-          {s.stato.simbolo} {s.stato.parola}
-        </span>
-        {s.stato.id === 'da-verificare' ? <span className="pan2-stato__perche">dice finito · criteri {s.criteri.testo}</span> : null}
-        {s.criteri.totali > 0 ? (
-          <span className="pan2-criteri" ref={zonaCriteri}>
-            <button className="pan2-criteri__tasto" aria-expanded={criteriAperti} onClick={() => setCriteriAperti((v) => !v)} title="I criteri di fine, uno per uno">
-              <span className="pan2-barra" aria-hidden>
-                {s.criteri.elenco.map((c, i) => <i key={i} className={`pan2-barra__pezzo pan2-barra__pezzo--${c.esito}`} />)}
-              </span>
-              Criteri {s.criteri.testo} {criteriAperti ? '▾' : '▸'}
-            </button>
-            {criteriAperti ? (
-              <div className="pan2-criteri__elenco" role="dialog" aria-label="Criteri di fine">
-                {s.criteri.elenco.map((c, i) => (
-                  <div key={i} className={`pan2-criterio pan2-criterio--${c.esito}`}>
-                    <span className="pan2-criterio__segno" aria-label={c.esito === 'si' ? 'soddisfatto' : c.esito === 'no' ? 'non soddisfatto' : 'mai controllato'}>{c.esito === 'si' ? '✓' : c.esito === 'no' ? '✗' : '○'}</span>
-                    <span className="pan2-criterio__testo">
-                      <span className="pan2-criterio__descr">{c.descrizione}</span>
-                      <span className="pan2-criterio__quando">{c.quando !== undefined ? `controllato alle ${orario(c.quando)}` : 'mai controllato'}{c.prova !== undefined ? ` · ${c.prova}` : ''}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </span>
-        ) : <span className="pan2-stato__perche">nessun criterio di fine</span>}
-        <Aiuto di="la Panoramica">In alto la situazione: l’obiettivo, lo stato (dice «finito» solo se tutti i criteri sono soddisfatti) e i criteri; tocca la barra per vederli uno per uno. A sinistra parli con l’autopilota; quello che ha fatto da solo è in «Cosa è successo». Al centro: «Adesso» le chat al lavoro o che aspettano te, il «Piano» con i compiti e chi li fa, le altre chat del workspace, le finite. Tocca una scheda o un compito per aprire la sua chat. «Solo mia» su una chat: l’autopilota non la tocca e non le scrive.</Aiuto>
-      </div>
-    </header>
   )
 }
 
@@ -450,24 +366,6 @@ function TastoSoloMia({ s, onSoloMia }: { s: SchedaVista; onSoloMia: (s: SchedaV
   )
 }
 
-function CompitoVista({ c, pane, onApri }: { c: CompitoPiano; pane?: string; onApri: (p: string) => void }): React.JSX.Element {
-  const dentro = (
-    <>
-      <span className="pan2-compito__chi">
-        <PillolaRuolo {...(c.ruolo !== undefined ? { ruolo: c.ruolo } : {})} {...(c.ruolo === undefined && c.fase === 'da-fare' ? { nome: 'da assegnare' } : {})} />
-        {c.autore !== undefined ? <span className="pan2-compito__di">di {RUOLI[c.autore].nome}</span> : null}
-        {c.giri !== undefined ? <span className="pan2-compito__giri" title={`Rimandato indietro dalla Revisione ${c.giri} volte`}>↺ {c.giri}</span> : null}
-      </span>
-      <span className="pan2-compito__testo">{c.testo}</span>
-      {c.nota !== undefined ? <span className="pan2-compito__nota">{c.nota}</span> : null}
-      {pane !== undefined ? <span className="pan2-compito__apri" aria-hidden>Apri ›</span> : c.fase !== 'da-fare' ? <span className="pan2-compito__nota">chat chiusa</span> : null}
-    </>
-  )
-  return pane !== undefined
-    ? <button className={`pan2-compito pan2-compito--${c.fase}`} title={c.testo} onClick={() => onApri(pane)}>{dentro}</button>
-    : <div className={`pan2-compito pan2-compito--${c.fase} pan2-compito--chiuso`} title={c.testo}>{dentro}</div>
-}
-
 /** «Finite: N ▸»: una riga, che si apre in una lista compatta. */
 function Finite({ schede, ora, onApri }: { schede: SchedaVista[]; ora: number; onApri: (p: string) => void }): React.JSX.Element {
   const [aperta, setAperta] = useState(false)
@@ -493,35 +391,20 @@ function Finite({ schede, ora, onApri }: { schede: SchedaVista[]; ora: number; o
   )
 }
 
-/** Solo l'ora, per i criteri. */
-function orario(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-}
-
-/** Senza autopilota: il primo messaggio dell'autopilota dormiente del workspace (0.74.1). */
-export function PrimoMessaggio({ workspace, dormiente, onRicarica }: { workspace: string; dormiente?: Dormiente; onRicarica: () => void }): React.JSX.Element {
+/**
+ * Senza autopilota: il primo messaggio all'autopilota del workspace (0.74.1;
+ * 30/10: nasce con questo messaggio, nella cartella delle chat del workspace).
+ */
+export function PrimoMessaggio({ workspace, cwd, onRicarica }: { workspace: string; cwd?: string; onRicarica: () => void }): React.JSX.Element {
   const [primo, setPrimo] = useState('')
   const [nota, setNota] = useState<string | undefined>(undefined)
   const campo = useRef<HTMLTextAreaElement | null>(null)
-  // Un workspace senza dormiente (nato dopo la 0.74.1): lo dice e offre il tasto (0.80.0).
-  if (dormiente?.cwd === undefined) {
-    return (
-      <div className="elenco-ws__autopilota">
-        <div className="progetti__quieto">Questo workspace non ha ancora un autopilota.</div>
-        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button className="tasto" onClick={chiediNuovoAutopilota}>Crea l’autopilota</button>
-          <Aiuto di="Crea l’autopilota">{SPIEGA_CREA_AUTOPILOTA}</Aiuto>
-        </span>
-      </div>
-    )
-  }
-  const sveglia = (): void => {
+  const manda = (): void => {
     const testo = primo.trim()
-    if (testo === '') return
-    setNota('Lo preparo…')
+    if (testo === '' || cwd === undefined) return
+    setNota('Lo mando…')
     void window.gestore.autopilota
-      .crea({ nome: workspace, obiettivo: testo, cwd: dormiente.cwd!, criteri: [], pubblicazione: 'stabile', workspace, partenza: 'via' })
+      .crea({ obiettivo: testo, cwd, workspace })
       // Appena nato adotta le chat che c'erano già nel workspace (0.78.0): le conosce, non le tocca.
       .then((nato) => { void window.gestore.adozione.adotta(nato.id).catch(() => undefined); setPrimo(''); setNota(undefined); onRicarica() })
       .catch((e: unknown) => setNota(`Non è partito: ${String(e)}`))
@@ -529,12 +412,18 @@ export function PrimoMessaggio({ workspace, dormiente, onRicarica }: { workspace
   return (
     <div className="elenco-ws__autopilota">
       <b>Autopilota di «{workspace}»</b>
-      <div className="progetti__quieto">Aspetta il tuo primo messaggio.</div>
-      <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: si prepara e aspetta il tuo «Vai»" />
-      <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <button className="tasto" disabled={primo.trim() === ''} onClick={sveglia}>Manda</button>
-        <TastoMicrofono campo={campo} />
-      </span>
+      {cwd === undefined ? (
+        <div className="progetti__quieto">Apri una chat in questo workspace: l’autopilota lavora nella sua cartella e nasce con il primo messaggio che gli scrivi.</div>
+      ) : (
+        <>
+          <div className="progetti__quieto">Aspetta il tuo primo messaggio.</div>
+          <textarea ref={campo} className="campo" rows={4} value={primo} onChange={(e) => setPrimo(e.target.value)} placeholder="Scrivigli cosa fare: lo mette in coda e comincia" />
+          <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button className="tasto" disabled={primo.trim() === ''} onClick={manda}>Manda</button>
+            <TastoMicrofono campo={campo} />
+          </span>
+        </>
+      )}
       {nota !== undefined ? <div className="progetti__quieto">{nota}</div> : null}
     </div>
   )

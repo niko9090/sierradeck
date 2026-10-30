@@ -7,8 +7,9 @@ import { cartellaWorkspace } from './coda-store'
 /**
  * Il disco dell'orchestratore unico (P3), accanto alla coda, in
  * `orchestratori/<workspace>/`:
- * - `orchestratore.json`: l'interruttore, le impostazioni, la sessione di
- *   `claude -p`, l'ultima percentuale e le domande dell'ultima ora;
+ * - `orchestratore.json`: l'autopilota del workspace, le impostazioni, la
+ *   sessione di `claude -p`, l'ultima percentuale, le domande dell'ultima
+ *   ora e gli autopiloti di prima già passati a lui;
  * - `piano.json`: i compiti (`@shared/piano-orchestratore`);
  * - `dialogo.jsonl`: il dialogo con Nicholas, solo aggiunte, mai troncato.
  *   La conversazione nella scheda (`Autopilota.dialogo`) ne tiene la coda.
@@ -17,9 +18,7 @@ import { cartellaWorkspace } from './coda-store'
 export type ModelloOrchestratore = 'sonnet' | 'opus'
 
 export type ImpostazioniOrchestratore = {
-  /** L'interruttore «Autopilota unico» del workspace. */
-  attivo: boolean
-  /** L'autopilota che lo rappresenta (`unico: true`). */
+  /** L'autopilota del workspace: ce n'è uno solo, sempre acceso. */
   autopilota?: string
   attivatoIl?: string
   modello: ModelloOrchestratore
@@ -36,13 +35,15 @@ export type ImpostazioniOrchestratore = {
   percento?: PercentoWs
   /** Quando sono partite le domande a Nicholas (per il tetto all'ora). */
   domande?: string[]
+  /** Gli autopiloti di prima già passati a lui (P4): non si riassorbono e vanno nel recupero. */
+  assorbiti?: string[]
 }
 
 export const TETTO_SPECIALISTI = 3
 export const TETTO_SPECIALISTI_MAX = 4
 
 export function impostazioniPredefinite(): ImpostazioniOrchestratore {
-  return { attivo: false, modello: 'sonnet', tettoSpecialisti: TETTO_SPECIALISTI }
+  return { modello: 'sonnet', tettoSpecialisti: TETTO_SPECIALISTI }
 }
 
 export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
@@ -61,7 +62,6 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
       }
     : undefined
   return {
-    attivo: o.attivo === true,
     modello: o.modello === 'opus' ? 'opus' : 'sonnet',
     tettoSpecialisti: tetto,
     ...(typeof o.autopilota === 'string' && o.autopilota !== '' ? { autopilota: o.autopilota } : {}),
@@ -71,7 +71,8 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
     ...(typeof o.rotazioni === 'number' ? { rotazioni: o.rotazioni } : {}),
     ...(o.daSeminare === true ? { daSeminare: true } : {}),
     ...(percento !== undefined ? { percento } : {}),
-    ...(Array.isArray(o.domande) ? { domande: o.domande.filter((q): q is string => typeof q === 'string').slice(-20) } : {})
+    ...(Array.isArray(o.domande) ? { domande: o.domande.filter((q): q is string => typeof q === 'string').slice(-20) } : {}),
+    ...(Array.isArray(o.assorbiti) ? { assorbiti: o.assorbiti.filter((q): q is string => typeof q === 'string') } : {})
   }
 }
 
@@ -80,8 +81,6 @@ export type RigaDialogo = { quando: string; da: 'tu' | 'lui' | 'evento'; testo: 
 export type ArchivioOrchestratori = {
   impostazioni: (ws: string) => ImpostazioniOrchestratore
   cambiaImpostazioni: (ws: string, f: (i: ImpostazioniOrchestratore) => ImpostazioniOrchestratore) => ImpostazioniOrchestratore
-  /** Se il workspace ha mai avuto un orchestratore (acceso o spento): per «nuovo workspace». */
-  conosciuto: (ws: string) => boolean
   piano: (ws: string) => Piano
   scriviPiano: (ws: string, p: Piano) => void
   aggiungiDialogo: (ws: string, r: RigaDialogo) => void
@@ -125,9 +124,6 @@ export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
       scrivi(ws, 'orchestratore.json', dopo)
       return dopo
     },
-    // Solo chi ha già scritto le sue impostazioni: una lettura (che le mette
-    // in memoria) non fa di un workspace nuovo uno conosciuto.
-    conosciuto: (ws) => existsSync(file(ws, 'orchestratore.json')),
     piano(ws) {
       const gia = piani.get(ws)
       if (gia !== undefined) return gia
