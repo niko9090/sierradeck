@@ -36,6 +36,13 @@ import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
  *    30 giorni tiene solo gli ultimi 50 scambi e decisioni. Mai si elimina un
  *    autopilota.
  * 5. Una riga sola nel registro per giro: «autopulizia: tolte N copie, …».
+ * 6. P2 (30/10): le cartelle di `~/.claude/projects` delle sessioni nelle
+ *    copie (il 30/10 erano 90) la cui copia non c'è più e il cui ramo è unito
+ *    o tolto, se nessuna chat aperta (o che `fine-chat.ts` sta chiudendo)
+ *    lavorava lì. Il recupero delle chat dell'autopilota oltre le 72 ore lo
+ *    svuota il Gestore, padrone di quel registro (`scadenzaVera` in
+ *    `@shared/gestione-chat`): scriverlo da qui vorrebbe dire due processi
+ *    sullo stesso file.
  */
 
 /** Ogni quanto gira da sola. */
@@ -229,6 +236,8 @@ export type EsitoAutopulizia = {
   autopilotiCompattati: number
   /** Le copie di scorta `*.prima-*` tolte (30/10). */
   copiePrimaTolte?: number
+  /** P2 (30/10): le cartelle di trascrizioni di copie che non ci sono più, tolte da `~/.claude/projects`. */
+  trascrizioniTolte?: number
   errori: string[]
   /** Non ha girato: il motivo. */
   saltata?: string
@@ -246,6 +255,7 @@ export function rigaRiepilogo(e: EsitoAutopulizia): string {
   if (e.noteTagliate > 0) r += `, ${e.noteTagliate} file di note accorciati`
   if (e.autopilotiCompattati > 0) r += `, ${e.autopilotiCompattati} autopiloti compattati`
   if ((e.copiePrimaTolte ?? 0) > 0) r += `, ${e.copiePrimaTolte} copie di scorta «.prima-» tolte`
+  if ((e.trascrizioniTolte ?? 0) > 0) r += `, ${e.trascrizioniTolte} cartelle di trascrizioni di copie finite tolte`
   // Gli «appena nati» e le chat aperte sono la norma: si contano, ma il «perché» utile è il resto.
   const perMotivo = new Map<string, number>()
   for (const t of e.tenute) perMotivo.set(t.perche, (perMotivo.get(t.perche) ?? 0) + 1)
@@ -361,8 +371,112 @@ export type OpzioniAutopulizia = {
   git: GitAsincrono
   /** La cartella dei dati del programma: lì c'è `log/`. Assente: il registro non si tocca. */
   cartellaDati?: string
+  /** P2: la radice di Claude Code (`~/.claude`), per le trascrizioni delle copie finite. Assente: non si toccano. */
+  radiceClaude?: string
   ora?: () => number
 }
+
+/** Il nome che Claude Code dà alla cartella di una sessione. */
+const slugDi = (percorso: string): string => percorso.replace(/[^a-zA-Z0-9]/g, '-')
+
+/** Una cartella di trascrizioni di una copia: `<slug delle copie>-ap-<8hex>-c-N[-sottocartella]`. */
+export type TrascrizioneDiCopia = {
+  /** Il nome della cartella in `projects`. */
+  nome: string
+  /** Il nome della copia (`ap-…-c-N`) e il suo ramo (`ap/ap-…/c-N`). */
+  copia: string
+  ramo: string
+}
+
+/** Riconosce una cartella di trascrizioni di una copia di questo progetto. Pura. */
+export function trascrizioneDiCopia(nome: string, cartellaCopie: string): TrascrizioneDiCopia | undefined {
+  const prefisso = `${slugDi(cartellaCopie)}-`.toLowerCase()
+  if (!nome.toLowerCase().startsWith(prefisso)) return undefined
+  const m = /^(ap-[0-9a-f]{8})-(c-\d+)(?:-|$)/i.exec(nome.slice(prefisso.length))
+  if (m === null) return undefined
+  return { nome, copia: `${m[1]}-${m[2]}`, ramo: `ap/${m[1]}/${m[2]}` }
+}
+
+export type DecisioneTrascrizione = { togli: boolean; perche: string }
+
+/**
+ * Si toglie la cartella delle trascrizioni di una copia? Pura. Solo se la
+ * copia non c'è più, il suo ramo è unito o non c'è, nessuna chat dell'archivio
+ * (aperta o no) lavorava lì — quelle le porta alla fine `fine-chat.ts`, che
+ * tiene 72 ore nel recupero quelle abbandonate —, non è un collegamento e non
+ * è appena toccata.
+ */
+export function decidiTrascrizione(p: {
+  copiaEsiste: boolean
+  ramo: 'unito' | 'mancante' | 'non-unito'
+  diUnaChat: boolean
+  collegamento: boolean
+  giovane: boolean
+}): DecisioneTrascrizione {
+  const tieni = (perche: string): DecisioneTrascrizione => ({ togli: false, perche })
+  if (p.collegamento) return tieni('è un collegamento')
+  if (p.copiaEsiste) return tieni('la copia c’è ancora')
+  if (p.diUnaChat) return tieni('è di una chat dell’archivio')
+  if (p.giovane) return tieni('appena toccata')
+  if (p.ramo === 'non-unito') return tieni('ramo con commit non uniti')
+  return { togli: true, perche: p.ramo === 'unito' ? 'copia tolta, ramo unito' : 'copia tolta, ramo tolto' }
+}
+
+/**
+ * P2 (30/10): le cartelle di `~/.claude/projects` delle sessioni nelle copie
+ * di questo progetto (il 30/10 erano 90) che non servono più. Prima si staccano
+ * i collegamenti (senza seguirli), poi la guardia, solo dentro `projects`.
+ */
+async function pulisciTrascrizioni(o: OpzioniAutopulizia, radice: string, base: string, e: EsitoAutopulizia): Promise<void> {
+  if (o.radiceClaude === undefined || o.radiceClaude === '') return
+  const projects = join(o.radiceClaude, 'projects')
+  const cartellaCopie = cartellaWorktreeDi(radice)
+  let nomi: string[] = []
+  try { nomi = await readdir(projects) } catch { return }
+  const ora = (o.ora ?? Date.now)()
+  // Le cartelle delle chat aperte e di quelle che `fine-chat.ts` sta portando alla fine (che tiene 72 ore
+  // nel recupero le abbandonate): come slug. Le altre chat concluse da tempo non trattengono niente.
+  const diChat = o.archivio.elenca().flatMap((a) => a.chats.flatMap((c) =>
+    c.cartella !== undefined && (chatAperta(a, c) || c.fine !== undefined || c.nelRecupero !== undefined) ? [slugDi(c.cartella).toLowerCase()] : []))
+  for (const nome of nomi) {
+    const t = trascrizioneDiCopia(nome, cartellaCopie)
+    if (t === undefined) continue
+    const dir = join(projects, nome)
+    let collegamento = false
+    let giovaneQui = false
+    try {
+      const st = await lstat(dir)
+      collegamento = st.isSymbolicLink()
+      if (!collegamento && !st.isDirectory()) continue
+      giovaneQui = ora - st.mtimeMs < COPIA_GIOVANE_MS
+    } catch { continue }
+    const verifica = await git(o, ['rev-parse', '--verify', '--quiet', `refs/heads/${t.ramo}`], radice)
+    const ramo: 'unito' | 'mancante' | 'non-unito' = verifica !== 0
+      ? 'mancante'
+      : (await git(o, ['merge-base', '--is-ancestor', t.ramo, base], radice)) === 0 ? 'unito' : 'non-unito'
+    const n = nome.toLowerCase()
+    const d = decidiTrascrizione({
+      copiaEsiste: existsSync(join(cartellaCopie, t.copia)),
+      ramo,
+      diUnaChat: diChat.some((s) => s === n || n.startsWith(`${s}-`) || s.startsWith(`${n}-`)),
+      collegamento,
+      giovane: giovaneQui
+    })
+    if (!d.togli) continue
+    const { falliti } = await staccaCollegamenti(dir)
+    if (falliti.length > 0) { e.errori.push(`${nome}: ${falliti[0]}`); continue }
+    const byte = await pesoCartella(dir)
+    try {
+      cancellaSicura(dir, { dentro: [projects] })
+      e.trascrizioniTolte = (e.trascrizioniTolte ?? 0) + 1
+      e.byteLiberati += byte
+    } catch (err) {
+      e.errori.push(`${nome}: ${String(err).slice(0, 120)}`)
+    }
+  }
+}
+
+const git = async (o: OpzioniAutopulizia, args: string[], cwd: string): Promise<number> => (await o.git(args, cwd)).codice
 
 /** Il ramo principale del progetto: quello degli autopiloti se c'è, altrimenti `main`. */
 function ramoPrincipale(autopiloti: Autopilota[]): string {
@@ -471,6 +585,9 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     }
   }
   await git(['worktree', 'prune'], radice)
+
+  // 1b. P2: le trascrizioni delle copie che non ci sono più (ramo unito o tolto).
+  await pulisciTrascrizioni(o, radice, base, e)
 
   // 2. I rami `ap/*`.
   const rami = await git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/ap/'], radice)

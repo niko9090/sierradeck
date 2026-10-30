@@ -174,6 +174,22 @@ describe('il recupero delle chat eliminate', () => {
     expect(r.chat.filter(nelRecupero).map((c) => c.id)).toEqual(['r-1'])
   })
 
+  it('P2: una chat dell’autopilota resta nel recupero al più 72 ore, anche se entrata prima con 30 giorni', () => {
+    const r = {
+      versione: 1 as const,
+      chat: [
+        voce({ id: 'mia' }),
+        voce({ id: 'ap', da: 'autopilota: abbandonata' }),
+        voce({ id: 'vecchia', da: 'autopilota: aveva finito' }),
+        voce({ id: 'copia', slug: 'E--Prog-sierradeck-wt-ap-0123abcd-c-4' })
+      ]
+    }
+    expect(scaduteRecupero(r, Date.parse('2026-10-04T09:59:00Z'))).toEqual([])
+    expect(scaduteRecupero(r, Date.parse('2026-10-04T10:00:00Z')).map((c) => c.id)).toEqual(['ap', 'vecchia', 'copia'])
+    // Una chat di Nicholas: i suoi 30 giorni.
+    expect(scaduteRecupero(r, Date.parse('2026-10-31T10:00:00Z')).map((c) => c.id)).toContain('mia')
+  })
+
   it('il registro si legge tollerante e tiene le svuotate (l’arrivo dal Drive le deve sapere)', () => {
     expect(leggiRecuperoChat({ chat: [voce({}), { id: 'x' }, null] }).chat).toHaveLength(1)
     expect(leggiRecuperoChat(undefined).chat).toEqual([])

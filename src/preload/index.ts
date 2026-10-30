@@ -363,7 +363,13 @@ contextBridge.exposeInMainWorld('gestore', {
     apri: (cwd: string): Promise<void> => ipcRenderer.invoke('quaderno:apri', cwd),
     /** Cancella una scheda: il file `.md` sparisce dalla cartella. */
     elimina: (cwd: string, file: string): Promise<boolean> =>
-      ipcRenderer.invoke('quaderno:elimina', cwd, file)
+      ipcRenderer.invoke('quaderno:elimina', cwd, file),
+    /** P2: quante note diventerebbero quante voci, senza toccare niente. */
+    anteprimaRiordino: (cwd: string): Promise<import('@shared/quaderno-riordino').AnteprimaRiordinoVista> =>
+      ipcRenderer.invoke('quaderno:anteprimaRiordino', cwd),
+    /** P2: «Riordina il quaderno»: distilla le note in lezioni.md e decisioni.md, gli originali nel recupero 30 giorni. */
+    riordina: (cwd: string): Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista> =>
+      ipcRenderer.invoke('quaderno:riordina', cwd)
   },
   /** L'account: registrazione e accesso, che vivono nel main (la rete la fa lui). */
   account: {

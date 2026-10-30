@@ -1,12 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { apriMemoria } from '../../src/autopilot-host/memoria'
-import { apriQuaderno } from '../../src/main/quaderno-store'
 import { corpoStorico, fileStorico, voceDi, vociStorico } from '../../src/autopilot-host/storico'
 import { nuovoAutopilota, parseAutopilota, VERSIONE_AUTOPILOTA, type Autopilota, type Decisione } from '@shared/autopilota'
 import { attendi } from '../setup/attendi'
@@ -118,7 +117,7 @@ let archivio: Archivio
 
 afterEach(() => { server?.close(); server = undefined; vi.restoreAllMocks() })
 
-async function avvia(quaderno: (cwd: string, s: { titolo: string; corpo: string; tag?: string[]; file?: string }) => void): Promise<void> {
+async function avvia(lezioni: (cwd: string, voci: { tag?: string; testo: string }[], quando: string) => { nuove: number; confermate: number }): Promise<void> {
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-storico-')))
   const s = creaServer({
     archivio,
@@ -134,37 +133,28 @@ async function avvia(quaderno: (cwd: string, s: { titolo: string; corpo: string;
     scadenzaDomandaMs: 5000,
     scadenzaInterviataMs: 5000,
     adesso: orologio.iso,
-    quaderno
+    lezioni
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
 }
 
-describe('l’autopilota tiene lo storico nel quaderno', () => {
-  it('a ogni voce nuova riscrive la sua scheda; senza voci nuove non la tocca', async () => {
+describe('P2: niente più storico nel quaderno', () => {
+  it('riprendere un lavoro non scrive `storico-*.md` né schede: il quaderno resta vuoto', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'info').mockImplementation(() => {})
     const cartella = mkdtempSync(join(tmpdir(), 'ap-storico-cwd-'))
-    const q = apriQuaderno()
-    const scritte: { file?: string; corpo: string }[] = []
-    await avvia((cwd, s) => { scritte.push(s); q.scrivi(cwd, s) })
+    const annotate: string[] = []
+    await avvia((_cwd, voci) => { annotate.push(...voci.map((v) => v.testo)); return { nuove: voci.length, confermate: 0 } })
     archivio.scrivi({ ...lavoro(DIARIO.slice(0, 2), cartella), stato: 'sospeso', motivoSospensione: 'fermato dall utente' })
 
     const r = await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-f1e6a2b3/riprendi`, { method: 'POST' })
     expect(r.ok).toBe(true)
-    await attendi(() => scritte.some((x) => x.corpo.includes('Riprendi')))
+    await attendi(() => archivio.leggi('ap-f1e6a2b3')?.stato === 'lavoro')
+    await new Promise((ok) => setTimeout(ok, 100))
 
-    const file = 'storico-app-android-analisi-e-correzioni-f1e6a2b3.md'
-    expect(scritte.length).toBeGreaterThanOrEqual(1)
-    expect(scritte.every((s) => s.file === file)).toBe(true)
-    const su = readFileSync(join(cartella, '.sierradeck', 'quaderno', file), 'utf8')
-    expect(su).toContain('titolo: "Storico — App Android: analisi e correzioni"')
-    expect(su).toContain('Aperta la chat c-1 (Codice)')
-    expect(su).toContain('**Decisione di Nicholas** — Ha ripreso il lavoro con «Riprendi»')
-    // Il nome del file sta nell'archivio: pagina e app aprono lo storico da lì.
-    expect(archivio.leggi('ap-f1e6a2b3')?.storico).toBe(file)
-    // Una sola riscrittura per voce: i salvataggi senza voci nuove non toccano il file.
-    const voci = vociStorico(archivio.leggi('ap-f1e6a2b3')!).length
-    expect(scritte.length).toBeLessThanOrEqual(voci)
+    expect(existsSync(join(cartella, '.sierradeck', 'quaderno'))).toBe(false)
+    expect(archivio.leggi('ap-f1e6a2b3')?.storico).toBeUndefined()
+    expect(annotate).toEqual([])
   })
 })

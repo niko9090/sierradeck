@@ -14,7 +14,8 @@ import { governataDa, type EsitoAzioni } from '@shared/gestione-chat'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 // 0.84.0 — Agente finito: compito fatto e ramo unito o tolto, la chat si chiude
-// da sola, esce dall'elenco e la conversazione va nel recupero di 30 giorni.
+// da sola ed esce dall'elenco. P2 (30/10): la chat si elimina (`fine-chat.ts`):
+// unita, la conversazione va via; abbandonata, resta 72 ore nel recupero.
 
 const ORA = Date.parse('2026-10-21T12:00:00.000Z')
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -70,6 +71,13 @@ describe('agente finito: la regola (puro)', () => {
     const fuori = daChiudereDaSole({ autopiloti: [a], accese, ora: ORA, domandeAperte: () => 0 })
     // c-1 spenta: va nel recupero lo stesso. c-2 sta scrivendo: no. c-3 ha appena finito: non ancora.
     expect(fuori).toEqual([{ autopilotaId: 'a', chatId: 'c-1', sessionId: 's-c-1', motivo: 'ha finito e il suo ramo è unito', alRecupero: true }])
+  })
+
+  it('P2: una chat già avviata alla fine non si richiude da qui, e non è più «agente finito»', () => {
+    const c = chat('c-1', 'finita', { conclusa: unito, fine: { esito: 'unita', il: PRIMA, passo: 'worktree' } })
+    const a = autopilota({ id: 'a', chats: [c] })
+    expect(agenteFinito(a, c)).toBe(false)
+    expect(daChiudereDaSole({ autopiloti: [a], accese: [{ sessione: 's-c-1', ferma: true }], ora: ORA, domandeAperte: () => 0 })).toEqual([])
   })
 
   it('una finita senza ramo chiuso si chiude come prima, senza recupero', () => {
@@ -130,15 +138,18 @@ describe('agente finito: il servizio', () => {
     await fetch(`http://127.0.0.1:${porta}/stato-programma`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stato) })
     s.controllaChatFerme()
     expect(chiuse).toEqual([{ chat: 'c-1', sessione: 's-c-1', alRecupero: true }])
+    await new Promise((r) => setTimeout(r, 50))
     const a = archivio.leggi('ap-a')!
-    expect(a.chats.find((c) => c.id === 'c-1')!.nelRecupero).toBe(iso(ORA))
+    expect(a.chats.find((c) => c.id === 'c-1')!.fine).toMatchObject({ esito: 'unita', passo: 'chiudi', chiusaIl: iso(ORA) })
     // L'adottata non è nostra: non si tocca.
-    expect(a.chats.find((c) => c.id === 'c-3')!.nelRecupero).toBeUndefined()
-    const riga = a.decisioni.find((d) => d.cosa.includes('chiudo la chat c-1'))
-    expect(riga?.cosa).toContain('recupero per 30 giorni')
+    expect(a.chats.find((c) => c.id === 'c-3')!.fine).toBeUndefined()
+    const riga = a.decisioni.find((d) => d.cosa.includes('la chat c-1') && d.cosa.includes('si elimina'))
+    expect(riga?.cosa).toContain('quaderno')
     expect(riga?.traguardo).toEqual({ chat: 'c-1', esito: 'nel-recupero' })
+    expect(a.decisioni.some((d) => d.cosa.includes('chiudo la chat c-1'))).toBe(true)
     // Il giro dopo non la rimanda, anche se è ancora accesa.
     s.controllaChatFerme()
+    await new Promise((r) => setTimeout(r, 50))
     expect(chiuse).toHaveLength(1)
   })
 
@@ -174,8 +185,25 @@ describe('agente finito: il programma', () => {
       log: (x) => { log.push(x) }
     })
     expect(r).toEqual({ ok: true })
-    expect(chieste).toEqual([{ azione: 'elimina', sessioni: ['s'], da: 'autopilota: aveva finito' }, { azione: 'elimina', sessioni: ['s'], da: 'autopilota: aveva finito' }])
-    expect(log.join('\n')).toContain('nel recupero per 30 giorni')
+    const q = { azione: 'elimina', sessioni: ['s'], da: 'autopilota: abbandonata', scadenzaOre: 72 }
+    expect(chieste).toEqual([q, q])
+    expect(log.join('\n')).toContain('nel recupero per 72 ore')
+  })
+
+  it('unita: scade subito e il recupero si svuota, la conversazione è eliminata', async () => {
+    const chieste: unknown[] = []
+    let svuotato = 0
+    const log: string[] = []
+    const r = await nelRecuperoQuandoChiusa('s', {
+      azione: (q) => { chieste.push(q); return Promise.resolve(esito(true)) },
+      attendi: () => Promise.resolve(),
+      log: (x) => { log.push(x) },
+      svuotaScadute: () => { svuotato += 1; return Promise.resolve() }
+    }, { fine: 'unita' })
+    expect(r).toEqual({ ok: true })
+    expect(chieste).toEqual([{ azione: 'elimina', sessioni: ['s'], da: 'autopilota: unita, si elimina', scadenzaOre: 0 }])
+    expect(svuotato).toBe(1)
+    expect(log.join('\n')).toContain('eliminata')
   })
 
   it('una chat che lavora non si tocca: dopo i tentativi resta dov è, e lo dice', async () => {

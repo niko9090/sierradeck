@@ -56,6 +56,8 @@ export type Consegna = {
   /** Nicholas ha chiesto che questa chat lavori in sottofondo, senza riquadro (0.72.0). */
   sottofondo?: boolean  /** Con `chiudi` (0.84.0): l'agente ha finito, la conversazione esce dall'elenco e va nel recupero di 30 giorni. */
   alRecupero?: boolean
+  /** P2 (30/10), con `chiudi`: unita → la conversazione si cancella; abbandonata → nel recupero per 72 ore. */
+  fine?: 'unita' | 'abbandonata'
 }
 
 /** Chi vuole sapere cosa succede alle consegne (0.41.0: la linguetta «Istruzioni»). */

@@ -26,6 +26,8 @@ export type RegistroIstruzioni = {
   registra: (c: Consegna) => void
   esito: (consegna: string, esito: EsitoIstruzione) => void
   elenca: (autopilotaId: string) => Istruzione[]
+  /** P2 (30/10): via le istruzioni di una chat eliminata. */
+  togliChat: (autopilotaId: string, chatId: string) => void
 }
 
 export function apriRegistroIstruzioni(cartella: string, adesso: () => string = () => new Date().toISOString()): RegistroIstruzioni {
@@ -65,6 +67,11 @@ export function apriRegistroIstruzioni(cartella: string, adesso: () => string = 
       const dopo = segnaEsito(prima, consegna, esito, adesso())
       if (dopo !== prima) scrivi(id, dopo)
     },
-    elenca: (id) => istruzioniRecenti(leggi(id))
+    elenca: (id) => istruzioniRecenti(leggi(id)),
+    togliChat(id, chatId) {
+      const prima = leggi(id)
+      const dopo = prima.filter((i) => i.chatId !== chatId)
+      if (dopo.length !== prima.length) scrivi(id, dopo)
+    }
   }
 }

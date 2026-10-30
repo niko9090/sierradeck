@@ -272,9 +272,30 @@ export function nelRecupero(c: ChatInRecupero): boolean {
   return c.ripristinataIl === undefined && c.svuotataIl === undefined
 }
 
+/** Le ore di recupero di una chat dell'autopilota abbandonata o fallita (P2, 30/10). */
+export const RECUPERO_AUTOPILOTA_ORE = 72
+
+/**
+ * Una chat dell'autopilota (P2): l'ha mandata nel recupero l'autopilota
+ * («autopilota: …»), o lavorava in una copia `…sierradeck-wt…`. Non resta 30
+ * giorni: al più 72 ore, anche quelle entrate prima della P2.
+ */
+export function eChatAutopilota(c: Pick<ChatInRecupero, 'da' | 'slug'>): boolean {
+  return (c.da ?? '').toLowerCase().startsWith('autopilota') || /-sierradeck-wt-/i.test(c.slug)
+}
+
+/** Quando esce dal recupero: la sua scadenza, o 72 ore dall'entrata per una chat dell'autopilota. */
+export function scadenzaVera(c: ChatInRecupero): number {
+  const scade = Date.parse(c.scadeIl)
+  if (!eChatAutopilota(c)) return scade
+  const entrata = Date.parse(c.quando)
+  const breve = Number.isNaN(entrata) ? scade : entrata + RECUPERO_AUTOPILOTA_ORE * 3_600_000
+  return Number.isNaN(scade) ? breve : Math.min(scade, breve)
+}
+
 /** Quelle scadute: i loro file si cancellano davvero. */
 export function scaduteRecupero(r: RegistroRecuperoChat, adesso: number): ChatInRecupero[] {
-  return r.chat.filter((c) => nelRecupero(c) && Date.parse(c.scadeIl) <= adesso)
+  return r.chat.filter((c) => nelRecupero(c) && scadenzaVera(c) <= adesso)
 }
 
 /** Quanti giorni mancano allo svuotamento da solo (almeno 0). */

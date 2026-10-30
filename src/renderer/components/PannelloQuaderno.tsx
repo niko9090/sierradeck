@@ -1,6 +1,7 @@
 import { TendinaMenu } from './TendinaMenu'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Scheda } from '@shared/quaderno'
+import type { AnteprimaRiordinoVista } from '@shared/quaderno-riordino'
 import { assaggio, cartelleUniche, filtraSchede, nomeCartella, ordinaSchedeCome, quandoBreve, tuttiITag, type OrdineSchede } from '@shared/quaderno-vista'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { analizzaMarkdown, type NodoBlocco, type NodoInline } from '@shared/markdown'
@@ -150,6 +151,22 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
       .catch((e: unknown) => setErrore(String(e)))
   }
   useEffect(ricarica, [quale])
+
+  // P2 (30/10): «Riordina il quaderno», solo su richiesta: prima dice quante note diventano quante voci.
+  const [riordino, setRiordino] = useState<AnteprimaRiordinoVista | undefined>(undefined)
+  const [riordinando, setRiordinando] = useState(false)
+  const chiediRiordino = (): void => {
+    if (quale === '') return
+    window.gestore.quaderno.anteprimaRiordino(quale).then(setRiordino).catch((e: unknown) => setErrore(String(e)))
+  }
+  const riordina = (): void => {
+    setRiordinando(true)
+    window.gestore.quaderno
+      .riordina(quale)
+      .then((e) => { setRiordino(undefined); setNota(e.messaggio); setAperta(undefined); ricarica() })
+      .catch((e: unknown) => setErrore(String(e)))
+      .finally(() => setRiordinando(false))
+  }
   // Quante schede ha ogni progetto: si legge una volta all'apertura, poi si tiene aggiornato quello scelto.
   useEffect(() => {
     for (const p of progetti) {
@@ -255,6 +272,7 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); copiaPercorso() }}>Copia il percorso della scheda</button>
               <button className="progetti__voce" disabled={aperta === undefined} onClick={() => { setMenu(false); setConferma(true) }}>Elimina la scheda…</button>
               <button className="progetti__voce" onClick={() => { setMenu(false); setPersonale(true) }}>🔒 Quaderno personale</button>
+              <button className="progetti__voce" disabled={quale === ''} onClick={() => { setMenu(false); chiediRiordino() }}>Riordina il quaderno…</button>
             </TendinaMenu>
           ) : null}
         </span>
@@ -272,6 +290,16 @@ export function PannelloQuaderno({ cwd, cartelle, onChiudi }: Props): React.JSX.
           <span>Eliminare «{aperta.titolo}»? Il file si cancella dal disco, senza cestino.</span>
           <button className="tasto tasto--mini tasto--pericolo" onClick={elimina}>Elimina</button>
           <button className="tasto tasto--mini" onClick={() => setConferma(false)}>Annulla</button>
+        </div>
+      ) : null}
+      {riordino !== undefined ? (
+        <div className="progetti__striscia">
+          <span>
+            Riordina il quaderno: {riordino.frase}
+            {riordino.note > 0 ? ' Le note diventano righe in lezioni.md e decisioni.md; le Regole di Nicholas restano parola per parola. Gli originali vanno nel recupero per 30 giorni.' : ''}
+          </span>
+          {riordino.note > 0 ? <button className="tasto tasto--mini tasto--primario" disabled={riordinando} onClick={riordina}>{riordinando ? 'Riordino…' : 'Riordina'}</button> : null}
+          <button className="tasto tasto--mini" disabled={riordinando} onClick={() => setRiordino(undefined)}>{riordino.note > 0 ? 'Annulla' : 'OK'}</button>
         </div>
       ) : null}
       {errore !== undefined ? <div className="progetti__striscia">⚠ {errore}</div> : null}

@@ -1,4 +1,4 @@
-import { FERMA_DA_DIRE_MS, type Autopilota, type ChatGovernata } from '@shared/autopilota'
+import { FERMA_DA_DIRE_MS, idChatNuova, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { haDettoFatto } from '@shared/segnali-flotta'
 import { chiaveTurno } from './guardiano'
 
@@ -330,7 +330,7 @@ export function testoRipresa(a: Autopilota, c: ChatGovernata | undefined, muta: 
 /** La chat nuova che prende il compito di quella muta: stessa cartella, stesso ramo, sessione nuova. */
 export function chatCheSostituisce(a: Autopilota, vecchia: ChatGovernata, sessionId: string, il: string): ChatGovernata {
   return {
-    id: `c-${a.chats.length + 1}`,
+    id: idChatNuova(a),
     compito: vecchia.compito,
     stato: 'lavoro',
     cicli: 0,

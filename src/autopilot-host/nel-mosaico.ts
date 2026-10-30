@@ -1,6 +1,7 @@
 import { preamboloRuolo } from '@shared/ruoli-agenti'
 import { REGOLA_SEGNALE } from '@shared/segnali-flotta'
 import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
+import { REGOLA_LEZIONI } from '@shared/lezioni-chat'
 import { titoloChatSpecialista } from '@shared/specialisti'
 import { randomUUID } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
@@ -32,12 +33,18 @@ export function esecutoreNelMosaico(p: {
   nuovaSessione?: () => string
   /** Dice al servizio quale sessione ha preso una chat, perché la ricordi. */
   ricorda: (autopilotaId: string, chatId: string, sessionId: string) => void
+  /**
+   * P2 (30/10): l'indice del quaderno del progetto (≤ ~1.5k token), in coda al
+   * primo messaggio di una chat nuova. Non il quaderno intero: la voce si
+   * legge nel file. Vuoto o assente: niente.
+   */
+  indiceQuaderno?: (cwd: string) => string
 }): {
   /** Torna l'id della consegna messa in coda (0.56.4). */
   avvia: (a: Autopilota, messaggio?: string, chat?: ChatGovernata, perche?: string, opz?: { ancheAlLavoro?: boolean }) => Promise<string>
   ferma: (id: string, chatId?: string, chi?: { sessionId: string; workspace?: string }) => void
   /** Chiude una chat finita, ferma al prompt (0.82.0): il riquadro si chiude, la conversazione resta. */
-  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean }) => void
+  chiudi: (id: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   attivi: () => string[]
 } {
   const nuovaSessione = p.nuovaSessione ?? ((): string => randomUUID())
@@ -47,6 +54,14 @@ export function esecutoreNelMosaico(p: {
    * scrive nella chat come `avvia` e senza non saprebbe dove trovarla.
    */
   const vive = new Map<string, { autopilotaId: string; sessionId: string; workspace?: string }>()
+
+  /** Solo a una conversazione nuova: quella ripresa l'indice l'ha già letto. */
+  const conIndice = (testo: string, cwd: string | undefined): string => {
+    if (cwd === undefined || cwd === '' || p.indiceQuaderno === undefined) return testo
+    let indice = ''
+    try { indice = p.indiceQuaderno(cwd) } catch { indice = '' }
+    return indice === '' ? testo : `${testo}\n\n${indice}`
+  }
 
   const chiave = (autopilotaId: string, chatId?: string): string =>
     chatId === undefined ? autopilotaId : `${autopilotaId}::${chatId}`
@@ -85,7 +100,7 @@ export function esecutoreNelMosaico(p: {
         // iniziale parola per parola - dentro la conversazione di prima, con
         // tutto il lavoro gia fatto sopra - e la chat lo leggeva per quello che
         // e: l'ordine di cominciare. Rifaceva da capo.
-        testo: messaggio ?? (riprende(a, gia, chat) ? ripartiDaDove(a, chat) : primoCompito(a, chat)),
+        testo: conIndice(messaggio ?? (riprende(a, gia, chat) ? ripartiDaDove(a, chat) : primoCompito(a, chat)), gia === undefined ? a.cwd : undefined),
         // Il perché, per la linguetta «Istruzioni» (0.41.0): non va nella chat.
         perche: perche ?? (messaggio !== undefined
           ? 'Una mossa del supervisore (il motivo non è stato annotato)'
@@ -145,7 +160,8 @@ export function esecutoreNelMosaico(p: {
         cosa: 'chiudi',
         testo: '',
         ...(chi.workspace !== undefined ? { workspace: chi.workspace } : {}),
-        ...(chi.alRecupero === true ? { alRecupero: true } : {})
+        ...(chi.alRecupero === true ? { alRecupero: true } : {}),
+        ...(chi.fine !== undefined ? { fine: chi.fine } : {})
       })
     },
 
@@ -215,6 +231,8 @@ export function regoleDiConsegna(a: Autopilota, chat?: ChatGovernata): string[] 
   // 0.84.0: il segnale di fine turno all'autopilota. Non alla Revisione, che
   // chiude con la riga del verdetto. 0.85.1: e il rapporto a ogni passo.
   if (chat !== undefined && chat.ruolo !== 'revisione') righe.push('', ...REGOLA_RAPPORTO, '', ...REGOLA_SEGNALE)
+  // P2 (30/10): a compito finito, al più 3 righe LEZIONI: per il quaderno; poi la chat si elimina.
+  if (chat !== undefined) righe.push('', ...REGOLA_LEZIONI)
   const cloud = a.vaSulCloud === true || a.cloud?.attivo === true
   righe.push(
     '',

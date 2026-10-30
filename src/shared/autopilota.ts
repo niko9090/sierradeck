@@ -294,6 +294,61 @@ export type ChatGovernata = SupervisoreMancato & {
   daCapo?: true
   /** Il lavoro messo da parte dopo il giro da capo (0.84.4): quando e perché non è entrato. */
   lasciataFuori?: { il: string; perche: string }
+  /**
+   * **La fine di una chat** (P2, 30/10): unita (ramo nel principale) o
+   * abbandonata (sostituita, lasciata fuori, fallita). Il servizio la porta
+   * avanti un passo alla volta: chiude il riquadro, toglie il worktree, il ramo
+   * e la cartella della trascrizione, poi la toglie da `chats`. Vedi
+   * `autopilot-host/fine-chat.ts`.
+   */
+  fine?: FineChat
+}
+
+export type PassoFine = 'chiudi' | 'worktree' | 'ramo' | 'trascrizione' | 'voci'
+export const PASSI_FINE: readonly PassoFine[] = ['chiudi', 'worktree', 'ramo', 'trascrizione', 'voci']
+
+export type FineChat = {
+  esito: 'unita' | 'abbandonata'
+  /** Quando è cominciata. */
+  il: string
+  passo: PassoFine
+  /** Quando è partita la chiusura del riquadro (l'ultima volta). */
+  chiusaIl?: string
+  /** Il ramo non unito si tiene fino a qui, poi si toglie (7 giorni). */
+  ramoFinoA?: string
+  /** Perché è ferma a questo passo (worktree con modifiche, chat aperta che usa la copia…). */
+  tenuta?: string
+  /** Quando si è guardato l'ultima volta un passo tenuto: si riprova più tardi. */
+  guardataIl?: string
+}
+
+function leggiFineChat(x: unknown): FineChat | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const o = x as Record<string, unknown>
+  if ((o.esito !== 'unita' && o.esito !== 'abbandonata') || typeof o.il !== 'string' || !(PASSI_FINE as readonly unknown[]).includes(o.passo)) return undefined
+  const data = (k: string): string | undefined => (typeof o[k] === 'string' && !Number.isNaN(Date.parse(o[k] as string)) ? o[k] as string : undefined)
+  return {
+    esito: o.esito, il: o.il, passo: o.passo as PassoFine,
+    ...(data('chiusaIl') !== undefined ? { chiusaIl: data('chiusaIl') as string } : {}),
+    ...(data('ramoFinoA') !== undefined ? { ramoFinoA: data('ramoFinoA') as string } : {}),
+    ...(data('guardataIl') !== undefined ? { guardataIl: data('guardataIl') as string } : {}),
+    ...(typeof o.tenuta === 'string' && o.tenuta !== '' ? { tenuta: o.tenuta.slice(0, 200) } : {})
+  }
+}
+
+/**
+ * L'id della prossima chat (P2): come prima `c-<quante chat>+1`, ma contando
+ * anche quelle eliminate da `chats` (`chatTolte`), e saltando un id già
+ * preso. `i` per aprirne più insieme: la (i+1)-esima libera.
+ */
+export function idChatNuova(a: Pick<Autopilota, 'chats' | 'chatTolte'>, i = 0): string {
+  const prese = new Set(a.chats.map((c) => c.id))
+  let n = a.chats.length + (a.chatTolte ?? 0) + 1
+  for (let k = 0; ; n += 1) {
+    if (prese.has(`c-${n}`)) continue
+    if (k === i) return `c-${n}`
+    k += 1
+  }
 }
 
 /** Quando il servizio ha rimesso al lavoro una chat muta, e quante volte di fila (0.84.1). */
@@ -598,6 +653,12 @@ export type Autopilota = SupervisoreMancato & {
   adottate?: ChatAdottata[]
   /** I messaggi per le chat adottate, in attesa che la chat sia ferma (0.78.0). */
   perAdottate?: MessaggioAdottata[]
+  /**
+   * Quante chat finite sono state eliminate da `chats` (P2, 30/10): il
+   * numero della prossima chat conta anche loro, così un id `c-N` non torna
+   * mai (né il suo worktree `ap-…-c-N`, né il suo ramo). Vedi `idChatNuova`.
+   */
+  chatTolte?: number
 }
 
 /** Una chat esistente adottata dall'autopilota del suo workspace (0.78.0). */
@@ -750,7 +811,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(o.daCapo === true ? { daCapo: true as const } : {}),
     ...(typeof o.lasciataFuori === 'object' && o.lasciataFuori !== null && typeof (o.lasciataFuori as { il?: unknown }).il === 'string' && typeof (o.lasciataFuori as { perche?: unknown }).perche === 'string'
       ? { lasciataFuori: { il: (o.lasciataFuori as { il: string }).il, perche: (o.lasciataFuori as { perche: string }).perche } }
-      : {})
+      : {}),
+    ...(leggiFineChat(o.fine) !== undefined ? { fine: leggiFineChat(o.fine) } : {})
   }
 }
 
@@ -1195,7 +1257,8 @@ export function parseAutopilota(raw: unknown): {
         : {}),
       ...(Array.isArray(o.releaseUscite) && leggiReleaseUscite(o.releaseUscite).length > 0 ? { releaseUscite: leggiReleaseUscite(o.releaseUscite) } : {}),
       ...(Array.isArray(o.adottate) ? { adottate: leggiAdottate(o.adottate) } : {}),
-      ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {})
+      ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {}),
+      ...(typeof o.chatTolte === 'number' && o.chatTolte > 0 ? { chatTolte: Math.floor(o.chatTolte) } : {})
     },
     scartati
   }

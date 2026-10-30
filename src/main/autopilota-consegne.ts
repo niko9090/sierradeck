@@ -37,6 +37,8 @@ export type Consegna = {
   workspace?: string
   /** Con `chiudi` (0.84.0): l'agente ha finito; dopo la chiusura la conversazione va nel recupero di 30 giorni. */
   alRecupero?: boolean
+  /** P2 (30/10), con `chiudi`: unita → la conversazione si cancella; abbandonata → nel recupero per 72 ore. */
+  fine?: 'unita' | 'abbandonata'
 }
 
 /** Quanto spesso si passa a ritirare quando c'è lavoro: reattivo. */
@@ -179,7 +181,8 @@ export function leggiConsegne(raw: unknown): Consegna[] {
       // In coda da più di due minuti (0.69.0): si scrive anche se la chat lavora.
       ...(c.ancheAlLavoro === true ? { ancheAlLavoro: true } : {}),
       ...(c.sottofondo === true ? { sottofondo: true } : {}),
-      ...(cosa === 'chiudi' && c.alRecupero === true ? { alRecupero: true } : {})
+      ...(cosa === 'chiudi' && c.alRecupero === true ? { alRecupero: true } : {}),
+      ...(cosa === 'chiudi' && (c.fine === 'unita' || c.fine === 'abbandonata') ? { fine: c.fine } : {})
     })
   }
   return buone

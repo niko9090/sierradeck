@@ -115,17 +115,23 @@ describe('nomi che non devono passare', () => {
 })
 
 describe('due schede nuove con lo stesso titolo nello stesso giorno', () => {
-  it('la seconda prende un numero invece di sovrascrivere la prima', async () => {
-    const { mkdtempSync: mkd } = await import('node:fs')
+  it('P2: niente doppioni «-2…-999»: la stessa scheda si aggiorna, e una vuota non cancella quella piena', async () => {
+    const { mkdtempSync: mkd, readdirSync: rd } = await import('node:fs')
     const { tmpdir: tmp } = await import('node:os')
     const { join: j } = await import('node:path')
     const { apriQuaderno: apri } = await import('../../src/main/quaderno-store')
     const cwd = mkd(j(tmp(), 'sd-quaderno-doppio-'))
     const q = apri(() => '2026-09-14T10:00:00.000Z')
     const prima = q.scrivi(cwd, { titolo: 'Nota del 14/09/2026', corpo: 'la prima, con dentro il lavoro' })
+    // «+ Scheda» premuto due volte: si riapre quella che c'è, senza svuotarla.
     const seconda = q.scrivi(cwd, { titolo: 'Nota del 14/09/2026', corpo: '' })
-    expect(seconda.file).not.toBe(prima.file)
+    expect(seconda.file).toBe(prima.file)
     expect(q.leggi(cwd, prima.file)?.corpo).toBe('la prima, con dentro il lavoro')
+    // Lo stesso titolo con un corpo nuovo: si aggiorna la stessa scheda.
+    const rifatta = q.scrivi(cwd, { titolo: 'Nota del 14/09/2026', corpo: 'rifatta' })
+    expect(rifatta.file).toBe(prima.file)
+    expect(q.leggi(cwd, prima.file)?.corpo).toBe('rifatta')
+    expect(rd(q.cartella(cwd)).filter((n) => n.endsWith('.md'))).toHaveLength(1)
     // Con `file` si aggiorna, come prima.
     const terza = q.scrivi(cwd, { file: prima.file, titolo: 'Nota del 14/09/2026', corpo: 'aggiornata' })
     expect(terza.file).toBe(prima.file)
