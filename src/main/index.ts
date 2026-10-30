@@ -174,7 +174,7 @@ import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
 import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
-import { riquadriDaTogliere, type RiquadroDaTogliere } from '@shared/riquadri-morti'
+import { rispostaConPazienza, riquadriDaTogliere, type RiquadroDaTogliere } from '@shared/riquadri-morti'
 import { misuraAvvio } from './misura-avvio'
 import { trovaChatRemota, storiaRemotaSicura, PORTA_CLIENT_PREDEFINITA, type EsitoRemoto, type PcRemoto, type ChatSuPc } from '@shared/pc-remoto'
 import { progettoDiCwd, staDentro } from './progetti/registro'
@@ -229,6 +229,7 @@ import { giroErroriArrivati } from './errori-arrivati-lavoro'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
+import { creaRiassettoDelProgramma } from './riassetto/programma'
 import { ordineDeiMonitor, quanteFinestre, workspaceDellaSessione, chatSalvate, aggiungiPaneA, rimuoviSessioni as rimuoviSessioniDalLayout, parseArchivio, type Archivio as ArchivioWs, type LayoutSalvato, type PaneSalvato, type WorkspaceSalvato } from '@shared/workspace'
 import type { PtyHostClient } from './pty-host-client'
 import type { Db } from './db'
@@ -1312,11 +1313,14 @@ if (!app.requestSingleInstanceLock()) {
           return si
         }
         const serveIlServizio = panes.some((p) => p.remoto === undefined && (p.autopilota !== undefined || !cartellaEsiste(p.cwd)))
+        // 0.88: due secondi, poi altri sei solo se una chat locale ha la cartella
+        // sparita (senza il servizio non si sa se è finita, e partirebbe per niente).
         const autopiloti = serveIlServizio
-          ? await Promise.race([
-            clientAutopilota.elenca().catch(() => []),
-            new Promise<[]>((r) => setTimeout(() => r([]), 2000))
-          ])
+          ? (await rispostaConPazienza(() => clientAutopilota.elenca(), {
+            primaMs: 2000,
+            poiMs: 6000,
+            serve: () => panes.some((p) => p.remoto === undefined && !cartellaEsiste(p.cwd))
+          })) ?? []
           : []
         const chiuseOra = new Set(chiuse.elenco().map((c) => c.sessione))
         const nelRecupero = new Set((gestioneChatGlobale?.recupero().chat ?? []).map((c) => c.sessione))
@@ -1387,6 +1391,15 @@ if (!app.requestSingleInstanceLock()) {
         )
         for (const e of copia.errori) registro.errore(`[versione] copia di sicurezza incompleta: ${e}`)
       }
+      // Il riassetto (0.88): una volta sola dopo l'aggiornamento, con giornale e
+      // recupero di 30 giorni. Qui la fase A, sui file che nessuno ha ancora
+      // aperto; la fase B parte quando il servizio è pronto (`collegaServizio`).
+      const riassetto = creaRiassettoDelProgramma({
+        dati, versione: app.getVersion(), copia, porta: () => portaAutopiloti, storicoApp: storicoErrori,
+        log: (m) => registro.info(m), errore: (m) => registro.errore(m),
+        indice: () => db, cartellaProgetti: () => identitaPcGlobale?.leggi().cartellaProgetti
+      })
+      try { riassetto.faseA() } catch (err) { registro.errore(`[riassetto] fase A non riuscita: ${String(err)}`) }
       // Le preferenze si aprono qui e non piu' avanti: la porta degli
       // autopiloti serve gia' al registro dei canali delle chat, che nasce
       // prima — e una porta letta dopo averla usata e' una porta ignorata.
@@ -4738,6 +4751,10 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
+      riassetto.collegaServizio({
+        assicura: () => clientAutopilota.assicuraServizio(),
+        cwdAutopiloti: async () => [...new Set((await clientAutopilota.elenca()).map((a) => a.cwd))]
+      })
       // «Parte da solo» (0.55.0): chi è pronto riceve il via dal PC.
       const partenze = apriPartenzeSubito(dati, {
         elenca: () => clientAutopilota.elenca(),
@@ -5181,6 +5198,8 @@ if (!app.requestSingleInstanceLock()) {
         void gestioneChat.giro().then(() => gestioneChat.pulisciOrfane()).catch((err: unknown) => registro.info(`[chat] giro del recupero non riuscito: ${err instanceof Error ? err.message : String(err)}`))
         // P2: le note del quaderno riordinate escono dal recupero dopo 30 giorni.
         try { const n = svuotaRecuperoQuaderno(dati); if (n > 0) registro.info(`[quaderno] recupero: ${n} riordini oltre i 30 giorni svuotati`) } catch (err) { registro.info(`[quaderno] recupero non svuotato: ${String(err)}`) }
+        // 0.88: anche il recupero del riassetto, dopo 30 giorni.
+        riassetto.giroScadenze()
       }
       const primoGiroChat = setTimeout(giroChat, 90_000)
       const timerGiroChat = setInterval(giroChat, 6 * 60 * 60_000)

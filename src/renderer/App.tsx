@@ -49,6 +49,7 @@ import { novitaConLeUltime } from '@shared/novita'
 import { noteDaNovita, type NotaResa, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import type { StatoPreparazione } from '../main/preparazione'
 import { BandaAvvisi } from './components/BandaAvvisi'
+import { BandaRiassetto } from './components/BandaRiassetto'
 import { componiAvvisi, ricordaChiusi } from './avvisi'
 import type { StatoAccesso } from '../main/accesso'
 import { azioneTastoDomande, decidiColonnaDomande, domandeALato, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
@@ -2083,6 +2084,7 @@ export function App(): React.JSX.Element {
           </div>
         </div>
       ) : null}
+      <BandaRiassetto />
       <BandaAvvisi
         avvisi={componiAvvisi({
           accesso,

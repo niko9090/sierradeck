@@ -277,6 +277,18 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('migrazione:cambiata', h) }
     }
   },
+  /** Il riassetto dopo l'aggiornamento (0.88): avanzamento, riepilogo, «Annulla», «Libera subito». */
+  riassetto: {
+    stato: (): Promise<import('../shared/riassetto').StatoRiassetto | null> => ipcRenderer.invoke('riassetto:stato'),
+    annulla: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('riassetto:annulla'),
+    liberaSubito: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('riassetto:liberaSubito'),
+    chiudi: (): Promise<void> => ipcRenderer.invoke('riassetto:chiudi'),
+    suProgresso: (cb: (s: import('../shared/riassetto').StatoRiassetto) => void): (() => void) => {
+      const h = (_e: unknown, s: import('../shared/riassetto').StatoRiassetto): void => cb(s)
+      ipcRenderer.on('riassetto:progresso', h)
+      return () => { ipcRenderer.off('riassetto:progresso', h) }
+    }
+  },
   /** Le chat già avviate adottate dall'autopilota del workspace (0.78.0). */
   adozione: {
     soloMia: (id: string, sessione: string, si: boolean): Promise<{ ok: boolean }> => ipcRenderer.invoke('adozione:soloMia', id, sessione, si),

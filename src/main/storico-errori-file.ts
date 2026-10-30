@@ -23,6 +23,8 @@ export type StoricoSuFile = {
   leggi: () => StoricoErrori
   /** Scrive subito quello che aspetta (all'uscita). */
   scriviOra: () => void
+  /** Riscrive lo storico com'è dopo `cambia` (il riassetto lo compatta): in memoria e sul file. */
+  sostituisci: (cambia: (s: StoricoErrori) => StoricoErrori) => void
   file: string
 }
 
@@ -64,7 +66,11 @@ export function apriStoricoErrori(dati: string, chi: 'app' | 'servizio', p: {
       }
     },
     leggi: () => storico,
-    scriviOra
+    scriviOra,
+    sostituisci: (cambia) => {
+      storico = cambia(storico)
+      scriviOra()
+    }
   }
 }
 

@@ -100,6 +100,7 @@ import { unisciAlSalvataggio } from './unione-salvataggio'
 import { azzeraContatoriSeNuovaVersione, fileVersioneContatori } from './contatori-versione'
 import { allineaHookEccDiTutte } from './hook-ecc'
 import { chatNote, rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
+import { passoRiassettoServizio } from './riassetto-servizio'
 import { conReleaseUscite, type LeggiReleaseUscite } from './release-uscite'
 import { leggiSegnaleVero, type SegnaleVero } from '@shared/indicatore-autopilota'
 
@@ -5829,6 +5830,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         }
 
         // «Pulisci adesso» (0.85.2): lo chiede Nicholas, quindi anche a PC carico.
+        // Il riassetto dopo l'aggiornamento (0.88): la parte del servizio sta in `riassetto-servizio.ts`.
+        if (metodo === 'POST' && percorso === '/riassetto/passo') {
+          const r = await passoRiassettoServizio(await leggiCorpo(req).catch(() => undefined), deps)
+          rispondi(res, r.stato, r.corpo)
+          return
+        }
+
         if (metodo === 'POST' && percorso === '/autopulizia') {
           if (deps.autopulizia === undefined) { rispondi(res, 503, { errore: 'autopulizia non disponibile' }); return }
           const e = await deps.autopulizia({ forza: true })
