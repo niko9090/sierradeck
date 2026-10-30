@@ -3,9 +3,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { datiPannello } from '../../src/main/pannello-drive-dati'
 import { paginaClient } from '../../src/main/client-pagina'
-import { chiaveProgetto, sceltaProgetto } from '../../src/shared/allineamento'
-import { testoRiassunto } from '../../src/shared/residenza'
-import { ferma, nuovoTrasloco, segna } from '../../src/shared/trasloco'
 import { conVista } from '../../src/shared/progetti-vista'
 
 /**
@@ -13,7 +10,8 @@ import { conVista } from '../../src/shared/progetti-vista'
  * 0.58.0 (`/api/drive/pannello`), su dati d'esempio. L'app lo legge da
  * `android/app/src/test/resources/pannello-drive/pannello-0.60.json`
  * (dalla 0.60.0; `pannello-0.58.json` resta com'era: l'app legge anche i PC vecchi)
- * (PannelloDriveTest; dalla 0.69.0 `pannello-0.69.json`, con la vista dei progetti); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
+ * (PannelloDriveTest; dalla 0.69.0 `pannello-0.69.json`, con la vista dei progetti; dalla 0.88.0
+ * `pannello-0.88.json`, un proprietario per progetto); la pagina lo disegna qui sotto. `AGGIORNA=1` riscrive.
  */
 const ORA = Date.parse('2026-10-10T18:00:00Z')
 
@@ -24,44 +22,26 @@ function esempio(): Record<string, unknown> {
       { id: 'pc-port', nome: 'PORTATILE-ESEMPIO', battito: new Date(ORA - 60_000).toISOString(), locali: { chat: [{ sessione: 's-uno', cwd: 'D:\\Lavoro\\Gestionale', mtime: ORA - 3_600_000 }], progetti: [] } },
       { id: 'pc-vecchio', nome: 'PC-VECCHIO', battito: new Date(ORA - 120_000).toISOString() }
     ],
-    case: { versione: 1, case: {
-      's-uno': { pc: 'pc-port', pcNome: 'PORTATILE-ESEMPIO', motivo: 'scelta', decisaIl: '2026-10-01T00:00:00Z', da: 'nicholas' },
-      ...sceltaProgetto({ id: 'prog-g', nome: 'Gestionale', pc: { id: 'pc-port', nome: 'PORTATILE-ESEMPIO' }, chi: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, quando: '2026-10-05T00:00:00Z' })
-    } },
     locali: [
-      { sessione: 's-due', titolo: 'Note di prova', cwd: 'C:\\Progetti\\Gestionale', mtime: ORA - 7_200_000 },
+      { sessione: 's-due', titolo: 'Note di prova', cwd: 'C:\\Progetti\\Sito', mtime: ORA - 7_200_000 },
       // 0.60.0: una chat senza nome, attaccata al suo progetto per cartella e nascosta dagli elenchi.
-      { sessione: 's-tre', titolo: '', cwd: 'C:\\Progetti\\Gestionale\\sotto', mtime: ORA - 9_000_000 }
+      { sessione: 's-tre', titolo: '', cwd: 'C:\\Progetti\\Sito\\sotto', mtime: ORA - 9_000_000 }
     ],
     manifesto: undefined, aperteQui: ['s-due'], alLavoroQui: ['s-due'], titoliNoti: [{ sessione: 's-uno', titolo: 'Fatture' }],
     progetti: [
-      { id: 'prog-g', nome: 'Gestionale', percorsi: { 'pc-qui': 'C:\\Progetti\\Gestionale', 'pc-port': 'D:\\Lavoro\\Gestionale' }, aggiuntoIl: '2026-09-01T00:00:00Z' },
-      // 0.60.0: lo stesso progetto registrato una seconda volta da un altro PC (stesso nome, normalizzato).
-      { id: 'prog-g2', nome: 'gestionale (2)', percorsi: { 'pc-port': 'E:\\Copie\\gestionale (2)' }, aggiuntoIl: '2026-09-20T00:00:00Z' }
+      { id: 'prog-g', nome: 'Gestionale', proprietario: 'pc-port', percorso: 'D:\\Lavoro\\Gestionale', aggiuntoIl: '2026-09-01T00:00:00Z' },
+      { id: 'prog-s', nome: 'Sito', proprietario: 'pc-qui', percorso: 'C:\\Progetti\\Sito', aggiuntoIl: '2026-09-20T00:00:00Z' }
     ],
-    workspaceQui: ['Gestionale', 'gestionale (2)', 'Altro'],
-    adesso: ORA,
-    piano: { azioni: [{ tipo: 'solo-cloud', progetto: 'prog-g', nome: 'Gestionale', percorso: 'C:\\Progetti\\Gestionale', residente: 'PORTATILE-ESEMPIO', perche: 'Il residente di «Gestionale» è PORTATILE-ESEMPIO: qui dovrebbe essere solo cloud.' }], senzaScelta: 0 }
+    workspaceQui: ['Sito', 'Altro'],
+    adesso: ORA
   })
-  const corpo = {
-    nome: 'Gestionale', pcNome: 'PC-ESEMPIO', destinazione: 'C:\\Progetti\\Gestionale', nuova: false, git: false,
-    copie: [{ chiave: 'drive:prog-g2', tipo: 'drive' as const, etichetta: 'sul Drive, salvata da PORTATILE-ESEMPIO (prog-g)', uguali: 10, aggiunti: 2, sostituiti: 1, recuperati: 1, esclusi: 0, vaInRecupero: false }],
-    file: { uguali: 10, aggiunti: 2, sostituiti: 1, recuperati: 1, note: 1 },
-    chat: { daSpostare: 0, delProgetto: 3, daAltriPc: 1 },
-    workspace: { tiene: 'Gestionale', uniti: ['gestionale (2)'], aperti: [] },
-    registro: { principale: 'prog-g', uniti: ['prog-g2'] },
-    recupero: [], inUso: [], recuperati: '.sierradeck/recuperati/unione-2026-10-10-18-00-00'
-  }
-  const rimozione = [{ progetto: 'prog-g', nome: 'Gestionale', residente: 'PORTATILE-ESEMPIO', fase: 'attesa-conferma' as const, messaggio: 'Progetto «Gestionale», confrontato da PORTATILE-ESEMPIO (il residente).', quando: new Date(ORA).toISOString() }]
   // La vista dei progetti (0.69.0): la calcola il PC, l'app e la pagina la disegnano.
-  const conLaVista = conVista(p, { rimozione })
+  const conLaVista = conVista(p, {})
   return JSON.parse(JSON.stringify({
     ...conLaVista,
-    residenza: [{ progetto: 'prog-g', nome: 'Gestionale', fase: 'attesa-conferma', messaggio: testoRiassunto(corpo).join(' '), riassunto: { ...corpo, righe: testoRiassunto(corpo) }, quando: new Date(ORA).toISOString() }],
-    unioni: [{ id: 'Sito-2026-10-09', progetto: 'prog-s', nome: 'Sito', quando: '2026-10-09T10:00:00.000Z', destinazione: 'C:\\Progetti\\Sito', scadeIl: '2026-11-08T10:00:00.000Z' }],
     rimozione: {
-      stati: rimozione,
-      inRecupero: [{ id: 'Vecchio-2026', progetto: 'prog-v', nome: 'Vecchio', percorsoOriginale: 'C:\\Progetti\\Vecchio', dove: 'C:\\Dati\\recupero-progetti\\Vecchio-2026', quando: '2026-10-01T10:00:00.000Z', motivo: 'solo cloud', scadeIl: '2026-10-31T10:00:00.000Z' }]
+      stati: [],
+      inRecupero: [{ id: 'Vecchio-2026', progetto: 'prog-v', nome: 'Vecchio', percorsoOriginale: 'C:\\Progetti\\Vecchio', dove: 'C:\\Dati\\recupero-progetti\\Vecchio-2026', quando: '2026-10-01T10:00:00.000Z', motivo: 'spostato su PORTATILE-ESEMPIO', scadeIl: '2026-10-31T10:00:00.000Z' }]
     }
   }).replace(/"letto":"[^"]*"/, '"letto":"2026-10-10T18:00:00.000Z"'))
 }
@@ -69,17 +49,18 @@ function esempio(): Record<string, unknown> {
 describe('il pannello del Drive per la pagina e per l’app', () => {
   const atteso = esempio()
   it('la risposta è quella che l’app si aspetta', () => {
-    // Dalla 0.69.0 con la vista; `pannello-0.60.json` resta com'era, per i PC di prima.
-    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.69.json')
+    // Dalla 0.88.0 un proprietario per progetto; `pannello-0.69.json` resta com'era, per i PC di prima.
+    const file = join('android', 'app', 'src', 'test', 'resources', 'pannello-drive', 'pannello-0.88.json')
     if (process.env.AGGIORNA === '1' || !existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(atteso, null, 2) + '\n') }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(atteso)
   })
-  it('il progetto ha le azioni con i testi del PC: rendi residente qui, rendi solo cloud qui', () => {
-    const g = (atteso.progetti as { azioni: { id: string; testo: string }[] }[])[0]!
-    expect(g.azioni.map((a) => a.id)).toEqual(['apri', 'residente-qui', 'solo-cloud-qui'])
-    expect(g.azioni.find((a) => a.id === 'solo-cloud-qui')?.testo).toContain('cartella di recupero')
+  it('i progetti hanno le azioni con i testi del PC: apri qui; apri là o sposta su questo PC', () => {
+    const progetti = atteso.progetti as { id: string; azioni: { id: string; testo: string }[] }[]
+    expect(progetti.find((g) => g.id === 'prog-s')?.azioni.map((a) => a.id)).toEqual(['apri'])
+    const g = progetti.find((x) => x.id === 'prog-g')!
+    expect(g.azioni.map((a) => a.id)).toEqual(['apri-remoto', 'sposta-qui'])
+    expect(g.azioni.find((a) => a.id === 'sposta-qui')?.testo).toContain('recupero per 30 giorni')
     expect(atteso.pcDaAggiornare).toEqual(['PC-VECCHIO'])
-    expect(Object.keys((atteso as { case?: unknown }).case ?? {})).not.toContain(chiaveProgetto('prog-g'))
   })
   it('la pagina lo disegna: riassunto, conferma, ripristina, azioni', () => {
     const html = paginaClient()
@@ -106,17 +87,13 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       return pannelloDriveHtml()`) as (d: unknown, s: string, t: string) => string)(dati, scelto, strumento)
     // 0.69.0: l'elenco con lo stato in una parola (dal PC), i gruppi con i conti, gli strumenti.
     const h = disegna(atteso)
-    for (const t of ['Gestionale', 'da sistemare', 'aspetta la tua conferma', 'Su altri PC 1', 'Da sistemare 1', 'Tutti 1', 'va aggiornato', 'pdApri(', 'Tutte le chat', 'Cartelle in recupero (1)', 'Piano di allineamento']) expect(h).toContain(t)
-    // Il dettaglio a tutto schermo: le azioni in vista con il «?», le conferme, le chat dove vivono.
+    for (const t of ['Gestionale', 'Sito', 'va aggiornato', 'pdApri(', 'Tutte le chat', 'Cartelle in recupero (1)']) expect(h).toContain(t)
+    // Il dettaglio a tutto schermo: le azioni del PC in vista, le chat dove vivono.
     const d = disegna(atteso, 'prog-g')
-    for (const t of ['‹ Progetti', 'Lavora su questo PC', 'Togli da questo PC', 'Aspetta la tua conferma: unione delle copie', 'Togliere da questo PC', 'Registrato 2 volte', 'Fatture', 'Guarda su PORTATILE-ESEMPIO', 'pdApriChat(', 'Cartelle']) expect(d).toContain(t)
+    for (const t of ['‹ Progetti', 'Apri su PORTATILE-ESEMPIO', 'Sposta su questo PC', 'Fatture', 'Guarda su PORTATILE-ESEMPIO', 'pdApriChat(']) expect(d).toContain(t)
     expect(disegna(atteso, '', 'recupero')).toContain('Ripristina')
-    // 0.65.0: il trasloco passo per passo (fermo, con il motivo e «Riprendi») nel dettaglio, e lo spazio sul Drive negli strumenti.
-    const base = nuovoTrasloco({ id: 'trasloco-1', progetto: 'prog-g', nome: 'Gestionale', verso: { pc: 'pc-qui', nome: 'PC-ESEMPIO' }, chiesto: { da: 'pc-port', come: 'sposta' }, altrove: [{ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO' }], adesso: '2026-10-12T10:00:00Z' })
-    const fermo = ferma(segna(base, 'raccolta', { stato: 'fatto', dettaglio: '1 copia salvata sul Drive' }, '2026-10-12T10:01:00Z'), 'analisi', 'PORTATILE-ESEMPIO non risponde', true, '2026-10-12T10:02:00Z')
-    const conTrasloco = { ...atteso, traslochi: [fermo], spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } }
-    const h2 = disegna(conTrasloco, 'prog-g')
-    for (const t of ['Trasloco di «Gestionale» su PC-ESEMPIO', 'Fermo: PORTATILE-ESEMPIO non risponde', 'Riprendo da solo', '✓ Raccolgo le copie — 1 copia salvata sul Drive', 'Riprendi']) expect(h2).toContain(t)
+    // 0.65.0: lo spazio sul Drive negli strumenti.
+    const conTrasloco = { ...atteso, spazio: { misura: { totale: { file: 3, byte: 2048 }, perTipo: { chat: { file: 3, byte: 2048 } }, inRecupero: { file: 0, byte: 0 }, misuratoIl: '' }, proposte: [{ tipo: 'doppie', titolo: 'Copie doppie', breve: '1 chat salvate due volte', spiega: 'x', voci: [], byte: 1024 }], pulizie: [] } }
     const h3 = disegna(conTrasloco, '', 'spazio')
     for (const t of ['Spazio sul Drive', 'SierraDeck usa <b>2,0 KB</b>', 'Copie doppie', 'libera 1,0 KB', 'Pulisci…']) expect(h3).toContain(t)
   })

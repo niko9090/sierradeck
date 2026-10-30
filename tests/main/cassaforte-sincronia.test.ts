@@ -243,7 +243,7 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect(existsSync(join(a.dati, FILE_MAESTRA_RICORDATA))).toBe(false)
   })
 
-  it('un progetto sul Drive arriva sull altro PC nella sua cartella dei progetti, con .git e senza node_modules', async () => {
+  it('un progetto sul Drive resta sul suo PC: l altro PC lo sa dal registro e non lo scarica (0.88.0)', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)
     const b = pc('B'); traccia(b)
@@ -280,23 +280,21 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     expect((await syncB.sblocca('segreta')).ok).toBe(true)
     const r = await syncB.ripristina()
     expect(r.ok).toBe(true)
-    const progettoB = join(cartellaB, 'SierraDeck')
-    expect(readFileSync(join(progettoB, 'src', 'main.ts'), 'utf8')).toBe('export {}')
-    expect(readFileSync(join(progettoB, '.git', 'HEAD'), 'utf8')).toBe('ref: refs/heads/main')
-    expect(existsSync(join(progettoB, 'dist'))).toBe(false)
-    expect(existsSync(join(progettoB, 'node_modules'))).toBe(false)
-    // E il registro di B sa dove sta il progetto qui.
-    expect(registroB.leggi().progetti[0]?.percorsi).toEqual({ 'pc-A': progettoA, 'pc-B': progettoB })
+    // Un PC per progetto (0.88.0): B non scarica un progetto di A. Lo sa dal
+    // registro (vive su A) e lo apre dal vivo; per averlo serve «Sposta».
+    expect(existsSync(join(cartellaB, 'SierraDeck'))).toBe(false)
+    expect(registroB.leggi().progetti[0]).toMatchObject({ id: 'p1', proprietario: 'pc-A', percorso: progettoA })
 
-    // B lavora e salva: il file nuovo torna su A, e niente di A sparisce.
-    writeFileSync(join(progettoB, 'src', 'nuovo.ts'), 'export const x = 1')
-    expect((await syncB.salva()).ok).toBe(true)
+    // A lavora e salva: il file nuovo va sul Drive, e niente di A sparisce.
+    writeFileSync(join(progettoA, 'src', 'nuovo.ts'), 'export const x = 1')
+    expect((await syncA.salva()).ok).toBe(true)
     expect((await syncA.ripristina()).ok).toBe(true)
     expect(readFileSync(join(progettoA, 'src', 'nuovo.ts'), 'utf8')).toBe('export const x = 1')
     expect(existsSync(join(progettoA, 'src', 'main.ts'))).toBe(true)
+    expect(readFileSync(join(progettoA, '.git', 'HEAD'), 'utf8')).toBe('ref: refs/heads/main')
   })
 
-  it('ripristinaProgetto porta solo quel progetto, e la scatola tiene presenze cifrate', async () => {
+  it('ripristinaProgetto solo sul proprietario, e la scatola tiene i dati cifrati', async () => {
     const drive = driveCondiviso()
     const a = pc('A'); traccia(a)
     const b = pc('B'); traccia(b)
@@ -330,23 +328,16 @@ describe('sincronia incrementale: giro completo fra due PC', () => {
     await scatolaB!.cancella('presenza-p1')
     expect(await scatolaB!.leggi('presenza-p1')).toBeUndefined()
 
-    // B ripristina tutto una volta (arriva il registro), poi A cambia e B prende solo il progetto.
+    // B ripristina tutto una volta (arriva il registro): il progetto vive su A,
+    // e qui non si scarica, né con il ripristino né con il solo progetto (0.88.0).
     expect((await syncB.ripristina()).ok).toBe(true)
-    const progettoB = join(cartellaB, 'Prog')
-    expect(readFileSync(join(progettoB, 'src', 'a.ts'), 'utf8')).toBe('uno')
-    writeFileSync(join(progettoA, 'src', 'a.ts'), 'due')
-    writeFileSync(join(progettoA, 'src', 'b.ts'), 'nuovo')
-    expect((await syncA.salva()).ok).toBe(true)
-    // Nel frattempo B ha una chat sua: il ripristino del solo progetto non la tocca.
-    writeFileSync(join(b.claude, 'projects', 'progetto', 'mia.jsonl'), '{"b":1}\n')
+    expect(existsSync(join(cartellaB, 'Prog'))).toBe(false)
     const r = await syncB.ripristinaProgetto('p1')
-    expect(r.ok).toBe(true)
-    expect(r.scritti).toBe(2)
-    expect(readFileSync(join(progettoB, 'src', 'a.ts'), 'utf8')).toBe('due')
-    expect(readFileSync(join(progettoB, 'src', 'b.ts'), 'utf8')).toBe('nuovo')
-    expect(existsSync(join(b.claude, 'projects', 'progetto', 'mia.jsonl'))).toBe(true)
-    // Un secondo giro senza cambi non riscrive niente.
-    expect((await syncB.ripristinaProgetto('p1')).scritti).toBe(0)
+    expect(r.ok).toBe(false)
+    expect(existsSync(join(cartellaB, 'Prog'))).toBe(false)
+    // Sul proprietario, un secondo giro senza cambi non riscrive niente.
+    expect((await syncA.ripristinaProgetto('p1')).scritti).toBe(0)
+    expect(readFileSync(join(progettoA, 'src', 'a.ts'), 'utf8')).toBe('uno')
   })
 
   it('togliProgettoDalDrive cancella i file del progetto lassu, non le cartelle qui', async () => {

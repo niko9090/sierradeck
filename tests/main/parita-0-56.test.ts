@@ -47,14 +47,6 @@ describe('le mancanze della parità, dal telefono', () => {
     expect(fatti).toEqual(['s-1:true', 's-1:false'])
   })
 
-  it('l’ospite: la scelta arriva a casa:scegli con la sessione della chat', async () => {
-    const scelte: unknown[] = []
-    const r = base({ scegliOspite: async (sessioni: string[], pc: { id: string; nome: string }) => { scelte.push({ sessioni, pc }); return { ok: true, messaggio: 'Fatto' } } })
-    expect(await vai(r, '/api/chat/ospite', { chat: 'p-1', pc: 'pc-esempio-id', pcNome: 'PC-ESEMPIO' })).toMatchObject({ stato: 200, corpo: { messaggio: 'Fatto' } })
-    expect((await vai(r, '/api/chat/ospite', { chat: 'p-1' })).stato).toBe(400)
-    expect(scelte).toEqual([{ sessioni: ['s-1'], pc: { id: 'pc-esempio-id', nome: 'PC-ESEMPIO' } }])
-  })
-
   it('chat nuova con nome e modello; un modello sconosciuto no', async () => {
     const aperte: unknown[] = []
     const r = base({ apriChat: (c: string, m?: string, w?: string, n?: string) => { aperte.push({ c, m, w, n }) } })

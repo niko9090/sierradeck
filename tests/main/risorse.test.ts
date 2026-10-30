@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { conConteggio, cpuRamDa, creaContatoreDrive, tipoRichiestaDrive, FINESTRA_RISORSE_MS } from '../../src/main/risorse'
 import { creaPostino, nomeBattitoPc } from '../../src/main/progetti/posta'
-import type { Scatola } from '../../src/main/progetti/presenza'
+import type { Scatola } from '../../src/main/progetti/posta'
 import { componiSalute } from '@shared/salute'
 import { risorseValide, rigaRisorse, type RisorsePc } from '@shared/risorse'
 

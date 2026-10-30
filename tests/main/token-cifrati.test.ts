@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { leggiSegreto, leggiSegretoConStato, scriviSegreto, eCifrato, SEGNO_CIFRATO, type Portachiavi } from '../../src/main/segreti-su-file'
 import { apriContoDrive, FILE_TOKEN_DRIVE } from '../../src/main/cassaforte/conto-drive'
-import { archivioSessione, FILE_ACCESSO_SUPABASE } from '../../src/main/accesso-supabase'
+/** Il file della sessione di Supabase delle versioni di prima (0.88.0: l'accesso è tolto, il nome resta fuori dalle copie). */
+const FILE_ACCESSO_SUPABASE = 'accesso-supabase.json'
 import { daCopiare, mettiAlSicuroLoStato, CARTELLA_COPIE } from '../../src/main/copie-di-versione'
 
 /**
@@ -82,7 +83,6 @@ describe('segreti su file', () => {
       writeFileSync(join(d, CARTELLA_COPIE, v, FILE_ACCESSO_SUPABASE), JSON.stringify({ sessione: 'in-chiaro' }))
     }
     expect(apriContoDrive(d, portachiaviFinto()).stato().connesso).toBe(true)
-    expect(archivioSessione(d, portachiaviFinto()).getItem('sessione')).toBe('in-chiaro')
     for (const v of ['0.84.0-a', '0.85.0-b', '0.86.1-c']) {
       expect(JSON.parse(readFileSync(join(d, CARTELLA_COPIE, v, FILE_TOKEN_DRIVE), 'utf8'))).toEqual(TOKEN)
       expect(eCifrato(join(d, CARTELLA_COPIE, v, FILE_ACCESSO_SUPABASE))).toBe(false)
@@ -107,19 +107,9 @@ describe('segreti su file', () => {
     const conto = apriContoDrive(d, spento)
     expect(conto.stato()).toMatchObject({ connesso: false, portachiaviNonPronto: true })
     expect(conto.scollegamento()).toBeUndefined()
-    // La sessione di Supabase: vuota adesso, ma il file resta.
-    scriviSegreto(join(d, FILE_ACCESSO_SUPABASE), JSON.stringify({ k: 'v' }), portachiaviFinto(), 'prova')
-    const sessione = readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const s = archivioSessione(d, spento)
-    expect(s.getItem('k')).toBeNull()
-    s.removeItem('k')
-    expect(readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')).toBe(sessione)
-    vi.restoreAllMocks()
     // Il portachiavi torna: tutto come prima, senza ricollegare.
     expect(apriContoDrive(d, portachiaviFinto()).stato()).toMatchObject({ connesso: true })
     expect(apriContoDrive(d, portachiaviFinto()).stato().portachiaviNonPronto).toBeUndefined()
-    expect(archivioSessione(d, portachiaviFinto()).getItem('k')).toBe('v')
   })
 })
 
@@ -159,21 +149,6 @@ describe('il token del Drive', () => {
     writeFileSync(join(d, FILE_TOKEN_DRIVE), JSON.stringify(TOKEN))
     expect(apriContoDrive(d, portachiaviFinto(false)).stato().connesso).toBe(true)
     expect(JSON.parse(readFileSync(join(d, FILE_TOKEN_DRIVE), 'utf8'))).toEqual(TOKEN)
-  })
-})
-
-describe('la sessione di Supabase', () => {
-  it('si scrive cifrata, si rilegge, e quella in chiaro di prima si migra', () => {
-    const d = cartella()
-    writeFileSync(join(d, FILE_ACCESSO_SUPABASE), JSON.stringify({ 'sb-chiave': 'sessione-di-prova' }))
-    const archivio = archivioSessione(d, portachiaviFinto())
-    expect(archivio.getItem('sb-chiave')).toBe('sessione-di-prova')
-    expect(readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')).not.toContain('sessione-di-prova')
-    archivio.setItem('altra', 'valore-nuovo')
-    expect(readFileSync(join(d, FILE_ACCESSO_SUPABASE), 'utf8')).not.toContain('valore-nuovo')
-    expect(archivioSessione(d, portachiaviFinto()).getItem('altra')).toBe('valore-nuovo')
-    archivio.removeItem('altra')
-    expect(archivio.getItem('altra')).toBeNull()
   })
 })
 

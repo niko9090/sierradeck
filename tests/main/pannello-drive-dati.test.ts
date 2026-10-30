@@ -21,12 +21,11 @@ describe('le fonti del pannello delle chat del Drive', () => {
   const p = datiPannello({
     io: { id: 'pc-qui', nome: 'PC-ESEMPIO' },
     pc: [{ id: 'pc-port', nome: 'PORTATILE-ESEMPIO', battito: new Date(ORA).toISOString(), chat: [{ sessione: 's-due', titolo: 'Seconda', cwd: 'C:\\Progetti\\Esempio' }] }],
-    case: { versione: 1, case: { 's-uno': { pc: 'pc-port', pcNome: 'PORTATILE-ESEMPIO', motivo: 'scelta', decisaIl: '2026-10-01T00:00:00Z', da: 'nicholas' } } },
     locali: [{ sessione: 's-uno', titolo: 'Prima', cwd: 'C:\\Progetti\\Esempio\\sotto', mtime: 50 }],
     manifesto,
     aperteQui: ['s-uno'],
     titoliNoti: [],
-    progetti: [{ id: 'prog-1', nome: 'Esempio', percorsi: { 'pc-port': 'C:\\Progetti\\Esempio' } }],
+    progetti: [{ id: 'prog-1', nome: 'Esempio', proprietario: 'pc-port', percorso: 'C:\\Progetti\\Esempio' }],
     adesso: ORA
   })
   const r = (s: string) => p.chat.find((x) => x.sessione === s)!
@@ -37,13 +36,15 @@ describe('le fonti del pannello delle chat del Drive', () => {
     expect(r('s-uno').ultimoUso).toBe(new Date(300).toISOString())
   })
 
-  it('aperta qui ma con casa sul portatile: due case', () => {
-    expect(r('s-uno').problemi.map((x) => x.tipo)).toContain('due-case')
+  it('una chat è del proprietario del suo progetto, anche se aperta qui (0.88.0)', () => {
+    expect(r('s-uno').residente).toEqual({ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO', qui: false })
+    expect(p.progetti[0]?.residente).toEqual({ pc: 'pc-port', nome: 'PORTATILE-ESEMPIO', qui: false })
+    expect(p.progetti[0]?.azioni.map((a) => a.id)).toEqual(['apri-remoto', 'sposta-qui'])
   })
 
   it('il titolo dal battito, la cartella dallo slug, il progetto dalla cartella su qualunque PC', () => {
     expect(r('s-due').titolo).toBe('Seconda')
-    expect(r('s-due').problemi.map((x) => x.tipo)).toEqual(['senza-casa'])
+    expect(r('s-due').problemi).toEqual([])
     expect(r('s-uno').progetto).toBe('prog-1')
     expect(p.progetti[0]?.chat).toBe(2)
   })
@@ -52,7 +53,6 @@ describe('le fonti del pannello delle chat del Drive', () => {
 describe('le copie locali dal battito (0.58.0, tappa 2)', () => {
   const base = {
     io: { id: 'pc-qui', nome: 'PC-ESEMPIO' },
-    case: { versione: 1 as const, case: {} },
     locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [], progetti: [], adesso: Date.parse('2026-10-10T18:00:00Z')
   }
   it('un PC nuovo dice le sue copie sul disco; uno vecchio no, e va aggiornato', () => {
@@ -84,8 +84,8 @@ describe('gli altri PC nel pannello portano le loro copie locali (0.71.1)', () =
     expect(pc[0]).toMatchObject({ id: 'pc-port', nome: 'PORTATILE-ESEMPIO', locali: battiti[0]!.locali })
     expect(pc[1]).not.toHaveProperty('locali')
     const p = datiPannello({
-      io: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, pc, case: { versione: 1, case: {} }, locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [],
-      progetti: [{ id: 'prog-1', nome: 'Esempio', percorsi: { 'pc-port': 'C:\\Progetti\\Esempio' } }], adesso: ORA
+      io: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, pc, locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [],
+      progetti: [{ id: 'prog-1', nome: 'Esempio', proprietario: 'pc-port', percorso: 'C:\\Progetti\\Esempio' }], adesso: ORA
     })
     // Solo il PC davvero vecchio (senza copie locali nel battito) va aggiornato.
     expect(p.pcDaAggiornare).toEqual(['VECCHIO-ESEMPIO'])
@@ -93,25 +93,26 @@ describe('gli altri PC nel pannello portano le loro copie locali (0.71.1)', () =
   })
 })
 
-describe('registrato più volte (0.71.1): da sistemare solo se c’è davvero qualcosa da unire', () => {
-  const pannello = (progetti: { id: string; nome: string; percorsi: Record<string, string> }[], workspaceQui: string[] = []) => datiPannello({
-    io: { id: 'pc-qui', nome: 'PC-ESEMPIO' }, pc: [], case: { versione: 1, case: {} }, locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [],
-    progetti, adesso: ORA, workspaceQui
+describe('i problemi di un progetto (0.88.0): senza proprietario, o con un proprietario che non c’è', () => {
+  const pannello = (progetti: { id: string; nome: string; proprietario?: string; percorso?: string }[]) => datiPannello({
+    io: { id: 'pc-qui', nome: 'PC-ESEMPIO' },
+    pc: [{ id: 'pc-port', nome: 'PORTATILE-ESEMPIO', battito: new Date(ORA - 40 * 86_400_000).toISOString() }],
+    locali: [], manifesto: undefined, aperteQui: [], titoliNoti: [], progetti, adesso: ORA
   })
-  it('due voci con la stessa cartella: un progetto solo, niente da sistemare', () => {
-    const p = pannello([
-      { id: 'a1', nome: 'Esempio', percorsi: { 'pc-qui': 'C:\\Progetti\\Esempio' } },
-      { id: 'a2', nome: 'Esempio', percorsi: { 'pc-qui': 'C:\\Progetti\\Esempio\\' } }
-    ])
-    expect(p.progetti).toHaveLength(1)
-    expect(p.progetti[0]!.problemi.map((x) => x.tipo)).not.toContain('progetto-doppio')
+  it('di questo PC: niente da sistemare, e si apre qui', () => {
+    const p = pannello([{ id: 'a1', nome: 'Esempio', proprietario: 'pc-qui', percorso: 'C:\\Progetti\\Esempio' }])
+    expect(p.progetti[0]!.problemi).toEqual([])
+    expect(p.progetti[0]!.azioni.map((a) => a.id)).toEqual(['apri'])
   })
-  it('due voci con cartelle diverse sullo stesso PC: da sistemare, con «Lavora su questo PC»', () => {
+  it('senza proprietario, sconosciuto, o assente da più di 30 giorni: si dice', () => {
     const p = pannello([
-      { id: 'a1', nome: 'Esempio', percorsi: { 'pc-port': 'D:\\Lavoro\\Esempio' } },
-      { id: 'a2', nome: 'Esempio', percorsi: { 'pc-port': 'E:\\Copie\\Esempio' } }
+      { id: 'a1', nome: 'Senza' },
+      { id: 'a2', nome: 'Ignoto', proprietario: 'pc-mai-visto', percorso: 'D:\\X' },
+      { id: 'a3', nome: 'Assente', proprietario: 'pc-port', percorso: 'D:\\Y' }
     ])
-    const d = p.progetti[0]!.problemi.find((x) => x.tipo === 'progetto-doppio')
-    expect(d?.cosaFare).toContain('«Lavora su questo PC»')
+    const tipo = (n: string) => p.progetti.find((x) => x.nome === n)!.problemi.map((x) => x.tipo)
+    expect(tipo('Senza')).toEqual(['progetto-senza-casa'])
+    expect(tipo('Ignoto')).toEqual(['casa-sconosciuta'])
+    expect(tipo('Assente')).toEqual(['casa-assente'])
   })
 })

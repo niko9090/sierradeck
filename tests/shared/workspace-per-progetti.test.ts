@@ -63,8 +63,8 @@ describe('le chat di un progetto nel pannello, e come si aprono', () => {
   })
   it('qui se vive qui; altrimenti dal vivo sul PC dove vive, nella sua cartella di là', () => {
     const progetto = { cartelle: [{ pc: 'pc-desk', percorso: 'E:\\Progetti\\fionda' }] }
-    expect(comeAprireChat(riga({ cwd: 'C:\\qui', residente: { pc: 'pc-qui', nome: 'QUI', fonte: 'regola', motivo: '', qui: true } }), progetto)).toEqual({ tipo: 'qui', cwd: 'C:\\qui' })
-    expect(comeAprireChat(riga({ cwd: 'C:\\copia', residente: { pc: 'pc-desk', nome: 'DESK-ESEMPIO', fonte: 'regola', motivo: '', qui: false } }), progetto)).toEqual({ tipo: 'altrove', pc: 'pc-desk', nome: 'DESK-ESEMPIO', cwd: 'E:\\Progetti\\fionda' })
+    expect(comeAprireChat(riga({ cwd: 'C:\\qui', residente: { pc: 'pc-qui', nome: 'QUI', qui: true } }), progetto)).toEqual({ tipo: 'qui', cwd: 'C:\\qui' })
+    expect(comeAprireChat(riga({ cwd: 'C:\\copia', residente: { pc: 'pc-desk', nome: 'DESK-ESEMPIO', qui: false } }), progetto)).toEqual({ tipo: 'altrove', pc: 'pc-desk', nome: 'DESK-ESEMPIO', cwd: 'E:\\Progetti\\fionda' })
     expect(comeAprireChat(riga({}), progetto)).toBeUndefined()
   })
 })

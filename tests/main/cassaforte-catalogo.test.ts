@@ -38,7 +38,7 @@ describe('il catalogo per progetto', () => {
     ['chat/E--Users-utente-Documents-SierraDeck/u3.jsonl', { size: 300, mtime: 3000 }],
     ['chat/E--Users-utente-Documents-SierraDeck/u4.jsonl', { size: 50, mtime: 4000 }]
   ])
-  const registroDrive = { versione: 1 as const, progetti: [{ id: 'p1', nome: 'Wdeck', percorsi: { PORTATILE: 'E:\\Users\\tecnico\\Documents\\Wdeck' }, aggiuntoIl: '' }] }
+  const registroDrive = { versione: 1 as const, progetti: [{ id: 'p1', nome: 'Wdeck', proprietario: 'PORTATILE', percorso: 'E:\\Users\\tecnico\\Documents\\Wdeck', aggiuntoIl: '' }] }
 
   it('raggruppa le chat per cartella, riconosce i progetti del registro e dice lo stato', () => {
     const c = costruisciCatalogo({

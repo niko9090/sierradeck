@@ -3,7 +3,7 @@ import {
   creaPostino, nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, unisciCassetta,
   type BattitoPc, type ChatDiPc, type Posta, type VocePosta
 } from '../../src/main/progetti/posta'
-import type { Scatola } from '../../src/main/progetti/presenza'
+import type { Scatola } from '../../src/main/progetti/posta'
 
 /**
  * Audit I1 (0.86.2): la cassetta di un PC sul Drive era letta, cambiata e

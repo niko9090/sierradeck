@@ -7,7 +7,7 @@ import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/ma
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { apriRegistroProgetti } from '../../src/main/progetti/registro'
 import { creaLavoro } from '../../src/main/cassaforte/lavoro-in-corso'
-import { fondiArchivi } from '../../src/main/cassaforte/fusione'
+import { fondiArchivi } from '../../src/main/cassaforte/unioni'
 import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
 
 /**

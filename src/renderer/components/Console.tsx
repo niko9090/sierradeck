@@ -13,7 +13,6 @@ import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 import { MenuPin } from './ChatConPin'
-import { SottofondoQui } from './SottofondoQui'
 import { PostiChat } from './PostiChat'
 import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
 
@@ -458,9 +457,6 @@ export function Console({
             ⋯
           </button>
         </div>
-      </div>
-      <div className="sezione">
-        <SottofondoQui />
       </div>
     </div>
     </>

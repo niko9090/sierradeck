@@ -5,7 +5,7 @@ import {
 } from '@shared/spazio-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
-import type { Scatola } from './progetti/presenza'
+import type { Scatola } from './progetti/posta'
 
 /**
  * Lo spazio sul Drive (0.65.0): la misura vera (quota dell'account e file di

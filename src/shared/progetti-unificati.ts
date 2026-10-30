@@ -1,5 +1,3 @@
-import type { CasaChat, CaseChat } from './una-casa'
-
 /**
  * «Stesso nome = stesso progetto» (0.60.0, regola di Nicholas).
  *
@@ -26,7 +24,11 @@ import type { CasaChat, CaseChat } from './una-casa'
 export type MembroProgetto = {
   id: string
   nome: string
-  percorsi: Record<string, string>
+  /** Un progetto, un PC (0.88.0): il PC che lo tiene e la sua cartella la'. */
+  proprietario?: string
+  percorso?: string
+  /** Le cartelle di prima, per PC (registri vecchi, test). */
+  percorsi?: Record<string, string>
   aggiuntoIl?: string
   /** Unito a mano in un altro progetto (0.60.0): l'id del principale; vuoto = separato di nuovo. */
   unitoIn?: string
@@ -86,26 +88,12 @@ export function dentroCartella(cwd: string, radice: string): boolean {
   return r !== '' && (c === r || c.startsWith(`${r}\\`))
 }
 
-/** Quanto pesa una scelta (come `unisciCase`): Nicholas e «Sposta» battono la regola. */
-const peso = (c: CasaChat): number => (c.da === 'nicholas' || c.da === 'sposta' ? 2 : 1)
-
-/** La casa voluta di un gruppo: fra le scelte dei suoi id, la più forte e poi la più recente. */
-export function casaDelGruppo(cc: CaseChat, ids: string[]): CasaChat | undefined {
-  let migliore: CasaChat | undefined
-  for (const id of ids) {
-    const c = cc.case[`progetto:${id}`]
-    if (c === undefined) continue
-    if (migliore === undefined || peso(c) > peso(migliore) || (peso(c) === peso(migliore) && c.decisaIl > migliore.decisaIl)) migliore = c
-  }
-  return migliore
-}
-
 /**
  * I progetti del registro raggruppati per nome normalizzato (e per `unitoIn`).
- * Il principale: quello unito da altri, poi quello con la scelta di Nicholas
- * più recente, poi il più vecchio.
+ * Il principale: quello unito da altri, poi quello con un proprietario,
+ * poi il più vecchio.
  */
-export function raggruppaProgetti(progetti: MembroProgetto[], cc?: CaseChat): GruppoProgetti[] {
+export function raggruppaProgetti(progetti: MembroProgetto[]): GruppoProgetti[] {
   const perId = new Map(progetti.map((p) => [p.id, p]))
   // La chiave di un membro: quella del principale in cui è unito (al massimo tre salti, niente giri).
   const chiaveDi = (p: MembroProgetto): string => {
@@ -125,18 +113,18 @@ export function raggruppaProgetti(progetti: MembroProgetto[], cc?: CaseChat): Gr
   const fuori: GruppoProgetti[] = []
   for (const [chiave, membri] of gruppi) {
     const uniti = new Set(membri.map(unito).filter((x): x is string => x !== undefined))
-    const scelta = (m: MembroProgetto): string => (cc === undefined ? '' : cc.case[`progetto:${m.id}`]?.decisaIl ?? '')
     const ordinati = [...membri].sort((a, b) =>
       (uniti.has(b.id) ? 1 : 0) - (uniti.has(a.id) ? 1 : 0) ||
       (unito(a) === undefined ? 0 : 1) - (unito(b) === undefined ? 0 : 1) ||
-      scelta(b).localeCompare(scelta(a)) ||
+      (b.proprietario !== undefined ? 1 : 0) - (a.proprietario !== undefined ? 1 : 0) ||
       (a.aggiuntoIl ?? '').localeCompare(b.aggiuntoIl ?? '') ||
       a.id.localeCompare(b.id))
     const principale = ordinati[0] as MembroProgetto
     const visti = new Set<string>()
     const percorsi: GruppoProgetti['percorsi'] = []
     for (const m of ordinati) {
-      for (const [pc, percorso] of Object.entries(m.percorsi)) {
+      const cartelle = m.proprietario !== undefined && m.percorso !== undefined ? { [m.proprietario]: m.percorso } : (m.percorsi ?? {})
+      for (const [pc, percorso] of Object.entries(cartelle)) {
         const k = `${pc}|${normaPercorso(percorso)}`
         if (visti.has(k)) continue
         visti.add(k)
@@ -208,39 +196,4 @@ export function eSenzaNome(titolo: string | undefined, sessione?: string): boole
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(l)) return true
   if (sessione !== undefined && sessione !== '' && [sessione, sessione.slice(0, 8), `chat ${sessione.slice(0, 8)}`].some((x) => l === x.toLowerCase())) return true
   return false
-}
-
-/* ------------------------------------------------------------------ */
-/* Le case armonizzate (0.60.0).                                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * Con lo stesso nome è lo stesso progetto, quindi la casa è una sola: quella
- * scelta da Nicholas per il progetto. Le chat del gruppo con una casa diversa
- * decisa dalla regola o dalla nascita (il caso «MT5»: la regola aveva visto
- * una cartella «Trading» con lo stesso nome su un altro PC), o senza casa, o
- * con una scelta di Nicholas **più vecchia** di quella del progetto, prendono
- * la casa del progetto. Una scelta per la singola chat fatta dopo resta.
- */
-export function armonizzaCase(
-  cc: CaseChat,
-  gruppi: GruppoProgetti[],
-  chatDi: (g: GruppoProgetti) => string[]
-): Record<string, CasaChat> {
-  const nuove: Record<string, CasaChat> = {}
-  for (const g of gruppi) {
-    const voluta = casaDelGruppo(cc, g.ids)
-    if (voluta === undefined || peso(voluta) < 2) continue
-    for (const s of chatDi(g)) {
-      const c = cc.case[s]
-      if (c !== undefined && c.pc === voluta.pc) continue
-      if (c !== undefined && peso(c) === 2 && c.decisaIl >= voluta.decisaIl) continue
-      nuove[s] = {
-        pc: voluta.pc, pcNome: voluta.pcNome, decisaIl: voluta.decisaIl, da: voluta.da,
-        ...(voluta.sceltaDa !== undefined ? { sceltaDa: voluta.sceltaDa } : {}),
-        motivo: `progetto «${g.nome}»: stesso nome, stesso progetto — vive su ${voluta.pcNome}, scelto da Nicholas`
-      }
-    }
-  }
-  return nuove
 }

@@ -3,7 +3,7 @@ import { ePercorsoDiServizio } from '@shared/slug-di-servizio'
 import { prefissoDi } from './incrementale'
 import type { Archivio as ArchivioWorkspace } from '@shared/workspace'
 import type { RegistroProgetti, ProgettoDrive } from '../progetti/registro'
-import { unionePiuRecente } from '../progetti/registro'
+import { fondiRegistri } from '../progetti/registro'
 import { normalizzaPercorso, staDentro } from '@shared/percorsi'
 
 /**
@@ -173,11 +173,9 @@ function cwdDeiWorkspace(archivio: ArchivioWorkspace | undefined): Map<string, s
   return fuori
 }
 
-/** Il progetto del registro in cui sta una cartella, guardando i percorsi di tutti i PC e le origini. */
+/** Il progetto del registro in cui sta una cartella (sul suo proprietario). */
 function progettoDi(reg: RegistroProgetti, cwd: string): ProgettoDrive | undefined {
-  return reg.progetti.find((p) =>
-    Object.values(p.percorsi).some((r) => staDentro(cwd, r)) || (p.origini ?? []).some((r) => staDentro(cwd, r))
-  )
+  return reg.progetti.find((p) => p.percorso !== undefined && staDentro(cwd, p.percorso))
 }
 
 function nomeDaCartella(cwd: string): string {
@@ -205,18 +203,10 @@ export function costruisciCatalogo(p: {
   const titoliDrive = titoliDeiWorkspace(p.archivioDrive)
   const cwdPc = cwdDeiWorkspace(p.archivioPc)
   const cwdDrive = cwdDeiWorkspace(p.archivioDrive)
-  // Il registro fuso: id → progetto, con i percorsi di tutti i PC.
-  const perId = new Map<string, ProgettoDrive>()
-  for (const x of [...p.registroPc.progetti, ...p.registroDrive.progetti]) {
-    const gia = perId.get(x.id)
-    perId.set(x.id, gia === undefined ? x : {
-      ...gia,
-      percorsi: { ...x.percorsi, ...gia.percorsi },
-      ...(gia.origini !== undefined || x.origini !== undefined ? { origini: [...new Set([...(gia.origini ?? []), ...(x.origini ?? [])])] } : {}),
-      ...unionePiuRecente(gia, x)
-    })
-  }
-  const registro: RegistroProgetti = { versione: 1, progetti: [...perId.values()] }
+  // Il registro fuso: id → progetto, con il suo proprietario.
+  const registro = fondiRegistri(p.registroPc, p.registroDrive)
+  const perId = new Map<string, ProgettoDrive>(registro.progetti.map((x) => [x.id, x]))
+  const quiDi = (reg: ProgettoDrive | undefined): string | undefined => (reg?.proprietario === p.pcId ? reg.percorso : undefined)
 
   // Le chat, raggruppate per cartella d'origine.
   const gruppi = new Map<string, ProgettoCatalogo>()
@@ -224,11 +214,11 @@ export function costruisciCatalogo(p: {
     const chiave = reg?.id ?? normalizzaPercorso(cartella)
     let g = gruppi.get(chiave)
     if (g !== undefined) return g
-    const cartellaQui = reg?.percorsi[p.pcId] ?? (p.cartellaEsiste(cartella) ? cartella : undefined)
+    const cartellaQui = quiDi(reg) ?? (reg === undefined && p.cartellaEsiste(cartella) ? cartella : undefined)
     g = {
       chiave,
       nome: reg?.nome ?? nomeDaCartella(cartella),
-      cartellaOrigine: reg !== undefined ? (Object.values(reg.percorsi)[0] ?? cartella) : cartella,
+      cartellaOrigine: reg?.percorso ?? cartella,
       ...(reg !== undefined ? { id: reg.id } : {}),
       ...(cartellaQui !== undefined ? { cartellaQui } : {}),
       quiEsiste: cartellaQui !== undefined && p.cartellaEsiste(cartellaQui),
@@ -271,7 +261,7 @@ export function costruisciCatalogo(p: {
     } else if (prefisso.startsWith('progetto-')) {
       const id = prefisso.slice('progetto-'.length)
       const reg = perId.get(id)
-      const g = gruppoPer(reg?.percorsi[p.pcId] ?? Object.values(reg?.percorsi ?? {})[0] ?? id, reg ?? { id, nome: id, percorsi: {}, aggiuntoIl: '' })
+      const g = gruppoPer(reg?.percorso ?? id, reg ?? { id, nome: id, aggiuntoIl: '' })
       g.cartellaSulDrive = true
       const stato = statoDi(pc, d)
       g.file.totale += 1

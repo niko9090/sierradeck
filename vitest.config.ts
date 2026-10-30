@@ -17,7 +17,6 @@ const LENTI = [
   'tests/main/consegna-vera.test.ts',
   'tests/main/consegne-file.test.ts',
   'tests/main/updater-sorgente.test.ts',
-  'tests/main/ospite.test.ts',
   'tests/main/pty-host-client.test.ts',
   'tests/pty-host/pty-manager.test.ts',
   'tests/main/cassaforte-sincronia.test.ts',

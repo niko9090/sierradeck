@@ -97,10 +97,4 @@ describe('0.76.0: una cartella di chat nel recupero non torna dal Drive', () => 
     if (e3.ok) expect(ripristinaDaRecupero(dati, e3.id, '2026-10-16T09:00:00.000Z').ok).toBe(true)
     expect([...slugChatInRecupero(dati, radice)]).toEqual(['C--p-SierraDeck-prova-c2'])
   })
-
-  it('l’arrivo dal Drive salta quelle chat e lo dice', async () => {
-    const { readFileSync } = await import('node:fs')
-    const s = readFileSync('src/main/cassaforte/sincronia.ts', 'utf8')
-    expect(s).toContain("if (inRecupero.has(p.split('/')[1] ?? '')) { nelRecupero += 1; return false }")
-  })
 })

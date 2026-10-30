@@ -4,7 +4,7 @@ import {
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX,
   type BattitoPc, type ChatDiPc, type Posta
 } from '../../src/main/progetti/posta'
-import type { Scatola } from '../../src/main/progetti/presenza'
+import type { Scatola } from '../../src/main/progetti/posta'
 
 /**
  * Nicholas (2026-09-14): «se sto operando su una chat su una cartella in rete

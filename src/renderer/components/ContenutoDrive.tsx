@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Catalogo, ProgettoCatalogo, ChatCatalogo, WorkspaceCatalogo } from '../../main/cassaforte/catalogo'
 import type { StatoLavoro } from '../../main/cassaforte/lavoro-in-corso'
-import { ModaleFusione } from './ModaleFusione'
 import { AvanzamentoLavoro } from './AvanzamentoLavoro'
 import { AttesaDrive } from './AttesaDrive'
 import type { ProgressoCatalogo } from '../../shared/catalogo-progresso'
@@ -41,7 +40,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   const [progresso, setProgresso] = useState<ProgressoCatalogo | undefined>(undefined)
   const [letturaAvviata, setLetturaAvviata] = useState(Date.now())
   const [aperti, setAperti] = useState<Set<string>>(new Set())
-  const [fusione, setFusione] = useState(false)
   const [inCorso, setInCorso] = useState<string | undefined>(undefined)
   const [lavoro, setLavoro] = useState<StatoLavoro>({})
   const [adesso, setAdesso] = useState(Date.now())
@@ -65,13 +63,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   }), [inCorso])
   useEffect(() => { const t = setInterval(() => setAdesso(Date.now()), 1000); return () => clearInterval(t) }, [])
 
-  const portaQui = (g: ProgettoCatalogo): void => {
-    setInCorso(g.chiave); setMessaggio(undefined)
-    void window.gestore.sync.portaQui(g.chiave).then((r) => {
-      if (!r.ok) { setMessaggio(r.messaggio); setInCorso(undefined) }
-      else setMessaggio(`«${g.nome}»: ${r.esito.scaricati} file portati qui${r.esito.saltati > 0 ? `, ${r.esito.saltati} saltati` : ''}.${r.esito.scaricati > 0 ? ' Il programma si riavvia fra poco per mostrare le chat nei loro workspace.' : ''}`)
-    }).catch((e: unknown) => { setMessaggio(String(e)); setInCorso(undefined) })
-  }
   const commuta = (k: string): void => setAperti((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [vista, setVista] = useState<'progetti' | 'workspace'>('progetti')
   const [wsDaTogliere, setWsDaTogliere] = useState<WorkspaceCatalogo | undefined>(undefined)
@@ -80,7 +71,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
   const togliWs = (w: WorkspaceCatalogo): void => {
     setWsDaTogliere(undefined); setMessaggio(undefined); setInCorso(`ws:${w.nome}`)
     void window.gestore.sync.togliWorkspace(w.nome).then((r) => {
-      setMessaggio(r.messaggio ?? `Workspace «${w.nome}»: tolto dal Drive. ${w.quiEsiste ? 'Qui resta com’è (se non lo vuoi più, eliminalo dalla fascia dei workspace). ' : ''}Non ricompare con «Fondi» né con «Porta qui», e nessun PC lo rimette da solo finché non premi «Rimetti sul Drive».`)
+      setMessaggio(r.messaggio ?? `Workspace «${w.nome}»: tolto dal Drive. ${w.quiEsiste ? 'Qui resta com’è (se non lo vuoi più, eliminalo dalla fascia dei workspace). ' : ''}Nessun PC lo rimette da solo finché non premi «Rimetti sul Drive».`)
     }).catch((e: unknown) => setMessaggio(String(e))).finally(() => { setInCorso(undefined); leggi() })
   }
   const rimettiWs = (nome: string): void => {
@@ -88,13 +79,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
     void window.gestore.sync.rimettiWorkspace(nome).then((r) => {
       setMessaggio(r.messaggio ?? `Workspace «${nome}»: torna sul Drive con il prossimo salvataggio di un PC che ce l’ha ancora (qui: «Salva ora», poco sopra in «Salvataggio e arrivo», o il salvataggio automatico).`)
     }).catch((e: unknown) => setMessaggio(String(e))).finally(() => { setInCorso(undefined); leggi() })
-  }
-  const portaQuiWorkspace = (w: WorkspaceCatalogo): void => {
-    setInCorso(`ws:${w.nome}`); setMessaggio(undefined)
-    void window.gestore.sync.portaQuiWorkspace(w.nome).then((r) => {
-      if (!r.ok) { setMessaggio(r.messaggio); setInCorso(undefined) }
-      else setMessaggio(`Workspace «${w.nome}»: ${r.esito.scaricati} file portati qui${r.esito.saltati > 0 ? `, ${r.esito.saltati} saltati` : ''}. ${r.esito.scaricati > 0 ? 'Il programma si riavvia fra poco: al ritorno trovi il workspace con dentro le sue chat.' : 'Era già tutto qui: il workspace viene unito ai tuoi.'}`)
-    }).catch((e: unknown) => { setMessaggio(String(e)); setInCorso(undefined) })
   }
   // «Apri»: la stessa strada della ripresa dal telefono, nel workspace dove
   // la chat sta salvata. La cartella e' quella di qui, se il progetto ce l'ha.
@@ -159,8 +143,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
       {messaggio !== undefined ? <div className="riga__stato" style={{ marginTop: 6 }}>{messaggio}</div> : null}
       {cassaforteDiversa ? (
         <div className="account__scheda" style={{ marginTop: 8 }}>
-          <p className="account__nota">La cassaforte di questo Drive è un’altra: per leggerne il contenuto serve la sua passphrase, e da lì questo PC la adotta. Si fa da «Fondi con il Drive», che te la chiede.</p>
-          <button className="tasto tasto--primario" onClick={() => setFusione(true)}>Fondi con il Drive…</button>
+          <p className="account__nota">La cassaforte di questo Drive è un’altra: per leggerne il contenuto serve la sua passphrase, e da lì questo PC la adotta. Si fa da Account → Drive.</p>
         </div>
       ) : null}
 
@@ -296,7 +279,7 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
                     {nPorta > 0 ? (
                       // Dalla 0.42.0 «Porta qui» sta solo dentro «Sposta progetto», dal PC dove il progetto vive.
                       <span className="drive__sotto" title="Una chat, una casa: un progetto si sposta dal PC dove sta, con «Sposta progetto…», che controlla, verifica e archivia. Da qui intanto le sue chat si guardano dal vivo.">
-                        {g.origine === 'qui' ? 'di questo PC' : 'per portarlo qui: «Sposta progetto…» sul suo PC'}
+                        {g.origine === 'qui' ? 'di questo PC' : 'per portarlo qui: Progetti → «Sposta su questo PC»'}
                       </span>
                     ) : null}
                     {g.id !== undefined && g.cartellaSulDrive ? (
@@ -356,7 +339,6 @@ export function ContenutoDrive({ onChiudi }: Props): React.JSX.Element {
 
       {leggo ? <AttesaDrive progresso={progresso} adesso={adesso} avviato={letturaAvviata} onChiudi={() => setLeggo(false)} /> : null}
 
-      {fusione ? <ModaleFusione cassaforteDiversa={cassaforteDiversa} onChiudi={() => { setFusione(false); leggi() }} /> : null}
       {wsDaTogliere !== undefined ? (
         <ModaleConferma
           titolo={`Togliere il workspace «${wsDaTogliere.nome}» dal Drive?`}

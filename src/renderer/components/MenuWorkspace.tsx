@@ -6,7 +6,6 @@ import type { StatoWorkspace } from '../../main/ipc'
 import { azioniMenuWorkspace, gruppiMenuWorkspace, postoTendina, vociInFila, type PostoTendina, type VoceAzioneWs, type VoceMenuWs } from '@shared/menu-workspace'
 import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } from '@shared/azioni-telefono'
 import { ModaleConferma } from './ModaleConferma'
-import { ModaleSposta } from './ModaleSposta'
 
 type Props = {
   nomi: string[]
@@ -66,7 +65,6 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const [rinomina, setRinomina] = useState<{ vecchio: string; testo: string } | undefined>(undefined)
   const [daEliminare, setDaEliminare] = useState<string | undefined>(undefined)
   /** «Sposta su un altro PC…»: la cartella del progetto ('' = da scegliere). */
-  const [sposta, setSposta] = useState<string | undefined>(undefined)
   const tasto = useRef<HTMLButtonElement>(null)
   const cerca = useRef<HTMLInputElement>(null)
   const lista = useRef<HTMLDivElement>(null)
@@ -138,7 +136,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   }, [azioniDi])
 
   const apriAzioni = (v: VoceMenuWs, el: HTMLElement): void => {
-    const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).length
+    const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined }).length
     setAzioniDi({
       voce: v,
       posto: postoTendina({ ancora: el.getBoundingClientRect(), finestra: { larghezza: window.innerWidth, altezza: window.innerHeight }, larghezza: LARGHEZZA_AZIONI, altezza: quante * 34 + 12, aDestra: true })
@@ -177,22 +175,13 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
       case 'apri': scegli(v); return
       case 'rinomina': setRinomina({ vecchio: v.nome, testo: v.nome }); return
       case 'cartella': chiudi(); onApriCartella?.(v.nome); return
-      case 'sposta':
-        chiudi()
-        void window.gestore.sistema.cartelleBase(v.nome)
-          .then((b) => setSposta(b.workspace ?? ''))
-          .catch(() => setSposta(''))
-        return
+      case 'sposta': return
       case 'elimina': chiudi(); setDaEliminare(v.nome); return
+      // «Porta qui» (0.88.0): un progetto cambia PC solo con «Sposta su
+      // questo PC», in Progetti, con i suoi controlli. Si apre lì.
       case 'portaQui':
-        setPorto(v.nome)
-        void window.gestore.sync.portaQuiWorkspace(v.nome)
-          .then((r) => { if (!r.ok) setErrore(r.messaggio) })
-          .catch((err: unknown) => setErrore(senzaPrefisso(err)))
-          .finally(() => {
-            setPorto(undefined)
-            void window.gestore.workspace.altriPc().then(setAltrove).catch(() => undefined)
-          })
+        chiudi()
+        window.dispatchEvent(new CustomEvent('sierradeck:pannello-drive'))
     }
   }
 
@@ -347,7 +336,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           style={{ top: azioniDi.posto.top, left: azioniDi.posto.left, width: azioniDi.posto.larghezza, maxHeight: azioniDi.posto.altezzaMax }}
           onKeyDown={suTastoAzioni}
         >
-          {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, sposta: true, cartella: onApriCartella !== undefined }).map((a) => (
+          {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined }).map((a) => (
             <button
               key={a.azione}
               role="menuitem"
@@ -395,7 +384,6 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           onAnnulla={() => setDaEliminare(undefined)}
         />
       ) : null}
-      {sposta !== undefined ? <ModaleSposta {...(sposta !== '' ? { cwdIniziale: sposta } : {})} onChiudi={() => setSposta(undefined)} /> : null}
     </div>
   )
 }

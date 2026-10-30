@@ -4,30 +4,19 @@ import { join } from 'node:path'
 
 /**
  * Le azioni della vista Progetti che cambiano file chiedono conferma (0.71.1).
- * Trovato provando la vista con i dati veri: «Annulla l’unione» sul PC partiva
- * al primo clic, mentre pagina e app chiedevano già.
+ * Dalla 0.88.0 l'unica è «Sposta su questo PC»: passa da `ConfermaAzione`,
+ * con i testi di `testoConfermaSposta`.
  */
 const vista = readFileSync(join(__dirname, '..', '..', 'src', 'renderer', 'components', 'VistaProgetti.tsx'), 'utf8')
-const trasloco = readFileSync(join(__dirname, '..', '..', 'src', 'renderer', 'components', 'TraslocoAvanzamento.tsx'), 'utf8')
 
 describe('conferme della vista Progetti', () => {
-  it('«Annulla l’unione» parte solo dal tasto di conferma', () => {
-    const righe = vista.split('\n').filter((r) => r.includes("onResidenza('annulla-unione'"))
-    expect(righe).toHaveLength(1)
-    expect(righe[0]).toContain('Conferma: annulla l’unione')
+  it('un’azione con «conferma» passa dal dialogo; lo spostamento con i suoi testi', () => {
+    expect(vista).toContain('else setAzioneDa({ progetto, nome: r?.nome ?? \'\', a })')
+    expect(vista).toContain('<ConfermaAzione')
+    expect(vista).toContain('testoConfermaSposta({')
   })
-  it('«Vai avanti senza» e «Annulla tutto» passano da una conferma', () => {
-    for (const azione of ['trasloco-senza', 'trasloco-annulla']) {
-      const righe = trasloco.split('\n').filter((r) => r.includes(`onAzione('${azione}'`))
-      expect(righe.length).toBeGreaterThan(0)
-      for (const r of righe) expect(r).toContain('Conferma')
-    }
-  })
-})
-
-describe('le finestre di «Strumenti ▾» si aprono dentro Progetti (0.71.1)', () => {
-  it('«Dove vive ogni chat…» non manda l’evento all’App, dove finiva sotto la schermata', () => {
-    expect(vista).not.toContain("dispatchEvent(new Event('sierradeck:dove-vive'))")
-    expect(vista).toContain('<ModaleDoveVive')
+  it('lo spostamento in corso si vede, passo per passo, con l’errore detto chiaro', () => {
+    expect(vista).toContain('<AvanzamentoSposta')
+    expect(vista).toContain('PASSI_SPOSTA.map(')
   })
 })

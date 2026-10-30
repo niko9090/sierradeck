@@ -9,7 +9,6 @@ import type { BattitoPc, Posta } from '@shared/posta'
 import type { EsitoRemoto, PcRemoto, ChatSuPc, ChatRemota, StoriaRemota } from '@shared/pc-remoto'
 import type { StatoWorkspace } from '../main/ipc'
 import type { ApiNegozio } from '@shared/negozio'
-import type { Utente, EsitoAccesso } from '@shared/account'
 import type { Istantanea } from '@shared/istantanea'
 import type { AzioneChat, ChatArchiviata, ChatInRecupero, EsitoAzioni, VistaSpazio } from '@shared/gestione-chat'
 import type {
@@ -18,7 +17,6 @@ import type {
 import type { StatoAccesso } from '../main/accesso'
 import type { StatoPreparazione } from '../main/preparazione'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
-import type { PianoFusione, ScelteFusione, EsitoFusione } from '../main/cassaforte/fusione'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import type { Consumi } from '@shared/consumi'
 import type { Anteprima } from '../main/anteprima'
@@ -46,7 +44,7 @@ let scontrino = 0
 
 export type ElencoProgetti = {
   pc: { id: string; nome: string; cartellaProgetti: string }
-  progetti: { id: string; nome: string; locale?: string; altrove: number }[]
+  progetti: { id: string; nome: string; locale?: string; altrove: number; su?: string }[]
   /** Un esito da mostrare, quando un'azione ha qualcosa da dire. */
   messaggio?: string
 }
@@ -312,27 +310,6 @@ contextBridge.exposeInMainWorld('gestore', {
     riordina: (cwd: string, file?: string[]): Promise<import('@shared/quaderno-riordino').EsitoRiordinoVista> =>
       ipcRenderer.invoke('quaderno:riordina', cwd, file)
   },
-  /** L'account: registrazione e accesso, che vivono nel main (la rete la fa lui). */
-  account: {
-    registra: (email: string, password: string): Promise<EsitoAccesso> =>
-      ipcRenderer.invoke('account:registra', email, password),
-    entra: (email: string, password: string): Promise<EsitoAccesso> =>
-      ipcRenderer.invoke('account:entra', email, password),
-    esci: (): Promise<void> => ipcRenderer.invoke('account:esci'),
-    utente: (): Promise<Utente | undefined> => ipcRenderer.invoke('account:utente'),
-    /** Conferma la registrazione col codice ricevuto per email. */
-    verifica: (email: string, codice: string): Promise<EsitoAccesso> =>
-      ipcRenderer.invoke('account:verifica', email, codice),
-    /** Rimanda il codice di conferma. */
-    reinvia: (email: string): Promise<{ ok: boolean; messaggio?: string }> =>
-      ipcRenderer.invoke('account:reinvia', email),
-    /** Avvisa quando l'accesso cambia (entra/esce/token rinnovato). */
-    onCambiato: (cb: (utente: Utente | null) => void): (() => void) => {
-      const h = (_e: unknown, u: Utente | null): void => cb(u)
-      ipcRenderer.on('account:cambiato', h)
-      return () => ipcRenderer.off('account:cambiato', h)
-    }
-  },
   /** Il Drive dell'utente (BYOS): stato, connessione (consenso via browser), distacco. */
   drive: {
     /** La banda del Drive scollegato (0.39.3): titolo e testo, o niente se e' collegato. */
@@ -357,43 +334,11 @@ contextBridge.exposeInMainWorld('gestore', {
     aggiungi: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:aggiungi'),
     /** Mette sul Drive una cartella gia' nota, senza finestra: la chat nuova «fra i progetti». */
     aggiungiPercorso: (percorso: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:aggiungiPercorso', percorso),
-    /** Dice dove sta, su questo PC, un progetto arrivato da un altro. */
-    collega: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:collega', id),
     rimuovi: (id: string): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:rimuovi', id),
     /** Sceglie la cartella in cui questo PC riceve i progetti che arrivano dal Drive. */
     cartella: (): Promise<ElencoProgetti> => ipcRenderer.invoke('progetti:cartella'),
-    /** Chi sta lavorando a cosa, secondo l'ultima ronda. */
-    stati: (): Promise<StatoProgetto[]> => ipcRenderer.invoke('progetti:stati'),
-    /** Prende il testimone di un progetto in mano a un altro PC (o lo forza, se quello e' spento). */
-    prendiTestimone: (id: string, forza?: boolean): Promise<EsitoTestimone> =>
-      ipcRenderer.invoke('progetti:prendiTestimone', id, forza === true),
-    /** Un progetto in mano a un altro PC, o un testimone appena ceduto. */
-    suAvviso: (cb: (a: AvvisoProgetto) => void): (() => void) => {
-      const h = (_e: unknown, a: AvvisoProgetto): void => cb(a)
-      ipcRenderer.on('progetti:avviso', h)
-      return () => ipcRenderer.off('progetti:avviso', h)
-    },
     /** Le chat di un progetto, per scegliere a chi va un comando. */
     chatDi: (id: string): Promise<ChatDiProgetto[]> => ipcRenderer.invoke('progetti:chatDi', id),
-    /** La coda condivisa dei comandi di un progetto. */
-    coda: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:coda', id),
-    codaAggiungi: (id: string, testo: string, sessione?: string): Promise<Coda | undefined> =>
-      ipcRenderer.invoke('progetti:codaAggiungi', id, testo, sessione),
-    codaModifica: (id: string, voceId: string, testo: string, sessione?: string): Promise<Coda | undefined> =>
-      ipcRenderer.invoke('progetti:codaModifica', id, voceId, testo, sessione),
-    codaTogli: (id: string, voceId: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaTogli', id, voceId),
-    codaPulisci: (id: string): Promise<Coda | undefined> => ipcRenderer.invoke('progetti:codaPulisci', id),
-    /**
-     * Il Core chiede di mettere a dormire queste chat: il testimone e' passato
-     * a un altro PC. Sta qui, in `progetti`, perche' e' qui che il renderer la
-     * cerca (`window.gestore.progetti.suIberna`): nella 0.27.0 era finita per
-     * sbaglio dentro `posta` e l'app si apriva sulla schermata di errore.
-     */
-    suIberna: (cb: (m: { sessioni: string[] }) => void): (() => void) => {
-      const h = (_e: unknown, m: { sessioni: string[] }): void => cb(m)
-      ipcRenderer.on('progetti:iberna-chat', h)
-      return () => ipcRenderer.off('progetti:iberna-chat', h)
-    }
   },
   /**
    * La posta per un PC: azioni che si eseguono solo su quel computer, quando
@@ -458,7 +403,14 @@ contextBridge.exposeInMainWorld('gestore', {
     segnaChiusa: (sessione: string, titolo?: string, da?: string): Promise<void> => ipcRenderer.invoke('chiuse:segna', sessione, titolo, da),
     storia: (pc: string, chat: string, da: number, quante: number): Promise<EsitoRemoto<StoriaRemota>> =>
       ipcRenderer.invoke('remoto:storia', pc, chat, da, quante),
-    scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo, idMessaggio),
+    /**
+     * Scrive a una chat di quel PC (0.88.0): acceso, dritto; spento o lontano,
+     * nella sua posta sul Drive (`posta: true`), consegnata quando torna.
+     * `dove` serve alla posta: la conversazione e la cartella di là.
+     */
+    scrivi: (pc: string, chat: string, testo: string, idMessaggio?: string, dove?: { sessione?: string; cwd?: string }): Promise<EsitoRemoto<{ fatto?: boolean; posta?: boolean; voce?: string; messaggio?: string }>> => ipcRenderer.invoke('remoto:scrivi', pc, chat, testo, idMessaggio, dove),
+    /** I messaggi mandati da qui alla posta di quel PC: in attesa, consegnati, falliti (0.88.0). */
+    inviati: (pc: string): Promise<import('../main/progetti/manda-a-chat').StatoInvio[]> => ipcRenderer.invoke('remoto:inviati', pc),
     scegli: (pc: string, chat: string, opzione: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:scegli', pc, chat, opzione),
     pin: (pc: string, chat: string, pin: string): Promise<EsitoRemoto<{ fatto: boolean }>> => ipcRenderer.invoke('remoto:pin', pc, chat, pin),
     riprendi: (pc: string, cartella: string, sessione: string, workspace?: string): Promise<EsitoRemoto<{ fatto: boolean }>> =>
@@ -519,37 +471,16 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.removeListener('installaLa:stato', f) }
     }
   },
-  /** «Una chat, una casa» (0.42.0): le case delle chat, il riordino e il suo annullamento. */
+  /** I progetti e le chat sul Drive (0.88.0: un progetto, un PC). */
   casa: {
-    proposte: (): Promise<{ gruppi: { pc: string; nome: string; chat: import('@shared/una-casa').FuoriCasa[] }[]; quante: number; aperte: number; qui: number }> => ipcRenderer.invoke('casa:proposte'),
-    riordina: (sessioni: string[]): Promise<import('@shared/una-casa').RegistroRiordino> => ipcRenderer.invoke('casa:riordina', sessioni),
-    riordini: (): Promise<import('@shared/una-casa').RegistroRiordino[]> => ipcRenderer.invoke('casa:riordini'),
-    annulla: (id: string): Promise<{ ok: boolean; rimessi: number; restano: { sessione: string; perche: string; dove: string }[]; messaggio?: string }> => ipcRenderer.invoke('casa:annulla', id),
-    stato: (): Promise<{ migrazione?: { fatta: string; case: number; proprietari: number; copia?: string }; case: number; qui: number }> => ipcRenderer.invoke('casa:stato'),
-    // L'ospite di ogni chat (0.52.0).
-    dove: (): Promise<{ io: { id: string; nome: string }; pc: { id: string; nome: string }[]; gruppi: import('@shared/ospite-chat').GruppoDove[]; traslochi: import('@shared/una-casa').RegistroRiordino[] }> => ipcRenderer.invoke('casa:dove'),
-    /** La casa memorizzata di una chat: l'id del PC (0.67.0). */
-    casaDi: (sessione: string): Promise<string | undefined> => ipcRenderer.invoke('casa:pcDi', sessione),
-    idNuovo: (vecchia: string, nuova: string): Promise<void> => ipcRenderer.invoke('casa:idNuovo', vecchia, nuova),
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
     // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).
     azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:azione', corpo),
-    // La rimozione sicura (0.58.0, tappa 3).
+    // Le cartelle nel recupero dei programmi: si vedono e si rimettono.
     rimozione: {
-      avvia: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:avvia', id),
-      conferma: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:conferma', id),
-      annulla: (id: string): Promise<import('@shared/rimozione-sicura').StatoRimozione> => ipcRenderer.invoke('rimozione:annulla', id),
       stati: (): Promise<{ stati: import('@shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('@shared/rimozione-sicura').CartellaInRecupero[] }> => ipcRenderer.invoke('rimozione:stati'),
-      ripristina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('rimozione:ripristina', id),
-      cestina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('rimozione:cestina', id)
-    },
-    scegli: (p: { sessioni: string[]; pc: { id: string; nome: string }; workspace?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:scegli', p),
-    di: (sessione: string): Promise<{ pc: string; pcNome: string; da: string; motivo: string; qui: boolean } | undefined> => ipcRenderer.invoke('casa:di', sessione),
-    suChiudiQui: (cb: (chat: { sessione: string; pc: { id: string; nome: string } }[]) => void): (() => void) => {
-      const h = (_e: Electron.IpcRendererEvent, chat: { sessione: string; pc: { id: string; nome: string } }[]): void => cb(chat)
-      ipcRenderer.on('casa:chiudiQui', h)
-      return () => { ipcRenderer.removeListener('casa:chiudiQui', h) }
+      ripristina: (id: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('rimozione:ripristina', id)
     },
     suCambiate: (cb: () => void): (() => void) => {
       const h = (): void => cb()
@@ -557,17 +488,14 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.removeListener('casa:cambiate', h) }
     }
   },
-  /** «Sposta progetto da un PC all'altro» (0.42.0): i passi della procedura. */
+  /**
+   * «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia PC.
+   * Lo stato si rilegge; `casa.suCambiate` avvisa a ogni passo.
+   */
   sposta: {
-    progetti: (): Promise<{ cwd: string; nome: string; sessioni: string[]; titoli: string[] }[]> => ipcRenderer.invoke('sposta:progetti'),
-    pc: (): Promise<{ pcId: string; nome: string; versione: string; battito: string }[]> => ipcRenderer.invoke('sposta:pc'),
-    controlli: (cwd: string, dest: string): Promise<import('@shared/una-casa').Controllo[]> => ipcRenderer.invoke('sposta:controlli', cwd, dest),
-    trasferisci: (cwd: string, dest: string, mettiSulDrive: boolean): Promise<{ ok: boolean; messaggio: string; serveDrive?: boolean }> => ipcRenderer.invoke('sposta:trasferisci', cwd, dest, mettiSulDrive),
-    verifica: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; diverse?: string[] }> => ipcRenderer.invoke('sposta:verifica', cwd, dest),
-    casa: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('sposta:casa', cwd, dest),
-    archivia: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string; registro?: import('@shared/una-casa').RegistroRiordino }> => ipcRenderer.invoke('sposta:archivia', cwd, dest),
-    /** Il trasloco (0.65.0): un passaggio solo, sul PC di destinazione; l'avanzamento si vede in «Progetti». */
-    trasloco: (cwd: string, dest: string): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('trasloco:sposta', cwd, dest)
+    avvia: (progetto: string): Promise<import('@shared/sposta').VistaSposta | undefined> => ipcRenderer.invoke('sposta:avvia', progetto),
+    stato: (): Promise<import('@shared/sposta').VistaSposta | undefined> => ipcRenderer.invoke('sposta:stato'),
+    chiudi: (): Promise<boolean> => ipcRenderer.invoke('sposta:chiudi')
   },
   /** La sincronizzazione cifrata: passphrase (cassaforte E2E) + salva/ripristina. */
   sync: {
@@ -580,29 +508,17 @@ contextBridge.exposeInMainWorld('gestore', {
       ipcRenderer.invoke('sync:adottaCassaforteDelDrive'),
     /** Questo Drive e' nuovo per SierraDeck: si dimentica cio' che si sapeva di quello di prima. */
     cambiatoDrive: (): Promise<void> => ipcRenderer.invoke('sync:cambiatoDrive'),
-    /** Il piano di fusione fra questo PC e il Drive: cosa c'e' di qua, di la', in comune. Non tocca niente. */
-    anteprimaFusione: (passphraseDrive?: string): Promise<{ ok: true; piano: PianoFusione } | { ok: false; messaggio: string; servePassphrase?: boolean }> =>
-      ipcRenderer.invoke('sync:anteprimaFusione', passphraseDrive),
     /** «Apri» dal catalogo: riprende quella conversazione nel workspace dove sta salvata. */
     riprendiChat: (cwd: string, sessione: string): Promise<boolean> => ipcRenderer.invoke('chat:riprendi', cwd, sessione),
     /** Il catalogo del Drive: per progetto, con lo stato rispetto a questo PC. Non tocca niente. */
     catalogo: (): Promise<{ ok: true; catalogo: import('../main/cassaforte/catalogo').Catalogo } | { ok: false; messaggio: string; cassaforteDiversa?: boolean }> =>
       ipcRenderer.invoke('sync:catalogo'),
-    /** Porta qui un progetto del catalogo: cartella (se viaggia), chat mancanti, workspace. */
-    portaQui: (chiave: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
-      ipcRenderer.invoke('sync:portaQui', chiave),
-    /** Porta qui un workspace del Drive con le sue chat (e le cartelle che servono). */
-    portaQuiWorkspace: (nome: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
-      ipcRenderer.invoke('sync:portaQuiWorkspace', nome),
     /** Toglie un workspace dal Drive (lapide): non viaggia piu' finche' non lo rimetti. I PC non cambiano. */
     togliWorkspace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:togliWorkspace', nome),
     /** Toglie la lapide: torna sul Drive con il prossimo salvataggio di un PC che ce l'ha. */
     rimettiWorkspace: (nome: string): Promise<{ ok: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:rimettiWorkspace', nome),
-    /** Esegue le scelte della fusione. */
-    eseguiFusione: (scelte: ScelteFusione, passphraseDrive?: string): Promise<{ ok: true; esito: EsitoFusione } | { ok: false; messaggio: string }> =>
-      ipcRenderer.invoke('sync:eseguiFusione', scelte, passphraseDrive),
     /** La passphrase di questo PC apre la cassaforte del Drive collegato? Se si', e' il suo Drive. */
     provaPassphraseSulDrive: (passphrase: string): Promise<{ ok: boolean; stessa?: boolean; messaggio?: string }> =>
       ipcRenderer.invoke('sync:provaPassphraseSulDrive', passphrase),

@@ -1,6 +1,5 @@
 import type { Pannello, RigaProgetto, TipoProblema } from './pannello-drive'
-import type { StatoRimozione } from './rimozione-sicura'
-import { PASSI_TRASLOCO } from './trasloco'
+import { passoDi, PASSI_SPOSTA } from './sposta'
 import { byteLeggibili } from './spazio-drive'
 
 /**
@@ -58,13 +57,8 @@ const RANGO: Record<IdStato, number> = { spostamento: 0, 'da-sistemare': 1, 'al-
 /** I problemi in ordine di gravità, con la loro ragione in due o tre parole. */
 const RAGIONE: [TipoProblema, (n: string) => string][] = [
   ['casa-sconosciuta', () => 'PC sconosciuto'],
-  ['progetto-senza-casa', () => 'senza casa'],
-  ['due-case', () => 'due PC insieme'],
-  ['copia-piu-recente', () => 'copia più nuova altrove'],
-  ['progetto-diviso', () => 'diviso fra PC'],
-  ['casa-assente', () => 'PC assente da tempo'],
-  ['progetto-doppio', (t) => (/(\d+)/.exec(t)?.[1] !== undefined ? `registrato ${/(\d+)/.exec(t)?.[1] ?? ''} volte` : 'registrato più volte')],
-  ['senza-casa', () => 'senza casa']
+  ['progetto-senza-casa', () => 'senza proprietario'],
+  ['casa-assente', () => 'PC assente da tempo']
 ]
 
 /** La ragione breve del primo problema per gravità, con «+N» se ce ne sono altri. */
@@ -76,29 +70,20 @@ export function ragioneProblemi(problemi: { tipo: TipoProblema; titolo: string }
   return problemi.length > 1 ? `${testo} +${problemi.length - 1}` : testo
 }
 
-/** Quello che sta succedendo attorno al progetto: traslochi, «Rendi residente», rimozioni. */
-export type Contesto = Pick<Pannello, 'traslochi' | 'residenza' | 'piano'> & { rimozione?: Pick<StatoRimozione, 'progetto' | 'fase'>[]; io?: string }
+/** Quello che sta succedendo attorno al progetto: «Sposta su questo PC» (0.88.0). */
+export type Contesto = Pick<Pannello, 'sposta'> & { io?: string }
 
 /**
  * Lo stato in una parola. Vince il primo che vale: spostamento in corso, da
- * sistemare, al lavoro, a posto. Un trasloco fermo è «da sistemare».
+ * sistemare, al lavoro, a posto. Uno spostamento fermo è «da sistemare».
  */
 export function statoProgetto(r: RigaProgetto, ctx: Contesto = {}): StatoVista {
-  const di = (id: string): boolean => r.ids.includes(id) || id === r.id
   const fa = (id: IdStato, colore: Colore, ragione?: string): StatoVista => ({ id, parola: PAROLA[id], colore, ...(ragione !== undefined ? { ragione } : {}) })
-  const t = (ctx.traslochi ?? []).find((x) => di(x.progetto) && x.finitoIl === undefined && x.annullatoIl === undefined)
-  if (t !== undefined && t.fermo === undefined) {
-    const i = PASSI_TRASLOCO.findIndex((p) => t.passi[p.id]?.stato !== 'fatto')
-    return fa('spostamento', 'blu', i < 0 ? 'quasi finito' : `passo ${i + 1} di ${PASSI_TRASLOCO.length}`)
+  const sp = ctx.sposta !== undefined && r.ids.includes(ctx.sposta.progetto) ? ctx.sposta : undefined
+  if (sp !== undefined && sp.fase !== 'fatta' && sp.fase !== 'fallita') {
+    return fa('spostamento', 'blu', sp.fase === 'attesa-proprietario' ? `aspetta ${sp.daNome}` : `passo ${passoDi(sp.fase)} di ${PASSI_SPOSTA.length}`)
   }
-  const res = (ctx.residenza ?? []).find((x) => di(x.progetto))
-  if (res?.fase === 'analisi') return fa('spostamento', 'blu', 'confronto le copie')
-  if (res?.fase === 'unisco') return fa('spostamento', 'blu', 'unisco')
-  const rim = (ctx.rimozione ?? []).find((x) => di(x.progetto))
-  if (rim?.fase === 'analisi' || rim?.fase === 'recupero') return fa('spostamento', 'blu', 'tolgo da qui')
-  if (ctx.piano?.azioni.some((a) => a.tipo === 'porta-qui' && a.automatica && di(a.progetto)) === true) return fa('spostamento', 'blu', 'porto qui')
-  if (t?.fermo !== undefined) return fa('da-sistemare', 'ambra', 'spostamento fermo')
-  if (res?.fase === 'attesa-conferma' || res?.fase === 'in-uso' || rim?.fase === 'attesa-conferma' || rim?.fase === 'in-uso') return fa('da-sistemare', 'ambra', 'aspetta la tua conferma')
+  if (sp?.fase === 'fallita') return fa('da-sistemare', 'ambra', 'spostamento fermo')
   const ragione = ragioneProblemi(r.problemi)
   if (ragione !== undefined) return fa('da-sistemare', r.problemi.some((p) => p.tipo === 'casa-sconosciuta') ? 'rosso' : 'ambra', ragione)
   const n = r.alLavoro ?? 0
@@ -106,7 +91,7 @@ export function statoProgetto(r: RigaProgetto, ctx: Contesto = {}): StatoVista {
   return fa('a-posto', 'verde')
 }
 
-/** In quali gruppi sta (oltre a «Tutti»). Senza residente conta dove sta la cartella. */
+/** In quali gruppi sta (oltre a «Tutti»). Senza proprietario conta dove sta la cartella. */
 export function gruppiDi(r: RigaProgetto, s: StatoVista): Exclude<Gruppo, 'tutti'>[] {
   const qui = r.residente !== undefined ? r.residente.qui : r.cartellaQui
   const g: Exclude<Gruppo, 'tutti'>[] = [qui ? 'questo-pc' : 'altri-pc']
@@ -114,7 +99,7 @@ export function gruppiDi(r: RigaProgetto, s: StatoVista): Exclude<Gruppo, 'tutti
   return g
 }
 
-/** Le copie: i PC con la cartella che non sono il residente. */
+/** Le copie: i PC con la cartella che non sono il proprietario (nessuna, dalla 0.88.0). */
 export function copieDi(r: RigaProgetto, io?: string): { testo: string; nomi: string[] } {
   const nomi = [...new Set(r.cartelle.filter((c) => c.pc !== r.residente?.pc).map((c) => (c.pc === io ? 'questo PC' : c.nome)))]
   return { testo: nomi.length === 0 ? 'nessuna' : nomi.length === 1 ? (nomi[0] as string) : `${nomi.length} PC`, nomi }
@@ -219,7 +204,7 @@ export function cartellaDelQuaderno(r: Pick<RigaProgetto, 'cartelle' | 'cartella
 }
 
 export function azioniDivise<A extends { id: string }>(az: A[]): { primaria?: A; secondarie: A[]; pericolo?: A } {
-  const pericolo = az.find((a) => a.id === 'solo-cloud-qui')
+  const pericolo = az.find((a) => a.id === 'sposta-qui')
   const resto = az.filter((a) => a !== pericolo)
   const primaria = resto.find((a) => a.id === 'apri') ?? resto[0]
   return { ...(primaria !== undefined ? { primaria } : {}), secondarie: resto.filter((a) => a !== primaria), ...(pericolo !== undefined ? { pericolo } : {}) }

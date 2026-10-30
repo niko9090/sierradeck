@@ -98,7 +98,7 @@ describe('6. il prossimo passo anche sul PC', () => {
     const ora = Date.parse('2026-10-19T12:00:00Z')
     const senzaPassphrase = vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: true, connesso: true }, sync: { haCassaforte: false, sbloccato: false }, ora })
     expect(passoSulPc(senzaPassphrase.prossimo)).toEqual({ tasto: false, testo: 'Crea la passphrase' })
-    expect(passoSulPc(vistaAccount({ ora }).prossimo)).toEqual({ tasto: false, testo: 'Entra' })
+    expect(passoSulPc(vistaAccount({ ora }).prossimo)).toBeUndefined()
     const daCollegare = vistaAccount({ utente: { email: 'prova@esempio.it' }, drive: { configurato: true, connesso: false }, sync: { haCassaforte: false, sbloccato: false }, ora })
     expect(passoSulPc(daCollegare.prossimo)).toEqual({ tasto: true, testo: 'Collega il Drive' })
     // Drive non configurato in questa build: niente passo, su nessun lato.

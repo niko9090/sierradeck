@@ -2,21 +2,16 @@ import { TendinaMenu } from './TendinaMenu'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { byteLeggibili } from '@shared/spazio-drive'
-import { chatDelProgetto, comeAprireChat, filtraChat, testiCambioResidente, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
+import { chatDelProgetto, comeAprireChat, filtraChat, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { azioniDivise, cartellaDelQuaderno, cercaProgetti, COLONNE, contaGruppi, GRUPPI, nelGruppo, ordinaProgetti, vistaDi, type Colonna, type Colore, type Gruppo, type Verso } from '@shared/progetti-vista'
-import { eChiaveProgetto } from '@shared/allineamento'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { ModaleSposta } from './ModaleSposta'
-import { ModaleRiordina } from './ModaleRiordina'
-import { ModaleDoveVive } from './OspiteChat'
+import { PASSI_SPOSTA, passoDi, testoConfermaSposta, type VistaSposta } from '@shared/sposta'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
 import { SpazioDrive } from './SpazioDrive'
-import { TraslocoAvanzamento } from './TraslocoAvanzamento'
 import { Aiuto } from './Aiuto'
 import { useLayoutStore } from '../state/layout'
 import { voceMenu } from '@shared/menu-principale'
-import { destinazioniSposta, riassuntoSposta, type DestinazioneSposta } from '@shared/sposta-su'
 import { ogni } from '../state/sondaggio'
 
 /**
@@ -35,8 +30,7 @@ const COLORE: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--am
 const quando = (iso: string | undefined): string => (iso === undefined ? 'mai' : new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))
 const CHAT_IN_VISTA = 8
 
-type Foglio = 'chat' | 'salvataggio' | 'contenuto' | 'spazio' | 'recupero' | 'piano'
-type Cambio = { nome: string; sessioni: string[]; da?: { pc: string; nome: string }; verso: { pc: string; nome: string } }
+type Foglio = 'chat' | 'salvataggio' | 'contenuto' | 'spazio' | 'recupero'
 
 export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
   const [d, setD] = useState<Pannello | undefined>(undefined)
@@ -51,12 +45,6 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
   const [menu, setMenu] = useState(false)
   const [tutteLeChat, setTutteLeChat] = useState(false)
   const [azioneDa, setAzioneDa] = useState<{ progetto: string; nome: string; a: AzioneProgetto } | undefined>(undefined)
-  const [cambio, setCambio] = useState<Cambio | undefined>(undefined)
-  const [sposta, setSposta] = useState<string | undefined>(undefined)
-  const [riordina, setRiordina] = useState(false)
-  // «Dove vive ogni chat…» (0.71.1): dentro Progetti, come le altre finestre. Aperta dall'App finiva sotto la
-  // schermata a tutta finestra e il clic sembrava non fare niente (giro con i dati veri, 13/10).
-  const [doveVive, setDoveVive] = useState(false)
   const [rim, setRim] = useState<{ stati: StatoRimozione[]; inRecupero: CartellaInRecupero[] }>({ stati: [], inRecupero: [] })
   const cerca = useRef<HTMLInputElement>(null)
 
@@ -65,10 +53,8 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
     void window.gestore.casa.rimozione.stati().then(setRim).catch(() => undefined)
   }, [])
   useEffect(() => { leggi(); return window.gestore.casa.suCambiate(leggi) }, [leggi])
-  // Mentre qualcosa lavora (trasloco, unione, rimozione), si rilegge da solo.
-  const lavora = d?.residenza?.some((s) => s.fase === 'analisi' || s.fase === 'unisco') === true ||
-    (d?.traslochi ?? []).some((t) => t.finitoIl === undefined && t.annullatoIl === undefined && t.fermo === undefined) ||
-    rim.stati.some((s) => s.fase === 'analisi' || s.fase === 'recupero')
+  // Mentre uno spostamento lavora, si rilegge da solo.
+  const lavora = d?.sposta !== undefined && d.sposta.fase !== 'fatta' && d.sposta.fase !== 'fallita'
   useEffect(() => {
     if (!lavora) return
     // Con la finestra nascosta ogni 15 s (0.85.2).
@@ -82,7 +68,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
   }, [senzaSpazio, d, leggi])
 
   // Ogni riga con la sua vista: dal PC; se un PC vecchio non la manda, si calcola qui.
-  const righe = useMemo(() => (d === undefined ? [] : d.progetti.map((r) => (r.vista !== undefined ? r : { ...r, vista: vistaDi(r, { ...(d.traslochi !== undefined ? { traslochi: d.traslochi } : {}), ...(d.residenza !== undefined ? { residenza: d.residenza } : {}), ...(d.piano !== undefined ? { piano: d.piano } : {}), rimozione: rim.stati }) }))), [d, rim])
+  const righe = useMemo(() => (d === undefined ? [] : d.progetti.map((r) => (r.vista !== undefined ? r : { ...r, vista: vistaDi(r, { ...(d.sposta !== undefined ? { sposta: d.sposta } : {}), io: d.io.id }) }))), [d])
   const conti = useMemo(() => contaGruppi(righe), [righe])
   const elenco = useMemo(() => ordinaProgetti(cercaProgetti(righe.filter((r) => nelGruppo(r, gruppo)), q), ordine.col, ordine.verso), [righe, gruppo, q, ordine])
   const sel = righe.find((r) => r.id === scelto)
@@ -94,10 +80,24 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
     void p.then((r) => { setMsg(r.messaggio); dopo?.(); leggi() })
       .catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
   }
-  // Un'azione con `conferma` chiede prima di fare (Togli da questo PC: in rosso, «Annulla» già scelto).
+  // Un'azione con `conferma` chiede prima di fare («Sposta su questo PC»).
+  // «Apri su <PC>»: una chat nuova nella cartella là, e il riquadro dal vivo.
   const faiAzione = (progetto: string, a: AzioneProgetto): void => {
+    const r = righe.find((x) => x.id === progetto)
+    if (a.id === 'apri-remoto') {
+      const res = r?.residente
+      const cwd = r?.cartelle.find((c) => c.pc === res?.pc)?.percorso
+      if (r === undefined || res === undefined || cwd === undefined) { setMsg('Non so in quale cartella sta il progetto su quel PC.'); return }
+      setOccupato(true); setMsg(undefined)
+      void window.gestore.remoto.apri(res.pc, cwd).then((e) => {
+        if (!e.ok) { setMsg(`${res.nome}: ${e.messaggio}`); return }
+        useLayoutStore.getState().addPane(cwd, r.nome, undefined, { remoto: { pcId: res.pc, pcNome: res.nome, cwd, dal: new Date().toISOString() } })
+        onChiudi()
+      }).catch((e: unknown) => setMsg(`Non è andata: ${String(e)}`)).finally(() => setOccupato(false))
+      return
+    }
     if (a.conferma === undefined) esegui(window.gestore.casa.azione({ azione: a.id, progetto }))
-    else setAzioneDa({ progetto, nome: righe.find((x) => x.id === progetto)?.nome ?? '', a })
+    else setAzioneDa({ progetto, nome: r?.nome ?? '', a })
   }
   const apriChat = (c: RigaChat, come: NonNullable<ReturnType<typeof comeAprireChat>>): void => {
     const stato = useLayoutStore.getState()
@@ -111,7 +111,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
   // Tastiera: Esc chiude prima il dettaglio, poi la ricerca, poi la vista; ↑↓ scorrono; «/» cerca; Invio apre.
   useEffect(() => {
     const su = (e: KeyboardEvent): void => {
-      if (cambio !== undefined || azioneDa !== undefined || sposta !== undefined || riordina) return
+      if (azioneDa !== undefined) return
       const inCampo = (e.target as HTMLElement | null)?.tagName === 'INPUT'
       if (e.key === 'Escape') {
         if (menu) setMenu(false)
@@ -162,23 +162,19 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
           {menu ? (
             <TendinaMenu onChiudi={() => setMenu(false)}>
               {([
-                ['chat', 'Tutte le chat', 'Ogni chat con il suo PC residente; lo cambi chat per chat.'],
-                ['salvataggio', 'Salvataggio e arrivo', 'Salva ora, Ripristina, salvataggio automatico, «Fondi con il Drive».'],
+                ['chat', 'Tutte le chat', 'Ogni chat con il PC dove vive il suo progetto.'],
+                ['salvataggio', 'Salvataggio e arrivo', 'Salva ora, Ripristina, salvataggio automatico.'],
                 ['contenuto', 'Il contenuto del Drive', 'Il catalogo per progetto e workspace. Leggerlo richiede qualche secondo.'],
                 ['spazio', 'Spazio sul Drive', 'Quanto occupa ogni cosa, e le pulizie (sempre annullabili).'],
-                ...(inRecupero.length > 0 ? [['recupero', `Cartelle in recupero (${inRecupero.length})`, 'Le cartelle tolte da questo PC, ripristinabili per 30 giorni.']] : []),
-                ...(d?.piano !== undefined && d.piano.azioni.length > 0 ? [['piano', 'Piano di allineamento', 'Cosa serve perché questo PC rispetti le scelte.']] : [])
+                ...(inRecupero.length > 0 ? [['recupero', `Cartelle in recupero (${inRecupero.length})`, 'Le cartelle tolte da questo PC, ripristinabili per 30 giorni.']] : [])
               ] as [Foglio, string, string][]).map(([id, testo, spiega]) => (
                 <button key={id} className="progetti__voce" title={spiega} onClick={() => { setFoglio(id); setScelto(undefined); setMenu(false) }}>{testo}</button>
               ))}
-              <button className="progetti__voce" title="Le chat che stanno qui ma hanno casa su un altro PC: le metti da parte quando confermi." onClick={() => { setRiordina(true); setMenu(false) }}>Riordina le chat…</button>
-              <button className="progetti__voce" title="Il PC che ospita ogni chat dei workspace." onClick={() => { setMenu(false); setDoveVive(true) }}>Dove vive ogni chat…</button>
-              <button className="progetti__voce" title="Porta un progetto con chat e file da questo PC a un altro." onClick={() => { setSposta(''); setMenu(false) }}>Sposta progetto…</button>
             </TendinaMenu>
           ) : null}
         </span>
         <Aiuto di="Progetti">
-          Ogni progetto vive su un PC (il <b>residente</b>): lì girano le sue chat; gli altri PC le guardano dal vivo. <b>Copie</b>: gli altri PC che hanno la cartella.
+          Ogni progetto vive su un PC solo (il <b>proprietario</b>) e sul Drive: lì girano le sue chat; dagli altri PC si aprono dal vivo, e se quel PC è spento quello che scrivi aspetta nella sua posta. Per portarlo su questo PC: «Sposta su questo PC».
           <b> Stato</b>: <span style={{ color: 'var(--verde)' }}>a posto</span>, <span style={{ color: 'var(--blu)' }}>al lavoro</span> (una chat sta lavorando),
           <span style={{ color: 'var(--ambra)' }}> da sistemare</span> (con il motivo), <span style={{ color: 'var(--blu)' }}>spostamento in corso</span>.
           Clic su una riga: il dettaglio a destra con le azioni. Tasti: ↑↓, Invio apre, «/» cerca, Esc chiude. Niente si cancella mai: le copie tolte vanno nel recupero per 30 giorni.
@@ -193,6 +189,11 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
       ) : null}
       {errore !== undefined ? <div className="progetti__striscia">{errore}</div> : null}
       {msg !== undefined ? <div className="progetti__striscia progetti__striscia--info">{msg} <button className="account__link" onClick={() => setMsg(undefined)}>×</button></div> : null}
+      {d?.sposta !== undefined ? (
+        <AvanzamentoSposta s={d.sposta} occupato={occupato}
+          onRiprova={() => esegui(window.gestore.casa.azione({ azione: 'sposta-qui', progetto: d.sposta?.progetto ?? '' }))}
+          onChiudi={() => esegui(window.gestore.casa.azione({ azione: 'sposta-chiudi' }))} />
+      ) : null}
 
       <div className={`progetti__corpo${destra ? ' progetti__corpo--destra' : ''}`}>
         <div className="progetti__tabella" role="grid">
@@ -240,22 +241,18 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         {sel !== undefined && foglio === undefined && d !== undefined ? (
           <Dettaglio r={sel} d={d} rim={rim} occupato={occupato} tutteLeChat={tutteLeChat} setTutteLeChat={setTutteLeChat}
             onChiudi={() => setScelto(undefined)} onAzione={(a) => faiAzione(sel.id, a)} onApriChat={apriChat}
-            onTrasloco={(azione, id, pc) => esegui(window.gestore.casa.azione({ azione, id, ...(pc !== undefined ? { pc } : {}) }))}
-            onResidenza={(azione, id) => esegui(window.gestore.casa.azione({ azione, progetto: sel.id, ...(id !== undefined ? { id } : {}) }))}
-            onRimozione={(azione) => esegui(window.gestore.casa.rimozione[azione](sel.id))}
-            onQuaderno={(cwd) => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-quaderno', { detail: { cwd } })) }}
-            onSposta={(pc) => esegui(window.gestore.casa.azione({ azione: 'sposta-su', progetto: sel.id, pc }))} />
+            onQuaderno={(cwd) => { onChiudi(); window.dispatchEvent(new CustomEvent('sierradeck:apri-quaderno', { detail: { cwd } })) }} />
         ) : null}
 
         {foglio !== undefined && d !== undefined ? (
           <div className="progetti__dettaglio progetti__dettaglio--foglio">
             <div className="progetti__dtesta">
-              <span className="progetti__dtitolo">{foglio === 'chat' ? 'Tutte le chat' : foglio === 'salvataggio' ? 'Salvataggio e arrivo' : foglio === 'contenuto' ? 'Il contenuto del Drive' : foglio === 'spazio' ? 'Spazio sul Drive' : foglio === 'recupero' ? 'Cartelle in recupero' : 'Piano di allineamento'}</span>
+              <span className="progetti__dtitolo">{foglio === 'chat' ? 'Tutte le chat' : foglio === 'salvataggio' ? 'Salvataggio e arrivo' : foglio === 'contenuto' ? 'Il contenuto del Drive' : foglio === 'spazio' ? 'Spazio sul Drive' : 'Cartelle in recupero'}</span>
               <span style={{ flex: 1 }} />
               <button className="tasto tasto--mini" onClick={() => setFoglio(undefined)} aria-label="Chiudi">×</button>
             </div>
             <div className="progetti__dcorpo">
-              {foglio === 'chat' ? <TutteLeChat d={d} occupato={occupato} onCambio={setCambio} /> : null}
+              {foglio === 'chat' ? <TutteLeChat d={d} /> : null}
               {foglio === 'salvataggio' ? <SalvataggioDrive /> : null}
               {foglio === 'contenuto' ? <ContenutoDrive onChiudi={onChiudi} /> : null}
               {foglio === 'spazio' ? <SpazioDrive spazio={d.spazio} occupato={occupato} onAzione={(corpo) => esegui(window.gestore.casa.azione(corpo))} /> : null}
@@ -263,14 +260,6 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
                 <div key={c.id} className="progetti__voceelenco" title={c.dove}>
                   <span style={{ flex: 1 }}><b>{c.nome}</b> <span className="progetti__quieto">· tolta il {quando(c.quando)} · fino al {quando(c.scadeIl)}</span></span>
                   <button className="tasto tasto--mini" disabled={occupato} onClick={() => esegui(window.gestore.casa.rimozione.ripristina(c.id))}>Ripristina</button>
-                  {Date.parse(c.scadeIl) <= Date.now() ? <button className="tasto tasto--mini" disabled={occupato} onClick={() => esegui(window.gestore.casa.rimozione.cestina(c.id))}>Nel Cestino</button> : null}
-                </div>
-              )) : null}
-              {foglio === 'piano' ? (d.piano?.azioni ?? []).map((a) => (
-                <div key={`${a.tipo}:${a.progetto}`} className="progetti__voceelenco con-aiuto">
-                  <span style={{ flex: 1 }}><b>{a.nome}</b> <span className="progetti__quieto">· {a.tipo === 'porta-qui' ? (a.automatica ? 'porto qui' : 'da portare qui') : 'da togliere da qui'}</span></span>
-                  <Aiuto>{a.perche}</Aiuto>
-                  {a.tipo === 'solo-cloud' ? <button className="tasto tasto--mini" disabled={occupato} onClick={() => esegui(window.gestore.casa.rimozione.avvia(a.progetto))}>Confronta e togli…</button> : null}
                 </div>
               )) : null}
             </div>
@@ -278,24 +267,11 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
         ) : null}
       </div>
 
-      {azioneDa !== undefined ? (
-        <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && !occupato) setAzioneDa(undefined) }}>
-          <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="dialogo__testa"><span className="serigrafia">{azioneDa.a.titolo}: {azioneDa.nome}</span></div>
-            <p className="account__nota">{azioneDa.a.testo}</p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button className="tasto" autoFocus disabled={occupato} onClick={() => setAzioneDa(undefined)}>Annulla</button>
-              <button className={`tasto${azioneDa.a.id === 'solo-cloud-qui' ? ' tasto--pericolo' : ' tasto--acceso'}`} disabled={occupato}
-                onClick={() => esegui(window.gestore.casa.azione({ azione: azioneDa.a.id, progetto: azioneDa.progetto }), () => setAzioneDa(undefined))}>{occupato ? 'Un momento…' : azioneDa.a.conferma}</button>
-            </div>
-          </div>
-        </div>
+      {azioneDa !== undefined && d !== undefined ? (
+        <ConfermaAzione d={d} r={righe.find((x) => x.id === azioneDa.progetto)} a={azioneDa.a} nome={azioneDa.nome} occupato={occupato}
+          onAnnulla={() => setAzioneDa(undefined)}
+          onConferma={() => esegui(window.gestore.casa.azione({ azione: azioneDa.a.id, progetto: azioneDa.progetto }), () => setAzioneDa(undefined))} />
       ) : null}
-      {cambio !== undefined ? <ConfermaCambio d={d} cambio={cambio} occupato={occupato} onAnnulla={() => setCambio(undefined)}
-        onConferma={() => esegui(window.gestore.casa.scegli({ sessioni: cambio.sessioni, pc: { id: cambio.verso.pc, nome: cambio.verso.nome } }), () => setCambio(undefined))} /> : null}
-      {sposta !== undefined ? <ModaleSposta {...(sposta !== '' ? { cwdIniziale: sposta } : {})} onChiudi={() => { setSposta(undefined); leggi() }} /> : null}
-      {riordina ? <ModaleRiordina onChiudi={() => { setRiordina(false); leggi() }} /> : null}
-      {doveVive ? <ModaleDoveVive onChiudi={() => { setDoveVive(false); leggi() }} /> : null}
     </div>,
     document.body
   )
@@ -306,27 +282,12 @@ function Dettaglio(p: {
   r: RigaProgetto; d: Pannello; rim: { stati: StatoRimozione[] }; occupato: boolean
   tutteLeChat: boolean; setTutteLeChat: (x: boolean) => void
   onChiudi: () => void; onAzione: (a: AzioneProgetto) => void; onApriChat: (c: RigaChat, come: NonNullable<ReturnType<typeof comeAprireChat>>) => void
-  onTrasloco: (azione: 'trasloco-riprendi' | 'trasloco-annulla' | 'trasloco-senza', id: string, pc?: string) => void
-  onResidenza: (azione: 'conferma-residenza' | 'annulla-residenza' | 'annulla-unione', id?: string) => void
-  onRimozione: (azione: 'conferma' | 'annulla') => void
   onQuaderno: (cwd: string) => void
-  onSposta: (pc: string) => void
 }): React.JSX.Element {
   const { r, d, occupato } = p
-  // «Sposta su ▾» (0.71.0): da qualsiasi PC verso qualsiasi PC, con conferma.
-  const [menuSposta, setMenuSposta] = useState(false)
-  const [verso, setVerso] = useState<DestinazioneSposta | undefined>(undefined)
-  // «Annulla l’unione» chiede conferma (0.71.1), come sulla pagina e nell’app: prima partiva al primo clic.
-  const [annullaUnione, setAnnullaUnione] = useState<string | undefined>(undefined)
-  const destinazioni = r.spostaSu ?? destinazioniSposta(r, d.io, d.pc, Date.now())
-  const conferma = verso !== undefined ? riassuntoSposta(r, verso) : undefined
   const v = r.vista ?? vistaDi(r)
   const az = azioniDivise(r.azioni)
   const chat = chatDelProgetto(d.chat, r)
-  const traslochi = (d.traslochi ?? []).filter((t) => r.ids.includes(t.progetto) && t.annullatoIl === undefined && (t.finitoIl === undefined || t.scadeIl !== undefined))
-  const res = d.residenza?.find((x) => r.ids.includes(x.progetto) && x.fase !== 'annullata')
-  const rimoz = p.rim.stati.find((x) => r.ids.includes(x.progetto))
-  const unioni = (d.unioni ?? []).filter((u) => r.ids.includes(u.progetto))
   const tasto = (a: AzioneProgetto, tipo: 'primaria' | 'secondaria' | 'pericolo'): React.JSX.Element => (
     <span key={a.id} className="con-aiuto" style={tipo === 'pericolo' ? { marginLeft: 'auto' } : undefined}>
       <button className={`tasto${tipo === 'primaria' ? ' tasto--acceso' : tipo === 'pericolo' ? ' tasto--pericolo' : ''}`} disabled={occupato} onClick={() => p.onAzione(a)}>{a.titolo}</button>
@@ -345,33 +306,12 @@ function Dettaglio(p: {
       <div className="progetti__dove">
         <span className="serigrafia">Dove vive</span>
         <b style={v.doveQui ? undefined : { color: r.residente === undefined ? 'var(--ambra)' : undefined }}>{v.dove}</b>
-        <span style={{ position: 'relative' }}>
-          <button className="tasto tasto--mini tasto--acceso" aria-expanded={menuSposta} disabled={occupato || destinazioni.length < 2} onClick={() => setMenuSposta(!menuSposta)}
-            title="Sposta il progetto, con chat, file e note, su un altro PC: da qualsiasi PC verso qualsiasi PC della stessa chiave di casa">Sposta su ▾</button>
-          {menuSposta ? (
-            <TendinaMenu onChiudi={() => setMenuSposta(false)}>
-              {destinazioni.map((x) => (
-                <button key={x.pc} className="progetti__voce" disabled={x.attuale} title={x.attuale ? 'Il progetto vive già qui' : `Sposta «${r.nome}» su ${x.nome}`}
-                  onClick={() => { setMenuSposta(false); setVerso(x) }}>
-                  <span style={{ color: x.acceso ? 'var(--verde)' : 'var(--testo-spento)' }}>●</span> {x.testo}
-                </button>
-              ))}
-            </TendinaMenu>
-          ) : null}
-        </span>
-        <Aiuto di="Sposta su">Il progetto va a vivere sul PC che scegli: là girano le sue chat, gli altri le guardano dal vivo. Il trasloco gira sul PC di arrivo (se non è questo, la richiesta gli arriva per il ponte): salva le copie degli altri PC sul Drive, confronta, prende quello che c’è solo altrove, unisce, e solo alla fine mette le copie vecchie nel recupero. Lo segui qui passo per passo, da qualsiasi PC. Niente si cancella: «Annulla tutto» per 30 giorni.</Aiuto>
+        {r.residente !== undefined && !r.residente.qui ? (
+          <span className="progetti__pillola" title={r.proprietarioAcceso === true ? 'acceso adesso' : 'non risponde adesso: si scrive nella sua posta'}
+            style={{ color: r.proprietarioAcceso === true ? 'var(--verde)' : 'var(--testo-spento)' }}>su {r.residente.nome}</span>
+        ) : null}
+        <Aiuto di="Dove vive">Un progetto vive su un PC solo: lì girano le sue chat, e il Drive ne tiene la copia. Dagli altri PC si apre dal vivo; per portarlo qui c’è «Sposta su questo PC», che controlla file per file prima di cambiare PC e non cancella niente.</Aiuto>
       </div>
-      {conferma !== undefined && verso !== undefined ? (
-        <div className="progetti__attende progetti__attende--colonna" role="alertdialog" aria-label={conferma.titolo}>
-          <b>{conferma.titolo}</b>
-          {conferma.righe.map((x) => <span key={x} className="progetti__quieto">{x}</span>)}
-          {conferma.avviso !== undefined ? <span style={{ color: 'var(--ambra)' }}>⚠ {conferma.avviso}</span> : null}
-          <span style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button className="tasto tasto--mini" onClick={() => setVerso(undefined)}>Annulla</button>
-            <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { p.onSposta(verso.pc); setVerso(undefined) }}>{conferma.conferma}</button>
-          </span>
-        </div>
-      ) : null}
       {/* Le azioni restano in vista: non scorrono con il resto. */}
       <div className="progetti__azioni">
         {az.primaria !== undefined ? tasto(az.primaria, 'primaria') : null}
@@ -379,21 +319,6 @@ function Dettaglio(p: {
         {az.pericolo !== undefined ? tasto(az.pericolo, 'pericolo') : null}
         {r.azioni.length === 0 ? <span className="progetti__quieto">Nessuna azione da qui.</span> : null}
       </div>
-      {res !== undefined && (res.fase === 'attesa-conferma' || res.fase === 'in-uso') ? (
-        <div className="progetti__attende">
-          <span style={{ flex: 1 }}>Aspetta la tua conferma: unione delle copie</span>
-          <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => p.onResidenza('conferma-residenza')}>Conferma</button>
-          <button className="tasto tasto--mini" disabled={occupato} onClick={() => p.onResidenza('annulla-residenza')}>Annulla</button>
-        </div>
-      ) : null}
-      {rimoz !== undefined && (rimoz.fase === 'attesa-conferma' || rimoz.fase === 'in-uso') ? (
-        <div className="progetti__attende">
-          <span style={{ flex: 1 }} className="con-aiuto">Aspetta la tua conferma: togliere da questo PC<Aiuto>{rimoz.messaggio}</Aiuto></span>
-          <button className="tasto tasto--mini tasto--pericolo" disabled={occupato} onClick={() => p.onRimozione('conferma')}>Togli da questo PC</button>
-          <button className="tasto tasto--mini" disabled={occupato} onClick={() => p.onRimozione('annulla')}>Annulla</button>
-        </div>
-      ) : null}
-
       <div className="progetti__dcorpo">
         {r.problemi.length > 0 ? (
           <Sezione titolo="Da sistemare" aiuto="Ogni problema con il perché e cosa fare: apri il «?» della riga.">
@@ -402,13 +327,6 @@ function Dettaglio(p: {
                 {x.titolo}<Aiuto di={x.titolo}>{x.spiega} <b>Cosa fare:</b> {x.cosaFare}</Aiuto>
               </div>
             ))}
-          </Sezione>
-        ) : null}
-        {traslochi.length > 0 || (res !== undefined && res.fase !== 'attesa-conferma' && res.fase !== 'in-uso') || (rimoz !== undefined && rimoz.fase !== 'attesa-conferma' && rimoz.fase !== 'in-uso') ? (
-          <Sezione titolo="Spostamento" aiuto="I passi dello spostamento in corso. Niente si cancella: «Annulla tutto» rimette com’era per 30 giorni.">
-            {traslochi.map((t) => <TraslocoAvanzamento key={t.id} t={t} occupato={occupato} onAzione={p.onTrasloco} />)}
-            {res !== undefined && res.fase !== 'attesa-conferma' && res.fase !== 'in-uso' ? <div className="progetti__voceelenco">{res.messaggio}</div> : null}
-            {rimoz !== undefined && rimoz.fase !== 'attesa-conferma' && rimoz.fase !== 'in-uso' ? <div className="progetti__voceelenco">Togliere da questo PC: {rimoz.messaggio}</div> : null}
           </Sezione>
         ) : null}
         <Sezione titolo={`Chat (${chat.length})`} aiuto="Si aprono dove vivono: qui con la loro storia, o dal vivo sul PC residente (in viola). Le chat senza nome non sono elencate.">
@@ -432,7 +350,7 @@ function Dettaglio(p: {
           })}
           {chat.length > CHAT_IN_VISTA && !p.tutteLeChat ? <button className="account__link" onClick={() => p.setTutteLeChat(true)}>Mostra tutte ({chat.length})</button> : null}
         </Sezione>
-        <Sezione titolo="Cartelle" aiuto="Dove sta la cartella del progetto su ogni PC.">
+        <Sezione titolo="Cartella" aiuto="Dove sta la cartella del progetto, sul PC dove vive.">
           {r.cartelle.length === 0 && r.cartellaTrovata === undefined ? <div className="progetti__quieto">Su nessun PC.</div> : null}
           {r.cartelle.map((c) => (
             <div key={`${c.pc}:${c.percorso}`} className="progetti__voceelenco"><b style={{ whiteSpace: 'nowrap' }}>{c.nome}{c.pc === d.io.id ? ' (qui)' : ''}</b> <span className="progetti__quieto progetti__percorso">{c.percorso}</span></div>
@@ -456,23 +374,6 @@ function Dettaglio(p: {
             </>
           )}
         </Sezione>
-        {unioni.length > 0 ? (
-          <Sezione titolo="Storia" aiuto="Le unioni degli ultimi 30 giorni: si possono annullare.">
-            {unioni.map((u) => (
-              <div key={u.id} className="progetti__voceelenco">
-                <span style={{ flex: 1 }}>Unito il {quando(u.quando)} <span className="progetti__quieto">· fino al {quando(u.scadeIl)}</span></span>
-                {annullaUnione === u.id ? (
-                  <>
-                    <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setAnnullaUnione(undefined); p.onResidenza('annulla-unione', u.id) }}>Conferma: annulla l’unione</button>
-                    <button className="tasto tasto--mini" onClick={() => setAnnullaUnione(undefined)}>No</button>
-                  </>
-                ) : (
-                  <button className="tasto tasto--mini" disabled={occupato} title="Le cartelle doppie tornano al loro posto dal recupero, i file sostituiti tornano com’erano" onClick={() => setAnnullaUnione(u.id)}>Annulla l’unione…</button>
-                )}
-              </div>
-            ))}
-          </Sezione>
-        ) : null}
       </div>
     </div>
   )
@@ -487,13 +388,12 @@ function Sezione({ titolo, aiuto, children }: { titolo: string; aiuto: string; c
   )
 }
 
-/** «Tutte le chat» (dagli Strumenti): ogni chat con il residente, da cambiare chat per chat. */
-function TutteLeChat({ d, occupato, onCambio }: { d: Pannello; occupato: boolean; onCambio: (c: Cambio) => void }): React.JSX.Element {
+/** «Tutte le chat» (dagli Strumenti): ogni chat con il PC dove vive il suo progetto. */
+function TutteLeChat({ d }: { d: Pannello }): React.JSX.Element {
   const [filtro, setFiltro] = useState<FiltroPannello>('tutti')
   const [q, setQ] = useState('')
   const [quante, setQuante] = useState(100)
   const chat = filtraChat(d.chat, filtro, q, false)
-  const pc = [d.io, ...d.pc]
   return (
     <>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -506,13 +406,8 @@ function TutteLeChat({ d, occupato, onCambio }: { d: Pannello; occupato: boolean
         <div key={c.sessione} className="progetti__voceelenco" title={c.cwd}>
           <span style={{ flex: 1, minWidth: 0 }}>
             <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...(c.problemi.length > 0 ? { color: 'var(--ambra)' } : {}) }}>{c.titolo}</span>
-            <span className="progetti__quieto">{c.residente === undefined ? 'senza casa' : c.residente.qui ? 'questo PC' : c.residente.nome} · {quando(c.ultimoUso)}</span>
+            <span className="progetti__quieto">{c.residente === undefined ? 'fuori dai progetti' : c.residente.qui ? 'questo PC' : `su ${c.residente.nome}`} · {quando(c.ultimoUso)}</span>
           </span>
-          <select className="campo campo--mini" value="" disabled={occupato} title="Cambia il PC residente di questa chat"
-            onChange={(e) => { const x = pc.find((y) => y.id === e.target.value); if (x !== undefined) onCambio({ nome: c.titolo, sessioni: [c.sessione], ...(c.residente !== undefined ? { da: { pc: c.residente.pc, nome: c.residente.nome } } : {}), verso: { pc: x.id, nome: x.nome } }) }}>
-            <option value="">Residente…</option>
-            {pc.map((x) => <option key={x.id} value={x.id} disabled={x.id === c.residente?.pc}>{x.nome}{x.id === d.io.id ? ' (questo PC)' : ''}</option>)}
-          </select>
         </div>
       ))}
       {chat.length > quante ? <button className="account__link" onClick={() => setQuante(quante + 100)}>Mostra altre</button> : null}
@@ -520,26 +415,51 @@ function TutteLeChat({ d, occupato, onCambio }: { d: Pannello; occupato: boolean
   )
 }
 
-function ConfermaCambio({ d, cambio, occupato, onAnnulla, onConferma }: { d: Pannello | undefined; cambio: Cambio; occupato: boolean; onAnnulla: () => void; onConferma: () => void }): React.JSX.Element | null {
-  if (d === undefined) return null
-  const testi = testiCambioResidente({ cosa: 'chat', nome: cambio.nome, ...(cambio.da !== undefined ? { da: cambio.da } : {}), verso: cambio.verso, io: d.io.id, chat: cambio.sessioni.filter((s) => !eChiaveProgetto(s)).length })
+/** La conferma prima di un'azione: per «Sposta su questo PC» dice cosa succede, passo per passo. */
+function ConfermaAzione({ d, r, a, nome, occupato, onAnnulla, onConferma }: {
+  d: Pannello; r: RigaProgetto | undefined; a: AzioneProgetto; nome: string; occupato: boolean; onAnnulla: () => void; onConferma: () => void
+}): React.JSX.Element {
+  const t = a.id === 'sposta-qui' && r?.residente !== undefined
+    ? testoConfermaSposta({ nome, daNome: r.residente.nome, qui: d.io.nome, daAcceso: r.proprietarioAcceso === true })
+    : { titolo: `${a.titolo}: ${nome}`, righe: [a.testo], conferma: a.conferma ?? a.titolo }
   return (
     <div className="velo" onMouseDown={(e) => { if (e.target === e.currentTarget && !occupato) onAnnulla() }}>
       <div className="dialogo" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="dialogo__testa"><span className="serigrafia">{testi.titolo}</span></div>
-        <p className="account__nota"><b>«{cambio.nome}»</b>: residente adesso {cambio.da === undefined ? 'nessuno' : cambio.da.nome}, dopo {cambio.verso.nome}.</p>
-        <div className="account__nota con-aiuto">Non si cancella niente.
-          <Aiuto di="cambio del residente">
-            <b>Cosa succede</b><ul>{testi.succede.map((t) => <li key={t}>{t}</li>)}</ul>
-            <b>Cosa non succede</b><ul>{testi.nonSuccede.map((t) => <li key={t}>{t}</li>)}</ul>
-            <b>Se qualcosa non torna</b><ul>{testi.seNonTorna.map((t) => <li key={t}>{t}</li>)}</ul>
-          </Aiuto>
-        </div>
+        <div className="dialogo__testa"><span className="serigrafia">{t.titolo}</span></div>
+        {t.righe.map((x) => <p key={x} className="account__nota">{x}</p>)}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button className="tasto" disabled={occupato} onClick={onAnnulla}>Annulla</button>
-          <button className="tasto tasto--acceso" disabled={occupato} onClick={onConferma}>{occupato ? 'Cambio…' : 'Conferma'}</button>
+          <button className="tasto" autoFocus disabled={occupato} onClick={onAnnulla}>Annulla</button>
+          <button className="tasto tasto--acceso" disabled={occupato} onClick={onConferma}>{occupato ? 'Un momento…' : t.conferma}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * «Sposta su questo PC» in corso o appena finito (0.88.0): i passi, quello
+ * attuale, e l'errore detto chiaro. Riparte da solo dopo un riavvio.
+ */
+function AvanzamentoSposta({ s, occupato, onRiprova, onChiudi }: { s: VistaSposta; occupato: boolean; onRiprova: () => void; onChiudi: () => void }): React.JSX.Element {
+  const passo = passoDi(s.fase)
+  const finita = s.fase === 'fatta' || s.fase === 'fallita'
+  return (
+    <div className="progetti__attende progetti__attende--colonna" role="status" aria-live="polite">
+      <b>{s.fase === 'fatta' ? `«${s.nome}» adesso vive su questo PC` : s.fase === 'fallita' ? `Spostamento di «${s.nome}» fermo` : `Sposto «${s.nome}» da ${s.daNome} su questo PC`}</b>
+      {PASSI_SPOSTA.map((x, i) => {
+        const n = i + 1
+        const segno = s.fase === 'fatta' || (passo > 0 && n < passo) ? '✓' : n === passo ? '●' : '○'
+        return <span key={x.fase} className="progetti__quieto" style={n === passo ? { color: 'var(--blu)' } : undefined}>{segno} {x.titolo}</span>
+      })}
+      <span>{s.messaggio}</span>
+      {s.errore !== undefined ? <span style={{ color: 'var(--ambra)' }}>⚠ {s.errore}</span> : null}
+      {(s.avvisi ?? []).map((x) => <span key={x} className="progetti__quieto">{x}</span>)}
+      {finita ? (
+        <span style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          {s.fase === 'fallita' ? <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={onRiprova}>Riprova</button> : null}
+          <button className="tasto tasto--mini" disabled={occupato} onClick={onChiudi}>OK</button>
+        </span>
+      ) : null}
     </div>
   )
 }

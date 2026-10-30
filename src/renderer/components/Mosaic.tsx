@@ -9,7 +9,6 @@ import { memoriaWorkspace } from '../memoria-workspace'
 import { Terminal } from './Terminal'
 import { RiquadroRemoto } from './RiquadroRemoto'
 import { ChatConPin, TastoPin } from './ChatConPin'
-import { TastoOspite } from './OspiteChat'
 import { IndicatoreDiRiquadro } from './LineaRemota'
 import { DropOverlay } from './DropOverlay'
 import { nomiDistinti, statoChat } from '@shared/chat-vista'
@@ -387,8 +386,6 @@ export function Mosaic({
                     il gesto vero — lo spazio della testata va a comandi più utili. */}
                 <span className="comandi-rari" style={{ display: rari.has(paneId) ? 'flex' : 'none' }}>
                   <ComandoSposta paneId={paneId} />
-                  {/* L'ospite della chat (0.52.0): quale PC la fa girare; clic o tasto destro per sceglierlo. */}
-                  <TastoOspite paneId={paneId} sessione={data.remoto?.sessione ?? data.sessionUuid} titolo={data.title} {...(data.remoto !== undefined ? { remotoSu: data.remoto.pcNome } : {})} />
                   {/* Il PIN delle chat (0.49.0): proteggere, togliere, richiudere. */}
                   {data.remoto === undefined ? <TastoPin sessione={data.sessionUuid} titolo={data.title} /> : null}
                   {/* «Apri cartella» (0.82.0): la cartella del progetto in Esplora file. */}

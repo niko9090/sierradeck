@@ -9,7 +9,6 @@ import { creaServerClient, eLoopback } from '../../src/main/client-server'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { firmaRichiesta, provaCasa, provaValida, creaControlloFirme, nuovaSfida, FIRMA_VALE_MS } from '../../src/main/casa-firma'
-import { cifraSegnale, creaSigillo, decifraSegnale } from '../../src/main/rtc/cifra-canale'
 import { cifra, decifra } from '../../src/main/cassaforte/cifratura'
 import type { BattitoPc } from '@shared/posta'
 
@@ -21,7 +20,7 @@ import type { BattitoPc } from '@shared/posta'
  *
  * Qui un PC estraneo — con un'altra cassaforte, o senza chiave — prova ogni
  * strada: rete di casa e Tailscale (le stesse richieste HTTP), la ricerca per
- * nome di Tailscale, WebRTC, la cassetta sul Drive, il telefono, «Installa
+ * nome di Tailscale, la posta sul Drive, il telefono, «Installa
  * là». Tutte lo respingono.
  *
  * La chiave di casa è quella vera: HMAC della chiave-maestra della cassaforte
@@ -164,16 +163,7 @@ describe('chi bussa non si fida di chi risponde: niente chiave a un estraneo', (
   })
 })
 
-describe('WebRTC: la segnalazione e il canale si aprono solo con la chiave di casa', () => {
-  it('un’offerta di un’altra cassaforte non si apre; un messaggio sigillato da un estraneo si butta', () => {
-    const offerta = cifraSegnale(ESTRANEA, 'g1', 'estraneo', 'lap', 'v=0')
-    expect(decifraSegnale(K, 'g1', 'estraneo', 'lap', offerta)).toBeUndefined()
-    const estraneo = creaSigillo(ESTRANEA, 'g1', 'chiama')
-    expect(creaSigillo(K, 'g1', 'risponde').apri(estraneo.chiudi({ tipo: 'chiedi', id: 'a', percorso: '/api/aggiornamento/installa' }))).toBeUndefined()
-  })
-})
-
-describe('la cassetta sul Drive: cifrata con la chiave-maestra della cassaforte', () => {
+describe('la posta sul Drive: cifrata con la chiave-maestra della cassaforte', () => {
   it('una richiesta scritta da un’altra cassaforte non si legge (e quindi non si esegue)', async () => {
     const scritta = await cifra(maestraEstranea, Buffer.from(JSON.stringify({ da: 'estraneo', testo: 'rm -rf' })))
     expect(await decifra(maestraCasa, scritta)).toBeUndefined()

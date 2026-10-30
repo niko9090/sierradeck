@@ -41,7 +41,7 @@ describe('memoriaDiFile (0.80.0)', () => {
   it('il registro dei progetti: quello scritto si legge subito', () => {
     const r = apriRegistroProgetti(dir)
     expect(r.leggi().progetti).toEqual([])
-    const p = { id: 'p1', nome: 'Sito', percorsi: { pc1: 'C:/sito' }, aggiuntoIl: '2026-10-19T10:00:00.000Z' }
+    const p = { id: 'p1', nome: 'Sito', proprietario: 'pc1', percorso: 'C:/sito', aggiuntoIl: '2026-10-19T10:00:00.000Z' }
     r.scrivi({ versione: 1, progetti: [p] })
     expect(r.leggi().progetti).toEqual([p])
     r.scrivi({ versione: 1, progetti: [] })

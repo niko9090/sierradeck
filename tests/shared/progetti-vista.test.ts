@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Problema, RigaProgetto } from '@shared/pannello-drive'
-import type { Trasloco } from '@shared/trasloco'
+import type { VistaSposta } from '@shared/sposta'
 import { azioniDivise, cercaProgetti, contaGruppi, conVista, copieDi, nelGruppo, ordinaProgetti, ragioneProblemi, statoProgetto, testoChat, testoSpazio, vistaDi } from '@shared/progetti-vista'
 
 /**
@@ -13,36 +13,34 @@ const riga = (x: Partial<RigaProgetto> = {}): RigaProgetto => ({
   azioni: [], chat: 0, chatSenzaNome: 0, stato: 'residente', problemi: [], ...x
 })
 const problema = (tipo: Problema['tipo'], titolo: string = tipo): Problema => ({ tipo, titolo, spiega: '', cosaFare: '' })
-const trasloco = (x: Partial<Trasloco> = {}): Trasloco => ({
-  id: 't1', progetto: 'p1', nome: 'Gestionale', verso: { pc: 'a', nome: 'PC-A' }, chiesto: { da: 'a', come: 'residente' }, avviatoIl: '2026-10-12T20:00:00Z',
-  passi: { raccolta: { stato: 'fatto' }, analisi: { stato: 'in-corso' }, unione: { stato: 'da-fare' }, vecchie: { stato: 'da-fare' }, fine: { stato: 'da-fare' } },
-  altrove: [], ...x
-} as Trasloco)
+const sposta = (x: Partial<VistaSposta> = {}): VistaSposta => ({
+  progetto: 'p1', nome: 'Gestionale', daNome: 'PC-A', fase: 'scarico', messaggio: '', percorso: 'C:\\P\\Gestionale', ...x
+})
 
 describe('lo stato in una parola', () => {
   it('a posto, al lavoro, da sistemare, spostamento in corso', () => {
     expect(statoProgetto(riga())).toEqual({ id: 'a-posto', parola: 'a posto', colore: 'verde' })
     expect(statoProgetto(riga({ alLavoro: 2 }))).toMatchObject({ id: 'al-lavoro', ragione: '2 chat', colore: 'blu' })
-    expect(statoProgetto(riga({ problemi: [problema('progetto-diviso')] }))).toMatchObject({ id: 'da-sistemare', ragione: 'diviso fra PC', colore: 'ambra' })
-    expect(statoProgetto(riga(), { traslochi: [trasloco()] })).toMatchObject({ id: 'spostamento', ragione: 'passo 2 di 5' })
+    expect(statoProgetto(riga({ problemi: [problema('casa-assente')] }))).toMatchObject({ id: 'da-sistemare', ragione: 'PC assente da tempo', colore: 'ambra' })
+    expect(statoProgetto(riga(), { sposta: sposta() })).toMatchObject({ id: 'spostamento', ragione: 'passo 3 di 6' })
+    expect(statoProgetto(riga(), { sposta: sposta({ fase: 'attesa-proprietario' }) })).toMatchObject({ id: 'spostamento', ragione: 'aspetta PC-A' })
   })
   it('vince il più importante: spostamento > da sistemare > al lavoro', () => {
-    const r = riga({ alLavoro: 1, problemi: [problema('progetto-diviso')] })
+    const r = riga({ alLavoro: 1, problemi: [problema('casa-assente')] })
     expect(statoProgetto(r).id).toBe('da-sistemare')
-    expect(statoProgetto(r, { traslochi: [trasloco()] }).id).toBe('spostamento')
+    expect(statoProgetto(r, { sposta: sposta() }).id).toBe('spostamento')
   })
-  it('un trasloco fermo è da sistemare; uno finito non conta', () => {
-    expect(statoProgetto(riga(), { traslochi: [trasloco({ fermo: { passo: 'unione', motivo: 'x', il: '', riprovaDaSolo: false } })] })).toMatchObject({ id: 'da-sistemare', ragione: 'spostamento fermo' })
-    expect(statoProgetto(riga(), { traslochi: [trasloco({ finitoIl: '2026-10-12T21:00:00Z' })] }).id).toBe('a-posto')
+  it('uno spostamento fallito è da sistemare; uno finito, o di un altro progetto, non conta', () => {
+    expect(statoProgetto(riga(), { sposta: sposta({ fase: 'fallita' }) })).toMatchObject({ id: 'da-sistemare', ragione: 'spostamento fermo' })
+    expect(statoProgetto(riga(), { sposta: sposta({ fase: 'fatta' }) }).id).toBe('a-posto')
+    expect(statoProgetto(riga(), { sposta: sposta({ progetto: 'altro' }) }).id).toBe('a-posto')
   })
-  it('una conferma che aspetta è da sistemare; un PC sconosciuto è rosso', () => {
-    expect(statoProgetto(riga(), { residenza: [{ progetto: 'p1', nome: 'G', fase: 'attesa-conferma', messaggio: '', quando: '' }] }).ragione).toBe('aspetta la tua conferma')
-    expect(statoProgetto(riga(), { rimozione: [{ progetto: 'p1', fase: 'analisi' }] })).toMatchObject({ id: 'spostamento', ragione: 'tolgo da qui' })
+  it('un PC sconosciuto è rosso', () => {
     expect(statoProgetto(riga({ problemi: [problema('casa-sconosciuta')] })).colore).toBe('rosso')
   })
   it('la ragione: il problema più grave, con +N', () => {
-    expect(ragioneProblemi([problema('progetto-doppio', 'Registrato 3 volte'), problema('progetto-diviso')])).toBe('diviso fra PC +1')
-    expect(ragioneProblemi([problema('progetto-doppio', 'Registrato 3 volte')])).toBe('registrato 3 volte')
+    expect(ragioneProblemi([problema('casa-assente'), problema('casa-sconosciuta')])).toBe('PC sconosciuto +1')
+    expect(ragioneProblemi([problema('progetto-senza-casa')])).toBe('senza proprietario')
     expect(ragioneProblemi([])).toBeUndefined()
   })
 })
@@ -92,10 +90,9 @@ describe('gruppi, ricerca e ordine', () => {
 })
 
 describe('le azioni', () => {
-  it('Apri è la principale; Togli da questo PC a parte', () => {
-    const a = azioniDivise([{ id: 'residente-qui' }, { id: 'apri' }, { id: 'solo-cloud-qui' }])
-    expect(a).toEqual({ primaria: { id: 'apri' }, secondarie: [{ id: 'residente-qui' }], pericolo: { id: 'solo-cloud-qui' } })
-    expect(azioniDivise([{ id: 'residente-qui' }]).primaria).toEqual({ id: 'residente-qui' })
+  it('Apri è la principale; «Sposta su questo PC» a parte, con la sua conferma', () => {
+    expect(azioniDivise([{ id: 'apri-remoto' }, { id: 'sposta-qui' }])).toEqual({ primaria: { id: 'apri-remoto' }, secondarie: [], pericolo: { id: 'sposta-qui' } })
+    expect(azioniDivise([{ id: 'apri' }])).toEqual({ primaria: { id: 'apri' }, secondarie: [] })
   })
 })
 

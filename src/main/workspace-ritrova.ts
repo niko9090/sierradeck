@@ -1,7 +1,6 @@
 import { copyFileSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArchivio, type Archivio } from '@shared/workspace'
-import { leggiCase } from '@shared/una-casa'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { conRitrovati, riparaArchivio, senzaRemotiDiSistema, workspaceRitrovati, type CopiaLista, type Eliminato, type Ritrovato } from '@shared/workspace-riparazioni'
 
@@ -102,11 +101,11 @@ export function riparaListaAllAvvio(d: {
   // 2. I riquadri che guardano questo PC.
   const sessioniQui = new Set<string>()
   for (const slug of readdirSafe(d.radiceProgetti)) for (const f of readdirSafe(join(d.radiceProgetti, slug))) if (f.endsWith('.jsonl')) sessioniQui.add(f.slice(0, -'.jsonl'.length))
-  let case_: ReturnType<typeof leggiCase> | undefined
-  try { case_ = leggiCase(JSON.parse(readFileSync(join(d.dati, 'case-chat.json'), 'utf8'))) } catch { case_ = undefined }
+  // Un progetto, un PC (0.88.0): non ci sono piu' case per chat. Un riquadro
+  // che guarda questo PC torna locale.
   const r = riparaArchivio(dopo, d.io.id, {
     haChat: (s) => sessioniQui.has(s),
-    casaAltrove: (s) => { const c = case_?.case[s]; return c !== undefined && c.pc !== d.io.id ? { pc: c.pc, nome: c.pcNome } : undefined }
+    casaAltrove: () => undefined
   })
   dopo = r.archivio
   // 3. I riquadri remoti in una cartella di sistema di qui (0.75.4): escono dalla lista.

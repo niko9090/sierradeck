@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { creaPostino, nomeBattitoPc, BATTITO_PC_OGNI_MS, type BattitoPc } from '../../src/main/progetti/posta'
-import type { Scatola } from '../../src/main/progetti/presenza'
+import type { Scatola } from '../../src/main/progetti/posta'
 
 /**
  * Gli altri PC come li ricordo: l'ultimo elenco letto dal Drive, tenuto in

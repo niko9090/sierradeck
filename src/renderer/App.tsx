@@ -30,7 +30,6 @@ import { Mosaic } from './components/Mosaic'
 import { ModaleSessioni } from './components/ModaleSessioni'
 import { ModaleGestioneChat, type SchedaGestione } from './components/ModaleGestioneChat'
 import { OspiteAzioniChat } from './components/AzioniChat'
-import { ModaleDoveVive } from './components/OspiteChat'
 import { VistaProgetti } from './components/VistaProgetti'
 import { NOME_AUTOMATICO } from '@shared/istantanea'
 import { Console, type PannelloAperto } from './components/Console'
@@ -43,7 +42,6 @@ import { tavolozza, type Preferenze } from '@shared/preferenze'
 import { avvisiConsumi, type AvvisoConsumi } from '@shared/polso-chat'
 import { ModaleAccesso } from './components/ModaleAccesso'
 import { ModalePreparazione } from './components/ModalePreparazione'
-import { ModaleTestimone, type AvvisoProgetto } from './components/ModaleTestimone'
 import { ModaleNote } from './components/ModaleNote'
 import { novitaConLeUltime } from '@shared/novita'
 import { noteDaNovita, type NotaResa, type NoteAggiornamento } from '@shared/note-aggiornamento'
@@ -54,8 +52,6 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import type { StatoAccesso } from '../main/accesso'
 import { decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
-import { SchermataAccesso } from './components/SchermataAccesso'
-import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
 import { Serratura } from './components/Serratura'
 import type { StatoAggiornamento } from '../main/aggiornamenti'
 import { righeDiPty, righeDiPtyRecenti, segnaDatiPty, finestraDiPty } from './schermo-terminale'
@@ -647,21 +643,6 @@ export function App(): React.JSX.Element {
   }), [])
 
   // Il nome che dai a una chat dal telefono: lo stesso che daresti qui.
-  /**
-   * L'ospite di una chat aperta qui è diventato un altro PC (0.52.0), e la
-   * chat ha finito il turno: il Core chiede di chiudere il suo claude.exe. Il
-   * riquadro resta al suo posto e diventa la chat dal vivo sull'ospite.
-   */
-  useEffect(() => window.gestore.casa.suChiudiQui((chat) => {
-    const s = useLayoutStore.getState()
-    for (const c of chat) {
-      for (const p of Object.values(s.panes)) {
-        if (p.remoto !== undefined || p.sessionUuid !== c.sessione) continue
-        if (p.ptyId !== undefined) window.gestore.pty.kill(p.ptyId)
-        s.rendiRemoto(p.id, { pcId: c.pc.id, pcNome: c.pc.nome, cwd: p.cwd, sessione: c.sessione })
-      }
-    }
-  }), [])
   // «Guarda» di uno specialista (0.73.0): la finestra va nel workspace del suo
   // autopilota e il riquadro di quella chat si mette in vista, con il fuoco.
   useEffect(() => {
@@ -682,12 +663,6 @@ export function App(): React.JSX.Element {
     }
     window.addEventListener('sierradeck:guarda-chat', guarda)
     return () => window.removeEventListener('sierradeck:guarda-chat', guarda)
-  }, [])
-  const [doveVive, setDoveVive] = useState(false)
-  useEffect(() => {
-    const apri = (): void => setDoveVive(true)
-    window.addEventListener('sierradeck:dove-vive', apri)
-    return () => window.removeEventListener('sierradeck:dove-vive', apri)
   }, [])
   // Il pannello delle chat e dei progetti del Drive (0.58.0): dalla 0.61.0
   // è «Progetti», la prima voce del menu principale.
@@ -880,19 +855,6 @@ export function App(): React.JSX.Element {
     window.addEventListener('sierradeck:gestione-chat', apri)
     return () => window.removeEventListener('sierradeck:gestione-chat', apri)
   }, [])
-  // Un progetto sul Drive in mano a un altro PC, o un testimone appena ceduto.
-  const [avvisoProgetto, setAvvisoProgetto] = useState<AvvisoProgetto | undefined>(undefined)
-  useEffect(() => window.gestore.progetti.suAvviso(setAvvisoProgetto), [])
-  useEffect(() => window.gestore.progetti.suIberna(({ sessioni }) => {
-    // Il testimone e' passato a un altro PC: le chat di quel progetto dormono,
-    // cosi' da qui non si scrive piu' sopra il suo lavoro.
-    const store = useLayoutStore.getState()
-    for (const [paneId, p] of Object.entries(store.panes)) {
-      if (!sessioni.includes(p.sessionUuid)) continue
-      const pty = store.iberna(paneId)
-      if (pty !== undefined) window.gestore.pty.kill(pty)
-    }
-  }), [])
   // La finestra delle note (0.39.0): o le novità della versione installata,
   // chieste dal menu, o cosa cambia con l'aggiornamento pronto, da «Installa».
   // All'avvio non si apre più da sola.
@@ -1188,25 +1150,6 @@ export function App(): React.JSX.Element {
   const [alLogin, setAlLogin] = useState<boolean | undefined>(undefined)
   const [accesso, setAccesso] = useState<StatoAccesso>({ autenticato: true })
   const [pronto, setPronto] = useState(false)
-  // L'accesso all'avvio: 'caricamento' mostra l'intro con lo spinner (almeno 3s,
-  // anche se già loggati), 'gate' la schermata di accesso — obbligatoria, non c'è
-  // un «senza account» — e 'dentro' quando si prosegue.
-  const [statoAccesso, setStatoAccesso] = useState<'caricamento' | 'gate' | 'dentro'>('caricamento')
-  useEffect(() => {
-    let vivo = true
-    // Si aspettano INSIEME la verifica della sessione e un tempo minimo d'intro:
-    // così l'avvio ha sempre il suo respiro, non un lampo di caricamento.
-    Promise.all([
-      utenteCorrente().catch(() => undefined),
-      new Promise<void>((r) => setTimeout(r, 3000))
-    ]).then(([u]) => { if (vivo) setStatoAccesso(u !== undefined ? 'dentro' : 'gate') })
-    // Entrando dal pannello o dalla schermata si prosegue — ma solo da 'gate', per
-    // non tagliare l'intro. Uscendo NON si torna fuori mentre si lavora.
-    const stop = suCambioAccesso((u) => {
-      if (u !== undefined) setStatoAccesso((s) => (s === 'gate' ? 'dentro' : s))
-    })
-    return () => { vivo = false; stop() }
-  }, [])
   // La serratura, per chi l'ha voluta. `undefined` finche' non si sa: aprire il
   // programma e poi coprirlo con la richiesta sarebbe mostrare per un istante
   // proprio cio' che si voleva chiudere.
@@ -1642,11 +1585,6 @@ export function App(): React.JSX.Element {
   if (chiuso === undefined) return <div className="serratura" />
   if (chiuso) return <Serratura onAperto={() => setChiuso(false)} />
 
-  // L'accesso all'avvio: prima l'intro con lo spinner (almeno 3s), poi — se non
-  // c'è una sessione — la schermata di accesso, obbligatoria.
-  if (statoAccesso === 'caricamento') return <SchermataAccesso caricamento onDentro={() => setStatoAccesso('dentro')} />
-  if (statoAccesso === 'gate') return <SchermataAccesso onDentro={() => setStatoAccesso('dentro')} />
-
   // La vista a elenco (0.74.0) del workspace davanti: le voci e la chat che sta davanti.
   const vistaElenco = ((): { voci: VoceElenco[]; davanti: string | undefined } | undefined => {
     if (!workspaceElenco.includes(workspace.attivo)) return undefined
@@ -1788,13 +1726,8 @@ export function App(): React.JSX.Element {
       {modale === 'sessioni' ? <ModaleSessioni onChiudi={() => setModale(undefined)} /> : null}
       {gestioneChat !== undefined ? <ModaleGestioneChat scheda={gestioneChat} onChiudi={() => setGestioneChat(undefined)} /> : null}
       <OspiteAzioniChat />
-      {doveVive ? <ModaleDoveVive onChiudi={() => setDoveVive(false)} /> : null}
       {pannelloDrive ? <VistaProgetti onChiudi={() => setPannelloDrive(false)} /> : null}
       {modale === 'accesso' ? <ModaleAccesso onChiudi={() => setModale(undefined)} /> : null}
-      {avvisoProgetto !== undefined ? (
-        <ModaleTestimone avviso={avvisoProgetto} onChiudi={() => setAvvisoProgetto(undefined)} />
-      ) : null}
-
       {modale === 'preparazione' ? (
         <ModalePreparazione
           onChiudi={() => setModale(undefined)}

@@ -127,7 +127,11 @@ function entro<T>(p: Promise<T>, ms: number): Promise<T> {
  * Quello che dice il PC della chat dopo una risposta da un altro PC: `esito`
  * c'è solo se quel PC sa verificare; uno più vecchio risponde soltanto «fatto».
  */
-export type EsitoAltroPc = { ok: true; esito?: EsitoPressione['esito']; tentativi?: number; frase?: string }
+export type EsitoAltroPc = {
+  ok: true; esito?: EsitoPressione['esito']; tentativi?: number; frase?: string
+  /** 0.88.0: quel PC non si raggiungeva, il testo aspetta nella sua posta sul Drive. */
+  posta?: true
+}
 
 /** Il corpo della risposta di quel PC, letto senza fidarsi della forma. */
 export function leggiEsitoAltroPc(corpo: unknown): EsitoAltroPc {
