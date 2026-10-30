@@ -112,7 +112,6 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Aggiornamenti', dove: 'impostazioni', prima: 'Impostazioni' },
   { funzione: 'Nome del computer, porte, accoppiamento', dove: 'impostazioni', prima: 'Impostazioni' },
   { funzione: 'Account Google del Drive e cassaforte', dove: 'impostazioni', prima: 'Impostazioni → Account' },
-  { funzione: 'AI (fornitore)', dove: 'impostazioni', prima: 'Impostazioni → AI' },
   { funzione: 'Aspetto, scorciatoie, notifiche', dove: 'impostazioni', prima: 'Impostazioni' },
   { funzione: 'Registro e Copia i dettagli', dove: 'impostazioni', prima: 'Impostazioni → Info, Account' }
 ]

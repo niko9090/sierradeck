@@ -89,7 +89,7 @@ const CAPACITA_TERMINALE: Record<string, string> = {
 export function ambientePty(
   base: NodeJS.ProcessEnv,
   sessionUuid: string,
-  /** Aggiunte decise dal Core, per esempio l'API di un altro fornitore. */
+  /** Aggiunte decise dal Core, per esempio Git nel PATH. */
   extra: Record<string, string> = {}
 ): Record<string, string> {
   const env: Record<string, string> = {}

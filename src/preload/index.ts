@@ -782,18 +782,6 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => ipcRenderer.off('aggiornamenti:stato', h)
     }
   },
-  provider: {
-    leggi: (): Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }> =>
-      ipcRenderer.invoke('provider:leggi'),
-    imposta: (p: {
-      attivo: boolean
-      baseUrl: string
-      token: string
-      modello: string
-      togliToken?: boolean
-    }): Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }> =>
-      ipcRenderer.invoke('provider:imposta', p)
-  },
   /**
    * La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo
    * spazio di ogni chat, le archiviate e il recupero di 30 giorni. Le stesse

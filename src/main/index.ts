@@ -148,7 +148,6 @@ import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
-import { apriProviderStore } from './provider-store'
 import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
@@ -405,7 +404,6 @@ let workspaceStore: WorkspaceStore | undefined
 /** La trasformazione dei workspace (0.74.1): anche per il Client (pagina e app). */
 let migrazioneGlobale: Migrazione | undefined
 let adozioneGlobale: MigrazioneAdozione | undefined
-let providerStore: ReturnType<typeof apriProviderStore> | undefined
 let inChiusura = false
 /** Il server del Client, quando e' in ascolto. */
 let serverClient: import('node:http').Server | undefined
@@ -1406,8 +1404,6 @@ if (!app.requestSingleInstanceLock()) {
       registroGlobale = registro
       // E anche ogni console.error/console.warn del main (0.80.0, voce 1 dell'analisi).
       consoleNelRegistro(registro)
-      // Dove parlano le chat: Anthropic, o l'API che l'utente ha configurato.
-      providerStore = apriProviderStore(dati)
       // Lo scoping per-chat del Negozio: quali plugin/skill/MCP spegnere per le
       // chat di una certa cartella. Va creato prima di `registerPtyIpc`, che lo
       // consulta a ogni avvio di chat per comporre le `--settings`.
@@ -1415,11 +1411,8 @@ if (!app.requestSingleInstanceLock()) {
       gettoniMcp = apriGettoni(join(dati, 'gettoni-mcp.json'))
       ptyClient = registerPtyIpc(
         // Git nel PATH di ogni chat (0.82.1): senza, gli hook ECC rifiutano gli strumenti.
-        // Git per ultimo, sull'ambiente del fornitore: un suo PATH non lo toglie.
-        () => {
-          const fornitore = providerStore?.env() ?? {}
-          return { ...fornitore, ...gitPerLeChat(impostazioni.preferenze().percorsoGit, { ...process.env, ...fornitore }) }
-        },
+        // Le chat usano l'abbonamento di Claude Code: nessun fornitore alternativo.
+        () => gitPerLeChat(impostazioni.preferenze().percorsoGit, process.env),
         (cwd, autopilotaJson) => {
           const scope = scopeStore?.leggi(cwd) ?? scopeVuoto()
           // Nessun override per questa cartella: si lascia tutto com'era, senza
@@ -6586,21 +6579,6 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('chiavi:verifica', (_e, parola: unknown, workspace: unknown) => {
         if (typeof parola !== 'string') return false
         return chiavi.verifica(parola, typeof workspace === 'string' ? workspace : undefined)
-      })
-      ipcMain.handle('provider:leggi', () => providerStore?.leggi())
-      ipcMain.handle('provider:imposta', (_e, raw: unknown) => {
-        if (typeof raw !== 'object' || raw === null) {
-          throw new Error('richiesta IPC non valida: configurazione non valida')
-        }
-        const r = raw as Record<string, unknown>
-        const testo = (v: unknown): string => (typeof v === 'string' ? v : '')
-        return providerStore?.imposta({
-          attivo: r.attivo === true,
-          baseUrl: testo(r.baseUrl),
-          token: testo(r.token),
-          modello: testo(r.modello),
-          ...(r.togliToken === true ? { togliToken: true } : {})
-        })
       })
       ipcMain.handle('etichette:imposta', (_e, uuid: unknown, testo: unknown) => {
         if (typeof uuid !== 'string' || typeof testo !== 'string') {

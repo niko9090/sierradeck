@@ -70,7 +70,7 @@ describe('scriviAtomico', () => {
   })
 
   it('accetta i permessi del file, per cio che contiene una chiave', () => {
-    // Il file del provider contiene il token dell'API: nasce con i permessi
+    // Un file che contiene una chiave nasce con i permessi
     // stretti o non li ha mai, perche' scriverli dopo lascerebbe una finestra
     // in cui il file e' leggibile da chiunque.
     const dir = dirTemporanea()

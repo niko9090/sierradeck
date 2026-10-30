@@ -4,7 +4,6 @@ import { RigaMigrazione } from './RigaMigrazione'
 import {
   coloreValido, portaValida, PREFERENZE_PREDEFINITE, type Preferenze
 } from '@shared/preferenze'
-import { PannelloProvider } from './PannelloProvider'
 import { PannelloAccount } from './PannelloAccount'
 import { SezioneScorciatoie } from './SezioneScorciatoie'
 import { useLayoutStore } from '../state/layout'
@@ -115,7 +114,7 @@ function SezioneTornaIndietro(): React.JSX.Element {
 
 /** Le schede del menu Impostazioni. */
 /** Le schede (0.61.0: Consumi è in Salute, accanto alla sua colonna). */
-export type TabImpostazioni = 'generali' | 'ai' | 'account'
+export type TabImpostazioni = 'generali' | 'account'
 
 type StatoClient = Awaited<ReturnType<typeof window.gestore.client.stato>>
 
@@ -597,7 +596,7 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
  *
  * Prima erano quattro tasti separati nella barra in alto — AI, Account, Consumi,
  * e le impostazioni vere e proprie — e la barra si affollava. Ora è un menu
- * unico: «Generali» per aspetto/rete/comportamento, e le altre tre come schede
+ * unico: «Generali» per aspetto/rete/comportamento, e «Account e Drive» come scheda
  * dentro, con la stessa testa e lo stesso Chiudi. La testa e le schede restano
  * ferme, scorre solo il corpo.
  */
@@ -687,7 +686,6 @@ export function PannelloImpostazioni(
             </button>
           ))}
           <div className="impostazioni-vista__separa" />
-          <button className={`progetti__voce${tab === 'ai' ? ' impostazioni-vista__voce--accesa' : ''}`} onClick={() => setTab('ai')}>AI</button>
           <button className={`progetti__voce${tab === 'account' ? ' impostazioni-vista__voce--accesa' : ''}`} onClick={() => setTab('account')}>Account e Drive</button>
           {tab !== 'generali' ? <button className="progetti__voce" onClick={() => setTab('generali')}>‹ Generali</button> : null}
         </nav>
@@ -700,7 +698,6 @@ export function PannelloImpostazioni(
           </div>
           <div className="impostazioni__corpo" ref={corpo}>
             {tab === 'generali' ? <SchedaGenerali onAccount={() => setTab('account')} /> : null}
-            {tab === 'ai' ? <PannelloProvider incorporato /> : null}
             {tab === 'account' ? <PannelloAccount incorporato /> : null}
           </div>
         </div>

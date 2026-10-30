@@ -308,16 +308,6 @@ declare global {
         note: () => Promise<NoteAggiornamento | undefined>
         suStato: (cb: (s: StatoAggiornamento) => void) => () => void
       }
-      provider: {
-        leggi: () => Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }>
-        imposta: (p: {
-          attivo: boolean
-          baseUrl: string
-          token: string
-          modello: string
-          togliToken?: boolean
-        }) => Promise<{ attivo: boolean; baseUrl: string; modello: string; haToken: boolean }>
-      }
       /** La gestione delle chat (0.79.0): le stesse risposte di /api/chat/gestione/… */
       chatGestione: {
         spazio: () => Promise<VistaSpazio>
