@@ -115,6 +115,7 @@ class NavigazioneTest {
     fun `le parti dell autopilota stanno in una pagina, le domande per prime`() {
         assertEquals("domande", sezioniAutopilota(1).first())
         assertFalse("domande" in sezioniAutopilota(0))
-        assertEquals(listOf("obiettivo", "criteri", "compiti", "deciso", "istruzioni", "file", "altro"), sezioniAutopilota(0))
+        // L'autopilota unico (PC 0.86.x): l'avanzamento e i file.
+        assertEquals(listOf("avanzamento", "file"), sezioniAutopilota(0))
     }
 }

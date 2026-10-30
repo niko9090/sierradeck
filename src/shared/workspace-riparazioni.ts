@@ -234,9 +234,12 @@ const INIZI_INTERNI = [
  * (dialogo e preparazione) accanto alle chat vere: aprirlo le avrebbe fatte
  * ripartire in un terminale, accanto al servizio che le usa.
  */
-export function sessioniInterne(autopiloti: { sessioneSupervisore?: string; sessioneIntervista?: string; chats?: { sessioneSupervisore?: string }[] }[]): Set<string> {
+type ConSessioniInterne = { sessioneSupervisore?: string; sessioneIntervista?: string; chats?: { sessioneSupervisore?: string }[] }
+
+/** P4: le sessioni del supervisore e della preparazione stanno solo negli autopiloti di prima (letti dal disco o da un PC più vecchio). */
+export function sessioniInterne(autopiloti: readonly object[]): Set<string> {
   const fuori = new Set<string>()
-  for (const a of autopiloti) {
+  for (const a of autopiloti as readonly ConSessioniInterne[]) {
     if (a.sessioneSupervisore !== undefined) fuori.add(a.sessioneSupervisore)
     if (a.sessioneIntervista !== undefined) fuori.add(a.sessioneIntervista)
     for (const c of a.chats ?? []) if (c.sessioneSupervisore !== undefined) fuori.add(c.sessioneSupervisore)

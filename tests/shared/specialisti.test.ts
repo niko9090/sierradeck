@@ -8,7 +8,7 @@ import { rigaChatSola, rigaFlotta, rigaUltimaAzione, specialistiDi, titoloChatSp
  * e la sessione per «Guarda»; un lavoro piccolo è una chat sola, detto.
  */
 function ap(p: Partial<Autopilota> = {}): Autopilota {
-  return { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'o', cwd: 'E:\p', criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-15T10:00:00.000Z', workspace: 'Notte' }), ...p }
+  return { ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'o', cwd: 'E:\p', iniziatoIl: '2026-10-15T10:00:00.000Z', workspace: 'Notte' }), ...p }
 }
 
 describe('specialisti', () => {
@@ -19,13 +19,13 @@ describe('specialisti', () => {
 
   it('una flotta: la riga con i ruoli e uno per chat, con stato, ultima azione e sessione', () => {
     const s = specialistiDi(ap({
-      organizzazione: rigaFlotta(['sviluppo', 'collaudo', 'revisione']),
+      
       chats: [
         { id: 'c-1', compito: 'scrivi la funzione', stato: 'lavoro', cicli: 2, ruolo: 'sviluppo', sessionId: 's-1', ultimaAzione: 'Ho aggiunto il test.', dal: '2026-10-15T10:48:00.000Z' },
         { id: 'c-2', compito: 'prova dal vero', stato: 'pausa', cicli: 0, ruolo: 'collaudo' }
       ]
     }), Date.parse('2026-10-15T11:00:00.000Z'))
-    expect(s.riga).toBe('Lavoro diviso fra specialisti, ognuno nella sua chat: Sviluppo, Collaudo, Revisione')
+    expect(s.riga).toBe('Lavoro diviso fra specialisti, ognuno nella sua chat: Sviluppo, Collaudo')
     expect(s.elenco).toEqual([
       { id: 'c-1', ruolo: 'Sviluppo', colore: 'blu', compito: 'scrivi la funzione', stato: 'al lavoro', attivo: true, ultimaAzione: 'Ho aggiunto il test.', attivita: 'sviluppo', cosa: 'lavora a: «scrivi la funzione»', quanto: 'da 12 min', sessionId: 's-1', workspace: 'Notte' },
       { id: 'c-2', ruolo: 'Collaudo', colore: 'acqua', compito: 'prova dal vero', stato: 'in pausa per i limiti del piano', attivo: false, ultimaAzione: '', attivita: 'ferma', cosa: 'prova: «prova dal vero»', quanto: '', workspace: 'Notte' }
@@ -34,7 +34,7 @@ describe('specialisti', () => {
 
   it('0.73.1: una riga salvata nel formato vecchio («3 specialisti») si rifà dai ruoli delle chat', () => {
     const s = specialistiDi(ap({
-      organizzazione: '3 specialisti, ognuno nella sua chat: Sviluppo, Revisione',
+      
       chats: [
         { id: 'c-1', compito: 'a', stato: 'finita', cicli: 1, ruolo: 'sviluppo' },
         { id: 'c-2', compito: 'b', stato: 'finita', cicli: 1, ruolo: 'sviluppo' },
@@ -55,9 +55,9 @@ describe('specialisti', () => {
   })
 
   it('un lavoro piccolo: una chat sola, e la scheda lo dice', () => {
-    const s = specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0', organizzazione: rigaChatSola('piccolo'), ultimaAzioneChat: 'Fatto il primo giro.' }))
+    const s = specialistiDi(ap({ stato: 'lavoro', sessionId: 's-0' }))
     expect(s.riga).toBe('Lavoro piccolo: una chat sola, che fa tutto.')
-    expect(s.elenco).toEqual([expect.objectContaining({ ruolo: 'Chat unica', stato: 'al lavoro', sessionId: 's-0', ultimaAzione: 'Fatto il primo giro.' })])
+    expect(s.elenco).toEqual([expect.objectContaining({ ruolo: 'Chat unica', stato: 'al lavoro', sessionId: 's-0' })])
   })
 
   it('prima di partire: nessuno, e il perché', () => {

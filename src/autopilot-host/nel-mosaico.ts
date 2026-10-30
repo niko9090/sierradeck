@@ -111,9 +111,7 @@ export function esecutoreNelMosaico(p: {
         // salvati funziona solo per una chat ripresa: quella che deve ancora
         // nascere lì dentro non c'è, e finiva nel workspace che avevi davanti.
         ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
-        ...(opz?.ancheAlLavoro === true ? { ancheAlLavoro: true } : {}),
-        // In sottofondo solo se Nicholas l'ha chiesto (0.72.0).
-        ...(a.sottofondo === true ? { sottofondo: true } : {})
+        ...(opz?.ancheAlLavoro === true ? { ancheAlLavoro: true } : {})
       })
       return Promise.resolve(messa.id)
     },
@@ -170,7 +168,7 @@ export function esecutoreNelMosaico(p: {
 }
 
 /**
- * Il primo messaggio: l'obiettivo, i criteri, e cosa tocca a questa chat.
+ * Il primo messaggio: l'obiettivo e cosa tocca a questa chat.
  *
  * Lo stesso testo che prima finiva in `claude -p`, e non è un caso: quello che
  * cambia è la strada, non le istruzioni. Scritto però come si scrive a
@@ -192,11 +190,6 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
     ...preamboloRuolo(chat?.ruolo),
     ...daRivedere,
     intestazione,
-    '',
-    'Criteri di fine:',
-    ...criteriScritti(a),
-    '',
-    'Lavora fino a soddisfarli tutti.',
     ...regoleDiConsegna(a, chat),
     '',
     // Questa chat è aperta sotto gli occhi di qualcuno che può scriverci in
@@ -211,7 +204,6 @@ export function primoCompito(a: Autopilota, chat?: ChatGovernata): string {
   ].join('\n')
 }
 
-/** I criteri, uno per riga, con il comando che li misura quando ce l'hanno. */
 /**
  * Dove lavora e cosa consegna (0.36.0): la sua copia del progetto e il suo
  * ramo, se ne ha uno; e che la pubblicazione la decide l'autopilota a lavoro
@@ -241,12 +233,6 @@ export function regoleDiConsegna(a: Autopilota, chat?: ChatGovernata): string[] 
       : 'Il progetto non va sul cloud: niente push e niente pubblicazione.'
   )
   return righe
-}
-
-function criteriScritti(a: Autopilota): string[] {
-  return a.criteri.map(
-    (c) => `- ${c.descrizione}${c.comando !== undefined ? ` (si verifica con: ${c.comando})` : ''}`
-  )
 }
 
 /**
@@ -290,16 +276,11 @@ export function ripartiDaDove(a: Autopilota, chat?: ChatGovernata): string {
     '',
     'Prima di scrivere qualunque cosa, guarda qui sopra cosa hai gia fatto e',
     'riparti da li. Non ricominciare da capo e non rifare quello che risulta',
-    'gia fatto: se un criterio e gia soddisfatto, verificalo e passa oltre.',
+    'gia fatto.',
     '',
     `Promemoria dell'obiettivo: ${a.obiettivo}`,
     ...(chat !== undefined && chat.compito !== ''
       ? [`Il tuo compito, dentro questo obiettivo: ${chat.compito}`]
-      : []),
-    '',
-    'Criteri di fine:',
-    ...criteriScritti(a),
-    '',
-    'Lavora fino a soddisfarli tutti.'
+      : [])
   ].join('\n')
 }

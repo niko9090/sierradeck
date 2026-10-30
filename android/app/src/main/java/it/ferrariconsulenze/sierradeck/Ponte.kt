@@ -54,14 +54,14 @@ object Ponte {
         "/api/workspace", "/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/workspace/storia", "/api/workspace/progetto", "/api/workspace/recupero", "/api/workspace/ripristina",
         "/api/chat/chiudi", "/api/chat/dormi", "/api/chat/sveglia", "/api/chat/sposta", "/api/chat/nome",
         // Le chat e gli autopiloti di prova (PC 0.63.0/0.64.0): il PC li accetta solo per le cartelle «SierraDeck-prova-…».
-        "/api/prova/chiudi", "/api/prova/autopilota", "/api/prova/togli-progetto",
+        "/api/prova/chiudi", "/api/prova/togli-progetto",
         // La Panoramica del workspace (PC 0.77.0).
         "/api/panoramica",
-        "/api/autopilota/archivia", "/api/autopilota/sposta", "/api/autopilota/manda-adesso", "/api/pin/proteggi", "/api/chat/ospite", "/api/modelli",
+        "/api/pin/proteggi", "/api/chat/ospite", "/api/modelli",
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
-        "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/ferma", "/api/autopilota/riprendi", "/api/autopilota/vai",
-        "/api/autopilota/elimina", "/api/autopilota/riavvio", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",
-        "/api/autopilota/istruzioni", "/api/autopilota/correggi", "/api/quaderno", "/api/quaderno/scheda",
+        // L'autopilota unico (PC 0.86.x): la scheda, parlargli, il primo messaggio, i file e l'avanzamento.
+        "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",
+        "/api/autopilota/avanzamento", "/api/quaderno", "/api/quaderno/scheda",
         // Il pannello delle chat e dei progetti del Drive di quel PC (PC 0.58.0).
         "/api/drive/pannello", "/api/drive/azione",
         // La gestione delle chat di quel PC (PC 0.79.0): le regole le decide lui.

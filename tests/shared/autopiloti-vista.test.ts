@@ -8,7 +8,7 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
     ...nuovoAutopilota({
       id: 'ap-1', nome: 'Riordina', obiettivo: 'Riordina il leggimi', cwd: 'C:/prova',
-      criteri: [{ descrizione: 'a', soddisfatto: true }, { descrizione: 'b', soddisfatto: false }],
+      
       iniziatoIl: '2026-10-13T01:00:00.000Z'
     }),
     ultimoEvento: '2026-10-13T01:58:00.000Z',
@@ -18,7 +18,7 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
 
 describe('lo stato in una parola', () => {
   it('ogni stato con il suo colore e il suo verbo', () => {
-    expect(vistaAutopilota(ap({ stato: 'lavoro' }), ORA)).toMatchObject({ stato: { parola: 'al lavoro', colore: 'verde' }, azione: 'ferma', criteri: { testo: '1/2' } })
+    expect(vistaAutopilota(ap({ stato: 'lavoro' }), ORA)).toMatchObject({ stato: { parola: 'al lavoro', colore: 'verde' }, azione: 'ferma' })
     expect(vistaAutopilota(ap({ stato: 'attesa' }), ORA)).toMatchObject({ stato: { parola: 'aspetta te', colore: 'ambra' }, azione: 'rispondi' })
     expect(vistaAutopilota(ap({ stato: 'pronto' }), ORA).stato.parola).toBe('pronto')
     expect(vistaAutopilota(ap({ stato: 'sospeso', motivoSospensione: 'fermato da te' }), ORA)).toMatchObject({ stato: { parola: 'fermo', ragione: 'fermato da te' }, azione: 'riprendi' })

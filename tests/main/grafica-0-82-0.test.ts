@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { paginaClient } from '../../src/main/client-pagina'
 import { ultimaRigaDalloSchermo } from '../../src/renderer/ultime-righe'
-import { divisioneLinguette, LINGUETTE_RARE } from '../../src/renderer/linguette-diario'
 import { SEZIONI, sezioneInVista } from '@shared/impostazioni-struttura'
 
 /**
@@ -32,28 +31,6 @@ describe('la riga sotto il nome di una chat ferma', () => {
     expect(ultimaRigaDalloSchermo(['● Faro, Vetrina, Nodo', `${'─'.repeat(170)} Somma: cosa fa ─`, '❯ ', '─'.repeat(40)])).toBe('● Faro, Vetrina, Nodo')
     // Quello che hai scritto nel campo resta: non è il campo vuoto.
     expect(ultimaRigaDalloSchermo(['❯ ciao'])).toBe('❯ ciao')
-  })
-})
-
-describe('le linguette della scheda dell autopilota', () => {
-  const tutte = ['domande', 'lavoro', 'istruzioni', 'file', 'obiettivo', 'criteri', 'compiti', 'diario'].map((id) => ({ id }))
-  it('in vista quelle di tutti i giorni, le rare dietro «⋯», nessuna persa', () => {
-    const { inVista, altre } = divisioneLinguette(tutte, 'lavoro')
-    expect(inVista.map((l) => l.id)).toEqual(['domande', 'lavoro', 'obiettivo', 'criteri', 'compiti'])
-    expect(altre.map((l) => l.id)).toEqual(['istruzioni', 'file', 'diario'])
-    expect(inVista.length + altre.length).toBe(tutte.length)
-  })
-  it('quella aperta resta in vista anche se è rara', () => {
-    const { inVista, altre } = divisioneLinguette(tutte, 'file')
-    expect(inVista.map((l) => l.id)).toContain('file')
-    expect(altre.map((l) => l.id)).toEqual(['istruzioni', 'diario'])
-  })
-  it('la scheda usa la divisione e tiene «⧉» per staccare', () => {
-    const s = leggi('src/renderer/components/DiarioAutopilota.tsx')
-    expect(s).toContain('divisioneLinguette(')
-    expect(s).toContain('aria-label="Altre linguette"')
-    expect(s).toContain('aria-label="Stacca la linguetta in una finestra"')
-    expect(LINGUETTE_RARE).toEqual(['istruzioni', 'file', 'diario'])
   })
 })
 

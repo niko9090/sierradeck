@@ -17,7 +17,8 @@ class SchedaAutopilotaTest {
     @Test
     fun `si risponde come sul PC`() {
         assertEquals("/api/rispondi" to mapOf("domanda" to "d1", "risposta" to "nel .env"), richiestaScheda(domanda, "ap", "nel .env"))
-        assertEquals("/api/autopilota/vai" to mapOf("autopilota" to "ap"), richiestaScheda(via, "ap", "Vai"))
+        // L'autopilota unico (PC 0.86.x) non ha il via: «Vai» è un messaggio come gli altri.
+        assertEquals("/api/autopilota/dialogo" to mapOf("autopilota" to "ap", "testo" to "Vai"), richiestaScheda(via, "ap", "Vai"))
         assertEquals("/api/autopilota/dialogo" to mapOf("autopilota" to "ap", "testo" to "prima cambia x"), richiestaScheda(via, "ap", "prima cambia x"))
     }
 
@@ -52,9 +53,34 @@ class SchedaAutopilotaTest {
     }
 
     @Test
-    fun `la riga riassuntiva dice stato, criteri, chat e giri, prima le domande`() {
-        assertEquals("al lavoro · criteri 1/3 · 2 chat · 5 giri", RiassuntoAutopilota.di("lavoro", 1, 3, 2, 5, 0))
-        assertEquals("1 domanda per te · fermo · 1 giro", RiassuntoAutopilota.di("sospeso", 0, 0, 0, 1, 1))
+    fun `la riga riassuntiva dice percentuale, richieste e specialisti, prima le domande`() {
+        assertEquals("42% · 2 richieste aperte · 1 specialista", RiassuntoAutopilota.di(41.6, 2, 1, 0))
+        assertEquals("1 domanda per te · nessuna percentuale · sta pensando", RiassuntoAutopilota.di(null, 0, 0, 1, pensa = true))
+    }
+
+    @Test
+    fun `l avanzamento arriva dal computer - orchestratore e coda, e un PC senza manda null`() {
+        val a = Api.json.decodeFromString(
+            AvanzamentoAutopilota.serializer(),
+            """{"orchestratore":{"workspace":"Lavoro","attivo":true,"conAutopiloti":true,"modello":"opus","percento":40,"pensa":true,
+               "specialisti":[{"id":"s1","ruolo":"sviluppatore","compito":"il lettore CSV","stato":"lavora","durata":"3 min"}],
+               "vivo":true,"registro":[],"costo":{"oggiUsd":1.2,"turniOggi":3},"piano":{"totale":5,"uniti":2},"precedenti":[]},
+               "coda":{"workspace":"Lavoro","totale":38.5,"richieste":[
+                 {"id":"r-2","titolo":"Esportare","testo":"esporta","stato":"fatta","percento":100,"punti":[],"originali":[],"unioni":[],"compiti":[]},
+                 {"id":"r-3","titolo":"Leggere i CSV","stato":"in-corso","percento":40}],"compattate":[]}}"""
+        )
+        assertEquals(40.0, a.percento!!, 0.0)
+        assertEquals(2, a.orchestratore!!.piano.uniti)
+        assertEquals("sviluppatore · il lettore CSV · lavora · 3 min", RegoleAvanzamento.rigaSpecialista(a.orchestratore!!.specialisti[0]))
+        assertEquals(listOf("r-3", "r-2"), RegoleAvanzamento.ordinate(a.coda!!.richieste).map { it.id })
+        assertEquals("r-3 · in corso · 40%", RegoleAvanzamento.rigaRichiesta(a.coda!!.richieste[1]))
+        val vuoto = Api.json.decodeFromString(AvanzamentoAutopilota.serializer(), """{"orchestratore":null,"coda":null}""")
+        assertEquals(null, vuoto.percento)
+        // Solo la coda (un servizio senza orchestratore): la percentuale viene da lì.
+        val soloCoda = Api.json.decodeFromString(AvanzamentoAutopilota.serializer(), """{"orchestratore":null,"coda":{"totale":12,"richieste":[]}}""")
+        assertEquals(12.0, soloCoda.percento!!, 0.0)
+        assertEquals("100%", RegoleAvanzamento.percento(130.0))
+        assertTrue("/api/autopilota/avanzamento" in Ponte.ROTTE)
     }
 
     @Test

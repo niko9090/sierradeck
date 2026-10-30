@@ -4,9 +4,24 @@ import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
-import { ambientePulito } from './supervisore'
+import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
+
+/**
+ * L'ambiente per il processo `claude`, senza le variabili che il PTY host
+ * toglie già alle chat (`NON_EREDITATE`): `ELECTRON_RUN_AS_NODE` ereditata dal
+ * servizio farebbe partire `claude.exe` come Node puro.
+ */
+export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [nome, valore] of Object.entries(base)) {
+    if (valore === undefined || NON_EREDITATE.includes(nome)) continue
+    env[nome] = valore
+  }
+  return env
+}
+
 
 /**
  * **L'orchestratore unico** (P3, 30/10/2026). Nicholas: «l'autopilota deve

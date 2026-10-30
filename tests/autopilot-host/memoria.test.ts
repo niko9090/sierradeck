@@ -3,9 +3,8 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apriMemoria, conRispostaDiPrima, eUnaDecisione, sezioneDecisioni, somiglianza } from '../../src/autopilot-host/memoria'
-import { fattiVerificati } from '../../src/autopilot-host/fatti'
 
-/** 0.71.0: le risposte già date, le decisioni di Nicholas, i fatti verificati. */
+/** 0.71.0: le risposte già date e le decisioni di Nicholas. */
 describe('la memoria dell’autopilota', () => {
   it('la stessa domanda trova la risposta; una simile la propone; una diversa no; resta dopo il riavvio', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-mem-'))
@@ -35,16 +34,5 @@ describe('la memoria dell’autopilota', () => {
     m.ricordaDecisione('C:/Progetti/A/', 'mai pubblicare il venerdì', '2026-10-13T08:00:00Z')
     expect(sezioneDecisioni(m.decisioni('c:/progetti/a'))).toContain('2026-10-13: mai pubblicare il venerdì')
     expect(m.decisioni('C:/Progetti/B')).toEqual([])
-  })
-})
-
-describe('i fatti verificati', () => {
-  it('git, criteri e registro, con l’istruzione di crederci più che alla chat', () => {
-    const git = (args: string[]) => (args[0] === 'status' ? { codice: 0, uscita: ' M src/a.ts' } : { codice: 0, uscita: 'abc1234 primo' })
-    const t = fattiVerificati({ git, cartella: 'C:/p', esiti: [{ descrizione: 'test', comando: 'npm test', passato: false, uscita: '' }], decisioni: [{ quando: '2026-10-13T08:01:00Z', cosa: 'supervisore → prosegui' }], adesso: '2026-10-13T08:02:00Z' })
-    expect(t).toContain('1 file cambiati e non salvati: M src/a.ts')
-    expect(t).toContain('ultimi commit: abc1234 primo')
-    expect(t).toContain('«test» non passa')
-    expect(t).toContain('credi a questi fatti')
   })
 })

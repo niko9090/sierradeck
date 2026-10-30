@@ -1,5 +1,4 @@
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
-import { PuntoAutopilota } from './PuntoAutopilota'
 import { CodaWorkspace } from './CodaWorkspace'
 import { TestaOrchestratore } from './TestaOrchestratore'
 import { chiaveWorkspace } from '@shared/coda-richieste'
@@ -7,20 +6,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
 import { separaConversazione } from '@shared/panoramica'
-import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { CampoChatAutopilota } from './CampoChatAutopilota'
 import { useAutopilotaIntero } from '../state/autopilota-intero'
 
 /**
- * La chat con l'autopilota: in cima alla sua sezione, prima di tutto il resto.
- *
- * Nicholas (18/09): «io posso dialogare con lui e lui con me attraverso la
- * chat, così rimangono ben visibili domande e risposte». È **lui** che parla
- * qui — il supervisore, quello che segue il lavoro e decide — non la chat che
- * esegue: quella si guarda nella linguetta «Sta facendo». Quello che scrivi
- * arriva a lui; se è un'istruzione la applica e la porta alla chat che esegue
- * alla fine del turno; se ha una domanda aperta, quello che scrivi è la
- * risposta.
+ * La chat con l'autopilota del workspace (30/10: uno solo per workspace,
+ * sempre acceso). In testa l'avanzamento e gli specialisti
+ * (`TestaOrchestratore`), poi la coda delle richieste (`CodaWorkspace`), poi
+ * la conversazione con lui. Quello che scrivi arriva a lui; le sue domande
+ * stanno nella colonna Domande.
  */
 export function ChatAutopilota({
   autopilota: dellElenco,
@@ -45,10 +39,6 @@ export function ChatAutopilota({
 }): React.JSX.Element {
   // La storia intera (0.85.2): l'elenco ne porta solo la coda.
   const autopilota = useAutopilotaIntero(dellElenco)
-  // Il testo che scrivi non sta qui (0.85.1): sta in `CampoChatAutopilota`,
-  // così una lettera non ridisegna la conversazione intera.
-  const [inCorso, setInCorso] = useState(false)
-  const [errore, setErrore] = useState<string | undefined>(undefined)
   const flusso = useRef<HTMLDivElement | null>(null)
 
   // La conversazione si ricalcola solo quando l'autopilota cambia davvero: con
@@ -62,10 +52,8 @@ export function ChatAutopilota({
   }, [autopilota, soloConversazione])
   const [eventiAperti, setEventiAperti] = useState(false)
   const pensa = staPensando(autopilota)
-  // Una sua domanda aperta non si risponde piu' da qui (0.38.0): sta nella
-  // linguetta «Domande» qui sotto, una per volta. Qui gli si parla e basta.
+  // Una sua domanda aperta non si risponde da qui: sta nella colonna Domande.
   const domanda = haDomandaAperta(autopilota)
-  const ultimaModifica = autopilota.modifiche[autopilota.modifiche.length - 1]
 
   // In fondo, come ogni chat: l'ultima cosa detta è quella che si vuole vedere.
   // Si scorre quando cambia il numero delle righe, non a ogni rilettura, così
@@ -75,26 +63,14 @@ export function ChatAutopilota({
     if (el !== null) el.scrollTop = el.scrollHeight
   }, [battute.length, pensa])
 
-  const esegui = (che: () => Promise<unknown>): void => {
-    setInCorso(true)
-    setErrore(undefined)
-    che()
-      .then(() => onCambiato())
-      .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
-      .finally(() => setInCorso(false))
-  }
-
   return (
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
       <RigaDalVivo autopilota={autopilota} senzaStato={soloConversazione} />
-      {/* 0.84.3: il Punto in cima, con una riga per chat (prima «Adesso», 0.81.0) e il suo segnale. */}
-      {/* Nella Panoramica le righe delle chat stanno nella sua sezione «Adesso», non due volte. */}
-      <PuntoAutopilota autopilota={autopilota} senzaChat={soloConversazione} />
-      {/* P3: l'autopilota unico ha in testa la percentuale del workspace e il perché quando scende. */}
-      {autopilota.unico === true ? <TestaOrchestratore workspace={chiaveWorkspace(autopilota)} /> : null}
-      {/* P1: la coda delle richieste del suo workspace, chiusa: si legge solo aperta. */}
+      {/* In testa la percentuale del workspace, il perché quando scende, gli specialisti e le impostazioni. */}
+      <TestaOrchestratore workspace={chiaveWorkspace(autopilota)} />
+      {/* La coda delle richieste del suo workspace, chiusa: si legge solo aperta. */}
       <CodaWorkspace workspace={chiaveWorkspace(autopilota)} />
-      <MessaggiVersoLaChat autopilota={autopilota} {...(onCambiato !== undefined ? { onCambiato } : {})} />
+      <MessaggiVersoLaChat autopilota={autopilota} />
       {soloConversazione && eventi.length > 0 ? (
         <div className="chatap__eventi">
           <button className="pan2-riga-apri" aria-expanded={eventiAperti} onClick={() => setEventiAperti((v) => !v)}>
@@ -135,15 +111,6 @@ export function ChatAutopilota({
                 </span>
                 <span className="chatap__testo">{b.testo}</span>
                 {b.dettaglio !== undefined ? <span className="chatap__esito">{b.dettaglio}</span> : null}
-                {b.tono === 'pronto' ? (
-                  <button
-                    className="tasto tasto--primario chatap__via"
-                    disabled={inCorso}
-                    onClick={() => esegui(() => window.gestore.autopilota.vai(autopilota.id))}
-                  >
-                    Vai
-                  </button>
-                ) : null}
               </div>
             )}
           </div>
@@ -151,33 +118,15 @@ export function ChatAutopilota({
         {pensa ? (
           <p className="chatap__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
         ) : null}
-        {domanda || autopilota.stato === 'pronto' ? (
-          <p className="chatap__pensa">● {autopilota.stato === 'pronto' ? 'aspetta il tuo via' : 'ti ha fatto una domanda'}: {soloConversazione ? 'è a destra, fra le domande.' : 'è nella linguetta «Domande» qui sotto, con il numero di quelle aperte.'}</p>
-        ) : null}
-        {!pensa && promessaSenzaLavoro(autopilota) ? (
-          // 0.75.4: ha promesso di lavorare ma è fermo. Mai più una promessa muta.
-          <p className="chatap__pensa chatap__fermo" role="status">
-            ● L’autopilota è fermo ({autopilota.stato}).{' '}
-            <button
-              className="tasto tasto--primario tasto--mini"
-              disabled={inCorso}
-              onClick={() => esegui(() => window.gestore.autopilota.riprendi(autopilota.id))}
-            >
-              Riprendi
-            </button>
-          </p>
-        ) : null}
-        {autopilota.stato === 'intervista' && !domanda ? (
-          <p className="chatap__pensa">● sta guardando il progetto per capire cosa serve: se ha un dubbio te lo chiede qui.</p>
+        {domanda ? (
+          <p className="chatap__pensa">● ti ha fatto una domanda: è nella colonna Domande.</p>
         ) : null}
       </div>
 
-      {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
       <CampoChatAutopilota
         autopilotaId={autopilota.id}
         onCambiato={onCambiato}
         campoPronto={campoPronto}
-        disfaTitolo={ultimaModifica?.capito}
       />
     </section>
   )

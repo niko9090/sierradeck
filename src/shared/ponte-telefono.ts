@@ -35,14 +35,14 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/workspace', '/api/workspace/crea', '/api/workspace/elimina', '/api/workspace/rinomina', '/api/workspace/storia', '/api/workspace/progetto', '/api/workspace/recupero', '/api/workspace/ripristina',
   '/api/chat/chiudi', '/api/chat/dormi', '/api/chat/sveglia', '/api/chat/sposta', '/api/chat/nome',
   // Chiudere una chat di prova (0.63.0): se lo è, lo decide il PC dove vive.
-  '/api/prova/chiudi', '/api/prova/autopilota', '/api/prova/togli-progetto',
+  '/api/prova/chiudi', '/api/prova/togli-progetto',
   // La Panoramica del workspace (0.77.0).
   '/api/panoramica',
-  '/api/autopilota/archivia', '/api/autopilota/sposta', '/api/autopilota/manda-adesso', '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
+  '/api/pin/proteggi', '/api/chat/ospite', '/api/modelli',
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
-  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/ferma', '/api/autopilota/riprendi', '/api/autopilota/vai',
-  '/api/autopilota/elimina', '/api/autopilota/riavvio', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
-  '/api/autopilota/istruzioni', '/api/autopilota/correggi', '/api/quaderno', '/api/quaderno/scheda',
+  // L’autopilota unico (0.86.x): la scheda, parlargli, il primo messaggio, i file e l’avanzamento.
+  '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
+  '/api/autopilota/avanzamento', '/api/quaderno', '/api/quaderno/scheda',
   // La gestione delle chat di quel PC (0.79.0): le regole le decide lui.
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',
   '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota',
@@ -95,7 +95,6 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/apri': return `apro una chat nuova in ${s('cartella')}${s('workspace') !== '' ? ` nel workspace «${s('workspace')}»` : ''}`
     case '/api/sessioni/riprendi': return `riapro la chat ${s('sessione').slice(0, 8)} in ${s('cartella')}`
     case '/api/chat/chiudi': return `chiudo ${la}`
-    case '/api/prova/autopilota': return `${s('azione') === 'ferma' ? 'fermo' : s('azione') === 'riprendi' ? 'faccio riprendere' : 'archivio'} l’autopilota di prova ${s('autopilota')}`
     case '/api/prova/togli-progetto': return `tolgo il progetto di prova «${s('nome')}» (cartella nel recupero)`
     case '/api/prova/chiudi': return `chiudo la chat di prova${s('chat') !== '' ? ` ${s('chat').slice(0, 12)}` : ''}`
     case '/api/chat/dormi': return `metto a dormire ${la}`
@@ -109,10 +108,6 @@ export function azioneDelPonte(percorso: string, corpo?: Record<string, unknown>
     case '/api/workspace/rinomina': return `rinomino il workspace «${s('nome')}»`
     case '/api/workspace/ripristina': return `rimetto il workspace «${s('nome')}» dal recupero`
     case '/api/autopilota/crea': return `creo un autopilota in ${s('cartella') !== '' ? s('cartella') : s('cwd')}`
-    case '/api/autopilota/manda-adesso': return `mando subito i messaggi in coda dell’autopilota ${s('autopilota')}`
-    case '/api/autopilota/archivia': return `${corpo?.archivia === false ? 'tolgo dall’archivio' : 'archivio'} l’autopilota ${s('autopilota')}`
-    case '/api/autopilota/sposta': return `sposto l’autopilota ${s('autopilota')} nel workspace «${s('workspace')}»`
-    case '/api/autopilota/elimina': return `elimino l’autopilota ${s('autopilota')}`
     case '/api/drive/azione': return `azione «${s('azione')}» del pannello sul progetto ${s('progetto') !== '' ? s('progetto') : s('id')}`
     default: return undefined
   }

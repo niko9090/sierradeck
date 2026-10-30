@@ -50,7 +50,7 @@ describe('D2: il ramo di una chat finita', { timeout: 120_000 }, () => {
   })
 
   const autopilota = (over: Partial<Autopilota> = {}): Autopilota => ({
-    ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: progetto, criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T00:00:00.000Z' }),
+    ...nuovoAutopilota({ id: ID, nome: 'x', obiettivo: 'o', cwd: progetto, iniziatoIl: '2026-10-01T00:00:00.000Z' }),
     ...over
   })
   const wt = (c: string): { cartella: string; ramo: string } => {

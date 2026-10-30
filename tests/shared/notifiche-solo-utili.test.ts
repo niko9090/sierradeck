@@ -13,18 +13,18 @@ import { paginaClient } from '../../src/main/client-pagina'
  * PC (`riparteDaSolo`), che la manda in `/api/stato`.
  */
 const ap = (over: Partial<Autopilota>): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'x', cwd: 'C:\\Progetti\\Esempio', criteri: [], iniziatoIl: '2026-10-19T10:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'x', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: '2026-10-19T10:00:00.000Z' }),
   ...over
 })
 
 describe('la regola: chi riparte da solo', () => {
-  it('pausa per i limiti o per un aggiornamento sì; un errore o una domanda no', () => {
-    expect(riparteDaSolo(ap({ stato: 'sospeso', pausaLimitiFinoA: '2026-10-19T12:00:00.000Z' }))).toBe(true)
+  it('un aggiornamento sì; un errore, una domanda o un fermo qualunque no', () => {
+    expect(riparteDaSolo(ap({ stato: 'sospeso'}))).toBe(false)
     expect(riparteDaSolo(ap({ stato: 'sospeso', fermatoPerAggiornamento: true }))).toBe(true)
     expect(riparteDaSolo(ap({ stato: 'sospeso', motivoSospensione: 'la preparazione si e guastata' }))).toBe(false)
     expect(riparteDaSolo(ap({ stato: 'fallito' }))).toBe(false)
     // La revisione: un fallito con una pausa rimasta addosso non riparte mai, e avvisa.
-    expect(riparteDaSolo(ap({ stato: 'fallito', pausaLimitiFinoA: '2026-10-19T12:00:00.000Z' }))).toBe(false)
+    expect(riparteDaSolo(ap({ stato: 'fallito'}))).toBe(false)
   })
 })
 
@@ -45,7 +45,7 @@ describe('/api/stato lo dice a pagina e app', () => {
 
   it('riparteDaSolo solo sui fermi che ripartono da soli', async () => {
     const r = await rotteClient(deps([
-      ap({ id: 'ap-pausa', stato: 'sospeso', pausaLimitiFinoA: '2026-10-19T12:00:00.000Z', fermatoIl: '2026-10-19T10:30:00.000Z' }),
+      ap({ id: 'ap-pausa', stato: 'sospeso', fermatoPerAggiornamento: true, fermatoIl: '2026-10-19T10:30:00.000Z' }),
       ap({ id: 'ap-rotto', stato: 'sospeso', motivoSospensione: 'la verifica non parte', fermatoIl: '2026-10-19T10:30:00.000Z' })
     ]))({ metodo: 'GET', percorso: '/api/stato', corpo: undefined })
     const lista = (r.corpo as { autopiloti: { id: string; riparteDaSolo?: boolean }[] }).autopiloti

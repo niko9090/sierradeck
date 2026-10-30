@@ -775,8 +775,13 @@ export type VistaCoda = {
   totale?: number
   /** P3: la percentuale è scesa (punti o compiti nuovi), e perché. */
   calo?: { da: number; a: number; perche: string; il: string }
-  /** P3: il workspace ha l'autopilota unico. */
-  unico?: boolean
   richieste: Array<Richiesta & { percento: number }>
   compattate: RichiestaCompattata[]
+}
+
+/** Il giorno di una data ISO, «gg/mm», nell'ora italiana: uguale su PC, pagina e app. */
+export function giornoDi(iso: string): string {
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return ''
+  return new Intl.DateTimeFormat('it-IT', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Rome' }).format(new Date(t))
 }

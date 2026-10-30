@@ -7,25 +7,21 @@ import { ruoloDaContenuto } from '@shared/adozione'
 import { autopilotaDelWorkspace, ruoloDalTitolo } from '@shared/vista-elenco'
 import { RUOLI, RUOLI_ORDINE, type Ruolo } from '@shared/ruoli-agenti'
 import { domandaBreve } from '@shared/domande-conversazioni'
-import { promessaSenzaLavoro } from '@shared/promessa-autopilota'
 import { conVistaConsumi } from '@shared/consumi-vista'
 import { ordinaDomande, tipoDomanda } from '@shared/domande-vista'
 import { vistaAutopilota } from '@shared/autopiloti-vista'
 import { nomiDistinti as nomiChatDistinti } from '@shared/chat-vista'
-import { oraBreve, statoAutopilotaDalVivo, statoMessaggi } from '@shared/stato-dal-vivo'
+import { statoAutopilotaDalVivo } from '@shared/stato-dal-vivo'
 import { specialistiDi } from '@shared/specialisti'
 import type { ChatSalvata } from '@shared/workspace'
 import { nomeDaMostrare } from '@shared/nome-pc'
-import { leggiIstruzioni, notaCorreggi } from '@shared/istruzioni-autopilota'
 import type { Esito } from './client-server'
 import type { Dispositivi } from './dispositivi'
 import { chiaveFermo, eFermo, riparteDaSolo, type Autopilota } from '@shared/autopilota'
 import { autopilotaLeggero, codaConversazione } from '@shared/autopilota-leggero'
 import { paginaClient, ICONA_SVG, MANIFESTO } from './client-pagina'
-import { ledDi, misuraPasso, passaggi } from '@shared/autopilota-vista'
+import { ledDi } from '@shared/autopilota-vista'
 import { conversazione, haDomandaAperta, staPensando } from '@shared/chat-autopilota'
-import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
-import { AIUTO_PUNTO, puntoDi } from '@shared/punto-autopilota'
 import { PREFERENZE_PREDEFINITE, tavolozza, type Preferenze } from '@shared/preferenze'
 import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
@@ -35,17 +31,18 @@ import { TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shar
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
-import { alberoChat } from '@shared/harness'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
 import { MODELLI } from '@shared/modelli'
 import { testoCartellaNonQui, voceFileDi, type DoveCartella } from '@shared/apri-cartella'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
+import { chiaveWorkspace, type VistaCoda } from '@shared/coda-richieste'
+import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
 } from '@shared/azioni-telefono'
-import { ANTEPRIMA_NASCOSTA, oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
+import { oscuraChat, rifiutoChiusa, STATO_CHIUSA } from '@shared/pin-chat'
 import type { GuardianoPin } from './pin-guardiano'
 import type { Allegati } from './allegati'
 import { creaMemoriaInvii, idMessaggioValido } from '@shared/collegamento'
@@ -212,8 +209,13 @@ export type DipendenzeRotte = {
   autopiloti: () => Promise<Autopilota[]>
   /** Un autopilota intero, con tutta la storia (0.85.2), per la sua scheda. Senza, dall'elenco. */
   autopilota?: (id: string) => Promise<Autopilota | undefined>
-  /** I tempi dei giri di un autopilota, in una riga (0.71.0). */
-  tempiAutopilota?: (id: string) => Promise<string | undefined>
+  /**
+   * L'avanzamento dell'autopilota unico di un workspace (0.86.x): la vista
+   * dell'orchestratore (percentuale, specialisti, piano) e la coda delle
+   * richieste, con la chiave di `chiaveWorkspace`. `undefined` = il servizio
+   * non le conosce, o il workspace non ha ancora un autopilota.
+   */
+  avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
   /** Risponde alla domanda di un autopilota. */
@@ -345,8 +347,6 @@ export type DipendenzeRotte = {
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
   pannelloDrive?: () => Promise<unknown>
   azioneDrive?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>
-  /** La linguetta «Istruzioni» dal telefono (0.41.0): le consegne alle sue chat, intere. */
-  istruzioniAutopilota?: (id: string) => Promise<unknown[]>
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
@@ -365,11 +365,6 @@ export type DipendenzeRotte = {
    */
   workspace: () => Promise<{ nomi: string[]; attivo: string; chat?: ChatSalvata[]; altrove?: { pc: string; nome: string; workspace: string[] }[]; recenti?: string[] }>
   cambiaWorkspace: (nome: string) => Promise<void>
-  /** Ferma o riprende un autopilota: due gesti reversibili, quindi ammessi. */
-  fermaAutopilota: (id: string) => Promise<void>
-  riprendiAutopilota: (id: string) => Promise<void>
-  /** Il via a un autopilota che si e preparato e aspetta di essere letto. */
-  vaiAutopilota: (id: string) => Promise<void>
   /**
    * Gli scrivi dal telefono: torna subito la ricevuta, la sua risposta
    * compare nel `dialogo` del dettaglio al giro dopo. Assente nei computer
@@ -406,29 +401,10 @@ export type DipendenzeRotte = {
    */
   installaLa?: (pcId: string) => unknown
   installaLaStato?: () => unknown[]
-  /** Archiviare un autopilota fermo (0.56.0), come dal pannello del PC. */
-  archiviaAutopilota?: (id: string, archivia: boolean) => Promise<void>
-  /** «Sposta in un altro workspace» (0.81.0), come dal pannello del PC. */
-  spostaAutopilota?: (id: string, workspace: string) => Promise<void>
-  /** «Manda adesso» (0.69.0). */
-  mandaAdessoAutopilota?: (id: string) => Promise<{ mandate: number; messaggio?: string }>
   /** Proteggere o no una chat con il PIN (0.56.0): `pin:proteggiChat` del PC. */
   proteggiChat?: (sessione: string, si: boolean) => void
   /** «Ospitata da» (0.56.0): `casa:scegli` del PC. `pc.id = 'qui'` = questo PC. */
   scegliOspite?: (sessioni: string[], pc: { id: string; nome: string }) => Promise<{ ok: boolean; messaggio: string }>
-  /**
-   * Elimina un autopilota. È la prima cosa che *disfa* qualcosa da qui.
-   *
-   * Prima non c'era, per la regola «un tocco sbagliato in tram non deve buttare
-   * via il lavoro della notte». Ma un telefono da cui si governa tutto e da cui
-   * non si può togliere niente è mezzo strumento: il muro giusto è il gesto —
-   * la pagina lo chiede due volte — non l'assenza del comando.
-   */
-  eliminaAutopilota: (id: string) => Promise<void>
-  /** Se quell'autopilota debba ripartire da solo dopo un riavvio. */
-  riprendiAlRiavvio: (id: string, riprendi: boolean) => Promise<void>
-  /** «Lavora in sottofondo» (0.72.0): solo su richiesta. */
-  sottofondoAutopilota?: (id: string, si: boolean) => Promise<void>
   /** Chiude una chat del mosaico: la conversazione resta su disco. */
   chiudiChat: (idChat: string) => void
   /** Il nome che dai tu a una chat, che vince su quello di Claude Code. */
@@ -1003,15 +979,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     // eslint-disable-next-line @typescript-eslint/no-shadow
     const deps: DipendenzeRotte = g === undefined ? depsPieni : {
       ...depsPieni,
-      chat: () => chatPer(visore),
-      ...(depsPieni.istruzioniAutopilota !== undefined ? {
-        // Le istruzioni mandate a una chat chiusa: si vede che c'è, non cosa dice.
-        istruzioniAutopilota: async (id: string) => (await (depsPieni.istruzioniAutopilota as (id: string) => Promise<unknown[]>)(id)).map((i) => {
-          const o = i as { chatId?: string; testo?: string }
-          const c = depsPieni.chat().find((x) => x.id === o.chatId)
-          return c !== undefined && g.chiusa(visore, c) ? { ...o, testo: ANTEPRIMA_NASCOSTA, pin: 'chiusa' } : i
-        })
-      } : {})
+      chat: () => chatPer(visore)
     }
     // ── I file dal telefono (0.50.0) ──
     // Arrivano a pezzi e si salvano nel progetto della chat o dell'autopilota.
@@ -1338,7 +1306,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // Lo stato in una parola, i criteri, il verbo (0.70.0): le parole le decide il PC.
           vista: vistaAutopilota({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
           cicli: a.cicli,
-          strategia: a.strategia,
+          // P4: i criteri stanno nel piano dell'orchestratore. Zero e zero
+          // perché un PC di prima che legge questo stato li trovi ancora.
+          fatti: 0,
+          criteri: 0,
           // Perche' si e' fermato. «Sospeso» da solo manda a cercare altrove:
           // la parte utile e' sempre stata il motivo, e dal telefono non
           // arrivava.
@@ -1358,9 +1329,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
           // che con piu' progetti aperti e' semplicemente un'altra cosa.
           cwd: a.cwd,
           // Il workspace dove compare il suo lavoro, per «Sposta in…» (0.81.0).
-          ...(a.workspace !== undefined ? { workspace: a.workspace } : {}),
-          fatti: a.criteri.filter((c) => c.soddisfatto).length,
-          criteri: a.criteri.length
+          ...(a.workspace !== undefined ? { workspace: a.workspace } : {})
         })),
         autopilotiLetti,
         domande,
@@ -1580,38 +1549,46 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const leggera = r.cerca?.get('leggero') === '1' || leggeroNelCorpo(r.corpo)
       const tutta = conversazione(a)
       const coda = leggera ? codaConversazione(tutta) : { chat: tutta }
+      // L'autopilota unico (0.86.x): niente più fasi, misura, criteri, albero,
+      // tempi, Punto e messaggi in coda (erano del sistema di prima, con il
+      // «Vai» e il supervisore). L'avanzamento sta in `/api/autopilota/avanzamento`.
       return OK({
         ...(leggera ? autopilotaLeggero(a) : a),
-        // Calcolati qui e non nella pagina: sono le stesse funzioni che
-        // disegnano il pannello al computer, e due copie divergerebbero.
-        passaggi: passaggi(a),
-        misura: misuraPasso(a),
         // La chat con lui (0.29.0): la stessa che sta in cima alla sezione sul
         // PC, composta una volta sola per tutti e tre.
         chat: coda.chat,
         ...(coda.chatIntera !== undefined ? { chatIntera: coda.chatIntera } : {}),
         domanda: haDomandaAperta(a),
         pensa: staPensando(a),
-        // 0.75.4: ha promesso lavoro ed è fermo: «L'autopilota è fermo: Riprendi».
-        fermoConPromessa: !staPensando(a) && promessaSenzaLavoro(a),
-        // T7 (0.36.0): il coordinatore e le sue sotto-chat, con ramo e stato.
-        albero: alberoChat(a),
         // Gli specialisti (0.73.0): ruolo, stato, ultima azione, e la sessione per «Guarda».
         specialisti: specialistiDi(a, Date.now()),
-        // La linguetta «Domande» (0.38.0): le sue domande una per volta, con la
-        // stessa funzione del PC (preparazione, lavoro, «Pubblico adesso?», via).
+        // La linguetta «Domande» (0.38.0): le sue domande una per volta.
         domandeScheda: domandeScheda(a, tutteLeDomande),
         ...(mia !== undefined ? { domandaId: mia.id } : {}),
-        // Lo stato dal vivo e quello di ogni messaggio verso la chat (0.69.0).
-        dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a)),
-        // 0.81.0 (Nicholas, 20/10): una riga per chat, anche le ferme o mai partite.
-        adesso: { ...adessoDi(a as Autopilota & SegniDalVivo, adesso()), aiuto: AIUTO_ADESSO },
-        // 0.84.3: il Punto in cima alla conversazione, uguale su PC, pagina e app.
-        punto: { ...puntoDi(a as Autopilota & SegniDalVivo, adesso(), { domandeAperte: tutteLeDomande.filter((d) => d.autopilotaId === id).length, limiti: await limitiInPercento(deps) }), aiuto: AIUTO_PUNTO },
-        messaggi: statoMessaggi(a, adesso(), oraBreve),
-        // I tempi dei suoi giri (0.71.0): quanto ci mette, e dove.
-        ...(await (async () => { const t = await deps.tempiAutopilota?.(id).catch(() => undefined); return t !== undefined ? { tempi: t } : {} })())
+        // Lo stato dal vivo (0.69.0).
+        dalVivo: statoAutopilotaDalVivo({ ...a, ...(haDomandaAperta(a) !== undefined ? { domanda: haDomandaAperta(a) } : {}) }, adesso(), segnoDi(a))
       })
+    }
+
+    // L'avanzamento dell'autopilota unico di un workspace (0.86.x): la
+    // percentuale, gli specialisti e il piano dell'orchestratore, e la coda
+    // delle richieste con lo stato e la percentuale di ognuna. `workspace` è
+    // il nome del workspace; senza, la cartella dell'autopilota (`autopilota`)
+    // fa da chiave, come `chiaveWorkspace`. Un servizio che non le conosce: null.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/avanzamento') {
+      let ws = stringa(r.corpo, 'workspace').trim()
+      const idAp = stringa(r.corpo, 'autopilota')
+      if (ws === '' && idAp !== '') {
+        const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === idAp)
+        if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
+        ws = chiaveWorkspace(a)
+      }
+      // eslint-disable-next-line no-control-regex
+      if (ws === '' || ws.length > 1000 || /[\u0000-\u001f\u007f]/.test(ws)) return { stato: 400, corpo: { errore: 'serve il workspace' } }
+      if (deps.avanzamentoAutopilota === undefined) return OK({ orchestratore: null, coda: null })
+      const v = await deps.avanzamentoAutopilota(ws).catch((x: unknown) => (x instanceof Error ? x : new Error(String(x))))
+      if (v instanceof Error) return { stato: 502, corpo: { errore: `il servizio degli autopiloti non ha dato l’avanzamento: ${v.message.slice(0, 160)}` } }
+      return OK({ orchestratore: v.orchestratore ?? null, coda: v.coda ?? null })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {
@@ -1884,30 +1861,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK({ fatto: true })
     }
 
-    // Fermare e riprendere sono reversibili: un tocco sbagliato costa un
-    // secondo tocco, non il lavoro della notte. Per questo ci sono, mentre
-    // chiudere ed eliminare no.
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/ferma') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      // Il servizio può metterci a fermare una chat che lavora (0.59.0, visto dal
-      // vero): il fermo avviene, ma la risposta scade. Lo si dice com'è.
-      const e = await deps.fermaAutopilota(id).then(() => undefined, (x: unknown) => x)
-      if (e !== undefined) return lentoDelServizio('fermarlo', e)
-      return OK({ fatto: true })
-    }
-
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/riprendi') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      const e = await deps.riprendiAutopilota(id).then(() => undefined, (x: unknown) => x)
-      if (e !== undefined) return lentoDelServizio('farlo riprendere', e)
-      return OK({ fatto: true })
-    }
-
-    // Il via a chi si è preparato. Sta qui perché è dal telefono che si scopre
-    // di averlo pronto: l'avviso arriva mentre si è altrove, e senza questo
-    // tasto il lavoro resterebbe fermo fino al ritorno alla scrivania.
     // La linguetta «File» (0.38.0): i file che l'autopilota ha cambiato, per
     // chat, e il diff di uno. Solo lettura, come sul PC.
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/file') {
@@ -1916,25 +1869,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.fileAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare i file: aggiornalo' } }
       try { return OK({ gruppi: await deps.fileAutopilota(id) }) } catch (e) { return { stato: 404, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
     }
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/istruzioni') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (deps.istruzioniAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare le istruzioni: aggiornalo' } }
-      try { return OK({ istruzioni: await deps.istruzioniAutopilota(id) }) } catch (e) { return { stato: 502, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
-    }
-    // «Correggi» su un'istruzione (0.41.0): la nota va nel dialogo, legata a quell'istruzione.
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/correggi') {
-      const id = stringa(r.corpo, 'autopilota')
-      const quale = stringa(r.corpo, 'istruzione')
-      const nota = stringa(r.corpo, 'nota')
-      if (id === '' || quale === '' || nota.trim() === '') return { stato: 400, corpo: { errore: 'servono l autopilota, l istruzione e la nota' } }
-      if (deps.istruzioniAutopilota === undefined || deps.dialogaAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora correggere le istruzioni: aggiornalo' } }
-      const tutte = leggiIstruzioni(await deps.istruzioniAutopilota(id))
-      const i = tutte.find((x) => x.id === quale)
-      if (i === undefined) return { stato: 404, corpo: { errore: 'istruzione non trovata' } }
-      const esito = await deps.dialogaAutopilota(id, notaCorreggi(i, nota.slice(0, TESTO_MAX)))
-      return OK({ fatto: esito.ricevuto })
-    }
     if (r.metodo === 'POST' && r.percorso === '/api/autopilota/diff') {
       const id = stringa(r.corpo, 'autopilota')
       const chiave = stringa(r.corpo, 'chat')
@@ -1942,13 +1876,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (id === '' || chiave === '' || percorso === '') return { stato: 400, corpo: { errore: 'servono autopilota, chat e percorso' } }
       if (deps.diffAutopilota === undefined) return { stato: 409, corpo: { errore: 'questo computer non sa ancora mostrare i file: aggiornalo' } }
       try { return OK({ diff: await deps.diffAutopilota(id, chiave, percorso) }) } catch (e) { return { stato: 404, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
-    }
-
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/vai') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      await deps.vaiAutopilota(id)
-      return OK({ fatto: true })
     }
 
     // Parlargli. La ricevuta torna subito; la risposta arriva nel dettaglio
@@ -2606,30 +2533,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return { stato: 410, corpo: { errore: 'i salvataggi con nome non esistono più dalla 0.34.0: all’avvio il computer riapre da solo l’ultima composizione; per tornare a una chiusura precedente usa Impostazioni → «Torna a com’era» sul computer' } }
     }
 
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/elimina') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      await deps.eliminaAutopilota(id)
-      return OK({ fatto: true })
-    }
-
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/riavvio') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      const corpo = r.corpo as Record<string, unknown> | undefined
-      await deps.riprendiAlRiavvio(id, corpo?.riprendi === true)
-      return OK({ fatto: true })
-    }
-
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/sottofondo') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (deps.sottofondoAutopilota === undefined) return { stato: 501, corpo: { errore: 'questo PC non lo sa fare' } }
-      const corpo = r.corpo as Record<string, unknown> | undefined
-      await deps.sottofondoAutopilota(id, corpo?.si === true)
-      return OK({ fatto: true })
-    }
-
     // Chiudere una chat non chiude la conversazione: quella resta su disco e si
     // riprende. È la ragione per cui questo comando può stare su un telefono.
     // Le chat di prova (0.63.0): le chiude anche chi collauda, senza la rotta
@@ -2673,64 +2576,6 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     // I modelli fra cui scegliere per una chat nuova (0.56.0): gli stessi della fascia del PC.
     if (r.percorso === '/api/modelli') return OK({ modelli: MODELLI })
-
-    // Gli autopiloti di prova (0.64.0): fermarli, farli riprendere e
-    // archiviarli li può chi collauda, senza le rotte vietate alle chat
-    // governate. Se è di prova lo decide questo PC, dalla cartella in cui
-    // l'autopilota lavora qui; gli altri si rifiutano.
-    if (r.metodo === 'POST' && r.percorso === '/api/prova/autopilota') {
-      const id = stringa(r.corpo, 'autopilota')
-      const azione = stringa(r.corpo, 'azione')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (azione !== 'ferma' && azione !== 'riprendi' && azione !== 'archivia') return { stato: 400, corpo: { errore: 'l’azione è «ferma», «riprendi» o «archivia»' } }
-      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
-      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
-      if (!cartellaDiProva(a.cwd)) return { stato: 403, corpo: { errore: `«${a.nome}» non è un autopilota di prova: così si fermano, riprendono e archiviano solo quelli che lavorano in una cartella «${PREFISSO_CARTELLA_PROVA}…». Gli altri li governi tu.` } }
-      if (azione === 'archivia') {
-        if (deps.archiviaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora archiviare da qui.' } }
-        if (!eFermo(a)) return { stato: 409, corpo: { errore: 'Si archivia solo un autopilota fermo (sospeso o fallito): prima fermalo.' } }
-      }
-      deps.log?.(`[prova] ${azione === 'ferma' ? 'fermo' : azione === 'riprendi' ? 'faccio riprendere' : 'archivio'} l’autopilota di prova «${a.nome}» (${id}) in ${a.cwd}: chiesto da chi collauda`)
-      if (azione === 'archivia') { await deps.archiviaAutopilota!(id, true); return OK({ fatto: true }) }
-      const e = await (azione === 'ferma' ? deps.fermaAutopilota(id) : deps.riprendiAutopilota(id)).then(() => undefined, (x: unknown) => x)
-      if (e !== undefined) return lentoDelServizio(azione === 'ferma' ? 'fermarlo' : 'farlo riprendere', e)
-      return OK({ fatto: true })
-    }
-
-    // Archiviare un autopilota fermo (0.56.0): come dal pannello del PC.
-    // «Manda adesso» (0.69.0): i messaggi in coda per la chat escono subito.
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/manda-adesso') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (deps.mandaAdessoAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora mandare subito i messaggi: aggiornalo alla 0.69.0.' } }
-      const e = await deps.mandaAdessoAutopilota(id).catch((x: unknown) => ({ mandate: 0, messaggio: String(x) }))
-      deps.log?.(`[consegna] «Manda adesso» per l’autopilota ${id}: ${e.mandate} consegne${e.messaggio !== undefined ? ` (${e.messaggio})` : ''}`)
-      return OK(e)
-    }
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/archivia') {
-      const id = stringa(r.corpo, 'autopilota')
-      if (id === '') return { stato: 400, corpo: { errore: 'serve l autopilota' } }
-      if (deps.archiviaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora archiviare da qui: aggiornalo alla 0.56.0.' } }
-      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
-      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
-      const archivia = (r.corpo as { archivia?: unknown } | undefined)?.archivia !== false
-      if (archivia && !eFermo(a)) return { stato: 409, corpo: { errore: 'Si archivia solo un autopilota fermo (sospeso o fallito): prima fermalo con «Ferma».' } }
-      await deps.archiviaAutopilota(id, archivia)
-      return OK({ fatto: true })
-    }
-    // «Sposta in un altro workspace» (0.81.0): solo verso un workspace che c'è.
-    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/sposta') {
-      const id = stringa(r.corpo, 'autopilota')
-      const ws = stringa(r.corpo, 'workspace').trim()
-      if (id === '' || ws === '') return { stato: 400, corpo: { errore: 'servono l autopilota e il workspace' } }
-      if (deps.spostaAutopilota === undefined) return { stato: 409, corpo: { errore: 'Questo computer non sa ancora spostare un autopilota: aggiornalo alla 0.81.0.' } }
-      const a = (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
-      if (a === undefined) return { stato: 404, corpo: { errore: 'Questo autopilota non c’è più.' } }
-      const nomi = (await deps.workspace().catch(() => ({ nomi: [] as string[] }))).nomi
-      if (!nomi.includes(ws)) return { stato: 404, corpo: { errore: `Il workspace «${ws}» non c’è su questo computer.` } }
-      await deps.spostaAutopilota(id, ws)
-      return OK({ fatto: true })
-    }
 
     // Il PIN di una chat dal telefono (0.56.0). Proteggere si può sempre;
     // togliere la protezione solo a chat aperta per chi guarda (dopo il PIN),
@@ -2879,16 +2724,4 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
 
     return { stato: 404, corpo: { errore: 'non trovato' } }
   }
-}
-
-/** Le percentuali dei limiti del piano per il Punto (0.84.3): solo informazione. */
-async function limitiInPercento(deps: Pick<DipendenzeRotte, 'consumi'>): Promise<{ cinqueOre?: number; settimana?: number } | undefined> {
-  // Un PC senza i consumi (o un banco di prova) manda il Punto senza limiti.
-  if (typeof deps.consumi !== 'function') return undefined
-  const c = (await Promise.resolve().then(() => deps.consumi()).catch(() => ({}))) as { limiti?: { cinqueOre?: { percento?: unknown }; settimana?: { percento?: unknown } } }
-  const n = (x: unknown): number | undefined => (typeof x === 'number' && Number.isFinite(x) ? x : undefined)
-  const cinqueOre = n(c.limiti?.cinqueOre?.percento)
-  const settimana = n(c.limiti?.settimana?.percento)
-  if (cinqueOre === undefined && settimana === undefined) return undefined
-  return { ...(cinqueOre !== undefined ? { cinqueOre } : {}), ...(settimana !== undefined ? { settimana } : {}) }
 }

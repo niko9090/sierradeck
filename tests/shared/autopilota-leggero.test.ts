@@ -4,7 +4,7 @@ import { autopilotaLeggero, CODA_LEGGERA, conIntero, eTroncato, firmaStoria } fr
 
 /** Un autopilota con `n` decisioni, una al secondo. */
 function con(n: number, extra: Partial<Autopilota> = {}): Autopilota {
-  const base = nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: 'O', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-01T00:00:00.000Z' })
+  const base = nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: 'O', cwd: 'C:\\p', iniziatoIl: '2026-10-01T00:00:00.000Z' })
   const decisioni = Array.from({ length: n }, (_, i) => ({ quando: new Date(Date.UTC(2026, 9, 1, 0, 0, i)).toISOString(), cosa: `mossa ${i}` }))
   return { ...base, decisioni, ...extra }
 }
@@ -20,7 +20,7 @@ describe('l’elenco leggero degli autopiloti (0.85.2)', () => {
     const l = autopilotaLeggero(con(500))
     expect(l.decisioni).toHaveLength(CODA_LEGGERA.decisioni)
     expect(l.decisioni.at(-1)?.cosa).toBe('mossa 499')
-    expect(l.troncati).toEqual({ decisioni: 500, dialogo: 0, modifiche: 0 })
+    expect(l.troncati).toEqual({ decisioni: 500, dialogo: 0 })
     expect(eTroncato(l)).toBe(true)
   })
 

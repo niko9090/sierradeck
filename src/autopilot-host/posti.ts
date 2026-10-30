@@ -123,7 +123,7 @@ export function daChiudereDaSole(p: {
   for (const a of p.autopiloti) {
     const adottate = new Set((a.adottate ?? []).map((x) => x.sessionId))
     // Fermo da Nicholas (`sospeso` senza pausa per i limiti), finito o fallito.
-    const fermo = a.stato === 'finito' || a.stato === 'fallito' || (a.stato === 'sospeso' && a.pausaLimitiFinoA === undefined) || a.archiviato === true
+    const fermo = a.stato === 'finito' || a.stato === 'fallito' || a.stato === 'sospeso' || a.archiviato === true
     const fermoDa = da(a.fermatoIl ?? a.ultimoEvento)
     const fermoDaChiudere = fermo && fermoDa >= FERMO_SI_CHIUDE_MS && p.domandeAperte(a.id) === 0
     if (a.chats.length === 0) {

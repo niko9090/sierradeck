@@ -1,10 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
-import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
-import { creaRegistroDomande } from '../../src/autopilot-host/domande'
+import { describe, it, expect } from 'vitest'
 import { agenteFinito, daChiudereDaSole, FINITA_SI_CHIUDE_MS } from '../../src/autopilot-host/posti'
 import { chiHaGia, codaSenzaDoppioni, quadroFlotta, rigaSegnale, segnaleDiFineTurno, senzaRigaSegnale } from '@shared/segnali-flotta'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
@@ -21,7 +15,7 @@ const unito = { il: PRIMA, come: 'unito' as const }
 
 function autopilota(over: Partial<Autopilota> & { id: string }): Autopilota {
   return {
-    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: iso(ORA - 3_600_000) }),
+    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: iso(ORA - 3_600_000) }),
     stato: 'lavoro',
     ultimoEvento: iso(ORA),
     ...over
@@ -162,80 +156,5 @@ describe('collaudo: agente finito, i casi del 20-21/10', () => {
     const a = autopilota({ id: 'a', chats: [chat('c-34', 'finita', { conclusa: unito, nelRecupero: PRIMA })] })
     const fuori = daChiudereDaSole({ autopiloti: [a], accese: [{ sessione: 's-c-34', ferma: true }], ora: ORA, domandeAperte: () => 0 })
     expect(fuori).toEqual([])
-  })
-})
-
-describe('collaudo: «Riprendi» su un autopilota finito (il caso c-34)', () => {
-  let server: ServerAutopiloti | undefined
-  let archivio: Archivio
-  let porta = 0
-  afterEach(() => { server?.close(); server = undefined })
-
-  async function ambiente(): Promise<{ avviate: string[] }> {
-    archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-collaudo-')))
-    const avviate: string[] = []
-    server = creaServer({
-      archivio,
-      esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "vai"}', sessionId: 'sup' }),
-      avviaLavoro: (_a, _m, c) => { avviate.push(c?.id ?? '-'); return Promise.resolve() },
-      fermaLavoro: () => {},
-      avvisa: () => Promise.resolve(),
-      domande: creaRegistroDomande({ adesso: () => ORA }),
-      scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
-      adesso: () => iso(ORA)
-    })
-    const s = server
-    await new Promise<void>((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
-    return { avviate }
-  }
-
-  // DIFETTO D1 (la causa vera di c-34 «lavoro» nell'elenco): il 21/10 alle
-  // 03:24 l'autopilota ap-f1e631f5 è «finito» (T6 mette tutte le chat
-  // `finita`); alle 06:08 Nicholas preme «Riprendi» e `riprendiAutopilota`
-  // (src/autopilot-host/server.ts:2015) rimette a «lavoro» TUTTE le chat,
-  // perché `eraFinito` vale per tutte, e le riavvia una per una (riga 2033).
-  // c-34, chiusa il 20/10 23:33 col ramo unito, torna «lavoro» (09:48 le
-  // arrivano messaggi) finché non la richiude il supervisore alle 15:53.
-  // Le chat concluse (ramo unito o tolto, o già nel recupero) devono restare chiuse.
-  it('D1: «Riprendi» non riapre le chat che hanno finito col ramo unito', async () => {
-    const { avviate } = await ambiente()
-    archivio.scrivi(autopilota({
-      id: 'ap-a',
-      stato: 'finito',
-      sessionId: 's-ap',
-      chats: [
-        chat('c-34', 'finita', { ramo: 'ap/ap-a/c-34', conclusa: unito }),
-        chat('c-52', 'finita', { ruolo: 'rilascio', conclusa: unito, nelRecupero: PRIMA }),
-        chat('c-1', 'finita', { ramo: 'ap/ap-a/c-1', approvata: true })
-      ]
-    }))
-    const r = await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
-    expect(r.status).toBe(200)
-    const a = archivio.leggi('ap-a')!
-    expect(a.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-34:finita', 'c-52:finita', 'c-1:finita'])
-    expect(avviate).toEqual([])
-  })
-
-  it('D1: chi non ha concluso riparte; un messaggio per l autopilota con tutte le chat concluse parte con la sua chat', async () => {
-    const { avviate } = await ambiente()
-    archivio.scrivi(autopilota({
-      id: 'ap-a', stato: 'finito', sessionId: 's-ap',
-      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-a/c-34', conclusa: unito }), chat('c-2', 'finita', { ramo: 'ap/ap-a/c-2' })]
-    }))
-    await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-a/riprendi`, { method: 'POST' })
-    expect(archivio.leggi('ap-a')!.chats.map((c) => `${c.id}:${c.stato}`)).toEqual(['c-34:finita', 'c-2:lavoro'])
-    expect(avviate).toEqual(['c-2'])
-
-    avviate.length = 0
-    archivio.scrivi(autopilota({
-      id: 'ap-b', stato: 'finito', sessionId: 's-bp',
-      chats: [chat('c-34', 'finita', { ramo: 'ap/ap-b/c-34', conclusa: unito })],
-      daConsegnare: [{ id: 'm-1', testo: 'aggiungi la pagina di aiuto', quando: PRIMA, chats: ['ap-b'] }]
-    }))
-    await fetch(`http://127.0.0.1:${porta}/autopiloti/ap-b/riprendi`, { method: 'POST' })
-    expect(archivio.leggi('ap-b')!.chats.map((c) => c.stato)).toEqual(['finita'])
-    expect(avviate).toEqual(['-'])
   })
 })

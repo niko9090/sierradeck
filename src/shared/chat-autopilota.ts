@@ -45,16 +45,8 @@ export function conversazione(a: Autopilota): Battuta[] {
   let n = 0
   const metti = (b: Battuta): void => { righe.push({ b, ordine: n++ }) }
 
-  // La prima battuta è la tua: quello che gli hai chiesto, con le tue parole.
-  // Per gli autopiloti nati prima di `obiettivoTuo` c'è solo l'obiettivo.
-  metti({ quando: a.iniziatoIl, da: 'tu', testo: a.obiettivoTuo ?? a.obiettivo })
-
-  // L'intervista: le sue domande e le tue risposte. Non hanno un orario: stanno
-  // subito dopo la richiesta, nell'ordine in cui le ha fatte.
-  for (const s of a.intervista) {
-    metti({ quando: a.iniziatoIl, da: 'lui', testo: s.domanda, tono: 'domanda' })
-    metti({ quando: a.iniziatoIl, da: 'tu', testo: haiRisposto(s.risposta), dettaglio: 'L’ha usata per preparare il lavoro.' })
-  }
+  // P4: l'autopilota del workspace non ha un obiettivo scritto da te né
+  // un'intervista: la conversazione comincia dal tuo primo messaggio.
 
   // Le domande e risposte della linguetta «Domande» (0.38.0) stanno nel
   // dialogo come traccia: la risposta scritta anche nel diario non va ripetuta.

@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Server } from 'node:http'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { rimettiInCoda } from '../../src/autopilot-host/dialogo'
-import { FERMA_DA_MS } from '../../src/autopilot-host/guardiano'
+import { rimettiInCoda } from '../../src/autopilot-host/stop-specialista'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { parseAutopilota, nuovoAutopilota } from '@shared/autopilota'
 import { attendi } from '../setup/attendi'
@@ -33,9 +33,9 @@ function ambiente(): ServerAutopiloti {
   mandati = []
   n = 0
   return creaServer({
+    ...unicoFinto(archivio),
     archivio,
     esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-    interroga: () => Promise.resolve({ testo: '{"risposta": "ok"}' }),
     // Come il vero esecutore nel mosaico: ogni avvio è una consegna con il suo id.
     avviaLavoro: (_a, messaggio) => {
       n += 1
@@ -43,11 +43,9 @@ function ambiente(): ServerAutopiloti {
       mandati.push({ consegna, ...(messaggio !== undefined ? { messaggio } : {}) })
       return Promise.resolve(consegna)
     },
-    fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande: creaRegistroDomande({ adesso: orologio.ms }),
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     adesso: () => new Date(ora).toISOString()
   })
 }
@@ -64,20 +62,16 @@ function avvia(s: Server): Promise<void> {
   return new Promise((ris) => { s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }) })
 }
 
-/** Un autopilota al lavoro con un messaggio in coda, la chat ferma, e la consegna partita: torna id e consegna. */
+/** L'autopilota del workspace con una chat adottata al lavoro, un messaggio in coda per lei, la chat ferma e la consegna partita. */
 async function consegnaConMessaggio(): Promise<{ id: string; consegna: string }> {
-  const { dati } = await chiama('POST', '/autopiloti', {
-    nome: 'Notte', obiettivo: 'Fai passare la suite', cwd: process.cwd(),
-    criteri: [{ descrizione: 'i test passano', comando: 'npm test' }]
+  const id = 'ap-notte'
+  archivio.scrivi({
+    ...nuovoAutopilota({ id, nome: 'Notte', obiettivo: 'Fai passare la suite', cwd: process.cwd(), iniziatoIl: new Date(ora).toISOString(), workspace: 'Lavoro' }),
+    stato: 'lavoro',
+    chats: [{ id: 'c-1', compito: 'La suite', stato: 'lavoro', cicli: 1 }],
+    daConsegnare: [{ id: 'm-1', quando: new Date(ora).toISOString(), testo: 'usa pnpm', chats: ['c-1'] }]
   })
-  const id = dati.id as string
-  await attendi(() => archivio.leggi(id)?.stato === 'lavoro')
-  const a = archivio.leggi(id)!
-  const chat = a.chats[0]?.id ?? id
-  archivio.scrivi({ ...a, daConsegnare: [{ id: 'm-1', quando: new Date(ora).toISOString(), testo: 'usa pnpm', chats: [chat] }] })
-  await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat }] })
-  ora += FERMA_DA_MS + 1000
-  await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat }] })
+  await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat: 'c-1' }] })
   await attendi(() => (archivio.leggi(id)?.inVolo ?? []).length > 0)
   const consegna = mandati.at(-1)!.consegna
   return { id, consegna }
@@ -112,11 +106,8 @@ describe('i messaggi restano in coda finché la consegna non parte (0.56.4)', ()
     expect(a.decisioni.at(-1)?.cosa).toContain('rimetto in coda 1 messaggi')
     // Al prossimo giro con la chat ferma (il Gestore la ridice ogni minuto), ripartono da soli.
     const prima = mandati.length
-    const chat = a.chats[0]?.id ?? id
-    await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat }] })
-    ora += FERMA_DA_MS + 1000
-    server.controllaChatFerme()
-    expect(mandati.length).toBe(prima + 1)
+    await chiama('POST', '/battiti', { segni: [], ferme: [{ autopilota: id, chat: 'c-1' }] })
+    await attendi(() => mandati.length === prima + 1)
     expect(mandati.at(-1)?.messaggio).toContain('usa pnpm')
   })
 
@@ -146,14 +137,14 @@ describe('pezzi puri', () => {
     expect(esitoDaPasso('consegna c-2: partita')).toEqual({ consegna: 'c-2', esito: 'partita' })
   })
   it('rimettere in coda: davanti, senza doppioni, unendo le chat', () => {
-    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [], iniziatoIl: '2026-10-09T10:00:00.000Z' }),
+    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: '2026-10-09T10:00:00.000Z' }),
       daConsegnare: [{ id: 'm-2', quando: 'x', testo: 'dopo', chats: ['c-1'] }, { id: 'm-1', quando: 'x', testo: 'prima', chats: ['c-2'] }] }
     const r = rimettiInCoda(a, [{ id: 'm-0', quando: 'x', testo: 'tornato', chats: ['c-1'] }, { id: 'm-1', quando: 'x', testo: 'prima', chats: ['c-1'] }])
     expect(r.daConsegnare.map((m) => m.id)).toEqual(['m-0', 'm-2', 'm-1'])
     expect(r.daConsegnare.find((m) => m.id === 'm-1')?.chats.sort()).toEqual(['c-1', 'c-2'])
   })
   it('«inVolo» sopravvive al file su disco', () => {
-    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: '2026-10-09T10:00:00.000Z' }),
+    const a = { ...nuovoAutopilota({ id: 'ap-1', nome: 'n', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: '2026-10-09T10:00:00.000Z' }),
       inVolo: [{ consegna: 'c-3', quando: '2026-10-09T12:00:00.000Z', messaggi: [{ id: 'm-1', quando: 'x', testo: 't', chats: ['ap-1'] }] }] }
     const letto = parseAutopilota({ ...JSON.parse(JSON.stringify(a)), versione: 1 })
     expect(letto.scartati).toEqual([])

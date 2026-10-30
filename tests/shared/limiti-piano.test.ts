@@ -5,7 +5,7 @@ import {
 } from '@shared/limiti-piano'
 import { leggiPolso, type Polso } from '@shared/polso-chat'
 import { frenoDaiLimiti, testoFreno } from '@shared/harness'
-import { leggiStatoProgramma } from '../../src/autopilot-host/coordinatore'
+import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 
 /**
  * Contesto e limiti affidabili (0.37.0): un'unica aggregazione pura, usata da

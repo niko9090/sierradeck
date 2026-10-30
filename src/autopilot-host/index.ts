@@ -12,22 +12,17 @@ import { format } from 'node:util'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
 import { conRisorse, conTurni, TURNI_PC } from './turni-criteri'
-import { conLimite, interrogazioneReale } from './supervisore'
 import { creaConsegne } from './consegne'
-import { apriRegistroTempi } from './tempi'
 import { apriMemoria } from './memoria'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
-import { apriRegistroIstruzioni } from './istruzioni'
 import { esecutoreNelMosaico } from './nel-mosaico'
 import { creaRegistroDomande } from './domande'
 import { ultimoMessaggioAssistente } from './trascrizione'
 import { creaAvvisatore, invioReale, leggiConfigurazione } from './telegram'
-import { gitAsincronoReale, gitReale, statoCopiaInMemoria } from './worktree'
+import { gitAsincronoReale, gitReale } from './worktree'
 import { avviaSpiaRitardo } from './ritardo-ciclo'
 import { creaMisuratore } from './misura-pc'
 import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
-import { creaStatoVero, ghRelease, releaseConMemoria } from './stato-vero'
-import { ghReleaseUscite, RILETTURA_RELEASE_MS } from './release-uscite'
 import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
@@ -175,14 +170,6 @@ function cartellaStato(): string {
 
 /** Quanto la chat resta ferma ad aspettare una risposta prima di lasciar perdere. */
 const SCADENZA_DOMANDA_MS = 5 * 60_000
-/**
- * Quanto si attende una risposta durante l'intervista di preparazione.
- *
- * Mezz'ora invece di cinque minuti: qui non c'è nessuna chat ferma che consuma,
- * e chi ha appena delegato un lavoro è spesso la persona che si è alzata dalla
- * scrivania proprio per quello.
- */
-const SCADENZA_INTERVISTA_MS = 30 * 60_000
 
 /**
  * Dove cercare la configurazione del bot Telegram.
@@ -301,9 +288,6 @@ export function avviaServizio(): void {
   // Le istruzioni che il Gestore verra a ritirare per scriverle dentro le
   // chat. Il servizio non puo chiamarlo: fra i due il confine va in una
   // direzione sola, ed e questa coda a farlo attraversare.
-  // Ogni consegna, con il testo intero, il perche' e l'esito, resta scritta
-  // (0.41.0): e' la linguetta «Istruzioni».
-  const istruzioni = apriRegistroIstruzioni(archivio.cartella)
   // Il numero delle consegne non riparte da c-1 a ogni avvio (0.57.1).
   const fileNumeri = join(archivio.cartella, 'consegne-numero.json')
   const fileCoda = join(archivio.cartella, 'servizio', 'coda-consegne.json')
@@ -311,16 +295,12 @@ export function avviaServizio(): void {
   const primoNumero = ultimoNumeroConsegne(archivio.cartella)
   console.info(`[consegna] il numero delle consegne riparte da c-${primoNumero + 1}`)
   const consegne = creaConsegne({
-    messa: (c) => istruzioni.registra(c),
-    confermata: (id) => istruzioni.esito(id, 'consegnata'),
     persa: (id) => {
-      istruzioni.esito(id, 'persa')
       // Mai ritirata dal Gestore: i messaggi che portava tornano in coda (0.56.4).
       serverPronto?.riportaInCoda(id, 'nessuna finestra l ha ritirata')
     },
     // Sostituita da una più nuova prima del ritiro (0.57.1): i suoi messaggi tornano in coda.
     sostituita: (id, da) => {
-      istruzioni.esito(id, 'persa')
       serverPronto?.riportaInCoda(id, `sostituita dalla ${da} prima di essere ritirata`)
     }
   }, { primo: primoNumero, ricorda: (n) => { scriviJsonAtomico(fileNumeri, { ultimo: n }, 'consegne') } }, {
@@ -378,16 +358,11 @@ export function avviaServizio(): void {
     // 0.85.2: le suite con due processi di test, gradle senza --no-daemon.
     esegui: conTurni(conRisorse(conDivieti(esecutoreReale())), TURNI_PC, guardiaPc),
     guardiaPc,
-    // 0.85.2: al più due supervisori insieme sul PC, uno alla volta per cartella.
-    interroga: conLimite(interrogazioneReale(claudeCmd())),
     // Anche la chat: senza, il pezzo di lavoro della flotta si perdeva per
     // strada e ogni chat riceveva l obiettivo intero.
     avviaLavoro: (a, messaggio, chat, perche, opz) => lavori.avvia(a, messaggio, chat, perche, opz),
-    fermaLavoro: (id, chatId, chi) => lavori.ferma(id, chatId, chi),
     // 0.82.0: quante chat lavorano insieme lo decide questo PC; le finite si chiudono da sole.
     misuraPc: creaMisuratore(),
-    // 0.84.2: niente freno sui limiti del piano, li guarda Nicholas (22/10).
-    frenoPiano: false,
     chiudiChat: (id, chatId, chi) => { lavori.chiudi(id, chatId, chi) },
     avvisa,
     primaDiSpegnere: () => avvisa.svuotaOra(),
@@ -397,7 +372,6 @@ export function avviaServizio(): void {
     ultimoDetto: ultimoDettoDa,
     codaTrascrizione: codaTrascrizioneDa,
     scadenzaDomandaMs: SCADENZA_DOMANDA_MS,
-    scadenzaInterviataMs: SCADENZA_INTERVISTA_MS,
     adesso: () => new Date().toISOString(),
     // La versione gliela dice chi lo avvia: il servizio gira come Node puro e
     // non ha un'applicazione Electron a cui chiederla. Assente vuol dire
@@ -406,39 +380,22 @@ export function avviaServizio(): void {
       ? { versione: process.env.SIERRADECK_VERSIONE }
       : {}),
     consegne,
-    istruzioni,
     // P2: per togliere la cartella delle trascrizioni di una chat eliminata.
     radiceClaude: cartellaClaude(),
     // I worktree delle chat, l'unione dei rami, il push e il cloud (0.36.0).
     git: gitReale,
     // Salvare, unire e togliere i worktree senza fermare il servizio (0.84.0).
     gitAsincrono: gitAsincronoReale,
-    // 30/10: chiesto a ogni fermata, mai più con git sincrono (vedi `statoCopiaInMemoria`).
-    copia: statoCopiaInMemoria(gitAsincronoReale),
-    // I tempi di ogni giro (0.71.0), in servizio/tempi.jsonl.
-    tempi: apriRegistroTempi(archivio.cartella),
     // Le risposte già date e le decisioni di Nicholas (0.71.0), in servizio/memoria.json.
     memoria: apriMemoria(archivio.cartella, { ricorda: (cwd, testo, quando) => { quadernoLezioni.decidi(cwd, testo, quando) }, elenca: (cwd) => quadernoLezioni.decisioni(cwd) }),
     lezioni: (cwd, voci, quando) => quadernoLezioni.annota(cwd, voci, quando),
-    // Prima di chiedere a Nicholas (0.82.0): release pubblicate (gh, rilette
-    // al più ogni 2 minuti), versione in uso, rami uniti, chat chiuse.
-    statoVero: creaStatoVero({
-      ...(process.env.SIERRADECK_VERSIONE !== undefined ? { versione: process.env.SIERRADECK_VERSIONE } : {}),
-      release: releaseConMemoria(ghRelease, 2 * 60_000),
-      // 30/10: i rami con git asincrono, il servizio non si ferma.
-      gitAsincrono: gitAsincronoReale
-    }),
-    // Le release con la data, per la velocità nel Punto (0.85.0).
-    releaseUscite: ghReleaseUscite,
     // P1: la coda delle richieste di ogni workspace, accanto agli autopiloti.
     coda: apriCode(join(cartellaStato(), '..', 'orchestratori')),
-    // P3: l'autopilota unico per workspace, accanto alla sua coda. Parte con i
-    // workspace nuovi; quelli di prima lo accendono con «Attiva».
+    // P3/P4: l'autopilota di ogni workspace, accanto alla sua coda. Sempre acceso.
     orchestratori: apriOrchestratori(join(cartellaStato(), '..', 'orchestratori')),
     avviaProcesso: avviaProcessoReale(claudeCmd()),
     porta: PORTA,
-    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd),
-    unicoPerNuovi: true
+    indiceQuaderno: (cwd) => quadernoLezioni.indice(cwd)
   })
 
   serverPronto = server
@@ -470,48 +427,20 @@ export function avviaServizio(): void {
     // 30/10: una riga al minuto, al più, quando il servizio resta fermo oltre 1 s.
     avviaSpiaRitardo()
 
-    // Anche le preparazioni interrotte, e prima del lavoro: chi era fermo su
-    // «sta preparando» non ha ancora nulla che giri, e finché nessuno la
-    // riprende la sua intervista non riparte da sé — nemmeno rispondendo,
-    // perché la domanda che aspettava era in memoria e con il processo se n'è
-    // andata.
-    server.riprendiInterviste()
+    // P4: gli autopiloti di prima passano all'autopilota del loro workspace
+    // (una volta: chi è già passato non si tocca), prima della ripresa.
+    try {
+      const n = server.migraVecchi()
+      if (n > 0) console.info(`[orchestratore] ${n} workspace passati all'autopilota unico`)
+    } catch (err) {
+      console.error('[orchestratore] passaggio all\'autopilota unico non riuscito:', err)
+    }
 
     // Il giro di guardia sulle chat che non chiudono più un turno. Un minuto
     // è abbastanza fitto per accorgersene e abbastanza rado da non pesare: il
     // controllo legge lo stato in memoria e non tocca nessuna chat.
     // `unref` perché questo timer non deve tenere vivo il processo da solo.
     setInterval(() => { server.controllaChatFerme() }, GUARDIA_MS).unref()
-    // Niente più criteri ricontrollati da soli (0.72.0): si misurano solo
-    // mentre l'autopilota lavora o su richiesta (POST …/ricontrolla-criteri).
-    // Le domande aperte ormai superate si chiudono da sole (0.84.0): all'avvio
-    // e ogni 10 minuti. Legge solo stato e git, non lancia comandi pesanti.
-    const ricontrollaDomande = (): void => {
-      void server.ricontrollaDomande()
-        .then((n) => { if (n > 0) console.info(`[domande] ${n} domande superate chiuse`) })
-        .catch((err: unknown) => { console.error('[domande] ricontrollo non riuscito:', err) })
-    }
-    ricontrollaDomande()
-    setInterval(ricontrollaDomande, 10 * 60_000).unref()
-    // Le release uscite con la data (0.85.0): all'avvio e ogni 10 minuti, per
-    // la velocità nel Punto. Senza gh o senza rete non succede niente.
-    const aggiornaReleaseUscite = (): void => {
-      void server.aggiornaReleaseUscite().catch((err: unknown) => { console.error('[velocità] release non rilette:', err) })
-    }
-    aggiornaReleaseUscite()
-    setInterval(aggiornaReleaseUscite, RILETTURA_RELEASE_MS).unref()
-    // Le promesse fatte a Nicholas (0.85.1): ogni minuto si guarda se il fatto
-    // è successo o la scadenza è passata. Legge solo lo stato.
-    const controllaPromesse = (): void => {
-      try {
-        const n = server.controllaPromesse()
-        if (n > 0) console.info(`[promesse] ${n} messaggi scritti`)
-      } catch (err) {
-        console.error('[promesse] controllo non riuscito:', err)
-      }
-    }
-    controllaPromesse()
-    setInterval(controllaPromesse, 60_000).unref()
     // L'autopulizia (0.85.2): due minuti dopo l'avvio (la ripresa delle
     // chat prima di tutto) e poi ogni 6 ore. La riga del giro la scrive lei.
     const pulisci = (): void => { void autopulizia().catch((err: unknown) => { console.error('[autopulizia] non riuscita:', err) }) }

@@ -23,11 +23,6 @@ export type Avviso = {
     | 'apriAccount'
   etichettaAzione?: string
   /**
-   * Gli altri gesti accanto al principale (0.37.0): per un autopilota fermo
-   * «Riprendi» e «Archivia», sugli autopiloti di `ids`.
-   */
-  altre?: { azione: 'riprendiAutopiloti' | 'archiviaAutopiloti'; etichetta: string; titolo: string; ids: string[] }[]
-  /**
    * Le chiavi che «Chiudi» ricorda (0.37.0). Presente solo per gli avvisi che
    * si possono chiudere: un fermo (id + momento + motivo) o una lista di
    * programmi mancanti. Chiuso, l'avviso non torna finche' non cambia la
@@ -183,7 +178,6 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
   const fermi = fonti.autopiloti.filter((a) => eFermo(a) && a.archiviato !== true && !chiusi.has(chiaveFermo(a)))
   if (fermi.length > 0) {
     const uno = fermi[0]
-    const ids = fermi.map((a) => a.id)
     avvisi.push({
       id: 'fermi',
       gravita: 'attenzione',
@@ -193,22 +187,6 @@ export function componiAvvisi(fonti: FontiAvvisi): Avviso[] {
         : `${fermi.length} autopiloti si sono fermati.`,
       azione: 'apriAutopiloti',
       etichettaAzione: 'Vedi',
-      altre: [
-        {
-          azione: 'riprendiAutopiloti',
-          etichetta: fermi.length === 1 ? 'Riprendi' : 'Riprendili',
-          titolo: fermi.length === 1
-            ? 'Lo fa ripartire da dove era, con la stessa conversazione'
-            : `Fa ripartire tutti e ${fermi.length} da dove erano`,
-          ids
-        },
-        {
-          azione: 'archiviaAutopiloti',
-          etichetta: fermi.length === 1 ? 'Archivia' : 'Archiviali',
-          titolo: 'Lo mette da parte: resta nel pannello Autopiloti fra gli archiviati, non compare più qui e non manda notifiche. «Riprendi» lo rimette in pista',
-          ids
-        }
-      ],
       chiavi: fermi.map(chiaveFermo)
     })
   }

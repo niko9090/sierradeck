@@ -49,8 +49,8 @@ function motore(over: Partial<DipendenzeOrchestratore> = {}): {
   let n = 0
   const o = creaOrchestratore({
     avvia,
-    impostazioni: (ws) => imp.get(ws) ?? { ...impostazioniPredefinite(), attivo: true },
-    cambiaImpostazioni: (ws, f) => { imp.set(ws, f(imp.get(ws) ?? { ...impostazioniPredefinite(), attivo: true })) },
+    impostazioni: (ws) => imp.get(ws) ?? impostazioniPredefinite(),
+    cambiaImpostazioni: (ws, f) => { imp.set(ws, f(imp.get(ws) ?? impostazioniPredefinite())) },
     contesto: () => ({ cwd: process.cwd(), riassunto: 'STATO', indice: '', agenti: 'agenti.json', impostazioniCli: 'cli.json', mcpConfig: 'mcp.json', tetto: 3 }),
     ultime: () => dialogo,
     risposta: (_ws, t) => { risposte.push(t) },
@@ -182,7 +182,7 @@ describe('il motore', () => {
 
   it('se il processo muore durante un turno i messaggi non si perdono; la sessione persa riparte nuova', () => {
     const { o, processi, imp, errori } = motore()
-    imp.set('ws', { ...impostazioniPredefinite(), attivo: true, sessione: 'vecchia' })
+    imp.set('ws', { ...impostazioniPredefinite(), sessione: 'vecchia' })
     o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'importante' })
     expect(processi[0]!.args).toContain('--resume')
     processi[0]!.muori(1, 'No conversation found with session ID: vecchia')

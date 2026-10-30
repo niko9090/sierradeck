@@ -1,9 +1,6 @@
 import { eRuolo, type Ruolo } from './ruoli-agenti'
 import { leggiSegnaleChat, type SegnaleChat } from './segnali-flotta'
 import { leggiRapportoChat, type RapportoChat } from './rapporti-chat'
-import { leggiRisposteInViaggio, type RispostaInViaggio } from './risposte-in-viaggio'
-import { leggiRichieste, type RichiestaNicholas } from './richieste-nicholas'
-import { leggiPromesse, type Promessa } from './promesse'
 /**
  * La versione della forma su disco. Va alzata solo insieme a una migrazione
  * scritta: uno stato di versione superiore viene rifiutato, non interpretato a
@@ -70,33 +67,6 @@ export type Criterio = {
    */
   giudicato?: { il: string; perche: string }
 }
-
-/** Obiettivo, criteri e compiti com'erano prima di una modifica. */
-export type Istantanea = {
-  obiettivo: string
-  criteri: Criterio[]
-  compitiDaFare: string[]
-}
-
-/**
- * Una modifica chiesta a parole, e cosa ne è stato fatto.
- *
- * Si applica subito — è la scelta di chi la usa: un passaggio in meno vale più
- * di una conferma — e proprio per questo porta con sé la fotografia di prima.
- * Senza `prima`, «applica subito» sarebbe una porta a senso unico, e un
- * fraintendimento costerebbe di rifare tutto a mano.
- */
-export type Modifica = {
-  quando: string
-  /** Quello che hai scritto tu, parola per parola. */
-  testo: string
-  /** Come l'ha capito, scritto per essere letto: è la parte che insegna. */
-  capito: string
-  prima: Istantanea
-}
-
-/** Oltre queste, le più vecchie si dimenticano: il file non deve crescere per sempre. */
-export const MODIFICHE_RICORDATE = 10
 
 function parseAnnuncio(x: unknown): { id: string; titolo: string; quando: string } | undefined {
   if (typeof x !== 'object' || x === null) return undefined
@@ -201,7 +171,7 @@ export type Decisione = { quando: string; cosa: string; traguardo?: Traguardo }
  * Con `tettoChat` a 1 — il caso normale — ce n'è una sola e il `compito`
  * coincide con l'obiettivo. Oltre, ognuna porta avanti un pezzo diverso.
  */
-export type ChatGovernata = SupervisoreMancato & {
+export type ChatGovernata = {
   id: string
   compito: string
   /**
@@ -219,16 +189,6 @@ export type ChatGovernata = SupervisoreMancato & {
   cartella?: string
   /** Il ramo git del suo worktree (`ap/<autopilota>/<chat>`). */
   ramo?: string
-  /**
-   * La sessione del supervisore **di questa chat**.
-   *
-   * Il supervisore e' uno per chat (scelta di Nicholas, 2026-09-05): ognuno
-   * segue il suo compito dall'inizio e non vede i turni delle sorelle come
-   * salti. Prima era una sola sull'autopilota, e due chat della stessa flotta
-   * che si fermavano insieme se la scrivevano a vicenda: l'ultima vinceva e
-   * la conversazione dell'altra restava orfana.
-   */
-  sessioneSupervisore?: string
   /** Il ruolo della chat (0.71.0): Sviluppo, Interfaccia, Collaudo, Revisione, Rilascio. Vedi `@shared/ruoli-agenti`. */
   ruolo?: Ruolo
   /** Per una chat di Revisione: la chat il cui ramo sta rivedendo. */
@@ -264,12 +224,6 @@ export type ChatGovernata = SupervisoreMancato & {
    * fine turno. Vedi `@shared/rapporti-chat`.
    */
   rapporto?: RapportoChat
-  /**
-   * **Mai fermo** (0.84.1): l'ultima volta che il servizio l'ha rimessa al
-   * lavoro da solo, perché taceva, e quante volte di fila. Si toglie appena la
-   * chat chiude un turno. Su disco, così vale anche dopo un riavvio.
-   */
-  ripresa?: RipresaDaSolo
   /** La chat nuova che ha preso il suo compito perché lei non rispondeva (0.84.1). */
   sostituitaDa?: string
   /** La chat muta di cui ha preso il compito (0.84.1). */
@@ -366,76 +320,14 @@ export function idChatNuova(a: Pick<Autopilota, 'chats' | 'chatTolte'>, i = 0): 
   }
 }
 
-/** Quando il servizio ha rimesso al lavoro una chat muta, e quante volte di fila (0.84.1). */
-export type RipresaDaSolo = { il: string; volte: number }
-
-export function leggiRipresaDaSolo(x: unknown): RipresaDaSolo | undefined {
-  if (typeof x !== 'object' || x === null) return undefined
-  const o = x as Record<string, unknown>
-  if (typeof o.il !== 'string' || Number.isNaN(Date.parse(o.il)) || typeof o.volte !== 'number' || o.volte < 1) return undefined
-  return { il: o.il, volte: Math.floor(o.volte) }
-}
-
-/** Il ruolo di un compito e i compiti da cui dipende (per testo), deciso dal coordinatore (0.71.0). */
-/**
- * **Quando il supervisore non risponde** (0.82.1). Sta sulla chat (o
- * sull'autopilota con una chat sola), accanto alla sessione del supervisore.
- */
-export type SupervisoreMancato = {
-  /** L'ultima istruzione valida del supervisore: con questa la chat prosegue se lui scade. */
-  ultimeIstruzioni?: string
-  /** Quante volte di fila non ha risposto; torna a zero alla prima risposta. */
-  supervisoreMancato?: number
-  /** La chat sorella che dice di aspettare, e da quanti giri di fila (0.82.1, solo sulle chat). */
-  aspetta?: { di: string; giri: number }
-}
-
-export type RuoloCompito = { ruolo: Ruolo; dopo: string[] }
-
 /** Oltre questo numero di chat contemporanee si ostacolano invece di aiutarsi. */
 export const TETTO_CHAT_MAX = 8
 
-/**
- * I freni dell'autopilota. Zero vuol dire «nessun freno», ed e' il predefinito
- * per i due tetti: un lavoro che procede non deve morire allo scadere di un
- * numero deciso da qualcun altro. Cio' che lo ferma davvero e' l'assenza di
- * progresso, e quella la riconosce lo stallo.
- */
-export type Limiti = {
-  /** Giri massimi. Zero: illimitati. */
-  cicliMax: number
-  /** Minuti massimi dall'avvio. Zero: illimitati. */
-  minutiMax: number
-  /**
-   * Quante volte lo stesso criterio puo' fallire allo stesso modo prima che sia
-   * stallo. Qui zero non ha senso e non e' ammesso: senza soglia non ci sarebbe
-   * il momento in cui si cambia strada.
-   */
-  stalloMax: number
-}
-
-/** Una domanda dell'intervista e la risposta che ha ricevuto. */
-export type ScambioSalvato = { domanda: string; risposta: string }
-
-export type Autopilota = SupervisoreMancato & {
+export type Autopilota = {
   id: string
   nome: string
-  /**
-   * L'obiettivo come lo capisce lui: riscritto dalla preparazione, piu' preciso.
-   *
-   * E' questo che finisce nei prompt, ed e' giusto che sia il suo. Ma non e'
-   * quello che hai chiesto tu — vedi `obiettivoTuo`.
-   */
+  /** L'obiettivo del lavoro (per l'autopilota del workspace, quello fisso). */
   obiettivo: string
-  /**
-   * Le tue parole, come le hai scritte, e che nessuno riscrive mai.
-   *
-   * La preparazione riformula l'obiettivo con parole sue: piu' precise, e
-   * **sue**. Quello che avevi scritto tu spariva, e con lui l'unico modo di
-   * giudicare se aveva capito bene o se stava andando a fare un'altra cosa.
-   * Assente per gli autopiloti nati prima di questo campo.
-   */
-  obiettivoTuo?: string
   cwd: string
   /**
    * Il workspace dove il suo lavoro deve comparire.
@@ -450,9 +342,6 @@ export type Autopilota = SupervisoreMancato & {
    * dove sei, come faceva prima.
    */
   workspace?: string
-  criteri: Criterio[]
-  /** Le domande già fatte in intervista: sopravvivono a un riavvio del servizio. */
-  intervista: ScambioSalvato[]
   stato: StatoAutopilota
   /** La sessione della chat governata, nota solo dopo il primo hook. */
   sessionId?: string
@@ -470,34 +359,6 @@ export type Autopilota = SupervisoreMancato & {
    * dal disco) sa di quanto si è spostato l'inizio.
    */
   decisioniArchiviate?: number
-  /**
-   * Il file dello storico di questo lavoro nel quaderno della sua cartella
-   * (0.84.0), per esempio `storico-sierradeck-f1e631f5.md`: la pagina e l'app
-   * lo aprono con un tocco. Assente finché non c'è niente da raccontare.
-   */
-  storico?: string
-  /**
-   * La strada che sta tentando per uscire da un cerchio, quando ci si trova
-   * dentro. Assente e' il caso normale: sta semplicemente lavorando.
-   */
-  strategia?: string
-  /**
-   * La sessione del supervisore, che si riusa giro dopo giro.
-   *
-   * E' cio' che gli fa ricordare il lavoro invece di ricostruirlo da capo a
-   * ogni fermata: la differenza fra chi segue il compito e chi lo vede per la
-   * prima volta ogni volta.
-   */
-  sessioneSupervisore?: string
-  /**
-   * La sessione con cui si sta preparando, decisa **prima** di aprirla.
-   *
-   * La preparazione dura minuti in cui l'autopilota legge il progetto, e senza
-   * questo id non c'è niente da guardare: la sua conversazione esiste, ma il
-   * suo nome si conoscerebbe solo alla fine. Deciderlo alla nascita la rende
-   * visibile dal primo istante — è la stessa cosa che fanno le chat governate.
-   */
-  sessioneIntervista?: string
   motivoSospensione?: string
   /**
    * Quando si e' fermato (sospeso o fallito), 0.37.0. Lo scrive il servizio
@@ -519,31 +380,6 @@ export type Autopilota = SupervisoreMancato & {
    * cui PC, pagina e app mandano **una** notifica sola.
    */
   annuncio?: { id: string; titolo: string; quando: string }
-  limiti: Limiti
-  /**
-   * Se riprendere **questo** autopilota quando il servizio torna su.
-   *
-   * Per autopilota e non per programma: uno che lavora tutta la notte deve
-   * ripartire da solo dopo un riavvio, un altro che stava provando qualcosa
-   * no. Assente vale «sì», che era il comportamento di prima e resta quello
-   * che ci si aspetta.
-   */
-  riprendiAlRiavvio?: boolean
-  /**
-   * **In sottofondo, solo se l'hai chiesto tu** (0.72.0). Di serie la chat
-   * governata sta in un riquadro del suo workspace, e una consegna porta la
-   * finestra lì (mai mentre stai scrivendo). Con questo interruttore acceso
-   * lavora senza riquadro, e il programma lo dice con un avviso e «Guarda».
-   */
-  sottofondo?: boolean
-  /**
-   * Come è organizzato il lavoro (0.73.0), in una riga per la scheda: «3
-   * specialisti: Sviluppo, Collaudo, Revisione», oppure «Lavoro piccolo: una
-   * chat sola» con il perché. La scrive il servizio quando decide.
-   */
-  organizzazione?: string
-  /** L'ultima cosa detta dalla chat singola a fine turno, in una riga (0.73.0). */
-  ultimaAzioneChat?: string
   /**
    * Fermato da noi per installare un aggiornamento.
    *
@@ -563,16 +399,6 @@ export type Autopilota = SupervisoreMancato & {
   /** Quante chat può tenere aperte insieme. Uno è il caso normale. */
   tettoChat: number
   chats: ChatGovernata[]
-  /** I pezzi di lavoro non ancora affidati a nessuna chat. */
-  compitiDaFare: string[]
-  /**
-   * Il grafo dei compiti (0.71.0): per ogni compito (il testo) il ruolo e i
-   * compiti che devono essere finiti e uniti prima. Lo tiene il programma, non
-   * il modello. Assente per gli autopiloti di prima: nessun ruolo, come allora.
-   */
-  ruoliCompiti?: Record<string, RuoloCompito>
-  /** Le ultime modifiche dette a parole, con com'era prima di ognuna. */
-  modifiche: Modifica[]
   /**
    * Il dialogo con chi gli ha affidato il lavoro, dalla scheda.
    *
@@ -590,21 +416,6 @@ export type Autopilota = SupervisoreMancato & {
    * decisa la consegna: il 09/10 una consegna persa al riavvio li ha buttati.
    */
   inVolo?: Array<{ consegna: string; quando: string; messaggi: MessaggioPerLaChat[] }>
-  /**
-   * Le risposte di Nicholas in viaggio verso la chat che le aspettava (0.84.4):
-   * contano solo quando la chat le riceve. Vedi `risposte-in-viaggio.ts`.
-   */
-  risposteInViaggio?: RispostaInViaggio[]
-  /**
-   * Le richieste di Nicholas scritte dalla scheda (0.85.0): ognuna diventa da
-   * sola un obiettivo, con criterio e compiti. Vedi `richieste-nicholas.ts`.
-   */
-  richieste?: RichiestaNicholas[]
-  /**
-   * Le promesse di avvisare fatte a Nicholas nelle risposte dalla scheda
-   * (0.85.1), legate a un fatto e a una scadenza. Vedi `promesse.ts`.
-   */
-  promesse?: Promessa[]
   /**
    * Gli ultimi messaggi arrivati nella chat, con quando (0.69.0): la scheda dice
    * «consegnato alle hh:mm». Prima un messaggio consegnato spariva e non si
@@ -632,28 +443,6 @@ export type Autopilota = SupervisoreMancato & {
    * cambiati contro questo punto.
    */
   commitBase?: string
-  /** Fermo per i limiti del piano fino a questo istante (ISO): poi riparte da solo. */
-  pausaLimitiFinoA?: string
-  /**
-   * Le chat messe da parte perché non chiudono un turno da troppo (0.80.1): la
-   * chiave è l'id della chat, o l'id dell'autopilota per la chat singola. Il
-   * guardiano non le conta più e l'autopilota resta al lavoro con le altre;
-   * una chat torna nel conto appena chiude di nuovo un turno.
-   */
-  daParte?: string[]
-  /** La ripresa da solo della chat singola (0.84.1): come `ChatGovernata.ripresa`. */
-  ripresa?: RipresaDaSolo
-  /**
-   * L'ultimo giro fatto partire dal servizio da solo (0.84.1), perché da 10
-   * minuti nessuna chat lavorava. Su disco: dopo un riavvio non si rifà subito.
-   */
-  giroDaSolo?: string
-  /**
-   * Le release uscite del progetto, con la data (0.85.0, velocità misurata):
-   * le rilegge il servizio da GitHub ogni tanto. Servono a dire quando una
-   * richiesta di Nicholas è arrivata in una versione pubblicata.
-   */
-  releaseUscite?: ReleaseUscita[]
   /** Pubblicazione chiesta a Nicholas e in attesa del sì (regola «stabile»). */
   pubblicazioneInAttesa?: boolean
   /** La chat ha gia' ricevuto l'istruzione di pubblicare: il giro dopo si chiude. */
@@ -674,18 +463,6 @@ export type Autopilota = SupervisoreMancato & {
    * mai (né il suo worktree `ap-…-c-N`, né il suo ramo). Vedi `idChatNuova`.
    */
   chatTolte?: number
-  /**
-   * P3 (30/10): **l'autopilota unico** del workspace, l'orchestratore. Parla
-   * con Nicholas e guida gli specialisti attraverso gli strumenti MCP di
-   * SierraDeck; il vecchio giro (supervisore, guardiano, mai-fermo) non lo
-   * tocca. Vedi `autopilot-host/orchestratore.ts`.
-   */
-  unico?: true
-  /**
-   * P3: questo autopilota è passato all'autopilota unico del suo workspace
-   * (l'id): resta in sola lettura fra i «Precedenti».
-   */
-  passatoA?: string
 }
 
 /** Una chat esistente adottata dall'autopilota del suo workspace (0.78.0). */
@@ -727,21 +504,15 @@ function leggiPerAdottate(raw: unknown[]): MessaggioAdottata[] {
   })
 }
 
-export function limitiPredefiniti(): Limiti {
-  return { cicliMax: 0, minutiMax: 0, stalloMax: 3 }
-}
-
 export function nuovoAutopilota(p: {
   id: string
   nome: string
   obiettivo: string
   cwd: string
-  criteri: Criterio[]
   iniziatoIl: string
   tettoChat?: number
   /** Il workspace da cui è stato avviato: è lì che il suo lavoro deve andare. */
   workspace?: string
-  /** Senza criteri si parte in intervista: sarà lei a produrli. */
   stato?: StatoAutopilota
   pubblicazione?: 'beta' | 'stabile' | 'unica'
   vaSulCloud?: boolean
@@ -750,23 +521,15 @@ export function nuovoAutopilota(p: {
     id: p.id,
     nome: p.nome,
     obiettivo: p.obiettivo,
-    // Le tue parole si mettono da parte **adesso**: dopo la preparazione non
-    // esistono piu' da nessuna parte.
-    obiettivoTuo: p.obiettivo,
     cwd: p.cwd,
     ...(p.workspace !== undefined && p.workspace.trim() !== '' ? { workspace: p.workspace } : {}),
-    criteri: p.criteri,
     stato: p.stato ?? 'lavoro',
     cicli: 0,
     iniziatoIl: p.iniziatoIl,
     ultimoEvento: p.iniziatoIl,
     decisioni: [],
-    intervista: [],
-    limiti: limitiPredefiniti(),
     tettoChat: normalizzaTetto(p.tettoChat),
     chats: [],
-    compitiDaFare: [],
-    modifiche: [],
     dialogo: [],
     daConsegnare: [],
     ...(p.pubblicazione !== undefined ? { pubblicazione: p.pubblicazione } : {}),
@@ -797,7 +560,6 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     return undefined
   }
   const sessionId = stringaNonVuota(o.sessionId)
-  const sessioneSupervisore = stringaNonVuota(o.sessioneSupervisore)
   // «lavoro» è la scelta prudente qui, al contrario che per l'autopilota: una
   // chat data per finita che invece è viva resterebbe dimenticata con il suo
   // processo acceso.
@@ -814,7 +576,6 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(cartella !== undefined ? { cartella } : {}),
     ...(ramo !== undefined ? { ramo } : {}),
-    ...(sessioneSupervisore !== undefined ? { sessioneSupervisore } : {}),
     ...(eRuolo(o.ruolo) ? { ruolo: o.ruolo } : {}),
     ...(revisioneDi !== undefined ? { revisioneDi } : {}),
     ...(o.approvata === true ? { approvata: true } : {}),
@@ -823,13 +584,8 @@ function parseChat(raw: unknown, scartati: string[]): ChatGovernata | undefined 
     ...(typeof o.dal === 'string' && !Number.isNaN(Date.parse(o.dal)) ? { dal: o.dal } : {}),
     ...leggiConclusa(o.conclusa),
     ...(typeof o.nelRecupero === 'string' && !Number.isNaN(Date.parse(o.nelRecupero)) ? { nelRecupero: o.nelRecupero } : {}),
-    ...parseSupervisoreMancato(o),
-    ...(typeof o.aspetta === 'object' && o.aspetta !== null && typeof (o.aspetta as { di?: unknown }).di === 'string' && typeof (o.aspetta as { giri?: unknown }).giri === 'number'
-      ? { aspetta: { di: (o.aspetta as { di: string }).di, giri: Math.max(1, Math.floor((o.aspetta as { giri: number }).giri)) } }
-      : {}),
     ...(leggiSegnaleChat(o.segnale) !== undefined ? { segnale: leggiSegnaleChat(o.segnale) } : {}),
     ...(leggiRapportoChat(o.rapporto) !== undefined ? { rapporto: leggiRapportoChat(o.rapporto) } : {}),
-    ...(leggiRipresaDaSolo(o.ripresa) !== undefined ? { ripresa: leggiRipresaDaSolo(o.ripresa) } : {}),
     ...(stringaNonVuota(o.sostituitaDa) !== undefined ? { sostituitaDa: o.sostituitaDa as string } : {}),
     ...(stringaNonVuota(o.sostituisce) !== undefined ? { sostituisce: o.sostituisce as string } : {}),
     ...(typeof o.sostituzioni === 'number' && o.sostituzioni > 0 ? { sostituzioni: Math.floor(o.sostituzioni) } : {}),
@@ -855,25 +611,6 @@ function leggiConclusa(x: unknown): Pick<ChatGovernata, 'conclusa'> {
   return { conclusa: { il: o.il, come: o.come } }
 }
 
-/** I due campi di `SupervisoreMancato`, letti da un oggetto qualunque. */
-export function parseSupervisoreMancato(o: Record<string, unknown>): SupervisoreMancato {
-  return {
-    ...(typeof o.ultimeIstruzioni === 'string' && o.ultimeIstruzioni.trim() !== '' ? { ultimeIstruzioni: o.ultimeIstruzioni } : {}),
-    ...(typeof o.supervisoreMancato === 'number' && o.supervisoreMancato > 0 ? { supervisoreMancato: Math.floor(o.supervisoreMancato) } : {})
-  }
-}
-
-function parseRuoliCompiti(raw: unknown): Record<string, RuoloCompito> | undefined {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
-  const fuori: Record<string, RuoloCompito> = {}
-  for (const [compito, v] of Object.entries(raw as Record<string, unknown>)) {
-    const x = (typeof v === 'object' && v !== null ? v : {}) as { ruolo?: unknown; dopo?: unknown }
-    if (!eRuolo(x.ruolo)) continue
-    fuori[compito] = { ruolo: x.ruolo, dopo: Array.isArray(x.dopo) ? x.dopo.filter((d): d is string => typeof d === 'string') : [] }
-  }
-  return Object.keys(fuori).length > 0 ? fuori : undefined
-}
-
 function parseCloud(raw: unknown): { attivo: boolean; segni: string[] } | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const o = raw as Record<string, unknown>
@@ -897,100 +634,6 @@ function parseConsegna(raw: unknown): { remoto?: string; comandoPubblica?: strin
 
 function stringaNonVuota(raw: unknown): string | undefined {
   return typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
-}
-
-function interoPositivo(raw: unknown): number | undefined {
-  return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : undefined
-}
-
-function interoNonNegativo(raw: unknown): number | undefined {
-  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : undefined
-}
-
-function parseCriterio(raw: unknown, scartati: string[]): Criterio | undefined {
-  if (typeof raw !== 'object' || raw === null) {
-    scartati.push('criterio non oggetto')
-    return undefined
-  }
-  const o = raw as Record<string, unknown>
-  const descrizione = stringaNonVuota(o.descrizione)
-  if (descrizione === undefined) {
-    scartati.push('criterio senza descrizione')
-    return undefined
-  }
-  const comando = stringaNonVuota(o.comando)
-  return {
-    descrizione,
-    ...(comando !== undefined ? { comando } : {}),
-    soddisfatto: o.soddisfatto === true,
-    ...(stringaNonVuota(o.raggiuntoIl) !== undefined
-      ? { raggiuntoIl: o.raggiuntoIl as string }
-      : {}),
-    // Una verifica illeggibile sparisce da sola: e' un di piu' che serve a
-    // raccontare, e portarsi via il criterio per colpa sua sarebbe togliere
-    // all'autopilota un pezzo della sua fine.
-    ...(parseVerifica(o.ultimaVerifica) !== undefined
-      ? { ultimaVerifica: parseVerifica(o.ultimaVerifica) as Verifica }
-      : {}),
-    ...(parseGiudicato(o.giudicato) !== undefined ? { giudicato: parseGiudicato(o.giudicato) as NonNullable<Criterio['giudicato']> } : {})
-  }
-}
-
-function parseGiudicato(raw: unknown): Criterio['giudicato'] {
-  if (typeof raw !== 'object' || raw === null) return undefined
-  const o = raw as Record<string, unknown>
-  const il = stringaNonVuota(o.il)
-  const perche = stringaNonVuota(o.perche)
-  return il !== undefined && perche !== undefined ? { il, perche } : undefined
-}
-
-function parseVerifica(raw: unknown): Verifica | undefined {
-  if (typeof raw !== 'object' || raw === null) return undefined
-  const o = raw as Record<string, unknown>
-  const quando = stringaNonVuota(o.quando)
-  if (quando === undefined || typeof o.codice !== 'number' || !Number.isFinite(o.codice)) {
-    return undefined
-  }
-  return {
-    quando,
-    codice: Math.trunc(o.codice),
-    uscita: typeof o.uscita === 'string' ? o.uscita : ''
-  }
-}
-
-function parseModifica(raw: unknown): Modifica | undefined {
-  if (typeof raw !== 'object' || raw === null) return undefined
-  const o = raw as Record<string, unknown>
-  const quando = stringaNonVuota(o.quando)
-  const testo = stringaNonVuota(o.testo)
-  const capito = stringaNonVuota(o.capito)
-  const prima = o.prima
-  // Senza la fotografia di prima la modifica non si potrebbe disfare, e una
-  // riga con un tasto che non funziona e' peggio della riga mancante.
-  if (quando === undefined || testo === undefined || capito === undefined) return undefined
-  if (typeof prima !== 'object' || prima === null) return undefined
-  const p = prima as Record<string, unknown>
-  const obiettivo = stringaNonVuota(p.obiettivo)
-  if (obiettivo === undefined) return undefined
-  const criteri: Criterio[] = []
-  if (Array.isArray(p.criteri)) {
-    for (const c of p.criteri) {
-      const criterio = parseCriterio(c, [])
-      if (criterio !== undefined) criteri.push(criterio)
-    }
-  }
-  return {
-    quando,
-    testo,
-    capito,
-    prima: {
-      obiettivo,
-      criteri,
-      compitiDaFare: Array.isArray(p.compitiDaFare)
-        ? p.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
-        : []
-    }
-  }
 }
 
 function parseScambio(raw: unknown): ScambioDialogo | undefined {
@@ -1026,51 +669,11 @@ function parseMessaggioPerLaChat(raw: unknown): MessaggioPerLaChat | undefined {
 }
 
 /**
- * I limiti tornano interi ai predefiniti appena uno non regge.
- *
- * Non si corregge il singolo valore: questo file è modificabile a mano, ed è
- * l'unica strada per cui diventa incoerente. Un `cicliMax` negativo fermerebbe
- * l'autopilota al primo giro, e correggerne uno solo lascerebbe una terna che
- * nessuno ha scelto.
- */
-function parseLimiti(raw: unknown): Limiti {
-  const predefiniti = limitiPredefiniti()
-  if (typeof raw !== 'object' || raw === null) return predefiniti
-  const o = raw as Record<string, unknown>
-  // I tetti ammettono lo zero — e' cosi' che si dice «nessun tetto» —, la
-  // soglia di stallo no: a zero si cambierebbe strada prima ancora di provarne
-  // una.
-  const cicliMax = interoNonNegativo(o.cicliMax)
-  const minutiMax = interoNonNegativo(o.minutiMax)
-  const stalloMax = interoPositivo(o.stalloMax)
-  if (cicliMax === undefined || minutiMax === undefined || stalloMax === undefined) {
-    return predefiniti
-  }
-  return { cicliMax, minutiMax, stalloMax }
-}
-
-/**
  * Legge lo stato di un autopilota da un valore qualunque.
  *
  * Non solleva mai: restituisce `undefined` e l'elenco degli scarti, che il
  * chiamante porta in un log. Il vincolo globale è «scartato **e registrato**».
  */
-/** Una release uscita: la versione senza «v» e quando è stata pubblicata (ISO). */
-export type ReleaseUscita = { versione: string; quando: string }
-
-/** Quante release uscite si ricordano: per misurare bastano le ultime. */
-export const RELEASE_RICORDATE = 50
-
-export function leggiReleaseUscite(x: unknown[]): ReleaseUscita[] {
-  return x.flatMap((v) => {
-    if (typeof v !== 'object' || v === null) return []
-    const r = v as Record<string, unknown>
-    return typeof r.versione === 'string' && r.versione !== '' && typeof r.quando === 'string' && !Number.isNaN(Date.parse(r.quando))
-      ? [{ versione: r.versione, quando: r.quando }]
-      : []
-  }).slice(-RELEASE_RICORDATE)
-}
-
 export function parseAutopilota(raw: unknown): {
   autopilota: Autopilota | undefined
   scartati: string[]
@@ -1109,39 +712,8 @@ export function parseAutopilota(raw: unknown): {
     scartati.push(`stato sconosciuto (${String(o.stato)}), riportato a sospeso`)
   }
 
-  const criteri: Criterio[] = []
-  if (Array.isArray(o.criteri)) {
-    for (const c of o.criteri) {
-      const criterio = parseCriterio(c, scartati)
-      if (criterio !== undefined) criteri.push(criterio)
-    }
-  } else if (o.criteri !== undefined) {
-    scartati.push('criteri non e un elenco')
-  }
-  // I criteri servono a sapere quando fermarsi, quindi li esigono solo gli
-  // stati che possono ancora lavorare. In intervista non esistono ancora — è
-  // lei a produrli — e in un'intervista fallita non esisteranno mai: rifiutare
-  // quel file lo farebbe **sparire dall'elenco**, e l'utente resterebbe senza
-  // il suo autopilota e senza sapere perché.
-  // «pronto» è fra questi: è lo stato di chi sta per partire, e partire senza
-  // una fine da raggiungere è precisamente ciò da cui questo controllo difende.
-  const STATI_CHE_LAVORANO: StatoAutopilota[] = ['pronto', 'lavoro', 'attesa']
-  // P3: l'autopilota unico non ha una fine sua: i criteri stanno nei compiti
-  // del piano, e il cancello misura quelli.
-  const senzaFine = criteri.length === 0 && STATI_CHE_LAVORANO.includes(stato) && o.unico !== true
-  if (senzaFine) {
-    // Fermato, non buttato. Rifiutare il file lo faceva mettere da parte come
-    // illeggibile, e per l'utente l'autopilota **spariva** — senza traccia e
-    // senza spiegazione. La protezione che serviva era non farlo lavorare, e si
-    // ottiene tutta sospendendolo: così resta nell'elenco, con scritto perché.
-    stato = 'sospeso'
-    scartati.push('nessun criterio valido: senza criteri non c e una fine da raggiungere')
-  }
-
   const sessionId = stringaNonVuota(o.sessionId)
-  const motivoSospensione = senzaFine
-    ? 'senza criteri non c e una fine da raggiungere: preparalo di nuovo o eliminalo'
-    : stringaNonVuota(o.motivoSospensione)
+  const motivoSospensione = stringaNonVuota(o.motivoSospensione)
   const iniziatoIl = stringaNonVuota(o.iniziatoIl) ?? new Date(0).toISOString()
   const ultimoEvento = stringaNonVuota(o.ultimoEvento) ?? iniziatoIl
 
@@ -1173,14 +745,10 @@ export function parseAutopilota(raw: unknown): {
       id,
       nome: stringaNonVuota(o.nome) ?? id,
       obiettivo,
-      ...(stringaNonVuota(o.obiettivoTuo) !== undefined
-        ? { obiettivoTuo: o.obiettivoTuo as string }
-        : {}),
       cwd,
       // Il workspace sopravvive a un riavvio del servizio: senza, un autopilota
       // ripreso tornerebbe a far nascere le sue chat dove capita.
       ...(stringaNonVuota(o.workspace) !== undefined ? { workspace: o.workspace as string } : {}),
-      criteri,
       stato,
       ...(sessionId !== undefined ? { sessionId } : {}),
       cicli: typeof o.cicli === 'number' && o.cicli >= 0 ? Math.floor(o.cicli) : 0,
@@ -1188,34 +756,11 @@ export function parseAutopilota(raw: unknown): {
       ultimoEvento,
       decisioni,
       ...(typeof o.decisioniArchiviate === 'number' && Number.isFinite(o.decisioniArchiviate) && o.decisioniArchiviate > 0 ? { decisioniArchiviate: Math.floor(o.decisioniArchiviate) } : {}),
-      ...(typeof o.storico === 'string' && /^storico-[A-Za-z0-9._-]+\.md$/.test(o.storico) ? { storico: o.storico } : {}),
-      ...(stringaNonVuota(o.strategia) !== undefined ? { strategia: o.strategia as string } : {}),
-      ...(typeof o.riprendiAlRiavvio === 'boolean' ? { riprendiAlRiavvio: o.riprendiAlRiavvio } : {}),
-      ...(o.sottofondo === true ? { sottofondo: true } : {}),
-      ...(typeof o.organizzazione === 'string' && o.organizzazione !== '' ? { organizzazione: o.organizzazione } : {}),
-      ...(typeof o.ultimaAzioneChat === 'string' && o.ultimaAzioneChat !== '' ? { ultimaAzioneChat: o.ultimaAzioneChat } : {}),
       ...(o.fermatoPerAggiornamento === true ? { fermatoPerAggiornamento: true } : {}),
-      ...(stringaNonVuota(o.sessioneSupervisore) !== undefined
-        ? { sessioneSupervisore: o.sessioneSupervisore as string }
-        : {}),
-      ...parseSupervisoreMancato(o),
-      ...(stringaNonVuota(o.sessioneIntervista) !== undefined
-        ? { sessioneIntervista: o.sessioneIntervista as string }
-        : {}),
       ...(motivoSospensione !== undefined ? { motivoSospensione } : {}),
       ...(stringaNonVuota(o.fermatoIl) !== undefined ? { fermatoIl: o.fermatoIl as string } : {}),
       ...(o.archiviato === true ? { archiviato: true } : {}),
       ...(parseAnnuncio(o.annuncio) !== undefined ? { annuncio: parseAnnuncio(o.annuncio) as { id: string; titolo: string; quando: string } } : {}),
-      intervista: Array.isArray(o.intervista)
-        ? o.intervista.flatMap((s) => {
-            if (typeof s !== 'object' || s === null) return []
-            const so = s as Record<string, unknown>
-            const domanda = stringaNonVuota(so.domanda)
-            const risposta = stringaNonVuota(so.risposta)
-            return domanda !== undefined && risposta !== undefined ? [{ domanda, risposta }] : []
-          })
-        : [],
-      limiti: parseLimiti(o.limiti),
       tettoChat: normalizzaTetto(o.tettoChat),
       ...(o.pubblicazione === 'beta' || o.pubblicazione === 'stabile' || o.pubblicazione === 'unica' ? { pubblicazione: o.pubblicazione } : {}),
       ...(o.vaSulCloud === true ? { vaSulCloud: true } : {}),
@@ -1223,25 +768,9 @@ export function parseAutopilota(raw: unknown): {
       ...(parseConsegna(o.consegna) !== undefined ? { consegna: parseConsegna(o.consegna) as { remoto?: string; comandoPubblica?: string; segni: string[] } } : {}),
       ...(stringaNonVuota(o.ramoBase) !== undefined ? { ramoBase: o.ramoBase as string } : {}),
       ...(typeof o.commitBase === 'string' && /^[0-9a-f]{7,64}$/.test(o.commitBase) ? { commitBase: o.commitBase } : {}),
-      ...(stringaNonVuota(o.pausaLimitiFinoA) !== undefined ? { pausaLimitiFinoA: o.pausaLimitiFinoA as string } : {}),
-      ...(Array.isArray(o.daParte) && o.daParte.some((x) => typeof x === 'string' && x !== '') ? { daParte: o.daParte.filter((x): x is string => typeof x === 'string' && x !== '') } : {}),
-      ...(leggiRipresaDaSolo(o.ripresa) !== undefined ? { ripresa: leggiRipresaDaSolo(o.ripresa) } : {}),
-      ...(typeof o.giroDaSolo === 'string' && !Number.isNaN(Date.parse(o.giroDaSolo)) ? { giroDaSolo: o.giroDaSolo } : {}),
       ...(o.pubblicazioneInAttesa === true ? { pubblicazioneInAttesa: true } : {}),
       ...(o.pubblicazioneIstruita === true ? { pubblicazioneIstruita: true } : {}),
       chats,
-      compitiDaFare: Array.isArray(o.compitiDaFare)
-        ? o.compitiDaFare.filter((c): c is string => typeof c === 'string' && c.trim() !== '')
-        : [],
-      ...(parseRuoliCompiti(o.ruoliCompiti) !== undefined ? { ruoliCompiti: parseRuoliCompiti(o.ruoliCompiti) } : {}),
-      modifiche: Array.isArray(o.modifiche)
-        ? o.modifiche
-            .flatMap((m) => {
-              const modifica = parseModifica(m)
-              return modifica !== undefined ? [modifica] : []
-            })
-            .slice(-MODIFICHE_RICORDATE)
-        : [],
       // Assenti nei file di prima della 0.27.0: si parte vuoti, senza avviso.
       // Una battuta illeggibile sparisce da sola: è memoria, non stato.
       dialogo: Array.isArray(o.dialogo)
@@ -1272,11 +801,6 @@ export function parseAutopilota(raw: unknown): {
             })
           }
         : {}),
-      ...(leggiRichieste(o.richieste).length > 0 ? { richieste: leggiRichieste(o.richieste) } : {}),
-      ...(leggiPromesse(o.promesse).length > 0 ? { promesse: leggiPromesse(o.promesse) } : {}),
-      ...(Array.isArray(o.risposteInViaggio) && leggiRisposteInViaggio(o.risposteInViaggio).length > 0
-        ? { risposteInViaggio: leggiRisposteInViaggio(o.risposteInViaggio) }
-        : {}),
       ...(Array.isArray(o.consegnatiDi)
         ? {
             consegnatiDi: o.consegnatiDi.flatMap((v: unknown) => {
@@ -1288,12 +812,9 @@ export function parseAutopilota(raw: unknown): {
             }).slice(-CONSEGNATI_RICORDATI_AUTOPILOTA)
           }
         : {}),
-      ...(Array.isArray(o.releaseUscite) && leggiReleaseUscite(o.releaseUscite).length > 0 ? { releaseUscite: leggiReleaseUscite(o.releaseUscite) } : {}),
       ...(Array.isArray(o.adottate) ? { adottate: leggiAdottate(o.adottate) } : {}),
       ...(Array.isArray(o.perAdottate) ? { perAdottate: leggiPerAdottate(o.perAdottate) } : {}),
-      ...(typeof o.chatTolte === 'number' && o.chatTolte > 0 ? { chatTolte: Math.floor(o.chatTolte) } : {}),
-      ...(o.unico === true ? { unico: true as const } : {}),
-      ...(stringaNonVuota(o.passatoA) !== undefined ? { passatoA: o.passatoA as string } : {})
+      ...(typeof o.chatTolte === 'number' && o.chatTolte > 0 ? { chatTolte: Math.floor(o.chatTolte) } : {})
     },
     scartati
   }
@@ -1343,10 +864,10 @@ export function eFermo(a: Pick<Autopilota, 'stato'>): boolean {
  * banda e negli elenchi. Le notifiche restano per ciò che aspetta lui: una
  * domanda, un lavoro finito, un errore che blocca.
  */
-export function riparteDaSolo(a: Pick<Autopilota, 'stato' | 'pausaLimitiFinoA' | 'fermatoPerAggiornamento'>): boolean {
+export function riparteDaSolo(a: Pick<Autopilota, 'stato' | 'fermatoPerAggiornamento'>): boolean {
   // Solo un «sospeso» riparte da solo: un «fallito» con una pausa rimasta
   // addosso non riparte mai, e deve avvisare (la revisione).
-  return a.stato === 'sospeso' && (a.pausaLimitiFinoA !== undefined || a.fermatoPerAggiornamento === true)
+  return a.stato === 'sospeso' && a.fermatoPerAggiornamento === true
 }
 
 /**

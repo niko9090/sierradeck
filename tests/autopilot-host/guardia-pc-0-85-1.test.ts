@@ -10,10 +10,10 @@ import {
 import { conTurni, creaTurni } from '../../src/autopilot-host/turni-criteri'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
-import { indicatoreDi, type PcCarico } from '@shared/indicatore-autopilota'
-import { puntoDi } from '@shared/punto-autopilota'
+import type { PcCarico } from '@shared/indicatore-autopilota'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import type { MisuraPc } from '@shared/posti-chat'
 import { attendi } from '../setup/attendi'
@@ -194,26 +194,10 @@ describe('i comandi pesanti delle chat', () => {
   })
 })
 
-describe('nell’indicatore, su PC, pagina e app', () => {
-  it('«PC carico: aspetto» in giallo, con il programma che consuma di più', () => {
-    const a: Autopilota & { pcCarico: PcCarico } = {
-      ...nuovoAutopilota({ id: 'ap-a', nome: 'a', obiettivo: 'o', cwd: 'C:/p', criteri: [], iniziatoIl: iso(ORA - 3_600_000) }),
-      stato: 'lavoro',
-      pcCarico: { motivo: 'memoria libera al 9% (1500 MB su 16384)', dal: iso(ORA - 60_000), programma: 'programma-esterno (3000 MB)' }
-    }
-    const ind = indicatoreDi(a, ORA)
-    expect(ind.andamento).toMatchObject({ livello: 'lento', colore: 'ambra' })
-    expect(ind.andamento.testo).toMatch(/^PC carico: aspetto — memoria libera al 9% \(1500 MB su 16384\); consuma di più programma-esterno \(3000 MB\) · /)
-    expect(puntoDi(a, ORA).indicatore.andamento.testo).toMatch(/^PC carico: aspetto/)
-    expect(ind.aiuto).toContain('PC carico')
-  })
-})
-
 describe('il servizio con la guardia', () => {
   let server: ServerAutopiloti | undefined
   let porta = 0
   let archivio: Archivio
-  let avviate: string[]
   let stato: PcCarico | undefined
   let ora = ORA
 
@@ -221,19 +205,16 @@ describe('il servizio con la guardia', () => {
 
   async function ambiente(): Promise<void> {
     archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-guardia-')))
-    avviate = []
     ora = ORA
     const valuta = vi.fn(() => stato)
     server = creaServer({
+      ...unicoFinto(archivio),
       archivio,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-      interroga: () => Promise.resolve({ testo: '{}', sessionId: 'sup' }),
-      avviaLavoro: (a, _m, c) => { avviate.push(`${a.id}::${c?.id ?? '-'}`); return Promise.resolve() },
-      fermaLavoro: () => {},
+      avviaLavoro: () => Promise.resolve(),
       avvisa: () => Promise.resolve(),
       domande: creaRegistroDomande({ adesso: () => ORA }),
       scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
       adesso: () => iso(ora),
       misuraPc: () => pc(10),
       guardiaPc: { valuta, stato: () => stato, attendi: () => Promise.resolve() }
@@ -247,48 +228,15 @@ describe('il servizio con la guardia', () => {
     return r.json()
   }
   const chat = (id: string): ChatGovernata => ({ id, compito: `compito ${id}`, stato: 'lavoro', cicli: 1, sessionId: `s-${id}` })
-  const conCompiti = (id: string, n: number, chats: ChatGovernata[] = []): Autopilota => ({
-    ...nuovoAutopilota({ id, nome: id, obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: iso(ORA - 3_600_000) }),
-    stato: 'lavoro', ultimoEvento: iso(ORA), ramoBase: 'main', tettoChat: 8, chats,
-    compitiDaFare: Array.from({ length: n }, (_, i) => `pezzo ${i + 1}`)
-  })
-
-  it('PC carico: nessuna chat nuova, chi lavora continua; nell’elenco c’è il motivo', async () => {
-    stato = { motivo: 'processore al 100% da 2 min', dal: iso(ORA - 120_000), programma: 'programma-esterno (70% del processore)' }
-    await ambiente()
-    archivio.scrivi(conCompiti('ap-a', 3, [chat('c-1')]))
-    server!.controllaChatFerme()
-    await new Promise((r) => setTimeout(r, 80))
-    expect(avviate).toEqual([])
-    expect(archivio.leggi('ap-a')!.chats.filter((c) => c.stato === 'lavoro')).toHaveLength(1)
-    const elenco = await chiama('GET', '/autopiloti')
-    expect(elenco[0].pcCarico).toMatchObject({ motivo: 'processore al 100% da 2 min', programma: 'programma-esterno (70% del processore)' })
-
-    // Il PC si libera: le chat partono.
-    stato = undefined
-    server!.controllaChatFerme()
-    await attendi(() => avviate.length >= 3)
-    expect(avviate.length).toBeGreaterThanOrEqual(3)
-    expect((await chiama('GET', '/autopiloti'))[0].pcCarico).toBeUndefined()
-  })
-
-  it('mai fermo: senza nessuna chat al lavoro, dopo l’attesa massima se ne apre una lo stesso', async () => {
-    stato = { motivo: 'memoria libera al 5% (800 MB su 16384)', dal: iso(ORA - 2 * 60_000) }
-    await ambiente()
-    archivio.scrivi(conCompiti('ap-a', 2))
-    server!.controllaChatFerme()
-    await new Promise((r) => setTimeout(r, 80))
-    expect(avviate).toEqual([])
-    ora = ORA + ATTESA_MASSIMA_MS
-    server!.controllaChatFerme()
-    await attendi(() => avviate.length >= 1)
-    expect(avviate.length).toBeGreaterThanOrEqual(1)
+  const conChat = (id: string, chats: ChatGovernata[] = []): Autopilota => ({
+    ...nuovoAutopilota({ id, nome: id, obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: iso(ORA - 3_600_000) }),
+    stato: 'lavoro', ultimoEvento: iso(ORA), ramoBase: 'main', tettoChat: 8, chats
   })
 
   it('una chat che lancia la suite completa col PC carico riceve un «no» con il motivo', async () => {
     stato = { motivo: 'processore al 99% da 5 min', dal: iso(ORA - 300_000) }
     await ambiente()
-    archivio.scrivi(conCompiti('ap-a', 0, [chat('c-1')]))
+    archivio.scrivi(conChat('ap-a', [chat('c-1')]))
     const r = await chiama('POST', '/hook/pretool?ap=ap-a&chat=c-1', { tool_name: 'Bash', tool_input: { command: 'npx vitest run' }, cwd: 'C:\\Progetti\\Esempio' })
     expect(r.hookSpecificOutput).toMatchObject({ permissionDecision: 'deny' })
     expect(r.hookSpecificOutput.permissionDecisionReason).toContain('PC carico: aspetto')

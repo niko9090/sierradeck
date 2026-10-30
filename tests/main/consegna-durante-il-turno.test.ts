@@ -6,8 +6,6 @@ import { Terminal } from '@xterm/headless'
 import type { HostToCore } from '../../src/shared/protocol'
 import { creaSottofondo, type TerminaleMuto } from '../../src/main/sottofondo'
 import { leggiConsegne } from '../../src/main/autopilota-consegne'
-import { chatConCodaVecchia, IN_CODA_AL_LAVORO_MS } from '../../src/autopilot-host/guardiano'
-import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 /**
  * «STO SCRIVENDO NEGLI AUTOPILOTI MA NON RIESCONO AD IMPARTIRE ORDINI ALLE
@@ -16,23 +14,6 @@ import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
  * due minuti si scrive anche durante il turno. Provato dal vero il 12/10 su una
  * chat di prova: Claude Code non interrompe quello che fa e lo legge appena può.
  */
-const ORA = Date.parse('2026-10-12T20:00:00.000Z')
-const conCoda = (minuti: number, stato: Autopilota['stato'] = 'lavoro'): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'x', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-12T19:00:00.000Z' }),
-  stato,
-  daConsegnare: [{ id: 'm-1', quando: new Date(ORA - minuti * 60_000).toISOString(), testo: 'fai anche questo', chats: ['ap-1'] }]
-})
-
-describe('quali chat ricevono la coda durante il turno', () => {
-  it('un messaggio in coda da più di due minuti a una chat che lavora', () => {
-    expect(chatConCodaVecchia(conCoda(3), ORA, IN_CODA_AL_LAVORO_MS, new Set())).toEqual([{ da: 3 * 60_000 }])
-  })
-  it('non prima dei due minuti, non a una chat già ferma (la porta il giro delle ferme), non a un autopilota fermo', () => {
-    expect(chatConCodaVecchia(conCoda(1), ORA, IN_CODA_AL_LAVORO_MS, new Set())).toEqual([])
-    expect(chatConCodaVecchia(conCoda(3), ORA, IN_CODA_AL_LAVORO_MS, new Set(['ap-1']))).toEqual([])
-    expect(chatConCodaVecchia(conCoda(3, 'sospeso'), ORA, IN_CODA_AL_LAVORO_MS, new Set())).toEqual([])
-  })
-})
 
 describe('il segno «anche al lavoro» arriva al Gestore', () => {
   it('leggiConsegne lo tiene', () => {

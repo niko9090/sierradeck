@@ -25,16 +25,6 @@ const vai = (r: ReturnType<typeof rotteClient>, percorso: string, corpo?: object
   r({ metodo: corpo === undefined ? 'GET' : 'POST', percorso, corpo, dispositivo: 'tel-1' })
 
 describe('le mancanze della parità, dal telefono', () => {
-  it('archiviare: solo un autopilota fermo; e si toglie dall’archivio', async () => {
-    const fatti: string[] = []
-    const r = base({ archiviaAutopilota: async (id: string, a: boolean) => { fatti.push(`${id}:${a}`) } })
-    expect((await vai(r, '/api/autopilota/archivia', { autopilota: 'ap-1' })).stato).toBe(200)
-    expect(await vai(r, '/api/autopilota/archivia', { autopilota: 'ap-2' })).toMatchObject({ stato: 409 })
-    expect((await vai(r, '/api/autopilota/archivia', { autopilota: 'ap-1', archivia: false })).stato).toBe(200)
-    expect((await vai(r, '/api/autopilota/archivia', { autopilota: 'ap-9' })).stato).toBe(404)
-    expect(fatti).toEqual(['ap-1:true', 'ap-1:false'])
-  })
-
   it('il PIN: senza PIN sul computer lo dice; proteggere sempre; togliere solo a chat aperta', async () => {
     const fatti: string[] = []
     let impostato = false

@@ -3,6 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -33,18 +34,16 @@ function banco(): ServerAutopiloti {
   avvisi = []
   orologio = Date.parse('2026-08-30T09:00:00.000Z')
   return creaServer({
+    ...unicoFinto(archivio),
     archivio,
     esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-    interroga: () => Promise.resolve({ testo: '{"azione": "finito"}' }),
     avviaLavoro: (a, _messaggio, chat) => {
       ripartite.push({ id: a.id, ...(chat !== undefined ? { chat: chat.id } : {}) })
       return Promise.resolve()
     },
-    fermaLavoro: () => {},
     avvisa: (tipo) => { avvisi.push(tipo); return Promise.resolve() },
     domande: creaRegistroDomande({ adesso: () => Date.now() }),
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     adesso: ora
   })
 }
@@ -56,12 +55,12 @@ function alLavoro(over: Partial<Autopilota> = {}): Autopilota {
       nome: 'Notte',
       obiettivo: 'Fai passare i test',
       cwd: process.cwd(),
-      criteri: [{ descrizione: 'test verdi', comando: 'npm test', soddisfatto: false }],
       iniziatoIl: '2026-08-30T01:00:00.000Z'
     }),
     stato: 'lavoro',
     cicli: 5,
     sessionId: 's-vecchia',
+    chats: [{ id: 'c-1', compito: 'i test', stato: 'lavoro', cicli: 5, sessionId: 's-c-1' }],
     ...over
   }
 }
@@ -90,15 +89,14 @@ describe('quando il Gestore torna su', () => {
     const { stato, dati } = await chiama('/gestore-avviato')
     expect(stato).toBe(200)
     expect(dati.ripresi).toBe(1)
-    expect(ripartite).toEqual([{ id: 'ap-notte' }])
+    expect(ripartite).toEqual([{ id: 'ap-notte', chat: 'c-1' }])
     // 0.81.0: ripreso dopo un riavvio non chiede niente a Nicholas: nessun avviso.
     expect(avvisi).not.toContain('ripreso')
   })
 
-  it('non tocca chi era stato fermato da qualcuno', async () => {
-    // Sospeso, finito, fallito: c'e' una decisione dietro, e riprenderli
-    // vorrebbe dire disfarla.
-    archivio.scrivi(alLavoro({ id: 'ap-sospeso', stato: 'sospeso' }))
+  it('non tocca le chat che hanno finito', async () => {
+    // Finita o chiusa: c'e' una decisione dietro, e riprenderle vorrebbe dire disfarla.
+    archivio.scrivi(alLavoro({ chats: [{ id: 'c-1', compito: 'i test', stato: 'finita', cicli: 5, sessionId: 's-c-1' }] }))
     const { dati } = await chiama('/gestore-avviato')
     expect(dati.ripresi).toBe(0)
     expect(ripartite).toEqual([])

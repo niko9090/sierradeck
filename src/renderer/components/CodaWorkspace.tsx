@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { PAROLA_STATO_CODA, unite, type Richiesta, type StatoCoda, type VistaCoda } from '@shared/coda-richieste'
-import { giornoDi } from '@shared/richieste-nicholas'
+import { giornoDi } from '@shared/coda-richieste'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
 

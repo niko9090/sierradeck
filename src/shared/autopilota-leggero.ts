@@ -9,28 +9,28 @@ import type { Autopilota } from './autopilota'
  * diverse. Il PC restava occupato per mostrare un pallino e una riga.
  *
  * Le viste d'elenco (pannello, LED, piastrelle, «Dal vivo», la pagina del
- * telefono) guardano solo la **coda** delle tre liste lunghe: l'ultima
- * decisione, l'ultima battuta, l'ultima modifica. L'elenco leggero tiene
+ * telefono) guardano solo la **coda** delle liste lunghe: l'ultima
+ * decisione, l'ultima battuta. L'elenco leggero tiene
  * quella coda e dice in `troncati` quanto erano lunghe davvero; la storia
  * intera la chiede solo chi la mostra (la conversazione, il diario, il Punto),
  * con `GET /autopiloti/:id`.
  */
 
 /** Quante voci restano in coda nell'elenco leggero. */
-export const CODA_LEGGERA = { decisioni: 40, dialogo: 20, modifiche: 1 } as const
+export const CODA_LEGGERA = { decisioni: 40, dialogo: 20 } as const
 
 /** Quanto erano lunghe le liste prima di tagliarle: c'è solo se qualcosa è stato tagliato. */
-export type Troncati = { decisioni: number; dialogo: number; modifiche: number }
+export type Troncati = { decisioni: number; dialogo: number }
 
 export type AutopilotaLeggero = Autopilota & { troncati?: Troncati }
 
 /** Le liste tagliate nell'elenco leggero: le stesse che `conIntero` rimette. */
-const LISTE = ['decisioni', 'dialogo', 'modifiche'] as const
+const LISTE = ['decisioni', 'dialogo'] as const
 
 /**
- * L'autopilota per un elenco: le tre liste lunghe ridotte alla coda.
+ * L'autopilota per un elenco: le liste lunghe ridotte alla coda.
  *
- * Tutto il resto è com'è (stato, chats, criteri, messaggi in coda…): le viste
+ * Tutto il resto è com'è (stato, chats, messaggi in coda…): le viste
  * d'elenco non devono accorgersi di niente. Se niente è da tagliare torna
  * l'oggetto stesso, senza `troncati`.
  */
@@ -41,8 +41,7 @@ export function autopilotaLeggero(a: Autopilota): AutopilotaLeggero {
     ...a,
     decisioni: (a.decisioni ?? []).slice(-CODA_LEGGERA.decisioni),
     dialogo: (a.dialogo ?? []).slice(-CODA_LEGGERA.dialogo),
-    modifiche: (a.modifiche ?? []).slice(-CODA_LEGGERA.modifiche),
-    troncati: { decisioni: a.decisioni?.length ?? 0, dialogo: a.dialogo?.length ?? 0, modifiche: a.modifiche?.length ?? 0 }
+    troncati: { decisioni: a.decisioni?.length ?? 0, dialogo: a.dialogo?.length ?? 0 }
   }
 }
 
@@ -98,8 +97,8 @@ export function firmaStoria(a: Autopilota): string {
     return x === undefined ? '' : JSON.stringify(x)
   }
   return [
-    t?.decisioni ?? a.decisioni?.length ?? 0, t?.dialogo ?? a.dialogo?.length ?? 0, t?.modifiche ?? a.modifiche?.length ?? 0,
-    ultima(a.decisioni), ultima(a.dialogo), ultima(a.modifiche)
+    t?.decisioni ?? a.decisioni?.length ?? 0, t?.dialogo ?? a.dialogo?.length ?? 0,
+    ultima(a.decisioni), ultima(a.dialogo)
   ].join('|')
 }
 

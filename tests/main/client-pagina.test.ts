@@ -604,27 +604,48 @@ describe('capire cosa combina un autopilota', () => {
     expect(v).toContain("['file', 'File']")
   })
 
-  it('il via sta nella chat, quando si e preparato', () => {
+  it('l’autopilota unico: niente via, niente obiettivo, criteri, compiti e istruzioni (0.86.x)', () => {
     const v = vista()
-    expect(v).toContain("b.tono === 'pronto'")
-    expect(v).toContain('vaiAp(this.dataset.ap)')
+    expect(v).not.toContain('vaiAp(')
+    expect(v).not.toContain('riprendiAp(')
+    for (const via of ['Gli hai chiesto', 'Finisce quando', 'Prima fa', 'Sta ragionando', 'Istruzioni']) expect(v, via).not.toContain(via)
+    expect(v).toContain('apriTabAp(this.dataset.tab)')
+    expect(v).toContain("['avanzamento', 'Avanzamento']")
+    expect(v).toContain('avanzamentoApHtml(apAvanzamento)')
+    for (const rotta of ['vai', 'ferma', 'riprendi', 'elimina', 'archivia', 'sposta', 'sottofondo', 'riavvio', 'istruzioni', 'correggi', 'manda-adesso']) {
+      expect(script, rotta).not.toContain(`'/api/autopilota/${rotta}'`)
+    }
+    expect(script).toContain("chiediAp('/api/autopilota/avanzamento'")
   })
 
-  it('le linguette: obiettivo con le tue parole accanto alle sue, criteri con la misura, compiti, decisioni', () => {
-    const v = vista()
-    expect(v).toContain('apriTabAp(this.dataset.tab)')
-    expect(v).toContain('Gli hai chiesto')
-    expect(v).toContain('Ha capito così')
-    expect(v).toContain('a.obiettivoTuo')
-    expect(v).toContain('raggiunto alle')
-    expect(v).toContain('c.raggiuntoIl')
-    expect(v).toContain('prova-criterio')
-    expect(v).toContain('Finisce quando')
-    expect(v).toContain('Prima fa')
-    expect(v).toContain('Sta ragionando')
-    // E senza la sigla interna con cui il servizio marca le proprie decisioni:
-    // letta da fuori, «supervisore →» sembra un errore.
-    expect(v).toContain('senzaSigla')
+  it('l’avanzamento: la percentuale, le richieste con stato e percentuale, gli specialisti', () => {
+    const estrai = (nome: string): string => {
+      const inizio = script.indexOf(`function ${nome}(`)
+      let profondita = 0
+      for (let i = script.indexOf('{', inizio); i < script.length; i++) {
+        if (script[i] === '{') profondita++
+        else if (script[i] === '}' && --profondita === 0) return script.slice(inizio, i + 1)
+      }
+      throw new Error('non si chiude')
+    }
+    const html = new Function('esc', `${estrai('percentoAvanzamento')}
+${estrai('avanzamentoApHtml')}
+return avanzamentoApHtml`)((x: string) => x) as (v: unknown) => string
+    const v = {
+      orchestratore: { percento: 42, pensa: true, piano: { totale: 5, uniti: 2 }, specialisti: [{ id: 's1', ruolo: 'sviluppatore', compito: 'il lettore CSV', stato: 'lavora', durata: '3 min' }] },
+      coda: { richieste: [{ id: 'r-1', titolo: 'Leggere i CSV', stato: 'in-corso', percento: 40 }, { id: 'r-2', titolo: 'Esportare', stato: 'in-coda', percento: 0 }] }
+    }
+    const h = html(v)
+    expect(h).toContain('<b>42%</b>')
+    expect(h).toContain('2 di 5 compiti uniti')
+    expect(h).toContain('Leggere i CSV')
+    expect(h).toContain('in corso · 40%')
+    expect(h).toContain('in coda · 0%')
+    expect(h).toContain('sviluppatore')
+    expect(h).toContain('il lettore CSV')
+    expect(html(null)).toContain('Leggo')
+    expect(html({ orchestratore: null, coda: null })).toContain('Nessuna richiesta')
+    expect(html({ errore: 'giù' })).toContain('giù')
   })
 
   it('e la posta per un altro PC, come nel pannello Account', () => {
@@ -664,23 +685,6 @@ describe('quando il computer tace, nessun LED resta verde', () => {
     expect(voci.slice(0, 400)).toContain('ledChat(v.viva)')
     // E non resta nessun LED scritto a mano come sempre verde.
     expect(script).not.toContain('<span class="led lavoro"></span>')
-  })
-})
-
-describe('la sigla interna non arriva a chi legge', () => {
-  it('toglie il marcatore davanti a una decisione', () => {
-    // Il servizio marca le proprie decisioni con «supervisore →» per
-    // ritrovarle: e' una sigla interna, e letta da fuori sembra un errore.
-    // La prima versione usava una regex, e il template si e' mangiato le barre:
-    // non falliva, smetteva di trovare — in silenzio.
-    const inizio = script.indexOf('const senzaSigla =')
-    expect(inizio).toBeGreaterThan(-1)
-    const corpo = script.slice(inizio, script.indexOf('const decisioni =', inizio))
-    const senzaSigla = new Function(`${corpo}\nreturn senzaSigla`)() as (c: string) => string
-    expect(senzaSigla('supervisore → prosegui: mancano due test')).toBe('prosegui: mancano due test')
-    // Una freccia dentro il testo vero non si tocca.
-    expect(senzaSigla('ho spostato il file da qui → a lì')).toBe('ho spostato il file da qui → a lì')
-    expect(senzaSigla('')).toBe('')
   })
 })
 
@@ -827,10 +831,10 @@ describe('analisi del telefono, 30/09', () => {
   })
 
   it('nessun onclick con un id fuori da escJs o da un data-attributo', () => {
-    // L'unico rimasto dopo la correzione dell'XSS: «Riprendi» in Adesso.
+    // Dopo la correzione dell'XSS gli id passano dai data-attributi.
     const barra = String.fromCharCode(92)
-    expect(script).not.toContain('riprendiAp(' + barra + "'' + esc(")
-    expect(script).toContain('onclick="riprendiAp(this.dataset.ap)"')
+    expect(script).not.toContain('guardaAp(' + barra + "'' + esc(")
+    expect(script).toContain('onclick="dialogaAp(this.dataset.ap)"')
   })
 
   it('il 401 ha la sua strada e non finisce nella nota «Non sono riuscito»', () => {
@@ -993,9 +997,11 @@ describe('la pagina: linguette Domande e File dell autopilota (0.38.0)', () => {
     const f = new Function(`${estrai('richiestaSchedaAp')}\nreturn richiestaSchedaAp`)() as (d: unknown, a: string, t: string) => unknown
     const domanda = { chiave: 'd:d1', tipo: 'domanda' as const, idDomanda: 'd1', testo: 'x', opzioni: [], origine: 'lavoro' as const }
     const via = { chiave: 'via:a', tipo: 'via' as const, testo: 'via?', opzioni: ['Vai'], origine: 'via' as const }
-    for (const [d, t] of [[domanda, 'sì'], [via, 'Vai'], [via, 'prima cambia x']] as const) {
+    for (const [d, t] of [[domanda, 'sì'], [via, 'prima cambia x']] as const) {
       expect(f(d, 'ap-1', t)).toEqual(richiestaScheda(d, 'ap-1', t))
     }
+    // L'autopilota unico (0.86.x): non c'è più il via, «Vai» è un messaggio come gli altri.
+    expect(f(via, 'ap-1', 'Vai')).toEqual({ percorso: '/api/autopilota/dialogo', corpo: { autopilota: 'ap-1', testo: 'Vai' } })
   })
   it('la linguetta File mostra l elenco per chat e il diff colorato', () => {
     const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''

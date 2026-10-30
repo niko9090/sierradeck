@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { Autopilota } from '@shared/autopilota'
 import { haDomandaAperta } from '@shared/chat-autopilota'
-import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo, type StatoDalVivo, type StatoMessaggio } from '@shared/stato-dal-vivo'
+import { COLORE_DAL_VIVO, messaggiCompatti, oraBreve, statoAutopilotaDalVivo, statoMessaggi, type EtichettaDalVivo } from '@shared/stato-dal-vivo'
 import type { Colore } from '@shared/stato-vista'
 import { Aiuto } from './Aiuto'
-import { AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
-import { puntoDi } from '@shared/punto-autopilota'
+import { adessoDi, AIUTO_ADESSO, COLORE_ADESSO, type SegniDalVivo } from '@shared/adesso'
+import { COLORE_SEGNALE, SIMBOLO_SEGNALE, type ChatNelPunto } from '@shared/adesso'
+import { compitoBreve, nomeChi, senzaSigle } from '@shared/chat-autopilota'
+import { parolaSegnale } from '@shared/segnali-flotta'
 
 /**
  * Si vede sempre chi lavora (0.69.0). Nicholas, 12/10: «io voglio sempre vedere
@@ -67,26 +69,19 @@ export function RigaDalVivo({ autopilota: a, senzaStato = false }: {
 /**
  * I messaggi verso la chat (0.72.1): una spunta ✓ per ogni messaggio arrivato
  * (l'ora e il testo nel tooltip), un puntino per quello in consegna, e **una
- * riga sola**, solo se qualcosa è fermo: «in attesa da N min» con «Manda adesso».
+ * riga sola**, solo se qualcosa è fermo: «in attesa da N min».
  */
-function MessaggiCompattiVista({ messaggi, onManda, inCorso, esito, aiuto }: {
-  messaggi: StatoMessaggio[]
-  onManda: () => void
-  inCorso: boolean
-  esito?: string | undefined
-  aiuto?: boolean
-}): React.JSX.Element | null {
-  const c = messaggiCompatti(messaggi)
+export function MessaggiVersoLaChat({ autopilota: a }: { autopilota: Autopilota }): React.JSX.Element | null {
+  const ora = useOra()
+  const c = messaggiCompatti(statoMessaggi(a, ora, oraBreve))
   if (c.segni.length === 0 && c.fermo === undefined) return null
   return (
     <div className="messaggi-chat" style={{ margin: '6px 0', fontSize: 'var(--t1)' }}>
       <div className="messaggi-segni">
         <span className="serigrafia con-aiuto" style={{ marginRight: 4 }}>Messaggi per la chat
-          {aiuto === true ? (
-            <Aiuto di="Messaggi per la chat">
-              Ogni ✓ è un messaggio tuo o dell’autopilota arrivato alla chat: passaci sopra per l’ora e il testo. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti. Se uno è fermo compare la sua riga con «Manda adesso», che non aspetta i due minuti.
-            </Aiuto>
-          ) : null}
+          <Aiuto di="Messaggi per la chat">
+            Ogni ✓ è un messaggio tuo o dell’autopilota arrivato alla chat: passaci sopra per l’ora e il testo. Entrano alla fine del turno; se aspettano più di due minuti se ne scrive uno anche durante il turno, mai più di uno: gli altri partono alla fine, uniti.
+          </Aiuto>
         </span>
         {c.segni.map((s) => (
           <span key={s.id} className={`messaggi-segni__segno${s.tipo === 'in consegna' ? ' messaggi-segni__segno--volo' : ''}`} title={s.titolo} aria-label={s.titolo}>
@@ -98,53 +93,35 @@ function MessaggiCompattiVista({ messaggi, onManda, inCorso, esito, aiuto }: {
         <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', marginTop: 4 }}>
           <span style={{ color: 'var(--ambra)', whiteSpace: 'nowrap' }}>{c.fermo.dettaglio}{c.fermo.quanti > 1 ? ` · ${c.fermo.quanti} messaggi` : ''}</span>
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.fermo.testo}>{c.fermo.testo}</span>
-          {c.fermo.mandaAdesso ? <button className="tasto tasto--mini" disabled={inCorso} onClick={onManda}>Manda adesso</button> : null}
         </div>
       ) : null}
-      {esito !== undefined ? <div className="misura">{esito}</div> : null}
     </div>
   )
 }
 
-/** I messaggi verso la chat, con il loro stato vero e «Manda adesso». */
-export function MessaggiVersoLaChat({ autopilota: a, onCambiato }: { autopilota: Autopilota; onCambiato?: () => void }): React.JSX.Element | null {
-  const ora = useOra()
-  const [esito, setEsito] = useState<string | undefined>(undefined)
-  const [inCorso, setInCorso] = useState(false)
-  return (
-    <MessaggiCompattiVista
-      messaggi={statoMessaggi(a, ora, oraBreve)}
-      inCorso={inCorso}
-      esito={esito}
-      aiuto
-      onManda={() => {
-        setInCorso(true)
-        void window.gestore.autopilota.mandaAdesso(a.id)
-          .then((r) => { setEsito(r.mandate > 0 ? 'Mandato: entra nella chat adesso.' : (r.messaggio ?? 'Niente da mandare.')); onCambiato?.() })
-          .catch((e: unknown) => setEsito(String(e)))
-          .finally(() => setInCorso(false))
-      }}
-    />
-  )
-}
-
-/** Lo stato dal vivo già calcolato dal PC dove gira l'autopilota (altri PC). */
-export function RigaDalVivoPronta({ dalVivo: s }: { dalVivo: StatoDalVivo | undefined }): React.JSX.Element | null {
-  if (s === undefined) return null
-  return (
-    <span className="dal-vivo" style={{ display: 'block', fontSize: 'var(--t1)' }}>
-      <b style={{ color: (COLORE_DAL_VIVO[s.etichetta] !== undefined ? COLORE(s.etichetta) : 'inherit') }}>{s.etichetta}</b>
-      {s.da !== '' ? <span className="misura"> · da {s.da}</span> : null}
-      {s.senzaSegni !== undefined ? <span style={{ color: 'var(--ambra)' }}> · ⚠ {s.senzaSegni}</span> : null}
-      {s.ultimaAzione !== '' ? <span className="misura" title={s.ultimaAzione} style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.ultimaAzione}</span> : null}
-    </span>
-  )
-}
-
-/** I messaggi verso la chat già calcolati dal PC remoto, con «Manda adesso» passato da chi li mostra. */
-export function MessaggiPronti({ messaggi, onManda, inCorso }: { messaggi: StatoMessaggio[] | undefined; onManda: () => void; inCorso: boolean }): React.JSX.Element | null {
-  if (messaggi === undefined || messaggi.length === 0) return null
-  return <MessaggiCompattiVista messaggi={messaggi} onManda={onManda} inCorso={inCorso} />
+/** Le righe di `adessoDi` con il nome di chi lavora, senza sigle e con il segnale della chat. */
+function righeAdesso(a: Autopilota & SegniDalVivo, ora: number): { chat: ChatNelPunto[]; finite: number } {
+  const adesso = adessoDi(a, ora)
+  const chat = adesso.righe.map((r): ChatNelPunto => {
+    const c = a.chats.find((x) => x.id === r.id)
+    const s = c?.segnale
+    let parola = ''
+    if (s !== undefined) {
+      const sorella = s.tipo === 'aspetto' && s.di !== undefined ? a.chats.find((x) => x.id === s.di) : undefined
+      parola = s.tipo === 'aspetto' && s.di !== undefined
+        ? (sorella !== undefined ? `aspetta ${nomeChi(sorella)} («${senzaSigle(compitoBreve(sorella.compito, 40))}»)` : 'aspetta un’altra chat')
+        : senzaSigle(parolaSegnale(s))
+    }
+    return {
+      ...r,
+      chi: c !== undefined ? nomeChi(c) : r.chi,
+      compito: senzaSigle(r.compito),
+      testo: senzaSigle(r.testo),
+      colore: COLORE_ADESSO[r.tono],
+      ...(s !== undefined ? { segnale: { tipo: s.tipo, parola, colore: COLORE_SEGNALE[s.tipo], simbolo: SIMBOLO_SEGNALE[s.tipo] } } : {})
+    }
+  })
+  return { chat, finite: adesso.finite }
 }
 
 /**
@@ -159,9 +136,10 @@ export function AdessoAutopilota({ autopilota: a, dentro = false, soloFerme = fa
   soloFerme?: boolean
 }): React.JSX.Element | null {
   const ora = useOra()
-  // Le righe del Punto (0.84.3, collaudo c-96 D1): le stesse di `adessoDi`, senza
-  // sigle e con il segnale di ogni chat, come sulla pagina e nell'app.
-  const tutto = puntoDi(a as Autopilota & SegniDalVivo, ora)
+  // Le righe di `adessoDi` (0.84.3, collaudo c-96 D1), senza sigle e con il
+  // segnale di ogni chat, come sulla pagina e nell'app. Dal 30/10 non passano
+  // più dal Punto: il piano dell'autopilota per obiettivo non c'è più.
+  const tutto = righeAdesso(a as Autopilota & SegniDalVivo, ora)
   const righe = soloFerme ? tutto.chat.filter((r) => r.tono === 'ferma') : tutto.chat
   const finite = soloFerme ? 0 : tutto.finite
   if (righe.length === 0 && finite === 0) return null

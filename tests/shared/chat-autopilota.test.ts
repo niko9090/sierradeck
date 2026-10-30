@@ -9,7 +9,7 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
       nome: 'Lettore',
       obiettivo: 'Sistema il lettore',
       cwd: 'C:\\lavoro\\gestore',
-      criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }],
+      
       iniziatoIl: '2026-09-18T08:00:00.000Z'
     }),
     ...over
@@ -17,29 +17,6 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
 }
 
 describe('conversazione', () => {
-  it('comincia con quello che gli hai chiesto, con le tue parole', () => {
-    const a = ap({ obiettivoTuo: 'sistemami il lettore', obiettivo: 'Correggere il parser del lettore' })
-    const prima = conversazione(a)[0]
-    expect(prima).toMatchObject({ da: 'tu', testo: 'sistemami il lettore' })
-  })
-
-  it('l intervista si legge domanda e risposta, nell ordine in cui e successa', () => {
-    const a = ap({
-      intervista: [
-        { domanda: 'Quale suite di test?', risposta: 'vitest' },
-        { domanda: 'Anche il typecheck?', risposta: 'sì' }
-      ]
-    })
-    const b = conversazione(a).slice(1, 5)
-    expect(b.map((x) => [x.da, x.testo])).toEqual([
-      ['lui', 'Quale suite di test?'],
-      ['tu', 'Hai risposto: vitest'],
-      ['lui', 'Anche il typecheck?'],
-      ['tu', 'Hai risposto: sì']
-    ])
-    expect(b[0]?.tono).toBe('domanda')
-  })
-
   it('il dialogo, le sue decisioni e le tue risposte stanno in un flusso solo, in ordine di tempo', () => {
     // Prima erano tre posti: la scheda per il dialogo, il diario per le
     // decisioni, il riquadro ambra per la domanda. Qui si legge come una chat.
@@ -53,7 +30,7 @@ describe('conversazione', () => {
         { quando: '2026-09-18T08:22:00.000Z', da: 'lui', testo: 'Va bene, cambio il criterio.', esito: 'cambio applicato' }
       ]
     })
-    const b = conversazione(a).slice(1)
+    const b = conversazione(a)
     expect(b.map((x) => x.da)).toEqual(['nota', 'tu', 'lui', 'tu'])
     expect(b[0]).toMatchObject({ tono: 'decisione', testo: 'Ha deciso: prosegui' })
     expect(b[2]).toMatchObject({ testo: 'Va bene, cambio il criterio.', dettaglio: 'cambio applicato' })
@@ -75,12 +52,12 @@ describe('conversazione', () => {
   })
 
   it('anche in preparazione una domanda e una domanda', () => {
-    const a = ap({ stato: 'intervista', motivoSospensione: 'Quale branch?', criteri: [] })
+    const a = ap({ stato: 'intervista', motivoSospensione: 'Quale branch?'})
     expect(conversazione(a).some((b) => b.testo === 'Quale branch?')).toBe(false)
     expect(conversazione(a).at(-1)?.testo).toContain('linguetta «Domande»')
     expect(haDomandaAperta(a)).toBe(true)
     // Sta guardando il progetto: non chiede niente.
-    expect(haDomandaAperta(ap({ stato: 'intervista', criteri: [] }))).toBe(false)
+    expect(haDomandaAperta(ap({ stato: 'intervista'}))).toBe(false)
   })
 
   it('pronto, finito e fermo chiudono la chat con una riga che lo dice', () => {
@@ -90,7 +67,7 @@ describe('conversazione', () => {
     expect(conversazione(ap({ stato: 'sospeso', motivoSospensione: 'silenzio da 30 minuti' })).at(-1))
       .toMatchObject({ da: 'nota', tono: 'fermo', dettaglio: 'silenzio da 30 minuti' })
     // Al lavoro non si aggiunge niente: l'ultima riga è l'ultima cosa successa.
-    expect(conversazione(ap({ stato: 'lavoro' })).length).toBe(1)
+    expect(conversazione(ap({ stato: 'lavoro' })).length).toBe(0)
   })
 
   it('dieci riprese uguali sono una nota con il numero, ma due «sì» tuoi restano due', () => {

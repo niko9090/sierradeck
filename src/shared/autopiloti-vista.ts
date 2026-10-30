@@ -59,8 +59,9 @@ export function vistaAutopilota(a: Autopilota & { domanda?: unknown }, ora: numb
   if (s.id === 'fermo' || s.id === 'guasto') gruppi.push('fermi')
   if (s.id === 'finito') gruppi.push('finiti')
 
-  const fatti = a.criteri.filter((c) => c.soddisfatto).length
-  const totali = a.criteri.length
+  // P4: i criteri stanno nei compiti del piano dell'orchestratore, non sull'autopilota.
+  const fatti = 0
+  const totali = 0
   const alLavoro = a.chats.filter((c) => chatAlLavoro(a, c)).length
   const azione: AzioneAp = s.id === 'aspetta' ? 'rispondi'
     : s.id === 'al-lavoro' || s.id === 'senza-segni' || s.id === 'prepara' ? 'ferma'

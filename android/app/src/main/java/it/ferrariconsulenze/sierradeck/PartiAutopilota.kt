@@ -74,98 +74,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.text.style.TextAlign
 
 @Composable
-internal fun AzioniAutopilota(api: Api, id: String, stato: String, workspace: String? = null) {
-    val scope = rememberCoroutineScope()
-    var inCorso by remember(id, stato) { mutableStateOf(false) }
-    // «Sposta in…» (PC 0.81.0): i workspace del PC si leggono quando servono.
-    var nomiWs by remember(id) { mutableStateOf<List<String>?>(null) }
-    nomiWs?.let { nomi ->
-        SceltaWorkspace("Sposta l’autopilota in…", nomi, tranne = workspace, onScegli = { verso ->
-            nomiWs = null
-            scope.launch {
-                if (tentaGestione("spostarlo", SuPc.corrente?.nome) { api.spostaAutopilota(id, verso) } != null)
-                    Nota.mostra("Il suo lavoro ora compare in «$verso». La cartella e le chat già aperte restano dove sono.")
-            }
-        }, onChiudi = { nomiWs = null })
-    }
-    /** `cosa` all'infinito: finisce in «Non sono riuscito a …» se il computer dice di no. */
-    fun fai(cosa: String, azione: suspend () -> Unit) {
-        inCorso = true
-        scope.launch {
-            tenta(cosa, azione)
-            inCorso = false
-        }
-    }
-    when (stato) {
-        "pronto" -> Button(
-            enabled = !inCorso,
-            shape = MaterialTheme.shapes.small,
-            onClick = { fai("farlo partire") { api.vaiAutopilota(id) } },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (inCorso) "Parto…" else "Vai — comincia a lavorare") }
-        "lavoro" -> OutlinedButton(
-            enabled = !inCorso,
-            shape = MaterialTheme.shapes.small,
-            onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (inCorso) "Fermo…" else "Ferma — riprende quando vuoi") }
-        // Aspetta una tua risposta: il gesto giusto e' rispondere, non
-        // fermarlo. Prima c'era solo «Ferma», come se stesse lavorando.
-        "attesa" -> Column {
-            Text(
-                "Ti ha fatto una domanda e aspetta la risposta: scrivila nella casella qui sotto (o in cima ad Adesso). Finché non rispondi non va avanti.",
-                color = Banco.ambra, fontSize = 13.sp
-            )
-            Spacer(Modifier.height(6.dp))
-            OutlinedButton(
-                enabled = !inCorso,
-                shape = MaterialTheme.shapes.small,
-                onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (inCorso) "Fermo…" else "Oppure fermalo — riprende quando vuoi") }
-        }
-        "finito" -> Text(
-            "Ha finito. Non c’è altro da fare.",
-            color = Banco.testoQuieto,
-            fontSize = 13.sp
-        )
-        // Si sta preparando: «Riprendi» qui faceva ripartire la preparazione
-        // sotto quella in corso. Si aspetta, o si ferma.
-        "intervista" -> OutlinedButton(
-            enabled = !inCorso,
-            shape = MaterialTheme.shapes.small,
-            onClick = { fai("fermarlo") { api.fermaAutopilota(id) } },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text(if (inCorso) "Fermo…" else "Si sta preparando (legge il progetto; se ha un dubbio ti chiede qui e nelle Domande): ferma") }
-        else -> Column {
-            Button(
-                enabled = !inCorso,
-                shape = MaterialTheme.shapes.small,
-                onClick = { fai("riprenderlo") { api.riprendiAutopilota(id) } },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (inCorso) "Riprendo…" else "Riprendi da dove si è fermato") }
-            // Archiviare un autopilota fermo (app 2.56.0), come dal pannello del PC.
-            if (stato == "sospeso" || stato == "fallito") {
-                TextButton(enabled = !inCorso, onClick = { inCorso = true; scope.launch { tentaGestione("archiviarlo", SuPc.corrente?.nome, FunzionePc.PARITA) { api.archiviaAutopilota(id, true) }; inCorso = false } }) {
-                    Text("Archivia — esce dall’elenco dei lavori, non si cancella niente")
-                }
-            }
-        }
-    }
-    TextButton(enabled = !inCorso, onClick = {
-        scope.launch { tentaGestione("leggere i workspace", SuPc.corrente?.nome) { api.stato().workspace.nomi }?.let { nomi ->
-            if (nomi.any { it != workspace }) {
-                nomiWs = nomi
-            } else {
-                Nota.mostra("Sul computer non c’è un altro workspace.")
-            }
-        } }
-    }) {
-        Text("Sposta in un altro workspace…" + if (!workspace.isNullOrBlank()) " (adesso «$workspace»)" else "", fontSize = 12.sp)
-    }
-}
-
-@Composable
 internal fun Passaggi(passi: List<Passo>, mostraNota: Boolean = true) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (p in passi) {
@@ -284,7 +192,7 @@ internal fun Etichetta(testo: String) {
  * come ogni «tocca a te» del programma.
  */
 @Composable
-internal fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
+internal fun RigaChat(b: Battuta, nomeSuo: String) {
     // L'ora del telefono, come sul PC (0.79.0): l'istante arriva in UTC.
     val ora = oraLocale(b.quando)
     if (b.da == "nota") {
@@ -338,10 +246,7 @@ internal fun RigaChat(b: Battuta, nomeSuo: String, onVai: () -> Unit) {
             Text(b.testo, color = Banco.testo, fontSize = 13.sp)
             val dettaglio = b.dettaglio
             if (!dettaglio.isNullOrBlank()) Text(dettaglio, color = Banco.testoQuieto, fontSize = 12.sp)
-            if (b.tono == "pronto") {
-                Spacer(Modifier.height(4.dp))
-                Button(onClick = onVai, shape = forma) { Text("Vai") }
-            }
+            // L'autopilota unico (PC 0.86.x) non aspetta il via: niente più «Vai».
         }
     }
 }
@@ -430,7 +335,7 @@ internal fun LinguettaDomande(api: Api, autopilota: String, schede: List<Domanda
     Button(enabled = testo.isNotBlank() && !inCorso, onClick = { manda(testo) }) { Text(if (inCorso) "Mando…" else if (d.tipo == "via") "Manda" else "Rispondi") }
     nota?.let { Text(it, color = Banco.rosso, fontSize = 12.sp) }
     Text(
-        if (d.tipo == "via") "«Vai» lo fa partire; se scrivi altro gli arriva come messaggio."
+        if (d.tipo == "via") "Quello che scrivi gli arriva come messaggio."
         else "La risposta arriva subito all’autopilota; nella chat qui sopra restano domanda e risposta. Poi la prossima, o la linguetta si chiude.",
         color = Banco.testoQuieto, fontSize = 12.sp
     )

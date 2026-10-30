@@ -16,7 +16,6 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
     ...nuovoAutopilota({
       id: 'ap-1', nome: 'Test verdi', obiettivo: 'Fai passare la suite', cwd: 'C:\\p',
-      criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: true }],
       iniziatoIl: '2026-08-09T10:00:00.000Z'
     }),
     ...over
@@ -66,8 +65,7 @@ describe('componiAvviso', () => {
   it('per uno stallo dice che cambia strada, non che si e fermato', () => {
     // L'autopilota non si ferma piu' allo stallo: prova un altro approccio. Un
     // messaggio che annunciasse la fine del lavoro sarebbe falso.
-    const testo = componiAvviso('stallo', ap({ stato: 'lavoro', strategia: 'dubitare della misura' }))
-    expect(testo).toContain('dubitare della misura')
+    const testo = componiAvviso('stallo', ap({ stato: 'lavoro' }))
     expect(testo).not.toContain('fermato')
   })
 

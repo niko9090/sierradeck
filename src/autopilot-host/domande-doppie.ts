@@ -1,5 +1,4 @@
 import { somiglianza as somiglianzaRisposte, type RispostaRicordata } from './memoria'
-import { somiglianza as somiglianzaAperte } from './coordinatore'
 import { argomentoDi, stessoArgomento, type Argomento } from '@shared/argomento-testo'
 
 /**
@@ -150,9 +149,23 @@ export function rispostaGiaData(
   return undefined
 }
 
+function parole(t: string): Set<string> {
+  return new Set(t.toLowerCase().normalize('NFD').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((p) => p.length > 3))
+}
+
+/** Quanto si somigliano due domande aperte (0..1, parole in comune). */
+export function somiglianzaAperte(a: string, b: string): number {
+  const pa = parole(a)
+  const pb = parole(b)
+  if (pa.size === 0 || pb.size === 0) return 0
+  let comuni = 0
+  for (const p of pa) if (pb.has(p)) comuni += 1
+  return comuni / Math.min(pa.size, pb.size)
+}
+
 /**
  * Le domande ancora aperte che chiedono la stessa cosa di `domanda`: per
- * argomento o per parole (la soglia di `domandaGemella`). Servono due volte:
+ * argomento o per parole (almeno 0.6 di parole in comune). Servono due volte:
  * prima di aprirne una nuova, e quando Nicholas risponde a una di loro.
  */
 export function aperteSulloStesso<D extends { id: string; autopilotaId: string; testo: string }>(

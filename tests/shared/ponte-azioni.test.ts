@@ -13,8 +13,6 @@ describe('azioneDelPonte', () => {
     expect(azioneDelPonte('/api/sessioni/riprendi', { cartella: 'C:\\prova', sessione: '0123456789abcdef' }))
       .toBe('riapro la chat 01234567 in C:\\prova')
     expect(azioneDelPonte('/api/autopilota/crea', { cartella: 'C:\\prova' })).toBe('creo un autopilota in C:\\prova')
-    expect(azioneDelPonte('/api/autopilota/archivia', { autopilota: 'ap-1' })).toBe('archivio l’autopilota ap-1')
-    expect(azioneDelPonte('/api/autopilota/archivia', { autopilota: 'ap-1', archivia: false })).toBe('tolgo dall’archivio l’autopilota ap-1')
     expect(azioneDelPonte('/api/drive/azione', { azione: 'porta-qui', progetto: 'p1' })).toBe('azione «porta-qui» del pannello sul progetto p1')
     expect(azioneDelPonte('/api/workspace/crea', { nome: 'Prova' })).toBe('creo il workspace «Prova»')
     // Dal collaudo: «sposto la chat nella chat …» e il cambio di workspace che non si vedeva.
@@ -28,7 +26,7 @@ describe('azioneDelPonte', () => {
   })
 
   it('ogni azione raccontata passa davvero dal ponte', () => {
-    for (const p of ['/api/workspace', '/api/chat/sposta', '/api/scrivi', '/api/scegli', '/api/apri', '/api/sessioni/riprendi', '/api/chat/chiudi', '/api/chat/nome', '/api/workspace/crea', '/api/autopilota/crea', '/api/autopilota/archivia', '/api/drive/azione']) {
+    for (const p of ['/api/workspace', '/api/chat/sposta', '/api/scrivi', '/api/scegli', '/api/apri', '/api/sessioni/riprendi', '/api/chat/chiudi', '/api/chat/nome', '/api/workspace/crea', '/api/autopilota/crea', '/api/drive/azione']) {
       expect(rottaPonte(p)).toBe(true)
       // Il cambio di workspace si racconta solo con il nome (0.67.1).
       expect(azioneDelPonte(p, p === '/api/workspace' ? { nome: 'Fatture' } : {})).toBeDefined()

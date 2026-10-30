@@ -1,9 +1,10 @@
 package it.ferrariconsulenze.sierradeck
 
 /**
- * Le linguette «Domande» e «File» della scheda dell'autopilota (0.38.0), la
- * parte pura: la stessa regola del PC e della pagina (`domande-autopilota.ts`,
- * `file-autopilota.ts`), provata senza Compose.
+ * Le linguette «Domande», «Avanzamento» e «File» della scheda dell'autopilota
+ * (0.38.0; autopilota unico PC 0.86.x), la parte pura: la stessa regola del PC
+ * e della pagina (`domande-autopilota.ts`, `file-autopilota.ts`), provata
+ * senza Compose.
  *
  * Nicholas (01/10): le domande di un autopilota si vedono in una linguetta
  * «Domande» con il numerino, una per volta, non nella chat; dopo la risposta
@@ -11,10 +12,13 @@ package it.ferrariconsulenze.sierradeck
  * si chiude. La linguetta «File» mostra i file cambiati, per chat, e il diff.
  */
 
-/** Come si risponde a una domanda della linguetta: percorso e corpo, come `richiestaScheda`. */
+/**
+ * Come si risponde a una domanda della linguetta: percorso e corpo. L'autopilota
+ * unico (PC 0.86.x) non ha più il via: quello che non è la risposta a una
+ * domanda gli arriva come messaggio, «Vai» compreso.
+ */
 fun richiestaScheda(d: DomandaScheda, autopilota: String, testo: String): Pair<String, Map<String, String>> = when {
     d.tipo == "domanda" -> "/api/rispondi" to mapOf("domanda" to (d.idDomanda ?: ""), "risposta" to testo)
-    testo.trim().equals("vai", ignoreCase = true) -> "/api/autopilota/vai" to mapOf("autopilota" to autopilota)
     else -> "/api/autopilota/dialogo" to mapOf("autopilota" to autopilota, "testo" to testo)
 }
 
@@ -28,18 +32,18 @@ fun etichettaOrigine(d: DomandaScheda): String = when (d.origine) {
 
 /**
  * Le linguette del dettaglio, in ordine: «Domande» (solo se ce ne sono, per
- * prima), «File», e quelle di sempre.
+ * prima), «Avanzamento», «File». L'autopilota unico (PC 0.86.x) non ha più
+ * obiettivo, criteri, compiti, decisioni e istruzioni.
  */
 fun linguetteAutopilota(domande: Int): List<String> =
-    (if (domande > 0) listOf("domande") else emptyList()) + listOf("istruzioni", "file", "obiettivo", "criteri", "compiti", "deciso", "altro")
+    (if (domande > 0) listOf("domande") else emptyList()) + listOf("avanzamento", "file")
 
 /**
  * Le parti nel dettaglio in una pagina che scorre (2.83.0): prima le domande,
- * poi quello che si legge; Istruzioni e File in fondo, perché si leggono dal PC
- * solo quando ci si arriva scorrendo (prima solo a linguetta aperta).
+ * poi l'avanzamento; i File in fondo, perché si leggono dal PC solo quando ci
+ * si arriva scorrendo.
  */
-fun sezioniAutopilota(domande: Int): List<String> =
-    (if (domande > 0) listOf("domande") else emptyList()) + listOf("obiettivo", "criteri", "compiti", "deciso", "istruzioni", "file", "altro")
+fun sezioniAutopilota(domande: Int): List<String> = linguetteAutopilota(domande)
 
 /** Una domanda nuova (che prima non c'era) fa avanti la linguetta. */
 fun domandaArrivata(prima: List<String>?, adesso: List<DomandaScheda>): Boolean =
@@ -67,20 +71,21 @@ fun rigaFile(f: FileCambiato): String =
  * le Domande hanno piu' posto. Il testo di una domanda non si taglia mai: oltre
  * questa altezza scorre.
  */
-fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande" || chiave == "istruzioni") 420 else 260
+fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande") 420 else 260
 
 /**
- * La riga riassuntiva in cima all'autopilota (2.83.0, c-509): stato, criteri,
- * chat e giri in una riga; prima le domande, se ce ne sono. Il tocco la apre.
+ * La riga riassuntiva in cima all'autopilota (2.83.0, c-509; autopilota unico
+ * PC 0.86.x): prima le domande, se ce ne sono; poi la percentuale del
+ * workspace, le richieste aperte e gli specialisti al lavoro. Il tocco la apre.
  */
 object RiassuntoAutopilota {
-    fun di(stato: String, fatti: Int, criteri: Int, chat: Int, giri: Int, domande: Int): String {
+    fun di(percento: Double?, richiesteAperte: Int, specialisti: Int, domande: Int, pensa: Boolean = false): String {
         val pezzi = mutableListOf<String>()
         if (domande > 0) pezzi += if (domande == 1) "1 domanda per te" else "$domande domande per te"
-        pezzi += statoInParole(stato)
-        if (criteri > 0) pezzi += "criteri $fatti/$criteri"
-        if (chat > 0) pezzi += "$chat chat"
-        pezzi += if (giri == 1) "1 giro" else "$giri giri"
+        pezzi += if (percento != null) RegoleAvanzamento.percento(percento) else "nessuna percentuale"
+        if (richiesteAperte > 0) pezzi += if (richiesteAperte == 1) "1 richiesta aperta" else "$richiesteAperte richieste aperte"
+        if (specialisti > 0) pezzi += if (specialisti == 1) "1 specialista" else "$specialisti specialisti"
+        if (pensa) pezzi += "sta pensando"
         return pezzi.joinToString(" · ")
     }
 }

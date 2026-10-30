@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import type { Git } from '../../src/autopilot-host/worktree'
@@ -11,8 +12,8 @@ import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/au
 /**
  * Dopo «Installa» l'autopilota non dà nuove consegne (0.84.1). Prima la pausa
  * valeva solo per gli autopiloti «al lavoro» in quel momento e solo alla fine
- * del turno: un autopilota in pausa per i limiti ripartiva col freno, uno
- * appena ripreso riceveva il suo giro, e l'attesa della quiete ricominciava.
+ * del turno: uno appena ripreso riceveva il suo giro, e l'attesa della quiete
+ * ricominciava.
  * E «Aggiorna adesso» salva il lavoro di ogni chat con un commit sul suo ramo.
  */
 let server: ServerAutopiloti
@@ -40,12 +41,12 @@ function autopilota(over: Partial<Autopilota> = {}): Autopilota {
       nome: 'Prova',
       obiettivo: 'Fai passare i test',
       cwd: process.cwd(),
-      criteri: [{ descrizione: 'test verdi', comando: 'npm test', soddisfatto: false }],
       iniziatoIl: '2026-10-22T01:00:00.000Z'
     }),
     stato: 'lavoro',
     cicli: 3,
     sessionId: 's-1',
+    chats: [{ id: 'c-1', compito: 'i test', stato: 'lavoro', cicli: 1, sessionId: 's-c-1' }],
     ...over
   }
 }
@@ -66,15 +67,13 @@ beforeEach(async () => {
   commit = []
   orologio = Date.parse('2026-10-22T09:00:00.000Z')
   server = creaServer({
+    ...unicoFinto(archivio),
     archivio,
     esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-    interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzione": "vai avanti"}' }),
     avviaLavoro: (a) => { ripartite.push(a.id); return Promise.resolve() },
-    fermaLavoro: () => {},
     avvisa: () => Promise.resolve(),
     domande: creaRegistroDomande({ adesso: () => Date.now() }),
     scadenzaDomandaMs: 5000,
-    scadenzaInterviataMs: 5000,
     git,
     adesso: ora
   })
@@ -89,15 +88,6 @@ beforeEach(async () => {
 afterEach(() => { server.close() })
 
 describe('dopo «Installa» nessuna consegna nuova', () => {
-  it('un autopilota in pausa per i limiti non riparte finché si installa', async () => {
-    archivio.scrivi(autopilota({ stato: 'sospeso', pausaLimitiFinoA: '2026-10-22T08:00:00.000Z' }))
-    await posta('/pausa-aggiornamento')
-    server.controllaChatFerme()
-    await new Promise((r) => { setTimeout(r, 50) })
-    expect(ripartite).toEqual([])
-    expect(archivio.leggi('ap-prova')?.stato).toBe('sospeso')
-  })
-
   it('un giro mandato mentre si installa non parte: l’autopilota resta segnato e riparte al ritorno del programma', async () => {
     archivio.scrivi(autopilota())
     await posta('/pausa-aggiornamento')
@@ -108,24 +98,6 @@ describe('dopo «Installa» nessuna consegna nuova', () => {
     expect(archivio.leggi('ap-prova')?.fermatoPerAggiornamento).toBe(true)
     // Il programma è tornato (installato o no): si riprende da soli.
     await posta('/gestore-avviato')
-    await new Promise((r) => { setTimeout(r, 50) })
-    expect(ripartite).toEqual(['ap-prova'])
-  })
-
-  it('una chat che non era «al lavoro» al momento di «Installa» si ferma lo stesso a fine turno', async () => {
-    await posta('/pausa-aggiornamento')
-    // Rimesso al lavoro dopo il tasto (per esempio da una risposta): non segnato.
-    archivio.scrivi(autopilota())
-    const risposta = await posta('/hook/stop?ap=ap-prova', { session_id: 's-1', last_assistant_message: 'fatto' })
-    expect(risposta).toEqual({})
-    expect(archivio.leggi('ap-prova')?.fermatoPerAggiornamento).toBe(true)
-  })
-
-  it('tolta la pausa (installazione non partita) tutto torna come prima', async () => {
-    archivio.scrivi(autopilota({ stato: 'sospeso', pausaLimitiFinoA: '2026-10-22T08:00:00.000Z' }))
-    await posta('/pausa-aggiornamento')
-    await posta('/pausa-aggiornamento', { attiva: false })
-    server.controllaChatFerme()
     await new Promise((r) => { setTimeout(r, 50) })
     expect(ripartite).toEqual(['ap-prova'])
   })

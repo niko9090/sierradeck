@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
 import { useLarghezzaFinestra } from '../larghezza-finestra'
-import { haLinguetta, quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
+import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
@@ -57,7 +57,7 @@ function orario(q: string | undefined): string {
  */
 export function spiegaRisposta(c: Conversazione): string {
   if (c.tipo === 'autopilota' && !c.chiede) {
-    return `La sua chat gli ha fatto una domanda e l’autopilota «${c.titolo}» ha risposto da solo: la vedi qui con la risposta, per 12 ore. Se la risposta non va bene, scrivigli: il messaggio arriva a lui, come nella sua scheda.`
+    return `La sua chat gli ha fatto una domanda e l’autopilota «${c.titolo}» ha risposto da solo: la vedi qui con la risposta, per 12 ore. Se la risposta non va bene, scrivigli: il messaggio arriva a lui, come nella sua chat.`
   }
   if (c.tipo === 'autopilota') {
     if (c.risposta.via === 'dialogo') {
@@ -82,21 +82,6 @@ export function rigaRisposta(c: Conversazione): string {
   if (c.scelte !== undefined) return `«${c.titolo}» aspetta che tu scelga`
   if (c.chiede) return `«${c.titolo}» ti ha fatto una domanda`
   return `«${c.titolo}» ha finito il turno e aspetta`
-}
-
-/**
- * Porta alla linguetta «Domande» della scheda di quell'autopilota (0.38.0).
- * Dalla 0.39.1 decide il main dove (`doveMostrareDomande`): la finestra pannello
- * se la linguetta e' staccata, altrimenti la finestra di chat che ha la sua
- * scheda (anche un'altra), altrimenti la linguetta in una finestra pannello.
- * Prima, senza la scheda in questa finestra, si apriva il pannello degli
- * autopiloti, dove la domanda non c'era.
- */
-export function apriDomandeAutopilota(id: string): void {
-  void window.gestore.pannello.mostraDomande(id, false).catch(() => {
-    // Main vecchio o guasto: almeno la scheda di questa finestra, se c'e'.
-    window.dispatchEvent(new CustomEvent('sierradeck:domande-autopilota', { detail: { id, gestito: false } }))
-  })
 }
 
 /** Quanto resta evidenziata una domanda appena arrivata. */
@@ -307,8 +292,6 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                   onClick={() => {
                     setScelta(c.chiave)
                     setNota(undefined)
-                    // Un autopilota: la riga porta dritta alla sua linguetta.
-                    if (haLinguetta(c) && c.chiede) apriDomandeAutopilota(c.autopilota)
                   }}
                 >
                   <span className={`led ${c.chiede ? 'led--attesa' : 'led--finito'}`} />
@@ -317,7 +300,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
                     <span className="misura">
                       {/* Il tipo in una parola (0.70.0): permesso, scelta, domanda, autopilota, ha finito. */}
                       <span style={{ color: COLORE_DOMANDA[tipoDomanda(c).colore] }}>{tipoDomanda(c).parola}</span>
-                      {c.tipo === 'autopilota' && c.chiede ? ` · ti aspetta (${c.quante ?? 1}) → apri` : ''}
+                      {c.tipo === 'autopilota' && c.chiede && (c.quante ?? 1) > 1 ? ` · ${c.quante} domande` : ''}
                     </span>
                   </span>
                 </button>
@@ -325,22 +308,9 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
             ))}
           </ul>
 
-          {aperta !== undefined && haLinguetta(aperta) && aperta.chiede ? (
-            // Le domande di un autopilota non stanno qui (0.38.0, Nicholas):
-            // stanno nella linguetta «Domande» della sua scheda, una per volta.
-            <section className="domande-lato__chat domande-lato__rimando" aria-label={`${aperta.titolo} ti aspetta`}>
-              <p className="misura con-aiuto">
-                «{aperta.titolo}» ti aspetta con {aperta.quante === 1 || aperta.quante === undefined ? 'una domanda' : `${aperta.quante} domande`}.
-                <Aiuto di="domande di un autopilota">
-                  Le domande di un autopilota si rispondono nella sua scheda, accanto alla sua chat: linguetta «Domande», una per volta,
-                  con le opzioni da toccare. Dopo la risposta, domanda e risposta restano nella chat con lui.
-                </Aiuto>
-              </p>
-              <button className="tasto tasto--primario" onClick={() => apriDomandeAutopilota(aperta.autopilota)}>
-                Apri la sua linguetta «Domande» →
-              </button>
-            </section>
-          ) : aperta !== undefined && aperta.scheda !== undefined ? (
+          {/* 30/10: un posto solo per le domande, anche quelle dell'autopilota del
+              workspace (chiedi_utente): si rispondono qui, come quelle delle chat. */}
+          {aperta !== undefined && aperta.scheda !== undefined ? (
             // 0.72.1: la domanda essenziale, senza la conversazione intorno.
             <div className="domande-lato__chat">
               <SchedaDomandaVista

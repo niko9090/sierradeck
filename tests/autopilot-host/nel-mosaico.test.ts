@@ -9,7 +9,6 @@ const autopilota = (over: Partial<Autopilota> = {}): Autopilota => ({
     nome: 'Notte',
     obiettivo: 'Fai passare i test',
     cwd: 'C:\\progetto',
-    criteri: [{ descrizione: 'npm test verde', comando: 'npm test', soddisfatto: false }],
     iniziatoIl: '2026-08-13T01:00:00.000Z'
   }),
   ...over
@@ -38,7 +37,6 @@ describe('l autopilota che scrive nelle chat', () => {
     expect(c?.cosa).toBe('scrivi')
     expect(c?.cwd).toBe('C:\\progetto')
     expect(c?.testo).toContain('Fai passare i test')
-    expect(c?.testo).toContain('npm test verde')
   })
 
   it('decide lei l identificatore della sessione, e lo fa sapere', () => {
@@ -122,11 +120,9 @@ describe('l autopilota che scrive nelle chat', () => {
 })
 
 describe('il primo messaggio', () => {
-  it('dice l obiettivo, i criteri e come si verificano', () => {
+  it('dice l obiettivo', () => {
     const testo = primoCompito(autopilota())
     expect(testo).toContain('Fai passare i test')
-    expect(testo).toContain('si verifica con: npm test')
-    expect(testo).toContain('Lavora fino a soddisfarli tutti.')
   })
 
   it('dice alla chat che qualcuno la sta guardando e puo intervenire', () => {
@@ -211,15 +207,5 @@ describe('riprendere non e ricominciare', () => {
     const avviata = { ...nuova, cicli: 4 }
     expect(riprende(a, 's2', nuova)).toBe(false)
     expect(riprende(a, 's2', avviata)).toBe(true)
-  })
-})
-
-describe('il segno «in sottofondo» nella consegna (0.72.0)', () => {
-  it('solo se Nicholas l’ha chiesto per quell’autopilota', async () => {
-    const { consegne, esecutore } = banco()
-    await esecutore.avvia(autopilota())
-    expect(consegne.preleva()[0]?.sottofondo).toBeUndefined()
-    await esecutore.avvia(autopilota({ sottofondo: true }), 'prosegui')
-    expect(consegne.preleva()[0]?.sottofondo).toBe(true)
   })
 })

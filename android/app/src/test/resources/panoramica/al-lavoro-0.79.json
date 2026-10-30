@@ -39,11 +39,6 @@
   ],
   "battute": [
     {
-      "quando": "2026-10-18T09:00:00.000Z",
-      "da": "tu",
-      "testo": "Gestione delle chat"
-    },
-    {
       "quando": "2026-10-18T10:00:00.000Z",
       "da": "nota",
       "testo": "tecnica"
@@ -56,7 +51,6 @@
     }
   ],
   "messaggi": [
-    "Gestione delle chat",
     "Sviluppo: ha finito «Il motore della gestione delle chat», ora lo rilegge la Revisione."
   ],
   "eventi": [

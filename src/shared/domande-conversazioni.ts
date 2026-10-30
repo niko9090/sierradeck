@@ -296,9 +296,7 @@ export function conversazioniDomande(p: {
         domanda: 'Si è preparato: gli dai il via?',
         scelte: [{ testo: 'Vai', consigliata: true }],
         dettagli: [
-          { etichetta: 'Obiettivo', testo: a.obiettivo },
-          ...(a.criteri.length > 0 ? [{ etichetta: 'Finisce quando', testo: a.criteri.map((c) => `• ${c.descrizione}`).join('\n') }] : []),
-          ...(a.compitiDaFare.length > 0 ? [{ etichetta: 'I compiti', testo: a.compitiDaFare.map((c) => `• ${c}`).join('\n') }] : [])
+          { etichetta: 'Obiettivo', testo: a.obiettivo }
         ],
         segnaposto: 'Oppure scrivigli cosa cambiare prima di partire'
       },

@@ -9,9 +9,8 @@ import { readFileSync } from 'node:fs'
 const leggi = (p: string): string => readFileSync(p, 'utf8')
 
 describe('chi mostra la storia chiede l’autopilota intero', () => {
-  it('la conversazione e le linguette passano da `useAutopilotaIntero`', () => {
+  it('la conversazione passa da `useAutopilotaIntero`', () => {
     expect(leggi('src/renderer/components/ChatAutopilota.tsx')).toContain('const autopilota = useAutopilotaIntero(dellElenco)')
-    expect(leggi('src/renderer/components/LinguettaAutopilota.tsx')).toContain('const autopilota = useAutopilotaIntero(dellElenco)')
   })
   it('il preload e il main hanno il dettaglio, con la versione per non rimandarlo uguale', () => {
     expect(leggi('src/preload/index.ts')).toContain("ipcRenderer.invoke('autopilota:dettaglio', id, versione)")
@@ -32,6 +31,5 @@ describe('le riletture della finestra', () => {
   })
   it('gli autopiloti si rileggono più di rado con la finestra nascosta', () => {
     expect(app).toContain('return ogni(ricaricaAutopiloti, RICARICA_AUTOPILOTI_MS)')
-    expect(leggi('src/renderer/components/FinestraPannello.tsx')).toContain('return ogni(leggi, 3000)')
   })
 })

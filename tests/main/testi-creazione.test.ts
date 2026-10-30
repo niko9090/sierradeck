@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 
 /**
- * La finestra di creazione dell'autopilota dice la stessa cosa sui tre lati
+ * La finestra di creazione dell'autopilota dice la stessa cosa sulla pagina e
+ * nell'app (sul PC il modulo non c'è più dal 30/10: l'autopilota è uno per workspace)
  * (correzione di Nicholas, 30/09): il «cloud» e' il Drive di SierraDeck, dove
  * si salvano le chat — non il remoto git, non gli script, non il deploy.
  */
 describe('i testi della creazione: «va sul cloud» = le chat stanno sul Drive', () => {
   const lati = {
-    pc: readFileSync('src/renderer/components/PannelloAutopiloti.tsx', 'utf8'),
     pagina: readFileSync('src/main/client-pagina.ts', 'utf8'),
     app: readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Delega.kt', 'utf8')
   }

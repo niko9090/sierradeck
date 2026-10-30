@@ -27,13 +27,10 @@ describe('le finestre pannello sono separate dalle finestre di chat', () => {
     expect(pannelli).not.toContain('collegaFinestra')
     expect(pannelli).not.toContain('riservaSlot')
   })
-  it('chiusa lei, la linguetta torna al suo posto; chiusa l app, resta da riaprire', () => {
-    expect(pannelli).toContain("if (!uscendo) {")
-    expect(pannelli).toContain("app.on('before-quit', () => { uscendo = true })")
-    expect(index).toContain('riapriPannelli(tutti.map((a) => a.id))')
+  it('le linguette staccate non ci sono più (30/10): niente si riapre, e il renderer è sempre la finestra di chat', () => {
+    expect(index).not.toContain('riapriPannelli(')
+    expect(index).not.toContain("ipcMain.handle('pannello:")
     expect(index).toContain('chiudiPannelliConLApp()')
-  })
-  it('il renderer di una finestra pannello mostra solo la linguetta', () => {
-    expect(ingresso).toContain('<FinestraPannello autopilotaId={autopilotaPannello} linguetta={pannello} />')
+    expect(ingresso).not.toContain('FinestraPannello')
   })
 })

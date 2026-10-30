@@ -17,7 +17,7 @@ const chat = (id: string, x: Partial<ChatGovernata> = {}): ChatGovernata =>
   ({ id, compito: `Il compito di ${id}. Altro.`, stato: 'lavoro', cicli: 2, sessionId: `s-${id}`, ...x })
 
 const ap = (x: Partial<Autopilota> & SegniDalVivo = {}): Autopilota & SegniDalVivo => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Fare la cosa', cwd: 'C:\\p', criteri: [], iniziatoIl: '2026-10-20T06:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Fare la cosa', cwd: 'C:\\p', iniziatoIl: '2026-10-20T06:00:00.000Z' }),
   stato: 'lavoro',
   sessionId: 's-ap',
   ...x
@@ -73,27 +73,20 @@ describe('il riquadro «Adesso»: una riga per chat', () => {
     expect(adessoDi(viva, ORA).righe[0]?.tono).toBe('lavoro')
   })
 
-  it('messa da parte (0.80.1): ferma, e dice che torna da sola', () => {
-    const a = ap({ chats: [chat('c-1', { dal: iso(ORA - 40 * MIN) })], daParte: ['c-1'] })
-    expect(adessoDi(a, ORA).righe[0]?.testo).toBe('ferma da 40 min: non chiude un turno, messa da parte. Torna da sola appena risponde')
-  })
-
-  it('chi aspetta te lo dice, con da quanto; prima le ferme, poi chi aspetta, poi le altre', () => {
+  it('chi aspetta te lo dice, con da quanto; prima chi aspetta, poi le altre', () => {
     const a = ap({
       chats: [
         chat('c-1', { ultimaAzione: 'Scrivo i test.' }),
         chat('c-2', { stato: 'bloccata', dal: iso(ORA - 65 * MIN) }),
         chat('c-3', { stato: 'finita' }),
         chat('c-4', { ruolo: 'revisione' })
-      ],
-      daParte: ['c-4']
-    })
+      ]})
     const { righe, finite } = adessoDi(a, ORA)
-    expect(righe.map((r) => r.id)).toEqual(['c-4', 'c-2', 'c-1'])
-    expect(righe[0]?.chi).toBe('Revisione')
-    expect(righe[1]?.testo).toBe('aspetta la tua risposta da 1 h 5 min')
+    expect(righe.map((r) => r.id)).toEqual(['c-2', 'c-1', 'c-4'])
+    expect(righe[0]?.testo).toBe('aspetta la tua risposta da 1 h 5 min')
     // Una chat nata prima del campo `dal`: niente «da quanto» inventato.
-    expect(righe[2]?.testo).toBe('al lavoro · Scrivo i test.')
+    expect(righe[1]?.testo).toBe('al lavoro · Scrivo i test.')
+    expect(righe[2]?.chi).toBe('Revisione')
     expect(finite).toBe(1)
   })
 

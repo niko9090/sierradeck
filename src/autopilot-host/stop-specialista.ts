@@ -1,10 +1,70 @@
-import type { Autopilota, ChatGovernata } from '@shared/autopilota'
+import type { Autopilota, ChatGovernata, MessaggioPerLaChat } from '@shared/autopilota'
 import { CONSEGNATI_RICORDATI_AUTOPILOTA } from '@shared/autopilota'
 import { rapportoDiFineTurno } from '@shared/rapporti-chat'
 import { segnaleDiFineTurno, segnaleSuperato } from '@shared/segnali-flotta'
 import { rigaUltimaAzione } from '@shared/specialisti'
-import { conPreambolo, prendiMessaggiPer } from './dialogo'
 import type { EventoOrchestratore, TipoEvento } from './orchestratore'
+
+/** Quanti messaggi aspettano al più una chat adottata. */
+const DA_CONSEGNARE_MAX = 20
+
+/**
+ * Prende i messaggi che spettano a **questa** chat e li toglie dalla coda:
+ * la chiave della chat si toglie dall'elenco, e il messaggio sparisce quando
+ * nessuna deve più riceverlo.
+ */
+export function prendiMessaggiPer(
+  a: Autopilota,
+  chiave: string
+): { autopilota: Autopilota; testi: string[]; presi: MessaggioPerLaChat[] } {
+  const testi: string[] = []
+  const presi: MessaggioPerLaChat[] = []
+  const restanti: MessaggioPerLaChat[] = []
+  for (const m of a.daConsegnare) {
+    if (!m.chats.includes(chiave)) {
+      restanti.push(m)
+      continue
+    }
+    testi.push(m.testo)
+    presi.push({ ...m, chats: [chiave] })
+    const chats = m.chats.filter((c) => c !== chiave)
+    if (chats.length > 0) restanti.push({ ...m, chats })
+  }
+  if (testi.length === 0) return { autopilota: a, testi, presi }
+  return { autopilota: { ...a, daConsegnare: restanti }, testi, presi }
+}
+
+/**
+ * Rimette in coda i messaggi di una consegna che non è partita (0.56.4), in
+ * testa e senza doppioni.
+ */
+export function rimettiInCoda(a: Autopilota, messaggi: MessaggioPerLaChat[]): Autopilota {
+  let coda = [...a.daConsegnare]
+  const davanti: MessaggioPerLaChat[] = []
+  for (const m of messaggi) {
+    const gia = coda.find((x) => x.id === m.id)
+    if (gia !== undefined) {
+      coda = coda.map((x) => (x.id === m.id ? { ...x, chats: [...new Set([...x.chats, ...m.chats])] } : x))
+    } else {
+      const doppio = davanti.find((x) => x.id === m.id)
+      if (doppio !== undefined) doppio.chats = [...new Set([...doppio.chats, ...m.chats])]
+      else davanti.push({ ...m })
+    }
+  }
+  return { ...a, daConsegnare: [...davanti, ...coda].slice(-DA_CONSEGNARE_MAX) }
+}
+
+/**
+ * Le istruzioni del turno, con davanti i messaggi per la chat: detti per
+ * quello che sono, parole di chi ha affidato il lavoro, che valgono di più.
+ */
+export function conPreambolo(testi: string[], istruzioni: string): string {
+  if (testi.length === 0) return istruzioni
+  const righe = testi.length === 1
+    ? [`Chi ti ha dato il compito ti scrive: «${testi[0]}»`]
+    : ['Chi ti ha dato il compito ti scrive:', ...testi.map((t) => `- «${t}»`)]
+  return [...righe, '', 'Tienine conto prima di tutto il resto: vale più delle istruzioni che seguono.', '', istruzioni].join('\n')
+}
 
 /**
  * **Lo Stop veloce** degli specialisti dell'orchestratore unico (P3).
@@ -47,9 +107,8 @@ export function fermataSpecialista(a: Autopilota, chatId: string, corpo: Record<
   const segnale = segnaleDiFineTurno(ultimo, { sorelle: a.chats.map((x) => x.id), me: chatId, quando })
   const rapporto = rapportoDiFineTurno(ultimo, segnale, quando)
   const azione = rigaUltimaAzione(ultimo)
-  const { ripresa: _r, ...senzaRipresa } = c
   let chat: ChatGovernata = {
-    ...senzaRipresa,
+    ...c,
     cicli: c.cicli + 1,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(azione !== '' ? { ultimaAzione: azione } : {}),

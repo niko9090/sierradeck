@@ -155,6 +155,103 @@ data class AutopilotaDettaglio(
     val domandeScheda: List<DomandaScheda> = emptyList()
 )
 
+// ─── /api/autopilota/avanzamento (PC 0.86.x): l'autopilota unico del workspace ───
+
+/**
+ * L'avanzamento dell'autopilota unico di un workspace: la vista
+ * dell'orchestratore e la coda delle richieste. Tutte e due `null` se il
+ * servizio del PC non le conosce, o il workspace non ha ancora un autopilota.
+ */
+@Serializable
+data class AvanzamentoAutopilota(
+    val orchestratore: VistaOrchestratore? = null,
+    val coda: VistaCoda? = null
+) {
+    /** La percentuale del workspace: dall'orchestratore, se no dalla coda. */
+    val percento: Double? get() = orchestratore?.percento ?: coda?.totale
+    /** Perché è scesa, se è scesa da poco. */
+    val calo: CaloPercento? get() = orchestratore?.calo ?: coda?.calo
+}
+
+/** Quanto è scesa la percentuale, e perché («aggiunti 2 punti a r-12»). */
+@Serializable
+data class CaloPercento(val da: Double = 0.0, val a: Double = 0.0, val perche: String = "", val il: String = "")
+
+/** `GET /orchestratore?ws=` del servizio, quanto serve all'app. */
+@Serializable
+data class VistaOrchestratore(
+    val workspace: String = "",
+    val attivo: Boolean = false,
+    val percento: Double? = null,
+    val calo: CaloPercento? = null,
+    /** Una chiamata è in volo, o un messaggio la aspetta: «sta pensando». */
+    val pensa: Boolean = false,
+    val specialisti: List<SpecialistaOrchestratore> = emptyList(),
+    val piano: PianoConto = PianoConto()
+)
+
+/** Uno specialista dell'orchestratore: subagente o chat adottata. */
+@Serializable
+data class SpecialistaOrchestratore(
+    val id: String = "",
+    val ruolo: String? = null,
+    val compito: String = "",
+    val stato: String = "",
+    val attivita: String? = null,
+    val durata: String? = null,
+    val adottata: Boolean = false
+)
+
+/** Quanti compiti ha il piano, e quanti sono già uniti. */
+@Serializable
+data class PianoConto(val totale: Int = 0, val uniti: Int = 0)
+
+/** `GET /coda?ws=` del servizio: le richieste con la loro percentuale. */
+@Serializable
+data class VistaCoda(
+    val workspace: String = "",
+    val totale: Double? = null,
+    val calo: CaloPercento? = null,
+    val richieste: List<RichiestaCoda> = emptyList()
+)
+
+/** Una richiesta in coda: `stato` è in-coda | pianificata | in-corso | in-verifica | fatta. */
+@Serializable
+data class RichiestaCoda(
+    val id: String = "",
+    val titolo: String = "",
+    val testo: String = "",
+    val stato: String = "in-coda",
+    val percento: Double = 0.0
+)
+
+/** Le parole e i conti dell'avanzamento, senza Compose (così si provano). */
+object RegoleAvanzamento {
+    /** Lo stato di una richiesta in parole, come `PAROLA_STATO_CODA` del PC. */
+    fun parolaStato(stato: String): String = when (stato) {
+        "in-coda" -> "in coda"
+        "pianificata" -> "pianificata"
+        "in-corso" -> "in corso"
+        "in-verifica" -> "in verifica"
+        "fatta" -> "fatta"
+        else -> stato
+    }
+
+    /** «42%», arrotondato e fra 0 e 100. */
+    fun percento(p: Double): String = "${p.coerceIn(0.0, 100.0).let { Math.round(it) }}%"
+
+    /** La riga di una richiesta: «r-3 · in corso · 40%». */
+    fun rigaRichiesta(r: RichiestaCoda): String = "${r.id} · ${parolaStato(r.stato)} · ${percento(r.percento)}"
+
+    /** La riga di uno specialista: «sviluppatore · il lettore CSV · lavora · 3 min». */
+    fun rigaSpecialista(s: SpecialistaOrchestratore): String =
+        listOfNotNull(s.ruolo?.takeIf { it.isNotBlank() } ?: "specialista", s.compito.takeIf { it.isNotBlank() }, s.stato.takeIf { it.isNotBlank() }, s.durata?.takeIf { it.isNotBlank() })
+            .joinToString(" · ")
+
+    /** Le richieste da mostrare: prima quelle aperte, nell'ordine della coda; le fatte in fondo. */
+    fun ordinate(richieste: List<RichiestaCoda>): List<RichiestaCoda> = richieste.sortedBy { if (it.stato == "fatta") 1 else 0 }
+}
+
 /** Le liste tagliate nella scheda leggera (PC 0.86.0): quanto erano lunghe davvero. */
 @Serializable
 data class Troncati(val decisioni: Int = 0, val dialogo: Int = 0, val modifiche: Int = 0)

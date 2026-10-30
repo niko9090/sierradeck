@@ -58,14 +58,14 @@ describe('linguetteVisibili', () => {
 describe('riassuntoAutopilota', () => {
   it('obiettivo in una riga, stato in una parola con il colore, criteri fatti su totali', () => {
     const a = {
-      ...nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: '\nFai passare la suite\nsecondo paragrafo', cwd: 'C:\\p', criteri: [{ descrizione: 'a', soddisfatto: true }, { descrizione: 'b', soddisfatto: false }], iniziatoIl: '2026-10-16T08:00:00.000Z' }),
+      ...nuovoAutopilota({ id: 'ap-1', nome: 'N', obiettivo: '\nFai passare la suite\nsecondo paragrafo', cwd: 'C:\\p', iniziatoIl: '2026-10-16T08:00:00.000Z' }),
       stato: 'lavoro' as const
     }
     const r = riassuntoAutopilota(a, Date.parse('2026-10-16T08:01:00.000Z'))
     expect(r.obiettivo).toBe('Fai passare la suite')
     expect(r.stato.parola).toBe('al lavoro')
     expect(r.stato.colore).toBe('verde')
-    expect(r.criteri).toMatchObject({ fatti: 1, totali: 2, testo: '1/2' })
+    expect(r.criteri).toMatchObject({ fatti: 0, totali: 0, testo: '—' })
   })
 })
 

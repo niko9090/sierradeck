@@ -9,7 +9,6 @@ import { permessoConcesso } from '../../src/autopilot-host/servizio-orchestrator
 import { avviaProcessoReale, creaOrchestratore, type AvviaProcesso, type ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import { impostazioniPredefinite, type ImpostazioniOrchestratore } from '../../src/autopilot-host/orchestratore-store'
 import { passaAllUnico } from '../../src/autopilot-host/migra-orchestratore'
-import { unisciChat } from '../../src/autopilot-host/unione-salvataggio'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 
 /**
@@ -17,8 +16,7 @@ import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/au
  * revisione hanno trovato: la guardia del PreToolUse (orchestratore che non
  * scrive, principale intoccabile, tetto degli specialisti sul PC), le
  * risposte ai permessi lette con cura, il cane da guardia del turno, l'albero
- * dei processi ucciso tutto, la migrazione per cartella, le chat unite campo
- * per campo.
+ * dei processi ucciso tutto, la migrazione per cartella.
  */
 
 const RADICE = process.platform === 'win32' ? 'C:\\progetti\\prova' : '/progetti/prova'
@@ -139,8 +137,8 @@ function motore(over: Partial<Parameters<typeof creaOrchestratore>[0]> = {}): { 
   let n = 0
   const o = creaOrchestratore({
     avvia,
-    impostazioni: (ws) => imp.get(ws) ?? { ...impostazioniPredefinite(), attivo: true },
-    cambiaImpostazioni: (ws, f) => { imp.set(ws, f(imp.get(ws) ?? { ...impostazioniPredefinite(), attivo: true })) },
+    impostazioni: (ws) => imp.get(ws) ?? impostazioniPredefinite(),
+    cambiaImpostazioni: (ws, f) => { imp.set(ws, f(imp.get(ws) ?? impostazioniPredefinite())) },
     contesto: () => ({ cwd: process.cwd(), riassunto: 'STATO', indice: '', agenti: 'a.json', impostazioniCli: 'c.json', mcpConfig: 'm.json', tetto: 3 }),
     ultime: () => [],
     risposta: () => {},
@@ -222,9 +220,9 @@ describe('il motore, dopo la prova dal vivo', () => {
   })
 })
 
-describe('migrazione e salvataggi', () => {
+describe('migrazione', () => {
   const ap = (id: string, cwd: string, chats: ChatGovernata[]): Autopilota => ({
-    ...nuovoAutopilota({ id, nome: id, obiettivo: 'x', cwd, criteri: [], iniziatoIl: '2026-10-29T06:00:00.000Z', workspace: 'Lavoro' }),
+    ...nuovoAutopilota({ id, nome: id, obiettivo: 'x', cwd, iniziatoIl: '2026-10-29T06:00:00.000Z', workspace: 'Lavoro' }),
     stato: 'lavoro', chats
   })
   const chat = (id: string, p: Partial<ChatGovernata> = {}): ChatGovernata => ({ id, compito: 'c', stato: 'lavoro', cicli: 1, sessionId: `s-${id}`, ...p })
@@ -232,22 +230,11 @@ describe('migrazione e salvataggi', () => {
   it('un unico per cartella: le chat di un altro repository restano al loro autopilota', () => {
     const qui = ap('ap-qui', 'E:\\progetti\\uno', [chat('c-1')])
     const altrove = ap('ap-altrove', 'E:\\progetti\\due', [chat('c-1')])
-    const e = passaAllUnico({ ws: 'Lavoro', autopiloti: [qui, altrove], id: 'ap-unico', adesso: '2026-10-30T08:00:00.000Z', unico: { ...ap('ap-unico', 'e:/progetti/uno/', []), unico: true } })
+    const e = passaAllUnico({ ws: 'Lavoro', autopiloti: [qui, altrove], id: 'ap-unico', adesso: '2026-10-30T08:00:00.000Z', unico: ap('ap-unico', 'e:/progetti/uno/', []) })
     expect(e.unico.chats.map((c) => c.origine?.autopilota)).toEqual(['ap-qui'])
-    expect(e.precedenti.map((a) => a.id)).toEqual(['ap-qui'])
+    // Passano all'unico tutti e due; le chat dell'altra cartella non si adottano.
+    expect(e.assorbiti).toEqual(['ap-qui', 'ap-altrove'])
     expect(e.adottate.every((x) => x.da === 'ap-qui')).toBe(true)
   })
 
-  it('una chat cambiata da tutti e due: campo per campo, fine e segnale compresi', () => {
-    const base = chat('c-1', { cicli: 1 })
-    const nostra = chat('c-1', { cicli: 2, fine: { esito: 'unita', il: '2026-10-30T08:00:00.000Z', passo: 'chiudi' } as ChatGovernata['fine'] })
-    const disco = chat('c-1', { cicli: 1, segnale: { tipo: 'lavoro', testo: 'va avanti', quando: '2026-10-30T08:01:00.000Z' } as unknown as ChatGovernata['segnale'] })
-    const [u] = unisciChat([base], [nostra], [disco])
-    expect(u).toMatchObject({ cicli: 2, fine: { esito: 'unita' }, segnale: { testo: 'va avanti' } })
-    // Dentro `fine`: il nostro sotto-campo e quello del disco insieme.
-    const b2 = chat('c-1', { fine: { esito: 'unita', il: 'a', passo: 'chiudi' } as ChatGovernata['fine'] })
-    const n2 = chat('c-1', { fine: { esito: 'unita', il: 'a', passo: 'fatto' } as unknown as ChatGovernata['fine'] })
-    const d2 = chat('c-1', { cicli: 3, fine: { esito: 'unita', il: 'b', passo: 'chiudi' } as ChatGovernata['fine'] })
-    expect(unisciChat([b2], [n2], [d2])[0]).toMatchObject({ cicli: 3, fine: { il: 'b', passo: 'fatto' } })
-  })
 })

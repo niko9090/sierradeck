@@ -6,7 +6,6 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
     ...nuovoAutopilota({
       id: 'ap-1', nome: 'Test verdi', obiettivo: 'o', cwd: 'C:\\p',
-      criteri: [{ descrizione: 'c', soddisfatto: false }],
       iniziatoIl: '2026-08-09T10:00:00.000Z'
     }),
     ...over

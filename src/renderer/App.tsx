@@ -54,7 +54,7 @@ import { componiAvvisi, ricordaChiusi } from './avvisi'
 import { ColonnaConsumi } from './components/ColonnaConsumi'
 import { restaApertaLAltra } from './colonne-laterali'
 import type { StatoAccesso } from '../main/accesso'
-import { azioneTastoDomande, decidiColonnaDomande, domandeALato, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
+import { decidiColonnaDomande, quanteAspettano, type Conversazione } from '@shared/domande-conversazioni'
 import { SchermataAvvio } from './components/SchermataAvvio'
 import { SchermataAccesso } from './components/SchermataAccesso'
 import { utenteCorrente, suCambioAccesso } from './accesso-supabase'
@@ -67,7 +67,7 @@ import { Fumetti, Fumetto, FumettoLavoroDrive, useChiusuraAutomatica } from './c
 import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fumetti-sync'
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
-import { PannelloDomande, apriDomandeAutopilota } from './components/PannelloDomande'
+import { PannelloDomande } from './components/PannelloDomande'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
@@ -76,7 +76,6 @@ import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type St
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
 import { specialistiDi } from '@shared/specialisti'
-import { DomandeALato } from './components/DomandeALato'
 import { autopilotaDelWorkspace, cambiaVistaElenco, chatDavantiStabile, ruoloDalTitolo, vociInOrdine, type VoceElenco } from '@shared/vista-elenco'
 import { listPaneIds } from '@shared/layout-tree'
 import { chatDaSistemare } from '@shared/chat-governate'
@@ -350,7 +349,6 @@ export function App(): React.JSX.Element {
         return
       }
       void window.gestore.autopilota.nota(s.autopilotaId, `guasto del programma: il compito è nella chat «${s.titolo || s.chatId}» ma non è partito (${s.motivo}).`).catch(() => undefined)
-      window.dispatchEvent(new CustomEvent('sierradeck:invio-mancato', { detail: s }))
     }
   }), [])
   const aspettaOra = useCallback(
@@ -1109,9 +1107,8 @@ export function App(): React.JSX.Element {
    * fuoco della tastiera: chi sta scrivendo in una chat continua a scrivere.
    * Chiusa a mano, si riapre solo per una domanda nuova, non per la stessa.
    *
-   * Dalla 0.39.1 la colonna si apre da sola **solo per le chat**: la domanda di
-   * un autopilota fa avanti la linguetta «Domande» della sua scheda (o la sua
-   * finestra pannello), e la colonna resta com'era (`decidiColonnaDomande`).
+   * Dal 30/10 la colonna è l'unico posto delle domande: anche quelle
+   * dell'autopilota del workspace la aprono, come quelle delle chat.
    */
   const [evidenzaDomanda, setEvidenzaDomanda] = useState<{ chiave: string; quando: number } | undefined>(undefined)
   const colonnaDomandeRef = useRef(colonnaDomande)
@@ -1121,18 +1118,8 @@ export function App(): React.JSX.Element {
   // (0.37.3): solo dopo aver letto le preferenze, che altrimenti la
   // richiuderebbero arrivando dopo.
   const avvioDomande = useRef(true)
-  /** L'ultima lettura delle Domande: serve al tasto per sapere chi aspetta. */
-  const ultimeConversazioni = useRef<Conversazione[]>([])
   // Le chat ferme su una domanda (0.70.0): «aspetta te» sulla testata del loro riquadro.
   const [chiedono, setChiedono] = useState<ReadonlySet<string>>(new Set())
-  // Le domande brevi di questo workspace, a lato della chat (0.76.0).
-  const [conversazioniLette, setConversazioniLette] = useState<Conversazione[]>([])
-  const quiDomande = useRef<ReadonlySet<string>>(new Set())
-  // Il main chiede di mettere in vista la linguetta «Domande» di un autopilota
-  // che sta in questa finestra (0.39.1): la apre la sua scheda.
-  useEffect(() => window.gestore.pannello.suMostraDomande((id) => {
-    window.dispatchEvent(new CustomEvent('sierradeck:domande-autopilota', { detail: { id, gestito: false } }))
-  }), [])
   useEffect(() => {
     const viste = (): Set<string> => {
       if (domandeViste.current === undefined) {
@@ -1148,8 +1135,6 @@ export function App(): React.JSX.Element {
         .then((r) => {
           const corpo = r.corpo as { conversazioni?: Conversazione[]; chiedono?: number }
           const c = corpo.conversazioni ?? []
-          ultimeConversazioni.current = c
-          setConversazioniLette(c)
           const ora = new Set(c.filter((x) => x.tipo === 'chat' && x.chiede && x.chiave.startsWith('chat:')).map((x) => x.chiave.slice(5)))
           setChiedono((prima) => (prima.size === ora.size && [...ora].every((x) => prima.has(x)) ? prima : ora))
           setDomandeInAttesa(corpo.chiedono ?? quanteAspettano(c))
@@ -1157,16 +1142,13 @@ export function App(): React.JSX.Element {
           const v = viste()
           const avvio = avvioDomande.current
           avvioDomande.current = false
-          const aLato = new Set(domandeALato(c, quiDomande.current).map((x) => x.chiave))
-          const d = decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio, aLato })
+          // Un posto solo (30/10): senza `autopilota` anche le domande dell'autopilota stanno nella colonna.
+          const d = decidiColonnaDomande({ conversazioni: c.map(({ autopilota: _ap, ...x }) => x), viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })
           if (d.nuove.length > 0) {
             for (const n of d.nuove) v.add(n)
             try { localStorage.setItem('domande-viste', JSON.stringify([...v].slice(-300))) } catch { /* senza memoria al prossimo avvio si riapre, non di piu' */ }
           }
           if (d.apri) apriColonnaDomandeRef.current()
-          // Le domande degli autopiloti: si fa avanti la loro linguetta, la
-          // colonna resta com'e' (0.39.1).
-          for (const id of d.linguette) void window.gestore.pannello.mostraDomande(id, true).catch(() => undefined)
           if (d.evidenzia !== undefined && (d.apri || d.nuove.length > 0)) setEvidenzaDomanda({ chiave: d.evidenzia, quando: Date.now() })
         })
         .catch(() => undefined)
@@ -1696,9 +1678,8 @@ export function App(): React.JSX.Element {
     if (davanti !== undefined) davantiPrima.current.set(workspace.attivo, davanti)
     return { voci, davanti }
   })()
-  quiDomande.current = new Set(Object.keys(riquadriAperti).map((id) => `chat:${id}`))
-  const domandeQui = domandeALato(conversazioniLette, quiDomande.current)
-  const autopilotaFisso = vistaElenco !== undefined ? autopilotaDelWorkspace(autopiloti, workspace.attivo) : undefined
+  // L'autopilota del workspace (30/10: uno per workspace, sempre acceso), in tutte e due le viste.
+  const autopilotaFisso = autopilotaDelWorkspace(autopiloti, workspace.attivo)
   // La Panoramica (0.77.0): una scheda per chat del workspace, più gli specialisti che hanno finito.
   const linguetta = vistaElenco !== undefined ? (linguettaPerWs[workspace.attivo] ?? PANORAMICA) : PANORAMICA
   const schedePanoramica = ((): SchedaVista[] => {
@@ -1709,7 +1690,6 @@ export function App(): React.JSX.Element {
     const adottate = new Map((autopilotaFisso?.adottate ?? []).map((x) => [x.sessionId, x]))
     const mie = new Set([...chatSoloMie, ...[...adottate.values()].filter((x) => x.soloMia === true).map((x) => x.sessionId)])
     const perSessione = new Map(specialisti.filter((x) => x.sessionId !== undefined).map((x) => [x.sessionId!, x]))
-    const brevi = new Set(domandeQui.map((d) => d.chiave))
     const numero = (id: string): number => Number(/(\d+)$/.exec(id)?.[1] ?? 0)
     const fuori: SchedaVista[] = []
     for (const p of Object.values(riquadriAperti)) {
@@ -1734,7 +1714,7 @@ export function App(): React.JSX.Element {
         ultimaAzione: sp !== undefined && sp.ultimaAzione !== '' ? sp.ultimaAzione : ultimaAzioneDalVivo(vive),
         righe: righeDalVivo(vive, 6),
         dal: statoDal,
-        ...(brevi.has(`chat:${p.id}`) ? { domanda: true } : {}),
+        ...(chiedono.has(p.id) ? { domanda: true } : {}),
         ...(p.remoto !== undefined ? { suPc: p.remoto.pcNome } : {}),
         ...(dellAutopilota ? { specialista: true } : {}),
         ...(p.sessionUuid !== undefined ? { sessione: p.sessionUuid } : {}),
@@ -1849,13 +1829,7 @@ export function App(): React.JSX.Element {
         ledAutopiloti={autopiloti.map((a) => ({ id: a.id, ...ledDi(a) }))}
         domandeInAttesa={domandeInAttesa}
         domandeAperte={colonnaDomande.aperta}
-        onDomande={() => {
-          // Solo autopiloti in attesa: il tasto porta alla loro linguetta,
-          // non apre una colonna dove non ci sono (0.39.1).
-          const azione = azioneTastoDomande(ultimeConversazioni.current, colonnaDomande.aperta)
-          if (azione.tipo === 'linguetta') apriDomandeAutopilota(azione.autopilota)
-          else commutaColonna('domande')
-        }}
+        onDomande={() => commutaColonna('domande')}
         progettiAperti={pannelloDrive}
         onProgetti={() => setPannelloDrive((a) => !a)}
       />
@@ -2116,12 +2090,6 @@ export function App(): React.JSX.Element {
           ...(cassaforte !== undefined ? { cassaforte } : {})
         })}
         onChiudi={chiudiAvviso}
-        onAltra={(azione, ids) => {
-          const fai = azione === 'riprendiAutopiloti'
-            ? (id: string) => window.gestore.autopilota.riprendi(id)
-            : (id: string) => window.gestore.autopilota.archivia(id, true)
-          void Promise.allSettled(ids.map(fai)).then(() => ricaricaAutopiloti())
-        }}
         onAzione={(azione) => {
           if (azione === 'riavviaServizio') ricaricaAutopiloti()
           else if (azione === 'apriAutopiloti') setAperto('autopiloti')
@@ -2200,7 +2168,7 @@ export function App(): React.JSX.Element {
             onAlLogin={setAlLogin}
             onChiudi={() => setAperto(undefined)}
             workspaceAttivo={workspace.attivo}
-            workspaceNomi={workspace.nomi}
+            cwdAttivo={cartellaDavanti()}
           />
         ) : null}
 
@@ -2224,20 +2192,22 @@ export function App(): React.JSX.Element {
             />
           ) : (
             // Tutte le chat affiancate (0.78.1): la stessa barra in alto, con l'interruttore per tornare alla Panoramica.
-            <BarraAffiancate onPanoramica={() => { setLinguettaPerWs((m) => ({ ...m, [workspace.attivo]: PANORAMICA })); impostaElenco(workspace.attivo, true) }} />
+            <BarraAffiancate
+              onPanoramica={() => { setLinguettaPerWs((m) => ({ ...m, [workspace.attivo]: PANORAMICA })); impostaElenco(workspace.attivo, true) }}
+              colonna={colonnaAutopilota}
+              onColonna={setColonnaAutopilota}
+              conAutopilota={autopilotaFisso !== undefined}
+            />
           )}
-          {/* La colonna sottile dell'autopilota, sulle linguette delle chat: si apre e si chiude. */}
-          {vistaElenco !== undefined && autopilotaFisso !== undefined && linguetta !== PANORAMICA && colonnaAutopilota ? (
+          {/* La colonna sottile dell'autopilota, sulle linguette delle chat e fra le chat affiancate: si apre e si chiude. */}
+          {autopilotaFisso !== undefined && colonnaAutopilota && (vistaElenco === undefined || linguetta !== PANORAMICA) ? (
             <aside className="pan-colonna" aria-label="L’autopilota"><ChatAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} onCambiato={ricaricaAutopiloti} /></aside>
           ) : null}
           {root ? (
             <Mosaic
               node={root}
-              autopiloti={autopiloti}
-              onRicaricaAutopiloti={ricaricaAutopiloti}
               pensano={pensano}
               chiedono={chiedono}
-              {...(vistaElenco !== undefined ? { senzaDiario: true } : {})}
               {...(vistaElenco?.davanti !== undefined ? { solo: vistaElenco.davanti } : {})}
             />
           ) : vistaElenco !== undefined ? (
@@ -2265,9 +2235,8 @@ export function App(): React.JSX.Element {
               {...(migrazione !== null && migrazione.stato === 'fatta' && migrazione.dormienti.some((d) => d.workspace === workspace.attivo)
                 ? { dormiente: migrazione.dormienti.find((d) => d.workspace === workspace.attivo)! }
                 : {})}
+              {...(Object.values(riquadriAperti)[0]?.cwd !== undefined ? { cwd: Object.values(riquadriAperti)[0]!.cwd } : {})}
               schede={schedePanoramica}
-              domande={domandeQui}
-              paneDiSessione={(sessione) => Object.values(riquadriAperti).find((x) => x.sessionUuid === sessione)?.id}
               onSoloMia={(s, si) => {
                 if (s.sessione === undefined) return
                 const sessione = s.sessione
@@ -2282,17 +2251,12 @@ export function App(): React.JSX.Element {
               }}
               onApri={vaiLinguetta}
               onRicarica={ricaricaAutopiloti}
-              onRisposto={() => setConversazioniLette((c) => c.filter((x) => !domandeQui.some((q) => q.chiave === x.chiave)))}
             />
           ) : null}
         </div>
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
-            Android. Resta aperta mentre si lavora; la vecchia finestra
-            modale delle domande non cambia (su quella decide Nicholas). */}
-        {/* Con la colonna Domande aperta la domanda è già lì, accanto: niente doppione. */}
-        {!colonnaDomande.aperta && !(vistaElenco !== undefined && linguetta === PANORAMICA) ? (
-          <DomandeALato conversazioni={domandeQui} onRisposto={(chiave) => setConversazioniLette((c) => c.filter((x) => x.chiave !== chiave))} />
-        ) : null}
+            Android. Resta aperta mentre si lavora. Dal 30/10 è l'unico posto
+            delle domande, anche di quelle dell'autopilota del workspace. */}
         {colonnaDomande.aperta ? (
           <PannelloDomande
             larghezza={colonnaDomande.larghezza}

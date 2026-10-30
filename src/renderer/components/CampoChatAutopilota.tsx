@@ -8,8 +8,6 @@ type Props = {
   onCambiato: () => void
   /** Prende il fuoco quando si apre, se nessun altro campo lo ha già (0.79.0). */
   campoPronto: boolean
-  /** Cosa rimette «Disfa», se c'è un cambio da disfare. */
-  disfaTitolo: string | undefined
 }
 
 /**
@@ -17,9 +15,9 @@ type Props = {
  * scorre fluido»). Il testo sta qui, non nella chat intera: una lettera
  * ridisegna solo il campo, non la conversazione con centinaia di righe. Una
  * rilettura dal servizio (ogni 5 s mentre lavora) non ridisegna il campo:
- * conta solo se cambia l'autopilota, il fuoco o il «Disfa» — vedi `stessoCampo`.
+ * conta solo se cambia l'autopilota o il fuoco — vedi `stessoCampo`.
  */
-function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, disfaTitolo }: Props): React.JSX.Element {
+function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto }: Props): React.JSX.Element {
   const [messaggio, setMessaggio] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -82,17 +80,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, disfaT
           {inCorso ? 'Mando…' : 'Manda'}
         </button>
         <TastoMicrofono campo={campo} />
-        {disfaTitolo !== undefined ? (
-          <button
-            className="tasto"
-            disabled={inCorso}
-            title={`Rimette com'era prima di: ${disfaTitolo}`}
-            onClick={() => esegui(() => window.gestore.autopilota.disfa(autopilotaId))}
-          >
-            Disfa
-          </button>
-        ) : null}
-        <Aiuto di="come parlare all’autopilota">Qui parli con l’autopilota, non con la chat che esegue. Lui risponde con parole sue, con davanti obiettivo, criteri, diario e l’ultima cosa scritta dalla chat. Se quello che scrivi è un’istruzione la applica: cambia obiettivo o criteri, aggiunge un compito, si ferma («fermati»), riparte («riprendi»). Se serve che la chat lo sappia, glielo consegna alla fine del turno che ha in mano, mai in mezzo a un’azione, oppure appena riparte se è fermo. La risposta arriva di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella linguetta «Domande» qui sotto, una per volta, e dopo la risposta domanda e risposta compaiono in questa chat. «Disfa» rimette com’era prima dell’ultimo cambio. Non parte nessun lavoro nuovo e non si chiude nessuna chat senza che tu lo chieda.</Aiuto>
+        <Aiuto di="come parlare all’autopilota">Qui parli con l’autopilota del workspace, non con le chat che lavorano. Ogni cosa che gli chiedi va nella sua coda: la unisce alle richieste sulla stessa cosa, fa il piano e lancia gli specialisti. Ti risponde con parole sue, di solito entro qualche minuto. Le sue domande non stanno qui: stanno nella colonna Domande, e dopo la risposta domanda e risposta compaiono in questa chat.</Aiuto>
       </div>
       {errore !== undefined ? <div className="avviso">⚠ {errore}</div> : null}
     </div>
@@ -101,7 +89,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, disfaT
 
 /** Il campo si ridisegna solo se cambia qualcosa che mostra: mai per la sola funzione nuova di chi sta sopra. */
 export function stessoCampo(a: Props, b: Props): boolean {
-  return a.autopilotaId === b.autopilotaId && a.campoPronto === b.campoPronto && a.disfaTitolo === b.disfaTitolo
+  return a.autopilotaId === b.autopilotaId && a.campoPronto === b.campoPronto
 }
 
 export const CampoChatAutopilota = memo(CampoChatAutopilotaVero, stessoCampo)

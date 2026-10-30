@@ -4,11 +4,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
-import { creaRegistroDomande } from '../../src/autopilot-host/domande'
+import { creaRegistroDomande, type RegistroDomande } from '../../src/autopilot-host/domande'
+import { apriCode } from '../../src/autopilot-host/coda-store'
+import { apriOrchestratori } from '../../src/autopilot-host/orchestratore-store'
+import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import { creaClientAutopilota } from '../../src/main/autopilot-client'
 import { rotteClient, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
-import { nuovoAutopilota } from '@shared/autopilota'
+import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 import { decidiColonnaDomande, richiestaRisposta, type Conversazione } from '@shared/domande-conversazioni'
 import { domandeScheda, dopoLaRisposta } from '@shared/domande-autopilota'
 import { orologioDa } from '../setup/orologio'
@@ -16,6 +19,27 @@ import { orologioDa } from '../setup/orologio'
 // L'orologio del servizio di prova parte da un istante fisso e avanza col
 // tempo vero: le attese funzionano come prima, il giorno non cambia mai.
 const orologio = orologioDa('2026-10-29T10:00:00.000Z')
+
+/** P4: il servizio vero con l'autopilota del workspace «Lavoro» già scritto. */
+function servizioCon(a: Autopilota, domande: RegistroDomande): ServerAutopiloti {
+  const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-dom-')))
+  archivio.scrivi(a)
+  const cartella = mkdtempSync(join(tmpdir(), 'sd-dom-orch-'))
+  const orchestratori = apriOrchestratori(cartella)
+  orchestratori.cambiaImpostazioni('Lavoro', (i) => ({ ...i, autopilota: a.id }))
+  const avviaProcesso: AvviaProcesso = () => ({ scrivi: () => {}, uccidi: () => {}, suRiga: () => {}, suUscita: () => {} }) as unknown as ProcessoClaude
+  return creaServer({
+    archivio, domande,
+    esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
+    avviaLavoro: () => Promise.resolve(),
+    avvisa: () => Promise.resolve(),
+    scadenzaDomandaMs: 60_000,
+    adesso: orologio.iso,
+    coda: apriCode(cartella),
+    orchestratori,
+    avviaProcesso
+  })
+}
 
 /**
  * «NON VEDO LE DOMANDEEEE!!!!» (Nicholas, 01/10, 13:52 UTC). Dal servizio
@@ -28,26 +52,14 @@ let server: ServerAutopiloti | undefined
 afterEach(() => { server?.close(); server = undefined })
 
 describe('le domande del servizio arrivano nella colonna e la risposta torna', () => {
-  it('domanda del supervisore aperta nel servizio → conversazione nella colonna → risposta al servizio', async () => {
-    const archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'sd-dom-')))
+  it('domanda dell’autopilota aperta nel servizio → conversazione nella colonna → risposta al servizio', async () => {
     const domande = creaRegistroDomande({ adesso: orologio.ms })
-    archivio.scrivi({
-      ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'o', cwd: process.cwd(), criteri: [{ descrizione: 'c', soddisfatto: false }], iniziatoIl: '2026-10-01T10:00:00.000Z' }),
+    server = servizioCon({
+      ...nuovoAutopilota({ id: 'ap-1', nome: 'App Android', obiettivo: 'o', cwd: process.cwd(), iniziatoIl: '2026-10-01T10:00:00.000Z', workspace: 'Lavoro' }),
       stato: 'lavoro'
-    })
-    server = creaServer({
-      archivio, domande,
-      esegui: () => Promise.resolve({ codice: 0, uscita: 'ok' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "finito"}' }),
-      avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => undefined,
-      avvisa: () => Promise.resolve(),
-      scadenzaDomandaMs: 60_000,
-      scadenzaInterviataMs: 60_000,
-      adesso: orologio.iso
-    })
+    }, domande)
     const porta = await new Promise<number>((ok) => server!.listen(0, '127.0.0.1', () => ok((server!.address() as { port: number }).port)))
-    // La domanda, come la apre il supervisore con «chiediUtente».
+    // La domanda, come la apre l'autopilota con «chiedi_utente».
     const d = domande.apri({ autopilotaId: 'ap-1', testo: 'Mi dai l’ok a considerare superato il criterio della versione?', scadenzaMs: 60_000, opzioni: ['sì', 'no'] })
     const attesa = domande.attendi(d.id)
 

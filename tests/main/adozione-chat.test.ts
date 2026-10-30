@@ -57,7 +57,7 @@ beforeEach(() => {
   writeFileSync(join(dati, 'migrazione-elenco.json'), JSON.stringify(MIG))
   mkdirSync(join(dati, 'autopiloti'))
   writeFileSync(join(dati, 'autopiloti', 'ap-1.json'), '{"id":"ap-1"}')
-  autopiloti = [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'S', obiettivo: 'o', cwd: 'E:\\p', criteri: [], iniziatoIl: 'x', workspace: 'S' }), sessionId: 's-a', stato: 'finito' }]
+  autopiloti = [{ ...nuovoAutopilota({ id: 'ap-1', nome: 'S', obiettivo: 'o', cwd: 'E:\\p', iniziatoIl: 'x', workspace: 'S' }), sessionId: 's-a', stato: 'finito' }]
   righe = []
 })
 

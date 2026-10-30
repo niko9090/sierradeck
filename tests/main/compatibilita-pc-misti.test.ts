@@ -95,7 +95,7 @@ describe('un PC alla 0.74 visto dai PC vecchi', () => {
       { id: 'p-1', titolo: 'Gestore', cwd: 'C:/p', sessione: 's-1', workspace: 'lavoro', aspetta: true, governata: false, viva: true, ultimaRiga: '> ', coda: SCHERMO, codaGrezza: SCHERMO },
       { id: 'p-2', titolo: 'Sviluppo · Notte', cwd: 'C:/p.sierradeck-wt/ap-1-c-1', sessione: 's-2', workspace: 'lavoro', aspetta: false, governata: true, autopilota: { id: 'ap-1', chat: 'c-1' }, viva: true, coda: ['lavoro…'], codaGrezza: ['lavoro…'] }
     ],
-    autopiloti: () => Promise.resolve([{ ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:/p', criteri: [{ descrizione: 'x', soddisfatto: true }], iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'lavoro' as const }]),
+    autopiloti: () => Promise.resolve([{ ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Test', cwd: 'C:/p', iniziatoIl: '2026-08-12T10:00:00.000Z' }), stato: 'lavoro' as const }]),
     rispondi: () => Promise.resolve(), domande: () => Promise.resolve([]), scriviAChat: () => undefined, apriChat: () => undefined,
     cartelle: () => Promise.resolve(['C:/p']), workspace: () => Promise.resolve({ nomi: ['lavoro'], attivo: 'lavoro' }),
     cambiaWorkspace: () => Promise.resolve(), fermaAutopilota: () => Promise.resolve(), riprendiAutopilota: () => Promise.resolve(),

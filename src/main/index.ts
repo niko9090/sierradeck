@@ -1,9 +1,6 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
-import {
-  apriPannello, chiudiPannelliConLApp, finestreDiChat, impostaFinestrePannello, pannelliAperti, portaAvantiPannello, riapriPannelli, richiamaPannello,
-  rimettiPannello, segnaFinestraDiServizio
-} from './finestre-pannello'
+import { chiudiPannelliConLApp, finestreDiChat, segnaFinestraDiServizio } from './finestre-pannello'
 import { creaPonteRtc } from './rtc/ponte-rtc'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { creaRtc } from './rtc/collegamento-rtc'
@@ -24,7 +21,6 @@ import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { CERCA_OFFERTE_OGNI_MS, stradaBreve, type ChatNelloSchermo, type InfoStrada } from '@shared/strada-pc'
-import { doveMostrareDomande, eLinguettaStaccabile } from '@shared/finestra-pannello'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -46,7 +42,6 @@ import { AMBIENTE_PORTA_AUTOPILOTI, PORTA_AUTOPILOTA } from '@shared/autopilota'
 import { finestraPerRipresa } from './consegne-layout'
 import type { AzioneFinestra, EsitoAzioneFinestra, RichiestaAutopilota } from '@shared/azioni-telefono'
 import { workspaceDellAutopilota } from '@shared/azioni-telefono'
-import { apriPartenzeSubito } from './partenze-subito'
 import {
   collegaFinestra,
   workspaceDellaFinestra,
@@ -67,7 +62,7 @@ import {
 import { preparaAmbiente } from './preparazione'
 import { gitPerLeChat } from './git-nel-path'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
-import { espandiTilde, validaIdAutopilota } from './validation'
+import { espandiTilde } from './validation'
 import {
   avviaAccesso,
   registra as registraAccount,
@@ -172,7 +167,6 @@ import { creaRonda } from './progetti/presenza'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
-import { eDomandaDelProgramma } from '@shared/domande-conversazioni'
 import { eFinitaDiAutopilota, motivoChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
 import { riquadriDaTogliere, type RiquadroDaTogliere } from '@shared/riquadri-morti'
 import { misuraAvvio } from './misura-avvio'
@@ -662,7 +656,6 @@ let unaCasaGlobale: UnaCasa | undefined
 /** «Installa là» per il telefono (0.56.2): nasce con la Salute. */
 let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: () => AvanzamentoInstallaLa[]; conosce: (pcId: string) => boolean } | undefined
 /** «Parte da solo» (0.55.0): gli autopiloti a cui il PC darà il via quando sono pronti. */
-let partenzeSubitoGlobale: import('./partenze-subito').PartenzeSubito | undefined
 /** L'ospite delle chat (0.52.0): nasce con la sincronia, come `unaCasaGlobale`. */
 let ospiteGlobale: Ospite | undefined
 /** Le chat di un autopilota partite prima che l'ospite fosse pronto: la loro casa si prende appena lo è (0.52.5). */
@@ -2702,18 +2695,9 @@ if (!app.requestSingleInstanceLock()) {
           const d = new Date(adesso - giorni * 86_400_000).toISOString().slice(0, 10)
           try { righe.push(...readFileSync(join(dirname(registro.file()), `sierradeck-${d}.log`), 'utf8').split('\n')) } catch { /* quel giorno non c'e' */ }
         }
-        // Le consegne non partite delle ultime 24 ore, di ogni autopilota.
+        // P4: il registro delle istruzioni degli autopiloti di prima non c'è più;
+        // una consegna persa torna in coda da sola (riportaInCoda nel servizio).
         const consegne: import('@shared/salute').ConsegnaNonPartita[] = []
-        try {
-          for (const a of await clientAutopilota.elenca()) {
-            const lista = await clientAutopilota.istruzioni(a.id).catch(() => [])
-            for (const i of lista) {
-              if ((i.esito === 'non-partita' || i.esito === 'persa') && adesso - Date.parse(i.quando) < 86_400_000) {
-                consegne.push({ autopilota: a.id, nome: a.nome !== '' ? a.nome : a.obiettivo.slice(0, 40), quando: i.quando, chat: i.chatTitolo, esito: i.esito, inizio: chatAperte.some((c) => c.id === i.chatId && guardianoPin?.chiusa('locale', c) === true) ? ANTEPRIMA_NASCOSTA : i.testo.replace(/\s+/g, ' ').slice(0, 140) })
-              }
-            }
-          }
-        } catch { /* il servizio non risponde: niente consegne da dire */ }
         const t = aggiornamenti?.stato().tentativoFallito
         // La parola e il titolo corto di ogni voce (0.70.0): pagina e app li disegnano.
         return conVistaSalute(componiSalute({
@@ -4959,15 +4943,6 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
-      // «Parte da solo» (0.55.0): chi è pronto riceve il via dal PC.
-      const partenze = apriPartenzeSubito(dati, {
-        elenca: () => clientAutopilota.elenca(),
-        vai: (id) => clientAutopilota.vai(id),
-        log: (m) => registro.info(m)
-      })
-      partenzeSubitoGlobale = partenze
-      setInterval(() => { void partenze.giro().catch(() => undefined) }, 15_000)
-
       // «Errori arrivati» (0.81.0): sul PC dove arrivano gli errori, un lavoro
       // dell'autopilota nel workspace di SierraDeck, partito da solo. Le regole
       // (quiete, limiti, un lavoro alla volta, riepilogo, recupero) stanno in
@@ -4995,7 +4970,7 @@ if (!app.requestSingleInstanceLock()) {
                     for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
                   }
                 }
-                const a = await clientAutopilota.crea({ ...p, workspace: ws })
+                const a = await clientAutopilota.crea({ obiettivo: p.obiettivo, cwd: p.cwd, workspace: ws })
                 return { id: a.id }
               },
               annuncia: async (id, titolo, testo) => {
@@ -5016,7 +4991,7 @@ if (!app.requestSingleInstanceLock()) {
         setInterval(() => { void giro() }, 120_000)
         setTimeout(() => { void giro() }, 30_000)
       }
-      registerAutopilotaIpc(clientAutopilota, (id) => partenze.segna(id), () => workspaceStore?.leggi().workspace.map((w) => w.nome) ?? [])
+      registerAutopilotaIpc(clientAutopilota)
       primaDiEliminareGlobale = {
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)
@@ -5089,90 +5064,6 @@ if (!app.requestSingleInstanceLock()) {
           return clientAutopilota.adotta(id, adottabili(archivio, a.workspace, tutti), impostazioni.preferenze().chatSoloMie ?? [])
         })
       }
-
-      // Le finestre pannello (0.38.0): le linguette della scheda dell'autopilota
-      // staccate in finestre vere. Non sono finestre di chat (finestre-pannello.ts).
-      impostaFinestrePannello({
-        cartellaDati: dati,
-        preload: join(__dirname, '../preload/index.js'),
-        onCambio: () => {
-          for (const w of finestreDiChat()) if (!w.isDestroyed()) w.webContents.send('pannelli:cambiati', pannelliAperti())
-        }
-      })
-      ipcMain.handle('pannello:stacca', (_e, id: unknown, linguetta: unknown) => {
-        if (!eLinguettaStaccabile(linguetta)) throw new Error('richiesta IPC non valida: linguetta')
-        apriPannello(validaIdAutopilota(id), linguetta)
-      })
-      ipcMain.handle('pannello:rimetti', (_e, id: unknown, linguetta: unknown) => {
-        if (!eLinguettaStaccabile(linguetta)) throw new Error('richiesta IPC non valida: linguetta')
-        rimettiPannello(validaIdAutopilota(id), linguetta)
-      })
-      ipcMain.handle('pannello:aperti', () => pannelliAperti())
-      ipcMain.handle('pannello:richiama', (e) => {
-        const w = BrowserWindow.fromWebContents(e.sender)
-        // Ogni lampeggio con la sua riga (c-241): questo non ne aveva.
-        if (w !== null && richiamaPannello(w)) registro.info('[avviso] PC: la finestra pannello Domande lampeggia, causa: domanda nuova che aspetta te')
-      })
-      // Le domande di un autopilota (0.39.1): si fa avanti la linguetta
-      // «Domande» della sua scheda, non la colonna a destra. Ogni finestra di
-      // chat dice quali schede di autopilota mostra; qui si sceglie dove
-      // mostrarle (`doveMostrareDomande`).
-      const schedeInVista = new Map<number, string[]>()
-      const mostrateDaSole = new Map<string, number>()
-      ipcMain.on('pannello:inVista', (e, ids: unknown) => {
-        if (!Array.isArray(ids)) return
-        const w = BrowserWindow.fromWebContents(e.sender)
-        if (w === null) return
-        const id = w.id
-        if (!schedeInVista.has(id)) w.once('closed', () => schedeInVista.delete(id))
-        schedeInVista.set(id, ids.filter((x): x is string => typeof x === 'string').slice(0, 200))
-      })
-      const mostraDomande = (id: string, automatico: boolean, chiedente: number | undefined): void => {
-        const finestreConScheda = finestreDiChat()
-          .filter((w) => !w.isDestroyed() && (schedeInVista.get(w.id) ?? []).includes(id))
-          .map((w) => w.id)
-        const staccata = pannelliAperti().some((p) => p.autopilota === id && p.linguetta === 'domande')
-        const dove = doveMostrareDomande({ staccata, finestreConScheda, ...(chiedente !== undefined ? { chiedente } : {}) })
-        // Ogni avviso nel registro (0.80.0): «mille notifiche» non lasciava righe.
-        if (automatico) registro.info(`[avviso] PC: domande dell'autopilota ${id} in vista da sole (${dove.tipo === 'pannello' ? 'pannello staccato' : dove.tipo === 'scheda' ? 'scheda di una finestra, che lampeggia' : 'pannello nuovo'}), causa: domanda nuova che aspetta te`)
-        if (dove.tipo === 'pannello') { portaAvantiPannello(id, 'domande', !automatico); return }
-        if (dove.tipo === 'scheda') {
-          const w = BrowserWindow.fromId(dove.finestra)
-          if (w === null || w.isDestroyed()) return
-          w.webContents.send('domande:mostra', id)
-          if (!automatico) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); return }
-          // Arrivata da sola: in vista, senza togliere la tastiera a nessuno.
-          if (w.isMinimized()) w.restore()
-          if (!w.isVisible()) w.showInactive()
-          if (!w.isFocused()) { w.moveTop(); w.flashFrame(true) }
-          return
-        }
-        apriPannello(id, 'domande', { inattiva: automatico })
-      }
-      ipcMain.handle('pannello:mostraDomande', (e, id: unknown, automatico: unknown) => {
-        // Le domande del programma («sierradeck:al-telefono»…) non hanno una
-        // scheda: stanno nella colonna, qui non c'e' niente da mostrare (0.84.1).
-        if (typeof id === 'string' && eDomandaDelProgramma(id)) return
-        const ap = validaIdAutopilota(id)
-        const chiedente = BrowserWindow.fromWebContents(e.sender)?.id
-        if (automatico !== true) { mostraDomande(ap, false, chiedente); return }
-        // Da sola la chiedono tutte le finestre di chat insieme: basta una volta.
-        const adesso = Date.now()
-        if (adesso - (mostrateDaSole.get(ap) ?? 0) < 10_000) return
-        mostrateDaSole.set(ap, adesso)
-        // All'avvio le schede arrivano qualche secondo dopo la prima lettura
-        // delle domande: si aspetta che le finestre dicano cosa mostrano,
-        // invece di aprire una finestra pannello per una scheda che c'e'.
-        setTimeout(() => mostraDomande(ap, true, chiedente), 3000)
-      })
-      // Al riavvio: si riaprono dov'erano, se l'autopilota esiste ancora. Il
-      // servizio puo' metterci qualche secondo: si prova due volte.
-      const riapri = (tentativo: number): void => {
-        clientAutopilota.elenca()
-          .then((tutti) => riapriPannelli(tutti.map((a) => a.id)))
-          .catch(() => { if (tentativo < 2) setTimeout(() => riapri(tentativo + 1), 8000) })
-      }
-      setTimeout(() => riapri(1), 3000)
 
       // **Il ritorno va dichiarato.** Il servizio sopravvive alla chiusura del
       // Gestore — è tutto il suo mestiere — ma le chat governate no: muoiono
@@ -5571,7 +5462,11 @@ if (!app.requestSingleInstanceLock()) {
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
         autopiloti: () => clientAutopilota.elenca(),
         autopilota: (id: string) => clientAutopilota.dettaglio(id),
-        tempiAutopilota: (id: string) => clientAutopilota.tempi(id),
+        // L'avanzamento dell'autopilota unico di un workspace (0.86.x): orchestratore e coda.
+        avanzamentoAutopilota: async (ws: string) => {
+          const [orchestratore, coda] = await Promise.all([clientAutopilota.orchestratore(ws), clientAutopilota.coda(ws)])
+          return { ...(orchestratore !== undefined ? { orchestratore } : {}), ...(coda !== undefined ? { coda } : {}) }
+        },
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
@@ -5625,7 +5520,6 @@ if (!app.requestSingleInstanceLock()) {
           if (a === undefined) throw new Error('autopilota inesistente')
           return fileDellAutopilota(a)
         },
-        istruzioniAutopilota: (id: string) => clientAutopilota.istruzioni(id),
         // «Sposta progetto» dal lato di chi riceve (0.42.0).
         // Pigro: il servizio nasce con la sincronia, che puo' arrivare dopo.
         // Le case delle chat da un altro PC (0.52.0). Pigro come «Sposta».
@@ -5890,11 +5784,6 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
         },
-        fermaAutopilota: (id: string) => clientAutopilota.ferma(id),
-        eliminaAutopilota: (id: string) => clientAutopilota.elimina(id),
-        riprendiAlRiavvio: (id: string, riprendi: boolean) =>
-          clientAutopilota.riprendiAlRiavvio(id, riprendi),
-        sottofondoAutopilota: (id: string, si: boolean) => clientAutopilota.sottofondo(id, si),
         // Chiudere e rinominare una chat le sa fare la finestra, che e' l'unica
         // a conoscere i suoi riquadri: qui si annuncia, come per «apri».
         log: (riga: string) => registro.info(riga),
@@ -5914,8 +5803,6 @@ if (!app.requestSingleInstanceLock()) {
             }
           }
         },
-        riprendiAutopilota: (id: string) => clientAutopilota.riprendi(id),
-        vaiAutopilota: async (id: string) => { await clientAutopilota.vai(id) },
         dialogaAutopilota: async (id: string, testo: string) => {
           const r = await clientAutopilota.dialoga(id, testo)
           return { ricevuto: r.ricevuto === true }
@@ -5939,16 +5826,12 @@ if (!app.requestSingleInstanceLock()) {
             }
             registro.info(`[autopilota] creato da lontano senza workspace: il suo è «${suo}», lo schermo di questo PC resta su «${dopo.attivo}»`)
           }
+          // P4: è il primo messaggio all'autopilota del workspace (che nasce se manca).
           const a = await clientAutopilota.crea({
-            nome: r.nome,
             obiettivo: r.obiettivo,
             cwd: r.cwd,
-            criteri: r.criteri,
-            pubblicazione: r.pubblicazione,
-            ...(r.vaSulCloud === true ? { vaSulCloud: true } : {}),
             ...(r.workspace !== undefined ? { workspace: r.workspace } : suo !== undefined ? { workspace: suo } : {})
           })
-          if (r.partenza === 'subito') partenzeSubitoGlobale?.segna(a.id)
           return { id: a.id }
         },
         azioneFinestra: (a: AzioneFinestra) => {
@@ -5958,10 +5841,7 @@ if (!app.requestSingleInstanceLock()) {
           if (sf !== undefined) return Promise.resolve(chiudiSottofondoDaTe(sf, 'da lontano') ? { ok: true } : { ok: false, errore: 'la chat in sottofondo non si è chiusa' })
           return azioneAlleFinestre(a)
         },
-        // Le mancanze della parità (0.56.0): archiviare, il PIN, l'ospite, dal telefono.
-        archiviaAutopilota: (id: string, archivia: boolean) => clientAutopilota.archivia(id, archivia),
-        spostaAutopilota: (id: string, workspace: string) => clientAutopilota.spostaInWorkspace(id, workspace),
-        mandaAdessoAutopilota: (id: string) => clientAutopilota.mandaAdesso(id),
+        // Le mancanze della parità (0.56.0): il PIN e l'ospite, dal telefono.
         installaLa: (pcId: string) => installaLaGlobale === undefined ? undefined : installaLaGlobale.conosce(pcId) ? installaLaGlobale.avvia(pcId) : { sconosciuto: true },
         installaLaStato: () => installaLaGlobale?.stato() ?? [],
         proteggiChat: (sessione: string, si: boolean) => {
@@ -6280,9 +6160,8 @@ if (!app.requestSingleInstanceLock()) {
       // Le stesse rotte per le strade nuove da un altro PC (0.40.0).
       rottaPerAltriPc = async (r) => { const e = await rottaTelefono(r); return { stato: e.stato, corpo: e.corpo } }
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
-      // `/api/autopilota/vai`: il via dalla linguetta «Domande» (0.38.0).
       // `/api/pin/sblocca` (0.49.1): il PIN di una chat protetta, chiesto lì dove le si scrive.
-      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/autopilota/vai', '/api/pin/sblocca']
+      const ROTTE_DOMANDE = ['/api/domande', '/api/rispondi', '/api/scrivi', '/api/scegli', '/api/autopilota/dialogo', '/api/pin/sblocca']
       ipcMain.removeHandler('domande:chiama')
       ipcMain.handle('domande:chiama', async (_e, percorso: unknown, corpo: unknown) => {
         if (typeof percorso !== 'string' || !ROTTE_DOMANDE.includes(percorso)) {

@@ -38,11 +38,11 @@ import type { WorkspaceStore } from './workspace-store'
 import { creaFreno, creaRegistroConsegne, primoSlotLibero } from './consegne-layout'
 import type { IstantaneeStore } from './istantanee-store'
 import {
-  nuovaIstantanea, distribuisci, daRiavviare, daSalvare, workspaceDaSalvare,
-  workspaceDopoRipristino, finestreDaRiaprire, NOMI_CHIUSURE,
+  nuovaIstantanea, distribuisci, workspaceDaSalvare,
+  workspaceDopoRipristino, finestreDaRiaprire,
   type AutopilotaSalvato, type FinestraSalvata, type Istantanea
 } from '@shared/istantanea'
-import { ATTESA_SERVIZIO_IN_CHIUSURA_MS, entroOppure, fotografaFinestra } from './salva-alla-chiusura'
+import { fotografaFinestra } from './salva-alla-chiusura'
 import { misuraAvvio } from './misura-avvio'
 import { resolveClaudeCommand, buildClaudeArgs } from './config'
 import { componiImpostazioni } from '@shared/hook-autopilota'
@@ -51,7 +51,6 @@ import {
   isPtyId,
   validateListOptions,
   validaIdAutopilota,
-  validaCambioAutopilota,
   validaNuovoAutopilota,
   validateIdFinestra,
   validateLayoutSalvato,
@@ -1554,13 +1553,7 @@ function annunciaCambio(
  * riprenderlo dopo che è caduto — senza un pulsante «riavvia» che l'utente
  * dovrebbe sapere di dover premere.
  */
-export function registerAutopilotaIpc(
-  client: ClientAutopilota,
-  /** «Parte da solo» (0.55.0): il PC gli darà il via quando è pronto. */
-  partenzaSubito?: (id: string) => void,
-  /** I workspace che ci sono, per «Sposta in…» (0.81.0): solo verso uno di questi. */
-  nomiWorkspace?: () => string[]
-): void {
+export function registerAutopilotaIpc(client: ClientAutopilota): void {
   ipcMain.handle('autopilota:elenca', async () => {
     await client.assicuraServizio()
     return client.elenca()
@@ -1579,23 +1572,8 @@ export function registerAutopilotaIpc(
   ipcMain.handle('autopilota:crea', async (_e, raw: unknown) => {
     const richiesta = validaNuovoAutopilota(raw)
     await client.assicuraServizio()
-    const creato = await client.crea(richiesta)
-    if ((raw as { partenza?: unknown }).partenza === 'subito') partenzaSubito?.(creato.id)
-    return creato
-  })
-  ipcMain.handle('autopilota:vai', (_e, id: unknown) => client.vai(validaIdAutopilota(id)))
-  ipcMain.handle('autopilota:modifica', (_e, id: unknown, cambio: unknown) =>
-    client.modifica(validaIdAutopilota(id), validaCambioAutopilota(cambio)))
-  ipcMain.handle('autopilota:parla', (_e, id: unknown, testo: unknown) => {
-    // Lo stesso metro della risposta a una domanda: è testo che l'utente scrive
-    // e che finisce dentro un prompt, e la lunghezza si limita qui.
-    if (typeof testo !== 'string' || testo.trim() === '') {
-      throw new Error('richiesta IPC non valida: non hai scritto niente')
-    }
-    if (testo.length > RISPOSTA_MAX) {
-      throw new Error(`richiesta IPC non valida: messaggio oltre ${RISPOSTA_MAX} caratteri`)
-    }
-    return client.parla(validaIdAutopilota(id), testo.trim())
+    // P4: il primo messaggio all'autopilota del workspace; criteri e partenza non contano più.
+    return client.crea({ obiettivo: richiesta.obiettivo, cwd: richiesta.cwd, ...(richiesta.workspace !== undefined ? { workspace: richiesta.workspace } : {}) })
   })
   ipcMain.handle('autopilota:dialoga', (_e, id: unknown, testo: unknown) => {
     if (typeof testo !== 'string' || testo.trim() === '') {
@@ -1606,17 +1584,8 @@ export function registerAutopilotaIpc(
     }
     return client.dialoga(validaIdAutopilota(id), testo.trim())
   })
-  ipcMain.handle('autopilota:disfa', (_e, id: unknown) => client.disfa(validaIdAutopilota(id)))
-  ipcMain.handle('autopilota:ferma', (_e, id: unknown) => client.ferma(validaIdAutopilota(id)))
-  ipcMain.handle('autopilota:riprendi', (_e, id: unknown) => client.riprendi(validaIdAutopilota(id)))
-  ipcMain.handle('autopilota:riprendiAlRiavvio', (_e, id: unknown, riprendi: unknown) =>
-    client.riprendiAlRiavvio(validaIdAutopilota(id), riprendi === true))
-  ipcMain.handle('autopilota:sottofondo', (_e, id: unknown, si: unknown) =>
-    client.sottofondo(validaIdAutopilota(id), si === true))
-  ipcMain.handle('autopilota:ricontrollaCriteri', (_e, id: unknown) =>
-    client.ricontrollaCriteri(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:pulisci', () => client.pulisci())
-  // La linguetta «File» (0.38.0): solo lettura, cartelle e base dal servizio.
+  // I file cambiati e il loro diff (0.38.0): solo lettura, cartelle e base dal servizio.
   ipcMain.handle('autopilota:file', async (_e, id: unknown) => {
     const valido = validaIdAutopilota(id)
     const a = (await client.elenca()).find((x) => x.id === valido)
@@ -1632,18 +1601,7 @@ export function registerAutopilotaIpc(
   })
   ipcMain.handle('autopilota:nota', (_e, id: unknown, testo: unknown) =>
     client.nota(validaIdAutopilota(id), typeof testo === 'string' ? testo.slice(0, 500) : ''))
-  ipcMain.handle('autopilota:archivia', (_e, id: unknown, archivia: unknown) =>
-    client.archivia(validaIdAutopilota(id), archivia !== false))
-  ipcMain.handle('autopilota:spostaInWorkspace', (_e, id: unknown, workspace: unknown) => {
-    if (typeof workspace !== 'string' || workspace.trim() === '') throw new Error('richiesta IPC non valida')
-    if (nomiWorkspace !== undefined && !nomiWorkspace().includes(workspace)) throw new Error(`il workspace «${workspace}» non c’è su questo computer`)
-    return client.spostaInWorkspace(validaIdAutopilota(id), workspace)
-  })
-  ipcMain.handle('autopilota:elimina', (_e, id: unknown) => client.elimina(validaIdAutopilota(id)))
-  ipcMain.handle('autopilota:mandaAdesso', (_e, id: unknown) => client.mandaAdesso(validaIdAutopilota(id)))
   ipcMain.handle('autopilota:domande', () => client.domande())
-  ipcMain.handle('autopilota:istruzioni', async (_e, id: unknown) => filtroIstruzioniPin.filtra(await client.istruzioni(validaIdAutopilota(id))))
-  ipcMain.handle('autopilota:tempi', async (_e, id: unknown) => client.tempi(validaIdAutopilota(id)).catch(() => undefined))
   ipcMain.handle('autopilota:postiChat', async () => client.postiChat().catch(() => undefined))
   // P1: la coda delle richieste del workspace. Il workspace è un nome (o «cartella:<percorso>»
   // per gli autopiloti nati prima del campo), la richiesta `r-N`.
@@ -1676,13 +1634,8 @@ export function registerAutopilotaIpc(
     if (typeof o.testo !== 'string' || typeof o.perche !== 'string') throw new Error('richiesta IPC non valida')
     return client.unisciCoda(wsCoda(ws), { ids, testo: o.testo, punti, perche: o.perche, ...(typeof o.titolo === 'string' ? { titolo: o.titolo } : {}) })
   })
-  // P3: l'autopilota unico del workspace.
+  // P3: l'autopilota del workspace (dal 30/10 l'unico, sempre acceso).
   ipcMain.handle('autopilota:orchestratore', async (_e, ws: unknown) => client.orchestratore(wsCoda(ws)).catch(() => undefined))
-  ipcMain.handle('autopilota:attivaOrchestratore', async (_e, ws: unknown, cwd: unknown) => {
-    if (cwd !== undefined && (typeof cwd !== 'string' || cwd.length > 1000)) throw new Error('richiesta IPC non valida')
-    return client.attivaOrchestratore(wsCoda(ws), cwd)
-  })
-  ipcMain.handle('autopilota:disattivaOrchestratore', async (_e, ws: unknown) => client.disattivaOrchestratore(wsCoda(ws)))
   ipcMain.handle('autopilota:impostaOrchestratore', async (_e, ws: unknown, p: unknown) => {
     const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
     return client.impostaOrchestratore(wsCoda(ws), {
@@ -1792,7 +1745,7 @@ export function registerIstantaneeIpc(
 
   ipcMain.handle(
     'istantanee:salva',
-    async (event, rawNome: unknown, rawLayout: unknown, conAutopiloti: unknown): Promise<Istantanea[]> => {
+    async (event, rawNome: unknown, rawLayout: unknown): Promise<Istantanea[]> => {
       const nome = validateNomeWorkspace(rawNome)
       const win = BrowserWindow.fromWebContents(event.sender)
       if (win === null) throw new Error('salvataggio da una finestra sconosciuta')
@@ -1803,40 +1756,9 @@ export function registerIstantaneeIpc(
       // `beforeunload`, e dopo il primo `await` la finestra puo' essere gia'
       // distrutta — «Object has been destroyed», e «Ultima chiusura» persa.
       const questa = fotografaFinestra(win, monitorDellaFinestra, slotDellaFinestra)
-      // Il salvataggio automatico di chiusura non aspetta il servizio: si
-      // prende quello che risponde subito, il resto si perde senza fermare
-      // l'uscita.
-      const inChiusura = (NOMI_CHIUSURE as readonly string[]).includes(nome)
-
-      // Gli autopiloti si salvano come **richiesta** — obiettivo, cartella,
-      // criteri — non come stato: al ricarico ripartono da capo, perche' le
-      // loro chat sono morte con la sessione precedente e fingere il contrario
-      // sarebbe peggio che ripartire.
-      let autopiloti: AutopilotaSalvato[] = []
-      if (conAutopiloti === true) {
-        try {
-          // Quelli che hanno finito non si salvano: rimetterli in moto al
-          // prossimo ricarico vuol dire una chat nuova che gira per scoprire
-          // che non c'e' niente da fare.
-          const elenco = inChiusura
-            ? await entroOppure(client.elenca(), ATTESA_SERVIZIO_IN_CHIUSURA_MS, [])
-            : await client.elenca()
-          autopiloti = daSalvare(elenco).map((a) => ({
-            nome: a.nome,
-            obiettivo: a.obiettivo,
-            cwd: a.cwd,
-            criteri: a.criteri.map((c) => ({
-              descrizione: c.descrizione,
-              ...(c.comando !== undefined ? { comando: c.comando } : {})
-            })),
-            ...(a.tettoChat > 1 ? { tettoChat: a.tettoChat } : {})
-          }))
-        } catch (err) {
-          // Il servizio spento non deve impedire di salvare le chat: si salva
-          // quel che c'e' e lo si dice, invece di perdere tutto.
-          console.error('[istantanee] autopiloti non inclusi, servizio non raggiungibile:', err)
-        }
-      }
+      // Gli autopiloti non si salvano più (30/10): ogni workspace ha già il suo,
+      // sempre acceso, e al ripristino non si ricrea niente.
+      const autopiloti: AutopilotaSalvato[] = []
 
       // Tutte le finestre, non solo questa: il lavoro sta in tutte, e salvarne
       // una sola era il motivo per cui chi aveva sei chat in due finestre se ne
@@ -2004,32 +1926,6 @@ export function registerIstantaneeIpc(
         // Una finestra che non si apre non deve far fallire il ripristino di
         // quelle che ci sono: il layout resta in coda e scade da solo.
         console.error('[istantanee] finestra non riaperta:', err)
-      }
-    }
-
-    // Gli autopiloti si riavviano dopo le finestre: le chat sono la parte
-    // preziosa, e un servizio che non risponde non deve ritardarle.
-    //
-    // Solo quelli che non ci sono gia'. Ricreandoli a ogni ricarico, lo stesso
-    // autopilota si moltiplicava — sul campo da uno sono diventati sei — e ogni
-    // copia ripartiva dalla preparazione rifacendo le domande gia' risposte.
-    if (istantanea.autopiloti.length > 0) {
-      try {
-        await client.assicuraServizio()
-        const esistenti = (await client.elenca()).map((a) => ({ cwd: a.cwd, obiettivo: a.obiettivo }))
-        for (const a of daRiavviare(istantanea.autopiloti, esistenti)) {
-          try {
-            await client.crea(a)
-          } catch (err) {
-            // Uno che non riparte non deve impedire agli altri di ripartire.
-            console.error(`[istantanee] autopilota «${a.nome}» non riavviato:`, err)
-          }
-        }
-      } catch (err) {
-        // Senza sapere cosa c'e' gia', meglio non riavviare niente che riempire
-        // l'elenco di copie: le chat tornano comunque, e gli autopiloti si
-        // rimettono in moto dal loro pannello.
-        console.error('[istantanee] autopiloti non riavviati, servizio non raggiungibile:', err)
       }
     }
 

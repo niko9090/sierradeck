@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { autopilotiDaStato, criteriDa } from '../../src/shared/autopiloti-altri'
-import { descriviAutopilota, ledDi } from '../../src/shared/autopilota-vista'
+import { ledDi } from '../../src/shared/autopilota-vista'
 import type { Autopilota } from '../../src/shared/autopilota'
 
 /**
@@ -18,15 +18,13 @@ describe('le righe degli autopiloti degli altri PC', () => {
     expect(r?.compitiDaFare).toEqual([])
   })
 
-  it('la riga si descrive senza cadere: «2 criteri su 3»', () => {
+  it('la riga ha il suo LED senza cadere', () => {
     const [r] = autopilotiDaStato(stato)
-    const d = descriviAutopilota(r as unknown as Autopilota)
-    expect(d.avanzamento).toBe('2 criteri su 3')
     expect(ledDi(r as unknown as Autopilota).classe).toBe('led--lavoro')
   })
 
   it('anche una riga storta (senza criteri) non fa cadere niente', () => {
-    expect(() => descriviAutopilota({ id: 'x', nome: 'x', stato: 'lavoro', obiettivo: 'x' } as unknown as Autopilota)).not.toThrow()
+    expect(() => ledDi({ id: 'x', nome: 'x', stato: 'lavoro', obiettivo: 'x' } as unknown as Autopilota)).not.toThrow()
     expect(criteriDa(undefined, undefined)).toEqual([])
     expect(criteriDa(-3, 9)).toEqual([])
     expect(criteriDa([{ soddisfatto: true }, 'storto'], 0)).toEqual([{ soddisfatto: true }])

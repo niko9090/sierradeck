@@ -24,7 +24,7 @@ const chat = (n: number): ChatGovernata =>
 
 /** Un autopilota grande come quelli veri di una giornata di lavoro: centinaia di righe nel diario. */
 const grande = (): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Un obiettivo lungo. '.repeat(20), cwd: 'C:\\p', criteri: Array.from({ length: 15 }, (_, i) => ({ descrizione: `criterio ${i}`, soddisfatto: i % 2 === 0 })), iniziatoIl: iso(ORA - 10 * 3600_000) }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'Un obiettivo lungo. '.repeat(20), cwd: 'C:\\p', iniziatoIl: iso(ORA - 10 * 3600_000) }),
   stato: 'lavoro',
   chats: Array.from({ length: 12 }, (_, i) => chat(i + 1)),
   decisioni: Array.from({ length: 600 }, (_, i) => ({ quando: iso(ORA - (600 - i) * 30_000), cosa: `Ha deciso: continua — la chat c-${(i % 12) + 1} va avanti col passo ${i}, ${'dettaglio '.repeat(8)}` })),
@@ -51,10 +51,10 @@ describe('il campo della scheda dell’autopilota scorre fluido', () => {
 
   it('una rilettura dal servizio non ridisegna il campo', () => {
     const uguali = Campo.stessoCampo
-    const base = { autopilotaId: 'ap-1', campoPronto: false, disfaTitolo: undefined, onCambiato: () => undefined }
+    const base = { autopilotaId: 'ap-1', campoPronto: false, onCambiato: () => undefined }
     // Un autopilota riletto (oggetto nuovo, funzione nuova) ma con lo stesso id: il campo resta com'è.
     expect(uguali(base, { ...base, onCambiato: () => undefined })).toBe(true)
-    expect(uguali(base, { ...base, disfaTitolo: 'ha cambiato i criteri' })).toBe(false)
+    expect(uguali(base, { ...base, campoPronto: true })).toBe(false)
     expect(uguali(base, { ...base, autopilotaId: 'ap-2' })).toBe(false)
   })
 
@@ -62,7 +62,7 @@ describe('il campo della scheda dell’autopilota scorre fluido', () => {
     const a = grande()
     // La chat intera costa centinaia di ms a disegno (500 col PC carico): poche misure bastano, 45 superavano i 20 s del test.
     const chatIntera = tempoMedio(() => renderToStaticMarkup(<ChatAutopilota autopilota={a} onCambiato={() => undefined} />), 5, 1)
-    const dopo = tempoMedio(() => renderToStaticMarkup(<Campo.CampoChatAutopilota autopilotaId={a.id} onCambiato={() => undefined} campoPronto={false} disfaTitolo={undefined} />))
+    const dopo = tempoMedio(() => renderToStaticMarkup(<Campo.CampoChatAutopilota autopilotaId={a.id} onCambiato={() => undefined} campoPronto={false} />))
     console.log(`[misura] chat intera ${chatIntera.toFixed(3)} ms, una lettera adesso (solo il campo) ${dopo.toFixed(3)} ms`)
     expect(dopo * 5).toBeLessThan(chatIntera)
   }, 60_000)

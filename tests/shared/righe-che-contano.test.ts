@@ -10,7 +10,7 @@ import { paginaClient } from '../../src/main/client-pagina'
  * ferma — e mai una per ogni giro.
  */
 const ap = (over: Partial<Autopilota> = {}): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Rifai il menu', cwd: 'C:\\Progetti\\Esempio', criteri: [], iniziatoIl: '2026-10-20T07:00:00.000Z' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Notte', obiettivo: 'Rifai il menu', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: '2026-10-20T07:00:00.000Z' }),
   ...over
 })
 const flotta = ap({

@@ -9,7 +9,6 @@ import { giudicaStrumento } from '../../src/autopilot-host/divieti'
 import { leggiRichiestaPonte, azioneDelPonte } from '@shared/ponte-telefono'
 import { rottaPermessaSulCanale } from '@shared/strada-pc'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
-import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
 
 /**
  * Le chat di prova (0.63.0): chi collauda le chiude da solo; le chat vere no.
@@ -90,53 +89,6 @@ describe('l’hook delle chat governate', () => {
   it('lascia passare le azioni sugli autopiloti di prova e nega ancora «Ferma» normale', () => {
     expect(bash('curl -X POST http://127.0.0.1:47640/api/prova/autopilota -d \'{"autopilota":"ap-prova","azione":"ferma"}\'').ok).toBe(true)
     expect(bash('curl -X POST http://127.0.0.1:47640/api/autopilota/ferma -d \'{"autopilota":"ap-vero"}\'').ok).toBe(false)
-  })
-})
-
-describe('/api/prova/autopilota (0.64.0)', () => {
-  const ap = (id: string, cwd: string, stato?: Autopilota['stato']): Autopilota => ({
-    ...nuovoAutopilota({ id, nome: id === 'ap-prova' ? 'Autopilota di prova' : 'Notte', obiettivo: 'x', cwd, criteri: [], iniziatoIl: '2026-10-12T10:00:00.000Z' }),
-    ...(stato !== undefined ? { stato } : {})
-  })
-  const su = (fatti: string[], righe: string[], stato?: Autopilota['stato']): DipendenzeRotte => ({
-    ...(deps([], righe) as object),
-    autopiloti: () => Promise.resolve([ap('ap-prova', PROVA, stato), ap('ap-vero', VERA, stato)]),
-    fermaAutopilota: (id: string) => { fatti.push('ferma ' + id); return Promise.resolve() },
-    riprendiAutopilota: (id: string) => { fatti.push('riprendi ' + id); return Promise.resolve() },
-    archiviaAutopilota: (id: string, si: boolean) => { fatti.push(`archivia ${id} ${si}`); return Promise.resolve() }
-  }) as unknown as DipendenzeRotte
-  const vai = (d: DipendenzeRotte, corpo: unknown) => rotteClient(d)({ metodo: 'POST', percorso: '/api/prova/autopilota', corpo })
-
-  it('ferma e fa riprendere un autopilota di prova, scrivendolo nel registro', async () => {
-    const fatti: string[] = []
-    const righe: string[] = []
-    expect((await vai(su(fatti, righe), { autopilota: 'ap-prova', azione: 'ferma' })).stato).toBe(200)
-    expect((await vai(su(fatti, righe), { autopilota: 'ap-prova', azione: 'riprendi' })).stato).toBe(200)
-    expect(fatti).toEqual(['ferma ap-prova', 'riprendi ap-prova'])
-    expect(righe.join('\n')).toContain('[prova] fermo l’autopilota di prova «Autopilota di prova»')
-  })
-
-  it('archivia solo un autopilota di prova già fermo', async () => {
-    const fatti: string[] = []
-    expect((await vai(su(fatti, []), { autopilota: 'ap-prova', azione: 'archivia' })).stato).toBe(409)
-    expect((await vai(su(fatti, [], 'sospeso'), { autopilota: 'ap-prova', azione: 'archivia' })).stato).toBe(200)
-    expect(fatti).toEqual(['archivia ap-prova true'])
-  })
-
-  it('rifiuta gli autopiloti veri e le azioni sconosciute, senza toccare niente', async () => {
-    const fatti: string[] = []
-    for (const azione of ['ferma', 'riprendi', 'archivia']) {
-      const r = await vai(su(fatti, [], 'sospeso'), { autopilota: 'ap-vero', azione })
-      expect(r.stato, azione).toBe(403)
-    }
-    expect((await vai(su(fatti, []), { autopilota: 'ap-prova', azione: 'elimina' })).stato).toBe(400)
-    expect(fatti).toEqual([])
-  })
-
-  it('passa dal ponte e fra i PC', () => {
-    expect(leggiRichiestaPonte({ pc: 'lap', percorso: '/api/prova/autopilota' }).ok).toBe(true)
-    expect(rottaPermessaSulCanale('/api/prova/autopilota')).toBe(true)
-    expect(azioneDelPonte('/api/prova/autopilota', { autopilota: 'ap-prova', azione: 'ferma' })).toBe('fermo l’autopilota di prova ap-prova')
   })
 })
 

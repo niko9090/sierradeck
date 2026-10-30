@@ -3,6 +3,7 @@ import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
+import { unicoFinto } from '../setup/unico-finto'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import { creaRegistroDomande } from '../../src/autopilot-host/domande'
 import { creaConsegne } from '../../src/autopilot-host/consegne'
@@ -17,7 +18,7 @@ const iso = (ms: number): string => new Date(ms).toISOString()
 
 function autopilota(over: Partial<Autopilota> & { id: string; cwd: string }): Autopilota {
   return {
-    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'o', cwd: over.cwd, criteri: [{ descrizione: 'i test passano', comando: 'npm test', soddisfatto: false }], iniziatoIl: iso(ORA - 3_600_000) }),
+    ...nuovoAutopilota({ id: over.id, nome: over.id, obiettivo: 'o', cwd: over.cwd, iniziatoIl: iso(ORA - 3_600_000) }),
     stato: 'lavoro',
     ultimoEvento: iso(ORA),
     ...over
@@ -38,15 +39,13 @@ describe('le lezioni dal servizio', () => {
     const cwd = mkdtempSync(join(tmpdir(), 'ap-lezioni-cwd-'))
     const annotate: { cwd: string; tag: string; testo: string }[] = []
     server = creaServer({
+      ...unicoFinto(archivio),
       archivio,
       esegui: () => Promise.resolve({ codice: 1, uscita: 'rosso' }),
-      interroga: () => Promise.resolve({ testo: '{"azione": "prosegui", "istruzioni": "vai"}', sessionId: 'sup' }),
       avviaLavoro: () => Promise.resolve(),
-      fermaLavoro: () => {},
       avvisa: () => Promise.resolve(),
       domande: creaRegistroDomande({ adesso: () => ORA }),
       scadenzaDomandaMs: 5000,
-      scadenzaInterviataMs: 5000,
       adesso: () => iso(ORA),
       lezioni: (c, voci) => { for (const v of voci) annotate.push({ cwd: c, tag: v.tag ?? '', testo: v.testo }); return { nuove: voci.length, confermate: 0 } }
     })

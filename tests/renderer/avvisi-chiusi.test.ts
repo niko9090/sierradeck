@@ -13,7 +13,6 @@ function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
     ...nuovoAutopilota({
       id: 'ap-1', nome: 'Test verdi', obiettivo: 'o', cwd: 'C:\\p',
-      criteri: [{ descrizione: 'c', soddisfatto: false }],
       iniziatoIl: '2026-10-01T10:00:00.000Z'
     }),
     stato: 'sospeso',
@@ -32,13 +31,12 @@ function fonti(over: Partial<FontiAvvisi> = {}): FontiAvvisi {
   }
 }
 
-describe('banda: «Chiudi», «Riprendi», «Archivia»', () => {
-  it('un fermo ha «Vedi», «Riprendi», «Archivia» e si può chiudere', () => {
+describe('banda: «Vedi» e «Chiudi»', () => {
+  it('un fermo ha «Vedi» e si può chiudere (30/10: niente «Riprendi»/«Archivia»)', () => {
     const [a] = componiAvvisi(fonti({ autopiloti: [ap()] }))
     expect(a?.id).toBe('fermi')
     expect(a?.etichettaAzione).toBe('Vedi')
-    expect(a?.altre?.map((x) => x.etichetta)).toEqual(['Riprendi', 'Archivia'])
-    expect(a?.altre?.[0]?.ids).toEqual(['ap-1'])
+    expect('altre' in (a ?? {})).toBe(false)
     expect(a?.chiavi).toEqual([chiaveFermo(ap())])
   })
 

@@ -5,7 +5,53 @@ import { tmpdir } from 'node:os'
 import type { Criterio } from '@shared/autopilota'
 import { cancellaSicura } from '@shared/cancella-sicura'
 import { giudicaCancellazioni } from './divieti'
-import { testaECoda, type EsitoVerifica } from './decisione'
+
+export type EsitoVerifica = {
+  descrizione: string
+  comando: string
+  passato: boolean
+  /**
+   * `false` quando il comando non si è potuto eseguire — sintassi rotta, shell
+   * che non lo capisce, eseguibile che non c'è. Non dice niente sul criterio, e
+   * confonderlo con «non soddisfatto» manda a cercare nel codice un difetto che
+   * sta nel comando. Assente vuol dire misurato, che è il caso normale.
+   */
+  misurato?: boolean
+  /**
+   * Esito non rimisurato in questo turno (0.71.0): un comando lungo che si
+   * rimisura ogni pochi turni e prima di «finito». Quando era stato misurato.
+   */
+  rimandatoDal?: string
+  /** Ciò che il comando ha stampato, già troncato da chi lo ha eseguito. */
+  uscita: string
+}
+
+/**
+ * L'inizio e la **fine** di un testo troppo lungo, con un segno in mezzo (27/10).
+ * Per `vitest run` l'elenco dei test rossi e il riepilogo stanno in fondo: un
+ * quarto va alla testa, il resto alla coda.
+ */
+export function testaECoda(testo: string, max: number): string {
+  if (testo.length <= max) return testo
+  const segno = '\n[…troncato…]\n'
+  const spazio = Math.max(0, max - segno.length)
+  const testa = Math.floor(spazio / 4)
+  return `${testo.slice(0, testa)}${segno}${testo.slice(testo.length - (spazio - testa))}`
+}
+
+/** I criteri che un comando ha davvero misurato e bocciato: i fatti vincono. */
+export function fallitiDavvero(esiti: EsitoVerifica[]): EsitoVerifica[] {
+  return esiti.filter((e) => !e.passato && e.misurato !== false)
+}
+
+/**
+ * I criteri che nessuno ha misurato: il comando non è nemmeno partito. Non
+ * sono né passati né falliti, sono **ignoti**: un criterio non misurato
+ * assomiglia a uno verde e non lo è.
+ */
+export function nonMisurati(esiti: EsitoVerifica[]): EsitoVerifica[] {
+  return esiti.filter((e) => e.misurato === false)
+}
 
 /** `timeoutMs`, quando c'è, prende il posto del tetto dell'esecutore per quel solo comando. */
 export type Esecutore = (comando: string, cwd: string, timeoutMs?: number) => Promise<{ codice: number; uscita: string }>

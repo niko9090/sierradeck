@@ -222,15 +222,17 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             put("domanda", domanda); put("risposta", risposta)
         }))
 
-    // ─── autopiloti: azioni ───
-    suspend fun fermaAutopilota(id: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/ferma", oggetto { put("autopilota", id) }))
-
-    suspend fun riprendiAutopilota(id: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/riprendi", oggetto { put("autopilota", id) }))
-
-    suspend fun vaiAutopilota(id: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/vai", oggetto { put("autopilota", id) }))
+    // ─── l'autopilota unico (PC 0.86.x): sempre acceso, niente ferma, riprendi o via ───
+    /**
+     * L'avanzamento dell'autopilota di un workspace: la vista dell'orchestratore
+     * (percentuale, specialisti, piano) e la coda delle richieste. Senza
+     * workspace la chiave è la cartella dell'autopilota (`id`). Un PC che non
+     * le conosce risponde con `null` (o «non trovato», se è più vecchio).
+     */
+    suspend fun avanzamentoAutopilota(workspace: String?, id: String): AvanzamentoAutopilota =
+        json.decodeFromString(corpoTesto("/api/autopilota/avanzamento", oggetto {
+            if (!workspace.isNullOrBlank()) put("workspace", workspace) else put("autopilota", id)
+        }))
 
     // ─── chat: azioni ───
     suspend fun chiudiChat(chat: String): Fatto =
@@ -323,18 +325,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/installa-la", oggetto { put("pc", pc) }))
 
     suspend fun installaLaStato(): StatoInstallaLa = json.decodeFromString(corpoTesto("/api/installa-la/stato", null))
-
-    // ─── le mancanze della parità (PC 0.56.0) ───
-    suspend fun archiviaAutopilota(id: String, archivia: Boolean = true): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/archivia", oggetto { put("autopilota", id); put("archivia", archivia) }))
-
-    /** «Sposta in un altro workspace» (PC 0.81.0): cambia solo dove compare il suo lavoro. */
-    suspend fun spostaAutopilota(id: String, workspace: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/sposta", oggetto { put("autopilota", id); put("workspace", workspace) }))
-
-    /** «Manda adesso» (PC 0.69.0): i messaggi in coda per la chat escono subito, anche durante il turno. */
-    suspend fun mandaAdessoAutopilota(id: String): String =
-        corpoTesto("/api/autopilota/manda-adesso", oggetto { put("autopilota", id) })
 
     /** Il pannello delle chat e dei progetti del Drive (PC 0.58.0), anche attraverso il ponte. */
     suspend fun pannelloDrive(): PannelloDrive = json.decodeFromString(corpoTesto("/api/drive/pannello", oggetto { }))
@@ -494,9 +484,6 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun diffAutopilota(id: String, chat: String, percorso: String): DiffFile =
         json.decodeFromString(corpoTesto("/api/autopilota/diff", oggetto { put("autopilota", id); put("chat", chat); put("percorso", percorso) }))
 
-    suspend fun eliminaAutopilota(id: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/elimina", oggetto { put("autopilota", id) }))
-
     /**
      * Gli scrivi. Il computer risponde subito «ricevuto»: la sua risposta
      * compare in `AutopilotaDettaglio.dialogo` al giro dopo. Un computer con
@@ -505,30 +492,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     /** «Salute del sistema» (0.44.0). */
     suspend fun salute(): Salute = json.decodeFromString(corpoTesto("/api/salute", null))
 
-    /** La linguetta «Istruzioni» (0.41.0): le consegne alle sue chat, intere. */
-    suspend fun istruzioniAutopilota(id: String): IstruzioniAutopilota =
-        json.decodeFromString(corpoTesto("/api/autopilota/istruzioni", oggetto { put("autopilota", id) }))
-
-    /** «Correggi» su un'istruzione (0.41.0): la nota va nel dialogo, legata a quell'istruzione. */
-    suspend fun correggiIstruzione(id: String, istruzione: String, nota: String): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/correggi", oggetto {
-            put("autopilota", id); put("istruzione", istruzione); put("nota", nota)
-        }))
-
     suspend fun dialogaAutopilota(id: String, testo: String): Fatto =
         json.decodeFromString(corpoTesto("/api/autopilota/dialogo", oggetto {
             put("autopilota", id); put("testo", testo)
-        }))
-
-    suspend fun riavvioAutopilota(id: String, riprendi: Boolean): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/riavvio", oggetto {
-            put("autopilota", id); put("riprendi", riprendi)
-        }))
-
-    /** «Lavora in sottofondo» (PC 0.72.0): solo su richiesta di Nicholas. */
-    suspend fun sottofondoAutopilota(id: String, si: Boolean): Fatto =
-        json.decodeFromString(corpoTesto("/api/autopilota/sottofondo", oggetto {
-            put("autopilota", id); put("si", si)
         }))
 
     // ─── quaderno ───

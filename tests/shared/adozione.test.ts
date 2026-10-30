@@ -10,7 +10,7 @@ import type { Archivio } from '@shared/workspace'
 /** 0.78.0: le chat già avviate adottate dall'autopilota del loro workspace (Nicholas, 16/10). */
 const Q = '2026-10-16T15:00:00.000Z'
 const ap = (x: Partial<Autopilota> = {}): Autopilota => ({
-  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:\\p', criteri: [], iniziatoIl: Q, workspace: 'W' }),
+  ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:\\p', iniziatoIl: Q, workspace: 'W' }),
   ...x
 })
 

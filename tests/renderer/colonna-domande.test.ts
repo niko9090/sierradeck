@@ -39,7 +39,7 @@ describe('la colonna delle Domande sul PC', () => {
   })
 
   it('contiene tutte le domande, e per ognuna dice a chi rispondi e cosa succede quando mandi', () => {
-    const base = nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', criteri: [], iniziatoIl: '2026-09-30T08:00:00Z' })
+    const base = nuovoAutopilota({ id: 'a1', nome: 'Sito', obiettivo: 'o', cwd: 'C:/s', iniziatoIl: '2026-09-30T08:00:00Z' })
     const voci: VoceDomanda[] = [
       { tipo: 'autopilota', id: 'd1', autopilotaId: 'a1', autopilota: 'Sito', origine: 'intervista', testo: 'Che formato?', opzioni: ['YAML'] },
       { tipo: 'autopilota', id: 'd2', autopilotaId: 'a2', autopilota: 'Rilascio', origine: 'lavoro', testo: 'Il lavoro «Rilascio» è finito e verificato. Pubblico adesso?', opzioni: ['sì, pubblica', 'no, lascia così'] },
@@ -88,7 +88,7 @@ describe('il tasto «Domande» chiama quando c è qualcosa in attesa (0.37.3)', 
     expect(css).toMatch(/\.tasto--chiama\s*\{[^}]*animation/)
     expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.tasto--chiama\s*\{\s*animation: none/)
     const app = readFileSync('src/renderer/App.tsx', 'utf8')
-    // 0.76.0: le domande brevi di qui stanno a lato, la colonna non si apre per loro.
-    expect(app).toContain('decidiColonnaDomande({ conversazioni: c, viste: v, aperta: colonnaDomandeRef.current.aperta, avvio, aLato })')
+    // 30/10: la colonna è l'unico posto delle domande, anche di quelle dell'autopilota.
+    expect(app).toContain('decidiColonnaDomande({ conversazioni: c.map(({ autopilota: _ap, ...x }) => x), viste: v, aperta: colonnaDomandeRef.current.aperta, avvio })')
   })
 })

@@ -26,7 +26,7 @@ const esc = 'function esc(s) { return String(s) }'
 const ORA = Date.parse('2026-10-19T12:00:00Z')
 function ap(over: Partial<Autopilota> = {}): Autopilota {
   return {
-    ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:/prova', criteri: [{ descrizione: 'a', soddisfatto: false }], iniziatoIl: '2026-10-19T10:00:00.000Z' }),
+    ...nuovoAutopilota({ id: 'ap-1', nome: 'Prova', obiettivo: 'o', cwd: 'C:/prova', iniziatoIl: '2026-10-19T10:00:00.000Z' }),
     ultimoEvento: '2026-10-19T11:58:00.000Z',
     ...over
   }

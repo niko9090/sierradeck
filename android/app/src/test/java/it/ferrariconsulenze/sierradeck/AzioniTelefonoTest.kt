@@ -98,7 +98,7 @@ class AzioniTelefonoTest {
     @Test
     fun `le rotte della gestione passano dal ponte, e un PC di prima lo dice`() {
         for (r in listOf("/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/chat/chiudi", "/api/chat/dormi",
-            "/api/chat/sveglia", "/api/chat/sposta", "/api/sfoglia", "/api/cartelle", "/api/sessioni", "/api/autopilota/crea", "/api/autopilota/elimina")) {
+            "/api/chat/sveglia", "/api/chat/sposta", "/api/sfoglia", "/api/cartelle", "/api/sessioni", "/api/autopilota/crea")) {
             assertTrue(r, r in Ponte.ROTTE)
         }
         assertEquals(false, FunzioniPc.disponibile(FunzionePc.GESTIONE, "0.54.0"))
