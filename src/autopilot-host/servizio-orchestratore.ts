@@ -39,6 +39,8 @@ import { riassuntoOrchestratore } from './riassunto-orchestratore'
 import { fileAgenti, fileImpostazioniCli } from './agenti-orchestratore'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
+import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
+import type { ArchivioDoppioni } from './doppioni-store'
 
 /**
  * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore (un
@@ -100,6 +102,16 @@ export type ContestoUnico = {
   inattivoMs?: number
   /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
   attesaPermessoMs?: number
+  /** 31/10: gli autopiloti già archiviati come doppioni (non si riguardano, non rinascono). Assente: nessuno. */
+  doppioni?: ArchivioDoppioni
+  /** 31/10: sposta la cartella di un workspace doppione nel recupero (mai la cancella). Assente: la cartella resta. */
+  spostaNelRecupero?: (cartella: string, motivo: string) => { ok: true; dove?: string } | { ok: false; perche: string }
+}
+
+/** Com'è andato un giro sui doppioni. */
+export type EsitoDoppioni = {
+  archiviati: Array<Doppione & { riga: string; dove?: string }>
+  errori: string[]
 }
 
 export type { VistaOrchestratore }
@@ -140,6 +152,12 @@ export type ServizioUnico = {
   specialistiSulPc: () => number
   /** Il servizio si spegne: i processi `claude` con lui. */
   spegni: () => void
+  /**
+   * 31/10: gli autopiloti dei workspace i cui progetti vivono su un altro PC (o
+   * la cui cartella non c'è): fermati, archiviati, la cartella del workspace
+   * nel recupero. Il registro dei progetti lo manda il programma.
+   */
+  archiviaDoppioni: (r: RichiestaDoppioni) => EsitoDoppioni
   orchestratore: Orchestratore
   ambiente: AmbienteOrchestratore
 }
@@ -336,8 +354,10 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const vecchiDel = (ws: string): Vecchio[] => {
     const i = imp(ws)
     const gia = new Set(i.assorbiti ?? [])
+    // 31/10: un doppione archiviato non è un autopilota «di prima» da riassorbire.
+    const doppioni = x.doppioni?.fatti() ?? new Set<string>()
     return x.archivio.elenca()
-      .filter((a) => wsDi(a) === ws && a.id !== i.autopilota && !gia.has(a.id))
+      .filter((a) => wsDi(a) === ws && a.id !== i.autopilota && !gia.has(a.id) && !doppioni.has(a.id))
       .map((a) => ({ ...a, ...(x.campiVecchi?.(a.id) ?? {}) }))
   }
   const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
@@ -884,6 +904,68 @@ ${NOTA_SENZA_GIT}`,
     return n
   }
 
+  /**
+   * 31/10, «solo cose sicure»: per ogni doppione si spegne il suo processo, si
+   * chiudono le sue domande, l'autopilota si archivia (fermo, come «Archivia»)
+   * e si segna fra i doppioni **prima** di spostare la cartella, così non si
+   * riguarda più neanche se lo spostamento non riesce. La cartella del
+   * workspace (coda, piano, dialogo) va nel recupero; quella del progetto non
+   * si tocca mai.
+   */
+  const archiviaDoppioni = (r: RichiestaDoppioni): EsitoDoppioni => {
+    const esito: EsitoDoppioni = { archiviati: [], errori: [] }
+    const orchestratori = unici()
+      .filter((a) => a.archiviato !== true)
+      .map((a) => ({ ws: wsDi(a), autopilota: a.id, cwd: a.cwd }))
+    const doppioni = doppioniDaArchiviare({
+      orchestratori, progetti: r.progetti, pcId: r.pcId, esiste: esisteCartella,
+      ...(x.doppioni !== undefined ? { giaFatti: x.doppioni.fatti() } : {})
+    })
+    for (const d of doppioni) {
+      try {
+        const riga = rigaDoppione(d, r.nomiPc)
+        const motivo = riga.replace(/^\[pulizia\] /u, '')
+        orchestratore.dimentica(d.ws)
+        const fresco = x.archivio.leggi(d.autopilota)
+        if (fresco !== undefined) {
+          for (const q of x.domande.aperte(fresco.id)) x.domande.superata(q.id, 'l’autopilota è stato archiviato: il progetto non vive su questo PC')
+          const dopo: Autopilota = {
+            ...fresco,
+            // Fermo, perché `conMomentoDelFermo` tiene l'archiviazione solo a un autopilota fermo.
+            stato: fresco.stato === 'fallito' ? 'fallito' : 'sospeso',
+            motivoSospensione: motivo,
+            archiviato: true
+          }
+          x.annota(dopo, `${motivo}. Archiviato da solo (pulizia dei doppioni): la cartella del workspace è nel recupero, quella del progetto non è stata toccata.`)
+          x.salva(dopo)
+        }
+        const quando = x.adesso()
+        x.doppioni?.aggiungi({ autopilota: d.autopilota, ws: d.ws, motivo: d.motivo, ...(d.pc !== undefined ? { pc: d.pc } : {}), quando })
+        let dove: string | undefined
+        const cartella = x.orchestratori.cartellaDi?.(d.ws)
+        if (cartella !== undefined && x.spostaNelRecupero !== undefined && esisteCartella(cartella)) {
+          const s = x.spostaNelRecupero(cartella, `cartella dell’autopilota doppione di ${d.ws}`)
+          if (s.ok) {
+            dove = s.dove
+            if (dove !== undefined) x.doppioni?.aggiungi({ autopilota: d.autopilota, ws: d.ws, motivo: d.motivo, ...(d.pc !== undefined ? { pc: d.pc } : {}), quando, dove })
+          } else {
+            esito.errori.push(`${d.ws}: cartella non spostata nel recupero (${s.perche})`)
+          }
+        }
+        // La cartella non c'è più (o resta, ma l'autopilota non è più suo): niente in memoria.
+        x.orchestratori.dimentica?.(d.ws)
+        x.code.dimentica?.(d.ws)
+        recenti.delete(d.ws)
+        console.info(riga)
+        esito.archiviati.push({ ...d, riga, ...(dove !== undefined ? { dove } : {}) })
+      } catch (err) {
+        esito.errori.push(`${d.ws}: ${String(err).slice(0, 160)}`)
+      }
+    }
+    for (const e of esito.errori) console.warn(`[pulizia] ${e}`)
+    return esito
+  }
+
   return {
     unicoDi,
     unici,
@@ -959,6 +1041,7 @@ ${NOTA_SENZA_GIT}`,
     }),
     specialistiSulPc: () => orchestratore.specialistiSulPc(),
     spegni: () => { orchestratore.spegni() },
+    archiviaDoppioni,
     orchestratore,
     ambiente
   }

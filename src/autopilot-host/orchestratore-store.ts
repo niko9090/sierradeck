@@ -90,6 +90,10 @@ export type ArchivioOrchestratori = {
   scriviFile: (ws: string, nome: string, contenuto: string) => string
   /** Il costo di un turno (dal `result` della CLI), solo aggiunte. */
   aggiungiCosto: (ws: string, c: Record<string, unknown>) => void
+  /** La cartella del workspace (31/10: per metterla nel recupero quando l'autopilota è un doppione). */
+  cartellaDi?: (ws: string) => string
+  /** Dimentica quello che tiene in memoria del workspace: la cartella non c'è più. */
+  dimentica?: (ws: string) => void
 }
 
 export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
@@ -116,6 +120,11 @@ export function apriOrchestratori(cartella: string): ArchivioOrchestratori {
   }
   return {
     impostazioni: imp,
+    cartellaDi: dir,
+    dimentica(ws) {
+      impostazioni.delete(ws)
+      piani.delete(ws)
+    },
     cambiaImpostazioni(ws, f) {
       const prima = imp(ws)
       const dopo = f(prima)

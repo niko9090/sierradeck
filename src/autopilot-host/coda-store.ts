@@ -26,6 +26,8 @@ export type ArchivioCode = {
   cambia: (workspace: string, f: (c: Coda) => Modifica | undefined) => Coda
   /** I workspace che hanno una coda sul disco. */
   workspaces: () => string[]
+  /** Dimentica la coda tenuta in memoria (31/10: la cartella del workspace è andata nel recupero). */
+  dimentica?: (workspace: string) => void
 }
 
 /**
@@ -87,6 +89,7 @@ export function apriCode(cartella: string): ArchivioCode {
       }
       return m.coda
     },
+    dimentica(ws) { tenute.delete(ws) },
     workspaces() {
       const fuori = new Set(tenute.keys())
       try {

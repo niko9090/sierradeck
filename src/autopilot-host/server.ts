@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { existsSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { dirname, join } from 'node:path'
 import {
   CONSEGNATI_RICORDATI_AUTOPILOTA, DIALOGO_RICORDATO, conMomentoDelFermo, conStatiDatati,
   type Autopilota, type ChatGovernata, type Criterio, type MessaggioPerLaChat, type Traguardo
@@ -47,6 +48,9 @@ import { passoRiassettoServizio } from './riassetto-servizio'
 import { conPreambolo, prendiMessaggiPer, rimettiInCoda } from './stop-specialista'
 import { campiVecchiDa } from './migra-orchestratore'
 import { creaServizioUnico, type EsitoAvvioUnico, type ServizioUnico } from './servizio-orchestratore'
+import { apriDoppioni, type ArchivioDoppioni } from './doppioni-store'
+import { apriRecuperoPasso } from '../main/riassetto/recupero'
+import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
 /**
  * **Il servizio degli autopiloti** (P4): un solo autopilota per workspace,
@@ -121,6 +125,8 @@ export type Dipendenze = {
   raccoltaEventiMs?: number
   /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
   inattivoOrchestratoreMs?: number
+  /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
+  doppioni?: ArchivioDoppioni
 }
 
 export type ServerAutopiloti = Server & {
@@ -876,6 +882,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().vista(ws))
             return
           }
+          // 31/10: il registro dei progetti dal programma; gli autopiloti doppioni si archiviano.
+          if (metodo === 'POST' && percorso === '/orchestratore/doppioni') {
+            const r = leggiRichiestaDoppioni(await leggiCorpo(req))
+            if (r === undefined) { rispondi(res, 400, { errore: 'serve il registro dei progetti e l’id di questo PC' }); return }
+            rispondi(res, 200, servizio().archiviaDoppioni(r))
+            return
+          }
           if (metodo === 'POST' && percorso === '/orchestratore/messaggio') {
             const r = messaggioAlWorkspace((await leggiCorpo(req)) as Record<string, unknown> | undefined)
             rispondi(res, r.stato, r.corpo)
@@ -1199,7 +1212,16 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ricordaContesto,
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
-    ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {})
+    ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
+    doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
+    // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
+    spostaNelRecupero: (cartella, motivo) => {
+      const rec = apriRecuperoPasso({ dati: dirname(deps.archivio.cartella), versione: deps.versione ?? '0.0.0', passo: 'servizio-doppioni' })
+      const s = rec.sposta(cartella, { motivo, etaMinimaMs: 0 })
+      if (s.esito === 'spostato') return { ok: true, dove: s.dove }
+      if (s.esito === 'non-c-era') return { ok: true }
+      return { ok: false, perche: s.perche }
+    }
   })
 
   server.on('close', () => { unico?.spegni() })

@@ -5,6 +5,7 @@ import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
 import type { VistaOrchestratore } from '@shared/piano-orchestratore'
+import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
 /**
  * Il primo messaggio a un workspace (P4): l'autopilota del workspace nasce se
@@ -72,6 +73,12 @@ export type ClientAutopilota = {
   adottateScritti: (id: string, ids: string[]) => Promise<void>
   /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio subito; torna la riga del riepilogo. */
   pulisci: () => Promise<string>
+  /**
+   * 31/10: il registro dei progetti al servizio, che archivia gli autopiloti
+   * doppioni (progetto su un altro PC, o cartella che non c'è). Torna le righe
+   * di quelli archiviati adesso.
+   */
+  archiviaDoppioni?: (r: RichiestaDoppioni) => Promise<{ righe: string[]; errori: string[] }>
   /** Una riga nel diario dell'autopilota, scritta dal programma. */
   nota: (id: string, testo: string) => Promise<void>
   /** Un annuncio a Nicholas nella conversazione dell'autopilota, con una notifica sola (0.81.0). */
@@ -308,6 +315,14 @@ export function creaClientAutopilota(p: {
     pulisci: async () => {
       const r = (await chiama('/autopulizia', 'POST', {}, 10 * 60_000)) as { riga?: unknown } | undefined
       return typeof r?.riga === 'string' ? r.riga : 'autopulizia fatta'
+    },
+    archiviaDoppioni: async (richiesta) => {
+      const r = (await chiama('/orchestratore/doppioni', 'POST', richiesta)) as { archiviati?: unknown; errori?: unknown } | undefined
+      const righe = Array.isArray(r?.archiviati)
+        ? r.archiviati.flatMap((x) => (typeof (x as { riga?: unknown }).riga === 'string' ? [(x as { riga: string }).riga] : []))
+        : []
+      const errori = Array.isArray(r?.errori) ? r.errori.filter((x): x is string => typeof x === 'string') : []
+      return { righe, errori }
     },
     nota: async (id, testo) => {
       await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })
