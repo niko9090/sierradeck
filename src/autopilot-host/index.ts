@@ -344,6 +344,7 @@ export function avviaServizio(): void {
 
   // L'autopulizia (0.85.2): copie e rami delle chat concluse, note troppo
   // grosse. Git asincrono, e a PC carico si rimanda al giro dopo.
+  let serverAgenti: { agentiAlLavoro: (cartella: string) => boolean } | undefined
   const autopulizia = creaAutopulizia({
     archivio,
     git: gitAsincronoReale,
@@ -356,7 +357,9 @@ export function avviaServizio(): void {
       dati: join(cartellaStato(), '..'),
       casa: homedir()
     }),
-    pcCarico: () => guardiaPc.valuta()?.motivo
+    pcCarico: () => guardiaPc.valuta()?.motivo,
+    // 0.89.0: le copie degli specialisti (.claude/worktrees). Finché il server non c’è, nessuna si tocca.
+    agentiAlLavoro: (radice) => serverAgenti?.agentiAlLavoro(radice) ?? true
   })
 
   const server = creaServer({
@@ -408,6 +411,7 @@ export function avviaServizio(): void {
   })
 
   serverPronto = server
+  serverAgenti = server
   // P3: i processi `claude` degli orchestratori se ne vanno con il servizio.
   process.on('exit', () => { server.spegniOrchestratori() })
   server.on('error', (err: NodeJS.ErrnoException) => {

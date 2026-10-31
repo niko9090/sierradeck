@@ -140,6 +140,8 @@ export type ServerAutopiloti = Server & {
   riportaInCoda: (consegna: string, perche: string) => void
   /** All'avvio: gli autopiloti di prima passano all'unico del loro workspace. Torna quanti workspace. */
   migraVecchi: () => number
+  /** 0.89.0: per l’autopulizia, le copie degli specialisti di quella cartella sono in uso? */
+  agentiAlLavoro: (cartella: string) => boolean
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -1230,6 +1232,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     controllaChatFerme,
     riprendiLavori,
     riportaInCoda,
-    migraVecchi: () => servizio().migraVecchi()
+    migraVecchi: () => servizio().migraVecchi(),
+    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella)
   })
 }

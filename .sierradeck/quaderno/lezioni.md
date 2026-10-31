@@ -52,3 +52,15 @@
 ## git
 
 - Un agente in worktree non può eseguire git nella cartella principale: ripristini e commit su main vanno fatti dall'autopilota, non da uno specialista isolato. _(2026-10-31)_
+
+## log
+
+- il sink del PtyHostClient (index.ts:1420) è registro.errore: ogni riga raccontata, anche informativa, diventa ERRORE. Separare info ed errore. _(2026-10-31)_
+
+## autopilota
+
+- autopilota-intero.ts: il finally richiama carica() subito dopo un catch che azzera chiesta, quindi il retry non ha attesa. _(2026-10-31)_
+
+## pacchetto
+
+- in package.json solo lo script pacchetto ha --prima/--dopo; pubblica ricostruisce senza controlli. _(2026-10-31)_

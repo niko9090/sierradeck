@@ -137,6 +137,27 @@ describe('gli autopiloti doppioni nel servizio', () => {
     expect(readdirSync(join(radice, 'recupero-riassetto', '0.88.9', 'servizio-doppioni')).filter((n) => n !== 'manifesto.json')).toHaveLength(2)
   })
 
+  it('un messaggio al workspace di un progetto di un altro PC non fa rinascere il doppione (0.89.0)', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const lavori = mkdtempSync(join(tmpdir(), 'sd-doppioni-lavori-'))
+    const money = join(lavori, 'Money')
+    mkdirSync(money)
+    await avviaServizio([unico('ap-money', 'Money', money)])
+    const r = await posta({ pcId: 'pc-qui', progetti: [{ nome: 'Money', proprietario: 'pc-la' }], nomiPc: { 'pc-la': 'LAPTOP' } })
+    expect(r.corpo.archiviati?.map((x) => x.ws)).toEqual(['Money'])
+    const m = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'come va?', cwd: money, workspace: 'Money' }) })
+    expect(m.status).toBeGreaterThanOrEqual(400)
+    expect(JSON.stringify(await m.json())).toContain('vive su LAPTOP')
+    expect(orch.impostazioni('Money').autopilota).toBeUndefined()
+    expect(avviati).toBe(0)
+    // Un progetto di questo PC nasce come sempre.
+    const mio = join(lavori, 'Mio')
+    mkdirSync(mio)
+    const ok = await fetch(`http://127.0.0.1:${porta}/orchestratore/messaggio`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ testo: 'ciao', cwd: mio, workspace: 'Mio' }) })
+    expect(ok.status).toBe(200)
+  })
+
   it('un disco staccato non è un progetto sparito: con la radice del disco assente, l’autopilota resta', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     // Una lettera che su un PC di prova non c'è: la radice manca, quindi la cartella non conta come sparita.

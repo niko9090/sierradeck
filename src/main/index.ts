@@ -631,6 +631,8 @@ let leggiSalute: () => Promise<import('@shared/salute').Salute> = async () => co
   adesso: Date.now(), versione: app.getVersion(), drive: { configurato: false, connesso: false }, pc: [], errori: [], consegne: [], oreErrori: ORE_ERRORI_SALUTE
 })
 const ORE_ERRORI_SALUTE = 6
+/** Quando è partito questo processo (0.89.0: le righe dell’installazione di prima non contano). */
+const AVVIO_PROCESSO_MS = Date.now() - Math.round(process.uptime() * 1000)
 /** Il lavoro con il Drive in corso, per non uscire sopra una fusione a meta'. */
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
@@ -2562,7 +2564,7 @@ if (!app.requestSingleInstanceLock()) {
           },
           pc,
           ...(t !== undefined ? { tentativoFallito: { titolo: t.titolo, motivo: t.motivo, strade: t.strade, pagina: t.pagina, versione: t.versione } } : {}),
-          errori: erroriDalLog(righe, adesso, ORE_ERRORI_SALUTE),
+          errori: erroriDalLog(righe, adesso, ORE_ERRORI_SALUTE, AVVIO_PROCESSO_MS),
           consegne,
           chatInErrore: chatAperte.filter((c) => c.errore !== undefined).map((c) => ({ titolo: c.titolo, errore: c.errore as string })),
           oreErrori: ORE_ERRORI_SALUTE,
@@ -3845,6 +3847,7 @@ if (!app.requestSingleInstanceLock()) {
               saluteQui: () => leggiSalute(),
               saluteDi: (pc) => saluteDi(pc),
               autopiloti: () => autopilotiAltri?.() ?? Promise.resolve([]),
+              autopilotiQui: async () => (await clientAutopilota.elenca()).filter((a) => a.archiviato !== true).map((a) => ({ id: a.id, nome: a.nome, stato: a.stato, obiettivo: a.obiettivo, ...(a.motivoSospensione !== undefined ? { motivo: a.motivoSospensione } : {}) })),
               affida: (p) => affidaSierraDeck(p),
               adesso: () => Date.now(),
               log: (riga) => registro.info(riga)

@@ -69,4 +69,29 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     expect(r).toEqual({ criticita: 0, affidato: false })
     expect(chiesto).toBe(false)
   })
+  it('0.89.0: la stessa criticità da più PC è una riga; le righe del registro non entrano', () => {
+    const voce = (titolo: string, gruppo = 'pc') => ({ chiave: titolo, gruppo, tono: 'attenzione', titolo, spiegazione: 's', azioni: [] })
+    const salute = (voci: unknown[]) => ({ tono: 'attenzione', riassunto: 'r', voci }) as never
+    const c = criticitaDi([
+      { pcId: 'a', nome: 'A', salute: salute([voce('Portatile · non so se è acceso'), voce('5 minuti fa: SALVA fallito', 'errori')]) },
+      { pcId: 'b', nome: 'B', salute: salute([voce('Portatile · non so se è acceso')]) }
+    ], [])
+    expect(c).toEqual([{ pc: 'A, B', cosa: 'attenzione · Portatile · non so se è acceso', dettaglio: 's' }])
+  })
+
+  it('0.89.0: anche gli autopiloti di questo PC', async () => {
+    const radice = mkdtempSync(join(tmpdir(), 'sd-controllo-qui-'))
+    const affidati: string[] = []
+    const r = await giroControlloPc({
+      radice: () => radice, io: () => ({ id: 'qui', nome: 'Qui' }), altri: () => [],
+      saluteQui: async () => ({ tono: 'ok', riassunto: 'ok', voci: [] }) as never,
+      saluteDi: async () => { throw new Error('nessuno') },
+      autopiloti: async () => [],
+      autopilotiQui: async () => [{ id: 'ap-1', nome: 'Autopilota · X', stato: 'fallito', motivo: 'tre giri a vuoto' }],
+      affida: async (p) => { affidati.push(p.testo) }, adesso: () => Date.parse('2026-10-31T23:00:00.000Z'), log: () => {}
+    })
+    expect(r).toEqual({ criticita: 1, affidato: true })
+    const file = readdirSync(join(radice, '.sierradeck', 'errori-arrivati')).find((n) => n.startsWith('controllo-'))!
+    expect(readFileSync(join(radice, '.sierradeck', 'errori-arrivati', file), 'utf8')).toContain('**Qui** · autopilota «Autopilota · X» fallito')
+  })
 })

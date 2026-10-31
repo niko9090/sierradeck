@@ -393,6 +393,12 @@ export type OpzioniAutopulizia = {
   radiceClaude?: string
   /** 31/10: le cartelle dei progetti in cui cercare le vecchie copie vuote `ap-…-c-N`. Assente: non si cercano. */
   cartelleProgetti?: () => string[]
+  /**
+   * 0.89.0: le copie degli specialisti dell’autopilota (`<progetto>/.claude/worktrees`).
+   * Vera se in quella cartella un autopilota ha un turno o uno specialista al lavoro:
+   * allora non se ne tocca nessuna. Assente: quelle copie non si guardano.
+   */
+  agentiAlLavoro?: (radice: string) => boolean
   ora?: () => number
 }
 
@@ -661,11 +667,18 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
    */
   const chatAdesso = (): ChatNota[] => conCartellaVera(chatNote(o.archivio.elenca()))
 
-  // 1. Le copie.
-  let nomi: string[] = []
-  try { nomi = existsSync(cartellaCopie) ? await readdir(cartellaCopie) : [] } catch { nomi = [] }
-  for (const n of nomi) {
-    const cartella = join(cartellaCopie, n)
+  // 1. Le copie: quelle del programma e (0.89.0) quelle degli specialisti, con le stesse regole
+  // (pulita, già in main, non giovane, nessuna chat lì), più: nessuno specialista al lavoro adesso.
+  const cartelleAgenti = join(radice, '.claude', 'worktrees')
+  const conAgenti = o.agentiAlLavoro !== undefined && existsSync(cartelleAgenti) && !o.agentiAlLavoro(radice)
+  const voci: Array<{ n: string; dentro: string }> = []
+  for (const dentro of conAgenti ? [cartellaCopie, cartelleAgenti] : [cartellaCopie]) {
+    try { for (const n of existsSync(dentro) ? await readdir(dentro) : []) voci.push({ n, dentro }) } catch { /* illeggibile: niente */ }
+  }
+  for (const { n, dentro } of voci) {
+    // Uno specialista partito durante il giro: si riguarda prima di ogni copia.
+    if (dentro === cartelleAgenti && o.agentiAlLavoro?.(radice) !== false) { e.tenute.push({ cosa: n, perche: 'specialisti al lavoro' }); continue }
+    const cartella = join(dentro, n)
     try { if ((await lstat(cartella)).isSymbolicLink() || !statSync(cartella).isDirectory()) continue } catch { continue }
     const cartellaVera = percorsoVero(cartella)
     const w = perCartella.get(chiavePercorso(cartella)) ?? perCartella.get(chiavePercorso(cartellaVera))
@@ -715,13 +728,13 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
       if (r.codice !== 0 && existsSync(cartella)) { e.errori.push(`${n}: ${r.uscita.slice(0, 120)}`); continue }
       // Su Windows git può lasciare la cartella (vuota, o con i file ignorati).
       if (existsSync(cartella)) {
-        const t = await togliCartellaCopia(cartella, cartellaCopie)
+        const t = await togliCartellaCopia(cartella, dentro)
         if (!t.ok) e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`)
       }
       e.copieTolte += 1
       e.byteLiberati += byte
     } else {
-      const t = await togliCartellaCopia(cartella, cartellaCopie)
+      const t = await togliCartellaCopia(cartella, dentro)
       if (!t.ok) { e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`); continue }
       e.copieTolte += 1
       e.byteLiberati += t.byte

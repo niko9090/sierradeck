@@ -39,7 +39,9 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       continue
     }
     for (const v of s.salute.voci) {
-      if (v.tono === 'ok') continue
+      // 0.89.0: le righe d'errore del registro arrivano già all'autopilota con gli errori
+      // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
+      if (v.tono === 'ok' || v.gruppo === 'errori') continue
       out.push({ pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`, dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: ') })
     }
   }
@@ -50,7 +52,21 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       out.push({ pc: p.nome, cosa: `autopilota «${a.nome}» ${a.stato}`, dettaglio: typeof a.motivo === 'string' ? a.motivo : (a.obiettivo ?? '') })
     }
   }
-  return out
+  return unisci(out)
+}
+
+/**
+ * 0.89.0: la stessa criticità vista da più PC (NB-PROBOOK spento, detto da tre PC)
+ * è una riga sola, con i PC che la vedono.
+ */
+function unisci(c: readonly Criticita[]): Criticita[] {
+  const per = new Map<string, Criticita>()
+  for (const x of c) {
+    const g = per.get(x.cosa)
+    if (g === undefined) per.set(x.cosa, { ...x })
+    else if (!g.pc.split(', ').includes(x.pc)) g.pc = `${g.pc}, ${x.pc}`
+  }
+  return [...per.values()]
 }
 
 /** L'impronta dell'insieme (senza i dettagli, che cambiano a ogni giro: orari, conteggi). */
@@ -85,6 +101,8 @@ export async function giroControlloPc(d: {
   saluteQui: () => Promise<Salute>
   saluteDi: (pcId: string) => Promise<Salute>
   autopiloti: () => Promise<AutopilotiDiPc[]>
+  /** 0.89.0: anche gli autopiloti di questo PC (prima solo quelli degli altri). */
+  autopilotiQui?: () => Promise<AutopilotiDiPc['autopiloti']>
   affida: (p: { testo: string; cwd: string }) => Promise<void>
   adesso: () => number
   log: (riga: string) => void
@@ -98,6 +116,10 @@ export async function giroControlloPc(d: {
   }))
   saluti.push(...altri)
   const autopiloti = await d.autopiloti().catch(() => [] as AutopilotiDiPc[])
+  if (d.autopilotiQui !== undefined) {
+    const qui = await d.autopilotiQui().catch(() => undefined)
+    if (qui !== undefined) autopiloti.unshift({ pcId: io.id, nome: io.nome, autopiloti: qui })
+  }
   const criticita = criticitaDi(saluti, autopiloti)
   const cartella = join(radice, '.sierradeck', 'errori-arrivati')
   const fileStato = join(cartella, '.controllo-pc.json')

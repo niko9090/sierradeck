@@ -10,7 +10,7 @@ import {
   allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita,
   type CompitoPiano, type Piano, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
-import { durata, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
+import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando } from '@shared/controllo-comandi'
@@ -136,6 +136,8 @@ export type ServizioUnico = {
   assicura: (ws: string, p?: { cwd?: string; obiettivo?: string }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
   /** All'avvio: ogni workspace con autopiloti di prima passa al suo unico. Torna quanti workspace. */
   migraVecchi: () => number
+  /** 0.89.0: un autopilota di quella cartella ha un turno in volo o specialisti al lavoro (le loro copie non si toccano). */
+  agentiAlLavoro: (cartella: string) => boolean
   imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown }) => ImpostazioniOrchestratore
   messaggio: (a: Autopilota, testo: string, quando?: string) => Autopilota
   /** Lo Stop di una chat **adottata**: registra e fa un evento, senza modello. */
@@ -732,6 +734,9 @@ ${NOTA_SENZA_GIT}`,
 
   // ---------------------------------------------------------------- il servizio
 
+  /** L’ultimo registro dei progetti mandato dal programma (con i doppioni): per non far rinascere un doppione. */
+  let ultimoRegistro: RichiestaDoppioni | undefined
+
   const assicura = (ws: string, p: { cwd?: string; obiettivo?: string } = {}): { ok: true; unico: Autopilota } | { ok: false; motivo: string } => {
     const gia = unicoDi(ws)
     const loro = vecchiDel(ws)
@@ -742,6 +747,15 @@ ${NOTA_SENZA_GIT}`,
     if (gia !== undefined && loro.length === 0) return conObiettivo(gia)
     const cwd = gia?.cwd ?? p.cwd ?? cartellaDelWorkspace(loro)
     if (cwd === undefined || cwd === '') return { ok: false, motivo: 'serve la cartella del progetto' }
+    // 0.89.0: un messaggio a un workspace il cui progetto vive su un altro PC non fa
+    // rinascere l’autopilota doppione appena archiviato: si dice dove scrivere.
+    if (gia === undefined && loro.length === 0 && ultimoRegistro !== undefined) {
+      const [d] = doppioniDaArchiviare({ orchestratori: [{ ws, autopilota: '', cwd }], progetti: ultimoRegistro.progetti, pcId: ultimoRegistro.pcId, esiste: () => true })
+      if (d?.motivo === 'altro-pc') {
+        const dove = (d.pc !== undefined ? ultimoRegistro.nomiPc[d.pc] : undefined) ?? 'un altro PC'
+        return { ok: false, motivo: `il progetto di «${ws}» vive su ${dove}: scrivi all’autopilota di quel PC (da qui lo raggiungi dal vivo o con la posta)` }
+      }
+    }
     // Le richieste, i compiti e gli obiettivi di prima entrano nella coda (una volta sola).
     if (loro.length > 0) {
       x.code.cambia(ws, (c) => migraAutopiloti(c, loro, quando))
@@ -914,6 +928,7 @@ ${NOTA_SENZA_GIT}`,
    * si tocca mai.
    */
   const archiviaDoppioni = (r: RichiestaDoppioni): EsitoDoppioni => {
+    ultimoRegistro = r
     const esito: EsitoDoppioni = { archiviati: [], errori: [] }
     const orchestratori = unici()
       .filter((a) => a.archiviato !== true)
@@ -972,6 +987,10 @@ ${NOTA_SENZA_GIT}`,
   return {
     unicoDi,
     unici,
+    agentiAlLavoro: (cartella) => {
+      const k = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+      return unici().some((u) => k(u.cwd) === k(cartella) && (orchestratore.inVolo(wsDi(u)) || specialistiAlLavoro(orchestratore.stato(wsDi(u))).length > 0))
+    },
     eUnico: (id) => { const a = x.archivio.leggi(id); return a !== undefined && eUnico(a) },
     misura,
     allinea: (ws, c, adesso) => allineaConPiano(c, x.orchestratori.piano(ws), adesso),

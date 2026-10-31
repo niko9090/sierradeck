@@ -101,4 +101,16 @@ describe('le voci del pannello', () => {
     expect(quantoFa('2026-10-02T14:59:30.000Z', ADESSO)).toBe('adesso')
     expect(quantoFa('2026-09-30T15:00:00.000Z', ADESSO)).toBe('2 giorni fa')
   })
+  it('0.89.0: «installazione non riuscita» di una sessione di prima dell’avvio non conta; dopo sì', () => {
+    const righe = [
+      '2026-10-31T21:37:20.000Z [INFO] [aggiornamenti] INSTALLAZIONE NON RIUSCITA: Ho provato a installare la 0.88.6',
+      '2026-10-31T21:37:20.000Z [INFO] [aggiornamenti] diario di SierraDeck Update: 21:37:11 installer terminato (codice 0)',
+      '2026-10-31T21:38:00.000Z [INFO] SALVA fallito: rete',
+      '2026-10-31T22:30:00.000Z [INFO] [aggiornamenti] INSTALLAZIONE NON RIUSCITA: Ho provato a installare la 0.89.0'
+    ]
+    const adesso = Date.parse('2026-10-31T23:00:00.000Z')
+    const e = erroriDalLog(righe, adesso, 6, Date.parse('2026-10-31T22:00:00.000Z')).map((x) => x.messaggio)
+    expect(e).toEqual(['[aggiornamenti] INSTALLAZIONE NON RIUSCITA: Ho provato a installare la 0.89.0', 'SALVA fallito: rete'])
+    expect(erroriDalLog(righe, adesso, 6).map((x) => x.volte)).toEqual([2, 1])
+  })
 })

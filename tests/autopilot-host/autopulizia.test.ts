@@ -240,6 +240,42 @@ describe('su disco, con un git finto', () => {
     })
   })
 
+  describe('0.89.0: le copie degli specialisti in .claude/worktrees', () => {
+    const agente = (n: string): string => { const d = join(progetto, '.claude', 'worktrees', n); mkdirSync(d, { recursive: true }); writeFileSync(join(d, '.git'), 'gitdir: x\n'); return d }
+
+    it('nessuno specialista al lavoro: la copia pulita e unita va via, quella con modifiche resta', async () => {
+      const buona = agente('agent-1')
+      const sporca = agente('agent-2')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [buona]: 'h1', [sporca]: 'h2' }, sporche: [sporca] })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => false })
+      expect(existsSync(buona)).toBe(false)
+      expect(existsSync(sporca)).toBe(true)
+      expect(existsSync(join(progetto, '.claude', 'worktrees'))).toBe(true)
+      expect(e.tenute).toEqual([{ cosa: 'agent-2', perche: 'modifiche non salvate' }])
+    })
+
+    it('uno specialista al lavoro, o nessuno che lo sappia dire: non se ne tocca nessuna', async () => {
+      const d = agente('agent-1')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [d]: 'h1' } })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => true })
+      expect(existsSync(d)).toBe(true)
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      expect(existsSync(d)).toBe(true)
+    })
+
+    it('uno specialista che parte durante il giro: le copie dopo restano', async () => {
+      const d = agente('agent-1')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      let volte = 0
+      const { git } = gitFinto({ headDi: { [d]: 'h1' } })
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => { volte += 1; return volte > 1 } })
+      expect(existsSync(d)).toBe(true)
+      expect(e.tenute).toEqual([{ cosa: 'agent-1', perche: 'specialisti al lavoro' }])
+    })
+  })
+
   describe('0.86.1: i percorsi si confrontano veri (giunzioni, subst, 8.3)', () => {
     it('la cartella di una chat aperta scritta attraverso una giunzione è la stessa copia', async () => {
       const d = join(copie, 'ap-1-c-1')

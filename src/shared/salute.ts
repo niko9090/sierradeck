@@ -108,7 +108,7 @@ function prima(a: string, b: string): boolean {
  * dicono «fallito», «non riuscito», «rifiutat…». Raggruppate per messaggio
  * (numeri, orari e id tolti), dalla più recente.
  */
-export function erroriDalLog(righe: string[], adesso: number, ore: number): ErroreLog[] {
+export function erroriDalLog(righe: string[], adesso: number, ore: number, avvio?: number): ErroreLog[] {
   const da = adesso - ore * 3_600_000
   const gruppi = new Map<string, ErroreLog>()
   for (const r of righe) {
@@ -116,6 +116,9 @@ export function erroriDalLog(righe: string[], adesso: number, ore: number): Erro
     if (m === null) continue
     const t = Date.parse(m[1] as string)
     if (Number.isNaN(t) || t < da) continue
+    // 0.89.0: «installazione non riuscita» e il diario dell'installer di una sessione
+    // di prima non contano: a ogni avvio l'esito si rifà (e magari è riuscita dopo).
+    if (avvio !== undefined && t < avvio && /\[aggiornamenti\] (INSTALLAZIONE NON RIUSCITA|diario di SierraDeck Update)/.test(m[3] as string)) continue
     const livello = (m[2] as string).toUpperCase()
     const testo = (m[3] as string).trim()
     const grave = livello === 'ERRORE' || livello === 'ERROR'
