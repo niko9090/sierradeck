@@ -367,7 +367,9 @@ export function creaAggiornamenti(
     const diagnosi = diagnosiDiario(diario)
     const avviso = avvisoTentativoFallito(esito.tentativo, diagnosi, paginaRelease(esito.tentativo.versione))
     guaio(`INSTALLAZIONE NON RIUSCITA: ${avviso.titolo} ${avviso.motivo}`)
-    guaio(diario === undefined
+    // Il diario e' la prova che accompagna l'errore appena scritto, non un
+    // secondo errore: in cronaca (0.88.10).
+    nota(diario === undefined
       ? 'diario di SierraDeck Update: assente (nessuna prova del perche)'
       : `diario di SierraDeck Update: ${diario.trim().split(/\r?\n/).slice(-12).join(' | ')}`)
     return avviso

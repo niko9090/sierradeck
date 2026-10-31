@@ -273,6 +273,43 @@ describe('PtyHostClient', () => {
     })
   })
 
+  describe('livello delle righe raccontate', () => {
+    function conLivelli(): { emetti: (t: string) => void; righe: Array<[string, string]> } {
+      const righe: Array<[string, string]> = []
+      client = new PtyHostClient({
+        nodePath: process.execPath,
+        hostScript: hostSordo,
+        shutdownTimeoutMs: 50,
+        log: (m, livello) => righe.push([livello, m])
+      })
+      client.start()
+      const interno = client as unknown as { child: { stderr: NodeJS.EventEmitter } }
+      return { emetti: (t) => interno.child.stderr.emit('data', t), righe }
+    }
+
+    it('spegnimento voluto e console già chiusa vanno come info, non come errore', () => {
+      const { emetti, righe } = conLivelli()
+      emetti('[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti\n')
+      emetti('Error: AttachConsole failed\n')
+      expect(righe.map(([l]) => l)).toEqual(['info', 'info'])
+      expect(diagnostica).toEqual([])
+    })
+
+    it('un avvio fallito e la morte inattesa dell host restano errore', async () => {
+      const righe: Array<[string, string]> = []
+      client = new PtyHostClient({
+        nodePath: process.execPath,
+        hostScript: join(tmpdir(), 'non-esiste-pty-host.js'),
+        restartDelaysMs: [],
+        log: (m, livello) => righe.push([livello, m])
+      })
+      client.start()
+      await vi.waitFor(() => expect(righe.some(([, m]) => m.includes('terminato con codice'))).toBe(true), { timeout: 10000 })
+      expect(righe.find(([, m]) => m.includes('terminato con codice'))?.[0]).toBe('errore')
+      expect(righe.find(([, m]) => m.includes('riavvio abbandonato'))?.[0]).toBe('errore')
+    })
+  })
+
   describe('spegnimento ordinato', () => {
     it('chiede all host di chiudere i terminali invece di terminarlo', async () => {
       rmSync(marcaSpegnimento, { force: true })

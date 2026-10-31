@@ -19,6 +19,17 @@ describe('creaLoggerUpdater', () => {
     expect(registro.info).toHaveBeenCalledWith('[electron-updater] avviso: Cannot download differentially, fallback to full download: 501')
   })
 
+  it('il ripiego per «sha512 checksum mismatch» e un avviso, non un errore', () => {
+    const { registro, logger } = nuovo()
+    logger.error(
+      'Cannot download differentially, fallback to full download: Error: sha512 checksum mismatch, expected abc+/=, got def+/=\n' +
+      '    at DifferentialDownloader.validate (C:\\app\\resources\\app.asar\\node_modules\\electron-updater\\out\\differentialDownloader\\DifferentialDownloader.js:1:1)'
+    )
+    expect(registro.errore).not.toHaveBeenCalled()
+    expect(registro.info).toHaveBeenCalledOnce()
+    expect(registro.info.mock.calls[0]![0]).toMatch(/^\[electron-updater\] avviso: Cannot download differentially, fallback to full download: Error: sha512 checksum mismatch/)
+  })
+
   it('un errore vero resta errore, in una riga', () => {
     const { registro, logger } = nuovo()
     logger.error('net::ERR_INTERNET_DISCONNECTED\n    at x (f.js:1:1)')

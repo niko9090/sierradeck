@@ -23,7 +23,7 @@
     "icona": "electron scripts/genera-icona.mjs",
     "pulisci-dist": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pulisci-dist.mjs",
     "pacchetto": "node scripts/controlla-credenziali.mjs && node scripts/controlla-pacchetto.mjs --prima && npm run build && npm run pulisci-dist && electron-builder --win --publish never && node scripts/controlla-pacchetto.mjs --dopo",
-    "pubblica": "node scripts/controlla-credenziali.mjs && npm run build && npm run pulisci-dist && electron-builder --win --publish always"
+    "pubblica": "node scripts/controlla-credenziali.mjs && node scripts/controlla-pacchetto.mjs --prima && npm run build && npm run pulisci-dist && electron-builder --win --publish always && node scripts/controlla-pacchetto.mjs --dopo"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",

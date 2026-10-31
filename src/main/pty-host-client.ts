@@ -50,6 +50,9 @@ export function leggiStderrAtteso(chunk: string): { raccontate: string[]; errore
   return { raccontate, errore: resto.trim() === '' ? '' : resto }
 }
 
+/** Una riga raccontata e' di norma cronaca (`info`); `errore` solo per un guasto vero. */
+export type LivelloRiga = 'info' | 'errore'
+
 export type PtyHostClientOptions = {
   /** Eseguibile Node. In Electron: process.execPath con ELECTRON_RUN_AS_NODE. */
   nodePath: string
@@ -68,7 +71,7 @@ export type PtyHostClientOptions = {
    * abbandonato dopo cinque tentativi («nessun terminale sara' disponibile»),
    * uno spegnimento che non finisce erano righe che nessuno vedeva.
    */
-  log?: (messaggio: string) => void
+  log?: (messaggio: string, livello: LivelloRiga) => void
   /** Chiude a forza gli alberi dei processi rimasti (di serie `taskkill /T /F`). Per i test. */
   uccidiAlberi?: (pids: number[]) => Promise<void>
   /** Il processo e' ancora vivo? Per i test. */
@@ -167,7 +170,7 @@ export class PtyHostClient {
     // questo termina l'intera applicazione. Uno spawn può fallire per cause
     // ordinarie: script mancante dopo una build parziale, permessi negati.
     child.on('error', (err) => {
-      this.racconta(`avvio fallito: ${String(err)}`)
+      this.racconta(`avvio fallito: ${String(err)}`, 'errore')
       morte(`avvio del PTY host fallito: ${String(err)}`)
     })
 
@@ -214,7 +217,7 @@ export class PtyHostClient {
     child.on('exit', (code) => {
       // Dopo uno spegnimento voluto non è un guasto (0.73.1): il registro
       // diceva «[ERRORE] terminato con codice 0» a ogni chiusura del programma.
-      if (this.child === child) this.racconta(`terminato con codice ${String(code)}`)
+      if (this.child === child) this.racconta(`terminato con codice ${String(code)}`, 'errore')
       morte(`PTY host terminato con codice ${String(code)}`)
     })
   }
@@ -316,7 +319,7 @@ export class PtyHostClient {
       await (this.opts.uccidiAlberi ?? ((p: number[]) => uccidiAlberi(p)))(rimasti)
       this.racconta(`${rimasti.length} terminali ancora aperti dopo lo spegnimento: chiusi a forza (pid ${rimasti.join(', ')})`)
     } catch (err) {
-      this.racconta(`chiusura a forza dei terminali rimasti fallita: ${String(err)}`)
+      this.racconta(`chiusura a forza dei terminali rimasti fallita: ${String(err)}`, 'errore')
     }
   }
 
@@ -325,13 +328,13 @@ export class PtyHostClient {
    * il registro ripete gia' ogni sua riga in console, e la console torna nel
    * registro — la stessa riga ci finiva tre volte (0.86.2).
    */
-  private racconta(messaggio: string): void {
+  private racconta(messaggio: string, livello: LivelloRiga = 'info'): void {
     if (this.opts.log === undefined) {
       console.error(`[pty-host] ${messaggio}`)
       return
     }
     try {
-      this.opts.log(`[pty-host] ${messaggio}`)
+      this.opts.log(`[pty-host] ${messaggio}`, livello)
     } catch {
       // Un registro che non scrive non deve fermare il riavvio dell'host.
       console.error(`[pty-host] ${messaggio}`)
@@ -359,7 +362,8 @@ export class PtyHostClient {
     if (ritardo === undefined) {
       this.racconta(
         `riavvio abbandonato dopo ${this.tentativiRiavvio} tentativi consecutivi falliti: ` +
-          'nessun terminale sarà disponibile finché non si riavvia l\'applicazione'
+          'nessun terminale sarà disponibile finché non si riavvia l\'applicazione',
+        'errore'
       )
       return
     }
