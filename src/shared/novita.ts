@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.7',
+    righe: [
+      '**Ripara la 0.88.6, che non partiva:** al suo pacchetto mancavano dei moduli («Cannot find module dijkstrajs»). Dentro c’è tutto quello che aveva la 0.88.6: l’app Android non va più in crash con risposte enormi e l’avviso dell’aggiornamento differenziale non è più un errore.',
+      '**Un pacchetto incompleto non esce più:** prima di pubblicare si controlla che dentro ci sia ogni modulo che serve, e non si costruisce più da una copia di lavoro.',
+    ]
+  },
+  {
     versione: '0.88.6',
     righe: [
       '**L’app Android non va più in crash con risposte enormi:** se il PC manda una risposta molto grande, l’app la limita invece di chiudersi.',
