@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.1',
+    righe: [
+      '**Aggiornamenti molto più leggeri:** dalla prossima versione si scarica solo quello che cambia (pochi MB) invece di tutto l’installer. Prima una mappa vecchia rimasta nella cache, dopo uno scaricamento non installato, faceva fallire il controllo e ripartire lo scaricamento intero.',
+      '**Chiusura più veloce:** quando SierraDeck si chiude (anche per installare) i terminali si chiudono tutti insieme in meno di due secondi, senza più chiusure forzate né errori di terminali già chiusi.',
+      '**Meno falsi allarmi nella Salute:** una chat ancora aperta che sale sul Drive più tardi non conta più come errore ogni ora; resta un avviso solo l’unione col Drive non riuscita.',
+      '**«Dismetti questo PC»:** un PC che non si fa vivo da più di una settimana si toglie dall’elenco di tutti i PC dalla Salute (con un secondo clic di conferma). Se si riaccende, ricompare da solo.',
+    ]
+  },
+  {
     versione: '0.89.0',
     righe: [
       '**I doppioni non rinascono:** un messaggio al workspace di un progetto che vive su un altro PC non ricrea più l’autopilota appena archiviato: ti dice su quale PC scrivere.',
