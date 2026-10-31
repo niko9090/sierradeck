@@ -1,3 +1,4 @@
+import { parse } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo } from '@shared/autopilota'
@@ -918,7 +919,9 @@ ${NOTA_SENZA_GIT}`,
       .filter((a) => a.archiviato !== true)
       .map((a) => ({ ws: wsDi(a), autopilota: a.id, cwd: a.cwd }))
     const doppioni = doppioniDaArchiviare({
-      orchestratori, progetti: r.progetti, pcId: r.pcId, esiste: esisteCartella,
+      // Un disco staccato (una chiavetta, un disco esterno) non è un progetto sparito: se manca
+      // la radice del disco, la cartella conta come presente e l’autopilota resta com’è.
+      orchestratori, progetti: r.progetti, pcId: r.pcId, esiste: (c) => esisteCartella(c) || !esisteCartella(parse(c).root),
       ...(x.doppioni !== undefined ? { giaFatti: x.doppioni.fatti() } : {})
     })
     for (const d of doppioni) {

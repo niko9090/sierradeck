@@ -137,6 +137,17 @@ describe('gli autopiloti doppioni nel servizio', () => {
     expect(readdirSync(join(radice, 'recupero-riassetto', '0.88.9', 'servizio-doppioni')).filter((n) => n !== 'manifesto.json')).toHaveLength(2)
   })
 
+  it('un disco staccato non è un progetto sparito: con la radice del disco assente, l’autopilota resta', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {})
+    // Una lettera che su un PC di prova non c'è: la radice manca, quindi la cartella non conta come sparita.
+    const lettera = ['Q', 'W', 'Y', 'Z'].find((l) => !existsSync(`${l}:\\`))
+    if (lettera === undefined) return
+    await avviaServizio([unico('ap-chiavetta', 'Chiavetta', `${lettera}:\\Progetti\\Chiavetta`)])
+    const r = await posta({ pcId: 'pc-qui', progetti: [], nomiPc: {} })
+    expect(r.corpo.archiviati).toEqual([])
+    expect(archivio.leggi('ap-chiavetta')!.archiviato).toBeUndefined()
+  })
+
   it('lo stesso nome è anche un progetto di questo PC: niente si tocca; senza l’id del PC: 400', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {})
     const lavori = mkdtempSync(join(tmpdir(), 'sd-doppioni-lavori-'))

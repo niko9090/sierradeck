@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.9',
+    righe: [
+      '**Controllo di tutti i PC:** ogni 6 ore il PC di sviluppo chiede la salute e gli autopiloti a ogni PC; le criticità nuove (un PC che non risponde, un aggiornamento fermo, un autopilota bloccato) vanno all’autopilota di SierraDeck, che corregge quello che sta nel codice e ti dice quello che si fa solo a mano.',
+      '**Pulizia dei doppioni su ogni PC:** le cartelle vuote del vecchio autopilota («ap-…») si tolgono da sole; gli autopiloti dei progetti che vivono su un altro PC si archiviano e la loro cartella va nel recupero, mai cancellata. Un disco staccato non conta come progetto sparito.',
+      '**Progetti vuoti fuori dall’elenco:** un progetto che da più di una settimana non ha un file né sul suo PC né sul Drive esce dall’elenco da solo.',
+      '**«Togli» non torna indietro:** un progetto tolto dall’elenco non ricompare più per l’unione con l’elenco di un altro PC.',
+    ]
+  },
+  {
     versione: '0.88.8',
     righe: [
       '**Autopiloti non più «in errore» sul PC sbagliato:** dopo il riordino ogni progetto vive su un PC solo; l’autopilota di un progetto la cui cartella non c’è su questo PC non prova più a lavorare (prima ogni turno finiva in «turno non riuscito»). Lo dice una volta nel dialogo: scrivigli dal PC del progetto.',
