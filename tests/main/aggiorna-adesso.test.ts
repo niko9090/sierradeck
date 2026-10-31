@@ -94,6 +94,19 @@ describe('il tasto «Aggiorna adesso»', () => {
     expect(h.avviaUpdater).toHaveBeenCalledTimes(1)
   })
 
+  it('updater vivo: prima chiude i terminali (preparaUscita), poi esce', async () => {
+    const dati = mkdtempSync(join(tmpdir(), 'aggiorna-adesso-'))
+    const ordine: string[] = []
+    h.quit.mockImplementation(() => { ordine.push('quit') })
+    const prepara = vi.fn(async () => { ordine.push('prepara') })
+    const a = creaAggiornamenti(() => [], dati, prepara, undefined, undefined, () => true, () => 47640, quieteChePremeSoloIlTasto)
+    arrivaPronta()
+    await a.aggiornaAdesso(true)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(ordine).toEqual(['prepara', 'quit'])
+    h.quit.mockReset()
+  })
+
   it('senza una versione pronta non fa niente: non installa mai da solo', async () => {
     const { a, q } = nuovo(quieteChePremeSoloIlTasto)
     await a.aggiornaAdesso()
