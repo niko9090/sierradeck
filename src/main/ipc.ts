@@ -312,7 +312,9 @@ export function registerPtyIpc(
     // Un evento senza destinatario non deve sparire: succede fra la chiusura di
     // una finestra e l'arrivo dell'`exit` dei suoi pty, ed è normale — ma se
     // succedesse in altri momenti sarebbe un difetto di instradamento, e senza
-    // questa riga sarebbe invisibile.
+    // questa riga sarebbe invisibile. Durante lo spegnimento (0.89.1) e' la
+    // norma: le finestre sono gia' chiuse e i terminali escono dopo.
+    if (client.inSpegnimento()) return
     console.warn(`[pty] evento ${msg.kind} per ${msg.id} senza finestra proprietaria`)
   })
   client.start()

@@ -1,7 +1,15 @@
 import * as pty from 'node-pty'
 import type { SpawnOptions } from '@shared/protocol'
 import { creaTampone, type Tampone } from './scrollback-buffer'
-import { uccidiAlberi } from '@shared/uccidi-alberi'
+import { processoVivo, uccidiAlberi } from '@shared/uccidi-alberi'
+
+/**
+ * Quanto puo' durare il `taskkill` dello spegnimento (0.89.1). Deve stare
+ * dentro `ATTESA_KILLALL_MS` dell'host, che a sua volta sta dentro l'attesa
+ * del Core: prima erano 3000 ms contro i 2000 che il Core concede a quattro
+ * terminali, e un `taskkill` lento bastava a far terminare l'host a forza.
+ */
+export const TEMPO_TASKKILL_MS = 1200
 
 type DataListener = (id: string, data: string) => void
 type ExitListener = (id: string, code: number) => void
@@ -232,11 +240,61 @@ export class PtyManager {
    * troncava. Ora gli alberi dei processi si chiudono tutti insieme
    * (`taskkill /T /F`, in parallelo), poi si rilasciano le console; la
    * promessa risolve quando i `taskkill` hanno finito.
+   *
+   * 0.89.1: su Windows le console **non** passano piu' da `proc.kill()` di
+   * node-pty. Il registro di un portatile, a una chiusura per aggiornamento con
+   * quattro chat: «non uscito entro 2000 ms (4 terminali)», e su un altro PC
+   * «console già chiusa (node-pty)». Il perche' sta in node-pty 1.1
+   * (`windowsPtyAgent.kill`): per ogni terminale `child_process.fork` di
+   * `conpty_console_list_agent` — nell'host vuol dire avviare un intero
+   * eseguibile di Electron — piu' `ClosePseudoConsole`, sincrono, sul thread
+   * principale, uno dopo l'altro e con claude.exe ancora vivo, perche' il
+   * `taskkill` appena lanciato non aveva ancora finito. L'event loop restava
+   * fermo, i `taskkill` aspettavano lui, e gli agenti forkati arrivavano a
+   * guscio gia' morto: «AttachConsole failed», la riga dell'altro PC.
+   *
+   * Ora: gli alberi si chiudono con un solo `taskkill` (che porta via anche la
+   * shell di ogni console), e la console resta all'uscita dell'host, che
+   * chiude le sue maniglie e con esse i conhost — e' la stessa cosa che fa
+   * `ClosePseudoConsole`, senza bloccare niente. Solo chi e' sopravvissuto al
+   * `taskkill` (scaduto, accesso negato) passa ancora dal `kill()` di
+   * node-pty, come rete di sicurezza. Fuori da Windows `kill()` e' un segnale
+   * e costa niente: resta per tutti.
+   *
+   * Le mappe si svuotano subito: un secondo `killAll` (il gestore `exit` di
+   * index.ts) non deve rifare il lavoro, e i messaggi che arrivano dopo non
+   * trovano piu' terminali.
    */
-  killAll(uccidi: (pids: number[]) => Promise<void> = (p) => uccidiAlberi(p)): Promise<void> {
-    const pids = [...this.processes.values()].map((p) => p.pid)
-    const alberi = pids.length > 0 ? uccidi(pids).catch(() => undefined) : Promise.resolve()
-    for (const id of [...this.processes.keys()]) this.kill(id)
-    return alberi
+  killAll(o: {
+    uccidi?: (pids: number[]) => Promise<void>
+    vivo?: (pid: number) => boolean
+    piattaforma?: NodeJS.Platform
+  } = {}): Promise<void> {
+    const uccidi = o.uccidi ?? ((p: number[]) => uccidiAlberi(p, { tempoMs: TEMPO_TASKKILL_MS }))
+    const vivo = o.vivo ?? processoVivo
+    const piattaforma = o.piattaforma ?? process.platform
+    const aperti = [...this.processes]
+    this.processes.clear()
+    this.scrollback.clear()
+    if (aperti.length === 0) return Promise.resolve()
+    const rilascia = (proc: pty.IPty): void => {
+      try {
+        proc.kill()
+      } catch {
+        // Già morto.
+      }
+    }
+    const alberi = uccidi(aperti.map(([, p]) => p.pid)).catch(() => undefined)
+    if (piattaforma !== 'win32') {
+      for (const [, proc] of aperti) rilascia(proc)
+      return alberi
+    }
+    return alberi.then(() => {
+      for (const [, proc] of aperti) {
+        let ancoraVivo = false
+        try { ancoraVivo = vivo(proc.pid) } catch { ancoraVivo = false }
+        if (ancoraVivo) rilascia(proc)
+      }
+    })
   }
 }

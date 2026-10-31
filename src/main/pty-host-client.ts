@@ -12,8 +12,12 @@ const VITA_SANA_MS = 30_000
  * senza terminali. Con i terminali si aggiunge `PER_TERMINALE_MS` ciascuno,
  * fino a `ATTESA_SPEGNIMENTO_MAX_MS` (0.86.2: gli 800 ms fissi di prima non
  * bastavano mai — «non uscito entro 800 ms» a 7 chiusure su 7).
+ *
+ * 0.89.1: la base sale a 2000 ms perche' deve contenere il tetto dell'host
+ * (`ATTESA_KILLALL_MS`, 1500 ms) piu' l'uscita del processo anche con un solo
+ * terminale; con 1000 ms il tetto dell'host superava l'attesa del Core.
  */
-const ATTESA_SPEGNIMENTO_MS = 1000
+export const ATTESA_SPEGNIMENTO_MS = 2000
 export const PER_TERMINALE_MS = 250
 export const ATTESA_SPEGNIMENTO_MAX_MS = 6000
 
@@ -102,6 +106,14 @@ export class PtyHostClient {
    */
   private readonly pids = new Map<string, number>()
 
+  /**
+   * Da `stop()` al prossimo `start()` (0.89.1). In quella finestra le finestre
+   * si chiudono e i loro ultimi `write`/`resize`/`kill` non hanno piu' un
+   * terminale: un errore per ciascuno, verso riquadri gia' distrutti, era
+   * rumore nel registro («evento error per … senza finestra proprietaria»).
+   */
+  private spegnendo = false
+
   private tentativiRiavvio = 0
   private timerRiavvio: ReturnType<typeof setTimeout> | undefined
   private avviatoIl = 0
@@ -122,6 +134,11 @@ export class PtyHostClient {
 
   isRunning(): boolean {
     return this.child !== undefined && this.child.exitCode === null
+  }
+
+  /** Lo spegnimento e' stato chiesto (e non c'e' stato un nuovo avvio)? */
+  inSpegnimento(): boolean {
+    return this.spegnendo
   }
 
   /** Gli id dei pty che il Core crede vivi in questo momento. */
@@ -145,6 +162,7 @@ export class PtyHostClient {
   start(): void {
     if (this.isRunning()) return
     this.annullaRiavvio()
+    this.spegnendo = false
     this.buffer = ''
 
     const child = spawn(this.opts.nodePath, [this.opts.hostScript], {
@@ -203,6 +221,9 @@ export class PtyHostClient {
           this.live.delete(msg.id)
           this.pids.delete(msg.id)
         } else if (msg.kind === 'spawned') this.pids.set(msg.id, msg.pid)
+        // Durante lo spegnimento un `error` dell'host e' atteso — il terminale
+        // si sta chiudendo per volonta' nostra — e il riquadro non c'e' piu'.
+        if (msg.kind === 'error' && this.spegnendo) continue
         this.listener(msg)
       }
     })
@@ -223,6 +244,10 @@ export class PtyHostClient {
   }
 
   send(msg: CoreToHostPty): void {
+    // Spegnimento in corso: l'host sta chiudendo tutti i terminali e non
+    // ascolta piu'. Rispondere `error` a ogni messaggio delle finestre che si
+    // chiudono non avviserebbe nessuno (0.89.1).
+    if (this.spegnendo) return
     if (!this.isRunning()) {
       this.listener({ id: msg.id, kind: 'error', message: 'PTY host non in esecuzione' })
       return
@@ -259,6 +284,7 @@ export class PtyHostClient {
   async stop(): Promise<void> {
     this.annullaRiavvio()
     this.tentativiRiavvio = 0
+    this.spegnendo = true
     // Arresto voluto: le sessioni non vanno segnalate come errore.
     this.live.clear()
     // I terminali ancora aperti, prima di tutto il resto: decidono quanto

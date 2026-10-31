@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PtyManager, ambientePty } from '../../src/pty-host/pty-manager'
+import { ATTESA_KILLALL_MS } from '../../src/pty-host/host'
+import { processoVivo } from '../../src/shared/uccidi-alberi'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 describe('ambiente dei terminali', () => {
   it('non propaga ELECTRON_RUN_AS_NODE ai processi dell utente', () => {
@@ -255,6 +260,43 @@ describe('ambientePty — marcatori di sessione ereditati', () => {
     // scelta dell'utente e vengono per ultime.
     const env = ambientePty({}, 'u-1', { COLORTERM: '' })
     expect(env.COLORTERM).toBe('')
+  })
+})
+
+describe.skipIf(process.platform !== 'win32')('killAll con terminali veri (0.89.1)', () => {
+  it('quattro terminali con un figlio ciascuno: chiusi tutti, alberi compresi, entro il tetto dell host', async () => {
+    // Ogni terminale e' cmd.exe con dentro un Node che resta vivo: lo stesso
+    // albero di una chat (guscio, poi claude.exe). Il Node stampa il proprio
+    // pid, cosi' si puo' controllare che il taskkill /T abbia preso anche lui.
+    const m = new PtyManager()
+    const figli = new Map<string, number>()
+    const pronti = new Promise<void>((risolvi, rifiuta) => {
+      const scadenza = setTimeout(() => rifiuta(new Error('i figli non sono partiti')), 20_000)
+      m.onData((id) => {
+        const r = /FIGLIO=(\d+)/.exec(m.scrollbackDi(id) ?? '')
+        if (r) figli.set(id, Number(r[1]))
+        if (figli.size === 4) { clearTimeout(scadenza); risolvi() }
+      })
+    })
+    // Uno script su disco e non `-e`: le virgolette e il `>` passerebbero da
+    // cmd.exe, che li legge a modo suo.
+    const script = join(mkdtempSync(join(tmpdir(), 'sd-killall-')), 'figlio.js')
+    writeFileSync(script, 'console.log("FIGLIO=" + process.pid); setInterval(() => {}, 1000)\n')
+    for (const id of ['a', 'b', 'c', 'd']) {
+      m.spawn(id, {
+        sessionUuid: `u-${id}`, cwd: process.cwd(), command: 'cmd.exe',
+        args: ['/c', process.execPath, script],
+        cols: 80, rows: 24
+      })
+    }
+    await pronti
+    const gusci = [...m.pids().values()]
+    const inizio = Date.now()
+    await m.killAll()
+    expect(Date.now() - inizio).toBeLessThan(ATTESA_KILLALL_MS)
+    for (const pid of [...gusci, ...figli.values()]) {
+      await vi.waitFor(() => expect(processoVivo(pid)).toBe(false), { timeout: 3000 })
+    }
   })
 })
 
