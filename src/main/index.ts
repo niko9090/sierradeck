@@ -141,6 +141,7 @@ import { creaProgettiSync } from './progetti/sincronia-progetti'
 import { creaPostino, type Postino } from './progetti/posta'
 import { creaMandaAChat, type MandaAChat } from './progetti/manda-a-chat'
 import { pcNotiDaDisco, risolviPercorsiMiei } from './progetti/migra-proprietari'
+import { creaInvioDoppioni, richiestaDoppioni } from './progetti/doppioni-al-servizio'
 import { creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
@@ -1074,6 +1075,14 @@ function creaAreaNotifica(): void {
   }
 }
 
+/** 31/10: la cartella dei progetti di questo PC, nell'ambiente del servizio (le vecchie copie `ap-…-c-N`). */
+function cartellaProgettiPerIlServizio(): { SIERRADECK_CARTELLA_PROGETTI?: string } {
+  try {
+    const c = identitaPcGlobale?.leggi().cartellaProgetti
+    return c !== undefined && c !== '' ? { SIERRADECK_CARTELLA_PROGETTI: c } : {}
+  } catch { return {} }
+}
+
 /**
  * Avvia il servizio autopilota, staccato da questo processo.
  *
@@ -1100,7 +1109,10 @@ function avviaServizioAutopilota(): void {
         // La porta viaggia con lui: e' un processo a parte e le preferenze
         // dell'utente non le vede. Senza questa riga il campo «Porta degli
         // autopiloti» si poteva cambiare senza che cambiasse niente.
-        [AMBIENTE_PORTA_AUTOPILOTI]: String(portaAutopiloti)
+        [AMBIENTE_PORTA_AUTOPILOTI]: String(portaAutopiloti),
+        // 31/10: la cartella dei progetti, per le vecchie copie vuote `ap-…-c-N`
+        // dell'autopulizia (il servizio, senza, guarda pc.json e le cartelle di serie).
+        ...cartellaProgettiPerIlServizio()
       }
     })
     figlio.unref()
@@ -3752,6 +3764,30 @@ if (!app.requestSingleInstanceLock()) {
         assicura: () => clientAutopilota.assicuraServizio(),
         cwdAutopiloti: async () => [...new Set((await clientAutopilota.elenca()).map((a) => a.cwd))]
       })
+      // 31/10: gli autopiloti doppioni (il progetto vive su un altro PC, o la
+      // cartella non c'è) li archivia il servizio; il registro glielo manda il
+      // programma. La prima volta dopo il primo giro col Drive (parte a 1
+      // minuto), poi ogni volta che il registro cambia (guardato ogni minuto:
+      // `leggi` rilegge il file solo se è cambiato).
+      {
+        const invio = creaInvioDoppioni({
+          richiesta: () => richiestaDoppioni({
+            pcId: identitaPc.leggi().id,
+            progetti: registroProgetti.leggi().progetti,
+            nomiPc: Object.fromEntries(pcNotiDaDisco(dati).map((p) => [p.id, p.nomeScelto ?? p.nome]))
+          }),
+          manda: async (r) => {
+            if (!(await clientAutopilota.assicuraServizio())) throw new Error('servizio non pronto')
+            if (clientAutopilota.archiviaDoppioni === undefined) return { righe: [], errori: [] }
+            return clientAutopilota.archiviaDoppioni(r)
+          },
+          log: (m) => registro.info(m)
+        })
+        setTimeout(() => {
+          void invio.giro()
+          setInterval(() => { void invio.giro() }, 60_000).unref?.()
+        }, 3 * 60_000).unref?.()
+      }
       // «Errori arrivati» (0.81.0, 0.88.4): sul PC dove arrivano gli errori,
       // raggruppati in un lotto e affidati all'autopilota del workspace di
       // SierraDeck, da soli. Le regole (quiete, limiti, gruppi, recupero) stanno

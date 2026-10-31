@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
 import { lstat, readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
@@ -43,6 +43,13 @@ import { cartellaWorktreeDi, type GitAsincrono } from './worktree'
  *    svuota il Gestore, padrone di quel registro (`scadenzaVera` in
  *    `@shared/gestione-chat`): scriverlo da qui vorrebbe dire due processi
  *    sullo stesso file.
+ * 7. 31/10, «solo cose sicure»: nella cartella dei progetti (`Progetti
+ *    SierraDeck`) le vecchie copie `ap-<8hex>-c-N` del primo autopilota, a
+ *    decine e tutte vuote. Via solo quelle senza nessun file dentro (solo
+ *    sottocartelle vuote), che non sono e non contengono collegamenti (mai
+ *    seguiti), più vecchie di `COPIA_GIOVANE_MS` e che nessuna chat aperta usa;
+ *    con `rmdir` dal fondo, mai una cancellazione ricorsiva. Una con anche un
+ *    solo file resta: è «da guardare», e la riga del giro le conta.
  */
 
 /** Ogni quanto gira da sola. */
@@ -238,6 +245,10 @@ export type EsitoAutopulizia = {
   copiePrimaTolte?: number
   /** P2 (30/10): le cartelle di trascrizioni di copie che non ci sono più, tolte da `~/.claude/projects`. */
   trascrizioniTolte?: number
+  /** 31/10: le cartelle vuote `ap-…-c-N` del vecchio autopilota tolte dalla cartella dei progetti. */
+  cartelleVuoteTolte?: number
+  /** 31/10: le cartelle `ap-…-c-N` che non si toccano da sole (con dei file, collegamenti): le guarda Nicholas. */
+  daGuardare?: Array<{ cosa: string; perche: string }>
   errori: string[]
   /** Non ha girato: il motivo. */
   saltata?: string
@@ -256,11 +267,18 @@ export function rigaRiepilogo(e: EsitoAutopulizia): string {
   if (e.autopilotiCompattati > 0) r += `, ${e.autopilotiCompattati} autopiloti compattati`
   if ((e.copiePrimaTolte ?? 0) > 0) r += `, ${e.copiePrimaTolte} copie di scorta «.prima-» tolte`
   if ((e.trascrizioniTolte ?? 0) > 0) r += `, ${e.trascrizioniTolte} cartelle di trascrizioni di copie finite tolte`
+  if ((e.cartelleVuoteTolte ?? 0) > 0) r += `, ${e.cartelleVuoteTolte} cartelle vuote «ap-…» del vecchio autopilota tolte`
   // Gli «appena nati» e le chat aperte sono la norma: si contano, ma il «perché» utile è il resto.
   const perMotivo = new Map<string, number>()
   for (const t of e.tenute) perMotivo.set(t.perche, (perMotivo.get(t.perche) ?? 0) + 1)
   if (e.tenute.length > 0) {
     r += `; tenute ${e.tenute.length} perché ${[...perMotivo].map(([m, n]) => `${m} (${n})`).join(', ')}`
+  }
+  const guardare = e.daGuardare ?? []
+  if (guardare.length > 0) {
+    const perMotivoG = new Map<string, number>()
+    for (const t of guardare) perMotivoG.set(t.perche, (perMotivoG.get(t.perche) ?? 0) + 1)
+    r += `; da guardare ${guardare.length} cartelle «ap-…» (${[...perMotivoG].map(([m, n]) => `${m}: ${n}`).join(', ')})`
   }
   if (e.errori.length > 0) r += `; ${e.errori.length} errori: ${e.errori.slice(0, 3).join(' | ')}`
   return r
@@ -373,7 +391,132 @@ export type OpzioniAutopulizia = {
   cartellaDati?: string
   /** P2: la radice di Claude Code (`~/.claude`), per le trascrizioni delle copie finite. Assente: non si toccano. */
   radiceClaude?: string
+  /** 31/10: le cartelle dei progetti in cui cercare le vecchie copie vuote `ap-…-c-N`. Assente: non si cercano. */
+  cartelleProgetti?: () => string[]
   ora?: () => number
+}
+
+// ---------------------------------------------------------------------------
+// 31/10: le vecchie copie vuote `ap-<8hex>-c-N` nella cartella dei progetti.
+// ---------------------------------------------------------------------------
+
+/** Il nome di una vecchia copia di chat del primo autopilota. */
+export const RE_COPIA_VECCHIA = /^ap-[0-9a-f]{8}-c-\d+$/i
+
+/** Una cartella `ap-…-c-N` com'è sul disco, quanto basta per decidere. */
+export type CartellaApVecchia = {
+  /** È lei stessa, o contiene, un collegamento (simbolico o giunzione). */
+  collegamento: boolean
+  /** Quanti file ci sono dentro, a ogni livello (i collegamenti non si seguono). */
+  file: number
+  /** Toccata (lei o una sottocartella) da meno di `COPIA_GIOVANE_MS`. */
+  giovane: boolean
+  /** Una chat aperta lavora lì dentro. */
+  chatAperta: boolean
+}
+
+export type DecisioneCartellaAp = { togli: boolean; perche: string; daGuardare?: boolean }
+
+/** Si toglie questa cartella `ap-…-c-N`? Pura. Nel dubbio resta. */
+export function decidiCartellaAp(c: CartellaApVecchia): DecisioneCartellaAp {
+  if (c.collegamento) return { togli: false, perche: 'collegamento', daGuardare: true }
+  if (c.file > 0) return { togli: false, perche: 'con dei file', daGuardare: true }
+  if (c.chatAperta) return { togli: false, perche: 'chat aperta' }
+  if (c.giovane) return { togli: false, perche: 'appena nata' }
+  return { togli: true, perche: 'vuota' }
+}
+
+/**
+ * L'albero di una cartella senza mai seguire i collegamenti: se ci sono file
+ * o collegamenti (al primo ci si ferma), l'ultima modifica, e le cartelle dal
+ * fondo (prima le più profonde, ultima lei) per toglierle con `rmdir`.
+ */
+async function alberoSenzaSeguire(cartella: string): Promise<{ file: number; collegamento: boolean; ultimaMs: number; dalFondo: string[] }> {
+  const m = { file: 0, collegamento: false, ultimaMs: 0, dalFondo: [] as string[] }
+  const giro = async (p: string): Promise<void> => {
+    let st
+    try { st = await lstat(p) } catch { return }
+    m.ultimaMs = Math.max(m.ultimaMs, st.mtimeMs, p === cartella && st.birthtimeMs > 0 ? st.birthtimeMs : 0)
+    if (st.isSymbolicLink()) { m.collegamento = true; return }
+    if (!st.isDirectory()) { m.file += 1; return }
+    let nomi: string[] = []
+    // Una cartella che non si legge: nel dubbio come se avesse dei file.
+    try { nomi = await readdir(p) } catch { m.file += 1; return }
+    for (const n of nomi) {
+      await giro(join(p, n))
+      // Basta un file o un collegamento: la cartella resta, non serve guardare oltre.
+      if (m.collegamento || m.file > 0) return
+    }
+    m.dalFondo.push(p)
+  }
+  await giro(cartella)
+  return m
+}
+
+/**
+ * Le cartelle dei progetti in cui il servizio cerca le vecchie copie: quella
+ * che il programma gli passa (`SIERRADECK_CARTELLA_PROGETTI`), quella di
+ * `pc.json` (il servizio può essere partito da un programma di prima) e le due
+ * di serie (nella cartella dell'utente, come fino alla 0.18, e in Documenti).
+ * Solo quelle che ci sono, una volta sola.
+ */
+export function cartelleProgettiDelServizio(p: { ambiente?: string; dati: string; casa: string }): string[] {
+  const c: string[] = []
+  if (p.ambiente !== undefined && p.ambiente.trim() !== '') c.push(p.ambiente.trim())
+  try {
+    const j = JSON.parse(readFileSync(join(p.dati, 'pc.json'), 'utf8')) as { cartellaProgetti?: unknown }
+    if (typeof j.cartellaProgetti === 'string' && j.cartellaProgetti !== '') c.push(j.cartellaProgetti)
+  } catch { /* senza pc.json, le cartelle di serie */ }
+  c.push(join(p.casa, 'Progetti SierraDeck'), join(p.casa, 'Documents', 'Progetti SierraDeck'))
+  const viste = new Set<string>()
+  return c.filter((x) => {
+    const k = chiavePercorso(x)
+    if (viste.has(k)) return false
+    viste.add(k)
+    try { return lstatSync(x).isDirectory() } catch { return false }
+  })
+}
+
+/** Toglie le cartelle vuote `ap-…-c-N` dalle cartelle dei progetti; quelle con dei file vanno fra «da guardare». */
+async function pulisciCopieVecchie(o: OpzioniAutopulizia, e: EsitoAutopulizia): Promise<void> {
+  let cartelle: string[] = []
+  try { cartelle = o.cartelleProgetti?.() ?? [] } catch { cartelle = [] }
+  const ora = (o.ora ?? Date.now)()
+  // Le chat aperte di adesso: si rileggono per ogni cartella, subito prima di decidere.
+  const aperte = (): ChatNota[] => conCartellaVera(chatNote(o.archivio.elenca()).filter((c) => c.aperta))
+  for (const radice of cartelle) {
+    let nomi: string[] = []
+    try { nomi = await readdir(radice) } catch { continue }
+    for (const n of nomi) {
+      if (!RE_COPIA_VECCHIA.test(n)) continue
+      const dir = join(radice, n)
+      let st
+      try { st = await lstat(dir) } catch { continue }
+      if (!st.isSymbolicLink() && !st.isDirectory()) continue
+      const collegata = st.isSymbolicLink()
+      // Un collegamento non si attraversa nemmeno per guardarci dentro.
+      const albero = collegata ? { file: 0, collegamento: true, ultimaMs: st.mtimeMs, dalFondo: [] } : await alberoSenzaSeguire(dir)
+      const dirVera = collegata ? dir : percorsoVero(dir)
+      const usata = aperte().some((c) => [c.cartella, c.cartellaVera].some((cc) => cc !== undefined && (dentroOUguale(cc, dir) || dentroOUguale(cc, dirVera))))
+      const d = decidiCartellaAp({
+        collegamento: albero.collegamento,
+        file: albero.file,
+        giovane: ora - albero.ultimaMs < COPIA_GIOVANE_MS,
+        chatAperta: usata
+      })
+      if (!d.togli) {
+        if (d.daGuardare === true) e.daGuardare = [...(e.daGuardare ?? []), { cosa: dir, perche: d.perche }]
+        continue
+      }
+      // Dal fondo, una per una, con `rmdir`: una cartella che nel frattempo ha preso un file non si toglie.
+      let tolta = true
+      for (const c of albero.dalFondo) {
+        if (!dentroOUguale(c, dir)) { tolta = false; break }
+        try { rmdirSync(c) } catch (err) { e.errori.push(`${n}: ${String(err).slice(0, 120)}`); tolta = false; break }
+      }
+      if (tolta) e.cartelleVuoteTolte = (e.cartelleVuoteTolte ?? 0) + 1
+    }
+  }
 }
 
 /** Il nome che Claude Code dà alla cartella di una sessione. */
@@ -743,6 +886,13 @@ export async function autopulizia(o: OpzioniAutopulizia): Promise<EsitoAutopuliz
     }
   } catch (err) {
     e.errori.push(`note: ${String(err).slice(0, 120)}`)
+  }
+
+  // 31/10: le vecchie copie vuote `ap-…-c-N` nella cartella dei progetti.
+  try {
+    await pulisciCopieVecchie(o, e)
+  } catch (err) {
+    e.errori.push(`copie vuote: ${String(err).slice(0, 120)}`)
   }
 
   // Il registro.

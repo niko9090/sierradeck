@@ -24,7 +24,7 @@ import { gitAsincronoReale, gitReale } from './worktree'
 import { avviaSpiaRitardo } from './ritardo-ciclo'
 import { creaMisuratore } from './misura-pc'
 import { cercaProgrammaReale, creaGuardiaPc } from './guardia-pc'
-import { AUTOPULIZIA_OGNI_MS, creaAutopulizia } from './autopulizia'
+import { AUTOPULIZIA_OGNI_MS, cartelleProgettiDelServizio, creaAutopulizia } from './autopulizia'
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
 import { avviaProcessoReale } from './orchestratore'
@@ -350,6 +350,12 @@ export function avviaServizio(): void {
     cartellaDati: join(cartellaStato(), '..'),
     // P2: le cartelle delle trascrizioni delle copie finite, in ~/.claude/projects.
     radiceClaude: cartellaClaude(),
+    // 31/10: le vecchie copie vuote `ap-…-c-N` nella cartella dei progetti, che gliela passa il programma.
+    cartelleProgetti: () => cartelleProgettiDelServizio({
+      ...(process.env.SIERRADECK_CARTELLA_PROGETTI !== undefined ? { ambiente: process.env.SIERRADECK_CARTELLA_PROGETTI } : {}),
+      dati: join(cartellaStato(), '..'),
+      casa: homedir()
+    }),
     pcCarico: () => guardiaPc.valuta()?.motivo
   })
 
