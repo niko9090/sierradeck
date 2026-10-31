@@ -40,6 +40,9 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
   const [parte, setParte] = useState<'altri-pc' | 'consumi' | undefined>(suiConsumi ? 'consumi' : undefined)
   const [mappa, setMappa] = useState(false)
   const [salute, setSalute] = useState<Salute | undefined>(undefined)
+  // 0.89.1: «Dismetti questo PC» chiede un secondo clic; l’esito resta scritto sotto la voce.
+  const [daDismettere, setDaDismettere] = useState<string | undefined>(undefined)
+  const [esitoDismetti, setEsitoDismetti] = useState<Record<string, string>>({})
   const [leggo, setLeggo] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const leggi = useCallback((): void => {
@@ -80,6 +83,13 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
       case 'apri-autopilota': onApriAutopiloti(); break
       case 'riprova-pc': leggi(); break
       case 'installa-la': chiediConferma(a.pc, a.versione); break
+      case 'dismetti-pc':
+        if (daDismettere !== a.pc) { setDaDismettere(a.pc); break }
+        setDaDismettere(undefined)
+        void window.gestore.salute.dismettiPc(a.pc)
+          .then((e) => { if (e.ok) leggi(); else setEsitoDismetti((p) => ({ ...p, [a.pc]: `Non dismesso: ${e.motivo ?? 'motivo sconosciuto'}` })) })
+          .catch((err: unknown) => setEsitoDismetti((p) => ({ ...p, [a.pc]: `Non dismesso: ${String(err)}` })))
+        break
     }
   }
 
@@ -109,8 +119,10 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
     <>
       {v.azioni.map((a) => {
         const occupato = a.id === 'installa-la' && inCorso(installazioni[a.pc])
-        return <button key={a.id + a.testo} className="tasto tasto--mini" disabled={occupato} onClick={(e) => { e.stopPropagation(); esegui(a) }}>{occupato ? 'Installazione in corso…' : a.testo}</button>
+        const testo = occupato ? 'Installazione in corso…' : a.id === 'dismetti-pc' && daDismettere === a.pc ? `Sì, dismetti ${a.nome}` : a.testo
+        return <button key={a.id + a.testo} className="tasto tasto--mini" disabled={occupato} onClick={(e) => { e.stopPropagation(); esegui(a) }}>{testo}</button>
       })}
+      {v.azioni.map((a) => a.id === 'dismetti-pc' && esitoDismetti[a.pc] !== undefined ? <div key={`esito-${a.pc}`} className="salute__testo">{esitoDismetti[a.pc]}</div> : null)}
     </>
   )
 

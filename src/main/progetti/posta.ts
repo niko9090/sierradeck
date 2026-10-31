@@ -103,7 +103,16 @@ export type Postino = {
   togli: (pcId: string, voceId: string) => Promise<Posta | undefined>
   /** Toglie le voci consegnate e fallite. */
   pulisci: (pcId: string) => Promise<Posta | undefined>
+  /** 0.89.1: toglie dal Drive il battito di un PC che non si fa vivo da più di una settimana. */
+  dismetti?: (pcId: string) => Promise<{ ok: boolean; motivo?: string }>
 }
+
+/**
+ * Da quanto un PC deve tacere per poterlo dismettere (0.89.1). Nicholas (31/10):
+ * «NB-PROBOOK dismesso». Un PC dismesso esce dalla Salute e dal controllo di
+ * tutti i PC; se si riaccende, il suo battito lo riporta da solo.
+ */
+export const DISMETTI_DOPO_MS = 7 * 24 * 60 * 60_000
 
 /** Quanto valgono i battiti già letti per chi li chiede (0.68.0). */
 export const MEMORIA_BATTITI_MS = 60_000
@@ -513,6 +522,19 @@ export function creaPostino(deps: {
       return inLettura
     },
     altrui: () => altrui,
+    async dismetti(pcId) {
+      if (pcId === deps.pcId()) return { ok: false, motivo: 'questo PC non si dismette da sé' }
+      const s = deps.scatola()
+      if (s === undefined) return { ok: false, motivo: 'il Drive non è collegato' }
+      const b = await s.leggi<BattitoPc>(nomeBattitoPc(pcId))
+      if (b === undefined) { ricorda(altrui.filter((x) => x.pcId !== pcId)); return { ok: true } }
+      const da = Date.parse(b.battito)
+      if (!Number.isNaN(da) && adesso() - da < DISMETTI_DOPO_MS) return { ok: false, motivo: `${b.nome} si è fatto vivo meno di una settimana fa: non lo dismetto` }
+      await s.cancella(nomeBattitoPc(pcId))
+      ricorda(altrui.filter((x) => x.pcId !== pcId))
+      log(`[posta] ${b.nome} dismesso: tolto il suo battito dal Drive (ultimo ${b.battito}, ${b.versione}); se si riaccende torna da solo`)
+      return { ok: true }
+    },
     async posta(pcId) {
       const s = deps.scatola()
       return s === undefined ? undefined : (await leggiCassetta(s, pcId)).vista

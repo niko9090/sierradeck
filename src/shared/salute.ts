@@ -24,6 +24,8 @@ export type AzioneSalute =
   | { id: 'riprova-pc'; testo: string; pc: string }
   /** 0.46.0: aggiornare quel PC da qui (solo dal PC: il telefono la salta). */
   | { id: 'installa-la'; testo: string; pc: string; versione: string }
+  /** 0.89.1: un PC muto da più di una settimana esce dall’elenco (solo dal PC: il telefono la salta). */
+  | { id: 'dismetti-pc'; testo: string; pc: string; nome: string }
 
 export type VoceSalute = {
   chiave: string
@@ -184,6 +186,8 @@ export function componiSalute(i: IngressiSalute): Salute {
     const eta = quantoFa(p.battito, i.adesso)
     const vecchio = p.battito === undefined || i.adesso - Date.parse(p.battito) > 10 * 60_000
     const raggiungibile = p.stato === 'acceso'
+    // 0.89.1: muto da più di una settimana: si può dismettere.
+    const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
     const indietro = prima(p.versione, i.versione)
     const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'attenzione' : 'guasto'
     const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : 'non risponde a nessuna strada'
@@ -196,7 +200,7 @@ export function componiSalute(i: IngressiSalute): Salute {
         : { cosaFare: `Accendi ${p.nome} con SierraDeck aperto e il Drive collegato. Se è acceso: stessa rete o Tailscale acceso su tutti e due; altrimenti il collegamento diretto via Internet parte da solo (serve il Drive).` }),
       azioni: raggiungibile
         ? (indietro ? [{ id: 'installa-la', testo: `Installa là la ${i.versione}`, pc: p.pcId, versione: i.versione }] : [])
-        : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }]
+        : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }, ...(dismettibile ? [{ id: 'dismetti-pc' as const, testo: 'Dismetti questo PC', pc: p.pcId, nome: p.nome }] : [])]
     })
   }
 

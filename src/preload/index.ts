@@ -463,6 +463,7 @@ contextBridge.exposeInMainWorld('gestore', {
   salute: {
     leggi: (): Promise<import('@shared/salute').Salute> => ipcRenderer.invoke('salute:leggi'),
     installaLa: (pcId: string): Promise<import('@shared/installa-la').AvanzamentoInstallaLa> => ipcRenderer.invoke('salute:installaLa', pcId),
+    dismettiPc: (pcId: string): Promise<{ ok: boolean; motivo?: string }> => ipcRenderer.invoke('salute:dismettiPc', pcId),
     installaLaStato: (): Promise<import('@shared/installa-la').AvanzamentoInstallaLa[]> => ipcRenderer.invoke('salute:installaLaStato'),
     noteInstallaLa: (pcId: string): Promise<import('@shared/note-aggiornamento').NoteAggiornamento> => ipcRenderer.invoke('salute:noteInstallaLa', pcId),
     suInstallaLa: (cb: (a: import('@shared/installa-la').AvanzamentoInstallaLa) => void): (() => void) => {

@@ -10,7 +10,7 @@ import type { Progresso } from './motore'
 import { pesaRadici, radiciDaSincronizzare, percorsoSicuro, type Radice } from './raccolta'
 import type { Magazzino } from './magazzino'
 import type { Archivio } from './archivio'
-import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, aggiornaManifesto, stessaVoce, nomeDi, impronta } from './incrementale'
+import { salvaIncrementale, QUIETE_CHAT_MS, RITARDO_MASSIMO_CHAT_MS, BUDGET_GIRO_BYTE, ripristinaIncrementale, manifestoVuoto, type Manifesto, type VoceManifesto, prefissoDi, togliPrefisso, leggiManifesto, improntaDi, aggiornaManifesto, stessaVoce, nomeDi, impronta, rigaRimandati } from './incrementale'
 import { conSegnaleDrive } from '../risorse'
 import { applicaBlocco } from './lavoro'
 import type { Lavoro, Presa, TipoLavoro } from './lavoro-in-corso'
@@ -837,7 +837,7 @@ export function apriSincronia(deps: {
           sospesiDettoIl = Date.now()
         }
         if (esito.rimandati > 0 && Date.now() - rimandatiDettoIl >= 60 * 60_000) {
-          log(`SALVA: ${esito.rimandati} file rimandati al prossimo giro (chat ancora vive, oltre il tetto del giro, o unione col Drive non riuscita; lo ridico fra un’ora)`)
+          log(rigaRimandati(esito.rimandati, esito.rimandatiPerche))
           rimandatiDettoIl = Date.now()
         }
         if (esito.annullato === true) {

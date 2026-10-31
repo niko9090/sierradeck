@@ -2694,6 +2694,12 @@ if (!app.requestSingleInstanceLock()) {
         return avviaInstallaLa(pcId)
       })
       ipcMain.handle('salute:installaLaStato', () => [...installaLa.values()])
+      // 0.89.1: dismettere un PC che non si fa vivo da più di una settimana.
+      ipcMain.handle('salute:dismettiPc', async (_e, pcId: unknown) => {
+        if (typeof pcId !== 'string' || pcId === '') return { ok: false, motivo: 'quale PC?' }
+        if (postino.dismetti === undefined) return { ok: false, motivo: 'non disponibile' }
+        try { return await postino.dismetti(pcId) } catch (e) { return { ok: false, motivo: e instanceof Error ? e.message : String(e) } }
+      })
       // Anche dal telefono (0.56.2): un PC vecchio si aggiorna passando da questo.
       installaLaGlobale = { avvia: avviaInstallaLa, stato: () => [...installaLa.values()], conosce: (pcId) => postino.altrui().some((x) => x.pcId === pcId) }
       // Le note per la conferma: quelle di quel PC (che cerca la versione e le

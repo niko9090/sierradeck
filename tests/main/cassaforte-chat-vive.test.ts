@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { randomBytes, createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { archivioInMemoria } from '../../src/main/cassaforte/archivio'
-import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, nomeDi, chatViva } from '../../src/main/cassaforte/incrementale'
+import { salvaIncrementale, ripristinaIncrementale, manifestoVuoto, nomeDi, chatViva, rigaRimandati } from '../../src/main/cassaforte/incrementale'
 import { leggiPerCaricare } from '../../src/main/cassaforte/raccolta'
 import { daComprimere, spacchetta, SEGNO } from '../../src/main/cassaforte/compressione'
 import { decifra } from '../../src/main/cassaforte/cifratura'
@@ -113,6 +113,7 @@ describe('le chat vive nel salvataggio automatico', () => {
     const primo = await salvaIncrementale({ radici, maestra, archivio, manifestoPrec: manifestoVuoto(), adesso: 'x', budgetByte: 2500 })
     expect(primo.caricati).toBe(2)
     expect(primo.rimandati).toBe(1)
+    expect(primo.rimandatiPerche).toEqual({ vive: 0, tetto: 1, unione: 0 })
     // Dalla piu' vecchia: resta indietro la piu' recente.
     expect(Object.keys(primo.manifesto.file).sort()).toEqual(['chat/p/a.jsonl', 'chat/p/b.jsonl'])
 
@@ -161,5 +162,12 @@ describe('le chat vive nel salvataggio automatico', () => {
     expect(await leggiPerCaricare(f, 1000, false)).toBeUndefined()
     const vuoto = scrivi(dir, 'v.jsonl', '')
     expect((await leggiPerCaricare(vuoto, 0, true))?.corpo.subarray(0, SEGNO.length).equals(SEGNO)).toBe(true)
+  })
+  it('0.89.1: la riga dei rimandati dice il motivo, e «non riuscita» solo quando l’unione col Drive non è riuscita', () => {
+    const vive = rigaRimandati(1, { vive: 1, tetto: 0, unione: 0 })
+    expect(vive).toBe('SALVA: 1 chat ancora aperta sale quando si ferma (al massimo fra un’ora) (lo ridico fra un’ora)')
+    expect(vive).not.toMatch(/non riuscit|fallit/)
+    expect(rigaRimandati(3, { vive: 0, tetto: 3, unione: 0 })).not.toMatch(/non riuscit/)
+    expect(rigaRimandati(2, { vive: 1, tetto: 0, unione: 1 })).toContain('unione col Drive non riuscita')
   })
 })

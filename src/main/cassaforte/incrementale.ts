@@ -447,6 +447,22 @@ export function chatViva(
   return f.mtime - da < max
 }
 
+/**
+ * La riga del registro sui file rimandati (0.89.1). Prima una riga sola diceva
+ * «chat ancora vive, oltre il tetto del giro, o unione col Drive non riuscita»
+ * anche quando era solo la chat aperta in questo momento: la Salute ci leggeva
+ * «non riuscita» e la segnava come un errore ogni ora. Ora la regola (chat vive,
+ * tetto del giro) è informazione; solo l’unione col Drive non riuscita è un guaio.
+ */
+export function rigaRimandati(totale: number, p?: { vive: number; tetto: number; unione: number }): string {
+  if (p === undefined) return `SALVA: ${totale} file al prossimo giro (lo ridico fra un’ora)`
+  const parti: string[] = []
+  if (p.vive > 0) parti.push(`${p.vive} ${p.vive === 1 ? 'chat ancora aperta sale' : 'chat ancora aperte salgono'} quando si ferma (al massimo fra un’ora)`)
+  if (p.tetto > 0) parti.push(`${p.tetto} ${p.tetto === 1 ? 'file sale' : 'file salgono'} al giro dopo (oltre il tetto di questo giro)`)
+  if (p.unione > 0) parti.push(`${p.unione} file: unione col Drive non riuscita, riprovo al prossimo giro`)
+  return `SALVA: ${parti.join('; ')} (lo ridico fra un’ora)`
+}
+
 function discoDi(radici: Map<string, Radice>, percorso: string): string | undefined {
   const r = radici.get(prefissoDi(percorso))
   if (r === undefined) return undefined
@@ -501,6 +517,11 @@ export type EsitoSalva = {
   annullato?: boolean
   /** Rimandati al prossimo giro: chat vive, oltre il tetto, unione non riuscita. */
   rimandati: number
+  /**
+   * 0.89.1: i rimandati per motivo. Le chat vive e il tetto del giro sono la regola
+   * (salgono da sole, al massimo fra un’ora); solo l’unione col Drive non riuscita è un guaio.
+   */
+  rimandatiPerche?: { vive: number; tetto: number; unione: number }
   /** Cambiati qui ma non saliti: il Drive vince, il file non si legge, «Annulla». */
   saltati: number
   /** Voci sparite dal Drive senza lapide: il file resta qui e aspetta. */
@@ -668,12 +689,13 @@ export async function salvaIncrementale(deps: {
   // Una voce rimandata resta quella del Drive: al prossimo giro la firma e'
   // ancora diversa, e il file si ripresenta da solo.
   let rimandati = 0
+  const perche = { vive: 0, tetto: 0, unione: 0 }
   if (deps.rimandaVive !== undefined) {
     const regola = { ...deps.rimandaVive, ora: deps.rimandaVive.ora ?? Date.now() }
     for (let i = cambiati.length - 1; i >= 0; i -= 1) {
       const p = cambiati[i] as string
       const f = firma.get(p)
-      if (f !== undefined && chatViva(p, f, prec.file[p] ?? base.file[p], regola)) { cambiati.splice(i, 1); rimandati += 1 }
+      if (f !== undefined && chatViva(p, f, prec.file[p] ?? base.file[p], regola)) { cambiati.splice(i, 1); rimandati += 1; perche.vive += 1 }
     }
   }
   if (deps.budgetByte !== undefined) {
@@ -686,7 +708,7 @@ export async function salvaIncrementale(deps: {
     const dentro: string[] = []
     for (const p of cambiati) {
       const peso = firma.get(p)?.size ?? 0
-      if (dentro.length > 0 && speso + peso > deps.budgetByte) { rimandati += 1; continue }
+      if (dentro.length > 0 && speso + peso > deps.budgetByte) { rimandati += 1; perche.tetto += 1; continue }
       speso += peso
       dentro.push(p)
     }
@@ -731,7 +753,7 @@ export async function salvaIncrementale(deps: {
     if (deps.segnale?.aborted !== true) await togliQui()
     return {
       manifesto: prec, manifestoLocale: conTenuti(prec), caricati: 0, cancellati: 0, cancellatiPercorsi: [], conflitti: [],
-      rimandati, saltati: 0, sospesi, toltiQui: deps.segnale?.aborted === true ? [] : daTogliereQui
+      rimandati, rimandatiPerche: { ...perche }, saltati: 0, sospesi, toltiQui: deps.segnale?.aborted === true ? [] : daTogliereQui
     }
   }
   // Con tanti file, un elenco solo insegna all'archivio dove sta ogni nome:
@@ -849,6 +871,7 @@ export async function salvaIncrementale(deps: {
       } catch (err) {
         console.warn(`[sync] ${percorso}: il Drive non si e' letto per l'unione, lo rimando al prossimo giro (${err instanceof Error ? err.message : String(err)})`)
         rimandati += 1
+        perche.unione += 1
         avanza(percorso)
         return
       }
@@ -1016,6 +1039,7 @@ export async function salvaIncrementale(deps: {
     conflitti,
     ...(annullato ? { annullato: true } : {}),
     rimandati,
+    rimandatiPerche: { ...perche },
     saltati,
     sospesi,
     toltiQui: annullato ? [] : daTogliereQui
