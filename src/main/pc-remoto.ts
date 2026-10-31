@@ -162,6 +162,8 @@ const ATTESA_LENTA_PREDEFINITA_MS = 45_000
  */
 export const ROTTE_CON_VERIFICA: readonly string[] = ['/api/scegli', '/api/scrivi']
 const ATTESA_VERIFICA_MS = 14_000
+/** Il tetto di una risposta inoltrata dal ponte: oltre, il telefono (256 MB di memoria) non la regge. */
+export const RISPOSTA_MAX_BYTE = 16 * 1024 * 1024
 /** Il bussare breve: un secondo e mezzo per tutti gli indirizzi insieme. */
 const BUSSA_PREDEFINITA_MS = 1500
 const RIPROVA_CASA_PREDEFINITA_MS = 400
@@ -438,6 +440,12 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       }
       clearTimeout(timer)
       raccontati.delete(pcId)
+      // Una risposta enorme (k-4: 214 MB arrivati al telefono, fuori memoria) non si
+      // legge né si inoltra: il telefono ha un tetto, e anche questo PC.
+      const dichiarata = Number(risposta.headers?.get?.('content-length') ?? 0)
+      if (Number.isFinite(dichiarata) && dichiarata > RISPOSTA_MAX_BYTE) {
+        throw new ErroreRemoto('http', `${b.nome} ha risposto con ${Math.round(dichiarata / (1024 * 1024))} MB: troppo per passare dal ponte (massimo ${RISPOSTA_MAX_BYTE / (1024 * 1024)} MB).`, 502)
+      }
       let dati: unknown = undefined
       try { dati = await risposta.json() } catch { dati = undefined }
       segnaStrada(pcId, b.nome, stradaDiIndirizzo(ind), ind)

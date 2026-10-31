@@ -57,6 +57,12 @@ describe('le strade, in ordine', () => {
     expect(err).toBeInstanceOf(ErroreRemoto)
     expect(['irraggiungibile', 'spento', 'non-so']).toContain(err.motivo)
   })
+  it('una risposta dichiarata enorme non passa dal ponte (k-4): errore chiaro, non 214 MB al telefono', async () => {
+    const { c } = ambiente({ rete: (url) => url.includes('/api/pc') ? risponde(200) : ({ ...risponde(200, { chat: [] }), headers: new Headers({ 'content-length': String(214_184_432) }) }) })
+    const err = await c.chiama('lap', '/api/stato').catch((e: unknown) => e) as ErroreRemoto
+    expect(err).toBeInstanceOf(ErroreRemoto)
+    expect(err.message).toMatch(/204 MB|troppo/)
+  })
   it('la chiave rifiutata non si aggira: si dice il motivo', async () => {
     const { c } = ambiente({ rete: () => risponde(401) })
     const err = await c.chiama('lap', '/api/stato').catch((e: unknown) => e) as ErroreRemoto
