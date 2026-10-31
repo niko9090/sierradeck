@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.0',
+    righe: [
+      '**I doppioni non rinascono:** un messaggio al workspace di un progetto che vive su un altro PC non ricrea più l’autopilota appena archiviato: ti dice su quale PC scrivere.',
+      '**Le copie degli specialisti si puliscono da sole:** le cartelle di lavoro degli specialisti dell’autopilota (`.claude/worktrees`) già unite e pulite vanno via, mai mentre uno specialista lavora.',
+      '**Controllo di tutti i PC più chiaro:** conta anche gli autopiloti di questo PC; la stessa criticità vista da più PC è una riga sola; le righe del registro restano agli errori automatici, senza doppioni.',
+      '**Niente falso «installazione non riuscita»:** il messaggio di un’installazione di una sessione precedente non compare più come errore dopo un aggiornamento riuscito.',
+      '**Errori arrivati, corretti dall’autopilota:** le righe informative dei terminali non sono più segnate come errori; il dettaglio dell’autopilota aspetta il servizio occupato invece di andare in errore; anche lo script `pubblica` controlla il pacchetto prima e dopo.',
+    ]
+  },
+  {
     versione: '0.88.9',
     righe: [
       '**Controllo di tutti i PC:** ogni 6 ore il PC di sviluppo chiede la salute e gli autopiloti a ogni PC; le criticità nuove (un PC che non risponde, un aggiornamento fermo, un autopilota bloccato) vanno all’autopilota di SierraDeck, che corregge quello che sta nel codice e ti dice quello che si fa solo a mano.',
