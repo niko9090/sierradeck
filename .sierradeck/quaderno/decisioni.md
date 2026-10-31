@@ -31,3 +31,4 @@
 - mi ci vuole un indicatore che mi faccia capire al volo guardando l'autopilota per capire quando manca all'uscita di un realise oppure a quanto manca alla fine dei task che ha impostati. anche un indicatore affidabile che il lavoro stia andando o sia fermo. so che gia c'è ma voglio che sia affidabile e che dia un po di info se no continuo a chiederti a che punto siamo cento volte perche non capisco _(2026-10-23)_
 - altra cosa molto importante nol'autopilota dopo avermi risposto a qualcosa che ho scritto dice spesso che mi tiene aggiornato ma questo non succede mai _(2026-10-23)_
 - si va bene ma le chat devono SEMPRE interfacciarsi con te qquindi tu dovresti sempre sapere cosa succede e perche, altrimenti a cosa servi? _(2026-10-23)_
+- «L'unione della correzione degli errori arrivati (ramo worktree-agent-aa217af67431f584c) è rifiutata due volte: la cartella principale ha modifiche non salvate. All'avvio erano solo due note del quader» → fai tu tu _(2026-10-31)_
