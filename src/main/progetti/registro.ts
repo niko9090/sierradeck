@@ -179,6 +179,29 @@ export function rimuoviProgetto(reg: RegistroProgetti, id: string, quando?: stri
   }
 }
 
+/** Un progetto più giovane di così non è mai «vuoto da togliere»: potrebbe essere appena nato. */
+export const GIORNI_PRIMA_DI_TOGLIERE_VUOTO = 7
+
+/**
+ * I progetti vuoti da togliere dal registro (0.88.9, deciso da Nicholas il
+ * 31/10): sono di **questo** PC, esistono da più di una settimana, la loro
+ * cartella qui è vuota (o non c'è) e sul Drive non hanno nemmeno un file. Il
+ * riordino del 30/10 aveva dato a PC-Fisso anche progetti che non c'erano da
+ * nessuna parte (X, convertitore, gestionale-dev…): restavano in elenco con una
+ * cartella vuota. Nel dubbio (Drive che non si legge) non si toglie niente.
+ */
+export function progettiVuotiDaTogliere(
+  reg: RegistroProgetti,
+  p: { pcId: string; adesso: number; conFileSulDrive: ReadonlySet<string>; cartellaVuota: (percorso: string) => boolean }
+): ProgettoDrive[] {
+  const soglia = p.adesso - GIORNI_PRIMA_DI_TOGLIERE_VUOTO * 86_400_000
+  return reg.progetti.filter((x) =>
+    x.proprietario === p.pcId &&
+    Date.parse(x.aggiuntoIl) < soglia &&
+    !p.conFileSulDrive.has(prefissoProgetto(x.id)) &&
+    (x.percorso === undefined || p.cartellaVuota(x.percorso)))
+}
+
 /** Dove andrebbe un progetto su questo PC se ci arrivasse: la cartella dei progetti più il suo nome. */
 export function percorsoNuovo(p: Pick<ProgettoDrive, 'nome'>, cartellaProgetti: string): string {
   return join(cartellaProgetti, p.nome)

@@ -212,6 +212,8 @@ export type Sincronia = {
    * cartelle sui PC restano: si toglie il viaggio, non il lavoro.
    */
   togliProgettoDalDrive: (id: string) => Promise<{ ok: boolean; tolti?: number; messaggio?: string }>
+  /** I prefissi dei progetti che hanno almeno un file sul Drive; `undefined` se il Drive adesso non si legge (0.88.9). */
+  progettiConFileSulDrive: () => Promise<Set<string> | undefined>
   /**
    * Toglie un workspace dal Drive e ci lascia una lapide: non viaggia piu'
    * finche' qualcuno non lo rimette. Sui PC non cambia niente.
@@ -954,6 +956,15 @@ export function apriSincronia(deps: {
       })
       chiudiLavoro(l.presa, r, `${r.scritti ?? 0} file del progetto da Drive`, false, r.scritti)
       return r
+    },
+
+    async progettiConFileSulDrive() {
+      if (maestra === undefined || !deps.driveConnesso()) return undefined
+      try {
+        const esito = await leggiManifesto(deps.archivio(), maestra)
+        if (esito.stato === 'illeggibile') return undefined
+        return new Set(esito.stato === 'ok' ? Object.keys(esito.manifesto.file).map(prefissoDi) : [])
+      } catch { return undefined }
     },
 
     async togliProgettoDalDrive(id) {

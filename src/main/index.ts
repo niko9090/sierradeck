@@ -15,6 +15,7 @@ import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
+import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, copyFileSync, writeFileSync, watch } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
@@ -3494,7 +3495,8 @@ if (!app.requestSingleInstanceLock()) {
           registro.info(`[progetti] «${nome}» non tolto: ${esito.messaggio ?? '?'}`)
           return { ...elencoProgetti(), messaggio: `Non ho tolto «${nome}»: ${esito.messaggio ?? 'il Drive non risponde'}.` }
         }
-        registroProgetti.scrivi(rimuoviProgetto(registroProgetti.leggi(), rawId))
+        // Con la lapide (0.88.9): senza, l’unione con il registro di un altro PC lo rimetteva in elenco.
+        registroProgetti.scrivi(rimuoviProgetto(registroProgetti.leggi(), rawId, new Date().toISOString()))
         registro.info(`[progetti] «${nome}» tolto dal Drive: ${esito.tolti ?? 0} file cancellati lassu', le cartelle sui PC restano`)
         return { ...elencoProgetti(), messaggio: `«${nome}» tolto dal Drive: ${esito.tolti ?? 0} file cancellati lassù. La cartella su questo PC resta.` }
       })
@@ -3577,6 +3579,13 @@ if (!app.requestSingleInstanceLock()) {
       // d'ora. Un minuto lascia partire le finestre e i terminali prima.
       const primoGiroAuto = setTimeout(() => { void sincronia.salvaSeServe() }, 60_000)
       primoGiroAuto.unref?.()
+      // I progetti vuoti (0.88.9): né un file qui né sul Drive, da più di una settimana.
+      const giroVuoti = (): void => {
+        void giroProgettiVuoti({ registro: registroProgetti, pcId: () => identitaPc.leggi().id, conFileSulDrive: () => sincronia.progettiConFileSulDrive(), adesso: () => Date.now(), log: (r) => registro.info(r) })
+          .catch((e: unknown) => { registro.info(`[progetti] giro dei progetti vuoti non riuscito: ${String(e)}`) })
+      }
+      setTimeout(giroVuoti, 10 * 60_000).unref?.()
+      setInterval(giroVuoti, GIRO_VUOTI_MS).unref?.()
       // Il registro della sessione: aprirne la cartella, o sapere dov'è il file.
       ipcMain.handle('log:apri', () => shell.openPath(registro.cartella()))
       ipcMain.handle('log:percorso', () => registro.file())
