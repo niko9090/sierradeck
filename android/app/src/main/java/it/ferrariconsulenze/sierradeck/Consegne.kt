@@ -304,6 +304,10 @@ class LavoroConsegne(contesto: Context, parametri: WorkerParameters) : Coroutine
     } catch (e: Exception) {
         Log.i("SierraDeck", "giro dei file dal PC non riuscito: ${e.message}")
         Result.retry()
+    } catch (e: OutOfMemoryError) {
+        // Una risposta troppo grande non deve far crollare l'app (k-4): si registra e si rinuncia a questo giro.
+        Log.w("SierraDeck", "giro dei file dal PC: memoria finita, giro saltato")
+        Result.failure()
     }
 }
 

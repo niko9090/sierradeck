@@ -107,11 +107,11 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
                 if (r.code == 304 && chiaveEtag != null) {
                     EtagTenuti.testo(chiaveEtag)?.let { return@withContext it }
                 }
-                val testo = r.body?.string() ?: ""
+                val testo = leggiConTetto(r)
                 if (r.code == 304) {
                     // Il testo tenuto non c'è più (uscito dalle voci): si richiede senza ETag.
                     return@withContext cliente.newCall(richiesta(percorso, corpo)).execute().use { r2 ->
-                        val t2 = r2.body?.string() ?: ""
+                        val t2 = leggiConTetto(r2)
                         if (!r2.isSuccessful) throw Errore(r2.code, t2)
                         chiaveEtag?.let { EtagTenuti.tieni(it, r2.header("ETag"), t2) }
                         t2
@@ -122,6 +122,21 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
                 testo
             }
         }
+
+    /**
+     * Il corpo come testo, ma con un tetto (k-4): una risposta da 214 MB letta
+     * intera finiva in OutOfMemoryError (limite di 256 MB) e portava giù il
+     * lavoro. Oltre il tetto si lancia un Errore chiaro, senza leggere il resto.
+     */
+    private fun leggiConTetto(r: okhttp3.Response): String {
+        val b = r.body ?: return ""
+        val troppo = { Errore(413, "Risposta troppo grande per il telefono (oltre ${TETTO_RISPOSTA_BYTE / (1024 * 1024)} MB).") }
+        if (b.contentLength() > TETTO_RISPOSTA_BYTE) throw troppo()
+        val sorgente = b.source()
+        sorgente.request(TETTO_RISPOSTA_BYTE + 1)
+        if (sorgente.buffer.size > TETTO_RISPOSTA_BYTE) throw troppo()
+        return sorgente.readString(b.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8)
+    }
 
     private fun oggetto(build: JsonObjectBuilder.() -> Unit): RequestBody =
         json.encodeToString(JsonObject.serializer(), buildJsonObject(build))
@@ -691,6 +706,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L
+
+        /** Il tetto di una risposta letta come testo: 16 MB (limite di memoria dell'app: 256 MB). */
+        const val TETTO_RISPOSTA_BYTE = 16L * 1024 * 1024
 
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
