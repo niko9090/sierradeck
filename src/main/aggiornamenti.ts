@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
+import { allineaBaseDifferenziale, cartellaCacheUpdater } from './base-differenziale'
 import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
@@ -229,9 +230,12 @@ export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve:
  * Il registro di electron-updater, diviso fra racconto e guasto.
  *
  * «Cannot download differentially, fallback to full download: 501» lo scrive
- * electron-updater con `logger.error`, ma non è un guasto: il server non sa
- * servire i pezzi parziali (501) e il file si scarica intero. È un avviso atteso
- * (30/10, errori arrivati): va nel registro come avviso, non fra gli errori.
+ * electron-updater con `logger.error`, ma non ferma niente: il file si scarica
+ * intero. Va nel registro come avviso, non fra gli errori (30/10). Il 501 non è
+ * un server che non sa servire i pezzi: GitHub li serve uno alla volta e rifiuta
+ * le richieste a più pezzi insieme («501 Unsupported client range»), che
+ * electron-updater fa solo con il server `generic` (vedi `feedAlternativo`).
+ * Lo «sha512 checksum mismatch» veniva da una mappa sbagliata (`base-differenziale.ts`).
  */
 export function creaLoggerUpdater(
   registro: { info: (m: string) => void; errore: (m: string) => void },
@@ -574,6 +578,18 @@ export function creaAggiornamenti(
    */
   let daTelefono = false
 
+  /**
+   * Toglie la mappa di electron-updater se non è quella di `installer.exe`
+   * (`base-differenziale.ts`): senza, ogni versione scaricata e non ancora
+   * installata faceva riscaricare per intero la successiva.
+   */
+  const preparaBaseDifferenziale = (): void => {
+    if (!app.isPackaged) return
+    const e = allineaBaseDifferenziale(cartellaCacheUpdater(process.resourcesPath))
+    if (e.esito === 'tolta') nota(`mappa del differenziale tolta (${e.perche}): electron-updater prende quella della versione installata`)
+    else if (e.esito === 'errore') nota(`mappa del differenziale non controllata: ${e.perche}`)
+  }
+
   const cerca = async (dalTelefono = false): Promise<void> => {
     daTelefono = dalTelefono
     if (process.env.ELECTRON_RENDERER_URL !== undefined) return
@@ -582,6 +598,9 @@ export function creaAggiornamenti(
     // aspettava: mentre si installa non si cerca.
     if (installazioneAvviata) return
     annuncia({ ...stato, fase: 'cerco' })
+    // Con lo scaricamento automatico electron-updater scarica appena trova:
+    // la base del differenziale va sistemata prima di cercare.
+    preparaBaseDifferenziale()
     try {
       await autoUpdater.checkForUpdates()
     } catch (err) {
@@ -607,6 +626,7 @@ export function creaAggiornamenti(
     if (dalTelefono) daTelefono = true
     fasi = segnaPasso([], 'scarico', new Date().toISOString())
     annuncia({ ...stato, fase: 'scarico', percento: 0 })
+    preparaBaseDifferenziale()
     try {
       // I percorsi dei file scaricati: servono all'updater, che e' lui a
       // eseguire l'installer. Senza, dovremmo indovinare dove sono.
@@ -951,7 +971,7 @@ export function indirizzoAlternativo(cartellaDati: string): string | undefined {
  */
 export function feedAlternativo(
   cartellaDati: string
-): { provider: 'github'; owner: string; repo: string } | { provider: 'generic'; url: string } | undefined {
+): { provider: 'github'; owner: string; repo: string } | { provider: 'generic'; url: string; useMultipleRangeRequest: false } | undefined {
   const grezzo = leggiConfigurazione(cartellaDati)
   if (grezzo === undefined) return undefined
 
@@ -960,7 +980,13 @@ export function feedAlternativo(
   if (owner !== '' && repo !== '') return { provider: 'github', owner, repo }
 
   const url = typeof grezzo.url === 'string' ? grezzo.url.trim() : ''
-  return url === '' ? undefined : { provider: 'generic', url }
+  // Un pezzo per richiesta, mai più pezzi insieme: con `generic` electron-updater
+  // chiede i pezzi del differenziale tutti in una richiesta, e GitHub (dove punta
+  // di solito questo indirizzo, releases/latest/download) risponde «501
+  // Unsupported client range» (provato il 31/10): è l'unica strada per il 501
+  // visto sul portatile, e il file si riscaricava intero. Un pezzo alla volta
+  // lo serve ogni server.
+  return url === '' ? undefined : { provider: 'generic', url, useMultipleRangeRequest: false }
 }
 
 /**

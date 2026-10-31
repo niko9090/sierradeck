@@ -65,7 +65,12 @@ describe('da dove si scarica', () => {
 
   it('con un indirizzo cerca li, senza passare da GitHub', () => {
     expect(feedAlternativo(cartella({ url: 'https://esempio.it/sd/' })))
-      .toEqual({ provider: 'generic', url: 'https://esempio.it/sd/' })
+      .toEqual({ provider: 'generic', url: 'https://esempio.it/sd/', useMultipleRangeRequest: false })
+  })
+
+  it('31/10: con generic un pezzo per richiesta (GitHub ai pezzi multipli risponde 501)', () => {
+    const f = feedAlternativo(cartella({ url: 'https://github.com/a/b/releases/latest/download' }))
+    expect(f).toMatchObject({ provider: 'generic', useMultipleRangeRequest: false })
   })
 
   it('fra i due vince GitHub, che e la strada normale', () => {
