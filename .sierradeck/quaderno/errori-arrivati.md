@@ -24,3 +24,8 @@ Corretto nella versione 0.88.5 (lettura riga per riga in `leggiStderrAtteso`, sr
 
 ## Gruppo 2: «[electron-updater] Cannot download differentially, fallback to full download: 501»
 Corretto nella versione 0.88.5. Non è un difetto: il server non serve i pezzi parziali (501) e il file si scarica intero. electron-updater lo scrive con `logger.error`; ora `creaLoggerUpdater` (src/main/aggiornamenti.ts) lo manda al registro come avviso («[electron-updater] avviso: …»), gli altri errori restano errori. Test in tests/main/logger-updater-differenziale.test.ts.
+
+# Errori arrivati (lotto 20261031072436, richiesta k-5)
+
+## Gruppo 1: «OutOfMemoryError» nell app Android 2.88.0 (Api.corpoTestoDiretto → okhttp RealResponseBody.string, worker LavoroConsegne)
+Non corretto qui: già corretto in main da k-4 (commit d69005ea). `leggiConTetto` (android/.../Api.kt) legge la risposta con un tetto di 16 MB e dà errore 413 invece dell OOM. Uscirà nella prossima release con APK nuovo (android/ è cambiato); l app 2.88.0 installata ha ancora il difetto. Nessun codice cambiato qui.
