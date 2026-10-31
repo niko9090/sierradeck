@@ -16,3 +16,8 @@ Corretto nella versione 0.88.5. La correzione 0.88.2 lasciava andare le consegne
 
 ## Gruppi 6 e 7: «salvataggio sul Drive alla chiusura interrotta dopo 45 s» / «il lavoro con il Drive non si e' fermato in dieci secondi»
 Non corretto qui: già corretto nella 0.88.3 (commit 7e53b0e4), visti solo su 0.88.1 e 0.88.2. Sono avvisi attesi del timeout di chiusura (il lavoro riprende al prossimo avvio, nessun dato perso): `avvisoChiusura` li scrive come informazione, non come errore.
+
+# Errori arrivati (lotto 20261031072436, richiesta k-5)
+
+## Gruppo 1: «OutOfMemoryError» nell app Android 2.88.0 (Api$corpoTestoDiretto → okhttp RealResponseBody.string, worker LavoroConsegne)
+Corretto in main, uscirà nella prossima release (APK nuovo, perché android/ è cambiato); l app 2.88.0 installata ha ancora il difetto. Non è un difetto nuovo: è lo stesso già corretto da k-4 (commit d69005ea). `leggiConTetto` (android/.../Api.kt) legge la risposta con un tetto di 16 MB e dà errore 413 invece dell OOM. Nessun codice cambiato qui.
