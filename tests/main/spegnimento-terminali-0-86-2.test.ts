@@ -11,42 +11,28 @@ import { encodeMessage } from '@shared/protocol'
  */
 
 describe('gli alberi dei processi si chiudono tutti insieme', () => {
-  it('su Windows un taskkill /T /F per pid, lanciati in parallelo', async () => {
+  it('su Windows un solo taskkill /T /F con tutti i pid (0.89.1)', async () => {
     const lanciati: string[][] = []
-    const finiti: number[] = []
-    let inVolo = 0
-    let massimoInVolo = 0
     await uccidiAlberi([101, 102, 101, 103], {
       piattaforma: 'win32',
-      esegui: async (comando, argomenti) => {
-        lanciati.push([comando, ...argomenti])
-        inVolo += 1
-        massimoInVolo = Math.max(massimoInVolo, inVolo)
-        await new Promise((r) => setTimeout(r, 5))
-        inVolo -= 1
-        finiti.push(Number(argomenti[3]))
-      }
+      esegui: async (comando, argomenti) => { lanciati.push([comando, ...argomenti]) }
     })
     expect(lanciati).toEqual([
-      ['taskkill', '/T', '/F', '/PID', '101'],
-      ['taskkill', '/T', '/F', '/PID', '102'],
-      ['taskkill', '/T', '/F', '/PID', '103']
+      ['taskkill', '/T', '/F', '/PID', '101', '/PID', '102', '/PID', '103']
     ])
-    expect(massimoInVolo).toBe(3)
-    expect(finiti.sort()).toEqual([101, 102, 103])
     expect(argomentiTaskkill(7)).toEqual(['/T', '/F', '/PID', '7'])
   })
 
-  it('un taskkill che fallisce non ferma gli altri; pid assurdi e il proprio si saltano', async () => {
-    const visti: number[] = []
-    await uccidiAlberi([0, -1, 1.5, process.pid, 201, 202], {
+  it('un taskkill che fallisce non solleva; pid assurdi e il proprio si saltano', async () => {
+    const visti: string[][] = []
+    await expect(uccidiAlberi([0, -1, 1.5, process.pid, 201, 202], {
       piattaforma: 'win32',
       esegui: async (_c, a) => {
-        visti.push(Number(a[3]))
-        if (a[3] === '201') throw new Error('accesso negato')
+        visti.push(a)
+        throw new Error('accesso negato')
       }
-    })
-    expect(visti).toEqual([201, 202])
+    })).resolves.toBeUndefined()
+    expect(visti).toEqual([['/T', '/F', '/PID', '201', '/PID', '202']])
   })
 
   it('altrove, SIGKILL a ogni pid', async () => {

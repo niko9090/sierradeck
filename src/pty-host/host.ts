@@ -21,8 +21,15 @@ export type ManagerLike = {
   scrollbackDi(id: string): string | undefined
 }
 
-/** Oltre questo l'host esce comunque: il Core ripassa con i pid che conosce. */
-export const ATTESA_KILLALL_MS = 4000
+/**
+ * Oltre questo l'host esce comunque: il Core ripassa con i pid che conosce.
+ *
+ * 0.89.1: era 4000 ms, il doppio dei 2000 che il Core concede a quattro
+ * terminali. Un tetto piu' largo dell'attesa di chi aspetta non e' un tetto:
+ * l'host veniva terminato a forza prima di arrivarci. Ora sta sotto l'attesa
+ * minima del Core con un terminale, con margine per l'uscita del processo.
+ */
+export const ATTESA_KILLALL_MS = 1500
 
 export type HostDeps = {
   manager: ManagerLike
@@ -93,6 +100,12 @@ export function startHost(deps: HostDeps): void {
 
   stdin.setEncoding('utf8')
   stdin.on('data', (chunk: string) => {
+    // Dopo lo spegnimento non c'e' piu' niente da servire (0.89.1): un `write`
+    // o un `resize` partito dalla finestra che si chiude troverebbe il
+    // terminale gia' chiuso e tornerebbe al Core come `error`, che a finestre
+    // distrutte finiva nel registro come «evento error senza finestra
+    // proprietaria».
+    if (spento) return
     buffer += chunk
     const { messages, rest, dropped } = decodeMessages(buffer)
     buffer = rest
