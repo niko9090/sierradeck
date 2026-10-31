@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.6',
+    righe: [
+      '**L’app Android non va più in crash con risposte enormi:** se il PC manda una risposta molto grande, l’app la limita invece di chiudersi.',
+      '**Aggiornamento differenziale:** l’avviso «Cannot download differentially» (501) non è più un errore: è solo un avviso, l’aggiornamento si scarica per intero.',
+    ],
+  },
+  {
     versione: '0.88.5',
     righe: [
       '**Progetti non più doppi:** lo stesso progetto registrato due volte (capitava dopo il riordino fatto su due PC) ora si unisce da solo, sempre nello stesso modo su ogni PC: l’elenco torna corto e resta così.',
