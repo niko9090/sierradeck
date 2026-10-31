@@ -16,3 +16,11 @@ Corretto nella versione 0.88.5. La correzione 0.88.2 lasciava andare le consegne
 
 ## Gruppi 6 e 7: «salvataggio sul Drive alla chiusura interrotta dopo 45 s» / «il lavoro con il Drive non si e' fermato in dieci secondi»
 Non corretto qui: già corretto nella 0.88.3 (commit 7e53b0e4), visti solo su 0.88.1 e 0.88.2. Sono avvisi attesi del timeout di chiusura (il lavoro riprende al prossimo avvio, nessun dato perso): `avvisoChiusura` li scrive come informazione, non come errore.
+
+# Errori arrivati (lotto 20261030231034, richiesta r-7)
+
+## Gruppo 1: «[pty-host] spegnimento (richiesta del Core): chiudo i terminali aperti» (0.88.4)
+Corretto nella versione 0.88.5 (lettura riga per riga in `leggiStderrAtteso`, src/main/pty-host-client.ts, già in main da k-2): la riga è lo spegnimento voluto, non un guasto. La nota «SierraDeck Update è vivo… mi tolgo di mezzo» (src/main/aggiornamenti.ts) è solo il contesto: viene scritta come informazione, poi `preparaUscita` chiude il PTY host, che scrive quella riga. Verificato che il caso è gestito; aggiunto il test «updater vivo: prima chiude i terminali, poi esce» in tests/main/aggiorna-adesso.test.ts.
+
+## Gruppo 2: «[electron-updater] Cannot download differentially, fallback to full download: 501»
+Corretto nella versione 0.88.5. Non è un difetto: il server non serve i pezzi parziali (501) e il file si scarica intero. electron-updater lo scrive con `logger.error`; ora `creaLoggerUpdater` (src/main/aggiornamenti.ts) lo manda al registro come avviso («[electron-updater] avviso: …»), gli altri errori restano errori. Test in tests/main/logger-updater-differenziale.test.ts.

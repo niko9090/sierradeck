@@ -225,6 +225,38 @@ export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve:
   return { manca: file && quattrocentoquattro, breve }
 }
 
+/**
+ * Il registro di electron-updater, diviso fra racconto e guasto.
+ *
+ * «Cannot download differentially, fallback to full download: 501» lo scrive
+ * electron-updater con `logger.error`, ma non è un guasto: il server non sa
+ * servire i pezzi parziali (501) e il file si scarica intero. È un avviso atteso
+ * (30/10, errori arrivati): va nel registro come avviso, non fra gli errori.
+ */
+export function creaLoggerUpdater(
+  registro: { info: (m: string) => void; errore: (m: string) => void },
+  giroMuto: { rigaMuta: (riga: string) => boolean } = { rigaMuta: () => false }
+): { info: (m: unknown) => void; warn: (m: unknown) => void; error: (m: unknown) => void; debug: (m: unknown) => void } {
+  return {
+    info: (m) => { if (!giroMuto.rigaMuta(String(m))) registro.info(`[electron-updater] ${String(m)}`) },
+    warn: (m) => registro.info(`[electron-updater] avviso: ${String(m)}`),
+    // «Error: …» è l'eco che electron-updater fa di ogni evento `error`, con
+    // la pila e le intestazioni HTTP: lo dice già, una volta e in breve, il
+    // gestore di creaAggiornamenti (0.86.2, audit I7). Gli altri errori in una riga.
+    error: (m) => {
+      const riga = String(m)
+      if (/^Error:/.test(riga)) return
+      const breve = leggiErroreAggiornamento(riga).breve
+      if (/^Cannot download differentially, fallback to full download/.test(breve)) {
+        registro.info(`[electron-updater] avviso: ${breve}`)
+        return
+      }
+      registro.errore(`[electron-updater] ${breve}`)
+    },
+    debug: () => {}
+  }
+}
+
 export function creaAggiornamenti(
   finestre: () => BrowserWindow[],
   /** La cartella dei dati: da lì arrivano le credenziali, se il server le chiede. */
@@ -302,21 +334,7 @@ export function creaAggiornamenti(
   // «Auto install update on quit»): sono loro a dire per quale strada e'
   // passata un'installazione.
   const giroMuto = creaGiroMuto()
-  if (registro !== undefined) {
-    autoUpdater.logger = {
-      info: (m: unknown) => { if (!giroMuto.rigaMuta(String(m))) registro.info(`[electron-updater] ${String(m)}`) },
-      warn: (m: unknown) => registro.info(`[electron-updater] avviso: ${String(m)}`),
-      // «Error: …» è l'eco che electron-updater fa di ogni evento `error`, con
-      // la pila e le intestazioni HTTP: lo dice già, una volta e in breve, il
-      // gestore qui sotto (0.86.2, audit I7). Gli altri errori in una riga.
-      error: (m: unknown) => {
-        const riga = String(m)
-        if (/^Error:/.test(riga)) return
-        registro.errore(`[electron-updater] ${leggiErroreAggiornamento(riga).breve}`)
-      },
-      debug: () => {}
-    }
-  }
+  if (registro !== undefined) autoUpdater.logger = creaLoggerUpdater(registro, giroMuto)
   const dati = cartellaDati ?? app.getPath('userData')
   const fileTentativo = join(dati, FILE_TENTATIVO)
   /**
