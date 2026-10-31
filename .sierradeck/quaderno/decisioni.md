@@ -32,3 +32,4 @@
 - altra cosa molto importante nol'autopilota dopo avermi risposto a qualcosa che ho scritto dice spesso che mi tiene aggiornato ma questo non succede mai _(2026-10-23)_
 - si va bene ma le chat devono SEMPRE interfacciarsi con te qquindi tu dovresti sempre sapere cosa succede e perche, altrimenti a cosa servi? _(2026-10-23)_
 - «L'unione della correzione degli errori arrivati (ramo worktree-agent-aa217af67431f584c) è rifiutata due volte: la cartella principale ha modifiche non salvate. All'avvio erano solo due note del quader» → fai tu tu _(2026-10-31)_
+- «Le correzioni dell'OOM Android e dell'avviso updater 501 sono in main. Per la release (una sola, mai installata, APK nuovo) servono tag, gh release e pubblicazione dal PC principale: i miei specialist» → Fai tu _(2026-10-31)_

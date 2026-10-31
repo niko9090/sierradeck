@@ -74,7 +74,12 @@ esteso.
 
 Si puo': vedi `build-sul-portatile.md`. Due differenze: Smart App Control blocca `npm run pacchetto` → usare `node scripts/pacchetto-senza-eseguire.cjs` (dopo `npm run build` e `dist` svuotata); la chiave dell'APK sta solo sul fisso → o la si copia in `C:/Users/asus/`, o si riallega l'ultimo APK firmato con `app-android.json` scritto a mano. Installer non firmato (nessun certificato sul portatile).
 
-## Rilascio dalla copia di lavoro di una chat (21/10, 0.82.0, c-39)
+## ⛔ MAI costruire il pacchetto da una copia di lavoro (31/10, 0.88.6 rotta)
+- La 0.88.6 è stata costruita da uno specialista nel suo worktree, con `node_modules` collegata con una junction: electron-builder ha messo nell'app.asar solo i 10 moduli diretti e nessuno dei 38 indiretti. L'app installata non partiva («Cannot find module 'dijkstrajs'») e, ferma all'avvio, non poteva aggiornarsi da sola: il PC andava reinstallato a mano.
+- Dalla 0.88.7 `npm run pacchetto` si rifiuta di partire se `node_modules` è un collegamento (`scripts/controlla-pacchetto.mjs --prima`) e, dopo electron-builder, controlla che ogni modulo di produzione del package-lock sia nell'app.asar (`--dopo`): se manca qualcosa il comando fallisce e il pacchetto **non si pubblica**.
+- Il pacchetto si costruisce **solo nella cartella principale**, su main pulito. Le istruzioni qui sotto su junction e worktree valgono ormai solo per test e build di prova, non per l'installer.
+
+## Rilascio dalla copia di lavoro di una chat (21/10, 0.82.0, c-39) — superato, vedi sopra
 - **`google-oauth.json` sta solo nella cartella principale** (git lo ignora). `npm run pubblica` da un worktree si ferma subito con «mancano le credenziali OAuth di Google Drive»: è la guardia giusta, non un errore. Copiarlo nel worktree per la build e cancellarlo subito dopo.
 - **Manca anche `node_modules`:** una junction verso quella della cartella principale basta per build, electron-builder, gradle e vitest (vedi `test-lenti-a-pc-carico-0-81-0.md`).
 - **Ordine provato, liscio in 10 minuti:**

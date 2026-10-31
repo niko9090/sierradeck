@@ -34,6 +34,7 @@
 ## shell
 
 - in PowerShell un messaggio di commit con apostrofi o virgolette in here-string inline può spezzare git: usare `git commit -F` con un file temporaneo. _(2026-10-31)_
+- Da un worktree il tool Bash rifiuta `cmd //c mklink`: per la junction node_modules usare PowerShell (New-Item -ItemType Junction) e `cmd /c rmdir` per toglierla. _(2026-10-31)_
 
 ## android
 
@@ -43,3 +44,11 @@
 ## quaderno
 
 - errori-arrivati.md è solo in coda: un ramo che aggiunge un lotto va riunito con main prima, altrimenti i lotti dei rami fratelli confliggono. _(2026-10-31)_
+
+## release
+
+- `noteDi` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: unirlo con join prima di scriverlo su file. _(2026-10-31)_
+
+## git
+
+- Un agente in worktree non può eseguire git nella cartella principale: ripristini e commit su main vanno fatti dall'autopilota, non da uno specialista isolato. _(2026-10-31)_
