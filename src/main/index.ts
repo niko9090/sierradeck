@@ -16,6 +16,7 @@ import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeIm
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
+import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc } from './controllo-pc'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, copyFileSync, writeFileSync, watch } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
@@ -615,6 +616,9 @@ let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: 
 /** Il PIN delle chat (0.49.0): il guardiano, uno per PC. */
 let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
+/** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
+let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string }>>) | undefined
+let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
 let autopilotiAltri: (() => Promise<AutopilotiDiPc[]>) | undefined
@@ -2347,6 +2351,11 @@ if (!app.requestSingleInstanceLock()) {
       // **Gli autopiloti degli altri PC** (0.59.0): l'elenco dal loro
       // `/api/stato`, chiesto con la firma di casa; se un PC non risponde, il
       // perché con le strade provate. Ogni PC una volta, in parallelo.
+      altriPcGlobale = async () => {
+        const io = identitaPc.leggi()
+        return unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b) }))
+      }
+      saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {
         const io = identitaPc.leggi()
         // Un PC, una riga (0.73.0): un'identità vecchia dello stesso PC non fa un doppione.
@@ -3749,6 +3758,21 @@ if (!app.requestSingleInstanceLock()) {
       // in errori-arrivati-lavoro.ts.
       {
         let inCorso = false
+        const affidaSierraDeck = async (p: { testo: string; cwd: string }): Promise<void> => {
+          await clientAutopilota.assicuraServizio()
+          // Nel workspace del progetto SierraDeck, aggiunto se manca, senza cambiare lo schermo.
+          const ws = workspaceDellAutopilota('', p.cwd)
+          if (workspaceStore !== undefined) {
+            const prima = workspaceStore.leggi()
+            const dopo = aggiungiWorkspace(prima, ws)
+            if (dopo !== prima) {
+              workspaceStore.scrivi(dopo)
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
+            }
+          }
+          // Un messaggio all'autopilota del workspace: va nella sua coda.
+          await clientAutopilota.crea({ obiettivo: p.testo, cwd: p.cwd, workspace: ws })
+        }
         const giro = async (): Promise<void> => {
           if (inCorso) return
           inCorso = true
@@ -3758,21 +3782,7 @@ if (!app.requestSingleInstanceLock()) {
               adesso: () => Date.now(),
               versione: () => app.getVersion(),
               settimanaPercento: () => limitiAggiornati([...polsi.values()], Date.now())?.settimana?.percento,
-              affida: async (p) => {
-                await clientAutopilota.assicuraServizio()
-                // Nel workspace del progetto SierraDeck, aggiunto se manca, senza cambiare lo schermo.
-                const ws = workspaceDellAutopilota('', p.cwd)
-                if (workspaceStore !== undefined) {
-                  const prima = workspaceStore.leggi()
-                  const dopo = aggiungiWorkspace(prima, ws)
-                  if (dopo !== prima) {
-                    workspaceStore.scrivi(dopo)
-                    for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('workspace:cambiato', { ...statoWorkspaceDi(dopo), precedente: dopo.attivo })
-                  }
-                }
-                // Un messaggio all'autopilota del workspace: va nella sua coda.
-                await clientAutopilota.crea({ obiettivo: p.testo, cwd: p.cwd, workspace: ws })
-              },
+              affida: (p) => affidaSierraDeck(p),
               log: (riga) => registro.info(riga)
             })
           } catch (err) {
@@ -3784,6 +3794,33 @@ if (!app.requestSingleInstanceLock()) {
         giroArriviGlobale = () => { void giro() }
         setInterval(() => { void giro() }, 120_000)
         setTimeout(() => { void giro() }, 30_000)
+        // Il controllo di tutti i PC (0.88.9): solo dove c’è la cartella di SierraDeck.
+        let controlloInCorso = false
+        const controllo = async (): Promise<void> => {
+          if (controlloInCorso || altriPcGlobale === undefined || saluteAltroPcGlobale === undefined) return
+          controlloInCorso = true
+          try {
+            const altri = await altriPcGlobale()
+            const saluteDi = saluteAltroPcGlobale
+            await giroControlloPc({
+              radice: () => radiceSierraDeckGlobale?.(),
+              io: () => { const io = identitaPc.leggi(); return { id: io.id, nome: nomeDaMostrare(io) } },
+              altri: () => altri,
+              saluteQui: () => leggiSalute(),
+              saluteDi: (pc) => saluteDi(pc),
+              autopiloti: () => autopilotiAltri?.() ?? Promise.resolve([]),
+              affida: (p) => affidaSierraDeck(p),
+              adesso: () => Date.now(),
+              log: (riga) => registro.info(riga)
+            })
+          } catch (err) {
+            registro.info(`[controllo PC] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          } finally {
+            controlloInCorso = false
+          }
+        }
+        setTimeout(() => { void controllo() }, PRIMO_CONTROLLO_MS).unref?.()
+        setInterval(() => { void controllo() }, CONTROLLO_PC_OGNI_MS).unref?.()
       }
       registerAutopilotaIpc(clientAutopilota)
       primaDiEliminareGlobale = {
