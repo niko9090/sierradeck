@@ -1419,7 +1419,7 @@ if (!app.requestSingleInstanceLock()) {
         () => portaAutopiloti,
         // I guasti dell'host nel registro: un riavvio abbandonato si deve
         // poter leggere il giorno dopo.
-        (m) => registro.errore(m),
+        (m, livello) => livello === 'errore' ? registro.errore(m) : registro.info(m),
         // Lo strumento `manda_al_telefono` (0.54.0): il server MCP di SierraDeck
         // per questa sessione sola, con il suo gettone.
         (c) => gettoniMcp === undefined ? undefined : configMcp(impostazioni.preferenze().portaClient, gettoniMcp.nuovo(c))
@@ -3861,7 +3861,7 @@ if (!app.requestSingleInstanceLock()) {
         setTimeout(() => { void controllo() }, PRIMO_CONTROLLO_MS).unref?.()
         setInterval(() => { void controllo() }, CONTROLLO_PC_OGNI_MS).unref?.()
       }
-      registerAutopilotaIpc(clientAutopilota)
+      registerAutopilotaIpc(clientAutopilota, (m) => registro.info(m))
       primaDiEliminareGlobale = {
         rifiuto: async (nome) => {
           const w = workspaceStore?.leggi().workspace.find((x) => x.nome === nome)

@@ -361,7 +361,7 @@ declare global {
         /** L'elenco leggero (0.85.2): di decisioni, dialogo e modifiche solo la coda. */
         elenca: () => Promise<Autopilota[]>
         /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
-        dettaglio: (id: string, versione?: string) => Promise<{ versione?: string; autopilota?: Autopilota }>
+        dettaglio: (id: string, versione?: string) => Promise<{ versione?: string; autopilota?: Autopilota; occupato?: true }>
         crea: (p: NuovoAutopilota) => Promise<Autopilota>
         /** Gli scrivi: torna subito la ricevuta, la risposta compare nel suo `dialogo`. */
         dialoga: (id: string, testo: string) => Promise<RicevutaDialogo>

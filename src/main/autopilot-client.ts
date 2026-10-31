@@ -240,15 +240,16 @@ export function creaClientAutopilota(p: {
    * Un servizio vecchio non conosce `?leggero=1` e manda l'elenco intero: va
    * bene lo stesso, è solo più pesante.
    */
-  const chiediConEtag = async <T>(percorso: string, tenuto: { etag: string; dati: T } | undefined): Promise<{ dati: T; etag: string | null; stato: number }> => {
+  const chiediConEtag = async <T>(percorso: string, tenuto: { etag: string; dati: T } | undefined, attesa: number = attesaMs): Promise<{ dati: T; etag: string | null; stato: number }> => {
     let risposta: Response
     try {
       risposta = await fetch(`${base}${percorso}`, {
         headers: tenuto !== undefined ? { 'If-None-Match': tenuto.etag } : {},
-        signal: AbortSignal.timeout(attesaMs)
+        signal: AbortSignal.timeout(attesa)
       })
     } catch (err) {
-      throw new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`)
+      const scaduto = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+      throw Object.assign(new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`), scaduto ? { scaduto: true } : {})
     }
     if (risposta.status === 304 && tenuto !== undefined) return { dati: tenuto.dati, etag: tenuto.etag, stato: 304 }
     const testo = await risposta.text()
@@ -266,12 +267,18 @@ export function creaClientAutopilota(p: {
     return r.dati
   }
 
+  /**
+   * Il dettaglio e' l'autopilota intero (qualche MB): un servizio occupato lo
+   * serve piu' lentamente dell'elenco, e con i 3 s dell'elenco scadeva di
+   * continuo (0.88.10). Cinque volte l'attesa normale.
+   */
+  const attesaDettaglioMs = attesaMs * 5
   /** Il dettaglio di ogni autopilota chiesto, con il suo ETag (0.85.2). */
   const dettagliTenuti = new Map<string, { etag: string; dati: Autopilota }>()
   const dettagliInViaggio = new Map<string, Promise<Autopilota | undefined>>()
   const chiediDettaglio = async (id: string): Promise<Autopilota | undefined> => {
     try {
-      const r = await chiediConEtag<Autopilota>(`/autopiloti/${encodeURIComponent(id)}`, dettagliTenuti.get(id))
+      const r = await chiediConEtag<Autopilota>(`/autopiloti/${encodeURIComponent(id)}`, dettagliTenuti.get(id), attesaDettaglioMs)
       if (r.etag !== null && r.dati !== undefined) dettagliTenuti.set(id, { etag: r.etag, dati: r.dati })
       else dettagliTenuti.delete(id)
       return r.dati

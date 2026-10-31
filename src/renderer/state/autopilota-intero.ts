@@ -26,6 +26,10 @@ type Voce = {
   /** La firma che si vuole adesso: se cambia mentre una richiesta è in viaggio, se ne fa un'altra dopo. */
   voluta?: string
   inViaggio: boolean
+  /** Tentativi andati a vuoto di fila (servizio occupato o errore): allungano l'attesa. */
+  insuccessi?: number
+  /** Il tentativo rimandato: finche' c'e', non si richiede. */
+  riprova?: ReturnType<typeof setTimeout>
   ascoltatori: Set<() => void>
   /** Chi tiene la voce in memoria dopo che l'ultimo se n'è andato. */
   via?: ReturnType<typeof setTimeout>
@@ -36,6 +40,11 @@ const voci = new Map<string, Voce>()
 /** Quanto resta in memoria un autopilota intero che nessuno guarda più: riaprirlo subito non lo richiede. */
 const TIENI_MS = 60_000
 
+/** Quanto aspettare dopo `n` tentativi falliti di fila: 3, 6, 12, 24 s, poi 30. */
+export function attesaRiprovaMs(n: number): number {
+  return Math.min(30_000, 3000 * 2 ** Math.max(0, n - 1))
+}
+
 function voceDi(id: string): Voce {
   let v = voci.get(id)
   if (v === undefined) {
@@ -45,21 +54,37 @@ function voceDi(id: string): Voce {
   return v
 }
 
+/** Vuole l'autopilota intero per questa firma della storia e lo chiede (o lo rimanda, se si sta aspettando). */
+export function chiediIntero(id: string, firma: string): void {
+  voceDi(id).voluta = firma
+  carica(id)
+}
+
+/** La richiesta del dettaglio, con l'attesa fra un fallimento e il tentativo dopo. */
 function carica(id: string): void {
   const v = voceDi(id)
-  if (v.inViaggio || v.voluta === undefined || v.voluta === v.chiesta) return
+  if (v.inViaggio || v.riprova !== undefined || v.voluta === undefined || v.voluta === v.chiesta) return
   v.inViaggio = true
   v.chiesta = v.voluta
+  const fallito = (): void => {
+    // Al prossimo tentativo si riprova, ma non subito: un servizio occupato che
+    // non ha risposto in tempo non ha bisogno di una richiesta ogni 3 secondi.
+    v.chiesta = undefined
+    v.insuccessi = (v.insuccessi ?? 0) + 1
+    v.riprova = setTimeout(() => { v.riprova = undefined; carica(id) }, attesaRiprovaMs(v.insuccessi))
+  }
   window.gestore.autopilota.dettaglio(id, v.versione)
     .then((r) => {
+      if (r.occupato === true) { fallito(); return }
+      v.insuccessi = 0
       if (r.autopilota !== undefined) {
         v.intero = r.autopilota
         v.versione = r.versione
         for (const f of v.ascoltatori) f()
       }
     })
-    // Al prossimo cambio si riprova; intanto resta quello che c'era.
-    .catch(() => { v.chiesta = undefined })
+    // Intanto resta quello che c'era.
+    .catch(fallito)
     .finally(() => {
       v.inViaggio = false
       carica(id)
@@ -81,11 +106,10 @@ export function useAutopilotaIntero(a: Autopilota | undefined): Autopilota | und
     const avvisa = (): void => setIntero(v.intero)
     v.ascoltatori.add(avvisa)
     if (v.intero !== undefined) setIntero(v.intero)
-    v.voluta = firma
-    carica(id)
+    chiediIntero(id, firma)
     return () => {
       v.ascoltatori.delete(avvisa)
-      if (v.ascoltatori.size === 0) v.via = setTimeout(() => { if (v.ascoltatori.size === 0) voci.delete(id) }, TIENI_MS)
+      if (v.ascoltatori.size === 0) v.via = setTimeout(() => { if (v.ascoltatori.size === 0) { if (v.riprova !== undefined) clearTimeout(v.riprova); voci.delete(id) } }, TIENI_MS)
     }
   }, [id, troncato, firma])
   return useMemo(() => (a === undefined ? undefined : conIntero(a, intero)), [a, intero])
