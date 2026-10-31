@@ -20,6 +20,8 @@ import type { StoricoErrori, VoceErrore } from '@shared/storico-errori'
 export const QUIETE_INVIO_MS = 5 * 60_000
 export const INTERVALLO_MIN_MS = 30 * 60_000
 export const GIRO_INVIO_MS = 5 * 60_000
+/** 0.88.8: un errore che si ripete ogni pochi minuti non lascia mai lo storico zitto: dopo questa attesa parte lo stesso. */
+export const ATTESA_MASSIMA_MS = 30 * 60_000
 
 export type StatoInvio = {
   /** L'`ultima` più recente fra gli errori già mandati: si manda solo quello che viene dopo. */
@@ -42,7 +44,10 @@ export function decidiInvio(p: {
   if (p.pcSviluppo === undefined) return { manda: false, perche: 'nessun PC di sviluppo' }
   if (p.nuove.length === 0) return { manda: false }
   const fino = p.nuove.map((v) => v.ultima ?? v.quando).sort().at(-1) as string
-  if (p.adesso - Date.parse(fino) < QUIETE_INVIO_MS) return { manda: false, perche: 'aspetto che lo storico stia zitto' }
+  // Da quando aspetta l'errore più vecchio: dalla sua prima volta, o dall'ultimo invio se è venuto dopo.
+  const primo = p.nuove.map((v) => (p.stato.fino !== undefined && p.stato.fino > v.quando ? p.stato.fino : v.quando)).sort()[0] as string
+  const zitto = p.adesso - Date.parse(fino) >= QUIETE_INVIO_MS
+  if (!zitto && p.adesso - Date.parse(primo) < ATTESA_MASSIMA_MS) return { manda: false, perche: 'aspetto che lo storico stia zitto' }
   if (p.stato.il !== undefined && p.adesso - Date.parse(p.stato.il) < INTERVALLO_MIN_MS) return { manda: false, perche: 'l’ultimo invio è troppo recente' }
   return { manda: true, fino }
 }

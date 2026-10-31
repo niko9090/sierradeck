@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.88.8',
+    righe: [
+      '**Autopiloti non più «in errore» sul PC sbagliato:** dopo il riordino ogni progetto vive su un PC solo; l’autopilota di un progetto la cui cartella non c’è su questo PC non prova più a lavorare (prima ogni turno finiva in «turno non riuscito»). Lo dice una volta nel dialogo: scrivigli dal PC del progetto.',
+      '**Gli errori che si ripetono arrivano lo stesso:** un errore che torna ogni pochi minuti non lasciava mai partire l’invio automatico; ora parte dopo mezz’ora al massimo.',
+    ]
+  },
+  {
     versione: '0.88.7',
     righe: [
       '**Ripara la 0.88.6, che non partiva:** al suo pacchetto mancavano dei moduli («Cannot find module dijkstrajs»). Dentro c’è tutto quello che aveva la 0.88.6: l’app Android non va più in crash con risposte enormi e l’avviso dell’aggiornamento differenziale non è più un errore.',

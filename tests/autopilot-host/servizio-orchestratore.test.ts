@@ -150,6 +150,18 @@ describe('autopilota unico nel servizio', () => {
     expect(testoScritto(processi[0]!.scritte[0]!)).toContain('<stato>')
   })
 
+  it('la cartella del progetto non è su questo PC (vive su un altro): niente turno, niente errore, una nota sola nel dialogo (0.88.8)', async () => {
+    zitto()
+    await avviaServizio([ap({ cwd: join(tmpdir(), 'sd-progetto-di-un-altro-pc-che-non-esiste') })])
+    const id = migra().autopilota!
+    expect((await posta(`/autopiloti/${id}/dialogo`, { testo: 'come va?' })).status).toBe(202)
+    await new Promise((r) => setTimeout(r, 50))
+    expect(processi).toHaveLength(0)
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito'))).toBe(false)
+    const note = orch.ultimeDialogo('Lavoro', 20).filter((r) => r.da === 'lui' && r.testo.includes('vive su un altro PC'))
+    expect(note).toHaveLength(1)
+  })
+
   it('un messaggio va in coda con le parole intere e all’orchestratore; la risposta torna nel dialogo; la vista mostra gli specialisti', async () => {
     zitto()
     await avviaServizio([ap()])

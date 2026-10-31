@@ -408,6 +408,18 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const contestoTurno = (ws: string): ContestoTurno | undefined => {
     const u = unicoDi(ws)
     if (u === undefined) return undefined
+    // 0.88.8: dopo «ogni progetto su un solo PC» la cartella di un workspace può
+    // non esserci più qui (il progetto vive su un altro PC). Prima ogni turno
+    // finiva in «turno non riuscito: la cartella … non esiste», a ogni avvio e a
+    // ogni evento: tanti autopiloti «in errore». Ora non parte niente e lo si
+    // dice una volta nel dialogo, senza errore.
+    if (!esisteCartella(u.cwd)) {
+      const nota = `Su questo PC la cartella del progetto (${u.cwd}) non c’è: il progetto vive su un altro PC. Qui non lavoro; scrivimi dal PC del progetto.`
+      const ultima = x.orchestratori.ultimeDialogo(ws, 30).filter((r) => r.da === 'lui').at(-1)
+      if (ultima?.testo !== nota) nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: nota })
+      console.info(`[orchestratore] ${ws} — niente turno: la cartella ${u.cwd} non c’è su questo PC`)
+      return undefined
+    }
     let indice = ''
     try { indice = x.indiceQuaderno?.(u.cwd) ?? '' } catch { indice = '' }
     const i = imp(ws)

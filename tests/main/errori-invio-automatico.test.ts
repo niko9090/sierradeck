@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { INTERVALLO_MIN_MS, QUIETE_INVIO_MS, decidiInvio, giroInvioErrori, pcSviluppoDi, vociNuove, type StatoInvio } from '../../src/main/errori-invio-automatico'
+import { ATTESA_MASSIMA_MS, INTERVALLO_MIN_MS, QUIETE_INVIO_MS, decidiInvio, giroInvioErrori, pcSviluppoDi, vociNuove, type StatoInvio } from '../../src/main/errori-invio-automatico'
 import type { StoricoErrori, VoceErrore } from '@shared/storico-errori'
 
 const T0 = Date.parse('2026-10-30T10:00:00.000Z')
@@ -16,6 +16,13 @@ describe('l’invio automatico degli errori (0.88.4)', () => {
     expect(decidiInvio({ nuove, stato: { il: new Date(T0 - INTERVALLO_MIN_MS + 1).toISOString() }, adesso: T0, pcSviluppo: 'pc-1' }).manda).toBe(false)
     expect(decidiInvio({ nuove, stato: {}, adesso: T0, pcSviluppo: undefined }).manda).toBe(false)
     expect(decidiInvio({ nuove: [], stato: {}, adesso: T0, pcSviluppo: 'pc-1' }).manda).toBe(false)
+  })
+
+  it('un errore che si ripete ogni pochi minuti parte lo stesso dopo mezz’ora (0.88.8)', () => {
+    const nuove: VoceErrore[] = [{ ...voce('2026-10-30T09:59:00.000Z', 'turno non riuscito'), quando: '2026-10-30T09:00:00.000Z', volte: 30 }]
+    const stato = { fino: '2026-10-30T09:30:00.000Z' }
+    expect(decidiInvio({ nuove, stato, adesso: Date.parse('2026-10-30T09:30:00.000Z') + ATTESA_MASSIMA_MS - 60_000, pcSviluppo: 'pc-1' }).manda).toBe(false)
+    expect(decidiInvio({ nuove, stato, adesso: Date.parse('2026-10-30T09:30:00.000Z') + ATTESA_MASSIMA_MS, pcSviluppo: 'pc-1' }).manda).toBe(true)
   })
 
   it('il PC di sviluppo: quello scelto, o il proprietario di SierraDeck', () => {
