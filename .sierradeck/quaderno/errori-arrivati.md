@@ -49,3 +49,14 @@ Nessuna correzione a sé: è lo stesso episodio del gruppo 6 (vedi sotto).
 
 ## Gruppo 6: INSTALLAZIONE NON RIUSCITA 0.88.5 → 0.88.6
 Causa non dimostrata: il diario di SierraDeck Update era troncato e non dice perché l'installer si è fermato. Corretta la falla dello script di pubblicazione che l'ha resa possibile: `npm run pubblica` non lanciava i controlli `controlla-pacchetto.mjs --prima` e `--dopo` che ha `npm run pacchetto` (nella 0.88.6 mancava dijkstrajs nell'app). Ora li lancia; test in tests/main/script-pubblica-controlli.test.ts. Nota: `--dopo` gira dopo il caricamento (`--publish always`), quindi avvisa ma non impedisce l'upload: se fallisce, la release va ritirata o rifatta.
+
+# Errori arrivati (lotto 20261101084702, app 0.89.1)
+
+## Gruppo 1: ERR_NO_BUFFER_SPACE dell aggiornamento, scritto due volte in 3 ms
+Corretto nella prossima release. Gli errori di rete passeggeri (ERR_NO_BUFFER_SPACE, ERR_INTERNET_DISCONNECTED, ECONNRESET, ETIMEDOUT) sono avvisi: l updater ritenta da solo al controllo dopo (RICONTROLLA_MS), quindi niente fase errore, niente riga ERRORE, nel registro una riga info. Il doppione evento error + rigetto di downloadUpdate si scrive una volta (stesso messaggio entro 5 s). Test in tests/main/aggiornamenti-rete-transitoria.test.ts; il test del logger usa ora un guasto vero (checksum) al posto di ERR_INTERNET_DISCONNECTED.
+
+## Gruppo 2: eco di Electron "Error occurred in handler for pty:spawn ... cwd non accessibile"
+Corretto nella prossima release: l eco va nel registro come informazione (src/main/console-nel-registro.ts), perche il renderer scrive gia la sua riga con la diagnosi cartella sparita. Un errore diverso dello stesso handler resta ERRORE. Test in tests/main/console-nel-registro.test.ts.
+
+## Gruppo 3: progetto di un altro PC con cartella assente: "cwd non accessibile" invece di "vive su <PC>"
+Corretto nella prossima release: il controllo del proprietario (src/main/casa-altrove.ts, rifiutoCasaAltrove) ora viene prima della convalida e della verifica chiusa-senza-cartella dentro pty:spawn. Test in tests/main/casa-altrove.test.ts.

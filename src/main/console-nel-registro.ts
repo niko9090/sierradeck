@@ -5,6 +5,9 @@ import { PREFISSO_CHAT_ALTROVE } from '@shared/posta'
 /** Il prefisso con cui `registro.ts` ripete in console le righe che ha gia' scritto. */
 export const PREFISSO_ECO = '[registro] '
 
+/** L'eco di Electron per il rifiuto di `pty:spawn` con la cartella assente. */
+const ECO_SPAWN_CARTELLA_SPARITA = /Error occurred in handler for 'pty:spawn'[\s\S]*cwd non accessibile/
+
 /**
  * Gli errori del processo principale anche nel registro (0.80.0).
  *
@@ -34,7 +37,10 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>, 
       // 0.88: il rifiuto atteso di una chat che vive su un altro PC (Electron lo
       // ripete come «Error occurred in handler for 'pty:spawn'») non è un guasto:
       // il riquadro lo mostra con il suo PC. Nel registro come informazione.
-      registro[livello === 'errore' && testo.includes(PREFISSO_CHAT_ALTROVE) ? 'info' : livello](testo)
+      // Stesso per l'eco della cartella sparita: il renderer scrive già la sua
+      // riga con la diagnosi «cartella sparita» (lotto 20261101084702).
+      const atteso = testo.includes(PREFISSO_CHAT_ALTROVE) || ECO_SPAWN_CARTELLA_SPARITA.test(testo)
+      registro[livello === 'errore' && atteso ? 'info' : livello](testo)
     } catch { /* il registro non ferma il programma */ } finally { dentro = false }
   }
   c.warn = (...a: unknown[]) => { warn.apply(c, a); scrivi('info', a) }
