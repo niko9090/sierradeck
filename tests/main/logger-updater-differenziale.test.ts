@@ -32,8 +32,8 @@ describe('creaLoggerUpdater', () => {
 
   it('un errore vero resta errore, in una riga', () => {
     const { registro, logger } = nuovo()
-    logger.error('net::ERR_INTERNET_DISCONNECTED\n    at x (f.js:1:1)')
-    expect(registro.errore).toHaveBeenCalledWith('[electron-updater] net::ERR_INTERNET_DISCONNECTED')
+    logger.error('sha512 checksum mismatch\n    at x (f.js:1:1)')
+    expect(registro.errore).toHaveBeenCalledWith('[electron-updater] sha512 checksum mismatch')
   })
 
   it('l eco «Error: …» non si scrive due volte', () => {

@@ -19,6 +19,7 @@ import { leggiAnteprima, type Anteprima } from './anteprima'
 import { indexAll } from './indexer/indexer'
 import { pathToSlug } from './indexer/project-scanner'
 import { messaggioChatAltrove } from '@shared/posta'
+import { rifiutoCasaAltrove } from './casa-altrove'
 import { messaggioChiusaSenzaCartella } from '@shared/chiusa-senza-cartella'
 import type { Avanzamento, IndexOutcome, SessionSummary } from '@shared/types'
 import { APP_DATA_DIR_NAME } from '@shared/version'
@@ -351,6 +352,10 @@ export function registerPtyIpc(
   // Il renderer dice quale sessione e dove; *cosa* eseguire lo decide qui il
   // Core. Un rigetto viaggia sulla promise di invoke e il riquadro lo mostra.
   ipcMain.handle('pty:spawn', (event, raw: unknown): string | Promise<string> => {
+    // Prima di tutto il proprietario: un progetto di un altro PC qui non ha la
+    // cartella, e deve sentirsi dire «vive su <PC>», non «cwd non accessibile».
+    const altrove = rifiutoCasaAltrove(raw, casaAltroveDi)
+    if (altrove !== undefined) throw new Error(altrove)
     // Prima della convalida, che rifiuterebbe la cartella sparita con una riga
     // rossa: una chat chiusa o finita senza cartella non si avvia, il riquadro
     // si toglie (0.84.1). Si chiede solo quando la cartella manca davvero.
@@ -383,13 +388,8 @@ export function registerPtyIpc(
   }
   const avvia = (req: ReturnType<typeof validateSpawnRequest>, win: BrowserWindow | undefined): string => {
     // Prima di tutto il proprietario (0.88.0): un progetto di un altro PC qui non parte.
-    const fuori = casaAltroveDi(req.sessionUuid, req.cwd)
-    if (fuori !== undefined) {
-      throw new Error(messaggioChatAltrove({
-        cwd: req.cwd, pc: { id: fuori.id, nome: fuori.nome }, sessionUuid: req.sessionUuid, casa: true,
-        perche: `il progetto vive su ${fuori.nome}${fuori.motivo !== '' ? ` (${fuori.motivo})` : ''}`
-      }))
-    }
+    const altrove = rifiutoCasaAltrove(req, casaAltroveDi)
+    if (altrove !== undefined) throw new Error(altrove)
     // Una chat nata su un altro PC porta la cartella di la': qui si apre in
     // quella di qui (vedi `progetti/cartella-di-chat`), e la finestra lo sa.
     const risolta = risolviCartella(req.cwd, req.sessionUuid, req.forzaQui === true)

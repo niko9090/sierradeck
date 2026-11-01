@@ -162,6 +162,9 @@ export type Aggiornamenti = {
  */
 export const RICONTROLLA_MS = 10 * 60 * 1000
 
+/** Lo stesso errore dell'updater entro questo tempo e' un doppione (evento + catch). */
+export const DOPPIONE_ERRORE_MS = 5000
+
 /**
  * L'aggiornamento del Gestore, con l'utente sempre al comando.
  *
@@ -213,6 +216,10 @@ export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: 
  * - `breve`: la prima riga, senza pila e senza le intestazioni HTTP che
  *   electron-updater attacca a ogni errore (`Headers: {…}`), al massimo 300 caratteri.
  */
+export function eErroreDiReteTransitorio(testo: string): boolean {
+  return /ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ECONNRESET|ETIMEDOUT/.test(testo)
+}
+
 export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string } {
   const codice = typeof err === 'object' && err !== null ? String((err as { code?: unknown }).code ?? '') : ''
   const testo = err instanceof Error ? err.message : String(err)
@@ -251,7 +258,9 @@ export function creaLoggerUpdater(
       const riga = String(m)
       if (/^Error:/.test(riga)) return
       const breve = leggiErroreAggiornamento(riga).breve
-      if (/^Cannot download differentially, fallback to full download/.test(breve)) {
+      // Un errore di rete passeggero (ERR_NO_BUFFER_SPACE, ECONNRESET…): l'updater
+      // ritenta da solo al giro dopo (RICONTROLLA_MS), non è un guasto del programma.
+      if (/^Cannot download differentially, fallback to full download/.test(breve) || eErroreDiReteTransitorio(breve)) {
         registro.info(`[electron-updater] avviso: ${breve}`)
         return
       }
@@ -551,6 +560,8 @@ export function creaAggiornamenti(
    * `catch` di chi ha chiamato): una riga sola nel registro, senza intestazioni
    * HTTP (0.86.2, audit I7). Prima la stessa riga arrivava due volte, intera.
    */
+  let ultimoErroreBreve = ''
+  let ultimoErroreAlle = 0
   const erroreUpdater = (err: unknown): void => {
     const { manca, breve } = leggiErroreAggiornamento(err)
     if (manca) {
@@ -559,8 +570,21 @@ export function creaAggiornamenti(
       nienteDiNuovo()
       return
     }
-    // Lo stesso errore due volte di fila (evento e `catch`) si scrive una volta.
-    if (stato.fase === 'errore' && stato.errore === breve) return
+    // Lo stesso errore due volte di fila (evento e `catch`, a 3 ms l'uno
+    // dall'altro) si scrive una volta: stesso messaggio, o stesso messaggio
+    // entro pochi secondi.
+    const adesso = Date.now()
+    if (breve === ultimoErroreBreve && (stato.fase === 'errore' || adesso - ultimoErroreAlle < DOPPIONE_ERRORE_MS)) return
+    ultimoErroreBreve = breve
+    ultimoErroreAlle = adesso
+    // Un guasto di rete passeggero: l'updater ritenta da solo, qui è un avviso
+    // nel registro e la fase torna a riposo, senza il riquadro rosso.
+    if (eErroreDiReteTransitorio(breve)) {
+      nota(`errore di rete passeggero, si riprova al prossimo controllo: ${breve}`)
+      if (stato.fase === 'scarico' && stato.versione !== undefined) annuncia({ fase: 'disponibile', versione: stato.versione })
+      else nienteDiNuovo()
+      return
+    }
     // La riga nel registro la scrive `annuncia`, una, al livello degli errori.
     annuncia({ fase: 'errore', errore: breve })
   }

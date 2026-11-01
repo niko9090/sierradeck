@@ -38,4 +38,14 @@ describe('consoleNelRegistro (0.80.0)', () => {
     c.error('dopo')
     expect(righe).toEqual([])
   })
+
+  it('l eco di Electron per pty:spawn con cartella sparita va in info, un altro errore resta errore', () => {
+    const righe: string[] = []
+    const { c } = finta()
+    consoleNelRegistro({ info: (m) => righe.push(`info ${m}`), errore: (m) => righe.push(`ERRORE ${m}`) }, c)
+    c.error("Error occurred in handler for 'pty:spawn':", new Error('richiesta IPC non valida: cwd non accessibile (X:\\nope): Error: ENOENT'))
+    c.error("Error occurred in handler for 'pty:spawn':", new Error('spawn EPERM'))
+    expect(righe[0]).toMatch(/^info Error occurred in handler for 'pty:spawn'/)
+    expect(righe[1]).toMatch(/^ERRORE Error occurred in handler for 'pty:spawn'/)
+  })
 })
