@@ -22,6 +22,13 @@ export type ImpostazioniOrchestratore = {
   autopilota?: string
   attivatoIl?: string
   modello: ModelloOrchestratore
+  /**
+   * 0.89.2: Nicholas ha scelto lui il modello dalle impostazioni. Senza questa
+   * scelta l'autopilota usa Opus (01/11: «deve essere avviato con il modello
+   * migliore possibile perché è la parte che coordina»): anche il «sonnet»
+   * scritto dalle versioni di prima diventa Opus.
+   */
+  modelloScelto?: boolean
   /** Quanti specialisti insieme in questo workspace: 3 di serie, al più 4. */
   tettoSpecialisti: number
   /** La sessione di `claude -p`, ripresa con `--resume`. */
@@ -43,7 +50,7 @@ export const TETTO_SPECIALISTI = 3
 export const TETTO_SPECIALISTI_MAX = 4
 
 export function impostazioniPredefinite(): ImpostazioniOrchestratore {
-  return { modello: 'sonnet', tettoSpecialisti: TETTO_SPECIALISTI }
+  return { modello: 'opus', tettoSpecialisti: TETTO_SPECIALISTI }
 }
 
 export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
@@ -62,7 +69,8 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
       }
     : undefined
   return {
-    modello: o.modello === 'opus' ? 'opus' : 'sonnet',
+    modello: o.modello === 'sonnet' && o.modelloScelto === true ? 'sonnet' : 'opus',
+    ...(o.modelloScelto === true ? { modelloScelto: true } : {}),
     tettoSpecialisti: tetto,
     ...(typeof o.autopilota === 'string' && o.autopilota !== '' ? { autopilota: o.autopilota } : {}),
     ...(typeof o.attivatoIl === 'string' ? { attivatoIl: o.attivatoIl } : {}),

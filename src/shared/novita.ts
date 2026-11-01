@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.2',
+    righe: [
+      '**L’autopilota usa Opus:** chi coordina usa il modello migliore, anche negli autopiloti già esistenti. Sonnet resta scegliendolo nelle Impostazioni dell’autopilota.',
+      '**La percentuale non salta più:** una domanda («a che punto siamo?»), un «sì» o un «fermati» non la fanno scendere. L’autopilota risponde e chiude la richiesta, con il perché; un messaggio nuovo conta solo quando diventa un piano. Le richieste ferme e i doppioni si chiudono davvero, non più solo a parole.',
+      '**Si vede cosa succede:** sotto la percentuale una riga dice chi è al lavoro adesso, se l’autopilota sta pensando, se aspetta una tua risposta o perché è fermo. I numeri riguardano solo il lavoro aperto; gli specialisti finiti stanno in una riga a parte.',
+      '**L’autopilota va avanti da solo:** con una richiesta chiara fa il piano e lancia gli specialisti subito, senza chiederti «procedo?».',
+      '**Meno falsi allarmi:** gli errori di rete passeggeri degli aggiornamenti sono avvisi, e una chat con la cartella sparita lascia una riga sola.',
+    ]
+  },
+  {
     versione: '0.89.1',
     righe: [
       '**Aggiornamenti molto più leggeri:** dalla prossima versione si scarica solo quello che cambia (pochi MB) invece di tutto l’installer. Prima una mappa vecchia rimasta nella cache, dopo uno scaricamento non installato, faceva fallire il controllo e ripartire lo scaricamento intero.',

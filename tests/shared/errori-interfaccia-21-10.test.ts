@@ -142,7 +142,8 @@ describe('Chat chiusa con la cartella cancellata', () => {
   it('il PC chiede prima di convalidare, solo con la cartella sparita', () => {
     const ipc = readFileSync(join(radice, 'src/main/ipc.ts'), 'utf8')
     const i = ipc.indexOf("ipcMain.handle('pty:spawn'")
-    const corpo = ipc.slice(i, i + 1200)
+    // 0.89.2: il controllo del proprietario ora viene prima, e il corpo è più lungo.
+    const corpo = ipc.slice(i, i + 2400)
     expect(corpo).toContain('!existsSync(cwd)')
     expect(corpo.indexOf('chiusaSenzaCartella(sessionUuid, cwd)')).toBeLessThan(corpo.indexOf('spawnConvalidato(event, raw)'))
     const main = readFileSync(join(radice, 'src/main/index.ts'), 'utf8')

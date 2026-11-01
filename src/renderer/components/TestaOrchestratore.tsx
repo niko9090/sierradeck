@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { VistaOrchestratore } from '@shared/piano-orchestratore'
+import { fraseStatoOrchestratore, type VistaOrchestratore } from '@shared/piano-orchestratore'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
 
@@ -23,7 +23,7 @@ export function sondaggioOrchestratore(ws: string): Sondaggio<VistaOrchestratore
 
 const PAROLA_STATO: Record<string, string> = { avviato: 'parte', lavoro: 'al lavoro', finito: 'ha finito', fallito: 'non riuscito', fermato: 'fermato', attesa: 'aspetta' }
 
-const AIUTO_UNICO = 'Un autopilota solo per il workspace: gli parli qui, mette ogni richiesta in coda (unendo quelle sulla stessa cosa, senza perdere punti), fa il piano, lancia gli specialisti (sviluppatore, verificatore, revisore, esploratore…) ognuno nella sua copia del progetto, unisce i loro rami e ti chiede solo quello che deve decidere tu. La percentuale la calcola il programma dal piano: un compito da fare vale 0, in corso 20-60%, in revisione 80%, unito con il criterio verde 100%. Quando aggiungi richieste o punti può scendere: qui sotto c’è il perché.'
+const AIUTO_UNICO = 'Un autopilota solo per il workspace: gli parli qui, mette ogni richiesta in coda (unendo quelle sulla stessa cosa, senza perdere punti), fa il piano, lancia gli specialisti (sviluppatore, verificatore, revisore, esploratore…) ognuno nella sua copia del progetto, unisce i loro rami e ti chiede solo quello che deve decidere tu. Gli specialisti lavorano dentro l’autopilota, non come chat separate: la riga sotto la percentuale dice chi è al lavoro adesso, o perché è tutto fermo. La percentuale la calcola il programma solo sul lavoro aperto: un compito da fare vale 0, in corso 20-60%, in revisione 80%, unito con il criterio verde 100%. Una domanda o un «sì» non la fanno scendere: l’autopilota risponde e la chiude; un messaggio nuovo conta solo quando diventa piano.'
 
 export function TestaOrchestratore({ workspace }: { workspace: string }): React.JSX.Element | null {
   const s = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
@@ -31,8 +31,14 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
   const [impostazioni, setImpostazioni] = useState(false)
   const [registro, setRegistro] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
+  const [finitiAperti, setFinitiAperti] = useState(false)
   if (v === undefined) return null
-  const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato').length
+  // 0.89.2: una frase su cosa succede adesso; i numeri solo del lavoro aperto.
+  const ora = fraseStatoOrchestratore(v)
+  const aperte = v.richieste?.aperte ?? 0
+  const daPianificare = v.richieste?.daPianificare ?? 0
+  const attivi = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
+  const finiti = v.specialisti.filter((c) => c.stato !== 'lavoro' && c.stato !== 'avviato')
   const cambia = (p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): void => {
     setErrore(undefined)
     window.gestore.autopilota.impostaOrchestratore(workspace, p)
@@ -42,11 +48,11 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
   return (
     <div className="coda-ws" aria-label="Avanzamento del workspace">
       <div className="coda-ws__testa con-aiuto">
-        <b>{v.percento !== undefined ? `${v.percento}%` : '—'}</b>
+        <b title="Quanto è fatto del lavoro aperto adesso">{v.percento !== undefined ? `${v.percento}%` : '—'}</b>
         <span className="coda-ws__quieto">
-          {v.piano.totale > 0 ? `${v.piano.uniti} di ${v.piano.totale} compiti uniti` : 'nessun piano ancora'}
-          {` · ${alLavoro === 1 ? '1 specialista' : `${alLavoro} specialisti`} al lavoro`}
-          {v.pensa ? ' · sta pensando…' : ''}
+          {aperte === 0 ? 'nessuna richiesta in lavoro' : `${aperte === 1 ? '1 richiesta' : `${aperte} richieste`} in lavoro`}
+          {v.piano.totale > 0 ? ` · compiti ${v.piano.uniti} fatti su ${v.piano.totale}` : ''}
+          {daPianificare > 0 ? ` · ${daPianificare === 1 ? '1 messaggio' : `${daPianificare} messaggi`} da pianificare` : ''}
         </span>
         <Aiuto di="l’autopilota del workspace">{AIUTO_UNICO}</Aiuto>
         <button className="tasto tasto--mini" aria-expanded={impostazioni} onClick={() => setImpostazioni((x) => !x)}>Impostazioni</button>
@@ -57,12 +63,18 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
         </div>
       ) : null}
       {v.calo !== undefined ? <div className="coda-ws__quieto">scesa da {v.calo.da}% a {v.calo.a}%: {v.calo.perche}</div> : null}
-      {v.specialisti.map((c) => (
+      <div className={`coda-ws__ora coda-ws__ora--${ora.tono}`} role="status">{ora.tono === 'lavora' ? '● ' : ora.tono === 'riposo' ? '✓ ' : '⏸ '}{ora.testo}</div>
+      {[...attivi, ...(finitiAperti ? finiti : [])].map((c) => (
         <div key={c.id} className="coda-ws__quieto" title={c.compito}>
           <b>{c.ruolo ?? 'specialista'}</b>{c.compitoId !== undefined ? ` · ${c.compitoId}` : ''}{c.adottata === true ? ' · chat adottata' : ''} · {PAROLA_STATO[c.stato] ?? c.stato}{c.durata !== undefined && c.durata !== '' ? ` da ${c.durata}` : ''}: {c.compito.length > 100 ? `${c.compito.slice(0, 99)}…` : c.compito}
           {c.attivita !== undefined && (c.stato === 'lavoro' || c.stato === 'avviato') ? <div>↳ {c.attivita}</div> : null}
         </div>
       ))}
+      {finiti.length > 0 ? (
+        <button className="pan2-riga-apri" aria-expanded={finitiAperti} onClick={() => setFinitiAperti((x) => !x)}>
+          {finitiAperti ? '▾' : '▸'} {finiti.length === 1 ? '1 specialista finito' : `${finiti.length} specialisti finiti`} nell’ultima ora
+        </button>
+      ) : null}
       {v.registro.length > 0 ? (
         <>
           <button className="pan2-riga-apri" aria-expanded={registro} onClick={() => setRegistro((x) => !x)}>
@@ -76,8 +88,8 @@ export function TestaOrchestratore({ workspace }: { workspace: string }): React.
           <label>
             Modello{' '}
             <select value={v.modello} onChange={(e) => cambia({ modello: e.target.value === 'opus' ? 'opus' : 'sonnet' })}>
-              <option value="sonnet">Sonnet (normale)</option>
-              <option value="opus">Opus (più attento, consuma di più)</option>
+              <option value="opus">Opus (il migliore, consigliato per chi coordina)</option>
+              <option value="sonnet">Sonnet (consuma meno, meno preciso nel coordinare)</option>
             </select>
           </label>{' '}
           <label>

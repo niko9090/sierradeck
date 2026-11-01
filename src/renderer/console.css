@@ -5007,6 +5007,12 @@ label.gc-voce { cursor: pointer; }
 .coda-ws__testa { display: flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; min-width: 0; }
 .coda-ws__titolo { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .coda-ws__quieto { color: var(--testo-quieto); }
+/* 0.89.2: cosa succede adesso, sotto la percentuale */
+.coda-ws__ora { font-size: 0.92em; margin: 2px 0; }
+.coda-ws__ora--lavora { color: #57d38c; }
+.coda-ws__ora--aspetta { color: var(--ambra, #d29922); }
+.coda-ws__ora--fermo { color: var(--ambra, #d29922); }
+.coda-ws__ora--riposo { color: var(--testo-quieto); }
 .coda-ws__badge { background: var(--chassis-premuto); border: 0; border-radius: var(--raggio); color: var(--testo); font-size: var(--t1); padding: 0 6px; cursor: pointer; }
 .coda-ws__originale { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 8px; border-left: 2px solid var(--bordo); }
 .coda-ws__superato { text-decoration: line-through; color: var(--testo-quieto); }

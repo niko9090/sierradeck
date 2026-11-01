@@ -51,8 +51,11 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   righe.push(`Avanzamento: ${p?.valore !== undefined ? `${p.valore}%` : '—'}${p?.calo !== undefined ? ` (sceso da ${p.calo.da}%: ${p.calo.perche})` : ''}. Richieste aperte ${aperte.length}, fatte ${fatte.length}.`)
   righe.push('', 'CODA (richieste aperte):')
   if (aperte.length === 0) righe.push('- niente in coda')
+  const ora = d.adesso
   for (const r of aperte) {
-    righe.push(`- ${r.id} [${PAROLA_STATO_CODA[r.stato]}, ${avanzamentoRichiesta(r, d.misura)}%] ${corto(r.titolo, 140)}${r.segue !== undefined ? ` (segue ${r.segue})` : ''}${(r.candidati ?? []).length > 0 ? ` — forse la stessa di ${r.candidati!.join(', ')}` : ''}`)
+    // 0.89.2: un messaggio senza piano da più di un'ora è fermo: o diventa lavoro o si chiude con coda_chiudi.
+    const fermo = r.compiti.length === 0 && r.stato === 'in-coda' && ora - Date.parse(r.creata) > 3_600_000
+    righe.push(`- ${r.id} [${PAROLA_STATO_CODA[r.stato]}, ${avanzamentoRichiesta(r, d.misura)}%${fermo ? ', FERMA: senza piano da ' + minuti(r.creata, ora) + ' — pianificala o chiudila con coda_chiudi' : ''}] ${corto(r.titolo, 140)}${r.segue !== undefined ? ` (segue ${r.segue})` : ''}${(r.candidati ?? []).length > 0 ? ` — forse la stessa di ${r.candidati!.join(', ')}` : ''}`)
     if (r.testo !== r.titolo) righe.push(`  testo: ${corto(r.testo, 400)}`)
     for (const q of r.punti) righe.push(`  ${q.id} ${q.stato === 'fatto' ? '[fatto] ' : q.stato === 'superato' ? '[superato] ' : ''}${corto(q.testo, 200)}`)
     if (r.compiti.length > 0) righe.push(`  compiti: ${r.compiti.map((k) => corto(k, 40)).join(', ')}`)

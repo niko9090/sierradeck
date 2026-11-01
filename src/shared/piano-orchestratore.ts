@@ -1,5 +1,5 @@
 import {
-  avanzamentoCoda, conRichiesta, passoDichiarato,
+  avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
   type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type StatoCoda, type StatoCompito
 } from './coda-richieste'
 
@@ -270,7 +270,36 @@ export type VistaOrchestratore = {
   registro: { quando: string; tipo: string; testo: string }[]
   /** Quanto è costato: oggi e l'ultimo turno (dal `result` della CLI). */
   costo: { oggiUsd: number; turniOggi: number; ultimoUsd?: number; contesto?: number }
+  /** 0.89.2: solo i compiti delle richieste aperte (prima erano tutti, anche quelli di giorni fa). */
   piano: { totale: number; uniti: number }
+  /** 0.89.2: le richieste aperte che contano nella percentuale, e i messaggi ancora senza piano. */
+  richieste?: { aperte: number; daPianificare: number }
+  /** 0.89.2: le domande dell'autopilota che aspettano Nicholas. */
+  domandeAperte?: number
+}
+
+/**
+ * Cosa sta succedendo adesso, in una frase (0.89.2). Nicholas (01/11):
+ * «l'autopilota mi risponde ma non vedo chat attive e che il compito vada
+ * avanti». Gli specialisti lavorano dentro l'autopilota, non come chat: la
+ * frase dice chi lavora, o perché è tutto fermo.
+ */
+export function fraseStatoOrchestratore(v: Pick<VistaOrchestratore, 'pensa' | 'specialisti' | 'piano' | 'richieste' | 'domandeAperte' | 'vivo'>): { testo: string; tono: 'lavora' | 'aspetta' | 'fermo' | 'riposo' } {
+  const alLavoro = v.specialisti.filter((c) => c.stato === 'lavoro' || c.stato === 'avviato')
+  const domande = v.domandeAperte ?? 0
+  const aperte = v.richieste?.aperte ?? 0
+  const daPianificare = v.richieste?.daPianificare ?? 0
+  const da = (n: number, uno: string, piu: string): string => (n === 1 ? `1 ${uno}` : `${n} ${piu}`)
+  if (alLavoro.length > 0) {
+    const chi = alLavoro.map((c) => `${c.ruolo ?? 'specialista'}${c.compitoId !== undefined ? ` (${c.compitoId})` : ''}`).join(', ')
+    return { testo: `Al lavoro: ${chi}${v.pensa ? ' · l’autopilota sta pensando' : ''}`, tono: 'lavora' }
+  }
+  if (v.pensa) return { testo: 'L’autopilota sta pensando: sta leggendo e decidendo cosa affidare', tono: 'lavora' }
+  if (domande > 0) return { testo: `Fermo: aspetta ${domande === 1 ? 'una tua risposta' : `${domande} tue risposte`} (nelle Domande)`, tono: 'aspetta' }
+  const daFare = v.piano.totale - v.piano.uniti
+  if (aperte > 0 && daFare > 0) return { testo: `Fermo: ${da(daFare, 'compito', 'compiti')} nel piano e nessuno specialista al lavoro: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }
+  if (aperte > 0 || daPianificare > 0) return { testo: `Fermo: ${da(aperte + daPianificare, 'richiesta aperta', 'richieste aperte')} senza compiti: scrivi «vai avanti» all’autopilota`, tono: 'fermo' }
+  return { testo: 'Niente da fare: tutte le richieste sono chiuse', tono: 'riposo' }
 }
 
 /** Quanto resta visibile il perché di un calo. */
@@ -288,6 +317,18 @@ export function conPercento(prima: PercentoWs | undefined, valore: number | unde
   if (calo !== undefined && valore !== undefined && valore >= calo.da) calo = undefined
   if (calo !== undefined && Date.parse(il) - Date.parse(calo.il) > CALO_VISIBILE_MS) calo = undefined
   return { ...(valore !== undefined ? { valore } : {}), il, ...(calo !== undefined ? { calo } : {}) }
+}
+
+/** 0.89.2: i numeri del riquadro, solo sul lavoro di adesso (le richieste aperte e i loro compiti). */
+export function vistaLavoro(coda: Coda, piano: Piano, domandeAperte: number): Pick<VistaOrchestratore, 'piano' | 'richieste' | 'domandeAperte'> {
+  const aperte = coda.richieste.filter((r) => r.stato !== 'fatta')
+  const ids = new Set(aperte.map((r) => r.id))
+  const suoi = piano.compiti.filter((c) => ids.has(c.richiesta))
+  return {
+    piano: { totale: suoi.length, uniti: suoi.filter((c) => c.stato === 'unito' && c.criterioVerde === true).length },
+    richieste: { aperte: aperte.filter(contaNellaPercentuale).length, daPianificare: aperte.filter((r) => !contaNellaPercentuale(r)).length },
+    domandeAperte
+  }
 }
 
 /** La percentuale del workspace dal piano (e, per i compiti di prima, dall'altra misura). */

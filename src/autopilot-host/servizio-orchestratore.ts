@@ -7,7 +7,7 @@ import {
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
 } from '@shared/coda-richieste'
 import {
-  allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita,
+  allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita, vistaLavoro,
   type CompitoPiano, type Piano, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
 import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
@@ -1031,7 +1031,7 @@ ${NOTA_SENZA_GIT}`,
           turniOggi: diOggi.length,
           ...(ultimo !== undefined ? { ultimoUsd: ultimo.usd, contesto: ultimo.contesto } : {})
         },
-        piano: { totale: piano.compiti.length, uniti: piano.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde === true).length }
+        ...vistaLavoro(coda(ws), piano, u !== undefined ? x.domande.aperte(u.id).length : 0)
       }
     },
     assicura,
@@ -1039,7 +1039,7 @@ ${NOTA_SENZA_GIT}`,
     imposta(ws, p) {
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,
-        ...(p.modello === 'opus' || p.modello === 'sonnet' ? { modello: p.modello } : {}),
+        ...(p.modello === 'opus' || p.modello === 'sonnet' ? { modello: p.modello, modelloScelto: true } : {}),
         ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, p.tettoSpecialisti)) } : {})
       }))
     },

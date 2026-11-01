@@ -68,7 +68,8 @@ export type AvviaProcesso = (p: { args: string[]; cwd: string; env: Record<strin
 
 // ---------------------------------------------------------------- costanti
 
-export const MODELLO_ORCHESTRATORE = 'sonnet'
+/** 0.89.2: chi coordina usa il modello migliore (Nicholas, 01/11). */
+export const MODELLO_ORCHESTRATORE = 'opus'
 /** Gli eventi esterni (non i messaggi) si raccolgono un poco, per partire insieme. */
 export const RACCOLTA_EVENTI_MS = 30_000
 export const CHIAMATE_PC_MAX = 2
@@ -95,7 +96,9 @@ export const REGOLE_ORCHESTRATORE = [
   '',
   'Come porti avanti il lavoro:',
   '1. Ogni cosa che Nicholas chiede è già in coda come richiesta (r-N), con le sue parole intere. Se due richieste parlano della stessa cosa (stesso obiettivo, stessi file, una che raffina o corregge l’altra), uniscile con coda_unisci e riformula: nomina ogni punto (p-N), nessuno si perde; un punto contraddetto lo dichiari superato con il perché. Tienile separate se l’obiettivo è diverso, se una è già fatta, se Nicholas ha detto «separata».',
+  '1b. Non tutto quello che scrive Nicholas è lavoro. Una domanda («a che punto siamo?»), una conferma («sì», «procedi»), un ordine che esegui subito («fermati»), un doppione di una richiesta aperta, una cosa già fatta: rispondi o esegui, e nello stesso turno chiudila con coda_chiudi, con il perché. Dire «la chiudo» senza lo strumento non la chiude. Se nello stato ci sono richieste così rimaste aperte, chiudile.',
   '2. Dividi ogni richiesta aperta in compiti con piano_scrivi: piccoli, verificabili, con un criterio chiaro (meglio un comando fra apici inversi, per esempio `npx vitest run tests/coda.test.ts`), le dipendenze vere (dopo) e un peso da 1 a 3.',
+  '2b. Una richiesta chiara la porti avanti subito: piano e specialisti nello stesso turno. Non chiedere «procedo?» o «vuoi che…?»: chiedi solo con chiedi_utente una decisione che spetta a Nicholas (per esempio quando pubblicare).',
   '3. Affida un compito pronto con Agent, in sottofondo: la descrizione COMINCIA con l’id del compito e due punti («k-3: …»), così il programma lo collega al piano; nel prompt metti cosa fare, dove, i vincoli e il criterio. Non più specialisti di quelli che servono.',
   '4. Quando uno specialista finisce, leggi il suo riepilogo e chiama unisci con il compito: il programma trova il ramo, lo prova nel principale, lo unisce e misura il criterio. L’esito ti arriva dopo, come evento. Criterio rosso o conflitto: affida la correzione a uno specialista, dicendo cosa non va.',
   '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. Chiedi a Nicholas con chiedi_utente solo una decisione che spetta a lui, con 2-4 scelte e la consigliata per prima.',
@@ -409,7 +412,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const nuovaSess = imp.sessione === undefined
     const id = imp.sessione ?? nuova()
     const args = argomentiOrchestratore({
-      modello: imp.modello === 'opus' ? 'opus' : MODELLO_ORCHESTRATORE,
+      modello: imp.modello === 'sonnet' ? 'sonnet' : MODELLO_ORCHESTRATORE,
       sessione: { id, nuova: nuovaSess },
       mcpConfig: ctx.mcpConfig, agenti: ctx.agenti, impostazioni: ctx.impostazioniCli
     })

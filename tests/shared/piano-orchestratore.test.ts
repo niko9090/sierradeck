@@ -96,14 +96,17 @@ describe('percentuale dal piano', () => {
     expect(p.calo).toBeUndefined()
   })
 
-  it('una richiesta nuova abbassa la percentuale del workspace', () => {
+  it('una richiesta nuova abbassa la percentuale del workspace quando diventa piano, non appena arriva (0.89.2)', () => {
     const coda = codaCon('una cosa')
     const e = scriviPiano(pianoVuoto(), coda, [{ id: 'k1', richiesta: 'r-1', titolo: 'a', criterio: 'x' }], ADESSO)
     if (!e.ok) throw new Error(e.errore)
     const p = conCompito(e.piano, 'k1', (c) => ({ ...c, stato: 'in-revisione' }))
     const prima = avanzamentoCoda(e.coda.coda, misuraDalPiano(p))
-    const dopo = avanzamentoCoda(aggiungi(e.coda.coda, { testo: 'un’altra cosa', quando: ADESSO }).coda, misuraDalPiano(p))
+    const conNuova = aggiungi(e.coda.coda, { testo: 'un’altra cosa', quando: ADESSO }).coda
     expect(prima).toBe(80)
-    expect(dopo).toBeLessThan(prima!)
+    expect(avanzamentoCoda(conNuova, misuraDalPiano(p))).toBe(80)
+    const e2 = scriviPiano(p, conNuova, [{ id: 'k2', richiesta: 'r-2', titolo: 'b', criterio: 'x' }], ADESSO)
+    if (!e2.ok) throw new Error(e2.errore)
+    expect(avanzamentoCoda(e2.coda.coda, misuraDalPiano(e2.piano))).toBeLessThan(prima!)
   })
 })

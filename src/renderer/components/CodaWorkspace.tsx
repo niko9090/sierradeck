@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PAROLA_STATO_CODA, unite, type Richiesta, type StatoCoda, type VistaCoda } from '@shared/coda-richieste'
+import { PAROLA_STATO_CODA, unite, type ComeChiusa, type Richiesta, type StatoCoda, type VistaCoda } from '@shared/coda-richieste'
 import { giornoDi } from '@shared/coda-richieste'
 import { creaSondaggio, useSondaggio, type Sondaggio } from '../state/sondaggio'
 import { Aiuto } from './Aiuto'
@@ -35,6 +35,9 @@ const COLORE: Record<StatoCoda, string> = {
   'in-verifica': 'var(--blu, #4aa3ff)',
   fatta: 'var(--verde, #3fb950)'
 }
+
+/** 0.89.2: come l’autopilota ha chiuso una richiesta che non chiedeva lavoro. */
+const PAROLA_CHIUSA: Record<ComeChiusa, string> = { risposta: 'risposta', doppione: 'doppione', 'gia-fatta': 'già fatta', annullata: 'annullata' }
 
 const AIUTO_CODA = 'Ogni cosa che chiedi entra qui, con le tue parole intere: tutto va fatto. Se una richiesta nuova parla della stessa cosa di una già in coda, l’autopilota le unisce in una sola, riformulata: nessun punto si perde (il programma rifiuta un’unione che ne lascia fuori uno), e un punto contraddetto resta visibile, barrato, col perché. «Separa» disfa l’unione. La percentuale la calcola il programma dai compiti: da fare 0, in corso 20-60%, in revisione 80%, unito 100%.'
 
@@ -105,7 +108,7 @@ function RigaCoda({ r, onSepara }: { r: Richiesta & { percento: number }; onSepa
     <div className="coda-ws__richiesta">
       <div className="coda-ws__testa">
         <span className="coda-ws__quieto">{r.id}</span>
-        <span style={{ color: COLORE[r.stato] }}>{PAROLA_STATO_CODA[r.stato]}{r.stato === 'fatta' && r.versione !== undefined ? ` nella ${r.versione}` : ''}</span>
+        {r.chiusa !== undefined ? <span className="coda-ws__quieto" title={r.chiusa.perche}>chiusa senza lavoro ({PAROLA_CHIUSA[r.chiusa.come]}{r.chiusa.doppioneDi !== undefined ? ` di ${r.chiusa.doppioneDi}` : ''}): {r.chiusa.perche}</span> : <span style={{ color: COLORE[r.stato] }}>{PAROLA_STATO_CODA[r.stato]}{r.stato === 'fatta' && r.versione !== undefined ? ` nella ${r.versione}` : ''}</span>}
         <b>{r.percento}%</b>
         <span className="coda-ws__titolo">{r.titolo}</span>
         {insieme.length > 0 ? (

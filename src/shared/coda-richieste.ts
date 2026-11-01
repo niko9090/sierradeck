@@ -97,7 +97,17 @@ export type Richiesta = {
   collegate?: CollegamentoRichiesta[]
   /** Richieste che potrebbero essere la stessa: senza una decisione restano separate e si mostrano. */
   candidati?: string[]
+  /**
+   * 0.89.2: chiusa dall'autopilota senza lavoro (una domanda a cui ha risposto,
+   * un «sì», un «fermati», un doppione). Non conta nella percentuale.
+   */
+  chiusa?: ChiusuraRichiesta
 }
+
+/** Come si chiude una richiesta che non chiede lavoro (0.89.2, `coda_chiudi`). */
+export type ComeChiusa = 'risposta' | 'doppione' | 'gia-fatta' | 'annullata'
+export const COME_CHIUSA: readonly ComeChiusa[] = ['risposta', 'doppione', 'gia-fatta', 'annullata']
+export type ChiusuraRichiesta = { come: ComeChiusa; perche: string; il: string; doppioneDi?: string }
 
 export type RichiestaCompattata = { id: string; titolo: string; fattaIl: string; commit?: string; versione?: string }
 
@@ -121,6 +131,7 @@ export type EventoCoda =
   | { tipo: 'separazione'; quando: string; id: string; fonti: string[] }
   | { tipo: 'stato'; quando: string; id: string; da: StatoCoda; a: StatoCoda }
   | { tipo: 'compattazione'; quando: string; ids: string[] }
+  | { tipo: 'chiusura'; quando: string; ids: string[]; come: ComeChiusa; perche: string; doppioneDi?: string }
   | { tipo: 'migrazione'; quando: string; autopiloti: string[]; ids: string[] }
 
 export type Modifica = { coda: Coda; eventi: EventoCoda[] }
@@ -481,6 +492,53 @@ export function daSeguire(candidati: CandidatoUnione[]): string | undefined {
 }
 
 /** Le fatte da oltre 90 giorni diventano `{id, titolo, fattaIl, commit, versione}`. Gli originali restano negli eventi. */
+export type Chiusura = { ids: string[]; come: ComeChiusa; perche: string; quando: string; doppioneDi?: string }
+
+/**
+ * Chiude richieste che non chiedono lavoro (0.89.2). Nicholas (01/11): «anche
+ * la semplice domanda a che punto siamo manda la percentuale al 19%». Ogni
+ * messaggio entra in coda; quelli che non sono lavoro l'autopilota li chiude
+ * qui, con il perché, e non contano più nella percentuale. Una richiesta con
+ * compiti non è «risposta»; un doppione nomina la richiesta che lo contiene.
+ */
+export function chiudi(coda: Coda, c: Chiusura): EsitoUnione {
+  const ids = [...new Set(c.ids.map((x) => x.trim()).filter((x) => x !== ''))]
+  if (ids.length === 0) return { ok: false, errore: 'quali richieste? (r-N)' }
+  if (!COME_CHIUSA.includes(c.come)) return { ok: false, errore: `«come» è uno fra ${COME_CHIUSA.join(', ')}` }
+  const perche = c.perche.trim()
+  if (perche === '') return { ok: false, errore: 'serve il perché, in una riga: Nicholas lo legge' }
+  const perId = new Map(coda.richieste.map((x) => [x.id, x]))
+  for (const id of ids) {
+    const x = perId.get(id)
+    if (x === undefined) return { ok: false, errore: `${id} non è in coda` }
+    if (x.stato === 'fatta') return { ok: false, errore: `${id} è già fatta` }
+    if (c.come === 'risposta' && x.compiti.length > 0) return { ok: false, errore: `${id} ha compiti: non è una domanda. Si chiude quando sono uniti, o come «gia-fatta», «doppione» o «annullata»` }
+  }
+  let doppioneDi: string | undefined
+  if (c.come === 'doppione') {
+    doppioneDi = c.doppioneDi?.trim()
+    const d = doppioneDi !== undefined && doppioneDi !== '' ? perId.get(doppioneDi) : undefined
+    if (d === undefined || ids.includes(d.id)) return { ok: false, errore: 'un doppione nomina in «doppione_di» la richiesta (r-N) che lo contiene, fuori da quelle che chiudi' }
+  }
+  const chiusa: ChiusuraRichiesta = { come: c.come, perche: perche.slice(0, 400), il: c.quando, ...(doppioneDi !== undefined ? { doppioneDi } : {}) }
+  const eventi: EventoCoda[] = [{ tipo: 'chiusura', quando: c.quando, ids, come: c.come, perche: chiusa.perche, ...(doppioneDi !== undefined ? { doppioneDi } : {}) }]
+  const richieste = coda.richieste.map((x) => {
+    if (!ids.includes(x.id)) return x
+    eventi.push({ tipo: 'stato', quando: c.quando, id: x.id, da: x.stato, a: 'fatta' })
+    return {
+      ...x, stato: 'fatta' as const, fattaIl: c.quando, chiusa,
+      punti: x.punti.map((p) => (p.stato === 'aperto' ? { ...p, stato: 'superato' as const, perche: chiusa.perche, superatoIl: c.quando, ...(doppioneDi !== undefined ? { superatoDa: doppioneDi } : {}) } : p))
+    }
+  })
+  return { ok: true, id: ids[0]!, coda: { ...coda, richieste }, eventi }
+}
+
+/** Conta nella percentuale: non chiusa senza lavoro, e non un messaggio appena arrivato ancora senza piano. */
+export function contaNellaPercentuale(r: Richiesta): boolean {
+  if (r.chiusa !== undefined) return false
+  return !(r.stato === 'in-coda' && r.compiti.length === 0)
+}
+
 export function compatta(coda: Coda, adesso: string, giorni: number = COMPATTA_DOPO_GIORNI): Modifica {
   const limite = Date.parse(adesso) - giorni * 86_400_000
   const vecchie = coda.richieste.filter((r) => r.stato === 'fatta' && r.fattaIl !== undefined && Date.parse(r.fattaIl) < limite)
@@ -565,10 +623,12 @@ export function avanzamentoRichiesta(r: Richiesta, misura: MisuraCompito): numbe
  * Senza richieste aperte, 100 se ce ne sono di fatte; senza niente `undefined`.
  */
 export function avanzamentoCoda(coda: Coda, misura: MisuraCompito): number | undefined {
-  const aperte = coda.richieste.filter((r) => r.stato !== 'fatta')
-  if (aperte.length === 0) return coda.richieste.length > 0 ? 100 : undefined
+  // 0.89.2: le chiuse senza lavoro e i messaggi ancora senza piano non contano.
+  const contate = coda.richieste.filter(contaNellaPercentuale)
+  const aperte = contate.filter((r) => r.stato !== 'fatta')
+  if (aperte.length === 0) return contate.length > 0 ? 100 : undefined
   const dal = Math.min(...aperte.map((r) => Date.parse(r.creata)).filter((t) => !Number.isNaN(t)))
-  const dentro = coda.richieste.filter((r) => r.stato !== 'fatta' || (r.fattaIl !== undefined && Date.parse(r.fattaIl) >= dal))
+  const dentro = contate.filter((r) => r.stato !== 'fatta' || (r.fattaIl !== undefined && Date.parse(r.fattaIl) >= dal))
   let num = 0
   let den = 0
   for (const r of dentro) {
@@ -653,8 +713,16 @@ function leggiRichiesta(v: unknown): Richiesta | undefined {
     ...(str(o.versione) !== undefined ? { versione: o.versione as string } : {}),
     ...(str(o.criterio) !== undefined ? { criterio: o.criterio as string } : {}),
     ...(collegate.length > 0 ? { collegate } : {}),
-    ...(candidati.length > 0 ? { candidati } : {})
+    ...(candidati.length > 0 ? { candidati } : {}),
+    ...(chiusaDa(o.chiusa) !== undefined ? { chiusa: chiusaDa(o.chiusa)! } : {})
   }
+}
+
+function chiusaDa(x: unknown): ChiusuraRichiesta | undefined {
+  if (typeof x !== 'object' || x === null) return undefined
+  const q = x as Record<string, unknown>
+  if (!COME_CHIUSA.includes(q.come as ComeChiusa) || typeof q.perche !== 'string' || str(q.il) === undefined) return undefined
+  return { come: q.come as ComeChiusa, perche: q.perche, il: q.il as string, ...(str(q.doppioneDi) !== undefined ? { doppioneDi: q.doppioneDi as string } : {}) }
 }
 
 /** La coda dal disco: una richiesta illeggibile si salta, il resto resta. I contatori non tornano mai indietro. */

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
-import { unisci as unisciCoda, type Coda, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
+import { chiudi as chiudiCoda, unisci as unisciCoda, COME_CHIUSA, type Coda, type ComeChiusa, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
 import { scriviPiano, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
@@ -166,6 +166,21 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
     }
   },
   {
+    name: 'coda_chiudi',
+    title: 'Chiudi richieste che non chiedono lavoro',
+    description: 'Chiude in coda le richieste che non sono lavoro, con il perché in una riga: una domanda a cui hai appena risposto («a che punto siamo?»), una conferma o un ordine già eseguito («sì», «fermati»), un doppione di una richiesta aperta, una richiesta che risulta già fatta, una che Nicholas ha annullato. Escono dalla percentuale. Chiudile nello stesso turno in cui rispondi: dire «la chiudo» senza chiamare questo strumento non la chiude.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, description: 'Le richieste da chiudere (r-N).' },
+        come: { type: 'string', enum: [...COME_CHIUSA], description: 'risposta: domanda o conferma, già risposta; doppione: la contiene un’altra richiesta (doppione_di); gia-fatta: il lavoro c’è già; annullata: Nicholas l’ha fermata.' },
+        perche: { type: 'string', description: 'Una riga che Nicholas legge.' },
+        doppione_di: { type: 'string', description: 'Solo per «doppione»: la richiesta (r-N) che la contiene.' }
+      },
+      required: ['ids', 'come', 'perche']
+    }
+  },
+  {
     name: 'piano_scrivi',
     title: 'Scrivi il piano dei compiti',
     description: 'Registra (o aggiorna per id) i compiti in cui dividi le richieste aperte. Ogni compito: id tuo, richiesta (r-N), titolo, criterio (come si dice fatto; un comando fra apici inversi, per esempio `npm test`, il programma lo misura davvero), dopo (id dei compiti da unire prima), peso 1-3. Le dipendenze non possono fare cicli: il piano si rifiuta intero.',
@@ -289,6 +304,20 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (e === undefined || !e.ok) return no(e?.ok === false ? e.errore : 'unione non fatta')
       amb.ricalcola(ws, `unite ${ids.join(', ')} in ${e.id}`)
       return si(`Unite in ${e.id}: ${ids.filter((x) => x !== e.id).join(', ')} escono dalla coda (Nicholas può separarle).`)
+    }
+
+    case 'coda_chiudi': {
+      const ids = Array.isArray(arg.ids) ? arg.ids.filter((x): x is string => typeof x === 'string').map((x) => x.trim()) : []
+      const come = str(arg.come) as ComeChiusa
+      let esito: ReturnType<typeof chiudiCoda> | undefined
+      amb.cambiaCoda(ws, (c) => {
+        esito = chiudiCoda(c, { ids, come, perche: str(arg.perche), quando: amb.adesso(), ...(str(arg.doppione_di) !== '' ? { doppioneDi: str(arg.doppione_di) } : {}) })
+        return esito.ok ? esito : { coda: c, eventi: [] }
+      })
+      const e = esito as ReturnType<typeof chiudiCoda> | undefined
+      if (e === undefined || !e.ok) return no(e?.ok === false ? e.errore : 'chiusura non fatta')
+      amb.ricalcola(ws, `chiuse ${ids.join(', ')}`)
+      return si(`Chiuse ${ids.join(', ')} (${come}): non contano più nella percentuale.`)
     }
 
     case 'piano_scrivi': {
