@@ -9,6 +9,7 @@
 ## test
 
 - `racconta` senza l'opzione `log` scrive in console.error: per provare che una riga è raccontata e non errore, il test deve passare `log`. _(2026-10-30)_
+- Il test di `creaLoggerUpdater` usava ERR_INTERNET_DISCONNECTED come «errore vero»: per un guasto vero in un test usa un checksum sbagliato, non un errore di rete. _(2026-11-01)_
 
 ## worktree
 
@@ -35,6 +36,7 @@
 
 - in PowerShell un messaggio di commit con apostrofi o virgolette in here-string inline può spezzare git: usare `git commit -F` con un file temporaneo. _(2026-10-31)_
 - Da un worktree il tool Bash rifiuta `cmd //c mklink`: per la junction node_modules usare PowerShell (New-Item -ItemType Junction) e `cmd /c rmdir` per toglierla. _(2026-10-31)_
+- Nei worktree il Bash rifiuta i comandi composti con heredoc e python: usa Write/Edit per i file. _(2026-11-01)_
 
 ## android
 
@@ -64,3 +66,19 @@
 ## pacchetto
 
 - in package.json solo lo script pacchetto ha --prima/--dopo; pubblica ricostruisce senza controlli. _(2026-10-31)_
+
+## registro
+
+- Electron scrive «Error occurred in handler» per ogni rigetto di ipcMain.handle: il filtro sta in console-nel-registro.ts come per PREFISSO_CHAT_ALTROVE, non nel gestore. _(2026-11-01)_
+
+## avvio
+
+- In spawnConvalidato la validazione cwd viene prima di casaAltroveDi: un progetto di un altro PC con cartella assente non arriva al messaggio «vive su <PC>». _(2026-11-01)_
+
+## aggiornamenti
+
+- Gli errori di rete transitori dell'updater (ERR_NO_BUFFER_SPACE) si ritentano da soli con RICONTROLLA_MS: il registro non deve trattarli come guasti. _(2026-11-01)_
+
+## ipc
+
+- `pty:spawn` ha tre rami prima dello spawn (proprietario, chiusa-senza-cartella, convalida): il proprietario va per primo, perché un progetto di un altro PC qui non ha la cartella. _(2026-11-01)_
