@@ -11,7 +11,8 @@ import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopil
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import type { Git } from '../../src/autopilot-host/worktree'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
-import type { VistaOrchestratore } from '@shared/piano-orchestratore'
+import { pianoVuoto, scriviPiano, type VistaOrchestratore } from '@shared/piano-orchestratore'
+import { DOMANDA_VECCHIA_MS, FERMO_DOPO_MS, SPINTE_MAX } from '../../src/autopilot-host/servizio-orchestratore'
 import type { VistaCoda } from '@shared/coda-richieste'
 import { attendi } from '../setup/attendi'
 import { orologioDa } from '../setup/orologio'
@@ -58,7 +59,7 @@ function ap(p: Partial<Autopilota> = {}): Autopilota {
   }
 }
 
-async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git } = {}): Promise<void> {
+async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git; adesso?: () => string; raccoltaEventiMs?: number; unioneDaSola?: boolean } = {}): Promise<void> {
   const orologio = orologioDa('2026-10-30T08:00:00.000Z')
   archivio = apriArchivio(mkdtempSync(join(tmpdir(), 'ap-unico-')))
   for (const a of prima) archivio.scrivi(a)
@@ -77,12 +78,14 @@ async function avviaServizio(prima: Autopilota[] = [], extra: { git?: Git } = {}
     domande,
     ultimoDetto: () => undefined,
     scadenzaDomandaMs: 5000,
-    adesso: orologio.iso,
+    adesso: extra.adesso ?? orologio.iso,
     coda: code,
     orchestratori: orch,
     avviaProcesso: avvia,
     porta: 47999,
-    ...(extra.git !== undefined ? { git: extra.git } : {})
+    ...(extra.git !== undefined ? { git: extra.git } : {}),
+    ...(extra.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: extra.raccoltaEventiMs } : {}),
+    ...(extra.unioneDaSola !== undefined ? { unioneDaSola: extra.unioneDaSola } : {})
   })
   server = s
   await new Promise<void>((ris) => s.listen(0, '127.0.0.1', () => { porta = (s.address() as { port: number }).port; ris() }))
@@ -347,7 +350,8 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
   }
 
   async function preparaK1(git: Git): Promise<string> {
-    await avviaServizio([ap()], { git })
+    // Qui si prova unisci chiamato dall'autopilota: senza l'unione da sola (0.89.4).
+    await avviaServizio([ap()], { git, unioneDaSola: false })
     const id = migra().autopilota!
     processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
     orch.scriviPiano('Lavoro', { versione: 1, compiti: [{ id: 'k-1', richiesta: 'r-1', titolo: 'il rumore di node-pty non è più un errore', criterio: 'il rumore non finisce fra gli errori', dopo: [], peso: 2, stato: 'da-fare', creato: '2026-10-30T08:00:00.000Z' }] })
@@ -411,5 +415,96 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
     await strumento('unisci', { compito: 'k-1', ramo: LAVORO })
     await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
     expect(archivio.leggi(id)!.decisioni.map((d) => d.cosa)).toContainEqual(expect.stringContaining(`toolu_lavoro: ramo ${LAVORO} unito`))
+  })
+})
+
+/**
+ * 0.89.4, Nicholas (02/11): «non porta a termine gli obbiettivi, vedo chat
+ * ferme». Lo specialista finito si unisce da solo, senza aspettare che
+ * l'autopilota chiami unisci; e il lavoro pronto che nessuno muove sveglia
+ * l'autopilota, al più due volte per lo stesso stato.
+ */
+describe('il motore non si ferma (0.89.4)', () => {
+  it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota, poi smette', async () => {
+    zitto()
+    let avanti = 0
+    const base = orologioDa('2026-10-30T08:00:00.000Z')
+    const adesso = (): string => new Date(base.ms() + avanti).toISOString()
+    const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })
+    await avviaServizio([ap({ chats: [] })], { git: senzaGit, adesso, raccoltaEventiMs: 5 })
+    migra()
+    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'il reset e poi la prova' })
+    await attendi(() => processi.length > 0, { cosa: 'processo' })
+    const p0 = processi[0]!
+    const fine = (testo: string): void => { p0.emetti({ type: 'result', result: testo, total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } }) }
+    fine('Pronto.')
+    const r = code.leggi('Lavoro').richieste[0]!
+    const e = scriviPiano(pianoVuoto(), code.leggi('Lavoro'), [
+      { id: 'k-1', richiesta: r.id, titolo: 'il reset', criterio: 'si vede' },
+      { id: 'k-2', richiesta: r.id, titolo: 'la prova', criterio: 'si vede', dopo: ['k-1'] }
+    ], adesso())
+    if (!e.ok) throw new Error(e.errore)
+    orch.scriviPiano('Lavoro', e.piano)
+    code.cambia('Lavoro', () => e.coda)
+    p0.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'k-1: il reset' } }] } })
+    p0.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
+    fine('Lanciato k-1.')
+    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    // La CLI apre un turno da sé per la notifica del task: lo chiude il suo result.
+    fine('k-1 finito.')
+    // Nessun unisci dall'autopilota: il programma unisce e misura da solo.
+    await attendi(() => orch.piano('Lavoro').compiti.find((k) => k.id === 'k-1')?.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(orch.piano('Lavoro').compiti.find((k) => k.id === 'k-1')?.criterioVerde).toBe(true)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('unione')), { cosa: 'evento unione' })
+    fine('k-1 unito.')
+    const sveglie = (): number => p0.scritte.filter((x) => testoScritto(x).includes('Il lavoro è fermo')).length
+    // k-2 è pronto e nessuno lavora: la prima volta si segna, dopo FERMO_DOPO_MS si sveglia.
+    server!.controllaChatFerme()
+    avanti += FERMO_DOPO_MS - 1000
+    server!.controllaChatFerme()
+    expect(sveglie()).toBe(0)
+    avanti += 2000
+    server!.controllaChatFerme()
+    await attendi(() => sveglie() === 1, { cosa: 'sveglia 1' })
+    expect(testoScritto(p0.scritte.at(-1)!)).toContain('k-2 pronto da affidare')
+    fine('Va bene.')
+    // Lo stesso stato: una seconda volta più tardi, poi basta.
+    avanti += 2 * FERMO_DOPO_MS
+    server!.controllaChatFerme()
+    await attendi(() => sveglie() === 2)
+    fine('Va bene.')
+    avanti += 20 * FERMO_DOPO_MS
+    server!.controllaChatFerme()
+    await new Promise((ris) => setTimeout(ris, 50))
+    expect(sveglie()).toBe(SPINTE_MAX)
+  })
+
+  it('una domanda senza risposta da un giorno si chiude e l’autopilota lo sa; il testo ha il perché e le conseguenze', async () => {
+    zitto()
+    let avanti = 0
+    const base = orologioDa('2026-10-30T08:00:00.000Z')
+    const adesso = (): string => new Date(base.ms() + avanti).toISOString()
+    await avviaServizio([ap({ chats: [] })], { adesso, raccoltaEventiMs: 5 })
+    migra()
+    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la barra' })
+    await attendi(() => processi.length > 0, { cosa: 'processo' })
+    const p0 = processi[0]!
+    p0.emetti({ type: 'result', result: 'Ok.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    const cfg = JSON.parse(readFileSync(p0.args[p0.args.indexOf('--mcp-config') + 1]!, 'utf8')) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
+    await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.mcpServers.sierradeck.headers.Authorization },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'chiedi_utente', arguments: { domanda: 'Pubblico la nuova versione adesso?', perche: 'le correzioni sono pronte', scelte: ['Sì → la pubblico ora', 'No → aspetto domani'] } } })
+    })
+    const autopilota = orch.impostazioni('Lavoro').autopilota!
+    const d = domande.aperte(autopilota)[0]!
+    expect(d.testo).toContain('Perché gli serve: le correzioni sono pronte')
+    expect(d.testo).toContain('• Sì (consigliata) → la pubblico ora')
+    expect(d.testo).not.toContain('coordino gli specialisti')
+    server!.controllaChatFerme()
+    expect(domande.aperte(autopilota)).toHaveLength(1)
+    avanti += DOMANDA_VECCHIA_MS + 60_000
+    server!.controllaChatFerme()
+    expect(domande.aperte(autopilota)).toHaveLength(0)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('domanda scaduta')), { cosa: 'evento della domanda scaduta' })
   })
 })

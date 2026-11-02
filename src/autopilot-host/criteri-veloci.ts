@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Criterio } from '@shared/autopilota'
 import type { EsitoVerifica } from './verifiche'
@@ -42,9 +42,34 @@ export function guardaFuori(comando: string): boolean {
   return /\bgh\s|\bcurl\b|\bwget\b|https?:\/\/|\bgit\s+(fetch|ls-remote|pull|push)\b|\bnpm\s+view\b|\bInvoke-WebRequest\b|\bping\b/i.test(comando)
 }
 
-/** Comandi lunghi: suite intere, build Android, ecc. */
-export function ePesante(comando: string): boolean {
-  return /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b|\belectron-builder\b/i.test(comando)
+/**
+ * Comandi lunghi: suite intere, build Android, ecc.
+ *
+ * 0.89.4: con la cartella, `npm test` è pesante solo se lo è il suo script.
+ * Nella prova dal vero del 02/11 un `npm test` che lanciava `node test.js`
+ * (mezzo secondo) metteva in fila per minuti gli specialisti degli altri
+ * progetti e i criteri.
+ */
+export function ePesante(comando: string, cwd?: string): boolean {
+  if (!PESANTE.test(comando)) return false
+  if (cwd === undefined || /(?:^|[\s;&|(])(cd|pushd|Set-Location)\s/i.test(comando)) return true
+  // Ogni pezzo di `a && b; c` per conto suo: pesante se lo è uno.
+  return comando.split(/&&|\|\||;/u).some((pezzo) => PESANTE.test(pezzo) && !npmTestLeggero(pezzo, cwd))
+}
+
+const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b|\belectron-builder\b/i
+
+/** Gli script di test che girano una suite vera, o ne lanciano un altro: pesanti. */
+const SCRIPT_PESANTE = /vitest|jest|mocha|playwright|cypress|karma|\bava\b|gradle|\btsc\b|electron|webpack|\bvite\b|turbo|\bnx\b|lerna|\bnpm\s|\bnpx\s|pnpm|yarn|react-scripts|\bng\s|pytest|cargo|dotnet|mvn|jasmine|\btap\b/i
+
+/** `npm test` da solo (senza `cd`, senza altri comandi) con uno script leggero, come `node test.js`. */
+function npmTestLeggero(comando: string, cwd: string): boolean {
+  if (!/^npm\s+(run\s+)?(test|t)\b[^;&|]*$/i.test(comando.trim())) return false
+  try {
+    const p = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8')) as { scripts?: Record<string, unknown> }
+    const s = p.scripts?.test
+    return typeof s === 'string' && s.trim() !== '' && !SCRIPT_PESANTE.test(s)
+  } catch { return false }
 }
 
 /**

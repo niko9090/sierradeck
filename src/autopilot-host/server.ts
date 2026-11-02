@@ -125,6 +125,8 @@ export type Dipendenze = {
   raccoltaEventiMs?: number
   /** Per le prove: dopo quanto si spegne un orchestratore a riposo (poi riparte con --resume). */
   inattivoOrchestratoreMs?: number
+  /** Per i test di `unisci` chiamato a mano: `false` spegne l'unione da sola alla fine di uno specialista (0.89.4). */
+  unioneDaSola?: boolean
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
 }
@@ -1215,6 +1217,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
+    ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
     spostaNelRecupero: (cartella, motivo) => {

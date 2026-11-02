@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.4',
+    righe: [
+      '**L’autopilota porta a termine:** se c’è lavoro pronto e nessuno ci lavora, il programma lo risveglia dopo pochi minuti e gli dice cosa ripartire. Quando uno specialista finisce, il suo lavoro si unisce e si misura da solo, senza aspettare l’autopilota; anche le analisi in sola lettura si chiudono.',
+      '**Niente più chat in fila per minuti:** un test veloce (come `node test.js`) non è più trattato da comando pesante, e il turno dei comandi pesanti si libera appena il comando finisce. Nella prova dal vero un lavoro da 6 minuti ne ha presi 1 e mezzo.',
+      '**Domande fatte meglio:** dicono perché serve la tua decisione e cosa succede con ogni scelta, in parole semplici; non ti chiedono mai di lanciare comandi. Una domanda senza risposta da un giorno si chiude, e l’autopilota decide con la scelta consigliata se non è rischiosa.',
+      '**Il rapporto sui PC non si ripete:** lo stesso rapporto (NB-PROBOOK spento) non arriva più ogni 6 ore solo perché i PC hanno risposto in un altro ordine.',
+      '**Workspace di un altro PC:** si aprono anche con le chat accese là in sottofondo; se là non c’è niente da guardare, te lo dice invece di aprirti un workspace vuoto.',
+    ]
+  },
+  {
     versione: '0.89.3',
     righe: [
       '**Gli specialisti partono anche nei progetti senza git:** lì ne lavora uno alla volta, ma il programma contava come «già al lavoro» proprio lo specialista che stava per partire, e lo rifiutava sempre. Ora conta solo quelli davvero al lavoro, e uno rifiutato non tiene occupato il posto. Non serve più chiudere e riaprire SierraDeck.',

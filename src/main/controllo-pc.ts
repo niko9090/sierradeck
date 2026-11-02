@@ -69,9 +69,14 @@ function unisci(c: readonly Criticita[]): Criticita[] {
   return [...per.values()]
 }
 
-/** L'impronta dell'insieme (senza i dettagli, che cambiano a ogni giro: orari, conteggi). */
+/**
+ * L'impronta dell'insieme (senza i dettagli, che cambiano a ogni giro: orari, conteggi).
+ * 0.89.4: i PC di una riga in ordine. Arrivano nell'ordine in cui rispondono, e
+ * «DESKTOP, LAPTOP» dopo «LAPTOP, DESKTOP» faceva riaffidare ogni 6 ore lo stesso
+ * rapporto su NB-PROBOOK (31/10-01/11, quattro volte).
+ */
 export function firmaCriticita(c: readonly Criticita[]): string {
-  return createHash('sha256').update(c.map((x) => `${x.pc}|${x.cosa}`).sort().join('\n')).digest('hex').slice(0, 16)
+  return createHash('sha256').update(c.map((x) => `${x.pc.split(', ').sort().join(', ')}|${x.cosa}`).sort().join('\n')).digest('hex').slice(0, 16)
 }
 
 export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]; criticita: readonly Criticita[] }): string {

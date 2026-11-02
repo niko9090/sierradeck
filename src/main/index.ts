@@ -2855,7 +2855,15 @@ if (!app.requestSingleInstanceLock()) {
         } catch (err) {
           return { ok: false, messaggio: `${pcNome} non risponde (${err instanceof Error ? err.message : String(err)}): riprova quando è acceso.` }
         }
-        const ws = workspaceDaAltroPc(nome, { id: pcId, nome: pcNome }, chat)
+        // Le salvate e quelle accese là (2/11): in sottofondo e degli autopiloti non hanno un riquadro salvato.
+        const ws = workspaceDaAltroPc(nome, { id: pcId, nome: pcNome }, [...chat, ...(aperteLa as (ChatSuPc & { workspace?: string })[])])
+        // Senza chat là non c'è niente da guardare dal vivo: un workspace vuoto
+        // qui sembrava aperto e invece era uno nuovo di questo PC (2/11, Nicholas:
+        // «tutto vuoto, il remoto non funziona»). Si dice e non si crea niente.
+        if (ws.panes.length === 0) {
+          registro.info(`[workspace] «${nome}» di ${pcNome}: là non ha chat, non lo apro qui (sarebbe un workspace vuoto di questo PC)`)
+          return { ok: false, messaggio: `«${nome}» su ${pcNome} non ha chat da guardare dal vivo: aprilo su ${pcNome}, o portalo qui con «Sposta su questo PC» in Progetti.` }
+        }
         const prima = store.leggi()
         let dopo = aggiungiWorkspace(prima, nome)
         dopo = { ...dopo, workspace: dopo.workspace.map((w) => {

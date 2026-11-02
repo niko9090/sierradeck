@@ -95,6 +95,16 @@ describe('strumenti dell’orchestratore', () => {
     expect(troppe?.testo).toMatch(/ultima ora/)
   })
 
+  it('chiedi_utente (0.89.4): niente comandi da lanciare a mano; il perché arriva a chi apre la domanda', async () => {
+    const perche: (string | undefined)[] = []
+    const a = ambiente({ chiedi: (_ws, _d, _s, p) => { perche.push(p); return { ok: true, testo: 'aperta' } } })
+    const git = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', { domanda: 'Come procediamo?', perche: 'il ramo non si unisce', scelte: ['Fai tu git checkout dei 3 file', 'Lascia stare'] })
+    expect(git?.errore).toBe(true)
+    expect(git?.testo).toMatch(/lavoro tecnico lo fa uno specialista/)
+    expect((await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', { domanda: 'Pubblico adesso la nuova versione?', perche: 'le correzioni sono pronte e provate', scelte: ['Sì → la pubblico ora', 'Domani'] }))?.errore).toBe(false)
+    expect(perche).toEqual(['le correzioni sono pronte e provate'])
+  })
+
   it('permesso: la risposta è il JSON che la CLI si aspetta', async () => {
     const a = ambiente()
     const si = await chiamaStrumento(a, 'Lavoro', 'permesso', { tool_name: 'WebFetch', input: { url: 'https://example.com' } })

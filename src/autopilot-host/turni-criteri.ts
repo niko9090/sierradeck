@@ -225,7 +225,7 @@ export const TURNI_PC: TurniCriteri = creaTurni()
 export function conTurni(esegui: Esecutore, turni: TurniCriteri = TURNI_PC, guardia?: GuardiaPc): Esecutore {
   return async (comando, cwd, timeoutMs) => {
     const lancia = (): ReturnType<Esecutore> => (timeoutMs !== undefined ? esegui(comando, cwd, timeoutMs) : esegui(comando, cwd))
-    if (!ePesante(comando)) return lancia()
+    if (!ePesante(comando, cwd)) return lancia()
     if (guardia !== undefined) await guardia.attendi(`«${comando.slice(0, 80)}»`)
     const s = turni.stato()
     const davanti = s.inFila + (s.inCorso !== undefined ? 1 : 0)

@@ -118,7 +118,7 @@ export type AmbienteOrchestratore = {
   /** Una richiesta di permesso della CLI: si risolve con la risposta di Nicholas (o con un no allo scadere). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
-  chiedi: (ws: string, domanda: string, scelte: string[]) => EsitoAmbiente
+  chiedi: (ws: string, domanda: string, scelte: string[], perche?: string) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
   domandeUltimaOra: (ws: string) => number
   annota: (ws: string, testo: string, tag: string) => EsitoAmbiente
@@ -222,14 +222,15 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'chiedi_utente',
     title: 'Chiedi a Nicholas',
-    description: 'Una domanda a Nicholas, solo quando serve davvero una sua decisione (non per cose che puoi leggere nel codice). Compare nelle Domande di SierraDeck e su Telegram. Al più poche all’ora; una domanda uguale a una aperta o già risposta si rifiuta. La risposta ti arriva come messaggio.',
+    description: 'Una domanda a Nicholas, solo quando serve davvero una sua decisione (cosa vuole, quando pubblicare, un rischio da accettare), non per cose che puoi leggere nel codice. Scrivila in parole semplici, come a chi non legge il codice: niente comandi, nomi di file, rami o sigle (k-N, r-N). Non chiedergli mai di fare a mano un lavoro tecnico (git, comandi, file): quello lo fa uno specialista. Compare nelle Domande di SierraDeck e su Telegram. Al più poche all’ora; una domanda uguale a una aperta o già risposta si rifiuta. La risposta ti arriva come messaggio.',
     inputSchema: {
       type: 'object',
       properties: {
-        domanda: { type: 'string' },
-        scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima.' }
+        domanda: { type: 'string', description: 'Una domanda sola, breve.' },
+        perche: { type: 'string', description: 'Una frase: perché serve la sua decisione e cosa cambia, in parole semplici.' },
+        scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima. Ognuna «scelta → cosa succede dopo».' }
       },
-      required: ['domanda']
+      required: ['domanda', 'perche']
     }
   },
   {
@@ -364,9 +365,14 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (domanda.length > 2000) return no('domanda troppo lunga (al più 2000 caratteri): falla più corta')
       const scelte = Array.isArray(arg.scelte) ? arg.scelte.filter((x): x is string => typeof x === 'string').map((x) => x.trim()).filter((x) => x !== '') : []
       if (scelte.length === 1 || scelte.length > 4) return no('le scelte sono da 2 a 4 (o nessuna, per una risposta libera)')
+      const perche = str(arg.perche).replace(/\s+/gu, ' ')
+      // 0.89.4 (02/11, «domande fatte male»): a Nicholas non si chiede di fare il lavoro tecnico.
+      if (/\bgit\s+(checkout|reset|merge|stash|commit|push|pull|rebase|restore|clean)\b|\bnpm\s+(run|install|ci)\b|\bnpx\s/iu.test(`${domanda} ${scelte.join(' ')}`)) {
+        return no('non chiedere a Nicholas di lanciare comandi: il lavoro tecnico lo fa uno specialista (o il programma). Chiedigli solo la decisione, in parole semplici')
+      }
       const n = amb.domandeUltimaOra(ws)
       if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
-      const e = amb.chiedi(ws, domanda, scelte)
+      const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 

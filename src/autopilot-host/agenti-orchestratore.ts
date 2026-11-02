@@ -114,6 +114,13 @@ export function fileImpostazioniCli(porta: number, autopilotaId: string): string
         // Anche le scritture e gli Agent: la guardia dell'unico (`guardia-orchestratore.ts`).
         matcher: MATCHER_GUARDIA,
         hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${encodeURIComponent(autopilotaId)}`, timeout: 30 }]
+      }],
+      // 0.89.4: la fine di un comando di shell rende il turno dei pesanti. Senza,
+      // un `npm test` di mezzo secondo lo teneva 2 minuti e 15: gli altri
+      // specialisti e i criteri del PC aspettavano in fila (prova dal vero del 02/11).
+      PostToolUse: [{
+        matcher: 'Bash|PowerShell',
+        hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/rapporto?ap=${encodeURIComponent(autopilotaId)}`, timeout: 10 }]
       }]
     }
   }, null, 2)

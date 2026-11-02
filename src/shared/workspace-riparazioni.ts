@@ -176,10 +176,18 @@ export function workspaceDaCreare(progetti: ProgettoPerWorkspace[], qui: Archivi
  * Un workspace di un altro PC aperto qui (0.67.0, «Su altri PC» → «Apri»): lo
  * stesso nome, e un riquadro dal vivo verso quel PC per ogni sua chat. Le chat
  * restano là: qui si guardano e si comandano, e partono in sottofondo là.
+ *
+ * `chat` sono le chat salvate nei suoi workspace **e** quelle accese là
+ * (`/api/stato` → `chat`, 2/11): una chat in sottofondo, o quella di un
+ * autopilota, gira nel workspace senza un riquadro salvato. Contando solo le
+ * salvate, un workspace che là lavorava si apriva qui vuoto. Una conversazione
+ * una volta sola: prima la salvata.
  */
-export function workspaceDaAltroPc(nome: string, pc: { id: string; nome: string }, chat: { workspace: string; sessione?: string; cwd: string; titolo: string }[]): { nome: string; panes: PaneSalvato[] } {
+export function workspaceDaAltroPc(nome: string, pc: { id: string; nome: string }, chat: { workspace?: string; sessione?: string; cwd: string; titolo: string }[]): { nome: string; panes: PaneSalvato[] } {
+  const viste = new Set<string>()
   const panes = chat
     .filter((c) => c.workspace === nome && c.sessione !== undefined && c.sessione !== '' && !eSessioneInterna(c, new Set()))
+    .filter((c) => { if (viste.has(c.sessione as string)) return false; viste.add(c.sessione as string); return true })
     .map((c): PaneSalvato => ({
       id: `pane-${c.sessione as string}`, sessionUuid: c.sessione as string, cwd: c.cwd, title: c.titolo,
       remoto: { pcId: pc.id, pcNome: pc.nome, cwd: c.cwd, sessione: c.sessione as string }

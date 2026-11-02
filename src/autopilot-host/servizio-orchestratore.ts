@@ -42,6 +42,15 @@ import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
+import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
+
+/** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
+export const FERMO_DOPO_MS = 3 * 60_000
+export const SPINTE_MAX = 2
+/** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
+export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
+/** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. */
+const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore'])
 
 /**
  * **L'autopilota unico dentro il servizio** (P3): lega l'orchestratore (un
@@ -101,6 +110,8 @@ export type ContestoUnico = {
   raccoltaEventiMs?: number
   chiamateMax?: number
   inattivoMs?: number
+  /** `false` (solo i test di `unisci` a mano): lo specialista finito non si unisce da solo. */
+  unioneDaSola?: boolean
   /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
   attesaPermessoMs?: number
   /** 31/10: gli autopiloti già archiviati come doppioni (non si riguardano, non rinascono). Assente: nessuno. */
@@ -320,6 +331,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const silenzioDetto = new Map<string, number>()
   const notificheDette = new Map<string, number>()
   const cancelliInCorso = new Set<string>()
+  /** 0.89.4: il lavoro fermo visto per workspace (firma, da quando, spinte date per quella firma). */
+  const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
   /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
   const permessiInAttesa = new Map<string, number>()
   const memoriaCriteri: MemoriaCriteri = new Map()
@@ -331,7 +344,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
    * cartella di Obsidian) gli specialisti lavorano nella cartella, uno alla
    * volta, e `unisci` misura il criterio senza unire rami. Si riguarda ogni minuto.
    */
-  const NOTA_SENZA_GIT = 'Il progetto NON è un repository git: gli specialisti lavorano direttamente nella cartella del progetto, uno alla volta (lanciane uno e aspetta che finisca). Quando ha finito, unisci non unisce rami: misura il criterio del compito nella cartella e lo chiude. Non chiedere a Nicholas di creare un repository per questo.'
+  const NOTA_SENZA_GIT = 'Il progetto NON è un repository git: gli specialisti lavorano direttamente nella cartella del progetto, uno alla volta (lanciane uno e aspetta che finisca). Quando ha finito, il programma misura da solo il criterio del compito nella cartella e lo chiude (niente rami da unire); poi lancia il compito dopo. Non chiedere a Nicholas di creare un repository per questo.'
   const gitVisto = new Map<string, { si: boolean; il: number }>()
   const conGit = (cwd: string): boolean => {
     if (x.git === undefined) return true
@@ -495,8 +508,11 @@ ${NOTA_SENZA_GIT}`,
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
-          ? { ...c, stato: 'in-revisione', esito: `${s.ruolo} ha finito: da unire con unisci` }
+          ? { ...c, stato: 'in-revisione', esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
           : { ...c, stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
+        // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
+        // unisci, e se non lo faceva il compito restava «finito» per sempre.
+        if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
       }
       if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `${s.ruolo} ${s.stato === 'finito' ? 'ha finito' : s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${durata(s, Date.parse(x.adesso()))}: ${s.descrizione.slice(0, 120)}`); x.salva(dopo) }
       ricalcola(ws, `${s.compito ?? s.ruolo} ${s.stato}`)
@@ -551,6 +567,20 @@ ${NOTA_SENZA_GIT}`,
     return {}
   }
 
+  /**
+   * Una unione per compito alla volta (0.89.4): quella automatica, alla fine di
+   * uno specialista, e quella chiesta dall'autopilota non partono insieme.
+   * Torna `false` se ce n'era già una in corso.
+   */
+  const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): boolean => {
+    const chi = p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''
+    const k = `${ws}|${chi}`
+    if (cancelliInCorso.has(k)) return false
+    cancelliInCorso.add(k)
+    void cancello(ws, p).finally(() => { cancelliInCorso.delete(k) })
+    return true
+  }
+  const unioniIn = (ws: string): number => [...cancelliInCorso].filter((k) => k.startsWith(`${ws}|`)).length
   const cancello = async (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): Promise<void> => {
     const chi = p.specialista ?? p.compito ?? p.ramo ?? '?'
     const testo = await cancelloOra(ws, p).catch((err: unknown) => `${chi}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`)
@@ -569,11 +599,14 @@ ${NOTA_SENZA_GIT}`,
     // Senza git il lavoro è già nella cartella del progetto: niente rami da
     // unire, il cancello è solo il criterio, misurato lì.
     const senzaGit = !conGit(a.cwd)
-    if (!senzaGit && (g === undefined || a.ramoBase === undefined)) return 'senza ramo principale non si può unire'
-    if (senzaGit && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
+    // 0.89.4: l'esploratore e il revisore non scrivono: niente ramo da unire,
+    // vale il criterio. Prima la loro analisi restava «da unire» per sempre (k-10).
+    const soloLettura = sub !== undefined && p.ramo === undefined && RUOLI_SOLA_LETTURA.has(sub.ruolo)
+    if (!senzaGit && !soloLettura && (g === undefined || a.ramoBase === undefined)) return 'senza ramo principale non si può unire'
+    if ((senzaGit || soloLettura) && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
     let ramo = p.ramo ?? chat?.ramo
     let cartella = chat?.cartella
-    if (!senzaGit && g !== undefined && a.ramoBase !== undefined) {
+    if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
       const tutti = subagenti(ws)
@@ -664,18 +697,24 @@ ${NOTA_SENZA_GIT}`,
       if (chat !== undefined) x.avanzaFinite()
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
-    return `${nome}: ramo ${ramo} unito nel principale. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta in revisione: affida la correzione a uno specialista.'}`
+    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
+    return `${compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti
 
   const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string): ReturnType<RegistroDomande['apri']> => {
+    // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
+    const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
     const pronta = domandaControllataSubito(a.nome, {
-      staFacendo: 'coordino gli specialisti del workspace',
+      staFacendo: inLavoro.length > 0 ? `lavora a: ${inLavoro.slice(0, 2).map((t) => `«${t.slice(0, 80)}»`).join(', ')}${inLavoro.length > 2 ? ` e altre ${inLavoro.length - 2}` : ''}` : 'aspetta la tua decisione per andare avanti',
       domanda,
       perche,
-      scelte: scelte.map((s, i) => ({ scelta: s, conseguenza: '', ...(i === 0 ? { consigliata: true } : {}) })),
-      seNonRispondi: 'aspetto la tua risposta e intanto porto avanti il resto'
+      scelte: scelte.map((s, i) => {
+        const [scelta, conseguenza] = s.split(/\s*(?:→|->)\s*/u, 2)
+        return { scelta: (scelta ?? s).trim(), conseguenza: (conseguenza ?? '').trim(), ...(i === 0 ? { consigliata: true } : {}) }
+      }),
+      seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
     })
     const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
     x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda })
@@ -693,11 +732,11 @@ ${NOTA_SENZA_GIT}`,
     unico: unicoDi,
     specialisti: subagenti,
     unisci(ws, p) {
-      const k = `${ws}|${p.compito ?? ''}|${p.specialista ?? ''}|${p.ramo ?? ''}`
-      if (cancelliInCorso.has(k)) return { ok: false, motivo: 'questa unione è già in corso: l’esito arriva come evento' }
-      cancelliInCorso.add(k)
-      void cancello(ws, p).finally(() => { cancelliInCorso.delete(k) })
-      return { ok: true, testo: 'Unione avviata: ramo, prova nel principale, unione, criterio. L’esito ti arriva come evento.' }
+      const k = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === p.compito) : undefined
+      if (k !== undefined && k.stato === 'unito' && k.criterioVerde === true && p.ramo === undefined) return { ok: true, testo: `${k.id} è già unito con il criterio verde: non c’è altro da unire.` }
+      return avviaUnione(ws, p)
+        ? { ok: true, testo: 'Unione avviata: ramo, prova nel principale, unione, criterio. L’esito ti arriva come evento.' }
+        : { ok: false, motivo: 'questa unione è già in corso (il programma unisce da solo il lavoro di chi finisce): l’esito arriva come evento' }
     },
     async permesso(ws, strumento, input) {
       const a = unicoDi(ws)
@@ -714,7 +753,7 @@ ${NOTA_SENZA_GIT}`,
       }
       return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
     },
-    chiedi(ws, domanda, scelte) {
+    chiedi(ws, domanda, scelte, perche) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
       const aperte = x.domande.aperte(a.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo }))
@@ -723,7 +762,7 @@ ${NOTA_SENZA_GIT}`,
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const d = apriDomanda(a, ws, domanda, scelte, 'è una decisione tua')
+      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te')
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
     },
     domandeUltimaOra(ws) {
@@ -883,9 +922,53 @@ ${NOTA_SENZA_GIT}`,
     return true
   }
 
+  /**
+   * Ogni minuto (0.89.4): il lavoro fermo. Nessun turno in corso, nessuno
+   * specialista né unione al lavoro, e nel piano qualcosa che potrebbe muoversi
+   * da `FERMO_DOPO_MS`: l'autopilota riceve un evento che dice cosa. Al più
+   * `SPINTE_MAX` volte per lo stesso stato: se non cambia niente, smette.
+   */
+  const spingiFermi = (ora: number): void => {
+    for (const a of unici()) {
+      const ws = wsDi(a)
+      const attesa = orchestratore.inAttesa(ws)
+      const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
+        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0 || (permessiInAttesa.get(ws) ?? 0) > 0
+      const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
+      const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi })
+      if (f === undefined) { fermiVisti.delete(ws); continue }
+      const visto = fermiVisti.get(ws)
+      if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, spinte: 0 }); continue }
+      if (ora - visto.dal < FERMO_DOPO_MS * (visto.spinte + 1) || visto.spinte >= SPINTE_MAX) continue
+      visto.spinte += 1
+      const minuti = Math.round((ora - visto.dal) / 60_000)
+      console.info(`[orchestratore] ${ws} — lavoro fermo da ${minuti} minuti: lo sveglio (${visto.spinte}/${SPINTE_MAX})`)
+      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: testoLavoroFermo(f, minuti, x.domande.aperte(a.id).length) })
+    }
+  }
+
+  /**
+   * 0.89.4: una domanda dell'autopilota senza risposta da un giorno è superata
+   * (sul PC di sviluppo ce n'era una del 31/10 sulla 0.88.6, ancora aperta il
+   * 02/11). Si chiude, e l'autopilota decide con la consigliata o la rifà.
+   */
+  const chiudiDomandeVecchie = (ora: number): void => {
+    for (const a of unici()) {
+      for (const d of x.domande.aperte(a.id)) {
+        if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
+        if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
+        const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)
+        console.info(`[orchestratore] ${wsDi(a)} — domanda senza risposta da un giorno, chiusa: ${testo.slice(0, 120)}`)
+        evento(wsDi(a), { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `La tua domanda «${testo}» è rimasta senza risposta per un giorno: l’ho chiusa. Se serve ancora, vai avanti con la scelta consigliata quando non è rischiosa (e dillo), altrimenti rifalla aggiornata con chiedi_utente.` })
+      }
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
+    try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
+    try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue

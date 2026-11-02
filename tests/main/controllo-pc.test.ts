@@ -33,6 +33,9 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     const a = [{ pc: 'X', cosa: 'non risponde', dettaglio: 'da 5 min' }]
     expect(firmaCriticita(a)).toBe(firmaCriticita([{ pc: 'X', cosa: 'non risponde', dettaglio: 'da 50 min' }]))
     expect(firmaCriticita(a)).not.toBe(firmaCriticita([...a, { pc: 'Y', cosa: 'non risponde', dettaglio: '' }]))
+    // 0.89.4: gli stessi PC in un altro ordine (rispondono come capita) sono la stessa criticità.
+    const nb = (pc: string): Parameters<typeof firmaCriticita>[0] => [{ pc, cosa: 'attenzione · NB-PROBOOK-TEC · non so se è acceso', dettaglio: '' }]
+    expect(firmaCriticita(nb('PC-Fisso, DESKTOP-G24D499, LAPTOP-E60QM2D1'))).toBe(firmaCriticita(nb('PC-Fisso, LAPTOP-E60QM2D1, DESKTOP-G24D499')))
   })
 
   it('il giro: rapporto e affido la prima volta; le stesse criticità non si riaffidano', async () => {

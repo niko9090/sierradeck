@@ -339,9 +339,9 @@ export function eTscIntero(comando: string): boolean {
  * più `tsc` sull'intero progetto. Non i test di un file solo
  * (`vitest run tests/x.test.ts`): sono la cosa giusta da fare mentre si aspetta.
  */
-export function ePesantePerLaChat(comando: string): boolean {
+export function ePesantePerLaChat(comando: string, cwd?: string): boolean {
   if (eTscIntero(comando)) return true
-  if (!ePesante(comando)) return false
+  if (!ePesante(comando, cwd)) return false
   const unFile = /\bvitest\b|\bnpm\s+(run\s+)?test\b|\bjest\b|\bpytest\b/i.test(comando) && /[\w/\\.-]+\.(test|spec)\.[cm]?[jt]sx?\b|[\w/\\.-]+_test\.py\b|test_[\w-]+\.py\b/i.test(comando)
   return !unFile
 }
@@ -410,7 +410,7 @@ export function giudicaPesanteDellaChat(
   const tenuto = turni.prenotato()
   if (tenuto !== undefined && tenuto.chi === o.chi && !tenuto.inSottofondo && ora - tenuto.dal >= RENDI_DOPO_MS) turni.rilascia(o.chi)
   const { comando, input } = comandoDi(r)
-  if (comando === '' || !ePesantePerLaChat(comando)) return { ok: true }
+  if (comando === '' || !ePesantePerLaChat(comando, o.cwd)) return { ok: true }
   const carico = giudicaPesanteConPcCarico(r, o.guardia?.stato())
   if (!carico.ok) return carico
   const giaMio = turni.prenotato()?.chi === o.chi

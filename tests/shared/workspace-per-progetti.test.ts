@@ -48,6 +48,19 @@ describe('«Su altri PC» → «Apri»', () => {
     ])
     expect(w.panes).toEqual([{ id: 'pane-s1', sessionUuid: 's1', cwd: 'E:\\Progetti\\fionda', title: 'Fionda: app', remoto: { pcId: 'pc-desk', pcNome: 'DESK-ESEMPIO', cwd: 'E:\\Progetti\\fionda', sessione: 's1' } }])
   })
+  it('anche le chat accese là senza riquadro salvato (sottofondo, autopilota), una volta sola (2/11: si apriva vuoto)', () => {
+    const salvate = [{ workspace: 'Trading', sessione: 's1', cwd: 'C:\\Trading', titolo: 'Trading' }]
+    // Come arrivano da `/api/stato` → `chat`: con `id` e senza un riquadro nel workspace salvato.
+    const accese = [
+      { id: 'sf-1', workspace: 'Trading', sessione: 's1', cwd: 'C:\\Trading', titolo: 'Trading' },
+      { id: 'sf-2', workspace: 'Trading', sessione: 's2', cwd: 'C:\\Trading.sierradeck-wt\\ap-1', titolo: 'Controllo resa', aspetta: true },
+      { id: 'sf-3', sessione: 's3', cwd: 'C:\\x', titolo: 'senza workspace' }
+    ]
+    expect(workspaceDaAltroPc('Trading', { id: 'pc-lap', nome: 'LAPTOP' }, [...salvate, ...accese]).panes.map((p) => p.sessionUuid)).toEqual(['s1', 's2'])
+    expect(workspaceDaAltroPc('Trading', { id: 'pc-lap', nome: 'LAPTOP' }, accese.slice(1)).panes).toEqual([
+      { id: 'pane-s2', sessionUuid: 's2', cwd: 'C:\\Trading.sierradeck-wt\\ap-1', title: 'Controllo resa', remoto: { pcId: 'pc-lap', pcNome: 'LAPTOP', cwd: 'C:\\Trading.sierradeck-wt\\ap-1', sessione: 's2' } }
+    ])
+  })
 })
 
 describe('le chat di un progetto nel pannello, e come si aprono', () => {
