@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.5',
+    righe: [
+      '**Niente più lavoro fermo per un permesso:** scrivere file (anche in una copia del progetto fuori dalla sua cartella) e leggere il web li permette il programma da solo, senza chiederti «lo permetto?». Restano domande solo i posti delicati: sistema, chiavi, impostazioni.',
+      '**L’autopilota rilancia da solo** uno specialista fermato da un permesso, invece di aspettarti.',
+    ]
+  },
+  {
     versione: '0.89.4',
     righe: [
       '**L’autopilota porta a termine:** se c’è lavoro pronto e nessuno ci lavora, il programma lo risveglia dopo pochi minuti e gli dice cosa ripartire. Quando uno specialista finisce, il suo lavoro si unisce e si misura da solo, senza aspettare l’autopilota; anche le analisi in sola lettura si chiudono.',

@@ -43,6 +43,7 @@ import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
 import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
+import { permessoDaSolo } from './permessi-automatici'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -741,6 +742,12 @@ ${NOTA_SENZA_GIT}`,
     async permesso(ws, strumento, input) {
       const a = unicoDi(ws)
       if (a === undefined) return { consenti: false, motivo: 'l’autopilota unico non c’è' }
+      // 0.89.5: scrivere un file o leggere il web non è una domanda per Nicholas (BG4, k-4 fermo al 37%).
+      const da = permessoDaSolo(strumento, input, a.cwd)
+      if (da.concesso) {
+        console.info(`[orchestratore] ${ws} — permesso concesso dal programma: ${strumento}, ${da.perche}`)
+        return { consenti: true }
+      }
       const cosa = JSON.stringify(input).slice(0, 600)
       const d = apriDomanda(a, ws, `Uno specialista chiede il permesso per ${strumento}: ${cosa}. Lo permetto?`, ['Nega', 'Consenti'], 'il programma non lo permette da solo')
       const attesa = x.attesaPermessoMs ?? ATTESA_PERMESSO_MS

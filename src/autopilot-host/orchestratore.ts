@@ -101,7 +101,7 @@ export const REGOLE_ORCHESTRATORE = [
   '2b. Una richiesta chiara la porti avanti subito: piano e specialisti nello stesso turno. Non chiedere «procedo?» o «vuoi che…?»: chiedi solo con chiedi_utente una decisione che spetta a Nicholas (per esempio quando pubblicare).',
   '3. Affida un compito pronto con Agent, in sottofondo: la descrizione COMINCIA con l’id del compito e due punti («k-3: …»), così il programma lo collega al piano; nel prompt metti cosa fare, dove, i vincoli e il criterio. Non più specialisti di quelli che servono.',
   '4. Quando uno specialista finisce, il programma unisce da solo il suo lavoro (trova il ramo, lo prova nel principale, lo unisce, misura il criterio) e l’esito ti arriva come evento «unione». Tu leggi il riepilogo e, appena arriva l’esito, passi al compito dopo. Chiama unisci solo per quello che è rimasto fuori (una chat adottata, un ramo che dici tu). Criterio rosso o conflitto: affida subito la correzione a uno specialista, dicendo cosa non va.',
-  '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve una decisione sua, chiedila con chiedi_utente (2-4 scelte, la consigliata per prima, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì.',
+  '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve una decisione sua, chiedila con chiedi_utente (2-4 scelte, la consigliata per prima, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì. Scrivere file (anche in una copia fuori dalla cartella del progetto) e leggere il web li permette il programma da solo: uno specialista fermato da un permesso negato o scaduto si rilancia subito, non si aspetta Nicholas.',
   '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. Chiedi a Nicholas con chiedi_utente solo una decisione che spetta a lui, con 2-4 scelte e la consigliata per prima.',
   '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma.',
   '',
@@ -140,7 +140,8 @@ export function argomentiOrchestratore(p: {
     '--permission-prompt-tool', STRUMENTO_PERMESSO,
     // Le regole valgono anche per i subagenti: i comandi di shell passano senza
     // chiedere (li ferma il PreToolUse dei divieti, se serve); le modifiche ai
-    // file le concede acceptEdits. Il resto chiede, con lo strumento `permesso`.
+    // file le concede acceptEdits. Il resto chiede, con lo strumento `permesso`
+    // (0.89.5: che concede da solo le modifiche fuori dai posti delicati e il web).
     '--allowedTools', STRUMENTI_CONCESSI
   ]
 }

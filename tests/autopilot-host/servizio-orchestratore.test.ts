@@ -232,14 +232,25 @@ describe('autopilota unico nel servizio', () => {
     const auth = cfg.mcpServers.sierradeck.headers.Authorization
     const chiamata = fetch(url('/mcp/orchestratore?ws=Lavoro'), {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name: 'WebFetch', input: { url: 'https://example.com' } } } })
+      body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name: 'mcp__altro__fai', input: { url: 'https://example.com' } } } })
     })
     await attendi(() => domande.aperte().length === 1)
     const d = domande.aperte()[0]!
-    expect(d.testo).toContain('WebFetch')
+    expect(d.testo).toContain('mcp__altro__fai')
     domande.rispondi(d.id, 'Consenti', 'modale')
     const r = (await (await chiamata).json()) as { result: { content: { text: string }[] } }
     expect(JSON.parse(r.result.content[0]!.text)).toEqual({ behavior: 'allow', updatedInput: { url: 'https://example.com' } })
+
+
+    // 0.89.5: scrivere un file fuori dalla cartella o leggere il web passa senza domanda.
+    for (const [tool_name, input] of [['Write', { file_path: join(process.cwd(), '..', 'copia-k3', 'a.ts'), content: 'x' }], ['WebFetch', { url: 'https://example.com' }]] as const) {
+      const r2 = (await (await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name, input } } })
+      })).json()) as { result: { content: { text: string }[] } }
+      expect(JSON.parse(r2.result.content[0]!.text)).toMatchObject({ behavior: 'allow' })
+    }
+    expect(domande.aperte()).toHaveLength(0)
   })
 
   it('il PreToolUse dell’unico: l’orchestratore non scrive nel principale, lo specialista sì nella sua copia', async () => {
