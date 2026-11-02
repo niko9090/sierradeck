@@ -263,7 +263,7 @@ export type VistaOrchestratore = {
   /** Una chiamata è in volo adesso, o un messaggio la aspetta: la vista dice «sta pensando». */
   pensa: boolean
   /** Gli specialisti: subagenti (con ruolo, attività, stato e durata) e chat adottate. */
-  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true }[]
+  specialisti: { id: string; ruolo?: string; compito: string; stato: string; compitoId?: string; attivita?: string; durata?: string; adottata?: true; fine?: string }[]
   /** Il processo `claude` del workspace è acceso. */
   vivo: boolean
   /** Le ultime righe del registro dal vivo (turni, specialisti, strumenti). */
@@ -372,3 +372,9 @@ export function comandoDelCriterio(criterio: string): string | undefined {
   const m = /`([^`\n]{2,400})`/u.exec(criterio)
   return m?.[1]?.trim() || undefined
 }
+
+/** 0.90.0: una riga della conversazione di uno specialista, da guardare a destra. */
+export type RigaSpecialista = { tipo: 'compito' | 'testo' | 'strumento' | 'esito'; testo: string; quando?: string; errore?: true }
+
+/** 0.90.0: la conversazione di uno specialista (le ultime righe); `trovata: false` se la CLI non l'ha ancora scritta. */
+export type TrascrizioneSpecialista = { id: string; trovata: boolean; righe: RigaSpecialista[] }

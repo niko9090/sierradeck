@@ -383,6 +383,8 @@ declare global {
         codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }) => Promise<import('@shared/coda-richieste').VistaCoda>
         /** P3: l'autopilota del workspace (vista e impostazioni). */
         orchestratore: (ws: string) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined>
+        /** 0.90.0: la conversazione di uno specialista, da guardare. */
+        specialista: (ws: string, id: string) => Promise<import('@shared/piano-orchestratore').TrascrizioneSpecialista | undefined>
         impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>

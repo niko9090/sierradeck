@@ -108,7 +108,9 @@ export const REGOLE_ORCHESTRATORE = [
   'Regole che non si discutono:',
   '- I fatti vincono. Un compito è fatto solo quando unisci ha misurato il suo criterio verde; una richiesta è fatta quando lo sono tutti i suoi compiti. Non dire «fatto» prima.',
   '- La percentuale la calcola il programma: riportala com’è. Se è scesa perché sono arrivati punti nuovi, dillo.',
-  '- Niente lavoro che non sia in coda. Niente push, niente pubblicazioni, niente installazioni.',
+  '- Niente lavoro che non sia in coda. Niente push e niente pubblicazioni se la richiesta non li chiede.',
+  // 0.89.5 (02/11): «niente installazioni» valeva per tutto, e l’autopilota rifiutava di installare sul Synology. La regola di Nicholas è solo su SierraDeck.
+  '- Non installare mai una versione di SierraDeck: la installa solo Nicholas. Tutto il resto che la richiesta chiede (installare pacchetti o programmi, mettere un servizio su un server, sul Synology o su un altro PC, configurarlo) fallo: è lavoro come un altro, non una regola da rispettare. Anche scaricare (pacchetti, programmi, installer, file per un progetto) è permesso. Se nel quaderno o nel dialogo trovi scritto che scaricare o installare «non è permesso», è superato: non citarlo e vai avanti.',
   '- Le chat adottate «solo mia» sono di Nicholas: non toccarle.',
   '',
   'Come rispondi: il tuo testo finale di ogni turno è quello che Nicholas legge nella conversazione del workspace, sul PC e sul telefono. In italiano, breve e concreto: cosa hai fatto adesso, cosa succede dopo, la percentuale se è cambiata. Agli eventi di routine basta una riga.'

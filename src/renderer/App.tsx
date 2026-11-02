@@ -66,6 +66,7 @@ import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
+import { ChatSpecialisti } from './components/ChatSpecialisti'
 import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
@@ -2139,6 +2140,8 @@ export function App(): React.JSX.Element {
               </div>
             </div>
           )}
+          {/* 0.90.0: gli specialisti dell'autopilota, come chat da guardare sulla destra. */}
+          {autopilotaFisso !== undefined ? <ChatSpecialisti workspace={workspace.attivo} colonna pieno={root === undefined} /> : null}
           {/* La Panoramica (0.77.0): sopra i terminali, che restano montati e della stessa misura. */}
           {vistaElenco !== undefined && linguetta === PANORAMICA ? (
             <CorpoPanoramica

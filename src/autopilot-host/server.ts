@@ -878,6 +878,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().vista(ws))
             return
           }
+          // 0.90.0: la conversazione di uno specialista, per la colonna a destra.
+          if (metodo === 'GET' && percorso === '/orchestratore/specialista') {
+            const ws = url.searchParams.get('ws')?.trim() ?? ''
+            const id = url.searchParams.get('id')?.trim() ?? ''
+            if (ws === '' || id === '') { rispondi(res, 400, { errore: 'servono il workspace (?ws=) e lo specialista (&id=)' }); return }
+            rispondi(res, 200, servizio().trascrizione(ws, id))
+            return
+          }
           if (metodo === 'POST' && percorso === '/orchestratore/impostazioni') {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const ws = testoDi(corpo?.ws).trim()

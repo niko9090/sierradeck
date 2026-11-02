@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.90.0',
+    righe: [
+      '**Le chat degli specialisti si vedono:** ogni specialista al lavoro compare come una chat sulla destra (e nella Panoramica) che mostra dal vivo cosa fa: le sue parole, i comandi, gli esiti. È da guardare: la guida l’autopilota. Quando finisce resta in vista ancora qualche minuto, poi si toglie.',
+      '**Il lavoro scritto fuori dal progetto si chiude:** se uno specialista scrive in un’altra cartella (come la copia del pannello di BG4), il compito non resta più al 90% con una domanda tecnica: il programma misura il suo criterio e, se è verde, lo chiude.',
+      '**Installare non è più vietato a tutto:** l’autopilota rifiutava di installare sul Synology per una regola che vale solo per SierraDeck. Ora installa pacchetti, programmi e servizi su server, Synology o altri PC quando la richiesta lo chiede; SierraDeck lo installi sempre solo tu.',
+      '**Niente più lavoro fermo per un permesso:** scrivere file (anche fuori dalla cartella del progetto) e leggere il web li permette il programma da solo. Restano domande solo i posti delicati: sistema, chiavi, impostazioni.',
+    ]
+  },
+  {
     versione: '0.89.5',
     righe: [
       '**Niente più lavoro fermo per un permesso:** scrivere file (anche in una copia del progetto fuori dalla sua cartella) e leggere il web li permette il programma da solo, senza chiederti «lo permetto?». Restano domande solo i posti delicati: sistema, chiavi, impostazioni.',

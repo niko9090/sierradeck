@@ -5016,3 +5016,29 @@ label.gc-voce { cursor: pointer; }
 .coda-ws__badge { background: var(--chassis-premuto); border: 0; border-radius: var(--raggio); color: var(--testo); font-size: var(--t1); padding: 0 6px; cursor: pointer; }
 .coda-ws__originale { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 8px; border-left: 2px solid var(--bordo); }
 .coda-ws__superato { text-decoration: line-through; color: var(--testo-quieto); }
+
+/* ── 0.90.0: le chat degli specialisti, da guardare (a destra delle chat, e nella Panoramica). ── */
+.chat-specialisti { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+.chat-specialisti--colonna { flex: 0 0 380px; padding: 6px; border-left: 1px solid var(--bordo); overflow: auto; background: var(--fondo); }
+.pan2-centro > .chat-specialisti { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.chat-spec { display: flex; flex-direction: column; min-height: 220px; max-height: 60vh; border: 1px solid var(--bordo); border-radius: 6px; background: var(--fondo-2, var(--fondo)); overflow: hidden; }
+.chat-specialisti--colonna .chat-spec { flex: 1 1 0; max-height: none; }
+/* Senza altre chat: sopra il «Nessuna chat aperta», tutte affiancate. */
+.chat-specialisti--pieno { position: absolute; top: 38px; left: 0; right: 0; bottom: 0; z-index: 2; padding: 8px; background: var(--fondo); display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); grid-auto-rows: minmax(0, 1fr); overflow: auto; }
+.chat-specialisti--pieno .chat-spec { max-height: none; min-height: 0; }
+.chat-spec--finita { opacity: .75; }
+.chat-spec__testata { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-bottom: 1px solid var(--bordo); font-size: 12px; min-width: 0; }
+.chat-spec__chi { font-weight: 600; white-space: nowrap; }
+.chat-spec__cosa { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--testo-quieto); }
+.chat-spec__stato { white-space: nowrap; color: var(--testo-quieto); }
+.chat-spec__battito { width: 8px; height: 8px; border-radius: 50%; background: var(--verde, #3fb950); animation: chat-spec-battito 1.4s ease-in-out infinite; flex: none; }
+.chat-spec__fermo { width: 8px; height: 8px; border-radius: 50%; background: var(--testo-quieto, #8b949e); flex: none; }
+@keyframes chat-spec-battito { 50% { opacity: .35; } }
+.chat-spec__corpo { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.4; }
+.chat-spec__testo { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-spec__compito { white-space: pre-wrap; overflow-wrap: anywhere; padding: 4px 6px; border-left: 2px solid var(--blu, #4aa3ff); color: var(--testo-quieto); }
+.chat-spec__strumento { font-family: var(--mono, Consolas, monospace); font-size: 11.5px; color: var(--blu, #4aa3ff); overflow-wrap: anywhere; }
+.chat-spec__esito { font-family: var(--mono, Consolas, monospace); font-size: 11px; color: var(--testo-quieto); overflow-wrap: anywhere; padding-left: 10px; }
+.chat-spec__esito--errore { color: var(--rosso, #dc5f5f); }
+.chat-spec__vuota { color: var(--testo-quieto); font-size: 12px; margin: auto; }
+.chat-spec__piede { padding: 3px 8px; border-top: 1px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }

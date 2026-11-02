@@ -10,6 +10,7 @@ import { RUOLI, type Ruolo } from '@shared/ruoli-agenti'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { ChatAutopilota } from './ChatAutopilota'
+import { ChatSpecialisti } from './ChatSpecialisti'
 import { AdessoAutopilota } from './DalVivoAutopilota'
 import { adessoDi, AIUTO_ADESSO, type SegniDalVivo } from '@shared/adesso'
 import { Aiuto } from './Aiuto'
@@ -226,6 +227,8 @@ export function CorpoPanoramica({ workspace, autopilota, dormiente, cwd, schede,
         )}
       </section>
       <section className="pan2-centro" aria-label="Il lavoro del workspace">
+        {/* 0.90.0: le chat degli specialisti al lavoro, da guardare dal vivo. */}
+        {autopilota !== undefined ? <ChatSpecialisti workspace={workspace} /> : null}
         <RiassuntoAlLavoro righe={riassuntoAlLavoro(autopilota, schede, ora, (sessione) => attivitaDaSegnali(segnali[sessione] ?? [], ora))} schede={schede} onApri={onApri} />
         {/* 0.82.0: vuoto, «Adesso» ripeteva «Nessuna chat al lavoro» della riga sopra: non si mostra. */}
         {adesso.length === 0 && (autopilota === undefined || righeAp.length === 0) ? null : (

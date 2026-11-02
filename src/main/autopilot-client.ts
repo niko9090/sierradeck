@@ -4,7 +4,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
-import type { VistaOrchestratore } from '@shared/piano-orchestratore'
+import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
 /**
@@ -146,6 +146,8 @@ export type ClientAutopilota = {
   unisciCoda: (ws: string, u: UnioneAMano) => Promise<VistaCoda>
   /** P3: l'autopilota unico di un workspace. Un servizio vecchio non ce l'ha: `undefined`. */
   orchestratore: (ws: string) => Promise<VistaOrchestratore | undefined>
+  /** 0.90.0: la conversazione di uno specialista. */
+  specialista: (ws: string, id: string) => Promise<TrascrizioneSpecialista | undefined>
   impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
 }
 
@@ -385,6 +387,15 @@ export function creaClientAutopilota(p: {
     },
     separaCoda: async (ws, id) => (await chiama('/coda/separa', 'POST', { ws, id })) as VistaCoda,
     unisciCoda: async (ws, u) => (await chiama('/coda/unisci', 'POST', { ws, ...u })) as VistaCoda,
+    async specialista(ws, id) {
+      try {
+        const r = (await chiama(`/orchestratore/specialista?ws=${encodeURIComponent(ws)}&id=${encodeURIComponent(id)}`, 'GET')) as TrascrizioneSpecialista | undefined
+        return r !== undefined && Array.isArray(r.righe) ? r : undefined
+      } catch {
+        // Un servizio di prima della 0.90.0 non conosce la rotta.
+        return undefined
+      }
+    },
     async orchestratore(ws) {
       try {
         const r = (await chiama(`/orchestratore?ws=${encodeURIComponent(ws)}`, 'GET')) as VistaOrchestratore | undefined

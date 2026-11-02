@@ -844,6 +844,8 @@ contextBridge.exposeInMainWorld('gestore', {
     codaUnisci: (ws: string, u: { ids: string[]; testo: string; titolo?: string; punti: import('@shared/coda-richieste').PuntoProposto[]; perche: string }): Promise<import('@shared/coda-richieste').VistaCoda> => ipcRenderer.invoke('autopilota:codaUnisci', ws, u),
     /** P3: l'autopilota del workspace (vista e impostazioni). */
     orchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined> => ipcRenderer.invoke('autopilota:orchestratore', ws),
+    /** 0.90.0: la conversazione di uno specialista, da guardare. */
+    specialista: (ws: string, id: string): Promise<import('@shared/piano-orchestratore').TrascrizioneSpecialista | undefined> => ipcRenderer.invoke('autopilota:specialista', ws, id),
     impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),

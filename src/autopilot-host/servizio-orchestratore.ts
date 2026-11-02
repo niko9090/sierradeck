@@ -1,4 +1,4 @@
-import { parse } from 'node:path'
+import { join, parse } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo } from '@shared/autopilota'
@@ -8,7 +8,7 @@ import {
 } from '@shared/coda-richieste'
 import {
   allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita, vistaLavoro,
-  type CompitoPiano, type Piano, type VistaOrchestratore
+  type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
 import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
@@ -44,6 +44,8 @@ import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppio
 import type { ArchivioDoppioni } from './doppioni-store'
 import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
 import { permessoDaSolo } from './permessi-automatici'
+import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
+import { homedir } from 'node:os'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -115,6 +117,8 @@ export type ContestoUnico = {
   unioneDaSola?: boolean
   /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
   attesaPermessoMs?: number
+  /** 0.90.0: dove Claude Code tiene le trascrizioni (nei test, una cartella di prova). */
+  cartellaClaude?: string
   /** 31/10: gli autopiloti già archiviati come doppioni (non si riguardano, non rinascono). Assente: nessuno. */
   doppioni?: ArchivioDoppioni
   /** 31/10: sposta la cartella di un workspace doppione nel recupero (mai la cancella). Assente: la cartella resta. */
@@ -141,6 +145,8 @@ export type ServizioUnico = {
   allinea: (ws: string, coda: Coda, adesso: string) => Modifica
   vistaCoda: (ws: string, v: VistaCoda) => VistaCoda
   vista: (ws: string) => VistaOrchestratore
+  /** 0.90.0: la conversazione di uno specialista, da guardare nella colonna a destra. */
+  trascrizione: (ws: string, id: string) => TrascrizioneSpecialista
   /**
    * L'autopilota del workspace, creato se non c'è ancora, con gli autopiloti
    * di prima passati a lui; con `obiettivo`, il primo messaggio.
@@ -324,6 +330,24 @@ export async function ramoDelCompito(
     ok: false,
     motivo: `più rami con lavoro per ${p.compito}, e nessuno contiene gli altri: ${conLavoro.map((c) => `${c.ramo} (${c.sub.id}, ${c.avanti} commit)`).join(', ')}. Dimmi quale con «ramo» o «specialista»`
   }
+}
+
+/**
+ * 0.90.0: il compito non ha lavoro su nessun ramo e non ne avrà: tutti i suoi
+ * specialisti hanno finito, nessuno ha commit fuori dal principale (o un
+ * worktree) e nessuna copia ha modifiche non salvate. Più rami, o uno ancora al
+ * lavoro: no.
+ */
+export async function senzaLavoroSuiRami(g: GitAsincrono, specialisti: Specialista[], motivo: string): Promise<boolean> {
+  if (specialisti.length === 0 || /più rami/u.test(motivo)) return false
+  if (specialisti.some((s) => s.stato === 'avviato' || s.stato === 'lavoro')) return false
+  for (const s of specialisti) {
+    if (s.cartella === undefined) continue
+    try { if (!statSync(s.cartella).isDirectory()) continue } catch { continue }
+    const st = await g(['status', '--porcelain'], s.cartella)
+    if (st.codice !== 0 || st.uscita.trim() !== '') return false
+  }
+  return true
 }
 
 export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
@@ -607,6 +631,12 @@ ${NOTA_SENZA_GIT}`,
     if ((senzaGit || soloLettura) && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
     let ramo = p.ramo ?? chat?.ramo
     let cartella = chat?.cartella
+    // 0.90.0 (prova del caso BG4, 02/11): il lavoro scritto in una cartella fuori
+    // dal progetto (la copia del pannello) non sta su nessun ramo. Prima l'unione
+    // si rifiutava per sempre e il compito restava al 90%, con una domanda tecnica
+    // a Nicholas. Se tutti gli specialisti del compito hanno finito, nessuno ha un
+    // ramo con commit né modifiche non salvate, vale il criterio.
+    let fuoriDaiRami = false
     if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
@@ -625,14 +655,21 @@ ${NOTA_SENZA_GIT}`,
         const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
         const voci = lista.codice === 0 ? leggiWorktree(lista.uscita) : []
         const s = await ramoDelCompito(g, { cwd: a.cwd, base: a.ramoBase, compito: p.compito!, specialisti: delCompito, tutti, voci, nato })
-        if (!s.ok) {
+        // Le copie anche dai worktree di git: una modifica non salvata lì non si perde.
+        const conCopia = delCompito.map((d) => { const w = ramoDelloSpecialista(d, voci, { presi: ramiPresi(d, tutti, voci), nato }); return w.ok && w.cartella !== undefined ? { ...d, cartella: w.cartella } : d })
+        if (!s.ok && await senzaLavoroSuiRami(g, conCopia, s.motivo)) {
+          fuoriDaiRami = true
+          sub = delCompito[delCompito.length - 1]
+          nome = sub?.id ?? nome
+        } else if (!s.ok) {
           if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${s.motivo}` }))
           return `${p.compito}: unione NON fatta — ${s.motivo}.`
+        } else {
+          sub = s.sub
+          nome = s.sub.id
+          ramo = s.ramo
+          cartella = s.cartella
         }
-        sub = s.sub
-        nome = s.sub.id
-        ramo = s.ramo
-        cartella = s.cartella
       } else if (ramo === undefined && sub !== undefined) {
         const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
         const voci = lista.codice === 0 ? leggiWorktree(lista.uscita) : []
@@ -641,13 +678,13 @@ ${NOTA_SENZA_GIT}`,
         ramo = r.ramo
         cartella = r.cartella
       }
-      if (ramo === undefined) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
-      if (ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
+      if (ramo === undefined && !fuoriDaiRami) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
+      if (ramo !== undefined && ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
       if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
-      const chiuso = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
+      const chiuso = ramo === undefined ? 'unito' : await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
       let motivo: string | undefined
       if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
-      else if (chiuso === undefined) {
+      else if (chiuso === undefined && ramo !== undefined) {
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
         if (!r.unito) motivo = r.motivo
       }
@@ -693,12 +730,12 @@ ${NOTA_SENZA_GIT}`,
         ...fresco,
         chats: fresco.chats.map((y) => (y.id === chat.id ? { ...y, stato: 'finita' as const, approvata: true, conclusa: { il, come: 'unito' as const }, fine: { esito: 'unita' as const, il, passo: 'chiudi' as const } } : y))
       }
-      x.annota(dopo, `${nome}: ramo ${ramo} unito nel principale; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, { chat: chat?.id ?? nome, esito: 'unito' })
+      x.annota(dopo, `${nome}: ${ramo !== undefined ? `ramo ${ramo} unito nel principale` : 'niente ramo da unire'}; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, { chat: chat?.id ?? nome, esito: 'unito' })
       x.salva(dopo)
       if (chat !== undefined) x.avanzaFinite()
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
-    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
+    const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
     return `${compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
 
@@ -1119,7 +1156,8 @@ ${NOTA_SENZA_GIT}`,
           ...subagenti(ws).filter((s) => s.unito !== true && (s.stato === 'avviato' || s.stato === 'lavoro' || ora - Date.parse(s.fine ?? s.inizio) < 3_600_000)).map((s) => ({
             id: s.id, ruolo: s.ruolo, compito: s.descrizione, stato: s.stato, durata: durata(s, ora),
             ...(s.compito !== undefined ? { compitoId: s.compito } : {}),
-            ...(s.attivita !== undefined ? { attivita: s.attivita } : {})
+            ...(s.attivita !== undefined ? { attivita: s.attivita } : {}),
+            ...(s.fine !== undefined ? { fine: s.fine } : {})
           })),
           ...specialistiVivi(u).map((c) => ({ id: c.id, ...(c.ruolo !== undefined ? { ruolo: RUOLI[c.ruolo].nome } : {}), compito: c.compito, stato: c.stato, adottata: true as const, ...(c.compitoId !== undefined ? { compitoId: c.compitoId } : {}) }))
         ],
@@ -1131,6 +1169,13 @@ ${NOTA_SENZA_GIT}`,
         },
         ...vistaLavoro(coda(ws), piano, u !== undefined ? x.domande.aperte(u.id).length : 0)
       }
+    },
+    trascrizione(ws, id) {
+      const u = unicoDi(ws)
+      const s = subagenti(ws).find((x) => x.id === id)
+      if (u === undefined || s === undefined) return { id, trovata: false, righe: [] }
+      const f = trovaTrascrizione(x.cartellaClaude ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), u.cwd, { id: s.id, ...(s.agente !== undefined ? { agente: s.agente } : {}) })
+      return f === undefined ? { id, trovata: false, righe: [] } : { id, trovata: true, righe: leggiTrascrizione(f) }
     },
     assicura,
     migraVecchi,

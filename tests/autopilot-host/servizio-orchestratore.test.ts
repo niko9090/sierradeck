@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { describe, it, expect, afterEach, vi, onTestFinished } from 'vitest'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -315,11 +315,12 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
   const radice = process.cwd()
 
   /** Un git finto: `rami` dice quanti commit ha ogni ramo fuori da main; `dentro` quali rami ne contengono altri. */
-  function gitFinto(rami: Record<string, number>, dentro: [string, string][] = []): { git: Git; chiamate: string[][] } {
+  function gitFinto(rami: Record<string, number>, dentro: [string, string][] = [], sporche: string[] = []): { git: Git; chiamate: string[][] } {
     const chiamate: string[][] = []
-    const git: Git = (args) => {
+    const git: Git = (args, cwd) => {
       chiamate.push(args)
       const a = args.join(' ')
+      if (a.startsWith('status --porcelain') && sporche.includes(cwd)) return { codice: 0, uscita: ' M pannello.js' }
       if (a === 'rev-parse --is-inside-work-tree') return { codice: 0, uscita: 'true' }
       if (a === 'rev-parse --show-toplevel') return { codice: 0, uscita: radice.replace(/\\/gu, '/') }
       if (a === 'rev-parse --abbrev-ref HEAD') return { codice: 0, uscita: 'main' }
@@ -407,9 +408,25 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
     expect(chiamate.some((c) => c.includes('merge') && c.includes('--no-commit') && c.includes(ALTRO))).toBe(true)
   })
 
-  it('nessun ramo con lavoro: errore che dice perché, specialista per specialista', async () => {
+  it('nessun ramo con lavoro e nessuna modifica in sospeso: vale il criterio (0.90.0, lavoro scritto fuori dal progetto)', async () => {
     zitto()
-    const { git } = gitFinto({ [LAVORO]: 0 })
+    const { git, chiamate } = gitFinto({ [LAVORO]: 0 })
+    const id = await preparaK1(git)
+    await strumento('unisci', { compito: 'k-1' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 chiuso con il criterio' })
+    expect(chiamate.some((c) => c.includes('merge'))).toBe(false)
+    expect(archivio.leggi(id)!.decisioni.map((d) => d.cosa)).toContainEqual(expect.stringContaining('toolu_controllo: niente ramo da unire'))
+  })
+
+  it('nessun ramo con lavoro ma una copia con modifiche non salvate: errore che dice perché, specialista per specialista', async () => {
+    zitto()
+    const copia = join(radice, '.claude', 'worktrees', LAVORO.replace(/^worktree-/u, ''))
+    // Una cartella vuota, tolta alla fine (rmdir, mai ricorsivo): ignorata da git.
+    const nuova = !existsSync(copia)
+    const nuovaBase = !existsSync(join(copia, '..'))
+    mkdirSync(copia, { recursive: true })
+    onTestFinished(() => { try { if (nuova) rmdirSync(copia); if (nuovaBase) rmdirSync(join(copia, '..')) } catch { /* già tolta */ } })
+    const { git } = gitFinto({ [LAVORO]: 0 }, [], [copia])
     await preparaK1(git)
     await strumento('unisci', { compito: 'k-1' })
     await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione non fatta') === true, { cosa: 'l’esito dell’unione' })

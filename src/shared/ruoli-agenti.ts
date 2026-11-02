@@ -56,7 +56,7 @@ export const RUOLI: Record<Ruolo, SchedaRuolo> = {
   },
   rilascio: {
     nome: 'Rilascio', parola: 'rilascio', colore: ATTIVITA.rilascio.colore, conRevisione: false,
-    istruzioni: 'Sei l’agente di RILASCIO. Lavori dopo che gli altri compiti sono uniti: versione, voce delle novità, note, controlli finali. NON pubblichi e NON installi niente da solo: la pubblicazione la decide la regola del progetto e l’installazione la fa solo Nicholas. Prepara tutto e dillo in una riga.'
+    istruzioni: 'Sei l’agente di RILASCIO. Lavori dopo che gli altri compiti sono uniti: versione, voce delle novità, note, controlli finali. NON pubblichi e NON installi niente da solo: la pubblicazione la decide la regola del progetto e l’installazione di SierraDeck la fa solo Nicholas. Prepara tutto e dillo in una riga.'
   }
 }
 
