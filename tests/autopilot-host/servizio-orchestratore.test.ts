@@ -265,12 +265,21 @@ describe('autopilota unico nel servizio', () => {
     // Lo specialista scrive nella cartella del progetto: non c'è una copia.
     const ok = await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, agent_id: 'a1', agent_type: 'sviluppatore', tool_name: 'Write', tool_input: { file_path: join(radice, 'nota.md'), content: 'x' } })).json()
     expect(ok).toEqual({})
-    // Uno al lavoro: il secondo Agent dell'orchestratore aspetta.
+    // Il primo Agent: il suo tool_use è già nel flusso quando arriva l'hook, e non conta sé stesso (02/11, BG4).
     processi[0]!.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'k-1: il reset' } }] } })
+    const primo = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_use_id: 'tu-1', tool_name: 'Agent', tool_input: { subagent_type: 'sviluppatore' } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
+    expect(primo.hookSpecificOutput?.permissionDecision).not.toBe('deny')
+    // Uno al lavoro: il secondo Agent dell'orchestratore aspetta.
     processi[0]!.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
+    processi[0]!.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-2', name: 'Agent', input: { subagent_type: 'verificatore', description: 'k-2: prova' } }] } })
     const secondo = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_use_id: 'tu-2', tool_name: 'Agent', tool_input: { subagent_type: 'verificatore' } })).json()) as { hookSpecificOutput?: { permissionDecision: string; permissionDecisionReason?: string } }
     expect(secondo.hookSpecificOutput?.permissionDecision).toBe('deny')
     expect(secondo.hookSpecificOutput?.permissionDecisionReason).toContain('uno specialista alla volta')
+    // Finito il primo, il posto è libero: il rifiutato tu-2 non lo tiene (0.89.3).
+    processi[0]!.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    processi[0]!.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-3', name: 'Agent', input: { subagent_type: 'verificatore', description: 'k-2: prova' } }] } })
+    const terzo = (await (await posta(`/hook/pretool?ap=${v.autopilota!}`, { ...base, tool_use_id: 'tu-3', tool_name: 'Agent', tool_input: { subagent_type: 'verificatore' } })).json()) as { hookSpecificOutput?: { permissionDecision: string } }
+    expect(terzo.hookSpecificOutput?.permissionDecision).not.toBe('deny')
     // L'orchestratore è partito con gli agenti senza worktree e con la nota nel suo stato.
     const args = processi[0]!.args
     const agenti = JSON.parse(readFileSync(args[args.indexOf('--agents') + 1]!, 'utf8')) as Record<string, { isolation?: string; prompt: string }>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, symlinkSync, utimesSync, writeFileSync
+  existsSync, lutimesSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, symlinkSync, utimesSync, writeFileSync
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -206,6 +206,9 @@ describe('riassetto: il recupero (mai cancellare)', () => {
     mkdirSync(join(dati, 'vecchia'))
     symlinkSync(fuori, join(dati, 'vecchia', 'link'), 'junction')
     file(join(dati, 'vecchia', 'f.txt'), 'via')
+    // Anche il file e il collegamento: la loro data è quella vera, e a meno di 3 giorni da ORA sarebbe «toccata da poco» (02/11).
+    invecchia(join(dati, 'vecchia', 'f.txt'), 30)
+    lutimesSync(join(dati, 'vecchia', 'link'), new Date(ORA - 30 * GIORNO), new Date(ORA - 30 * GIORNO))
     invecchia(join(dati, 'vecchia'), 30)
     const rec = apriRecuperoPasso({ dati, versione: '0.88.0', passo: 'p', ora: () => ORA })
     expect(rec.sposta(join(dati, 'vecchia'), { motivo: 'x' }).esito).toBe('spostato')

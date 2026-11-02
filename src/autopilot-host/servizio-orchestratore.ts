@@ -342,7 +342,13 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     gitVisto.set(cwd, { si, il: Date.now() })
     return si
   }
-  const alLavoroNel = (ws: string): number => subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').length
+  /**
+   * Gli specialisti al lavoro nel workspace, senza `escludi`: l'Agent che il
+   * PreToolUse sta giudicando è già nel flusso (il suo tool_use arriva prima
+   * dell'hook) e non deve contare sé stesso. 02/11, BG4 senza git: «il
+   * programma lo rifiuta: c'è già uno specialista, ma lo stato ne mostra 0».
+   */
+  const alLavoroNel = (ws: string, escludi?: string): number => subagenti(ws).filter((y) => (y.stato === 'avviato' || y.stato === 'lavoro') && y.id !== escludi).length
 
   const imp = (ws: string): ImpostazioniOrchestratore => x.orchestratori.impostazioni(ws)
   const wsDi = (a: Pick<Autopilota, 'cwd' | 'workspace'>): string => chiaveWorkspace(a)
@@ -363,7 +369,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       .filter((a) => wsDi(a) === ws && a.id !== i.autopilota && !gia.has(a.id) && !doppioni.has(a.id))
       .map((a) => ({ ...a, ...(x.campiVecchi?.(a.id) ?? {}) }))
   }
-  const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
+  /** 0.89.3: gli Agent rifiutati dalla guardia: il loro tool_use è nel flusso, ma nessuno specialista è partito. */
+  const rifiutati = new Set<string>()
+  const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)).map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
 
   const misura = (ws: string): MisuraCompito => {
     const u = unicoDi(ws)
@@ -1055,12 +1063,18 @@ ${NOTA_SENZA_GIT}`,
       return hookAdottato(unici(), id, chatId)
     },
     mcp: (p) => rispondiMcpOrchestratore(ambiente, gettoni, x.versione, p),
-    preTool: (a, corpo) => giudicaGuardiaOrchestratore(corpo, {
-      radice: a.cwd,
-      ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a)) }),
-      specialistiSulPc: orchestratore.specialistiSulPc(typeof corpo.tool_use_id === 'string' ? corpo.tool_use_id : undefined),
-      tettoPc: Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
-    }),
+    preTool: (a, corpo) => {
+      const idUso = typeof corpo.tool_use_id === 'string' ? corpo.tool_use_id : undefined
+      const g = giudicaGuardiaOrchestratore(corpo, {
+        radice: a.cwd,
+        ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
+        specialistiSulPc: orchestratore.specialistiSulPc(idUso),
+        tettoPc: Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+      })
+      // Un Agent rifiutato non è uno specialista al lavoro: non deve tenere il posto.
+      if (!g.ok && idUso !== undefined && (corpo.tool_name === 'Agent' || corpo.tool_name === 'Task')) rifiutati.add(idUso)
+      return g
+    },
     specialistiSulPc: () => orchestratore.specialistiSulPc(),
     spegni: () => { orchestratore.spegni() },
     archiviaDoppioni,

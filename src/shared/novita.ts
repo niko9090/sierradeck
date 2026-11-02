@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.89.3',
+    righe: [
+      '**Gli specialisti partono anche nei progetti senza git:** lì ne lavora uno alla volta, ma il programma contava come «già al lavoro» proprio lo specialista che stava per partire, e lo rifiutava sempre. Ora conta solo quelli davvero al lavoro, e uno rifiutato non tiene occupato il posto. Non serve più chiudere e riaprire SierraDeck.',
+    ]
+  },
+  {
     versione: '0.89.2',
     righe: [
       '**L’autopilota usa Opus:** chi coordina usa il modello migliore, anche negli autopiloti già esistenti. Sonnet resta scegliendolo nelle Impostazioni dell’autopilota.',
