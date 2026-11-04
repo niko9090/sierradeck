@@ -99,10 +99,7 @@ describe('trovaClaude', () => {
 
 describe('avvisiDiSistema', () => {
   it('avvisa quando Node.js non c e, senza bloccare niente', () => {
-    // SierraDeck porta con se' il proprio Node: manca solo ai criteri di
-    // verifica degli autopiloti, che lanciano npm nella cartella dell'utente.
-    // Installare un runtime di sistema al posto di qualcuno si fa solo se lo
-    // si e' chiesto, quindi qui si dice e basta.
+    // 0.91.0: si installa da solo all'avvio; qui si dice a che punto e'.
     const avvisi = avvisiDiSistema(sistema({ env: { Path: 'C:\\bin' } }))
     expect(avvisi.some((a) => a.includes('Node.js'))).toBe(true)
   })

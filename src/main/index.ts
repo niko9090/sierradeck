@@ -53,6 +53,7 @@ import {
   annotaQuanteFinestre,
   assorbiOrfani, filtroIstruzioniPin } from './ipc'
 import { preparaAmbiente } from './preparazione'
+import { eseguiDavvero, installaRuntimeMancanti } from './installa-runtime'
 import { gitPerLeChat } from './git-nel-path'
 import { decidiChiusura, vociArea, suggerimentoArea } from './area-notifica'
 import { espandiTilde } from './validation'
@@ -1521,6 +1522,10 @@ if (!app.requestSingleInstanceLock()) {
           process.env.GESTORE_CLAUDE_PATH = trovato
         }
       }
+      // 0.91.0, Nicholas 04/11: «io voglio che il sistema installi anche node.js e
+      // git se non trovati». In sottofondo: l'avvio non aspetta.
+      void installaRuntimeMancanti({ env: process.env, esiste: (p) => existsSync(p), esegui: eseguiDavvero, log: (r) => console.log(r) })
+        .catch((err: unknown) => console.warn(`[runtime] ${String(err)}`))
       caricaPolsi(join(dati, 'polso-chat.json'))
       costiOrchestratori = creaLettoreCosti(join(dati, 'orchestratori'))
       db = registerSessionIpc(dati, arricchisciConsumi)

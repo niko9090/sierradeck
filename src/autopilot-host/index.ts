@@ -28,6 +28,7 @@ import { AUTOPULIZIA_OGNI_MS, cartelleProgettiDelServizio, creaAutopulizia } fro
 import { apriCode } from './coda-store'
 import { apriOrchestratori } from './orchestratore-store'
 import { avviaProcessoReale } from './orchestratore'
+import { aggiungiRuntimeAlPath } from '@shared/runtime-noti'
 
 /** Ogni quanto si passa a vedere se qualche chat ha smesso di parlare. */
 /**
@@ -437,6 +438,12 @@ export function avviaServizio(): void {
     console.info(`[autopilota] in ascolto su 127.0.0.1:${PORTA}`)
     // Non è un errore: dirlo evita però di cercare a lungo un avviso che non arriverà mai.
     diciTelegramAssente(configurazione)
+    // 0.91.0: Node.js e Git installati dal programma mentre il servizio girava
+    // non sono nel suo PATH; ogni minuto si aggiungono, e da lì li trovano
+    // l'autopilota, gli specialisti e i criteri, senza riavviare.
+    const runtime = (): void => { for (const c of aggiungiRuntimeAlPath(process.env, existsSync)) console.info(`[autopilota] nel PATH: ${c}`) }
+    runtime()
+    setInterval(runtime, 60_000).unref()
     // 30/10: una riga al minuto, al più, quando il servizio resta fermo oltre 1 s.
     avviaSpiaRitardo()
 

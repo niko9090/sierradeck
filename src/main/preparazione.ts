@@ -1,4 +1,6 @@
 import { delimiter, isAbsolute, join } from 'node:path'
+import { RUNTIME, doveSta } from '@shared/runtime-noti'
+import type { StatoRuntime } from './installa-runtime'
 
 /**
  * Ciò che serve sapere del computer per decidere. Iniettato invece che letto:
@@ -16,10 +18,9 @@ export type StatoPreparazione = {
   /** Dove sta `claude.exe`, quando l'abbiamo trovato. */
   claude?: string
   /**
-   * Cosa manca e **non** tocca a noi installare, già scritto per chi legge.
-   *
-   * Installare un runtime di sistema al posto di qualcuno è un gesto che si fa
-   * solo se lo si è chiesto: qui si dice e basta.
+   * Cosa manca, già scritto per chi legge. Node.js e Git li installa il
+   * programma da solo all'avvio (0.91.0, Nicholas 04/11): qui si dice a che
+   * punto è.
    */
   avvisi: string[]
 }
@@ -89,36 +90,23 @@ export function trovaClaude(s: Sistema): string | undefined {
 }
 
 /**
- * Cerca un eseguibile nel solo PATH. Serve ai runtime di sistema, che non
- * hanno un posto «nostro» in cui guardare.
- */
-function nelPath(s: Sistema, nomeFile: string): boolean {
-  const percorso = s.env.Path ?? s.env.PATH ?? ''
-  return percorso
-    .split(delimiter)
-    .some((c) => c.trim() !== '' && s.esiste(join(c.trim().replace(/^"|"$/g, ''), nomeFile)))
-}
-
-/**
- * Ciò che manca e va soltanto detto.
+ * Node.js e Git: cosa manca e a che punto è la loro installazione.
  *
- * Nessuno dei due impedisce di lavorare, ed è per questo che sono avvisi e non
- * blocchi: si scrive cosa costa non averli, così chi legge decide se gliene
- * importa.
+ * Nessuno dei due impedisce di aprire le chat, ed è per questo che sono avvisi
+ * e non blocchi.
  */
-export function avvisiDiSistema(s: Sistema): string[] {
+export function avvisiDiSistema(s: Sistema, stati: StatoRuntime[] = []): string[] {
   const avvisi: string[] = []
-  if (!nelPath(s, 'node.exe')) {
-    avvisi.push(
-      'Node.js non risulta installato. SierraDeck funziona lo stesso — porta con sé il proprio — ' +
-      'ma i criteri di verifica degli autopiloti che lanciano «npm» o «node» falliranno.'
-    )
-  }
-  if (!nelPath(s, 'git.exe')) {
-    avvisi.push(
-      'Git per Windows non risulta installato. Senza, Claude Code esegue i comandi con PowerShell ' +
-      'invece che con Bash: molti comandi scritti per Linux non funzioneranno.'
-    )
+  for (const r of RUNTIME) {
+    if (doveSta(r, s.env, s.esiste) !== undefined) continue
+    const st = stati.find((x) => x.nome === r.nome)
+    const cosa = r.nome === 'Git' ? 'Git per Windows' : 'Node.js'
+    const costo = r.nome === 'Git'
+      ? 'senza, gli autopiloti non hanno copie di lavoro e Claude Code usa PowerShell invece di Bash'
+      : 'senza, i criteri che lanciano «npm» o «node» falliscono'
+    if (st?.stato === 'fallito') avvisi.push(`${cosa} manca e l’installazione automatica non è riuscita (${st.dettaglio ?? 'motivo sconosciuto'}): ${costo}. Premi «Installa Node.js e Git» per riprovare.`)
+    else if (st?.stato === 'installato') avvisi.push(`${cosa} è stato installato: riavvia SierraDeck se qualcosa non lo trova ancora.`)
+    else avvisi.push(`${cosa} manca: lo sto installando da solo${r.nome === 'Node.js' ? ' (Windows può chiederti il sì per l’amministratore)' : ''}. Intanto ${costo}.`)
   }
   return avvisi
 }
@@ -130,9 +118,9 @@ export function avvisiDiSistema(s: Sistema): string[] {
  * cosa manca e fa quello che può fare al posto suo. Trovare `claude.exe` è la
  * parte che può fare da solo; il resto lo dice.
  */
-export function preparaAmbiente(s: Sistema): StatoPreparazione {
+export function preparaAmbiente(s: Sistema, stati: StatoRuntime[] = []): StatoPreparazione {
   const claude = trovaClaude(s)
-  return { ...(claude !== undefined ? { claude } : {}), avvisi: avvisiDiSistema(s) }
+  return { ...(claude !== undefined ? { claude } : {}), avvisi: avvisiDiSistema(s, stati) }
 }
 
 /**

@@ -88,6 +88,7 @@ import {
   type StatoPreparazione
 } from './preparazione'
 import { leggiAccesso } from './accesso'
+import { eseguiDavvero, installaRuntimeMancanti, statoRuntime } from './installa-runtime'
 import { componiDossier, argomentiAgente, type RichiestaRisoluzione } from './risoluzione'
 import { writeFileSync } from 'node:fs'
 import { statSync } from 'node:fs'
@@ -955,7 +956,7 @@ export function registerPreparazioneIpc(
   extra?: { versione: () => string; ultimeRigheRegistro: (n: number) => string[]; cartellaTemporanea: () => string }
 ): void {
   const guarda = (): StatoPreparazione =>
-    preparaAmbiente({ env: process.env, casa: casa(), esiste: (p) => existsSync(p) })
+    preparaAmbiente({ env: process.env, casa: casa(), esiste: (p) => existsSync(p) }, statoRuntime())
 
   const apriTerminale = (event: Electron.IpcMainInvokeEvent, comando: Comando): string => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -1034,6 +1035,12 @@ export function registerPreparazioneIpc(
   })
 
   ipcMain.handle('preparazione:installa', (event): string => apriTerminale(event, INSTALLA_CLAUDE))
+
+  // 0.91.0: Node.js e Git, di nuovo, quando l'installazione automatica dell'avvio non è riuscita.
+  ipcMain.handle('preparazione:runtime', async (): Promise<StatoPreparazione> => {
+    await installaRuntimeMancanti({ env: process.env, esiste: (p) => existsSync(p), esegui: eseguiDavvero, log: (r) => console.log(r) })
+    return guarda()
+  })
 
   ipcMain.handle('preparazione:accedi', (event): string => {
     const claude = guarda().claude

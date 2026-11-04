@@ -423,6 +423,7 @@ declare global {
       preparazione: {
         stato: () => Promise<StatoPreparazione>
         installa: () => Promise<string>
+        runtime: () => Promise<StatoPreparazione>
         accedi: () => Promise<string>
       }
       risoluzione: {

@@ -808,6 +808,7 @@ contextBridge.exposeInMainWorld('gestore', {
     stato: (): Promise<StatoPreparazione> => ipcRenderer.invoke('preparazione:stato'),
     /** Apre un terminale che installa Claude Code e restituisce il suo id. */
     installa: (): Promise<string> => ipcRenderer.invoke('preparazione:installa'),
+    runtime: (): Promise<StatoPreparazione> => ipcRenderer.invoke('preparazione:runtime'),
     /** Apre un terminale che porta all'accesso nel browser. */
     accedi: (): Promise<string> => ipcRenderer.invoke('preparazione:accedi')
   },

@@ -26,9 +26,9 @@ type Props = {
  * a un processo che sta facendo una domanda è il modo più sicuro di far
  * sembrare bloccato ciò che sta solo aspettando.
  *
- * Node.js e Git non si installano di nostra iniziativa: sono runtime di
- * sistema, e metterli al posto di qualcuno è un gesto che si fa solo se lo si
- * è chiesto. Qui compaiono scritti, con cosa costa non averli.
+ * Node.js e Git li installa il programma da solo all'avvio (0.91.0, Nicholas
+ * 04/11: «io voglio che il sistema installi anche node.js e git se non
+ * trovati»). Qui si vede a che punto è, e si riprova se non è riuscita.
  */
 export function ModalePreparazione({ onChiudi, onPreparazione }: Props): React.JSX.Element {
   const [stato, setStato] = useState<StatoPreparazione | undefined>(undefined)
@@ -108,7 +108,7 @@ export function ModalePreparazione({ onChiudi, onPreparazione }: Props): React.J
 
         {mancanti.length > 0 ? (
           <div style={{ margin: '0 0 12px' }}>
-            <span className="serigrafia">Manca, ma decidi tu</span>
+            <span className="serigrafia">Node.js e Git</span>
             <ul style={{ margin: '6px 0 0', paddingLeft: 20, fontSize: 12, lineHeight: 1.7, color: 'var(--testo-quieto)' }}>
               {mancanti.map((a) => <li key={a}>{a}</li>)}
             </ul>
@@ -146,6 +146,21 @@ export function ModalePreparazione({ onChiudi, onPreparazione }: Props): React.J
               disabled={terminale !== undefined}
             >
               {terminale !== undefined ? 'Accesso in corso…' : 'Apri l’accesso'}
+            </button>
+          ) : null}
+          {mancanti.length > 0 ? (
+            <button
+              className="tasto"
+              onClick={() => {
+                setInCorso(true)
+                window.gestore.preparazione.runtime()
+                  .then((p) => { setStato(p); onPreparazione(p) })
+                  .catch((e: unknown) => setErrore(String(e)))
+                  .finally(() => setInCorso(false))
+              }}
+              disabled={inCorso}
+            >
+              {inCorso ? 'Installo…' : 'Installa Node.js e Git'}
             </button>
           ) : null}
           <button className="tasto" onClick={ricontrolla} disabled={inCorso}>

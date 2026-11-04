@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.91.0',
+    righe: [
+      '**Node.js e Git si installano da soli:** all’avvio, se su un PC mancano, SierraDeck li installa con winget, senza finestre. Git si installa solo per il tuo utente; per Node.js Windows ti chiede il sì da amministratore. Il servizio degli autopiloti li trova entro un minuto, senza riavviare. Se l’installazione non riesce, in «Cosa serve per lavorare» c’è il tasto «Installa Node.js e Git».',
+    ]
+  },
+  {
     versione: '0.90.1',
     righe: [
       '**L’autopilota pubblica quando glielo chiedi:** il programma bloccava ogni push con «Niente push: il ramo lo unisce l’autopilota con il cancello», e la pubblicazione restava ferma all’80%. Ora, se la richiesta è pubblicare, l’autopilota unisce il lavoro e uno specialista manda tutto su GitHub, con tag, release e file allegati.',
