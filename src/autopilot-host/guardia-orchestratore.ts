@@ -18,8 +18,9 @@ import { dentro, type Giudizio } from './divieti'
  *
  * - l'orchestratore non scrive e non lancia comandi: legge e affida;
  * - nessuno scrive file del principale fuori da `.claude/worktrees/`;
- * - nessuno fa merge, commit, reset, checkout, rebase… nel principale, e
- *   nessuno fa push;
+ * - nessuno fa merge, commit, reset, checkout, rebase… nel principale;
+ *   il push sì (0.90.1, Nicholas 04/11: «ancora limitazioni ma perche??»):
+ *   pubblicare quando la richiesta lo chiede è deciso dal 30/09;
  * - un nuovo specialista parte solo se sul PC ce ne sono meno del tetto.
  */
 
@@ -116,12 +117,7 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   }
 
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.
-  if (c.senzaGit === true) {
-    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && comandiGit(s(input.command) ?? '').some((g) => g.verbo === 'push')) {
-      return { ok: false, motivo: 'Niente push.' }
-    }
-    return { ok: true }
-  }
+  if (c.senzaGit === true) return { ok: true }
 
   if ((STRUMENTI_SCRITTURA as readonly string[]).includes(nome)) {
     const bersaglio = s(input.file_path) ?? s(input.notebook_path) ?? s(input.path)
@@ -137,7 +133,6 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
     const comando = s(input.command) ?? ''
     for (const g of comandiGit(comando)) {
-      if (g.verbo === 'push') return { ok: false, motivo: 'Niente push: il ramo lo unisce l’autopilota con il cancello.' }
       if (!GIT_CHE_CAMBIA.test(g.verbo)) continue
       const dir = cartellaDelGit(comando, g.indice, cwd)
       if (nelPrincipale(dir, c.radice)) {

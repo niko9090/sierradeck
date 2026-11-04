@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.90.1',
+    righe: [
+      '**L’autopilota pubblica quando glielo chiedi:** il programma bloccava ogni push con «Niente push: il ramo lo unisce l’autopilota con il cancello», e la pubblicazione restava ferma all’80%. Ora, se la richiesta è pubblicare, l’autopilota unisce il lavoro e uno specialista manda tutto su GitHub, con tag, release e file allegati.',
+    ]
+  },
+  {
     versione: '0.90.0',
     righe: [
       '**Le chat degli specialisti si vedono:** ogni specialista al lavoro compare come una chat sulla destra (e nella Panoramica) che mostra dal vivo cosa fa: le sue parole, i comandi, gli esiti. È da guardare: la guida l’autopilota. Quando finisce resta in vista ancora qualche minuto, poi si toglie.',

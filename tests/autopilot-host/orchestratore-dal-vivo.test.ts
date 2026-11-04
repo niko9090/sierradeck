@@ -62,14 +62,14 @@ describe('guardia dell’autopilota unico (PreToolUse)', () => {
     expect(giudicaGuardiaOrchestratore(delSubagente('NotebookEdit', { notebook_path: join(RADICE, 'n.ipynb') }), ctx).ok).toBe(false)
   })
 
-  it('git che cambia qualcosa nel principale: no; nella copia: sì; push mai', () => {
+  it('git che cambia qualcosa nel principale: no; nella copia: sì; push sì (0.90.1)', () => {
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: 'git add somma.js && git commit -m "x"' }), ctx).ok).toBe(true)
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: 'node --test' }), ctx).ok).toBe(true)
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: `cd "${RADICE}" && git merge worktree-agent-ab0dd32b2e4f3f97a` }), ctx).ok).toBe(false)
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: `git -C "${RADICE}" checkout main` }), ctx).ok).toBe(false)
     expect(giudicaGuardiaOrchestratore(delSubagente('PowerShell', { command: `Set-Location ${RADICE}; git reset --hard HEAD~1` }), ctx).ok).toBe(false)
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: 'cd ../../.. && git commit -am x' }), ctx).ok).toBe(false)
-    expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: 'git push origin HEAD' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: 'git push origin HEAD' }), ctx).ok).toBe(true)
     // Leggere il principale va bene.
     expect(giudicaGuardiaOrchestratore(delSubagente('Bash', { command: `git -C "${RADICE}" log --oneline -3` }), ctx).ok).toBe(true)
   })

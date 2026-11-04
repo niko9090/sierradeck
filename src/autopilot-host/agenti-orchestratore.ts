@@ -29,7 +29,7 @@ const SCRITTURA = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'TodoWrite']
 
 const COMUNE = [
   'Lavori per l’autopilota di SierraDeck, che coordina il workspace e parla con Nicholas: il compito, il criterio e i vincoli sono nel messaggio che ricevi.',
-  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale, non fare push e non installare mai SierraDeck (scaricare e installare pacchetti, programmi e servizi su server o Synology sì, se il compito li chiede): il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
+  'Lavori nella tua copia del progetto (un worktree tuo, su un ramo tuo). Fai commit quando un pezzo è compiuto. Non cambiare ramo, non toccare la cartella principale e non installare mai SierraDeck (scaricare e installare pacchetti, programmi e servizi su server o Synology sì, se il compito li chiede): il ramo lo prova e lo unisce l’autopilota, che misura il criterio. Se il compito è pubblicare, pubblichi tu dalla tua copia: push del ramo principale già unito (git push origin <ramo principale>), tag, release e file allegati. Per i file usa percorsi relativi alla tua copia (la cartella in cui parti), non quelli della cartella principale.',
   'Se ti manca una decisione che non puoi prendere tu, fermati e dillo nel riepilogo finale («bloccato: …»): l’autopilota risponde, o chiede a Nicholas.',
   '',
   'Il tuo messaggio finale è il riepilogo che l’autopilota legge: cosa hai fatto, i file toccati, come l’hai verificato, cosa resta. In fondo le righe:',
