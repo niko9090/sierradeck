@@ -64,7 +64,7 @@ Corretto nella prossima release: il controllo del proprietario (src/main/casa-al
 
 # Controllo di tutti i PC del 05/11 (app 0.93.0)
 
-## Corretto nella prossima release
+## Corretto nella versione 0.93.1
 
 - Un altro SierraDeck o un dispositivo estraneo che risponde 401 non dà più «risponde ma non riconosce la chiave»: la «chiave» vale solo per il PC atteso (stessa impronta) o con la cassaforte chiusa là.
 - Se a un indirizzo risponde un altro PC già noto (impronta dai battiti), il bussare lo dice col nome: «ora risponde <nome>, un tuo altro PC: l'indirizzo è cambiato». «Chiudi l'altra copia» resta solo per impronta sconosciuta, senza dire che il SierraDeck vero è spento.
@@ -79,4 +79,4 @@ Corretto nella prossima release: il controllo del proprietario (src/main/casa-al
 # Errori arrivati (lotto 20261105113725, app 0.93.0)
 
 ## Gruppo 1: "[autopilota] porta 47630 gia occupata: un altro servizio e vivo, esco" (servizio, versione "?")
-Corretto nella prossima release. Il caso e atteso (istanza unica: il doppione esce, quello di prima continua) ma la console.error del gestore di EADDRINUSE veniva catturata dal servizio come ERRORE e finiva negli errori arrivati. Ora il gestore e in src/autopilot-host/errore-server.ts (gestisciErroreServer): la porta occupata e un solo avviso (console.warn, riga info nel registro, uscita 0); ogni altro errore del server resta ERRORE con uscita 1. La versione "?" era un difetto vero ma a parte: un servizio avviato al login dallo script Esecuzione automatica non riceve SIERRADECK_VERSIONE (solo il Gestore la passa). Ora versioneDelServizio la legge dal package.json dell app se manca; "?" solo se non c e. Il campo versione dato al server (che decide se il Gestore sostituisce un servizio vecchio) NON e cambiato. Test in tests/main/errore-server-porta-occupata.test.ts.
+Corretto nella versione 0.93.1. Il caso e atteso (istanza unica: il doppione esce, quello di prima continua) ma la console.error del gestore di EADDRINUSE veniva catturata dal servizio come ERRORE e finiva negli errori arrivati. Ora il gestore e in src/autopilot-host/errore-server.ts (gestisciErroreServer): la porta occupata e un solo avviso (console.warn, riga info nel registro, uscita 0); ogni altro errore del server resta ERRORE con uscita 1. La versione "?" era un difetto vero ma a parte: un servizio avviato al login dallo script Esecuzione automatica non riceve SIERRADECK_VERSIONE (solo il Gestore la passa). Ora versioneDelServizio la legge dal package.json dell app se manca; "?" solo se non c e. Il campo versione dato al server (che decide se il Gestore sostituisce un servizio vecchio) NON e cambiato. Test in tests/main/errore-server-porta-occupata.test.ts.
