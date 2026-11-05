@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.93.3',
+    righe: [
+      '**Aggiornamenti:** se GitHub risponde male per un attimo, il programma lo segnala come avviso e riprova, senza dire che qualcosa si è rotto.',
+    ]
+  },
+  {
     versione: '0.93.2',
     righe: [
       '**Controllo di tutti i PC, un PC che non risponde:** ora compare in una riga sola, con la diagnosi del controllo fatto da questo PC.',
