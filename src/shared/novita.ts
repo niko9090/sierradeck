@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.94.1',
+    righe: [
+      '**Un PC spento non è un problema:** i PC non devono stare sempre accesi. Il controllo di tutti i PC e la salute non segnalano più un PC solo perché è spento. Avvisano soltanto se un PC risulta acceso ma non si riesce a raggiungerlo.',
+    ]
+  },
+  {
     versione: '0.94.0',
     righe: [
       '**L’autopilota unisce più in fretta:** le prove già passate non si rifanno. Il 05/11 per unire un lavoro rifaceva gli stessi test tre volte, circa 5 minuti invece di uno e mezzo: adesso conta il codice salvato, e una prova già compresa in una più larga che passa non si rilancia.',

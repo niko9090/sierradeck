@@ -131,3 +131,27 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     expect(firmaCriticita(criticitaDi(saluti, []))).toBe(firmaCriticita(criticitaDi([...saluti].reverse(), [])))
   })
 })
+
+describe('0.94.1: un PC spento non è una criticità', () => {
+  const ora = Date.parse('2026-11-05T12:00:00.000Z')
+  it('senza battito fresco non si segnala; acceso e irraggiungibile sì', () => {
+    const spento = { pcId: 'p1', nome: 'NB-PROBOOK-TEC', errore: 'nessuna risposta', battito: '2026-11-05T09:00:00.000Z' }
+    const acceso = { pcId: 'p2', nome: 'LAPTOP', errore: 'nessuna risposta', battito: '2026-11-05T11:58:00.000Z' }
+    expect(criticitaDi([spento], [], ora)).toEqual([])
+    expect(criticitaDi([acceso], [], ora).map((c) => c.pc)).toEqual(['LAPTOP'])
+  })
+})
+
+describe('0.94.1: anche le righe degli altri PC su un PC spento', () => {
+  it('pc:<id> di un PC spento non entra; di un PC acceso sì', () => {
+    const ora = Date.parse('2026-11-05T12:00:00.000Z')
+    const remota = (id: string): Salute['voci'][number] => ({ ...voce('attenzione', `${id} · non so se è acceso · 0.91.0`), chiave: `pc:${id}` })
+    const c = criticitaDi([
+      { pcId: 'a', nome: 'PC-Fisso', salute: salute([remota('nb'), remota('lap')]) },
+      { pcId: 'nb', nome: 'NB-PROBOOK-TEC', errore: 'nessuna risposta', battito: '2026-11-05T09:00:00.000Z' },
+      { pcId: 'lap', nome: 'LAPTOP', errore: 'nessuna risposta', battito: '2026-11-05T11:59:00.000Z' }
+    ], [], ora)
+    expect(c.map((x) => x.cosa)).toEqual(['non risponde'])
+    expect(c[0]?.dettaglio).toBe('nessuna risposta')
+  })
+})

@@ -189,7 +189,8 @@ export function componiSalute(i: IngressiSalute): Salute {
     // 0.89.1: muto da più di una settimana: si può dismettere.
     const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
     const indietro = prima(p.versione, i.versione)
-    const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'attenzione' : 'guasto'
+    // 0.94.1: spento da più di 10 minuti è normale (un PC del lavoro acceso di rado), non «da guardare».
+    const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'ok' : 'guasto'
     // Lo stato vero dell'ultimo bussare (0.93.1): un indirizzo che risponde non è «nessuna strada».
     const rispostaDiversa = p.stato === 'chiave' ? 'risponde ma non riconosce la chiave di casa'
       : p.stato === 'rifiutato' ? 'risponde ma rifiuta questo indirizzo'

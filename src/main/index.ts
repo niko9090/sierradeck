@@ -619,7 +619,7 @@ let installaLaGlobale: { avvia: (pcId: string) => AvanzamentoInstallaLa; stato: 
 let guardianoPin: GuardianoPin | undefined
 /** Il ponte del telefono (0.48.0): si accende quando c'e' il client verso gli altri PC. */
 /** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
-let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string }>>) | undefined
+let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string }>>) | undefined
 let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
 let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
@@ -2383,7 +2383,7 @@ if (!app.requestSingleInstanceLock()) {
       // perché con le strade provate. Ogni PC una volta, in parallelo.
       altriPcGlobale = async () => {
         const io = identitaPc.leggi()
-        return unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b) }))
+        return unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare).map((b) => ({ pcId: b.pcId, nome: nomeDaMostrare(b), ...(b.battito !== undefined ? { battito: b.battito } : {}) }))
       }
       saluteAltroPcGlobale = async (pcId) => (await remoto.chiama(pcId, '/api/salute')) as import('@shared/salute').Salute
       autopilotiAltri = async () => {

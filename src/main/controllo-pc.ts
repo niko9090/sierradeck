@@ -23,7 +23,15 @@ import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 export const CONTROLLO_PC_OGNI_MS = 6 * 60 * 60_000
 export const PRIMO_CONTROLLO_MS = 15 * 60_000
 
-export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string }
+export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string }
+
+/**
+ * 0.94.1: un PC spento non è una criticità. Nicholas, 05/11: «lascia perdere il
+ * pc NB-PROBOOK-TEC, è del lavoro e non lo accendo quasi mai». Un PC senza
+ * battito sul Drive da più di così è spento, e va bene: lo si dice solo se il
+ * battito è fresco (acceso) e non si raggiunge, perché quello è un guasto vero.
+ */
+export const SPENTO_DOPO_MS = 10 * 60_000
 
 export type Criticita = { pc: string; cosa: string; dettaglio: string }
 
@@ -34,10 +42,14 @@ const STATI_CRITICI = new Set(['bloccata', 'bloccato', 'errore', 'fallito'])
 type Voce = Criticita & { chiave?: string; locale?: boolean }
 
 /** Pura: le criticità di tutti i PC, in un ordine stabile. */
-export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly AutopilotiDiPc[]): Criticita[] {
+export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly AutopilotiDiPc[], adesso?: number): Criticita[] {
   const out: Voce[] = []
+  // I PC spenti: non rispondono e il loro battito sul Drive è vecchio. Né la riga di
+  // qui né quelle che ne danno gli altri PC (`pc:<id>`).
+  const spenti = new Set(saluti.filter((s) => s.salute === undefined && adesso !== undefined && s.battito !== undefined && adesso - Date.parse(s.battito) > SPENTO_DOPO_MS).map((s) => s.pcId))
   for (const s of saluti) {
     if (s.salute === undefined) {
+      if (spenti.has(s.pcId)) continue
       // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
       out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `pc:${s.pcId}`, locale: true })
       continue
@@ -46,6 +58,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       // 0.89.0: le righe d'errore del registro arrivano già all'autopilota con gli errori
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
+      if (v.chiave.startsWith('pc:') && spenti.has(v.chiave.slice(3))) continue
       out.push({
         pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`,
         dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: '),
@@ -130,7 +143,7 @@ type StatoControllo = { firma?: string; il?: string }
 export async function giroControlloPc(d: {
   radice: () => string | undefined
   io: () => { id: string; nome: string }
-  altri: () => Array<{ pcId: string; nome: string }>
+  altri: () => Array<{ pcId: string; nome: string; battito?: string }>
   saluteQui: () => Promise<Salute>
   saluteDi: (pcId: string) => Promise<Salute>
   autopiloti: () => Promise<AutopilotiDiPc[]>
@@ -153,7 +166,7 @@ export async function giroControlloPc(d: {
     const qui = await d.autopilotiQui().catch(() => undefined)
     if (qui !== undefined) autopiloti.unshift({ pcId: io.id, nome: io.nome, autopiloti: qui })
   }
-  const criticita = criticitaDi(saluti, autopiloti)
+  const criticita = criticitaDi(saluti, autopiloti, d.adesso())
   const cartella = join(radice, '.sierradeck', 'errori-arrivati')
   const fileStato = join(cartella, '.controllo-pc.json')
   let stato: StatoControllo = {}
