@@ -71,7 +71,7 @@ import {
   seguiAttivoDellaPrincipale
 } from './workspace-operazioni'
 import type { ClientAutopilota } from './autopilot-client'
-import { rispondiDettaglio } from './dettaglio-autopilota'
+import { rispondiDettaglio, rispondiElenco } from './dettaglio-autopilota'
 import {
   cartellaEsecuzioneAutomatica,
   disinstallaAvvioAlLogin,
@@ -1568,10 +1568,7 @@ function annunciaCambio(
  * dovrebbe sapere di dover premere.
  */
 export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string) => void): void {
-  ipcMain.handle('autopilota:elenca', async () => {
-    await client.assicuraServizio()
-    return client.elenca()
-  })
+  ipcMain.handle('autopilota:elenca', () => rispondiElenco(client, log))
   // 0.85.2: un autopilota intero, per chi ne mostra la storia. Con la versione
   // che la finestra ha già, se è la stessa torna solo la versione: un
   // autopilota di qualche MB non riattraversa l'IPC per niente.
