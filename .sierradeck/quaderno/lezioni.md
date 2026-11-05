@@ -82,3 +82,8 @@
 ## ipc
 
 - `pty:spawn` ha tre rami prima dello spawn (proprietario, chiusa-senza-cartella, convalida): il proprietario va per primo, perché un progetto di un altro PC qui non ha la cartella. _(2026-11-01)_
+
+## servizio
+
+- Nel servizio ogni console.error va nel registro come ERRORE e negli errori arrivati: un caso atteso (porta occupata) deve usare console.warn. _(2026-11-05)_
+- Il servizio avviato dallo script di login non riceve SIERRADECK_VERSIONE (versione «?»); senza versione il Gestore non lo sostituisce. Non scriverla nello script: invecchia. _(2026-11-05)_
