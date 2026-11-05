@@ -11,6 +11,7 @@ import { gestisciErroreServer, versioneDelServizio } from './errore-server'
 import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { impostaStoricoRiassetto } from './riassetto-servizio'
 import { format } from 'node:util'
+import { soloAvvisiNode } from '@shared/avvisi-node'
 import { creaServer } from './server'
 import { conDivieti, esecutoreReale } from './verifiche'
 import { conRisorse, conTurni, TURNI_PC } from './turni-criteri'
@@ -247,6 +248,8 @@ ${motivo.stack ?? ''}`
       : String(motivo)
     try { registro.errore(`[servizio] ${che} — ${m}`) } catch { console.error(che, m) }
   }
+  // Gli avvisi di Node (DeprecationWarning…) nel registro come cronaca.
+  process.on('warning', (w) => { try { registro.info(`[servizio] avviso di Node: ${w.name}: ${w.message}`) } catch { /* solo cronaca */ } })
   process.on('uncaughtException', (err) => { scrivi('eccezione non gestita', err) })
   process.on('unhandledRejection', (motivo) => { scrivi('promise rifiutata senza catch', motivo) })
 }
@@ -266,7 +269,11 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>):
   const scrivi = (livello: 'info' | 'errore', a: unknown[]): void => {
     if (dentro) return
     dentro = true
-    try { registro[livello](format(...a)) } catch { /* il registro non ferma il servizio */ } finally { dentro = false }
+    try {
+      const testo = format(...a)
+      // Un avviso di Node (DEP0180…) non e' un guasto: info, mai fra gli errori arrivati.
+      registro[livello === 'errore' && soloAvvisiNode(testo) ? 'info' : livello](testo)
+    } catch { /* il registro non ferma il servizio */ } finally { dentro = false }
   }
   const info = console.info.bind(console)
   const log = console.log.bind(console)

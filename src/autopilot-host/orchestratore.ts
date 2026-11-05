@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { gitPerLeChat } from '../main/git-nel-path'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
+import { separaAvvisiNode } from '@shared/avvisi-node'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
@@ -454,7 +455,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (eraInTurno || persi !== undefined) {
         // Quello che il turno portava non si perde: torna in attesa.
         if (persi !== undefined) { s.messaggi = [...persi.messaggi, ...s.messaggi]; s.eventi = [...persi.eventi, ...s.eventi]; if (s.eventi.length > 0) s.eventiPronti = true }
-        const motivo = stderr.trim().slice(-400) || `uscito con ${String(codice)}`
+        // Gli avvisi di Node (DeprecationWarning…) non sono il motivo dell'uscita.
+        const motivo = separaAvvisiNode(stderr).resto.slice(-400) || `uscito con ${String(codice)}`
         if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
           d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
           s.persa = true

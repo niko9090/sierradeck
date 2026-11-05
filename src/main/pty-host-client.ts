@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { decodeMessages, encodeMessage } from '@shared/protocol'
+import { separaAvvisiNode } from '@shared/avvisi-node'
 import type { CoreToHost, CoreToHostPty, HostToCore } from '@shared/protocol'
 import { processoVivo, uccidiAlberi } from '@shared/uccidi-alberi'
 
@@ -46,7 +47,10 @@ export function leggiStderrAtteso(chunk: string): { raccontate: string[]; errore
     if (spegn) raccontate.push((spegn[1] ?? '').trim())
     else restanti.push(riga)
   }
-  let resto = restanti.join('\n')
+  // Gli avvisi di Node (DeprecationWarning…) sono cronaca, non un guasto del host.
+  const { avvisi, resto: senzaAvvisi } = separaAvvisiNode(restanti.join('\n'))
+  for (const a of avvisi) raccontate.push(a)
+  let resto = senzaAvvisi
   if (/conpty_console_list_agent|AttachConsole failed/.test(resto)) {
     raccontate.push('console già chiusa (node-pty): ignorato')
     resto = ''
