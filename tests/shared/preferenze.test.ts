@@ -196,9 +196,9 @@ describe('lo stile della console', () => {
     expect(con('foglio')['--incisione']).toBe('transparent')
   })
 
-  it('il banco ha angoli quasi vivi e il foglio morbidi', () => {
-    expect(con('banco')['--raggio']).toBe('2px')
-    expect(con('foglio')['--raggio']).toBe('10px')
+  it('il banco ha angoli appena morbidi e il foglio di piu (0.95.0)', () => {
+    expect(con('banco')['--raggio']).toBe('6px')
+    expect(con('foglio')['--raggio']).toBe('12px')
   })
 
   it('il banco e piu denso: guadagna righe di terminale', () => {
@@ -210,9 +210,9 @@ describe('lo stile della console', () => {
       .toBeLessThan(Number.parseInt(con('foglio')['--testata-h'] ?? '', 10))
   })
 
-  it('solo il rilievo del banco proietta luce', () => {
+  it('0.95.0: superfici piane, nessuno dei due stili ha piu il rilievo', () => {
     expect(con('foglio')['--rilievo']).toBe('none')
-    expect(con('banco')['--rilievo']).toContain('inset')
+    expect(con('banco')['--rilievo']).toBe('none')
   })
 
   it('chi non sceglie resta dove era', () => {

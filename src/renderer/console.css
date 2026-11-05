@@ -17,15 +17,15 @@
      scuri. */
   color-scheme: dark;
 
-  --fondo: #141517;
-  --chassis: #232629;
-  --chassis-alto: #2b2f33;
-  --chassis-premuto: #1b1e21;
-  --incisione: #131517;
-  --luce-incisione: #3a3f45;
+  --fondo: #0c0e12;
+  --chassis: #14161a;
+  --chassis-alto: #1a1c20;
+  --chassis-premuto: #101216;
+  --incisione: #1e2024;
+  --luce-incisione: #282a2e;
 
-  --testo: #dfe3e7;
-  --testo-quieto: #9aa1a9;
+  --testo: #e2e4e8;
+  --testo-quieto: #a0a2a6;
 
   --verde: #54c07a;
   --ambra: #e0a33c;
@@ -37,32 +37,32 @@
      `tavolozza()` come tutti gli altri — e finiscono i trentadue valori che
      il foglio di stile si scriveva a mano, fermi mentre il chiarore si
      muoveva. */
-  --fondo-cupo: #0b0c0e;
-  --chassis-acceso: #33383d;
-  --primario: #3a4046;
-  --primario-alto: #4a5057;
-  --testo-spento: #6f767e;
+  --fondo-cupo: #07090d;
+  --chassis-acceso: #212327;
+  --primario: #2a2c30;
+  --primario-alto: #36383c;
+  --testo-spento: #6c6e72;
 
-  --fascia-h: 44px;
-  --raggio: 4px;
+  --fascia-h: 48px;
+  --raggio: 6px;
 
   /* Questi vestono lo stile scelto e arrivano da `tavolozza()`. I valori qui
      sono il ripiego per l'istante in cui la finestra disegna prima che le
      preferenze siano state lette: senza, il primo fotogramma sarebbe una
      console senza cornice. Sono quelli del banco, che è il predefinito. */
-  --testata-h: 26px;
+  --testata-h: 30px;
   --separazione: 1px;
-  --bordo: #131517;
-  --rilievo: inset 0 1px 0 var(--luce-incisione);
+  --bordo: #1e2024;
+  --rilievo: none;
 
   /* Le cinque misure di testo e i quattro passi di spazio, sempre del banco:
      senza questi il primo fotogramma avrebbe testi di dimensione ereditata e
      margini a zero — una console che si assesta sotto gli occhi. */
-  --t0: 10px;
-  --t1: 11px;
-  --t2: 12px;
+  --t0: 11px;
+  --t1: 12px;
+  --t2: 13px;
   --t3: 14px;
-  --t4: 19px;
+  --t4: 20px;
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;

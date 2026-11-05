@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.0',
+    righe: [
+      '**Grafica nuova:** colori ardesia più calmi, angoli morbidi e superfici piane al posto dei tasti in rilievo. La fascia in alto è più leggera, e si vede subito dove sei grazie al colore d’accento.',
+      '**La conversazione con l’autopilota al centro:** i tuoi messaggi sono a destra in blu, i suoi a sinistra, le sue domande in ambra; il campo per scrivergli è una scheda sempre in fondo.',
+      '**Chat degli specialisti più leggibili:** ognuna è una scheda con chi è, cosa sta facendo e da quanto, il compito in evidenza e i comandi che usa.',
+    ]
+  },
+  {
     versione: '0.94.3',
     righe: [
       '**Chat con la cartella sparita più tranquilla:** se la cartella di una chat è stata spostata o cancellata, il riquadro lo dice una volta sola e aspetta che tu scelga la cartella o riprovi, invece di ritentare a ogni apertura e riempire il registro di errori.',

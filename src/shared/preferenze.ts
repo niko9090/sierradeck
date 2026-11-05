@@ -314,34 +314,35 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
  */
 export function tavolozza(p: Preferenze): Record<string, string> {
   const base = Math.round(8 + (p.chiarore / 100) * 22)
+  // 0.95.0 (restyling «studio»): grigi ardesia, appena freddi — il blu cresce di
+  // pochi punti per canale — al posto del grigio neutro dello chassis.
   const grigio = (livello: number): string => {
-    const v = Math.max(0, Math.min(255, livello))
-    return `#${v.toString(16).padStart(2, '0').repeat(3)}`
+    const c = (v: number): string => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')
+    return `#${c(livello)}${c(livello + 2)}${c(livello + 6)}`
   }
   const comuni = {
     '--fondo': grigio(base),
-    '--chassis': grigio(base + 15),
-    '--chassis-alto': grigio(base + 23),
-    '--chassis-premuto': grigio(base + 7),
+    '--chassis': grigio(base + 8),
+    '--chassis-alto': grigio(base + 14),
+    '--chassis-premuto': grigio(base + 4),
     // I grigi che mancavano alla tavolozza, e che il foglio di stile si
     // scriveva a mano uno per uno: trentadue valori che **non seguivano il
-    // cursore del chiarore**, perché nessuno li ricavava dal fondo. Sono gli
-    // stessi di prima, ma adesso si muovono con gli altri.
-    '--fondo-cupo': grigio(Math.max(0, base - 8)),
-    '--chassis-acceso': grigio(base + 31),
-    '--primario': grigio(base + 38),
-    '--primario-alto': grigio(base + 50),
-    '--testo-spento': grigio(base + 73),
+    // cursore del chiarore**, perché nessuno li ricavava dal fondo.
+    '--fondo-cupo': grigio(Math.max(0, base - 5)),
+    '--chassis-acceso': grigio(base + 21),
+    '--primario': grigio(base + 30),
+    '--primario-alto': grigio(base + 42),
+    '--testo-spento': grigio(base + 96),
     // Il testo e i colori di stato. Non dipendono dal chiarore — verde è verde
     // — ma stanno qui lo stesso: la tavolozza è ciò che veste l'interfaccia, e
     // chi la chiede (il telefono, per avere gli stessi colori del computer) non
     // deve andare a cercarne una metà dentro un foglio di stile.
-    '--testo': grigio(223),
-    '--testo-quieto': grigio(154),
+    '--testo': grigio(226),
+    '--testo-quieto': grigio(160),
     '--verde': '#54c07a',
     '--ambra': '#e0a33c',
     '--rosso': '#dc5f5f',
-    '--spento': grigio(74),
+    '--spento': grigio(78),
     '--accento': p.accento,
     // Quanto spazio prende il diario dell'autopilota dentro il suo riquadro.
     // Sta qui perché è di qui che passano tutte le misure che l'utente sceglie:
@@ -374,11 +375,11 @@ export function tavolozza(p: Preferenze): Record<string, string> {
       // Il foglio non ha solchi: al loro posto c'è aria e un bordo quieto.
       // La variabile resta, perché il CSS la chiede — cambia cosa contiene.
       '--incisione': 'transparent',
-      '--luce-incisione': grigio(base + 18),
+      '--luce-incisione': grigio(base + 22),
       '--bordo': grigio(base + 18),
       '--separazione': '10px',
-      '--raggio': '10px',
-      '--fascia-h': '46px',
+      '--raggio': '12px',
+      '--fascia-h': '48px',
       '--testata-h': '34px',
       '--rilievo': 'none'
     }
@@ -386,29 +387,27 @@ export function tavolozza(p: Preferenze): Record<string, string> {
 
   return {
     ...comuni,
-    // Cinque misure e non undici. Il banco le tiene strette — 9 per la
-    // serigrafia, 12 per i comandi — perché ogni pixel non speso in cornice è
+    // Cinque misure e non undici, strette: ogni pixel non speso in cornice è
     // un pixel di conversazione.
-    '--t0': '10px',
-    '--t1': '11px',
-    '--t2': '12px',
+    '--t0': '11px',
+    '--t1': '12px',
+    '--t2': '13px',
     '--t3': '14px',
-    '--t4': '19px',
-    // Quattro passi su griglia da 4, scelti fra i valori che il banco già
-    // usava: consolidare non deve voler dire cambiargli faccia.
+    '--t4': '20px',
+    // Quattro passi su griglia da 4.
     '--s1': '4px',
     '--s2': '8px',
     '--s3': '12px',
     '--s4': '20px',
-    // Il banco separa con un solco inciso largo un pixel: ogni pixel non speso
-    // in cornice è un pixel di conversazione.
-    '--incisione': grigio(Math.max(0, base - 5)),
-    '--luce-incisione': grigio(base + 38),
-    '--bordo': grigio(Math.max(0, base - 5)),
+    // 0.95.0: un filo sottile, niente solco inciso né rilievo — superfici piane
+    // che si distinguono per tono, angoli morbidi.
+    '--incisione': grigio(base + 18),
+    '--luce-incisione': grigio(base + 28),
+    '--bordo': grigio(base + 18),
     '--separazione': '1px',
-    '--raggio': '2px',
-    '--fascia-h': '40px',
-    '--testata-h': '26px',
-    '--rilievo': `inset 0 1px 0 ${grigio(base + 38)}`
+    '--raggio': '6px',
+    '--fascia-h': '44px',
+    '--testata-h': '30px',
+    '--rilievo': 'none'
   }
 }

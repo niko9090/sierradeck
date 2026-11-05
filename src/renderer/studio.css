@@ -1,0 +1,607 @@
+/*
+ * 0.95.0 — il restyling «studio».
+ *
+ * Nicholas, 05/11: «effettua un restyling completo dell'app per lo scopo che
+ * abbiamo pensato». Lo scopo: in ogni workspace un autopilota con cui si parla,
+ * e accanto le chat degli specialisti che si guardano lavorare. La console di
+ * regia (tasti in rilievo, solchi incisi, serigrafie) era pensata per governare
+ * a mano tante chat; adesso al centro c'è una conversazione.
+ *
+ * Quindi: superfici piane che si distinguono per tono, un filo sottile al posto
+ * dei solchi, angoli morbidi, un solo colore d'accento per «dove sei» e «cosa
+ * premere», i LED verde/ambra/rosso per lo stato. La conversazione con
+ * l'autopilota è grande e calma; le chat degli specialisti sono schede quiete.
+ *
+ * Sta in un file a sé, caricato dopo `console.css`: riveste le stesse classi,
+ * nessun componente cambia, nessuna funzione se ne va.
+ */
+
+:root {
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+  --accento-tenue: color-mix(in srgb, var(--accento, #4aa3ff) 14%, transparent);
+  --accento-medio: color-mix(in srgb, var(--accento, #4aa3ff) 26%, transparent);
+  --filo: var(--bordo);
+  --raggio-grande: calc(var(--raggio) * 2);
+  --ombra-finestra: 0 20px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+body {
+  font-family: var(--font);
+  font-size: var(--t2);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  background: var(--fondo);
+}
+
+::selection { background: var(--accento-medio); }
+
+/* ─────────────── la fascia: una barra sola, piana ─────────────── */
+
+.console,
+.console--principale {
+  background: var(--fondo-cupo);
+  box-shadow: none;
+  border-bottom: 1px solid var(--filo);
+}
+
+.console--principale {
+  height: 52px;
+  gap: 2px;
+  padding: 0 var(--s3);
+}
+
+.console--chat {
+  height: 44px;
+  background: var(--fondo);
+  box-shadow: none;
+  border-bottom: 1px solid var(--filo);
+  padding: 0 var(--s1);
+}
+
+/* Il solco inciso fra le sezioni diventa un filo. */
+.sezione + .sezione::before {
+  width: 1px;
+  top: 12px;
+  bottom: 12px;
+  background: var(--filo);
+}
+
+.serigrafia {
+  font-size: var(--t0);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--testo-spento);
+  opacity: 1;
+}
+
+/* I sette tasti del menu: senza cornice finché non servono, l'icona e il nome. */
+.tasto-menu {
+  height: 36px;
+  padding: 0 12px;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--raggio);
+  background: transparent;
+  color: var(--testo-quieto);
+  font-size: var(--t2);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.tasto-menu:hover {
+  color: var(--testo);
+  background: var(--chassis-alto);
+  border-color: transparent;
+}
+
+.tasto-menu[aria-expanded='true'] {
+  color: var(--testo);
+  background: var(--accento-tenue);
+  border-color: transparent;
+  box-shadow: inset 0 -2px 0 var(--accento);
+}
+
+.tasto-menu__icona { font-size: 15px; width: 18px; opacity: 0.85; }
+.tasto-menu__numero { height: 18px; min-width: 18px; font-size: var(--t0); background: var(--accento-medio); color: var(--testo); }
+.tasto-menu__numero--chiama { background: var(--ambra); color: #1a1205; }
+
+/* I workspace: linguette con la riga d'accento sotto quella in cui sei. */
+.ws__voce {
+  height: 30px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-radius: var(--raggio);
+  color: var(--testo-quieto);
+  background: transparent;
+}
+
+.ws__voce:hover { color: var(--testo); background: var(--chassis-alto); }
+
+.ws__voce--attivo,
+.ws__voce--attivo:hover {
+  color: var(--testo);
+  background: var(--chassis-alto);
+  border: 0;
+  box-shadow: inset 0 -2px 0 var(--accento);
+}
+
+.versione { font-family: var(--mono); color: var(--testo-spento); }
+.versione:hover { background: var(--chassis-alto); }
+
+/* ─────────────── i tasti ─────────────── */
+
+.tasto {
+  font-size: var(--t2);
+  font-weight: 500;
+  color: var(--testo);
+  background: var(--chassis-alto);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio);
+  padding: 6px var(--s3);
+  box-shadow: none;
+  transition: background 120ms var(--uscita), border-color 120ms var(--uscita), color 120ms var(--uscita);
+}
+
+.tasto:hover:not(:disabled) {
+  background: var(--chassis-acceso);
+  border-color: var(--luce-incisione);
+}
+
+.tasto:active:not(:disabled) {
+  background: var(--chassis-premuto);
+  border-color: var(--filo);
+  box-shadow: none;
+  transform: none;
+}
+
+.tasto:disabled {
+  color: var(--testo-spento);
+  background: transparent;
+  border-color: var(--filo);
+}
+
+.tasto[aria-pressed='true'],
+.tasto[aria-expanded='true'] {
+  background: var(--accento-tenue);
+  border-color: color-mix(in srgb, var(--accento) 45%, transparent);
+  box-shadow: none;
+}
+
+/* L'azione principale: l'unico tasto pieno d'accento in vista. */
+.tasto--primario {
+  background: var(--accento);
+  border-color: var(--accento);
+  color: #0b0f16;
+  font-weight: 600;
+}
+
+.tasto--primario:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accento) 86%, #ffffff);
+  border-color: color-mix(in srgb, var(--accento) 86%, #ffffff);
+}
+
+.tasto--primario:disabled {
+  background: var(--accento-tenue);
+  border-color: transparent;
+  color: var(--testo-spento);
+}
+
+.tasto--mini { padding: 2px var(--s2); font-size: var(--t1); }
+.tasto--icona { padding: 6px var(--s2); }
+
+.tasto:focus-visible,
+.campo:focus-visible,
+.tasto-menu:focus-visible,
+.ws__voce:focus-visible,
+.comando-riquadro:focus-visible {
+  outline: 2px solid var(--accento);
+  outline-offset: 1px;
+}
+
+/* ─────────────── i campi ─────────────── */
+
+.campo {
+  background: var(--fondo-cupo);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio);
+  box-shadow: none;
+  padding: 6px var(--s2);
+  transition: border-color 120ms var(--uscita), box-shadow 120ms var(--uscita);
+}
+
+.campo:focus {
+  border-color: color-mix(in srgb, var(--accento) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--accento-tenue);
+}
+
+/* ─────────────── le finestre ─────────────── */
+
+.pannello {
+  background: var(--chassis);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  box-shadow: var(--ombra-finestra);
+}
+
+.pannello__testa {
+  background: transparent;
+  border-bottom: 1px solid var(--filo);
+  border-radius: var(--raggio-grande) var(--raggio-grande) 0 0;
+}
+
+.velo {
+  background: rgba(5, 6, 9, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.dialogo {
+  background: var(--chassis);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  box-shadow: var(--ombra-finestra);
+}
+
+.dialogo--attesa {
+  border-top: 1px solid var(--filo);
+  box-shadow: inset 0 2px 0 var(--ambra), var(--ombra-finestra);
+}
+
+.dialogo__testa {
+  border-bottom: 1px solid var(--filo);
+  box-shadow: none;
+}
+
+.richiamo {
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  box-shadow: var(--ombra-finestra);
+}
+
+.riga { border-radius: var(--raggio); }
+.riga:nth-child(odd) { background: color-mix(in srgb, var(--chassis-alto) 55%, transparent); }
+
+/* I menu a tendina e i fumetti d'aiuto. */
+.pan-altre__menu,
+.pan2-criteri__elenco,
+.aiuto__testo {
+  background: var(--chassis-alto);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  box-shadow: var(--ombra-finestra);
+}
+
+/* ─────────────── gli avvisi ─────────────── */
+
+.banda {
+  background: color-mix(in srgb, var(--ambra) 6%, var(--fondo));
+  border-bottom: 1px solid var(--filo);
+  box-shadow: none;
+}
+
+.banda__voce + .banda__voce,
+.banda + .banda { border-top: 1px solid var(--filo); }
+.banda__testo { color: var(--testo); }
+
+/* ─────────────── barre di scorrimento: sottili ─────────────── */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: transparent; }
+
+::-webkit-scrollbar-thumb {
+  background: var(--chassis-acceso);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover { background: var(--primario-alto); background-clip: padding-box; }
+
+/* ─────────────── i riquadri del mosaico ─────────────── */
+
+.riquadro {
+  border-radius: var(--raggio);
+  overflow: hidden;
+}
+
+.testata-riquadro {
+  background: var(--chassis);
+  border-bottom: 1px solid var(--filo);
+  box-shadow: none;
+  padding: var(--s1) var(--s2);
+}
+
+.comando-riquadro { border-radius: var(--raggio); }
+.comando-riquadro:hover { background: var(--chassis-alto); }
+
+.riquadro--guardato { outline-color: var(--accento); }
+
+/* ─────────────── la Panoramica del workspace ─────────────── */
+
+.pan-barra {
+  height: 44px;
+  padding: 0 var(--s3);
+  background: var(--fondo);
+  border-bottom: 1px solid var(--filo);
+}
+
+.pan-linguetta {
+  height: 30px;
+  border: 0;
+  border-radius: var(--raggio);
+  font-size: var(--t2);
+}
+
+.pan-linguetta:hover { background: var(--chassis-alto); }
+
+.pan-linguetta--qui {
+  color: var(--testo);
+  background: var(--chassis-alto);
+  border: 0;
+  box-shadow: inset 0 -2px 0 var(--accento);
+}
+
+.pan-corpo { top: 44px; background: var(--fondo); }
+.chat-specialisti--pieno { top: 44px; }
+
+.vista-interruttore {
+  padding: 3px;
+  border: 1px solid var(--filo);
+  border-radius: calc(var(--raggio) + 3px);
+  background: var(--fondo-cupo);
+}
+
+.vista-interruttore__voce { height: 28px; padding: 0 var(--s3); border-radius: var(--raggio); font-size: var(--t2); }
+
+.vista-interruttore__voce--attiva,
+.vista-interruttore__voce--attiva:hover {
+  background: var(--chassis-acceso);
+  color: var(--testo);
+  box-shadow: inset 0 -2px 0 var(--accento);
+}
+
+/* La situazione in alto: l'obiettivo del workspace e come sta andando. */
+.pan2-situazione {
+  gap: 6px;
+  padding: var(--s3) var(--s4);
+  background: linear-gradient(180deg, var(--chassis) 0%, var(--fondo) 100%);
+  border-bottom: 1px solid var(--filo);
+}
+
+.pan2-obiettivo { font-size: 16px; font-weight: 600; letter-spacing: -0.005em; }
+.pan2-stato { font-size: var(--t2); }
+.pan2-stato__perche { color: var(--testo-quieto); }
+
+.pan2-barra { height: 6px; gap: 3px; }
+.pan2-barra__pezzo { border-radius: 3px; background: var(--chassis-acceso); }
+
+/* A sinistra la conversazione con l'autopilota: una colonna sua, più chiara. */
+.pan2-dialogo {
+  background: var(--chassis);
+  border-right: 1px solid var(--filo);
+  padding: 0 var(--s4) var(--s3);
+}
+
+.pan2-centro { padding: var(--s3) var(--s4); }
+.pan2-sezione + .pan2-sezione { margin-top: var(--s4); }
+.pan2-vuoto { color: var(--testo-spento); }
+
+.pan2-riassunto {
+  background: var(--fondo);
+  border-bottom: 1px solid var(--filo);
+}
+
+/* Le schede: piane, angolo morbido, il filo di stato a sinistra resta. */
+.pan2-scheda,
+.pan2-chatferma,
+.pan2-compito,
+.pan2-riassunto__riga,
+.pan-scheda {
+  background: var(--chassis);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  transition: border-color 120ms var(--uscita), background 120ms var(--uscita);
+}
+
+.pan2-scheda,
+.pan2-riassunto__riga,
+.pan-scheda { border-left: 3px solid var(--verde); }
+
+.pan2-scheda--chiede,
+.pan2-riassunto__riga--chiede,
+.pan-scheda--chiede {
+  border-left-color: var(--ambra);
+  background: color-mix(in srgb, var(--ambra) 7%, var(--chassis));
+}
+
+.pan2-scheda__apri,
+.pan2-chatferma__apri { border-radius: var(--raggio-grande); padding: var(--s2) var(--s3); }
+.pan2-scheda__apri:hover,
+.pan2-chatferma__apri:hover { background: var(--chassis-alto); }
+.pan2-scheda__righe { font-family: var(--mono); }
+
+button.pan2-compito:hover,
+button.pan2-compito:focus-visible { border-color: var(--luce-incisione); background: var(--chassis-alto); }
+
+.pan2-colonna {
+  background: var(--fondo-cupo);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+}
+
+.pan2-colonna__testa { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--filo); }
+
+.pan2-riga-apri { border-top: 1px solid var(--filo); border-radius: 0; }
+.pan2-riga-apri:hover,
+.pan2-finita:hover:not(:disabled) { background: var(--chassis-alto); }
+.pan2-finita { border-radius: var(--raggio); height: 28px; }
+
+.pan2-ruolo { height: 20px; border-radius: 10px; }
+
+.pan2-domande { background: var(--chassis); border-left: 1px solid var(--filo); }
+
+/* ─────────────── la conversazione con l'autopilota ─────────────── */
+
+.chatap { gap: var(--s3); }
+
+.chatap__flusso {
+  gap: var(--s2);
+  padding: var(--s3) 4px var(--s2) 0;
+}
+
+.chatap__bolla {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--raggio-grande);
+  font-size: var(--t2);
+  line-height: 1.5;
+  max-width: 88%;
+}
+
+.chatap--pronta .chatap__flusso { font-size: var(--t3); }
+.chatap--pronta .chatap__bolla { font-size: var(--t3); }
+
+/* Tu: a destra, nel colore d'accento. Lui: a sinistra, una scheda quieta. */
+.chatap__riga--tu .chatap__bolla {
+  background: var(--accento-medio);
+  border: 1px solid color-mix(in srgb, var(--accento) 35%, transparent);
+  border-bottom-right-radius: var(--raggio);
+}
+
+.chatap__riga--lui .chatap__bolla {
+  background: var(--chassis-alto);
+  border: 1px solid var(--filo);
+  border-bottom-left-radius: var(--raggio);
+}
+
+.chatap__riga--domanda .chatap__bolla,
+.chatap__riga--pronto .chatap__bolla {
+  background: color-mix(in srgb, var(--ambra) 10%, var(--chassis-alto));
+  border: 1px solid color-mix(in srgb, var(--ambra) 70%, transparent);
+}
+
+.chatap__chi,
+.chatap__esito { font-size: var(--t0); color: var(--testo-spento); font-weight: 600; letter-spacing: 0.02em; }
+
+/* Le note di lavoro: una linea del tempo sottile. */
+.chatap__riga--nota {
+  padding: 2px 0 2px var(--s3);
+  margin-left: var(--s1);
+  border-left: 2px solid var(--filo);
+  font-size: var(--t1);
+  color: var(--testo-quieto);
+}
+
+.chatap__quando { color: var(--testo-spento); font-family: var(--mono); font-size: var(--t0); }
+.chatap__pensa { color: var(--ambra); font-size: var(--t1); }
+
+/* Il campo per scrivergli: una scheda in fondo, sempre in vista. */
+.chatap__scrivi {
+  gap: var(--s2);
+  padding: var(--s2);
+  background: var(--fondo-cupo);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+  transition: border-color 120ms var(--uscita), box-shadow 120ms var(--uscita);
+}
+
+.chatap__scrivi:focus-within {
+  border-color: color-mix(in srgb, var(--accento) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accento-tenue);
+}
+
+.chatap__scrivi .chatap__campo,
+.chatap__scrivi .chatap__campo:focus {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 4px 6px;
+  font-size: var(--t3);
+  min-height: 44px;
+}
+
+.chatap__eventi { border-bottom: 1px solid var(--filo); }
+.chatap__evento { color: var(--testo-quieto); }
+
+/* La coda delle richieste e il punto dell'autopilota, sopra la conversazione. */
+.coda-ws,
+.punto-ap { border-bottom: 1px solid var(--filo); }
+.coda-ws__richiesta,
+.punto-ap__indicatore,
+.punto-ap__richieste { border-bottom: 1px solid var(--filo); }
+.coda-ws__badge { border-radius: 10px; }
+.punto-ap__barra { height: 6px; border-radius: 3px; background: var(--chassis-acceso); }
+.punto-ap__barra > span { border-radius: 3px; }
+
+/* ─────────────── le chat degli specialisti ─────────────── */
+
+.chat-specialisti { gap: var(--s3); }
+
+.chat-specialisti--colonna {
+  padding: var(--s3);
+  background: var(--fondo);
+  border-left: 1px solid var(--filo);
+}
+
+.chat-specialisti--pieno { padding: var(--s3); gap: var(--s3); }
+
+.chat-spec {
+  background: var(--chassis);
+  border: 1px solid var(--filo);
+  border-radius: var(--raggio-grande);
+}
+
+.chat-spec__testata {
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--chassis-alto);
+  border-bottom: 1px solid var(--filo);
+  font-size: var(--t1);
+}
+
+.chat-spec__corpo {
+  padding: var(--s2) var(--s3);
+  gap: 6px;
+  font-size: var(--t1);
+  line-height: 1.5;
+}
+
+.chat-spec__compito {
+  padding: var(--s2) var(--s3);
+  border-left: 2px solid var(--accento);
+  border-radius: 0 var(--raggio) var(--raggio) 0;
+  background: var(--accento-tenue);
+  color: var(--testo);
+}
+
+.chat-spec__strumento { color: color-mix(in srgb, var(--accento) 80%, var(--testo)); font-family: var(--mono); }
+.chat-spec__esito { font-family: var(--mono); }
+.chat-spec__piede { padding: var(--s1) var(--s3); border-top: 1px solid var(--filo); background: var(--fondo-cupo); }
+.chat-spec--finita { opacity: 0.6; }
+.chat-spec__battito { box-shadow: 0 0 6px color-mix(in srgb, var(--verde) 70%, transparent); }
+
+/* ─────────────── i LED: un alone appena più morbido ─────────────── */
+
+.led { box-shadow: none; }
+.led--lavoro { box-shadow: 0 0 6px color-mix(in srgb, var(--verde) 60%, transparent); }
+.led--attesa { box-shadow: 0 0 6px color-mix(in srgb, var(--ambra) 60%, transparent); }
+.led--fermo { box-shadow: 0 0 6px color-mix(in srgb, var(--rosso) 55%, transparent); }
+
+/* ─────────────── il «?» d'aiuto ─────────────── */
+
+.aiuto__tasto {
+  border-color: var(--filo);
+  background: transparent;
+  color: var(--testo-spento);
+}
+
+.aiuto__tasto:hover,
+.aiuto__tasto--aperto {
+  color: var(--testo);
+  border-color: var(--luce-incisione);
+  background: var(--chassis-alto);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tasto, .campo, .chatap__scrivi, .pan2-scheda, .pan2-compito { transition: none; }
+}

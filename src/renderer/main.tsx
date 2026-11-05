@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App'
 import { ConfineErrori } from './components/ConfineErrori'
 import './console.css'
+import './studio.css'
 
 // Gli errori che sfuggono a React — una Promise rifiutata senza `catch`, un
 // errore in un gestore d'evento — non passano dal ConfineErrori: li si raccoglie
