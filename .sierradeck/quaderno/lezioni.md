@@ -15,6 +15,7 @@
 - In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
 - Le cache firmate con la sola mtime di una cartella sono fragili su Windows (orologio a ~15 ms): un file nato nello stesso tick non si vede. Rileggere se la mtime è più recente di 2 s. _(2026-11-05)_
 - Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
+- `npx vitest run tests/main` non copre tests/autopilot-host: per modifiche al servizio lanciare anche quella cartella. _(2026-11-05)_
 
 ## worktree
 
@@ -25,6 +26,7 @@
 ## errori
 
 - Lo stderr dei figli arriva a pezzi arbitrari: riconoscere le righe attese una per una, mai con `^` sul pezzo intero (0.88.2 sfuggiva, prefisso doppio). _(2026-10-30)_
+- Gli avvisi Node (DEPxxxx) arrivano su stderr dei figli (claude, PTY host) o via console.error: filtrarli con src/shared/avvisi-node.ts prima di chiamarli errori. _(2026-11-05)_
 
 ## consegne
 
@@ -64,6 +66,7 @@
 - Se un collega ha lasciato un build a metà in un altro worktree, controlla che dist non abbia l'exe e che non ci siano processi; poi costruisci nella tua copia, già sul tag, senza riprendere la sua. _(2026-11-05)_
 - `allega-apk --senza-build` da una copia nuova: copia `app-release.apk` e `local.properties` dalla cartella principale, poi cancella `local.properties`. _(2026-11-05)_
 - Dopo una release da una copia, il main locale resta indietro del commit del bump (0.94.2: a1bfb663 solo su origin/main): prima del lavoro dopo, allinearlo con git merge --ff-only origin/main. _(2026-11-05)_
+- Dopo la 0.94.3 il main locale è indietro di 0f0b1efe (bump) e c2c530c5 (novità) su origin/main: il primo specialista del prossimo lavoro li unisce con fast-forward prima di partire. _(2026-11-05)_
 
 ## git
 
@@ -127,6 +130,7 @@
 ## pubblicazione
 
 - `npm run pubblica` lascia la release in bozza: serve `gh release edit vX --draft=false --latest`. `isLatest` non è un campo di `gh release view`, si legge da `gh release list`. _(2026-11-05)_
+- gh release create senza --draft fa saltare l'upload a pubblica («existing type not compatible»): o --draft, o caricare a mano exe/blockmap/latest.yml con nomi a trattini (0.94.3). _(2026-11-05)_
 
 ## apk
 
