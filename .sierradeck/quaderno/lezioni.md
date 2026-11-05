@@ -63,6 +63,7 @@
 - 0.93.1 (05/11) pubblicata dalla copia con npm ci: 49 moduli, 5 allegati. L'APK è alla 2.88.6 (numerazione Android separata): con android/ invariato si riallega quello. _(2026-11-05)_
 - Se un collega ha lasciato un build a metà in un altro worktree, controlla che dist non abbia l'exe e che non ci siano processi; poi costruisci nella tua copia, già sul tag, senza riprendere la sua. _(2026-11-05)_
 - `allega-apk --senza-build` da una copia nuova: copia `app-release.apk` e `local.properties` dalla cartella principale, poi cancella `local.properties`. _(2026-11-05)_
+- Dopo una release da una copia, il main locale resta indietro del commit del bump (0.94.2: a1bfb663 solo su origin/main): prima del lavoro dopo, allinearlo con git merge --ff-only origin/main. _(2026-11-05)_
 
 ## git
 
@@ -138,3 +139,8 @@
 ## ambiente
 
 - un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
+
+## renderer
+
+- Un caso atteso va nel registro come info (`log.info`), non `log.errore`: `erroriDalLog` conta solo ERRORE o parole come fallito/rifiutato/guasto, quindi il testo dell'avviso deve evitarle. _(2026-11-05)_
+- Terminal.tsx rimonta il riquadro a ogni cambio di workspace e di vista, e ogni montaggio rifà lo spawn: una condizione già nota (cartella sparita) va ricordata fuori dal componente. _(2026-11-05)_
