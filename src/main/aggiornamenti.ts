@@ -217,7 +217,20 @@ export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: 
  *   electron-updater attacca a ogni errore (`Headers: {…}`), al massimo 300 caratteri.
  */
 export function eErroreDiReteTransitorio(testo: string): boolean {
-  return /ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ECONNRESET|ETIMEDOUT/.test(testo)
+  if (/ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ECONNRESET|ETIMEDOUT/.test(testo)) return true
+  return erroreGitHubPasseggero(testo)
+}
+
+/**
+ * 502, 503 e 504 di GitHub sul feed delle release o sul download: il server è
+ * momentaneamente indisponibile (succede mentre si pubblica), l'updater ritenta
+ * al giro dopo. Il numero conta solo se è il codice HTTP in coda al messaggio di
+ * electron-updater, o in un HttpError: non un 504 qualunque nel testo.
+ */
+function erroreGitHubPasseggero(testo: string): boolean {
+  const delFeed = /Cannot parse releases feed|Unable to find latest version on GitHub|Cannot download|HttpError|releases\/(latest|download)/i.test(testo)
+  if (!delFeed) return false
+  return /(?:HttpError:\s*|:\s)50[234](?:\s|$|\))/.test(testo) && !/Cannot download differentially/.test(testo)
 }
 
 export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string } {
