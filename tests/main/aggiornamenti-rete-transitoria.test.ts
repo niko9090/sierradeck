@@ -48,6 +48,37 @@ describe('errori di rete passeggeri', () => {
     expect(eErroreDiReteTransitorio('sha512 checksum mismatch')).toBe(false)
   })
 
+  const feed = (n: number): string => `Cannot parse releases feed: Error: Unable to find latest version on GitHub (https://github.com/niko9090/sierradeck/releases/latest), please ensure a production release exists: ${n}`
+
+  it('i 502, 503 e 504 di GitHub sul feed sono passeggeri', () => {
+    for (const n of [502, 503, 504]) expect(eErroreDiReteTransitorio(feed(n))).toBe(true)
+    expect(eErroreDiReteTransitorio('HttpError: 503 Service Unavailable')).toBe(true)
+  })
+
+  it('501, 404 e un numero a caso restano com erano', () => {
+    expect(eErroreDiReteTransitorio('Cannot download differentially, fallback to full download: 501')).toBe(false)
+    expect(eErroreDiReteTransitorio(feed(404))).toBe(false)
+    expect(eErroreDiReteTransitorio('errore alla riga 504 del file')).toBe(false)
+    expect(eErroreDiReteTransitorio('sha512 checksum mismatch: 504')).toBe(false)
+  })
+
+  it('il 504 del feed non e fase «errore» ne ERRORE nel registro, ne dal gestore ne dal logger', () => {
+    const { a, righe } = nuovo()
+    h.updater.emit('error', new Error(feed(504)))
+    expect(a.stato().fase).not.toBe('errore')
+    expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+    const l = creaLoggerUpdater({ info: (m) => righe.push(`info ${m}`), errore: (m) => righe.push(`ERRORE ${m}`) })
+    l.error(feed(504))
+    expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+    expect(righe[righe.length - 1]).toMatch(/^info \[electron-updater\] avviso: /)
+  })
+
+  it('un checksum sbagliato resta un errore vero', () => {
+    const { a } = nuovo()
+    h.updater.emit('error', new Error('sha512 checksum mismatch'))
+    expect(a.stato().fase).toBe('errore')
+  })
+
   it('ERR_NO_BUFFER_SPACE non diventa fase «errore» e non e un ERRORE nel registro', () => {
     const { a, righe } = nuovo()
     h.updater.emit('error', nobuf())
