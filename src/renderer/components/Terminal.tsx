@@ -18,6 +18,7 @@ import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
 import { daQuandoTace, type Apertura } from '@shared/apertura-chat'
 import { diagnostica, tettoAttesaMs, passoAttesaPrompt, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
 import { turniAvvio } from '../turni-avvio'
+import { cartellaSegnataSparita, dimenticaCartellaSparita, rigaDelGuasto, segnaCartellaSparita } from '../cartelle-sparite'
 import { SEGNI_DI_PROMPT } from '../ultime-righe'
 import { FinestraTemporanea } from './FinestraTemporanea'
 
@@ -178,7 +179,13 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     if (mostraAttesa()) setAttesaDa(Date.now())
   }
   const scriviGuasto = (d: Diagnosi): void => {
-    void window.gestore.log.errore(`[chat] «${avvio.current.title ?? ''}» (${avvio.current.sessionUuid}, ${avvio.current.cwd}) non si apre — ${d.caso}: ${d.titolo}. ${d.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}`).catch(() => undefined)
+    const { sessionUuid, cwd } = avvio.current
+    // La cartella sparita e' un caso atteso (0.94.3): un avviso, e una volta
+    // sola per chat e cartella; il riquadro con le azioni resta.
+    if (d.caso === 'cartella-sparita' && !segnaCartellaSparita(sessionUuid, cwd, d)) return
+    const riga = rigaDelGuasto(d, avvio.current)
+    const scritto = riga.livello === 'info' ? window.gestore.log.info(riga.testo) : window.gestore.log.errore(riga.testo)
+    void scritto.catch(() => undefined)
   }
   /** `scrivi` falso: l'avviso si mostra, ma nel registro non va (la «lenta» prima dei 90 s). */
   const annotaGuasto = (d: Diagnosi, scrivi = true): void => {
@@ -394,6 +401,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // telefono. La griglia di xterm quel lavoro l'ha gia' fatto.
         registraSchermo(id, () => term.buffer.active, () => term.rows, () => term.cols)
         ultimoPtyId.current = id
+        dimenticaCartellaSparita(avvio.current.sessionUuid, avvio.current.cwd)
         avvio.current.onPtyId(paneId, id)
       }
     })
@@ -449,7 +457,13 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       )
     }
     ricontrollaRef.current = chiedi
-    if (iniziale.ptyId !== undefined || iniziale.autopilota !== undefined) aggancio.avvia()
+    // 0.94.3: una chat gia' segnata «cartella sparita» non si riapre da sola a
+    // ogni montaggio: il riquadro mostra la diagnosi e aspetta l'utente.
+    const giaSparita = iniziale.ptyId === undefined && iniziale.autopilota === undefined
+      ? cartellaSegnataSparita(iniziale.sessionUuid, iniziale.cwd)
+      : undefined
+    if (giaSparita !== undefined) { setGuasto(giaSparita); finitaAttesa.current(undefined) }
+    else if (iniziale.ptyId !== undefined || iniziale.autopilota !== undefined) aggancio.avvia()
     else chiedi()
 
     const copia = (): void => {
