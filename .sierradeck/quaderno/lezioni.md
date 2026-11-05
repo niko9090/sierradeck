@@ -88,6 +88,7 @@
 ## aggiornamenti
 
 - Gli errori di rete transitori dell'updater (ERR_NO_BUFFER_SPACE) si ritentano da soli con RICONTROLLA_MS: il registro non deve trattarli come guasti. _(2026-11-01)_
+- i 5xx di GitHub sul feed (502/503/504) sono passeggeri durante una pubblicazione; il 501 differenziale e il 404 su latest.yml hanno trattamenti propri, non confonderli. _(2026-11-05)_
 
 ## ipc
 
@@ -126,3 +127,7 @@
 ## npm ci
 
 - con `npm ci` l'eseguibile di Electron può non scaricarsi (allowScripts): serve `node node_modules/electron/install.js` prima di `pubblica`. _(2026-11-05)_
+
+## ambiente
+
+- un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
