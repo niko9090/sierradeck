@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.94.0',
+    righe: [
+      '**L’autopilota unisce più in fretta:** le prove già passate non si rifanno. Il 05/11 per unire un lavoro rifaceva gli stessi test tre volte, circa 5 minuti invece di uno e mezzo: adesso conta il codice salvato, e una prova già compresa in una più larga che passa non si rilancia.',
+      '**Nessuna attesa a vuoto:** quando uno specialista finisce un lavoro fuori dal piano, il programma lo unisce subito, invece di aspettare tre minuti che l’autopilota se ne accorga.',
+      '**L’autopilota guarda lo stato del progetto da solo** (git status, log, diff), invece di perdere turni con comandi che non può usare.',
+      '**Drive più leggero:** non salva più i segni che git tiene per le copie temporanee degli specialisti.',
+      '**Controllo di tutti i PC:** dice anche quali sono le cose da guardare di ogni PC, non solo quante.',
+    ]
+  },
+  {
     versione: '0.93.3',
     righe: [
       '**Aggiornamenti:** se GitHub risponde male per un attimo, il programma lo segnala come avviso e riprova, senza dire che qualcosa si è rotto.',
