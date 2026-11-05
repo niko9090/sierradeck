@@ -107,13 +107,27 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
       { pcId: 'x', nome: 'X', errore: 'prima ragione' },
       { pcId: 'y', nome: 'Y', errore: 'seconda ragione' }
     ], [])
-    expect(c.map((r) => `${r.pc}: ${r.cosa}`)).toEqual([
-      'A, B: attenzione · X · risponde ma non entra · 0.93.0',
-      'A: attenzione · Y · non so se è acceso · 0.93.0',
-      'X: non risponde',
-      'Y: non risponde'
-    ])
-    expect(c[2]?.dettaglio).toBe('prima ragione')
-    expect(c[3]?.dettaglio).toBe('seconda ragione')
+    // Lo stesso PC è una riga sola: vince il bussare locale, e il PC stesso non è fra chi lo vede.
+    expect(c.map((r) => `${r.pc}: ${r.cosa}`)).toEqual(['A, B: non risponde', 'A: non risponde'])
+    expect(c[0]?.dettaglio).toBe('prima ragione')
+    expect(c[1]?.dettaglio).toBe('seconda ragione')
+  })
+
+  it('k-30: tre PC che riportano pc:<id> + il bussare locale dello stesso id = una riga sola', () => {
+    const remota = (): Salute['voci'][number] => ({ ...voce('attenzione', 'NB-PROBOOK-TEC · non so se è acceso'), chiave: 'pc:nb' })
+    const saluti = [
+      { pcId: 'a', nome: 'PC-Fisso', salute: salute([remota()]) },
+      { pcId: 'b', nome: 'DESKTOP', salute: salute([remota()]) },
+      { pcId: 'c', nome: 'LAPTOP', salute: salute([remota()]) },
+      { pcId: 'nb', nome: 'NB-PROBOOK-TEC', errore: 'all’indirizzo vecchio risponde DESKTOP' }
+    ]
+    for (const ordine of [saluti, [...saluti].reverse()]) {
+      const c = criticitaDi(ordine, [])
+      expect(c).toHaveLength(1)
+      expect(c[0]?.cosa).toBe('non risponde')
+      expect(c[0]?.dettaglio).toContain('risponde DESKTOP')
+      expect(c[0]?.pc.split(', ').sort()).toEqual(['DESKTOP', 'LAPTOP', 'PC-Fisso'])
+    }
+    expect(firmaCriticita(criticitaDi(saluti, []))).toBe(firmaCriticita(criticitaDi([...saluti].reverse(), [])))
   })
 })

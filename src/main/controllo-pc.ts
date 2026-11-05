@@ -31,7 +31,7 @@ export type Criticita = { pc: string; cosa: string; dettaglio: string }
 const STATI_CRITICI = new Set(['bloccata', 'bloccato', 'errore', 'fallito'])
 
 /** `chiave`: il PC di cui si parla, per tenere una riga per PC (non per testo). */
-type Voce = Criticita & { chiave?: string }
+type Voce = Criticita & { chiave?: string; locale?: boolean }
 
 /** Pura: le criticità di tutti i PC, in un ordine stabile. */
 export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly AutopilotiDiPc[]): Criticita[] {
@@ -39,7 +39,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
   for (const s of saluti) {
     if (s.salute === undefined) {
       // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
-      out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `non-risponde:${s.pcId}` })
+      out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `pc:${s.pcId}`, locale: true })
       continue
     }
     for (const v of s.salute.voci) {
@@ -69,21 +69,27 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
  * è una riga sola, con i PC che la vedono.
  */
 function unisci(c: readonly Voce[]): Criticita[] {
-  const per = new Map<string, Criticita>()
+  const per = new Map<string, { riga: Criticita; pcs: string[]; locale?: Voce }>()
   // La diagnosi generica «non so se è acceso» cede a quella che viene dal bussare (chiave, rifiutato, altro).
   const generica = (cosa: string): boolean => cosa.includes('non so se è acceso')
   for (const x of c) {
     const k = x.chiave ?? x.cosa
     const g = per.get(k)
     if (g === undefined) {
-      const { chiave: _chiave, ...riga } = x
-      per.set(k, riga)
+      const { chiave: _chiave, locale, ...riga } = x
+      per.set(k, { riga, pcs: [x.pc], ...(locale === true ? { locale: x } : {}) })
       continue
     }
-    if (!g.pc.split(', ').includes(x.pc)) g.pc = `${g.pc}, ${x.pc}`
-    if (x.cosa !== g.cosa && generica(g.cosa) && !generica(x.cosa)) { g.cosa = x.cosa; g.dettaglio = x.dettaglio }
+    if (!g.pcs.includes(x.pc)) g.pcs.push(x.pc)
+    if (x.locale === true) g.locale = x
+    else if (x.cosa !== g.riga.cosa && generica(g.riga.cosa) && !generica(x.cosa) && g.locale === undefined) { g.riga.cosa = x.cosa; g.riga.dettaglio = x.dettaglio }
   }
-  return [...per.values()]
+  return [...per.values()].map((g) => {
+    // Il bussare di questo PC è la diagnosi più precisa: vince. Il PC stesso non è fra quelli che lo vedono.
+    if (g.locale === undefined) return { ...g.riga, pc: g.pcs.join(', ') }
+    const altri = g.pcs.filter((n) => n !== g.locale?.pc)
+    return { pc: (altri.length > 0 ? altri : g.pcs).join(', '), cosa: g.locale.cosa, dettaglio: g.locale.dettaglio }
+  })
 }
 
 /**
