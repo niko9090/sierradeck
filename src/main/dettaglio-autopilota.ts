@@ -8,6 +8,34 @@ export type FonteDettaglio = {
 
 export type EsitoDettaglio = { versione?: string; autopilota?: Autopilota; occupato?: true }
 
+/** Cio' che serve del client per rispondere a `autopilota:elenca`. */
+export type FonteElenco = {
+  assicuraServizio: () => Promise<unknown>
+  elenca: () => Promise<Autopilota[]>
+  elencoNoto: () => Autopilota[] | undefined
+}
+
+/**
+ * La risposta a `autopilota:elenca` (0.94.2).
+ *
+ * Come per il dettaglio: il servizio occupato che non risponde in tempo e' un
+ * caso atteso, non un guasto. Il timeout torna come l'ultimo elenco noto (o un
+ * elenco vuoto se non ne e' mai arrivato uno: il renderer riprova al giro dopo)
+ * con una riga di cronaca, non come errore dell'handler. Ogni altro errore
+ * resta un errore.
+ */
+export async function rispondiElenco(client: FonteElenco, log?: (m: string) => void): Promise<Autopilota[]> {
+  try {
+    await client.assicuraServizio()
+    return await client.elenca()
+  } catch (err) {
+    if ((err as { scaduto?: boolean } | null)?.scaduto !== true) throw err
+    const noto = client.elencoNoto()
+    log?.(`[autopilota] elenco: il servizio e' occupato e non ha risposto in tempo, ${noto !== undefined ? "resta l'ultimo elenco noto" : 'elenco vuoto per ora'}`)
+    return noto ?? []
+  }
+}
+
 /**
  * La risposta a `autopilota:dettaglio` (0.88.10).
  *

@@ -50,6 +50,8 @@ export type ClientAutopilota = {
    * cartelle, chat e stati; la storia intera la dà `dettaglio`.
    */
   elenca: () => Promise<Autopilota[]>
+  /** L'ultimo elenco ricevuto (anche se non più fresco), `undefined` se non ne è mai arrivato uno (0.94.2). */
+  elencoNoto: () => Autopilota[] | undefined
   /** Un autopilota intero, con tutta la sua storia (0.85.2). `undefined` se non c'è. */
   dettaglio: (id: string) => Promise<Autopilota | undefined>
   /** L'ETag dell'ultimo dettaglio letto di quell'autopilota: due uguali, stesso autopilota. */
@@ -301,6 +303,7 @@ export function creaClientAutopilota(p: {
       elencoInViaggio ??= chiediElenco().finally(() => { elencoInViaggio = undefined })
       return elencoInViaggio
     },
+    elencoNoto: () => elencoTenuto?.dati,
     dettaglio: (id) => {
       let inViaggio = dettagliInViaggio.get(id)
       if (inViaggio === undefined) {
