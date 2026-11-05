@@ -75,3 +75,8 @@ Corretto nella prossima release: il controllo del proprietario (src/main/casa-al
 ## A mano
 
 - Verificare che NB-PROBOOK-TEC sia acceso, sulla stessa rete o con Tailscale (da qui non si può sapere).
+
+# Errori arrivati (lotto 20261105113725, app 0.93.0)
+
+## Gruppo 1: "[autopilota] porta 47630 gia occupata: un altro servizio e vivo, esco" (servizio, versione "?")
+Corretto nella prossima release. Il caso e atteso (istanza unica: il doppione esce, quello di prima continua) ma la console.error del gestore di EADDRINUSE veniva catturata dal servizio come ERRORE e finiva negli errori arrivati. Ora il gestore e in src/autopilot-host/errore-server.ts (gestisciErroreServer): la porta occupata e un solo avviso (console.warn, riga info nel registro, uscita 0); ogni altro errore del server resta ERRORE con uscita 1. La versione "?" era un difetto vero ma a parte: un servizio avviato al login dallo script Esecuzione automatica non riceve SIERRADECK_VERSIONE (solo il Gestore la passa). Ora versioneDelServizio la legge dal package.json dell app se manca; "?" solo se non c e. Il campo versione dato al server (che decide se il Gestore sostituisce un servizio vecchio) NON e cambiato. Test in tests/main/errore-server-porta-occupata.test.ts.
