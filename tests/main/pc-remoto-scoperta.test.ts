@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import type { BattitoPc } from '@shared/posta'
-import { provaCasa } from '../../src/main/casa-firma'
+import { improntaPc, provaCasa } from '../../src/main/casa-firma'
 
 /**
  * 0.39.3: il client remoto non dice più «spento» guardando solo il battito.
@@ -77,5 +77,63 @@ describe('il client remoto con il battito vecchio', () => {
     // /api/casa non la conosce (401): il vecchio modo, all'indirizzo del suo battito.
     const { c } = client((url) => url.includes('/api/casa') ? risponde(401) : url.includes('/api/pc') ? risponde(404) : risponde(200, { ok: true }))
     expect((await c.bussa('lap')).esito).toBe('risponde')
+  })
+})
+
+describe('chi risponde a un indirizzo che non è quello atteso (05/11)', () => {
+  const ALTRO: BattitoPc = { pcId: 'altro-pc', nome: 'ALTRO-PC-ESEMPIO', versione: '0.93.0', battito: '2026-11-05T10:00:00.000Z', cartelle: [], chat: [], indirizzi: ['192.0.2.31'], porta: 47640 }
+  // Un SierraDeck che risponde a /api/casa con la prova di un'altra chiave e questa impronta.
+  const conImpronta = (impronta: string): typeof fetch => (async (url: string) => {
+    const u = new URL(String(url))
+    if (u.pathname === '/api/casa') return risponde(200, { prova: provaCasa('altra-chiave', u.searchParams.get('sfida') ?? ''), impronta })
+    return risponde(200, {})
+  }) as unknown as typeof fetch
+  const prova = async (impronta: string, tolti: Array<[string, string]> = []) => {
+    const log: string[] = []
+    const c = creaClientPcRemoto({
+      battiti: () => [{ ...VECCHIO, indirizzi: ['192.0.2.20'] }, ALTRO], chiavePer: () => 'chiave-di-casa', mioNome: () => 'PC-Fisso',
+      adesso: () => Date.parse('2026-11-05T12:00:00Z'), bussaMs: 50, attesaMs: 50, riprovaCasaMs: 1,
+      fetch: conImpronta(impronta), log: (m) => { log.push(m) },
+      dimentica: (pc, ind) => { tolti.push([pc, ind]) }
+    })
+    const p = await c.bussa('lap')
+    return { p, log: log.join('\n'), stato: await c.statoDi('lap') }
+  }
+
+  it('un altro SierraDeck sconosciuto che dice 401 non è «chiave»', async () => {
+    const { p, stato } = await prova(improntaPc('sconosciuto-id'))
+    expect(p.esito).toBe('altro')
+    expect(stato.stato).toBe('altro')
+    expect(stato.titolo).not.toContain('chiave')
+  })
+
+  it('l’impronta di un altro PC noto: esito col suo nome, senza affermare che il vero è spento', async () => {
+    const { p, log, stato } = await prova(improntaPc('altro-pc'))
+    expect(p.esito).toBe('altro')
+    expect(p.prove?.[0]).toMatchObject({ esito: 'altro-pc-noto', nome: 'ALTRO-PC-ESEMPIO' })
+    expect(log).toContain("ora risponde ALTRO-PC-ESEMPIO, un tuo altro PC: l'indirizzo è cambiato")
+    expect(log).not.toContain('chiudi l')
+    expect(stato.titolo).toContain('ALTRO-PC-ESEMPIO')
+  })
+
+  it('l’impronta del PC atteso con la cassaforte diversa resta «chiave»', async () => {
+    expect((await prova(improntaPc('lap'))).p.esito).toBe('chiave')
+  })
+
+  it('un indirizzo che risponde con un’altra identità viene tolto dai ricordati; con la stessa no', async () => {
+    const tolti: Array<[string, string]> = []
+    await prova(improntaPc('altro-pc'), tolti)
+    expect(tolti[0]).toEqual(['lap', '192.0.2.20'])
+    const nessuno: Array<[string, string]> = []
+    await prova(improntaPc('lap'), nessuno)
+    expect(nessuno).toEqual([])
+  })
+
+  it('la cassaforte chiusa là (503) resta «chiave»', async () => {
+    const c = creaClientPcRemoto({
+      battiti: () => [{ ...VECCHIO, indirizzi: ['192.0.2.20'] }], chiavePer: () => 'chiave-di-casa', mioNome: () => 'PC-Fisso',
+      bussaMs: 50, attesaMs: 50, fetch: (async () => risponde(503, {})) as unknown as typeof fetch
+    })
+    expect((await c.bussa('lap')).esito).toBe('chiave')
   })
 })

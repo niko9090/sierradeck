@@ -2099,6 +2099,16 @@ if (!app.requestSingleInstanceLock()) {
         try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
         return true
       }
+      /** Toglie un indirizzo ricordato che ora risponde con un'altra identità (il router l'ha riassegnato). */
+      const dimenticaIndirizzo = (pcId: string, ind: string): void => {
+        const tutti = indirizziRicordati()
+        const prima = tutti[pcId] ?? []
+        if (!prima.includes(ind)) return
+        tutti[pcId] = prima.filter((x) => x !== ind)
+        if (tutti[pcId]?.length === 0) delete tutti[pcId]
+        try { scriviAtomico(fileIndirizzi, JSON.stringify(tutti, null, 2), 'remoto') } catch { /* la prossima volta */ }
+        registro.info(`[remoto] ${ind} non è più di ${postino.altrui().find((b) => b.pcId === pcId)?.nome ?? pcId}: ora risponde un’altra identità, lo tolgo dagli indirizzi ricordati`)
+      }
       pcVistoGlobale = (pcId, ind) => {
         if (pcId === identitaPc.leggi().id || !indirizzoUtile(ind) || ind.startsWith('127.')) return
         if ((indirizziRicordati()[pcId] ?? []).includes(ind)) return
@@ -2122,7 +2132,8 @@ if (!app.requestSingleInstanceLock()) {
           // Anche per indirizzo del battito (0.57.1): su Tailscale un PC può avere un altro nome.
           tailscale: await indirizziTailscale(nome, postino.altrui().find((b) => b.pcId === pcId)?.indirizzi ?? [])
         }),
-        ricorda: (pcId, ind) => { ricordaIndirizzo(pcId, ind) }
+        ricorda: (pcId, ind) => { ricordaIndirizzo(pcId, ind) },
+        dimentica: dimenticaIndirizzo
       })
       // **Il giro delle strade** (0.57.3): all'avvio e ogni dieci minuti si bussa
       // agli altri PC vivi sul Drive. Prima si bussava solo aprendo una loro

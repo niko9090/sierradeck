@@ -114,3 +114,21 @@ describe('le voci del pannello', () => {
     expect(erroriDalLog(righe, adesso, 6).map((x) => x.volte)).toEqual([2, 1])
   })
 })
+
+describe('un PC che risponde non è «nessuna strada» (05/11)', () => {
+  const pcConStato = (stato: string) => componiSalute({ ...base, pc: [{ pcId: 'p1', nome: 'PC-ESEMPIO', versione: '0.44.0', battito: new Date(ADESSO - 60_000).toISOString(), stato }] }).voci.find((v) => v.chiave === 'pc:p1')!
+  it('chiave: lo dice, con cosa fare', () => {
+    const v = pcConStato('chiave')
+    expect(v.spiegazione).toContain('risponde ma non riconosce la chiave')
+    expect(v.spiegazione).not.toContain('nessuna strada')
+    expect(v.cosaFare).toContain('cassaforte')
+  })
+  it('altro: a quell’indirizzo risponde un altro', () => {
+    const v = pcConStato('altro')
+    expect(v.spiegazione).toContain('risponde un altro')
+    expect(v.titolo).not.toContain('non so se è acceso')
+  })
+  it('muto: resta «nessuna strada»', () => {
+    expect(pcConStato('non-so').spiegazione).toContain('non risponde a nessuna strada')
+  })
+})

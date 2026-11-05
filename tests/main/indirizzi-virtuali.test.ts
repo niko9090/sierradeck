@@ -149,11 +149,11 @@ describe('una prova di casa che non dice chi è si riprova una volta', () => {
     expect((await cliente(d.fetch).bussa('desktop-id')).esito).toBe('risponde')
   })
 
-  it('illeggibile due volte: estraneo, e il registro dice perché', async () => {
+  it('illeggibile due volte: non è lui (altro), e il registro dice perché', async () => {
     const log: string[] = []
     const d = desktop(['illeggibile', 'illeggibile'])
     const p = await cliente(d.fetch, log).bussa('desktop-id')
-    expect(p.esito).toBe('chiave')
+    expect(p.esito).toBe('altro')
     expect(d.chiamate()).toBe(2)
     expect(log.join('\n')).toContain('risposta 200 illeggibile, anche riprovando')
   })

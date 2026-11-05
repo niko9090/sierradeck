@@ -61,6 +61,21 @@ Corretto nella prossima release: l eco va nel registro come informazione (src/ma
 ## Gruppo 3: progetto di un altro PC con cartella assente: "cwd non accessibile" invece di "vive su <PC>"
 Corretto nella prossima release: il controllo del proprietario (src/main/casa-altrove.ts, rifiutoCasaAltrove) ora viene prima della convalida e della verifica chiusa-senza-cartella dentro pty:spawn. Test in tests/main/casa-altrove.test.ts.
 
+
+# Controllo di tutti i PC del 05/11 (app 0.93.0)
+
+## Corretto nella prossima release
+
+- Un altro SierraDeck o un dispositivo estraneo che risponde 401 non dà più «risponde ma non riconosce la chiave»: la «chiave» vale solo per il PC atteso (stessa impronta) o con la cassaforte chiusa là.
+- Se a un indirizzo risponde un altro PC già noto (impronta dai battiti), il bussare lo dice col nome: «ora risponde <nome>, un tuo altro PC: l'indirizzo è cambiato». «Chiudi l'altra copia» resta solo per impronta sconosciuta, senza dire che il SierraDeck vero è spento.
+- Un indirizzo ricordato che risponde con un'identità diversa viene tolto da pc-indirizzi.json.
+- Controllo di tutti i PC: una riga per PC (chiave pc:<id>); due PC che non rispondono restano due righe, ognuna col suo motivo; la diagnosi del bussare vince su «non so se è acceso».
+- Salute: un PC che risponde (chiave / rifiutato / altro) non è più «non risponde a nessuna strada».
+
+## A mano
+
+- Verificare che NB-PROBOOK-TEC sia acceso, sulla stessa rete o con Tailscale (da qui non si può sapere).
+
 # Errori arrivati (lotto 20261105113725, app 0.93.0)
 
 ## Gruppo 1: "[autopilota] porta 47630 gia occupata: un altro servizio e vivo, esco" (servizio, versione "?")

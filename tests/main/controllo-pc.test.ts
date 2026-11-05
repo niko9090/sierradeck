@@ -97,4 +97,23 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     const file = readdirSync(join(radice, '.sierradeck', 'errori-arrivati')).find((n) => n.startsWith('controllo-'))!
     expect(readFileSync(join(radice, '.sierradeck', 'errori-arrivati', file), 'utf8')).toContain('**Qui** · autopilota «Autopilota · X» fallito')
   })
+
+  it('05/11: una riga per PC, ognuna col suo motivo; la diagnosi del bussare vince sulla generica', () => {
+    const voceDi = (pc: string, titolo: string) => ({ chiave: `pc:${pc}`, gruppo: 'pc', tono: 'attenzione', titolo, spiegazione: `s ${titolo}`, azioni: [] })
+    const salute = (voci: unknown[]) => ({ tono: 'attenzione', riassunto: 'r', voci }) as never
+    const c = criticitaDi([
+      { pcId: 'a', nome: 'A', salute: salute([voceDi('x', 'X · non so se è acceso · 0.93.0'), voceDi('y', 'Y · non so se è acceso · 0.93.0')]) },
+      { pcId: 'b', nome: 'B', salute: salute([voceDi('x', 'X · risponde ma non entra · 0.93.0')]) },
+      { pcId: 'x', nome: 'X', errore: 'prima ragione' },
+      { pcId: 'y', nome: 'Y', errore: 'seconda ragione' }
+    ], [])
+    expect(c.map((r) => `${r.pc}: ${r.cosa}`)).toEqual([
+      'A, B: attenzione · X · risponde ma non entra · 0.93.0',
+      'A: attenzione · Y · non so se è acceso · 0.93.0',
+      'X: non risponde',
+      'Y: non risponde'
+    ])
+    expect(c[2]?.dettaglio).toBe('prima ragione')
+    expect(c[3]?.dettaglio).toBe('seconda ragione')
+  })
 })
