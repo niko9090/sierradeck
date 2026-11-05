@@ -7,6 +7,7 @@ import { APP_DATA_DIR_NAME, APP_DATA_DIR_PRECEDENTE } from '@shared/version'
 import { apriArchivio, ultimoNumeroConsegne } from './archivio'
 import { apriQuadernoLezioni } from '../main/quaderno-lezioni-store'
 import { apriRegistro, type Registro } from '../main/registro'
+import { gestisciErroreServer, versioneDelServizio } from './errore-server'
 import { apriStoricoErrori, conStorico } from '../main/storico-errori-file'
 import { impostaStoricoRiassetto } from './riassetto-servizio'
 import { format } from 'node:util'
@@ -224,7 +225,7 @@ export function dimenticaTelegramAssente(): void { telegramAssenteDetto = false 
  */
 function reteDiSicurezza(): void {
   const dati = join(cartellaStato(), '..')
-  const versione = process.env.SIERRADECK_VERSIONE ?? '?'
+  const versione = versioneDelServizio(process.env, __dirname)
   // Ogni errore anche nello storico degli errori (0.81.0), in un file suo:
   // il programma scrive nel proprio, e la voce «Errori» li unisce.
   const storico = apriStoricoErrori(dati, 'servizio', {
@@ -416,21 +417,13 @@ export function avviaServizio(): void {
   // P3: i processi `claude` degli orchestratori se ne vanno con il servizio.
   process.on('exit', () => { server.spegniOrchestratori() })
   server.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      // Istanza unica: qualcun altro è già in ascolto. Uscire è la risposta
-      // giusta — è la stessa tecnica del daemon Telegram — ma va detto,
-      // altrimenti sembra che il servizio non sia mai partito.
-      console.error(`[autopilota] porta ${PORTA} gia occupata: un altro servizio e vivo, esco`)
-      // Nel registro (0.56.2): il banner «sessione avviata» c'è già, e senza
-      // questa riga un doppione che esce sembra un riavvio del servizio.
-      try {
-        apriRegistro(join(cartellaStato(), '..'), process.env.SIERRADECK_VERSIONE ?? '?', 'servizio')
-          .info(`[servizio] la porta ${PORTA} è già del servizio in funzione: questo doppione esce, quello di prima continua`)
-      } catch { /* il registro non ferma l'uscita */ }
-      process.exit(0)
-    }
-    console.error('[autopilota] errore del server:', err)
-    process.exit(1)
+    // Istanza unica: porta occupata = caso atteso, avviso e non ERRORE (0.56.2:
+    // una riga nel registro, o un doppione che esce sembra un riavvio).
+    gestisciErroreServer(err, PORTA, {
+      avviso: (m) => { console.warn(m) },
+      errore: (m, e) => { console.error(m, e) },
+      esci: (codice) => process.exit(codice)
+    })
   })
 
   // Solo 127.0.0.1: un servizio che avvia processi non va esposto alla rete.
