@@ -114,3 +114,15 @@
 ## strumenti
 
 - Nel worktree il filtro dei comandi rifiuta qualunque comando Bash con «git» dentro, anche `npm version --no-git-tag-version`: da PowerShell passa. _(2026-11-05)_
+
+## pubblicazione
+
+- `npm run pubblica` lascia la release in bozza: serve `gh release edit vX --draft=false --latest`. `isLatest` non è un campo di `gh release view`, si legge da `gh release list`. _(2026-11-05)_
+
+## apk
+
+- `allega-apk` senza `--senza-build` lancia gradle e ricompila. Per riallegare l'APK esistente: copiare `app-release.apk` e `android/local.properties` dalla cartella principale e usare `--senza-build`. _(2026-11-05)_
+
+## npm ci
+
+- con `npm ci` l'eseguibile di Electron può non scaricarsi (allowScripts): serve `node node_modules/electron/install.js` prima di `pubblica`. _(2026-11-05)_
