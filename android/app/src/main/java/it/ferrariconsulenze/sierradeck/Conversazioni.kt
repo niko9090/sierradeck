@@ -247,21 +247,25 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
     }
     val tuo = m.da == "tu"
     val domanda = m.tono == "domanda"
-    val forma = RoundedCornerShape(10.dp)
+    // App 2.89.0: le stesse bolle della chat con l'autopilota.
+    val g = Banco.raggioGrande
+    val p = Banco.raggio
+    val forma = if (tuo) RoundedCornerShape(g, g, p, g) else RoundedCornerShape(g, g, g, p)
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = if (tuo) Arrangement.End else Arrangement.Start) {
         Column(
             Modifier
-                .fillMaxWidth(0.9f)
-                .then(if (domanda) Modifier.border(1.dp, Banco.ambra, forma) else Modifier)
-                .background(if (domanda) Banco.ambra.copy(alpha = 0.10f) else if (tuo) Banco.accento.copy(alpha = 0.12f) else Banco.verde.copy(alpha = 0.10f), forma)
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .fillMaxWidth(0.88f)
+                .border(1.dp, if (domanda) Banco.ambra else if (tuo) Banco.accento.copy(alpha = 0.35f) else Banco.incisione, forma)
+                .background(if (domanda) Banco.ambra.copy(alpha = 0.10f) else if (tuo) Banco.accento.copy(alpha = 0.22f) else Banco.chassisAlto, forma)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(
                 chi ?: ((if (tuo) "tu" else c.titolo) + (m.quando?.drop(11)?.take(5)?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")),
-                color = Banco.testoQuieto, fontSize = 12.sp
+                color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
+            Spacer(Modifier.height(2.dp))
             // Il testo si seleziona e si copia (tocco lungo).
-            SelectionContainer { Text(m.testo, color = Banco.testo, fontSize = 14.sp) }
+            SelectionContainer { Text(m.testo, color = Banco.testo, fontSize = 15.sp, lineHeight = 22.sp) }
             val opzioni = m.opzioni
             if (!opzioni.isNullOrEmpty()) {
                 Spacer(Modifier.height(6.dp))
@@ -270,9 +274,9 @@ private fun Messaggio(m: MessaggioConversazione, c: Conversazione, occupato: Boo
                         Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(Banco.raggio))
                             .background(Banco.fondo)
-                            .border(if (o.scelta) 2.dp else 1.dp, if (o.scelta) Banco.ambra else Banco.incisione, RoundedCornerShape(8.dp))
+                            .border(if (o.scelta) 2.dp else 1.dp, if (o.scelta) Banco.ambra else Banco.incisione, RoundedCornerShape(Banco.raggio))
                             .tocco(enabled = !occupato) { onOpzione(o) }
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically

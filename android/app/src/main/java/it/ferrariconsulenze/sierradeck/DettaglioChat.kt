@@ -313,12 +313,12 @@ internal fun DettaglioChat(api: Api, chat: Chat, deposito: Collegamento, onIndie
                         Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(Banco.raggioGrande))
                             .background(Banco.fondo)
                             .border(
                                 width = if (o.scelta) 2.dp else 1.dp,
                                 color = if (o.scelta) Banco.ambra else Banco.incisione,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(Banco.raggioGrande)
                             )
                             .tocco {
                                 // «Type something.» (2.52.5): si scrive nel campo qui sotto.

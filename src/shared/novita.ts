@@ -46,6 +46,7 @@ export const NOVITA: Novita[] = [
       '**Grafica nuova:** colori ardesia più calmi, angoli morbidi e superfici piane al posto dei tasti in rilievo. La fascia in alto è più leggera, e si vede subito dove sei grazie al colore d’accento.',
       '**La conversazione con l’autopilota al centro:** i tuoi messaggi sono a destra in blu, i suoi a sinistra, le sue domande in ambra; il campo per scrivergli è una scheda sempre in fondo.',
       '**Chat degli specialisti più leggibili:** ognuna è una scheda con chi è, cosa sta facendo e da quanto, il compito in evidenza e i comandi che usa.',
+      '**App sul telefono (2.89.0) con la stessa grafica nuova:** colori ardesia, schede con angoli morbidi, titoli e testi più leggibili, la barra in basso e le linguette con la voce scelta in evidenza, il PC collegato in una pastiglia in alto, e le conversazioni a bolle come sul PC.',
     ]
   },
   {

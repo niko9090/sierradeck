@@ -205,9 +205,9 @@ internal fun RigaChat(b: Battuta, nomeSuo: String) {
         }
         // PC 0.79.0: le righe corte dei traguardi si leggono come le battute.
         val forte = b.tono == "fine" || b.tono == "fermo" || b.tono == "traguardo"
-        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width(2.dp).height(16.dp).background(filo))
-            Spacer(Modifier.width(6.dp))
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 3.dp, bottom = 3.dp), verticalAlignment = Alignment.Top) {
+            Box(Modifier.width(2.dp).height(18.dp).background(filo, androidx.compose.foundation.shape.RoundedCornerShape(1.dp)))
+            Spacer(Modifier.width(10.dp))
             Text(ora, color = Banco.testoQuieto, fontSize = 12.sp, fontFamily = FontTerminale)
             Spacer(Modifier.width(6.dp))
             Text(
@@ -221,29 +221,35 @@ internal fun RigaChat(b: Battuta, nomeSuo: String) {
     }
     val lui = b.da == "lui"
     val ambra = b.tono == "domanda" || b.tono == "pronto"
-    val forma = MaterialTheme.shapes.small
+    // App 2.89.0, come il PC 0.95.0: tu a destra in accento, lui a sinistra su una
+    // scheda quieta, l'angolo vicino a chi parla più stretto.
+    val g = Banco.raggioGrande
+    val p = Banco.raggio
+    val forma = if (lui) androidx.compose.foundation.shape.RoundedCornerShape(g, g, g, p) else androidx.compose.foundation.shape.RoundedCornerShape(g, g, p, g)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (lui) Arrangement.Start else Arrangement.End) {
         Column(
             Modifier
-                .fillMaxWidth(0.92f)
+                .fillMaxWidth(0.88f)
                 .padding(vertical = 4.dp)
-                .then(if (ambra) Modifier.border(1.dp, Banco.ambra, forma) else Modifier)
+                .border(1.dp, when { ambra -> Banco.ambra; lui -> Banco.incisione; else -> Banco.accento.copy(alpha = 0.35f) }, forma)
                 .background(
                     when {
                         ambra -> Banco.ambra.copy(alpha = 0.10f)
-                        lui -> Banco.verde.copy(alpha = 0.10f)
-                        else -> Banco.accento.copy(alpha = 0.12f)
+                        lui -> Banco.chassisAlto
+                        else -> Banco.accento.copy(alpha = 0.22f)
                     },
                     forma
                 )
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Text(
                 (if (lui) nomeSuo.ifBlank { "lui" } else "tu") + " · " + ora,
                 color = Banco.testoQuieto,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
             )
-            Text(b.testo, color = Banco.testo, fontSize = 13.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(b.testo, color = Banco.testo, fontSize = 15.sp, lineHeight = 22.sp)
             val dettaglio = b.dettaglio
             if (!dettaglio.isNullOrBlank()) Text(dettaglio, color = Banco.testoQuieto, fontSize = 12.sp)
             // L'autopilota unico (PC 0.86.x) non aspetta il via: niente più «Vai».

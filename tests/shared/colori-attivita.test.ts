@@ -87,7 +87,7 @@ describe('colori delle attività (0.82.0)', () => {
       }
     }
     // E i fondi fissi dell'app prima che arrivi la tavolozza del PC (Tema.kt).
-    for (const fondo of ['#0b0c0e', '#1d2023', '#262a2e']) {
+    for (const fondo of ['#0c0e12', '#15171b', '#1c1e22']) {
       for (const a of ATTIVITA_ORDINE) {
         const rapporto = contrasto(COLORI[ATTIVITA[a].colore], fondo)
         if (rapporto < 4.5) peggiore.push({ colore: a, fondo: `app ${fondo}`, rapporto })

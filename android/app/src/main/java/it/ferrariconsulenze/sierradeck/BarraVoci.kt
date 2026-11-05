@@ -75,10 +75,22 @@ internal fun ConLinguette(posto: Posto, onLinguetta: (Int) -> Unit, contenuto: @
     val nomi = linguetteDi(posto.voce)
     val scelta = posto.linguetta.coerceIn(0, (nomi.size - 1).coerceAtLeast(0))
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        // App 2.89.0: linguette a pastiglia dentro una fascia, la scelta con il fondo d'accento leggero.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+                .background(Banco.chassis, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             nomi.forEachIndexed { i, nome ->
-                TextButton(onClick = { onLinguetta(i) }, modifier = Modifier.heightIn(min = 48.dp)) {
-                    Text(nome, fontSize = 15.sp, color = if (scelta == i) Banco.accento else Banco.testoQuieto, fontWeight = if (scelta == i) FontWeight.Bold else FontWeight.Normal)
+                val su = scelta == i
+                TextButton(
+                    onClick = { onLinguetta(i) },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(containerColor = if (su) Banco.accentoTenue else androidx.compose.ui.graphics.Color.Transparent)
+                ) {
+                    Text(nome, fontSize = 14.sp, maxLines = 1, color = if (su) Banco.testo else Banco.testoQuieto, fontWeight = if (su) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }
@@ -95,7 +107,10 @@ internal fun ConLinguette(posto: Posto, onLinguetta: (Int) -> Unit, contenuto: @
 @Composable
 internal fun BarraVoci(attuale: VoceBarra, stato: Stato?, onScegli: (VoceBarra) -> Unit) {
     val p = Pallini.di(stato)
-    NavigationBar(containerColor = Banco.chassis) {
+    // App 2.89.0: la barra sul fondo, separata da un filo; la voce scelta con la pastiglia d'accento.
+    androidx.compose.foundation.layout.Column {
+    androidx.compose.material3.HorizontalDivider(thickness = 1.dp, color = Banco.incisione)
+    NavigationBar(containerColor = Banco.fondo, tonalElevation = 0.dp) {
         for (v in VoceBarra.entries) {
             val (icona, pallino) = when (v) {
                 VoceBarra.ADESSO -> Icons.Filled.Bolt to p.adesso
@@ -121,12 +136,13 @@ internal fun BarraVoci(attuale: VoceBarra, stato: Stato?, onScegli: (VoceBarra) 
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Banco.accento,
                     selectedTextColor = Banco.testo,
-                    indicatorColor = Banco.incisione,
+                    indicatorColor = Banco.accentoTenue,
                     unselectedIconColor = Banco.testoQuieto,
                     unselectedTextColor = Banco.testoQuieto
                 )
             )
         }
+    }
     }
 }
 

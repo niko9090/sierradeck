@@ -59,7 +59,7 @@ private fun Contesto(righe: List<String>) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(Banco.raggioGrande))
             .background(Banco.fondo)
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
@@ -183,12 +183,12 @@ internal fun SchedaScelta(api: Api, v: VoceDomanda, gia: String?, onMandata: (St
                         Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(Banco.raggioGrande))
                             .background(Banco.fondo)
                             .border(
                                 width = if (o.scelta) 2.dp else 1.dp,
                                 color = if (o.scelta) Banco.ambra else Banco.incisione,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(Banco.raggioGrande)
                             )
                             .tocco {
                                 errore = null

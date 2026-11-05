@@ -123,7 +123,7 @@ object RighePunto {
 @Composable
 fun PuntoAutopilotaVista(p: PuntoAutopilota) {
     Spacer(Modifier.height(6.dp))
-    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(6.dp)).padding(8.dp)) {
+    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(Banco.raggioGrande)).padding(8.dp)) {
         p.indicatore?.let { IndicatoreAutopilotaVista(it) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Punto", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))

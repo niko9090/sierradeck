@@ -142,7 +142,7 @@ fun SchedaDomandaVista(
         s.superata?.let { Text("chiusa senza risposta, non serve più: $it", color = Banco.testoQuieto, fontSize = 12.sp) }
         if (aperti) {
             Column(
-                Modifier.fillMaxWidth().padding(top = 6.dp).background(Banco.chassis, RoundedCornerShape(6.dp)).padding(8.dp)
+                Modifier.fillMaxWidth().padding(top = 6.dp).background(Banco.chassis, RoundedCornerShape(Banco.raggioGrande)).padding(8.dp)
             ) {
                 for (d in s.dettagli) {
                     Text(d.etichetta.uppercase(), color = Banco.testoQuieto, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -160,9 +160,9 @@ fun SchedaDomandaVista(
                     fontSize = 14.sp,
                     fontWeight = if (c.consigliata) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(Banco.raggioGrande))
                         .background(if (c.consigliata) Banco.accento.copy(alpha = 0.18f) else Banco.fondo)
-                        .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(8.dp))
+                        .border(if (c.consigliata) 2.dp else 1.dp, if (c.consigliata) Banco.accento else Banco.incisione, RoundedCornerShape(Banco.raggioGrande))
                         .tocco(enabled = !inCorso) { if (apreIlCampo(c)) campo.requestFocus() else onScelta(c) }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 )

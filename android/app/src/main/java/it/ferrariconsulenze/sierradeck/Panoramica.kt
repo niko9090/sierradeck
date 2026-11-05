@@ -312,7 +312,7 @@ private fun SchedaTel(s: SchedaPanoramica, quante: Int, onApri: (String) -> Unit
             .fillMaxWidth()
             .padding(top = 8.dp)
             .heightIn(min = 48.dp)
-            .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
+            .border(BorderStroke(1.dp, if (s.stato == "chiede") Banco.ambra else Banco.incisione), RoundedCornerShape(Banco.raggioGrande))
             .let { if (apribile) it.tocco { onApri(s.id) } else it }
             .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
@@ -384,7 +384,7 @@ fun PanoramicaVista(p: Panoramica, onApri: (String) -> Unit) {
                     val chi = x.ruolo?.let { RegolePanoramica.NOME_RUOLO[it] ?: it } ?: (if (x.fase == "da-fare") "da assegnare" else "Chat")
                     Column(
                         Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp)
-                            .border(BorderStroke(1.dp, Banco.incisione), RoundedCornerShape(8.dp))
+                            .border(BorderStroke(1.dp, Banco.incisione), RoundedCornerShape(Banco.raggioGrande))
                             .let { m -> x.chat?.let { id -> m.tocco { onApri(id) } } ?: m }
                             .padding(horizontal = 10.dp, vertical = 8.dp)
                     ) {
@@ -448,7 +448,7 @@ fun AlLavoro(righe: List<RigaAlLavoro>, onApri: (String) -> Unit) {
         for (r in if (tutte) righe else righe.take(3)) {
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp).heightIn(min = 48.dp)
-                    .border(BorderStroke(1.dp, if (r.aspettaTe) Banco.ambra else Banco.incisione), RoundedCornerShape(8.dp))
+                    .border(BorderStroke(1.dp, if (r.aspettaTe) Banco.ambra else Banco.incisione), RoundedCornerShape(Banco.raggioGrande))
                     .tocco { onApri(r.id) }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically

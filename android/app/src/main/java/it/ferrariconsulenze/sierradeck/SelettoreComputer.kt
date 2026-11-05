@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,12 +55,17 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, sotto: String? = null, onApri: () -> Unit) {
+    // App 2.89.0: una pastiglia sul fondo, con il pallino della linea e il nome del PC.
     Row(
         Modifier
             .fillMaxWidth()
+            .background(Banco.fondo)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
             .background(Banco.chassis)
+            .border(1.dp, Banco.incisione, androidx.compose.foundation.shape.RoundedCornerShape(50))
             .tocco(onClick = onApri)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -74,8 +80,8 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
             Text(
                 nome,
                 color = Banco.testo,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
             // L'hostname, piccolo (2.52.4): il nome è quello scelto.

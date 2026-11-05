@@ -428,7 +428,7 @@ fun DalVivo(v: StatoDalVivo, senzaStato: Boolean = false) {
 fun AdessoVista(a: Adesso) {
     if (a.righe.isEmpty() && a.finite == 0) return
     Spacer(Modifier.height(6.dp))
-    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(6.dp)).padding(8.dp)) {
+    Column(Modifier.fillMaxWidth().border(1.dp, Banco.incisione, RoundedCornerShape(Banco.raggioGrande)).padding(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Adesso", color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
             Aiuto(a.aiuto, di = "Adesso")

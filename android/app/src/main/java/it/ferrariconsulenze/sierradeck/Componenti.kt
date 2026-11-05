@@ -1,6 +1,7 @@
 package it.ferrariconsulenze.sierradeck
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +33,8 @@ fun Tessera(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val forma = MaterialTheme.shapes.small
+    // App 2.89.0: la scheda piana, angolo grande e un filo sottile (come il PC 0.95.0).
+    val forma = MaterialTheme.shapes.medium
     val bordo = BorderStroke(1.dp, Banco.incisione)
     if (onClick != null) {
         Surface(
@@ -55,13 +57,15 @@ fun Tessera(
 }
 
 @Composable
-fun Serigrafia(testo: String, colore: Color = Banco.accento, modifier: Modifier = Modifier) {
+fun Serigrafia(testo: String, colore: Color = Banco.testoQuieto, modifier: Modifier = Modifier) {
+    // App 2.89.0: un'intestazione di sezione quieta, non più in accento —
+    // l'accento resta per «dove sei» e «cosa premere».
     Text(
         text = testo.uppercase(),
         color = colore,
         fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
         modifier = modifier
     )
 }
@@ -75,18 +79,20 @@ fun Serigrafia(testo: String, colore: Color = Banco.accento, modifier: Modifier 
  */
 @Composable
 fun Voce(testo: String, attiva: Boolean, onClick: () -> Unit) {
+    // App 2.89.0: la scelta è un fondo d'accento leggero con il bordo d'accento,
+    // le altre un contorno sottile: si legge da lontano senza un blocco pieno.
     Surface(
         onClick = onClick,
-        color = if (attiva) Banco.accento else Banco.fondo,
-        contentColor = if (attiva) Banco.fondo else Banco.testo,
-        shape = MaterialTheme.shapes.small,
+        color = if (attiva) Banco.accentoTenue else Color.Transparent,
+        contentColor = Banco.testo,
+        shape = RoundedCornerShape(50),
         border = BorderStroke(1.dp, if (attiva) Banco.accento else Banco.incisione)
     ) {
         Text(
             testo,
             fontSize = 13.sp,
-            fontWeight = if (attiva) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+            fontWeight = if (attiva) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
         )
     }
 }
