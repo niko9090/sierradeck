@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.94.2',
+    righe: [
+      '**Autopilota occupato non è un errore:** se il servizio è momentaneamente occupato e non risponde in tempo, l’elenco degli autopiloti tiene l’ultimo elenco noto e scrive solo un avviso, invece di un errore nel registro.',
+      '**Elenco dei lavori delle chat più preciso:** un file dei lavori appena creato viene visto subito, anche se nasce nello stesso istante dell’ultimo controllo.',
+    ]
+  },
+  {
     versione: '0.94.1',
     righe: [
       '**Un PC spento non è un problema:** i PC non devono stare sempre accesi. Il controllo di tutti i PC e la salute non segnalano più un PC solo perché è spento. Avvisano soltanto se un PC risulta acceso ma non si riesce a raggiungerlo.',
