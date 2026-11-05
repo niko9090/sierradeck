@@ -113,6 +113,8 @@ export type DipendenzeRemoto = {
   altriIndirizzi?: (pcId: string, nome: string) => Promise<{ ricordati?: string[]; tailscale?: string[] }>
   /** Un indirizzo ha risposto: da ricordare su disco. */
   ricorda?: (pcId: string, indirizzo: string) => void
+  /** Un indirizzo ricordato ora risponde con l'identità di un altro PC: da togliere dalla lista di quel PC. */
+  dimentica?: (pcId: string, indirizzo: string) => void
   /** Il Drive di questo PC e' collegato (senza, i battiti non arrivano). */
   driveCollegato?: () => boolean
   /** Quanto si aspetta il bussare breve. */
@@ -250,7 +252,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     // solo chi risponde con l'HMAC della chiave di quel PC e' proprio lui. La
     // chiave non parte verso nessuno. Un PC prima della 0.47 non conosce
     // `/api/casa`: per lui il vecchio modo, solo agli indirizzi del suo battito.
-    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true; chi?: 'altro-sierradeck' | 'stessa-identita'; dettaglio?: string }
+    type Risposta = { ind: string; stato: number; modo?: 'firma' | 'chiave'; estraneo?: true; chi?: 'altro-sierradeck' | 'altro-pc-noto' | 'stessa-identita'; nomeNoto?: string; dettaglio?: string }
     const conAttesa = async <T>(f: (s: AbortSignal) => Promise<T>): Promise<T | undefined> => {
       const controllo = new AbortController()
       const timer = setTimeout(() => controllo.abort(), bussaMs)
@@ -297,8 +299,12 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       if (casa.stato === 200) {
         if (chiave !== undefined && provaValida(chiave, sfida, casa.prova)) return { ind, stato: 200, modo: 'firma' }
         // Chi è, se lo dice (0.58.1): un altro SierraDeck sulla stessa porta, o lo stesso PC con un'altra cassaforte.
-        const chi = typeof casa.impronta === 'string' ? (casa.impronta === improntaPc(pcId) ? 'stessa-identita' as const : 'altro-sierradeck' as const) : undefined
-        return { ind, stato: 401, estraneo: true, ...(chi !== undefined ? { chi } : { dettaglio }) }
+        if (typeof casa.impronta !== 'string') return { ind, stato: 401, estraneo: true, dettaglio }
+        if (casa.impronta === improntaPc(pcId)) return { ind, stato: 401, estraneo: true, chi: 'stessa-identita' }
+        // Se è l'impronta di un altro PC noto (dai battiti): l'indirizzo è passato a lui (il router lo ha riassegnato).
+        const noto = deps.battiti().find((x) => x.pcId !== pcId && improntaPc(x.pcId) === casa.impronta)
+        if (noto !== undefined) return { ind, stato: 401, estraneo: true, chi: 'altro-pc-noto', nomeNoto: noto.nome }
+        return { ind, stato: 401, estraneo: true, chi: 'altro-sierradeck' }
       }
       // Cassaforte chiusa la': non e' un estraneo, ma non entra nessuno.
       if (casa.stato === 503) return { ind, stato: 401 }
@@ -314,6 +320,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     }))
     ultimoBussaIl.set(pcId, adesso())
     for (const x of risposte) {
+      if (x.chi === 'altro-pc-noto' || x.chi === 'altro-sierradeck') deps.dimentica?.(pcId, x.ind)
       if (x.estraneo === true && !estraneiDetti.has(`${pcId}|${x.ind}`)) {
         estraneiDetti.add(`${pcId}|${x.ind}`)
         log(`[remoto] ${descriviIndirizzo(x.ind)} risponde ma non prova la chiave di casa di ${nome || pcId}${x.dettaglio !== undefined ? ` (${x.dettaglio})` : ''}: non gli mando niente (non è quel PC, è di un'altra cassaforte, o è un ${nome || 'PC'} prima della 0.47 a un indirizzo che non è nel suo battito)`)
@@ -327,7 +334,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const prove: ProvaIndirizzo[] = risposte.map((x) => ({
       indirizzo: x.ind,
       esito: x.modo !== undefined ? 'risponde' : x.chi !== undefined ? x.chi : x.estraneo === true ? 'estraneo' : x.stato === 401 ? 'cassaforte' : x.stato === 0 ? 'muto' : 'http',
-      ...(x.stato !== 0 ? { stato: x.stato } : {})
+      ...(x.stato !== 0 ? { stato: x.stato } : {}),
+      ...(x.nomeNoto !== undefined ? { nome: x.nomeNoto } : {})
     }))
     // Quel PC dice da sé che il suo Client non è in ascolto (0.58.1): lo si mette davanti.
     const client = (b as { client?: { inAscolto?: unknown; errore?: unknown } } | undefined)?.client
@@ -344,10 +352,14 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       segnaStrada(pcId, nome, stradaDiIndirizzo(buona), buona)
       p = { esito: 'risponde', indirizzo: buona }
     } else {
-      const chiaveNo = risposte.find((x) => x.stato === 401)
+      // «Chiave» solo per quel PC (impronta attesa) o con la cassaforte chiusa là: un altro
+      // SierraDeck, un altro PC noto o un estraneo che dicono 401 non sono lui.
+      const chiaveNo = risposte.find((x) => x.stato === 401 && (x.estraneo !== true || x.chi === 'stessa-identita'))
       const rifiuto = risposte.find((x) => x.stato === 403)
+      const altro = risposte.find((x) => x.stato === 401 && x.estraneo === true)
       p = chiaveNo !== undefined ? { esito: 'chiave', indirizzo: chiaveNo.ind, prove }
         : rifiuto !== undefined ? { esito: 'rifiutato', indirizzo: rifiuto.ind, prove }
+        : altro !== undefined ? { esito: 'altro', indirizzo: altro.ind, prove }
         : { esito: 'muto', provati: indirizzi.map(descriviIndirizzo), prove }
     }
     ultimiPing.set(pcId, p)
@@ -372,7 +384,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
     const motivo: MotivoRemoto = s.stato === 'chiave' ? 'chiave'
       : s.stato === 'rifiutato' ? 'rifiutato'
       : s.stato === 'senza-indirizzi' ? 'senza-indirizzi'
-      : s.stato === 'irraggiungibile' ? 'irraggiungibile'
+      : s.stato === 'irraggiungibile' || s.stato === 'altro' ? 'irraggiungibile'
       : 'non-so'
     const m = `${s.titolo}. ${s.cosaFare}`
     racconta(pcId, m)

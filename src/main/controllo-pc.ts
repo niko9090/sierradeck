@@ -30,19 +30,28 @@ export type Criticita = { pc: string; cosa: string; dettaglio: string }
 /** Gli stati di un autopilota che vogliono uno sguardo. */
 const STATI_CRITICI = new Set(['bloccata', 'bloccato', 'errore', 'fallito'])
 
+/** `chiave`: il PC di cui si parla, per tenere una riga per PC (non per testo). */
+type Voce = Criticita & { chiave?: string }
+
 /** Pura: le criticità di tutti i PC, in un ordine stabile. */
 export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly AutopilotiDiPc[]): Criticita[] {
-  const out: Criticita[] = []
+  const out: Voce[] = []
   for (const s of saluti) {
     if (s.salute === undefined) {
-      out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta' })
+      // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
+      out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `non-risponde:${s.pcId}` })
       continue
     }
     for (const v of s.salute.voci) {
       // 0.89.0: le righe d'errore del registro arrivano già all'autopilota con gli errori
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
-      out.push({ pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`, dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: ') })
+      out.push({
+        pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`,
+        dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: '),
+        // La voce di un altro PC (`pc:<id>`): più PC la vedono, la riga è una per quel PC.
+        ...(v.chiave.startsWith('pc:') ? { chiave: v.chiave } : {})
+      })
     }
   }
   for (const p of autopiloti) {
@@ -59,12 +68,20 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
  * 0.89.0: la stessa criticità vista da più PC (NB-PROBOOK spento, detto da tre PC)
  * è una riga sola, con i PC che la vedono.
  */
-function unisci(c: readonly Criticita[]): Criticita[] {
+function unisci(c: readonly Voce[]): Criticita[] {
   const per = new Map<string, Criticita>()
+  // La diagnosi generica «non so se è acceso» cede a quella che viene dal bussare (chiave, rifiutato, altro).
+  const generica = (cosa: string): boolean => cosa.includes('non so se è acceso')
   for (const x of c) {
-    const g = per.get(x.cosa)
-    if (g === undefined) per.set(x.cosa, { ...x })
-    else if (!g.pc.split(', ').includes(x.pc)) g.pc = `${g.pc}, ${x.pc}`
+    const k = x.chiave ?? x.cosa
+    const g = per.get(k)
+    if (g === undefined) {
+      const { chiave: _chiave, ...riga } = x
+      per.set(k, riga)
+      continue
+    }
+    if (!g.pc.split(', ').includes(x.pc)) g.pc = `${g.pc}, ${x.pc}`
+    if (x.cosa !== g.cosa && generica(g.cosa) && !generica(x.cosa)) { g.cosa = x.cosa; g.dettaglio = x.dettaglio }
   }
   return [...per.values()]
 }

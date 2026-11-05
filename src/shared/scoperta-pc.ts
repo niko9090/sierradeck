@@ -32,8 +32,10 @@
  */
 export type ProvaIndirizzo = {
   indirizzo: string
-  esito: 'risponde' | 'estraneo' | 'altro-sierradeck' | 'stessa-identita' | 'cassaforte' | 'muto' | 'http'
+  esito: 'risponde' | 'estraneo' | 'altro-sierradeck' | 'altro-pc-noto' | 'stessa-identita' | 'cassaforte' | 'muto' | 'http'
   stato?: number
+  /** Il nome del PC noto che risponde al posto di quello cercato (`altro-pc-noto`). */
+  nome?: string
 }
 
 /** Una riga per indirizzo, per il registro e per il riquadro. */
@@ -42,7 +44,8 @@ export function testoProva(p: ProvaIndirizzo): string {
   switch (p.esito) {
     case 'risponde': return `${dove}: risponde e prova la chiave di casa`
     case 'estraneo': return `${dove}: risponde, ma non prova la chiave di casa (non è quel PC, o è di un'altra cassaforte)`
-    case 'altro-sierradeck': return `${dove}: risponde un ALTRO SierraDeck, non quello del battito: su quel PC una seconda copia del programma occupa la porta, e il SierraDeck vero non è in ascolto (chiudi l'altra copia, poi riavvia SierraDeck su quel PC)`
+    case 'altro-sierradeck': return `${dove}: risponde un ALTRO SierraDeck, non quello cercato, e non è nessuno dei tuoi PC noti: o è un altro PC, o forse su quel PC una seconda copia del programma occupa la porta (se è così, chiudi l'altra copia e riavvia SierraDeck là)`
+    case 'altro-pc-noto': return `${dove}: ora risponde ${p.nome ?? 'un tuo altro PC'}, un tuo altro PC: l'indirizzo è cambiato`
     case 'stessa-identita': return `${dove}: è proprio quel PC, ma la sua prova della chiave di casa non torna: la sua cassaforte è diversa da quella di qui (va aperta con la stessa passphrase)`
     case 'cassaforte': return `${dove}: risponde, ma là la cassaforte è chiusa`
     case 'muto': return `${dove}: nessuna risposta`
@@ -56,6 +59,8 @@ export type PingPc = (
   | { esito: 'chiave'; indirizzo: string }
   /** Risponde, ma rifiuta chi arriva da fuori la sua rete (403). */
   | { esito: 'rifiutato'; indirizzo: string }
+  /** Qualcuno risponde, ma non è quel PC (un altro PC, un altro SierraDeck, un estraneo). */
+  | { esito: 'altro'; indirizzo: string }
   /** Nessun indirizzo ha risposto. */
   | { esito: 'muto'; provati: string[] }
   /** Non c'è nessun indirizzo da provare. */
@@ -135,7 +140,7 @@ export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; ta
 
 /** Lo stato di quel PC come lo dicono il riquadro e il riquadro d'attesa. */
 export type StatoPc = {
-  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'senza-indirizzi'
+  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi'
   titolo: string
   cosaFare: string
 }
@@ -177,6 +182,14 @@ export function statoPc(p: {
       stato: 'rifiutato',
       titolo: `${n} risponde ma rifiuta questo indirizzo`,
       cosaFare: `Per ${n} arriviamo da fuori la sua rete locale. Su quel PC, in Impostazioni → Client, accendi «accetta anche da fuori la rete locale», oppure usate la stessa rete o Tailscale su tutti e due.`
+    }
+  }
+  if (ping?.esito === 'altro') {
+    const noto = (ping.prove ?? []).find((x) => x.esito === 'altro-pc-noto')
+    return {
+      stato: 'altro',
+      titolo: noto !== undefined ? `${n} non è più a quell’indirizzo: ci risponde ${noto.nome ?? 'un tuo altro PC'}` : `Non trovo ${n}: a quell’indirizzo risponde un altro`,
+      cosaFare: `Gli indirizzi che ho di ${n} ora sono di altri. Controlla che sia acceso e sulla stessa rete (o con Tailscale), poi riprova.${(ping.prove ?? []).length > 0 ? ` Cosa ho provato: ${(ping.prove ?? []).map(testoProva).join('; ')}.` : ''}`
     }
   }
   const segno = quando(p.ultimoSegno)

@@ -128,14 +128,14 @@ describe('chi bussa non si fida di chi risponde: niente chiave a un estraneo', (
     const c = cliente(rete({ '100.64.0.9': 'non-sierradeck' }, viste), { ...BATTITO, indirizzi: [] }, ['100.64.0.9'])
     const e = await c.chiama('lap', '/api/stato').catch((x: unknown) => x as ErroreRemoto)
     expect(e).toBeInstanceOf(ErroreRemoto)
-    expect((e as ErroreRemoto).motivo).toBe('chiave')
+    expect((e as ErroreRemoto).motivo).toBe('irraggiungibile')
     expect(viste.some((v) => v.includes(K))).toBe(false)
     expect(c.indirizzoBuono('lap')).toBeUndefined()
   })
   it('un SierraDeck di un’altra cassaforte allo stesso nome: respinto, niente chiave', async () => {
     const viste: string[] = []
     const c = cliente(rete({ '100.64.0.9': 'estraneo-sierradeck' }, viste), { ...BATTITO, indirizzi: [] }, ['100.64.0.9'])
-    expect(((await c.chiama('lap', '/api/stato').catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('chiave')
+    expect(((await c.chiama('lap', '/api/stato').catch((x: unknown) => x)) as ErroreRemoto).motivo).toBe('irraggiungibile')
     expect(viste.some((v) => v.includes(K))).toBe(false)
   })
   it('un SierraDeck vecchio trovato solo per nome: il vecchio modo non si usa (la chiave in chiaro solo agli indirizzi del battito)', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { ordinaIndirizzi, trovaChatRemota, eIndirizzoTailscale, descriviIndirizzo } from '../../src/shared/pc-remoto'
 import type { BattitoPc } from '../../src/shared/posta'
-import { provaCasa } from '../../src/main/casa-firma'
+import { improntaPc, provaCasa } from '../../src/main/casa-firma'
 // In cima, non dentro il test: trasformare `client-server` a freddo col PC
 // carico costava da solo quasi tutti i 20 s del test (20/10).
 import { mkdtempSync } from 'node:fs'
@@ -200,6 +200,7 @@ describe('i due lati insieme: il Client vero di un PC e il client remoto dell’
     const server = creaServerClient({
       dispositivi,
       chiaveDiCasa: () => 'hmac-per-B',
+      impronta: () => improntaPc('B'),
       rotta: ({ percorso, dispositivo }) => ({ stato: 200, corpo: { percorso, dispositivo, chat: [] } })
     })
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))

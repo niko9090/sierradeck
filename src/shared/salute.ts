@@ -190,12 +190,19 @@ export function componiSalute(i: IngressiSalute): Salute {
     const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
     const indietro = prima(p.versione, i.versione)
     const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'attenzione' : 'guasto'
-    const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : 'non risponde a nessuna strada'
+    // Lo stato vero dell'ultimo bussare (0.93.1): un indirizzo che risponde non è «nessuna strada».
+    const rispostaDiversa = p.stato === 'chiave' ? 'risponde ma non riconosce la chiave di casa'
+      : p.stato === 'rifiutato' ? 'risponde ma rifiuta questo indirizzo'
+      : p.stato === 'altro' ? 'a quell’indirizzo risponde un altro, non lui'
+      : undefined
+    const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : rispostaDiversa ?? 'non risponde a nessuna strada'
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
-      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : 'non so se è acceso'} · ${p.versione}`,
+      titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : 'non so se è acceso'} · ${p.versione}`,
       spiegazione: `Ultimo battito sul Drive: ${eta}. Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, questo PC la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : 'Ha la stessa versione di questo PC, o più nuova.'}`,
-      ...(raggiungibile
+      ...(rispostaDiversa !== undefined
+        ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
+        : raggiungibile
         ? (indietro ? { cosaFare: `Aggiorna ${p.nome}: «Installa là» qui sotto lo fa da questo PC (ti mostra prima cosa cambia, poi ${p.nome} aspetta che le sue chat finiscano il turno e si riavvia da solo). Oppure dal suo schermo «Installa».` } : {})
         : { cosaFare: `Accendi ${p.nome} con SierraDeck aperto e il Drive collegato. Se è acceso: stessa rete o Tailscale acceso su tutti e due; altrimenti il collegamento diretto via Internet parte da solo (serve il Drive).` }),
       azioni: raggiungibile
