@@ -19,7 +19,7 @@ import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import type { ContestoDomanda, RegistroDomande } from './domande'
 import { aperteSulloStesso } from './domande-doppie'
-import { misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
+import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
@@ -106,6 +106,8 @@ export type ContestoUnico = {
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<{ unito: true } | { unito: false; motivo: string }>
+  /** 0.94.0: la stessa memoria dell'unione di prova, perché il criterio dopo l'unione non rifaccia le sue misure. */
+  memoriaCriteri?: MemoriaCriteri
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
   /** L'ultimo segno di vita di una chat adottata (hook, battiti), in ms. */
   ultimoSegnale: (autopilotaId: string, chatId: string) => number | undefined
@@ -367,7 +369,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
   /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
   const permessiInAttesa = new Map<string, number>()
-  const memoriaCriteri: MemoriaCriteri = new Map()
+  const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
   const gitA = (): GitAsincrono | undefined => x.gitAsincrono ?? (x.git !== undefined ? comeAsincrono(x.git) : undefined)
@@ -548,6 +550,10 @@ ${NOTA_SENZA_GIT}`,
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
         if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
+      } else if (k === undefined && s.stato === 'finito' && x.unioneDaSola !== false && !RUOLI_SOLA_LETTURA.has(s.ruolo)) {
+        // 0.94.0: anche il lavoro di uno specialista senza compito del piano (05/11: finito
+        // alle 11:52, unito solo dopo la spinta del lavoro fermo, tre minuti dopo).
+        avviaUnione(ws, { specialista: s.id })
       }
       if (u !== undefined) {
         const dopo = { ...u }
@@ -722,7 +728,9 @@ ${NOTA_SENZA_GIT}`,
         verde = false
         dettaglio = `il comando del criterio non è accettato (${esame.problemi.map((q) => q.messaggio).join('; ').slice(0, 300)}): riscrivi il criterio con piano_scrivi`
       } else {
-        const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true })
+        // 0.94.0: con l'impronta del codice, un comando già misurato nell'unione di prova non si rilancia.
+        const impronta = g !== undefined && !senzaGit ? await improntaCodiceAsincrona(g, a.cwd) : undefined
+        const m = await misuraCriteri([{ descrizione: compito!.criterio, comando, soddisfatto: false }], a.cwd, x.esegui, { memoria: memoriaCriteri, adesso: Date.now, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })
         const falliti = fallitiDavvero(m.esiti)
         const ignoti = nonMisurati(m.esiti)
         verde = m.esiti.length > 0 && falliti.length === 0 && ignoti.length === 0

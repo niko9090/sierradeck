@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
+import { compresoIn, ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
 import { gitFinto, usaGitFinto } from '../setup/git-finto'
 
 // git vero, con date e configurazione sempre uguali (vedi `git-finto.ts`).
@@ -115,17 +115,28 @@ describe('criteri veloci', () => {
     expect([1, 2, 3, 4, 5, 6].map(turnoCompleto)).toEqual([true, false, true, false, false, true])
   })
 
-  it('0.82.1: l’impronta è il commit: cambia con un commit, non con un file non salvato', () => {
+  it('0.94.0: l’impronta è il codice: cambia col contenuto, non con un commit vuoto né con un file non tracciato', () => {
     const dir = mkdtempSync(join(tmpdir(), 'sd-impronta-'))
     gitFinto(['init', '-q'], dir)
     const committa = (m: string): void => { gitFinto(['-c', 'user.email=p@esempio.it', '-c', 'user.name=prova', 'commit', '-q', '--allow-empty', '-m', m], dir) }
+    writeFileSync(join(dir, 'base.ts'), 'a')
+    gitFinto(['add', '.'], dir)
     committa('primo')
     const i1 = improntaCodice(gitFinto, dir)
     expect(i1).toMatch(/^[0-9a-f]{40}$/)
-    // Le consegne e i file del programma nella cartella principale non sono un commit nuovo.
+    // Le consegne e i file del programma nella cartella principale non sono codice.
     writeFileSync(join(dir, 'nuovo.txt'), 'a')
     expect(improntaCodice(gitFinto, dir)).toBe(i1)
+    // Un commit senza codice nuovo (la nota del quaderno prima di unire): stesso esito.
     committa('secondo')
+    expect(improntaCodice(gitFinto, dir)).toBe(i1)
+    // L'unione di prova (codice nell'indice, non ancora un commit) e il suo commit: la stessa impronta.
+    writeFileSync(join(dir, 'base.ts'), 'b')
+    gitFinto(['add', 'base.ts'], dir)
+    const prova = improntaCodice(gitFinto, dir)
+    expect(prova).not.toBe(i1)
+    committa('unione')
+    expect(improntaCodice(gitFinto, dir)).toBe(prova)
     const i2 = improntaCodice(gitFinto, dir)
     expect(i2).not.toBe(i1)
     // Un file tracciato cambiato e non salvato conta (chi lavora senza commit);
@@ -165,5 +176,36 @@ describe('memoria dei criteri (Revisione 0.82.1)', () => {
     expect(memoria.size).toBeLessThanOrEqual(ESITI_RICORDATI)
     expect([...memoria.keys()].some((k) => k.includes('c0000000'))).toBe(false)
     expect([...memoria.keys()].some((k) => k.includes(`c${String(ESITI_RICORDATI - 1).padStart(7, '0')}`))).toBe(true)
+  })
+})
+
+describe('0.94.0: le prove già comprese in un’altra', () => {
+  it('compresoIn: i filtri di vitest sono pezzi di percorso', () => {
+    expect(compresoIn('npx vitest run tests/main/pty-host-client.test.ts', 'npx vitest run tests/main')).toBe(true)
+    expect(compresoIn('npx vitest run tests/main/a.test.ts tests/shared/b.test.ts', 'npx vitest run tests/main tests/shared')).toBe(true)
+    expect(compresoIn('npx vitest run tests/main/a.test.ts', 'npx vitest run --maxWorkers=2')).toBe(true)
+    expect(compresoIn('npx vitest run tests/main', 'npx vitest run tests/main/a.test.ts')).toBe(false)
+    expect(compresoIn('npx vitest run tests/main/a.test.ts tests/autopilot-host/b.test.ts', 'npx vitest run tests/main')).toBe(false)
+    // Opzioni che cambiano quali prove girano, o più comandi: niente deduzioni.
+    expect(compresoIn('npx vitest run tests/main/a.test.ts', 'npx vitest run tests/main -t solo')).toBe(false)
+    expect(compresoIn('npx vitest run tests/main/a.test.ts', 'npx vitest run tests/main && echo ok')).toBe(false)
+    expect(compresoIn('npm test', 'npx vitest run')).toBe(false)
+  })
+
+  it('il largo passa: lo stretto non si rilancia; il largo non passa: lo stretto si misura', async () => {
+    const lista = [
+      { descrizione: 'stretto', comando: 'npx vitest run tests/main/a.test.ts', soddisfatto: false },
+      { descrizione: 'largo', comando: 'npx vitest run tests/main', soddisfatto: false }
+    ]
+    const eseguiti: string[] = []
+    let rosso = false
+    const esegui = async (comando: string): Promise<{ codice: number; uscita: string }> => { eseguiti.push(comando); return { codice: rosso && comando.endsWith('tests/main') ? 1 : 0, uscita: 'x' } }
+    const m = await misuraCriteri(lista, 'C:/p', esegui, { memoria: new Map(), adesso: () => 1, tutti: true })
+    expect(eseguiti).toEqual(['npx vitest run tests/main'])
+    expect(m.esiti.map((e) => [e.descrizione, e.passato])).toEqual([['stretto', true], ['largo', true]])
+    rosso = true
+    eseguiti.length = 0
+    await misuraCriteri(lista, 'C:/p', esegui, { memoria: new Map(), adesso: () => 1, tutti: true })
+    expect(eseguiti).toEqual(['npx vitest run tests/main', 'npx vitest run tests/main/a.test.ts'])
   })
 })

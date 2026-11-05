@@ -31,8 +31,11 @@ export const ESCLUSI_SEMPRE = new Set([
  * Drive (0.69.0). Nemmeno le copie di lavoro degli agenti di Claude Code
  * (`.claude/worktrees`, 0.88.5): sono il progetto intero ripetuto, per un
  * lavoro di qualche minuto, e il loro lavoro arriva comunque nel progetto.
+ * 0.94.0: nemmeno `.git/worktrees`, i segni che git tiene per quelle copie: il
+ * 05/11 il Drive li caricava e cancellava a ogni specialista, e su un altro PC
+ * punterebbero a cartelle che là non ci sono.
  */
-const CARTELLE_ESCLUSE = ['.sierradeck/recuperati', '.claude/worktrees']
+const CARTELLE_ESCLUSE = ['.sierradeck/recuperati', '.claude/worktrees', '.git/worktrees']
 export function cartellaEsclusa(rel: string): boolean {
   return CARTELLE_ESCLUSE.some((c) => rel === c || rel.endsWith(`/${c}`))
 }

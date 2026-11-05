@@ -105,7 +105,12 @@ export function firmaCriticita(c: readonly Criticita[]): string {
 export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]; criticita: readonly Criticita[] }): string {
   const righe = [`# Controllo di tutti i PC (${p.quando})`, '']
   righe.push('## I PC', '')
-  for (const s of p.saluti) righe.push(`- **${s.nome}**: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}` : `non risponde (${s.errore ?? '?'})`}`)
+  for (const s of p.saluti) {
+    // 0.94.0: quali sono le voci da guardare, non solo quante (05/11: «Z2-TECNICO: 9 da guardare» e basta).
+    const voci = s.salute?.voci.filter((v) => v.tono !== 'ok').map((v) => v.titolo) ?? []
+    const quali = voci.length > 0 ? ` (${voci.slice(0, 6).join('; ')}${voci.length > 6 ? `; e altre ${voci.length - 6}` : ''})` : ''
+    righe.push(`- **${s.nome}**: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : `non risponde (${s.errore ?? '?'})`}`)
+  }
   righe.push('', `## Criticità (${p.criticita.length})`, '')
   for (const c of p.criticita) righe.push(`- **${c.pc}** · ${c.cosa}${c.dettaglio !== '' ? `\n  ${c.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}` : ''}`)
   return righe.join('\n') + '\n'

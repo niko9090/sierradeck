@@ -45,6 +45,14 @@ describe('guardia dell’autopilota unico (PreToolUse)', () => {
     expect(giudicaGuardiaOrchestratore(delPrincipale('PowerShell', { command: 'Get-ChildItem' }), ctx).ok).toBe(false)
     expect(giudicaGuardiaOrchestratore(delPrincipale('Agent', { subagent_type: 'sviluppatore' }), ctx).ok).toBe(true)
     expect(giudicaGuardiaOrchestratore(delPrincipale('Read', { file_path: join(RADICE, 'a.js') }), ctx).ok).toBe(true)
+    // 0.94.0: git che legge e basta sì; attaccato ad altro, con -c o che scrive un file no.
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: 'git status --short' }), ctx).ok).toBe(true)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('PowerShell', { command: 'git log --oneline -10' }), ctx).ok).toBe(true)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: `git -C "${RADICE}" diff main` }), ctx).ok).toBe(true)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: 'git status && rm -rf x' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: 'git -c core.fsmonitor=calc status' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: 'git diff --output=x.txt' }), ctx).ok).toBe(false)
+    expect(giudicaGuardiaOrchestratore(delPrincipale('Bash', { command: 'git checkout main' }), ctx).ok).toBe(false)
   })
 
   it('un nuovo specialista aspetta se il PC è al tetto', () => {

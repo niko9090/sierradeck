@@ -1221,6 +1221,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     posti: postiAdesso,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
+    memoriaCriteri,
     ricordaContesto,
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),

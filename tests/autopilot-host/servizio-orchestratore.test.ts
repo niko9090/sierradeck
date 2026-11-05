@@ -453,6 +453,24 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
  * l'autopilota, al più due volte per lo stesso stato.
  */
 describe('il motore non si ferma (0.89.4)', () => {
+  it('0.94.0: anche lo specialista senza compito del piano si unisce da solo', async () => {
+    zitto()
+    const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })
+    await avviaServizio([ap({ chats: [] })], { git: senzaGit, raccoltaEventiMs: 5 })
+    migra()
+    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'sistema il menu' })
+    await attendi(() => processi.length > 0, { cosa: 'processo' })
+    const p0 = processi[0]!
+    const fine = (testo: string): void => { p0.emetti({ type: 'result', result: testo, total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } }) }
+    p0.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'sistema il menu' } }] } })
+    p0.emetti({ type: 'system', subtype: 'task_started', task_id: 't-1', tool_use_id: 'tu-1' })
+    fine('Lanciato.')
+    p0.emetti({ type: 'system', subtype: 'task_notification', task_id: 't-1', tool_use_id: 'tu-1', status: 'completed', summary: 'fatto' })
+    fine('Finito.')
+    // Nessun unisci dall'autopilota: l'esito dell'unione gli arriva da solo.
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('unione')), { cosa: 'evento unione' })
+  })
+
   it('unione da sola alla fine dello specialista; il lavoro fermo sveglia l’autopilota, poi smette', async () => {
     zitto()
     let avanti = 0

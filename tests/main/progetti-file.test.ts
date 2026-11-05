@@ -38,13 +38,16 @@ describe('elencaFileProgetto', () => {
 
   it('le copie di lavoro degli agenti (.claude/worktrees) restano a casa, il resto di .claude va (0.88.5)', async () => {
     const dir = progetto()
-    for (const rel of ['.claude/worktrees/agent-1/src/a.ts', '.claude/settings.json']) {
+    for (const rel of ['.claude/worktrees/agent-1/src/a.ts', '.claude/settings.json', '.git/worktrees/agent-1/gitdir', '.git/HEAD']) {
       mkdirSync(join(dir, ...rel.split('/'), '..'), { recursive: true })
       writeFileSync(join(dir, ...rel.split('/')), 'x')
     }
     const rel = (await elencaFileProgetto(dir, 1000)).file
     expect(rel).toContain('.claude/settings.json')
     expect(rel.some((r) => r.startsWith('.claude/worktrees'))).toBe(false)
+    // 0.94.0: nemmeno i segni di git per quelle copie; il resto di .git va.
+    expect(rel).toContain('.git/HEAD')
+    expect(rel.some((r) => r.startsWith('.git/worktrees'))).toBe(false)
   })
 
   it('rispetta i gitignore a ogni livello, porta .git, salta node_modules', async () => {

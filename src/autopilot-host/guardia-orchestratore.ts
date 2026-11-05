@@ -97,6 +97,21 @@ export function comandiGit(comando: string): { verbo: string; indice: number }[]
   return fuori
 }
 
+const GIT_LETTURA = /^(status|log|diff|show|rev-parse|ls-files|describe|shortlog|blame)$/u
+
+/**
+ * Pura (0.94.0): un solo comando git che legge e basta, come `git status` o
+ * `git log --oneline -10`. Niente altri comandi attaccati, niente `-c` (una
+ * configurazione può far lanciare programmi), niente file scritti (`--output`).
+ */
+export function gitSoloLettura(comando: string): boolean {
+  const t = comando.trim()
+  if (t === '' || /[;&|<>`$\n\r]/u.test(t)) return false
+  if (/(?:^|\s)(-c|--output(=|\s|$)|--ext-diff|--git-dir|--work-tree|--exec-path)/u.test(t)) return false
+  const g = comandiGit(t)
+  return g.length === 1 && g[0]!.indice === 0 && GIT_LETTURA.test(g[0]!.verbo)
+}
+
 export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: ContestoGuardia): Giudizio {
   const nome = s(corpo.tool_name) ?? ''
   const input = o(corpo.tool_input)
@@ -104,6 +119,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
   const cwd = s(corpo.cwd) ?? c.radice
 
   if (agente === undefined) {
+    // 0.94.0: guardare lo stato del progetto sì (05/11: cinque comandi bloccati in un giorno, turni persi).
+    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && gitSoloLettura(s(input.command) ?? '')) return { ok: true }
     if ((STRUMENTI_SCRITTURA as readonly string[]).includes(nome) || (STRUMENTI_SHELL as readonly string[]).includes(nome)) {
       return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci.' }
     }

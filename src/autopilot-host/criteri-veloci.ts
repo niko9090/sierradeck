@@ -16,8 +16,8 @@ import { problemaDiAmbiente } from './ambiente-copia'
  * dal giro prima non era cambiato un byte: npm test, typecheck, gradle.
  *
  * Le regole:
- * 1. **L'esito si ricorda per commit e comando** (0.82.1). Si rimisura solo se
- *    è cambiato il commit della cartella (main, o il ramo della chat). Fino
+ * 1. **L'esito si ricorda per codice e comando** (0.82.1, 0.94.0). Si rimisura
+ *    solo se è cambiato il codice della cartella (`improntaCodice`). Fino
  *    alla 0.82.0 l'impronta era HEAD più lo stato e il diff, e scadeva dopo 10
  *    minuti: nella cartella principale le consegne e i file del programma
  *    cambiano di continuo senza un commit, e il 21/10 si sono contati 452
@@ -32,6 +32,11 @@ import { problemaDiAmbiente } from './ambiente-copia'
  *    turni vale l'ultimo esito, segnato come tale nel quadro del supervisore.
  *    Uno alla volta per PC e mai durante un'unione: `turni-criteri`.
  * 4. **In parallelo, ma poco.** Al massimo `PARALLELI` comandi insieme.
+ * 5. **Niente prove già comprese in un'altra** (0.94.0). `vitest run tests/main`
+ *    prova anche `tests/main/pty-host-client.test.ts`: se nella stessa misura
+ *    c'è il più largo e passa, il più stretto vale passato senza rilanciarlo
+ *    (05/11: tre comandi uno dentro l'altro, ognuno lanciato per conto suo).
+ *    Se il largo non passa, lo stretto si misura: va saputo quale si rompe.
  */
 
 export const OGNI_TURNI = 3
@@ -73,70 +78,39 @@ function npmTestLeggero(comando: string, cwd: string): boolean {
 }
 
 /**
- * L'impronta del codice di una cartella git: il suo commit (0.82.1), più le
- * modifiche non salvate ai file **tracciati**, se ce ne sono. Non contano i
- * file non tracciati né `.sierradeck/` (consegne, quaderno): li scrive il
- * programma di continuo, e sono loro che facevano rimisurare a vuoto. Le
- * modifiche ai file tracciati invece contano: senza, una chat che lavora nella
- * cartella principale senza fare commit vedrebbe sempre l'esito di prima.
- * `undefined` se non è git: allora niente cache.
+ * L'impronta del codice di una cartella git: **il contenuto dei file tracciati**
+ * (0.94.0), non il commit. È l'elenco dell'indice (`ls-files -s`: percorso e
+ * impronta di ogni file) più le modifiche non salvate (`diff`). Fino alla 0.93.1
+ * era il commit più il diff, e un'unione misurava tre volte gli stessi criteri
+ * (05/11, circa 5 minuti invece di uno e mezzo): prima la nota del quaderno
+ * salvata con un commit (stesso codice, commit nuovo), poi l'unione di prova,
+ * poi il commit dell'unione, che ha lo stesso contenuto della prova ma un
+ * commit diverso. Col contenuto, codice uguale vuol dire esito uguale.
+ * Non contano i file non tracciati né `.sierradeck/` (consegne, quaderno): li
+ * scrive il programma di continuo. `undefined` se non è git: niente cache.
  */
-export function improntaCodice(git: Git, cwd: string): string | undefined {
-  const head = git(['rev-parse', 'HEAD'], cwd)
-  if (head.codice !== 0) return undefined
-  const commit = head.uscita.trim()
-  if (!/^[0-9a-f]{7,64}$/i.test(commit)) return undefined
-  const diff = git(['diff', 'HEAD', '--', '.', ':(exclude).sierradeck'], cwd)
-  if (diff.codice !== 0 || diff.uscita.trim() === '') return commit
-  return `${commit}+${createHash('sha256').update(diff.uscita).digest('hex').slice(0, 16)}`
+const SOLO_CODICE = ['--', '.', ':(exclude).sierradeck']
+
+function firmaCodice(indice: EsitoGit, diff: EsitoGit): string | undefined {
+  if (indice.codice !== 0 || diff.codice !== 0) return undefined
+  return createHash('sha256').update(indice.uscita).update('\0').update(diff.uscita).digest('hex').slice(0, 40)
 }
 
-/** Per quanto il diff di una cartella vale, a parità di HEAD (0.85.2). */
-export const IMPRONTA_VALE_MS = 5_000
-
-/** Il diff ricordato per cartella e HEAD; per ogni git (i test ne hanno uno per prova). */
-const diffRicordati = new WeakMap<GitAsincrono, Map<string, { head: string; quando: number; diff: Promise<EsitoGit> }>>()
-/** Le letture di HEAD in corso, per cartella: chi arriva insieme aspetta la stessa. */
-const headInVolo = new WeakMap<GitAsincrono, Map<string, Promise<EsitoGit>>>()
-
-const perGit = <T>(m: WeakMap<GitAsincrono, Map<string, T>>, git: GitAsincrono): Map<string, T> => {
-  let x = m.get(git)
-  if (x === undefined) { x = new Map(); m.set(git, x) }
-  return x
+export function improntaCodice(git: Git, cwd: string): string | undefined {
+  if (git(['rev-parse', 'HEAD'], cwd).codice !== 0) return undefined
+  return firmaCodice(git(['ls-files', '-s', ...SOLO_CODICE], cwd), git(['diff', ...SOLO_CODICE], cwd))
 }
 
 /**
- * **`improntaCodice` senza fermare il servizio** (0.85.2). Lo stesso conto,
- * con git asincrono: `spawnSync` teneva fermo l'intero servizio (hook delle
- * chat compresi) per ogni `rev-parse` e ogni `diff`, a ogni fermata e più
- * volte per giro. HEAD si legge sempre (un'unione lo cambia e l'esito di un
- * criterio non deve finire sotto il commit di prima); il diff, la parte
- * cara, si ricorda per cartella e HEAD per `IMPRONTA_VALE_MS`.
+ * **`improntaCodice` senza fermare il servizio** (0.85.2): lo stesso conto con
+ * git asincrono (`spawnSync` teneva fermo l'intero servizio). Si legge sempre
+ * fresca: un'unione di prova cambia il codice senza cambiare il commit, e un
+ * esito non deve finire sotto il codice di prima.
  */
-export async function improntaCodiceAsincrona(git: GitAsincrono, cwd: string, adesso: () => number = Date.now): Promise<string | undefined> {
-  const volo = perGit(headInVolo, git)
-  let h = volo.get(cwd)
-  if (h === undefined) {
-    h = git(['rev-parse', 'HEAD'], cwd)
-    volo.set(cwd, h)
-    void h.finally(() => { if (volo.get(cwd) === h) volo.delete(cwd) })
-  }
-  const head = await h
-  if (head.codice !== 0) return undefined
-  const commit = head.uscita.trim()
-  if (!/^[0-9a-f]{7,64}$/i.test(commit)) return undefined
-  const ricordati = perGit(diffRicordati, git)
-  const t = adesso()
-  let r = ricordati.get(cwd)
-  if (r === undefined || r.head !== commit || t - r.quando >= IMPRONTA_VALE_MS) {
-    r = { head: commit, quando: t, diff: git(['diff', 'HEAD', '--', '.', ':(exclude).sierradeck'], cwd) }
-    ricordati.set(cwd, r)
-    // Il servizio gira per giorni: le cartelle scadute escono.
-    for (const [k, v] of ricordati) if (t - v.quando >= IMPRONTA_VALE_MS && k !== cwd) ricordati.delete(k)
-  }
-  const diff = await r.diff
-  if (diff.codice !== 0 || diff.uscita.trim() === '') return commit
-  return `${commit}+${createHash('sha256').update(diff.uscita).digest('hex').slice(0, 16)}`
+export async function improntaCodiceAsincrona(git: GitAsincrono, cwd: string): Promise<string | undefined> {
+  if ((await git(['rev-parse', 'HEAD'], cwd)).codice !== 0) return undefined
+  const [indice, diff] = await Promise.all([git(['ls-files', '-s', ...SOLO_CODICE], cwd), git(['diff', ...SOLO_CODICE], cwd)])
+  return firmaCodice(indice, diff)
 }
 
 /** `improntaLavoro` con git asincrono (0.85.2): niente cache, il lavoro non salvato cambia di continuo. */
@@ -259,19 +233,40 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
     }
     return e
   }
+  // Regola 5: prima i larghi; gli stretti che vi sono compresi aspettano il loro esito.
+  const coperto = new Map<Criterio, Criterio>()
+  daEseguire.forEach((c, i) => {
+    const largo = daEseguire.find((d, j) => d !== c && compresoIn(c.comando ?? '', d.comando ?? '') && !(compresoIn(d.comando ?? '', c.comando ?? '') && j > i))
+    if (largo !== undefined) coperto.set(c, largo)
+  })
   const quanti = Math.max(1, opz.paralleli ?? PARALLELI)
-  let i = 0
-  const lavoratore = async (): Promise<void> => {
-    while (i < daEseguire.length) {
-      const c = daEseguire[i++]
-      if (c === undefined || c.comando === undefined) continue
+  const corre = async (lista: Criterio[]): Promise<void> => {
+    let i = 0
+    const lavoratore = async (): Promise<void> => {
+      while (i < lista.length) {
+        const c = lista[i++]
+        if (c !== undefined) await misuraCriterio(c)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(quanti, lista.length) }, () => lavoratore()))
+  }
+  const misuraCriterio = async (c: Criterio): Promise<void> => {
+    {
+      if (c.comando === undefined) return
       const comando = c.comando
+      const largo = coperto.get(c)
+      const esitoLargo = largo !== undefined ? pronti.get(largo.descrizione) : undefined
+      if (largo !== undefined && esitoLargo !== undefined && esitoLargo.passato && esitoLargo.misurato !== false) {
+        pronti.set(c.descrizione, { ...esitoLargo, descrizione: c.descrizione, comando, uscita: `compreso in \`${largo.comando ?? ''}\`, che passa` })
+        daCache.push(c.descrizione)
+        return
+      }
       let e: EsitoVerifica | undefined
       if (opz.impronta !== undefined && !guardaFuori(comando)) {
         const k = chiaveCommit(opz.impronta, comando)
         const gia = inVolo.get(k)
         if (gia !== undefined) {
-          // Un'altra chat la sta misurando adesso, sullo stesso commit: si aspetta quella.
+          // Un'altra chat la sta misurando adesso, sullo stesso codice: si aspetta quella.
           e = await gia
           if (e !== undefined) daCache.push(c.descrizione)
         } else {
@@ -283,10 +278,42 @@ export async function misuraCriteri(criteri: Criterio[], cwd: string, esegui: Es
       if (e !== undefined) pronti.set(c.descrizione, conNome(e, c))
     }
   }
-  await Promise.all(Array.from({ length: Math.min(quanti, daEseguire.length) }, () => lavoratore()))
+  await corre(daEseguire.filter((c) => !coperto.has(c)))
+  await corre(daEseguire.filter((c) => coperto.has(c)))
   // Nell'ordine dei criteri, come prima.
   const esiti = criteri.flatMap((c) => { const e = pronti.get(c.descrizione); return e === undefined ? [] : [e] })
   return { esiti, daCache, rimandati, durate }
+}
+
+/**
+ * I filtri di un `vitest run` semplice, o `undefined` se il comando fa altro
+ * (più comandi, opzioni che cambiano quali prove girano). I filtri di vitest
+ * sono pezzi di percorso: una prova gira se il suo percorso ne contiene uno.
+ */
+function filtriVitest(comando: string): string[] | undefined {
+  if (/[;&|<>`$()]/.test(comando)) return undefined
+  const m = /^\s*(?:npx\s+)?vitest(?:\.mjs)?\s+run\b(.*)$/i.exec(comando)
+  if (m === null) return undefined
+  const filtri: string[] = []
+  for (const t of (m[1] ?? '').trim().split(/\s+/).filter((x) => x !== '')) {
+    if (t.startsWith('-')) {
+      if (/^--(maxWorkers|minWorkers|reporter|pool|bail)=\S+$|^--(silent|no-color|passWithNoTests)$/.test(t)) continue
+      return undefined
+    }
+    filtri.push(t.replace(/\\/g, '/').replace(/^\.\//, ''))
+  }
+  return filtri
+}
+
+/** Pura (0.94.0): le prove di `stretto` girano tutte anche in `largo`. */
+export function compresoIn(stretto: string, largo: string): boolean {
+  const s = filtriVitest(stretto)
+  const l = filtriVitest(largo)
+  if (s === undefined || l === undefined) return false
+  if (l.length === 0) return true
+  if (s.length === 0) return false
+  // Ogni prova di `stretto` contiene un suo filtro, che contiene un filtro di `largo`.
+  return s.every((f) => l.some((g) => f.includes(g)))
 }
 
 /** Turno in cui misurare anche i pesanti: il primo, e poi ogni `OGNI_TURNI`. */
