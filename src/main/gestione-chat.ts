@@ -230,7 +230,10 @@ export function creaGestioneChat(deps: DipendenzeGestioneChat): GestioneChat {
     const st = await lstat(cartella).catch(() => undefined)
     if (st === undefined || !st.isDirectory()) return []
     const firma = `${cartella}:${st.mtimeMs}`
-    if (todosLetti?.firma !== firma) todosLetti = { firma, nomi: await readdir(cartella).catch(() => [] as string[]) }
+    // Come «racily clean» di git: la data di una cartella toccata da pochissimo non distingue due modifiche
+    // dello stesso istante (orologio a ~15 ms), quindi finché è «fresca» la si rilegge sempre.
+    const fresca = Date.now() - st.mtimeMs < 2000
+    if (fresca || todosLetti?.firma !== firma) todosLetti = { firma, nomi: await readdir(cartella).catch(() => [] as string[]) }
     return todosLetti.nomi
   }
   const misura = async (s: InfoSessione): Promise<{ byte: number; parti: Partial<Record<ParteSessione, number>> }> => {
