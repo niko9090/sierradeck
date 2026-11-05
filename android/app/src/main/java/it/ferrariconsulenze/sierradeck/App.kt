@@ -672,7 +672,7 @@ fun Principale(
             // Quello che non può aspettare, sopra tutto il resto: non è un
             // avviso qualunque, è la ragione per cui questo telefono esiste.
             // In Adesso non serve (2.83.0): le domande ci sono già, in cima; dentro un autopilota sì.
-            if (posto.voce != VoceBarra.ADESSO || adessoDettaglio) BandaUrgenze(api, stato, connesso, onApriDomande = { posto = Navigazione.verso(posto, Scheda.DOMANDE) })
+            // App 2.90.0: le domande stanno in cima a Workspace (e nel pallino della barra), non in una fascia su ogni pagina.
             appNuova?.let { (nome, _) ->
                 BandaAggiornamentoApp(
                     nome = nome,
@@ -683,21 +683,21 @@ fun Principale(
             Box(Modifier.weight(1f).fillMaxSize()) {
                 when (posto.voce) {
                     VoceBarra.ADESSO -> Adesso(api, stato, apriAutopilota, onAperto = { apriAutopilota = null }, onDettaglio = { adessoDettaglio = it })
-                    VoceBarra.CHAT -> ConLinguette(posto, { posto = Navigazione.linguetta(posto, it) }) { i ->
-                        when (i) {
-                            0 -> Chat(api, stato, deposito)
-                            1 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) { SezioneWorkspaceChat(api, stato) }
-                            else -> Negozio(api)
-                        }
-                    }
+                    // App 2.90.0: una lista sola; i workspace dal suo tasto «Workspace», il Negozio in Altro.
+                    VoceBarra.CHAT -> Chat(api, stato, deposito)
                     VoceBarra.PROGETTI -> ConLinguette(posto, { posto = Navigazione.linguetta(posto, it) }) { i ->
                         when (i) {
                             // Il pannello delle chat e dei progetti (app 2.58.2).
-                            0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { SezionePannelloDrive(api) }
+                            // App 2.90.0: sotto i progetti, cosa c'è sul Drive (prima una linguetta a parte, con le code).
+                            0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
+                                SezionePannelloDrive(api)
+                                Spacer(Modifier.height(16.dp))
+                                Sezione("Sul Drive")
+                                SezioneDrive(api, apertoDaSubito = false)
+                                Spacer(Modifier.height(24.dp))
+                            }
                             // I file dei progetti dei PC e quelli ricevuti (app 2.54.0).
-                            1 -> SezioneFile(api)
-                            // Il contenuto del Drive e le code dei progetti.
-                            else -> DriveECode(api, stato)
+                            else -> SezioneFile(api)
                         }
                     }
                     VoceBarra.ALTRO -> Altro(

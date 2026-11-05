@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.1',
+    righe: [
+      '**App sul telefono (2.90.0) riorganizzata attorno ai workspace:** si apre su «Workspace», con in cima le domande che aspettano te e sotto un workspace per riga, anche quelli degli altri PC.',
+      '**La pagina di un workspace ha quattro linguette:** Conversazione (con il suo autopilota, le domande dentro, il campo in fondo), Lavoro (percentuale, specialisti e richieste in coda), File (cosa ha cambiato) e Chat (le chat di quel workspace).',
+      '**Gli specialisti si guardano dal telefono:** in Lavoro tocchi uno specialista e vedi dal vivo il compito, cosa scrive e i comandi che usa, come a destra sul PC.',
+      '**Meno doppioni:** le domande stanno in un posto solo; Chat è una lista sola; il contenuto del Drive sta sotto Progetti; il Negozio è in Altro, che ora è diviso in Sistema, Preferenze, Strumenti e Aiuto.',
+      '**Tolto quello che il PC non faceva più:** «Porta qui», le code dei progetti, e nel modulo per scrivere a un workspace i campi Nome, Pubblicazione e «va sul cloud».',
+    ]
+  },
+  {
     versione: '0.95.0',
     righe: [
       '**Grafica nuova:** colori ardesia più calmi, angoli morbidi e superfici piane al posto dei tasti in rilievo. La fascia in alto è più leggera, e si vede subito dove sei grazie al colore d’accento.',

@@ -1,5 +1,7 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -58,7 +60,7 @@ import kotlinx.coroutines.launch
  * richieste entrano nella sua coda, e la percentuale dice quanto manca.
  */
 @Composable
-internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }) {
+internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: () -> Unit, chatDiSessione: (String) -> String? = { null }, chatDelWorkspace: (String?) -> List<Chat> = { emptyList() }) {
     var d by remember(breve.id) { mutableStateOf<AutopilotaDettaglio?>(null) }
     // La conversazione intera (PC 0.86.0): solo dopo «Mostra tutta la conversazione».
     var intera by remember(breve.id) { mutableStateOf(false) }
@@ -77,8 +79,6 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
         SchermoMandaA(api, null, uris, fissa = DestinazioneFile("autopilota", breve.id, breve.nome)) { allegando = null }
     }
     var notaDialogo by remember(breve.id) { mutableStateOf<String?>(null) }
-    // La riga riassuntiva (2.83.0, c-509): chiusa, sotto c'è solo la conversazione.
-    var riassuntoAperto by remember(breve.id) { mutableStateOf(false) }
     // Se il dettaglio non arriva lo si dice: prima la schermata restava con
     // la sola testata e nessuna spiegazione.
     var guastoDettaglio by remember(breve.id) { mutableStateOf<String?>(null) }
@@ -149,90 +149,71 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
     val aperte = richieste.count { it.stato != "fatta" }
     val specialistiOrch = av?.orchestratore?.specialisti ?: emptyList()
     val ricaricaDettaglio: () -> Unit = { scope.launch { try { d = api.autopilota(breve.id, intera) } catch (_: Exception) {} } }
-    BackHandler(enabled = riassuntoAperto) { riassuntoAperto = false }
+    // App 2.90.0: la pagina del workspace a quattro linguette (PaginaWorkspace.kt).
+    var linguetta by remember(breve.id) { mutableStateOf(LinguettaWorkspace.CONVERSAZIONE) }
+    var specialistaAperto by remember(breve.id) { mutableStateOf<SpecialistaOrchestratore?>(null) }
+    val chatWs = chatDelWorkspace(det?.workspace)
+    val wsSpecialista = det?.workspace ?: av?.orchestratore?.workspace?.takeIf { it.isNotBlank() }
+    val aperto = specialistaAperto
+    if (aperto != null && wsSpecialista != null) {
+        ChatSpecialista(api, wsSpecialista, aperto) { specialistaAperto = null }
+        return
+    }
+    BackHandler(enabled = linguetta != LinguettaWorkspace.CONVERSAZIONE) { linguetta = LinguettaWorkspace.CONVERSAZIONE }
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(
-            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 4.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onIndietro, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
             }
-            Text(breve.nome, color = Banco.testo, fontWeight = FontWeight.Bold, maxLines = 1, fontSize = 16.sp, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(breve.nome, color = Banco.testo, fontWeight = FontWeight.SemiBold, maxLines = 1, fontSize = 18.sp)
+                val riga = RiassuntoAutopilota.di(av?.percento, aperte, specialistiOrch.size, schede.size, pensa)
+                Text(riga, color = if (schede.isNotEmpty()) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+            }
             Punto(coloreLed(breve.led, det?.stato ?: breve.stato))
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(16.dp))
         }
-        val riga = RiassuntoAutopilota.di(av?.percento, aperte, specialistiOrch.size, schede.size, pensa)
-        Column(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp).background(Banco.chassis)
-                .tocco { riassuntoAperto = !riassuntoAperto }.padding(horizontal = 16.dp, vertical = 6.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    riga, color = if (schede.isNotEmpty()) Banco.ambra else Banco.testo,
-                    fontSize = 14.sp, maxLines = 2, modifier = Modifier.weight(1f)
-                )
-                Text(if (riassuntoAperto) "Chiudi ▴" else "Dettagli ▾", color = Banco.accento, fontSize = 14.sp)
-            }
-            av?.percento?.let { p -> BarraPercento(p) }
-        }
-        HorizontalDivider(color = Banco.incisione)
+        av?.percento?.let { p -> Box(Modifier.padding(horizontal = 16.dp)) { BarraPercento(p) } }
+        LinguetteWorkspace(linguetta, conti = { RegoleWorkspace.conto(it, specialistiOrch.size, aperte, chatWs.size) }) { linguetta = it }
+        guastoDettaglio?.let { g -> Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
 
-        if (riassuntoAperto) LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
-            item(key = "stato") {
-                Column(Modifier.padding(vertical = 8.dp)) {
-                    // Si vede sempre chi lavora (PC 0.69.0).
-                    val s = breve.stato
-                    (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(s)) }
-                    Row {
-                        TextButton(onClick = { quadernoAperto = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Quaderno del progetto") }
-                        // PC 0.84.0: chat aperte, consegne, unioni, chiusure, release e decisioni di Nicholas.
-                        det?.storico?.let { TextButton(onClick = { storicoAperto = it }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Storico") } }
-                    }
-                }
-            }
-            // PC 0.77.0/0.79.0: la Panoramica del suo workspace e chi lavora adesso.
-            pan?.let { p ->
-                item(key = "panoramica") {
+        when (linguetta) {
+            LinguettaWorkspace.LAVORO -> Box(Modifier.weight(1f).fillMaxWidth()) {
+                LinguettaLavoro(
+                    av, notaAvanzamento,
+                    onSpecialista = { s -> if (s.adottata) Apertura.apriChat(chatDiSessione(s.id) ?: s.id) else specialistaAperto = s },
+                    onQuaderno = { quadernoAperto = true },
+                    onStorico = det?.storico?.let { f -> { storicoAperto = f } }
+                ) {
                     Column {
-                        p.alLavoro?.let { r -> AlLavoro(r) { id -> Apertura.apriChat(id) } }
-                        PanoramicaVista(p) { id -> Apertura.apriChat(id) }
-                    }
-                }
-            }
-            // Un PC vecchio (2.52.6): quello che non manda ancora, una riga per parte.
-            val avvisi = FunzioniPc.avvisiScheda(PcCorrente.versione, PcCorrente.nome)
-            if (avvisi.isNotEmpty()) item(key = "avvisi") { Text(avvisi.joinToString("\n"), color = Banco.ambra, fontSize = 12.sp) }
-            for (k in sezioniAutopilota(schede.size)) item(key = k) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text(
-                        when (k) {
-                            "domande" -> "Domande ${schede.size}"
-                            "avanzamento" -> "Avanzamento" + (av?.percento?.let { " " + RegoleAvanzamento.percento(it) } ?: "")
-                            else -> "File"
-                        },
-                        color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 15.sp
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    when (k) {
-                        "domande" -> LinguettaDomande(api, breve.id, schede, onRisposto = ricaricaDettaglio)
-                        "avanzamento" -> {
-                            AvanzamentoVista(av, notaAvanzamento)
-                            // Un servizio senza specialisti dell'orchestratore: quelli della scheda, con «Guarda».
-                            val specialisti = det?.specialisti
-                            if (specialistiOrch.isEmpty() && specialisti != null && specialisti.elenco.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
-                                SpecialistiVista(specialisti) { sessione -> chatDiSessione(sessione)?.let { Apertura.apriChat(it) } }
-                            }
+                        // Si vede sempre chi lavora (PC 0.69.0).
+                        (det?.dalVivo ?: breve.dalVivo)?.let { DalVivo(it, senzaStato = it.etichetta == statoInParole(breve.stato)) }
+                        // Un servizio senza specialisti dell'orchestratore: quelli della scheda, con «Guarda».
+                        val specialisti = det?.specialisti
+                        if (specialistiOrch.isEmpty() && specialisti != null && specialisti.elenco.isNotEmpty()) {
+                            SpecialistiVista(specialisti) { sessione -> chatDiSessione(sessione)?.let { Apertura.apriChat(it) } }
                         }
-                        else -> LinguettaFile(api, breve.id)
+                        // PC 0.77.0/0.79.0: la Panoramica del suo workspace e chi lavora adesso.
+                        pan?.let { p ->
+                            p.alLavoro?.let { r -> AlLavoro(r) { id -> Apertura.apriChat(id) } }
+                            PanoramicaVista(p) { id -> Apertura.apriChat(id) }
+                        }
+                        val avvisi = FunzioniPc.avvisiScheda(PcCorrente.versione, PcCorrente.nome)
+                        if (avvisi.isNotEmpty()) Text(avvisi.joinToString("\n"), color = Banco.ambra, fontSize = 12.sp)
                     }
                 }
             }
-        } else LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
+            LinguettaWorkspace.FILE -> Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                LinguettaFile(api, breve.id)
+            }
+            LinguettaWorkspace.CHAT -> Box(Modifier.weight(1f).fillMaxWidth()) { LinguettaChatWorkspace(chatWs) }
+            LinguettaWorkspace.CONVERSAZIONE -> LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
             guastoDettaglio?.let { g -> item(key = "guasto") { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
             // L'avanzamento in breve, in cima: le richieste che stanno andando avanti.
-            item(key = "avanzamento-breve") { AvanzamentoBreve(av) { riassuntoAperto = true } }
+            item(key = "avanzamento-breve") { AvanzamentoBreve(av) { linguetta = LinguettaWorkspace.LAVORO } }
             // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
             if (eventi.isNotEmpty()) item(key = "eventi") { CosaESuccesso(eventi) }
@@ -268,8 +249,10 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                 }
             }
         }
+        }
 
-        // ─── la casella: sempre in basso, sopra la tastiera ───
+        // ─── la casella: sempre in basso, sopra la tastiera, solo nella Conversazione ───
+        if (linguetta == LinguettaWorkspace.CONVERSAZIONE) {
         HorizontalDivider(color = Banco.incisione)
         Column(Modifier.fillMaxWidth().background(Banco.fondo).padding(horizontal = 12.dp, vertical = 6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -321,6 +304,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
                 TextButton(enabled = !mandando, onClick = { sceglieFile.launch("*/*") }, modifier = Modifier.heightIn(min = 48.dp)) { Text("📎 Allega") }
             }
             notaDialogo?.let { Text(it, color = Banco.rosso, fontSize = 13.sp) }
+        }
         }
     }
 

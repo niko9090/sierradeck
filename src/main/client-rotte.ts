@@ -215,6 +215,8 @@ export type DipendenzeRotte = {
    * non le conosce, o il workspace non ha ancora un autopilota.
    */
   avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
+  /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
+  specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
   /** Risponde alla domanda di un autopilota. */
@@ -1546,6 +1548,18 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const v = await deps.avanzamentoAutopilota(ws).catch((x: unknown) => (x instanceof Error ? x : new Error(String(x))))
       if (v instanceof Error) return { stato: 502, corpo: { errore: `il servizio degli autopiloti non ha dato l’avanzamento: ${v.message.slice(0, 160)}` } }
       return OK({ orchestratore: v.orchestratore ?? null, coda: v.coda ?? null })
+    }
+
+    // 0.95.1: la conversazione di uno specialista dell'autopilota di un workspace,
+    // la stessa che il PC mostra a destra. Il telefono la guarda e basta.
+    if (r.metodo === 'POST' && r.percorso === '/api/autopilota/specialista') {
+      const ws = stringa(r.corpo, 'workspace').trim()
+      const id = stringa(r.corpo, 'id').trim()
+      // eslint-disable-next-line no-control-regex
+      if (ws === '' || ws.length > 1000 || /[\u0000-\u001f\u007f]/.test(ws) || id === '' || id.length > 200) return { stato: 400, corpo: { errore: 'servono il workspace e lo specialista' } }
+      if (deps.specialistaAutopilota === undefined) return OK({ id, trovata: false, righe: [] })
+      const t = await deps.specialistaAutopilota(ws, id).catch(() => undefined)
+      return OK(t ?? { id, trovata: false, righe: [] })
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {

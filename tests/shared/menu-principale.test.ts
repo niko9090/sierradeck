@@ -105,7 +105,9 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     }
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(fatto)
     const a = kt('App.kt')
-    for (const t of ['VoceBarra.ADESSO -> Adesso(', 'VoceBarra.CHAT -> ConLinguette', 'VoceBarra.PROGETTI -> ConLinguette', 'VoceBarra.ALTRO -> Altro(', 'else -> Negozio(api)', 'BarraVoci(posto.voce']) expect(a, t).toContain(t)
+    // App 2.90.0: Chat è una lista sola, il Negozio sta in Altro.
+    for (const t of ['VoceBarra.ADESSO -> Adesso(', 'VoceBarra.CHAT -> Chat(', 'VoceBarra.PROGETTI -> ConLinguette', 'VoceBarra.ALTRO -> Altro(', 'BarraVoci(posto.voce']) expect(a, t).toContain(t)
+    expect(kt('Altro.kt')).toContain('SezioneAltro.NEGOZIO -> ')
     expect(a).not.toContain('Scheda.COMPUTER')
     expect(a).not.toContain('ParteComputer')
     // In Adesso: le domande in cima, poi gli autopiloti (Lavori).
@@ -113,7 +115,7 @@ describe('nella pagina e nell’app: la stessa struttura', () => {
     expect(kt('Adesso.kt')).toContain('domandeInCima(api, domande')
   })
   it('il telefono: quattro voci che contengono ognuna delle sette, una volta sola', () => {
-    expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Adesso', 'Chat', 'Progetti', 'Altro'])
+    expect(MENU_TELEFONO.map((v) => v.nome)).toEqual(['Workspace', 'Chat', 'Progetti', 'Altro'])
     const tutte = MENU_TELEFONO.flatMap((v) => v.contiene)
     expect([...tutte].sort()).toEqual(MENU_PRINCIPALE.map((v) => v.id).sort())
     // Le domande per Nicholas stanno nella prima voce, quella su cui si apre l'app.

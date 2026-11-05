@@ -116,7 +116,7 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Banco.incisione)
             Spacer(Modifier.height(10.dp))
-            RigaConAiuto("Cosa c’è sul Drive, per progetto e per workspace.", "Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat, anche di progetti diversi. «Porta qui» fa scaricare al computer la cartella se viaggia con le chat, le chat che gli mancano, e le mette nel loro workspace; poi il computer si riavvia da solo per mostrarle. Niente viene mai cancellato.")
+            RigaConAiuto("Cosa c’è sul Drive, per progetto e per workspace.", "Un progetto è la cartella in cui le chat lavorano; un workspace è una fascia a schermo con dentro delle chat, anche di progetti diversi. Qui si guarda e basta: ogni progetto vive su un PC solo (app 2.90.0: «Porta qui» tolto, il PC non lo fa più dalla 0.88.0).")
             Spacer(Modifier.height(8.dp))
 
             // Il lavoro in corso sul computer, con la barra.
@@ -199,21 +199,6 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                                     )
                                     Text(statoProgetto(g), color = coloreStatoProgetto(g.stato), fontSize = 12.sp, maxLines = 1)
                                 }
-                                if (daPortare > 0) {
-                                    Button(
-                                        enabled = !occupato,
-                                        shape = MaterialTheme.shapes.small,
-                                        onClick = {
-                                            inCorso = chiave; messaggio = null
-                                            scope.launch {
-                                                try {
-                                                    val r = api.drivePorta(g.chiave)
-                                                    if (!r.ok) { messaggio = r.messaggio ?: "Non riuscito."; inCorso = null }
-                                                } catch (e: Exception) { messaggio = "Non riuscito: ${e.message ?: "il computer non risponde"}"; inCorso = null }
-                                            }
-                                        }
-                                    ) { Text(if (inCorso == chiave) "Porto…" else if (g.stato == "daAggiornare") "Aggiorna ($daPortare)" else "Porta qui ($daPortare)") }
-                                }
                             }
                             TextButton(onClick = { espansi = if (chiave in espansi) espansi - chiave else espansi + chiave }) {
                                 Text(if (chiave in espansi) "Nascondi le chat" else "Vedi le ${g.chat.size} chat", fontSize = 12.sp)
@@ -241,21 +226,6 @@ fun SezioneDrive(api: Api, apertoDaSubito: Boolean = false) {
                                         if (w.daPortare > 0) "${w.daPortare} chat da portare sul computer" else if (w.quiEsiste) "allineato" else "chat già sul computer: manca solo il workspace",
                                         color = if (w.daPortare > 0 || !w.quiEsiste) Banco.ambra else Banco.verde, fontSize = 12.sp
                                     )
-                                }
-                                if (w.daPortare > 0 || !w.quiEsiste) {
-                                    Button(
-                                        enabled = !occupato,
-                                        shape = MaterialTheme.shapes.small,
-                                        onClick = {
-                                            inCorso = chiave; messaggio = null
-                                            scope.launch {
-                                                try {
-                                                    val r = api.drivePortaWorkspace(w.nome)
-                                                    if (!r.ok) { messaggio = r.messaggio ?: "Non riuscito."; inCorso = null }
-                                                } catch (e: Exception) { messaggio = "Non riuscito: ${e.message ?: "il computer non risponde"}"; inCorso = null }
-                                            }
-                                        }
-                                    ) { Text(if (inCorso == chiave) "Porto…" else if (w.daPortare > 0) "Porta qui (${w.daPortare})" else "Crea qui") }
                                 }
                             }
                             TextButton(onClick = { espansi = if (chiave in espansi) espansi - chiave else espansi + chiave }) {

@@ -146,7 +146,7 @@ fun GestioneWorkspace(api: Api, workspace: Workspace, nomePc: String?, onChiudi:
                                 TextButton(enabled = !inCorso, onClick = { menuDi = if (menuDi == chiave) null else chiave }) { Text("⋯", fontSize = 18.sp) }
                                 DropdownMenu(expanded = menuDi == chiave, onDismissRequest = { menuDi = null }) {
                                     // L'app non apre dal vivo un workspace di un altro PC (lo fa il PC): lì resta «Porta qui».
-                                    for (a in MenuWorkspace.azioni(v, workspace.attivo, workspace.nomi.size, cartella = cartella).filter { v.qui || it.azione != "apri" }) {
+                                    for (a in MenuWorkspace.azioni(v, workspace.attivo, workspace.nomi.size, cartella = cartella).filter { (v.qui || it.azione != "apri") && it.azione != "portaQui" }) {
                                         DropdownMenuItem(
                                             text = {
                                                 Column {

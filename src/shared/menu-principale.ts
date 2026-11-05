@@ -141,8 +141,8 @@ export type VoceTelefono = {
 }
 
 export const MENU_TELEFONO: readonly VoceTelefono[] = [
-  { id: 'adesso', nome: 'Adesso', contiene: ['domande', 'autopiloti'], linguette: [] },
-  { id: 'chat', nome: 'Chat', contiene: ['chat'], linguette: ['Chat', 'Workspace', 'Negozio'] },
-  { id: 'progetti', nome: 'Progetti', contiene: ['progetti', 'file'], linguette: ['Progetti', 'File', 'Drive'] },
+  { id: 'adesso', nome: 'Workspace', contiene: ['domande', 'autopiloti'], linguette: [] },
+  { id: 'chat', nome: 'Chat', contiene: ['chat'], linguette: [] },
+  { id: 'progetti', nome: 'Progetti', contiene: ['progetti', 'file'], linguette: ['Progetti', 'File'] },
   { id: 'altro', nome: 'Altro', contiene: ['salute', 'impostazioni'], linguette: [] }
 ]

@@ -15,7 +15,8 @@ package it.ferrariconsulenze.sierradeck
  * Questa è un'altra cosa: le domande per te in cima, sotto gli autopiloti.
  */
 enum class VoceBarra(val id: String, val nome: String) {
-    ADESSO("adesso", "Adesso"),
+    // App 2.90.0: si apre su «Workspace» (id invariato: le notifiche e la pagina del PC lo chiamano ancora così).
+    ADESSO("adesso", "Workspace"),
     CHAT("chat", "Chat"),
     PROGETTI("progetti", "Progetti"),
     ALTRO("altro", "Altro")
@@ -23,8 +24,9 @@ enum class VoceBarra(val id: String, val nome: String) {
 
 /** Le linguette in cima a una voce, la prima è quella di partenza. Adesso e Altro non ne hanno. */
 fun linguetteDi(v: VoceBarra): List<String> = when (v) {
-    VoceBarra.CHAT -> listOf("Chat", "Workspace", "Negozio")
-    VoceBarra.PROGETTI -> listOf("Progetti", "File", "Drive")
+    // App 2.90.0: i workspace si gestiscono dal tasto «Workspace» della lista, il Negozio sta in Altro;
+    // il contenuto del Drive sta sotto Progetti, le code dei progetti non esistono più sul PC.
+    VoceBarra.PROGETTI -> listOf("Progetti", "File")
     else -> emptyList()
 }
 
@@ -34,17 +36,19 @@ fun linguetteDi(v: VoceBarra): List<String> = when (v) {
  * `impostazione` è l'id della sezione delle impostazioni del PC
  * (`assets/impostazioni.json`) che le fa da testata, se c'è.
  */
-enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null) {
+enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null, val gruppo: String = "Sistema") {
+    // App 2.90.0: a gruppi, nell'ordine in cui servono.
     SALUTE("Salute del sistema", "Da sistemare, computer, Drive, errori"),
-    ALTRI_PC("Altri computer", "Accesi o spenti, chat dal vivo, cassetta", "computer"),
-    CONSUMI("Consumi", "Token, limiti del piano, contesto"),
+    ALTRI_PC("Computer", "Accesi o spenti, chat dal vivo, cassetta", "computer"),
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
-    CHAT("Chat", "Workspace a elenco, Torna come prima", "chat"),
-    QUADERNO("Quaderno personale", "Le tue note per tutte le chat"),
-    DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive"),
-    ASPETTO("Aspetto", "Banco o Foglio, chiarore", "aspetto"),
-    AVVISI("Avvisi", "Controllo continuo, quali notifiche", "notifiche"),
-    INFO("Info ed errori", "Versioni, Copia i dettagli, errori", "info");
+    CONSUMI("Consumi", "Token, limiti del piano, contesto"),
+    AVVISI("Avvisi", "Controllo continuo, quali notifiche", "notifiche", "Preferenze"),
+    ASPETTO("Aspetto", "Banco o Foglio, chiarore", "aspetto", "Preferenze"),
+    DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive", "Preferenze"),
+    CHAT("Chat", "Workspace a elenco, Torna come prima", "chat", "Preferenze"),
+    NEGOZIO("Negozio", "Plugin, skill, agenti e MCP delle chat", null, "Strumenti"),
+    QUADERNO("Quaderno personale", "Le tue note per tutte le chat", null, "Strumenti"),
+    INFO("Info ed errori", "Versioni, Copia i dettagli, errori", "info", "Aiuto");
 
     companion object {
         /** Dove porta una voce trovata con «Cerca» (l'id della sezione delle impostazioni del PC). */

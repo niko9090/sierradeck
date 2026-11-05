@@ -66,8 +66,10 @@ describe('le regole della navigazione', () => {
   it('i pannelli che una linguetta o una sezione mostra già aperti', () => {
     const chat = toccaVoce(postoIniziale(), 'chat')
     const progetti = toccaVoce(postoIniziale(), 'progetti')
-    expect(pannelliDelPosto(scegliLinguetta(chat, 2))).toEqual(['negozio'])
-    expect(pannelliDelPosto(scegliLinguetta(progetti, 2))).toEqual(['drive', 'code'])
+    // 0.95.1 (app 2.90.0): il Drive sotto i Progetti, il Negozio in Altro, niente più code dei progetti.
+    expect(pannelliDelPosto(progetti)).toEqual(['drive'])
+    expect(pannelliDelPosto(scegliLinguetta(progetti, 1))).toEqual([])
+    expect(pannelliDelPosto(apriSezioneAltro(postoIniziale(), 'negozio'))).toEqual(['negozio'])
     expect(pannelliDelPosto(apriSezioneAltro(postoIniziale(), 'pc'))).toEqual(['pc'])
     expect(pannelliDelPosto(apriSezioneAltro(postoIniziale(), 'consumi'))).toEqual(['consumi'])
     expect(pannelliDelPosto(chat)).toEqual([])
@@ -185,14 +187,13 @@ describe('la pagina: tocchi, indietro e «al massimo 2 tocchi»', () => {
 
   it('il pannello della linguetta non è «da chiudere»: indietro cambia linguetta', () => {
     const m = mondo()
-    m.posto = scegliLinguetta(toccaVoce(m.posto, 'progetti'), 2)
-    expect(m.aperto('drive')).toBe(true)
-    expect(m.aperto('code')).toBe(true)
-    expect(m.aperto('negozio')).toBe(false)
+    m.posto = apriSezioneAltro(toccaVoce(m.posto, 'altro'), 'negozio')
+    expect(m.aperto('negozio')).toBe(true)
+    expect(m.aperto('drive')).toBe(false)
     expect(m.daChiudere()).toBeNull()
     m.indietro()
-    expect(linguettaDi(m.posto)).toBe(0)
-    expect(m.aperto('drive')).toBe(false)
+    expect(m.posto.sezione).toBeNull()
+    expect(m.aperto('negozio')).toBe(false)
   })
 
   it('ogni funzione di prima si raggiunge al massimo in 2 tocchi da qualunque voce', () => {
@@ -210,8 +211,8 @@ describe('la pagina: tocchi, indietro e «al massimo 2 tocchi»', () => {
     // Le schermate di prima (le sette voci del PC) e le sezioni di Altro, come la pagina le riconosce.
     const m = mondo()
     const vede = (p: PostoTelefono, cosa: string): boolean => { m.posto = p; return cosa.startsWith('sez:') ? p.voce === 'altro' && p.sezione === cosa.slice(4) : cosa.startsWith('pan:') ? m.aperto(cosa.slice(4)) : m.inVista(cosa) }
-    const cose = ['domande', 'autopiloti', 'chat', 'progetti', 'file', 'pan:negozio', 'pan:drive', 'pan:code', 'pan:pc', 'pan:consumi', 'salute', 'impostazioni', ...SEZIONI_ALTRO.map((s) => 'sez:' + s.id)]
-    const partenze = [postoIniziale(), scegliLinguetta(toccaVoce(postoIniziale(), 'chat'), 2), scegliLinguetta(toccaVoce(postoIniziale(), 'progetti'), 1), apriSezioneAltro(postoIniziale(), 'info')]
+    const cose = ['domande', 'autopiloti', 'chat', 'progetti', 'file', 'pan:negozio', 'pan:drive', 'pan:pc', 'pan:consumi', 'salute', 'impostazioni', ...SEZIONI_ALTRO.map((s) => 'sez:' + s.id)]
+    const partenze = [postoIniziale(), toccaVoce(postoIniziale(), 'chat'), scegliLinguetta(toccaVoce(postoIniziale(), 'progetti'), 1), apriSezioneAltro(postoIniziale(), 'info')]
     for (const da of partenze) {
       const tutti = raggiunti(da)
       for (const cosa of cose) expect(tutti.some((p) => vede(p, cosa)), `${cosa} da ${JSON.stringify(da)}`).toBe(true)

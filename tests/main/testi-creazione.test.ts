@@ -9,8 +9,8 @@ import { readFileSync } from 'node:fs'
  */
 describe('i testi della creazione: «va sul cloud» = le chat stanno sul Drive', () => {
   const lati = {
-    pagina: readFileSync('src/main/client-pagina.ts', 'utf8'),
-    app: readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Delega.kt', 'utf8')
+    pagina: readFileSync('src/main/client-pagina.ts', 'utf8')
+    // L'app dalla 2.90.0 non ha più la spunta: il PC la ignorava dalla 0.88.0 (tolta con il sì di Nicholas, 05/11).
   }
 
   it('la spunta si chiama allo stesso modo su PC, pagina e app', () => {

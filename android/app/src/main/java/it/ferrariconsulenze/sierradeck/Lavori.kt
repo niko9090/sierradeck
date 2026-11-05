@@ -171,7 +171,12 @@ fun Lavori(
         }
     } else if (breve != null) {
         BackHandler { aperto = null }
-        DettaglioAutopilota(api, breve, onIndietro = { aperto = null }, chatDiSessione = { s -> stato?.chat?.firstOrNull { it.sessione == s }?.id })
+        DettaglioAutopilota(
+            api, breve, onIndietro = { aperto = null },
+            chatDiSessione = { s -> stato?.chat?.firstOrNull { it.sessione == s }?.id },
+            // App 2.90.0: le chat di questo workspace, nella sua linguetta «Chat».
+            chatDelWorkspace = { ws -> if (ws.isNullOrBlank()) emptyList() else stato?.chat?.filter { it.workspace == ws } ?: emptyList() }
+        )
     } else {
         // Gli autopiloti di un altro PC: «indietro» torna a quelli di questo (2.83.0).
         BackHandler(enabled = su != null) { SuPc.corrente = null }
@@ -186,16 +191,16 @@ fun Lavori(
             } else if (lista.isEmpty()) {
                 item(key = "nessuno") {
                     Column(Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Nessun autopilota.", color = Banco.testo, fontWeight = FontWeight.Bold)
+                        Text("Nessun workspace al lavoro.", color = Banco.testo, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Un autopilota è un lavoro che porti a termine da solo: gli dici l’obiettivo e la cartella, e lui apre le chat che servono.",
+                            "Ogni workspace ha un autopilota: gli scrivi cosa vuoi, e lui apre gli specialisti e le chat che servono.",
                             color = Banco.testoQuieto,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center
                         )
                         Spacer(Modifier.height(16.dp))
-                        Button(onClick = { delega = true }) { Text("Affida un lavoro") }
+                        Button(onClick = { delega = true }) { Text("Scrivi a un workspace") }
                     }
                 }
             } else {
@@ -284,7 +289,7 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Serigrafia("Lavori")
+                Serigrafia("Workspace")
                 Spacer(Modifier.height(3.dp))
                 // Tutti gli stati, non solo i fermi: «1 in attesa di te» contava
                 // i sospesi e taceva su chi aspettava il via o una risposta.
@@ -302,7 +307,7 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
                 border = BorderStroke(1.dp, Banco.incisione)
             ) {
                 Text(
-                    "+ Affida",
+                    "+ Scrivi",
                     color = Banco.accento,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)

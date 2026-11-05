@@ -1,5 +1,6 @@
 package it.ferrariconsulenze.sierradeck
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,6 +69,7 @@ private fun SezioneDiAltro(api: Api, s: SezioneAltro) {
         SezioneAltro.ASPETTO -> SezioneAspetto(api)
         SezioneAltro.AVVISI -> SezioneAvvisi()
         SezioneAltro.INFO -> SezioneInfo(api)
+        SezioneAltro.NEGOZIO -> Box(Modifier.fillMaxWidth().height(640.dp)) { Negozio(api) }
     }
 }
 
@@ -92,11 +94,18 @@ private fun ElencoAltro(struttura: StrutturaImp, onApri: (SezioneAltro) -> Unit)
             }
         }
         Spacer(Modifier.height(12.dp))
+        var gruppo: String? = null
         for (s in SezioneAltro.entries) {
+            if (s.gruppo != gruppo) {
+                gruppo = s.gruppo
+                Spacer(Modifier.height(10.dp))
+                Serigrafia(s.gruppo)
+                Spacer(Modifier.height(2.dp))
+            }
             Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp), onClick = { onApri(s) }) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(s.titolo, color = Banco.testo, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(s.titolo, color = Banco.testo, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                         Text(s.sotto, color = Banco.testoQuieto, fontSize = 13.sp)
                     }
                     Text("›", color = Banco.testoQuieto, fontSize = 20.sp)

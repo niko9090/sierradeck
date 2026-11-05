@@ -53,7 +53,7 @@
   "telefono": [
     {
       "id": "adesso",
-      "nome": "Adesso",
+      "nome": "Workspace",
       "contiene": [
         "domande",
         "autopiloti"
@@ -66,11 +66,7 @@
       "contiene": [
         "chat"
       ],
-      "linguette": [
-        "Chat",
-        "Workspace",
-        "Negozio"
-      ]
+      "linguette": []
     },
     {
       "id": "progetti",
@@ -81,8 +77,7 @@
       ],
       "linguette": [
         "Progetti",
-        "File",
-        "Drive"
+        "File"
       ]
     },
     {

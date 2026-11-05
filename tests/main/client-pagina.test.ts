@@ -298,8 +298,8 @@ describe('la fascia in basso', () => {
     expect(script).toContain('var VOCI = ')
     const riga = script.slice(script.indexOf('var VOCI = ') + 11, script.indexOf('\n', script.indexOf('var VOCI = ')))
     const voci = JSON.parse(riga) as { id: string; nome: string; linguette: string[] }[]
-    expect(voci.map((v) => v.nome)).toEqual(['Adesso', 'Chat', 'Progetti', 'Altro'])
-    expect(voci.map((v) => v.linguette)).toEqual([[], ['Chat', 'Workspace', 'Negozio'], ['Progetti', 'File', 'Drive'], []])
+    expect(voci.map((v) => v.nome)).toEqual(['Workspace', 'Chat', 'Progetti', 'Altro'])
+    expect(voci.map((v) => v.linguette)).toEqual([[], [], ['Progetti', 'File'], []])
     expect(script).toContain('VOCI.map((v) =>')
     const stile = html.slice(html.indexOf('<style>'), html.indexOf('</style>'))
     expect(stile).toMatch(/\.fascia\s*\{[^}]*position:\s*fixed/)

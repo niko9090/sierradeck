@@ -58,9 +58,10 @@ class DomandeAdessoTest {
         assertTrue(adesso.contains("if (!dettaglio) PolsoDomande(api, domande, DomandeAdesso.firma(stato))"))
         val cima = File("src/main/java/it/ferrariconsulenze/sierradeck/DomandeAdesso.kt").readText()
         assertTrue(!cima.contains("item(key = \"domande-polso\")"))
-        // Dentro un autopilota la banda delle urgenze torna anche in Adesso.
+        // App 2.90.0: le domande stanno in cima a Workspace e nel pallino della barra, non più
+        // in una fascia su ogni pagina (dentro un workspace sono nella sua Conversazione).
         val app = File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(app.contains("if (posto.voce != VoceBarra.ADESSO || adessoDettaglio) BandaUrgenze("))
+        assertTrue(!app.contains("BandaUrgenze("))
     }
 
     @Test

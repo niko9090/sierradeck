@@ -74,7 +74,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.text.style.TextAlign
 
 /**
- * Affida un lavoro nuovo (app 2.55.0), alla pari con la finestra «Nuovo
+ * App 2.90.0: «Scrivi a un workspace». Il PC dalla 0.88.0 usa solo
+ * computer, cartella, workspace e messaggio (il primo messaggio al suo
+ * autopilota): nome, pubblicazione e «va sul cloud» li ignorava, e sono tolti.
+ *
+ * Prima: affida un lavoro nuovo (app 2.55.0), alla pari con la finestra «Nuovo
  * autopilota» del PC: su quale PC, in quale cartella (le chat aperte, i
  * progetti recenti o sfogliando), in quale workspace, l'obiettivo, il nome,
  * la regola di pubblicazione e il cloud. La validazione è quella del PC
@@ -120,7 +124,7 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onChiudi,
-        title = { Text("Affida un lavoro") },
+        title = { Text("Scrivi a un workspace") },
         text = {
             Column(Modifier.fillMaxWidth().height(560.dp).verticalScroll(rememberScrollState())) {
                 // ─── su quale PC ───
@@ -138,11 +142,11 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                 OutlinedTextField(
                     value = bozza.obiettivo,
                     onValueChange = { bozza = bozza.copy(obiettivo = it) },
-                    label = { Text("Cosa vuoi ottenere") },
+                    label = { Text("Cosa vuoi che faccia") },
                     placeholder = { Text("L’obiettivo, i vincoli (cosa non toccare), come si capisce che ha finito, dove guardare.", fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth().height(170.dp)
                 )
-                Text("Tutto quello che scrivi arriva a lui parola per parola, come mandato: non viene riassunto né tagliato.", color = Banco.testoQuieto, fontSize = 12.sp)
+                Text("Arriva all’autopilota del workspace parola per parola ed entra nella sua coda; se il workspace non ha ancora un autopilota, nasce con questo messaggio.", color = Banco.testoQuieto, fontSize = 12.sp)
                 Spacer(Modifier.height(10.dp))
 
                 // ─── la cartella ───
@@ -170,26 +174,6 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     Spacer(Modifier.height(10.dp))
                 }
 
-                // ─── nome ───
-                OutlinedTextField(
-                    value = bozza.nome, onValueChange = { bozza = bozza.copy(nome = it.take(AzioniTelefono.NOME_AUTOPILOTA_MAX)) },
-                    label = { Text("Nome (facoltativo)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Se vuoto: le prime parole dell’obiettivo", fontSize = 12.sp) }
-                )
-                Spacer(Modifier.height(10.dp))
-
-                // ─── pubblicazione e cloud ───
-                Row(verticalAlignment = Alignment.CenterVertically) { Text("Pubblicazione del progetto", color = Banco.testoQuieto, fontSize = 12.sp); Aiuto(AzioniTelefono.REGOLE.joinToString("\n\n") { "${it.etichetta}: ${it.spiega}" }, di = "Pubblicazione del progetto") }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (r in AzioniTelefono.REGOLE) androidx.compose.material3.FilterChip(selected = bozza.pubblicazione == r.valore, onClick = { bozza = bozza.copy(pubblicazione = r.valore) }, label = { Text(r.etichetta, fontSize = 12.sp) })
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = bozza.cloud, onCheckedChange = { bozza = bozza.copy(cloud = it) })
-                    Spacer(Modifier.width(8.dp))
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { Text("va sul cloud: le chat stanno sul Drive", color = Banco.testo, fontSize = 13.sp); Aiuto("Il «cloud» è il Drive di SierraDeck, dove si salvano le chat. Se le chat di questo progetto stanno sul Drive (questa spunta, oppure la sincronizzazione Drive del progetto già accesa) lavora in autonomia completa, senza farti domande: commit, unione dei suoi rami, push e pubblicazione secondo la regola qui sopra. Il remoto git e gli script di pubblicazione del progetto servono solo a sapere dove mandare su e con quale comando pubblicare. Senza Drive fa commit sui suoi rami e li unisce, e basta: niente push, niente pubblicazione.", di = "va sul cloud: le chat stanno sul Drive") }
-                }
-                Spacer(Modifier.height(8.dp))
-                RigaConAiuto("Quante chat apre lo decide lui.", "Quante chat apre lo decide lui, dentro il freno sui limiti del piano. Non tocca mai chat e autopiloti non suoi, «Porta qui», l’account, le preferenze né file fuori dalle sue cartelle.")
                 (errore ?: (controllo as? EsitoBozza.No)?.takeIf { bozza.obiettivo.isNotBlank() }?.errore)?.let {
                     Spacer(Modifier.height(6.dp)); Text(it, color = Banco.rosso, fontSize = 12.sp)
                 }
@@ -204,17 +188,17 @@ internal fun Delega(api: Api, statoQui: Stato?, onChiudi: () -> Unit) {
                     scope.launch {
                         try {
                             apiDest.creaAutopilota(r)
-                            Nota.mostra("Affidato a $nomeDest: legge il progetto e, se ha domande, arrivano in cima ad Adesso.")
+                            Nota.mostra("Mandato a $nomeDest: se ha domande, arrivano in cima a Workspace.")
                             onChiudi()
                         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Api.Errore) {
                             errore = spiegaGestione(e, "affidarlo a $nomeDest", nomeDest)
                         } catch (e: Exception) {
-                            errore = "Non sono riuscito ad affidarlo: ${e.message ?: "il computer non risponde"}"
+                            errore = "Non sono riuscito a mandarlo: ${e.message ?: "il computer non risponde"}"
                         }
                         mandando = false
                     }
                 }
-            ) { Text(if (mandando) "Affido…" else "Prepara") }
+            ) { Text(if (mandando) "Mando…" else "Manda") }
         },
         dismissButton = { TextButton(onClick = onChiudi) { Text("Annulla") } }
     )

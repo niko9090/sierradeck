@@ -24,14 +24,16 @@ export type SezioneAltro = { id: string; titolo: string; sotto: string; impostaz
 
 /** Le sezioni di Altro, nell'ordine dell'app (`SezioneAltro` in `Navigazione.kt`). */
 export const SEZIONI_ALTRO: readonly SezioneAltro[] = [
+  // 0.95.1 (app 2.90.0): prima il sistema, poi le preferenze, poi l'aiuto — come nell'app.
   { id: 'salute', titolo: 'Salute del sistema', sotto: 'Da sistemare, computer, Drive, errori', impostazioni: false },
-  { id: 'pc', titolo: 'Altri computer', sotto: 'Accesi o spenti, chat dal vivo, cassetta', impostazioni: false },
-  { id: 'consumi', titolo: 'Consumi', sotto: 'Token, limiti del piano, contesto', impostazioni: false },
+  { id: 'pc', titolo: 'Computer', sotto: 'Accesi o spenti, chat dal vivo, cassetta', impostazioni: false },
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', sotto: 'La versione e l’aggiornamento del computer', impostazioni: true },
-  { id: 'chat', titolo: 'Chat e quaderno personale', sotto: 'Workspace a elenco, Torna come prima, le tue note', impostazioni: true },
-  { id: 'drive', titolo: 'Drive', sotto: 'Account Google, cassaforte, salvataggio', impostazioni: true },
-  { id: 'aspetto', titolo: 'Aspetto', sotto: 'Banco o Foglio, chiarore', impostazioni: true },
+  { id: 'consumi', titolo: 'Consumi', sotto: 'Token, limiti del piano, contesto', impostazioni: false },
   { id: 'notifiche', titolo: 'Avvisi', sotto: 'Quali notifiche', impostazioni: true },
+  { id: 'aspetto', titolo: 'Aspetto', sotto: 'Banco o Foglio, chiarore', impostazioni: true },
+  { id: 'drive', titolo: 'Drive', sotto: 'Account Google, cassaforte, salvataggio', impostazioni: true },
+  { id: 'chat', titolo: 'Chat e quaderno personale', sotto: 'Workspace a elenco, Torna come prima, le tue note', impostazioni: true },
+  { id: 'negozio', titolo: 'Negozio', sotto: 'Plugin, skill, agenti e MCP delle chat', impostazioni: false },
   { id: 'info', titolo: 'Info ed errori', sotto: 'Versioni, Copia i dettagli, errori', impostazioni: true }
 ]
 
@@ -108,8 +110,8 @@ export function versoDestinazione(p: PostoTelefono, nome: string): PostoTelefono
  */
 export function pannelliDelPosto(p: PostoTelefono): string[] {
   const l = p.linguette[p.voce] || 0
-  if (p.voce === 'chat' && l === 2) return ['negozio']
-  if (p.voce === 'progetti' && l === 2) return ['drive', 'code']
-  if (p.voce === 'altro' && (p.sezione === 'pc' || p.sezione === 'consumi')) return [p.sezione]
+  // 0.95.1 (app 2.90.0): il Drive sotto i Progetti, il Negozio in Altro; le code dei progetti non ci sono più.
+  if (p.voce === 'progetti' && l === 0) return ['drive']
+  if (p.voce === 'altro' && (p.sezione === 'pc' || p.sezione === 'consumi' || p.sezione === 'negozio')) return [p.sezione]
   return []
 }

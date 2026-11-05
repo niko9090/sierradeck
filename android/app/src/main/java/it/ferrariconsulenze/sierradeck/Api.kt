@@ -249,6 +249,12 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             if (!workspace.isNullOrBlank()) put("workspace", workspace) else put("autopilota", id)
         }))
 
+    /** PC 0.95.1: la conversazione di uno specialista dell'autopilota del workspace. */
+    suspend fun specialista(workspace: String, id: String): TrascrizioneSpecialista =
+        json.decodeFromString(corpoTesto("/api/autopilota/specialista", oggetto {
+            put("workspace", workspace); put("id", id)
+        }))
+
     // ─── chat: azioni ───
     suspend fun chiudiChat(chat: String): Fatto =
         json.decodeFromString(corpoTesto("/api/chat/chiudi", oggetto { put("chat", chat) }))
