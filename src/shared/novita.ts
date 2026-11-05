@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.2',
+    righe: [
+      '**Gli avvisi di Node non sono più errori:** le righe come «DEP0180» finiscono nel registro come informazioni e non compaiono più fra gli errori arrivati.',
+    ],
+  },
+  {
     versione: '0.95.1',
     righe: [
       '**App sul telefono (2.90.0) riorganizzata attorno ai workspace:** si apre su «Workspace», con in cima le domande che aspettano te e sotto un workspace per riga, anche quelli degli altri PC.',
