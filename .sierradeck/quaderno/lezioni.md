@@ -12,11 +12,13 @@
 - Il test di `creaLoggerUpdater` usava ERR_INTERNET_DISCONNECTED come «errore vero»: per un guasto vero in un test usa un checksum sbagliato, non un errore di rete. _(2026-11-01)_
 - il bussare in `statoDi` riesegue `bussa`: nei test che contano le chiamate a `dimentica` o al fetch compaiono doppie. _(2026-11-05)_
 - nei worktree senza node_modules basta una junction verso quella principale per far girare tsc e vitest; tenerla finché il ramo non è unito _(2026-11-05)_
+- In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
 
 ## worktree
 
 - un agente isolato in un worktree non può eseguire git nella cartella principale: i compiti che chiedono commit su main vanno dati a chi lavora fuori dal worktree. _(2026-10-30)_
 - il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
+- La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
 
 ## errori
 
@@ -52,6 +54,11 @@
 ## release
 
 - `noteDi` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: unirlo con join prima di scriverlo su file. _(2026-10-31)_
+- Un agente lanciato in un worktree isolato non può eseguire git sulla cartella principale (né `cd` né `git -C`): una release che va costruita lì va affidata a una sessione non isolata. _(2026-11-05)_
+- Gli specialisti non possono usare git nella cartella principale: la release si costruisce nella loro copia con node_modules vera (npm ci, mai junction) e google-oauth.json copiato e poi tolto. _(2026-11-05)_
+- La versione Android è 2.88.6 (non 2.93.0): la numerazione dell'app non segue quella del programma. Con android/ invariato allega-apk riallega la stessa. _(2026-11-05)_
+- Dalla copia con `npm ci` (no junction) la release passa: controlla-pacchetto dà 49 moduli, tag e push da lì valgono. `gh release view --json isDraft,assets --jq` con più campi va in errore: usare Con… _(2026-11-05)_
+- 0.93.1 (05/11) pubblicata dalla copia con npm ci: 49 moduli, 5 allegati. L'APK è alla 2.88.6 (numerazione Android separata): con android/ invariato si riallega quello. _(2026-11-05)_
 
 ## git
 
@@ -94,6 +101,7 @@
 ## controllo
 
 - criticitaDi unisce per testo, non per PC: lo stesso PC esce due volte se la riga viene dalla salute di un altro PC e l'altra dal proprio bussare. Unire per pcId. _(2026-11-05)_
+- In criticitaDi il «non risponde» locale ha chiave non-risponde:<id>, quella degli altri PC pc:<id>: chiavi diverse, così lo stesso PC esce due volte (05/11, 0.93.1). Usare una chiave sola. _(2026-11-05)_
 
 ## remoto
 
