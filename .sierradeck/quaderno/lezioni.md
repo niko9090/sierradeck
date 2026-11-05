@@ -13,6 +13,8 @@
 - il bussare in `statoDi` riesegue `bussa`: nei test che contano le chiamate a `dimentica` o al fetch compaiono doppie. _(2026-11-05)_
 - nei worktree senza node_modules basta una junction verso quella principale per far girare tsc e vitest; tenerla finché il ramo non è unito _(2026-11-05)_
 - In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
+- Le cache firmate con la sola mtime di una cartella sono fragili su Windows (orologio a ~15 ms): un file nato nello stesso tick non si vede. Rileggere se la mtime è più recente di 2 s. _(2026-11-05)_
+- Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
 
 ## worktree
 
