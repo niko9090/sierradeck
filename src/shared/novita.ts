@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.94.3',
+    righe: [
+      '**Chat con la cartella sparita più tranquilla:** se la cartella di una chat è stata spostata o cancellata, il riquadro lo dice una volta sola e aspetta che tu scelga la cartella o riprovi, invece di ritentare a ogni apertura e riempire il registro di errori.',
+    ]
+  },
+  {
     versione: '0.94.2',
     righe: [
       '**Autopilota occupato non è un errore:** se il servizio è momentaneamente occupato e non risponde in tempo, l’elenco degli autopiloti tiene l’ultimo elenco noto e scrive solo un avviso, invece di un errore nel registro.',
