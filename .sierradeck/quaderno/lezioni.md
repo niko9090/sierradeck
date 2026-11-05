@@ -66,6 +66,8 @@
 
 - Un agente in worktree non può eseguire git nella cartella principale: ripristini e commit su main vanno fatti dall'autopilota, non da uno specialista isolato. _(2026-10-31)_
 - il conflitto su errori-arrivati.md nasce da due voci aggiunte in coda dallo stesso file: si risolve tenendo entrambi i blocchi, senza scegliere una parte _(2026-11-05)_
+- i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
+- Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
 
 ## log
 
@@ -95,6 +97,7 @@
 ## ipc
 
 - `pty:spawn` ha tre rami prima dello spawn (proprietario, chiusa-senza-cartella, convalida): il proprietario va per primo, perché un progetto di un altro PC qui non ha la cartella. _(2026-11-01)_
+- Ogni handler `autopilota:*` che chiama il client va avvolto in una funzione pura che trasforma `scaduto: true` in un esito; dopo `dettaglio` (0.88.10) mancava `elenca`. _(2026-11-05)_
 
 ## servizio
 
