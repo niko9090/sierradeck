@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.92.0',
+    righe: [
+      '**La chat di un altro PC si vede come quella di qui:** gli stessi colori e lo stesso carattere del terminale. Tornano i colori di Claude (prima tutto sbiadito, senza il logo arancione e la barra grigia del prompt), le righe non si spezzano più a metà e tabelle e cornici restano intere. Se il riquadro è largo abbastanza lo schermo è identico a quello di là; se è stretto, il testo va a capo qui e le tabelle scorrono di lato.',
+      '**Più spazio per la chat:** sotto c’è solo la casella, che cresce mentre scrivi, con accanto il PC a cui scrivi. La spiegazione lunga sta sul «?» in alto. I colori giusti arrivano anche sul telefono.',
+    ]
+  },
+  {
     versione: '0.91.0',
     righe: [
       '**Node.js e Git si installano da soli:** all’avvio, se su un PC mancano, SierraDeck li installa con winget, senza finestre. Git si installa solo per il tuo utente; per Node.js Windows ti chiede il sì da amministratore. Il servizio degli autopiloti li trova entro un minuto, senza riavviare. Se l’installazione non riesce, in «Cosa serve per lavorare» c’è il tasto «Installa Node.js e Git».',

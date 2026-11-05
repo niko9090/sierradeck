@@ -36,15 +36,38 @@ export function ansiInHtml(grezzo: string): string {
   let sfondo = ''
   let grassetto = false
   let tenue = false
+  let corsivo = false
+  let sottolineato = false
+  let inverso = false
   let aperti = 0
+  // 0.92.0: i colori a 24 bit (`38;2;r;g;b`) che Claude Code usa per tutto.
+  // Prima si perdevano e il «2» del modo diventava «tenue»: ogni riga sbiadita,
+  // il logo arancione e la barra grigia del prompt spariti.
+  const hex = (r: number, g: number, b: number): string =>
+    '#' + [r, g, b].map((x) => Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0')).join('')
+  // La tavolozza a 256 com'è davvero: i sedici di sopra, il cubo 6×6×6, i grigi.
+  const tavolozza = (i: number): string => {
+    if (i < 16) return COLORI[i]!
+    if (i < 232) {
+      const LIV = [0, 95, 135, 175, 215, 255]
+      const c = i - 16
+      return hex(LIV[Math.floor(c / 36)]!, LIV[Math.floor(c / 6) % 6]!, LIV[c % 6]!)
+    }
+    const g = 8 + (i - 232) * 10
+    return hex(g, g, g)
+  }
   let fuori = ''
 
   const stile = (): string => {
     const parti: string[] = []
-    if (colore !== '') parti.push(`color:${colore}`)
-    if (sfondo !== '') parti.push(`background:${sfondo}`)
+    const testo = inverso ? (sfondo !== '' ? sfondo : 'var(--sfondo-terminale, #1e1e1e)') : colore
+    const dietro = inverso ? (colore !== '' ? colore : 'var(--testo-terminale, #dddddd)') : sfondo
+    if (testo !== '') parti.push(`color:${testo}`)
+    if (dietro !== '') parti.push(`background:${dietro}`)
     if (grassetto) parti.push('font-weight:600')
     if (tenue) parti.push('opacity:.65')
+    if (corsivo) parti.push('font-style:italic')
+    if (sottolineato) parti.push('text-decoration:underline')
     return parti.join(';')
   }
 
@@ -76,10 +99,16 @@ export function ansiInHtml(grezzo: string): string {
       const numeri = codici === '' ? [0] : codici.split(';').map((n) => Number.parseInt(n, 10) || 0)
       for (let k = 0; k < numeri.length; k += 1) {
         const n = numeri[k]!
-        if (n === 0) { colore = ''; sfondo = ''; grassetto = false; tenue = false }
+        if (n === 0) { colore = ''; sfondo = ''; grassetto = false; tenue = false; corsivo = false; sottolineato = false; inverso = false }
         else if (n === 1) grassetto = true
         else if (n === 2) tenue = true
+        else if (n === 3) corsivo = true
+        else if (n === 4) sottolineato = true
+        else if (n === 7) inverso = true
         else if (n === 22) { grassetto = false; tenue = false }
+        else if (n === 23) corsivo = false
+        else if (n === 24) sottolineato = false
+        else if (n === 27) inverso = false
         else if (n === 39) colore = ''
         else if (n === 49) sfondo = ''
         else if (n >= 30 && n <= 37) colore = COLORI[n - 30]!
@@ -87,17 +116,15 @@ export function ansiInHtml(grezzo: string): string {
         else if (n >= 40 && n <= 47) sfondo = COLORI[n - 40]!
         else if (n >= 100 && n <= 107) sfondo = COLORI[n - 100 + 8]!
         else if ((n === 38 || n === 48) && numeri[k + 1] === 5) {
-          // La tavolozza a 256: dei suoi primi sedici colori sappiamo già il
-          // vestito, e il resto si riporta al più vicino fra quelli.
-          const indice = numeri[k + 2] ?? 0
-          const scelto = indice < 16
-            ? COLORI[indice]!
-            : indice < 232
-              ? COLORI[8 + (indice % 8)]!
-              : indice < 244 ? COLORI[8]! : COLORI[15]!
+          const scelto = tavolozza(numeri[k + 2] ?? 0)
           if (n === 38) colore = scelto
           else sfondo = scelto
           k += 2
+        } else if ((n === 38 || n === 48) && numeri[k + 1] === 2) {
+          const scelto = hex(numeri[k + 2] ?? 0, numeri[k + 3] ?? 0, numeri[k + 4] ?? 0)
+          if (n === 38) colore = scelto
+          else sfondo = scelto
+          k += 4
         }
       }
       apri()

@@ -104,6 +104,9 @@ export type StoriaRemota = {
   scelte?: { opzioni: { numero: number; testo: string; scelta: boolean; descrizione?: string; libera?: boolean; spuntata?: boolean; invio?: boolean }[]; corrente: number; multipla?: boolean }
   /** Via Drive (0.40.0): quando quel PC ha scritto questo schermo, ISO. */
   scritto?: string
+  /** Le colonne del terminale di là e le righe che xterm ha spezzato (0.92.0, dalla 0.52.6 di là): per disegnarlo com'è. */
+  colonne?: number
+  continua?: boolean[]
 }
 
 /**
@@ -125,7 +128,9 @@ export function storiaRemotaSicura(x: unknown, chat: string): StoriaRemota {
     chat: typeof o.chat === 'string' ? o.chat : chat,
     totale, da, righe, grezze,
     ...(typeof scelte === 'object' && scelte !== null && Array.isArray(scelte.opzioni) ? { scelte } : {}),
-    ...(typeof o.scritto === 'string' ? { scritto: o.scritto } : {})
+    ...(typeof o.scritto === 'string' ? { scritto: o.scritto } : {}),
+    ...(typeof o.colonne === 'number' && Number.isFinite(o.colonne) && o.colonne > 0 ? { colonne: o.colonne } : {}),
+    ...(Array.isArray(o.continua) && o.continua.length === grezze.length ? { continua: o.continua.map((x) => x === true) } : {})
   }
 }
 

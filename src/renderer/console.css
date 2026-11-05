@@ -3547,10 +3547,14 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: #000;
-  color: #c8ced4;
+  /* 0.92.0: gli stessi colori e carattere del terminale di qui (Terminal.tsx),
+     così una chat di un altro PC non sembra un'altra cosa. */
+  --sfondo-terminale: #1e1e1e;
+  --testo-terminale: #dddddd;
+  background: var(--sfondo-terminale);
+  color: var(--testo-terminale);
   font-family: 'Cascadia Mono', Consolas, monospace;
-  font-size: var(--t2);
+  font-size: 13px;
 }
 .remoto__testa {
   display: flex;
@@ -3591,11 +3595,21 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--s2) var(--s3);
+  padding: 8px 12px;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.35;
+  /* Come xterm: righe strette, così le cornici e i blocchi si toccano. */
+  line-height: 1.2;
+  font-variant-ligatures: none;
+  scrollbar-width: thin;
+  scrollbar-color: #4a4f55 transparent;
 }
+/* Come il terminale di là: righe intere, il carattere si adatta al riquadro (SchermoRemoto). */
+.schermo-remoto--terminale { white-space: pre; word-break: normal; overflow-x: hidden; }
+/* Ricomposto: il testo va a capo qui, tabelle e riquadri scorrono di lato. */
+.schermo-remoto__testo { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 2ch; text-indent: -2ch; }
+.schermo-remoto__vuota { height: 0.6em; }
+.schermo-remoto__griglia { white-space: pre; overflow-x: auto; scrollbar-width: thin; margin: 2px 0; }
 .remoto__vuoto { opacity: 0.6; }
 .remoto__attesa {
   flex: 1;
@@ -3642,13 +3656,18 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 .remoto__barra {
   display: flex;
   gap: var(--s2);
-  align-items: flex-end;
+  align-items: center;
   padding: var(--s2) var(--s3);
   background: var(--chassis);
   border-top: 1px solid var(--incisione);
   font-family: system-ui, sans-serif;
 }
-.remoto__campo { flex: 1; resize: vertical; min-height: 34px; font-family: inherit; }
+.remoto__campo { flex: 1; resize: none; min-height: 34px; max-height: 134px; font-family: inherit; line-height: 20px; overflow-y: auto; }
+.remoto__info {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--incisione); color: var(--testo-quieto); cursor: help; font-size: 11px;
+}
+.remoto__info:hover, .remoto__info:focus { color: var(--testo); border-color: var(--testo-quieto); }
 .remoto__nota {
   padding: 0 var(--s3) var(--s2);
   background: var(--chassis);
@@ -4094,10 +4113,17 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
   white-space: nowrap;
 }
 .remoto__dove {
-  font-size: var(--t2);
+  flex: 0 0 auto;
+  font-size: var(--t1);
   font-weight: 600;
   color: var(--remoto);
-  padding: 2px 0;
+  padding: 2px var(--s2);
+  border: 1px solid color-mix(in srgb, var(--remoto) 55%, transparent);
+  border-radius: 999px;
+  white-space: nowrap;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .segno-remoto { color: var(--remoto); font-weight: 700; white-space: nowrap; }
 .avviso--drive { border-color: var(--rosso, #dc5f5f); }

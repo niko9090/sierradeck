@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNomePc } from '../state/nomi-pc'
-import { ansiInHtml } from '@shared/ansi-html'
+import { SchermoRemoto } from './SchermoRemoto'
 import { pcVivo } from '@shared/posta'
 import {
   trovaChatRemota, storiaRemotaSicura, descriviIndirizzo, descriviSilenzio, RILEGGI_REMOTO_OGNI_MS, RIGHE_REMOTE,
@@ -403,7 +403,6 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
     setStoria(undefined)
   }
 
-  const html = storia === undefined ? '' : ansiInHtml(storia.grezze.join('\n'))
   const via = etichettaStrada(strada, nomePc)
   const lento = via?.lento === true
   // Via Drive le opzioni non si premono (0.40.0): si legge e si manda un messaggio.
@@ -433,6 +432,11 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         ) : null}
         {/* La strada, la qualità e il ritardo; toccando, la storia (0.51.0). */}
         <IndicatoreLinea linea={linea} nomePc={nomePc} />
+        <span
+          className="remoto__info"
+          tabIndex={0}
+          title={`Niente gira qui: la chat lavora su ${nomePc}, con i suoi file. Quello che vedi è il suo terminale, riletto ogni ${Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi (è anche il controllo che la linea ci sia); quello che scrivi arriva là come se lo digitassi su quella tastiera. Chiudere questo riquadro non chiude la chat là.`}
+        >?</span>
       </div>
       {/* Il collegamento a schermo pieno nel riquadro, passo per passo (0.52.3). */}
       {tentVisibili && !tentChiusi ? (
@@ -472,7 +476,13 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
       ) : null}
 
       {!chiusaPin && (fase.tipo === 'viva' || storia !== undefined) ? (
-        <div className={linea.fase === 'ricollego' ? 'remoto__schermo remoto__schermo--giu' : 'remoto__schermo'} ref={schermo} dangerouslySetInnerHTML={{ __html: html === '' ? '<span class="remoto__vuoto">Leggo lo schermo di quella chat…</span>' : html }} />
+        <SchermoRemoto
+          grezze={storia?.grezze ?? []}
+          {...(storia?.colonne !== undefined ? { colonne: storia.colonne } : {})}
+          {...(storia?.continua !== undefined ? { continua: storia.continua } : {})}
+          giu={linea.fase === 'ricollego'}
+          contenitore={schermo}
+        />
       ) : null}
 
       {fase.tipo === 'cerco' && storia === undefined ? (
@@ -577,26 +587,30 @@ export function RiquadroRemoto({ paneId, remoto, title }: Props): React.JSX.Elem
         </div>
       ) : null}
       <CodaInvii coda={coda} onTogli={(id) => setCoda((c) => consegnato(c, id))} />
-      {/* Su quale PC si scrive, sempre sopra la casella (0.39.3). */}
-      <div className="remoto__dove">Stai scrivendo su {nomePc}: quello che mandi arriva nel terminale di quel PC, non qui.</div>
       <div className="remoto__barra">
+        {/* Su quale PC si scrive, sempre accanto alla casella (0.39.3; 0.92.0 in una pastiglia, non una riga in più). */}
+        <span className="remoto__dove" title={`Quello che mandi arriva nel terminale di ${nomePc}, non qui`}>→ {nomePc}</span>
         <textarea
           className="campo remoto__campo"
-          rows={2}
+          rows={1}
           value={testo}
           disabled={chiusaPin || (chatId === undefined && remoto.sessione === undefined)}
           placeholder={chatId === undefined ? (remoto.sessione !== undefined ? `Scrivi qui: la avvio su ${nomePc} in sottofondo (là non si apre niente) e il messaggio parte appena è pronta — Invio manda` : `Quando una chat è viva su ${nomePc} in questa cartella, qui le scrivi.`) : linea.fase === 'ricollego' ? 'Linea giù: quello che scrivi resta in coda e parte al ritorno, una volta sola — Invio mette in coda' : lento ? `Via Drive: il messaggio arriva a ${nomePc} al suo prossimo giro — Invio manda` : `Scrivi a questa chat su ${nomePc} — Invio manda, Maiusc+Invio va a capo`}
-          onChange={(e) => setTesto(e.target.value)}
+          onChange={(e) => {
+            setTesto(e.target.value)
+            // Cresce con quello che scrivi, fino a sei righe: come la casella di una chat.
+            const el = e.currentTarget
+            el.style.height = 'auto'
+            el.style.height = `${Math.min(el.scrollHeight, 6 * 20 + 14)}px`
+          }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); manda() } }}
         />
         <button className="tasto tasto--primario" disabled={chiusaPin || (chatId === undefined && remoto.sessione === undefined) || testo.trim() === ''} onClick={manda} title="Manda il testo e Invio nel terminale di quella chat, su quel PC">
           Manda
         </button>
       </div>
-      <div className="remoto__nota">
-        Niente gira qui: la chat lavora su {nomePc}, con i suoi file. Quello che vedi è il suo terminale, riletto ogni {Math.round(RILEGGI_REMOTO_OGNI_MS / 1000)} secondi (è anche il controllo che la linea ci sia); quello che scrivi arriva là come se lo digitassi su quella tastiera. Chiudere questo riquadro non chiude la chat là.
-        {!cassaforteAperta ? ' La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Account → Cassaforte).' : ''}
-      </div>
+      {/* 0.92.0: la spiegazione sta sul «?» della testata; qui resta solo ciò che blocca. */}
+      {!cassaforteAperta ? <div className="remoto__nota">La cassaforte di qui è chiusa: senza, non ho la chiave per bussare a quel PC (Account → Cassaforte).</div> : null}
       {postaAperta && pc !== undefined ? (
         <ModalePosta
           pc={{ pcId: pc.pcId, nome: pc.nome, versione: pc.versione, battito: pc.battito, cartelle: pc.cartelle, chat: pc.chat }}
