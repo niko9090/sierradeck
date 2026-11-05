@@ -1,6 +1,7 @@
 import { format } from 'node:util'
 import type { Registro } from './registro'
 import { PREFISSO_CHAT_ALTROVE } from '@shared/posta'
+import { soloAvvisiNode } from '@shared/avvisi-node'
 
 /** Il prefisso con cui `registro.ts` ripete in console le righe che ha gia' scritto. */
 export const PREFISSO_ECO = '[registro] '
@@ -39,7 +40,8 @@ export function consoleNelRegistro(registro: Pick<Registro, 'info' | 'errore'>, 
       // il riquadro lo mostra con il suo PC. Nel registro come informazione.
       // Stesso per l'eco della cartella sparita: il renderer scrive già la sua
       // riga con la diagnosi «cartella sparita» (lotto 20261101084702).
-      const atteso = testo.includes(PREFISSO_CHAT_ALTROVE) || ECO_SPAWN_CARTELLA_SPARITA.test(testo)
+      // Gli avvisi di Node (DeprecationWarning…) sono cronaca (lotto 20261105223912).
+      const atteso = testo.includes(PREFISSO_CHAT_ALTROVE) || ECO_SPAWN_CARTELLA_SPARITA.test(testo) || soloAvvisiNode(testo)
       registro[livello === 'errore' && atteso ? 'info' : livello](testo)
     } catch { /* il registro non ferma il programma */ } finally { dentro = false }
   }
