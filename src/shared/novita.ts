@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.93.2',
+    righe: [
+      '**Controllo di tutti i PC, un PC che non risponde:** ora compare in una riga sola, con la diagnosi del controllo fatto da questo PC.',
+    ]
+  },
+  {
     versione: '0.93.1',
     righe: [
       '**Il servizio avviato due volte non fa più falso allarme:** se la porta è già occupata perché il servizio c’è già, resta solo un avviso e non un errore. Il servizio partito con l’accensione del PC ora sa la sua versione e non mostra più «?».',
