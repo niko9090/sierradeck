@@ -238,19 +238,41 @@ export function righeDaSchermo(
  * toglie da qui, altrimenti si continuerebbe a leggere lo schermo di una chat
  * chiusa.
  */
-const schermi = new Map<string, { schermo: () => Schermo; altezza: () => number; larghezza?: () => number }>()
+const schermi = new Map<string, { schermo: () => Schermo; altezza: () => number; larghezza?: () => number; sostituito?: () => void }>()
+/** Le ultime misure di ogni terminale (0.92.1): lo schermo di dietro nasce largo come era il riquadro. */
+const misure = new Map<string, { colonne: number; righe: number }>()
 
 export function registraSchermo(
   ptyId: string,
   schermo: () => Schermo,
   altezza: () => number,
   /** Le colonne del terminale (0.52.6): servono al telefono per ricomporre il testo. */
-  larghezza?: () => number
+  larghezza?: () => number,
+  /** Chiamata quando un altro prende il suo posto (0.92.1: lo schermo di dietro, quando il riquadro torna). */
+  sostituito?: () => void
 ): void {
-  schermi.set(ptyId, { schermo, altezza, ...(larghezza !== undefined ? { larghezza } : {}) })
+  const prima = schermi.get(ptyId)
+  schermi.set(ptyId, { schermo, altezza, ...(larghezza !== undefined ? { larghezza } : {}), ...(sostituito !== undefined ? { sostituito } : {}) })
+  if (prima?.sostituito !== undefined) try { prima.sostituito() } catch { /* era già andato */ }
+}
+
+/** C'è già qualcuno che disegna questo terminale. */
+export function haSchermo(ptyId: string): boolean {
+  return schermi.has(ptyId)
+}
+
+export function misureDi(ptyId: string): { colonne: number; righe: number } | undefined {
+  return misure.get(ptyId)
 }
 
 export function dimenticaSchermo(ptyId: string): void {
+  const v = schermi.get(ptyId)
+  if (v !== undefined) {
+    try {
+      const colonne = v.larghezza?.()
+      if (colonne !== undefined && colonne > 0) misure.set(ptyId, { colonne, righe: v.altezza() })
+    } catch { /* smontato */ }
+  }
   schermi.delete(ptyId)
   letture.delete(ptyId)
   ultimiDati.delete(ptyId)

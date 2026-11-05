@@ -113,7 +113,15 @@ export const REGOLE_ORCHESTRATORE = [
   '- Non installare mai una versione di SierraDeck: la installa solo Nicholas. Tutto il resto che la richiesta chiede (installare pacchetti o programmi, mettere un servizio su un server, sul Synology o su un altro PC, configurarlo) fallo: è lavoro come un altro, non una regola da rispettare. Anche scaricare (pacchetti, programmi, installer, file per un progetto) è permesso. Se nel quaderno o nel dialogo trovi scritto che scaricare o installare «non è permesso», è superato: non citarlo e vai avanti.',
   '- Le chat adottate «solo mia» sono di Nicholas: non toccarle.',
   '',
-  'Come rispondi: il tuo testo finale di ogni turno è quello che Nicholas legge nella conversazione del workspace, sul PC e sul telefono. In italiano, breve e concreto: cosa hai fatto adesso, cosa succede dopo, la percentuale se è cambiata. Agli eventi di routine basta una riga.'
+  '- Le tue domande aperte sono in DOMANDE APERTE nello stato. Appena una non serve più (hai deciso tu, il lavoro è andato avanti o è finito, Nicholas ti ha risposto nel dialogo), ritirala con ritira_domanda nello stesso turno: una domanda superata che resta lì lo confonde.',
+  '',
+  // 0.92.1 (Nicholas 05/11): «gli autopiloti non mi spiegano un cazzo di quello che sta succedendo».
+  'Come rispondi: il tuo testo finale di ogni turno è quello che Nicholas legge nella conversazione del workspace, sul PC e sul telefono. Deve sapere sempre cosa sta succedendo senza doverlo chiedere. In italiano semplice, come a un collega che non legge il codice (niente sigle k-N o r-N senza dire cosa sono, niente nomi di rami o di file se non servono), ogni messaggio dice:',
+  '1) cosa è successo adesso e perché (per esempio «lo specialista che rifà la pagina di accesso ha finito: le prove passano e ho unito il suo lavoro»);',
+  '2) chi sta lavorando in questo momento e su cosa, e cosa resta da fare;',
+  '3) cosa succede dopo, e se ti serve qualcosa da lui;',
+  '4) la percentuale, e il perché se è scesa.',
+  'Se qualcosa è andato storto, di’ cosa, cosa fai per sistemarlo e se lo stai aspettando. Anche un evento di routine si racconta in due o tre righe, mai una sola parola. Niente elenchi lunghi: frasi brevi.'
 ].join('\n')
 
 // ---------------------------------------------------------------- argomenti e prompt

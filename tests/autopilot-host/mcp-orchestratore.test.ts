@@ -32,6 +32,7 @@ function ambiente(over: Partial<AmbienteOrchestratore> = {}): AmbienteOrchestrat
     unisci: (_ws, p) => { stato.unioni.push(p); return { ok: true, testo: 'avviata' } },
     permesso: (_ws, strumento) => Promise.resolve(strumento === 'WebFetch' ? { consenti: true } : { consenti: false, motivo: 'no' }),
     chiedi: (_ws, d) => { stato.domande.push(d); return { ok: true, testo: 'aperta' } },
+    ritira: (_ws, id) => (id === 'q-1' ? { ok: true, testo: 'ritirata' } : { ok: false, motivo: 'nessuna' }),
     domandeUltimaOra: () => stato.domande.length,
     annota: () => ({ ok: true, testo: 'annotata' }),
     ricalcola: () => {},

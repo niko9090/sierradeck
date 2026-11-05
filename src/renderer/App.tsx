@@ -17,6 +17,8 @@ import { creaBattito, stessiAttivi } from './battito'
 import { eseguiConsegna, ponteReale, scriviMessaggio, scriviQuandoPronta, type InvioMancato, type Consegna } from './consegne-autopilota'
 import { comePortare, rigaInAttesa } from './consegna-visibile'
 import { memoriaWorkspace, chatDietro, terminaliDi } from './memoria-workspace'
+import { tieniSchermiDietro } from './schermo-dietro'
+import { ptyBus } from './pty-bus'
 import { spostaInWorkspace } from './spostamento'
 import { leggiAzioneFinestra } from '@shared/azioni-telefono'
 import { impostaWorkspaceCorrente, workspaceCorrente } from './workspace-corrente'
@@ -432,6 +434,13 @@ export function App(): React.JSX.Element {
     // I riquadri sono cambiati: il prossimo annuncio parte comunque.
     ultimoAnnuncio.current = { firma: '', il: 0 }
     const manda = (): void => {
+      // 0.92.1: le chat dei workspace di dietro hanno uno schermo anche senza riquadro.
+      tieniSchermiDietro(
+        chatDietro(memoriaWorkspace().vivi(), workspaceCorrente())
+          .filter((d) => righe.current.attivitaDi(d.pane.ptyId)?.morto !== true)
+          .map((d) => d.pane.ptyId),
+        { ascolta: (id, cb) => ptyBus().ascolta(id, cb), attach: (id) => window.gestore.pty.attach(id) }
+      )
       const chat = (
         // Un riquadro remoto guarda una chat di un altro PC: non e' una chat
         // di qui, e annunciarla farebbe credere al telefono e al battito che

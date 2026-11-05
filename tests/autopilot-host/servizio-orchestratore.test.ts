@@ -535,4 +535,33 @@ describe('il motore non si ferma (0.89.4)', () => {
     expect(domande.aperte(autopilota)).toHaveLength(0)
     await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('domanda scaduta')), { cosa: 'evento della domanda scaduta' })
   })
+
+  it('0.92.1: l’autopilota vede le sue domande aperte e ritira quelle superate; quelle di un autopilota che non c’è più si chiudono', async () => {
+    zitto()
+    await avviaServizio([ap({ chats: [] })], { raccoltaEventiMs: 5 })
+    migra()
+    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'la barra' })
+    await attendi(() => processi.length > 0, { cosa: 'processo' })
+    const p0 = processi[0]!
+    p0.emetti({ type: 'result', result: 'Ok.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    const cfg = JSON.parse(readFileSync(p0.args[p0.args.indexOf('--mcp-config') + 1]!, 'utf8')) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
+    const mcp = async (name: string, args: Record<string, unknown>): Promise<string> => {
+      const r = await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: cfg.mcpServers.sierradeck.headers.Authorization },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } })
+      })
+      return JSON.stringify(await r.json())
+    }
+    await mcp('chiedi_utente', { domanda: 'Tengo il colore verde per la barra?', perche: 'cambia il resto', scelte: ['Sì → verde', 'No → blu'] })
+    const autopilota = orch.impostazioni('Lavoro').autopilota!
+    const d = domande.aperte(autopilota)[0]!
+    expect(await mcp('stato', {})).toContain(`DOMANDE APERTE`)
+    expect(await mcp('stato', {})).toContain(d.id)
+    expect(await mcp('ritira_domanda', { id: 'q-nessuna', perche: 'x' })).toContain('nessuna tua domanda aperta')
+    expect(await mcp('ritira_domanda', { id: d.id, perche: 'Nicholas ha scritto «verde» nel dialogo' })).toContain('Domanda ritirata')
+    expect(domande.aperte(autopilota)).toHaveLength(0)
+    domande.apri({ autopilotaId: 'ap-che-non-esiste', testo: 'Vecchia domanda?', scadenzaMs: 60_000 })
+    server!.controllaChatFerme()
+    expect(domande.aperte('ap-che-non-esiste')).toHaveLength(0)
+  })
 })

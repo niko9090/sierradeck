@@ -299,6 +299,8 @@ export function nomeChi(c: Pick<ChatGovernata, 'ruolo'> | undefined): string {
  * Niente se la chat non si trova più.
  */
 export function rigaTraguardo(a: Pick<Autopilota, 'chats'>, t: Traguardo): string | undefined {
+  // 0.92.1 (Nicholas 05/11: «gli autopiloti non mi spiegano un cazzo»): cosa succede, in parole sue.
+  if (t.esito === 'avanzamento') return t.nota !== undefined && t.nota.trim() !== '' ? t.nota.trim() : undefined
   const chi = a.chats.find((c) => c.id === t.chat)
   // 0.80.1: la chat che tace è messa da parte, l'autopilota no. Anche la chat
   // singola, che non sta fra le `chats`.

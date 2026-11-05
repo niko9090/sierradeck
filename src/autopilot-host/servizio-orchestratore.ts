@@ -1,7 +1,7 @@
 import { join, parse } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
-import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo } from '@shared/autopilota'
+import { DIALOGO_RICORDATO, type Autopilota, type ChatGovernata, type Traguardo, NOTA_TRAGUARDO_MAX } from '@shared/autopilota'
 import {
   aggiungi, avanzamentoCoda, candidatiUnione, chiaveWorkspace, daSeguire,
   type Coda, type MisuraCompito, type Modifica, type VistaCoda
@@ -182,6 +182,13 @@ export type ServizioUnico = {
   orchestratore: Orchestratore
   ambiente: AmbienteOrchestratore
 }
+
+/** 0.92.1: le righe di cosa succede, per la conversazione con l'autopilota (`rigaTraguardo`). */
+const avanzamento = (chat: string, nota: string): Traguardo => ({ chat, esito: 'avanzamento', nota: nota.replace(/\s+/gu, ' ').slice(0, NOTA_TRAGUARDO_MAX) })
+const NOMI_SPECIALISTI: Record<string, string> = { sviluppatore: 'Lo sviluppatore', interfaccia: 'Lo specialista dell’interfaccia', android: 'Lo specialista Android', verificatore: 'Il verificatore', revisore: 'Il revisore', esploratore: 'L’esploratore' }
+const chiSpecialista = (ruolo: string): string => NOMI_SPECIALISTI[ruolo] ?? 'Uno specialista'
+/** La descrizione di un compito senza la sigla davanti («k-3: …»), corta. */
+const cosaDel = (t: string): string => { const x = t.replace(/^\s*[kr]-\d+\s*[:·-]\s*/iu, '').replace(/\s+/gu, ' ').trim(); return x.length > 110 ? `${x.slice(0, 109)}…` : x }
 
 /**
  * La risposta di Nicholas a un permesso è un «sì»? Le scelte sono «Consenti»
@@ -445,7 +452,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     const titolo = appena.length === 1 ? `Fatta: ${appena[0]!.titolo}` : `${appena.length} richieste fatte`
     const tutte = c.richieste.every((r) => r.stato === 'fatta')
     const dopo: Autopilota = { ...u, annuncio: { id: randomUUID(), titolo: titolo.slice(0, 120), quando } }
-    x.annota(dopo, `${appena.map((r) => r.id).join(', ')} ${appena.length === 1 ? 'è fatta' : 'sono fatte'}: criteri verdi, rami uniti`)
+    x.annota(dopo, `${appena.map((r) => r.id).join(', ')} ${appena.length === 1 ? 'è fatta' : 'sono fatte'}: criteri verdi, rami uniti`, avanzamento(appena[0]!.id, appena.length === 1
+      ? `Fatta la richiesta «${cosaDel(appena[0]!.titolo)}»: tutto unito e verificato.${tutte ? ' Non resta altro in coda.' : ''}`
+      : `Fatte ${appena.length} richieste: ${appena.map((r) => `«${cosaDel(r.titolo)}»`).join(', ').slice(0, 150)}.${tutte ? ' Non resta altro in coda.' : ''}`))
     x.salva(dopo)
     void x.avvisa(tutte ? 'finito' : 'avviso', dopo, tutte ? 'Tutte le richieste del workspace sono fatte.' : titolo)
   }
@@ -469,6 +478,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       eventi: recenti.get(ws) ?? [],
       tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), SPECIALISTI_PC_MAX), alLavoroPc: x.chatAlLavoroSulPc() },
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
+      domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
       adesso: Date.parse(x.adesso())
     })
@@ -519,7 +529,7 @@ ${NOTA_SENZA_GIT}`,
       if (e.tipo === 'specialista-partito') {
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
         if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'in-corso', chat: s.id }))
-        if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`); x.salva(dopo) }
+        if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`, avanzamento(s.id, `Al lavoro: ${chiSpecialista(s.ruolo)} — ${cosaDel(s.descrizione)}.`)); x.salva(dopo) }
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
         continue
       }
@@ -539,7 +549,15 @@ ${NOTA_SENZA_GIT}`,
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
         if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
       }
-      if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `${s.ruolo} ${s.stato === 'finito' ? 'ha finito' : s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${durata(s, Date.parse(x.adesso()))}: ${s.descrizione.slice(0, 120)}`); x.salva(dopo) }
+      if (u !== undefined) {
+        const dopo = { ...u }
+        const quanto = durata(s, Date.parse(x.adesso()))
+        const detto = s.stato === 'finito'
+          ? `${chiSpecialista(s.ruolo)} ha finito dopo ${quanto}: ${cosaDel(s.descrizione)}. Adesso provo il suo lavoro e, se le prove passano, lo unisco.`
+          : `${chiSpecialista(s.ruolo)} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${quanto}: ${cosaDel(s.descrizione)}. L’autopilota lo rilancia o cambia strada.`
+        x.annota(dopo, `${s.ruolo} ${s.stato === 'finito' ? 'ha finito' : s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'} dopo ${quanto}: ${s.descrizione.slice(0, 120)}`, avanzamento(s.id, detto))
+        x.salva(dopo)
+      }
       ricalcola(ws, `${s.compito ?? s.ruolo} ${s.stato}`)
     }
   }
@@ -730,7 +748,11 @@ ${NOTA_SENZA_GIT}`,
         ...fresco,
         chats: fresco.chats.map((y) => (y.id === chat.id ? { ...y, stato: 'finita' as const, approvata: true, conclusa: { il, come: 'unito' as const }, fine: { esito: 'unita' as const, il, passo: 'chiudi' as const } } : y))
       }
-      x.annota(dopo, `${nome}: ${ramo !== undefined ? `ramo ${ramo} unito nel principale` : 'niente ramo da unire'}; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, { chat: chat?.id ?? nome, esito: 'unito' })
+      // 0.92.1: in conversazione una riga in parole semplici (il diario tiene quella tecnica).
+      const suCosa = cosaDel(compito?.titolo ?? sub?.descrizione ?? nome)
+      x.annota(dopo, `${nome}: ${ramo !== undefined ? `ramo ${ramo} unito nel principale` : 'niente ramo da unire'}; criterio ${verde ? 'verde' : 'rosso'} (${dettaglio.slice(0, 200)})`, chat !== undefined ? { chat: chat.id, esito: 'unito' } : avanzamento(nome, verde
+        ? `Unito il lavoro su «${suCosa}»: le prove passano.`
+        : `Il lavoro su «${suCosa}» non passa le prove: lo faccio correggere a uno specialista.`))
       x.salva(dopo)
       if (chat !== undefined) x.avanzaFinite()
     }
@@ -808,6 +830,15 @@ ${NOTA_SENZA_GIT}`,
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
       const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te')
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
+    },
+    ritira(ws, id, perche) {
+      const a = unicoDi(ws)
+      if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
+      const d = x.domande.aperte(a.id).find((q) => q.id === id)
+      if (d === undefined) return { ok: false, motivo: `nessuna tua domanda aperta con id ${id}: guarda DOMANDE APERTE nello stato` }
+      x.domande.superata(d.id, `ritirata dall’autopilota: ${perche}`)
+      ricordaEvento(ws, { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `ritirata la domanda «${(d.parti?.domanda ?? d.testo).slice(0, 120)}»: ${perche}` })
+      return { ok: true, testo: 'Domanda ritirata: non compare più nelle Domande di Nicholas.' }
     },
     domandeUltimaOra(ws) {
       const ora = Date.parse(x.adesso())
@@ -997,8 +1028,22 @@ ${NOTA_SENZA_GIT}`,
    * 02/11). Si chiude, e l'autopilota decide con la consigliata o la rifà.
    */
   const chiudiDomandeVecchie = (ora: number): void => {
+    // 0.92.1: le domande di un autopilota che non c'è più (archiviato, o di prima dell'autopilota unico).
+    const esistono = new Set(x.archivio.elenca().map((a) => a.id))
+    for (const d of x.domande.aperte()) {
+      if (esistono.has(d.autopilotaId)) continue
+      if (x.domande.superata(d.id, 'l’autopilota che l’aveva fatta non c’è più')) console.info(`[orchestratore] domanda di un autopilota che non c’è più, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+    }
     for (const a of unici()) {
+      // 0.92.1: tutto il lavoro in coda è finito dopo la domanda: non è più attuale.
+      const c = coda(wsDi(a))
+      const finite = c.richieste.length > 0 && c.richieste.every((r) => r.stato === 'fatta')
+      const ultimaFatta = finite ? Math.max(...c.richieste.map((r) => Date.parse(r.fattaIl ?? r.chiusa?.il ?? '') || 0)) : 0
       for (const d of x.domande.aperte(a.id)) {
+        if (finite && ultimaFatta > d.apertaIl && x.domande.superata(d.id, 'il lavoro in coda è finito dopo la domanda: non serve più')) {
+          console.info(`[orchestratore] ${wsDi(a)} — domanda superata dal lavoro finito, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+          continue
+        }
         if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
         if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
         const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)

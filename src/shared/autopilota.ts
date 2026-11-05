@@ -136,8 +136,9 @@ export type MessaggioPerLaChat = {
  * `gia-fatto` — una domanda che non arriva a Nicholas perché è già successo.
  */
 export type Traguardo = { chat: string; esito: EsitoTraguardo; di?: string; nota?: string }
-export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto' | 'nel-recupero' | 'bloccata' | 'ferma'
-export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto', 'nel-recupero', 'bloccata', 'ferma']
+export type EsitoTraguardo = 'finito' | 'in-revisione' | 'approvato' | 'da-rifare' | 'chiede-te' | 'da-parte' | 'aperta' | 'unito' | 'mai-partita' | 'muta' | 'gia-fatto' | 'nel-recupero' | 'bloccata' | 'ferma' | 'avanzamento'
+/** `avanzamento` (0.92.1): una riga di cosa succede scritta dal programma, nella `nota`, mostrata com'è. */
+export const ESITI_TRAGUARDO: readonly EsitoTraguardo[] = ['finito', 'in-revisione', 'approvato', 'da-rifare', 'chiede-te', 'da-parte', 'aperta', 'unito', 'mai-partita', 'muta', 'gia-fatto', 'nel-recupero', 'bloccata', 'ferma', 'avanzamento']
 /** Quanto è lunga al più la nota di un traguardo. */
 export const NOTA_TRAGUARDO_MAX = 200
 

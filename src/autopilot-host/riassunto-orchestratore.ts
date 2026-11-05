@@ -25,6 +25,8 @@ export type DatiRiassunto = {
   eventi: EventoOrchestratore[]
   tetti: { ws: number; pc: number; alLavoroPc: number }
   domandeAperte: number
+  /** Le domande aperte, per ritirare quelle superate (0.92.1). */
+  domande?: { id: string; testo: string; apertaIl: number }[]
   /** Gli specialisti nativi (subagenti), dal flusso. */
   subagenti?: Specialista[]
   adesso: number
@@ -90,6 +92,11 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
   if (adottate.length > 0) righe.push(`Chat adottate di Nicholas: ${adottate.map((x) => `${corto(x.titolo || x.sessionId.slice(0, 8), 40)}${x.soloMia === true ? ' (solo sua: non scriverle)' : ''}`).join('; ')}`)
 
   righe.push('', `TETTI: specialisti al lavoro in questo workspace ${sub.filter((x) => x.stato === 'avviato' || x.stato === 'lavoro').length + chats.filter((c) => c.stato !== 'finita').length}/${d.tetti.ws}; chat al lavoro sul PC ${d.tetti.alLavoroPc}/${d.tetti.pc}. Domande aperte a Nicholas: ${d.domandeAperte}.`)
+  // 0.92.1 (Nicholas 05/11: «domande vecchie continuano a rimanere visibili anche quando non sono più attuali»).
+  if (d.domande !== undefined && d.domande.length > 0) {
+    righe.push('DOMANDE APERTE (le vede Nicholas: ritira con ritira_domanda quelle che non servono più — hai già deciso, il lavoro è andato avanti, ti ha risposto nel dialogo):')
+    for (const q of d.domande) righe.push(`- ${q.id} (da ${minuti(new Date(q.apertaIl).toISOString(), d.adesso)}): ${corto(q.testo, 200)}`)
+  }
 
   if (d.eventi.length > 0) {
     righe.push('', 'EVENTI RECENTI:')

@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.93.0',
+    righe: [
+      '**Le chat degli altri workspace si usano da un altro PC:** una chat che lavora in un workspace che sul suo PC non è a schermo adesso si vede e si comanda lo stesso, da un altro PC e dal telefono. Prima arrivava una riga sola.',
+      '**Le domande vecchie se ne vanno:** l’autopilota vede le sue domande aperte e ritira quelle superate (ha deciso, il lavoro è andato avanti, gli hai risposto nel dialogo). Quelle rimaste dietro a un lavoro già finito, e quelle di un autopilota che non c’è più, si chiudono da sole.',
+      '**L’autopilota racconta cosa succede:** nella conversazione compaiono da sole, in parole semplici, le righe di chi parte, chi ha finito, cosa è stato unito e se le prove passano. E ogni messaggio dell’autopilota dice cosa è successo, chi lavora adesso, cosa succede dopo e la percentuale, senza sigle.',
+    ]
+  },
+  {
     versione: '0.92.0',
     righe: [
       '**La chat di un altro PC si vede come quella di qui:** gli stessi colori e lo stesso carattere del terminale. Tornano i colori di Claude (prima tutto sbiadito, senza il logo arancione e la barra grigia del prompt), le righe non si spezzano più a metà e tabelle e cornici restano intere. Se il riquadro è largo abbastanza lo schermo è identico a quello di là; se è stretto, il testo va a capo qui e le tabelle scorrono di lato.',

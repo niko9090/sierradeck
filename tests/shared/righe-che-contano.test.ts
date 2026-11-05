@@ -40,7 +40,8 @@ describe('le righe nuove', () => {
   })
 
   it('ogni esito ha la sua riga (nessuno resta muto)', () => {
-    for (const esito of ESITI_TRAGUARDO) expect(rigaTraguardo(flotta, { chat: 'c-1', esito, di: 'c-2' }), esito).toBeTruthy()
+    // 0.92.1: «avanzamento» è la riga scritta dal programma, nella nota.
+    for (const esito of ESITI_TRAGUARDO) expect(rigaTraguardo(flotta, { chat: 'c-1', esito, di: 'c-2', ...(esito === 'avanzamento' ? { nota: 'Al lavoro.' } : {}) }), esito).toBeTruthy()
   })
 
   it('i traguardi nuovi si rileggono dal disco', () => {

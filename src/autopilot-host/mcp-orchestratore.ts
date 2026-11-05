@@ -119,6 +119,8 @@ export type AmbienteOrchestratore = {
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
   chiedi: (ws: string, domanda: string, scelte: string[], perche?: string) => EsitoAmbiente
+  /** Ritira una propria domanda superata (0.92.1). */
+  ritira: (ws: string, id: string, perche: string) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
   domandeUltimaOra: (ws: string) => number
   annota: (ws: string, testo: string, tag: string) => EsitoAmbiente
@@ -231,6 +233,19 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
         scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima. Ognuna «scelta → cosa succede dopo».' }
       },
       required: ['domanda', 'perche']
+    }
+  },
+  {
+    name: 'ritira_domanda',
+    title: 'Ritira una domanda',
+    description: 'Toglie dalle Domande di Nicholas una tua domanda che non serve più: hai deciso tu, il lavoro è andato avanti o è finito, oppure lui ti ha risposto nel dialogo. Gli id sono in DOMANDE APERTE nello stato. Una domanda superata lasciata aperta lo confonde.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'L’id della domanda, da DOMANDE APERTE.' },
+        perche: { type: 'string', description: 'Una frase: perché non serve più.' }
+      },
+      required: ['id', 'perche']
     }
   },
   {
@@ -373,6 +388,14 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const n = amb.domandeUltimaOra(ws)
       if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
       const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined)
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'ritira_domanda': {
+      const id = str(arg.id)
+      const perche = str(arg.perche).replace(/\s+/gu, ' ').slice(0, 300)
+      if (id === '') return no('manca l’id della domanda')
+      const e = amb.ritira(ws, id, perche !== '' ? perche : 'non serve più')
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 
