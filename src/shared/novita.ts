@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.93.1',
+    righe: [
+      '**Il servizio avviato due volte non fa più falso allarme:** se la porta è già occupata perché il servizio c’è già, resta solo un avviso e non un errore. Il servizio partito con l’accensione del PC ora sa la sua versione e non mostra più «?».',
+      '**Controllo di tutti i PC più chiaro:** ogni PC compare in una riga sola. Se un altro SierraDeck o un estraneo rifiuta l’accesso, non si dice più che «non riconosce la chiave». Se all’indirizzo salvato risponde un altro tuo PC, il controllo lo chiama per nome, dice che l’indirizzo è cambiato e lo toglie da quelli salvati.',
+    ]
+  },
+  {
     versione: '0.93.0',
     righe: [
       '**Le chat degli altri workspace si usano da un altro PC:** una chat che lavora in un workspace che sul suo PC non è a schermo adesso si vede e si comanda lo stesso, da un altro PC e dal telefono. Prima arrivava una riga sola.',
