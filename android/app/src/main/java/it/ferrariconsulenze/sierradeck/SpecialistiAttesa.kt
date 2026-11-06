@@ -39,7 +39,7 @@ data class FilaAttesa(
 )
 
 /** Una riga da mostrare, già in parole. */
-data class RigaSpecialista(
+data class RigaAttesa(
     val id: String,
     /** «Posto 2» o «3°». */
     val etichetta: String,
@@ -54,8 +54,8 @@ data class RigaSpecialista(
 
 data class SchermataSpecialisti(
     val posti: String,
-    val alLavoro: List<RigaSpecialista>,
-    val inFila: List<RigaSpecialista>,
+    val alLavoro: List<RigaAttesa>,
+    val inFila: List<RigaAttesa>,
     /** Il servizio del PC è vecchio e non sa la lista (posti 0). */
     val vecchio: Boolean
 )
@@ -108,7 +108,7 @@ object SpecialistiAttesa {
     fun schermata(v: VistaAttesaApp, adesso: Long): SchermataSpecialisti {
         if (v.posti.tetto <= 0) return SchermataSpecialisti("", emptyList(), emptyList(), vecchio = true)
         val lavoro = v.alLavoro.map { x ->
-            RigaSpecialista(
+            RigaAttesa(
                 id = x.id, etichetta = "Posto ${x.posto}", compito = x.compito?.ifBlank { null }, descrizione = x.descrizione,
                 dettaglio = listOf(nomeWorkspace(x.workspace), x.tipo, "lavora da " + daQuanto(x.dal, adesso).ifEmpty { "?" })
                     .filter { it.isNotEmpty() }.joinToString(" · "),
@@ -118,7 +118,7 @@ object SpecialistiAttesa {
         val fila = v.inFila.mapIndexed { i, x ->
             val manca = if (x.prenotata) quantoManca(x.prenotataFino, adesso) else ""
             val tocca = if (!x.prenotata) "" else " · tocca a lui" + when (manca) { "" -> ""; "scaduta" -> " (scaduta)"; else -> " (ancora $manca)" }
-            RigaSpecialista(
+            RigaAttesa(
                 id = x.id, etichetta = "${x.posizione}°", compito = x.compito?.ifBlank { null }, descrizione = x.descrizione,
                 dettaglio = listOf(nomeWorkspace(x.workspace), x.tipo, "aspetta da " + daQuanto(x.dal, adesso).ifEmpty { "?" }, "priorità " + prioritaTesto(x.priorita))
                     .filter { it.isNotEmpty() }.joinToString(" · ") + tocca,
@@ -129,7 +129,7 @@ object SpecialistiAttesa {
     }
 
     /** Il titolo di una riga: «k-48 descrizione» o solo la descrizione. */
-    fun titolo(r: RigaSpecialista): String = if (r.compito != null) "${r.compito} ${r.descrizione}" else r.descrizione
+    fun titolo(r: RigaAttesa): String = if (r.compito != null) "${r.compito} ${r.descrizione}" else r.descrizione
 
     /** L'avviso quando la rete non va. */
     fun avvisoRete(mossa: Boolean): String =

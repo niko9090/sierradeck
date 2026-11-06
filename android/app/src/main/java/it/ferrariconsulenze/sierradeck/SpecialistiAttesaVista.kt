@@ -32,7 +32,7 @@ fun SezioneSpecialisti(api: Api) {
     var vista by remember { mutableStateOf<VistaAttesaApp?>(null) }
     var avviso by remember { mutableStateOf<String?>(null) }
     var adesso by remember { mutableStateOf(System.currentTimeMillis()) }
-    var daTogliere by remember { mutableStateOf<RigaSpecialista?>(null) }
+    var daTogliere by remember { mutableStateOf<RigaAttesa?>(null) }
     val scope = rememberCoroutineScope()
 
     // Si rilegge da sola ogni 5 secondi finché la schermata è aperta.
@@ -103,7 +103,7 @@ fun SezioneSpecialisti(api: Api) {
 }
 
 @Composable
-private fun SchedaSpecialista(r: RigaSpecialista, tasti: (@Composable () -> Unit)? = null) {
+private fun SchedaSpecialista(r: RigaAttesa, tasti: (@Composable () -> Unit)? = null) {
     Tessera(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Row {
