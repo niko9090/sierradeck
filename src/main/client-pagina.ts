@@ -28,6 +28,7 @@ import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
 import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
+import { menuSpecialisti } from '@shared/menu-specialisti'
 import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
@@ -799,6 +800,8 @@ ${postiTesto.toString()}
 ${prioritaTesto.toString()}
 ${minutiTesto.toString()}
 ${totaleTesto.toString()}
+// Il menu Specialisti nella chat dell'autopilota (k-54), da src/shared/menu-specialisti.ts.
+${menuSpecialisti.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -1211,6 +1214,9 @@ var consumiVisti = null
 // Specialisti (k-49): la lista d'attesa, come la dà il computer; null = non ancora letta, 'vecchio' = il servizio non la sa dare.
 var attesaVista = null
 var attesaConferma = ''
+var menuSpecAperto = false
+var menuSpecConferma = ''
+var menuSpecLetto = 0
 var attesaNota = ''
 var schedeViste = null
 // Account e Drive del computer (0.70.0): la catena delle quattro tessere, decisa dal PC.
@@ -1929,6 +1935,8 @@ function impronta(s) {
     consumiVisti ? JSON.stringify(consumiVisti) : '',
     // Specialisti (k-49): la lista, la conferma di «Togli» e l'esito; i tempi si rifanno a ogni lettura.
     aperto('specialisti') ? JSON.stringify([attesaVista, attesaConferma, attesaNota, Math.floor(Date.now() / 30000)]) : '',
+    // Il menu Specialisti nella chat dell'autopilota (k-54): chiuso conta solo il testo del tasto.
+    dentroAp ? (menuSpecAperto ? JSON.stringify([attesaVista, menuSpecConferma, attesaNota, Math.floor(Date.now() / 30000)]) : menuSpecEtichetta()) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
     // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
@@ -3136,7 +3144,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apRiassunto = false; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -3416,6 +3424,7 @@ function vistaAutopilota(a) {
 
   return '<div class="dettaglio">' +
     '<div class="serigrafia solo-riassunto" style="margin-top:10px">Chat con lui</div>' +
+    menuSpecHtml(a) +
     puntoHtml(a.punto) +
     '<div class="flusso-ap" id="flusso-ap">' + chat + pensa + '</div>' +
     casella +
@@ -5634,6 +5643,52 @@ function attesaHtml() {
     '<div class="riga"><button onclick="attesaRileggi()">Aggiorna</button></div></div>'
 }
 
+// Il menu Specialisti nella chat dell'autopilota (k-54): le stesse righe del PC, con ↑ Precedenza e Ferma.
+function menuSpecRiferimenti(a) { return [a && a.workspace ? a.workspace : '', a && a.cwd ? a.cwd : ''] }
+function menuSpecEtichetta() {
+  if (attesaVista === null || attesaVista === 'vecchio') return attesaVista === null ? 'Specialisti' : ''
+  return menuSpecialisti(attesaVista, menuSpecRiferimenti(apDettaglio)).etichetta
+}
+window.menuSpecGira = () => {
+  menuSpecAperto = !menuSpecAperto
+  menuSpecConferma = ''
+  if (menuSpecAperto) { menuSpecLetto = Date.now(); leggiAttesa().then(() => pannello(ultimoStato)) }
+  pannello(ultimoStato)
+}
+window.menuSpecMossa = async (el) => {
+  menuSpecConferma = ''
+  await mossaAttesa('/api/specialisti/attesa/priorita', { id: el.dataset.id, mossa: el.dataset.m })
+}
+window.menuSpecFerma = (id) => { menuSpecConferma = id; pannello(ultimoStato) }
+window.menuSpecAnnulla = () => { menuSpecConferma = ''; pannello(ultimoStato) }
+window.menuSpecApri = () => { menuSpecAperto = false; menuSpecConferma = ''; window.apriSezione('specialisti') }
+function menuSpecHtml(a) {
+  if (attesaVista === 'vecchio') return ''
+  const tasto = '<div class="riga"><button aria-expanded="' + menuSpecAperto + '" aria-haspopup="true" onclick="menuSpecGira()">' + esc(menuSpecEtichetta()) + (menuSpecAperto ? ' ▴' : ' ▾') + '</button></div>'
+  if (!menuSpecAperto || attesaVista === null) return tasto
+  const m = menuSpecialisti(attesaVista, menuSpecRiferimenti(a))
+  const riga = (r, lavora) => {
+    const misura = lavora && r.percentuale !== undefined
+      ? '<div class="misura-riga">' + esc(r.percentuale) + '%</div><div class="barra"><i style="width:' + esc(r.percentuale) + '%"></i></div>' : ''
+    const stato = esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
+    const tasti = menuSpecConferma === r.id
+      ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span> <button data-id="' + esc(r.id) + '" data-m="ferma" onclick="menuSpecMossa(this)">Sì, ferma</button> <button onclick="menuSpecAnnulla()">No</button>'
+      : '<button data-id="' + esc(r.id) + '" data-m="cima"' + (!lavora && r.posizione === 1 ? ' disabled' : '') + ' onclick="menuSpecMossa(this)">↑ Precedenza</button>' +
+        (lavora && !r.fermaRichiesta ? '<button data-id="' + esc(r.id) + '" onclick="menuSpecFerma(this.dataset.id)">Ferma</button>' : '')
+    return '<div class="cartella"' + (r.corrente ? ' style="border-left:3px solid var(--ambra, #d9a441)"' : '') + '><div>' +
+      (r.posizione !== undefined ? '<b>' + esc(r.posizione) + '° </b>' : '') + esc(r.titolo) + (r.altroWorkspace ? ' <span class="sotto">· ' + esc(r.altroWorkspace) + '</span>' : '') + '</div>' +
+      misura + (r.cosaFa ? '<div class="sotto">' + esc(r.cosaFa) + '</div>' : '') +
+      '<div class="sotto">' + stato + '</div><div class="riga">' + tasti + '</div></div>'
+  }
+  return tasto + '<div class="piastrella">' +
+    '<div class="titolo">Al lavoro adesso' + aiuto('menu-spec', 'Con «↑ Precedenza» uno specialista passa in cima alla fila e prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora e lo mette in cima alla fila: il suo lavoro resta salvato sul suo ramo. La percentuale è una stima e non arriva a 100 prima della fine.', 'precedenza') + '</div>' +
+    (m.lavorano.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : m.lavorano.map((r) => riga(r, true)).join('')) +
+    '<div class="solco"></div><div class="titolo">In fila</div>' +
+    (m.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : m.inFila.map((r) => riga(r, false)).join('')) +
+    (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
+    '<div class="riga"><span class="sotto">' + esc(m.totale) + '</span><button onclick="menuSpecApri()">Apri Specialisti</button></div></div>'
+}
+
 window.installaAggiornamento = async () => {
   noteAgg = { leggo: true }
   pannello(ultimoStato)
@@ -6462,6 +6517,8 @@ async function aggiorna() {
     giriFalliti = 0
     avvisaSeServe(stato)
     if (dentroAp) await leggiAp()
+    // Il menu Specialisti (k-54): ogni 4 secondi se aperto, ogni 20 per il testo del tasto.
+    if (dentroAp && Date.now() - menuSpecLetto > (menuSpecAperto ? 4000 : 20000)) { menuSpecLetto = Date.now(); leggiAttesa().then(() => pannello(ultimoStato)) }
     // Se si sta guardando dentro una chat, anche quelle righe si rinfrescano:
     // guardare qualcosa di fermo mentre il resto si muove sarebbe peggio che
     // non guardare.

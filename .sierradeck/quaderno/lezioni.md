@@ -169,6 +169,7 @@
 - Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
 - con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
 - Memoria piena per vmmemWSL (12-15 GB): `wsl --shutdown` porta la RAM libera da ~15% a ~65%; Nicholas l'ha permesso il 06/11. Ubuntu riparte da solo a ~1 GB e può ricrescere. _(2026-11-06)_
+- Il programma rimanda tsc e vitest completi quando il PC è carico, anche per decine di minuti: lanciarli subito dopo il commit, prima di altro lavoro, e tenere i test mirati per intanto _(2026-11-06)_
 
 ## renderer
 
@@ -214,6 +215,7 @@
 
 - la pagina del telefono è una stringa TS: niente backtick né backslash, `\d` diventa `[0-9]`. Il test `posti-chat-pagina` estrae le funzioni con `new Function` e vuole definite le variabili globali. _(2026-11-06)_
 - nella pagina telefono niente backslash: i tasti passano l'id con data-id e onclick="f(this)", e la logica condivisa sta in src/shared come funzione autosufficiente inserita con toString() _(2026-11-06)_
+- In client-pagina.ts le funzioni di attesa-vista.ts vanno aggiunte anche all'elenco delle toString() e al test che le estrae, altrimenti attesaHtml non gira _(2026-11-06)_
 
 ## apertura-chat
 
