@@ -14,6 +14,12 @@ import { execFile } from 'node:child_process'
  * entrare soltanto la rete locale (`LocalSubnet`), mai internet.
  */
 
+/**
+ * Il nome fisso della regola: lo stesso che crea l'installatore (`build/installer.nsh`)
+ * e che propone il comando di ripiego. Una regola con questo nome è «a posto».
+ */
+export const NOME_REGOLA_FIREWALL = 'SierraDeck (rete locale)'
+
 export type ProfiloRete = {
   /** Nome della scheda (`Wi-Fi`, `Ethernet`, `Tailscale`...). */
   scheda: string
@@ -22,6 +28,8 @@ export type ProfiloRete = {
 }
 
 export type RegolaIngresso = {
+  /** Nome visibile della regola in Windows. */
+  nome?: string
   /** Maschera dei profili di Windows: 0 = tutti, 1 = dominio, 2 = privato, 4 = pubblico. */
   profili: number
   /** Percorso del programma a cui si applica, se la regola è per programma. */
@@ -42,6 +50,7 @@ function eVpn(scheda: string): boolean {
 }
 
 function regolaCopre(r: RegolaIngresso, programma: string, porta: number): boolean {
+  if (r.nome === NOME_REGOLA_FIREWALL) return true
   if (r.programma !== undefined && r.programma !== '' && r.programma.toLowerCase() === programma.toLowerCase()) return true
   const porte = (r.porte ?? '').split(',').map((p) => p.trim())
   const nelleGamme = porte.some((p) => {
@@ -57,7 +66,7 @@ function regolaCopre(r: RegolaIngresso, programma: string, porta: number): boole
 
 /** Il comando (da PowerShell come amministratore) che lascia entrare la sola rete locale. */
 export function comandoSblocco(programma: string): string {
-  return `New-NetFirewallRule -DisplayName "SierraDeck (rete locale)" -Direction Inbound -Action Allow -Program "${programma}" -Profile Private,Public -RemoteAddress LocalSubnet`
+  return `New-NetFirewallRule -DisplayName "${NOME_REGOLA_FIREWALL}" -Direction Inbound -Action Allow -Program "${programma}" -Profile Any -RemoteAddress LocalSubnet`
 }
 
 /**
@@ -78,7 +87,7 @@ export function valutaFirewall(profili: ProfiloRete[], regole: RegolaIngresso[],
     categoria: scoperta.categoria,
     messaggio:
       `Il firewall di Windows non lascia entrare SierraDeck dalla rete «${scoperta.scheda}» (profilo ${nomeRete}): ` +
-      `il telefono sul wifi di casa, senza Tailscale, non si collega. Rimedio: apri PowerShell come amministratore e lancia il comando qui sotto ` +
+      `il telefono sul wifi di casa, senza Tailscale, non si collega. L'installatore crea la regola da solo quando gira come amministratore; qui no. Rimedio: apri PowerShell come amministratore e lancia il comando qui sotto ` +
       `(lascia entrare solo la rete locale), oppure imposta la rete di casa su «Privata» in Impostazioni di Windows → Rete.`,
     comando: comandoSblocco(programma)
   }
@@ -89,7 +98,7 @@ const SCRIPT =
   "$p=@(Get-NetConnectionProfile | ForEach-Object { @{scheda=[string]$_.InterfaceAlias;categoria=[string]$_.NetworkCategory} });" +
   "$r=@(Get-NetFirewallRule -Direction Inbound -Action Allow -Enabled True | ForEach-Object {" +
   " $a=($_ | Get-NetFirewallApplicationFilter).Program; $q=($_ | Get-NetFirewallPortFilter).LocalPort;" +
-  " if (($a -ne 'Any') -or ($q -ne 'Any' -and $q)) { @{profili=[int]$_.Profile;programma=[string]$a;porte=(@($q) -join ',')} } });" +
+  " if (($_.DisplayName -eq '"+NOME_REGOLA_FIREWALL+"') -or ($a -ne 'Any') -or ($q -ne 'Any' -and $q)) { @{nome=[string]$_.DisplayName;profili=[int]$_.Profile;programma=[string]$a;porte=(@($q) -join ',')} } });" +
   "@{profili=$p;regole=$r}|ConvertTo-Json -Depth 4 -Compress"
 
 /** Legge profili e regole da PowerShell, senza bloccare niente. Fuori da Windows o in errore: `sconosciuto`. */
@@ -114,7 +123,8 @@ export function daUscita(stdout: string, programma: string, porta: number): Esit
     const j = JSON.parse(stdout) as { profili?: unknown; regole?: unknown }
     const lista = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : v === undefined || v === null ? [] : [v as T])
     const profili = lista<{ scheda?: string; categoria?: string }>(j.profili).map((p) => ({ scheda: String(p.scheda ?? ''), categoria: String(p.categoria ?? '') }))
-    const regole = lista<{ profili?: number; programma?: string; porte?: string }>(j.regole).map((r) => ({
+    const regole = lista<{ nome?: string; profili?: number; programma?: string; porte?: string }>(j.regole).map((r) => ({
+      nome: r.nome,
       profili: Number(r.profili ?? 0),
       programma: r.programma,
       porte: r.porte

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
+import { readFileSync } from 'node:fs'
+import { NOME_REGOLA_FIREWALL, comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
 import { indirizziPerApp } from '../../src/main/rete-telefono'
 import { indirizziDaAnnunciare } from '../../src/main/client-server'
 
@@ -49,6 +50,54 @@ describe('firewall di Windows davanti alla porta', () => {
     const j = JSON.stringify({ profili: { scheda: 'Wi-Fi', categoria: 'Public' }, regole: [{ profili: 2, programma: EXE, porte: 'Any' }] })
     expect(daUscita(j, EXE, PORTA).stato).toBe('bloccato')
     expect(daUscita('non e json', EXE, PORTA).stato).toBe('sconosciuto')
+  })
+})
+
+describe('regola del firewall creata dall installatore', () => {
+  const nsh = readFileSync('build/installer.nsh', 'utf8')
+  const yml = readFileSync('electron-builder.yml', 'utf8')
+  const netsh = nsh.split('\n').filter((r) => r.includes('netsh advfirewall'))
+
+  it('la configurazione include il file con le macro', () => {
+    expect(yml).toMatch(/include:\s*build\/installer\.nsh/)
+    expect(nsh).toContain('!macro customInstall')
+    expect(nsh).toContain('!macro customUnInstall')
+  })
+
+  it('crea la regola in ingresso col nome fisso, per il programma, solo LocalSubnet', () => {
+    const aggiunte = netsh.filter((r) => r.includes('add rule'))
+    expect(aggiunte).toHaveLength(1)
+    expect(aggiunte[0]).toContain(`name="${NOME_REGOLA_FIREWALL}"`)
+    expect(aggiunte[0]).toContain('dir=in')
+    expect(aggiunte[0]).toContain('remoteip=LocalSubnet')
+    expect(aggiunte[0]).toContain('${APP_EXECUTABLE_FILENAME}')
+  })
+
+  it('niente apertura a internet', () => {
+    for (const r of netsh) if (r.includes('remoteip')) expect(r).toMatch(/remoteip=LocalSubnet(\s|')/)
+    expect(nsh).not.toMatch(/remoteip=(any|\*|0\.0\.0\.0)/i)
+  })
+
+  it('prima di aggiungere toglie la regola omonima e alla disinstallazione la toglie', () => {
+    const iUn = nsh.indexOf('!macro customUnInstall')
+    const install = nsh.slice(nsh.indexOf('!macro customInstall'), iUn)
+    expect(install.indexOf('delete rule')).toBeGreaterThan(-1)
+    expect(install.indexOf('delete rule')).toBeLessThan(install.indexOf('add rule'))
+    expect(nsh.slice(iUn)).toContain(`delete rule name="${NOME_REGOLA_FIREWALL}"`)
+  })
+
+  it('il comando di ripiego usa lo stesso nome e la stessa limitazione', () => {
+    expect(comandoSblocco(EXE)).toContain(`"${NOME_REGOLA_FIREWALL}"`)
+    expect(comandoSblocco(EXE)).toContain('-RemoteAddress LocalSubnet')
+  })
+
+  it('una regola col nome dell installatore vale come a posto, anche se il percorso non combacia', () => {
+    const wifi = [{ scheda: 'Wi-Fi', categoria: 'Public' }]
+    const r = { nome: NOME_REGOLA_FIREWALL, profili: 0, programma: 'D:\\Altro\\SierraDeck.exe' }
+    expect(valutaFirewall(wifi, [r], EXE, PORTA).stato).toBe('ok')
+    expect(valutaFirewall(wifi, [{ ...r, profili: 2 }], EXE, PORTA).stato).toBe('bloccato')
+    const j = JSON.stringify({ profili: wifi, regole: [{ nome: NOME_REGOLA_FIREWALL, profili: 0, programma: 'Any', porte: 'Any' }] })
+    expect(daUscita(j, EXE, PORTA).stato).toBe('ok')
   })
 })
 
