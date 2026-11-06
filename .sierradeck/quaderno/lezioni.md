@@ -16,6 +16,7 @@
 - Le cache firmate con la sola mtime di una cartella sono fragili su Windows (orologio a ~15 ms): un file nato nello stesso tick non si vede. Rileggere se la mtime è più recente di 2 s. _(2026-11-05)_
 - Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
 - `npx vitest run tests/main` non copre tests/autopilot-host: per modifiche al servizio lanciare anche quella cartella. _(2026-11-05)_
+- l'hook di carico del PC può rifiutare tsc e la suite completa (memoria libera al 5%, vmmemWSL): fare prima il commit e provare il singolo file, poi riprovare. _(2026-11-06)_
 
 ## worktree
 
@@ -148,3 +149,7 @@
 
 - Un caso atteso va nel registro come info (`log.info`), non `log.errore`: `erroriDalLog` conta solo ERRORE o parole come fallito/rifiutato/guasto, quindi il testo dell'avviso deve evitarle. _(2026-11-05)_
 - Terminal.tsx rimonta il riquadro a ogni cambio di workspace e di vista, e ogni montaggio rifà lo spawn: una condizione già nota (cartella sparita) va ricordata fuori dal componente. _(2026-11-05)_
+
+## main
+
+- la salute di un altro PC (/api/salute via remoto.chiama) è solo un cast, senza validazione: ogni campo letto dalle risposte remote va controllato, perché le versioni vecchie mandano altre forme. _(2026-11-06)_
