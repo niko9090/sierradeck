@@ -111,6 +111,12 @@ declare global {
         rifai: () => Promise<{ ok: boolean; messaggio: string }>
         suCambio: (cb: () => void) => () => void
       }
+      autoriparazione: {
+        stato: () => Promise<import('@shared/autoriparazione').StatoRiparazione | null>
+        ripara: () => Promise<{ ok: boolean; messaggio: string }>
+        torna: () => Promise<{ ok: boolean; messaggio: string }>
+        suCambio: (cb: () => void) => () => void
+      }
       riassetto: {
         stato: () => Promise<import('@shared/riassetto').StatoRiassetto | null>
         annulla: () => Promise<{ ok: boolean; messaggio: string }>

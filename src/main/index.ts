@@ -209,6 +209,8 @@ import { rinominaInElenco } from '@shared/vista-elenco'
 import { creaMigrazione, type Migrazione } from './migrazione-elenco'
 import { adottabili, avviaGiroAdozione, creaMigrazioneAdozione, type MigrazioneAdozione } from './adozione-chat'
 import { dormienteVivo } from '@shared/migrazione-adozione'
+import { creaAutoriparazione } from './autoriparazione'
+import { riassuntoRiparazione } from '@shared/autoriparazione'
 import { apriDettatura, statoDettatura } from './dettatura'
 
 /**
@@ -3908,11 +3910,51 @@ if (!app.requestSingleInstanceLock()) {
           errore: (riga) => registro.errore(riga)
         })
         adozioneGlobale = adozione
+        // **L'autoriparazione** (k-59): i workspace e le chat rimasti con l'assetto di prima
+        // vengono portati a quello nuovo, riusando le migrazioni; all'avvio e dal tasto
+        // «Ripara». Copia prima di cambiare, mai una chat fermata, idempotente.
+        const annunciaRiparazione = (): void => {
+          for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('autoriparazione:cambiata')
+        }
+        const autoriparazione = creaAutoriparazione({
+          dati,
+          leggiArchivio: () => workspaceStore?.leggi(),
+          elenco: {
+            leggi: () => impostazioni.preferenze().workspaceElenco,
+            scrivi: (lista) => {
+              const nuove = impostazioni.impostaPreferenze({ ...impostazioni.preferenze(), workspaceElenco: lista })
+              for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('preferenze:cambiate', nuove)
+            }
+          },
+          migrazione: { stato: () => migrazioneGlobale?.stato(), rifai: () => migrazioneGlobale?.rifai() ?? { esito: 'fallita' as const } },
+          adozione: { stato: () => adozione.stato(), rifai: () => adozione.rifai() },
+          servizio: {
+            pronto: () => clientAutopilota.assicuraServizio(),
+            ripara: (id) => clientAutopilota.ripara(id),
+            annulla: (id) => clientAutopilota.annullaRipara(id)
+          },
+          pcNoti: () => { const altri = postino.altrui(); return altri.length === 0 ? undefined : [identitaPc.leggi().id, ...altri.map((b) => b.pcId)] },
+          casaDi: (cwd) => proprietarioAltrove(cwd),
+          log: (riga) => registro.info(riga),
+          errore: (riga) => registro.errore(riga),
+          notifica: (titolo, testo) => { try { new Notification({ title: titolo, body: testo }).show() } catch { /* senza notifiche */ } }
+        })
+        const riparaOra = (motivo: 'avvio' | 'tasto' | 'turno-finito'): Promise<unknown> => autoriparazione.ripara(motivo).then((r) => { annunciaRiparazione(); return r })
+        ipcMain.handle('autoriparazione:stato', () => autoriparazione.stato())
+        ipcMain.handle('autoriparazione:ripara', async () => {
+          const r = await autoriparazione.ripara('tasto')
+          annunciaRiparazione()
+          return { ok: r !== undefined, messaggio: r !== undefined ? riassuntoRiparazione(r) : 'Non riuscita: guarda il registro.' }
+        })
+        ipcMain.handle('autoriparazione:torna', async () => { const r = await autoriparazione.tornaComePrima(); annunciaRiparazione(); return r })
+        // Le cose rimandate (chat al lavoro) si riprovano a turno finito: ogni 10 minuti, solo se c'è qualcosa che aspetta.
+        setInterval(() => { if (autoriparazione.daRiprovare()) void riparaOra('turno-finito').catch(() => undefined) }, 10 * 60_000).unref()
         void (async () => {
           try {
             if (!(await clientAutopilota.assicuraServizio())) { registro.info('[migrazione] adozione rimandata: il servizio degli autopiloti non è partito'); return }
             await adozione.esegui()
           } catch (err) { registro.errore(`[migrazione] adozione non partita: ${String(err)}`) }
+          void riparaOra('avvio').catch((err: unknown) => registro.errore(`[autoriparazione] non partita: ${String(err)}`))
           for (const w of finestreDiChat()) if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('migrazione:cambiata')
           avviaGiroAdozione({
             servizio,

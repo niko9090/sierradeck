@@ -106,7 +106,7 @@ export type EsitoPassaggio = {
 }
 
 /** La chat è viva: non finita, non in chiusura, non conclusa. */
-const viva = (c: ChatGovernata): boolean => c.stato !== 'finita' && c.fine === undefined && c.conclusa === undefined && c.nelRecupero === undefined
+export const viva = (c: ChatGovernata): boolean => c.stato !== 'finita' && c.fine === undefined && c.conclusa === undefined && c.nelRecupero === undefined
 
 /** Un autopilota «a chat sola» con la sua chat accesa: la chat è lui. */
 const chatSola = (a: Autopilota): boolean => a.chats.length === 0 && a.sessionId !== undefined && (a.stato === 'lavoro' || a.stato === 'attesa')
