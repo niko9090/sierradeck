@@ -23,6 +23,8 @@
 - I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
 - Con l'autopilota finto gli eventi (sveglie) partono solo a turno chiuso: nei test del servizio emettere un `result` dopo gli assistant, altrimenti l'evento resta in raccolta _(2026-11-06)_
 - Senza DOM i tasti si provano chiamando il componente puro come funzione e cercando onClick nell'albero degli elementi; la pagina si prova con new Function sulle funzioni estratte. _(2026-11-06)_
+- L'hook di carico PC rimanda vitest per cartella e tsc, ma lascia passare un file alla volta, anche in un ciclo `for` con percorsi espliciti: così si prova il ramo a PC carico. _(2026-11-06)_
+- `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
 
 ## worktree
 
