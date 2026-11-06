@@ -1,3 +1,4 @@
+import { creaFreno } from '../../src/main/cassaforte/freno-drive'
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
@@ -115,8 +116,8 @@ describe('un 403 di Google', () => {
   it('il Drive pieno no: aspettare non lo svuota', async () => {
     const corpo = JSON.stringify({ error: { code: 403, message: "The user's Drive storage quota has been exceeded.", errors: [{ reason: 'storageQuotaExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
-    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
-    await expect(a.elenca()).rejects.toThrow(/403/)
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno: creaFreno() })
+    await expect(a.elenca()).rejects.toThrow(/Drive pieno/)
     expect(d.chiamate()).toBe(1)
   })
 
