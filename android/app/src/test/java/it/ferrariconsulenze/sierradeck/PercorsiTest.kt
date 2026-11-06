@@ -24,6 +24,16 @@ class PercorsiTest {
     }
 
     @Test
+    fun `salvato con Tailscale e wifi di casa senza Tailscale - la rete di casa si prova per prima`() {
+        // L'identita e' l'indirizzo Tailscale dell'accoppiamento; il PC ha raccontato anche quelli di casa.
+        val c = Percorsi.candidati(vpn, listOf(casa, altraCasa), emptyList(), null)
+        assertEquals(casa, c.first())
+        // Con la sola impronta giusta sulla rete di casa, e Tailscale muto, si sceglie casa.
+        val scelto = Percorsi.scegli(c, mapOf(casa to "abc", vpn to null), "abc")
+        assertEquals(casa, scelto)
+    }
+
+    @Test
     fun `l ultimo che ha risposto va avanti a parita di strada`() {
         val c = Percorsi.candidati(casa, listOf(altraCasa), emptyList(), altraCasa)
         assertEquals(listOf(altraCasa, casa), c)
