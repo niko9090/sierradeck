@@ -153,6 +153,74 @@ describe('la sezione «Specialisti»: i tasti', () => {
   })
 })
 
+const ricca: VistaAttesa = {
+  posti: { usati: 2, tetto: 4 },
+  alLavoro: [
+    { posto: 1, id: 'a1', workspace: 'Nexora', workspaceNome: 'Nexora', compito: 'k-40', descrizione: 'k-40: rifai la tabella', titolo: 'Rifai la tabella', cosaFa: 'Modifica Tabella.tsx', percentuale: 40, minutiStimati: 12, tipo: 'specialista-ui', dal: iso(12), precedenza: 1 },
+    { posto: 2, id: 'a2', workspace: 'Altro', workspaceNome: 'Altro', descrizione: 'prova', titolo: 'Prova lunga', percentuale: 95, minutiStimati: 1, inRitardo: true, tipo: 'revisore', dal: iso(90), fermaRichiesta: true }
+  ],
+  inFila: [
+    { id: 'f1', posizione: 1, workspace: 'Altro', workspaceNome: 'Altro', descrizione: 'ricerca', titolo: 'Ricerca nei file', minutiStimati: 75, tipo: 'ricerca', dal: iso(2), priorita: 0, prenotata: false, parcheggiata: true },
+    { id: 'f2', posizione: 2, workspace: 'Nexora', workspaceNome: 'Nexora', descrizione: 'scheda', tipo: 'ricerca', dal: iso(1), priorita: 0, prenotata: false }
+  ],
+  totale: { minuti: 90, compiti: 4 }
+}
+
+describe('la sezione «Specialisti»: stime e workspace', () => {
+  it('in alto il totale accanto ai posti; senza totale non c’è', () => {
+    const h = html({ vista: ricca })
+    expect(h).toContain('2 di 4 posti occupati')
+    expect(h).toContain('Circa 1 h 30 min per finire tutto · 4 compiti')
+    expect(html()).not.toContain('per finire tutto')
+    expect(html({ vista: { ...ricca, totale: { minuti: 12, compiti: 1 } } })).toContain('Circa 12 min per finire tutto · 1 compito')
+  })
+
+  it('chi lavora: workspace, titolo breve, cosa fa, percentuale, minuti, in ritardo', () => {
+    const h = html({ vista: ricca })
+    expect(h).toContain('Rifai la tabella')
+    expect(h).toContain('Modifica Tabella.tsx')
+    expect(h).toContain('value="40"')
+    expect(h).toContain('40%')
+    expect(h).toContain('mancano circa 12 min')
+    expect(h.match(/in ritardo/g)).toHaveLength(1)
+  })
+
+  it('chi è in fila: minuti stimati e «parcheggiato» solo se serve', () => {
+    const h = html({ vista: ricca })
+    expect(h).toContain('circa 1 h 15 min per finire')
+    expect(h.match(/· parcheggiato/g)).toHaveLength(1)
+  })
+
+  it('il «?» delle stime c’è', () => {
+    expect(html({ vista: ricca }).match(/aiuto__tasto/g)?.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('la sezione «Specialisti»: Precedenza e Ferma', () => {
+  it('«↑ Precedenza» manda la mossa cima, senza chiedere', () => {
+    const onMossa = vi.fn()
+    tasto(props({ vista: ricca, onMossa }), 'a1', '↑ Precedenza').props.onClick()
+    expect(onMossa).toHaveBeenCalledWith('a1', 'cima')
+  })
+
+  it('«Ferma» chiede prima; la mossa parte solo dopo il «Sì»', () => {
+    const onMossa = vi.fn()
+    const onFerma = vi.fn()
+    tasto(props({ vista: ricca, onMossa, onFerma }), 'a1', 'Ferma').props.onClick()
+    expect(onFerma).toHaveBeenCalledWith('a1')
+    expect(onMossa).not.toHaveBeenCalled()
+    expect(html({ vista: ricca, daFermare: 'a1' })).toContain('Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato')
+    tasto(props({ vista: ricca, onMossa, daFermare: 'a1' }), 'a1', 'Sì, ferma').props.onClick()
+    expect(onMossa).toHaveBeenCalledWith('a1', 'ferma')
+  })
+
+  it('fermata già chiesta: «fermata chiesta…» e niente tasti', () => {
+    const h = html({ vista: ricca })
+    expect(h).toContain('fermata chiesta…')
+    expect(h.match(/>Ferma</g)).toHaveLength(1)
+  })
+})
+
 describe('la sezione «Specialisti»: nel programma', () => {
   const console_ = readFileSync('src/renderer/components/Console.tsx', 'utf8')
   const app = readFileSync('src/renderer/App.tsx', 'utf8')
