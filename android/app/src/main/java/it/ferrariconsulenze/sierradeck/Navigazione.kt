@@ -42,6 +42,7 @@ enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione:
     ALTRI_PC("Computer", "Accesi o spenti, chat dal vivo, cassetta", "computer"),
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
     CONSUMI("Consumi", "Token, limiti del piano, contesto"),
+    SPECIALISTI("Specialisti", "Chi lavora, chi è in fila per un posto"),
     AVVISI("Avvisi", "Controllo continuo, quali notifiche", "notifiche", "Preferenze"),
     ASPETTO("Aspetto", "Banco o Foglio, chiarore", "aspetto", "Preferenze"),
     DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive", "Preferenze"),
