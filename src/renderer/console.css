@@ -5074,3 +5074,21 @@ label.gc-voce { cursor: pointer; }
 .chat-spec__esito--errore { color: var(--rosso, #dc5f5f); }
 .chat-spec__vuota { color: var(--testo-quieto); font-size: 12px; margin: auto; }
 .chat-spec__piede { padding: 3px 8px; border-top: 1px solid var(--bordo); font-size: 11px; color: var(--testo-quieto); }
+
+/* ── Specialisti (k-49): chi lavora e chi è in fila per un posto ───────── */
+.spec { padding: 16px; display: flex; flex-direction: column; gap: 18px; max-width: 980px; }
+.spec__posti { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.spec__sezione { display: flex; flex-direction: column; gap: 6px; }
+.spec__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--incisione); border-radius: var(--raggio); }
+.spec__riga { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--incisione); }
+.spec__riga:last-child { border-bottom: 0; }
+.spec__riga--tocca { background: var(--luce-tenue); box-shadow: inset 3px 0 0 var(--ambra); }
+.spec__posto { min-width: 56px; font-variant-numeric: tabular-nums; color: var(--testo-quieto); font-weight: 700; }
+.spec__corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.spec__titolo { overflow-wrap: anywhere; }
+.spec__sotto { color: var(--testo-quieto); font-size: 12px; overflow-wrap: anywhere; }
+.spec__tocca { color: var(--ambra); font-weight: 700; }
+.spec__tasti { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.spec__chiede { font-size: 12px; color: var(--testo-quieto); margin-right: 4px; }
+.spec__vuoto { color: var(--testo-quieto); padding: 6px 2px; }
+.spec__vecchio { color: var(--ambra); }

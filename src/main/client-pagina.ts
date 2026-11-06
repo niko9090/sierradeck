@@ -27,6 +27,7 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
+import { daQuanto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca } from '@shared/attesa-vista'
 import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
@@ -787,6 +788,12 @@ ${apriSezioneAltro.toString()}
 ${indietroTelefono.toString()}
 ${versoDestinazione.toString()}
 ${pannelliDelPosto.toString()}
+// Le parole di Specialisti (k-49), da src/shared/attesa-vista.ts.
+${nomeWorkspace.toString()}
+${daQuanto.toString()}
+${quantoManca.toString()}
+${postiTesto.toString()}
+${prioritaTesto.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
 var IMPOSTAZIONI_PAGINA = ${JSON.stringify(sezioniDi('pagina').map((g) => ({ sezione: g.sezione, voci: g.voci.map((v) => ({ id: v.id, titolo: v.titolo, spiega: v.spiega, chiave: normalizzaImp([v.titolo, v.spiega, ...(v.parole ?? []), g.sezione.titolo].join(' ')) })) })))}
 /** La ricerca: le sezioni con almeno una voce che contiene tutte le parole (senza accenti). Aspetto si cerca per titolo. */
@@ -1196,6 +1203,10 @@ var driveLetturaTimer = null
 // Le fasi della lettura del Drive, le stesse della finestra sul PC.
 var FASI_CATALOGO = ${JSON.stringify(FASI_CATALOGO)}
 var consumiVisti = null
+// Specialisti (k-49): la lista d'attesa, come la dà il computer; null = non ancora letta, 'vecchio' = il servizio non la sa dare.
+var attesaVista = null
+var attesaConferma = ''
+var attesaNota = ''
 var schedeViste = null
 // Account e Drive del computer (0.70.0): la catena delle quattro tessere, decisa dal PC.
 var accountVisto = null
@@ -1911,6 +1922,8 @@ function impronta(s) {
     aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.subito ? 's' : '') + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
     consumiVisti ? JSON.stringify(consumiVisti) : '',
+    // Specialisti (k-49): la lista, la conferma di «Togli» e l'esito; i tempi si rifanno a ogni lettura.
+    aperto('specialisti') ? JSON.stringify([attesaVista, attesaConferma, attesaNota, Math.floor(Date.now() / 30000)]) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
     // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
@@ -2624,6 +2637,9 @@ function pannello(s) {
       <div class="riga"><button onclick="apriPannello('consumi')">Chiudi</button></div>
     </div>\`
 
+  // Specialisti (k-49): chi lavora e chi è in fila per un posto, con le mosse per cambiare l'ordine.
+  const vistaSpecialisti = !aperto('specialisti') ? '' : attesaHtml()
+
   // Il Quaderno (0.70.0): i tag con quante schede, la ricerca, la data corta e i tag su ogni riga.
   const vistaQuaderno = pannelloAperto !== 'quaderno' ? '' : quadernoHtml(schedeViste, schedaAperta, quadernoTag, cartellaPrima(), Date.now())
 
@@ -2804,6 +2820,7 @@ function pannello(s) {
       : posto.sezione === 'salute' ? vistaSalute
       : posto.sezione === 'pc' ? elencoPc
       : posto.sezione === 'consumi' ? vistaConsumi
+      : posto.sezione === 'specialisti' ? vistaSpecialisti
       : sezioneImpostazioni(tutteImpostazioni, posto.sezione)
   }
 
@@ -4119,6 +4136,13 @@ setInterval(async () => {
   await leggiConsumi()
   pannello(ultimoStato)
 }, 30000)
+
+// Specialisti (k-49): la fila cambia da sola, si rilegge ogni 4 secondi finché la sezione è aperta.
+setInterval(async () => {
+  if (!aperto('specialisti') || !chiave || document.hidden) return
+  await leggiAttesa()
+  pannello(ultimoStato)
+}, 4000)
 
 // La cassetta cambia dal PC destinatario (consegnata, fallita): si rilegge.
 setInterval(async () => {
@@ -5497,6 +5521,60 @@ async function leggiSalute() {
 }
 window.rileggiSalute = async () => { await leggiSalute(); pannello(ultimoStato) }
 
+// Specialisti (k-49). Il computer risponde sempre; con il servizio vecchio la lista è vuota e i posti sono 0.
+async function leggiAttesa() {
+  try {
+    const r = await chiedi('/api/specialisti/attesa', {})
+    attesaVista = r && r.posti && r.posti.tetto > 0 ? r : 'vecchio'
+  } catch (e) { if (attesaVista === null) attesaVista = 'vecchio' }
+}
+/** Dopo una mossa si mostra la lista che il servizio restituisce; se non risponde, resta quella di prima. */
+async function mossaAttesa(percorso, corpo) {
+  attesaConferma = ''
+  try {
+    const r = await chiedi(percorso, corpo)
+    attesaVista = r && r.posti ? r : attesaVista
+    attesaNota = ''
+  } catch (e) { attesaNota = 'Non è andata: il servizio non ha risposto. Riprova tra poco.'; await leggiAttesa() }
+  pannello(ultimoStato)
+}
+window.attesaMossa = (id, mossa) => mossaAttesa('/api/specialisti/attesa/priorita', { id: id, mossa: mossa })
+window.attesaTogli = (id) => { attesaConferma = id; pannello(ultimoStato) }
+window.attesaAnnulla = () => { attesaConferma = ''; pannello(ultimoStato) }
+window.attesaSi = (id) => mossaAttesa('/api/specialisti/attesa/togli', { id: id })
+window.attesaRileggi = async () => { await leggiAttesa(); pannello(ultimoStato) }
+/** La sezione Specialisti: posti, chi lavora, chi è in fila (stessi tasti del PC). */
+function attesaHtml() {
+  const testa = '<div class="piastrella"><div class="titolo">Specialisti' + aiuto('specialisti', 'Ogni specialista che lavora occupa un posto, e i posti di questo computer sono pochi. Quando sono tutti pieni, chi ne chiede uno resta in fila. Appena un posto si libera, il primo della fila lo ha prenotato per qualche minuto e il suo autopilota viene svegliato; se non lo usa passa al successivo. Con \\u2191, \\u2193 e \\u00abIn cima\\u00bb cambi l\\u2019ordine; \\u00abTogli\\u00bb fa uscire la richiesta dalla fila.') + '</div>'
+  if (attesaVista === null) return testa + '<div class="sotto">Leggo la lista\\u2026</div></div>'
+  if (attesaVista === 'vecchio') return testa + '<div class="sotto">Serve la versione nuova del servizio</div></div>'
+  const adesso = Date.now()
+  const v = attesaVista
+  const titolo = (x) => (x.compito ? '<b>' + esc(x.compito) + '</b> ' : '') + esc(x.descrizione)
+  const lavoro = v.alLavoro.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : v.alLavoro.map((x) =>
+    '<div class="cartella"><div><span class="sotto">Posto ' + esc(x.posto) + '</span> ' + titolo(x) + '</div>' +
+    '<div class="sotto">' + esc(nomeWorkspace(x.workspace)) + ' \\u00b7 ' + esc(x.tipo) + ' \\u00b7 lavora da ' + esc(daQuanto(x.dal, adesso)) + '</div></div>').join('')
+  const fila = v.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : v.inFila.map((x, i) => {
+    const manca = x.prenotata ? quantoManca(x.prenotataFino, adesso) : ''
+    const tocca = x.prenotata ? ' \\u00b7 <b>tocca a lui</b>' + (manca ? ' (' + (manca === 'scaduta' ? 'scaduta' : 'ancora ' + esc(manca)) + ')' : '') : ''
+    const id = escJs(x.id)
+    const tasti = attesaConferma === x.id
+      ? '<span class="sotto">Toglierla dalla fila?</span> <button onclick="attesaSi(\\'' + id + '\\')">S\\u00ec, togli</button> <button onclick="attesaAnnulla()">No</button>'
+      : '<button aria-label="Sposta pi\\u00f9 in alto"' + (i === 0 ? ' disabled' : '') + ' onclick="attesaMossa(\\'' + id + '\\', \\'su\\')">\\u2191</button>' +
+        '<button aria-label="Sposta pi\\u00f9 in basso"' + (i === v.inFila.length - 1 ? ' disabled' : '') + ' onclick="attesaMossa(\\'' + id + '\\', \\'giu\\')">\\u2193</button>' +
+        '<button' + (i === 0 ? ' disabled' : '') + ' onclick="attesaMossa(\\'' + id + '\\', \\'cima\\')">In cima</button>' +
+        '<button onclick="attesaTogli(\\'' + id + '\\')">Togli</button>'
+    return '<div class="cartella"><div><span class="sotto">' + esc(x.posizione) + '\\u00b0</span> ' + titolo(x) + '</div>' +
+      '<div class="sotto">' + esc(nomeWorkspace(x.workspace)) + ' \\u00b7 ' + esc(x.tipo) + ' \\u00b7 aspetta da ' + esc(daQuanto(x.dal, adesso)) + ' \\u00b7 priorit\\u00e0 ' + esc(prioritaTesto(x.priorita)) + tocca + '</div>' +
+      '<div class="riga">' + tasti + '</div></div>'
+  }).join('')
+  return testa + '<div class="numeri" style="margin-top:12px"><div class="numero"><b>' + esc(postiTesto(v.posti.usati, v.posti.tetto)) + '</b></div></div>' +
+    (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
+    '<div class="solco"></div><div class="titolo">Al lavoro adesso</div>' + lavoro +
+    '<div class="solco"></div><div class="titolo">In fila</div>' + fila +
+    '<div class="riga"><button onclick="attesaRileggi()">Aggiorna</button></div></div>'
+}
+
 window.installaAggiornamento = async () => {
   noteAgg = { leggo: true }
   pannello(ultimoStato)
@@ -5690,6 +5768,7 @@ function vaiAlPosto(nuovo) {
   entra(() => { leggiSalute().then(ridisegna) }, inVista('salute'))
   entra(() => { postaVoci = null; leggiPc().then(ridisegna) }, aperto('pc'))
   entra(() => { leggiConsumi().then(ridisegna) }, aperto('consumi'))
+  entra(() => { attesaConferma = ''; attesaNota = ''; leggiAttesa().then(ridisegna) }, aperto('specialisti'))
   entra(() => { Promise.all([leggiPreferenze(), leggiAggiornamento(), leggiQuadernoPersonale(), leggiAccount()]).then(ridisegna) }, inVista('impostazioni') || (nuovo.voce === 'altro' && prima.voce !== 'altro'))
   pannello(ultimoStato)
   window.scrollTo(0, 0)

@@ -64,6 +64,7 @@ import { decidiFumettiDrive, FUMETTO_ARRIVO_MS, FUMETTO_ESITO_OK_MS } from './fu
 import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande } from './components/PannelloDomande'
+import { PannelloSpecialisti, useAttesaSpecialisti } from './components/PannelloSpecialisti'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
@@ -937,6 +938,9 @@ export function App(): React.JSX.Element {
   // Quante conversazioni della scheda Domande aspettano una risposta: il
   // numero sul tasto, letto dalle stesse rotte del telefono (0.36.0).
   const [domandeInAttesa, setDomandeInAttesa] = useState(0)
+  // Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti».
+  const { vista: vistaSpecialisti } = useAttesaSpecialisti(true)
+  const specialistiInFila = typeof vistaSpecialisti === 'object' ? vistaSpecialisti.inFila.length : 0
   // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
@@ -1761,6 +1765,7 @@ export function App(): React.JSX.Element {
         onDomande={() => commutaColonna('domande')}
         progettiAperti={pannelloDrive}
         onProgetti={() => setPannelloDrive((a) => !a)}
+        specialistiInFila={specialistiInFila}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -2062,6 +2067,7 @@ export function App(): React.JSX.Element {
             suiConsumi={saluteSuConsumi}
           />
         ) : null}
+        {aperto === 'specialisti' ? <PannelloSpecialisti onChiudi={() => setAperto(undefined)} /> : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri
           // dove valgono. I plugin valgono per tutte, e non dipendono da questa.
