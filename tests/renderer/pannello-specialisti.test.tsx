@@ -188,7 +188,7 @@ describe('la sezione «Specialisti»: stime e workspace', () => {
   it('chi è in fila: minuti stimati e «parcheggiato» solo se serve', () => {
     const h = html({ vista: ricca })
     expect(h).toContain('circa 1 h 15 min per finire')
-    expect(h.match(/parcheggiato/g)).toHaveLength(1)
+    expect(h.match(/· parcheggiato/g)).toHaveLength(1)
   })
 
   it('il «?» delle stime c’è', () => {
