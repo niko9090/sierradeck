@@ -70,6 +70,7 @@ import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
 import { ChatAutopilota } from './components/ChatAutopilota'
 import { ChatSpecialisti } from './components/ChatSpecialisti'
+import { AutopilotaRemoto } from './components/ChatAutopilotaRemota'
 import { gruppoStabile, numeraUguali, righeDalVivo, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
 import { ruoloDaContenuto } from '@shared/adozione'
 import { RUOLI, RUOLI_ORDINE } from '@shared/ruoli-agenti'
@@ -1013,6 +1014,8 @@ export function App(): React.JSX.Element {
   // la colonna sottile dell'autopilota, e per ogni chat il gruppo mostrato e da quando (8 s di quiete).
   const [linguettaPerWs, setLinguettaPerWs] = useState<Record<string, string>>({})
   const [colonnaAutopilota, setColonnaAutopilota] = useState(false)
+  // k-60: la chat remota è aperta di suo (Nicholas la vuole sempre in vista); si chiude col tasto della barra.
+  const [colonnaRemotaChiusa, setColonnaRemotaChiusa] = useState(false)
   const gruppiMostrati = useRef(new Map<string, { gruppo: StatoScheda; statoDal: number; stato: StatoScheda }>())
   const nateIl = useRef(new Map<string, number>())
   const davantiPrima = useRef(new Map<string, string>())
@@ -1618,6 +1621,8 @@ export function App(): React.JSX.Element {
   })()
   // L'autopilota del workspace (30/10: uno per workspace, sempre acceso), in tutte e due le viste.
   const autopilotaFisso = autopilotaDelWorkspace(autopiloti, workspace.attivo)
+  // k-60: un workspace aperto da un altro PC non ha qui il suo autopilota: sta là. Si vede dal vivo, con gli specialisti di quel PC di fianco.
+  const remotoDelWorkspace = autopilotaFisso === undefined ? Object.values(riquadriAperti).find((p) => p.remoto !== undefined)?.remoto : undefined
   // La Panoramica (0.77.0): una scheda per chat del workspace, più gli specialisti che hanno finito.
   const linguetta = vistaElenco !== undefined ? (linguettaPerWs[workspace.attivo] ?? PANORAMICA) : PANORAMICA
   const schedePanoramica = ((): SchedaVista[] => {
@@ -2114,23 +2119,26 @@ export function App(): React.JSX.Element {
               schede={schedePanoramica}
               linguetta={linguetta}
               onLinguetta={vaiLinguetta}
-              colonna={colonnaAutopilota}
-              onColonna={setColonnaAutopilota}
-              conAutopilota={autopilotaFisso !== undefined}
+              colonna={remotoDelWorkspace !== undefined ? !colonnaRemotaChiusa : colonnaAutopilota}
+              onColonna={remotoDelWorkspace !== undefined ? (v: boolean) => setColonnaRemotaChiusa(!v) : setColonnaAutopilota}
+              conAutopilota={autopilotaFisso !== undefined || remotoDelWorkspace !== undefined}
               onMosaico={() => impostaElenco(workspace.attivo, false)}
             />
           ) : (
             // Tutte le chat affiancate (0.78.1): la stessa barra in alto, con l'interruttore per tornare alla Panoramica.
             <BarraAffiancate
               onPanoramica={() => { setLinguettaPerWs((m) => ({ ...m, [workspace.attivo]: PANORAMICA })); impostaElenco(workspace.attivo, true) }}
-              colonna={colonnaAutopilota}
-              onColonna={setColonnaAutopilota}
-              conAutopilota={autopilotaFisso !== undefined}
+              colonna={remotoDelWorkspace !== undefined ? !colonnaRemotaChiusa : colonnaAutopilota}
+              onColonna={remotoDelWorkspace !== undefined ? (v: boolean) => setColonnaRemotaChiusa(!v) : setColonnaAutopilota}
+              conAutopilota={autopilotaFisso !== undefined || remotoDelWorkspace !== undefined}
             />
           )}
           {/* La colonna sottile dell'autopilota, sulle linguette delle chat e fra le chat affiancate: si apre e si chiude. */}
           {autopilotaFisso !== undefined && colonnaAutopilota && (vistaElenco === undefined || linguetta !== PANORAMICA) ? (
             <aside className="pan-colonna" aria-label="L’autopilota"><ChatAutopilota key={autopilotaFisso.id} autopilota={autopilotaFisso} onCambiato={ricaricaAutopiloti} /></aside>
+          ) : null}
+          {remotoDelWorkspace !== undefined && !colonnaRemotaChiusa ? (
+            <AutopilotaRemoto key={`${remotoDelWorkspace.pcId}|${workspace.attivo}`} pcId={remotoDelWorkspace.pcId} pcNome={remotoDelWorkspace.pcNome} workspace={workspace.attivo} />
           ) : null}
           {root ? (
             <Mosaic

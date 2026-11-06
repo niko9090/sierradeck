@@ -2397,17 +2397,18 @@ if (!app.requestSingleInstanceLock()) {
         const io = identitaPc.leggi()
         // Un PC, una riga (0.73.0): un'identità vecchia dello stesso PC non fa un doppione.
         const battiti = unBattitoPerNome((await postino.pcSubito().catch(() => postino.altrui())).filter((b) => b.pcId !== io.id), nomeDaMostrare)
-        return Promise.all(battiti.map(async (b): Promise<AutopilotiDiPc> => {
-          const nome = nomeDaMostrare(b)
-          try {
-            const st = await remoto.chiama(b.pcId, '/api/stato')
-            const strada = remoto.stradaDi(b.pcId)?.strada
-            return { pcId: b.pcId, nome, autopiloti: autopilotiDaStato(st), ...(strada !== undefined ? { strada } : {}) }
-          } catch (err) {
-            const m = err instanceof Error ? err.message : String(err)
-            return { pcId: b.pcId, nome, autopiloti: [], errore: erroreAltroPc(nome, m, remoto.proveDi?.(b.pcId) ?? []), ...(err instanceof ErroreRemoto ? { motivo: err.motivo } : {}) }
-          }
-        }))
+        return Promise.all(battiti.map((b) => autopilotiDiUnPc(b.pcId, nomeDaMostrare(b))))
+      }
+      // k-60: gli autopiloti di un PC solo (la chat remota del workspace aperto da lì).
+      const autopilotiDiUnPc = async (pcId: string, nome: string): Promise<AutopilotiDiPc> => {
+        try {
+          const st = await remoto.chiama(pcId, '/api/stato')
+          const strada = remoto.stradaDi(pcId)?.strada
+          return { pcId, nome, autopiloti: autopilotiDaStato(st), ...(strada !== undefined ? { strada } : {}) }
+        } catch (err) {
+          const m = err instanceof Error ? err.message : String(err)
+          return { pcId, nome, autopiloti: [], errore: erroreAltroPc(nome, m, remoto.proveDi?.(pcId) ?? []), ...(err instanceof ErroreRemoto ? { motivo: err.motivo } : {}) }
+        }
       }
       azioneAutopilotaAltroPc = async (pc, percorso, corpo, visore) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
@@ -2427,6 +2428,10 @@ if (!app.requestSingleInstanceLock()) {
         }
       }
       ipcMain.handle('autopiloti:altri', () => autopilotiAltri?.() ?? [])
+      ipcMain.handle('autopiloti:diPc', (_e, pc: unknown) => {
+        const id = String(pc)
+        return autopilotiDiUnPc(id, (nomeDaMostrare(postino.altrui().find((b) => b.pcId === id)) || id.slice(0, 8)))
+      })
       ipcMain.handle('autopiloti:altroPc', (_e, pc: unknown, percorso: unknown, corpo: unknown) =>
         azioneAutopilotaAltroPc === undefined ? { ok: false, stato: 409, messaggio: 'il collegamento con gli altri PC non è ancora pronto' }
           : azioneAutopilotaAltroPc(String(pc), String(percorso), typeof corpo === 'object' && corpo !== null ? corpo as Record<string, unknown> : {}))

@@ -5125,3 +5125,10 @@ label.gc-voce { cursor: pointer; }
 .menuspec__chiede { font-size: 12px; color: var(--testo-quieto); }
 .menuspec__vuoto { color: var(--testo-quieto); padding: 4px 2px; }
 .menuspec__piede { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--testo-quieto); }
+
+/* ── Autopilota e specialisti di un workspace su un altro PC (k-60) ────── */
+.chatap--remota .chatap__testa { justify-content: space-between; align-items: center; }
+.colspec-remota .chatap__testa { justify-content: flex-start; }
+.chatap__pensa--giu { color: var(--ambra); }
+.pan-colonna--remota { flex: 0 0 320px; }
+.colspec-remota { flex: 0 0 280px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: auto; padding: 4px 6px; border-right: 1px solid var(--bordo); }
