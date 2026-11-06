@@ -210,6 +210,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
   /** Gli autopiloti dei workspace: gli altri file dell'archivio sono di prima e non si mostrano. */
   const unici = (): Autopilota[] => unico?.unici() ?? []
+  /** I messaggi del dialogo già scritti (autopilota|idMessaggio): un secondo tentativo con lo stesso id non li ripete. */
+  const dialoghiRicevuti = new Set<string>()
   const leggiUnico = (id: string): Autopilota | undefined => (ID_VALIDO.test(id) && unico?.eUnico(id) === true ? deps.archivio.leggi(id) : undefined)
 
   // ── I segni di vita delle chat adottate ──
@@ -991,13 +993,28 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (cosa === 'dialogo') {
             const testo = testoDi(corpo.testo).trim()
             if (testo === '') { rispondi(res, 400, { errore: 'non hai scritto niente' }); return }
+            // Con l'id del messaggio un nuovo tentativo (il pannello ha aspettato troppo) non lo scrive due volte.
+            const idMsg = testoDi(corpo.idMessaggio).trim().slice(0, 80)
+            const chiave = `${id}|${idMsg}`
+            if (idMsg !== '' && dialoghiRicevuti.has(chiave)) {
+              rispondi(res, 202, { ricevuto: true, giaArrivato: true, autopilota: deps.archivio.leggi(id) ?? a })
+              return
+            }
+            const ricorda = (): void => {
+              if (idMsg === '') return
+              dialoghiRicevuti.add(chiave)
+              if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
+            }
             // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
             const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
             if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
+              ricorda()
               rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })
               return
             }
-            rispondi(res, 202, { ricevuto: true, autopilota: servizio().messaggio(a, testo) })
+            const nuovo = servizio().messaggio(a, testo)
+            ricorda()
+            rispondi(res, 202, { ricevuto: true, autopilota: nuovo })
             return
           }
           // Un annuncio del programma (0.81.0, «Errori arrivati»): una sua battuta e una notifica sola.

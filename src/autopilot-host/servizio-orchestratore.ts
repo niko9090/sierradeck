@@ -988,7 +988,13 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     x.salva(conTua)
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo })
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
-    orchestratore.messaggio(ws, { quando, testo })
+    // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
+    // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
+    const chiuse = x.domande.aperte(a.id).filter((d) => d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
+    const nota = chiuse.length > 0
+      ? ` [Il programma ha chiuso ${chiuse.length === 1 ? 'una tua domanda aperta' : `${chiuse.length} tue domande aperte`}, perché hai scritto nel dialogo dopo: ${chiuse.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se serve ancora la risposta, rifalla.]`
+      : ''
+    orchestratore.messaggio(ws, { quando, testo: `${testo}${nota}` })
     return x.archivio.leggi(a.id) ?? conTua
   }
 
@@ -1062,8 +1068,22 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    */
   const chiudiDomandeVecchie = (ora: number): void => {
     // 0.92.1: le domande di un autopilota che non c'è più (archiviato, o di prima dell'autopilota unico).
-    const esistono = new Set(x.archivio.elenca().map((a) => a.id))
+    const tutti = x.archivio.elenca()
+    const esistono = new Set(tutti.map((a) => a.id))
+    // k-44: un autopilota finito, fallito o archiviato non aspetta più nessuna risposta.
+    const conclusi = new Set(tutti.filter((a) => a.archiviato === true || a.stato === 'finito' || a.stato === 'fallito').map((a) => a.id))
     for (const d of x.domande.aperte()) {
+      if (conclusi.has(d.autopilotaId)) {
+        if (x.domande.superata(d.id, 'l’autopilota che l’aveva fatta è finito o archiviato: non serve più')) console.info(`[orchestratore] domanda di un autopilota concluso, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+        continue
+      }
+      // k-44: la chat che aveva chiesto è finita: la sua domanda non ha più chi la aspetta.
+      const chatId = d.contesto?.chatId
+      const autore = tutti.find((a) => a.id === d.autopilotaId)
+      if (chatId !== undefined && autore?.chats.some((c) => c.id === chatId && c.stato === 'finita') === true) {
+        if (x.domande.superata(d.id, 'la chat che l’aveva fatta è finita: non serve più')) console.info(`[orchestratore] domanda di una chat finita, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+        continue
+      }
       if (esistono.has(d.autopilotaId)) continue
       if (x.domande.superata(d.id, 'l’autopilota che l’aveva fatta non c’è più')) console.info(`[orchestratore] domanda di un autopilota che non c’è più, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
     }

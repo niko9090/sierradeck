@@ -372,6 +372,21 @@ describe('rispondere nella chat vale come risposta', () => {
     expect(code.leggi('Lavoro').richieste.length).toBe(prima + 1)
   })
 
+  it('lo stesso messaggio ripetuto (stesso idMessaggio) non risponde due volte: la seconda domanda resta aperta', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    await mcp('chiedi_utente', { domanda: 'Il menu va a sinistra o a destra?', perche: 'cambia il resto', scelte: ['Sinistra → a sinistra', 'Destra → a destra'] })
+    expect(domande.aperte(idUnico())).toHaveLength(2)
+    const manda = (): Promise<Response> => posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1', idMessaggio: 'm-1' })
+    expect((await (await manda()).json() as { giaArrivato?: boolean }).giaArrivato).toBeUndefined()
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+    const ripetuto = await (await manda()).json() as { ricevuto: boolean; giaArrivato?: boolean }
+    expect(ripetuto).toMatchObject({ ricevuto: true, giaArrivato: true })
+    expect(domande.aperte(idUnico())).toHaveLength(1)
+  })
+
   it('toccare un tasto (la risposta del PC) funziona anche prima che la domanda sia nelle Domande', async () => {
     zitto()
     await avviaServizio()
