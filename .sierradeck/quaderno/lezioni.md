@@ -291,3 +291,9 @@
 ## unione
 
 - Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
+
+## criteri
+
+- La cache dei criteri (criteri-veloci.ts:193-232) è solo in RAM (server.ts:188), chiave = impronta dei file tracciati più comando, senza scadenza: un rosso resta finché il contenuto non cambia o il se… _(2026-11-06)_
+- daRicordare esclude solo timeout e problemi d'ambiente: un test instabile che fallisce una volta blocca l'unione su quel contenuto. Il riuso dell'esito vecchio non passa dal guardiano del carico. _(2026-11-06)_
+- Il cancello ricorda in RAM anche i rossi (criteri-veloci.ts, chiave = file tracciati + comando, senza scadenza): un test instabile blocca ogni unione finché main non cambia o il servizio riparte. _(2026-11-06)_
