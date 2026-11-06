@@ -4353,6 +4353,9 @@ if (!app.requestSingleInstanceLock()) {
           return { ...(orchestratore !== undefined ? { orchestratore } : {}), ...(coda !== undefined ? { coda } : {}) }
         },
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
+        attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
+        prioritaAttesaSpecialisti: (id: string, mossa: 'su' | 'giu' | 'cima') => clientAutopilota.prioritaAttesa(id, mossa),
+        togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).

@@ -54,7 +54,7 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
 
 // ---------------------------------------------------------------- tipi
 
-export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta'
+export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto'
 export type EventoOrchestratore = { tipo: TipoEvento; quando: string; testo: string; chat?: string }
 export type MessaggioUtente = { quando: string; testo: string }
 
@@ -176,7 +176,8 @@ const PAROLA_EVENTO: Record<TipoEvento, string> = {
   fermo: 'si è fermato',
   risposta: 'risposta di Nicholas',
   adozione: 'adozione',
-  'domanda-scaduta': 'domanda scaduta'
+  'domanda-scaduta': 'domanda scaduta',
+  posto: 'lista d’attesa'
 }
 
 /** Il messaggio di un turno: stato, indice del quaderno, (le ultime battute), eventi e messaggi. */

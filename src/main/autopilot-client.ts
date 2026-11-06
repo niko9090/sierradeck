@@ -5,6 +5,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
+import type { MossaPriorita, VistaAttesa } from '@shared/attesa-specialisti'
 import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
@@ -156,10 +157,16 @@ export type ClientAutopilota = {
   /** 0.90.0: la conversazione di uno specialista. */
   specialista: (ws: string, id: string) => Promise<TrascrizioneSpecialista | undefined>
   impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
+  /** k-48: la lista d'attesa degli specialisti. Un servizio vecchio non ce l'ha: `undefined`. */
+  attesaSpecialisti: () => Promise<VistaAttesa | undefined>
+  prioritaAttesa: (id: string, mossa: MossaPriorita) => Promise<VistaAttesa | undefined>
+  togliAttesa: (id: string) => Promise<VistaAttesa | undefined>
 }
 
 /** Un'unione fatta a mano: ogni punto delle richieste unite va nominato. */
 export type UnioneAMano = { ids: string[]; testo: string; titolo?: string; punti: PuntoProposto[]; perche: string }
+
+const vistaAttesaValida = (r: unknown): VistaAttesa | undefined => (typeof r === 'object' && r !== null && Array.isArray((r as VistaAttesa).inFila) && Array.isArray((r as VistaAttesa).alLavoro) ? r as VistaAttesa : undefined)
 
 const ATTESA_PREDEFINITA_MS = 3000
 /** Le POST che scrivono (dialogo, nota, adozione): un servizio occupato ci mette di piu' di una lettura (k-42). */
@@ -442,6 +449,12 @@ export function creaClientAutopilota(p: {
       }
     },
     impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p })) as VistaOrchestratore,
+    async attesaSpecialisti() {
+      try { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET')) } catch { return undefined }
+    },
+    // Voce già partita o tolta (404): la lista com'è adesso.
+    prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
+    togliAttesa: async (id) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/togli', 'POST', { id })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
 
     async gestoreAvviato(aggiornamento) {
       // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.

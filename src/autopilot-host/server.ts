@@ -49,6 +49,7 @@ import { conPreambolo, prendiMessaggiPer, rimettiInCoda } from './stop-specialis
 import { campiVecchiDa } from './migra-orchestratore'
 import { creaServizioUnico, type EsitoAvvioUnico, type ServizioUnico } from './servizio-orchestratore'
 import { apriDoppioni, type ArchivioDoppioni } from './doppioni-store'
+import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
@@ -129,6 +130,8 @@ export type Dipendenze = {
   unioneDaSola?: boolean
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
+  /** k-48: la lista d'attesa degli specialisti. Assente: `servizio/attesa-specialisti.json` accanto agli autopiloti. */
+  attesa?: ArchivioAttesa
 }
 
 export type ServerAutopiloti = Server & {
@@ -888,6 +891,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().trascrizione(ws, id))
             return
           }
+          // k-48: la lista d'attesa degli specialisti (una per tutto il PC).
+          if (metodo === 'GET' && percorso === '/orchestratore/attesa') {
+            rispondi(res, 200, servizio().attesa())
+            return
+          }
+          if (metodo === 'POST' && percorso === '/orchestratore/attesa/priorita') {
+            const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+            const id = testoDi(corpo?.id).trim()
+            const mossa = corpo?.mossa
+            if (id === '' || (mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) { rispondi(res, 400, { errore: 'servono l’id della voce e la mossa (su, giu, cima)' }); return }
+            const v = servizio().prioritaAttesa(id, mossa)
+            if (v === undefined) { rispondi(res, 404, { errore: 'questa voce non è più in lista' }); return }
+            rispondi(res, 200, v)
+            return
+          }
+          if (metodo === 'POST' && percorso === '/orchestratore/attesa/togli') {
+            const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
+            const id = testoDi(corpo?.id).trim()
+            if (id === '') { rispondi(res, 400, { errore: 'manca l’id della voce' }); return }
+            const v = servizio().togliAttesa(id)
+            if (v === undefined) { rispondi(res, 404, { errore: 'questa voce non è più in lista' }); return }
+            rispondi(res, 200, v)
+            return
+          }
           if (metodo === 'POST' && percorso === '/orchestratore/impostazioni') {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const ws = testoDi(corpo?.ws).trim()
@@ -1242,6 +1269,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
     ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
+    attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.
     spostaNelRecupero: (cartella, motivo) => {
       const rec = apriRecuperoPasso({ dati: dirname(deps.archivio.cartella), versione: deps.versione ?? '0.0.0', passo: 'servizio-doppioni' })
