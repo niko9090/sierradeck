@@ -27,7 +27,7 @@ import { validateNomeWorkspace } from './validation'
 import { pathToSlug } from './indexer/project-scanner'
 import { firmaScelte, rispostaDaTesto, scelteDiTerminale, tastiPerRisposta, type Risposta, type Scelta } from '@shared/scelte-terminale'
 import { fraseEsito, premiEVerifica, type EsitoAltroPc, type EsitoPressione } from './risposta-verificata'
-import { TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shared/posta'
+import { PC_SPENTO_DOPO_MS, TAGLIO_OPZIONE_BATTITO, tagliaIntero, type OpzioneBattito } from '@shared/posta'
 import { leggiIdChatAltroPc, raccogliDomande, vociPerLeApp, type DomandaRisolta } from '@shared/domande-telefono'
 import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
@@ -743,12 +743,12 @@ export function rotteLibere(deps: DipendenzeRotte) {
 export const RISPOSTA_FRESCA_MS = 8000
 
 /**
- * Un PC e' acceso se il suo battito sul Drive ha meno di cinque minuti. Una
- * regola sola per `/api/pc` e per l'etichetta «acceso/spento» di `/api/sessioni`.
+ * Un PC e' acceso se il suo battito sul Drive ha meno di `PC_SPENTO_DOPO_MS`
+ * (il battito si riscrive ogni mezz'ora). Una regola sola per `/api/pc` e per l'etichetta «acceso/spento» di `/api/sessioni`.
  */
 export function battitoVivo(battito: string, ora: number): boolean {
   const t = Date.parse(battito)
-  return Number.isFinite(t) && ora - t < 5 * 60_000
+  return Number.isFinite(t) && ora - t < PC_SPENTO_DOPO_MS
 }
 
 /** Un pezzo dello schermo di una chat, come lo manda la finestra. */

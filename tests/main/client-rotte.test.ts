@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PC_SPENTO_DOPO_MS } from '../../src/shared/posta'
 import { rotteClient, rotteLibere, battitoVivo, type DipendenzeRotte } from '../../src/main/client-rotte'
 import { apriDispositivi } from '../../src/main/dispositivi'
 import { nuovoAutopilota } from '@shared/autopilota'
@@ -1146,7 +1147,7 @@ describe('il Drive dal telefono', () => {
         { id: 's-4', cwd: 'G:\\c', titolo: 'Di uno sconosciuto', quando: '' }
       ]),
       chatAltrove: (cwd) => (cwd.startsWith('E:') ? 'Portatile' : cwd.startsWith('F:') ? 'Fisso' : cwd.startsWith('G:') ? 'Vecchio' : undefined),
-      pc: () => Promise.resolve([battito('Portatile', 1), battito('Fisso', 30)])
+      pc: () => Promise.resolve([battito('Portatile', 1), battito('Fisso', PC_SPENTO_DOPO_MS / 60_000 + 5)])
     })
     const r = await rotteClient(su)({ metodo: 'GET', percorso: '/api/sessioni', corpo: undefined })
     const c = r.corpo as { sessioni: { id: string; altrove?: string; altroveAcceso?: boolean }[] }
@@ -1193,7 +1194,8 @@ describe('il Drive dal telefono', () => {
   it('un battito illeggibile non e un PC acceso', () => {
     expect(battitoVivo('non una data', Date.now())).toBe(false)
     expect(battitoVivo(new Date(1000).toISOString(), 1000 + 60_000)).toBe(true)
-    expect(battitoVivo(new Date(1000).toISOString(), 1000 + 6 * 60_000)).toBe(false)
+    expect(battitoVivo(new Date(1000).toISOString(), 1000 + PC_SPENTO_DOPO_MS - 1)).toBe(true)
+    expect(battitoVivo(new Date(1000).toISOString(), 1000 + PC_SPENTO_DOPO_MS)).toBe(false)
   })
 
 })

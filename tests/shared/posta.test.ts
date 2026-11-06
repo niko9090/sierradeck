@@ -28,3 +28,17 @@ describe('shared/posta', () => {
     expect(nomePosta('x1')).toBe('posta-x1')
   })
 })
+
+import { BATTITO_RISCRIVI_MS } from '../../src/shared/posta'
+import { ACCESO_ENTRO_MS } from '../../src/shared/pannello-drive'
+import { SPENTO_DOPO_MS } from '../../src/main/controllo-pc'
+
+describe('una sola nozione di PC acceso', () => {
+  it('la soglia sta sopra la cadenza del battito, con margine', () => {
+    expect(PC_SPENTO_DOPO_MS).toBeGreaterThan(BATTITO_RISCRIVI_MS + 60_000)
+  })
+  it('pannello e controllo usano la stessa soglia', () => {
+    expect(ACCESO_ENTRO_MS).toBe(PC_SPENTO_DOPO_MS)
+    expect(SPENTO_DOPO_MS).toBe(PC_SPENTO_DOPO_MS)
+  })
+})
