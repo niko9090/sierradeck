@@ -153,3 +153,8 @@
 ## main
 
 - la salute di un altro PC (/api/salute via remoto.chiama) è solo un cast, senza validazione: ogni campo letto dalle risposte remote va controllato, perché le versioni vecchie mandano altre forme. _(2026-11-06)_
+
+## general-purpose
+
+- LEZIONI: una copia creata a mano con `git worktree add` fuori da `SierraDeck.sierradeck-wt` non conta fra le cartelle dell'autopilota. Lì non si possono cancellare `google-oauth.json` e `local.proper… _(2026-11-06)_
+- LEZIONI: quando il PC è carico, tsc e la build vengono rimandati. Conviene aspettare a blocchi di 3–5 minuti e riprovare, senza chiudere nessun programma. _(2026-11-06)_
