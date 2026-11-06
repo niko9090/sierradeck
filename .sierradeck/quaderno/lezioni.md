@@ -44,10 +44,13 @@
 - I test della fila unioni passano `turni: creaTurni({unioneMaxMs})`: una unione appesa tiene `unendo` finché non scade il turno (default 12 min), e il secondo tentativo resta bloccato. _(2026-11-06)_
 - Con il guardiano che rimanda `tsc` e le suite, un ciclo di vitest su più file viene rimandato quanto la suite intera: si lanciano pochi file mirati per volta. _(2026-11-06)_
 - la descrizione di un Agent deve essere «k-N: …» perché la fila (compitoDi) riconosca il compito; «k1: …» lo riconosce il flusso ma non la fila _(2026-11-06)_
+- Tanti test in tests/main cercano stringhe esatte nello script di client-pagina.ts: basta aggiungere un'istruzione prima per romperli. Meglio controllare il pezzo dentro la riga. _(2026-11-06)_
+- Quando una release cambia un messaggio d'errore (es. freno Drive k-65), i test più vecchi che cercano il vecchio testo diventano rossi in silenzio. Con il guardiano «PC carico», lanciare i file a gru… _(2026-11-06)_
+- i test di `tests/main` che cercano stringhe esatte nel sorgente di `client-pagina.ts` si rompono a ogni riordino di `chiudiAp`: cercare la riga, non la sequenza intera _(2026-11-06)_
+- dopo k-65 il Drive pieno non contiene più «403» nel messaggio: il test controlla stato e flag `drivePieno _(2026-11-06)_
 
 ## worktree
 
-- il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
 - La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
 - Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
 - un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
@@ -58,21 +61,8 @@
 - Gli avvisi Node (DEPxxxx) arrivano su stderr dei figli (claude, PTY host) o via console.error: filtrarli con src/shared/avvisi-node.ts prima di chiamarli errori. _(2026-11-05)_
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 
-## consegne
-
-- Una cartella sparita va controllata anche al ritiro (`ritira`), non solo alla lettura della coda: una consegna già in coda riapriva il riquadro a ogni tentativo. _(2026-10-30)_
-
-## chiusura
-
-- I gruppi su 0.88.1/0.88.2 possono essere già corretti nella 0.88.3: confrontare la versione dell'errore con il commit prima di intervenire. _(2026-10-30)_
-
-## updater
-
-- electron-updater scrive con logger.error anche avvisi attesi (differenziale 501): filtrarli in creaLoggerUpdater, non nel gestore dell'evento `error`. _(2026-10-31)_
-
 ## shell
 
-- in PowerShell un messaggio di commit con apostrofi o virgolette in here-string inline può spezzare git: usare `git commit -F` con un file temporaneo. _(2026-10-31)_
 - Da un worktree il tool Bash rifiuta `cmd //c mklink`: per la junction node_modules usare PowerShell (New-Item -ItemType Junction) e `cmd /c rmdir` per toglierla. _(2026-10-31)_
 - Nei worktree il Bash rifiuta i comandi composti con heredoc e python: usa Write/Edit per i file. _(2026-11-01)_
 
@@ -347,3 +337,7 @@
 ## soglie
 
 - "PC acceso" ora ha una sola soglia, `PC_SPENTO_DOPO_MS` (35 min) in `shared/posta.ts`. Se il battito cambia cadenza, il margine sopra `BATTITO_RISCRIVI_MS` è verificato da un test. _(2026-11-06)_
+
+## criterio
+
+- con il guardiano «PC carico» la suite intera non parte: dividere in gruppi di 10-20 file, il guardiano accetta quelli piccoli _(2026-11-06)_
