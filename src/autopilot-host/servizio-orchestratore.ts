@@ -18,7 +18,7 @@ import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-st
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
-import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, scelteDaToccare } from './domande-in-chat'
+import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
@@ -177,7 +177,7 @@ export type ServizioUnico = {
   fermata: (a: Autopilota, chatId: string, corpo: Record<string, unknown>) => Record<string, unknown>
   notifica: (a: Autopilota, chatId: string | undefined, corpo: Record<string, unknown>) => void
   /** Una risposta di Nicholas a una domanda dell'unico: torna `true` se l'ha presa. */
-  risposta: (autopilotaId: string, domanda: string, risposta: string) => boolean
+  risposta: (autopilotaId: string, domanda: string, risposta: string, richiestaId?: string) => boolean
   guardia: () => void
   /** 0.96.0: la chat di questo workspace è davanti a Nicholas adesso (PC o telefono): le sue domande in chat contano come viste. */
   visto: (ws: string) => void
@@ -1148,13 +1148,30 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     evento(wsDi(a), { tipo: 'domanda', quando: x.adesso(), chat: chatId, testo })
   }
 
-  const risposta = (autopilotaId: string, domanda: string, testo: string): boolean => {
+  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
     const a = x.archivio.leggi(autopilotaId)
     if (a === undefined || !eUnico(a)) return false
     const ws = wsDi(a)
     const quando = x.adesso()
+    // k-64: la risposta entra nella coda (punto, richiesta riaperta o nuova), così piano_scrivi ha una richiesta aperta.
+    let nota = ''
+    try {
+      let esito: ReturnType<typeof rispostaInCoda> | undefined
+      x.code.cambia(ws, (c) => {
+        esito = rispostaInCoda(c, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
+        return { coda: esito.coda, eventi: [] }
+      })
+      if (esito !== undefined && esito.richiesta !== undefined && esito.esito !== 'niente' && esito.esito !== 'nota') {
+        nota = esito.esito === 'punto'
+          ? ` [Registrata come punto ${esito.punto} della richiesta ${esito.richiesta}, ancora aperta: piano_scrivi la accetta.]`
+          : esito.esito === 'riaperta'
+            ? ` [La richiesta ${esito.richiesta} era chiusa: l'ho riaperta con la risposta (${esito.punto}). piano_scrivi la accetta.]`
+            : ` [Ho aperto la richiesta ${esito.richiesta} con la domanda e la risposta: piano_scrivi la accetta, parti subito.]`
+        ricalcola(ws, `la risposta di Nicholas è lavoro (${esito.richiesta})`)
+      } else if (esito?.esito === 'nota') nota = ' [Nessun lavoro: non creo nessuna richiesta.]'
+    } catch (err) { console.error('[orchestratore] risposta non registrata nella coda:', err) }
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo: `Hai risposto a «${domanda.slice(0, 200)}»: ${testo}` })
-    orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}` })
+    orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}${nota}` })
     return true
   }
 

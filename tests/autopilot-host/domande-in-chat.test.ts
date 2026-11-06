@@ -10,7 +10,7 @@ import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaScritta, scelteDaToccare
+  devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -464,5 +464,113 @@ describe('la richiesta chiusa ritira la domanda', () => {
     await duePerCoda()
     await mcp('chiedi_utente', DOMANDA)
     expect(domande.aperte(idUnico())[0]!.contesto?.richiestaId).toBeUndefined()
+  })
+})
+
+describe('la risposta diventa lavoro nella coda (puro, k-64)', () => {
+  const Q = '2026-11-06T10:00:00.000Z'
+  const base = (r: Richiesta[], compattate: Coda['compattate'] = []): Coda => ({ ...codaVuota('Lavoro'), prossimo: { r: 10, p: 20 }, richieste: r, compattate })
+  const dom = 'Tengo il verde?'
+
+  it('richiesta aperta: la risposta è un punto p-N di quella richiesta', () => {
+    const e = rispostaInCoda(base([richiesta('r-1')]), { domanda: dom, risposta: 'Sì', richiestaId: 'r-1', quando: Q })
+    expect(e).toMatchObject({ esito: 'punto', richiesta: 'r-1', punto: 'p-20' })
+    expect(e.coda.richieste).toHaveLength(1)
+    expect(e.coda.richieste[0]!.punti[0]).toMatchObject({ id: 'p-20', da: 'r-1', stato: 'aperto' })
+    expect(e.coda.richieste[0]!.punti[0]!.testo).toContain('Tengo il verde?')
+    expect(e.coda.prossimo.p).toBe(21)
+  })
+  it('richiesta chiusa senza lavoro: riaperta con il punto', () => {
+    const chiusa = richiesta('r-1', { stato: 'fatta', chiusa: { come: 'risposta', perche: 'x', il: 'a' } })
+    const e = rispostaInCoda(base([chiusa]), { domanda: dom, risposta: 'Sì', richiestaId: 'r-1', quando: Q })
+    expect(e.esito).toBe('riaperta')
+    const r = e.coda.richieste[0]!
+    expect(r.chiusa).toBeUndefined()
+    expect(r.stato).toBe('in-coda')
+    expect(r.punti).toHaveLength(1)
+  })
+  it('richiesta già fatta o nello storico: richiesta nuova, che segue la vecchia', () => {
+    const e = rispostaInCoda(base([richiesta('r-1', { stato: 'fatta' })]), { domanda: dom, risposta: 'Sì, fallo', richiestaId: 'r-1', quando: Q })
+    expect(e.esito).toBe('nuova')
+    expect(e.coda.richieste).toHaveLength(2)
+    expect(e.coda.richieste[1]).toMatchObject({ id: 'r-10', segue: 'r-1', stato: 'in-coda' })
+    expect(e.coda.richieste[1]!.testo).toContain('Sì, fallo')
+    const s = rispostaInCoda(base([], [{ id: 'r-1', titolo: 't', fattaIl: 'a' }]), { domanda: dom, risposta: 'Sì', richiestaId: 'r-1', quando: Q })
+    expect(s.esito).toBe('nuova')
+  })
+  it('domanda senza richiesta: richiesta nuova con domanda e risposta', () => {
+    const e = rispostaInCoda(base([]), { domanda: dom, risposta: 'Sì', quando: Q })
+    expect(e.esito).toBe('nuova')
+    expect(e.coda.richieste[0]!.testo).toBe('Risposta di Nicholas a «Tengo il verde?»: Sì')
+    expect(e.coda.richieste[0]!.segue).toBeUndefined()
+  })
+  it('«no» e «lascia stare» non creano lavoro', () => {
+    for (const t of ['No', 'no.', 'Lascia stare', 'no grazie', 'Non serve!', '  ']) {
+      const c = base([richiesta('r-1')])
+      const e = rispostaInCoda(c, { domanda: dom, risposta: t, richiestaId: 'r-1', quando: Q })
+      expect(e.esito).toBe('nota')
+      expect(e.coda).toBe(c)
+    }
+    expect(rispostaSenzaLavoro('No, fai invece il blu')).toBe(false)
+    expect(rispostaInCoda(base([]), { domanda: dom, risposta: 'No', quando: Q }).coda.richieste).toHaveLength(0)
+  })
+  it('la stessa risposta due volte non fa doppioni', () => {
+    const a1 = rispostaInCoda(base([richiesta('r-1')]), { domanda: dom, risposta: 'Sì', richiestaId: 'r-1', quando: Q })
+    const b1 = rispostaInCoda(a1.coda, { domanda: dom, risposta: 'Sì', richiestaId: 'r-1', quando: Q })
+    expect(b1.esito).toBe('niente')
+    expect(b1.coda).toBe(a1.coda)
+    const a2 = rispostaInCoda(base([]), { domanda: dom, risposta: 'Sì', quando: Q })
+    const b2 = rispostaInCoda(a2.coda, { domanda: dom, risposta: 'Sì', quando: Q })
+    expect(b2.esito).toBe('niente')
+    expect(b2.coda.richieste).toHaveLength(1)
+  })
+})
+
+describe('la risposta alla domanda entra nella coda (servizio, k-64)', () => {
+  it('richiesta aperta: punto in più, nessuna richiesta nuova; l’autopilota lo sa', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    const prima = code.leggi('Lavoro').richieste
+    const rid = domande.aperte(idUnico())[0]!.contesto?.richiestaId
+    expect(rid).toBe(prima[0]!.id)
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: '1' })
+    const dopo = code.leggi('Lavoro').richieste
+    expect(dopo).toHaveLength(prima.length)
+    expect(dopo[0]!.punti.length).toBe(prima[0]!.punti.length + 1)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Registrata come punto')), { cosa: 'la nota all’autopilota' })
+  })
+
+  it('richiesta già chiusa (senza lavoro): riaperta, così piano_scrivi la accetta; il doppio arrivo non la tocca due volte', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    const rid = domande.aperte(idUnico())[0]!.contesto!.richiestaId!
+    code.cambia('Lavoro', (c) => ({ coda: { ...c, richieste: c.richieste.map((r) => (r.id === rid ? { ...r, chiusa: { come: 'risposta' as const, perche: 'x', il: new Date(ora).toISOString() } } : r)) }, eventi: [] }))
+    const d = domande.aperte(idUnico())[0]!
+    expect((await posta(`/domande/${d.id}/risposta`, { risposta: 'Sì → verde', da: 'modale' })).status).toBe(200)
+    const r = code.leggi('Lavoro').richieste.find((x) => x.id === rid)!
+    expect(r.chiusa).toBeUndefined()
+    expect(r.punti.some((p) => p.testo.includes('Sì → verde'))).toBe(true)
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('l\'ho riaperta')), { cosa: 'riapertura' })
+    // Secondo arrivo (telefono, Telegram): la domanda non c'è più, niente di nuovo.
+    const n = code.leggi('Lavoro').richieste.length
+    const punti = r.punti.length
+    await posta(`/domande/${d.id}/risposta`, { risposta: 'Sì → verde', da: 'modale' })
+    expect(code.leggi('Lavoro').richieste).toHaveLength(n)
+    expect(code.leggi('Lavoro').richieste.find((x) => x.id === rid)!.punti).toHaveLength(punti)
+  })
+
+  it('una risposta «No» non crea lavoro', async () => {
+    zitto()
+    await avviaServizio()
+    const { mcp, p0 } = await conStrumenti()
+    await mcp('chiedi_utente', DOMANDA)
+    const prima = JSON.stringify(code.leggi('Lavoro').richieste)
+    await posta(`/autopiloti/${idUnico()}/dialogo`, { testo: 'no' })
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('Nessun lavoro')), { cosa: 'nota' })
+    expect(JSON.stringify(code.leggi('Lavoro').richieste)).toBe(prima)
   })
 })
