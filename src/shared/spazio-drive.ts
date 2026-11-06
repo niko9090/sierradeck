@@ -312,7 +312,7 @@ export function proposteDiPulizia(p: {
   // spazio perso. Solo i file dei dati e dei battiti; mai l'indice, le lapidi,
   // il registro delle pulizie, i workspace o la cassaforte.
   const idFuori = idInRecupero(p.pulizie)
-  const doppioni = doppioniPerNome(p.file.filter((f) => f.id === undefined || !idFuori.has(f.id)))
+  const doppioni = doppioniPerNome(p.file.filter((f) => f.id === undefined || !idFuori.has(f.id)), p.indice)
   if (doppioni.length > 0) {
     fuori.push({
       tipo: 'doppioni-nome',
@@ -326,19 +326,26 @@ export function proposteDiPulizia(p: {
   return fuori
 }
 
-/** I nomi che non si toccano mai nei doppioni: solo i dati e i battiti sono ammessi. */
-function nomeDaDoppioni(nome: string): boolean {
-  return nome.startsWith('f_') || PREFISSI_BATTITI.some((x) => nome.startsWith(x))
+/**
+ * I file ammessi nei doppioni: le chat e i file dei progetti (dal percorso
+ * del manifesto: i file senza voce, e quelli di sistema come i workspace, no)
+ * e i battiti. Mai l'indice, le lapidi, il registro delle pulizie, la cassaforte.
+ */
+function nomeDaDoppioni(nome: string, perNome: Map<string, string>): boolean {
+  if (PREFISSI_BATTITI.some((x) => nome.startsWith(x))) return true
+  const percorso = perNome.get(nome)
+  return nome.startsWith('f_') && percorso !== undefined && ['chat', 'progetti'].includes(tipoDi(nome, percorso))
 }
 
 /**
  * I file in piu' fra quelli con lo stesso nome. Resta il piu' recente non
  * vuoto (la stessa scelta di chi legge); a pari ora, il primo dell'elenco.
  */
-export function doppioniPerNome(file: FileDrive[]): VocePulita[] {
+export function doppioniPerNome(file: FileDrive[], indice: IndiceDrive): VocePulita[] {
+  const percorsi = percorsiPerNome(indice)
   const perNome = new Map<string, FileDrive[]>()
   for (const f of file) {
-    if (f.id === undefined || !nomeDaDoppioni(f.nome)) continue
+    if (f.id === undefined || !nomeDaDoppioni(f.nome, percorsi)) continue
     perNome.set(f.nome, [...(perNome.get(f.nome) ?? []), f])
   }
   const fuori: VocePulita[] = []
