@@ -23,8 +23,20 @@ export const ESCLUSI_SEMPRE = new Set([
   'node_modules', '.venv', 'venv', '__pycache__', '.DS_Store', 'Thumbs.db', 'desktop.ini',
   '.pnpm-store', '.yarn', '.gradle', 'build', '.next', '.nuxt', '.turbo', '.cache',
   // 0.69.0: le uscite delle build, che si rigenerano con un comando.
-  'dist', 'out', '.parcel-cache', 'coverage'
+  'dist', 'out', '.parcel-cache', 'coverage',
+  // 0.95.6: le uscite di electron-builder, che riempivano il Drive.
+  'release', 'dist-electron'
 ])
+
+/** I binari che si rigenerano o si scaricano: mai sul Drive, ovunque stiano (fuori da `.git`). */
+const ESTENSIONI_ESCLUSE = new Set(['apk', 'aab', 'exe', 'msi', 'dmg', 'zip', '7z', 'iso', 'mp4', 'mov'])
+export function binarioEscluso(nome: string): boolean {
+  const i = nome.lastIndexOf('.')
+  return i > 0 && ESTENSIONI_ESCLUSE.has(nome.slice(i + 1).toLowerCase())
+}
+function dentroGit(rel: string): boolean {
+  return rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/')
+}
 
 /**
  * I recuperati di SierraDeck (copie di sicurezza locali, non lavoro): mai sul
@@ -35,7 +47,11 @@ export const ESCLUSI_SEMPRE = new Set([
  * 05/11 il Drive li caricava e cancellava a ogni specialista, e su un altro PC
  * punterebbero a cartelle che là non ci sono.
  */
-const CARTELLE_ESCLUSE = ['.sierradeck/recuperati', '.claude/worktrees', '.git/worktrees']
+const CARTELLE_ESCLUSE = [
+  '.sierradeck/recuperati', '.claude/worktrees', '.git/worktrees',
+  // 0.95.6: file passati da un PC all'altro e arrivati: gia' consegnati, non sono lavoro.
+  '.sierradeck/allegati', '.sierradeck/consegne', '.sierradeck/errori-arrivati'
+]
 export function cartellaEsclusa(rel: string): boolean {
   return CARTELLE_ESCLUSE.some((c) => rel === c || rel.endsWith(`/${c}`))
 }
@@ -43,7 +59,9 @@ export function cartellaEsclusa(rel: string): boolean {
 /** Oltre questo un file non e' un sorgente: e' un binario che si scarica, non si sincronizza. */
 // 0.69.0: era 100 MB. Un file di progetto oltre 50 MB è quasi sempre un
 // binario che si rigenera o si scarica (APK, installer, video, archivi).
-export const TETTO_FILE_BYTE = 50 * 1024 * 1024
+// 0.95.6: 20 MB fuori da `.git`; dentro `.git` resta 50 MB (la storia non si tocca).
+export const TETTO_GIT_BYTE = 50 * 1024 * 1024
+export const TETTO_FILE_BYTE = 20 * 1024 * 1024
 
 type Livello = { rel: string; regole: Regola[] }
 
@@ -67,7 +85,7 @@ function ignorato(livelli: Livello[], rel: string, cartella: boolean): boolean {
  */
 export async function elencaFileProgetto(
   cartella: string,
-  tettoByte = TETTO_FILE_BYTE
+  tettoByte?: number
 ): Promise<{ file: string[]; troppoGrandi: string[] }> {
   const file: string[] = []
   const troppoGrandi: string[] = []
@@ -92,7 +110,7 @@ export async function elencaFileProgetto(
     const relDi = (nome: string): string => (rel === '' ? nome : `${rel}/${nome}`)
     // I file di questa cartella si misurano insieme, sedici alla volta (0.80.0):
     // uno alla volta il salvataggio passava minuti sui progetti grandi.
-    const daMisurare = voci.filter((v) => !v.isSymbolicLink() && v.isFile() && !ESCLUSI_SEMPRE.has(v.name) && !ignorato(qui, relDi(v.name), false))
+    const daMisurare = voci.filter((v) => !v.isSymbolicLink() && v.isFile() && !ESCLUSI_SEMPRE.has(v.name) && !(binarioEscluso(v.name) && !dentroGit(relDi(v.name))) && !ignorato(qui, relDi(v.name), false))
     const misure = await statInParallelo(daMisurare.map((v) => join(dir, v.name)))
     const dimensione = new Map(daMisurare.map((v, i) => [v.name, misure[i]?.size]))
     for (const v of voci) {
@@ -107,7 +125,7 @@ export async function elencaFileProgetto(
         const size = dimensione.get(v.name)
         // Sparito o illeggibile fra l'elenco e lo stat.
         if (size === undefined) continue
-        if (size > tettoByte) { troppoGrandi.push(relVoce); continue }
+        if (size > (tettoByte ?? (dentroGit(relVoce) ? TETTO_GIT_BYTE : TETTO_FILE_BYTE))) { troppoGrandi.push(relVoce); continue }
         file.push(relVoce)
       }
     }

@@ -38,7 +38,7 @@ import { staDentro } from './registro'
 export type { ChatDiPc, BattitoPc, VocePosta, Posta, UscitaPosta, EsitoVoce, EsitiPosta } from '@shared/posta'
 export {
   nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, POSTA_PER_MITTENTE, pcVivo, pcCheHaLaCartella, staSottoCartella,
-  PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
+  PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { RisorsePc } from '@shared/risorse'
 import {
@@ -47,7 +47,7 @@ import {
 } from '@shared/posta'
 import {
   nomeBattitoPc, nomePosta, nomeUscita, nomeEsiti, pcVivo, POSTA_PER_MITTENTE,
-  PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
+  PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 
 /**
@@ -338,7 +338,7 @@ export function creaPostino(deps: {
     // Le risorse cambiano a ogni misura: se contassero, il battito si riscriverebbe a ogni giro.
     const { battito: _b, risorse: _r, ...senzaOra } = b
     const firma = JSON.stringify(senzaOra)
-    if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_PC_OGNI_MS) return
+    if (firma === ultimoBattito && adesso() - ultimoBattitoIl < BATTITO_RISCRIVI_MS) return
     await s.scrivi(nomeBattitoPc(b.pcId), b)
     // La prima volta si dice: e' l'unico modo, dal registro, di sapere se
     // questo PC si fa vedere dagli altri (il 17/09 nessuno vedeva nessuno e

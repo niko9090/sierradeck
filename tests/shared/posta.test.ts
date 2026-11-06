@@ -14,7 +14,7 @@ describe('shared/posta', () => {
     expect(sorgente).not.toMatch(/from '\.\.\/main/)
   })
 
-  it('pcVivo: acceso entro cinque minuti dal battito, spento dopo o senza battito', () => {
+  it('pcVivo: acceso entro 35 minuti dal battito, spento dopo o senza battito', () => {
     const t = Date.parse('2026-09-14T10:00:00Z')
     const b: BattitoPc = { pcId: 'a', nome: 'torre', versione: '0.27.0', battito: new Date(t).toISOString(), cartelle: [], chat: [] }
     expect(pcVivo(b, t + 60_000)).toBe(true)

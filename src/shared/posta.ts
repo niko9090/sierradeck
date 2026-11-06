@@ -191,9 +191,15 @@ export function nomeUscita(destinatario: string, mittente: string): string { ret
 export function nomeEsiti(destinatario: string): string { return `posta-${destinatario}-esiti` }
 
 /** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete. */
-export const PC_SPENTO_DOPO_MS = 5 * 60_000
-/** Il battito si riscrive comunque ogni tanto, anche se niente e' cambiato. */
+export const PC_SPENTO_DOPO_MS = 35 * 60_000
+/** Ogni quanto si rileggono i battiti degli altri PC. */
 export const BATTITO_PC_OGNI_MS = 2 * 60_000
+/**
+ * Il battito si riscrive da fermo solo ogni mezz'ora (era 2 minuti: ogni
+ * scrittura e' una revisione in piu' sul Drive). Per questo `PC_SPENTO_DOPO_MS`
+ * sta poco sopra: un PC fermo ma acceso non deve sembrare spento.
+ */
+export const BATTITO_RISCRIVI_MS = 30 * 60_000
 /** Una chat aperta dal postino che non arriva ad aspettare entro tanto: si riprova ad aprirla. */
 export const RIAPRI_DOPO_MS = 5 * 60_000
 /** Quante voci si tengono per PC: le consegnate piu' vecchie escono da sole. */
