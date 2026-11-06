@@ -43,7 +43,7 @@ function ambiente(opts: { pcId: string; nome: string; scatola: Scatola; cartelle
     apriChat: (c) => { aperte.push(c) },
     riprendiChat: (cwd, sessione) => { riprese.push({ cwd, sessione }) },
     scrivi: (id, testo) => { scritti.push({ id, testo }) },
-    adesso: () => orologio,
+    adesso: () => orologio, quietaOgniMs: 0,
     nuovoId: () => `v${scritti.length + aperte.length + registro.length + 1}-${Math.random().toString(36).slice(2, 6)}`,
     log: (m) => { registro.push(m) }
   })

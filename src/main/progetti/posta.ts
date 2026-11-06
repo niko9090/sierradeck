@@ -198,6 +198,8 @@ export function creaPostino(deps: {
   adesso?: () => number
   /** Il freno del Drive (k-65): a limite raggiunto o Drive pieno il giro sta fermo. */
   freno?: Freno
+  /** Ogni quanto si guarda la posta in arrivo quando e' tutto fermo (k-65): predefinito un minuto e mezzo. */
+  quietaOgniMs?: number
   nuovoId?: () => string
   log?: (m: string) => void
   /**
@@ -227,9 +229,9 @@ export function creaPostino(deps: {
    * minuto e mezzo. Ogni lettura e' una richiesta al Drive.
    */
   const POSTA_ATTIVA_MS = 5 * 60_000
-  const POSTA_QUIETA_OGNI_MS = 90_000
-  let ultimaAttivita = 0
-  let ultimaLetturaPosta = 0
+  const POSTA_QUIETA_OGNI_MS = deps.quietaOgniMs ?? 90_000
+  let ultimaAttivita = Number.NEGATIVE_INFINITY
+  let ultimaLetturaPosta = Number.NEGATIVE_INFINITY
 
   /*
    * La posta fra i PC (0.86.2, audit I1). Prima c'era una cassetta sola per PC,
