@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { conTurni, creaTurni } from '../../src/autopilot-host/turni-criteri'
+import { conTurni, creaTurni, TurnoScaduto } from '../../src/autopilot-host/turni-criteri'
 import { ePesante } from '../../src/autopilot-host/criteri-veloci'
 
 /**
@@ -113,5 +113,23 @@ describe('turni: una sola unione per cartella (Revisione 0.84.0)', () => {
     picco = 0
     await Promise.all([turni.unione('C:/uno', unione('a')), turni.unione('C:/due', unione('b'))])
     expect(picco).toBe(2)
+  })
+})
+
+describe('un’unione appesa non tiene il turno per sempre (06/11)', () => {
+  it('scaduto il tempo il posto si libera e la seguente passa; chi era appeso riceve TurnoScaduto', async () => {
+    const turni = creaTurni({ unioneMaxMs: 30 })
+    const appesa = turni.unione('C:/principale', () => new Promise<void>(() => {}))
+    await expect(appesa).rejects.toBeInstanceOf(TurnoScaduto)
+    await expect(turni.unione('C:/principale', () => Promise.resolve('passata'))).resolves.toBe('passata')
+    expect(turni.stato().unioni).toBe(0)
+  })
+
+  it('anche chi aspetta il turno (un pesante mai finito) scade senza prendere il posto dopo', async () => {
+    const turni = creaTurni({ unioneMaxMs: 30 })
+    void turni.pesante('C:/principale', () => new Promise<void>(() => {}))
+    await new Promise((ris) => setTimeout(ris, 0))
+    await expect(turni.unione('C:/principale', () => Promise.resolve('mai'))).rejects.toBeInstanceOf(TurnoScaduto)
+    expect(turni.stato().unioni).toBe(0)
   })
 })

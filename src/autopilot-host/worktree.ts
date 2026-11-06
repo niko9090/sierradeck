@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { FattiPubblicazione } from '@shared/harness'
 import { togliCollegamenti } from './ambiente-copia'
@@ -546,11 +546,61 @@ export function soloNoteDelProgramma(porcelain: string): boolean {
   return righe.length > 0 && righe.every((r) => r.replace(/^\s*\S{1,2}\s+/, '').split(' -> ').every((x) => x.replace(/^"|"$/g, '').startsWith('.sierradeck/')))
 }
 
+/** Il motivo con cui l'unione di prova si rifiuta quando la cartella ha file a metà che non sono del programma. */
+export const MOTIVO_CARTELLA_SPORCA = 'la cartella di lavoro ha modifiche non salvate'
+
+const MARCATORE_PROVA = 'sierradeck-prova.json'
+
+function* cartellaGitPassi(radice: string): Passi<string | undefined> {
+  const r = yield* chiedi(['rev-parse', '--absolute-git-dir'], radice)
+  return r.codice === 0 && r.uscita !== '' ? r.uscita.split(/\r?\n/)[0] : undefined
+}
+
+function togliMarcatore(dir: string): void {
+  try { unlinkSync(join(dir, MARCATORE_PROVA)) } catch { /* già tolto */ }
+}
+
+/**
+ * **La prova rimasta a metà** (06/11): se il servizio si riavvia, il processo muore o
+ * un'unione di prova scade, la cartella principale resta con un'unione aperta e
+ * ogni unione dopo viene respinta per «modifiche non salvate». Il programma
+ * riconosce la propria prova: il segno lasciato in `.git` (`sierradeck-prova.json`:
+ * il commit unito) deve combaciare con `MERGE_HEAD`. Allora `merge --abort`
+ * ripristina solo i file della prova (la cartella era pulita, lo si controlla
+ * prima di ogni prova). Un'unione senza il segno, o con un altro commit, è di
+ * Nicholas: non si tocca.
+ */
+export function ripulisciProvaAsincrono(git: GitAsincrono, p: { cwd: string }): Promise<'niente' | 'ripulita'> {
+  return aspettando(git, ripulisciProvaPassi(p.cwd))
+}
+
+function* ripulisciProvaPassi(cwd: string): Passi<'niente' | 'ripulita'> {
+  const radice = yield* radicePassi(cwd)
+  if (radice === undefined) return 'niente'
+  const dir = yield* cartellaGitPassi(radice)
+  if (dir === undefined || !existsSync(join(dir, MARCATORE_PROVA))) return 'niente'
+  if (!existsSync(join(dir, 'MERGE_HEAD'))) { togliMarcatore(dir); return 'niente' }
+  let segno: { testa?: string } = {}
+  try { segno = JSON.parse(readFileSync(join(dir, MARCATORE_PROVA), 'utf8')) as { testa?: string } } catch { /* segno rotto: non è riconosciuto */ }
+  let testa = ''
+  try { testa = readFileSync(join(dir, 'MERGE_HEAD'), 'utf8').split(/\r?\n/)[0]?.trim() ?? '' } catch { /* illeggibile */ }
+  if (segno.testa === undefined || segno.testa === '' || segno.testa !== testa) { togliMarcatore(dir); return 'niente' }
+  const a = yield* chiedi(['merge', '--abort'], radice)
+  if (a.codice !== 0) yield* chiedi(['reset', '--merge'], radice)
+  togliMarcatore(dir)
+  return existsSync(join(dir, 'MERGE_HEAD')) ? 'niente' : 'ripulita'
+}
+
 function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Passi<EsitoProva> {
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return { ok: false, motivo: 'non è un repository git' }
   const qui = yield* ramoPassi(radice)
   if (qui !== p.base) return { ok: false, motivo: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
+  // Una prova di prima, rimasta a metà: la ripulisce il programma, se è sua.
+  yield* ripulisciProvaPassi(radice)
+  const dir = yield* cartellaGitPassi(radice)
+  // Un'unione aperta che non è del programma (di Nicholas): non si tocca, nemmeno con `merge --abort`.
+  if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
   // Con file a metà nella cartella di lavoro la prova misurerebbe anche quelli, e l'annullarla li toccherebbe.
   let sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
   // Solo le note del programma (`.sierradeck/`: quaderno, consegne)? Si salvano
@@ -561,11 +611,17 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
     yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
     sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
   }
-  if (sporca.codice !== 0 || sporca.uscita.trim() !== '') return { ok: false, motivo: 'la cartella di lavoro ha modifiche non salvate' }
+  if (sporca.codice !== 0 || sporca.uscita.trim() !== '') return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
+  if (dir !== undefined) {
+    const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
+    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: p.ramo, testa: testa.codice === 0 ? testa.uscita.trim() : '', il: new Date().toISOString() })) } catch { /* senza segno la prova si fa lo stesso */ }
+  }
   const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-commit', p.ramo], radice)
   if (r.codice === 0) return { ok: true }
   const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
   yield* chiedi(['merge', '--abort'], radice)
+  if (dir !== undefined) togliMarcatore(dir)
   return { ok: false, motivo: inConflitto.length > 0 ? `conflitto su ${inConflitto.join(', ')}` : `unione di prova non riuscita: ${r.uscita.slice(0, 300)}` }
 }
 
@@ -577,11 +633,13 @@ export function chiudiProvaAsincrono(git: GitAsincrono, p: { cwd: string; tieni:
 function* chiudiProvaPassi(p: { cwd: string; tieni: boolean }): Passi<boolean> {
   const radice = yield* radicePassi(p.cwd)
   if (radice === undefined) return false
+  const dir = yield* cartellaGitPassi(radice)
   if (p.tieni) {
     const c = yield* chiedi([...(yield* firma(radice)), 'commit', '--no-edit', '--no-verify'], radice)
-    if (c.codice === 0) return true
+    if (c.codice === 0) { if (dir !== undefined) togliMarcatore(dir); return true }
   }
   yield* chiedi(['merge', '--abort'], radice)
+  if (dir !== undefined) togliMarcatore(dir)
   return false
 }
 
