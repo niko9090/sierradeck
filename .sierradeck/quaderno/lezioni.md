@@ -26,6 +26,7 @@
 - L'hook di carico PC rimanda vitest per cartella e tsc, ma lascia passare un file alla volta, anche in un ciclo `for` con percorsi espliciti: così si prova il ramo a PC carico. _(2026-11-06)_
 - `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
 - il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
+- il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
 
 ## worktree
 
@@ -167,6 +168,7 @@
 - Il filtro di carico blocca tsc e le suite complete anche quando il PC sembra libero; i test di un solo file passano. Aspettare con `node -e "setTimeout(...)"` e riprovare _(2026-11-06)_
 - Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
 - con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
+- Memoria piena per vmmemWSL (12-15 GB): `wsl --shutdown` porta la RAM libera da ~15% a ~65%; Nicholas l'ha permesso il 06/11. Ubuntu riparte da solo a ~1 GB e può ricrescere. _(2026-11-06)_
 
 ## renderer
 
@@ -211,3 +213,28 @@
 ## pagina
 
 - la pagina del telefono è una stringa TS: niente backtick né backslash, `\d` diventa `[0-9]`. Il test `posti-chat-pagina` estrae le funzioni con `new Function` e vuole definite le variabili globali. _(2026-11-06)_
+- nella pagina telefono niente backslash: i tasti passano l'id con data-id e onclick="f(this)", e la logica condivisa sta in src/shared come funzione autosufficiente inserita con toString() _(2026-11-06)_
+
+## apertura-chat
+
+- «locale» in chat:daDove non vuol dire «aprila qui» se la casa è altrove: la chat arriva dallo spawn che ha già deciso. Un guasto va in attesa che riprova, mai nel cartello. _(2026-11-06)_
+
+## guardiano
+
+- su questo PC tsc e le suite intere possono restare rimandate per ore dal guardiano del carico: lanciarle subito dopo il commit, e controllare i file toccati uno alla volta. _(2026-11-06)_
+
+## versioni
+
+- i battiti degli altri PC con versione vecchia nei test cambiano l'esito di decidiApertura: la versione si giudica solo da un battito fresco, uno scaduto può essere superato. _(2026-11-06)_
+
+## kotlin
+
+- In un elenco di argomenti `a = i > 0, b = i < n` il compilatore legge `<`/`>` come generico: metti i confronti fra parentesi. _(2026-11-06)_
+
+## build
+
+- Il filtro dei comandi pesanti rifiuta le compilazioni con memoria libera sotto il 10% (vmmemWSL ~15 GB): da WSL non si esce con l'attesa, serve liberare memoria o aspettare. _(2026-11-06)_
+
+## piano
+
+- Un criterio che è solo un comando di lettura (`wsl --list --quiet`) passa sempre, anche se il lavoro non c'è: il criterio deve fallire quando il lavoro manca (es. un test o un confronto sull'uscita). _(2026-11-06)_

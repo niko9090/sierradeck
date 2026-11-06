@@ -15,7 +15,8 @@ import { registraSchermo, dimenticaSchermo } from '../schermo-terminale'
 import { mostraAttesa } from '../preferenze-vive'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc, type ChatAltrove } from '@shared/posta'
-import { daQuandoTace, type Apertura } from '@shared/apertura-chat'
+import { attesaPerCasaIgnota, daQuandoTace, type Apertura } from '@shared/apertura-chat'
+import { Aiuto } from './Aiuto'
 import { diagnostica, tettoAttesaMs, passoAttesaPrompt, senzaSequenze, USCITA_PRECOCE_MS, type Diagnosi } from '../diagnosi-chat'
 import { turniAvvio } from '../turni-avvio'
 import { cartellaSegnataSparita, dimenticaCartellaSparita, rigaDelGuasto, segnaCartellaSparita } from '../cartelle-sparite'
@@ -357,9 +358,17 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
         // si torna a chiedere da dove aprirla, e diventa remota.
         if (c.casa === true) forzaQui.current = false
         else if (forzaQui.current) { suAltrove.current(c); return }
+        // Con la casa altrove il cartello senza uscita non esiste (k-58): se non
+        // si sa decidere (domanda caduta, «locale») si aspetta e si riprova da
+        // soli, e la vista dal vivo parte appena quel PC risponde.
+        const ripiego = (): void => {
+          if (smontato) return
+          if (c.casa === true) applica(attesaPerCasaIgnota(c), () => undefined)
+          else suAltrove.current(c)
+        }
         window.gestore.remoto.daDove({ cwd: c.cwd, sessionUuid: c.sessionUuid }).then(
-          (a) => { if (a.tipo === 'locale') suAltrove.current(c); else applica(a, () => suAltrove.current(c)) },
-          () => { if (!smontato) suAltrove.current(c) }
+          (a) => { if (a.tipo === 'locale') ripiego(); else applica(a, ripiego) },
+          ripiego
         )
       },
       // 0.84.1: una chat chiusa con la cartella cancellata non riparte a ogni
@@ -581,13 +590,16 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             {/* Mai «spento» (0.39.3): il Core ha bussato a tutti i suoi indirizzi, e il titolo dice com'e' andata. */}
             Questa chat è su {nomeAttesa} · {inAttesaDi.statoPc !== undefined ? inAttesaDi.statoPc.titolo : 'non so se è acceso'}
           </div>
+          {/* Una riga sola, il motivo vero; il resto dietro il «?» (decisione del 12/10). */}
           <div className="chat-altrove__testo">
-            {inAttesaDi.statoPc !== undefined && inAttesaDi.statoPc.cosaFare !== '' ? <><strong>{inAttesaDi.statoPc.cosaFare}</strong>{' '}</> : null}
-            Il motivo per cui è su quel PC: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>. Il modo giusto per lavorarci da
-            qui è aprirla <strong>dal vivo su {nomeAttesa}</strong>: questo riquadro mostra il terminale di quel PC
-            e quello che scrivi arriva a lui, come dal telefono. Ma adesso {nomeAttesa}{' '}
-            {daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}
-            {inAttesaDi.ultimoSegno !== undefined ? ` (ultimo segno sul Drive: ${new Date(inAttesaDi.ultimoSegno).toLocaleString('it-IT')})` : ''}.
+            {inAttesaDi.statoPc !== undefined && inAttesaDi.statoPc.cosaFare !== '' ? inAttesaDi.statoPc.cosaFare : `${nomeAttesa} ${daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}.`}
+            <Aiuto di="perché la chat non si apre dal vivo">
+          <div>
+            Il modo giusto per lavorarci da qui è aprirla <strong>dal vivo su {nomeAttesa}</strong>: questo riquadro mostra
+            il terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Adesso non si può:{' '}
+            {inAttesaDi.statoPc?.titolo ?? `${nomeAttesa} ${daQuandoTace(inAttesaDi.ultimoSegno, Date.now())}`}.
+            Il motivo per cui la chat è su quel PC: {inAttesaDi.perche}. La cartella è <code>{inAttesaDi.cwd}</code>.
+            {inAttesaDi.ultimoSegno !== undefined ? ` Ultimo segno sul Drive: ${new Date(inAttesaDi.ultimoSegno).toLocaleString('it-IT')}.` : ''}{' '}
             Ogni PC acceso con SierraDeck lascia un segno sul Drive ogni 2 minuti; quando il segno è vecchio busso
             direttamente ai suoi indirizzi (rete locale e Tailscale): se risponde, la chat si apre dal vivo. Qui non è
             successo niente di male: la chat là non è stata toccata.
@@ -628,6 +640,8 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             </li>
           </ul>
           )}
+            </Aiuto>
+          </div>
           <div className="chat-altrove__azioni">
             <button className="tasto tasto--primario" onClick={() => ricontrollaRef.current?.()} title="Richiede subito se quel PC risponde, senza aspettare i 20 secondi">
               Ricontrolla adesso
@@ -656,13 +670,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       {altrove !== undefined ? (
         <div className="attesa-chat chat-altrove" role="status" aria-live="polite">
           <div className="chat-altrove__titolo">Questa chat lavora su {nomeAltrove}</div>
-          {altrove.casa === true ? (
-            <div className="chat-altrove__testo">
-              <strong>È ospitata da {nomeAltrove}</strong>{altrove.perche !== undefined ? ` (${altrove.perche})` : ''}: su questo PC
-              il suo claude.exe non parte mai, così non lavora su due PC alla volta. Si guarda e si comanda dal vivo là. Se
-              vuoi che lavori qui, sposta il progetto da Progetti → «Sposta su questo PC».
-            </div>
-          ) : (
+          {/* Una chat con la casa altrove non arriva mai qui (k-58): ha la vista dal vivo o l'attesa sopra. */}
           <div className="chat-altrove__testo">
             La sua cartella è <code>{altrove.cwd}</code>, e sta su quel computer: qui non c’è. Aprirla qui vorrebbe dire
             farla partire in una cartella vuota, senza i file del progetto: è quello che dava «directory non trovata»
@@ -670,7 +678,6 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             terminale di quel PC e quello che scrivi arriva a lui, come dal telefono. Serve che {nomeAltrove} sia
             acceso e raggiungibile (stessa rete, o Tailscale su tutti e due); se è spento, resta la cassetta.
           </div>
-          )}
           <div className="chat-altrove__azioni">
             {altrove.pc.id !== '' ? (
               <button className="tasto tasto--primario" onClick={() => guardaDalVivo(altrove)} title="Trasforma questo riquadro nella chat dal vivo su quel PC: vedi il suo terminale e gli scrivi da qui">
@@ -680,11 +687,9 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
             <button className={altrove.pc.id !== '' ? 'tasto' : 'tasto tasto--primario'} onClick={() => scriviLa(altrove)} title="Metti un’azione nella cassetta di quel PC: la esegue lui, in questa chat, quando è acceso">
               Scrivile là, su {nomeAltrove}
             </button>
-            {altrove.casa === true ? null : (
             <button className="tasto" onClick={apriQuiLoStesso} title="Apre la chat qui, in una cartella vuota con lo stesso nome: i file del progetto non ci sono">
               Aprila qui lo stesso
             </button>
-            )}
           </div>
           <div className="chat-altrove__nota">
             Se invece vuoi lavorarci qui con i file, su quel PC metti la cartella sul Drive (Account → Progetti sul Drive):

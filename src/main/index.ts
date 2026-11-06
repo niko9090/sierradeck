@@ -172,7 +172,8 @@ import { pcCheHaLaCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type B
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import { scriviAtomico } from '@shared/scrittura-atomica'
-import { decidiApertura, type Apertura } from '@shared/apertura-chat'
+import type { Apertura } from '@shared/apertura-chat'
+import { rispondiDaDove } from './da-dove'
 import { avvisoDriveScollegato, indirizzoUtile, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
 import { indirizziTailscale } from './tailscale'
 import {
@@ -3395,48 +3396,17 @@ if (!app.requestSingleInstanceLock()) {
       // 0.36.1: da dove aprire una chat del workspace, PRIMA di aprirla. Se e'
       // di un altro PC che risponde, il riquadro diventa subito remoto; se quel
       // PC tace, un riquadro d'attesa; altrimenti si apre qui come sempre.
-      ipcMain.handle('chat:daDove', async (_e, p: unknown): Promise<Apertura> => {
-        const q = (p ?? {}) as { cwd?: unknown; sessionUuid?: unknown }
-        if (typeof q.cwd !== 'string' || q.cwd === '') return { tipo: 'locale' }
-        const cwd = q.cwd
-        const sessione = typeof q.sessionUuid === 'string' && q.sessionUuid !== '' ? q.sessionUuid : undefined
-        try {
-          const io = identitaPc.leggi().id
-          const cartellaQui = existsSync(cwd)
-          const trascrizioneQui =
-            sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
-          const di = cartellaQui ? undefined : altrove(cwd)
-          // Il PC del progetto prima di tutto (0.88.0): un progetto, un PC.
-          const prop = proprietarioAltrove(cwd)
-          const casa = prop !== undefined ? { id: prop.id, nome: prop.nome, motivo: `«${prop.progetto}» vive là` } : undefined
-          const casaQui = progettoDiCwd(registroProgetti.leggi(), cwd, io) !== undefined
-          const dati = {
-            ...(sessione !== undefined ? { sessione } : {}),
-            ...(casa !== undefined ? { casa } : {}),
-            ...(casaQui ? { casaQui } : {}),
-            cwd,
-            io,
-            trascrizioneQui,
-            cartellaQui,
-            ...(di !== undefined ? { cartellaDi: di } : {}),
-            battiti: postino.altrui(),
-            adesso: Date.now()
-          }
-          const prima = decidiApertura(dati)
-          if (prima.tipo !== 'attesa' || prima.pc.id === '') return prima
-          // Il battito e' vecchio (con il Drive scollegato lo e' sempre): prima
-          // di dire «in attesa» si bussa direttamente a quel PC (0.39.3). Se
-          // risponde e' acceso, e la chat si apre dal vivo.
-          const stato = await remoto.statoDi(prima.pc.id, prima.pc.nome)
-          return decidiApertura({
-            ...dati,
-            rispondono: stato.stato === 'acceso' ? [prima.pc.id] : [],
-            statiPc: { [prima.pc.id]: stato }
-          })
-        } catch {
-          return { tipo: 'locale' }
-        }
-      })
+      ipcMain.handle('chat:daDove', (_e, p: unknown): Promise<Apertura> => rispondiDaDove({
+        io: () => identitaPc.leggi().id,
+        cartellaQui: (cwd) => existsSync(cwd),
+        trascrizioneQui: (cwd, sessione) => existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)),
+        cartellaDi: altrove,
+        proprietario: proprietarioAltrove,
+        casaQui: (cwd, io) => progettoDiCwd(registroProgetti.leggi(), cwd, io) !== undefined,
+        battiti: () => postino.altrui(),
+        adesso: () => Date.now(),
+        statoDi: (id, nome) => remoto.statoDi(id, nome)
+      }, p))
       // Per l'elenco «Riprendi una conversazione»: di quali cartelle e' padrone
       // un altro PC. Una domanda sola per tutte, non una per riga.
       ipcMain.handle('remoto:altroveDi', (_e, cwds: unknown): Record<string, { id: string; nome: string }> => {

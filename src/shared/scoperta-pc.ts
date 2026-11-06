@@ -140,7 +140,7 @@ export function indirizziDaProvare(p: { buono?: string; ricordati?: string[]; ta
 
 /** Lo stato di quel PC come lo dicono il riquadro e il riquadro d'attesa. */
 export type StatoPc = {
-  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi'
+  stato: 'acceso' | 'non-so' | 'irraggiungibile' | 'chiave' | 'rifiutato' | 'altro' | 'senza-indirizzi' | 'versione-vecchia'
   titolo: string
   cosaFare: string
 }
