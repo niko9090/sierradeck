@@ -84,7 +84,7 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
   }
 }
 
-export type RigaDialogo = { quando: string; da: 'tu' | 'lui' | 'evento'; testo: string }
+export type RigaDialogo = { quando: string; da: 'tu' | 'lui' | 'evento'; testo: string; domanda?: { id: string; scelte: string[] } }
 
 export type ArchivioOrchestratori = {
   impostazioni: (ws: string) => ImpostazioniOrchestratore

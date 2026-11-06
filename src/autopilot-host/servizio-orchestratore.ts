@@ -17,7 +17,8 @@ import { esaminaComando } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
-import type { ContestoDomanda, RegistroDomande } from './domande'
+import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
+import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
@@ -34,6 +35,7 @@ import {
 } from './orchestratore'
 import type { ArchivioOrchestratori, ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
 import { TETTO_SPECIALISTI_MAX } from './orchestratore-store'
+import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
@@ -46,7 +48,10 @@ import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { homedir } from 'node:os'
-import { attesaVuota, cambiaPriorita, inFila, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaPriorita, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { nomeWorkspace } from '@shared/attesa-vista'
+import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
+import { rigaUltimaAzione } from '@shared/specialisti'
 import type { ArchivioAttesa } from './attesa-store'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
@@ -105,6 +110,8 @@ export type ContestoUnico = {
   /** Fa avanzare la fine delle chat adottate chiuse (P2). */
   avanzaFinite: () => void
   posti: () => number
+  /** k-57: il numero massimo scelto da Nicholas (vince sul tetto di serie degli specialisti); assente = automatico. */
+  postiScelti?: () => number | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<{ unito: true } | { unito: false; motivo: string }>
@@ -170,6 +177,8 @@ export type ServizioUnico = {
   /** Una risposta di Nicholas a una domanda dell'unico: torna `true` se l'ha presa. */
   risposta: (autopilotaId: string, domanda: string, risposta: string) => boolean
   guardia: () => void
+  /** 0.96.0: la chat di questo workspace è davanti a Nicholas adesso (PC o telefono): le sue domande in chat contano come viste. */
+  visto: (ws: string) => void
   riprendi: (a: Autopilota) => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
@@ -180,7 +189,13 @@ export type ServizioUnico = {
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** k-48: cambia la priorità di una voce in fila. `undefined`: la voce non c'è. */
-  prioritaAttesa: (id: string, mossa: MossaPriorita) => VistaAttesa | undefined
+  /**
+   * Le mosse sulla fila. `su`/`giu`/`cima` cambiano solo l'ordine di chi aspetta un
+   * posto (per chi lavora o è ancora nel piano, la precedenza del suo workspace) e
+   * non fermano mai nessuno. `ferma` («Ferma e metti in cima») è l'unico modo di
+   * fermare uno specialista per la precedenza, e parte solo da Nicholas.
+   */
+  prioritaAttesa: (id: string, mossa: MossaAttesa) => VistaAttesa | undefined
   /** k-48: toglie una voce dalla fila. `undefined`: la voce non c'è. */
   togliAttesa: (id: string) => VistaAttesa | undefined
   /** Il servizio si spegne: i processi `claude` con lui. */
@@ -455,7 +470,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
 
   let attesaMemoria: StatoAttesa = attesaVuota()
   const archivioAttesa: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
-  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+  const scelti = (): number | undefined => x.postiScelti?.()
+  const capPc = (): number => (scelti() !== undefined ? POSTI_MAX : SPECIALISTI_PC_MAX)
+  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), capPc()))
   const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi))
   const oraMs = (): number => Date.parse(x.adesso())
   /** Scrive la lista e sveglia gli autopiloti dei primi in fila (e avvisa chi è caduto). */
@@ -465,6 +482,10 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     for (const v of m.svegli) {
       const cosa = v.compito ?? cosaDel(v.descrizione)
       console.info(`[attesa] ${v.workspace} — posto libero per ${cosa}`)
+      if (v.parcheggiata === true) {
+        evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto per ${cosa}, fermato da Nicholas per far passare altro lavoro: rilancialo ora${v.ramo !== undefined ? ` dal suo ramo ${v.ramo}` : ' dal suo ramo'}, senza rifare quello che c’è già. Il posto è tuo per 5 minuti.` })
+        continue
+      }
       evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
     }
     for (const v of m.cadute) {
@@ -477,26 +498,66 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     if (prima.voci.length === 0) return
     applicaAttesa(rivediPosti(prima, liberiPc(), oraMs()), prima)
   }
+  /** Gli specialisti a cui Nicholas ha chiesto «Ferma e metti in cima»: finché il flusso non li dà per fermati contano ancora al lavoro. */
+  const fermaChiesta = new Set<string>()
+  /** Le durate vere dei compiti già uniti, di tutti i workspace: dall'inizio dello specialista (o dalla creazione) all'unione. */
+  const storicoDurate = (): DurataVera[] => unici().flatMap((u) => {
+    const ws = wsDi(u)
+    const sub = subagenti(ws)
+    return x.orchestratori.piano(ws).compiti.flatMap((c) => {
+      if (c.stato !== 'unito' || c.unitoIl === undefined) return []
+      const fine = Date.parse(c.unitoIl)
+      const inizio = Date.parse(sub.find((s) => s.compito === c.id)?.inizio ?? c.creato)
+      const minuti = (fine - inizio) / 60_000
+      return Number.isFinite(minuti) && minuti > 0 ? [{ peso: c.peso, minuti }] : []
+    })
+  })
+  const compitoDelPiano = (ws: string, compito: string | undefined): CompitoPiano | undefined => (compito === undefined ? undefined : x.orchestratori.piano(ws).compiti.find((c) => c.id === compito))
+  const pesoDi = (ws: string, compito: string | undefined): PesoCompito => compitoDelPiano(ws, compito)?.peso ?? PESO_PREDEFINITO
+  const titoloDi = (ws: string, compito: string | undefined, descrizione: string): string => titoloBreve(compitoDelPiano(ws, compito)?.titolo ?? descrizione)
   const vistaAttesa = (): VistaAttesa => {
     const adesso = oraMs()
     const lavorano = unici().flatMap((u) => subagenti(wsDi(u))
       .filter((s) => s.stato === 'avviato' || s.stato === 'lavoro')
       .map((s) => ({ s, ws: wsDi(u), ap: u.id })))
       .sort((a, b) => Date.parse(a.s.inizio) - Date.parse(b.s.inizio))
+    const stato = archivioAttesa.leggi()
+    const fila = inFila(stato, adesso)
+    const stima = stimaLista({
+      adesso, tetto: tettoPc(), storico: storicoDurate(),
+      alLavoro: lavorano.map((l) => ({ id: l.s.id, peso: pesoDi(l.ws, l.s.compito), inizioMs: Date.parse(l.s.inizio) })),
+      inFila: fila.map((v) => ({ id: v.id, peso: pesoDi(v.workspace, v.compito) }))
+    })
     return {
       posti: { usati: orchestratore.specialistiSulPc(), tetto: tettoPc() },
-      alLavoro: lavorano.map((l, i) => ({
-        posto: i + 1, id: l.s.id, workspace: l.ws, autopilota: l.ap,
-        ...(l.s.compito !== undefined ? { compito: l.s.compito } : {}),
-        descrizione: l.s.descrizione, tipo: l.s.ruolo, dal: l.s.inizio
-      })),
-      inFila: inFila(archivioAttesa.leggi(), adesso).map((v) => ({
+      alLavoro: lavorano.map((l, i) => {
+        const st = stima.alLavoro[l.s.id]!
+        const cosaFa = rigaUltimaAzione(l.s.attivita ?? '')
+        const prec = stato.precedenze?.[l.ws]
+        return {
+          posto: i + 1, id: l.s.id, workspace: l.ws, autopilota: l.ap,
+          ...(l.s.compito !== undefined ? { compito: l.s.compito } : {}),
+          descrizione: l.s.descrizione, tipo: l.s.ruolo, dal: l.s.inizio,
+          workspaceNome: nomeWorkspace(l.ws), titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione),
+          ...(cosaFa !== '' ? { cosaFa } : {}),
+          percentuale: st.percentuale, minutiStimati: st.minuti, peso: pesoDi(l.ws, l.s.compito),
+          ...(st.inRitardo ? { inRitardo: true as const } : {}),
+          ...(prec !== undefined ? { precedenza: prec } : {}),
+          ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
+        }
+      }),
+      inFila: fila.map((v) => ({
         id: v.id, posizione: v.posizione, workspace: v.workspace,
         ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),
         ...(v.compito !== undefined ? { compito: v.compito } : {}),
         descrizione: v.descrizione, tipo: v.tipo, dal: v.dal, priorita: v.priorita, prenotata: v.prenotata,
-        ...(v.prenotataFino !== undefined && v.prenotata ? { prenotataFino: v.prenotataFino } : {})
-      }))
+        ...(v.prenotataFino !== undefined && v.prenotata ? { prenotataFino: v.prenotataFino } : {}),
+        ...(v.parcheggiata === true ? { parcheggiata: true as const } : {}),
+        ...(v.ramo !== undefined ? { ramo: v.ramo } : {}),
+        workspaceNome: nomeWorkspace(v.workspace), titolo: titoloDi(v.workspace, v.compito, v.descrizione),
+        percentuale: 0, minutiStimati: stima.inFila[v.id]!.minuti, peso: pesoDi(v.workspace, v.compito)
+      })),
+      totale: stima.totale
     }
   }
 
@@ -526,7 +587,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     if (riga.da === 'evento') return
     const u = unicoDi(ws)
     if (u === undefined) return
-    x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo }].slice(-DIALOGO_RICORDATO) })
+    x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo, ...(riga.domanda !== undefined ? { domanda: riga.domanda } : {}) }].slice(-DIALOGO_RICORDATO) })
   }
 
   const riassunto = (ws: string): string => {
@@ -537,7 +598,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       ws, coda: coda(ws), piano: x.orchestratori.piano(ws), unico: u, misura: m,
       ...(i.percento !== undefined ? { percento: i.percento } : {}),
       eventi: recenti.get(ws) ?? [],
-      tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), SPECIALISTI_PC_MAX), alLavoroPc: x.chatAlLavoroSulPc() },
+      tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
@@ -573,7 +634,8 @@ ${NOTA_SENZA_GIT}`,
       impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
       // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).
-      tetto: git ? Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti()))) : 1
+      tetto: git ? (scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti())))) : 1,
+      ...(git && scelti() !== undefined ? { scelti: scelti() as number } : {})
     }
   }
 
@@ -832,7 +894,12 @@ ${NOTA_SENZA_GIT}`,
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti
 
-  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string): ReturnType<RegistroDomande['apri']> => {
+  /**
+   * `inChat` (0.96.0): la domanda nasce nella chat dell'autopilota; nelle Domande,
+   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). I permessi no:
+   * uno specialista li aspetta e sono urgenti.
+   */
+  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string } = {}): ReturnType<RegistroDomande['apri']> => {
     // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
     const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
     const pronta = domandaControllataSubito(a.nome, {
@@ -845,12 +912,28 @@ ${NOTA_SENZA_GIT}`,
       }),
       seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
     })
-    const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
-    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda })
+    const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta), ...(opz.inChat === true ? { inChat: true } : {}) })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
     x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
-    void x.avvisa('domanda', a, domanda)
+    if (opz.inChat === true) {
+      // Nella chat: il testo intero con le scelte, e i tasti da toccare (sul PC). Si risponde anche scrivendo.
+      nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: `${pronta.testo}
+
+Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaToccare(d) } })
+    } else {
+      void x.avvisa('domanda', a, domanda)
+    }
     return d
   }
+
+  /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
+  const vistoIl = new Map<string, number>()
+  // Una domanda chiusa (risposta, superata, ritirata): i suoi tasti spariscono dalla chat.
+  x.domande.suChiusa((d) => {
+    const a = x.archivio.leggi(d.autopilotaId)
+    if (a === undefined || !a.dialogo.some((r) => r.domanda?.id === d.id && r.domanda.chiusa !== true)) return
+    x.salva({ ...a, dialogo: a.dialogo.map((r) => (r.domanda?.id === d.id ? { ...r, domanda: { ...r.domanda, chiusa: true as const } } : r)) })
+  })
 
   const ambiente: AmbienteOrchestratore = {
     adesso: x.adesso,
@@ -888,7 +971,7 @@ ${NOTA_SENZA_GIT}`,
       }
       return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
     },
-    chiedi(ws, domanda, scelte, perche) {
+    chiedi(ws, domanda, scelte, perche, richiesta) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
       const aperte = x.domande.aperte(a.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo }))
@@ -897,7 +980,8 @@ ${NOTA_SENZA_GIT}`,
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te')
+      const richiestaId = richiestaDellaDomanda(coda(ws), richiesta, domanda)
+      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}) })
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
     },
     ritira(ws, id, perche) {
@@ -1133,6 +1217,13 @@ ${NOTA_SENZA_GIT}`,
           console.info(`[orchestratore] ${wsDi(a)} — domanda superata dal lavoro finito, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
           continue
         }
+        // 0.96.0: la richiesta da cui nasce è chiusa o unita: la domanda non serve più.
+        const rid = d.contesto?.richiestaId
+        const chiusa = rid !== undefined ? richiestaChiusa(c, rid) : undefined
+        if (rid !== undefined && chiusa?.chiusa === true && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
+          console.info(`[orchestratore] ${wsDi(a)} — domanda superata dalla richiesta ${rid} (${chiusa.come ?? 'chiusa'}), chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+          continue
+        }
         if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
         if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
         const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)
@@ -1142,10 +1233,33 @@ ${NOTA_SENZA_GIT}`,
     }
   }
 
+  /**
+   * 0.96.0: dalla chat alle Domande. Una domanda nata nella chat passa nelle
+   * Domande (con la notifica) quando nessuno l'ha vista in chat entro
+   * `DOMANDA_IN_CHAT_MS`, o l'ha vista ma non ha risposto da
+   * `DOMANDA_VISTA_SENZA_RISPOSTA_MS`. Il tasto nella chat resta.
+   */
+  const emergiDomande = (ora: number): void => {
+    for (const a of unici()) {
+      const ws = wsDi(a)
+      for (const d of x.domande.aperte(a.id)) {
+        if (!soloInChat(d)) continue
+        const { passa, vista } = devePassareAlleDomande(d, vistoIl.get(ws), ora)
+        if (!passa) continue
+        const e = x.domande.emergi(d.id, ora)
+        if (e === undefined) continue
+        const testo = e.parti?.domanda ?? e.contesto?.grezza ?? e.testo
+        console.info(`[orchestratore] ${ws} — domanda ${vista ? 'vista in chat ma senza risposta' : 'non vista in chat'}: passa nelle Domande: ${testo.slice(0, 120)}`)
+        void x.avvisa('domanda', a, testo)
+      }
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
     try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
+    try { emergiDomande(ora) } catch (err) { console.error('[orchestratore] domande dalla chat alle Domande non riuscito:', err) }
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     for (const a of unici()) {
@@ -1326,6 +1440,7 @@ ${NOTA_SENZA_GIT}`,
     notifica,
     risposta,
     guardia,
+    visto: (ws) => { vistoIl.set(ws, Date.parse(x.adesso())) },
     riprendi,
     reindirizza(id, chatId) {
       const a = x.archivio.leggi(id)
@@ -1356,9 +1471,28 @@ ${NOTA_SENZA_GIT}`,
     attesa: () => { rivediFila(); return vistaAttesa() },
     prioritaAttesa(id, mossa) {
       const prima = archivioAttesa.leggi()
-      const dopo = cambiaPriorita(prima, id, mossa)
-      if (dopo === undefined) return undefined
-      archivioAttesa.scrivi(dopo)
+      // Chi è in fila: le mosse di sempre (`ferma` non ha senso per chi non lavora).
+      if (prima.voci.some((v) => v.id === id)) {
+        if (mossa === 'ferma') return undefined
+        const dopo = cambiaPriorita(prima, id, mossa)
+        if (dopo === undefined) return undefined
+        archivioAttesa.scrivi(dopo)
+        return vistaAttesa()
+      }
+      const lavora = unici().flatMap((u) => subagenti(wsDi(u)).filter((s) => s.stato === 'avviato' || s.stato === 'lavoro').map((s) => ({ s, ws: wsDi(u), ap: u.id }))).find((l) => l.s.id === id)
+      if (mossa === 'ferma') {
+        // Solo a mano (Nicholas): è l'unica strada che ferma uno specialista per la precedenza.
+        if (lavora === undefined) return undefined
+        const { s, ws, ap } = lavora
+        archivioAttesa.scrivi(parcheggia(prima, { workspace: ws, autopilota: ap, descrizione: s.descrizione, tipo: s.ruolo, ...(s.compito !== undefined ? { compito: s.compito } : {}), ...(s.ramo !== undefined ? { ramo: s.ramo } : {}) }, { adesso: oraMs(), id: randomUUID }))
+        fermaChiesta.add(s.id)
+        evento(ws, { tipo: 'posto', quando: x.adesso(), testo: `Nicholas ha chiesto di fermare ${s.compito ?? cosaDel(s.descrizione)} e di metterlo in cima alla fila: fermalo ora${s.task !== undefined ? ` (task ${s.task})` : ''}. Il suo lavoro resta salvato${s.ramo !== undefined ? ` sul ramo ${s.ramo}` : ' nel suo ramo'}. Quando si libera un posto ti avviso: lo rilanci per primo, dal suo ramo.` })
+        return vistaAttesa()
+      }
+      // Per chi lavora o è ancora nel piano: la precedenza del workspace, che cambia solo l'ordine di chi aspetta un posto. Nessuno viene fermato né scavalcato.
+      const ws = lavora?.ws ?? unici().map(wsDi).find((w) => x.orchestratori.piano(w).compiti.some((c) => c.id === id && c.stato !== 'unito'))
+      if (ws === undefined) return undefined
+      archivioAttesa.scrivi(cambiaPrecedenzaWorkspace(prima, ws, mossa))
       return vistaAttesa()
     },
     togliAttesa(id) {

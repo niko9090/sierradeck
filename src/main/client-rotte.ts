@@ -1,5 +1,5 @@
 import { vistaAccount } from '@shared/account-vista'
-import { rigaPosti, spiegaPosti, type PostiChat } from '@shared/posti-chat'
+import { avvisoCarico, leggiPostiScelti, origineCorta, rigaPosti, spiegaPosti, POSTI_SCELTI_MAX, POSTI_SCELTI_MIN, type PostiChat } from '@shared/posti-chat'
 import { attivitaDaSegnali } from '@shared/attivita-chat'
 import type { Segnale } from '@shared/segnali-chat'
 import { colonnePiano, numeraUguali, ordinaSchede, pianoAutopilota, riassuntoAlLavoro, riassuntoAutopilota, righeDalVivo, situazioneAutopilota, ultimaAzioneDalVivo, type StatoScheda } from '@shared/panoramica'
@@ -208,6 +208,8 @@ export type DipendenzeRotte = {
   autopiloti: () => Promise<Autopilota[]>
   /** Un autopilota intero, con tutta la storia (0.85.2), per la sua scheda. Senza, dall'elenco. */
   autopilota?: (id: string) => Promise<Autopilota | undefined>
+  /** 0.96.0: la scheda di quell'autopilota è aperta sul telefono (la chiede ogni due secondi): il suo workspace è «visto». */
+  schedaApertaSulTelefono?: (workspace: string) => void
   /**
    * L'avanzamento dell'autopilota unico di un workspace (0.86.x): la vista
    * dell'orchestratore (percentuale, specialisti, piano) e la coda delle
@@ -219,7 +221,7 @@ export type DipendenzeRotte = {
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
   /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
   attesaSpecialisti?: () => Promise<unknown>
-  prioritaAttesaSpecialisti?: (id: string, mossa: 'su' | 'giu' | 'cima') => Promise<unknown>
+  prioritaAttesaSpecialisti?: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<unknown>
   togliAttesaSpecialisti?: (id: string) => Promise<unknown>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
@@ -1236,7 +1238,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         domandeInAttesa,
         // 0.82.0: «N di M chat» su questo PC, con il perché per il «?».
         // Con i testi già scritti: la pagina e l'app li mostrano come il PC.
-        ...(postiChat !== undefined ? { postiChat: { ...postiChat, riga: rigaPosti(postiChat), spiega: spiegaPosti(postiChat) } } : {}),
+        ...(postiChat !== undefined ? { postiChat: { ...postiChat, riga: rigaPosti(postiChat), spiega: spiegaPosti(postiChat), origine: origineCorta(postiChat), ...(avvisoCarico(postiChat) !== undefined ? { avviso: avvisoCarico(postiChat) } : {}) } } : {}),
         // Quanti file aspettano questo telefono (0.54.0): l'app li ritira subito.
         ...(depsPieni.alTelefono !== undefined && eTelefono(visore) ? { consegne: depsPieni.alTelefono.perTelefono(visore).length } : {}),
         // Senza la coda delle righe: l'elenco si chiede ogni due secondi, e
@@ -1509,6 +1511,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ? await deps.autopilota(id).catch(() => undefined)
         : (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
       if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
+      deps.schedaApertaSulTelefono?.(chiaveWorkspace(a))
       // La domanda aperta, se c'e': la pagina e l'app rispondono da li',
       // dalla stessa casella con cui gli parlano.
       const tutteLeDomande = await deps.domande().catch(() => [])
@@ -1585,10 +1588,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const id = stringa(r.corpo, 'id').trim()
       const mossa = stringa(r.corpo, 'mossa')
       const priorita = r.percorso.endsWith('/priorita')
-      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima)' : 'serve la voce' } }
+      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima' && mossa !== 'ferma')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima, ferma)' : 'serve la voce' } }
       const f = priorita ? deps.prioritaAttesaSpecialisti : undefined
       if (priorita ? f === undefined : deps.togliAttesaSpecialisti === undefined) return { stato: 503, corpo: { errore: 'la lista d’attesa non è disponibile' } }
-      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
+      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima' | 'ferma') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
       if (v === undefined) return { stato: 502, corpo: { errore: 'il servizio degli autopiloti non ha risposto' } }
       return OK(v)
     }
@@ -2016,6 +2019,16 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (!conosciuta(ammesse, cartella)) return { stato: 403, corpo: { errore: 'cartella non conosciuta' } }
       const s = deps.scheda(cartella, file)
       return s === undefined ? { stato: 404, corpo: { errore: 'scheda inesistente' } } : OK(s)
+    }
+
+    // «N di M chat» (k-57): il numero massimo scelto a mano, o `null` per «Automatico».
+    if (r.metodo === 'POST' && r.percorso === '/api/posti-chat') {
+      const c = r.corpo as Record<string, unknown> | undefined
+      if (c === undefined || c === null || typeof c !== 'object' || !('scelti' in c)) return { stato: 400, corpo: { errore: 'manca «scelti»: un numero, o null per «Automatico»' } }
+      const voluto = c.scelti === null ? undefined : leggiPostiScelti(c.scelti)
+      if (c.scelti !== null && voluto === undefined) return { stato: 400, corpo: { errore: `«scelti» deve essere un numero intero da ${POSTI_SCELTI_MIN} a ${POSTI_SCELTI_MAX}, oppure null` } }
+      await deps.impostaPreferenze({ postiScelti: voluto })
+      return OK({ fatto: true, scelti: voluto ?? null })
     }
 
     if (r.percorso === '/api/preferenze' && r.metodo !== 'POST') {

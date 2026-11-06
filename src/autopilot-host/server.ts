@@ -32,6 +32,7 @@ import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
 import type { RegistroDomande, ContestoDomanda } from './domande'
+import { rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
@@ -260,6 +261,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let posti: StatoPosti | undefined
   let ultimaMisura: MisuraPc | undefined
   let regolazioneUsata: RegolazionePosti = 0
+  let scelteUsate: number | undefined
   /** Le chat adottate al lavoro più gli specialisti (subagenti): occupano posti anche loro. */
   const alLavoroSulPc = (): number => chatAlLavoroSulPc(unici()) + (unico?.specialistiSulPc() ?? 0)
   const aggiornaPosti = (): void => {
@@ -268,10 +270,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ultimaMisura = deps.misuraPc()
     const regolazione = statoProgramma?.regolazionePosti ?? regolazioneUsata
     // Cambiata a mano nelle Impostazioni: vale subito, senza la salita lenta.
-    if (regolazione !== regolazioneUsata) posti = undefined
+    const scelti = statoProgramma !== undefined ? statoProgramma.postiScelti : scelteUsate
+    if (regolazione !== regolazioneUsata || scelti !== scelteUsate) posti = undefined
     regolazioneUsata = regolazione
+    scelteUsate = scelti
     const prima = posti?.posti
-    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, alLavoroSulPc(), regolazione), Date.parse(deps.adesso()))
+    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, alLavoroSulPc(), regolazione, scelti), Date.parse(deps.adesso()))
     if (prima !== undefined && prima !== posti.posti) {
       console.info(`[posti] ${prima} → ${posti.posti} insieme (${posti.perche}; ${ultimaMisura.processori} processori, ${ultimaMisura.memoriaLiberaMb} MB liberi, carico ${ultimaMisura.caricoPercento}%)`)
     }
@@ -285,6 +289,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     posti: postiAdesso(),
     inFila: 0,
     regolazione: regolazioneUsata,
+    ...(scelteUsate !== undefined ? { scelti: scelteUsate } : {}),
     perche: posti?.perche ?? 'massimo',
     risale: posti?.salitaDal !== undefined,
     ...(ultimaMisura !== undefined ? { misura: ultimaMisura } : {})
@@ -574,7 +579,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const quando = deps.adesso()
       salva({
         ...a,
-        dialogo: [...a.dialogo, { quando, da: 'lui' as const, testo: chiesta.testo, traccia: true as const }, { quando, da: 'tu' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO)
+        // Una domanda nata in chat ha già la sua riga: si aggiunge solo la risposta.
+        dialogo: [...a.dialogo, ...(chiesta.inChat !== undefined ? [] : [{ quando, da: 'lui' as const, testo: chiesta.testo, traccia: true as const }]), { quando, da: 'tu' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO)
       })
     }
     return true
@@ -900,7 +906,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const id = testoDi(corpo?.id).trim()
             const mossa = corpo?.mossa
-            if (id === '' || (mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) { rispondi(res, 400, { errore: 'servono l’id della voce e la mossa (su, giu, cima)' }); return }
+            if (id === '' || (mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima' && mossa !== 'ferma')) { rispondi(res, 400, { errore: 'servono l’id della voce e la mossa (su, giu, cima, ferma)' }); return }
             const v = servizio().prioritaAttesa(id, mossa)
             if (v === undefined) { rispondi(res, 404, { errore: 'questa voce non è più in lista' }); return }
             rispondi(res, 200, v)
@@ -1025,11 +1031,20 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
               rispondi(res, 202, { ricevuto: true, giaArrivato: true, autopilota: deps.archivio.leggi(id) ?? a })
               return
             }
-            const nuovo = servizio().messaggio(a, testo)
-            if (idMsg !== '') {
+            const ricorda = (): void => {
+              if (idMsg === '') return
               dialoghiRicevuti.add(chiave)
               if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
             }
+            // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
+            const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
+            if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
+              ricorda()
+              rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })
+              return
+            }
+            const nuovo = servizio().messaggio(a, testo)
+            ricorda()
             rispondi(res, 202, { ricevuto: true, autopilota: nuovo })
             return
           }
@@ -1122,7 +1137,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         // Le domande aperte: una alla volta per autopilota, la più vecchia, con quante aspettano dietro.
         if (metodo === 'GET' && percorso === '/domande') {
-          const tutte = deps.domande.aperte(url.searchParams.get('ap') ?? undefined)
+          // 0.96.0: quelle ancora solo nella chat dell'autopilota non ci sono (le vedono PC, telefono, conteggio e notifiche da qui).
+          const tutte = deps.domande.visibili(url.searchParams.get('ap') ?? undefined)
           const prime = new Map<string, typeof tutte[number]>()
           for (const d of [...tutte].sort((x, y) => x.apertaIl - y.apertaIl)) if (!prime.has(d.autopilotaId)) prime.set(d.autopilotaId, d)
           rispondi(res, 200, [...prime.values()].map((d) => {
@@ -1153,7 +1169,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // T1: il Gestore spinge qui lo stato del programma, ogni pochi secondi.
         if (metodo === 'POST' && percorso === '/stato-programma') {
           const letto = leggiStatoProgramma(await leggiCorpo(req), Date.now())
-          if (letto !== undefined) statoProgramma = letto
+          if (letto !== undefined) {
+            const cambiata = letto.postiScelti !== scelteUsate && deps.misuraPc !== undefined
+            statoProgramma = letto
+            // Il numero scelto da Nicholas vale subito, senza aspettare il giro del minuto.
+            if (cambiata) aggiornaPosti()
+          }
+          for (const w of letto?.workspaceVisti ?? []) unico?.visto(w)
           rispondi(res, 200, { fatto: letto !== undefined })
           return
         }
@@ -1260,6 +1282,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     avviaLavoro: (a, messaggio, chat) => avviaLavoro(a, messaggio, chat),
     avanzaFinite: () => { void avanzaFiniteDaSole() },
     posti: postiAdesso,
+    postiScelti: () => scelteUsate,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
     memoriaCriteri,

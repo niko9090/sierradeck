@@ -111,6 +111,7 @@ export function ChatAutopilota({
                   {b.da === 'tu' ? 'tu' : autopilota.nome.trim() !== '' ? autopilota.nome : 'lui'} · {orario(b.quando)}
                 </span>
                 <span className="chatap__testo">{b.testo}</span>
+                {b.domanda !== undefined ? <ScelteInChat idDomanda={b.domanda.id} scelte={b.domanda.scelte} onCambiato={onCambiato} /> : null}
                 {b.dettaglio !== undefined ? <span className="chatap__esito">{b.dettaglio}</span> : null}
               </div>
             )}
@@ -130,6 +131,31 @@ export function ChatAutopilota({
         campoPronto={campoPronto}
       />
     </section>
+  )
+}
+
+/**
+ * I tasti di una sua domanda nata in chat (0.96.0): toccarne uno è rispondere,
+ * come dalle Domande. Spariscono quando la domanda ha risposta o è ritirata.
+ */
+function ScelteInChat({ idDomanda, scelte, onCambiato }: { idDomanda: string; scelte: string[]; onCambiato: () => void }): React.JSX.Element {
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState<string | undefined>(undefined)
+  const tocca = (scelta: string): void => {
+    setInCorso(true)
+    setErrore(undefined)
+    window.gestore.autopilota.rispondi(idDomanda, scelta)
+      .then(() => onCambiato())
+      .catch((e: unknown) => setErrore(e instanceof Error ? e.message : String(e)))
+      .finally(() => setInCorso(false))
+  }
+  return (
+    <span className="chatap__scelte">
+      {scelte.map((s, i) => (
+        <button key={s} className={`tasto${i === 0 ? ' tasto--primario' : ''}`} disabled={inCorso} onClick={() => tocca(s)}>{s}</button>
+      ))}
+      {errore !== undefined ? <span className="chatap__esito" role="alert">{errore}</span> : null}
+    </span>
   )
 }
 

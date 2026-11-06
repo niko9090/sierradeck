@@ -1,6 +1,7 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { chiudiPannelliConLApp, finestreDiChat, segnaFinestraDiServizio } from './finestre-pannello'
+import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
 import { esitoDaPasso } from '@shared/istruzioni-autopilota'
@@ -171,7 +172,8 @@ import { pcCheHaLaCartella, pcVivo, tagliaIntero, TAGLIO_OPZIONE_BATTITO, type B
 import type { EsitoLavoro } from './cassaforte/lavoro-in-corso'
 import { pathToSlug } from './indexer/project-scanner'
 import { scriviAtomico } from '@shared/scrittura-atomica'
-import { decidiApertura, type Apertura } from '@shared/apertura-chat'
+import type { Apertura } from '@shared/apertura-chat'
+import { rispondiDaDove } from './da-dove'
 import { avvisoDriveScollegato, indirizzoUtile, scollegamentoDalRegistro, type AvvisoDrive, type StatoPc } from '@shared/scoperta-pc'
 import { indirizziTailscale } from './tailscale'
 import {
@@ -3394,48 +3396,17 @@ if (!app.requestSingleInstanceLock()) {
       // 0.36.1: da dove aprire una chat del workspace, PRIMA di aprirla. Se e'
       // di un altro PC che risponde, il riquadro diventa subito remoto; se quel
       // PC tace, un riquadro d'attesa; altrimenti si apre qui come sempre.
-      ipcMain.handle('chat:daDove', async (_e, p: unknown): Promise<Apertura> => {
-        const q = (p ?? {}) as { cwd?: unknown; sessionUuid?: unknown }
-        if (typeof q.cwd !== 'string' || q.cwd === '') return { tipo: 'locale' }
-        const cwd = q.cwd
-        const sessione = typeof q.sessionUuid === 'string' && q.sessionUuid !== '' ? q.sessionUuid : undefined
-        try {
-          const io = identitaPc.leggi().id
-          const cartellaQui = existsSync(cwd)
-          const trascrizioneQui =
-            sessione !== undefined && existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`))
-          const di = cartellaQui ? undefined : altrove(cwd)
-          // Il PC del progetto prima di tutto (0.88.0): un progetto, un PC.
-          const prop = proprietarioAltrove(cwd)
-          const casa = prop !== undefined ? { id: prop.id, nome: prop.nome, motivo: `«${prop.progetto}» vive là` } : undefined
-          const casaQui = progettoDiCwd(registroProgetti.leggi(), cwd, io) !== undefined
-          const dati = {
-            ...(sessione !== undefined ? { sessione } : {}),
-            ...(casa !== undefined ? { casa } : {}),
-            ...(casaQui ? { casaQui } : {}),
-            cwd,
-            io,
-            trascrizioneQui,
-            cartellaQui,
-            ...(di !== undefined ? { cartellaDi: di } : {}),
-            battiti: postino.altrui(),
-            adesso: Date.now()
-          }
-          const prima = decidiApertura(dati)
-          if (prima.tipo !== 'attesa' || prima.pc.id === '') return prima
-          // Il battito e' vecchio (con il Drive scollegato lo e' sempre): prima
-          // di dire «in attesa» si bussa direttamente a quel PC (0.39.3). Se
-          // risponde e' acceso, e la chat si apre dal vivo.
-          const stato = await remoto.statoDi(prima.pc.id, prima.pc.nome)
-          return decidiApertura({
-            ...dati,
-            rispondono: stato.stato === 'acceso' ? [prima.pc.id] : [],
-            statiPc: { [prima.pc.id]: stato }
-          })
-        } catch {
-          return { tipo: 'locale' }
-        }
-      })
+      ipcMain.handle('chat:daDove', (_e, p: unknown): Promise<Apertura> => rispondiDaDove({
+        io: () => identitaPc.leggi().id,
+        cartellaQui: (cwd) => existsSync(cwd),
+        trascrizioneQui: (cwd, sessione) => existsSync(join(radiceClaude, 'projects', pathToSlug(cwd), `${sessione}.jsonl`)),
+        cartellaDi: altrove,
+        proprietario: proprietarioAltrove,
+        casaQui: (cwd, io) => progettoDiCwd(registroProgetti.leggi(), cwd, io) !== undefined,
+        battiti: () => postino.altrui(),
+        adesso: () => Date.now(),
+        statoDi: (id, nome) => remoto.statoDi(id, nome)
+      }, p))
       // Per l'elenco «Riprendi una conversazione»: di quali cartelle e' padrone
       // un altro PC. Una domanda sola per tutte, non una per riga.
       ipcMain.handle('remoto:altroveDi', (_e, cwds: unknown): Record<string, { id: string; nome: string }> => {
@@ -4263,6 +4234,8 @@ if (!app.requestSingleInstanceLock()) {
           return false
         }
       }
+      /** 0.96.0: le schede degli autopiloti aperte sul telefono, per workspace (ultima lettura). */
+      const vistoDalTelefono = new Map<string, number>()
       /** T1: lo stato del programma per l'autopilota (vedi `coordinatore.ts`). */
       const inviaStatoProgramma = async (): Promise<void> => {
         const ora = Date.now()
@@ -4293,7 +4266,14 @@ if (!app.requestSingleInstanceLock()) {
           }),
           driveAttivo: await driveAttivoAdesso(),
           altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) })),
-          regolazionePosti: impostazioni.preferenze().postiChat ?? 0
+          regolazionePosti: impostazioni.preferenze().postiChat ?? 0,
+          ...(impostazioni.preferenze().postiScelti !== undefined ? { postiScelti: impostazioni.preferenze().postiScelti } : {}),
+          // 0.96.0: la chat dell'autopilota davanti a Nicholas (PC in primo piano, o telefono): le domande in chat contano come viste.
+          workspaceVisti: workspaceVisti({
+            finestre: finestreDiChat().filter((w) => !w.isDestroyed()).map((w) => ({ workspace: workspaceDellaFinestra(w.id), inPrimoPiano: w.isVisible() && !w.isMinimized() && w.isFocused() })),
+            telefono: vistoDalTelefono,
+            ora
+          })
         })
       }
       const rotte = {
@@ -4351,6 +4331,8 @@ if (!app.requestSingleInstanceLock()) {
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],
         autopiloti: () => clientAutopilota.elenca(),
         autopilota: (id: string) => clientAutopilota.dettaglio(id),
+        // 0.96.0: la scheda di un autopilota è aperta sul telefono: la sua chat è davanti a Nicholas.
+        schedaApertaSulTelefono: (ws: string) => { vistoDalTelefono.set(ws, Date.now()) },
         // L'avanzamento dell'autopilota unico di un workspace (0.86.x): orchestratore e coda.
         avanzamentoAutopilota: async (ws: string) => {
           const [orchestratore, coda] = await Promise.all([clientAutopilota.orchestratore(ws), clientAutopilota.coda(ws)])
@@ -4358,7 +4340,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
-        prioritaAttesaSpecialisti: (id: string, mossa: 'su' | 'giu' | 'cima') => clientAutopilota.prioritaAttesa(id, mossa),
+        prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {

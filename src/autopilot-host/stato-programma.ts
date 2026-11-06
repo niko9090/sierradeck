@@ -1,5 +1,5 @@
 import type { LimitiPiano } from '@shared/harness'
-import { leggiRegolazione, type RegolazionePosti } from '@shared/posti-chat'
+import { leggiPostiScelti, leggiRegolazione, type RegolazionePosti } from '@shared/posti-chat'
 
 /**
  * L'estratto che il Gestore spinge al servizio ogni pochi secondi
@@ -35,8 +35,16 @@ export type StatoProgramma = {
   altriPc: { nome: string; vivo: boolean }[]
   /** Il workspace davanti. */
   workspace?: string
+  /**
+   * 0.96.0: i workspace la cui chat è davanti a Nicholas in questo momento
+   * (finestra in primo piano sul PC, o chat aperta sul telefono). Il servizio
+   * li segna «visti»: una domanda in chat guardata non passa subito nelle Domande.
+   */
+  workspaceVisti?: string[]
   /** «Più chat / meno chat» dalle Impostazioni (0.82.0). */
   regolazionePosti?: RegolazionePosti
+  /** Numero massimo di chat scelto da Nicholas (k-57); assente = automatico. */
+  postiScelti?: number
 }
 
 export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramma | undefined {
@@ -82,7 +90,9 @@ export function leggiStatoProgramma(raw: unknown, adesso: number): StatoProgramm
     ...(typeof o.driveAttivo === 'boolean' ? { driveAttivo: o.driveAttivo } : {}),
     altriPc: lista(o.altriPc, (p) => ({ nome: s(p.nome), vivo: p.vivo === true })).slice(0, 10),
     ...(typeof o.workspace === 'string' ? { workspace: o.workspace } : {}),
-    ...(o.regolazionePosti !== undefined ? { regolazionePosti: leggiRegolazione(o.regolazionePosti) } : {})
+    ...(Array.isArray(o.workspaceVisti) ? { workspaceVisti: o.workspaceVisti.filter((w): w is string => typeof w === 'string' && w !== '' && w.length <= 1000).slice(0, 50) } : {}),
+    ...(o.regolazionePosti !== undefined ? { regolazionePosti: leggiRegolazione(o.regolazionePosti) } : {}),
+    ...(leggiPostiScelti(o.postiScelti) !== undefined ? { postiScelti: leggiPostiScelti(o.postiScelti) } : {})
   }
 }
 

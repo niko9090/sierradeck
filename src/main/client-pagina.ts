@@ -265,6 +265,9 @@ function componiPagina(): string {
   /* «N di M chat» (0.82.0): in cima agli autopiloti; ambra quando il PC è pieno. */
   .posti-chat { display: flex; flex-wrap: wrap; align-items: center; margin: 0 0 var(--s2); font-size: var(--t1); color: var(--testo-quieto); }
   .posti-chat--pieno .posti-chat__riga { color: var(--ambra); }
+  .posti-chat__tasto { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+  .posti-chat__modale { flex-basis: 100%; margin-top: var(--s1); display: flex; flex-direction: column; gap: var(--s1); }
+  .posti-chat__comandi { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
   /* La serigrafia: le lettere incise sotto i LED di un banco. E' la sola
      struttura di questa pagina, e non si usa da nessun'altra parte. */
   .serigrafia {
@@ -2004,13 +2007,53 @@ function domandeInAttesa(s) {
  * quante ne lascia lavorare insieme, con il perché dietro «?». I testi li
  * scrive il computer, uguali al PC e all'app. Niente da un computer più vecchio.
  */
+var postiAperto = false
+var postiNota = ''
 function postiChatHtml(s) {
   const p = s && s.postiChat
   if (!p || typeof p.riga !== 'string') return ''
   const pieno = p.attive >= p.posti
-  return '<div class="posti-chat' + (pieno ? ' posti-chat--pieno' : '') + '" role="status"><span class="posti-chat__riga">' + esc(p.riga) + '</span>' +
-    aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>'), 'Chat al lavoro insieme') + '</div>'
+  const scelti = typeof p.scelti === 'number' ? p.scelti : null
+  let pannelloPosti = ''
+  if (postiAperto) {
+    pannelloPosti = '<div class="posti-chat__modale" role="dialog" aria-label="Quante chat insieme">' +
+      '<div>Adesso: <strong>' + esc(String(p.posti)) + '</strong> chat · ' + esc(p.origine || '') + '</div>' +
+      '<div class="posti-chat__comandi">' +
+      '<button class="tasto" aria-label="Meno chat" onclick="postiPassa(-1)">−</button>' +
+      '<input id="postiCampo" inputmode="numeric" aria-label="Numero massimo di chat" value="' + esc(String(scelti !== null ? scelti : p.posti)) + '" style="width:3.5em;text-align:center">' +
+      '<button class="tasto" aria-label="Più chat" onclick="postiPassa(1)">+</button>' +
+      '<button class="tasto" onclick="postiImposta()">Imposta</button>' +
+      '<button class="tasto"' + (scelti === null ? ' disabled' : '') + ' onclick="postiAutomatico()">Automatico</button>' +
+      '<button class="tasto" onclick="postiChiudi()">Chiudi</button></div>' +
+      (p.avviso ? '<div class="posti-chat--pieno">⚠ ' + esc(p.avviso) + '</div>' : '') +
+      (postiNota ? '<div>' + esc(postiNota) + '</div>' : '') + '</div>'
+  }
+  return '<div class="posti-chat' + (pieno ? ' posti-chat--pieno' : '') + '" role="status"><button class="posti-chat__tasto" aria-haspopup="dialog" title="Cambia quante chat lavorano insieme" onclick="postiApri()"><span class="posti-chat__riga">' + esc(p.riga) + '</span></button>' +
+    (p.avviso && !postiAperto ? '<span class="posti-chat--pieno"> ⚠ PC carico</span>' : '') +
+    aiuto('posti-chat', esc(p.spiega || '').split(String.fromCharCode(10)).join('<br>') + '<br>Da 1 a 8, vale subito; «Automatico» torna a decidere il PC. Il limite degli specialisti vale al prossimo avvio dell’autopilota, a turno finito.', 'Chat al lavoro insieme') + pannelloPosti + '</div>'
 }
+async function postiSalva(valore) {
+  postiNota = ''
+  try {
+    await chiedi('/api/posti-chat', { scelti: valore })
+    postiNota = 'Salvato.'
+  } catch (e) { postiNota = 'Non è andata: riprova tra poco.' }
+  pannello(ultimoStato)
+}
+window.postiApri = () => { postiAperto = true; postiNota = ''; pannello(ultimoStato) }
+window.postiChiudi = () => { postiAperto = false; pannello(ultimoStato) }
+window.postiPassa = (d) => {
+  const c = document.getElementById('postiCampo')
+  const n = Math.min(8, Math.max(1, (parseInt(c && c.value, 10) || 1) + d))
+  postiSalva(n)
+}
+window.postiImposta = () => {
+  const c = document.getElementById('postiCampo')
+  const t = ((c && c.value) || '').trim()
+  if (!/^[0-9]{1,2}$/.test(t) || Number(t) < 1 || Number(t) > 8) { postiNota = 'Scrivi un numero intero da 1 a 8.'; pannello(ultimoStato); return }
+  postiSalva(Number(t))
+}
+window.postiAutomatico = () => postiSalva(null)
 
 /**
  * Il pallino di una voce della fascia (0.83.0), come nell'app: rosso se un

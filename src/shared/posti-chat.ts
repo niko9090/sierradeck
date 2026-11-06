@@ -64,10 +64,19 @@ export type MisuraPc = {
   caricoPercento: number
 }
 
+/** Il numero massimo scelto a mano (k-57): da 1 al tetto di chat. */
+export const POSTI_SCELTI_MIN = 1
+export const POSTI_SCELTI_MAX = POSTI_MAX
+
+/** Un numero scelto a mano valido (intero nel limite), o `undefined`: «Automatico». */
+export function leggiPostiScelti(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isInteger(v) && v >= POSTI_SCELTI_MIN && v <= POSTI_SCELTI_MAX ? v : undefined
+}
+
 export type CalcoloPosti = {
   posti: number
   /** Cosa ha deciso il numero: serve al «?». */
-  perche: 'processori' | 'memoria' | 'carico' | 'minimo' | 'massimo'
+  perche: 'processori' | 'memoria' | 'carico' | 'minimo' | 'massimo' | 'scelto'
 }
 
 /**
@@ -77,7 +86,10 @@ export type CalcoloPosti = {
  * libera, quindi i posti dalla memoria sono loro più quelli che ci stanno
  * ancora.
  */
-export function postiDalPc(m: MisuraPc, attive: number, regolazione: RegolazionePosti = 0): CalcoloPosti {
+export function postiDalPc(m: MisuraPc, attive: number, regolazione: RegolazionePosti = 0, scelti?: number): CalcoloPosti {
+  // Scelto da Nicholas: vince sempre, anche se il carico abbasserebbe.
+  const voluti = leggiPostiScelti(scelti)
+  if (voluti !== undefined) return { posti: voluti, perche: 'scelto' }
   const daProcessori = Math.floor((Math.max(1, m.processori) * 3) / 4)
   const daMemoria = Math.max(0, attive) + Math.max(0, Math.floor((m.memoriaLiberaMb - MB_DI_RISERVA) / MB_PER_CHAT))
   let base = Math.min(daProcessori, daMemoria)
@@ -132,6 +144,8 @@ export type PostiChat = {
   /** Le chat che aspettano un posto, per autopilota. */
   inFila: number
   regolazione: RegolazionePosti
+  /** Il numero massimo scelto da Nicholas (k-57); assente = automatico. */
+  scelti?: number
   perche: CalcoloPosti['perche']
   /** Sta risalendo con calma: il PC ne darebbe di più. */
   risale: boolean
@@ -139,6 +153,21 @@ export type PostiChat = {
 }
 
 const gb = (mb: number): string => (mb / 1024).toLocaleString('it-IT', { maximumFractionDigits: 1 })
+
+/** Il PC è sotto sforzo (a prescindere da chi ha scelto il numero). */
+export function pcCarico(m: MisuraPc | undefined): boolean {
+  return m !== undefined && m.caricoPercento >= CARICO_MEDIO
+}
+
+/** Da dove viene il numero: una riga corta per la modale. */
+export function origineCorta(p: PostiChat): string {
+  return p.scelti !== undefined ? 'Scelto da te' : 'Automatico, secondo il carico del PC'
+}
+
+/** L'avviso breve accanto al numero scelto, se il PC è carico. */
+export function avvisoCarico(p: PostiChat): string | undefined {
+  return p.scelti !== undefined && pcCarico(p.misura) ? 'Il PC è carico: con più chat può rallentare.' : undefined
+}
 
 /** La riga corta: «3 di 6 chat», con la fila se c'è. */
 export function rigaPosti(p: PostiChat): string {
@@ -148,12 +177,14 @@ export function rigaPosti(p: PostiChat): string {
 /** Il testo dietro «?»: com'è fatto il numero, in parole semplici. */
 export function spiegaPosti(p: PostiChat): string {
   const righe: string[] = []
-  righe.push(`Su questo PC lavorano al massimo ${p.posti} chat degli autopiloti insieme; adesso ${p.attive === 1 ? 'ne lavora 1' : `ne lavorano ${p.attive}`}.`)
+  const ex = p.scelti !== undefined ? ` (scelto da te: ${p.scelti})` : ''
+  righe.push(`Su questo PC lavorano al massimo ${p.posti} chat degli autopiloti insieme${ex}; adesso ${p.attive === 1 ? 'ne lavora 1' : `ne lavorano ${p.attive}`}.`)
   if (p.misura !== undefined) {
     const m = p.misura
     righe.push(`Il numero viene dal PC: ${m.processori} processori, ${gb(m.memoriaLiberaMb)} GB di memoria libera su ${gb(m.memoriaTotaleMb)}, processori occupati al ${Math.round(m.caricoPercento)}% negli ultimi minuti.`)
   }
   const motivo: Record<CalcoloPosti['perche'], string> = {
+    scelto: 'Il numero lo hai scelto tu: vale anche se il PC è carico. Con «Automatico» torna a decidere il PC.',
     processori: 'Adesso lo decidono i processori: tre chat ogni quattro.',
     memoria: `Adesso lo decide la memoria libera: circa ${gb(MB_PER_CHAT)} GB per chat, tenendone ${gb(MB_DI_RISERVA)} per il resto.`,
     carico: 'Il PC è sotto sforzo: le chat nuove aspettano finché si libera.',
@@ -170,6 +201,19 @@ export function spiegaPosti(p: PostiChat): string {
   return righe.join('\n')
 }
 
+/** Il testo scritto nel campo: un intero nel limite, o `undefined` se non va (k-57). */
+export function leggiCampoPosti(testo: string): number | undefined {
+  const t = testo.trim()
+  return /^\d{1,2}$/u.test(t) ? leggiPostiScelti(Number(t)) : undefined
+}
+
+/** − e + : un posto alla volta, fermi ai limiti. */
+export function passoPosti(valore: number, delta: 1 | -1): number {
+  return Math.min(POSTI_SCELTI_MAX, Math.max(POSTI_SCELTI_MIN, valore + delta))
+}
+
+export const FRASE_LIMITE_PROCESSO = 'Il limite degli specialisti vale per l’autopilota al prossimo avvio: se sta lavorando riparte a turno finito.'
+
 /** La riga nella conversazione dell'autopilota quando un compito resta in fila. */
 export const IN_FILA = 'in fila: parte quando si libera un posto'
 
@@ -177,7 +221,7 @@ export function leggiPostiChat(v: unknown): PostiChat | undefined {
   if (typeof v !== 'object' || v === null) return undefined
   const o = v as Record<string, unknown>
   if (typeof o.attive !== 'number' || typeof o.posti !== 'number') return undefined
-  const perche = ['processori', 'memoria', 'carico', 'minimo', 'massimo'].includes(o.perche as string) ? (o.perche as CalcoloPosti['perche']) : 'processori'
+  const perche = ['processori', 'memoria', 'carico', 'minimo', 'massimo', 'scelto'].includes(o.perche as string) ? (o.perche as CalcoloPosti['perche']) : 'processori'
   const m = typeof o.misura === 'object' && o.misura !== null ? (o.misura as Record<string, unknown>) : undefined
   const misura = m !== undefined && typeof m.processori === 'number' && typeof m.memoriaLiberaMb === 'number' && typeof m.memoriaTotaleMb === 'number' && typeof m.caricoPercento === 'number'
     ? { processori: m.processori, memoriaLiberaMb: m.memoriaLiberaMb, memoriaTotaleMb: m.memoriaTotaleMb, caricoPercento: m.caricoPercento }
@@ -187,6 +231,7 @@ export function leggiPostiChat(v: unknown): PostiChat | undefined {
     posti: o.posti,
     inFila: typeof o.inFila === 'number' ? o.inFila : 0,
     regolazione: leggiRegolazione(o.regolazione),
+    ...(leggiPostiScelti(o.scelti) !== undefined ? { scelti: leggiPostiScelti(o.scelti) } : {}),
     perche,
     risale: o.risale === true,
     ...(misura !== undefined ? { misura } : {})

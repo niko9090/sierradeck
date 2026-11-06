@@ -10,7 +10,7 @@
  * questa finestra non deve accorgersi che esiste.
  */
 
-import type { RegolazionePosti } from './posti-chat'
+import { leggiPostiScelti, type RegolazionePosti } from './posti-chat'
 import { normalizzaScorciatoie, SCORCIATOIE_PREDEFINITE, type Scorciatoie } from './scorciatoie'
 
 export type Preferenze = {
@@ -147,6 +147,8 @@ export type Preferenze = {
    * Assente = come dice il PC.
    */
   postiChat?: RegolazionePosti
+  /** Numero massimo di chat insieme scelto a mano (k-57), 1–8. Assente = automatico. */
+  postiScelti?: number
   /**
    * Come si veste la console.
    *
@@ -304,6 +306,7 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
     ...(typeof o.percorsoGit === 'string' && o.percorsoGit.trim() !== '' && o.percorsoGit.length <= 400 ? { percorsoGit: o.percorsoGit.trim() } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),
+    ...(leggiPostiScelti(o.postiScelti) !== undefined ? { postiScelti: leggiPostiScelti(o.postiScelti) } : {}),
     ...(Array.isArray(o.chatSoloMie)
       ? { chatSoloMie: [...new Set(o.chatSoloMie.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-500) }
       : {}),
