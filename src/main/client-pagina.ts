@@ -3142,7 +3142,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { menuSpecAperto = false; menuSpecConferma = ''; apRiassunto = false; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
