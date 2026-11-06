@@ -5,7 +5,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
-import type { MossaPriorita, VistaAttesa } from '@shared/attesa-specialisti'
+import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
 import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
@@ -159,7 +159,7 @@ export type ClientAutopilota = {
   impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<VistaOrchestratore>
   /** k-48: la lista d'attesa degli specialisti. Un servizio vecchio non ce l'ha: `undefined`. */
   attesaSpecialisti: () => Promise<VistaAttesa | undefined>
-  prioritaAttesa: (id: string, mossa: MossaPriorita) => Promise<VistaAttesa | undefined>
+  prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
   togliAttesa: (id: string) => Promise<VistaAttesa | undefined>
 }
 

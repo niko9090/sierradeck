@@ -38,9 +38,22 @@ export type VoceAttesa = {
   prenotataFino?: string
   /** Quante volte è stato svegliato per questo turno. */
   sveglie: number
+  /** Fermato da Nicholas con «Ferma e metti in cima» (k-53): il suo lavoro resta sul ramo, riparte per primo. */
+  parcheggiata?: true
+  /** Il ramo dove il lavoro fermato resta salvato. */
+  ramo?: string
 }
 
-export type StatoAttesa = { voci: VoceAttesa[]; prossimo: number }
+export type StatoAttesa = {
+  voci: VoceAttesa[]
+  prossimo: number
+  /**
+   * La precedenza di un workspace (k-53): chi la alza prende il prossimo posto
+   * libero prima degli altri, anche se il suo specialista non è ancora in fila.
+   * Le voci nuove del workspace partono da questa priorità. Assente = nessuna.
+   */
+  precedenze?: Record<string, number>
+}
 
 export const attesaVuota = (): StatoAttesa => ({ voci: [], prossimo: 1 })
 
@@ -103,10 +116,12 @@ export function scadute(stato: StatoAttesa, adesso: number): Mossa {
     if (v.prenotataFino === undefined || prenotata(v, adesso)) { voci.push(v); continue }
     if (v.sveglie >= SVEGLIE_MAX) { cadute.push(v); continue }
     const { prenotataFino: _p, ...resto } = v
-    voci.push({ ...resto, ordine: prossimo })
+    // Chi era stato parcheggiato (k-53) e non ha rilanciato torna in fondo come gli altri: la precedenza è esaurita.
+    const { parcheggiata: _q, ...normale } = resto
+    voci.push({ ...normale, ordine: prossimo })
     prossimo += 1
   }
-  return { stato: { voci, prossimo }, svegli: [], cadute }
+  return { stato: { ...stato, voci, prossimo }, svegli: [], cadute }
 }
 
 /** Ai posti liberi non ancora prenotati: prenota i primi in fila e dice chi svegliare. */
@@ -167,14 +182,16 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
     id: p.id(), workspace: r.workspace, ...(r.autopilota !== undefined ? { autopilota: r.autopilota } : {}),
     ...(compitoDi(r.descrizione) !== undefined ? { compito: compitoDi(r.descrizione)! } : {}),
     descrizione: r.descrizione.replace(/\s+/gu, ' ').trim().slice(0, 200), tipo: r.tipo,
-    dal: iso(p.adesso), priorita: 0, ordine: s.prossimo, sveglie: 0
+    dal: iso(p.adesso), priorita: s.precedenze?.[r.workspace] ?? 0, ordine: s.prossimo, sveglie: 0
   }
-  s = { voci: [...s.voci, voce], prossimo: s.prossimo + 1 }
+  s = { ...s, voci: [...s.voci, voce], prossimo: s.prossimo + 1 }
   const posizione = inFila(s, p.adesso).find((v) => v.id === voce.id)!.posizione
   return { passa: false, mossa: mossa(), voce, posizione, davanti: posizione - 1, nuova: true }
 }
 
 export type MossaPriorita = 'su' | 'giu' | 'cima'
+/** Le mosse delle rotte: le tre della fila e `ferma` («Ferma e metti in cima»: solo a mano, solo per chi lavora). */
+export type MossaAttesa = MossaPriorita | 'ferma'
 
 const limita = (n: number): number => Math.max(-PRIORITA_MAX, Math.min(PRIORITA_MAX, n))
 
@@ -211,6 +228,55 @@ export function cambiaPriorita(stato: StatoAttesa, id: string, mossa: MossaPrior
   return { ...stato, voci: stato.voci.map((v) => (v.id === id ? nuova : v)) }
 }
 
+/**
+ * La precedenza di un workspace (k-53), per chi è già al lavoro o ancora nel
+ * piano e quindi non ha una voce in fila: stesse mosse di {@link cambiaPriorita}.
+ * `cima` lo porta sopra tutti gli altri; `su` e `giu` di un gradino. Le sue
+ * voci già in fila prendono la nuova priorità; quelle nuove ci partono.
+ *
+ * Cambia **solo l'ordine di chi aspetta un posto**: non tocca nessuno
+ * specialista già al lavoro, non li scavalca e non li ferma mai.
+ */
+export function cambiaPrecedenzaWorkspace(stato: StatoAttesa, workspace: string, mossa: MossaPriorita): StatoAttesa {
+  const prec = { ...(stato.precedenze ?? {}) }
+  const vecchia = prec[workspace] ?? 0
+  const altre = Math.max(0, ...stato.voci.filter((v) => v.workspace !== workspace).map((v) => v.priorita), ...Object.entries(prec).filter(([w]) => w !== workspace).map(([, n]) => n))
+  const nuova = limita(mossa === 'cima' ? (vecchia > altre ? vecchia : altre + 1) : mossa === 'su' ? vecchia + 1 : vecchia - 1)
+  if (nuova === 0) delete prec[workspace]
+  else prec[workspace] = nuova
+  const voci = stato.voci.map((v) => {
+    if (v.workspace !== workspace) return v
+    if (mossa === 'giu') return v.priorita === vecchia ? { ...v, priorita: nuova } : v
+    return v.priorita < nuova ? { ...v, priorita: nuova } : v
+  })
+  return { ...stato, voci, precedenze: prec }
+}
+
+/**
+ * **Ferma e metti in cima** (k-53): lo specialista fermato da Nicholas entra
+ * nella fila, che qui è il parcheggio, davanti a tutti: priorità sopra ogni
+ * altra e arrivo prima di ogni altro. Il lavoro resta sul suo ramo. Se la stessa
+ * richiesta è già in fila, la voce c'è già e viene solo portata davanti.
+ * Quando si libera un posto è il primo a essere prenotato.
+ */
+export function parcheggia(stato: StatoAttesa, r: RichiestaSpecialista & { compito?: string; ramo?: string }, p: { adesso: number; id: () => string }): StatoAttesa {
+  const alte = [...stato.voci.map((v) => v.priorita), ...Object.values(stato.precedenze ?? {})]
+  const priorita = limita(Math.max(0, ...alte) + 1)
+  const ordine = stato.voci.reduce((m, v) => Math.min(m, v.ordine), stato.prossimo) - 1
+  const esistente = trovaVoce(stato, r)
+  if (esistente !== undefined) {
+    const { prenotataFino: _p, ...resto } = esistente
+    return { ...stato, voci: stato.voci.map((v) => (v.id === esistente.id ? { ...resto, priorita, ordine, parcheggiata: true as const, ...(r.ramo !== undefined ? { ramo: r.ramo } : {}) } : v)) }
+  }
+  const voce: VoceAttesa = {
+    id: p.id(), workspace: r.workspace, ...(r.autopilota !== undefined ? { autopilota: r.autopilota } : {}),
+    ...(r.compito !== undefined ? { compito: r.compito } : {}),
+    descrizione: r.descrizione.replace(/\s+/gu, ' ').trim().slice(0, 200), tipo: r.tipo,
+    dal: iso(p.adesso), priorita, ordine, sveglie: 0, parcheggiata: true, ...(r.ramo !== undefined ? { ramo: r.ramo } : {})
+  }
+  return { ...stato, voci: [...stato.voci, voce] }
+}
+
 /** Toglie una voce. `undefined` se non c'è. */
 export function togliVoce(stato: StatoAttesa, id: string): { stato: StatoAttesa; voce: VoceAttesa } | undefined {
   const voce = stato.voci.find((v) => v.id === id)
@@ -219,6 +285,24 @@ export function togliVoce(stato: StatoAttesa, id: string): { stato: StatoAttesa;
 
 /** Il posto in fila a parole: «2°». */
 export const ordinale = (n: number): string => `${n}°`
+
+/** La stima di una voce (k-53): tutti campi facoltativi, i client vecchi li ignorano. */
+export type StimaVoce = {
+  /** Il nome leggibile del workspace (l'ultimo pezzo del percorso). */
+  workspaceNome?: string
+  /** Il titolo del compito, al più una sessantina di caratteri. */
+  titolo?: string
+  /** «Cosa fa adesso» in una riga, dall'ultima azione; assente se non si sa. */
+  cosaFa?: string
+  /** Da 0 a 95: mai 100 finché non è finito. Per chi è in fila è 0. */
+  percentuale?: number
+  /** Minuti stimati alla fine; per chi è in fila includono l'attesa del posto. */
+  minutiStimati?: number
+  /** Ha superato la durata attesa: la percentuale resta al tetto. */
+  inRitardo?: true
+  /** Il peso del compito (1-3), se è nel piano. */
+  peso?: 1 | 2 | 3
+}
 
 /** Quello che vede la sezione: chi lavora adesso e chi aspetta, in ordine. */
 export type VistaAttesa = {
@@ -234,7 +318,11 @@ export type VistaAttesa = {
     descrizione: string
     tipo: string
     dal: string
-  }>
+    /** La precedenza del suo workspace per il prossimo posto libero (k-53); non ferma nessuno. */
+    precedenza?: number
+    /** Nicholas ha chiesto «Ferma e metti in cima»: si sta fermando ed è già in fila davanti a tutti. */
+    fermaRichiesta?: true
+  } & StimaVoce>
   inFila: Array<{
     id: string
     posizione: number
@@ -248,5 +336,11 @@ export type VistaAttesa = {
     /** Il posto è già suo: sta per partire. */
     prenotata: boolean
     prenotataFino?: string
-  }>
+    /** Fermato da Nicholas con «Ferma e metti in cima»: riparte per primo dal suo ramo (k-53). */
+    parcheggiata?: true
+    /** Il ramo dove il suo lavoro resta salvato. */
+    ramo?: string
+  } & StimaVoce>
+  /** Il lavoro che resta per svuotare la lista, con i posti in parallelo (k-53). */
+  totale?: { minuti: number; compiti: number }
 }

@@ -1644,7 +1644,7 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
   ipcMain.handle('autopilota:specialista', async (_e, ws: unknown, id: unknown) => (typeof id === 'string' && id !== '' ? client.specialista(wsCoda(ws), id).catch(() => undefined) : undefined))
   // k-48: la lista d'attesa degli specialisti: la vista, la priorità di una voce, togliere una voce.
   ipcMain.handle('autopilota:attesaSpecialisti', async () => client.attesaSpecialisti().catch(() => undefined))
-  ipcMain.handle('autopilota:prioritaAttesa', async (_e, id: unknown, mossa: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 && (mossa === 'su' || mossa === 'giu' || mossa === 'cima') ? client.prioritaAttesa(id, mossa).catch(() => undefined) : undefined))
+  ipcMain.handle('autopilota:prioritaAttesa', async (_e, id: unknown, mossa: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 && (mossa === 'su' || mossa === 'giu' || mossa === 'cima' || mossa === 'ferma') ? client.prioritaAttesa(id, mossa).catch(() => undefined) : undefined))
   ipcMain.handle('autopilota:togliAttesa', async (_e, id: unknown) => (typeof id === 'string' && id !== '' && id.length <= 100 ? client.togliAttesa(id).catch(() => undefined) : undefined))
   ipcMain.handle('autopilota:impostaOrchestratore', async (_e, ws: unknown, p: unknown) => {
     const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>

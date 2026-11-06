@@ -46,7 +46,10 @@ import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { homedir } from 'node:os'
-import { attesaVuota, cambiaPriorita, inFila, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaPriorita, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { nomeWorkspace } from '@shared/attesa-vista'
+import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
+import { rigaUltimaAzione } from '@shared/specialisti'
 import type { ArchivioAttesa } from './attesa-store'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
@@ -180,7 +183,13 @@ export type ServizioUnico = {
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
   /** k-48: cambia la priorità di una voce in fila. `undefined`: la voce non c'è. */
-  prioritaAttesa: (id: string, mossa: MossaPriorita) => VistaAttesa | undefined
+  /**
+   * Le mosse sulla fila. `su`/`giu`/`cima` cambiano solo l'ordine di chi aspetta un
+   * posto (per chi lavora o è ancora nel piano, la precedenza del suo workspace) e
+   * non fermano mai nessuno. `ferma` («Ferma e metti in cima») è l'unico modo di
+   * fermare uno specialista per la precedenza, e parte solo da Nicholas.
+   */
+  prioritaAttesa: (id: string, mossa: MossaAttesa) => VistaAttesa | undefined
   /** k-48: toglie una voce dalla fila. `undefined`: la voce non c'è. */
   togliAttesa: (id: string) => VistaAttesa | undefined
   /** Il servizio si spegne: i processi `claude` con lui. */
@@ -465,6 +474,10 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     for (const v of m.svegli) {
       const cosa = v.compito ?? cosaDel(v.descrizione)
       console.info(`[attesa] ${v.workspace} — posto libero per ${cosa}`)
+      if (v.parcheggiata === true) {
+        evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto per ${cosa}, fermato da Nicholas per far passare altro lavoro: rilancialo ora${v.ramo !== undefined ? ` dal suo ramo ${v.ramo}` : ' dal suo ramo'}, senza rifare quello che c’è già. Il posto è tuo per 5 minuti.` })
+        continue
+      }
       evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
     }
     for (const v of m.cadute) {
@@ -477,26 +490,66 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     if (prima.voci.length === 0) return
     applicaAttesa(rivediPosti(prima, liberiPc(), oraMs()), prima)
   }
+  /** Gli specialisti a cui Nicholas ha chiesto «Ferma e metti in cima»: finché il flusso non li dà per fermati contano ancora al lavoro. */
+  const fermaChiesta = new Set<string>()
+  /** Le durate vere dei compiti già uniti, di tutti i workspace: dall'inizio dello specialista (o dalla creazione) all'unione. */
+  const storicoDurate = (): DurataVera[] => unici().flatMap((u) => {
+    const ws = wsDi(u)
+    const sub = subagenti(ws)
+    return x.orchestratori.piano(ws).compiti.flatMap((c) => {
+      if (c.stato !== 'unito' || c.unitoIl === undefined) return []
+      const fine = Date.parse(c.unitoIl)
+      const inizio = Date.parse(sub.find((s) => s.compito === c.id)?.inizio ?? c.creato)
+      const minuti = (fine - inizio) / 60_000
+      return Number.isFinite(minuti) && minuti > 0 ? [{ peso: c.peso, minuti }] : []
+    })
+  })
+  const compitoDelPiano = (ws: string, compito: string | undefined): CompitoPiano | undefined => (compito === undefined ? undefined : x.orchestratori.piano(ws).compiti.find((c) => c.id === compito))
+  const pesoDi = (ws: string, compito: string | undefined): PesoCompito => compitoDelPiano(ws, compito)?.peso ?? PESO_PREDEFINITO
+  const titoloDi = (ws: string, compito: string | undefined, descrizione: string): string => titoloBreve(compitoDelPiano(ws, compito)?.titolo ?? descrizione)
   const vistaAttesa = (): VistaAttesa => {
     const adesso = oraMs()
     const lavorano = unici().flatMap((u) => subagenti(wsDi(u))
       .filter((s) => s.stato === 'avviato' || s.stato === 'lavoro')
       .map((s) => ({ s, ws: wsDi(u), ap: u.id })))
       .sort((a, b) => Date.parse(a.s.inizio) - Date.parse(b.s.inizio))
+    const stato = archivioAttesa.leggi()
+    const fila = inFila(stato, adesso)
+    const stima = stimaLista({
+      adesso, tetto: tettoPc(), storico: storicoDurate(),
+      alLavoro: lavorano.map((l) => ({ id: l.s.id, peso: pesoDi(l.ws, l.s.compito), inizioMs: Date.parse(l.s.inizio) })),
+      inFila: fila.map((v) => ({ id: v.id, peso: pesoDi(v.workspace, v.compito) }))
+    })
     return {
       posti: { usati: orchestratore.specialistiSulPc(), tetto: tettoPc() },
-      alLavoro: lavorano.map((l, i) => ({
-        posto: i + 1, id: l.s.id, workspace: l.ws, autopilota: l.ap,
-        ...(l.s.compito !== undefined ? { compito: l.s.compito } : {}),
-        descrizione: l.s.descrizione, tipo: l.s.ruolo, dal: l.s.inizio
-      })),
-      inFila: inFila(archivioAttesa.leggi(), adesso).map((v) => ({
+      alLavoro: lavorano.map((l, i) => {
+        const st = stima.alLavoro[l.s.id]!
+        const cosaFa = rigaUltimaAzione(l.s.attivita ?? '')
+        const prec = stato.precedenze?.[l.ws]
+        return {
+          posto: i + 1, id: l.s.id, workspace: l.ws, autopilota: l.ap,
+          ...(l.s.compito !== undefined ? { compito: l.s.compito } : {}),
+          descrizione: l.s.descrizione, tipo: l.s.ruolo, dal: l.s.inizio,
+          workspaceNome: nomeWorkspace(l.ws), titolo: titoloDi(l.ws, l.s.compito, l.s.descrizione),
+          ...(cosaFa !== '' ? { cosaFa } : {}),
+          percentuale: st.percentuale, minutiStimati: st.minuti, peso: pesoDi(l.ws, l.s.compito),
+          ...(st.inRitardo ? { inRitardo: true as const } : {}),
+          ...(prec !== undefined ? { precedenza: prec } : {}),
+          ...(fermaChiesta.has(l.s.id) ? { fermaRichiesta: true as const } : {})
+        }
+      }),
+      inFila: fila.map((v) => ({
         id: v.id, posizione: v.posizione, workspace: v.workspace,
         ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),
         ...(v.compito !== undefined ? { compito: v.compito } : {}),
         descrizione: v.descrizione, tipo: v.tipo, dal: v.dal, priorita: v.priorita, prenotata: v.prenotata,
-        ...(v.prenotataFino !== undefined && v.prenotata ? { prenotataFino: v.prenotataFino } : {})
-      }))
+        ...(v.prenotataFino !== undefined && v.prenotata ? { prenotataFino: v.prenotataFino } : {}),
+        ...(v.parcheggiata === true ? { parcheggiata: true as const } : {}),
+        ...(v.ramo !== undefined ? { ramo: v.ramo } : {}),
+        workspaceNome: nomeWorkspace(v.workspace), titolo: titoloDi(v.workspace, v.compito, v.descrizione),
+        percentuale: 0, minutiStimati: stima.inFila[v.id]!.minuti, peso: pesoDi(v.workspace, v.compito)
+      })),
+      totale: stima.totale
     }
   }
 
@@ -1356,9 +1409,28 @@ ${NOTA_SENZA_GIT}`,
     attesa: () => { rivediFila(); return vistaAttesa() },
     prioritaAttesa(id, mossa) {
       const prima = archivioAttesa.leggi()
-      const dopo = cambiaPriorita(prima, id, mossa)
-      if (dopo === undefined) return undefined
-      archivioAttesa.scrivi(dopo)
+      // Chi è in fila: le mosse di sempre (`ferma` non ha senso per chi non lavora).
+      if (prima.voci.some((v) => v.id === id)) {
+        if (mossa === 'ferma') return undefined
+        const dopo = cambiaPriorita(prima, id, mossa)
+        if (dopo === undefined) return undefined
+        archivioAttesa.scrivi(dopo)
+        return vistaAttesa()
+      }
+      const lavora = unici().flatMap((u) => subagenti(wsDi(u)).filter((s) => s.stato === 'avviato' || s.stato === 'lavoro').map((s) => ({ s, ws: wsDi(u), ap: u.id }))).find((l) => l.s.id === id)
+      if (mossa === 'ferma') {
+        // Solo a mano (Nicholas): è l'unica strada che ferma uno specialista per la precedenza.
+        if (lavora === undefined) return undefined
+        const { s, ws, ap } = lavora
+        archivioAttesa.scrivi(parcheggia(prima, { workspace: ws, autopilota: ap, descrizione: s.descrizione, tipo: s.ruolo, ...(s.compito !== undefined ? { compito: s.compito } : {}), ...(s.ramo !== undefined ? { ramo: s.ramo } : {}) }, { adesso: oraMs(), id: randomUUID }))
+        fermaChiesta.add(s.id)
+        evento(ws, { tipo: 'posto', quando: x.adesso(), testo: `Nicholas ha chiesto di fermare ${s.compito ?? cosaDel(s.descrizione)} e di metterlo in cima alla fila: fermalo ora${s.task !== undefined ? ` (task ${s.task})` : ''}. Il suo lavoro resta salvato${s.ramo !== undefined ? ` sul ramo ${s.ramo}` : ' nel suo ramo'}. Quando si libera un posto ti avviso: lo rilanci per primo, dal suo ramo.` })
+        return vistaAttesa()
+      }
+      // Per chi lavora o è ancora nel piano: la precedenza del workspace, che cambia solo l'ordine di chi aspetta un posto. Nessuno viene fermato né scavalcato.
+      const ws = lavora?.ws ?? unici().map(wsDi).find((w) => x.orchestratori.piano(w).compiti.some((c) => c.id === id && c.stato !== 'unito'))
+      if (ws === undefined) return undefined
+      archivioAttesa.scrivi(cambiaPrecedenzaWorkspace(prima, ws, mossa))
       return vistaAttesa()
     },
     togliAttesa(id) {

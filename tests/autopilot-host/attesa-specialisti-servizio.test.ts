@@ -250,4 +250,77 @@ describe('lista d’attesa degli specialisti nel servizio (k-48)', () => {
     expect(v.inFila.map((x) => [x.id, x.compito, x.priorita, x.dal])).toEqual(dopoCambio.inFila.map((x) => [x.id, x.compito, x.priorita, x.dal]))
     expect(v.inFila.map((x) => x.compito)).toEqual(['k-11', 'k-10'])
   })
+
+  it('la vista dice per ognuno workspace, titolo, percentuale e tempo, e in fondo il lavoro che resta (k-53)', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-attesa-dati-'))
+    const a = await avviaServizio({ cartella })
+    await riempi(a)
+    await lanciaAgent(a, 'k-10: la lista')
+    await lanciaAgent(a, 'k-11: la sezione')
+    salto += 5 * 60_000
+    const v = await attesa()
+    expect(v.alLavoro[0]).toMatchObject({ workspaceNome: WS, titolo: 'lavoro 1', peso: 2, percentuale: 20, minutiStimati: 20 })
+    for (const l of v.alLavoro) expect(l.percentuale).toBeLessThanOrEqual(95)
+    expect(v.inFila[0]).toMatchObject({ workspaceNome: WS, titolo: 'la lista', percentuale: 0 })
+    // I posti sono pieni: chi è in fila include l'attesa del primo posto libero.
+    expect(v.inFila[0]!.minutiStimati!).toBeGreaterThan(25)
+    expect(v.totale!.compiti).toBe(6)
+    expect(v.totale!.minuti).toBeGreaterThanOrEqual(v.inFila[1]!.minutiStimati!)
+  })
+
+  it('alzare la precedenza non ferma né scavalca chi lavora: cambia solo la fila (k-53)', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-attesa-dati-'))
+    const a = await avviaServizio({ cartella })
+    await riempi(a)
+    await lanciaAgent(a, 'k-10: la lista')
+    const prima = await attesa()
+    const scritte = processi[0]!.scritte.length
+    for (const mossa of ['su', 'cima', 'giu', 'cima']) {
+      const r = await posta('/orchestratore/attesa/priorita', { id: 'tu-2', mossa })
+      expect(r.status).toBe(200)
+    }
+    const dopo = await attesa()
+    // Nessuno specialista fermato né spostato: stessi al lavoro, stessi posti, e niente detto all'orchestratore.
+    expect(dopo.alLavoro.map((x) => [x.posto, x.id])).toEqual(prima.alLavoro.map((x) => [x.posto, x.id]))
+    expect(dopo.alLavoro.some((x) => x.fermaRichiesta === true)).toBe(false)
+    expect(dopo.posti).toEqual(prima.posti)
+    expect(dopo.alLavoro[1]).toMatchObject({ precedenza: 1 })
+    expect(scritteDa(scritte)).not.toContain('fermalo')
+    // Il compito ancora nel piano: stessa cosa, con l'id del compito.
+    orch.scriviPiano(WS, { versione: 1, compiti: [{ id: 'p-1', richiesta: 'r-1', titolo: 'Il pezzo ancora da fare', criterio: 'ok', dopo: [], peso: 1, stato: 'da-fare', creato: '2026-11-06T06:00:00.000Z' }] })
+    expect((await posta('/orchestratore/attesa/priorita', { id: 'p-1', mossa: 'cima' })).status).toBe(200)
+    expect((await attesa()).alLavoro.map((x) => x.id)).toEqual(prima.alLavoro.map((x) => x.id))
+    expect(scritteDa(scritte)).not.toContain('fermalo')
+  })
+
+  it('«Ferma e metti in cima» è solo a mano: parcheggia chi lavora davanti a tutti, e al primo posto libero riparte per primo (k-53)', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-attesa-dati-'))
+    const a = await avviaServizio({ cartella })
+    await riempi(a)
+    await lanciaAgent(a, 'k-10: la lista')
+    const dopo = processi[0]!.scritte.length
+    // Non vale per chi è in fila né per chi non c'è.
+    const inFilaId = (await attesa()).inFila[0]!.id
+    expect((await posta('/orchestratore/attesa/priorita', { id: inFilaId, mossa: 'ferma' })).status).toBe(404)
+    expect((await posta('/orchestratore/attesa/priorita', { id: 'non-c-e', mossa: 'ferma' })).status).toBe(404)
+    expect(scritteDa(dopo)).not.toContain('fermalo')
+    const r = await posta('/orchestratore/attesa/priorita', { id: 'tu-3', mossa: 'ferma' })
+    expect(r.status).toBe(200)
+    const v = (await r.json()) as VistaAttesa
+    expect(v.alLavoro.find((x) => x.id === 'tu-3')).toMatchObject({ fermaRichiesta: true })
+    expect(v.inFila.map((x) => [x.posizione, x.compito, x.parcheggiata])).toEqual([[1, 'k-3', true], [2, 'k-10', undefined]])
+    // L'avviso parte con gli eventi raccolti, a fine turno.
+    processi[0]!.emetti({ type: 'result', result: 'Aspetto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    await attendi(() => scritteDa(dopo).includes('Nicholas ha chiesto di fermare k-3'), { cosa: 'l’avviso all’orchestratore' })
+    // Quando il suo posto si libera, riparte per primo (davanti a k-10, arrivato prima).
+    const dopoFermo = processi[0]!.scritte.length
+    finisci('tu-3')
+    await attendi(() => scritteDa(dopoFermo).includes('fermato da Nicholas'), { cosa: 'la sveglia del parcheggiato' })
+    expect(scritteDa(dopoFermo)).toContain('rilancialo ora')
+    expect(scritteDa(dopoFermo)).not.toContain('rilancia ora k-10')
+    expect((await attesa()).inFila[0]).toMatchObject({ compito: 'k-3', prenotata: true })
+  })
 })

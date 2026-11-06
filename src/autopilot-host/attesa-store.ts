@@ -28,7 +28,9 @@ function voceValida(v: unknown): VoceAttesa | undefined {
     priorita: num(o.priorita) ? o.priorita : 0,
     ordine: num(o.ordine) ? o.ordine : 0,
     ...(testo(o.prenotataFino) ? { prenotataFino: o.prenotataFino } : {}),
-    sveglie: num(o.sveglie) ? o.sveglie : 0
+    sveglie: num(o.sveglie) ? o.sveglie : 0,
+    ...(o.parcheggiata === true ? { parcheggiata: true as const } : {}),
+    ...(testo(o.ramo) ? { ramo: o.ramo } : {})
   }
 }
 
@@ -38,10 +40,13 @@ export function apriAttesa(file: string): ArchivioAttesa {
     leggi() {
       if (stato !== undefined) return stato
       try {
-        const o = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as { voci?: unknown; prossimo?: unknown } : {}
+        const o = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as { voci?: unknown; prossimo?: unknown; precedenze?: unknown } : {}
         const voci = Array.isArray(o.voci) ? o.voci.map(voceValida).filter((v): v is VoceAttesa => v !== undefined) : []
         const max = voci.reduce((m, v) => Math.max(m, v.ordine), 0)
-        stato = { voci, prossimo: Math.max(num(o.prossimo) ? o.prossimo : 1, Math.floor(max) + 1) }
+        const prec = typeof o.precedenze === 'object' && o.precedenze !== null && !Array.isArray(o.precedenze)
+          ? Object.fromEntries(Object.entries(o.precedenze as Record<string, unknown>).filter((e): e is [string, number] => num(e[1]) && e[1] !== 0))
+          : {}
+        stato = { voci, prossimo: Math.max(num(o.prossimo) ? o.prossimo : 1, Math.floor(max) + 1), ...(Object.keys(prec).length > 0 ? { precedenze: prec } : {}) }
       } catch (err) {
         console.error(`[attesa] ${file} illeggibile:`, err)
         stato = attesaVuota()
