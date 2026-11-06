@@ -53,6 +53,9 @@ describe('la riga riassuntiva dell’autopilota', () => {
     expect(vista).toContain(`'<div class="flusso-ap" id="flusso-ap">'`)
     expect(vista).not.toContain('flusso-ap solo-riassunto')
     // Uscendo dall'autopilota la riga torna chiusa.
-    expect(script).toContain('window.chiudiAp = () => { apRiassunto = false;')
+    // La riga di chiudiAp azzera molti stati (k-54, attesa, menu…): basta che azzeri anche apRiassunto.
+    const riga = script.split('\n').find((l) => l.startsWith('window.chiudiAp = '))
+    expect(riga).toBeDefined()
+    expect(riga).toContain('apRiassunto = false')
   })
 })
