@@ -18,7 +18,7 @@
     {
       "id": "drive",
       "titolo": "Drive e salvataggi",
-      "spiega": "L’account Google del Drive, gli avvisi del salvataggio e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti."
+      "spiega": "L’account Google del Drive e come tornare a una disposizione delle finestre di prima. Il contenuto del Drive e «Salva ora» stanno in Progetti."
     },
     {
       "id": "aspetto",
@@ -331,12 +331,27 @@
     },
     {
       "id": "fumetti-sincronia",
-      "sezione": "drive",
+      "sezione": "notifiche",
       "titolo": "Avvisi del salvataggio automatico",
       "spiega": "Mostra un fumetto a ogni salvataggio sul Drive. Spento: il salvataggio avviene lo stesso, in silenzio; gli errori si vedono sempre.",
       "parole": [
         "fumetti",
         "notifiche drive"
+      ],
+      "dove": [
+        "pc"
+      ]
+    },
+    {
+      "id": "avviso-windows-aggiornamento",
+      "sezione": "notifiche",
+      "titolo": "Avviso di Windows per l’aggiornamento che aspetta",
+      "spiega": "Acceso: se una versione nuova è pronta e le chat non finiscono il turno per molto tempo, Windows mostra «SierraDeck aspetta per aggiornarsi». Spento: Windows non dice niente; l’attesa si vede lo stesso in Aggiornamenti. Non cambia mai quando si installa.",
+      "parole": [
+        "windows",
+        "avviso",
+        "aggiornamento",
+        "attesa"
       ],
       "dove": [
         "pc"
@@ -511,6 +526,7 @@
         "account-google",
         "torna-indietro",
         "fumetti-sincronia",
+        "avviso-windows-aggiornamento",
         "colore",
         "stile",
         "scorciatoie",
@@ -561,7 +577,8 @@
         "versioni",
         "aggiorna-pc",
         "scarica-da-solo",
-        "ultimo-tentativo"
+        "ultimo-tentativo",
+        "avviso-windows-aggiornamento"
       ]
     },
     {
@@ -745,7 +762,8 @@
       "q": "notifiche",
       "dove": "pc",
       "trovate": [
-        "fumetti-sincronia"
+        "fumetti-sincronia",
+        "avviso-windows-aggiornamento"
       ]
     },
     {

@@ -39,6 +39,13 @@ export type Preferenze = {
    */
   fumettiSincroniaAutomatica: boolean
   /**
+   * La notifica di Windows «SierraDeck aspetta per aggiornarsi» (k-47): compare
+   * quando un aggiornamento pronto aspetta da molto che le chat finiscano il
+   * turno. Spenta: l'attesa si vede lo stesso nella scheda Aggiornamenti e nel
+   * registro, ma Windows non mostra niente.
+   */
+  avvisoWindowsAggiornamento: boolean
+  /**
    * Scaricare da soli un aggiornamento appena lo si trova.
    *
    * Acceso (il predefinito) è la scelta che tiene il programma al passo: lo
@@ -175,6 +182,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   mostraAttesaChat: true,
   fiduciaCartelleAutomatica: true,
   fumettiSincroniaAutomatica: false,
+  avvisoWindowsAggiornamento: true,
   // Acceso: è il comportamento che c'è sempre stato, e quello che tiene il
   // programma al passo senza chiedere niente.
   scaricaAggiornamentiAutomatico: true,
@@ -250,6 +258,10 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
       ? o.fiduciaCartelleAutomatica
       : PREFERENZE_PREDEFINITE.fiduciaCartelleAutomatica,
     fumettiSincroniaAutomatica: o.fumettiSincroniaAutomatica === true,
+    // Il predefinito è acceso (com'è sempre stato): un valore scritto male non lo spegne.
+    avvisoWindowsAggiornamento: typeof o.avvisoWindowsAggiornamento === 'boolean'
+      ? o.avvisoWindowsAggiornamento
+      : PREFERENZE_PREDEFINITE.avvisoWindowsAggiornamento,
     // Il predefinito è acceso: un valore scritto male non deve far smettere di
     // aggiornarsi da soli, che è la scelta prudente per stare al passo.
     scaricaAggiornamentiAutomatico: typeof o.scaricaAggiornamentiAutomatico === 'boolean'
