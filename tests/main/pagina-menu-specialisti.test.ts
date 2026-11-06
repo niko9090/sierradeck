@@ -23,17 +23,19 @@ const riga = (inizio: string): string => script.split('\n').find((r) => r.starts
 type Voce = Record<string, unknown>
 type Vista = { posti: { usati: number; tetto: number }; alLavoro: Voce[]; inFila: Voce[]; totale?: { minuti: number; compiti: number } }
 
-function disegna(vista: Vista | 'vecchio' | null, aperto: boolean, conferma = ''): string {
-  const f = new Function('vista', 'aperto', 'conferma', `
-    var attesaVista = vista, attesaNota = '', menuSpecAperto = aperto, menuSpecConferma = conferma
+function disegna(vista: Vista | 'vecchio' | null, aperto: boolean, conferma = '', remoto?: { pc: string; giu?: boolean }): string {
+  const f = new Function('vista', 'aperto', 'conferma', 'remoto', `
+    var attesaVista = remoto ? null : vista, attesaRemota = remoto ? vista : null, attesaGiu = !!(remoto && remoto.giu)
+    var apPc = remoto ? remoto.pc : null, apPcNome = remoto ? 'PC-prova' : ''
+    var attesaNota = '', menuSpecAperto = aperto, menuSpecConferma = conferma
     var apDettaglio = { cwd: 'C:\\\\Lavori\\\\Mio' }
     var aiutiAperti = {}
     function aiuto(id, t) { return '<AIUTO ' + id + '>' }
     ${riga('const esc =')}
-    ${[...['menuSpecialisti'], 'menuSpecRiferimenti', 'menuSpecEtichetta', 'menuSpecHtml'].map(estrai).join('\n')}
+    ${[...['menuSpecialisti'], 'vistaMenu', 'menuSpecRiferimenti', 'menuSpecEtichetta', 'menuSpecHtml'].map(estrai).join('\n')}
     return menuSpecHtml({ cwd: 'C:\\\\Lavori\\\\Mio' })
   `)
-  return f(vista, aperto, conferma) as string
+  return f(vista, aperto, conferma, remoto) as string
 }
 
 const lista: Vista = {
@@ -93,6 +95,29 @@ describe('la pagina: menu Specialisti nella chat dell’autopilota', () => {
 
   it('il «perché» sta dietro un «?»', () => {
     expect(disegna(lista, true)).toContain('<AIUTO menu-spec>')
+  })
+
+  it('k-60: di un altro PC la lista è quella di là, in sola lettura', () => {
+    const h = disegna(lista, true, '', { pc: 'pc-2' })
+    expect(h).toContain('Prova &lt;b&gt;')
+    expect(h).toContain('40%')
+    expect(h).toContain('Legge i file')
+    expect(h).not.toContain('Precedenza')
+    expect(h).not.toContain('menuSpecFerma(')
+    expect(h).not.toContain('Apri Specialisti')
+    expect(h).toContain('circa 45 min per finire tutto')
+  })
+
+  it('k-60: se quel PC non risponde, una riga col suo nome; se è vecchio, lo dice', () => {
+    expect(disegna(lista, true, '', { pc: 'pc-2', giu: true })).toContain('PC-prova è spento o non risponde')
+    expect(disegna(null, true, '', { pc: 'pc-2', giu: true })).toContain('PC-prova è spento o non risponde')
+    expect(disegna('vecchio', true, '', { pc: 'pc-2' })).toContain('PC-prova non sa ancora dire chi lavora')
+    expect(disegna(lista, true)).not.toContain('spento o non risponde')
+  })
+
+  it('k-60: la lista di un altro PC si chiede a lui, dal ponte, non a questo', () => {
+    expect(estrai('leggiAttesaRemota')).toContain("chiediAp('/api/specialisti/attesa', {})")
+    expect(estrai('leggiAttesaMenu')).toContain('leggiAttesaRemota')
   })
 
   it('le mosse vanno alla rotta delle priorità, con id e mossa', () => {
