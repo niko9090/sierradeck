@@ -605,3 +605,20 @@ button.pan2-compito:focus-visible { border-color: var(--luce-incisione); backgro
 @media (prefers-reduced-motion: reduce) {
   .tasto, .campo, .chatap__scrivi, .pan2-scheda, .pan2-compito { transition: none; }
 }
+
+/* ─────────────── 0.95.3: in alto meno righe e meno spazio ───────────────
+   Nicholas (06/11): menu e riga delle chat in una fascia sola, più bassa;
+   la barra della Panoramica più bassa (36px, come il paddingTop in App.tsx). */
+
+.console--principale { height: 42px; padding: 0 var(--s2); gap: 2px; }
+.console--principale .tasto-menu { height: 30px; padding: 0 8px; gap: 6px; }
+.console--principale .tasto,
+.console--principale .ws__voce { height: 28px; display: inline-flex; align-items: center; padding-top: 0; padding-bottom: 0; }
+.console--principale .sezione { gap: 4px; padding: 0 6px; }
+.pan-barra { height: 36px; }
+.pan-linguetta { height: 26px; }
+.pan-corpo, .chat-specialisti--pieno { top: 36px; }
+/* Con tutto su una riga i nomi del menu cedono prima: resta il segno, il nome nel suggerimento. */
+@media (max-width: 1500px) {
+  .console--principale .tasto-menu__nome { display: none; }
+}

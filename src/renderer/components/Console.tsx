@@ -305,49 +305,10 @@ export function Console({
           </button>
         )
       })}
-      <div className="sezione sezione--vuota" />
-      <div className="sezione">
-        {/* 0.82.0: quante chat degli autopiloti lavorano su questo PC, sempre in vista. */}
-        <PostiChat />
-        {/* La versione e il modo di cercare un aggiornamento quando si vuole:
-            l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
-            ha voglia di aspettarle. */}
-        <button
-          className="versione"
-          onClick={onApriNovita}
-          title="Cosa è cambiato in questa versione"
-        >
-          v{versione}
-        </button>
-        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
-            non c’è niente da dire: una spia che è sempre accesa non è una
-            spia, è decorazione. */}
-        {spiaAggiornamento(aggiornamento) !== undefined ? (
-          <span
-            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
-            title={
-              aggiornamento?.daTelefono === true
-                ? 'Richiesto da un telefono accoppiato'
-                : 'Aggiornamento del programma'
-            }
-          >
-            {spiaAggiornamento(aggiornamento)}
-          </span>
-        ) : null}
-        <button
-          className="tasto tasto--icona"
-          onClick={() => void window.gestore.aggiornamenti.cerca()}
-          title="Cerca ora un aggiornamento"
-        >
-          ⟳
-        </button>
-      </div>
-    </nav>
-
-    {/* La riga delle chat: i gesti di ogni minuto (riprendere, aprire una
-        chat, cambiare workspace) senza aprire un pannello. Tutto il resto di
-        «Chat e workspace» sta nel suo pannello. */}
-    <div className="console console--chat">
+      {/* 0.95.3 (Nicholas, 06/11): la riga delle chat sta nella stessa fascia del menu, una riga in meno. */}
+      {/* La riga delle chat: i gesti di ogni minuto (riprendere, aprire una
+          chat, cambiare workspace) senza aprire un pannello. Tutto il resto di
+          «Chat e workspace» sta nel suo pannello. */}
       <div className="sezione">
         <button
           className="tasto"
@@ -458,7 +419,45 @@ export function Console({
           </button>
         </div>
       </div>
-    </div>
+      <div className="sezione sezione--vuota" />
+      <div className="sezione">
+        {/* 0.82.0: quante chat degli autopiloti lavorano su questo PC, sempre in vista. */}
+        <PostiChat />
+        {/* La versione e il modo di cercare un aggiornamento quando si vuole:
+            l'attesa automatica è ogni sei ore, e chi ha appena pubblicato non
+            ha voglia di aspettarle. */}
+        <button
+          className="versione"
+          onClick={onApriNovita}
+          title="Cosa è cambiato in questa versione"
+        >
+          v{versione}
+        </button>
+        {/* Cosa sta facendo l’aggiornamento, in due parole. Assente quando
+            non c’è niente da dire: una spia che è sempre accesa non è una
+            spia, è decorazione. */}
+        {spiaAggiornamento(aggiornamento) !== undefined ? (
+          <span
+            className={`spia-agg spia-agg--${aggiornamento?.fase ?? "fermo"}`}
+            title={
+              aggiornamento?.daTelefono === true
+                ? 'Richiesto da un telefono accoppiato'
+                : 'Aggiornamento del programma'
+            }
+          >
+            {spiaAggiornamento(aggiornamento)}
+          </span>
+        ) : null}
+        <button
+          className="tasto tasto--icona"
+          onClick={() => void window.gestore.aggiornamenti.cerca()}
+          title="Cerca ora un aggiornamento"
+        >
+          ⟳
+        </button>
+      </div>
+    </nav>
+
     </>
   )
 }

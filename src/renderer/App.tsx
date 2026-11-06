@@ -2095,7 +2095,7 @@ export function App(): React.JSX.Element {
           />
         ) : null}
 
-        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative', paddingTop: 38 }}>
+        <div style={{ flex: 1, display: 'flex', minWidth: 0, position: 'relative', paddingTop: 36 }}>
           {/* La vista a elenco (0.74.0) è **solo** una colonna in più a sinistra.
               Il mosaico resta sempre in questo stesso posto dell'albero: in un
               ramo diverso React lo smonterebbe passando da elenco a mosaico (e

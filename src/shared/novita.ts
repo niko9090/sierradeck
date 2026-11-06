@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.3',
+    righe: [
+      '**In alto una fascia sola:** il menu e la riga delle chat (Riprendi, Nuova chat, Strumenti, i workspace) stanno sulla stessa riga, più bassa; anche la barra della Panoramica è più bassa. Con la finestra stretta del menu restano i segni, il nome compare passandoci sopra.',
+      '**Sopra la chat dell’autopilota solo l’essenziale:** la barra con la percentuale e una riga su cosa sta succedendo. Il resto (richieste e compiti, specialisti, dal vivo, coda del workspace, messaggi per la chat, impostazioni) si apre con ▾.',
+    ],
+  },
+  {
     versione: '0.95.2',
     righe: [
       '**Gli avvisi di Node non sono più errori:** le righe come «DEP0180» finiscono nel registro come informazioni e non compaiono più fra gli errori arrivati.',

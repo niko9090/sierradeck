@@ -65,12 +65,13 @@ export function ChatAutopilota({
 
   return (
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
-      <RigaDalVivo autopilota={autopilota} senzaStato={soloConversazione} />
-      {/* In testa la percentuale del workspace, il perché quando scende, gli specialisti e le impostazioni. */}
-      <TestaOrchestratore workspace={chiaveWorkspace(autopilota)} />
-      {/* La coda delle richieste del suo workspace, chiusa: si legge solo aperta. */}
-      <CodaWorkspace workspace={chiaveWorkspace(autopilota)} />
-      <MessaggiVersoLaChat autopilota={autopilota} />
+      {/* 0.95.3: in testa solo barra, percentuale e cosa succede; il resto nella tendina ▾. */}
+      <TestaOrchestratore workspace={chiaveWorkspace(autopilota)}>
+        <RigaDalVivo autopilota={autopilota} senzaStato={soloConversazione} />
+        {/* La coda delle richieste del suo workspace, chiusa: si legge solo aperta. */}
+        <CodaWorkspace workspace={chiaveWorkspace(autopilota)} />
+        <MessaggiVersoLaChat autopilota={autopilota} />
+      </TestaOrchestratore>
       {soloConversazione && eventi.length > 0 ? (
         <div className="chatap__eventi">
           <button className="pan2-riga-apri" aria-expanded={eventiAperti} onClick={() => setEventiAperti((v) => !v)}>

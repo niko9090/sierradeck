@@ -42,7 +42,7 @@ describe('«Adesso» nella Panoramica, una volta sola', () => {
     expect(pan).toContain('<AdessoAutopilota autopilota={autopilota} dentro soloFerme />')
     const chatAp = readFileSync('src/renderer/components/ChatAutopilota.tsx', 'utf8')
     // 30/10: il Punto non c'è più; in testa c'è l'avanzamento del workspace.
-    expect(chatAp).toContain('<TestaOrchestratore workspace={chiaveWorkspace(autopilota)} />')
+    expect(chatAp).toContain('<TestaOrchestratore workspace={chiaveWorkspace(autopilota)}>')
     expect(chatAp).not.toContain('<AdessoAutopilota')
   })
 

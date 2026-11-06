@@ -5035,6 +5035,12 @@ label.gc-voce { cursor: pointer; }
 .coda-ws__quieto { color: var(--testo-quieto); }
 /* 0.89.2: cosa succede adesso, sotto la percentuale */
 .coda-ws__ora { font-size: 0.92em; margin: 2px 0; }
+/* 0.95.3: la testa compatta della chat dell'autopilota, il resto nella tendina */
+.coda-ws--compatta { padding: 2px 10px 4px; }
+.coda-ws__riga { display: flex; align-items: center; gap: 8px; }
+.coda-ws__riga .punto-ap__barra, .coda-ws__vuota { flex: 1 1 auto; margin: 0; }
+.coda-ws--compatta > .coda-ws__ora { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.coda-ws__tendina { display: grid; gap: 2px; padding-top: 4px; max-height: 45vh; overflow-y: auto; }
 .coda-ws__ora--lavora { color: #57d38c; }
 .coda-ws__ora--aspetta { color: var(--ambra, #d29922); }
 .coda-ws__ora--fermo { color: var(--ambra, #d29922); }
