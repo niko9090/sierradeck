@@ -59,6 +59,16 @@ export const FERMO_DOPO_MS = 3 * 60_000
 export const SPINTE_MAX = 2
 /** 0.89.4: dopo quanto una domanda dell'autopilota senza risposta si chiude. */
 export const DOMANDA_VECCHIA_MS = 24 * 60 * 60_000
+/** 06/11, fila delle unioni: un'unione (prova, unione, criterio) che supera questo tempo si chiude e si rimette in fila. */
+export const UNIONE_MAX_MS = 25 * 60_000
+/** Ogni quanto riprova l'unione che aspetta una cartella principale con file di Nicholas a metà. */
+export const UNIONE_RIPROVA_MS = 30_000
+/** Quante volte al più si rimette in fila un'unione scaduta, poi il compito dice com'è andata. */
+export const UNIONE_TENTATIVI_MAX = 3
+/** Un'unione che aspetta il suo turno, o che aspetta la cartella principale (il motivo, se c'è). */
+class RiprovaUnione extends Error {
+  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string) { super(perche) }
+}
 /** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. */
 const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore'])
 
@@ -114,7 +124,11 @@ export type ContestoUnico = {
   postiScelti?: () => number | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
-  provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<{ unito: true } | { unito: false; motivo: string }>
+  provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<EsitoProvaPrincipale>
+  /** 06/11, fila delle unioni: tempo massimo di un'unione intera (di serie 25 minuti), attesa fra i tentativi (30 s), tentativi dopo una scadenza (3). */
+  unioneMaxMs?: number
+  unioneRiprovaMs?: number
+  unioneTentativiMax?: number
   /** 0.94.0: la stessa memoria dell'unione di prova, perché il criterio dopo l'unione non rifaccia le sue misure. */
   memoriaCriteri?: MemoriaCriteri
   ricordaContesto: (idDomanda: string, c: ContestoDomanda) => void
@@ -303,9 +317,19 @@ export function ramiPresi(sp: Pick<Specialista, 'id'>, tutti: Specialista[], voc
   return presi
 }
 
+export type RamoConLavoro = { sub: Specialista; ramo: string; cartella?: string; avanti: number }
 export type SceltaDelCompito =
-  | { ok: true; sub: Specialista; ramo: string; cartella?: string; avanti: number }
+  | (RamoConLavoro & {
+    ok: true
+    /** Gli altri rami con lavoro che il principale non ha e che questo non contiene: da unire prima. */
+    altri?: RamoConLavoro[]
+    /** Gli specialisti i cui rami sono unendo questo (contenuti o uniti prima): finiscono «uniti» con lui. */
+    assorbiti?: RamoConLavoro[]
+  })
   | { ok: false; motivo: string }
+
+/** L'esito della prova nel principale: `ritenta` dice che non è colpa del ramo e l'unione va rimessa in fila. */
+export type EsitoProvaPrincipale = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta' }
 
 /**
  * **Lo specialista che porta il lavoro di un compito** (30/10, k-1). Con
@@ -360,12 +384,13 @@ export async function ramoDelCompito(
       if (altro === c || altro.ramo === c.ramo) continue
       if ((await g(['merge-base', '--is-ancestor', altro.ramo, c.ramo], p.cwd)).codice !== 0) { tutti = false; break }
     }
-    if (tutti) return { ok: true, ...c }
+    if (tutti) return { ok: true, ...c, assorbiti: conLavoro.filter((o) => o !== c) }
   }
-  return {
-    ok: false,
-    motivo: `più rami con lavoro per ${p.compito}, e nessuno contiene gli altri: ${conLavoro.map((c) => `${c.ramo} (${c.sub.id}, ${c.avanti} commit)`).join(', ')}. Dimmi quale con «ramo» o «specialista»`
-  }
+  // 06/11 (k-60): rami che non si contengono a vicenda sono lavoro di specialisti diversi dello
+  // stesso compito: si uniscono tutti, uno dopo l'altro (prima gli altri, ultimo il più recente).
+  // Prima l'unione si rifiutava, o peggio ne finiva unito uno solo.
+  const [ultimo, ...altri] = conLavoro as [typeof conLavoro[number], ...typeof conLavoro]
+  return { ok: true, ...ultimo, altri, assorbiti: altri }
 }
 
 /**
@@ -391,7 +416,6 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const recenti = new Map<string, EventoOrchestratore[]>()
   const silenzioDetto = new Map<string, number>()
   const notificheDette = new Map<string, number>()
-  const cancelliInCorso = new Set<string>()
   /** 0.89.4: il lavoro fermo visto per workspace (firma, da quando, spinte date per quella firma). */
   const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
   /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
@@ -604,6 +628,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
+      unioni: righeUnioni(ws),
       adesso: Date.parse(x.adesso())
     })
   }
@@ -746,21 +771,99 @@ ${NOTA_SENZA_GIT}`,
    * uno specialista, e quella chiesta dall'autopilota non partono insieme.
    * Torna `false` se ce n'era già una in corso.
    */
-  const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): boolean => {
+  /**
+   * **La fila delle unioni** (06/11). Una alla volta per workspace: la nuova
+   * aspetta il suo turno e parte da sola, non viene respinta (la sera del 05/11
+   * quattro lavori restarono fermi con «modifiche non salvate» perché nessuno le
+   * riprovava). `avviaUnione` torna la posizione in fila (1 = parte subito) o
+   * `undefined` se la stessa unione è già lì.
+   */
+  type LavoroUnione = { chiave: string; chi: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean }
+  const filaUnioni = new Map<string, LavoroUnione[]>()
+  /** Workspace per cui si è già detto che la cartella principale ha file di Nicholas a metà (una volta sola). */
+  const sporcoDetto = new Set<string>()
+  const dormi = (ms: number): Promise<void> => new Promise((ris) => { const t = setTimeout(ris, ms); t.unref?.() })
+  const avviaUnione = (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): number | undefined => {
     const chi = p.compito ?? daUnire(ws, p).sub?.compito ?? p.specialista ?? p.ramo ?? ''
-    const k = `${ws}|${chi}`
-    if (cancelliInCorso.has(k)) return false
-    cancelliInCorso.add(k)
-    void cancello(ws, p).finally(() => { cancelliInCorso.delete(k) })
-    return true
+    const chiave = `${ws}|${chi}`
+    const fila = filaUnioni.get(ws) ?? []
+    if (fila.some((l) => l.chiave === chiave)) return undefined
+    fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', p, tentativi: 0, inCorso: false })
+    filaUnioni.set(ws, fila)
+    if (fila.length === 1) void giraFila(ws)
+    else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª: parte da sola quando ${fila[fila.length - 2]!.chi} ha finito` })
+    return fila.length
   }
-  const unioniIn = (ws: string): number => [...cancelliInCorso].filter((k) => k.startsWith(`${ws}|`)).length
-  const cancello = async (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): Promise<void> => {
-    const chi = p.specialista ?? p.compito ?? p.ramo ?? '?'
-    const testo = await cancelloOra(ws, p).catch((err: unknown) => `${chi}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`)
-    evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo })
+  const unioniIn = (ws: string): number => filaUnioni.get(ws)?.length ?? 0
+  /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
+  const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => (i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`))
+  const giraFila = async (ws: string): Promise<void> => {
+    const max = x.unioneMaxMs ?? UNIONE_MAX_MS
+    const riprova = x.unioneRiprovaMs ?? UNIONE_RIPROVA_MS
+    const tentativiMax = x.unioneTentativiMax ?? UNIONE_TENTATIVI_MAX
+    for (;;) {
+      const fila = filaUnioni.get(ws) ?? []
+      const lavoro = fila[0]
+      if (lavoro === undefined) { filaUnioni.delete(ws); return }
+      lavoro.inCorso = true
+      const { p, chi } = lavoro
+      const scambio = { scaduto: false }
+      let testo: string | undefined
+      let ancora: RiprovaUnione | undefined
+      try {
+        const corsa = cancelloOra(ws, p, scambio)
+        corsa.catch(() => {})
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const scadenza = new Promise<never>((_, no) => { timer = setTimeout(() => { scambio.scaduto = true; no(new RiprovaUnione('scaduta', `ha superato i ${Math.max(1, Math.round(max / 60_000))} minuti`)) }, max); timer.unref?.() })
+        try { testo = await Promise.race([corsa, scadenza]) } finally { if (timer !== undefined) clearTimeout(timer) }
+      } catch (err) {
+        if (err instanceof RiprovaUnione) ancora = err
+        else testo = `${chi}: unione non riuscita per un errore (${err instanceof Error ? err.message : String(err)})`
+      }
+      if (ancora === undefined) {
+        sporcoDetto.delete(ws)
+        fila.shift()
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: testo ?? `${chi}: unione finita` })
+        continue
+      }
+      lavoro.inCorso = false
+      const compito = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === p.compito) : undefined
+      if (ancora.tipo === 'sporca') {
+        // Il lavoro di Nicholas non si tocca: la fila aspetta, lo dice una volta sola, riprova da sola.
+        if (!sporcoDetto.has(ws)) {
+          sporcoDetto.add(ws)
+          if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
+          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa. La cartella principale ha file modificati e non salvati che non sono del programma: non li tocco. Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))} secondi e l’unione parte appena la cartella è pulita. Nessun riavvio da fare.` })
+        }
+        await dormi(riprova)
+        continue
+      }
+      // Scaduta: chiusa, e di nuovo in fila (in coda alle altre) fino al tetto di tentativi.
+      lavoro.tentativi += 1
+      if (lavoro.tentativi >= tentativiMax) {
+        fila.shift()
+        const resta = `unione NON fatta: scaduta ${lavoro.tentativi} volte (${ancora.perche})`
+        if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: resta }))
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: ${resta}. Il ramo resta com’è: serve un controllo del lavoro (non un riavvio del servizio).` })
+        continue
+      }
+      fila.shift()
+      fila.push(lavoro)
+      evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione ${ancora.perche}: la chiudo e la rimetto in fila (tentativo ${lavoro.tentativi + 1} di ${tentativiMax})` })
+      await dormi(riprova)
+    }
   }
-  const cancelloOra = async (ws: string, p: { compito?: string; specialista?: string; ramo?: string }): Promise<string> => {
+  const cancelloOra = async (ws: string, p0: { compito?: string; specialista?: string; ramo?: string }, scambio: { scaduto: boolean } = { scaduto: false }): Promise<string> => {
+    let p = p0
+    // 06/11 (k-60): chiesta l'unione di uno specialista che fa parte di un compito, vale il compito:
+    // i rami di tutti i suoi specialisti. Il ramo «vuoto» di un verificatore non dichiara unito
+    // il compito mentre il ramo con il lavoro vero è ancora fuori dal principale.
+    if (p.specialista !== undefined && p.ramo === undefined) {
+      const s = daUnire(ws, { specialista: p.specialista }).sub
+      if (s?.compito !== undefined && x.orchestratori.piano(ws).compiti.some((k) => k.id === s.compito) && !RUOLI_SOLA_LETTURA.has(s.ruolo)) p = { compito: s.compito }
+    }
+    const giaUnito = p.compito !== undefined && p.ramo === undefined ? x.orchestratori.piano(ws).compiti.find((k) => k.id === p.compito) : undefined
+    if (giaUnito !== undefined && giaUnito.stato === 'unito' && giaUnito.criterioVerde === true) return `${giaUnito.id} è già unito con il criterio verde: non c’è altro da unire.`
     const a = unicoDi(ws)
     if (a === undefined) return 'l’autopilota unico non c’è più'
     const g = gitA()
@@ -786,6 +889,9 @@ ${NOTA_SENZA_GIT}`,
     // a Nicholas. Se tutti gli specialisti del compito hanno finito, nessuno ha un
     // ramo con commit né modifiche non salvate, vale il criterio.
     let fuoriDaiRami = false
+    /** 06/11: gli altri rami con lavoro dello stesso compito (da unire prima) e gli specialisti che finiscono uniti con questo. */
+    let altriRami: RamoConLavoro[] = []
+    let assorbiti: RamoConLavoro[] = []
     if (!senzaGit && !soloLettura && g !== undefined && a.ramoBase !== undefined) {
       // Il ramo: dato, della chat adottata, o del worktree del subagente.
       const nato = (c: string): number | undefined => { try { return statSync(c).birthtimeMs } catch { return undefined } }
@@ -818,6 +924,8 @@ ${NOTA_SENZA_GIT}`,
           nome = s.sub.id
           ramo = s.ramo
           cartella = s.cartella
+          altriRami = s.altri ?? []
+          assorbiti = s.assorbiti ?? []
         }
       } else if (ramo === undefined && sub !== undefined) {
         const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
@@ -830,12 +938,31 @@ ${NOTA_SENZA_GIT}`,
       if (ramo === undefined && !fuoriDaiRami) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
       if (ramo !== undefined && ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
       if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
-      const chiuso = ramo === undefined ? 'unito' : await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
       let motivo: string | undefined
-      if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
+      // Prima gli altri rami con lavoro dello stesso compito, poi quello principale (06/11, k-60).
+      for (const altro of altriRami) {
+        if (altro.cartella !== undefined) await salvaLavoroAsincrono(g, altro.cartella, `specialista ${altro.sub.id}: ${(compito?.titolo ?? altro.sub.descrizione).slice(0, 60)}`)
+        const chiusoAltro = await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo: altro.ramo, base: a.ramoBase })
+        if (chiusoAltro === 'mancante') { motivo = `il ramo ${altro.ramo} non c’è`; break }
+        if (chiusoAltro === 'unito') continue
+        if (scambio.scaduto) return `${nome}: unione scaduta`
+        const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
+        if (!r.unito) {
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          motivo = `${r.motivo} (ramo ${altro.ramo} di ${altro.sub.id})`
+          break
+        }
+      }
+      const chiuso = motivo !== undefined ? 'unito' : ramo === undefined ? 'unito' : await ramoGiaChiusoAsincrono(g, { cwd: a.cwd, ramo, base: a.ramoBase })
+      if (motivo !== undefined) { /* un altro ramo non è entrato: ci si ferma */ }
+      else if (chiuso === 'mancante') motivo = `il ramo ${ramo} non c’è`
       else if (chiuso === undefined && ramo !== undefined) {
+        if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
-        if (!r.unito) motivo = r.motivo
+        if (!r.unito) {
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          motivo = r.motivo
+        }
       }
       if (motivo !== undefined) {
         if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: `unione non fatta: ${motivo}` }))
@@ -863,7 +990,19 @@ ${NOTA_SENZA_GIT}`,
         dettaglio = verde ? `\`${comando}\` passa` : ignoti.length > 0 ? `\`${comando}\` non si è potuto misurare: ${uscita}` : `\`${comando}\` non passa: ${uscita}`
       }
     }
+    // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
+    if (scambio.scaduto) return `${nome}: unione scaduta`
     if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
+    for (const o of assorbiti) {
+      const s = uniti.get(ws) ?? new Set<string>()
+      s.add(o.sub.id)
+      uniti.set(ws, s)
+      if (o.cartella !== undefined && g !== undefined) {
+        void g(['worktree', 'remove', '--force', o.cartella], a.cwd)
+          .then(() => g(['branch', '-d', o.ramo], a.cwd))
+          .catch(() => { /* la pulizia lo ritrova */ })
+      }
+    }
     if (sub !== undefined) {
       const s = uniti.get(ws) ?? new Set<string>()
       s.add(sub.id)
@@ -948,9 +1087,10 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     unisci(ws, p) {
       const k = p.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === p.compito) : undefined
       if (k !== undefined && k.stato === 'unito' && k.criterioVerde === true && p.ramo === undefined) return { ok: true, testo: `${k.id} è già unito con il criterio verde: non c’è altro da unire.` }
-      return avviaUnione(ws, p)
-        ? { ok: true, testo: 'Unione avviata: ramo, prova nel principale, unione, criterio. L’esito ti arriva come evento.' }
-        : { ok: false, motivo: 'questa unione è già in corso (il programma unisce da solo il lavoro di chi finisce): l’esito arriva come evento' }
+      const posto = avviaUnione(ws, p)
+      return posto === undefined
+        ? { ok: false, motivo: 'questa unione è già in corso o in fila (il programma unisce da solo il lavoro di chi finisce): l’esito arriva come evento' }
+        : { ok: true, testo: posto === 1 ? 'Unione avviata: ramo, prova nel principale, unione, criterio. L’esito ti arriva come evento.' : `Unione in fila, ${posto}ª: parte da sola quando le altre hanno finito, non devi rifarla. L’esito ti arriva come evento.` }
     },
     async permesso(ws, strumento, input) {
       const a = unicoDi(ws)
