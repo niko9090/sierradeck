@@ -33,6 +33,8 @@
 - molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
 - A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
 - Il rosso di tests/main può non riprodursi in un worktree pulito: 2741 test contro i 2744 visti nella cartella principale. Prima di correggere, confrontare git status e conteggio test fra le due copie. _(2026-11-06)_
+- il guardiano del PC rimanda le suite intere con CPU sopra il 65%: spezzarle in gruppi di 10-30 file con percorsi espliciti, e riprovare dopo 8-9 minuti. _(2026-11-06)_
+- per una copia pulita: `git archive main` in una cartella del worktree, node_modules come junction; per togliere la junction usa `(Get-Item …).Delete()`, mai `rm -rf`. _(2026-11-06)_
 
 ## worktree
 
@@ -40,6 +42,7 @@
 - il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
 - La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
 - Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
+- un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
 
 ## errori
 
@@ -284,3 +287,7 @@
 ## ponte
 
 - una rotta di lettura verso un altro PC va in `ROTTE_PONTE` (telefono) e in `ROTTE_AUTOPILOTA_ALTRO_PC` (PC), ma mai quelle che cambiano lo stato di là. _(2026-11-06)_
+
+## unione
+
+- Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
