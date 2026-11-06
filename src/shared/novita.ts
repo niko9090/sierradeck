@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.4',
+    righe: [
+      '**Il «Controllo di tutti i PC» non si ferma più:** se un altro PC risponde in un formato vecchio, quel PC risulta «risposta non leggibile» e il giro continua con gli altri.',
+    ],
+  },
+  {
     versione: '0.95.3',
     righe: [
       '**In alto una fascia sola:** il menu e la riga delle chat (Riprendi, Nuova chat, Strumenti, i workspace) stanno sulla stessa riga, più bassa; anche la barra della Panoramica è più bassa. Con la finestra stretta del menu restano i segni, il nome compare passandoci sopra.',
