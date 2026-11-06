@@ -56,6 +56,7 @@
 
 - Api.corpoTestoDiretto leggeva il corpo intero con body.string(): ora c'è un tetto di 16 MB (413) in leggiConTetto; ogni nuova lettura di testo passi di lì. _(2026-10-31)_
 - Il worker che chiama Api è LavoroConsegne (consegne e ponte). Nel worktree android/ non ha gradlew né local.properties: il Kotlin non si compila lì. _(2026-10-31)_
+- Sul PC dev non ci sono gradlew né SDK (`E:\Android\Sdk` assente): il Kotlin non si compila qui. Tenere la logica nuova in funzioni pure con test e controllare la build a parte. _(2026-11-06)_
 
 ## quaderno
 
@@ -130,6 +131,7 @@
 ## rete
 
 - un indirizzo salvato può essere riassegnato dal router a un altro PC con SierraDeck: l'identità (impronta) va sempre confrontata anche con i PC noti, non solo con quello atteso. _(2026-11-05)_
+- La chiave del PC non va mai mandata a un indirizzo LAN non verificato: prima `/api/ciao` (senza chiave) deve dare l'impronta attesa. Un 192.168.x.x può essere un'altra rete. _(2026-11-06)_
 
 ## strumenti
 
@@ -179,3 +181,7 @@
 ## impostazioni
 
 - Aggiungere o spostare una voce in impostazioni-struttura.ts cambia android/.../impostazioni.json: va rigenerato con AGGIORNA=1 e il test lo confronta. _(2026-11-06)_
+
+## hook
+
+- L'hook «PC carico» rifiuta tsc e suite completa per molti minuti: i test di un file passano. Per aspettare usare `sleep` in background e un `until` sul file di output. _(2026-11-06)_
