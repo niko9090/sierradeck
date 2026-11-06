@@ -21,12 +21,14 @@
 - l'hook "PC carico" rimanda anche tsc e vitest completi per molti minuti, e sleep/Monitor sono bloccati: fare il commit prima e provare i singoli file. _(2026-11-06)_
 - `code.cambia(ws, f)` vuole `{coda, eventi}`, non la sola coda. Con la CPU alta l'hook blocca anche Bash e PowerShell: commit prima, poi attesa con un `until` sull'orologio. _(2026-11-06)_
 - I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
+- Con l'autopilota finto gli eventi (sveglie) partono solo a turno chiuso: nei test del servizio emettere un `result` dopo gli assistant, altrimenti l'evento resta in raccolta _(2026-11-06)_
 
 ## worktree
 
 - un agente isolato in un worktree non può eseguire git nella cartella principale: i compiti che chiedono commit su main vanno dati a chi lavora fuori dal worktree. _(2026-10-30)_
 - il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
 - La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
+- Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
 
 ## errori
 
@@ -57,6 +59,8 @@
 - Api.corpoTestoDiretto leggeva il corpo intero con body.string(): ora c'è un tetto di 16 MB (413) in leggiConTetto; ogni nuova lettura di testo passi di lì. _(2026-10-31)_
 - Il worker che chiama Api è LavoroConsegne (consegne e ponte). Nel worktree android/ non ha gradlew né local.properties: il Kotlin non si compila lì. _(2026-10-31)_
 - Sul PC dev non ci sono gradlew né SDK (`E:\Android\Sdk` assente): il Kotlin non si compila qui. Tenere la logica nuova in funzioni pure con test e controllare la build a parte. _(2026-11-06)_
+- Per compilare in un worktree: sdk.dir=E:/Android/Sdk in android/local.properties (ignorato), JAVA_HOME=JDK 21 Microsoft, gradle in E:\Programs\Gradle\gradle-8.11.1\bin. Non c'è gradlew. A freddo ~7 m… _(2026-11-06)_
+- CORREZIONE: l'SDK c'è in E:\Android\Sdk (la lezione «SDK assente» è sbagliata). Nei worktree: local.properties sdk.dir, JAVA_HOME=JDK 21 Microsoft, gradle globale 8.11.1, senza gradlew. _(2026-11-06)_
 
 ## quaderno
 
@@ -154,6 +158,7 @@
 
 - un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
 - Il guardiano del PC blocca anche typecheck e Bash/PowerShell per minuti, e sleep e Monitor non si possono usare: fare prima il commit. _(2026-11-06)_
+- Il filtro di carico blocca tsc e le suite complete anche quando il PC sembra libero; i test di un solo file passano. Aspettare con `node -e "setTimeout(...)"` e riprovare _(2026-11-06)_
 
 ## renderer
 
@@ -185,3 +190,7 @@
 ## hook
 
 - L'hook «PC carico» rifiuta tsc e suite completa per molti minuti: i test di un file passano. Per aspettare usare `sleep` in background e un `until` sul file di output. _(2026-11-06)_
+
+## orchestratore
+
+- Un Agent rifiutato dalla guardia arriva nel flusso come specialista «avviato» e poi «fallito» (tool_result is_error): nei test va emesso il tool_result, o i posti risultano occupati due volte _(2026-11-06)_
