@@ -35,6 +35,7 @@ import {
 } from './orchestratore'
 import type { ArchivioOrchestratori, ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
 import { TETTO_SPECIALISTI_MAX } from './orchestratore-store'
+import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
@@ -106,6 +107,8 @@ export type ContestoUnico = {
   /** Fa avanzare la fine delle chat adottate chiuse (P2). */
   avanzaFinite: () => void
   posti: () => number
+  /** k-57: il numero massimo scelto da Nicholas (vince sul tetto di serie degli specialisti); assente = automatico. */
+  postiScelti?: () => number | undefined
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<{ unito: true } | { unito: false; motivo: string }>
@@ -458,7 +461,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
 
   let attesaMemoria: StatoAttesa = attesaVuota()
   const archivioAttesa: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
-  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+  const scelti = (): number | undefined => x.postiScelti?.()
+  const capPc = (): number => (scelti() !== undefined ? POSTI_MAX : SPECIALISTI_PC_MAX)
+  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), capPc()))
   const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi))
   const oraMs = (): number => Date.parse(x.adesso())
   /** Scrive la lista e sveglia gli autopiloti dei primi in fila (e avvisa chi è caduto). */
@@ -540,7 +545,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
       ws, coda: coda(ws), piano: x.orchestratori.piano(ws), unico: u, misura: m,
       ...(i.percento !== undefined ? { percento: i.percento } : {}),
       eventi: recenti.get(ws) ?? [],
-      tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), SPECIALISTI_PC_MAX), alLavoroPc: x.chatAlLavoroSulPc() },
+      tetti: { ws: i.tettoSpecialisti, pc: Math.min(x.posti(), capPc()), alLavoroPc: x.chatAlLavoroSulPc() },
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
@@ -576,7 +581,8 @@ ${NOTA_SENZA_GIT}`,
       impostazioniCli: x.orchestratori.scriviFile(ws, 'impostazioni-cli.json', fileImpostazioniCli(x.porta, u.id)),
       mcpConfig: x.orchestratori.scriviFile(ws, 'mcp.json', configMcpOrchestratore(x.porta, ws, gettoni.di(ws))),
       // Il tetto del workspace, dentro i posti del PC; senza git uno solo (lavorano nella stessa cartella).
-      tetto: git ? Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti()))) : 1
+      tetto: git ? (scelti() !== undefined ? Math.max(1, Math.min(POSTI_MAX, x.posti())) : Math.max(1, Math.min(i.tettoSpecialisti, TETTO_SPECIALISTI_MAX, Math.max(1, x.posti())))) : 1,
+      ...(git && scelti() !== undefined ? { scelti: scelti() as number } : {})
     }
   }
 

@@ -261,6 +261,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let posti: StatoPosti | undefined
   let ultimaMisura: MisuraPc | undefined
   let regolazioneUsata: RegolazionePosti = 0
+  let scelteUsate: number | undefined
   /** Le chat adottate al lavoro più gli specialisti (subagenti): occupano posti anche loro. */
   const alLavoroSulPc = (): number => chatAlLavoroSulPc(unici()) + (unico?.specialistiSulPc() ?? 0)
   const aggiornaPosti = (): void => {
@@ -269,10 +270,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ultimaMisura = deps.misuraPc()
     const regolazione = statoProgramma?.regolazionePosti ?? regolazioneUsata
     // Cambiata a mano nelle Impostazioni: vale subito, senza la salita lenta.
-    if (regolazione !== regolazioneUsata) posti = undefined
+    const scelti = statoProgramma !== undefined ? statoProgramma.postiScelti : scelteUsate
+    if (regolazione !== regolazioneUsata || scelti !== scelteUsate) posti = undefined
     regolazioneUsata = regolazione
+    scelteUsate = scelti
     const prima = posti?.posti
-    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, alLavoroSulPc(), regolazione), Date.parse(deps.adesso()))
+    posti = prossimiPosti(posti, postiDalPc(ultimaMisura, alLavoroSulPc(), regolazione, scelti), Date.parse(deps.adesso()))
     if (prima !== undefined && prima !== posti.posti) {
       console.info(`[posti] ${prima} → ${posti.posti} insieme (${posti.perche}; ${ultimaMisura.processori} processori, ${ultimaMisura.memoriaLiberaMb} MB liberi, carico ${ultimaMisura.caricoPercento}%)`)
     }
@@ -286,6 +289,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     posti: postiAdesso(),
     inFila: 0,
     regolazione: regolazioneUsata,
+    ...(scelteUsate !== undefined ? { scelti: scelteUsate } : {}),
     perche: posti?.perche ?? 'massimo',
     risale: posti?.salitaDal !== undefined,
     ...(ultimaMisura !== undefined ? { misura: ultimaMisura } : {})
@@ -1165,7 +1169,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         // T1: il Gestore spinge qui lo stato del programma, ogni pochi secondi.
         if (metodo === 'POST' && percorso === '/stato-programma') {
           const letto = leggiStatoProgramma(await leggiCorpo(req), Date.now())
-          if (letto !== undefined) statoProgramma = letto
+          if (letto !== undefined) {
+            const cambiata = letto.postiScelti !== scelteUsate && deps.misuraPc !== undefined
+            statoProgramma = letto
+            // Il numero scelto da Nicholas vale subito, senza aspettare il giro del minuto.
+            if (cambiata) aggiornaPosti()
+          }
           for (const w of letto?.workspaceVisti ?? []) unico?.visto(w)
           rispondi(res, 200, { fatto: letto !== undefined })
           return
@@ -1273,6 +1282,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     avviaLavoro: (a, messaggio, chat) => avviaLavoro(a, messaggio, chat),
     avanzaFinite: () => { void avanzaFiniteDaSole() },
     posti: postiAdesso,
+    postiScelti: () => scelteUsate,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
     memoriaCriteri,
