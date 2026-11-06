@@ -3,6 +3,7 @@ import {
   CHAT_SUL_DRIVE_GIORNI, CHAT_SUL_DRIVE_MS, SOGLIA_SPAZIO_POCO, cambiaSoloQui, chatDiWorkspaceSoloQui, chatNonSale, proposteChatSulDrive, sessioniDelleVoci, spazioPoco
 } from '@shared/chat-sul-drive'
 import { restaFuori, type IndiceDrive } from '@shared/spazio-drive'
+import { azioniMenuWorkspace } from '@shared/menu-workspace'
 
 const GIORNO = 86_400_000
 const ADESSO = Date.parse('2026-11-06T12:00:00.000Z')
@@ -37,7 +38,7 @@ describe('chat sul Drive: solo quelle usate di recente', () => {
 
   it('i sotto-agenti vanno con la chat', () => {
     const idx = { ...indice([{ slug: 'a', id: 'due', size: 100, giorni: 90 }]), 'chat/a/due/subagents/x.jsonl': { nome: 'f_x', size: 10, mtime: ADESSO } }
-    const p = base(idx)
+    const p = base(idx, { copieSuiPc: new Map([['due', [{ nome: 'PC', size: 100 }]]]) })
     expect(p[0]!.voci).toHaveLength(2)
   })
 
@@ -84,6 +85,14 @@ describe('workspace «solo su questo PC»', () => {
     const p = base(idx, { soloQui: q, copieSuiPc: copie(idx, ['ddd']) })
     expect(p.map((x) => x.tipo)).toEqual(['chat-solo-qui'])
     expect(sessioniDelleVoci(p[0]!.voci)).toEqual(['aaa-1'])
+  })
+  it('la voce «Solo su questo PC» compare nel menu solo se chi chiama la offre, e dice lo stato', () => {
+    const senza = azioniMenuWorkspace({ nome: 'B', qui: true }, { attivo: 'A', quanti: 3 })
+    expect(senza.some((x) => x.azione === 'soloQui')).toBe(false)
+    const spenta = azioniMenuWorkspace({ nome: 'B', qui: true }, { attivo: 'A', quanti: 3, soloQui: false }).find((x) => x.azione === 'soloQui')
+    const accesa = azioniMenuWorkspace({ nome: 'B', qui: true }, { attivo: 'A', quanti: 3, soloQui: true }).find((x) => x.azione === 'soloQui')
+    expect(spenta?.etichetta).toBe('Solo su questo PC')
+    expect(accesa?.etichetta).toContain('✓')
   })
   it('cambiaSoloQui aggiunge e toglie senza doppioni', () => {
     expect(cambiaSoloQui(['A'], 'B', true)).toEqual(['A', 'B'])
