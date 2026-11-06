@@ -112,9 +112,12 @@ export function creaAutoriparazione(d: DipendenzeAutoriparazione) {
         copia()
         prendiElenco()
         const e = d.migrazione.rifai()
-        voci.push(e.esito === 'fatta'
-          ? { caso: 'trasformazione-mancante', esito: 'sistemato', cosa: `trasformazione in Panoramica ${m === undefined ? 'mai fatta' : m.stato === 'fallita' ? 'fallita' : 'rimasta a metà'}: fatta per ${d.leggiArchivio()?.workspace.length ?? 0} workspace` }
-          : { caso: 'trasformazione-mancante', esito: 'fallito', cosa: `trasformazione in Panoramica non riuscita: ${e.stato?.motivo ?? 'motivo sconosciuto'}` })
+        if (e.esito === 'fatta') {
+          const era = m === undefined ? 'mai fatta' : m.stato === 'fallita' ? 'fallita' : 'rimasta a metà'
+          for (const w of d.leggiArchivio()?.workspace ?? []) voci.push({ caso: 'trasformazione-mancante', workspace: w.nome, esito: 'sistemato', cosa: `«${nomeCorto(w.nome)}»: trasformazione in Panoramica ${era}, ora fatta` })
+        } else {
+          voci.push({ caso: 'trasformazione-mancante', esito: 'fallito', cosa: `trasformazione in Panoramica non riuscita: ${e.stato?.motivo ?? 'motivo sconosciuto'}` })
+        }
       } catch (err) {
         voci.push({ caso: 'trasformazione-mancante', esito: 'fallito', cosa: `trasformazione in Panoramica non riuscita: ${String(err).slice(0, 160)}` })
       }
@@ -165,9 +168,12 @@ export function creaAutoriparazione(d: DipendenzeAutoriparazione) {
         try {
           copia()
           const e = await d.adozione.rifai()
-          voci.push(e.esito === 'fatta' || e.esito === 'niente'
-            ? { caso: 'adozione-mancante', esito: 'sistemato', cosa: `adozione delle chat già avviate ${ad === undefined ? 'mai fatta' : ad.stato === 'fallita' ? 'fallita' : 'rimasta a metà'}: ${e.esito === 'niente' ? 'nessun workspace ha ancora un autopilota' : `${e.stato?.adozioni.reduce((n, x) => n + x.sessioni.length, 0) ?? 0} chat adottate`}` }
-            : { caso: 'adozione-mancante', esito: 'fallito', cosa: `adozione delle chat già avviate non riuscita: ${e.stato?.motivo ?? 'motivo sconosciuto'}` })
+          if (e.esito === 'fatta') {
+            const era = ad === undefined ? 'mai fatta' : ad.stato === 'fallita' ? 'fallita' : 'rimasta a metà'
+            for (const x of e.stato?.adozioni ?? []) voci.push({ caso: 'adozione-mancante', workspace: x.workspace, esito: 'sistemato', cosa: `«${nomeCorto(x.workspace)}»: adozione delle chat già avviate ${era}, ora fatta (${x.sessioni.length} chat adottate)` })
+          } else if (e.esito === 'fallita') {
+            voci.push({ caso: 'adozione-mancante', esito: 'fallito', cosa: `adozione delle chat già avviate non riuscita: ${e.stato?.motivo ?? 'motivo sconosciuto'}` })
+          }
         } catch (err) {
           voci.push({ caso: 'adozione-mancante', esito: 'fallito', cosa: `adozione delle chat già avviate non riuscita: ${String(err).slice(0, 160)}` })
         }
@@ -201,8 +207,8 @@ export function creaAutoriparazione(d: DipendenzeAutoriparazione) {
       }
       nuovo.ultimoCambiamento = rapporto
       nuovo.annullo = annullo
-      if (copiato || servizioCambiato) potaCopie()
     }
+    if (copiato || servizioCambiato) potaCopie()
     scrivi(nuovo)
     for (const v of voci) {
       if (v.esito === 'sistemato') d.log(`[autoriparazione] ${v.workspace !== undefined ? `${nomeCorto(v.workspace)} — ` : ''}${v.cosa}`)
