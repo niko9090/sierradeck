@@ -2503,10 +2503,10 @@ if (!app.requestSingleInstanceLock()) {
       const fileInvio = join(dati, 'errori-invio-automatico.json')
       const leggiStatoInvio = (): StatoInvio | undefined => { try { return JSON.parse(readFileSync(fileInvio, 'utf8')) as StatoInvio } catch { return undefined } }
       statoInvioErroriGlobale = leggiStatoInvio
-      let inCorso = false
+      let invioInCorso = false
       const giro = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
-        if (inCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
-        inCorso = true
+        if (invioInCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
+        invioInCorso = true
         try {
           return await giroInvioErrori({
             storico: () => leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
@@ -2522,7 +2522,7 @@ if (!app.requestSingleInstanceLock()) {
           registro.info(`[errori] invio automatico: giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
           return { ok: false, messaggio: 'Non mandati: qualcosa è andato storto, riprovo da solo.' }
         } finally {
-          inCorso = false
+          invioInCorso = false
         }
       }
       mandaErroriGlobale = () => giro(true)
