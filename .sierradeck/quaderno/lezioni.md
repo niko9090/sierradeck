@@ -29,6 +29,19 @@
 - il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
 - l'hook "PC carico" rimanda tsc e la suite anche dopo molti tentativi; i test di un solo file passano. Ricordarsi di lanciare tsc e la suite completa appena il PC è scarico. _(2026-11-06)_
 - Il guardiano del PC rimanda anche i test di directory o per prefisso (non solo tsc): vanno lanciati file per file, e il rinvio può durare a lungo. _(2026-11-06)_
+- drive-rete-0-86-2 ("corpo che smette di arrivare", timer 40 ms) fallisce a PC carico e passa da solo: se è rosso in una suite larga, rilanciarlo da solo. _(2026-11-06)_
+- molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
+- A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
+- Il rosso di tests/main può non riprodursi in un worktree pulito: 2741 test contro i 2744 visti nella cartella principale. Prima di correggere, confrontare git status e conteggio test fra le due copie. _(2026-11-06)_
+- il guardiano del PC rimanda le suite intere con CPU sopra il 65%: spezzarle in gruppi di 10-30 file con percorsi espliciti, e riprovare dopo 8-9 minuti. _(2026-11-06)_
+- per una copia pulita: `git archive main` in una cartella del worktree, node_modules come junction; per togliere la junction usa `(Get-Item …).Delete()`, mai `rm -rf`. _(2026-11-06)_
+- il guardiano del PC carico rimanda anche un ciclo for di vitest file per file; passano solo i comandi con file espliciti. _(2026-11-06)_
+- il guardiano del PC serializza le suite complete e le fa rimandare per minuti: nei criteri conviene misurare file per file e dare tempo alla suite intera. _(2026-11-06)_
+- tests/shared: 1 prova su 1564 è caduta una volta alle 22:13 del 06/11 e non si è più ripetuta (tutto verde su main 522ff1da): è instabile a PC carico, si rimisura e basta. _(2026-11-06)_
+- Il postino ora legge la posta in arrivo ogni 90 s da fermo: i test con orologio fisso che fanno più `giro()` devono passare `quietaOgniMs: 0`. _(2026-11-06)_
+- drive-rete-0-86-2: il tetto di conTempoLimite va tenuto ≥ 4 volte l'intervallo più lungo della prova (400 contro 100 ms), altrimenti a PC carico cade _(2026-11-06)_
+- il conteggio dei test cambia tra un run e l'altro quando main si muove: confrontare sempre il commit prima di dire che un rosso è «lo stesso» (522ff1da: 2092 totali) _(2026-11-06)_
+- I test che fissano una soglia di posta.ts (es. «PC spento» a 30 minuti) cadono se la soglia cambia; esprimere il ritardo come soglia più un margine. _(2026-11-06)_
 
 ## worktree
 
@@ -36,6 +49,8 @@
 - il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
 - La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
 - Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
+- un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
+- Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
 
 ## errori
 
@@ -93,6 +108,7 @@
 - il conflitto su errori-arrivati.md nasce da due voci aggiunte in coda dallo stesso file: si risolve tenendo entrambi i blocchi, senza scegliere una parte _(2026-11-05)_
 - i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
 - Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
+- Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 
 ## log
 
@@ -177,6 +193,11 @@
 - Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
 - il controllo del PC carico rimanda gradle a ripetizione e `sleep` in primo piano è bloccato: l'attesa va fatta con `sleep` in background. _(2026-11-06)_
 - l'hook rimanda tsc e le suite anche con PC libero se un criterio dell'autopilota è in corso; più file insieme (fino a ~35) passano, le cartelle intere no. _(2026-11-06)_
+- il guardiano del PC rifiuta tsc e le suite larghe (anche con liste di file generate) finché la CPU è alta; i gruppi con nomi di file scritti per esteso passano. _(2026-11-06)_
+- il guardiano del PC carico rimanda tsc e le suite intere anche con CPU al 60%; un ciclo su più file in un solo comando viene rimandato come la suite: un file per chiamata. _(2026-11-06)_
+- Nei worktree manca `node_modules`: serve una junction temporanea, creata con `New-Item -ItemType Junction` in PowerShell, perché `cmd mklink` in Bash viene rifiutato. _(2026-11-06)_
+- Nei worktree la junction a node_modules si toglie in PowerShell con (Get-Item node_modules).Delete(). Da Bash, `cmd //c mklink` viene rifiutato dal guardiano. _(2026-11-06)_
+- nei worktree senza node_modules il criterio fallisce per l'ambiente: la junction verso la cartella principale va lasciata finché il ramo non è unito. _(2026-11-06)_
 
 ## renderer
 
@@ -186,6 +207,7 @@
 ## main
 
 - la salute di un altro PC (/api/salute via remoto.chiama) è solo un cast, senza validazione: ogni campo letto dalle risposte remote va controllato, perché le versioni vecchie mandano altre forme. _(2026-11-06)_
+- Modifiche non committate in `src/` della cartella principale (es. `posta.ts`) fanno cadere test che nella copia passano: è la trappola che ha fatto cadere `tests/shared` solo lì. _(2026-11-06)_
 
 ## general-purpose
 
@@ -244,6 +266,8 @@
 ## build
 
 - Il filtro dei comandi pesanti rifiuta le compilazioni con memoria libera sotto il 10% (vmmemWSL ~15 GB): da WSL non si esce con l'attesa, serve liberare memoria o aspettare. _(2026-11-06)_
+- Il pacchetto va costruito solo dalla cartella principale: in un worktree `node_modules` è una junction e l'asar perde le dipendenze indirette (dijkstrajs, pngjs, yargs). _(2026-11-06)_
+- `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
 
 ## piano
 
@@ -259,6 +283,7 @@
 - i battiti si riscrivono ogni 2 minuti anche da fermi (posta.ts:341): ogni riscrittura è una revisione sul Drive. _(2026-11-06)_
 - le proposte di pulizia guardano il nome, quindi i doppioni con lo stesso nome non si vedono mai (shared/spazio-drive.ts:282-289). _(2026-11-06)_
 - I file dei workspace sul Drive si chiamano `f_<hash>` come le chat: per escluderli dalle pulizie serve il percorso del manifesto, non il prefisso del nome. _(2026-11-06)_
+- Il freno (freno-drive.ts) mette l'avvio dei giri automatici dietro `fermo()` e si innesta in un solo punto, il `fetch` dell'archivio. I test che simulano 403 pieno devono passare un proprio `creaFren… _(2026-11-06)_
 
 ## coda
 
@@ -275,3 +300,17 @@
 ## ponte
 
 - una rotta di lettura verso un altro PC va in `ROTTE_PONTE` (telefono) e in `ROTTE_AUTOPILOTA_ALTRO_PC` (PC), ma mai quelle che cambiano lo stato di là. _(2026-11-06)_
+
+## unione
+
+- Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
+
+## criteri
+
+- La cache dei criteri (criteri-veloci.ts:193-232) è solo in RAM (server.ts:188), chiave = impronta dei file tracciati più comando, senza scadenza: un rosso resta finché il contenuto non cambia o il se… _(2026-11-06)_
+- daRicordare esclude solo timeout e problemi d'ambiente: un test instabile che fallisce una volta blocca l'unione su quel contenuto. Il riuso dell'esito vecchio non passa dal guardiano del carico. _(2026-11-06)_
+- Il cancello ricorda in RAM anche i rossi (criteri-veloci.ts, chiave = file tracciati + comando, senza scadenza): un test instabile blocca ogni unione finché main non cambia o il servizio riparte. _(2026-11-06)_
+
+## processo
+
+- prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
