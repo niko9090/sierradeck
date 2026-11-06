@@ -15,7 +15,8 @@ type PcScelta = { id: string; nome: string }
  * resto dietro i «?».
  */
 export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; scegliPc?: (id: string | undefined) => void }): React.JSX.Element {
-  const [storico, setStorico] = useState<{ voci: VoceErrore[]; testo: string; arrivi?: string } | undefined>(undefined)
+  const [storico, setStorico] = useState<{ voci: VoceErrore[]; inviate?: Array<VoceErrore & { inviatoIl: string }>; testo: string; arrivi?: string } | undefined>(undefined)
+  const [vediInviati, setVediInviati] = useState(false)
   const [tutti, setTutti] = useState(false)
   const [nota, setNota] = useState<string | undefined>(undefined)
   const [pc, setPc] = useState<PcScelta[]>([])
@@ -46,6 +47,7 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
       .finally(() => setManda(false))
   }
   const voci = storico?.voci ?? []
+  const inviate = storico?.inviate ?? []
   const volte = voci.reduce((s, v) => s + v.volte, 0)
   const mostrate = tutti ? voci : voci.slice(0, PRIME)
   // Il PC scelto può non essere più fra quelli conosciuti: si vede lo stesso, con il suo id.
@@ -54,7 +56,7 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
     <div className="errori">
       <div className="impostazioni__riga">
         <span className="con-aiuto">
-          {storico === undefined ? 'Errori…' : voci.length === 0 ? 'Nessun errore registrato' : `${voci.length} ${voci.length === 1 ? 'errore' : 'errori diversi'}, ${volte} ${volte === 1 ? 'volta' : 'volte'}`}
+          {storico === undefined ? 'Errori…' : voci.length === 0 ? (inviate.length > 0 ? 'Nessun errore da mandare' : 'Nessun errore registrato') : `${voci.length} ${voci.length === 1 ? 'errore' : 'errori diversi'}, ${volte} ${volte === 1 ? 'volta' : 'volte'}`}
           <Aiuto di="Errori">Gli errori del programma e del servizio degli autopiloti su questo PC: quando, dove, cosa si stava facendo, il messaggio e il punto del codice. Gli stessi errori ripetuti sono una riga sola con il conteggio. Password, chiavi, gettoni e il nome del PC sono tolti prima di salvare.</Aiuto>
         </span>
         <button className="tasto" onClick={rileggi}>Aggiorna</button>
@@ -72,6 +74,22 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
         </ul>
       ) : null}
       {voci.length > PRIME ? <button className="tasto" onClick={() => setTutti(!tutti)}>{tutti ? 'Mostra meno' : `Mostra tutti (${voci.length})`}</button> : null}
+      {inviate.length > 0 ? (
+        <div className="impostazioni__riga">
+          <button className="tasto" onClick={() => setVediInviati(!vediInviati)}>{vediInviati ? 'Nascondi gli inviati' : `Già inviati (${inviate.length})`}</button>
+          <Aiuto di="Già inviati">Gli errori che questo PC ha già mandato da solo al PC di sviluppo: non compaiono più nella lista e non si rimandano. Se lo stesso errore si ripete, torna nella lista con le sole volte nuove.</Aiuto>
+        </div>
+      ) : null}
+      {vediInviati && inviate.length > 0 ? (
+        <ul className="errori__elenco">
+          {inviate.map((v) => (
+            <li key={`${v.dove}|${v.quando}|${v.messaggio}`} className="errori__voce">
+              <span className="errori__quando">inviato {oraBreve(v.inviatoIl)}{v.volte > 1 ? ` · ${v.volte} volte` : ''}</span>
+              <span className="errori__messaggio">{v.messaggio}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="impostazioni__riga">
         <label className="con-aiuto">PC di sviluppo
           <select value={pcSviluppo ?? ''} onChange={(e) => scegliPc?.(e.target.value === '' ? undefined : e.target.value)}>
@@ -80,7 +98,7 @@ export function SezioneErrori({ pcSviluppo, scegliPc }: { pcSviluppo?: string; s
           </select>
         </label>
         <button className="tasto" onClick={mandaOra} disabled={manda || pcSviluppo === undefined || voci.length === 0}>{manda ? 'Mando…' : 'Manda al PC di sviluppo'}</button>
-        <Aiuto di="Manda al PC di sviluppo">Manda lo storico al PC scelto, firmato con la chiave di casa. Là arriva nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub: chi corregge il programma lo trova lì.</Aiuto>
+        <Aiuto di="Manda al PC di sviluppo">Di solito non serve: gli errori nuovi partono da soli verso il PC scelto, un minuto o due dopo l’ultimo, e poi escono dalla lista. Se il PC non risponde si riprova più tardi. Il PC di sviluppo non manda a se stesso. Qui puoi mandarli subito, firmati con la chiave di casa. Là arrivano nella cartella di SierraDeck, in .sierradeck/errori-arrivati, che non va mai su GitHub: chi corregge il programma lo trova lì.</Aiuto>
       </div>
       {storico?.arrivi !== undefined ? (
         <div className="impostazioni__nota con-aiuto">{storico.arrivi}

@@ -20,6 +20,16 @@ describe('la voce «Errori» delle Impostazioni (0.81.0)', () => {
     expect(src).toContain("{vede('errori') ? <SezioneErrori pcSviluppo={p.pcSviluppo} scegliPc={(id) => cambia({ pcSviluppo: id })} /> : null}")
   })
 
+  it('le voci già inviate non stanno nella lista: un posto a parte, «Già inviati», con la data e il suo «?»', () => {
+    const src = readFileSync('src/renderer/components/SezioneErrori.tsx', 'utf8')
+    expect(src).toContain('const inviate = storico?.inviate ?? []')
+    expect(src).toContain('Già inviati (${inviate.length})')
+    expect(src).toContain('<Aiuto di="Già inviati">')
+    expect(src).toContain('inviato {oraBreve(v.inviatoIl)}')
+    // Prima di leggere lo storico non c'è nessun «Già inviati».
+    expect(renderToStaticMarkup(<SezioneErrori />)).not.toContain('Già inviati')
+  })
+
   it('sul PC di sviluppo mostra la riga di «Errori arrivati» con il suo «?»', () => {
     const src = readFileSync('src/renderer/components/SezioneErrori.tsx', 'utf8')
     expect(src).toContain('{storico?.arrivi !== undefined ? (')
