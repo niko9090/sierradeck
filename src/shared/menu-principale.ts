@@ -115,6 +115,21 @@ export const FUNZIONI: readonly Funzione[] = [
   { funzione: 'Registro e Copia i dettagli', dove: 'impostazioni', prima: 'Impostazioni → Info, Account' }
 ]
 
+/**
+ * **Specialisti** (k-49, 06/11): la lista d'attesa degli specialisti, chi
+ * lavora e chi è in fila per un posto. Per ora è solo del PC (nella fascia, dopo
+ * Domande) e della pagina (Altro → Specialisti): sta **fuori** da
+ * `MENU_PRINCIPALE` perché quella lista la legge anche l'app Android
+ * (`assets/menu.json`, `Scheda`), che non ha ancora questa sezione.
+ */
+export const VOCE_SPECIALISTI = {
+  id: 'specialisti' as const,
+  nome: 'Specialisti',
+  icona: '☰',
+  breve: 'Specialisti',
+  spiega: 'Gli specialisti che lavorano adesso e quelli in fila per un posto, con le mosse per cambiare l’ordine: più in alto, più in basso, in cima, o toglierli dalla fila.'
+}
+
 export function voceMenu(id: IdMenu): VoceMenu {
   const v = MENU_PRINCIPALE.find((x) => x.id === id)
   if (v === undefined) throw new Error(`voce di menu sconosciuta: ${id}`)

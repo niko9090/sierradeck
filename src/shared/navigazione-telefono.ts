@@ -29,6 +29,8 @@ export const SEZIONI_ALTRO: readonly SezioneAltro[] = [
   { id: 'pc', titolo: 'Computer', sotto: 'Accesi o spenti, chat dal vivo, cassetta', impostazioni: false },
   { id: 'aggiornamenti', titolo: 'Aggiornamenti', sotto: 'La versione e l’aggiornamento del computer', impostazioni: true },
   { id: 'consumi', titolo: 'Consumi', sotto: 'Token, limiti del piano, contesto', impostazioni: false },
+  // k-49: chi lavora e chi è in fila per un posto. Solo pagina e PC; l'app Android non ce l'ha ancora (le prime quattro restano quelle dell'app).
+  { id: 'specialisti', titolo: 'Specialisti', sotto: 'Chi lavora e chi è in fila per un posto', impostazioni: false },
   { id: 'notifiche', titolo: 'Avvisi', sotto: 'Quali notifiche', impostazioni: true },
   { id: 'aspetto', titolo: 'Aspetto', sotto: 'Banco o Foglio, chiarore', impostazioni: true },
   { id: 'drive', titolo: 'Drive', sotto: 'Account Google, cassaforte, salvataggio', impostazioni: true },
@@ -112,6 +114,6 @@ export function pannelliDelPosto(p: PostoTelefono): string[] {
   const l = p.linguette[p.voce] || 0
   // 0.95.1 (app 2.90.0): il Drive sotto i Progetti, il Negozio in Altro; le code dei progetti non ci sono più.
   if (p.voce === 'progetti' && l === 0) return ['drive']
-  if (p.voce === 'altro' && (p.sezione === 'pc' || p.sezione === 'consumi' || p.sezione === 'negozio')) return [p.sezione]
+  if (p.voce === 'altro' && (p.sezione === 'pc' || p.sezione === 'consumi' || p.sezione === 'negozio' || p.sezione === 'specialisti')) return [p.sezione]
   return []
 }

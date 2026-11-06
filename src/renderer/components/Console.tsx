@@ -14,7 +14,7 @@ import { fuocoAllaChatVicina } from '../fuoco-chat'
 import { MODELLI } from '../modelli'
 import { MenuPin } from './ChatConPin'
 import { PostiChat } from './PostiChat'
-import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
+import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@shared/menu-principale'
 
 /**
  * I modelli che si possono scegliere.
@@ -40,7 +40,7 @@ import { MENU_PRINCIPALE, type IdMenu } from '@shared/menu-principale'
  * (0.61.0): le sue funzioni stanno in Progetti. «chat» è il pannello «Chat e
  * workspace» del menu principale.
  */
-export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | undefined
+export type PannelloAperto = 'impostazioni' | 'quaderno' | 'workspace' | 'autopiloti' | 'negozio' | 'salute' | 'chat' | 'specialisti' | undefined
 
 type Props = {
   onApriSessioni: () => void
@@ -77,6 +77,16 @@ type Props = {
   progettiAperti?: boolean
   /** Apre o chiude il pannello Progetti. */
   onProgetti?: () => void
+  /** Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti». */
+  specialistiInFila?: number
+}
+
+/** Le voci della fascia: quelle del menu principale e «Specialisti», subito dopo Domande (k-49). */
+type VoceFascia = Omit<VoceMenu, 'id'> & { id: IdVoceFascia }
+type IdVoceFascia = IdMenu | typeof VOCE_SPECIALISTI.id
+function vociDellaFascia(voci: readonly VoceMenu[]): VoceFascia[] {
+  const dopo = voci.findIndex((v) => v.id === 'domande') + 1
+  return [...voci.slice(0, dopo), VOCE_SPECIALISTI, ...voci.slice(dopo)]
 }
 
 /**
@@ -100,6 +110,7 @@ export function Console({
   onDomande,
   progettiAperti = false,
   onProgetti,
+  specialistiInFila = 0,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -186,7 +197,7 @@ export function Console({
       // Il vecchio «drive» (0.61.0) è Progetti; «domande» è la colonna.
       if (quale === 'drive' || quale === 'progetti') { if (!progettiAperti) onProgetti?.() }
       else if (quale === 'domande') { if (!domandeAperte) onDomande?.() }
-      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni' || quale === 'specialisti') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
@@ -254,10 +265,10 @@ export function Console({
 
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
   /** Il pannello di quella voce è aperto: il suo tasto resta acceso. */
-  const statoVoce = (id: IdMenu): boolean =>
+  const statoVoce = (id: IdVoceFascia): boolean =>
     id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : aperto === id
   /** Cosa fa ogni voce del menu principale. */
-  const premi = (id: IdMenu): void => {
+  const premi = (id: IdVoceFascia): void => {
     if (id === 'progetti') onProgetti?.()
     else if (id === 'domande') onDomande?.()
     else if (id !== 'file') commuta(id)
@@ -287,9 +298,9 @@ export function Console({
         sempre in vista, uguali sul telefono e nella pagina. Ognuna apre il
         suo pannello; il tasto del pannello aperto resta acceso. */}
     <nav className="console console--principale" aria-label="Menu principale">
-      {MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true).map((v) => {
+      {vociDellaFascia(MENU_PRINCIPALE.filter((v) => v.soloTelefono !== true)).map((v) => {
         const acceso = statoVoce(v.id)
-        const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : 0
+        const numero = v.id === 'autopiloti' ? ledAutopiloti.length : v.id === 'domande' ? domandeInAttesa : v.id === 'specialisti' ? specialistiInFila : 0
         const chiama = (v.id === 'domande' && domandeInAttesa > 0 && !domandeAperte) || (v.id === 'autopiloti' && inAttesa && aperto !== 'autopiloti')
         return (
           <button
