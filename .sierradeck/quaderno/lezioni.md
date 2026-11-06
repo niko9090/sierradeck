@@ -42,6 +42,7 @@
 - drive-rete-0-86-2: il tetto di conTempoLimite va tenuto ≥ 4 volte l'intervallo più lungo della prova (400 contro 100 ms), altrimenti a PC carico cade _(2026-11-06)_
 - il conteggio dei test cambia tra un run e l'altro quando main si muove: confrontare sempre il commit prima di dire che un rosso è «lo stesso» (522ff1da: 2092 totali) _(2026-11-06)_
 - I test che fissano una soglia di posta.ts (es. «PC spento» a 30 minuti) cadono se la soglia cambia; esprimere il ritardo come soglia più un margine. _(2026-11-06)_
+- k-65: da ferma la posta si legge ogni 90 s e «PC spento» è a 35 min: i test con orologio fisso devono far avanzare il tempo o usare PC_SPENTO_DOPO_MS, non numeri fissi. _(2026-11-06)_
 
 ## worktree
 
@@ -109,6 +110,7 @@
 - i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
 - Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
 - Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
+- Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
 
 ## log
 
@@ -198,6 +200,7 @@
 - Nei worktree manca `node_modules`: serve una junction temporanea, creata con `New-Item -ItemType Junction` in PowerShell, perché `cmd mklink` in Bash viene rifiutato. _(2026-11-06)_
 - Nei worktree la junction a node_modules si toglie in PowerShell con (Get-Item node_modules).Delete(). Da Bash, `cmd //c mklink` viene rifiutato dal guardiano. _(2026-11-06)_
 - nei worktree senza node_modules il criterio fallisce per l'ambiente: la junction verso la cartella principale va lasciata finché il ramo non è unito. _(2026-11-06)_
+- il guardiano rimanda anche suite con elenchi di file e Gradle per molti minuti di fila: lanciare gruppi piccoli di file espliciti. _(2026-11-06)_
 
 ## renderer
 
