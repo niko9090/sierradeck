@@ -384,6 +384,8 @@ contextBridge.exposeInMainWorld('gestore', {
   /** Gli autopiloti degli altri PC (0.59.0): l'elenco e le azioni, al PC dove gira. */
   autopilotiAltri: {
     elenco: (): Promise<import('../shared/autopiloti-altri').AutopilotiDiPc[]> => ipcRenderer.invoke('autopiloti:altri'),
+    /** Gli autopiloti di un PC solo (k-60), o il perché non risponde. */
+    diPc: (pc: string): Promise<import('../shared/autopiloti-altri').AutopilotiDiPc> => ipcRenderer.invoke('autopiloti:diPc', pc),
     azione: (pc: string, percorso: string, corpo: Record<string, unknown>): Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }> =>
       ipcRenderer.invoke('autopiloti:altroPc', pc, percorso, corpo)
   },

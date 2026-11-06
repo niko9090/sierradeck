@@ -1213,6 +1213,9 @@ var FASI_CATALOGO = ${JSON.stringify(FASI_CATALOGO)}
 var consumiVisti = null
 // Specialisti (k-49): la lista d'attesa, come la dà il computer; null = non ancora letta, 'vecchio' = il servizio non la sa dare.
 var attesaVista = null
+// k-60: la lista degli specialisti del PC dove gira l'autopilota aperto (null = non letta, 'vecchio', o la lista).
+var attesaRemota = null
+var attesaGiu = false
 var attesaConferma = ''
 var menuSpecAperto = false
 var menuSpecConferma = ''
@@ -1936,7 +1939,7 @@ function impronta(s) {
     // Specialisti (k-49): la lista, la conferma di «Togli» e l'esito; i tempi si rifanno a ogni lettura.
     aperto('specialisti') ? JSON.stringify([attesaVista, attesaConferma, attesaNota, Math.floor(Date.now() / 30000)]) : '',
     // Il menu Specialisti nella chat dell'autopilota (k-54): chiuso conta solo il testo del tasto.
-    dentroAp ? (menuSpecAperto ? JSON.stringify([attesaVista, menuSpecConferma, attesaNota, Math.floor(Date.now() / 30000)]) : menuSpecEtichetta()) : '',
+    dentroAp ? (menuSpecAperto ? JSON.stringify([vistaMenu(), attesaGiu, menuSpecConferma, attesaNota, Math.floor(Date.now() / 30000)]) : menuSpecEtichetta() + (attesaGiu ? '/giu' : '')) : '',
     // La scheda Domande: la sua lista arriva da una chiamata a parte. Senza
     // questi, aprendola si restava su «Leggo dal computer…» finche' qualcosa
     // d'altro non cambiava, e «Mandata» dopo una risposta non compariva.
@@ -3135,6 +3138,10 @@ window.guardaAp = async (id, pc, nomePc) => {
   // Un autopilota di un altro PC (0.59.0): da qui ogni chiamata passa dal ponte.
   apPc = pc || null
   apPcNome = nomePc || ''
+  // k-60: l'autopilota di un altro PC si apre con la lista di chi lavora là già aperta, letta da quel PC.
+  attesaRemota = null
+  attesaGiu = false
+  if (apPc) { menuSpecAperto = true; menuSpecLetto = 0 }
   dentroAp = id
   apDettaglio = null
   pannello(ultimoStato)
@@ -3144,7 +3151,7 @@ window.guardaAp = async (id, pc, nomePc) => {
   const alLavoro = document.getElementById('al-lavoro-ap')
   if (alLavoro && alLavoro.scrollIntoView) alLavoro.scrollIntoView({ block: 'start' })
 }
-window.chiudiAp = () => { apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
+window.chiudiAp = () => { attesaRemota = null; attesaGiu = false; apRiassunto = false; menuSpecAperto = false; menuSpecConferma = ''; apIntera = null; apPc = null; apPcNome = ''; dentroAp = null; apDettaglio = null; apDomandeViste = null; apFile = null; apAvanzamento = null; apFileScelto = null; apDiff = null; pannello(ultimoStato) }
 
 async function leggiAp() {
   if (!dentroAp) return
@@ -5578,6 +5585,23 @@ async function leggiSalute() {
 window.rileggiSalute = async () => { await leggiSalute(); pannello(ultimoStato) }
 
 // Specialisti (k-49). Il computer risponde sempre; con il servizio vecchio la lista è vuota e i posti sono 0.
+/** La lista che il menu dell'autopilota aperto mostra: quella del PC dove lui gira, se non e' questo. */
+function vistaMenu() { return apPc ? attesaRemota : attesaVista }
+async function leggiAttesaMenu() { if (apPc) await leggiAttesaRemota(); else await leggiAttesa() }
+// k-60: gli specialisti di un altro PC, dal ponte, in sola lettura. Se quel PC e' spento resta l'ultima lista, con una riga.
+async function leggiAttesaRemota() {
+  if (!apPc) return
+  const pc = apPc
+  try {
+    const r = await chiediAp('/api/specialisti/attesa', {})
+    if (pc !== apPc) return
+    attesaRemota = r && Array.isArray(r.alLavoro) && Array.isArray(r.inFila) && r.posti && r.posti.tetto > 0 ? r : 'vecchio'
+    attesaGiu = false
+  } catch (e) {
+    if (pc !== apPc) return
+    if (e && (e.stato === 404 || e.stato === 403 || e.stato === 409)) { attesaRemota = 'vecchio'; attesaGiu = false } else attesaGiu = true
+  }
+}
 async function leggiAttesa() {
   try {
     const r = await chiedi('/api/specialisti/attesa', {})
@@ -5648,13 +5672,14 @@ function attesaHtml() {
 // Il menu Specialisti nella chat dell'autopilota (k-54): le stesse righe del PC, con ↑ Precedenza e Ferma.
 function menuSpecRiferimenti(a) { return [a && a.workspace ? a.workspace : '', a && a.cwd ? a.cwd : ''] }
 function menuSpecEtichetta() {
-  if (attesaVista === null || attesaVista === 'vecchio') return attesaVista === null ? 'Specialisti' : ''
-  return menuSpecialisti(attesaVista, menuSpecRiferimenti(apDettaglio)).etichetta
+  const v = vistaMenu()
+  if (v === null || v === 'vecchio') return v === null ? 'Specialisti' : ''
+  return menuSpecialisti(v, menuSpecRiferimenti(apDettaglio)).etichetta
 }
 window.menuSpecGira = () => {
   menuSpecAperto = !menuSpecAperto
   menuSpecConferma = ''
-  if (menuSpecAperto) { menuSpecLetto = Date.now(); leggiAttesa().then(() => pannello(ultimoStato)) }
+  if (menuSpecAperto) { menuSpecLetto = Date.now(); leggiAttesaMenu().then(() => pannello(ultimoStato)) }
   pannello(ultimoStato)
 }
 window.menuSpecMossa = async (el) => {
@@ -5665,30 +5690,34 @@ window.menuSpecFerma = (id) => { menuSpecConferma = id; pannello(ultimoStato) }
 window.menuSpecAnnulla = () => { menuSpecConferma = ''; pannello(ultimoStato) }
 window.menuSpecApri = () => { menuSpecAperto = false; menuSpecConferma = ''; window.apriSezione('specialisti') }
 function menuSpecHtml(a) {
-  if (attesaVista === 'vecchio') return ''
+  const vm = vistaMenu()
+  // k-60: di un altro PC la lista si guarda e basta, e se quel PC non risponde una riga lo dice.
+  const lettura = !!apPc
+  const giu = lettura && attesaGiu ? '<div class="errore">' + esc(apPcNome || 'Quel PC') + ' è spento o non risponde: qui resta l’ultima lista vista, e ricontrollo da solo.</div>' : ''
+  if (vm === 'vecchio') return lettura ? '<div class="sotto">' + esc(apPcNome || 'Quel PC') + ' non sa ancora dire chi lavora: va aggiornato.</div>' : ''
   const tasto = '<div class="riga"><button aria-expanded="' + menuSpecAperto + '" aria-haspopup="true" onclick="menuSpecGira()">' + esc(menuSpecEtichetta()) + (menuSpecAperto ? ' ▴' : ' ▾') + '</button></div>'
-  if (!menuSpecAperto || attesaVista === null) return tasto
-  const m = menuSpecialisti(attesaVista, menuSpecRiferimenti(a))
+  if (!menuSpecAperto || vm === null) return tasto + giu
+  const m = menuSpecialisti(vm, menuSpecRiferimenti(a))
   const riga = (r, lavora) => {
     const misura = lavora && r.percentuale !== undefined
       ? '<div class="misura-riga">' + esc(r.percentuale) + '%</div><div class="barra"><i style="width:' + esc(r.percentuale) + '%"></i></div>' : ''
     const stato = esc(r.manca) + (r.inRitardo ? ' · <b>in ritardo</b>' : '') + (r.prenotata ? ' · <b>tocca a lui</b>' : '') + (r.parcheggiata ? ' · fermato, riparte per primo' : '') + (r.fermaRichiesta ? ' · <b>fermata chiesta…</b>' : '')
-    const tasti = menuSpecConferma === r.id
+    const tasti = lettura ? '' : menuSpecConferma === r.id
       ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span> <button data-id="' + esc(r.id) + '" data-m="ferma" onclick="menuSpecMossa(this)">Sì, ferma</button> <button onclick="menuSpecAnnulla()">No</button>'
       : '<button data-id="' + esc(r.id) + '" data-m="cima"' + (!lavora && r.posizione === 1 ? ' disabled' : '') + ' onclick="menuSpecMossa(this)">↑ Precedenza</button>' +
         (lavora && !r.fermaRichiesta ? '<button data-id="' + esc(r.id) + '" onclick="menuSpecFerma(this.dataset.id)">Ferma</button>' : '')
     return '<div class="cartella"' + (r.corrente ? ' style="border-left:3px solid var(--ambra, #d9a441)"' : '') + '><div>' +
       (r.posizione !== undefined ? '<b>' + esc(r.posizione) + '° </b>' : '') + esc(r.titolo) + (r.altroWorkspace ? ' <span class="sotto">· ' + esc(r.altroWorkspace) + '</span>' : '') + '</div>' +
       misura + (r.cosaFa ? '<div class="sotto">' + esc(r.cosaFa) + '</div>' : '') +
-      '<div class="sotto">' + stato + '</div><div class="riga">' + tasti + '</div></div>'
+      '<div class="sotto">' + stato + '</div>' + (tasti ? '<div class="riga">' + tasti + '</div>' : '') + '</div>'
   }
-  return tasto + '<div class="piastrella">' +
+  return tasto + giu + '<div class="piastrella">' +
     '<div class="titolo">Al lavoro adesso' + aiuto('menu-spec', 'Con «↑ Precedenza» uno specialista passa in cima alla fila e prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora e lo mette in cima alla fila: il suo lavoro resta salvato sul suo ramo. La percentuale è una stima e non arriva a 100 prima della fine.', 'precedenza') + '</div>' +
     (m.lavorano.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : m.lavorano.map((r) => riga(r, true)).join('')) +
     '<div class="solco"></div><div class="titolo">In fila</div>' +
     (m.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : m.inFila.map((r) => riga(r, false)).join('')) +
     (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
-    '<div class="riga"><span class="sotto">' + esc(m.totale) + '</span><button onclick="menuSpecApri()">Apri Specialisti</button></div></div>'
+    '<div class="riga"><span class="sotto">' + esc(m.totale) + '</span>' + (lettura ? '' : '<button onclick="menuSpecApri()">Apri Specialisti</button>') + '</div></div>'
 }
 
 window.installaAggiornamento = async () => {
@@ -6520,7 +6549,7 @@ async function aggiorna() {
     avvisaSeServe(stato)
     if (dentroAp) await leggiAp()
     // Il menu Specialisti (k-54): ogni 4 secondi se aperto, ogni 20 per il testo del tasto.
-    if (dentroAp && Date.now() - menuSpecLetto > (menuSpecAperto ? 4000 : 20000)) { menuSpecLetto = Date.now(); leggiAttesa().then(() => pannello(ultimoStato)) }
+    if (dentroAp && Date.now() - menuSpecLetto > (menuSpecAperto ? 4000 : 20000)) { menuSpecLetto = Date.now(); leggiAttesaMenu().then(() => pannello(ultimoStato)) }
     // Se si sta guardando dentro una chat, anche quelle righe si rinfrescano:
     // guardare qualcosa di fermo mentre il resto si muove sarebbe peggio che
     // non guardare.
