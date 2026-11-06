@@ -12,6 +12,7 @@ import { SezionePin } from './SezionePin'
 import { SezioneQuadernoPersonale } from './SezioneQuadernoPersonale'
 import { SezioneAggiornamenti } from './SezioneAggiornamenti'
 import { SezioneErrori } from './SezioneErrori'
+import { SezioneNotifiche } from './SezioneNotifiche'
 import { Aiuto } from './Aiuto'
 import { NomeQuestoPc } from './PannelloAccount'
 import { cercaImpostazioni, SEZIONI, sezioneInVista, type IdSezione } from '@shared/impostazioni-struttura'
@@ -490,7 +491,7 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
         {vede('pin') ? <SezionePin /> : null}
         {vede('quaderno-personale') ? <SezioneQuadernoPersonale /> : null}
 
-        {vede('account-google', 'torna-indietro', 'fumetti-sincronia') ? (
+        {vede('account-google', 'torna-indietro') ? (
           <section className="impostazioni__gruppo">
             <Testa id="drive" />
             {vede('account-google') ? (
@@ -499,22 +500,6 @@ Di lato è larghezza, sopra o sotto è altezza: è sempre la stessa
                 <button className="tasto" onClick={onAccount}>Vai alla scheda Account</button>
               </div>
             ) : null}
-            {vede('fumetti-sincronia') ? <>
-          <label className="impostazioni__riga impostazioni__riga--spunta">
-            <input
-              type="checkbox"
-              checked={p.fumettiSincroniaAutomatica}
-              onChange={(e) => cambia({ fumettiSincroniaAutomatica: e.target.checked })}
-            />
-            <span className="con-aiuto">Mostra un fumetto anche per la sincronia automatica con il Drive<NellEtichetta>
-La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono fumetti in basso a
-            destra, che compaiono e spariscono senza spostare i riquadri. Il lavoro che chiedi tu (Fondi, Ripristina,
-            Porta qui) ha sempre il suo fumetto con la barra, «Dettagli» e «Annulla». Il lavoro automatico
-            (il salvataggio ogni cinque minuti, l’arrivo delle chat) spento non si vede: se ne parla solo se va
-            male. Acceso, mostra una riga piccola con la percentuale, senza tasti.
-</NellEtichetta></span>
-          </label>
-            </> : null}
           </section>
         ) : null}
         {vede('torna-indietro') ? <SezioneTornaIndietro /> : null}
@@ -573,6 +558,13 @@ La sincronia con il Drive non sta più in una striscia in alto: gli avvisi sono 
           </section>
         ) : null}
         {vede('scorciatoie') ? <SezioneScorciatoie p={p} cambia={cambia} /> : null}
+
+        {vede('fumetti-sincronia', 'avviso-windows-aggiornamento') ? (
+          <section className="impostazioni__gruppo">
+            <Testa id="notifiche" />
+            <SezioneNotifiche p={p} cambia={cambia} vede={vede} />
+          </section>
+        ) : null}
 
         {vede('registro', 'copia-dettagli', 'errori') ? (
           <section className="impostazioni__gruppo">
