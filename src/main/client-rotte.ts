@@ -217,6 +217,10 @@ export type DipendenzeRotte = {
   avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
   /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
+  /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
+  attesaSpecialisti?: () => Promise<unknown>
+  prioritaAttesaSpecialisti?: (id: string, mossa: 'su' | 'giu' | 'cima') => Promise<unknown>
+  togliAttesaSpecialisti?: (id: string) => Promise<unknown>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
   /** Risponde alla domanda di un autopilota. */
@@ -1569,6 +1573,24 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.specialistaAutopilota === undefined) return OK({ id, trovata: false, righe: [] })
       const t = await deps.specialistaAutopilota(ws, id).catch(() => undefined)
       return OK(t ?? { id, trovata: false, righe: [] })
+    }
+
+    // k-48: la lista d'attesa degli specialisti, come la mostra il PC: chi lavora e chi aspetta in ordine.
+    if (r.metodo === 'POST' && r.percorso === '/api/specialisti/attesa') {
+      if (deps.attesaSpecialisti === undefined) return OK({ posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
+      const v = await deps.attesaSpecialisti().catch(() => undefined)
+      return OK(v ?? { posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
+    }
+    if (r.metodo === 'POST' && (r.percorso === '/api/specialisti/attesa/priorita' || r.percorso === '/api/specialisti/attesa/togli')) {
+      const id = stringa(r.corpo, 'id').trim()
+      const mossa = stringa(r.corpo, 'mossa')
+      const priorita = r.percorso.endsWith('/priorita')
+      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima)' : 'serve la voce' } }
+      const f = priorita ? deps.prioritaAttesaSpecialisti : undefined
+      if (priorita ? f === undefined : deps.togliAttesaSpecialisti === undefined) return { stato: 503, corpo: { errore: 'la lista d’attesa non è disponibile' } }
+      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
+      if (v === undefined) return { stato: 502, corpo: { errore: 'il servizio degli autopiloti non ha risposto' } }
+      return OK(v)
     }
 
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {

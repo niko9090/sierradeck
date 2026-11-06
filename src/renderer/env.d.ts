@@ -385,6 +385,9 @@ declare global {
         orchestratore: (ws: string) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined>
         /** 0.90.0: la conversazione di uno specialista, da guardare. */
         specialista: (ws: string, id: string) => Promise<import('@shared/piano-orchestratore').TrascrizioneSpecialista | undefined>
+        attesaSpecialisti: () => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
+        prioritaAttesa: (id: string, mossa: 'su' | 'giu' | 'cima') => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
+        togliAttesa: (id: string) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
