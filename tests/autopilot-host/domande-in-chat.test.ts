@@ -55,7 +55,7 @@ describe('la risposta scritta e i tasti (puro)', () => {
     expect(rispostaScritta('meglio domani', scelte)).toBe('meglio domani')
   })
   it('i tasti sono le scelte, senza il campo «scrivo io»', () => {
-    const parti = { staFacendo: 'a', domanda: 'b', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x' }, { scelta: 'Ti scrivo io cosa provare', conseguenza: '', libera: true }] }
+    const parti = { staFacendo: 'a', domanda: 'b', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x' }, { scelta: 'Ti scrivo io cosa provare', conseguenza: '', libera: true as const }] }
     expect(scelteDaToccare({ parti })).toEqual(['Sì'])
     expect(scelteDaToccare({ opzioni: ['a', 'b'] })).toEqual(['a', 'b'])
     expect(scelteDaToccare({})).toEqual([])
