@@ -1,5 +1,6 @@
 import { MessaggiVersoLaChat, RigaDalVivo } from './DalVivoAutopilota'
 import { CodaWorkspace } from './CodaWorkspace'
+import { MenuSpecialisti } from './MenuSpecialisti'
 import { TestaOrchestratore } from './TestaOrchestratore'
 import { chiaveWorkspace } from '@shared/coda-richieste'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -65,6 +66,10 @@ export function ChatAutopilota({
 
   return (
     <section className={`chatap${campoPronto ? ' chatap--pronta' : ''}`} aria-label="Chat con l’autopilota">
+      {/* k-54: gli specialisti di tutti i workspace in un menu, con percentuale, cosa fanno e la precedenza. */}
+      <div className="chatap__testa">
+        <MenuSpecialisti riferimenti={[chiaveWorkspace(autopilota), autopilota.cwd, autopilota.workspace ?? '']} />
+      </div>
       {/* 0.95.3: in testa solo barra, percentuale e cosa succede; il resto nella tendina ▾. */}
       <TestaOrchestratore workspace={chiaveWorkspace(autopilota)}>
         <RigaDalVivo autopilota={autopilota} senzaStato={soloConversazione} />

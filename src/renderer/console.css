@@ -5102,3 +5102,26 @@ label.gc-voce { cursor: pointer; }
 .spec__chiede { font-size: 12px; color: var(--testo-quieto); margin-right: 4px; }
 .spec__vuoto { color: var(--testo-quieto); padding: 6px 2px; }
 .spec__vecchio { color: var(--ambra); }
+
+/* ── Menu Specialisti nella chat dell'autopilota (k-54) ────────────────── */
+.chatap__testa { display: flex; justify-content: flex-end; padding: 2px 4px; }
+.menuspec { position: relative; }
+.menuspec__tendina { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; width: min(460px, 92vw); max-height: 70vh; overflow-y: auto; background: var(--chassis); border: 1px solid var(--incisione); border-radius: var(--raggio); box-shadow: 0 6px 18px var(--ombra-corta); padding: 8px; }
+.menuspec__corpo { display: flex; flex-direction: column; gap: 6px; }
+.menuspec__intesta { display: flex; align-items: center; gap: 6px; }
+.menuspec__elenco { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--incisione); border-radius: var(--raggio); }
+.menuspec__riga { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--incisione); }
+.menuspec__riga:last-child { border-bottom: 0; }
+.menuspec__riga--mia { box-shadow: inset 3px 0 0 var(--ambra); background: var(--luce-tenue); }
+.menuspec__titolo { overflow-wrap: anywhere; }
+.menuspec__ws { color: var(--testo-quieto); font-size: 12px; }
+.menuspec__misura { display: flex; align-items: center; gap: 8px; }
+.menuspec__misura .barra { flex: 1; }
+.menuspec__pieno { background: var(--ambra); }
+.menuspec__cosa { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menuspec__sotto { color: var(--testo-quieto); font-size: 12px; }
+.menuspec__ritardo { color: var(--ambra); font-weight: 700; }
+.menuspec__tasti { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.menuspec__chiede { font-size: 12px; color: var(--testo-quieto); }
+.menuspec__vuoto { color: var(--testo-quieto); padding: 4px 2px; }
+.menuspec__piede { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--testo-quieto); }
