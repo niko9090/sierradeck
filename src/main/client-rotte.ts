@@ -221,7 +221,7 @@ export type DipendenzeRotte = {
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
   /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
   attesaSpecialisti?: () => Promise<unknown>
-  prioritaAttesaSpecialisti?: (id: string, mossa: 'su' | 'giu' | 'cima') => Promise<unknown>
+  prioritaAttesaSpecialisti?: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<unknown>
   togliAttesaSpecialisti?: (id: string) => Promise<unknown>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
@@ -1588,10 +1588,10 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const id = stringa(r.corpo, 'id').trim()
       const mossa = stringa(r.corpo, 'mossa')
       const priorita = r.percorso.endsWith('/priorita')
-      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima)' : 'serve la voce' } }
+      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima' && mossa !== 'ferma')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima, ferma)' : 'serve la voce' } }
       const f = priorita ? deps.prioritaAttesaSpecialisti : undefined
       if (priorita ? f === undefined : deps.togliAttesaSpecialisti === undefined) return { stato: 503, corpo: { errore: 'la lista d’attesa non è disponibile' } }
-      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
+      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima' | 'ferma') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
       if (v === undefined) return { stato: 502, corpo: { errore: 'il servizio degli autopiloti non ha risposto' } }
       return OK(v)
     }

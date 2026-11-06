@@ -19,6 +19,13 @@ describe('lista d’attesa su disco', () => {
     expect(apriAttesa(file).leggi()).toEqual({ voci: [voce], prossimo: 7 })
   })
 
+  it('le precedenze dei workspace e le voci parcheggiate sopravvivono (k-53)', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'ap-attesa-st-')), 'attesa.json')
+    const parcheggiata = { ...voce, id: 'v-2', parcheggiata: true as const, ramo: 'ap/x/k-2' }
+    apriAttesa(file).scrivi({ voci: [voce, parcheggiata], prossimo: 7, precedenze: { Lavoro: 2 } })
+    expect(apriAttesa(file).leggi()).toEqual({ voci: [voce, parcheggiata], prossimo: 7, precedenze: { Lavoro: 2 } })
+  })
+
   it('un file rovinato o con voci storte non ferma il servizio', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const cartella = mkdtempSync(join(tmpdir(), 'ap-attesa-st-'))

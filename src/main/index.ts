@@ -4370,7 +4370,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
         attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
-        prioritaAttesaSpecialisti: (id: string, mossa: 'su' | 'giu' | 'cima') => clientAutopilota.prioritaAttesa(id, mossa),
+        prioritaAttesaSpecialisti: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => clientAutopilota.prioritaAttesa(id, mossa),
         togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {

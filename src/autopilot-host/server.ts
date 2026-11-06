@@ -906,7 +906,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             const corpo = (await leggiCorpo(req)) as Record<string, unknown> | undefined
             const id = testoDi(corpo?.id).trim()
             const mossa = corpo?.mossa
-            if (id === '' || (mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) { rispondi(res, 400, { errore: 'servono l’id della voce e la mossa (su, giu, cima)' }); return }
+            if (id === '' || (mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima' && mossa !== 'ferma')) { rispondi(res, 400, { errore: 'servono l’id della voce e la mossa (su, giu, cima, ferma)' }); return }
             const v = servizio().prioritaAttesa(id, mossa)
             if (v === undefined) { rispondi(res, 404, { errore: 'questa voce non è più in lista' }); return }
             rispondi(res, 200, v)
