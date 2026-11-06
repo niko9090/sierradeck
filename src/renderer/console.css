@@ -5102,3 +5102,11 @@ label.gc-voce { cursor: pointer; }
 .spec__chiede { font-size: 12px; color: var(--testo-quieto); margin-right: 4px; }
 .spec__vuoto { color: var(--testo-quieto); padding: 6px 2px; }
 .spec__vecchio { color: var(--ambra); }
+.spec__totale { color: var(--testo-quieto); font-size: 13px; }
+.spec__ws { font-weight: 700; }
+.spec__cosa { color: var(--testo-quieto); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spec__barra { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--testo-quieto); }
+.spec__barra progress { flex: 1; max-width: 220px; height: 6px; }
+.spec__ritardo { color: var(--ambra); font-weight: 700; }
+.spec__parcheggiato { color: var(--ambra); font-weight: 700; }
+
