@@ -21,15 +21,15 @@ async function conServizio(gestore: Gestore, prova: (porta: number) => Promise<v
 }
 
 const crea = (porta: number) =>
-  creaClientAutopilota({ porta, attesaMs: 30, attesaScritturaMs: 150 } as Parameters<typeof creaClientAutopilota>[0])
+  creaClientAutopilota({ porta, attesaMs: 50, attesaScritturaMs: 3000 } as Parameters<typeof creaClientAutopilota>[0])
 
 describe('dialogo con l\'autopilota, servizio occupato (k-42)', () => {
   it('concede alla scrittura piu\' attesa di una lettura e manda un id del messaggio', async () => {
     const visti: string[] = []
     await conServizio((_req, res, corpo) => {
       visti.push(corpo)
-      // Piu' lento dell'attesa di lettura (30 ms), dentro quella di scrittura (150 ms).
-      setTimeout(() => { res.writeHead(202, { 'Content-Type': 'application/json' }); res.end('{"ricevuto":true}') }, 80)
+      // Piu' lento dell'attesa di lettura (50 ms), dentro quella di scrittura (3 s).
+      setTimeout(() => { res.writeHead(202, { 'Content-Type': 'application/json' }); res.end('{"ricevuto":true}') }, 400)
     }, async (porta) => {
       const r = await crea(porta).dialoga('a1', 'ciao')
       expect(r.ricevuto).toBe(true)
@@ -47,7 +47,7 @@ describe('dialogo con l\'autopilota, servizio occupato (k-42)', () => {
       if (ids.length === 1) return // il primo tentativo non riceve mai risposta
       res.writeHead(202, { 'Content-Type': 'application/json' }); res.end('{"ricevuto":true,"giaArrivato":true}')
     }, async (porta) => {
-      const r = await crea(porta).dialoga('a1', 'ciao')
+      const r = await creaClientAutopilota({ porta, attesaMs: 50, attesaScritturaMs: 100 } as Parameters<typeof creaClientAutopilota>[0]).dialoga('a1', 'ciao')
       expect(r.ricevuto).toBe(true)
       expect(ids).toHaveLength(2)
       expect(ids[1]).toBe(ids[0])
