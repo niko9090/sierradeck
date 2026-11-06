@@ -84,6 +84,46 @@ export type DatiApertura = {
   casaQui?: boolean
 }
 
+/**
+ * La prima versione che sa farsi guardare e comandare dal vivo da un altro PC
+ * come si deve (stato, schermo, scrittura e avvio in sottofondo: la 0.58.4).
+ */
+export const VERSIONE_MIN_VISTA_DAL_VIVO = '0.58.4'
+
+/** `v` (x.y.z) viene prima della minima? Una versione assente o illeggibile non si giudica. */
+export function versioneTroppoVecchia(v: string | undefined, minima: string = VERSIONE_MIN_VISTA_DAL_VIVO): boolean {
+  if (v === undefined || !/^\d+\.\d+\.\d+/.test(v.trim())) return false
+  const a = v.trim().split('.').map((x) => Number.parseInt(x, 10))
+  const b = minima.split('.').map((x) => Number.parseInt(x, 10))
+  for (let i = 0; i < 3; i += 1) {
+    const x = a[i] ?? 0
+    const y = b[i] ?? 0
+    if (x !== y) return x < y
+  }
+  return false
+}
+
+export function statoVersioneVecchia(nome: string, versione: string): StatoPc {
+  return {
+    stato: 'versione-vecchia',
+    titolo: `${nome} è acceso, ma la sua versione è troppo vecchia`,
+    cosaFare: `Aggiorna ${nome} (ha la ${versione}, serve almeno la ${VERSIONE_MIN_VISTA_DAL_VIVO}): poi la chat si apre dal vivo.`
+  }
+}
+
+/**
+ * La chat ha casa su un altro PC ma non si e' potuto decidere da dove aprirla
+ * (la domanda e' caduta, o ha risposto «locale»): niente cartello senza uscita,
+ * si aspetta e si riprova da soli, e la vista dal vivo parte appena quel PC risponde.
+ */
+export function attesaPerCasaIgnota(c: { cwd: string; pc: { id: string; nome: string }; sessionUuid: string; perche?: string }): Extract<Apertura, { tipo: 'attesa' }> {
+  return {
+    tipo: 'attesa', pc: c.pc, cwd: c.cwd, sessione: c.sessionUuid,
+    perche: c.perche ?? `la sua casa è ${c.pc.nome}`, perCasa: true,
+    statoPc: { stato: 'non-so', titolo: `non so se ${c.pc.nome} è acceso`, cosaFare: `Riprovo da solo ogni 20 secondi; se ${c.pc.nome} è spento o su un’altra rete, la chat aspetta.` }
+  }
+}
+
 /** «non risponde da 12 minuti», «non ha mai lasciato un battito». */
 export function daQuandoTace(ultimoSegno: string | undefined, adesso: number): string {
   if (ultimoSegno === undefined) return 'non ha ancora lasciato un segno sul Drive'
@@ -103,6 +143,17 @@ export function decidiApertura(d: DatiApertura): Apertura {
     const id = b?.pcId ?? pc.id
     const casa = perCasa ? { perCasa: true as const } : {}
     if ((b !== undefined && pcVivo(b, d.adesso)) || (d.rispondono ?? []).includes(id)) {
+      // Acceso ma troppo vecchio per la vista dal vivo: si dice, non si apre
+      // un riquadro che non funzionerebbe (la versione la dice il suo battito, e conta solo se e'
+      // fresco: uno vecchio puo' parlare di una versione gia' superata).
+      if (b !== undefined && pcVivo(b, d.adesso) && versioneTroppoVecchia(b.versione)) {
+        return {
+          tipo: 'attesa', pc: { id, nome }, cwd: d.cwd,
+          ...(d.sessione !== undefined ? { sessione: d.sessione } : {}),
+          ...(b.battito !== '' ? { ultimoSegno: b.battito } : {}),
+          perche, ...casa, statoPc: statoVersioneVecchia(nome, b.versione)
+        }
+      }
       return { tipo: 'remoto', pc: { id, nome }, cwd: d.cwd, ...(d.sessione !== undefined ? { sessione: d.sessione } : {}), perche, ...casa }
     }
     return {

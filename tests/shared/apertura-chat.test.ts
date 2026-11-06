@@ -11,7 +11,7 @@ import { descriviSilenzio } from '@shared/pc-remoto'
  */
 const ORA = Date.parse('2026-10-01T10:00:00Z')
 const battito = (pcId: string, nome: string, minutiFa: number, extra: Partial<BattitoPc> = {}): BattitoPc => ({
-  pcId, nome, versione: '0.36.0', battito: new Date(ORA - minutiFa * 60_000).toISOString(), cartelle: [], chat: [], ...extra
+  pcId, nome, versione: '0.95.0', battito: new Date(ORA - minutiFa * 60_000).toISOString(), cartelle: [], chat: [], ...extra
 })
 const base: DatiApertura = { sessione: 's-1', cwd: 'E:/Progetti/sito', io: 'fisso', trascrizioneQui: true, cartellaQui: true, battiti: [], adesso: ORA }
 
