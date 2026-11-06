@@ -30,7 +30,7 @@ describe('le domande in un posto solo', () => {
     expect(app).not.toContain('pannello.mostraDomande')
   })
   it('k-45: le sue domande compaiono prima nella sua chat (si risponde da lì); se non lette passano nella colonna', () => {
-    expect(chat).toContain('window.gestore.autopilota.rispondi(')
+    expect(chat).toContain('window.gestore.autopilota.rispondi)(')
     expect(chat).toContain('è nella colonna Domande')
   })
 })
