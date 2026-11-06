@@ -29,7 +29,17 @@ export type DomandaAperta = {
    * domanda. Lo scrive e lo legge solo il servizio.
    */
   contesto?: ContestoDomanda
+  /**
+   * 0.96.0: la domanda è nata nella chat dell'autopilota. Finché `emersaIl`
+   * manca è solo lì: non compare nelle Domande, nel conteggio, nelle notifiche
+   * e sul telefono. Passa nelle Domande quando nessuno l'ha vista in chat
+   * (o è rimasta senza risposta troppo a lungo): lo decide il servizio.
+   */
+  inChat?: { emersaIl?: number }
 }
+
+/** Ancora solo nella chat (0.96.0): le Domande, il conteggio e le notifiche non la vedono. */
+export const soloInChat = (d: Pick<DomandaAperta, 'inChat'>): boolean => d.inChat !== undefined && d.inChat.emersaIl === undefined
 
 /** Il contesto di una domanda: serve alla risposta tardiva per riprendere la chat giusta. */
 export type ContestoDomanda = {
@@ -37,6 +47,8 @@ export type ContestoDomanda = {
   testo: string
   grezza?: string
   chatId?: string
+  /** 0.96.0: la richiesta della coda (r-N) da cui nasce la domanda: chiusa lei, la domanda si ritira. */
+  richiestaId?: string
   pubblica?: boolean
   /** Altre chat che hanno chiesto la stessa cosa (0.81.0): la risposta riprende anche loro. */
   ancheChat?: string[]
@@ -56,7 +68,16 @@ export type ContestoDomanda = {
 export type Risposta = { risposta: string; da: Provenienza }
 
 export type RegistroDomande = {
-  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string }) => DomandaAperta
+  apri: (p: { autopilotaId: string; testo: string; scadenzaMs: number; opzioni?: string[]; parti?: PartiDomanda; avvertenza?: string; inChat?: boolean }) => DomandaAperta
+  /**
+   * Quelle che Nicholas deve vedere (0.96.0): le aperte senza le domande che
+   * stanno ancora solo nella chat. Le usano `/domande`, il conteggio, le notifiche.
+   */
+  visibili: (autopilotaId?: string) => DomandaAperta[]
+  /** Dalla chat alle Domande (0.96.0). Restituisce la domanda, o `undefined` se non era solo in chat. */
+  emergi: (id: string, ora: number) => DomandaAperta | undefined
+  /** Chiamata quando una domanda si chiude (risposta, superata, ritirata): per togliere i tasti dalla chat. */
+  suChiusa: (cb: (d: DomandaAperta) => void) => void
   /**
    * Attende la risposta. Restituisce `undefined` se scade: chi aspettava è
    * libero, ma la domanda resta aperta per una risposta tardiva.
@@ -136,6 +157,8 @@ export function creaRegistroDomande(deps: {
     return risolte.filter((r) => Date.parse(r.quando) >= limite).slice(-RISOLTE_MAX)
   }
   let tardiva: ((id: string, risposta: string, da: Provenienza, domanda: DomandaAperta) => void) | undefined
+  let chiusa: ((d: DomandaAperta) => void) | undefined
+  const dicoChiusa = (d: DomandaAperta): void => { try { chiusa?.(d) } catch (err) { console.error('[autopilota] chiusura della domanda non segnalata:', err) } }
   const salva = (): void => {
     if (deps.file === undefined) return
     try {
@@ -159,7 +182,7 @@ export function creaRegistroDomande(deps: {
   }
 
   return {
-    apri({ autopilotaId, testo, scadenzaMs, opzioni, parti, avvertenza }) {
+    apri({ autopilotaId, testo, scadenzaMs, opzioni, parti, avvertenza, inChat }) {
       const domanda: DomandaAperta = {
         id: `d-${randomUUID()}`,
         autopilotaId,
@@ -168,7 +191,8 @@ export function creaRegistroDomande(deps: {
         scadeIl: deps.adesso() + scadenzaMs,
         ...(opzioni !== undefined && opzioni.length > 0 ? { opzioni } : {}),
         ...(parti !== undefined ? { parti } : {}),
-        ...(avvertenza !== undefined ? { avvertenza } : {})
+        ...(avvertenza !== undefined ? { avvertenza } : {}),
+        ...(inChat === true ? { inChat: {} } : {})
       }
       voci.set(domanda.id, { domanda, attese: [] })
       salva()
@@ -208,7 +232,24 @@ export function creaRegistroDomande(deps: {
       }
       voci.delete(id)
       salva()
+      dicoChiusa(voce.domanda)
       return true
+    },
+
+    visibili(autopilotaId) {
+      return [...voci.values()].map((v) => v.domanda).filter((d) => !soloInChat(d) && (autopilotaId === undefined || d.autopilotaId === autopilotaId))
+    },
+
+    emergi(id, ora) {
+      const voce = voci.get(id)
+      if (voce === undefined || !soloInChat(voce.domanda)) return undefined
+      voce.domanda = { ...voce.domanda, inChat: { emersaIl: ora } }
+      salva()
+      return voce.domanda
+    },
+
+    suChiusa(cb) {
+      chiusa = cb
     },
 
     aperte(autopilotaId) {
@@ -223,6 +264,7 @@ export function creaRegistroDomande(deps: {
         // alla scadenza per un autopilota che non lavora più.
         for (const r of voce.attese) r(undefined)
         voci.delete(id)
+        dicoChiusa(voce.domanda)
       }
       salva()
     },
@@ -234,6 +276,9 @@ export function creaRegistroDomande(deps: {
       if (voce === undefined || voce.risposta !== undefined || voce.attese.length > 0) return false
       voci.delete(id)
       const d = voce.domanda
+      dicoChiusa(d)
+      // Mai uscita dalla chat: Nicholas non l'ha vista nelle Domande, non resta fra le risolte.
+      if (soloInChat(d)) { salva(); return true }
       const domanda = (d.parti?.domanda !== undefined && d.parti.domanda !== '' ? d.parti.domanda : d.testo).trim().slice(0, RISOLTA_MAX)
       risolte = [...fresche(), {
         autopilotaId: d.autopilotaId,

@@ -32,6 +32,7 @@ import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
 import type { RegistroDomande, ContestoDomanda } from './domande'
+import { rispostaScritta, scelteDaToccare } from './domande-in-chat'
 import type { TipoAvviso } from './telegram'
 import { avanzaFine, inizioFine } from './fine-chat'
 import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
@@ -569,7 +570,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       const quando = deps.adesso()
       salva({
         ...a,
-        dialogo: [...a.dialogo, { quando, da: 'lui' as const, testo: chiesta.testo, traccia: true as const }, { quando, da: 'tu' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO)
+        // Una domanda nata in chat ha già la sua riga: si aggiunge solo la risposta.
+        dialogo: [...a.dialogo, ...(chiesta.inChat !== undefined ? [] : [{ quando, da: 'lui' as const, testo: chiesta.testo, traccia: true as const }]), { quando, da: 'tu' as const, testo, traccia: true as const }].slice(-DIALOGO_RICORDATO)
       })
     }
     return true
@@ -989,6 +991,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (cosa === 'dialogo') {
             const testo = testoDi(corpo.testo).trim()
             if (testo === '') { rispondi(res, 400, { errore: 'non hai scritto niente' }); return }
+            // 0.96.0: con una sua domanda nata in chat ancora aperta, quello che scrivi è la risposta.
+            const inChat = deps.domande.aperte(a.id).filter((d) => d.inChat !== undefined).sort((p, q) => p.apertaIl - q.apertaIl)[0]
+            if (inChat !== undefined && rispondiAllaDomanda(inChat.id, rispostaScritta(testo, scelteDaToccare(inChat)), 'modale')) {
+              rispondi(res, 202, { ricevuto: true, autopilota: deps.archivio.leggi(a.id) ?? a })
+              return
+            }
             rispondi(res, 202, { ricevuto: true, autopilota: servizio().messaggio(a, testo) })
             return
           }
@@ -1081,7 +1089,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
         // Le domande aperte: una alla volta per autopilota, la più vecchia, con quante aspettano dietro.
         if (metodo === 'GET' && percorso === '/domande') {
-          const tutte = deps.domande.aperte(url.searchParams.get('ap') ?? undefined)
+          // 0.96.0: quelle ancora solo nella chat dell'autopilota non ci sono (le vedono PC, telefono, conteggio e notifiche da qui).
+          const tutte = deps.domande.visibili(url.searchParams.get('ap') ?? undefined)
           const prime = new Map<string, typeof tutte[number]>()
           for (const d of [...tutte].sort((x, y) => x.apertaIl - y.apertaIl)) if (!prime.has(d.autopilotaId)) prime.set(d.autopilotaId, d)
           rispondi(res, 200, [...prime.values()].map((d) => {
@@ -1113,6 +1122,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (metodo === 'POST' && percorso === '/stato-programma') {
           const letto = leggiStatoProgramma(await leggiCorpo(req), Date.now())
           if (letto !== undefined) statoProgramma = letto
+          for (const w of letto?.workspaceVisti ?? []) unico?.visto(w)
           rispondi(res, 200, { fatto: letto !== undefined })
           return
         }
