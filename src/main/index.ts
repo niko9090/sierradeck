@@ -112,6 +112,8 @@ import {
   creaServerClient, indirizziDaAnnunciare, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale, mieiIndirizzi
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
+import { indirizziPerApp } from './rete-telefono'
+import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
@@ -4908,6 +4910,7 @@ if (!app.requestSingleInstanceLock()) {
           const i = identitaPcGlobale.leggi()
           return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
         },
+        reteApp: () => indirizziPerApp(indirizziDaAnnunciare(undefined, principaleRicordato), porta, identitaPcGlobale?.leggi().id ?? ''),
         impostaNomeComputer: (nome: string) => {
           const i = impostaNomePc(nome)
           return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
@@ -5118,6 +5121,18 @@ if (!app.requestSingleInstanceLock()) {
         if (prima) registro.info(`${riga} (la porta si è liberata)`)
       })
       srv.listen(porta)
+      // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
+      try {
+        const annuncio = avviaAnnuncio({
+          dati: () => {
+            if (identitaPcGlobale === undefined) return undefined
+            const r = indirizziPerApp(indirizziDaAnnunciare(undefined, principaleRicordato), porta, identitaPcGlobale.leggi().id)
+            return { impronta: r.impronta, porta, ip: r.indirizzi.map((u) => u.replace(/^http:\/\//, '').replace(/:\d+$/, '')), versione: app.getVersion() }
+          },
+          log: (m) => registro.info(m)
+        })
+        app.on('before-quit', () => annuncio.ferma())
+      } catch { /* senza annuncio il resto funziona */ }
 
       ipcMain.handle('client:stato', async () => {
         // La domanda a Windows è asincrona: il processo che disegna la finestra

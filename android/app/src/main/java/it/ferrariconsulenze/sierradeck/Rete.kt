@@ -53,6 +53,9 @@ object Rete {
         if (contesto == null) contesto = qualsiasi.applicationContext
     }
 
+    /** Il contesto dell'applicazione, se già depositato (lo usa `Percorsi`). */
+    fun contestoApp(): Context? = contesto
+
     /**
      * Il client giusto per quell'host.
      *

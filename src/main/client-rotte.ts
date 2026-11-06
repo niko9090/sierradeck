@@ -587,6 +587,11 @@ export type DipendenzeRotte = {
   nomeComputer?: () => string
   /** Nome scelto e hostname, separati (0.52.4): l'hostname si mostra solo come sottotitolo. */
   identitaComputer?: () => { nome: string; host: string; nomeScelto?: string }
+  /**
+   * Gli indirizzi di questo PC per l'app (k-50): rete di casa e Tailscale, la porta e
+   * l'impronta con cui l'app lo riconosce da qualunque indirizzo risponda.
+   */
+  reteApp?: () => { impronta: string; porta: number; indirizzi: string[] }
   /** Cambia il nome scelto di questo PC (0.52.4), dal telefono; vuoto = torna all'hostname. */
   impostaNomeComputer?: (nome: string) => { nome: string; host: string; nomeScelto?: string }
   /**
@@ -684,9 +689,13 @@ export function rotteLibere(deps: DipendenzeRotte) {
       // rete quando vale la pena provare a indovinare il codice. Il telefono
       // legittimo tenta l'accoppiamento e basta: è /api/accoppia a dirgli com'è
       // andata, ed è protetto dal limite sui tentativi.
+      // L'impronta (k-50) non è un segreto: serve all'app per accertarsi che
+      // un indirizzo di rete locale sia proprio questo PC **prima** di mandargli la chiave.
+      const impronta = deps.reteApp?.().impronta
       return OK({
         programma: 'SierraDeck',
-        versione: deps.versione
+        versione: deps.versione,
+        ...(impronta !== undefined ? { impronta } : {})
       })
     }
 
@@ -2194,6 +2203,13 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const coda = await deps.codaPulisci?.(progetto).catch(() => undefined)
       if (coda === undefined) return { stato: 409, corpo: { errore: 'coda non raggiungibile' } }
       return OK({ fatto: true, voci: coda.voci })
+    }
+
+    // Gli indirizzi di questo PC (k-50), dietro la chiave: l'app li impara una volta
+    // e poi sulla stessa WiFi si collega anche senza VPN.
+    if (r.percorso === '/api/indirizzi') {
+      const rete = deps.reteApp?.()
+      return OK(rete ?? { impronta: '', porta: 0, indirizzi: [] })
     }
 
     // ── La posta per un PC: gli altri computer, e le loro cassette ────────

@@ -305,7 +305,8 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             Box(Modifier.padding(horizontal = 1.dp).width(3.dp).height((4 + i * 3).dp).background(if (i < tacche) colore else Banco.incisione))
         }
         Spacer(Modifier.width(4.dp))
-        Text(if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…", color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 12.sp)
+        Text((if (giu) "non connesso · ${rov?.first ?: ""}" else if (lenta) "linea lenta" else q.ritardoMs?.let { "$it ms" } ?: "…") +
+            (if (giu) "" else Percorsi.comeCollegato(linea.strada)?.let { " · $it" } ?: ""), color = if (giu || lenta) colore else Banco.testoQuieto, fontSize = 12.sp)
     }
     if (storia) {
         AlertDialog(
@@ -314,7 +315,7 @@ fun IndicatoreLinea(linea: StatoLinea, nomePc: String, spiega: String? = null) {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        "Adesso: " + (if (giu) "non connesso: niente arriva da più di ${Linea.GIU_DOPO_MS / 1000} secondi, riprovo da solo" else if (lenta) "linea lenta: qualcosa tarda o non arriva, ma il collegamento c'è ancora" else "${Linea.stradaBreve(linea.strada)}, qualità ${q.parola}" + (q.ritardoMs?.let { ", $it ms di ritardo tipico" } ?: "") + (if (q.perdite > 0) ", ${Math.round(q.perdite * 100)}% di chiamate perse" else "")) + ".",
+                        "Adesso: " + (if (giu) "non connesso: niente arriva da più di ${Linea.GIU_DOPO_MS / 1000} secondi, riprovo da solo" else if (lenta) "linea lenta: qualcosa tarda o non arriva, ma il collegamento c'è ancora" else "${Percorsi.comeCollegato(linea.strada)?.let { "$it, " } ?: ""}${Linea.stradaBreve(linea.strada)}, qualità ${q.parola}" + (q.ritardoMs?.let { ", $it ms di ritardo tipico" } ?: "") + (if (q.perdite > 0) ", ${Math.round(q.perdite * 100)}% di chiamate perse" else "")) + ".",
                         color = Banco.testo, fontSize = 13.sp
                     )
                     Spacer(Modifier.height(6.dp))

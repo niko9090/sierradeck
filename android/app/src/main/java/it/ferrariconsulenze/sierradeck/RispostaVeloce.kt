@@ -84,13 +84,15 @@ class RispostaVeloce : BroadcastReceiver() {
     private fun manda(collegamento: Collegamento, percorso: String, corpo: String): Boolean {
         if (!collegamento.pronto) return false
         return try {
-            val richiesta = Request.Builder()
-                .url("${collegamento.indirizzo}$percorso")
-                .header("x-sierradeck-chiave", collegamento.chiave)
-                .post(corpo.toRequestBody(JSON_MEDIA))
-                .build()
-            Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo))
-                .newCall(richiesta).execute().use { it.isSuccessful }
+            Percorsi.provando(collegamento.indirizzo) { base ->
+                val richiesta = Request.Builder()
+                    .url("$base$percorso")
+                    .header("x-sierradeck-chiave", collegamento.chiave)
+                    .post(corpo.toRequestBody(JSON_MEDIA))
+                    .build()
+                Rete.clientePer(Indirizzi.hostDi(base))
+                    .newCall(richiesta).execute().use { it.isSuccessful }
+            }
         } catch (e: Exception) {
             Log.e("SierraDeck", "risposta dalla notifica non partita", e)
             false
