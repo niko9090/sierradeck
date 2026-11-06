@@ -54,7 +54,9 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `pc:${s.pcId}`, locale: true })
       continue
     }
-    for (const v of s.salute.voci) {
+    // Un PC con una versione vecchia (o una risposta malformata) può non avere `voci`: nessuna voce, il giro continua.
+    const vociDi = Array.isArray(s.salute.voci) ? s.salute.voci : []
+    for (const v of vociDi) {
       // 0.89.0: le righe d'errore del registro arrivano già all'autopilota con gli errori
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
@@ -120,7 +122,7 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
   righe.push('## I PC', '')
   for (const s of p.saluti) {
     // 0.94.0: quali sono le voci da guardare, non solo quante (05/11: «Z2-TECNICO: 9 da guardare» e basta).
-    const voci = s.salute?.voci.filter((v) => v.tono !== 'ok').map((v) => v.titolo) ?? []
+    const voci = (Array.isArray(s.salute?.voci) ? s.salute.voci : []).filter((v) => v.tono !== 'ok').map((v) => v.titolo) ?? []
     const quali = voci.length > 0 ? ` (${voci.slice(0, 6).join('; ')}${voci.length > 6 ? `; e altre ${voci.length - 6}` : ''})` : ''
     righe.push(`- **${s.nome}**: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : `non risponde (${s.errore ?? '?'})`}`)
   }
@@ -158,7 +160,12 @@ export async function giroControlloPc(d: {
   const io = d.io()
   const saluti: SaluteDiPc[] = [{ pcId: io.id, nome: io.nome, salute: await d.saluteQui() }]
   const altri = await Promise.all(d.altri().map(async (p): Promise<SaluteDiPc> => {
-    try { return { ...p, salute: await d.saluteDi(p.pcId) } } catch (e) { return { ...p, errore: e instanceof Error ? e.message : String(e) } }
+    try {
+      const salute = await d.saluteDi(p.pcId)
+      // La risposta di un altro PC non è fidata: senza `voci` (versione vecchia?) è come un PC che non risponde bene.
+      if (salute === null || typeof salute !== 'object' || !Array.isArray(salute.voci)) return { ...p, errore: 'risposta non leggibile, versione vecchia?' }
+      return { ...p, salute }
+    } catch (e) { return { ...p, errore: e instanceof Error ? e.message : String(e) } }
   }))
   saluti.push(...altri)
   const autopiloti = await d.autopiloti().catch(() => [] as AutopilotiDiPc[])
