@@ -47,6 +47,23 @@ export type ContestoGuardia = {
   senzaGit?: boolean
   /** Gli specialisti al lavoro in questo workspace (serve senza git). */
   specialistiDelWorkspace?: number
+  /**
+   * k-48: la lista d'attesa. Chiamata per ogni Agent dell'orchestratore: dice se
+   * passa, o in che posizione sta in fila (con `davanti` voci prima di lui).
+   * Assente: i posti pieni rifiutano e basta, come prima.
+   */
+  fila?: (r: { descrizione: string; tipo: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
+}
+
+const ordinale = (n: number): string => `${n}°`
+
+/** Il rifiuto per posti pieni: dice anche il posto in fila, quando c'è. */
+export function motivoPostiPieni(c: Pick<ContestoGuardia, 'specialistiSulPc' | 'tettoPc'>, f?: { posizione: number; davanti: number }): string {
+  const base = c.specialistiSulPc >= c.tettoPc
+    ? `aspetta: troppi specialisti attivi sul PC (${c.specialistiSulPc} su ${c.tettoPc}).`
+    : 'aspetta: il posto libero è già prenotato per chi è in fila prima di te.'
+  if (f === undefined) return `${base} Riprova quando uno ha finito; intanto non rilanciare.`
+  return `${base} Sei ${ordinale(f.posizione)} in fila: ti avviso io quando tocca a te, non rilanciare prima.`
 }
 
 const o = (x: unknown): Record<string, unknown> => (typeof x === 'object' && x !== null && !Array.isArray(x) ? x as Record<string, unknown> : {})
@@ -127,8 +144,13 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
     if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.senzaGit === true && (c.specialistiDelWorkspace ?? 0) >= 1) {
       return { ok: false, motivo: 'aspetta: il progetto non è un repository git, quindi lavora uno specialista alla volta nella cartella del progetto. Rilancia quando quello al lavoro ha finito.' }
     }
-    if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.specialistiSulPc >= c.tettoPc) {
-      return { ok: false, motivo: `aspetta: troppi specialisti attivi sul PC (${c.specialistiSulPc} su ${c.tettoPc}). Riprova quando uno ha finito; intanto non rilanciare.` }
+    if ((STRUMENTI_AGENTE as readonly string[]).includes(nome)) {
+      if (c.fila !== undefined) {
+        const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
+        if (!r.passa) return { ok: false, motivo: motivoPostiPieni(c, r) }
+      } else if (c.specialistiSulPc >= c.tettoPc) {
+        return { ok: false, motivo: motivoPostiPieni(c) }
+      }
     }
     return { ok: true }
   }

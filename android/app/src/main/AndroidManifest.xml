@@ -4,6 +4,12 @@
     <!-- Parla solo con il tuo computer, sulla rete di casa. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Trovare il computer sulla stessa WiFi, senza VPN (k-50): l'annuncio in rete
+         locale (_sierradeck._tcp) vuole la multicast lock; da Android 16 anche il
+         permesso sulla rete locale, chiesto all'avvio. Niente di tutto questo apre
+         strade verso Internet: il computer risponde comunque solo a chi ha la chiave. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Il diritto di restare in ascolto con l'app chiusa: è ciò per cui
          questa app esiste invece della sola pagina web. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

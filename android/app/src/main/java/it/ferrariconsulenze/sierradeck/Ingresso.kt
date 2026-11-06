@@ -135,6 +135,20 @@ fun Ingresso(
         }
         Spacer(Modifier.height(20.dp))
 
+        // I computer che si annunciano sulla stessa WiFi (k-50): un tocco e l'indirizzo
+        // è nel campo. Il codice a sei cifre serve comunque.
+        val vicini = Scoperta.trovati
+        if (vicini.isNotEmpty()) {
+            Text("Sulla tua WiFi", color = Banco.testoQuieto, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(6.dp))
+            for (t in vicini) {
+                OutlinedButton(onClick = { indirizzo = t.indirizzo }, modifier = Modifier.fillMaxWidth()) {
+                    Text("${Indirizzi.hostDi(t.indirizzo)} · in WiFi")
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
         OutlinedTextField(
             value = indirizzo,
             onValueChange = { indirizzo = it },

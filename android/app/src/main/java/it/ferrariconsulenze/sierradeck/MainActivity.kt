@@ -34,6 +34,8 @@ class MainActivity : ComponentActivity() {
         // Da qui in avanti un errore che chiuderebbe l'app lascia una traccia da
         // leggere al riavvio, invece di sparire senza una parola.
         Rete.ricorda(this)
+        // Se il telefono cambia rete (WiFi di casa, VPN, dati) l'app sceglie da sola l'indirizzo giusto (k-50).
+        Percorsi.osserva(this)
         Guasti.prendiNota(applicationContext)
         chiediPermessoNotifiche()
         preparaScanner()
@@ -108,9 +110,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         Davanti.imposta(true)
+        // I computer vicini sulla stessa WiFi (k-50): solo mentre l'app è davanti.
+        Scoperta.avvia(this)
     }
 
     override fun onStop() {
+        Scoperta.ferma()
         Davanti.imposta(false)
         super.onStop()
     }
@@ -147,10 +152,16 @@ class MainActivity : ComponentActivity() {
 
     private fun chiediPermessoNotifiche() {
         // Da Android 13 le notifiche si chiedono: senza, la guardia guarderebbe
-        // senza poter dire niente.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val concesso = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-        if (concesso == PackageManager.PERMISSION_GRANTED) return
-        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        // senza poter dire niente. Da Android 16 si chiede insieme il permesso
+        // per la rete locale (k-50): senza, la WiFi di casa non si vede.
+        val mancanti = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) mancanti.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Percorsi.serveLaReteLocale(Build.VERSION.SDK_INT) &&
+            ContextCompat.checkSelfPermission(this, Percorsi.PERMESSO_RETE_LOCALE) != PackageManager.PERMISSION_GRANTED
+        ) mancanti.add(Percorsi.PERMESSO_RETE_LOCALE)
+        if (mancanti.isEmpty()) return
+        ActivityCompat.requestPermissions(this, mancanti.toTypedArray(), 1)
     }
 }

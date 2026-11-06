@@ -47,6 +47,8 @@ import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { homedir } from 'node:os'
+import { attesaVuota, cambiaPriorita, inFila, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaPriorita, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import type { ArchivioAttesa } from './attesa-store'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -126,6 +128,8 @@ export type ContestoUnico = {
   doppioni?: ArchivioDoppioni
   /** 31/10: sposta la cartella di un workspace doppione nel recupero (mai la cancella). Assente: la cartella resta. */
   spostaNelRecupero?: (cartella: string, motivo: string) => { ok: true; dove?: string } | { ok: false; perche: string }
+  /** k-48: dove sta su disco la lista d'attesa degli specialisti. Assente: solo in memoria. */
+  attesa?: ArchivioAttesa
 }
 
 /** Com'è andato un giro sui doppioni. */
@@ -176,6 +180,12 @@ export type ServizioUnico = {
   preTool: (a: Autopilota, corpo: Record<string, unknown>) => Giudizio
   /** Gli specialisti (subagenti) al lavoro su tutto il PC: contano nei posti. */
   specialistiSulPc: () => number
+  /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
+  attesa: () => VistaAttesa
+  /** k-48: cambia la priorità di una voce in fila. `undefined`: la voce non c'è. */
+  prioritaAttesa: (id: string, mossa: MossaPriorita) => VistaAttesa | undefined
+  /** k-48: toglie una voce dalla fila. `undefined`: la voce non c'è. */
+  togliAttesa: (id: string) => VistaAttesa | undefined
   /** Il servizio si spegne: i processi `claude` con lui. */
   spegni: () => void
   /**
@@ -444,6 +454,55 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     orchestratore.evento(ws, e)
   }
 
+  // ---------------------------------------------------------------- la lista d'attesa (k-48)
+
+  let attesaMemoria: StatoAttesa = attesaVuota()
+  const archivioAttesa: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
+  const tettoPc = (): number => Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+  const liberiPc = (escludi?: string): number => Math.max(0, tettoPc() - orchestratore.specialistiSulPc(escludi))
+  const oraMs = (): number => Date.parse(x.adesso())
+  /** Scrive la lista e sveglia gli autopiloti dei primi in fila (e avvisa chi è caduto). */
+  const applicaAttesa = (m: Mossa, prima: StatoAttesa): void => {
+    if (JSON.stringify(m.stato) !== JSON.stringify(prima)) archivioAttesa.scrivi(m.stato)
+    const quando = x.adesso()
+    for (const v of m.svegli) {
+      const cosa = v.compito ?? cosaDel(v.descrizione)
+      console.info(`[attesa] ${v.workspace} — posto libero per ${cosa}`)
+      evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
+    }
+    for (const v of m.cadute) {
+      evento(v.workspace, { tipo: 'posto', quando, testo: `ti ho tolto dalla lista d’attesa per ${v.compito ?? cosaDel(v.descrizione)}: il posto era tuo ma non hai rilanciato. Se serve ancora, rilancia lo specialista: ti rimetto in fila.` })
+    }
+  }
+  /** Il giro di controllo: prenotazioni scadute, posti liberi ai primi in fila. */
+  const rivediFila = (): void => {
+    const prima = archivioAttesa.leggi()
+    if (prima.voci.length === 0) return
+    applicaAttesa(rivediPosti(prima, liberiPc(), oraMs()), prima)
+  }
+  const vistaAttesa = (): VistaAttesa => {
+    const adesso = oraMs()
+    const lavorano = unici().flatMap((u) => subagenti(wsDi(u))
+      .filter((s) => s.stato === 'avviato' || s.stato === 'lavoro')
+      .map((s) => ({ s, ws: wsDi(u), ap: u.id })))
+      .sort((a, b) => Date.parse(a.s.inizio) - Date.parse(b.s.inizio))
+    return {
+      posti: { usati: orchestratore.specialistiSulPc(), tetto: tettoPc() },
+      alLavoro: lavorano.map((l, i) => ({
+        posto: i + 1, id: l.s.id, workspace: l.ws, autopilota: l.ap,
+        ...(l.s.compito !== undefined ? { compito: l.s.compito } : {}),
+        descrizione: l.s.descrizione, tipo: l.s.ruolo, dal: l.s.inizio
+      })),
+      inFila: inFila(archivioAttesa.leggi(), adesso).map((v) => ({
+        id: v.id, posizione: v.posizione, workspace: v.workspace,
+        ...(v.autopilota !== undefined ? { autopilota: v.autopilota } : {}),
+        ...(v.compito !== undefined ? { compito: v.compito } : {}),
+        descrizione: v.descrizione, tipo: v.tipo, dal: v.dal, priorita: v.priorita, prenotata: v.prenotata,
+        ...(v.prenotataFino !== undefined && v.prenotata ? { prenotataFino: v.prenotataFino } : {})
+      }))
+    }
+  }
+
   /** La percentuale nuova, col perché se scende; e gli annunci delle richieste appena fatte. */
   const ricalcola = (ws: string, perche: string): void => {
     const prima = coda(ws)
@@ -529,6 +588,8 @@ ${NOTA_SENZA_GIT}`,
         continue
       }
       if (e.tipo !== 'specialista-partito' && e.tipo !== 'specialista-finito') continue
+      // Uno specialista finito libera un posto: il primo in fila lo ha prenotato e viene svegliato.
+      if (e.tipo === 'specialista-finito') queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
       const s = e.specialista
       const u = unicoDi(ws)
       if (e.tipo === 'specialista-partito') {
@@ -1141,6 +1202,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
     try { emergiDomande(ora) } catch (err) { console.error('[orchestratore] domande dalla chat alle Domande non riuscito:', err) }
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
+    try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue
@@ -1333,13 +1395,37 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         radice: a.cwd,
         ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
         specialistiSulPc: orchestratore.specialistiSulPc(idUso),
-        tettoPc: Math.max(1, Math.min(x.posti(), SPECIALISTI_PC_MAX))
+        tettoPc: tettoPc(),
+        fila: (r) => {
+          const prima = archivioAttesa.leggi()
+          const p = passoAttesa(prima, { workspace: wsDi(a), autopilota: a.id, ...r }, { liberi: liberiPc(idUso), adesso: oraMs(), id: randomUUID })
+          applicaAttesa(p.mossa, prima)
+          if (!p.passa) console.info(`[attesa] ${wsDi(a)} — ${p.nuova ? 'in fila' : 'ancora in fila'} ${p.posizione}°: ${p.voce.compito ?? r.descrizione.slice(0, 80)}`)
+          return p.passa ? { passa: true } : { passa: false, posizione: p.posizione, davanti: p.davanti }
+        }
       })
       // Un Agent rifiutato non è uno specialista al lavoro: non deve tenere il posto.
       if (!g.ok && idUso !== undefined && (corpo.tool_name === 'Agent' || corpo.tool_name === 'Task')) rifiutati.add(idUso)
       return g
     },
     specialistiSulPc: () => orchestratore.specialistiSulPc(),
+    attesa: () => { rivediFila(); return vistaAttesa() },
+    prioritaAttesa(id, mossa) {
+      const prima = archivioAttesa.leggi()
+      const dopo = cambiaPriorita(prima, id, mossa)
+      if (dopo === undefined) return undefined
+      archivioAttesa.scrivi(dopo)
+      return vistaAttesa()
+    },
+    togliAttesa(id) {
+      const prima = archivioAttesa.leggi()
+      const t = togliVoce(prima, id)
+      if (t === undefined) return undefined
+      // Se aveva un posto prenotato, passa al successivo.
+      const m = rivediPosti(t.stato, liberiPc(), oraMs())
+      applicaAttesa(m, prima)
+      return vistaAttesa()
+    },
     spegni: () => { orchestratore.spegni() },
     archiviaDoppioni,
     orchestratore,

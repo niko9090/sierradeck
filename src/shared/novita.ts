@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.95.5',
+    righe: [
+      '**Il dialogo con l’autopilota non scade più dopo 3 secondi:** se il servizio è occupato aspetta fino a 30 secondi, non manda due volte lo stesso messaggio e, se proprio non risponde, lo dice in italiano.',
+      '**Le domande superate spariscono da sole:** quando la risposta arriva dal dialogo, l’autopilota ha finito o la chat è chiusa, la domanda rimasta aperta viene ritirata.',
+    ],
+  },
+  {
     versione: '0.95.4',
     righe: [
       '**Il «Controllo di tutti i PC» non si ferma più:** se un altro PC risponde in un formato vecchio, quel PC risulta «risposta non leggibile» e il giro continua con gli altri.',

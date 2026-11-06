@@ -113,6 +113,8 @@ import {
   creaServerClient, indirizziDaAnnunciare, indirizziInEvidenza, indirizziLocali, indirizzoPrincipale, mieiIndirizzi
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
+import { indirizziPerApp } from './rete-telefono'
+import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
 import { creaLavoro } from './cassaforte/lavoro-in-corso'
@@ -193,7 +195,7 @@ import { apriStoricoErrori, conStorico, leggiStoricoDi, type StoricoSuFile } fro
 import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/storico-errori'
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
-import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, type StatoInvio } from './errori-invio-automatico'
+import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -217,6 +219,7 @@ let identitaPcGlobale: IdentitaPcStore | undefined
 let storicoErroriGlobale: StoricoSuFile | undefined
 /** Riceve gli errori di un altro PC o del telefono (0.81.0): per la rotta /api/errori/arrivati. */
 /** «Manda al PC di sviluppo», per le Impostazioni del PC e per il telefono (0.81.0). */
+let statoInvioErroriGlobale: (() => StatoInvio | undefined) | undefined
 let mandaErroriGlobale: (() => Promise<{ ok: boolean; messaggio: string }>) | undefined
 /** Il nome del PC di sviluppo scelto, per la voce «Errori» del telefono. */
 let nomePcSviluppoGlobale: (() => string | undefined) | undefined
@@ -2498,35 +2501,36 @@ if (!app.requestSingleInstanceLock()) {
           log: (riga) => registro.info(riga)
         })
       }
-      mandaErroriGlobale = () => mandaOra()
-      // L'invio automatico (0.88.4): gli errori nuovi, da soli, al PC di sviluppo.
-      {
-        const fileInvio = join(dati, 'errori-invio-automatico.json')
-        let inCorso = false
-        const giro = async (): Promise<void> => {
-          if (inCorso) return
-          inCorso = true
-          try {
-            await giroInvioErrori({
-              storico: () => leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
-              stato: {
-                leggi: () => { try { return JSON.parse(readFileSync(fileInvio, 'utf8')) as StatoInvio } catch { return undefined } },
-                scrivi: (s) => { scriviJsonAtomico(fileInvio, s, 'errori-invio') }
-              },
-              pcSviluppo,
-              adesso: () => Date.now(),
-              manda: (s) => mandaOra(s),
-              log: (riga) => registro.info(riga)
-            })
-          } catch (err) {
-            registro.info(`[errori] invio automatico: giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
-          } finally {
-            inCorso = false
-          }
+      // L'invio automatico (0.88.4, rivisto 0.95.5): gli errori non ancora inviati, da soli, al PC di
+      // sviluppo, poi segnati «inviati» (stato in errori-invio-automatico.json) e tolti dalla lista.
+      const fileInvio = join(dati, 'errori-invio-automatico.json')
+      const leggiStatoInvio = (): StatoInvio | undefined => { try { return JSON.parse(readFileSync(fileInvio, 'utf8')) as StatoInvio } catch { return undefined } }
+      statoInvioErroriGlobale = leggiStatoInvio
+      let invioInCorso = false
+      const giro = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
+        if (invioInCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
+        invioInCorso = true
+        try {
+          return await giroInvioErrori({
+            storico: () => leggiStoricoDi(dati, storicoErroriGlobale?.leggi()),
+            stato: { leggi: leggiStatoInvio, scrivi: (s) => { scriviJsonAtomico(fileInvio, s, 'errori-invio') } },
+            pcSviluppo,
+            eSviluppo: () => pcSviluppo() === identitaPc.leggi().id,
+            adesso: () => Date.now(),
+            manda: (s) => mandaOra(s),
+            log: (riga) => registro.info(riga),
+            forza
+          })
+        } catch (err) {
+          registro.info(`[errori] invio automatico: giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
+          return { ok: false, messaggio: 'Non mandati: qualcosa è andato storto, riprovo da solo.' }
+        } finally {
+          invioInCorso = false
         }
-        setInterval(() => { void giro() }, GIRO_INVIO_MS)
-        setTimeout(() => { void giro() }, 60_000)
       }
+      mandaErroriGlobale = () => giro(true)
+      setInterval(() => { void giro() }, GIRO_INVIO_MS)
+      setTimeout(() => { void giro() }, 30_000)
       nomePcSviluppoGlobale = () => {
         const pc = pcSviluppo()
         if (pc === undefined) return undefined
@@ -2534,7 +2538,7 @@ if (!app.requestSingleInstanceLock()) {
         const b = postino.altrui().find((x) => x.pcId === pc)
         return b !== undefined ? nomeDaMostrare(b) : 'un PC che non si vede adesso'
       }
-      ipcMain.handle('errori:manda', () => mandaOra())
+      ipcMain.handle('errori:manda', () => giro(true))
 
       // ── «Salute del sistema» (0.44.0) ──
       // Il Drive, gli altri PC, l'aggiornamento non riuscito, gli errori delle
@@ -3646,8 +3650,8 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('log:errore', (_e, messaggio: string) => registro.errore(String(messaggio)))
       // Lo storico degli errori (0.81.0): PC e servizio insieme, e il testo di «Copia».
       ipcMain.handle('errori:storico', () => {
-        const storico = leggiStoricoDi(dati, storicoErrori.leggi())
-        return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
+        const { voci, inviate } = vistaErrori(leggiStoricoDi(dati, storicoErrori.leggi()), statoInvioErroriGlobale?.())
+        return { voci, inviate, testo: testoDaCopiare({ voci }, { versione: app.getVersion() }), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
       })
       // I passi delle consegne dell'autopilota (0.38.2): ritirata, riquadro,
       // pronto o tetto, scritta, invio, partita. Prima stavano solo nella
@@ -4309,9 +4313,9 @@ if (!app.requestSingleInstanceLock()) {
         // La sezione File del telefono e della pagina (0.54.0): i progetti noti, in sola lettura.
         errori: {
           leggi: () => {
-            const storico = leggiStoricoDi(dati, storicoErroriGlobale?.leggi())
+            const { voci } = vistaErrori(leggiStoricoDi(dati, storicoErroriGlobale?.leggi()), statoInvioErroriGlobale?.())
             const pc = nomePcSviluppoGlobale?.()
-            return { voci: storico.voci, testo: testoDaCopiare(storico, { versione: app.getVersion() }), ...(pc !== undefined ? { pcSviluppo: pc } : {}), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
+            return { voci, testo: testoDaCopiare({ voci }, { versione: app.getVersion() }), ...(pc !== undefined ? { pcSviluppo: pc } : {}), ...(rigaArriviGlobale !== undefined ? { arrivi: rigaArriviGlobale } : {}) }
           },
           aggiungi: (e: { dove: 'pagina' | 'app'; testo: string; cosa?: string; versione?: string }) => { storicoErroriGlobale?.aggiungi(e.testo, e.cosa, { dove: e.dove, ...(e.versione !== undefined ? { versione: e.versione } : {}) }) },
           manda: () => mandaErroriGlobale?.() ?? Promise.resolve({ ok: false, messaggio: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' })
@@ -4364,6 +4368,9 @@ if (!app.requestSingleInstanceLock()) {
           return { ...(orchestratore !== undefined ? { orchestratore } : {}), ...(coda !== undefined ? { coda } : {}) }
         },
         specialistaAutopilota: (ws: string, id: string) => clientAutopilota.specialista(ws, id),
+        attesaSpecialisti: () => clientAutopilota.attesaSpecialisti(),
+        prioritaAttesaSpecialisti: (id: string, mossa: 'su' | 'giu' | 'cima') => clientAutopilota.prioritaAttesa(id, mossa),
+        togliAttesaSpecialisti: (id: string) => clientAutopilota.togliAttesa(id),
         postiChat: () => clientAutopilota.postiChat(),
         rispondi: async (idDomanda: string, risposta: string) => {
           // Il sì o il no a un file che una chat vuole mandare al telefono (0.54.0).
@@ -4919,6 +4926,7 @@ if (!app.requestSingleInstanceLock()) {
           const i = identitaPcGlobale.leggi()
           return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
         },
+        reteApp: () => indirizziPerApp(indirizziDaAnnunciare(undefined, principaleRicordato), porta, identitaPcGlobale?.leggi().id ?? ''),
         impostaNomeComputer: (nome: string) => {
           const i = impostaNomePc(nome)
           return { nome: i.nome, host: i.host, ...(i.nomeScelto !== undefined ? { nomeScelto: i.nomeScelto } : {}) }
@@ -5129,6 +5137,18 @@ if (!app.requestSingleInstanceLock()) {
         if (prima) registro.info(`${riga} (la porta si è liberata)`)
       })
       srv.listen(porta)
+      // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
+      try {
+        const annuncio = avviaAnnuncio({
+          dati: () => {
+            if (identitaPcGlobale === undefined) return undefined
+            const r = indirizziPerApp(indirizziDaAnnunciare(undefined, principaleRicordato), porta, identitaPcGlobale.leggi().id)
+            return { impronta: r.impronta, porta, ip: r.indirizzi.map((u) => u.replace(/^http:\/\//, '').replace(/:\d+$/, '')), versione: app.getVersion() }
+          },
+          log: (m) => registro.info(m)
+        })
+        app.on('before-quit', () => annuncio.ferma())
+      } catch { /* senza annuncio il resto funziona */ }
 
       ipcMain.handle('client:stato', async () => {
         // La domanda a Windows è asincrona: il processo che disegna la finestra

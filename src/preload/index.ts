@@ -588,8 +588,8 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   /** Lo storico degli errori di questo PC (0.81.0), con il testo di «Copia». */
   errori: {
-    storico: (): Promise<{ voci: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),
-    /** Manda lo storico al PC di sviluppo scelto nelle Impostazioni. */
+    storico: (): Promise<{ voci: unknown[]; inviate?: unknown[]; testo: string; arrivi?: string }> => ipcRenderer.invoke('errori:storico'),
+    /** Manda subito gli errori non ancora inviati al PC di sviluppo (di solito partono da soli). */
     manda: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('errori:manda')
   },
 
@@ -847,6 +847,9 @@ contextBridge.exposeInMainWorld('gestore', {
     orchestratore: (ws: string): Promise<import('@shared/piano-orchestratore').VistaOrchestratore | undefined> => ipcRenderer.invoke('autopilota:orchestratore', ws),
     /** 0.90.0: la conversazione di uno specialista, da guardare. */
     specialista: (ws: string, id: string): Promise<import('@shared/piano-orchestratore').TrascrizioneSpecialista | undefined> => ipcRenderer.invoke('autopilota:specialista', ws, id),
+    attesaSpecialisti: (): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:attesaSpecialisti'),
+    prioritaAttesa: (id: string, mossa: 'su' | 'giu' | 'cima'): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:prioritaAttesa', id, mossa),
+    togliAttesa: (id: string): Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined> => ipcRenderer.invoke('autopilota:togliAttesa', id),
     impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }): Promise<import('@shared/piano-orchestratore').VistaOrchestratore> => ipcRenderer.invoke('autopilota:impostaOrchestratore', ws, p),
     rispondi: (idDomanda: string, risposta: string): Promise<void> =>
       ipcRenderer.invoke('autopilota:rispondi', idDomanda, risposta),

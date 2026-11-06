@@ -219,6 +219,10 @@ export type DipendenzeRotte = {
   avanzamentoAutopilota?: (ws: string) => Promise<{ orchestratore?: VistaOrchestratore; coda?: VistaCoda }>
   /** 0.95.1: la conversazione di uno specialista, da guardare dal telefono (come a destra sul PC). */
   specialistaAutopilota?: (ws: string, id: string) => Promise<unknown>
+  /** k-48: la lista d'attesa degli specialisti (chi lavora, chi aspetta), la priorità di una voce, togliere una voce. */
+  attesaSpecialisti?: () => Promise<unknown>
+  prioritaAttesaSpecialisti?: (id: string, mossa: 'su' | 'giu' | 'cima') => Promise<unknown>
+  togliAttesaSpecialisti?: (id: string) => Promise<unknown>
   /** «N di M chat» su questo PC (0.82.0), per la pagina e l'app. */
   postiChat?: () => Promise<PostiChat | undefined>
   /** Risponde alla domanda di un autopilota. */
@@ -589,6 +593,11 @@ export type DipendenzeRotte = {
   nomeComputer?: () => string
   /** Nome scelto e hostname, separati (0.52.4): l'hostname si mostra solo come sottotitolo. */
   identitaComputer?: () => { nome: string; host: string; nomeScelto?: string }
+  /**
+   * Gli indirizzi di questo PC per l'app (k-50): rete di casa e Tailscale, la porta e
+   * l'impronta con cui l'app lo riconosce da qualunque indirizzo risponda.
+   */
+  reteApp?: () => { impronta: string; porta: number; indirizzi: string[] }
   /** Cambia il nome scelto di questo PC (0.52.4), dal telefono; vuoto = torna all'hostname. */
   impostaNomeComputer?: (nome: string) => { nome: string; host: string; nomeScelto?: string }
   /**
@@ -686,9 +695,13 @@ export function rotteLibere(deps: DipendenzeRotte) {
       // rete quando vale la pena provare a indovinare il codice. Il telefono
       // legittimo tenta l'accoppiamento e basta: è /api/accoppia a dirgli com'è
       // andata, ed è protetto dal limite sui tentativi.
+      // L'impronta (k-50) non è un segreto: serve all'app per accertarsi che
+      // un indirizzo di rete locale sia proprio questo PC **prima** di mandargli la chiave.
+      const impronta = deps.reteApp?.().impronta
       return OK({
         programma: 'SierraDeck',
-        versione: deps.versione
+        versione: deps.versione,
+        ...(impronta !== undefined ? { impronta } : {})
       })
     }
 
@@ -1565,6 +1578,24 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       return OK(t ?? { id, trovata: false, righe: [] })
     }
 
+    // k-48: la lista d'attesa degli specialisti, come la mostra il PC: chi lavora e chi aspetta in ordine.
+    if (r.metodo === 'POST' && r.percorso === '/api/specialisti/attesa') {
+      if (deps.attesaSpecialisti === undefined) return OK({ posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
+      const v = await deps.attesaSpecialisti().catch(() => undefined)
+      return OK(v ?? { posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
+    }
+    if (r.metodo === 'POST' && (r.percorso === '/api/specialisti/attesa/priorita' || r.percorso === '/api/specialisti/attesa/togli')) {
+      const id = stringa(r.corpo, 'id').trim()
+      const mossa = stringa(r.corpo, 'mossa')
+      const priorita = r.percorso.endsWith('/priorita')
+      if (id === '' || id.length > 100 || (priorita && mossa !== 'su' && mossa !== 'giu' && mossa !== 'cima')) return { stato: 400, corpo: { errore: priorita ? 'servono la voce e la mossa (su, giu, cima)' : 'serve la voce' } }
+      const f = priorita ? deps.prioritaAttesaSpecialisti : undefined
+      if (priorita ? f === undefined : deps.togliAttesaSpecialisti === undefined) return { stato: 503, corpo: { errore: 'la lista d’attesa non è disponibile' } }
+      const v = await (priorita ? f!(id, mossa as 'su' | 'giu' | 'cima') : deps.togliAttesaSpecialisti!(id)).catch(() => undefined)
+      if (v === undefined) return { stato: 502, corpo: { errore: 'il servizio degli autopiloti non ha risposto' } }
+      return OK(v)
+    }
+
     if (r.metodo === 'POST' && r.percorso === '/api/rispondi') {
       const id = stringa(r.corpo, 'domanda')
       const risposta = stringa(r.corpo, 'risposta')
@@ -2197,6 +2228,13 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const coda = await deps.codaPulisci?.(progetto).catch(() => undefined)
       if (coda === undefined) return { stato: 409, corpo: { errore: 'coda non raggiungibile' } }
       return OK({ fatto: true, voci: coda.voci })
+    }
+
+    // Gli indirizzi di questo PC (k-50), dietro la chiave: l'app li impara una volta
+    // e poi sulla stessa WiFi si collega anche senza VPN.
+    if (r.percorso === '/api/indirizzi') {
+      const rete = deps.reteApp?.()
+      return OK(rete ?? { impronta: '', porta: 0, indirizzi: [] })
     }
 
     // ── La posta per un PC: gli altri computer, e le loro cassette ────────
