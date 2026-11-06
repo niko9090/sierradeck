@@ -62,6 +62,21 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     expect(existsSync(join(cartella, '.controllo-pc.json'))).toBe(true)
   })
 
+  it('una salute senza voci (versione vecchia) non fa cadere il giro', async () => {
+    const senzaVoci = { scritto: '', tono: 'ok', riassunto: 'vecchia' } as unknown as Salute
+    expect(criticitaDi([{ pcId: 'a', nome: 'A', salute: senzaVoci }], [])).toEqual([])
+    const radice = mkdtempSync(join(tmpdir(), 'sd-controllo-'))
+    const r = await giroControlloPc({
+      radice: () => radice, io: () => ({ id: 'a', nome: 'Qui' }), altri: () => [{ pcId: 'b', nome: 'Altro' }, { pcId: 'c', nome: 'Terzo' }],
+      saluteQui: () => Promise.resolve(salute()), saluteDi: (id) => Promise.resolve(id === 'b' ? senzaVoci : ({ voci: 'no' } as unknown as Salute)),
+      autopiloti: () => Promise.resolve([]), affida: () => Promise.resolve(), adesso: () => Date.parse('2026-10-31T22:00:00.000Z'), log: () => undefined
+    })
+    expect(r.criticita).toBe(2)
+    const cartella = join(radice, '.sierradeck', 'errori-arrivati')
+    const rapporto = readdirSync(cartella).find((f) => f.startsWith('controllo-'))!
+    expect(readFileSync(join(cartella, rapporto), 'utf8')).toContain('risposta non leggibile, versione vecchia?')
+  })
+
   it('senza la cartella di SierraDeck (non è il PC di sviluppo) non fa niente', async () => {
     let chiesto = false
     const r = await giroControlloPc({

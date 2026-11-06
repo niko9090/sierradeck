@@ -99,3 +99,8 @@ Corretto nella versione 0.94.3. Chi la apriva: il riquadro stesso (Terminal.tsx)
 
 ## Gruppo 1: "(node:27872) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated." (PC-Fisso, 1 volta)
 Corretto nella versione 0.94.4. Era un avviso di Node scritto su stderr (non un guasto): il servizio e i processi figli lo raccoglievano come errore. Ora src/shared/avvisi-node.ts riconosce gli avvisi (e la riga "Use --trace-deprecation") e li manda nel registro come info: nel servizio (consoleNelRegistro, process warning, motivo di uscita dell orchestratore), nel main e nello stderr del PTY host; gli errori veri restano errori. Il costruttore fs.Stats non e nel nostro codice (nessun new Stats in src): viene da una dipendenza, non toccata. Test in tests/main/avvisi-node.test.ts.
+
+# Errori arrivati (controllo PC)
+
+## controllo PC: s.salute.voci is not iterable (PC-Fisso)
+Corretto nella 0.95.4. Un PC con una salute senza voci (versione vecchia o risposta malformata) non fa piu cadere il giro: la risposta non valida diventa "risposta non leggibile, versione vecchia?" e criticitaDi/testoRapporto tollerano voci mancanti.
