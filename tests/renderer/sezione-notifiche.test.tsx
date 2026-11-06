@@ -13,7 +13,8 @@ import { sezioniDi } from '../../src/shared/impostazioni-struttura'
  */
 
 /** Cerca nell'albero degli elementi (il componente non ha hook: si chiama direttamente). */
-function trovaInput(n: ReactNode, trovati: ReactElement<{ type?: string; checked?: boolean; onChange?: (e: { target: { checked: boolean } }) => void }>[] = []) {
+type Spunta = ReactElement<{ type?: string; checked?: boolean; onChange?: (e: { target: { checked: boolean } }) => void }>
+function trovaInput(n: ReactNode, trovati: Spunta[] = []): Spunta[] {
   if (Array.isArray(n)) n.forEach((x) => trovaInput(x, trovati))
   else if (n !== null && typeof n === 'object' && 'props' in n) {
     const el = n as ReactElement<{ type?: string; children?: ReactNode }>
