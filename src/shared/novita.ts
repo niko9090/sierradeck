@@ -44,6 +44,7 @@ export const NOVITA: Novita[] = [
     versione: '0.95.2',
     righe: [
       '**Gli avvisi di Node non sono più errori:** le righe come «DEP0180» finiscono nel registro come informazioni e non compaiono più fra gli errori arrivati.',
+      '**App sul telefono (2.91.0) più compatta in alto:** la fascia del computer, le linguette e la riga dei Workspace occupano meno; sopra la chat di un autopilota restano solo la barra con la percentuale e una riga sotto, il resto (linguette, richieste in corso) si apre toccando ▾.',
     ],
   },
   {

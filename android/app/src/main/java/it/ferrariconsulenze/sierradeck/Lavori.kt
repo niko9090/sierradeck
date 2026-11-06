@@ -285,20 +285,18 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
     val chiedono = lista.any { it.stato in setOf("sospeso", "fallito", "pronto", "attesa") }
     Column {
         Row(
-            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(Modifier.weight(1f)) {
-                Serigrafia("Workspace")
-                Spacer(Modifier.height(3.dp))
-                // Tutti gli stati, non solo i fermi: «1 in attesa di te» contava
-                // i sospesi e taceva su chi aspettava il via o una risposta.
-                Text(
-                    riassuntoLavori(lista),
-                    color = if (chiedono) Banco.ambra else Banco.testoQuieto,
-                    fontSize = 12.sp
-                )
-            }
+            // App 2.91.0: una riga sola, senza l'etichetta «Workspace» (c'è già nella barra in basso).
+            // Tutti gli stati, non solo i fermi: «1 in attesa di te» contava
+            // i sospesi e taceva su chi aspettava il via o una risposta.
+            Text(
+                riassuntoLavori(lista),
+                color = if (chiedono) Banco.ambra else Banco.testoQuieto,
+                fontSize = 12.sp, maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
             Surface(
                 onClick = onDelega,
                 color = Banco.fondo,
@@ -310,7 +308,7 @@ private fun FasciaLavori(lista: List<AutopilotaBreve>, onDelega: () -> Unit) {
                     "+ Scrivi",
                     color = Banco.accento,
                     fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                 )
             }
         }

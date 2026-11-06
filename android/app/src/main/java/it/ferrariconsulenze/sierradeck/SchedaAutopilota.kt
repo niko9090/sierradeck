@@ -79,10 +79,11 @@ fun altezzaLinguetta(chiave: String?): Int = if (chiave == "domande") 420 else 2
  * workspace, le richieste aperte e gli specialisti al lavoro. Il tocco la apre.
  */
 object RiassuntoAutopilota {
-    fun di(percento: Double?, richiesteAperte: Int, specialisti: Int, domande: Int, pensa: Boolean = false): String {
+    fun di(percento: Double?, richiesteAperte: Int, specialisti: Int, domande: Int, pensa: Boolean = false, conPercento: Boolean = true): String {
         val pezzi = mutableListOf<String>()
         if (domande > 0) pezzi += if (domande == 1) "1 domanda per te" else "$domande domande per te"
-        pezzi += if (percento != null) RegoleAvanzamento.percento(percento) else "nessuna percentuale"
+        // App 2.91.0: senza, quando la percentuale si vede già accanto alla barra.
+        if (conPercento || percento == null) pezzi += if (percento != null) RegoleAvanzamento.percento(percento) else "nessuna percentuale"
         if (richiesteAperte > 0) pezzi += if (richiesteAperte == 1) "1 richiesta aperta" else "$richiesteAperte richieste aperte"
         if (specialisti > 0) pezzi += if (specialisti == 1) "1 specialista" else "$specialisti specialisti"
         if (pensa) pezzi += "sta pensando"

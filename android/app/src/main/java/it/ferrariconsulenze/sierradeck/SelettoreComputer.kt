@@ -60,12 +60,12 @@ fun PillolaComputer(nome: String, connesso: Boolean, linea: StatoLinea? = null, 
         Modifier
             .fillMaxWidth()
             .background(Banco.fondo)
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
             .background(Banco.chassis)
             .border(1.dp, Banco.incisione, androidx.compose.foundation.shape.RoundedCornerShape(50))
             .tocco(onClick = onApri)
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 14.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

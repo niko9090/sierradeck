@@ -77,9 +77,9 @@ internal fun ConLinguette(posto: Posto, onLinguetta: (Int) -> Unit, contenuto: @
     Column(Modifier.fillMaxSize()) {
         // App 2.89.0: linguette a pastiglia dentro una fascia, la scelta con il fondo d'accento leggero.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
                 .background(Banco.chassis, androidx.compose.foundation.shape.RoundedCornerShape(50))
-                .padding(4.dp),
+                .padding(2.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             nomi.forEachIndexed { i, nome ->
@@ -87,6 +87,7 @@ internal fun ConLinguette(posto: Posto, onLinguetta: (Int) -> Unit, contenuto: @
                 TextButton(
                     onClick = { onLinguetta(i) },
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 0.dp, horizontal = 8.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(containerColor = if (su) Banco.accentoTenue else androidx.compose.ui.graphics.Color.Transparent)
                 ) {

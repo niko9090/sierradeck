@@ -160,24 +160,43 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
         return
     }
     BackHandler(enabled = linguetta != LinguettaWorkspace.CONVERSAZIONE) { linguetta = LinguettaWorkspace.CONVERSAZIONE }
+    // App 2.91.0: sopra la chat solo la percentuale con la barra e una riga
+    // sotto; le linguette e le richieste in corso nella tendina ▾.
+    var tendina by remember(breve.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().imePadding()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth().tocco { tendina = !tendina }.padding(end = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onIndietro, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Banco.testo)
             }
             Column(Modifier.weight(1f)) {
-                Text(breve.nome, color = Banco.testo, fontWeight = FontWeight.SemiBold, maxLines = 1, fontSize = 18.sp)
-                val riga = RiassuntoAutopilota.di(av?.percento, aperte, specialistiOrch.size, schede.size, pensa)
-                Text(riga, color = if (schede.isNotEmpty()) Banco.ambra else Banco.testoQuieto, fontSize = 12.sp, maxLines = 1)
+                av?.percento?.let { p ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f).padding(bottom = 4.dp)) { BarraPercento(p) }
+                        Spacer(Modifier.width(8.dp))
+                        Text(RegoleAvanzamento.percento(p), color = Banco.testo, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                val riga = RiassuntoAutopilota.di(av?.percento, aperte, specialistiOrch.size, schede.size, pensa, conPercento = false)
+                Text(
+                    "${breve.nome} · $riga",
+                    color = if (schede.isNotEmpty()) Banco.ambra else Banco.testoQuieto,
+                    fontSize = 12.sp, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
+            Spacer(Modifier.width(8.dp))
             Punto(coloreLed(breve.led, det?.stato ?: breve.stato))
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (tendina) "▴" else "▾", color = Banco.testoQuieto, fontSize = 16.sp)
         }
-        av?.percento?.let { p -> Box(Modifier.padding(horizontal = 16.dp)) { BarraPercento(p) } }
-        LinguetteWorkspace(linguetta, conti = { RegoleWorkspace.conto(it, specialistiOrch.size, aperte, chatWs.size) }) { linguetta = it }
+        if (tendina || linguetta != LinguettaWorkspace.CONVERSAZIONE) {
+            LinguetteWorkspace(linguetta, conti = { RegoleWorkspace.conto(it, specialistiOrch.size, aperte, chatWs.size) }) { linguetta = it; tendina = false }
+        }
+        if (tendina) Box(Modifier.padding(horizontal = 16.dp)) { AvanzamentoBreve(av) { linguetta = LinguettaWorkspace.LAVORO; tendina = false } }
+        HorizontalDivider(color = Banco.incisione)
         guastoDettaglio?.let { g -> Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
 
         when (linguetta) {
@@ -212,8 +231,7 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             LinguettaWorkspace.CHAT -> Box(Modifier.weight(1f).fillMaxWidth()) { LinguettaChatWorkspace(chatWs) }
             LinguettaWorkspace.CONVERSAZIONE -> LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), state = lista) {
             guastoDettaglio?.let { g -> item(key = "guasto") { Text(g, color = Banco.ambra, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp)) } }
-            // L'avanzamento in breve, in cima: le richieste che stanno andando avanti.
-            item(key = "avanzamento-breve") { AvanzamentoBreve(av) { linguetta = LinguettaWorkspace.LAVORO } }
+            // App 2.91.0: l'avanzamento in breve sta nella tendina, non sopra la chat.
             // PC 0.78.0: con la Panoramica 2 solo la conversazione; gli eventi tecnici in «Cosa è successo ▸».
             val (messaggi, eventi) = if (pan?.situazione != null) RegolePanoramica.separaConversazione(chat) else chat.filter { it.tono != "traguardo" } to emptyList()
             if (eventi.isNotEmpty()) item(key = "eventi") { CosaESuccesso(eventi) }
