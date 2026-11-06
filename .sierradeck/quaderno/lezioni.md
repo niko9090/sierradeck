@@ -31,6 +31,8 @@
 - Il guardiano del PC rimanda anche i test di directory o per prefisso (non solo tsc): vanno lanciati file per file, e il rinvio può durare a lungo. _(2026-11-06)_
 - drive-rete-0-86-2 ("corpo che smette di arrivare", timer 40 ms) fallisce a PC carico e passa da solo: se è rosso in una suite larga, rilanciarlo da solo. _(2026-11-06)_
 - molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
+- A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
+- Il rosso di tests/main può non riprodursi in un worktree pulito: 2741 test contro i 2744 visti nella cartella principale. Prima di correggere, confrontare git status e conteggio test fra le due copie. _(2026-11-06)_
 
 ## worktree
 
@@ -95,6 +97,7 @@
 - il conflitto su errori-arrivati.md nasce da due voci aggiunte in coda dallo stesso file: si risolve tenendo entrambi i blocchi, senza scegliere una parte _(2026-11-05)_
 - i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
 - Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
+- Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 
 ## log
 
@@ -181,6 +184,8 @@
 - l'hook rimanda tsc e le suite anche con PC libero se un criterio dell'autopilota è in corso; più file insieme (fino a ~35) passano, le cartelle intere no. _(2026-11-06)_
 - il guardiano del PC rifiuta tsc e le suite larghe (anche con liste di file generate) finché la CPU è alta; i gruppi con nomi di file scritti per esteso passano. _(2026-11-06)_
 - il guardiano del PC carico rimanda tsc e le suite intere anche con CPU al 60%; un ciclo su più file in un solo comando viene rimandato come la suite: un file per chiamata. _(2026-11-06)_
+- Nei worktree manca `node_modules`: serve una junction temporanea, creata con `New-Item -ItemType Junction` in PowerShell, perché `cmd mklink` in Bash viene rifiutato. _(2026-11-06)_
+- Nei worktree la junction a node_modules si toglie in PowerShell con (Get-Item node_modules).Delete(). Da Bash, `cmd //c mklink` viene rifiutato dal guardiano. _(2026-11-06)_
 
 ## renderer
 
