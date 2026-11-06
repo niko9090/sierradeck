@@ -43,6 +43,8 @@
 - il conteggio dei test cambia tra un run e l'altro quando main si muove: confrontare sempre il commit prima di dire che un rosso è «lo stesso» (522ff1da: 2092 totali) _(2026-11-06)_
 - I test che fissano una soglia di posta.ts (es. «PC spento» a 30 minuti) cadono se la soglia cambia; esprimere il ritardo come soglia più un margine. _(2026-11-06)_
 - k-65: da ferma la posta si legge ogni 90 s e «PC spento» è a 35 min: i test con orologio fisso devono far avanzare il tempo o usare PC_SPENTO_DOPO_MS, non numeri fissi. _(2026-11-06)_
+- la prova «Drive pieno» aspettava il 403 nel testo: il programma dà il messaggio breve di proposito. Le prove del Drive usano `creaFreno()`, non il singleton `frenoDrive`. _(2026-11-06)_
+- il guardiano del PC carico blocca anche le suite a gruppi quando la CPU resta sopra soglia: lanciare i gruppi di file in momenti più scarichi, non con più worker. _(2026-11-06)_
 
 ## worktree
 
@@ -111,6 +113,7 @@
 - Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
 - Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 - Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
+- il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
 
 ## log
 
@@ -287,6 +290,7 @@
 - le proposte di pulizia guardano il nome, quindi i doppioni con lo stesso nome non si vedono mai (shared/spazio-drive.ts:282-289). _(2026-11-06)_
 - I file dei workspace sul Drive si chiamano `f_<hash>` come le chat: per escluderli dalle pulizie serve il percorso del manifesto, non il prefisso del nome. _(2026-11-06)_
 - Il freno (freno-drive.ts) mette l'avvio dei giri automatici dietro `fermo()` e si innesta in un solo punto, il `fetch` dell'archivio. I test che simulano 403 pieno devono passare un proprio `creaFren… _(2026-11-06)_
+- client-rotte.ts battitoVivo usa 5*60_000 fisso invece di PC_SPENTO_DOPO_MS di shared/posta.ts: due nozioni di «PC acceso», da allineare dopo il battito a 30 min. _(2026-11-06)_
 
 ## coda
 
@@ -307,6 +311,7 @@
 ## unione
 
 - Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
+- k-60 (`e9487ef4`, `28020ec1`, `4d4f11c9`) non risulta in main: prima di dire «entrato in main» verificare con `git merge-base --is-ancestor <sha> main`. _(2026-11-06)_
 
 ## criteri
 
