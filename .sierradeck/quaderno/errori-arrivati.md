@@ -104,3 +104,8 @@ Corretto nella versione 0.94.4. Era un avviso di Node scritto su stderr (non un 
 
 ## controllo PC: s.salute.voci is not iterable (PC-Fisso)
 Corretto nella 0.95.4. Un PC con una salute senza voci (versione vecchia o risposta malformata) non fa piu cadere il giro: la risposta non valida diventa "risposta non leggibile, versione vecchia?" e criticitaDi/testoRapporto tollerano voci mancanti.
+
+# Errori arrivati (lotto 20261106104229, app 0.95.3)
+
+## Gruppo 1: "Error invoking remote method 'autopilota:dialoga': Error: il servizio autopilota non risponde sulla porta 47630: TimeoutError: The operation was aborted due to timeout" (DESKTOP-G24D499, 0.95.3)
+Corretto nella versione 0.95.5. Causa non provata al millisecondo, ma il punto debole era certo: il dialogo aspettava il servizio solo 3 s (l'attesa di una lettura d'elenco; il dettaglio aveva gia 5 volte tanto), mentre il gestore del servizio scrive in modo sincrono coda, archivio dell'autopilota e dialogo prima di rispondere, e nello stesso momento girava la sincronizzazione Drive su 25520 file: con un servizio (o un programma) occupato 3 s non bastano, e il messaggio poteva essere arrivato lo stesso. Ora le POST che scrivono (dialogo, crea, adozione, nota, annuncio) aspettano 30 s; il dialogo porta un id del messaggio e, se scade, ritenta una volta con lo stesso id (il servizio scarta il doppione); se nemmeno cosi arriva la conferma, guarda se il messaggio e gia nella conversazione, e solo allora dice in italiano che il servizio e occupato. Test in tests/main/dialogo-autopilota-k42.test.ts, tests/autopilot-host/server.test.ts, tests/renderer/errore-dialogo.test.ts.
