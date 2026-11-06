@@ -115,7 +115,7 @@ import {
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { indirizziPerApp } from './rete-telefono'
-import { leggiFirewall, type EsitoFirewall } from './firewall-windows'
+import { leggiFirewall, sbloccaConElevazione, type EsitoFirewall } from './firewall-windows'
 import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
@@ -5178,7 +5178,17 @@ if (!app.requestSingleInstanceLock()) {
         return esito
       }
       void controllaFirewall().then((e) => {
-        if (e.stato === 'bloccato') registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
+        if (e.stato === 'bloccato') {
+          registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
+          // Una sola volta per avvio; l'elevazione parte solo dal tasto «Sistema».
+          try { new Notification({ title: 'SierraDeck', body: 'Il firewall di Windows blocca il telefono sul wifi di casa. Apri Impostazioni → Client e premi «Sistema».' }).show() } catch { /* senza notifiche */ }
+        }
+      })
+      // Il tasto «Sistema»: l'unico punto in cui si chiede l'amministratore, e solo dopo il clic.
+      ipcMain.handle('client:sistemaFirewall', async () => {
+        const esito = await sbloccaConElevazione(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
+        firewallClient = { il: Date.now(), esito }
+        return esito.stato === 'bloccato' ? { stato: 'bloccato' as const } : { stato: 'ok' as const }
       })
       // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
       try {

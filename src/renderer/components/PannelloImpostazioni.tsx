@@ -132,6 +132,7 @@ function SezioneClient(): React.JSX.Element {
   // I quadrati da inquadrare: arrivano insieme all'apertura dell'accoppiamento
   // e valgono quanto lui. Scaduto quello, non servono più a niente.
   const [qr, setQr] = useState<{ indirizzo: string; immagine: string }[]>([])
+  const [sistemando, setSistemando] = useState(false)
   const ricarica = (): void => {
     window.gestore.client.stato().then(setStato).catch(() => setStato(undefined))
   }
@@ -168,6 +169,17 @@ function SezioneClient(): React.JSX.Element {
             <br />
             <code>{stato.firewall.comando}</code>
           </Aiuto>
+          <button
+            className="tasto tasto--mini"
+            disabled={sistemando}
+            title="Chiede il permesso a Windows e lascia entrare solo la rete di casa"
+            onClick={() => {
+              setSistemando(true)
+              window.gestore.client.sistemaFirewall().then(ricarica).catch(() => undefined).finally(() => setSistemando(false))
+            }}
+          >
+            {sistemando ? 'Controllo…' : 'Sistema'}
+          </button>
         </div>
       ) : null}
       {stato.indirizzi.length === 0 ? (

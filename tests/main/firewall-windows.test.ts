@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { NOME_REGOLA_FIREWALL, comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
+import { NOME_REGOLA_FIREWALL, argomentiElevazione, comandoElevato, sbloccaConElevazione, comandoSblocco, daUscita, valutaFirewall } from '../../src/main/firewall-windows'
 import { indirizziPerApp } from '../../src/main/rete-telefono'
 import { indirizziDaAnnunciare } from '../../src/main/client-server'
 
@@ -98,6 +98,59 @@ describe('regola del firewall creata dall installatore', () => {
     expect(valutaFirewall(wifi, [{ ...r, profili: 2 }], EXE, PORTA).stato).toBe('bloccato')
     const j = JSON.stringify({ profili: wifi, regole: [{ nome: NOME_REGOLA_FIREWALL, profili: 0, programma: 'Any', porte: 'Any' }] })
     expect(daUscita(j, EXE, PORTA).stato).toBe('ok')
+  })
+})
+
+describe('ripiego con elevazione, solo dal clic', () => {
+  const decodifica = (args: string[]): string => {
+    const m = /'-EncodedCommand','([^']+)'/.exec(args[args.length - 1])
+    return Buffer.from(m?.[1] ?? '', 'base64').toString('utf16le')
+  }
+
+  it('il comando e costruito con nome fisso, programma e LocalSubnet, mai Any', () => {
+    const args = argomentiElevazione(EXE)
+    expect(args[args.length - 1]).toContain('-Verb RunAs')
+    expect(args[args.length - 1]).toContain('-WindowStyle Hidden')
+    const interno = decodifica(args)
+    expect(interno).toContain(`-DisplayName "${NOME_REGOLA_FIREWALL}"`)
+    expect(interno).toContain(`-Program "${EXE}"`)
+    expect(interno).toContain('-RemoteAddress LocalSubnet')
+    expect(interno).toContain('Remove-NetFirewallRule')
+    expect(interno).not.toMatch(/RemoteAddress\s+(Any|\*|Internet)/i)
+    expect(interno).toBe(comandoElevato(EXE))
+  })
+
+  it('non si eleva niente al solo controllo o alla valutazione', () => {
+    let chiamate = 0
+    const esegui = async (): Promise<boolean> => { chiamate++; return true }
+    valutaFirewall([{ scheda: 'Wi-Fi', categoria: 'Public' }], [], EXE, PORTA)
+    daUscita('{}', EXE, PORTA)
+    expect(chiamate).toBe(0)
+    void esegui
+  })
+
+  it('con il clic esegue una sola volta e poi ricontrolla', async () => {
+    let chiamate = 0
+    let riletture = 0
+    const esito = await sbloccaConElevazione(EXE, PORTA, async () => { chiamate++; return true }, async () => { riletture++; return { stato: 'ok' } })
+    expect(chiamate).toBe(1)
+    expect(riletture).toBe(1)
+    expect(esito.stato).toBe('ok')
+  })
+
+  it('permesso rifiutato: nessun errore, la riga resta com era', async () => {
+    const bloccato = { stato: 'bloccato' as const, scheda: 'Wi-Fi', categoria: 'Public', messaggio: 'm', comando: 'c' }
+    expect((await sbloccaConElevazione(EXE, PORTA, async () => false, async () => bloccato)).stato).toBe('bloccato')
+    expect((await sbloccaConElevazione(EXE, PORTA, async () => { throw new Error('annullato') }, async () => bloccato)).stato).toBe('bloccato')
+  })
+
+  it('l elevazione parte solo dal tasto: in index.ts e solo nel gestore del clic', () => {
+    const src = readFileSync('src/main/index.ts', 'utf8')
+    const usi = src.split('\n').filter((r) => r.includes('sbloccaConElevazione('))
+    expect(usi).toHaveLength(1)
+    const i = src.indexOf("ipcMain.handle('client:sistemaFirewall'")
+    expect(i).toBeGreaterThan(-1)
+    expect(src.slice(i, i + 300)).toContain('sbloccaConElevazione(')
   })
 })
 

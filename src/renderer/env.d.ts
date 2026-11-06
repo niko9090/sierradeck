@@ -76,6 +76,7 @@ declare global {
           qr: { indirizzo: string; immagine: string }[]
         }>
         chiudiAccoppiamento: () => Promise<void>
+        sistemaFirewall: () => Promise<{ stato: 'ok' | 'bloccato' }>
         revoca: (id: string) => Promise<unknown[]>
         annunciaChat: (
           chat: { id: string; titolo: string; cwd: string; sessione?: string; workspace?: string; ultimaRiga?: string; aspetta?: boolean; governata?: boolean; coda?: string[]; codaGrezza?: string[] }[]

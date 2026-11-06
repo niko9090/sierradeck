@@ -117,6 +117,43 @@ export function leggiFirewall(programma: string, porta: number, timeoutMs = 20_0
   })
 }
 
+/** Il comando che si esegue con l'elevazione: toglie l'omonima (niente doppioni) e crea la regola. */
+export function comandoElevato(programma: string): string {
+  return `Remove-NetFirewallRule -DisplayName '${NOME_REGOLA_FIREWALL}' -ErrorAction SilentlyContinue; ${comandoSblocco(programma)}`
+}
+
+/** Gli argomenti di powershell.exe che chiedono il permesso (UAC) e lanciano la regola, senza finestra. */
+export function argomentiElevazione(programma: string): string[] {
+  const interno = Buffer.from(comandoElevato(programma), 'utf16le').toString('base64')
+  const esterno =
+    "$ErrorActionPreference='Stop';" +
+    `Start-Process -FilePath powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${interno}'`
+  return ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', esterno]
+}
+
+export type EsecutoreElevato = (argomenti: string[]) => Promise<boolean>
+
+const esecutoreVero: EsecutoreElevato = (argomenti) =>
+  new Promise((risolvi) => {
+    if (process.platform !== 'win32') return risolvi(false)
+    execFile('powershell.exe', argomenti, { windowsHide: true, timeout: 120_000 }, (err) => risolvi(err === null))
+  })
+
+/**
+ * Crea la regola con l'elevazione. Va chiamata SOLO da un clic dell'utente: mai
+ * da sola. Se il permesso è negato non dà errore: ricontrolla e restituisce
+ * l'esito, che resta «bloccato» se non è cambiato niente.
+ */
+export async function sbloccaConElevazione(
+  programma: string,
+  porta: number,
+  esegui: EsecutoreElevato = esecutoreVero,
+  rileggi: (programma: string, porta: number) => Promise<EsitoFirewall> = leggiFirewall
+): Promise<EsitoFirewall> {
+  await esegui(argomentiElevazione(programma)).catch(() => false)
+  return rileggi(programma, porta)
+}
+
 /** Dal JSON di PowerShell all'esito (separata per provarla senza Windows). */
 export function daUscita(stdout: string, programma: string, porta: number): EsitoFirewall {
   try {
