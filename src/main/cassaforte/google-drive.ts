@@ -30,6 +30,8 @@ import { conConteggio, segnaleDrive } from '../risorse'
  * di «Annulla» del lavoro in corso.
  */
 
+import { conFreno, eSpazioPieno, frenoDrive, MESSAGGIO_DRIVE_PIENO, type Freno } from './freno-drive'
+
 const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
@@ -39,7 +41,7 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
  * è uno per collegamento: 20 secondi, perché chi aspetta che un file compaia
  * (la posta, per esempio) lo vede ancora in tempo.
  */
-export const ASSENTE_PER_MS = 20_000
+export const ASSENTE_PER_MS = 90_000
 
 type Fetch = typeof fetch
 
@@ -57,6 +59,8 @@ export type DriveDeps = {
   fetch?: Fetch
   /** Quanto aspettare prima di rileggere il manifesto appena scritto (vedi `Archivio.finestraConflittoMs`). */
   finestraConflittoMs?: number
+  /** Il freno (limite di velocità, spazio pieno): predefinito quello del programma. */
+  freno?: Freno
 }
 
 type FileDrive = { id: string; version: string }
@@ -124,7 +128,7 @@ export function conRinnovo(f: Fetch, rinnova?: (fallito: string) => Promise<stri
 
 export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
   // Ogni richiesta che parte davvero si conta (0.69.0): quanto lavora il PC.
-  const f: Fetch = conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova)
+  const f: Fetch = conFreno(conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova), deps.freno)
   const nomeFile = deps.nomeFile ?? NOME_FILE_PREDEFINITO
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
@@ -143,6 +147,11 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
       }
     } catch {
       // nessun corpo da leggere: resta solo il codice
+    }
+    if (r.status === 403 && eSpazioPieno(dettaglio)) {
+      const e: Error & { stato?: number; drivePieno?: boolean } = new Error(MESSAGGIO_DRIVE_PIENO)
+      e.stato = 403; e.drivePieno = true
+      return e
     }
     return new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
   }
@@ -270,7 +279,7 @@ export function creaMagazzinoDrive(deps: DriveDeps): Magazzino {
  */
 export function creaArchivioDrive(deps: DriveDeps): Archivio {
   // Ogni richiesta che parte davvero si conta (0.69.0): quanto lavora il PC.
-  const f: Fetch = conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova)
+  const f: Fetch = conFreno(conRinnovo(conConteggio(deps.fetch ?? fetch), deps.rinnova), deps.freno)
   const intestazioni = (tk: string): Record<string, string> => ({ Authorization: `Bearer ${tk}` })
 
   const errore = async (r: Response, cosa: string): Promise<Error & { stato?: number }> => {
@@ -282,6 +291,11 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
         dettaglio = j.error?.message ?? testo
       } catch { dettaglio = testo }
     } catch { /* niente corpo */ }
+    if (r.status === 403 && eSpazioPieno(dettaglio)) {
+      const e: Error & { stato?: number; drivePieno?: boolean } = new Error(MESSAGGIO_DRIVE_PIENO)
+      e.stato = 403; e.drivePieno = true
+      return e
+    }
     const e: Error & { stato?: number } = new Error(`Drive: ${cosa} fallito (${r.status})${dettaglio !== '' ? ` — ${dettaglio.slice(0, 300)}` : ''}`)
     e.stato = r.status
     return e
@@ -587,6 +601,8 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       const limite = n(q.limit)
       const nelDrive = n(q.usageInDrive)
       const cestino = n(q.usageInDriveTrash)
+      // Il primo segnale che e' tornato spazio: le scritture ripartono senza aspettare il ricontrollo.
+      if (limite !== undefined && (n(q.usage) ?? 0) + 50 * 1024 * 1024 < limite) (deps.freno ?? frenoDrive).spazioLibero()
       return { usato: n(q.usage) ?? 0, ...(limite !== undefined ? { limite } : {}), ...(nelDrive !== undefined ? { usatoNelDrive: nelDrive } : {}), ...(cestino !== undefined ? { nelCestino: cestino } : {}) }
     },
 

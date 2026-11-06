@@ -1,4 +1,5 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
+import { frenoDrive, MESSAGGIO_DRIVE_PIENO } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { chiudiPannelliConLApp, finestreDiChat, segnaFinestraDiServizio } from './finestre-pannello'
 import { workspaceVisti } from './chat-vista'
@@ -3603,6 +3604,14 @@ if (!app.requestSingleInstanceLock()) {
       // non blocca. `unref` così non tiene in vita il processo da solo.
       // Ogni cinque minuti quando c'e' un progetto sul Drive: il codice cambia
       // piu' in fretta delle chat, e sull'altro PC si vuole trovare l'ultimo.
+      // k-65: Drive pieno o limite di velocita': una riga nel registro e un solo avviso, non un errore a ogni giro.
+      frenoDrive.suCambio((e) => {
+        if (e === 'pieno') {
+          registro.info('[drive] spazio pieno: le scritture aspettano (ricontrollo ogni 30 minuti), i dati restano in locale')
+          try { new Notification({ title: 'SierraDeck', body: MESSAGGIO_DRIVE_PIENO }).show() } catch { /* senza notifiche */ }
+        } else if (e === 'libero') registro.info('[drive] di nuovo spazio: le scritture ripartono')
+        else registro.info(`[drive] Google chiede di rallentare: aspetto ${Math.round(frenoDrive.attesaMs() / 1000)} s`)
+      })
       let giriAuto = 0
       const timerAuto = setInterval(() => {
         giriAuto += 1

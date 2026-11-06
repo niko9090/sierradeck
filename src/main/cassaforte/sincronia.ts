@@ -19,6 +19,7 @@ import type { Scatola } from '../progetti/posta'
 import { fondiRegistri, parseRegistro, prefissoProgetto, type RegistroProgetti } from '../progetti/registro'
 import { parseArchivio, type Archivio as ArchivioWorkspace } from '@shared/workspace'
 import { firmaRadici } from './raccolta'
+import { frenoDrive, MESSAGGIO_DRIVE_PIENO, type Freno } from './freno-drive'
 import { fondiArchivi, leggiJsonDalDrive } from './unioni'
 
 /**
@@ -234,6 +235,8 @@ export function apriSincronia(deps: {
   dati: string
   radiceClaude: string
   driveConnesso: () => boolean
+  /** Il freno del Drive (k-65): predefinito quello del programma. */
+  freno?: Freno
   /** Il magazzino a blocco unico, per le CHIAVI (la cassaforte). */
   magazzino: (nomeFile?: string) => Magazzino
   /** L'archivio a più file, per i DATI (sincronizzazione incrementale). */
@@ -472,6 +475,7 @@ export function apriSincronia(deps: {
     return { ...m, file }
   }
   const log = deps.log ?? ((): void => {})
+  const freno = deps.freno ?? frenoDrive
   const radici = (): Radice[] =>
     radiciDaSincronizzare(deps.dati, deps.radiceClaude, deps.progetti?.radiciLocali() ?? [])
   const fileCassaforte = join(deps.dati, 'cassaforte.json')
@@ -1205,12 +1209,19 @@ export function apriSincronia(deps: {
       if (s.auto !== true) return
       // Alla chiusura (`conArrivo: false`) sale tutto, chat vive comprese: e'
       // l'ultima occasione prima che l'altro PC le cerchi.
-      const r = await this.salva(false, { automatico: opzioni?.conArrivo !== false })
+      // k-65: Google ha detto «troppe richieste»: si aspetta, non si insiste.
+      if (freno.attesaMs() > 0) return
+      // Drive pieno: le modifiche restano in locale, il salvataggio aspetta
+      // lo spazio (ricontrollo ogni 30 minuti). L'arrivo, che legge soltanto, va avanti.
+      const r = freno.pieno()
+        ? { ok: true, invariato: true } as { ok: boolean; messaggio?: string; conflitto?: boolean }
+        : await this.salva(false, { automatico: opzioni?.conArrivo !== false })
       // 0.88.5: un lavoro sul Drive ancora in corso (il primo caricamento di un progetto grande dura anche un'ora) non è
       // un guasto: il giro si salta e basta. Prima diceva «non riuscito» ogni cinque minuti e la Salute lo contava fra gli errori.
       const giaInCorso = (m: string | undefined): boolean => m?.startsWith('LAVORO_IN_CORSO') === true
       if (!r.ok && giaInCorso(r.messaggio)) { log('automatico: salto il giro, sul Drive sta ancora girando il lavoro di prima'); return }
-      if (!r.ok && r.conflitto !== true) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
+      // Il «Drive pieno» lo ha gia' detto il freno, una volta sola.
+      if (!r.ok && r.conflitto !== true && r.messaggio !== MESSAGGIO_DRIVE_PIENO) log(`automatico: salvataggio non riuscito (${r.messaggio ?? '?'})`)
       if (opzioni?.conArrivo === false) return
       // Poi si guarda se c'e' qualcosa da portare giu': la sincronizzazione va
       // nei due versi, e finche' andava in uno solo le chat dell'altro PC non
