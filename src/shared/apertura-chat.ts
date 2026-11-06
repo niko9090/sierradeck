@@ -144,8 +144,9 @@ export function decidiApertura(d: DatiApertura): Apertura {
     const casa = perCasa ? { perCasa: true as const } : {}
     if ((b !== undefined && pcVivo(b, d.adesso)) || (d.rispondono ?? []).includes(id)) {
       // Acceso ma troppo vecchio per la vista dal vivo: si dice, non si apre
-      // un riquadro che non funzionerebbe (la versione la dice il suo battito).
-      if (b !== undefined && versioneTroppoVecchia(b.versione)) {
+      // un riquadro che non funzionerebbe (la versione la dice il suo battito, e conta solo se e'
+      // fresco: uno vecchio puo' parlare di una versione gia' superata).
+      if (b !== undefined && pcVivo(b, d.adesso) && versioneTroppoVecchia(b.versione)) {
         return {
           tipo: 'attesa', pc: { id, nome }, cwd: d.cwd,
           ...(d.sessione !== undefined ? { sessione: d.sessione } : {}),

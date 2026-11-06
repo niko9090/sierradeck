@@ -74,9 +74,9 @@ describe('chat:daDove con la casa su un altro PC', () => {
     }
   })
 
-  it('versione vecchia anche se il battito è scaduto ma il PC risponde', async () => {
+  it('battito scaduto con una versione vecchia, ma il PC risponde: la versione di un battito scaduto non si giudica, dal vivo', async () => {
     const a = await rispondiDaDove(deps({ battiti: () => [battito(600, '0.50.2')], statoDi: async () => acceso }), richiesta)
-    expect(a).toMatchObject({ tipo: 'attesa', statoPc: { stato: 'versione-vecchia' } })
+    expect(a.tipo).toBe('remoto')
   })
 
   it('una versione di oggi non è «vecchia»', async () => {
