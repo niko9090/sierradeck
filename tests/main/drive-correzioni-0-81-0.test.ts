@@ -116,7 +116,10 @@ describe('un 403 di Google', () => {
     const corpo = JSON.stringify({ error: { code: 403, message: "The user's Drive storage quota has been exceeded.", errors: [{ reason: 'storageQuotaExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
     const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
-    await expect(a.elenca()).rejects.toThrow(/403/)
+    // k-65: il messaggio è «Drive pieno: libera spazio…», con stato 403 e drivePieno; il 403 non si ritenta.
+    const errore = await a.elenca().then(() => undefined, (e: unknown) => e as Error & { stato?: number; drivePieno?: boolean })
+    expect(errore).toMatchObject({ stato: 403, drivePieno: true })
+    expect(errore!.message).toMatch(/Drive pieno/)
     expect(d.chiamate()).toBe(1)
   })
 
