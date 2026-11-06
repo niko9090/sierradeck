@@ -33,3 +33,5 @@
 - si va bene ma le chat devono SEMPRE interfacciarsi con te qquindi tu dovresti sempre sapere cosa succede e perche, altrimenti a cosa servi? _(2026-10-23)_
 - «L'unione della correzione degli errori arrivati (ramo worktree-agent-aa217af67431f584c) è rifiutata due volte: la cartella principale ha modifiche non salvate. All'avvio erano solo due note del quader» → fai tu tu _(2026-10-31)_
 - «Le correzioni dell'OOM Android e dell'avviso updater 501 sono in main. Per la release (una sola, mai installata, APK nuovo) servono tag, gh release e pubblicazione dal PC principale: i miei specialist» → Fai tu _(2026-10-31)_
+- «Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 90 s","timeout_ms":120000,"command":"until grep -q . \"C:/Users/nikof/AppData/Local/Temp/claude/324eb1a2afe72b13/e7f3692c-61» → Consenti _(2026-11-06)_
+- «Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 4 minuti","timeout_ms":270000,"command":"f=\"C:/Users/nikof/AppData/Local/Temp/claude/324eb1a2afe72b13/e7f3692c-61da-4c3c-97» → Consenti _(2026-11-06)_
