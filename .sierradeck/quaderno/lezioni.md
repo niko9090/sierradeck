@@ -170,6 +170,8 @@
 - con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
 - Memoria piena per vmmemWSL (12-15 GB): `wsl --shutdown` porta la RAM libera da ~15% a ~65%; Nicholas l'ha permesso il 06/11. Ubuntu riparte da solo a ~1 GB e può ricrescere. _(2026-11-06)_
 - Il programma rimanda tsc e vitest completi quando il PC è carico, anche per decine di minuti: lanciarli subito dopo il commit, prima di altro lavoro, e tenere i test mirati per intanto _(2026-11-06)_
+- I file del repo sono CRLF: gli script node/sed con `replace` su stringhe multilinea non trovano nulla senza errori; usare Edit, oppure normalizzare prima \r\n. _(2026-11-06)_
+- Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
 
 ## renderer
 
@@ -240,3 +242,7 @@
 ## piano
 
 - Un criterio che è solo un comando di lettura (`wsl --list --quiet`) passa sempre, anche se il lavoro non c'è: il criterio deve fallire quando il lavoro manca (es. un test o un confronto sull'uscita). _(2026-11-06)_
+
+## autoriparazione
+
+- Il «Torna come prima» non ripristina `coda.json` apposta: rimetterebbe una coda vecchia e perderebbe richieste arrivate dopo. Va ricordato se si estende il ripristino. _(2026-11-06)_
