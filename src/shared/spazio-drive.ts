@@ -339,7 +339,7 @@ function nomeDaDoppioni(nome: string, perNome: Map<string, string>): boolean {
 
 /**
  * I file in piu' fra quelli con lo stesso nome. Resta il piu' recente non
- * vuoto (la stessa scelta di chi legge); a pari ora, il primo dell'elenco.
+ * vuoto (la stessa scelta di chi legge); a pari ora, l’id più piccolo, come fa chi legge.
  */
 export function doppioniPerNome(file: FileDrive[], indice: IndiceDrive): VocePulita[] {
   const percorsi = percorsiPerNome(indice)
@@ -352,7 +352,7 @@ export function doppioniPerNome(file: FileDrive[], indice: IndiceDrive): VocePul
   for (const gruppo of perNome.values()) {
     if (gruppo.length < 2) continue
     const ora = (f: FileDrive): number => (f.modificato !== undefined ? Date.parse(f.modificato) || 0 : 0)
-    const ordinati = [...gruppo].sort((a, b) => (b.byte > 0 ? 1 : 0) - (a.byte > 0 ? 1 : 0) || ora(b) - ora(a))
+    const ordinati = [...gruppo].sort((a, b) => (b.byte > 0 ? 1 : 0) - (a.byte > 0 ? 1 : 0) || ora(b) - ora(a) || (a.id ?? '').localeCompare(b.id ?? ''))
     for (const f of ordinati.slice(1)) fuori.push({ nome: f.nome, byte: f.byte, id: f.id as string })
   }
   return fuori
