@@ -833,7 +833,7 @@ ${NOTA_SENZA_GIT}`,
         if (!sporcoDetto.has(ws)) {
           sporcoDetto.add(ws)
           if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
-          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa. La cartella principale ha file modificati e non salvati che non sono del programma: non li tocco. Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))} secondi e l’unione parte appena la cartella è pulita. Nessun riavvio da fare.` })
+          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
         }
         await dormi(riprova)
         continue
