@@ -41,6 +41,7 @@ export {
   PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX, TESTO_POSTA_MAX,
 } from '@shared/posta'
 import type { RisorsePc } from '@shared/risorse'
+import { frenoDrive, type Freno } from '../cassaforte/freno-drive'
 import {
   ESITO_PROTETTA, type ChatDiPc, type BattitoPc, type LocaliBattito, type VocePosta, type Posta,
   type UscitaPosta, type EsitoVoce, type EsitiPosta
@@ -195,6 +196,8 @@ export function creaPostino(deps: {
    */
   chiusaPer?: (chat: ChatDiPc, voce: VocePosta) => boolean
   adesso?: () => number
+  /** Il freno del Drive (k-65): a limite raggiunto o Drive pieno il giro sta fermo. */
+  freno?: Freno
   nuovoId?: () => string
   log?: (m: string) => void
   /**
@@ -217,6 +220,16 @@ export function creaPostino(deps: {
   let ultimoBattito = ''
   let ultimoBattitoIl = 0
   let inErrore = false
+  const freno = deps.freno ?? frenoDrive
+  /**
+   * k-65: la posta in arrivo si guarda ogni mezzo minuto solo se di recente e'
+   * successo qualcosa (una voce, o un invio da qui); da fermi basta ogni
+   * minuto e mezzo. Ogni lettura e' una richiesta al Drive.
+   */
+  const POSTA_ATTIVA_MS = 5 * 60_000
+  const POSTA_QUIETA_OGNI_MS = 90_000
+  let ultimaAttivita = 0
+  let ultimaLetturaPosta = 0
 
   /*
    * La posta fra i PC (0.86.2, audit I1). Prima c'era una cassetta sola per PC,
@@ -355,6 +368,7 @@ export function creaPostino(deps: {
     // Una voce gia' scritta qui non si riscrive, anche se il Drive la mostra ancora in attesa.
     const voce = cassetta.vista.voci.find((v) => v.stato === 'attesa' && !giaConsegnata(v.id))
     if (voce === undefined) return
+    ultimaAttivita = adesso()
     /**
      * L'esito va nel file degli esiti, che scrivo solo io. Se la voce viene
      * dalla cassetta unica di un PC vecchio, la si aggiorna anche li' (per chi
@@ -483,13 +497,19 @@ export function creaPostino(deps: {
       if (inGiro) return
       const s = deps.scatola()
       if (s === undefined) return
+      // Google ha detto «piano» o il Drive e' pieno: si aspetta, senza insistere.
+      if (freno.fermo()) return
       inGiro = true
       try {
         await batti(s)
         // Gli altri PC si rileggono con calma: le loro cartelle non cambiano
         // ogni mezzo minuto, e ogni lettura e' una richiesta al Drive.
         if (adesso() - altruiLettiIl >= BATTITO_PC_OGNI_MS) ricorda(await leggiAltrui(s))
-        await consegna(s)
+        const ora = adesso()
+        if (ora - ultimaAttivita < POSTA_ATTIVA_MS || ora - ultimaLetturaPosta >= POSTA_QUIETA_OGNI_MS) {
+          ultimaLetturaPosta = ora
+          await consegna(s)
+        }
         if (inErrore) { inErrore = false; log('[posta] il Drive risponde di nuovo') }
       } catch (err) {
         if (!inErrore) { inErrore = true; log(`[posta] giro fallito (non lo ripeto finche' non torna a rispondere): ${String(err)}`) }
@@ -540,6 +560,7 @@ export function creaPostino(deps: {
       return s === undefined ? undefined : (await leggiCassetta(s, pcId)).vista
     },
     aggiungi: (pcId, voce) => inFila(async () => {
+      ultimaAttivita = adesso()
       const testo = voce.testo.trim().slice(0, TESTO_POSTA_MAX)
       const cwd = voce.cwd.trim()
       // Un comando per il programma non va in una cartella (0.88.2: gli errori).

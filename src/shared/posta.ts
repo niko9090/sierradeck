@@ -193,7 +193,7 @@ export function nomeEsiti(destinatario: string): string { return `posta-${destin
 /** Un battito piu' vecchio di cosi' e' un PC spento, o senza rete. */
 export const PC_SPENTO_DOPO_MS = 35 * 60_000
 /** Ogni quanto si rileggono i battiti degli altri PC. */
-export const BATTITO_PC_OGNI_MS = 2 * 60_000
+export const BATTITO_PC_OGNI_MS = 5 * 60_000
 /**
  * Il battito si riscrive da fermo solo ogni mezz'ora (era 2 minuti: ogni
  * scrittura e' una revisione in piu' sul Drive). Per questo `PC_SPENTO_DOPO_MS`
