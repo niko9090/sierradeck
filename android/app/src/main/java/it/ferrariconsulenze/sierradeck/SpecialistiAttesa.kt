@@ -122,7 +122,7 @@ object SpecialistiAttesa {
                 id = x.id, etichetta = "${x.posizione}°", compito = x.compito?.ifBlank { null }, descrizione = x.descrizione,
                 dettaglio = listOf(nomeWorkspace(x.workspace), x.tipo, "aspetta da " + daQuanto(x.dal, adesso).ifEmpty { "?" }, "priorità " + prioritaTesto(x.priorita))
                     .filter { it.isNotEmpty() }.joinToString(" · ") + tocca,
-                toccaALui = x.prenotata, puoSalire = i > 0, puoScendere = i < v.inFila.size - 1
+                toccaALui = x.prenotata, puoSalire = (i > 0), puoScendere = (i < v.inFila.size - 1)
             )
         }
         return SchermataSpecialisti(postiTesto(v.posti.usati, v.posti.tetto), lavoro, fila, vecchio = false)
