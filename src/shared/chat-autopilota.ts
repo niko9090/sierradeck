@@ -26,6 +26,8 @@ export type Battuta = {
   tono?: 'domanda' | 'decisione' | 'correzione' | 'preparazione' | 'lavoro' | 'pronto' | 'fine' | 'fermo' | 'traguardo'
   /** Quante volte di fila la stessa nota: dieci riprese uguali sono una riga. */
   volte?: number
+  /** 0.96.0: una sua domanda ancora aperta, con le scelte da toccare (sul PC). */
+  domanda?: { id: string; scelte: string[] }
 }
 
 /**
@@ -95,6 +97,12 @@ export function conversazione(a: Autopilota): Battuta[] {
       const prima = righe[righe.length - 1]?.b
       if (prima?.da !== 'lui' || prima.testo.trim() !== s.risponde) metti({ quando: s.quando, da: 'lui', testo: s.risponde, tono: 'domanda' })
       metti({ quando: s.quando, da: 'tu', testo: haiRisposto(s.testo) })
+      continue
+    }
+    // 0.96.0: una sua domanda nuova sta prima di tutto qui, ben visibile; i tasti
+    // restano finché non ha risposta.
+    if (s.da === 'lui' && s.domanda !== undefined) {
+      metti({ quando: s.quando, da: 'lui', testo: s.testo, tono: 'domanda', ...(s.domanda.chiusa !== true && s.domanda.scelte.length > 0 ? { domanda: { id: s.domanda.id, scelte: s.domanda.scelte } } : {}) })
       continue
     }
     metti({
