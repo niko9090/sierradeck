@@ -26,6 +26,7 @@
 - L'hook di carico PC rimanda vitest per cartella e tsc, ma lascia passare un file alla volta, anche in un ciclo `for` con percorsi espliciti: così si prova il ramo a PC carico. _(2026-11-06)_
 - `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
 - il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
+- il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
 
 ## worktree
 
@@ -211,3 +212,16 @@
 ## pagina
 
 - la pagina del telefono è una stringa TS: niente backtick né backslash, `\d` diventa `[0-9]`. Il test `posti-chat-pagina` estrae le funzioni con `new Function` e vuole definite le variabili globali. _(2026-11-06)_
+- nella pagina telefono niente backslash: i tasti passano l'id con data-id e onclick="f(this)", e la logica condivisa sta in src/shared come funzione autosufficiente inserita con toString() _(2026-11-06)_
+
+## apertura-chat
+
+- «locale» in chat:daDove non vuol dire «aprila qui» se la casa è altrove: la chat arriva dallo spawn che ha già deciso. Un guasto va in attesa che riprova, mai nel cartello. _(2026-11-06)_
+
+## guardiano
+
+- su questo PC tsc e le suite intere possono restare rimandate per ore dal guardiano del carico: lanciarle subito dopo il commit, e controllare i file toccati uno alla volta. _(2026-11-06)_
+
+## versioni
+
+- i battiti degli altri PC con versione vecchia nei test cambiano l'esito di decidiApertura: la versione si giudica solo da un battito fresco, uno scaduto può essere superato. _(2026-11-06)_
