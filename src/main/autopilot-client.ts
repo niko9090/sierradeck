@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { DomandaRisolta } from '@shared/domande-telefono'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
@@ -42,6 +43,10 @@ export type RicevutaDialogo = {
   ricevuto: boolean
   autopilota?: Autopilota
 }
+
+/** Quello che legge Nicholas se il servizio non conferma un messaggio. */
+export const MESSAGGIO_SERVIZIO_OCCUPATO =
+  'Il servizio dell’autopilota è occupato e non ha confermato il messaggio. Non risulta arrivato: aspetta qualche secondo e riscrivilo. Se compare due volte nella conversazione, il secondo è un doppione.'
 
 export type ClientAutopilota = {
   /**
@@ -157,6 +162,8 @@ export type ClientAutopilota = {
 export type UnioneAMano = { ids: string[]; testo: string; titolo?: string; punti: PuntoProposto[]; perche: string }
 
 const ATTESA_PREDEFINITA_MS = 3000
+/** Le POST che scrivono (dialogo, nota, adozione): un servizio occupato ci mette di piu' di una lettura (k-42). */
+const ATTESA_SCRITTURA_MS = 30_000
 /** Per quanto un elenco appena letto si ridà senza richiederlo (0.85.2). */
 const ELENCO_FRESCO_MS = 1500
 /** Dopo un avvio che non ha riportato su il servizio, il prossimo aspetta tanto (0.84.0). */
@@ -174,6 +181,8 @@ export function creaClientAutopilota(p: {
   /** Dove raccontare cosa si è deciso (il registro del Gestore). */
   log?: (m: string) => void
   attesaMs?: number
+  /** L'attesa delle POST che scrivono (predefinita 30 s). */
+  attesaScritturaMs?: number
   /**
    * La versione di **questa** applicazione.
    *
@@ -191,6 +200,7 @@ export function creaClientAutopilota(p: {
   elencoFrescoMs?: number
 }): ClientAutopilota {
   const attesaMs = p.attesaMs ?? ATTESA_PREDEFINITA_MS
+  const attesaScrittura = p.attesaScritturaMs ?? ATTESA_SCRITTURA_MS
   const adesso = p.adesso ?? Date.now
   let inVerifica: Promise<boolean> | undefined
   /** Quando un avvio non ha riportato su il servizio (0.84.0). */
@@ -217,7 +227,8 @@ export function creaClientAutopilota(p: {
     } catch (err) {
       // Il messaggio nomina il servizio e la porta: il pannello lo mostra
       // all'utente, e «fetch failed» non gli direbbe niente su cosa riavviare.
-      throw new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`)
+      const scaduto = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+      throw Object.assign(new Error(`il servizio autopilota non risponde sulla porta ${p.porta}: ${String(err)}`), scaduto ? { scaduto: true } : {})
     }
 
     const testo = await risposta.text()
@@ -313,11 +324,32 @@ export function creaClientAutopilota(p: {
       return inViaggio
     },
     versioneDettaglio: (id) => dettagliTenuti.get(id)?.etag,
-    crea: async (nuovo) => (await chiama('/orchestratore/messaggio', 'POST', { testo: nuovo.obiettivo, cwd: nuovo.cwd, ...(nuovo.workspace !== undefined ? { workspace: nuovo.workspace } : {}) })) as Autopilota,
-    dialoga: async (id, testo) =>
-      (await chiama(`/autopiloti/${encodeURIComponent(id)}/dialogo`, 'POST', { testo })) as RicevutaDialogo,
+    crea: async (nuovo) => (await chiama('/orchestratore/messaggio', 'POST', { testo: nuovo.obiettivo, cwd: nuovo.cwd, ...(nuovo.workspace !== undefined ? { workspace: nuovo.workspace } : {}) }, attesaScrittura)) as Autopilota,
+    dialoga: async (id, testo) => {
+      const percorso = `/autopiloti/${encodeURIComponent(id)}/dialogo`
+      // Lo stesso id a ogni tentativo: il servizio scarta il doppione (k-42).
+      const corpo = { testo, idMessaggio: randomUUID() }
+      const inizio = adesso()
+      let ultimo: unknown
+      for (let tentativo = 0; tentativo < 2; tentativo++) {
+        try {
+          return (await chiama(percorso, 'POST', corpo, attesaScrittura)) as RicevutaDialogo
+        } catch (err) {
+          if ((err as { scaduto?: boolean }).scaduto !== true) throw err
+          ultimo = err
+        }
+      }
+      // Nessuna conferma: se il messaggio e' gia' nella conversazione, e' arrivato.
+      const arrivato = await chiediDettaglio(id).then(
+        (a) => a?.dialogo.some((s) => s.da === 'tu' && s.testo === testo && Date.parse(s.quando) >= inizio - 1000) === true,
+        () => false
+      )
+      if (arrivato) return { ricevuto: true }
+      p.log?.(`[autopilota] dialogo: nessuna conferma dal servizio dopo due tentativi (${String(ultimo)})`)
+      throw Object.assign(new Error(MESSAGGIO_SERVIZIO_OCCUPATO), { scaduto: true })
+    },
     adotta: async (id, chat, soloMie = []) => {
-      const r = (await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta`, 'POST', { chat, soloMie })) as { nuove?: unknown } | undefined
+      const r = (await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta`, 'POST', { chat, soloMie }, attesaScrittura)) as { nuove?: unknown } | undefined
       return Array.isArray(r?.nuove) ? r.nuove.filter((x): x is string => typeof x === 'string') : []
     },
     togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }) },
@@ -337,10 +369,10 @@ export function creaClientAutopilota(p: {
       return { righe, errori }
     },
     nota: async (id, testo) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo })
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/nota`, 'POST', { testo }, attesaScrittura)
     },
     annuncia: async (id, titolo, testo) => {
-      await chiama(`/autopiloti/${encodeURIComponent(id)}/annuncio`, 'POST', { titolo, testo })
+      await chiama(`/autopiloti/${encodeURIComponent(id)}/annuncio`, 'POST', { titolo, testo }, attesaScrittura)
     },
     domande: async () => (await chiama('/domande', 'GET')) as DomandaAperta[],
     risolte: async () => {

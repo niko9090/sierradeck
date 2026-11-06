@@ -209,6 +209,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
   /** Gli autopiloti dei workspace: gli altri file dell'archivio sono di prima e non si mostrano. */
   const unici = (): Autopilota[] => unico?.unici() ?? []
+  /** I messaggi del dialogo già scritti (autopilota|idMessaggio): un secondo tentativo con lo stesso id non li ripete. */
+  const dialoghiRicevuti = new Set<string>()
   const leggiUnico = (id: string): Autopilota | undefined => (ID_VALIDO.test(id) && unico?.eUnico(id) === true ? deps.archivio.leggi(id) : undefined)
 
   // ── I segni di vita delle chat adottate ──
@@ -989,7 +991,19 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (cosa === 'dialogo') {
             const testo = testoDi(corpo.testo).trim()
             if (testo === '') { rispondi(res, 400, { errore: 'non hai scritto niente' }); return }
-            rispondi(res, 202, { ricevuto: true, autopilota: servizio().messaggio(a, testo) })
+            // Con l'id del messaggio un nuovo tentativo (il pannello ha aspettato troppo) non lo scrive due volte.
+            const idMsg = testoDi(corpo.idMessaggio).trim().slice(0, 80)
+            const chiave = `${id}|${idMsg}`
+            if (idMsg !== '' && dialoghiRicevuti.has(chiave)) {
+              rispondi(res, 202, { ricevuto: true, giaArrivato: true, autopilota: deps.archivio.leggi(id) ?? a })
+              return
+            }
+            const nuovo = servizio().messaggio(a, testo)
+            if (idMsg !== '') {
+              dialoghiRicevuti.add(chiave)
+              if (dialoghiRicevuti.size > 500) dialoghiRicevuti.delete(dialoghiRicevuti.values().next().value as string)
+            }
+            rispondi(res, 202, { ricevuto: true, autopilota: nuovo })
             return
           }
           // Un annuncio del programma (0.81.0, «Errori arrivati»): una sua battuta e una notifica sola.
