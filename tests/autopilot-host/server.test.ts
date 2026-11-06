@@ -188,6 +188,19 @@ describe('il programma scrive all’autopilota', () => {
     expect(r.dati.autopilota.dialogo.at(-1)).toMatchObject({ da: 'tu', testo: 'aggiungi il pulsante' })
     expect((await chiama('POST', '/autopiloti/ap-1/dialogo', { testo: '' })).stato).toBe(400)
   })
+
+  it('lo stesso messaggio rimandato con lo stesso id non si scrive due volte (k-42)', async () => {
+    unico()
+    const primo = await chiama('POST', '/autopiloti/ap-1/dialogo', { testo: 'una volta sola', idMessaggio: 'm-1' })
+    const secondo = await chiama('POST', '/autopiloti/ap-1/dialogo', { testo: 'una volta sola', idMessaggio: 'm-1' })
+    expect(primo.stato).toBe(202)
+    expect(secondo.stato).toBe(202)
+    expect(secondo.dati).toMatchObject({ ricevuto: true, giaArrivato: true })
+    expect(archivio.leggi('ap-1')!.dialogo.filter((s) => s.da === 'tu' && s.testo === 'una volta sola')).toHaveLength(1)
+    // Un id diverso e' un messaggio nuovo.
+    await chiama('POST', '/autopiloti/ap-1/dialogo', { testo: 'una volta sola', idMessaggio: 'm-2' })
+    expect(archivio.leggi('ap-1')!.dialogo.filter((s) => s.da === 'tu' && s.testo === 'una volta sola')).toHaveLength(2)
+  })
 })
 
 describe('gli hook delle chat adottate', () => {
