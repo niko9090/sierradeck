@@ -25,6 +25,7 @@
 - Senza DOM i tasti si provano chiamando il componente puro come funzione e cercando onClick nell'albero degli elementi; la pagina si prova con new Function sulle funzioni estratte. _(2026-11-06)_
 - L'hook di carico PC rimanda vitest per cartella e tsc, ma lascia passare un file alla volta, anche in un ciclo `for` con percorsi espliciti: così si prova il ramo a PC carico. _(2026-11-06)_
 - `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
+- il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
 
 ## worktree
 
@@ -125,6 +126,7 @@
 - Il servizio avviato dallo script di login non riceve SIERRADECK_VERSIONE (versione «?»); senza versione il Gestore non lo sostituisce. Non scriverla nello script: invecchia. _(2026-11-05)_
 - il dialogo scade a 3 s se il servizio è occupato ma il messaggio può essere già scritto: le POST che scrivono vogliono attesa lunga e un id del messaggio, altrimenti il ritentativo lo duplica _(2026-11-06)_
 - Le domande hanno 2 elenchi: `aperte()` (tutte, per dedupe e ritiro) e `visibili()` (senza quelle solo-in-chat). Pannello, telefono e notifiche leggono `GET /domande`, che filtra. _(2026-11-06)_
+- il tetto dei subagenti è una variabile d'ambiente del processo claude: per cambiarlo si spegne e si riprende con --resume, solo a turno finito. Il tetto per workspace (3) lo limitava anche con 6 post… _(2026-11-06)_
 
 ## controllo
 
@@ -143,6 +145,7 @@
 ## strumenti
 
 - Nel worktree il filtro dei comandi rifiuta qualunque comando Bash con «git» dentro, anche `npm version --no-git-tag-version`: da PowerShell passa. _(2026-11-05)_
+- l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
 
 ## pubblicazione
 
@@ -163,6 +166,7 @@
 - Il guardiano del PC blocca anche typecheck e Bash/PowerShell per minuti, e sleep e Monitor non si possono usare: fare prima il commit. _(2026-11-06)_
 - Il filtro di carico blocca tsc e le suite complete anche quando il PC sembra libero; i test di un solo file passano. Aspettare con `node -e "setTimeout(...)"` e riprovare _(2026-11-06)_
 - Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
+- con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
 
 ## renderer
 
@@ -198,7 +202,12 @@
 ## orchestratore
 
 - Un Agent rifiutato dalla guardia arriva nel flusso come specialista «avviato» e poi «fallito» (tool_result is_error): nei test va emesso il tool_result, o i posti risultano occupati due volte _(2026-11-06)_
+- gli Agent sono dentro il processo dell'orchestratore: non c'è modo di fermarne uno solo dal servizio, la fermata passa da un avviso all'orchestratore. _(2026-11-06)_
 
 ## menu
 
 - Aggiungere una voce a MENU_PRINCIPALE rompe l'app Android (menu.json, Scheda, MenuPrincipaleTest): le voci solo-PC vanno fuori da quella lista, come VOCE_SPECIALISTI. _(2026-11-06)_
+
+## pagina
+
+- la pagina del telefono è una stringa TS: niente backtick né backslash, `\d` diventa `[0-9]`. Il test `posti-chat-pagina` estrae le funzioni con `new Function` e vuole definite le variabili globali. _(2026-11-06)_
