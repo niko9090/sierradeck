@@ -208,6 +208,8 @@ export type DipendenzeRotte = {
   autopiloti: () => Promise<Autopilota[]>
   /** Un autopilota intero, con tutta la storia (0.85.2), per la sua scheda. Senza, dall'elenco. */
   autopilota?: (id: string) => Promise<Autopilota | undefined>
+  /** 0.96.0: la scheda di quell'autopilota è aperta sul telefono (la chiede ogni due secondi): il suo workspace è «visto». */
+  schedaApertaSulTelefono?: (workspace: string) => void
   /**
    * L'avanzamento dell'autopilota unico di un workspace (0.86.x): la vista
    * dell'orchestratore (percentuale, specialisti, piano) e la coda delle
@@ -1509,6 +1511,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         ? await deps.autopilota(id).catch(() => undefined)
         : (await deps.autopiloti().catch(() => [] as Autopilota[])).find((x) => x.id === id)
       if (a === undefined) return { stato: 404, corpo: { errore: 'autopilota inesistente' } }
+      deps.schedaApertaSulTelefono?.(chiaveWorkspace(a))
       // La domanda aperta, se c'e': la pagina e l'app rispondono da li',
       // dalla stessa casella con cui gli parlano.
       const tutteLeDomande = await deps.domande().catch(() => [])

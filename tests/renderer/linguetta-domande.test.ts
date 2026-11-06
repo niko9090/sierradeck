@@ -29,8 +29,8 @@ describe('le domande in un posto solo', () => {
     expect(app).toContain("onDomande={() => commutaColonna('domande')}")
     expect(app).not.toContain('pannello.mostraDomande')
   })
-  it('la chat con lui non risponde alle domande: dice che sono nella colonna', () => {
-    expect(chat).not.toContain('window.gestore.autopilota.rispondi(')
+  it('k-45: le sue domande compaiono prima nella sua chat (si risponde da lì); se non lette passano nella colonna', () => {
+    expect(chat).toContain('window.gestore.autopilota.rispondi(')
     expect(chat).toContain('è nella colonna Domande')
   })
 })

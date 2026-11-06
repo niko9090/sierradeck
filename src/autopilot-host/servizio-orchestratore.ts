@@ -17,7 +17,8 @@ import { esaminaComando } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
-import type { ContestoDomanda, RegistroDomande } from './domande'
+import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
+import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
@@ -173,6 +174,8 @@ export type ServizioUnico = {
   /** Una risposta di Nicholas a una domanda dell'unico: torna `true` se l'ha presa. */
   risposta: (autopilotaId: string, domanda: string, risposta: string) => boolean
   guardia: () => void
+  /** 0.96.0: la chat di questo workspace è davanti a Nicholas adesso (PC o telefono): le sue domande in chat contano come viste. */
+  visto: (ws: string) => void
   riprendi: (a: Autopilota) => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
@@ -579,7 +582,7 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     if (riga.da === 'evento') return
     const u = unicoDi(ws)
     if (u === undefined) return
-    x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo }].slice(-DIALOGO_RICORDATO) })
+    x.salva({ ...u, dialogo: [...u.dialogo, { quando: riga.quando, da: riga.da, testo: riga.testo, ...(riga.domanda !== undefined ? { domanda: riga.domanda } : {}) }].slice(-DIALOGO_RICORDATO) })
   }
 
   const riassunto = (ws: string): string => {
@@ -885,7 +888,12 @@ ${NOTA_SENZA_GIT}`,
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti
 
-  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string): ReturnType<RegistroDomande['apri']> => {
+  /**
+   * `inChat` (0.96.0): la domanda nasce nella chat dell'autopilota; nelle Domande,
+   * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). I permessi no:
+   * uno specialista li aspetta e sono urgenti.
+   */
+  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string } = {}): ReturnType<RegistroDomande['apri']> => {
     // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
     const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
     const pronta = domandaControllataSubito(a.nome, {
@@ -898,12 +906,28 @@ ${NOTA_SENZA_GIT}`,
       }),
       seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
     })
-    const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta) })
-    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda })
+    const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta), ...(opz.inChat === true ? { inChat: true } : {}) })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
     x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
-    void x.avvisa('domanda', a, domanda)
+    if (opz.inChat === true) {
+      // Nella chat: il testo intero con le scelte, e i tasti da toccare (sul PC). Si risponde anche scrivendo.
+      nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo: `${pronta.testo}
+
+Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaToccare(d) } })
+    } else {
+      void x.avvisa('domanda', a, domanda)
+    }
     return d
   }
+
+  /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
+  const vistoIl = new Map<string, number>()
+  // Una domanda chiusa (risposta, superata, ritirata): i suoi tasti spariscono dalla chat.
+  x.domande.suChiusa((d) => {
+    const a = x.archivio.leggi(d.autopilotaId)
+    if (a === undefined || !a.dialogo.some((r) => r.domanda?.id === d.id && r.domanda.chiusa !== true)) return
+    x.salva({ ...a, dialogo: a.dialogo.map((r) => (r.domanda?.id === d.id ? { ...r, domanda: { ...r.domanda, chiusa: true as const } } : r)) })
+  })
 
   const ambiente: AmbienteOrchestratore = {
     adesso: x.adesso,
@@ -941,7 +965,7 @@ ${NOTA_SENZA_GIT}`,
       }
       return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
     },
-    chiedi(ws, domanda, scelte, perche) {
+    chiedi(ws, domanda, scelte, perche, richiesta) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
       const aperte = x.domande.aperte(a.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo }))
@@ -950,7 +974,8 @@ ${NOTA_SENZA_GIT}`,
       const gia = x.memoria?.rispostaPer(a.id, domanda)
       const giaData = gia?.esatta ?? gia?.simile
       if (giaData !== undefined) return { ok: true, testo: `Nicholas ha già risposto a questa domanda (${giaData.quando.slice(0, 10)}): «${giaData.risposta}». Non la rifaccio.` }
-      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te')
+      const richiestaId = richiestaDellaDomanda(coda(ws), richiesta, domanda)
+      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}) })
       return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
     },
     ritira(ws, id, perche) {
@@ -1186,6 +1211,13 @@ ${NOTA_SENZA_GIT}`,
           console.info(`[orchestratore] ${wsDi(a)} — domanda superata dal lavoro finito, chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
           continue
         }
+        // 0.96.0: la richiesta da cui nasce è chiusa o unita: la domanda non serve più.
+        const rid = d.contesto?.richiestaId
+        const chiusa = rid !== undefined ? richiestaChiusa(c, rid) : undefined
+        if (rid !== undefined && chiusa?.chiusa === true && x.domande.superata(d.id, `la richiesta ${rid} è ${chiusa.come ?? 'chiusa'}: non serve più`)) {
+          console.info(`[orchestratore] ${wsDi(a)} — domanda superata dalla richiesta ${rid} (${chiusa.come ?? 'chiusa'}), chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
+          continue
+        }
         if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
         if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
         const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)
@@ -1195,10 +1227,33 @@ ${NOTA_SENZA_GIT}`,
     }
   }
 
+  /**
+   * 0.96.0: dalla chat alle Domande. Una domanda nata nella chat passa nelle
+   * Domande (con la notifica) quando nessuno l'ha vista in chat entro
+   * `DOMANDA_IN_CHAT_MS`, o l'ha vista ma non ha risposto da
+   * `DOMANDA_VISTA_SENZA_RISPOSTA_MS`. Il tasto nella chat resta.
+   */
+  const emergiDomande = (ora: number): void => {
+    for (const a of unici()) {
+      const ws = wsDi(a)
+      for (const d of x.domande.aperte(a.id)) {
+        if (!soloInChat(d)) continue
+        const { passa, vista } = devePassareAlleDomande(d, vistoIl.get(ws), ora)
+        if (!passa) continue
+        const e = x.domande.emergi(d.id, ora)
+        if (e === undefined) continue
+        const testo = e.parti?.domanda ?? e.contesto?.grezza ?? e.testo
+        console.info(`[orchestratore] ${ws} — domanda ${vista ? 'vista in chat ma senza risposta' : 'non vista in chat'}: passa nelle Domande: ${testo.slice(0, 120)}`)
+        void x.avvisa('domanda', a, testo)
+      }
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
     try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
+    try { emergiDomande(ora) } catch (err) { console.error('[orchestratore] domande dalla chat alle Domande non riuscito:', err) }
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     for (const a of unici()) {
@@ -1379,6 +1434,7 @@ ${NOTA_SENZA_GIT}`,
     notifica,
     risposta,
     guardia,
+    visto: (ws) => { vistoIl.set(ws, Date.parse(x.adesso())) },
     riprendi,
     reindirizza(id, chatId) {
       const a = x.archivio.leggi(id)

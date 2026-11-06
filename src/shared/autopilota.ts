@@ -101,6 +101,12 @@ export type ScambioDialogo = {
    * sotto la domanda; il supervisore la legge come un messaggio normale.
    */
   risponde?: string
+  /**
+   * 0.96.0: una sua domanda messa nella chat (prima che passi nelle Domande):
+   * l'id nel registro delle domande, le scelte da toccare, e `chiusa` quando
+   * ha avuto risposta o non serve più (i tasti spariscono).
+   */
+  domanda?: { id: string; scelte: string[]; chiusa?: true }
 }
 
 /** Quanti messaggi consegnati si ricordano per autopilota (0.69.0). */
@@ -646,11 +652,17 @@ function parseScambio(raw: unknown): ScambioDialogo | undefined {
   if (o.da !== 'tu' && o.da !== 'lui') return undefined
   const esito = stringaNonVuota(o.esito)
   const risponde = o.da === 'tu' ? stringaNonVuota(o.risponde) : undefined
+  const dom = o.da === 'lui' && typeof o.domanda === 'object' && o.domanda !== null ? o.domanda as Record<string, unknown> : undefined
+  const idDomanda = stringaNonVuota(dom?.id)
+  const domanda = idDomanda !== undefined
+    ? { id: idDomanda, scelte: (Array.isArray(dom?.scelte) ? dom.scelte : []).filter((c): c is string => typeof c === 'string' && c.trim() !== '').slice(0, 6), ...(dom?.chiusa === true ? { chiusa: true as const } : {}) }
+    : undefined
   return {
     quando, da: o.da, testo,
     ...(esito !== undefined ? { esito } : {}),
     ...(o.traccia === true ? { traccia: true as const } : {}),
-    ...(risponde !== undefined ? { risponde } : {})
+    ...(risponde !== undefined ? { risponde } : {}),
+    ...(domanda !== undefined ? { domanda } : {})
   }
 }
 

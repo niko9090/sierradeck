@@ -3073,6 +3073,9 @@ select:focus-visible { outline: 2px solid var(--accento); outline-offset: 1px; }
 
 .chatap__via { justify-self: start; margin-top: var(--s1); }
 
+/* I tasti di una sua domanda nata in chat (0.96.0). */
+.chatap__scelte { display: flex; flex-wrap: wrap; gap: var(--s1); margin-top: var(--s1); }
+
 /* Le note: la sua voce di lavoro, una riga sola, quieta, con il filo colorato
    a sinistra come nel diario. */
 .chatap__riga--nota {
