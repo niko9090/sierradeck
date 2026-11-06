@@ -65,7 +65,7 @@ export const UNIONE_MAX_MS = 25 * 60_000
 export const UNIONE_RIPROVA_MS = 30_000
 /** Quante volte al più si rimette in fila un'unione scaduta, poi il compito dice com'è andata. */
 export const UNIONE_TENTATIVI_MAX = 3
-/** Un'unione che aspetta il suo turno, o che aspetta la cartella principale (il motivo, se c'è). */
+/** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
   constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string) { super(perche) }
 }
