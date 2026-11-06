@@ -516,7 +516,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
 
     async elencaConDimensioni() {
       const tk = await deps.token()
-      const fuori: { nome: string; byte: number; modificato?: string }[] = []
+      const fuori: { nome: string; byte: number; modificato?: string; id?: string }[] = []
       let pageToken: string | undefined
       do {
         const campi = encodeURIComponent('nextPageToken,files(id,name,size,modifiedTime)')
@@ -527,11 +527,54 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           if (file.name === undefined) continue
           // Gli id per nome li impara `elenca`, che sa scegliere fra i doppioni:
           // qui ogni copia conta per lo spazio, ma nessuna diventa «quella».
-          fuori.push({ nome: file.name, byte: Number.parseInt(file.size ?? '0', 10) || 0, ...(file.modifiedTime !== undefined ? { modificato: file.modifiedTime } : {}) })
+          // L'id c'e' (0.95.6) perche' due copie con lo stesso nome si distinguano.
+          fuori.push({ nome: file.name, ...(file.id !== undefined ? { id: file.id } : {}), byte: Number.parseInt(file.size ?? '0', 10) || 0, ...(file.modifiedTime !== undefined ? { modificato: file.modifiedTime } : {}) })
         }
         pageToken = j.nextPageToken
       } while (pageToken !== undefined)
       return fuori
+    },
+
+    /**
+     * Le revisioni di un file della cartella dell'app (0.95.6). `appDataFolder`
+     * non serve ripeterlo: la richiesta e' per id, e gli id arrivano solo
+     * dall'elenco che chiede `spaces=appDataFolder`; con il permesso
+     * `drive.appdata` il Drive non risponde per altri file.
+     */
+    async elencaRevisioni(id) {
+      const tk = await deps.token()
+      const fuori: { id: string; modificato?: string; byte: number; tenutaPerSempre?: boolean }[] = []
+      let pageToken: string | undefined
+      do {
+        const campi = encodeURIComponent('nextPageToken,revisions(id,modifiedTime,size,keepForever)')
+        const url = `${API}/files/${encodeURIComponent(id)}/revisions?pageSize=200&fields=${campi}${pageToken !== undefined ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`
+        const r = await conRitenta(() => f(url, { headers: intestazioni(tk) }), 'elenco delle versioni')
+        const j = (await r.json()) as { nextPageToken?: string; revisions?: Array<{ id?: string; modifiedTime?: string; size?: string; keepForever?: boolean }> }
+        for (const v of j.revisions ?? []) {
+          if (v.id === undefined) continue
+          fuori.push({
+            id: v.id, byte: Number.parseInt(v.size ?? '0', 10) || 0,
+            ...(v.modifiedTime !== undefined ? { modificato: v.modifiedTime } : {}),
+            ...(v.keepForever === true ? { tenutaPerSempre: true } : {})
+          })
+        }
+        pageToken = j.nextPageToken
+      } while (pageToken !== undefined)
+      return fuori
+    },
+
+    async cancellaRevisione(id, revisione) {
+      const tk = await deps.token()
+      try {
+        await conRitenta(() => f(`${API}/files/${encodeURIComponent(id)}/revisions/${encodeURIComponent(revisione)}`, { method: 'DELETE', headers: intestazioni(tk) }), 'cancellazione della versione')
+        return 'ok'
+      } catch (e) {
+        const stato = (e as { stato?: number }).stato
+        // Gia' sparita: come fatta. Rifiutata dall'API (l'ultima, una fissata, un permesso): si salta.
+        if (stato === 404) return 'ok'
+        if (stato === 400 || stato === 403) return 'rifiutata'
+        throw e
+      }
     },
 
     async quota() {

@@ -5322,7 +5322,7 @@ const PD_TIPI = [['chat', 'Chat'], ['progetti', 'Progetti'], ['battiti', 'Battit
 function pdByte(n) { const u = ['byte', 'KB', 'MB', 'GB', 'TB']; let x = n; let i = 0; while (x >= 1024 && i < u.length - 1) { x /= 1024; i++ } return (i === 0 ? String(x) : x.toFixed(x < 10 ? 1 : 0).replace('.', ',')) + ' ' + u[i] }
 window.pdSpazio = async (azione, tipo, id) => {
   const chiave = 'spazio:' + azione + ':' + (tipo || id || '')
-  if (azione !== 'spazio-annulla' && azione !== 'spazio-misura' && pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
+  if (azione !== 'spazio-annulla' && azione !== 'spazio-misura' && azione !== 'spazio-versioni-conta' && pdDaConfermare !== chiave) { pdDaConfermare = chiave; pannello(ultimoStato); return }
   pdDaConfermare = ''
   try { const r = await chiedi('/api/drive/azione', { azione: azione, tipo: tipo || '', id: id || '' }); notaGlobale = (r && r.messaggio) || 'Fatto.' }
   catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
@@ -5339,15 +5339,17 @@ function pdSpazioHtml() {
     for (const t of PD_TIPI) { const v = m.perTipo[t[0]]; if (v && v.file > 0) h += '<div class="sotto">' + esc(t[1]) + ': ' + pdByte(v.byte) + ' · ' + v.file + ' file</div>' }
   }
   for (const p of sp.proposte || []) {
-    const c = pdDaConfermare === 'spazio:spazio-pulisci:' + p.tipo
-    h += '<div class="sotto" style="margin-top:6px"><b>' + esc(p.titolo) + '</b> · ' + esc(p.breve) + ' · libera ' + pdByte(p.byte) + aiuto('pulizia-' + p.tipo, p.spiega) + '</div><div class="riga"><button' + (c ? ' class="primario"' : '') + ' onclick="pdSpazio(\\'spazio-pulisci\\', \\'' + escJs(p.tipo) + '\\', \\'\\')">' + (c ? 'Tocca ancora: nel recupero' : 'Pulisci…') + '</button></div>'
+    const ver = p.tipo === 'versioni'
+    const az = ver ? 'spazio-versioni-libera' : 'spazio-pulisci'
+    const c = pdDaConfermare === 'spazio:' + az + ':' + p.tipo
+    h += '<div class="sotto" style="margin-top:6px"><b>' + esc(p.titolo) + '</b> · ' + esc(p.breve) + ' · libera ' + (ver ? 'circa ' : '') + pdByte(p.byte) + aiuto('pulizia-' + p.tipo, p.spiega) + '</div><div class="riga"><button' + (c ? ' class="primario"' : '') + ' onclick="pdSpazio(\\'' + az + '\\', \\'' + escJs(p.tipo) + '\\', \\'\\')">' + (c ? (ver ? 'Tocca ancora: cancella ' + (p.versioni || 0) + ' versioni (' + pdByte(p.byte) + ') per sempre' : 'Tocca ancora: nel recupero') : (ver ? 'Togli…' : 'Pulisci…')) + '</button></div>'
   }
   if (m && (sp.proposte || []).length === 0) h += '<div class="sotto">Niente da pulire.</div>'
   for (const x of (sp.pulizie || []).filter((x) => !x.annullataIl && !x.svuotataIl)) {
     const c = pdDaConfermare === 'spazio:spazio-svuota:' + x.id
     h += '<div class="sotto" style="margin-top:6px"><b>' + esc(x.titolo) + '</b> · ' + x.voci.length + ' file, ' + pdByte(x.byte) + ' · nel recupero fino al ' + esc(pdQuando(x.scadeIl)) + '</div><div class="riga"><button onclick="pdSpazio(\\'spazio-annulla\\', \\'\\', \\'' + escJs(x.id) + '\\')">Annulla</button><button' + (c ? ' class="primario"' : '') + ' onclick="pdSpazio(\\'spazio-svuota\\', \\'\\', \\'' + escJs(x.id) + '\\')">' + (c ? 'Tocca ancora: cancella per sempre' : 'Svuota adesso…') + '</button></div>'
   }
-  return h + '<div class="riga"><button onclick="pdSpazio(\\'spazio-misura\\', \\'\\', \\'\\')">Misura adesso</button></div>'
+  return h + '<div class="riga"><button onclick="pdSpazio(\\'spazio-misura\\', \\'\\', \\'\\')">Misura adesso</button><button onclick="pdSpazio(\\'spazio-versioni-conta\\', \\'\\', \\'\\')">Conta le versioni vecchie</button></div>'
 }
 function pdQuando(iso) { if (!iso) return 'mai'; try { return new Date(iso).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) } catch (e) { return iso } }
 function pdStato(s) { return s === 'residente' ? '<span style="color:var(--verde,#3c9)">● residente</span>' : s === 'conflitto' ? '<span style="color:var(--ambra,#e0a33c)">● in conflitto</span>' : '<span class="sotto">● solo cloud</span>' }

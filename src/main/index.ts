@@ -3234,10 +3234,16 @@ if (!app.requestSingleInstanceLock()) {
         if (azione === 'spazio-misura') { await spazio.stato(true); return { ok: true, messaggio: 'Misurato adesso.' } }
         if (azione === 'spazio-pulisci') {
           const tipo = testoDi(c.tipo)
-          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto' && tipo !== 'prove') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
+          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto' && tipo !== 'prove' && tipo !== 'doppioni-nome') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
           const e = await spazio.pulisci(tipo)
           void spazio.stato(true)
           return { ok: e.ok, messaggio: e.messaggio }
+        }
+        // Le versioni vecchie (0.95.6): si contano su richiesta, si cancellano solo con la conferma di Nicholas.
+        if (azione === 'spazio-versioni-conta' || azione === 'spazio-versioni-libera') {
+          const e = azione === 'spazio-versioni-conta' ? await spazio.contaVersioni() : await spazio.liberaVersioni()
+          void spazio.stato(true)
+          return e
         }
         if (azione === 'spazio-annulla' || azione === 'spazio-svuota') {
           const id = testoDi(c.id)

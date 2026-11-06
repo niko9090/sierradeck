@@ -28,7 +28,7 @@ export const ETICHETTA_SPAZIO: Record<TipoSpazio, string> = {
 }
 
 /** Un file della cartella dell'app, con la sua dimensione vera sul Drive. */
-export type FileDrive = { nome: string; byte: number; modificato?: string }
+export type FileDrive = { nome: string; byte: number; modificato?: string; id?: string }
 
 /** Una voce del manifesto (percorso → file cifrato). */
 export type VoceIndice = { nome: string; size: number; mtime: number; sha?: string; pc?: string }
@@ -89,18 +89,20 @@ export function percorsiPerNome(indice: IndiceDrive): Map<string, string> {
 
 export function misura(p: { file: FileDrive[]; indice: IndiceDrive; quota?: QuotaDrive; pulizie?: RegistroPulizie; adesso: number }): MisuraSpazio {
   const perNome = percorsiPerNome(p.indice)
-  const inPulizia = nomiInRecupero(p.pulizie)
+  const inPuliziaNomi = nomiInRecupero(p.pulizie)
+  const inPuliziaId = idInRecupero(p.pulizie)
+  const inPulizia = { has: (nome: string, id?: string): boolean => inPuliziaNomi.has(nome) || (id !== undefined && inPuliziaId.has(id)) }
   const perTipo = Object.fromEntries(TIPI_SPAZIO.map((t) => [t, { file: 0, byte: 0 }])) as Record<TipoSpazio, { file: number; byte: number }>
   const totale = { file: 0, byte: 0 }
   const inRecupero = { file: 0, byte: 0 }
   for (const f of p.file) {
     // Un file tolto dal manifesto da una pulizia è in recupero, non «senza voce».
-    const t = inPulizia.has(f.nome) ? 'recupero' : tipoDi(f.nome, perNome.get(f.nome))
+    const t = inPulizia.has(f.nome, f.id) ? 'recupero' : tipoDi(f.nome, perNome.get(f.nome))
     perTipo[t].file += 1
     perTipo[t].byte += f.byte
     totale.file += 1
     totale.byte += f.byte
-    if (inPulizia.has(f.nome)) { inRecupero.file += 1; inRecupero.byte += f.byte }
+    if (inPulizia.has(f.nome, f.id)) { inRecupero.file += 1; inRecupero.byte += f.byte }
   }
   // Per progetto (0.69.0): i file sotto `progetto-<id>/` dell'indice.
   const perProgetto: NonNullable<MisuraSpazio['perProgetto']> = {}
@@ -118,7 +120,7 @@ export function misura(p: { file: FileDrive[]; indice: IndiceDrive; quota?: Quot
   }
   const piuGrandi = [...p.file].sort((a, b) => b.byte - a.byte).slice(0, 30).map((f) => {
     const percorso = perNome.get(f.nome)
-    const tipo = inPulizia.has(f.nome) ? 'recupero' as const : tipoDi(f.nome, percorso)
+    const tipo = inPulizia.has(f.nome, f.id) ? 'recupero' as const : tipoDi(f.nome, percorso)
     return { nome: f.nome, byte: f.byte, tipo, ...(percorso !== undefined ? { percorso } : {}), perche: percheSulDrive(tipo, percorso) }
   })
   return { ...(p.quota !== undefined ? { quota: p.quota } : {}), totale, perTipo, inRecupero, misuratoIl: new Date(p.adesso).toISOString(), perProgetto, piuGrandi }
@@ -137,10 +139,15 @@ export type StatoSpazio = {
 /* ------------------------------------------------------------------ */
 
 /** `chat-eliminate` (0.79.0): «Elimina dal PC … anche dal Drive», non una proposta del giro. */
-export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove' | 'chat-eliminate'
+export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove' | 'chat-eliminate' | 'doppioni-nome' | 'versioni'
 
 /** Un file che una pulizia toglie: con la sua voce del manifesto, se ce l'ha, per rimetterla. */
-export type VocePulita = { nome: string; byte: number; percorso?: string; voce?: VoceIndice }
+/**
+ * `id` (0.95.6): solo per i doppioni per nome. Due file con lo stesso nome si
+ * distinguono per id: il recupero e la cancellazione guardano l'id, mai il nome
+ * (il nome e' anche quello del file che resta).
+ */
+export type VocePulita = { nome: string; byte: number; percorso?: string; voce?: VoceIndice; id?: string }
 
 export type Proposta = {
   tipo: TipoProposta
@@ -150,6 +157,8 @@ export type Proposta = {
   spiega: string
   voci: VocePulita[]
   byte: number
+  /** `versioni` (0.95.6): quante versioni vecchie si cancellerebbero. Non passano dal recupero. */
+  versioni?: number
 }
 
 /** Le chat ferme da più di questo, già sul disco di un PC, si possono togliere dal Drive. */
@@ -297,7 +306,102 @@ export function proposteDiPulizia(p: {
       byte: somma(scaduti)
     })
   }
+
+  // 4. Doppioni per nome (0.95.6): Drive ammette piu' file con lo stesso nome.
+  // Chi legge ne vede uno solo (il piu' recente non vuoto): gli altri sono
+  // spazio perso. Solo i file dei dati e dei battiti; mai l'indice, le lapidi,
+  // il registro delle pulizie, i workspace o la cassaforte.
+  const idFuori = idInRecupero(p.pulizie)
+  const doppioni = doppioniPerNome(p.file.filter((f) => f.id === undefined || !idFuori.has(f.id)))
+  if (doppioni.length > 0) {
+    fuori.push({
+      tipo: 'doppioni-nome',
+      titolo: 'Doppioni per nome',
+      breve: `${doppioni.length} file salvati due volte con lo stesso nome`,
+      spiega: 'Il Drive ha accettato due file con lo stesso nome: SierraDeck ne legge uno solo, il più recente, e l’altro occupa spazio per niente. Si toglie la copia più vecchia; resta 30 giorni nel recupero e poi si cancella.',
+      voci: doppioni,
+      byte: somma(doppioni)
+    })
+  }
   return fuori
+}
+
+/** I nomi che non si toccano mai nei doppioni: solo i dati e i battiti sono ammessi. */
+function nomeDaDoppioni(nome: string): boolean {
+  return nome.startsWith('f_') || PREFISSI_BATTITI.some((x) => nome.startsWith(x))
+}
+
+/**
+ * I file in piu' fra quelli con lo stesso nome. Resta il piu' recente non
+ * vuoto (la stessa scelta di chi legge); a pari ora, il primo dell'elenco.
+ */
+export function doppioniPerNome(file: FileDrive[]): VocePulita[] {
+  const perNome = new Map<string, FileDrive[]>()
+  for (const f of file) {
+    if (f.id === undefined || !nomeDaDoppioni(f.nome)) continue
+    perNome.set(f.nome, [...(perNome.get(f.nome) ?? []), f])
+  }
+  const fuori: VocePulita[] = []
+  for (const gruppo of perNome.values()) {
+    if (gruppo.length < 2) continue
+    const ora = (f: FileDrive): number => (f.modificato !== undefined ? Date.parse(f.modificato) || 0 : 0)
+    const ordinati = [...gruppo].sort((a, b) => (b.byte > 0 ? 1 : 0) - (a.byte > 0 ? 1 : 0) || ora(b) - ora(a))
+    for (const f of ordinati.slice(1)) fuori.push({ nome: f.nome, byte: f.byte, id: f.id as string })
+  }
+  return fuori
+}
+
+/* ------------------------------------------------------------------ */
+/* Le versioni vecchie dei file (0.95.6): revisioni del Drive.         */
+/* ------------------------------------------------------------------ */
+
+/** Una revisione di un file: ogni scrittura ne lascia una sul Drive, e pesa come il file. */
+export type RevisioneDrive = { id: string; modificato?: string; byte: number; tenutaPerSempre?: boolean }
+
+/** Quante versioni vecchie si tengono oltre l'ultima. `undefined` = quel file non si tocca. */
+export function versioniDaTenere(nome: string, tipo: TipoSpazio): number | undefined {
+  if (nome === NOME_MANIFESTO) return 3
+  if (tipo === 'chat') return 2
+  if (tipo === 'battiti') return 0
+  return undefined
+}
+
+/**
+ * Le revisioni da cancellare: tutte tranne l'ultima e le `tenere` piu'
+ * recenti prima di lei. Quelle fissate dall'utente (`keepForever`) non si toccano.
+ */
+export function revisioniDaCancellare(revisioni: RevisioneDrive[], tenere: number): RevisioneDrive[] {
+  const ora = (r: RevisioneDrive): number => (r.modificato !== undefined ? Date.parse(r.modificato) || 0 : 0)
+  const dalla = revisioni.map((r, i) => ({ r, i })).sort((a, b) => ora(a.r) - ora(b.r) || a.i - b.i).map((x) => x.r)
+  const vecchie = dalla.slice(0, Math.max(0, dalla.length - 1 - tenere))
+  return vecchie.filter((r) => r.tenutaPerSempre !== true)
+}
+
+/** Le revisioni di un file che si possono togliere, con quanto pesano. */
+export type VersioniDiFile = { nome: string; id: string; revisioni: RevisioneDrive[] }
+export type StimaVersioni = { controllatoIl: string; file: VersioniDiFile[]; revisioni: number; byte: number }
+
+export function stimaVersioni(file: VersioniDiFile[], adesso: number): StimaVersioni {
+  const conDaTogliere = file.filter((f) => f.revisioni.length > 0)
+  return {
+    controllatoIl: new Date(adesso).toISOString(),
+    file: conDaTogliere,
+    revisioni: conDaTogliere.reduce((t, f) => t + f.revisioni.length, 0),
+    byte: conDaTogliere.reduce((t, f) => t + f.revisioni.reduce((u, r) => u + r.byte, 0), 0)
+  }
+}
+
+/** La proposta «Versioni vecchie»: non passa dal recupero, si cancella davvero e solo con la conferma. */
+export function propostaVersioni(s: StimaVersioni): Proposta {
+  return {
+    tipo: 'versioni',
+    titolo: 'Versioni vecchie',
+    breve: `${s.revisioni} versioni vecchie in ${s.file.length} file`,
+    spiega: 'Ogni volta che SierraDeck riscrive un file, il Drive tiene anche la versione di prima, e pesa quanto il file. Qui si tolgono le più vecchie: restano l’ultima di ogni file e, per le chat, le 2 prima; per l’indice, le 3 prima. Non si annulla. Il peso è una stima: il Drive può rifiutare qualche cancellazione, e quelle si saltano.',
+    voci: [],
+    byte: s.byte,
+    versioni: s.revisioni
+  }
 }
 
 /**
@@ -375,7 +479,12 @@ export function inRecupero(x: Pulizia): boolean { return x.annullataIl === undef
 
 /** I file di tutte le pulizie in recupero. */
 export function nomiInRecupero(r: RegistroPulizie | undefined): Set<string> {
-  return new Set((r?.pulizie ?? []).filter(inRecupero).flatMap((x) => x.voci.map((v) => v.nome)))
+  // Le voci con id (doppioni per nome) no: il loro nome e' anche quello del file che resta.
+  return new Set((r?.pulizie ?? []).filter(inRecupero).flatMap((x) => x.voci.filter((v) => v.id === undefined).map((v) => v.nome)))
+}
+/** Gli id dei file in recupero (i doppioni per nome). */
+export function idInRecupero(r: RegistroPulizie | undefined): Set<string> {
+  return new Set((r?.pulizie ?? []).filter(inRecupero).flatMap((x) => x.voci.map((v) => v.id).filter((i): i is string => i !== undefined)))
 }
 
 /** Il manifesto senza le voci di una pulizia. */

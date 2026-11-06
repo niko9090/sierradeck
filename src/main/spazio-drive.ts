@@ -1,7 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import {
   daSvuotare, indiceConDiNuovo, propostaChatEliminate, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
-  type Proposta, type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole
+  type Proposta, type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole,
+  idInRecupero, nomiInRecupero, percorsiPerNome, tipoDi, versioniDaTenere, revisioniDaCancellare, stimaVersioni, propostaVersioni,
+  type StimaVersioni, type VersioniDiFile
 } from '@shared/spazio-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
@@ -36,6 +38,14 @@ export type SpazioDrive = {
    * escono dall'indice del Drive e vanno nel recupero (30 giorni, annullabile).
    */
   togliChat: (sessioni: string[], titolo: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
+  /**
+   * Le versioni vecchie (0.95.6): conta quante se ne possono togliere (una
+   * richiesta per file: solo su richiesta), e le toglie. `libera` non parte
+   * mai da sola: lo chiama solo la conferma di Nicholas, e rilegge le
+   * versioni di ogni file prima di cancellare.
+   */
+  contaVersioni: () => Promise<{ ok: boolean; messaggio: string }>
+  liberaVersioni: () => Promise<{ ok: boolean; messaggio: string }>
   annulla: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   svuota: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   /** Per il salvataggio: una voce tolta con una pulizia e uguale a com'era non risale. */
@@ -60,6 +70,8 @@ export function creaSpazioDrive(deps: {
   let ultimo: { il: number; stato: StatoSpazio } | undefined
   let ultimaPuliziaDaSola = 0
   let inCorso: Promise<StatoSpazio> | undefined
+  let stimaVersioniFatta: StimaVersioni | undefined
+  let versioniInCorso = false
 
   const leggiRegistro = async (): Promise<RegistroPulizie> => {
     const s = deps.scatola()
@@ -91,6 +103,7 @@ export function creaSpazioDrive(deps: {
     if (manifesto === undefined) return { proposte: [], pulizie: r.pulizie, errore: 'L’indice del Drive non si apre adesso: riprovo dopo.' }
     const m = misura({ file, indice: manifesto.file, ...(quota !== undefined ? { quota } : {}), pulizie: r, adesso: adesso() })
     const proposte = proposteDiPulizia({ file, indice: manifesto.file, copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso() })
+    if (stimaVersioniFatta !== undefined && stimaVersioniFatta.revisioni > 0) proposte.push(propostaVersioni(stimaVersioniFatta))
     return { misura: m, proposte, pulizie: [...r.pulizie].sort((x, y) => y.quando.localeCompare(x.quando)) }
   }
 
@@ -100,7 +113,14 @@ export function creaSpazioDrive(deps: {
     let tolti = 0
     let errori = 0
     for (const v of p.voci) {
-      try { await a.cancella(v.nome); tolti += 1 } catch (err) { errori += 1; deps.log(`[spazio] ${v.nome} non cancellato dal Drive: ${err instanceof Error ? err.message : String(err)}`) }
+      try {
+        // Un doppione per nome si toglie per id: il nome e' anche quello del file che resta.
+        if (v.id !== undefined) {
+          if (a.cancellaId === undefined) throw new Error('questo Drive non cancella per id')
+          await a.cancellaId(v.id)
+        } else await a.cancella(v.nome)
+        tolti += 1
+      } catch (err) { errori += 1; deps.log(`[spazio] ${v.nome} non cancellato dal Drive: ${err instanceof Error ? err.message : String(err)}`) }
     }
     return { tolti, errori }
   }
@@ -125,7 +145,94 @@ export function creaSpazioDrive(deps: {
     return { ok: true, messaggio: `${p.voci.length} file nel recupero per 30 giorni (${byteLeggibili(p.byte)}). «Annulla» li rimette.`, pulizia: p }
   }
 
+  /**
+   * I file con delle versioni da togliere: i dati delle chat, l'indice, i
+   * battiti. Mai le lapidi, il registro delle pulizie, i workspace, la
+   * cassaforte, i file dei progetti, le copie di sicurezza, i file in recupero.
+   */
+  const candidatiVersioni = async (a: Archivio): Promise<{ nome: string; id: string; tenere: number }[]> => {
+    const [file, manifesto, r] = await Promise.all([a.elencaConDimensioni?.() ?? Promise.resolve([]), deps.manifestoDrive(), leggiRegistro()])
+    if (manifesto === undefined) throw new Error('l’indice del Drive non si apre adesso')
+    const perNome = percorsiPerNome(manifesto.file)
+    const nomiFuori = nomiInRecupero(r)
+    const idFuori = idInRecupero(r)
+    const fuori: { nome: string; id: string; tenere: number }[] = []
+    for (const f of file) {
+      if (f.id === undefined || nomiFuori.has(f.nome) || idFuori.has(f.id)) continue
+      const tenere = versioniDaTenere(f.nome, tipoDi(f.nome, perNome.get(f.nome)))
+      if (tenere !== undefined) fuori.push({ nome: f.nome, id: f.id, tenere })
+    }
+    return fuori
+  }
+
+  /** Quattro alla volta: sono richieste al Drive, con il suo limite al minuto. */
+  const inParallelo = async <T>(voci: T[], quanti: number, fai: (v: T) => Promise<void>): Promise<void> => {
+    let i = 0
+    const lavora = async (): Promise<void> => { while (i < voci.length) { const v = voci[i++] as T; await fai(v) } }
+    await Promise.all(Array.from({ length: Math.min(quanti, voci.length) }, lavora))
+  }
+
   return {
+    async contaVersioni() {
+      const a = deps.archivio()
+      if (a?.elencaRevisioni === undefined) return { ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }
+      if (versioniInCorso) return { ok: false, messaggio: 'Le versioni si stanno già contando.' }
+      versioniInCorso = true
+      try {
+        const lette: VersioniDiFile[] = []
+        let errori = 0
+        const cand = await candidatiVersioni(a)
+        await inParallelo(cand, 4, async (c) => {
+          try { lette.push({ nome: c.nome, id: c.id, revisioni: revisioniDaCancellare(await a.elencaRevisioni!(c.id), c.tenere) }) } catch { errori += 1 }
+        })
+        stimaVersioniFatta = stimaVersioni(lette, adesso())
+        ultimo = undefined
+        deps.log(`[spazio] versioni vecchie contate: ${stimaVersioniFatta.revisioni} in ${stimaVersioniFatta.file.length} file su ${cand.length} (${byteLeggibili(stimaVersioniFatta.byte)})${errori > 0 ? `, ${errori} file non letti` : ''}`)
+        return { ok: true, messaggio: stimaVersioniFatta.revisioni === 0 ? 'Nessuna versione vecchia da togliere.' : `${stimaVersioniFatta.revisioni} versioni vecchie, circa ${byteLeggibili(stimaVersioniFatta.byte)}.` }
+      } catch (err) {
+        return { ok: false, messaggio: `Non riesco a contare le versioni: ${err instanceof Error ? err.message : String(err)}` }
+      } finally {
+        versioniInCorso = false
+      }
+    },
+
+    async liberaVersioni() {
+      const a = deps.archivio()
+      if (a?.elencaRevisioni === undefined || a.cancellaRevisione === undefined) return { ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }
+      if (versioniInCorso) return { ok: false, messaggio: 'Le versioni si stanno già contando.' }
+      versioniInCorso = true
+      let tolte = 0
+      let rifiutate = 0
+      let errori = 0
+      let byte = 0
+      try {
+        const cand = await candidatiVersioni(a)
+        await inParallelo(cand, 4, async (c) => {
+          let daTogliere
+          // Si rilegge adesso: quello che si cancella e' quello che c'e' ora, non la stima di prima.
+          try { daTogliere = revisioniDaCancellare(await a.elencaRevisioni!(c.id), c.tenere) } catch { errori += 1; return }
+          for (const rev of daTogliere) {
+            try {
+              if (await a.cancellaRevisione!(c.id, rev.id) === 'ok') { tolte += 1; byte += rev.byte }
+              else { rifiutate += 1; deps.log(`[spazio] versione ${rev.id} di ${c.nome}: il Drive non la cancella, la salto`) }
+            } catch (err) {
+              errori += 1
+              deps.log(`[spazio] versione ${rev.id} di ${c.nome} non cancellata: ${err instanceof Error ? err.message : String(err)}`)
+            }
+          }
+        })
+      } catch (err) {
+        return { ok: false, messaggio: `Non riesco a togliere le versioni: ${err instanceof Error ? err.message : String(err)}` }
+      } finally {
+        versioniInCorso = false
+        stimaVersioniFatta = undefined
+        ultimo = undefined
+      }
+      deps.log(`[spazio] versioni vecchie tolte su conferma: ${tolte} (${byteLeggibili(byte)}), ${rifiutate} rifiutate dal Drive, ${errori} errori`)
+      const saltate = rifiutate + errori
+      return { ok: true, messaggio: `Tolte ${tolte} versioni vecchie (circa ${byteLeggibili(byte)} liberati)${saltate > 0 ? `; ${saltate} saltate, il Drive non le ha cancellate` : ''}.` }
+    },
+
     async stato(forza = false) {
       if (!forza && ultimo !== undefined && adesso() - ultimo.il < 5 * 60_000) return ultimo.stato
       if (inCorso !== undefined) return inCorso
@@ -149,6 +256,8 @@ export function creaSpazioDrive(deps: {
     },
 
     async pulisci(tipo, chi) {
+      // Le versioni non passano dal recupero e non partono mai da sole: hanno la loro conferma.
+      if (tipo === 'versioni') return { ok: false, messaggio: 'Le versioni vecchie si tolgono con la loro conferma.' }
       // Le proposte si rifanno adesso: quello che si toglie è quello che c'è ora.
       const st = await leggiTutto()
       if (st.errore !== undefined) return { ok: false, messaggio: st.errore }

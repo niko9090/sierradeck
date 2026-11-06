@@ -40,7 +40,7 @@ export interface Archivio {
   /** Rimuove un file. Se non c'è, non è un errore. */
   cancella: (nome: string) => Promise<void>
   /** Tutti i file con la loro dimensione vera e l'ultima modifica (0.65.0, lo spazio sul Drive). */
-  elencaConDimensioni?: () => Promise<{ nome: string; byte: number; modificato?: string }[]>
+  elencaConDimensioni?: () => Promise<{ nome: string; byte: number; modificato?: string; id?: string }[]>
   /** Lo spazio dell'account (0.65.0). */
   quota?: () => Promise<{ limite?: number; usato: number; usatoNelDrive?: number; nelCestino?: number }>
   /**
@@ -67,6 +67,16 @@ export interface Archivio {
    * quello che vale. Solo gli archivi dove i doppioni possono nascere.
    */
   cancellaId?: (id: string) => Promise<void>
+  /**
+   * Le revisioni di un file (0.95.6, per id): ogni scrittura ne lascia una sul
+   * Drive, che pesa quanto il file. Solo per i file della cartella dell'app.
+   */
+  elencaRevisioni?: (id: string) => Promise<{ id: string; modificato?: string; byte: number; tenutaPerSempre?: boolean }[]>
+  /**
+   * Cancella una revisione. `rifiutata` = il Drive non la cancella (e' l'ultima,
+   * o e' fissata): si salta, non e' un errore. Gli altri errori risalgono.
+   */
+  cancellaRevisione?: (id: string, revisione: string) => Promise<'ok' | 'rifiutata'>
 }
 
 /** Un archivio in memoria: per i test e lo sviluppo, con la stessa interfaccia. */
@@ -100,7 +110,7 @@ export function archivioInMemoria(): Archivio {
       return Promise.resolve()
     },
     cancella: (nome) => { files.delete(nome); return Promise.resolve() },
-    elencaConDimensioni: () => Promise.resolve([...files.entries()].map(([nome, f]) => ({ nome, byte: f.blocco.length }))),
+    elencaConDimensioni: () => Promise.resolve([...files.entries()].map(([nome, f]) => ({ nome, byte: f.blocco.length, id: nome }))),
     quota: () => Promise.resolve({ usato: [...files.values()].reduce((t, f) => t + f.blocco.length, 0) }),
     info: (nome) => Promise.resolve(infoDi(nome)),
     caricaSe: (nome, blocco, attesa) => {
