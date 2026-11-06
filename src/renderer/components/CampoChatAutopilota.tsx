@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { Aiuto } from './Aiuto'
+import { testoErroreDialogo } from '../errore-dialogo'
 import { TastoMicrofono } from './TastoMicrofono'
 
 type Props = {
@@ -38,7 +39,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto }: Prop
     setErrore(undefined)
     che()
       .then(() => { setMessaggio(''); cambiato.current() })
-      .catch((e: unknown) => setErrore(String(e instanceof Error ? e.message : e)))
+      .catch((e: unknown) => setErrore(testoErroreDialogo(e)))
       .finally(() => setInCorso(false))
   }
 
