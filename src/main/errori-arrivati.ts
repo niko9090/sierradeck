@@ -84,7 +84,7 @@ export async function mandaErrori(p: {
    */
   perPosta?: (pcId: string, invio: InvioErrori, err: unknown) => Promise<boolean>
   log: (riga: string) => void
-}): Promise<{ ok: boolean; messaggio: string }> {
+}): Promise<{ ok: boolean; messaggio: string; quante?: number }> {
   if (p.pcSviluppo === undefined) return { ok: false, messaggio: 'Prima scegli il PC di sviluppo.' }
   const storico = storicoPerLInvio(p.storico)
   if (storico.voci.length === 0) return { ok: false, messaggio: 'Non c’è nessun errore da mandare.' }
@@ -92,20 +92,20 @@ export async function mandaErrori(p: {
   const quanti = `${invio.voci.length} ${invio.voci.length === 1 ? 'errore' : 'errori'}`
   if (p.pcSviluppo === p.io.id) {
     const e = p.salvaQui(invio)
-    return e.ok ? { ok: true, messaggio: `Fatto: ${quanti} nella cartella degli errori arrivati di questo PC.` } : { ok: false, messaggio: e.errore }
+    return e.ok ? { ok: true, messaggio: `Fatto: ${quanti} nella cartella degli errori arrivati di questo PC.`, quante: invio.voci.length } : { ok: false, messaggio: e.errore }
   }
   const chiamato = p.nomeDi(p.pcSviluppo) ?? 'il PC di sviluppo'
   try {
     await p.chiama(p.pcSviluppo, '/api/errori/arrivati', invio)
     p.log(`[errori] mandati ${quanti} a ${chiamato}`)
-    return { ok: true, messaggio: `Mandati a ${chiamato}: ${quanti}.` }
+    return { ok: true, messaggio: `Mandati a ${chiamato}: ${quanti}.`, quante: invio.voci.length }
   } catch (err) {
     const perche = err instanceof Error ? err.message : String(err)
     // Nella posta va meno: la cassetta sul Drive è di tutti i mittenti.
     const piccolo: InvioErrori = { ...invio, voci: storicoPerLInvio(p.storico, BYTE_POSTA).voci }
     if (p.perPosta !== undefined && await p.perPosta(p.pcSviluppo, piccolo, err).catch(() => false)) {
       p.log(`[errori] ${chiamato} non risponde (${perche}): ${quanti} lasciati sul Drive`)
-      return { ok: true, messaggio: `${chiamato} adesso non risponde: ${quanti} lasciati sul Drive, arrivano appena si accende.` }
+      return { ok: true, messaggio: `${chiamato} adesso non risponde: ${quanti} lasciati sul Drive, arrivano appena si accende.`, quante: piccolo.voci.length }
     }
     p.log(`[errori] NON mandati a ${chiamato}: ${perche}`)
     return { ok: false, messaggio: `Non mandati a ${chiamato}: ${perche}` }

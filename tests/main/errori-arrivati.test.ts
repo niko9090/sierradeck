@@ -113,7 +113,7 @@ describe('chi manda: «Manda al PC di sviluppo»', () => {
   it('verso un altro PC: la rotta firmata del ponte, con chi manda e la versione', async () => {
     const chiamate: Array<{ pc: string; percorso: string; corpo: InvioErrori }> = []
     const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(2), chiama: async (pc, percorso, corpo) => { chiamate.push({ pc, percorso, corpo }); return {} }, salvaQui: () => ({ ok: false, errore: 'no' }) })
-    expect(e).toEqual({ ok: true, messaggio: 'Mandati a Portatile: 2 errori.' })
+    expect(e).toEqual({ ok: true, messaggio: 'Mandati a Portatile: 2 errori.', quante: 2 })
     expect(chiamate[0]).toMatchObject({ pc: 'pc-la', percorso: '/api/errori/arrivati', corpo: { da: 'Fisso', versione: '0.81.0' } })
     expect(chiamate[0]?.corpo.voci).toHaveLength(2)
   })
@@ -133,7 +133,7 @@ describe('chi manda: «Manda al PC di sviluppo»', () => {
   it('se l’altro PC non risponde, li lascia sul Drive nella sua posta (0.88.2)', async () => {
     const posta: Array<{ pc: string; invio: InvioErrori }> = []
     const e = await mandaErrori({ ...base, pcSviluppo: 'pc-la', storico: storico(3), chiama: async () => { throw new Error('Portatile non raggiungibile') }, salvaQui: () => ({ ok: false, errore: 'no' }), perPosta: async (pc, invio) => { posta.push({ pc, invio }); return true } })
-    expect(e).toEqual({ ok: true, messaggio: 'Portatile adesso non risponde: 3 errori lasciati sul Drive, arrivano appena si accende.' })
+    expect(e).toEqual({ ok: true, messaggio: 'Portatile adesso non risponde: 3 errori lasciati sul Drive, arrivano appena si accende.', quante: 3 })
     expect(posta[0]).toMatchObject({ pc: 'pc-la', invio: { da: 'Fisso', versione: '0.81.0' } })
     expect(posta[0]?.invio.voci).toHaveLength(3)
   })
