@@ -582,4 +582,45 @@ describe('il motore non si ferma (0.89.4)', () => {
     server!.controllaChatFerme()
     expect(domande.aperte('ap-che-non-esiste')).toHaveLength(0)
   })
+
+  describe('k-44: il programma ritira da solo le domande superate', () => {
+    const preparo = async (): Promise<string> => {
+      zitto()
+      await avviaServizio([ap({ chats: [] })], { raccoltaEventiMs: 5 })
+      migra()
+      return orch.impostazioni('Lavoro').autopilota!
+    }
+
+    it('Nicholas scrive nel dialogo dopo la domanda: la domanda si chiude e l’autopilota lo legge', async () => {
+      const id = await preparo()
+      domande.apri({ autopilotaId: id, testo: 'Tengo il verde?', scadenzaMs: 60_000 })
+      expect(domande.aperte(id)).toHaveLength(1)
+      await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'tieni il blu, vai avanti' })
+      expect(domande.aperte(id)).toHaveLength(0)
+      expect(domande.risolte(id).length).toBeGreaterThan(0)
+      await attendi(() => processi.some((p) => p.scritte.some((s) => testoScritto(s).includes('chiuso una tua domanda aperta'))), { cosa: 'avviso all’autopilota' })
+    })
+
+    it('l’autopilota finito o archiviato non lascia domande aperte', async () => {
+      const id = await preparo()
+      domande.apri({ autopilotaId: id, testo: 'Pubblico?', scadenzaMs: 60_000 })
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(1)
+      archivio.scrivi({ ...archivio.leggi(id)!, stato: 'finito' })
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(0)
+    })
+
+    it('la chat che aveva fatto la domanda è finita: la domanda si chiude', async () => {
+      const id = await preparo()
+      const d = domande.apri({ autopilotaId: id, testo: 'Quale colore?', scadenzaMs: 60_000 })
+      domande.ricorda(d.id, { autopilotaId: id, testo: 'Quale colore?', chatId: 'c-9' })
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(1)
+      const a = archivio.leggi(id)!
+      archivio.scrivi({ ...a, chats: [...a.chats, { id: 'c-9', compito: 'colore', stato: 'finita', cicli: 1, sessionId: 's-9' }] })
+      server!.controllaChatFerme()
+      expect(domande.aperte(id)).toHaveLength(0)
+    })
+  })
 })
