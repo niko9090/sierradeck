@@ -27,6 +27,7 @@
 - `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
 - il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
 - il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
+- l'hook "PC carico" rimanda tsc e la suite anche dopo molti tentativi; i test di un solo file passano. Ricordarsi di lanciare tsc e la suite completa appena il PC è scarico. _(2026-11-06)_
 
 ## worktree
 
@@ -246,3 +247,9 @@
 ## autoriparazione
 
 - Il «Torna come prima» non ripristina `coda.json` apposta: rimetterebbe una coda vecchia e perderebbe richieste arrivate dopo. Va ricordato se si estende il ripristino. _(2026-11-06)_
+
+## drive
+
+- le chat non si tolgono dal Drive quando spariscono dal disco (incrementale.ts:631-636); la pulizia è solo manuale, e le revisioni dei blob non sono mai gestite dal codice. _(2026-11-06)_
+- i battiti si riscrivono ogni 2 minuti anche da fermi (posta.ts:341): ogni riscrittura è una revisione sul Drive. _(2026-11-06)_
+- le proposte di pulizia guardano il nome, quindi i doppioni con lo stesso nome non si vedono mai (shared/spazio-drive.ts:282-289). _(2026-11-06)_
