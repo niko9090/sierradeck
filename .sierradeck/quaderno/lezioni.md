@@ -17,6 +17,7 @@
 - Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
 - `npx vitest run tests/main` non copre tests/autopilot-host: per modifiche al servizio lanciare anche quella cartella. _(2026-11-05)_
 - l'hook di carico del PC può rifiutare tsc e la suite completa (memoria libera al 5%, vmmemWSL): fare prima il commit e provare il singolo file, poi riprovare. _(2026-11-06)_
+- nei test con timeout reali (server http finto) i margini sotto i 100 ms falliscono quando il PC è carico: aspettare almeno 400 ms sul lato lento _(2026-11-06)_
 
 ## worktree
 
@@ -110,6 +111,7 @@
 
 - Nel servizio ogni console.error va nel registro come ERRORE e negli errori arrivati: un caso atteso (porta occupata) deve usare console.warn. _(2026-11-05)_
 - Il servizio avviato dallo script di login non riceve SIERRADECK_VERSIONE (versione «?»); senza versione il Gestore non lo sostituisce. Non scriverla nello script: invecchia. _(2026-11-05)_
+- il dialogo scade a 3 s se il servizio è occupato ma il messaggio può essere già scritto: le POST che scrivono vogliono attesa lunga e un id del messaggio, altrimenti il ritentativo lo duplica _(2026-11-06)_
 
 ## controllo
 
