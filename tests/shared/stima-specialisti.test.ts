@@ -62,7 +62,7 @@ describe('stima di tutta la lista, coi posti in parallelo', () => {
     const s = stimaLista({ ...base, tetto: 4, alLavoro: [{ id: 'a', peso: 1, inizioMs: min(-5) }], inFila: [{ id: 'f1', peso: 3 }, { id: 'f2', peso: 1 }] })
     expect(s.alLavoro.a).toMatchObject({ percentuale: 50, minuti: 5 })
     expect(s.inFila.f1).toEqual({ percentuale: 0, minuti: 50 })
-    expect(s.inFila.f2.minuti).toBe(10)
+    expect(s.inFila.f2!.minuti).toBe(10)
     expect(s.totale).toEqual({ minuti: 50, compiti: 3 })
   })
 
@@ -73,14 +73,14 @@ describe('stima di tutta la lista, coi posti in parallelo', () => {
       inFila: [{ id: 'f1', peso: 1 }, { id: 'f2', peso: 1 }]
     })
     // a finisce fra 2 min, b fra 20: f1 parte a 2 e finisce a 12; f2 parte a 12 e finisce a 22.
-    expect(s.inFila.f1.minuti).toBe(12)
-    expect(s.inFila.f2.minuti).toBe(22)
+    expect(s.inFila.f1!.minuti).toBe(12)
+    expect(s.inFila.f2!.minuti).toBe(22)
     expect(s.totale).toEqual({ minuti: 22, compiti: 4 })
   })
 
   it('usa lo storico vero al posto del valore fisso', () => {
     const s = stimaLista({ adesso: T0, tetto: 1, alLavoro: [], inFila: [{ id: 'f', peso: 2 }], storico: [{ peso: 2, minuti: 8 }, { peso: 2, minuti: 12 }] })
-    expect(s.inFila.f.minuti).toBe(10)
+    expect(s.inFila.f!.minuti).toBe(10)
   })
 
   it('più specialisti dei posti: chi è in fila aspetta che ne finiscano abbastanza', () => {
@@ -90,6 +90,6 @@ describe('stima di tutta la lista, coi posti in parallelo', () => {
       inFila: [{ id: 'f', peso: 1 }]
     })
     // a: 8 min, b: 4 min; con 1 posto, il nuovo parte quando ne resta uno solo (dopo 4): ne resta uno solo, che finisce a 8: parte a 8, finisce a 18.
-    expect(s.inFila.f.minuti).toBe(18)
+    expect(s.inFila.f!.minuti).toBe(18)
   })
 })
