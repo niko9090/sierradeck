@@ -146,9 +146,11 @@ describe('trasformazione in elenco mai finita', () => {
   })
 
   it('un guasto della trasformazione è una voce «fallito» e non butta giù il resto', async () => {
-    const { a } = crea({ leggiArchivio: () => undefined })
+    const fallita = { versione: 1 as const, stato: 'fallita' as const, iniziata: 'x', prima: { workspaceElenco: [] }, aggiunti: [], dormienti: [], motivo: 'archivio illeggibile' }
+    const { a } = crea({ migrazione: { stato: () => undefined, rifai: () => ({ esito: 'fallita' as const, stato: fallita }) } })
     const r = (await a.ripara('avvio'))!
     expect(r.voci.find((v) => v.caso === 'trasformazione-mancante')).toMatchObject({ esito: 'fallito' })
+    expect(r.voci[0]!.cosa).toContain('archivio illeggibile')
     expect(notifiche).toEqual([])
   })
 })
@@ -157,6 +159,7 @@ describe('workspace nati dopo la trasformazione', () => {
   const dopoTrasformazione = async () => {
     const x = crea()
     x.migrazione.rifai()
+    await x.adozione.rifai()
     tempo()
     return x
   }
@@ -319,6 +322,7 @@ describe('case sparite e chat senza casa: solo segnalate', () => {
   it('le segnalazioni non sono un cambiamento: niente notifica, niente copia', async () => {
     const x = crea({ cartellaEsiste: () => false })
     x.migrazione.rifai()
+    await x.adozione.rifai()
     tempo()
     await x.a.ripara('avvio')
     expect(notifiche).toEqual([])
