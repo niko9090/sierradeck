@@ -52,3 +52,23 @@ export function postiTesto(usati: number, tetto: number): string {
 export function prioritaTesto(n: number): string {
   return n === 0 ? 'normale' : n > 0 ? 'alta ' + n : 'bassa ' + Math.abs(n)
 }
+
+/** Minuti a parole: «meno di 1 min», «12 min», «1 h 20 min». */
+export function minutiTesto(min: number): string {
+  const m = Math.round(Math.max(0, min))
+  if (m < 1) return 'meno di 1 min'
+  if (m < 60) return m + ' min'
+  const resto = m % 60
+  return Math.floor(m / 60) + ' h' + (resto > 0 ? ' ' + resto + ' min' : '')
+}
+
+/** Il lavoro che resta per tutta la lista: «Circa 40 min per finire tutto · 3 compiti». */
+export function totaleTesto(minuti: number, compiti: number): string {
+  const m = Math.round(Math.max(0, minuti))
+  const resto = m % 60
+  const quanto = m < 1 ? 'Meno di 1 min' : 'Circa ' + (m < 60 ? m + ' min' : Math.floor(m / 60) + ' h' + (resto > 0 ? ' ' + resto + ' min' : ''))
+  return quanto + ' per finire tutto · ' + compiti + (compiti === 1 ? ' compito' : ' compiti')
+}
+
+/** La spiegazione del «?»: come si stimano i tempi e cosa fa la precedenza. Niente apostrofi dritti: finisce in una stringa della pagina. */
+export const SPIEGA_STIME = 'I minuti si stimano dalla durata vera dei compiti simili già finiti. La percentuale non arriva a 100 finché il lavoro non è finito; «in ritardo» vuol dire che ha superato il tempo atteso. Il totale conta il lavoro di tutti, con i posti che lavorano in parallelo. «Precedenza» fa passare il workspace davanti agli altri al prossimo posto libero e non ferma mai chi lavora. «Ferma» invece lo ferma, con il lavoro salvato, e lo mette in cima alla fila: lo decidi solo tu.'

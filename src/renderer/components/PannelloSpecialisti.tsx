@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { VistaAttesa } from '@shared/attesa-specialisti'
-import { daQuanto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca } from '@shared/attesa-vista'
+import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
 import { Aiuto } from './Aiuto'
 
 /** Ogni quanto si rilegge la lista, in millisecondi. */
 export const RILETTURA_MS = 4000
 
-export type MossaFila = 'su' | 'giu' | 'cima'
+export type MossaFila = 'su' | 'giu' | 'cima' | 'ferma'
 
 /**
  * **Specialisti** (k-49, 06/11): chi lavora adesso e chi è in fila per un
@@ -24,21 +24,27 @@ type Props = {
   adesso: number
   /** La voce di cui «Togli» aspetta la conferma. */
   daTogliere?: string
+  /** Chi lavora e aspetta la conferma di «Ferma». */
+  daFermare?: string
   onMossa: (id: string, mossa: MossaFila) => void
+  onFerma?: (id: string) => void
+  onAnnullaFerma?: () => void
   onTogli: (id: string) => void
   onAnnullaTogli: () => void
   onConfermaTogli: (id: string) => void
 }
 
-export function ListaSpecialisti({ vista, adesso, daTogliere, onMossa, onTogli, onAnnullaTogli, onConfermaTogli }: Props): React.JSX.Element {
+export function ListaSpecialisti({ vista, adesso, daTogliere, daFermare, onMossa, onFerma, onAnnullaFerma, onTogli, onAnnullaTogli, onConfermaTogli }: Props): React.JSX.Element {
   if (vista === undefined) return <div className="progetti__vuoto">Leggo la lista…</div>
   if (vista === 'vecchio') return <div className="progetti__vuoto spec__vecchio">Serve la versione nuova del servizio</div>
-  const { posti, alLavoro, inFila } = vista
+  const { posti, alLavoro, inFila, totale } = vista
   return (
     <div className="spec">
       <div className="spec__posti">
         <b>{postiTesto(posti.usati, posti.tetto)}</b>
         <Aiuto di="posti e fila">Ogni specialista che lavora occupa un posto, e i posti di questo PC sono pochi. Quando sono tutti pieni, chi ne chiede uno resta in fila qui. Appena un posto si libera, il primo della fila lo ha prenotato per qualche minuto e il suo autopilota viene svegliato. Se non lo usa, passa al successivo. Con ↑, ↓ e «In cima» cambi l’ordine; «Togli» fa uscire la richiesta dalla fila.</Aiuto>
+        {totale !== undefined ? <span className="spec__totale">{totaleTesto(totale.minuti, totale.compiti)}</span> : null}
+        <Aiuto di="le stime">{SPIEGA_STIME}</Aiuto>
       </div>
 
       <div className="spec__sezione">
@@ -49,8 +55,32 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, onMossa, onTogli, 
               <li key={v.id} className="spec__riga">
                 <span className="spec__posto" title="Il posto occupato">Posto {v.posto}</span>
                 <span className="spec__corpo">
-                  <span className="spec__titolo">{v.compito !== undefined ? <b>{v.compito} </b> : null}{v.descrizione}</span>
-                  <span className="spec__sotto">{nomeWorkspace(v.workspace)} · {v.tipo} · lavora da {daQuanto(v.dal, adesso)}</span>
+                  <span className="spec__ws">{v.workspaceNome ?? nomeWorkspace(v.workspace)}</span>
+                  <span className="spec__titolo">{v.compito !== undefined ? <b>{v.compito} </b> : null}{v.titolo ?? v.descrizione}</span>
+                  {v.cosaFa !== undefined && v.cosaFa !== '' ? <span className="spec__cosa" title={v.cosaFa}>{v.cosaFa}</span> : null}
+                  {v.percentuale !== undefined ? (
+                    <span className="spec__barra">
+                      <progress max={100} value={v.percentuale} aria-label="Avanzamento" />
+                      <span>{v.percentuale}%</span>
+                      {v.minutiStimati !== undefined ? <span>mancano circa {minutiTesto(v.minutiStimati)}</span> : null}
+                      {v.inRitardo === true ? <span className="spec__ritardo">in ritardo</span> : null}
+                    </span>
+                  ) : null}
+                  <span className="spec__sotto">{v.tipo} · lavora da {daQuanto(v.dal, adesso)}{v.precedenza !== undefined && v.precedenza > 0 ? ` · precedenza ${v.precedenza}` : ''}</span>
+                </span>
+                <span className="spec__tasti">
+                  {v.fermaRichiesta === true ? <span className="spec__chiede">fermata chiesta…</span> : daFermare === v.id ? (
+                    <>
+                      <span className="spec__chiede">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato</span>
+                      <button className="tasto tasto--mini" onClick={() => onMossa(v.id, 'ferma')}>Sì, ferma</button>
+                      <button className="tasto tasto--mini" onClick={onAnnullaFerma}>No</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="tasto tasto--mini" title="Passa davanti agli altri al prossimo posto libero, senza fermare nessuno" onClick={() => onMossa(v.id, 'cima')}>↑ Precedenza</button>
+                      <button className="tasto tasto--mini" title="Lo ferma e lo mette in cima alla fila" onClick={() => onFerma?.(v.id)}>Ferma</button>
+                    </>
+                  )}
                 </span>
               </li>
             ))}
@@ -68,9 +98,10 @@ export function ListaSpecialisti({ vista, adesso, daTogliere, onMossa, onTogli, 
                 <li key={v.id} className={`spec__riga${v.prenotata ? ' spec__riga--tocca' : ''}`}>
                   <span className="spec__posto" title="Il posto in fila">{v.posizione}°</span>
                   <span className="spec__corpo">
-                    <span className="spec__titolo">{v.compito !== undefined ? <b>{v.compito} </b> : null}{v.descrizione}</span>
+                    <span className="spec__ws">{v.workspaceNome ?? nomeWorkspace(v.workspace)}{v.parcheggiata === true ? <span className="spec__parcheggiato"> · parcheggiato</span> : null}</span>
+                    <span className="spec__titolo">{v.compito !== undefined ? <b>{v.compito} </b> : null}{v.titolo ?? v.descrizione}</span>
                     <span className="spec__sotto">
-                      {nomeWorkspace(v.workspace)} · {v.tipo} · aspetta da {daQuanto(v.dal, adesso)} · priorità {prioritaTesto(v.priorita)}
+                      {v.tipo} · aspetta da {daQuanto(v.dal, adesso)}{v.minutiStimati !== undefined ? ` · circa ${minutiTesto(v.minutiStimati)} per finire` : ''} · priorità {prioritaTesto(v.priorita)}
                       {v.prenotata ? <span className="spec__tocca"> · tocca a lui{manca !== '' ? ` (${manca === 'scaduta' ? 'scaduta' : `ancora ${manca}`})` : ''}</span> : null}
                     </span>
                   </span>
@@ -126,6 +157,7 @@ export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): Rea
   const { vista, rileggi, metti } = useAttesaSpecialisti(true)
   const [adesso, setAdesso] = useState(() => Date.now())
   const [daTogliere, setDaTogliere] = useState<string | undefined>(undefined)
+  const [daFermare, setDaFermare] = useState<string | undefined>(undefined)
   const [nota, setNota] = useState<string | undefined>(undefined)
   // Il tempo che passa si aggiorna con la lettura, e da solo ogni 15 secondi.
   useEffect(() => { setAdesso(Date.now()) }, [vista])
@@ -136,7 +168,7 @@ export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): Rea
   const dopo = (r: VistaAttesa | undefined): void => {
     if (r === undefined) { setNota('Non è andata: il servizio non ha risposto. Riprova tra poco.'); rileggi() } else { setNota(undefined); metti(r) }
   }
-  const mossa = (id: string, m: MossaFila): void => { void window.gestore.autopilota.prioritaAttesa(id, m).then(dopo).catch(() => dopo(undefined)) }
+  const mossa = (id: string, m: MossaFila): void => { setDaFermare(undefined); void window.gestore.autopilota.prioritaAttesa(id, m).then(dopo).catch(() => dopo(undefined)) }
   const togli = (id: string): void => { setDaTogliere(undefined); void window.gestore.autopilota.togliAttesa(id).then(dopo).catch(() => dopo(undefined)) }
   const inFila = typeof vista === 'object' ? vista.inFila.length : 0
   return (
@@ -150,7 +182,7 @@ export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): Rea
       {nota !== undefined ? <div className="progetti__striscia">⚠ {nota}</div> : null}
       <div className="progetti__corpo">
         <div className="progetti__tabella">
-          <ListaSpecialisti vista={vista} adesso={adesso} {...(daTogliere !== undefined ? { daTogliere } : {})} onMossa={mossa} onTogli={setDaTogliere} onAnnullaTogli={() => setDaTogliere(undefined)} onConfermaTogli={togli} />
+          <ListaSpecialisti vista={vista} adesso={adesso} {...(daTogliere !== undefined ? { daTogliere } : {})} {...(daFermare !== undefined ? { daFermare } : {})} onMossa={mossa} onFerma={setDaFermare} onAnnullaFerma={() => setDaFermare(undefined)} onTogli={setDaTogliere} onAnnullaTogli={() => setDaTogliere(undefined)} onConfermaTogli={togli} />
         </div>
       </div>
     </div>

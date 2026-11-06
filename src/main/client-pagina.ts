@@ -27,7 +27,7 @@ import {
 import { REGOLE_PUBBLICAZIONE } from '@shared/harness'
 import { normalizza as normalizzaImp, sezioniDi } from '@shared/impostazioni-struttura'
 import { MENU_PRINCIPALE, MENU_TELEFONO, type IdTelefono } from '@shared/menu-principale'
-import { daQuanto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca } from '@shared/attesa-vista'
+import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
 import { menuSpecialisti } from '@shared/menu-specialisti'
 import { apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta, SEZIONI_ALTRO, toccaVoce, versoDestinazione } from '@shared/navigazione-telefono'
 import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace'
@@ -798,6 +798,8 @@ ${daQuanto.toString()}
 ${quantoManca.toString()}
 ${postiTesto.toString()}
 ${prioritaTesto.toString()}
+${minutiTesto.toString()}
+${totaleTesto.toString()}
 // Il menu Specialisti nella chat dell'autopilota (k-54), da src/shared/menu-specialisti.ts.
 ${menuSpecialisti.toString()}
 // Le sezioni e le voci delle impostazioni per la pagina (0.56.0), da src/shared/impostazioni-struttura.ts.
@@ -5593,19 +5595,33 @@ async function mossaAttesa(percorso, corpo) {
 window.attesaMossa = (id, mossa) => mossaAttesa('/api/specialisti/attesa/priorita', { id: id, mossa: mossa })
 window.attesaTogli = (id) => { attesaConferma = id; pannello(ultimoStato) }
 window.attesaAnnulla = () => { attesaConferma = ''; pannello(ultimoStato) }
+window.attesaFerma = (id) => { attesaConferma = 'f:' + id; pannello(ultimoStato) }
 window.attesaSi = (id) => mossaAttesa('/api/specialisti/attesa/togli', { id: id })
 window.attesaRileggi = async () => { await leggiAttesa(); pannello(ultimoStato) }
 /** La sezione Specialisti: posti, chi lavora, chi è in fila (stessi tasti del PC). */
 function attesaHtml() {
-  const testa = '<div class="piastrella"><div class="titolo">Specialisti' + aiuto('specialisti', 'Ogni specialista che lavora occupa un posto, e i posti di questo computer sono pochi. Quando sono tutti pieni, chi ne chiede uno resta in fila. Appena un posto si libera, il primo della fila lo ha prenotato per qualche minuto e il suo autopilota viene svegliato; se non lo usa passa al successivo. Con \\u2191, \\u2193 e \\u00abIn cima\\u00bb cambi l\\u2019ordine; \\u00abTogli\\u00bb fa uscire la richiesta dalla fila.') + '</div>'
+  const testa = '<div class="piastrella"><div class="titolo">Specialisti' + aiuto('specialisti', 'Ogni specialista che lavora occupa un posto, e i posti di questo computer sono pochi. Quando sono tutti pieni, chi ne chiede uno resta in fila. Appena un posto si libera, il primo della fila lo ha prenotato per qualche minuto e il suo autopilota viene svegliato; se non lo usa passa al successivo. Con ↑, ↓ e «In cima» cambi l’ordine; «Togli» fa uscire la richiesta dalla fila. ${SPIEGA_STIME}') + '</div>'
   if (attesaVista === null) return testa + '<div class="sotto">Leggo la lista\\u2026</div></div>'
   if (attesaVista === 'vecchio') return testa + '<div class="sotto">Serve la versione nuova del servizio</div></div>'
   const adesso = Date.now()
   const v = attesaVista
-  const titolo = (x) => (x.compito ? '<b>' + esc(x.compito) + '</b> ' : '') + esc(x.descrizione)
-  const lavoro = v.alLavoro.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : v.alLavoro.map((x) =>
-    '<div class="cartella"><div><span class="sotto">Posto ' + esc(x.posto) + '</span> ' + titolo(x) + '</div>' +
-    '<div class="sotto">' + esc(nomeWorkspace(x.workspace)) + ' \\u00b7 ' + esc(x.tipo) + ' \\u00b7 lavora da ' + esc(daQuanto(x.dal, adesso)) + '</div></div>').join('')
+  const titolo = (x) => (x.compito ? '<b>' + esc(x.compito) + '</b> ' : '') + esc(x.titolo || x.descrizione)
+  const nomeWs = (x) => '<div><b>' + esc(x.workspaceNome || nomeWorkspace(x.workspace)) + '</b>' + (x.parcheggiata ? ' <b>· parcheggiato</b>' : '') + '</div>'
+  const lavoro = v.alLavoro.length === 0 ? '<div class="sotto">Nessuno al lavoro</div>' : v.alLavoro.map((x) => {
+    const id = escJs(x.id)
+    const barra = typeof x.percentuale === 'number'
+      ? '<div class="sotto"><progress max="100" value="' + esc(x.percentuale) + '"></progress> ' + esc(x.percentuale) + '%' + (typeof x.minutiStimati === 'number' ? ' · mancano circa ' + esc(minutiTesto(x.minutiStimati)) : '') + (x.inRitardo ? ' · <b>in ritardo</b>' : '') + '</div>'
+      : ''
+    const tasti = x.fermaRichiesta
+      ? '<span class="sotto">fermata chiesta…</span>'
+      : attesaConferma === 'f:' + x.id
+        ? '<span class="sotto">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato</span> <button onclick="attesaMossa(\\'' + id + '\\', \\'ferma\\')">Sì, ferma</button> <button onclick="attesaAnnulla()">No</button>'
+        : '<button onclick="attesaMossa(\\'' + id + '\\', \\'cima\\')">↑ Precedenza</button><button onclick="attesaFerma(\\'' + id + '\\')">Ferma</button>'
+    return '<div class="cartella">' + nomeWs(x) + '<div><span class="sotto">Posto ' + esc(x.posto) + '</span> ' + titolo(x) + '</div>' +
+      (x.cosaFa ? '<div class="sotto">' + esc(x.cosaFa) + '</div>' : '') + barra +
+      '<div class="sotto">' + esc(x.tipo) + ' · lavora da ' + esc(daQuanto(x.dal, adesso)) + '</div>' +
+      '<div class="riga">' + tasti + '</div></div>'
+  }).join('')
   const fila = v.inFila.length === 0 ? '<div class="sotto">Nessuno in fila</div>' : v.inFila.map((x, i) => {
     const manca = x.prenotata ? quantoManca(x.prenotataFino, adesso) : ''
     const tocca = x.prenotata ? ' \\u00b7 <b>tocca a lui</b>' + (manca ? ' (' + (manca === 'scaduta' ? 'scaduta' : 'ancora ' + esc(manca)) + ')' : '') : ''
@@ -5616,11 +5632,11 @@ function attesaHtml() {
         '<button aria-label="Sposta pi\\u00f9 in basso"' + (i === v.inFila.length - 1 ? ' disabled' : '') + ' onclick="attesaMossa(\\'' + id + '\\', \\'giu\\')">\\u2193</button>' +
         '<button' + (i === 0 ? ' disabled' : '') + ' onclick="attesaMossa(\\'' + id + '\\', \\'cima\\')">In cima</button>' +
         '<button onclick="attesaTogli(\\'' + id + '\\')">Togli</button>'
-    return '<div class="cartella"><div><span class="sotto">' + esc(x.posizione) + '\\u00b0</span> ' + titolo(x) + '</div>' +
-      '<div class="sotto">' + esc(nomeWorkspace(x.workspace)) + ' \\u00b7 ' + esc(x.tipo) + ' \\u00b7 aspetta da ' + esc(daQuanto(x.dal, adesso)) + ' \\u00b7 priorit\\u00e0 ' + esc(prioritaTesto(x.priorita)) + tocca + '</div>' +
+    return '<div class="cartella">' + nomeWs(x) + '<div><span class="sotto">' + esc(x.posizione) + '°</span> ' + titolo(x) + '</div>' +
+      '<div class="sotto">' + esc(x.tipo) + ' · aspetta da ' + esc(daQuanto(x.dal, adesso)) + (typeof x.minutiStimati === 'number' ? ' · circa ' + esc(minutiTesto(x.minutiStimati)) + ' per finire' : '') + ' · priorit\\u00e0 ' + esc(prioritaTesto(x.priorita)) + tocca + '</div>' +
       '<div class="riga">' + tasti + '</div></div>'
   }).join('')
-  return testa + '<div class="numeri" style="margin-top:12px"><div class="numero"><b>' + esc(postiTesto(v.posti.usati, v.posti.tetto)) + '</b></div></div>' +
+  return testa + '<div class="numeri" style="margin-top:12px"><div class="numero"><b>' + esc(postiTesto(v.posti.usati, v.posti.tetto)) + '</b></div>' + (v.totale ? '<div class="sotto">' + esc(totaleTesto(v.totale.minuti, v.totale.compiti)) + '</div>' : '') + '</div>' +
     (attesaNota ? '<div class="errore">' + esc(attesaNota) + '</div>' : '') +
     '<div class="solco"></div><div class="titolo">Al lavoro adesso</div>' + lavoro +
     '<div class="solco"></div><div class="titolo">In fila</div>' + fila +
