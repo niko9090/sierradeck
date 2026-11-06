@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { gitPerLeChat } from '../main/git-nel-path'
+import { POSTI_MAX } from '@shared/posti-chat'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { separaAvvisiNode } from '@shared/avvisi-node'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
@@ -222,7 +223,7 @@ export function sessionePersa(testo: string): boolean {
 
 /** L'ambiente del figlio: ripulito, git nel PATH, il tetto dei subagenti, e mai la chiave API (vale l'abbonamento). */
 export function ambienteOrchestratore(base: NodeJS.ProcessEnv, tetto: number): Record<string, string> {
-  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.min(4, Math.max(1, tetto))) }
+  const env: Record<string, string> = { ...ambientePulito(base), ...gitPerLeChat(), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(Math.min(POSTI_MAX, Math.max(1, tetto))) }
   delete env.ANTHROPIC_API_KEY
   return env
 }
@@ -239,6 +240,8 @@ export type ContestoTurno = {
   mcpConfig: string
   /** Il tetto dei subagenti insieme (impostazione e posti del PC). */
   tetto: number
+  /** k-57: il numero massimo scelto da Nicholas: diventa il limite dei subagenti del processo. */
+  scelti?: number
 }
 
 export type DipendenzeOrchestratore = {
@@ -295,6 +298,8 @@ type StatoWs = {
   eventiPronti: boolean
   timer?: ReturnType<typeof setTimeout>
   inattivo?: ReturnType<typeof setTimeout>
+  /** Il numero scelto con cui è partito il processo (k-57). */
+  sceltiUsati?: number
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
@@ -432,8 +437,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       mcpConfig: ctx.mcpConfig, agenti: ctx.agenti, impostazioni: ctx.impostazioniCli
     })
     if (nuovaSess) d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: id }))
-    const p = d.avvia({ args, cwd: ctx.cwd, env: ambiente(ctx.tetto) })
+    const p = d.avvia({ args, cwd: ctx.cwd, env: ambiente(ctx.scelti ?? ctx.tetto) })
     s.proc = p
+    s.sceltiUsati = ctx.scelti
     console.info(`[orchestratore] ${ws} — processo avviato (${nuovaSess ? 'sessione nuova' : `ripresa ${id.slice(0, 8)}`}, al più ${ctx.tetto} specialisti insieme)`)
     p.suRiga((riga) => {
       if (s.proc !== p) return
@@ -485,6 +491,11 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     s.messaggi = []
     if (s.eventiPronti) { s.eventi = []; s.eventiPronti = false }
     if (s.timer !== undefined && eventi.length > 0) { clearTimeout(s.timer); s.timer = undefined }
+    // k-57: il numero scelto è cambiato. Il limite dei subagenti è una variabile del processo:
+    // si riparte (--resume) ma solo a turno finito e senza specialisti al lavoro.
+    if (s.proc !== undefined && s.sceltiUsati !== ctx.scelti && !inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) {
+      spegniSe(ws, s, 'è cambiato il numero massimo di chat: riparto col nuovo limite')
+    }
     const appena = s.proc === undefined ? avviaProcesso(ws, s, ctx) : undefined
     const imp = d.impostazioni(ws)
     const semina = appena?.nuovaSess === true || imp.daSeminare === true ? d.ultime(ws, BATTUTE_SEMINA) : undefined

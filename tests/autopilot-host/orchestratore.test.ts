@@ -77,10 +77,10 @@ describe('argomenti e ambiente', () => {
     expect(r[r.indexOf('--model') + 1]).toBe('opus')
   })
 
-  it('il figlio non riceve la chiave API (vale l’abbonamento) e ha il tetto dei subagenti, al più 4', () => {
+  it('il figlio non riceve la chiave API (vale l’abbonamento) e ha il tetto dei subagenti, al più 8', () => {
     const env = ambienteOrchestratore({ ANTHROPIC_API_KEY: 'sk-finta', PATH: 'x' }, 9)
     expect(env.ANTHROPIC_API_KEY).toBeUndefined()
-    expect(env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('4')
+    expect(env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('8')
     expect(ambienteOrchestratore({}, 3).CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS).toBe('3')
   })
 

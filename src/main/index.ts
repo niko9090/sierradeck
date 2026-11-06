@@ -4297,6 +4297,7 @@ if (!app.requestSingleInstanceLock()) {
           driveAttivo: await driveAttivoAdesso(),
           altriPc: pcs.map((b) => ({ nome: b.nome, vivo: battitoVivo(b.battito, ora) })),
           regolazionePosti: impostazioni.preferenze().postiChat ?? 0,
+          ...(impostazioni.preferenze().postiScelti !== undefined ? { postiScelti: impostazioni.preferenze().postiScelti } : {}),
           // 0.96.0: la chat dell'autopilota davanti a Nicholas (PC in primo piano, o telefono): le domande in chat contano come viste.
           workspaceVisti: workspaceVisti({
             finestre: finestreDiChat().filter((w) => !w.isDestroyed()).map((w) => ({ workspace: workspaceDellaFinestra(w.id), inPrimoPiano: w.isVisible() && !w.isMinimized() && w.isFocused() })),

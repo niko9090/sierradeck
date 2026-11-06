@@ -86,7 +86,7 @@ describe('«N di M chat» sulla pagina (0.82.0)', () => {
     throw new Error('non si chiude')
   }
   const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
-  const postiChatHtml = new Function(`${riga('const esc =')}\nvar aiutiAperti = { 'posti-chat': true }\n${estrai('aiuto')}\n${estrai('postiChatHtml')}\nreturn postiChatHtml`)() as (s: unknown) => string
+  const postiChatHtml = new Function(`${riga('const esc =')}\nvar postiAperto = false\nvar postiNota = ''\nvar aiutiAperti = { 'posti-chat': true }\n${estrai('aiuto')}\n${estrai('postiChatHtml')}\nreturn postiChatHtml`)() as (s: unknown) => string
 
   it('sta in cima agli autopiloti, in Adesso (0.83.0)', () => {
     expect(script).toContain(`<div class="titolo">Autopiloti</div>' + postiChatHtml(s) +`)
