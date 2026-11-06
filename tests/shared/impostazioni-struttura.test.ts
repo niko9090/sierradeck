@@ -39,8 +39,8 @@ describe('la struttura delle impostazioni', () => {
     expect(cercaImpostazioni('drive salva', 'pc').map((v) => v.id)).toEqual(['account-google', 'torna-indietro', 'fumetti-sincronia'])
     expect(cercaImpostazioni('non esiste per niente', 'app')).toEqual([])
     expect(cercaImpostazioni('', 'pagina').length).toBe(VOCI.filter((v) => v.dove.includes('pagina')).length)
-    // Una sezione vuota per quel posto non si mostra (il PC non ha Notifiche).
-    expect(sezioniDi('pc').some((g) => g.sezione.id === 'notifiche')).toBe(false)
+    // Una sezione vuota per quel posto non si mostra; Notifiche ha scelte vere anche sul PC (k-47).
+    expect(sezioniDi('pc').find((g) => g.sezione.id === 'notifiche')?.voci.map((v) => v.id)).toEqual(['fumetti-sincronia', 'avviso-windows-aggiornamento'])
     expect(sezioniDi('app').some((g) => g.sezione.id === 'notifiche')).toBe(true)
   })
   it('la pagina ha la ricerca e «Aggiornamenti» in cima', () => {

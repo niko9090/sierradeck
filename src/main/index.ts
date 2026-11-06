@@ -5600,8 +5600,13 @@ if (!app.requestSingleInstanceLock()) {
               if (lungo && !avvisatoLungo) {
                 avvisatoLungo = true
                 registro.info(`[aggiornamenti] ${testo}`)
-                registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi», causa: aggiornamento pronto, aspetta che le chat siano quiete')
-                try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
+                // k-47: si può spegnere da Impostazioni → Notifiche; l'attesa resta nel registro e nella scheda Aggiornamenti.
+                if (impostazioni.preferenze().avvisoWindowsAggiornamento) {
+                  registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi», causa: aggiornamento pronto, aspetta che le chat siano quiete')
+                  try { new Notification({ title: 'SierraDeck aspetta per aggiornarsi', body: testo }).show() } catch { /* senza notifiche */ }
+                } else {
+                  registro.info('[avviso] PC: notifica di Windows «SierraDeck aspetta per aggiornarsi» non mostrata: spenta in Impostazioni → Notifiche')
+                }
               }
             },
             // Dopo «Installa» premuto da Nicholas (qui, «Installa là», telefono) si
