@@ -42,6 +42,10 @@ export type VoceAttesa = {
   parcheggiata?: true
   /** Il ramo dove il lavoro fermato resta salvato. */
   ramo?: string
+  /** 06/11: il prompt dell'Agent rifiutato dal tetto: mai perso, sta in questa voce finché non riparte. */
+  prompt?: string
+  /** Rifiutato dal tetto di specialisti (non fermato da Nicholas). */
+  rifiutata?: true
 }
 
 export type StatoAttesa = {
@@ -63,6 +67,8 @@ export type RichiestaSpecialista = {
   autopilota?: string
   descrizione: string
   tipo: string
+  /** Il prompt dell'Agent, se il programma lo conosce (06/11: tetto pieno, si rilancia senza perderlo). */
+  prompt?: string
 }
 
 /** Cosa è cambiato in una mossa: chi va svegliato, chi è caduto. */
@@ -187,6 +193,29 @@ export function passo(stato: StatoAttesa, r: RichiestaSpecialista, p: { liberi: 
   s = { ...s, voci: [...s.voci, voce], prossimo: s.prossimo + 1 }
   const posizione = inFila(s, p.adesso).find((v) => v.id === voce.id)!.posizione
   return { passa: false, mossa: mossa(), voce, posizione, davanti: posizione - 1, nuova: true }
+}
+
+/**
+ * 06/11: l'Agent è stato rifiutato dal tetto di specialisti contemporanei.
+ * Non è fallito: entra in fila (una volta sola, la stessa richiesta non si
+ * duplica) con il suo prompt, davanti a chi non ha ancora aspettato.
+ */
+export function rifiutata(stato: StatoAttesa, r: RichiestaSpecialista & { compito?: string }, p: { adesso: number; id: () => string }): StatoAttesa {
+  const prompt = r.prompt !== undefined && r.prompt.trim() !== '' ? r.prompt : undefined
+  const esistente = trovaVoce(stato, r)
+  if (esistente !== undefined) {
+    return { ...stato, voci: stato.voci.map((v) => (v.id === esistente.id ? { ...v, rifiutata: true as const, ...(prompt !== undefined ? { prompt } : {}) } : v)) }
+  }
+  const compito = compitoDi(r.descrizione)
+  const voce: VoceAttesa = {
+    id: p.id(), workspace: r.workspace, ...(r.autopilota !== undefined ? { autopilota: r.autopilota } : {}),
+    ...(compito !== undefined ? { compito } : {}),
+    descrizione: r.descrizione.replace(/\s+/gu, ' ').trim().slice(0, 200), tipo: r.tipo,
+    dal: iso(p.adesso), priorita: stato.precedenze?.[r.workspace] ?? 0,
+    ordine: stato.voci.reduce((m, v) => Math.min(m, v.ordine), stato.prossimo) - 1,
+    sveglie: 0, rifiutata: true, ...(prompt !== undefined ? { prompt } : {})
+  }
+  return { ...stato, voci: [...stato.voci, voce] }
 }
 
 export type MossaPriorita = 'su' | 'giu' | 'cima'

@@ -48,7 +48,7 @@ import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { homedir } from 'node:os'
-import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
+import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheggia, passo as passoAttesa, rifiutata as rifiutataDalTetto, rivedi as rivediPosti, togliVoce, type Mossa, type MossaAttesa, type StatoAttesa, type VistaAttesa } from '@shared/attesa-specialisti'
 import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
@@ -512,6 +512,14 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
         evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto per ${cosa}, fermato da Nicholas per far passare altro lavoro: rilancialo ora${v.ramo !== undefined ? ` dal suo ramo ${v.ramo}` : ' dal suo ramo'}, senza rifare quello che c’è già. Il posto è tuo per 5 minuti.` })
         continue
       }
+      if (v.rifiutata === true) {
+        // Il tetto di specialisti l'aveva rifiutato: il prompt è salvato qui, non si riscrive.
+        evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto per ${cosa}, che il tetto di specialisti aveva rifiutato (non è fallito): rilancialo ora con lo stesso prompt, senza cambiarlo.${v.prompt !== undefined ? `
+PROMPT SALVATO:
+${v.prompt}` : ''}
+Il posto è tuo per 5 minuti.` })
+        continue
+      }
       evento(v.workspace, { tipo: 'posto', quando, testo: `si è liberato un posto: rilancia ora ${cosa}${v.compito !== undefined ? ` («${cosaDel(v.descrizione)}»)` : ''}. Il posto è tuo per 5 minuti; se non rilanci passa al successivo.` })
     }
     for (const v of m.cadute) {
@@ -671,6 +679,17 @@ ${NOTA_SENZA_GIT}`,
     for (const e of effetti) {
       if (e.tipo === 'costo') {
         x.orchestratori.aggiungiCosto(ws, { ...e.costo })
+        continue
+      }
+      if (e.tipo === 'specialista-rifiutato') {
+        // 06/11: tetto pieno. Non fallito, non perso: in fila col suo prompt, e l'autopilota si sveglia quando c'è un posto.
+        const s = e.specialista
+        const prima = archivioAttesa.leggi()
+        archivioAttesa.scrivi(rifiutataDalTetto(prima, { workspace: ws, ...(unicoDi(ws) !== undefined ? { autopilota: unicoDi(ws)!.id } : {}), descrizione: s.descrizione, tipo: s.ruolo, ...(e.prompt !== undefined ? { prompt: e.prompt } : {}) }, { adesso: oraMs(), id: randomUUID }))
+        const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
+        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
+        console.info(`[attesa] ${ws} — tetto di specialisti pieno: ${s.compito ?? cosaDel(s.descrizione)} in fila, prompt salvato`)
+        queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
         continue
       }
       if (e.tipo !== 'specialista-partito' && e.tipo !== 'specialista-finito') continue
