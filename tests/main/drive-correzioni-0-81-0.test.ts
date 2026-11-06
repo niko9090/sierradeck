@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { creaArchivioDrive } from '../../src/main/cassaforte/google-drive'
+import { MESSAGGIO_DRIVE_PIENO } from '../../src/main/cassaforte/freno-drive'
 import {
   salvaIncrementale, ripristinaIncrementale, manifestoVuoto, nomeCopiaConflitto, ELENCO_DA, type Manifesto
 } from '../../src/main/cassaforte/incrementale'
@@ -116,7 +117,10 @@ describe('un 403 di Google', () => {
     const corpo = JSON.stringify({ error: { code: 403, message: "The user's Drive storage quota has been exceeded.", errors: [{ reason: 'storageQuotaExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
     const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
-    await expect(a.elenca()).rejects.toThrow(/403/)
+    // Il messaggio per l'utente e' quello del freno (k-65); lo stato 403 resta nell'errore.
+    const errore = await a.elenca().catch((e: unknown) => e as Error & { stato?: number })
+    expect(errore.message).toBe(MESSAGGIO_DRIVE_PIENO)
+    expect(errore.stato).toBe(403)
     expect(d.chiamate()).toBe(1)
   })
 
