@@ -45,6 +45,7 @@ import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
 import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
+import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
 import { homedir } from 'node:os'
@@ -417,6 +418,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   const silenzioDetto = new Map<string, number>()
   const notificheDette = new Map<string, number>()
   /** 0.89.4: il lavoro fermo visto per workspace (firma, da quando, spinte date per quella firma). */
+  /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
+  const rossiVisti = new Map<string, Map<string, RossoVisto>>()
   const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
   /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
   const permessiInAttesa = new Map<string, number>()
@@ -1359,6 +1362,27 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     }
   }
 
+  /** 06/11: criterio rosso dopo un'unione e nessuna correzione affidata: promemoria all'autopilota (due volte al più), mai a Nicholas. */
+  const ricordaRossi = (ora: number): void => {
+    for (const a of unici()) {
+      const ws = wsDi(a)
+      const attesa = orchestratore.inAttesa(ws)
+      const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0 || unioniIn(ws) > 0
+      const vivi = subagenti(ws).filter((y) => (y.stato === 'avviato' || y.stato === 'lavoro') && y.compito !== undefined)
+      let visti = rossiVisti.get(ws)
+      if (visti === undefined) { visti = new Map(); rossiVisti.set(ws, visti) }
+      const testo = promemoriaRosso(visti, {
+        compiti: x.orchestratori.piano(ws).compiti,
+        compitiConSpecialista: new Set(vivi.map((y) => y.compito as string)),
+        richiesteAperte: new Set(coda(ws).richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id)),
+        occupato, ora
+      })
+      if (testo === undefined) continue
+      console.info(`[orchestratore] ${ws} — criterio rosso senza correzione: promemoria all'autopilota`)
+      evento(ws, { tipo: 'fermo', quando: x.adesso(), testo })
+    }
+  }
+
   /**
    * 0.89.4: una domanda dell'autopilota senza risposta da un giorno è superata
    * (sul PC di sviluppo ce n'era una del 31/10 sulla 0.88.6, ancora aperta il
@@ -1438,6 +1462,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     const ora = Date.parse(x.adesso())
     try { chiudiDomandeVecchie(ora) } catch (err) { console.error('[orchestratore] chiusura delle domande vecchie non riuscita:', err) }
     try { emergiDomande(ora) } catch (err) { console.error('[orchestratore] domande dalla chat alle Domande non riuscito:', err) }
+    try { ricordaRossi(ora) } catch (err) { console.error('[orchestratore] promemoria del criterio rosso non riuscito:', err) }
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     for (const a of unici()) {
