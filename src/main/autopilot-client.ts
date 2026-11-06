@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { VoceRiparazione } from '@shared/autoriparazione'
 import type { DomandaRisolta } from '@shared/domande-telefono'
 import { leggiPostiChat, type PostiChat } from '@shared/posti-chat'
 import type { Autopilota } from '@shared/autopilota'
@@ -81,6 +82,10 @@ export type ClientAutopilota = {
   adottateScritti: (id: string, ids: string[]) => Promise<void>
   /** «Pulisci adesso» (0.85.2): l'autopulizia del servizio subito; torna la riga del riepilogo. */
   pulisci: () => Promise<string>
+  /** L'autoriparazione (k-59): i workspace e le chat del servizio rimasti con l'assetto di prima. Torna le voci. */
+  ripara: (id: string) => Promise<{ voci: VoceRiparazione[]; copiato: boolean }>
+  /** «Torna come prima» dell'autoriparazione, dalla parte del servizio. */
+  annullaRipara: (id: string) => Promise<{ ripristinati: string[]; rimandati: string[]; errori: string[] }>
   /**
    * 31/10: il registro dei progetti al servizio, che archivia gli autopiloti
    * doppioni (progetto su un altro PC, o cartella che non c'è). Torna le righe
@@ -362,6 +367,14 @@ export function creaClientAutopilota(p: {
     togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }) },
     soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }) },
     adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }) },
+    ripara: async (id) => {
+      const r = (await chiama('/autoriparazione', 'POST', { id }, 10 * 60_000)) as { voci?: VoceRiparazione[]; copiato?: boolean } | undefined
+      return { voci: Array.isArray(r?.voci) ? r.voci : [], copiato: r?.copiato === true }
+    },
+    annullaRipara: async (id) => {
+      const r = (await chiama('/autoriparazione/annulla', 'POST', { id }, 60_000)) as { ripristinati?: string[]; rimandati?: string[]; errori?: string[] } | undefined
+      return { ripristinati: r?.ripristinati ?? [], rimandati: r?.rimandati ?? [], errori: r?.errori ?? [] }
+    },
     // Copie, rami e note: può metterci qualche minuto.
     pulisci: async () => {
       const r = (await chiama('/autopulizia', 'POST', {}, 10 * 60_000)) as { riga?: unknown } | undefined

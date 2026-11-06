@@ -167,6 +167,8 @@ export type ServizioUnico = {
   assicura: (ws: string, p?: { cwd?: string; obiettivo?: string }) => { ok: true; unico: Autopilota } | { ok: false; motivo: string }
   /** All'avvio: ogni workspace con autopiloti di prima passa al suo unico. Torna quanti workspace. */
   migraVecchi: () => number
+  /** k-59: gli autopiloti di prima del workspace non ancora passati al suo unico (per l'autoriparazione). */
+  vecchiDel: (ws: string) => Autopilota[]
   /** 0.89.0: un autopilota di quella cartella ha un turno in volo o specialisti al lavoro (le loro copie non si toccano). */
   agentiAlLavoro: (cartella: string) => boolean
   imposta: (ws: string, p: { modello?: unknown; tettoSpecialisti?: unknown }) => ImpostazioniOrchestratore
@@ -1428,6 +1430,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     },
     assicura,
     migraVecchi,
+    vecchiDel,
     imposta(ws, p) {
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,

@@ -275,6 +275,17 @@ contextBridge.exposeInMainWorld('gestore', {
       return () => { ipcRenderer.off('migrazione:cambiata', h) }
     }
   },
+  /** L'autoriparazione (k-59): il rapporto, «Ripara», «Torna come prima». */
+  autoriparazione: {
+    stato: (): Promise<import('../shared/autoriparazione').StatoRiparazione | null> => ipcRenderer.invoke('autoriparazione:stato'),
+    ripara: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('autoriparazione:ripara'),
+    torna: (): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('autoriparazione:torna'),
+    suCambio: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('autoriparazione:cambiata', h)
+      return () => { ipcRenderer.off('autoriparazione:cambiata', h) }
+    }
+  },
   /** Il riassetto dopo l'aggiornamento (0.88): avanzamento, riepilogo, «Annulla», «Libera subito». */
   riassetto: {
     stato: (): Promise<import('../shared/riassetto').StatoRiassetto | null> => ipcRenderer.invoke('riassetto:stato'),

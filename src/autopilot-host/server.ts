@@ -42,7 +42,8 @@ import {
   comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono,
   type Git, type GitAsincrono
 } from './worktree'
-import type { ArchivioCode } from './coda-store'
+import { cartellaWorkspace, type ArchivioCode } from './coda-store'
+import { annullaRiparazioneServizio, riparaServizio, type DipendenzeRiparazioneServizio } from './autoriparazione'
 import type { ArchivioOrchestratori } from './orchestratore-store'
 import type { AvviaProcesso } from './orchestratore'
 import { passoRiassettoServizio } from './riassetto-servizio'
@@ -213,6 +214,46 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
   /** Gli autopiloti dei workspace: gli altri file dell'archivio sono di prima e non si mostrano. */
   const unici = (): Autopilota[] => unico?.unici() ?? []
+  /** k-59: l'autoriparazione dei workspace e delle chat di questo PC (`autoriparazione.ts`). */
+  const MUTA_DOPO_MS = 15 * 60_000
+  const riparazione = (): DipendenzeRiparazioneServizio => {
+    const dati = dirname(deps.archivio.cartella)
+    const ramoBaseDi = (cwd: string): string => unici().find((u) => u.cwd === cwd)?.ramoBase ?? 'main'
+    return {
+      dati,
+      archivio: deps.archivio,
+      orchestratori: deps.orchestratori,
+      cartellaWs: (ws) => deps.orchestratori.cartellaDi?.(ws) ?? join(dati, 'orchestratori', cartellaWorkspace(ws)),
+      wsDi: chiaveWorkspace,
+      vecchiDel: (ws) => servizio().vecchiDel(ws),
+      unicoDi: (ws) => servizio().unicoDi(ws),
+      unici,
+      assicura: (ws) => servizio().assicura(ws),
+      salva,
+      // Un turno in corso: lavora e ha dato segni di vita da poco (o non si sa ancora: nel dubbio, lavora).
+      occupata: (a, c) => {
+        if (c.stato !== 'lavoro') return false
+        const seg = ultimoSegnale(chiaveTurno(a.id, c.id))
+        return seg === undefined || Date.parse(deps.adesso()) - seg < MUTA_DOPO_MS || servizio().agentiAlLavoro(c.cartella ?? a.cwd)
+      },
+      cartellaEsiste: (c) => { try { return statSync(c).isDirectory() } catch { return false } },
+      ...(deps.git !== undefined
+        ? {
+            statoRamo: (cwd: string, ramo: string) => {
+              const git = deps.git!
+              const c = git(['rev-parse', '--verify', '--quiet', `refs/heads/${ramo}`], cwd)
+              if (c.codice === 1) return 'mancante' as const
+              if (c.codice !== 0) return 'ignoto' as const
+              const u = git(['merge-base', '--is-ancestor', ramo, ramoBaseDi(cwd)], cwd)
+              return u.codice === 0 ? 'unito' as const : u.codice === 1 ? 'non-unito' as const : 'ignoto' as const
+            }
+          }
+        : {}),
+      ...(deps.autopulizia !== undefined ? { autopulizia: () => deps.autopulizia!() } : {}),
+      adesso: () => deps.adesso(),
+      log: (riga) => { console.info(riga) }
+    }
+  }
   /** I messaggi del dialogo già scritti (autopilota|idMessaggio): un secondo tentativo con lo stesso id non li ripete. */
   const dialoghiRicevuti = new Set<string>()
   const leggiUnico = (id: string): Autopilota | undefined => (ID_VALIDO.test(id) && unico?.eUnico(id) === true ? deps.archivio.leggi(id) : undefined)
@@ -846,6 +887,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
         if (metodo === 'POST' && percorso === '/riassetto/passo') {
           const r = await passoRiassettoServizio(await leggiCorpo(req).catch(() => undefined), deps)
           rispondi(res, r.stato, r.corpo)
+          return
+        }
+
+        // L'autoriparazione (k-59): i workspace e le chat rimasti con l'assetto di prima.
+        if (metodo === 'POST' && (percorso === '/autoriparazione' || percorso === '/autoriparazione/annulla')) {
+          const corpo = (await leggiCorpo(req).catch(() => undefined)) as { id?: unknown } | undefined
+          if (typeof corpo?.id !== 'string' || !/^[0-9]{8}-[0-9]{6}(?:-[0-9]+)?$/u.test(corpo.id)) { rispondi(res, 400, { errore: 'id sbagliato' }); return }
+          if (unico === undefined) { rispondi(res, 503, { errore: 'autopilota non ancora pronto' }); return }
+          rispondi(res, 200, percorso === '/autoriparazione' ? await riparaServizio(riparazione(), corpo.id) : annullaRiparazioneServizio(riparazione(), corpo.id))
           return
         }
 
