@@ -25,7 +25,7 @@ const estrai = (nome: string): string => {
 const riga = (inizio: string): string => script.split('\n').find((r) => r.startsWith(inizio)) ?? ''
 
 type Voce = Record<string, unknown>
-type Vista = { posti: { usati: number; tetto: number }; alLavoro: Voce[]; inFila: Voce[] }
+type Vista = { posti: { usati: number; tetto: number }; alLavoro: Voce[]; inFila: Voce[]; totale?: { minuti: number; compiti: number } }
 
 /** Disegna la sezione con quella lista (o con `null`/`'vecchio'`) e quella conferma aperta. */
 function disegna(vista: Vista | 'vecchio' | null, conferma = '', nota = ''): string {
@@ -37,7 +37,7 @@ function disegna(vista: Vista | 'vecchio' | null, conferma = '', nota = ''): str
     var Date = { now: function () { return adesso }, parse: globalThis.Date.parse }
     ${riga('const esc =')}
     ${riga('const escJs =')}
-    ${['nomeWorkspace', 'daQuanto', 'quantoManca', 'postiTesto', 'prioritaTesto', 'attesaHtml'].map(estrai).join('\n')}
+    ${['nomeWorkspace', 'daQuanto', 'quantoManca', 'postiTesto', 'prioritaTesto', 'minutiTesto', 'totaleTesto', 'attesaHtml'].map(estrai).join('\n')}
     return attesaHtml()
   `)
   return f(vista, conferma, nota, ORA) as string
@@ -113,6 +113,48 @@ describe('la pagina: Specialisti', () => {
     expect(disegna('vecchio')).toContain('Serve la versione nuova del servizio')
     expect(disegna(null)).toContain('Leggo la lista')
     expect(disegna(lista, '', 'Non è andata')).toContain('Non è andata')
+  })
+
+  it('stime: totale, workspace, titolo, cosa fa, percentuale, minuti, in ritardo, parcheggiato', () => {
+    const ricca: Vista = {
+      posti: { usati: 1, tetto: 4 },
+      alLavoro: [{ posto: 1, id: 'a1', workspace: 'Nexora', workspaceNome: 'Nexora', compito: 'k-40', descrizione: 'lungo testo', titolo: 'Rifai la tabella', cosaFa: 'Modifica Tabella.tsx', percentuale: 40, minutiStimati: 12, inRitardo: true, tipo: 'specialista-ui', dal: iso(-12) }],
+      inFila: [{ id: 'f1', posizione: 1, workspace: 'Altro', workspaceNome: 'Altro', descrizione: 'ricerca', minutiStimati: 75, tipo: 'ricerca', dal: iso(-2), priorita: 0, prenotata: false, parcheggiata: true }],
+      totale: { minuti: 90, compiti: 4 }
+    }
+    const h = disegna(ricca)
+    expect(h).toContain('Circa 1 h 30 min per finire tutto · 4 compiti')
+    expect(h).toContain('<b>Nexora</b>')
+    expect(h).toContain('Rifai la tabella')
+    expect(h).not.toContain('lungo testo')
+    expect(h).toContain('Modifica Tabella.tsx')
+    expect(h).toContain('value="40"')
+    expect(h).toContain('mancano circa 12 min')
+    expect(h).toContain('in ritardo')
+    expect(h).toContain('circa 1 h 15 min per finire')
+    expect(h).toContain('parcheggiato')
+    expect(disegna(lista)).not.toContain('per finire tutto')
+  })
+
+  it('chi lavora ha «↑ Precedenza» (cima) e «Ferma» con conferma; fermata chiesta senza tasti', () => {
+    const l: Vista = { ...lista, alLavoro: [{ posto: 1, id: 'a1', workspace: 'Nexora', descrizione: 'x', tipo: 't', dal: iso(-1) }, { posto: 2, id: 'a2', workspace: 'Nexora', descrizione: 'y', tipo: 't', dal: iso(-1), fermaRichiesta: true }] }
+    const h = disegna(l)
+    expect(h).toContain("attesaMossa('a1', 'cima')\">↑ Precedenza</button>")
+    expect(h).toContain("attesaFerma('a1')\">Ferma</button>")
+    expect(h).toContain('fermata chiesta…')
+    expect(h).not.toContain("attesaFerma('a2')")
+    const c = disegna(l, 'f:a1')
+    expect(c).toContain('Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato')
+    expect(c).toContain("attesaMossa('a1', 'ferma')")
+  })
+
+  it('la pagina ha la funzione del tasto Ferma e il testo del «?» senza apostrofi dritti né backtick', () => {
+    expect(script).toContain('window.attesaFerma = ')
+    const i = html.indexOf('I minuti si stimano')
+    expect(i).toBeGreaterThan(-1)
+    const aiuto = html.slice(i, html.indexOf("')", i))
+    expect(aiuto).toContain('non ferma mai chi lavora')
+    expect(aiuto).not.toContain('`')
   })
 
   it('le tre richieste vanno alle rotte del computer, e le funzioni dei tasti ci sono', () => {
