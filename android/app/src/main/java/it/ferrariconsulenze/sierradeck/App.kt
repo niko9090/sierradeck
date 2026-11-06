@@ -340,6 +340,10 @@ fun Principale(
                     mostraScheda.cancel()
                     onEsito(gen, chiaveOk)
                     if (chiaveOk) {
+                        // Il PC racconta i suoi indirizzi (rete di casa e Tailscale): l'app li ricorda e,
+                        // se cambi rete, usa da sola quello che risponde (k-50, `Percorsi`). Un PC
+                        // più vecchio non ha la rotta: niente di male, resta l'indirizzo di sempre.
+                        launch { try { Percorsi.impara(contesto, a, Api(a, deposito.chiaveDi(a)).indirizziPc()) } catch (x: kotlinx.coroutines.CancellationException) { throw x } catch (x: Exception) { /* PC senza la rotta */ } }
                         val attesa = AvvioCollegamento.attesaPrimaDiChiudere(schedaTent || schermataViaggio)
                         if (attesa > 0) {
                             delay(1200)

@@ -36,10 +36,10 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         val daRiaccoppiare: Boolean get() = codice == 401
     }
 
-    private fun url(percorso: String) = indirizzo.trimEnd('/') + percorso
+    private fun url(percorso: String, base: String = indirizzo) = base.trimEnd('/') + percorso
 
-    private fun richiesta(percorso: String, corpo: RequestBody?, etag: String? = null): Request {
-        val b = Request.Builder().url(url(percorso))
+    private fun richiesta(percorso: String, corpo: RequestBody?, etag: String? = null, base: String = indirizzo): Request {
+        val b = Request.Builder().url(url(percorso, base))
         if (corpo != null) b.post(corpo) else b.get()
         chiave?.takeIf { it.isNotBlank() }?.let { b.header("x-sierradeck-chiave", it) }
         etag?.let { b.header("If-None-Match", it) }
@@ -69,7 +69,7 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         try {
             val r = chiamata()
             val ora = System.currentTimeMillis()
-            Collegamenti.passo(chiave, EventoLinea.Ok(ora, ora - t0, if (tramite == null) Linea.stradaDiIndirizzo(indirizzo) else null))
+            Collegamenti.passo(chiave, EventoLinea.Ok(ora, ora - t0, if (tramite == null) Linea.stradaDiIndirizzo(Percorsi.effettivo(indirizzo)) else null))
             if (tramite != null) Collegamenti.passo(tramite, EventoLinea.Ok(ora, ora - t0))
             return r
         } catch (e: Errore) {
@@ -86,14 +86,35 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         }
     }
 
+    /**
+     * Una chiamata al PC, sull'indirizzo che oggi funziona (k-50, `Percorsi`).
+     *
+     * L'indirizzo accoppiato resta l'identità del computer; la strada è quella che
+     * risponde: rete di casa se sei sulla stessa WiFi, Tailscale se sei fuori. Se
+     * la strada in uso cade (hai cambiato rete) si cerca l'altra e si riprova una
+     * volta, con la stessa chiave: il PC lo si riconosce dall'impronta prima di
+     * mandargliela.
+     */
     private suspend fun corpoTestoDiretto(percorso: String, corpo: RequestBody?, lenta: Boolean = percorso in ROTTE_LENTE): String =
         withContext(Dispatchers.IO) {
+            val base = Percorsi.effettivo(indirizzo)
+            try {
+                eseguiSu(base, percorso, corpo, lenta)
+            } catch (e: java.io.IOException) {
+                val altra = Percorsi.ritrova(indirizzo)
+                if (altra == null || altra == base) throw e
+                eseguiSu(altra, percorso, corpo, lenta)
+            }
+        }
+
+    private fun eseguiSu(base: String, percorso: String, corpo: RequestBody?, lenta: Boolean): String =
+        run {
             // Non un client solo: **quello legato alla rete giusta**. Un
             // indirizzo di casa deve uscire dal wifi, e Android da solo sceglie
             // la rete che porta a Internet — che con una VPN accesa, o con un
             // wifi che giudica scadente, non e' la stessa cosa. Il perche' sta
             // per intero in `Rete`.
-            val cliente = Rete.clientePer(Indirizzi.hostDi(indirizzo)).let { c ->
+            val cliente = Rete.clientePer(Indirizzi.hostDi(base)).let { c ->
                 // Le rotte del negozio aspettano Claude Code: un'installazione
                 // da GitHub ci mette fino a un paio di minuti. Con i 15 secondi
                 // di sempre l'app diceva «non riuscito» mentre il computer
@@ -103,14 +124,14 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // Con l'ETag (PC 0.86.0, `EtagTenuti`): uguale a prima, 304 e il testo tenuto.
             val chiaveEtag = if (percorso in EtagTenuti.ROTTE) EtagTenuti.chiave(indirizzo, percorso, corpo?.let { val b = okio.Buffer(); it.writeTo(b); b.readUtf8() }) else null
             val etag = chiaveEtag?.let { EtagTenuti.etag(it) }
-            cliente.newCall(richiesta(percorso, corpo, etag)).execute().use { r ->
+            cliente.newCall(richiesta(percorso, corpo, etag, base)).execute().use { r ->
                 if (r.code == 304 && chiaveEtag != null) {
-                    EtagTenuti.testo(chiaveEtag)?.let { return@withContext it }
+                    EtagTenuti.testo(chiaveEtag)?.let { return@run it }
                 }
                 val testo = leggiConTetto(r)
                 if (r.code == 304) {
                     // Il testo tenuto non c'è più (uscito dalle voci): si richiede senza ETag.
-                    return@withContext cliente.newCall(richiesta(percorso, corpo)).execute().use { r2 ->
+                    return@run cliente.newCall(richiesta(percorso, corpo, null, base)).execute().use { r2 ->
                         val t2 = leggiConTetto(r2)
                         if (!r2.isSuccessful) throw Errore(r2.code, t2)
                         chiaveEtag?.let { EtagTenuti.tieni(it, r2.header("ETag"), t2) }
@@ -602,6 +623,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
 
     /** Che versione ha il computer. Serve a dire «sei alla X» invece di niente. */
     suspend fun ciao(): Ciao = json.decodeFromString(corpoTesto("/api/ciao", null))
+
+    /** Gli indirizzi del PC (rete di casa e Tailscale) e la sua impronta, per ritrovarlo senza VPN (k-50). */
+    suspend fun indirizziPc(): IndirizziPc = json.decodeFromString(corpoTesto("/api/indirizzi", null))
 
     suspend fun negozio(): DatiNegozio =
         json.decodeFromString(corpoTesto("/api/negozio", null))

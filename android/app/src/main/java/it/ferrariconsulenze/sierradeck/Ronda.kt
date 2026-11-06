@@ -90,6 +90,7 @@ object Ronda {
     /** Un giro solo. Torna lo stato letto, o `null` se non si è potuto leggere. */
     fun giro(contesto: Context): JSONObject? {
         Rete.ricorda(contesto)
+        Percorsi.osserva(contesto)
         val collegamento = Collegamento(contesto)
         if (!collegamento.pronto) return null
         val stato = leggiStato(collegamento)
@@ -160,12 +161,14 @@ object Ronda {
             .toString()
         Thread {
             try {
-                val richiesta = Request.Builder()
-                    .url("${collegamento.indirizzo}/api/avviso-mostrato")
-                    .header("x-sierradeck-chiave", collegamento.chiave)
-                    .post(corpo.toRequestBody("application/json".toMediaType()))
-                    .build()
-                Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo)).newCall(richiesta).execute().close()
+                Percorsi.provando(collegamento.indirizzo) { base ->
+                    val richiesta = Request.Builder()
+                        .url("$base/api/avviso-mostrato")
+                        .header("x-sierradeck-chiave", collegamento.chiave)
+                        .post(corpo.toRequestBody("application/json".toMediaType()))
+                        .build()
+                    Rete.clientePer(Indirizzi.hostDi(base)).newCall(richiesta).execute().close()
+                }
             } catch (_: Exception) { }
         }.start()
     }
@@ -187,14 +190,17 @@ object Ronda {
      * computer niente da trovare.
      */
     private fun leggiStato(collegamento: Collegamento): JSONObject? = try {
-        val richiesta = Request.Builder()
-            .url("${collegamento.indirizzo}/api/stato")
-            .header("x-sierradeck-chiave", collegamento.chiave)
-            .build()
-        Rete.clientePer(Indirizzi.hostDi(collegamento.indirizzo))
-            .newCall(richiesta).execute().use { r ->
-                if (!r.isSuccessful) null else JSONObject(r.body?.string() ?: "")
-            }
+        // Sull'indirizzo che risponde adesso (rete di casa o Tailscale, k-50).
+        Percorsi.provando(collegamento.indirizzo) { base ->
+            val richiesta = Request.Builder()
+                .url("$base/api/stato")
+                .header("x-sierradeck-chiave", collegamento.chiave)
+                .build()
+            Rete.clientePer(Indirizzi.hostDi(base))
+                .newCall(richiesta).execute().use { r ->
+                    if (!r.isSuccessful) null else JSONObject(r.body?.string() ?: "")
+                }
+        }
     } catch (e: Exception) {
         // Il computer spento, il wifi cambiato, la rete che va e viene: sono i
         // casi normali di una guardia, non guasti da segnalare.

@@ -198,7 +198,7 @@ fun passoAccount(a: Account?): String? = a?.catena?.prossimo?.testo?.takeIf { it
 
 /** Chi risponde dall’altra parte, e con quale versione. */
 @Serializable
-data class Ciao(val programma: String = "", val versione: String = "")
+data class Ciao(val programma: String = "", val versione: String = "", val impronta: String = "")
 
 /** Una cartella dentro cui si può scendere. */
 @Serializable
