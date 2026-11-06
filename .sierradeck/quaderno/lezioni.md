@@ -18,6 +18,9 @@
 - `npx vitest run tests/main` non copre tests/autopilot-host: per modifiche al servizio lanciare anche quella cartella. _(2026-11-05)_
 - l'hook di carico del PC può rifiutare tsc e la suite completa (memoria libera al 5%, vmmemWSL): fare prima il commit e provare il singolo file, poi riprovare. _(2026-11-06)_
 - nei test con timeout reali (server http finto) i margini sotto i 100 ms falliscono quando il PC è carico: aspettare almeno 400 ms sul lato lento _(2026-11-06)_
+- l'hook "PC carico" rimanda anche tsc e vitest completi per molti minuti, e sleep/Monitor sono bloccati: fare il commit prima e provare i singoli file. _(2026-11-06)_
+- `code.cambia(ws, f)` vuole `{coda, eventi}`, non la sola coda. Con la CPU alta l'hook blocca anche Bash e PowerShell: commit prima, poi attesa con un `until` sull'orologio. _(2026-11-06)_
+- I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
 
 ## worktree
 
@@ -29,6 +32,7 @@
 
 - Lo stderr dei figli arriva a pezzi arbitrari: riconoscere le righe attese una per una, mai con `^` sul pezzo intero (0.88.2 sfuggiva, prefisso doppio). _(2026-10-30)_
 - Gli avvisi Node (DEPxxxx) arrivano su stderr dei figli (claude, PTY host) o via console.error: filtrarli con src/shared/avvisi-node.ts prima di chiamarli errori. _(2026-11-05)_
+- StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 
 ## consegne
 
@@ -112,6 +116,7 @@
 - Nel servizio ogni console.error va nel registro come ERRORE e negli errori arrivati: un caso atteso (porta occupata) deve usare console.warn. _(2026-11-05)_
 - Il servizio avviato dallo script di login non riceve SIERRADECK_VERSIONE (versione «?»); senza versione il Gestore non lo sostituisce. Non scriverla nello script: invecchia. _(2026-11-05)_
 - il dialogo scade a 3 s se il servizio è occupato ma il messaggio può essere già scritto: le POST che scrivono vogliono attesa lunga e un id del messaggio, altrimenti il ritentativo lo duplica _(2026-11-06)_
+- Le domande hanno 2 elenchi: `aperte()` (tutte, per dedupe e ritiro) e `visibili()` (senza quelle solo-in-chat). Pannello, telefono e notifiche leggono `GET /domande`, che filtra. _(2026-11-06)_
 
 ## controllo
 
@@ -146,6 +151,7 @@
 ## ambiente
 
 - un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
+- Il guardiano del PC blocca anche typecheck e Bash/PowerShell per minuti, e sleep e Monitor non si possono usare: fare prima il commit. _(2026-11-06)_
 
 ## renderer
 
@@ -165,3 +171,11 @@
 
 - Le domande si leggono sempre dal registro del servizio (GET /domande): il ritiro va fatto lì con `superata()`, nessuna cache nel pannello o nel telefono da svuotare. _(2026-11-06)_
 - Il registro non lega la domanda a una singola richiesta della coda: «richiesta unita» si copre solo con «tutta la coda è fatta»; servirebbe un richiestaId nel contesto. _(2026-11-06)_
+
+## telefono
+
+- Nessuna rotta nuova: il «visto» passa dal push `/stato-programma` del Gestore (`workspaceVisti`) e da `/api/autopilota` del telefono; `autopilot-client.ts` resta intatto. _(2026-11-06)_
+
+## impostazioni
+
+- Aggiungere o spostare una voce in impostazioni-struttura.ts cambia android/.../impostazioni.json: va rigenerato con AGGIORNA=1 e il test lo confronta. _(2026-11-06)_
