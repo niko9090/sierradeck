@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { creaClientPcRemoto, ErroreRemoto } from '../../src/main/pc-remoto'
 import { ordinaIndirizzi, trovaChatRemota, eIndirizzoTailscale, descriviIndirizzo } from '../../src/shared/pc-remoto'
-import type { BattitoPc } from '../../src/shared/posta'
+import { PC_SPENTO_DOPO_MS, type BattitoPc } from '../../src/shared/posta'
 import { improntaPc, provaCasa } from '../../src/main/casa-firma'
 // In cima, non dentro il test: trasformare `client-server` a freddo col PC
 // carico costava da solo quasi tutti i 20 s del test (20/10).
@@ -142,7 +142,7 @@ describe('bussare a un altro PC', () => {
     const { fetch: f, chiamate } = fintoFetch({})
     expect(await motivo(client([], f).chiama('B', '/api/stato'))).toBe('sconosciuto')
     expect(await motivo(client([PORTATILE], f, { chiave: undefined }).chiama('B', '/api/stato'))).toBe('cassaforte')
-    const spento = { ...PORTATILE, battito: new Date(ORA - 10 * 60_000).toISOString() }
+    const spento = { ...PORTATILE, battito: new Date(ORA - PC_SPENTO_DOPO_MS - 60_000).toISOString() }
     const errSpento = await client([spento], f).chiama('B', '/api/stato').catch((e: unknown) => e as ErroreRemoto)
     expect((errSpento as ErroreRemoto).motivo).toBe('non-so')
     expect((errSpento as ErroreRemoto).message).toContain('Non so se Portatile è acceso')

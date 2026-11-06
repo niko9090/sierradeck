@@ -25,7 +25,7 @@ function pc(id: string, scatola: Scatola, cartelle: string[] = []) {
   const scritti: { chat: string; testo: string }[] = []
   const aperte: string[] = []
   let ora = Date.parse('2026-10-30T09:00:00.000Z')
-  const postino = creaPostino({
+  const postinoVero = creaPostino({
     scatola: () => scatola,
     pcId: () => id,
     pcNome: () => id.toUpperCase(),
@@ -38,6 +38,8 @@ function pc(id: string, scatola: Scatola, cartelle: string[] = []) {
     scrivi: (chatId, testo) => { scritti.push({ chat: chatId, testo }) },
     adesso: () => ora
   })
+  // Da ferma la posta si guarda ogni minuto e mezzo (k-65): a ogni giro di prova passano due minuti.
+  const postino = { ...postinoVero, giro: async () => { ora += 120_000; await postinoVero.giro() } }
   return { postino, scritti, aperte, chat: (c: ChatDiPc[]) => { chat = c }, avanti: (ms: number) => { ora += ms } }
 }
 
