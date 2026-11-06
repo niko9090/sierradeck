@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   creaPostino, nomeBattitoPc, nomePosta, nomeUscita, pcVivo, scegliDestinataria, chatNellaCartella, prossimaDaConsegnare,
-  PC_SPENTO_DOPO_MS, BATTITO_PC_OGNI_MS, RIAPRI_DOPO_MS, VOCI_MAX,
+  PC_SPENTO_DOPO_MS, BATTITO_RISCRIVI_MS, RIAPRI_DOPO_MS, VOCI_MAX,
   type BattitoPc, type ChatDiPc, type Posta
 } from '../../src/main/progetti/posta'
 import type { Scatola } from '../../src/main/progetti/posta'
@@ -224,7 +224,10 @@ describe('il postino', () => {
     torre.chat([{ id: 'p1', sessione: 's1', titolo: 'g', cwd: NAS, viva: true, aspetta: true }])
     await torre.postino.giro()
     expect(scritture).toBe(2)
-    torre.avanza(BATTITO_PC_OGNI_MS)
+    torre.avanza(BATTITO_RISCRIVI_MS - 60_000)
+    await torre.postino.giro()
+    expect(scritture).toBe(2)
+    torre.avanza(60_000)
     await torre.postino.giro()
     expect(scritture).toBe(3)
     expect((scatola.dati.get(nomeBattitoPc('A')) as BattitoPc).chat[0]?.aspetta).toBe(true)

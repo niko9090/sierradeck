@@ -449,7 +449,8 @@ private fun SpazioDriveSezione(d: PannelloDrive, fai: (suspend () -> EsitoAzione
     }
     for (pr in sp.proposte) {
         Text("${pr.titolo} · ${pr.breve} · libera ${SpazioRegole.byte(pr.byte)}", color = Banco.testo, fontSize = 12.sp)
-        TextButton(onClick = { chiedi(DaConfermare(pr.titolo, pr.spiega, "Nel recupero") { api.azioneSpazio("spazio-pulisci", tipo = pr.tipo) }) }) { Text("Pulisci…") }
+        if (pr.tipo == "versioni") TextButton(onClick = { chiedi(DaConfermare(pr.titolo, pr.spiega, "Cancella ${pr.versioni} versioni per sempre") { api.azioneSpazio("spazio-versioni-libera") }) }) { Text("Togli…") }
+        else TextButton(onClick = { chiedi(DaConfermare(pr.titolo, pr.spiega, "Nel recupero") { api.azioneSpazio("spazio-pulisci", tipo = pr.tipo) }) }) { Text("Pulisci…") }
     }
     if (sp.misura != null && sp.proposte.isEmpty()) Text("Niente da pulire.", color = Banco.testoQuieto, fontSize = 12.sp)
     for (x in SpazioRegole.inRecupero(sp)) {
@@ -460,6 +461,7 @@ private fun SpazioDriveSezione(d: PannelloDrive, fai: (suspend () -> EsitoAzione
         }
     }
     TextButton(onClick = { fai({ api.azioneSpazio("spazio-misura") }, "misurare il Drive") }) { Text("Misura adesso") }
+    TextButton(onClick = { fai({ api.azioneSpazio("spazio-versioni-conta") }, "contare le versioni vecchie") }) { Text("Conta le versioni vecchie") }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

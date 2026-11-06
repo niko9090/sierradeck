@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
     val inRecupero: ContoSpazio = ContoSpazio(),
     val misuratoIl: String = ""
 )
-@Serializable data class PropostaSpazio(val tipo: String = "", val titolo: String = "", val breve: String = "", val spiega: String = "", val byte: Double = 0.0)
+@Serializable data class PropostaSpazio(val tipo: String = "", val titolo: String = "", val breve: String = "", val spiega: String = "", val byte: Double = 0.0, val versioni: Int = 0)
 @Serializable data class VocePulitaDrive(val nome: String = "")
 @Serializable data class PuliziaDrive(
     val id: String = "", val titolo: String = "", val quando: String = "", val chi: String = "", val scadeIl: String = "",

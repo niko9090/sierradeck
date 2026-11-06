@@ -54,16 +54,20 @@ export function SpazioDrive({ spazio, occupato, onAzione }: {
       {(spazio?.proposte ?? []).map((p) => (
         <div key={p.tipo} className="dove__riga">
           <span className="riordina__testo" style={{ flex: 1 }}>
-            <b>{p.titolo}</b> <span className="account__nota">· {p.breve} · libera {byteLeggibili(p.byte)}</span>
+            <b>{p.titolo}</b> <span className="account__nota">· {p.breve} · libera {p.tipo === 'versioni' ? 'circa ' : ''}{byteLeggibili(p.byte)}</span>
           </span>
           <Aiuto di={p.titolo}>{p.spiega}</Aiuto>
           {conferma?.tipo === 'pulisci' && conferma.proposta === p.tipo ? (
             <>
-              <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setConferma(undefined); onAzione({ azione: 'spazio-pulisci', tipo: p.tipo }) }}>Conferma: nel recupero</button>
+              {p.tipo === 'versioni' ? (
+                <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setConferma(undefined); onAzione({ azione: 'spazio-versioni-libera' }) }}>Conferma: cancella {p.versioni ?? 0} versioni ({byteLeggibili(p.byte)}) per sempre</button>
+              ) : (
+                <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={() => { setConferma(undefined); onAzione({ azione: 'spazio-pulisci', tipo: p.tipo }) }}>Conferma: nel recupero</button>
+              )}
               <button className="tasto tasto--mini" onClick={() => setConferma(undefined)}>No</button>
             </>
           ) : (
-            <button className="tasto tasto--mini" disabled={occupato} onClick={() => setConferma({ tipo: 'pulisci', proposta: p.tipo })}>Pulisci…</button>
+            <button className="tasto tasto--mini" disabled={occupato} onClick={() => setConferma({ tipo: 'pulisci', proposta: p.tipo })}>{p.tipo === 'versioni' ? 'Togli…' : 'Pulisci…'}</button>
           )}
         </div>
       ))}
@@ -86,6 +90,7 @@ export function SpazioDrive({ spazio, occupato, onAzione }: {
       ))}
       <div style={{ marginTop: 4 }}>
         <button className="tasto tasto--mini" disabled={occupato} onClick={() => onAzione({ azione: 'spazio-misura' })}>Misura adesso</button>
+        <button className="tasto tasto--mini" disabled={occupato} onClick={() => onAzione({ azione: 'spazio-versioni-conta' })} title="Conta le versioni vecchie dei file sul Drive: una richiesta per file, può durare qualche minuto">Conta le versioni vecchie</button>
       </div>
     </div>
   )

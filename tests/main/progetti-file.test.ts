@@ -61,6 +61,32 @@ describe('elencaFileProgetto', () => {
     expect(troppoGrandi).toEqual(['grande.bin'])
   })
 
+  it('uscite di build, file ricevuti e binari restano a casa (0.95.6); .git non cambia', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sd-progetto-'))
+    const scrivi = (rel: string, testo = 'x'): void => {
+      const p = join(dir, ...rel.split('/'))
+      mkdirSync(join(p, '..'), { recursive: true })
+      writeFileSync(p, testo)
+    }
+    for (const rel of ['src/a.ts', 'release/setup.txt', 'dist-electron/main.js', '.sierradeck/allegati/f.txt',
+      '.sierradeck/consegne/f.txt', '.sierradeck/errori-arrivati/f.txt', '.sierradeck/note.md',
+      'app.apk', 'a.aab', 'x/setup.EXE', 'a.msi', 'a.dmg', 'a.zip', 'a.7z', 'a.iso', 'a.mp4', 'a.mov',
+      '.git/pack.zip']) scrivi(rel)
+    const { file } = await elencaFileProgetto(dir)
+    expect(file.sort()).toEqual(['.git/pack.zip', '.sierradeck/note.md', 'src/a.ts'])
+  })
+
+  it('il tetto e 20 MB fuori da .git, 50 MB dentro', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sd-progetto-'))
+    mkdirSync(join(dir, '.git'))
+    writeFileSync(join(dir, 'grosso.dat'), Buffer.alloc(21 * 1024 * 1024))
+    writeFileSync(join(dir, 'ok.dat'), Buffer.alloc(19 * 1024 * 1024))
+    writeFileSync(join(dir, '.git', 'pack'), Buffer.alloc(30 * 1024 * 1024))
+    const { file, troppoGrandi } = await elencaFileProgetto(dir)
+    expect(file.sort()).toEqual(['.git/pack', 'ok.dat'])
+    expect(troppoGrandi).toEqual(['grosso.dat'])
+  })
+
   it('una cartella che non c e da un elenco vuoto, non un errore', async () => {
     const { file } = await elencaFileProgetto(join(tmpdir(), 'sd-non-esiste-' + Date.now()))
     expect(file).toEqual([])

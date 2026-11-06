@@ -49,7 +49,7 @@ describe('le chat si comprimono, e si leggono nelle due forme', () => {
 })
 
 describe('cosa non sale con un progetto', () => {
-  it('le uscite delle build e i recuperati di SierraDeck restano a casa; un binario oltre 50 MB pure', async () => {
+  it('le uscite delle build e i recuperati di SierraDeck restano a casa; un file oltre 20 MB (e i binari .apk) pure', async () => {
     const d = mkdtempSync(join(tmpdir(), 'sd-prog-'))
     for (const c of ['src', 'dist', 'out', 'coverage', '.sierradeck/recuperati', '.sierradeck/quaderno']) mkdirSync(join(d, c), { recursive: true })
     writeFileSync(join(d, 'src', 'main.ts'), 'x')
@@ -58,10 +58,11 @@ describe('cosa non sale con un progetto', () => {
     writeFileSync(join(d, 'coverage', 'c.json'), 'x')
     writeFileSync(join(d, '.sierradeck', 'recuperati', 'vecchio.ts'), 'x')
     writeFileSync(join(d, '.sierradeck', 'quaderno', 'scheda.md'), 'x')
-    writeFileSync(join(d, 'grande.apk'), Buffer.alloc(51 * 1024 * 1024))
+    writeFileSync(join(d, 'grande.dat'), Buffer.alloc(21 * 1024 * 1024))
+    writeFileSync(join(d, 'app.apk'), 'x')
     const e = await elencaFileProgetto(d)
     expect(e.file.sort()).toEqual(['.sierradeck/quaderno/scheda.md', 'src/main.ts'])
-    expect(e.troppoGrandi).toEqual(['grande.apk'])
+    expect(e.troppoGrandi).toEqual(['grande.dat'])
   })
 })
 
