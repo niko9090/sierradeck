@@ -231,7 +231,9 @@ describe('la sezione «Specialisti»: nel programma', () => {
     expect(console_).toContain("v.id === 'specialisti' ? specialistiInFila")
     expect(console_).toMatch(/findIndex\(\(v\) => v\.id === 'domande'\) \+ 1/)
     expect(console_).toContain("'specialisti' | undefined")
-    expect(app).toContain("aperto === 'specialisti' ? <PannelloSpecialisti")
+    // k-160: Specialisti è una colonna a destra, aperta da specialistiLato (non più da «aperto»).
+    expect(app).toContain('{specialistiLato.aperto ? (')
+    expect(app).toContain('<PannelloSpecialisti')
     expect(app).toContain('specialistiInFila={specialistiInFila}')
   })
 
