@@ -73,13 +73,11 @@
 - `gradle clean testDebugUnitTest assembleDebug --no-daemon` in una copia pulita dura circa 3m45 e passa. _(2026-11-07)_
 - Il programma toglie --no-daemon ai gradle dei criteri e dà una TEMP cancellata a fine criterio: il demone riusato cade con NoSuchFileException .alive. Fissato con org.gradle.daemon=false. _(2026-11-07)_
 - Senza JAVA_HOME gradle usa il JRE 25 del PATH e fallisce in 8 s con il messaggio «25.0.4.1»: Gradle 8.11 non regge Java 25. _(2026-11-07)_
+- Con org.gradle.daemon=false il criterio Android nella cartella principale è tornato verde (k-52, 07/11): il rosso di 20-35 s era il demone Gradle riusato con la TEMP cancellata. _(2026-11-07)_
+- Il ramo del worktree può nascere prima del lavoro PC già in main (k-53, k-54): fare `git merge main` prima di leggere i file `src/shared` del PC. _(2026-11-07)_
 
 ## release
 
-- Un agente lanciato in un worktree isolato non può eseguire git sulla cartella principale (né `cd` né `git -C`): una release che va costruita lì va affidata a una sessione non isolata. _(2026-11-05)_
-- Gli specialisti non possono usare git nella cartella principale: la release si costruisce nella loro copia con node_modules vera (npm ci, mai junction) e google-oauth.json copiato e poi tolto. _(2026-11-05)_
-- La versione Android è 2.88.6 (non 2.93.0): la numerazione dell'app non segue quella del programma. Con android/ invariato allega-apk riallega la stessa. _(2026-11-05)_
-- Dalla copia con `npm ci` (no junction) la release passa: controlla-pacchetto dà 49 moduli, tag e push da lì valgono. `gh release view --json isDraft,assets --jq` con più campi va in errore: usare Con… _(2026-11-05)_
 - 0.93.1 (05/11) pubblicata dalla copia con npm ci: 49 moduli, 5 allegati. L'APK è alla 2.88.6 (numerazione Android separata): con android/ invariato si riallega quello. _(2026-11-05)_
 - Se un collega ha lasciato un build a metà in un altro worktree, controlla che dist non abbia l'exe e che non ci siano processi; poi costruisci nella tua copia, già sul tag, senza riprendere la sua. _(2026-11-05)_
 - `allega-apk --senza-build` da una copia nuova: copia `app-release.apk` e `local.properties` dalla cartella principale, poi cancella `local.properties`. _(2026-11-05)_
@@ -138,6 +136,7 @@
 - Nel worktree il filtro dei comandi rifiuta qualunque comando Bash con «git» dentro, anche `npm version --no-git-tag-version`: da PowerShell passa. _(2026-11-05)_
 - l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
+- Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
 
 ## pubblicazione
 
@@ -173,6 +172,7 @@
 - il guardiano rimanda anche suite con elenchi di file e Gradle per molti minuti di fila: lanciare gruppi piccoli di file espliciti. _(2026-11-06)_
 - Il guardiano «PC carico» blocca anche `tsc --noEmit`, non solo la suite intera. Se un `java` esterno resta alto, la compilazione si ritarda a lungo: lanciarla appena il carico scende. _(2026-11-07)_
 - Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
+- Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
 
 ## renderer
 
