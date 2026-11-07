@@ -386,17 +386,28 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
     expect((await vista()).specialisti.map((s) => s.id)).not.toContain('toolu_lavoro')
   })
 
-  it('due rami con lavoro, nessuno dentro l’altro: errore con i rami possibili, niente unione', async () => {
+  it('due rami con lavoro, nessuno dentro l’altro: si uniscono tutti e due, uno dopo l’altro (06/11, k-60)', async () => {
     zitto()
     const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 2 })
     await preparaK1(git)
     await strumento('unisci', { compito: 'k-1' })
-    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione non fatta') === true, { cosa: 'l’esito dell’unione' })
-    const k = orch.piano('Lavoro').compiti[0]!
-    expect(k.stato).not.toBe('unito')
-    expect(k.esito).toContain(`${LAVORO} (toolu_lavoro, 1 commit)`)
-    expect(k.esito).toContain(`${ALTRO} (toolu_controllo, 2 commit)`)
-    expect(chiamate.some((c) => c.includes('merge') && c.includes('--no-commit'))).toBe(false)
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    const uniti = chiamate.filter((c) => c.includes('merge') && c.includes('--no-commit')).map((c) => c.at(-1))
+    expect(uniti).toEqual([LAVORO, ALTRO])
+    // Nessuno dei due specialisti resta «da unire».
+    const ids = (await vista()).specialisti.map((s) => s.id)
+    expect(ids).not.toContain('toolu_lavoro')
+    expect(ids).not.toContain('toolu_controllo')
+  })
+
+  it('l’unione chiesta per lo specialista del ramo vuoto vale per il compito: il ramo con il lavoro non resta fuori (06/11, k-60)', async () => {
+    zitto()
+    const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 0 })
+    await preparaK1(git)
+    await strumento('unisci', { specialista: 'toolu_controllo' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(chiamate.filter((c) => c.includes('merge') && c.includes('--no-commit')).map((c) => c.at(-1))).toEqual([LAVORO])
+    expect((await vista()).specialisti.map((s) => s.id)).not.toContain('toolu_lavoro')
   })
 
   it('due rami con lavoro, uno partito dall’altro: vale quello che li contiene', async () => {
