@@ -887,7 +887,8 @@ export function apriSincronia(deps: {
         log(`SALVA ok (${esito.caricati} caricati, ${esito.cancellati} rimossi${esito.saltati > 0 ? `, ${esito.saltati} saltati` : ''}${esito.rimandati > 0 ? `, ${esito.rimandati} rimandati` : ''}, ${totali} in tutto${veri.length > 0 ? `, ${veri.length} conflitti` : ''})`)
         return { ok: true, voci: esito.caricati, ...(veri.length > 0 ? { conflitti: veri.length } : {}) }
       } catch (e) {
-        log(`SALVA fallito: ${messaggioDi(e)}`)
+        // Drive pieno: lo ha già detto il freno, una volta sola; qui non si ripete a ogni tentativo.
+        if (messaggioDi(e) !== MESSAGGIO_DRIVE_PIENO) log(`SALVA fallito: ${messaggioDi(e)}`)
         return { ok: false, messaggio: messaggioDi(e) }
       }
     })
