@@ -61,7 +61,7 @@ object Ponte {
         "/api/sfoglia", "/api/cartelle", "/api/sessioni",
         // L'autopilota unico (PC 0.86.x): la scheda, parlargli, il primo messaggio, i file e l'avanzamento.
         "/api/autopilota", "/api/autopilota/crea", "/api/autopilota/dialogo", "/api/autopilota/file", "/api/autopilota/diff",
-        "/api/autopilota/avanzamento", "/api/quaderno", "/api/quaderno/scheda",
+        "/api/autopilota/avanzamento", "/api/specialisti/attesa", "/api/quaderno", "/api/quaderno/scheda",
         // Il pannello delle chat e dei progetti del Drive di quel PC (PC 0.58.0).
         "/api/drive/pannello", "/api/drive/azione",
         // La gestione delle chat di quel PC (PC 0.79.0): le regole le decide lui.
