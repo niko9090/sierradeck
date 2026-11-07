@@ -119,11 +119,6 @@
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
 
-## pubblicazione
-
-- `npm run pubblica` lascia la release in bozza: serve `gh release edit vX --draft=false --latest`. `isLatest` non è un campo di `gh release view`, si legge da `gh release list`. _(2026-11-05)_
-- gh release create senza --draft fa saltare l'upload a pubblica («existing type not compatible»): o --draft, o caricare a mano exe/blockmap/latest.yml con nomi a trattini (0.94.3). _(2026-11-05)_
-
 ## apk
 
 - `allega-apk` senza `--senza-build` lancia gradle e ricompila. Per riallegare l'APK esistente: copiare `app-release.apk` e `android/local.properties` dalla cartella principale e usare `--senza-build`. _(2026-11-05)_
@@ -333,3 +328,11 @@
 ## electron
 
 - `getGPUFeatureStatus()` dà stringhe di Chromium (`enabled_on`, `disabled_software`, `disabled_off`): la scheda attiva si legge dal prefisso `enabled`, non da un booleano _(2026-11-07)_
+
+## gradle
+
+- il registro del demone in %USERPROFILE%\.gradle\daemon\8.11.1\daemon-<pid>.out.log riporta currentDir, inizio e fine della build: va letto prima di sospettare un processo vivo. _(2026-11-07)_
+
+## carico
+
+- il controllo di carico del PC blocca anche comandi semplici (ls, Glob) quando la CPU sta sopra il 75%: meglio usare lo strumento di lettura dei file. _(2026-11-07)_
