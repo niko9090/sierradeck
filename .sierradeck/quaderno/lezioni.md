@@ -51,6 +51,8 @@
 - nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
+- Un rosso in main dopo un'unione può non riprodursi nella copia: prima di cambiare codice rilanciare la suite sul ramo già allineato e, se è verde, sospettare un fallimento intermittente per PC carico. _(2026-11-07)_
+- PonteTest confronta Ponte.ROTTE (Ponte.kt) con ROTTE_PONTE del PC: una rotta nuova nel ponte va aggiunta in tutte e due le liste, o il criterio Android diventa rosso. _(2026-11-07)_
 
 ## worktree
 
@@ -63,10 +65,6 @@
 
 - Gli avvisi Node (DEPxxxx) arrivano su stderr dei figli (claude, PTY host) o via console.error: filtrarli con src/shared/avvisi-node.ts prima di chiamarli errori. _(2026-11-05)_
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
-
-## shell
-
-- Nei worktree il Bash rifiuta i comandi composti con heredoc e python: usa Write/Edit per i file. _(2026-11-01)_
 
 ## android
 
@@ -106,22 +104,12 @@
 - Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
 - REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
 
-## registro
-
-- Electron scrive «Error occurred in handler» per ogni rigetto di ipcMain.handle: il filtro sta in console-nel-registro.ts come per PREFISSO_CHAT_ALTROVE, non nel gestore. _(2026-11-01)_
-
-## avvio
-
-- In spawnConvalidato la validazione cwd viene prima di casaAltroveDi: un progetto di un altro PC con cartella assente non arriva al messaggio «vive su <PC>». _(2026-11-01)_
-
 ## aggiornamenti
 
-- Gli errori di rete transitori dell'updater (ERR_NO_BUFFER_SPACE) si ritentano da soli con RICONTROLLA_MS: il registro non deve trattarli come guasti. _(2026-11-01)_
 - i 5xx di GitHub sul feed (502/503/504) sono passeggeri durante una pubblicazione; il 501 differenziale e il 404 su latest.yml hanno trattamenti propri, non confonderli. _(2026-11-05)_
 
 ## ipc
 
-- `pty:spawn` ha tre rami prima dello spawn (proprietario, chiusa-senza-cartella, convalida): il proprietario va per primo, perché un progetto di un altro PC qui non ha la cartella. _(2026-11-01)_
 - Ogni handler `autopilota:*` che chiama il client va avvolto in una funzione pura che trasforma `scaduto: true` in un esito; dopo `dettaglio` (0.88.10) mancava `elenca`. _(2026-11-05)_
 
 ## servizio
@@ -184,6 +172,8 @@
 - Nei worktree la junction a node_modules si toglie in PowerShell con (Get-Item node_modules).Delete(). Da Bash, `cmd //c mklink` viene rifiutato dal guardiano. _(2026-11-06)_
 - nei worktree senza node_modules il criterio fallisce per l'ambiente: la junction verso la cartella principale va lasciata finché il ramo non è unito. _(2026-11-06)_
 - il guardiano rimanda anche suite con elenchi di file e Gradle per molti minuti di fila: lanciare gruppi piccoli di file espliciti. _(2026-11-06)_
+- Il guardiano «PC carico» blocca anche `tsc --noEmit`, non solo la suite intera. Se un `java` esterno resta alto, la compilazione si ritarda a lungo: lanciarla appena il carico scende. _(2026-11-07)_
+- Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
 
 ## renderer
 
