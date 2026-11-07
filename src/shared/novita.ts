@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.96.0',
+    righe: [
+      '**Schermata Specialisti:** la lista d’attesa mostra per ogni specialista il workspace, cosa fa, la percentuale e i minuti stimati, con il totale in fondo. «Precedenza» e «Ferma e metti in cima» funzionano sul PC e dall’app Android.',
+      '**Controllo dei PC e del Drive più robusto:** una sola soglia per dire se un PC è spento, battito riscritto da fermo ogni 30 minuti, freno del Drive quando è pieno, doppioni segnalati con conferma.',
+      '**Rete e firewall:** l’app trova il PC anche sul wifi di casa e il programma controlla il firewall di Windows, con il rimedio in Impostazioni.',
+    ],
+  },
+  {
     versione: '0.95.5',
     righe: [
       '**Il dialogo con l’autopilota non scade più dopo 3 secondi:** se il servizio è occupato aspetta fino a 30 secondi, non manda due volte lo stesso messaggio e, se proprio non risponde, lo dice in italiano.',
