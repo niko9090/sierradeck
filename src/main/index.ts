@@ -116,6 +116,7 @@ import {
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { indirizziPerApp } from './rete-telefono'
+import { leggiFirewall, type EsitoFirewall } from './firewall-windows'
 import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
@@ -584,6 +585,8 @@ let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 let localiBattito: (() => LocaliBattito) | undefined
 /** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
 let statoClient: { inAscolto: boolean; errore?: string } | undefined
+/** L'ultimo controllo del firewall di Windows sulla porta del Client (si rifà al massimo ogni 2 minuti). */
+let firewallClient: { il: number; esito: EsitoFirewall } | undefined
 
 /** Quanto lavora SierraDeck qui (0.69.0): per la Salute e il battito. */
 function risorseQui(): RisorsePc | undefined {
@@ -5189,6 +5192,18 @@ if (!app.requestSingleInstanceLock()) {
         if (prima) registro.info(`${riga} (la porta si è liberata)`)
       })
       srv.listen(porta)
+      // Il firewall di Windows (telefono sul wifi di casa senza Tailscale): se scarta i
+      // pacchetti in silenzio, il telefono vede solo «non risponde». Si controlla in
+      // sottofondo, si scrive nel registro e si mostra in Impostazioni → Client.
+      const controllaFirewall = async (): Promise<EsitoFirewall> => {
+        if (firewallClient !== undefined && Date.now() - firewallClient.il < 120_000) return firewallClient.esito
+        const esito = await leggiFirewall(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
+        firewallClient = { il: Date.now(), esito }
+        return esito
+      }
+      void controllaFirewall().then((e) => {
+        if (e.stato === 'bloccato') registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
+      })
       // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
       try {
         const annuncio = avviaAnnuncio({
@@ -5213,6 +5228,8 @@ if (!app.requestSingleInstanceLock()) {
           // Quali stanno davanti agli occhi: quasi sempre due — la rete di casa
           // e la VPN — perché sono due risposte diverse alla stessa domanda.
           inEvidenza: indirizziInEvidenza(indirizzi),
+          // Presente solo se il firewall di Windows sta bloccando la rete di casa.
+          firewall: await (async () => { const e = await controllaFirewall(); return e.stato === 'bloccato' ? { messaggio: e.messaggio, comando: e.comando } : undefined })(),
           dispositivi: dispositivi.elenca(),
           accoppiamento: dispositivi.accoppiamentoAperto()
         }

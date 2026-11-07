@@ -160,6 +160,16 @@ function SezioneClient(): React.JSX.Element {
       <h4 className="con-aiuto">Client — telefono, tablet, touch<Aiuto di="Client">
         Apri sul telefono uno di questi indirizzi, poi «Aggiungi alla schermata Home».
       </Aiuto></h4>
+      {stato.firewall !== undefined ? (
+        <div className="impostazioni__nota con-aiuto">
+          Il firewall di Windows blocca il telefono sul wifi di casa.
+          <Aiuto di="Firewall di Windows">
+            {stato.firewall.messaggio}
+            <br />
+            <code>{stato.firewall.comando}</code>
+          </Aiuto>
+        </div>
+      ) : null}
       {stato.indirizzi.length === 0 ? (
         <div className="impostazioni__nota">Nessuna rete locale trovata.</div>
       ) : (

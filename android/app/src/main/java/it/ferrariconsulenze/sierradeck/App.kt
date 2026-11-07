@@ -292,7 +292,14 @@ fun Principale(
         viaggio = Viaggio(nomeScelto, nomePrima, System.currentTimeMillis(), Selezione.indirizziDi(indirizzo), emptyList())
         fun e(x: EventoTentativo) { ev += x; eventiTent = ev.toList(); viaggio = viaggio.copy(eventi = ev.toList(), dettagli = dettagli.toMap()) }
         eventiTent = emptyList()
-        val perStrada = Selezione.indirizziDi(indirizzo).groupBy { Linea.stradaDiIndirizzo(it) ?: "lan" }
+        // Il PC salvato col suo indirizzo Tailscale e il telefono sul wifi di casa con Tailscale
+        // spento: provare solo quell'indirizzo vuol dire aspettare un tunnel che non c'è (e i 5 s
+        // qui sotto scadono prima che `Api` cerchi l'altra strada). Prima si cerca, fra tutti gli
+        // indirizzi che il PC ha raccontato (rete di casa prima), quello che risponde con la sua
+        // impronta; da lì `Api` usa quello (`Percorsi.effettivo`).
+        val scelto = withContext(Dispatchers.IO) { try { Percorsi.ritrova(indirizzo, forza = true) } catch (x: Exception) { null } } ?: Percorsi.effettivo(indirizzo)
+        val stradaScelta = Linea.stradaDiIndirizzo(scelto) ?: "lan"
+        val perStrada = Selezione.indirizziDi(indirizzo).groupBy { stradaScelta }
         var ultimo = "nessuna strada ha risposto"
         for (s in listOf("lan", "tailscale")) {
             val indirizzi = perStrada[s]
@@ -302,7 +309,7 @@ fun Principale(
             }
             for (a in indirizzi) {
                 val t0 = System.currentTimeMillis()
-                dettagli[s] = DettaglioStrada(a, t0)
+                dettagli[s] = DettaglioStrada(scelto, t0)
                 e(EventoTentativo.Provo(s, t0))
                 val riuscito = try {
                     val c = kotlinx.coroutines.withTimeout(5000) { Api(a, deposito.chiaveDi(a)).ciao() }
@@ -316,26 +323,26 @@ fun Principale(
                     ultimo = x.message?.take(120) ?: "non risponde"; false
                 }
                 if (riuscito) {
-                    dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis())
+                    dettagli[s] = DettaglioStrada(scelto, t0, System.currentTimeMillis())
                     e(EventoTentativo.Riuscita(s, System.currentTimeMillis(), System.currentTimeMillis() - t0))
                     // La verifica della chiave: /api/ciao risponde a chiunque, /api/stato solo a chi ha la chiave.
                     val k0 = System.currentTimeMillis()
-                    viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0))
+                    viaggio = viaggio.copy(chiave = DettaglioStrada(scelto, k0))
                     val chiaveOk = try {
                         val letto = kotlinx.coroutines.withTimeout(8000) { Api(a, deposito.chiaveDi(a)).stato() }
                         // Lo stato letto per la prova della chiave è già lo stato: le chat si vedono
                         // adesso, non al primo giro del polso (0.83.0).
                         if (stato == null || daCopia) { stato = letto; daCopia = false }
-                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis()), chiaveOk = true)
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(scelto, k0, System.currentTimeMillis()), chiaveOk = true)
                         true
                     } catch (x: kotlinx.coroutines.TimeoutCancellationException) {
-                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), "il computer non ha confermato la chiave in 8 secondi (non ha risposto)"), chiaveOk = false); false
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(scelto, k0, System.currentTimeMillis(), "il computer non ha confermato la chiave in 8 secondi (non ha risposto)"), chiaveOk = false); false
                     } catch (x: kotlinx.coroutines.CancellationException) {
                         throw x
                     } catch (x: Api.Errore) {
-                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), if (x.codice == 401) "il computer ha risposto 401: questa chiave non la riconosce" else "il computer ha risposto ${x.codice}"), chiaveOk = false); false
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(scelto, k0, System.currentTimeMillis(), if (x.codice == 401) "il computer ha risposto 401: questa chiave non la riconosce" else "il computer ha risposto ${x.codice}"), chiaveOk = false); false
                     } catch (x: Exception) {
-                        viaggio = viaggio.copy(chiave = DettaglioStrada(a, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
+                        viaggio = viaggio.copy(chiave = DettaglioStrada(scelto, k0, System.currentTimeMillis(), x.message?.take(160) ?: "non risponde"), chiaveOk = false); false
                     }
                     mostraScheda.cancel()
                     onEsito(gen, chiaveOk)
@@ -354,7 +361,7 @@ fun Principale(
                     } else schedaTent = true
                     return@LaunchedEffect
                 }
-                dettagli[s] = DettaglioStrada(a, t0, System.currentTimeMillis(), ultimo)
+                dettagli[s] = DettaglioStrada(scelto, t0, System.currentTimeMillis(), ultimo)
                 e(EventoTentativo.Fallita(s, System.currentTimeMillis(), ultimo))
             }
         }
@@ -662,7 +669,7 @@ fun Principale(
             // Perché non si collega (0.75.1): il motivo probabile e il rimedio, dopo due giri a vuoto.
             if (giriFalliti >= PercheNonCollego.GIRI_PRIMA_DI_SPIEGARE && !schermataViaggio) {
                 val rete = remember(giriFalliti) { PercheNonCollego.leggiRete(contesto) }
-                val indirizziPc = remember(indirizzo) { (listOf(indirizzo) + Collegamento(contesto).indirizziNoti()).distinct() }
+                val indirizziPc = remember(indirizzo, giriFalliti) { (listOf(indirizzo) + Percorsi.ricordati(contesto, indirizzo) + Collegamento(contesto).indirizziNoti()).distinct() }
                 BandaNonCollego(
                     PercheNonCollego.diagnosi(
                         rete, indirizziPc, chiaveRifiutata = rifiuti > 0,

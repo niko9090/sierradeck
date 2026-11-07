@@ -66,6 +66,7 @@ declare global {
           porta: number
           indirizzi: string[]
           inEvidenza: string[]
+          firewall?: { messaggio: string; comando: string }
           dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
           accoppiamento?: { codice: string; scadeIl: number }
         }>
