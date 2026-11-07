@@ -119,14 +119,6 @@
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
 
-## apk
-
-- `allega-apk` senza `--senza-build` lancia gradle e ricompila. Per riallegare l'APK esistente: copiare `app-release.apk` e `android/local.properties` dalla cartella principale e usare `--senza-build`. _(2026-11-05)_
-
-## npm ci
-
-- con `npm ci` l'eseguibile di Electron può non scaricarsi (allowScripts): serve `node node_modules/electron/install.js` prima di `pubblica`. _(2026-11-05)_
-
 ## ambiente
 
 - un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
@@ -150,6 +142,7 @@
 - Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
 - Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
+- Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
 
 ## renderer
 
@@ -336,3 +329,7 @@
 ## carico
 
 - il controllo di carico del PC blocca anche comandi semplici (ls, Glob) quando la CPU sta sopra il 75%: meglio usare lo strumento di lettura dei file. _(2026-11-07)_
+
+## dipendenze
+
+- Il node_modules principale non ha xterm 6.1 né @xterm/addon-webgl: una junction non basta dopo k-169, serve copia reale più npm install --ignore-scripts. _(2026-11-07)_
