@@ -3,7 +3,7 @@ import { aggiungi, codaVuota, type Coda, type Modifica } from '@shared/coda-rich
 import { pianoVuoto, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import {
-  chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE,
+  chiamaStrumento, creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, DOMANDE_ORA_ORCHESTRATORE, STRUMENTI_ORCHESTRATORE, motivoDomandaInutile,
   type AmbienteOrchestratore
 } from '../../src/autopilot-host/mcp-orchestratore'
 
@@ -104,6 +104,26 @@ describe('strumenti dell’orchestratore', () => {
     expect(git?.testo).toMatch(/lavoro tecnico lo fa uno specialista/)
     expect((await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', { domanda: 'Pubblico adesso la nuova versione?', perche: 'le correzioni sono pronte e provate', scelte: ['Sì → la pubblico ora', 'Domani'] }))?.errore).toBe(false)
     expect(perche).toEqual(['le correzioni sono pronte e provate'])
+  })
+
+  it('chiedi_utente (06/11): niente riavvii del servizio, programmi da chiudere o lavoro a mano; risolvilo da solo', async () => {
+    const a = ambiente()
+    const rifiutate = [
+      { domanda: 'Puoi riavviare il servizio di SierraDeck così prendo la nuova versione?' },
+      { domanda: 'Come procediamo?', scelte: ['Riavvia SierraDeck tu', 'Aspetto'] },
+      { domanda: 'La cartella è occupata: puoi chiudere i programmi che la usano?' },
+      { domanda: 'Puoi chiudere la chat che tiene il ramo?' },
+      { domanda: 'Mi lanci il comando di pulizia da terminale?' },
+      { domanda: 'Puoi fare a mano la copia dei file?' }
+    ]
+    for (const r of rifiutate) {
+      const e = await chiamaStrumento(a, 'Lavoro', 'chiedi_utente', r)
+      expect(e?.errore, r.domanda).toBe(true)
+      expect(e?.testo, r.domanda).toMatch(/da solo|specialista/)
+    }
+    expect(a.stato.domande).toHaveLength(0)
+    expect(motivoDomandaInutile('Pubblico la 1.2.0 o aspetto?')).toBeUndefined()
+    expect(motivoDomandaInutile('Tengo il tema scuro o chiaro per le nuove schermate?')).toBeUndefined()
   })
 
   it('permesso: la risposta è il JSON che la CLI si aspetta', async () => {

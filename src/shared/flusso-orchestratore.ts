@@ -44,6 +44,8 @@ export type Specialista = {
   riepilogo?: string
   /** Già unito dal cancello. */
   unito?: boolean
+  /** Il prompt dato all'Agent, finché non è finito (serve a rimetterlo in fila se il tetto lo rifiuta). */
+  prompt?: string
 }
 
 export type RigaRegistro = { quando: string; tipo: 'turno' | 'specialista' | 'strumento' | 'costo' | 'errore'; testo: string; specialista?: string }
@@ -83,8 +85,14 @@ export type EffettoFlusso =
   | { tipo: 'costo'; costo: CostoTurno }
   | { tipo: 'specialista-partito'; specialista: Specialista }
   | { tipo: 'specialista-finito'; specialista: Specialista }
+  /** 06/11: l'Agent è stato rifiutato perché il tetto di specialisti contemporanei è pieno. Non è un fallimento: il programma lo mette in fila col suo prompt. */
+  | { tipo: 'specialista-rifiutato'; specialista: Specialista; prompt?: string }
+
+/** Il rifiuto del tetto di specialisti contemporanei («Concurrent subagent limit reached»). */
+export const eTettoSpecialisti = (testo: string): boolean => /concurrent\s+subagent\s+limit/iu.test(testo)
 
 export const REGISTRO_MAX = 60
+export const PROMPT_SALVATO_MAX = 20_000
 export const SPECIALISTI_RICORDATI = 30
 export const COSTI_RICORDATI = 50
 
@@ -166,7 +174,8 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
     let gia = false
     const x = cambia(id, (y) => {
       if (terminale(y.stato)) { gia = true; return riepilogo !== undefined && y.riepilogo === undefined ? { ...y, riepilogo } : y }
-      return { ...y, stato: esito, fine: quando, ...(riepilogo !== undefined ? { riepilogo } : {}) }
+      const { prompt: _prompt, ...senza } = y
+      return { ...senza, stato: esito, fine: quando, ...(riepilogo !== undefined ? { riepilogo } : {}) }
     })
     if (x === undefined || gia) return
     registra({ tipo: 'specialista', specialista: x.id, testo: `${x.ruolo} ${esito === 'finito' ? 'ha finito' : esito === 'fallito' ? 'non è riuscito' : 'è stato fermato'}: ${corto(x.descrizione, 100)}` })
@@ -252,7 +261,8 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
         const i = o(b.input)
         const descrizione = s(i.description) ?? s(i.prompt)?.slice(0, 120) ?? 'specialista'
         const compito = compitoDallaDescrizione(descrizione)
-        const nuovo: Specialista = { id, ruolo: s(i.subagent_type) ?? 'general-purpose', descrizione, stato: 'avviato', inizio: quando, ...(compito !== undefined ? { compito } : {}) }
+        const prompt = typeof i.prompt === 'string' && i.prompt.trim() !== '' ? i.prompt.slice(0, PROMPT_SALVATO_MAX) : undefined
+        const nuovo: Specialista = { id, ruolo: s(i.subagent_type) ?? 'general-purpose', descrizione, stato: 'avviato', inizio: quando, ...(prompt !== undefined ? { prompt } : {}), ...(compito !== undefined ? { compito } : {}) }
         st.specialisti = [...st.specialisti.filter((x) => x.id !== id), nuovo].slice(-SPECIALISTI_RICORDATI)
         registra({ tipo: 'specialista', specialista: id, testo: `parte ${nuovo.ruolo}: ${corto(descrizione, 100)}` })
         effetti.push({ tipo: 'specialista-partito', specialista: nuovo })
@@ -279,6 +289,13 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
       const agente = d.agente ?? /\bagentId:\s*([\w-]+)/u.exec(testo)?.[1]
       cambia(x.id, (y) => ({ ...y, ...(d.cartella !== undefined ? { cartella: d.cartella } : {}), ...(d.ramo !== undefined ? { ramo: d.ramo } : {}), ...(agente !== undefined && y.agente === undefined ? { agente } : {}) }))
       const inSottofondo = x.task !== undefined || /background|sottofondo|async/iu.test(testo.slice(0, 300))
+      if (b.is_error === true && eTettoSpecialisti(testo)) {
+        // Non è un fallimento: lo specialista non è mai partito. Esce dal flusso e il programma lo rimette in fila.
+        st.specialisti = st.specialisti.filter((y) => y.id !== x.id)
+        registra({ tipo: 'specialista', specialista: x.id, testo: `tetto di specialisti pieno: ${corto(x.descrizione, 100)} aspetta un posto` })
+        effetti.push({ tipo: 'specialista-rifiutato', specialista: x, ...(x.prompt !== undefined ? { prompt: x.prompt } : {}) })
+        continue
+      }
       if (!inSottofondo) finisci(x.id, b.is_error === true ? 'fallito' : 'finito', testo !== '' ? testo : undefined)
       else if (testo !== '' && /RAPPORTO:|LEZIONI:/u.test(testo)) finisci(x.id, 'finito', testo)
     }
