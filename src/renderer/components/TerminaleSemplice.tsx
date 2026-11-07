@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { adattaSePuoi } from '../adatta-terminale'
+import { registraWebgl } from '../webgl-terminali'
 import '@xterm/xterm/css/xterm.css'
 import { ptyBus } from '../pty-bus'
 
@@ -40,6 +41,7 @@ export function TerminaleSemplice({ ptyId, altezza = 260 }: Props): React.JSX.El
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(nodo)
+    const liberaWebgl = registraWebgl(term, nodo)
     adattaSePuoi(fit)
 
     const bus = ptyBus()
@@ -65,6 +67,7 @@ export function TerminaleSemplice({ ptyId, altezza = 260 }: Props): React.JSX.El
       // deve interrompere a metà un'installazione che sta scaricando, né un
       // accesso che sta aspettando il browser. Il processo finisce da sé.
       smetti()
+      liberaWebgl()
       term.dispose()
     }
   }, [ptyId])
