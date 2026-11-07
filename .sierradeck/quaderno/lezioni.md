@@ -4,8 +4,6 @@
 
 ## test
 
-- l'hook di carico del PC può rifiutare tsc e la suite completa (memoria libera al 5%, vmmemWSL): fare prima il commit e provare il singolo file, poi riprovare. _(2026-11-06)_
-- nei test con timeout reali (server http finto) i margini sotto i 100 ms falliscono quando il PC è carico: aspettare almeno 400 ms sul lato lento _(2026-11-06)_
 - l'hook "PC carico" rimanda anche tsc e vitest completi per molti minuti, e sleep/Monitor sono bloccati: fare il commit prima e provare i singoli file. _(2026-11-06)_
 - `code.cambia(ws, f)` vuole `{coda, eventi}`, non la sola coda. Con la CPU alta l'hook blocca anche Bash e PowerShell: commit prima, poi attesa con un `until` sull'orologio. _(2026-11-06)_
 - I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
@@ -50,6 +48,8 @@
 - tests/shared/autopilota-remoto.test.ts e Ponte.kt/AutopilotiAltriTest devono restare allineati a ROTTE_PONTE (ponte-telefono.ts): ogni rotta nuova va aggiunta in tutti e tre i punti. _(2026-11-07)_
 - Il controllo di carico del PC rimanda typecheck e suite completa per minuti: lanciare prima i test di un solo file, poi riprovare le misure intere. _(2026-11-07)_
 - il controllo del carico rimanda anche `vitest run tests/shared` per più di dieci minuti; in quel caso verificare con i file singoli e lasciare la suite intera all'autopilota _(2026-11-07)_
+- la prova di unione (server.ts:712) e la suite vitest (verifiche.ts:67, 20 min) hanno tetti incoerenti: la prova scade prima della suite e il comando figlio resta vivo. _(2026-11-07)_
+- il controllo di carico rimanda `npm run typecheck` anche dopo vari minuti; i test di un solo file passano sempre _(2026-11-07)_
 
 ## worktree
 
@@ -84,6 +84,7 @@
 - Da un worktree `npm run pubblica` vuole google-oauth.json (copiarlo dalla radice, poi cancellarlo) e una node_modules vera (npm ci, non junction). _(2026-11-07)_
 - Se la release esiste già prima di `pubblica`, electrion-builder salta gli upload: caricare exe, blockmap, latest.yml con `gh release upload`, con nomi col trattino. _(2026-11-07)_
 - 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
+- 07/11: v0.96.1 è già in main e taggata (unioni con poche prove mirate); la release delle correzioni del controllo PC + scheda video diventa 0.96.2. _(2026-11-07)_
 
 ## git
 
@@ -121,7 +122,6 @@
 
 ## ambiente
 
-- un comando Bash che richiama `powershell -c` dentro un worktree viene rifiutato per intero, anche le parti sicure: usare lo strumento PowerShell a parte. _(2026-11-05)_
 - Il guardiano del PC blocca anche typecheck e Bash/PowerShell per minuti, e sleep e Monitor non si possono usare: fare prima il commit. _(2026-11-06)_
 - Il filtro di carico blocca tsc e le suite complete anche quando il PC sembra libero; i test di un solo file passano. Aspettare con `node -e "setTimeout(...)"` e riprovare _(2026-11-06)_
 - Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
@@ -143,11 +143,6 @@
 - Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 - Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
-
-## renderer
-
-- Un caso atteso va nel registro come info (`log.info`), non `log.errore`: `erroriDalLog` conta solo ERRORE o parole come fallito/rifiutato/guasto, quindi il testo dell'avviso deve evitarle. _(2026-11-05)_
-- Terminal.tsx rimonta il riquadro a ogni cambio di workspace e di vista, e ogni montaggio rifà lo spawn: una condizione già nota (cartella sparita) va ricordata fuori dal componente. _(2026-11-05)_
 
 ## main
 
@@ -292,10 +287,12 @@
 ## criterio
 
 - con il guardiano «PC carico» la suite intera non parte: dividere in gruppi di 10-20 file, il guardiano accetta quelli piccoli _(2026-11-06)_
+- il tempo della prova include l'attesa del turno e della guardia: a PC carico scade anche se la suite è sana. _(2026-11-07)_
 
 ## unioni
 
 - se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
+- i tetti devono stare uno dentro l'altro (suite < prova < fila): prima la prova (15 min) scadeva prima della suite (20) e il figlio restava vivo a tenere il turno _(2026-11-07)_
 
 ## gpu
 
@@ -333,3 +330,7 @@
 ## dipendenze
 
 - Il node_modules principale non ha xterm 6.1 né @xterm/addon-webgl: una junction non basta dopo k-169, serve copia reale più npm install --ignore-scripts. _(2026-11-07)_
+
+## codice
+
+- i sorgenti sono CRLF: modificarli con script che preservano i fine riga, e `sed -i` può lasciare righe LF _(2026-11-07)_
