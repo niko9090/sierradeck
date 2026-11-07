@@ -34,11 +34,13 @@ describe('letturaSpecialisti', () => {
 })
 
 describe('la lista d’attesa passa verso l’altro PC', () => {
-  it('dal PC e dal telefono, in sola lettura', () => {
+  it('dal PC e dal telefono', () => {
     expect(rottaAutopilotaAltroPc('/api/specialisti/attesa')).toBe(true)
     expect(rottaPonte('/api/specialisti/attesa')).toBe(true)
-    // La precedenza e il «Ferma» restano del PC dove si lavora.
-    expect(rottaAutopilotaAltroPc('/api/specialisti/attesa/priorita')).toBe(false)
-    expect(rottaPonte('/api/specialisti/attesa/priorita')).toBe(false)
+    // Precedenza e Togli passano pure: la regola resta di quel PC.
+    for (const p of ['/api/specialisti/attesa/priorita', '/api/specialisti/attesa/togli']) {
+      expect(rottaAutopilotaAltroPc(p)).toBe(true)
+      expect(rottaPonte(p)).toBe(true)
+    }
   })
 })
