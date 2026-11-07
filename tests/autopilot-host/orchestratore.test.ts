@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
-  ARGOMENTI_VIETATI, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente,
+  ARGOMENTI_VIETATI, REGOLE_ORCHESTRATORE, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente,
   type AvviaProcesso, type DipendenzeOrchestratore, type ProcessoClaude
 } from '../../src/autopilot-host/orchestratore'
 import { impostazioniPredefinite, type ImpostazioniOrchestratore, type RigaDialogo } from '../../src/autopilot-host/orchestratore-store'
@@ -206,5 +206,16 @@ describe('il motore', () => {
     o.dimentica('ws')
     expect(processi[0]!.ucciso).toBe(true)
     expect(o.inAttesa('ws')).toEqual({ messaggi: 0, eventi: 0 })
+  })
+})
+
+describe('istruzioni dell’autopilota (06/11)', () => {
+  it('dicono che finisce tutto da solo e quando può disturbare Nicholas', () => {
+    const r = REGOLE_ORCHESTRATORE
+    expect(r).toMatch(/autosufficiente/)
+    expect(r).toMatch(/Criterio rosso dopo un’unione: affidi la correzione nello stesso turno/)
+    expect(r).toMatch(/solo una decisione sua o un caso davvero estremo/)
+    expect(r).toMatch(/riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico/)
+    expect(r).toMatch(/tetto è pieno: non è fallito/)
   })
 })

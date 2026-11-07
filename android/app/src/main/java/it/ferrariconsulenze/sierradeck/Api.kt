@@ -687,6 +687,13 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
     suspend fun account(): Account =
         json.decodeFromString(corpoTesto("/api/account", null))
 
+    // ─── specialisti: la lista d'attesa (PC, k-48) ───
+    suspend fun attesaSpecialisti(): VistaAttesaApp = json.decodeFromString(corpoTesto("/api/specialisti/attesa", oggetto { }))
+    suspend fun attesaPriorita(id: String, mossa: String): VistaAttesaApp =
+        json.decodeFromString(corpoTesto("/api/specialisti/attesa/priorita", oggetto { put("id", id); put("mossa", mossa) }))
+    suspend fun attesaTogli(id: String): VistaAttesaApp =
+        json.decodeFromString(corpoTesto("/api/specialisti/attesa/togli", oggetto { put("id", id) }))
+
     // ─── consumi ───
     suspend fun consumi(): Consumi = json.decodeFromString(corpoTesto("/api/consumi", null))
 

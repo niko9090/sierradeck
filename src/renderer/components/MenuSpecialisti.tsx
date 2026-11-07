@@ -17,13 +17,15 @@ type Props = {
   onFerma: (id: string) => void
   onAnnullaFerma: () => void
   onApriSezione: () => void
+  /** k-60: la lista di un altro PC si guarda e basta: niente precedenza, niente «Ferma», niente «Apri». */
+  soloLettura?: boolean
 }
 
 /**
  * Il contenuto del menu (k-54): chi lavora, chi è in fila, il totale. Solo
  * disegno, senza stato: lo provano i test.
  */
-export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, onFerma, onAnnullaFerma, onApriSezione }: Props): React.JSX.Element {
+export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, onFerma, onAnnullaFerma, onApriSezione, soloLettura = false }: Props): React.JSX.Element {
   if (vista === undefined) return <div className="menuspec__vuoto">Leggo la lista…</div>
   const m = menuSpecialisti(vista, riferimenti)
   const riga = (r: RigaMenuSpecialisti, lavora: boolean): React.JSX.Element => (
@@ -48,7 +50,7 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
         {r.parcheggiata ? ' · fermato, riparte per primo' : ''}
         {r.fermaRichiesta ? <span className="menuspec__ritardo"> · fermata chiesta…</span> : null}
       </span>
-      <span className="menuspec__tasti">
+      {soloLettura ? null : <span className="menuspec__tasti">
         {daFermare === r.id ? (
           <>
             <span className="menuspec__chiede">Lo fermo e lo metto in cima alla fila: il suo lavoro resta salvato.</span>
@@ -61,21 +63,21 @@ export function ElencoMenuSpecialisti({ vista, riferimenti, daFermare, onMossa, 
             {lavora && !r.fermaRichiesta ? <button className="tasto tasto--mini" title="Lo ferma e lo mette in cima alla fila" onClick={() => onFerma(r.id)}>Ferma</button> : null}
           </>
         )}
-      </span>
+      </span>}
     </li>
   )
   return (
     <div className="menuspec__corpo">
       <div className="menuspec__intesta">
         <span className="serigrafia">Al lavoro adesso</span>
-        <Aiuto di="precedenza">«↑ Precedenza» porta uno specialista in cima alla fila: prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora, lo mette in cima alla fila e il suo lavoro resta salvato sul suo ramo; riparte per primo quando si libera un posto. La percentuale è una stima, non arriva mai a 100 prima della fine.</Aiuto>
+        <Aiuto di="precedenza">{soloLettura ? 'Questa è la lista di un altro PC, letta da là ogni pochi secondi. Qui si guarda soltanto: per cambiare la fila o fermare qualcuno si lavora su quel PC. La percentuale è una stima, non arriva mai a 100 prima della fine.' : '«↑ Precedenza» porta uno specialista in cima alla fila: prende il prossimo posto libero prima degli altri. Non ferma mai chi sta già lavorando: cambia solo l’ordine di chi aspetta. «Ferma» invece interrompe chi lavora, lo mette in cima alla fila e il suo lavoro resta salvato sul suo ramo; riparte per primo quando si libera un posto. La percentuale è una stima, non arriva mai a 100 prima della fine.'}</Aiuto>
       </div>
       {m.lavorano.length === 0 ? <div className="menuspec__vuoto">Nessuno al lavoro</div> : <ul className="menuspec__elenco" aria-label="Al lavoro adesso">{m.lavorano.map((r) => riga(r, true))}</ul>}
       <span className="serigrafia">In fila</span>
       {m.inFila.length === 0 ? <div className="menuspec__vuoto">Nessuno in fila</div> : <ul className="menuspec__elenco" aria-label="In fila">{m.inFila.map((r) => riga(r, false))}</ul>}
       <div className="menuspec__piede">
         <span>{m.totale}</span>
-        <button className="tasto tasto--mini" onClick={onApriSezione}>Apri Specialisti</button>
+        {soloLettura ? null : <button className="tasto tasto--mini" onClick={onApriSezione}>Apri Specialisti</button>}
       </div>
     </div>
   )

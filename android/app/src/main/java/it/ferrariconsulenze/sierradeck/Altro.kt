@@ -62,6 +62,7 @@ private fun SezioneDiAltro(api: Api, s: SezioneAltro) {
             Text("Per cambiare il computer a cui è collegata l’app tocca il suo nome in alto.", color = Banco.testoQuieto, fontSize = 13.sp)
         }
         SezioneAltro.CONSUMI -> SezioneConsumi(api)
+        SezioneAltro.SPECIALISTI -> SezioneSpecialisti(api)
         SezioneAltro.AGGIORNAMENTI -> SezioneAggiornamenti(api)
         SezioneAltro.CHAT -> { Sezione(s.titolo); SezioneMigrazione(api) }
         SezioneAltro.QUADERNO -> { Sezione(s.titolo); SezioneQuadernoPersonale(api) }

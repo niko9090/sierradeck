@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { decidiApertura, daQuandoTace, type DatiApertura } from '@shared/apertura-chat'
-import type { BattitoPc } from '@shared/posta'
+import { PC_SPENTO_DOPO_MS, type BattitoPc } from '@shared/posta'
 import { descriviSilenzio } from '@shared/pc-remoto'
 
 /**
@@ -28,9 +28,11 @@ describe('da dove aprire una chat del workspace', () => {
   })
 
   it('PC spento o che non risponde: riquadro d attesa con da quanto tace', () => {
-    const a = decidiApertura({ ...base, battiti: [battito('port', 'Portatile', 30, { chat: [{ sessione: 's-1', titolo: 't', cwd: base.cwd, aspetta: false }] })] })
+    // Oltre la soglia di «spento», qualunque sia: il test non ne dipende.
+    const minuti = PC_SPENTO_DOPO_MS / 60_000 + 5
+    const a = decidiApertura({ ...base, battiti: [battito('port', 'Portatile', minuti, { chat: [{ sessione: 's-1', titolo: 't', cwd: base.cwd, aspetta: false }] })] })
     expect(a).toMatchObject({ tipo: 'attesa', pc: { id: 'port', nome: 'Portatile' } })
-    if (a.tipo === 'attesa') expect(daQuandoTace(a.ultimoSegno, ORA)).toBe('non risponde da 30 minuti')
+    if (a.tipo === 'attesa') expect(daQuandoTace(a.ultimoSegno, ORA)).toBe(`non risponde da ${minuti} minuti`)
   })
 
   it('nata là senza trascrizione e senza cartella qui: remota se il PC risponde, attesa se no', () => {

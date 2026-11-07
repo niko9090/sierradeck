@@ -42,7 +42,7 @@ export const ROTTE_PONTE: readonly string[] = [
   '/api/sfoglia', '/api/cartelle', '/api/sessioni',
   // L’autopilota unico (0.86.x): la scheda, parlargli, il primo messaggio, i file e l’avanzamento.
   '/api/autopilota', '/api/autopilota/crea', '/api/autopilota/dialogo', '/api/autopilota/file', '/api/autopilota/diff',
-  '/api/autopilota/avanzamento', '/api/quaderno', '/api/quaderno/scheda',
+  '/api/autopilota/avanzamento', '/api/specialisti/attesa', '/api/quaderno', '/api/quaderno/scheda',
   // La gestione delle chat di quel PC (0.79.0): le regole le decide lui.
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/archiviate', '/api/chat/gestione/recupero',
   '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota',

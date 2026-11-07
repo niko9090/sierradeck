@@ -142,6 +142,9 @@ object Percorsi {
         if (nuovo != prima) scrivi(c, identita, nuovo)
     }
 
+    /** Gli indirizzi che il PC ha raccontato l'ultima volta (rete di casa e Tailscale), per spiegare il perché di un fallimento. */
+    fun ricordati(c: Context, identita: String): List<String> = leggi(c, identita).indirizzi
+
     /** L'impronta ricordata per quel computer ("" = non ancora nota). */
     fun improntaDi(c: Context, identita: String): String = leggi(c, identita).impronta
 

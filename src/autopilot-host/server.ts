@@ -25,7 +25,7 @@ import type { Archivio } from './archivio'
 import type { Esecutore } from './verifiche'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { peggioratiDelRamo } from './ambiente-copia'
-import { TURNI_PC, type TurniCriteri } from './turni-criteri'
+import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteDellaChat, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { ultimoRapportoDa } from './trascrizione'
@@ -39,7 +39,7 @@ import { chatAlLavoroSulPc, daChiudereDaSole, RICHIUDI_DOPO_MS } from './posti'
 import { leggiStatoProgramma, STATO_PROGRAMMA_VALIDO_MS, type StatoProgramma } from './stato-programma'
 import { chatNote, rigaRiepilogo as rigaAutopulizia, type EsitoAutopulizia } from './autopulizia'
 import {
-  comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, salvaLavoroAsincrono, togliWorktreeAsincrono,
+  comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, ripulisciProvaAsincrono, MOTIVO_CARTELLA_SPORCA, salvaLavoroAsincrono, togliWorktreeAsincrono,
   type Git, type GitAsincrono
 } from './worktree'
 import { cartellaWorkspace, type ArchivioCode } from './coda-store'
@@ -49,11 +49,14 @@ import type { AvviaProcesso } from './orchestratore'
 import { passoRiassettoServizio } from './riassetto-servizio'
 import { conPreambolo, prendiMessaggiPer, rimettiInCoda } from './stop-specialista'
 import { campiVecchiDa } from './migra-orchestratore'
-import { creaServizioUnico, type EsitoAvvioUnico, type ServizioUnico } from './servizio-orchestratore'
+import { creaServizioUnico, type EsitoAvvioUnico, type EsitoProvaPrincipale, type ServizioUnico } from './servizio-orchestratore'
 import { apriDoppioni, type ArchivioDoppioni } from './doppioni-store'
 import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
+
+/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). */
+const PROVA_MAX_MS = 15 * 60_000
 
 /**
  * **Il servizio degli autopiloti** (P4): un solo autopilota per workspace,
@@ -130,6 +133,12 @@ export type Dipendenze = {
   inattivoOrchestratoreMs?: number
   /** Per i test di `unisci` chiamato a mano: `false` spegne l'unione da sola alla fine di uno specialista (0.89.4). */
   unioneDaSola?: boolean
+  /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 15 minuti). */
+  provaMaxMs?: number
+  /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
+  unioneMaxMs?: number
+  unioneRiprovaMs?: number
+  unioneTentativiMax?: number
   /** 31/10: gli autopiloti archiviati come doppioni. Assente: `servizio/doppioni-archiviati.json` accanto agli autopiloti. */
   doppioni?: ArchivioDoppioni
   /** k-48: la lista d'attesa degli specialisti. Assente: `servizio/attesa-specialisti.json` accanto agli autopiloti. */
@@ -586,7 +595,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     contesto.delete(idDomanda)
     const chi = dati?.autopilotaId ?? chiesta?.autopilotaId
     if (chi === undefined) return
-    if (unico?.risposta(chi, dati?.grezza ?? chiesta?.parti?.domanda ?? chiesta?.testo ?? '', risposta) === true) return
+    if (unico?.risposta(chi, dati?.grezza ?? chiesta?.parti?.domanda ?? chiesta?.testo ?? '', risposta, dati?.richiestaId ?? chiesta?.contesto?.richiestaId) === true) return
     console.info(`[domande] ${chi} — risposta «${breveRisposta(risposta)}» (${da}): l’autopilota non c’è più`)
   })
 
@@ -638,7 +647,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
    * uniti con il criterio verde** misurati prima e dopo: l'unione si conferma
    * se il ramo non rompe niente di quello che passava, altrimenti si annulla.
    */
-  const provaNelPrincipale = async (a: Autopilota, ramo: string): Promise<{ unito: true } | { unito: false; motivo: string }> => {
+  const provaNelPrincipale = async (a: Autopilota, ramo: string): Promise<EsitoProvaPrincipale> => {
     const git = deps.git
     if (git === undefined || a.ramoBase === undefined) return { unito: false, motivo: 'senza git non si può fare un’unione di prova' }
     const base = a.ramoBase
@@ -658,20 +667,38 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     await aspettaProve(a.cwd)
     let fine = (): void => {}
     proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
-    try {
+    // 06/11: la prova ha un tempo massimo. Scaduto, si chiude (la cartella si ripulisce da sola)
+    // e l'unione si rimette in fila: mai appesa, mai un riavvio del servizio per sbloccarla.
+    const stato = { scaduta: false }
+    const corpo = async (): Promise<EsitoProvaPrincipale> => {
       const passavano = await misura()
+      if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
       const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
-      if (!inizio.ok) return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})` }
+      if (!inizio.ok) {
+        // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
+        return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}) }
+      }
       let peggiorati: string[] = []
       try {
         peggiorati = peggioratiDelRamo(passavano, await misura(), true).delRamo
       } catch (err) {
         peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
       }
+      if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
       const tenuta = await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: peggiorati.length === 0 }))
       if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
       return tenuta ? { unito: true } : { unito: false, motivo: 'i criteri passavano, ma il commit dell’unione non è riuscito' }
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const scadenza = new Promise<'scaduta'>((ris) => { timer = setTimeout(() => ris('scaduta'), deps.provaMaxMs ?? PROVA_MAX_MS); timer.unref?.() })
+      const r = await Promise.race([corpo().catch((err: unknown) => { if (err instanceof TurnoScaduto) return 'scaduta' as const; throw err }), scadenza])
+      if (r !== 'scaduta') return r
+      stato.scaduta = true
+      try { await ripulisciProvaAsincrono(gitA(git), { cwd: a.cwd }) } catch { /* la prossima prova la ripulisce */ }
+      return { unito: false, motivo: 'l’unione di prova ha superato il tempo massimo: chiusa, la cartella è stata ripulita', ritenta: 'scaduta' }
     } finally {
+      if (timer !== undefined) clearTimeout(timer)
       proveInCorso.delete(chiaveProva(a.cwd))
       fine()
     }
@@ -681,6 +708,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   let ultimaRipresa = 0
   const riprendiLavori = (opzioni: { servizioAppenaPartito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
+    if (opzioni.servizioAppenaPartito === true && deps.git !== undefined) {
+      // 06/11: una prova lasciata a metà dal servizio di prima si ripulisce subito (se è del programma), non alla prossima unione.
+      for (const a of unici()) {
+        if (a.ramoBase === undefined || proveInCorso.has(chiaveProva(a.cwd))) continue
+        void ripulisciProvaAsincrono(gitA(deps.git), { cwd: a.cwd })
+          .then((r) => { if (r === 'ripulita') console.info(`[autopilota] ${a.cwd}: tolta l'unione di prova rimasta a metà dal servizio di prima`) })
+          .catch(() => { /* la prossima unione la ripulisce */ })
+      }
+    }
     if (opzioni.servizioAppenaPartito === true) {
       // Le consegne vivono in memoria: quelle «in volo» col servizio di prima tornano in coda (0.56.4).
       for (const a of unici()) {
@@ -1341,6 +1377,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     ...(deps.raccoltaEventiMs !== undefined ? { raccoltaEventiMs: deps.raccoltaEventiMs } : {}),
     ...(deps.inattivoOrchestratoreMs !== undefined ? { inattivoMs: deps.inattivoOrchestratoreMs } : {}),
     ...(deps.unioneDaSola !== undefined ? { unioneDaSola: deps.unioneDaSola } : {}),
+    ...(deps.unioneMaxMs !== undefined ? { unioneMaxMs: deps.unioneMaxMs } : {}),
+    ...(deps.unioneRiprovaMs !== undefined ? { unioneRiprovaMs: deps.unioneRiprovaMs } : {}),
+    ...(deps.unioneTentativiMax !== undefined ? { unioneTentativiMax: deps.unioneTentativiMax } : {}),
     doppioni: deps.doppioni ?? apriDoppioni(join(deps.archivio.cartella, 'servizio', 'doppioni-archiviati.json')),
     attesa: deps.attesa ?? apriAttesa(join(deps.archivio.cartella, 'servizio', 'attesa-specialisti.json')),
     // Nel recupero del riassetto (30 giorni, «Annulla» lo rimette), come gli altri passi del servizio.

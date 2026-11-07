@@ -48,8 +48,19 @@ class PercheNonCollegoTest {
         assertEquals("Nessun PC risponde", d.titolo)
         assertTrue(d.dettagli.contains("Ho provato: rete di casa 192.168.1.20; Tailscale 100.64.0.20."))
         assertTrue(d.dettagli.contains("Tailscale sul telefono è acceso"))
-        // Sul wifi con il PC su rete di casa e Tailscale: non si accusa la rete.
-        assertEquals(CasoNonCollego.NESSUNA_RISPOSTA, PercheNonCollego.diagnosi(casa, listOf("192.168.1.20", "100.64.0.20"), false, emptyList()).caso)
+    }
+
+    @Test
+    fun `solo wifi di casa e Tailscale spento - non si dice fuori casa, si nomina il firewall`() {
+        // PC noto con casa e Tailscale, telefono sul wifi senza VPN: il telefono c'è, non lo si accusa.
+        val d = PercheNonCollego.diagnosi(casa, listOf("192.168.1.20", "100.64.0.20"), false, listOf("rete di casa 192.168.1.20"))
+        assertEquals(CasoNonCollego.WIFI_SENZA_RISPOSTA, d.caso)
+        assertEquals("Il PC non risponde sul wifi", d.titolo)
+        assertEquals("riprova", d.azione)
+        assertTrue(d.dettagli.contains("firewall di Windows"))
+        assertTrue(d.dettagli.contains("Ho provato: rete di casa 192.168.1.20."))
+        // Stesso esito se del PC si conosce solo l'indirizzo di casa.
+        assertEquals(CasoNonCollego.WIFI_SENZA_RISPOSTA, PercheNonCollego.diagnosi(casa, listOf("192.168.1.20"), false, emptyList()).caso)
     }
 
     @Test

@@ -39,7 +39,9 @@ function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: strin
   const scritti: string[] = []
   const registro: string[] = []
   let n = 0
-  const postino = creaPostino({
+  // Da ferma la posta si guarda ogni minuto e mezzo (k-65): a ogni giro di prova passano due minuti, cosi' i test non dipendono dalla cadenza.
+  let orologio = ORA
+  const postinoVero = creaPostino({
     scatola: () => opts.scatola,
     pcId: () => opts.id,
     pcNome: () => opts.nome,
@@ -50,12 +52,13 @@ function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: strin
     apriChat: () => undefined,
     riprendiChat: () => undefined,
     scrivi: (_id, testo) => { if (opts.scriviRompe === true) throw new Error('chat chiusa'); scritti.push(testo) },
-    adesso: () => ORA, quietaOgniMs: 0,
+    adesso: () => orologio, quietaOgniMs: 0,
     nuovoId: () => `${opts.id}-${++n}`,
     log: (m) => { registro.push(m) },
     ...(opts.comando !== undefined ? { comando: opts.comando } : {}),
     ...(opts.consegnate !== undefined ? { consegnate: { leggi: () => opts.consegnate?.ids ?? [], scrivi: (ids: string[]) => { if (opts.consegnate) opts.consegnate.ids = ids } } } : {})
   })
+  const postino = { ...postinoVero, giro: async () => { orologio += 120_000; await postinoVero.giro() } }
   return { postino, scritti, registro, chat: (c: ChatDiPc[]) => { chat = c } }
 }
 

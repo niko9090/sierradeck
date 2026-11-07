@@ -6,6 +6,8 @@ import type { StatoWorkspace } from '../../main/ipc'
 import { azioniMenuWorkspace, gruppiMenuWorkspace, postoTendina, vociInFila, type PostoTendina, type VoceAzioneWs, type VoceMenuWs } from '@shared/menu-workspace'
 import { confermaEliminaWorkspace, controllaNomeWorkspace, NOME_WORKSPACE_MAX } from '@shared/azioni-telefono'
 import { ModaleConferma } from './ModaleConferma'
+import { Aiuto } from './Aiuto'
+import { cambiaSoloQui } from '@shared/chat-sul-drive'
 
 type Props = {
   nomi: string[]
@@ -64,6 +66,19 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   const [azioniDi, setAzioniDi] = useState<{ voce: VoceMenuWs; posto: PostoTendina } | undefined>(undefined)
   const [rinomina, setRinomina] = useState<{ vecchio: string; testo: string } | undefined>(undefined)
   const [daEliminare, setDaEliminare] = useState<string | undefined>(undefined)
+  /** I workspace «solo su questo PC» (0.96.0): le loro chat non vanno sul Drive. */
+  const [soloQui, setSoloQui] = useState<string[]>([])
+  useEffect(() => {
+    const applica = (p: { workspaceSoloQui?: string[] }): void => setSoloQui(p.workspaceSoloQui ?? [])
+    window.gestore.preferenze.leggi().then(applica).catch(() => undefined)
+    return window.gestore.preferenze.suCambio(applica)
+  }, [])
+  const impostaSoloQui = (nome: string, si: boolean): void => {
+    setSoloQui((l) => cambiaSoloQui(l, nome, si))
+    window.gestore.preferenze.leggi()
+      .then((p) => window.gestore.preferenze.imposta({ ...p, workspaceSoloQui: cambiaSoloQui(p.workspaceSoloQui ?? [], nome, si) }))
+      .catch(() => undefined)
+  }
   /** «Sposta su un altro PC…»: la cartella del progetto ('' = da scegliere). */
   const tasto = useRef<HTMLButtonElement>(null)
   const cerca = useRef<HTMLInputElement>(null)
@@ -136,7 +151,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
   }, [azioniDi])
 
   const apriAzioni = (v: VoceMenuWs, el: HTMLElement): void => {
-    const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined }).length
+    const quante = azioniMenuWorkspace(v, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined, soloQui: soloQui.includes(v.nome) }).length
     setAzioniDi({
       voce: v,
       posto: postoTendina({ ancora: el.getBoundingClientRect(), finestra: { larghezza: window.innerWidth, altezza: window.innerHeight }, larghezza: LARGHEZZA_AZIONI, altezza: quante * 34 + 12, aDestra: true })
@@ -175,6 +190,7 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
       case 'apri': scegli(v); return
       case 'rinomina': setRinomina({ vecchio: v.nome, testo: v.nome }); return
       case 'cartella': chiudi(); onApriCartella?.(v.nome); return
+      case 'soloQui': impostaSoloQui(v.nome, !soloQui.includes(v.nome)); return
       case 'elimina': chiudi(); setDaEliminare(v.nome); return
       // «Porta qui» (0.88.0): un progetto cambia PC solo con «Sposta su
       // questo PC», in Progetti, con i suoi controlli. Si apre lì.
@@ -335,15 +351,22 @@ export function MenuWorkspace({ nomi, attivo, chiamano, aperto, onAperto, onCamb
           style={{ top: azioniDi.posto.top, left: azioniDi.posto.left, width: azioniDi.posto.larghezza, maxHeight: azioniDi.posto.altezzaMax }}
           onKeyDown={suTastoAzioni}
         >
-          {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined }).map((a) => (
-            <button
-              key={a.azione}
-              role="menuitem"
-              className={`ws-menu__azione${a.pericolo === true ? ' ws-menu__azione--pericolo' : ''}`}
-              disabled={a.spenta !== undefined || porto !== undefined}
-              title={a.spenta ?? a.spiega}
-              onClick={() => fai(a, azioniDi.voce)}
-            >{a.etichetta}</button>
+          {azioniMenuWorkspace(azioniDi.voce, { attivo, quanti: nomi.length, cartella: onApriCartella !== undefined, soloQui: soloQui.includes(azioniDi.voce.nome) }).map((a) => (
+            <span key={a.azione} className="ws-menu__azione-riga" style={a.azione === 'soloQui' ? { display: 'flex', alignItems: 'center' } : undefined}>
+              <button
+                role="menuitem"
+                className={`ws-menu__azione${a.pericolo === true ? ' ws-menu__azione--pericolo' : ''}`}
+                style={a.azione === 'soloQui' ? { flex: 1 } : undefined}
+                disabled={a.spenta !== undefined || porto !== undefined}
+                title={a.spenta ?? a.spiega}
+                onClick={() => fai(a, azioniDi.voce)}
+              >{a.etichetta}</button>
+              {a.azione === 'soloQui' ? (
+                <Aiuto di="«Solo su questo PC»">
+                  Le chat di questo workspace non vanno sul Drive, e quelle già caricate ne vengono tolte. Sul PC restano tutte intatte; sul Drive, in ogni caso, stanno solo le chat usate negli ultimi 30 giorni.
+                </Aiuto>
+              ) : null}
+            </span>
           ))}
         </div>
       ) : null}

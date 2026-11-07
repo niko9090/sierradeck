@@ -29,6 +29,8 @@ export type DatiRiassunto = {
   domande?: { id: string; testo: string; apertaIl: number }[]
   /** Gli specialisti nativi (subagenti), dal flusso. */
   subagenti?: Specialista[]
+  /** 06/11: le unioni in corso e in fila (una per riga, già scritta). */
+  unioni?: string[]
   adesso: number
 }
 
@@ -88,6 +90,7 @@ export function riassuntoOrchestratore(d: DatiRiassunto): string {
     const ultimo = c.rapporto !== undefined ? `${c.rapporto.tipo}: ${c.rapporto.testo}` : c.ultimaAzione
     if (ultimo !== undefined && ultimo !== '') righe.push(`  ultimo: ${corto(ultimo, 200)}`)
   }
+  if (d.unioni !== undefined && d.unioni.length > 0) righe.push('', 'UNIONI (una alla volta, le altre aspettano e partono da sole: non rifarle):', ...d.unioni)
   const adottate = d.unico?.adottate ?? []
   if (adottate.length > 0) righe.push(`Chat adottate di Nicholas: ${adottate.map((x) => `${corto(x.titolo || x.sessionId.slice(0, 8), 40)}${x.soloMia === true ? ' (solo sua: non scriverle)' : ''}`).join('; ')}`)
 

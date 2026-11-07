@@ -106,7 +106,8 @@ describe('il postino', () => {
     // La torre dice nel battito che legge le cassette d'uscita (0.86.2): il portatile scrive nella sua, non nella cassetta unica.
     expect(scatola.dati.has(nomeUscita('A', 'B'))).toBe(true)
     expect(scatola.dati.has(nomePosta('A'))).toBe(false)
-    // La torre, al suo giro, consegna alla chat che aspetta.
+    // La torre, al suo giro, consegna alla chat che aspetta (da ferma la posta si guarda ogni minuto e mezzo: passa piu' tempo).
+    torre.avanza(120_000)
     await torre.postino.giro()
     expect(torre.scritti).toEqual([{ id: 'p1', testo: 'aggiorna il changelog' }])
     const dopo = (await portatile.postino.posta('A')) as Posta

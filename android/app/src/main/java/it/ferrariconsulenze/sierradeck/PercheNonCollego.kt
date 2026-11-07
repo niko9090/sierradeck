@@ -46,7 +46,7 @@ data class ReteTelefono(
     val tailscaleAcceso: Boolean get() = vpn || indirizzoTailscale
 }
 
-enum class CasoNonCollego { CHIAVE, TAILSCALE_SPENTO, FUORI_CASA, NESSUNA_RISPOSTA }
+enum class CasoNonCollego { CHIAVE, TAILSCALE_SPENTO, FUORI_CASA, WIFI_SENZA_RISPOSTA, NESSUNA_RISPOSTA }
 
 data class Diagnosi(
     val caso: CasoNonCollego,
@@ -80,6 +80,15 @@ object PercheNonCollego {
             "Accendilo: il PC si raggiunge solo con Tailscale.",
             "Questo PC è salvato con il suo indirizzo Tailscale (100.x), e sul telefono non c'è nessuna VPN accesa né un indirizzo Tailscale. Apri Tailscale, accendilo con lo stesso account del PC, e torna qui: il collegamento riparte da solo.$elenco",
             "apri-tailscale"
+        )
+        // Sul wifi, Tailscale spento, PC noto in rete di casa: accusare «non sei a casa» sarebbe
+        // sbagliato. Il telefono c'è, il PC no: spento, altra rete, o firewall di Windows.
+        if ("lan" in strade && rete.wifi && !rete.tailscaleAcceso) return Diagnosi(
+            CasoNonCollego.WIFI_SENZA_RISPOSTA,
+            "Il PC non risponde sul wifi",
+            "Controlla che sia acceso con SierraDeck aperto; poi il firewall di Windows.",
+            "Il telefono è sul wifi e Tailscale è spento, ma il PC non risponde al suo indirizzo di casa. Le cause, in ordine: il PC è spento o in sospensione, o SierraDeck è chiuso; il telefono è su un altro wifi (rete ospiti, 5 GHz isolato); il firewall di Windows blocca la porta (succede se la rete del PC è «Pubblica»): su SierraDeck, Impostazioni → Client, c'è l'avviso con il rimedio. Con Tailscale acceso funziona comunque.$elenco",
+            "riprova"
         )
         if ("lan" in strade && !rete.tailscaleAcceso && (!rete.wifi || "tailscale" !in strade)) return Diagnosi(
             CasoNonCollego.FUORI_CASA,

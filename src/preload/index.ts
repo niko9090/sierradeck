@@ -127,9 +127,12 @@ contextBridge.exposeInMainWorld('gestore', {
       porta: number
       indirizzi: string[]
       inEvidenza: string[]
+      firewall?: { messaggio: string; comando: string }
       dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
       accoppiamento?: { codice: string; scadeIl: number }
     }> => ipcRenderer.invoke('client:stato'),
+    /** Crea la regola del firewall (chiede il permesso a Windows): solo dal clic dell'utente. */
+    sistemaFirewall: (): Promise<{ stato: 'ok' | 'bloccato' }> => ipcRenderer.invoke('client:sistemaFirewall'),
     apriAccoppiamento: (): Promise<{
       codice: string
       scadeIl: number
@@ -384,6 +387,8 @@ contextBridge.exposeInMainWorld('gestore', {
   /** Gli autopiloti degli altri PC (0.59.0): l'elenco e le azioni, al PC dove gira. */
   autopilotiAltri: {
     elenco: (): Promise<import('../shared/autopiloti-altri').AutopilotiDiPc[]> => ipcRenderer.invoke('autopiloti:altri'),
+    /** Gli autopiloti di un PC solo (k-60), o il perché non risponde. */
+    diPc: (pc: string): Promise<import('../shared/autopiloti-altri').AutopilotiDiPc> => ipcRenderer.invoke('autopiloti:diPc', pc),
     azione: (pc: string, percorso: string, corpo: Record<string, unknown>): Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }> =>
       ipcRenderer.invoke('autopiloti:altroPc', pc, percorso, corpo)
   },

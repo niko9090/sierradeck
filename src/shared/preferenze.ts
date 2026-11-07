@@ -130,6 +130,17 @@ export type Preferenze = {
    */
   chatSoloMie?: string[]
   /**
+   * I workspace «solo su questo PC» (0.96.0): le loro chat non vanno mai sul
+   * Drive, e quelle già caricate ne vengono tolte (sul PC restano intatte).
+   * Per nome, come `workspaceElenco`; la preferenza è di questo PC.
+   */
+  workspaceSoloQui: string[]
+  /**
+   * Le chat diventate solo locali perché lo spazio sul Drive scarseggiava (le
+   * più grosse), per conversazione. Non risalgono più da sole.
+   */
+  chatSoloLocali?: string[]
+  /**
    * Il PC di sviluppo (0.81.0): l'id del PC a cui «Manda al PC di sviluppo»
    * porta lo storico degli errori. Si sceglie nelle Impostazioni, fra i PC
    * conosciuti: nessun nome di PC nel codice.
@@ -198,6 +209,7 @@ export const PREFERENZE_PREDEFINITE: Preferenze = {
   divisioneAutopilota: 55,
   avvisiChiusi: [],
   workspaceElenco: [],
+  workspaceSoloQui: [],
   // Il banco e quello che c e sempre stato: chi non sceglie non deve
   // ritrovarsi un programma diverso da quello di ieri.
   stile: 'banco',
@@ -303,6 +315,12 @@ export function normalizzaPreferenze(raw: unknown): Preferenze {
     workspaceElenco: Array.isArray(o.workspaceElenco)
       ? [...new Set(o.workspaceElenco.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
       : [],
+    workspaceSoloQui: Array.isArray(o.workspaceSoloQui)
+      ? [...new Set(o.workspaceSoloQui.filter((c): c is string => typeof c === 'string' && c.trim() !== '' && c.length <= 120))].slice(0, 200)
+      : [],
+    ...(Array.isArray(o.chatSoloLocali)
+      ? { chatSoloLocali: [...new Set(o.chatSoloLocali.filter((c): c is string => typeof c === 'string' && c !== '' && c.length <= 80))].slice(-2000) }
+      : {}),
     ...(typeof o.pcSviluppo === 'string' && o.pcSviluppo.trim() !== '' && o.pcSviluppo.length <= 120 ? { pcSviluppo: o.pcSviluppo.trim() } : {}),
     ...(typeof o.percorsoGit === 'string' && o.percorsoGit.trim() !== '' && o.percorsoGit.length <= 400 ? { percorsoGit: o.percorsoGit.trim() } : {}),
     ...(o.postiChat === 1 || o.postiChat === -1 ? { postiChat: o.postiChat } : {}),

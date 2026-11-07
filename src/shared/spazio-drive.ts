@@ -139,7 +139,16 @@ export type StatoSpazio = {
 /* ------------------------------------------------------------------ */
 
 /** `chat-eliminate` (0.79.0): «Elimina dal PC … anche dal Drive», non una proposta del giro. */
-export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove' | 'chat-eliminate' | 'doppioni-nome' | 'versioni'
+export type TipoProposta = 'doppie' | 'vecchie' | 'recupero-scaduto' | 'prove' | 'chat-eliminate' | 'doppioni-nome' | 'versioni' | TipoPuliziaChat
+
+/**
+ * Le chat tolte dal Drive da sole (0.96.0, decisione di Nicholas): non usate da
+ * troppo, di un workspace «solo su questo PC», o le piu' grosse quando lo spazio
+ * scarseggia. Restano intatte sul PC; la regola di salita (`chat-sul-drive.ts`)
+ * decide se risalgono, quindi qui `restaFuori` non le guarda.
+ */
+export type TipoPuliziaChat = 'chat-non-usate' | 'chat-solo-qui' | 'chat-spazio-poco'
+export const TIPI_PULIZIA_CHAT: readonly TipoPuliziaChat[] = ['chat-non-usate', 'chat-solo-qui', 'chat-spazio-poco']
 
 /** Un file che una pulizia toglie: con la sua voce del manifesto, se ce l'ha, per rimetterla. */
 /**
@@ -169,7 +178,7 @@ export const RECUPERO_SCADE_MS = 30 * 86_400_000
 const ORFANO_DOPO_MS = 2 * 86_400_000
 
 /** La conversazione e la radice di un percorso di chat: `chat/<slug>/<uuid>.jsonl` e i suoi sotto-agenti. */
-function chatDi(percorso: string): { slug: string; sessione: string; principale: boolean } | undefined {
+export function chatDi(percorso: string): { slug: string; sessione: string; principale: boolean } | undefined {
   const parti = percorso.split('/')
   if (parti[0] !== 'chat' || parti.length < 3) return undefined
   const slug = parti[1] as string
@@ -543,7 +552,7 @@ export function daSvuotare(r: RegistroPulizie, adesso: number): Pulizia[] {
  */
 export function restaFuori(r: RegistroPulizie | undefined, percorso: string, size: number | undefined): boolean {
   for (const x of r?.pulizie ?? []) {
-    if (x.annullataIl !== undefined) continue
+    if (x.annullataIl !== undefined || (TIPI_PULIZIA_CHAT as readonly string[]).includes(x.tipo)) continue
     const v = x.voci.find((y) => y.percorso === percorso)
     if (v?.voce !== undefined && (size === undefined || size <= v.voce.size)) return true
   }
