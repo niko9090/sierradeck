@@ -4,8 +4,6 @@
 
 ## test
 
-- l'hook "PC carico" rimanda anche tsc e vitest completi per molti minuti, e sleep/Monitor sono bloccati: fare il commit prima e provare i singoli file. _(2026-11-06)_
-- `code.cambia(ws, f)` vuole `{coda, eventi}`, non la sola coda. Con la CPU alta l'hook blocca anche Bash e PowerShell: commit prima, poi attesa con un `until` sull'orologio. _(2026-11-06)_
 - I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
 - Con l'autopilota finto gli eventi (sveglie) partono solo a turno chiuso: nei test del servizio emettere un `result` dopo gli assistant, altrimenti l'evento resta in raccolta _(2026-11-06)_
 - Senza DOM i tasti si provano chiamando il componente puro come funzione e cercando onClick nell'albero degli elementi; la pagina si prova con new Function sulle funzioni estratte. _(2026-11-06)_
@@ -50,6 +48,8 @@
 - il controllo del carico rimanda anche `vitest run tests/shared` per più di dieci minuti; in quel caso verificare con i file singoli e lasciare la suite intera all'autopilota _(2026-11-07)_
 - la prova di unione (server.ts:712) e la suite vitest (verifiche.ts:67, 20 min) hanno tetti incoerenti: la prova scade prima della suite e il comando figlio resta vivo. _(2026-11-07)_
 - il controllo di carico rimanda `npm run typecheck` anche dopo vari minuti; i test di un solo file passano sempre _(2026-11-07)_
+- il test «sezione Specialisti» in tests/renderer/pannello-specialisti.test.tsx legge App.tsx come testo: cambiare il cablaggio di un pannello richiede di aggiornare anche quelle asserzioni _(2026-11-07)_
+- il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
 
 ## worktree
 
