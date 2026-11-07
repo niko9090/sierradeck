@@ -41,10 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.96.2',
+    righe: [
+      '**Le copie di lavoro finite si tolgono davvero:** su Windows alcune copie degli specialisti non si cancellavano (permesso negato, o nomi di file troppo lunghi per git) e restavano sul disco per giorni, quasi 600 MB l’una, fra i file che l’antivirus e l’indicizzazione di Windows continuano a ripassare. Ora, se la cancellazione normale non riesce, ci riprova con il comando di Windows.',
+    ],
+  },
+  {
     versione: '0.96.1',
     righe: [
       '**Gli autopiloti non si fermano più sulle unioni:** ogni unione rilanciava due volte le prove di tutti i compiti già finiti (una trentina di comandi, comprese due compilazioni Android da zero) e superava il tempo massimo, così il lavoro finito restava in fila per ore. Ora le prove diventano poche e unite in un comando solo, si salta quello che il ramo non tocca (niente Android se non cambia l’app), e le prove «prima» si rifanno solo se qualcosa non passa.',
-      '**Il controllo del carico non rimanda più chi legge soltanto:** un comando come una ricerca nel codice che contiene la parola «gradle» o «vitest» veniva scambiato per una compilazione e rimandato anche per un quarto d’ora.',
+      '**Il controllo del carico non rimanda più chi legge soltanto:** un comando come una ricerca nel codice che nomina gli strumenti di compilazione o delle prove veniva scambiato per una compilazione e rimandato anche per un quarto d’ora.',
     ],
   },
   {

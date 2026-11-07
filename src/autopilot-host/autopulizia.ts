@@ -725,11 +725,11 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
       const { falliti } = await staccaCollegamenti(cartella)
       if (falliti.length > 0) { e.errori.push(`${n}: ${falliti[0]}`); continue }
       const r = await git(['worktree', 'remove', '--force', cartella], radice)
-      if (r.codice !== 0 && existsSync(cartella)) { e.errori.push(`${n}: ${r.uscita.slice(0, 120)}`); continue }
-      // Su Windows git può lasciare la cartella (vuota, o con i file ignorati).
+      // Su Windows git può lasciare la cartella (vuota, o con i file ignorati),
+      // o non toglierla affatto («Filename too long», 07/11): la toglie la guardia.
       if (existsSync(cartella)) {
         const t = await togliCartellaCopia(cartella, dentro)
-        if (!t.ok) e.errori.push(`${n}: ${t.motivo ?? 'non tolta'}`)
+        if (!t.ok) { e.errori.push(`${n}: ${r.codice !== 0 ? r.uscita.slice(0, 120) : (t.motivo ?? 'non tolta')}`); continue }
       }
       e.copieTolte += 1
       e.byteLiberati += byte

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { existsSync, realpathSync, renameSync, rmSync, mkdirSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path'
@@ -204,7 +205,17 @@ export function cancellaSicura(
     renameSync(esito.percorso, join(come.cartella, `${basename(esito.percorso)}.${stampo}`))
     return 'spostata'
   }
-  rmSync(esito.percorso, { recursive: true, force: opzioni.force ?? true })
+  try {
+    rmSync(esito.percorso, { recursive: true, force: opzioni.force ?? true })
+  } catch (err) {
+    // 07/11: su Windows `rmSync` (Node 24) dava EPERM sulla cartella di copie
+    // intere senza niente di bloccato, e 9 copie da 580 MB restavano lì per
+    // giorni; `rd` di cmd, con il prefisso dei percorsi lunghi, le toglieva.
+    // Il percorso è già passato dai controlli qui sopra.
+    if (!(opzioni.ambiente ?? ambienteVero()).windows || !existsSync(esito.percorso)) throw err
+    spawnSync('cmd.exe', ['/d', '/s', '/c', `"rd /s /q "\\\\?\\${esito.percorso}""`], { stdio: 'ignore', windowsHide: true, windowsVerbatimArguments: true, timeout: 10 * 60_000 })
+    if (existsSync(esito.percorso)) throw err
+  }
   return 'cancellata'
 }
 
