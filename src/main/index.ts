@@ -82,6 +82,7 @@ import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicur
 import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
+import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
 import { leggiEliminati } from './workspace-ritrova'
@@ -115,6 +116,7 @@ import {
 } from './client-server'
 import { battitoVivo, rotteClient, rotteLibere } from './client-rotte'
 import { indirizziPerApp } from './rete-telefono'
+import { leggiFirewall, sbloccaConElevazione, type EsitoFirewall } from './firewall-windows'
 import { avviaAnnuncio } from './annuncio-mdns'
 import { immagineQr, indirizzoAccoppiamento } from './qr-accoppiamento'
 import { apkDisponibile } from './apk-disponibile'
@@ -583,6 +585,8 @@ let pcVistoGlobale: ((pcId: string, indirizzo: string) => void) | undefined
 let localiBattito: (() => LocaliBattito) | undefined
 /** Il Client di questo PC è in ascolto sulla sua porta (0.58.1). */
 let statoClient: { inAscolto: boolean; errore?: string } | undefined
+/** L'ultimo controllo del firewall di Windows sulla porta del Client (si rifà al massimo ogni 2 minuti). */
+let firewallClient: { il: number; esito: EsitoFirewall } | undefined
 
 /** Quanto lavora SierraDeck qui (0.69.0): per la Salute e il battito. */
 function risorseQui(): RisorsePc | undefined {
@@ -1848,9 +1852,19 @@ if (!app.requestSingleInstanceLock()) {
         ultimoArrivoGestito = u.quando
         dopoArrivo(u).catch((err: unknown) => registro.errore(`[progetti] dopo l'arrivo dal Drive: ${String(err)}`))
       })
+      // Le chat sul Drive (0.96.0): quali non salgono. Il predicato dei workspace «solo su questo PC» si rifa' ogni 10 s, non a ogni file.
+      let soloQuiMemo: { il: number; sa: (p: string) => boolean } | undefined
+      const chatSoloQui = (p: string): boolean => {
+        if (soloQuiMemo === undefined || Date.now() - soloQuiMemo.il > 10_000) {
+          soloQuiMemo = { il: Date.now(), sa: chatDiWorkspaceSoloQui({ soloQui: impostazioni.preferenze().workspaceSoloQui, workspace: workspaceStore?.leggi().workspace ?? [] }) }
+        }
+        return soloQuiMemo.sa(p)
+      }
+      const sessioniSoloLocali = (): ReadonlySet<string> => new Set((impostazioni.preferenze().chatSoloLocali ?? []).map((x) => x.toLowerCase()))
       const sincronia = apriSincronia({
         dati,
         radiceClaude,
+        chatNonSale: chatNonSale({ adesso: Date.now, soloQui: chatSoloQui, sessioniSoloLocali }),
         // Un progetto, un PC (0.88.0): le chat dei progetti degli altri PC non salgono da qui.
         saleDaQui: (p) => saleDaQuestoPc(registroProgetti.leggi().progetti, identitaPc.leggi().id, p),
         // Le pulizie del Drive (0.65.0): una voce tolta non risale finché è uguale.
@@ -3089,7 +3103,15 @@ if (!app.requestSingleInstanceLock()) {
           return m
         },
         io: () => identitaPc.leggi(),
-        log: registro.info
+        log: registro.info,
+        soloQui: chatSoloQui,
+        sessioniSoloLocali,
+        segnaSoloLocali: (sessioni) => {
+          const p = impostazioni.preferenze()
+          impostazioni.impostaPreferenze({ ...p, chatSoloLocali: [...new Set([...(p.chatSoloLocali ?? []), ...sessioni])] })
+        },
+        pieno: () => frenoDrive.pieno(),
+        inAttesa: () => frenoDrive.attesaMs() > 0
       })
       spazioGlobale = spazio
       const timerSpazio = setInterval(() => { void spazio.giro() }, 30 * 60_000)
@@ -5170,6 +5192,28 @@ if (!app.requestSingleInstanceLock()) {
         if (prima) registro.info(`${riga} (la porta si è liberata)`)
       })
       srv.listen(porta)
+      // Il firewall di Windows (telefono sul wifi di casa senza Tailscale): se scarta i
+      // pacchetti in silenzio, il telefono vede solo «non risponde». Si controlla in
+      // sottofondo, si scrive nel registro e si mostra in Impostazioni → Client.
+      const controllaFirewall = async (): Promise<EsitoFirewall> => {
+        if (firewallClient !== undefined && Date.now() - firewallClient.il < 120_000) return firewallClient.esito
+        const esito = await leggiFirewall(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
+        firewallClient = { il: Date.now(), esito }
+        return esito
+      }
+      void controllaFirewall().then((e) => {
+        if (e.stato === 'bloccato') {
+          registro.errore(`[client] ${e.messaggio} Comando: ${e.comando}`)
+          // Una sola volta per avvio; l'elevazione parte solo dal tasto «Sistema».
+          try { new Notification({ title: 'SierraDeck', body: 'Il firewall di Windows blocca il telefono sul wifi di casa. Apri Impostazioni → Client e premi «Sistema».' }).show() } catch { /* senza notifiche */ }
+        }
+      })
+      // Il tasto «Sistema»: l'unico punto in cui si chiede l'amministratore, e solo dopo il clic.
+      ipcMain.handle('client:sistemaFirewall', async () => {
+        const esito = await sbloccaConElevazione(process.execPath, porta).catch((): EsitoFirewall => ({ stato: 'sconosciuto' }))
+        firewallClient = { il: Date.now(), esito }
+        return esito.stato === 'bloccato' ? { stato: 'bloccato' as const } : { stato: 'ok' as const }
+      })
       // L'annuncio in rete locale (k-50, _sierradeck._tcp): non fa mai cadere il programma.
       try {
         const annuncio = avviaAnnuncio({
@@ -5194,6 +5238,8 @@ if (!app.requestSingleInstanceLock()) {
           // Quali stanno davanti agli occhi: quasi sempre due — la rete di casa
           // e la VPN — perché sono due risposte diverse alla stessa domanda.
           inEvidenza: indirizziInEvidenza(indirizzi),
+          // Presente solo se il firewall di Windows sta bloccando la rete di casa.
+          firewall: await (async () => { const e = await controllaFirewall(); return e.stato === 'bloccato' ? { messaggio: e.messaggio, comando: e.comando } : undefined })(),
           dispositivi: dispositivi.elenca(),
           accoppiamento: dispositivi.accoppiamentoAperto()
         }

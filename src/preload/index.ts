@@ -127,9 +127,12 @@ contextBridge.exposeInMainWorld('gestore', {
       porta: number
       indirizzi: string[]
       inEvidenza: string[]
+      firewall?: { messaggio: string; comando: string }
       dispositivi: { id: string; nome: string; collegatoIl: string; ultimoAccesso?: string }[]
       accoppiamento?: { codice: string; scadeIl: number }
     }> => ipcRenderer.invoke('client:stato'),
+    /** Crea la regola del firewall (chiede il permesso a Windows): solo dal clic dell'utente. */
+    sistemaFirewall: (): Promise<{ stato: 'ok' | 'bloccato' }> => ipcRenderer.invoke('client:sistemaFirewall'),
     apriAccoppiamento: (): Promise<{
       codice: string
       scadeIl: number

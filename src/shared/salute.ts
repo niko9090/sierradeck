@@ -10,6 +10,7 @@
  */
 
 import { mappaPc, type MappaPc } from './collegamento'
+import { PC_SPENTO_DOPO_MS } from './posta'
 import { rigaRisorse, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
@@ -184,12 +185,12 @@ export function componiSalute(i: IngressiSalute): Salute {
   }
   for (const p of i.pc) {
     const eta = quantoFa(p.battito, i.adesso)
-    const vecchio = p.battito === undefined || i.adesso - Date.parse(p.battito) > 10 * 60_000
+    const vecchio = p.battito === undefined || i.adesso - Date.parse(p.battito) > PC_SPENTO_DOPO_MS
     const raggiungibile = p.stato === 'acceso'
     // 0.89.1: muto da più di una settimana: si può dismettere.
     const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
     const indietro = prima(p.versione, i.versione)
-    // 0.94.1: spento da più di 10 minuti è normale (un PC del lavoro acceso di rado), non «da guardare».
+    // 0.94.1: spento da più di 35 minuti (PC_SPENTO_DOPO_MS) è normale (un PC del lavoro acceso di rado), non «da guardare».
     const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'ok' : 'guasto'
     // Lo stato vero dell'ultimo bussare (0.93.1): un indirizzo che risponde non è «nessuna strada».
     const rispostaDiversa = p.stato === 'chiave' ? 'risponde ma non riconosce la chiave di casa'

@@ -386,17 +386,28 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
     expect((await vista()).specialisti.map((s) => s.id)).not.toContain('toolu_lavoro')
   })
 
-  it('due rami con lavoro, nessuno dentro l’altro: errore con i rami possibili, niente unione', async () => {
+  it('due rami con lavoro, nessuno dentro l’altro: si uniscono tutti e due, uno dopo l’altro (06/11, k-60)', async () => {
     zitto()
     const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 2 })
     await preparaK1(git)
     await strumento('unisci', { compito: 'k-1' })
-    await attendi(() => orch.piano('Lavoro').compiti[0]!.esito?.startsWith('unione non fatta') === true, { cosa: 'l’esito dell’unione' })
-    const k = orch.piano('Lavoro').compiti[0]!
-    expect(k.stato).not.toBe('unito')
-    expect(k.esito).toContain(`${LAVORO} (toolu_lavoro, 1 commit)`)
-    expect(k.esito).toContain(`${ALTRO} (toolu_controllo, 2 commit)`)
-    expect(chiamate.some((c) => c.includes('merge') && c.includes('--no-commit'))).toBe(false)
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    const uniti = chiamate.filter((c) => c.includes('merge') && c.includes('--no-commit')).map((c) => c.at(-1))
+    expect(uniti).toEqual([LAVORO, ALTRO])
+    // Nessuno dei due specialisti resta «da unire».
+    const ids = (await vista()).specialisti.map((s) => s.id)
+    expect(ids).not.toContain('toolu_lavoro')
+    expect(ids).not.toContain('toolu_controllo')
+  })
+
+  it('l’unione chiesta per lo specialista del ramo vuoto vale per il compito: il ramo con il lavoro non resta fuori (06/11, k-60)', async () => {
+    zitto()
+    const { git, chiamate } = gitFinto({ [LAVORO]: 1, [ALTRO]: 0 })
+    await preparaK1(git)
+    await strumento('unisci', { specialista: 'toolu_controllo' })
+    await attendi(() => orch.piano('Lavoro').compiti[0]!.stato === 'unito', { cosa: 'k-1 unito' })
+    expect(chiamate.filter((c) => c.includes('merge') && c.includes('--no-commit')).map((c) => c.at(-1))).toEqual([LAVORO])
+    expect((await vista()).specialisti.map((s) => s.id)).not.toContain('toolu_lavoro')
   })
 
   it('due rami con lavoro, uno partito dall’altro: vale quello che li contiene', async () => {
@@ -453,6 +464,25 @@ describe('unisci per compito: lo specialista che porta il lavoro (30/10, k-1)', 
  * l'autopilota, al più due volte per lo stesso stato.
  */
 describe('il motore non si ferma (0.89.4)', () => {
+  it('06/11: tetto di specialisti pieno: lo specialista non è fallito, va in fila col prompt e l’autopilota lo riceve per rilanciarlo', async () => {
+    zitto()
+    await avviaServizio([ap({ chats: [] })], { raccoltaEventiMs: 5 })
+    migra()
+    await posta('/orchestratore/messaggio', { ws: 'Lavoro', testo: 'sistema il menu' })
+    await attendi(() => processi.length > 0, { cosa: 'processo' })
+    const p0 = processi[0]!
+    p0.emetti({ type: 'assistant', parent_tool_use_id: null, message: { content: [{ type: 'tool_use', id: 'tu-1', name: 'Agent', input: { subagent_type: 'sviluppatore', description: 'k-1: il menu', prompt: 'PROMPT-DEL-MENU: rifai il menu' } }] } })
+    p0.emetti({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: 'tu-1', is_error: true, content: 'Error: Concurrent subagent limit reached' }] } })
+    p0.emetti({ type: 'result', result: 'Tetto pieno, aspetto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    const v = await vista()
+    expect(v.specialisti.some((s) => s.stato === 'fallito')).toBe(false)
+    // Posto libero sul PC: l'autopilota riceve l'evento con il prompt salvato.
+    await attendi(() => p0.scritte.some((x) => testoScritto(x).includes('PROMPT-DEL-MENU')), { cosa: 'evento con il prompt' })
+    const attesa = (await (await fetch(url('/orchestratore/attesa'))).json()) as { inFila: { compito?: string; prenotata: boolean }[] }
+    expect(attesa.inFila).toHaveLength(1)
+    expect(attesa.inFila[0]).toMatchObject({ compito: 'k-1', prenotata: true })
+  })
+
   it('0.94.0: anche lo specialista senza compito del piano si unisce da solo', async () => {
     zitto()
     const senzaGit: Git = () => ({ codice: 128, uscita: 'fatal: not a git repository' })

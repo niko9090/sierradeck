@@ -386,6 +386,9 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (/\bgit\s+(checkout|reset|merge|stash|commit|push|pull|rebase|restore|clean)\b|\bnpm\s+(run|install|ci)\b|\bnpx\s/iu.test(`${domanda} ${scelte.join(' ')}`)) {
         return no('non chiedere a Nicholas di lanciare comandi: il lavoro tecnico lo fa uno specialista (o il programma). Chiedigli solo la decisione, in parole semplici')
       }
+      // 06/11: l'autopilota è autosufficiente: riavvii, programmi da chiudere e lavoro a mano si risolvono da soli.
+      const inutile = motivoDomandaInutile(`${domanda} ${scelte.join(' ')}`)
+      if (inutile !== undefined) return no(inutile)
       const n = amb.domandeUltimaOra(ws)
       if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
       const richiesta = str(arg.richiesta)
@@ -412,6 +415,25 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
     default:
       return undefined
   }
+}
+
+/**
+ * 06/11: domande che a Nicholas non si fanno. Riavviare il servizio, chiudere
+ * programmi o fare a mano un lavoro tecnico: l'autopilota le risolve da solo
+ * (con uno specialista, o aspettando). `undefined` se la domanda va bene.
+ */
+export function motivoDomandaInutile(testo: string): string | undefined {
+  const t = testo.replace(/\s+/gu, ' ')
+  if (/\b(riavvi\w*|riavv\w*|riparti\w*|restart\w*)\b[^.?!]{0,60}\b(servizio|sierradeck|programma|app|pc|computer|server|autopilot\w*)\b|\b(servizio|sierradeck|programma|app|pc|computer|server)\b[^.?!]{0,40}\b(riavvi\w*|riavv\w*|riparti\w*|restart\w*)\b/iu.test(t)) {
+    return 'non chiedere a Nicholas di riavviare il servizio, il programma o il PC: risolvilo da solo (uno specialista, un nuovo tentativo, un’altra strada) e vai avanti'
+  }
+  if (/\b(chiud\w+|termin\w+|esci\w*|quit\w*|kill\w*)\b[^.?!]{0,50}\b(programm\w+|app|applicazion\w+|finestr\w+|process\w+|chat|sierradeck|editor|browser|claude)\b/iu.test(t)) {
+    return 'non chiedere a Nicholas di chiudere programmi o processi: se qualcosa tiene occupata una cartella o un file, risolvilo da solo (un nuovo tentativo, un’altra copia, uno specialista)'
+  }
+  if (/\b(lanci\w*|esegu\w*|digit\w*|scrivi)\b[^.?!]{0,40}\b(comando|terminale|prompt|powershell|bash|cmd)\b|\b(da terminale|a mano)\b[^.?!]{0,60}\b(lanci\w*|esegu\w*|fai\w*|sistem\w*|copi\w*|cancell\w*)\b|\b(lanci\w*|esegu\w*|fai\w*)\b[^.?!]{0,30}\ba mano\b/iu.test(t)) {
+    return 'non chiedere a Nicholas di fare a mano lavoro tecnico o di lanciare comandi: affidalo a uno specialista, o al programma, e chiedigli solo una decisione sua'
+  }
+  return undefined
 }
 
 export const ISTRUZIONI_MCP_ORCHESTRATORE = 'SierraDeck, l’autopilota unico del workspace: coda delle richieste, piano dei compiti, specialisti, cancello di unione, domande a Nicholas, quaderno. Ogni chiamata la valida il programma: se rifiuta, leggi il motivo e cambia strada.'

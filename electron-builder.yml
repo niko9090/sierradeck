@@ -70,7 +70,8 @@ nsis:
   # (`GUID_INSTALLAZIONE` in `src/main/identita-app.ts`).
   guid: 8e5eec75-f025-512f-b3e4-78d055eb2b1f
   # Aggiorna l'AppUserModelID del collegamento fissato sulla barra delle
-  # applicazioni, che l'installer da solo non tocca.
+  # applicazioni, che l'installer da solo non tocca. Crea anche la regola del
+  # firewall (solo rete locale) e la toglie alla disinstallazione.
   include: build/installer.nsh
 
 # Dove il programma cerca gli aggiornamenti. `generic` e non un servizio: basta

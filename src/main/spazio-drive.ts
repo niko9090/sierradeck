@@ -5,6 +5,7 @@ import {
   idInRecupero, nomiInRecupero, percorsiPerNome, tipoDi, versioniDaTenere, revisioniDaCancellare, stimaVersioni, propostaVersioni,
   type StimaVersioni, type VersioniDiFile
 } from '@shared/spazio-drive'
+import { proposteChatSulDrive, sessioniDelleVoci, spazioPoco } from '@shared/chat-sul-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
 import type { Scatola } from './progetti/posta'
@@ -22,6 +23,9 @@ import type { Scatola } from './progetti/posta'
  */
 
 export type { StatoSpazio }
+
+/** Ogni quanto il giro rivede quali chat stanno sul Drive. */
+const GIRO_CHAT_OGNI_MS = 6 * 60 * 60_000
 
 export type SpazioDrive = {
   stato: (forza?: boolean) => Promise<StatoSpazio>
@@ -50,6 +54,13 @@ export type SpazioDrive = {
   svuota: (id: string) => Promise<{ ok: boolean; messaggio: string }>
   /** Per il salvataggio: una voce tolta con una pulizia e uguale a com'era non risale. */
   fuoriDalDrive: (percorso: string, size?: number) => boolean
+  /**
+   * Le chat sul Drive (0.96.0): toglie dal Drive quelle non usate da troppo,
+   * quelle dei workspace «solo su questo PC» e, con poco spazio, le più
+   * grosse. Mai niente dal PC. Va da sola nel giro; qui per chiamarla subito
+   * (per esempio quando si cambia l'impostazione di un workspace).
+   */
+  chatSulDrive: () => Promise<{ ok: boolean; messaggio: string; tolte: number }>
   /** Rilegge il registro e svuota le pulizie scadute. */
   giro: () => Promise<void>
 }
@@ -64,11 +75,23 @@ export function creaSpazioDrive(deps: {
   io: () => { id: string; nome: string }
   log: (m: string) => void
   adesso?: () => number
+  /** Questo percorso e' una chat di un workspace «solo su questo PC»? */
+  soloQui?: (percorso: string) => boolean
+  /** Le chat gia' diventate solo locali per lo spazio (minuscole). */
+  sessioniSoloLocali?: () => ReadonlySet<string>
+  /** Segna queste chat «solo locali»: da qui non salgono piu'. */
+  segnaSoloLocali?: (sessioni: string[]) => void
+  /** Il Drive e' pieno adesso (il freno)? */
+  pieno?: () => boolean
+  /** Google ha chiesto di rallentare: il giro aspetta. */
+  inAttesa?: () => boolean
 }): SpazioDrive {
   const adesso = deps.adesso ?? Date.now
   let registro: RegistroPulizie | undefined
   let ultimo: { il: number; stato: StatoSpazio } | undefined
   let ultimaPuliziaDaSola = 0
+  let ultimoGiroChat = 0
+  let chatInCorso = false
   let inCorso: Promise<StatoSpazio> | undefined
   let stimaVersioniFatta: StimaVersioni | undefined
   let versioniInCorso = false
@@ -312,6 +335,45 @@ export function creaSpazioDrive(deps: {
 
     fuoriDalDrive: (percorso, size) => restaFuori(registro, percorso, size),
 
+    async chatSulDrive() {
+      if (deps.inAttesa?.() === true) return { ok: false, messaggio: 'Il Drive chiede di rallentare: riprovo dopo.', tolte: 0 }
+      if (chatInCorso) return { ok: false, messaggio: 'Le chat sul Drive si stanno già sistemando.', tolte: 0 }
+      chatInCorso = true
+      try {
+        const st = await leggiTutto()
+        if (st.errore !== undefined || st.misura === undefined) return { ok: false, messaggio: st.errore ?? 'Il Drive non risponde.', tolte: 0 }
+        const r = await leggiRegistro()
+        const a = deps.archivio()
+        const [file, manifesto] = await Promise.all([a?.elencaConDimensioni?.() ?? Promise.resolve([]), deps.manifestoDrive()])
+        if (manifesto === undefined) return { ok: false, messaggio: 'L’indice del Drive non si apre adesso.', tolte: 0 }
+        const pieno = deps.pieno?.() === true
+        const poco = spazioPoco(st.misura.quota) || pieno
+        const proposte = proposteChatSulDrive({
+          file, indice: manifesto.file, copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso(),
+          soloQui: deps.soloQui ?? (() => false),
+          ...(deps.sessioniSoloLocali !== undefined ? { sessioniSoloLocali: deps.sessioniSoloLocali() } : {}),
+          ...(st.misura.quota !== undefined ? { quota: st.misura.quota } : {}),
+          pieno
+        })
+        let tolte = 0
+        for (const pr of proposte) {
+          if (pr.voci.length === 0) continue
+          // Prima «solo locali», poi via dal Drive: cosi' un salvataggio in mezzo non le rimanda su.
+          if (pr.tipo === 'chat-spazio-poco') deps.segnaSoloLocali?.(sessioniDelleVoci(pr.voci))
+          const esito = await applica(pr, 'automatico')
+          if (!esito.ok || esito.pulizia === undefined) { deps.log(`[spazio] chat sul Drive: «${pr.titolo}» non fatta (${esito.messaggio})`); continue }
+          tolte += sessioniDelleVoci(pr.voci).length
+          // Con poco spazio il recupero di 30 giorni non libera niente: si svuota subito. Sul PC le chat restano.
+          if (poco) await this.svuota(esito.pulizia.id)
+        }
+        return { ok: true, messaggio: tolte === 0 ? 'Niente da togliere dal Drive.' : `${tolte} chat tolte dal Drive (sul PC restano).`, tolte }
+      } catch (err) {
+        return { ok: false, messaggio: `Chat sul Drive non sistemate: ${err instanceof Error ? err.message : String(err)}`, tolte: 0 }
+      } finally {
+        chatInCorso = false
+      }
+    },
+
     async giro() {
       if (deps.scatola() === undefined) return
       try {
@@ -326,6 +388,12 @@ export function creaSpazioDrive(deps: {
           ultimaPuliziaDaSola = adesso()
           const st = await leggiTutto()
           for (const pr of pulizieDaSole(st.proposte)) await this.pulisci(pr.tipo, 'automatico')
+        }
+        // Le chat sul Drive (0.96.0): ogni 6 ore, e subito se lo spazio e' finito.
+        if (adesso() - ultimoGiroChat >= GIRO_CHAT_OGNI_MS || deps.pieno?.() === true) {
+          ultimoGiroChat = adesso()
+          const e = await this.chatSulDrive()
+          if (e.tolte > 0 || !e.ok) deps.log(`[spazio] chat sul Drive: ${e.messaggio}`)
         }
       } catch (err) {
         deps.log(`[spazio] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
