@@ -149,7 +149,7 @@ async function strumento(nome: string, argomenti: Record<string, unknown>): Prom
   return ((await r.json()) as { result: { content: { text: string }[] } }).result.content[0]!.text
 }
 
-const compito = (id: string) => ({ id, richiesta: 'r-1', titolo: `lavoro ${id}`, criterio: `il lavoro ${id} c’è`, dopo: [] as string[], peso: 1, stato: 'da-fare' as const, creato: '2026-10-30T08:00:00.000Z' })
+const compito = (id: string) => ({ id, richiesta: 'r-1', titolo: `lavoro ${id}`, criterio: `il lavoro ${id} c’è`, dopo: [] as string[], peso: 1 as const, stato: 'da-fare' as const, creato: '2026-10-30T08:00:00.000Z' })
 
 async function prepara(porte: Porte, tempi: Tempi = {}): Promise<void> {
   const { git, asinc } = gitDiProva(porte)
