@@ -48,6 +48,8 @@
 - Un rosso in main dopo un'unione può non riprodursi nella copia: prima di cambiare codice rilanciare la suite sul ramo già allineato e, se è verde, sospettare un fallimento intermittente per PC carico. _(2026-11-07)_
 - PonteTest confronta Ponte.ROTTE (Ponte.kt) con ROTTE_PONTE del PC: una rotta nuova nel ponte va aggiunta in tutte e due le liste, o il criterio Android diventa rosso. _(2026-11-07)_
 - tests/shared/autopilota-remoto.test.ts e Ponte.kt/AutopilotiAltriTest devono restare allineati a ROTTE_PONTE (ponte-telefono.ts): ogni rotta nuova va aggiunta in tutti e tre i punti. _(2026-11-07)_
+- Il controllo di carico del PC rimanda typecheck e suite completa per minuti: lanciare prima i test di un solo file, poi riprovare le misure intere. _(2026-11-07)_
+- il controllo del carico rimanda anche `vitest run tests/shared` per più di dieci minuti; in quel caso verificare con i file singoli e lasciare la suite intera all'autopilota _(2026-11-07)_
 
 ## worktree
 
@@ -58,6 +60,7 @@
 ## errori
 
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
+- Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
 
 ## android
 
@@ -78,16 +81,12 @@
 
 ## release
 
-- Dopo la 0.94.3 il main locale è indietro di 0f0b1efe (bump) e c2c530c5 (novità) su origin/main: il primo specialista del prossimo lavoro li unisce con fast-forward prima di partire. _(2026-11-05)_
 - Da un worktree `npm run pubblica` vuole google-oauth.json (copiarlo dalla radice, poi cancellarlo) e una node_modules vera (npm ci, non junction). _(2026-11-07)_
 - Se la release esiste già prima di `pubblica`, electrion-builder salta gli upload: caricare exe, blockmap, latest.yml con `gh release upload`, con nomi col trattino. _(2026-11-07)_
 - 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 
 ## git
 
-- il conflitto su errori-arrivati.md nasce da due voci aggiunte in coda dallo stesso file: si risolve tenendo entrambi i blocchi, senza scegliere una parte _(2026-11-05)_
-- i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
-- Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
 - Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 - Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
 - il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
@@ -100,39 +99,22 @@
 - Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
 - REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
 
-## aggiornamenti
-
-- i 5xx di GitHub sul feed (502/503/504) sono passeggeri durante una pubblicazione; il 501 differenziale e il 404 su latest.yml hanno trattamenti propri, non confonderli. _(2026-11-05)_
-
-## ipc
-
-- Ogni handler `autopilota:*` che chiama il client va avvolto in una funzione pura che trasforma `scaduto: true` in un esito; dopo `dettaglio` (0.88.10) mancava `elenca`. _(2026-11-05)_
-
 ## servizio
 
-- Nel servizio ogni console.error va nel registro come ERRORE e negli errori arrivati: un caso atteso (porta occupata) deve usare console.warn. _(2026-11-05)_
-- Il servizio avviato dallo script di login non riceve SIERRADECK_VERSIONE (versione «?»); senza versione il Gestore non lo sostituisce. Non scriverla nello script: invecchia. _(2026-11-05)_
 - il dialogo scade a 3 s se il servizio è occupato ma il messaggio può essere già scritto: le POST che scrivono vogliono attesa lunga e un id del messaggio, altrimenti il ritentativo lo duplica _(2026-11-06)_
 - Le domande hanno 2 elenchi: `aperte()` (tutte, per dedupe e ritiro) e `visibili()` (senza quelle solo-in-chat). Pannello, telefono e notifiche leggono `GET /domande`, che filtra. _(2026-11-06)_
 - il tetto dei subagenti è una variabile d'ambiente del processo claude: per cambiarlo si spegne e si riprende con --resume, solo a turno finito. Il tetto per workspace (3) lo limitava anche con 6 post… _(2026-11-06)_
 
 ## controllo
 
-- criticitaDi unisce per testo, non per PC: lo stesso PC esce due volte se la riga viene dalla salute di un altro PC e l'altra dal proprio bussare. Unire per pcId. _(2026-11-05)_
-- In criticitaDi il «non risponde» locale ha chiave non-risponde:<id>, quella degli altri PC pc:<id>: chiavi diverse, così lo stesso PC esce due volte (05/11, 0.93.1). Usare una chiave sola. _(2026-11-05)_
-
-## remoto
-
-- l'esito «chiave» prende ogni 401, anche quello di un altro SierraDeck o di un estraneo: va distinto per identità (impronta), altrimenti il messaggio contraddice le prove. _(2026-11-05)_
+- una voce di salute con tono non «ok» diventa criticità per ogni PC che la compone: i consumi vanno giudicati solo sui numeri del PC stesso, sennò si ripetono ovunque. _(2026-11-07)_
 
 ## rete
 
-- un indirizzo salvato può essere riassegnato dal router a un altro PC con SierraDeck: l'identità (impronta) va sempre confrontata anche con i PC noti, non solo con quello atteso. _(2026-11-05)_
 - La chiave del PC non va mai mandata a un indirizzo LAN non verificato: prima `/api/ciao` (senza chiave) deve dare l'impronta attesa. Un 192.168.x.x può essere un'altra rete. _(2026-11-06)_
 
 ## strumenti
 
-- Nel worktree il filtro dei comandi rifiuta qualunque comando Bash con «git» dentro, anche `npm version --no-git-tag-version`: da PowerShell passa. _(2026-11-05)_
 - l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
@@ -205,6 +187,7 @@
 ## hook
 
 - L'hook «PC carico» rifiuta tsc e suite completa per molti minuti: i test di un file passano. Per aspettare usare `sleep` in background e un `until` sul file di output. _(2026-11-06)_
+- Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
 
 ## orchestratore
 
@@ -263,6 +246,7 @@
 - Il freno (freno-drive.ts) mette l'avvio dei giri automatici dietro `fermo()` e si innesta in un solo punto, il `fetch` dell'archivio. I test che simulano 403 pieno devono passare un proprio `creaFren… _(2026-11-06)_
 - client-rotte.ts battitoVivo usa 5*60_000 fisso invece di PC_SPENTO_DOPO_MS di shared/posta.ts: due nozioni di «PC acceso», da allineare dopo il battito a 30 min. _(2026-11-06)_
 - A Drive pieno `conFreno` blocca ogni PATCH/PUT: anche togliere voci dal manifesto può fallire. Cancellare un file (DELETE) passa, ma solo dopo che la voce è uscita dall'indice. _(2026-11-06)_
+- Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
 
 ## coda
 
@@ -324,3 +308,28 @@
 ## unioni
 
 - se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
+
+## gpu
+
+- con Chromium il contesto WebGL è limitato (circa 16): un addon WebGL su ogni riquadro va tenuto a tetto, non acceso per tutti. _(2026-11-07)_
+
+## ui
+
+- Le colonne a destra (Domande, Specialisti) condividono `src/shared/misure-pannelli.ts`: limiti, trascinamento e `altreColonne` vanno passati a entrambe, perché il mosaico tenga 520 px. _(2026-11-07)_
+- Il tasto di un pannello laterale con stato proprio (Domande, Specialisti) passa da `Console.tsx` con prop dedicate, non da `aperto`. L'evento `apri-pannello` va gestito a parte. _(2026-11-07)_
+
+## salute
+
+- il contatore Drive contava ogni 403 come «rifiutata»: il Drive pieno (storageQuotaExceeded) gonfiava i numeri di «troppe richieste». Ora conta solo 429 e rateLimit. _(2026-11-07)_
+
+## autopulizia
+
+- Le copie `agent-*` in `.claude/worktrees` restano senza `.git` dopo un `worktree remove` fallito (percorso lungo in android/build, file in dist/win-unpacked): vanno tolte con rmSync, non da git. _(2026-11-07)_
+
+## xterm
+
+- @xterm/addon-webgl per xterm 6 esiste solo in beta (0.20.0-beta.x, peer ^6.1.0-beta): il 6.0.0 stabile non ha un addon WebGL compatibile; xterm portato a 6.1.0-beta.336 _(2026-11-07)_
+
+## electron
+
+- `getGPUFeatureStatus()` dà stringhe di Chromium (`enabled_on`, `disabled_software`, `disabled_off`): la scheda attiva si legge dal prefisso `enabled`, non da un booleano _(2026-11-07)_
