@@ -192,6 +192,8 @@ internal fun DettaglioAutopilota(api: Api, breve: AutopilotaBreve, onIndietro: (
             Spacer(Modifier.width(8.dp))
             Text(if (tendina) "▴" else "▾", color = Banco.testoQuieto, fontSize = 16.sp)
         }
+        // Il menu Specialisti (k-56): chi lavora e chi è in fila, con percentuale, tempo e precedenza.
+        MenuSpecialistiChat(api, listOfNotNull(det?.workspace, breve.cwd.ifBlank { null }), Modifier.padding(start = 8.dp))
         if (tendina || linguetta != LinguettaWorkspace.CONVERSAZIONE) {
             LinguetteWorkspace(linguetta, conti = { RegoleWorkspace.conto(it, specialistiOrch.size, aperte, chatWs.size) }) { linguetta = it; tendina = false }
         }
