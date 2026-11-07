@@ -4,10 +4,6 @@
 
 ## test
 
-- In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
-- Le cache firmate con la sola mtime di una cartella sono fragili su Windows (orologio a ~15 ms): un file nato nello stesso tick non si vede. Rileggere se la mtime è più recente di 2 s. _(2026-11-05)_
-- Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
-- `npx vitest run tests/main` non copre tests/autopilot-host: per modifiche al servizio lanciare anche quella cartella. _(2026-11-05)_
 - l'hook di carico del PC può rifiutare tsc e la suite completa (memoria libera al 5%, vmmemWSL): fare prima il commit e provare il singolo file, poi riprovare. _(2026-11-06)_
 - nei test con timeout reali (server http finto) i margini sotto i 100 ms falliscono quando il PC è carico: aspettare almeno 400 ms sul lato lento _(2026-11-06)_
 - l'hook "PC carico" rimanda anche tsc e vitest completi per molti minuti, e sleep/Monitor sono bloccati: fare il commit prima e provare i singoli file. _(2026-11-06)_
@@ -51,6 +47,7 @@
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
 - Un rosso in main dopo un'unione può non riprodursi nella copia: prima di cambiare codice rilanciare la suite sul ramo già allineato e, se è verde, sospettare un fallimento intermittente per PC carico. _(2026-11-07)_
 - PonteTest confronta Ponte.ROTTE (Ponte.kt) con ROTTE_PONTE del PC: una rotta nuova nel ponte va aggiunta in tutte e due le liste, o il criterio Android diventa rosso. _(2026-11-07)_
+- tests/shared/autopilota-remoto.test.ts e Ponte.kt/AutopilotiAltriTest devono restare allineati a ROTTE_PONTE (ponte-telefono.ts): ogni rotta nuova va aggiunta in tutti e tre i punti. _(2026-11-07)_
 
 ## worktree
 
@@ -74,6 +71,8 @@
 - Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
 - Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
 - Api.kt chiama /api/specialisti/attesa/priorita e /togli, che non sono in ROTTE_PONTE (un test PC le vuole fuori): da telefono via ponte non passano. _(2026-11-07)_
+- Il rosso del criterio nella cartella principale con build pulita verde indica stato incrementale (android/app/build, .gradle) o lock, non codice: salvare l'uscita completa della misura. _(2026-11-07)_
+- `gradle clean testDebugUnitTest assembleDebug --no-daemon` in una copia pulita dura circa 3m45 e passa. _(2026-11-07)_
 
 ## release
 
@@ -245,6 +244,7 @@
 - Il pacchetto va costruito solo dalla cartella principale: in un worktree `node_modules` è una junction e l'asar perde le dipendenze indirette (dijkstrajs, pngjs, yargs). _(2026-11-06)_
 - `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
 - Il guardiano del PC carico può rifiutare gradle a oltranza con lo stesso messaggio: nel ramo vanno prima fatti i controlli statici, e va chiesta all'autopilota una finestra libera. _(2026-11-06)_
+- Il guardiano «PC carico» rifiuta il comando prima di eseguirlo: l'attesa va in una chiamata a parte (until sull'orologio), non dentro lo stesso comando gradle. _(2026-11-07)_
 
 ## piano
 
