@@ -9,6 +9,8 @@ type Props = {
   onCambiato: () => void
   /** Prende il fuoco quando si apre, se nessun altro campo lo ha già (0.79.0). */
   campoPronto: boolean
+  /** k-60: come si manda il testo (autopilota di un altro PC); senza, al servizio di qui. Non fa ridisegnare il campo. */
+  invia?: (testo: string) => Promise<unknown>
 }
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * rilettura dal servizio (ogni 5 s mentre lavora) non ridisegna il campo:
  * conta solo se cambia l'autopilota o il fuoco — vedi `stessoCampo`.
  */
-function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto }: Props): React.JSX.Element {
+function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto, invia }: Props): React.JSX.Element {
   const [messaggio, setMessaggio] = useState('')
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
@@ -27,6 +29,8 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto }: Prop
   // La funzione di chi sta sopra cambia a ogni suo disegno: si usa l'ultima, senza ridisegnare il campo.
   const cambiato = useRef(onCambiato)
   cambiato.current = onCambiato
+  const inviaRef = useRef(invia)
+  inviaRef.current = invia
 
   useEffect(() => {
     if (!campoPronto) return
@@ -51,7 +55,7 @@ function CampoChatAutopilotaVero({ autopilotaId, onCambiato, campoPronto }: Prop
   const manda = (): void => {
     const testo = messaggio.trim()
     if (testo === '' || inCorso) return
-    esegui(() => window.gestore.autopilota.dialoga(autopilotaId, testo))
+    esegui(() => (inviaRef.current !== undefined ? inviaRef.current(testo) : window.gestore.autopilota.dialoga(autopilotaId, testo)))
   }
 
   return (

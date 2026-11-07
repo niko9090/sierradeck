@@ -47,7 +47,15 @@ export const STIMA_PESANTE_MS = 4 * 60_000
 
 const normale = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 
-export function creaTurni(opz: { ora?: () => number } = {}): TurniCriteri {
+/** 06/11: il tempo massimo di un'unione nel turno del PC (attesa compresa). */
+export const UNIONE_TURNO_MAX_MS = 12 * 60_000
+
+/** L'unione, o l'attesa del suo turno, ha superato il tempo massimo. */
+export class TurnoScaduto extends Error {
+  constructor() { super('l’unione ha superato il tempo massimo nel turno del PC') }
+}
+
+export function creaTurni(opz: { ora?: () => number; unioneMaxMs?: number } = {}): TurniCriteri {
   const ora = opz.ora ?? (() => Date.now())
   let inCorso: string | undefined
   /** Il turno di una chat (`prenota`): chi lo tiene, fino a quando, e il timer che lo rende. */
@@ -92,6 +100,16 @@ export function creaTurni(opz: { ora?: () => number } = {}): TurniCriteri {
     async unione(cwd, fai) {
       const dove = normale(cwd)
       unioni.set(dove, (unioni.get(dove) ?? 0) + 1)
+      // 06/11: né l'attesa del turno né l'unione stessa durano per sempre: scaduto il tempo il
+      // posto si libera e chi chiama riceve `TurnoScaduto` (l'unione si rimette in fila, senza riavvii).
+      const stop = { scaduto: false }
+      let preso = false
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const scaduta = new Promise<never>((_, no) => {
+        timer = setTimeout(() => { stop.scaduto = true; no(new TurnoScaduto()) }, opz.unioneMaxMs ?? UNIONE_TURNO_MAX_MS)
+        timer.unref?.()
+      })
+      scaduta.catch(() => {})
       try {
         // **Una sola unione per cartella** (Revisione 0.84.0). Con git
         // sincrono un'unione era atomica; da asincrona cede il passo a ogni
@@ -99,17 +117,20 @@ export function creaTurni(opz: { ora?: () => number } = {}): TurniCriteri {
         // (index.lock, e il `merge --abort` del secondo annullava il primo).
         // Il posto si prende dentro il controllo: fra un `await` e l'altro
         // un'altra unione vedrebbe la cartella ancora libera.
-        await aspetta(() => {
+        await Promise.race([aspetta(() => {
+          if (stop.scaduto) return true
           if (inCorso === dove || unendo.has(dove)) return false
           unendo.add(dove)
+          preso = true
           return true
-        })
+        }), scaduta])
         try {
-          return await fai()
+          return await Promise.race([fai(), scaduta])
         } finally {
-          unendo.delete(dove)
+          if (preso) unendo.delete(dove)
         }
       } finally {
+        if (timer !== undefined) clearTimeout(timer)
         const resto = (unioni.get(dove) ?? 1) - 1
         if (resto > 0) unioni.set(dove, resto)
         else unioni.delete(dove)

@@ -288,6 +288,12 @@ export function apriSincronia(deps: {
    * sul Drive non scende di nuovo da sola, né con l'arrivo né con Ripristina.
    */
   chatTolteDaQui?: (percorso: string) => boolean
+  /**
+   * Le chat che non salgono sul Drive (0.96.0): ferme da troppo, di un
+   * workspace «solo su questo PC», o diventate solo locali per lo spazio.
+   * Il file sul PC non si tocca: qui si decide solo cosa viaggia.
+   */
+  chatNonSale?: (percorso: string, f?: { mtime?: number }) => boolean
 }): Sincronia {
   const adesso = deps.adesso ?? ((): string => new Date().toISOString())
   // Prendere il lavoro: se un altro e' in corso non si parte, e lo si dice.
@@ -824,9 +830,10 @@ export function apriSincronia(deps: {
             : {}),
           // Un progetto, un PC (0.88.0): da qui salgono solo le cose di qui;
           // e (0.65.0) quelle tolte dal Drive con una pulizia non risalgono finché sono uguali.
-          escludi: (p: string, f?: { size: number }) =>
+          escludi: (p: string, f?: { size: number; mtime?: number }) =>
             (deps.saleDaQui !== undefined && !deps.saleDaQui(p)) ||
-            (deps.fuoriDalDrive?.(p, f?.size) ?? false),
+            (deps.fuoriDalDrive?.(p, f?.size) ?? false) ||
+            (deps.chatNonSale?.(p, f) ?? false),
           ...(deps.pcId !== undefined ? { proprietario: deps.pcId() } : {}),
           // Le chat compresse (0.69.0), solo quando tutti i PC visti sanno leggerle.
           ...(deps.versioniAltriPc !== undefined && compressioneAccesa(deps.versioniAltriPc()) ? { comprimi: daComprimere } : {})

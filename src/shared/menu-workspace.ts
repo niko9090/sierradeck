@@ -98,7 +98,7 @@ export function vociInFila(gruppi: readonly GruppoMenuWs[]): VoceMenuWs[] {
   return gruppi.flatMap((g) => g.voci)
 }
 
-export type AzioneMenuWs = 'apri' | 'rinomina' | 'cartella' | 'elimina' | 'portaQui'
+export type AzioneMenuWs = 'apri' | 'rinomina' | 'cartella' | 'elimina' | 'portaQui' | 'soloQui'
 export type VoceAzioneWs = { azione: AzioneMenuWs; etichetta: string; spiega: string; spenta?: string; pericolo?: boolean }
 
 /**
@@ -107,7 +107,7 @@ export type VoceAzioneWs = { azione: AzioneMenuWs; etichetta: string; spiega: st
  * questo PC», dal pannello Progetti: 0.88.0). Uno di
  * un altro PC: apri dal vivo e Porta qui, come prima.
  */
-export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: number; cartella?: boolean }): VoceAzioneWs[] {
+export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: number; cartella?: boolean; soloQui?: boolean }): VoceAzioneWs[] {
   if (!v.qui) {
     const pc = v.pc?.nome ?? 'l’altro PC'
     return [
@@ -120,6 +120,14 @@ export function azioniMenuWorkspace(v: VoceMenuWs, p: { attivo: string; quanti: 
     { azione: 'apri', etichetta: davanti ? 'Sei qui' : 'Apri', spiega: davanti ? `«${v.nome}» è già davanti.` : `Passa a «${v.nome}». Le chat che lasci continuano a lavorare.`, ...(davanti ? { spenta: `«${v.nome}» è già davanti` } : {}) },
     { azione: 'rinomina', etichetta: 'Rinomina…', spiega: 'Cambia solo il nome: le chat restano dove sono.' },
     ...(p.cartella !== false ? [{ azione: 'cartella' as const, etichetta: 'Apri cartella', spiega: 'Apre la cartella del progetto di questo workspace.' }] : []),
+    // Solo dove chi chiama lo offre (il PC): `soloQui` e' lo stato di adesso, assente = la voce non c'e'.
+    ...(p.soloQui !== undefined ? [{
+      azione: 'soloQui' as const,
+      etichetta: p.soloQui ? 'Solo su questo PC ✓' : 'Solo su questo PC',
+      spiega: p.soloQui
+        ? 'Acceso: le chat di questo workspace non vanno sul Drive. Premi per rimetterle sul Drive.'
+        : 'Le chat di questo workspace non vanno sul Drive e quelle già caricate ne vengono tolte. Sul PC restano intatte.'
+    }] : []),
     {
       azione: 'elimina', etichetta: 'Elimina…', pericolo: true,
       spiega: 'Lo toglie dalla fascia; resta 30 giorni in «Eliminati», con «Ripristina».',

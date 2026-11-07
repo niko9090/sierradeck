@@ -334,6 +334,7 @@ declare global {
       }
       autopilotiAltri: {
         elenco: () => Promise<import('../shared/autopiloti-altri').AutopilotiDiPc[]>
+        diPc: (pc: string) => Promise<import('../shared/autopiloti-altri').AutopilotiDiPc>
         azione: (pc: string, percorso: string, corpo: Record<string, unknown>) => Promise<{ ok: true; dati: unknown } | { ok: false; stato: number; messaggio: string }>
       }
       sottofondo: {

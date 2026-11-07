@@ -95,40 +95,7 @@ export function ChatAutopilota({
           ) : null}
         </div>
       ) : null}
-      <div className="chatap__flusso" ref={flusso} aria-live="polite">
-        {battute.map((b, i) => (
-          <div
-            key={`${b.quando}-${i}`}
-            className={`chatap__riga chatap__riga--${b.da}${b.tono !== undefined ? ` chatap__riga--${b.tono}` : ''}`}
-          >
-            {b.da === 'nota' ? (
-              <>
-                <span className="chatap__quando">{orario(b.quando)}</span>
-                <span className="chatap__nota-testo">
-                  {b.testo}
-                  {b.volte !== undefined ? <span className="chatap__volte"> ×{b.volte}</span> : null}
-                  {b.dettaglio !== undefined ? <span className="chatap__nota-dettaglio"> — {b.dettaglio}</span> : null}
-                </span>
-              </>
-            ) : (
-              <div className="chatap__bolla">
-                <span className="chatap__chi">
-                  {b.da === 'tu' ? 'tu' : autopilota.nome.trim() !== '' ? autopilota.nome : 'lui'} · {orario(b.quando)}
-                </span>
-                <span className="chatap__testo">{b.testo}</span>
-                {b.domanda !== undefined ? <ScelteInChat idDomanda={b.domanda.id} scelte={b.domanda.scelte} onCambiato={onCambiato} /> : null}
-                {b.dettaglio !== undefined ? <span className="chatap__esito">{b.dettaglio}</span> : null}
-              </div>
-            )}
-          </div>
-        ))}
-        {pensa ? (
-          <p className="chatap__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
-        ) : null}
-        {domanda ? (
-          <p className="chatap__pensa">● ti ha fatto una domanda: è nella colonna Domande.</p>
-        ) : null}
-      </div>
+      <FlussoChat battute={battute} nome={autopilota.nome} pensa={pensa} domanda={domanda} onCambiato={onCambiato} flusso={flusso} />
 
       <CampoChatAutopilota
         autopilotaId={autopilota.id}
@@ -140,16 +107,69 @@ export function ChatAutopilota({
 }
 
 /**
+ * Le battute della conversazione, con i tasti delle sue domande: le stesse per
+ * l'autopilota di qui e per quello di un altro PC (k-60).
+ */
+export function FlussoChat({ battute, nome, pensa, domanda, onCambiato, flusso, rispondi, doveLeDomande = 'è nella colonna Domande' }: {
+  battute: ReturnType<typeof conversazione>
+  nome: string
+  pensa: boolean
+  domanda: boolean
+  onCambiato: () => void
+  flusso: React.RefObject<HTMLDivElement | null>
+  /** Come si risponde a una sua domanda; senza, dal programma di qui. */
+  rispondi?: (idDomanda: string, risposta: string) => Promise<unknown>
+  doveLeDomande?: string
+}): React.JSX.Element {
+  return (
+    <div className="chatap__flusso" ref={flusso} aria-live="polite">
+      {battute.map((b, i) => (
+        <div
+          key={`${b.quando}-${i}`}
+          className={`chatap__riga chatap__riga--${b.da}${b.tono !== undefined ? ` chatap__riga--${b.tono}` : ''}`}
+        >
+          {b.da === 'nota' ? (
+            <>
+              <span className="chatap__quando">{orario(b.quando)}</span>
+              <span className="chatap__nota-testo">
+                {b.testo}
+                {b.volte !== undefined ? <span className="chatap__volte"> ×{b.volte}</span> : null}
+                {b.dettaglio !== undefined ? <span className="chatap__nota-dettaglio"> — {b.dettaglio}</span> : null}
+              </span>
+            </>
+          ) : (
+            <div className="chatap__bolla">
+              <span className="chatap__chi">
+                {b.da === 'tu' ? 'tu' : nome.trim() !== '' ? nome : 'lui'} · {orario(b.quando)}
+              </span>
+              <span className="chatap__testo">{b.testo}</span>
+              {b.domanda !== undefined ? <ScelteInChat idDomanda={b.domanda.id} scelte={b.domanda.scelte} onCambiato={onCambiato} {...(rispondi !== undefined ? { rispondi } : {})} /> : null}
+              {b.dettaglio !== undefined ? <span className="chatap__esito">{b.dettaglio}</span> : null}
+            </div>
+          )}
+        </div>
+      ))}
+      {pensa ? (
+        <p className="chatap__pensa">● sta pensando alla risposta… di solito entro qualche minuto. Puoi scrivergli altro: risponde in ordine.</p>
+      ) : null}
+      {domanda ? (
+        <p className="chatap__pensa">● ti ha fatto una domanda: {doveLeDomande}.</p>
+      ) : null}
+    </div>
+  )
+}
+
+/**
  * I tasti di una sua domanda nata in chat (0.96.0): toccarne uno è rispondere,
  * come dalle Domande. Spariscono quando la domanda ha risposta o è ritirata.
  */
-function ScelteInChat({ idDomanda, scelte, onCambiato }: { idDomanda: string; scelte: string[]; onCambiato: () => void }): React.JSX.Element {
+function ScelteInChat({ idDomanda, scelte, onCambiato, rispondi }: { idDomanda: string; scelte: string[]; onCambiato: () => void; rispondi?: (idDomanda: string, risposta: string) => Promise<unknown> }): React.JSX.Element {
   const [inCorso, setInCorso] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)
   const tocca = (scelta: string): void => {
     setInCorso(true)
     setErrore(undefined)
-    window.gestore.autopilota.rispondi(idDomanda, scelta)
+    ;(rispondi ?? window.gestore.autopilota.rispondi)(idDomanda, scelta)
       .then(() => onCambiato())
       .catch((e: unknown) => setErrore(e instanceof Error ? e.message : String(e)))
       .finally(() => setInCorso(false))
@@ -172,7 +192,7 @@ function ScelteInChat({ idDomanda, scelte, onCambiato }: { idDomanda: string; sc
 const FORMATO_ORA = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' })
 
 /** Solo l'ora: dentro una giornata di lavoro il giorno lo si sa. */
-function orario(iso: string): string {
+export function orario(iso: string): string {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : FORMATO_ORA.format(d)
 }

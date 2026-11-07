@@ -30,7 +30,9 @@ function voceValida(v: unknown): VoceAttesa | undefined {
     ...(testo(o.prenotataFino) ? { prenotataFino: o.prenotataFino } : {}),
     sveglie: num(o.sveglie) ? o.sveglie : 0,
     ...(o.parcheggiata === true ? { parcheggiata: true as const } : {}),
-    ...(testo(o.ramo) ? { ramo: o.ramo } : {})
+    ...(testo(o.ramo) ? { ramo: o.ramo } : {}),
+    ...(testo(o.prompt) ? { prompt: o.prompt } : {}),
+    ...(o.rifiutata === true ? { rifiutata: true as const } : {})
   }
 }
 

@@ -2,13 +2,8 @@
 
 <!-- SierraDeck: una riga per voce; una voce che torna aumenta «confermata N×». Tetto 200 voci o 32 KB: escono prima le meno confermate e più vecchie. Si può scrivere anche a mano. -->
 
-## pty-host
-
-- Lo stderr dell'host passa da `leggiStderrAtteso` in pty-host-client.ts: i rumori attesi di node-pty o dello spegnimento si aggiungono lì, il resto resta errore. _(2026-10-30)_
-
 ## test
 
-- `racconta` senza l'opzione `log` scrive in console.error: per provare che una riga è raccontata e non errore, il test deve passare `log`. _(2026-10-30)_
 - Il test di `creaLoggerUpdater` usava ERR_INTERNET_DISCONNECTED come «errore vero»: per un guasto vero in un test usa un checksum sbagliato, non un errore di rete. _(2026-11-01)_
 - il bussare in `statoDi` riesegue `bussa`: nei test che contano le chiamate a `dimentica` o al fetch compaiono doppie. _(2026-11-05)_
 - nei worktree senza node_modules basta una junction verso quella principale per far girare tsc e vitest; tenerla finché il ramo non è unito _(2026-11-05)_
@@ -45,11 +40,19 @@
 - k-65: da ferma la posta si legge ogni 90 s e «PC spento» è a 35 min: i test con orologio fisso devono far avanzare il tempo o usare PC_SPENTO_DOPO_MS, non numeri fissi. _(2026-11-06)_
 - la prova «Drive pieno» aspettava il 403 nel testo: il programma dà il messaggio breve di proposito. Le prove del Drive usano `creaFreno()`, non il singleton `frenoDrive`. _(2026-11-06)_
 - il guardiano del PC carico blocca anche le suite a gruppi quando la CPU resta sopra soglia: lanciare i gruppi di file in momenti più scarichi, non con più worker. _(2026-11-06)_
+- Con il PC carico il guardiano rimanda tsc e le suite complete anche a ripetizione. Conviene fare prima i test dei file toccati uno alla volta e la suite completa per ultima. _(2026-11-06)_
+- I test della fila unioni passano `turni: creaTurni({unioneMaxMs})`: una unione appesa tiene `unendo` finché non scade il turno (default 12 min), e il secondo tentativo resta bloccato. _(2026-11-06)_
+- Con il guardiano che rimanda `tsc` e le suite, un ciclo di vitest su più file viene rimandato quanto la suite intera: si lanciano pochi file mirati per volta. _(2026-11-06)_
+- la descrizione di un Agent deve essere «k-N: …» perché la fila (compitoDi) riconosca il compito; «k1: …» lo riconosce il flusso ma non la fila _(2026-11-06)_
+- Tanti test in tests/main cercano stringhe esatte nello script di client-pagina.ts: basta aggiungere un'istruzione prima per romperli. Meglio controllare il pezzo dentro la riga. _(2026-11-06)_
+- Quando una release cambia un messaggio d'errore (es. freno Drive k-65), i test più vecchi che cercano il vecchio testo diventano rossi in silenzio. Con il guardiano «PC carico», lanciare i file a gru… _(2026-11-06)_
+- i test di `tests/main` che cercano stringhe esatte nel sorgente di `client-pagina.ts` si rompono a ogni riordino di `chiudiAp`: cercare la riga, non la sequenza intera _(2026-11-06)_
+- dopo k-65 il Drive pieno non contiene più «403» nel messaggio: il test controlla stato e flag `drivePieno _(2026-11-06)_
+- il guardiano rimanda anche i gruppi da 12 file con CPU oltre l'80%: passano solo 1-3 file per volta; la suite completa va lanciata a PC libero. _(2026-11-06)_
+- nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 
 ## worktree
 
-- un agente isolato in un worktree non può eseguire git nella cartella principale: i compiti che chiedono commit su main vanno dati a chi lavora fuori dal worktree. _(2026-10-30)_
-- il ramo di una chat può essere indietro rispetto a main: per verificare una correzione appena unita usare `git grep <simbolo> main -- <percorso>`, non il file del worktree. _(2026-10-31)_
 - La junction node_modules nel worktree si crea con PowerShell New-Item -Junction: `cmd //c mklink` da Bash viene rifiutato. _(2026-11-05)_
 - Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
 - un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
@@ -57,44 +60,24 @@
 
 ## errori
 
-- Lo stderr dei figli arriva a pezzi arbitrari: riconoscere le righe attese una per una, mai con `^` sul pezzo intero (0.88.2 sfuggiva, prefisso doppio). _(2026-10-30)_
 - Gli avvisi Node (DEPxxxx) arrivano su stderr dei figli (claude, PTY host) o via console.error: filtrarli con src/shared/avvisi-node.ts prima di chiamarli errori. _(2026-11-05)_
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 
-## consegne
-
-- Una cartella sparita va controllata anche al ritiro (`ritira`), non solo alla lettura della coda: una consegna già in coda riapriva il riquadro a ogni tentativo. _(2026-10-30)_
-
-## chiusura
-
-- I gruppi su 0.88.1/0.88.2 possono essere già corretti nella 0.88.3: confrontare la versione dell'errore con il commit prima di intervenire. _(2026-10-30)_
-
-## updater
-
-- electron-updater scrive con logger.error anche avvisi attesi (differenziale 501): filtrarli in creaLoggerUpdater, non nel gestore dell'evento `error`. _(2026-10-31)_
-
 ## shell
 
-- in PowerShell un messaggio di commit con apostrofi o virgolette in here-string inline può spezzare git: usare `git commit -F` con un file temporaneo. _(2026-10-31)_
-- Da un worktree il tool Bash rifiuta `cmd //c mklink`: per la junction node_modules usare PowerShell (New-Item -ItemType Junction) e `cmd /c rmdir` per toglierla. _(2026-10-31)_
 - Nei worktree il Bash rifiuta i comandi composti con heredoc e python: usa Write/Edit per i file. _(2026-11-01)_
 
 ## android
 
-- Api.corpoTestoDiretto leggeva il corpo intero con body.string(): ora c'è un tetto di 16 MB (413) in leggiConTetto; ogni nuova lettura di testo passi di lì. _(2026-10-31)_
-- Il worker che chiama Api è LavoroConsegne (consegne e ponte). Nel worktree android/ non ha gradlew né local.properties: il Kotlin non si compila lì. _(2026-10-31)_
 - Sul PC dev non ci sono gradlew né SDK (`E:\Android\Sdk` assente): il Kotlin non si compila qui. Tenere la logica nuova in funzioni pure con test e controllare la build a parte. _(2026-11-06)_
 - Per compilare in un worktree: sdk.dir=E:/Android/Sdk in android/local.properties (ignorato), JAVA_HOME=JDK 21 Microsoft, gradle in E:\Programs\Gradle\gradle-8.11.1\bin. Non c'è gradlew. A freddo ~7 m… _(2026-11-06)_
 - CORREZIONE: l'SDK c'è in E:\Android\Sdk (la lezione «SDK assente» è sbagliata). Nei worktree: local.properties sdk.dir, JAVA_HOME=JDK 21 Microsoft, gradle globale 8.11.1, senza gradlew. _(2026-11-06)_
 - una data class nuova può collidere con una già presente nello stesso package (RigaSpecialista in PaginaWorkspace.kt): cercare il nome con grep prima di dichiararla. _(2026-11-06)_
-
-## quaderno
-
-- errori-arrivati.md è solo in coda: un ramo che aggiunge un lotto va riunito con main prima, altrimenti i lotti dei rami fratelli confliggono. _(2026-10-31)_
+- In `android/` `SezioneDrive` è definita in `Drive.kt` e in `SezioniImpostazioni.kt` con firme diverse: un doppione fragile, da unificare. _(2026-11-06)_
+- Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
 
 ## release
 
-- `noteDi` di scripts/note-novita.mjs restituisce un array di righe, non una stringa: unirlo con join prima di scriverlo su file. _(2026-10-31)_
 - Un agente lanciato in un worktree isolato non può eseguire git sulla cartella principale (né `cd` né `git -C`): una release che va costruita lì va affidata a una sessione non isolata. _(2026-11-05)_
 - Gli specialisti non possono usare git nella cartella principale: la release si costruisce nella loro copia con node_modules vera (npm ci, mai junction) e google-oauth.json copiato e poi tolto. _(2026-11-05)_
 - La versione Android è 2.88.6 (non 2.93.0): la numerazione dell'app non segue quella del programma. Con android/ invariato allega-apk riallega la stessa. _(2026-11-05)_
@@ -107,13 +90,14 @@
 
 ## git
 
-- Un agente in worktree non può eseguire git nella cartella principale: ripristini e commit su main vanno fatti dall'autopilota, non da uno specialista isolato. _(2026-10-31)_
 - il conflitto su errori-arrivati.md nasce da due voci aggiunte in coda dallo stesso file: si risolve tenendo entrambi i blocchi, senza scegliere una parte _(2026-11-05)_
 - i tag sono condivisi fra i worktree: basta `git fetch origin --tags` da una qualsiasi copia per verificarli. _(2026-11-05)_
 - Questo repo ha `core.autocrlf`: il commit avvisa che LF diventa CRLF sui file nuovi. È normale, non va corretto. _(2026-11-05)_
 - Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 - Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
 - il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
+- Unioni respinte per «modifiche non salvate»: guardare .git/MERGE_MSG. Se c'è un'unione di prova del programma in corso, aspettarne l'esito e poi riunire gli altri rami uno alla volta. _(2026-11-06)_
+- un ramo già aperto in un altro worktree non si può riprendere con checkout: lo stesso lavoro si porta sul proprio ramo con reset --hard sul suo commit, e poi si unisce main. _(2026-11-06)_
 
 ## log
 
@@ -122,6 +106,8 @@
 ## autopilota
 
 - autopilota-intero.ts: il finally richiama carica() subito dopo un catch che azzera chiesta, quindi il retry non ha attesa. _(2026-10-31)_
+- Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
+- REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
 
 ## pacchetto
 
@@ -171,6 +157,7 @@
 
 - Nel worktree il filtro dei comandi rifiuta qualunque comando Bash con «git» dentro, anche `npm version --no-git-tag-version`: da PowerShell passa. _(2026-11-05)_
 - l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
+- nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 
 ## pubblicazione
 
@@ -274,6 +261,7 @@
 - Il filtro dei comandi pesanti rifiuta le compilazioni con memoria libera sotto il 10% (vmmemWSL ~15 GB): da WSL non si esce con l'attesa, serve liberare memoria o aspettare. _(2026-11-06)_
 - Il pacchetto va costruito solo dalla cartella principale: in un worktree `node_modules` è una junction e l'asar perde le dipendenze indirette (dijkstrajs, pngjs, yargs). _(2026-11-06)_
 - `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
+- Il guardiano del PC carico può rifiutare gradle a oltranza con lo stesso messaggio: nel ramo vanno prima fatti i controlli statici, e va chiesta all'autopilota una finestra libera. _(2026-11-06)_
 
 ## piano
 
@@ -291,6 +279,7 @@
 - I file dei workspace sul Drive si chiamano `f_<hash>` come le chat: per escluderli dalle pulizie serve il percorso del manifesto, non il prefisso del nome. _(2026-11-06)_
 - Il freno (freno-drive.ts) mette l'avvio dei giri automatici dietro `fermo()` e si innesta in un solo punto, il `fetch` dell'archivio. I test che simulano 403 pieno devono passare un proprio `creaFren… _(2026-11-06)_
 - client-rotte.ts battitoVivo usa 5*60_000 fisso invece di PC_SPENTO_DOPO_MS di shared/posta.ts: due nozioni di «PC acceso», da allineare dopo il battito a 30 min. _(2026-11-06)_
+- A Drive pieno `conFreno` blocca ogni PATCH/PUT: anche togliere voci dal manifesto può fallire. Cancellare un file (DELETE) passa, ma solo dopo che la voce è uscita dall'indice. _(2026-11-06)_
 
 ## coda
 
@@ -312,6 +301,7 @@
 
 - Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
 - k-60 (`e9487ef4`, `28020ec1`, `4d4f11c9`) non risulta in main: prima di dire «entrato in main» verificare con `git merge-base --is-ancestor <sha> main`. _(2026-11-06)_
+- La prova nel principale lascia `.git/sierradeck-prova.json`: senza quel segno (e MERGE_HEAD uguale) lo sporco è di Nicholas e non si tocca; prima un merge fallito faceva `--abort` anche sul suo. _(2026-11-06)_
 
 ## criteri
 
@@ -322,3 +312,31 @@
 ## processo
 
 - prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
+
+## sync
+
+- Per togliere una chat dal Drive senza perderla, usare la regola di salita `escludi` (chatNonSale) più la pulizia nel manifesto; `restaFuori` bloccherebbe per sempre una chat non cresciuta. _(2026-11-06)_
+
+## pc
+
+- Il firewall di Windows su rete «Pubblica» scarta in silenzio i pacchetti del telefono sul wifi: rimedio con `New-NetFirewallRule ... -RemoteAddress LocalSubnet`, mai aperto a internet. _(2026-11-06)_
+
+## nsis
+
+- `perMachine:false` = installatore senza admin: netsh nell'installatore fallisce in silenzio, serve il ripiego col comando mostrato dal programma _(2026-11-06)_
+
+## firewall
+
+- le porte del Client sono configurabili (portaClient): meglio una regola per programma (-Program, LocalSubnet) che per porta _(2026-11-06)_
+
+## soglie
+
+- "PC acceso" ora ha una sola soglia, `PC_SPENTO_DOPO_MS` (35 min) in `shared/posta.ts`. Se il battito cambia cadenza, il margine sopra `BATTITO_RISCRIVI_MS` è verificato da un test. _(2026-11-06)_
+
+## criterio
+
+- con il guardiano «PC carico» la suite intera non parte: dividere in gruppi di 10-20 file, il guardiano accetta quelli piccoli _(2026-11-06)_
+
+## unioni
+
+- se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
