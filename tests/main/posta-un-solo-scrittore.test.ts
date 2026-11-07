@@ -52,7 +52,7 @@ function pc(opts: { id: string; nome: string; scatola: Scatola; cartelle?: strin
     apriChat: () => undefined,
     riprendiChat: () => undefined,
     scrivi: (_id, testo) => { if (opts.scriviRompe === true) throw new Error('chat chiusa'); scritti.push(testo) },
-    adesso: () => orologio,
+    adesso: () => orologio, quietaOgniMs: 0,
     nuovoId: () => `${opts.id}-${++n}`,
     log: (m) => { registro.push(m) },
     ...(opts.comando !== undefined ? { comando: opts.comando } : {}),
