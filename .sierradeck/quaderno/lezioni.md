@@ -4,7 +4,6 @@
 
 ## test
 
-- Il test di `creaLoggerUpdater` usava ERR_INTERNET_DISCONNECTED come «errore vero»: per un guasto vero in un test usa un checksum sbagliato, non un errore di rete. _(2026-11-01)_
 - il bussare in `statoDi` riesegue `bussa`: nei test che contano le chiamate a `dimentica` o al fetch compaiono doppie. _(2026-11-05)_
 - nei worktree senza node_modules basta una junction verso quella principale per far girare tsc e vitest; tenerla finché il ramo non è unito _(2026-11-05)_
 - In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
@@ -51,6 +50,7 @@
 - il guardiano rimanda anche i gruppi da 12 file con CPU oltre l'80%: passano solo 1-3 file per volta; la suite completa va lanciata a PC libero. _(2026-11-06)_
 - nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
+- se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
 
 ## worktree
 
@@ -105,10 +105,6 @@
 
 - Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
 - REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
-
-## pacchetto
-
-- in package.json solo lo script pacchetto ha --prima/--dopo; pubblica ricostruisce senza controlli. _(2026-10-31)_
 
 ## registro
 
@@ -285,6 +281,7 @@
 ## posta
 
 - `pcVivo` si basa sul timestamp del battito: allungare la riscrittura (ora 30 min) obbliga ad alzare `PC_SPENTO_DOPO_MS` (ora 35 min). _(2026-11-06)_
+- `quietaOgniMs` in `creaPostino` rende i test della posta indipendenti dai 90 s di quiete; `ultimaAttivita` e `ultimaLetturaPosta` partono da `-Infinity`, non da 0. _(2026-11-07)_
 
 ## tooling
 
