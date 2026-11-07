@@ -48,7 +48,8 @@ describe('in sottofondo: si scrive durante il turno solo un testo «anche al lav
     return { s, scritto, lavora, avanti: (ms: number) => { ora += ms } }
   }
   const SESSIONE = '11111111-2222-4333-8444-555555555555'
-  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 20))
+  // xterm elabora il testo in modo asincrono: a PC carico 20 ms non bastano
+  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 300))
   it('un testo normale aspetta la fine del turno', async () => {
     const f = finto()
     f.s.avvia({ sessione: SESSIONE, cwd: 'C:\\p', titolo: 'p', perChi: { id: 'x', nome: 'x' }, testo: 'normale', idMessaggio: 'm-1' })
@@ -92,7 +93,8 @@ describe('in sottofondo: mai più di un messaggio in coda in Claude Code (0.72.0
     return { s, scritto, lavora, avanti: (ms: number) => { ora += ms } }
   }
   const SESSIONE = '11111111-2222-4333-8444-555555555555'
-  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 20))
+  // xterm elabora il testo in modo asincrono: a PC carico 20 ms non bastano
+  const digerisci = (): Promise<void> => new Promise((r) => setTimeout(r, 300))
   it('due testi «anche al lavoro» nello stesso turno: se ne scrive uno, il secondo aspetta', async () => {
     const f = finto()
     const chi = { id: 'x', nome: 'x' }

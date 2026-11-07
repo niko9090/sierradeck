@@ -23,21 +23,23 @@ describe('il tetto di attesa delle richieste al Drive (I2)', () => {
     const fermo = (async () => new Response(new ReadableStream<Uint8Array>({
       start(c) { c.enqueue(new Uint8Array([1, 2, 3])) } // poi piu' niente
     }), { status: 200 })) as unknown as typeof fetch
-    const r = await conTempoLimite(fermo, 40)('https://www.googleapis.com/drive/v3/files/x?alt=media')
+    // Tetto di 400 ms: a PC carico un intervallo di 100 ms puo' allungarsi di molto,
+    // quindi il margine lato «lento» deve restare largo (>= 400 ms).
+    const r = await conTempoLimite(fermo, 400)('https://www.googleapis.com/drive/v3/files/x?alt=media')
     await expect(r.arrayBuffer()).rejects.toBeInstanceOf(TempoScadutoDrive)
 
     const lento = (async () => {
       let n = 0
       return new Response(new ReadableStream<Uint8Array>({
         async pull(c) {
-          await new Promise((ok) => setTimeout(ok, 20))
+          await new Promise((ok) => setTimeout(ok, 100))
           n += 1
           if (n > 4) c.close(); else c.enqueue(new Uint8Array([n]))
         }
       }), { status: 200 })
     }) as unknown as typeof fetch
-    // 5 pezzi a 20 ms = 100 ms in tutto, oltre il tetto di 40: ma ogni pezzo lo riarma.
-    const r2 = await conTempoLimite(lento, 40)('https://www.googleapis.com/drive/v3/files/x?alt=media')
+    // 5 pezzi a 100 ms = 500 ms in tutto, oltre il tetto di 400: ma ogni pezzo lo riarma.
+    const r2 = await conTempoLimite(lento, 400)('https://www.googleapis.com/drive/v3/files/x?alt=media')
     expect(Buffer.from(await r2.arrayBuffer())).toEqual(Buffer.from([1, 2, 3, 4]))
   })
 
@@ -57,8 +59,9 @@ describe('il tetto di attesa delle richieste al Drive (I2)', () => {
       if (volte === 1) return new Promise<Response>(() => {}) // la prima resta appesa
       return drive.fetch(u, init)
     }) as typeof fetch
-    // Il tetto vero e' 60 s; qui lo si prova con il fetch gia' avvolto a 30 ms.
-    const a = creaArchivioDrive({ token: async () => 'tk', fetch: conTempoLimite(capriccioso, 30) })
+    // Il tetto vero e' 60 s; qui lo si prova con il fetch gia' avvolto a 300 ms
+    // (a 30 ms una richiesta sana poteva scadere a PC carico).
+    const a = creaArchivioDrive({ token: async () => 'tk', fetch: conTempoLimite(capriccioso, 300) })
     drive.metti('f_uno', Buffer.from('ciao'))
     expect((await a.scarica('f_uno'))?.toString()).toBe('ciao')
     expect(volte).toBeGreaterThan(1)
