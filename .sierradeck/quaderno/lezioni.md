@@ -78,11 +78,10 @@
 
 ## release
 
-- 0.93.1 (05/11) pubblicata dalla copia con npm ci: 49 moduli, 5 allegati. L'APK è alla 2.88.6 (numerazione Android separata): con android/ invariato si riallega quello. _(2026-11-05)_
-- Se un collega ha lasciato un build a metà in un altro worktree, controlla che dist non abbia l'exe e che non ci siano processi; poi costruisci nella tua copia, già sul tag, senza riprendere la sua. _(2026-11-05)_
-- `allega-apk --senza-build` da una copia nuova: copia `app-release.apk` e `local.properties` dalla cartella principale, poi cancella `local.properties`. _(2026-11-05)_
-- Dopo una release da una copia, il main locale resta indietro del commit del bump (0.94.2: a1bfb663 solo su origin/main): prima del lavoro dopo, allinearlo con git merge --ff-only origin/main. _(2026-11-05)_
 - Dopo la 0.94.3 il main locale è indietro di 0f0b1efe (bump) e c2c530c5 (novità) su origin/main: il primo specialista del prossimo lavoro li unisce con fast-forward prima di partire. _(2026-11-05)_
+- Da un worktree `npm run pubblica` vuole google-oauth.json (copiarlo dalla radice, poi cancellarlo) e una node_modules vera (npm ci, non junction). _(2026-11-07)_
+- Se la release esiste già prima di `pubblica`, electrion-builder salta gli upload: caricare exe, blockmap, latest.yml con `gh release upload`, con nomi col trattino. _(2026-11-07)_
+- 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 
 ## git
 
@@ -173,6 +172,7 @@
 - Il guardiano «PC carico» blocca anche `tsc --noEmit`, non solo la suite intera. Se un `java` esterno resta alto, la compilazione si ritarda a lungo: lanciarla appena il carico scende. _(2026-11-07)_
 - Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
 - Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
+- JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 
 ## renderer
 
