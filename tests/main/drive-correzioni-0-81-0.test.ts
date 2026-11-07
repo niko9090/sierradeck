@@ -118,8 +118,10 @@ describe('un 403 di Google', () => {
     const d = driveCon(new Response(corpo, { status: 403 }))
     // Freno proprio del test: il predefinito e' uno solo per tutto il programma.
     const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno: creaFreno() })
-    // Il messaggio breve che il programma mostra a Drive pieno (niente «403» nel testo).
-    await expect(a.elenca()).rejects.toThrow(MESSAGGIO_DRIVE_PIENO)
+    // k-65: il messaggio breve a Drive pieno (niente «403» nel testo), con stato 403 e drivePieno; il 403 non si ritenta.
+    const errore = await a.elenca().then(() => undefined, (e: unknown) => e as Error & { stato?: number; drivePieno?: boolean })
+    expect(errore).toMatchObject({ stato: 403, drivePieno: true })
+    expect(errore!.message).toBe(MESSAGGIO_DRIVE_PIENO)
     expect(d.chiamate()).toBe(1)
   })
 
