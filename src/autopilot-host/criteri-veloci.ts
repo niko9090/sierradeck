@@ -57,9 +57,25 @@ export function guardaFuori(comando: string): boolean {
  */
 export function ePesante(comando: string, cwd?: string): boolean {
   if (!PESANTE.test(comando)) return false
+  // 0.96.1: pesante solo se il programma pesante è **il comando** di un pezzo,
+  // non una parola dentro: `grep -rn gradle`, `cat build.gradle`, `Get-Process java | findstr gradle`
+  // leggono soltanto, e il 07/11 venivano rimandati per un quarto d'ora.
+  const pezzi = comando.split(/&&|\|\||[;|\n]/u).filter((pezzo) => inizioPesante(pezzo))
+  if (pezzi.length === 0) return false
   if (cwd === undefined || /(?:^|[\s;&|(])(cd|pushd|Set-Location)\s/i.test(comando)) return true
   // Ogni pezzo di `a && b; c` per conto suo: pesante se lo è uno.
-  return comando.split(/&&|\|\||;/u).some((pezzo) => PESANTE.test(pezzo) && !npmTestLeggero(pezzo, cwd))
+  return pezzi.some((pezzo) => !npmTestLeggero(pezzo, cwd))
+}
+
+const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist)|electron-builder)\b/i
+const PREFISSO = /^(?:timeout\s+\d+|nohup|time|call|exec|start|cmd(?:\.exe)?\s+\/[ck]|(?:ba)?sh\s+-c|powershell(?:\.exe)?(?:\s+-\w+)*\s+-command|[A-Za-z_][A-Za-z0-9_]*=\S*)\s+["']?/i
+
+/** Il pezzo di comando lancia lui stesso un programma pesante (dopo `timeout`, `VAR=x`, `npx`, `node …/vitest.mjs`, `./`). */
+function inizioPesante(pezzo: string): boolean {
+  let p = pezzo.trim().replace(/^[("'&\s]+/u, '')
+  for (let m = PREFISSO.exec(p); m !== null; m = PREFISSO.exec(p)) p = p.slice(m[0].length)
+  p = p.replace(/^npx\s+(?:-\S+\s+)*/i, '').replace(/^node\s+\S*?(?=vitest(?:\.mjs)?\s)/i, '').replace(/^\.{0,2}[\\/]/u, '')
+  return INIZIO_PESANTE.test(p)
 }
 
 const PESANTE = /\bgradle(w)?\b|\bnpm\s+(run\s+)?test\b|\bvitest(\.mjs)?\s+run\b|\bnpx\s+vitest\b|\bplaywright\b|\bcargo\s+test\b|\bmvn\b|\bpytest\b|\bdotnet\s+test\b|\bnpm\s+run\s+(build|pacchetto|dist)\b|\belectron-builder\b/i

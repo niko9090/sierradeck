@@ -41,6 +41,13 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.96.1',
+    righe: [
+      '**Gli autopiloti non si fermano più sulle unioni:** ogni unione rilanciava due volte le prove di tutti i compiti già finiti (una trentina di comandi, comprese due compilazioni Android da zero) e superava il tempo massimo, così il lavoro finito restava in fila per ore. Ora le prove diventano poche e unite in un comando solo, si salta quello che il ramo non tocca (niente Android se non cambia l’app), e le prove «prima» si rifanno solo se qualcosa non passa.',
+      '**Il controllo del carico non rimanda più chi legge soltanto:** un comando come una ricerca nel codice che contiene la parola «gradle» o «vitest» veniva scambiato per una compilazione e rimandato anche per un quarto d’ora.',
+    ],
+  },
+  {
     versione: '0.96.0',
     righe: [
       '**Schermata Specialisti:** la lista d’attesa mostra per ogni specialista il workspace, cosa fa, la percentuale e i minuti stimati, con il totale in fondo. «Precedenza» e «Ferma e metti in cima» funzionano sul PC e dall’app Android.',

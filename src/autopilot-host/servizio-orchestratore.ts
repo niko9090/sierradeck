@@ -21,6 +21,7 @@ import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domand
 import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
+import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
@@ -993,7 +994,9 @@ ${NOTA_SENZA_GIT}`,
     }
     const il = x.adesso()
     // I fatti vincono: il criterio del compito si misura sul principale, dopo l'unione.
-    const comando = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
+    // 0.96.1: «gradle clean …» senza clean (criteri-prova.ts): rifare tutto da zero a ogni unione costava minuti.
+    const grezzo = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
+    const comando = grezzo !== undefined ? criteriPerLaProva([{ descrizione: '', comando: grezzo, soddisfatto: false }])[0]?.comando ?? grezzo : undefined
     let verde = true
     let dettaglio = compito === undefined ? 'nessun compito del piano: vale l’unione senza regressioni' : 'il criterio non ha un comando: vale l’unione senza regressioni'
     if (comando !== undefined) {

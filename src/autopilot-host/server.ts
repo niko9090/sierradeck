@@ -25,6 +25,7 @@ import type { Archivio } from './archivio'
 import type { Esecutore } from './verifiche'
 import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { peggioratiDelRamo } from './ambiente-copia'
+import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteDellaChat, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
@@ -653,13 +654,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     const base = a.ramoBase
     const turni = deps.turni ?? TURNI_PC
     const visti = new Set<string>()
-    const criteri: Criterio[] = deps.orchestratori.piano(chiaveWorkspace(a)).compiti.flatMap((k) => {
+    const tutti: Criterio[] = deps.orchestratori.piano(chiaveWorkspace(a)).compiti.flatMap((k) => {
       const comando = k.stato === 'unito' && k.criterioVerde === true ? comandoDelCriterio(k.criterio) : undefined
       if (comando === undefined || visti.has(comando) || !esaminaComando(comando).ok) return []
       visti.add(comando)
       return [{ descrizione: k.criterio, comando, soddisfatto: true }]
     })
-    const misura = async () => {
+    // 0.96.1: pochi comandi, solo quelli che il ramo può rompere (criteri-prova.ts).
+    const diff = await gitA(git)(['diff', '--name-only', `${base}...${ramo}`], a.cwd).catch(() => undefined)
+    const cambiati = diff !== undefined && diff.codice === 0 ? diff.uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '') : undefined
+    const criteri = criteriPerLaProva(tutti, cambiati)
+    const misura = async (criteri: Criterio[]) => {
       if (criteri.length === 0) return []
       const impronta = await improntaCodiceAsincrona(gitA(git), a.cwd)
       return (await misuraCriteri(criteri, a.cwd, deps.esegui, { memoria: memoriaCriteri, adesso: orologio, tutti: true, ...(impronta !== undefined ? { impronta } : {}) })).esiti
@@ -671,16 +676,29 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // e l'unione si rimette in fila: mai appesa, mai un riavvio del servizio per sbloccarla.
     const stato = { scaduta: false }
     const corpo = async (): Promise<EsitoProvaPrincipale> => {
-      const passavano = await misura()
-      if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
-      const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
-      if (!inizio.ok) {
+      const unisci = async (): Promise<EsitoProvaPrincipale | undefined> => {
+        const inizio = await turni.unione(a.cwd, () => iniziaProvaAsincrono(gitA(git), { cwd: a.cwd, ramo, base }))
+        if (inizio.ok) return undefined
         // Cartella con file di Nicholas a metà: non si tocca, l'unione aspetta il suo turno.
         return { unito: false, motivo: `l’unione di prova non si è potuta fare (${inizio.motivo})`, ...(inizio.motivo === MOTIVO_CARTELLA_SPORCA ? { ritenta: 'sporca' as const } : {}) }
       }
+      const fallita = await unisci()
+      if (fallita !== undefined) return fallita
+      // 0.96.1: prima si misura con il ramo dentro. Solo quello che non passa si
+      // rimisura senza il ramo: se non passava già, non è colpa del ramo.
       let peggiorati: string[] = []
       try {
-        peggiorati = peggioratiDelRamo(passavano, await misura(), true).delRamo
+        const rossi = (await misura(criteri)).filter((e) => !e.passato)
+        if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+        if (rossi.length > 0) {
+          await turni.unione(a.cwd, () => chiudiProvaAsincrono(gitA(git), { cwd: a.cwd, tieni: false }))
+          const prima = await misura(criteri.filter((c) => rossi.some((r) => r.descrizione === c.descrizione)))
+          peggiorati = peggioratiDelRamo(prima, rossi, true).delRamo
+          if (peggiorati.length > 0) return { unito: false, motivo: `anche nella cartella principale non passa: ${peggiorati.join('; ')}` }
+          if (stato.scaduta) return { unito: false, motivo: 'prova scaduta', ritenta: 'scaduta' }
+          const ancora = await unisci()
+          if (ancora !== undefined) return ancora
+        }
       } catch (err) {
         peggiorati = [`misura non riuscita: ${err instanceof Error ? err.message : String(err)}`]
       }
