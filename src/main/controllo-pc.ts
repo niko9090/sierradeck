@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import type { Salute } from '@shared/salute'
+import { PC_SPENTO_DOPO_MS } from '@shared/posta'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 
 /**
@@ -31,7 +32,7 @@ export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?:
  * battito sul Drive da più di così è spento, e va bene: lo si dice solo se il
  * battito è fresco (acceso) e non si raggiunge, perché quello è un guasto vero.
  */
-export const SPENTO_DOPO_MS = 10 * 60_000
+export const SPENTO_DOPO_MS = PC_SPENTO_DOPO_MS
 
 export type Criticita = { pc: string; cosa: string; dettaglio: string }
 

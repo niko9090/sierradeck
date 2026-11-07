@@ -3,6 +3,7 @@ import { eSessioneInterna } from './workspace-riparazioni'
 import type { StatoSpazio } from './spazio-drive'
 import { dentroCartella, eNomeDiSistema, eSenzaNome } from './progetti-unificati'
 import type { VistaSposta } from './sposta'
+import { PC_SPENTO_DOPO_MS } from './posta'
 
 /**
  * Il pannello dei progetti e delle chat (0.58.0; modello semplice dalla 0.88.0).
@@ -137,7 +138,7 @@ export type Pannello = {
 /** Oltre questo un PC senza battito si considera assente. */
 export const ASSENTE_DOPO_MS = 30 * 86_400_000
 /** Un PC si dice acceso se il suo ultimo battito è più recente di così. */
-export const ACCESO_ENTRO_MS = 5 * 60_000
+export const ACCESO_ENTRO_MS = PC_SPENTO_DOPO_MS
 
 const iso = (ms: number | undefined): string | undefined => (ms === undefined || !Number.isFinite(ms) ? undefined : new Date(ms).toISOString())
 const giorni = (ms: number): number => Math.floor(ms / 86_400_000)
