@@ -4,8 +4,6 @@
 
 ## test
 
-- il bussare in `statoDi` riesegue `bussa`: nei test che contano le chiamate a `dimentica` o al fetch compaiono doppie. _(2026-11-05)_
-- nei worktree senza node_modules basta una junction verso quella principale per far girare tsc e vitest; tenerla finché il ramo non è unito _(2026-11-05)_
 - In controllo-pc.test.ts un test del 05/11 fissava il bug (due righe per lo stesso PC): se cambi la chiave di unione, aggiorna anche quello. _(2026-11-05)_
 - Le cache firmate con la sola mtime di una cartella sono fragili su Windows (orologio a ~15 ms): un file nato nello stesso tick non si vede. Rileggere se la mtime è più recente di 2 s. _(2026-11-05)_
 - Un test che fallisce 1 volta su 4 nella suite completa si trova rilanciando la suite, non il singolo file: il singolo file spesso passa. _(2026-11-05)_
@@ -74,6 +72,8 @@
 - una data class nuova può collidere con una già presente nello stesso package (RigaSpecialista in PaginaWorkspace.kt): cercare il nome con grep prima di dichiararla. _(2026-11-06)_
 - In `android/` `SezioneDrive` è definita in `Drive.kt` e in `SezioniImpostazioni.kt` con firme diverse: un doppione fragile, da unificare. _(2026-11-06)_
 - Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
+- Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
+- Api.kt chiama /api/specialisti/attesa/priorita e /togli, che non sono in ROTTE_PONTE (un test PC le vuole fuori): da telefono via ponte non passano. _(2026-11-07)_
 
 ## release
 
