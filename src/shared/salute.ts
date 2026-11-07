@@ -11,7 +11,7 @@
 
 import { mappaPc, type MappaPc } from './collegamento'
 import { PC_SPENTO_DOPO_MS } from './posta'
-import { rigaRisorse, risorseAlte, type RisorsePc } from './risorse'
+import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
 
@@ -210,6 +210,18 @@ export function componiSalute(i: IngressiSalute): Salute {
       azioni: raggiungibile
         ? (indietro ? [{ id: 'installa-la', testo: `Installa là la ${i.versione}`, pc: p.pcId, versione: i.versione }] : [])
         : [{ id: 'riprova-pc', testo: 'Riprova adesso', pc: p.pcId }, ...(dismettibile ? [{ id: 'dismetti-pc' as const, testo: 'Dismetti questo PC', pc: p.pcId, nome: p.nome }] : [])]
+    })
+  }
+
+  // ── La scheda video, per ogni PC che la manda (k-168): informativa, attenzione leggera se spenta ──
+  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined).map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
+  for (const s of schede) {
+    voci.push({
+      chiave: `gpu:${s.chiave}`, gruppo: 'pc', tono: s.gpu.spenta ? 'attenzione' : 'ok',
+      titolo: `${s.nome} · ${s.gpu.testo}${s.gpu.cpu !== undefined ? ` · ${s.gpu.cpu.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%` : ''}`,
+      spiegazione: 'La scheda video accelera la grafica di SierraDeck (finestre, terminali). Se è spenta o in software, tutto lo disegna il processore: funziona, ma con più CPU e qualche scatto. Il numero in percentuale è la CPU del processo della scheda video.',
+      ...(s.gpu.spenta ? { cosaFare: 'Controlla i driver della scheda video e che Windows non la tenga spenta; poi riavvia SierraDeck.' } : {}),
+      azioni: []
     })
   }
 
