@@ -23,6 +23,16 @@ export function rigaRisorse(r: RisorsePc): string {
   return `CPU ${n(r.cpu)}% · RAM ${n(r.ramMb)} MB · Drive ${n(r.driveAlMinuto)} richieste/min` + (r.driveRifiutate > 0 ? ` · ${r.driveRifiutate} rifiutate da Google` : '')
 }
 
+/** Sopra queste soglie i consumi diventano una criticita; sotto sono solo informazione. */
+export const SOGLIA_CPU = 50
+export const SOGLIA_RAM_MB = 3000
+export const SOGLIA_RIFIUTATE = 10
+
+/** I consumi di un PC sono davvero alti (CPU, RAM o molte richieste rifiutate da Google)? */
+export function risorseAlte(r: RisorsePc): boolean {
+  return r.cpu >= SOGLIA_CPU || r.ramMb >= SOGLIA_RAM_MB || r.driveRifiutate >= SOGLIA_RIFIUTATE
+}
+
 /** Le risorse lette dal battito di un altro PC hanno la forma giusta? */
 export function risorseValide(r: unknown): r is RisorsePc {
   const x = r as Partial<RisorsePc> | undefined
