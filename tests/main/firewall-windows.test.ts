@@ -103,7 +103,7 @@ describe('regola del firewall creata dall installatore', () => {
 
 describe('ripiego con elevazione, solo dal clic', () => {
   const decodifica = (args: string[]): string => {
-    const m = /'-EncodedCommand','([^']+)'/.exec(args[args.length - 1])
+    const m = /'-EncodedCommand','([^']+)'/.exec(args[args.length - 1] ?? '')
     return Buffer.from(m?.[1] ?? '', 'base64').toString('utf16le')
   }
 
