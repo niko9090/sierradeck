@@ -1,4 +1,3 @@
-import { creaFreno } from '../../src/main/cassaforte/freno-drive'
 import { describe, it, expect } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
