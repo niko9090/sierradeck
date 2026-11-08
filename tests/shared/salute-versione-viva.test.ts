@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { componiSalute, type IngressiSalute, type PcPerSalute } from '@shared/salute'
+import { componiSalute, versionePcInBreve, type IngressiSalute, type PcPerSalute } from '@shared/salute'
 import { criticitaDi } from '../../src/main/controllo-pc'
 
 /**
@@ -64,5 +64,20 @@ describe('la versione degli altri PC nel controllo', () => {
 
   it('la salute di un PC dice la sua versione', () => {
     expect(componiSalute(base).versione).toBe('2.0.0')
+  })
+
+  it('«Altri computer»: la versione viva vale e dice «aggiorna» solo se è più vecchia', () => {
+    expect(versionePcInBreve({ versione: '1.0.0', battito: DUE_GIORNI_FA, viva: '2.0.0' }, '2.0.0', ADESSO)).toEqual({ testo: 'v2.0.0', indietro: false })
+    expect(versionePcInBreve({ versione: '2.0.0', battito: DUE_GIORNI_FA, viva: '1.5.0' }, '2.0.0', ADESSO)).toEqual({ testo: 'v1.5.0 · più vecchia, aggiorna', indietro: true })
+  })
+
+  it('«Altri computer»: solo dal battito vecchio, dice di quando e non dice «aggiorna»', () => {
+    const r = versionePcInBreve({ versione: '1.0.0', battito: DUE_GIORNI_FA }, '2.0.0', ADESSO)
+    expect(r).toEqual({ testo: 'v1.0.0 (dato di 2 g fa)', indietro: false })
+  })
+
+  it('«Altri computer»: battito di poco fa, senza avvisi sul dato', () => {
+    const r = versionePcInBreve({ versione: '2.0.0', battito: new Date(ADESSO - 60_000).toISOString() }, '2.0.0', ADESSO)
+    expect(r).toEqual({ testo: 'v2.0.0', indietro: false })
   })
 })
