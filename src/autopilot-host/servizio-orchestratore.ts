@@ -55,6 +55,7 @@ import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
 import type { ArchivioAttesa } from './attesa-store'
+import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -206,6 +207,8 @@ export type ServizioUnico = {
   specialistiSulPc: () => number
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
+  /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
+  cambiSpecialisti: Cambi
   /** k-48: cambia la priorità di una voce in fila. `undefined`: la voce non c'è. */
   /**
    * Le mosse sulla fila. `su`/`giu`/`cima` cambiano solo l'ordine di chi aspetta un
@@ -499,7 +502,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   // ---------------------------------------------------------------- la lista d'attesa (k-48)
 
   let attesaMemoria: StatoAttesa = attesaVuota()
-  const archivioAttesa: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
+  const cambiSpecialisti = creaCambi()
+  const archivioAttesaBase: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
+  const archivioAttesa: ArchivioAttesa = { leggi: () => archivioAttesaBase.leggi(), scrivi: (st) => { archivioAttesaBase.scrivi(st); cambiSpecialisti.segna() } }
   const scelti = (): number | undefined => x.postiScelti?.()
   const capPc = (): number => (scelti() !== undefined ? POSTI_MAX : SPECIALISTI_PC_MAX)
   const tettoPc = (): number => Math.max(1, Math.min(x.posti(), capPc()))
@@ -680,6 +685,8 @@ ${NOTA_SENZA_GIT}`,
 
   /** Gli specialisti nativi: il piano li segue, le lezioni vanno al quaderno, il diario li racconta. */
   const suFlusso = (ws: string, effetti: EffettoFlusso[], _stato: StatoFlusso): void => {
+    // Spinta a evento: chi guarda gli specialisti lo sa subito, senza aspettare il giro di rilettura.
+    if (effetti.some((e) => e.tipo === 'specialista-partito' || e.tipo === 'specialista-finito' || e.tipo === 'specialista-rifiutato')) cambiSpecialisti.segna()
     for (const e of effetti) {
       if (e.tipo === 'costo') {
         x.orchestratori.aggiungiCosto(ws, { ...e.costo })
@@ -1711,6 +1718,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       applicaAttesa(m, prima)
       return vistaAttesa()
     },
+    cambiSpecialisti,
     spegni: () => { orchestratore.spegni() },
     archiviaDoppioni,
     orchestratore,
