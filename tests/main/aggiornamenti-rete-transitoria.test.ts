@@ -73,6 +73,25 @@ describe('errori di rete passeggeri', () => {
     expect(righe[righe.length - 1]).toMatch(/^info \[electron-updater\] avviso: /)
   })
 
+  it('HttpError con Headers, oggetto con statusCode e net::ERR_CONNECTION_CLOSED: nessuna fase errore, un avviso', () => {
+    const casi: unknown[] = [
+      new Error('504\nHeaders: {"server":"GitHub.com"}'),
+      { name: 'HttpError', statusCode: 504, message: '504' },
+      new Error('net::ERR_CONNECTION_CLOSED')
+    ]
+    for (const e of casi) {
+      const { a, righe } = nuovo()
+      h.updater.emit('error', e)
+      expect(a.stato().fase).not.toBe('errore')
+      expect(righe.filter((r) => r.startsWith('ERRORE'))).toEqual([])
+      expect(righe.filter((r) => /passeggero/.test(r))).toHaveLength(1)
+      const l = creaLoggerUpdater({ info: (m) => righe.push(`info ${m}`), errore: (m) => righe.push(`ERRORE ${m}`) })
+      if (e instanceof Error) l.error(e.message)
+      expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+    }
+    for (const t of ['ERR_CONNECTION_RESET', 'ERR_CONNECTION_TIMED_OUT', 'ERR_TIMED_OUT', 'ERR_EMPTY_RESPONSE']) expect(eErroreDiReteTransitorio(`net::${t}`)).toBe(true)
+  })
+
   it('un checksum sbagliato resta un errore vero', () => {
     const { a } = nuovo()
     h.updater.emit('error', new Error('sha512 checksum mismatch'))

@@ -70,6 +70,16 @@ describe('conStorico', () => {
     expect(visti).toEqual([{ testo: '[drive] 403 quota', cosa: '[drive] salvo 3 chat' }, { testo: '[drive] 403 quota' }])
   })
 
+  it('«cosa si faceva» solo se la riga info ha lo stesso tag dell errore', () => {
+    const visti: Array<{ testo: string; cosa?: string }> = []
+    const r = conStorico(registroFinto(), { aggiungi: (testo, cosa) => { visti.push({ testo, ...(cosa !== undefined ? { cosa } : {}) }) } }, () => 1_000_000)
+    r.info('[spazio] chat sul Drive')
+    r.errore('[aggiornamenti] fase: errore')
+    r.info('[aggiornamenti] controllo')
+    r.errore('[aggiornamenti] fase: errore')
+    expect(visti).toEqual([{ testo: '[aggiornamenti] fase: errore' }, { testo: '[aggiornamenti] fase: errore', cosa: '[aggiornamenti] controllo' }])
+  })
+
   it('l errore ripetuto dalla console del registro non entra due volte', () => {
     const base = registroFinto()
     const visti: string[] = []
