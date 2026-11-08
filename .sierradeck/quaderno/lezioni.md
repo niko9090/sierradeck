@@ -64,13 +64,10 @@
 - Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
 - Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
 - main locale è 5 commit avanti a origin/main (0.97.0): fare git push origin main prima di taggare o pubblicare. _(2026-11-08)_
+- Con l'autopilota il bump di versione non si committa in main (hook): va fatto su un ramo dello specialista e unito; poi push, tag, gh release, pubblica e allega-apk dal principale. _(2026-11-08)_
 
 ## git
 
-- Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
-- il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
-- Unioni respinte per «modifiche non salvate»: guardare .git/MERGE_MSG. Se c'è un'unione di prova del programma in corso, aspettarne l'esito e poi riunire gli altri rami uno alla volta. _(2026-11-06)_
-- un ramo già aperto in un altro worktree non si può riprendere con checkout: lo stesso lavoro si porta sul proprio ramo con reset --hard sul suo commit, e poi si unisce main. _(2026-11-06)_
 - Il «lavoro di k-63» non era un ramo di codice: `abf869b0` ha solo correzioni a due test, e l'ottimizzazione del Drive era già in main (0.95.6, k-65). _(2026-11-07)_
 - Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
 - `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
@@ -247,6 +244,8 @@
 - La cache dei criteri (criteri-veloci.ts:193-232) è solo in RAM (server.ts:188), chiave = impronta dei file tracciati più comando, senza scadenza: un rosso resta finché il contenuto non cambia o il se… _(2026-11-06)_
 - daRicordare esclude solo timeout e problemi d'ambiente: un test instabile che fallisce una volta blocca l'unione su quel contenuto. Il riuso dell'esito vecchio non passa dal guardiano del carico. _(2026-11-06)_
 - Il cancello ricorda in RAM anche i rossi (criteri-veloci.ts, chiave = file tracciati + comando, senza scadenza): un test instabile blocca ogni unione finché main non cambia o il servizio riparte. _(2026-11-06)_
+- `git tag --list vX` esce sempre con 0 anche senza tag: come criterio dà verde falso (k-184 0.97.1 segnata fatta senza release). Usare `git rev-parse vX` o `gh release view vX`. _(2026-11-08)_
+- `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
 
 ## processo
 
@@ -357,3 +356,11 @@
 
 - i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
 - La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
+
+## fermate
+
+- Causa n.1 delle fermate (08/11): la guardia rimanda, ma lo specialista non può aspettare (sleep bloccato, niente Monitor), quindi chiude senza prove e il criterio diventa rosso. _(2026-11-08)_
+
+## guardia-pc
+
+- `guardia.attendi` non basta in un hook: dopo il passo libero, `giudicaPesanteDellaChat` rimanda per «appena liberato». Serve un ciclo che ripeta tutto il giudizio. _(2026-11-08)_
