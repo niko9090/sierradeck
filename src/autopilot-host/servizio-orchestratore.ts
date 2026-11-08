@@ -13,14 +13,14 @@ import {
 import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import { righeLezioni } from '@shared/lezioni-chat'
-import { esaminaComando } from '@shared/controllo-comandi'
+import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
 import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
-import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
+import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
@@ -40,7 +40,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
-import { fileAgenti, fileImpostazioniCli } from './agenti-orchestratore'
+import { fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -55,6 +55,7 @@ import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
 import type { ArchivioAttesa } from './attesa-store'
+import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
 /** 0.89.4: dopo quanto il lavoro fermo sveglia l'autopilota, e quante volte al più per lo stesso stato. */
 export const FERMO_DOPO_MS = 3 * 60_000
@@ -206,6 +207,8 @@ export type ServizioUnico = {
   specialistiSulPc: () => number
   /** k-48: chi lavora adesso sui posti del PC e chi aspetta, in ordine. */
   attesa: () => VistaAttesa
+  /** La spinta a evento: cambia a ogni specialista che parte, finisce o cambia posto in lista. */
+  cambiSpecialisti: Cambi
   /** k-48: cambia la priorità di una voce in fila. `undefined`: la voce non c'è. */
   /**
    * Le mosse sulla fila. `su`/`giu`/`cima` cambiano solo l'ordine di chi aspetta un
@@ -499,7 +502,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   // ---------------------------------------------------------------- la lista d'attesa (k-48)
 
   let attesaMemoria: StatoAttesa = attesaVuota()
-  const archivioAttesa: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
+  const cambiSpecialisti = creaCambi()
+  const archivioAttesaBase: ArchivioAttesa = x.attesa ?? { leggi: () => attesaMemoria, scrivi: (s) => { attesaMemoria = s } }
+  const archivioAttesa: ArchivioAttesa = { leggi: () => archivioAttesaBase.leggi(), scrivi: (st) => { archivioAttesaBase.scrivi(st); cambiSpecialisti.segna() } }
   const scelti = (): number | undefined => x.postiScelti?.()
   const capPc = (): number => (scelti() !== undefined ? POSTI_MAX : SPECIALISTI_PC_MAX)
   const tettoPc = (): number => Math.max(1, Math.min(x.posti(), capPc()))
@@ -680,6 +685,8 @@ ${NOTA_SENZA_GIT}`,
 
   /** Gli specialisti nativi: il piano li segue, le lezioni vanno al quaderno, il diario li racconta. */
   const suFlusso = (ws: string, effetti: EffettoFlusso[], _stato: StatoFlusso): void => {
+    // Spinta a evento: chi guarda gli specialisti lo sa subito, senza aspettare il giro di rilettura.
+    if (effetti.some((e) => e.tipo === 'specialista-partito' || e.tipo === 'specialista-finito' || e.tipo === 'specialista-rifiutato')) cambiSpecialisti.segna()
     for (const e of effetti) {
       if (e.tipo === 'costo') {
         x.orchestratori.aggiungiCosto(ws, { ...e.costo })
@@ -998,8 +1005,19 @@ ${NOTA_SENZA_GIT}`,
     const grezzo = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
     const comando = grezzo !== undefined ? criteriPerLaProva([{ descrizione: '', comando: grezzo, soddisfatto: false }])[0]?.comando ?? grezzo : undefined
     let verde = true
+    let nonMisurato = false
     let dettaglio = compito === undefined ? 'nessun compito del piano: vale l’unione senza regressioni' : 'il criterio non ha un comando: vale l’unione senza regressioni'
-    if (comando !== undefined) {
+    // 08/11: dopo un'unione il codice è un altro, un rosso ricordato non vale più.
+    dimenticaIRossi(memoriaCriteri)
+    // 08/11: un file seguito modificato a mano nella principale fa rosso ogni criterio: non è colpa del lavoro.
+    const sporca = comando !== undefined && g !== undefined && !senzaGit
+      ? principaleSporca((await g(['status', '--porcelain'], a.cwd).catch(() => undefined))?.uscita ?? '')
+      : { sporca: false, file: [] as string[] }
+    if (comando !== undefined && sporca.sporca) {
+      verde = false
+      nonMisurato = true
+      dettaglio = `principale sporca: ${sporca.file.slice(0, 5).join(', ')}${sporca.file.length > 5 ? ` (+${sporca.file.length - 5})` : ''}. Il criterio non è stato misurato: salva o annulla quel file nella cartella principale, poi rimisura`
+    } else if (comando !== undefined) {
       const esame = esaminaComando(comando)
       if (!esame.ok) {
         verde = false
@@ -1017,7 +1035,13 @@ ${NOTA_SENZA_GIT}`,
     }
     // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
     if (scambio.scaduto) return `${nome}: unione scaduta`
-    if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
+    if (compito !== undefined) {
+      cambiaCompito(ws, compito.id, (k) => {
+        const dopo: CompitoPiano = { ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }
+        if (nonMisurato) delete dopo.criterioVerde // né verde né rosso: da misurare
+        return dopo
+      })
+    }
     for (const o of assorbiti) {
       const s = uniti.get(ws) ?? new Set<string>()
       s.add(o.sub.id)
@@ -1055,7 +1079,9 @@ ${NOTA_SENZA_GIT}`,
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
     const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
-    return `${compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
+    const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
+    if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.`
+    return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti
@@ -1659,6 +1685,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const idUso = typeof corpo.tool_use_id === 'string' ? corpo.tool_use_id : undefined
       const g = giudicaGuardiaOrchestratore(corpo, {
         radice: a.cwd,
+        tipiSpecialisti: RUOLI_AGENTI,
         ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
         specialistiSulPc: orchestratore.specialistiSulPc(idUso),
         tettoPc: tettoPc(),
@@ -1711,6 +1738,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       applicaAttesa(m, prima)
       return vistaAttesa()
     },
+    cambiSpecialisti,
     spegni: () => { orchestratore.spegni() },
     archiviaDoppioni,
     orchestratore,

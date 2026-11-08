@@ -58,6 +58,11 @@ export function finestreDiChat(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter((w) => !aperte.has(w.id) && !diServizio.has(w.id))
 }
 
+/** Tutte le finestre vive (chat e pannelli), senza quelle di servizio: per gli eventi che il pannello separato deve ricevere. */
+export function finestreViveSenzaServizio(): BrowserWindow[] {
+  return BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed() && !diServizio.has(w.id))
+}
+
 function salva(): void {
   if (file !== '') {
     try { scriviJsonAtomico(file, archivio, 'pannelli') } catch (e) { console.warn('[pannelli] non salvati:', e) }

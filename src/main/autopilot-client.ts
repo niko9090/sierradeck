@@ -6,6 +6,7 @@ import type { Autopilota } from '@shared/autopilota'
 import type { TipoSegnaleVero } from '@shared/indicatore-autopilota'
 import type { AggiornamentoInCorso } from '@shared/fasi-aggiornamento'
 import type { PuntoProposto, VistaCoda } from '@shared/coda-richieste'
+import { ATTESA_CAMBI_MS } from '@shared/spinta-specialisti'
 import type { MossaAttesa, VistaAttesa } from '@shared/attesa-specialisti'
 import type { TrascrizioneSpecialista, VistaOrchestratore } from '@shared/piano-orchestratore'
 import type { RichiestaDoppioni } from '@shared/autopiloti-doppioni'
@@ -166,6 +167,12 @@ export type ClientAutopilota = {
   attesaSpecialisti: () => Promise<VistaAttesa | undefined>
   prioritaAttesa: (id: string, mossa: MossaAttesa) => Promise<VistaAttesa | undefined>
   togliAttesa: (id: string) => Promise<VistaAttesa | undefined>
+  /**
+   * Spinta a evento: `f` parte appena il servizio segna che uno specialista è
+   * partito, finito o ha cambiato posto in lista. Si ferma con la funzione
+   * restituita. Un servizio vecchio senza la rotta: nessuna spinta, resta il giro.
+   */
+  suCambioSpecialisti: (f: () => void) => () => void
 }
 
 /** Un'unione fatta a mano: ogni punto delle richieste unite va nominato. */
@@ -467,6 +474,29 @@ export function creaClientAutopilota(p: {
     },
     // Voce già partita o tolta (404): la lista com'è adesso.
     prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
+    suCambioSpecialisti(f) {
+      let fermo = false
+      let versione = 0
+      const ciclo = async (): Promise<void> => {
+        while (!fermo) {
+          try {
+            const r = await fetch(`${base}/orchestratore/cambi?da=${versione}`, { signal: AbortSignal.timeout(ATTESA_CAMBI_MS + 10_000) })
+            if (!r.ok) { await new Promise((ok) => setTimeout(ok, 30_000)); continue }
+            const v = ((await r.json()) as { versione?: unknown }).versione
+            if (typeof v !== 'number') { await new Promise((ok) => setTimeout(ok, 30_000)); continue }
+            // La prima risposta fissa solo il punto di partenza.
+            if (versione !== 0 && v !== versione && !fermo) { segnaElencoVecchio(); f() }
+            versione = v
+          } catch {
+            // Servizio non pronto o riavviato: si riprova fra poco; il giro periodico copre il frattempo.
+            await new Promise((ok) => setTimeout(ok, 5000))
+            versione = 0
+          }
+        }
+      }
+      void ciclo()
+      return () => { fermo = true }
+    },
     togliAttesa: async (id) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/togli', 'POST', { id })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
 
     async gestoreAvviato(aggiornamento) {

@@ -835,6 +835,12 @@ contextBridge.exposeInMainWorld('gestore', {
   },
   autopilota: {
     elenca: (): Promise<Autopilota[]> => ipcRenderer.invoke('autopilota:elenca'),
+    /** Spinta a evento: uno specialista è partito, finito o ha cambiato posto in lista. */
+    suSpecialistiCambiati: (cb: () => void): (() => void) => {
+      const h = (): void => cb()
+      ipcRenderer.on('autopilota:specialistiCambiati', h)
+      return () => { ipcRenderer.off('autopilota:specialistiCambiati', h) }
+    },
     /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
     dettaglio: (id: string, versione?: string): Promise<{ versione?: string; autopilota?: Autopilota; occupato?: true }> => ipcRenderer.invoke('autopilota:dettaglio', id, versione),
     crea: (p: NuovoAutopilota): Promise<Autopilota> => ipcRenderer.invoke('autopilota:crea', p),

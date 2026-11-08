@@ -27,7 +27,7 @@ import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './c
 import { peggioratiDelRamo } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
-import { giudicaPesanteDellaChat, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
+import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
@@ -56,8 +56,8 @@ import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
-/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). */
-const PROVA_MAX_MS = 15 * 60_000
+/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). Sta fra il turno (UNIONE_TURNO_MAX_MS) e la fila (UNIONE_MAX_MS). */
+export const PROVA_MAX_MS = 15 * 60_000
 
 /**
  * **Il servizio degli autopiloti** (P4): un solo autopilota per workspace,
@@ -1001,6 +1001,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().trascrizione(ws, id))
             return
           }
+          // Spinta a evento: «dimmi quando cambia qualcosa fra gli specialisti» (long poll, risponde al cambio o dopo ~20 s con la stessa versione).
+          if (metodo === 'GET' && percorso === '/orchestratore/cambi') {
+            const da = Number(url.searchParams.get('da') ?? '0')
+            const cambi = servizio().cambiSpecialisti
+            rispondi(res, 200, { versione: await cambi.aspetta(Number.isFinite(da) ? da : 0) })
+            return
+          }
           // k-48: la lista d'attesa degli specialisti (una per tutto il PC).
           if (metodo === 'GET' && percorso === '/orchestratore/attesa') {
             rispondi(res, 200, servizio().attesa())
@@ -1298,8 +1305,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
           if (g.ok && (chatPre === undefined || chatPre === idAp)) g = servizio().preTool(a, corpo)
-          if (g.ok) g = giudicaPesanteDellaChat(corpo, { chi: `${idAp}::${chatPre ?? '-'}`, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) })
-          if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${idAp}::${chatPre ?? '-'} comando pesante rimandato: ${g.motivo}`)
+          const chiPre = `${idAp}::${idAgente(corpo) ?? chatPre ?? '-'}`
+          if (g.ok) {
+            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
+            // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
+            g = idAgente(corpo) !== undefined ? await giudicaPesanteAspettando(corpo, pesante) : giudicaPesanteDellaChat(corpo, pesante)
+          }
+          if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
             console.warn(`[autopilota] ${idAp}: comando bloccato — ${g.motivo}`)
             const fresco = deps.archivio.leggi(idAp) ?? a
@@ -1317,7 +1329,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (via !== undefined) { idAp = via.id; chatR = via.chat }
           const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
           rispondi(res, 200, {})
-          if (ID_VALIDO.test(idAp)) rendiTurnoDopoComando(corpo, { chi: `${idAp}::${chatR ?? '-'}`, turni: deps.turni ?? TURNI_PC })
+          if (ID_VALIDO.test(idAp)) rendiTurnoDopoComando(corpo, { chi: `${idAp}::${idAgente(corpo) ?? chatR ?? '-'}`, turni: deps.turni ?? TURNI_PC })
           if (!ID_VALIDO.test(idAp) || chatR === undefined || chatR === idAp || !ID_VALIDO.test(chatR)) return
           const trascrizione = testoDi(corpo.transcript_path)
           if (trascrizione !== '') leggiRapporto(idAp, chatR, trascrizione)

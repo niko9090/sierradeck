@@ -103,7 +103,8 @@ export function MenuSpecialisti({ riferimenti }: { riferimenti: string[] }): Rea
   useEffect(() => {
     rileggi()
     const t = setInterval(rileggi, aperto ? RILETTURA_APERTO_MS : RILETTURA_CHIUSO_MS)
-    return () => clearInterval(t)
+    const spinta = window.gestore.autopilota.suSpecialistiCambiati?.(rileggi)
+    return () => { clearInterval(t); spinta?.() }
   }, [aperto, rileggi])
   useEffect(() => {
     if (!aperto) return

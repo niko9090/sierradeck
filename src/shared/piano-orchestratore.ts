@@ -2,6 +2,7 @@ import {
   avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
   type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type StatoCoda, type StatoCompito
 } from './coda-richieste'
+import { criterioSempreVerde, titoloDiSolaAnalisi } from './controllo-comandi'
 
 /**
  * **Il piano dell'orchestratore unico** (P3, 30/10/2026): i compiti in cui
@@ -123,6 +124,12 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     if (r === undefined) return { ok: false, errore: `il compito ${c.id}: la richiesta ${c.richiesta} non è in coda` }
     if (r.stato === 'fatta') return { ok: false, errore: `il compito ${c.id}: la richiesta ${c.richiesta} è già fatta (una nuova la segue)` }
     if (c.dopo.includes(c.id)) return { ok: false, errore: `il compito ${c.id} dipende da sé stesso` }
+    // 08/11: un criterio che esce sempre con 0 segna fatto un lavoro mai fatto. Fa eccezione l'analisi.
+    const comando = comandoDelCriterio(c.criterio)
+    const verde = comando !== undefined && !titoloDiSolaAnalisi(c.titolo) ? criterioSempreVerde(comando) : undefined
+    if (verde !== undefined) {
+      return { ok: false, errore: `il compito ${c.id}: il criterio \`${verde.comando}\` ${verde.motivo}. Usa invece ${verde.alternativa}.` }
+    }
     const prima = piano.compiti.find((x) => x.id === c.id)
     if (prima !== undefined && prima.stato !== 'da-fare' && prima.richiesta !== c.richiesta) {
       return { ok: false, errore: `il compito ${c.id} è già ${prima.stato}: non cambia richiesta (aprine uno nuovo)` }

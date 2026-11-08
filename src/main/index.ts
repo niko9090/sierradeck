@@ -1,7 +1,7 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import { frenoDrive, MESSAGGIO_DRIVE_PIENO } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
-import { chiudiPannelliConLApp, finestreDiChat, segnaFinestraDiServizio } from './finestre-pannello'
+import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -9,11 +9,12 @@ import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
-import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
+import { inCorso, partenzaInstallaLa, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
+import { creaRaggruppatore } from '@shared/spinta-specialisti'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -200,6 +201,7 @@ import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/st
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
+import type { AttesaInvio } from '@shared/attesa-invio'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -2540,6 +2542,7 @@ if (!app.requestSingleInstanceLock()) {
       statoInvioErroriGlobale = leggiStatoInvio
       let invioInCorso = false
       let motivoInvioFallito: string | undefined
+      let attesaInvio: AttesaInvio | undefined
       const giro = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
         if (invioInCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
         invioInCorso = true
@@ -2553,6 +2556,7 @@ if (!app.requestSingleInstanceLock()) {
             manda: (s) => mandaOra(s),
             log: (riga) => registro.info(riga),
             fallimento: { leggi: () => motivoInvioFallito, scrivi: (m) => { motivoInvioFallito = m } },
+            attesa: { leggi: () => attesaInvio, scrivi: (a) => { attesaInvio = a } },
             forza
           })
         } catch (err) {
@@ -2588,8 +2592,16 @@ if (!app.requestSingleInstanceLock()) {
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
+          // k-191: se risponde adesso, la versione la dice lui (rotta leggera /api/pc): il battito sul Drive
+          // può essere fermo da giorni (Drive pieno) e non dice cosa c'è installato.
+          let dalVivo: string | undefined
+          if (s?.stato === 'acceso') {
+            const r = await remoto.chiama(b.pcId, '/api/pc').catch(() => undefined) as { versione?: unknown } | undefined
+            if (typeof r?.versione === 'string' && /^\d+\.\d+\.\d+/.test(r.versione)) dalVivo = r.versione
+          }
           return {
-            pcId: b.pcId, nome: nomeDaMostrare(b), versione: b.versione, battito: b.battito,
+            pcId: b.pcId, nome: nomeDaMostrare(b), versione: dalVivo ?? b.versione, battito: b.battito,
+            ...(dalVivo !== undefined ? { versioneDalVivo: true } : {}),
             // Dal Drive: solo se ha la forma giusta.
             ...(risorseValide(b.risorse) ? { risorse: b.risorse } : {}),
             ...(sottotitoloPc(b) !== undefined ? { host: sottotitoloPc(b) } : {}),
@@ -2614,6 +2626,7 @@ if (!app.requestSingleInstanceLock()) {
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,
+            ...(frenoDrive.pieno() ? { pieno: true } : {}),
             ...(av !== undefined ? { titolo: av.titolo, testo: av.testo } : {}),
             ...(statoSync?.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: statoSync.ultimoSalvataggio } : {})
           },
@@ -2690,10 +2703,13 @@ if (!app.requestSingleInstanceLock()) {
         if (inCorso(gia) && gia !== undefined) return gia
         const b = postino.altrui().find((x) => x.pcId === pcId)
         const nome = b?.nome ?? pcId
-        const da = b?.versione ?? '?'
+        // Il segno di vita sul Drive vale solo se recente (con il Drive pieno resta fermo per giorni):
+        // altrimenti la versione di partenza si prende da quel PC dal vivo, e «fatto» solo dopo.
+        const partenza = partenzaInstallaLa(b, undefined, Date.now())
+        let da = partenza.da
         const iniziato = new Date().toISOString()
         const m: Memoria = { cercato: false, scaricato: false, installato: false, iniziato: Date.now() }
-        const primo: AvanzamentoInstallaLa = { pcId, nome, fase: 'cerco', da, messaggio: `Busso a ${nome}…`, iniziato, aggiornato: iniziato }
+        const primo: AvanzamentoInstallaLa = { pcId, nome, fase: 'cerco', da, messaggio: `${partenza.avviso !== undefined ? `${partenza.avviso} ` : ''}Busso a ${nome}…`, iniziato, aggiornato: iniziato }
         annunciaInstallaLa(primo)
         registro.info(`[installa là] ${nome}: chiesto da qui (ha la ${da}, questo PC la ${app.getVersion()})`)
         void (async () => {
@@ -2711,6 +2727,7 @@ if (!app.requestSingleInstanceLock()) {
               registro.errore(`[installa là] ${nome}: ${motivo}`)
               return
             }
+            if (da === '?' && o?.versione !== undefined) da = o.versione
             const adesso = Date.now()
             if (o === undefined && m.installato && m.mutoDal === undefined) m.mutoDal = adesso
             const p = passoInstallaLa(nome, da, o, m, adesso)
@@ -2726,7 +2743,7 @@ if (!app.requestSingleInstanceLock()) {
               }
             }
             const prossimo: AvanzamentoInstallaLa = {
-              pcId, nome, fase: p.fase, da, messaggio: p.messaggio, iniziato, aggiornato: new Date().toISOString(),
+              pcId, nome, fase: p.fase, da, messaggio: partenza.avviso !== undefined && p.finito !== true ? `${partenza.avviso} ${p.messaggio}` : p.messaggio, iniziato, aggiornato: new Date().toISOString(),
               ...(p.a !== undefined ? { a: p.a } : ultimo.a !== undefined ? { a: ultimo.a } : {}),
               ...(p.cosaFare !== undefined ? { cosaFare: p.cosaFare } : {}),
               ...(p.pagina !== undefined ? { pagina: p.pagina } : {})
@@ -3822,6 +3839,17 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
+      // Spinta a evento: uno specialista che parte, finisce o cambia posto arriva subito
+      // a tutte le finestre (poche centinaia di ms di raggruppamento). Il giro periodico
+      // di ogni pannello resta come rete di sicurezza.
+      {
+        const raggruppa = creaRaggruppatore(() => {
+          for (const w of finestreViveSenzaServizio()) {
+            if (!w.webContents.isDestroyed()) w.webContents.send('autopilota:specialistiCambiati')
+          }
+        })
+        clientAutopilota.suCambioSpecialisti(() => raggruppa.segna())
+      }
       riassetto.collegaServizio({
         assicura: () => clientAutopilota.assicuraServizio(),
         cwdAutopiloti: async () => [...new Set((await clientAutopilota.elenca()).map((a) => a.cwd))]

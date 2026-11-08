@@ -4,27 +4,6 @@
 
 ## test
 
-- il guardiano del PC rimanda le suite intere con CPU sopra il 65%: spezzarle in gruppi di 10-30 file con percorsi espliciti, e riprovare dopo 8-9 minuti. _(2026-11-06)_
-- per una copia pulita: `git archive main` in una cartella del worktree, node_modules come junction; per togliere la junction usa `(Get-Item …).Delete()`, mai `rm -rf`. _(2026-11-06)_
-- il guardiano del PC carico rimanda anche un ciclo for di vitest file per file; passano solo i comandi con file espliciti. _(2026-11-06)_
-- il guardiano del PC serializza le suite complete e le fa rimandare per minuti: nei criteri conviene misurare file per file e dare tempo alla suite intera. _(2026-11-06)_
-- tests/shared: 1 prova su 1564 è caduta una volta alle 22:13 del 06/11 e non si è più ripetuta (tutto verde su main 522ff1da): è instabile a PC carico, si rimisura e basta. _(2026-11-06)_
-- Il postino ora legge la posta in arrivo ogni 90 s da fermo: i test con orologio fisso che fanno più `giro()` devono passare `quietaOgniMs: 0`. _(2026-11-06)_
-- drive-rete-0-86-2: il tetto di conTempoLimite va tenuto ≥ 4 volte l'intervallo più lungo della prova (400 contro 100 ms), altrimenti a PC carico cade _(2026-11-06)_
-- il conteggio dei test cambia tra un run e l'altro quando main si muove: confrontare sempre il commit prima di dire che un rosso è «lo stesso» (522ff1da: 2092 totali) _(2026-11-06)_
-- I test che fissano una soglia di posta.ts (es. «PC spento» a 30 minuti) cadono se la soglia cambia; esprimere il ritardo come soglia più un margine. _(2026-11-06)_
-- k-65: da ferma la posta si legge ogni 90 s e «PC spento» è a 35 min: i test con orologio fisso devono far avanzare il tempo o usare PC_SPENTO_DOPO_MS, non numeri fissi. _(2026-11-06)_
-- la prova «Drive pieno» aspettava il 403 nel testo: il programma dà il messaggio breve di proposito. Le prove del Drive usano `creaFreno()`, non il singleton `frenoDrive`. _(2026-11-06)_
-- il guardiano del PC carico blocca anche le suite a gruppi quando la CPU resta sopra soglia: lanciare i gruppi di file in momenti più scarichi, non con più worker. _(2026-11-06)_
-- Con il PC carico il guardiano rimanda tsc e le suite complete anche a ripetizione. Conviene fare prima i test dei file toccati uno alla volta e la suite completa per ultima. _(2026-11-06)_
-- I test della fila unioni passano `turni: creaTurni({unioneMaxMs})`: una unione appesa tiene `unendo` finché non scade il turno (default 12 min), e il secondo tentativo resta bloccato. _(2026-11-06)_
-- Con il guardiano che rimanda `tsc` e le suite, un ciclo di vitest su più file viene rimandato quanto la suite intera: si lanciano pochi file mirati per volta. _(2026-11-06)_
-- la descrizione di un Agent deve essere «k-N: …» perché la fila (compitoDi) riconosca il compito; «k1: …» lo riconosce il flusso ma non la fila _(2026-11-06)_
-- Tanti test in tests/main cercano stringhe esatte nello script di client-pagina.ts: basta aggiungere un'istruzione prima per romperli. Meglio controllare il pezzo dentro la riga. _(2026-11-06)_
-- Quando una release cambia un messaggio d'errore (es. freno Drive k-65), i test più vecchi che cercano il vecchio testo diventano rossi in silenzio. Con il guardiano «PC carico», lanciare i file a gru… _(2026-11-06)_
-- i test di `tests/main` che cercano stringhe esatte nel sorgente di `client-pagina.ts` si rompono a ogni riordino di `chiudiAp`: cercare la riga, non la sequenza intera _(2026-11-06)_
-- dopo k-65 il Drive pieno non contiene più «403» nel messaggio: il test controlla stato e flag `drivePieno _(2026-11-06)_
-- il guardiano rimanda anche i gruppi da 12 file con CPU oltre l'80%: passano solo 1-3 file per volta; la suite completa va lanciata a PC libero. _(2026-11-06)_
 - nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
@@ -39,28 +18,35 @@
 - il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
 - Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
 - giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
+- tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
+- l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
+- `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
+- i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
+- confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
+- la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
+- tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
+- Con il PC sopra il 75% la guardia del carico blocca anche la suite intera: i lotti da 40 file passano; la guardia si ripete col messaggio uguale anche quando il carico è calato. _(2026-11-08)_
+- Il messaggio «non passano le prove dei compiti già uniti» non dice quali: prima di correggere, far girare a un verificatore l'intera vitest (a lotti da 40 se la guardia rifiuta) su main e sul ramo. _(2026-11-08)_
+- La guardia del carico rifiuta anche i lotti piccoli se un comando pesante è appena partito; i lotti per cartella (tests/renderer, tests/autopilot-host) sono passati, quelli grossi no. _(2026-11-08)_
+- In un worktree isolato `npx vitest run $(cat elenco)` viene rifiutato come comando troppo complesso; si usano cartelle o prefissi espliciti. _(2026-11-08)_
+- La guardia del carico può rifiutare `vitest run tests/renderer` all'infinito, anche dividendo per prefisso. Passano solo i comandi con pochi file nominati, quindi conviene elencarli per nome. _(2026-11-08)_
+- La guardia del carico può rifiutare `npm run typecheck` per molti minuti se Defender tiene la CPU alta: lanciare prima i test per file, il typecheck a PC libero. _(2026-11-08)_
+- La guardia del carico blocca anche typecheck e suite intera per molti minuti: `npx vitest run tests/shared/<lettera>` passa e copre tutti i file senza nominarli uno a uno. _(2026-11-08)_
 
 ## worktree
 
-- Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
-- un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
-- Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
+- nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
+- il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
+- la junction node_modules si crea con PowerShell dalla cartella del worktree; da Bash con percorso Windows il comando viene rifiutato. _(2026-11-08)_
 
 ## errori
 
-- StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: lo si tratta come «in uso» (saltato, non errore; vedi rimozione-sicura.ts e riassetto/recupero.ts) e si riprova al giro dopo. _(2026-11-07)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
 - «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
 
 ## android
 
-- Sul PC dev non ci sono gradlew né SDK (`E:\Android\Sdk` assente): il Kotlin non si compila qui. Tenere la logica nuova in funzioni pure con test e controllare la build a parte. _(2026-11-06)_
-- Per compilare in un worktree: sdk.dir=E:/Android/Sdk in android/local.properties (ignorato), JAVA_HOME=JDK 21 Microsoft, gradle in E:\Programs\Gradle\gradle-8.11.1\bin. Non c'è gradlew. A freddo ~7 m… _(2026-11-06)_
-- CORREZIONE: l'SDK c'è in E:\Android\Sdk (la lezione «SDK assente» è sbagliata). Nei worktree: local.properties sdk.dir, JAVA_HOME=JDK 21 Microsoft, gradle globale 8.11.1, senza gradlew. _(2026-11-06)_
-- una data class nuova può collidere con una già presente nello stesso package (RigaSpecialista in PaginaWorkspace.kt): cercare il nome con grep prima di dichiararla. _(2026-11-06)_
-- In `android/` `SezioneDrive` è definita in `Drive.kt` e in `SezioniImpostazioni.kt` con firme diverse: un doppione fragile, da unificare. _(2026-11-06)_
-- Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
 - Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
 - Api.kt chiama /api/specialisti/attesa/priorita e /togli, che non sono in ROTTE_PONTE (un test PC le vuole fuori): da telefono via ponte non passano. _(2026-11-07)_
 - Il rosso del criterio nella cartella principale con build pulita verde indica stato incrementale (android/app/build, .gradle) o lock, non codice: salvare l'uscita completa della misura. _(2026-11-07)_
@@ -77,51 +63,33 @@
 - 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 - 07/11: v0.96.1 è già in main e taggata (unioni con poche prove mirate); la release delle correzioni del controllo PC + scheda video diventa 0.96.2. _(2026-11-07)_
 - 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
+- Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
+- Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
+- main locale è 5 commit avanti a origin/main (0.97.0): fare git push origin main prima di taggare o pubblicare. _(2026-11-08)_
+- Con l'autopilota il bump di versione non si committa in main (hook): va fatto su un ramo dello specialista e unito; poi push, tag, gh release, pubblica e allega-apk dal principale. _(2026-11-08)_
 
 ## git
 
-- Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
-- Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
-- il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
-- Unioni respinte per «modifiche non salvate»: guardare .git/MERGE_MSG. Se c'è un'unione di prova del programma in corso, aspettarne l'esito e poi riunire gli altri rami uno alla volta. _(2026-11-06)_
-- un ramo già aperto in un altro worktree non si può riprendere con checkout: lo stesso lavoro si porta sul proprio ramo con reset --hard sul suo commit, e poi si unisce main. _(2026-11-06)_
 - Il «lavoro di k-63» non era un ramo di codice: `abf869b0` ha solo correzioni a due test, e l'ottimizzazione del Drive era già in main (0.95.6, k-65). _(2026-11-07)_
 - Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
+- `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
+- il main locale può essere avanti di origin/main (qui 5 commit): per allinearsi, `git merge --ff-only main` funziona, ma `origin/main` resta indietro finché non si pubblica. _(2026-11-08)_
 
 ## autopilota
 
-- Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
-- REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
-
-## servizio
-
-- il dialogo scade a 3 s se il servizio è occupato ma il messaggio può essere già scritto: le POST che scrivono vogliono attesa lunga e un id del messaggio, altrimenti il ritentativo lo duplica _(2026-11-06)_
-- Le domande hanno 2 elenchi: `aperte()` (tutte, per dedupe e ritiro) e `visibili()` (senza quelle solo-in-chat). Pannello, telefono e notifiche leggono `GET /domande`, che filtra. _(2026-11-06)_
-- il tetto dei subagenti è una variabile d'ambiente del processo claude: per cambiarlo si spegne e si riprende con --resume, solo a turno finito. Il tetto per workspace (3) lo limitava anche con 6 post… _(2026-11-06)_
+- La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 
 ## controllo
 
 - una voce di salute con tono non «ok» diventa criticità per ogni PC che la compone: i consumi vanno giudicati solo sui numeri del PC stesso, sennò si ripetono ovunque. _(2026-11-07)_
 
-## rete
-
-- La chiave del PC non va mai mandata a un indirizzo LAN non verificato: prima `/api/ciao` (senza chiave) deve dare l'impronta attesa. Un 192.168.x.x può essere un'altra rete. _(2026-11-06)_
-
 ## strumenti
 
-- l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
-- nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
 - negli script Python in heredoc `\n` e `\b` nei letterali diventano caratteri veri e rompono le regex: per i sorgenti TS usare Edit. _(2026-11-08)_
 
 ## ambiente
 
-- Il guardiano del PC blocca anche typecheck e Bash/PowerShell per minuti, e sleep e Monitor non si possono usare: fare prima il commit. _(2026-11-06)_
-- Il filtro di carico blocca tsc e le suite complete anche quando il PC sembra libero; i test di un solo file passano. Aspettare con `node -e "setTimeout(...)"` e riprovare _(2026-11-06)_
-- Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
-- con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
-- Memoria piena per vmmemWSL (12-15 GB): `wsl --shutdown` porta la RAM libera da ~15% a ~65%; Nicholas l'ha permesso il 06/11. Ubuntu riparte da solo a ~1 GB e può ricrescere. _(2026-11-06)_
-- Il programma rimanda tsc e vitest completi quando il PC è carico, anche per decine di minuti: lanciarli subito dopo il commit, prima di altro lavoro, e tenere i test mirati per intanto _(2026-11-06)_
 - I file del repo sono CRLF: gli script node/sed con `replace` su stringhe multilinea non trovano nulla senza errori; usare Edit, oppure normalizzare prima \r\n. _(2026-11-06)_
 - Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
 - il controllo del PC carico rimanda gradle a ripetizione e `sleep` in primo piano è bloccato: l'attesa va fatta con `sleep` in background. _(2026-11-06)_
@@ -138,6 +106,9 @@
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 - Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
 - nel worktree la Bash rifiuta comandi con mklink/cmd; la junction node_modules si crea con New-Item -ItemType Junction da PowerShell e si toglie con (Get-Item).Delete(). _(2026-11-08)_
+- il gancio «PC carico» blocca ogni comando npx del Bash finché il processore è sopra soglia: prima di lanciare la suite, controllare il carico o aspettare, non riprovare in serie. _(2026-11-08)_
+- La guardia del PC rifiuta anche `npm run typecheck` con CPU alta e non basta riprovare; un comando in background non aggira il rifiuto. _(2026-11-08)_
+- la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 
 ## main
 
@@ -166,6 +137,7 @@
 
 - L'hook «PC carico» rifiuta tsc e suite completa per molti minuti: i test di un file passano. Per aspettare usare `sleep` in background e un `until` sul file di output. _(2026-11-06)_
 - Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
+- SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 
 ## orchestratore
 
@@ -226,6 +198,7 @@
 - client-rotte.ts battitoVivo usa 5*60_000 fisso invece di PC_SPENTO_DOPO_MS di shared/posta.ts: due nozioni di «PC acceso», da allineare dopo il battito a 30 min. _(2026-11-06)_
 - A Drive pieno `conFreno` blocca ogni PATCH/PUT: anche togliere voci dal manifesto può fallire. Cancellare un file (DELETE) passa, ma solo dopo che la voce è uscita dall'indice. _(2026-11-06)_
 - Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
+- Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
 
 ## coda
 
@@ -256,10 +229,14 @@
 - La cache dei criteri (criteri-veloci.ts:193-232) è solo in RAM (server.ts:188), chiave = impronta dei file tracciati più comando, senza scadenza: un rosso resta finché il contenuto non cambia o il se… _(2026-11-06)_
 - daRicordare esclude solo timeout e problemi d'ambiente: un test instabile che fallisce una volta blocca l'unione su quel contenuto. Il riuso dell'esito vecchio non passa dal guardiano del carico. _(2026-11-06)_
 - Il cancello ricorda in RAM anche i rossi (criteri-veloci.ts, chiave = file tracciati + comando, senza scadenza): un test instabile blocca ogni unione finché main non cambia o il servizio riparte. _(2026-11-06)_
+- `git tag --list vX` esce sempre con 0 anche senza tag: come criterio dà verde falso (k-184 0.97.1 segnata fatta senza release). Usare `git rev-parse vX` o `gh release view vX`. _(2026-11-08)_
+- `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
 
 ## processo
 
 - prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
+- la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
+- la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 
 ## sync
 
@@ -290,19 +267,24 @@
 
 - se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
 - i tetti devono stare uno dentro l'altro (suite < prova < fila): prima la prova (15 min) scadeva prima della suite (20) e il figlio restava vivo a tenere il turno _(2026-11-07)_
+- il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
+- UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 
 ## gpu
 
 - con Chromium il contesto WebGL è limitato (circa 16): un addon WebGL su ogni riquadro va tenuto a tetto, non acceso per tutti. _(2026-11-07)_
+- Nel codice non ci sono switch che spengono la GPU: il «software» dei PC viene da Chromium (driver di base Windows, Desktop remoto, scheda esclusa), non da un ripiego di SierraDeck. _(2026-11-08)_
 
 ## ui
 
 - Le colonne a destra (Domande, Specialisti) condividono `src/shared/misure-pannelli.ts`: limiti, trascinamento e `altreColonne` vanno passati a entrambe, perché il mosaico tenga 520 px. _(2026-11-07)_
 - Il tasto di un pannello laterale con stato proprio (Domande, Specialisti) passa da `Console.tsx` con prop dedicate, non da `aperto`. L'evento `apri-pannello` va gestito a parte. _(2026-11-07)_
+- il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
 
 ## salute
 
 - il contatore Drive contava ogni 403 come «rifiutata»: il Drive pieno (storageQuotaExceeded) gonfiava i numeri di «troppe richieste». Ora conta solo 429 e rateLimit. _(2026-11-07)_
+- la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 
 ## autopulizia
 
@@ -327,6 +309,7 @@
 ## dipendenze
 
 - Il node_modules principale non ha xterm 6.1 né @xterm/addon-webgl: una junction non basta dopo k-169, serve copia reale più npm install --ignore-scripts. _(2026-11-07)_
+- @xterm/headless 6.0.0 e @xterm/xterm 6.1.0-beta stanno su versioni diverse: se il terminale della main process si comporta in modo strano, guardare prima questa differenza. _(2026-11-08)_
 
 ## codice
 
@@ -335,9 +318,48 @@
 ## misure
 
 - Il controllo di carico controlla prima di ogni comando: un ping/sleep dentro lo stesso comando non aiuta. L'attesa va in una chiamata separata. _(2026-11-07)_
+- il gancio PreToolUse rimanda vitest se il PC è carico: attendere col Monitor, non con sleep ripetuti, e fermarsi dopo 3 tentativi. I file singoli passano comunque. _(2026-11-08)_
 
 ## aggiornamenti
 
 - la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
 - la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
 - HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
+
+## installa-la
+
+- `da` (versione di partenza) non va mai preso da un battito Drive vecchio: Drive pieno = battito fermo per giorni. Vale solo la versione viva da /api/ciao. _(2026-11-08)_
+
+## specialisti
+
+- Il servizio autopiloti è un processo separato dal main: per spingere eventi non c'era canale. Ho aggiunto un long poll `/orchestratore/cambi`; il telefono resta a richiesta, senza SSE. _(2026-11-08)_
+
+## typecheck
+
+- un canale IPC nuovo va dichiarato in due posti: src/preload/index.ts e src/renderer/env.d.ts. Senza il secondo, il renderer non compila. _(2026-11-08)_
+
+## guardia
+
+- se la guardia rimanda un comando pesante, il sleep in primo piano è bloccato. Aspetta con un until-loop in background (cronometro) e riprova. _(2026-11-08)_
+- `tipiSpecialisti` nel contesto della guardia è facoltativo: i test vecchi non lo passano e non si rompono. Senza git il controllo del tipo `Agent` è spento di proposito. _(2026-11-08)_
+
+## renderer
+
+- i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
+- La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
+
+## fermate
+
+- Causa n.1 delle fermate (08/11): la guardia rimanda, ma lo specialista non può aspettare (sleep bloccato, niente Monitor), quindi chiude senza prove e il criterio diventa rosso. _(2026-11-08)_
+
+## guardia-pc
+
+- `guardia.attendi` non basta in un hook: dopo il passo libero, `giudicaPesanteDellaChat` rimanda per «appena liberato». Serve un ciclo che ripeta tutto il giudizio. _(2026-11-08)_
+
+## shell
+
+- heredoc Python con `\n` dentro stringhe di test: finiscono come a-capo veri e rompono il file; usare `.join('\n')` e fare le modifiche con Edit. _(2026-11-08)_
+
+## ramo
+
+- il worktree può partire senza l'ultimo main (k-191 mancava nonostante il compito): fare `git merge main` prima di cominciare. _(2026-11-08)_

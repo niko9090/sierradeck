@@ -42,3 +42,5 @@
 - «Quando il telefono non si è collegato senza Tailscale, eri sul wifi di casa o fuori, con i dati del telefono?» → Ero sul wifi di casa _(2026-11-06)_
 - «Scheda video: faccio disegnare i terminali con la scheda video e aggiungo nella Salute se è attiva?» → Sì, tutte e due _(2026-11-07)_
 - «Le unioni continuano a scadere e nessun lavoro entra. Faccio unire tutto da uno specialista, saltando la fila del programma?» → ho fatto fare a una chat diverse modifica, riallineati con le info nl quaderno che riprendiamo le modifiche da qui _(2026-11-08)_
+- «Correggo nel codice le tre cose che rallentano gli aggiornamenti e la comparsa degli specialisti?» → Sì, correggi tutte e tre (consigliata) _(2026-11-08)_
+- «Le tre correzioni che rallentavano gli aggiornamenti e la comparsa degli specialisti sono tutte unite. Pubblico adesso la versione 0.97.1 con queste correzioni?» → anche negli altri pc gli autopiloti e gli specialisti continuano a fermarsi e non portano a termine il compito. porco dio mi sono rotto il cazzo sempre gli stessi problemi!!!! _(2026-11-08)_

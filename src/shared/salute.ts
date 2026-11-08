@@ -44,7 +44,11 @@ export type VoceSalute = {
  * La mappa dei PC (0.51.0): questo PC al centro, gli altri in cerchio, una
  * linea per PC colorata per strada e stato. Assente se non c'è nessun altro PC.
  */
-export type Salute = { scritto: string; tono: Tono; riassunto: string; voci: VoceSalute[]; mappa?: MappaPc }
+export type Salute = {
+  scritto: string; tono: Tono; riassunto: string; voci: VoceSalute[]; mappa?: MappaPc
+  /** La versione di SierraDeck su questo PC (k-191): chi legge sa a che versione è chi ha scritto. */
+  versione?: string
+}
 
 export type PcPerSalute = {
   pcId: string
@@ -52,7 +56,10 @@ export type PcPerSalute = {
   nome: string
   /** L'hostname, solo se diverso dal nome: va piccolo sotto (0.52.4). */
   host?: string
+  /** Quella detta dal PC stesso se `versioneDalVivo`, altrimenti quella del suo ultimo battito. */
   versione: string
+  /** k-191: la versione viene dalla risposta del PC adesso (ponte), non dal battito sul Drive. */
+  versioneDalVivo?: boolean
   /** L'ultimo battito sul Drive, ISO. */
   battito?: string
   /** Com'è adesso dopo il bussare: `acceso`, `non-so`, … (StatoPc). */
@@ -72,7 +79,7 @@ export type IngressiSalute = {
   io?: { id: string; nome: string; host?: string }
   adesso: number
   versione: string
-  drive: { configurato: boolean; connesso: boolean; scollegatoDal?: string; motivoScollegato?: string; titolo?: string; testo?: string; ultimoSalvataggio?: string }
+  drive: { configurato: boolean; connesso: boolean; scollegatoDal?: string; motivoScollegato?: string; titolo?: string; testo?: string; ultimoSalvataggio?: string; pieno?: boolean }
   pc: PcPerSalute[]
   tentativoFallito?: { titolo: string; motivo: string; strade: string[]; pagina: string; versione: string }
   errori: ErroreLog[]
@@ -99,7 +106,7 @@ export function quantoFa(iso: string | undefined, adesso: number): string {
 }
 
 /** Confronta due versioni `x.y.z`. */
-function prima(a: string, b: string): boolean {
+export function prima(a: string, b: string): boolean {
   const x = a.split('.').map((n) => Number.parseInt(n, 10) || 0)
   const y = b.split('.').map((n) => Number.parseInt(n, 10) || 0)
   for (let i = 0; i < 3; i += 1) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0)
@@ -167,6 +174,15 @@ export function componiSalute(i: IngressiSalute): Salute {
       cosaFare: 'Account → Drive → Collega, con lo stesso account Google, su ogni PC dove compare questa voce.',
       azioni: [{ id: 'apri-drive', testo: 'Ricollega il Drive' }]
     })
+  } else if (i.drive.pieno === true) {
+    // k-191: una voce sola, con lo stesso titolo su ogni PC (il controllo la unisce): senza scritture
+    // i battiti si fermano, e le versioni «dal battito» degli altri PC non valgono.
+    voci.push({
+      chiave: 'drive', gruppo: 'drive', tono: 'guasto', titolo: 'Il Drive non accetta scritture (pieno)',
+      spiegazione: `Il Drive è collegato ma pieno: salvataggi e battiti non partono (ultimo salvataggio: ${quantoFa(i.drive.ultimoSalvataggio, i.adesso)}). Gli altri PC si vedono lo stesso dal vivo, se raggiungibili; le loro versioni e i loro stati sono quelli che dicono adesso.`,
+      cosaFare: 'Libera spazio sul Drive o svuota il cestino di Google Drive.',
+      azioni: []
+    })
   } else {
     voci.push({
       chiave: 'drive', gruppo: 'drive', tono: 'ok', titolo: 'Drive collegato',
@@ -189,7 +205,14 @@ export function componiSalute(i: IngressiSalute): Salute {
     const raggiungibile = p.stato === 'acceso'
     // 0.89.1: muto da più di una settimana: si può dismettere.
     const dismettibile = !raggiungibile && p.battito !== undefined && i.adesso - Date.parse(p.battito) > 7 * 24 * 60 * 60_000
-    const indietro = prima(p.versione, i.versione)
+    // k-191: «Aggiorna» solo se la versione è attendibile: detta dal PC adesso, o dal battito di poco fa.
+    // Un battito vecchio (Drive fermo) non dice cosa c'è installato, e non fa dire a nessuno di installare.
+    const dalVivo = p.versioneDalVivo === true
+    const attendibile = dalVivo || !vecchio
+    const indietro = attendibile && prima(p.versione, i.versione)
+    const origineVersione = dalVivo ? 'Versione detta dal PC adesso.'
+      : vecchio ? `Versione dal battito di ${eta}: dato vecchio, il PC non ha risposto adesso con la sua versione.`
+      : ''
     // 0.94.1: spento da più di 35 minuti (PC_SPENTO_DOPO_MS) è normale (un PC del lavoro acceso di rado), non «da guardare».
     const tono: Tono = raggiungibile ? (indietro ? 'attenzione' : 'ok') : vecchio ? 'ok' : 'guasto'
     // Lo stato vero dell'ultimo bussare (0.93.1): un indirizzo che risponde non è «nessuna strada».
@@ -201,7 +224,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
       titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : 'non so se è acceso'} · ${p.versione}`,
-      spiegazione: `Ultimo battito sul Drive: ${eta}. Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, questo PC la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : 'Ha la stessa versione di questo PC, o più nuova.'}`,
+      spiegazione: `Ultimo battito sul Drive: ${eta}. Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, questo PC la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
         ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
         : raggiungibile
@@ -300,5 +323,5 @@ export function componiSalute(i: IngressiSalute): Salute {
   const riassunto = peggiore === 'ok' ? 'Tutto a posto.'
     : [guasti > 0 ? `${guasti} ${guasti === 1 ? 'cosa da sistemare' : 'cose da sistemare'}` : '', attenzioni > 0 ? `${attenzioni} da guardare` : ''].filter((x) => x !== '').join(' · ')
   const mappa = i.io !== undefined && i.pc.length > 0 ? mappaPc(i.io, i.pc) : undefined
-  return { scritto: new Date(i.adesso).toISOString(), tono: peggiore, riassunto, voci, ...(mappa !== undefined ? { mappa } : {}) }
+  return { scritto: new Date(i.adesso).toISOString(), tono: peggiore, riassunto, voci, versione: i.versione, ...(mappa !== undefined ? { mappa } : {}) }
 }
