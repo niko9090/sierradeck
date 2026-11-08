@@ -8,6 +8,7 @@ import { allineaBaseDifferenziale, cartellaCacheUpdater } from './base-differenz
 import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
+import { eFileRilascioMancante, valutaFileRilascioMancante, type Episodio404 } from '@shared/aggiornamenti-404'
 import {
   chiudiFasi, leggiAggiornamentoInCorso, RIEPILOGO_SCADUTO_MS, segnaPasso, testoFasi,
   type AggiornamentoInCorso, type FaseAggiornamento
@@ -287,7 +288,7 @@ export function creaLoggerUpdater(
       const breve = letto.breve
       // Un errore di rete passeggero (ERR_NO_BUFFER_SPACE, ECONNRESET…): l'updater
       // ritenta da solo al giro dopo (RICONTROLLA_MS), non è un guasto del programma.
-      if (/^Cannot download differentially, fallback to full download/.test(breve) || erroreLettoPasseggero(letto)) {
+      if (/^Cannot download differentially, fallback to full download/.test(breve) || erroreLettoPasseggero(letto) || eFileRilascioMancante(letto.completo)) {
         registro.info(`[electron-updater] avviso: ${breve}`)
         return
       }
@@ -562,6 +563,7 @@ export function creaAggiornamenti(
   }
   autoUpdater.on('update-not-available', () => {
     mancaDetto = false
+    episodio404 = undefined
     nienteDiNuovo()
   })
   autoUpdater.on('download-progress', (p) => {
@@ -578,6 +580,7 @@ export function creaAggiornamenti(
       installerScaricato = scaricato
     }
     versioneScaricata = String(info.version)
+    episodio404 = undefined
     fasi = chiudiFasi(fasi, new Date().toISOString())
     if (info.releaseNotes !== undefined && info.releaseNotes !== null) noteDellAggiornamento = info.releaseNotes
     annuncia({ fase: 'pronto', versione: String(info.version) })
@@ -587,11 +590,24 @@ export function creaAggiornamenti(
    * `catch` di chi ha chiamato): una riga sola nel registro, senza intestazioni
    * HTTP (0.86.2, audit I7). Prima la stessa riga arrivava due volte, intera.
    */
+  let episodio404: Episodio404 | undefined
   let ultimoErroreBreve = ''
   let ultimoErroreAlle = 0
   const erroreUpdater = (err: unknown): void => {
     const letto = leggiErroreAggiornamento(err)
     const { manca, breve } = letto
+    if (!manca && eFileRilascioMancante(letto.completo)) {
+      const v = valutaFileRilascioMancante(episodio404, Date.now())
+      episodio404 = v.episodio
+      if (v.esito === 'atteso') {
+        // Release a metà pubblicazione: nota una volta, niente riquadro rosso né segnalazione.
+        if (v.primo) nota(`file della release non ancora disponibile (404), si riprova al prossimo controllo: ${breve}`)
+        if (stato.fase === 'scarico' && stato.versione !== undefined) annuncia({ fase: 'disponibile', versione: stato.versione })
+        else nienteDiNuovo()
+        return
+      }
+      // Oltre la soglia: un errore vero, una volta sola (poi `segnalato` lo tiene zitto).
+    }
     if (manca) {
       // Un rilascio pubblicato a metà: per chi usa il programma non c'è niente da fare né da vedere.
       if (!mancaDetto) { mancaDetto = true; nota(`nessun aggiornamento per ora: latest.yml non c'è ancora (${breve})`) }
@@ -654,7 +670,13 @@ export function creaAggiornamenti(
     // la base del differenziale va sistemata prima di cercare.
     preparaBaseDifferenziale()
     try {
-      await autoUpdater.checkForUpdates()
+      const esito = await autoUpdater.checkForUpdates()
+      // Con autoDownload electron-updater crea `downloadPromise` dentro
+      // checkForUpdates e nessuno la attende: se il download fallisce (404 a
+      // release a metà pubblicata) il rifiuto finisce in unhandledRejection.
+      // L'errore arriva comunque dall'evento 'error', già gestito da erroreUpdater:
+      // qui si tace solo il rifiuto doppio, senza registrarlo una seconda volta.
+      esito?.downloadPromise?.catch(() => {})
     } catch (err) {
       erroreUpdater(err)
     }

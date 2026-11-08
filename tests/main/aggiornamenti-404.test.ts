@@ -1,6 +1,31 @@
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { leggiErroreAggiornamento } from '../../src/main/aggiornamenti'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { EventEmitter } from 'node:events'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+
+const h = vi.hoisted(() => ({ updater: undefined as unknown as EventEmitter & Record<string, unknown> }))
+vi.mock('electron-updater', () => {
+  const e = new EventEmitter() as EventEmitter & Record<string, unknown>
+  e.autoDownload = true
+  e.autoInstallOnAppQuit = false
+  e.checkForUpdates = vi.fn(async () => undefined)
+  e.downloadUpdate = vi.fn(async () => [])
+  e.quitAndInstall = vi.fn()
+  e.setFeedURL = vi.fn()
+  h.updater = e
+  return { autoUpdater: e }
+})
+vi.mock('electron', () => ({
+  app: { getVersion: () => '0.89.1', getPath: () => tmpdir(), on: vi.fn(), quit: vi.fn(), isPackaged: false },
+  BrowserWindow: class {}
+}))
+vi.mock('../../src/main/updater/compila', () => ({
+  assicuraUpdater: () => 'updater.exe', avviaUpdater: vi.fn(() => true), diariUpdater: () => [], updaterVivo: async () => true
+}))
+vi.mock('../../src/main/finestra-aggiornamento', () => ({ avviaFinestraAggiornamento: vi.fn(async () => undefined) }))
+
+const { leggiErroreAggiornamento, creaAggiornamenti } = await import('../../src/main/aggiornamenti')
 
 /**
  * Audit I7 (0.86.2): con `releaseType: release` il rilascio diventava pubblico
@@ -57,5 +82,57 @@ describe('electron-builder.yml', () => {
       const s = readFileSync(f, 'utf8')
       expect(s).not.toMatch(/releaseType|--draft=true|gh', \['release', 'create'/)
     }
+  })
+})
+
+const url404 = (f: string): string => `Cannot download "https://github.com/esempio/prova/releases/download/v9.9.9/${f}", status 404: Not Found\nHeaders: {"a":"b"}`
+const nuovo = () => {
+  const righe: string[] = []
+  const registro = { info: (m: string) => righe.push(`info ${m}`), errore: (m: string) => righe.push(`ERRORE ${m}`) }
+  const dati = mkdtempSync(join(tmpdir(), 'k404-'))
+  const a = creaAggiornamenti(() => [], dati, async () => undefined, undefined, undefined, () => false, () => 47640, undefined, registro)
+  return { a, righe }
+}
+
+describe('404 su installer e blockmap a release a meta', () => {
+  afterEach(() => { vi.useRealTimers() })
+
+  it('niente errore ne riquadro rosso, una nota sola in piu giri; oltre 2 ore un errore una volta', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-08T22:00:00Z'))
+    const { a, righe } = nuovo()
+    for (const f of ['SierraDeck-Setup-9.9.9.exe', 'SierraDeck-Setup-9.9.9.exe.blockmap', 'SierraDeck-Setup-9.9.9.exe']) {
+      h.updater.emit('error', new Error(url404(f)))
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    expect(a.stato().fase).not.toBe('errore')
+    expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+    expect(righe.filter((r) => r.includes('non ancora disponibile'))).toHaveLength(1)
+    vi.advanceTimersByTime(2 * 60 * 60_000)
+    h.updater.emit('error', new Error(url404('SierraDeck-Setup-9.9.9.exe')))
+    expect(a.stato().fase).toBe('errore')
+    expect(righe.filter((r) => r.startsWith('ERRORE'))).toHaveLength(1)
+    h.updater.emit('error', new Error(url404('SierraDeck-Setup-9.9.9.exe.blockmap')))
+    expect(righe.filter((r) => r.startsWith('ERRORE'))).toHaveLength(1)
+  })
+
+  it('downloadPromise rifiutata: nessun rifiuto senza catch e errore registrato una volta', async () => {
+    vi.useFakeTimers()
+    const senzaCatch = vi.fn()
+    process.on('unhandledRejection', senzaCatch)
+    const { a, righe } = nuovo()
+    const guasto = new Error('sha512 checksum mismatch')
+    ;(h.updater.checkForUpdates as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      const downloadPromise = Promise.reject(guasto)
+      h.updater.emit('error', guasto)
+      return { downloadPromise }
+    })
+    await vi.advanceTimersByTimeAsync(10_000)
+    vi.useRealTimers()
+    await new Promise((r) => setTimeout(r, 20))
+    process.off('unhandledRejection', senzaCatch)
+    expect(senzaCatch).not.toHaveBeenCalled()
+    expect(a.stato().fase).toBe('errore')
+    expect(righe.filter((r) => r.includes('sha512 checksum mismatch'))).toHaveLength(1)
   })
 })
