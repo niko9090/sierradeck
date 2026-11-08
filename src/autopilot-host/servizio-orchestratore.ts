@@ -13,14 +13,14 @@ import {
 import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import { righeLezioni } from '@shared/lezioni-chat'
-import { esaminaComando } from '@shared/controllo-comandi'
+import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
 import { devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare } from './domande-in-chat'
 import { aperteSulloStesso } from './domande-doppie'
-import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
+import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
 import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
@@ -998,8 +998,19 @@ ${NOTA_SENZA_GIT}`,
     const grezzo = compito !== undefined ? comandoDelCriterio(compito.criterio) : undefined
     const comando = grezzo !== undefined ? criteriPerLaProva([{ descrizione: '', comando: grezzo, soddisfatto: false }])[0]?.comando ?? grezzo : undefined
     let verde = true
+    let nonMisurato = false
     let dettaglio = compito === undefined ? 'nessun compito del piano: vale l’unione senza regressioni' : 'il criterio non ha un comando: vale l’unione senza regressioni'
-    if (comando !== undefined) {
+    // 08/11: dopo un'unione il codice è un altro, un rosso ricordato non vale più.
+    dimenticaIRossi(memoriaCriteri)
+    // 08/11: un file seguito modificato a mano nella principale fa rosso ogni criterio: non è colpa del lavoro.
+    const sporca = comando !== undefined && g !== undefined && !senzaGit
+      ? principaleSporca((await g(['status', '--porcelain'], a.cwd).catch(() => undefined))?.uscita ?? '')
+      : { sporca: false, file: [] as string[] }
+    if (comando !== undefined && sporca.sporca) {
+      verde = false
+      nonMisurato = true
+      dettaglio = `principale sporca: ${sporca.file.slice(0, 5).join(', ')}${sporca.file.length > 5 ? ` (+${sporca.file.length - 5})` : ''}. Il criterio non è stato misurato: salva o annulla quel file nella cartella principale, poi rimisura`
+    } else if (comando !== undefined) {
       const esame = esaminaComando(comando)
       if (!esame.ok) {
         verde = false
@@ -1017,7 +1028,13 @@ ${NOTA_SENZA_GIT}`,
     }
     // Scaduta mentre misurava: l'esito non vale più, l'unione è già stata rimessa in fila.
     if (scambio.scaduto) return `${nome}: unione scaduta`
-    if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }))
+    if (compito !== undefined) {
+      cambiaCompito(ws, compito.id, (k) => {
+        const dopo: CompitoPiano = { ...k, stato: 'unito', criterioVerde: verde, unitoIl: il, esito: dettaglio }
+        if (nonMisurato) delete dopo.criterioVerde // né verde né rosso: da misurare
+        return dopo
+      })
+    }
     for (const o of assorbiti) {
       const s = uniti.get(ws) ?? new Set<string>()
       s.add(o.sub.id)
@@ -1055,7 +1072,9 @@ ${NOTA_SENZA_GIT}`,
     }
     ricalcola(ws, `${compito?.id ?? nome} unito${verde ? '' : ' con il criterio rosso'}`)
     const dove = ramo !== undefined ? `ramo ${ramo} unito nel principale` : fuoriDaiRami ? 'lavoro fuori dai rami (scritto in un’altra cartella): niente da unire, vale il criterio' : soloLettura ? 'analisi in sola lettura, niente da unire' : 'lavoro già nella cartella del progetto'
-    return `${compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
+    const chi = compito?.id !== undefined && compito.id !== nome ? `${compito.id} (${nome})` : nome
+    if (nonMisurato) return `${chi}: ${dove}. Criterio NON MISURATO — ${dettaglio}. Non è un rosso del lavoro: nessuno specialista da affidare.`
+    return `${chi}: ${dove}. Criterio ${verde ? 'VERDE' : 'ROSSO'}: ${dettaglio}.${verde ? '' : ' Il compito resta da correggere: affidalo a uno specialista, dicendo cosa non va.'}`
   }
 
   // ---------------------------------------------------------------- l'ambiente degli strumenti

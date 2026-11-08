@@ -204,6 +204,91 @@ export function esaminaComando(cmd: string, esiste?: (percorso: string) => boole
   return { ok: !problemi.some((p) => p.gravita === 'errore'), problemi }
 }
 
+/**
+ * Criteri che danno **sempre verde** (08/11, causa 8): `git tag --list v0.97.1`
+ * esce con 0 anche se il tag non c'è, e una release mai uscita è stata segnata
+ * fatta. Vale per ogni comando che elenca o stampa senza giudicare.
+ * Un comando composto è sempre verde se lo è ogni suo pezzo (`cd` non conta);
+ * in una pipe conta l'ultimo stadio (`git tag -l x | grep -q x` giudica davvero).
+ */
+export type SempreVerde = { comando: string; motivo: string; alternativa: string }
+
+function parolePezzo(pezzo: string): string[] {
+  const p = pezzo.trim().replace(/^[("'\s]+/u, '').split(/\s+/u).filter((x) => x !== '')
+  while (p.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=\S*$/u.test(p[0] as string)) p.shift()
+  return p
+}
+
+/** `git` senza le sue opzioni globali (`-C dir`, `-c k=v`, `--no-pager`): il sottocomando e i suoi argomenti. */
+function sottocomandoGit(parole: string[]): string[] {
+  const r = parole.slice(1)
+  while (r.length > 0) {
+    const t = r[0] as string
+    if (t === '-C' || t === '-c') { r.splice(0, 2); continue }
+    if (t.startsWith('--') && t !== '--') { r.shift(); continue }
+    break
+  }
+  return r
+}
+
+const SEMPLICI_SEMPRE_VERDI = ['ls', 'dir', 'echo', 'get-childitem', 'gci', 'write-output', 'write-host', 'true', 'pwd', 'wc', 'get-location']
+
+function pezzoSempreVerde(pezzo: string): boolean {
+  const stadi = pezzo.split('|').filter((s) => s.trim() !== '')
+  const parole = parolePezzo(stadi[stadi.length - 1] ?? '')
+  const nome = (parole[0] ?? '').toLowerCase().replace(/\.exe$/u, '')
+  if (nome === '') return false
+  if (SEMPLICI_SEMPRE_VERDI.includes(nome)) return true
+  if (nome !== 'git') return false
+  const [sotto, ...args] = sottocomandoGit(parole)
+  if (sotto === 'status' || sotto === 'log' || sotto === 'remote') return true
+  if (sotto === 'diff') return !args.some((a) => /^--(exit-code|quiet|check)$|^-q$/u.test(a))
+  const elenca = args.some((a) => a === '-l' || a === '--list')
+  // `git tag v1` crea il tag: elenca solo senza argomenti, o con -l/--list (i modelli sono argomenti).
+  if (sotto === 'tag') return elenca || args.every((a) => a.startsWith('-') && !/^-[adfmsu]$|^--(delete|force|annotate|sign)$/u.test(a))
+  if (sotto === 'branch') return elenca || args.every((a) => /^(-a|-r|-v|-vv|--show-current|--all|--remotes)$/u.test(a))
+  return false
+}
+
+/** Il comando esce sempre con 0? `undefined` se può davvero fallire; altrimenti perché no e cosa usare. */
+export function criterioSempreVerde(cmd: string): SempreVerde | undefined {
+  const pezzi = cmd.split(/&&|\|\||;|\r?\n/u).map((p) => p.trim()).filter((p) => p !== '' && !/^(?:cd|pushd|set-location)(\s|$)/iu.test(p))
+  if (pezzi.length === 0 || !pezzi.every(pezzoSempreVerde)) return undefined
+  const versione = /\b(v?\d+\.\d+\.\d+\S*)/u.exec(cmd)?.[1]
+  const v = versione === undefined ? 'vX.Y.Z' : versione.startsWith('v') ? versione : `v${versione}`
+  const motivo = 'esce con 0 anche quando non trova niente: il criterio sarebbe verde a lavoro non fatto'
+  let alternativa = 'un comando che fallisce davvero se il lavoro manca (un test, la compilazione, `grep -q` sul risultato, `test -f` sul file atteso)'
+  if (/\bgit\b.*\btag\b/iu.test(cmd)) alternativa = `\`git rev-parse -q --verify refs/tags/${v}\` per il tag, \`gh release view ${v}\` per la release`
+  else if (/\brelease\b/iu.test(cmd)) alternativa = `\`gh release view ${v}\``
+  else if (/\bgit\s+status\b/iu.test(cmd)) alternativa = '`git diff --quiet HEAD -- <file>` (esce 1 se il file è cambiato) o un test; se il compito è di sola analisi, scrivilo nel titolo («analisi», «sola lettura»)'
+  return { comando: cmd, motivo, alternativa }
+}
+
+/** Compiti di sola analisi: il criterio può anche essere solo un elenco (il titolo lo dice). */
+export function titoloDiSolaAnalisi(titolo: string): boolean {
+  return /\b(analisi|analizz\w*|sola lettura|solo lettura|read-?only|audit|esamin\w*|ricognizione)\b/iu.test(titolo)
+}
+
+/**
+ * Lo stato della cartella principale prima di misurarci un criterio
+ * (`git status --porcelain`): i file **seguiti** cambiati, senza `.sierradeck/`
+ * e senza i non seguiti (`??`). 11/06: 13 criteri rossi per un solo
+ * `src/shared/posta.ts` modificato a mano e non salvato.
+ */
+export function principaleSporca(statusPorcelain: string): { sporca: boolean; file: string[] } {
+  const file: string[] = []
+  for (const riga of statusPorcelain.split(/\r?\n/u)) {
+    if (riga.length < 4 || riga.startsWith('??') || riga.startsWith('!!')) continue
+    let p = riga.slice(3)
+    const freccia = p.indexOf(' -> ')
+    if (freccia >= 0) p = p.slice(freccia + 4)
+    p = p.trim().replace(/^"|"$/gu, '').replace(/\\/gu, '/')
+    if (p === '' || /^(?:\.\/)?\.sierradeck(?:\/|$)/u.test(p)) continue
+    file.push(p)
+  }
+  return { sporca: file.length > 0, file }
+}
+
 /** Il messaggio per chi ha scritto il criterio: quale criterio, cosa non va, cosa fare. */
 export function messaggioCriterio(descrizione: string, comando: string, e: Esame): string {
   const righe = e.problemi.map((p) => `- ${p.gravita === 'errore' ? 'Errore' : 'Attenzione'}: ${p.messaggio}`)

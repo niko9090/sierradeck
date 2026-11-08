@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dollariNonProtetti, esaminaComando, fileLetti, messaggioCriterio, scriptNode, soloNoteDelProgetto, vagliaCriteri, virgoletteAperte } from '@shared/controllo-comandi'
+import { criterioSempreVerde, dollariNonProtetti, esaminaComando, principaleSporca, titoloDiSolaAnalisi, fileLetti, messaggioCriterio, scriptNode, soloNoteDelProgetto, vagliaCriteri, virgoletteAperte } from '@shared/controllo-comandi'
 
 /**
  * 0.44.0: i comandi dei criteri controllati quando si scrivono. I casi veri
@@ -119,5 +119,49 @@ describe('29/10: un criterio che controlla solo le note non si prende', () => {
     const v = vagliaCriteri([{ descrizione: 'il quaderno ha la scheda', comando: 'test -f .sierradeck/quaderno/scheda.md' }])
     expect(v.buoni).toEqual([])
     expect(v.scartati[0]?.messaggio).toContain('«il quaderno ha la scheda» non va bene')
+  })
+})
+
+describe('criteri sempre verdi (08/11, causa 8)', () => {
+  it.each([
+    'git tag --list v0.97.1', 'git tag -l v0.97.1', 'git status', 'git status --short', 'git log --oneline -3',
+    'git branch', 'ls src', 'dir', 'echo ok', 'Get-ChildItem src', 'Write-Output ciao', 'true',
+    'cd x && git tag --list v1.2.3', 'git -C . tag -l v1.2.3'
+  ])('%s esce sempre con 0: respinto', (cmd) => {
+    expect(criterioSempreVerde(cmd)).toBeDefined()
+  })
+
+  it.each([
+    'git rev-parse -q --verify refs/tags/v0.97.1', 'gh release view v0.97.1', 'npm test', 'git diff --quiet HEAD -- a.ts',
+    'git tag --list v1 | grep -q v1', 'git tag v1', 'git status --short && npm test', 'test -f a.ts'
+  ])('%s può fallire davvero: accettato', (cmd) => {
+    expect(criterioSempreVerde(cmd)).toBeUndefined()
+  })
+
+  it('per un tag propone rev-parse e gh release view', () => {
+    const v = criterioSempreVerde('git tag --list v0.97.1')
+    expect(v?.alternativa).toContain('git rev-parse -q --verify refs/tags/v0.97.1')
+    expect(v?.alternativa).toContain('gh release view v0.97.1')
+  })
+
+  it('il titolo di analisi lo riconosce', () => {
+    expect(titoloDiSolaAnalisi('Analisi dei registri, sola lettura')).toBe(true)
+    expect(titoloDiSolaAnalisi('Pubblica la 0.97.1')).toBe(false)
+  })
+})
+
+describe('principaleSporca', () => {
+  it('file seguiti cambiati: sporca, con i nomi', () => {
+    expect(principaleSporca([' M src/shared/posta.ts', 'M  src/a.ts', 'R  vecchio.ts -> nuovo.ts', ''].join('\n'))).toEqual({ sporca: true, file: ['src/shared/posta.ts', 'src/a.ts', 'nuovo.ts'] })
+  })
+  it('solo .sierradeck/: pulita', () => {
+    expect(principaleSporca([' M .sierradeck/quaderno/nota.md', ' M .sierradeck/consegne/x.json', ''].join('\n')).sporca).toBe(false)
+  })
+  it('file non seguiti (??): ignorati', () => {
+    expect(principaleSporca(['?? prova.txt', '?? src/nuovo.ts', ''].join('\n'))).toEqual({ sporca: false, file: [] })
+    expect(principaleSporca(['?? prova.txt', ' M src/b.ts', ''].join('\n')).file).toEqual(['src/b.ts'])
+  })
+  it('vuota: pulita', () => {
+    expect(principaleSporca('').sporca).toBe(false)
   })
 })
