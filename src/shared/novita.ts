@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.97.0',
+    righe: [
+      '**Specialisti a destra:** il pannello degli specialisti si apre accanto al workspace, si allarga e si stringe e non chiude i pannelli di sinistra.',
+      '**Terminali più leggeri:** i terminali si disegnano con la scheda video (WebGL), con un tetto ai contesti e il ripiego normale se la scheda non ce la fa. La Salute mostra se la scheda video è attiva.',
+      '**Controllo dei PC più calmo:** «Quanto lavora» non è più una criticità quando i consumi vanno bene, il Drive pieno dà un solo avviso e si fanno meno richieste al Drive.',
+      '**Meno errori finti:** gli errori passeggeri dell’aggiornamento (504, connessione chiusa) non si segnalano più come guasti, e se l’invio degli errori non riesce la riga si scrive una volta sola.',
+    ],
+  },
+  {
     versione: '0.96.2',
     righe: [
       '**Le copie di lavoro finite si tolgono davvero:** su Windows alcune copie degli specialisti non si cancellavano (permesso negato, o nomi di file troppo lunghi per git) e restavano sul disco per giorni, quasi 600 MB l’una, fra i file che l’antivirus e l’indicizzazione di Windows continuano a ripassare. Ora, se la cancellazione normale non riesce, ci riprova con il comando di Windows.',
