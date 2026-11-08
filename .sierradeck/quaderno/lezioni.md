@@ -4,15 +4,6 @@
 
 ## test
 
-- il guardiano del PC serializza le suite complete e le fa rimandare per minuti: nei criteri conviene misurare file per file e dare tempo alla suite intera. _(2026-11-06)_
-- tests/shared: 1 prova su 1564 è caduta una volta alle 22:13 del 06/11 e non si è più ripetuta (tutto verde su main 522ff1da): è instabile a PC carico, si rimisura e basta. _(2026-11-06)_
-- Il postino ora legge la posta in arrivo ogni 90 s da fermo: i test con orologio fisso che fanno più `giro()` devono passare `quietaOgniMs: 0`. _(2026-11-06)_
-- drive-rete-0-86-2: il tetto di conTempoLimite va tenuto ≥ 4 volte l'intervallo più lungo della prova (400 contro 100 ms), altrimenti a PC carico cade _(2026-11-06)_
-- il conteggio dei test cambia tra un run e l'altro quando main si muove: confrontare sempre il commit prima di dire che un rosso è «lo stesso» (522ff1da: 2092 totali) _(2026-11-06)_
-- I test che fissano una soglia di posta.ts (es. «PC spento» a 30 minuti) cadono se la soglia cambia; esprimere il ritardo come soglia più un margine. _(2026-11-06)_
-- k-65: da ferma la posta si legge ogni 90 s e «PC spento» è a 35 min: i test con orologio fisso devono far avanzare il tempo o usare PC_SPENTO_DOPO_MS, non numeri fissi. _(2026-11-06)_
-- la prova «Drive pieno» aspettava il 403 nel testo: il programma dà il messaggio breve di proposito. Le prove del Drive usano `creaFreno()`, non il singleton `frenoDrive`. _(2026-11-06)_
-- il guardiano del PC carico blocca anche le suite a gruppi quando la CPU resta sopra soglia: lanciare i gruppi di file in momenti più scarichi, non con più worker. _(2026-11-06)_
 - Con il PC carico il guardiano rimanda tsc e le suite complete anche a ripetizione. Conviene fare prima i test dei file toccati uno alla volta e la suite completa per ultima. _(2026-11-06)_
 - I test della fila unioni passano `turni: creaTurni({unioneMaxMs})`: una unione appesa tiene `unendo` finché non scade il turno (default 12 min), e il secondo tentativo resta bloccato. _(2026-11-06)_
 - Con il guardiano che rimanda `tsc` e le suite, un ciclo di vitest su più file viene rimandato quanto la suite intera: si lanciano pochi file mirati per volta. _(2026-11-06)_
@@ -36,6 +27,8 @@
 - il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
 - Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
 - giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
+- tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
+- l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
 
 ## worktree
 
@@ -43,6 +36,7 @@
 - un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
 - Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
 - nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
+- il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
 
 ## errori
 
@@ -87,6 +81,7 @@
 - un ramo già aperto in un altro worktree non si può riprendere con checkout: lo stesso lavoro si porta sul proprio ramo con reset --hard sul suo commit, e poi si unisce main. _(2026-11-06)_
 - Il «lavoro di k-63» non era un ramo di codice: `abf869b0` ha solo correzioni a due test, e l'ottimizzazione del Drive era già in main (0.95.6, k-65). _(2026-11-07)_
 - Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
+- `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
 
 ## autopilota
 
@@ -138,6 +133,8 @@
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 - Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
 - nel worktree la Bash rifiuta comandi con mklink/cmd; la junction node_modules si crea con New-Item -ItemType Junction da PowerShell e si toglie con (Get-Item).Delete(). _(2026-11-08)_
+- il gancio «PC carico» blocca ogni comando npx del Bash finché il processore è sopra soglia: prima di lanciare la suite, controllare il carico o aspettare, non riprovare in serie. _(2026-11-08)_
+- La guardia del PC rifiuta anche `npm run typecheck` con CPU alta e non basta riprovare; un comando in background non aggira il rifiuto. _(2026-11-08)_
 
 ## main
 
@@ -290,6 +287,8 @@
 
 - se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
 - i tetti devono stare uno dentro l'altro (suite < prova < fila): prima la prova (15 min) scadeva prima della suite (20) e il figlio restava vivo a tenere il turno _(2026-11-07)_
+- il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
+- UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 
 ## gpu
 
@@ -335,6 +334,7 @@
 ## misure
 
 - Il controllo di carico controlla prima di ogni comando: un ping/sleep dentro lo stesso comando non aiuta. L'attesa va in una chiamata separata. _(2026-11-07)_
+- il gancio PreToolUse rimanda vitest se il PC è carico: attendere col Monitor, non con sleep ripetuti, e fermarsi dopo 3 tentativi. I file singoli passano comunque. _(2026-11-08)_
 
 ## aggiornamenti
 
