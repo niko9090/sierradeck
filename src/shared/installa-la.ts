@@ -195,3 +195,42 @@ export function passoInstallaLa(nome: string, da: string, o: Osservazione, m: Me
 export function inCorso(a: AvanzamentoInstallaLa | undefined): boolean {
   return a !== undefined && a.fase !== 'fatto' && a.fase !== 'fallito' && a.fase !== 'errore'
 }
+
+/** Oltre questa età il segno di vita sul Drive non vale come prova della versione (con il Drive pieno resta fermo per giorni). */
+export const SEGNO_FRESCO_ENTRO_MS = 10 * 60_000
+
+/** «3 giorni», «2 ore», «15 minuti»: quanto è vecchio il segno di vita, in italiano semplice. */
+export function etaInTesto(ms: number): string {
+  const min = Math.max(1, Math.round(ms / 60_000))
+  if (min < 60) return min === 1 ? '1 minuto' : `${min} minuti`
+  const ore = Math.round(min / 60)
+  if (ore < 48) return ore === 1 ? '1 ora' : `${ore} ore`
+  return `${Math.round(ore / 24)} giorni`
+}
+
+export type Partenza = {
+  /** La versione di partenza per riconoscere il «fatto»; '?' = ancora ignota. */
+  da: string
+  /** Il segno di vita sul Drive è abbastanza recente da valere come prova. */
+  segnoFresco: boolean
+  /** Cosa dire a chi guarda, quando il segno non vale. */
+  avviso?: string
+}
+
+/**
+ * Da quale versione parte quel PC. Il segno di vita sul Drive vale solo se
+ * recente; se è vecchio la versione che porta non è una prova (potrebbe
+ * essere già cambiata) e si chiede a quel PC dal vivo. Con la versione viva
+ * si usa sempre quella. Senza nessuna delle due resta '?': mai «fatto»
+ * finché quel PC non conferma una versione.
+ */
+export function partenzaInstallaLa(segno: { versione?: string; battito?: string } | undefined, versioneViva: string | undefined, adesso: number): Partenza {
+  const t = segno?.battito === undefined ? Number.NaN : Date.parse(segno.battito)
+  const eta = adesso - t
+  const segnoFresco = Number.isFinite(eta) && eta <= SEGNO_FRESCO_ENTRO_MS
+  const sua = segno?.versione !== undefined && segno.versione !== '' ? segno.versione : undefined
+  const da = versioneViva !== undefined && versioneViva !== '' ? versioneViva : segnoFresco && sua !== undefined ? sua : '?'
+  if (segnoFresco) return { da, segnoFresco }
+  const quanto = Number.isFinite(eta) ? `da ${etaInTesto(eta)}` : 'da tempo'
+  return { da, segnoFresco, avviso: `Versione dell’altro PC non aggiornata ${quanto}: provo a installare comunque.` }
+}

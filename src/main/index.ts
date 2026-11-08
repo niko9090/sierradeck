@@ -9,7 +9,7 @@ import { esitoDaPasso } from '@shared/istruzioni-autopilota'
 import { componiSalute, erroriDalLog } from '@shared/salute'
 import { NOVITA, confrontaVersioni } from '@shared/novita'
 import { noteDaNovita, type NoteAggiornamento } from '@shared/note-aggiornamento'
-import { inCorso, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
+import { inCorso, partenzaInstallaLa, passoInstallaLa, type AvanzamentoInstallaLa, type Memoria, type Osservazione, type StatoAggiornamentoRemoto } from '@shared/installa-la'
 import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
@@ -2690,10 +2690,13 @@ if (!app.requestSingleInstanceLock()) {
         if (inCorso(gia) && gia !== undefined) return gia
         const b = postino.altrui().find((x) => x.pcId === pcId)
         const nome = b?.nome ?? pcId
-        const da = b?.versione ?? '?'
+        // Il segno di vita sul Drive vale solo se recente (con il Drive pieno resta fermo per giorni):
+        // altrimenti la versione di partenza si prende da quel PC dal vivo, e «fatto» solo dopo.
+        const partenza = partenzaInstallaLa(b, undefined, Date.now())
+        let da = partenza.da
         const iniziato = new Date().toISOString()
         const m: Memoria = { cercato: false, scaricato: false, installato: false, iniziato: Date.now() }
-        const primo: AvanzamentoInstallaLa = { pcId, nome, fase: 'cerco', da, messaggio: `Busso a ${nome}…`, iniziato, aggiornato: iniziato }
+        const primo: AvanzamentoInstallaLa = { pcId, nome, fase: 'cerco', da, messaggio: `${partenza.avviso !== undefined ? `${partenza.avviso} ` : ''}Busso a ${nome}…`, iniziato, aggiornato: iniziato }
         annunciaInstallaLa(primo)
         registro.info(`[installa là] ${nome}: chiesto da qui (ha la ${da}, questo PC la ${app.getVersion()})`)
         void (async () => {
@@ -2711,6 +2714,7 @@ if (!app.requestSingleInstanceLock()) {
               registro.errore(`[installa là] ${nome}: ${motivo}`)
               return
             }
+            if (da === '?' && o?.versione !== undefined) da = o.versione
             const adesso = Date.now()
             if (o === undefined && m.installato && m.mutoDal === undefined) m.mutoDal = adesso
             const p = passoInstallaLa(nome, da, o, m, adesso)
@@ -2726,7 +2730,7 @@ if (!app.requestSingleInstanceLock()) {
               }
             }
             const prossimo: AvanzamentoInstallaLa = {
-              pcId, nome, fase: p.fase, da, messaggio: p.messaggio, iniziato, aggiornato: new Date().toISOString(),
+              pcId, nome, fase: p.fase, da, messaggio: partenza.avviso !== undefined && p.finito !== true ? `${partenza.avviso} ${p.messaggio}` : p.messaggio, iniziato, aggiornato: new Date().toISOString(),
               ...(p.a !== undefined ? { a: p.a } : ultimo.a !== undefined ? { a: ultimo.a } : {}),
               ...(p.cosaFare !== undefined ? { cosaFare: p.cosaFare } : {}),
               ...(p.pagina !== undefined ? { pagina: p.pagina } : {})
