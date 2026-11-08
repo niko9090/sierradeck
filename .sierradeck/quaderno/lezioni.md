@@ -23,10 +23,10 @@
 - `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
 - i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
 - confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
+- la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
 
 ## worktree
 
-- Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
 - nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
 - il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
 - la junction node_modules si crea con PowerShell dalla cartella del worktree; da Bash con percorso Windows il comando viene rifiutato. _(2026-11-08)_
@@ -354,3 +354,7 @@
 ## guardia
 
 - se la guardia rimanda un comando pesante, il sleep in primo piano è bloccato. Aspetta con un until-loop in background (cronometro) e riprova. _(2026-11-08)_
+
+## renderer
+
+- i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
