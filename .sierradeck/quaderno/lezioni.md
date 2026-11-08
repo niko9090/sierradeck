@@ -33,6 +33,7 @@
 - La guardia del carico può rifiutare `npm run typecheck` per molti minuti se Defender tiene la CPU alta: lanciare prima i test per file, il typecheck a PC libero. _(2026-11-08)_
 - La guardia del carico blocca anche typecheck e suite intera per molti minuti: `npx vitest run tests/shared/<lettera>` passa e copre tutti i file senza nominarli uno a uno. _(2026-11-08)_
 - I test dei tipi opzionali (es. `cancellaId?` di creaArchivioDrive) passano in vitest ma rompono `tsc`: usare `!` nei test, che vitest non controlla. _(2026-11-08)_
+- per provare `cerca()` di aggiornamenti.ts basta mockare electron-updater con `checkForUpdates` che restituisce `{downloadPromise}` e usare fake timers (setTimeout da 10 s). _(2026-11-08)_
 
 ## worktree
 
@@ -68,6 +69,10 @@
 - Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
 - main locale è 5 commit avanti a origin/main (0.97.0): fare git push origin main prima di taggare o pubblicare. _(2026-11-08)_
 - Con l'autopilota il bump di versione non si committa in main (hook): va fatto su un ramo dello specialista e unito; poi push, tag, gh release, pubblica e allega-apk dal principale. _(2026-11-08)_
+- Il compito di pubblicare dalla copia con junction collide con la guardia di `npm run pubblica`: `controlla-pacchetto --prima` rifiuta node_modules come collegamento. Costruire dalla cartella principa… _(2026-11-08)_
+- Il compito di pubblicare va affidato dalla cartella principale (pubblica rifiuta la junction e serve google-oauth.json); APK invariato: allega-apk --senza-build o asset della release prima. _(2026-11-08)_
+- gh release create va fatto con --draft: con la release già pubblicata npm run pubblica rifiuta (existingType=release) e exe/blockmap/latest.yml vanno caricati a mano. _(2026-11-08)_
+- 0.97.1: npm run pubblica rifiuta di compilare da una copia (worktree); pubblicare dalla cartella principale. Se la release GitHub è già pubblica, pubblica non carica l'installer: controllare i 5 file. _(2026-11-08)_
 
 ## git
 
@@ -92,12 +97,6 @@
 
 ## ambiente
 
-- il guardiano del PC rifiuta tsc e le suite larghe (anche con liste di file generate) finché la CPU è alta; i gruppi con nomi di file scritti per esteso passano. _(2026-11-06)_
-- il guardiano del PC carico rimanda tsc e le suite intere anche con CPU al 60%; un ciclo su più file in un solo comando viene rimandato come la suite: un file per chiamata. _(2026-11-06)_
-- Nei worktree manca `node_modules`: serve una junction temporanea, creata con `New-Item -ItemType Junction` in PowerShell, perché `cmd mklink` in Bash viene rifiutato. _(2026-11-06)_
-- Nei worktree la junction a node_modules si toglie in PowerShell con (Get-Item node_modules).Delete(). Da Bash, `cmd //c mklink` viene rifiutato dal guardiano. _(2026-11-06)_
-- nei worktree senza node_modules il criterio fallisce per l'ambiente: la junction verso la cartella principale va lasciata finché il ramo non è unito. _(2026-11-06)_
-- il guardiano rimanda anche suite con elenchi di file e Gradle per molti minuti di fila: lanciare gruppi piccoli di file espliciti. _(2026-11-06)_
 - Il guardiano «PC carico» blocca anche `tsc --noEmit`, non solo la suite intera. Se un `java` esterno resta alto, la compilazione si ritarda a lungo: lanciarla appena il carico scende. _(2026-11-07)_
 - Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
 - Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
@@ -110,19 +109,8 @@
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 
-## main
-
-- la salute di un altro PC (/api/salute via remoto.chiama) è solo un cast, senza validazione: ogni campo letto dalle risposte remote va controllato, perché le versioni vecchie mandano altre forme. _(2026-11-06)_
-- Modifiche non committate in `src/` della cartella principale (es. `posta.ts`) fanno cadere test che nella copia passano: è la trappola che ha fatto cadere `tests/shared` solo lì. _(2026-11-06)_
-
-## general-purpose
-
-- LEZIONI: una copia creata a mano con `git worktree add` fuori da `SierraDeck.sierradeck-wt` non conta fra le cartelle dell'autopilota. Lì non si possono cancellare `google-oauth.json` e `local.proper… _(2026-11-06)_
-- LEZIONI: quando il PC è carico, tsc e la build vengono rimandati. Conviene aspettare a blocchi di 3–5 minuti e riprovare, senza chiudere nessun programma. _(2026-11-06)_
-
 ## domande
 
-- Le domande si leggono sempre dal registro del servizio (GET /domande): il ritiro va fatto lì con `superata()`, nessuna cache nel pannello o nel telefono da svuotare. _(2026-11-06)_
 - Il registro non lega la domanda a una singola richiesta della coda: «richiesta unita» si copre solo con «tutta la coda è fatta»; servirebbe un richiestaId nel contesto. _(2026-11-06)_
 
 ## telefono
@@ -326,6 +314,10 @@
 - la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
 - la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
 - HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
+- con autoDownload attivo electron-updater crea downloadPromise dentro checkForUpdates: il suo rifiuto non passa dal try di cerca(); va agganciato a aggiornamenti.ts:657. _(2026-11-08)_
+- leggiErroreAggiornamento riconosce il 404 «mancante» solo su latest*.yml: il 404 dell'exe durante la pubblicazione conta come errore. _(2026-11-08)_
+- allowDowngrade diventa vero solo col setter di channel in electron-updater: senza, una versione più vecchia del feed non si scarica mai. _(2026-11-08)_
+- un 404 su exe/blockmap è atteso a release a metà pubblicazione: soglia 2 ore in src/shared/aggiornamenti-404.ts, poi errore una volta sola. _(2026-11-08)_
 
 ## installa-la
 
@@ -364,3 +356,11 @@
 ## ramo
 
 - il worktree può partire senza l'ultimo main (k-191 mancava nonostante il compito): fare `git merge main` prima di cominciare. _(2026-11-08)_
+
+## apk
+
+- `npm run allega-apk` senza `--senza-build` lancia gradle e ricompila. Per riallegare l'ultimo APK usare `--senza-build`, ma serve un APK già costruito in quella cartella. _(2026-11-08)_
+
+## pubblicazione
+
+- Un agente lanciato in worktree isolato non può eseguire git nella cartella principale: la pubblicazione dalla cartella principale va affidata a un agente senza isolamento. _(2026-11-08)_
