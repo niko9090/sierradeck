@@ -4,9 +4,6 @@
 
 ## test
 
-- molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
-- A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
-- Il rosso di tests/main può non riprodursi in un worktree pulito: 2741 test contro i 2744 visti nella cartella principale. Prima di correggere, confrontare git status e conteggio test fra le due copie. _(2026-11-06)_
 - il guardiano del PC rimanda le suite intere con CPU sopra il 65%: spezzarle in gruppi di 10-30 file con percorsi espliciti, e riprovare dopo 8-9 minuti. _(2026-11-06)_
 - per una copia pulita: `git archive main` in una cartella del worktree, node_modules come junction; per togliere la junction usa `(Get-Item …).Delete()`, mai `rm -rf`. _(2026-11-06)_
 - il guardiano del PC carico rimanda anche un ciclo for di vitest file per file; passano solo i comandi con file espliciti. _(2026-11-06)_
@@ -41,6 +38,7 @@
 - il test «sezione Specialisti» in tests/renderer/pannello-specialisti.test.tsx legge App.tsx come testo: cambiare il cablaggio di un pannello richiede di aggiornare anche quelle asserzioni _(2026-11-07)_
 - il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
 - Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
+- giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
 
 ## worktree
 
@@ -139,6 +137,7 @@
 - Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 - Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
+- nel worktree la Bash rifiuta comandi con mklink/cmd; la junction node_modules si crea con New-Item -ItemType Junction da PowerShell e si toglie con (Get-Item).Delete(). _(2026-11-08)_
 
 ## main
 
