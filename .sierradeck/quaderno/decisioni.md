@@ -42,3 +42,4 @@
 - «Quando il telefono non si è collegato senza Tailscale, eri sul wifi di casa o fuori, con i dati del telefono?» → Ero sul wifi di casa _(2026-11-06)_
 - «Scheda video: faccio disegnare i terminali con la scheda video e aggiungo nella Salute se è attiva?» → Sì, tutte e due _(2026-11-07)_
 - «Le unioni continuano a scadere e nessun lavoro entra. Faccio unire tutto da uno specialista, saltando la fila del programma?» → ho fatto fare a una chat diverse modifica, riallineati con le info nl quaderno che riprendiamo le modifiche da qui _(2026-11-08)_
+- «Correggo nel codice le tre cose che rallentano gli aggiornamenti e la comparsa degli specialisti?» → Sì, correggi tutte e tre (consigliata) _(2026-11-08)_

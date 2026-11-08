@@ -4,15 +4,6 @@
 
 ## test
 
-- Con il PC carico il guardiano rimanda tsc e le suite complete anche a ripetizione. Conviene fare prima i test dei file toccati uno alla volta e la suite completa per ultima. _(2026-11-06)_
-- I test della fila unioni passano `turni: creaTurni({unioneMaxMs})`: una unione appesa tiene `unendo` finché non scade il turno (default 12 min), e il secondo tentativo resta bloccato. _(2026-11-06)_
-- Con il guardiano che rimanda `tsc` e le suite, un ciclo di vitest su più file viene rimandato quanto la suite intera: si lanciano pochi file mirati per volta. _(2026-11-06)_
-- la descrizione di un Agent deve essere «k-N: …» perché la fila (compitoDi) riconosca il compito; «k1: …» lo riconosce il flusso ma non la fila _(2026-11-06)_
-- Tanti test in tests/main cercano stringhe esatte nello script di client-pagina.ts: basta aggiungere un'istruzione prima per romperli. Meglio controllare il pezzo dentro la riga. _(2026-11-06)_
-- Quando una release cambia un messaggio d'errore (es. freno Drive k-65), i test più vecchi che cercano il vecchio testo diventano rossi in silenzio. Con il guardiano «PC carico», lanciare i file a gru… _(2026-11-06)_
-- i test di `tests/main` che cercano stringhe esatte nel sorgente di `client-pagina.ts` si rompono a ogni riordino di `chiudiAp`: cercare la riga, non la sequenza intera _(2026-11-06)_
-- dopo k-65 il Drive pieno non contiene più «403» nel messaggio: il test controlla stato e flag `drivePieno _(2026-11-06)_
-- il guardiano rimanda anche i gruppi da 12 file con CPU oltre l'80%: passano solo 1-3 file per volta; la suite completa va lanciata a PC libero. _(2026-11-06)_
 - nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
@@ -29,6 +20,9 @@
 - giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
 - tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
 - l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
+- `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
+- i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
+- confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
 
 ## worktree
 
@@ -37,6 +31,7 @@
 - Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
 - nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
 - il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
+- la junction node_modules si crea con PowerShell dalla cartella del worktree; da Bash con percorso Windows il comando viene rifiutato. _(2026-11-08)_
 
 ## errori
 
@@ -71,6 +66,7 @@
 - 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
 - Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
 - Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
+- main locale è 5 commit avanti a origin/main (0.97.0): fare git push origin main prima di taggare o pubblicare. _(2026-11-08)_
 
 ## git
 
@@ -82,11 +78,13 @@
 - Il «lavoro di k-63» non era un ramo di codice: `abf869b0` ha solo correzioni a due test, e l'ottimizzazione del Drive era già in main (0.95.6, k-65). _(2026-11-07)_
 - Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
 - `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
+- il main locale può essere avanti di origin/main (qui 5 commit): per allinearsi, `git merge --ff-only main` funziona, ma `origin/main` resta indietro finché non si pubblica. _(2026-11-08)_
 
 ## autopilota
 
 - Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
 - REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
+- La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 
 ## servizio
 
@@ -326,6 +324,7 @@
 ## dipendenze
 
 - Il node_modules principale non ha xterm 6.1 né @xterm/addon-webgl: una junction non basta dopo k-169, serve copia reale più npm install --ignore-scripts. _(2026-11-07)_
+- @xterm/headless 6.0.0 e @xterm/xterm 6.1.0-beta stanno su versioni diverse: se il terminale della main process si comporta in modo strano, guardare prima questa differenza. _(2026-11-08)_
 
 ## codice
 
@@ -341,3 +340,11 @@
 - la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
 - la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
 - HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
+
+## installa-la
+
+- `da` (versione di partenza) non va mai preso da un battito Drive vecchio: Drive pieno = battito fermo per giorni. Vale solo la versione viva da /api/ciao. _(2026-11-08)_
+
+## specialisti
+
+- Il servizio autopiloti è un processo separato dal main: per spingere eventi non c'era canale. Ho aggiunto un long poll `/orchestratore/cambi`; il telefono resta a richiesta, senza SSE. _(2026-11-08)_
