@@ -1,6 +1,10 @@
 import { REGOLA_LEZIONI } from '@shared/lezioni-chat'
 import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
+import { comandoFinePrematura } from '@shared/fine-prematura'
 import { MATCHER_GUARDIA } from './guardia-orchestratore'
+
+/** Il PreToolUse può aspettare dentro l'hook fino a `ATTESA_IN_UN_HOOK_MS` (5 min): il timeout sta sopra (k-189). */
+export const TIMEOUT_PRETOOL_S = 330
 
 /**
  * **Gli specialisti come subagenti nativi** (P3, 30/10/2026): il file per
@@ -113,7 +117,12 @@ export function fileImpostazioniCli(porta: number, autopilotaId: string): string
       PreToolUse: [{
         // Anche le scritture e gli Agent: la guardia dell'unico (`guardia-orchestratore.ts`).
         matcher: MATCHER_GUARDIA,
-        hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${encodeURIComponent(autopilotaId)}`, timeout: 30 }]
+        hooks: [{ type: 'http', url: `http://127.0.0.1:${porta}/hook/pretool?ap=${encodeURIComponent(autopilotaId)}`, timeout: TIMEOUT_PRETOOL_S }]
+      }],
+      // k-189: uno specialista non chiude mentre aspetta un comando lasciato in
+      // sottofondo (08/11: 5 casi). Al più 2 rimandi per specialista.
+      SubagentStop: [{
+        hooks: [{ type: 'command', command: comandoFinePrematura(), timeout: 10 }]
       }],
       // 0.89.4: la fine di un comando di shell rende il turno dei pesanti. Senza,
       // un `npm test` di mezzo secondo lo teneva 2 minuti e 15: gli altri

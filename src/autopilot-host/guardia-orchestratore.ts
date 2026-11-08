@@ -47,6 +47,8 @@ export type ContestoGuardia = {
   senzaGit?: boolean
   /** Gli specialisti al lavoro in questo workspace (serve senza git). */
   specialistiDelWorkspace?: number
+  /** k-189: con git l'orchestratore può chiamare solo questi tipi di `Agent` (gli specialisti di SierraDeck). */
+  tipiSpecialisti?: readonly string[]
   /**
    * k-48: la lista d'attesa. Chiamata per ogni Agent dell'orchestratore: dice se
    * passa, o in che posizione sta in fila (con `davanti` voci prima di lui).
@@ -55,7 +57,12 @@ export type ContestoGuardia = {
   fila?: (r: { descrizione: string; tipo: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
 }
 
-const ordinale = (n: number): string => `${n}°`
+/** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
+export const MOTIVO_SOTTOFONDO = 'lancia il comando davanti, senza sottofondo e senza sleep: se il PC è carico, l’attesa la fa SierraDeck. Aspetta sempre la fine del comando, poi chiudi.'
+/** `sleep 90`, `Start-Sleep -Seconds 30` all'inizio di un comando o dopo `;`, `&&`, `|`. */
+const ATTESA_A_MANO = /(?:^|[;&|(]\s*|\n\s*)(?:sleep|start-sleep)(?:\s|$)/iu
+
+const ordinale =(n: number): string => `${n}°`
 
 /** Il rifiuto per posti pieni: dice anche il posto in fila, quando c'è. */
 export function motivoPostiPieni(c: Pick<ContestoGuardia, 'specialistiSulPc' | 'tettoPc'>, f?: { posizione: number; davanti: number }): string {
@@ -145,6 +152,12 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       return { ok: false, motivo: 'aspetta: il progetto non è un repository git, quindi lavora uno specialista alla volta nella cartella del progetto. Rilancia quando quello al lavoro ha finito.' }
     }
     if ((STRUMENTI_AGENTE as readonly string[]).includes(nome)) {
+      // k-189: con git solo gli specialisti di SierraDeck, che hanno la copia: un
+      // `general-purpose` lavora nel principale e gli hook gli bloccano tutto.
+      const tipo = s(input.subagent_type) ?? 'general-purpose'
+      if (c.senzaGit !== true && c.tipiSpecialisti !== undefined && !c.tipiSpecialisti.includes(tipo)) {
+        return { ok: false, motivo: `il tipo «${tipo}» non ha una copia propria del progetto e lavorerebbe nella cartella principale. Usa «sviluppatore» (o «verificatore» per le prove); i tipi ammessi: ${c.tipiSpecialisti.join(', ')}.` }
+      }
       if (c.fila !== undefined) {
         const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
         if (!r.passa) return { ok: false, motivo: motivoPostiPieni(c, r) }
@@ -155,6 +168,12 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
     return { ok: true }
   }
 
+  // k-189: niente sottofondo e niente attese a mano (8 casi di specialisti chiusi a metà).
+  if ((STRUMENTI_SHELL as readonly string[]).includes(nome)) {
+    const comando = s(input.command) ?? ''
+    if (input.run_in_background === true || ATTESA_A_MANO.test(comando)) return { ok: false, motivo: MOTIVO_SOTTOFONDO }
+  }
+
   // Senza git non c'è una copia: lo specialista lavora proprio nella cartella principale.
   if (c.senzaGit === true) return { ok: true }
 
@@ -163,7 +182,7 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
     if (bersaglio !== undefined) {
       const assoluto = isAbsolute(bersaglio) || /^[a-zA-Z]:/u.test(bersaglio) ? bersaglio : resolve(cwd, bersaglio)
       if (nelPrincipale(assoluto, c.radice)) {
-        return { ok: false, motivo: `«${bersaglio}» è nella cartella principale: lavori solo nella tua copia (${cwd}). Usa percorsi relativi alla tua copia.` }
+        return { ok: false, motivo: `«${bersaglio}» è nella cartella principale del progetto, non nella tua copia (parti da ${cwd}). Usa percorsi relativi alla cartella da cui parti.` }
       }
     }
     return { ok: true }
@@ -175,7 +194,7 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       if (!GIT_CHE_CAMBIA.test(g.verbo)) continue
       const dir = cartellaDelGit(comando, g.indice, cwd)
       if (nelPrincipale(dir, c.radice)) {
-        return { ok: false, motivo: `git ${g.verbo} nella cartella principale non si fa: lavori e fai commit solo nella tua copia (${cwd}); unisce l’autopilota.` }
+        return { ok: false, motivo: `git ${g.verbo} nella cartella principale non si fa: qui è la cartella principale del progetto, non una copia tua (parti da ${cwd}); i commit si fanno nella copia di uno specialista, e unisce l’autopilota.` }
       }
     }
   }
