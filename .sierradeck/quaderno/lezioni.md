@@ -24,6 +24,8 @@
 - i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
 - confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
 - la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
+- tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
+- Con il PC sopra il 75% la guardia del carico blocca anche la suite intera: i lotti da 40 file passano; la guardia si ripete col messaggio uguale anche quando il carico è calato. _(2026-11-08)_
 
 ## worktree
 
@@ -33,14 +35,12 @@
 
 ## errori
 
-- StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: lo si tratta come «in uso» (saltato, non errore; vedi rimozione-sicura.ts e riassetto/recupero.ts) e si riprova al giro dopo. _(2026-11-07)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
 - «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
 
 ## android
 
-- Sul PC dev non ci sono gradlew né SDK (`E:\Android\Sdk` assente): il Kotlin non si compila qui. Tenere la logica nuova in funzioni pure con test e controllare la build a parte. _(2026-11-06)_
 - Per compilare in un worktree: sdk.dir=E:/Android/Sdk in android/local.properties (ignorato), JAVA_HOME=JDK 21 Microsoft, gradle in E:\Programs\Gradle\gradle-8.11.1\bin. Non c'è gradlew. A freddo ~7 m… _(2026-11-06)_
 - CORREZIONE: l'SDK c'è in E:\Android\Sdk (la lezione «SDK assente» è sbagliata). Nei worktree: local.properties sdk.dir, JAVA_HOME=JDK 21 Microsoft, gradle globale 8.11.1, senza gradlew. _(2026-11-06)_
 - una data class nuova può collidere con una già presente nello stesso package (RigaSpecialista in PaginaWorkspace.kt): cercare il nome con grep prima di dichiararla. _(2026-11-06)_
