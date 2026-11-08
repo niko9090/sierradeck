@@ -41,6 +41,12 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.97.2',
+    righe: [
+      '**Aggiornamenti senza falsi errori:** se una release è pubblicata a metà (manca ancora il file da scaricare), il programma aspetta e riprova da solo, senza errori rossi né segnalazioni. Se il file manca per più di 2 ore, lo segnala una volta.',
+    ],
+  },
+  {
     versione: '0.97.1',
     righe: [
       '**Meno fermate degli autopiloti:** se il PC è carico, gli specialisti aspettano e riprovano invece di essere respinti. Non si chiudono più a metà e non lasciano comandi in sottofondo. Partono solo con la loro copia.',
