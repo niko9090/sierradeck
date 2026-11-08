@@ -116,3 +116,6 @@ Corretto nella versione 0.97.0. Causa: l HttpError di electron-updater ha messag
 
 ## Gruppo 2: "[aggiornamenti] fase: errore · net::ERR_CONNECTION_CLOSED" (6 volte)
 Corretto nella versione 0.97.0. Causa: la lista degli errori di rete passeggeri non includeva ERR_CONNECTION_CLOSED/RESET/TIMED_OUT, ERR_TIMED_OUT, ERR_EMPTY_RESPONSE; aggiunti. In piu «cosa si stava facendo» ora si attacca solo se la riga info ha lo stesso tag dell errore (prima prendeva righe di altri sottosistemi, es. [errori] o [spazio]): storico-errori-file.ts.
+
+## Controllo PC 08/11: "[errori] invio automatico non riuscito, riprovo al prossimo giro" (683 volte su DESKTOP e LAPTOP) e "[aggiornamenti] fase: errore · 503" (10 volte)
+Corretto nella 0.97.0. Causa: giroInvioErrori scriveva la riga a ogni giro (ogni 30 s) finche il PC di sviluppo non rispondeva; ora, come la posta, la scrive una volta per motivo e poi "invio errori ripreso" quando torna a riuscire (test in tests/main/errori-invio-automatico.test.ts). Pausa crescente non aggiunta: l'intervallo del giro resta com'e. Il 503 era gia passeggero con la classificazione di k-178 (502/503/504 su messaggio completo e statusCode, test gia in aggiornamenti-rete-transitoria.test.ts): le 10 righe erano di prima di quella correzione.

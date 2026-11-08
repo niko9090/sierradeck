@@ -2539,6 +2539,7 @@ if (!app.requestSingleInstanceLock()) {
       const leggiStatoInvio = (): StatoInvio | undefined => { try { return JSON.parse(readFileSync(fileInvio, 'utf8')) as StatoInvio } catch { return undefined } }
       statoInvioErroriGlobale = leggiStatoInvio
       let invioInCorso = false
+      let motivoInvioFallito: string | undefined
       const giro = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
         if (invioInCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
         invioInCorso = true
@@ -2551,6 +2552,7 @@ if (!app.requestSingleInstanceLock()) {
             adesso: () => Date.now(),
             manda: (s) => mandaOra(s),
             log: (riga) => registro.info(riga),
+            fallimento: { leggi: () => motivoInvioFallito, scrivi: (m) => { motivoInvioFallito = m } },
             forza
           })
         } catch (err) {
