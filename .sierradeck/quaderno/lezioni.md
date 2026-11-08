@@ -32,6 +32,7 @@
 - La guardia del carico può rifiutare `vitest run tests/renderer` all'infinito, anche dividendo per prefisso. Passano solo i comandi con pochi file nominati, quindi conviene elencarli per nome. _(2026-11-08)_
 - La guardia del carico può rifiutare `npm run typecheck` per molti minuti se Defender tiene la CPU alta: lanciare prima i test per file, il typecheck a PC libero. _(2026-11-08)_
 - La guardia del carico blocca anche typecheck e suite intera per molti minuti: `npx vitest run tests/shared/<lettera>` passa e copre tutti i file senza nominarli uno a uno. _(2026-11-08)_
+- I test dei tipi opzionali (es. `cancellaId?` di creaArchivioDrive) passano in vitest ma rompono `tsc`: usare `!` nei test, che vitest non controlla. _(2026-11-08)_
 
 ## worktree
 
@@ -90,7 +91,6 @@
 
 ## ambiente
 
-- I file del repo sono CRLF: gli script node/sed con `replace` su stringhe multilinea non trovano nulla senza errori; usare Edit, oppure normalizzare prima \r\n. _(2026-11-06)_
 - Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
 - il controllo del PC carico rimanda gradle a ripetizione e `sleep` in primo piano è bloccato: l'attesa va fatta con `sleep` in background. _(2026-11-06)_
 - l'hook rimanda tsc e le suite anche con PC libero se un criterio dell'autopilota è in corso; più file insieme (fino a ~35) passano, le cartelle intere no. _(2026-11-06)_
@@ -109,6 +109,7 @@
 - il gancio «PC carico» blocca ogni comando npx del Bash finché il processore è sopra soglia: prima di lanciare la suite, controllare il carico o aspettare, non riprovare in serie. _(2026-11-08)_
 - La guardia del PC rifiuta anche `npm run typecheck` con CPU alta e non basta riprovare; un comando in background non aggira il rifiuto. _(2026-11-08)_
 - la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
+- Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 
 ## main
 
