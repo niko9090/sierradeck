@@ -26,6 +26,9 @@
 - la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
 - tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
 - Con il PC sopra il 75% la guardia del carico blocca anche la suite intera: i lotti da 40 file passano; la guardia si ripete col messaggio uguale anche quando il carico è calato. _(2026-11-08)_
+- Il messaggio «non passano le prove dei compiti già uniti» non dice quali: prima di correggere, far girare a un verificatore l'intera vitest (a lotti da 40 se la guardia rifiuta) su main e sul ramo. _(2026-11-08)_
+- La guardia del carico rifiuta anche i lotti piccoli se un comando pesante è appena partito; i lotti per cartella (tests/renderer, tests/autopilot-host) sono passati, quelli grossi no. _(2026-11-08)_
+- In un worktree isolato `npx vitest run $(cat elenco)` viene rifiutato come comando troppo complesso; si usano cartelle o prefissi espliciti. _(2026-11-08)_
 
 ## worktree
 
@@ -41,9 +44,6 @@
 
 ## android
 
-- Per compilare in un worktree: sdk.dir=E:/Android/Sdk in android/local.properties (ignorato), JAVA_HOME=JDK 21 Microsoft, gradle in E:\Programs\Gradle\gradle-8.11.1\bin. Non c'è gradlew. A freddo ~7 m… _(2026-11-06)_
-- CORREZIONE: l'SDK c'è in E:\Android\Sdk (la lezione «SDK assente» è sbagliata). Nei worktree: local.properties sdk.dir, JAVA_HOME=JDK 21 Microsoft, gradle globale 8.11.1, senza gradlew. _(2026-11-06)_
-- una data class nuova può collidere con una già presente nello stesso package (RigaSpecialista in PaginaWorkspace.kt): cercare il nome con grep prima di dichiararla. _(2026-11-06)_
 - In `android/` `SezioneDrive` è definita in `Drive.kt` e in `SezioniImpostazioni.kt` con firme diverse: un doppione fragile, da unificare. _(2026-11-06)_
 - Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
 - Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
