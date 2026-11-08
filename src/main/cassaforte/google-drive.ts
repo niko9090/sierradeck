@@ -30,7 +30,7 @@ import { conConteggio, segnaleDrive } from '../risorse'
  * di «Annulla» del lavoro in corso.
  */
 
-import { conFreno, eSpazioPieno, frenoDrive, MESSAGGIO_DRIVE_PIENO, type Freno } from './freno-drive'
+import { attesaRitento, conFreno, eSpazioPieno, frenoDrive, MESSAGGIO_DRIVE_PIENO, type Freno } from './freno-drive'
 
 const NOME_FILE_PREDEFINITO = 'sierradeck.cassaforte'
 const API = 'https://www.googleapis.com/drive/v3'
@@ -61,6 +61,10 @@ export type DriveDeps = {
   finestraConflittoMs?: number
   /** Il freno (limite di velocità, spazio pieno): predefinito quello del programma. */
   freno?: Freno
+  /** Le pause fra i tentativi (k-192): iniettabili per i test; di default `setTimeout`. */
+  pausa?: (ms: number) => Promise<void>
+  /** Il pizzico di casualita' delle attese, in [0, 1): di default `Math.random`. */
+  caso?: () => number
 }
 
 type FileDrive = { id: string; version: string }
@@ -301,7 +305,13 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
     return e
   }
 
-  const pausa = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+  const pausa = deps.pausa ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)))
+  const caso = deps.caso ?? Math.random
+  // Attesa fra due tentativi: cresce raddoppiando, con casualita'. Per i rifiuti
+  // di frequenza (429, rateLimit) si parte da 2 s e non da 0,6 s: riprovare dopo
+  // mezzo secondo contro un limite al minuto moltiplica soltanto le richieste.
+  const BASE_ERRORE_MS = 600
+  const BASE_LIMITE_MS = 2000
   const transitorio = (stato: number): boolean => stato === 429 || stato === 408 || stato >= 500
   const RITENTI = 4
   // Google risponde 403 (non 429) anche per «troppe richieste»: rateLimitExceeded,
@@ -319,7 +329,6 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
   // idempotenti (ricerca, download, scrittura per id, cancellazione): rifarle non
   // crea doppioni. La creazione (POST) no — quella la protegge `carica`.
   const conRitenta = async (fai: () => Promise<Response>, cosa: string): Promise<Response> => {
-    let attesa = 600
     for (let i = 0; ; i += 1) {
       let r: Response
       try {
@@ -327,9 +336,12 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       } catch (e) {
         // Annullato dal lavoro (0.86.2): non si ritenta, ci si ferma.
         if (i >= RITENTI || (e as { definitivo?: boolean }).definitivo === true || segnaleDrive()?.aborted === true) throw e
-        await pausa(attesa); attesa *= 2; continue
+        await pausa(attesaRitento(i, BASE_ERRORE_MS, caso())); continue
       }
-      if (!r.ok && (transitorio(r.status) || await limiteDiVelocita(r)) && i < RITENTI) { await pausa(attesa); attesa *= 2; continue }
+      if (!r.ok && i < RITENTI) {
+        const velocita = r.status === 429 || await limiteDiVelocita(r)
+        if (velocita || transitorio(r.status)) { await pausa(attesaRitento(i, velocita ? BASE_LIMITE_MS : BASE_ERRORE_MS, caso())); continue }
+      }
       if (!r.ok) throw await errore(r, cosa)
       return r
     }
@@ -460,7 +472,6 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       // questo il ritentativo è QUI, attorno a «cerca → crea/scrivi»: a ogni giro
       // si ricerca, così un POST andato a metà viene ritrovato e aggiornato invece
       // di duplicato.
-      let attesa = 600
       for (let i = 0; ; i += 1) {
         try {
           // Fresco: mai creare un doppione perché «non c'era» tre minuti fa.
@@ -476,8 +487,9 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
           const stato = (e as { stato?: number }).stato
           // Un id ricordato che non c'e' piu': si dimentica e si rifa' il giro.
           if (stato === 404 && idPerNome.has(nome) && i < RITENTI) { idPerNome.delete(nome); continue }
-          if (i >= RITENTI || stato === undefined || !(transitorio(stato) || (stato === 403 && /rate ?limit exceeded|quota exceeded for quota metric/i.test(String((e as Error).message))))) throw e
-          await pausa(attesa); attesa *= 2
+          const velocita = stato === 429 || (stato === 403 && /rate ?limit exceeded|quota exceeded for quota metric/i.test(String((e as Error).message)))
+          if (i >= RITENTI || stato === undefined || !(transitorio(stato) || velocita)) throw e
+          await pausa(attesaRitento(i, velocita ? BASE_LIMITE_MS : BASE_ERRORE_MS, caso()))
         }
       }
     },
