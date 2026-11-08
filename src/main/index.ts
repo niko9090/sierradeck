@@ -1,7 +1,7 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import { frenoDrive, MESSAGGIO_DRIVE_PIENO } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
-import { chiudiPannelliConLApp, finestreDiChat, segnaFinestraDiServizio } from './finestre-pannello'
+import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
 import { scelteDiTerminale } from '@shared/scelte-terminale'
@@ -3835,8 +3835,8 @@ if (!app.requestSingleInstanceLock()) {
       // di ogni pannello resta come rete di sicurezza.
       {
         const raggruppa = creaRaggruppatore(() => {
-          for (const w of BrowserWindow.getAllWindows()) {
-            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('autopilota:specialistiCambiati')
+          for (const w of finestreViveSenzaServizio()) {
+            if (!w.webContents.isDestroyed()) w.webContents.send('autopilota:specialistiCambiati')
           }
         })
         clientAutopilota.suCambioSpecialisti(() => raggruppa.segna())
