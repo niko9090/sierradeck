@@ -46,6 +46,7 @@
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: lo si tratta come «in uso» (saltato, non errore; vedi rimozione-sicura.ts e riassetto/recupero.ts) e si riprova al giro dopo. _(2026-11-07)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
 - «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
+- un comando Bash che fallisce a metà (es. cmd mklink rifiutato nel worktree) salta anche i passi dopo: ricontrollare git diff --stat prima del commit. _(2026-11-08)_
 
 ## android
 
@@ -73,6 +74,7 @@
 - Il compito di pubblicare va affidato dalla cartella principale (pubblica rifiuta la junction e serve google-oauth.json); APK invariato: allega-apk --senza-build o asset della release prima. _(2026-11-08)_
 - gh release create va fatto con --draft: con la release già pubblicata npm run pubblica rifiuta (existingType=release) e exe/blockmap/latest.yml vanno caricati a mano. _(2026-11-08)_
 - 0.97.1: npm run pubblica rifiuta di compilare da una copia (worktree); pubblicare dalla cartella principale. Se la release GitHub è già pubblica, pubblica non carica l'installer: controllare i 5 file. _(2026-11-08)_
+- una release a metà (latest.yml su GitHub prima dell'exe) dà 404 per ore: i raggruppamenti degli errori uniscono righe di giorni diversi e la «versione» è quella del PC che invia, non di chi ha l'erro… _(2026-11-08)_
 
 ## git
 
@@ -108,14 +110,6 @@
 - la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
-
-## domande
-
-- Il registro non lega la domanda a una singola richiesta della coda: «richiesta unita» si copre solo con «tutta la coda è fatta»; servirebbe un richiestaId nel contesto. _(2026-11-06)_
-
-## telefono
-
-- Nessuna rotta nuova: il «visto» passa dal push `/stato-programma` del Gestore (`workspaceVisti`) e da `/api/autopilota` del telefono; `autopilot-client.ts` resta intatto. _(2026-11-06)_
 
 ## impostazioni
 
