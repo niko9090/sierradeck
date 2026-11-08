@@ -4,10 +4,6 @@
 
 ## test
 
-- Quando una release cambia un messaggio d'errore (es. freno Drive k-65), i test più vecchi che cercano il vecchio testo diventano rossi in silenzio. Con il guardiano «PC carico», lanciare i file a gru… _(2026-11-06)_
-- i test di `tests/main` che cercano stringhe esatte nel sorgente di `client-pagina.ts` si rompono a ogni riordino di `chiudiAp`: cercare la riga, non la sequenza intera _(2026-11-06)_
-- dopo k-65 il Drive pieno non contiene più «403» nel messaggio: il test controlla stato e flag `drivePieno _(2026-11-06)_
-- il guardiano rimanda anche i gruppi da 12 file con CPU oltre l'80%: passano solo 1-3 file per volta; la suite completa va lanciata a PC libero. _(2026-11-06)_
 - nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
@@ -26,6 +22,7 @@
 - l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
 - `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
 - i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
+- confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
 
 ## worktree
 
@@ -87,6 +84,7 @@
 
 - Criterio rosso = affidare la correzione nello stesso turno, anche con i posti pieni: provare a lanciare (il tetto ora è 3) invece di rimandare «appena si libera». _(2026-11-06)_
 - REGOLA Nicholas 06/11: l'autopilota finisce tutto da solo con gli specialisti; domande o compiti a mano per lui solo in casi estremi. Mai chiedere riavvii o di chiudere programmi. _(2026-11-06)_
+- La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 
 ## servizio
 
@@ -342,3 +340,11 @@
 - la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
 - la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
 - HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
+
+## installa-la
+
+- `da` (versione di partenza) non va mai preso da un battito Drive vecchio: Drive pieno = battito fermo per giorni. Vale solo la versione viva da /api/ciao. _(2026-11-08)_
+
+## specialisti
+
+- Il servizio autopiloti è un processo separato dal main: per spingere eventi non c'era canale. Ho aggiunto un long poll `/orchestratore/cambi`; il telefono resta a richiesta, senza SSE. _(2026-11-08)_
