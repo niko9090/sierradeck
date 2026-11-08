@@ -217,7 +217,7 @@ export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: 
  *   electron-updater attacca a ogni errore (`Headers: {…}`), al massimo 300 caratteri.
  */
 export function eErroreDiReteTransitorio(testo: string): boolean {
-  if (/ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ECONNRESET|ETIMEDOUT/.test(testo)) return true
+  if (/ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|ERR_CONNECTION_TIMED_OUT|ERR_TIMED_OUT|ERR_EMPTY_RESPONSE|ECONNRESET|ETIMEDOUT/.test(testo)) return true
   return erroreGitHubPasseggero(testo)
 }
 
@@ -233,9 +233,10 @@ function erroreGitHubPasseggero(testo: string): boolean {
   return /(?:HttpError:\s*|:\s)50[234](?:\s|$|\))/.test(testo) && !/Cannot download differentially/.test(testo)
 }
 
-export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string } {
-  const codice = typeof err === 'object' && err !== null ? String((err as { code?: unknown }).code ?? '') : ''
-  const testo = err instanceof Error ? err.message : String(err)
+export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve: string; completo: string; statusCode?: number } {
+  const oggetto = typeof err === 'object' && err !== null ? (err as { code?: unknown; statusCode?: unknown; message?: unknown }) : undefined
+  const codice = String(oggetto?.code ?? '')
+  const testo = err instanceof Error ? err.message : typeof oggetto?.message === 'string' ? oggetto.message : String(err)
   const senzaIntestazioni = testo.split(/\n\s*Headers:/)[0] ?? testo
   const riga = (senzaIntestazioni.split('\n').map((r) => r.trim()).find((r) => r !== '') ?? '')
     .replace(/:\s*HttpError:\s*/, ': ')
@@ -243,7 +244,19 @@ export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve:
   const breve = riga.length > 300 ? `${riga.slice(0, 299)}…` : riga
   const file = /latest[\w-]*\.yml|ERR_UPDATER_CHANNEL_FILE_NOT_FOUND/.test(`${codice} ${testo}`)
   const quattrocentoquattro = /\b404\b/.test(testo)
-  return { manca: file && quattrocentoquattro, breve }
+  // HttpError di builder-util-runtime: `statusCode` numerico; se l'errore arriva
+  // come testo («504, a capo, Headers: {…}») il codice è la sola prima riga.
+  const daCampo = typeof oggetto?.statusCode === 'number' ? oggetto.statusCode : undefined
+  const daTesto = /^\s*(\d{3})\s*(?:\n\s*Headers:|$)/.exec(testo)
+  const statusCode = daCampo ?? (daTesto ? Number(daTesto[1]) : undefined)
+  return { manca: file && quattrocentoquattro, breve, completo: testo, ...(statusCode !== undefined ? { statusCode } : {}) }
+}
+
+/** Passeggero: 502/503/504 dichiarati, o il messaggio completo (non solo la prima riga) è di rete passeggera. */
+function erroreLettoPasseggero(l: { breve: string; completo: string; statusCode?: number }): boolean {
+  if (/^Cannot download differentially/.test(l.breve)) return false
+  if (l.statusCode !== undefined && [502, 503, 504].includes(l.statusCode)) return true
+  return eErroreDiReteTransitorio(l.completo) || eErroreDiReteTransitorio(l.breve)
 }
 
 /**
@@ -270,10 +283,11 @@ export function creaLoggerUpdater(
     error: (m) => {
       const riga = String(m)
       if (/^Error:/.test(riga)) return
-      const breve = leggiErroreAggiornamento(riga).breve
+      const letto = leggiErroreAggiornamento(riga)
+      const breve = letto.breve
       // Un errore di rete passeggero (ERR_NO_BUFFER_SPACE, ECONNRESET…): l'updater
       // ritenta da solo al giro dopo (RICONTROLLA_MS), non è un guasto del programma.
-      if (/^Cannot download differentially, fallback to full download/.test(breve) || eErroreDiReteTransitorio(breve)) {
+      if (/^Cannot download differentially, fallback to full download/.test(breve) || erroreLettoPasseggero(letto)) {
         registro.info(`[electron-updater] avviso: ${breve}`)
         return
       }
@@ -576,7 +590,8 @@ export function creaAggiornamenti(
   let ultimoErroreBreve = ''
   let ultimoErroreAlle = 0
   const erroreUpdater = (err: unknown): void => {
-    const { manca, breve } = leggiErroreAggiornamento(err)
+    const letto = leggiErroreAggiornamento(err)
+    const { manca, breve } = letto
     if (manca) {
       // Un rilascio pubblicato a metà: per chi usa il programma non c'è niente da fare né da vedere.
       if (!mancaDetto) { mancaDetto = true; nota(`nessun aggiornamento per ora: latest.yml non c'è ancora (${breve})`) }
@@ -592,7 +607,7 @@ export function creaAggiornamenti(
     ultimoErroreAlle = adesso
     // Un guasto di rete passeggero: l'updater ritenta da solo, qui è un avviso
     // nel registro e la fase torna a riposo, senza il riquadro rosso.
-    if (eErroreDiReteTransitorio(breve)) {
+    if (erroreLettoPasseggero(letto)) {
       nota(`errore di rete passeggero, si riprova al prossimo controllo: ${breve}`)
       if (stato.fase === 'scarico' && stato.versione !== undefined) annuncia({ fase: 'disponibile', versione: stato.versione })
       else nienteDiNuovo()

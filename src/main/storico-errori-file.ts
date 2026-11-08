@@ -93,6 +93,11 @@ const COSA_RECENTE_MS = 2 * 60_000
  * `console.error`, che `consoleNelRegistro` riporta qui. Senza, ogni errore
  * entrerebbe due volte (la seconda con «[registro]» davanti).
  */
+/** Il primo tag fra quadre a inizio riga, se c'è. */
+function tagDi(riga: string): string | undefined {
+  return /^\s*(\[[^\]]+\])/.exec(riga)?.[1]
+}
+
 export function conStorico(registro: Registro, storico: Pick<StoricoSuFile, 'aggiungi'>, ora: () => number = Date.now): Registro {
   let ultima: { riga: string; quando: number } | undefined
   let dentro = false
@@ -107,7 +112,8 @@ export function conStorico(registro: Registro, storico: Pick<StoricoSuFile, 'agg
       if (!dentro) {
         dentro = true
         try {
-          const cosa = ultima !== undefined && ora() - ultima.quando <= COSA_RECENTE_MS ? ultima.riga : undefined
+          // Solo una riga dello stesso sottosistema (stesso tag fra quadre) è «cosa si stava facendo».
+          const cosa = ultima !== undefined && ora() - ultima.quando <= COSA_RECENTE_MS && tagDi(ultima.riga) !== undefined && tagDi(ultima.riga) === tagDi(m) ? ultima.riga : undefined
           storico.aggiungi(m, cosa)
         } catch { /* lo storico non ferma il registro */ }
         try { registro.errore(m) } finally { dentro = false }
