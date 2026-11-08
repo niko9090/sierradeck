@@ -34,7 +34,7 @@ export function TestaOrchestratore({ workspace, children }: { workspace: string;
   const s = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
   const v = useSondaggio(s)
   // Spinta a evento: la barra si aggiorna appena uno specialista cambia, senza aspettare il giro.
-  useEffect(() => window.gestore.autopilota.suSpecialistiCambiati(() => s.rileggi()), [s])
+  useEffect(() => window.gestore.autopilota.suSpecialistiCambiati?.(() => s.rileggi()), [s])
   const [impostazioni, setImpostazioni] = useState(false)
   const [registro, setRegistro] = useState(false)
   const [errore, setErrore] = useState<string | undefined>(undefined)

@@ -371,7 +371,7 @@ declare global {
         /** L'elenco leggero (0.85.2): di decisioni, dialogo e modifiche solo la coda. */
         elenca: () => Promise<Autopilota[]>
         /** Spinta a evento: uno specialista è partito, finito o ha cambiato posto in lista. */
-        suSpecialistiCambiati: (cb: () => void) => () => void
+        suSpecialistiCambiati?: (cb: () => void) => () => void
         /** Un autopilota intero (0.85.2); con la versione che hai, se non è cambiato torna senza l'autopilota. */
         dettaglio: (id: string, versione?: string) => Promise<{ versione?: string; autopilota?: Autopilota; occupato?: true }>
         crea: (p: NuovoAutopilota) => Promise<Autopilota>
