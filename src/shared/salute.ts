@@ -258,9 +258,9 @@ export function componiSalute(i: IngressiSalute): Salute {
   for (const s of schede) {
     voci.push({
       chiave: `gpu:${s.chiave}`, gruppo: 'pc', tono: s.gpu.spenta ? 'attenzione' : 'ok',
-      titolo: `${s.nome} · ${s.gpu.testo}${s.gpu.cpu !== undefined ? ` · ${s.gpu.cpu.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%` : ''}`,
-      spiegazione: 'La scheda video accelera la grafica di SierraDeck (finestre, terminali). Se è spenta o in software, tutto lo disegna il processore: funziona, ma con più CPU e qualche scatto. Il numero in percentuale è la CPU del processo della scheda video.',
-      ...(s.gpu.spenta ? { cosaFare: 'Controlla i driver della scheda video e che Windows non la tenga spenta; poi riavvia SierraDeck.' } : {}),
+      titolo: `${s.nome} · ${s.gpu.testo}${s.gpu.motivo !== undefined ? ` · ${s.gpu.motivo}` : ''}${s.gpu.cpu !== undefined ? ` · ${s.gpu.cpu.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%` : ''}`,
+      spiegazione: 'La scheda video accelera la grafica di SierraDeck (finestre, terminali). Se è spenta o in software, tutto lo disegna il processore: funziona, ma con più CPU e qualche scatto. Il numero in percentuale è la CPU del processo della scheda video.' + (s.gpu.motivo !== undefined ? ' Chromium non dice il motivo preciso: quello mostrato è dedotto dai dati della scheda (driver di base di Windows, scheda esclusa perché vecchia o con driver vecchio, o spenta dopo errori ripetuti). SierraDeck non spegne mai la scheda da sé.' : ''),
+      ...(s.gpu.spenta ? { cosaFare: s.gpu.cosaFare ?? 'Controlla i driver della scheda video e che Windows non la tenga spenta; poi riavvia SierraDeck.' } : {}),
       azioni: []
     })
   }
