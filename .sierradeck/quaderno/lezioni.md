@@ -4,9 +4,6 @@
 
 ## test
 
-- il guardiano del PC rimanda le suite intere con CPU sopra il 65%: spezzarle in gruppi di 10-30 file con percorsi espliciti, e riprovare dopo 8-9 minuti. _(2026-11-06)_
-- per una copia pulita: `git archive main` in una cartella del worktree, node_modules come junction; per togliere la junction usa `(Get-Item …).Delete()`, mai `rm -rf`. _(2026-11-06)_
-- il guardiano del PC carico rimanda anche un ciclo for di vitest file per file; passano solo i comandi con file espliciti. _(2026-11-06)_
 - il guardiano del PC serializza le suite complete e le fa rimandare per minuti: nei criteri conviene misurare file per file e dare tempo alla suite intera. _(2026-11-06)_
 - tests/shared: 1 prova su 1564 è caduta una volta alle 22:13 del 06/11 e non si è più ripetuta (tutto verde su main 522ff1da): è instabile a PC carico, si rimisura e basta. _(2026-11-06)_
 - Il postino ora legge la posta in arrivo ogni 90 s da fermo: i test con orologio fisso che fanno più `giro()` devono passare `quietaOgniMs: 0`. _(2026-11-06)_
@@ -45,6 +42,7 @@
 - Un worktree può partire indietro rispetto a main (qui mancava tutto k-50): fare git merge --ff-only main prima di lavorare. Foreground sleep è bloccato: riprovare, l'hook carico lascia passare. _(2026-11-06)_
 - un agente isolato non può lanciare git sulla cartella principale (hook, anche con `git stash list`): per confrontare la cartella principale usa Glob/find e per i riferimenti `git ls-tree main` dal wo… _(2026-11-06)_
 - Prima di dire «copia allineata a main» confrontare con `git rev-list --count HEAD..main`: la copia può restare indietro di decine di commit e il test pulito non vale per il main attuale. _(2026-11-06)_
+- nei worktree senza node_modules il typecheck va lanciato dopo aver creato la junction verso la cartella principale; la junction si toglie con rmdir solo dopo l'unione del ramo. _(2026-11-08)_
 
 ## errori
 
@@ -77,6 +75,8 @@
 - 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 - 07/11: v0.96.1 è già in main e taggata (unioni con poche prove mirate); la release delle correzioni del controllo PC + scheda video diventa 0.96.2. _(2026-11-07)_
 - 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
+- Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
+- Un addon usato solo dal renderer (es. @xterm/addon-webgl) va in devDependencies: fra le dependencies il controllo del pacchetto ferma l'installer. _(2026-11-08)_
 
 ## git
 
