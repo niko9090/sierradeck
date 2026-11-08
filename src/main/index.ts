@@ -603,7 +603,7 @@ function risorseQui(): RisorsePc | undefined {
     // si spegne dopo l'avvio (errori ripetuti), la Salute lo vede senza riavviare.
     let gpuOra = gpuQui
     if (gpuQui !== undefined) { try { gpuOra = riassuntoGpu(app.getGPUFeatureStatus() as unknown as Record<string, string>, gpuInfoQui) ?? gpuQui } catch { /* resta l'ultima */ } }
-    const gpu = gpuOra === undefined ? undefined : { ...gpuQui, ...(gpuCpu !== undefined ? { cpu: Math.round(gpuCpu * 10) / 10 } : {}) }
+    const gpu = gpuOra === undefined ? undefined : { ...gpuOra, ...(gpuCpu !== undefined ? { cpu: Math.round(gpuCpu * 10) / 10 } : {}) }
     return { ...cpuRamDa(metriche, cpus().length), ...contatoreDrive.riassunto(), ...(gpu !== undefined ? { gpu } : {}), misuratoIl: new Date().toISOString() }
   } catch { return undefined }
 }
