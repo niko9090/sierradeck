@@ -47,7 +47,11 @@ export const STIMA_PESANTE_MS = 4 * 60_000
 
 const normale = (cwd: string): string => cwd.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 
-/** 06/11: il tempo massimo di un'unione nel turno del PC (attesa compresa). */
+/**
+ * 06/11: il tempo massimo di un singolo passo git dell'unione nel turno del PC (attesa compresa).
+ * Voluto più corto della prova (15 min): il turno copre solo inizio e chiusura della prova, non le misure,
+ * e se scade prima la prova esce con lo stesso esito (`scaduta`, cartella ripulita, unione rimessa in fila).
+ */
 export const UNIONE_TURNO_MAX_MS = 12 * 60_000
 
 /** L'unione, o l'attesa del suo turno, ha superato il tempo massimo. */
