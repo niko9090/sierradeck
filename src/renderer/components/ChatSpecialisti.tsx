@@ -87,6 +87,8 @@ function ChatSpecialista({ workspace, s }: { workspace: string; s: Specialista }
 export function ChatSpecialisti({ workspace, colonna = false, pieno = false }: { workspace: string; colonna?: boolean; pieno?: boolean }): React.JSX.Element | null {
   const sond = useMemo(() => sondaggioOrchestratore(workspace), [workspace])
   const v = useSondaggio(sond)
+  // Spinta a evento: la Panoramica rilegge appena uno specialista parte o finisce; il giro resta come rete.
+  useEffect(() => window.gestore.autopilota.suSpecialistiCambiati?.(() => sond.rileggi()), [sond])
   const [ora, setOra] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setOra(Date.now()), 30_000); return () => clearInterval(t) }, [])
   const lista = specialistiInVista(v, ora)
