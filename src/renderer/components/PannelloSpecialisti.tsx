@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { VistaAttesa } from '@shared/attesa-specialisti'
 import { SPIEGA_STIME, daQuanto, minutiTesto, nomeWorkspace, postiTesto, prioritaTesto, quantoManca, totaleTesto } from '@shared/attesa-vista'
+import { MISURE, larghezzaEffettiva, larghezzaTrascinata, limita, massimoColonna, passoFreccia, suggerimentoBarra } from '@shared/misure-pannelli'
+import { useLarghezzaFinestra } from '../larghezza-finestra'
 import { Aiuto } from './Aiuto'
 
 /** Ogni quanto si rilegge la lista, in millisecondi. */
@@ -153,7 +155,49 @@ export function useAttesaSpecialisti(attiva: boolean): { vista: VistaAttesa | 'v
   return { vista, rileggi, metti }
 }
 
-export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): React.JSX.Element {
+/**
+ * k-160: Specialisti sta a destra, accanto al workspace (come le Domande): il
+ * mosaico si restringe invece di essere coperto. Larghezza trascinabile dal
+ * bordo, ricordata fra un avvio e l'altro.
+ */
+export function PannelloSpecialisti({ onChiudi, larghezza, onLarghezza, altreColonne = 0 }: {
+  onChiudi: () => void
+  larghezza: number
+  onLarghezza: (px: number) => void
+  /** Quanto prendono le altre colonne a destra già aperte. */
+  altreColonne?: number
+}): React.JSX.Element {
+  const [larga, setLarga] = useState(larghezza)
+  useEffect(() => setLarga(larghezza), [larghezza])
+  const finestra = useLarghezzaFinestra()
+  const trascina = (e: React.PointerEvent<HTMLDivElement>): void => {
+    e.preventDefault()
+    const bersaglio = e.currentTarget
+    bersaglio.setPointerCapture(e.pointerId)
+    const partenza = e.clientX
+    const iniziale = larga
+    let ultima = iniziale
+    const muovi = (ev: PointerEvent): void => {
+      ultima = larghezzaTrascinata({ sezione: 'specialisti', iniziale, partenzaX: partenza, x: ev.clientX, finestra: window.innerWidth, altreColonne })
+      setLarga(ultima)
+    }
+    const molla = (): void => {
+      bersaglio.removeEventListener('pointermove', muovi)
+      bersaglio.removeEventListener('pointerup', molla)
+      onLarghezza(ultima)
+    }
+    bersaglio.addEventListener('pointermove', muovi)
+    bersaglio.addEventListener('pointerup', molla)
+  }
+  const tasti = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const passo = passoFreccia('specialisti', e.key)
+    if (passo === 0) return
+    e.preventDefault()
+    const nuova = Math.min(limita('specialisti', larga + passo), massimoColonna('specialisti', window.innerWidth, altreColonne))
+    setLarga(nuova)
+    onLarghezza(nuova)
+  }
+  const iniziale = (): void => { setLarga(MISURE.specialisti.predefinita); onLarghezza(MISURE.specialisti.predefinita) }
   const { vista, rileggi, metti } = useAttesaSpecialisti(true)
   const [adesso, setAdesso] = useState(() => Date.now())
   const [daTogliere, setDaTogliere] = useState<string | undefined>(undefined)
@@ -172,7 +216,18 @@ export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): Rea
   const togli = (id: string): void => { setDaTogliere(undefined); void window.gestore.autopilota.togliAttesa(id).then(dopo).catch(() => dopo(undefined)) }
   const inFila = typeof vista === 'object' ? vista.inFila.length : 0
   return (
-    <div className="progetti salute" role="dialog" aria-label="Specialisti">
+    <aside className="domande-lato specialisti-lato" style={{ width: larghezzaEffettiva('specialisti', larga, finestra, altreColonne) }} aria-label="Specialisti">
+      <div
+        className="domande-lato__maniglia"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Larghezza della colonna degli Specialisti"
+        tabIndex={0}
+        title={suggerimentoBarra('specialisti')}
+        onPointerDown={trascina}
+        onDoubleClick={iniziale}
+        onKeyDown={tasti}
+      />
       <div className="progetti__testa">
         <span className="progetti__titolo">☰ Specialisti{inFila > 0 ? ` · ${inFila} in fila` : ''}</span>
         <span style={{ flex: 1 }} />
@@ -185,6 +240,6 @@ export function PannelloSpecialisti({ onChiudi }: { onChiudi: () => void }): Rea
           <ListaSpecialisti vista={vista} adesso={adesso} {...(daTogliere !== undefined ? { daTogliere } : {})} {...(daFermare !== undefined ? { daFermare } : {})} onMossa={mossa} onFerma={setDaFermare} onAnnullaFerma={() => setDaFermare(undefined)} onTogli={setDaTogliere} onAnnullaTogli={() => setDaTogliere(undefined)} onConfermaTogli={togli} />
         </div>
       </div>
-    </div>
+    </aside>
   )
 }

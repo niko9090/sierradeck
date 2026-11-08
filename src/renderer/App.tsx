@@ -65,6 +65,7 @@ import { PannelloChat } from './components/PannelloChat'
 import { PannelloSalute } from './components/PannelloSalute'
 import { PannelloDomande } from './components/PannelloDomande'
 import { PannelloSpecialisti, useAttesaSpecialisti } from './components/PannelloSpecialisti'
+import { MISURE, limita } from '@shared/misure-pannelli'
 import type { StatoLavoro } from '../main/cassaforte/lavoro-in-corso'
 import { useAvviaNomiPc } from './state/nomi-pc'
 import { BarraAffiancate, BarraLinguette, CorpoPanoramica, PANORAMICA, type SchedaVista } from './components/WorkspacePanoramica'
@@ -942,6 +943,20 @@ export function App(): React.JSX.Element {
   // Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti».
   const { vista: vistaSpecialisti } = useAttesaSpecialisti(true)
   const specialistiInFila = typeof vistaSpecialisti === 'object' ? vistaSpecialisti.inFila.length : 0
+  // k-160: Specialisti è una colonna a destra, a parte dai pannelli di sinistra. Aperta/chiusa e larghezza si ricordano su questo PC.
+  const [specialistiLato, setSpecialistiLato] = useState<{ aperto: boolean; larghezza: number }>(() => {
+    try {
+      const l = JSON.parse(localStorage.getItem('sierradeck.specialistiLato') ?? '{}') as { aperto?: unknown; larghezza?: unknown }
+      return { aperto: l.aperto === true, larghezza: limita('specialisti', typeof l.larghezza === 'number' ? l.larghezza : MISURE.specialisti.predefinita) }
+    } catch { return { aperto: false, larghezza: MISURE.specialisti.predefinita } }
+  })
+  const salvaSpecialistiLato = useCallback((cambio: { aperto?: boolean; larghezza?: number }): void => {
+    setSpecialistiLato((c) => {
+      const n = { ...c, ...cambio }
+      try { localStorage.setItem('sierradeck.specialistiLato', JSON.stringify(n)) } catch { /* resta com'è fino al riavvio */ }
+      return n
+    })
+  }, [])
   // La colonna laterale delle Domande: aperta o chiusa, e quanto e' larga.
   // Sta nelle preferenze, cosi' si ritrova com'era al riavvio.
   const [colonnaDomande, setColonnaDomande] = useState<{ aperta: boolean; larghezza: number }>({ aperta: false, larghezza: 400 })
@@ -1771,6 +1786,8 @@ export function App(): React.JSX.Element {
         progettiAperti={pannelloDrive}
         onProgetti={() => setPannelloDrive((a) => !a)}
         specialistiInFila={specialistiInFila}
+        specialistiAperti={specialistiLato.aperto}
+        onSpecialisti={() => salvaSpecialistiLato({ aperto: !specialistiLato.aperto })}
       />
 
       {/* L'aggiornamento sta sopra la banda degli avvisi: non è un guasto da
@@ -2072,7 +2089,6 @@ export function App(): React.JSX.Element {
             suiConsumi={saluteSuConsumi}
           />
         ) : null}
-        {aperto === 'specialisti' ? <PannelloSpecialisti onChiudi={() => setAperto(undefined)} /> : null}
         {aperto === 'negozio' ? (
           // Skill e MCP sono legati alla cartella della chat davanti: le mostri
           // dove valgono. I plugin valgono per tutte, e non dipendono da questa.
@@ -2196,8 +2212,18 @@ export function App(): React.JSX.Element {
         {/* Le Domande: una colonna fissa accanto alle chat, come nell'app
             Android. Resta aperta mentre si lavora. Dal 30/10 è l'unico posto
             delle domande, anche di quelle dell'autopilota del workspace. */}
+        {/* k-160: Specialisti a destra, accanto al workspace; indipendente dai pannelli di sinistra. */}
+        {specialistiLato.aperto ? (
+          <PannelloSpecialisti
+            larghezza={specialistiLato.larghezza}
+            onLarghezza={(px) => salvaSpecialistiLato({ larghezza: px })}
+            onChiudi={() => salvaSpecialistiLato({ aperto: false })}
+            altreColonne={colonnaDomande.aperta ? colonnaDomande.larghezza : 0}
+          />
+        ) : null}
         {colonnaDomande.aperta ? (
           <PannelloDomande
+            altreColonne={specialistiLato.aperto ? specialistiLato.larghezza : 0}
             larghezza={colonnaDomande.larghezza}
             onLarghezza={(px) => salvaColonnaDomande({ larghezza: px })}
             onChiudi={() => salvaColonnaDomande({ aperta: false })}

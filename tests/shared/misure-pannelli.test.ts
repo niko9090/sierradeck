@@ -9,6 +9,18 @@ import { normalizzaPreferenze, PREFERENZE_PREDEFINITE } from '@shared/preferenze
  * visualizzazione di tutta la parte qui di destra così ognuno può allargare o
  * stringere a piacimento tutte le sezioni».
  */
+describe('colonna Specialisti (k-160)', () => {
+  it('sta nei limiti e lascia leggibile il mosaico', () => {
+    expect(limita('specialisti', 100)).toBe(MISURE.specialisti.min)
+    expect(limita('specialisti', 5000)).toBe(MISURE.specialisti.max)
+    expect(larghezzaEffettiva('specialisti', 420, 1300, 400)).toBe(Math.max(MISURE.specialisti.min, 1300 - 400 - MOSAICO_MINIMO_PX))
+  })
+  it('trascinare a sinistra allarga, le frecce come le Domande', () => {
+    expect(larghezzaTrascinata({ sezione: 'specialisti', iniziale: 420, partenzaX: 900, x: 860, finestra: 2000, altreColonne: 0 })).toBe(460)
+    expect(passoFreccia('specialisti', 'ArrowLeft')).toBe(MISURE.specialisti.passo)
+  })
+})
+
 describe('i limiti', () => {
   it('ogni sezione resta fra il suo minimo e il suo massimo; un valore storto torna alla misura iniziale', () => {
     expect(limita('domande', 100)).toBe(MISURE.domande.min)

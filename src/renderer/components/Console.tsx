@@ -79,6 +79,10 @@ type Props = {
   onProgetti?: () => void
   /** Quanti specialisti sono in fila per un posto (k-49): il numero accanto a «Specialisti». */
   specialistiInFila?: number
+  /** k-160: Specialisti è aperto sul lato destro, accanto al workspace. */
+  specialistiAperti?: boolean
+  /** Apre o chiude Specialisti sul lato destro. */
+  onSpecialisti?: () => void
 }
 
 /** Le voci della fascia: quelle del menu principale e «Specialisti», subito dopo Domande (k-49). */
@@ -111,6 +115,8 @@ export function Console({
   progettiAperti = false,
   onProgetti,
   specialistiInFila = 0,
+  specialistiAperti = false,
+  onSpecialisti,
   aggiornamento,
   onStatoWorkspace,
   workspaceCheChiamano,
@@ -197,11 +203,12 @@ export function Console({
       // Il vecchio «drive» (0.61.0) è Progetti; «domande» è la colonna.
       if (quale === 'drive' || quale === 'progetti') { if (!progettiAperti) onProgetti?.() }
       else if (quale === 'domande') { if (!domandeAperte) onDomande?.() }
-      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni' || quale === 'specialisti') onApri(quale)
+      else if (quale === 'specialisti') { if (!specialistiAperti) onSpecialisti?.() }
+      else if (quale === 'salute' || quale === 'workspace' || quale === 'autopiloti' || quale === 'chat' || quale === 'negozio' || quale === 'quaderno' || quale === 'impostazioni') onApri(quale)
     }
     window.addEventListener('sierradeck:apri-pannello', suRichiesta)
     return () => window.removeEventListener('sierradeck:apri-pannello', suRichiesta)
-  }, [onApri, onProgetti, onDomande, progettiAperti, domandeAperte])
+  }, [onApri, onProgetti, onDomande, onSpecialisti, progettiAperti, domandeAperte, specialistiAperti])
   // «+ Nuova chat» dal pannello «Chat e workspace» (0.61.0): la stessa finestra della chat nuova.
   useEffect(() => {
     const suNuova = (): void => setNuovaChat(proponiNuovaChat(Object.values(useLayoutStore.getState().panes), useSessionStore.getState().sessions, casa))
@@ -266,11 +273,12 @@ export function Console({
   const inAttesa = ledAutopiloti.some((l) => l.classe === 'led--attesa')
   /** Il pannello di quella voce è aperto: il suo tasto resta acceso. */
   const statoVoce = (id: IdVoceFascia): boolean =>
-    id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : aperto === id
+    id === 'progetti' ? progettiAperti : id === 'domande' ? domandeAperte : id === 'specialisti' ? specialistiAperti : aperto === id
   /** Cosa fa ogni voce del menu principale. */
   const premi = (id: IdVoceFascia): void => {
     if (id === 'progetti') onProgetti?.()
     else if (id === 'domande') onDomande?.()
+    else if (id === 'specialisti') onSpecialisti?.()
     else if (id !== 'file') commuta(id)
   }
 
