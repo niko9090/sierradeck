@@ -131,7 +131,7 @@ import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } fr
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
 import { claudeDaAggiornare, notaClaude } from './claude-versione'
 import { contatoreDrive, cpuRamDa } from './risorse'
-import { risorseValide, type RisorsePc } from '@shared/risorse'
+import { risorseValide, riassuntoGpu, type RisorsePc } from '@shared/risorse'
 import { resolveClaudeCommand } from './config'
 import { leggiAccesso } from './accesso'
 import { apriContoDrive } from './cassaforte/conto-drive'
@@ -588,10 +588,15 @@ let statoClient: { inAscolto: boolean; errore?: string } | undefined
 /** L'ultimo controllo del firewall di Windows sulla porta del Client (si rifà al massimo ogni 2 minuti). */
 let firewallClient: { il: number; esito: EsitoFirewall } | undefined
 
+/** La scheda video, letta una volta dopo whenReady (k-168). */
+let gpuQui: { testo: string; spenta: boolean } | undefined
 /** Quanto lavora SierraDeck qui (0.69.0): per la Salute e il battito. */
 function risorseQui(): RisorsePc | undefined {
   try {
-    return { ...cpuRamDa(app.getAppMetrics(), cpus().length), ...contatoreDrive.riassunto(), misuratoIl: new Date().toISOString() }
+    const metriche = app.getAppMetrics()
+    const gpuCpu = metriche.find((m) => m.type === 'GPU')?.cpu.percentCPUUsage
+    const gpu = gpuQui === undefined ? undefined : { ...gpuQui, ...(gpuCpu !== undefined ? { cpu: Math.round(gpuCpu * 10) / 10 } : {}) }
+    return { ...cpuRamDa(metriche, cpus().length), ...contatoreDrive.riassunto(), ...(gpu !== undefined ? { gpu } : {}), misuratoIl: new Date().toISOString() }
   } catch { return undefined }
 }
 /** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
@@ -1218,6 +1223,10 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady()
     .then(() => {
+      // La scheda video (k-168): una lettura, senza bloccare l'avvio.
+      void app.getGPUInfo('basic').catch(() => undefined).then((info) => {
+        try { gpuQui = riassuntoGpu(app.getGPUFeatureStatus() as unknown as Record<string, string>, info) } catch { /* niente riga */ }
+      })
       // Il menu Modifica con i ruoli copia/incolla: senza, Ctrl+C e Ctrl+V nei
       // campi e nella chat dell'autopilota dipendevano dal menu predefinito di
       // Electron (vedi `menu-modifica.ts`). Resta nascosto: torna premendo Alt.

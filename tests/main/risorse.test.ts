@@ -17,10 +17,22 @@ describe('il contatore delle richieste al Drive', () => {
     expect(tipoRichiestaDrive('DELETE', 'https://www.googleapis.com/drive/v3/files/abc')).toBe('cancella')
   })
 
+  it('il 403 del Drive pieno non conta come «troppe richieste»', async () => {
+    const c = creaContatoreDrive(() => 0)
+    const risposte = [
+      new Response('{"error":{"errors":[{"reason":"storageQuotaExceeded"}]}}', { status: 403 }),
+      new Response('{"error":{"errors":[{"reason":"userRateLimitExceeded"}]}}', { status: 403 }),
+      new Response('', { status: 429 })
+    ]
+    const f = conConteggio((async () => risposte.shift() as Response) as unknown as typeof fetch, c)
+    for (let i = 0; i < 3; i += 1) await f('https://www.googleapis.com/upload/drive/v3/files', { method: 'POST' })
+    expect(c.riassunto().driveRifiutate).toBe(2)
+  })
+
   it('conta al minuto sugli ultimi 10 minuti, e quante Google ne rifiuta', async () => {
     let ora = 0
     const c = creaContatoreDrive(() => ora)
-    const finto = (async (_u: string, init?: { method?: string }) => new Response('', { status: init?.method === 'POST' ? 403 : 200 })) as unknown as typeof fetch
+    const finto = (async (_u: string, init?: { method?: string }) => new Response(init?.method === 'POST' ? '{"error":{"errors":[{"reason":"rateLimitExceeded"}]}}' : '', { status: init?.method === 'POST' ? 403 : 200 })) as unknown as typeof fetch
     const f = conConteggio(finto, c)
     for (let i = 0; i < 20; i += 1) await f('https://www.googleapis.com/drive/v3/files?q=x')
     await f('https://www.googleapis.com/upload/drive/v3/files', { method: 'POST' })
@@ -78,13 +90,25 @@ describe('nel battito, senza farlo riscrivere', () => {
 })
 
 describe('nella Salute', () => {
-  it('una voce con questo PC e gli altri; attenzione se Google rifiuta', () => {
+  it('una voce con questo PC e gli altri; informazione se i numeri sono normali', () => {
     const base = { adesso: Date.parse('2026-10-12T21:00:00Z'), versione: '0.69.0', drive: { configurato: true, connesso: true }, errori: [], consegne: [], oreErrori: 6 }
     const s = componiSalute({ ...base, pc: [{ pcId: 'b', nome: 'PORTATILE', versione: '0.69.0', risorse: risorse({ driveAlMinuto: 12, driveRifiutate: 3 }) }], risorse: risorse() })
     const v = s.voci.find((x) => x.chiave === 'risorse')
     expect(v?.titolo).toBe('Quanto lavora SierraDeck: CPU 0,9% · RAM 680 MB · Drive 4,2 richieste/min')
     expect(v?.spiegazione).toContain('PORTATILE: CPU 0,9% · RAM 680 MB · Drive 12 richieste/min · 3 rifiutate da Google')
-    expect(v?.tono).toBe('attenzione')
+    expect(v?.tono).toBe('ok')
+  })
+
+  it('attenzione solo sopra le soglie vere, e solo per i consumi di questo PC', () => {
+    const base = { adesso: Date.parse('2026-10-12T21:00:00Z'), versione: '0.69.0', drive: { configurato: true, connesso: true }, errori: [], consegne: [], oreErrori: 6 }
+    const tono = (r: RisorsePc, altro?: RisorsePc): string | undefined =>
+      componiSalute({ ...base, pc: altro ? [{ pcId: 'b', nome: 'B', versione: '0.69.0', risorse: altro }] : [], risorse: r }).voci.find((x) => x.chiave === 'risorse')?.tono
+    expect(tono(risorse({ cpu: 80 }))).toBe('attenzione')
+    expect(tono(risorse({ ramMb: 4000 }))).toBe('attenzione')
+    expect(tono(risorse({ driveRifiutate: 25 }))).toBe('attenzione')
+    expect(tono(risorse({ driveRifiutate: 2 }))).toBe('ok')
+    // I numeri alti di un altro PC li segnala quel PC, non questo.
+    expect(tono(risorse(), risorse({ driveRifiutate: 28 }))).toBe('ok')
   })
 
   it('dal battito di un altro PC si prende solo la forma giusta', () => {

@@ -176,7 +176,13 @@ export function conConteggio(f: typeof fetch, c: ContatoreDrive = contatoreDrive
     const tipo = tipoRichiestaDrive(init?.method ?? 'GET', url)
     try {
       const r = await conTetto(input, init)
-      c.conta(tipo, r.status === 403 || r.status === 429)
+      // «Rifiutata» = troppe richieste (429, o 403 rateLimit). Il 403 del Drive pieno non e' un limite di velocita'.
+      let limite = r.status === 429
+      if (r.status === 403) {
+        const testo = await r.clone().text().catch(() => '')
+        limite = /rateLimitExceeded|Quota exceeded for quota metric|per minute/i.test(testo)
+      }
+      c.conta(tipo, limite)
       return r
     } catch (e) {
       c.conta(tipo, false)
