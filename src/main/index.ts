@@ -589,13 +589,19 @@ let statoClient: { inAscolto: boolean; errore?: string } | undefined
 let firewallClient: { il: number; esito: EsitoFirewall } | undefined
 
 /** La scheda video, letta una volta dopo whenReady (k-168). */
-let gpuQui: { testo: string; spenta: boolean } | undefined
+let gpuQui: { testo: string; spenta: boolean; motivo?: string; cosaFare?: string } | undefined
+/** I dati della scheda letti all'avvio: servono a rileggere lo stato ad ogni misura. */
+let gpuInfoQui: unknown
 /** Quanto lavora SierraDeck qui (0.69.0): per la Salute e il battito. */
 function risorseQui(): RisorsePc | undefined {
   try {
     const metriche = app.getAppMetrics()
     const gpuCpu = metriche.find((m) => m.type === 'GPU')?.cpu.percentCPUUsage
-    const gpu = gpuQui === undefined ? undefined : { ...gpuQui, ...(gpuCpu !== undefined ? { cpu: Math.round(gpuCpu * 10) / 10 } : {}) }
+    // Lo stato si rilegge ad ogni misura (e' una lettura in memoria): se la scheda
+    // si spegne dopo l'avvio (errori ripetuti), la Salute lo vede senza riavviare.
+    let gpuOra = gpuQui
+    if (gpuQui !== undefined) { try { gpuOra = riassuntoGpu(app.getGPUFeatureStatus() as unknown as Record<string, string>, gpuInfoQui) ?? gpuQui } catch { /* resta l'ultima */ } }
+    const gpu = gpuOra === undefined ? undefined : { ...gpuQui, ...(gpuCpu !== undefined ? { cpu: Math.round(gpuCpu * 10) / 10 } : {}) }
     return { ...cpuRamDa(metriche, cpus().length), ...contatoreDrive.riassunto(), ...(gpu !== undefined ? { gpu } : {}), misuratoIl: new Date().toISOString() }
   } catch { return undefined }
 }
@@ -1225,6 +1231,7 @@ if (!app.requestSingleInstanceLock()) {
     .then(() => {
       // La scheda video (k-168): una lettura, senza bloccare l'avvio.
       void app.getGPUInfo('basic').catch(() => undefined).then((info) => {
+        gpuInfoQui = info
         try { gpuQui = riassuntoGpu(app.getGPUFeatureStatus() as unknown as Record<string, string>, info) } catch { /* niente riga */ }
       })
       // Il menu Modifica con i ruoli copia/incolla: senza, Ctrl+C e Ctrl+V nei
