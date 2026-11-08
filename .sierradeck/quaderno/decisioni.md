@@ -41,3 +41,4 @@
 - «Per sbloccare le unioni, posso contare su di te per riavviare il servizio dell'autopilota di SierraDeck adesso?» → Non so perché si è bloccato e non so perché tu devi riavviare Ma questo è sinonimo di un problema Quindi se è un problema risolvilo e fai che in modo tale che non capiti più e che io non debba intervenire perché le domande agli auto piloti io le devo ricevere solo in caso che non si _(2026-11-06)_
 - «Quando il telefono non si è collegato senza Tailscale, eri sul wifi di casa o fuori, con i dati del telefono?» → Ero sul wifi di casa _(2026-11-06)_
 - «Scheda video: faccio disegnare i terminali con la scheda video e aggiungo nella Salute se è attiva?» → Sì, tutte e due _(2026-11-07)_
+- «Le unioni continuano a scadere e nessun lavoro entra. Faccio unire tutto da uno specialista, saltando la fila del programma?» → ho fatto fare a una chat diverse modifica, riallineati con le info nl quaderno che riprendiamo le modifiche da qui _(2026-11-08)_
