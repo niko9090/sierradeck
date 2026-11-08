@@ -114,6 +114,23 @@ export function prima(a: string, b: string): boolean {
 }
 
 /**
+ * k-196: come dire la versione di un altro PC nel pannello «Altri computer». Una versione detta dal PC adesso
+ * (`viva`) vale; quella del battito vecchio no: si dice di quando è e non fa dire «Aggiorna».
+ * «Aggiorna» solo se la versione viva è davvero più vecchia della nostra.
+ */
+export function versionePcInBreve(p: { versione: string; battito?: string; viva?: string }, mia: string, adesso: number): { testo: string; indietro: boolean } {
+  if (p.viva !== undefined) {
+    const indietro = prima(p.viva, mia)
+    return { testo: `v${p.viva}${indietro ? ' · più vecchia, aggiorna' : ''}`, indietro }
+  }
+  const t = p.battito === undefined ? Number.NaN : Date.parse(p.battito)
+  if (!Number.isNaN(t) && adesso - t <= PC_SPENTO_DOPO_MS) return { testo: `v${p.versione}`, indietro: prima(p.versione, mia) }
+  const g = Number.isNaN(t) ? undefined : Math.floor((adesso - t) / 86_400_000)
+  const eta = g === undefined ? 'dato vecchio' : g >= 1 ? `dato di ${g} g fa` : `dato di ${Math.max(1, Math.round((adesso - t) / 3_600_000))} h fa`
+  return { testo: `v${p.versione} (${eta})`, indietro: false }
+}
+
+/**
  * Gli errori delle ultime `ore` dal registro: le righe `[ERRORE]` e quelle che
  * dicono «fallito», «non riuscito», «rifiutat…». Raggruppate per messaggio
  * (numeri, orari e id tolti), dalla più recente.
