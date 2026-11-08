@@ -77,7 +77,7 @@ describe('rifiuti di frequenza: attesa che cresce, con un po\' di casualita\'', 
       const pause: number[] = []
       const fetchFinto = (async () => { richieste += 1; return richieste <= 3 ? new Response(corpo, { status: stato }) : new Response('{}', { status: 200 }) }) as unknown as typeof fetch
       const a = creaArchivioDrive({ token: async () => 't', fetch: fetchFinto, freno: creaFreno(), caso: () => 0.5, pausa: async (ms) => { pause.push(ms) } })
-      await a.cancellaId('x')
+      await a.cancellaId!('x')
       expect(richieste).toBe(4)
       expect(pause).toEqual([2000, 4000, 8000])
     }
@@ -86,7 +86,7 @@ describe('rifiuti di frequenza: attesa che cresce, con un po\' di casualita\'', 
   it('dopo 5 rifiuti si ferma e non insiste', async () => {
     let richieste = 0
     const a = creaArchivioDrive({ token: async () => 't', fetch: (async () => { richieste += 1; return new Response('{}', { status: 429 }) }) as unknown as typeof fetch, freno: creaFreno(), caso: () => 0.5, pausa: async () => undefined })
-    await expect(a.cancellaId('x')).rejects.toThrow()
+    await expect(a.cancellaId!('x')).rejects.toThrow()
     expect(richieste).toBe(5)
   })
 })
