@@ -29,6 +29,7 @@
 - Il messaggio «non passano le prove dei compiti già uniti» non dice quali: prima di correggere, far girare a un verificatore l'intera vitest (a lotti da 40 se la guardia rifiuta) su main e sul ramo. _(2026-11-08)_
 - La guardia del carico rifiuta anche i lotti piccoli se un comando pesante è appena partito; i lotti per cartella (tests/renderer, tests/autopilot-host) sono passati, quelli grossi no. _(2026-11-08)_
 - In un worktree isolato `npx vitest run $(cat elenco)` viene rifiutato come comando troppo complesso; si usano cartelle o prefissi espliciti. _(2026-11-08)_
+- La guardia del carico può rifiutare `vitest run tests/renderer` all'infinito, anche dividendo per prefisso. Passano solo i comandi con pochi file nominati, quindi conviene elencarli per nome. _(2026-11-08)_
 
 ## worktree
 
@@ -44,8 +45,6 @@
 
 ## android
 
-- In `android/` `SezioneDrive` è definita in `Drive.kt` e in `SezioniImpostazioni.kt` con firme diverse: un doppione fragile, da unificare. _(2026-11-06)_
-- Il «Mi collego a…» provava solo l'indirizzo d'accoppiamento: con Tailscale spento il timeout di 5 s scadeva prima del fallback su `Percorsi.ritrova`. Prima ritrovare, poi `ciao()`. _(2026-11-06)_
 - Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
 - Api.kt chiama /api/specialisti/attesa/priorita e /togli, che non sono in ROTTE_PONTE (un test PC le vuole fuori): da telefono via ponte non passano. _(2026-11-07)_
 - Il rosso del criterio nella cartella principale con build pulita verde indica stato incrementale (android/app/build, .gradle) o lock, non codice: salvare l'uscita completa della misura. _(2026-11-07)_
@@ -68,7 +67,6 @@
 
 ## git
 
-- Un compito unito con criterio rosso lascia main rosso: il cancello poi respinge TUTTE le altre unioni («anche nella cartella principale non passa»). Correggere quel rosso prima di ogni altra unione. _(2026-11-06)_
 - Un'unione di prova fallita può lasciare modifiche in stage nella cartella principale: poi tutte le unioni falliscono con «modifiche non salvate». Prima stash dopo aver verificato che sono in un ramo. _(2026-11-06)_
 - il ramo di lavoro può restare indietro di decine di commit rispetto a main: prima di misurare, `git merge --ff-only main`. _(2026-11-06)_
 - Unioni respinte per «modifiche non salvate»: guardare .git/MERGE_MSG. Se c'è un'unione di prova del programma in corso, aspettarne l'esito e poi riunire gli altri rami uno alla volta. _(2026-11-06)_
@@ -358,3 +356,4 @@
 ## renderer
 
 - i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
+- La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
