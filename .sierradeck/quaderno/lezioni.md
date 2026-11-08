@@ -92,7 +92,6 @@
 
 ## ambiente
 
-- l'hook rimanda tsc e le suite anche con PC libero se un criterio dell'autopilota è in corso; più file insieme (fino a ~35) passano, le cartelle intere no. _(2026-11-06)_
 - il guardiano del PC rifiuta tsc e le suite larghe (anche con liste di file generate) finché la CPU è alta; i gruppi con nomi di file scritti per esteso passano. _(2026-11-06)_
 - il guardiano del PC carico rimanda tsc e le suite intere anche con CPU al 60%; un ciclo su più file in un solo comando viene rimandato come la suite: un file per chiamata. _(2026-11-06)_
 - Nei worktree manca `node_modules`: serve una junction temporanea, creata con `New-Item -ItemType Junction` in PowerShell, perché `cmd mklink` in Bash viene rifiutato. _(2026-11-06)_
@@ -109,6 +108,7 @@
 - La guardia del PC rifiuta anche `npm run typecheck` con CPU alta e non basta riprovare; un comando in background non aggira il rifiuto. _(2026-11-08)_
 - la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
+- Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 
 ## main
 
