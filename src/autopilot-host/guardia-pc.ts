@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process'
 import { durata } from '@shared/adesso'
 import type { MisuraPc } from '@shared/posti-chat'
 import { rigaPcCarico, type PcCarico } from '@shared/indicatore-autopilota'
-import { ePesante } from './criteri-veloci'
+import { ePesante, senzaApici } from './criteri-veloci'
 import type { Giudizio, RichiestaStrumento } from './divieti'
 import { TURNI_PC, type TurniCriteri } from './turni-criteri'
 
@@ -323,7 +323,8 @@ export function creaGuardiaPc(o: OpzioniGuardia): GuardiaPc {
  * `tsc -p …`, `tsc -b`, `npm run typecheck`. Non `tsc --version`, né `tsc`
  * su un file solo.
  */
-export function eTscIntero(comando: string): boolean {
+export function eTscIntero(intero: string): boolean {
+  const comando = senzaApici(intero)
   if (/\bnpm\s+run\s+(typecheck|type-check|tsc|check-types)\b/i.test(comando)) return true
   for (const m of comando.matchAll(/(?:^|[\s;&|(/\\])(?:vue-)?tsc(?:\.cmd|\.js)?(?=\s|$|[;&|)])([^;&|\n]*)/gi)) {
     const resto = m[1] ?? ''
@@ -369,6 +370,11 @@ export function giudicaPesanteConPcCarico(r: RichiestaStrumento, carico: PcCaric
     pcCarico: true,
     motivo: `SierraDeck rimanda questo comando: ${rigaPcCarico(carico)}. Non è un errore del tuo lavoro: intanto continua con il resto (leggere, scrivere, i test di un solo file) e riprova la compilazione o la suite completa fra qualche minuto. Non chiudere nessun programma.`
   }
+}
+
+/** L'`agent_id` dello specialista che chiama (l'hook lo porta solo per i subagenti). */
+export function idAgente(corpo: Record<string, unknown>): string | undefined {
+  return typeof corpo.agent_id === 'string' && corpo.agent_id.trim() !== '' ? corpo.agent_id.trim().slice(0, 80) : undefined
 }
 
 /** Il tempo di un comando della chat se non dice il suo: quello di serie di Claude Code (2 min). */
@@ -434,6 +440,35 @@ export function giudicaPesanteDellaChat(
   }
   if (!giaMio) o.guardia?.passoLibero?.(true)
   return { ok: true }
+}
+
+/**
+ * **Lo specialista non riceve il «riprova fra qualche minuto»** (0.97.1). Non ha modo di
+ * aspettare (`sleep` e bloccato, Monitor non c'e): riprovava ogni 2-3 secondi e dopo pochi
+ * minuti chiudeva senza prove. Qui aspetta il programma, dentro l'hook, finche il PC e libero
+ * e il turno e suo, al piu `ATTESA_IN_UN_HOOK_MS`: poi il comando passa comunque.
+ */
+export async function giudicaPesanteAspettando(
+  r: RichiestaStrumento,
+  o: Parameters<typeof giudicaPesanteDellaChat>[1] & { dormi?: (ms: number) => Promise<void>; riprovaMs?: number; tettoMs?: number }
+): Promise<Giudizio> {
+  const dormi = o.dormi ?? ((ms: number) => new Promise<void>((ok) => { setTimeout(ok, ms) }))
+  const tetto = o.tettoMs ?? ATTESA_IN_UN_HOOK_MS
+  const passo = o.riprovaMs ?? 5_000
+  let atteso = 0
+  let detto = false
+  for (;;) {
+    const g = giudicaPesanteDellaChat(r, { ...o, ora: o.ora !== undefined ? o.ora + atteso : Date.now() })
+    if (g.ok || g.pcCarico !== true) return g
+    if (atteso >= tetto) {
+      console.warn(`[guardia-pc] ${o.chi} parte comunque: aspettava da ${durata(atteso)}, il tetto dell'attesa in un hook`)
+      return { ok: true }
+    }
+    if (!detto) { console.info(`[guardia-pc] ${o.chi} aspetta dentro l'hook: ${g.motivo}`); detto = true }
+    const quanto = Math.min(passo, tetto - atteso)
+    await dormi(quanto)
+    atteso += quanto
+  }
 }
 
 /**
