@@ -6,6 +6,15 @@ import { PC_SPENTO_DOPO_MS } from '@shared/posta'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
 
 /**
+ * k-196: la versione che un PC dice adesso (rotta leggera /api/pc), se risponde. Una sola fonte:
+ * la usano la Salute e il pannello «Altri computer». Senza risposta valida: undefined.
+ */
+export async function versioneDalVivo(chiama: (pcId: string, percorso: string) => Promise<unknown>, pcId: string): Promise<string | undefined> {
+  const r = await chiama(pcId, '/api/pc').catch(() => undefined) as { versione?: unknown } | undefined
+  return typeof r?.versione === 'string' && /^\d+\.\d+\.\d+/.test(r.versione) ? r.versione : undefined
+}
+
+/**
  * Il controllo di tutti i PC (0.88.9). Nicholas (31/10): «comunica con tutti i
  * SierraDeck e controlla ogni criticità». Prima ogni PC mandava solo i suoi
  * errori; lo stato (Drive, aggiornamento, autopiloti fermi, PC che non

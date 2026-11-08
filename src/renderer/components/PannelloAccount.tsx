@@ -14,6 +14,7 @@ import { descriviProgresso, type ProgressoSync } from '../progresso-sync'
 import { ModaleConferma } from './ModaleConferma'
 import { ModalePosta } from './ModalePosta'
 import { pcVivo, type BattitoPc } from '@shared/posta'
+import { versionePcInBreve } from '@shared/salute'
 import { useLayoutStore } from '../state/layout'
 
 const COLORE_ACCOUNT: Record<Colore, string> = { verde: 'var(--verde)', ambra: 'var(--ambra)', rosso: 'var(--rosso)', blu: 'var(--blu)', quieto: 'var(--testo-quieto)' }
@@ -527,6 +528,9 @@ export function AltriComputer(): React.JSX.Element | null {
   const [pc, setPc] = useState<BattitoPc[] | undefined>(undefined)
   const [aperto, setAperto] = useState<BattitoPc | undefined>(undefined)
   const [adesso, setAdesso] = useState(Date.now())
+  // k-196: la versione detta dal PC adesso (pcId → versione) e la nostra, per non fidarsi del battito vecchio.
+  const [vive, setVive] = useState<Record<string, string>>({})
+  const [mia, setMia] = useState('')
   const [espanso, setEspanso] = useState<string | undefined>(undefined)
   const addPane = useLayoutStore((s) => s.addPane)
   /** Apre qui un riquadro che guarda dal vivo quella chat di quel PC. */
@@ -538,8 +542,10 @@ export function AltriComputer(): React.JSX.Element | null {
   }
   const ricarica = (): void => {
     void window.gestore.posta.pc().then((p) => { setPc(p); setAdesso(Date.now()) }).catch(() => setPc([]))
+    void window.gestore.posta.versioniVive().then(setVive).catch(() => undefined)
   }
   useEffect(() => {
+    void window.gestore.sistema.versione().then(setMia).catch(() => undefined)
     ricarica()
     const t = setInterval(ricarica, 15_000)
     return () => clearInterval(t)
@@ -568,12 +574,13 @@ export function AltriComputer(): React.JSX.Element | null {
             // «spento» TypeScript restringerebbe `b` a `never`.
             const vivo = pcVivo(b, adesso) === true
             const aspettano = b.chat.filter((c) => c.aspetta).length
+            const ver = versionePcInBreve({ versione: b.versione, battito: b.battito, ...(vive[b.pcId] !== undefined ? { viva: vive[b.pcId] } : {}) }, mia === '' ? '0.0.0' : mia, adesso)
             return (
               <li key={b.pcId} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong><NomePc id={b.pcId} nome={nomeDaMostrare(b)} /></strong>
                   <span className="account__nota" style={{ margin: 0 }}>
-                    {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · v{b.versione} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
+                    {' '}· {vivo ? 'acceso' : `spento, ultimo segno ${quando(b.battito)}`} · {ver.testo} · {b.chat.length} chat aperte{aspettano > 0 ? ` (${aspettano} aspettano)` : ''} · {b.cartelle.length} cartelle
                   </span>
                 </span>
                 {b.chat.length > 0 ? (

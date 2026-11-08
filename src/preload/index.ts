@@ -361,6 +361,8 @@ contextBridge.exposeInMainWorld('gestore', {
   posta: {
     io: (): Promise<string> => ipcRenderer.invoke('posta:io'),
     pc: (): Promise<BattitoPc[]> => ipcRenderer.invoke('posta:pc'),
+    /** k-196: la versione che ogni PC acceso dice adesso (pcId → versione). */
+    versioniVive: (): Promise<Record<string, string>> => ipcRenderer.invoke('posta:versioni-vive'),
     /** Chi è questo PC, con il nome scelto (0.52.4). */
     identita: (): Promise<{ id: string; nome: string; host: string; nomeScelto?: string }> => ipcRenderer.invoke('pc:identita'),
     /** Cambia il nome scelto di questo PC; vuoto = torna all'hostname. */

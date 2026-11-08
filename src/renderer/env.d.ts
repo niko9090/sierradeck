@@ -309,6 +309,7 @@ declare global {
       posta: {
         io: () => Promise<string>
         pc: () => Promise<import('../shared/posta').BattitoPc[]>
+        versioniVive: () => Promise<Record<string, string>>
         identita: () => Promise<{ id: string; nome: string; host: string; nomeScelto?: string }>
         impostaNome: (nome: string) => Promise<{ id: string; nome: string; host: string; nomeScelto?: string }>
         suNomeCambiato: (cb: (i: { id: string; nome: string; host: string; nomeScelto?: string }) => void) => () => void
