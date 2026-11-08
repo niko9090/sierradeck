@@ -41,6 +41,16 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.97.1',
+    righe: [
+      '**Meno fermate degli autopiloti:** se il PC è carico, gli specialisti aspettano e riprovano invece di essere respinti. Non si chiudono più a metà e non lasciano comandi in sottofondo. Partono solo con la loro copia.',
+      '**Controlli più veri:** via i controlli che davano sempre verde. Una cartella principale con modifiche non salvate viene segnalata, senza un rosso falso.',
+      '**Drive pieno:** niente più tentativi a raffica quando Google dice che lo spazio è finito. Si fanno meno richieste, quindi meno rifiuti da Google, e si vede quanto spazio c’è.',
+      '**Scheda video:** i terminali si disegnano con la scheda video e la Salute dice se è attiva, con lo stato di adesso e non quello dell’avvio.',
+      '**Meno avvisi «Aggiorna» falsi:** la versione di un PC si chiede al PC stesso, quando risponde. Nel pannello Computer, un dato preso solo dal Drive dice da quanto è vecchio.',
+    ],
+  },
+  {
     versione: '0.97.0',
     righe: [
       '**Specialisti a destra:** il pannello degli specialisti si apre accanto al workspace, si allarga e si stringe e non chiude i pannelli di sinistra.',
