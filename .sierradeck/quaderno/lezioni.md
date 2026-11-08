@@ -4,7 +4,6 @@
 
 ## test
 
-- drive-rete-0-86-2 ("corpo che smette di arrivare", timer 40 ms) fallisce a PC carico e passa da solo: se è rosso in una suite larga, rilanciarlo da solo. _(2026-11-06)_
 - molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
 - A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
 - Il rosso di tests/main può non riprodursi in un worktree pulito: 2741 test contro i 2744 visti nella cartella principale. Prima di correggere, confrontare git status e conteggio test fra le due copie. _(2026-11-06)_
@@ -88,6 +87,7 @@
 - Unioni respinte per «modifiche non salvate»: guardare .git/MERGE_MSG. Se c'è un'unione di prova del programma in corso, aspettarne l'esito e poi riunire gli altri rami uno alla volta. _(2026-11-06)_
 - un ramo già aperto in un altro worktree non si può riprendere con checkout: lo stesso lavoro si porta sul proprio ramo con reset --hard sul suo commit, e poi si unisce main. _(2026-11-06)_
 - Il «lavoro di k-63» non era un ramo di codice: `abf869b0` ha solo correzioni a due test, e l'ottimizzazione del Drive era già in main (0.95.6, k-65). _(2026-11-07)_
+- Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
 
 ## autopilota
 
