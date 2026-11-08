@@ -55,16 +55,27 @@ export function guardaFuori(comando: string): boolean {
  * (mezzo secondo) metteva in fila per minuti gli specialisti degli altri
  * progetti e i criteri.
  */
-export function ePesante(comando: string, cwd?: string): boolean {
+export function ePesante(intero: string, cwd?: string): boolean {
+  const comando = senzaApici(intero)
   if (!PESANTE.test(comando)) return false
   // 0.96.1: pesante solo se il programma pesante è **il comando** di un pezzo,
   // non una parola dentro: `grep -rn gradle`, `cat build.gradle`, `Get-Process java | findstr gradle`
   // leggono soltanto, e il 07/11 venivano rimandati per un quarto d'ora.
   const pezzi = comando.split(/&&|\|\||[;|\n]/u).filter((pezzo) => inizioPesante(pezzo))
   if (pezzi.length === 0) return false
-  if (cwd === undefined || /(?:^|[\s;&|(])(cd|pushd|Set-Location)\s/i.test(comando)) return true
+  if (cwd === undefined || /(?:^|[\s;&|(])(cd|pushd|Set-Location)\s/i.test(intero)) return true
   // Ogni pezzo di `a && b; c` per conto suo: pesante se lo è uno.
   return pezzi.some((pezzo) => !npmTestLeggero(pezzo, cwd))
+}
+
+/**
+ * Toglie il testo fra apici (0.97.1): `Where-Object { $_.Name -match 'java|gradle|tsc' }` non
+ * lancia niente di pesante, ma il taglio su `|` ne faceva dei comandi. Resta il testo fra apici
+ * che segue `-c`, `-Command`, `/c`, `/k`: e il comando che una shell lancia (`bash -c "npm test"`).
+ */
+export function senzaApici(comando: string): string {
+  return comando.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/gs, (m, pos: number) =>
+    /(?:^|\s)(?:-c|-command|\/[ck])\s*$/i.test(comando.slice(0, pos)) ? m : ' ')
 }
 
 const INIZIO_PESANTE = /^(?:gradlew?(?:\.bat)?|vitest(?:\.mjs)?|npm\s+(?:run\s+)?test|playwright|cargo\s+test|mvn|pytest|dotnet\s+test|npm\s+run\s+(?:build|pacchetto|dist)|electron-builder)\b/i

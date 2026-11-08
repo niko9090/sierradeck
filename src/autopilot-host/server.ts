@@ -27,7 +27,7 @@ import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './c
 import { peggioratiDelRamo } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
-import { giudicaPesanteDellaChat, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
+import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
@@ -1298,8 +1298,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
           let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
           if (g.ok && (chatPre === undefined || chatPre === idAp)) g = servizio().preTool(a, corpo)
-          if (g.ok) g = giudicaPesanteDellaChat(corpo, { chi: `${idAp}::${chatPre ?? '-'}`, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) })
-          if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${idAp}::${chatPre ?? '-'} comando pesante rimandato: ${g.motivo}`)
+          const chiPre = `${idAp}::${idAgente(corpo) ?? chatPre ?? '-'}`
+          if (g.ok) {
+            const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
+            // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
+            g = idAgente(corpo) !== undefined ? await giudicaPesanteAspettando(corpo, pesante) : giudicaPesanteDellaChat(corpo, pesante)
+          }
+          if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
             console.warn(`[autopilota] ${idAp}: comando bloccato — ${g.motivo}`)
             const fresco = deps.archivio.leggi(idAp) ?? a
@@ -1317,7 +1322,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (via !== undefined) { idAp = via.id; chatR = via.chat }
           const corpo = ((await leggiCorpo(req)) ?? {}) as Record<string, unknown>
           rispondi(res, 200, {})
-          if (ID_VALIDO.test(idAp)) rendiTurnoDopoComando(corpo, { chi: `${idAp}::${chatR ?? '-'}`, turni: deps.turni ?? TURNI_PC })
+          if (ID_VALIDO.test(idAp)) rendiTurnoDopoComando(corpo, { chi: `${idAp}::${idAgente(corpo) ?? chatR ?? '-'}`, turni: deps.turni ?? TURNI_PC })
           if (!ID_VALIDO.test(idAp) || chatR === undefined || chatR === idAp || !ID_VALIDO.test(chatR)) return
           const trascrizione = testoDi(corpo.transcript_path)
           if (trascrizione !== '') leggiRapporto(idAp, chatR, trascrizione)
