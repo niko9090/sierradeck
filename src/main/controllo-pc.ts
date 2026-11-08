@@ -1,9 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import type { Salute } from '@shared/salute'
+import { prima, type Salute } from '@shared/salute'
 import { PC_SPENTO_DOPO_MS } from '@shared/posta'
 import type { AutopilotiDiPc } from '@shared/autopiloti-altri'
+
+/**
+ * k-196: la versione che un PC dice adesso (rotta leggera /api/pc), se risponde. Una sola fonte:
+ * la usano la Salute e il pannello «Altri computer». Senza risposta valida: undefined.
+ */
+export async function versioneDalVivo(chiama: (pcId: string, percorso: string) => Promise<unknown>, pcId: string): Promise<string | undefined> {
+  const r = await chiama(pcId, '/api/pc').catch(() => undefined) as { versione?: unknown } | undefined
+  return typeof r?.versione === 'string' && /^\d+\.\d+\.\d+/.test(r.versione) ? r.versione : undefined
+}
 
 /**
  * Il controllo di tutti i PC (0.88.9). Nicholas (31/10): «comunica con tutti i
@@ -62,6 +71,13 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
       if (v.chiave.startsWith('pc:') && spenti.has(v.chiave.slice(3))) continue
+      // k-191: «Aggiorna X» detto da un PC che ha la versione di X dal battito (o da una versione
+      // vecchia del programma): se X stesso ha detto adesso una versione non più vecchia, è falso.
+      if (v.chiave.startsWith('pc:')) {
+        const nuova = v.azioni?.find((a) => a.id === 'installa-la') as { versione?: string } | undefined
+        const sua = saluti.find((x) => x.pcId === v.chiave.slice(3))?.salute?.versione
+        if (nuova?.versione !== undefined && typeof sua === 'string' && !prima(sua, nuova.versione)) continue
+      }
       out.push({
         pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`,
         dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: '),
@@ -125,7 +141,10 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
     // 0.94.0: quali sono le voci da guardare, non solo quante (05/11: «Z2-TECNICO: 9 da guardare» e basta).
     const voci = (Array.isArray(s.salute?.voci) ? s.salute.voci : []).filter((v) => v.tono !== 'ok').map((v) => v.titolo) ?? []
     const quali = voci.length > 0 ? ` (${voci.slice(0, 6).join('; ')}${voci.length > 6 ? `; e altre ${voci.length - 6}` : ''})` : ''
-    righe.push(`- **${s.nome}**: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : `non risponde (${s.errore ?? '?'})`}`)
+    // k-191: la versione di chi risponde è quella che dice lui adesso; per chi non risponde, il battito, segnato come vecchio.
+    const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
+      : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, dato vecchio)` : ''
+    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : `non risponde (${s.errore ?? '?'})`}`)
   }
   righe.push('', `## Criticità (${p.criticita.length})`, '')
   for (const c of p.criticita) righe.push(`- **${c.pc}** · ${c.cosa}${c.dettaglio !== '' ? `\n  ${c.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}` : ''}`)

@@ -19,7 +19,7 @@ import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeIm
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { GIRO_VUOTI_MS, giroProgettiVuoti } from './progetti/vuoti'
-import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc } from './controllo-pc'
+import { CONTROLLO_PC_OGNI_MS, PRIMO_CONTROLLO_MS, giroControlloPc, versioneDalVivo } from './controllo-pc'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, copyFileSync, writeFileSync, watch } from 'node:fs'
 import { cpus, homedir, hostname, userInfo } from 'node:os'
 import { createConnection } from 'node:net'
@@ -2599,8 +2599,12 @@ if (!app.requestSingleInstanceLock()) {
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
+          // k-191: se risponde adesso, la versione la dice lui (rotta leggera /api/pc): il battito sul Drive
+          // può essere fermo da giorni (Drive pieno) e non dice cosa c'è installato.
+          const dalVivo = s?.stato === 'acceso' ? await versioneDalVivo((id, perc) => remoto.chiama(id, perc), b.pcId) : undefined
           return {
-            pcId: b.pcId, nome: nomeDaMostrare(b), versione: b.versione, battito: b.battito,
+            pcId: b.pcId, nome: nomeDaMostrare(b), versione: dalVivo ?? b.versione, battito: b.battito,
+            ...(dalVivo !== undefined ? { versioneDalVivo: true } : {}),
             // Dal Drive: solo se ha la forma giusta.
             ...(risorseValide(b.risorse) ? { risorse: b.risorse } : {}),
             ...(sottotitoloPc(b) !== undefined ? { host: sottotitoloPc(b) } : {}),
@@ -2625,6 +2629,7 @@ if (!app.requestSingleInstanceLock()) {
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,
+            ...(frenoDrive.pieno() ? { pieno: true } : {}),
             ...(av !== undefined ? { titolo: av.titolo, testo: av.testo } : {}),
             ...(statoSync?.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: statoSync.ultimoSalvataggio } : {})
           },
@@ -3413,6 +3418,16 @@ if (!app.requestSingleInstanceLock()) {
 
       ipcMain.handle('posta:io', () => identitaPc.leggi().id)
       ipcMain.handle('posta:pc', () => postino.pcSubito())
+      // k-196: la versione che ogni PC acceso dice adesso (stessa fonte della Salute), per «Altri computer».
+      ipcMain.handle('posta:versioni-vive', async () => {
+        const out: Record<string, string> = {}
+        await Promise.all(postino.altrui().map(async (b) => {
+          const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
+          const v = s?.stato === 'acceso' ? await versioneDalVivo((id, perc) => remoto.chiama(id, perc), b.pcId) : undefined
+          if (v !== undefined) out[b.pcId] = v
+        }))
+        return out
+      })
       // Il nome scelto di questo PC (0.52.4): «Altri computer» → «Questo PC».
       ipcMain.handle('pc:identita', () => identitaPc.leggi())
       ipcMain.handle('pc:impostaNome', (_e, nome: unknown) => impostaNomePc(String(nome ?? '')))

@@ -90,10 +90,6 @@
 
 ## ambiente
 
-- Con WSL che occupa 15 GB il guardiano blocca tsc per ore: fare il commit prima, poi ritentare ogni ~9 minuti con un'attesa in bash. _(2026-11-06)_
-- con il PC carico SierraDeck rimanda tsc e le suite grandi: committare prima, poi provare un file alla volta. _(2026-11-06)_
-- Memoria piena per vmmemWSL (12-15 GB): `wsl --shutdown` porta la RAM libera da ~15% a ~65%; Nicholas l'ha permesso il 06/11. Ubuntu riparte da solo a ~1 GB e può ricrescere. _(2026-11-06)_
-- Il programma rimanda tsc e vitest completi quando il PC è carico, anche per decine di minuti: lanciarli subito dopo il commit, prima di altro lavoro, e tenere i test mirati per intanto _(2026-11-06)_
 - I file del repo sono CRLF: gli script node/sed con `replace` su stringhe multilinea non trovano nulla senza errori; usare Edit, oppure normalizzare prima \r\n. _(2026-11-06)_
 - Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
 - il controllo del PC carico rimanda gradle a ripetizione e `sleep` in primo piano è bloccato: l'attesa va fatta con `sleep` in background. _(2026-11-06)_
@@ -240,6 +236,7 @@
 
 - prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
 - la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
+- la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 
 ## sync
 
@@ -282,6 +279,7 @@
 
 - Le colonne a destra (Domande, Specialisti) condividono `src/shared/misure-pannelli.ts`: limiti, trascinamento e `altreColonne` vanno passati a entrambe, perché il mosaico tenga 520 px. _(2026-11-07)_
 - Il tasto di un pannello laterale con stato proprio (Domande, Specialisti) passa da `Console.tsx` con prop dedicate, non da `aperto`. L'evento `apri-pannello` va gestito a parte. _(2026-11-07)_
+- il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
 
 ## salute
 
@@ -361,3 +359,7 @@
 ## shell
 
 - heredoc Python con `\n` dentro stringhe di test: finiscono come a-capo veri e rompono il file; usare `.join('\n')` e fare le modifiche con Edit. _(2026-11-08)_
+
+## ramo
+
+- il worktree può partire senza l'ultimo main (k-191 mancava nonostante il compito): fare `git merge main` prima di cominciare. _(2026-11-08)_
