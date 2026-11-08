@@ -18,9 +18,19 @@
 
 export const MESSAGGIO_DRIVE_PIENO = 'Drive pieno: libera spazio o svuota il cestino.'
 /** Ogni quanto si riprova a scrivere, a Drive pieno. */
-export const RICONTROLLO_PIENO_MS = 30 * 60_000
+export const RICONTROLLO_PIENO_MS = 15 * 60_000
 export const ATTESA_LIMITE_MIN_MS = 30_000
 export const ATTESA_LIMITE_MAX_MS = 10 * 60_000
+
+/**
+ * L'attesa fra un tentativo e l'altro di una stessa chiamata (k-192): cresce
+ * a ogni tentativo (raddoppia) e ha un po' di casualita' (da meta' a una volta
+ * e mezza), cosi' i PC che sbattono contro lo stesso limite non riprovano tutti
+ * nello stesso istante. `caso` e' un numero in [0, 1).
+ */
+export function attesaRitento(tentativo: number, baseMs: number, caso: number = Math.random()): number {
+  return Math.round(baseMs * 2 ** tentativo * (0.5 + caso))
+}
 
 /** È l'errore «spazio del Drive finito»? (nel testo o nel motivo che Google dà) */
 export function eSpazioPieno(testo: string): boolean {
@@ -48,7 +58,8 @@ export type Freno = {
   suCambio: (f: (e: EventoFreno) => void) => () => void
 }
 
-export function creaFreno(adesso: () => number = () => Date.now()): Freno {
+/** `caso`: il pizzico di casualita' dell'attesa; di base nessuno (0,5 = attesa esatta), cosi' i test sono fissi. */
+export function creaFreno(adesso: () => number = () => Date.now(), caso: () => number = () => 0.5): Freno {
   let colpi = 0
   let fino = 0
   let pienoDal: number | undefined
@@ -61,7 +72,7 @@ export function creaFreno(adesso: () => number = () => Date.now()): Freno {
       const ora = adesso()
       // Altri rifiuti dentro la stessa attesa non la allungano: contano una volta.
       if (ora < fino) return
-      const attesa = Math.min(ATTESA_LIMITE_MIN_MS * 2 ** colpi, ATTESA_LIMITE_MAX_MS)
+      const attesa = Math.min(Math.round(ATTESA_LIMITE_MIN_MS * 2 ** colpi * (0.75 + caso() * 0.5)), ATTESA_LIMITE_MAX_MS)
       colpi += 1
       fino = ora + attesa
       dici('limite')
@@ -96,7 +107,7 @@ export function creaFreno(adesso: () => number = () => Date.now()): Freno {
 }
 
 /** Il freno del programma: uno solo, perché il Drive è uno solo. */
-export const frenoDrive: Freno = creaFreno()
+export const frenoDrive: Freno = creaFreno(() => Date.now(), Math.random)
 
 /**
  * Mette il freno attorno a un `fetch`: guarda le risposte (limite, spazio

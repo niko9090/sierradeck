@@ -26,6 +26,7 @@ export type { StatoSpazio }
 
 /** Ogni quanto il giro rivede quali chat stanno sul Drive. */
 const GIRO_CHAT_OGNI_MS = 6 * 60 * 60_000
+const GIRO_VERSIONI_OGNI_MS = 6 * 60 * 60_000
 
 export type SpazioDrive = {
   stato: (forza?: boolean) => Promise<StatoSpazio>
@@ -91,6 +92,7 @@ export function creaSpazioDrive(deps: {
   let ultimo: { il: number; stato: StatoSpazio } | undefined
   let ultimaPuliziaDaSola = 0
   let ultimoGiroChat = 0
+  let ultimoGiroVersioni = 0
   let chatInCorso = false
   let inCorso: Promise<StatoSpazio> | undefined
   let stimaVersioniFatta: StimaVersioni | undefined
@@ -376,6 +378,8 @@ export function creaSpazioDrive(deps: {
 
     async giro() {
       if (deps.scatola() === undefined) return
+      // Google ha chiesto di rallentare (k-192): niente giro, e' fatto di elenchi e cancellazioni.
+      if (deps.inAttesa?.() === true) return
       try {
         const r = await leggiRegistro()
         for (const p of daSvuotare(r, adesso())) {
@@ -394,6 +398,14 @@ export function creaSpazioDrive(deps: {
           ultimoGiroChat = adesso()
           const e = await this.chatSulDrive()
           if (e.tolte > 0 || !e.ok) deps.log(`[spazio] chat sul Drive: ${e.messaggio}`)
+        }
+        // Spazio finito (k-192): le versioni vecchie dei file che SierraDeck stesso ha scritto
+        // (chat, indice, battiti) pesano quanto il file e non servono a nessuno. Si tolgono da
+        // sole, tenendo quelle che `versioniDaTenere` dice, ogni 6 ore al piu'.
+        if (deps.pieno?.() === true && adesso() - ultimoGiroVersioni >= GIRO_VERSIONI_OGNI_MS) {
+          ultimoGiroVersioni = adesso()
+          const e = await this.liberaVersioni()
+          deps.log(`[spazio] Drive pieno, versioni vecchie: ${e.messaggio}`)
         }
       } catch (err) {
         deps.log(`[spazio] giro non riuscito: ${err instanceof Error ? err.message : String(err)}`)
