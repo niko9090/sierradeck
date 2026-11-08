@@ -194,6 +194,21 @@ export function daRicordare(e: EsitoVerifica): boolean {
   return e.misurato !== false && !/\[comando interrotto dopo \d+s\]/.test(e.uscita) && problemaDiAmbiente(e) === undefined
 }
 
+/**
+ * Dopo un'unione riuscita il codice è un altro: un rosso ricordato non vale più
+ * (08/11, causa 6: «quella memoria non scade mai»). I verdi restano: si
+ * ritrovano per impronta del contenuto, e se il codice è cambiato non combaciano.
+ */
+export function dimenticaIRossi(memoria: MemoriaCriteri): number {
+  let tolti = 0
+  for (const [k, v] of [...memoria]) {
+    if (v.esito.passato) continue
+    memoria.delete(k)
+    tolti += 1
+  }
+  return tolti
+}
+
 export type Misura = {
   esiti: EsitoVerifica[]
   /** Criteri il cui esito viene dalla cache (codice invariato). */

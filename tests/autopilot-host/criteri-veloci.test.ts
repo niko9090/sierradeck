@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { compresoIn, ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
+import { compresoIn, dimenticaIRossi, ePesante, guardaFuori, improntaCodice, misuraCriteri, turnoCompleto, ESITI_RICORDATI, type MemoriaCriteri } from '../../src/autopilot-host/criteri-veloci'
 import { gitFinto, usaGitFinto } from '../setup/git-finto'
 
 // git vero, con date e configurazione sempre uguali (vedi `git-finto.ts`).
@@ -176,6 +176,25 @@ describe('memoria dei criteri (Revisione 0.82.1)', () => {
     expect(memoria.size).toBeLessThanOrEqual(ESITI_RICORDATI)
     expect([...memoria.keys()].some((k) => k.includes('c0000000'))).toBe(false)
     expect([...memoria.keys()].some((k) => k.includes(`c${String(ESITI_RICORDATI - 1).padStart(7, '0')}`))).toBe(true)
+  })
+
+  it('dopo un’unione il rosso ricordato non vale più (08/11), il verde resta', async () => {
+    const memoria: MemoriaCriteri = new Map()
+    let codice = 1
+    const esegui = async (): Promise<{ codice: number; uscita: string }> => ({ codice, uscita: codice === 0 ? 'ok' : 'rosso' })
+    const rosso = [{ descrizione: 'tipi', comando: 'npm run typecheck', soddisfatto: false }]
+    const verde = [{ descrizione: 'lint', comando: 'npm run lint', soddisfatto: false }]
+    await misuraCriteri(rosso, 'C:/p', esegui, { memoria, adesso: () => 1, impronta: 'aaa', tutti: true })
+    codice = 0
+    await misuraCriteri(verde, 'C:/p', esegui, { memoria, adesso: () => 2, impronta: 'aaa', tutti: true })
+    // Prima dell'unione il rosso è ricordato: stesso codice, niente rimisura.
+    const prima = await misuraCriteri(rosso, 'C:/p', esegui, { memoria, adesso: () => 3, impronta: 'aaa', tutti: true })
+    expect(prima.esiti[0]?.passato).toBe(false)
+    expect(dimenticaIRossi(memoria)).toBeGreaterThan(0)
+    const dopo = await misuraCriteri(rosso, 'C:/p', esegui, { memoria, adesso: () => 4, impronta: 'aaa', tutti: true })
+    expect(dopo.daCache).toEqual([])
+    expect(dopo.esiti[0]?.passato).toBe(true)
+    expect((await misuraCriteri(verde, 'C:/p', esegui, { memoria, adesso: () => 5, impronta: 'aaa', tutti: true })).daCache).toEqual(['lint'])
   })
 })
 

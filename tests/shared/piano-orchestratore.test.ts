@@ -109,4 +109,19 @@ describe('percentuale dal piano', () => {
     if (!e2.ok) throw new Error(e2.errore)
     expect(avanzamentoCoda(e2.coda.coda, misuraDalPiano(e2.piano))).toBeLessThan(prima!)
   })
+
+  it('respinge un criterio che esce sempre con 0 e propone l’alternativa (08/11)', () => {
+    const coda = codaCon('pubblica la 0.97.1')
+    const e = scriviPiano(pianoVuoto(), coda, [{ id: 'k1', richiesta: 'r-1', titolo: 'Pubblica la 0.97.1', criterio: 'il tag esiste: `git tag --list v0.97.1`' }], ADESSO)
+    expect(e.ok).toBe(false)
+    if (!e.ok) expect(e.errore).toMatch(/rev-parse -q --verify refs\/tags\/v0\.97\.1/)
+    const st = scriviPiano(pianoVuoto(), coda, [{ id: 'k1', richiesta: 'r-1', titolo: 'Sistema la barra', criterio: 'pulito: `git status`' }], ADESSO)
+    expect(st.ok).toBe(false)
+  })
+
+  it('accetta il tag con rev-parse, e git status se il compito è di sola analisi', () => {
+    const coda = codaCon('pubblica la 0.97.1')
+    expect(scriviPiano(pianoVuoto(), coda, [{ id: 'k1', richiesta: 'r-1', titolo: 'Pubblica', criterio: 'tag: `git rev-parse -q --verify refs/tags/v0.97.1`' }], ADESSO).ok).toBe(true)
+    expect(scriviPiano(pianoVuoto(), coda, [{ id: 'k1', richiesta: 'r-1', titolo: 'Analisi in sola lettura dei registri', criterio: 'nessun file toccato: `git status --short`' }], ADESSO).ok).toBe(true)
+  })
 })
