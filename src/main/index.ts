@@ -14,6 +14,7 @@ import { segnaleVeroDa } from '@shared/indicatore-autopilota'
 import { hookSegnali, leggiSegnale, SEGNALI_PER_CHAT, statoChat, statoDaSegnali, unisciConHook, type Segnale } from '@shared/segnali-chat'
 import { contestoSopraDomanda, domandaInFondo, domandaPerBattito } from '@shared/domande-telefono'
 import { stradaBreve, type InfoStrada } from '@shared/strada-pc'
+import { creaRaggruppatore } from '@shared/spinta-specialisti'
 import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, safeStorage, screen, shell, webContents } from 'electron'
 import { vociMenuApplicazione, vociMenuContestuale } from './menu-modifica'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -3822,6 +3823,17 @@ if (!app.requestSingleInstanceLock()) {
         log: (m) => registro.info(m),
         versione: app.getVersion()
       })
+      // Spinta a evento: uno specialista che parte, finisce o cambia posto arriva subito
+      // a tutte le finestre (poche centinaia di ms di raggruppamento). Il giro periodico
+      // di ogni pannello resta come rete di sicurezza.
+      {
+        const raggruppa = creaRaggruppatore(() => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send('autopilota:specialistiCambiati')
+          }
+        })
+        clientAutopilota.suCambioSpecialisti(() => raggruppa.segna())
+      }
       riassetto.collegaServizio({
         assicura: () => clientAutopilota.assicuraServizio(),
         cwdAutopiloti: async () => [...new Set((await clientAutopilota.elenca()).map((a) => a.cwd))]

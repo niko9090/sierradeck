@@ -1001,6 +1001,13 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
             rispondi(res, 200, servizio().trascrizione(ws, id))
             return
           }
+          // Spinta a evento: «dimmi quando cambia qualcosa fra gli specialisti» (long poll, risponde al cambio o dopo ~20 s con la stessa versione).
+          if (metodo === 'GET' && percorso === '/orchestratore/cambi') {
+            const da = Number(url.searchParams.get('da') ?? '0')
+            const cambi = servizio().cambiSpecialisti
+            rispondi(res, 200, { versione: await cambi.aspetta(Number.isFinite(da) ? da : 0) })
+            return
+          }
           // k-48: la lista d'attesa degli specialisti (una per tutto il PC).
           if (metodo === 'GET' && percorso === '/orchestratore/attesa') {
             rispondi(res, 200, servizio().attesa())

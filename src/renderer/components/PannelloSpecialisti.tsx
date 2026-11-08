@@ -150,7 +150,8 @@ export function useAttesaSpecialisti(attiva: boolean): { vista: VistaAttesa | 'v
     if (!attiva) return
     rileggi()
     const t = setInterval(rileggi, RILETTURA_MS)
-    return () => clearInterval(t)
+    const spinta = window.gestore.autopilota.suSpecialistiCambiati(rileggi)
+    return () => { clearInterval(t); spinta() }
   }, [attiva, rileggi])
   return { vista, rileggi, metti }
 }
