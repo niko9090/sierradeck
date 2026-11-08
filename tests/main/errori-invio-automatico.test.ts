@@ -150,4 +150,23 @@ describe('l’invio automatico degli errori (0.88.4, 0.95.5)', () => {
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.invio.voci[0]).toMatchObject({ messaggio: 'errore di una versione vecchia', volte: 1, ultima: '2026-10-01T10:00:00.000Z' })
   })
+
+  it('invio fallito: la riga si scrive una volta per motivo, e «ripreso» quando torna a riuscire', async () => {
+    const righe: string[] = []
+    let motivo: string | undefined
+    const { c, d } = prova({
+      storico: () => ({ voci: [voce('2026-10-30T09:00:00.000Z', 'di oggi')] }),
+      esiti: [
+        { ok: false, messaggio: 'Non mandati a pc-finto: spento' },
+        { ok: false, messaggio: 'Non mandati a pc-finto: spento' },
+        { ok: false, messaggio: 'Non mandati a pc-finto: altro motivo' },
+        { ok: true, messaggio: 'Mandati' }
+      ]
+    })
+    const dd = { ...d, log: (r: string) => righe.push(r), fallimento: { leggi: () => motivo, scrivi: (m: string | undefined) => { motivo = m } } }
+    for (let i = 0; i < 4; i++) { await giroInvioErrori({ ...dd, forza: true }); c.tempo += 30_000 }
+    expect(righe.filter((r) => r.includes('non riuscito'))).toHaveLength(2)
+    expect(righe.filter((r) => r.includes('ripreso'))).toHaveLength(1)
+    expect(motivo).toBeUndefined()
+  })
 })

@@ -130,6 +130,8 @@ export async function giroInvioErrori(d: {
   /** Manda; `quante` (se c'è) dice quante voci, dalla prima, sono davvero partite (il tetto di peso ne può togliere). */
   manda: (storico: StoricoErrori) => Promise<{ ok: boolean; messaggio: string; quante?: number }>
   log: (riga: string) => void
+  /** Il motivo dell'ultimo invio fallito (come per la posta): la riga di errore si scrive una volta, e di nuovo solo se il motivo cambia. */
+  fallimento?: { leggi: () => string | undefined; scrivi: (motivo: string | undefined) => void }
   forza?: boolean
 }): Promise<{ ok: boolean; messaggio: string }> {
   const adesso = d.adesso()
@@ -150,7 +152,14 @@ export async function giroInvioErrori(d: {
   // Prima del tetto di peso: le voci che non ci stanno restano da mandare, non si segnano.
   const invio = storicoPerLInvio({ voci: dovuti.map((x) => x.voce) })
   const e = await d.manda(invio)
-  if (!e.ok) { d.log(`[errori] invio automatico non riuscito, riprovo al prossimo giro: ${e.messaggio}`); return { ok: false, messaggio: e.messaggio } }
+  if (!e.ok) {
+    if (d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio) {
+      d.fallimento?.scrivi(e.messaggio)
+      d.log(`[errori] invio automatico non riuscito, riprovo al prossimo giro (non lo ripeto finche' il motivo e' lo stesso): ${e.messaggio}`)
+    }
+    return { ok: false, messaggio: e.messaggio }
+  }
+  if (d.fallimento?.leggi() !== undefined) { d.fallimento.scrivi(undefined); d.log('[errori] invio errori ripreso') }
   const partite = dovuti.slice(0, Math.min(invio.voci.length, e.quante ?? invio.voci.length))
   const il = new Date(adesso).toISOString()
   const inviati: Record<string, VoceInviata> = { ...(stato.inviati ?? {}) }
