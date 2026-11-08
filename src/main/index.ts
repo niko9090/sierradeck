@@ -200,6 +200,7 @@ import { testoDaCopiare, type InvioErrori, type StoricoErrori } from '@shared/st
 import { cartellaDiSierraDeck, mandaErrori, salvaErroriArrivati } from './errori-arrivati'
 import { giroErroriArrivati } from './errori-arrivati-lavoro'
 import { GIRO_INVIO_MS, giroInvioErrori, pcSviluppoDi, vistaErrori, type StatoInvio } from './errori-invio-automatico'
+import type { AttesaInvio } from '@shared/attesa-invio'
 import { prossimoSchermoLibero } from './schermi'
 import { apriWorkspaceStore, type WorkspaceStore } from './workspace-store'
 import { mettiAlSicuroLoStato, CARTELLA_COPIE } from './copie-di-versione'
@@ -2540,6 +2541,7 @@ if (!app.requestSingleInstanceLock()) {
       statoInvioErroriGlobale = leggiStatoInvio
       let invioInCorso = false
       let motivoInvioFallito: string | undefined
+      let attesaInvio: AttesaInvio | undefined
       const giro = async (forza = false): Promise<{ ok: boolean; messaggio: string }> => {
         if (invioInCorso) return { ok: false, messaggio: 'Sto già mandando gli errori: riprova fra poco.' }
         invioInCorso = true
@@ -2553,6 +2555,7 @@ if (!app.requestSingleInstanceLock()) {
             manda: (s) => mandaOra(s),
             log: (riga) => registro.info(riga),
             fallimento: { leggi: () => motivoInvioFallito, scrivi: (m) => { motivoInvioFallito = m } },
+            attesa: { leggi: () => attesaInvio, scrivi: (a) => { attesaInvio = a } },
             forza
           })
         } catch (err) {

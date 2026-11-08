@@ -1,3 +1,4 @@
+import { dopoFallimento, quantoAspettare, type AttesaInvio } from '@shared/attesa-invio'
 import { chiaveErrore, storicoPerLInvio, type StoricoErrori, type VoceErrore } from '@shared/storico-errori'
 
 /**
@@ -132,6 +133,8 @@ export async function giroInvioErrori(d: {
   log: (riga: string) => void
   /** Il motivo dell'ultimo invio fallito (come per la posta): la riga di errore si scrive una volta, e di nuovo solo se il motivo cambia. */
   fallimento?: { leggi: () => string | undefined; scrivi: (motivo: string | undefined) => void }
+  /** L'attesa crescente dopo i fallimenti (stato tenuto da chi chiama): si azzera al primo invio riuscito. `forza` la salta. */
+  attesa?: { leggi: () => AttesaInvio | undefined; scrivi: (a: AttesaInvio | undefined) => void }
   forza?: boolean
 }): Promise<{ ok: boolean; messaggio: string }> {
   const adesso = d.adesso()
@@ -146,6 +149,7 @@ export async function giroInvioErrori(d: {
   const dovuti = vociDaInviare(storico, stato)
   if (dovuti.length === 0) return { ok: false, messaggio: 'Non c’è nessun errore da mandare.' }
   if (d.forza !== true) {
+    if (quantoAspettare(d.attesa?.leggi(), adesso) > 0) return { ok: true, messaggio: 'Dopo un invio fallito aspetto un po’ prima di riprovare.' }
     const dec = decidiInvio({ nuove: dovuti.map((x) => x.voce), stato, adesso, pcSviluppo: d.pcSviluppo() })
     if (!dec.manda) return { ok: true, messaggio: dec.perche ?? 'Niente da mandare adesso.' }
   }
@@ -153,12 +157,14 @@ export async function giroInvioErrori(d: {
   const invio = storicoPerLInvio({ voci: dovuti.map((x) => x.voce) })
   const e = await d.manda(invio)
   if (!e.ok) {
+    d.attesa?.scrivi(dopoFallimento(d.attesa.leggi(), e.messaggio, adesso))
     if (d.fallimento === undefined || d.fallimento.leggi() !== e.messaggio) {
       d.fallimento?.scrivi(e.messaggio)
       d.log(`[errori] invio automatico non riuscito, riprovo al prossimo giro (non lo ripeto finche' il motivo e' lo stesso): ${e.messaggio}`)
     }
     return { ok: false, messaggio: e.messaggio }
   }
+  if (d.attesa?.leggi() !== undefined) d.attesa.scrivi(undefined)
   if (d.fallimento?.leggi() !== undefined) { d.fallimento.scrivi(undefined); d.log('[errori] invio errori ripreso') }
   const partite = dovuti.slice(0, Math.min(invio.voci.length, e.quante ?? invio.voci.length))
   const il = new Date(adesso).toISOString()
