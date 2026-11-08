@@ -11,7 +11,7 @@
 
 import { mappaPc, type MappaPc } from './collegamento'
 import { PC_SPENTO_DOPO_MS } from './posta'
-import { rigaRisorse, type RisorsePc } from './risorse'
+import { rigaRisorse, risorseAlte, type GpuPc, type RisorsePc } from './risorse'
 
 export type Tono = 'ok' | 'attenzione' | 'guasto'
 
@@ -213,6 +213,18 @@ export function componiSalute(i: IngressiSalute): Salute {
     })
   }
 
+  // ── La scheda video, per ogni PC che la manda (k-168): informativa, attenzione leggera se spenta ──
+  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined).map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
+  for (const s of schede) {
+    voci.push({
+      chiave: `gpu:${s.chiave}`, gruppo: 'pc', tono: s.gpu.spenta ? 'attenzione' : 'ok',
+      titolo: `${s.nome} · ${s.gpu.testo}${s.gpu.cpu !== undefined ? ` · ${s.gpu.cpu.toLocaleString('it-IT', { maximumFractionDigits: 1 })}%` : ''}`,
+      spiegazione: 'La scheda video accelera la grafica di SierraDeck (finestre, terminali). Se è spenta o in software, tutto lo disegna il processore: funziona, ma con più CPU e qualche scatto. Il numero in percentuale è la CPU del processo della scheda video.',
+      ...(s.gpu.spenta ? { cosaFare: 'Controlla i driver della scheda video e che Windows non la tenga spenta; poi riavvia SierraDeck.' } : {}),
+      azioni: []
+    })
+  }
+
   // ── L'aggiornamento non riuscito ──
   if (i.tentativoFallito !== undefined) {
     const t = i.tentativoFallito
@@ -228,9 +240,12 @@ export function componiSalute(i: IngressiSalute): Salute {
   // «I PC girano lenti» (Nicholas, 12/10): i numeri di ogni PC in un posto solo.
   if (i.risorse !== undefined) {
     const righe = [`Questo PC: ${rigaRisorse(i.risorse)}`, ...i.pc.filter((p) => p.risorse !== undefined).map((p) => `${p.nome}: ${rigaRisorse(p.risorse as RisorsePc)}`)]
+    // Criticita solo sopra soglie vere e solo per i consumi di questo PC: ogni PC dice i suoi,
+    // la stessa riga non si ripete su tutti. Sotto soglia e' informazione (tono ok).
+    const alte = risorseAlte(i.risorse)
     const rifiutate = [i.risorse, ...i.pc.map((p) => p.risorse)].some((r) => r !== undefined && r.driveRifiutate > 0)
     voci.push({
-      chiave: 'risorse', gruppo: 'pc', tono: rifiutate ? 'attenzione' : 'ok',
+      chiave: 'risorse', gruppo: 'pc', tono: alte ? 'attenzione' : 'ok',
       titolo: `Quanto lavora SierraDeck: ${rigaRisorse(i.risorse)}`,
       spiegazione: `${righe.join(' — ')}. CPU e RAM sono di tutti i processi di SierraDeck (non delle chat di Claude Code); le richieste al Drive sono la media degli ultimi 10 minuti.` + (rifiutate ? ' Google ne ha rifiutate alcune per troppe richieste: i salvataggi riprovano da soli.' : ''),
       azioni: []

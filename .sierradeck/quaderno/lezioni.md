@@ -4,15 +4,6 @@
 
 ## test
 
-- I test in tests/ sono controllati da tsc: un helper ricorsivo senza tipo di ritorno esplicito dà errore. Senza jsdom, un componente senza hook si prova chiamandolo e cercando gli input nell'albero. _(2026-11-06)_
-- Con l'autopilota finto gli eventi (sveglie) partono solo a turno chiuso: nei test del servizio emettere un `result` dopo gli assistant, altrimenti l'evento resta in raccolta _(2026-11-06)_
-- Senza DOM i tasti si provano chiamando il componente puro come funzione e cercando onClick nell'albero degli elementi; la pagina si prova con new Function sulle funzioni estratte. _(2026-11-06)_
-- L'hook di carico PC rimanda vitest per cartella e tsc, ma lascia passare un file alla volta, anche in un ciclo `for` con percorsi espliciti: così si prova il ramo a PC carico. _(2026-11-06)_
-- `tests/renderer/linguetta-domande.test.ts` controlla il sorgente di `ChatAutopilota.tsx`: dopo k-45 la chat risponde alle domande con `rispondi(`, la regola «mai da lì» non vale più. _(2026-11-06)_
-- il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
-- il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
-- l'hook "PC carico" rimanda tsc e la suite anche dopo molti tentativi; i test di un solo file passano. Ricordarsi di lanciare tsc e la suite completa appena il PC è scarico. _(2026-11-06)_
-- Il guardiano del PC rimanda anche i test di directory o per prefisso (non solo tsc): vanno lanciati file per file, e il rinvio può durare a lungo. _(2026-11-06)_
 - drive-rete-0-86-2 ("corpo che smette di arrivare", timer 40 ms) fallisce a PC carico e passa da solo: se è rosso in una suite larga, rilanciarlo da solo. _(2026-11-06)_
 - molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
 - A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
@@ -50,6 +41,7 @@
 - il controllo di carico rimanda `npm run typecheck` anche dopo vari minuti; i test di un solo file passano sempre _(2026-11-07)_
 - il test «sezione Specialisti» in tests/renderer/pannello-specialisti.test.tsx legge App.tsx come testo: cambiare il cablaggio di un pannello richiede di aggiornare anche quelle asserzioni _(2026-11-07)_
 - il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
+- Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
 
 ## worktree
 
@@ -61,6 +53,8 @@
 
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: lo si tratta come «in uso» (saltato, non errore; vedi rimozione-sicura.ts e riassetto/recupero.ts) e si riprova al giro dopo. _(2026-11-07)_
+- Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
+- «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
 
 ## android
 
@@ -85,6 +79,7 @@
 - Se la release esiste già prima di `pubblica`, electrion-builder salta gli upload: caricare exe, blockmap, latest.yml con `gh release upload`, con nomi col trattino. _(2026-11-07)_
 - 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 - 07/11: v0.96.1 è già in main e taggata (unioni con poche prove mirate); la release delle correzioni del controllo PC + scheda video diventa 0.96.2. _(2026-11-07)_
+- 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
 
 ## git
 
@@ -119,6 +114,7 @@
 - l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
+- negli script Python in heredoc `\n` e `\b` nei letterali diventano caratteri veri e rompono le regex: per i sorgenti TS usare Edit. _(2026-11-08)_
 
 ## ambiente
 
@@ -211,6 +207,7 @@
 - `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
 - Il guardiano del PC carico può rifiutare gradle a oltranza con lo stesso messaggio: nel ramo vanno prima fatti i controlli statici, e va chiesta all'autopilota una finestra libera. _(2026-11-06)_
 - Il guardiano «PC carico» rifiuta il comando prima di eseguirlo: l'attesa va in una chiamata a parte (until sull'orologio), non dentro lo stesso comando gradle. _(2026-11-07)_
+- Il package.json può chiedere pacchetti non installati nella cartella principale (es. @xterm/addon-webgl): tsc fallisce con TS2307 anche su main, serve npm install, non una correzione al codice. _(2026-11-07)_
 
 ## piano
 
@@ -253,6 +250,7 @@
 - Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
 - k-60 (`e9487ef4`, `28020ec1`, `4d4f11c9`) non risulta in main: prima di dire «entrato in main» verificare con `git merge-base --is-ancestor <sha> main`. _(2026-11-06)_
 - La prova nel principale lascia `.git/sierradeck-prova.json`: senza quel segno (e MERGE_HEAD uguale) lo sporco è di Nicholas e non si tocca; prima un merge fallito faceva `--abort` anche sul suo. _(2026-11-06)_
+- La prova d'unione non fa npm install: un ramo con dipendenze nuove fallisce tsc. Prima installarle nella principale con npm install --no-save. _(2026-11-07)_
 
 ## criteri
 
@@ -334,3 +332,13 @@
 ## codice
 
 - i sorgenti sono CRLF: modificarli con script che preservano i fine riga, e `sed -i` può lasciare righe LF _(2026-11-07)_
+
+## misure
+
+- Il controllo di carico controlla prima di ogni comando: un ping/sleep dentro lo stesso comando non aiuta. L'attesa va in una chiamata separata. _(2026-11-07)_
+
+## aggiornamenti
+
+- la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
+- la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
+- HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_

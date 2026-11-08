@@ -3,6 +3,7 @@ import { useNomePc } from '../state/nomi-pc'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { adattaSePuoi } from '../adatta-terminale'
+import { registraWebgl } from '../webgl-terminali'
 import '@xterm/xterm/css/xterm.css'
 import { ptyBus } from '../pty-bus'
 import { creaAggancio } from '../aggancio'
@@ -303,6 +304,8 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(container)
+    // Scheda video, con tetto di contesti: se non c'e', resta il renderer normale.
+    const liberaWebgl = registraWebgl(term, container)
     // Solo se il contenitore ha una misura: un riquadro non ancora a schermo
     // propone zero righe, e un terminale a zero righe si rompe alla prima
     // riga che riceve. Ci ripensa il `ResizeObserver` appena diventa visibile.
@@ -561,6 +564,7 @@ export function Terminal({ paneId, sessionUuid, cwd, title, ptyId, model, autopi
       // senso, e continuare a offrirla mostrerebbe al telefono una chat che qui
       // non c'e' piu'.
       if (idVivo !== undefined) dimenticaSchermo(idVivo)
+      liberaWebgl()
       term.dispose()
     }
   }, [paneId])

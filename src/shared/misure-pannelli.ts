@@ -18,7 +18,8 @@
 /** Sotto questa larghezza il mosaico delle chat a sinistra non si legge piu'. */
 export const MOSAICO_MINIMO_PX = 520
 
-export type Sezione = 'domande' | 'autopilota' | 'divisione'
+export type Colonna = 'domande' | 'specialisti'
+export type Sezione = Colonna | 'autopilota' | 'divisione'
 
 /**
  * Per ogni sezione: l'unità, i limiti, la misura iniziale e i testi della
@@ -28,6 +29,7 @@ export type Sezione = 'domande' | 'autopilota' | 'divisione'
  */
 export const MISURE: Record<Sezione, { unita: 'px' | '%'; min: number; max: number; predefinita: number; passo: number; nome: string }> = {
   domande: { unita: 'px', min: 300, max: 760, predefinita: 400, passo: 20, nome: 'la colonna delle Domande' },
+  specialisti: { unita: 'px', min: 320, max: 760, predefinita: 420, passo: 20, nome: 'la colonna degli Specialisti' },
   autopilota: { unita: '%', min: 15, max: 70, predefinita: 34, passo: 2, nome: 'la scheda dell’autopilota' },
   divisione: { unita: '%', min: 20, max: 80, predefinita: 55, passo: 5, nome: 'la chat con l’autopilota' }
 }
@@ -45,7 +47,7 @@ export function limita(sezione: Sezione, valore: number): number {
  * aperta. Mai sotto il minimo della colonna (allora è la finestra che è
  * troppo stretta, e il CSS impedisce che esca dallo schermo).
  */
-export function massimoColonna(sezione: 'domande', finestra: number, altreColonne: number): number {
+export function massimoColonna(sezione: Colonna, finestra: number, altreColonne: number): number {
   const m = MISURE[sezione]
   return Math.max(m.min, Math.min(m.max, Math.floor(finestra - altreColonne - MOSAICO_MINIMO_PX)))
 }
@@ -54,7 +56,7 @@ export function massimoColonna(sezione: 'domande', finestra: number, altreColonn
  * Durante il trascinamento del bordo sinistro di una colonna: verso sinistra si
  * allarga. Dentro i limiti e dentro lo spazio che lascia le chat leggibili.
  */
-export function larghezzaTrascinata(p: { sezione: 'domande'; iniziale: number; partenzaX: number; x: number; finestra: number; altreColonne: number }): number {
+export function larghezzaTrascinata(p: { sezione: Colonna; iniziale: number; partenzaX: number; x: number; finestra: number; altreColonne: number }): number {
   const voluta = p.iniziale + (p.partenzaX - p.x)
   return Math.min(limita(p.sezione, voluta), massimoColonna(p.sezione, p.finestra, p.altreColonne))
 }
@@ -64,7 +66,7 @@ export function larghezzaTrascinata(p: { sezione: 'domande'; iniziale: number; p
  * finestra è più piccola. Quella salvata non si tocca: allargando di nuovo la
  * finestra la colonna torna com'era.
  */
-export function larghezzaEffettiva(sezione: 'domande', salvata: number, finestra: number, altreColonne: number): number {
+export function larghezzaEffettiva(sezione: Colonna, salvata: number, finestra: number, altreColonne: number): number {
   return Math.min(limita(sezione, salvata), massimoColonna(sezione, finestra, altreColonne))
 }
 
@@ -86,7 +88,7 @@ export function divisioneTrascinata(p: { inizio: number; lunghezza: number; posi
  */
 export function passoFreccia(sezione: Sezione, tasto: string, inPila = true): number {
   const passo = MISURE[sezione].passo
-  if (sezione === 'domande') return tasto === 'ArrowLeft' ? passo : tasto === 'ArrowRight' ? -passo : 0
+  if (sezione === 'domande' || sezione === 'specialisti') return tasto === 'ArrowLeft' ? passo : tasto === 'ArrowRight' ? -passo : 0
   if (sezione === 'divisione') {
     if (inPila) return tasto === 'ArrowDown' ? passo : tasto === 'ArrowUp' ? -passo : 0
     return tasto === 'ArrowRight' ? passo : tasto === 'ArrowLeft' ? -passo : 0
