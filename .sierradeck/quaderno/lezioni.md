@@ -4,10 +4,6 @@
 
 ## test
 
-- il servizio manda gli eventi all'orchestratore solo a fine turno: nei test emettere un `result` prima di cercare il testo negli scritti del processo finto. _(2026-11-06)_
-- il controllo «PC carico» blocca tsc e le suite di cartella, non i test di un solo file: lanciare i file nuovi uno alla volta e tsc appena la memoria libera risale _(2026-11-06)_
-- l'hook "PC carico" rimanda tsc e la suite anche dopo molti tentativi; i test di un solo file passano. Ricordarsi di lanciare tsc e la suite completa appena il PC è scarico. _(2026-11-06)_
-- Il guardiano del PC rimanda anche i test di directory o per prefisso (non solo tsc): vanno lanciati file per file, e il rinvio può durare a lungo. _(2026-11-06)_
 - drive-rete-0-86-2 ("corpo che smette di arrivare", timer 40 ms) fallisce a PC carico e passa da solo: se è rosso in una suite larga, rilanciarlo da solo. _(2026-11-06)_
 - molti test in tests/renderer leggono il sorgente come testo: se un componente rende sostituibile una chiamata, cercano ancora la stringa vecchia e falliscono. _(2026-11-06)_
 - A PC carico il guardiano rimanda le suite, anche i `for` e le liste di file: passano solo i lanci di un file o di gruppi piccoli a percorsi espliciti, e a PC molto carico nemmeno quelli. _(2026-11-06)_
@@ -57,6 +53,7 @@
 
 - StatoInvio.fino non avanza più dopo l'invio: la verità sono i conteggi per chiaveErrore in `inviati`. Con `fino` che avanza, un tetto di peso farebbe passare per inviate voci mai partite. _(2026-11-06)_
 - Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
+- «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
 
 ## android
 
@@ -116,6 +113,7 @@
 - l'hook che serializza i comandi pesanti risponde «riprova fra N minuti» anche per `tsc` e per `vitest` su una cartella. Fare commit prima, poi un solo file di test per volta. _(2026-11-06)_
 - nei file scritti con script Python la sequenza \b diventa un backspace invisibile se non è escapata: nelle regex controllare con chr(8) _(2026-11-06)_
 - Un heredoc Python lanciato da Bash trasforma `\n` dentro le stringhe Kotlin in a-capo veri e rompe la compilazione: per il codice Kotlin usare Edit o Write. _(2026-11-07)_
+- negli script Python in heredoc `\n` e `\b` nei letterali diventano caratteri veri e rompono le regex: per i sorgenti TS usare Edit. _(2026-11-08)_
 
 ## ambiente
 
@@ -337,3 +335,9 @@
 ## misure
 
 - Il controllo di carico controlla prima di ogni comando: un ping/sleep dentro lo stesso comando non aiuta. L'attesa va in una chiamata separata. _(2026-11-07)_
+
+## aggiornamenti
+
+- la classificazione passeggera sul breve (prima riga, senza contesto) perde il 504 nudo: classificare sul messaggio completo e su statusCode. _(2026-11-08)_
+- la lista di errori di rete passeggeri (ERR_*) va estesa con ERR_CONNECTION_CLOSED/RESET e timeout; eBloccoTemporaneo non esiste in src. _(2026-11-08)_
+- HttpError di electron-updater ha message «504\nHeaders: {…}» e statusCode numerico: classificare sul messaggio completo/statusCode, non sulla prima riga. _(2026-11-08)_
