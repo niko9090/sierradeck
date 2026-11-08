@@ -56,8 +56,8 @@ import { apriAttesa, type ArchivioAttesa } from './attesa-store'
 import { apriRecuperoPasso } from '../main/riassetto/recupero'
 import { leggiRichiestaDoppioni } from '@shared/autopiloti-doppioni'
 
-/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). */
-const PROVA_MAX_MS = 15 * 60_000
+/** 06/11: tempo massimo di un'unione di prova nel principale (misure comprese). Sta fra il turno (UNIONE_TURNO_MAX_MS) e la fila (UNIONE_MAX_MS). */
+export const PROVA_MAX_MS = 15 * 60_000
 
 /**
  * **Il servizio degli autopiloti** (P4): un solo autopilota per workspace,
