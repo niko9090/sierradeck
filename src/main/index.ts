@@ -2588,8 +2588,16 @@ if (!app.requestSingleInstanceLock()) {
         const pc = await Promise.all(battiti.map(async (b) => {
           const s = await remoto.statoDi(b.pcId, b.nome).catch(() => undefined)
           const strada = remoto.stradaDi(b.pcId)
+          // k-191: se risponde adesso, la versione la dice lui (rotta leggera /api/pc): il battito sul Drive
+          // può essere fermo da giorni (Drive pieno) e non dice cosa c'è installato.
+          let dalVivo: string | undefined
+          if (s?.stato === 'acceso') {
+            const r = await remoto.chiama(b.pcId, '/api/pc').catch(() => undefined) as { versione?: unknown } | undefined
+            if (typeof r?.versione === 'string' && /^\d+\.\d+\.\d+/.test(r.versione)) dalVivo = r.versione
+          }
           return {
-            pcId: b.pcId, nome: nomeDaMostrare(b), versione: b.versione, battito: b.battito,
+            pcId: b.pcId, nome: nomeDaMostrare(b), versione: dalVivo ?? b.versione, battito: b.battito,
+            ...(dalVivo !== undefined ? { versioneDalVivo: true } : {}),
             // Dal Drive: solo se ha la forma giusta.
             ...(risorseValide(b.risorse) ? { risorse: b.risorse } : {}),
             ...(sottotitoloPc(b) !== undefined ? { host: sottotitoloPc(b) } : {}),
@@ -2614,6 +2622,7 @@ if (!app.requestSingleInstanceLock()) {
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,
+            ...(frenoDrive.pieno() ? { pieno: true } : {}),
             ...(av !== undefined ? { titolo: av.titolo, testo: av.testo } : {}),
             ...(statoSync?.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: statoSync.ultimoSalvataggio } : {})
           },
