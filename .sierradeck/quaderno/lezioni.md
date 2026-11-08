@@ -75,6 +75,7 @@
 - Il conflitto sul quaderno lezioni.md nasce perché ogni ramo aggiunge righe in coda alla stessa sezione: nell'unione vanno tenute tutte, togliendo solo i doppioni identici. _(2026-11-08)_
 - `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
 - il main locale può essere avanti di origin/main (qui 5 commit): per allinearsi, `git merge --ff-only main` funziona, ma `origin/main` resta indietro finché non si pubblica. _(2026-11-08)_
+- Un ramo già aperto in un altro worktree non si può attivare: il lavoro va unito sul proprio ramo e l'autopilota deve unire quello. _(2026-11-08)_
 
 ## autopilota
 
@@ -91,8 +92,6 @@
 
 ## ambiente
 
-- Il guardiano PC fa passare tsc e le suite complete una alla volta fra tutte le chat: aspettare con `until [ $SECONDS -gt N ]; do sleep 2; done` e riprovare; `sleep` lungo è bloccato. _(2026-11-06)_
-- il controllo del PC carico rimanda gradle a ripetizione e `sleep` in primo piano è bloccato: l'attesa va fatta con `sleep` in background. _(2026-11-06)_
 - l'hook rimanda tsc e le suite anche con PC libero se un criterio dell'autopilota è in corso; più file insieme (fino a ~35) passano, le cartelle intere no. _(2026-11-06)_
 - il guardiano del PC rifiuta tsc e le suite larghe (anche con liste di file generate) finché la CPU è alta; i gruppi con nomi di file scritti per esteso passano. _(2026-11-06)_
 - il guardiano del PC carico rimanda tsc e le suite intere anche con CPU al 60%; un ciclo su più file in un solo comando viene rimandato come la suite: un file per chiamata. _(2026-11-06)_
@@ -238,6 +237,7 @@
 - prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
 - la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
 - la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
+- La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
 
 ## sync
 
