@@ -18,6 +18,23 @@ describe('riassuntoGpu', () => {
     expect(riassuntoGpu({ gpu_compositing: 'disabled_off', webgl: 'disabled_off' })?.spenta).toBe(true)
     expect(riassuntoGpu({ gpu_compositing: 'disabled_software', webgl: 'disabled_off' })?.testo).toContain('solo processore')
   })
+  it('driver di base di Windows: motivo e cosa fare', () => {
+    const r = riassuntoGpu({ gpu_compositing: 'disabled_software' }, { gpuDevice: [{ active: true, vendorId: 0x1414 }] })
+    expect(r?.motivo).toBe('Windows usa il driver video di base')
+    expect(r?.cosaFare).toContain('driver')
+  })
+  it('senza schede o con SwiftShader: driver di base', () => {
+    expect(riassuntoGpu({ gpu_compositing: 'disabled_software' }, { gpuDevice: [] })?.motivo).toBe('Windows usa il driver video di base')
+    expect(riassuntoGpu({ gpu_compositing: 'disabled_software' }, { auxAttributes: { glRenderer: 'Google SwiftShader' } })?.motivo).toBe('Windows usa il driver video di base')
+  })
+  it('scheda vera ma in software: esclusa da Chromium; spenta: accelerazione spenta', () => {
+    const info = { gpuDevice: [{ active: true, vendorId: 0x8086 }] }
+    expect(riassuntoGpu({ gpu_compositing: 'disabled_software' }, info)?.motivo).toBe('scheda esclusa da Chromium')
+    expect(riassuntoGpu({ gpu_compositing: 'disabled_off' }, info)?.motivo).toBe('accelerazione spenta')
+  })
+  it('attiva: nessun motivo', () => {
+    expect(riassuntoGpu(bene)?.motivo).toBeUndefined()
+  })
   it('senza dato niente riga', () => {
     expect(riassuntoGpu(undefined)).toBeUndefined()
     expect(riassuntoGpu({})).toBeUndefined()

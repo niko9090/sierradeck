@@ -25,8 +25,33 @@ export type GpuPc = {
   testo: string
   /** L'accelerazione e' spenta del tutto (tutto sul processore). */
   spenta: boolean
+  /** Il perche' in breve, se si capisce (solo quando e' spenta). */
+  motivo?: string
+  /** Cosa fare su quel PC, in una riga (solo quando e' spenta). */
+  cosaFare?: string
   /** CPU del processo della scheda video, percento di un core (se misurata). */
   cpu?: number
+}
+
+const VENDOR_DRIVER_BASE = 0x1414 // «Microsoft Basic Render Driver»: Windows senza il driver della scheda, o Desktop remoto
+
+/**
+ * Perche' Chromium ha lasciato la grafica al processore, per quel che i suoi
+ * dati permettono di dire (non da' un motivo esplicito: si deduce dalla scheda).
+ */
+function motivoGpuSpenta(comp: string, info: unknown): { breve: string; cosaFare: string } {
+  const aux = (info as { auxAttributes?: { glRenderer?: unknown } } | undefined)?.auxAttributes
+  const renderer = typeof aux?.glRenderer === 'string' ? aux.glRenderer : ''
+  const dispositivi = (info as { gpuDevice?: { vendorId?: number }[] } | undefined)?.gpuDevice
+  const elenco = Array.isArray(dispositivi) ? dispositivi : undefined
+  const soloDriverBase = elenco !== undefined && elenco.length > 0 && elenco.every((d) => d?.vendorId === VENDOR_DRIVER_BASE)
+  if (soloDriverBase || /swiftshader|basic render/i.test(renderer) || (elenco !== undefined && elenco.length === 0)) {
+    return { breve: 'Windows usa il driver video di base', cosaFare: 'Installa o aggiorna il driver della scheda video dal sito del produttore; se sei in Desktop remoto, usa il PC dalla sua tastiera. Poi riavvia SierraDeck.' }
+  }
+  if (!comp.includes('software') && elenco !== undefined && elenco.length > 0) {
+    return { breve: 'accelerazione spenta', cosaFare: 'Riavvia SierraDeck; se resta spenta, aggiorna il driver della scheda video: Chromium la spegne dopo errori ripetuti della scheda.' }
+  }
+  return { breve: 'scheda esclusa da Chromium', cosaFare: 'Aggiorna il driver della scheda video (una scheda o un driver vecchi vengono esclusi da Chromium); poi riavvia SierraDeck.' }
 }
 
 /**
@@ -35,7 +60,7 @@ export type GpuPc = {
  * (`app.getGPUInfo('basic')`). Valori di Chromium: `enabled*` = attiva,
  * `disabled_software` = in software, `disabled_off`/`unavailable_off` = spenta.
  */
-export function riassuntoGpu(stato: Record<string, string> | undefined, info?: unknown): { testo: string; spenta: boolean } | undefined {
+export function riassuntoGpu(stato: Record<string, string> | undefined, info?: unknown): { testo: string; spenta: boolean; motivo?: string; cosaFare?: string } | undefined {
   if (stato === undefined || stato === null || typeof stato !== 'object') return undefined
   const comp = stato.gpu_compositing
   if (typeof comp !== 'string') return undefined
@@ -44,8 +69,10 @@ export function riassuntoGpu(stato: Record<string, string> | undefined, info?: u
   const dispositivi = (info as { gpuDevice?: { active?: boolean; vendorId?: number }[] } | undefined)?.gpuDevice
   const attivo = Array.isArray(dispositivi) ? dispositivi.find((d) => d?.active === true) : undefined
   const vendor = attivo?.vendorId === 0x10de ? 'NVIDIA' : attivo?.vendorId === 0x1002 ? 'AMD' : attivo?.vendorId === 0x8086 ? 'Intel' : undefined
-  if (!attiva(comp) && !software(comp)) return { testo: 'Scheda video: solo processore', spenta: true }
-  if (!attiva(comp)) return { testo: 'Scheda video: solo processore (grafica in software)', spenta: true }
+  if (!attiva(comp)) {
+    const motivo = motivoGpuSpenta(comp, info)
+    return { testo: software(comp) ? 'Scheda video: solo processore (grafica in software)' : 'Scheda video: solo processore', spenta: true, motivo: motivo.breve, cosaFare: motivo.cosaFare }
+  }
   if (software(stato.webgl) || (stato.webgl !== undefined && !attiva(stato.webgl))) return { testo: 'Scheda video: attiva, WebGL in software', spenta: false }
   return { testo: vendor !== undefined ? `Scheda video: attiva (${vendor})` : 'Scheda video: attiva', spenta: false }
 }
