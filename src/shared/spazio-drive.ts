@@ -126,6 +126,62 @@ export function misura(p: { file: FileDrive[]; indice: IndiceDrive; quota?: Quot
   return { ...(p.quota !== undefined ? { quota: p.quota } : {}), totale, perTipo, inRecupero, misuratoIl: new Date(p.adesso).toISOString(), perProgetto, piuGrandi }
 }
 
+/**
+ * Le pulizie a **Drive pieno** (0.99): cosa fare dei file tolti dal Drive.
+ * - `salta`: la cancellazione e' definitiva sul Drive (libera spazio subito);
+ *   la copia resta sul PC. Senza passare dal recupero di 30 giorni, che a Drive
+ *   pieno non libera niente.
+ * - `tieni`: come sempre, nel recupero per 30 giorni (non libera spazio).
+ * Il default lo decide Nicholas: per ora `salta`. Per cambiarlo basta questa riga
+ * (o la dipendenza `recuperoDrivePieno` di `creaSpazioDrive`).
+ */
+export type RecuperoDrivePieno = 'salta' | 'tieni'
+export const RECUPERO_DRIVE_PIENO_DEFAULT: RecuperoDrivePieno = 'salta'
+
+/**
+ * La misura dello spazio per la procedura guidata: la quota dell'account e
+ * quanto occupa SierraDeck nella sua cartella, per tipo.
+ * Mappa dei tipi: `chat` = trascrizioni; `progetti` = file dei progetti;
+ * `battiti` = battiti, posta e presenze dei PC; `sistema` = indice, chiavi,
+ * workspace; `orfani` = file senza voce nell'indice; `recupero` = file nelle
+ * pulizie in recupero e copie di sicurezza dell'indice.
+ */
+export type QuotaMisurata = {
+  /** Byte del limite dell'account (`undefined` = illimitato o non detto). */
+  limite?: number
+  /** Byte usati nell'account Google (Drive + Gmail + Foto). */
+  usato: number
+  /** 0-100, solo se il limite e' noto. */
+  percentuale?: number
+  /** Byte nel Drive visibile di Nicholas (non la cartella di SierraDeck). */
+  usatoNelDrive?: number
+  /** Byte nel cestino del Drive visibile: contano solo per quei file. */
+  nelCestino?: number
+  /** Quanto occupa SierraDeck nella sua cartella privata. */
+  sierraDeck: { file: number; byte: number; perTipo: Record<TipoSpazio, { file: number; byte: number }> }
+  misuratoIl: string
+}
+
+export function quotaMisurata(m: MisuraSpazio): QuotaMisurata | undefined {
+  const q = m.quota
+  if (q === undefined) return undefined
+  return {
+    ...(q.limite !== undefined ? { limite: q.limite, percentuale: q.limite > 0 ? Math.round((q.usato / q.limite) * 1000) / 10 : 100 } : {}),
+    usato: q.usato,
+    ...(q.usatoNelDrive !== undefined ? { usatoNelDrive: q.usatoNelDrive } : {}),
+    ...(q.nelCestino !== undefined ? { nelCestino: q.nelCestino } : {}),
+    sierraDeck: { file: m.totale.file, byte: m.totale.byte, perTipo: m.perTipo },
+    misuratoIl: m.misuratoIl
+  }
+}
+
+/** La riga di log della quota, a ogni misura. */
+export function rigaQuota(q: QuotaMisurata): string {
+  const t = q.sierraDeck.perTipo
+  const parti = TIPI_SPAZIO.map((k) => `${k} ${byteLeggibili(t[k].byte)}`).join(', ')
+  return `[spazio] quota: usato ${byteLeggibili(q.usato)}${q.limite !== undefined ? ` di ${byteLeggibili(q.limite)} (${q.percentuale ?? 0}%)` : ''}${q.usatoNelDrive !== undefined ? `, nel Drive ${byteLeggibili(q.usatoNelDrive)}` : ''}${q.nelCestino !== undefined ? `, nel cestino ${byteLeggibili(q.nelCestino)}` : ''}; SierraDeck ${byteLeggibili(q.sierraDeck.byte)} in ${q.sierraDeck.file} file (${parti})`
+}
+
 /** Quello che il pannello «Progetti» mostra (PC, pagina, app). */
 export type StatoSpazio = {
   misura?: MisuraSpazio

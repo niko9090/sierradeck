@@ -1,10 +1,14 @@
 import { randomBytes } from 'node:crypto'
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 import {
   daSvuotare, indiceConDiNuovo, propostaChatEliminate, indiceSenza, leggiPulizie, misura, nuovaPulizia, NOME_PULIZIE, proposteDiPulizia, puliziaVuota, restaFuori, byteLeggibili,
   type Proposta, type Pulizia, type RegistroPulizie, type StatoSpazio, type TipoProposta, PULIZIA_DA_SOLA_OGNI_MS, pulizieDaSole,
   idInRecupero, nomiInRecupero, percorsiPerNome, tipoDi, versioniDaTenere, revisioniDaCancellare, stimaVersioni, propostaVersioni,
-  type StimaVersioni, type VersioniDiFile
+  chatDi, quotaMisurata, rigaQuota, RECUPERO_DRIVE_PIENO_DEFAULT,
+  type StimaVersioni, type VersioniDiFile, type IndiceDrive, type QuotaMisurata, type RecuperoDrivePieno, type VocePulita
 } from '@shared/spazio-drive'
+import { eSpazioPieno, MESSAGGIO_DRIVE_PIENO } from './cassaforte/freno-drive'
 import { proposteChatSulDrive, sessioniDelleVoci, spazioPoco } from '@shared/chat-sul-drive'
 import type { Archivio } from './cassaforte/archivio'
 import type { Manifesto } from './cassaforte/incrementale'
@@ -22,7 +26,69 @@ import type { Scatola } from './progetti/posta'
  * segna annullata subito. I file restano sul Drive fino alla scadenza.
  */
 
-export type { StatoSpazio }
+export type { StatoSpazio, QuotaMisurata, RecuperoDrivePieno }
+
+/**
+ * **Drive pieno** (0.99). A Drive pieno il registro delle pulizie non si scrive
+ * (il freno blocca POST/PUT/PATCH, non DELETE) e quindi nessuna pulizia partiva.
+ * In questa modalita' l'ordine e':
+ *   1. l'intenzione si annota in un file LOCALE (scrittura atomica);
+ *   2. si cancella sul Drive (DELETE: libera spazio davvero) — solo le chat che
+ *      hanno una copia intera su un PC, ricontrollato a ogni tentativo;
+ *   3. l'indice (manifesto) e il registro si aggiornano quando il Drive accetta
+ *      di nuovo scritture: se non riesce, l'intenzione resta in sospeso in
+ *      locale e `giro()` la riprende (anche dopo un riavvio).
+ * Fra l'intenzione e il registro sul Drive, `fuoriDalDrive` e le proposte
+ * guardano anche le intenzioni in sospeso, cosi' niente risale o si ripropone.
+ */
+export type IntenzionePulizia = {
+  /** L'id della pulizia. */
+  id: string
+  creataIl: string
+  recupero: RecuperoDrivePieno
+  /** La pulizia com'e' (o come sara') nel registro; con `salta`, `svuotataIl` si mette a cancellazione fatta. */
+  pulizia: Pulizia
+  /** Le chat da cancellare con la copia intera che deve esserci su un PC (`salta`). */
+  controlli: { nome: string; sessione: string; size: number }[]
+  fatto: { file: boolean; indice: boolean; registro: boolean }
+}
+
+/** Dove stanno le intenzioni in sospeso: un file locale, mai sul Drive. */
+export type ArchivioIntenzioni = {
+  leggi: () => IntenzionePulizia[]
+  /** Deve essere atomica: o c'e' tutto o resta il file di prima. Puo' lanciare. */
+  scrivi: (l: IntenzionePulizia[]) => void
+}
+
+/** Il file locale delle intenzioni: scrive in un temporaneo e lo rinomina. */
+export function intenzioniSuDisco(percorso: string): ArchivioIntenzioni {
+  return {
+    leggi: () => {
+      try {
+        const j = JSON.parse(readFileSync(percorso, 'utf8')) as { intenzioni?: unknown }
+        return Array.isArray(j.intenzioni) ? (j.intenzioni as IntenzionePulizia[]).filter((i) => typeof i?.id === 'string' && typeof i.pulizia?.id === 'string' && Array.isArray(i.pulizia.voci)) : []
+      } catch { return [] }
+    },
+    scrivi: (l) => {
+      mkdirSync(dirname(percorso), { recursive: true })
+      const tmp = `${percorso}.${process.pid}.tmp`
+      writeFileSync(tmp, JSON.stringify({ versione: 1, intenzioni: l }), 'utf8')
+      renameSync(tmp, percorso)
+    }
+  }
+}
+
+/** Come si fa una pulizia: `drivePieno` forza la modalita' (di base: la decide il freno), `recupero` la scelta di sempre/definitiva. */
+export type OpzioniPulizia = { drivePieno?: boolean; recupero?: RecuperoDrivePieno }
+export type EsitoPulizia = { ok: boolean; messaggio: string; pulizia?: Pulizia; drivePieno?: boolean; inSospeso?: boolean }
+
+/** Le pulizie che tolgono dal Drive l'unica copia «per scelta»: non chiedono la copia sul PC. */
+const SENZA_CONTROLLO_COPIA: readonly TipoProposta[] = ['chat-eliminate', 'doppie']
+
+const eErroreDrivePieno = (err: unknown): boolean => {
+  const m = err instanceof Error ? err.message : String(err)
+  return m === MESSAGGIO_DRIVE_PIENO || m.includes('Drive pieno:') || eSpazioPieno(m) || (err as { drivePieno?: boolean } | null)?.drivePieno === true
+}
 
 /** Ogni quanto il giro rivede quali chat stanno sul Drive. */
 const GIRO_CHAT_OGNI_MS = 6 * 60 * 60_000
@@ -37,12 +103,27 @@ export type SpazioDrive = {
    */
   subito: () => StatoSpazio | undefined
   /** `chi` (0.69.0): chi la fa quando non è Nicholas («automatico»). */
-  pulisci: (tipo: TipoProposta, chi?: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
+  pulisci: (tipo: TipoProposta, chi?: string, opz?: OpzioniPulizia) => Promise<EsitoPulizia>
   /**
    * «Elimina dal PC … anche dal Drive» (0.79.0): le copie di quelle chat
    * escono dall'indice del Drive e vanno nel recupero (30 giorni, annullabile).
+   * A Drive pieno vedi `OpzioniPulizia` e `IntenzionePulizia`.
    */
-  togliChat: (sessioni: string[], titolo: string) => Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }>
+  togliChat: (sessioni: string[], titolo: string, opz?: OpzioniPulizia) => Promise<EsitoPulizia>
+  /**
+   * La misura per la procedura guidata (0.99): quota dell'account (limite, usato,
+   * percentuale, usatoNelDrive, nelCestino) e quanto occupa SierraDeck, per tipo.
+   * `forza` salta la memoria di 5 minuti. Scrive una riga di log con la quota.
+   * `undefined` se il Drive non e' collegato o la quota non si legge.
+   */
+  quota: (forza?: boolean) => Promise<QuotaMisurata | undefined>
+  /**
+   * Le pulizie annotate in locale e non ancora complete (file cancellati,
+   * indice e registro riallineati): per dire a Nicholas «in sospeso».
+   */
+  inSospeso: () => IntenzionePulizia[]
+  /** Riprende ora le intenzioni in sospeso (il giro lo fa da solo ogni 30 minuti e dopo un riavvio). */
+  riprendiInSospeso: () => Promise<{ riprese: number; ancoraInSospeso: number }>
   /**
    * Le versioni vecchie (0.95.6): conta quante se ne possono togliere (una
    * richiesta per file: solo su richiesta), e le toglie. `libera` non parte
@@ -86,9 +167,17 @@ export function creaSpazioDrive(deps: {
   pieno?: () => boolean
   /** Google ha chiesto di rallentare: il giro aspetta. */
   inAttesa?: () => boolean
+  /** Il Drive ha detto «pieno» e lo spazio non e' ancora tornato (anche dopo il ricontrollo del freno). */
+  pienoDetto?: () => boolean
+  /** Le intenzioni di pulizia a Drive pieno, su un file locale (`intenzioniSuDisco`). Senza, a Drive pieno non si pulisce. */
+  intenzioni?: ArchivioIntenzioni
+  /** `salta` o `tieni` per le pulizie a Drive pieno; di base `RECUPERO_DRIVE_PIENO_DEFAULT`. */
+  recuperoDrivePieno?: () => RecuperoDrivePieno
 }): SpazioDrive {
   const adesso = deps.adesso ?? Date.now
   let registro: RegistroPulizie | undefined
+  let pendenti: IntenzionePulizia[] | undefined
+  let riprendendo = false
   let ultimo: { il: number; stato: StatoSpazio } | undefined
   let ultimaPuliziaDaSola = 0
   let ultimoGiroChat = 0
@@ -98,12 +187,44 @@ export function creaSpazioDrive(deps: {
   let stimaVersioniFatta: StimaVersioni | undefined
   let versioniInCorso = false
 
-  const leggiRegistro = async (): Promise<RegistroPulizie> => {
+  /* Le intenzioni in sospeso: in memoria, riscritte sul file locale a ogni passo. */
+  const elenco = (): IntenzionePulizia[] => (pendenti ??= deps.intenzioni?.leggi() ?? [])
+  const salvaElenco = (l: IntenzionePulizia[]): void => {
+    deps.intenzioni?.scrivi(l)
+    pendenti = l
+  }
+  /** Dopo la prima annotazione un file locale che non si scrive non ferma il lavoro: resta in memoria. */
+  const aggiorna = (id: string, cambia: (i: IntenzionePulizia) => IntenzionePulizia): IntenzionePulizia | undefined => {
+    const attuale = elenco().find((x) => x.id === id)
+    if (attuale === undefined) return undefined
+    const nuova = cambia(attuale)
+    const l = elenco().map((x) => (x.id === id ? nuova : x))
+    try { salvaElenco(l) } catch (err) { pendenti = l; deps.log(`[spazio] intenzione ${id}: file locale non scritto (${err instanceof Error ? err.message : String(err)})`) }
+    return nuova
+  }
+  const togliIntenzione = (id: string): void => {
+    const l = elenco().filter((x) => x.id !== id)
+    try { salvaElenco(l) } catch (err) { pendenti = l; deps.log(`[spazio] intenzione ${id}: file locale non scritto (${err instanceof Error ? err.message : String(err)})`) }
+  }
+  /** Il registro com'e' sul Drive, con sopra le pulizie annotate in locale e non ancora scritte sul Drive. */
+  const conPendenti = (r: RegistroPulizie): RegistroPulizie => {
+    const da = elenco().filter((i) => !i.fatto.registro)
+    if (da.length === 0) return r
+    const ids = new Set(da.map((i) => i.id))
+    return { ...r, pulizie: [...r.pulizie.filter((x) => !ids.has(x.id)), ...da.map((i) => i.pulizia)] }
+  }
+  /** L'indice senza le voci di pulizie gia' decise e non ancora tolte dall'indice (in sospeso): non si riproporrebbero due volte. */
+  const indiceVisto = (indice: IndiceDrive): IndiceDrive => {
+    const fuori = new Set(elenco().filter((i) => !i.fatto.indice).flatMap((i) => i.pulizia.voci.map((v) => v.percorso).filter((x): x is string => x !== undefined)))
+    return fuori.size === 0 ? indice : Object.fromEntries(Object.entries(indice).filter(([p]) => !fuori.has(p)))
+  }
+  const leggiRegistroDrive = async (): Promise<RegistroPulizie> => {
     const s = deps.scatola()
     if (s === undefined) return registro ?? puliziaVuota()
     registro = leggiPulizie(await s.leggi<unknown>(NOME_PULIZIE))
     return registro
   }
+  const leggiRegistro = async (): Promise<RegistroPulizie> => conPendenti(await leggiRegistroDrive())
   const scriviRegistro = async (r: RegistroPulizie): Promise<void> => {
     const s = deps.scatola()
     if (s === undefined) throw new Error('Drive non collegato o cassaforte chiusa')
@@ -121,13 +242,15 @@ export function creaSpazioDrive(deps: {
     if (a?.elencaConDimensioni === undefined) return { proposte: [], pulizie: [], errore: 'Il Drive non è collegato, o la cassaforte è chiusa.' }
     const [file, quota, manifesto, r] = await Promise.all([
       a.elencaConDimensioni(),
-      a.quota?.().catch(() => undefined),
+      a.quota?.().catch((err: unknown) => { deps.log(`[spazio] quota non letta: ${err instanceof Error ? err.message : String(err)}`); return undefined }),
       deps.manifestoDrive(),
       leggiRegistro()
     ])
     if (manifesto === undefined) return { proposte: [], pulizie: r.pulizie, errore: 'L’indice del Drive non si apre adesso: riprovo dopo.' }
     const m = misura({ file, indice: manifesto.file, ...(quota !== undefined ? { quota } : {}), pulizie: r, adesso: adesso() })
-    const proposte = proposteDiPulizia({ file, indice: manifesto.file, copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso() })
+    const qm = quotaMisurata(m)
+    if (qm !== undefined) deps.log(rigaQuota(qm))
+    const proposte = proposteDiPulizia({ file, indice: indiceVisto(manifesto.file), copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso() })
     if (stimaVersioniFatta !== undefined && stimaVersioniFatta.revisioni > 0) proposte.push(propostaVersioni(stimaVersioniFatta))
     return { misura: m, proposte, pulizie: [...r.pulizie].sort((x, y) => y.quando.localeCompare(x.quando)) }
   }
@@ -150,8 +273,170 @@ export function creaSpazioDrive(deps: {
     return { tolti, errori }
   }
 
+  /** Un passo alla volta sulle intenzioni: il giro e una pulizia di Nicholas non lavorano sulla stessa insieme. */
+  let fila: Promise<unknown> = Promise.resolve()
+  const inFila = <T>(f: () => Promise<T>): Promise<T> => {
+    const p = fila.then(f, f)
+    fila = p.catch(() => undefined)
+    return p
+  }
+
+  const sommaByte = (v: VocePulita[]): number => v.reduce((t, x) => t + x.byte, 0)
+  const messaggioErrore = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
+  /**
+   * Porta avanti un'intenzione: cancella sul Drive (`salta`), toglie le voci
+   * dall'indice, riporta la pulizia nel registro. Ogni passo si ricorda in
+   * locale e si puo' ripetere. Le scritture sul Drive si provano solo se il
+   * freno non dice «pieno»; se falliscono resta tutto in sospeso.
+   */
+  const esegui = (id: string): Promise<{ completa: boolean; tolti: number; errori: number; int?: IntenzionePulizia }> => inFila(async () => {
+    let int = elenco().find((x) => x.id === id)
+    if (int === undefined) return { completa: true, tolti: 0, errori: 0 }
+    let tolti = 0
+    let errori = 0
+    if (!int.fatto.file) {
+      if (int.recupero === 'salta') {
+        // Mai perdere lavoro: la copia intera sul PC si ricontrolla adesso, non quando e' stata annotata.
+        const copie = deps.copieSuiPc()
+        const mancano = new Set(int.controlli.filter((c) => !(copie.get(c.sessione) ?? []).some((x) => x.size >= c.size)).map((c) => c.nome))
+        if (mancano.size > 0) {
+          deps.log(`[spazio] pulizia «${int.pulizia.titolo}»: ${mancano.size} file lasciati sul Drive, la copia intera sul PC non c'e' piu'`)
+          int = aggiorna(id, (i) => {
+            const voci = i.pulizia.voci.filter((v) => !mancano.has(v.nome))
+            return { ...i, controlli: i.controlli.filter((c) => !mancano.has(c.nome)), pulizia: { ...i.pulizia, voci, byte: sommaByte(voci) } }
+          }) as IntenzionePulizia
+        }
+        // Niente piu' da togliere (nessuna copia intera sul PC): non c'e' nulla da portare avanti.
+        if (int.pulizia.voci.length === 0) { togliIntenzione(id); return { completa: true, tolti: 0, errori: 0 } }
+        const r = await togliFile(int.pulizia)
+        tolti = r.tolti
+        errori = r.errori
+        if (errori > 0) return { completa: false, tolti, errori, int }
+        int = aggiorna(id, (i) => ({ ...i, fatto: { ...i.fatto, file: true }, pulizia: { ...i.pulizia, svuotataIl: i.pulizia.svuotataIl ?? new Date(adesso()).toISOString() } })) as IntenzionePulizia
+        // Il Drive dice com'e' messo adesso (e, se lo spazio e' tornato, il freno lo sa subito): una riga di quota.
+        const q = await deps.archivio()?.quota?.().catch(() => undefined)
+        if (q !== undefined) deps.log(`[spazio] dopo la cancellazione: usato ${byteLeggibili(q.usato)}${q.limite !== undefined ? ` di ${byteLeggibili(q.limite)}` : ''}`)
+      } else {
+        int = aggiorna(id, (i) => ({ ...i, fatto: { ...i.fatto, file: true } })) as IntenzionePulizia
+      }
+    }
+    const scrittura = deps.pieno?.() !== true
+    if (!int.fatto.indice && scrittura) {
+      const conVoce = int.pulizia.voci.filter((v) => v.percorso !== undefined)
+      if (conVoce.length === 0) int = aggiorna(id, (i) => ({ ...i, fatto: { ...i.fatto, indice: true } })) as IntenzionePulizia
+      else {
+        const e = await deps.modificaManifesto((m) => ({ ...m, file: indiceSenza(m.file, conVoce) }), `PULIZIA ${int!.id} («${int!.pulizia.titolo}»)`)
+        if (e.ok) int = aggiorna(id, (i) => ({ ...i, fatto: { ...i.fatto, indice: true } })) as IntenzionePulizia
+        else deps.log(`[spazio] pulizia «${int.pulizia.titolo}»: l'indice non si aggiorna adesso (${e.messaggio ?? '?'}): in sospeso`)
+      }
+    }
+    if (!int.fatto.registro && scrittura) {
+      try {
+        const attuale = int.pulizia
+        const r = await leggiRegistroDrive()
+        await scriviRegistro({ ...r, pulizie: [...r.pulizie.filter((x) => x.id !== attuale.id), attuale] })
+        int = aggiorna(id, (i) => ({ ...i, fatto: { ...i.fatto, registro: true } })) as IntenzionePulizia
+      } catch (err) {
+        deps.log(`[spazio] pulizia «${int.pulizia.titolo}»: il registro non si scrive adesso (${messaggioErrore(err)}): in sospeso`)
+      }
+    }
+    const completa = int.fatto.file && int.fatto.indice && int.fatto.registro
+    if (completa) togliIntenzione(id)
+    return { completa, tolti, errori, int }
+  })
+
+  /** Riprende le intenzioni annotate e non finite (dopo un riavvio, o al primo giro con spazio). */
+  const riprendi = async (): Promise<{ riprese: number; ancoraInSospeso: number }> => {
+    if (riprendendo) return { riprese: 0, ancoraInSospeso: elenco().length }
+    riprendendo = true
+    try {
+      let riprese = 0
+      for (const i of [...elenco()]) {
+        const e = await esegui(i.id)
+        if (e.completa) { riprese += 1; deps.log(`[spazio] pulizia «${i.pulizia.titolo}» ripresa e completata (cancellazione, indice e registro)`) }
+      }
+      return { riprese, ancoraInSospeso: elenco().length }
+    } finally {
+      riprendendo = false
+    }
+  }
+
+  /** «Svuota» di una pulizia in recupero: stessa intenzione locale, cosi' un registro che non si scrive non lascia l'incoerenza. */
+  const svuotaPulizia = async (p: Pulizia): Promise<{ tolti: number; errori: number; sospeso: boolean }> => {
+    const gia = elenco().find((x) => x.id === p.id)
+    const int: IntenzionePulizia = gia !== undefined
+      ? { ...gia, recupero: 'salta', fatto: { ...gia.fatto, file: gia.recupero === 'salta' ? gia.fatto.file : false } }
+      : { id: p.id, creataIl: new Date(adesso()).toISOString(), recupero: 'salta', pulizia: p, controlli: [], fatto: { file: false, indice: true, registro: false } }
+    salvaElenco([...elenco().filter((x) => x.id !== p.id), int])
+    const e = await esegui(p.id)
+    return { tolti: e.tolti, errori: e.errori, sospeso: !e.completa && e.errori === 0 }
+  }
+
+  /**
+   * Una pulizia a Drive pieno: l'intenzione prima in locale, poi la cancellazione
+   * sul Drive (`salta`) o il recupero (`tieni`), poi indice e registro appena si puo'.
+   */
+  const applicaPiena = async (pr: Proposta, chi: string | undefined, recuperoOpz: RecuperoDrivePieno | undefined): Promise<EsitoPulizia> => {
+    const io = deps.io()
+    const recupero = recuperoOpz ?? deps.recuperoDrivePieno?.() ?? RECUPERO_DRIVE_PIENO_DEFAULT
+    if (deps.intenzioni === undefined) return { ok: false, messaggio: 'Drive pieno: non riesco ad annotare la pulizia su questo PC, quindi non cancello niente.', drivePieno: true }
+    let voci = pr.voci
+    let controlli: IntenzionePulizia['controlli'] = []
+    let lasciate = 0
+    if (recupero === 'salta' && !SENZA_CONTROLLO_COPIA.includes(pr.tipo)) {
+      // La stessa regola delle chat sul Drive: si toglie solo con una copia intera su un PC.
+      const copie = deps.copieSuiPc()
+      const principale = new Map<string, number>()
+      for (const v of pr.voci) {
+        const c = v.percorso === undefined ? undefined : chatDi(v.percorso)
+        if (c?.principale === true && v.voce !== undefined) principale.set(c.sessione, v.voce.size)
+      }
+      const buone: VocePulita[] = []
+      for (const v of pr.voci) {
+        if (v.percorso === undefined) { buone.push(v); continue }
+        const c = chatDi(v.percorso)
+        // Un file con voce nell'indice che non e' una chat (un progetto) non si cancella mai cosi'.
+        if (c === undefined) { lasciate += 1; continue }
+        const size = principale.get(c.sessione) ?? 1
+        if ((copie.get(c.sessione) ?? []).some((x) => x.size >= size)) { buone.push(v); controlli.push({ nome: v.nome, sessione: c.sessione, size }) } else lasciate += 1
+      }
+      voci = buone
+    }
+    if (voci.length === 0) return { ok: false, messaggio: 'Drive pieno: niente da togliere, nessuna di queste chat ha una copia intera su un PC. Sul Drive non ho cancellato niente.', drivePieno: true }
+    const p = nuovaPulizia({ ...pr, voci, byte: sommaByte(voci) }, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`, chi: chi ?? io.nome, adesso: adesso() })
+    const int: IntenzionePulizia = { id: p.id, creataIl: new Date(adesso()).toISOString(), recupero, pulizia: p, controlli, fatto: { file: false, indice: false, registro: false } }
+    try { salvaElenco([...elenco(), int]) } catch (err) {
+      pendenti = undefined
+      return { ok: false, messaggio: `Drive pieno: non riesco ad annotare la pulizia su questo PC (${messaggioErrore(err)}): non ho cancellato niente.`, drivePieno: true }
+    }
+    deps.log(`[spazio] Drive pieno: pulizia «${p.titolo}» annotata in locale (${voci.length} file, ${byteLeggibili(p.byte)}, recupero: ${recupero})`)
+    const e = await esegui(p.id)
+    const attuale = e.int?.pulizia ?? p
+    const sospeso = !e.completa
+    const nota = `${lasciate > 0 ? ` ${lasciate} file lasciati sul Drive: non hanno una copia intera sul PC.` : ''}${sospeso ? ' Indice e registro si aggiornano da soli appena il Drive accetta scritture.' : ''}`
+    if (recupero === 'tieni') {
+      deps.log(`[spazio] Drive pieno: pulizia «${p.titolo}» nel recupero (${voci.length} file): non libera spazio fino alla scadenza${sospeso ? ', registro in sospeso' : ''}`)
+      return { ok: true, messaggio: `${voci.length} file nel recupero per 30 giorni (${byteLeggibili(p.byte)}): a Drive pieno non libera spazio.${nota}`, pulizia: attuale, drivePieno: true, inSospeso: sospeso }
+    }
+    if (e.errori > 0) return { ok: false, messaggio: `Drive pieno: ${e.tolti} file cancellati dal Drive, ${e.errori} no. Riprovo da solo.${nota}`, pulizia: attuale, drivePieno: true, inSospeso: true }
+    deps.log(`[spazio] Drive pieno: pulizia «${p.titolo}» cancellata dal Drive: ${voci.length} file (${byteLeggibili(p.byte)}), sul PC restano${sospeso ? ', registro in sospeso' : ''}`)
+    return { ok: true, messaggio: `${voci.length} file cancellati dal Drive (${byteLeggibili(p.byte)} liberati). Sul PC restano le copie.${nota}`, pulizia: attuale, drivePieno: true, inSospeso: sospeso }
+  }
+
+  /** Una pulizia confermata: a Drive pieno vedi `applicaPiena`, se no `applicaNormale`. */
+  const applica = async (pr: Proposta, chi?: string, opz?: OpzioniPulizia): Promise<EsitoPulizia> => {
+    const piena = opz?.drivePieno ?? (deps.pieno?.() === true || deps.pienoDetto?.() === true)
+    if (piena) return applicaPiena(pr, chi, opz?.recupero)
+    try { return await applicaNormale(pr, chi) } catch (err) {
+      // Il freno non lo sapeva ancora: e' il Drive a dire «pieno» alla prima scrittura.
+      if (eErroreDrivePieno(err)) { deps.log('[spazio] il Drive e\' pieno: passo alla pulizia a Drive pieno'); return applicaPiena(pr, chi, opz?.recupero) }
+      throw err
+    }
+  }
+
   /** Una pulizia confermata: prima nel registro, poi fuori dall'indice; se l'indice non si scrive, annullata subito. */
-  const applica = async (pr: Proposta, chi?: string): Promise<{ ok: boolean; messaggio: string; pulizia?: Pulizia }> => {
+  const applicaNormale = async (pr: Proposta, chi?: string): Promise<EsitoPulizia> => {
     const io = deps.io()
     const p = nuovaPulizia(pr, { id: `pulizia-${new Date(adesso()).toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`, chi: chi ?? io.nome, adesso: adesso() })
     const r = await leggiRegistro()
@@ -206,13 +491,23 @@ export function creaSpazioDrive(deps: {
       try {
         const lette: VersioniDiFile[] = []
         let errori = 0
+        let primoErrore: string | undefined
+        // Diagnosi (0.99): quante revisioni il Drive mostra in tutto, e per quanti file ne mostra piu' di una.
+        // Se «0 da togliere» viene da qui (il Drive ne mostra una sola per file), il log lo dice.
+        let viste = 0
+        let conPiuDiUna = 0
         const cand = await candidatiVersioni(a)
         await inParallelo(cand, 4, async (c) => {
-          try { lette.push({ nome: c.nome, id: c.id, revisioni: revisioniDaCancellare(await a.elencaRevisioni!(c.id), c.tenere) }) } catch { errori += 1 }
+          try {
+            const tutte = await a.elencaRevisioni!(c.id)
+            viste += tutte.length
+            if (tutte.length > 1) conPiuDiUna += 1
+            lette.push({ nome: c.nome, id: c.id, revisioni: revisioniDaCancellare(tutte, c.tenere) })
+          } catch (err) { errori += 1; primoErrore ??= messaggioErrore(err) }
         })
         stimaVersioniFatta = stimaVersioni(lette, adesso())
         ultimo = undefined
-        deps.log(`[spazio] versioni vecchie contate: ${stimaVersioniFatta.revisioni} in ${stimaVersioniFatta.file.length} file su ${cand.length} (${byteLeggibili(stimaVersioniFatta.byte)})${errori > 0 ? `, ${errori} file non letti` : ''}`)
+        deps.log(`[spazio] versioni vecchie contate: ${stimaVersioniFatta.revisioni} in ${stimaVersioniFatta.file.length} file su ${cand.length} (${byteLeggibili(stimaVersioniFatta.byte)}); il Drive mostra ${viste} revisioni in tutto, ${conPiuDiUna} file ne hanno piu' di una${errori > 0 ? `, ${errori} file non letti (${primoErrore ?? '?'})` : ''}`)
         return { ok: true, messaggio: stimaVersioniFatta.revisioni === 0 ? 'Nessuna versione vecchia da togliere.' : `${stimaVersioniFatta.revisioni} versioni vecchie, circa ${byteLeggibili(stimaVersioniFatta.byte)}.` }
       } catch (err) {
         return { ok: false, messaggio: `Non riesco a contare le versioni: ${err instanceof Error ? err.message : String(err)}` }
@@ -280,7 +575,16 @@ export function creaSpazioDrive(deps: {
       return ultimo?.stato
     },
 
-    async pulisci(tipo, chi) {
+    async quota(forza = false) {
+      const st = await this.stato(forza)
+      return st.misura === undefined ? undefined : quotaMisurata(st.misura)
+    },
+
+    inSospeso: () => [...elenco()],
+
+    riprendiInSospeso: () => riprendi(),
+
+    async pulisci(tipo, chi, opz) {
       // Le versioni non passano dal recupero e non partono mai da sole: hanno la loro conferma.
       if (tipo === 'versioni') return { ok: false, messaggio: 'Le versioni vecchie si tolgono con la loro conferma.' }
       // Le proposte si rifanno adesso: quello che si toglie è quello che c'è ora.
@@ -288,17 +592,17 @@ export function creaSpazioDrive(deps: {
       if (st.errore !== undefined) return { ok: false, messaggio: st.errore }
       const pr = st.proposte.find((x) => x.tipo === tipo)
       if (pr === undefined || pr.voci.length === 0) return { ok: false, messaggio: 'Non c’è più niente da pulire qui.' }
-      return applica(pr, chi)
+      return applica(pr, chi, opz)
     },
 
-    async togliChat(sessioni, titolo) {
+    async togliChat(sessioni, titolo, opz) {
       const a = deps.archivio()
       if (a?.elencaConDimensioni === undefined) return { ok: false, messaggio: 'Il Drive non è collegato, o la cassaforte è chiusa.' }
       const [file, manifesto, r] = await Promise.all([a.elencaConDimensioni(), deps.manifestoDrive(), leggiRegistro()])
       if (manifesto === undefined) return { ok: false, messaggio: 'L’indice del Drive non si apre adesso.' }
-      const pr = propostaChatEliminate({ file, indice: manifesto.file, sessioni, titolo, pulizie: r })
+      const pr = propostaChatEliminate({ file, indice: indiceVisto(manifesto.file), sessioni, titolo, pulizie: r })
       if (pr.voci.length === 0) return { ok: true, messaggio: 'Sul Drive non c’erano copie di queste chat.' }
-      return applica(pr)
+      return applica(pr, undefined, opz)
     },
 
     async annulla(id) {
@@ -327,15 +631,15 @@ export function creaSpazioDrive(deps: {
       const r = await leggiRegistro()
       const p = r.pulizie.find((x) => x.id === id)
       if (p === undefined || p.annullataIl !== undefined || p.svuotataIl !== undefined) return { ok: false, messaggio: 'Non c’è niente da svuotare.' }
-      const e = await togliFile(p)
-      deps.log(`[spazio] recupero «${p.titolo}» svuotato su richiesta: ${e.tolti} file cancellati${e.errori > 0 ? `, ${e.errori} non riusciti` : ''}`)
+      // L'intenzione si annota prima di cancellare: se il registro non si scrive (Drive pieno) resta in sospeso e si riallinea dopo.
+      const e = await svuotaPulizia(p)
+      deps.log(`[spazio] recupero «${p.titolo}» svuotato su richiesta: ${e.tolti} file cancellati${e.errori > 0 ? `, ${e.errori} non riusciti` : ''}${e.sospeso ? ', registro in sospeso' : ''}`)
       // Svuotata solo se è andato via tutto: altrimenti resta, e il giro (o un nuovo «Svuota») riprova.
       if (e.errori > 0) return { ok: false, messaggio: `${e.tolti} file cancellati, ${e.errori} no: riprova più tardi` }
-      await cambiaPulizia(id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
-      return { ok: true, messaggio: `Svuotato: ${byteLeggibili(p.byte)} liberati.` }
+      return { ok: true, messaggio: `Svuotato: ${byteLeggibili(p.byte)} liberati.${e.sospeso ? ' Il registro si aggiorna da solo appena il Drive accetta scritture.' : ''}` }
     },
 
-    fuoriDalDrive: (percorso, size) => restaFuori(registro, percorso, size),
+    fuoriDalDrive: (percorso, size) => restaFuori(registro === undefined ? undefined : conPendenti(registro), percorso, size),
 
     async chatSulDrive() {
       if (deps.inAttesa?.() === true) return { ok: false, messaggio: 'Il Drive chiede di rallentare: riprovo dopo.', tolte: 0 }
@@ -351,7 +655,7 @@ export function creaSpazioDrive(deps: {
         const pieno = deps.pieno?.() === true
         const poco = spazioPoco(st.misura.quota) || pieno
         const proposte = proposteChatSulDrive({
-          file, indice: manifesto.file, copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso(),
+          file, indice: indiceVisto(manifesto.file), copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso(),
           soloQui: deps.soloQui ?? (() => false),
           ...(deps.sessioniSoloLocali !== undefined ? { sessioniSoloLocali: deps.sessioniSoloLocali() } : {}),
           ...(st.misura.quota !== undefined ? { quota: st.misura.quota } : {}),
@@ -364,9 +668,10 @@ export function creaSpazioDrive(deps: {
           if (pr.tipo === 'chat-spazio-poco') deps.segnaSoloLocali?.(sessioniDelleVoci(pr.voci))
           const esito = await applica(pr, 'automatico')
           if (!esito.ok || esito.pulizia === undefined) { deps.log(`[spazio] chat sul Drive: «${pr.titolo}» non fatta (${esito.messaggio})`); continue }
-          tolte += sessioniDelleVoci(pr.voci).length
+          tolte += sessioniDelleVoci(esito.pulizia.voci).length
           // Con poco spazio il recupero di 30 giorni non libera niente: si svuota subito. Sul PC le chat restano.
-          if (poco) await this.svuota(esito.pulizia.id)
+          // A Drive pieno lo ha gia' deciso la pulizia (`salta` cancella, `tieni` no).
+          if (poco && esito.drivePieno !== true) await this.svuota(esito.pulizia.id)
         }
         return { ok: true, messaggio: tolte === 0 ? 'Niente da togliere dal Drive.' : `${tolte} chat tolte dal Drive (sul PC restano).`, tolte }
       } catch (err) {
@@ -381,11 +686,16 @@ export function creaSpazioDrive(deps: {
       // Google ha chiesto di rallentare (k-192): niente giro, e' fatto di elenchi e cancellazioni.
       if (deps.inAttesa?.() === true) return
       try {
+        // Prima le pulizie annotate in locale e rimaste a meta' (Drive pieno, o un riavvio).
+        if (elenco().length > 0) {
+          const r0 = await riprendi()
+          if (r0.riprese > 0 || r0.ancoraInSospeso > 0) deps.log(`[spazio] pulizie in sospeso: ${r0.riprese} completate, ${r0.ancoraInSospeso} ancora in attesa`)
+        }
         const r = await leggiRegistro()
         for (const p of daSvuotare(r, adesso())) {
-          const e = await togliFile(p)
-          deps.log(`[spazio] recupero «${p.titolo}» scaduto: ${e.tolti} file cancellati dal Drive (${byteLeggibili(p.byte)})${e.errori > 0 ? `, ${e.errori} non riusciti: riprovo al prossimo giro` : ''}`)
-          if (e.errori === 0) await cambiaPulizia(p.id, (x) => ({ ...x, svuotataIl: new Date(adesso()).toISOString() }))
+          if (elenco().some((x) => x.id === p.id)) continue
+          const e = await svuotaPulizia(p)
+          deps.log(`[spazio] recupero «${p.titolo}» scaduto: ${e.tolti} file cancellati dal Drive (${byteLeggibili(p.byte)})${e.errori > 0 ? `, ${e.errori} non riusciti: riprovo al prossimo giro` : ''}${e.sospeso ? ', registro in sospeso' : ''}`)
         }
         // Il recupero scaduto va nel recupero da solo (0.69.0), una volta al giorno.
         if (adesso() - ultimaPuliziaDaSola >= PULIZIA_DA_SOLA_OGNI_MS) {

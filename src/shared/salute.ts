@@ -197,7 +197,7 @@ export function componiSalute(i: IngressiSalute): Salute {
     voci.push({
       chiave: 'drive', gruppo: 'drive', tono: 'guasto', titolo: 'Il Drive non accetta scritture (pieno)',
       spiegazione: `Il Drive è collegato ma pieno: salvataggi e battiti non partono (ultimo salvataggio: ${quantoFa(i.drive.ultimoSalvataggio, i.adesso)}). Gli altri PC si vedono lo stesso dal vivo, se raggiungibili; le loro versioni e i loro stati sono quelli che dicono adesso.`,
-      cosaFare: 'Libera spazio sul Drive o svuota il cestino di Google Drive.',
+      cosaFare: 'Libera spazio da «Spazio sul Drive» nel programma: il cestino di Google Drive conta solo per i file visibili nel tuo Drive, non per quelli di SierraDeck.',
       azioni: []
     })
   } else {
