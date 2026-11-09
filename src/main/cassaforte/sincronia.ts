@@ -129,7 +129,7 @@ export type Sincronia = {
    * carica piu' di un tetto di byte (vedi `salvaIncrementale`); «Salva ora»
    * e la chiusura caricano tutto, come sempre.
    */
-  salva: (forza?: boolean, opzioni?: { automatico?: boolean }) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
+  salva: (forza?: boolean, opzioni?: { automatico?: boolean; onProgresso?: (p: Progresso) => void }) => Promise<{ ok: boolean; voci?: number; conflitto?: boolean; invariato?: boolean; messaggio?: string; conflitti?: number; annullato?: boolean }>
   /** Accende/spegne il salvataggio automatico, e dice com'è ora. */
   auto: (attivo?: boolean) => boolean
   /**
@@ -818,7 +818,7 @@ export function apriSincronia(deps: {
           archivio: deps.archivio(),
           manifestoPrec: leggiManifestoLocale(),
           adesso: adesso(),
-          onProgresso: progressoVerso(l.presa),
+          onProgresso: (pr: Progresso): void => { progressoVerso(l.presa)(pr); opzioni?.onProgresso?.(pr) },
           ...(l.presa !== undefined ? { segnale: l.presa.segnale } : {}),
           sostituto: unioni(m),
           // Solo i workspace e il registro dei progetti si fondono: tutto il resto sale a flusso.

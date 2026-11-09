@@ -151,6 +151,7 @@ import { creaPostino, type Postino } from './progetti/posta'
 import { creaMandaAChat, type MandaAChat } from './progetti/manda-a-chat'
 import { pcNotiDaDisco, risolviPercorsiMiei } from './progetti/migra-proprietari'
 import { creaInvioDoppioni, richiestaDoppioni } from './progetti/doppioni-al-servizio'
+import { MOTIVO_DRIVE_PIENO_SPOSTA } from '@shared/sposta'
 import { creaLatoProprietario, creaSposta, giornaleSuDisco, gitDaSalvare, pulisciCopia, saleDaQuestoPc, vistaSposta, type Sposta } from './progetti/sposta'
 import { creaClientPcRemoto, ErroreRemoto } from './pc-remoto'
 import { ultimeRighe as ultimeRigheDelRegistro } from './risoluzione'
@@ -2423,8 +2424,12 @@ if (!app.requestSingleInstanceLock()) {
       })
       // Chiusa da te (0.60.9): «chiusa» anche per chi la guarda da lontano.
       ipcMain.handle('sottofondo:chiudi', (_e, sessione: unknown) => chiudiSottofondoDaTe(testo(sessione), 'da questo PC'))
-      ipcMain.handle('remoto:apri', (_e, pc: unknown, cartella: unknown) =>
-        esitoRemoto(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc))
+      ipcMain.handle('remoto:apri', async (_e, pc: unknown, cartella: unknown) => {
+        const e = await esitoRemoto<{ fatto: boolean }>(() => remoto.chiama(testo(pc), '/api/apri', { cartella: testo(cartella) }), pc)
+        // Prima non lasciava traccia: un «non è aperta» sbagliato non si capiva dal registro.
+        registro.info(`[apri] «Apri su ${nomePcDi(testo(pc))}» in ${testo(cartella)}: ${e.ok ? 'aperta là' : `no (${e.motivo}${e.stato !== undefined ? ` ${e.stato}` : ''}): ${e.messaggio}`}`)
+        return e
+      })
       ipcMain.handle('remoto:prova', (_e, pc: unknown) => remoto.prova(testo(pc)))
       // Il PIN di una chat di un altro PC (0.49.0): lo verifica quel PC, il suo guardiano.
       ipcMain.handle('remoto:pin', (_e, pc: unknown, chat: unknown, pin: unknown) =>
@@ -3113,7 +3118,7 @@ if (!app.requestSingleInstanceLock()) {
         const msManifesto = Date.now() - dalManifesto
         const pannello = datiPannello({
           io: { id: io.id, nome: io.nome, battito: new Date().toISOString() },
-          pc: pcPerPannello(postino.altrui(), nomeDaMostrare),
+          pc: pcPerPannello(postino.altrui(), nomeDaMostrare, (pcId) => remoto.vivoDa(pcId)),
           locali,
           manifesto,
           aperteQui: chatAperte.map((c) => c.sessione).filter((s): s is string => s !== undefined),
@@ -3214,7 +3219,11 @@ if (!app.requestSingleInstanceLock()) {
           for (const c of daFermare) await azioneAlleFinestre({ tipo: 'chat', azione: 'chiudi', chat: c.id }).catch(() => undefined)
           return daFermare.length
         },
-        salva: () => sincronia.salva(true),
+        salva: (onProgresso) => sincronia.salva(true, onProgresso !== undefined ? { onProgresso: (p) => onProgresso({ fase: p.fase, ...('fatto' in p && p.fatto !== undefined ? { fatto: p.fatto } : {}), ...('totale' in p && p.totale !== undefined ? { totale: p.totale } : {}), ...('unita' in p && p.unita !== undefined ? { unita: p.unita } : {}), ...('dettaglio' in p && p.dettaglio !== undefined ? { dettaglio: p.dettaglio } : {}) }) } : undefined),
+        // Prima di fermare le chat: se il Drive non può ricevere, si dice subito (mai «riprova» all'infinito).
+        puoCaricare: () => !contoDrive.stato().connesso ? 'il Drive non è collegato su questo PC'
+          : sincronia.chiaveDiCasa('prova') === undefined ? 'la cassaforte di questo PC è chiusa'
+          : frenoDrive.pieno() ? MOTIVO_DRIVE_PIENO_SPOSTA : undefined,
         manifestoDrive: () => sincronia.manifestoDrive(),
         pulisci: (p) => pulisciCopiaQui({ progetto: { id: p.progetto.id, nome: p.progetto.nome }, percorso: p.percorso }),
         log: registro.info
@@ -3245,7 +3254,9 @@ if (!app.requestSingleInstanceLock()) {
         leggiFileDrive: (percorso, m) => sincronia.leggiFileDrive(percorso, m as Manifesto),
         radiceChat: () => join(radiceClaude, 'projects'),
         imparaVoci: (voci) => sincronia.imparaVoci(Object.fromEntries(voci) as Manifesto['file']),
-        salvaRegistro: async () => { await sincronia.salva(true) },
+        salvaRegistro: async () => { const e = await sincronia.salva(true); return { ok: e.ok && e.annullato !== true, ...(e.messaggio !== undefined ? { messaggio: e.messaggio } : {}) } },
+        drivePieno: () => frenoDrive.pieno(),
+        vivoDa: (pcId) => remoto.vivoDa(pcId),
         inRecupero: (cartella, motivo) => nelRecuperoDeiProgrammi(cartella, motivo, { id: 'sposta', nome: basename(cartella) }),
         nomeDi: nomePcDi,
         avanzamento: () => { mandaAlleFinestre('casa:cambiate') },
@@ -3253,11 +3264,12 @@ if (!app.requestSingleInstanceLock()) {
       })
       spostaGlobale = sposta
       const riprendiSposta = (): void => {
-        void sposta.riprendi().then((g) => { if (g !== undefined && (g.fase === 'fatta' || g.fase === 'cambio')) void reindicizzaSessioni().catch(() => undefined) })
+        void sposta.riprendi({ cadenza: true }).then((g) => { if (g !== undefined && (g.fase === 'fatta' || g.fase === 'cambio')) void reindicizzaSessioni().catch(() => undefined) })
           .catch((err: unknown) => registro.info(`[sposta] ripresa non riuscita: ${String(err)}`))
       }
       const primaSposta = setTimeout(riprendiSposta, 40_000)
-      const timerSposta = setInterval(riprendiSposta, 60_000)
+      // Ogni 3 secondi si guarda: una procedura che aspetta si rilegge ogni 60 s (3 s se il PC di prima sta caricando).
+      const timerSposta = setInterval(riprendiSposta, 3_000)
       app.on('before-quit', () => { clearTimeout(primaSposta); clearInterval(timerSposta) })
       ipcMain.handle('sposta:avvia', async (_e, id: unknown) => {
         if (typeof id !== 'string' || id === '') return vistaSposta(sposta.stato())
@@ -3337,14 +3349,22 @@ if (!app.requestSingleInstanceLock()) {
           const la = nomePcDi(g.proprietario)
           try {
             await remoto.chiama(g.proprietario, '/api/apri', { cartella: g.percorso })
+            registro.info(`[apri] «Apri su ${la}» in ${g.percorso}: aperta là`)
             return { ok: true, messaggio: `Aperta una chat nuova su ${la}, in ${g.percorso}.` }
           } catch (err) {
-            return { ok: false, messaggio: `${la} non risponde: ${err instanceof Error ? err.message : String(err)}` }
+            const m = err instanceof Error ? err.message : String(err)
+            const motivo = err instanceof ErroreRemoto ? err.motivo : 'errore'
+            registro.info(`[apri] «Apri su ${la}» in ${g.percorso}: no (${motivo}${err instanceof ErroreRemoto && err.stato !== undefined ? ` ${err.stato}` : ''}): ${m}`)
+            // Il PC che risponde con un suo motivo (cartella assente, rifiuto) non è un PC che non risponde.
+            const risponde = err instanceof ErroreRemoto && ['cartella', 'rifiutato', 'chiave', 'http', 'chat', 'pin'].includes(err.motivo)
+            return { ok: false, messaggio: risponde ? m : `${la} non risponde: ${m}` }
           }
         }
         // «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia PC.
         if (azione === 'sposta-qui') {
-          if (g !== undefined && g.proprietario === io.id) return { ok: false, messaggio: `«${g.nome}» è già di questo PC.` }
+          const ferma = sposta.stato()
+          const riprende = ferma?.progetto === progetto && ferma.fase === 'fallita' && ferma.fallitaIn !== undefined && (ferma.fallitaIn === 'cambio' || ferma.fallitaIn === 'vecchia-copia')
+          if (g !== undefined && g.proprietario === io.id && !riprende) return { ok: false, messaggio: `«${g.nome}» è già di questo PC.` }
           const s = await sposta.avvia(progetto)
           return { ok: s.fase !== 'fallita', messaggio: s.messaggio }
         }
@@ -4550,7 +4570,7 @@ if (!app.requestSingleInstanceLock()) {
         },
         // «Sposta su questo PC» (0.88.0), dal lato del proprietario. Pigro: nasce con la sincronia.
         sposta: {
-          prepara: async (r: { progetto: string; verso: string; versoNome: string }) => latoProprietarioGlobale === undefined ? { ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' } : latoProprietarioGlobale.prepara(r),
+          prepara: async (r: { progetto: string; verso: string; versoNome: string; sposta?: string; asincrono?: boolean }) => latoProprietarioGlobale === undefined ? { ok: false, riprova: true, messaggio: 'la sincronia di questo PC non è ancora pronta' } : latoProprietarioGlobale.prepara(r),
           concludi: async (r: { progetto: string; verso: string; percorso: string; proprietarioDal: string }) => latoProprietarioGlobale === undefined ? { ok: false, messaggio: 'la sincronia di questo PC non è ancora pronta' } : latoProprietarioGlobale.concludi(r)
         },
         diffAutopilota: async (id: string, chiave: string, percorso: string) => {

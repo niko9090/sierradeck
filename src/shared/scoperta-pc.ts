@@ -243,6 +243,8 @@ export function messaggioErroreRemoto(motivo: string, nome: string, dettaglio?: 
   switch (motivo) {
     case 'chat':
       return `${nome} risponde, ma questa chat là non è aperta (è stata chiusa, o non c’è più)${dettaglio !== undefined && dettaglio !== '' ? `: «${dettaglio}»` : ''}. Puoi chiedergli di riaprirla da qui.`
+    case 'cartella':
+      return `${nome} risponde, ma lì la cartella del progetto non c’è. Controlla che non sia stata spostata o rinominata su ${nome}; se il progetto è sul Drive, «Sposta su questo PC» lo porta qui.`
     case 'chiave':
       return statoPc({ nome, ping: { esito: 'chiave', indirizzo: '' }, battitoVivo: true, driveCollegato: true, porta: 0 }).cosaFare
     case 'rifiutato':

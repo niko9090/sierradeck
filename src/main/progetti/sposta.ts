@@ -11,7 +11,7 @@ import {
   type ProgettoDrive, type RegistroProgetti, type RegistroProgettiStore
 } from './registro'
 import type { ComandoPosta } from '@shared/posta'
-import type { FaseSposta, VistaSposta } from '@shared/sposta'
+import { MOTIVO_DRIVE_PIENO_SPOSTA, percentualeSposta, type AvanzamentoPrepara, type FaseSposta, type VistaSposta } from '@shared/sposta'
 
 /**
  * «Sposta su questo PC» (0.88.0): l'unico modo in cui un progetto cambia
@@ -60,6 +60,22 @@ export type GiornaleSposta = {
   cartellaCreata?: boolean
   file?: number
   chat?: number
+  /** I numeri del passo di adesso (caricare, scaricare, verificare). */
+  fileFatti?: number
+  fileTotali?: number
+  byteFatti?: number
+  byteTotali?: number
+  passoPerc?: number
+  /** L'ultima volta che il PC di prima ha risposto (ISO). */
+  ultimoContatto?: string
+  /** Perché si aspetta. */
+  attesa?: string
+  /** Da quando si aspetta il proprietario (ISO): oltre il tempo massimo si ferma. */
+  attesaDal?: string
+  /** La richiesta «metti la copia nel recupero» lasciata nella posta del PC di prima. */
+  voceConcludi?: string
+  /** Il passo in cui si è fermata (per riprendere «Riprova» dal punto giusto). */
+  fallitaIn?: FaseSposta
   /** Cosa non arriva (file ignorati da .gitignore, oltre il tetto) o resta da fare. */
   avvisi?: string[]
   /** Il messaggio per chi guarda: cosa succede adesso, o perché si è fermata. */
@@ -77,7 +93,14 @@ export function vistaSposta(g: GiornaleSposta | undefined): VistaSposta | undefi
   if (g === undefined) return undefined
   return {
     progetto: g.progetto, nome: g.nome, daNome: g.daNome, fase: g.fase, messaggio: g.messaggio, percorso: g.percorso,
-    ...(g.errore !== undefined ? { errore: g.errore } : {}), ...(g.avvisi !== undefined ? { avvisi: g.avvisi } : {})
+    percentuale: percentualeSposta(g.fase, g.passoPerc),
+    puoRiprovare: g.fase === 'fallita',
+    ...(g.errore !== undefined ? { errore: g.errore } : {}), ...(g.avvisi !== undefined ? { avvisi: g.avvisi } : {}),
+    ...(g.fileFatti !== undefined ? { fileFatti: g.fileFatti } : {}), ...(g.fileTotali !== undefined ? { fileTotali: g.fileTotali } : {}),
+    ...(g.byteFatti !== undefined ? { byteFatti: g.byteFatti } : {}), ...(g.byteTotali !== undefined ? { byteTotali: g.byteTotali } : {}),
+    ...(g.passoPerc !== undefined && g.fase !== 'fatta' && g.fase !== 'fallita' ? { percentualePasso: Math.round(g.passoPerc) } : {}),
+    ...(g.ultimoContatto !== undefined ? { ultimoContatto: g.ultimoContatto } : {}),
+    ...(g.attesa !== undefined && g.fase !== 'fatta' ? { attesa: g.attesa } : {})
   }
 }
 
@@ -184,8 +207,24 @@ export type DipendenzeSposta = {
   radiceChat: () => string
   /** Il manifesto locale impara i file del progetto appena scesi: il salvataggio dopo non li ricarica. */
   imparaVoci?: (voci: [string, VoceManifestoSposta][]) => void
-  /** Il registro nuovo sale sul Drive: gli altri PC lo vedono. */
-  salvaRegistro: () => Promise<void>
+  /**
+   * Il registro nuovo sale sul Drive: gli altri PC lo vedono. Se dice `ok: false`
+   * il registro NON è salito e il passo resta in attesa (mai «fatta» a metà).
+   */
+  salvaRegistro: () => Promise<void | { ok: boolean; messaggio?: string }>
+  /** Il Drive è pieno adesso (`frenoDrive.pieno()`): non si crea niente, non si scrive posta. */
+  drivePieno?: () => boolean
+  /** Da quanti ms quel PC ha risposto l'ultima volta a qualcosa (`remoto.vivoDa`). */
+  vivoDa?: (pcId: string) => number | undefined
+  /** Quanto si aspetta il PC di prima che risponda (rete) prima di fermarsi: 30 minuti. */
+  attesaMaxMs?: number
+  /** Lo stesso quando la richiesta è nella posta di un PC spento: un giorno. */
+  attesaPostaMaxMs?: number
+  /** Ogni quanto `riprendi({ cadenza: true })` rilegge una procedura in attesa (60 s; 3 s se il PC di prima sta caricando). */
+  pausaAttesaMs?: number
+  pausaCaricoMs?: number
+  /** L'ora vera in ms (per le pause fra un controllo e l'altro). */
+  oraMs?: () => number
   /** Una cartella di qui nel recupero (30 giorni). */
   inRecupero: (cartella: string, motivo: string) => { ok: boolean; messaggio?: string }
   nomeDi: (pcId: string) => string
@@ -199,8 +238,11 @@ export type DipendenzeSposta = {
 export type Sposta = {
   /** Comincia (o riprende, se c'è già una procedura per lo stesso progetto). */
   avvia: (progetto: string) => Promise<GiornaleSposta>
-  /** Riprende la procedura in corso dopo un riavvio, o rilegge la posta mentre si aspetta il proprietario. */
-  riprendi: () => Promise<GiornaleSposta | undefined>
+  /**
+   * Riprende la procedura in corso dopo un riavvio, o rilegge la posta mentre si aspetta il proprietario.
+   * Con `cadenza` (il giro del programma) una procedura in attesa si rilegge solo ogni tanto.
+   */
+  riprendi: (opzioni?: { cadenza?: boolean }) => Promise<GiornaleSposta | undefined>
   /** La procedura da mostrare: quella in corso, o l'ultima finita finché non la si chiude. */
   stato: () => GiornaleSposta | undefined
   /** Una procedura finita o fallita si toglie dalla vista. Una in corso no. */
@@ -221,7 +263,12 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
   let inCorso: Promise<GiornaleSposta> | undefined
 
   const segna = (g: GiornaleSposta, cambi: Partial<GiornaleSposta>): GiornaleSposta => {
-    const n: GiornaleSposta = { ...g, ...cambi, aggiornataIl: adesso() }
+    // Cambiando passo, attesa e numeri del passo di prima non valgono più.
+    const nuovoPasso = cambi.fase !== undefined && cambi.fase !== g.fase
+    const azzera: Partial<GiornaleSposta> = nuovoPasso
+      ? { attesa: undefined, attesaDal: undefined, passoPerc: undefined, fileFatti: undefined, fileTotali: undefined, byteFatti: undefined, byteTotali: undefined }
+      : {}
+    const n: GiornaleSposta = { ...g, ...azzera, ...cambi, aggiornataIl: adesso() }
     deps.giornale.scrivi(n)
     deps.avanzamento?.(n)
     return n
@@ -236,42 +283,114 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
       messaggio += r.ok ? ' Quello che avevo scaricato qui è nel recupero.' : ` La copia scaricata qui (${g.percorso}) non è andata nel recupero: ${r.messaggio ?? ''}`
     }
     log(`[sposta] «${g.nome}» fermato: ${errore}`)
-    return segna(g, { fase: 'fallita', errore, messaggio })
+    return segna(g, { fase: 'fallita', fallitaIn: g.fase, errore, messaggio })
   }
 
-  /** La risposta del proprietario: l'impronta confermata, o il perché no. */
-  const leggiConferma = (x: unknown): { ok: true; impronta: string; avvisi?: string[] } | { ok: false; messaggio: string; riprova: boolean } => {
-    const r = (typeof x === 'string' ? (() => { try { return JSON.parse(x) as unknown } catch { return { ok: false, messaggio: x } } })() : x) as { ok?: unknown; impronta?: unknown; messaggio?: unknown; avvisi?: unknown; riprova?: unknown }
+  /** La risposta del proprietario: l'impronta confermata, o il perché no (o: sta ancora caricando). */
+  const leggiConferma = (x: unknown): { ok: true; impronta: string; avvisi?: string[] } | { ok: false; messaggio: string; riprova: boolean; inCorso: boolean; avanzamento?: AvanzamentoPrepara } => {
+    const r = (typeof x === 'string' ? (() => { try { return JSON.parse(x) as unknown } catch { return { ok: false, messaggio: x } } })() : x) as { ok?: unknown; impronta?: unknown; messaggio?: unknown; avvisi?: unknown; riprova?: unknown; inCorso?: unknown; avanzamento?: unknown }
     if (r?.ok === true && typeof r.impronta === 'string') {
       const avvisi = Array.isArray(r.avvisi) ? r.avvisi.filter((a): a is string => typeof a === 'string') : []
       return { ok: true, impronta: r.impronta, ...(avvisi.length > 0 ? { avvisi } : {}) }
     }
-    return { ok: false, messaggio: typeof r?.messaggio === 'string' ? r.messaggio : 'nessun motivo', riprova: r?.riprova === true }
+    const av = typeof r?.avanzamento === 'object' && r.avanzamento !== null ? r.avanzamento as AvanzamentoPrepara : undefined
+    return { ok: false, messaggio: typeof r?.messaggio === 'string' ? r.messaggio : 'nessun motivo', riprova: r?.riprova === true, inCorso: r?.inCorso === true, ...(av !== undefined ? { avanzamento: av } : {}) }
+  }
+
+  /** I numeri che il PC di prima dice del suo caricamento, nel giornale. */
+  const numeriDi = (a: AvanzamentoPrepara | undefined): Partial<GiornaleSposta> => {
+    if (a === undefined) return {}
+    const perc = a.fatto !== undefined && a.totale !== undefined && a.totale > 0 ? Math.min(100, (a.fatto / a.totale) * 100) : undefined
+    return {
+      ...(a.unita === 'byte' && a.fatto !== undefined && a.totale !== undefined ? { byteFatti: a.fatto, byteTotali: a.totale } : {}),
+      ...(a.unita === 'file' && a.fatto !== undefined && a.totale !== undefined ? { fileFatti: a.fatto, fileTotali: a.totale } : {}),
+      ...(perc !== undefined ? { passoPerc: perc } : {})
+    }
+  }
+  const dettaglioCarico = (a: AvanzamentoPrepara | undefined): string => {
+    if (a === undefined) return ''
+    if (a.passo === 'chat') return 'ferma le chat del progetto'
+    if (a.passo === 'confronto') return 'controlla che il Drive abbia tutto'
+    if (a.passo === 'carico' && a.fatto !== undefined && a.totale !== undefined) return a.unita === 'byte' ? `carica sul Drive (${Math.round(a.fatto / 1048576)} di ${Math.round(a.totale / 1048576)} MB)` : `carica sul Drive (${a.fatto} di ${a.totale} file)`
+    return 'prepara il progetto'
+  }
+  /** L'ultimo segno di vita del PC di prima, dal bussare riuscito. */
+  const conContatto = (g: GiornaleSposta): GiornaleSposta => {
+    const v = deps.vivoDa?.(g.da)
+    return v === undefined ? g : { ...g, ultimoContatto: new Date(Date.parse(adesso()) - v).toISOString() }
+  }
+  const attesaMax = deps.attesaMaxMs ?? 30 * 60_000
+  const attesaPostaMax = deps.attesaPostaMaxMs ?? 24 * 3_600_000
+  const pausaAttesa = deps.pausaAttesaMs ?? 60_000
+  const pausaCarico = deps.pausaCaricoMs ?? 3_000
+  const oraMs = deps.oraMs ?? ((): number => Date.now())
+  /** L'ultimo controllo dal vivo ha trovato il PC di prima che sta caricando: si rilegge presto. */
+  let caricaVivo = false
+  let ultimoGiro: number | undefined
+  const driveDetto = (): boolean => deps.drivePieno?.() === true
+
+  /** Fermata dopo il cambio: il progetto è già di questo PC, mancava solo avvisare la vecchia copia o far salire il registro. */
+  const fermaDopoCambio = (g: GiornaleSposta, errore: string): GiornaleSposta => {
+    log(`[sposta] «${g.nome}» fermato dopo il cambio: ${errore}`)
+    return segna(g, { fase: 'fallita', fallitaIn: g.fase, errore, messaggio: `«${g.nome}» è già di questo PC, ma ${errore} Puoi riprovare con «Riprova».` })
+  }
+  /**
+   * Un passo che non può andare avanti adesso: resta lì, dice perché, e
+   * dopo il tempo massimo si ferma con il motivo (mai «fatta» senza averlo fatto).
+   */
+  const aspetta = (g: GiornaleSposta, perche: string, dopoCambio: boolean): GiornaleSposta => {
+    const dal = g.attesaDal ?? adesso()
+    if (Date.parse(adesso()) - Date.parse(dal) > attesaMax) {
+      const e = `non è riuscito entro ${Math.round(attesaMax / 60_000)} minuti: ${perche}`
+      return dopoCambio ? fermaDopoCambio(g, e) : ferma(g, e)
+    }
+    return segna(g, { attesa: perche, attesaDal: dal, messaggio: perche })
   }
 
   const passoChiedi = async (g: GiornaleSposta): Promise<GiornaleSposta> => {
     const io = deps.io()
     try {
-      const r = await deps.chiamaPc(g.da, '/api/sposta/prepara', { progetto: g.progetto, verso: io.id, versoNome: io.nome, sposta: g.id })
+      const r = await deps.chiamaPc(g.da, '/api/sposta/prepara', { progetto: g.progetto, verso: io.id, versoNome: io.nome, sposta: g.id, asincrono: true })
+      g = { ...g, ultimoContatto: adesso() }
       const c = leggiConferma(r)
+      caricaVivo = !c.ok && c.inCorso
+      if (!c.ok && c.inCorso) {
+        const cosa = `${g.daNome} ${dettaglioCarico(c.avanzamento) || 'sta lavorando'}`
+        return segna(g, { fase: 'attesa-proprietario', attesaDal: g.attesaDal ?? adesso(), attesa: cosa, ...numeriDi(c.avanzamento), messaggio: `${cosa}.` })
+      }
       // «Una chat sta lavorando», «file non ancora uguali»: si aspetta e si richiede, non si ferma.
-      if (!c.ok && c.riprova) return segna(g, { fase: 'attesa-proprietario', messaggio: `${g.daNome}: ${c.messaggio}. Richiedo fra poco.` })
+      if (!c.ok && c.riprova) return segna(g, { fase: 'attesa-proprietario', attesaDal: g.attesaDal ?? adesso(), attesa: `${g.daNome}: ${c.messaggio}`, messaggio: `${g.daNome}: ${c.messaggio}. Richiedo fra poco.` })
       if (!c.ok) return ferma(g, `${g.daNome} non lo lascia andare: ${c.messaggio}`)
       return segna(g, { fase: 'scarico', impronta: c.impronta, ...(c.avvisi !== undefined ? { avvisi: c.avvisi } : {}), messaggio: `${g.daNome} ha caricato tutto e confermato. Scarico.` })
     } catch (err) {
+      caricaVivo = false
+      g = conContatto(g)
+      // Un PC con la versione di prima risponde alla vecchia maniera, in un colpo solo: oltre i 4 secondi è ancora al lavoro.
+      if (err instanceof ErroreRemoto && err.motivo === 'http' && err.stato === 504) {
+        return segna(g, { fase: 'attesa-proprietario', attesaDal: g.attesaDal ?? adesso(), attesa: `${g.daNome} sta ancora lavorando (risponde, ma non ha finito in tempo)`, messaggio: `${g.daNome} sta ancora lavorando: riprovo fra poco.` })
+      }
       if (!(err instanceof ErroreRemoto) || !MOTIVI_VERSO_POSTA.includes(err.motivo)) {
         return ferma(g, `non riesco a chiederlo a ${g.daNome}: ${err instanceof Error ? err.message : String(err)}.`)
       }
-      if (g.voce !== undefined) return segna(g, { fase: 'attesa-proprietario', messaggio: `${g.daNome} è spento: la richiesta è nella sua posta, riprendo da solo quando risponde.` })
+      if (g.voce !== undefined) return segna(g, { fase: 'attesa-proprietario', attesaDal: g.attesaDal ?? adesso(), attesa: `${g.daNome} è spento`, messaggio: `${g.daNome} è spento: la richiesta è nella sua posta, riprendo da solo quando risponde.` })
+      // La posta sta sul Drive: a Drive pieno non si scrive, e lo si dice chiaro.
+      if (driveDetto()) return ferma(g, `${g.daNome} non risponde e la sua posta sta sul Drive. ${MOTIVO_DRIVE_PIENO_SPOSTA}`)
       const voce = await deps.posta.chiedi(g.da, { tipo: 'sposta-prepara', progetto: g.progetto, verso: io.id, versoNome: io.nome, sposta: g.id }, g.percorsoDa,
         `Sposta «${g.nome}» su ${io.nome}`).catch(() => undefined)
-      if (voce === undefined) return ferma(g, `${g.daNome} non risponde e la posta sul Drive non si scrive.`)
+      if (voce === undefined) return ferma(g, driveDetto() ? `${g.daNome} non risponde e la sua posta sta sul Drive. ${MOTIVO_DRIVE_PIENO_SPOSTA}` : `${g.daNome} non risponde e la posta sul Drive non si scrive.`)
       log(`[sposta] «${g.nome}»: ${g.daNome} non risponde, richiesta nella sua posta`)
-      return segna(g, { fase: 'attesa-proprietario', voce, messaggio: `${g.daNome} è spento: ho lasciato la richiesta nella sua posta. Quando si accende ferma le chat e carica tutto; poi continuo da solo.` })
+      return segna(g, { fase: 'attesa-proprietario', voce, attesaDal: g.attesaDal ?? adesso(), attesa: `${g.daNome} è spento`, messaggio: `${g.daNome} è spento: ho lasciato la richiesta nella sua posta. Quando si accende ferma le chat e carica tutto; poi continuo da solo.` })
     }
   }
 
   const passoAttesa = async (g: GiornaleSposta): Promise<GiornaleSposta> => {
+    // Il tempo massimo: oltre, si ferma con il motivo e si può riprovare.
+    const dal = g.attesaDal !== undefined ? Date.parse(g.attesaDal) : Number.NaN
+    const max = g.voce !== undefined ? attesaPostaMax : attesaMax
+    if (Number.isFinite(dal) && Date.parse(adesso()) - dal > max) {
+      const quanto = max >= 3_600_000 ? `${Math.round(max / 3_600_000)} ore` : `${Math.round(max / 60_000)} minuti`
+      return ferma(g, `${g.daNome} non ha finito entro ${quanto}${g.attesa !== undefined ? ` (${g.attesa})` : ''}. Puoi riprovare.`)
+    }
     // Intanto si riprova dal vivo: se è tornato, non serve aspettare il suo postino.
     const viva = await passoChiedi({ ...g })
     if (viva.fase !== 'attesa-proprietario') return viva
@@ -298,6 +417,11 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
     const radiceChat = deps.radiceChat()
     let fatti = 0
     let chat = 0
+    let byte = 0
+    let byteSegnati = 0
+    const byteTotali = voci.reduce((t, [, v]) => t + (Number.isFinite(v.size) ? v.size : 0), 0)
+    const numeri = (): Partial<GiornaleSposta> => ({ fileFatti: fatti, fileTotali: voci.length, byteFatti: byte, byteTotali, passoPerc: voci.length === 0 ? 100 : Math.min(100, (byteTotali > 0 ? byte / byteTotali : fatti / voci.length) * 100) })
+    g = segna(g, { ...numeri(), messaggio: `Scarico: 0 di ${voci.length}.` })
     for (const [k, v] of voci) {
       const dove = destinazioneDi(k, { id: g.progetto, percorsoDa: g.percorsoDa, percorso: g.percorso, radiceChat })
       if (dove === undefined) return ferma(g, `un percorso del manifesto non è valido (${k}).`)
@@ -312,8 +436,12 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
         if (Number.isFinite(v.mtime) && v.mtime > 0) { try { utimesSync(dove, new Date(v.mtime), new Date(v.mtime)) } catch { /* la data non conta per la verifica */ } }
       }
       fatti += 1
+      byte += Number.isFinite(v.size) ? v.size : 0
       if (k.startsWith('chat/')) chat += 1
-      if (fatti % 50 === 0) g = segna(g, { file: fatti, messaggio: `Scarico: ${fatti} di ${voci.length}.` })
+      if (fatti % 20 === 0 || byte - byteSegnati >= 8 * 1048576) {
+        byteSegnati = byte
+        g = segna(g, { file: fatti, ...numeri(), messaggio: `Scarico: ${fatti} di ${voci.length}.` })
+      }
     }
     return segna(g, { fase: 'verifica', file: fatti - chat, chat, messaggio: `Scaricati ${fatti - chat} file e ${chat} chat. Verifico.` })
   }
@@ -327,7 +455,10 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
     const voci = vociDelProgetto(m, g.progetto, g.percorsoDa)
     const radiceChat = deps.radiceChat()
     const diverse: string[] = []
+    let letti = 0
     for (const [k, v] of voci) {
+      letti += 1
+      if (letti % 50 === 0) g = segna(g, { fileFatti: letti, fileTotali: voci.length, passoPerc: (letti / voci.length) * 100, messaggio: `Verifico: ${letti} di ${voci.length}.` })
       const dove = destinazioneDi(k, { id: g.progetto, percorsoDa: g.percorsoDa, percorso: g.percorso, radiceChat })
       let b: Buffer | undefined
       try { b = dove === undefined ? undefined : readFileSync(dove) } catch { b = undefined }
@@ -344,12 +475,21 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
     const io = deps.io()
     const p = progettoDi(g.progetto)
     if (p === undefined) return ferma(g, 'il progetto non è più nel registro.')
-    if (p.proprietario !== io.id) {
+    let cambiatoQui = p.proprietario === io.id
+    if (!cambiatoQui) {
       if (p.proprietario !== g.da) return ferma(g, `nel frattempo il progetto è passato a ${deps.nomeDi(p.proprietario ?? '')}.`)
+      // Prima di cambiare: se il registro non può salire sul Drive, non si cambia (resta tutto com'era).
+      if (driveDetto()) return aspetta(g, `${MOTIVO_DRIVE_PIENO_SPOSTA} Poi continuo da solo.`, false)
       deps.registro.scrivi(cambiaProprietario(deps.registro.leggi(), g.progetto, io.id, g.percorso, adesso()))
+      cambiatoQui = true
       log(`[sposta] «${g.nome}» adesso è di questo PC (${g.percorso}), prima era di ${g.daNome}`)
     }
-    await deps.salvaRegistro().catch((err: unknown) => log(`[sposta] registro non ancora sul Drive (${String(err)}): sale al prossimo salvataggio`))
+    // «Fatta» solo con il registro davvero sul Drive: gli altri PC lo leggono da là.
+    const sale = await deps.salvaRegistro().then((r) => r ?? { ok: true }, (err: unknown) => ({ ok: false, messaggio: err instanceof Error ? err.message : String(err) }))
+    if (!sale.ok) {
+      log(`[sposta] «${g.nome}»: il registro non è salito sul Drive (${sale.messaggio ?? 'motivo sconosciuto'}): riprovo`)
+      return aspetta(g, `Il registro non è ancora salito sul Drive (${sale.messaggio ?? 'motivo sconosciuto'}). Riprovo da solo.`, cambiatoQui)
+    }
     return segna(g, { fase: 'vecchia-copia', messaggio: `«${g.nome}» adesso è di ${io.nome}. Chiedo a ${g.daNome} di mettere la sua copia nel recupero.` })
   }
 
@@ -365,8 +505,13 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
       })
     } catch {
       // Spento: la copia di là va nel recupero quando si accende (posta), o
-      // con la pulizia delle copie che non sono sue.
-      await deps.posta.chiedi(g.da, comando, g.percorsoDa, `«${g.nome}» è passato a ${deps.io().nome}: metti la copia di qui nel recupero`).catch(() => undefined)
+      // con la pulizia delle copie che non sono sue. «Fatta» solo con la posta partita.
+      if (g.voceConcludi === undefined) {
+        if (driveDetto()) return aspetta(g, `${g.daNome} è spento e la sua posta sta sul Drive. ${MOTIVO_DRIVE_PIENO_SPOSTA}`, true)
+        const voce = await deps.posta.chiedi(g.da, comando, g.percorsoDa, `«${g.nome}» è passato a ${deps.io().nome}: metti la copia di qui nel recupero`).catch(() => undefined)
+        if (voce === undefined) return aspetta(g, `${g.daNome} è spento e non riesco a lasciargli il messaggio nella posta sul Drive. Riprovo da solo.`, true)
+        g = segna(g, { voceConcludi: voce })
+      }
       return segna(g, { fase: 'fatta', vecchiaCopia: 'in-attesa', messaggio: `Fatto: «${g.nome}» è su questo PC, in ${g.percorso}. ${g.daNome} è spento: mette la sua copia nel recupero quando si accende.` })
     }
   }
@@ -410,6 +555,11 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
       }
       const io = deps.io()
       const p = progettoDi(progetto)
+      // «Riprova» dopo una fermata a cambio fatto (registro o avviso alla vecchia copia): si riparte da lì, non da capo.
+      if (prima !== undefined && prima.fase === 'fallita' && prima.chiusa !== true && prima.progetto === progetto && prima.fallitaIn !== undefined
+        && (prima.fallitaIn === 'cambio' || prima.fallitaIn === 'vecchia-copia') && p?.proprietario === io.id) {
+        return avanza(segna(prima, { fase: prima.fallitaIn, errore: undefined, fallitaIn: undefined, attesa: undefined, attesaDal: undefined, messaggio: 'Riprendo da dove mi ero fermato.' }))
+      }
       const base = {
         id: nuovoId(), progetto, nome: p?.nome ?? progetto, da: p?.proprietario ?? '', daNome: deps.nomeDi(p?.proprietario ?? ''),
         percorsoDa: p?.percorso ?? '', percorso: '', fase: 'controlli' as FaseSposta, iniziataIl: adesso(), aggiornataIl: adesso(), messaggio: 'Controlli.'
@@ -420,6 +570,8 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
       if (p.proprietario === io.id) return no(`«${p.nome}» è già di questo PC.`)
       const drive = deps.driveNonPronto()
       if (drive !== undefined) return no(drive)
+      // Drive pieno: niente cartelle, niente chat chiuse, niente richieste. Si dice subito.
+      if (driveDetto()) return no(MOTIVO_DRIVE_PIENO_SPOSTA)
       const percorso = percorsoNuovo(p, io.cartellaProgetti)
       if (!cartellaLibera(percorso)) return no(`Qui c’è già una cartella ${percorso} con dentro dei file: non la sovrascrivo. Spostala o rinominala, poi riprova.`)
       if (deps.registro.leggi().progetti.some((x) => x.proprietario === io.id && x.percorso !== undefined && (staDentro(percorso, x.percorso) || staDentro(x.percorso, percorso)))) {
@@ -432,10 +584,12 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
       log(`[sposta] «${p.nome}» da ${base.daNome} verso questo PC (${percorso})`)
       return avanza(g)
     }),
-    riprendi: async () => {
+    riprendi: async (opzioni) => {
       const g = deps.giornale.leggi()
       if (finita(g)) return g
-      return una(() => avanza(g as GiornaleSposta))
+      // Il giro del programma: una procedura che aspetta si rilegge ogni tanto (presto se il PC di prima sta caricando).
+      if (opzioni?.cadenza === true && g?.attesa !== undefined && ultimoGiro !== undefined && oraMs() - ultimoGiro < (caricaVivo ? pausaCarico : pausaAttesa)) return g
+      return una(async () => { const n = await avanza(g as GiornaleSposta); ultimoGiro = oraMs(); return n })
     },
     stato: () => { const g = deps.giornale.leggi(); return g?.chiusa === true ? undefined : g },
     chiudi: () => {
@@ -451,6 +605,21 @@ export function creaSposta(deps: DipendenzeSposta): Sposta {
 /* Il lato del proprietario di prima.                                  */
 /* ------------------------------------------------------------------ */
 
+/** Il passo del salvataggio sul Drive, come lo racconta `sincronia.salva`. */
+export type ProgressoSalvataggio = { fase: string; fatto?: number; totale?: number; unita?: 'byte' | 'file'; dettaglio?: string }
+
+export type RichiestaPrepara = {
+  progetto: string
+  verso: string
+  versoNome: string
+  /** L'id dello spostamento: con `asincrono` il lavoro parte in sottofondo e lo stesso id ne legge lo stato. */
+  sposta?: string
+  asincrono?: boolean
+}
+export type EsitoPrepara =
+  | { ok: true; impronta: string; avvisi?: string[] }
+  | { ok: false; messaggio: string; riprova?: boolean; inCorso?: boolean; avanzamento?: AvanzamentoPrepara }
+
 export type DipendenzeProprietario = {
   io: () => { id: string; nome: string; cartellaProgetti: string }
   registro: RegistroProgettiStore
@@ -458,8 +627,13 @@ export type DipendenzeProprietario = {
   chatAperte: (percorso: string) => { sessione?: string; alLavoro: boolean }[]
   /** Ferma (chiude) le chat aperte nella cartella: quante. */
   fermaChat: (percorso: string) => Promise<number>
-  /** Carica tutto sul Drive, adesso (non il giro automatico). */
-  salva: () => Promise<{ ok: boolean; messaggio?: string }>
+  /** Carica tutto sul Drive, adesso (non il giro automatico); dice a che punto è. */
+  salva: (onProgresso?: (p: ProgressoSalvataggio) => void) => Promise<{ ok: boolean; messaggio?: string }>
+  /** Perché ora non si può caricare sul Drive (pieno, scollegato, cassaforte chiusa); `undefined` se si può. Si guarda PRIMA di fermare le chat. */
+  puoCaricare?: () => string | undefined
+  /** Quanto si aspetta, prima di rispondere «sta lavorando», un lavoro appena partito: 1,5 s. */
+  primaRispostaMs?: number
+  oraMs?: () => number
   manifestoDrive: () => Promise<ManifestoSposta | undefined>
   /** Il manifesto del registro arrivato con «concludi»: si fonde con quello di qui. */
   log?: (m: string) => void
@@ -481,32 +655,84 @@ export async function differenzeConDrive(percorso: string, id: string, m: Manife
 }
 
 export function creaLatoProprietario(deps: DipendenzeProprietario): {
-  prepara: (r: { progetto: string; verso: string; versoNome: string }) => Promise<{ ok: true; impronta: string; avvisi?: string[] } | { ok: false; messaggio: string; riprova?: boolean }>
+  /**
+   * Senza `asincrono`: tutto in una volta, come prima (la posta lo usa così).
+   * Con `asincrono` e un id: il lavoro parte in sottofondo e la risposta
+   * arriva subito (`inCorso` con i numeri del caricamento); chi richiede con lo
+   * stesso id ne legge lo stato, finché c'è l'esito.
+   */
+  prepara: (r: RichiestaPrepara) => Promise<EsitoPrepara>
   concludi: (r: { progetto: string; verso: string; percorso: string; proprietarioDal: string }) => Promise<{ ok: boolean; messaggio: string; nelRecupero?: boolean }>
 } {
   const log = deps.log ?? ((): void => {})
+  const oraMs = deps.oraMs ?? ((): number => Date.now())
+  const primaRispostaMs = deps.primaRispostaMs ?? 1500
+  type Lavoro = { avanzamento: AvanzamentoPrepara; promessa?: Promise<EsitoPrepara>; esito?: EsitoPrepara; finito?: number }
+  const lavori = new Map<string, Lavoro>()
+
+  const preparaTutto = async (r: RichiestaPrepara, avanza: (a: AvanzamentoPrepara) => void): Promise<EsitoPrepara> => {
+    const io = deps.io()
+    avanza({ passo: 'controllo' })
+    const p = deps.registro.leggi().progetti.find((x) => x.id === r.progetto)
+    if (p === undefined) return { ok: false, messaggio: 'il progetto non è nel registro di questo PC' }
+    if (p.proprietario !== io.id || p.percorso === undefined) return { ok: false, messaggio: `il progetto non è di ${io.nome}` }
+    if (!existsSync(p.percorso)) return { ok: false, messaggio: `la cartella ${p.percorso} non c’è su ${io.nome}` }
+    // Prima si guarda che si possa caricare (Drive pieno, scollegato): solo dopo si fermano le chat.
+    const noCarico = deps.puoCaricare?.()
+    if (noCarico !== undefined) return { ok: false, messaggio: noCarico }
+    const aperte = deps.chatAperte(p.percorso)
+    const alLavoro = aperte.filter((c) => c.alLavoro).length
+    if (alLavoro > 0) return { ok: false, riprova: true, messaggio: `${alLavoro} ${alLavoro === 1 ? 'chat sta lavorando' : 'chat stanno lavorando'} su ${io.nome}: aspetto che finiscano il turno` }
+    avanza({ passo: 'chat' })
+    const ferme = aperte.length > 0 ? await deps.fermaChat(p.percorso) : 0
+    log(`[sposta] «${p.nome}» verso ${r.versoNome}: ${ferme} chat fermate, carico tutto sul Drive`)
+    avanza({ passo: 'carico' })
+    const s = await deps.salva((pr) => avanza({
+      passo: 'carico', unita: pr.unita ?? 'file',
+      ...(pr.fatto !== undefined ? { fatto: pr.fatto } : {}), ...(pr.totale !== undefined ? { totale: pr.totale } : {}),
+      ...(pr.dettaglio !== undefined ? { dettaglio: pr.dettaglio } : {})
+    }))
+    if (!s.ok) {
+      // Se il motivo è il Drive pieno, riprovare non serve: si dice e basta.
+      const dopo = deps.puoCaricare?.()
+      if (dopo !== undefined) return { ok: false, messaggio: dopo }
+      return { ok: false, riprova: true, messaggio: `il salvataggio sul Drive non è riuscito (${s.messaggio ?? 'motivo sconosciuto'})` }
+    }
+    avanza({ passo: 'confronto' })
+    const m = await deps.manifestoDrive()
+    if (m === undefined) return { ok: false, riprova: true, messaggio: 'il manifesto del Drive non si legge' }
+    const d = await differenzeConDrive(p.percorso, p.id, m)
+    if (d.diversi.length > 0) return { ok: false, riprova: true, messaggio: `${d.diversi.length} file non sono ancora uguali sul Drive (${d.diversi.slice(0, 3).join(', ')})` }
+    if (d.nonSalgono.length > 0) return { ok: false, messaggio: `${d.nonSalgono.length} file sono troppo grandi per il Drive e non arriverebbero (${d.nonSalgono.slice(0, 3).join(', ')})` }
+    const avvisi: string[] = []
+    log(`[sposta] «${p.nome}»: tutto sul Drive, confermo a ${r.versoNome}`)
+    return { ok: true, impronta: improntaProgetto(m, p.id, p.percorso), ...(avvisi.length > 0 ? { avvisi } : {}) }
+  }
+
   return {
     async prepara(r) {
-      const io = deps.io()
-      const p = deps.registro.leggi().progetti.find((x) => x.id === r.progetto)
-      if (p === undefined) return { ok: false, messaggio: 'il progetto non è nel registro di questo PC' }
-      if (p.proprietario !== io.id || p.percorso === undefined) return { ok: false, messaggio: `il progetto non è di ${io.nome}` }
-      if (!existsSync(p.percorso)) return { ok: false, messaggio: `la cartella ${p.percorso} non c’è su ${io.nome}` }
-      const aperte = deps.chatAperte(p.percorso)
-      const alLavoro = aperte.filter((c) => c.alLavoro).length
-      if (alLavoro > 0) return { ok: false, riprova: true, messaggio: `${alLavoro} ${alLavoro === 1 ? 'chat sta lavorando' : 'chat stanno lavorando'} su ${io.nome}: aspetto che finiscano il turno` }
-      const ferme = aperte.length > 0 ? await deps.fermaChat(p.percorso) : 0
-      log(`[sposta] «${p.nome}» verso ${r.versoNome}: ${ferme} chat fermate, carico tutto sul Drive`)
-      const s = await deps.salva()
-      if (!s.ok) return { ok: false, riprova: true, messaggio: `il salvataggio sul Drive non è riuscito (${s.messaggio ?? 'motivo sconosciuto'})` }
-      const m = await deps.manifestoDrive()
-      if (m === undefined) return { ok: false, riprova: true, messaggio: 'il manifesto del Drive non si legge' }
-      const d = await differenzeConDrive(p.percorso, p.id, m)
-      if (d.diversi.length > 0) return { ok: false, riprova: true, messaggio: `${d.diversi.length} file non sono ancora uguali sul Drive (${d.diversi.slice(0, 3).join(', ')})` }
-      if (d.nonSalgono.length > 0) return { ok: false, messaggio: `${d.nonSalgono.length} file sono troppo grandi per il Drive e non arriverebbero (${d.nonSalgono.slice(0, 3).join(', ')})` }
-      const avvisi: string[] = []
-      log(`[sposta] «${p.nome}»: tutto sul Drive, confermo a ${r.versoNome}`)
-      return { ok: true, impronta: improntaProgetto(m, p.id, p.percorso), ...(avvisi.length > 0 ? { avvisi } : {}) }
+      if (r.asincrono !== true) return preparaTutto(r, () => {})
+      const chiave = r.sposta !== undefined && r.sposta !== '' ? r.sposta : `${r.progetto}|${r.verso}`
+      const ora = oraMs()
+      for (const [k, l] of lavori) if (l.finito !== undefined && ora - l.finito > 3_600_000) lavori.delete(k)
+      let l = lavori.get(chiave)
+      // Un esito «riprova» (una chat lavorava, file non ancora uguali) non si tiene: chi richiede fa ripartire il lavoro.
+      if (l?.esito !== undefined && !l.esito.ok && l.esito.riprova === true) { lavori.delete(chiave); l = undefined }
+      if (l === undefined) {
+        const nuovo: Lavoro = { avanzamento: { passo: 'controllo' } }
+        lavori.set(chiave, nuovo)
+        nuovo.promessa = preparaTutto(r, (a) => { nuovo.avanzamento = a })
+          .catch((err: unknown): EsitoPrepara => ({ ok: false, riprova: true, messaggio: err instanceof Error ? err.message : String(err) }))
+          .then((e) => { nuovo.esito = e; nuovo.finito = oraMs(); return e })
+        l = nuovo
+      }
+      if (l.esito === undefined && l.promessa !== undefined) {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([l.promessa, new Promise<void>((fatto) => { timer = setTimeout(fatto, primaRispostaMs) })])
+        if (timer !== undefined) clearTimeout(timer)
+      }
+      if (l.esito !== undefined) return l.esito
+      return { ok: false, riprova: true, inCorso: true, messaggio: 'sta preparando il progetto', avanzamento: l.avanzamento }
     },
     async concludi(r) {
       const io = deps.io()

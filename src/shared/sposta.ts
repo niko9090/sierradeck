@@ -18,6 +18,35 @@ export const PASSI_SPOSTA: { fase: FaseSposta; titolo: string }[] = [
   { fase: 'vecchia-copia', titolo: 'La copia di prima va nel recupero (30 giorni)' }
 ]
 
+/** Il motivo detto quando il Drive è pieno: lo stesso per avvio, posta e proprietario. */
+export const MOTIVO_DRIVE_PIENO_SPOSTA = 'Il Drive è pieno, libera spazio prima (svuota il cestino o le pulizie in Progetti) e poi riprova.'
+
+/** Quanto sta caricando il PC di prima sul Drive (lo dice lui, passo per passo). */
+export type AvanzamentoPrepara = {
+  passo: 'controllo' | 'chat' | 'carico' | 'confronto'
+  fatto?: number
+  totale?: number
+  unita?: 'file' | 'byte'
+  dettaglio?: string
+}
+
+/**
+ * Da quale a quale percentuale complessiva va ogni passo (poi `percentualePasso`
+ * dice a che punto è dentro il suo pezzo).
+ */
+const FASCE_SPOSTA: Partial<Record<FaseSposta, [number, number]>> = {
+  controlli: [0, 2], chiesta: [2, 35], 'attesa-proprietario': [2, 35], scarico: [35, 85], verifica: [85, 95], cambio: [95, 98], 'vecchia-copia': [98, 100]
+}
+
+/** La percentuale complessiva (0…100) di uno spostamento, da passo e avanzamento del passo (0…100). */
+export function percentualeSposta(fase: FaseSposta, passoPerc: number | undefined): number {
+  if (fase === 'fatta') return 100
+  const fascia = FASCE_SPOSTA[fase]
+  if (fascia === undefined) return 0
+  const dentro = Math.max(0, Math.min(100, passoPerc ?? 0)) / 100
+  return Math.round(fascia[0] + (fascia[1] - fascia[0]) * dentro)
+}
+
 /** Lo stato di uno spostamento, per chi lo guarda. */
 export type VistaSposta = {
   progetto: string
@@ -29,6 +58,22 @@ export type VistaSposta = {
   /** Dove arriva su questo PC. */
   percorso: string
   avvisi?: string[]
+  /** I file (e le chat) fatti e da fare nel passo di adesso: caricare dal PC di prima, scaricare, verificare. */
+  fileFatti?: number
+  fileTotali?: number
+  /** Gli stessi, in byte (quando il passo li conta). */
+  byteFatti?: number
+  byteTotali?: number
+  /** Quanto è fatto in tutto, 0…100 (sempre presente dal PC; opzionale solo per i dati vecchi). */
+  percentuale?: number
+  /** Quanto è fatto nel passo di adesso, 0…100 (assente se il passo non si conta). */
+  percentualePasso?: number
+  /** L'ultima volta che il PC di prima ha risposto (ISO). */
+  ultimoContatto?: string
+  /** Perché si aspetta (un PC spento, una chat che lavora, il Drive): vuoto se non si aspetta. */
+  attesa?: string
+  /** Fallita: il bottone «Riprova» rifà partire lo spostamento (stessa azione di «Sposta su questo PC»). */
+  puoRiprovare?: boolean
 }
 
 /** A che passo è (1…6), per la barra; 0 = finita o fallita. */
