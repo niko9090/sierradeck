@@ -78,11 +78,15 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
         const sua = saluti.find((x) => x.pcId === v.chiave.slice(3))?.salute?.versione
         if (nuova?.versione !== undefined && typeof sua === 'string' && !prima(sua, nuova.versione)) continue
       }
+      // k-202: «Quanto lavora SierraDeck» ha i numeri (CPU, RAM, richieste) nel titolo, che cambiano a ogni giro:
+      // la chiave è per PC e il titolo senza numeri, i numeri restano nel dettaglio.
+      const risorse = v.chiave === 'risorse'
+      const titolo = risorse ? v.titolo.split(':')[0] ?? v.titolo : v.titolo
       out.push({
-        pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${v.titolo}`,
+        pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${titolo}`,
         dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: '),
         // La voce di un altro PC (`pc:<id>`): più PC la vedono, la riga è una per quel PC.
-        ...(v.chiave.startsWith('pc:') ? { chiave: v.chiave } : {})
+        ...(v.chiave.startsWith('pc:') ? { chiave: v.chiave } : risorse ? { chiave: `risorse:${s.pcId}` } : {})
       })
     }
   }
