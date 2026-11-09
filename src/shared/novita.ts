@@ -41,6 +41,14 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.97.3',
+    righe: [
+      '**Drive pieno detto finché resta pieno:** la Salute continua a dirlo finché il Drive non si libera o un salvataggio riesce, e i testi parlano dei 15 minuti veri.',
+      '**Battito vecchio spiegato:** se un PC non scrive il battito da giorni, la Salute e il controllo dei PC dicono che può essere il Drive pieno (un solo account per tutti i PC) e che la versione mostrata può essere vecchia. La versione ora porta anche il nome del PC.',
+      '**Meno avvisi ripetuti:** «Quanto lavora SierraDeck» non si riscrive più ogni 6 ore per numeri che cambiano.',
+    ],
+  },
+  {
     versione: '0.97.2',
     righe: [
       '**Aggiornamenti senza falsi errori:** se una release è pubblicata a metà (manca ancora il file da scaricare), il programma aspetta e riprova da solo, senza errori rossi né segnalazioni. Se il file manca per più di 2 ore, lo segnala una volta.',
