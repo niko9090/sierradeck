@@ -16,7 +16,9 @@
  * Puro: l'orologio si passa da fuori, per i test.
  */
 
-export const MESSAGGIO_DRIVE_PIENO = 'Drive pieno: libera spazio o svuota il cestino.'
+// I file di SierraDeck stanno nella sua cartella privata (appDataFolder) e si cancellano per sempre:
+// il cestino non c'entra. Conta solo per i file che Nicholas vede nel suo Drive.
+export const MESSAGGIO_DRIVE_PIENO = 'Drive pieno: lo spazio di SierraDeck si libera dal programma («Spazio sul Drive»); il cestino conta solo per i file visibili nel tuo Drive.'
 /** Ogni quanto si riprova a scrivere, a Drive pieno. */
 export const RICONTROLLO_PIENO_MS = 15 * 60_000
 /** Lo stesso intervallo, in minuti, per i testi. */

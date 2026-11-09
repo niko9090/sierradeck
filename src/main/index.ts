@@ -83,7 +83,7 @@ import { statInParallelo } from './stat-in-parallelo'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
 import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
-import { creaSpazioDrive, type SpazioDrive, type StatoSpazio } from './spazio-drive'
+import { creaSpazioDrive, intenzioniSuDisco, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
@@ -3157,6 +3157,9 @@ if (!app.requestSingleInstanceLock()) {
           impostazioni.impostaPreferenze({ ...p, chatSoloLocali: [...new Set([...(p.chatSoloLocali ?? []), ...sessioni])] })
         },
         pieno: () => frenoDrive.pieno(),
+        pienoDetto: () => frenoDrive.pienoDetto(),
+        // Le pulizie a Drive pieno si annotano qui, in locale, prima di toccare il Drive (e si riprendono dopo un riavvio).
+        intenzioni: intenzioniSuDisco(join(dati, 'spazio-intenzioni.json')),
         inAttesa: () => frenoDrive.attesaMs() > 0
       })
       spazioGlobale = spazio
@@ -3165,6 +3168,11 @@ if (!app.requestSingleInstanceLock()) {
       const primoSpazio = setTimeout(() => { void spazio.giro() }, 20_000)
       app.on('before-quit', () => { clearInterval(timerSpazio); clearTimeout(primoSpazio) })
       ipcMain.handle('spazio:stato', (_e, forza: unknown) => spazio.stato(forza === true))
+      // Per la procedura guidata «Drive pieno»: la quota (limite, usato, %, nel Drive, nel cestino) con lo spazio di SierraDeck per tipo.
+      ipcMain.handle('spazio:quota', (_e, forza: unknown) => spazio.quota(forza === true))
+      // Le pulizie annotate in locale e non ancora complete; `spazio:riprendi` le riprende subito.
+      ipcMain.handle('spazio:in-sospeso', () => spazio.inSospeso().map((i) => ({ id: i.id, titolo: i.pulizia.titolo, recupero: i.recupero, file: i.pulizia.voci.length, byte: i.pulizia.byte, fatto: i.fatto })))
+      ipcMain.handle('spazio:riprendi', () => spazio.riprendiInSospeso())
       // La vista di ogni progetto (0.69.0): stato in una parola, gruppi, testi delle colonne.
       const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: never[]; inRecupero: CartellaInRecupero[] }; spazio?: StatoSpazio }> => {
         const p = await pannelloSenzaVista()
