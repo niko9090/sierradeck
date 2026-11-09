@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.98.0',
+    righe: [
+      '**Finestra sempre a posto:** si apre sempre ingrandita e dentro lo schermo, anche se prima era finita fuori.',
+      '**Dopo l’aggiornamento riprende da solo:** le chat tornano a lavorare, anche quelle dei workspace che erano dietro, quando tornano davanti.',
+      '**Specialisti senza doppioni:** uno specialista già avviato non parte due volte.',
+      '**Autopilota più giusto:** riparte da solo solo dopo un aggiornamento vero, non a ogni apertura.',
+    ],
+  },
+  {
     versione: '0.97.3',
     righe: [
       '**Drive pieno detto finché resta pieno:** la Salute continua a dirlo finché il Drive non si libera o un salvataggio riesce, e i testi parlano dei 15 minuti veri.',
