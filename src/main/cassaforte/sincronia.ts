@@ -1220,7 +1220,7 @@ export function apriSincronia(deps: {
       // k-65: Google ha detto «troppe richieste»: si aspetta, non si insiste.
       if (freno.attesaMs() > 0) return
       // Drive pieno: le modifiche restano in locale, il salvataggio aspetta
-      // lo spazio (ricontrollo ogni 30 minuti). L'arrivo, che legge soltanto, va avanti.
+      // lo spazio (ricontrollo ogni RICONTROLLO_PIENO_MIN minuti). L'arrivo, che legge soltanto, va avanti.
       const r = freno.pieno()
         ? { ok: true, invariato: true } as { ok: boolean; messaggio?: string; conflitto?: boolean }
         : await this.salva(false, { automatico: opzioni?.conArrivo !== false })

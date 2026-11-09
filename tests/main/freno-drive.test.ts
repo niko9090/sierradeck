@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  creaFreno, conFreno, eSpazioPieno, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MS, ATTESA_LIMITE_MIN_MS, ATTESA_LIMITE_MAX_MS,
+  creaFreno, conFreno, eSpazioPieno, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MS, RICONTROLLO_PIENO_MIN, ATTESA_LIMITE_MIN_MS, ATTESA_LIMITE_MAX_MS,
   type EventoFreno
 } from '../../src/main/cassaforte/freno-drive'
 import { creaArchivioDrive } from '../../src/main/cassaforte/google-drive'
@@ -48,7 +48,7 @@ describe('il freno: spazio pieno', () => {
     expect(eSpazioPieno('rateLimitExceeded')).toBe(false)
   })
 
-  it('lo dice una volta sola, si ricontrolla dopo 30 minuti, e ripartire dice «libero»', () => {
+  it('lo dice una volta sola, si ricontrolla dopo 15 minuti, e ripartire dice «libero»', () => {
     let t = 0
     const f = creaFreno(() => t)
     const eventi: EventoFreno[] = []
@@ -60,12 +60,41 @@ describe('il freno: spazio pieno', () => {
     expect(f.pieno()).toBe(true)
     t += 1
     expect(f.pieno()).toBe(false) // ora si riprova una scrittura
-    f.spazioPieno() // e se e' ancora pieno: silenzio, e altri 30 minuti
+    f.spazioPieno() // e se e' ancora pieno: silenzio, e altri 15 minuti
     expect(eventi).toEqual(['pieno'])
     expect(f.pieno()).toBe(true)
     f.spazioLibero()
     expect(eventi).toEqual(['pieno', 'libero'])
     expect(f.pieno()).toBe(false)
+  })
+
+  it('«pieno detto» resta vero dopo il ricontrollo, finché lo spazio non torna', () => {
+    let t = 0
+    const f = creaFreno(() => t)
+    expect(f.pienoDetto()).toBe(false)
+    f.spazioPieno()
+    t += RICONTROLLO_PIENO_MS
+    expect(f.pieno()).toBe(false)
+    expect(f.pienoDetto()).toBe(true)
+    f.spazioLibero()
+    expect(f.pienoDetto()).toBe(false)
+  })
+
+  it('«pieno detto» torna falso anche dopo una scrittura riuscita', async () => {
+    let t = 0
+    const f = creaFreno(() => t)
+    const risposte = [new Response('{}', { status: 200 })]
+    const g = conFreno((async () => risposte.shift()!) as unknown as typeof fetch, f)
+    f.spazioPieno()
+    t += RICONTROLLO_PIENO_MS
+    expect(f.pienoDetto()).toBe(true)
+    await g('https://www.googleapis.com/drive/v3/files', { method: 'POST' })
+    expect(f.pienoDetto()).toBe(false)
+  })
+
+  it('i testi dicono gli stessi minuti della costante', () => {
+    expect(RICONTROLLO_PIENO_MIN * 60_000).toBe(RICONTROLLO_PIENO_MS)
+    expect(RICONTROLLO_PIENO_MIN).toBe(15)
   })
 })
 
