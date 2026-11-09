@@ -37,6 +37,7 @@
 - Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
 - In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
 - Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
+- la pagina del telefono riceve le funzioni di `src/shared` con `.toString()`: devono essere autosufficienti, senza costanti di modulo, e usare solo ciò che è definito nella pagina. _(2026-11-09)_
 
 ## worktree
 
@@ -61,6 +62,7 @@
 - Senza JAVA_HOME gradle usa il JRE 25 del PATH e fallisce in 8 s con il messaggio «25.0.4.1»: Gradle 8.11 non regge Java 25. _(2026-11-07)_
 - Con org.gradle.daemon=false il criterio Android nella cartella principale è tornato verde (k-52, 07/11): il rosso di 20-35 s era il demone Gradle riusato con la TEMP cancellata. _(2026-11-07)_
 - Il ramo del worktree può nascere prima del lavoro PC già in main (k-53, k-54): fare `git merge main` prima di leggere i file `src/shared` del PC. _(2026-11-07)_
+- `tests/android/rotte-lente-app.test.ts` impone che `ROTTE_LENTE` sia contenuta nella lista dell'app: ogni rotta lenta nuova va aggiunta anche in `android/`. _(2026-11-09)_
 
 ## release
 
@@ -172,22 +174,6 @@
 - la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
 - la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 - La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
-
-## pc
-
-- Il firewall di Windows su rete «Pubblica» scarta in silenzio i pacchetti del telefono sul wifi: rimedio con `New-NetFirewallRule ... -RemoteAddress LocalSubnet`, mai aperto a internet. _(2026-11-06)_
-
-## nsis
-
-- `perMachine:false` = installatore senza admin: netsh nell'installatore fallisce in silenzio, serve il ripiego col comando mostrato dal programma _(2026-11-06)_
-
-## firewall
-
-- le porte del Client sono configurabili (portaClient): meglio una regola per programma (-Program, LocalSubnet) che per porta _(2026-11-06)_
-
-## soglie
-
-- "PC acceso" ora ha una sola soglia, `PC_SPENTO_DOPO_MS` (35 min) in `shared/posta.ts`. Se il battito cambia cadenza, il margine sopra `BATTITO_RISCRIVI_MS` è verificato da un test. _(2026-11-06)_
 
 ## criterio
 
@@ -338,6 +324,7 @@
 - ogni percorso di pulizia scrive il registro prima di cancellare: a Drive pieno nessuno dei percorsi con recupero parte. Solo le DELETE (versioni, svuota) passano. _(2026-11-09)_
 - il cestino di Google non c'entra con i file di SierraDeck (appDataFolder, DELETE definitivo). Il messaggio «svuota il cestino» va corretto. _(2026-11-09)_
 - Una pulizia con voci ancora nell'indice, ma file già cancellati, viene riproposta dal giro delle chat: le proposte devono ignorare le voci di pulizie in sospeso (indiceVisto). _(2026-11-09)_
+- `pulisci('chat-non-usate')` non trovava la proposta: viene da `proposteChatSulDrive`, non da `proposteDiPulizia`; ora è in `StatoSpazio.chatNonUsate`. _(2026-11-09)_
 
 ## sposta
 
