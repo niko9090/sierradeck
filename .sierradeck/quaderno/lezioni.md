@@ -34,6 +34,7 @@
 - La guardia del carico blocca anche typecheck e suite intera per molti minuti: `npx vitest run tests/shared/<lettera>` passa e copre tutti i file senza nominarli uno a uno. _(2026-11-08)_
 - I test dei tipi opzionali (es. `cancellaId?` di creaArchivioDrive) passano in vitest ma rompono `tsc`: usare `!` nei test, che vitest non controlla. _(2026-11-08)_
 - per provare `cerca()` di aggiornamenti.ts basta mockare electron-updater con `checkForUpdates` che restituisce `{downloadPromise}` e usare fake timers (setTimeout da 10 s). _(2026-11-08)_
+- Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
 
 ## worktree
 
@@ -75,6 +76,9 @@
 - gh release create va fatto con --draft: con la release già pubblicata npm run pubblica rifiuta (existingType=release) e exe/blockmap/latest.yml vanno caricati a mano. _(2026-11-08)_
 - 0.97.1: npm run pubblica rifiuta di compilare da una copia (worktree); pubblicare dalla cartella principale. Se la release GitHub è già pubblica, pubblica non carica l'installer: controllare i 5 file. _(2026-11-08)_
 - una release a metà (latest.yml su GitHub prima dell'exe) dà 404 per ore: i raggruppamenti degli errori uniscono righe di giorni diversi e la «versione» è quella del PC che invia, non di chi ha l'erro… _(2026-11-08)_
+- Un agente lanciato in un worktree isolato non può eseguire git nella cartella principale (né cd né git -C): per pubblicare dal main serve un agente con la cartella principale come directory di lavoro. _(2026-11-08)_
+- Prima di pubblicare, `package.json` di origin/main può essere ancora alla versione precedente: il bump unito sta solo nel main locale e va pushato con main prima del tag. _(2026-11-08)_
+- Le pubblicazioni dalla cartella principale vanno affidate a general-purpose: lo sviluppatore è chiuso nel suo worktree e non può usare git nel principale (0.97.1 e 0.97.2). _(2026-11-08)_
 
 ## git
 
@@ -91,6 +95,8 @@
 ## controllo
 
 - una voce di salute con tono non «ok» diventa criticità per ogni PC che la compone: i consumi vanno giudicati solo sui numeri del PC stesso, sennò si ripetono ovunque. _(2026-11-07)_
+- una criticità con i numeri nel titolo cambia firma a ogni giro: il rapporto all'autopilota si riscrive ogni 6 ore (controllo-pc.ts:133). _(2026-11-09)_
+- Le versioni dei PC nel controllo vengono dall'ultimo battito sul Drive: con il Drive pieno restano vecchie. Prima di dire «PC vecchio» si controlla sul PC. _(2026-11-09)_
 
 ## strumenti
 
@@ -111,29 +117,13 @@
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 
-## impostazioni
-
-- Aggiungere o spostare una voce in impostazioni-struttura.ts cambia android/.../impostazioni.json: va rigenerato con AGGIORNA=1 e il test lo confronta. _(2026-11-06)_
-
 ## hook
 
-- L'hook «PC carico» rifiuta tsc e suite completa per molti minuti: i test di un file passano. Per aspettare usare `sleep` in background e un `until` sul file di output. _(2026-11-06)_
 - Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 
-## orchestratore
-
-- Un Agent rifiutato dalla guardia arriva nel flusso come specialista «avviato» e poi «fallito» (tool_result is_error): nei test va emesso il tool_result, o i posti risultano occupati due volte _(2026-11-06)_
-- gli Agent sono dentro il processo dell'orchestratore: non c'è modo di fermarne uno solo dal servizio, la fermata passa da un avviso all'orchestratore. _(2026-11-06)_
-
-## menu
-
-- Aggiungere una voce a MENU_PRINCIPALE rompe l'app Android (menu.json, Scheda, MenuPrincipaleTest): le voci solo-PC vanno fuori da quella lista, come VOCE_SPECIALISTI. _(2026-11-06)_
-
 ## pagina
 
-- la pagina del telefono è una stringa TS: niente backtick né backslash, `\d` diventa `[0-9]`. Il test `posti-chat-pagina` estrae le funzioni con `new Function` e vuole definite le variabili globali. _(2026-11-06)_
-- nella pagina telefono niente backslash: i tasti passano l'id con data-id e onclick="f(this)", e la logica condivisa sta in src/shared come funzione autosufficiente inserita con toString() _(2026-11-06)_
 - In client-pagina.ts le funzioni di attesa-vista.ts vanno aggiunte anche all'elenco delle toString() e al test che le estrae, altrimenti attesaHtml non gira _(2026-11-06)_
 - dentro lo script della pagina servita le funzioni sono testate estraendole da `paginaClient()`: se aggiungi una funzione usata da `menuSpecHtml`, va aggiunta anche nell'elenco di `disegna` in `tests/… _(2026-11-06)_
 
@@ -148,6 +138,7 @@
 ## versioni
 
 - i battiti degli altri PC con versione vecchia nei test cambiano l'esito di decidiApertura: la versione si giudica solo da un battito fresco, uno scaduto può essere superato. _(2026-11-06)_
+- le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
 
 ## kotlin
 
@@ -181,6 +172,7 @@
 - A Drive pieno `conFreno` blocca ogni PATCH/PUT: anche togliere voci dal manifesto può fallire. Cancellare un file (DELETE) passa, ma solo dopo che la voce è uscita dall'indice. _(2026-11-06)_
 - Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
 - Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
+- «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
 
 ## coda
 
