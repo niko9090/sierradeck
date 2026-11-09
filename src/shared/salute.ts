@@ -19,6 +19,8 @@ export type Tono = 'ok' | 'attenzione' | 'guasto'
 export type AzioneSalute =
   | { id: 'apri-drive'; testo: string }
   | { id: 'apri-registro'; testo: string }
+  /** 0.99: la procedura guidata «Libera spazio sul Drive» (PC e telefono). */
+  | { id: 'libera-spazio'; testo: string }
   | { id: 'installa'; testo: string }
   | { id: 'scarica-a-mano'; testo: string; url: string }
   | { id: 'apri-autopilota'; testo: string; autopilota: string }
@@ -198,7 +200,7 @@ export function componiSalute(i: IngressiSalute): Salute {
       chiave: 'drive', gruppo: 'drive', tono: 'guasto', titolo: 'Il Drive non accetta scritture (pieno)',
       spiegazione: `Il Drive è collegato ma pieno: salvataggi e battiti non partono (ultimo salvataggio: ${quantoFa(i.drive.ultimoSalvataggio, i.adesso)}). Gli altri PC si vedono lo stesso dal vivo, se raggiungibili; le loro versioni e i loro stati sono quelli che dicono adesso.`,
       cosaFare: 'Libera spazio da «Spazio sul Drive» nel programma: il cestino di Google Drive conta solo per i file visibili nel tuo Drive, non per quelli di SierraDeck.',
-      azioni: []
+      azioni: [{ id: 'libera-spazio', testo: 'Libera spazio sul Drive' }]
     })
   } else {
     voci.push({

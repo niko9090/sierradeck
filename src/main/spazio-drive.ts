@@ -252,7 +252,14 @@ export function creaSpazioDrive(deps: {
     if (qm !== undefined) deps.log(rigaQuota(qm))
     const proposte = proposteDiPulizia({ file, indice: indiceVisto(manifesto.file), copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso() })
     if (stimaVersioniFatta !== undefined && stimaVersioniFatta.revisioni > 0) proposte.push(propostaVersioni(stimaVersioniFatta))
-    return { misura: m, proposte, pulizie: [...r.pulizie].sort((x, y) => y.quando.localeCompare(x.quando)) }
+    // Le chat non usate da più di 30 giorni con una copia intera su un PC: per la procedura «Libera spazio sul Drive».
+    const chatNonUsate = proposteChatSulDrive({
+      file, indice: indiceVisto(manifesto.file), copieSuiPc: deps.copieSuiPc(), pulizie: r, adesso: adesso(),
+      soloQui: deps.soloQui ?? (() => false),
+      ...(deps.sessioniSoloLocali !== undefined ? { sessioniSoloLocali: deps.sessioniSoloLocali() } : {}),
+      ...(quota !== undefined ? { quota } : {})
+    }).find((x) => x.tipo === 'chat-non-usate' && x.voci.length > 0)
+    return { misura: m, proposte, ...(chatNonUsate !== undefined ? { chatNonUsate } : {}), pulizie: [...r.pulizie].sort((x, y) => y.quando.localeCompare(x.quando)) }
   }
 
   const togliFile = async (p: Pulizia): Promise<{ tolti: number; errori: number }> => {
@@ -590,7 +597,7 @@ export function creaSpazioDrive(deps: {
       // Le proposte si rifanno adesso: quello che si toglie è quello che c'è ora.
       const st = await leggiTutto()
       if (st.errore !== undefined) return { ok: false, messaggio: st.errore }
-      const pr = st.proposte.find((x) => x.tipo === tipo)
+      const pr = st.proposte.find((x) => x.tipo === tipo) ?? (tipo === 'chat-non-usate' ? st.chatNonUsate : undefined)
       if (pr === undefined || pr.voci.length === 0) return { ok: false, messaggio: 'Non c’è più niente da pulire qui.' }
       return applica(pr, chi, opz)
     },

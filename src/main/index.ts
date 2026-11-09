@@ -84,6 +84,7 @@ import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicur
 import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, storieDiProvaInRecupero } from './rimozione-sicura'
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, intenzioniSuDisco, type SpazioDrive, type StatoSpazio } from './spazio-drive'
+import type { InSospesoVista } from '@shared/libera-spazio'
 import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
@@ -611,8 +612,10 @@ function risorseQui(): RisorsePc | undefined {
 }
 /** Il pannello del Drive e le sue azioni (0.58.0, tappa 4), anche per il telefono. */
 let pannelloDriveGlobale: (() => Promise<unknown>) | undefined
-let azioneDriveGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>) | undefined
+let azioneDriveGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: string; drivePieno?: boolean; inSospeso?: boolean }>) | undefined
 let spazioGlobale: SpazioDrive | undefined
+/** Le pulizie annotate in locale e non finite, come le vedono il PC e il telefono. */
+const vistaInSospeso = (s: SpazioDrive): InSospesoVista[] => s.inSospeso().map((i) => ({ id: i.id, titolo: i.pulizia.titolo, recupero: i.recupero, file: i.pulizia.voci.length, byte: i.pulizia.byte, fatto: i.fatto }))
 /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
 let gestioneChatGlobale: GestioneChat | undefined
 /** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
@@ -3176,7 +3179,7 @@ if (!app.requestSingleInstanceLock()) {
       // Per la procedura guidata «Drive pieno»: la quota (limite, usato, %, nel Drive, nel cestino) con lo spazio di SierraDeck per tipo.
       ipcMain.handle('spazio:quota', (_e, forza: unknown) => spazio.quota(forza === true))
       // Le pulizie annotate in locale e non ancora complete; `spazio:riprendi` le riprende subito.
-      ipcMain.handle('spazio:in-sospeso', () => spazio.inSospeso().map((i) => ({ id: i.id, titolo: i.pulizia.titolo, recupero: i.recupero, file: i.pulizia.voci.length, byte: i.pulizia.byte, fatto: i.fatto })))
+      ipcMain.handle('spazio:in-sospeso', () => vistaInSospeso(spazio))
       ipcMain.handle('spazio:riprendi', () => spazio.riprendiInSospeso())
       // La vista di ogni progetto (0.69.0): stato in una parola, gruppi, testi delle colonne.
       const pannelloCompleto = async (): Promise<Pannello & { rimozione: { stati: never[]; inRecupero: CartellaInRecupero[] }; spazio?: StatoSpazio }> => {
@@ -3317,7 +3320,7 @@ if (!app.requestSingleInstanceLock()) {
        * il residente, rendere solo cloud (il giro sicuro), confermare, annullare,
        * ripristinare.
        */
-      azioneDriveGlobale = async (corpo: unknown): Promise<{ ok: boolean; messaggio: string }> => {
+      azioneDriveGlobale = async (corpo: unknown): Promise<{ ok: boolean; messaggio: string; drivePieno?: boolean; inSospeso?: boolean }> => {
         const c = (typeof corpo === 'object' && corpo !== null ? corpo : {}) as Record<string, unknown>
         const testoDi = (x: unknown): string => (typeof x === 'string' ? x : '')
         const azione = testoDi(c.azione)
@@ -3328,10 +3331,12 @@ if (!app.requestSingleInstanceLock()) {
         if (azione === 'spazio-misura') { await spazio.stato(true); return { ok: true, messaggio: 'Misurato adesso.' } }
         if (azione === 'spazio-pulisci') {
           const tipo = testoDi(c.tipo)
-          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto' && tipo !== 'prove' && tipo !== 'doppioni-nome') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
-          const e = await spazio.pulisci(tipo)
+          if (tipo !== 'doppie' && tipo !== 'vecchie' && tipo !== 'recupero-scaduto' && tipo !== 'prove' && tipo !== 'doppioni-nome' && tipo !== 'chat-non-usate') return { ok: false, messaggio: 'Pulizia sconosciuta.' }
+          // «Libera spazio sul Drive»: il recupero a Drive pieno si può scegliere; senza, decide il programma.
+          const recupero = c.recupero === 'salta' || c.recupero === 'tieni' ? c.recupero : undefined
+          const e = await spazio.pulisci(tipo, undefined, recupero !== undefined ? { recupero } : undefined)
           void spazio.stato(true)
-          return { ok: e.ok, messaggio: e.messaggio }
+          return { ok: e.ok, messaggio: e.messaggio, ...(e.drivePieno === true ? { drivePieno: true } : {}), ...(e.inSospeso === true ? { inSospeso: true } : {}) }
         }
         // Le versioni vecchie (0.95.6): si contano su richiesta, si cancellano solo con la conferma di Nicholas.
         if (azione === 'spazio-versioni-conta' || azione === 'spazio-versioni-libera') {
@@ -4510,6 +4515,13 @@ if (!app.requestSingleInstanceLock()) {
         },
         provaTogliProgetto: (nome: string) => provaTogliProgettoGlobale?.(nome) ?? Promise.resolve({ ok: false, messaggio: 'Il registro dei progetti non è ancora pronto.' }),
         azioneDrive: (c: unknown) => azioneDriveGlobale?.(c) ?? Promise.resolve({ ok: false, messaggio: 'Il pannello non è ancora pronto: la cassaforte o il Drive non sono aperti.' }),
+        // «Libera spazio sul Drive» dal telefono: la stessa misura e gli stessi passi del PC.
+        spazioDrive: {
+          stato: (forza: boolean) => spazioGlobale?.stato(forza) ?? Promise.resolve(undefined),
+          quota: (forza: boolean) => spazioGlobale?.quota(forza) ?? Promise.resolve(undefined),
+          inSospeso: () => (spazioGlobale === undefined ? [] : vistaInSospeso(spazioGlobale)),
+          riprendi: () => spazioGlobale?.riprendiInSospeso() ?? Promise.resolve({ riprese: 0, ancoraInSospeso: 0 })
+        },
         ...(gestioneChatGlobale !== undefined ? { gestioneChat: gestioneChatGlobale } : {}),
         chat: () => chatAperte.map(conAltrove),
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Aiuto } from './Aiuto'
+import { LiberaSpazioDrive } from './LiberaSpazioDrive'
 import { byteLeggibili, ETICHETTA_SPAZIO, TIPI_SPAZIO, inRecupero, type StatoSpazio, type TipoProposta } from '@shared/spazio-drive'
 
 const data = (iso: string): string => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
@@ -15,6 +16,7 @@ export function SpazioDrive({ spazio, occupato, onAzione }: {
   onAzione: (corpo: { azione: string; tipo?: TipoProposta; id?: string }) => void
 }): React.JSX.Element {
   const [conferma, setConferma] = useState<{ tipo: 'pulisci'; proposta: TipoProposta } | { tipo: 'svuota'; id: string } | undefined>(undefined)
+  const [libera, setLibera] = useState(false)
   const m = spazio?.misura
   const q = m?.quota
   const massimo = Math.max(1, ...TIPI_SPAZIO.map((t) => m?.perTipo[t].byte ?? 0))
@@ -28,6 +30,8 @@ export function SpazioDrive({ spazio, occupato, onAzione }: {
         30 giorni nel recupero. «Annulla» li rimette; alla scadenza si cancellano da soli. «Svuota adesso» li cancella prima, con la tua conferma.
         Una chat tolta che riprende a lavorare su un PC risale da sola.
       </Aiuto></span>
+      <div style={{ marginTop: 4 }}><button className="tasto tasto--mini tasto--acceso" onClick={() => setLibera(true)} title="Una procedura guidata, passo per passo">Libera spazio…</button></div>
+      {libera ? <LiberaSpazioDrive onChiudi={() => { setLibera(false); onAzione({ azione: 'spazio-misura' }) }} /> : null}
       {spazio === undefined ? <div className="account__nota">Misuro il Drive…</div> : null}
       {spazio?.errore !== undefined ? <div className="account__nota" style={{ color: 'var(--ambra)' }}>{spazio.errore}</div> : null}
       {m !== undefined ? (

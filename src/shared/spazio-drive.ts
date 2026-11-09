@@ -186,6 +186,8 @@ export function rigaQuota(q: QuotaMisurata): string {
 export type StatoSpazio = {
   misura?: MisuraSpazio
   proposte: Proposta[]
+  /** La proposta «chat non usate» (0.99): per la procedura «Libera spazio», non per l'elenco del pannello. */
+  chatNonUsate?: Proposta
   pulizie: Pulizia[]
   errore?: string
 }

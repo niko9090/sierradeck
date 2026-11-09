@@ -495,7 +495,14 @@ contextBridge.exposeInMainWorld('gestore', {
     // Il pannello delle chat e dei progetti del Drive (0.58.0).
     pannello: (): Promise<import('@shared/pannello-drive').Pannello> => ipcRenderer.invoke('casa:pannello'),
     // Le azioni del pannello e dell'elenco dei progetti (0.58.0, tappa 4).
-    azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }): Promise<{ ok: boolean; messaggio: string }> => ipcRenderer.invoke('casa:azione', corpo),
+    azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string; recupero?: 'salta' | 'tieni' }): Promise<{ ok: boolean; messaggio: string; drivePieno?: boolean; inSospeso?: boolean }> => ipcRenderer.invoke('casa:azione', corpo),
+    // «Libera spazio sul Drive»: la misura (la quota con SierraDeck per tipo), le proposte, le pulizie in sospeso e la ripresa.
+    spazio: {
+      stato: (forza?: boolean): Promise<import('@shared/spazio-drive').StatoSpazio> => ipcRenderer.invoke('spazio:stato', forza === true),
+      quota: (forza?: boolean): Promise<import('@shared/spazio-drive').QuotaMisurata | undefined> => ipcRenderer.invoke('spazio:quota', forza === true),
+      inSospeso: (): Promise<import('@shared/libera-spazio').InSospesoVista[]> => ipcRenderer.invoke('spazio:in-sospeso'),
+      riprendi: (): Promise<{ riprese: number; ancoraInSospeso: number }> => ipcRenderer.invoke('spazio:riprendi')
+    },
     // Le cartelle nel recupero dei programmi: si vedono e si rimettono.
     rimozione: {
       stati: (): Promise<{ stati: import('@shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('@shared/rimozione-sicura').CartellaInRecupero[] }> => ipcRenderer.invoke('rimozione:stati'),

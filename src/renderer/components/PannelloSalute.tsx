@@ -9,6 +9,7 @@ import { AltriComputer } from './PannelloAccount'
 import { PannelloConsumi } from './PannelloConsumi'
 import { voceMenu } from '@shared/menu-principale'
 import { Aiuto } from './Aiuto'
+import { LiberaSpazioDrive } from './LiberaSpazioDrive'
 import { breve, contaGruppiSalute, GRUPPI_SALUTE, gruppoIniziale, nelGruppoSalute, statoVoce, type GruppoSalute } from '@shared/salute-vista'
 import type { Colore, StatoVista } from '@shared/stato-vista'
 
@@ -74,10 +75,12 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
       .catch((e: unknown) => setConferma((c) => (c?.pc === pc ? { ...c, note: { versione, installata: '', note: [], fonte: 'nessuna', dove: 'https://github.com/niko9090/sierradeck/releases', avviso: `Non sono riuscito a leggere le note (${String(e)}): le trovi nella pagina delle versioni, https://github.com/niko9090/sierradeck/releases. Puoi installare lo stesso.` } } : c)))
   }
 
+  const [libera, setLibera] = useState(false)
   const esegui = (a: AzioneSalute): void => {
     switch (a.id) {
       case 'apri-drive': onApriDrive(); break
       case 'apri-registro': void window.gestore.log.apri(); break
+      case 'libera-spazio': setLibera(true); break
       case 'installa': onInstalla(); break
       case 'scarica-a-mano': void window.gestore.sistema.apriEsterno(a.url); break
       case 'apri-autopilota': onApriAutopiloti(); break
@@ -235,6 +238,7 @@ export function PannelloSalute({ onChiudi, onApriDrive, onInstalla, onApriAutopi
           </div>
         ) : null}
       </div>
+      {libera ? <LiberaSpazioDrive drivePieno onChiudi={() => { setLibera(false); leggi() }} /> : null}
       {conferma !== undefined ? (
         <ModaleNote
           titolo={`Installa là: ${conferma.nome} alla ${conferma.note?.versione !== undefined && conferma.note.versione !== '' ? conferma.note.versione : conferma.versione}`}

@@ -340,7 +340,14 @@ export type DipendenzeRotte = {
   gestioneChat?: Pick<GestioneChat, 'spazio' | 'azione' | 'archiviate' | 'eArchiviata' | 'recupero' | 'ripristinaDalRecupero' | 'chiediSvuota' | 'svuota'>
   /** Il pannello delle chat e dei progetti del Drive e le sue azioni (0.58.0, tappa 4). */
   pannelloDrive?: () => Promise<unknown>
-  azioneDrive?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string }>
+  azioneDrive?: (corpo: unknown) => Promise<{ ok: boolean; messaggio: string; drivePieno?: boolean; inSospeso?: boolean }>
+  /** «Libera spazio sul Drive»: misura, pulizie in sospeso e ripresa, per la pagina del telefono. */
+  spazioDrive?: {
+    stato: (forza: boolean) => Promise<unknown>
+    quota: (forza: boolean) => Promise<unknown>
+    inSospeso: () => unknown
+    riprendi: () => Promise<unknown>
+  }
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
@@ -1127,6 +1134,20 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (r.percorso === '/api/drive/pannello') return OK(await depsPieni.pannelloDrive())
       const e = await depsPieni.azioneDrive(r.corpo)
       return e.ok ? OK(e) : { stato: 409, corpo: { errore: e.messaggio } }
+    }
+
+    // ── «Libera spazio sul Drive»: la misura e la ripresa, per la procedura guidata sul telefono ──
+    if (r.metodo === 'POST' && (r.percorso === '/api/drive/spazio/stato' || r.percorso === '/api/drive/spazio/quota' || r.percorso === '/api/drive/spazio/in-sospeso' || r.percorso === '/api/drive/spazio/riprendi')) {
+      const sp = depsPieni.spazioDrive
+      if (sp === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora la procedura «Libera spazio sul Drive»: aggiornalo.' } }
+      if (visore.startsWith('pc:') && !visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'Lo spazio sul Drive si guarda da questo PC o da un telefono, non da un altro PC.' } }
+      const forza = (r.corpo as { forza?: unknown } | undefined)?.forza === true
+      try {
+        if (r.percorso === '/api/drive/spazio/stato') return OK({ stato: (await sp.stato(forza)) ?? null })
+        if (r.percorso === '/api/drive/spazio/quota') return OK({ quota: (await sp.quota(forza)) ?? null })
+        if (r.percorso === '/api/drive/spazio/in-sospeso') return OK({ inSospeso: sp.inSospeso() })
+        return OK(await sp.riprendi())
+      } catch (e) { return { stato: 409, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
     }
 
     // ── La rimozione sicura (0.58.0): il confronto e il recupero, solo fra PC ──

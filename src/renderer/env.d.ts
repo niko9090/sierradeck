@@ -189,7 +189,13 @@ declare global {
       }
       casa: {
         pannello: () => Promise<import('../shared/pannello-drive').Pannello>
-        azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string }) => Promise<{ ok: boolean; messaggio: string }>
+        azione: (corpo: { azione: string; progetto?: string; id?: string; tipo?: string; pc?: string; recupero?: 'salta' | 'tieni' }) => Promise<{ ok: boolean; messaggio: string; drivePieno?: boolean; inSospeso?: boolean }>
+        spazio: {
+          stato: (forza?: boolean) => Promise<import('../shared/spazio-drive').StatoSpazio>
+          quota: (forza?: boolean) => Promise<import('../shared/spazio-drive').QuotaMisurata | undefined>
+          inSospeso: () => Promise<import('../shared/libera-spazio').InSospesoVista[]>
+          riprendi: () => Promise<{ riprese: number; ancoraInSospeso: number }>
+        }
         rimozione: {
           stati: () => Promise<{ stati: import('../shared/rimozione-sicura').StatoRimozione[]; inRecupero: import('../shared/rimozione-sicura').CartellaInRecupero[] }>
           ripristina: (id: string) => Promise<{ ok: boolean; messaggio: string }>

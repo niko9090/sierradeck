@@ -79,6 +79,7 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       ${riga('const esc =')}; ${riga('const escJs =')}
       var pdErrore = ''; var pdVista = 'progetti'; var pdFiltro = 'tutti'; var pdDaConfermare = ''; var pdSenzaNome = false, aiutiAperti = {}
       var pdGruppo = 'tutti'; var pdQ = ''; var pdOrdine = 'stato'
+      var pl = null
       ${estrai('aiuto')}
       ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdSpazioHtml')}
       ${riga('const PD_GRUPPI =')}; ${riga('const PD_ORDINI =')}; ${riga('const PD_COLORE =')}; ${riga('const PD_RANGO =')}

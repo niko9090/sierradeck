@@ -34,6 +34,8 @@ import { azioniMenuWorkspace, gruppiMenuWorkspace } from '@shared/menu-workspace
 import { FRASE_SVUOTA, motivoNonChiude, TESTI_AZIONI_CHAT } from '@shared/gestione-chat'
 import { confermaArchiviaChat, confermaChiediSvuota, confermaChiudiChat, confermaEliminaChat, ORDINI_SPAZIO, SPIEGA_ELIMINA_DRIVE, SPIEGA_SVUOTA_DRIVE } from '@shared/gestione-chat-vista'
 import { testoEsito } from '@shared/quaderno-personale'
+import { FRASE_GROSSO_FUORI, drivePienoDa, eseguiPasso, grossoFuoriDaSierraDeck, passiDa, percentualeDrive, ripartizioneDrive, righeDa, riepilogoFinale } from '@shared/libera-spazio'
+import { RECUPERO_DRIVE_PIENO_DEFAULT } from '@shared/spazio-drive'
 import { ATTIVITA, ATTIVITA_ORDINE, COLORI, TITOLO_LEGENDA } from '@shared/colori-attivita'
 
 /** I segni delle quattro voci nella fascia (0.83.0): si leggono anche in piccolo, mai emoji. */
@@ -1157,7 +1159,7 @@ var notaDialogo = ''
 /** Il pannello aperto in fondo: le conversazioni, gli altri computer, le code, il Drive, i consumi, le impostazioni, il quaderno, o niente. */
 var pannelloAperto = null
 /** Le azioni della Salute che il telefono sa fare; le altre si fanno dal computer. */
-const AZIONI_DAL_TELEFONO = ['scarica-a-mano', 'installa', 'apri-autopilota', 'riprova-pc']
+const AZIONI_DAL_TELEFONO = ['scarica-a-mano', 'installa', 'apri-autopilota', 'riprova-pc', 'libera-spazio']
 /** I nomi delle azioni da fare dal computer, una volta sola ciascuno (0.81.0). */
 function azioniSoloDalComputer(voci) {
   const nomi = []
@@ -1931,7 +1933,7 @@ function impronta(s) {
     JSON.stringify(driveAperti || {}),
     // «Progetti» (0.69.0): mancava, e la pagina restava su «Leggo…» o non apriva il dettaglio finché non cambiava altro.
     pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) : '',
-    pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento,
+    pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento, plFirma(),
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
     aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.subito ? 's' : '') + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
@@ -2569,6 +2571,7 @@ function pannello(s) {
       : a.id === 'installa' ? '<button onclick="installaAggiornamento()">' + esc(a.testo) + '</button>'
       : a.id === 'apri-autopilota' ? '<button onclick="vaiScheda(\\'autopiloti\\')">' + esc(a.testo) + '</button>'
       : a.id === 'riprova-pc' ? '<button onclick="rileggiSalute()">' + esc(a.testo) + '</button>'
+      : a.id === 'libera-spazio' ? '<button onclick="plDaSalute()">' + esc(a.testo) + '</button>'
       : ''
     // 0.70.0: i gruppi come sul PC (Da sistemare · Computer · Drive · Errori · Tutto), una riga per voce con la sua parola.
     const tutte = saluteVista.voci || []
@@ -5337,9 +5340,145 @@ window.pdSpazio = async (azione, tipo, id) => {
   catch (e) { notaGlobale = 'Non è andata: ' + ((e && e.message) || e) }
   await leggiPannelloDrive(); pannello(ultimoStato)
 }
+// «Libera spazio sul Drive» (0.99): la procedura guidata, con le stesse regole del PC (src/shared/libera-spazio.ts, scritte qui come testo).
+var passiDa = ${passiDa.toString()}
+var righeDa = ${righeDa.toString()}
+var eseguiPasso = ${eseguiPasso.toString()}
+var percentualeDrive = ${percentualeDrive.toString()}
+var ripartizioneDrive = ${ripartizioneDrive.toString()}
+var grossoFuoriDaSierraDeck = ${grossoFuoriDaSierraDeck.toString()}
+var drivePienoDa = ${drivePienoDa.toString()}
+var riepilogoFinale = ${riepilogoFinale.toString()}
+var PL_RECUPERO = ${JSON.stringify(RECUPERO_DRIVE_PIENO_DEFAULT)}
+var PL_FRASE_FUORI = ${JSON.stringify(FRASE_GROSSO_FUORI)}
+var PL_PAROLA = { 'da-fare': 'da fare', 'in-corso': 'in corso…', fatto: 'fatto', saltato: 'saltato', errore: 'errore' }
+var PL_COLORE = { 'da-fare': '#9aa1a9', 'in-corso': '#4aa3ff', fatto: 'var(--verde)', saltato: '#9aa1a9', errore: '#dc5f5f' }
+var pl = null
+const plApi = {
+  stato: async (forza) => { const r = await chiedi('/api/drive/spazio/stato', { forza: forza }); return r && r.stato ? r.stato : undefined },
+  quota: async (forza) => { const r = await chiedi('/api/drive/spazio/quota', { forza: forza }); return r && r.quota ? r.quota : undefined },
+  azione: async (corpo) => { try { return await chiedi('/api/drive/azione', corpo) } catch (e) { return { ok: false, messaggio: (e && e.message) || String(e) } } }
+}
+/** Quello che cambia a schermo, per la pagina che si ridisegna solo se qualcosa è cambiato. */
+function plFirma() {
+  if (!pl) return ''
+  return [pl.letto, pl.occupato, pl.confermaDi, pl.nota, JSON.stringify(pl.memoria), pl.contate, pl.quota ? pl.quota.usato + '/' + pl.quota.sierraDeck.byte : '', pl.sospese.length, pl.errore].join('|')
+}
+function plPassi() { return passiDa(pl.stato || undefined, { contate: pl.contate, drivePieno: drivePienoDa(pl.quota || undefined, pl.pieno), recupero: PL_RECUPERO }) }
+function plRighe() { return righeDa(plPassi(), pl.memoria) }
+async function plMisura(prima) {
+  try {
+    const q = await plApi.quota(true)
+    const st = await plApi.stato(false)
+    pl.quota = q || null
+    pl.stato = st || null
+    if (prima) pl.iniziale = q || null
+    pl.errore = (st && st.errore) || ''
+    try { const r = await chiedi('/api/drive/spazio/in-sospeso', {}); pl.sospese = (r && r.inSospeso) || [] } catch (e) { pl.sospese = [] }
+  } catch (e) { pl.errore = 'Non riesco a misurare il Drive: ' + ((e && e.message) || e) }
+  pl.letto = true
+  pannello(ultimoStato)
+}
+window.plApri = async (pieno) => {
+  pl = { letto: false, occupato: false, iniziale: null, quota: null, stato: null, memoria: {}, contate: false, confermaDi: '', nota: '', sospese: [], errore: '', pieno: pieno === true }
+  pannello(ultimoStato)
+  await plMisura(true)
+}
+window.plDaSalute = async () => {
+  pdStrumento = 'spazio'; pdScelto = ''
+  if (pannelloAperto !== 'pannellodrive') await window.apriPannello('pannellodrive')
+  await window.plApri(true)
+}
+window.plChiudi = () => { pl = null; pdDaConfermare = ''; leggiPannelloDrive().then(() => pannello(ultimoStato)) }
+window.plConferma = (id) => { if (!pl) return; pl.confermaDi = pl.confermaDi === id ? '' : id; pannello(ultimoStato) }
+window.plFai = async (id) => {
+  if (!pl || pl.occupato) return
+  const riga = plRighe().find((r) => r.id === id)
+  if (!riga) return
+  pl.confermaDi = ''
+  pl.occupato = true
+  pl.memoria[id] = { stato: 'in-corso', passo: riga }
+  pannello(ultimoStato)
+  const e = await eseguiPasso(riga, plApi, { recupero: PL_RECUPERO })
+  if (e.contate) pl.contate = true
+  pl.memoria[id] = Object.assign({}, e, { passo: riga })
+  await plMisura(false)
+  pl.occupato = false
+  pannello(ultimoStato)
+}
+window.plMisuraDi = async () => { if (!pl || pl.occupato) return; pl.occupato = true; pannello(ultimoStato); await plMisura(false); pl.occupato = false; pannello(ultimoStato) }
+window.plRiprova = async () => {
+  if (!pl || pl.occupato) return
+  pl.occupato = true
+  pannello(ultimoStato)
+  try {
+    const e = await chiedi('/api/drive/spazio/riprendi', {})
+    pl.nota = e.ancoraInSospeso === 0 ? 'Finito tutto.' : e.riprese + ' finite, ' + e.ancoraInSospeso + ' ancora in attesa: il Drive non accetta ancora scritture.'
+  } catch (err) { pl.nota = 'Non riuscito: ' + ((err && err.message) || err) }
+  await plMisura(false)
+  pl.occupato = false
+  pannello(ultimoStato)
+}
+function plBarra(p) {
+  const v = p == null ? 0 : p
+  const col = v >= 95 ? '#dc5f5f' : v >= 80 ? '#e0a33c' : 'var(--verde)'
+  return '<div style="height:10px;background:#333;border-radius:5px;overflow:hidden"><div style="height:100%;width:' + Math.max(p == null ? 0 : 1, v) + '%;background:' + col + '"></div></div>'
+}
+function plPerc(p) { return String(p).replace('.', ',') + '%' }
+function plMisuraHtml(q, titolo) {
+  if (!q) return '<div class="sotto">Non riesco a leggere la quota del Drive.</div>'
+  const p = percentualeDrive(q)
+  const r = ripartizioneDrive(q)
+  let h = '<div class="sotto" style="margin-top:4px"><b>' + esc(titolo) + '</b>: ' + (p != null ? '<b>' + plPerc(p) + '</b>' : 'limite non noto') + ' · ' + pdByte(q.usato) + (q.limite ? ' di ' + pdByte(q.limite) : '') + '</div>' + plBarra(p) +
+    '<div class="sotto" style="margin-top:4px">Google (Gmail, Foto, altri file): <b>' + pdByte(r.fuori) + '</b> · SierraDeck: <b>' + pdByte(r.sierraDeck) + '</b> in ' + q.sierraDeck.file + ' file</div>'
+  for (const t of PD_TIPI) { const v = q.sierraDeck.perTipo[t[0]]; if (v && v.file > 0) h += '<div class="sotto">' + esc(t[1]) + ': ' + pdByte(v.byte) + '</div>' }
+  return h
+}
+function plRigaHtml(r, i) {
+  const col = PL_COLORE[r.stato]
+  const nota = r.azione === 'conta' ? 'Non libera ancora niente' : 'Libera ' + (r.circa ? 'circa ' : '') + pdByte(r.stima) + (r.liberaSubito ? '' : ' dopo «Svuota il recupero»')
+  let h = '<div style="margin-top:10px;border-left:3px solid ' + col + ';padding:4px 8px"><div><b>' + (i + 1) + '. ' + esc(r.titolo) + '</b> · ' + esc(r.breve) + aiuto('pl:' + r.id, esc(r.spiega), r.titolo) + ' <b style="color:' + col + '">' + esc(PL_PAROLA[r.stato]) + '</b></div>' +
+    '<div class="sotto">' + esc(nota) + ' · ' + (r.annullabile ? 'si annulla' : 'non si annulla') + '</div>'
+  if (r.stato === 'fatto' || r.stato === 'errore' || r.stato === 'saltato') {
+    h += '<div class="sotto"' + (r.stato === 'errore' ? ' style="color:#dc5f5f"' : '') + '>' + esc(r.motivo || '') +
+      (r.prima != null && r.dopo != null ? ' SierraDeck sul Drive: ' + pdByte(r.prima) + ' → ' + pdByte(r.dopo) + '.' : '') +
+      (r.stato === 'fatto' && r.inSospeso ? ' Indice e registro si aggiornano da soli appena il Drive accetta scritture.' : '') + '</div>'
+  }
+  if (r.stato === 'da-fare' || r.stato === 'errore') {
+    const dis = pl.occupato ? ' disabled' : ''
+    if (r.azione === 'conta') h += '<div class="riga"><button' + dis + ' onclick="plFai(\\'' + escJs(r.id) + '\\')">' + esc(r.bottone) + '</button></div>'
+    else if (pl.confermaDi === r.id) h += '<div class="sotto">' + esc(r.conferma) + '</div><div class="riga"><button class="primario"' + dis + ' onclick="plFai(\\'' + escJs(r.id) + '\\')">Sì: ' + esc(r.bottone.toLowerCase()) + '</button><button onclick="plConferma(\\'' + escJs(r.id) + '\\')">No</button></div>'
+    else h += '<div class="riga"><button' + dis + ' onclick="plConferma(\\'' + escJs(r.id) + '\\')">' + (r.stato === 'errore' ? 'Riprova…' : esc(r.bottone) + '…') + '</button></div>'
+  }
+  return h + '</div>'
+}
+function plHtml() {
+  let h = '<div class="sotto" style="margin-top:10px"><b>Libera spazio sul Drive</b>' + aiuto('libera-spazio', 'Prima misura quanto è pieno il Drive del tuo account Google e quanto ne usa SierraDeck. Poi propone dei passi, uno alla volta, dal più sicuro: ognuno dice cosa fa, quanto libera (una stima), se si può annullare, e chiede la tua conferma. Le chat tolte dal Drive restano sul PC. Quello che va nel recupero si annulla per 30 giorni, ma lo spazio si libera solo quando il recupero si svuota. A Drive pieno il recupero non libera niente: di solito i file si cancellano subito dal Drive (la copia resta sul PC). Una pulizia lasciata a metà si finisce da sola appena il Drive accetta scritture.', 'Libera spazio') + '</div>'
+  if (!pl.letto) return h + '<div class="sotto">Misuro il Drive…</div>'
+  if (pl.errore) h += '<div class="sotto" style="color:#e0a33c">' + esc(pl.errore) + '</div>'
+  const toccato = Object.keys(pl.memoria).some((k) => pl.memoria[k] && (pl.memoria[k].stato === 'fatto' || pl.memoria[k].stato === 'errore'))
+  h += plMisuraHtml(pl.iniziale || pl.quota, toccato ? 'Prima' : 'Adesso')
+  if (drivePienoDa(pl.quota || undefined, pl.pieno)) h += '<div class="sotto" style="color:#e0a33c;margin-top:6px">Il Drive è pieno: non accetta scritture.</div>'
+  if (grossoFuoriDaSierraDeck(pl.quota || undefined)) h += '<div class="sotto" style="color:#e0a33c;margin-top:6px">' + esc(PL_FRASE_FUORI) + (pl.quota.nelCestino > 0 ? esc(' Nel cestino di Google: ' + pdByte(pl.quota.nelCestino) + '.') : '') + '</div>'
+  const righe = plRighe()
+  if (righe.length === 0 && pl.stato) h += '<div class="sotto" style="margin-top:8px">Niente da liberare da qui.</div>'
+  h += righe.map(plRigaHtml).join('')
+  h += '<div style="margin-top:12px;border-top:1px solid #333;padding-top:8px">' + plMisuraHtml(pl.quota, toccato ? 'Adesso' : 'Misura attuale')
+  const fine = riepilogoFinale(pl.iniziale || undefined, pl.quota || undefined, pl.sospese.length)
+  if (toccato && fine.prima != null && fine.dopo != null) h += '<div class="sotto" style="margin-top:4px"><b>Dal ' + plPerc(fine.prima) + ' al ' + plPerc(fine.dopo) + '</b>' + (fine.liberatiSierraDeck != null ? ' · SierraDeck ha liberato ' + pdByte(fine.liberatiSierraDeck) : '') + '. Google aggiorna la quota con un po’ di ritardo.</div>'
+  if (pl.sospese.length > 0) {
+    h += '<div class="sotto" style="color:#e0a33c;margin-top:6px">' + (pl.sospese.length === 1 ? '1 pulizia' : pl.sospese.length + ' pulizie') + ' in sospeso: ' + esc(pl.sospese.map((s) => s.titolo + ' (' + pdByte(s.byte) + ')').join(', ')) + '. Si finiscono da sole appena il Drive accetta scritture.</div>' +
+      '<div class="riga"><button' + (pl.occupato ? ' disabled' : '') + ' onclick="plRiprova()">Riprova ora</button></div>'
+    if (pl.nota) h += '<div class="sotto">' + esc(pl.nota) + '</div>'
+  }
+  h += '</div>'
+  return h + '<div class="riga"><button' + (pl.occupato ? ' disabled' : '') + ' onclick="plMisuraDi()">Misura di nuovo</button><button class="primario"' + (pl.occupato ? ' disabled' : '') + ' onclick="plChiudi()">Chiudi</button></div>'
+}
 function pdSpazioHtml() {
+  if (pl) return plHtml()
   const sp = pdDati.spazio
   let h = '<div class="sotto" style="margin-top:10px"><b>Spazio sul Drive</b>' + aiuto('spazio', 'Quanto occupa SierraDeck nella sua cartella privata del tuo Drive, per tipo, e lo spazio del tuo account Google. Le pulizie non cancellano subito: tengono i file 30 giorni nel recupero, «Annulla» li rimette. Una chat tolta che riprende a lavorare risale da sola.') + '</div>'
+  h += '<div class="riga"><button class="primario" onclick="plApri(false)">Libera spazio…</button></div>'
   if (!sp) return h + '<div class="sotto">Misuro il Drive…</div>'
   if (sp.errore) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(sp.errore) + '</div>'
   const m = sp.misura
