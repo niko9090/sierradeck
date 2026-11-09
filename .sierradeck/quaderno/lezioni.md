@@ -35,6 +35,7 @@
 - I test dei tipi opzionali (es. `cancellaId?` di creaArchivioDrive) passano in vitest ma rompono `tsc`: usare `!` nei test, che vitest non controlla. _(2026-11-08)_
 - per provare `cerca()` di aggiornamenti.ts basta mockare electron-updater con `checkForUpdates` che restituisce `{downloadPromise}` e usare fake timers (setTimeout da 10 s). _(2026-11-08)_
 - Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
+- In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
 
 ## worktree
 
@@ -121,11 +122,6 @@
 
 - Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
-
-## pagina
-
-- In client-pagina.ts le funzioni di attesa-vista.ts vanno aggiunte anche all'elenco delle toString() e al test che le estrae, altrimenti attesaHtml non gira _(2026-11-06)_
-- dentro lo script della pagina servita le funzioni sono testate estraendole da `paginaClient()`: se aggiungi una funzione usata da `menuSpecHtml`, va aggiunta anche nell'elenco di `disegna` in `tests/… _(2026-11-06)_
 
 ## apertura-chat
 
@@ -260,6 +256,7 @@
 
 - il contatore Drive contava ogni 403 come «rifiutata»: il Drive pieno (storageQuotaExceeded) gonfiava i numeri di «troppe richieste». Ora conta solo 429 e rateLimit. _(2026-11-07)_
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
+- `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 
 ## autopulizia
 
