@@ -1,6 +1,7 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
 import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
+import { portaInVista, statoApertura } from '@shared/finestra-visibile'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
 import { workspaceVisti } from './chat-vista'
 import { APP_ID, portePerLaProva } from './identita-app'
@@ -917,21 +918,25 @@ export function apriNuovaFinestra(): void {
   const scelto = suoSchermo ?? prossimoSchermoLibero(disponibili, occupati, conLavoro)
   const ricordata = suo ?? (scelto !== undefined ? finestreStore?.geometria(scelto.chiave) : undefined)
 
-  const posizioneDefault = scelto !== undefined
-    ? {
-        x: scelto.bounds.x + Math.round((scelto.bounds.width - LARGHEZZA) / 2),
-        y: scelto.bounds.y + Math.round((scelto.bounds.height - ALTEZZA) / 2)
-      }
-    : {}
+  // Dove nasce davvero: sempre dentro la `workArea` di un monitor che c'e'
+  // adesso (monitor cambiati, scala diversa, secondo schermo scollegato). Prima
+  // i bounds ricordati passavano com'erano e la finestra poteva nascere fuori
+  // dalla vista. Il monitor principale e' il primo della lista.
+  const schermiAttuali = screen.getAllDisplays()
+  const principale = screen.getPrimaryDisplay()
+  const areaDelloScelto = scelto !== undefined
+    ? schermiAttuali.find((d) => chiaveMonitor({ bounds: d.bounds, scaleFactor: d.scaleFactor }) === scelto.chiave)?.workArea
+    : undefined
+  const normali = portaInVista(
+    ricordata?.bounds,
+    [principale, ...schermiAttuali.filter((d) => d.id !== principale.id)].map((d) => d.workArea),
+    { width: LARGHEZZA, height: ALTEZZA },
+    areaDelloScelto
+  )
 
   const win = new BrowserWindow({
-    // La dimensione ricordata quando c'e', altrimenti quella di sempre centrata
-    // sullo schermo scelto. Quando sono tutti occupati `scelto` e' undefined e
-    // si lascia decidere a Electron, che sovrappone: e' il comportamento giusto
-    // per la terza finestra su due monitor.
-    ...(ricordata !== undefined
-      ? { x: ricordata.bounds.x, y: ricordata.bounds.y, width: ricordata.bounds.width, height: ricordata.bounds.height }
-      : { width: LARGHEZZA, height: ALTEZZA, ...posizioneDefault }),
+    // I bounds «normali» (a cui si torna de-ingrandendo), gia' portati in vista.
+    ...normali,
     title: APP_NAME,
     // Il fondo della console, non quello del terminale: è ciò che si vede per
     // un istante prima che il renderer disegni, e un lampo più chiaro della
@@ -977,8 +982,10 @@ export function apriNuovaFinestra(): void {
   // Lo stato di quando fu chiusa: ingrandita o a schermo intero. La dimensione
   // «da finestra» e' gia' quella passata sopra, cosi' de-ingrandendo si torna
   // giusti. Solo se c'era una geometria ricordata per questo monitor.
-  if (ricordata?.stato === 'ingrandita') win.maximize()
-  else if (ricordata?.stato === 'schermo-intero') win.setFullScreen(true)
+  // Sempre ingrandita all'apertura, anche la prima volta; a schermo intero
+  // resta solo chi ci era.
+  if (statoApertura(ricordata?.stato) === 'schermo-intero') win.setFullScreen(true)
+  else win.maximize()
 
   // La X non chiude il programma: lo manda nell'area di notifica, dove
   // continua a lavorare. `hide` e non `close`: la finestra resta viva con
