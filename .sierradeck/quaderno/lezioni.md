@@ -36,6 +36,7 @@
 - per provare `cerca()` di aggiornamenti.ts basta mockare electron-updater con `checkForUpdates` che restituisce `{downloadPromise}` e usare fake timers (setTimeout da 10 s). _(2026-11-08)_
 - Il comando mklink via Bash è rifiutato nei worktree; la junction si crea con PowerShell New-Item -ItemType Junction. _(2026-11-09)_
 - In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
+- Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
 
 ## worktree
 
@@ -94,6 +95,7 @@
 - il main locale può essere avanti di origin/main (qui 5 commit): per allinearsi, `git merge --ff-only main` funziona, ma `origin/main` resta indietro finché non si pubblica. _(2026-11-08)_
 - Un ramo già aperto in un altro worktree non si può attivare: il lavoro va unito sul proprio ramo e l'autopilota deve unire quello. _(2026-11-08)_
 - `main` locale può essere avanti su origin con lavoro non pubblicato. Dal worktree: `git merge --ff-only main`, bump, poi `git push origin HEAD:main`. _(2026-11-09)_
+- un agente lanciato in un worktree isolato non può usare `git -C <cartella principale>`: il sistema lo rifiuta. Le operazioni sulla cartella principale vanno affidate a chi non è isolato. _(2026-11-09)_
 
 ## autopilota
 
@@ -144,37 +146,23 @@
 - Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
 - Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
 - «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
-
-## coda
-
-- Una richiesta «chiusa» o «fatta» fa rifiutare piano_scrivi: ogni risposta di Nicholas va registrata in coda prima di avvisare l'autopilota. _(2026-11-06)_
+- Con Drive pieno il freno blocca anche battito, posta e registro insieme; «acceso» in Progetti viene solo dal battito, quindi un PC che risponde appare «non risponde». _(2026-11-09)_
+- A Drive pieno il freno blocca POST/PUT/PATCH ma non DELETE: ogni pulizia va annotata in locale (spazio-intenzioni.json) e il registro sul Drive va riallineato dopo, mai prima. _(2026-11-09)_
 
 ## posta
 
-- `pcVivo` si basa sul timestamp del battito: allungare la riscrittura (ora 30 min) obbliga ad alzare `PC_SPENTO_DOPO_MS` (ora 35 min). _(2026-11-06)_
 - `quietaOgniMs` in `creaPostino` rende i test della posta indipendenti dai 90 s di quiete; `ultimaAttivita` e `ultimaLetturaPosta` partono da `-Infinity`, non da 0. _(2026-11-07)_
 
 ## tooling
 
-- Le heredoc Bash mangiano i backslash e `client-pagina.ts` è CRLF con `\\'` nel sorgente: modificarlo con uno script scritto su file e newline='' preservato. _(2026-11-06)_
 - Nel worktree i comandi Bash/sed composti con più modifiche vengono rifiutati come «troppo complessi»: usare Edit per le modifiche multiple. _(2026-11-09)_
-
-## ponte
-
-- una rotta di lettura verso un altro PC va in `ROTTE_PONTE` (telefono) e in `ROTTE_AUTOPILOTA_ALTRO_PC` (PC), ma mai quelle che cambiano lo stato di là. _(2026-11-06)_
 
 ## unione
 
-- Il cancello può riproporre l'esito vecchio di un criterio (stesso «Start at» delle 21:17): se l'orario non cambia, non è una misura nuova; serve un lancio fresco con l'uscita completa salvata. _(2026-11-06)_
-- k-60 (`e9487ef4`, `28020ec1`, `4d4f11c9`) non risulta in main: prima di dire «entrato in main» verificare con `git merge-base --is-ancestor <sha> main`. _(2026-11-06)_
-- La prova nel principale lascia `.git/sierradeck-prova.json`: senza quel segno (e MERGE_HEAD uguale) lo sporco è di Nicholas e non si tocca; prima un merge fallito faceva `--abort` anche sul suo. _(2026-11-06)_
 - La prova d'unione non fa npm install: un ramo con dipendenze nuove fallisce tsc. Prima installarle nella principale con npm install --no-save. _(2026-11-07)_
 
 ## criteri
 
-- La cache dei criteri (criteri-veloci.ts:193-232) è solo in RAM (server.ts:188), chiave = impronta dei file tracciati più comando, senza scadenza: un rosso resta finché il contenuto non cambia o il se… _(2026-11-06)_
-- daRicordare esclude solo timeout e problemi d'ambiente: un test instabile che fallisce una volta blocca l'unione su quel contenuto. Il riuso dell'esito vecchio non passa dal guardiano del carico. _(2026-11-06)_
-- Il cancello ricorda in RAM anche i rossi (criteri-veloci.ts, chiave = file tracciati + comando, senza scadenza): un test instabile blocca ogni unione finché main non cambia o il servizio riparte. _(2026-11-06)_
 - `git tag --list vX` esce sempre con 0 anche senza tag: come criterio dà verde falso (k-184 0.97.1 segnata fatta senza release). Usare `git rev-parse vX` o `gh release view vX`. _(2026-11-08)_
 - `ePesante` taglia su `|` e `;` anche dentro gli apici: toglierli con `senzaApici`, salvo dopo `-c`/`-Command`/`/c`, dove stanno i comandi veri. _(2026-11-08)_
 
@@ -347,3 +335,18 @@
 ## ripresa
 
 - riquadroDi nella finestra vede solo useLayoutStore: le chat dei workspace dietro (memoriaWorkspace) non si raggiungono con scriviQuandoPronta _(2026-11-09)_
+
+## spazio
+
+- il recupero di 30 giorni non libera spazio: i file restano sul Drive fino a «Svuota adesso» o alla scadenza. Non presentarlo come liberazione. _(2026-11-09)_
+- ogni percorso di pulizia scrive il registro prima di cancellare: a Drive pieno nessuno dei percorsi con recupero parte. Solo le DELETE (versioni, svuota) passano. _(2026-11-09)_
+- il cestino di Google non c'entra con i file di SierraDeck (appDataFolder, DELETE definitivo). Il messaggio «svuota il cestino» va corretto. _(2026-11-09)_
+- Una pulizia con voci ancora nell'indice, ma file già cancellati, viene riproposta dal giro delle chat: le proposte devono ignorare le voci di pulizie in sospeso (indiceVisto). _(2026-11-09)_
+
+## sposta
+
+- «Sposta su questo PC» chiama il PC di prima su /api/sposta/prepara con il timeout di 4 s (non è in ROTTE_LENTE): un upload lungo finisce in «non ha finito entro 4 secondi». _(2026-11-09)_
+
+## remoto
+
+- Ogni 404 non di chat viene mappato a «questa chat non è aperta» (scoperta-pc.ts:230): /api/apri con cartella inesistente sembra un PC spento. _(2026-11-09)_
