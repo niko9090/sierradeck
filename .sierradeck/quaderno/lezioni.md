@@ -82,6 +82,7 @@
 - Le pubblicazioni dalla cartella principale vanno affidate a general-purpose: lo sviluppatore è chiuso nel suo worktree e non può usare git nel principale (0.97.1 e 0.97.2). _(2026-11-08)_
 - il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
 - un bump patch tocca solo package.json, package-lock.json (2 punti), src/shared/novita.ts e, se serve, il quaderno errori-arrivati. _(2026-11-09)_
+- Se la release esiste già (gh release create prima), npm run pubblica compila ma non carica niente (vuole una bozza): exe, blockmap e latest.yml vanno caricati con gh release upload. _(2026-11-09)_
 
 ## git
 
@@ -100,6 +101,7 @@
 - una voce di salute con tono non «ok» diventa criticità per ogni PC che la compone: i consumi vanno giudicati solo sui numeri del PC stesso, sennò si ripetono ovunque. _(2026-11-07)_
 - una criticità con i numeri nel titolo cambia firma a ogni giro: il rapporto all'autopilota si riscrive ogni 6 ore (controllo-pc.ts:133). _(2026-11-09)_
 - Le versioni dei PC nel controllo vengono dall'ultimo battito sul Drive: con il Drive pieno restano vecchie. Prima di dire «PC vecchio» si controlla sul PC. _(2026-11-09)_
+- Un rapporto controllo-*.md scritto da un PC con versione vecchia ripete criticità già corrette: guardare «questo PC la 0.x» nel rapporto prima di aprire lavoro nuovo. _(2026-11-09)_
 
 ## strumenti
 
@@ -127,17 +129,10 @@
 
 ## versioni
 
-- i battiti degli altri PC con versione vecchia nei test cambiano l'esito di decidiApertura: la versione si giudica solo da un battito fresco, uno scaduto può essere superato. _(2026-11-06)_
 - le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
-
-## kotlin
-
-- In un elenco di argomenti `a = i > 0, b = i < n` il compilatore legge `<`/`>` come generico: metti i confronti fra parentesi. _(2026-11-06)_
 
 ## build
 
-- Il filtro dei comandi pesanti rifiuta le compilazioni con memoria libera sotto il 10% (vmmemWSL ~15 GB): da WSL non si esce con l'attesa, serve liberare memoria o aspettare. _(2026-11-06)_
-- Il pacchetto va costruito solo dalla cartella principale: in un worktree `node_modules` è una junction e l'asar perde le dipendenze indirette (dijkstrajs, pngjs, yargs). _(2026-11-06)_
 - `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
 - Il guardiano del PC carico può rifiutare gradle a oltranza con lo stesso messaggio: nel ramo vanno prima fatti i controlli statici, e va chiesta all'autopilota una finestra libera. _(2026-11-06)_
 - Il guardiano «PC carico» rifiuta il comando prima di eseguirlo: l'attesa va in una chiamata a parte (until sull'orologio), non dentro lo stesso comando gradle. _(2026-11-07)_
@@ -341,3 +336,11 @@
 ## pubblicazione
 
 - Un agente lanciato in worktree isolato non può eseguire git nella cartella principale: la pubblicazione dalla cartella principale va affidata a un agente senza isolamento. _(2026-11-08)_
+
+## tsconfig
+
+- con noUncheckedIndexedAccess `aree[0]` è `T | undefined`: annotare il tipo (`let area: Rettangolo = x ?? aree[0]!`), altrimenti gli errori si propagano a ogni uso. _(2026-11-09)_
+
+## finestra
+
+- Electron maximizza sul display che contiene i bounds normali: se questi sono fuori dai monitor, anche la finestra ingrandita finisce nel posto sbagliato. _(2026-11-09)_
