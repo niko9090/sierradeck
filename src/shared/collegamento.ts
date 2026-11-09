@@ -209,7 +209,7 @@ export function passo(l: Linea, e: EventoLinea): Linea {
  * Drive non si fa: la linea è su, è la richiesta a non andare.
  */
 export function erroreDiStrada(motivo: string): boolean {
-  return !['chat', 'pin', 'lento'].includes(motivo)
+  return !['chat', 'cartella', 'pin', 'lento'].includes(motivo)
 }
 
 /**

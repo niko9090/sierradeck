@@ -21,6 +21,8 @@ export type PcNoto = {
   id: string
   nome: string
   battito?: string
+  /** L'ultima volta che ha risposto a un bussare o a una richiesta (ISO): vale anche quando il battito sul Drive è fermo (Drive pieno). */
+  rispostoIl?: string
   /** Il suo battito dice le copie locali (0.58.0). `false`: PC da aggiornare. */
   diceLocali?: boolean
 }
@@ -237,8 +239,11 @@ function rigaProgetto(
 ): RigaProgetto {
   const qui = g.proprietario !== undefined && g.proprietario === p.io.id
   const residente: Residente | undefined = g.proprietario === undefined ? undefined : { pc: g.proprietario, nome: nomeDi(g.proprietario), qui }
-  const battito = p.pc.find((x) => x.id === g.proprietario)?.battito
-  const acceso = qui || (battito !== undefined && p.adesso - Date.parse(battito) < ACCESO_ENTRO_MS)
+  const pcProp = p.pc.find((x) => x.id === g.proprietario)
+  const battito = pcProp?.battito
+  const risposto = pcProp?.rispostoIl
+  // Acceso: battito recente, o ha risposto da poco (col Drive pieno il battito si ferma ma il PC risponde).
+  const acceso = qui || (battito !== undefined && p.adesso - Date.parse(battito) < ACCESO_ENTRO_MS) || (risposto !== undefined && p.adesso - Date.parse(risposto) < ACCESO_ENTRO_MS)
   const ultimo = chat.map((c) => c.ultimoUso ?? '').sort().pop()
   const workspace = (p.workspaceQui ?? []).filter((w) => w.trim().toLowerCase() === g.nome.trim().toLowerCase())
   const riga: RigaProgetto = {

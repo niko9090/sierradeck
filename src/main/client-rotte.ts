@@ -274,7 +274,7 @@ export type DipendenzeRotte = {
    * per il PC che lo chiede per se'.
    */
   sposta?: {
-    prepara: (r: { progetto: string; verso: string; versoNome: string }) => Promise<unknown>
+    prepara: (r: { progetto: string; verso: string; versoNome: string; sposta?: string; asincrono?: boolean }) => Promise<unknown>
     concludi: (r: { progetto: string; verso: string; percorso: string; proprietarioDal: string }) => Promise<unknown>
   }
   /** Toglie da questo PC un progetto di prova «SierraDeck-prova-…»: la cartella nel recupero (0.69.0). */
@@ -2192,7 +2192,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (visore !== `pc:${verso}`) return { stato: 403, corpo: { errore: 'un PC può chiedere un progetto solo per sé' } }
       const fallito = (e: unknown): { ok: false; messaggio: string; riprova: true } => ({ ok: false, messaggio: e instanceof Error ? e.message : String(e), riprova: true })
       if (r.percorso === '/api/sposta/prepara') {
-        return OK((await deps.sposta.prepara({ progetto, verso, versoNome: stringa(r.corpo, 'versoNome') || verso }).catch(fallito)) as object)
+        return OK((await deps.sposta.prepara({ progetto, verso, versoNome: stringa(r.corpo, 'versoNome') || verso, ...(stringa(r.corpo, 'sposta') !== '' ? { sposta: stringa(r.corpo, 'sposta') } : {}), ...((r.corpo as { asincrono?: unknown } | undefined)?.asincrono === true ? { asincrono: true } : {}) }).catch(fallito)) as object)
       }
       return OK((await deps.sposta.concludi({ progetto, verso, percorso: stringa(r.corpo, 'percorso'), proprietarioDal: stringa(r.corpo, 'proprietarioDal') }).catch(fallito)) as object)
     }

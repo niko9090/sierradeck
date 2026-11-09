@@ -32,6 +32,7 @@ export type MotivoRemoto =
   | 'chiave'        // 401: quel PC non riconosce la chiave
   | 'rifiutato'     // 403: quel PC rifiuta l'indirizzo da cui arriviamo
   | 'chat'          // 404: la chat non e' (piu') aperta la'
+  | 'cartella'      // 404 di «Apri su»: il PC risponde ma la cartella del progetto la' non c'e'
   | 'http'          // un altro errore di quel PC
   | 'collegando'    // 0.40.0, non piu' usato dalla 0.88.0 (WebRTC e schermo via Drive tolti)
   | 'lento'         // 0.40.0: via Drive questa cosa non si puo' fare
@@ -395,7 +396,8 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
   const datiDa = (e: { stato: number; corpo?: unknown }, nome: string): unknown => {
     const errore = (e.corpo as { errore?: unknown } | undefined)?.errore
     const dettaglio = typeof errore === 'string' ? errore : `errore ${e.stato}`
-    const motivo = motivoDaStatoHttp(e.stato)
+    // «Apri su» (/api/apri) risponde 404 «cartella inesistente»: il PC risponde, è la cartella a mancare, non una chat chiusa.
+    const motivo: MotivoRemoto | undefined = e.stato === 404 && /cartella inesistente/i.test(dettaglio) ? 'cartella' : motivoDaStatoHttp(e.stato)
     if (motivo === undefined) return e.corpo
     throw new ErroreRemoto(motivo, messaggioErroreRemoto(motivo, nome, dettaglio), e.stato, campiOltreErrore(e.corpo))
   }
@@ -479,7 +481,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       vivoIl.set(pcId, adesso())
       return r
     } catch (err) {
-      if (err instanceof ErroreRemoto && err.motivo === 'http') vivoIl.set(pcId, adesso())
+      if (err instanceof ErroreRemoto && (err.motivo === 'http' || err.motivo === 'cartella')) vivoIl.set(pcId, adesso())
       throw err
     }
   }

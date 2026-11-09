@@ -117,9 +117,12 @@ export function datiPannello(p: {
  * contavano. Visto provando la vista con i dati veri, il 13/10.
  */
 export function pcPerPannello<B extends { pcId: string; battito: string; chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown }>(
-  battiti: B[], nomeDi: (b: B) => string
+  battiti: B[], nomeDi: (b: B) => string,
+  /** Da quanti ms quel PC ha risposto l'ultima volta (`remoto.vivoDa`); `undefined` = mai. */
+  rispostoDa?: (pcId: string) => number | undefined,
+  adesso: number = Date.now()
 ): (PcNoto & { chat?: { sessione?: string; titolo?: string; cwd?: string; aspetta?: boolean }[]; locali?: unknown })[] {
-  return battiti.map((b) => ({ id: b.pcId, nome: nomeDi(b), battito: b.battito, ...(b.chat !== undefined ? { chat: b.chat } : {}), ...(b.locali !== undefined ? { locali: b.locali } : {}) }))
+  return battiti.map((b) => ({ id: b.pcId, nome: nomeDi(b), battito: b.battito, ...(rispostoDa?.(b.pcId) !== undefined ? { rispostoIl: new Date(adesso - (rispostoDa(b.pcId) as number)).toISOString() } : {}), ...(b.chat !== undefined ? { chat: b.chat } : {}), ...(b.locali !== undefined ? { locali: b.locali } : {}) }))
 }
 
 /** Il campo `locali` di un battito, letto con prudenza: arriva da un altro PC. */
