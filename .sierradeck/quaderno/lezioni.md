@@ -80,6 +80,8 @@
 - Un agente lanciato in un worktree isolato non può eseguire git nella cartella principale (né cd né git -C): per pubblicare dal main serve un agente con la cartella principale come directory di lavoro. _(2026-11-08)_
 - Prima di pubblicare, `package.json` di origin/main può essere ancora alla versione precedente: il bump unito sta solo nel main locale e va pushato con main prima del tag. _(2026-11-08)_
 - Le pubblicazioni dalla cartella principale vanno affidate a general-purpose: lo sviluppatore è chiuso nel suo worktree e non può usare git nel principale (0.97.1 e 0.97.2). _(2026-11-08)_
+- il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
+- un bump patch tocca solo package.json, package-lock.json (2 punti), src/shared/novita.ts e, se serve, il quaderno errori-arrivati. _(2026-11-09)_
 
 ## git
 
@@ -122,14 +124,6 @@
 
 - Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
-
-## apertura-chat
-
-- «locale» in chat:daDove non vuol dire «aprila qui» se la casa è altrove: la chat arriva dallo spawn che ha già deciso. Un guasto va in attesa che riprova, mai nel cartello. _(2026-11-06)_
-
-## guardiano
-
-- su questo PC tsc e le suite intere possono restare rimandate per ore dal guardiano del carico: lanciarle subito dopo il commit, e controllare i file toccati uno alla volta. _(2026-11-06)_
 
 ## versioni
 
