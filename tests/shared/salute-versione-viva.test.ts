@@ -62,6 +62,23 @@ describe('la versione degli altri PC nel controllo', () => {
     expect(c[0]?.pc).toBe('PC-A, PC-B')
   })
 
+  it('k-202: vivo con battito vecchio e Drive pieno: dice che il battito non si aggiorna per il Drive pieno', () => {
+    const piena = componiSalute({ ...base, drive: { configurato: true, connesso: true, pieno: true }, pc: [pc({ stato: 'acceso', versione: '2.0.0', versioneDalVivo: true })] })
+    const v = piena.voci.find((x) => x.chiave === 'pc:p1')!
+    expect(v.spiegazione).toContain('Il battito non si aggiorna perché il Drive è pieno')
+    expect(v.spiegazione).toContain('un account solo per tutti i PC')
+    expect(v.spiegazione).toContain('può essere vecchia')
+    // Drive non pieno: nessuna frase in più.
+    expect(vocePc(pc({ stato: 'acceso', versioneDalVivo: true, versione: '2.0.0' })).spiegazione).not.toContain('Drive è pieno')
+  })
+
+  it('k-202: «questo PC» è il nome di chi compone la Salute, non un numero senza padrone', () => {
+    const s = componiSalute({ ...base, io: { id: 'io', nome: 'PC-Fisso' }, pc: [pc({ stato: 'acceso', versione: '1.5.0', versioneDalVivo: true })] })
+    const v = s.voci.find((x) => x.chiave === 'pc:p1')!
+    expect(v.spiegazione).toContain('Ha la 1.5.0, PC-Fisso ha la 2.0.0')
+    expect(v.spiegazione).not.toContain('questo PC la')
+  })
+
   it('la salute di un PC dice la sua versione', () => {
     expect(componiSalute(base).versione).toBe('2.0.0')
   })

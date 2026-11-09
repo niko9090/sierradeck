@@ -237,11 +237,15 @@ export function componiSalute(i: IngressiSalute): Salute {
       : p.stato === 'rifiutato' ? 'risponde ma rifiuta questo indirizzo'
       : p.stato === 'altro' ? 'a quell’indirizzo risponde un altro, non lui'
       : undefined
+    // k-202: il PC risponde ma il battito è vecchio e il Drive è pieno: non è un PC fermo, è il Drive che non accetta scritture.
+    const battitoFermoPerDrivePieno = raggiungibile && vecchio && i.drive.pieno === true
+    // Il nome di chi compone la Salute: la versione «di questo PC» letta in una riga unita sembrava di un altro.
+    const nomeQui = i.io?.nome ?? 'Questo PC'
     const strada = p.strada !== undefined ? `si raggiunge via ${p.strada}` : raggiungibile ? 'risponde' : rispostaDiversa ?? 'non risponde a nessuna strada'
     voci.push({
       chiave: `pc:${p.pcId}`, gruppo: 'pc', tono,
       titolo: `${p.nome} · ${raggiungibile ? 'acceso' : p.stato === 'chiave' || p.stato === 'rifiutato' ? 'risponde ma non entra' : p.stato === 'altro' ? 'non lo trovo a quell’indirizzo' : 'non so se è acceso'} · ${p.versione}`,
-      spiegazione: `Ultimo battito sul Drive: ${eta}. Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, questo PC la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
+      spiegazione: `Ultimo battito sul Drive: ${eta}.${battitoFermoPerDrivePieno ? ' Il battito non si aggiorna perché il Drive è pieno (un account solo per tutti i PC): il PC risponde, ma la versione del battito può essere vecchia.' : ''} Adesso ${strada}. ${indietro ? `Ha la ${p.versione}, ${nomeQui} ha la ${i.versione}: alcune cose nuove (le chat dal vivo, lo spostamento dei progetti) là non ci sono ancora.` : attendibile ? 'Ha la stessa versione di questo PC, o più nuova.' : 'Se sia aggiornato non si sa finché non risponde.'}${origineVersione !== '' ? ` ${origineVersione}` : ''}`,
       ...(rispostaDiversa !== undefined
         ? { cosaFare: p.stato === 'chiave' ? `Su ${p.nome} apri la cassaforte (Account → Cassaforte) con la stessa passphrase di qui.` : p.stato === 'rifiutato' ? `Su ${p.nome}, in Impostazioni → Client, accetta anche da fuori la rete locale, oppure usate la stessa rete o Tailscale.` : `Controlla che ${p.nome} sia acceso, sulla stessa rete o con Tailscale: l’indirizzo che avevo ora è di un altro.` }
         : raggiungibile

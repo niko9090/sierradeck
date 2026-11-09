@@ -38,6 +38,16 @@ describe('il controllo di tutti i PC (0.88.9)', () => {
     expect(firmaCriticita(nb('PC-Fisso, DESKTOP-G24D499, LAPTOP-E60QM2D1'))).toBe(firmaCriticita(nb('PC-Fisso, LAPTOP-E60QM2D1, DESKTOP-G24D499')))
   })
 
+  it('k-202: la stessa criticità «Quanto lavora» con numeri diversi ha la stessa firma, una riga per PC', () => {
+    const risorse = (n: number): Salute['voci'][number] => ({ chiave: 'risorse', gruppo: 'pc', tono: 'attenzione', titolo: `Quanto lavora SierraDeck: CPU ${n}% · RAM ${n * 40} MB · Drive ${n} richieste/min`, spiegazione: `CPU ${n}%`, azioni: [] })
+    const giro = (n: number) => criticitaDi([{ pcId: 'a', nome: 'PC-Fisso', salute: salute([risorse(n)]) }, { pcId: 'b', nome: 'PC-Banco', salute: salute([risorse(n + 3)]) }], [])
+    const c = giro(60)
+    expect(c).toHaveLength(2)
+    expect(c[0]?.cosa).not.toMatch(/\d/)
+    expect(c[0]?.dettaglio).toContain('CPU 60%')
+    expect(firmaCriticita(c)).toBe(firmaCriticita(giro(85)))
+  })
+
   it('il giro: rapporto e affido la prima volta; le stesse criticità non si riaffidano', async () => {
     const radice = mkdtempSync(join(tmpdir(), 'sd-controllo-'))
     const affidati: string[] = []
