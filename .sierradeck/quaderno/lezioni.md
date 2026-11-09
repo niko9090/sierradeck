@@ -83,6 +83,8 @@
 - il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
 - un bump patch tocca solo package.json, package-lock.json (2 punti), src/shared/novita.ts e, se serve, il quaderno errori-arrivati. _(2026-11-09)_
 - Se la release esiste già (gh release create prima), npm run pubblica compila ma non carica niente (vuole una bozza): exe, blockmap e latest.yml vanno caricati con gh release upload. _(2026-11-09)_
+- Dal worktree `npm run pubblica` vuole `google-oauth.json` e un `node_modules` vero, non una junction. Copiarli dalla principale e toglierli dopo; `google-oauth.json` è ignorato da git. _(2026-11-09)_
+- Con la release già creata, electron-builder non carica nulla. Gli asset vanno caricati a mano con `gh release upload` e nomi coi trattini (`SierraDeck-Setup-X.exe`), non quelli con lo spazio di `dist… _(2026-11-09)_
 
 ## git
 
@@ -91,6 +93,7 @@
 - `main` locale e `origin/main` possono divergere: dopo una release verificare con `git log origin/main` prima di dire che "è in main". _(2026-11-08)_
 - il main locale può essere avanti di origin/main (qui 5 commit): per allinearsi, `git merge --ff-only main` funziona, ma `origin/main` resta indietro finché non si pubblica. _(2026-11-08)_
 - Un ramo già aperto in un altro worktree non si può attivare: il lavoro va unito sul proprio ramo e l'autopilota deve unire quello. _(2026-11-08)_
+- `main` locale può essere avanti su origin con lavoro non pubblicato. Dal worktree: `git merge --ff-only main`, bump, poi `git push origin HEAD:main`. _(2026-11-09)_
 
 ## autopilota
 
@@ -138,9 +141,6 @@
 
 ## drive
 
-- Il freno (freno-drive.ts) mette l'avvio dei giri automatici dietro `fermo()` e si innesta in un solo punto, il `fetch` dell'archivio. I test che simulano 403 pieno devono passare un proprio `creaFren… _(2026-11-06)_
-- client-rotte.ts battitoVivo usa 5*60_000 fisso invece di PC_SPENTO_DOPO_MS di shared/posta.ts: due nozioni di «PC acceso», da allineare dopo il battito a 30 min. _(2026-11-06)_
-- A Drive pieno `conFreno` blocca ogni PATCH/PUT: anche togliere voci dal manifesto può fallire. Cancellare un file (DELETE) passa, ma solo dopo che la voce è uscita dall'indice. _(2026-11-06)_
 - Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
 - Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
 - «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
