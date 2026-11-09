@@ -165,14 +165,58 @@ export type PausaSalvata = {
   versione?: string
   /** Le sessioni delle chat che erano a metà di un turno. */
   sessioni: string[]
+  /**
+   * Quante chat erano a metà di un turno **senza una sessione nota** (appena
+   * nate, il primo messaggio ancora in corso): al ritorno non c'è niente a cui
+   * agganciare la ripresa, e va detto invece di tacerlo.
+   */
+  senzaSessione?: number
 }
 
 export function pausaDaSalvare(chats: ChatInVolo[], versione?: string, quando = new Date().toISOString()): PausaSalvata {
-  const sessioni = inVolo(chats)
-    .filter((c) => c.governata !== true)
-    .map((c) => c.sessione)
-    .filter((s): s is string => typeof s === 'string' && s !== '')
-  return { quando, ...(versione !== undefined ? { versione } : {}), sessioni }
+  const aMeta = inVolo(chats).filter((c) => c.governata !== true)
+  const sessioni = [...new Set(
+    aMeta.map((c) => c.sessione).filter((s): s is string => typeof s === 'string' && s !== '')
+  )]
+  const senzaSessione = aMeta.filter((c) => typeof c.sessione !== 'string' || c.sessione === '').length
+  return {
+    quando,
+    ...(versione !== undefined ? { versione } : {}),
+    sessioni,
+    ...(senzaSessione > 0 ? { senzaSessione } : {})
+  }
+}
+
+/**
+ * L'elenco da lasciare sul disco **all'ultimo istante**, mentre si chiude tutto.
+ *
+ * Fra la fine dell'attesa e l'uscita vera passano secondi (si aspetta che
+ * SierraDeck Update si faccia vivo, poi si salva il layout e si spengono i
+ * terminali): una consegna dell'autopilota o un messaggio dal telefono possono
+ * far partire un turno proprio lì in mezzo — il 07/11 una chat ha cominciato a
+ * lavorare 5 secondi prima dell'uscita e al ritorno nessuno lo sapeva. Allora
+ * si rifà la fotografia e la si **somma** a quella dell'attesa: chi era a metà
+ * prima resta a metà.
+ *
+ * `esistente` è `undefined` quando non c'è nessun file: si sta uscendo per una
+ * chiusura normale, non per un riavvio, e non si deve scrivere niente.
+ */
+export function pausaPerUscita(
+  esistente: PausaSalvata | undefined,
+  chats: ChatInVolo[],
+  versione?: string,
+  quando = new Date().toISOString()
+): PausaSalvata | undefined {
+  if (esistente === undefined) return undefined
+  const ora = pausaDaSalvare(chats, versione ?? esistente.versione, quando)
+  const sessioni = [...new Set([...esistente.sessioni, ...ora.sessioni])]
+  const senzaSessione = Math.max(esistente.senzaSessione ?? 0, ora.senzaSessione ?? 0)
+  return {
+    quando: esistente.quando !== '' ? esistente.quando : quando,
+    ...(ora.versione !== undefined ? { versione: ora.versione } : {}),
+    sessioni,
+    ...(senzaSessione > 0 ? { senzaSessione } : {})
+  }
 }
 
 /**
@@ -185,17 +229,46 @@ export function pausaDaSalvare(chats: ChatInVolo[], versione?: string, quando = 
  * programma nel momento esatto in cui doveva ripararlo.
  */
 export function leggiPausa(raw: unknown): PausaSalvata | undefined {
+  const p = leggiPausaAnchePiena(raw)
+  return p === undefined || p.sessioni.length === 0 ? undefined : p
+}
+
+/** Come `leggiPausa`, ma un elenco senza sessioni è valido: serve a sommare all'uscita. */
+export function leggiPausaAnchePiena(raw: unknown): PausaSalvata | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined
   const o = raw as Record<string, unknown>
   const sessioni = Array.isArray(o.sessioni)
     ? o.sessioni.filter((s): s is string => typeof s === 'string' && s !== '')
     : []
-  if (sessioni.length === 0) return undefined
+  const senza = typeof o.senzaSessione === 'number' && Number.isInteger(o.senzaSessione) && o.senzaSessione > 0 ? o.senzaSessione : undefined
   return {
     quando: typeof o.quando === 'string' ? o.quando : '',
     ...(typeof o.versione === 'string' ? { versione: o.versione } : {}),
-    sessioni
+    sessioni,
+    ...(senza !== undefined ? { senzaSessione: senza } : {})
   }
+}
+
+/**
+ * A chi dire «riprendi» adesso, fra le chat che una finestra ha appena annunciato.
+ *
+ * All'avvio le finestre nascono una alla volta e ognuna annuncia le sue chat
+ * ogni pochi secondi: una sessione da riprendere si consegna quando il suo
+ * riquadro compare, e si toglie dall'elenco perché non si ripeta. Chi non
+ * compare ancora (un workspace non aperto) resta nell'elenco: il file lo
+ * conserva fino alla scadenza.
+ */
+export function ripresaDaConsegnare(
+  daRiprendere: ReadonlySet<string>,
+  annunciate: ReadonlyArray<{ sessione?: string }>
+): { consegna: string[]; restano: string[] } {
+  const consegna = [...new Set(
+    annunciate
+      .map((c) => c.sessione)
+      .filter((s): s is string => typeof s === 'string' && s !== '' && daRiprendere.has(s))
+  )]
+  const restano = [...daRiprendere].filter((s) => !consegna.includes(s))
+  return { consegna, restano }
 }
 
 /**
@@ -292,7 +365,7 @@ export async function attendiQuiete(p: {
    * (vanno nella riga di riepilogo); `alLavoro`: tutte, anche quelle di
    * Nicholas, che si riprendono con `AVVISO_RIPRESA`.
    */
-  chiusa?: (e: { come: 'quiete' | 'subito' | 'scadenza'; interrotte: number; alLavoro: number }) => void
+  chiusa?: (e: { come: 'quiete' | 'subito' | 'scadenza'; interrotte: number; alLavoro: number; senzaSessione?: number }) => void
   /** Il lavoro con il Drive, aspettato nello stesso tetto delle chat. */
   drive?: DriveInCorso
   avvisaDrive?: (testo: string) => void
@@ -324,8 +397,15 @@ export async function attendiQuiete(p: {
   }
 
   const avvisate = new Set<string>()
+  /**
+   * Chiunque abbia avuto un turno in mano durante l'attesa, anche se poi l'ha
+   * chiuso: è stato avvisato di fermarsi per l'aggiornamento, e al ritorno gli
+   * si deve dire di riprendere.
+   */
+  const viste = new Map<string, ChatInVolo>()
   const avvisaLeOccupate = (): void => {
     for (const c of inVolo(p.chat())) {
+      viste.set(c.id, c)
       if (avvisate.has(c.id)) continue
       avvisate.add(c.id)
       p.scriviInChat(c.id, AVVISO_PAUSA)
@@ -339,7 +419,13 @@ export async function attendiQuiete(p: {
   // Si salva il lavoro e si annota chi era a metà: anche le chat avvisate dopo
   // l'inizio dell'attesa.
   const driveOccupato = (): boolean => p.drive?.occupato() === true
-  const chiudi = async (come: 'quiete' | 'subito' | 'scadenza', restano: ChatInVolo[]): Promise<true> => {
+  /**
+   * Il lavoro prima di installare: il Drive annullato e il commit delle chat.
+   * Può durare decine di secondi, e **in quel tempo il mondo non si ferma**
+   * (07/11: una consegna ha fatto cominciare un turno a una chat fra la quiete
+   * dichiarata e l'uscita, e il turno è morto senza che nessuno lo sapesse).
+   */
+  const prepara = async (come: 'quiete' | 'subito' | 'scadenza'): Promise<void> => {
     if (driveOccupato()) {
       // Si annulla invece di rinunciare: il lavoro si rifà, l'aggiornamento no.
       console.info('[aggiornamenti] annullo il lavoro con il Drive ancora in corso e installo: si rifà al prossimo giro')
@@ -354,20 +440,50 @@ export async function attendiQuiete(p: {
         console.warn('[aggiornamenti] lavoro delle chat non salvato prima di installare:', err)
       }
     }
+  }
+  /**
+   * Chi era a metà si annota **dopo** la preparazione, con una fotografia
+   * nuova: chi ha cominciato un turno mentre si salvava conta come chi era già
+   * al lavoro.
+   */
+  const concludi = (come: 'quiete' | 'subito' | 'scadenza', restano: ChatInVolo[]): true => {
+    const adessoInVolo = inVolo(p.chat())
     const sessioni = new Set<string>()
-    const aMeta = [...allInizio, ...restano].filter((c) => {
+    const aMeta = [...allInizio, ...viste.values(), ...restano, ...adessoInVolo].filter((c) => {
       const k = c.sessione ?? c.id
       if (sessioni.has(k)) return false
       sessioni.add(k)
       return true
     })
-    p.annota(pausaDaSalvare(aMeta, p.versione))
-    p.chiusa?.({ come, interrotte: restano.filter((c) => c.governata === true).length, alLavoro: restano.length })
+    const pausa = pausaDaSalvare(aMeta, p.versione)
+    p.annota(pausa)
+    const alLavoro = [...restano, ...adessoInVolo.filter((c) => !restano.some((r) => r.id === c.id))]
+    p.chiusa?.({
+      come,
+      interrotte: alLavoro.filter((c) => c.governata === true).length,
+      alLavoro: alLavoro.length,
+      ...(pausa.senzaSessione !== undefined ? { senzaSessione: pausa.senzaSessione } : {})
+    })
     return true
+  }
+  const chiudi = async (come: 'quiete' | 'subito' | 'scadenza', restano: ChatInVolo[]): Promise<true> => {
+    await prepara(come)
+    return concludi(come, restano)
   }
   while (adesso() < scade) {
     const restano = inVolo(p.chat())
-    if (restano.length === 0 && !driveOccupato()) return chiudi('quiete', [])
+    if (restano.length === 0 && !driveOccupato()) {
+      await prepara('quiete')
+      // Preparare ha preso tempo: se nel frattempo qualcuno ha cominciato un
+      // turno non si installa sopra, si torna ad aspettare (e lo si avvisa).
+      const dopo = inVolo(p.chat())
+      if (dopo.length === 0) return concludi('quiete', [])
+      if (p.subito?.() === true) return concludi('subito', dopo)
+      console.info(`[aggiornamenti] mentre salvavo ${dopo.length} chat hanno cominciato un turno: aspetto che finiscano`)
+      avvisaLeOccupate()
+      await aspetta(CONTROLLO_QUIETE_MS)
+      continue
+    }
     if (p.subito?.() === true) {
       // Gli autopiloti sono già in pausa e le chat avvisate: resta da mettere
       // al sicuro il lavoro non salvato e da ricordare chi riprendere al ritorno.

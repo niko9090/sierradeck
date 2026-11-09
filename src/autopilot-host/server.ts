@@ -752,6 +752,12 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       console.info('[autopilota] ripresa chiesta mentre si installa un aggiornamento: la faccio al ritorno del programma')
       return 0
     }
+    // Il servizio è appena ripartito: i processi degli autopiloti sono morti
+    // col programma. Quello che era a metà (compiti in corso, un messaggio di
+    // Nicholas senza risposta) si dice subito all'autopilota, dal disco.
+    if (opzioni.servizioAppenaPartito === true) {
+      try { unico?.riprendiOrchestratori() } catch (err) { console.error('[orchestratore] ripresa dopo il riavvio non riuscita:', err) }
+    }
     if (!Number.isNaN(ora) && ultimaRipresa !== 0 && ora - ultimaRipresa < RIPRESA_RAVVICINATA_MS) return 0
     if (!Number.isNaN(ora)) ultimaRipresa = ora
     let ripresi = 0

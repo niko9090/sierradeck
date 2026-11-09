@@ -40,6 +40,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
+import { ripresaDopoRiavvio } from './ripresa-riavvio'
 import { fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
@@ -199,6 +200,12 @@ export type ServizioUnico = {
   /** 0.96.0: la chat di questo workspace è davanti a Nicholas adesso (PC o telefono): le sue domande in chat contano come viste. */
   visto: (ws: string) => void
   riprendi: (a: Autopilota) => number
+  /**
+   * Dopo un riavvio del servizio: ogni autopilota con qualcosa a metà (compiti
+   * in corso, richieste senza piano, un messaggio di Nicholas senza risposta)
+   * riceve subito un evento che glielo dice. Torna quanti ne ha avvisati.
+   */
+  riprendiOrchestratori: () => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
   /** Il PreToolUse dell'orchestratore e dei suoi subagenti (`guardia-orchestratore.ts`). */
@@ -1536,6 +1543,33 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
   }
 
   /**
+   * Il servizio è ripartito (aggiornamento): i processi dell'autopilota e dei
+   * suoi specialisti sono morti, la memoria con loro. Quello che era a metà lo
+   * dice il disco (piano, coda, dialogo): lo si manda **subito** come evento,
+   * invece di aspettare il controllo del lavoro fermo (3 minuti, due spinte).
+   */
+  const riprendiOrchestratori = (): number => {
+    let n = 0
+    const ora = oraMs()
+    for (const a of unici()) {
+      if (a.archiviato === true) continue
+      const ws = wsDi(a)
+      try {
+        const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora })
+        if (r === undefined) continue
+        // Conta come la prima spinta del lavoro fermo: la seconda arriva più tardi, non subito.
+        if (r.firma !== undefined) fermiVisti.set(ws, { firma: r.firma, dal: ora, spinte: 1 })
+        console.info(`[orchestratore] ${ws} — ripreso dopo il riavvio: ${r.interrotti} compiti interrotti${r.messaggioPerso ? ', un messaggio di Nicholas senza risposta' : ''}`)
+        evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: r.testo })
+        n += 1
+      } catch (err) {
+        console.error(`[orchestratore] ${ws} — ripresa dopo il riavvio non riuscita:`, err)
+      }
+    }
+    return n
+  }
+
+  /**
    * 31/10, «solo cose sicure»: per ogni doppione si spegne il suo processo, si
    * chiudono le sue domande, l'autopilota si archivia (fermo, come «Archivia»)
    * e si segna fra i doppioni **prima** di spostare la cartella, così non si
@@ -1675,6 +1709,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     guardia,
     visto: (ws) => { vistoIl.set(ws, Date.parse(x.adesso())) },
     riprendi,
+    riprendiOrchestratori,
     reindirizza(id, chatId) {
       const a = x.archivio.leggi(id)
       if (a !== undefined && eUnico(a)) return undefined

@@ -31,7 +31,7 @@ import { cartellaDati } from './migra-dati'
 import { apriAllegati } from './allegati'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { cestinoSicuro } from '@shared/cancella-sicura'
-import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, pausaAncoraValida, type DriveInCorso } from './pausa-aggiornamento'
+import { attendiQuiete, ATTESA_INSTALLA_MS, AVVISO_RIPRESA, leggiPausa, leggiPausaAnchePiena, pausaAncoraValida, pausaPerUscita, ripresaDaConsegnare, type DriveInCorso } from './pausa-aggiornamento'
 import { serveCercareSubito } from '@shared/versioni-altri-pc'
 import { chiaveMonitor } from '@shared/display-key'
 import { apriFinestreStore, type FinestreStore } from './finestre-store'
@@ -664,6 +664,14 @@ const AVVIO_PROCESSO_MS = Date.now() - Math.round(process.uptime() * 1000)
 let lavoroGlobale: ReturnType<typeof creaLavoro> | undefined
 /** L'elenco delle chat fermate per l'aggiornamento, com'era su disco all'avvio. */
 let pausaLetta: ReturnType<typeof leggiPausa> | undefined
+/**
+ * Vero da quando parte l'attesa di un aggiornamento (o di un riavvio) fino a
+ * quando l'attesa finisce o si disfa. Le consegne dell'autopilota **non si
+ * ritirano**: restano nella coda del servizio, che è su disco e sopravvive al
+ * riavvio. Ritirarle faceva cominciare un turno a una chat un attimo prima
+ * dell'uscita (07/11, 07:08:15) e l'uscita lo uccideva a metà.
+ */
+let consegneInPausa = false
 /** La sincronizzazione cifrata: alla chiusura si prova a salvare, se serve. */
 let sincroniaGlobale: Sincronia | undefined
 
@@ -4101,7 +4109,12 @@ if (!app.requestSingleInstanceLock()) {
       try {
         const grezzo = filePausa(dati)
         if (existsSync(grezzo)) {
-          const salvata = leggiPausa(JSON.parse(readFileSync(grezzo, 'utf8')))
+          const contenuto: unknown = JSON.parse(readFileSync(grezzo, 'utf8'))
+          const completa = leggiPausaAnchePiena(contenuto)
+          if (completa?.senzaSessione !== undefined && pausaAncoraValida(completa)) {
+            registro.info(`[aggiornamenti] ${completa.senzaSessione} chat erano a metà di un turno senza una sessione nota: l'aggiornamento le ha interrotte e non so dirgli di riprendere`)
+          }
+          const salvata = leggiPausa(contenuto)
           if (salvata !== undefined && pausaAncoraValida(salvata)) {
             pausaLetta = salvata
             for (const sessione of salvata.sessioni) chatDaRiprendereDopoAggiornamento.add(sessione)
@@ -4728,7 +4741,7 @@ if (!app.requestSingleInstanceLock()) {
           // l'aggiornamento resta in attesa del suo «Installa».
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
-            pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+            pausaAutopiloti: (attiva) => { consegneInPausa = attiva; return clientAutopilota.pausaAggiornamento(attiva) },
             scriviInChat: scriviNelRiquadro,
             annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
             avvisa: () => undefined,
@@ -5346,9 +5359,14 @@ if (!app.requestSingleInstanceLock()) {
         // troverebbe nessuno. Si toglie dall'elenco appena consegnato, perche'
         // questo annuncio arriva ogni pochi secondi.
         if (chatDaRiprendereDopoAggiornamento.size > 0) {
-          for (const c of chatPerFinestra.get(win.id) ?? []) {
-            const sessione = c.sessione
-            if (sessione === undefined || !chatDaRiprendereDopoAggiornamento.has(sessione)) continue
+          // Anche le chat dei workspace tenuti vivi dietro (`dietro`): hanno un
+          // terminale vero e potevano essere a metà di un turno come le altre.
+          // Prima erano escluse e l'avviso non arrivava mai (scadeva dopo 6 ore).
+          const { consegna } = ripresaDaConsegnare(
+            chatDaRiprendereDopoAggiornamento,
+            [...(chatPerFinestra.get(win.id) ?? []), ...(chatDietroPerFinestra.get(win.id) ?? [])]
+          )
+          for (const sessione of consegna) {
             chatDaRiprendereDopoAggiornamento.delete(sessione)
             win.webContents.send('client:riprendi-chat', { sessione, testo: AVVISO_RIPRESA })
           }
@@ -5541,6 +5559,8 @@ if (!app.requestSingleInstanceLock()) {
           scrivi: (chiavi) => { scriviJsonAtomico(fileScritte, chiavi, 'consegne') }
         },
         chiedi: async () => {
+          // Durante l'attesa di un aggiornamento le consegne restano in coda (sul disco del servizio).
+          if (consegneInPausa) return {}
           // **Non si ritira senza avere dove mettere.** Ritirare svuota la coda
           // del servizio, e una consegna presa mentre non c'è nessuna finestra
           // sarebbe un'istruzione persa: l'autopilota resterebbe ad aspettare
@@ -5711,6 +5731,16 @@ if (!app.requestSingleInstanceLock()) {
         async () => {
           area?.destroy()
           area = undefined
+          // L'ultima fotografia di chi è a metà, prima di spegnere i terminali:
+          // somma a quella dell'attesa chi ha cominciato un turno nel frattempo.
+          try {
+            const file = filePausa(dati)
+            const esistente = existsSync(file) ? leggiPausaAnchePiena(JSON.parse(readFileSync(file, 'utf8'))) : undefined
+            const ultima = pausaPerUscita(esistente, chatAperte, app.getVersion())
+            if (ultima !== undefined) scriviJsonAtomico(file, ultima, 'pausa-aggiornamento')
+          } catch (err) {
+            registro.errore(`[aggiornamenti] ultima fotografia delle chat a metà non scritta: ${String(err)}`)
+          }
           await chiudiRisorse()
         },
         // Anche Claude Code, se è indietro: si aggiorna nello stesso viaggio,
@@ -5756,7 +5786,7 @@ if (!app.requestSingleInstanceLock()) {
           let conti: { salvate?: number; provate?: number; interrotte?: number } = {}
           const pronti = await attendiQuiete({
             chat: () => chatAperte,
-            pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+            pausaAutopiloti: (attiva) => { consegneInPausa = attiva; return clientAutopilota.pausaAggiornamento(attiva) },
             scriviInChat: scriviNelRiquadro,
             // Su disco, non in memoria: fra il sapere chi era a meta' e il
             // poterglielo dire c'e' la morte di questo processo.
@@ -5788,6 +5818,8 @@ if (!app.requestSingleInstanceLock()) {
               // Nel riepilogo solo le chat degli autopiloti (collaudo c-97 D3).
               conti = { ...conti, interrotte: e.interrotte }
               registro.info(`[aggiornamenti] attesa chiusa (${e.come}): ${e.alLavoro} chat ancora al lavoro (${e.interrotte} degli autopiloti), installo`)
+              // Una chat a metà senza sessione non si può riprendere: si dice, non si tace.
+              if (e.senzaSessione !== undefined) registro.info(`[aggiornamenti] ${e.senzaSessione} chat erano a metà di un turno ma senza una sessione nota: al ritorno non posso dirgli di riprendere`)
             },
             drive,
             avvisaDrive: (attesa) => avvisa({ attesa }),
@@ -5812,6 +5844,7 @@ if (!app.requestSingleInstanceLock()) {
           await clientAutopilota.pausaAggiornamento(false).catch((err: unknown) => {
             registro.errore(`[aggiornamenti] autopiloti non tolti dalla pausa: ${String(err)}`)
           })
+          consegneInPausa = false
           try { rmSync(filePausa(dati), { force: true }) } catch { /* non c'era */ }
           registro.info("[aggiornamenti] pausa disfatta: l'installazione non e' partita")
         }
@@ -5850,7 +5883,7 @@ if (!app.requestSingleInstanceLock()) {
         if (!drive.ok) return { ok: false, messaggio: `Non ho riavviato: ${drive.perche}` }
         const pronti = await attendiQuiete({
           chat: () => chatAperte,
-          pausaAutopiloti: (attiva) => clientAutopilota.pausaAggiornamento(attiva),
+          pausaAutopiloti: (attiva) => { consegneInPausa = attiva; return clientAutopilota.pausaAggiornamento(attiva) },
           scriviInChat: scriviNelRiquadro,
           annota: (p) => { scriviJsonAtomico(filePausa(dati), p, 'pausa-aggiornamento') },
           avvisa: () => undefined,
