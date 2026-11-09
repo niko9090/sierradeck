@@ -127,3 +127,20 @@ Corretto nella versione 0.97.2. Difetto vero, ma solo nel trattamento: un 404 su
 
 ## Gruppo 2: "[main] promise rifiutata senza catch — Error: Cannot download «…/SierraDeck-Setup-….exe», status 404" (6 volte)
 Corretto nella versione 0.97.2. Stesso 404 del gruppo 1, visto da un altra parte: con autoDownload electron-updater crea downloadPromise dentro checkForUpdates e nessuno la attendeva; se il download falliva il rifiuto finiva in unhandledRejection e veniva registrato come errore del main, in piu della riga gia scritta dall evento error. Ora in aggiornamenti.ts il giro aggancia downloadPromise.catch(() => {}): l errore arriva comunque dall evento error (gestito da erroreUpdater, con la soglia di 2 ore), e il rifiuto doppio non si scrive piu.
+
+# Errori arrivati (rapporto controllo-20261109T031545, app 0.96.2 / 0.97.0, 8 criticita)
+
+## Criticita 1-3 e 5: DESKTOP-G24D499 (0.95.3), LAPTOP-E60QM2D1 (0.95.4), Z2-TECNICO (0.95.5), PC-Fisso (0.95.3), "Ultimo battito sul Drive: 2 giorni fa", versione vecchia
+Spiegata nella 0.97.3, resta da fare a mano di Nicholas. Il battito vecchio e la versione vecchia hanno la stessa causa: il Drive e pieno (403 quota superata), quindi i PC non riescono a riscrivere il battito e la versione che si legge dal Drive e quella di due giorni fa, non quella vera. Dalla 0.97.1 la versione si chiede al PC stesso quando risponde. Dalla 0.97.3 la Salute e il controllo dei PC dicono che il battito e vecchio perche il Drive e pieno (un account per tutti i PC), e la versione compare insieme al nome del PC. A mano: liberare spazio sul Drive o svuotare il cestino; poi aggiornare i PC che hanno davvero la versione vecchia con «Installa la» o dal loro schermo (Nicholas decide, il programma non installa da solo).
+
+## Criticita 4 e 8: PC-Fisso e Z2-TECNICO, "Quanto lavora SierraDeck: CPU … RAM … Drive … richieste/min" come criticita
+Corretto nella versione 0.97.3. Dalla 0.97.0 «Quanto lavora» non era piu una criticita con consumi buoni, ma la firma della criticita conteneva i numeri (CPU, RAM, richieste), che cambiano a ogni controllo: la riga si riscriveva e tornava a comparire ogni 6 ore. Ora la firma e senza numeri, quindi lo stesso stato si segnala una volta sola. Il vero fondo della cosa (Google rifiuta richieste, 403 quota Drive su Z2-TECNICO) e il Drive pieno: a mano, liberare spazio (vedi sopra).
+
+## Criticita 6-7: DESKTOP-G24D499 e LAPTOP-E60QM2D1, "Scheda video: solo processore (grafica in software)"
+Corretto nel codice dalla 0.97.0 (terminali con WebGL e stato della scheda video nella Salute) e 0.97.1 (stato di adesso, non quello dell avvio); la riga e quindi una misura vera, non un errore del programma. A mano di Nicholas se si vuole la grafica accelerata: controllare i driver della scheda video e che Windows non la tenga spenta, poi riavviare SierraDeck. Funziona comunque, con piu CPU.
+
+## NB-PROBOOK-TEC "non risponde" (compare nei PC, non fra le 8 criticita)
+Da fare a mano: accenderlo e metterlo sulla stessa rete o su Tailscale. L indirizzo che il programma ricordava ora e di LAPTOP-E60QM2D1 (indirizzo cambiato): il programma lo dice gia, non e un difetto.
+
+## Drive pieno (la causa comune, nelle righe dei PC)
+Corretto nella versione 0.97.3 per quanto riguarda il programma: «Drive pieno» resta detto finche il Drive non si libera o una scrittura riesce (pienoDetto() nel freno, freno-drive.ts) e i testi «30 minuti» seguono la costante (15 minuti). Gia ridotto in 0.96.0 (freno del Drive quando e pieno) e 0.97.1 (niente tentativi a raffica). Lo spazio sul Drive lo libera Nicholas.
