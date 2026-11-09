@@ -133,14 +133,8 @@
 
 ## build
 
-- `controlla-pacchetto.mjs --prima/--dopo` (commit 68bca905) è la difesa contro l'asar incompleto; prima di indagare un «Cannot find module» in un'app installata, controllare da dove è stata costruita. _(2026-11-06)_
-- Il guardiano del PC carico può rifiutare gradle a oltranza con lo stesso messaggio: nel ramo vanno prima fatti i controlli statici, e va chiesta all'autopilota una finestra libera. _(2026-11-06)_
 - Il guardiano «PC carico» rifiuta il comando prima di eseguirlo: l'attesa va in una chiamata a parte (until sull'orologio), non dentro lo stesso comando gradle. _(2026-11-07)_
 - Il package.json può chiedere pacchetti non installati nella cartella principale (es. @xterm/addon-webgl): tsc fallisce con TS2307 anche su main, serve npm install, non una correzione al codice. _(2026-11-07)_
-
-## piano
-
-- Un criterio che è solo un comando di lettura (`wsl --list --quiet`) passa sempre, anche se il lavoro non c'è: il criterio deve fallire quando il lavoro manca (es. un test o un confronto sull'uscita). _(2026-11-06)_
 
 ## autoriparazione
 
@@ -290,6 +284,7 @@
 - leggiErroreAggiornamento riconosce il 404 «mancante» solo su latest*.yml: il 404 dell'exe durante la pubblicazione conta come errore. _(2026-11-08)_
 - allowDowngrade diventa vero solo col setter di channel in electron-updater: senza, una versione più vecchia del feed non si scarica mai. _(2026-11-08)_
 - un 404 su exe/blockmap è atteso a release a metà pubblicazione: soglia 2 ore in src/shared/aggiornamenti-404.ts, poi errore una volta sola. _(2026-11-08)_
+- pausa-aggiornamento.json era sempre `sessioni: []`: chi parte dopo la quiete (consegna dell'autopilota durante il salvataggio) non si annotava; ora si ricontrolla dopo `prepara` e all'uscita. _(2026-11-09)_
 
 ## installa-la
 
@@ -344,3 +339,11 @@
 ## finestra
 
 - Electron maximizza sul display che contiene i bounds normali: se questi sono fuori dai monitor, anche la finestra ingrandita finisce nel posto sbagliato. _(2026-11-09)_
+
+## servizio
+
+- l'installer uccide anche il servizio autopiloti: memoria persa (messaggi e specialisti). Ripresa dal disco con `ripresaDopoRiavvio`, non basta il «lavoro fermo» (3 min, 2 spinte). _(2026-11-09)_
+
+## registro
+
+- copie-di-versione/<ver>-<data> contiene il pausa-aggiornamento.json e aggiornamento-in-corso.json di ogni update: prova utile a capire cosa fu salvato prima dell'uscita. _(2026-11-09)_
