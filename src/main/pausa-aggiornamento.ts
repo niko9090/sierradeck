@@ -260,10 +260,12 @@ export function leggiPausaAnchePiena(raw: unknown): PausaSalvata | undefined {
  */
 export function ripresaDaConsegnare(
   daRiprendere: ReadonlySet<string>,
-  annunciate: ReadonlyArray<{ sessione?: string }>
+  annunciate: ReadonlyArray<{ sessione?: string; dietro?: boolean }>
 ): { consegna: string[]; restano: string[] } {
   const consegna = [...new Set(
     annunciate
+      // Una chat di un workspace tenuto dietro non ha un riquadro nella finestra: l'avviso non arriverebbe. Resta in sospeso e parte quando il workspace torna davanti.
+      .filter((c) => c.dietro !== true)
       .map((c) => c.sessione)
       .filter((s): s is string => typeof s === 'string' && s !== '' && daRiprendere.has(s))
   )]

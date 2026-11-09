@@ -3,7 +3,12 @@ import {
   attendiQuiete, leggiPausa, leggiPausaAnchePiena, pausaAncoraValida, pausaDaSalvare, pausaPerUscita,
   ripresaDaConsegnare, type ChatInVolo, type PausaSalvata
 } from '../../src/main/pausa-aggiornamento'
-import { messaggioSenzaRisposta, ripresaDopoRiavvio, MESSAGGIO_RECENTE_MS, type RigaDialogoRipresa } from '../../src/autopilot-host/ripresa-riavvio'
+import {
+  messaggioSenzaRisposta, motivoSpecialistaDoppio, ripresaDopoRiavvio, serveRipresaDopoAggiornamento,
+  MESSAGGIO_RECENTE_MS, type RigaDialogoRipresa
+} from '../../src/autopilot-host/ripresa-riavvio'
+import { giudicaGuardiaOrchestratore } from '../../src/autopilot-host/guardia-orchestratore'
+import { compitoDallaDescrizione } from '../../src/shared/flusso-orchestratore'
 import { codaVuota, type Coda } from '../../src/shared/coda-richieste'
 import { pianoVuoto, type CompitoPiano, type Piano } from '../../src/shared/piano-orchestratore'
 
@@ -128,13 +133,24 @@ describe('ripresa dopo l’aggiornamento — le chat di Nicholas', () => {
     expect(pausaPerUscita(undefined, [chat('x', { sessione: 's', aspetta: false })])).toBeUndefined()
   })
 
-  it('causa 2: la ripresa arriva anche alle chat dei workspace tenuti vivi dietro', () => {
-    const daRiprendere = new Set(['davanti', 'dietro', 'altrove'])
-    const annunciate = [{ sessione: 'davanti' }, { sessione: 'dietro' }, { sessione: undefined }, { sessione: 'estranea' }]
+  it('causa 2: la ripresa arriva alle chat con un riquadro, e resta in sospeso per chi non ce l’ha ancora', () => {
+    const daRiprendere = new Set(['davanti', 'altrove'])
+    const annunciate = [{ sessione: 'davanti' }, { sessione: undefined }, { sessione: 'estranea' }]
     const r = ripresaDaConsegnare(daRiprendere, annunciate)
-    expect(r.consegna.sort()).toEqual(['davanti', 'dietro'])
+    expect(r.consegna).toEqual(['davanti'])
     // Chi non è ancora comparso resta nell’elenco per la prossima finestra.
     expect(r.restano).toEqual(['altrove'])
+  })
+
+  it('difetto 1: una chat di un workspace tenuto dietro non si segna come avvisata, resta in sospeso', () => {
+    // Dietro non c’è un riquadro nella finestra: l’avviso non arriverebbe, e segnarlo «mandato» lo perderebbe.
+    const r = ripresaDaConsegnare(new Set(['dietro', 'davanti']), [{ sessione: 'dietro', dietro: true }, { sessione: 'davanti' }])
+    expect(r.consegna).toEqual(['davanti'])
+    expect(r.restano).toEqual(['dietro'])
+    // Quando il workspace torna davanti, la stessa chat non è più «dietro» e l’avviso parte.
+    const dopo = ripresaDaConsegnare(new Set(r.restano), [{ sessione: 'dietro' }])
+    expect(dopo.consegna).toEqual(['dietro'])
+    expect(dopo.restano).toEqual([])
   })
 })
 
@@ -268,5 +284,39 @@ describe('ripresa dopo l’aggiornamento — l’autopilota e i suoi specialisti
 
   it('niente a metà, niente da dire: l’autopilota non viene svegliato per niente', () => {
     expect(ripresaDopoRiavvio({ coda: codaVuota('ws'), piano: pianoVuoto(), dialogo: [], adesso })).toBeUndefined()
+  })
+
+  it('difetto 2: uno specialista già ripartito per lo stesso compito non si lancia una seconda volta', () => {
+    const vivi = [{ compito: 'a', ruolo: 'sviluppatore', descrizione: 'a: finestra all’apertura' }]
+    const motivo = motivoSpecialistaDoppio({ descrizione: 'a: finestra all’apertura (ripresa)', tipo: 'sviluppatore' }, vivi, compitoDallaDescrizione)
+    expect(motivo).toContain('già uno specialista al lavoro')
+    // Un altro compito, o un altro ruolo (il revisore), passano.
+    expect(motivoSpecialistaDoppio({ descrizione: 'b: altro', tipo: 'sviluppatore' }, vivi, compitoDallaDescrizione)).toBeUndefined()
+    expect(motivoSpecialistaDoppio({ descrizione: 'a: rilettura', tipo: 'revisore' }, vivi, compitoDallaDescrizione)).toBeUndefined()
+    expect(motivoSpecialistaDoppio({ descrizione: 'a: ripartenza', tipo: 'sviluppatore' }, [], compitoDallaDescrizione)).toBeUndefined()
+  })
+
+  it('difetto 2: la guardia rifiuta il secondo Agent per lo stesso compito, prima di metterlo in fila', () => {
+    const vivi = [{ compito: 'a', ruolo: 'sviluppatore', descrizione: 'a: finestra all’apertura' }]
+    const fila = vi.fn(() => ({ passa: true as const }))
+    const g = giudicaGuardiaOrchestratore(
+      { tool_name: 'Agent', tool_input: { subagent_type: 'sviluppatore', description: 'a: finestra all’apertura', prompt: 'riprendi' } },
+      {
+        radice: '/progetto', specialistiSulPc: 1, tettoPc: 4, tipiSpecialisti: ['sviluppatore', 'revisore'], fila,
+        doppio: (r) => motivoSpecialistaDoppio(r, vivi, compitoDallaDescrizione)
+      }
+    )
+    expect(g.ok).toBe(false)
+    expect(fila).not.toHaveBeenCalled()
+  })
+
+  it('difetto 3: la ripresa dell’autopilota scatta solo dopo un aggiornamento, non a ogni accensione del PC', () => {
+    // Accensione del PC o crash: il servizio riparte, ma nessun segno di aggiornamento.
+    expect(serveRipresaDopoAggiornamento({ servizioAppenaPartito: true, avevaFermatiPerAggiornamento: false, riepilogoAggiornamento: false })).toBe(false)
+    // Aggiornamento: gli autopiloti erano stati fermati apposta, oppure il programma porta il riepilogo.
+    expect(serveRipresaDopoAggiornamento({ servizioAppenaPartito: true, avevaFermatiPerAggiornamento: true, riepilogoAggiornamento: false })).toBe(true)
+    expect(serveRipresaDopoAggiornamento({ servizioAppenaPartito: true, avevaFermatiPerAggiornamento: false, riepilogoAggiornamento: true })).toBe(true)
+    // Se il servizio non è appena ripartito, non c'è niente da riprendere.
+    expect(serveRipresaDopoAggiornamento({ servizioAppenaPartito: false, avevaFermatiPerAggiornamento: true, riepilogoAggiornamento: true })).toBe(false)
   })
 })

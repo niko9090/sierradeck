@@ -10,7 +10,7 @@ import {
   allineaConPiano, comandoDelCriterio, conCompito, conPercento, misuraDalPiano, misuraUnita, vistaLavoro,
   type CompitoPiano, type Piano, type TrascrizioneSpecialista, type VistaOrchestratore
 } from '@shared/piano-orchestratore'
-import { durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
+import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
@@ -40,7 +40,7 @@ import { POSTI_MAX } from '@shared/posti-chat'
 import { fermataSpecialista } from './stop-specialista'
 import { cartellaDelWorkspace, hookAdottato, nuovoUnico, obiettiviInCoda, passaAllUnico, type CampiVecchi, type Vecchio } from './migra-orchestratore'
 import { riassuntoOrchestratore } from './riassunto-orchestratore'
-import { ripresaDopoRiavvio } from './ripresa-riavvio'
+import { motivoSpecialistaDoppio, ripresaDopoRiavvio } from './ripresa-riavvio'
 import { fileAgenti, fileImpostazioniCli, RUOLI_AGENTI } from './agenti-orchestratore'
 import { giudicaGuardiaOrchestratore } from './guardia-orchestratore'
 import type { Giudizio } from './divieti'
@@ -1724,6 +1724,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
         specialistiSulPc: orchestratore.specialistiSulPc(idUso),
         tettoPc: tettoPc(),
+        doppio: (r) => motivoSpecialistaDoppio(r, subagenti(wsDi(a)).filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.id !== idUso), compitoDallaDescrizione),
         fila: (r) => {
           const prima = archivioAttesa.leggi()
           const p = passoAttesa(prima, { workspace: wsDi(a), autopilota: a.id, ...r }, { liberi: liberiPc(idUso), adesso: oraMs(), id: randomUUID })
