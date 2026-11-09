@@ -126,6 +126,7 @@
 - la guardia del carico può rimandare per ore anche `tsc`; con Defender al 30% il typecheck non parte: lanciare i test per file e riprovare dopo. _(2026-11-08)_
 - Con la guardia del carico che rimanda tsc, `ping -n N 127.0.0.1` è l'unica attesa consentita: `sleep` seguito da un comando viene bloccato. _(2026-11-08)_
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
+- nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
 
 ## hook
 
@@ -168,14 +169,9 @@
 
 ## processo
 
-- prima di rifare un compito fermato a metà, cercare nel log con --grep: il lavoro (448666e5) era già in main sotto un altro nome di ramo. _(2026-11-06)_
 - la guardia del carico rimanda anche `tsc` lanciato diretto e Start-Sleep è bloccato: scrivere i test e fare commit prima, poi misurare quando il PC scende. _(2026-11-08)_
 - la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 - La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
-
-## sync
-
-- Per togliere una chat dal Drive senza perderla, usare la regola di salita `escludi` (chatNonSale) più la pulizia nel manifesto; `restaFuori` bloccherebbe per sempre una chat non cresciuta. _(2026-11-06)_
 
 ## pc
 
@@ -346,7 +342,12 @@
 ## sposta
 
 - «Sposta su questo PC» chiama il PC di prima su /api/sposta/prepara con il timeout di 4 s (non è in ROTTE_LENTE): un upload lungo finisce in «non ha finito entro 4 secondi». _(2026-11-09)_
+- con `prepara` asincrono i test devono rileggere lo stato con `riprendi()` dopo `avvia`; fissare `adesso` e le pause (`pausaAttesaMs`) per i tempi massimi _(2026-11-09)_
 
 ## remoto
 
 - Ogni 404 non di chat viene mappato a «questa chat non è aperta» (scoperta-pc.ts:230): /api/apri con cartella inesistente sembra un PC spento. _(2026-11-09)_
+
+## pc-remoto
+
+- per i 404 di rotte che non riguardano chat, il motivo si decide dal testo dell'errore in `datiDa`; `motivoDaStatoHttp(404)` dà sempre 'chat' _(2026-11-09)_
