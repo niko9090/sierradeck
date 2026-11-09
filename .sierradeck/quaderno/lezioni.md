@@ -4,7 +4,6 @@
 
 ## test
 
-- nei test, un letterale come `peso: 1` in un oggetto restituito si allarga a number: con tipi a unione (`1|2|3`) serve `as const`, e tsc lo segnala solo dopo l'unione. _(2026-11-07)_
 - Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
 - se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
 - Un rosso in main dopo un'unione può non riprodursi nella copia: prima di cambiare codice rilanciare la suite sul ramo già allineato e, se è verde, sospettare un fallimento intermittente per PC carico. _(2026-11-07)_
@@ -342,3 +341,7 @@
 ## pagina
 
 - una funzione condivisa che arriva nella pagina con toString() non può avere funzioni annidate né costanti di modulo: i dati le arrivano come parametri. _(2026-11-09)_
+
+## merge
+
+- client-pagina.ts: la lista di firme che fa ridisegnare la pagina del telefono è il punto dove si scontrano le funzioni nuove; tenere sempre le righe di entrambe. _(2026-11-09)_
