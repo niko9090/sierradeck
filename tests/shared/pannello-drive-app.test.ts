@@ -83,6 +83,7 @@ describe('il pannello del Drive per la pagina e per l’app', () => {
       ${riga('const PD_TIPI =')}; ${estrai('pdByte')} ${estrai('pdSpazioHtml')}
       ${riga('const PD_GRUPPI =')}; ${riga('const PD_ORDINI =')}; ${riga('const PD_COLORE =')}; ${riga('const PD_RANGO =')}
       ${estrai('pdPiano')} ${estrai('pdVistaDi')} ${estrai('pdOrdinate')} ${estrai('pdPillola')} ${estrai('pdElencoHtml')} ${estrai('pdDettaglioHtml')} ${estrai('pdStrumentiHtml')}
+      function pdSpostaHtml() { return '' }
       ${estrai('pdQuando')} ${estrai('pdStato')} ${estrai('pdProblemi')} ${estrai('pdFiltra')} ${estrai('pannelloDriveHtml')}
       return pannelloDriveHtml()`) as (d: unknown, s: string, t: string) => string)(dati, scelto, strumento)
     // 0.69.0: l'elenco con lo stato in una parola (dal PC), i gruppi con i conti, gli strumenti.
