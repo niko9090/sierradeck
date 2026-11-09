@@ -1,5 +1,5 @@
 import { assaggio as assaggioScheda } from '@shared/quaderno-vista'
-import { frenoDrive, MESSAGGIO_DRIVE_PIENO } from './cassaforte/freno-drive'
+import { frenoDrive, MESSAGGIO_DRIVE_PIENO, RICONTROLLO_PIENO_MIN } from './cassaforte/freno-drive'
 import { nonRipartePerAltri } from '@shared/apertura-solo-utente'
 import { chiudiPannelliConLApp, finestreDiChat, finestreViveSenzaServizio, segnaFinestraDiServizio } from './finestre-pannello'
 import { workspaceVisti } from './chat-vista'
@@ -2629,7 +2629,7 @@ if (!app.requestSingleInstanceLock()) {
           adesso, versione: app.getVersion(),
           drive: {
             configurato: st.configurato, connesso: st.connesso,
-            ...(frenoDrive.pieno() ? { pieno: true } : {}),
+            ...(frenoDrive.pienoDetto() ? { pieno: true } : {}),
             ...(av !== undefined ? { titolo: av.titolo, testo: av.testo } : {}),
             ...(statoSync?.ultimoSalvataggio !== undefined ? { ultimoSalvataggio: statoSync.ultimoSalvataggio } : {})
           },
@@ -3675,7 +3675,7 @@ if (!app.requestSingleInstanceLock()) {
       // k-65: Drive pieno o limite di velocita': una riga nel registro e un solo avviso, non un errore a ogni giro.
       frenoDrive.suCambio((e) => {
         if (e === 'pieno') {
-          registro.info('[drive] spazio pieno: le scritture aspettano (ricontrollo ogni 30 minuti), i dati restano in locale')
+          registro.info(`[drive] spazio pieno: le scritture aspettano (ricontrollo ogni ${RICONTROLLO_PIENO_MIN} minuti), i dati restano in locale`)
           try { new Notification({ title: 'SierraDeck', body: MESSAGGIO_DRIVE_PIENO }).show() } catch { /* senza notifiche */ }
         } else if (e === 'libero') registro.info('[drive] di nuovo spazio: le scritture ripartono')
         else registro.info(`[drive] Google chiede di rallentare: aspetto ${Math.round(frenoDrive.attesaMs() / 1000)} s`)

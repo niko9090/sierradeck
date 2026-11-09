@@ -9,7 +9,7 @@
  * - **limite di velocità** (429, o 403 rateLimitExceeded): attesa che cresce,
  *   da 30 secondi a 10 minuti. Finché dura, i giri automatici stanno fermi.
  * - **spazio pieno** (403 storageQuotaExceeded): niente scritture né creazioni
- *   finché lo spazio non torna. Si ricontrolla di rado (30 minuti), o subito
+ *   finché lo spazio non torna. Si ricontrolla di rado (15 minuti, RICONTROLLO_PIENO_MS), o subito
  *   quando la quota dice che c'è di nuovo posto. Le letture continuano; i dati
  *   restano in locale e salgono al primo giro con spazio.
  *
@@ -19,6 +19,8 @@
 export const MESSAGGIO_DRIVE_PIENO = 'Drive pieno: libera spazio o svuota il cestino.'
 /** Ogni quanto si riprova a scrivere, a Drive pieno. */
 export const RICONTROLLO_PIENO_MS = 15 * 60_000
+/** Lo stesso intervallo, in minuti, per i testi. */
+export const RICONTROLLO_PIENO_MIN = RICONTROLLO_PIENO_MS / 60_000
 export const ATTESA_LIMITE_MIN_MS = 30_000
 export const ATTESA_LIMITE_MAX_MS = 10 * 60_000
 
@@ -52,6 +54,8 @@ export type Freno = {
   spazioLibero: () => void
   /** Spazio pieno, e non è ancora ora di ricontrollare? */
   pieno: () => boolean
+  /** Il Drive ha detto «pieno» e lo spazio non è ancora tornato (resta vero anche dopo il ricontrollo). Per la Salute. */
+  pienoDetto: () => boolean
   /** Per i giri automatici: conviene saltare, per limite o per spazio pieno. */
   fermo: () => boolean
   /** Chi vuole saperlo (registro, avviso): una volta per cambiamento. */
@@ -92,6 +96,9 @@ export function creaFreno(adesso: () => number = () => Date.now(), caso: () => n
       if (pienoDal === undefined) return
       pienoDal = undefined
       dici('libero')
+    },
+    pienoDetto() {
+      return pienoDal !== undefined
     },
     pieno() {
       return pienoDal !== undefined && adesso() - pienoDal < RICONTROLLO_PIENO_MS
