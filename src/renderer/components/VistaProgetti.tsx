@@ -5,7 +5,7 @@ import { byteLeggibili } from '@shared/spazio-drive'
 import { chatDelProgetto, comeAprireChat, filtraChat, type AzioneProgetto, type FiltroPannello, type Pannello, type RigaChat, type RigaProgetto } from '@shared/pannello-drive'
 import { azioniDivise, cartellaDelQuaderno, cercaProgetti, COLONNE, contaGruppi, GRUPPI, nelGruppo, ordinaProgetti, vistaDi, type Colonna, type Colore, type Gruppo, type Verso } from '@shared/progetti-vista'
 import type { CartellaInRecupero, StatoRimozione } from '@shared/rimozione-sicura'
-import { PASSI_SPOSTA, passoDi, testoConfermaSposta, type VistaSposta } from '@shared/sposta'
+import { PASSI_SPOSTA, INIZI_PASSI_SPOSTA, MOTIVO_DRIVE_PIENO_SPOSTA, avanzamentoSposta, testoConfermaSposta, type StatoPassoSposta, type VistaSposta } from '@shared/sposta'
 import { ContenutoDrive } from './ContenutoDrive'
 import { SalvataggioDrive } from './PannelloAccount'
 import { SpazioDrive } from './SpazioDrive'
@@ -190,7 +190,7 @@ export function VistaProgetti({ onChiudi }: { onChiudi: () => void }): React.JSX
       {errore !== undefined ? <div className="progetti__striscia">{errore}</div> : null}
       {msg !== undefined ? <div className="progetti__striscia progetti__striscia--info">{msg} <button className="account__link" onClick={() => setMsg(undefined)}>×</button></div> : null}
       {d?.sposta !== undefined ? (
-        <AvanzamentoSposta s={d.sposta} occupato={occupato}
+        <AvanzamentoSposta s={d.sposta} occupato={occupato} onSpazio={() => { setFoglio('spazio'); setScelto(undefined) }}
           onRiprova={() => esegui(window.gestore.casa.azione({ azione: 'sposta-qui', progetto: d.sposta?.progetto ?? '' }))}
           onChiudi={() => esegui(window.gestore.casa.azione({ azione: 'sposta-chiudi' }))} />
       ) : null}
@@ -440,23 +440,50 @@ function ConfermaAzione({ d, r, a, nome, occupato, onAnnulla, onConferma }: {
  * «Sposta su questo PC» in corso o appena finito (0.88.0): i passi, quello
  * attuale, e l'errore detto chiaro. Riparte da solo dopo un riavvio.
  */
-function AvanzamentoSposta({ s, occupato, onRiprova, onChiudi }: { s: VistaSposta; occupato: boolean; onRiprova: () => void; onChiudi: () => void }): React.JSX.Element {
-  const passo = passoDi(s.fase)
+const SEGNO_SPOSTA: Record<StatoPassoSposta, string> = { fatto: '✓', 'in-corso': '●', 'da-fare': '○', fermo: '✕' }
+const PAROLA_SPOSTA: Record<StatoPassoSposta, string> = { fatto: 'fatto', 'in-corso': 'in corso', 'da-fare': 'da fare', fermo: 'fermo' }
+
+function BarraSposta({ valore, etichetta }: { valore: number; etichetta: string }): React.JSX.Element {
+  return (
+    <span role="progressbar" aria-label={etichetta} aria-valuemin={0} aria-valuemax={100} aria-valuenow={valore}
+      style={{ display: 'block', height: 6, borderRadius: 3, background: 'var(--luce-tenue)', overflow: 'hidden' }}>
+      <span style={{ display: 'block', height: '100%', width: `${valore}%`, background: 'var(--blu)' }} />
+    </span>
+  )
+}
+
+export function AvanzamentoSposta({ s, occupato, onRiprova, onChiudi, onSpazio, adesso }: { s: VistaSposta; occupato: boolean; onRiprova: () => void; onChiudi: () => void; onSpazio?: () => void; adesso?: number }): React.JSX.Element {
   const finita = s.fase === 'fatta' || s.fase === 'fallita'
+  const v = avanzamentoSposta(s, adesso ?? Date.now(), { passi: PASSI_SPOSTA, inizi: INIZI_PASSI_SPOSTA, fmtByte: byteLeggibili, motivoDrivePieno: MOTIVO_DRIVE_PIENO_SPOSTA })
   return (
     <div className="progetti__attende progetti__attende--colonna" role="status" aria-live="polite">
-      <b>{s.fase === 'fatta' ? `«${s.nome}» adesso vive su questo PC` : s.fase === 'fallita' ? `Spostamento di «${s.nome}» fermo` : `Sposto «${s.nome}» da ${s.daNome} su questo PC`}</b>
-      {PASSI_SPOSTA.map((x, i) => {
-        const n = i + 1
-        const segno = s.fase === 'fatta' || (passo > 0 && n < passo) ? '✓' : n === passo ? '●' : '○'
-        return <span key={x.fase} className="progetti__quieto" style={n === passo ? { color: 'var(--blu)' } : undefined}>{segno} {x.titolo}</span>
-      })}
+      <b className="con-aiuto">{s.fase === 'fatta' ? `«${s.nome}» adesso vive su questo PC` : s.fase === 'fallita' ? `Spostamento di «${s.nome}» fermo` : `Sposto «${s.nome}» da ${s.daNome} su questo PC`}
+        <Aiuto di="Sposta su questo PC">
+          Sei passi: controlli; il PC di prima ferma le chat (mai una che sta lavorando) e carica tutto sul Drive; questo PC scarica; si controllano le impronte file per file; il progetto diventa di questo PC; la copia di prima va nel recupero per 30 giorni. La percentuale in alto è quella di tutto lo spostamento, la barra sotto è solo del passo di adesso. Se una impronta non torna o il PC di prima non risponde, si ferma e il progetto resta dov’era: «Riprova» riprende dal passo fermo e niente si cancella.
+        </Aiuto>
+      </b>
+      <BarraSposta valore={v.percentuale} etichetta="Spostamento, in tutto" />
+      <span className="progetti__quieto">{v.percentuale}% in tutto</span>
+      {v.passi.map((x, i) => (
+        <span key={x.titolo} className="progetti__quieto" style={x.stato === 'in-corso' ? { color: 'var(--blu)' } : x.stato === 'fermo' ? { color: 'var(--ambra)' } : undefined}>
+          {SEGNO_SPOSTA[x.stato]} {i + 1}. {x.titolo} · {PAROLA_SPOSTA[x.stato]}{x.nota !== undefined ? `: ${x.nota}` : ''}
+        </span>
+      ))}
+      {v.passo !== undefined ? (
+        <>
+          {v.passo.percentuale !== undefined ? <BarraSposta valore={v.passo.percentuale} etichetta="Il passo di adesso" /> : null}
+          <span className="progetti__quieto">{v.passo.numeri !== undefined ? v.passo.numeri : 'Passo in corso'}{v.passo.percentuale !== undefined ? ` · ${v.passo.percentuale}%` : ''}</span>
+        </>
+      ) : null}
+      {v.contatto !== undefined ? <span className="progetti__quieto">{v.contatto}</span> : null}
+      {v.attesa !== undefined ? <span style={{ color: 'var(--ambra)' }}>sto aspettando: {v.attesa}</span> : null}
       <span>{s.messaggio}</span>
       {s.errore !== undefined ? <span style={{ color: 'var(--ambra)' }}>⚠ {s.errore}</span> : null}
       {(s.avvisi ?? []).map((x) => <span key={x} className="progetti__quieto">{x}</span>)}
+      {v.drivePieno && onSpazio !== undefined ? <button className="account__link" style={{ alignSelf: 'flex-start' }} onClick={onSpazio}>Libera spazio sul Drive</button> : null}
       {finita ? (
         <span style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          {s.fase === 'fallita' ? <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={onRiprova}>Riprova</button> : null}
+          {v.puoRiprovare ? <button className="tasto tasto--mini tasto--acceso" disabled={occupato} onClick={onRiprova}>Riprova</button> : null}
           <button className="tasto tasto--mini" disabled={occupato} onClick={onChiudi}>OK</button>
         </span>
       ) : null}

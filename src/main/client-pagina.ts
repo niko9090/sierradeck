@@ -21,6 +21,7 @@ import { ansiInHtml } from '@shared/ansi-html'
 import { avvisiDaMostrare, sceltaDaAnnunciare } from '@shared/avvisi-raggruppati'
 import { ricomponiSchermo } from '@shared/ricomponi-schermo'
 import { testoAvvio } from '@shared/sottofondo'
+import { INIZI_PASSI_SPOSTA, MOTIVO_DRIVE_PIENO_SPOSTA, PASSI_SPOSTA, avanzamentoSposta } from '@shared/sposta'
 import {
   AIUTO_ELIMINA_WORKSPACE, ULTIMO_WORKSPACE, rigaEliminato, confermaChiudi, confermaDormi, confermaEliminaAutopilota, confermaEliminaWorkspace, confermaSposta
 } from '@shared/azioni-telefono'
@@ -1934,6 +1935,7 @@ function impronta(s) {
     // «Progetti» (0.69.0): mancava, e la pagina restava su «Leggo…» o non apriva il dettaglio finché non cambiava altro.
     pdDati ? (pdDati.letto || '') + '/' + pdDati.progetti.length + '/' + JSON.stringify((pdDati.progetti || []).map((r) => r.vista ? r.vista.stato : '')) : '',
     pdErrore || '', pdVista, pdFiltro, pdDaConfermare, pdSenzaNome, pdGruppo, pdOrdine, pdScelto, pdStrumento, plFirma(),
+    pdDati && pdDati.sposta ? JSON.stringify(pdDati.sposta) : '',
     prefViste ? prefViste.stile + '/' + prefViste.chiarore : '',
     aggiornamentoVisto ? aggiornamentoVisto.fase + '/' + (aggiornamentoVisto.percento || 0) + '/' + (aggiornamentoVisto.errore || '') + '/' + (aggiornamentoVisto.attesa || '') + '/' + (aggiornamentoVisto.chatOccupate || 0) + '/' + (aggiornamentoVisto.subito ? 's' : '') + '/' + (aggiornamentoVisto.testo || '') + '/' + (aggiornamentoVisto.tentativoFallito ? aggiornamentoVisto.tentativoFallito.quando : '') : '',
     cercatoAlle || '',
@@ -5662,11 +5664,53 @@ function pdStrumentiHtml() {
   }
   return h + '</div>'
 }
+// ---- «Sposta su questo PC» in corso (0.98.x): la procedura passo per passo, come sul PC. Blocco a sé. ----
+${avanzamentoSposta.toString()}
+var PD_PASSI_SPOSTA = ${JSON.stringify(PASSI_SPOSTA)}
+var PD_INIZI_SPOSTA = ${JSON.stringify(INIZI_PASSI_SPOSTA)}
+var PD_MOTIVO_DRIVE_PIENO = ${JSON.stringify(MOTIVO_DRIVE_PIENO_SPOSTA)}
+function pdSpostaBarra(valore, etichetta) {
+  return '<div role="progressbar" aria-label="' + esc(etichetta) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + valore + '" style="height:6px;border-radius:3px;background:rgba(127,127,127,0.25);overflow:hidden;margin:4px 0"><div style="height:100%;width:' + valore + '%;background:var(--blu,#4aa3ff)"></div></div>'
+}
+function pdSpostaHtml() {
+  const s = pdDati && pdDati.sposta
+  if (!s) return ''
+  const v = avanzamentoSposta(s, Date.now(), { passi: PD_PASSI_SPOSTA, inizi: PD_INIZI_SPOSTA, fmtByte: pdByte, motivoDrivePieno: PD_MOTIVO_DRIVE_PIENO })
+  const segni = { 'fatto': '✓', 'in-corso': '●', 'da-fare': '○', 'fermo': '✕' }
+  const parole = { 'fatto': 'fatto', 'in-corso': 'in corso', 'da-fare': 'da fare', 'fermo': 'fermo' }
+  const titolo = s.fase === 'fatta' ? '«' + s.nome + '» adesso vive su questo PC' : s.fase === 'fallita' ? 'Spostamento di «' + s.nome + '» fermo' : 'Sposto «' + s.nome + '» da ' + s.daNome + ' su questo PC'
+  let h = '<div class="piastrella" id="pd-sposta"><div class="titolo">' + esc(titolo) + aiuto('pd-sposta-aiuto', 'Sei passi: controlli; il PC di prima ferma le chat (mai una che sta lavorando) e carica tutto sul Drive; questo PC scarica; si controllano le impronte file per file; il progetto diventa di questo PC; la copia di prima va nel recupero per 30 giorni. La percentuale in alto è di tutto lo spostamento, la barra sotto solo del passo di adesso. Se una impronta non torna o il PC di prima non risponde, si ferma e il progetto resta dov’era: «Riprova» riprende dal passo fermo e niente si cancella.', 'Sposta su questo PC') + '</div>'
+  h += pdSpostaBarra(v.percentuale, 'Spostamento, in tutto') + '<div class="sotto">' + v.percentuale + '% in tutto</div>'
+  h += v.passi.map((p, i) => '<div class="sotto"' + (p.stato === 'in-corso' ? ' style="color:var(--blu,#4aa3ff)"' : p.stato === 'fermo' ? ' style="color:var(--ambra,#e0a33c)"' : '') + '>' + segni[p.stato] + ' ' + (i + 1) + '. ' + esc(p.titolo) + ' · ' + parole[p.stato] + (p.nota ? ': ' + esc(p.nota) : '') + '</div>').join('')
+  if (v.passo) {
+    if (v.passo.percentuale !== undefined) h += pdSpostaBarra(v.passo.percentuale, 'Il passo di adesso')
+    h += '<div class="sotto">' + esc(v.passo.numeri || 'Passo in corso') + (v.passo.percentuale !== undefined ? ' · ' + v.passo.percentuale + '%' : '') + '</div>'
+  }
+  if (v.contatto) h += '<div class="sotto">' + esc(v.contatto) + '</div>'
+  if (v.attesa) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">sto aspettando: ' + esc(v.attesa) + '</div>'
+  if (s.messaggio) h += '<div class="sotto">' + esc(s.messaggio) + '</div>'
+  if (s.errore) h += '<div class="sotto" style="color:var(--ambra,#e0a33c)">⚠ ' + esc(s.errore) + '</div>'
+  if (v.drivePieno) h += '<div class="riga"><button onclick="pdStrumentoScegli(\\'spazio\\')">Libera spazio sul Drive</button></div>'
+  const finita = s.fase === 'fatta' || s.fase === 'fallita'
+  if (finita) h += '<div class="riga">' + (v.puoRiprovare ? '<button class="primario" onclick="pdAzione(\\'sposta-qui\\', \\'' + escJs(s.progetto) + '\\', false)">Riprova</button>' : '') + '<button onclick="pdAzione(\\'sposta-chiudi\\', \\'\\', false)">OK</button></div>'
+  return h + '</div>'
+}
+// Mentre lo spostamento lavora si rilegge da solo, ogni 2 secondi, finché si guarda «Progetti».
+setInterval(async () => {
+  const s = pdDati && pdDati.sposta
+  if (!s || s.fase === 'fatta' || s.fase === 'fallita' || pdSpostaLeggo) return
+  if (!document.getElementById('pd-sposta')) return
+  pdSpostaLeggo = true
+  try { await leggiPannelloDrive(); pannello(ultimoStato) } finally { pdSpostaLeggo = false }
+}, 2000)
+var pdSpostaLeggo = false
+// ---- fine «Sposta su questo PC» ----
 function pannelloDriveHtml() {
   let h = '<div class="piastrella"><div class="titolo">Progetti' + aiuto('progetti', 'Ogni progetto vive su un PC: lì girano le sue chat; gli altri PC le aprono dal vivo, e se quel PC è spento quello che scrivi aspetta nella sua posta. Cambia PC solo con «Sposta su questo PC». Stato: <span style="color:var(--verde,#3c9)">a posto</span>, <span style="color:var(--blu,#4aa3ff)">al lavoro</span>, <span style="color:var(--ambra,#e0a33c)">da sistemare</span> (con il motivo), <span style="color:var(--blu,#4aa3ff)">spostamento in corso</span>. Tocca un progetto per il dettaglio e le azioni. Niente si cancella: le copie tolte vanno nel recupero per 30 giorni.') + '</div>'
   if (pdErrore) return h + '<div class="sotto" style="color:var(--ambra,#e0a33c)">' + esc(pdErrore) + '</div></div>'
   if (!pdDati) return h + '<div class="sotto">Leggo…</div></div>'
   if ((pdDati.pcDaAggiornare || []).length > 0) h += '<div class="sotto" style="color:var(--ambra,#e0a33c);margin-top:6px">' + esc(pdDati.pcDaAggiornare.join(', ')) + (pdDati.pcDaAggiornare.length === 1 ? ': va aggiornato' : ': vanno aggiornati') + aiuto('pd-agg', 'Finché non è aggiornato, di quel PC si vedono solo le copie caricate sul Drive.') + '</div>'
+  h += '</div>' + pdSpostaHtml() + '<div class="piastrella">'
   const scelto = pdScelto ? pdDati.progetti.find((r) => r.id === pdScelto) : undefined
   if (scelto) return h + pdDettaglioHtml(scelto)
   h += pdElencoHtml()
