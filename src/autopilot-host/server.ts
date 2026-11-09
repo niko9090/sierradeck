@@ -9,6 +9,7 @@ import {
 import { autopilotaLeggero } from '@shared/autopilota-leggero'
 import { leggiCorpoJson } from '@shared/corpo-richiesta'
 import { chiudiFasi, leggiAggiornamentoInCorso, rigaRiepilogo } from '@shared/fasi-aggiornamento'
+import { serveRipresaDopoAggiornamento } from './ripresa-riavvio'
 import { parolaRapporto, rapportoNuovo, type RapportoChat } from '@shared/rapporti-chat'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { haDettoFatto, segnaleSuperato } from '@shared/segnali-flotta'
@@ -724,6 +725,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
 
   // ── La ripresa dopo un riavvio ──
   let ultimaRipresa = 0
+  /** Il servizio è appena ripartito e non si sa ancora se per un aggiornamento: vale fino al «gestore-avviato». */
+  let ripresaOrchestratoriInSospeso = false
+  let avevaFermatiPerAggiornamento = false
+  const riprendiOrchestratoriSeAggiornato = (riepilogoAggiornamento: boolean): void => {
+    if (!serveRipresaDopoAggiornamento({ servizioAppenaPartito: ripresaOrchestratoriInSospeso, avevaFermatiPerAggiornamento, riepilogoAggiornamento })) return
+    ripresaOrchestratoriInSospeso = false
+    try { unico?.riprendiOrchestratori() } catch (err) { console.error('[orchestratore] ripresa dopo il riavvio non riuscita:', err) }
+  }
   const riprendiLavori = (opzioni: { servizioAppenaPartito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
     if (opzioni.servizioAppenaPartito === true && deps.git !== undefined) {
@@ -755,8 +764,14 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // Il servizio è appena ripartito: i processi degli autopiloti sono morti
     // col programma. Quello che era a metà (compiti in corso, un messaggio di
     // Nicholas senza risposta) si dice subito all'autopilota, dal disco.
+    // Ma solo se il riavvio è un aggiornamento: all'accensione del PC o dopo un
+    // crash un lavoro lasciato fermo apposta resta fermo. Qui si ricorda se
+    // c'erano autopiloti fermati per l'aggiornamento (i segni si tolgono subito
+    // sotto); il riepilogo dell'aggiornamento arriva dopo, con «gestore-avviato».
     if (opzioni.servizioAppenaPartito === true) {
-      try { unico?.riprendiOrchestratori() } catch (err) { console.error('[orchestratore] ripresa dopo il riavvio non riuscita:', err) }
+      ripresaOrchestratoriInSospeso = true
+      avevaFermatiPerAggiornamento = unici().some((a) => a.fermatoPerAggiornamento === true)
+      if (avevaFermatiPerAggiornamento) riprendiOrchestratoriSeAggiornato(false)
     }
     if (!Number.isNaN(ora) && ultimaRipresa !== 0 && ora - ultimaRipresa < RIPRESA_RAVVICINATA_MS) return 0
     if (!Number.isNaN(ora)) ultimaRipresa = ora
@@ -974,6 +989,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           const aggiornamento = typeof corpoAvvio === 'object' && corpoAvvio !== null
             ? leggiAggiornamentoInCorso((corpoAvvio as Record<string, unknown>).aggiornamento)
             : undefined
+          // Il programma porta il riepilogo di un aggiornamento fresco: il riavvio del servizio era quello.
+          riprendiOrchestratoriSeAggiornato(aggiornamento !== undefined)
+          ripresaOrchestratoriInSospeso = false
           const tutti = unici()
           const fermati = tutti.filter((a) => a.fermatoPerAggiornamento === true)
           const aChiDirlo = new Set((fermati.length > 0 ? fermati : tutti.filter((a) => a.stato === 'lavoro')).map((a) => a.id))

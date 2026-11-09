@@ -55,6 +55,8 @@ export type ContestoGuardia = {
    * Assente: i posti pieni rifiutano e basta, come prima.
    */
   fila?: (r: { descrizione: string; tipo: string }) => { passa: true } | { passa: false; posizione: number; davanti: number }
+  /** Lo stesso compito ha già uno specialista al lavoro: il motivo del rifiuto (un rilancio doppio dopo un aggiornamento). */
+  doppio?: (r: { descrizione: string; tipo: string }) => string | undefined
 }
 
 /** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
@@ -158,6 +160,8 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       if (c.senzaGit !== true && c.tipiSpecialisti !== undefined && !c.tipiSpecialisti.includes(tipo)) {
         return { ok: false, motivo: `il tipo «${tipo}» non ha una copia propria del progetto e lavorerebbe nella cartella principale. Usa «sviluppatore» (o «verificatore» per le prove); i tipi ammessi: ${c.tipiSpecialisti.join(', ')}.` }
       }
+      const doppio = c.doppio?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      if (doppio !== undefined) return { ok: false, motivo: doppio }
       if (c.fila !== undefined) {
         const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })
         if (!r.passa) return { ok: false, motivo: motivoPostiPieni(c, r) }

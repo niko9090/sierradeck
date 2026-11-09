@@ -88,3 +88,42 @@ export function ripresaDopoRiavvio(p: {
     messaggioPerso: perso !== undefined
   }
 }
+
+/**
+ * La ripresa «dopo l'aggiornamento» scatta **solo se c'è stato un aggiornamento**.
+ *
+ * Il servizio riparte anche all'accensione del PC e dopo un crash: lì un lavoro
+ * lasciato fermo apposta deve restare fermo. Il segno di un aggiornamento vero è
+ * uno di due, scritti dalla versione di prima e mai da un riavvio qualunque: gli
+ * autopiloti segnati «fermati per l'aggiornamento» (su disco, letti prima di
+ * toglierli) oppure il riepilogo dell'aggiornamento che il programma porta al
+ * ritorno (`aggiornamento-in-corso.json`, fresco).
+ */
+export function serveRipresaDopoAggiornamento(p: {
+  servizioAppenaPartito: boolean
+  avevaFermatiPerAggiornamento: boolean
+  riepilogoAggiornamento: boolean
+}): boolean {
+  return p.servizioAppenaPartito && (p.avevaFermatiPerAggiornamento || p.riepilogoAggiornamento)
+}
+
+/**
+ * Uno specialista che ha già il compito in mano non si lancia una seconda volta.
+ *
+ * Dopo un aggiornamento più strade dicono all'autopilota di rilanciare lo
+ * stesso specialista (la ripresa, il controllo del lavoro fermo, il posto che
+ * si libera): due rilanci facevano lavorare due specialisti sullo stesso
+ * compito, ognuno con la sua copia. Vale per lo stesso compito e lo stesso
+ * ruolo. Torna il motivo del rifiuto, o `undefined` se si può lanciare.
+ */
+export function motivoSpecialistaDoppio(
+  richiesta: { descrizione: string; tipo: string },
+  alLavoro: ReadonlyArray<{ compito?: string; ruolo: string; descrizione: string }>,
+  compitoDi: (descrizione: string) => string | undefined
+): string | undefined {
+  const compito = compitoDi(richiesta.descrizione)
+  if (compito === undefined) return undefined
+  const gia = alLavoro.find((s) => s.compito === compito && s.ruolo === richiesta.tipo)
+  if (gia === undefined) return undefined
+  return `${compito} ha già uno specialista al lavoro («${gia.descrizione.slice(0, 80)}»): non lo rilanciare, è già ripartito. Aspetta il suo rapporto.`
+}

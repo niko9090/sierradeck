@@ -5359,9 +5359,9 @@ if (!app.requestSingleInstanceLock()) {
         // troverebbe nessuno. Si toglie dall'elenco appena consegnato, perche'
         // questo annuncio arriva ogni pochi secondi.
         if (chatDaRiprendereDopoAggiornamento.size > 0) {
-          // Anche le chat dei workspace tenuti vivi dietro (`dietro`): hanno un
-          // terminale vero e potevano essere a metà di un turno come le altre.
-          // Prima erano escluse e l'avviso non arrivava mai (scadeva dopo 6 ore).
+          // Le chat dei workspace tenuti dietro (`dietro`) non hanno un riquadro in
+          // finestra: `ripresaDaConsegnare` le lascia in sospeso, e l'avviso parte
+          // quando il workspace torna davanti (o scade, dopo 6 ore).
           const { consegna } = ripresaDaConsegnare(
             chatDaRiprendereDopoAggiornamento,
             [...(chatPerFinestra.get(win.id) ?? []), ...(chatDietroPerFinestra.get(win.id) ?? [])]
@@ -5376,10 +5376,16 @@ if (!app.requestSingleInstanceLock()) {
           // «tornato su con la versione nuova» a chi l'aveva gia' ricevuto.
           if (chatDaRiprendereDopoAggiornamento.size === 0) {
             try { rmSync(filePausa(dati), { force: true }) } catch { /* al prossimo avvio e' scaduto */ }
-          } else if (pausaLetta !== undefined) {
+          } else if (pausaLetta !== undefined && consegna.length > 0) {
+            // Solo se è cambiato qualcosa (questo annuncio arriva ogni pochi secondi), e senza
+            // il conto delle chat «senza sessione»: è già stato detto una volta all'avvio.
             scriviJsonAtomico(
               filePausa(dati),
-              { ...pausaLetta, sessioni: [...chatDaRiprendereDopoAggiornamento] },
+              {
+                quando: pausaLetta.quando,
+                ...(pausaLetta.versione !== undefined ? { versione: pausaLetta.versione } : {}),
+                sessioni: [...chatDaRiprendereDopoAggiornamento]
+              },
               'pausa-aggiornamento'
             )
           }
