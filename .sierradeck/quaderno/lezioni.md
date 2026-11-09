@@ -38,6 +38,7 @@
 - In `criticitaDi` la voce `risorse` non ha il pcId: la chiave per PC si costruisce da `s.pcId`, e il titolo senza numeri va nella firma. I numeri restano solo nel dettaglio. _(2026-11-09)_
 - Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
 - la pagina del telefono riceve le funzioni di `src/shared` con `.toString()`: devono essere autosufficienti, senza costanti di modulo, e usare solo ciò che è definito nella pagina. _(2026-11-09)_
+- pannello-drive-app.test.ts estrae le funzioni della pagina una a una: ogni nuova funzione chiamata da pannelloDriveHtml va aggiunta lì, o il test dà ReferenceError. _(2026-11-09)_
 
 ## worktree
 
@@ -177,7 +178,6 @@
 
 ## criterio
 
-- con il guardiano «PC carico» la suite intera non parte: dividere in gruppi di 10-20 file, il guardiano accetta quelli piccoli _(2026-11-06)_
 - il tempo della prova include l'attesa del turno e della guardia: a PC carico scade anche se la suite è sana. _(2026-11-07)_
 
 ## unioni
@@ -338,3 +338,7 @@
 ## pc-remoto
 
 - per i 404 di rotte che non riguardano chat, il motivo si decide dal testo dell'errore in `datiDa`; `motivoDaStatoHttp(404)` dà sempre 'chat' _(2026-11-09)_
+
+## pagina
+
+- una funzione condivisa che arriva nella pagina con toString() non può avere funzioni annidate né costanti di modulo: i dati le arrivano come parametri. _(2026-11-09)_
