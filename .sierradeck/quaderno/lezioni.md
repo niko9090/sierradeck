@@ -163,6 +163,7 @@
 
 - il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
+- dopo un riavvio i subagenti in memoria sono vuoti: cancelloOra trova ramo e cartella solo se il piano li ha salvati, quindi va salvato anche il worktree, non solo il ramo _(2026-11-10)_
 
 ## gpu
 
@@ -177,14 +178,6 @@
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
-
-## xterm
-
-- @xterm/addon-webgl per xterm 6 esiste solo in beta (0.20.0-beta.x, peer ^6.1.0-beta): il 6.0.0 stabile non ha un addon WebGL compatibile; xterm portato a 6.1.0-beta.336 _(2026-11-07)_
-
-## electron
-
-- `getGPUFeatureStatus()` dà stringhe di Chromium (`enabled_on`, `disabled_software`, `disabled_off`): la scheda attiva si legge dal prefisso `enabled`, non da un booleano _(2026-11-07)_
 
 ## gradle
 
@@ -292,6 +285,7 @@
 
 - riquadroDi nella finestra vede solo useLayoutStore: le chat dei workspace dietro (memoriaWorkspace) non si raggiungono con scriviQuandoPronta _(2026-11-09)_
 - Dopo un riavvio la memoria degli specialisti non c'è più: per riprendere un'unione serve il ramo salvato nel piano (CompitoPiano.ramo), non il solo id del compito. _(2026-11-10)_
+- riprendiOrchestratori può arrivare secondi dopo l'avvio (gestore-avviato): non rifarci lavoro già avviato all'avvio, la fila evita i doppioni solo mentre l'unione è ancora dentro _(2026-11-10)_
 
 ## spazio
 
