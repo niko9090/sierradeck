@@ -56,7 +56,7 @@ describe('la prova rimasta a metà', () => {
     await ripulisciProvaAsincrono(ga, { cwd: progetto })
     const tracciato = esegui(['ls-files'], progetto).split(/\r?\n/)[0] as string
     writeFileSync(join(progetto, tracciato), 'di Nicholas\n')
-    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA })
+    expect(await iniziaProvaAsincrono(ga, { cwd: progetto, ramo, base: 'main' })).toEqual({ ok: false, motivo: MOTIVO_CARTELLA_SPORCA, file: [tracciato] })
     expect(readFileSync(join(progetto, tracciato), 'utf8')).toBe('di Nicholas\n')
   })
 })

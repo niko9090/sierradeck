@@ -72,7 +72,12 @@ export const UNIONE_RIPROVA_MS = 30_000
 export const UNIONE_TENTATIVI_MAX = 3
 /** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
-  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string) { super(perche) }
+  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string, readonly file: string[] = []) { super(perche) }
+}
+/** «: a, b, c (+2)» con i file che tengono ferma la fila; vuoto se non si sanno. */
+export function elencoFile(file: string[]): string {
+  if (file.length === 0) return ''
+  return `: ${file.slice(0, 5).join(', ')}${file.length > 5 ? ` (+${file.length - 5})` : ''}`
 }
 /** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. */
 const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore'])
@@ -361,7 +366,7 @@ export type SceltaDelCompito =
   | { ok: false; motivo: string }
 
 /** L'esito della prova nel principale: `ritenta` dice che non è colpa del ramo e l'unione va rimessa in fila. */
-export type EsitoProvaPrincipale = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta' }
+export type EsitoProvaPrincipale = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta'; file?: string[] }
 
 /**
  * **Lo specialista che porta il lavoro di un compito** (30/10, k-1). Con
@@ -915,7 +920,7 @@ ${NOTA_SENZA_GIT}`,
         if (!sporcoDetto.has(ws)) {
           sporcoDetto.add(ws)
           if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
-          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
+          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale${elencoFile(ancora.file)} (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
         }
         await dormi(riprova)
         continue
@@ -1042,7 +1047,7 @@ ${NOTA_SENZA_GIT}`,
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
         if (!r.unito) {
-          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = `${r.motivo} (ramo ${altro.ramo} di ${altro.sub.id})`
           break
         }
@@ -1054,7 +1059,7 @@ ${NOTA_SENZA_GIT}`,
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
         if (!r.unito) {
-          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = r.motivo
         }
       }
