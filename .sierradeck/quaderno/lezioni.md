@@ -4,10 +4,6 @@
 
 ## test
 
-- Nei conflitti fra due correzioni dello stesso test vince la versione di main, che di solito è più completa: controllare con `git diff main` che l'unione non cambi nulla. _(2026-11-07)_
-- se due rami toccano la stessa prova, controllare gli import dopo la risoluzione: qui `creaFreno` era importato due volte e il file non compilava. _(2026-11-07)_
-- Un rosso in main dopo un'unione può non riprodursi nella copia: prima di cambiare codice rilanciare la suite sul ramo già allineato e, se è verde, sospettare un fallimento intermittente per PC carico. _(2026-11-07)_
-- PonteTest confronta Ponte.ROTTE (Ponte.kt) con ROTTE_PONTE del PC: una rotta nuova nel ponte va aggiunta in tutte e due le liste, o il criterio Android diventa rosso. _(2026-11-07)_
 - tests/shared/autopilota-remoto.test.ts e Ponte.kt/AutopilotiAltriTest devono restare allineati a ROTTE_PONTE (ponte-telefono.ts): ogni rotta nuova va aggiunta in tutti e tre i punti. _(2026-11-07)_
 - Il controllo di carico del PC rimanda typecheck e suite completa per minuti: lanciare prima i test di un solo file, poi riprovare le misure intere. _(2026-11-07)_
 - il controllo del carico rimanda anche `vitest run tests/shared` per più di dieci minuti; in quel caso verificare con i file singoli e lasciare la suite intera all'autopilota _(2026-11-07)_
@@ -38,6 +34,9 @@
 - Per provare il Drive pieno serve un archivio con capacità vera e un freno attivo: un flag «pieno» fisso non mostra che la DELETE libera spazio e riabilita le scritture. _(2026-11-09)_
 - la pagina del telefono riceve le funzioni di `src/shared` con `.toString()`: devono essere autosufficienti, senza costanti di modulo, e usare solo ciò che è definito nella pagina. _(2026-11-09)_
 - pannello-drive-app.test.ts estrae le funzioni della pagina una a una: ogni nuova funzione chiamata da pannelloDriveHtml va aggiunta lì, o il test dà ReferenceError. _(2026-11-09)_
+- i test usano oggetti con statusCode o testi costruiti a mano; la forma reale di createHttpError (node_modules/builder-util-runtime/out/httpExecutor.js:52) va testata così com'è _(2026-11-10)_
+- un worktree può partire indietro rispetto a main: fare `git merge --ff-only main` prima di misurare, altrimenti mancano i test appena entrati. _(2026-11-10)_
+- `npx vitest run` intero dura circa 160 s su questo PC: un rifiuto "vitest rosso" senza nome di prova può essere un tempo scaduto sotto carico, non il codice. _(2026-11-10)_
 
 ## worktree
 
@@ -248,6 +247,7 @@
 - un 404 su exe/blockmap è atteso a release a metà pubblicazione: soglia 2 ore in src/shared/aggiornamenti-404.ts, poi errore una volta sola. _(2026-11-08)_
 - pausa-aggiornamento.json era sempre `sessioni: []`: chi parte dopo la quiete (consegna dell'autopilota durante il salvataggio) non si annotava; ora si ricontrolla dopo `prepara` e all'uscita. _(2026-11-09)_
 - Il servizio parte dopo che il Gestore ha letto e cancellato pausa-aggiornamento.json e aggiornamento-in-corso.json: per capire se c'è stato un update servono i segni nell'archivio o il payload di /ge… _(2026-11-09)_
+- il 504 di GitHub passa solo se l'errore ha statusCode o inizia con il codice seguito da Headers; l'HttpError con descrizione o frase vuota non è coperto dai test _(2026-11-10)_
 
 ## installa-la
 
