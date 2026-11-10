@@ -4,7 +4,6 @@
 
 ## test
 
-- confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
 - la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
 - tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
 - Con il PC sopra il 75% la guardia del carico blocca anche la suite intera: i lotti da 40 file passano; la guardia si ripete col messaggio uguale anche quando il carico è calato. _(2026-11-08)_
@@ -84,6 +83,7 @@
 - Il bump di versione fa fallire `tests/shared/novita.test.ts` se in `src/shared/novita.ts` manca la voce della nuova versione: aggiungerla nello stesso commit del bump. _(2026-11-10)_
 - In una copia di lavoro `npm run pubblica` rifiuta la junction di node_modules (serve `npm ci`) e vuole `google-oauth.json` (gitignorato) copiato dalla cartella principale. _(2026-11-10)_
 - Se la release è creata prima con `gh release create`, electron-builder salta il caricamento (draft vs release): caricare installer, blockmap e latest.yml con `gh release upload`. _(2026-11-10)_
+- il bump di versione richiede anche la voce in `src/shared/novita.ts`: senza, `tests/shared/novita.test.ts` si rompe (successo con la 0.99.1). _(2026-11-10)_
 
 ## git
 
