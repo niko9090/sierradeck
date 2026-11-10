@@ -92,7 +92,7 @@ describe('nel battito, senza farlo riscrivere', () => {
 describe('nella Salute', () => {
   it('una voce con questo PC e gli altri; informazione se i numeri sono normali', () => {
     const base = { adesso: Date.parse('2026-10-12T21:00:00Z'), versione: '0.69.0', drive: { configurato: true, connesso: true }, errori: [], consegne: [], oreErrori: 6 }
-    const s = componiSalute({ ...base, pc: [{ pcId: 'b', nome: 'PORTATILE', versione: '0.69.0', risorse: risorse({ driveAlMinuto: 12, driveRifiutate: 3 }) }], risorse: risorse() })
+    const s = componiSalute({ ...base, pc: [{ pcId: 'b', nome: 'PORTATILE', versione: '0.69.0', battito: '2026-10-12T20:59:30Z', risorse: risorse({ driveAlMinuto: 12, driveRifiutate: 3 }) }], risorse: risorse() })
     const v = s.voci.find((x) => x.chiave === 'risorse')
     expect(v?.titolo).toBe('Quanto lavora SierraDeck: CPU 0,9% · RAM 680 MB · Drive 4,2 richieste/min')
     expect(v?.spiegazione).toContain('PORTATILE: CPU 0,9% · RAM 680 MB · Drive 12 richieste/min · 3 rifiutate da Google')
