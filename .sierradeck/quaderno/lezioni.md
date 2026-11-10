@@ -115,20 +115,15 @@
 - Nel worktree la guardia rifiuta i comandi Bash che mettono git dentro blocchi composti (`||`, `&&` con cmd): tenere git in chiamate semplici e la junction in PowerShell. _(2026-11-08)_
 - nei worktree alcuni heredoc Bash con python vengono rifiutati come «troppo complessi»: scrivere lo script con Write ed eseguirlo, oppure usare Edit _(2026-11-09)_
 - Per scrivere stringhe con `\n` nei file non usare heredoc Python: gli escape vengono interpretati. Meglio lo strumento Edit. _(2026-11-10)_
+- Nel worktree gli heredoc con `cat >>` seguiti da altri comandi nella stessa chiamata Bash vengono rifiutati come «troppo complessi»: usare Edit e comandi separati. _(2026-11-10)_
 
 ## hook
 
-- Il gancio «PC carico» rifiuta typecheck e suite per qualche minuto: basta riprovare, i test di un solo file passano comunque _(2026-11-07)_
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
 
 ## versioni
 
 - le versioni dei PC nel rapporto vengono dall'ultimo battito, che non si scrive con il Drive pieno: prima di dire «vecchio» si controlla il PC. _(2026-11-09)_
-
-## build
-
-- Il guardiano «PC carico» rifiuta il comando prima di eseguirlo: l'attesa va in una chiamata a parte (until sull'orologio), non dentro lo stesso comando gradle. _(2026-11-07)_
-- Il package.json può chiedere pacchetti non installati nella cartella principale (es. @xterm/addon-webgl): tsc fallisce con TS2307 anche su main, serve npm install, non una correzione al codice. _(2026-11-07)_
 
 ## drive
 
@@ -193,6 +188,7 @@
 - il contatore Drive contava ogni 403 come «rifiutata»: il Drive pieno (storageQuotaExceeded) gonfiava i numeri di «troppe richieste». Ora conta solo 429 e rateLimit. _(2026-11-07)_
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
+- «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
 
 ## autopulizia
 
