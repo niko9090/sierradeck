@@ -72,6 +72,8 @@ export type VistaSposta = {
   ultimoContatto?: string
   /** Perché si aspetta (un PC spento, una chat che lavora, il Drive): vuoto se non si aspetta. */
   attesa?: string
+  /** Fallita: il passo dove si è fermata (assente nei dati vecchi). */
+  fallitaIn?: FaseSposta
   /** Fallita: il bottone «Riprova» rifà partire lo spostamento (stessa azione di «Sposta su questo PC»). */
   puoRiprovare?: boolean
 }

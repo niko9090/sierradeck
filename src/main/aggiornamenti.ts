@@ -257,6 +257,9 @@ export function leggiErroreAggiornamento(err: unknown): { manca: boolean; breve:
 function erroreLettoPasseggero(l: { breve: string; completo: string; statusCode?: number }): boolean {
   if (/^Cannot download differentially/.test(l.breve)) return false
   if (l.statusCode !== undefined && [502, 503, 504].includes(l.statusCode)) return true
+  // `createHttpError` scrive «<codice> <frase>[, a capo, descrizione], a capo, Headers: {…}»: la
+  // frase può essere vuota o la descrizione starci in mezzo. Il codice conta solo in testa.
+  if (/^\s*50[234](?!\d)[\s\S]*\n\s*Headers:/.test(l.completo)) return true
   return eErroreDiReteTransitorio(l.completo) || eErroreDiReteTransitorio(l.breve)
 }
 

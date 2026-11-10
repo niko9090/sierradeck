@@ -5,6 +5,7 @@ import { quanteAspettano, richiestaRisposta, type Conversazione } from '@shared/
 import { LARGHEZZA_DOMANDE } from '@shared/preferenze'
 import { EtichettaOpzione } from './EtichettaOpzione'
 import { Aiuto } from './Aiuto'
+import { testoErroreDialogo } from '../errore-dialogo'
 import { TastoMicrofono } from './TastoMicrofono'
 import { SchedaDomandaVista } from './SchedaDomandaVista'
 import { aspettaTe, contaAspettanoTe, messaggiInVista, ordinaDomande, prossimaDomanda, tipoDomanda } from '@shared/domande-vista'
@@ -221,7 +222,7 @@ export function PannelloDomande({ onChiudi, onConteggio, larghezza, onLarghezza,
         leggi()
         return true
       })
-      .catch((e: unknown) => { setNota(`Non sono riuscito a mandarlo: ${String(e)}`); return false })
+      .catch((e: unknown) => { setNota(`Non sono riuscito a mandarlo: ${testoErroreDialogo(e)}`); return false })
       .finally(() => setInCorso(false))
   }
 
