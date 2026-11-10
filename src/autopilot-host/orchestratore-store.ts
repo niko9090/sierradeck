@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scriviAtomico } from '@shared/scrittura-atomica'
+import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { leggiPiano, pianoVuoto, type PercentoWs, type Piano } from '@shared/piano-orchestratore'
 import { cartellaWorkspace } from './coda-store'
 
@@ -15,7 +16,7 @@ import { cartellaWorkspace } from './coda-store'
  *   La conversazione nella scheda (`Autopilota.dialogo`) ne tiene la coda.
  */
 
-export type ModelloOrchestratore = 'sonnet' | 'opus'
+export type ModelloOrchestratore = string
 
 export type ImpostazioniOrchestratore = {
   /** L'autopilota del workspace: ce n'è uno solo, sempre acceso. */
@@ -69,7 +70,7 @@ export function leggiImpostazioni(x: unknown): ImpostazioniOrchestratore {
       }
     : undefined
   return {
-    modello: o.modello === 'sonnet' && o.modelloScelto === true ? 'sonnet' : 'opus',
+    modello: o.modelloScelto === true && modelloAutopilotaAmmesso(o.modello) ? o.modello : 'opus',
     ...(o.modelloScelto === true ? { modelloScelto: true } : {}),
     tettoSpecialisti: tetto,
     ...(typeof o.autopilota === 'string' && o.autopilota !== '' ? { autopilota: o.autopilota } : {}),

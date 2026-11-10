@@ -11,7 +11,7 @@ import { serveIlMenu } from '../menu-workspace'
 import { workspaceDaAzione, type Azione } from '@shared/scorciatoie'
 import { azioneDelTasto, impostaScorciatoie } from '../scorciatoie-vive'
 import { fuocoAllaChatVicina } from '../fuoco-chat'
-import { MODELLI } from '../modelli'
+import { useModelli } from '../modelli'
 import { MenuPin } from './ChatConPin'
 import { PostiChat } from './PostiChat'
 import { MENU_PRINCIPALE, VOCE_SPECIALISTI, type IdMenu, type VoceMenu } from '@shared/menu-principale'
@@ -122,6 +122,7 @@ export function Console({
   workspaceCheChiamano,
   onApriNovita
 }: Props): React.JSX.Element {
+  const MODELLI = useModelli()
   // Il PIN dei workspace (0.49.0): il tasto destro sul nome del workspace.
   const [menuPinWs, setMenuPinWs] = useState<{ nome: string; x: number; y: number } | undefined>(undefined)
   const [pinWs, setPinWs] = useState<{ attivo: boolean; workspace: string[] }>({ attivo: false, workspace: [] })

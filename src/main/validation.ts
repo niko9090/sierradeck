@@ -1,6 +1,7 @@
 import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
+import { ALIAS_MODELLI, modelloValido } from '@shared/modelli'
 import { TITOLO_MAX, titoloPericoloso } from '@shared/titolo'
 import { parseArchivio, VERSIONE_ARCHIVIO, NOME_PREDEFINITO, SLOT_PRIMO, type LayoutSalvato } from '@shared/workspace'
 import { TETTO_CHAT_MAX } from '@shared/autopilota'
@@ -45,7 +46,7 @@ export type SpawnRequest = {
  * qualunque testo dal renderer per costruire il comando di un processo è il
  * tipo di scorciatoia che si paga una volta sola.
  */
-export const MODELLI = ['opus', 'sonnet', 'haiku', 'opusplan', 'default'] as const
+export const MODELLI = ALIAS_MODELLI
 
 export type ListOptions = { projectSlug?: string; limit?: number }
 
@@ -162,7 +163,7 @@ export function validateSpawnRequest(raw: unknown): SpawnRequest {
   // chat deve aprirsi comunque, col modello predefinito, e un elenco che
   // cambia da una versione all'altra di Claude Code non deve impedire di
   // lavorare.
-  const model = typeof r.model === 'string' && (MODELLI as readonly string[]).includes(r.model) && r.model !== 'default'
+  const model = modelloValido(r.model) && r.model !== 'default'
     ? r.model
     : undefined
 

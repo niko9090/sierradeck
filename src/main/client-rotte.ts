@@ -33,7 +33,8 @@ import { domandeScheda } from '@shared/domande-autopilota'
 import { conversazioniDomande, quanteAspettano, type Inviato } from '@shared/domande-conversazioni'
 import type { NoteAggiornamento } from '@shared/note-aggiornamento'
 import { leggiRichiestaPonte } from '@shared/ponte-telefono'
-import { MODELLI } from '@shared/modelli'
+import { modelloValido } from '@shared/modelli'
+import { elencoModelliVivo } from './modelli-scoperti'
 import { testoCartellaNonQui, voceFileDi, type DoveCartella } from '@shared/apri-cartella'
 import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { chiaveWorkspace, type VistaCoda } from '@shared/coda-richieste'
@@ -1876,7 +1877,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       }
       const modello = stringa(r.corpo, 'modello')
       // Il modello (0.56.0): solo uno dell'elenco del PC.
-      if (modello !== '' && !MODELLI.some((m) => m.valore === modello)) return { stato: 400, corpo: { errore: `«${modello}» non è un modello che il computer conosce: sceglilo dall'elenco.` } }
+      if (modello !== '' && !(modelloValido(modello) || elencoModelliVivo().some((m) => m.valore === modello))) return { stato: 400, corpo: { errore: `«${modello}» non è un modello che il computer conosce: sceglilo dall'elenco.` } }
       const nomeChat = stringa(r.corpo, 'nome').trim().slice(0, 80)
       // Il workspace (0.55.0): solo uno che c'è. Un nome sbagliato non deve
       // creare un workspace di nascosto.
@@ -2579,7 +2580,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     }
 
     // I modelli fra cui scegliere per una chat nuova (0.56.0): gli stessi della fascia del PC.
-    if (r.percorso === '/api/modelli') return OK({ modelli: MODELLI })
+    if (r.percorso === '/api/modelli') return OK({ modelli: elencoModelliVivo() })
 
     // Il PIN di una chat dal telefono (0.56.0). Proteggere si può sempre;
     // togliere la protezione solo a chat aperta per chi guarda (dopo il PIN),

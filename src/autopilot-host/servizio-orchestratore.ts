@@ -12,6 +12,7 @@ import {
 } from '@shared/piano-orchestratore'
 import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
+import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
@@ -1781,7 +1782,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     imposta(ws, p) {
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,
-        ...(p.modello === 'opus' || p.modello === 'sonnet' ? { modello: p.modello, modelloScelto: true } : {}),
+        ...(modelloAutopilotaAmmesso(p.modello) ? { modello: p.modello, modelloScelto: true } : {}),
         ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, p.tettoSpecialisti)) } : {})
       }))
     },
