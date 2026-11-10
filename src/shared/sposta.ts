@@ -83,6 +83,81 @@ export function passoDi(f: FaseSposta): number {
   return i < 0 ? 0 : i + 1
 }
 
+/** Da quale percentuale complessiva comincia ogni passo di `PASSI_SPOSTA` (serve a dire dove si è fermato uno spostamento fallito). */
+export const INIZI_PASSI_SPOSTA: number[] = [0, 2, 35, 85, 95, 98]
+
+export type StatoPassoSposta = 'fatto' | 'in-corso' | 'da-fare' | 'fermo'
+
+/** Lo spostamento come lo disegnano il PC e la pagina del telefono: tutto già calcolato. */
+export type AvanzamentoSposta = {
+  /** 0…100, in tutto. */
+  percentuale: number
+  passi: { titolo: string; stato: StatoPassoSposta; nota?: string }[]
+  /** Il passo di adesso: la sua barra (assente se non si conta) e i numeri («3 di 10 file», «2 MB di 8 MB»). */
+  passo?: { titolo: string; percentuale?: number; numeri?: string }
+  /** «ultimo contatto con <PC>: 12 s fa». */
+  contatto?: string
+  /** «sto aspettando: …». */
+  attesa?: string
+  puoRiprovare: boolean
+  /** Il motivo è il Drive pieno: si offre «Libera spazio sul Drive». */
+  drivePieno: boolean
+}
+
+/**
+ * Da `VistaSposta` a quello che si disegna. Stesso codice per la finestra,
+ * per la pagina del telefono (arriva intero con `toString()`: niente
+ * funzioni annidate, niente costanti di modulo) e per i test.
+ * `fmtByte` rende leggibili i byte; `adesso` è in millisecondi.
+ */
+export function avanzamentoSposta(
+  s: VistaSposta,
+  adesso: number,
+  opz: { passi: { fase: string; titolo: string }[]; inizi: number[]; fmtByte: (n: number) => string; motivoDrivePieno: string }
+): AvanzamentoSposta {
+  const fallita = s.fase === 'fallita'
+  const fatta = s.fase === 'fatta'
+  const fasePassi = s.fase === 'attesa-proprietario' ? 'chiesta' : s.fase
+  let corrente = opz.passi.findIndex((p) => p.fase === fasePassi)
+  if (fallita) {
+    // Dove si è fermato: il passo che contiene la percentuale (se la sappiamo).
+    corrente = -1
+    if (typeof s.percentuale === 'number') for (let i = 0; i < opz.inizi.length; i++) if (s.percentuale >= opz.inizi[i]!) corrente = i
+  }
+  const perc = fatta ? 100 : Math.max(0, Math.min(100, Math.round(s.percentuale ?? 0)))
+  const passi = opz.passi.map((p, i) => {
+    const stato: StatoPassoSposta = fatta || (corrente >= 0 && i < corrente) ? 'fatto' : i === corrente ? (fallita ? 'fermo' : 'in-corso') : 'da-fare'
+    const nota = stato === 'fermo' ? s.errore : stato === 'in-corso' && s.attesa ? s.attesa : undefined
+    return nota !== undefined && nota !== '' ? { titolo: p.titolo, stato, nota } : { titolo: p.titolo, stato }
+  })
+  const inCorso = !fatta && !fallita && corrente >= 0
+  let passo: AvanzamentoSposta['passo']
+  if (inCorso) {
+    let numeri: string | undefined
+    if (typeof s.byteTotali === 'number' && s.byteTotali > 0 && typeof s.byteFatti === 'number') numeri = `${opz.fmtByte(s.byteFatti)} di ${opz.fmtByte(s.byteTotali)}`
+    else if (typeof s.fileTotali === 'number' && s.fileTotali > 0 && typeof s.fileFatti === 'number') numeri = `${s.fileFatti} di ${s.fileTotali} file`
+    passo = { titolo: opz.passi[corrente]!.titolo }
+    if (typeof s.percentualePasso === 'number') passo.percentuale = Math.max(0, Math.min(100, Math.round(s.percentualePasso)))
+    if (numeri !== undefined) passo.numeri = numeri
+  }
+  let contatto: string | undefined
+  if (inCorso && s.ultimoContatto) {
+    const t = Date.parse(s.ultimoContatto)
+    if (Number.isFinite(t)) {
+      const sec = Math.max(0, Math.round((adesso - t) / 1000))
+      const fa = sec < 60 ? `${sec} s fa` : sec < 3600 ? `${Math.floor(sec / 60)} min fa` : sec < 86400 ? `${Math.floor(sec / 3600)} h fa` : `${Math.floor(sec / 86400)} g fa`
+      contatto = `ultimo contatto con ${s.daNome}: ${fa}`
+    }
+  }
+  const attesa = !fatta && s.attesa ? s.attesa : undefined
+  const drivePieno = (s.errore ?? '') === opz.motivoDrivePieno || (s.attesa ?? '') === opz.motivoDrivePieno
+  const fine: AvanzamentoSposta = { percentuale: perc, passi, puoRiprovare: fallita && s.puoRiprovare === true, drivePieno }
+  if (passo !== undefined) fine.passo = passo
+  if (contatto !== undefined) fine.contatto = contatto
+  if (attesa !== undefined) fine.attesa = attesa
+  return fine
+}
+
 /** La conferma prima di partire: cosa succede, detto semplice. */
 export function testoConfermaSposta(p: { nome: string; daNome: string; qui: string; daAcceso: boolean }): { titolo: string; righe: string[]; conferma: string } {
   return {
