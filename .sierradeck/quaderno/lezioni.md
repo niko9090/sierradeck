@@ -48,11 +48,11 @@
 
 ## android
 
-- Il programma toglie --no-daemon ai gradle dei criteri e dà una TEMP cancellata a fine criterio: il demone riusato cade con NoSuchFileException .alive. Fissato con org.gradle.daemon=false. _(2026-11-07)_
-- Senza JAVA_HOME gradle usa il JRE 25 del PATH e fallisce in 8 s con il messaggio «25.0.4.1»: Gradle 8.11 non regge Java 25. _(2026-11-07)_
-- Con org.gradle.daemon=false il criterio Android nella cartella principale è tornato verde (k-52, 07/11): il rosso di 20-35 s era il demone Gradle riusato con la TEMP cancellata. _(2026-11-07)_
 - Il ramo del worktree può nascere prima del lavoro PC già in main (k-53, k-54): fare `git merge main` prima di leggere i file `src/shared` del PC. _(2026-11-07)_
 - `tests/android/rotte-lente-app.test.ts` impone che `ROTTE_LENTE` sia contenuta nella lista dell'app: ogni rotta lenta nuova va aggiunta anche in `android/`. _(2026-11-09)_
+- PonteTest legge ROTTE_PONTE di ponte-telefono.ts con la regex '([^']+)': un apostrofo dritto in un commento dentro la lista la rompe, usare ’ _(2026-11-10)_
+- gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
+- per l'app le procedure lunghe conviene tenerle sul PC e far rileggere la vista all'app: la pagina le fa girare nel browser, l'app perderebbe il passo con la linea _(2026-11-10)_
 
 ## release
 
