@@ -9,6 +9,7 @@ import type { Voce } from './pacchetto'
 import { ConflittoArchivio, type Archivio, type InfoFile } from './archivio'
 import type { Progresso } from './motore'
 import { inParallelo } from '../stat-in-parallelo'
+import { MESSAGGIO_DRIVE_PIENO } from './freno-drive'
 import { senzaSegnaleDrive } from '../risorse'
 
 /**
@@ -805,11 +806,17 @@ export async function salvaIncrementale(deps: {
   }
 
   const fermato = (): boolean => deps.segnale?.aborted === true
+  // Drive pieno (k-315): al primo «spazio finito» le voci rimaste non fanno nemmeno la loro ricerca;
+  // l'errore e' quello e basta, i file restano in locale e salgono al primo giro con spazio.
+  let pienoVisto: unknown
+  const ePieno = (err: unknown): boolean => (err as { drivePieno?: boolean } | null)?.drivePieno === true || (err instanceof Error && err.message === MESSAGGIO_DRIVE_PIENO)
   await conLimite(cambiati, PARALLELI, async (percorso) => {
     if (fermato()) { saltati += 1; avanza(percorso); return }
+    if (pienoVisto !== undefined) throw pienoVisto
     try {
       await unFile(percorso)
     } catch (err) {
+      if (ePieno(err)) pienoVisto ??= err
       // «Annulla» interrompe anche la richiesta in corso: quel file non e'
       // salito, e il manifesto si scrive con quelli che ce l'hanno fatta.
       if (!fermato()) throw err

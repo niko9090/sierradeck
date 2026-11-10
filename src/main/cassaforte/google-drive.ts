@@ -305,6 +305,15 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
     return e
   }
 
+  const freno = deps.freno ?? frenoDrive
+  /** A Drive pieno una scrittura non parte: l'errore e' lo stesso di Google, ma senza nemmeno la ricerca per nome. */
+  const fermaSePieno = (): void => {
+    if (!freno.pieno()) return
+    const e: Error & { stato?: number; drivePieno?: boolean } = new Error(MESSAGGIO_DRIVE_PIENO)
+    e.stato = 403; e.drivePieno = true
+    throw e
+  }
+
   const pausa = deps.pausa ?? ((ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)))
   const caso = deps.caso ?? Math.random
   // Attesa fra due tentativi: cresce raddoppiando, con casualita'. Per i rifiuti
@@ -340,6 +349,9 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
       }
       if (!r.ok && i < RITENTI) {
         const velocita = r.status === 429 || await limiteDiVelocita(r)
+        // Il freno e' gia' in attesa (l'ha alzato questa stessa risposta, o un'altra): riprovare
+        // adesso moltiplica soltanto i rifiuti. Si risale, e il giro riparte dopo l'attesa.
+        if (velocita && freno.attesaMs() > 0) throw await errore(r, cosa)
         if (velocita || transitorio(r.status)) { await pausa(attesaRitento(i, velocita ? BASE_LIMITE_MS : BASE_ERRORE_MS, caso())); continue }
       }
       if (!r.ok) throw await errore(r, cosa)
@@ -467,6 +479,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
     },
 
     async carica(nome, blocco, onProgresso) {
+      fermaSePieno()
       const tk = await deps.token()
       // La creazione (POST) non è idempotente: rifarla creerebbe un doppione. Per
       // questo il ritentativo è QUI, attorno a «cerca → crea/scrivi»: a ogni giro
@@ -523,6 +536,7 @@ export function creaArchivioDrive(deps: DriveDeps): Archivio {
      * scrittura per coprirla.
      */
     async caricaSe(nome, blocco, attesa) {
+      fermaSePieno()
       const tk = await deps.token()
       const ora = await cercaPerNome(tk, nome, `${CAMPI_INFO},size`)
       const versione = ora?.id === undefined ? null : String(ora.version ?? '')
