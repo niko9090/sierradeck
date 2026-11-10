@@ -30,6 +30,7 @@ import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
 import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
+import { creaConsensi, testoDomandaCancellazione, DURATA_CONSENSO_MS, SCELTA_NO, SCELTA_SI } from './consenso-cancellazione'
 import { ultimoRapportoDa } from './trascrizione'
 import { apriMemoria, type Memoria } from './memoria'
 import { aperteSulloStesso } from './domande-doppie'
@@ -583,6 +584,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   }
 
   // ── Le domande a Nicholas ──
+  /** I consensi di Nicholas a cancellare percorsi precisi fuori dalle cartelle dell'autopilota (breve durata). */
+  const consensiCancella = creaConsensi(() => Date.parse(deps.adesso()))
   /** Di chi è ogni domanda, e cosa chiedeva: serve alla risposta tardiva. */
   const contesto = new Map<string, ContestoDomanda>()
   const ricordaContesto = (id: string, x: ContestoDomanda): void => {
@@ -612,6 +615,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       console.info(`[domande] ${chiesta.autopilotaId} — la tua risposta «${breveRisposta(testo)}» (${da}): ricevuta`)
     }
     if (!deps.domande.rispondi(idDomanda, testo, da)) return false
+    // Il consenso a cancellare nasce solo qui: da una risposta di Nicholas registrata dal programma.
+    if (consensiCancella.risposta(idDomanda, testo)) console.info(`[domande] ${chiesta?.autopilotaId ?? '-'} — consenso a cancellare registrato per ${DURATA_CONSENSO_MS / 60_000} minuti`)
     if (chiesta === undefined) return true
     // Una risposta vale per tutte le domande uguali ancora aperte (0.81.0).
     const laDomanda = chiesta.parti?.domanda ?? chiesta.contesto?.grezza ?? chiesta.testo
@@ -1327,7 +1332,17 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (chatPre !== undefined && chatPre !== idAp && ID_VALIDO.test(chatPre)) segnaPartenza(idAp, chatPre)
           const ruoloPre = chatPre !== undefined ? a.chats.find((c) => c.id === chatPre)?.ruolo : undefined
           const gRuolo = giudicaRuolo(corpo, ruoloPre)
-          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a)) : gRuolo
+          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp) }) : gRuolo
+          // Una cancellazione fuori dalle cartelle che Nicholas potrebbe aver chiesto: la domanda la apre il programma, con i percorsi esatti.
+          if (!g.ok && g.consensoPer !== undefined && g.consensoPer.length > 0) {
+            const percorsi = g.consensoPer
+            if (consensiCancella.aperta(idAp, percorsi) === undefined) {
+              const testoDomanda = testoDomandaCancellazione(percorsi)
+              const d = deps.domande.apri({ autopilotaId: idAp, testo: testoDomanda, scadenzaMs: deps.scadenzaDomandaMs, opzioni: [SCELTA_NO, SCELTA_SI] })
+              consensiCancella.chiesta(idAp, percorsi, d.id)
+              void deps.avvisa('domanda', a, testoDomanda).catch(() => { /* la domanda resta nelle Domande */ })
+            }
+          }
           if (g.ok && (chatPre === undefined || chatPre === idAp)) g = servizio().preTool(a, corpo)
           const chiPre = `${idAp}::${idAgente(corpo) ?? chatPre ?? '-'}`
           if (g.ok) {

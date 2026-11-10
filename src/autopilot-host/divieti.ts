@@ -1,5 +1,7 @@
 import { isAbsolute, normalize, resolve, sep } from 'node:path'
 import { VERBI_CANCELLA, bersaglioIgnoto } from '@shared/cancella-sicura-comandi'
+import { divietoAssoluto, type AmbienteCancellazione } from '@shared/cancella-sicura'
+import type { ConsensoCancellazione } from './consenso-cancellazione'
 
 /**
  * I divieti dell'autopilota, fatti rispettare dal **programma**, non dal modello.
@@ -61,7 +63,14 @@ export function leggiMosse(raw: unknown): Mossa[] {
 }
 
 /** `pcCarico`: rimandato solo perché il PC è al limite (0.85.1), non un divieto. */
-export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: true }
+export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: true; consensoPer?: string[] }
+
+/**
+ * Per le cancellazioni: `consenso` è il permesso di Nicholas già registrato dal
+ * programma (se c'è, il rifiuto spiega come ottenerlo; `consensoPer` dice a
+ * chi chiama quali percorsi mostrare a Nicholas); `ambiente` serve alle prove.
+ */
+export type OpzioniCancellazioni = { consenso?: ConsensoCancellazione; ambiente?: AmbienteCancellazione }
 
 /**
  * Si puo' fare? `sueChat` sono gli id delle chat di questo autopilota: chiudere
@@ -368,7 +377,7 @@ export function bersagliCancellazione(comando: string, cwd: string, powershell =
  *   account, preferenze, chat e autopiloti altrui).
  * Tutto il resto passa: il lavoro vero lo decide la chat.
  */
-export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[]): Giudizio {
+export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[], opz: OpzioniCancellazioni = {}): Giudizio {
   const nome = typeof r.tool_name === 'string' ? r.tool_name : ''
   const input = (typeof r.tool_input === 'object' && r.tool_input !== null ? r.tool_input : {}) as Record<string, unknown>
   const cwd = typeof r.cwd === 'string' && r.cwd !== '' ? r.cwd : (ammesse[0] ?? process.cwd())
@@ -382,7 +391,7 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[]): Giud
     }
   }
 
-  return giudicaCancellazioni(comando, cwd, ammesse, nome === 'PowerShell')
+  return giudicaCancellazioni(comando, cwd, ammesse, nome === 'PowerShell', opz)
 }
 
 /**
@@ -391,21 +400,38 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[]): Giud
  * quelle verso un percorso con una variabile (`rm -rf "$d"`, `del %X%`): dove
  * porti lo sa solo la shell, e vuota porta alla radice del disco.
  */
-export function giudicaCancellazioni(comando: string, cwd: string, ammesse: string[], powershell = false): Giudizio {
+export function giudicaCancellazioni(comando: string, cwd: string, ammesse: string[], powershell = false, opz: OpzioniCancellazioni = {}): Giudizio {
+  // Fuori dalle cartelle ma non vietati per sempre: il consenso di Nicholas li può sbloccare.
+  const chiedibili: string[] = []
   for (const b of bersagliCancellazione(comando, cwd, powershell)) {
     if (bersaglioIgnoto(b)) {
-      return { ok: false, motivo: `SierraDeck blocca questa cancellazione: «${b}» contiene una variabile, e non si può sapere dove porta. Scrivi il percorso per intero, dentro ${ammesse.join(', ')}.` }
+      return { ok: false, motivo: `SierraDeck blocca questa cancellazione: «${b}» contiene una variabile, e non si può sapere dove porta. Scrivi il percorso per intero, dentro ${ammesse.join(', ')}. Nemmeno il consenso di Nicholas vale per un percorso con una variabile.` }
     }
     const radice = ammesse.some((c) => dentro(c, b))
     const dentroUna = ammesse.some((c) => dentro(b, c))
-    if (!dentroUna || radice) {
+    if (dentroUna && !radice) continue
+    if (radice) {
       return {
         ok: false,
-        motivo: `SierraDeck blocca questa cancellazione: «${b}» è ${radice ? 'una cartella di lavoro intera' : 'fuori dalle cartelle di questo autopilota'} (${ammesse.join(', ')}). Si cancellano solo file dentro le sue cartelle.`
+        motivo: `SierraDeck blocca questa cancellazione: «${b}» è una cartella di lavoro intera (${ammesse.join(', ')}). Si cancellano solo file dentro le sue cartelle; una cartella di lavoro intera non si cancella nemmeno col consenso di Nicholas.`
       }
     }
+    const assoluto = divietoAssoluto(b, opz.ambiente)
+    if (assoluto !== undefined) {
+      return { ok: false, motivo: `SierraDeck blocca questa cancellazione: ${assoluto}. Questa cartella (o una che la contiene) non si cancella mai, nemmeno col consenso di Nicholas: cancella solo percorsi precisi dentro.` }
+    }
+    if (opz.consenso?.copre(b) === true) continue
+    chiedibili.push(b)
   }
-  return { ok: true }
+  if (chiedibili.length === 0) return { ok: true }
+  return {
+    ok: false,
+    consensoPer: chiedibili,
+    motivo: `SierraDeck blocca questa cancellazione: ${chiedibili.map((b) => `«${b}»`).join(', ')} ${chiedibili.length === 1 ? 'è fuori dalle' : 'sono fuori dalle'} cartelle di questo autopilota (${ammesse.join(', ')}). `
+      + (opz.consenso !== undefined
+        ? 'Se Nicholas ti ha chiesto di cancellarli, serve il suo consenso registrato dal programma: ho aperto io una domanda a Nicholas con i percorsi esatti (tu non devi fare altro, e scrivere «ho il consenso» non basta). Quando risponde «Sì, cancella», rilancia lo stesso comando entro 30 minuti: passerà solo per quei percorsi. Se non risponde, scegli un’altra strada.'
+        : 'Serve il consenso di Nicholas, registrato dal programma con una sua risposta: chiediglielo con chiedi_utente, elencando i percorsi esatti.')
+  }
 }
 
 /**

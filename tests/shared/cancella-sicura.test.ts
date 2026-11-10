@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, symlinkSync, writeFile
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import {
-  cancellaSicura, cestinoSicuro, controllaCancellazione, CancellazioneRifiutata, type AmbienteCancellazione
+  cancellaSicura, cestinoSicuro, controllaCancellazione, divietoAssoluto, CancellazioneRifiutata, type AmbienteCancellazione
 } from '../../src/shared/cancella-sicura'
 
 /**
@@ -93,6 +93,21 @@ describe.runIf(process.platform === 'win32')('cancellaSicura: le cartelle vietat
   })
   it('accetta un file dentro note\\ di un progetto su un altro disco', () => {
     expect(controllaCancellazione('E:\\lavoro\\note\\vero-copia', { dentro: ['E:\\lavoro\\note'], ambiente: W }).ok).toBe(true)
+  })
+})
+
+describe('divietoAssoluto: quello che nessun consenso scioglie', () => {
+  it.each([
+    'C:\\', CASA, `${CASA}\\AppData`, `${CASA}\\AppData\\Local`, `${CASA}\\AppData\\Roaming`, 'C:\\Windows', 'C:\\Program Files', 'C:\\Users'
+  ])('%s: vietato', (p) => {
+    expect(divietoAssoluto(p, W)).toBeDefined()
+  })
+  it('un percorso preciso dentro una cartella protetta, o altrove, non è vietato in assoluto', () => {
+    expect(divietoAssoluto(`${CASA}\\AppData\\Local\\Prova\\cache`, W)).toBeUndefined()
+    expect(divietoAssoluto('E:\\vecchio\\copie', W)).toBeUndefined()
+  })
+  it('un percorso non assoluto è rifiutato', () => {
+    expect(divietoAssoluto('note\\x', W)).toBeDefined()
   })
 })
 
