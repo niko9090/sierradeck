@@ -97,4 +97,33 @@ describe('la versione degli altri PC nel controllo', () => {
     const r = versionePcInBreve({ versione: '2.0.0', battito: new Date(ADESSO - 60_000).toISOString() }, '2.0.0', ADESSO)
     expect(r).toEqual({ testo: 'v2.0.0', indietro: false })
   })
+
+  const gpuSpenta = { cpu: 0, ramMb: 100, driveAlMinuto: 0, driveRifiutate: 0, gpu: { testo: 'Scheda video: solo processore', spenta: true } } as unknown as PcPerSalute['risorse']
+
+  it('scheda video di un PC senza battito recente: nessuna voce, nessuna criticità', () => {
+    const s = componiSalute({ ...base, pc: [pc({ stato: 'non-so', risorse: gpuSpenta })] })
+    expect(s.voci.some((v) => v.chiave.startsWith('gpu:'))).toBe(false)
+    // con battito recente la scheda spenta si dice
+    const fresco = componiSalute({ ...base, pc: [pc({ stato: 'acceso', battito: new Date(ADESSO - 60_000).toISOString(), risorse: gpuSpenta })] })
+    expect(fresco.voci.some((v) => v.chiave === 'gpu:p1' && v.tono === 'attenzione')).toBe(true)
+  })
+
+  it('il controllo scarta la scheda video di un PC spento detta da un PC con versione vecchia', () => {
+    const s = salute2([{ chiave: 'gpu:p1', gruppo: 'pc', tono: 'attenzione', titolo: 'PC-A · Scheda video: solo processore', spiegazione: 'x', azioni: [] }])
+    expect(criticitaDi([{ pcId: 'io', nome: 'QUI', salute: s }, { pcId: 'p1', nome: 'PC-A', errore: 'x', battito: DUE_GIORNI_FA }], [], ADESSO)).toEqual([])
+  })
+
+  it('non risponde a chi compone ma ha risposto a chi controlla: attenzione, non GUASTO', () => {
+    const s = componiSalute({ ...base, pc: [pc({ stato: 'non-so', battito: new Date(ADESSO - 20 * 60_000).toISOString() })] })
+    expect(s.voci.find((v) => v.chiave === 'pc:p1')!.tono).toBe('guasto')
+    const c = criticitaDi([{ pcId: 'io', nome: 'QUI', salute: s }, { pcId: 'p1', nome: 'PC-A', salute: salute2([]) }], [], ADESSO)
+    expect(c.map((x) => x.cosa.split(' · ')[0])).toEqual(['attenzione'])
+    // se nemmeno lui risponde a chi controlla, non si declassa
+    const g = criticitaDi([{ pcId: 'io', nome: 'QUI', salute: s }, { pcId: 'p1', nome: 'PC-A', errore: 'x', battito: new Date(ADESSO - 20 * 60_000).toISOString() }], [], ADESSO)
+    expect(g.every((x) => !x.cosa.startsWith('attenzione'))).toBe(true)
+  })
 })
+
+function salute2(voci: ReturnType<typeof componiSalute>['voci']) {
+  return { scritto: '', tono: 'attenzione' as const, riassunto: '', voci }
+}
