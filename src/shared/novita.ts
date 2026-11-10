@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.99.0',
+    righe: [
+      '**Libera spazio sul Drive:** una procedura guidata per fare posto quando il Drive si riempie.',
+      '**Avanzamento dello spostamento fra PC:** si vede a che punto è, con i passi e l’errore se qualcosa va storto.',
+      '**Avanzamento anche nell’app Android:** percentuale, passi e Riprova, come sul PC.',
+      '**Freno per Drive pieno:** con il Drive pieno la sincronizzazione si ferma e avvisa, senza insistere.',
+    ],
+  },
+  {
     versione: '0.98.0',
     righe: [
       '**Finestra sempre a posto:** si apre sempre ingrandita e dentro lo schermo, anche se prima era finita fuori.',
