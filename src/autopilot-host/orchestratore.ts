@@ -102,7 +102,7 @@ export const REGOLE_ORCHESTRATORE = [
   '2. Dividi ogni richiesta aperta in compiti con piano_scrivi: piccoli, verificabili, con un criterio chiaro (meglio un comando fra apici inversi, per esempio `npx vitest run tests/coda.test.ts`), le dipendenze vere (dopo) e un peso da 1 a 3.',
   '2b. Una richiesta chiara la porti avanti subito: piano e specialisti nello stesso turno. Non chiedere «procedo?» o «vuoi che…?»: chiedi solo con chiedi_utente una decisione che spetta a Nicholas (per esempio quando pubblicare).',
   '3. Affida un compito pronto con Agent, in sottofondo: la descrizione COMINCIA con l’id del compito e due punti («k-3: …»), così il programma lo collega al piano; nel prompt metti cosa fare, dove, i vincoli e il criterio. Non più specialisti di quelli che servono.',
-  '4. Quando uno specialista finisce, il programma unisce da solo il suo lavoro (trova il ramo, lo prova nel principale, lo unisce, misura il criterio) e l’esito ti arriva come evento «unione». Tu leggi il riepilogo e, appena arriva l’esito, passi al compito dopo. Chiama unisci solo per quello che è rimasto fuori (una chat adottata, un ramo che dici tu). Criterio rosso o conflitto: affida subito la correzione a uno specialista, dicendo cosa non va.',
+  '4. Quando uno specialista finisce, il programma unisce da solo il suo lavoro (trova il ramo, lo prova nel principale, lo unisce, misura il criterio) e l’esito ti arriva come evento «unione». Appena l’unione finisce l’esito ti arriva subito, con i compiti diventati pronti: lanciali nello stesso turno. Un compito con «dopo» non ancora unito non si lancia: il programma rifiuta l’Agent, lo mette in fila e ti avvisa lui quando è unita (non aspettare con sleep). Tu leggi il riepilogo e passi al compito dopo. Chiama unisci solo per quello che è rimasto fuori (una chat adottata, un ramo che dici tu). Criterio rosso o conflitto: affida subito la correzione a uno specialista, dicendo cosa non va.',
   '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve una decisione sua, chiedila con chiedi_utente (2-4 scelte, la consigliata per prima, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì. Scrivere file (anche in una copia fuori dalla cartella del progetto) e leggere il web li permette il programma da solo: uno specialista fermato da un permesso negato o scaduto si rilancia subito, non si aspetta Nicholas.',
   // 06/11 (Nicholas): «il tuo compito è portare a termine tutti i lavori; se non sono al computer li devi finire tu».
   '4c. Sei autosufficiente: finisci tutto da solo, anche quando Nicholas non è al computer. Criterio rosso dopo un’unione: affidi la correzione nello stesso turno. Specialista rifiutato perché il tetto è pieno: non è fallito, il programma lo mette in fila col suo prompt e ti avvisa quando c’è posto, tu lo rilanci. A Nicholas chiedi solo una decisione sua o un caso davvero estremo; non chiedergli mai di riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico (lo strumento lo rifiuta): lo risolvi tu, coordinando gli specialisti.',
@@ -274,8 +274,12 @@ export type DipendenzeOrchestratore = {
 export type Orchestratore = {
   /** Un messaggio di Nicholas: parte subito, o alla fine del turno in corso. */
   messaggio: (ws: string, m: MessaggioUtente) => void
-  /** Un evento esterno: si raccoglie un poco con gli altri. */
-  evento: (ws: string, e: EventoOrchestratore) => void
+  /**
+   * Un evento esterno: si raccoglie un poco con gli altri. Con `subito` (la fine
+   * di un'unione: i compiti dopo di lei sono pronti) non si aspetta la raccolta:
+   * il turno parte appena l'autopilota è libero, anche se aveva già chiuso il suo.
+   */
+  evento: (ws: string, e: EventoOrchestratore, subito?: boolean) => void
   inVolo: (ws: string) => boolean
   /** Turni in corso su tutto il PC. */
   chiamateInVolo: () => number
@@ -520,9 +524,15 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s.eventi.length > 0) s.eventiPronti = true
       metti(ws)
     },
-    evento(ws, e) {
+    evento(ws, e, subito) {
       const s = di(ws)
       s.eventi.push(e)
+      if (subito === true) {
+        if (s.timer !== undefined) { clearTimeout(s.timer); s.timer = undefined }
+        s.eventiPronti = true
+        metti(ws)
+        return
+      }
       if (s.timer !== undefined || s.eventiPronti) return
       s.timer = setTimeout(() => {
         s.timer = undefined

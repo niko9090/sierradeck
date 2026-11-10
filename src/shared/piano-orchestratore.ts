@@ -33,6 +33,8 @@ export type CompitoPiano = {
   stato: StatoCompito
   /** Lo specialista che ci lavora (o ci ha lavorato). */
   chat?: string
+  /** Il ramo dello specialista finito: serve a riprendere un'unione a metà dopo un riavvio, quando la memoria dei suoi specialisti non c'è più. */
+  ramo?: string
   /** L'ultimo esito del cancello `unisci`: il criterio misurato dopo l'unione. */
   criterioVerde?: boolean
   /** L'ultimo esito in parole (unione, criterio, motivo del rifiuto). */
@@ -361,6 +363,7 @@ function leggiCompitoPiano(x: unknown): CompitoPiano | undefined {
     stato: STATI_COMPITO.includes(o.stato as StatoCompito) ? (o.stato as StatoCompito) : 'da-fare',
     creato: typeof o.creato === 'string' ? o.creato : '',
     ...(typeof o.chat === 'string' && o.chat !== '' ? { chat: o.chat } : {}),
+    ...(typeof o.ramo === 'string' && o.ramo !== '' ? { ramo: o.ramo.slice(0, 200) } : {}),
     ...(typeof o.criterioVerde === 'boolean' ? { criterioVerde: o.criterioVerde } : {}),
     ...(typeof o.esito === 'string' && o.esito !== '' ? { esito: o.esito.slice(0, 600) } : {}),
     ...(typeof o.unitoIl === 'string' && o.unitoIl !== '' ? { unitoIl: o.unitoIl } : {})
