@@ -39,6 +39,8 @@
 - Per provare «zero richieste» su `apriSincronia`, avvolgi l'archivio in un Proxy che conta le chiamate; l'orologio del freno si inietta con `creaFreno(() => t)`. _(2026-11-10)_
 - Dopo la correzione della Salute (46ce0845) un PC senza `battito` non mostra più i suoi consumi: le prove con altri PC e `risorse` devono dare un battito recente. _(2026-11-10)_
 - Il rifiuto «prove vitest dei compiti già uniti» può non riprodursi: su main isolato la suite era verde. Prima di cambiare codice rilanciare la suite sul ramo da solo. _(2026-11-10)_
+- giudicaStrumento accetta {ambiente} per le prove: con percorsi finti Windows (C:\Users\mario) non serve toccare le variabili d'ambiente _(2026-11-10)_
+- I test del servizio con raccolta eventi lunga provano il «subito»: per far arrivare un evento va chiuso il turno finto con un result, altrimenti resta in attesa. _(2026-11-10)_
 
 ## worktree
 
@@ -159,31 +161,22 @@
 
 ## unioni
 
-- i tetti devono stare uno dentro l'altro (suite < prova < fila): prima la prova (15 min) scadeva prima della suite (20) e il figlio restava vivo a tenere il turno _(2026-11-07)_
 - il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 
 ## gpu
 
-- con Chromium il contesto WebGL è limitato (circa 16): un addon WebGL su ogni riquadro va tenuto a tetto, non acceso per tutti. _(2026-11-07)_
 - Nel codice non ci sono switch che spengono la GPU: il «software» dei PC viene da Chromium (driver di base Windows, Desktop remoto, scheda esclusa), non da un ripiego di SierraDeck. _(2026-11-08)_
 
 ## ui
 
-- Le colonne a destra (Domande, Specialisti) condividono `src/shared/misure-pannelli.ts`: limiti, trascinamento e `altreColonne` vanno passati a entrambe, perché il mosaico tenga 520 px. _(2026-11-07)_
-- Il tasto di un pannello laterale con stato proprio (Domande, Specialisti) passa da `Console.tsx` con prop dedicate, non da `aperto`. L'evento `apri-pannello` va gestito a parte. _(2026-11-07)_
 - il pannello «Altri computer» è `AltriComputer` in PannelloAccount.tsx (mostrato in Salute) e legge i battiti da `posta:pc`; la versione viva va chiesta a parte. _(2026-11-08)_
 
 ## salute
 
-- il contatore Drive contava ogni 403 come «rifiutata»: il Drive pieno (storageQuotaExceeded) gonfiava i numeri di «troppe richieste». Ora conta solo 429 e rateLimit. _(2026-11-07)_
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
-
-## autopulizia
-
-- Le copie `agent-*` in `.claude/worktrees` restano senza `.git` dopo un `worktree remove` fallito (percorso lungo in android/build, file in dist/win-unpacked): vanno tolte con rmSync, non da git. _(2026-11-07)_
 
 ## xterm
 
@@ -244,6 +237,7 @@
 
 - se la guardia rimanda un comando pesante, il sleep in primo piano è bloccato. Aspetta con un until-loop in background (cronometro) e riprova. _(2026-11-08)_
 - `tipiSpecialisti` nel contesto della guardia è facoltativo: i test vecchi non lo passano e non si rompono. Senza git il controllo del tipo `Agent` è spento di proposito. _(2026-11-08)_
+- il rifiuto delle cancellazioni nelle chat sta in divieti.ts (giudicaCancellazioni), chiamato da /hook/pretool in server.ts; cancella-sicura.ts riguarda solo le pulizie del programma _(2026-11-10)_
 
 ## renderer
 
@@ -297,6 +291,7 @@
 ## ripresa
 
 - riquadroDi nella finestra vede solo useLayoutStore: le chat dei workspace dietro (memoriaWorkspace) non si raggiungono con scriviQuandoPronta _(2026-11-09)_
+- Dopo un riavvio la memoria degli specialisti non c'è più: per riprendere un'unione serve il ramo salvato nel piano (CompitoPiano.ramo), non il solo id del compito. _(2026-11-10)_
 
 ## spazio
 
@@ -341,3 +336,11 @@
 - il criterio aggregato «npx vitest run» senza percorsi (k-170) fa girare l'intera suite in un solo comando: 3 minuti qui, ma la prova ha 15 minuti in totale contro 20 del comando. _(2026-11-10)_
 - Rifiuto «anche nella cartella principale non passa» = il ramo rompe prove che su main passano (testo invertito, senza nomi): far girare `npx vitest run` intero sul ramo unito a main per trovarle. _(2026-11-10)_
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
+
+## consenso
+
+- il consenso a cancellare nasce solo in rispondiAllaDomanda (server.ts), da una risposta di Nicholas: mai da testo della chat; scade in 30 min ed è in memoria _(2026-11-10)_
+
+## flusso
+
+- Un rifiuto dell'hook che contiene «sottofondo/async/background» viene letto dal flusso come Agent partito in sottofondo: nessun «finito», il compito resta «in-corso». Evitare quelle parole nei motivi. _(2026-11-10)_
