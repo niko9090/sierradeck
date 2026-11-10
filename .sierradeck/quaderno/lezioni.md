@@ -4,9 +4,6 @@
 
 ## test
 
-- il controllo di carico rimanda `npm run typecheck` anche dopo vari minuti; i test di un solo file passano sempre _(2026-11-07)_
-- il test «sezione Specialisti» in tests/renderer/pannello-specialisti.test.tsx legge App.tsx come testo: cambiare il cablaggio di un pannello richiede di aggiornare anche quelle asserzioni _(2026-11-07)_
-- il controllo di carico del PC rimanda tsc e vitest su tutta la suite anche per decine di minuti: misurare per file singolo mentre si aspetta _(2026-11-07)_
 - Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
 - giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
 - tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
@@ -41,6 +38,7 @@
 - il ramo di un agente può divergere da main: prima di dire «allineata» confrontare con git rev-list --left-right --count HEAD...main _(2026-11-08)_
 - la junction node_modules si crea con PowerShell dalla cartella del worktree; da Bash con percorso Windows il comando viene rifiutato. _(2026-11-08)_
 - Il ramo di lavoro può essere indietro a main (manca spazio-drive-pieno): prima di correggere, rebase su main. _(2026-11-10)_
+- con l'harness, ogni comando git che nomina la cartella principale viene rifiutato anche con `git -C` o in una pipe: per leggerla usare percorsi assoluti e comandi non-git. _(2026-11-10)_
 
 ## errori
 
@@ -346,3 +344,7 @@
 ## merge
 
 - client-pagina.ts: la lista di firme che fa ridisegnare la pagina del telefono è il punto dove si scontrano le funzioni nuove; tenere sempre le righe di entrambe. _(2026-11-09)_
+
+## verifica
+
+- su Windows il checkout con autocrlf dà CRLF nei file del worktree: un confronto byte a byte con la cartella principale segnala «diversi» anche con contenuto uguale. Confrontare ignorando i CR (`tr -d… _(2026-11-10)_
