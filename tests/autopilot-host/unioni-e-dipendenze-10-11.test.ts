@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaServer, type ServerAutopiloti } from '../../src/autopilot-host/server'
@@ -58,7 +58,8 @@ const ap = (): Autopilota => ({
   chats: [{ id: 'c-1', compito: 'la release', stato: 'lavoro', cicli: 1, sessionId: 's-1' }]
 })
 
-type Porte = { blocca?: Promise<void>; merge: string[] }
+/** `chiamate`: ogni comando git asincrono come «cartella|argomenti»; `cancello`: tiene ferma la prima lettura della radice della cartella principale (la pulizia della prova); `fallisci`: l'unione di prova non entra. */
+type Porte = { blocca?: Promise<void>; merge: string[]; chiamate?: string[]; cancello?: Promise<void>; fallisci?: boolean }
 
 function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
   const git: Git = (args) => {
@@ -80,7 +81,11 @@ function gitDiProva(porte: Porte): { git: Git; asinc: GitAsincrono } {
     if (args.includes('commit')) return { codice: 0, uscita: '' }
     return { codice: 1, uscita: '' }
   }
+  let cancelloPassato = false
   const asinc: GitAsincrono = async (args, cwd) => {
+    porte.chiamate?.push(`${cwd}|${args.join(' ')}`)
+    if (porte.cancello !== undefined && !cancelloPassato && args.join(' ') === 'rev-parse --show-toplevel' && cwd === radice) { cancelloPassato = true; await porte.cancello }
+    if (porte.fallisci === true && args.includes('merge') && args.includes('--no-commit')) { porte.merge.push(args.at(-1)!); return { codice: 1, uscita: 'CONFLICT' } }
     if (args.includes('merge') && args.includes('--no-commit')) {
       porte.merge.push(args.at(-1)!)
       if (porte.blocca !== undefined) await porte.blocca
@@ -325,5 +330,117 @@ describe('dopo un riavvio del servizio (10/11)', () => {
     await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito dopo il riavvio', timeout: 5000 })
     expect(porte.merge).toEqual([R1])
     expect(processi[0]?.scritte.join('\n') ?? '').not.toContain('Il programma si è riavviato')
+  })
+})
+
+describe('correzioni del revisore (10/11)', () => {
+  const cartellaR1 = join(radice, '.claude', 'worktrees', R1.replace(/^worktree-/u, ''))
+
+  it('1: l’unione ripresa dopo il riavvio ritrova la cartella del ramo da git: la salva e poi toglie il worktree', async () => {
+    zitto()
+    mkdirSync(cartellaR1, { recursive: true })
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-dip-dati-'))
+    const porte: Porte = { merge: [], chiamate: [] }
+    await avviaServizio({ cartella, porte })
+    orch.scriviPiano(WS, { versione: 1, compiti: [{ ...compito('k-119'), stato: 'in-revisione', ramo: R1 }] })
+    server?.close()
+    await avviaServizio({ cartella, porte, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito dopo il riavvio', timeout: 5000 })
+    // Il lavoro non salvato: git guarda dentro la cartella del ramo (salvaLavoro), non solo nella principale.
+    expect(porte.chiamate!.some((c) => c.startsWith(`${cartellaR1}|`))).toBe(true)
+    // E la pulizia: worktree e ramo tolti come nel percorso normale.
+    await attendi(() => porte.chiamate!.includes(`${radice}|worktree remove --force ${cartellaR1}`), { cosa: 'il worktree tolto' })
+    await attendi(() => porte.chiamate!.includes(`${radice}|branch -d ${R1}`), { cosa: 'il ramo tolto' })
+  })
+
+  it('2: il ramo si ricorda nel piano appena si ricava', async () => {
+    zitto()
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await caso(porte)
+    await attendi(() => porte.merge.length === 1, { cosa: 'l’unione di k-119 è in corso' })
+    expect(orch.piano(WS).compiti.find((c) => c.id === 'k-119')?.ramo).toBe(R1)
+    sblocca()
+    await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito' })
+  })
+
+  it('3: una sola ripresa per avvio: un aggiornamento con un’unione che fallisce non la rifà', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-dip-dati-'))
+    const porte: Porte = { merge: [], fallisci: true }
+    await avviaServizio({ cartella, porte })
+    const unico = orch.impostazioni(WS).autopilota!
+    orch.scriviPiano(WS, { versione: 1, compiti: [{ ...compito('k-119'), stato: 'in-revisione', ramo: R1 }] })
+    server?.close()
+    archivio.scrivi({ ...archivio.leggi(unico)!, fermatoPerAggiornamento: true })
+    await avviaServizio({ cartella, porte, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await attendi(() => porte.merge.length >= 1, { cosa: 'la prima unione', timeout: 5000 })
+    await attendi(() => (orch.piano(WS).compiti.find((c) => c.id === 'k-119')?.esito ?? '').includes('unione non fatta'), { cosa: 'l’unione fallita', timeout: 5000 })
+    // Il «gestore avviato» col riepilogo dell'aggiornamento richiama la ripresa: l'unione già fallita non si rifà.
+    await posta('/gestore-avviato', {})
+    await new Promise((ris) => setTimeout(ris, 300))
+    expect(porte.merge).toEqual([R1])
+  })
+
+  it('6: le unioni riprendono solo dopo la pulizia della prova, mai in parallelo', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-dip-dati-'))
+    let apri = (): void => {}
+    const porte: Porte = { merge: [], cancello: new Promise<void>((ris) => { apri = ris }) }
+    await avviaServizio({ cartella, porte })
+    orch.scriviPiano(WS, { versione: 1, compiti: [{ ...compito('k-119'), stato: 'in-revisione', ramo: R1 }] })
+    server?.close()
+    await avviaServizio({ cartella, porte, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await new Promise((ris) => setTimeout(ris, 150))
+    expect(porte.merge).toEqual([])
+    apri()
+    await attendi(() => statoK('k-119') === 'unito', { cosa: 'k-119 unito dopo la pulizia', timeout: 5000 })
+    expect(porte.merge).toEqual([R1])
+  })
+
+  it('7: senza aggiornamento non si riprova un’unione ferma apposta, né una senza ramo certo', async () => {
+    zitto()
+    const cartella = mkdtempSync(join(tmpdir(), 'ap-dip-dati-'))
+    const porte: Porte = { merge: [] }
+    await avviaServizio({ cartella, porte })
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      { ...compito('k-1'), stato: 'in-revisione', ramo: R1, esito: 'unione non fatta: conflitto' },
+      { ...compito('k-2'), stato: 'in-revisione' }
+    ] })
+    server?.close()
+    await avviaServizio({ cartella, porte, archivio })
+    server!.riprendiLavori({ servizioAppenaPartito: true })
+    await new Promise((ris) => setTimeout(ris, 300))
+    expect(porte.merge).toEqual([])
+    expect(statoK('k-1')).toBe('in-revisione')
+    expect(statoK('k-2')).toBe('in-revisione')
+  })
+
+  it('4: l’evento di fine unione elenca solo i compiti che aspettavano quello unito', async () => {
+    zitto()
+    let sblocca = (): void => {}
+    const porte: Porte = { merge: [], blocca: new Promise<void>((ris) => { sblocca = ris }) }
+    await avviaServizio({ cartella: mkdtempSync(join(tmpdir(), 'ap-dip-dati-')), porte })
+    processi[0]!.emetti({ type: 'result', result: 'Pronto.', total_cost_usd: 0.001, session_id: 'sess-1', usage: { input_tokens: 100 } })
+    orch.scriviPiano(WS, { versione: 1, compiti: [compito('k-119'), compito('k-120', ['k-119']), compito('k-200')] })
+    expect(rifiutato(await lanciaAgent('k-119: la correzione', 'a1111111111111111'))).toBe(false)
+    finisciUltimo()
+    await attendi(() => porte.merge.length === 1, { cosa: 'l’unione di k-119 è in corso' })
+    const prima = processi[0]!.scritte.length
+    sblocca()
+    await attendi(() => scritteDa(prima).includes('Adesso sono pronti da lanciare: k-120'), { cosa: 'k-120 pronto', timeout: 3000 })
+    expect(/Adesso sono pronti da lanciare: [^.]*/u.exec(scritteDa(prima))?.[0]).not.toContain('k-200')
+  })
+
+  it('4: unione non riuscita, niente righe di compiti pronti', async () => {
+    zitto()
+    const porte: Porte = { merge: [], fallisci: true }
+    await caso(porte)
+    await attendi(() => (orch.piano(WS).compiti.find((c) => c.id === 'k-119')?.esito ?? '').includes('unione non fatta'), { cosa: 'l’unione fallita', timeout: 5000 })
+    await new Promise((ris) => setTimeout(ris, 200))
+    expect(processi[0]!.scritte.join('\n')).not.toContain('Adesso sono pronti da lanciare')
   })
 })

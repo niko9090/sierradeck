@@ -212,7 +212,7 @@ export type ServizioUnico = {
    * ripartono e la lista d'attesa dei posti rivede chi aspetta. Non scrive all'autopilota.
    * Torna quante unioni ha rimesso in marcia.
    */
-  riprendiUnioniEFila: () => number
+  riprendiUnioniEFila: (opzioni?: { soloCerte?: boolean }) => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
   /** Il PreToolUse dell'orchestratore e dei suoi subagenti (`guardia-orchestratore.ts`). */
@@ -269,6 +269,19 @@ export function permessoConcesso(risposta: string): boolean {
 
 const EVENTI_RICORDATI = 30
 
+
+/** Il compito senza il ramo ricordato: torna da fare o in corso, il ramo di prima non vale più. */
+export function senzaRamo(c: CompitoPiano): CompitoPiano {
+  const { ramo: _ramo, ...resto } = c
+  return resto
+}
+
+/** Il ramo di uno specialista finito: quello detto, oppure `worktree-agent-<id>` ricavato dall'agente. */
+export function ramoDelloSpecialistaFinito(s: Pick<Specialista, 'ramo' | 'agente'>): string | undefined {
+  if (s.ramo !== undefined && s.ramo !== '') return s.ramo
+  if (s.agente === undefined || s.agente === '') return undefined
+  return `worktree-agent-${s.agente.replace(/^agent-/u, '')}`
+}
 
 /** Una voce di `git worktree list --porcelain`. */
 export type VoceWorktree = { cartella: string; ramo?: string }
@@ -714,7 +727,7 @@ ${NOTA_SENZA_GIT}`,
         const prima = archivioAttesa.leggi()
         archivioAttesa.scrivi(rifiutataDalTetto(prima, { workspace: ws, ...(unicoDi(ws) !== undefined ? { autopilota: unicoDi(ws)!.id } : {}), descrizione: s.descrizione, tipo: s.ruolo, ...(e.prompt !== undefined ? { prompt: e.prompt } : {}) }, { adesso: oraMs(), id: randomUUID }))
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
-        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
+        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'da-fare', esito: 'aspetta un posto fra gli specialisti: il programma lo rilancia' }))
         console.info(`[attesa] ${ws} — tetto di specialisti pieno: ${s.compito ?? cosaDel(s.descrizione)} in fila, prompt salvato`)
         queueMicrotask(() => { try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) } })
         continue
@@ -726,7 +739,7 @@ ${NOTA_SENZA_GIT}`,
       const u = unicoDi(ws)
       if (e.tipo === 'specialista-partito') {
         const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito) : undefined
-        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...c, stato: 'in-corso', chat: s.id }))
+        if (k !== undefined && k.stato !== 'unito') cambiaCompito(ws, k.id, (c) => ({ ...senzaRamo(c), stato: 'in-corso', chat: s.id }))
         if (u !== undefined) { const dopo = { ...u }; x.annota(dopo, `parte ${s.ruolo}${s.compito !== undefined ? ` (${s.compito})` : ''}: ${s.descrizione.slice(0, 140)}`, avanzamento(s.id, `Al lavoro: ${chiSpecialista(s.ruolo)} — ${cosaDel(s.descrizione)}.`)); x.salva(dopo) }
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
         continue
@@ -735,7 +748,7 @@ ${NOTA_SENZA_GIT}`,
         // Mai partito: il compito resta «da fare» e in fila; lo segnala la fine dell'unione da cui dipende.
         const aspetta = rifiutatiPerDipendenze.get(s.id) ?? []
         rifiutatiPerDipendenze.delete(s.id)
-        if (s.compito !== undefined) cambiaCompito(ws, s.compito, (c) => (c.stato === 'unito' ? c : { ...c, stato: 'da-fare', esito: `in fila: aspetta l’unione di ${aspetta.join(', ')}, parte da solo quando è unita` }))
+        if (s.compito !== undefined) cambiaCompito(ws, s.compito, (c) => (c.stato === 'unito' ? c : { ...senzaRamo(c), stato: 'da-fare', esito: `in fila: aspetta l’unione di ${aspetta.join(', ')}, parte da solo quando è unita` }))
         ricalcola(ws, `${s.compito ?? s.ruolo} in fila per le dipendenze`)
         continue
       }
@@ -749,8 +762,8 @@ ${NOTA_SENZA_GIT}`,
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
-          ? { ...c, stato: 'in-revisione', ...(s.ramo !== undefined ? { ramo: s.ramo } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
-          : { ...c, stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
+          ? { ...c, stato: 'in-revisione', ...(ramoDelloSpecialistaFinito(s) !== undefined ? { ramo: ramoDelloSpecialistaFinito(s)! } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
+          : { ...senzaRamo(c), stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
         if (s.stato === 'finito' && x.unioneDaSola !== false) avviaUnione(ws, { compito: k.id })
@@ -849,6 +862,10 @@ ${NOTA_SENZA_GIT}`,
     else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª: parte da sola quando ${fila[fila.length - 2]!.chi} ha finito` })
     return fila.length
   }
+  /** I compiti del workspace che hanno già un posto prenotato o sono nella lista d'attesa dei posti. */
+  const compitiInAttesa = (ws: string): Set<string> => new Set(archivioAttesa.leggi().voci.filter((v) => v.workspace === ws && v.compito !== undefined).map((v) => v.compito!))
+  /** Le richieste già fatte: una dipendenza da un loro compito non si aspetta più. */
+  const richiesteChiuse = (ws: string): Set<string> => new Set(coda(ws).richieste.filter((r) => r.stato === 'fatta').map((r) => r.id))
   const unioniIn = (ws: string): number => filaUnioni.get(ws)?.length ?? 0
   /** I compiti la cui unione è in corso o in fila: non sono «fermi», il programma li sta unendo. */
   const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
@@ -882,7 +899,12 @@ ${NOTA_SENZA_GIT}`,
         fila.shift()
         // 10/11: l'unione è finita (verde o rossa): l'autopilota si sveglia SUBITO, anche se aveva chiuso il turno,
         // e con l'esito riceve i compiti diventati pronti, da lanciare adesso.
-        const pronti = righeDopoUnione(x.orchestratori.piano(ws))
+        // Solo i compiti che aspettavano questo, se l'unione è riuscita, e non quelli già nella lista d'attesa dei posti.
+        const pianoOra = x.orchestratori.piano(ws)
+        const riuscita = lavoro.compito !== undefined && pianoOra.compiti.find((k) => k.id === lavoro.compito)?.stato === 'unito'
+        const pronti = lavoro.compito !== undefined
+          ? righeDopoUnione(pianoOra, lavoro.compito, { riuscita, inAttesa: compitiInAttesa(ws), chiuse: richiesteChiuse(ws) })
+          : []
         evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: [testo ?? `${chi}: unione finita`, ...pronti].join('\n') }, true)
         continue
       }
@@ -943,6 +965,7 @@ ${NOTA_SENZA_GIT}`,
     if ((senzaGit || soloLettura) && sub !== undefined && (sub.stato === 'avviato' || sub.stato === 'lavoro')) return `${nome}: sta ancora lavorando, aspetta che finisca`
     let ramo = p.ramo ?? chat?.ramo
     let cartella = chat?.cartella
+    let cartellaRitrovata = false
     // 0.90.0 (prova del caso BG4, 02/11): il lavoro scritto in una cartella fuori
     // dal progetto (la copia del pannello) non sta su nessun ramo. Prima l'unione
     // si rifiutava per sempre e il compito restava al 90%, con una domanda tecnica
@@ -997,6 +1020,17 @@ ${NOTA_SENZA_GIT}`,
       }
       if (ramo === undefined && !fuoriDaiRami) return `${nome}: non so quale ramo unire. Dimmi il compito, lo specialista o il ramo.`
       if (ramo !== undefined && ramo === a.ramoBase) return `${nome}: ${ramo} è il ramo principale, non c’è niente da unire`
+      // Unione ripresa dopo il riavvio: lo specialista non c'è più in memoria, la cartella del ramo la dice git.
+      if (ramo !== undefined && cartella === undefined) {
+        const lista = await g(['worktree', 'list', '--porcelain'], a.cwd)
+        const v = lista.codice === 0 ? leggiWorktree(lista.uscita).slice(1).find((w) => w.ramo === ramo && /\/\.claude\/worktrees\/agent-/u.test(normale(w.cartella))) : undefined
+        if (v !== undefined) { cartella = v.cartella; cartellaRitrovata = true }
+      }
+      // Il ramo del compito si ricorda subito: serve a riprendere l'unione dopo un riavvio.
+      if (ramo !== undefined && compito !== undefined && compito.ramo !== ramo) {
+        const r = ramo
+        cambiaCompito(ws, compito.id, (k) => (k.stato === 'unito' ? k : { ...k, ramo: r }))
+      }
       if (cartella !== undefined) await salvaLavoroAsincrono(g, cartella, `specialista ${nome}: ${(compito?.titolo ?? sub?.descrizione ?? chat?.compito ?? '').slice(0, 60)}`)
       let motivo: string | undefined
       // Prima gli altri rami con lavoro dello stesso compito, poi quello principale (06/11, k-60).
@@ -1082,10 +1116,12 @@ ${NOTA_SENZA_GIT}`,
           .catch(() => { /* la pulizia lo ritrova */ })
       }
     }
-    if (sub !== undefined) {
-      const s = uniti.get(ws) ?? new Set<string>()
-      s.add(sub.id)
-      uniti.set(ws, s)
+    if (sub !== undefined || (cartellaRitrovata && ramo !== undefined)) {
+      if (sub !== undefined) {
+        const s = uniti.get(ws) ?? new Set<string>()
+        s.add(sub.id)
+        uniti.set(ws, s)
+      }
       // Il worktree del subagente non serve più: via (il ramo unito resta nella storia).
       if (cartella !== undefined && g !== undefined) {
         void g(['worktree', 'remove', '--force', cartella], a.cwd)
@@ -1571,7 +1607,9 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * dice il disco (piano, coda, dialogo): lo si manda **subito** come evento,
    * invece di aspettare il controllo del lavoro fermo (3 minuti, due spinte).
    */
-  const riprendiUnioniEFila = (): number => {
+  /** Le unioni già riprese da questo avvio (`ws|compito`): una sola ripresa per avvio, mai due. */
+  const unioniRiprese = new Set<string>()
+  const riprendiUnioniEFila = (opzioni: { soloCerte?: boolean } = {}): number => {
     let n = 0
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa dopo il riavvio non riuscito:', err) }
     if (x.unioneDaSola === false) return 0
@@ -1581,6 +1619,12 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       // Un compito «in revisione» ha finito e non è unito: dopo un riavvio la fila (in memoria) è vuota, si rifà.
       for (const k of x.orchestratori.piano(ws).compiti) {
         if (k.stato !== 'in-revisione') continue
+        // Senza aggiornamento (accensione, crash) si riprende solo quello di cui si è certi: col ramo noto e
+        // senza un'unione già fallita apposta (conflitto stabile). Il resto lo decide l'autopilota.
+        if (opzioni.soloCerte === true && (k.ramo === undefined || /unione non fatta/iu.test(k.esito ?? ''))) continue
+        const chiave = `${ws}|${k.id}`
+        if (unioniRiprese.has(chiave)) continue
+        unioniRiprese.add(chiave)
         if (avviaUnione(ws, { compito: k.id, ...(k.ramo !== undefined ? { ramo: k.ramo } : {}) }) !== undefined) { n += 1; console.info(`[orchestratore] ${ws} — unione di ${k.id} ripresa dopo il riavvio`) }
       }
     }
@@ -1766,7 +1810,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         tettoPc: tettoPc(),
         dipendenze: (r) => {
           const ws = wsDi(a)
-          const q = aspettaDipendenze(x.orchestratori.piano(ws), compitoDallaDescrizione(r.descrizione), idUso)
+          const q = aspettaDipendenze(x.orchestratori.piano(ws), compitoDallaDescrizione(r.descrizione), idUso, richiesteChiuse(ws))
           if (q === undefined) return undefined
           if (idUso !== undefined) rifiutatiPerDipendenze.set(idUso, q.aspetta)
           console.info(`[attesa] ${ws} — ${q.compito} aspetta l’unione di ${q.aspetta.join(', ')}: in fila, lo segnalo a unione finita`)
