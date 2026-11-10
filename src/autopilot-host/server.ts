@@ -733,21 +733,27 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
   /** Il servizio è appena ripartito e non si sa ancora se per un aggiornamento: vale fino al «gestore-avviato». */
   let ripresaOrchestratoriInSospeso = false
   let avevaFermatiPerAggiornamento = false
+  /** La pulizia della prova a metà del servizio di prima: le unioni riprendono solo dopo, mai in parallelo (doppio merge --abort, index.lock). */
+  let provaRipulita: Promise<unknown> = Promise.resolve()
   const riprendiOrchestratoriSeAggiornato = (riepilogoAggiornamento: boolean): void => {
     if (!serveRipresaDopoAggiornamento({ servizioAppenaPartito: ripresaOrchestratoriInSospeso, avevaFermatiPerAggiornamento, riepilogoAggiornamento })) return
     ripresaOrchestratoriInSospeso = false
-    try { unico?.riprendiOrchestratori() } catch (err) { console.error('[orchestratore] ripresa dopo il riavvio non riuscita:', err) }
+    void provaRipulita.then(() => {
+      try { unico?.riprendiOrchestratori() } catch (err) { console.error('[orchestratore] ripresa dopo il riavvio non riuscita:', err) }
+    })
   }
   const riprendiLavori = (opzioni: { servizioAppenaPartito?: boolean } = {}): number => {
     const ora = Date.parse(deps.adesso())
     if (opzioni.servizioAppenaPartito === true && deps.git !== undefined) {
       // 06/11: una prova lasciata a metà dal servizio di prima si ripulisce subito (se è del programma), non alla prossima unione.
+      const pulizie: Promise<unknown>[] = []
       for (const a of unici()) {
         if (a.ramoBase === undefined || proveInCorso.has(chiaveProva(a.cwd))) continue
-        void ripulisciProvaAsincrono(gitA(deps.git), { cwd: a.cwd })
+        pulizie.push(ripulisciProvaAsincrono(gitA(deps.git), { cwd: a.cwd })
           .then((r) => { if (r === 'ripulita') console.info(`[autopilota] ${a.cwd}: tolta l'unione di prova rimasta a metà dal servizio di prima`) })
-          .catch(() => { /* la prossima unione la ripulisce */ })
+          .catch(() => { /* la prossima unione la ripulisce */ }))
       }
+      provaRipulita = Promise.all(pulizie)
     }
     if (opzioni.servizioAppenaPartito === true) {
       // Le consegne vivono in memoria: quelle «in volo» col servizio di prima tornano in coda (0.56.4).
@@ -774,11 +780,15 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // c'erano autopiloti fermati per l'aggiornamento (i segni si tolgono subito
     // sotto); il riepilogo dell'aggiornamento arriva dopo, con «gestore-avviato».
     if (opzioni.servizioAppenaPartito === true) {
-      // Unioni a metà e lista d'attesa dei posti ripartono a ogni avvio del servizio, aggiornamento o no:
-      // non scrivono all'autopilota, rimettono in marcia quello che il programma stava facendo.
-      try { unico?.riprendiUnioniEFila() } catch (err) { console.error('[orchestratore] ripresa delle unioni non riuscita:', err) }
       ripresaOrchestratoriInSospeso = true
       avevaFermatiPerAggiornamento = unici().some((a) => a.fermatoPerAggiornamento === true)
+      // Unioni a metà e lista d'attesa dei posti ripartono a ogni avvio, ma solo dopo la pulizia della prova.
+      // Senza aggiornamento (accensione, crash) solo quelle certe: un'unione ferma apposta resta ferma.
+      // Una sola ripresa per avvio: il servizio ricorda quali ha già rimesso in marcia.
+      const soloCerte = !avevaFermatiPerAggiornamento
+      void provaRipulita.then(() => {
+        try { unico?.riprendiUnioniEFila({ soloCerte }) } catch (err) { console.error('[orchestratore] ripresa delle unioni non riuscita:', err) }
+      })
       if (avevaFermatiPerAggiornamento) riprendiOrchestratoriSeAggiornato(false)
     }
     if (!Number.isNaN(ora) && ultimaRipresa !== 0 && ora - ultimaRipresa < RIPRESA_RAVVICINATA_MS) return 0

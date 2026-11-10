@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { aspettaDipendenze, compitiSbloccati, dipendenzeNonUnite, righeDopoUnione, rigaUnioneEPoi } from '../../src/autopilot-host/dipendenze'
+import { ramoDelloSpecialistaFinito, senzaRamo } from '../../src/autopilot-host/servizio-orchestratore'
 import { lavoroFermo } from '../../src/autopilot-host/lavoro-fermo'
 import { ripresaDopoRiavvio } from '../../src/autopilot-host/ripresa-riavvio'
 import { giudicaGuardiaOrchestratore } from '../../src/autopilot-host/guardia-orchestratore'
@@ -47,11 +48,61 @@ describe('compiti che aspettano un’unione (10/11)', () => {
     const s = compitiSbloccati(p)
     expect(s.pronti.map((c) => c.id)).toEqual(['b'])
     expect(s.daCorreggere.map((d) => [d.compito.id, d.rossi])).toEqual([['c', ['r']]])
-    const righe = righeDopoUnione(p)
+    const righe = righeDopoUnione(p, 'a')
     expect(righe[0]).toContain('Adesso sono pronti da lanciare: b')
     expect(righe[0]).toContain('ORA')
-    expect(righe[1]).toContain('c aspetta la correzione di r')
-    expect(righeDopoUnione(piano(k('x', { dopo: ['y'] }), k('y', { stato: 'in-revisione' })))).toEqual([])
+    expect(righeDopoUnione(p, 'r')[0]).toContain('c aspetta la correzione di r')
+    expect(righeDopoUnione(piano(k('x', { dopo: ['y'] }), k('y', { stato: 'in-revisione' })), 'y')).toEqual([])
+  })
+
+  // Correzioni del revisore (10/11)
+  it('4: a unione finita si elencano solo i compiti il cui «dopo» contiene quello unito', () => {
+    const p = piano(k('a', { stato: 'unito', criterioVerde: true }), k('b', { dopo: ['a'] }), k('senza'), k('altro', { dopo: ['zz'] }), k('zz', { stato: 'in-revisione' }))
+    const righe = righeDopoUnione(p, 'a')
+    expect(righe).toHaveLength(1)
+    expect(righe[0]).toContain('b («lavoro b»)')
+    expect(righe[0]).not.toContain('senza')
+  })
+
+  it('4: niente righe se l’unione non è riuscita, e niente per i compiti nella lista d’attesa dei posti', () => {
+    const p = piano(k('a', { stato: 'unito', criterioVerde: true }), k('b', { dopo: ['a'] }), k('c', { dopo: ['a'] }))
+    expect(righeDopoUnione(p, 'a', { riuscita: false })).toEqual([])
+    const righe = righeDopoUnione(p, 'a', { inAttesa: new Set(['b']) })
+    expect(righe[0]).toContain('c («lavoro c»)')
+    expect(righe[0]).not.toContain('b («')
+  })
+
+  it('5: una dipendenza da un compito di una richiesta chiusa non blocca', () => {
+    const p = piano(k('a', { stato: 'in-revisione', richiesta: 'r-9' }), k('b', { dopo: ['a'] }))
+    expect(dipendenzeNonUnite(p, 'b')).toEqual(['a'])
+    expect(dipendenzeNonUnite(p, 'b', new Set(['r-9']))).toEqual([])
+    expect(aspettaDipendenze(p, 'b', undefined, new Set(['r-9']))).toBeUndefined()
+    expect(aspettaDipendenze(p, 'b')?.aspetta).toEqual(['a'])
+  })
+
+  it('8: criterio non misurato non è rosso: «da misurare», con il suo messaggio', () => {
+    const p = piano(k('a', { stato: 'unito' }), k('r', { stato: 'unito', criterioVerde: false }), k('b', { dopo: ['a'] }), k('c', { dopo: ['r'] }))
+    const s = compitiSbloccati(p)
+    expect(s.daMisurare.map((d) => [d.compito.id, d.ignote])).toEqual([['b', ['a']]])
+    expect(s.daCorreggere.map((d) => d.compito.id)).toEqual(['c'])
+    const righe = righeDopoUnione(p, 'a')
+    expect(righe.join('\n')).toContain('b aspetta la misura del criterio di a')
+    expect(righe.join('\n')).not.toContain('correzione')
+  })
+
+  it('9: «poi parte X» solo se X non aspetta altre dipendenze', () => {
+    const p = piano(k('a', { stato: 'in-revisione' }), k('altra', { stato: 'in-corso' }), k('x', { dopo: ['a', 'altra'] }), k('y', { dopo: ['a'] }))
+    const riga = rigaUnioneEPoi(p, ['a'])!
+    expect(riga).toContain('poi parte y.')
+    expect(riga).not.toContain('x')
+  })
+
+  it('2: il ramo dello specialista finito si ricava dall’agente; senza ramo né agente non c’è', () => {
+    expect(ramoDelloSpecialistaFinito({ ramo: 'ap/x' })).toBe('ap/x')
+    expect(ramoDelloSpecialistaFinito({ agente: 'a1b2c3' })).toBe('worktree-agent-a1b2c3')
+    expect(ramoDelloSpecialistaFinito({ agente: 'agent-a1b2c3' })).toBe('worktree-agent-a1b2c3')
+    expect(ramoDelloSpecialistaFinito({})).toBeUndefined()
+    expect(senzaRamo(k('a', { ramo: 'worktree-agent-x', stato: 'in-revisione' }))).not.toHaveProperty('ramo')
   })
 
   it('la riga di stato: «unione in corso, poi parte k-120»', () => {
