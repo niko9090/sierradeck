@@ -4,10 +4,6 @@
 
 ## test
 
-- tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
-- l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
-- `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
-- i test in tests/shared possono importare da src/main; le funzioni pure nuove vanno comunque in src/shared. _(2026-11-08)_
 - confronta('?', x) in installa-la.ts tratta '?' come 0.0.0: con da='?' qualunque versione viva darebbe «fatto». Prima va fissato `da` dal vivo. _(2026-11-08)_
 - la guardia del PC può rifiutare per molti minuti ogni vitest (anche per cartella); i file singoli passano. Il commit va in una chiamata separata dal comando pesante. _(2026-11-08)_
 - tests/main/finestre-pannello-separate.test.ts vieta BrowserWindow.getAllWindows() in index.ts: le finestre pannello sono escluse da finestreDiChat(); un broadcast che le deve raggiungere va in finest… _(2026-11-08)_
@@ -85,6 +81,9 @@
 - Con la release già creata, electron-builder non carica nulla. Gli asset vanno caricati a mano con `gh release upload` e nomi coi trattini (`SierraDeck-Setup-X.exe`), non quelli con lo spazio di `dist… _(2026-11-09)_
 - `npm run pubblica` dopo un `gh release create` salta gli upload: servono `gh release upload` con i nomi a trattini di latest.yml. _(2026-11-10)_
 - Da un worktree servono google-oauth.json copiato dalla cartella principale e un node_modules vero (npm ci): la junction fa fermare controlla-pacchetto. _(2026-11-10)_
+- Il bump di versione fa fallire `tests/shared/novita.test.ts` se in `src/shared/novita.ts` manca la voce della nuova versione: aggiungerla nello stesso commit del bump. _(2026-11-10)_
+- In una copia di lavoro `npm run pubblica` rifiuta la junction di node_modules (serve `npm ci`) e vuole `google-oauth.json` (gitignorato) copiato dalla cartella principale. _(2026-11-10)_
+- Se la release è creata prima con `gh release create`, electron-builder salta il caricamento (draft vs release): caricare installer, blockmap e latest.yml con `gh release upload`. _(2026-11-10)_
 
 ## git
 
