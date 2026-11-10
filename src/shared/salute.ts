@@ -285,11 +285,15 @@ export function componiSalute(i: IngressiSalute): Salute {
   // ── Quanto lavora SierraDeck, qui e sugli altri PC (0.69.0) ──
   // «I PC girano lenti» (Nicholas, 12/10): i numeri di ogni PC in un posto solo.
   if (i.risorse !== undefined) {
-    const righe = [`Questo PC: ${rigaRisorse(i.risorse)}`, ...i.pc.filter((p) => p.risorse !== undefined).map((p) => `${p.nome}: ${rigaRisorse(p.risorse as RisorsePc)}`)]
+    // Il battito di un altro PC vale solo se e' recente (stesso criterio di «PC spento»): se e' vecchio
+    // i suoi consumi non sono di adesso, quindi non si mostrano ne' fanno dire «rifiutate da Google».
+    const recente = (p: PcPerSalute): boolean => p.battito !== undefined && i.adesso - Date.parse(p.battito) <= PC_SPENTO_DOPO_MS
+    const altri = i.pc.filter((p) => p.risorse !== undefined)
+    const righe = [`Questo PC: ${rigaRisorse(i.risorse)}`, ...altri.map((p) => recente(p) ? `${p.nome}: ${rigaRisorse(p.risorse as RisorsePc)}` : `${p.nome}: nessun dato di adesso (ultimo battito ${quantoFa(p.battito, i.adesso)})`)]
     // Criticita solo sopra soglie vere e solo per i consumi di questo PC: ogni PC dice i suoi,
     // la stessa riga non si ripete su tutti. Sotto soglia e' informazione (tono ok).
     const alte = risorseAlte(i.risorse)
-    const rifiutate = [i.risorse, ...i.pc.map((p) => p.risorse)].some((r) => r !== undefined && r.driveRifiutate > 0)
+    const rifiutate = [i.risorse, ...altri.filter(recente).map((p) => p.risorse)].some((r) => r !== undefined && r.driveRifiutate > 0)
     voci.push({
       chiave: 'risorse', gruppo: 'pc', tono: alte ? 'attenzione' : 'ok',
       titolo: `Quanto lavora SierraDeck: ${rigaRisorse(i.risorse)}`,
