@@ -37,6 +37,8 @@
 - il freno Drive alza l'attesa al primo 429, quindi un test che si aspetta ritentativi su 429/rateLimit va scritto con 503 (transitorio), non con 429 _(2026-11-10)_
 - `tests/main/sposta-fra-pc.test.ts` (caricamento lungo) è fallita una volta sola nella serie completa sotto carico e passa da sola: probabile instabilità di tempi _(2026-11-10)_
 - Per provare «zero richieste» su `apriSincronia`, avvolgi l'archivio in un Proxy che conta le chiamate; l'orologio del freno si inietta con `creaFreno(() => t)`. _(2026-11-10)_
+- Dopo la correzione della Salute (46ce0845) un PC senza `battito` non mostra più i suoi consumi: le prove con altri PC e `risorse` devono dare un battito recente. _(2026-11-10)_
+- Il rifiuto «prove vitest dei compiti già uniti» può non riprodursi: su main isolato la suite era verde. Prima di cambiare codice rilanciare la suite sul ramo da solo. _(2026-11-10)_
 
 ## worktree
 
@@ -90,10 +92,12 @@
 - Un ramo già aperto in un altro worktree non si può attivare: il lavoro va unito sul proprio ramo e l'autopilota deve unire quello. _(2026-11-08)_
 - `main` locale può essere avanti su origin con lavoro non pubblicato. Dal worktree: `git merge --ff-only main`, bump, poi `git push origin HEAD:main`. _(2026-11-09)_
 - un agente lanciato in un worktree isolato non può usare `git -C <cartella principale>`: il sistema lo rifiuta. Le operazioni sulla cartella principale vanno affidate a chi non è isolato. _(2026-11-09)_
+- main locale può avere commit non ancora su origin/main (merge e note del quaderno): prima di un push di release controllare `git log origin/main..main`. _(2026-11-10)_
 
 ## autopilota
 
 - La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
+- Non lanciare uno specialista su un compito il cui «dopo» è ancora in unione: non può aspettare (sleep bloccato) e torna a vuoto. Lanciarlo all'evento «unione». _(2026-11-10)_
 
 ## controllo
 
@@ -120,6 +124,7 @@
 ## hook
 
 - SubagentStop senza toccare server.ts: hook `command` con `node -e` e script in base64 (niente virgolette da proteggere), generato da `finePrematura.toString()`; la funzione deve restare autosufficien… _(2026-11-08)_
+- l'hook Bash di SierraDeck blocca sleep e comandi in sottofondo: le attese a intervalli non si possono fare da una chat, serve richiamare o un altro meccanismo. _(2026-11-10)_
 
 ## versioni
 
@@ -127,7 +132,6 @@
 
 ## drive
 
-- Il freno del Drive pieno e la pulizia chat esistono dalla 0.96.0: prima di rifare, controllare la versione dei PC nei rapporti (DESKTOP/Z2 erano ancora 0.95.x). _(2026-11-07)_
 - Il freno Drive (k-65) esiste: se un controllo mostra 403 quota ripetuti, prima guardare la versione dei PC (0.95.x non ce l'ha). `creaFreno(adesso, caso)` e `creaArchivioDrive({pausa, caso})` rendono… _(2026-11-08)_
 - «Drive pieno» nella Salute viene dal freno in memoria che scade dopo 15 minuti (index.ts:2632): va reso uno stato «detto», non «in corso». _(2026-11-09)_
 - Con Drive pieno il freno blocca anche battito, posta e registro insieme; «acceso» in Progetti viene solo dal battito, quindi un PC che risponde appare «non risponde». _(2026-11-09)_
@@ -138,17 +142,9 @@
 - in `conLimite` un errore ferma solo il suo lavoratore: gli altri continuano con le voci rimaste. Per fermare tutto serve un flag condiviso, come `pienoVisto` in `salvaIncrementale`. _(2026-11-10)_
 - I giri periodici sono frenati, ma le letture chiamate da fuori (`pcSubito` per telefono e controllo) no: senza memoria dopo un errore, ogni chiamata ripete la richiesta a vuoto. _(2026-11-10)_
 
-## posta
-
-- `quietaOgniMs` in `creaPostino` rende i test della posta indipendenti dai 90 s di quiete; `ultimaAttivita` e `ultimaLetturaPosta` partono da `-Infinity`, non da 0. _(2026-11-07)_
-
 ## tooling
 
 - Nel worktree i comandi Bash/sed composti con più modifiche vengono rifiutati come «troppo complessi»: usare Edit per le modifiche multiple. _(2026-11-09)_
-
-## unione
-
-- La prova d'unione non fa npm install: un ramo con dipendenze nuove fallisce tsc. Prima installarle nella principale con npm install --no-save. _(2026-11-07)_
 
 ## criteri
 
@@ -161,13 +157,8 @@
 - la guardia del carico può rimandare typecheck per molti minuti di fila; non si può aspettare dentro il turno (sleep e Monitor sono bloccati): il commit va fatto prima. _(2026-11-08)_
 - La guardia del carico controlla prima del comando: un `ping` nella stessa chiamata non fa aspettare. Per attendere serve una chiamata separata, poi si ritenta. _(2026-11-08)_
 
-## criterio
-
-- il tempo della prova include l'attesa del turno e della guardia: a PC carico scade anche se la suite è sana. _(2026-11-07)_
-
 ## unioni
 
-- se l'unione dice che tsc non passa in main ma in main passa, l'errore può stare nel ramo unito: provare tsc dopo il merge nella propria copia. _(2026-11-07)_
 - i tetti devono stare uno dentro l'altro (suite < prova < fila): prima la prova (15 min) scadeva prima della suite (20) e il figlio restava vivo a tenere il turno _(2026-11-07)_
 - il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
