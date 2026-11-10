@@ -4,7 +4,6 @@
 
 ## test
 
-- giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
 - tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
 - l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
 - `tests/shared` passa in ~34 s, ma la junction di node_modules va lasciata finché il ramo non è unito, altrimenti il ramo viene respinto. _(2026-11-08)_
@@ -41,6 +40,7 @@
 - Il rifiuto «prove vitest dei compiti già uniti» può non riprodursi: su main isolato la suite era verde. Prima di cambiare codice rilanciare la suite sul ramo da solo. _(2026-11-10)_
 - giudicaStrumento accetta {ambiente} per le prove: con percorsi finti Windows (C:\Users\mario) non serve toccare le variabili d'ambiente _(2026-11-10)_
 - I test del servizio con raccolta eventi lunga provano il «subito»: per far arrivare un evento va chiuso il turno finto con un result, altrimenti resta in attesa. _(2026-11-10)_
+- In `tests/autopilot-host` una `blocca` che non si risolve mai tiene il lucchetto di prova globale (per cwd) e fa fallire per timeout i test dopo: risolvere sempre la promessa. _(2026-11-10)_
 
 ## worktree
 
@@ -166,6 +166,7 @@
 - il turno dell'unione (12 min, attesa compresa) è più corto della prova (15 min) che lo contiene: possibile scadenza prematura, da decidere _(2026-11-08)_
 - UNIONE_TURNO_MAX_MS (12 min) copre solo i passi git, non le misure; se scade prima di PROVA_MAX_MS l'esito è lo stesso 'scaduta'. Ordine voluto: turno < prova < fila. _(2026-11-08)_
 - dopo un riavvio i subagenti in memoria sono vuoti: cancelloOra trova ramo e cartella solo se il piano li ha salvati, quindi va salvato anche il worktree, non solo il ramo _(2026-11-10)_
+- Ripresa dopo il riavvio: le unioni partono solo dopo la pulizia della prova (`provaRipulita`) e una volta per avvio. Senza aggiornamento solo compiti con `ramo` e senza esito «unione non fatta». _(2026-11-10)_
 
 ## gpu
 
@@ -185,13 +186,8 @@
 
 - @xterm/headless 6.0.0 e @xterm/xterm 6.1.0-beta stanno su versioni diverse: se il terminale della main process si comporta in modo strano, guardare prima questa differenza. _(2026-11-08)_
 
-## codice
-
-- i sorgenti sono CRLF: modificarli con script che preservano i fine riga, e `sed -i` può lasciare righe LF _(2026-11-07)_
-
 ## misure
 
-- Il controllo di carico controlla prima di ogni comando: un ping/sleep dentro lo stesso comando non aiuta. L'attesa va in una chiamata separata. _(2026-11-07)_
 - il gancio PreToolUse rimanda vitest se il PC è carico: attendere col Monitor, non con sleep ripetuti, e fermarsi dopo 3 tentativi. I file singoli passano comunque. _(2026-11-08)_
 
 ## aggiornamenti
@@ -332,3 +328,7 @@
 ## flusso
 
 - Un rifiuto dell'hook che contiene «sottofondo/async/background» viene letto dal flusso come Agent partito in sottofondo: nessun «finito», il compito resta «in-corso». Evitare quelle parole nei motivi. _(2026-11-10)_
+
+## piano
+
+- `compito.ramo` va tolto (`senzaRamo`) quando il compito torna da-fare o in-corso, altrimenti la ripresa riunisce il ramo vecchio. _(2026-11-10)_
