@@ -17,7 +17,9 @@ import kotlinx.serialization.Serializable
     val inRecupero: ContoSpazio = ContoSpazio(),
     val misuratoIl: String = ""
 )
-@Serializable data class PropostaSpazio(val tipo: String = "", val titolo: String = "", val breve: String = "", val spiega: String = "", val byte: Double = 0.0, val versioni: Int = 0)
+@Serializable data class PropostaSpazio(val tipo: String = "", val titolo: String = "", val breve: String = "", val spiega: String = "", val byte: Double = 0.0, val versioni: Int = 0,
+    /** Le voci da pulire (la procedura «Libera spazio» guarda se ce ne sono). */
+    val voci: List<VocePulitaDrive> = emptyList())
 @Serializable data class VocePulitaDrive(val nome: String = "")
 @Serializable data class PuliziaDrive(
     val id: String = "", val titolo: String = "", val quando: String = "", val chi: String = "", val scadeIl: String = "",
@@ -27,6 +29,8 @@ import kotlinx.serialization.Serializable
     val misura: MisuraSpazioDrive? = null,
     val proposte: List<PropostaSpazio> = emptyList(),
     val pulizie: List<PuliziaDrive> = emptyList(),
+    /** La proposta «chat non usate» (PC 0.99), per la procedura «Libera spazio». */
+    val chatNonUsate: PropostaSpazio? = null,
     val errore: String? = null
 )
 

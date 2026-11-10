@@ -375,8 +375,18 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("progetto", progetto); put("id", id) }))
 
     /** Le azioni dello spazio sul Drive (PC 0.65.0): misura, pulisci, annulla, svuota. */
-    suspend fun azioneSpazio(azione: String, tipo: String = "", id: String = ""): EsitoAzioneDrive =
-        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id) }))
+    suspend fun azioneSpazio(azione: String, tipo: String = "", id: String = "", recupero: String = ""): EsitoAzioneDrive =
+        json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id); if (recupero != "") put("recupero", recupero) }))
+
+    /** «Libera spazio sul Drive» (PC k-307): le stesse rotte della pagina del telefono. */
+    suspend fun spazioStato(forza: Boolean): StatoSpazioDrive? =
+        json.decodeFromString<RispostaSpazioStato>(corpoTesto("/api/drive/spazio/stato", oggetto { put("forza", forza) })).stato
+    suspend fun spazioQuota(forza: Boolean): QuotaMisurataDrive? =
+        json.decodeFromString<RispostaSpazioQuota>(corpoTesto("/api/drive/spazio/quota", oggetto { put("forza", forza) })).quota
+    suspend fun spazioInSospeso(): List<InSospesoDrive> =
+        json.decodeFromString<RispostaSpazioInSospeso>(corpoTesto("/api/drive/spazio/in-sospeso", oggetto { })).inSospeso
+    suspend fun spazioRiprendi(): EsitoRiprendiSpazio =
+        json.decodeFromString(corpoTesto("/api/drive/spazio/riprendi", oggetto { }))
 
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =
@@ -732,6 +742,8 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // secondi, quanto l'attesa di sempre; attraverso il ponte di più.
             // Vale anche quando passa dal ponte: lì la rotta è dentro il corpo.
             "/api/drive/pannello", "/api/drive/azione",
+            // «Libera spazio sul Drive» (PC k-307): misurare la quota e le proposte legge il Drive.
+            "/api/drive/spazio/stato", "/api/drive/spazio/quota", "/api/drive/spazio/in-sospeso", "/api/drive/spazio/riprendi",
             // PC 0.68.0: l'elenco delle conversazioni e l'avvio in sottofondo di un altro PC.
             "/api/sessioni", "/api/sessioni/riprendi", "/api/sottofondo/avvia",
             // PC 0.79.0: lo spazio misura ogni chat sul disco, e svuotare il recupero cancella davvero.
