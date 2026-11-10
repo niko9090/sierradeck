@@ -95,6 +95,7 @@
 - `main` locale può essere avanti su origin con lavoro non pubblicato. Dal worktree: `git merge --ff-only main`, bump, poi `git push origin HEAD:main`. _(2026-11-09)_
 - un agente lanciato in un worktree isolato non può usare `git -C <cartella principale>`: il sistema lo rifiuta. Le operazioni sulla cartella principale vanno affidate a chi non è isolato. _(2026-11-09)_
 - main locale può avere commit non ancora su origin/main (merge e note del quaderno): prima di un push di release controllare `git log origin/main..main`. _(2026-11-10)_
+- Il git del programma (gitAsincronoReale) mescola stderr e stdout e fa trim: gli avvisi CRLF finiscono nello status e la prima riga perde lo spazio di testa. Filtrare le voci «XY percorso». _(2026-11-10)_
 
 ## autopilota
 
@@ -180,13 +181,8 @@
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
 
-## carico
-
-- il controllo di carico del PC blocca anche comandi semplici (ls, Glob) quando la CPU sta sopra il 75%: meglio usare lo strumento di lettura dei file. _(2026-11-07)_
-
 ## dipendenze
 
-- Il node_modules principale non ha xterm 6.1 né @xterm/addon-webgl: una junction non basta dopo k-169, serve copia reale più npm install --ignore-scripts. _(2026-11-07)_
 - @xterm/headless 6.0.0 e @xterm/xterm 6.1.0-beta stanno su versioni diverse: se il terminale della main process si comporta in modo strano, guardare prima questa differenza. _(2026-11-08)_
 
 ## codice
@@ -327,6 +323,7 @@
 - il criterio aggregato «npx vitest run» senza percorsi (k-170) fa girare l'intera suite in un solo comando: 3 minuti qui, ma la prova ha 15 minuti in totale contro 20 del comando. _(2026-11-10)_
 - Rifiuto «anche nella cartella principale non passa» = il ramo rompe prove che su main passano (testo invertito, senza nomi): far girare `npx vitest run` intero sul ramo unito a main per trovarle. _(2026-11-10)_
 - un ramo già unito e cancellato non si misura: serve un ramo nuovo aggiornato a main (già scritto nel quaderno). _(2026-11-10)_
+- Il cancello salva le note `.sierradeck/` prima di unire solo se il diff è fatto di sole aggiunte (numstat, zero righe tolte); righe cambiate o tolte restano di Nicholas. _(2026-11-10)_
 
 ## consenso
 
