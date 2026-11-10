@@ -7,6 +7,11 @@ describe('testoErroreDialogo (k-42)', () => {
     expect(testoErroreDialogo(grezzo)).toBe(SERVIZIO_OCCUPATO)
   })
 
+  it('«non risponde sulla porta 47630: TimeoutError» (risposta a una domanda) è servizio occupato', () => {
+    const e = new Error("Error invoking remote method 'domande:chiama': Error: il servizio autopilota non risponde sulla porta 47630: TimeoutError")
+    expect(testoErroreDialogo(e)).toBe(SERVIZIO_OCCUPATO)
+  })
+
   it('un altro errore resta com\'è, solo senza prefisso', () => {
     const e = new Error("Error invoking remote method 'autopilota:dialoga': Error: richiesta IPC non valida: non hai scritto niente")
     expect(testoErroreDialogo(e)).toBe('richiesta IPC non valida: non hai scritto niente')

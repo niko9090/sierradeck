@@ -95,6 +95,7 @@ export function vistaSposta(g: GiornaleSposta | undefined): VistaSposta | undefi
     progetto: g.progetto, nome: g.nome, daNome: g.daNome, fase: g.fase, messaggio: g.messaggio, percorso: g.percorso,
     percentuale: percentualeSposta(g.fase, g.passoPerc),
     puoRiprovare: g.fase === 'fallita',
+    ...(g.fase === 'fallita' && g.fallitaIn !== undefined ? { fallitaIn: g.fallitaIn } : {}),
     ...(g.errore !== undefined ? { errore: g.errore } : {}), ...(g.avvisi !== undefined ? { avvisi: g.avvisi } : {}),
     ...(g.fileFatti !== undefined ? { fileFatti: g.fileFatti } : {}), ...(g.fileTotali !== undefined ? { fileTotali: g.fileTotali } : {}),
     ...(g.byteFatti !== undefined ? { byteFatti: g.byteFatti } : {}), ...(g.byteTotali !== undefined ? { byteTotali: g.byteTotali } : {}),

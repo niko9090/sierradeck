@@ -92,6 +92,36 @@ describe('errori di rete passeggeri', () => {
     for (const t of ['ERR_CONNECTION_RESET', 'ERR_CONNECTION_TIMED_OUT', 'ERR_TIMED_OUT', 'ERR_EMPTY_RESPONSE']) expect(eErroreDiReteTransitorio(`net::${t}`)).toBe(true)
   })
 
+  // Come lo costruisce createHttpError, ma senza statusCode (l'errore è stato riavvolto).
+  const httpSenzaCodice = (n: number, frase: string, descrizione?: unknown): Error =>
+    new Error(`${n} ${frase}${descrizione === undefined ? '' : '\n' + (typeof descrizione === 'string' ? descrizione : JSON.stringify(descrizione, null, '  '))}\nHeaders: {"server":"GitHub.com"}`)
+
+  it('502, 503 e 504 senza statusCode, con frase vuota o descrizione, sono un avviso', () => {
+    const url = 'https://github.com/x/y/releases/download/v1/latest.yml'
+    const desc = { method: 'GET', url, data: '<html>Gateway Time-out</html>' }
+    for (const n of [502, 503, 504]) {
+      for (const e of [httpSenzaCodice(n, ''), httpSenzaCodice(n, 'Gateway Timeout'), httpSenzaCodice(n, '', `method: GET url: ${url}\n\nData:\n${desc.data}`), httpSenzaCodice(n, 'x', desc)]) {
+        expect((e as { statusCode?: number }).statusCode).toBeUndefined()
+        const { a, righe } = nuovo()
+        h.updater.emit('error', e)
+        expect(a.stato().fase).not.toBe('errore')
+        expect(righe.filter((r) => r.startsWith('ERRORE'))).toEqual([])
+        expect(righe.filter((r) => /passeggero/.test(r))).toHaveLength(1)
+        const l = creaLoggerUpdater({ info: (m) => righe.push(`info ${m}`), errore: (m) => righe.push(`ERRORE ${m}`) })
+        l.error(e.message)
+        expect(righe.some((r) => r.startsWith('ERRORE'))).toBe(false)
+      }
+    }
+  })
+
+  it('un 501, un 404 e un 504 nel mezzo del testo restano errori', () => {
+    for (const e of [httpSenzaCodice(501, 'Not Implemented'), httpSenzaCodice(404, 'Not Found'), new Error('errore alla riga 504 del file'), new Error('errore 504\nHeaders: {}')]) {
+      const { a } = nuovo()
+      h.updater.emit('error', e)
+      expect(a.stato().fase).toBe('errore')
+    }
+  })
+
   it('un checksum sbagliato resta un errore vero', () => {
     const { a } = nuovo()
     h.updater.emit('error', new Error('sha512 checksum mismatch'))
