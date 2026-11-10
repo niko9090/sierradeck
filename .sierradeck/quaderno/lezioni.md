@@ -4,7 +4,6 @@
 
 ## test
 
-- Sotto carico il controllo rimanda anche `vitest tests/shared/<prefisso>`: passano solo i file singoli. Salvare l'output della prima suite completa su file, per non perdere il nome del test rosso. _(2026-11-07)_
 - giroInvioErrori è senza stato: il «motivo già scritto» va passato da fuori (parametro `fallimento`), altrimenti il log si ripete a ogni giro di 30 s. _(2026-11-08)_
 - tests/shared/tempi-unione.test.ts non esiste in main: il compito k-174 lo cita, ma nessun test verifica che la fila (25 min) superi la prova (15 min) _(2026-11-08)_
 - l'hook di carico blocca tests/shared intero finché il PC è sopra il 60% di CPU: riprovare dopo qualche minuto, un file alla volta va bene _(2026-11-08)_
@@ -31,6 +30,8 @@
 - un worktree può partire indietro rispetto a main: fare `git merge --ff-only main` prima di misurare, altrimenti mancano i test appena entrati. _(2026-11-10)_
 - `npx vitest run` intero dura circa 160 s su questo PC: un rifiuto "vitest rosso" senza nome di prova può essere un tempo scaduto sotto carico, non il codice. _(2026-11-10)_
 - Un 50x di electron-updater può arrivare come testo senza statusCode: «504 <frase>[\ndescrizione]\nHeaders: {…}». Il riconoscimento deve guardare il testo completo, non solo il campo. _(2026-11-10)_
+- il freno predefinito `frenoDrive` è unico per tutto il processo: nei test di `creaArchivioDrive` dare sempre `freno: creaFreno()`, o un 429 sporca i test seguenti. _(2026-11-10)_
+- un comando Bash con heredoc Python e altro insieme può essere rifiutato nel worktree, ma i passi precedenti possono aver girato lo stesso: ricontrollare `git diff` prima di rifare le modifiche. _(2026-11-10)_
 
 ## worktree
 
@@ -42,22 +43,16 @@
 
 ## errori
 
-- Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: lo si tratta come «in uso» (saltato, non errore; vedi rimozione-sicura.ts e riassetto/recupero.ts) e si riprova al giro dopo. _(2026-11-07)_
-- Un blocco passeggero (EPERM/EBUSY/«Filename too long») non è una criticità: `eBloccoTemporaneo` lo manda fra le tenute e si riprova al giro dopo. _(2026-11-07)_
 - «cosa si stava facendo» prende l'ultima riga info di qualunque sottosistema entro 2 minuti: va filtrato per tag, o mostra contesti non correlati. _(2026-11-08)_
 - un comando Bash che fallisce a metà (es. cmd mklink rifiutato nel worktree) salta anche i passi dopo: ricontrollare git diff --stat prima del commit. _(2026-11-08)_
 
 ## android
 
-- Il criterio gradle si può fare solo uno alla volta: il guardiano PC carico rifiuta anche `gradle` dei sotto-agenti per molti minuti; il BUILD FAILED in 2s può essere un lock. _(2026-11-07)_
-- Api.kt chiama /api/specialisti/attesa/priorita e /togli, che non sono in ROTTE_PONTE (un test PC le vuole fuori): da telefono via ponte non passano. _(2026-11-07)_
-- Il rosso del criterio nella cartella principale con build pulita verde indica stato incrementale (android/app/build, .gradle) o lock, non codice: salvare l'uscita completa della misura. _(2026-11-07)_
-- `gradle clean testDebugUnitTest assembleDebug --no-daemon` in una copia pulita dura circa 3m45 e passa. _(2026-11-07)_
-- Il programma toglie --no-daemon ai gradle dei criteri e dà una TEMP cancellata a fine criterio: il demone riusato cade con NoSuchFileException .alive. Fissato con org.gradle.daemon=false. _(2026-11-07)_
-- Senza JAVA_HOME gradle usa il JRE 25 del PATH e fallisce in 8 s con il messaggio «25.0.4.1»: Gradle 8.11 non regge Java 25. _(2026-11-07)_
-- Con org.gradle.daemon=false il criterio Android nella cartella principale è tornato verde (k-52, 07/11): il rosso di 20-35 s era il demone Gradle riusato con la TEMP cancellata. _(2026-11-07)_
 - Il ramo del worktree può nascere prima del lavoro PC già in main (k-53, k-54): fare `git merge main` prima di leggere i file `src/shared` del PC. _(2026-11-07)_
 - `tests/android/rotte-lente-app.test.ts` impone che `ROTTE_LENTE` sia contenuta nella lista dell'app: ogni rotta lenta nuova va aggiunta anche in `android/`. _(2026-11-09)_
+- PonteTest legge ROTTE_PONTE di ponte-telefono.ts con la regex '([^']+)': un apostrofo dritto in un commento dentro la lista la rompe, usare ’ _(2026-11-10)_
+- gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
+- per l'app le procedure lunghe conviene tenerle sul PC e far rileggere la vista all'app: la pagina le fa girare nel browser, l'app perderebbe il passo con la linea _(2026-11-10)_
 
 ## release
 
@@ -149,6 +144,8 @@
 - A Drive pieno il freno blocca POST/PUT/PATCH ma non DELETE: ogni pulizia va annotata in locale (spazio-intenzioni.json) e il registro sul Drive va riallineato dopo, mai prima. _(2026-11-09)_
 - Il freno blocca solo POST/PUT/PATCH: ogni scrittura fa prima una ricerca GET (google-drive.ts carica), e i ritentativi su rateLimit non guardano il freno. _(2026-11-10)_
 - Il 403 storageQuotaExceeded non entra in «rifiutate» (risorse.ts 179-183): le rifiutate sono solo limiti di velocità. _(2026-11-10)_
+- `conFreno` alza il freno sulla prima risposta 429/rateLimit, quindi un controllo `attesaMs() > 0` dentro `conRitenta` equivale a «mai ritentare i limiti»; i test che si aspettano il ritentativo vanno… _(2026-11-10)_
+- in `conLimite` un errore ferma solo il suo lavoratore: gli altri continuano con le voci rimaste. Per fermare tutto serve un flag condiviso, come `pienoVisto` in `salvaIncrementale`. _(2026-11-10)_
 
 ## posta
 
@@ -270,6 +267,7 @@
 - i canali nuovi di window.gestore vanno dichiarati opzionali in env.d.ts e chiamati con `?.`: i finti dei test e le app più vecchie non li hanno. _(2026-11-08)_
 - La Panoramica non ha una lettura propria: gli specialisti li legge `ChatSpecialisti` col sondaggio dell'orchestratore, e l'evento specialistiCambiati si aggancia con `sond.rileggi()`. _(2026-11-08)_
 - scriviQuandoPronta guarda solo i riquadri del workspace corrente: un avviso mandato a una chat di un workspace tenuto dietro sparisce in silenzio, quindi non va segnato come consegnato. _(2026-11-09)_
+- PannelloDomande mostra String(e) grezzo invece di testoErroreDialogo: a Nicholas arriva il messaggio tecnico con «Error invoking remote method». _(2026-11-10)_
 
 ## fermate
 
@@ -307,6 +305,7 @@
 
 - l'installer uccide anche il servizio autopiloti: memoria persa (messaggi e specialisti). Ripresa dal disco con `ripresaDopoRiavvio`, non basta il «lavoro fermo» (3 min, 2 spinte). _(2026-11-09)_
 - riprendiLavori({servizioAppenaPartito}) gira anche all'avvio del PC e dopo un crash, non solo dopo un aggiornamento: quello che fa lì va pensato come avvio normale _(2026-11-09)_
+- «rispondi» a una domanda usa ancora l'attesa di 3 s (autopilot-client.ts:411-415): la 0.95.5 ha alzato a 30 s solo il dialogo. Ogni POST che scrive deve passare attesaScrittura. _(2026-11-10)_
 
 ## registro
 
@@ -348,3 +347,7 @@
 ## verifica
 
 - su Windows il checkout con autocrlf dà CRLF nei file del worktree: un confronto byte a byte con la cartella principale segnala «diversi» anche con contenuto uguale. Confrontare ignorando i CR (`tr -d… _(2026-11-10)_
+
+## rete
+
+- nel client dell'autopilota ogni POST che fa scrivere il servizio su disco deve passare `attesaScrittura`: senza, valgono i 3 s di lettura e sotto carico scade. _(2026-11-10)_

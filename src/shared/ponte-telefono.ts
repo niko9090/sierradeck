@@ -49,9 +49,7 @@ export const ROTTE_PONTE: readonly string[] = [
   // Il pannello delle chat e dei progetti del Drive di quel PC (0.58.0).
   '/api/drive/pannello', '/api/drive/azione',
   // «Libera spazio sul Drive» (0.99): la misura, le pulizie in sospeso e la ripresa di quel PC.
-  '/api/drive/spazio/stato', '/api/drive/spazio/quota', '/api/drive/spazio/in-sospeso', '/api/drive/spazio/riprendi',
-  // E la procedura intera per l’app Android (k-310), tenuta da quel PC.
-  '/api/drive/spazio/procedura', '/api/drive/spazio/passo'
+  '/api/drive/spazio/stato', '/api/drive/spazio/quota', '/api/drive/spazio/in-sospeso', '/api/drive/spazio/riprendi'
 ]
 
 export function rottaPonte(percorso: string): boolean {

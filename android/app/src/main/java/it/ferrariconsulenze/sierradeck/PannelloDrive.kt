@@ -108,10 +108,10 @@ sealed class AperturaChat {
     val pcDaAggiornare: List<String> = emptyList(), val rimozione: RimozioneDrive = RimozioneDrive(),
     /** PC 0.65.0: lo spazio sul Drive e le pulizie. Assente sui PC prima, o mentre la prima misura è in corso. */
     val spazio: StatoSpazioDrive? = null,
-    /** PC 0.88.0: «Sposta su questo PC» in corso o appena finito (k-310: percentuale, passi, errore, Riprova). */
-    val sposta: VistaSpostaDrive? = null
+    /** PC 0.88.0: «Sposta su questo PC» in corso o appena finito (k-308). */
+    val sposta: VistaSposta? = null
 )
-@Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "")
+@Serializable data class EsitoAzioneDrive(val ok: Boolean = false, val messaggio: String = "", val inSospeso: Boolean = false, val drivePieno: Boolean = false)
 
 object PannelloDriveRegole {
     /** « · sul Drive 340 MB · ⚠ 2 file grandi: a.mp4, b.zip» — come la riga del PC; vuoto se il PC non lo dice. */
@@ -295,29 +295,19 @@ fun SezionePannelloDrive(api: Api) {
     LaunchedEffect(spenta) { if (!spenta) leggi() }
     val senzaSpazio = p != null && p?.spazio == null
     LaunchedEffect(senzaSpazio) { var giri = 0; while (senzaSpazio && giri < 5) { Davanti.pausa(4000); leggi(); giri += 1; if (p?.spazio != null) break } }
-    // Mentre uno spostamento lavora (o «Riprova» lo sta facendo ripartire), si rilegge da solo ogni 3 secondi.
-    var riprovando by remember { mutableStateOf(false) }
-    val spostaInCorso = (p?.sposta?.let { !SpostaRegole.finita(it) } ?: false) || riprovando
-    LaunchedEffect(spostaInCorso) { while (spostaInCorso) { Davanti.pausa(3000); leggi() } }
 
     if (spenta) { Text(FunzioniPc.testoMancante(FunzionePc.PANNELLO_DRIVE), color = Banco.ambra, fontSize = 13.sp); return }
     guasto?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     val d = p ?: run { if (guasto == null) Text("Leggo…", color = Banco.testoQuieto, fontSize = 13.sp); return }
     if (d.pcDaAggiornare.isNotEmpty()) RigaConAiuto("${d.pcDaAggiornare.joinToString(", ")}: va aggiornato", "Finché non è aggiornato, di quel PC si vedono solo le copie caricate sul Drive.")
-    // «Sposta su questo PC» (k-310): sempre in cima, nell'elenco e nel dettaglio.
-    d.sposta?.let { s ->
-        AvanzamentoSpostaVista(s, riprovando,
-            onRiprova = {
-                scope.launch {
-                    riprovando = true
-                    val r = tenta("riprovare lo spostamento") { api.azioneDrive("sposta-qui", s.progetto) }
-                    if (r != null && r.messaggio.isNotBlank()) Nota.mostra(r.messaggio)
-                    riprovando = false
-                    leggi()
-                }
-            },
-            onChiudi = { fai({ api.azioneDrive("sposta-chiudi", "") }, "chiudere lo spostamento") })
-    }
+
+    // «Sposta su questo PC» (k-308): finché è in corso si rilegge ogni 4 secondi, e resta a vista finché non lo chiudi.
+    val sposta = d.sposta
+    val spostaInCorso = sposta != null && !SpostaRegole.finita(sposta)
+    LaunchedEffect(spostaInCorso) { while (spostaInCorso) { Davanti.pausa(4000); leggi() } }
+    if (sposta != null) AvanzamentoSposta(sposta, occupato = false,
+        onRiprova = { fai({ api.azioneDrive("sposta-qui", sposta.progetto) }, "riprovare lo spostamento") },
+        onChiudi = { fai({ api.azioneDrive("sposta-chiudi", "") }, "chiudere lo spostamento") })
 
     // Il dettaglio a tutto schermo: «‹ Progetti» torna all'elenco.
     val sel = scelto?.let { id -> d.progetti.firstOrNull { it.id == id } }
@@ -364,12 +354,13 @@ fun SezionePannelloDrive(api: Api) {
         Titoletto("Strumenti")
         val inRec = d.rimozione.inRecupero.filter { it.ripristinataIl == null }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            val voci = listOf("chat" to "Tutte le chat", "spazio" to "Spazio sul Drive") +
+            val voci = listOf("chat" to "Tutte le chat", "spazio" to "Spazio sul Drive", "libera" to "Libera spazio") +
                 (if (inRec.isNotEmpty()) listOf("recupero" to "Cartelle in recupero (${inRec.size})") else emptyList())
             for ((id, nome) in voci) FilterChip(selected = strumento == id, onClick = { strumento = if (strumento == id) null else id }, label = { Text(nome) })
         }
         when (strumento) {
             "chat" -> TutteLeChatDrive(d, filtro, { filtro = it }, senzaNome, { senzaNome = it })
+            "libera" -> LiberaSpazioSchermata(api, onChiudi = { strumento = null })
             "spazio" -> SpazioDriveSezione(d, fai = { a, b -> fai(a, b) }, chiedi = { conferma = it }, api = api)
             "recupero" -> for (c in inRec) {
                 Text("${c.nome} · tolta il ${QuadernoPersonaleTesti.quando(c.quando)} · fino al ${QuadernoPersonaleTesti.quando(c.scadeIl)}", color = Banco.testo, fontSize = 12.sp)
@@ -461,10 +452,6 @@ private fun DettaglioProgetto(d: PannelloDrive, r: RigaProgettoDrive, onIndietro
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SpazioDriveSezione(d: PannelloDrive, fai: (suspend () -> EsitoAzioneDrive, String) -> Unit, chiedi: (DaConfermare) -> Unit, api: Api) {
-    // «Libera spazio sul Drive» (k-310): la procedura guidata, con percentuale, passi e byte prima e dopo.
-    var guidata by remember { mutableStateOf(false) }
-    if (guidata) { LiberaSpazioVista(api, onChiudi = { guidata = false }); return }
-    Button(onClick = { guidata = true }, modifier = Modifier.padding(top = 6.dp)) { Text("Libera spazio…") }
     val sp = d.spazio ?: run { Text("Misuro il Drive…", color = Banco.testoQuieto, fontSize = 12.sp); return }
     sp.errore?.let { Text(it, color = Banco.ambra, fontSize = 12.sp) }
     sp.misura?.let { m ->

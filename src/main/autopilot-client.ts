@@ -371,9 +371,9 @@ export function creaClientAutopilota(p: {
       const r = (await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta`, 'POST', { chat, soloMie }, attesaScrittura)) as { nuove?: unknown } | undefined
       return Array.isArray(r?.nuove) ? r.nuove.filter((x): x is string => typeof x === 'string') : []
     },
-    togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }) },
-    soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }) },
-    adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }) },
+    togliAdottate: async (id, sessioni) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adotta/togli`, 'POST', { sessioni }, attesaScrittura) },
+    soloMia: async (id, sessione, si) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/solo-mia`, 'POST', { sessione, si }, attesaScrittura) },
+    adottateScritti: async (id, ids) => { await chiama(`/autopiloti/${encodeURIComponent(id)}/adottate/scritti`, 'POST', { ids }, attesaScrittura) },
     ripara: async (id) => {
       const r = (await chiama('/autoriparazione', 'POST', { id }, 10 * 60_000)) as { voci?: VoceRiparazione[]; copiato?: boolean } | undefined
       return { voci: Array.isArray(r?.voci) ? r.voci : [], copiato: r?.copiato === true }
@@ -388,7 +388,7 @@ export function creaClientAutopilota(p: {
       return typeof r?.riga === 'string' ? r.riga : 'autopulizia fatta'
     },
     archiviaDoppioni: async (richiesta) => {
-      const r = (await chiama('/orchestratore/doppioni', 'POST', richiesta)) as { archiviati?: unknown; errori?: unknown } | undefined
+      const r = (await chiama('/orchestratore/doppioni', 'POST', richiesta, attesaScrittura)) as { archiviati?: unknown; errori?: unknown } | undefined
       const righe = Array.isArray(r?.archiviati)
         ? r.archiviati.flatMap((x) => (typeof (x as { riga?: unknown }).riga === 'string' ? [(x as { riga: string }).riga] : []))
         : []
@@ -407,15 +407,28 @@ export function creaClientAutopilota(p: {
       return Array.isArray(r) ? (r as DomandaRisolta[]) : []
     },
     postiChat: async () => leggiPostiChat(await chiama('/posti-chat', 'GET').catch(() => undefined)),
-    esitoConsegna: async (consegna, esito) => { await chiama('/consegne/esito', 'POST', { id: consegna, esito }) },
+    esitoConsegna: async (consegna, esito) => { await chiama('/consegne/esito', 'POST', { id: consegna, esito }, attesaScrittura) },
     rispondi: async (idDomanda, risposta) => {
       // `da: 'modale'` dice al servizio da dove è arrivata: serve al registro
       // delle domande, dove vale la prima risposta fra schermo e Telegram.
-      await chiama(`/domande/${encodeURIComponent(idDomanda)}/risposta`, 'POST', { risposta, da: 'modale' })
+      try {
+        await chiama(`/domande/${encodeURIComponent(idDomanda)}/risposta`, 'POST', { risposta, da: 'modale' }, attesaScrittura)
+      } catch (err) {
+        if ((err as { scaduto?: boolean }).scaduto !== true) throw err
+        // Il servizio scrive su disco prima di rispondere: se la domanda non
+        // e' piu' aperta, la risposta e' arrivata e non e' un errore.
+        const ancoraAperta = await chiama('/domande', 'GET').then(
+          (l) => Array.isArray(l) && (l as DomandaAperta[]).some((d) => d.id === idDomanda),
+          () => true
+        )
+        if (!ancoraAperta) return
+        p.log?.(`[autopilota] risposta: nessuna conferma dal servizio (${String(err)})`)
+        throw Object.assign(new Error(MESSAGGIO_SERVIZIO_OCCUPATO), { scaduto: true })
+      }
     },
 
     async pausaAggiornamento(attiva) {
-      const esito = (await chiama('/pausa-aggiornamento', 'POST', { attiva })) as
+      const esito = (await chiama('/pausa-aggiornamento', 'POST', { attiva }, attesaScrittura)) as
         { toccati?: unknown } | undefined
       return typeof esito?.toccati === 'number' ? esito.toccati : 0
     },
@@ -447,8 +460,8 @@ export function creaClientAutopilota(p: {
         throw err
       }
     },
-    separaCoda: async (ws, id) => (await chiama('/coda/separa', 'POST', { ws, id })) as VistaCoda,
-    unisciCoda: async (ws, u) => (await chiama('/coda/unisci', 'POST', { ws, ...u })) as VistaCoda,
+    separaCoda: async (ws, id) => (await chiama('/coda/separa', 'POST', { ws, id }, attesaScrittura)) as VistaCoda,
+    unisciCoda: async (ws, u) => (await chiama('/coda/unisci', 'POST', { ws, ...u }, attesaScrittura)) as VistaCoda,
     async specialista(ws, id) {
       try {
         const r = (await chiama(`/orchestratore/specialista?ws=${encodeURIComponent(ws)}&id=${encodeURIComponent(id)}`, 'GET')) as TrascrizioneSpecialista | undefined
@@ -468,12 +481,12 @@ export function creaClientAutopilota(p: {
         throw err
       }
     },
-    impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p })) as VistaOrchestratore,
+    impostaOrchestratore: async (ws, p) => (await chiama('/orchestratore/impostazioni', 'POST', { ws, ...p }, attesaScrittura)) as VistaOrchestratore,
     async attesaSpecialisti() {
       try { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET')) } catch { return undefined }
     },
     // Voce già partita o tolta (404): la lista com'è adesso.
-    prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
+    prioritaAttesa: async (id, mossa) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/priorita', 'POST', { id, mossa }, attesaScrittura)) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
     suCambioSpecialisti(f) {
       let fermo = false
       let versione = 0
@@ -497,11 +510,11 @@ export function creaClientAutopilota(p: {
       void ciclo()
       return () => { fermo = true }
     },
-    togliAttesa: async (id) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/togli', 'POST', { id })) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
+    togliAttesa: async (id) => { try { return vistaAttesaValida(await chiama('/orchestratore/attesa/togli', 'POST', { id }, attesaScrittura)) } catch { return vistaAttesaValida(await chiama('/orchestratore/attesa', 'GET').catch(() => undefined)) } },
 
     async gestoreAvviato(aggiornamento) {
       // 0.84.3: le fasi dell'aggiornamento appena fatto, per la riga di riepilogo.
-      const esito = (await chiama('/gestore-avviato', 'POST', aggiornamento !== undefined ? { aggiornamento } : undefined)) as { ripresi?: unknown } | undefined
+      const esito = (await chiama('/gestore-avviato', 'POST', aggiornamento !== undefined ? { aggiornamento } : undefined, attesaScrittura)) as { ripresi?: unknown } | undefined
       return typeof esito?.ripresi === 'number' ? esito.ripresi : 0
     },
 

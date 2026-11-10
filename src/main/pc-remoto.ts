@@ -155,8 +155,8 @@ export const ROTTE_LENTE: readonly string[] = [
   // La gestione delle chat (0.79.0): lo spazio misura ogni chat sul disco, Elimina
   // e Ripristina spostano file, Svuota cancella davvero. Visto in revisione (ECC).
   '/api/chat/gestione/spazio', '/api/chat/gestione/azione', '/api/chat/gestione/ripristina', '/api/chat/gestione/svuota',
-  // «Libera spazio sul Drive» (k-310): la misura legge la quota e le proposte dal Drive.
-  '/api/drive/spazio/procedura', '/api/drive/spazio/quota', '/api/drive/spazio/stato'
+  // «Libera spazio sul Drive» dal telefono: misurare la quota e le proposte legge il Drive.
+  '/api/drive/spazio/stato', '/api/drive/spazio/quota', '/api/drive/spazio/in-sospeso', '/api/drive/spazio/riprendi'
 ]
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /**

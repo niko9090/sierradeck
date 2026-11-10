@@ -212,48 +212,6 @@ export function righeDa(passi: Passo[], memoria: Record<string, EsitoMemoria | u
   return righe
 }
 
-/**
- * A che punto è la procedura, 0…100: i passi chiusi (fatti o saltati) sui
- * passi mostrati. Un passo in corso conta mezzo. Senza passi: 100 (non c'è
- * niente da fare). In errore non conta: resta da rifare.
- */
-export function percentualeProcedura(righe: { stato: StatoPasso }[]): number {
-  if (righe.length === 0) return 100
-  let fatti = 0
-  for (const r of righe) fatti += r.stato === 'fatto' || r.stato === 'saltato' ? 1 : r.stato === 'in-corso' ? 0.5 : 0
-  return Math.round((fatti / righe.length) * 100)
-}
-
-/** La quota come la vede l'app: già divisa fra SierraDeck e il resto. */
-export type QuotaVistaApp = {
-  percentuale?: number
-  usato: number
-  limite?: number
-  sierraDeck: number
-  fuori: number
-  nelCestino?: number
-}
-
-/** «Libera spazio sul Drive» per l'app Android: la procedura la tiene il PC, l'app la disegna. */
-export type VistaLiberaApp = {
-  misurata: boolean
-  /** A che punto è la procedura (`percentualeProcedura`). */
-  percentuale: number
-  /** Il passo che sta lavorando adesso (si rilegge finché c'è). */
-  inCorso?: IdPasso
-  righe: RigaPasso[]
-  /** La misura all'inizio della procedura e quella di adesso. */
-  prima?: QuotaVistaApp
-  adesso?: QuotaVistaApp
-  /** Byte di SierraDeck sul Drive liberati da quando la procedura è cominciata. */
-  liberati?: number
-  drivePieno: boolean
-  /** La frase quando il grosso è fuori da SierraDeck. */
-  grossoFuori?: string
-  inSospeso: { titolo: string; byte: number }[]
-  errore?: string
-}
-
 /** La riga in fondo: da quanto a quanto, e se resta qualcosa in sospeso. */
 export function riepilogoFinale(iniziale: QuotaMisurata | undefined, finale: QuotaMisurata | undefined, inSospeso: number): {
   prima?: number
