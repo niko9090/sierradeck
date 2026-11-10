@@ -540,10 +540,35 @@ export function iniziaProvaAsincrono(git: GitAsincrono, p: { cwd: string; ramo: 
   return aspettando(git, iniziaProvaPassi(p))
 }
 
-/** Le righe di `git status --porcelain` sono tutte file sotto `.sierradeck/` (e ce n'è almeno una). */
+/**
+ * Le voci di `git status --porcelain`. Il nostro `git` mescola stderr e stdout
+ * e toglie gli spazi di testa: gli avvisi («warning: ... CRLF will be replaced ...»,
+ * `hint:`) non sono file e non vanno contati. Le voci sono «XY percorso».
+ */
+function vociPorcelain(porcelain: string): string[] {
+  return porcelain.split(/\r?\n/).filter((r) => /^[ MTADRCU?!]{1,2} \S/.test(r) && !/^(warning|hint|error|fatal):/i.test(r))
+}
+
+function percorsiDellaVoce(voce: string): string[] {
+  return voce.replace(/^[ MTADRCU?!]{1,2} /, '').split(' -> ').map((x) => x.replace(/^"|"$/g, ''))
+}
+
+/** Le voci di `git status --porcelain` sono tutte file sotto `.sierradeck/` (e ce n'è almeno una). */
 export function soloNoteDelProgramma(porcelain: string): boolean {
-  const righe = porcelain.split(/\r?\n/).filter((r) => r.trim() !== '')
-  return righe.length > 0 && righe.every((r) => r.replace(/^\s*\S{1,2}\s+/, '').split(' -> ').every((x) => x.replace(/^"|"$/g, '').startsWith('.sierradeck/')))
+  const voci = vociPorcelain(porcelain)
+  return voci.length > 0 && voci.every((v) => percorsiDellaVoce(v).every((x) => x.startsWith('.sierradeck/')))
+}
+
+/**
+ * **Solo aggiunte alle note** (10/11): `git diff --numstat` dice quante righe
+ * sono state tolte per ogni file sotto `.sierradeck/`. Il programma annota
+ * (`quaderno_annota`, le lezioni dei riepiloghi) sempre in coda: nessuna riga
+ * tolta, nessun file binario. Un file con righe tolte o cambiate è di Nicholas.
+ * Gli a capo non contano (`--ignore-space-at-eol`).
+ */
+export function soloAggiunteNumstat(numstat: string): boolean {
+  const righe = numstat.split(/\r?\n/).filter((r) => /^(\d+|-)\t(\d+|-)\t/.test(r))
+  return righe.every((r) => /^\d+\t0\t/.test(r))
 }
 
 /** Il motivo con cui l'unione di prova si rifiuta quando la cartella ha file a metà che non sono del programma. */
@@ -606,12 +631,17 @@ function* iniziaProvaPassi(p: { cwd: string; ramo: string; base: string }): Pass
   // Solo le note del programma (`.sierradeck/`: quaderno, consegne)? Si salvano
   // con un commit e si va avanti (0.88.5): il 30/10 l'unione di k-1 è rimasta
   // ferma per due note, e né l'autopilota né gli specialisti potevano salvarle.
+  // 10/11: solo se sono aggiunte (niente righe tolte a mano da Nicholas) e
+  // contando solo le voci vere: un avviso di git sugli a capo non è un file.
   if (sporca.codice === 0 && soloNoteDelProgramma(sporca.uscita)) {
-    yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
-    yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
-    sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+    const righe = yield* chiedi(['diff', '--numstat', '--ignore-space-at-eol', 'HEAD', '--', '.sierradeck'], radice)
+    if (righe.codice === 0 && soloAggiunteNumstat(righe.uscita)) {
+      yield* chiedi(['add', '-u', '--', '.sierradeck'], radice)
+      yield* chiedi([...(yield* firma(radice)), 'commit', '-m', 'quaderno: le note del programma, prima di unire', '--', '.sierradeck'], radice)
+      sporca = yield* chiedi(['status', '--porcelain', '--untracked-files=no'], radice)
+    }
   }
-  if (sporca.codice !== 0 || sporca.uscita.trim() !== '') return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
+  if (sporca.codice !== 0 || vociPorcelain(sporca.uscita).length > 0) return { ok: false, motivo: MOTIVO_CARTELLA_SPORCA }
   // Il segno prima dell'unione: se il processo muore a metà, il prossimo la riconosce.
   if (dir !== undefined) {
     const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.ramo}`], radice)
