@@ -155,6 +155,32 @@ export function controllaCancellazione(percorso: string, opzioni: { dentro: stri
   return { ok: true, percorso: resolve(percorso) }
 }
 
+/**
+ * Il divieto che **nessun consenso** scioglie (guardia dei comandi delle chat,
+ * con il permesso di Nicholas): la radice di un disco, una cartella protetta
+ * per intero (la cartella utente, AppData, AppData\Local, AppData\Roaming,
+ * Windows, Program Files…) e qualunque cartella che ne contiene una. Dentro
+ * quelle cartelle, invece, un percorso preciso si può cancellare col consenso.
+ * Guarda sia il percorso scritto sia quello vero (giunzioni risolte).
+ * Restituisce il motivo, o `undefined` se il divieto non c'è.
+ */
+export function divietoAssoluto(percorso: string, ambiente: AmbienteCancellazione = ambienteVero()): string | undefined {
+  if (typeof percorso !== 'string' || percorso.trim() === '' || !isAbsolute(percorso)) return `percorso non assoluto: «${String(percorso)}»`
+  const protette = cartelleProtette(ambiente)
+  const guarda = (p: string, nota: string): string | undefined => {
+    if (p === parse(p).root) return `${percorso} è la radice di un disco${nota}`
+    for (const c of protette) {
+      if (p === c.percorso) return `${percorso} è ${c.nome}${nota}`
+      if (dentroDi(c.percorso, p)) return `${percorso} contiene ${c.nome}${nota}`
+    }
+    return undefined
+  }
+  const scritto = guarda(pulito(percorso, ambiente.windows), '')
+  if (scritto !== undefined) return scritto
+  const vero = percorsoVero(percorso)
+  return vero === undefined ? undefined : guarda(pulito(vero, ambiente.windows), ' (percorso vero)')
+}
+
 function percorsoVero(p: string): string | undefined {
   try {
     if (!existsSync(p)) {
