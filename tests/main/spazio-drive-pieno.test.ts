@@ -76,6 +76,7 @@ function banco(opz: { pieno?: boolean; capacita?: number; copie?: Map<string, { 
     adesso: () => adesso,
     pieno: () => freno.pieno(),
     pienoDetto: () => freno.pienoDetto(),
+    inAttesa: () => freno.attesaMs() > 0,
     intenzioni,
     ...(recupero !== undefined ? { recuperoDrivePieno: () => recupero } : {})
   })
@@ -307,5 +308,48 @@ describe('la misura della quota', () => {
     expect(q!.sierraDeck.perTipo.orfani.file).toBe(1)
     expect(Object.keys(q!.sierraDeck.perTipo).sort()).toEqual(['battiti', 'chat', 'orfani', 'progetti', 'recupero', 'sistema'])
     expect(b.righe.some((r) => r.startsWith('[spazio] quota: usato') && r.includes('(100%)') && r.includes('nel cestino'))).toBe(true)
+  })
+})
+
+describe('le versioni vecchie e il limite di velocità (k-315)', () => {
+  const revisioni = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `r${i}`, modificato: new Date(Date.parse('2026-11-01T00:00:00Z') + i * 60_000).toISOString(), byte: 10 }))
+
+  function conRevisioni(b: ReturnType<typeof banco>, alPrimoElenco?: () => void) {
+    const chiamate = { elenco: 0, cancella: 0 }
+    Object.assign(b.archivio, {
+      elencaRevisioni: async () => { chiamate.elenco += 1; if (chiamate.elenco === 1) alPrimoElenco?.(); return revisioni(8) },
+      cancellaRevisione: async () => { chiamate.cancella += 1; return 'ok' as const }
+    })
+    return chiamate
+  }
+
+  it('dopo il limite di velocità il ciclo non fa altre elencaRevisioni', async () => {
+    const b = await banco()
+    await b.ora()
+    const c = conRevisioni(b, () => b.freno.limiteRaggiunto())
+    const e = await b.spazio.liberaVersioni()
+    expect(c.elenco).toBe(1)
+    expect(e.ok).toBe(true)
+    expect(e.messaggio).toMatch(/rallentare/)
+  })
+
+  it('il conteggio si ferma allo stesso modo e non dà una stima a metà', async () => {
+    const b = await banco()
+    await b.ora()
+    const c = conRevisioni(b, () => b.freno.limiteRaggiunto())
+    const e = await b.spazio.contaVersioni()
+    expect(c.elenco).toBe(1)
+    expect(e.ok).toBe(false)
+  })
+
+  it('a Drive pieno, senza limite, le cancellazioni delle versioni partono: servono a liberare spazio', async () => {
+    const b = await banco()
+    await b.ora()
+    expect(b.freno.pieno()).toBe(true)
+    const c = conRevisioni(b)
+    const e = await b.spazio.liberaVersioni()
+    expect(e.ok).toBe(true)
+    expect(c.elenco).toBeGreaterThan(1)
+    expect(c.cancella).toBeGreaterThan(0)
   })
 })

@@ -71,23 +71,39 @@ describe('rifiuti di frequenza: attesa che cresce, con un po\' di casualita\'', 
     expect(f.attesaMs()).toBe(ATTESA_LIMITE_MAX_MS)
   })
 
-  it('l\'archivio: 429 e 403 rateLimit si ritentano con pause crescenti, senza moltiplicare i tentativi', async () => {
+  it('l\'archivio: 429 e 403 rateLimit alzano il freno e non si ritenta a vuoto', async () => {
     for (const [stato, corpo] of [[429, '{}'], [403, LIMITE]] as const) {
       let richieste = 0
       const pause: number[] = []
-      const fetchFinto = (async () => { richieste += 1; return richieste <= 3 ? new Response(corpo, { status: stato }) : new Response('{}', { status: 200 }) }) as unknown as typeof fetch
-      const a = creaArchivioDrive({ token: async () => 't', fetch: fetchFinto, freno: creaFreno(), caso: () => 0.5, pausa: async (ms) => { pause.push(ms) } })
-      await a.cancellaId!('x')
-      expect(richieste).toBe(4)
-      expect(pause).toEqual([2000, 4000, 8000])
+      const freno = creaFreno()
+      const fetchFinto = (async () => { richieste += 1; return new Response(corpo, { status: stato }) }) as unknown as typeof fetch
+      const a = creaArchivioDrive({ token: async () => 't', fetch: fetchFinto, freno, caso: () => 0.5, pausa: async (ms) => { pause.push(ms) } })
+      await expect(a.cancellaId!('x')).rejects.toThrow()
+      expect(richieste).toBe(1)
+      expect(pause).toEqual([])
+      expect(freno.attesaMs()).toBeGreaterThan(0)
     }
   })
 
-  it('dopo 5 rifiuti si ferma e non insiste', async () => {
+  it('senza freno in attesa (errori transitori 503) i ritentativi con pause crescenti ci sono ancora', async () => {
     let richieste = 0
-    const a = creaArchivioDrive({ token: async () => 't', fetch: (async () => { richieste += 1; return new Response('{}', { status: 429 }) }) as unknown as typeof fetch, freno: creaFreno(), caso: () => 0.5, pausa: async () => undefined })
+    const pause: number[] = []
+    const fetchFinto = (async () => { richieste += 1; return richieste <= 3 ? new Response('{}', { status: 503 }) : new Response('{}', { status: 200 }) }) as unknown as typeof fetch
+    const a = creaArchivioDrive({ token: async () => 't', fetch: fetchFinto, freno: creaFreno(), caso: () => 0.5, pausa: async (ms) => { pause.push(ms) } })
+    await a.cancellaId!('x')
+    expect(richieste).toBe(4)
+    expect(pause.length).toBe(3)
+    expect(pause[1]!).toBeGreaterThan(pause[0]!)
+    expect(pause[2]!).toBeGreaterThan(pause[1]!)
+  })
+
+  it('con un 429 e il freno gia\' in attesa si ferma subito e non insiste', async () => {
+    let richieste = 0
+    const freno = creaFreno()
+    freno.limiteRaggiunto()
+    const a = creaArchivioDrive({ token: async () => 't', fetch: (async () => { richieste += 1; return new Response('{}', { status: 429 }) }) as unknown as typeof fetch, freno, caso: () => 0.5, pausa: async () => undefined })
     await expect(a.cancellaId!('x')).rejects.toThrow()
-    expect(richieste).toBe(5)
+    expect(richieste).toBeLessThanOrEqual(1)
   })
 })
 

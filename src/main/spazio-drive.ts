@@ -483,10 +483,20 @@ export function creaSpazioDrive(deps: {
   }
 
   /** Quattro alla volta: sono richieste al Drive, con il suo limite al minuto. */
-  const inParallelo = async <T>(voci: T[], quanti: number, fai: (v: T) => Promise<void>): Promise<void> => {
+  const inParallelo = async <T>(voci: T[], quanti: number, fai: (v: T) => Promise<void>): Promise<{ fermataPerLimite: boolean }> => {
     let i = 0
-    const lavora = async (): Promise<void> => { while (i < voci.length) { const v = voci[i++] as T; await fai(v) } }
+    let fermataPerLimite = false
+    // Ci si ferma solo per il limite di velocita' (k-315): le richieste che restano sarebbero rifiutate e
+    // allungherebbero l'attesa. Il «pieno» NON ferma: le DELETE servono proprio a liberare spazio.
+    const lavora = async (): Promise<void> => {
+      while (i < voci.length) {
+        if (deps.inAttesa?.() === true) { fermataPerLimite = true; return }
+        const v = voci[i++] as T
+        await fai(v)
+      }
+    }
     await Promise.all(Array.from({ length: Math.min(quanti, voci.length) }, lavora))
+    return { fermataPerLimite }
   }
 
   return {
@@ -504,7 +514,7 @@ export function creaSpazioDrive(deps: {
         let viste = 0
         let conPiuDiUna = 0
         const cand = await candidatiVersioni(a)
-        await inParallelo(cand, 4, async (c) => {
+        const giro = await inParallelo(cand, 4, async (c) => {
           try {
             const tutte = await a.elencaRevisioni!(c.id)
             viste += tutte.length
@@ -512,6 +522,11 @@ export function creaSpazioDrive(deps: {
             lette.push({ nome: c.nome, id: c.id, revisioni: revisioniDaCancellare(tutte, c.tenere) })
           } catch (err) { errori += 1; primoErrore ??= messaggioErrore(err) }
         })
+        if (giro.fermataPerLimite) {
+          // Un conteggio a meta' sarebbe una stima falsa: non si tiene.
+          deps.log(`[spazio] versioni: il Drive chiede di rallentare, conteggio interrotto dopo ${lette.length} file su ${cand.length}`)
+          return { ok: false, messaggio: 'Il Drive chiede di rallentare: riprova fra qualche minuto.' }
+        }
         stimaVersioniFatta = stimaVersioni(lette, adesso())
         ultimo = undefined
         deps.log(`[spazio] versioni vecchie contate: ${stimaVersioniFatta.revisioni} in ${stimaVersioniFatta.file.length} file su ${cand.length} (${byteLeggibili(stimaVersioniFatta.byte)}); il Drive mostra ${viste} revisioni in tutto, ${conPiuDiUna} file ne hanno piu' di una${errori > 0 ? `, ${errori} file non letti (${primoErrore ?? '?'})` : ''}`)
@@ -532,9 +547,10 @@ export function creaSpazioDrive(deps: {
       let rifiutate = 0
       let errori = 0
       let byte = 0
+      let giro: { fermataPerLimite: boolean } | undefined
       try {
         const cand = await candidatiVersioni(a)
-        await inParallelo(cand, 4, async (c) => {
+        giro = await inParallelo(cand, 4, async (c) => {
           let daTogliere
           // Si rilegge adesso: quello che si cancella e' quello che c'e' ora, non la stima di prima.
           try { daTogliere = revisioniDaCancellare(await a.elencaRevisioni!(c.id), c.tenere) } catch { errori += 1; return }
@@ -555,9 +571,9 @@ export function creaSpazioDrive(deps: {
         stimaVersioniFatta = undefined
         ultimo = undefined
       }
-      deps.log(`[spazio] versioni vecchie tolte su conferma: ${tolte} (${byteLeggibili(byte)}), ${rifiutate} rifiutate dal Drive, ${errori} errori`)
+      deps.log(`[spazio] versioni vecchie tolte su conferma: ${tolte} (${byteLeggibili(byte)}), ${rifiutate} rifiutate dal Drive, ${errori} errori${giro?.fermataPerLimite === true ? ', fermata per il limite di velocità' : ''}`)
       const saltate = rifiutate + errori
-      return { ok: true, messaggio: `Tolte ${tolte} versioni vecchie (circa ${byteLeggibili(byte)} liberati)${saltate > 0 ? `; ${saltate} saltate, il Drive non le ha cancellate` : ''}.` }
+      return { ok: true, messaggio: `Tolte ${tolte} versioni vecchie (circa ${byteLeggibili(byte)} liberati)${saltate > 0 ? `; ${saltate} saltate, il Drive non le ha cancellate` : ''}${giro?.fermataPerLimite === true ? '; il Drive ha chiesto di rallentare, il resto alla prossima' : ''}.` }
     },
 
     async stato(forza = false) {

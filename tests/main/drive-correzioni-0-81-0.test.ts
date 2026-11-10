@@ -105,12 +105,16 @@ describe('un 403 di Google', () => {
     return { fetch, chiamate: () => n }
   }
 
-  it('«troppe richieste» si riprova', async () => {
+  // k-315: il rifiuto per «troppe richieste» alza il freno e NON si ritenta subito: riprovare contro il limite
+  // moltiplicava i rifiuti. Il giro riparte dopo l'attesa del freno.
+  it('«troppe richieste» alza il freno e non si riprova subito', async () => {
     const corpo = JSON.stringify({ error: { code: 403, message: 'User Rate Limit Exceeded', errors: [{ reason: 'userRateLimitExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
-    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
-    expect((await a.elenca()).size).toBe(0)
-    expect(d.chiamate()).toBe(2)
+    const freno = creaFreno()
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno })
+    await expect(a.elenca()).rejects.toThrow(/403/)
+    expect(d.chiamate()).toBe(1)
+    expect(freno.attesaMs()).toBeGreaterThan(0)
   })
 
   it('il Drive pieno no: aspettare non lo svuota', async () => {
@@ -125,18 +129,20 @@ describe('un 403 di Google', () => {
     expect(d.chiamate()).toBe(1)
   })
 
-  it('la quota al minuto del 12/10 sì', async () => {
+  it('la quota al minuto del 12/10 è un limite di velocità: freno, nessun ritentativo', async () => {
     const corpo = JSON.stringify({ error: { code: 403, message: "Quota exceeded for quota metric 'Queries' and limit 'Queries per minute per user'", errors: [{ reason: 'rateLimitExceeded' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
-    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
-    expect((await a.elenca()).size).toBe(0)
-    expect(d.chiamate()).toBe(2)
+    const freno = creaFreno()
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno })
+    await expect(a.elenca()).rejects.toThrow(/403/)
+    expect(d.chiamate()).toBe(1)
+    expect(freno.attesaMs()).toBeGreaterThan(0)
   })
 
   it('un permesso negato no: risale subito', async () => {
     const corpo = JSON.stringify({ error: { code: 403, message: 'Insufficient Permission', errors: [{ reason: 'insufficientPermissions' }] } })
     const d = driveCon(new Response(corpo, { status: 403 }))
-    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch })
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno: creaFreno() })
     await expect(a.elenca()).rejects.toThrow(/403/)
     expect(d.chiamate()).toBe(1)
   })

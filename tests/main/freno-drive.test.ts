@@ -4,6 +4,11 @@ import {
   type EventoFreno
 } from '../../src/main/cassaforte/freno-drive'
 import { creaArchivioDrive } from '../../src/main/cassaforte/google-drive'
+import { archivioInMemoria } from '../../src/main/cassaforte/archivio'
+import { salvaIncrementale, manifestoVuoto, PARALLELI } from '../../src/main/cassaforte/incrementale'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { creaPostino, type Scatola } from '../../src/main/progetti/posta'
 
 /**
@@ -147,6 +152,59 @@ describe('conFreno e il Drive vero (finto)', () => {
     expect(d.conta()).toBe(1)
     for (let i = 0; i < 10; i += 1) await expect(a.carica('x', Buffer.from('1'))).rejects.toThrow(MESSAGGIO_DRIVE_PIENO)
     expect(d.conta()).toBe(1)
+  })
+})
+
+describe('a Drive pieno le scritture non fanno nemmeno la ricerca (k-315)', () => {
+  it('carica e caricaSe: zero chiamate di rete, errore di spazio pieno', async () => {
+    const f = creaFreno()
+    f.spazioPieno()
+    let chiamate = 0
+    const rete = (async () => { chiamate += 1; return new Response('{"files":[]}', { status: 200 }) }) as unknown as typeof fetch
+    const a = creaArchivioDrive({ token: async () => 't', fetch: rete, freno: f })
+    await expect(a.carica('x', Buffer.from('1'))).rejects.toMatchObject({ message: MESSAGGIO_DRIVE_PIENO, drivePieno: true, stato: 403 })
+    await expect(a.caricaSe!('x', Buffer.from('1'), null)).rejects.toMatchObject({ message: MESSAGGIO_DRIVE_PIENO, drivePieno: true })
+    expect(chiamate).toBe(0)
+  })
+
+  it('dopo il ricontrollo (15 minuti) la ricerca torna a partire', async () => {
+    let t = 0
+    const f = creaFreno(() => t)
+    f.spazioPieno()
+    t += RICONTROLLO_PIENO_MS
+    let chiamate = 0
+    const rete = (async () => { chiamate += 1; return new Response('{"files":[]}', { status: 200 }) }) as unknown as typeof fetch
+    const a = creaArchivioDrive({ token: async () => 't', fetch: rete, freno: f })
+    await a.carica('x', Buffer.from('1')).catch(() => undefined)
+    expect(chiamate).toBeGreaterThan(0)
+  })
+})
+
+describe('il salvataggio incrementale a Drive pieno (k-315)', () => {
+  it('dopo il primo errore di spazio pieno le voci rimaste non toccano la rete', async () => {
+    const cartella = mkdtempSync(join(tmpdir(), 'sd-pieno-'))
+    mkdirSync(join(cartella, 'c'), { recursive: true })
+    for (let i = 0; i < 40; i += 1) writeFileSync(join(cartella, 'c', `${i}.jsonl`), `chat ${i}`)
+    const base = archivioInMemoria()
+    const chiamate: string[] = []
+    const pieno = (): Error & { stato: number; drivePieno: boolean } => Object.assign(new Error(MESSAGGIO_DRIVE_PIENO), { stato: 403, drivePieno: true })
+    const archivio = new Proxy(base, {
+      get(t, k) {
+        const v = (t as unknown as Record<string, unknown>)[k as string]
+        if (typeof v !== 'function') return v
+        return (...a: unknown[]) => {
+          chiamate.push(String(k))
+          if (k === 'carica' || k === 'caricaSe') return Promise.reject(pieno())
+          return (v as (...x: unknown[]) => unknown).apply(t, a)
+        }
+      }
+    })
+    await expect(salvaIncrementale({ radici: [{ prefisso: 'chat', cartella }], maestra: Buffer.alloc(32, 1), archivio, manifestoPrec: manifestoVuoto(), adesso: 'x' })).rejects.toThrow(MESSAGGIO_DRIVE_PIENO)
+    // Al piu' le voci gia' partite insieme al primo errore (PARALLELI), non le 40.
+    const tentativi = chiamate.filter((c) => c === 'carica' || c === 'caricaSe').length
+    expect(tentativi).toBeGreaterThan(0)
+    expect(tentativi).toBeLessThanOrEqual(PARALLELI)
+    expect(chiamate.length).toBeLessThan(40)
   })
 })
 

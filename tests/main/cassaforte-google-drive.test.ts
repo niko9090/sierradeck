@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { creaMagazzinoDrive } from '../../src/main/cassaforte/google-drive'
+import { creaArchivioDrive, creaMagazzinoDrive } from '../../src/main/cassaforte/google-drive'
+import { creaFreno } from '../../src/main/cassaforte/freno-drive'
 import { ConflittoMagazzino } from '../../src/main/cassaforte/magazzino'
 
 /**
@@ -182,5 +183,29 @@ describe('l archivio su Google Drive (per la sync incrementale)', () => {
     await a.cancella('f_due')
     expect(await a.scarica('f_due')).toBeUndefined()
     expect(drive.quanti()).toBe(1)
+  })
+})
+
+describe('i ritentativi guardano il freno (k-315)', () => {
+  const rifiuta = (stato: number) => {
+    let n = 0
+    const fetch = (async (): Promise<Response> => { n += 1; return new Response('{}', { status: stato }) }) as unknown as typeof globalThis.fetch
+    return { fetch, chiamate: () => n }
+  }
+
+  it('un 429 con il freno già in attesa fa una sola chiamata', async () => {
+    const freno = creaFreno()
+    freno.limiteRaggiunto()
+    const d = rifiuta(429)
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno, pausa: async () => undefined })
+    await expect(a.elenca()).rejects.toThrow(/429/)
+    expect(d.chiamate()).toBe(1)
+  })
+
+  it('un 500 si ritenta ancora: non è un limite di velocità', async () => {
+    const d = rifiuta(500)
+    const a = creaArchivioDrive({ token: async () => 't', fetch: d.fetch, freno: creaFreno(), pausa: async () => undefined })
+    await expect(a.elenca()).rejects.toThrow(/500/)
+    expect(d.chiamate()).toBe(5)
   })
 })
