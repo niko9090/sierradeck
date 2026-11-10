@@ -63,8 +63,10 @@ export function ripresaDopoRiavvio(p: {
   piano: Piano
   dialogo: readonly RigaDialogoRipresa[]
   adesso: number
+  /** I compiti la cui unione il programma ha già rimesso in marcia: non sono fermi. */
+  inUnione?: ReadonlySet<string>
 }): RipresaRiavvio | undefined {
-  const fermo = lavoroFermo({ coda: p.coda, piano: p.piano, alLavoro: new Set() })
+  const fermo = lavoroFermo({ coda: p.coda, piano: p.piano, alLavoro: new Set(), ...(p.inUnione !== undefined ? { inUnione: p.inUnione } : {}) })
   const perso = messaggioSenzaRisposta(p.dialogo, p.adesso)
   if (fermo === undefined && perso === undefined) return undefined
   const interrotti = p.piano.compiti.filter((c) => c.stato === 'in-corso').length
@@ -80,6 +82,9 @@ export function ripresaDopoRiavvio(p: {
   if (fermo !== undefined) {
     righe.push('Quello che aspetta di muoversi:', ...fermo.righe)
     righe.push('Rilancia adesso gli specialisti interrotti (stesso compito, stesso ramo) e porta avanti il resto, nello stesso turno.')
+  }
+  if (p.inUnione !== undefined && p.inUnione.size > 0) {
+    righe.push(`Le unioni di ${[...p.inUnione].join(', ')} le ho rimesse in marcia io: non rifarle. Se non trovano il ramo te lo dico subito e allora lo unisci tu, dando il ramo (git worktree list). Un compito che viene dopo parte appena sono unite, e ti avviso io.`)
   }
   return {
     testo: righe.join('\n'),

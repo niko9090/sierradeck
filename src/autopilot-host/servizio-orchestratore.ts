@@ -47,6 +47,7 @@ import type { Giudizio } from './divieti'
 import { doppioniDaArchiviare, rigaDoppione, type Doppione, type RichiestaDoppioni } from '@shared/autopiloti-doppioni'
 import type { ArchivioDoppioni } from './doppioni-store'
 import { lavoroFermo, testoLavoroFermo } from './lavoro-fermo'
+import { aspettaDipendenze, righeDopoUnione, rigaUnioneEPoi } from './dipendenze'
 import { promemoriaRosso, type RossoVisto } from './criterio-rosso'
 import { permessoDaSolo } from './permessi-automatici'
 import { leggiTrascrizione, trovaTrascrizione } from './trascrizione-specialista'
@@ -206,6 +207,12 @@ export type ServizioUnico = {
    * riceve subito un evento che glielo dice. Torna quanti ne ha avvisati.
    */
   riprendiOrchestratori: () => number
+  /**
+   * 10/11: a ogni avvio del servizio (aggiornamento, crash, accensione): le unioni rimaste a metà
+   * ripartono e la lista d'attesa dei posti rivede chi aspetta. Non scrive all'autopilota.
+   * Torna quante unioni ha rimesso in marcia.
+   */
+  riprendiUnioniEFila: () => number
   reindirizza: (id: string, chatId: string | undefined) => { id: string; chat: string } | undefined
   mcp: (p: { metodo: string; ws: string; autorizzazione: string | undefined; corpo: unknown }) => Promise<{ stato: number; corpo?: unknown }>
   /** Il PreToolUse dell'orchestratore e dei suoi subagenti (`guardia-orchestratore.ts`). */
@@ -483,6 +490,8 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   }
   /** 0.89.3: gli Agent rifiutati dalla guardia: il loro tool_use è nel flusso, ma nessuno specialista è partito. */
   const rifiutati = new Set<string>()
+  /** 10/11: gli Agent rifiutati perché il compito aspetta un'unione: tornano «da fare» senza dirli falliti. */
+  const rifiutatiPerDipendenze = new Map<string, string[]>()
   const subagenti = (ws: string): Specialista[] => orchestratore.stato(ws).specialisti.filter((s) => !rifiutati.has(s.id)).map((s) => (uniti.get(ws)?.has(s.id) === true ? { ...s, unito: true } : s))
 
   const misura = (ws: string): MisuraCompito => {
@@ -501,9 +510,9 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
     recenti.set(ws, [...(recenti.get(ws) ?? []), e].slice(-EVENTI_RICORDATI))
   }
   /** Un evento esterno (unione, chat adottata, adozione): nel riassunto e, raccolto, all'orchestratore. */
-  const evento = (ws: string, e: EventoOrchestratore): void => {
+  const evento = (ws: string, e: EventoOrchestratore, subito?: boolean): void => {
     ricordaEvento(ws, e)
-    orchestratore.evento(ws, e)
+    orchestratore.evento(ws, e, subito)
   }
 
   // ---------------------------------------------------------------- la lista d'attesa (k-48)
@@ -652,7 +661,7 @@ Il posto è tuo per 5 minuti.` })
       domandeAperte: u === undefined ? 0 : x.domande.aperte(u.id).length,
       domande: u === undefined ? [] : x.domande.aperte(u.id).map((q) => ({ id: q.id, testo: q.parti?.domanda ?? q.testo, apertaIl: q.apertaIl })),
       subagenti: subagenti(ws),
-      unioni: righeUnioni(ws),
+      unioni: [...righeUnioni(ws), ...[rigaUnioneEPoi(x.orchestratori.piano(ws), compitiInUnione(ws))].flatMap((r) => (r !== undefined ? [r] : []))],
       adesso: Date.parse(x.adesso())
     })
   }
@@ -722,6 +731,14 @@ ${NOTA_SENZA_GIT}`,
         ricalcola(ws, `${s.compito ?? s.ruolo} parte`)
         continue
       }
+      if (rifiutatiPerDipendenze.has(s.id)) {
+        // Mai partito: il compito resta «da fare» e in fila; lo segnala la fine dell'unione da cui dipende.
+        const aspetta = rifiutatiPerDipendenze.get(s.id) ?? []
+        rifiutatiPerDipendenze.delete(s.id)
+        if (s.compito !== undefined) cambiaCompito(ws, s.compito, (c) => (c.stato === 'unito' ? c : { ...c, stato: 'da-fare', esito: `in fila: aspetta l’unione di ${aspetta.join(', ')}, parte da solo quando è unita` }))
+        ricalcola(ws, `${s.compito ?? s.ruolo} in fila per le dipendenze`)
+        continue
+      }
       // Finito: le righe LEZIONI: al quaderno, il compito in revisione (o di nuovo da fare).
       if (u !== undefined && s.riepilogo !== undefined && x.lezioni !== undefined) {
         const voci = righeLezioni(s.riepilogo, s.ruolo)
@@ -732,7 +749,7 @@ ${NOTA_SENZA_GIT}`,
       const k = s.compito !== undefined ? x.orchestratori.piano(ws).compiti.find((c) => c.id === s.compito && c.chat === s.id) : undefined
       if (k !== undefined && k.stato !== 'unito') {
         cambiaCompito(ws, k.id, (c) => (s.stato === 'finito'
-          ? { ...c, stato: 'in-revisione', esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
+          ? { ...c, stato: 'in-revisione', ...(s.ramo !== undefined ? { ramo: s.ramo } : {}), esito: `${s.ruolo} ha finito: il programma lo unisce e misura il criterio` }
           : { ...c, stato: 'da-fare', esito: `${s.ruolo} ${s.stato === 'fallito' ? 'non è riuscito' : 'è stato fermato'}` }))
         // 0.89.4: l'unione parte da sola. Prima aspettava che l'autopilota chiamasse
         // unisci, e se non lo faceva il compito restava «finito» per sempre.
@@ -815,7 +832,7 @@ ${NOTA_SENZA_GIT}`,
    * riprovava). `avviaUnione` torna la posizione in fila (1 = parte subito) o
    * `undefined` se la stessa unione è già lì.
    */
-  type LavoroUnione = { chiave: string; chi: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean }
+  type LavoroUnione = { chiave: string; chi: string; compito?: string; p: { compito?: string; specialista?: string; ramo?: string }; tentativi: number; inCorso: boolean }
   const filaUnioni = new Map<string, LavoroUnione[]>()
   /** Workspace per cui si è già detto che la cartella principale ha file di Nicholas a metà (una volta sola). */
   const sporcoDetto = new Set<string>()
@@ -825,13 +842,16 @@ ${NOTA_SENZA_GIT}`,
     const chiave = `${ws}|${chi}`
     const fila = filaUnioni.get(ws) ?? []
     if (fila.some((l) => l.chiave === chiave)) return undefined
-    fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', p, tentativi: 0, inCorso: false })
+    const idCompito = p.compito ?? daUnire(ws, p).sub?.compito
+    fila.push({ chiave, chi: p.specialista ?? p.compito ?? p.ramo ?? '?', ...(idCompito !== undefined ? { compito: idCompito } : {}), p, tentativi: 0, inCorso: false })
     filaUnioni.set(ws, fila)
     if (fila.length === 1) void giraFila(ws)
     else evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${p.specialista ?? p.compito ?? p.ramo ?? '?'}: unione in fila, ${fila.length}ª: parte da sola quando ${fila[fila.length - 2]!.chi} ha finito` })
     return fila.length
   }
   const unioniIn = (ws: string): number => filaUnioni.get(ws)?.length ?? 0
+  /** I compiti la cui unione è in corso o in fila: non sono «fermi», il programma li sta unendo. */
+  const compitiInUnione = (ws: string): string[] => (filaUnioni.get(ws) ?? []).flatMap((l) => (l.compito !== undefined ? [l.compito] : []))
   /** Le unioni in corso e in fila, per lo stato dell'autopilota. */
   const righeUnioni = (ws: string): string[] => (filaUnioni.get(ws) ?? []).map((l, i) => (i === 0 ? `- ${l.chi}: in corso${l.tentativi > 0 ? ` (tentativo ${l.tentativi + 1})` : ''}` : `- ${l.chi}: in fila, ${i + 1}ª`))
   const giraFila = async (ws: string): Promise<void> => {
@@ -860,7 +880,10 @@ ${NOTA_SENZA_GIT}`,
       if (ancora === undefined) {
         sporcoDetto.delete(ws)
         fila.shift()
-        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: testo ?? `${chi}: unione finita` })
+        // 10/11: l'unione è finita (verde o rossa): l'autopilota si sveglia SUBITO, anche se aveva chiuso il turno,
+        // e con l'esito riceve i compiti diventati pronti, da lanciare adesso.
+        const pronti = righeDopoUnione(x.orchestratori.piano(ws))
+        evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: [testo ?? `${chi}: unione finita`, ...pronti].join('\n') }, true)
         continue
       }
       lavoro.inCorso = false
@@ -1386,7 +1409,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
         || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0 || (permessiInAttesa.get(ws) ?? 0) > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
-      const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi })
+      const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
       if (f === undefined) { fermiVisti.delete(ws); continue }
       const visto = fermiVisti.get(ws)
       if (visto === undefined || visto.firma !== f.firma) { fermiVisti.set(ws, { firma: f.firma, dal: ora, spinte: 0 }); continue }
@@ -1548,19 +1571,35 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * dice il disco (piano, coda, dialogo): lo si manda **subito** come evento,
    * invece di aspettare il controllo del lavoro fermo (3 minuti, due spinte).
    */
+  const riprendiUnioniEFila = (): number => {
+    let n = 0
+    try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa dopo il riavvio non riuscito:', err) }
+    if (x.unioneDaSola === false) return 0
+    for (const a of unici()) {
+      if (a.archiviato === true) continue
+      const ws = wsDi(a)
+      // Un compito «in revisione» ha finito e non è unito: dopo un riavvio la fila (in memoria) è vuota, si rifà.
+      for (const k of x.orchestratori.piano(ws).compiti) {
+        if (k.stato !== 'in-revisione') continue
+        if (avviaUnione(ws, { compito: k.id, ...(k.ramo !== undefined ? { ramo: k.ramo } : {}) }) !== undefined) { n += 1; console.info(`[orchestratore] ${ws} — unione di ${k.id} ripresa dopo il riavvio`) }
+      }
+    }
+    return n
+  }
   const riprendiOrchestratori = (): number => {
     let n = 0
     const ora = oraMs()
+    riprendiUnioniEFila()
     for (const a of unici()) {
       if (a.archiviato === true) continue
       const ws = wsDi(a)
       try {
-        const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora })
+        const r = ripresaDopoRiavvio({ coda: coda(ws), piano: x.orchestratori.piano(ws), dialogo: x.orchestratori.ultimeDialogo(ws, 20), adesso: ora, inUnione: new Set(compitiInUnione(ws)) })
         if (r === undefined) continue
         // Conta come la prima spinta del lavoro fermo: la seconda arriva più tardi, non subito.
         if (r.firma !== undefined) fermiVisti.set(ws, { firma: r.firma, dal: ora, spinte: 1 })
         console.info(`[orchestratore] ${ws} — ripreso dopo il riavvio: ${r.interrotti} compiti interrotti${r.messaggioPerso ? ', un messaggio di Nicholas senza risposta' : ''}`)
-        evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: r.testo })
+        evento(ws, { tipo: 'fermo', quando: x.adesso(), testo: r.testo }, true)
         n += 1
       } catch (err) {
         console.error(`[orchestratore] ${ws} — ripresa dopo il riavvio non riuscita:`, err)
@@ -1710,6 +1749,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     visto: (ws) => { vistoIl.set(ws, Date.parse(x.adesso())) },
     riprendi,
     riprendiOrchestratori,
+    riprendiUnioniEFila,
     reindirizza(id, chatId) {
       const a = x.archivio.leggi(id)
       if (a !== undefined && eUnico(a)) return undefined
@@ -1724,6 +1764,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
         ...(conGit(a.cwd) ? {} : { senzaGit: true, specialistiDelWorkspace: alLavoroNel(wsDi(a), idUso) }),
         specialistiSulPc: orchestratore.specialistiSulPc(idUso),
         tettoPc: tettoPc(),
+        dipendenze: (r) => {
+          const ws = wsDi(a)
+          const q = aspettaDipendenze(x.orchestratori.piano(ws), compitoDallaDescrizione(r.descrizione), idUso)
+          if (q === undefined) return undefined
+          if (idUso !== undefined) rifiutatiPerDipendenze.set(idUso, q.aspetta)
+          console.info(`[attesa] ${ws} — ${q.compito} aspetta l’unione di ${q.aspetta.join(', ')}: in fila, lo segnalo a unione finita`)
+          return q.motivo
+        },
         doppio: (r) => motivoSpecialistaDoppio(r, subagenti(wsDi(a)).filter((s) => (s.stato === 'avviato' || s.stato === 'lavoro') && s.id !== idUso), compitoDallaDescrizione),
         fila: (r) => {
           const prima = archivioAttesa.leggi()

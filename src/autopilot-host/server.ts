@@ -769,6 +769,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     // c'erano autopiloti fermati per l'aggiornamento (i segni si tolgono subito
     // sotto); il riepilogo dell'aggiornamento arriva dopo, con «gestore-avviato».
     if (opzioni.servizioAppenaPartito === true) {
+      // Unioni a metà e lista d'attesa dei posti ripartono a ogni avvio del servizio, aggiornamento o no:
+      // non scrivono all'autopilota, rimettono in marcia quello che il programma stava facendo.
+      try { unico?.riprendiUnioniEFila() } catch (err) { console.error('[orchestratore] ripresa delle unioni non riuscita:', err) }
       ripresaOrchestratoriInSospeso = true
       avevaFermatiPerAggiornamento = unici().some((a) => a.fermatoPerAggiornamento === true)
       if (avevaFermatiPerAggiornamento) riprendiOrchestratoriSeAggiornato(false)
