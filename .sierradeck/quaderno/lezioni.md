@@ -100,6 +100,7 @@
 
 - La guardia del PC rimanda typecheck e vitest completi anche per minuti di fila: lanciare le misure pesanti presto e tenere pronto il commit prima di misurare. _(2026-11-08)_
 - Non lanciare uno specialista su un compito il cui «dopo» è ancora in unione: non può aspettare (sleep bloccato) e torna a vuoto. Lanciarlo all'evento «unione». _(2026-11-10)_
+- Un revisore lanciato con «k-N:» in testa alla descrizione si lega a quel compito e il programma unisce lui (niente) al posto dello sviluppatore: per le revisioni usare una descrizione senza id. _(2026-11-10)_
 
 ## controllo
 
@@ -178,10 +179,6 @@
 - la versione di un altro PC va chiesta dal vivo (`/api/pc`): col Drive pieno i battiti si fermano e «Aggiorna» diventa falso; `frenoDrive.pieno()` dice se il Drive rifiuta scritture. _(2026-11-08)_
 - `IngressiSalute.io` può mancare nei test e in alcuni punti di `index.ts`: per il nome di «questo PC» serve un ripiego («Questo PC»). _(2026-11-09)_
 - «Quanto lavora SierraDeck»: il tono dipende solo dai consumi di questo PC; i dati degli altri PC arrivano dal battito sul Drive e, se vecchio (PC_SPENTO_DOPO_MS), non vanno mostrati come attuali. _(2026-11-10)_
-
-## gradle
-
-- il registro del demone in %USERPROFILE%\.gradle\daemon\8.11.1\daemon-<pid>.out.log riporta currentDir, inizio e fine della build: va letto prima di sospettare un processo vivo. _(2026-11-07)_
 
 ## carico
 
