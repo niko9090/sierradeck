@@ -144,3 +144,9 @@ Da fare a mano: accenderlo e metterlo sulla stessa rete o su Tailscale. L indiri
 
 ## Drive pieno (la causa comune, nelle righe dei PC)
 Corretto nella versione 0.97.3 per quanto riguarda il programma: «Drive pieno» resta detto finche il Drive non si libera o una scrittura riesce (pienoDetto() nel freno, freno-drive.ts) e i testi «30 minuti» seguono la costante (15 minuti). Gia ridotto in 0.96.0 (freno del Drive quando e pieno) e 0.97.1 (niente tentativi a raffica). Lo spazio sul Drive lo libera Nicholas.
+
+
+# Errori arrivati (lotto 20261110084717)
+
+## «Error occurred in handler for 'domande:chiama': il servizio autopilota non risponde sulla porta 47630: TimeoutError»
+Corretto nella prossima versione (dopo la 0.98.0). Causa: `rispondi` (src/main/autopilot-client.ts) usava i 3 s di lettura invece dei 30 s di scrittura, ma il servizio scrive su disco prima di rispondere; ora usa l'attesa di scrittura e, se scade, controlla se la domanda è ancora aperta. Il pannello mostra «servizio occupato» (testoErroreDialogo). Test in tests/main/risposta-autopilota-k317.test.ts.
