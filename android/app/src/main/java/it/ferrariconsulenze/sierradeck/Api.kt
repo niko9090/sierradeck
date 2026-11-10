@@ -379,6 +379,19 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
         json.decodeFromString(corpoTesto("/api/drive/azione", oggetto { put("azione", azione); put("tipo", tipo); put("id", id) }))
 
     /** Il Quaderno personale (PC 0.57.0): solo il PC accoppiato, mai attraverso il ponte. */
+    /**
+     * «Libera spazio sul Drive» (k-310): la procedura la tiene il PC. `misura`
+     * rilegge il Drive, `ricomincia` dimentica i passi già toccati.
+     */
+    suspend fun liberaSpazio(misura: Boolean = false, ricomincia: Boolean = false): VistaLiberaApp =
+        json.decodeFromString(corpoTesto("/api/drive/spazio/procedura", oggetto { put("misura", misura); put("ricomincia", ricomincia) }))
+    /** Fa partire un passo: torna subito, con il passo «in corso». */
+    suspend fun liberaSpazioPasso(passo: String): VistaLiberaApp =
+        json.decodeFromString(corpoTesto("/api/drive/spazio/passo", oggetto { put("passo", passo) }))
+    /** Le pulizie lasciate a metà dal Drive pieno: si riprendono adesso. */
+    suspend fun liberaSpazioRiprendi(): RipresaSospese =
+        json.decodeFromString(corpoTesto("/api/drive/spazio/riprendi", oggetto { }))
+
     suspend fun quadernoPersonale(): StatoQuadernoPersonale =
         json.decodeFromString(corpoTesto("/api/quaderno-personale", oggetto { }))
 
@@ -739,7 +752,9 @@ class Api(private val indirizzo: String, private val chiave: String?, val ponte:
             // PC 0.81.0: le stesse lente del ponte del PC (pc-remoto.ts). Con 15 s
             // l'app diceva «scaduto» mentre il PC creava il workspace, e chi
             // riprovava ne faceva due. Un test le tiene allineate.
-            "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco", "/api/file/cartella"
+            "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco", "/api/file/cartella",
+            // «Libera spazio sul Drive» (k-310): la misura legge la quota e le proposte dal Drive.
+            "/api/drive/spazio/procedura", "/api/drive/spazio/quota", "/api/drive/spazio/stato"
         )
         /** Il CLI ne concede 180 a un'installazione: qualcosa in più, per la rete. */
         const val LENTE_SECONDI = 200L

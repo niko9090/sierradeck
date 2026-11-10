@@ -348,6 +348,11 @@ export type DipendenzeRotte = {
     inSospeso: () => unknown
     riprendi: () => Promise<unknown>
   }
+  /** «Libera spazio sul Drive» per l'app Android (k-310): la procedura la tiene il PC (`libera-spazio-app.ts`). */
+  liberaSpazioApp?: {
+    vista: (o: { misura: boolean; ricomincia: boolean }) => Promise<unknown>
+    esegui: (passo: string) => Promise<unknown>
+  }
   diffAutopilota?: (id: string, chiave: string, percorso: string) => Promise<string>
   /**
    * Apre una chat nuova in una cartella già conosciuta.
@@ -1147,6 +1152,19 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
         if (r.percorso === '/api/drive/spazio/quota') return OK({ quota: (await sp.quota(forza)) ?? null })
         if (r.percorso === '/api/drive/spazio/in-sospeso') return OK({ inSospeso: sp.inSospeso() })
         return OK(await sp.riprendi())
+      } catch (e) { return { stato: 409, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
+    }
+    // ── «Libera spazio sul Drive» per l'app (k-310): la procedura gira sul PC, l'app la rilegge ──
+    if (r.metodo === 'POST' && (r.percorso === '/api/drive/spazio/procedura' || r.percorso === '/api/drive/spazio/passo')) {
+      const lp = depsPieni.liberaSpazioApp
+      if (lp === undefined) return { stato: 409, corpo: { errore: 'Questo computer non ha ancora la procedura «Libera spazio sul Drive» per l’app: aggiornalo.' } }
+      if (visore.startsWith('pc:') && !visore.startsWith('pc:tel:')) return { stato: 403, corpo: { errore: 'Lo spazio sul Drive si libera da questo PC o da un telefono, non da un altro PC.' } }
+      const c = (r.corpo ?? {}) as { misura?: unknown; ricomincia?: unknown }
+      try {
+        if (r.percorso === '/api/drive/spazio/procedura') return OK(await lp.vista({ misura: c.misura === true, ricomincia: c.ricomincia === true }))
+        const passo = stringa(r.corpo, 'passo')
+        if (passo === '') return { stato: 400, corpo: { errore: 'manca il passo' } }
+        return OK(await lp.esegui(passo))
       } catch (e) { return { stato: 409, corpo: { errore: e instanceof Error ? e.message : String(e) } } }
     }
 

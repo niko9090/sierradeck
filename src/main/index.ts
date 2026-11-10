@@ -85,6 +85,7 @@ import { leggiElencoRecupero, ripristinaDaRecupero, spostaCartellaInRecupero, st
 import { improntaPc } from './casa-firma'
 import { creaSpazioDrive, intenzioniSuDisco, type SpazioDrive, type StatoSpazio } from './spazio-drive'
 import type { InSospesoVista } from '@shared/libera-spazio'
+import { creaLiberaSpazioApp } from './libera-spazio-app'
 import { chatDiWorkspaceSoloQui, chatNonSale } from '@shared/chat-sul-drive'
 import { cartellaDiUnaChat, cartellaDiUnWorkspace, testoCartellaNonQui, type DoveCartella, type RiquadroCartella } from '@shared/apri-cartella'
 import { cartellaDaNomeWorkspace, cartellaVietataPerChat, eSessioneInterna, riordinaCreatiDalProgramma, sessioniInterne, suAltriPc, togliInterneAggiunte, workspaceDaAltroPc, workspaceDaCreare } from '@shared/workspace-riparazioni'
@@ -616,6 +617,20 @@ let azioneDriveGlobale: ((corpo: unknown) => Promise<{ ok: boolean; messaggio: s
 let spazioGlobale: SpazioDrive | undefined
 /** Le pulizie annotate in locale e non finite, come le vedono il PC e il telefono. */
 const vistaInSospeso = (s: SpazioDrive): InSospesoVista[] => s.inSospeso().map((i) => ({ id: i.id, titolo: i.pulizia.titolo, recupero: i.recupero, file: i.pulizia.voci.length, byte: i.pulizia.byte, fatto: i.fatto }))
+/**
+ * «Libera spazio sul Drive» per l'app Android (k-310): la procedura la tiene
+ * il PC, con la stessa misura e le stesse azioni della finestra.
+ */
+const liberaSpazioApp = creaLiberaSpazioApp({
+  api: {
+    stato: (forza) => spazioGlobale?.stato(forza) ?? Promise.resolve(undefined),
+    quota: (forza) => spazioGlobale?.quota(forza) ?? Promise.resolve(undefined),
+    azione: (corpo) => azioneDriveGlobale?.(corpo) ?? Promise.resolve({ ok: false, messaggio: 'Il Drive non è ancora pronto: la cassaforte o il Drive non sono aperti.' })
+  },
+  inSospeso: () => (spazioGlobale === undefined ? [] : vistaInSospeso(spazioGlobale)),
+  drivePienoSegnalato: () => frenoDrive.pieno(),
+  log: (m) => registroGlobale?.info(m)
+})
 /** La gestione delle chat (0.79.0): Chiudi, Archivia, Elimina dal PC, lo spazio, il recupero. */
 let gestioneChatGlobale: GestioneChat | undefined
 /** L'ultima riparazione della lista dei workspace all'avvio (0.65.1), per `/api/workspace/storia`. */
@@ -4522,6 +4537,8 @@ if (!app.requestSingleInstanceLock()) {
           inSospeso: () => (spazioGlobale === undefined ? [] : vistaInSospeso(spazioGlobale)),
           riprendi: () => spazioGlobale?.riprendiInSospeso() ?? Promise.resolve({ riprese: 0, ancoraInSospeso: 0 })
         },
+        // E per l'app Android (k-310): la procedura intera, tenuta qui.
+        liberaSpazioApp: { vista: (o: { misura: boolean; ricomincia: boolean }) => liberaSpazioApp.vista(o), esegui: (passo: string) => liberaSpazioApp.esegui(passo) },
         ...(gestioneChatGlobale !== undefined ? { gestioneChat: gestioneChatGlobale } : {}),
         chat: () => chatAperte.map(conAltrove),
         segnali: (sessione: string) => segnaliPerSessione.get(sessione) ?? [],

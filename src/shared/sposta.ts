@@ -74,6 +74,8 @@ export type VistaSposta = {
   attesa?: string
   /** Fallita: il bottone «Riprova» rifà partire lo spostamento (stessa azione di «Sposta su questo PC»). */
   puoRiprovare?: boolean
+  /** Fallita: il passo in cui si è fermata (l'app e la pagina lo segnano in rosso; gli altri prima sono fatti). */
+  fallitaIn?: FaseSposta
 }
 
 /** A che passo è (1…6), per la barra; 0 = finita o fallita. */
@@ -81,6 +83,25 @@ export function passoDi(f: FaseSposta): number {
   if (f === 'fatta' || f === 'fallita') return 0
   const i = PASSI_SPOSTA.findIndex((p) => p.fase === (f === 'attesa-proprietario' ? 'chiesta' : f))
   return i < 0 ? 0 : i + 1
+}
+
+export type StatoPassoSposta = 'fatto' | 'in-corso' | 'da-fare' | 'errore'
+
+/**
+ * Lo stato di ogni passo di `PASSI_SPOSTA`, nell'ordine: fatto, in corso, da
+ * fare, o in errore (quello dove si è fermata). Una fermata senza `fallitaIn`
+ * è avvenuta nei controlli, prima di cominciare. L'app Android ha la stessa
+ * regola (`SpostaRegole.stati`, un test le confronta).
+ */
+export function statiPassiSposta(v: { fase: FaseSposta; fallitaIn?: FaseSposta }): StatoPassoSposta[] {
+  if (v.fase === 'fatta') return PASSI_SPOSTA.map(() => 'fatto')
+  const indice = (f: FaseSposta | undefined): number => PASSI_SPOSTA.findIndex((p) => p.fase === (f === 'attesa-proprietario' ? 'chiesta' : f))
+  if (v.fase === 'fallita') {
+    const i = Math.max(0, indice(v.fallitaIn))
+    return PASSI_SPOSTA.map((_, k) => (k < i ? 'fatto' : k === i ? 'errore' : 'da-fare'))
+  }
+  const i = indice(v.fase)
+  return PASSI_SPOSTA.map((_, k) => (k < i ? 'fatto' : k === i ? 'in-corso' : 'da-fare'))
 }
 
 /** La conferma prima di partire: cosa succede, detto semplice. */
