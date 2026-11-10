@@ -535,6 +535,8 @@ export function creaPostino(deps: {
       // ogni volta. Un minuto di memoria; poi si risponde con quelli che ci sono
       // e si rilegge in sottofondo. Si aspetta il Drive solo se non c'è niente.
       if (altruiLettiIl > 0 && adesso() - altruiLettiIl < MEMORIA_BATTITI_MS) return Promise.resolve(altrui)
+      // Google ha chiesto di aspettare: chi chiede spesso (telefono, controllo dei PC) riceve quelli che ci sono, senza una lettura a vuoto a ogni chiamata.
+      if (freno.attesaMs() > 0) return Promise.resolve(altrui)
       if (inLettura === undefined) {
         inLettura = leggiAltrui(s)
           .then((letti) => { ricorda(letti); return letti })

@@ -972,6 +972,8 @@ export function apriSincronia(deps: {
 
     async progettiConFileSulDrive() {
       if (maestra === undefined || !deps.driveConnesso()) return undefined
+      // Google ha chiesto di aspettare: «il Drive adesso non si legge», senza una richiesta in piu'.
+      if (freno.attesaMs() > 0) return undefined
       try {
         const esito = await leggiManifesto(deps.archivio(), maestra)
         if (esito.stato === 'illeggibile') return undefined
@@ -1424,6 +1426,7 @@ export function apriSincronia(deps: {
     },
     async arrivo() {
       if (maestra === undefined || !deps.driveConnesso() || deps.registroProgetti === undefined) return { ok: true, scritti: 0 }
+      if (freno.attesaMs() > 0) return { ok: true, scritti: 0 }
       try {
         const esitoM = await leggiManifesto(deps.archivio(), maestra)
         if (esitoM.stato !== 'ok') return { ok: true, scritti: 0 }

@@ -4,9 +4,13 @@ import {
   type EventoFreno
 } from '../../src/main/cassaforte/freno-drive'
 import { creaArchivioDrive } from '../../src/main/cassaforte/google-drive'
-import { archivioInMemoria } from '../../src/main/cassaforte/archivio'
+import { archivioInMemoria, type Archivio } from '../../src/main/cassaforte/archivio'
 import { salvaIncrementale, manifestoVuoto, PARALLELI } from '../../src/main/cassaforte/incrementale'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
+import { apriSincronia } from '../../src/main/cassaforte/sincronia'
+import { magazzinoInMemoria, type Magazzino } from '../../src/main/cassaforte/magazzino'
+import { apriRegistroProgetti } from '../../src/main/progetti/registro'
+import { creaLavoro } from '../../src/main/cassaforte/lavoro-in-corso'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { creaPostino, type Scatola } from '../../src/main/progetti/posta'
@@ -254,5 +258,67 @@ describe('la posta rispetta il freno', () => {
     t += 60_000
     await p.giro()
     expect(conta()).toBeGreaterThan(dopoIlPrimo)
+  })
+})
+
+describe('le letture fuori dai giri a limite di velocità (k-320)', () => {
+  it('la lista dei PC (telefono, controllo) non rilegge il Drive mentre Google chiede di aspettare', async () => {
+    let t = 10_000_000
+    let n = 0
+    const s: Scatola = {
+      leggi: <T,>() => { n += 1; return Promise.resolve(undefined as T | undefined) },
+      scrivi: () => Promise.resolve(),
+      cancella: () => Promise.resolve(),
+      elenca: () => { n += 1; return Promise.resolve([]) }
+    }
+    const freno = creaFreno(() => t)
+    const p = creaPostino({
+      scatola: () => s, pcId: () => 'A', pcNome: () => 'Torre', versione: () => '1', chat: () => [], cartelle: () => [],
+      cartellaEsiste: () => true, apriChat: () => undefined, riprendiChat: () => undefined, scrivi: () => undefined,
+      adesso: () => t, freno
+    })
+    freno.limiteRaggiunto()
+    await p.pcSubito(); await p.pcSubito(); await p.pcSubito()
+    expect(n).toBe(0)
+    t += ATTESA_LIMITE_MIN_MS
+    await p.pcSubito()
+    expect(n).toBeGreaterThan(0)
+  })
+
+  it('arrivo e «progetti con file sul Drive» non fanno richieste durante l\'attesa', async () => {
+    let t = 10_000_000
+    const freno = creaFreno(() => t)
+    const radice = mkdtempSync(join(tmpdir(), 'sd-freno-'))
+    try {
+      const dati = join(radice, 'dati')
+      mkdirSync(dati, { recursive: true })
+      mkdirSync(join(radice, 'claude', 'projects'), { recursive: true })
+      const arch = archivioInMemoria()
+      let chiamate = 0
+      const conta = new Proxy(arch, {
+        get: (o, k) => {
+          const v = (o as unknown as Record<string | symbol, unknown>)[k]
+          return typeof v === 'function' ? (...a: unknown[]) => { chiamate += 1; return (v as (...x: unknown[]) => unknown).apply(o, a) } : v
+        }
+      }) as Archivio
+      const registro = apriRegistroProgetti(dati)
+      const mags = new Map<string, Magazzino>()
+      const sync = apriSincronia({
+        dati, radiceClaude: join(radice, 'claude'), driveConnesso: () => true,
+        magazzino: (nome = 'sierradeck.cassaforte') => { let m = mags.get(nome); if (m === undefined) { m = magazzinoInMemoria(); mags.set(nome, m) } return m },
+        archivio: () => conta, lavoro: creaLavoro(), pcId: () => 'A', cartellaProgetti: () => join(radice, 'Progetti'),
+        registroProgetti: { leggi: () => registro.leggi(), scrivi: (r) => registro.scrivi(r) },
+        freno
+      })
+      expect((await sync.creaPassphrase('passphrase-robusta-1')).ok).toBe(true)
+      freno.limiteRaggiunto()
+      chiamate = 0
+      expect(await sync.progettiConFileSulDrive()).toBeUndefined()
+      expect(await sync.arrivo()).toEqual({ ok: true, scritti: 0 })
+      expect(chiamate).toBe(0)
+      t += ATTESA_LIMITE_MIN_MS
+      await sync.progettiConFileSulDrive()
+      expect(chiamate).toBeGreaterThan(0)
+    } finally { rmSync(radice, { recursive: true, force: true }) }
   })
 })
