@@ -1,3 +1,5 @@
+// Procedura «Libera spazio sul Drive»: copre la misura (percentuale, ripartizione, grosso fuori),
+// i passi e i loro stati, la riga finale con byte prima/dopo, l'avviso «Drive pieno» e la pagina del telefono.
 import { describe, it, expect } from 'vitest'
 import {
   FRASE_GROSSO_FUORI, drivePienoDa, eseguiPasso, grossoFuoriDaSierraDeck, passiDa, percentualeDrive, ripartizioneDrive, righeDa, riepilogoFinale,
