@@ -32,6 +32,7 @@
 - Un 50x di electron-updater può arrivare come testo senza statusCode: «504 <frase>[\ndescrizione]\nHeaders: {…}». Il riconoscimento deve guardare il testo completo, non solo il campo. _(2026-11-10)_
 - il freno predefinito `frenoDrive` è unico per tutto il processo: nei test di `creaArchivioDrive` dare sempre `freno: creaFreno()`, o un 429 sporca i test seguenti. _(2026-11-10)_
 - un comando Bash con heredoc Python e altro insieme può essere rifiutato nel worktree, ma i passi precedenti possono aver girato lo stesso: ricontrollare `git diff` prima di rifare le modifiche. _(2026-11-10)_
+- sposta-fra-pc aspettava 10 ms fissi dopo un lavoro in sottofondo: sotto la suite intera cadeva. Mai un tempo fisso per aspettare un lavoro asincrono. _(2026-11-10)_
 
 ## worktree
 
@@ -48,7 +49,6 @@
 
 ## android
 
-- Il ramo del worktree può nascere prima del lavoro PC già in main (k-53, k-54): fare `git merge main` prima di leggere i file `src/shared` del PC. _(2026-11-07)_
 - `tests/android/rotte-lente-app.test.ts` impone che `ROTTE_LENTE` sia contenuta nella lista dell'app: ogni rotta lenta nuova va aggiunta anche in `android/`. _(2026-11-09)_
 - PonteTest legge ROTTE_PONTE di ponte-telefono.ts con la regex '([^']+)': un apostrofo dritto in un commento dentro la lista la rompe, usare ’ _(2026-11-10)_
 - gradle testDebugUnitTest resta UP-TO-DATE se cambia solo un .ts letto dai test Kotlin (PonteTest): serve --rerun _(2026-11-10)_
@@ -56,9 +56,6 @@
 
 ## release
 
-- Da un worktree `npm run pubblica` vuole google-oauth.json (copiarlo dalla radice, poi cancellarlo) e una node_modules vera (npm ci, non junction). _(2026-11-07)_
-- Se la release esiste già prima di `pubblica`, electrion-builder salta gli upload: caricare exe, blockmap, latest.yml con `gh release upload`, con nomi col trattino. _(2026-11-07)_
-- 07/11 v0.96.0 pubblicata (app 2.96.0, 5 file), NON installata: controllo dei PC + Drive + Specialisti. Nessuna 0.95.6 è mai uscita. Prossimo bump parte da 0.96.0. _(2026-11-07)_
 - 07/11: v0.96.1 è già in main e taggata (unioni con poche prove mirate); la release delle correzioni del controllo PC + scheda video diventa 0.96.2. _(2026-11-07)_
 - 08/11: main è 0.96.2 (tag v0.96.1 e v0.96.2 fatti da una chat di Nicholas: unioni snelle + pulizia copie). I lavori rimasti fuori si riportano su main (k-175, k-176); la release dopo è 0.97.0. _(2026-11-08)_
 - Ordine release: tag → npm run pubblica (crea bozza) → npm run allega-apk → gh release edit --draft=false. Un gh release create prima di pubblica fa saltare latest.yml. _(2026-11-08)_
@@ -351,3 +348,8 @@
 ## rete
 
 - nel client dell'autopilota ogni POST che fa scrivere il servizio su disco deve passare `attesaScrittura`: senza, valgono i 3 s di lettura e sotto carico scade. _(2026-11-10)_
+
+## cancello
+
+- il messaggio «anche nella cartella principale non passa» (server.ts 698/708) vuole dire che il ramo rompe criteri che su main passano: il testo è invertito e non mostra i nomi dei test. Tre rami dive… _(2026-11-10)_
+- il criterio aggregato «npx vitest run» senza percorsi (k-170) fa girare l'intera suite in un solo comando: 3 minuti qui, ma la prova ha 15 minuti in totale contro 20 del comando. _(2026-11-10)_
