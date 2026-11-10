@@ -41,6 +41,15 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.99.1',
+    righe: [
+      '**Salute più onesta:** un PC che non dà segni di vita non mostra più numeri vecchi come se fossero di adesso: si legge «nessun dato di adesso».',
+      '**Cancellazioni solo col tuo consenso:** niente viene cancellato senza il tuo sì, per percorsi precisi e per un tempo limitato.',
+      '**Autopilota che non resta fermo:** si risveglia appena finisce un’unione e, dopo un riavvio o un aggiornamento, riprende le unioni salvando il lavoro lasciato a metà.',
+      '**Note del quaderno:** non bloccano più le unioni.',
+    ],
+  },
+  {
     versione: '0.99.0',
     righe: [
       '**Libera spazio sul Drive:** una procedura guidata per fare posto quando il Drive si riempie.',
