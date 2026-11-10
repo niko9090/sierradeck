@@ -56,6 +56,7 @@ import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheg
 import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
+import { eErroreDiRete } from '@shared/errori-rete'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
@@ -796,7 +797,9 @@ ${NOTA_SENZA_GIT}`,
       nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo })
     },
     errore: (ws, motivo) => {
-      console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
+      // La rete che manca passa da sola e l'orchestratore riprova con calma: un avviso, non un errore.
+      if (eErroreDiRete(motivo)) console.warn(`[orchestratore] ${ws} — turno non riuscito per la rete, riprovo: ${motivo.slice(0, 200)}`)
+      else console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
       const u = unicoDi(ws)
       if (u === undefined) return
       x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `turno non riuscito: ${motivo}` })

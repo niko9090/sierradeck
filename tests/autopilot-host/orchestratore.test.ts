@@ -199,6 +199,60 @@ describe('il motore', () => {
     expect(o.inAttesa('ws').messaggi).toBe(1)
   })
 
+  it('un result con is_error: il messaggio torna in attesa e il turno dopo lo contiene; al secondo guasto di fila si aspetta Nicholas', () => {
+    const { o, processi, errori } = motore()
+    const guasto = { type: 'result', is_error: true, result: 'sovraccarico', total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
+    o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'da non perdere' })
+    processi[0]!.emetti(guasto)
+    expect(errori).toEqual(['sovraccarico'])
+    expect(processi[0]!.scritte).toHaveLength(2)
+    expect(testoScritto(processi[0]!.scritte[1]!)).toContain('da non perdere')
+    processi[0]!.emetti(guasto)
+    expect(processi[0]!.scritte).toHaveLength(2)
+    expect(o.inAttesa('ws').messaggi).toBe(1)
+    // Un messaggio nuovo sblocca: parte con quello di prima.
+    o.messaggio('ws', { quando: '2026-10-30T09:05:00.000Z', testo: 'ancora io' })
+    expect(processi[0]!.scritte).toHaveLength(3)
+    expect(testoScritto(processi[0]!.scritte[2]!)).toContain('da non perdere')
+    expect(testoScritto(processi[0]!.scritte[2]!)).toContain('ancora io')
+    // Un turno riuscito azzera i tentativi.
+    processi[0]!.emetti(result())
+    expect(o.inAttesa('ws')).toEqual({ messaggi: 0, eventi: 0 })
+  })
+
+  it('rete assente: niente turni a raffica, attesa crescente, e quando la rete torna riparte da sola senza perdere niente', () => {
+    vi.useFakeTimers()
+    const { o, processi, errori, risposte } = motore({ riprovaReteMs: (n) => 1000 * 2 ** (n - 1) })
+    const rete = { type: 'result', is_error: true, result: "API Error: Can't reach the API server — check your internet or DNS (ENOTFOUND)", total_cost_usd: 0, session_id: 'sess-x', usage: { input_tokens: 10, output_tokens: 0 } }
+    o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'resta' })
+    processi[0]!.emetti(rete)
+    expect(processi[0]!.scritte).toHaveLength(1)
+    // Un altro messaggio durante l'attesa non fa partire il turno prima del tempo.
+    o.messaggio('ws', { quando: '2026-10-30T09:00:05.000Z', testo: 'anche questo' })
+    vi.advanceTimersByTime(999)
+    expect(processi[0]!.scritte).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(processi[0]!.scritte).toHaveLength(2)
+    expect(testoScritto(processi[0]!.scritte[1]!)).toContain('resta')
+    expect(testoScritto(processi[0]!.scritte[1]!)).toContain('anche questo')
+    // Secondo errore: l'attesa raddoppia, e non si ferma mai per sempre (oltre due tentativi).
+    processi[0]!.emetti(rete)
+    vi.advanceTimersByTime(1999)
+    expect(processi[0]!.scritte).toHaveLength(2)
+    vi.advanceTimersByTime(1)
+    expect(processi[0]!.scritte).toHaveLength(3)
+    processi[0]!.emetti(rete)
+    vi.advanceTimersByTime(4000)
+    expect(processi[0]!.scritte).toHaveLength(4)
+    expect(errori).toHaveLength(3)
+    // La rete torna.
+    processi[0]!.emetti(result(1000, 'eccomi'))
+    expect(risposte).toEqual(['eccomi'])
+    expect(o.inAttesa('ws').messaggi).toBe(0)
+    vi.advanceTimersByTime(60_000)
+    expect(processi[0]!.scritte).toHaveLength(4)
+  })
+
   it('spento l’interruttore, il processo si spegne e niente aspetta più', () => {
     const { o, processi } = motore()
     o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'uno' })

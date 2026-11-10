@@ -7,6 +7,7 @@ import { avviaFinestraAggiornamento } from './finestra-aggiornamento'
 import { allineaBaseDifferenziale, cartellaCacheUpdater } from './base-differenziale'
 import { assicuraUpdater, avviaUpdater, diariUpdater, updaterVivo } from './updater/compila'
 import { PAGINA_VERSIONI, raccogliNote, type NoteAggiornamento } from '@shared/note-aggiornamento'
+import { eErroreDiRete } from '@shared/errori-rete'
 import { scriviJsonAtomico } from '@shared/scrittura-atomica'
 import { eFileRilascioMancante, valutaFileRilascioMancante, type Episodio404 } from '@shared/aggiornamenti-404'
 import {
@@ -218,7 +219,7 @@ export function creaGiroMuto(): { cambia: (prima: string, dopo: string, adesso: 
  *   electron-updater attacca a ogni errore (`Headers: {…}`), al massimo 300 caratteri.
  */
 export function eErroreDiReteTransitorio(testo: string): boolean {
-  if (/ERR_NO_BUFFER_SPACE|ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|ERR_CONNECTION_TIMED_OUT|ERR_TIMED_OUT|ERR_EMPTY_RESPONSE|ECONNRESET|ETIMEDOUT/.test(testo)) return true
+  if (eErroreDiRete(testo)) return true
   return erroreGitHubPasseggero(testo)
 }
 
