@@ -66,7 +66,9 @@ object Ponte {
         "/api/drive/pannello", "/api/drive/azione",
         // La gestione delle chat di quel PC (PC 0.79.0): le regole le decide lui.
         "/api/chat/gestione/spazio", "/api/chat/gestione/azione", "/api/chat/gestione/archiviate", "/api/chat/gestione/recupero",
-        "/api/chat/gestione/ripristina", "/api/chat/gestione/svuota")
+        "/api/chat/gestione/ripristina", "/api/chat/gestione/svuota",
+        // «Libera spazio sul Drive» di quel PC (PC 0.99): la misura, le pulizie in sospeso, la ripresa.
+        "/api/drive/spazio/stato", "/api/drive/spazio/quota", "/api/drive/spazio/in-sospeso", "/api/drive/spazio/riprendi")
 
     /** Il corpo di `/api/ponte`: il PC, la rotta, e il corpo della richiesta se c'è. */
     fun corpo(pc: String, percorso: String, corpoJson: String?): String {

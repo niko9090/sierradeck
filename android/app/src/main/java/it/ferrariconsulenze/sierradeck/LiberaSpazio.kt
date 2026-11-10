@@ -29,8 +29,9 @@ import kotlinx.serialization.Serializable
  * «Libera spazio sul Drive» (PC k-307): la procedura guidata, uguale sul PC,
  * sulla pagina del telefono e qui. La logica è la stessa di
  * src/shared/libera-spazio.ts (passi, stati, percentuali, casi «Drive pieno»
- * e «il grosso è fuori da SierraDeck»); le rotte sono `/api/drive/spazio/*`
- * e `/api/drive/azione`. tests/android/avanzamento-app.test.ts tiene
+ * e «il grosso è fuori da SierraDeck»); le rotte sono quelle sotto `/api/drive/spazio/`
+ * (stato, quota, in-sospeso, riprendi) e `/api/drive/azione`. Niente «barra
+ * asterisco» nei commenti: in Kotlin apre un commento annidato mai chiuso. tests/android/avanzamento-app.test.ts tiene
  * allineati ordine dei passi, azioni e rotte.
  */
 
