@@ -202,8 +202,12 @@ describe('«prepara» lungo: parte in sottofondo e si legge lo stato', () => {
     m.carica('progetto-p1/src/a.ts', Buffer.from('export const a = 1'))
     m.carica(`chat/${pathToSlug(m.percorsoDa)}/ses-1.jsonl`, Buffer.from('{"cwd":"x"}\n'))
     rilascia()
-    await dopo()
-    const fine = await s.riprendi()
+    // Il lavoro in sottofondo finisce quando può: si aspetta che lo stato cambi, non un tempo fisso (sotto carico 10 ms non bastavano).
+    let fine = await s.riprendi()
+    for (let i = 0; i < 400 && fine?.fase === 'attesa-proprietario'; i += 1) {
+      await dopo(5)
+      fine = (await s.riprendi()) ?? fine
+    }
     expect(fine?.fase).toBe('fatta')
   })
 
