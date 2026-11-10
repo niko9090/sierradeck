@@ -132,3 +132,23 @@ describe('un PC che risponde non è «nessuna strada» (05/11)', () => {
     expect(pcConStato('non-so').spiegazione).toContain('non risponde a nessuna strada')
   })
 })
+
+describe('«Quanto lavora SierraDeck» e i battiti vecchi', () => {
+  const mie = { cpu: 0, ramMb: 409, processi: 5, driveAlMinuto: 0, drivePerTipo: {}, driveRifiutate: 0, misuratoIl: new Date(ADESSO).toISOString() }
+  const altro = { ...mie, cpu: 3, driveAlMinuto: 40, driveRifiutate: 25 }
+  const voce = (battito: string) => componiSalute({ ...base, risorse: mie, pc: [{ pcId: 'p9', nome: 'PC-FINTO', versione: '0.90.0', battito, risorse: altro }] }).voci.find((v) => v.chiave === 'risorse')!
+  it('con pochi consumi qui il tono è ok', () => {
+    expect(voce(new Date(ADESSO - 60_000).toISOString()).tono).toBe('ok')
+  })
+  it('battito recente: i numeri dell’altro PC si vedono, con le rifiutate', () => {
+    const v = voce(new Date(ADESSO - 60_000).toISOString())
+    expect(v.spiegazione).toContain('PC-FINTO: CPU 3%')
+    expect(v.spiegazione).toContain('Google ne ha rifiutate')
+  })
+  it('battito vecchio: niente numeri, si dice di quando è, niente frase sulle rifiutate', () => {
+    const v = voce(new Date(ADESSO - 4 * 86_400_000).toISOString())
+    expect(v.spiegazione).toContain('PC-FINTO: nessun dato di adesso (ultimo battito 4 giorni fa)')
+    expect(v.spiegazione).not.toContain('PC-FINTO: CPU')
+    expect(v.spiegazione).not.toContain('rifiutate')
+  })
+})
