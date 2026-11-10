@@ -36,6 +36,7 @@
 - le prove che cercano stringhe nel sorgente (readFileSync di un .tsx) si rompono a ogni riscrittura della vista: meglio agganciarle al componente o alla funzione, non al dettaglio interno. _(2026-11-10)_
 - il freno Drive alza l'attesa al primo 429, quindi un test che si aspetta ritentativi su 429/rateLimit va scritto con 503 (transitorio), non con 429 _(2026-11-10)_
 - `tests/main/sposta-fra-pc.test.ts` (caricamento lungo) è fallita una volta sola nella serie completa sotto carico e passa da sola: probabile instabilità di tempi _(2026-11-10)_
+- Per provare «zero richieste» su `apriSincronia`, avvolgi l'archivio in un Proxy che conta le chiamate; l'orologio del freno si inietta con `creaFreno(() => t)`. _(2026-11-10)_
 
 ## worktree
 
@@ -103,8 +104,6 @@
 
 ## ambiente
 
-- Il criterio Android gira qui senza ./gradlew: gradle 8.11.1 in E:\Programs\Gradle, JDK 21 via JAVA_HOME, SDK in ANDROID_HOME=E:\Android\Sdk. Dura circa 5 minuti. _(2026-11-07)_
-- Il guardiano «PC carico» può rifiutare lo stesso comando per diversi minuti. `ping -n 50 127.0.0.1` in una chiamata a parte funziona come attesa; `sleep` e `Start-Sleep` sono bloccati. _(2026-11-07)_
 - JDK 21 è in C:\Program Files\Microsoft\jdk-21.0.12.8-hotspot, non in E:\Programs; gradle 8.11.1 in E:\Programs\Gradle. _(2026-11-07)_
 - Il controllo di carico rimanda anche i cicli di vitest file per file se somigliano a una suite; la coda delle misure pesanti è una alla volta e può far scadere le unioni. _(2026-11-07)_
 - nel worktree la Bash rifiuta comandi con mklink/cmd; la junction node_modules si crea con New-Item -ItemType Junction da PowerShell e si toglie con (Get-Item).Delete(). _(2026-11-08)_
@@ -141,6 +140,7 @@
 - Il 403 storageQuotaExceeded non entra in «rifiutate» (risorse.ts 179-183): le rifiutate sono solo limiti di velocità. _(2026-11-10)_
 - `conFreno` alza il freno sulla prima risposta 429/rateLimit, quindi un controllo `attesaMs() > 0` dentro `conRitenta` equivale a «mai ritentare i limiti»; i test che si aspettano il ritentativo vanno… _(2026-11-10)_
 - in `conLimite` un errore ferma solo il suo lavoratore: gli altri continuano con le voci rimaste. Per fermare tutto serve un flag condiviso, come `pienoVisto` in `salvaIncrementale`. _(2026-11-10)_
+- I giri periodici sono frenati, ma le letture chiamate da fuori (`pcSubito` per telefono e controllo) no: senza memoria dopo un errore, ogni chiamata ripete la richiesta a vuoto. _(2026-11-10)_
 
 ## posta
 
