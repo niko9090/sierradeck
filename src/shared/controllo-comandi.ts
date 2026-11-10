@@ -278,8 +278,10 @@ export function titoloDiSolaAnalisi(titolo: string): boolean {
 export function principaleSporca(statusPorcelain: string): { sporca: boolean; file: string[] } {
   const file: string[] = []
   for (const riga of statusPorcelain.split(/\r?\n/u)) {
-    if (riga.length < 4 || riga.startsWith('??') || riga.startsWith('!!')) continue
-    let p = riga.slice(3)
+    // Il `git` del programma toglie gli spazi di testa dell'uscita: la prima riga può essere «M percorso».
+    const voce = /^[ MTADRCU]{1,2} (\S.*)$/u.exec(riga)
+    if (voce === null) continue
+    let p = voce[1] as string
     const freccia = p.indexOf(' -> ')
     if (freccia >= 0) p = p.slice(freccia + 4)
     p = p.trim().replace(/^"|"$/gu, '').replace(/\\/gu, '/')
