@@ -17,6 +17,8 @@ describe('conferme della vista Progetti', () => {
   })
   it('lo spostamento in corso si vede, passo per passo, con l’errore detto chiaro', () => {
     expect(vista).toContain('<AvanzamentoSposta')
-    expect(vista).toContain('PASSI_SPOSTA.map(')
+    expect(vista).toContain('passi: PASSI_SPOSTA')
+    expect(vista).toContain('avanzamentoSposta(s,')
+    expect(vista).toContain('v.passi.map(')
   })
 })
