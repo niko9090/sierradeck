@@ -161,7 +161,13 @@ class MainActivity : ComponentActivity() {
         val versione = intent.getStringExtra(ControlloApp.EXTRA_VERSIONE)
         val apk = intent.getStringExtra(ControlloApp.EXTRA_APK)
         if (versione != null && apk != null && Aggiornamenti.apkAmmesso(apk)) { Apertura.aggiornamento = versione to apk; return }
-        if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
+        // App 11/11: il bersaglio della notifica, con il PC.
+        val bersaglio = it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta.run {
+            daBersaglio(intent.getStringExtra(COSA), intent.getStringExtra(ID), intent.getStringExtra(AUTOPILOTA))
+        }
+        if (bersaglio != null) { Apertura.richiesta = bersaglio to intent.getStringExtra(it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta.PC); return }
+        if (intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.richiesta = it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta.Domanda(intent.getStringExtra(Ronda.EXTRA_DOMANDA)) to null
+        else if (intent.hasExtra(Ronda.EXTRA_CHAT)) Apertura.schedaRichiesta = Scheda.DOMANDE
         else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.AUTOPILOTI
         // Il riassunto degli avvisi (0.43.0) apre le Domande, dove c'e' tutto quello che aspetta.
         else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "domande") Apertura.schedaRichiesta = Scheda.DOMANDE

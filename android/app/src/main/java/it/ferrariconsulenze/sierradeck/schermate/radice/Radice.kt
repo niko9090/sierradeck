@@ -67,6 +67,7 @@ import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Deposito
 import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
+import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
 import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
 import it.ferrariconsulenze.sierradeck.schermate.workspace.SchermataWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.workspace.chatDelWorkspace
@@ -142,6 +143,12 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
     BackHandler(enabled = true) { if (!vm.indietro()) onEsci() }
     // Le notifiche e le schermate di prima chiedono ancora un posto con `Apertura`.
+    LaunchedEffect(Apertura.richiesta) {
+        Apertura.richiesta?.let { (r, suPc) ->
+            if (suPc != null && suPc != pc.id && elenco.any { it.id == suPc }) vm.scegli(suPc)
+            vm.verso(r); Apertura.richiesta = null
+        }
+    }
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { vm.verso(it); Apertura.schedaRichiesta = null }
     }
@@ -175,7 +182,13 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             when (posto.voce) {
                 VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
                 VoceBarra.FILE -> SezioneFile(api)
-                VoceBarra.ALTRO -> GuscioAltro(api, posto.dettaglio as? Dettaglio.Sezione, onApri = { vm.apri(Dettaglio.Sezione(it)) }, onIndietro = { vm.indietro() })
+                VoceBarra.ALTRO -> SchermataAltro(
+                    api = api, chat = copia.stato?.chat.orEmpty(),
+                    aperta = (posto.dettaglio as? Dettaglio.Sezione)?.sezione,
+                    onApri = { vm.apri(Dettaglio.Sezione(it)) }, onIndietro = { vm.indietro() },
+                    onApriChat = { vm.apri(Dettaglio.Chat(it)) },
+                    onScollega = { forza -> vm.scollega(pc, forza) }
+                )
             }
             NotaGlobale()
         }
@@ -287,48 +300,6 @@ private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Dep
             onVersione = onVersione,
             evidenzia = (dettaglio as? Dettaglio.Domanda)?.id
         )
-    }
-}
-
-/** Altro: l'elenco delle sezioni a gruppi; una sezione per tocco. */
-@Composable
-private fun GuscioAltro(api: Api, aperta: Dettaglio.Sezione?, onApri: (SezioneAltro) -> Unit, onIndietro: () -> Unit) {
-    if (aperta != null) {
-        Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
-                Text(aperta.sezione.titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo)
-            }
-            Box(Modifier.fillMaxSize()) {
-                when (aperta.sezione) {
-                    SezioneAltro.SALUTE -> SezioneSalute(api)
-                    SezioneAltro.ALTRI_PC -> AltriComputer(api)
-                    SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
-                    SezioneAltro.CONSUMI -> SezioneConsumi(api)
-                    SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAvvisi() }
-                    SezioneAltro.DRIVE -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneDrive(api) }
-                    SezioneAltro.QUADERNO -> SezioneQuadernoPersonale(api)
-                    SezioneAltro.INFO -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneInfo(api); SezioneErroriApp(api) }
-                }
-            }
-        }
-        return
-    }
-    val gruppi = SezioneAltro.entries.groupBy { it.gruppo }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        for ((gruppo, sezioni) in gruppi) {
-            item(key = "g-$gruppo") {
-                Text(gruppo, style = MaterialTheme.typography.labelLarge, color = Banco.testoQuieto, modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 6.dp))
-            }
-            items(sezioni, key = { it.name }) { s ->
-                Column(
-                    Modifier.fillMaxWidth().tocco { onApri(s) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(s.titolo, style = MaterialTheme.typography.titleSmall, color = Banco.testo)
-                    Text(s.sotto, style = MaterialTheme.typography.bodyMedium, color = Banco.testoQuieto)
-                }
-            }
-        }
     }
 }
 

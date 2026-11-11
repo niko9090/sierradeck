@@ -101,6 +101,8 @@ enum class Scheda(val id: String, val breve: String) {
  */
 object Apertura {
     var schedaRichiesta by mutableStateOf<Scheda?>(null)
+    /** App 11/11: dove porta una notifica (`Richiesta`), e su quale PC (null = quello scelto). */
+    var richiesta by mutableStateOf<Pair<it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta, String?>?>(null)
     /** La chat da aprire nella scheda Chat (da «Apri la chat» in Domande). */
     var chatRichiesta by mutableStateOf<String?>(null)
 
@@ -122,4 +124,4 @@ object Apertura {
     /** I file condivisi con SierraDeck da un'altra app (app 2.50.0): si apre «Manda a…». */
     var condivisi by mutableStateOf<List<android.net.Uri>?>(null)
 }
-
+

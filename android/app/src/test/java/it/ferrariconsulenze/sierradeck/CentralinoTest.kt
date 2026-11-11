@@ -139,7 +139,7 @@ class CentralinoTest {
         val f = pc()
         val (c, _) = centralino(noto(f.porta))
         c.chiama("http://127.0.0.1:${f.porta}", "/api/scrivi", """{"testo":"ciao"}""", idRichiesta = "id-1")
-        assertEquals("id-1", f.arrivate.last().third)
+        assertEquals("id-1", f.arrivate.last { it.first == "/api/scrivi" }.third)
     }
 
     @Test
