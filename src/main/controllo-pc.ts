@@ -71,6 +71,12 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       // automatici (a lotti): qui sarebbero doppie, e spesso di una sessione già finita.
       if (v.tono === 'ok' || v.gruppo === 'errori') continue
       if (v.chiave.startsWith('pc:') && spenti.has(v.chiave.slice(3))) continue
+      // Scheda video di un PC spento (voce di un PC con una versione vecchia): dato vecchio, non criticità.
+      if (v.chiave.startsWith('gpu:') && spenti.has(v.chiave.slice(4))) continue
+      // «Non risponde a nessuna strada» detto da un PC, ma quel PC ha risposto a chi controlla: è la strada
+      // fra i due che non va, non un guasto del PC.
+      const raggiuntoDaChiControlla = v.chiave.startsWith('pc:') && saluti.some((x) => x.pcId === v.chiave.slice(3) && x.salute !== undefined)
+      const tono = v.tono === 'guasto' && raggiuntoDaChiControlla ? 'attenzione' : v.tono
       // k-191: «Aggiorna X» detto da un PC che ha la versione di X dal battito (o da una versione
       // vecchia del programma): se X stesso ha detto adesso una versione non più vecchia, è falso.
       if (v.chiave.startsWith('pc:')) {
@@ -83,7 +89,7 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
       const risorse = v.chiave === 'risorse'
       const titolo = risorse ? v.titolo.split(':')[0] ?? v.titolo : v.titolo
       out.push({
-        pc: s.nome, cosa: `${v.tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${titolo}`,
+        pc: s.nome, cosa: `${tono === 'guasto' ? 'GUASTO' : 'attenzione'} · ${titolo}`,
         dettaglio: [v.spiegazione, v.cosaFare].filter((x) => x !== undefined && x !== '').join(' — Cosa fare: '),
         // La voce di un altro PC (`pc:<id>`): più PC la vedono, la riga è una per quel PC.
         ...(v.chiave.startsWith('pc:') ? { chiave: v.chiave } : risorse ? { chiave: `risorse:${s.pcId}` } : {})
