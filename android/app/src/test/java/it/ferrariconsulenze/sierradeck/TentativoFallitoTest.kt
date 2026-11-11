@@ -6,9 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.Aggiornamento
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.NoteAggiornamento
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.conTentativoFallito
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.testoTentativoFallito
+import it.ferrariconsulenze.sierradeck.schermate.altro.NoteAggiornamento
+import it.ferrariconsulenze.sierradeck.schermate.altro.conTentativoFallito
+import it.ferrariconsulenze.sierradeck.schermate.altro.testoTentativoFallito
 
 /**
  * L'ultima installazione sul computer non e' riuscita (0.39.2): l'app lo

@@ -10,10 +10,8 @@ import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.PcPonte
 import it.ferrariconsulenze.sierradeck.rete.SuPc
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SceltaVista
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
+import it.ferrariconsulenze.sierradeck.schermate.radice.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * 2.84.1 (PC 0.84.1): le domande delle chat degli altri PC. Le opzioni fisse
@@ -30,27 +28,6 @@ class DomandeAltriPcTest {
     }
 
     @Test
-    fun `la scheda del PC si legge con le etichette e il tasto per aprire la chat`() {
-        val json = """{"chi":"chat «Prova» · Esempio · su PC-ESEMPIO","domanda":"Ti chiede di scegliere","scelte":[
-            {"testo":"Rosso","numero":1},
-            {"testo":"Type something.","numero":4,"libera":true,"etichetta":"Scrivo io la risposta"},
-            {"testo":"Chat about this","numero":5,"etichetta":"Ne parlo nella chat"}],
-            "dettagli":[],"segnaposto":"Oppure scrivile tu",
-            "apri":{"pcId":"pc-b","pc":"PC-ESEMPIO","sessione":"s-prova","cwd":"C:\\x","titolo":"Prova"}}"""
-        val s = Api.json.decodeFromString(SchedaDomanda.serializer(), json)
-        assertEquals(listOf("Rosso", "Scrivo io la risposta", "Ne parlo nella chat"), s.scelte.map { etichettaScelta(it) })
-        assertEquals(listOf("Rosso", "Type something.", "Chat about this"), s.scelte.map { it.testo })
-        assertEquals("PC-ESEMPIO", s.apri?.pc)
-    }
-
-    @Test
-    fun `una scheda di un PC più vecchio, senza etichetta né apri, resta com'era`() {
-        val s = Api.json.decodeFromString(SchedaDomanda.serializer(), """{"chi":"x","domanda":"y","scelte":[{"testo":"Sì"}]}""")
-        assertEquals("Sì", etichettaScelta(s.scelte[0]))
-        assertNull(s.apri)
-    }
-
-    @Test
     fun `«Apri la chat su PC» porta alle chat di quel PC, dentro quella conversazione`() {
         Apertura.apriChatSu(ApriChatAltrove(pcId = "pc-b", pc = "PC-ESEMPIO", sessione = "s-prova", cwd = "C:\\x", titolo = "Prova"))
         assertEquals(PcPonte("pc-b", "PC-ESEMPIO"), SuPc.corrente)
@@ -58,10 +35,4 @@ class DomandeAltriPcTest {
         assertEquals(Scheda.CHAT, Apertura.schedaRichiesta)
     }
 
-    @Test
-    fun `l'opzione del messaggio mostra l'italiano del PC`() {
-        val o = Opzione(numero = 5, testo = "Chat about this", etichetta = "Ne parlo nella chat")
-        assertEquals("Ne parlo nella chat", SceltaVista.etichetta(o).testo)
-        assertEquals("Chat about this", SceltaVista.etichetta(Opzione(numero = 5, testo = "Chat about this")).testo)
-    }
 }

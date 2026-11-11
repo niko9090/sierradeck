@@ -2,7 +2,7 @@ package it.ferrariconsulenze.sierradeck.nucleo
 
 import java.text.Normalizer
 import it.ferrariconsulenze.sierradeck.schermate.comune.Voce
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Il menu dei workspace (PC 0.82.0), le stesse regole di

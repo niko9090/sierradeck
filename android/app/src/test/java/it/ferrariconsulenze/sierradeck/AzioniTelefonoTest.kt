@@ -20,7 +20,6 @@ import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
 import it.ferrariconsulenze.sierradeck.nucleo.VoceAzione
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Ponte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.spiegaGestione
 
 /**
  * Gestire chat, workspace e autopiloti dal telefono (app 2.55.0): le regole e
@@ -103,23 +102,6 @@ class AzioniTelefonoTest {
         }
         assertTrue("/api/workspace/recupero" in Ponte.ROTTE)
         assertTrue("/api/workspace/ripristina" in Ponte.ROTTE)
-    }
-
-    @Test
-    fun `le rotte della gestione passano dal ponte, e un PC di prima lo dice`() {
-        for (r in listOf("/api/workspace/crea", "/api/workspace/elimina", "/api/workspace/rinomina", "/api/chat/chiudi", "/api/chat/dormi",
-            "/api/chat/sveglia", "/api/chat/sposta", "/api/sfoglia", "/api/cartelle", "/api/sessioni", "/api/autopilota/crea")) {
-            assertTrue(r, r in Ponte.ROTTE)
-        }
-        assertEquals(false, FunzioniPc.disponibile(FunzionePc.GESTIONE, "0.54.0"))
-        assertEquals(true, FunzioniPc.disponibile(FunzionePc.GESTIONE, "0.55.0"))
-        // Un ponte vecchio (PC accoppiato alla 0.54) rifiuta con «riquadro remoto»: si dice di aggiornarlo.
-        val vecchio = Api.Errore(403, """{"errore":"Attraverso il ponte si può solo quello che il PC fa dal suo riquadro remoto: … «/api/sfoglia» no."}""")
-        assertTrue(spiegaGestione(vecchio, "sfogliare le cartelle", "PC-ESEMPIO").contains("di prima della 0.55.0"))
-        val manca = Api.Errore(404, """{"errore":"non trovato"}""")
-        assertEquals("Mettere a dormire, spostare le chat, rinominare i workspace e gestire gli altri PC dal telefono arriva aggiornando PC-ESEMPIO alla 0.55.0. Si aggiorna con «Installa là», in cima alla schermata di quel PC.", spiegaGestione(manca, "mettere a dormire la chat", "PC-ESEMPIO"))
-        val vero = Api.Errore(409, """{"errore":"L’ultimo workspace non si può eliminare: non resterebbe dove salvare il layout."}""")
-        assertTrue(spiegaGestione(vero, "eliminare il workspace", null).endsWith("non resterebbe dove salvare il layout."))
     }
 
     @Test

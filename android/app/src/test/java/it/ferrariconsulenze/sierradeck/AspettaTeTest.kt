@@ -8,7 +8,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
 import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
 import it.ferrariconsulenze.sierradeck.nucleo.aspettaTe
 import it.ferrariconsulenze.sierradeck.nucleo.contaAspettanoTe
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /** PC 0.70: «Aspettano te» di partenza; le chat che hanno finito il turno in «Tutte». */
 class AspettaTeTest {

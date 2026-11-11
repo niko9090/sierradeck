@@ -1,6 +1,6 @@
 package it.ferrariconsulenze.sierradeck.nucleo
 
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.soloCornice
+import it.ferrariconsulenze.sierradeck.nucleo.soloCornice
 
 /**
  * Lo schermo di una chat ricomposto per la larghezza del telefono (app 2.52.6).

@@ -9,6 +9,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Telefono
+import it.ferrariconsulenze.sierradeck.dati.Deposito
+import it.ferrariconsulenze.sierradeck.rete.Esito
+import it.ferrariconsulenze.sierradeck.rete.motivo
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Contatto
 import it.ferrariconsulenze.sierradeck.rete.Indirizzi
@@ -67,7 +70,7 @@ class RadiceViewModel(private val t: Telefono.Insieme, private val salvato: Save
     fun tocca(v: VoceBarra) = metti(Navigazione.tocca(_posto.value, v))
     fun apri(d: Dettaglio) = metti(Navigazione.apri(_posto.value, d))
     fun verso(r: Richiesta) = metti(Navigazione.verso(_posto.value, r))
-    fun verso(s: it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda) = metti(Navigazione.verso(_posto.value, s))
+    fun verso(s: it.ferrariconsulenze.sierradeck.schermate.radice.Scheda) = metti(Navigazione.verso(_posto.value, s))
 
     /** `false` = non c'è più niente da chiudere: si esce dall'app. */
     fun indietro(): Boolean {
@@ -78,6 +81,22 @@ class RadiceViewModel(private val t: Telefono.Insieme, private val salvato: Save
 
     fun riprova() = t.centralino.riprova(pc.value?.id)
     fun scegli(id: String?) = t.rubrica.scegli(id)
+
+    /**
+     * «Scollega questo telefono» (app 11/11): il PC toglie il telefono dal suo
+     * elenco (`POST /api/scollega`), poi il telefono dimentica il PC e la sua
+     * chiave. Null = fatto; altrimenti il motivo, e il PC resta com'era.
+     * Un PC che non conosce la rotta (di prima) o che il telefono l'ha già
+     * tolto si dimentica lo stesso solo se [ancheSeNonRisponde].
+     */
+    suspend fun scollega(p: PcNoto, ancheSeNonRisponde: Boolean = false): String? {
+        val e = t.centralino.chiama(p.id, "/api/scollega", "{}")
+        val fatto = e is Esito.Riuscito || (e is Esito.Rifiuto && e.codice == 404) || ancheSeNonRisponde
+        if (!fatto) return e.motivo() ?: "Il computer non l’ha presa."
+        t.rubrica.dimentica(p.id)
+        Deposito.dimentica(p.id)
+        return null
+    }
 
     /** L'Api di prima per il PC scelto: passa dal Centralino. */
     fun api(p: PcNoto): Api = Api(p.id, p.chiave)

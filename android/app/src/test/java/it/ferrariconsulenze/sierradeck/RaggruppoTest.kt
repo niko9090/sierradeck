@@ -10,7 +10,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.ChatSalvata
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.nucleo.Workspace
 import it.ferrariconsulenze.sierradeck.nucleo.raggruppaChat
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Il tab Chat mostra tutte le chat del computer, raggruppate per workspace:

@@ -11,12 +11,8 @@ import it.ferrariconsulenze.sierradeck.nucleo.Domande
 import it.ferrariconsulenze.sierradeck.nucleo.RegoleAvanzamento
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Ponte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.RiassuntoAutopilota
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandaArrivata
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaOrigine
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.linguetteAutopilota
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.richiestaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.richiestaScheda
 
 /**
  * Le linguette «Domande» e «File» dell'autopilota nell'app (0.38.0): la stessa
@@ -36,29 +32,12 @@ class SchedaAutopilotaTest {
     }
 
     @Test
-    fun `la linguetta Domande c'e solo con domande, per prima, e una nuova la fa avanti`() {
-        assertEquals("domande", linguetteAutopilota(2).first())
-        assertFalse("domande" in linguetteAutopilota(0))
-        assertTrue("file" in linguetteAutopilota(0))
-        assertTrue(domandaArrivata(null, listOf(domanda)))
-        assertFalse(domandaArrivata(listOf("d:d1"), listOf(domanda)))
-        assertTrue(domandaArrivata(listOf("d:d1"), listOf(domanda, via)))
-        assertTrue(etichettaOrigine(via).contains("aspetta il tuo via"))
-    }
-
-    @Test
     fun `il dettaglio porta le domande della linguetta`() {
         val d = Api.json.decodeFromString(
             AutopilotaDettaglio.serializer(),
             """{"id":"ap","domandeScheda":[{"chiave":"d:d1","tipo":"domanda","idDomanda":"d1","testo":"x","opzioni":["sì","no"],"origine":"pubblica"}]}"""
         )
         assertEquals(listOf("sì", "no"), d.domandeScheda[0].opzioni)
-    }
-
-    @Test
-    fun `la riga riassuntiva dice percentuale, richieste e specialisti, prima le domande`() {
-        assertEquals("42% · 2 richieste aperte · 1 specialista", RiassuntoAutopilota.di(41.6, 2, 1, 0))
-        assertEquals("1 domanda per te · nessuna percentuale · sta pensando", RiassuntoAutopilota.di(null, 0, 0, 1, pensa = true))
     }
 
     @Test

@@ -56,6 +56,12 @@ android {
         compose = true
     }
 
+    // Le foto delle schermate girano nei test JVM: servono le risorse Android.
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { it.systemProperty("roborazzi.test.record", "true") }
+    }
+
     buildTypes {
         release {
             // Firmato all'uscita dal forno: nessun passaggio a mano, nessuna password
@@ -127,4 +133,15 @@ dependencies {
     // un difetto del codice e non lo e'. Qui si usa l'implementazione vera, la
     // stessa che gira sul telefono.
     testImplementation("org.json:json:20240303")
+
+    // Le foto delle schermate (app 11/11): Compose disegnato sul computer da
+    // Robolectric, salvato in PNG da Roborazzi (`FotoSchermateTest`). Versioni
+    // scelte per AGP 8.7 e Kotlin 2.0: Roborazzi 1.36 è compilato con Kotlin
+    // 1.9, Robolectric 4.14 conosce Android 35.
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.36.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.36.0")
+    testImplementation(compose)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

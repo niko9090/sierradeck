@@ -28,7 +28,7 @@ import it.ferrariconsulenze.sierradeck.SchedaAttivita
 import it.ferrariconsulenze.sierradeck.TabellaAttivita
 import it.ferrariconsulenze.sierradeck.nucleo.Specialista
 import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.RigaAlLavoro
+import it.ferrariconsulenze.sierradeck.nucleo.RigaAlLavoro
 
 /**
  * Il colore fisso di cosa fa una chat (PC 0.82.0). La tabella è

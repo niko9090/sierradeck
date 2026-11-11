@@ -17,7 +17,6 @@ import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 import it.ferrariconsulenze.sierradeck.rete.Percorsi
 import it.ferrariconsulenze.sierradeck.rete.Scoperta
@@ -26,14 +25,16 @@ import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
 import it.ferrariconsulenze.sierradeck.schermate.radice.Radice
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.RicevitoreConsegne
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Nota
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.radice.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.file.Condivisione
+import it.ferrariconsulenze.sierradeck.schermate.comune.Nota
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 import it.ferrariconsulenze.sierradeck.sottofondo.ControlloApp
 import it.ferrariconsulenze.sierradeck.sottofondo.Guasti
-import it.ferrariconsulenze.sierradeck.sottofondo.Ronda
+import it.ferrariconsulenze.sierradeck.sottofondo.Ascolto
+import it.ferrariconsulenze.sierradeck.sottofondo.Destinazione
+import it.ferrariconsulenze.sierradeck.sottofondo.ToccoAvviso
 
 /**
  * L'app nativa: nessuna WebView, solo Compose.
@@ -55,11 +56,11 @@ class MainActivity : ComponentActivity() {
         // adesso, su GitHub, anche a computer spento e ad app chiusa.
         try { ControlloApp.programma(applicationContext) } catch (e: Exception) { android.util.Log.i("SierraDeck", "controllo dell'app non programmato: ${e.message}") }
 
-        // Le sveglie di sempre: la guardia a schermo spento, i file dal PC.
+        // L'ascolto del computer (app 2.100.0): parte da qui, con l'app davanti, e
+        // resta acceso ad app chiusa. I file dal PC hanno il loro lavoro.
         try {
-            Sentinella.programma(applicationContext)
+            Ascolto.programmaRipiego(applicationContext)
             RicevitoreConsegne.programma(applicationContext)
-            if (Collegamento(this).controlloContinuo) GuardiaService.avvia(applicationContext)
         } catch (e: Exception) { android.util.Log.i("SierraDeck", "sveglie non programmate: ${e.message}") }
         Installazione.riprendi(applicationContext)
 
@@ -127,6 +128,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         Davanti.imposta(true)
+        // L'ascolto si (ri)accende con l'app davanti, dove Android lo lascia sempre partire:
+        // anche subito dopo un accoppiamento, o se era stato fermato.
+        if (!Ascolto.stato.value.attivo) Ascolto.avvia(applicationContext)
         // I computer vicini sulla stessa WiFi (k-50): solo mentre l'app è davanti.
         Scoperta.avvia(this)
     }
@@ -161,10 +165,16 @@ class MainActivity : ComponentActivity() {
         val versione = intent.getStringExtra(ControlloApp.EXTRA_VERSIONE)
         val apk = intent.getStringExtra(ControlloApp.EXTRA_APK)
         if (versione != null && apk != null && Aggiornamenti.apkAmmesso(apk)) { Apertura.aggiornamento = versione to apk; return }
-        if (intent.hasExtra(Ronda.EXTRA_CHAT) || intent.hasExtra(Ronda.EXTRA_DOMANDA)) Apertura.schedaRichiesta = Scheda.DOMANDE
-        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "lavori") Apertura.schedaRichiesta = Scheda.AUTOPILOTI
-        // Il riassunto degli avvisi (0.43.0) apre le Domande, dove c'e' tutto quello che aspetta.
-        else if (intent.getStringExtra(Ronda.EXTRA_SCHEDA) == "domande") Apertura.schedaRichiesta = Scheda.DOMANDE
+        // Un avviso toccato (app 2.100.0): il posto preciso a chi tiene la navigazione
+        // (`ToccoAvviso.richiesta`), e intanto la voce giusta con `Apertura`.
+        val dove = ToccoAvviso.daIntento(intent) ?: return
+        ToccoAvviso.chiedi(ToccoAvviso.richiestaDi(dove), ToccoAvviso.pcDi(intent))
+        Apertura.schedaRichiesta = when (dove) {
+            is Destinazione.Domanda, is Destinazione.Chat -> Scheda.DOMANDE
+            is Destinazione.Autopilota, Destinazione.Lavori -> Scheda.AUTOPILOTI
+            Destinazione.Aggiornamenti -> Scheda.IMPOSTAZIONI
+            Destinazione.File -> Scheda.FILE
+        }
     }
 
     private fun chiediPermessoNotifiche() {

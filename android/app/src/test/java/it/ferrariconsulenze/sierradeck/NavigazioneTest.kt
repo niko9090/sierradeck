@@ -15,8 +15,7 @@ import it.ferrariconsulenze.sierradeck.schermate.radice.Navigazione
 import it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta
 import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.radice.VoceBarra
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.sezioniAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * Le tre voci (Lavoro · File · Altro) e «indietro»: la regola è in
@@ -42,11 +41,11 @@ class NavigazioneTest {
 
     @Test
     fun `indietro chiude i dettagli uno alla volta, poi torna a Lavoro`() {
-        var p = Navigazione.apri(Navigazione.INIZIO, Dettaglio.Sezione(SezioneAltro.CONSUMI))
+        var p = Navigazione.apri(Navigazione.INIZIO, Dettaglio.Sezione(SezioneAltro.CHAT))
         assertEquals(VoceBarra.ALTRO, p.voce)
         p = Navigazione.apri(p, Dettaglio.Sezione(SezioneAltro.INFO))
         p = Navigazione.indietro(p)!!
-        assertEquals(Dettaglio.Sezione(SezioneAltro.CONSUMI), p.dettaglio)
+        assertEquals(Dettaglio.Sezione(SezioneAltro.CHAT), p.dettaglio)
         p = Navigazione.indietro(p)!!
         assertNull(p.dettaglio)
         assertEquals(VoceBarra.ALTRO, p.voce)
@@ -100,14 +99,12 @@ class NavigazioneTest {
     @Test
     fun `le impostazioni trovate con Cerca aprono la sezione giusta`() {
         for (s in SezioneAltro.entries) s.impostazione?.let { assertEquals(it, s, SezioneAltro.diImpostazione(it)) }
-        assertEquals(SezioneAltro.QUADERNO, SezioneAltro.diImpostazione("chat", "quaderno-personale"))
+        assertEquals(SezioneAltro.DRIVE, SezioneAltro.diImpostazione("chat", "quaderno-personale"))
         assertEquals(SezioneAltro.INFO, SezioneAltro.diImpostazione("sconosciuta"))
     }
 
-    @Test
-    fun `le parti dell autopilota stanno in una pagina, le domande per prime`() {
-        assertEquals("domande", sezioniAutopilota(1).first())
-        assertFalse("domande" in sezioniAutopilota(0))
-        assertEquals(listOf("avanzamento", "file"), sezioniAutopilota(0))
+    @Test fun richiestaFileEWorkspace() {
+        assertEquals(VoceBarra.FILE, Navigazione.verso(Navigazione.INIZIO, Richiesta.File).voce)
+        assertEquals(Dettaglio.Autopilota("a1"), Navigazione.verso(Navigazione.INIZIO, Richiesta.Autopilota("a1")).dettaglio)
     }
 }

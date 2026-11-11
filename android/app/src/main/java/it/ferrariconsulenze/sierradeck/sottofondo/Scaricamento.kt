@@ -47,7 +47,9 @@ object Scaricamento {
         contesto: Context,
         indirizzo: String,
         avanzamento: (percento: Int) -> Unit,
-        guasto: (motivo: String) -> Unit
+        guasto: (motivo: String) -> Unit,
+        /** L'installazione di Android è aperta: da qui in poi decide chi la guarda (e può annullare). */
+        pronto: () -> Unit = {}
     ) {
         // L'unico file che questa app installa: da dove viene si controlla qui,
         // l'ultimo istante prima di andarlo a prendere. Fra la scelta
@@ -104,7 +106,7 @@ object Scaricamento {
                     guasto("il file scaricato è troppo piccolo per essere l’app")
                     return@thread
                 }
-                installa(contesto, destinazione)
+                if (installa(contesto, destinazione)) pronto() else guasto("Android non ha aperto l’installazione")
             } catch (e: Exception) {
                 Log.e("SierraDeck", "aggiornamento non scaricato", e)
                 guasto(e.message ?: "non sono riuscito a scaricarlo")
@@ -120,8 +122,8 @@ object Scaricamento {
      * come un'eccezione a installazione già annunciata — cioè nel momento
      * peggiore.
      */
-    private fun installa(contesto: Context, file: File) {
-        try {
+    private fun installa(contesto: Context, file: File): Boolean {
+        return try {
             val dove = FileProvider.getUriForFile(contesto, "${contesto.packageName}.file", file)
             contesto.startActivity(
                 Intent(Intent.ACTION_VIEW).apply {
@@ -130,8 +132,10 @@ object Scaricamento {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
             )
+            true
         } catch (e: Exception) {
             Log.e("SierraDeck", "installazione non aperta", e)
+            false
         }
     }
 }

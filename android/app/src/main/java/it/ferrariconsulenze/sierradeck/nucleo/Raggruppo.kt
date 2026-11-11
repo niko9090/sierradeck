@@ -1,6 +1,6 @@
 package it.ferrariconsulenze.sierradeck.nucleo
 
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Una voce dell'elenco chat: o una chat viva (terminale acceso in una

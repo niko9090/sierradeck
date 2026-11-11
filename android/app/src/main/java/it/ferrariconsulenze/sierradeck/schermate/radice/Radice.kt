@@ -65,29 +65,39 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import it.ferrariconsulenze.sierradeck.dati.Collegamento
 import it.ferrariconsulenze.sierradeck.dati.Deposito
+import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
+import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
+import it.ferrariconsulenze.sierradeck.schermate.file.SchermataFile
+import it.ferrariconsulenze.sierradeck.nucleo.RegoleSchermate
+import it.ferrariconsulenze.sierradeck.schermate.chat.SchermataDettaglioChat
+import it.ferrariconsulenze.sierradeck.schermate.chat.fonteStoria
+import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
+import it.ferrariconsulenze.sierradeck.schermate.altro.BandaAppNuova
+import it.ferrariconsulenze.sierradeck.schermate.altro.DialogoAggiornaApp
+import it.ferrariconsulenze.sierradeck.schermate.altro.PiuTardi
+import it.ferrariconsulenze.sierradeck.sottofondo.ToccoAvviso
+import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
+import it.ferrariconsulenze.sierradeck.schermate.workspace.SchermataWorkspace
+import it.ferrariconsulenze.sierradeck.schermate.workspace.chatDelWorkspace
 import it.ferrariconsulenze.sierradeck.nucleo.PcCorrente
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Indirizzi
 import it.ferrariconsulenze.sierradeck.rete.PcNoto
 import it.ferrariconsulenze.sierradeck.rete.Scoperta
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.AltriComputer
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.BandaAggiornamentoApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.DialogoAggiornamentoApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.NotaGlobale
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermataChat
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermoInstallazione
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermoMandaA
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAggiornamenti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAvvisi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneConsumi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneDrive
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneErroriApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneFile
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneInfo
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneQuadernoPersonale
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneSalute
+import it.ferrariconsulenze.sierradeck.schermate.altro.AltriComputer
+import it.ferrariconsulenze.sierradeck.schermate.radice.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.comune.NotaGlobale
+import it.ferrariconsulenze.sierradeck.schermate.altro.SchermoInstallazione
+import it.ferrariconsulenze.sierradeck.schermate.file.SchermoMandaA
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneAggiornamenti
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneAvvisi
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneConsumi
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneDrive
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneErroriApp
+import it.ferrariconsulenze.sierradeck.schermate.file.SezioneFile
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneQuadernoPersonale
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneSalute
 import it.ferrariconsulenze.sierradeck.sottofondo.ErroriApp
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
@@ -98,8 +108,8 @@ import kotlinx.coroutines.launch
  * colorata), una banda sola quando serve, il guscio della voce, la barra con
  * tre voci. Le schermate stanno nei gusci e ricevono l'`Api` e lo stato.
  *
- * I gusci oggi ospitano le schermate di prima (`schermate/vecchie`): le
- * schermate nuove prendono il loro posto una alla volta, senza toccare la radice.
+ * Le schermate di prima (`schermate/vecchie`) non ci sono più: quelle che
+ * restavano utili (Aggiornamenti, Salute, Drive…) stanno in `schermate/altro`.
  */
 @Composable
 fun Radice(
@@ -137,6 +147,14 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
     BackHandler(enabled = true) { if (!vm.indietro()) onEsci() }
     // Le notifiche e le schermate di prima chiedono ancora un posto con `Apertura`.
+    // Il tocco su una notifica: dove porta, anche su un altro PC accoppiato.
+    val tocco by ToccoAvviso.richiesta.collectAsStateWithLifecycle()
+    LaunchedEffect(tocco) {
+        ToccoAvviso.prendiConPc()?.let { (r, suPc) ->
+            if (suPc != null && suPc != pc.id && elenco.any { it.id == suPc }) vm.scegli(suPc)
+            vm.verso(r)
+        }
+    }
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { vm.verso(it); Apertura.schedaRichiesta = null }
     }
@@ -158,7 +176,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             Column {
                 RigaInAlto(pc, Parola.di(contatto), elenco, onRiprova = vm::riprova, onScegli = vm::scegli, onAggiungi = { vm.scegli(null) })
                 Apertura.aggiornamento?.let { (nome, _) ->
-                    BandaAggiornamentoApp(nome = nome, onAggiorna = { dialogoApp = true }, onChiudi = { Apertura.aggiornamento = null })
+                    if (!PiuTardi.nascosta(contesto, nome)) BandaAppNuova(nome, onAggiorna = { dialogoApp = true }, onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null })
                 }
             }
         },
@@ -168,17 +186,23 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
     ) { spazi ->
         Box(Modifier.padding(spazi).fillMaxSize()) {
             when (posto.voce) {
-                VoceBarra.LAVORO -> GuscioLavoro(api, posto.dettaglio, copia, collegamento)
-                VoceBarra.FILE -> SezioneFile(api)
-                VoceBarra.ALTRO -> GuscioAltro(api, posto.dettaglio as? Dettaglio.Sezione, onApri = { vm.apri(Dettaglio.Sezione(it)) }, onIndietro = { vm.indietro() })
+                VoceBarra.LAVORO -> GuscioLavoro(pc, api, posto.dettaglio, copia, collegamento, onApri = vm::apri, onIndietro = { vm.indietro() }, onVersione = { vm.apri(Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI)) })
+                VoceBarra.FILE -> SchermataFile(pc.id, RegoleSchermate.schedeWorkspace(copia.stato?.autopiloti.orEmpty())) { SezioneFile(api) }
+                VoceBarra.ALTRO -> SchermataAltro(
+                    api = api, chat = copia.stato?.chat.orEmpty(),
+                    aperta = (posto.dettaglio as? Dettaglio.Sezione)?.sezione,
+                    onApri = { vm.apri(Dettaglio.Sezione(it)) }, onIndietro = { vm.indietro() },
+                    onApriChat = { vm.apri(Dettaglio.Chat(it)) },
+                    onScollega = { forza -> vm.scollega(pc, forza) }
+                )
             }
             NotaGlobale()
         }
     }
     if (dialogoApp) Apertura.aggiornamento?.let { (nome, apk) ->
-        DialogoAggiornamentoApp(
+        DialogoAggiornaApp(
             nome = nome, apk = apk,
-            avviaScarico = { indirizzoApk, onProgresso, onGuasto -> Scaricamento.apk(contesto, indirizzoApk, onProgresso, onGuasto) },
+            onPiuTardi = { PiuTardi.rimanda(contesto, nome); Apertura.aggiornamento = null; dialogoApp = false },
             onChiudi = { dialogoApp = false }
         )
     }
@@ -186,7 +210,7 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
 
 /** La riga in alto: il nome del PC (tocca per cambiarlo) e una parola colorata (tocca per riprovare). */
 @Composable
-private fun RigaInAlto(pc: PcNoto, parola: Parola, elenco: List<PcNoto>, onRiprova: () -> Unit, onScegli: (String) -> Unit, onAggiungi: () -> Unit) {
+internal fun RigaInAlto(pc: PcNoto, parola: Parola, elenco: List<PcNoto>, onRiprova: () -> Unit, onScegli: (String) -> Unit, onAggiungi: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val colore = colorePer(parola.tono)
     Row(
@@ -222,7 +246,7 @@ internal fun colorePer(t: Parola.Tono): Color = when (t) {
 }
 
 @Composable
-private fun BarraTre(voce: VoceBarra, domande: Int, onTocca: (VoceBarra) -> Unit) {
+internal fun BarraTre(voce: VoceBarra, domande: Int, onTocca: (VoceBarra) -> Unit) {
     NavigationBar(containerColor = Banco.chassis) {
         for (v in VoceBarra.entries) {
             val pallino = v == VoceBarra.LAVORO && domande > 0
@@ -252,63 +276,37 @@ private fun iconaDi(v: VoceBarra): ImageVector = when (v) {
     VoceBarra.ALTRO -> Icons.Filled.MoreHoriz
 }
 
-/** Lavoro: oggi le chat e i workspace di prima; un dettaglio Chat apre quella chat. */
+/**
+ * Lavoro (app 11/11): le domande e i workspace; un workspace apre la sua
+ * pagina (Chat · Chi lavora); una chat apre ancora il dettaglio di prima.
+ */
 @Composable
-private fun GuscioLavoro(api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento) {
-    LaunchedEffect(dettaglio) {
-        if (dettaglio is Dettaglio.Chat) Apertura.chatRichiesta = dettaglio.id
-    }
-    Column(Modifier.fillMaxSize()) {
-        if (copia.vecchia && copia.stato != null && copia.quando > 0) {
-            Text(
-                "Ultimo aggiornamento alle ${Parola.oraBreve(copia.quando)}",
-                style = MaterialTheme.typography.labelMedium, color = Banco.testoQuieto,
-                modifier = Modifier.fillMaxWidth().background(Banco.chassisAlto).padding(horizontal = 16.dp, vertical = 6.dp)
+private fun GuscioLavoro(pc: PcNoto, api: Api, dettaglio: Dettaglio?, copia: Deposito.Copia, collegamento: Collegamento, onApri: (Dettaglio) -> Unit, onIndietro: () -> Unit, onVersione: () -> Unit) {
+    when (dettaglio) {
+        is Dettaglio.Chat -> {
+            val fonte = remember(api, dettaglio.id) { fonteStoria(api, dettaglio.id) }
+            SchermataDettaglioChat(pc.id, copia.stato?.chat?.firstOrNull { it.id == dettaglio.id }, dettaglio.id, fonte, api, onIndietro)
+        }
+        is Dettaglio.Autopilota -> {
+            val a = copia.stato?.autopiloti?.firstOrNull { it.id == dettaglio.id }
+            val nomeWs = a?.workspace
+            val cwd = a?.cwd
+            val fonte = remember(api, dettaglio.id) { FonteApi(api, dettaglio.id, cartella = { cwd }) { nomeWs } }
+            SchermataWorkspace(
+                pc = pc.id, id = dettaglio.id,
+                testa = ComponiWorkspace.testa(a, dettaglio.id, null),
+                battito = copia.quando, fonte = fonte,
+                chats = chatDelWorkspace(copia.stato, nomeWs ?: ""),
+                onApriChat = { onApri(Dettaglio.Chat(it)) }, onIndietro = onIndietro
             )
         }
-        SchermataChat(api, copia.stato, collegamento)
-    }
-}
-
-/** Altro: l'elenco delle sezioni a gruppi; una sezione per tocco. */
-@Composable
-private fun GuscioAltro(api: Api, aperta: Dettaglio.Sezione?, onApri: (SezioneAltro) -> Unit, onIndietro: () -> Unit) {
-    if (aperta != null) {
-        Column(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onIndietro) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro") }
-                Text(aperta.sezione.titolo, style = MaterialTheme.typography.titleMedium, color = Banco.testo)
-            }
-            Box(Modifier.fillMaxSize()) {
-                when (aperta.sezione) {
-                    SezioneAltro.SALUTE -> SezioneSalute(api)
-                    SezioneAltro.ALTRI_PC -> AltriComputer(api)
-                    SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
-                    SezioneAltro.CONSUMI -> SezioneConsumi(api)
-                    SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAvvisi() }
-                    SezioneAltro.DRIVE -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneDrive(api) }
-                    SezioneAltro.QUADERNO -> SezioneQuadernoPersonale(api)
-                    SezioneAltro.INFO -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneInfo(api); SezioneErroriApp(api) }
-                }
-            }
-        }
-        return
-    }
-    val gruppi = SezioneAltro.entries.groupBy { it.gruppo }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        for ((gruppo, sezioni) in gruppi) {
-            item(key = "g-$gruppo") {
-                Text(gruppo, style = MaterialTheme.typography.labelLarge, color = Banco.testoQuieto, modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 6.dp))
-            }
-            items(sezioni, key = { it.name }) { s ->
-                Column(
-                    Modifier.fillMaxWidth().tocco { onApri(s) }.heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(s.titolo, style = MaterialTheme.typography.titleSmall, color = Banco.testo)
-                    Text(s.sotto, style = MaterialTheme.typography.bodyMedium, color = Banco.testoQuieto)
-                }
-            }
-        }
+        else -> SchermataLavoro(
+            pc = pc.id, stato = copia.stato, quando = copia.quando, vecchia = copia.vecchia,
+            leggiDomande = { try { api.domande().conversazioni } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } },
+            onApriWorkspace = { onApri(Dettaglio.Autopilota(it)) },
+            onVersione = onVersione,
+            evidenzia = (dettaglio as? Dettaglio.Domanda)?.id
+        )
     }
 }
 

@@ -7,7 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
 import it.ferrariconsulenze.sierradeck.sottofondo.Notifiche
 import it.ferrariconsulenze.sierradeck.sottofondo.TipoNotifica
@@ -108,26 +108,10 @@ class NotificheTest {
     }
 
     @Test
-    fun `il computer perso si dice dopo cinque minuti, il ritorno solo se era stato detto`() {
-        var l = Notifiche.Linea()
-        // Un ricollegamento di due minuti: niente, né all'andata né al ritorno.
-        var r = Notifiche.linea(l, false, t0, "PC-ESEMPIO"); l = r.first; assertNull(r.second)
-        r = Notifiche.linea(l, false, t0 + 2 * min, "PC-ESEMPIO"); l = r.first; assertNull(r.second)
-        r = Notifiche.linea(l, true, t0 + 3 * min, "PC-ESEMPIO"); l = r.first; assertNull(r.second)
-        // Perso davvero: dopo cinque minuti, una volta.
-        r = Notifiche.linea(l, false, t0 + 10 * min, "PC-ESEMPIO"); l = r.first; assertNull(r.second)
-        r = Notifiche.linea(l, false, t0 + 15 * min, "PC-ESEMPIO"); l = r.first
-        val perso = r.second
-        assertNotNull(perso)
-        assertEquals("PC-ESEMPIO non si raggiunge", perso!!.titolo)
-        assertEquals(TipoNotifica.COLLEGAMENTO, Notifiche.tipoDi(perso.chiave))
-        r = Notifiche.linea(l, false, t0 + 40 * min, "PC-ESEMPIO"); l = r.first; assertNull(r.second)
-        // Torna: lo stesso numero, quindi sostituisce il «perso».
-        r = Notifiche.linea(l, true, t0 + 45 * min, "PC-ESEMPIO")
-        assertEquals("PC-ESEMPIO è di nuovo raggiungibile", r.second?.titolo)
-        assertEquals("Era irraggiungibile da 35 min.", r.second?.testo)
-        assertEquals(perso.id, r.second?.id)
-        assertEquals(Notifiche.Linea(), r.first)
+    fun `il computer perso non e piu una notifica (2_100_0)`() {
+        // Lo dice la riga dell'ascolto e la schermata «Notifiche», non una notifica che suona.
+        assertTrue(TipoNotifica.values().none { it.chiave == "collegamento" })
+        assertEquals(TipoNotifica.DOMANDA, Notifiche.tipoDi("l:computer:perso"))
     }
 
     @Test
@@ -153,7 +137,5 @@ class NotificheTest {
         assertEquals("domanda ap1: Unisco il ramo?", d.causa)
         val fermo = giro("""{"autopiloti":[{"id":"ap1","nome":"Notte","stato":"sospeso","motivo":"la chat non parte"}]}""", gia, t0 + 2 * min).single()
         assertEquals("autopilota ap1 sospeso: la chat non parte", fermo.causa)
-        val (_, perso) = Notifiche.linea(Notifiche.Linea(persoDal = t0), false, t0 + 6 * min, "PC")
-        assertEquals("computer irraggiungibile da 6 min", perso?.causa)
     }
 }

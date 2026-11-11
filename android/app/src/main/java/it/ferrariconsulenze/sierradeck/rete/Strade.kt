@@ -170,6 +170,20 @@ object Strade {
         "/api/workspace/crea", "/api/workspace/progetto", "/api/file/progetti", "/api/file/elenco", "/api/file/cartella"
     )
     const val LENTE_MS = 200_000L
+
+    /** La rotta senza la parte dopo `?`: è quella che sta nelle tabelle. */
+    fun via(rotta: String): String = rotta.substringBefore('?')
+
+    /**
+     * L'attesa di una richiesta che il PC tiene apposta (11/11): `/api/eventi`
+     * con `attesa=N` risponde dopo al più N secondi (massimo 50), e con i 15 s
+     * di sempre la si troncava. N + 15 s di margine; null = l'attesa di sempre.
+     */
+    fun attesaDi(rotta: String): Long? {
+        if (via(rotta) != "/api/eventi") return null
+        val n = rotta.substringAfter("attesa=", "").substringBefore('&').toLongOrNull() ?: return null
+        return n.coerceIn(0, 50) * 1000 + NORMALE_MS
+    }
     const val NORMALE_MS = 15_000L
 
     /** Le rotte che leggono e basta: se cadono si riprovano sull'altra strada senza pensarci. */

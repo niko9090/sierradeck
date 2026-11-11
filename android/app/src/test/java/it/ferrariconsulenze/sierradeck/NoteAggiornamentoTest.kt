@@ -6,13 +6,13 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.NoteAggiornamento
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.PAGINA_VERSIONI
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaNota
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.linkAmmessoApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.noteMancanti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.righeNote
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.sottotitoloNote
+import it.ferrariconsulenze.sierradeck.schermate.altro.NoteAggiornamento
+import it.ferrariconsulenze.sierradeck.schermate.altro.PAGINA_VERSIONI
+import it.ferrariconsulenze.sierradeck.schermate.altro.etichettaNota
+import it.ferrariconsulenze.sierradeck.schermate.altro.linkAmmessoApp
+import it.ferrariconsulenze.sierradeck.schermate.altro.noteMancanti
+import it.ferrariconsulenze.sierradeck.schermate.altro.righeNote
+import it.ferrariconsulenze.sierradeck.schermate.altro.sottotitoloNote
 
 /**
  * «Installa» dal telefono (0.39.0): prima le note di cosa cambia, le stesse del

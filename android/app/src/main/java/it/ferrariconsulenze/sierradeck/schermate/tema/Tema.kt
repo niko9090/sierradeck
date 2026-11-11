@@ -18,7 +18,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import it.ferrariconsulenze.sierradeck.R
 import it.ferrariconsulenze.sierradeck.nucleo.Stile
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * I colori del banco — **vivi**, non copiati.

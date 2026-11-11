@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Il collegamento verso un altro PC (PC 0.51.0, app 2.51.0): la copia in
@@ -268,4 +268,4 @@ data class NodoMappa(val id: String = "", val nome: String = "", val host: Strin
 data class LineaMappa(val a: String = "", val strada: String? = null, val stato: String = "giu", val colore: String = "#f85149", val testo: String = "")
 @Serializable
 data class MappaPc(val nodi: List<NodoMappa> = emptyList(), val linee: List<LineaMappa> = emptyList())
-
+

@@ -1,6 +1,6 @@
 package it.ferrariconsulenze.sierradeck.schermate.radice
 
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * **Tre voci** (app nuova, 11/11): Lavoro · File · Altro. Nicholas: «da capo,
@@ -29,25 +29,23 @@ enum class VoceBarra(val id: String, val nome: String) {
 }
 
 /**
- * Le sezioni di «Altro»: un elenco, una sezione per tocco. `impostazione` è
- * l'id della sezione delle impostazioni del PC (`assets/impostazioni.json`).
+ * Le sei voci di «Altro» (app 11/11): una per tocco. `impostazione` è l'id
+ * della sezione delle impostazioni del PC (`assets/impostazioni.json`).
  */
-enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null, val gruppo: String = "Sistema") {
-    SALUTE("Salute del sistema", "Da sistemare, computer, Drive, errori"),
-    ALTRI_PC("Computer", "Accesi o spenti, chat dal vivo, cassetta", "computer"),
+enum class SezioneAltro(val titolo: String, val sotto: String, val impostazione: String? = null) {
     AGGIORNAMENTI("Aggiornamenti", "L’app e il computer", "aggiornamenti"),
-    CONSUMI("Consumi", "Token, limiti del piano, contesto"),
-    AVVISI("Notifiche", "Quali suonano, ore di silenzio", "notifiche", "Preferenze"),
-    DRIVE("Drive", "Account Google, cassaforte, salvataggio", "drive", "Preferenze"),
-    QUADERNO("Quaderno personale", "Le tue note per tutte le chat", null, "Strumenti"),
-    INFO("Info ed errori", "Versioni, Copia i dettagli, errori", "info", "Aiuto");
+    AVVISI("Notifiche", "Quali suonano, ore di silenzio", "notifiche"),
+    SALUTE("Computer e salute", "Accesi o spenti, cosa sistemare, consumi", "computer"),
+    CHAT("Tutte le chat", "Rinomina, chiudi"),
+    DRIVE("Dati riservati", "Drive, cassaforte, quaderno personale", "drive"),
+    INFO("Aiuto", "Versioni, errori, scollega questo telefono", "info");
 
     companion object {
         /** Dove porta una voce trovata con «Cerca» (l'id della sezione delle impostazioni del PC). */
         fun diImpostazione(id: String, voce: String? = null): SezioneAltro = when (id) {
             "aggiornamenti" -> AGGIORNAMENTI
-            "computer" -> ALTRI_PC
-            "chat" -> if (voce == "quaderno-personale") QUADERNO else INFO
+            "computer" -> SALUTE
+            "chat" -> if (voce == "quaderno-personale") DRIVE else CHAT
             "drive" -> DRIVE
             "notifiche" -> AVVISI
             else -> INFO
@@ -85,6 +83,7 @@ sealed interface Richiesta {
     data class Cartella(val progetto: String, val percorso: String = "") : Richiesta
     data object Lavori : Richiesta
     data object Aggiornamenti : Richiesta
+    data object File : Richiesta
 }
 
 /**
@@ -131,9 +130,10 @@ object Navigazione {
         is Richiesta.Cartella -> apri(p.copy(pile = p.pile - VoceBarra.FILE), Dettaglio.Cartella(r.progetto, r.percorso))
         Richiesta.Lavori -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
         Richiesta.Aggiornamenti -> apri(p.copy(pile = p.pile - VoceBarra.ALTRO), Dettaglio.Sezione(SezioneAltro.AGGIORNAMENTI))
+        Richiesta.File -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)
     }
 
-    /** Le destinazioni di prima (`Scheda`), che le schermate vecchie chiedono ancora. */
+    /** Le destinazioni di prima (`Scheda`), che le sezioni di Altro chiedono ancora. */
     fun verso(p: Posto, s: Scheda): Posto = when (s) {
         Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
         Scheda.FILE -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)

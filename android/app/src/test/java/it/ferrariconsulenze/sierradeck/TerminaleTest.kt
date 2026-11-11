@@ -4,8 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.estremiDelTesto
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.soloCornice
+import it.ferrariconsulenze.sierradeck.nucleo.estremiDelTesto
+import it.ferrariconsulenze.sierradeck.nucleo.soloCornice
 
 /**
  * Prove su cosa si mostra in «Adatta».

@@ -44,7 +44,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
 import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
 import it.ferrariconsulenze.sierradeck.nucleo.Scaricatore
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /*
  * I file dal PC al telefono, dalla parte del telefono (app 2.54.0).
@@ -304,4 +304,4 @@ object RicevitoreConsegne {
         }
     }
 }
-
+

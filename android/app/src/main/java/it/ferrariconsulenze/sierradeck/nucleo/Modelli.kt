@@ -2,9 +2,9 @@ package it.ferrariconsulenze.sierradeck.nucleo
 
 import kotlinx.serialization.Serializable
 import it.ferrariconsulenze.sierradeck.rete.InfoPonte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.AvvisoDrive
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandeInAttesa
+import it.ferrariconsulenze.sierradeck.schermate.altro.AvvisoDrive
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.domandeInAttesa
 
 /**
  * I modelli dell'API del computer, tipati.
@@ -297,8 +297,17 @@ data class SchedaDomanda(
     /** Quante altre domande aspettano dopo questa. */
     val poi: Int? = null,
     /** PC 0.84.1: il testo di una domanda di un altro PC non è arrivato; il tasto «Apri la chat su <PC>». */
-    val apri: ApriChatAltrove? = null
+    val apri: ApriChatAltrove? = null,
+    /** PC 0.101: quando sceglie il programma se non rispondi (ISO); solo le non rischiose. */
+    val scadeIl: String? = null,
+    /** PC 0.101: true = nessuno decide al posto tuo; false = scade; assente = non si sa. */
+    val rischiosa: Boolean? = null,
+    /** PC 0.101: com'è finita una domanda chiusa. */
+    val decisa: Decisa? = null
 )
+
+/** Com'è finita una domanda: `come` è tu | programma | ritirata. */
+@Serializable data class Decisa(val come: String = "", val testo: String = "", val quando: String = "")
 
 @Serializable
 data class SceltaScheda(
@@ -424,8 +433,23 @@ data class AutopilotaBreve(
     /** Si vede sempre chi lavora (PC 0.69.0): le parole le decide il PC. */
     val dalVivo: StatoDalVivo? = null,
     /** PC 0.70: lo stato in una parola, i criteri, l'ultima azione, il verbo. */
-    val vista: VistaAutopilotaApp? = null
+    val vista: VistaAutopilotaApp? = null,
+    /** PC 0.81: il workspace del suo lavoro. */
+    val workspace: String? = null,
+    val archiviato: Boolean = false,
+    // ─── PC 0.101 (contratto §4): lo stato pronto per le schermate. Assenti da un PC di prima. ───
+    val adesso: AdessoTelefono? = null,
+    val avanzamento: AvanzamentoTelefono? = null,
+    val ruoli: List<RuoloTelefono> = emptyList(),
+    val domande: Int? = null
 )
+
+/** Cosa succede adesso, in una frase: `tono` è lavora | aspetta | fermo | riposo. */
+@Serializable data class AdessoTelefono(val testo: String = "", val tono: String = "riposo")
+/** La percentuale del workspace e i minuti che mancano, interi. */
+@Serializable data class AvanzamentoTelefono(val percento: Int? = null, val mancaMin: Int? = null)
+/** Chi lavora adesso: il ruolo in parole, il suo colore `#rrggbb`, cosa fa. */
+@Serializable data class RuoloTelefono(val ruolo: String = "", val colore: String = "", val cosa: String? = null)
 
 @Serializable data class CriteriVistaApp(val fatti: Int = 0, val totali: Int = 0, val testo: String = "—")
 @Serializable data class VistaAutopilotaApp(

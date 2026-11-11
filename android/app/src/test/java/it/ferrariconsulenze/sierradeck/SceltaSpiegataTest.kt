@@ -5,8 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.apreIlCampo
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
 
 /**
  * 2.84.3 (PC 0.84.3): sotto ogni scelta si vede cosa succede. Il PC manda
@@ -14,21 +12,6 @@ import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
  * («sono bloccato») e per le opzioni spiegate delle chat degli altri PC.
  */
 class SceltaSpiegataTest {
-    @Test
-    fun `«sono bloccato» dal PC, ogni scelta porta cosa succede`() {
-        val json = """{"chi":"autopilota «App Android» · SierraDeck","domanda":"«App Android»: il controllo «I test passano» non passa. Come vado avanti?","scelte":[
-            {"testo":"Lascia stare quel controllo e vai avanti","consigliata":true,"conseguenza":"quel controllo lo giudico io: non conta più per finire il lavoro"},
-            {"testo":"Ti scrivo io cosa provare","libera":true,"conseguenza":"lo passo alla chat così com’è"},
-            {"testo":"Sospendi l’autopilota","conseguenza":"fermo tutte le chat; lo riprendi con «Riprendi»"}],
-            "dettagli":[],"segnaposto":"Scrivi tu la risposta"}"""
-        val s = Api.json.decodeFromString(SchedaDomanda.serializer(), json)
-        assertEquals(3, s.scelte.size)
-        assertEquals("quel controllo lo giudico io: non conta più per finire il lavoro", s.scelte[0].conseguenza)
-        assertEquals("★ Lascia stare quel controllo e vai avanti", etichettaScelta(s.scelte[0]))
-        // Revisione: «Ti scrivo io cosa provare» porta al campo, non risponde; le altre rispondono.
-        assertEquals(listOf(false, true, false), s.scelte.map { apreIlCampo(it) })
-    }
-
     @Test
     fun `una scheda di un PC più vecchio, senza conseguenza, resta com'era`() {
         val s = Api.json.decodeFromString(SchedaDomanda.serializer(), """{"chi":"x","domanda":"y","scelte":[{"testo":"Sì"}]}""")
