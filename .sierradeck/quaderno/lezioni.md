@@ -62,6 +62,8 @@
 - la verifica di una release va fatta con `gh release view --json assets`: il nome dell'APK (2.x) non coincide con la versione della release (0.x), quindi non va cercato per nome esatto. _(2026-11-11)_
 - `controlla-pacchetto` rifiuta `node_modules` come junction: nel worktree serve una copia vera (robocopy /E /MT:16, exit code 1 = ok), da rimpiazzare alla junction usata per tsc/vitest. _(2026-11-11)_
 - Con `gh release create --draft` la release resta «untagged» nell'URL, ma electron-builder la riempie lo stesso e `gh release view` mostra il tag giusto; verificare i 5 file prima di `--draft=false`. _(2026-11-11)_
+- Una release pubblicata da un ramo (push su origin/main) lascia indietro la cartella principale: fino alla 0.99.4 si riallinea a mano con `git merge origin/main` da una chat aperta lì; dalla 0.100.0 lo fa il programma ogni 10 minuti. _(2026-11-11)_
+- Dalla 0.100.0 pubblica lo specialista «rilascio», che lavora nella cartella principale senza Edit/Write: versione e novità le prepara prima uno sviluppatore, nel suo ramo. _(2026-11-11)_
 
 ## git
 
@@ -151,6 +153,8 @@
 - Ripresa dopo il riavvio: le unioni partono solo dopo la pulizia della prova (`provaRipulita`) e una volta per avvio. Senza aggiornamento solo compiti con `ramo` e senza esito «unione non fatta». _(2026-11-10)_
 - Il quaderno riscrive righe esistenti («(×2)», riordino): il controllo «solo righe aggiunte» sul numstat non basta. Dentro .sierradeck/quaderno/ si salva sempre. _(2026-11-10)_
 - la prova di unione salva con un commit solo `.sierradeck/quaderno/` (anche riscritto); le altre note di `.sierradeck/` restano «solo aggiunte» (numstat): un test deve coprire entrambi i rami. _(2026-11-11)_
+- Fino alla 0.99.1 installata una nota del quaderno con righe cambiate o tolte ferma tutta la fila: la sblocca solo un commit di `.sierradeck/quaderno` fatto da una chat aperta nella cartella principale (dalla 0.99.2 la salva il programma). _(2026-11-11)_
+- Dalla 0.100.0 un file non salvato nella cartella principale ferma un’unione solo se il ramo lo tocca; in quel caso dopo 5 minuti è il programma a chiedere a Nicholas «Salvali e unisci», non l’autopilota. _(2026-11-11)_
 
 ## gpu
 
@@ -290,6 +294,7 @@
 ## merge
 
 - client-pagina.ts: la lista di firme che fa ridisegnare la pagina del telefono è il punto dove si scontrano le funzioni nuove; tenere sempre le righe di entrambe. _(2026-11-09)_
+- Più gruppi di correzioni sugli stessi file grossi (servizio-orchestratore.ts): una copia per gruppo, poi un ramo di integrazione; i conflitti stanno negli import e nel cancello, e dopo ogni unione vanno rilanciati typecheck e l’intera suite. _(2026-11-11)_
 
 ## verifica
 
@@ -321,6 +326,8 @@
 
 - `compito.ramo` va tolto (`senzaRamo`) quando il compito torna da-fare o in-corso, altrimenti la ripresa riunisce il ramo vecchio. _(2026-11-10)_
 - Un criterio con comando che legge solo file sotto .sierradeck/ (es. grep sul quaderno) è rifiutato: per le note scrivere il criterio a parole, lo giudica il supervisore. _(2026-11-11)_
+- Un compito «unito» con un criterio generico (`npx vitest run tests/shared`) può avere il ramo vero rimasto fuori (k-165): per saperlo, `git merge-tree --write-tree main <ramo>` e confronto con l’albero di main. _(2026-11-11)_
+- Dalla 0.100.0 un compito che non va più fatto si chiude con `piano_chiudi` (superato o annullato): prima restava «in revisione» per sempre e teneva aperta la richiesta. _(2026-11-11)_
 
 ## orchestratore
 

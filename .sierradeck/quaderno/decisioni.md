@@ -5,12 +5,8 @@
 ## nicholas
 
 - vedo che la parte di sinistra con l'elenco delle chat ogni tanto scazza e noto ancora che scrivo all'autopilota e lui mi dice che procede ma la chat continua a rimanere ferma. ci sono ancora problemi e voglio che li togli perche sono settimane che stiamo lavorando sugli stessi cazzo di problemi _(2026-10-16)_
-- «Come vado avanti con questo pezzo?» → devi essere piu specifico, di che lavoro parli? _(2026-10-17)_
-- «Come vado avanti con questo pezzo?» → quale pezzo??? _(2026-10-17)_
 - qui nella dashboard voglio vedere bene la chat con l'autopilota e che mi tenga informato sempre su quello che stanno facendo gli agenti nelle chat (riassuntivo ooviamente) _(2026-10-17)_
-- «idle_prompt: Claude is waiting for your input» → ho bisogno che tu continui ad analizzare tutto il programma e ad ottimizzarlo e sia lato codice sia lato grafico per permettermi di operare al meglio _(2026-10-18)_
-- «idle_prompt: Claude is waiting for your input La chat aveva appena detto: Login expired · Please run /login» → continua _(2026-10-18)_
-- «Come vado avanti con questo pezzo?» → rifallo ancora _(2026-10-19)_
+- ho bisogno che tu continui ad analizzare tutto il programma e ad ottimizzarlo e sia lato codice sia lato grafico per permettermi di operare al meglio _(2026-10-18)_
 - poi voglio che quando finisci un compito mi chiudi le chat che non servono se no non si capisce piu una minchia. poi ho aperto un workspace che non so come mai non aveva un autopilota, quando l'ho creato mi ha aperto un nuovo workspace e quindi adesso ho due cose diveise che non hanno senso e ancora non ho capito come eliminarle. puoi sistemare tutto? _(confermata 2×, ultima 2026-10-19)_
 - «Chiudi tu a mano le chat c-7 e c-4 dall'elenco delle chat, visto che io non ci riesco?» → Le chiudo io _(2026-10-19)_
 - voglio che imposti che ogni errore venga salvato in uno storico che al bisogno cosi ti posso postare qui e tu capisci l'errore e lo risolvi nelle versioni successive. predisponi anche un pulsante di invio a questo pc in una cartella che decidi e dopo averli analizzati e corretti elimini il log dalla cartella _(2026-10-19)_
@@ -18,7 +14,6 @@
 - «Installi tu la 0.80.0 su questo PC, così chiudo le chat finite c-7, c-10 e c-12?» → ho gia installato la versione 0.80.1 _(2026-10-20)_
 - «Will you install the 0.80.0 on this PC so finished chats close on their own?» → è gia installata la versione successiva _(2026-10-20)_
 - se ti rispondo alle domande non vedi le risposte, poi mi fai spesso la stessa domanda piu volte e tutto sembra fatto davvero male. io non sono comodo nell'usare questo programma perche la chat dell'autopilota non mi rende partecipe di quello che succede e non so mai cosa sta facendo. ho bisogno che miglioriamo questo aspetto _(2026-10-20)_
-- «Come vuoi che proceda?» → rivedi i criteri _(2026-10-20)_
 - questo programma non tiene conto del pc in uso e lo rallenta troppo aprendo troppe chat, dai dei limiti giusti non troppo castrato. visuale piu chiara di chi sta operando (agenti) elimina chat non usate per far posto a cio che serve. domande chiare e e non di cose gia successe ci deve essere un controllo! apre chat le usa e le chiude per ottimizzare. ci deve sempre essere un colore che indentifica _(2026-10-20)_
 - dopo questo lavoro voglio che ti occupi a capire e risolvere il problema che gli autopiloti e le chat si bloccano da sole e come ho sempre detto l'autopilota (come questa chat) deve avere sempre il controllo su tutto, tutte le chat devono sempre riferire con questa e voglio massima coordinazione per una resa massima. voglio poi che installiamo su tutti i pc il plugin che abbiamo installato qui (ec _(2026-10-21)_
 - «Pubblico adesso una 0.81.1 con la correzione delle chat chiuse, mai installata, o la lascio in main per la prossima release?» → superata: 0.81.1 pubblicata il 20/10 e installata _(2026-10-21)_
@@ -33,8 +28,6 @@
 - si va bene ma le chat devono SEMPRE interfacciarsi con te qquindi tu dovresti sempre sapere cosa succede e perche, altrimenti a cosa servi? _(2026-10-23)_
 - «L'unione della correzione degli errori arrivati (ramo worktree-agent-aa217af67431f584c) è rifiutata due volte: la cartella principale ha modifiche non salvate. All'avvio erano solo due note del quader» → fai tu tu _(2026-10-31)_
 - «Le correzioni dell'OOM Android e dell'avviso updater 501 sono in main. Per la release (una sola, mai installata, APK nuovo) servono tag, gh release e pubblicazione dal PC principale: i miei specialist» → Fai tu _(2026-10-31)_
-- «Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 90 s","timeout_ms":120000,"command":"until grep -q . \"C:/Users/nikof/AppData/Local/Temp/claude/324eb1a2afe72b13/e7f3692c-61» → Consenti _(2026-11-06)_
-- «Uno specialista chiede il permesso per Monitor: {"description":"fine attesa 4 minuti","timeout_ms":270000,"command":"f=\"C:/Users/nikof/AppData/Local/Temp/claude/324eb1a2afe72b13/e7f3692c-61da-4c3c-97» → Consenti _(2026-11-06)_
 - «Su questo PC la macchina virtuale di Linux (WSL) occupa circa 15 GB di memoria e lascia libero solo il 5%. Per questo da ore il PC rimanda le compilazioni e le prove complete. Posso spegnerla?» → Sì, spegnila _(2026-11-06)_
 - «Linux non ripartiva da solo: lo usa la chat che compila NexoraOS, che ci tiene dentro un ambiente da 191 GB e ci sta lavorando adesso. Lo tolgo lo stesso?» → ferma l'agente che lavora su nexora che non è un progetto importante adesso e ferma linux ora _(2026-11-06)_
 - «Le chat sul Drive: le teniamo tutte per sempre o solo quelle recenti?» → Sul drive stanno quelle che vengono usate le altre si eliminano. Se vedi poi che ho poco spazio quelle più grosse stanno solo locali. Esempio questa si Sierra deck e quella di nexora devono essere locali e basta _(2026-11-06)_

@@ -159,3 +159,8 @@ Corretto nella 0.99.2 (rete) e 0.99.3 (autopilota mai fermo anche sugli errori n
 
 ## 2. «[orchestratore] Desk_remoto #2 — turno non riuscito: API Error: Can't reach the API server (ENOTFOUND)» (10 volte, versione 0.99.0)
 Stessa causa e stessa correzione del gruppo 1 (0.99.2 e 0.99.3): era il risveglio «lavoro fermo da 4 minuti» di un altro orchestratore, fallito sulla stessa mancanza di rete. Nessun gruppo aperto in questo lotto.
+
+# Errori arrivati (lotto 20261110081517)
+
+## «[aggiornamenti] fase: errore · 504» (2 volte, versione 0.98.0, segnato «si ripresenta»)
+Corretto nella 0.99.0 (commit 976913be: un 502, 503 o 504 senza statusCode è un avviso e si riprova al controllo dopo) e completato nella 0.100.0 per la forma che restava fuori, «Cannot download "<url>", status 504:», quella del download dell’installer (src/main/aggiornamenti.ts). Causa: il server delle release rispondeva 504 mentre il programma cercava o scaricava l’aggiornamento; è un guasto passeggero del server, non del programma. Test in tests/main/aggiornamenti-rete-transitoria.test.ts.
