@@ -2,7 +2,7 @@ import {
   avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
   type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type StatoCoda, type StatoCompito
 } from './coda-richieste'
-import { criterioSempreVerde, titoloDiSolaAnalisi } from './controllo-comandi'
+import { criterioSempreVerde, esaminaCriterio, titoloDiSolaAnalisi } from './controllo-comandi'
 
 /**
  * **Il piano dell'orchestratore unico** (P3, 30/10/2026): i compiti in cui
@@ -217,6 +217,13 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     const verde = comando !== undefined && !titoloDiSolaAnalisi(c.titolo) ? criterioSempreVerde(comando) : undefined
     if (verde !== undefined) {
       return { ok: false, errore: `il compito ${c.id}: il criterio \`${verde.comando}\` ${verde.motivo}. Usa invece ${verde.alternativa}.` }
+    }
+    // 11/11 (k-129): lo stesso esame del cancello, subito. Un comando che il cancello respinge sempre non entra nel piano.
+    const esame = comando !== undefined ? esaminaCriterio(comando, c.titolo) : undefined
+    if (esame !== undefined && !esame.ok) {
+      const cosa = esame.problemi.filter((q) => q.gravita === 'errore').map((q) => q.messaggio).join(' ').slice(0, 500)
+      const nota = esame.problemi.some((q) => q.tipo === 'note') ? ' Se il compito è proprio una nota, dillo nel titolo («nota», «quaderno», «rapporto»); altrimenti togli il comando e scrivi il criterio a parole.' : ''
+      return { ok: false, errore: `il compito ${c.id}: il comando del criterio \`${comando}\` non va bene e il cancello non lo misurerebbe mai. ${cosa}${nota}` }
     }
     const prima = piano.compiti.find((x) => x.id === c.id)
     if (prima !== undefined && prima.stato !== 'da-fare' && prima.richiesta !== c.richiesta) {

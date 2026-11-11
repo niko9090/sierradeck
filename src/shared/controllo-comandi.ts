@@ -269,6 +269,24 @@ export function titoloDiSolaAnalisi(titolo: string): boolean {
   return /\b(analisi|analizz\w*|sola lettura|solo lettura|read-?only|audit|esamin\w*|ricognizione)\b/iu.test(titolo)
 }
 
+/** Compiti che sono proprio una nota (quaderno, rapporto, scheda): il loro risultato sta sotto `.sierradeck/`. */
+export function titoloDiNota(titolo: string): boolean {
+  return /\b(nota|note|quaderno|rapporto|scheda|appunt\w*)\b/iu.test(titolo)
+}
+
+/**
+ * **L'esame del comando di un criterio del piano** (11/11, k-129). `piano_scrivi` accettava
+ * `grep -q … .sierradeck/quaderno/x.md` e poi il cancello lo respingeva sempre («controlla
+ * solo note»): il compito non poteva diventare verde. Ora l'esame è lo stesso nei due punti,
+ * e un compito che è proprio una nota (lo dice il titolo) può misurarsi sulle note.
+ */
+export function esaminaCriterio(cmd: string, titolo: string): Esame {
+  const e = esaminaComando(cmd)
+  if (e.ok || !titoloDiNota(titolo)) return e
+  const problemi = e.problemi.filter((p) => p.tipo !== 'note')
+  return { ok: !problemi.some((p) => p.gravita === 'errore'), problemi }
+}
+
 /**
  * Lo stato della cartella principale prima di misurarci un criterio
  * (`git status --porcelain`): i file **seguiti** cambiati, senza `.sierradeck/`

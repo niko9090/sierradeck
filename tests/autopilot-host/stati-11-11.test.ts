@@ -341,6 +341,30 @@ describe('compiti zombie: si chiudono da soli con la loro richiesta, o con piano
   })
 })
 
+describe('un criterio sulle note, per un compito che è una nota, si misura (11/11, k-129)', () => {
+  it('il cancello lo misura e il compito diventa verde; per un compito che non è una nota resta respinto', async () => {
+    zitto()
+    const comandi: string[] = []
+    const porte: Porte = { merge: [], rami: {} }
+    await avviaServizio(porte, { esegui: (c) => { comandi.push(c); return { codice: 0, uscita: '' } } })
+    const criterio = 'la nota c’è: `grep -q 20261110165020 .sierradeck/quaderno/errori-arrivati.md`'
+    orch.scriviPiano(WS, { versione: 1, compiti: [
+      compito('k-129', { stato: 'in-revisione', ruolo: 'esploratore', titolo: 'Nota nel quaderno errori-arrivati.md per i gruppi del lotto', criterio }),
+      compito('k-130', { stato: 'in-revisione', ruolo: 'esploratore', titolo: 'Correggere il salvataggio', criterio })
+    ] })
+    await strumento('unisci', { compito: 'k-129' })
+    await attendi(() => k('k-129')?.stato === 'unito', { cosa: 'k-129 unito' })
+    expect(k('k-129')!.criterioVerde).toBe(true)
+    expect(comandi.some((c) => c.includes('errori-arrivati.md'))).toBe(true)
+    await strumento('unisci', { compito: 'k-130' })
+    await attendi(() => k('k-130')?.stato === 'unito', { cosa: 'k-130 unito' })
+    expect(k('k-130')).toMatchObject({ criterioVerde: false })
+    expect(k('k-130')!.esito).toContain('il comando del criterio non è accettato')
+    // E il piano adesso lo dice subito, invece di accettarlo.
+    expect(await strumento('piano_scrivi', { compiti: [{ id: 'k-131', richiesta: 'r-1', titolo: 'Correggere il salvataggio', criterio }] })).toContain('il cancello non lo misurerebbe mai')
+  })
+})
+
 describe('compito senza specialisti in memoria: il cancello chiede a git (11/11, k-6, k-8, k-10, k-120)', () => {
   /** Zitto come `zitto`, ma torna quello che il programma ha scritto nel registro (info). */
   const info = (): (() => string) => {

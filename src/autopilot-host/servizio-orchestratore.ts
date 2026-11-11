@@ -14,7 +14,7 @@ import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFluss
 import { RUOLI } from '@shared/ruoli-agenti'
 import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
-import { esaminaComando, principaleSporca, titoloDiSolaAnalisi } from '@shared/controllo-comandi'
+import { esaminaCriterio, principaleSporca, titoloDiSolaAnalisi } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
@@ -1244,7 +1244,7 @@ ${NOTA_SENZA_GIT}`,
       nonMisurato = true
       dettaglio = `principale sporca: ${sporca.file.slice(0, 5).join(', ')}${sporca.file.length > 5 ? ` (+${sporca.file.length - 5})` : ''}. Il criterio non è stato misurato: salva o annulla quel file nella cartella principale, poi rimisura`
     } else if (comando !== undefined) {
-      const esame = esaminaComando(comando)
+      const esame = esaminaCriterio(comando, compito?.titolo ?? '')
       if (!esame.ok) {
         verde = false
         dettaglio = `il comando del criterio non è accettato (${esame.problemi.map((q) => q.messaggio).join('; ').slice(0, 300)}): riscrivi il criterio con piano_scrivi`
