@@ -179,7 +179,9 @@ describe('quello che il Client puo fare', () => {
     const su = deps({ avanzamentoAutopilota: (ws) => { chiesti.push(ws); return Promise.resolve({ orchestratore, coda } as never) } })
     const r = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { workspace: 'lavoro' } })
     expect(r.stato).toBe(200)
-    expect(r.corpo).toEqual({ orchestratore, coda })
+    expect(r.corpo).toMatchObject({ orchestratore, coda })
+    // 11/11: accanto ai campi di prima, i titoli in parole (`parole-telefono.ts`).
+    expect(r.corpo).toMatchObject({ orchestratore: { specialisti: [{ titoloParole: 'Il lettore', ruoloParole: 'Sviluppo' }] }, coda: { richieste: [{ titoloParole: 'Il lettore', statoParole: 'in corso' }] } })
     // Dall'autopilota: la chiave è la sua cartella, se non ha un workspace.
     const r2 = await rotteClient(su)({ metodo: 'POST', percorso: '/api/autopilota/avanzamento', corpo: { autopilota: 'ap-1' } })
     expect(r2.stato).toBe(200)

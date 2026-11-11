@@ -40,6 +40,8 @@ import { cartellaDiProva, PREFISSO_CARTELLA_PROVA } from '@shared/chat-di-prova'
 import { chiaveWorkspace, type VistaCoda } from '@shared/coda-richieste'
 import type { VistaOrchestratore } from '@shared/piano-orchestratore'
 import { creaStatoTelefono, criteriInPercento } from './stato-telefono-rotta'
+import { attesaInParole, avanzamentoInParole } from '@shared/parole-telefono'
+import { leggiAttesa } from '@shared/stato-telefono'
 import {
   bozzaDaCorpo, controllaBozzaAutopilota, controllaNomeWorkspace, ULTIMO_WORKSPACE,
   type AzioneFinestra, type EsitoAzioneFinestra, type RichiestaAutopilota
@@ -1593,7 +1595,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       if (deps.avanzamentoAutopilota === undefined) return OK({ orchestratore: null, coda: null })
       const v = await deps.avanzamentoAutopilota(ws).catch((x: unknown) => (x instanceof Error ? x : new Error(String(x))))
       if (v instanceof Error) return { stato: 502, corpo: { errore: `il servizio degli autopiloti non ha dato l’avanzamento: ${v.message.slice(0, 160)}` } }
-      return OK({ orchestratore: v.orchestratore ?? null, coda: v.coda ?? null })
+      // 11/11: con i titoli in parole accanto a quelli di prima (`parole-telefono.ts`).
+      return OK(avanzamentoInParole({ orchestratore: v.orchestratore ?? null, coda: v.coda ?? null }))
     }
 
     // 0.95.1: la conversazione di uno specialista dell'autopilota di un workspace,
@@ -1612,7 +1615,9 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     if (r.metodo === 'POST' && r.percorso === '/api/specialisti/attesa') {
       if (deps.attesaSpecialisti === undefined) return OK({ posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
       const v = await deps.attesaSpecialisti().catch(() => undefined)
-      return OK(v ?? { posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] })
+      // 11/11: con i titoli in parole e il ruolo con il colore (`parole-telefono.ts`).
+      const l = leggiAttesa(v)
+      return OK(l !== undefined ? attesaInParole(l) : (v ?? { posti: { usati: 0, tetto: 0 }, alLavoro: [], inFila: [] }))
     }
     if (r.metodo === 'POST' && (r.percorso === '/api/specialisti/attesa/priorita' || r.percorso === '/api/specialisti/attesa/togli')) {
       const id = stringa(r.corpo, 'id').trim()
