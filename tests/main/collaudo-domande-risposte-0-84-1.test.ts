@@ -209,11 +209,7 @@ describe('collaudo 0.84.1 — difetti trovati', () => {
    * la «non presa» (come errore, dal 409); una presa e una mandata senza
    * verifica sono uguali.
    */
-  it('D3: l’app legge la frase dell’esito dopo un tocco', () => {
-    const modelli = sorgente('android/app/src/main/java/it/ferrariconsulenze/sierradeck/ModelliLavoro.kt')
-    const da = modelli.indexOf('data class Fatto(')
-    expect(modelli.slice(da, modelli.indexOf(')', da) + 1)).toContain('frase')
-  })
+  // D3, lato app: la frase dell'esito la legge `Fatto` (EsitoRispostaTest, nell'app).
 
   /**
    * D4. Le spiegazioni delle opzioni non viaggiano nel battito

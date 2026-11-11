@@ -26,7 +26,18 @@ object Guasti {
      * Si registra all'avvio, prima di qualunque altra cosa: un guasto che
      * capita mentre ci si registra non verrebbe preso da nessuno.
      */
+    @Volatile
+    private var preso = false
+
+    /**
+     * Una volta per processo (11/11): la chiama la `Application`. Prima la
+     * chiamava ogni `onCreate` dell'Activity, e la catena dei gestori cresceva a
+     * ogni rotazione; i crolli in sottofondo non li prendeva nessuno.
+     */
+    @Synchronized
     fun prendiNota(contesto: Context) {
+        if (preso) return
+        preso = true
         val precedente = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, errore ->
             try {

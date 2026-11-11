@@ -46,7 +46,17 @@ class RispostaVeloce : BroadcastReceiver() {
         // aver ricevuto niente.
         aggiorna(contesto, idNotifica, "Mando…")
 
+        // `goAsync` (11/11): senza, Android considera finito il ricevitore appena
+        // `onReceive` ritorna e può chiudere il processo con la risposta ancora per
+        // strada. È lo stesso patto di `Sentinella`.
+        val attesa = goAsync()
         thread(start = true) {
+            try { mandaEAggiorna(contesto.applicationContext, intent, testo, idNotifica, domanda, chat) } finally { attesa.finish() }
+        }
+    }
+
+    private fun mandaEAggiorna(contesto: Context, intent: Intent, testo: String, idNotifica: Int, domanda: String?, chat: String?) {
+        run {
             val collegamento = Collegamento(contesto)
             val riuscito = when {
                 domanda != null -> manda(

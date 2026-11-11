@@ -75,14 +75,4 @@ class NomePcTest {
         assertEquals("PC-ESEMPIO" to false, Postazioni.nomeDopo(ip, null, ip, "PC-ESEMPIO", "PC-ESEMPIO"))
     }
 
-    @Test
-    fun `ovunque si mostra un PC passa da qui`() {
-        val app = File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(app.contains("intestazionePc("))
-        assertFalse(app.contains("stato?.computer?.nome?.takeIf"))
-        val comp = File("src/main/java/it/ferrariconsulenze/sierradeck/AltriComputer.kt").readText()
-        assertTrue(comp.contains("Text(p.mostra"))
-        assertFalse(comp.contains("PcPonte(p.pcId, p.nome)"))
-        assertTrue(File("src/main/java/it/ferrariconsulenze/sierradeck/Api.kt").readText().contains("\"/api/nome-pc\""))
-    }
 }

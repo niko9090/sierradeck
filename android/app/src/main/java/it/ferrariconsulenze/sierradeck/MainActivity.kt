@@ -31,12 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(salvato: Bundle?) {
         super.onCreate(salvato)
-        // Da qui in avanti un errore che chiuderebbe l'app lascia una traccia da
-        // leggere al riavvio, invece di sparire senza una parola.
-        Rete.ricorda(this)
-        // Se il telefono cambia rete (WiFi di casa, VPN, dati) l'app sceglie da sola l'indirizzo giusto (k-50).
-        Percorsi.osserva(this)
-        Guasti.prendiNota(applicationContext)
+        // Contesto, rete e gestore dei guasti li prepara `SierraDeckApp`, per ogni processo.
         chiediPermessoNotifiche()
         preparaScanner()
         // L'app cerca da sola la versione nuova (0.43.0): ogni otto ore e

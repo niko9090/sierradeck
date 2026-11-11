@@ -154,8 +154,7 @@ describe('Voci ancora aperte, fatte nella 0.81.0', () => {
     expect(account).toContain('>Account ▾<')
     expect(readFileSync('src/shared/account-vista.ts', 'utf8')).not.toContain('Strumenti ▾')
   })
-  it('pagina e app: il campo di ricerca dei progetti non si taglia', () => {
+  it('pagina: il campo di ricerca dei progetti non si taglia', () => {
     expect(script).toContain('placeholder="Cerca progetto o PC"')
-    expect(readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/PannelloDrive.kt', 'utf8')).toContain('Text("Cerca progetto o PC"')
   })
 })

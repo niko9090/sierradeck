@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { paginaClient } from '../../src/main/client-pagina'
 
 /**
@@ -31,14 +30,9 @@ describe('la riga riassuntiva dell’autopilota', () => {
     // Senza dettaglio (non ancora letto) la riga c'è lo stesso.
     expect(riassunto(ap, null)).toBe('al lavoro · criteri 1/3 · 0 giri')
   })
-  it('è la stessa riga dell’app', () => {
-    const kt = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/SchedaAutopilota.kt', 'utf8')
-    // 0.86.x: l'app dice la percentuale, le richieste aperte e gli specialisti.
-    for (const t of ['"1 domanda per te"', 'RegoleAvanzamento.percento(percento)', '"1 richiesta aperta"', '"1 specialista"', 'joinToString(" · ")']) expect(kt, t).toContain(t)
-    // Le parole dello stato: quelle di statoInParole dell'app.
-    const lavori = readFileSync('android/app/src/main/java/it/ferrariconsulenze/sierradeck/Lavori.kt', 'utf8')
+  it('le parole dello stato', () => {
+    // L'app nuova (11/11) le prende da `adesso` in /api/stato: qui solo quelle della pagina.
     for (const [id, parola] of [['lavoro', 'al lavoro'], ['intervista', 'si prepara'], ['sospeso', 'fermo'], ['fallito', 'guasto']]) {
-      expect(lavori).toContain(`"${id}" -> "${parola}"`)
       expect(riassunto({ stato: id, criteri: 0, fatti: 0 }, null)).toBe(`${parola} · 0 giri`)
     }
   })

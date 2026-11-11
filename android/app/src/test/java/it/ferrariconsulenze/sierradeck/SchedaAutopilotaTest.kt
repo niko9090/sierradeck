@@ -83,19 +83,4 @@ class SchedaAutopilotaTest {
         assertTrue("/api/autopilota/avanzamento" in Ponte.ROTTE)
     }
 
-    @Test
-    fun `sopra la casella solo la conversazione, e la casella sopra la tastiera`() {
-        // c-509, Nicholas (21/10): «non si vede nulla, troppe info che occupano tutto lo schermo».
-        val k = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/DettaglioAutopilota.kt").readText()
-        assertTrue(k.contains("Column(Modifier.fillMaxSize().imePadding())"))
-        // App 2.90.0: quattro linguette; nella Conversazione solo lei, e la casella solo lì.
-        assertTrue(k.contains("var linguetta by remember(breve.id) { mutableStateOf(LinguettaWorkspace.CONVERSAZIONE) }"))
-        assertFalse(k.contains("Modifier.weight(0.8f)"))
-        val conversazione = k.substring(k.indexOf("LinguettaWorkspace.CONVERSAZIONE -> LazyColumn"), k.indexOf("la casella: sempre in basso"))
-        assertFalse(conversazione.contains("PanoramicaVista"))
-        assertTrue(k.contains("if (linguetta == LinguettaWorkspace.CONVERSAZIONE) {"))
-        val app = java.io.File("src/main/java/it/ferrariconsulenze/sierradeck/App.kt").readText()
-        assertTrue(app.contains(".consumeWindowInsets(pad)"))
-        assertTrue(java.io.File("src/main/AndroidManifest.xml").readText().contains("adjustResize"))
-    }
 }

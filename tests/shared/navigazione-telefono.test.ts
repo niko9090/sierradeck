@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   apriSezioneAltro, indietroTelefono, linguettaDi, pannelliDelPosto, postoIniziale, scegliLinguetta,
@@ -75,16 +74,10 @@ describe('le regole della navigazione', () => {
     expect(pannelliDelPosto(chat)).toEqual([])
   })
 
-  it('le sezioni di Altro sono quelle dell’app, nello stesso ordine', () => {
-    const kt = readFileSync(join('android', 'app', 'src', 'main', 'java', 'it', 'ferrariconsulenze', 'sierradeck', 'Navigazione.kt'), 'utf8')
-    const titoliApp = [...kt.slice(kt.indexOf('enum class SezioneAltro')).matchAll(/^\s+[A-Z_]+\("([^"]+)", "/gm)].map((m) => m[1])
-    // L'app ha Chat e Quaderno personale separati; la pagina li ha insieme, come le Impostazioni del PC.
+  it('le sezioni di Altro della pagina', () => {
+    // L'app nuova (11/11) ha un suo Altro, più corto: non si confronta più col sorgente Kotlin.
     const pagina = SEZIONI_ALTRO.map((s) => s.titolo)
-    expect(pagina.slice(0, 4)).toEqual(titoliApp.slice(0, 4))
-    for (const t of ['Drive', 'Aspetto', 'Avvisi', 'Info ed errori']) {
-      expect(titoliApp).toContain(t)
-      expect(pagina).toContain(t)
-    }
+    for (const t of ['Drive', 'Aspetto', 'Avvisi', 'Info ed errori']) expect(pagina).toContain(t)
   })
 })
 
