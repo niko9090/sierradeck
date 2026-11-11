@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import { chiudi as chiudiCoda, unisci as unisciCoda, COME_CHIUSA, type Coda, type ComeChiusa, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
-import { scriviPiano, type Piano } from '@shared/piano-orchestratore'
+import { apriSeguiti, scriviPiano, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
@@ -188,7 +188,7 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'piano_scrivi',
     title: 'Scrivi il piano dei compiti',
-    description: 'Registra (o aggiorna per id) i compiti in cui dividi le richieste aperte. Ogni compito: id tuo, richiesta (r-N), titolo, criterio (come si dice fatto; un comando fra apici inversi, per esempio `npm test`, il programma lo misura davvero), dopo (id dei compiti da unire prima), peso 1-3. Le dipendenze non possono fare cicli: il piano si rifiuta intero.',
+    description: 'Registra (o aggiorna per id) i compiti in cui dividi le richieste aperte. Ogni compito: id tuo, richiesta (r-N), titolo, criterio (come si dice fatto; un comando fra apici inversi, per esempio `npm test`, il programma lo misura davvero), dopo (id dei compiti da unire prima), peso 1-3. Le dipendenze non possono fare cicli: il piano si rifiuta intero. Un compito nuovo su una richiesta già fatta (per esempio i difetti trovati da una revisione) non si rifiuta: il programma apre da solo il «seguito» di quella richiesta e te lo dice, al più due per richiesta.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -342,13 +342,20 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
 
     case 'piano_scrivi': {
       const prima = amb.piano(ws)
-      const e = scriviPiano(prima, amb.coda(ws), arg.compiti, amb.adesso())
+      // 11/11: un compito nuovo su una richiesta già fatta apre il suo seguito, invece di un rifiuto
+      // che finiva in una domanda a Nicholas («Li correggo?») solo per avere una richiesta aperta.
+      const s = apriSeguiti(prima, amb.coda(ws), arg.compiti, amb.adesso())
+      if (!s.ok) return no(s.errore)
+      const e = scriviPiano(prima, s.coda, s.compiti, amb.adesso())
       if (!e.ok) return no(e.errore)
-      amb.cambiaCoda(ws, () => e.coda)
+      amb.cambiaCoda(ws, () => ({ coda: e.coda.coda, eventi: [...s.eventi, ...e.coda.eventi] }))
       amb.scriviPiano(ws, e.piano)
       const toccate = [...new Set(e.piano.compiti.filter((c) => e.nuovi.includes(c.id)).map((c) => c.richiesta))]
       amb.ricalcola(ws, e.nuovi.length > 0 ? `${e.nuovi.length === 1 ? 'un compito nuovo' : `${e.nuovi.length} compiti nuovi`} nel piano (${toccate.join(', ')})` : 'piano aggiornato')
-      return si(`Piano registrato: ${e.nuovi.length} nuovi${e.nuovi.length > 0 ? ` (${e.nuovi.join(', ')})` : ''}, ${e.cambiati.length} aggiornati. ${e.piano.compiti.length} compiti in tutto.`)
+      const seguiti = s.seguiti.length === 0 ? '' : ` ${s.seguiti.map((x) => (x.riusata
+        ? `La richiesta ${x.di} è già fatta: i compiti nuovi sono nel suo seguito ${x.nuova}, ancora aperto.`
+        : `La richiesta ${x.di} è già fatta: ho aperto il seguito ${x.nuova} e ci ho messo i compiti nuovi.`)).join(' ')} Di’ a Nicholas in una riga cosa correggi e perché, senza chiedere.`
+      return si(`Piano registrato: ${e.nuovi.length} nuovi${e.nuovi.length > 0 ? ` (${e.nuovi.join(', ')})` : ''}, ${e.cambiati.length} aggiornati. ${e.piano.compiti.length} compiti in tutto.${seguiti}`)
     }
 
     case 'unisci': {

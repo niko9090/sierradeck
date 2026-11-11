@@ -72,6 +72,35 @@ describe('strumenti dell’orchestratore', () => {
     expect(a.stato.piano.compiti.map((c) => c.id)).toEqual(['k1'])
   })
 
+  // 11/11: prima il rifiuto «è già fatta» finiva in una domanda a Nicholas («Li correggo?»).
+  it('11/11: piano_scrivi su una richiesta già fatta apre il seguito e lo dice; al terzo seguito rifiuta', async () => {
+    const a = ambiente()
+    const faiFatta = (id: string): void => { a.stato.coda = { ...a.stato.coda, richieste: a.stato.coda.richieste.map((r) => (r.id === id ? { ...r, stato: 'fatta' as const, fattaIl: ADESSO } : r)) } }
+    faiFatta('r-1')
+    const uno = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd1', richiesta: 'r-1', titolo: 'correggi il primo difetto', criterio: 'passa `npx vitest run tests/a.test.ts`' }] })
+    expect(uno?.errore).toBe(false)
+    expect(uno?.testo).toMatch(/La richiesta r-1 è già fatta: ho aperto il seguito r-3/)
+    expect(uno?.testo).toMatch(/senza chiedere/)
+    expect(a.stato.coda.richieste.find((r) => r.id === 'r-3')).toMatchObject({ segue: 'r-1', stato: 'pianificata', compiti: ['d1'] })
+    expect(a.stato.piano.compiti.find((k) => k.id === 'd1')?.richiesta).toBe('r-3')
+    // Un rifiuto del piano (ciclo) non lascia in coda un seguito a vuoto.
+    faiFatta('r-3')
+    const prima = a.stato.coda.richieste.length
+    const ciclo = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [
+      { id: 'd2', richiesta: 'r-1', titolo: 'a', criterio: 'x', dopo: ['d3'] },
+      { id: 'd3', richiesta: 'r-1', titolo: 'b', criterio: 'x', dopo: ['d2'] }
+    ] })
+    expect(ciclo?.errore).toBe(true)
+    expect(a.stato.coda.richieste).toHaveLength(prima)
+    const due = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd2', richiesta: 'r-1', titolo: 'correggi il secondo', criterio: 'x' }] })
+    expect(due?.errore).toBe(false)
+    faiFatta('r-4')
+    const tre = await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'd3', richiesta: 'r-1', titolo: 'correggi il terzo', criterio: 'x' }] })
+    expect(tre?.errore).toBe(true)
+    expect(tre?.testo).toMatch(/ha già 2 seguiti/)
+    expect(a.stato.coda.richieste).toHaveLength(prima + 1)
+  })
+
   it('unisci vuole un compito del piano, uno specialista noto o un ramo valido', async () => {
     const a = ambiente()
     await chiamaStrumento(a, 'Lavoro', 'piano_scrivi', { compiti: [{ id: 'k1', richiesta: 'r-1', titolo: 'a', criterio: 'x' }] })

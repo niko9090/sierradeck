@@ -1,6 +1,6 @@
 import {
-  avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
-  type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type StatoCoda, type StatoCompito
+  aggiungi, avanzamentoCoda, conRichiesta, contaNellaPercentuale, passoDichiarato,
+  type Coda, type CompitoMisurato, type EventoCoda, type MisuraCompito, type Modifica, type Richiesta, type StatoCoda, type StatoCompito
 } from './coda-richieste'
 import { criterioSempreVerde, titoloDiSolaAnalisi } from './controllo-comandi'
 
@@ -179,6 +179,99 @@ export function scriviPiano(piano: Piano, coda: Coda, raw: unknown, adesso: stri
     })
   }
   return { ok: true, piano: { versione: 1, compiti }, coda: { coda: c, eventi }, nuovi, cambiati }
+}
+
+// ---------------------------------------------------------------- i seguiti
+
+/** Quanti seguiti al più l'autopilota apre da solo sotto una richiesta di Nicholas. */
+export const SEGUITI_PER_RICHIESTA_MAX = 2
+/** Così comincia il testo di un seguito aperto dal programma: da qui si riconosce e si conta. */
+export const PREFISSO_SEGUITO = 'Seguito deciso dall’autopilota di «'
+
+/** Un seguito aperto dal programma (non una richiesta di Nicholas che ne segue un'altra). */
+export function eSeguitoDaSolo(r: Pick<Richiesta, 'originali' | 'testo'>): boolean {
+  return (r.originali[0]?.testo ?? r.testo).startsWith(PREFISSO_SEGUITO)
+}
+
+export type EsitoSeguiti =
+  | { ok: true; compiti: unknown; coda: Coda; eventi: EventoCoda[]; seguiti: { di: string; nuova: string; riusata: boolean }[] }
+  | { ok: false; errore: string }
+
+/**
+ * **I seguiti** (11/11). Un compito nuovo su una richiesta **già fatta** prima
+ * veniva rifiutato («è già fatta»), e l'autopilota non aveva modo di aprire
+ * lavoro: così chiedeva a Nicholas «Li correggo?» solo per farsi dare una
+ * richiesta aperta (08 e 09/11, tre volte: «il programma non mi lascia aprire
+ * lavoro nuovo su una richiesta già chiusa, quindi serve il tuo sì»).
+ *
+ * Adesso il compito passa a un **seguito**: una richiesta nuova che segue
+ * quella fatta, aperta dal programma. Valgono questi limiti:
+ * - solo per le richieste fatte con il lavoro: una chiusa senza lavoro
+ *   (risposta, doppione, annullata da Nicholas) non si riapre così;
+ * - solo per i compiti nuovi: uno che c'è già nel piano non cambia richiesta;
+ * - al più `SEGUITI_PER_RICHIESTA_MAX` seguiti sotto la stessa richiesta di
+ *   Nicholas, contando anche i seguiti dei seguiti; oltre, si rifiuta;
+ * - un seguito ancora aperto si riusa, senza aprirne un altro.
+ * Pura: torna i compiti con la richiesta giusta e la coda con i seguiti.
+ */
+export function apriSeguiti(piano: Piano, coda: Coda, raw: unknown, adesso: string): EsitoSeguiti {
+  const niente: EsitoSeguiti = { ok: true, compiti: raw, coda, eventi: [], seguiti: [] }
+  const letti = leggiCompitiProposti(raw)
+  // Un elenco che non si legge lo rifiuta `scriviPiano`, con il suo errore.
+  if (!letti.ok || !Array.isArray(raw)) return niente
+  const perId = (c: Coda, id: string): Richiesta | undefined => c.richieste.find((r) => r.id === id)
+  /** La richiesta di Nicholas da cui discende un seguito (risalendo i seguiti aperti dal programma). */
+  const radice = (c: Coda, id: string): string => {
+    let qui = id
+    for (let giri = 0; giri < 50; giri += 1) {
+      const r = perId(c, qui)
+      if (r === undefined || r.segue === undefined || !eSeguitoDaSolo(r)) return qui
+      qui = r.segue
+    }
+    return qui
+  }
+  const daSpostare = new Map<string, CompitoProposto[]>()
+  for (const k of letti.compiti) {
+    const r = perId(coda, k.richiesta)
+    if (r === undefined || r.stato !== 'fatta' || r.chiusa !== undefined) continue
+    if (piano.compiti.some((x) => x.id === k.id)) continue
+    daSpostare.set(r.id, [...(daSpostare.get(r.id) ?? []), k])
+  }
+  if (daSpostare.size === 0) return niente
+  let c = coda
+  const eventi: EventoCoda[] = []
+  const seguiti: { di: string; nuova: string; riusata: boolean }[] = []
+  const nuovaRichiesta = new Map<string, string>()
+  for (const [fatta, compiti] of daSpostare) {
+    const origine = radice(c, fatta)
+    const sotto = c.richieste.filter((r) => r.id !== origine && eSeguitoDaSolo(r) && radice(c, r.id) === origine)
+    const aperto = sotto.find((r) => r.stato !== 'fatta' && r.chiusa === undefined)
+    if (aperto !== undefined) {
+      nuovaRichiesta.set(fatta, aperto.id)
+      seguiti.push({ di: fatta, nuova: aperto.id, riusata: true })
+      continue
+    }
+    if (sotto.length >= SEGUITI_PER_RICHIESTA_MAX) {
+      return { ok: false, errore: `il compito ${compiti[0]!.id}: la richiesta ${fatta} è già fatta e ha già ${sotto.length} seguiti aperti da te (${sotto.map((r) => r.id).join(', ')}). Altro lavoro su questa cosa lo decide Nicholas: diglielo in una riga, o legalo a una richiesta aperta se ne fa parte` }
+    }
+    const titoloFatta = perId(c, fatta)?.titolo ?? fatta
+    const m = aggiungi(c, {
+      testo: `${PREFISSO_SEGUITO}${titoloFatta}» (${fatta}): ${compiti.map((k) => k.titolo).join('; ')}`,
+      quando: adesso,
+      segue: fatta
+    })
+    c = m.coda
+    eventi.push(...m.eventi)
+    nuovaRichiesta.set(fatta, m.richiesta.id)
+    seguiti.push({ di: fatta, nuova: m.richiesta.id, riusata: false })
+  }
+  const spostati = new Set([...daSpostare.values()].flat().map((k) => k.id))
+  const compiti = raw.map((x: unknown) => {
+    const o = (typeof x === 'object' && x !== null ? x : {}) as Record<string, unknown>
+    if (typeof o.id !== 'string' || !spostati.has(o.id) || typeof o.richiesta !== 'string') return x
+    return { ...o, richiesta: nuovaRichiesta.get(o.richiesta.trim()) ?? o.richiesta }
+  })
+  return { ok: true, compiti, coda: c, eventi, seguiti }
 }
 
 /** Un compito cambiato per id: il piano nuovo, o lo stesso se non c'è. */
