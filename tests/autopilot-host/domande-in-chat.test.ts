@@ -260,17 +260,18 @@ describe('una domanda nuova appare nella chat, non nelle Domande', () => {
     expect(battuta.domanda?.scelte).toEqual(['Sì', 'No'])
   })
 
-  it('i permessi non passano dalla chat: uno specialista li aspetta, vanno subito nelle Domande', async () => {
+  // 11/11: prima «i permessi… vanno subito nelle Domande». Adesso un permesso non è mai una domanda:
+  // né in chat, né nelle Domande, né una notifica; il programma nega e chi ha chiesto cambia strada.
+  it('11/11: un permesso non è una domanda, da nessuna parte: lo nega il programma con il motivo', async () => {
     zitto()
     await avviaServizio()
     const { mcp } = await conStrumenti()
-    const attesa = mcp('permesso', { tool_name: 'Bash', input: { command: 'rm -rf cartella-importante' } })
-    await attendi(() => domande.aperte(idUnico()).length === 1, { cosa: 'la domanda del permesso' })
-    expect(domande.visibili(idUnico())).toHaveLength(1)
-    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(1)
+    const esito = await mcp('permesso', { tool_name: 'Bash', input: { command: 'rm -rf cartella-importante' } })
+    expect(esito).toContain('deny')
+    expect(domande.aperte(idUnico())).toHaveLength(0)
+    expect(domande.visibili(idUnico())).toHaveLength(0)
+    expect(avvisi.filter((v) => v.tipo === 'domanda')).toHaveLength(0)
     expect(archivio.leggi(idUnico())!.dialogo.some((r) => r.domanda !== undefined)).toBe(false)
-    domande.rispondi(domande.aperte(idUnico())[0]!.id, 'Nega', 'modale')
-    await attesa
   })
 })
 

@@ -231,7 +231,9 @@ describe('autopilota unico nel servizio', () => {
     expect(archivio.leggi(a.id)!.stato).toBe('lavoro')
   })
 
-  it('il permesso chiesto dalla CLI diventa una domanda; la risposta torna allo strumento', async () => {
+  // 11/11: prima «il permesso chiesto dalla CLI diventa una domanda; la risposta torna allo strumento».
+  // Il 06/11 Nicholas ha ricevuto due «…chiede il permesso per Monitor: {json}. Lo permetto?»: ora decide il programma.
+  it('11/11: il permesso chiesto dalla CLI lo decide il programma, subito: nessuna domanda a Nicholas', async () => {
     zitto()
     await avviaServizio([ap()])
     migra()
@@ -240,16 +242,24 @@ describe('autopilota unico nel servizio', () => {
     // Lo strumento si chiama dal server MCP con il gettone del workspace (scritto nel file mcp.json).
     const cfg = JSON.parse(await import('node:fs').then((fs) => fs.readFileSync(processi[0]!.args[processi[0]!.args.indexOf('--mcp-config') + 1]!, 'utf8'))) as { mcpServers: { sierradeck: { headers: { Authorization: string } } } }
     const auth = cfg.mcpServers.sierradeck.headers.Authorization
-    const chiamata = fetch(url('/mcp/orchestratore?ws=Lavoro'), {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name: 'mcp__altro__fai', input: { url: 'https://example.com' } } } })
-    })
-    await attendi(() => domande.aperte().length === 1)
-    const d = domande.aperte()[0]!
-    expect(d.testo).toContain('mcp__altro__fai')
-    domande.rispondi(d.id, 'Consenti', 'modale')
-    const r = (await (await chiamata).json()) as { result: { content: { text: string }[] } }
-    expect(JSON.parse(r.result.content[0]!.text)).toEqual({ behavior: 'allow', updatedInput: { url: 'https://example.com' } })
+    const chiedi = async (tool_name: string, input: unknown): Promise<{ behavior: string; message?: string }> => {
+      const r = (await (await fetch(url('/mcp/orchestratore?ws=Lavoro'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'permesso', arguments: { tool_name, input } } })
+      })).json()) as { result: { content: { text: string }[] } }
+      return JSON.parse(r.result.content[0]!.text) as { behavior: string; message?: string }
+    }
+    // Uno strumento sconosciuto: negato con il motivo, senza aspettare nessuno.
+    const sconosciuto = await chiedi('mcp__altro__fai', { url: 'https://example.com' })
+    expect(sconosciuto.behavior).toBe('deny')
+    expect(sconosciuto.message).toContain('mcp__altro__fai')
+    expect(sconosciuto.message).toMatch(/non lo chiede a Nicholas/)
+    // Il caso vero: Monitor per aspettare uno specialista.
+    const monitor = await chiedi('Monitor', { description: 'fine attesa 90 s', timeout_ms: 120000, command: 'until grep -q . esito.txt; do sleep 2; done' })
+    expect(monitor.behavior).toBe('deny')
+    expect(monitor.message).toMatch(/ti arriva come evento, chiudi il turno/)
+    expect(domande.aperte()).toHaveLength(0)
+    expect(domande.risolte()).toHaveLength(0)
 
 
     // 0.89.5: scrivere un file fuori dalla cartella o leggere il web passa senza domanda.

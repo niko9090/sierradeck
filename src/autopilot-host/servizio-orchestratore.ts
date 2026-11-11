@@ -28,7 +28,7 @@ import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
 import {
-  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
+  creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX,
   type AmbienteOrchestratore, type EsitoAmbiente
 } from './mcp-orchestratore'
 import {
@@ -152,8 +152,6 @@ export type ContestoUnico = {
   inattivoMs?: number
   /** `false` (solo i test di `unisci` a mano): lo specialista finito non si unisce da solo. */
   unioneDaSola?: boolean
-  /** Quanto aspetta, al più, una risposta di Nicholas a un permesso. */
-  attesaPermessoMs?: number
   /** 0.90.0: dove Claude Code tiene le trascrizioni (nei test, una cartella di prova). */
   cartellaClaude?: string
   /** 31/10: gli autopiloti già archiviati come doppioni (non si riguardano, non rinascono). Assente: nessuno. */
@@ -459,8 +457,6 @@ export function creaServizioUnico(x: ContestoUnico): ServizioUnico {
   /** 06/11: i compiti con il criterio rosso dopo l'unione, per workspace, e i promemoria già mandati. */
   const rossiVisti = new Map<string, Map<string, RossoVisto>>()
   const fermiVisti = new Map<string, { firma: string; dal: number; spinte: number }>()
-  /** I permessi che aspettano Nicholas, per workspace: intanto il cane da guardia del turno non morde. */
-  const permessiInAttesa = new Map<string, number>()
   const memoriaCriteri: MemoriaCriteri = x.memoriaCriteri ?? new Map()
   /** Gli specialisti già uniti, per workspace (sopravvivono al flusso in memoria). */
   const uniti = new Map<string, Set<string>>()
@@ -817,8 +813,8 @@ ${NOTA_SENZA_GIT}`,
     adesso: x.adesso,
     ...(x.raccoltaEventiMs !== undefined ? { raccoltaMs: x.raccoltaEventiMs } : {}),
     ...(x.chiamateMax !== undefined ? { globaliMax: x.chiamateMax } : {}),
-    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {}),
-    attendeNicholas: (ws) => (permessiInAttesa.get(ws) ?? 0) > 0
+    ...(x.inattivoMs !== undefined ? { inattivoMs: x.inattivoMs } : {})
+    // 11/11: nessun permesso aspetta più Nicholas (decide il programma): niente `attendeNicholas`.
   })
 
   // ---------------------------------------------------------------- il cancello
@@ -1222,22 +1218,15 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const a = unicoDi(ws)
       if (a === undefined) return { consenti: false, motivo: 'l’autopilota unico non c’è' }
       // 0.89.5: scrivere un file o leggere il web non è una domanda per Nicholas (BG4, k-4 fermo al 37%).
+      // 11/11: nessun permesso lo è più. Il 06/11 «…chiede il permesso per Monitor: {json}. Lo permetto?»
+      // gli è arrivata due volte: ora il programma concede o nega da solo, e chi ha chiesto legge il motivo.
       const da = permessoDaSolo(strumento, input, a.cwd)
       if (da.concesso) {
         console.info(`[orchestratore] ${ws} — permesso concesso dal programma: ${strumento}, ${da.perche}`)
         return { consenti: true }
       }
-      const cosa = JSON.stringify(input).slice(0, 600)
-      const d = apriDomanda(a, ws, `Uno specialista chiede il permesso per ${strumento}: ${cosa}. Lo permetto?`, ['Nega', 'Consenti'], 'il programma non lo permette da solo')
-      const attesa = x.attesaPermessoMs ?? ATTESA_PERMESSO_MS
-      permessiInAttesa.set(ws, (permessiInAttesa.get(ws) ?? 0) + 1)
-      const r = await Promise.race([x.domande.attendi(d.id), new Promise<undefined>((ris) => { const t = setTimeout(() => ris(undefined), attesa); t.unref?.() })])
-        .finally(() => { permessiInAttesa.set(ws, Math.max(0, (permessiInAttesa.get(ws) ?? 1) - 1)) })
-      if (r === undefined) {
-        x.domande.superata(d.id, 'nessuna risposta in tempo: negato, l’autopilota cerca un’altra strada')
-        return { consenti: false, motivo: 'Nicholas non ha risposto in tempo: trova un’altra strada, o chiedi con chiedi_utente' }
-      }
-      return permessoConcesso(r.risposta) ? { consenti: true } : { consenti: false, motivo: `Nicholas ha risposto: ${r.risposta}` }
+      console.info(`[orchestratore] ${ws} — permesso negato dal programma: ${strumento}, ${da.motivo}`)
+      return { consenti: false, motivo: `${strumento}: ${da.motivo}` }
     },
     chiedi(ws, domanda, scelte, perche, richiesta) {
       const a = unicoDi(ws)
@@ -1452,7 +1441,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       const ws = wsDi(a)
       const attesa = orchestratore.inAttesa(ws)
       const occupato = orchestratore.inVolo(ws) || attesa.messaggi > 0 || attesa.eventi > 0
-        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0 || (permessiInAttesa.get(ws) ?? 0) > 0
+        || alLavoroNel(ws) > 0 || specialistiVivi(a).some((c) => c.stato === 'lavoro') || unioniIn(ws) > 0
       const vivi = new Set(subagenti(ws).filter((y) => y.stato === 'avviato' || y.stato === 'lavoro').map((y) => y.id))
       const f = occupato ? undefined : lavoroFermo({ coda: coda(ws), piano: x.orchestratori.piano(ws), alLavoro: vivi, inUnione: new Set(compitiInUnione(ws)) })
       if (f === undefined) { fermiVisti.delete(ws); continue }

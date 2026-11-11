@@ -15,9 +15,9 @@ import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, 
  * - `coda_unisci`: l'invariante della coda, nessun punto perso;
  * - `piano_scrivi`: niente cicli nelle dipendenze, richieste aperte;
  * - `unisci`: il cancello, che il modello non può scavalcare;
- * - `permesso`: il `--permission-prompt-tool` della CLI; quello che chiede
- *   ancora un permesso diventa una domanda nel riquadro, e la risposta torna
- *   come esito dello strumento.
+ * - `permesso`: il `--permission-prompt-tool` della CLI; decide il programma
+ *   (`permessi-automatici.ts`): concede o nega con il motivo. Dall'11/11 non
+ *   diventa più una domanda a Nicholas.
  *
  * Gli specialisti sono subagenti nativi (`--agents`): li apre, li segue e li
  * chiude la CLI; il tetto è `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`.
@@ -73,7 +73,10 @@ export function creaGettoniOrchestratore(): GettoniOrchestratore {
   }
 }
 
-/** Quanto aspetta, al più, una risposta di Nicholas a un permesso (lo strumento `permesso`). */
+/**
+ * Quanto aspettava, al più, una risposta di Nicholas a un permesso. Dall'11/11 i
+ * permessi li decide subito il programma: resta solo come base del tetto qui sotto.
+ */
 export const ATTESA_PERMESSO_MS = 10 * 60_000
 /**
  * Il tetto di una chiamata a uno strumento del nostro server, per la CLI.
@@ -115,7 +118,7 @@ export type AmbienteOrchestratore = {
   specialisti: (ws: string) => Specialista[]
   /** Avvia il cancello: l'esito arriva dopo, come evento. */
   unisci: (ws: string, p: { compito?: string; specialista?: string; ramo?: string }) => EsitoAmbiente
-  /** Una richiesta di permesso della CLI: si risolve con la risposta di Nicholas (o con un no allo scadere). */
+  /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
   chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string) => EsitoAmbiente
@@ -252,7 +255,7 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
   {
     name: 'permesso',
     title: 'Permesso per uno strumento',
-    description: 'Lo usa la CLI da sola quando uno strumento chiede un permesso: la domanda va a Nicholas nel riquadro. Non chiamarlo tu.',
+    description: 'Lo usa la CLI da sola quando uno strumento chiede un permesso: decide il programma, che concede o nega con il motivo (Nicholas non viene disturbato). Non chiamarlo tu.',
     inputSchema: {
       type: 'object',
       properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
@@ -372,7 +375,7 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const input = typeof arg.input === 'object' && arg.input !== null ? arg.input : {}
       const r = await amb.permesso(ws, strumento, input)
       // La risposta che la CLI si aspetta: un JSON nel testo.
-      return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'Nicholas non l’ha permesso' }))
+      return si(JSON.stringify(r.consenti ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: r.motivo ?? 'il programma non lo permette' }))
     }
 
     case 'chiedi_utente': {
