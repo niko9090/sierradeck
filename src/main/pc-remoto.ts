@@ -158,6 +158,11 @@ export const ROTTE_LENTE: readonly string[] = [
   // «Libera spazio sul Drive» dal telefono: misurare la quota e le proposte legge il Drive.
   '/api/drive/spazio/stato', '/api/drive/spazio/quota', '/api/drive/spazio/in-sospeso', '/api/drive/spazio/riprendi'
 ]
+/**
+ * Solo fra PC (non nell'app): la salute misura risorse, scheda video e registro
+ * e può durare più di 4 s. Con l'attesa normale un PC acceso risultava «non risponde».
+ */
+const ROTTE_LENTE_FRA_PC: readonly string[] = ['/api/salute']
 const ATTESA_LENTA_PREDEFINITA_MS = 45_000
 /**
  * Le risposte alle domande (0.84.1): quel PC preme, riguarda il suo schermo e
@@ -415,7 +420,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       const ind = buoni.get(pcId)
       if (ind === undefined) return undefined
       const controllo = new AbortController()
-      const attesa = ROTTE_LENTE.includes(percorso) ? attesaLentaMs : ROTTE_CON_VERIFICA.includes(percorso) ? attesaVerificaMs : attesaMs
+      const attesa = ROTTE_LENTE.includes(percorso) || ROTTE_LENTE_FRA_PC.includes(percorso) ? attesaLentaMs : ROTTE_CON_VERIFICA.includes(percorso) ? attesaVerificaMs : attesaMs
       const timer = setTimeout(() => controllo.abort(), attesa)
       let risposta: Response
       try {

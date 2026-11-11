@@ -33,7 +33,7 @@ export async function versioneDalVivo(chiama: (pcId: string, percorso: string) =
 export const CONTROLLO_PC_OGNI_MS = 6 * 60 * 60_000
 export const PRIMO_CONTROLLO_MS = 15 * 60_000
 
-export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string }
+export type SaluteDiPc = { pcId: string; nome: string; salute?: Salute; errore?: string; battito?: string; /** Risponde, ma non ha finito in tempo (anche al secondo tentativo): lento, non spento. */ lento?: boolean }
 
 /**
  * 0.94.1: un PC spento non è una criticità. Nicholas, 05/11: «lascia perdere il
@@ -60,6 +60,8 @@ export function criticitaDi(saluti: readonly SaluteDiPc[], autopiloti: readonly 
   for (const s of saluti) {
     if (s.salute === undefined) {
       if (spenti.has(s.pcId)) continue
+      // Risponde ma è lento: non è «non risponde». Il prossimo giro riprova.
+      if (s.lento === true) continue
       // Una riga per PC: due PC che non rispondono hanno due motivi, non uno.
       out.push({ pc: s.nome, cosa: 'non risponde', dettaglio: s.errore ?? 'nessuna risposta', chiave: `pc:${s.pcId}`, locale: true })
       continue
@@ -154,7 +156,7 @@ export function testoRapporto(p: { quando: string; saluti: readonly SaluteDiPc[]
     // k-191: la versione di chi risponde è quella che dice lui adesso; per chi non risponde, il battito, segnato come vecchio.
     const versione = s.salute?.versione !== undefined ? ` · versione ${s.salute.versione} (detta dal PC adesso)`
       : s.battito !== undefined ? ` · versione ignota adesso (ultimo battito sul Drive: ${s.battito}, dato vecchio)` : ''
-    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : `non risponde (${s.errore ?? '?'})`}`)
+    righe.push(`- **${s.nome}**${versione}: ${s.salute !== undefined ? `${s.salute.tono} — ${s.salute.riassunto}${quali}` : s.lento === true ? `lento, riprovo (${s.errore ?? '?'})` : `non risponde (${s.errore ?? '?'})`}`)
   }
   righe.push('', `## Criticità (${p.criticita.length})`, '')
   for (const c of p.criticita) righe.push(`- **${c.pc}** · ${c.cosa}${c.dettaglio !== '' ? `\n  ${c.dettaglio.replace(/\s+/g, ' ').slice(0, 600)}` : ''}`)
@@ -184,18 +186,29 @@ export async function giroControlloPc(d: {
   affida: (p: { testo: string; cwd: string }) => Promise<void>
   adesso: () => number
   log: (riga: string) => void
+  /** Pausa prima del secondo tentativo con un PC lento (predefinita 3 s). */
+  riprovaMs?: number
 }): Promise<{ criticita: number; affidato: boolean }> {
   const radice = d.radice()
   if (radice === undefined) return { criticita: 0, affidato: false }
   const io = d.io()
   const saluti: SaluteDiPc[] = [{ pcId: io.id, nome: io.nome, salute: await d.saluteQui() }]
   const altri = await Promise.all(d.altri().map(async (p): Promise<SaluteDiPc> => {
+    // Un PC che risponde ma non finisce in tempo (stato 504) si riprova una volta.
+    const scaduta = (e: unknown): boolean => (e as { stato?: unknown } | null)?.stato === 504
+    const chiedi = async (): Promise<Salute> => {
+      try { return await d.saluteDi(p.pcId) } catch (e) {
+        if (!scaduta(e)) throw e
+        await new Promise((r) => setTimeout(r, d.riprovaMs ?? 3000))
+        return await d.saluteDi(p.pcId)
+      }
+    }
     try {
-      const salute = await d.saluteDi(p.pcId)
+      const salute = await chiedi()
       // La risposta di un altro PC non è fidata: senza `voci` (versione vecchia?) è come un PC che non risponde bene.
       if (salute === null || typeof salute !== 'object' || !Array.isArray(salute.voci)) return { ...p, errore: 'risposta non leggibile, versione vecchia?' }
       return { ...p, salute }
-    } catch (e) { return { ...p, errore: e instanceof Error ? e.message : String(e) } }
+    } catch (e) { return { ...p, errore: e instanceof Error ? e.message : String(e), ...(scaduta(e) ? { lento: true } : {}) } }
   }))
   saluti.push(...altri)
   const autopiloti = await d.autopiloti().catch(() => [] as AutopilotiDiPc[])

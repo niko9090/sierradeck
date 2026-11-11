@@ -227,6 +227,12 @@ describe('le richieste lente (0.60.2, collaudo fra i due PC)', () => {
     expect(await c.chiama('B', '/api/drive/pannello', {})).toEqual({ progetti: [] })
   })
 
+  it('la salute fra PC ha l’attesa lunga: lenta oltre l’attesa normale, arriva lo stesso', async () => {
+    const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 120, corpo: { voci: [] } } })
+    const c = client([PORTATILE], f, { attesaMs: 30, attesaLentaMs: 1000 })
+    expect(await c.chiama('B', '/api/salute')).toEqual({ voci: [] })
+  })
+
   it('una richiesta normale troppo lenta dice che quel PC risponde ma non ha finito, non «ha cambiato indirizzo»', async () => {
     const { fetch: f } = fintoFetch({ '192.168.1.50': { ritardo: 200 } })
     // 0.84.1: le risposte (`/api/scegli`, `/api/scrivi`) aspettano di più, perché
