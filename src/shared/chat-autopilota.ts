@@ -146,7 +146,8 @@ export function conversazione(a: Autopilota): Battuta[] {
     metti({
       quando: a.ultimoEvento,
       da: 'nota',
-      testo: a.stato === 'pronto' ? 'Aspetta il tuo via: è nella linguetta «Domande» qui sotto.' : 'Ti ha fatto una domanda: è nella linguetta «Domande» qui sotto.'
+      // 11/11: senza dire dove: l'app nuova non ha la linguetta «Domande», e la domanda sta nella chat o nelle Domande.
+      testo: a.stato === 'pronto' ? 'Aspetta il tuo via.' : 'Ti ha fatto una domanda: aspetta la tua risposta.'
     })
   } else if (a.stato === 'finito') {
     metti({ quando: a.ultimoEvento, da: 'nota', testo: 'Ha finito.', tono: 'fine' })

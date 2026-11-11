@@ -116,9 +116,12 @@ export function decisaDaDialogo(domanda: string, dopo: readonly { quando: string
   return undefined
 }
 
-/** La riga che lo dice: «Hai risposto: X», «Ha scelto il programma: X», «Non serve più: perché». */
+/**
+ * La riga che lo dice: «Hai risposto: X», «Ha scelto il programma: X», «Non
+ * serve più: perché». Come `rigaSeNonRispondi`, la pagina la riceve così com'è.
+ */
 export function rigaDecisa(d: DecisaDomanda): string {
-  if (d.come === 'tu') return `Hai risposto: ${d.testo}`
-  if (d.come === 'programma') return `Ha scelto il programma: ${d.testo}`
-  return d.testo === 'Non serve più' ? 'Non serve più' : `Non serve più: ${d.testo}`
+  if (d.come === 'tu') return 'Hai risposto: ' + d.testo
+  if (d.come === 'programma') return 'Ha scelto il programma: ' + d.testo
+  return d.testo === 'Non serve più' ? 'Non serve più' : 'Non serve più: ' + d.testo
 }
