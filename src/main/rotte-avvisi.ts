@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { bozzaProva, leggiRichiestaEventi, type Avviso, type ImpostazioniAvvisi } from '@shared/avvisi-telefono'
+import { bozzaProva, leggiRichiestaEventi, type Avviso, type VistaAvvisi, type VistaStatoAvvisi } from '@shared/avvisi-telefono'
 import type { Esito } from './client-server'
 import type { RegistroAvvisi } from './avvisi'
 
@@ -28,7 +28,7 @@ export type RottaClient = (r: RichiestaRotta) => Promise<Esito>
 /** Mentre qualcuno aspetta con `stato`, ogni quanto si ricompone lo stato per vedere se è cambiato. */
 export const RILEGGI_STATO_MS = 2000
 
-export type VistaStatoAvvisi = { riga: string; inAscolto: boolean; ultimoContatto?: string }
+export type { VistaAvvisi, VistaStatoAvvisi }
 
 export type DipendenzeRotteAvvisi = {
   registro: RegistroAvvisi
@@ -112,6 +112,13 @@ export function conAvvisi(interna: RottaClient, deps: DipendenzeRotteAvvisi): Ro
   return async (r) => {
     if (r.percorso === '/api/stato' && r.metodo === 'GET') return statoCon(r)
     if (r.percorso === '/api/eventi' && r.metodo === 'GET') return eventi(r)
+    if (r.percorso === '/api/rispondi' && r.metodo === 'POST') {
+      // Risposta presa: l'avviso si chiude adesso, su tutti, senza aspettare il giro del giornale.
+      const e = await interna(r)
+      const id = oggetto(r.corpo) && typeof r.corpo.domanda === 'string' ? r.corpo.domanda.trim() : ''
+      if (e.stato === 200 && id !== '') registro.chiudi(`domanda:${id}`, 'risposta')
+      return e
+    }
     if (!r.percorso.startsWith('/api/avvisi/')) return interna(r)
     const visore = visoreDi(r.dispositivo)
     if (r.percorso === '/api/avvisi/visto' && r.metodo === 'POST') {
@@ -135,8 +142,6 @@ export function conAvvisi(interna: RottaClient, deps: DipendenzeRotteAvvisi): Ro
   }
 }
 
-/** Quello che serve alla schermata «Notifiche», uguale su PC, pagina e app. */
-export type VistaAvvisi = VistaStatoAvvisi & { impostazioni: ImpostazioniAvvisi; ultimi: Avviso[] }
 export function vistaAvvisi(registro: RegistroAvvisi, stato: VistaStatoAvvisi): VistaAvvisi {
   return { ...stato, impostazioni: registro.impostazioni(), ultimi: registro.ultimi(20) }
 }

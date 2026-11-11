@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { apriAvvisi } from '../../src/main/avvisi'
 import { creaFontiAvvisi, statoAvvisi, type ChatPerAvvisi, type ConsegnaPerAvvisi } from '../../src/main/avvisi-pc'
 import { avviaTelegram, configurazioneTelegram, messaggioTelegram } from '../../src/main/avvisi-telegram'
+import { domandeDelProgramma, eDomandaDelProgramma } from '../../src/main/avvisi-avvio'
 import { apriGiornaleAvvisi } from '../../src/autopilot-host/giornale-avvisi'
 import { dimenticaTelegramAssente, RIGA_TELEGRAM_ASSENTE } from '../../src/autopilot-host/telegram'
 import { CHAT_FERMA_MS, bozzaDomanda, bozzaProva, type Avviso, type DomandaDelProgramma } from '@shared/avvisi-telefono'
@@ -79,7 +80,7 @@ describe('le fonti degli avvisi sul PC', () => {
     expect(b.registro.ultimo()).toBe(0)
   })
 
-  it('la versione pronta: un avviso finché non è installata o tolta', () => {
+  it('la versione pronta: un avviso finché non è installata o superata', () => {
     const b = banco()
     b.mondo.aggiornamento = { fase: 'scarico', versione: '0.101.0' }
     b.fonti.giro()
@@ -88,9 +89,25 @@ describe('le fonti degli avvisi sul PC', () => {
     b.fonti.giro()
     b.fonti.giro()
     expect(aperti(b.registro)).toEqual(['versione:0.101.0'])
-    b.mondo.aggiornamento = { fase: 'nessuno' }
+    // Un controllo che passa o che sbaglia non toglie la versione già scaricata.
+    b.mondo.aggiornamento = { fase: 'errore' }
     b.fonti.giro()
-    expect(aperti(b.registro)).toEqual([])
+    expect(aperti(b.registro)).toEqual(['versione:0.101.0'])
+    b.mondo.aggiornamento = { fase: 'pronto', versione: '0.102.0' }
+    b.fonti.giro()
+    expect(aperti(b.registro)).toEqual(['versione:0.102.0'])
+  })
+
+  it('la versione installata non si annuncia, e il suo avviso si chiude', () => {
+    const registro = apriAvvisi({})
+    const file = join(mkdtempSync(join(tmpdir(), 'avvisi-pc-')), 'g.json')
+    let qui = '0.101.0'
+    const fonti = creaFontiAvvisi({ registro, fileGiornale: file, aggiornamento: () => ({ fase: 'pronto', versione: '0.102.0' }), versioneQui: () => qui })
+    fonti.giro()
+    expect(aperti(registro)).toEqual(['versione:0.102.0'])
+    qui = '0.102.0'
+    fonti.giro()
+    expect(aperti(registro)).toEqual([])
   })
 
   it('le domande del programma nascono e, sparite, si chiudono; quelle degli autopiloti no', () => {
@@ -173,6 +190,32 @@ describe('le fonti degli avvisi sul PC', () => {
     b.mondo.risposte = { 'pc-b': { stato: 404 } }
     await b.fonti.giroAltriPc()
     expect(b.registro.cursore('pc:pc-b')).toBe(0)
+  })
+})
+
+describe('le domande del programma, come nelle Domande del PC', () => {
+  it('il sì a un file fuori dalla cartella e il consenso a un dato; si riconoscono dall’id', () => {
+    const coda = { elenco: () => [
+      { id: 'c-1', a: 'tel:tel-1', aNome: 'Telefono', nome: 'foto.jpg', byte: 2048, origine: 'X:/altrove/foto.jpg', da: 'chat' as const, daChat: 'Negozio', daPc: 'PC', creata: '2026-11-11T11:00:00.000Z', stato: 'conferma' as const },
+      { id: 'c-2', a: 'tel:tel-1', aNome: 'Telefono', nome: 'b.pdf', byte: 1, origine: 'b.pdf', da: 'pc' as const, daPc: 'PC', creata: '2026-11-11T11:00:00.000Z', stato: 'attesa' as const }
+    ] }
+    const quaderno = { domande: () => [{ id: 'dato-personale:r-1', autopilotaId: 'sierradeck:quaderno-personale', testo: 'La chat chiede la tua email.', opzioni: ['Consenti una volta', 'No'], da: 'Quaderno personale · Negozio', sotto: 'chiede «email»', scadeIl: 1_000 }] }
+    const d = domandeDelProgramma(coda, quaderno)
+    expect(d.map((x) => x.id)).toEqual(['al-telefono:c-1', 'dato-personale:r-1'])
+    expect(d[0]).toMatchObject({ opzioni: ['Sì, mandalo', 'No, non mandarlo'], da: 'Manda al telefono · Negozio' })
+    expect(d[1]).toMatchObject({ sotto: 'chiede «email»', scadeIl: 1_000 })
+    expect(d.every((x) => eDomandaDelProgramma(x.id))).toBe(true)
+    expect(eDomandaDelProgramma('d-autopilota')).toBe(false)
+  })
+
+  it('il consenso sparito dopo la scadenza si chiude come «scaduta»', () => {
+    const b = banco()
+    b.mondo.domande = [{ id: 'conferma:r-1', testo: 'La tua email?', scadeIl: new Date(2026, 10, 11, 12, 0, 30).getTime() }]
+    b.fonti.giro()
+    b.mondo.domande = []
+    b.avanti(60_000)
+    b.fonti.giro()
+    expect(b.registro.ultimi(1)[0]!.chiuso?.come).toBe('scaduta')
   })
 })
 

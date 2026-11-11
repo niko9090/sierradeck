@@ -37,6 +37,8 @@ export type DipendenzeAvvisiPc = {
   adesso?: () => number
   chat?: () => readonly ChatPerAvvisi[]
   aggiornamento?: () => { fase: string; versione?: string } | undefined
+  /** La versione che gira adesso: quella pronta e già installata non si annuncia più. */
+  versioneQui?: () => string
   /** Le domande del programma aperte adesso, e come si riconosce il loro id. */
   domandeDelProgramma?: () => readonly DomandaDelProgramma[]
   delProgramma?: (id: string) => boolean
@@ -51,7 +53,6 @@ export const GIRO_AVVISI_MS = 1500
 /** Ogni quanto si chiede agli altri PC. */
 export const GIRO_ALTRI_PC_MS = 60_000
 
-const FASI_VERSIONE_APERTA = new Set(['pronto', 'attendo', 'installo'])
 const BERSAGLI_DA_ALTRI_PC = new Set(['domanda', 'workspace'])
 
 function avvisoDaAltroPcValido(x: unknown): x is Avviso {
@@ -88,9 +89,14 @@ export function creaFontiAvvisi(deps: DipendenzeAvvisiPc): { giro: () => void; g
 
   const versione = (): void => {
     const a = deps.aggiornamento?.()
-    if (a === undefined) return
-    if (a.fase === 'pronto' && a.versione !== undefined && a.versione !== '') registro.nasce(bozzaVersione(a.versione))
-    if (!FASI_VERSIONE_APERTA.has(a.fase)) for (const v of registro.aperti('versione:')) registro.chiudi(v.id, 'ritirata')
+    const qui = deps.versioneQui?.()
+    const pronta = a !== undefined && a.fase === 'pronto' && a.versione !== undefined && a.versione !== '' ? a.versione : undefined
+    if (pronta !== undefined && pronta !== qui) registro.nasce(bozzaVersione(pronta))
+    // Installata (è quella che gira adesso), o superata da una più nuova: l'avviso non serve più.
+    // Non per una fase di passaggio («cerco», «errore» di un controllo): la versione scaricata resta lì.
+    for (const v of registro.aperti('versione:')) {
+      if (v.bersaglio.id === qui || (pronta !== undefined && v.bersaglio.id !== pronta)) registro.chiudi(v.id, 'ritirata')
+    }
   }
 
   const domandeDelProgramma = (): void => {
@@ -99,7 +105,10 @@ export function creaFontiAvvisi(deps: DipendenzeAvvisiPc): { giro: () => void; g
     const aperte = new Set(ora.map((d) => `domanda:${d.id}`))
     for (const d of ora) registro.nasce(bozzaDomandaDelProgramma(d))
     for (const a of registro.aperti('domanda:')) {
-      if (a.bersaglio.pc === undefined && deps.delProgramma(a.bersaglio.id) && !aperte.has(a.id)) registro.chiudi(a.id, 'risposta')
+      if (a.bersaglio.pc !== undefined || !deps.delProgramma(a.bersaglio.id) || aperte.has(a.id)) continue
+      // Sparita dopo la sua scadenza: nessuno ha risposto (il consenso a un dato vale come no).
+      const scaduta = a.scadeIl !== undefined && Date.parse(a.scadeIl) <= adesso()
+      registro.chiudi(a.id, scaduta ? 'scaduta' : 'risposta')
     }
   }
 

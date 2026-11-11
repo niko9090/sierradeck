@@ -129,6 +129,7 @@ import { get as httpGet, request as httpRequest } from 'node:http'
 import { riconsegnaCodaCeduta, type CodaCeduta } from './coda-ceduta'
 import { avviaRitiro, consegnaDaIdTesto, doveConsegnare, leggiConsegne, finestraPerConsegna, idTestoConsegna, versoIlSuoWorkspace, type Consegna } from './autopilota-consegne'
 import type { Chat } from './client-rotte'
+import { accendiAvvisi, ipcAvvisi } from './avvisi-avvio'
 import { leggiEsitoAltroPc, type EsitoAltroPc } from './risposta-verificata'
 import { creaAggiornamenti, leggiAggiornamentoAppenaFatto, type EsitoQuiete } from './aggiornamenti'
 import { attesaMassimaMs, descriviAttesaDrive, lavoroAutomatico, percheNonFinito } from './attesa-drive'
@@ -4415,6 +4416,9 @@ if (!app.requestSingleInstanceLock()) {
       coda.quandoCambia(() => {
         for (const w of webContents.getAllWebContents()) if (!w.isDestroyed()) w.send('alTelefono:cambiata')
       })
+      // Gli avvisi (11/11): un registro solo per l'app, la pagina, Telegram e la schermata «Notifiche» (`avvisi-avvio.ts`).
+      const avvisi = accendiAvvisi({ dati, log: (r) => registro.info(r), telefoni: () => dispositivi.elenca(), chat: () => chatAperte, aggiornamento: () => aggiornamenti?.stato(), versioneQui: () => app.getVersion(), coda, quadernoPersonale, altriPc: () => altriPcGlobale?.() ?? Promise.resolve([]), chiamaPc: (pc, percorso) => remoto.chiama(pc, percorso) })
+      ipcAvvisi(ipcMain, avvisi)
       /**
        * La sincronizzazione con il Drive e' accesa: connesso, cassaforte
        * aperta, salvataggio automatico acceso. Non solleva mai.
@@ -5186,7 +5190,7 @@ if (!app.requestSingleInstanceLock()) {
       // Una sola istanza delle rotte per il telefono **e** per il PC: la
       // scheda Domande del PC passa dalle stesse rotte, e cosi' ricorda gli
       // stessi messaggi mandati (0.36.0).
-      const rottaTelefono = rotteClient(rotte)
+      const rottaTelefono = avvisi.rotte(rotteClient(rotte))
       // Le stesse rotte per le strade nuove da un altro PC (0.40.0).
       /** Le rotte che la scheda Domande del PC puo' chiamare: solo rispondere. */
       // `/api/pin/sblocca` (0.49.1): il PIN di una chat protetta, chiesto lì dove le si scrive.

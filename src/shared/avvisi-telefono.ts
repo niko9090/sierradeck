@@ -421,6 +421,11 @@ export function rigaConsegna(a: Avviso, chi: string, ora: number): string {
   return `[avviso] consegnato n=${a.n} ${breve(a)}${a.chiuso !== undefined ? ' (la chiusura)' : ''} a ${chi} dopo ${secondi} s`
 }
 
+/** La riga di stato della schermata «Notifiche»: chi ascolta, e l'ultimo contatto di un telefono (ISO). */
+export type VistaStatoAvvisi = { riga: string; inAscolto: boolean; ultimoContatto?: string }
+/** Quello che serve alla schermata «Notifiche», uguale su PC, pagina e app (`GET /api/avvisi/stato`). */
+export type VistaAvvisi = VistaStatoAvvisi & { impostazioni: ImpostazioniAvvisi; ultimi: Avviso[] }
+
 /** La riga di stato in cima a «Notifiche»: chi ascolta, o da quanto non si fa vivo. */
 export function rigaStatoAvvisi(p: { telefoni: number; inAscolto: boolean; ultimoContatto?: number; ora: number }): string {
   if (p.telefoni === 0) return 'Nessun telefono accoppiato: gli avvisi restano qui.'

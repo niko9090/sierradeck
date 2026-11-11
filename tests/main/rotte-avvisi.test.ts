@@ -135,6 +135,15 @@ describe('le altre rotte degli avvisi', () => {
     expect(b.righe.some((r) => r.startsWith('[avviso] consegnato n=1') && r.includes('Telefono di prova'))).toBe(true)
   })
 
+  it('una risposta presa chiude subito l’avviso della domanda', async () => {
+    const b = banco()
+    b.registro.nasce(domanda('d-1'))
+    await b.chiedi('POST', '/api/rispondi', { corpo: { domanda: 'd-1', risposta: 'Sì' }, dispositivo: 'tel-1' })
+    expect(b.registro.aperti()).toEqual([])
+    expect(b.registro.ultimi(1)[0]!.chiuso?.come).toBe('risposta')
+    expect(b.passate).toEqual(['POST /api/rispondi'])
+  })
+
   it('prova: un avviso che suona anche con «Da sapere» silenziosa', async () => {
     const b = banco()
     const e = (await b.chiedi('POST', '/api/avvisi/prova', { dispositivo: 'tel-1' })).corpo as { avviso: Avviso }
