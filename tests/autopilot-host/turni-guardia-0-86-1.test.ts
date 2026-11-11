@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { Server } from 'node:http'
 import {
   ATTESA_IN_UN_HOOK_MS, ATTESA_MASSIMA_MS, CARICO_MASSIMO_MS, creaGuardiaPc, dentroUnHook, giudicaMisura,
-  giudicaPesanteDellaChat, PROCESSORE_PER_MS, RILASCIO_PER_MS, rendiTurnoDopoComando
+  giudicaPesanteDellaChat, MEMORIA_LIBERA_MIN_A_LUNGO, PROCESSORE_PER_MS, RILASCIO_PER_MS, rendiTurnoDopoComando
 } from '../../src/autopilot-host/guardia-pc'
 import { creaTurni } from '../../src/autopilot-host/turni-criteri'
 import { apriArchivio } from '../../src/autopilot-host/archivio'
@@ -83,24 +83,37 @@ describe('il servizio: PostToolUse e Stop rendono il turno della chat', () => {
       domande: creaRegistroDomande({ adesso: () => ORA }),
       scadenzaDomandaMs: 5000,
       adesso: () => new Date().toISOString(),
-      turni: opz.turni
+      turni: opz.turni,
+      // 11/11: chi trova il turno occupato aspetta nell'hook; qui al più 3 secondi, riguardando ogni 10 ms.
+      attesaPesante: { tettoMs: 1_000, tettoTurnoMs: 3_000, riprovaMs: 10 }
     })
     const s: Server = server
     const porta = await new Promise<number>((ris) => { s.listen(0, '127.0.0.1', () => { ris((s.address() as { port: number }).port) }) })
     return { porta, archivio }
   }
 
-  it('/hook/rapporto dopo la suite della chat: il turno è subito libero per un\'altra', async () => {
+  // 11/11: prima la seconda chat riceveva un «no» finché il turno era occupato. Adesso aspetta
+  // nell'hook, e passa appena il PostToolUse della prima rende il turno.
+  it('/hook/rapporto dopo la suite della chat: il turno è subito libero per un\'altra, che lo stava aspettando', async () => {
     const turni = creaTurni()
     const { porta, archivio } = await avvia({ turni })
     const chats = ['c-1', 'c-2'].map((id) => ({ id, compito: id, stato: 'lavoro' as const, cicli: 1 }))
     archivio.scrivi({ ...nuovoAutopilota({ id: 'ap-a', nome: 'a', obiettivo: 'o', cwd: 'C:\\Progetti\\Esempio', iniziatoIl: new Date(ORA).toISOString() }), stato: 'lavoro', chats })
     const pre = async (chat: string, command: string): Promise<any> => (await fetch(`http://127.0.0.1:${porta}/hook/pretool?ap=ap-a&chat=${chat}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bash(command)) })).json()
     expect(await pre('c-1', 'npx vitest run')).toEqual({})
-    expect((await pre('c-2', 'npx tsc --noEmit')).hookSpecificOutput).toMatchObject({ permissionDecision: 'deny' })
+    let seconda: unknown
+    const inizio = Date.now()
+    const attesa = pre('c-2', 'npx tsc --noEmit').then((r) => { seconda = r })
+    await new Promise((ris) => setTimeout(ris, 150))
+    // Il turno è di c-1: c-2 aspetta, senza un sì e senza un no.
+    expect(seconda).toBeUndefined()
+    expect(turni.prenotato()?.chi).toBe('ap-a::c-1')
     await fetch(`http://127.0.0.1:${porta}/hook/rapporto?ap=ap-a&chat=c-1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bash('npx vitest run')) })
-    expect(turni.prenotato()).toBeUndefined()
-    expect(await pre('c-2', 'npx tsc --noEmit')).toEqual({})
+    await attesa
+    expect(seconda).toEqual({})
+    // Passata per il turno reso, non per il tetto dell'attesa.
+    expect(Date.now() - inizio).toBeLessThan(2_000)
+    expect(turni.prenotato()?.chi).toBe('ap-a::c-2')
     turni.rilascia('ap-a::c-2')
   })
 
@@ -134,6 +147,34 @@ describe('la guardia: niente «carico» per sempre, niente attese oltre l\'hook'
     expect(s.carico).toBeUndefined()
     // Sopra il 75% resta carico anche dopo i 10 minuti.
     expect(giudicaMisura(pc(80), carico, ORA + 2 * CARICO_MASSIMO_MS).carico).toBeDefined()
+  })
+
+  // 11/11: per la memoria non c'era nessuna uscita: sotto il 15% libero il PC restava «carico» per sempre.
+  it('l’uscita anche per la memoria: dopo 10 minuti fra l’8 e il 15% libero il PC si libera, e non rientra subito; sotto l’8% resta carico', () => {
+    const libera = (parte: number): MisuraPc => pc(10, Math.round(16_384 * parte), 16_384)
+    let s = giudicaMisura(libera(0.12), {}, ORA)
+    expect(s.carico?.risorsa).toBe('memoria')
+    // Prima dei 10 minuti vale il 15%: resta carico.
+    s = giudicaMisura(libera(0.12), s, ORA + 5 * 60_000)
+    expect(s.carico?.risorsa).toBe('memoria')
+    // Dopo 10 minuti conta l'8%: col processore basso, un minuto intero e si libera.
+    s = giudicaMisura(libera(0.12), s, ORA + CARICO_MASSIMO_MS)
+    expect(s.carico).toBeDefined()
+    s = giudicaMisura(libera(0.12), s, ORA + CARICO_MASSIMO_MS + RILASCIO_PER_MS)
+    expect(s).toEqual({ memoriaTollerata: true })
+    // Non rientra alla misura dopo, con la stessa memoria.
+    s = giudicaMisura(libera(0.12), s, ORA + CARICO_MASSIMO_MS + RILASCIO_PER_MS + 5_000)
+    expect(s.carico).toBeUndefined()
+    // Sotto l'8% sì: lì il PC è davvero al limite, anche da tollerato e anche dopo 10 minuti.
+    expect(giudicaMisura(libera(0.05), s, ORA + CARICO_MASSIMO_MS + RILASCIO_PER_MS + 10_000).carico?.risorsa).toBe('memoria')
+    let basso = giudicaMisura(libera(0.05), {}, ORA)
+    basso = giudicaMisura(libera(0.05), basso, ORA + 2 * CARICO_MASSIMO_MS)
+    expect(basso.carico?.risorsa).toBe('memoria')
+    expect(MEMORIA_LIBERA_MIN_A_LUNGO).toBeLessThan(0.15)
+    // Risalita sopra il 15% la tolleranza finisce: da lì vale di nuovo il 15%.
+    const risalita = giudicaMisura(libera(0.5), { memoriaTollerata: true }, ORA)
+    expect(risalita).toEqual({})
+    expect(giudicaMisura(libera(0.12), risalita, ORA + 5_000).carico?.risorsa).toBe('memoria')
   })
 
   it('con la guardia vera: un PC al 70% dopo 10 minuti di carico torna libero', () => {

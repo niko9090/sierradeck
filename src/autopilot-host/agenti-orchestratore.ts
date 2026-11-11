@@ -3,7 +3,7 @@ import { REGOLA_RAPPORTO } from '@shared/rapporti-chat'
 import { comandoFinePrematura } from '@shared/fine-prematura'
 import { MATCHER_GUARDIA } from './guardia-orchestratore'
 
-/** Il PreToolUse può aspettare dentro l'hook fino a `ATTESA_IN_UN_HOOK_MS` (5 min): il timeout sta sopra (k-189). */
+/** Il PreToolUse può aspettare dentro l'hook fino a `ATTESA_TURNO_IN_UN_HOOK_MS` (5 min, il turno dei pesanti): il timeout sta sopra (k-189). */
 export const TIMEOUT_PRETOOL_S = 330
 
 /**

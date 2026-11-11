@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { componiImpostazioni, TIMEOUT_HOOK_S } from '@shared/hook-autopilota'
+import { componiImpostazioni, TIMEOUT_HOOK_S, TIMEOUT_PRETOOL_CHAT_S } from '@shared/hook-autopilota'
+import { TIMEOUT_PRETOOL_S } from '../../src/autopilot-host/agenti-orchestratore'
+import { ATTESA_IN_UN_HOOK_MS, ATTESA_TURNO_IN_UN_HOOK_MS } from '../../src/autopilot-host/guardia-pc'
 
 /**
  * Gli hook con cui una chat governata dice «ho finito di rispondere».
@@ -22,6 +24,16 @@ describe('le impostazioni di una chat governata', () => {
     const pre = (JSON.parse(componiImpostazioni('ap-1', 47630, 'c-2')) as { hooks: { PreToolUse: { matcher: string; hooks: { url: string }[] }[] } }).hooks.PreToolUse[0]
     expect(pre?.matcher).toBe('Bash|PowerShell')
     expect(pre?.hooks[0]?.url).toBe('http://127.0.0.1:47630/hook/pretool?ap=ap-1&chat=c-2')
+  })
+
+  // 11/11: un comando pesante non riceve più «riprova fra qualche minuto», aspetta nell'hook:
+  // l'hook deve durare più dell'attesa più lunga (il turno dei pesanti), come quello degli specialisti.
+  it('il PreToolUse ha il tempo di far aspettare un comando pesante dentro l’hook', () => {
+    const pre = leggi(componiImpostazioni('ap-1', 47630, 'c-2')).PreToolUse?.[0]
+    expect(pre?.hooks[0]?.timeout).toBe(TIMEOUT_PRETOOL_CHAT_S)
+    expect(TIMEOUT_PRETOOL_CHAT_S).toBe(TIMEOUT_PRETOOL_S)
+    expect(TIMEOUT_PRETOOL_CHAT_S * 1000).toBeGreaterThan(ATTESA_TURNO_IN_UN_HOOK_MS + 15_000)
+    expect(ATTESA_IN_UN_HOOK_MS).toBeLessThan(ATTESA_TURNO_IN_UN_HOOK_MS)
   })
 
   it('e manda il rapporto a ogni strumento usato, con un tetto corto (0.85.1)', () => {

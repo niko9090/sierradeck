@@ -29,7 +29,7 @@ import { improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './c
 import { peggioratiDelRamo, preparaCopia, radiceDellaCopia } from './ambiente-copia'
 import { criteriPerLaProva } from './criteri-prova'
 import { TURNI_PC, TurnoScaduto, type TurniCriteri } from './turni-criteri'
-import { giudicaPesanteAspettando, giudicaPesanteDellaChat, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
+import { giudicaPesanteAspettando, idAgente, rendiTurnoDopoComando, type GuardiaPc } from './guardia-pc'
 import { giudicaRuolo, giudicaStrumento, rispostaPreTool } from './divieti'
 import { creaConsensi, testoDomandaCancellazione, DURATA_CONSENSO_MS, SCELTA_NO, SCELTA_SI } from './consenso-cancellazione'
 import { ultimoRapportoDa } from './trascrizione'
@@ -117,6 +117,8 @@ export type Dipendenze = {
   misuraPc?: () => MisuraPc
   /** La guardia del PC (0.85.1): con il PC al limite niente comandi pesanti. */
   guardiaPc?: GuardiaPc
+  /** 11/11, per i test: i tetti dell'attesa di un comando pesante dentro l'hook (PC carico, turno) e ogni quanto si riguarda. */
+  attesaPesante?: { tettoMs?: number; tettoTurnoMs?: number; riprovaMs?: number }
   /** Chiude una chat adottata finita (0.82.0): il riquadro si chiude; con `alRecupero` esce dall'elenco (P2). */
   chiudiChat?: (autopilotaId: string, chatId: string | undefined, chi: { sessionId: string; workspace?: string; alRecupero?: boolean; fine?: 'unita' | 'abbandonata' }) => void
   /** L'autopulizia (0.85.2), per «Pulisci adesso». */
@@ -1409,7 +1411,9 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           if (g.ok) {
             const pesante = { chi: chiPre, cwd: typeof corpo.cwd === 'string' && corpo.cwd !== '' ? corpo.cwd : a.cwd, turni: deps.turni ?? TURNI_PC, ...(deps.guardiaPc !== undefined ? { guardia: deps.guardiaPc } : {}) }
             // Lo specialista non sa aspettare (sleep bloccato): aspetta il programma, nell'hook, fino al tetto.
-            g = idAgente(corpo) !== undefined ? await giudicaPesanteAspettando(corpo, pesante) : giudicaPesanteDellaChat(corpo, pesante)
+            // 11/11: anche le chat adottate aspettano qui invece di ricevere il «no» (il loro hook ha il tempo per farlo,
+            // `TIMEOUT_PRETOOL_CHAT_S`); per gli specialisti niente «appena liberato»: il turno li mette già in fila.
+            g = await giudicaPesanteAspettando(corpo, { ...pesante, ...(idAgente(corpo) !== undefined ? { senzaQuiete: true } : {}), ...(deps.attesaPesante ?? {}) })
           }
           if (!g.ok && g.pcCarico === true) console.info(`[guardia-pc] ${chiPre} comando pesante rimandato: ${g.motivo}`)
           else if (!g.ok) {
