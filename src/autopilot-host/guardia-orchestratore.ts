@@ -1,5 +1,6 @@
 import { isAbsolute, join, resolve } from 'node:path'
 import { dentro, type Giudizio } from './divieti'
+import { soloLetturaInFila } from './sola-lettura'
 
 /**
  * **La guardia dell'autopilota unico** (P3, 30/10/2026): il PreToolUse del
@@ -148,9 +149,11 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
 
   if (agente === undefined) {
     // 0.94.0: guardare lo stato del progetto sì (05/11: cinque comandi bloccati in un giorno, turni persi).
-    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && gitSoloLettura(s(input.command) ?? '')) return { ok: true }
+    // 11/11: anche più letture in fila (`git status --short && git log --oneline -3`, con `cd` nel progetto
+    // e filtri dopo una pipe): 40 rifiuti in quattro giorni per comandi che leggono e basta (`sola-lettura.ts`).
+    if ((STRUMENTI_SHELL as readonly string[]).includes(nome) && (gitSoloLettura(s(input.command) ?? '') || soloLetturaInFila(s(input.command) ?? '', c.radice))) return { ok: true }
     if ((STRUMENTI_SCRITTURA as readonly string[]).includes(nome) || (STRUMENTI_SHELL as readonly string[]).includes(nome)) {
-      return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci.' }
+      return { ok: false, motivo: 'Sei l’orchestratore: non modifichi file e non lanci comandi. Leggi (Read, Grep, Glob, e git in sola lettura, anche in fila: `git status --short && git log --oneline -5`) e affida il lavoro a uno specialista con Agent; per unire usa lo strumento unisci. Quello che vuoi ricordare annotalo con quaderno_annota, non in un file.' }
     }
     if ((STRUMENTI_AGENTE as readonly string[]).includes(nome) && c.senzaGit === true && (c.specialistiDelWorkspace ?? 0) >= 1) {
       return { ok: false, motivo: 'aspetta: il progetto non è un repository git, quindi lavora uno specialista alla volta nella cartella del progetto. Rilancia quando quello al lavoro ha finito.' }
