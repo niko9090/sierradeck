@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.rete.Percorsi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * La scelta della strada verso il PC (k-50): sulla stessa WiFi senza VPN si usa

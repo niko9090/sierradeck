@@ -8,7 +8,7 @@ import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Ponte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.PinChat
+import it.ferrariconsulenze.sierradeck.schermate.file.PinChat
 
 /**
  * Il PIN delle chat nell'app (PC 0.49.0, app 2.49.0). Le risposte sono nella

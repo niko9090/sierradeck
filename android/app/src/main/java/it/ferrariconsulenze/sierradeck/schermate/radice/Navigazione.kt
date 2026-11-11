@@ -1,6 +1,6 @@
 package it.ferrariconsulenze.sierradeck.schermate.radice
 
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * **Tre voci** (app nuova, 11/11): Lavoro · File · Altro. Nicholas: «da capo,
@@ -133,7 +133,7 @@ object Navigazione {
         Richiesta.File -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)
     }
 
-    /** Le destinazioni di prima (`Scheda`), che le schermate vecchie chiedono ancora. */
+    /** Le destinazioni di prima (`Scheda`), che le sezioni di Altro chiedono ancora. */
     fun verso(p: Posto, s: Scheda): Posto = when (s) {
         Scheda.DOMANDE, Scheda.AUTOPILOTI, Scheda.CHAT, Scheda.PROGETTI -> p.copy(voce = VoceBarra.LAVORO, pile = p.pile - VoceBarra.LAVORO)
         Scheda.FILE -> p.copy(voce = VoceBarra.FILE, pile = p.pile - VoceBarra.FILE)

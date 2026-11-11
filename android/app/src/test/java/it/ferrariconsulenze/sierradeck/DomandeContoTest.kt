@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandeInAttesa
+import it.ferrariconsulenze.sierradeck.nucleo.domandeInAttesa
 
 /**
  * Il numero delle Domande del telefono e' quello del computer (0.37.2): lo

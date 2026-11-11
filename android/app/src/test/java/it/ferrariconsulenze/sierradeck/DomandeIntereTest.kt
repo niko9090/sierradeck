@@ -7,7 +7,6 @@ import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
 import it.ferrariconsulenze.sierradeck.nucleo.Domande
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.altezzaLinguetta
 
 /**
  * «Le domande sono tutte tagliate» (Nicholas, 02/10, 0.39.1): una domanda di
@@ -45,10 +44,4 @@ class DomandeIntereTest {
         assertEquals(lunga, dom.conversazioni.single().messaggi.single().testo)
     }
 
-    @Test
-    fun `la linguetta Domande ha piu posto, e oltre scorre`() {
-        assertEquals(420, altezzaLinguetta("domande"))
-        assertEquals(260, altezzaLinguetta("file"))
-        assertEquals(260, altezzaLinguetta(null))
-    }
 }

@@ -1,4 +1,10 @@
-package it.ferrariconsulenze.sierradeck.schermate.vecchie
+package it.ferrariconsulenze.sierradeck.schermate.radice
+
+import it.ferrariconsulenze.sierradeck.schermate.altro.*
+import it.ferrariconsulenze.sierradeck.schermate.file.*
+import it.ferrariconsulenze.sierradeck.schermate.comune.*
+import it.ferrariconsulenze.sierradeck.schermate.radice.*
+import it.ferrariconsulenze.sierradeck.nucleo.*
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll

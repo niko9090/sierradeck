@@ -85,21 +85,20 @@ import it.ferrariconsulenze.sierradeck.rete.Indirizzi
 import it.ferrariconsulenze.sierradeck.rete.PcNoto
 import it.ferrariconsulenze.sierradeck.rete.Scoperta
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.AltriComputer
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.NotaGlobale
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermataChat
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermoInstallazione
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SchermoMandaA
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAggiornamenti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAvvisi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneConsumi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneDrive
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneErroriApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneFile
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneInfo
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneQuadernoPersonale
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneSalute
+import it.ferrariconsulenze.sierradeck.schermate.altro.AltriComputer
+import it.ferrariconsulenze.sierradeck.schermate.radice.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.comune.NotaGlobale
+import it.ferrariconsulenze.sierradeck.schermate.altro.SchermoInstallazione
+import it.ferrariconsulenze.sierradeck.schermate.file.SchermoMandaA
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneAggiornamenti
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneAvvisi
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneConsumi
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneDrive
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneErroriApp
+import it.ferrariconsulenze.sierradeck.schermate.file.SezioneFile
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneInfo
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneQuadernoPersonale
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneSalute
 import it.ferrariconsulenze.sierradeck.sottofondo.ErroriApp
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.Scaricamento
@@ -110,8 +109,8 @@ import kotlinx.coroutines.launch
  * colorata), una banda sola quando serve, il guscio della voce, la barra con
  * tre voci. Le schermate stanno nei gusci e ricevono l'`Api` e lo stato.
  *
- * I gusci oggi ospitano le schermate di prima (`schermate/vecchie`): le
- * schermate nuove prendono il loro posto una alla volta, senza toccare la radice.
+ * Le schermate di prima (`schermate/vecchie`) non ci sono più: quelle che
+ * restavano utili (Aggiornamenti, Salute, Drive…) stanno in `schermate/altro`.
  */
 @Composable
 fun Radice(

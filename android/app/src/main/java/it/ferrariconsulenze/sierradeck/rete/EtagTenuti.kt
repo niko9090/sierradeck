@@ -1,7 +1,7 @@
 package it.ferrariconsulenze.sierradeck.rete
 
 import it.ferrariconsulenze.sierradeck.schermate.comune.Voce
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Le risposte tenute con il loro ETag (app 2.86.0, PC 0.86.0).

@@ -2,9 +2,9 @@ package it.ferrariconsulenze.sierradeck.nucleo
 
 import kotlinx.serialization.Serializable
 import it.ferrariconsulenze.sierradeck.rete.InfoPonte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.AvvisoDrive
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandeInAttesa
+import it.ferrariconsulenze.sierradeck.schermate.altro.AvvisoDrive
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.domandeInAttesa
 
 /**
  * I modelli dell'API del computer, tipati.

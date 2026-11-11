@@ -46,15 +46,15 @@ import it.ferrariconsulenze.sierradeck.schermate.comune.TastoAzioniChat
 import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
 import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.AltriComputer
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAggiornamenti
+import it.ferrariconsulenze.sierradeck.schermate.altro.AltriComputer
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneAggiornamenti
 import it.ferrariconsulenze.sierradeck.schermate.notifiche.SchermataNotifiche
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneConsumi
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneDrive
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneErroriApp
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneInfo
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneQuadernoPersonale
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneSalute
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneConsumi
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneDrive
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneErroriApp
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneInfo
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneQuadernoPersonale
+import it.ferrariconsulenze.sierradeck.schermate.altro.SezioneSalute
 import kotlinx.coroutines.launch
 
 /**

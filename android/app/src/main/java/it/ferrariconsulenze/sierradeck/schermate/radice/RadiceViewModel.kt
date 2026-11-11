@@ -70,7 +70,7 @@ class RadiceViewModel(private val t: Telefono.Insieme, private val salvato: Save
     fun tocca(v: VoceBarra) = metti(Navigazione.tocca(_posto.value, v))
     fun apri(d: Dettaglio) = metti(Navigazione.apri(_posto.value, d))
     fun verso(r: Richiesta) = metti(Navigazione.verso(_posto.value, r))
-    fun verso(s: it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda) = metti(Navigazione.verso(_posto.value, s))
+    fun verso(s: it.ferrariconsulenze.sierradeck.schermate.radice.Scheda) = metti(Navigazione.verso(_posto.value, s))
 
     /** `false` = non c'è più niente da chiudere: si esce dall'app. */
     fun indietro(): Boolean {

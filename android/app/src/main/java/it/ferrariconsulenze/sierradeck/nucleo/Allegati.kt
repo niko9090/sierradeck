@@ -15,7 +15,7 @@ import java.security.MessageDigest
 import java.util.Base64
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.PcPonte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * I file dal telefono a una chat o a un autopilota (PC 0.50.0, app 2.50.0).

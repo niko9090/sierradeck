@@ -11,8 +11,8 @@ import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
 import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.QuadernoPersonaleTesti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.StatoQuadernoPersonale
+import it.ferrariconsulenze.sierradeck.schermate.altro.QuadernoPersonaleTesti
+import it.ferrariconsulenze.sierradeck.schermate.altro.StatoQuadernoPersonale
 
 /**
  * Il Quaderno personale (app 2.57.0) sulla risposta di un computer alla 0.57.0

@@ -8,7 +8,7 @@ import okhttp3.Dns
 import okhttp3.OkHttpClient
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * **Da quale rete** parlare col computer.

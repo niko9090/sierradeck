@@ -7,7 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
 import it.ferrariconsulenze.sierradeck.sottofondo.Notifiche
 import it.ferrariconsulenze.sierradeck.sottofondo.TipoNotifica

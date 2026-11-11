@@ -1,7 +1,7 @@
 package it.ferrariconsulenze.sierradeck.dati
 
 import android.content.Context
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Dove sta il computer e con quale chiave ci si parla.

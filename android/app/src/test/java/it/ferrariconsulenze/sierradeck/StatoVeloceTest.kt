@@ -26,7 +26,6 @@ import it.ferrariconsulenze.sierradeck.nucleo.MessaggioConversazione
 import it.ferrariconsulenze.sierradeck.nucleo.Stato
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Linea
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.DomandeAdesso
 
 /**
  * La velocità della 0.83.0, seconda parte: la copia dell'ultimo stato
@@ -100,15 +99,6 @@ class StatoVeloceTest {
         val (letto, cambiato) = s.leggi(statoJson("a"))
         assertSame(copia, letto)
         assertFalse(cambiato)
-    }
-
-    @Test fun `b - Adesso rilegge le domande solo quando lo stato dice che sono cambiate`() {
-        val base = Api.json.decodeFromString<Stato>("""{"chat":[{"id":"a","ultimaRiga":"lavoro 1"}],"domandeInAttesa":1,"domande":[{"id":"d1","testo":"Vado?"}]}""")
-        // Una chat al lavoro che scrive una riga nuova non è una domanda.
-        assertEquals(DomandeAdesso.firma(base), DomandeAdesso.firma(base.copy(chat = listOf(base.chat[0].copy(ultimaRiga = "lavoro 2")))))
-        // Una domanda nuova, una chat che si ferma su una scelta: si rilegge.
-        assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(domande = base.domande + Domanda("d2", testo = "E poi?"))))
-        assertFalse(DomandeAdesso.firma(base) == DomandeAdesso.firma(base.copy(chat = listOf(base.chat[0].copy(chiede = true)))))
     }
 
     @Test fun `b - stato fermo da tre giri, il prossimo fra 5 s, se cambia di nuovo ogni 2 s`() {

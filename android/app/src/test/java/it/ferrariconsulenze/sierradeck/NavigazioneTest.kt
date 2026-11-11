@@ -15,8 +15,7 @@ import it.ferrariconsulenze.sierradeck.schermate.radice.Navigazione
 import it.ferrariconsulenze.sierradeck.schermate.radice.Richiesta
 import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.radice.VoceBarra
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.sezioniAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 
 /**
  * Le tre voci (Lavoro · File · Altro) e «indietro»: la regola è in
@@ -102,13 +101,6 @@ class NavigazioneTest {
         for (s in SezioneAltro.entries) s.impostazione?.let { assertEquals(it, s, SezioneAltro.diImpostazione(it)) }
         assertEquals(SezioneAltro.DRIVE, SezioneAltro.diImpostazione("chat", "quaderno-personale"))
         assertEquals(SezioneAltro.INFO, SezioneAltro.diImpostazione("sconosciuta"))
-    }
-
-    @Test
-    fun `le parti dell autopilota stanno in una pagina, le domande per prime`() {
-        assertEquals("domande", sezioniAutopilota(1).first())
-        assertFalse("domande" in sezioniAutopilota(0))
-        assertEquals(listOf("avanzamento", "file"), sezioniAutopilota(0))
     }
 
     @Test fun richiestaFileEWorkspace() {

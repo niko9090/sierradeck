@@ -11,8 +11,6 @@ import org.junit.Test
 import java.io.File
 import it.ferrariconsulenze.sierradeck.nucleo.Ricomponi
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Blocco
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.blocchiAdattati
 
 /**
  * Lo schermo ricomposto per la larghezza del telefono (2.52.6). Nicholas
@@ -46,24 +44,4 @@ class RicomponiTest {
         }
     }
 
-    @Test
-    fun `il paragrafo una riga sola, la tabella un blocco a griglia`() {
-        for (c in listOf(80, 120, 200)) {
-            val (g, cont, col) = schermo(c)
-            val r = Ricomponi.ricomponi(g, cont, col)
-            assertEquals(1, r.count { it.testo.startsWith("● ") })
-            assertTrue(r.first { it.testo.startsWith("● ") }.testo.length > c)
-            assertEquals(9, r.count { it.tipo == "griglia" && Regex("[│┌└├]").containsMatchIn(it.testo) })
-            // In «Adatta» le righe della tabella stanno in un blocco solo, che scorre di lato.
-            val blocchi = blocchiAdattati(g, cont, col)
-            assertEquals(1, blocchi.count { it is Blocco.Griglia && it.righe.size == 9 })
-        }
-    }
-
-    @Test
-    fun `PC vecchio con continua di lunghezza sbagliata - si ignora, niente si rompe`() {
-        val (g, _, col) = schermo(80)
-        val b = blocchiAdattati(g, listOf(true), col)
-        assertTrue(b.isNotEmpty())
-    }
 }

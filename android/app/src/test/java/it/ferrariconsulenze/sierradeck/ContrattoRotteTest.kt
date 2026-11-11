@@ -9,7 +9,7 @@ import org.junit.Test
 import java.io.File
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.Ponte
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Il contratto delle rotte col PC (11/11): lo scrive il vitest

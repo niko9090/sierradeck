@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.ChatConsumo
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.rigaContesto
+import it.ferrariconsulenze.sierradeck.schermate.altro.rigaContesto
 
 /** PC 0.70: il contesto di una chat con la sua parola, decisa dal PC. */
 class ConsumiVistaTest {

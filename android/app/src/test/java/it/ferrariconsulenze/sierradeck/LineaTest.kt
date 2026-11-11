@@ -12,7 +12,7 @@ import it.ferrariconsulenze.sierradeck.rete.Collegamenti
 import it.ferrariconsulenze.sierradeck.rete.EventoLinea
 import it.ferrariconsulenze.sierradeck.rete.Linea
 import it.ferrariconsulenze.sierradeck.rete.MisuraLinea
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Salute
+import it.ferrariconsulenze.sierradeck.schermate.altro.Salute
 
 /**
  * Il collegamento (PC 0.51.0, app 2.51.0): la stessa macchina del PC

@@ -1,7 +1,7 @@
 package it.ferrariconsulenze.sierradeck.nucleo
 
 import kotlinx.serialization.Serializable
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.urgenzaAp
+import it.ferrariconsulenze.sierradeck.nucleo.urgenzaAp
 
 /**
  * **Gli autopiloti degli altri PC** (PC 0.59.0, app 2.59.0, la richiesta più

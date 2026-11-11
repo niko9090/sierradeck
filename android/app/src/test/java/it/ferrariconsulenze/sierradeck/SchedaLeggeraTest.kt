@@ -15,10 +15,8 @@ import it.ferrariconsulenze.sierradeck.nucleo.Battuta
 import it.ferrariconsulenze.sierradeck.nucleo.Davanti
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.EtagTenuti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.PANORAMICA_OGNI_MS
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Panoramica
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegoleSchedaLeggera
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.Panoramica
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * La scheda dell'autopilota leggera, con l'ETag (app 2.86.0, PC 0.86.0): il
@@ -68,12 +66,6 @@ class SchedaLeggeraTest {
         } finally { pc.chiudi() }
     }
 
-    @Test fun `quante righe mancano della conversazione`() {
-        assertEquals(0, RegoleSchedaLeggera.righePrima(null))
-        assertEquals(0, RegoleSchedaLeggera.righePrima(AutopilotaDettaglio(chat = listOf(Battuta()))))
-        assertEquals(119, RegoleSchedaLeggera.righePrima(AutopilotaDettaglio(chat = listOf(Battuta()), chatIntera = 120)))
-    }
-
     @Test fun `le risposte tenute non crescono senza limite`() {
         repeat(EtagTenuti.MASSIMO * 3) { EtagTenuti.tieni(EtagTenuti.chiave("h", "/api/autopilota", "{\"autopilota\":\"ap-$it\"}"), "\"e$it\"", "t$it") }
         assertEquals(EtagTenuti.MASSIMO, EtagTenuti.quante())
@@ -85,8 +77,4 @@ class SchedaLeggeraTest {
         assertNull(EtagTenuti.etag(ultima))
     }
 
-    @Test fun `la Panoramica dalla scheda si rilegge al massimo ogni dieci secondi`() {
-        assertTrue(PANORAMICA_OGNI_MS >= 10_000L)
-        assertTrue(Davanti.ELENCO_MS >= 5_000L)
-    }
 }

@@ -25,10 +25,10 @@ import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
 import it.ferrariconsulenze.sierradeck.schermate.radice.Radice
 import it.ferrariconsulenze.sierradeck.sottofondo.Installazione
 import it.ferrariconsulenze.sierradeck.sottofondo.RicevitoreConsegne
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Nota
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.radice.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.file.Condivisione
+import it.ferrariconsulenze.sierradeck.schermate.comune.Nota
+import it.ferrariconsulenze.sierradeck.schermate.radice.Scheda
 import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 import it.ferrariconsulenze.sierradeck.sottofondo.ControlloApp
 import it.ferrariconsulenze.sierradeck.sottofondo.Guasti

@@ -1,7 +1,7 @@
 package it.ferrariconsulenze.sierradeck.sottofondo
 
 import org.json.JSONObject
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Quali avvisi meritano di svegliare il telefono.

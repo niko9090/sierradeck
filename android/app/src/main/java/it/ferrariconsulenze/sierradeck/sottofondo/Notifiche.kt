@@ -1,7 +1,7 @@
 package it.ferrariconsulenze.sierradeck.sottofondo
 
 import android.content.Context
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.nucleo.chiave
 
 /**
  * Quali notifiche arrivano (app 2.74.0). Nicholas, 15/10: «ne arrivano troppe

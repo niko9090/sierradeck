@@ -6,8 +6,8 @@ import org.junit.Test
 import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
 import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
 import it.ferrariconsulenze.sierradeck.rete.Api
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Salute
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.azioneDalTelefono
+import it.ferrariconsulenze.sierradeck.schermate.altro.Salute
+import it.ferrariconsulenze.sierradeck.schermate.altro.azioneDalTelefono
 
 /** «Salute del sistema» sul telefono (0.44.0). */
 class SaluteTest {

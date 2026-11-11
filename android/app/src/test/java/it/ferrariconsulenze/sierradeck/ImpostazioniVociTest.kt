@@ -11,7 +11,7 @@ import it.ferrariconsulenze.sierradeck.nucleo.ImpostazioniVoci
 import it.ferrariconsulenze.sierradeck.rete.Api
 import it.ferrariconsulenze.sierradeck.rete.EventoLinea
 import it.ferrariconsulenze.sierradeck.rete.Linea
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.Dettagli
+import it.ferrariconsulenze.sierradeck.schermate.altro.Dettagli
 import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
 
 /**
