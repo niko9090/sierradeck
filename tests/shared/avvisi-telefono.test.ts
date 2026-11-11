@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   IMPOSTAZIONI_AVVISI_PREDEFINITE, LAVORI_AUTOMATICI, SUONI_VICINI_MS, bozzaChatFerma, bozzaDaAltroPc, bozzaDomanda, bozzaFatto, bozzaFermo, bozzaFile, bozzaProva,
-  comeNasce, daFatto, daMandare, inSilenzio, leggiImpostazioniAvvisi, leggiRichiestaEventi, origineRichiesta, rigaConsegna, rigaStatoAvvisi,
+  comeNasce, daFatto, daMandare, esitoAvviso, inSilenzio, oraAvviso, leggiImpostazioniAvvisi, leggiRichiestaEventi, origineRichiesta, rigaConsegna, rigaStatoAvvisi,
   type Avviso, type AvvisoTenuto, type ImpostazioniAvvisi
 } from '@shared/avvisi-telefono'
 import { NOME_LAVORO } from '../../src/main/errori-arrivati-lavoro'
@@ -182,5 +182,28 @@ describe('le righe', () => {
     expect(rigaStatoAvvisi({ telefoni: 1, inAscolto: false, ultimoContatto: ora - 5 * 60_000, ora })).toBe('Ultimo contatto del telefono: 5 min fa.')
     expect(rigaStatoAvvisi({ telefoni: 1, inAscolto: false, ultimoContatto: ora - 5 * 3_600_000, ora })).toBe('Ultimo contatto del telefono: 5 ore fa.')
     expect(rigaStatoAvvisi({ telefoni: 1, inAscolto: false, ora })).toMatch(/non si è ancora fatto vivo/)
+  })
+})
+
+describe('«Ultime notifiche»: l’ora e com’è andata', () => {
+  const d = (x: Partial<Avviso> = {}): Avviso => ({ ...bozzaDomanda({ cosa: 'domanda', id: 'd-1', workspace: 'Negozio', domanda: 'Sì?' }), n: 1, quando: alle(18, 40).toISOString(), suona: true, ...x })
+  it('aperta: suonata o silenziosa, e la domanda aspetta te', () => {
+    expect(esitoAvviso(d())).toBe('Suonata · aspetta te')
+    expect(esitoAvviso({ ...d({ suona: false }), tipo: 'fatto' })).toBe('Silenziosa')
+  })
+  it('chiusa: risposta, scelta del programma, non serve più, scaduta; file e chat con le loro parole', () => {
+    const chiusa = (come: 'risposta' | 'programma' | 'ritirata' | 'scaduta', testo?: string) => ({ quando: '', come, ...(testo !== undefined ? { testo } : {}) })
+    expect(esitoAvviso(d({ chiuso: chiusa('risposta') }))).toBe('Risposta data')
+    expect(esitoAvviso(d({ chiuso: chiusa('programma', 'Sì') }))).toBe('Ho scelto io: Sì')
+    expect(esitoAvviso(d({ chiuso: chiusa('programma') }))).toBe('Ho scelto io')
+    expect(esitoAvviso(d({ chiuso: chiusa('ritirata') }))).toBe('Non serve più')
+    expect(esitoAvviso(d({ chiuso: chiusa('scaduta') }))).toBe('Scaduta senza risposta')
+    expect(esitoAvviso({ ...d({ chiuso: chiusa('risposta') }), tipo: 'sapere', bersaglio: { cosa: 'file', id: 'c-1' } })).toBe('Ritirato dal telefono')
+    expect(esitoAvviso({ ...d({ chiuso: chiusa('risposta') }), bersaglio: { cosa: 'chat', id: 's-1' } })).toBe('La chat è ripartita')
+  })
+  it('l’ora: solo l’ora se è di oggi, con il giorno se no', () => {
+    expect(oraAvviso(alle(18, 40).toISOString(), alle(19, 0))).toBe('18:40')
+    expect(oraAvviso(new Date(2026, 10, 10, 9, 5).toISOString(), alle(19, 0))).toBe('10/11 09:05')
+    expect(oraAvviso('non è una data', alle(19, 0))).toBe('')
   })
 })

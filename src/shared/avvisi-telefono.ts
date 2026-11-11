@@ -423,8 +423,31 @@ export function rigaConsegna(a: Avviso, chi: string, ora: number): string {
 
 /** La riga di stato della schermata «Notifiche»: chi ascolta, e l'ultimo contatto di un telefono (ISO). */
 export type VistaStatoAvvisi = { riga: string; inAscolto: boolean; ultimoContatto?: string }
+/** Un avviso nell'elenco «Ultime notifiche»: con l'ora e com'è andata, scritte dal PC (le stesse parole ovunque). */
+export type AvvisoVisto = Avviso & { ora: string; esito: string }
 /** Quello che serve alla schermata «Notifiche», uguale su PC, pagina e app (`GET /api/avvisi/stato`). */
-export type VistaAvvisi = VistaStatoAvvisi & { impostazioni: ImpostazioniAvvisi; ultimi: Avviso[] }
+export type VistaAvvisi = VistaStatoAvvisi & { impostazioni: ImpostazioniAvvisi; ultimi: AvvisoVisto[] }
+
+/** Com'è andata, in due parole: aperta (suonata o no, aspetta te) o chiusa (risposta, scelta del programma…). */
+export function esitoAvviso(a: Avviso): string {
+  const c = a.chiuso
+  if (c === undefined) return [a.suona ? 'Suonata' : 'Silenziosa', a.tipo === 'domanda' ? 'aspetta te' : ''].filter((x) => x !== '').join(' · ')
+  switch (c.come) {
+    case 'programma': return c.testo !== undefined ? `Ho scelto io: ${unaRiga(c.testo, 60)}` : 'Ho scelto io'
+    case 'scaduta': return 'Scaduta senza risposta'
+    case 'ritirata': return 'Non serve più'
+    case 'risposta': return a.bersaglio.cosa === 'file' ? 'Ritirato dal telefono' : a.bersaglio.cosa === 'chat' ? 'La chat è ripartita' : a.tipo === 'domanda' ? 'Risposta data' : 'Chiusa'
+  }
+}
+
+/** L'ora di un avviso: «18:40» se è di oggi, «10/11 18:40» se no (nell'ora del PC). */
+export function oraAvviso(iso: string, adesso: Date): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const oggi = d.toDateString() === adesso.toDateString()
+  return oggi ? oraBreve(d) : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} ${oraBreve(d)}`
+}
+export const avvisoVisto = (a: Avviso, adesso: Date): AvvisoVisto => ({ ...a, ora: oraAvviso(a.quando, adesso), esito: esitoAvviso(a) })
 
 /** La riga di stato in cima a «Notifiche»: chi ascolta, o da quanto non si fa vivo. */
 export function rigaStatoAvvisi(p: { telefoni: number; inAscolto: boolean; ultimoContatto?: number; ora: number }): string {

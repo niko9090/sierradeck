@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { bozzaProva, leggiRichiestaEventi, type Avviso, type VistaAvvisi, type VistaStatoAvvisi } from '@shared/avvisi-telefono'
+import { avvisoVisto, bozzaProva, leggiRichiestaEventi, type Avviso, type VistaAvvisi, type VistaStatoAvvisi } from '@shared/avvisi-telefono'
 import type { Esito } from './client-server'
 import type { RegistroAvvisi } from './avvisi'
 
@@ -136,12 +136,12 @@ export function conAvvisi(interna: RottaClient, deps: DipendenzeRotteAvvisi): Ro
       return OK(registro.imposta(r.corpo))
     }
     if (r.percorso === '/api/avvisi/stato' && r.metodo === 'GET') {
-      return OK(vistaAvvisi(registro, deps.stato()))
+      return OK(vistaAvvisi(registro, deps.stato(), new Date(adesso())))
     }
     return interna(r)
   }
 }
 
-export function vistaAvvisi(registro: RegistroAvvisi, stato: VistaStatoAvvisi): VistaAvvisi {
-  return { ...stato, impostazioni: registro.impostazioni(), ultimi: registro.ultimi(20) }
+export function vistaAvvisi(registro: RegistroAvvisi, stato: VistaStatoAvvisi, adesso: Date = new Date()): VistaAvvisi {
+  return { ...stato, impostazioni: registro.impostazioni(), ultimi: registro.ultimi(20).map((a) => avvisoVisto(a, adesso)) }
 }
