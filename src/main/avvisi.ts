@@ -127,15 +127,19 @@ export function apriAvvisi(deps: {
   }
 
   const ascolti = new Set<(a: Avviso) => void>()
-  type Attesa = { n: number; filtro: Filtro; risolvi: (a: Avviso[]) => void; disarma: () => void }
+  type Attesa = { n: number; filtro: Filtro; /** Da capo: aspetta ogni avviso dopo questo numero, non solo le domande. */ dopo?: number; risolvi: (a: Avviso[]) => void; disarma: () => void }
   const attese = new Set<Attesa>()
 
   const leggi = (n: number, filtro: Filtro = {}): Avviso[] => daMandare(stato.avvisi, stato.ultimo, n, filtro)
+  const leggiDopo = (base: number, filtro: Filtro): Avviso[] => stato.avvisi
+    .filter((a) => a.n > base && (a.per === undefined || a.per === filtro.per) && (filtro.soloLocali !== true || a.bersaglio.pc === undefined))
+    .sort((x, y) => x.n - y.n)
+    .map(pubblico)
 
   const cambiato = (a: AvvisoTenuto): void => {
     salva()
     for (const x of [...attese]) {
-      const pronti = leggi(x.n, x.filtro)
+      const pronti = x.dopo !== undefined ? leggiDopo(x.dopo, x.filtro) : leggi(x.n, x.filtro)
       if (pronti.length === 0) continue
       attese.delete(x)
       x.disarma()
@@ -221,7 +225,10 @@ export function apriAvvisi(deps: {
       if (subito.length > 0 || attesaMs <= 0) return { promessa: Promise.resolve(subito), lascia: () => undefined }
       let mia: Attesa | undefined
       const promessa = new Promise<Avviso[]>((risolvi) => {
-        const a: Attesa = { n, filtro, risolvi, disarma: () => undefined }
+        // Da capo (n a zero o oltre l'ultimo): le domande aperte non c'erano, quindi si aspetta da qui
+        // in avanti, e sveglia anche un avviso che non è una domanda (prima si perdeva il primo, 11/11).
+        const daCapo = !Number.isFinite(n) || n <= 0 || n > stato.ultimo
+        const a: Attesa = { n, filtro, ...(daCapo ? { dopo: stato.ultimo } : {}), risolvi, disarma: () => undefined }
         a.disarma = dopo(attesaMs, () => { attese.delete(a); risolvi([]) })
         attese.add(a)
         mia = a

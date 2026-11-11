@@ -112,6 +112,25 @@ describe('il registro degli avvisi', () => {
     expect(registro.inAttesa()).toBe(0)
   })
 
+  it('da capo, senza domande aperte: il primo avviso che non è una domanda sveglia l’attesa (11/11)', async () => {
+    const { registro } = banco()
+    // Telefono appena aggiornato o accoppiato: chiede avvisi=0 e non c’è niente di aperto.
+    const attesa = registro.attendi(0, 50_000)
+    expect(registro.inAttesa()).toBe(1)
+    registro.nasce(bozzaProva(new Date(0)))
+    expect((await attesa.promessa).map((x) => x.tipo)).toEqual(['sapere'])
+    expect(registro.inAttesa()).toBe(0)
+  })
+
+  it('da capo con registro già pieno: aspetta solo quello che nasce dopo, non la storia', async () => {
+    const { registro } = banco()
+    registro.nasce(bozzaProva(new Date(1)))
+    registro.nasce(bozzaProva(new Date(2)))
+    const attesa = registro.attendi(0, 50_000)
+    registro.nasce(bozzaProva(new Date(3)))
+    expect((await attesa.promessa).map((x) => x.n)).toEqual([3])
+  })
+
   it('un file per un telefono sveglia solo lui', async () => {
     const { registro } = banco()
     const altro = registro.attendi(0, 50_000, { per: 'tel:b' })
