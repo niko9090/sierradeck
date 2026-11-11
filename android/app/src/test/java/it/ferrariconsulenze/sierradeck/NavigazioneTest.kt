@@ -111,14 +111,8 @@ class NavigazioneTest {
         assertEquals(listOf("avanzamento", "file"), sezioniAutopilota(0))
     }
 
-    @Test fun bersaglioDelleNotifiche() {
-        assertEquals(Richiesta.Domanda("q1"), Richiesta.daBersaglio("domanda", "q1", null))
-        assertEquals(Richiesta.Domanda(null), Richiesta.daBersaglio("domanda", "", null))
-        assertEquals(Richiesta.Autopilota("a1"), Richiesta.daBersaglio("workspace", "Sito", "a1"))
-        assertEquals(Richiesta.Lavori, Richiesta.daBersaglio("nuova-cosa", null, null))
-        assertEquals(null, Richiesta.daBersaglio(null, "x", null))
-        val p = Navigazione.verso(Navigazione.INIZIO, Richiesta.daBersaglio("file", null, null)!!)
-        assertEquals(VoceBarra.FILE, p.voce)
+    @Test fun richiestaFileEWorkspace() {
+        assertEquals(VoceBarra.FILE, Navigazione.verso(Navigazione.INIZIO, Richiesta.File).voce)
         assertEquals(Dettaglio.Autopilota("a1"), Navigazione.verso(Navigazione.INIZIO, Richiesta.Autopilota("a1")).dettaglio)
     }
 }

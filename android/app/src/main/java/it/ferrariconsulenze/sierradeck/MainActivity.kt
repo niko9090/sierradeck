@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
         // Un avviso toccato (app 2.100.0): il posto preciso a chi tiene la navigazione
         // (`ToccoAvviso.richiesta`), e intanto la voce giusta con `Apertura`.
         val dove = ToccoAvviso.daIntento(intent) ?: return
-        ToccoAvviso.chiedi(ToccoAvviso.richiestaDi(dove))
+        ToccoAvviso.chiedi(ToccoAvviso.richiestaDi(dove), ToccoAvviso.pcDi(intent))
         Apertura.schedaRichiesta = when (dove) {
             is Destinazione.Domanda, is Destinazione.Chat -> Scheda.DOMANDE
             is Destinazione.Autopilota, Destinazione.Lavori -> Scheda.AUTOPILOTI

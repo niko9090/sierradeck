@@ -47,7 +47,7 @@ class VistaLavoroTest {
         assertEquals(TipoDomanda.CONSENSO, d.tipo)
         assertEquals(listOf("No", "Sì, questa volta", "Sì, sempre"), d.scelte.map { it.testo })
         assertTrue(d.scelte.last().conConferma)
-        assertTrue(d.scelte[1].consigliata)
+        assertTrue(d.scelte.none { it.consigliata })
     }
 
     @Test fun chiuseFuoriRispostaDaQuiResta() {

@@ -96,7 +96,8 @@ object ComponiLavoro {
         }
         val scelte = if (tipo == TipoDomanda.CONSENSO) RegoleSchermate.ordineConsenso(testi).map { t ->
             val k = t.trim().lowercase()
-            SceltaLavoro(t, t, consigliata = t == consigliata, conseguenza = CONSEGUENZE[k], conConferma = k == "sì, sempre")
+            // Nessuna spinta verso il sì: i tre tasti uguali, anche se il PC ne segnasse una.
+            SceltaLavoro(t, t, consigliata = false, conseguenza = CONSEGUENZE[k], conConferma = k == "sì, sempre")
         } else fisse.map { SceltaLavoro(it.testo, it.etichetta?.takeIf { e -> e.isNotBlank() } ?: it.testo, it.consigliata) }
         return DomandaLavoro(
             chiave = c.chiave,

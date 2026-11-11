@@ -84,29 +84,6 @@ sealed interface Richiesta {
     data object Lavori : Richiesta
     data object Aggiornamenti : Richiesta
     data object File : Richiesta
-
-    companion object {
-        /** Le chiavi dell'Intent di una notifica (contratto: `bersaglio.cosa`, `.id`, `.pc`, `.autopilota`). */
-        const val COSA = "bersaglio.cosa"
-        const val ID = "bersaglio.id"
-        const val PC = "bersaglio.pc"
-        const val AUTOPILOTA = "bersaglio.autopilota"
-
-        /**
-         * Dove porta una notifica: `cosa` è domanda | workspace | autopilota |
-         * chat | aggiornamenti | file | lavori. Una domanda senza id apre
-         * «Lavoro»; una cosa sconosciuta (notifica più nuova dell'app) anche.
-         */
-        fun daBersaglio(cosa: String?, id: String?, autopilota: String?): Richiesta? = when (cosa) {
-            null, "" -> null
-            "domanda" -> Domanda(id?.takeIf { it.isNotBlank() })
-            "workspace", "autopilota" -> (autopilota ?: id)?.takeIf { it.isNotBlank() }?.let { Autopilota(it) } ?: Lavori
-            "chat" -> id?.takeIf { it.isNotBlank() }?.let { Chat(it) } ?: Lavori
-            "aggiornamenti", "aggiornamento" -> Aggiornamenti
-            "file" -> File
-            else -> Lavori
-        }
-    }
 }
 
 /**
