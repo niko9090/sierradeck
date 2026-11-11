@@ -86,6 +86,15 @@ describe('la misura', () => {
 let server: Server | undefined
 afterEach(() => { server?.close(); server = undefined })
 
+describe('le connessioni tenute aperte', () => {
+  it('75 s fra una richiesta e l’altra, le intestazioni fino a 80 s', () => {
+    const s = creaServerClient({ dispositivi: apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-misure-ka-'))), rotta: () => ({ stato: 200, corpo: {} }) })
+    expect(s.keepAliveTimeout).toBe(75_000)
+    expect(s.headersTimeout).toBe(80_000)
+    expect(s.headersTimeout).toBeGreaterThan(s.keepAliveTimeout)
+  })
+})
+
 describe('nel server del Client', () => {
   it('una rotta che risponderebbe 9 MB manda 413, compresso o no; le altre come prima', async () => {
     const dispositivi = apriDispositivi(mkdtempSync(join(tmpdir(), 'sd-misure-')))

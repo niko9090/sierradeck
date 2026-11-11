@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http'
+import type { IncomingMessage, Server } from 'node:http'
 
 /**
  * Quanto pesa e quanto ci mette ogni risposta del Client.
@@ -84,4 +84,20 @@ export function misuraRisposta(req: IncomingMessage | undefined, corpo: string, 
     m.racconta(`misura:${rotta}`, `${rotta}: ${secondi(ms)}, ${peso >= 1024 * 1024 ? mb(peso) : `${Math.round(peso / 1024)} KB`} (risposta ${stato}) per ${m.indirizzo}${lenta && pesante ? ': lenta e pesante' : lenta ? ': lenta' : ': pesante'}`)
   }
   return undefined
+}
+
+/**
+ * Le connessioni tenute aperte fra una richiesta e l'altra (m-collegamento).
+ * Di serie Node le chiude dopo 5 s di silenzio, e l'app rilegge lo stato ogni
+ * 5 s quando è calma: quasi ogni giro apriva una connessione nuova. 75 s
+ * coprono anche l'attesa lunga di `/api/eventi` (50 s); le intestazioni
+ * devono poter arrivare un po' dopo, se no Node chiude prima del previsto.
+ */
+export const TIENI_APERTA_MS = 75_000
+export const ATTESA_INTESTAZIONI_MS = 80_000
+
+export function conAtteseLunghe(server: Server): Server {
+  server.keepAliveTimeout = TIENI_APERTA_MS
+  server.headersTimeout = ATTESA_INTESTAZIONI_MS
+  return server
 }

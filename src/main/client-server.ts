@@ -10,7 +10,7 @@ import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from
 import type { Dispositivi } from './dispositivi'
 import { conProva, rigaProvaMancata } from './client-prova'
 import { creaMemoriaRichieste, idRichiestaDa, type MemoriaRichieste } from './client-richieste'
-import { annotaRotta, iniziaMisura, misuraRisposta } from './client-misure'
+import { annotaRotta, conAtteseLunghe, iniziaMisura, misuraRisposta } from './client-misure'
 
 /**
  * Il server che serve il Client sulla rete di casa.
@@ -179,13 +179,14 @@ export function creaServerClient(deps: DipendenzeClient): Server {
   }
   const controlloFirme = creaControlloFirme()
   const memoria = creaMemoriaRichieste()
-  return createServer((req, res) => {
+  // Connessioni tenute aperte 75 s (`conAtteseLunghe`): di serie Node le chiudeva dopo 5.
+  return conAtteseLunghe(createServer((req, res) => {
     iniziaMisura(req, racconta)
     void gestisci(req, res, deps, racconta, controlloFirme, memoria).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
     })
-  })
+  }))
 }
 
 /** Sotto questa misura comprimere costa più di quanto risparmia. */
