@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.schermate.tema.Contrasto
+import it.ferrariconsulenze.sierradeck.schermate.tema.sopra
 
 /**
  * Leggibilità della 0.83.0: contrasto AA anche nel tema scuro, caratteri di

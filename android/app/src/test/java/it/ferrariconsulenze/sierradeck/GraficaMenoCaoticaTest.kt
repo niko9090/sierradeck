@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.StatoDalVivo
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegolePanoramica
 
 /**
  * Grafica meno caotica (0.82.0), come sul PC e sulla pagina: niente «Adesso ·

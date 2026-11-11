@@ -5,6 +5,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
+import it.ferrariconsulenze.sierradeck.nucleo.DomandaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.SceltaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.StatoMessaggio
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.MessaggioFermo
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaScelta
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.messaggiCompatti
 
 /**
  * 2.72.1 (PC 0.72.1). Nicholas, 15/10: «vedo ancora un sacco di messaggi

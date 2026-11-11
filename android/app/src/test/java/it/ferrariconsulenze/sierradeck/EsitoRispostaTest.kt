@@ -2,6 +2,9 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.EsitoRisposta
+import it.ferrariconsulenze.sierradeck.nucleo.Fatto
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * PC 0.84.1, app 0.84.3 (difetto D3 del collaudo c-82): dopo un tocco su una

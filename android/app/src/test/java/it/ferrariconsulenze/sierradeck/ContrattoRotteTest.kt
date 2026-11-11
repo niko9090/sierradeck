@@ -6,6 +6,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * Il contratto delle rotte col PC (11/11): lo scrive il vitest

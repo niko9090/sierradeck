@@ -11,6 +11,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import kotlin.concurrent.thread
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.rete.Indirizzi
+import it.ferrariconsulenze.sierradeck.rete.Percorsi
+import it.ferrariconsulenze.sierradeck.rete.Rete
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * Rispondere dalla notifica, senza aprire niente.

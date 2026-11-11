@@ -4,6 +4,19 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.AvanzamentoAutopilota
+import it.ferrariconsulenze.sierradeck.nucleo.DomandaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.Domande
+import it.ferrariconsulenze.sierradeck.nucleo.RegoleAvanzamento
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RiassuntoAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.domandaArrivata
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.etichettaOrigine
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.linguetteAutopilota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.richiestaScheda
 
 /**
  * Le linguette «Domande» e «File» dell'autopilota nell'app (0.38.0): la stessa

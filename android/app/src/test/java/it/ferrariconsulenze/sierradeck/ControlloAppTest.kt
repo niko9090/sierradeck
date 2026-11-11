@@ -5,6 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
+import it.ferrariconsulenze.sierradeck.sottofondo.AppPubblicata
+import it.ferrariconsulenze.sierradeck.sottofondo.ControlloApp
 
 /**
  * L'app cerca da sola la versione nuova (0.43.0, app 2.46.0): il confronto

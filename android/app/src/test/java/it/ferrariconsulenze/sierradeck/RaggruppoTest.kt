@@ -5,6 +5,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.ChatSalvata
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.nucleo.Workspace
+import it.ferrariconsulenze.sierradeck.nucleo.raggruppaChat
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * Il tab Chat mostra tutte le chat del computer, raggruppate per workspace:

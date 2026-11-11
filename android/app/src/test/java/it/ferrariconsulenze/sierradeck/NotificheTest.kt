@@ -7,6 +7,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
+import it.ferrariconsulenze.sierradeck.sottofondo.Notifiche
+import it.ferrariconsulenze.sierradeck.sottofondo.TipoNotifica
 
 /**
  * App 2.74.0: solo notifiche utili. Nicholas, 15/10: «ne arrivano troppe e

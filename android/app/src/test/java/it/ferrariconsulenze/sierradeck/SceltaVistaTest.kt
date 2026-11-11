@@ -9,6 +9,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Scelte
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.SceltaVista
 
 /**
  * Le domande di Claude Code nell'app (2.52.5). Nicholas (08/10): «non riesco a

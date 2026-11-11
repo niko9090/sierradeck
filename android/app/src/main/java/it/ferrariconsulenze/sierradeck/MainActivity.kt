@@ -17,6 +17,20 @@ import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import it.ferrariconsulenze.sierradeck.dati.Collegamento
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.rete.Percorsi
+import it.ferrariconsulenze.sierradeck.rete.Scoperta
+import it.ferrariconsulenze.sierradeck.schermate.comune.DialogoGuasto
+import it.ferrariconsulenze.sierradeck.schermate.tema.TemaSierraDeck
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Apertura
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Condivisione
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Nota
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.sottofondo.Aggiornamenti
+import it.ferrariconsulenze.sierradeck.sottofondo.ControlloApp
+import it.ferrariconsulenze.sierradeck.sottofondo.Guasti
+import it.ferrariconsulenze.sierradeck.sottofondo.Ronda
 
 /**
  * L'app nativa: nessuna WebView, solo Compose.

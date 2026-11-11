@@ -3,6 +3,11 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotiAltri
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotiDiPc
+import it.ferrariconsulenze.sierradeck.nucleo.RispostaAutopilotiAltri
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
 
 /**
  * Gli autopiloti degli altri PC (app 2.59.0, PC 0.59.0) sulla risposta di

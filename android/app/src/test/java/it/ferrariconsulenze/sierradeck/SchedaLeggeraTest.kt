@@ -10,6 +10,15 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.Battuta
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.EtagTenuti
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.PANORAMICA_OGNI_MS
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Panoramica
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegoleSchedaLeggera
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * La scheda dell'autopilota leggera, con l'ETag (app 2.86.0, PC 0.86.0): il

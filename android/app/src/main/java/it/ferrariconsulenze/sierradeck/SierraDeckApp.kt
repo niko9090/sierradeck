@@ -1,6 +1,9 @@
 package it.ferrariconsulenze.sierradeck
 
 import android.app.Application
+import it.ferrariconsulenze.sierradeck.rete.Percorsi
+import it.ferrariconsulenze.sierradeck.rete.Rete
+import it.ferrariconsulenze.sierradeck.sottofondo.Guasti
 
 /**
  * La porta d'ingresso di **ogni** processo dell'app (11/11).

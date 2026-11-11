@@ -3,6 +3,8 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Workspace
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * «Su altri PC» (PC 0.65.1): i workspace degli altri PC arrivano a parte in

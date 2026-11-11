@@ -10,6 +10,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.MenuWorkspace
+import it.ferrariconsulenze.sierradeck.nucleo.WorkspaceAltrove
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Il menu dei workspace (PC 0.82.0): gli stessi gruppi e le stesse azioni del

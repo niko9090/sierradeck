@@ -5,6 +5,16 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
+import it.ferrariconsulenze.sierradeck.nucleo.Opzione
+import it.ferrariconsulenze.sierradeck.nucleo.SceltaScheda
+import it.ferrariconsulenze.sierradeck.nucleo.ScelteConversazione
+import it.ferrariconsulenze.sierradeck.nucleo.SchedaDomanda
+import it.ferrariconsulenze.sierradeck.nucleo.StatoVistaDrive
+import it.ferrariconsulenze.sierradeck.nucleo.ViaRisposta
+import it.ferrariconsulenze.sierradeck.schermate.comune.tocco
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.DomandeAdesso
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
 
 /**
  * Le domande in cima ad Adesso (app 2.83.0): quali si vedono, e cosa fa il

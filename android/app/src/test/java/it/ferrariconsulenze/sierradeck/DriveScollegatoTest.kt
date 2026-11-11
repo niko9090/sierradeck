@@ -5,6 +5,15 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Conversazione
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.AvvisoDrive
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.mostraAvvisoDrive
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.rigaDriveScollegato
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.testoDriveScollegato
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.titoloConSegno
 
 /**
  * 0.39.3: il Drive del computer scollegato si vede anche dal telefono, e le

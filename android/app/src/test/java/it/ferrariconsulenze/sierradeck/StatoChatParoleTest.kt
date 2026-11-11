@@ -8,6 +8,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.leggiChat
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * La parola dello stato di una chat, uguale a quella della pagina servita dal PC

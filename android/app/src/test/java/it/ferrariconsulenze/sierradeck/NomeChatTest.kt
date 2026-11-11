@@ -2,6 +2,9 @@ package it.ferrariconsulenze.sierradeck
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Chat
+import it.ferrariconsulenze.sierradeck.nucleo.nomeChat
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /** PC 0.70: tre chat con lo stesso nome si distinguono anche sul telefono. */
 class NomeChatTest {

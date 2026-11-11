@@ -9,6 +9,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.Adesso
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.radice.Navigazione
+import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
+import it.ferrariconsulenze.sierradeck.schermate.radice.VoceBarra
+import it.ferrariconsulenze.sierradeck.schermate.radice.linguetteDi
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Scheda
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.sezioniAutopilota
 
 /**
  * Le quattro voci fisse e «indietro» (app 2.83.0): la regola è in

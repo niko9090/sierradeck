@@ -3,6 +3,9 @@ package it.ferrariconsulenze.sierradeck
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Account
+import it.ferrariconsulenze.sierradeck.nucleo.passoAccount
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /** PC 0.70: la catena di Account e Drive che manda il PC in /api/account. */
 class AccountCatenaTest {

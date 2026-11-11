@@ -8,6 +8,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.Battuta
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.Panoramica
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.RegolePanoramica
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.oraLocale
 
 /**
  * PC 0.79.0: il riassunto «Al lavoro» accanto alla conversazione e le righe

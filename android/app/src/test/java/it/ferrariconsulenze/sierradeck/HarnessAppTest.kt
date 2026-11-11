@@ -4,6 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.nucleo.AutopilotaDettaglio
+import it.ferrariconsulenze.sierradeck.nucleo.Domande
+import it.ferrariconsulenze.sierradeck.nucleo.ViaRisposta
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.richiestaRisposta
 
 /**
  * L'autopilota «harness» e le Domande come conversazione, lato app (0.36.0).

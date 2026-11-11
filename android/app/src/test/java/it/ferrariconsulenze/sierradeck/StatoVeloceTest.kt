@@ -14,6 +14,19 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import it.ferrariconsulenze.sierradeck.dati.ChiaviElenco
+import it.ferrariconsulenze.sierradeck.dati.CopiaStato
+import it.ferrariconsulenze.sierradeck.dati.PolsoApp
+import it.ferrariconsulenze.sierradeck.dati.StatoSoloSeCambia
+import it.ferrariconsulenze.sierradeck.nucleo.Adesso
+import it.ferrariconsulenze.sierradeck.nucleo.Battuta
+import it.ferrariconsulenze.sierradeck.nucleo.Davanti
+import it.ferrariconsulenze.sierradeck.nucleo.Domanda
+import it.ferrariconsulenze.sierradeck.nucleo.MessaggioConversazione
+import it.ferrariconsulenze.sierradeck.nucleo.Stato
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Linea
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.DomandeAdesso
 
 /**
  * La velocità della 0.83.0, seconda parte: la copia dell'ultimo stato

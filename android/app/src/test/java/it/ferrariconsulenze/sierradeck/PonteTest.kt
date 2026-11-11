@@ -12,6 +12,10 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.net.InetAddress
 import java.net.ServerSocket
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
 
 /**
  * Il ponte (PC 0.48.0, app 2.48.0): le chat degli altri PC dal vivo

@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.chiave
+import it.ferrariconsulenze.sierradeck.sottofondo.Avvisi
 
 /** 2.80.0, Nicholas: «arrivano mille notifiche quando un autopilota lavora». */
 class AvvisiViciniTest {

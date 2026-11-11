@@ -10,6 +10,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import it.ferrariconsulenze.sierradeck.dati.Postazioni
+import it.ferrariconsulenze.sierradeck.nucleo.NomeComputer
+import it.ferrariconsulenze.sierradeck.nucleo.NomePc
+import it.ferrariconsulenze.sierradeck.nucleo.intestazionePc
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Il nome scelto di un PC al posto dell'hostname (app 2.52.4). Nicholas

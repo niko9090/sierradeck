@@ -6,6 +6,7 @@ import java.io.BufferedInputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import it.ferrariconsulenze.sierradeck.rete.Api
 
 /**
  * Un PC finto per i test (app 2.55.0): un socket vero su 127.0.0.1 con le

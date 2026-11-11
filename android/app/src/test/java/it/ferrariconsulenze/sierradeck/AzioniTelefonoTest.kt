@@ -11,6 +11,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import it.ferrariconsulenze.sierradeck.nucleo.AzioniTelefono
+import it.ferrariconsulenze.sierradeck.nucleo.BozzaAutopilota
+import it.ferrariconsulenze.sierradeck.nucleo.Conferma
+import it.ferrariconsulenze.sierradeck.nucleo.EsitoBozza
+import it.ferrariconsulenze.sierradeck.nucleo.FunzionePc
+import it.ferrariconsulenze.sierradeck.nucleo.FunzioniPc
+import it.ferrariconsulenze.sierradeck.nucleo.VoceAzione
+import it.ferrariconsulenze.sierradeck.rete.Api
+import it.ferrariconsulenze.sierradeck.rete.Ponte
+import it.ferrariconsulenze.sierradeck.schermate.vecchie.spiegaGestione
 
 /**
  * Gestire chat, workspace e autopiloti dal telefono (app 2.55.0): le regole e
@@ -71,7 +81,7 @@ class AzioniTelefonoTest {
 
     @Test
     fun `le regole, le partenze e le conferme - parola per parola come sul PC`() {
-        fun voci(k: String) = fx[k]!!.jsonArray.map { val o = it.jsonObject; Voce(s(o, "valore"), s(o, "etichetta"), s(o, "spiega")) }
+        fun voci(k: String) = fx[k]!!.jsonArray.map { val o = it.jsonObject; VoceAzione(s(o, "valore"), s(o, "etichetta"), s(o, "spiega")) }
         assertEquals(voci("regole"), AzioniTelefono.REGOLE)
         assertEquals(voci("partenze"), AzioniTelefono.PARTENZE)
         val c = fx["conferme"]!!.jsonObject
