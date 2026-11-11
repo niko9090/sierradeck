@@ -5337,8 +5337,11 @@ if (!app.requestSingleInstanceLock()) {
           dati: () => {
             if (identitaPcGlobale === undefined) return undefined
             const r = indirizziPerApp(indirizziDaAnnunciare(undefined, principaleRicordato), porta, identitaPcGlobale.leggi().id)
+            if (r.impronta === '') return undefined
             return { impronta: r.impronta, porta, ip: r.indirizzi.map((u) => u.replace(/^http:\/\//, '').replace(/:\d+$/, '')), versione: app.getVersion() }
           },
+          // Il risponditore UDP per i router che filtrano il multicast (m-collegamento): stessa porta, UDP.
+          portaUdp: porta,
           log: (m) => registro.info(m)
         })
         app.on('before-quit', () => annuncio.ferma())
