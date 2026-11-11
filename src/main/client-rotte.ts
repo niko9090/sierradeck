@@ -294,7 +294,7 @@ export type DipendenzeRotte = {
    * con le strade fra PC e la chiave di casa. Lo stato e il corpo di quel PC,
    * o l'errore con il motivo per esteso.
    */
-  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown; strada?: Strada }>
+  ponte?: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, /** `x-sierradeck-richiesta`, da inoltrare. */ richiesta?: string) => Promise<{ stato: number; corpo: unknown; strada?: Strada }>
   /**
    * Il PIN delle chat (0.49.0). Ogni rotta che mostra o scrive dentro una
    * chat passa da qui: una chat protetta e non sbloccata da **chi guarda**
@@ -928,6 +928,8 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
     dispositivo?: string
     /** I parametri dell'indirizzo (0.86.0): `?leggero=1`. */
     cerca?: URLSearchParams
+    /** L'id della scrittura (`x-sierradeck-richiesta`): il ponte lo inoltra al PC di là. */
+    richiesta?: string
   }): Promise<Esito> => {
     const visore = visoreDi(r.dispositivo)
     if (r.metodo === 'POST') conversazioniLette.clear()
@@ -1506,7 +1508,7 @@ export function rotteClient(depsPieni: DipendenzeRotte) {
       const l = leggiRichiestaPonte(r.corpo)
       if (!l.ok) return { stato: l.stato, corpo: { errore: l.errore } }
       const partito = Date.now()
-      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo)
+      const e = await deps.ponte(l.r.pc, l.r.percorso, l.r.corpo, r.dispositivo, r.richiesta)
       // La strada fra questo PC e quello, e quanto ci ha messo (0.51.0): il
       // telefono la mostra accanto a «SU <PC>». Un campo in più: le app
       // vecchie lo ignorano.

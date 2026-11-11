@@ -652,7 +652,7 @@ let guardianoPin: GuardianoPin | undefined
 /** Il controllo di tutti i PC (0.88.9): gli altri PC e la salute di ognuno, chiesta là. */
 let altriPcGlobale: (() => Promise<Array<{ pcId: string; nome: string; battito?: string }>>) | undefined
 let saluteAltroPcGlobale: ((pcId: string) => Promise<import('@shared/salute').Salute>) | undefined
-let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
+let ponteVersoPc: ((pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, richiesta?: string) => Promise<{ stato: number; corpo: unknown }>) | undefined
 /** Gli autopiloti degli altri PC della stessa chiave di casa (0.59.0). */
 let autopilotiAltri: (() => Promise<AutopilotiDiPc[]>) | undefined
 /** Un'azione su un autopilota di un altro PC: la rotta di sempre, chiamata là (0.59.0). */
@@ -2494,7 +2494,7 @@ if (!app.requestSingleInstanceLock()) {
       ipcMain.handle('autopiloti:altroPc', (_e, pc: unknown, percorso: unknown, corpo: unknown) =>
         azioneAutopilotaAltroPc === undefined ? { ok: false, stato: 409, messaggio: 'il collegamento con gli altri PC non è ancora pronto' }
           : azioneAutopilotaAltroPc(String(pc), String(percorso), typeof corpo === 'object' && corpo !== null ? corpo as Record<string, unknown> : {}))
-      ponteVersoPc = async (pc, percorso, corpo, dispositivo) => {
+      ponteVersoPc = async (pc, percorso, corpo, dispositivo, richiesta) => {
         const nome = postino.altrui().find((b) => b.pcId === pc)?.nome ?? pc
         if (!pontiDetti.has(pc)) { pontiDetti.add(pc); registro.info(`[ponte] il telefono guarda ${nome} attraverso questo PC`) }
         // Le azioni sugli autopiloti di quel PC (0.59.0): la stessa strada del
@@ -2516,7 +2516,8 @@ if (!app.requestSingleInstanceLock()) {
         // Le azioni del telefono su quel PC nel registro di qui (0.60.3): le letture no.
         const azione = azioneDelPonte(percorso, corpo)
         try {
-          const dati = await remoto.chiama(pc, percorso, corpo, visore)
+          // L'id della scrittura va avanti (m-collegamento): se il telefono la ritenta dritto verso quel PC, là si riconosce.
+          const dati = await remoto.chiama(pc, percorso, corpo, visore, richiesta !== undefined ? { idRichiesta: richiesta } : undefined)
           const strada = remoto.stradaDi(pc)?.strada
           if (azione !== undefined) registro.info(`[ponte] dal telefono: ${azione} su ${nome}: fatto (strada ${strada ?? '?'})`)
           return { stato: 200, corpo: dati, ...(strada !== undefined ? { strada } : {}) }
@@ -5152,8 +5153,8 @@ if (!app.requestSingleInstanceLock()) {
         // «Salute del sistema» dal telefono (0.44.0).
         salute: () => leggiSalute(),
         autopilotiAltri: () => autopilotiAltri?.() ?? Promise.resolve([]),
-        ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string) => ponteVersoPc !== undefined
-          ? ponteVersoPc(pc, percorso, corpo, dispositivo)
+        ponte: (pc: string, percorso: string, corpo?: Record<string, unknown>, dispositivo?: string, richiesta?: string) => ponteVersoPc !== undefined
+          ? ponteVersoPc(pc, percorso, corpo, dispositivo, richiesta)
           : Promise.resolve({ stato: 409, corpo: { errore: 'Il collegamento con gli altri PC non è ancora pronto: riprova fra qualche secondo.' } }),
         aggiornamento: () => aggiornamenti?.stato() ?? { fase: 'fermo' },
         migrazione: {

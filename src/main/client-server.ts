@@ -9,6 +9,7 @@ import { gzip as comprimi, gzipSync } from 'node:zlib'
 import { creaControlloFirme, INTESTAZIONE_FIRMA, provaCasa, visoreDaFirma } from './casa-firma'
 import type { Dispositivi } from './dispositivi'
 import { conProva, rigaProvaMancata } from './client-prova'
+import { creaMemoriaRichieste, idRichiestaDa, type MemoriaRichieste } from './client-richieste'
 
 /**
  * Il server che serve il Client sulla rete di casa.
@@ -33,7 +34,7 @@ export const PORTA_CLIENT = 47640
 export type Esito = { stato: number; corpo: unknown; tipo?: string }
 export type Rotta = (
   /** `cerca`: i parametri dell'indirizzo (0.86.0), per esempio `?leggero=1`. */
-  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams }
+  richiesta: { metodo: string; percorso: string; corpo: unknown; dispositivo?: string; cerca?: URLSearchParams; /** `x-sierradeck-richiesta`, per il ponte che la inoltra. */ richiesta?: string }
 ) => Promise<Esito> | Esito
 
 /**
@@ -176,8 +177,9 @@ export function creaServerClient(deps: DipendenzeClient): Server {
     try { deps.log?.(`[client] ${messaggio}`) } catch { /* il registro non ferma il server */ }
   }
   const controlloFirme = creaControlloFirme()
+  const memoria = creaMemoriaRichieste()
   return createServer((req, res) => {
-    void gestisci(req, res, deps, racconta, controlloFirme).catch((err: unknown) => {
+    void gestisci(req, res, deps, racconta, controlloFirme, memoria).catch((err: unknown) => {
       console.error('[client] richiesta non gestita:', err)
       if (!res.headersSent) rispondi(res, { stato: 500, corpo: { errore: 'guasto interno' } })
     })
@@ -263,7 +265,8 @@ function rispondi(res: ServerResponse, esito: Esito, req?: IncomingMessage, conE
 async function gestisci(
   req: IncomingMessage, res: ServerResponse, deps: DipendenzeClient,
   racconta: (chiave: string, messaggio: string) => void = () => {},
-  controlloFirme: ReturnType<typeof creaControlloFirme> = creaControlloFirme()
+  controlloFirme: ReturnType<typeof creaControlloFirme> = creaControlloFirme(),
+  memoria: MemoriaRichieste = creaMemoriaRichieste()
 ): Promise<void> {
   const indirizzo = req.socket.remoteAddress ?? ''
   // Primo muro, prima di leggere qualunque cosa: una richiesta da fuori non
@@ -386,7 +389,14 @@ async function gestisci(
   }
   racconta(`ok:${indirizzo}`, `${dispositivo.nome ?? dispositivo.id} (${indirizzo}) collegato`)
 
-  rispondi(res, await deps.rotta({ metodo, percorso, corpo, dispositivo: dispositivo.id, cerca }), req, ROTTE_CON_ETAG.has(percorso))
+  // Scritture senza doppioni (`client-richieste.ts`): lo stesso id, la stessa risposta, l'azione una volta sola.
+  const idRichiesta = metodo === 'POST' ? idRichiestaDa(req.headers) : undefined
+  const chi = dispositivo.id
+  const fai = (): Promise<Esito> | Esito => deps.rotta({ metodo, percorso, corpo, dispositivo: chi, cerca, ...(idRichiesta !== undefined ? { richiesta: idRichiesta } : {}) })
+  const esito = idRichiesta === undefined ? await fai() : await memoria.unaVolta(percorso, idRichiesta, fai, {
+    ripetuta: () => racconta(`ripetuta:${indirizzo}`, `${indirizzo}: ${percorso} chiesta di nuovo con lo stesso id (la rete è caduta a metà?): ridata la risposta di prima, l'azione non è stata rifatta`)
+  })
+  rispondi(res, esito, req, ROTTE_CON_ETAG.has(percorso))
 }
 
 /**

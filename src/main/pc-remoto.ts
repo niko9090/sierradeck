@@ -5,6 +5,7 @@ import { improntaPc } from './casa-firma'
 import { indirizzoPreferito, stradaDiIndirizzo, type InfoStrada, type Strada } from '@shared/strada-pc'
 import { GIU_DOPO_MS } from '@shared/collegamento'
 import { firmaRichiesta, INTESTAZIONE_FIRMA, nonceConVisore, nuovaSfida, provaValida } from './casa-firma'
+import { INTESTAZIONE_RICHIESTA } from './client-richieste'
 
 /**
  * Bussare a un altro PC: il Client di **quel** computer, chiamato da qui.
@@ -61,12 +62,15 @@ export function campiOltreErrore(corpo: unknown): Record<string, unknown> | unde
   return Object.keys(resto).length > 0 ? resto : undefined
 }
 
+/** `idRichiesta` (m-collegamento): l'id della scrittura del telefono, inoltrato dal ponte (`x-sierradeck-richiesta`). */
+export type OpzioniChiamata = { idRichiesta?: string }
+
 export type ClientPcRemoto = {
   /**
    * Una rotta di quel PC: il JSON della risposta, o un `ErroreRemoto`.
    * `visore` (0.49.1): chi guarda, se non è questo PC (il telefono dal ponte).
    */
-  chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string) => Promise<unknown>
+  chiama: (pcId: string, percorso: string, corpo?: unknown, visore?: string, opzioni?: OpzioniChiamata) => Promise<unknown>
   /** Cosa ha detto ogni indirizzo all'ultimo bussare (0.59.0). Facoltativo: i finti dei test non lo hanno. */
   proveDi?: (pcId: string) => string[]
   /** L'indirizzo che ha risposto l'ultima volta, se c'e'. */
@@ -414,7 +418,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
    * quando quella strada non c'e' piu' (l'indirizzo buono ha smesso di
    * rispondere e il bussare non ne trova un altro): si passa alle strade dopo.
    */
-  const viaHttp = async (pcId: string, b: BattitoPc, chiave: string, percorso: string, corpo?: unknown, visore?: string): Promise<{ dati: unknown } | undefined> => {
+  const viaHttp = async (pcId: string, b: BattitoPc, chiave: string, percorso: string, corpo?: unknown, visore?: string, opzioni?: OpzioniChiamata): Promise<{ dati: unknown } | undefined> => {
     const porta = b.porta ?? PORTA_CLIENT_PREDEFINITA
     for (let tentativo = 0; tentativo < 2; tentativo += 1) {
       const ind = buoni.get(pcId)
@@ -432,6 +436,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
           headers: {
             ...(modi.get(pcId) === 'chiave' ? { 'x-sierradeck-chiave': chiave } : { [INTESTAZIONE_FIRMA]: firmaRichiesta(chiave, metodo, u.pathname + u.search, adesso(), nonceConVisore(visore)) }),
             'x-sierradeck-pc': encodeURIComponent(deps.mioNome()),
+            ...(opzioni?.idRichiesta !== undefined && corpo !== undefined ? { [INTESTAZIONE_RICHIESTA]: opzioni.idRichiesta } : {}),
             ...(corpo === undefined ? {} : { 'content-type': 'application/json' })
           },
           ...(corpo === undefined ? {} : { body: JSON.stringify(corpo) }),
@@ -482,9 +487,9 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
    * «non risponde» mentre lo schermo delle sue chat arrivava.
    */
   const vivoIl = new Map<string, number>()
-  const chiama = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string): Promise<unknown> => {
+  const chiama = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string, opzioni?: OpzioniChiamata): Promise<unknown> => {
     try {
-      const r = await chiamaDentro(pcId, percorso, corpo, chiChiede)
+      const r = await chiamaDentro(pcId, percorso, corpo, chiChiede, opzioni)
       vivoIl.set(pcId, adesso())
       return r
     } catch (err) {
@@ -492,7 +497,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       throw err
     }
   }
-  const chiamaDentro = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string): Promise<unknown> => {
+  const chiamaDentro = async (pcId: string, percorso: string, corpo?: unknown, chiChiede?: string, opzioni?: OpzioniChiamata): Promise<unknown> => {
     const io = deps.mioId?.()
     const visore = chiChiede ?? io
     const b = battitoDi(pcId)
@@ -507,7 +512,7 @@ export function creaClientPcRemoto(deps: DipendenzeRemoto): ClientPcRemoto {
       ping = await bussa(pcId)
     }
     if (buoni.get(pcId) !== undefined) {
-      const r = await viaHttp(pcId, b, chiave, percorso, corpo, visore)
+      const r = await viaHttp(pcId, b, chiave, percorso, corpo, visore, opzioni)
       if (r !== undefined) return r.dati
       ping = ultimiPing.get(pcId)
     }
