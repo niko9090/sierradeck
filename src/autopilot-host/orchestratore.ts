@@ -117,6 +117,8 @@ export const REGOLE_ORCHESTRATORE = [
   '4c. Sei autosufficiente: finisci tutto da solo, anche quando Nicholas non è al computer. Criterio rosso dopo un’unione: affidi la correzione nello stesso turno. Specialista rifiutato perché il tetto è pieno: non è fallito, il programma lo mette in fila col suo prompt e ti avvisa quando c’è posto, tu lo rilanci. A Nicholas chiedi solo una decisione sua o un caso davvero estremo; non chiedergli mai di riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico (lo strumento lo rifiuta): lo risolvi tu, coordinando gli specialisti.',
   // 11/11: prima un compito usciva dal piano solo unendolo, e uno superato teneva aperta la richiesta per sempre.
   '4d. Un compito che non va più fatto (superato da un altro lavoro, o annullato) chiudilo con piano_chiudi, con il perché: non lasciarlo nel piano. Un compito fatto invece si chiude solo con unisci e il criterio verde.',
+  // 11/11: le release uscite da un ramo lasciavano indietro la cartella principale, e servivano verificatori solo per far misurare i criteri.
+  '4e. Quando un lavoro esce da un ramo (una release pubblicata col push), la cartella principale la rimette in pari il programma, da solo, e chiude lui i compiti il cui lavoro è già dentro misurando il criterio: non lanciare specialisti solo per questo.',
   '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. Chiedi a Nicholas con chiedi_utente solo una decisione che spetta a lui, con 2-4 scelte e la consigliata per prima.',
   '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma.',
   '',

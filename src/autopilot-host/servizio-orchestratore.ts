@@ -27,6 +27,7 @@ import { fallitiDavvero, nonMisurati, type Esecutore } from './verifiche'
 import type { Memoria } from './memoria'
 import type { TipoAvviso } from './telegram'
 import { comeAsincrono, ramoCorrente, ramoGiaChiusoAsincrono, ramoSenzaNovitaAsincrono, salvaLavoroAsincrono, type Git, type GitAsincrono } from './worktree'
+import type { EsitoRiallineo } from './worktree'
 import {
   creaGettoniOrchestratore, configMcpOrchestratore, rispondiMcpOrchestratore, specialistiVivi, SPECIALISTI_PC_MAX, ATTESA_PERMESSO_MS,
   type AmbienteOrchestratore, type EsitoAmbiente
@@ -137,6 +138,10 @@ export type ContestoUnico = {
   chatAlLavoroSulPc: () => number
   /** L'unione di prova nel principale con i criteri dell'autopilota (`provaNelPrincipale`). */
   provaNelPrincipale: (a: Autopilota, ramo: string) => Promise<EsitoProvaPrincipale>
+  /** 11/11: porta il ramo principale di qui a quello del remoto, senza mai forzare (`riallineaAsincrono`). Assente: non si fa. */
+  riallinea?: (a: Autopilota) => Promise<EsitoRiallineo>
+  /** 11/11: ogni quanto si guarda il remoto, per i workspace con lavoro aperto (di serie 10 minuti). */
+  riallineoOgniMs?: number
   /** 06/11, fila delle unioni: tempo massimo di un'unione intera (di serie 25 minuti), attesa fra i tentativi (30 s), tentativi dopo una scadenza (3). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
@@ -452,6 +457,8 @@ export async function senzaLavoroSuiRami(g: GitAsincrono, specialisti: Specialis
 
 /** 11/11: ogni quanto si riprova a misurare il criterio di un compito unito ma non misurato. */
 export const RIMISURA_OGNI_MS = 10 * 60_000
+/** 11/11: ogni quanto si guarda il remoto per riallineare il ramo principale (solo nei workspace con lavoro aperto). */
+export const RIALLINEO_OGNI_MS = 10 * 60_000
 
 /** 11/11: il compito è un'analisi senza niente da unire? Dal ruolo salvato; per i compiti di prima, dall'esito o dal titolo. */
 export function compitoDiSolaLettura(c: Pick<CompitoPiano, 'ruolo' | 'esito' | 'titolo'>): boolean {
@@ -1777,6 +1784,95 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     }
   }
 
+  /**
+   * 11/11 (k-133, e i compiti della 0.99.2): i compiti non uniti il cui lavoro è già nel principale (uscito con
+   * una release fatta da un altro compito, o arrivato dal remoto) passano dal cancello da soli: niente da unire,
+   * si misura il criterio. Un compito «da fare» o «in corso» solo se un suo ramo è entrato di sicuro; uno che
+   * ha detto «ho finito» anche se il suo ramo sta sulla linea del principale. Una volta sola per ogni stato.
+   */
+  const contenutiProvati = new Set<string>()
+  const chiudiContenuti = async (ws: string): Promise<number> => {
+    const a = unicoDi(ws)
+    const g = gitA()
+    if (a === undefined || g === undefined || a.ramoBase === undefined || x.unioneDaSola === false || !conGit(a.cwd)) return 0
+    const aperte = new Set(coda(ws).richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
+    const occupato = (id: string): boolean => compitiInUnione(ws).includes(id) || subagenti(ws).some((s) => s.compito === id && (s.stato === 'avviato' || s.stato === 'lavoro'))
+    let n = 0
+    for (const k of x.orchestratori.piano(ws).compiti) {
+      if (k.stato === 'unito' || k.chiuso !== undefined || !aperte.has(k.richiesta) || ((k.rami ?? []).length === 0 && k.ramo === undefined) || occupato(k.id)) continue
+      const firma = `${ws}|${k.id}|${k.stato}|${k.ramo ?? ''}|${(k.rami ?? []).join(',')}`
+      if (contenutiProvati.has(firma)) continue
+      const suoi = await ramiDelCompitoSulDisco(g, { cwd: a.cwd, base: a.ramoBase, compito: k, daNonGuardare: ramiAltrui(ws, k.id) })
+      if (suoi.conLavoro.length > 0 || (suoi.dentro === 0 && !(k.stato === 'in-revisione' && suoi.incerti > 0))) continue
+      // Lo stato può essere cambiato mentre git rispondeva.
+      const ora = x.orchestratori.piano(ws).compiti.find((c) => c.id === k.id)
+      if (ora === undefined || ora.stato !== k.stato || ora.chiuso !== undefined || occupato(k.id)) continue
+      contenutiProvati.add(firma)
+      if (avviaUnione(ws, { compito: k.id }) !== undefined) { n += 1; console.info(`[orchestratore] ${ws} — il lavoro di ${k.id} è già nel ramo principale: lo chiudo misurando il criterio`) }
+    }
+    return n
+  }
+
+  /**
+   * **Il ramo principale si riallinea al remoto, da solo** (11/11). Le release 0.97.0, 0.99.2 e 0.99.3 sono
+   * uscite da un ramo mentre il principale di qui restava indietro (undici commit, l'11/11): è servita una chat
+   * a mano. Ogni dieci minuti, e a ogni avvio, nei workspace con lavoro aperto: si chiede al remoto (in
+   * sottofondo: rete o credenziali assenti non fermano niente, una riga nel registro) e, se c'è da prendere, si
+   * unisce senza mai forzare. Un conflitto si annulla e si dice all'autopilota con i file.
+   */
+  const riallineoInCorso = new Set<string>()
+  const ultimoRiallineo = new Map<string, number>()
+  /** L'ultimo esito detto, per workspace: lo stesso non si ripete a ogni giro. */
+  const riallineoDetto = new Map<string, string>()
+  const dopoRiallineo = (ws: string, base: string, e: EsitoRiallineo): void => {
+    if (e.esito === 'allineato') {
+      riallineoDetto.delete(ws)
+      console.info(`[orchestratore] ${ws} — ramo principale riallineato al remoto: ${e.presi} commit presi (${e.come === 'unione' ? 'con un’unione' : 'in avanti veloce'})`)
+      ricordaEvento(ws, { tipo: 'unione', quando: x.adesso(), testo: `la cartella principale si è riallineata al remoto: presi ${e.presi} commit già pubblicati (da un ramo o da un altro PC). I compiti il cui lavoro è già dentro li chiude il programma, misurando il criterio: non rifarli.` })
+      const u = unicoDi(ws)
+      if (u !== undefined) {
+        const dopo = { ...u }
+        x.annota(dopo, `ramo principale riallineato al remoto: ${e.presi} commit presi`, avanzamento('principale', `La cartella principale è di nuovo in pari con quella pubblicata: ${e.presi === 1 ? 'preso un lavoro' : `presi ${e.presi} lavori`} già usciti.`))
+        x.salva(dopo)
+      }
+      return
+    }
+    const firma = e.esito === 'conflitto' ? `conflitto:${e.file.join(',')}` : e.esito === 'occupata' || e.esito === 'non-raggiunto' ? `${e.esito}:${e.perche}` : e.esito
+    if (riallineoDetto.get(ws) === firma) return
+    riallineoDetto.set(ws, firma)
+    if (e.esito === 'conflitto') {
+      console.info(`[orchestratore] ${ws} — il ramo principale e quello del remoto non si uniscono da soli (conflitto su ${e.file.slice(0, 5).join(', ')}): unione annullata, lo dico all’autopilota`)
+      evento(ws, { tipo: 'unione', quando: x.adesso(), testo: `il ramo principale di qui e quello del remoto sono andati avanti tutti e due (${e.presi} commit da prendere) e non si uniscono da soli: conflitto su ${e.file.slice(0, 8).join(', ')}${e.file.length > 8 ? ` (+${e.file.length - 8})` : ''}. Non ho toccato niente: l’unione è annullata. Affida a uno specialista: nella sua copia unisce origin/${base} e risolve il conflitto; poi il suo ramo entra dal cancello e i due rami tornano in pari.` })
+    } else if (e.esito === 'occupata') {
+      console.info(`[orchestratore] ${ws} — riallineo col remoto rimandato: ${e.perche}`)
+    } else if (e.esito === 'non-raggiunto') {
+      console.info(`[orchestratore] ${ws} — remoto non raggiunto (${e.perche}): vado avanti senza e riprovo più tardi`)
+    }
+  }
+  const riallineaOra = (ws: string): void => {
+    const a = unicoDi(ws)
+    if (a === undefined || a.archiviato === true || a.ramoBase === undefined || riallineoInCorso.has(ws)) return
+    ultimoRiallineo.set(ws, oraMs())
+    if (!esisteCartella(a.cwd) || !conGit(a.cwd)) return
+    const base = a.ramoBase
+    riallineoInCorso.add(ws)
+    void (async (): Promise<void> => {
+      if (x.riallinea !== undefined) dopoRiallineo(ws, base, await x.riallinea(a))
+      await chiudiContenuti(ws)
+    })()
+      .catch((err: unknown) => { console.info(`[orchestratore] ${ws} — riallineo col remoto non riuscito, riprovo al prossimo giro: ${err instanceof Error ? err.message : String(err)}`) })
+      .finally(() => { riallineoInCorso.delete(ws) })
+  }
+  const conLavoroAperto = (ws: string): boolean => coda(ws).richieste.some((r) => r.stato !== 'fatta')
+  const giroRiallineo = (ora: number): void => {
+    const ogni = x.riallineoOgniMs ?? RIALLINEO_OGNI_MS
+    for (const a of unici()) {
+      const ws = wsDi(a)
+      if (a.archiviato === true || ora - (ultimoRiallineo.get(ws) ?? -Infinity) < ogni || !conLavoroAperto(ws)) continue
+      riallineaOra(ws)
+    }
+  }
+
   /** Ogni minuto: le chat adottate zitte da 20 minuti diventano un evento (una volta per silenzio). */
   const guardia = (): void => {
     const ora = Date.parse(x.adesso())
@@ -1786,6 +1882,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     try { spingiFermi(ora) } catch (err) { console.error('[orchestratore] controllo del lavoro fermo non riuscito:', err) }
     try { rivediFila() } catch (err) { console.error('[attesa] giro della lista d’attesa non riuscito:', err) }
     try { rimisuraNonMisurati(ora) } catch (err) { console.error('[orchestratore] rimisura dei criteri non misurati non riuscita:', err) }
+    try { giroRiallineo(ora) } catch (err) { console.info('[orchestratore] giro di riallineo col remoto non riuscito, riprovo al prossimo:', err) }
     for (const a of unici()) {
       for (const c of specialistiVivi(a)) {
         if (c.stato !== 'lavoro') continue
@@ -1845,6 +1942,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       // Un compito «in revisione» ha finito e non è unito: dopo un riavvio la fila (in memoria) è vuota, si rifà.
       // 11/11 (k-6, k-8, k-10): i compiti di una richiesta già chiusa non si riprovano a ogni aggiornamento.
       try { chiudiOrfani(ws) } catch (err) { console.error(`[orchestratore] ${ws} — compiti di richieste chiuse non tolti dal piano:`, err) }
+      // 11/11: a ogni avvio il ramo principale si rimette in pari col remoto, in sottofondo (le unioni non lo aspettano).
+      try { if (conLavoroAperto(ws)) riallineaOra(ws) } catch (err) { console.info(`[orchestratore] ${ws} — riallineo col remoto all’avvio non riuscito:`, err) }
       const chiuse = richiesteChiuse(ws)
       for (const k of x.orchestratori.piano(ws).compiti) {
         if (k.stato !== 'in-revisione' || k.chiuso !== undefined || chiuse.has(k.richiesta)) continue
