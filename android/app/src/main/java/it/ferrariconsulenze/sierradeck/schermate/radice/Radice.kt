@@ -68,6 +68,7 @@ import it.ferrariconsulenze.sierradeck.dati.Deposito
 import it.ferrariconsulenze.sierradeck.nucleo.ComponiWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.lavoro.SchermataLavoro
 import it.ferrariconsulenze.sierradeck.schermate.altro.SchermataAltro
+import it.ferrariconsulenze.sierradeck.sottofondo.ToccoAvviso
 import it.ferrariconsulenze.sierradeck.schermate.workspace.FonteApi
 import it.ferrariconsulenze.sierradeck.schermate.workspace.SchermataWorkspace
 import it.ferrariconsulenze.sierradeck.schermate.workspace.chatDelWorkspace
@@ -149,6 +150,8 @@ private fun Collegata(vm: RadiceViewModel, pc: PcNoto, onEsci: () -> Unit) {
             vm.verso(r); Apertura.richiesta = null
         }
     }
+    // Il tocco su una notifica (ramo delle notifiche): dove porta.
+    LaunchedEffect(ToccoAvviso.richiesta) { ToccoAvviso.prendi()?.let { vm.verso(it) } }
     LaunchedEffect(Apertura.schedaRichiesta) {
         Apertura.schedaRichiesta?.let { vm.verso(it); Apertura.schedaRichiesta = null }
     }

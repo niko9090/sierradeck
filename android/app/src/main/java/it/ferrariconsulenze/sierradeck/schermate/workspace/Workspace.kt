@@ -205,7 +205,7 @@ private fun Intestazione(t: TestaWorkspace, chats: List<ChatDelWorkspace>, onApr
 @Composable
 private fun LinguettaChat(righe: List<RigaChat>, caricata: Boolean, risposte: Map<String, String>, onRispondi: (String, String) -> Unit, casella: String) {
     val elenco = rememberLazyListState()
-    LaunchedEffect(righe.size) { if (righe.isNotEmpty()) elenco.scrollToItem(righe.size) }
+    LaunchedEffect(righe.size) { if (righe.isNotEmpty()) elenco.scrollToItem(elenco.layoutInfo.totalItemsCount.coerceAtLeast(1) - 1) }
     LazyColumn(Modifier.fillMaxSize(), state = elenco, contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (caricata && righe.isEmpty()) item { Text("Ancora niente: scrivigli cosa vuoi fare.", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }
         if (!caricata) item { Text("Leggo la chat…", color = Banco.testoQuieto, modifier = Modifier.padding(16.dp)) }

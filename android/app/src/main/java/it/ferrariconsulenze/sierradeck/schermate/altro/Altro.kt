@@ -47,7 +47,7 @@ import it.ferrariconsulenze.sierradeck.schermate.radice.SezioneAltro
 import it.ferrariconsulenze.sierradeck.schermate.tema.Banco
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.AltriComputer
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAggiornamenti
-import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneAvvisi
+import it.ferrariconsulenze.sierradeck.schermate.notifiche.SchermataNotifiche
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneConsumi
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneDrive
 import it.ferrariconsulenze.sierradeck.schermate.vecchie.SezioneErroriApp
@@ -80,7 +80,7 @@ fun SchermataAltro(
         Box(Modifier.fillMaxSize()) {
             when (aperta) {
                 SezioneAltro.AGGIORNAMENTI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAggiornamenti(api) }
-                SezioneAltro.AVVISI -> Column(Modifier.verticalScroll(rememberScrollState())) { SezioneAvvisi() }
+                SezioneAltro.AVVISI -> SchermataNotifiche()
                 SezioneAltro.SALUTE -> Linguette(listOf("Salute", "Computer", "Consumi")) { i ->
                     when (i) { 0 -> SezioneSalute(api); 1 -> AltriComputer(api); else -> SezioneConsumi(api) }
                 }

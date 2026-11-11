@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -155,7 +156,10 @@ fun CasellaScrivi(casella: String, segnaposto: String, onManda: (String) -> Bool
     val testo = bozze?.value?.get(casella) ?: locale
     fun cambia(t: String) { if (coda != null) coda.bozza(casella, t) else locale = t }
     Row(modifier.fillMaxWidth().background(Banco.chassis).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
-        TastoMicrofono(testo) { cambia(it) }
+        // Il microfono solo dove c'è la dettatura: la sua riga di ripiego schiaccerebbe la casella.
+        val contesto = androidx.compose.ui.platform.LocalContext.current
+        val dettatura = remember { android.speech.SpeechRecognizer.isRecognitionAvailable(contesto) }
+        if (dettatura) Box(Modifier.widthIn(max = 56.dp)) { TastoMicrofono(testo) { cambia(it) } }
         if (onAllega != null) IconButton(onClick = onAllega) { Icon(Icons.Filled.AttachFile, contentDescription = "Allega un file") }
         OutlinedTextField(
             value = testo, onValueChange = { cambia(it) },
