@@ -41,6 +41,18 @@ export function confrontaVersioni(a: string, b: string): number {
  */
 export const NOVITA: Novita[] = [
   {
+    versione: '0.101.0',
+    righe: [
+      '**App Android rifatta (3.0.0):** tre voci, Lavoro · File · Altro. In cima le domande con i tasti, sotto ogni workspace con la frase «Va», «Fermo» o «A riposo», la percentuale e chi lavora. Un messaggio scritto non si perde più.',
+      '**Notifiche che arrivano:** il telefono resta in ascolto del PC e un avviso arriva in pochi secondi, anche a schermo spento. Si sceglie dalla notifica, che sparisce quando la cosa è risolta. Niente più «computer perso».',
+      '**Notifiche uguali dappertutto:** in Impostazioni → Notifiche scegli per ogni tipo Suona, Silenziosa o Spenta, le ore di silenzio, e provi una notifica. Le stesse scelte valgono per PC, pagina e app.',
+      '**I limiti li decidi tu:** quando una protezione blocca un agente, ti chiede «No», «Sì, questa volta» o «Sì, sempre». In Impostazioni → Limiti scegli i tetti, senza massimo. Restano ferme solo le cartelle che reggono il PC.',
+      '**Il telefono trova il PC sul wifi** anche senza VPN, e controlla che sia il PC giusto prima di mandargli la chiave. Un tocco fa l’azione una volta sola, anche se la rete ritenta.',
+      '**Firewall:** il controllo ora risponde in un secondo (prima non finiva mai in tempo) e vede anche le regole che bloccano.',
+      '**Dal telefono:** «Scollega questo telefono», e «Mostra quello di prima» nelle chat non resta più fermo.',
+    ],
+  },
+  {
     versione: '0.100.0',
     righe: [
       '**Meno domande:** l’autopilota non ti chiede più i permessi degli strumenti, «li correggo?», «pubblico adesso?» o «quando la installi?». Chiede solo per le cose tue (cancellazioni, account, dati, soldi). Una domanda che non rischia niente si decide da sola dopo un’ora, e te lo scrive.',
