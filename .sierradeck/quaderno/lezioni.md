@@ -45,8 +45,6 @@
 
 ## release
 
-- una release a metà (latest.yml su GitHub prima dell'exe) dà 404 per ore: i raggruppamenti degli errori uniscono righe di giorni diversi e la «versione» è quella del PC che invia, non di chi ha l'erro… _(2026-11-08)_
-- Un agente lanciato in un worktree isolato non può eseguire git nella cartella principale (né cd né git -C): per pubblicare dal main serve un agente con la cartella principale come directory di lavoro. _(2026-11-08)_
 - Prima di pubblicare, `package.json` di origin/main può essere ancora alla versione precedente: il bump unito sta solo nel main locale e va pushato con main prima del tag. _(2026-11-08)_
 - Le pubblicazioni dalla cartella principale vanno affidate a general-purpose: lo sviluppatore è chiuso nel suo worktree e non può usare git nel principale (0.97.1 e 0.97.2). _(2026-11-08)_
 - il rapporto controllo-*.md sta nella cartella principale (.sierradeck/errori-arrivati/), non nei worktree: leggerlo da lì, non copiarlo. _(2026-11-09)_
@@ -63,6 +61,7 @@
 - `gh release upload` con `file#etichetta` non cambia il nome dell'asset: GitHub mette i punti al posto degli spazi. Rinominare il file in `SierraDeck-Setup-X.exe` prima di caricarlo, come in `latest.y… _(2026-11-11)_
 - `npm run pubblica` vuole GH_TOKEN nell'ambiente: `export GH_TOKEN=$(gh auth token)`. Crea una bozza col solo blockmap: carica a mano exe e latest.yml, poi `gh release edit --draft=false`. _(2026-11-11)_
 - in `src/shared/novita.ts` il file ha fine riga CRLF: un replace con `\n` non trova nulla, quindi rileggere il fine riga prima di inserire la voce. _(2026-11-11)_
+- la verifica di una release va fatta con `gh release view --json assets`: il nome dell'APK (2.x) non coincide con la versione della release (0.x), quindi non va cercato per nome esatto. _(2026-11-11)_
 
 ## git
 
@@ -337,3 +336,7 @@
 ## pubblica
 
 - `npm run pubblica` da una copia: serve `google-oauth.json` (ignorato da git) e una `node_modules` vera, non una junction. Con la release già creata non carica nulla: caricare a mano. _(2026-11-11)_
+
+## quaderno
+
+- i lotti di errori arrivati stanno solo nella copia principale (`.sierradeck/errori-arrivati/lotto-*.md`), non nei worktree; vanno letti da lì senza modificarli. _(2026-11-11)_
