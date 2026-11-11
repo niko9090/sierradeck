@@ -263,7 +263,11 @@ export function applicaRiga(prima: StatoFlusso, riga: string, quando: string): {
         const compito = compitoDallaDescrizione(descrizione)
         const prompt = typeof i.prompt === 'string' && i.prompt.trim() !== '' ? i.prompt.slice(0, PROMPT_SALVATO_MAX) : undefined
         const nuovo: Specialista = { id, ruolo: s(i.subagent_type) ?? 'general-purpose', descrizione, stato: 'avviato', inizio: quando, ...(prompt !== undefined ? { prompt } : {}), ...(compito !== undefined ? { compito } : {}) }
-        st.specialisti = [...st.specialisti.filter((x) => x.id !== id), nuovo].slice(-SPECIALISTI_RICORDATI)
+        // 11/11: oltre il tetto si scordano i più vecchi **già finiti**. Prima si scordava il più vecchio e basta:
+        // uno specialista ancora al lavoro usciva dall'elenco, e la sua fine non si registrava più.
+        const tutti = [...st.specialisti.filter((x) => x.id !== id), nuovo]
+        let daScordare = tutti.length - SPECIALISTI_RICORDATI
+        st.specialisti = tutti.filter((x) => { if (daScordare > 0 && terminale(x.stato)) { daScordare -= 1; return false } return true })
         registra({ tipo: 'specialista', specialista: id, testo: `parte ${nuovo.ruolo}: ${corto(descrizione, 100)}` })
         effetti.push({ tipo: 'specialista-partito', specialista: nuovo })
       } else if (nome !== '') {

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { Autopilota, ChatGovernata } from '@shared/autopilota'
 import { chiudi as chiudiCoda, unisci as unisciCoda, COME_CHIUSA, type Coda, type ComeChiusa, type Modifica, type PuntoProposto } from '@shared/coda-richieste'
-import { apriSeguiti, scriviPiano, type Piano } from '@shared/piano-orchestratore'
+import { apriSeguiti, COME_CHIUSO_COMPITO, scriviPiano, type Piano } from '@shared/piano-orchestratore'
 import type { Specialista } from '@shared/flusso-orchestratore'
 import { LEZIONE_MAX } from '@shared/lezioni-chat'
 import { gettoneBearer, rispondiRpc, type EsitoStrumento, type ServerMcpMinimo, type StrumentoMcp } from '@shared/mcp-minimo'
@@ -119,6 +119,10 @@ export type AmbienteOrchestratore = {
   specialisti: (ws: string) => Specialista[]
   /** Avvia il cancello: l'esito arriva dopo, come evento. */
   unisci: (ws: string, p: { compito?: string; specialista?: string; ramo?: string }) => EsitoAmbiente
+  /** 11/11: chiude un compito senza unirlo (superato, annullato): esce dal piano vivo e dalla percentuale. */
+  chiudiCompito?: (ws: string, id: string, come: string, perche: string) => EsitoAmbiente
+  /** 11/11: salva una sveglia sul disco (`quando` in ISO); con `quando` assente toglie quelle in attesa. */
+  sveglia?: (ws: string, quando: string | undefined, perche: string) => EsitoAmbiente
   /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
@@ -279,6 +283,37 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
       properties: { testo: { type: 'string' }, tag: { type: 'string' } },
       required: ['testo']
     }
+  },
+  {
+    // 11/11: prima un compito usciva dal piano solo unendolo; uno superato restava lì e teneva aperta la richiesta.
+    name: 'piano_chiudi',
+    title: 'Chiudi un compito senza unirlo',
+    description: 'Chiude un compito del piano che non va più fatto: superato da un altro lavoro (dì quale) o annullato. Esce dal piano e dalla percentuale, e chi veniva «dopo» di lui non lo aspetta più. Non vuol dire «fatto»: un compito fatto si chiude solo con unisci e il criterio verde. Si rifiuta se uno specialista ci sta lavorando o se la sua unione è in corso. Il perché è una riga che Nicholas legge.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        compito: { type: 'string', description: 'L’id del compito del piano (k-N).' },
+        come: { type: 'string', enum: [...COME_CHIUSO_COMPITO], description: 'superato: un altro lavoro lo ha reso inutile; annullato: non si fa più.' },
+        perche: { type: 'string', description: 'Una riga che Nicholas legge.' }
+      },
+      required: ['compito', 'come', 'perche']
+    }
+  },
+  {
+    // 11/11: «riprendo stasera alle 19» viveva nella sessione, che si spegne dopo 10 minuti di quiete: non suonava mai.
+    name: 'sveglia',
+    title: 'Fatti richiamare più tardi',
+    description: 'Quando devi riprendere più tardi (Nicholas dice «riprendi stasera», o aspetti qualcosa che ha un orario), chiedi qui di essere richiamato: il programma salva la sveglia sul disco e a quell’ora ti manda un evento, anche se nel frattempo si riavvia o la tua sessione si spegne. Un promemoria tenuto a mente, o un’attesa con sleep, si perde. Dai «tra_minuti» oppure «alle» (un’ora di oggi come «19:00», che se è già passata vale domani, o una data e ora ISO), e il perché: è quello che ti ritrovi scritto quando suona. Con «annulla» togli le sveglie in attesa.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tra_minuti: { type: 'integer', minimum: 1, description: 'Fra quanti minuti.' },
+        alle: { type: 'string', description: 'In alternativa: «HH:MM» di oggi (o di domani, se è già passata), o una data e ora ISO.' },
+        perche: { type: 'string', description: 'Cosa devi fare quando suona, in una riga.' },
+        annulla: { type: 'boolean', description: 'Facoltativo: true per togliere tutte le sveglie in attesa (serve comunque il perché).' }
+      },
+      required: ['perche']
+    }
   }
 ]
 
@@ -289,6 +324,39 @@ const str = (x: unknown): string => (typeof x === 'string' ? x.trim() : '')
 /** Le chat specialiste vive (non finite) di un autopilota unico. */
 export function specialistiVivi(a: Pick<Autopilota, 'chats'> | undefined): ChatGovernata[] {
   return (a?.chats ?? []).filter((c) => c.stato !== 'finita' && c.fine === undefined)
+}
+
+/** Quanto lontano, al più, può essere una sveglia. */
+export const SVEGLIA_MAX_MS = 30 * 24 * 60 * 60_000
+
+/**
+ * 11/11: quando suona una sveglia, in millisecondi, o il motivo per cui non si capisce. `tra_minuti`
+ * (intero, almeno 1) oppure `alle`: «HH:MM» nell'ora del PC (se è già passata, domani) o una data ISO.
+ */
+export function quandoSveglia(traMinuti: unknown, alle: unknown, ora: number): number | string {
+  if (typeof traMinuti === 'number' && Number.isFinite(traMinuti)) {
+    if (traMinuti < 1) return 'tra_minuti deve essere almeno 1'
+    if (traMinuti * 60_000 > SVEGLIA_MAX_MS) return 'una sveglia può stare al più a 30 giorni'
+    return ora + Math.round(traMinuti) * 60_000
+  }
+  const testo = typeof alle === 'string' ? alle.trim() : ''
+  if (testo === '') return 'dimmi quando: «tra_minuti», oppure «alle» con un’ora («19:00») o una data e ora ISO'
+  const hm = /^(\d{1,2})[:.](\d{2})$/u.exec(testo)
+  if (hm !== null) {
+    const h = Number(hm[1])
+    const m = Number(hm[2])
+    if (h > 23 || m > 59) return `«${testo}» non è un’ora`
+    const d = new Date(ora)
+    d.setHours(h, m, 0, 0)
+    // Già passata oggi: è quella di domani.
+    if (d.getTime() <= ora) d.setDate(d.getDate() + 1)
+    return d.getTime()
+  }
+  const t = Date.parse(testo)
+  if (Number.isNaN(t)) return `non capisco «${testo.slice(0, 40)}»: scrivi un’ora («19:00») o una data e ora ISO`
+  if (t <= ora) return 'quell’ora è già passata'
+  if (t - ora > SVEGLIA_MAX_MS) return 'una sveglia può stare al più a 30 giorni'
+  return t
 }
 
 function leggiPuntiProposti(raw: unknown): PuntoProposto[] | undefined {
@@ -438,6 +506,25 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       if (testo === '') return no('la lezione è vuota')
       if (testo.length > LEZIONE_MAX) return no(`al più ${LEZIONE_MAX} caratteri`)
       const e = amb.annota(ws, testo, str(arg.tag) || 'orchestratore')
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'piano_chiudi': {
+      const compito = str(arg.compito)
+      if (compito === '') return no('quale compito? (k-N)')
+      if (amb.chiudiCompito === undefined) return no('la chiusura dei compiti non è disponibile')
+      const e = amb.chiudiCompito(ws, compito, str(arg.come), str(arg.perche))
+      return e.ok ? si(e.testo) : no(e.motivo)
+    }
+
+    case 'sveglia': {
+      const perche = str(arg.perche).replace(/\s+/gu, ' ').slice(0, 300)
+      if (perche === '') return no('serve il perché: è quello che ti ritrovi scritto quando la sveglia suona')
+      if (amb.sveglia === undefined) return no('le sveglie non sono disponibili')
+      if (arg.annulla === true) { const e = amb.sveglia(ws, undefined, perche); return e.ok ? si(e.testo) : no(e.motivo) }
+      const quando = quandoSveglia(arg.tra_minuti, arg.alle, Date.parse(amb.adesso()))
+      if (typeof quando === 'string') return no(quando)
+      const e = amb.sveglia(ws, new Date(quando).toISOString(), perche)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 

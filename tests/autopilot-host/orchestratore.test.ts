@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
-  ARGOMENTI_VIETATI, REGOLE_ORCHESTRATORE, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente,
+  ARGOMENTI_VIETATI, REGOLE_ORCHESTRATORE, ambienteOrchestratore, argomentiOrchestratore, creaOrchestratore, rigaUtente, sogliaDiRotazione,
   type AvviaProcesso, type DipendenzeOrchestratore, type ProcessoClaude
 } from '../../src/autopilot-host/orchestratore'
 import { impostazioniPredefinite, type ImpostazioniOrchestratore, type RigaDialogo } from '../../src/autopilot-host/orchestratore-store'
@@ -163,21 +163,43 @@ describe('il motore', () => {
     expect(processi[1]!.args[processi[1]!.args.indexOf('--resume') + 1]).toBe('sess-x')
   })
 
-  it('oltre 80k token di contesto la sessione ruota: la nuova riceve lo stato e le ultime battute', () => {
+  // 11/11: la soglia si conta sopra il primo turno della sessione. Prima era 80k fissi, e una sessione nuova
+  // (che parte già da 52-63k) ruotava ogni 3-8 turni: questo test chiedeva la rotazione al primo turno a 90k.
+  it('la sessione ruota quando il contesto cresce di 60k sopra il suo primo turno: la nuova riceve lo stato e le ultime battute', () => {
     const { o, processi, imp } = motore()
     o.messaggio('ws', { quando: '2026-10-30T09:00:00.000Z', testo: 'uno' })
+    processi[0]!.emetti(result(55_000))
+    o.messaggio('ws', { quando: '2026-10-30T09:01:00.000Z', testo: 'due' })
     processi[0]!.emetti(result(90_000))
+    // 90k è sopra gli 80k di prima, ma solo 35k sopra la base: la sessione resta.
+    expect(processi[0]!.ucciso).toBe(false)
+    expect(imp.get('ws')?.sessione).toBeDefined()
+    expect(imp.get('ws')?.rotazioni).toBeUndefined()
+    o.messaggio('ws', { quando: '2026-10-30T09:02:00.000Z', testo: 'tre' })
+    processi[0]!.emetti(result(115_001))
     expect(processi[0]!.ucciso).toBe(true)
     expect(imp.get('ws')?.sessione).toBeUndefined()
     expect(imp.get('ws')?.daSeminare).toBe(true)
     expect(imp.get('ws')?.rotazioni).toBe(1)
-    o.messaggio('ws', { quando: '2026-10-30T09:05:00.000Z', testo: 'due' })
+    o.messaggio('ws', { quando: '2026-10-30T09:05:00.000Z', testo: 'quattro' })
     const p2 = processi[1]!
     expect(p2.args).toContain('--session-id')
     expect(p2.args).not.toContain('--resume')
     const t = testoScritto(p2.scritte[0]!)
     expect(t).toContain('<stato>')
     expect(t).toContain('<ultime-battute>')
+    // La sessione nuova ha la sua base: non eredita quella di prima.
+    p2.emetti(result(60_000))
+    o.messaggio('ws', { quando: '2026-10-30T09:06:00.000Z', testo: 'cinque' })
+    p2.emetti(result(118_000))
+    expect(p2.ucciso).toBe(false)
+  })
+
+  it('la soglia di rotazione: mai sotto la soglia, tre quarti sopra la base, mai oltre il doppio', () => {
+    expect(sogliaDiRotazione(80_000, undefined)).toBe(80_000)
+    expect(sogliaDiRotazione(80_000, 10_000)).toBe(80_000)
+    expect(sogliaDiRotazione(80_000, 55_000)).toBe(115_000)
+    expect(sogliaDiRotazione(80_000, 150_000)).toBe(160_000)
   })
 
   it('se il processo muore durante un turno i messaggi non si perdono; la sessione persa riparte nuova', () => {

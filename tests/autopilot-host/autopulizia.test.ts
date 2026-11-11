@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { nuovoAutopilota, type Autopilota, type ChatGovernata } from '@shared/autopilota'
 import { apriArchivio, type Archivio } from '../../src/autopilot-host/archivio'
 import {
-  accorciaRegistro, autopulizia, chatNote, compatta, creaAutopulizia, decidiCopia, decidiRamo, leggiWorktreeList, pesoCartella,
+  accorciaRegistro, autopulizia, chatNote, compatta, creaAutopulizia, decidiCopia, decidiRamo, decidiRamoAgente, leggiWorktreeList, pesoCartella,
   rigaRiepilogo, staccaCollegamenti, tagliaCoda, togliCartellaCopia, esitoVuoto, TENUTA_FILE_IN_USO, type CopiaSuDisco
 } from '../../src/autopilot-host/autopulizia'
 import { comeAsincrono, creaWorktree, gitReale, type Git } from '../../src/autopilot-host/worktree'
@@ -344,6 +344,79 @@ describe('su disco, con un git finto', () => {
     expect(e.ramiTolti).toBe(2)
   })
 
+  describe('11/11: i rami e le copie degli specialisti', () => {
+    const agente = (n: string): string => { const d = join(progetto, '.claude', 'worktrees', n); mkdirSync(d, { recursive: true }); writeFileSync(join(d, '.git'), 'gitdir: x\n'); return d }
+
+    it('la regola, pura: solo un ramo di specialista già unito, non in uso, non di chi lavora, non citato da un compito aperto', () => {
+      const base = { corrente: 'main', inUso: new Set<string>(), vive: new Set<string>(), citati: new Set<string>(), unito: true }
+      expect(decidiRamoAgente('worktree-agent-a1', base)).toEqual({ ramo: 'worktree-agent-a1', togli: true, perche: 'già unito' })
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, unito: false }).perche).toBe('commit non uniti')
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, inUso: new Set(['worktree-agent-a1']) }).perche).toBe('aperto in una copia')
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, vive: new Set(['agent-a1']) }).perche).toBe('specialista al lavoro')
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, citati: new Set(['worktree-agent-a1']) }).perche).toBe('citato da un compito aperto')
+      expect(decidiRamoAgente('worktree-agent-a1', { ...base, corrente: 'worktree-agent-a1' }).perche).toBe('ramo corrente')
+      expect(decidiRamoAgente('rilascio-1.2.3', base).togli).toBe(false)
+      expect(decidiRamoAgente('ap/ap-1/c-1', base).togli).toBe(false)
+    })
+
+    it('rami: via i worktree-agent-* già uniti, con `branch -d` e mai `-D`; restano i non uniti, i citati, quelli di chi lavora e gli altri', async () => {
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git, chiamate } = gitFinto({
+        rami: ['worktree-agent-a1', 'worktree-agent-a2', 'worktree-agent-a3', 'worktree-agent-a4', 'rilascio-1.2.3'],
+        nonUniti: ['worktree-agent-a2']
+      })
+      const e = await autopulizia({
+        archivio, git: comeAsincrono(git), ora: DOPO,
+        copieVive: () => new Set(['agent-a4']),
+        ramiCitati: () => new Set(['worktree-agent-a3'])
+      })
+      expect(chiamate.filter((c) => c.startsWith('branch '))).toEqual(['branch -d worktree-agent-a1'])
+      expect(e.ramiTolti).toBe(1)
+      expect(e.errori).toEqual([])
+    })
+
+    it('senza sapere quali rami servono ancora, o chi lavora: nessun ramo di specialista si toglie', async () => {
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git, chiamate } = gitFinto({ rami: ['worktree-agent-a1'] })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, copieVive: () => new Set(), ramiCitati: () => undefined })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, copieVive: () => undefined, ramiCitati: () => new Set() })
+      expect(chiamate.filter((c) => c.startsWith('branch '))).toEqual([])
+    })
+
+    it('se git non lo dà per unito (`branch -d` rifiuta) il ramo resta, e non è un errore', async () => {
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ rami: ['worktree-agent-a1'] })
+      const gitCheRifiuta: Git = (args, cwd) => (args[0] === 'branch' ? { codice: 1, uscita: 'error: the branch is not fully merged' } : git(args, cwd))
+      const e = await autopulizia({ archivio, git: comeAsincrono(gitCheRifiuta), ora: DOPO, copieVive: () => new Set(), ramiCitati: () => new Set() })
+      expect(e.ramiTolti).toBe(0)
+      expect(e.errori).toEqual([])
+      expect(e.tenute).toEqual([{ cosa: 'worktree-agent-a1', perche: 'git non lo dà per unito' }])
+    })
+
+    it('copie: con uno specialista al lavoro si salta solo la sua, le altre finite e unite vanno via', async () => {
+      const finita = agente('agent-1')
+      const viva = agente('agent-2')
+      const sporca = agente('agent-3')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [finita]: 'h1', [viva]: 'h2', [sporca]: 'h3' }, sporche: [sporca] })
+      // Come prima (tutto o niente) non se ne sarebbe toccata nessuna: uno specialista lavora.
+      const e = await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => true, copieVive: () => new Set(['agent-2']) })
+      expect(existsSync(finita)).toBe(false)
+      expect(existsSync(viva)).toBe(true)
+      expect(existsSync(sporca)).toBe(true)
+      expect(e.tenute).toEqual(expect.arrayContaining([{ cosa: 'agent-2', perche: 'specialisti al lavoro' }, { cosa: 'agent-3', perche: 'modifiche non salvate' }]))
+    })
+
+    it('copie: se non si sa chi lavora (il servizio non è pronto) non se ne tocca nessuna', async () => {
+      const d = agente('agent-1')
+      archivio.scrivi(autopilota({ id: 'ap-1', cwd: progetto }))
+      const { git } = gitFinto({ headDi: { [d]: 'h1' } })
+      await autopulizia({ archivio, git: comeAsincrono(git), ora: DOPO, agentiAlLavoro: () => false, copieVive: () => undefined })
+      expect(existsSync(d)).toBe(true)
+    })
+  })
+
   it('le note oltre il tetto tengono le righe più nuove; gli autopiloti vecchi e finiti si compattano', async () => {
     const note = join(archivio.cartella, 'ap-1.decisioni.jsonl')
     const riga = `${JSON.stringify({ cosa: 'x'.repeat(1000) })}\n`
@@ -625,6 +698,30 @@ describe('con un git vero', { timeout: 120_000 }, () => {
     expect(e.ramiTolti).toBe(2)
     expect(e.tenute.map((t) => t.perche)).toEqual(expect.arrayContaining(['chat aperta', 'modifiche non salvate', 'commit non uniti']))
     expect(esegui(['worktree', 'list', '--porcelain'], progetto)).not.toMatch(/c-1/)
+  })
+
+  it('11/11, con git vero: il ramo di uno specialista già unito si toglie; quello con un commit non unito resta, col suo lavoro', async () => {
+    const commit = (file: string, messaggio: string): void => { writeFileSync(join(progetto, file), `${messaggio}\n`); esegui(['add', '-A'], progetto); esegui(['commit', '-q', '-m', messaggio], progetto) }
+    // Unito con un'unione, e il principale poi è andato avanti.
+    esegui(['checkout', '-q', '-b', 'worktree-agent-unito'], progetto)
+    commit('b.txt', 'k-1: il lavoro')
+    esegui(['checkout', '-q', 'main'], progetto)
+    esegui(['merge', '-q', '--no-ff', '--no-edit', 'worktree-agent-unito'], progetto)
+    // Con un commit che il principale non ha.
+    esegui(['checkout', '-q', '-b', 'worktree-agent-fuori'], progetto)
+    commit('c.txt', 'k-2: mai unito')
+    esegui(['checkout', '-q', 'main'], progetto)
+    // Già unito, ma serve ancora a un compito aperto; e uno già unito con un altro nome.
+    esegui(['branch', 'worktree-agent-citato'], progetto)
+    esegui(['branch', 'rilascio-1.2.3'], progetto)
+    const archivio = apriArchivio(join(progetto, '..', 'autopiloti'))
+    archivio.scrivi(autopilota({ id: 'ap-0123abcd-0000-0000-0000-000000000000', cwd: progetto }))
+    const e = await autopulizia({ archivio, git: comeAsincrono(gitReale), ora: DOPO, copieVive: () => new Set(), ramiCitati: () => new Set(['worktree-agent-citato']) })
+    expect(e.errori).toEqual([])
+    expect(e.ramiTolti).toBe(1)
+    const rami = esegui(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], progetto).split(/\r?\n/).sort()
+    expect(rami).toEqual(['main', 'rilascio-1.2.3', 'worktree-agent-citato', 'worktree-agent-fuori'])
+    expect(esegui(['log', '-1', '--format=%s', 'worktree-agent-fuori'], progetto)).toBe('k-2: mai unito')
   })
 })
 

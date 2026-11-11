@@ -59,6 +59,8 @@ export type ContestoGuardia = {
   doppio?: (r: { descrizione: string; tipo: string }) => string | undefined
   /** 10/11: il compito aspetta un'unione («dopo» non ancora unito): il motivo del rifiuto, e il programma lo mette in fila. */
   dipendenze?: (r: { descrizione: string; tipo: string }) => string | undefined
+  /** 11/11: il compito ha già finito e aspetta l'unione: il motivo del rifiuto (un rilancio azzerava il lavoro pronto, k-133). */
+  inUnione?: (r: { descrizione: string; tipo: string }) => string | undefined
 }
 
 /** k-189: il motivo per i comandi in sottofondo e per le attese a mano. */
@@ -164,7 +166,9 @@ export function giudicaGuardiaOrchestratore(corpo: Record<string, unknown>, c: C
       }
       const doppio = c.doppio?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (doppio !== undefined) return { ok: false, motivo: doppio }
-      const aspetta = c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      const finito = c.inUnione?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
+      if (finito !== undefined) return { ok: false, motivo: finito }
+      const aspetta =c.dipendenze?.({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo })
       if (aspetta !== undefined) return { ok: false, motivo: aspetta }
       if (c.fila !== undefined) {
         const r = c.fila({ descrizione: s(input.description) ?? s(input.prompt)?.slice(0, 120) ?? 'specialista', tipo: s(input.subagent_type) ?? 'general-purpose' })

@@ -50,15 +50,16 @@ export function ambientePulito(base: NodeJS.ProcessEnv): Record<string, string> 
  *   `--bare` (ignorerebbe il login dell'abbonamento), e niente
  *   `ANTHROPIC_API_KEY` nell'ambiente del figlio;
  * - il processo si spegne dopo 10 minuti senza turni né specialisti al
- *   lavoro, e riparte con `--resume`; oltre 80k token di contesto la sessione
- *   ruota (quella nuova riceve lo stato e le ultime 10 battute);
+ *   lavoro, e riparte con `--resume`; quando il contesto cresce troppo sopra il
+ *   primo turno della sessione (`sogliaDiRotazione`, 11/11) la sessione ruota
+ *   (quella nuova riceve lo stato e le ultime 10 battute);
  * - un turno alla volta per workspace e al più 2 su tutto il PC: quello che
  *   arriva durante un turno aspetta e parte insieme, alla fine del turno.
  */
 
 // ---------------------------------------------------------------- tipi
 
-export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto'
+export type TipoEvento = 'finito' | 'bloccato' | 'domanda' | 'silenzio' | 'unione' | 'fermo' | 'risposta' | 'adozione' | 'domanda-scaduta' | 'posto' | 'sveglia'
 export type EventoOrchestratore = { tipo: TipoEvento; quando: string; testo: string; chat?: string }
 export type MessaggioUtente = { quando: string; testo: string }
 
@@ -79,6 +80,16 @@ export const MODELLO_ORCHESTRATORE = 'opus'
 export const RACCOLTA_EVENTI_MS = 30_000
 export const CHIAMATE_PC_MAX = 2
 export const ROTAZIONE_TOKEN = 80_000
+/**
+ * 11/11: la soglia vale **sopra la base della sessione**. Una sessione nuova parte già da 52-63k token (regole,
+ * agenti, strumenti, stato): con 80k fissi ruotava ogni 3-8 turni (76 rotazioni in dodici giorni), e ogni volta
+ * rileggeva tutto e perdeva il filo. Ora ruota quando il contesto cresce di tre quarti della soglia sopra il
+ * primo turno della sessione (60k con la soglia di serie), mai sotto la soglia e mai oltre il doppio.
+ */
+export const MARGINE_ROTAZIONE = 0.75
+export function sogliaDiRotazione(soglia: number, base: number | undefined): number {
+  return Math.min(2 * soglia, Math.max(soglia, (base ?? 0) + Math.round(MARGINE_ROTAZIONE * soglia)))
+}
 export const BATTUTE_SEMINA = 10
 export const INATTIVO_MS = 10 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
@@ -119,6 +130,12 @@ export const REGOLE_ORCHESTRATORE = [
   '4b. Porta a termine: finché in coda c’è lavoro aperto e nessuna decisione di Nicholas lo blocca, ogni tuo turno lascia almeno uno specialista al lavoro o un’unione in corso. Non chiudere un turno con «dimmi tu se…», «non lancio altro» o «aspetto»: se serve davvero una decisione che è sua (vedi «Cosa è di Nicholas»), chiedila con chiedi_utente (2-4 scelte, la più prudente per prima come consigliata, una frase di contesto) e intanto porta avanti il resto. Se il programma ti dice che il lavoro è fermo, riparti da lì. I permessi li decide il programma da solo, mai Nicholas: scrivere file (anche in una copia fuori dalla cartella del progetto) e leggere il web sono concessi; quello che nega (per esempio Monitor o un’attesa: l’esito ti arriva come evento, chiudi il turno) ha il suo motivo, leggilo e cambia strada.',
   // 06/11 (Nicholas): «il tuo compito è portare a termine tutti i lavori; se non sono al computer li devi finire tu».
   '4c. Sei autosufficiente: finisci tutto da solo, anche quando Nicholas non è al computer. Criterio rosso dopo un’unione: affidi la correzione nello stesso turno. Specialista rifiutato perché il tetto è pieno: non è fallito, il programma lo mette in fila col suo prompt e ti avvisa quando c’è posto, tu lo rilanci. A Nicholas chiedi solo una decisione sua o un caso davvero estremo; non chiedergli mai di riavviare il servizio, di chiudere programmi o di fare a mano lavoro tecnico (lo strumento lo rifiuta): lo risolvi tu, coordinando gli specialisti.',
+  // 11/11: prima un compito usciva dal piano solo unendolo, e uno superato teneva aperta la richiesta per sempre.
+  '4d. Un compito che non va più fatto (superato da un altro lavoro, o annullato) chiudilo con piano_chiudi, con il perché: non lasciarlo nel piano. Un compito fatto invece si chiude solo con unisci e il criterio verde.',
+  // 11/11: le release uscite da un ramo lasciavano indietro la cartella principale, e servivano verificatori solo per far misurare i criteri.
+  '4e. Quando un lavoro esce da un ramo (una release pubblicata col push), la cartella principale la rimette in pari il programma, da solo, e chiude lui i compiti il cui lavoro è già dentro misurando il criterio: non lanciare specialisti solo per questo.',
+  // 11/11: «riprendo stasera alle 19» era un promemoria nella sessione, che si spegne dopo 10 minuti di quiete: non suonava mai.
+  '4f. Se devi riprendere più tardi (Nicholas dice «riprendi stasera», o aspetti qualcosa che ha un orario), usa lo strumento sveglia: il programma ti richiama a quell’ora, anche se nel frattempo si riavvia. Un promemoria tenuto a mente o un’attesa con sleep si perdono. Le sveglie in attesa sono in SVEGLIE nello stato.',
   '5. Uno specialista bloccato: se la risposta sta nel codice, nel quaderno o in quello che Nicholas ha già detto, decidi tu e rilancia. A Nicholas, con chiedi_utente, solo quello che è suo, con 2-4 scelte e la consigliata per prima.',
   '6. Quello che conviene ricordare per i lavori futuri va nel quaderno con quaderno_annota, una riga. Le righe LEZIONI: dei riepiloghi le annota già il programma.',
   '',
@@ -201,7 +218,8 @@ const PAROLA_EVENTO: Record<TipoEvento, string> = {
   risposta: 'risposta di Nicholas',
   adozione: 'adozione',
   'domanda-scaduta': 'domanda scaduta',
-  posto: 'lista d’attesa'
+  posto: 'lista d’attesa',
+  sveglia: 'sveglia'
 }
 
 /** Il messaggio di un turno: stato, indice del quaderno, (le ultime battute), eventi e messaggi. */
@@ -341,6 +359,8 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
+  /** 11/11: il contesto del primo turno della sessione di adesso: la soglia di rotazione si conta da lì. */
+  baseContesto?: number
   /** Guasti di fila: dal secondo si aspetta sempre di più, senza fermarsi mai. */
   tentativi: number
   /** Dopo un guasto si aspetta (backoff) prima del turno dopo. */
@@ -452,6 +472,26 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
 
   /**
+   * 11/11: col processo muoiono anche i suoi specialisti. Prima, dopo un turno appeso (il processo lo spegne
+   * il programma, e la sua uscita non si guarda più) restavano «al lavoro» per sempre: occupavano i posti del
+   * PC, il rilancio era rifiutato come doppione, niente spinte del lavoro fermo e niente autopulizia, fino al
+   * riavvio del servizio. E quando il processo usciva da solo erano «fermati», ma nessuno lo diceva al piano.
+   * `diLo`: lo si dice al servizio (il compito torna da fare); senza, si segnano soltanto.
+   */
+  const fermaSpecialisti = (ws: string, s: StatoWs, diLo: boolean): void => {
+    const vivi = specialistiAlLavoro(s.flusso)
+    if (vivi.length === 0) return
+    const quando = adesso()
+    const fermati = vivi.map((y) => ({ ...y, stato: 'fermato' as const, fine: quando }))
+    s.flusso = { ...s.flusso, specialisti: s.flusso.specialisti.map((y) => fermati.find((f) => f.id === y.id) ?? y) }
+    if (!diLo) return
+    // Subito dopo, non adesso: chi chiama sta ancora sistemando il turno e il processo.
+    queueMicrotask(() => {
+      try { d.flusso?.(ws, fermati.map((specialista) => ({ tipo: 'specialista-finito' as const, specialista })), s.flusso) } catch (err) { console.error(`[orchestratore] ${ws} — specialisti fermati non registrati:`, err) }
+    })
+  }
+
+  /**
    * Il cane da guardia del turno: una CLI appesa (nessuna riga da 20 minuti,
    * e nessun permesso che aspetta Nicholas) terrebbe per sempre uno dei due
    * turni del PC. Si spegne, quello che il turno portava torna in attesa e si
@@ -469,6 +509,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const minuti = Math.round(mutoMs / 60_000)
       console.error(`[orchestratore] ${ws} — turno appeso: nessuna riga da ${minuti} minuti`)
       spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
+      fermaSpecialisti(ws, s, true)
       guasto(ws, s, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato`, false)
     }, mutoMs)
     s.cane.unref?.()
@@ -480,8 +521,10 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     if (s.proc === undefined || inTurno(s) || specialistiAlLavoro(s.flusso).length > 0 || pronto(s)) return
     if (s.ruota) {
       s.ruota = false
+      const limite = sogliaDiRotazione(soglia, s.baseContesto)
+      s.baseContesto = undefined
       d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
-      spegniSe(ws, s, `contesto oltre ${soglia} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
+      spegniSe(ws, s, `contesto oltre ${limite} token: la prossima volta una sessione nuova, con lo stato e le ultime ${BATTUTE_SEMINA} battute`)
       return
     }
     s.inattivo = setTimeout(() => { s.inattivo = undefined; if (!inTurno(s) && specialistiAlLavoro(s.flusso).length === 0) spegniSe(ws, s, `fermo da ${Math.round(inattivoMs / 60_000)} minuti; riparte con --resume`) }, inattivoMs)
@@ -493,7 +536,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (e.tipo === 'sessione') d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: e.id, daSeminare: undefined }))
       else if (e.tipo === 'costo') {
         if (e.costo.contesto > 0) d.cambiaImpostazioni(ws, (i) => ({ ...i, contesto: e.costo.contesto }))
-        if (e.costo.contesto > soglia) s.ruota = true
+        // 11/11: la soglia si conta dal primo turno della sessione, non da zero (vedi `sogliaDiRotazione`).
+        if (s.baseContesto === undefined && e.costo.contesto > 0) s.baseContesto = e.costo.contesto
+        if (e.costo.contesto > sogliaDiRotazione(soglia, s.baseContesto)) s.ruota = true
       } else if (e.tipo === 'risposta') {
         if (e.errore !== undefined) {
           // Il turno è fallito: i messaggi non si perdono, e si riparte da soli con attesa crescente.
@@ -544,7 +589,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.proc = undefined
       if (s.cane !== undefined) { clearTimeout(s.cane); s.cane = undefined }
       const eraInTurno = s.flusso.inTurno
-      s.flusso = { ...s.flusso, inTurno: false, specialisti: s.flusso.specialisti.map((x) => (specialistiAlLavoro({ ...s.flusso, specialisti: [x] }).length > 0 ? { ...x, stato: 'fermato' as const, fine: adesso() } : x)) }
+      s.flusso = { ...s.flusso, inTurno: false }
+      // 11/11: gli specialisti morti col processo si dicono anche al piano (prima restavano «in corso» fino alla spinta del lavoro fermo).
+      fermaSpecialisti(ws, s, true)
       if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
       if (eraInTurno || s.inviati !== undefined) {
         // Quello che il turno portava non si perde: torna in attesa.
@@ -553,6 +600,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         const motivo = separaAvvisiNode(stderr).resto.slice(-400) || `uscito con ${String(codice)}`
         if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
           d.cambiaImpostazioni(ws, (i) => ({ ...i, sessione: undefined, daSeminare: true, rotazioni: (i.rotazioni ?? 0) + 1 }))
+          s.baseContesto = undefined
           s.persa = true
           metti(ws)
           return
@@ -641,6 +689,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.inattivo = undefined
       s.inviati = undefined
       spegniSe(ws, s, 'interruttore spento')
+      // 11/11: spento l'interruttore non resta nessuno «al lavoro» (senza dirlo al piano: l'autopilota è fermo apposta).
+      fermaSpecialisti(ws, s, false)
       forseQuiete()
     },
     spegni() {

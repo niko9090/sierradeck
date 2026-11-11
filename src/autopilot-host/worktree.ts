@@ -721,6 +721,107 @@ function* chiudiProvaPassi(p: { cwd: string; tieni: boolean }): Passi<boolean> {
   return false
 }
 
+// ---------------------------------------------------------------------------
+// 11/11: il ramo principale di qui e quello del remoto.
+// ---------------------------------------------------------------------------
+
+/** Quanto si aspetta, al più, il remoto (rete lenta, credenziali): poi si va avanti senza, e si riprova più tardi. */
+export const REMOTO_TEMPO_MS = 20_000
+
+export type EsitoRemoto = { esito: 'preso' } | { esito: 'senza-remoto' } | { esito: 'non-raggiunto'; perche: string }
+
+const ultimaRiga = (uscita: string): string => (uscita.split(/\r?\n/).map((r) => r.trim()).filter((r) => r !== '').pop() ?? '').slice(0, 200)
+/** Perché git non ha unito, in parole: il caso dei file locali che verrebbero sovrascritti, o la sua ultima riga. */
+const percheNonUnito = (uscita: string): string => (/would be overwritten/i.test(uscita) ? 'ci sono file modificati e non salvati che l’unione sovrascriverebbe' : ultimaRiga(uscita) || 'git non ha unito')
+
+/**
+ * **Chiede al remoto il suo ramo principale** (`git fetch`, che tocca solo `refs/remotes/…`, mai la
+ * cartella di lavoro). Non è mai un errore: senza remoto, senza rete o senza credenziali torna il
+ * perché e chi chiama va avanti. Mai una finestra o una domanda per le credenziali, e un tempo corto:
+ * un remoto che non risponde non tiene fermo nessuno (il comando lasciato indietro lo chiude git).
+ */
+export async function prendiDalRemotoAsincrono(git: GitAsincrono, p: { cwd: string; base: string; remoto?: string }, opz: { tempoMs?: number } = {}): Promise<EsitoRemoto> {
+  const remoto = p.remoto ?? 'origin'
+  if (!existsSync(p.cwd)) return { esito: 'senza-remoto' }
+  const url = await git(['remote', 'get-url', remoto], p.cwd)
+  if (url.codice !== 0 || url.uscita.trim() === '') return { esito: 'senza-remoto' }
+  const tempo = opz.tempoMs ?? REMOTO_TEMPO_MS
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const scaduto = new Promise<'scaduto'>((ris) => { timer = setTimeout(() => ris('scaduto'), tempo); timer.unref?.() })
+  const preso = git(['-c', 'credential.interactive=false', 'fetch', '--quiet', '--no-tags', remoto, p.base], p.cwd).catch((err: unknown): EsitoGit => ({ codice: 1, uscita: String(err) }))
+  const r = await Promise.race([preso, scaduto])
+  if (timer !== undefined) clearTimeout(timer)
+  if (r === 'scaduto') return { esito: 'non-raggiunto', perche: `nessuna risposta in ${Math.max(1, Math.round(tempo / 1000))} s` }
+  if (r.codice === 0) return { esito: 'preso' }
+  // Il ramo non c'è sul remoto (un progetto mai pubblicato): non c'è niente con cui allinearsi.
+  if (/couldn't find remote ref|no such ref|impossibile trovare il riferimento remoto/i.test(r.uscita)) return { esito: 'senza-remoto' }
+  return { esito: 'non-raggiunto', perche: ultimaRiga(r.uscita) || 'git fetch non riuscito' }
+}
+
+export type EsitoRiallineo =
+  | { esito: 'senza-remoto' }
+  | { esito: 'non-raggiunto'; perche: string }
+  /** Niente da prendere: uguali, o qui si è solo più avanti (`avanti` commit). */
+  | { esito: 'pari'; avanti: number }
+  | { esito: 'allineato'; presi: number; come: 'avanti-veloce' | 'unione' }
+  /** Adesso non si può, senza colpa di nessuno: altro ramo, un'unione aperta, file locali che verrebbero sovrascritti. Niente è stato toccato. */
+  | { esito: 'occupata'; perche: string }
+  /** I due rami non si uniscono da soli: unione annullata, niente è stato toccato. */
+  | { esito: 'conflitto'; file: string[]; presi: number }
+
+/**
+ * **Il ramo principale di qui raggiunge quello del remoto** (11/11). Le release 0.97.0, 0.99.2 e
+ * 0.99.3 sono uscite da un ramo (push sul remoto) mentre il principale locale restava indietro di
+ * undici commit: i rami già pubblicati restavano «da unire» uno a uno, e nel programma mancava
+ * proprio questo passo. Solo operazioni che git fa in sicurezza, mai forzate:
+ * - qui si è solo indietro: `merge --ff-only`;
+ * - i due rami sono andati avanti tutti e due (qui, di solito, le note del quaderno): un'unione
+ *   normale; su un conflitto `merge --abort` e si dice quali file, senza toccare altro;
+ * - git rifiuta da sé se un file modificato e non salvato verrebbe sovrascritto: allora niente.
+ * Va chiamata dopo `prendiDalRemotoAsincrono`, e mai mentre un'unione di prova è aperta.
+ */
+export function riallineaAsincrono(git: GitAsincrono, p: { cwd: string; base: string; remoto?: string }): Promise<EsitoRiallineo> {
+  return aspettando(git, riallineaPassi({ cwd: p.cwd, base: p.base, remoto: p.remoto ?? 'origin' }))
+}
+
+function* riallineaPassi(p: { cwd: string; base: string; remoto: string }): Passi<EsitoRiallineo> {
+  const radice = yield* radicePassi(p.cwd)
+  if (radice === undefined) return { esito: 'senza-remoto' }
+  const lontano = `refs/remotes/${p.remoto}/${p.base}`
+  const testa = yield* chiedi(['rev-parse', '--verify', '--quiet', lontano], radice)
+  if (testa.codice !== 0) return { esito: 'senza-remoto' }
+  if ((yield* chiedi(['rev-parse', '--verify', '--quiet', `refs/heads/${p.base}`], radice)).codice !== 0) return { esito: 'senza-remoto' }
+  const conta = yield* chiedi(['rev-list', '--left-right', '--count', `refs/heads/${p.base}...${lontano}`], radice)
+  const m = /^(\d+)\s+(\d+)/.exec(conta.uscita.trim())
+  if (conta.codice !== 0 || m === null) return { esito: 'occupata', perche: 'git non ha saputo confrontare il ramo con il remoto' }
+  const avanti = Number(m[1])
+  const presi = Number(m[2])
+  if (presi === 0) return { esito: 'pari', avanti }
+  const qui = yield* ramoPassi(radice)
+  if (qui !== p.base) return { esito: 'occupata', perche: `la cartella di lavoro è sul ramo «${qui ?? '?'}», non su «${p.base}»` }
+  // Una prova nostra rimasta a metà si ripulisce; un'unione aperta che non è nostra non si tocca.
+  yield* ripulisciProvaPassi(radice)
+  const dir = yield* cartellaGitPassi(radice)
+  if (dir !== undefined && existsSync(join(dir, 'MERGE_HEAD'))) return { esito: 'occupata', perche: 'nella cartella di lavoro c’è un’unione aperta' }
+  if (avanti === 0) {
+    const r = yield* chiedi(['merge', '--ff-only', lontano], radice)
+    return r.codice === 0 ? { esito: 'allineato', presi, come: 'avanti-veloce' } : { esito: 'occupata', perche: percheNonUnito(r.uscita) }
+  }
+  // Il segno, come per la prova: se il processo muore a metà, il prossimo riconosce l'unione come sua e la annulla.
+  if (dir !== undefined) {
+    try { writeFileSync(join(dir, MARCATORE_PROVA), JSON.stringify({ ramo: lontano, testa: testa.uscita.split(/\r?\n/)[0]?.trim() ?? '', il: new Date().toISOString() })) } catch { /* senza segno si unisce lo stesso */ }
+  }
+  const r = yield* chiedi([...(yield* firma(radice)), 'merge', '--no-ff', '--no-edit', '--no-verify', lontano], radice)
+  if (r.codice === 0) {
+    if (dir !== undefined) togliMarcatore(dir)
+    return { esito: 'allineato', presi, come: 'unione' }
+  }
+  const inConflitto = soloFile((yield* chiedi(['diff', '--name-only', '--diff-filter=U'], radice)).uscita)
+  if (dir === undefined || existsSync(join(dir, 'MERGE_HEAD'))) yield* chiedi(['merge', '--abort'], radice)
+  if (dir !== undefined) togliMarcatore(dir)
+  return inConflitto.length > 0 ? { esito: 'conflitto', file: inConflitto.map((f) => f.trim()), presi } : { esito: 'occupata', perche: percheNonUnito(r.uscita) }
+}
+
 /** Toglie il worktree di una chat e, se e' gia' unito, il suo ramo. */
 export function togliWorktree(git: Git, p: { cwd: string; cartella: string; ramo: string }): void {
   inLinea(git, togliPassi(p))

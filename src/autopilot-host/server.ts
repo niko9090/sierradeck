@@ -45,6 +45,7 @@ import {
   comeAsincrono, iniziaProvaAsincrono, chiudiProvaAsincrono, ripulisciProvaAsincrono, MOTIVO_CARTELLA_SPORCA, salvaLavoroAsincrono, togliWorktreeAsincrono,
   type Git, type GitAsincrono
 } from './worktree'
+import { prendiDalRemotoAsincrono, riallineaAsincrono, type EsitoRiallineo } from './worktree'
 import { cartellaWorkspace, type ArchivioCode } from './coda-store'
 import { annullaRiparazioneServizio, riparaServizio, type DipendenzeRiparazioneServizio } from './autoriparazione'
 import type { ArchivioOrchestratori } from './orchestratore-store'
@@ -138,6 +139,8 @@ export type Dipendenze = {
   unioneDaSola?: boolean
   /** 06/11: dopo quanto un'unione di prova nel principale si chiude e si rimette in fila (di serie 15 minuti). */
   provaMaxMs?: number
+  /** 11/11: quanto si aspetta, al più, la risposta del remoto prima di andare avanti senza (di serie 20 secondi). */
+  remotoTempoMs?: number
   /** 06/11, per i test: tempi della fila delle unioni (vedi `ContestoUnico`). */
   unioneMaxMs?: number
   unioneRiprovaMs?: number
@@ -161,6 +164,9 @@ export type ServerAutopiloti = Server & {
   migraVecchi: () => number
   /** 0.89.0: per l’autopulizia, le copie degli specialisti di quella cartella sono in uso? */
   agentiAlLavoro: (cartella: string) => boolean
+  /** 11/11: per l'autopulizia, le copie degli specialisti al lavoro adesso e i rami che servono ancora (`ServizioUnico`). */
+  copieVive: (cartella: string) => Set<string>
+  ramiCitati: (cartella: string) => Set<string>
 }
 
 /** Ogni quanto, al più, si rilegge la trascrizione di una chat per il suo rapporto (0.85.1). */
@@ -724,6 +730,30 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
       return { unito: false, motivo: 'l’unione di prova ha superato il tempo massimo: chiusa, la cartella è stata ripulita', ritenta: 'scaduta' }
     } finally {
       if (timer !== undefined) clearTimeout(timer)
+      proveInCorso.delete(chiaveProva(a.cwd))
+      fine()
+    }
+  }
+
+  /**
+   * 11/11: il ramo principale di qui raggiunge quello del remoto (`riallineaAsincrono`). Il remoto si
+   * chiede fuori da ogni turno (rete assente o lenta non ferma le unioni); il resto gira come una prova:
+   * mai insieme a un'unione di prova nella stessa cartella, e nel turno delle unioni del PC.
+   */
+  const riallineaPrincipale = async (a: Autopilota): Promise<EsitoRiallineo> => {
+    const git = deps.git
+    if (git === undefined || a.ramoBase === undefined) return { esito: 'senza-remoto' }
+    const base = a.ramoBase
+    const preso = await prendiDalRemotoAsincrono(gitA(git), { cwd: a.cwd, base }, { ...(deps.remotoTempoMs !== undefined ? { tempoMs: deps.remotoTempoMs } : {}) })
+    if (preso.esito !== 'preso') return preso
+    await aspettaProve(a.cwd)
+    let fine = (): void => {}
+    proveInCorso.set(chiaveProva(a.cwd), new Promise<void>((r) => { fine = r }))
+    try {
+      return await (deps.turni ?? TURNI_PC).unione(a.cwd, () => riallineaAsincrono(gitA(git), { cwd: a.cwd, base }))
+    } catch (err) {
+      return { esito: 'occupata', perche: err instanceof Error ? err.message : String(err) }
+    } finally {
       proveInCorso.delete(chiaveProva(a.cwd))
       fine()
     }
@@ -1459,6 +1489,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     limitiPiano: () => statoProgramma?.limiti,
     chatAlLavoroSulPc: () => alLavoroSulPc(),
     provaNelPrincipale,
+    riallinea: riallineaPrincipale,
     memoriaCriteri,
     ricordaContesto,
     ultimoSegnale: (id, chat) => ultimoSegnale(chiaveTurno(id, chat)),
@@ -1487,6 +1518,8 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
     riprendiLavori,
     riportaInCoda,
     migraVecchi: () => servizio().migraVecchi(),
-    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella)
+    agentiAlLavoro: (cartella: string) => servizio().agentiAlLavoro(cartella),
+    copieVive: (cartella: string) => servizio().copieVive(cartella),
+    ramiCitati: (cartella: string) => servizio().ramiCitati(cartella)
   })
 }

@@ -207,6 +207,25 @@ export function decidiRamo(ramo: string, p: { corrente?: string; inUso: Set<stri
   return { ramo, togli: true, perche: 'già unito' }
 }
 
+/** I rami che la CLI dà ai suoi subagenti: `worktree-agent-<id>`, con la copia in `.claude/worktrees/agent-<id>`. */
+export const PREFISSO_RAMO_AGENTE = 'worktree-agent-'
+
+/**
+ * Si toglie il ramo di uno specialista (11/11)? Pura. **Solo se è già unito**: mai uno con commit
+ * che il principale non ha, mai il ramo corrente, mai uno aperto in una copia, mai quello di uno
+ * specialista al lavoro, mai uno citato da un compito ancora aperto (lo chiude il cancello).
+ */
+export function decidiRamoAgente(ramo: string, p: { corrente?: string; inUso: ReadonlySet<string>; vive: ReadonlySet<string>; citati: ReadonlySet<string>; unito: boolean }): DecisioneRamo {
+  const tieni = (perche: string): DecisioneRamo => ({ ramo, togli: false, perche })
+  if (!ramo.startsWith(PREFISSO_RAMO_AGENTE)) return tieni('non è il ramo di uno specialista')
+  if (ramo === p.corrente) return tieni('ramo corrente')
+  if (p.inUso.has(ramo)) return tieni('aperto in una copia')
+  if (p.vive.has(`agent-${ramo.slice(PREFISSO_RAMO_AGENTE.length)}`)) return tieni('specialista al lavoro')
+  if (p.citati.has(ramo)) return tieni('citato da un compito aperto')
+  if (!p.unito) return tieni('commit non uniti')
+  return { ramo, togli: true, perche: 'già unito' }
+}
+
 /**
  * Le righe più nuove di un file a righe, entro `tetto` byte. Pura. Si tagliano
  * solo righe intere: la prima riga tenuta comincia dopo un a-capo.
@@ -406,6 +425,18 @@ export type OpzioniAutopulizia = {
    * allora non se ne tocca nessuna. Assente: quelle copie non si guardano.
    */
   agentiAlLavoro?: (radice: string) => boolean
+  /**
+   * 11/11: le copie (`agent-<id>`) degli specialisti al lavoro adesso in quella cartella. Con questa si
+   * saltano solo quelle: prima bastava un turno o uno specialista al lavoro perché non se ne guardasse
+   * nessuna, e in un workspace sempre attivo le copie finite restavano per giorni. `undefined`: non si
+   * sa (il servizio non è pronto), e allora nessuna si tocca.
+   */
+  copieVive?: (radice: string) => ReadonlySet<string> | undefined
+  /**
+   * 11/11: i rami degli specialisti citati da compiti ancora aperti (o in fila per l'unione): non si
+   * tolgono. `undefined` o assente: non si sa, e allora nessun ramo `worktree-agent-*` si toglie.
+   */
+  ramiCitati?: (radice: string) => ReadonlySet<string> | undefined
   ora?: () => number
 }
 
@@ -709,14 +740,22 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
   // 1. Le copie: quelle del programma e (0.89.0) quelle degli specialisti, con le stesse regole
   // (pulita, già in main, non giovane, nessuna chat lì), più: nessuno specialista al lavoro adesso.
   const cartelleAgenti = join(radice, '.claude', 'worktrees')
-  const conAgenti = o.agentiAlLavoro !== undefined && existsSync(cartelleAgenti) && !o.agentiAlLavoro(radice)
+  // 11/11: le copie degli specialisti al lavoro adesso. Con `copieVive` solo quelle; senza, tutto o niente come prima.
+  const viveAdesso = (): ReadonlySet<string> | undefined => {
+    if (o.copieVive !== undefined) return o.copieVive(radice)
+    return o.agentiAlLavoro !== undefined && !o.agentiAlLavoro(radice) ? new Set<string>() : undefined
+  }
+  const conAgenti = existsSync(cartelleAgenti) && viveAdesso() !== undefined
   const voci: Array<{ n: string; dentro: string }> = []
   for (const dentro of conAgenti ? [cartellaCopie, cartelleAgenti] : [cartellaCopie]) {
     try { for (const n of existsSync(dentro) ? await readdir(dentro) : []) voci.push({ n, dentro }) } catch { /* illeggibile: niente */ }
   }
   for (const { n, dentro } of voci) {
     // Uno specialista partito durante il giro: si riguarda prima di ogni copia.
-    if (dentro === cartelleAgenti && o.agentiAlLavoro?.(radice) !== false) { e.tenute.push({ cosa: n, perche: 'specialisti al lavoro' }); continue }
+    if (dentro === cartelleAgenti) {
+      const vive = viveAdesso()
+      if (vive === undefined || vive.has(n)) { e.tenute.push({ cosa: n, perche: 'specialisti al lavoro' }); continue }
+    }
     const cartella = join(dentro, n)
     try { if ((await lstat(cartella)).isSymbolicLink() || !statSync(cartella).isDirectory()) continue } catch { continue }
     const cartellaVera = percorsoVero(cartella)
@@ -808,6 +847,28 @@ async function pulisciProgetto(o: OpzioniAutopulizia, radice: string, autopiloti
     const r = await git(['branch', '-D', ramo], radice)
     if (r.codice === 0) e.ramiTolti += 1
     else e.errori.push(`${ramo}: ${r.uscita.slice(0, 120)}`)
+  }
+
+  // 2b. 11/11: i rami degli specialisti (`worktree-agent-*`). L'11/11 ce n'erano 63 già uniti e mai tolti
+  // («tolte N copie, 0 rami» a ogni giro): qui si toglievano solo gli `ap/*`. Solo quelli **già uniti**, e con
+  // `branch -d`, mai `-D`: se git non lo dà per unito il ramo resta. Uno con commit che il principale non ha
+  // non si tocca mai (lo dice all'autopilota il servizio). Senza sapere quali rami servono ancora, nessuno.
+  const citati = o.ramiCitati?.(radice)
+  if (citati === undefined) return
+  const ramiAgenti = await git(['for-each-ref', '--format=%(refname:short)', `refs/heads/${PREFISSO_RAMO_AGENTE}*`], radice)
+  if (ramiAgenti.codice !== 0) return
+  for (const ramo of ramiAgenti.uscita.split(/\r?\n/).map((x) => x.trim()).filter((x) => x.startsWith(PREFISSO_RAMO_AGENTE))) {
+    // Chi lavora e cosa serve si rilegge per ogni ramo: uno specialista può partire durante il giro.
+    const vive = viveAdesso()
+    const servono = o.ramiCitati?.(radice)
+    if (vive === undefined || servono === undefined) return
+    const p = { ...(corrente !== undefined ? { corrente } : {}), inUso, vive, citati: servono }
+    if (!decidiRamoAgente(ramo, { ...p, unito: true }).togli) continue
+    const d = decidiRamoAgente(ramo, { ...p, unito: await unito(ramo) })
+    if (!d.togli) continue
+    const r = await git(['branch', '-d', ramo], radice)
+    if (r.codice === 0) e.ramiTolti += 1
+    else e.tenute.push({ cosa: ramo, perche: 'git non lo dà per unito' })
   }
 }
 

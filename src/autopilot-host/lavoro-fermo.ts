@@ -33,8 +33,9 @@ const corto = (t: string, n: number): string => {
  */
 export function lavoroFermo(p: { coda: Coda; piano: Piano; alLavoro: ReadonlySet<string>; inUnione?: ReadonlySet<string> }): LavoroFermo | undefined {
   const aperte = new Set(p.coda.richieste.filter((r) => r.stato !== 'fatta').map((r) => r.id))
-  const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta))
-  const verde = new Set(p.piano.compiti.filter((c) => c.stato === 'unito' && c.criterioVerde === true).map((c) => c.id))
+  // 11/11: un compito chiuso senza unirlo non è fermo, e chi veniva dopo di lui non lo aspetta.
+  const compiti = p.piano.compiti.filter((c) => aperte.has(c.richiesta) && c.chiuso === undefined)
+  const verde = new Set(p.piano.compiti.filter((c) => (c.stato === 'unito' && c.criterioVerde === true) || c.chiuso !== undefined).map((c) => c.id))
   const firma: string[] = []
   const righe: string[] = []
   for (const c of compiti) {
