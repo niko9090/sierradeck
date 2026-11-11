@@ -19,7 +19,10 @@ import { DOMANDA_MAX, domandaControllataSubito, domandaPerRegistro, noteSulTesto
 import type { ArchivioCode } from './coda-store'
 import { migraAutopiloti, misuraDaAutopiloti } from './coda-autopiloti'
 import { soloInChat, type ContestoDomanda, type RegistroDomande } from './domande'
-import { chiusaDopoLaDomanda, devePassareAlleDomande, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scelteDaToccare, scelteProposte } from './domande-in-chat'
+import {
+  chiusaDopoLaDomanda, devePassareAlleDomande, domandaRischiosa, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, scadenzaDomanda,
+  scelteDaToccare, scelteProposte, seNonRispondi
+} from './domande-in-chat'
 import { aperteSulloStesso, risoltaDalloStato } from './domande-doppie'
 import { dimenticaIRossi, improntaCodiceAsincrona, misuraCriteri, type MemoriaCriteri } from './criteri-veloci'
 import { criteriPerLaProva } from './criteri-prova'
@@ -1178,15 +1181,20 @@ ${NOTA_SENZA_GIT}`,
    * nel conteggio e nelle notifiche passa dopo (`emergiDomande`). Dall'11/11 i
    * permessi non passano più di qui: li decide il programma.
    */
-  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string } = {}): ReturnType<RegistroDomande['apri']> => {
+  const apriDomanda = (a: Autopilota, ws: string, domanda: string, scelte: string[], perche: string, opz: { inChat?: boolean; richiestaId?: string; rischiosa?: boolean } = {}): { id: string; rischiosa: boolean; conScelte: boolean } => {
     // 0.89.4: «cosa sta facendo» dice il lavoro vero, non «coordino gli specialisti».
     const inLavoro = coda(ws).richieste.filter((r) => r.stato !== 'fatta' && r.compiti.length > 0).map((r) => r.titolo)
+    const proposte = scelteProposte(scelte)
+    // 11/11: la scadenza dipende dal rischio. Rischiosa se lo dice l'autopilota o lo dicono le parole
+    // (della domanda e delle scelte, non del perché: lì si racconta, e ogni racconto ha un «fermo»).
+    const rischiosa = opz.rischiosa === true || domandaRischiosa([domanda, ...scelte].join(' '))
     const controllata = domandaControllataSubito(a.nome, {
       staFacendo: inLavoro.length > 0 ? `lavora a: ${inLavoro.slice(0, 2).map((t) => `«${t.slice(0, 80)}»`).join(', ')}${inLavoro.length > 2 ? ` e altre ${inLavoro.length - 2}` : ''}` : 'aspetta la tua decisione per andare avanti',
       domanda,
       perche,
-      scelte: scelteProposte(scelte),
-      seNonRispondi: 'intanto porto avanti il resto; fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa'
+      scelte: proposte,
+      // Prima, per tutte: «fra un giorno la domanda si chiude e decido io con la scelta consigliata, se non è rischiosa».
+      seNonRispondi: seNonRispondi({ rischiosa, ...(proposte[0] !== undefined ? { consigliata: proposte[0].scelta } : {}) })
     })
     // 11/11: l'avvertenza «⚠ Domanda incompleta anche dopo la riscrittura» arriva a Nicholas solo se il
     // testo non va ancora dopo che è tornato indietro una volta (`chiedi`). Le scelte senza conseguenza
@@ -1195,7 +1203,7 @@ ${NOTA_SENZA_GIT}`,
       ? controllata
       : { testo: testoDomanda(a.nome, controllata.parti), opzioni: controllata.opzioni, parti: controllata.parti }
     const d = x.domande.apri({ autopilotaId: a.id, testo: pronta.testo, scadenzaMs: x.scadenzaDomandaMs, ...domandaPerRegistro(pronta), ...(opz.inChat === true ? { inChat: true } : {}) })
-    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
+    x.ricordaContesto(d.id, { autopilotaId: a.id, testo: pronta.testo, grezza: domanda, rischiosa, ...(opz.richiestaId !== undefined ? { richiestaId: opz.richiestaId } : {}) })
     x.orchestratori.cambiaImpostazioni(ws, (i) => ({ ...i, domande: [...(i.domande ?? []), x.adesso()].slice(-20) }))
     if (opz.inChat === true) {
       // Nella chat: il testo intero con le scelte, e i tasti da toccare (sul PC). Si risponde anche scrivendo.
@@ -1205,7 +1213,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     } else {
       void x.avvisa('domanda', a, domanda)
     }
-    return d
+    return { id: d.id, rischiosa, conScelte: proposte.length > 0 }
   }
 
   /** 0.96.0: l'ultima volta che la chat di ogni workspace è stata davanti a Nicholas (ms). */
@@ -1249,7 +1257,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       console.info(`[orchestratore] ${ws} — permesso negato dal programma: ${strumento}, ${da.motivo}`)
       return { consenti: false, motivo: `${strumento}: ${da.motivo}` }
     },
-    chiedi(ws, domanda, scelte, perche, richiesta) {
+    chiedi(ws, domanda, scelte, perche, richiesta, opz) {
       const a = unicoDi(ws)
       if (a === undefined) return { ok: false, motivo: 'l’autopilota unico non c’è' }
       const aperte = x.domande.aperte(a.id).map((d) => ({ ...d, testo: d.parti?.domanda ?? d.testo }))
@@ -1267,8 +1275,14 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       }
       testoRimandato.delete(ws)
       const richiestaId =richiestaDellaDomanda(coda(ws), richiesta, domanda)
-      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}) })
-      return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto.` }
+      const d = apriDomanda(a, ws, domanda, scelte, perche ?? 'è una decisione che spetta a te', { inChat: true, ...(richiestaId !== undefined ? { richiestaId } : {}), ...(opz?.rischiosa === true ? { rischiosa: true } : {}) })
+      // 11/11: l'autopilota sa subito cosa succede senza risposta.
+      const poi = d.rischiosa
+        ? 'È una cosa sua: resta aperta finché non risponde, non decidere al posto suo.'
+        : d.conScelte
+          ? 'Non è rischiosa: se non risponde entro un’ora il programma sceglie la consigliata (la prima scelta), glielo scrive e te lo dice.'
+          : 'Non è rischiosa: se non risponde entro un’ora il programma la chiude e decidi tu la strada più prudente.'
+      return { ok: true, testo: `Domanda aperta per Nicholas (${d.id}): la risposta ti arriva come suo messaggio. Intanto vai avanti con il resto. ${poi}` }
     },
     ritira(ws, id, perche) {
       const a = unicoDi(ws)
@@ -1421,7 +1435,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     ricalcola(ws, `richiesta nuova: «${testo.replace(/\s+/gu, ' ').slice(0, 60)}»`)
     // k-44: se Nicholas scrive nel dialogo, le domande rimaste aperte prima del suo messaggio sono superate
     // (ha parlato lui): spariscono dalle Domande e l'autopilota lo legge qui.
-    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
+    // 11/11: non per un messaggio del programma, e mai per una domanda segnata «mai da sola».
+    const chiuse = opz.daProgramma === true ? [] : x.domande.aperte(a.id).filter((d) => d.contesto?.maiDaSola !== true && d.apertaIl <= Date.parse(quando) && x.domande.superata(d.id, 'Nicholas ha scritto nel dialogo dopo la domanda'))
     const nota = chiuse.length > 0
       ? ` [Il programma ha chiuso ${chiuse.length === 1 ? 'una tua domanda aperta' : `${chiuse.length} tue domande aperte`}, perché hai scritto nel dialogo dopo: ${chiuse.map((d) => `«${(d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 120)}»`).join(', ')}. Se serve ancora la risposta, rifalla.]`
       : ''
@@ -1457,17 +1472,17 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     evento(wsDi(a), { tipo: 'domanda', quando: x.adesso(), chat: chatId, testo })
   }
 
-  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
-    const a = x.archivio.leggi(autopilotaId)
-    if (a === undefined || !eUnico(a)) return false
-    const ws = wsDi(a)
-    const quando = x.adesso()
-    // k-64: la risposta entra nella coda (punto, richiesta riaperta o nuova), così piano_scrivi ha una richiesta aperta.
+  /**
+   * k-64: la risposta entra nella coda (punto, richiesta riaperta o nuova), così piano_scrivi ha una
+   * richiesta aperta. Torna la nota per l'autopilota. `chi: 'programma'` (11/11): la scelta l'ha fatta
+   * il programma alla scadenza di una domanda non rischiosa.
+   */
+  const rispostaNellaCoda = (ws: string, p: { domanda: string; risposta: string; quando: string; richiestaId?: string; chi?: 'programma' }): string => {
     let nota = ''
     try {
       let esito: ReturnType<typeof rispostaInCoda> | undefined
       x.code.cambia(ws, (c) => {
-        esito = rispostaInCoda(c, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
+        esito = rispostaInCoda(c, { domanda: p.domanda, risposta: p.risposta, quando: p.quando, ...(p.richiestaId !== undefined ? { richiestaId: p.richiestaId } : {}), ...(p.chi !== undefined ? { chi: p.chi } : {}) })
         return { coda: esito.coda, eventi: [] }
       })
       if (esito !== undefined && esito.richiesta !== undefined && esito.esito !== 'niente' && esito.esito !== 'nota') {
@@ -1476,12 +1491,35 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           : esito.esito === 'riaperta'
             ? ` [La richiesta ${esito.richiesta} era chiusa: l'ho riaperta con la risposta (${esito.punto}). piano_scrivi la accetta.]`
             : ` [Ho aperto la richiesta ${esito.richiesta} con la domanda e la risposta: piano_scrivi la accetta, parti subito.]`
-        ricalcola(ws, `la risposta di Nicholas è lavoro (${esito.richiesta})`)
+        ricalcola(ws, p.chi === 'programma' ? `la scelta consigliata è lavoro (${esito.richiesta})` : `la risposta di Nicholas è lavoro (${esito.richiesta})`)
       } else if (esito?.esito === 'nota') nota = ' [Nessun lavoro: non creo nessuna richiesta.]'
     } catch (err) { console.error('[orchestratore] risposta non registrata nella coda:', err) }
+    return nota
+  }
+
+  const risposta = (autopilotaId: string, domanda: string, testo: string, richiestaId?: string): boolean => {
+    const a = x.archivio.leggi(autopilotaId)
+    if (a === undefined || !eUnico(a)) return false
+    const ws = wsDi(a)
+    const quando = x.adesso()
+    const nota = rispostaNellaCoda(ws, { domanda, risposta: testo, quando, ...(richiestaId !== undefined ? { richiestaId } : {}) })
     x.orchestratori.aggiungiDialogo(ws, { quando, da: 'tu', testo: `Hai risposto a «${domanda.slice(0, 200)}»: ${testo}` })
     orchestratore.messaggio(ws, { quando, testo: `Risposta alla tua domanda «${domanda.replace(/\s+/gu, ' ').slice(0, 300)}»: ${testo}${nota}` })
     return true
+  }
+
+  /**
+   * 11/11: un'ora senza risposta a una domanda **non rischiosa**. Il programma sceglie la consigliata,
+   * lo scrive a Nicholas in una riga e passa la scelta all'autopilota come fa `risposta`, ma senza
+   * dire che ha risposto lui: arriva come evento, non come suo messaggio.
+   */
+  const sceltaDalProgramma = (a: Autopilota, d: { contesto?: ContestoDomanda; parti?: { domanda: string }; testo: string }, scelta: string): void => {
+    const ws = wsDi(a)
+    const quando = x.adesso()
+    const domanda = (d.contesto?.grezza ?? d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').trim()
+    const nota = rispostaNellaCoda(ws, { domanda, risposta: scelta, quando, chi: 'programma', ...(d.contesto?.richiestaId !== undefined ? { richiestaId: d.contesto.richiestaId } : {}) })
+    nelDialogo(ws, { quando, da: 'lui', testo: `Non hai risposto a «${domanda.slice(0, 200)}»: ho scelto «${scelta}», la scelta consigliata. Se non va bene scrivimelo e cambio strada.` })
+    evento(ws, { tipo: 'domanda-scaduta', quando, testo: `Nessuna risposta in un’ora a «${domanda.slice(0, 300)}». Non era rischiosa: il programma ha scelto la consigliata, «${scelta}», e l’ha già scritto a Nicholas. Vai avanti con quella, senza rifare la domanda.${nota}` })
   }
 
   /**
@@ -1534,6 +1572,11 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
    * 0.89.4: una domanda dell'autopilota senza risposta da un giorno è superata
    * (sul PC di sviluppo ce n'era una del 31/10 sulla 0.88.6, ancora aperta il
    * 02/11). Si chiude, e l'autopilota decide con la consigliata o la rifà.
+   *
+   * 11/11: un giorno era troppo per una scelta che non rischia niente, e «decido
+   * io» era sbagliato per una che spetta a Nicholas. Ora: rischiosa (o «mai da
+   * sola») resta aperta; non rischiosa, dopo un'ora sceglie il programma la
+   * consigliata e glielo scrive; le altre, un giorno come prima.
    */
   const chiudiDomandeVecchie = (ora: number): void => {
     // 0.92.1: le domande di un autopilota che non c'è più (archiviato, o di prima dell'autopilota unico).
@@ -1562,6 +1605,8 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
       // ritira l'autopilota con ritira_domanda, o la chiusura della richiesta da cui nasce (qui sotto).
       const c = coda(wsDi(a))
       for (const d of x.domande.aperte(a.id)) {
+        // 11/11: una domanda che il programma apre «mai da sola» non si chiude e non si decide da sé, in nessun modo.
+        if (d.contesto?.maiDaSola === true) continue
         // 0.96.0: la richiesta da cui nasce è chiusa o unita: la domanda non serve più.
         // 11/11: solo se la chiusura è arrivata dopo la domanda (mai per una richiesta già chiusa quando è nata).
         const rid = d.contesto?.richiestaId
@@ -1570,9 +1615,19 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
           console.info(`[orchestratore] ${wsDi(a)} — domanda superata dalla richiesta ${rid} (${chiusa.come ?? 'chiusa'}), chiusa: ${(d.parti?.domanda ?? d.testo).slice(0, 120)}`)
           continue
         }
-        if (ora - d.apertaIl < DOMANDA_VECCHIA_MS) continue
-        if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
+        // 11/11: la scadenza dipende dal rischio (`scadenzaDomanda`). Rischiosa o «mai da sola»: resta.
+        // Non rischiosa: dopo un'ora sceglie il programma. Le altre (di prima, o il consenso a cancellare): un giorno, com'era.
+        const s = scadenzaDomanda(d, ora, DOMANDA_VECCHIA_MS)
+        if (s.cosa === 'resta') continue
         const testo = (d.parti?.domanda ?? d.testo).replace(/\s+/gu, ' ').slice(0, 300)
+        if (s.cosa === 'decide') {
+          if (!x.domande.superata(d.id, s.scelta !== undefined ? `nessuna risposta in un’ora: scelta la consigliata, «${s.scelta}»` : 'nessuna risposta in un’ora: decide l’autopilota, con la strada più prudente')) continue
+          console.info(`[orchestratore] ${wsDi(a)} — domanda non rischiosa senza risposta da un’ora: ${s.scelta !== undefined ? `scelta la consigliata «${s.scelta}»` : 'decide l’autopilota'}: ${testo.slice(0, 120)}`)
+          if (s.scelta !== undefined) sceltaDalProgramma(a, d, s.scelta)
+          else evento(wsDi(a), { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `Nessuna risposta in un’ora a «${testo}»: l’ho chiusa. Non era rischiosa: decidi tu la strada più prudente, scrivila a Nicholas in una riga e vai avanti, senza rifare la domanda.` })
+          continue
+        }
+        if (!x.domande.superata(d.id, 'nessuna risposta in un giorno: l’autopilota decide con la scelta consigliata, o la rifà aggiornata')) continue
         console.info(`[orchestratore] ${wsDi(a)} — domanda senza risposta da un giorno, chiusa: ${testo.slice(0, 120)}`)
         evento(wsDi(a), { tipo: 'domanda-scaduta', quando: x.adesso(), testo: `La tua domanda «${testo}» è rimasta senza risposta per un giorno: l’ho chiusa. Se serve ancora, vai avanti con la scelta consigliata quando non è rischiosa (e dillo), altrimenti rifalla aggiornata con chiedi_utente.` })
       }

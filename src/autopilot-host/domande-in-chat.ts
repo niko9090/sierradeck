@@ -118,6 +118,77 @@ export function chiusaDopoLaDomanda(chiusura: { il?: string }, apertaIl: number)
   return Number.isNaN(t) || t >= apertaIl
 }
 
+// ── La scadenza di una domanda (11/11) ──
+
+/**
+ * Dopo quanto una domanda **non rischiosa** senza risposta la decide il
+ * programma, con la scelta consigliata. Prima era un giorno per tutte, con la
+ * frase «fra un giorno… decido io»: troppo per una scelta che non rischia
+ * niente, e sbagliato per una che spetta solo a Nicholas.
+ */
+export const DOMANDA_DECIDO_IO_MS = 60 * 60_000
+
+const INIZIO_PAROLA = '(?<![\\p{L}])'
+const FINE_PAROLA = '(?![\\p{L}])'
+/**
+ * Le parole che fanno una domanda **rischiosa**: cose di Nicholas che non si
+ * rimettono a posto (cancellare, account, soldi, dati), cose che restano sue
+ * per regola (installare, pubblicare, spegnere o fermare qualcosa di suo), e
+ * i fatti che sa solo lui («eri sul wifi di casa?»). Nel dubbio è rischiosa:
+ * resta aperta, e nessuno decide al posto suo.
+ */
+const PAROLE_DI_RISCHIO = new RegExp([
+  // cancellare, togliere, perdere
+  'cancell', 'elimin', 'rimuov', 'rimoz', 'svuot', 'disinstall', 'formatt', 'sovrascriv', 'togli', `tolg[oa]${FINE_PAROLA}`, `tolt[oaie]${FINE_PAROLA}`, `butt(?:o|a|i|are|arl[oaie])${FINE_PAROLA}`, `perd(?:o|i|e|ere|ita)${FINE_PAROLA}`,
+  // account e accessi
+  'account', 'password', 'credenzial', `chiav[ei]${FINE_PAROLA}`, `token${FINE_PAROLA}`, `login${FINE_PAROLA}`,
+  // soldi
+  'pagament', `pag(?:o|a|hi|are|ato|ata)${FINE_PAROLA}`, `cost(?:o|a|i|ano)${FINE_PAROLA}`, 'soldi', '€', `euro${FINE_PAROLA}`, 'abbonament', 'acquist', `compr(?:o|a|i|are)${FINE_PAROLA}`, 'prezz',
+  // dati suoi
+  `drive${FINE_PAROLA}`, 'dati personali', 'i tuoi dati', 'backup', 'privat',
+  // spegnere e fermare cose sue
+  'spegn', `spent[oaie]${FINE_PAROLA}`, `ferm(?:o|a|i|are|arl[oaie]|iamo)${FINE_PAROLA}`, 'chiud', 'sospend', 'riavvi',
+  // installare e pubblicare
+  'install', 'pubblic', 'rilasc', `release${FINE_PAROLA}`,
+  // un fatto che sa solo lui, non una scelta
+  `(?:eri|eravate|avevi)${FINE_PAROLA}`, `hai (?:visto|fatto|provato|usato|ricevuto|notato)${FINE_PAROLA}`, `ti (?:risulta|compare|appare|è arrivat[oa])${FINE_PAROLA}`
+].map((p) => `${INIZIO_PAROLA}${p}`).join('|'), 'iu')
+
+/** La domanda (frase, scelte e conseguenze) tocca qualcosa che resta di Nicholas? */
+export function domandaRischiosa(testo: string): boolean {
+  return PAROLE_DI_RISCHIO.test(testo.replace(/\s+/gu, ' '))
+}
+
+const traQuanto = (ms: number): string => (ms === 60 * 60_000 ? 'un’ora' : `${Math.max(1, Math.round(ms / 60_000))} minuti`)
+
+/** «Se non rispondi», nei due casi: resta lì (rischiosa), o scelgo io la consigliata dopo un'ora. */
+export function seNonRispondi(p: { rischiosa: boolean; consigliata?: string }): string {
+  if (p.rischiosa) return 'non decido io al posto tuo: la domanda resta qui finché non rispondi, e intanto porto avanti il resto'
+  return p.consigliata !== undefined && p.consigliata !== ''
+    ? `intanto porto avanti il resto; se entro ${traQuanto(DOMANDA_DECIDO_IO_MS)} non rispondi scelgo io «${p.consigliata}» e te lo scrivo`
+    : `intanto porto avanti il resto; se entro ${traQuanto(DOMANDA_DECIDO_IO_MS)} non rispondi decido io la strada più prudente e te lo scrivo`
+}
+
+/**
+ * Cosa fa la scadenza con una domanda aperta, adesso.
+ * - `resta`: rischiosa, o segnata «mai da sola», o non è ancora il momento;
+ * - `decide`: non rischiosa e ferma da un'ora: la consigliata, se c'è;
+ * - `chiude`: di prima dell'11/11 o non aperta dall'autopilota, ferma da un
+ *   giorno: si chiude senza decidere niente (com'era).
+ */
+export function scadenzaDomanda(
+  d: Pick<DomandaAperta, 'apertaIl' | 'contesto' | 'parti'>, ora: number, giornoMs: number
+): { cosa: 'resta' } | { cosa: 'decide'; scelta?: string } | { cosa: 'chiude' } {
+  const c = d.contesto
+  if (c?.maiDaSola === true || c?.rischiosa === true) return { cosa: 'resta' }
+  if (c?.rischiosa === false) {
+    if (ora - d.apertaIl < DOMANDA_DECIDO_IO_MS) return { cosa: 'resta' }
+    const scelta = d.parti?.scelte.find((s) => s.consigliata === true && s.libera !== true)?.scelta
+    return scelta !== undefined && scelta !== '' ? { cosa: 'decide', scelta } : { cosa: 'decide' }
+  }
+  return ora - d.apertaIl < giornoMs ? { cosa: 'resta' } : { cosa: 'chiude' }
+}
+
 // ── La risposta di Nicholas diventa lavoro (k-64) ──
 
 /**
@@ -147,11 +218,17 @@ export type EsitoRispostaInCoda = {
  * - già fatta, nello storico o senza richiesta: richiesta nuova (domanda + risposta; se la vecchia è fatta, la «segue»);
  * - solo un «no»: nessun lavoro, nessuna richiesta (la nota resta nel dialogo).
  * La stessa risposta che arriva due volte non si ripete.
+ *
+ * `chi: 'programma'` (11/11): Nicholas non ha risposto e il programma ha scelto
+ * la consigliata di una domanda non rischiosa. Entra in coda allo stesso modo,
+ * ma il testo non dice che ha risposto lui.
  */
-export function rispostaInCoda(coda: Coda, p: { domanda: string; risposta: string; richiestaId?: string; quando: string }): EsitoRispostaInCoda {
+export function rispostaInCoda(coda: Coda, p: { domanda: string; risposta: string; richiestaId?: string; quando: string; chi?: 'programma' }): EsitoRispostaInCoda {
   const domanda = p.domanda.replace(/\s+/gu, ' ').trim()
   const risposta = p.risposta.trim()
-  const testo = `Risposta di Nicholas a «${domanda.slice(0, 300)}»: ${risposta}`
+  const testo = p.chi === 'programma'
+    ? `Scelta consigliata, presa dal programma senza risposta di Nicholas, a «${domanda.slice(0, 300)}»: ${risposta}`
+    : `Risposta di Nicholas a «${domanda.slice(0, 300)}»: ${risposta}`
   const id = p.richiestaId
   const viva = id === undefined ? undefined : (coda.richieste.find((r) => r.id === id) ?? coda.richieste.find((r) => r.unioni.some((u) => u.fonti.includes(id))))
   const gia = coda.richieste.find((r) => r.chiusa === undefined && r.stato !== 'fatta' && r.punti.some((x) => x.testo === testo) || r.originali.some((o) => o.testo === testo))

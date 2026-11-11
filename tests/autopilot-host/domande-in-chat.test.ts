@@ -10,7 +10,7 @@ import { apriCode, type ArchivioCode } from '../../src/autopilot-host/coda-store
 import { apriOrchestratori, type ArchivioOrchestratori } from '../../src/autopilot-host/orchestratore-store'
 import type { AvviaProcesso, ProcessoClaude } from '../../src/autopilot-host/orchestratore'
 import {
-  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, richiestaChiusa, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
+  chiusaDopoLaDomanda, devePassareAlleDomande, DOMANDA_DECIDO_IO_MS, DOMANDA_IN_CHAT_MS, DOMANDA_VISTA_SENZA_RISPOSTA_MS, domandaRischiosa, richiestaChiusa, scadenzaDomanda, seNonRispondi, richiestaDellaDomanda, rispostaInCoda, rispostaScritta, rispostaSenzaLavoro, scelteDaToccare, scelteProposte
 } from '../../src/autopilot-host/domande-in-chat'
 import { leggiStatoProgramma } from '../../src/autopilot-host/stato-programma'
 import { nuovoAutopilota, type Autopilota } from '@shared/autopilota'
@@ -106,6 +106,63 @@ describe('la richiesta da cui nasce una domanda (puro)', () => {
     expect(richiestaChiusa(codaCon([unita]), 'r-1')).toMatchObject({ chiusa: true, come: 'unita a r-2, fatta' })
     const apertaUnita = richiesta('r-2', { unioni: [{ il: 'a', fonti: ['r-1', 'r-2'], perche: 'x' }] })
     expect(richiestaChiusa(codaCon([apertaUnita]), 'r-1')).toEqual({ chiusa: false })
+  })
+})
+
+// 11/11: «un giorno di attesa è troppo se la scelta consigliata non è rischiosa», e «decido io» è
+// sbagliato per una cosa che spetta a Nicholas. Le frasi sono domande vere dal 06 all'11/11.
+describe('11/11: la scadenza dipende dal rischio (puro)', () => {
+  it('rischiosa: cancellare, spegnere, dati sul Drive, pubblicare, installare, soldi, e i fatti che sa solo lui', () => {
+    for (const t of [
+      'Con il Drive pieno, le chat vecchie le cancello subito dal Drive, oppure le tengo nel recupero di 30 giorni?',
+      'La macchina virtuale di Linux occupa 15 GB di memoria. Posso spegnerla?',
+      'Linux non ripartiva da solo: lo usa una chat che ci sta lavorando adesso. Lo tolgo lo stesso?',
+      'Le chat sul Drive: le teniamo tutte per sempre o solo quelle recenti?',
+      'Quando il Drive è pieno, SierraDeck può togliere da solo le versioni vecchie dei suoi file?',
+      'Pubblico la versione 2.0.0 adesso?',
+      'Compro il certificato per firmare il programma?',
+      'Quando il telefono non si è collegato, eri sul wifi di casa o fuori?',
+      'Fermo la chat che compila l’altro progetto?'
+    ]) expect(domandaRischiosa(t), t).toBe(true)
+  })
+  it('non rischiosa: una preferenza sul prodotto, che si può sempre cambiare dopo', () => {
+    for (const t of [
+      'Scheda video: faccio disegnare i terminali con la scheda video e aggiungo nella Salute se è attiva? Sì, tutte e due → terminali con la scheda video Solo la Salute → i terminali restano come sono',
+      'Tengo il colore verde per la barra? Sì → verde No → blu',
+      'Che nome do alla nuova sezione del menu?',
+      'Il menu va a sinistra o a destra?',
+      // Parole che somigliano a quelle di rischio ma non lo sono.
+      'Lascio il valore costante nella pagina dei driver?'
+    ]) expect(domandaRischiosa(t), t).toBe(false)
+  })
+  it('«Se non rispondi» dice la verità nei due casi, e non promette più «fra un giorno decido io»', () => {
+    expect(DOMANDA_DECIDO_IO_MS).toBe(60 * MIN)
+    expect(seNonRispondi({ rischiosa: true, consigliata: 'Sì' })).toBe('non decido io al posto tuo: la domanda resta qui finché non rispondi, e intanto porto avanti il resto')
+    expect(seNonRispondi({ rischiosa: false, consigliata: 'Sì, tutte e due' })).toBe('intanto porto avanti il resto; se entro un’ora non rispondi scelgo io «Sì, tutte e due» e te lo scrivo')
+    expect(seNonRispondi({ rischiosa: false })).toBe('intanto porto avanti il resto; se entro un’ora non rispondi decido io la strada più prudente e te lo scrivo')
+  })
+  it('cosa fa la scadenza: resta, decide con la consigliata, o chiude dopo un giorno le domande senza il segno', () => {
+    const GIORNO = 24 * 60 * MIN
+    const parti = { staFacendo: 'a', domanda: 'b?', perche: 'c', seNonRispondi: 'd', scelte: [{ scelta: 'Sì', conseguenza: 'x', consigliata: true }, { scelta: 'No', conseguenza: 'y' }] }
+    const con = (contesto: Record<string, unknown> | undefined, altro: Record<string, unknown> = {}): Parameters<typeof scadenzaDomanda>[0] => ({ apertaIl: INIZIO, parti, ...(contesto !== undefined ? { contesto: { autopilotaId: 'ap-1', testo: 't', ...contesto } } : {}), ...altro })
+    // Rischiosa e «mai da sola»: mai, nemmeno dopo una settimana.
+    expect(scadenzaDomanda(con({ rischiosa: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ maiDaSola: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ rischiosa: false, maiDaSola: true }), INIZIO + 7 * GIORNO, GIORNO)).toEqual({ cosa: 'resta' })
+    // Non rischiosa: un'ora.
+    expect(scadenzaDomanda(con({ rischiosa: false }), INIZIO + 59 * MIN, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con({ rischiosa: false }), INIZIO + 60 * MIN, GIORNO)).toEqual({ cosa: 'decide', scelta: 'Sì' })
+    expect(scadenzaDomanda(con({ rischiosa: false }, { parti: { ...parti, scelte: [] } }), INIZIO + 60 * MIN, GIORNO)).toEqual({ cosa: 'decide' })
+    // Senza il segno (di prima dell'11/11, o il consenso a cancellare): un giorno, e si chiude soltanto.
+    expect(scadenzaDomanda(con(undefined), INIZIO + 2 * 60 * MIN, GIORNO)).toEqual({ cosa: 'resta' })
+    expect(scadenzaDomanda(con(undefined), INIZIO + GIORNO, GIORNO)).toEqual({ cosa: 'chiude' })
+    expect(scadenzaDomanda(con({}), INIZIO + GIORNO, GIORNO)).toEqual({ cosa: 'chiude' })
+  })
+  it('la scelta del programma entra in coda senza dire che ha risposto Nicholas', () => {
+    const base: Coda = { ...codaVuota('Lavoro'), prossimo: { r: 10, p: 20 }, richieste: [richiesta('r-1')] }
+    const e = rispostaInCoda(base, { domanda: 'Tengo il verde?', risposta: 'Sì', richiestaId: 'r-1', quando: '2026-11-06T10:00:00.000Z', chi: 'programma' })
+    expect(e.esito).toBe('punto')
+    expect(e.coda.richieste[0]!.punti[0]!.testo).toBe('Scelta consigliata, presa dal programma senza risposta di Nicholas, a «Tengo il verde?»: Sì')
   })
 })
 

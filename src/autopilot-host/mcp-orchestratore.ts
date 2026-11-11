@@ -122,7 +122,7 @@ export type AmbienteOrchestratore = {
   /** Una richiesta di permesso della CLI: la decide il programma, subito (11/11: mai una domanda a Nicholas). */
   permesso: (ws: string, strumento: string, input: unknown) => Promise<{ consenti: boolean; motivo?: string }>
   /** Apre la domanda (registro, doppioni); il tetto all'ora lo guarda lo strumento. */
-  chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string) => EsitoAmbiente
+  chiedi: (ws: string, domanda: string, scelte: string[], perche?: string, richiesta?: string, opz?: { rischiosa?: boolean }) => EsitoAmbiente
   /** Ritira una propria domanda superata (0.92.1). */
   ritira: (ws: string, id: string, perche: string) => EsitoAmbiente
   /** Le domande partite nell'ultima ora. */
@@ -241,7 +241,8 @@ export const STRUMENTI_ORCHESTRATORE: readonly StrumentoMcp[] = [
         domanda: { type: 'string', description: 'Una domanda sola, breve.' },
         perche: { type: 'string', description: 'Una frase: perché serve la sua decisione e cosa cambia, in parole semplici.' },
         scelte: { type: 'array', items: { type: 'string' }, description: 'Da 2 a 4 risposte possibili, la consigliata per prima. Ognuna «scelta → cosa succede dopo».' },
-        richiesta: { type: 'string', description: 'Facoltativo: la richiesta della coda da cui nasce la domanda (r-N). Quando è fatta o chiusa, la domanda si ritira da sola.' }
+        richiesta: { type: 'string', description: 'Facoltativo: la richiesta della coda da cui nasce la domanda (r-N). Quando è fatta o chiusa, la domanda si ritira da sola.' },
+        rischiosa: { type: 'boolean', description: 'Facoltativo: true se la scelta tocca cose di Nicholas che non si rimettono a posto (cancellare, account, dati personali, soldi, spegnere o fermare cose sue), o se la risposta è un fatto che sa solo lui. Allora la domanda resta aperta finché non risponde. Senza, dopo un’ora il programma sceglie la consigliata (la prima scelta) e glielo scrive.' }
       },
       required: ['domanda', 'perche']
     }
@@ -419,7 +420,8 @@ export async function chiamaStrumento(amb: AmbienteOrchestratore, ws: string, no
       const n = amb.domandeUltimaOra(ws)
       if (n >= DOMANDE_ORA_ORCHESTRATORE) return no(`hai già fatto ${n} domande nell’ultima ora: decidi tu con la scelta più prudente e dillo nel dialogo`)
       const richiesta = str(arg.richiesta)
-      const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined, richiesta !== '' ? richiesta : undefined)
+      // 11/11: `rischiosa` è facoltativo: le parole di rischio le guarda comunque il programma.
+      const e = amb.chiedi(ws, domanda, scelte, perche !== '' ? perche : undefined, richiesta !== '' ? richiesta : undefined, arg.rischiosa === true ? { rischiosa: true } : undefined)
       return e.ok ? si(e.testo) : no(e.motivo)
     }
 
