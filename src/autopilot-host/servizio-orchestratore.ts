@@ -12,6 +12,7 @@ import {
 } from '@shared/piano-orchestratore'
 import { compitoDallaDescrizione, durata, specialistiAlLavoro, type EffettoFlusso, type Specialista, type StatoFlusso } from '@shared/flusso-orchestratore'
 import { RUOLI } from '@shared/ruoli-agenti'
+import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { righeLezioni } from '@shared/lezioni-chat'
 import { esaminaComando, principaleSporca } from '@shared/controllo-comandi'
 import { domandaControllataSubito, domandaPerRegistro } from '@shared/domanda-strutturata'
@@ -56,6 +57,7 @@ import { attesaVuota, cambiaPrecedenzaWorkspace, cambiaPriorita, inFila, parcheg
 import { nomeWorkspace } from '@shared/attesa-vista'
 import { PESO_PREDEFINITO, stimaLista, titoloBreve, type DurataVera, type PesoCompito } from '@shared/stima-specialisti'
 import { rigaUltimaAzione } from '@shared/specialisti'
+import { eErroreDiRete } from '@shared/errori-rete'
 import type { ArchivioAttesa } from './attesa-store'
 import { creaCambi, type Cambi } from '@shared/spinta-specialisti'
 
@@ -72,7 +74,12 @@ export const UNIONE_RIPROVA_MS = 30_000
 export const UNIONE_TENTATIVI_MAX = 3
 /** L'unione non è fallita per colpa del ramo: va riprovata (cartella principale occupata, o tempo massimo superato). */
 class RiprovaUnione extends Error {
-  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string) { super(perche) }
+  constructor(readonly tipo: 'sporca' | 'scaduta', readonly perche: string, readonly file: string[] = []) { super(perche) }
+}
+/** «: a, b, c (+2)» con i file che tengono ferma la fila; vuoto se non si sanno. */
+export function elencoFile(file: string[]): string {
+  if (file.length === 0) return ''
+  return `: ${file.slice(0, 5).join(', ')}${file.length > 5 ? ` (+${file.length - 5})` : ''}`
 }
 /** I ruoli che non scrivono: il loro lavoro non ha un ramo da unire. */
 const RUOLI_SOLA_LETTURA = new Set(['esploratore', 'revisore', 'Explore'])
@@ -361,7 +368,7 @@ export type SceltaDelCompito =
   | { ok: false; motivo: string }
 
 /** L'esito della prova nel principale: `ritenta` dice che non è colpa del ramo e l'unione va rimessa in fila. */
-export type EsitoProvaPrincipale = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta' }
+export type EsitoProvaPrincipale = { unito: true } | { unito: false; motivo: string; ritenta?: 'sporca' | 'scaduta'; file?: string[] }
 
 /**
  * **Lo specialista che porta il lavoro di un compito** (30/10, k-1). Con
@@ -796,7 +803,9 @@ ${NOTA_SENZA_GIT}`,
       nelDialogo(ws, { quando: x.adesso(), da: 'lui', testo })
     },
     errore: (ws, motivo) => {
-      console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
+      // La rete che manca passa da sola e l'orchestratore riprova con calma: un avviso, non un errore.
+      if (eErroreDiRete(motivo)) console.warn(`[orchestratore] ${ws} — turno non riuscito per la rete, riprovo: ${motivo.slice(0, 200)}`)
+      else console.error(`[orchestratore] ${ws} — turno non riuscito: ${motivo}`)
       const u = unicoDi(ws)
       if (u === undefined) return
       x.orchestratori.aggiungiDialogo(ws, { quando: x.adesso(), da: 'evento', testo: `turno non riuscito: ${motivo}` })
@@ -915,7 +924,7 @@ ${NOTA_SENZA_GIT}`,
         if (!sporcoDetto.has(ws)) {
           sporcoDetto.add(ws)
           if (compito !== undefined) cambiaCompito(ws, compito.id, (k) => ({ ...k, esito: 'unione in fila: la cartella principale ha modifiche non salvate che non sono del programma' }))
-          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
+          evento(ws, { tipo: 'unione', quando: x.adesso(), ...(p.specialista !== undefined ? { chat: p.specialista } : {}), testo: `${chi}: unione in attesa, file non salvati nella cartella principale${elencoFile(ancora.file)} (non del programma: non li tocco). Riprovo da sola ogni ${Math.max(1, Math.round(riprova / 1000))}s, nessun riavvio da fare.` })
         }
         await dormi(riprova)
         continue
@@ -1042,7 +1051,7 @@ ${NOTA_SENZA_GIT}`,
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, altro.ramo)
         if (!r.unito) {
-          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = `${r.motivo} (ramo ${altro.ramo} di ${altro.sub.id})`
           break
         }
@@ -1054,7 +1063,7 @@ ${NOTA_SENZA_GIT}`,
         if (scambio.scaduto) return `${nome}: unione scaduta`
         const r = await x.provaNelPrincipale(unicoDi(ws) ?? a, ramo)
         if (!r.unito) {
-          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo)
+          if (r.ritenta !== undefined) throw new RiprovaUnione(r.ritenta, r.motivo, r.file)
           motivo = r.motivo
         }
       }
@@ -1781,7 +1790,7 @@ Rispondi qui sotto, o tocca una scelta.`, domanda: { id: d.id, scelte: scelteDaT
     imposta(ws, p) {
       return x.orchestratori.cambiaImpostazioni(ws, (i) => ({
         ...i,
-        ...(p.modello === 'opus' || p.modello === 'sonnet' ? { modello: p.modello, modelloScelto: true } : {}),
+        ...(modelloAutopilotaAmmesso(p.modello) ? { modello: p.modello, modelloScelto: true } : {}),
         ...(typeof p.tettoSpecialisti === 'number' && Number.isInteger(p.tettoSpecialisti) ? { tettoSpecialisti: Math.min(TETTO_SPECIALISTI_MAX, Math.max(1, p.tettoSpecialisti)) } : {})
       }))
     },

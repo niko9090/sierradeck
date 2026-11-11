@@ -260,7 +260,8 @@ export function componiSalute(i: IngressiSalute): Salute {
   }
 
   // ── La scheda video, per ogni PC che la manda (k-168): informativa, attenzione leggera se spenta ──
-  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined).map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
+  // Come per i consumi: la scheda di un PC senza battito recente è un dato vecchio, non una criticità di adesso.
+  const schede = [...(i.risorse?.gpu !== undefined ? [{ nome: 'Questo PC', chiave: 'qui', gpu: i.risorse.gpu }] : []), ...i.pc.filter((p) => p.risorse?.gpu !== undefined && p.battito !== undefined && i.adesso - Date.parse(p.battito) <= PC_SPENTO_DOPO_MS).map((p) => ({ nome: p.nome, chiave: p.pcId, gpu: (p.risorse as RisorsePc).gpu as GpuPc }))]
   for (const s of schede) {
     voci.push({
       chiave: `gpu:${s.chiave}`, gruppo: 'pc', tono: s.gpu.spenta ? 'attenzione' : 'ok',

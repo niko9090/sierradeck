@@ -374,6 +374,7 @@ declare global {
         altroveDi: (cwds: string[]) => Promise<Record<string, { id: string; nome: string }>>
         daDove: (p: { cwd: string; sessionUuid?: string }) => Promise<import('@shared/apertura-chat').Apertura>
       }
+      modelli: () => Promise<import('@shared/modelli').Modello[]>
       autopilota: {
         /** L'elenco leggero (0.85.2): di decisioni, dialogo e modifiche solo la coda. */
         elenca: () => Promise<Autopilota[]>
@@ -406,7 +407,7 @@ declare global {
         attesaSpecialisti: () => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         prioritaAttesa: (id: string, mossa: import('@shared/attesa-specialisti').MossaAttesa) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
         togliAttesa: (id: string) => Promise<import('@shared/attesa-specialisti').VistaAttesa | undefined>
-        impostaOrchestratore: (ws: string, p: { modello?: 'sonnet' | 'opus'; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
+        impostaOrchestratore: (ws: string, p: { modello?: string; tettoSpecialisti?: number }) => Promise<import('@shared/piano-orchestratore').VistaOrchestratore>
         rispondi: (idDomanda: string, risposta: string) => Promise<void>
         avvioAlLogin: (attivare?: boolean) => Promise<{ installato: boolean; percorso: string }>
       }

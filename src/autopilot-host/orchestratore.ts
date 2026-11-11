@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { modelloAutopilotaAmmesso } from '@shared/modelli'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
@@ -6,6 +7,7 @@ import { gitPerLeChat } from '../main/git-nel-path'
 import { POSTI_MAX } from '@shared/posti-chat'
 import { uccidiAlberi } from '@shared/uccidi-alberi'
 import { separaAvvisiNode } from '@shared/avvisi-node'
+import { eErroreDiRete } from '@shared/errori-rete'
 import { NON_EREDITATE } from '../pty-host/pty-manager'
 import { applicaRiga, flussoVuoto, specialistiAlLavoro, type EffettoFlusso, type StatoFlusso } from '@shared/flusso-orchestratore'
 import type { ImpostazioniOrchestratore, RigaDialogo } from './orchestratore-store'
@@ -81,6 +83,13 @@ export const INATTIVO_MS = 10 * 60_000
 export const SILENZIO_SPECIALISTA_MS = 20 * 60_000
 /** Un turno senza nessuna riga in uscita per tanto (fuori da un permesso in attesa) è appeso: si uccide e si riprova. */
 export const TURNO_MUTO_MS = 20 * 60_000
+/** Rete assente: la prima attesa prima di riprovare, che raddoppia a ogni errore fino al tetto. */
+export const RIPROVA_RETE_MS = 30_000
+export const RIPROVA_RETE_MAX_MS = 10 * 60_000
+/** Altro guasto (processo, risposta vuota, strumento, uscita inattesa): il primo si riprova subito, poi 30 s, 1, 2, 5 min, poi 5 min fissi. */
+export const RIPROVA_GUASTO_PASSI_MS = [30_000, 60_000, 120_000, 300_000]
+export const attesaGuastoMs = (n: number): number => RIPROVA_GUASTO_PASSI_MS[Math.min(n - 2, RIPROVA_GUASTO_PASSI_MS.length - 1)] ?? 300_000
+const tra = (ms: number): string => (ms < 60_000 ? `${Math.round(ms / 1000)} s` : `${Math.round(ms / 60_000)} min`)
 /** Lo strumento MCP che risponde alle richieste di permesso. */
 export const STRUMENTO_PERMESSO = 'mcp__sierradeck__permesso'
 
@@ -267,6 +276,10 @@ export type DipendenzeOrchestratore = {
   inattivoMs?: number
   /** Il cane da guardia: un turno senza righe per tanto si dà per appeso. */
   mutoMs?: number
+  /** Attesa prima di riprovare dopo l'n-esimo errore di rete di fila (n da 1): cresce, ha un tetto. */
+  riprovaReteMs?: (n: number) => number
+  /** Attesa prima di riprovare dopo l'n-esimo guasto di fila non di rete (n da 2: il primo riprova subito). */
+  riprovaGuastoMs?: (n: number) => number
   /** Nicholas sta decidendo un permesso per questo workspace: il silenzio è giusto, il cane aspetta. */
   attendeNicholas?: (ws: string) => boolean
 }
@@ -309,8 +322,10 @@ type StatoWs = {
   /** Quello che il turno in corso ha portato: torna in attesa se il processo muore. */
   inviati?: { messaggi: MessaggioUtente[]; eventi: EventoOrchestratore[] }
   ruota: boolean
-  /** Guasti di fila: dopo il secondo non si riprova da soli. */
+  /** Guasti di fila: dal secondo si aspetta sempre di più, senza fermarsi mai. */
   tentativi: number
+  /** Dopo un guasto si aspetta (backoff) prima del turno dopo. */
+  riprova?: ReturnType<typeof setTimeout>
   /** La sessione persa si è già rifatta una volta. */
   persa: boolean
   /** Il cane da guardia del turno: riparte a ogni riga. */
@@ -325,6 +340,8 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   const soglia = d.sogliaRotazione ?? ROTAZIONE_TOKEN
   const inattivoMs = d.inattivoMs ?? INATTIVO_MS
   const mutoMs = d.mutoMs ?? TURNO_MUTO_MS
+  const riprovaReteMs = d.riprovaReteMs ?? ((n: number): number => Math.min(RIPROVA_RETE_MAX_MS, RIPROVA_RETE_MS * 2 ** (n - 1)))
+  const riprovaGuastoMs = d.riprovaGuastoMs ?? attesaGuastoMs
   const nuova = d.nuovaSessione ?? ((): string => randomUUID())
   const adesso = d.adesso ?? ((): string => new Date().toISOString())
   const ambiente = d.ambiente ?? ((t: number) => ambienteOrchestratore(process.env, t))
@@ -337,7 +354,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
   }
   const inTurno = (s: StatoWs): boolean => s.proc !== undefined && s.flusso.inTurno
   const turniPc = (): number => [...stati.values()].filter(inTurno).length
-  const pronto = (s: StatoWs): boolean => !inTurno(s) && (s.messaggi.length > 0 || (s.eventiPronti && s.eventi.length > 0))
+  const pronto = (s: StatoWs): boolean => !inTurno(s) && s.riprova === undefined && (s.messaggi.length > 0 || (s.eventiPronti && s.eventi.length > 0))
   const forseQuiete = (): void => {
     if (turniPc() > 0 || [...stati.values()].some(pronto)) return
     const a = attese
@@ -354,9 +371,33 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     }
     forseQuiete()
   }
+  /** Quello che il turno portava torna in testa all'attesa (il processo è morto o il turno è fallito). */
+  const rimettiInAttesa = (s: StatoWs): void => {
+    const persi = s.inviati
+    s.inviati = undefined
+    if (persi === undefined) return
+    s.messaggi = [...persi.messaggi, ...s.messaggi]
+    s.eventi = [...persi.eventi, ...s.eventi]
+    if (s.eventi.length > 0) s.eventiPronti = true
+  }
   const metti = (ws: string): void => {
     if (!fila.includes(ws)) fila.push(ws)
     avanza()
+  }
+  /**
+   * Un turno è fallito (messaggi già rimessi in attesa): si conta il guasto e si riparte da soli.
+   * Il primo guasto non di rete riprova subito; poi l'attesa cresce (con un tetto), mai uno stop.
+   * Nicholas ne vede una riga sola («riprovo fra N min»), senza domande.
+   */
+  const guasto = (ws: string, s: StatoWs, motivo: string, rete: boolean): void => {
+    s.tentativi += 1
+    const attesa = rete ? riprovaReteMs(s.tentativi) : s.tentativi < 2 ? 0 : riprovaGuastoMs(s.tentativi)
+    d.errore(ws, attesa > 0 ? `${motivo} — riprovo fra ${tra(attesa)}` : motivo)
+    if (s.riprova !== undefined) { clearTimeout(s.riprova); s.riprova = undefined }
+    if (attesa > 0) {
+      s.riprova = setTimeout(() => { s.riprova = undefined; metti(ws) }, attesa)
+      s.riprova.unref?.()
+    } else metti(ws)
   }
 
   const spegniSe = (ws: string, s: StatoWs, perche: string): void => {
@@ -383,16 +424,11 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       s.cane = undefined
       if (s.proc === undefined || !inTurno(s)) return
       if (d.attendeNicholas?.(ws) === true) { armaCane(ws, s); return }
-      const persi = s.inviati
-      s.inviati = undefined
-      if (persi !== undefined) { s.messaggi = [...persi.messaggi, ...s.messaggi]; s.eventi = [...persi.eventi, ...s.eventi]; if (s.eventi.length > 0) s.eventiPronti = true }
+      rimettiInAttesa(s)
       const minuti = Math.round(mutoMs / 60_000)
       console.error(`[orchestratore] ${ws} — turno appeso: nessuna riga da ${minuti} minuti`)
       spegniSe(ws, s, `turno appeso (nessuna riga da ${minuti} minuti)`)
-      s.tentativi += 1
-      d.errore(ws, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato${s.tentativi < 2 ? ' e riparto' : ''}`)
-      if (s.tentativi < 2) metti(ws)
-      else avanza()
+      guasto(ws, s, `il turno era appeso (nessuna risposta dalla CLI da ${minuti} minuti): l’ho fermato`, false)
     }, mutoMs)
     s.cane.unref?.()
   }
@@ -418,11 +454,16 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
         if (e.costo.contesto > 0) d.cambiaImpostazioni(ws, (i) => ({ ...i, contesto: e.costo.contesto }))
         if (e.costo.contesto > soglia) s.ruota = true
       } else if (e.tipo === 'risposta') {
-        s.inviati = undefined
-        s.tentativi = 0
-        s.persa = false
-        if (e.errore !== undefined) d.errore(ws, e.errore)
-        else if (e.testo !== '') d.risposta(ws, e.testo)
+        if (e.errore !== undefined) {
+          // Il turno è fallito: i messaggi non si perdono, e si riparte da soli con attesa crescente.
+          rimettiInAttesa(s)
+          guasto(ws, s, e.errore, eErroreDiRete(e.errore))
+        } else {
+          s.inviati = undefined
+          s.tentativi = 0
+          s.persa = false
+          if (e.testo !== '') d.risposta(ws, e.testo)
+        }
       }
     }
     try { d.flusso?.(ws, effetti, s.flusso) } catch (err) { console.error(`[orchestratore] ${ws} — effetti del flusso:`, err) }
@@ -438,7 +479,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
     const nuovaSess = imp.sessione === undefined
     const id = imp.sessione ?? nuova()
     const args = argomentiOrchestratore({
-      modello: imp.modello === 'sonnet' ? 'sonnet' : MODELLO_ORCHESTRATORE,
+      modello: modelloAutopilotaAmmesso(imp.modello) && imp.modello !== 'opus' ? imp.modello : MODELLO_ORCHESTRATORE,
       sessione: { id, nuova: nuovaSess },
       mcpConfig: ctx.mcpConfig, agenti: ctx.agenti, impostazioni: ctx.impostazioniCli
     })
@@ -463,11 +504,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       const eraInTurno = s.flusso.inTurno
       s.flusso = { ...s.flusso, inTurno: false, specialisti: s.flusso.specialisti.map((x) => (specialistiAlLavoro({ ...s.flusso, specialisti: [x] }).length > 0 ? { ...x, stato: 'fermato' as const, fine: adesso() } : x)) }
       if (s.inattivo !== undefined) { clearTimeout(s.inattivo); s.inattivo = undefined }
-      const persi = s.inviati
-      s.inviati = undefined
-      if (eraInTurno || persi !== undefined) {
+      if (eraInTurno || s.inviati !== undefined) {
         // Quello che il turno portava non si perde: torna in attesa.
-        if (persi !== undefined) { s.messaggi = [...persi.messaggi, ...s.messaggi]; s.eventi = [...persi.eventi, ...s.eventi]; if (s.eventi.length > 0) s.eventiPronti = true }
+        rimettiInAttesa(s)
         // Gli avvisi di Node (DeprecationWarning…) non sono il motivo dell'uscita.
         const motivo = separaAvvisiNode(stderr).resto.slice(-400) || `uscito con ${String(codice)}`
         if (!nuovaSess && sessionePersa(motivo) && !s.persa) {
@@ -476,11 +515,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
           metti(ws)
           return
         }
-        s.tentativi += 1
-        d.errore(ws, motivo)
-        // Un secondo guasto di fila non riparte da solo: aspetta il prossimo messaggio.
-        if (s.tentativi < 2) metti(ws)
-        else { const fermo = s.messaggi.length; s.eventiPronti = false; if (fermo === 0) s.eventi = [] }
+        guasto(ws, s, motivo, eErroreDiRete(motivo))
       }
       try { d.flusso?.(ws, [], s.flusso) } catch { /* solo la vista */ }
       avanza()
@@ -553,6 +588,9 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       if (s === undefined) return
       if (s.timer !== undefined) clearTimeout(s.timer)
       if (s.inattivo !== undefined) clearTimeout(s.inattivo)
+      if (s.riprova !== undefined) clearTimeout(s.riprova)
+      s.riprova = undefined
+      s.tentativi = 0
       s.messaggi = []
       s.eventi = []
       s.eventiPronti = false
@@ -566,6 +604,7 @@ export function creaOrchestratore(d: DipendenzeOrchestratore): Orchestratore {
       for (const [ws, s] of stati) {
         if (s.timer !== undefined) clearTimeout(s.timer)
         if (s.inattivo !== undefined) clearTimeout(s.inattivo)
+        if (s.riprova !== undefined) clearTimeout(s.riprova)
         spegniSe(ws, s, 'il servizio si spegne')
       }
     }

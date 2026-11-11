@@ -188,6 +188,16 @@ describe('autopilota unico nel servizio', () => {
     expect(orch.impostazioni('Lavoro').sessione).toBe('sess-1')
   })
 
+  it('un errore di rete dell’API non è un ERRORE nel registro: avviso, il messaggio resta in attesa', async () => {
+    zitto()
+    const avviso = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await avviaServizio([ap()])
+    migra()
+    processi[0]!.emetti({ type: 'result', is_error: true, result: "API Error: Can't reach the API server — check your internet or DNS (ENOTFOUND)", total_cost_usd: 0, session_id: 'sess-1', usage: { input_tokens: 5 } })
+    expect(vi.mocked(console.error).mock.calls.some((c) => String(c[0]).includes('turno non riuscito'))).toBe(false)
+    expect(avviso.mock.calls.some((c) => String(c[0]).includes('turno non riuscito') && String(c[0]).includes('ENOTFOUND'))).toBe(true)
+  })
+
   it('lo Stop con gli id di prima arriva alla chat adottata: evento, niente modello', async () => {
     zitto()
     await avviaServizio([ap()])

@@ -161,7 +161,7 @@ function motore(over: Partial<Parameters<typeof creaOrchestratore>[0]> = {}): { 
 afterEach(() => { vi.useRealTimers() })
 
 describe('il motore, dopo la prova dal vivo', () => {
-  it('cane da guardia: un turno muto per 20 minuti si spegne, il messaggio torna in attesa e riparte una volta', () => {
+  it('cane da guardia: un turno muto per 20 minuti si spegne, il messaggio torna in attesa e riparte subito, poi aspetta di più', () => {
     vi.useFakeTimers()
     const { o, processi, errori } = motore()
     o.messaggio('ws', { quando: '2026-10-30T08:00:00.000Z', testo: 'fai la somma' })
@@ -175,10 +175,14 @@ describe('il motore, dopo la prova dal vivo', () => {
     expect(errori.join(' ')).toContain('appeso')
     expect(processi).toHaveLength(2)
     expect(processi[1]!.scritte[0]).toContain('fai la somma')
-    // Il secondo turno appeso non riparte da solo.
-    vi.advanceTimersByTime(21 * 60_000)
+    // Il secondo turno appeso: attesa di 30 s, poi riparte da solo (mai fermo).
+    vi.advanceTimersByTime(19 * 60_000 + 10_000)
     expect(processi[1]!.ucciso).toBe(true)
     expect(processi).toHaveLength(2)
+    expect(errori.at(-1)).toContain('riprovo fra 30 s')
+    vi.advanceTimersByTime(30_000)
+    expect(processi).toHaveLength(3)
+    expect(processi[2]!.scritte[0]).toContain('fai la somma')
   })
 
   it('cane da guardia: mentre Nicholas decide un permesso il silenzio è giusto', () => {

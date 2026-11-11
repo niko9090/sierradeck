@@ -265,7 +265,7 @@ export type VistaOrchestratore = {
   workspace: string
   /** Assente finché nel workspace non si scrive il primo messaggio. */
   autopilota?: string
-  modello: 'sonnet' | 'opus'
+  modello: string
   tettoSpecialisti: number
   percento?: number
   calo?: CaloPercento

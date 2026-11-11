@@ -166,6 +166,7 @@ import { ascoltaSenzaFinestra, smettiSenzaFinestra, impostaAdozioneSottofondo, a
 import { statoDi as statoWorkspaceDi, type PrimaDiEliminare } from './ipc'
 import { impostaAllaRiapertura, impostaGestioneSessioni } from './ipc'
 import { impostaFiduciaPrimaDelLancio } from './ipc'
+import { avviaScoperta } from './modelli-scoperti'
 import { cartellaQualificata, cartelleAutopiloti, creaFiduciaNelTerminale, fidatiPrimaDiAvviare, type CartelleNote } from './fiducia-cartella'
 import { creaChiuseStore } from './chiuse-store'
 import { leggiChiuse, rigaChiusaACasa, rigaNonApertaACasa, type ChiusaDaTe } from '@shared/chiuse'
@@ -1250,6 +1251,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady()
     .then(() => {
+      // I modelli nuovi (k-131): scoperti dall'API e tenuti in cache; senza rete resta l'elenco fisso.
+      try { avviaScoperta(app.getPath('userData')) } catch (err) { console.warn('[modelli] scoperta non avviata:', err) }
       // La scheda video (k-168): una lettura, senza bloccare l'avvio.
       void app.getGPUInfo('basic').catch(() => undefined).then((info) => {
         gpuInfoQui = info

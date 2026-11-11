@@ -2,6 +2,8 @@ import { annotaEliminato, annotaRinominato } from './workspace-ritrova'
 import { elencoRecuperoWorkspace, mettiWorkspaceNelRecupero, recuperoLeggibile, ripristinaWorkspace } from './workspace-recupero-file'
 import { leggiRecentiWorkspace, rinominaRecenteWorkspace, toccaRecenteWorkspace } from './workspace-recenti-file'
 import { creaRichiestaUnita } from '@shared/richiesta-unita'
+import { modelloAutopilotaAmmesso, modelloValido } from '@shared/modelli'
+import { elencoModelliVivo } from './modelli-scoperti'
 import { finestreDiChat } from './finestre-pannello'
 import { app, ipcMain, screen, shell, BrowserWindow } from 'electron'
 import { diffDellAutopilota, fileDellAutopilota } from './file-autopilota'
@@ -1640,6 +1642,7 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
     return client.unisciCoda(wsCoda(ws), { ids, testo: o.testo, punti, perche: o.perche, ...(typeof o.titolo === 'string' ? { titolo: o.titolo } : {}) })
   })
   // P3: l'autopilota del workspace (dal 30/10 l'unico, sempre acceso).
+  ipcMain.handle('modelli:elenco', () => elencoModelliVivo())
   ipcMain.handle('autopilota:orchestratore', async (_e, ws: unknown) => client.orchestratore(wsCoda(ws)).catch(() => undefined))
   ipcMain.handle('autopilota:specialista', async (_e, ws: unknown, id: unknown) => (typeof id === 'string' && id !== '' ? client.specialista(wsCoda(ws), id).catch(() => undefined) : undefined))
   // k-48: la lista d'attesa degli specialisti: la vista, la priorità di una voce, togliere una voce.
@@ -1649,7 +1652,7 @@ export function registerAutopilotaIpc(client: ClientAutopilota, log?: (m: string
   ipcMain.handle('autopilota:impostaOrchestratore', async (_e, ws: unknown, p: unknown) => {
     const o = (typeof p === 'object' && p !== null ? p : {}) as Record<string, unknown>
     return client.impostaOrchestratore(wsCoda(ws), {
-      ...(o.modello === 'sonnet' || o.modello === 'opus' ? { modello: o.modello } : {}),
+      ...(modelloValido(o.modello) && modelloAutopilotaAmmesso(o.modello) ? { modello: o.modello } : {}),
       ...(typeof o.tettoSpecialisti === 'number' && Number.isInteger(o.tettoSpecialisti) ? { tettoSpecialisti: o.tettoSpecialisti } : {})
     })
   })
