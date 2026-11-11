@@ -81,7 +81,7 @@ export type Giudizio = { ok: true } | { ok: false; motivo: string; pcCarico?: tr
  * dalle cartelle in questo progetto (il pavimento resta); `concesso`, il suo
  * sì per le altre azioni protette.
  */
-export type OpzioniCancellazioni = { consenso?: ConsensoCancellazione; ambiente?: AmbienteCancellazione; sempre?: boolean; concesso?: Concesso }
+export type OpzioniCancellazioni = { consenso?: ConsensoCancellazione; ambiente?: AmbienteCancellazione; sempre?: boolean; concesso?: Concesso; /** La porta del servizio vero (`parlaPerNicholas`). */ portaServizio?: number }
 
 /**
  * Si puo' fare? `sueChat` sono gli id delle chat di questo autopilota: chiudere
@@ -396,6 +396,11 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[], opz: 
   const comando = typeof input.command === 'string' ? input.command : ''
   if (comando === '') return { ok: true }
 
+  // 11/11: la parola di Nicholas (risposte, impostazioni, limiti, messaggi) non la dice un agente. Nessun permesso
+  // lo sblocca: è quello che regge tutti gli altri permessi.
+  if (parlaPerNicholas(comando, opz.portaServizio)) {
+    return { ok: false, motivo: 'SierraDeck blocca questa chiamata: rispondere alle domande, cambiare impostazioni e limiti o scrivere nel dialogo al posto di Nicholas lo fa solo Nicholas, dal programma. Non c’è un permesso che lo sblocchi, e non va aggirato: se ti serve una sua decisione, la chiede l’autopilota (chiedi_utente o chiedi_consenso).' }
+  }
   // 11/11: con il sì di Nicholas per questo comando preciso (o «sempre» nel progetto) la chiamata passa.
   const rotta = rottaVietata(comando)
   if (rotta !== undefined && opz.concesso?.('cose-altrui', chiaveComando(comando)) !== true) {
@@ -403,6 +408,24 @@ export function giudicaStrumento(r: RichiestaStrumento, ammesse: string[], opz: 
   }
 
   return giudicaCancellazioni(comando, cwd, ammesse, nome === 'PowerShell', opz)
+}
+
+/** Le rotte del servizio che portano la parola di Nicholas: la risposta a una domanda, le impostazioni, i limiti, un messaggio nel dialogo. */
+// Contano solo dentro un indirizzo (dopo la porta, o dopo una variabile che lo porta): `docs/limiti.md` non è una rotta.
+const ROTTE_DI_NICHOLAS = /(?::\d{2,5}|\$\{?\w+\}?)(?:\/domande\/[^\s"'`/]+\/risposta|\/orchestratore\/(?:impostazioni|messaggio)|\/limiti(?![\w-])|\/stato-programma)/iu
+const CHIAMA_LA_RETE = /curl|Invoke-WebRequest|Invoke-RestMethod|\biwr\b|\birm\b|wget|fetch|http\.request|WebClient|HttpClient|urllib|requests\./iu
+
+/**
+ * **Un agente non parla per Nicholas** (11/11). I permessi nascono dalle sue
+ * risposte e dalle sue impostazioni, che arrivano al servizio per HTTP su
+ * questo PC: un comando che chiama quelle rotte si darebbe il permesso da
+ * solo. `porta` è quella del servizio vero: un'altra porta scritta per intero
+ * è un servizio di prova (chi lavora a SierraDeck lo fa), e passa.
+ */
+export function parlaPerNicholas(comando: string, porta?: number): boolean {
+  if (!CHIAMA_LA_RETE.test(comando) || !ROTTE_DI_NICHOLAS.test(comando)) return false
+  const porte = [...comando.matchAll(/(?:127\.0\.0\.1|localhost|\[::1\]):(\d{2,5})/giu)].map((m) => Number(m[1]))
+  return porta === undefined || porte.length === 0 || porte.includes(porta)
 }
 
 /** La rotta del programma che un comando chiama per fare una cosa non sua, se c'è. */

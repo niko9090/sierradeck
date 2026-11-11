@@ -1474,7 +1474,7 @@ export function creaServer(deps: Dipendenze): ServerAutopiloti {
           // 11/11: il sì di Nicholas («sempre» nel progetto, o «questa volta» per quell'azione) sblocca le azioni protette.
           const concesso = concessoDa(permessiNicholas, () => permessiDi(a), idAp)
           const gRuolo = giudicaRuolo(corpo, ruoloPre, { concesso })
-          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp), sempre: statoPermesso(permessiDi(a), 'cancellazioni') === 'sempre', concesso }) : gRuolo
+          let g = gRuolo.ok ? giudicaStrumento(corpo, cartelleDi(a), { consenso: consensiCancella.per(idAp), sempre: statoPermesso(permessiDi(a), 'cancellazioni') === 'sempre', concesso, ...(deps.porta !== undefined ? { portaServizio: deps.porta } : {}) }) : gRuolo
           // Una cancellazione fuori dalle cartelle che Nicholas potrebbe aver chiesto: la domanda la apre il programma, con i percorsi esatti.
           if (!g.ok && g.consensoPer !== undefined && g.consensoPer.length > 0) {
             const percorsi = g.consensoPer

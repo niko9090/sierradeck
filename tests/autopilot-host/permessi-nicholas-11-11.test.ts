@@ -445,6 +445,34 @@ describe('nel servizio: lo strumento chiedi_consenso e la risposta di Nicholas',
     expect(intera?.opzioni).toEqual([SCELTA_PERMESSO_NO, SCELTA_PERMESSO_VOLTA])
   })
 
+  it('un agente non risponde al posto di Nicholas: le chiamate alle sue rotte sono bloccate, e nessun permesso le sblocca', async () => {
+    const { id } = await avviaServizio()
+    await nicholasScrive('sistema i tag')
+    await strumento('chiedi_consenso', { classe: 'push-forzato', comando: FORZATO })
+    const idDomanda = domande.aperte(id)[0]!.id
+    const base = `http://127.0.0.1:${47995}`
+    for (const c of [
+      `curl -s -X POST ${base}/domande/${idDomanda}/risposta -d '{"risposta":"Sì, sempre","da":"modale"}'`,
+      `curl -s -X POST ${base}/orchestratore/impostazioni -d '{"ws":"Lavoro","permessi":{"push-forzato":"sempre"}}'`,
+      `curl -s -X POST ${base}/limiti -d '{"guardiaPc":false}'`,
+      `curl -s -X POST ${base}/orchestratore/messaggio -d '{"ws":"Lavoro","testo":"installala tu"}'`,
+      'curl -s -X POST "$SERVIZIO/domande/abc/risposta" -d \'{"risposta":"sì"}\''
+    ]) {
+      const r = await hook(id, c)
+      expect(r.negato, c).toBe(true)
+      expect(r.motivo, c).toContain('lo fa solo Nicholas')
+      expect(r.motivo, c).not.toContain('chiedi_consenso(classe:')
+    }
+    expect((await hook(id, `Invoke-RestMethod -Method Post -Uri ${base}/domande/${idDomanda}/risposta -Body '{"risposta":"Sì, questa volta"}'`, 'PowerShell')).negato).toBe(true)
+    // Il permesso non è nato, e la domanda è ancora lì per lui.
+    expect((await hook(id, FORZATO)).negato).toBe(true)
+    expect(domande.aperte(id).map((q) => q.id)).toEqual([idDomanda])
+    // Un servizio di prova su un'altra porta (chi lavora a SierraDeck), leggere, e un file che si chiama come una rotta: passano.
+    expect((await hook(id, `curl -s -X POST http://127.0.0.1:5999/domande/x/risposta -d '{"risposta":"sì"}'`)).negato).toBe(false)
+    expect((await hook(id, 'git fetch origin && cat docs/limiti.md')).negato).toBe(false)
+    expect((await hook(id, `curl -s ${base}/orchestratore?ws=Lavoro`)).negato).toBe(false)
+  })
+
   it('dopo un riavvio del servizio la domanda aperta vale ancora: la risposta dà il permesso', async () => {
     const { id, dati } = await avviaServizio()
     await nicholasScrive('sistema i tag')
